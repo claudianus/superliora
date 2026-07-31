@@ -110,6 +110,8 @@ jobs:
       - run: pnpm run check:mission-fleet-path
       - name: Cache warm KPI (50-turn mock)
         run: pnpm -C packages/agent-core run cache:warm-kpi
+      - name: Search never-empty KPI (free-only mock)
+        run: pnpm -C packages/agent-core run search:never-empty-kpi
 
   typecheck:
     runs-on: ubuntu-latest
