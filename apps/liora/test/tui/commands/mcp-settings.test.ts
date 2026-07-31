@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { showMcpSettings } from '#/tui/commands/config/mcp-settings';
+import { showMcpSettings } from '#/tui/commands/config/mcp/mcp-settings';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { showPersonaSettings } from '#/tui/commands/config/persona-settings';
+import { showPersonaSettings } from '#/tui/commands/config/persona/persona-settings';
 import {
   buildPersonaSettingsLines,
   formatActivePersonaLine,

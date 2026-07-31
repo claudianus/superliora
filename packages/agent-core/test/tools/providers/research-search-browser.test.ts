@@ -13,11 +13,11 @@ import {
 
 describe('ResearchSearchEngine browser escalate', () => {
   beforeEach(() => {
-    process.env.SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK = '1';
+    process.env['SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK'] = '1';
   });
 
   afterEach(() => {
-    delete process.env.SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK;
+    delete process.env['SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK'];
   });
 
   it('calls browser channel once when paid and free return empty', async () => {

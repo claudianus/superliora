@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { showProvidersApiSettings } from '#/tui/commands/config/providers-api-settings';
-import { showKeybindingsSettings } from '#/tui/commands/config/keybindings-settings';
+import { showProvidersApiSettings } from '#/tui/commands/config/providers/providers-api-settings';
+import { showKeybindingsSettings } from '#/tui/commands/config/keybindings/keybindings-settings';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 

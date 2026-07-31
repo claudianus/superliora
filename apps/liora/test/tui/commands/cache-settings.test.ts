@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { showCacheSettings } from '#/tui/commands/config/cache-settings';
+import { showCacheSettings } from '#/tui/commands/config/cache/cache-settings';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 import { currentTheme } from '#/tui/theme';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';

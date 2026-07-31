@@ -58,7 +58,7 @@ import { collectGitDiff } from '#/utils/git/git-diff';
 import { collectOpsGitDiffSnippetLines } from '../../features/ops-theatre/build-panes';
 
 import type { SlashCommandHost } from '../hub/dispatch';
-import { detectSearchProviderEnvKeys, detectSearchLateChannelEnv, formatSearchLateChannelOpsSuffix } from '../config/search-status';
+import { detectSearchProviderEnvKeys, detectSearchLateChannelEnv, formatSearchLateChannelOpsSuffix } from '../config/search/search-status';
 
 const OPS_REFRESH_MS = 2_000;
 const OPS_REFRESH_MAX_TICKS = 90; // ~3 minutes

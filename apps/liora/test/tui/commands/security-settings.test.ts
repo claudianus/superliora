@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { showSecuritySettings } from '#/tui/commands/config/security-settings';
+import { showSecuritySettings } from '#/tui/commands/config/security/security-settings';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 

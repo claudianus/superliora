@@ -9,7 +9,7 @@ import {
   loadProvidersApiGlance,
   resolveProvidersApiSessionGlance,
 } from '#/tui/utils/provider/providers-api-glance';
-import { SEARCH_PREFER_XAI_TIP } from '#/tui/commands/config/search-status';
+import { SEARCH_PREFER_XAI_TIP } from '#/tui/commands/config/search/search-status';
 
 describe('providers-api-glance', () => {
   it('detects configured provider env keys without echoing values', () => {

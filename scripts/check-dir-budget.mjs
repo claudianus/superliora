@@ -28,8 +28,6 @@ const FAIL_AT = 40;
  * Paths are repo-relative with trailing slash omitted.
  */
 const FAIL_ALLOWLIST = new Set([
-  // Settings §9.2 glance modules — peel into domain folders in a follow-up.
-  'apps/liora/src/tui/commands/config',
 ]);
 
 const ROOTS = [

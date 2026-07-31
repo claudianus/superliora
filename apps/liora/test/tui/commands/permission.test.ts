@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { handlePermissionCommand, showPermissionPicker } from '#/tui/commands/config/permission';
+import { handlePermissionCommand, showPermissionPicker } from '#/tui/commands/config/permission/permission';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 
 function makeHost(mode: 'manual' | 'auto' | 'yolo' = 'manual') {

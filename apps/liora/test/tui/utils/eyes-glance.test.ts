@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { showEyesSettings } from '#/tui/commands/config/eyes-settings';
+import { showEyesSettings } from '#/tui/commands/config/eyes/eyes-settings';
 import {
   browserEyeFromSetupResult,
   computerEyeFromCuaStatus,

@@ -5,7 +5,7 @@
 
 import type { ModelAlias, ProviderRouteStatus } from '@superliora/sdk';
 
-import { SEARCH_PREFER_XAI_TIP } from '../../commands/config/search-status';
+import { SEARCH_PREFER_XAI_TIP } from '../../commands/config/search/search-status';
 import { modelRouteDisplayName } from '../model/model-route-notice';
 import { formatOpsRouteLine } from '../model/route-glance';
 import { oauthAccountsResilienceTips } from '../never-halt/auth-glance';

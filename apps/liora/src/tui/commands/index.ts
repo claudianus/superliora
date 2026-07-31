@@ -16,17 +16,17 @@ export {
   redactBenchStatusText,
 } from './bench/bench';
 export { handleBtwCommand } from './btw';
-export { handleCompactCommand, handlePlanCommand } from './config/plan';
-export { handleAppearanceCommand } from './config/appearance';
-export { handleContextCommand, showContextWorkingSetPicker } from './config/context';
-export { handleEditorCommand, handleThemeCommand } from './config/editor-theme';
-export { handleModelCommand, showModelPicker } from './config/model';
-export { handlePermissionCommand, handleYoloCommand, showPermissionPicker } from './config/permission';
-export { handleThinkingCommand } from './config/thinking';
-export { showExperimentsPanel } from './config/experiments';
+export { handleCompactCommand, handlePlanCommand } from './config/plan/plan';
+export { handleAppearanceCommand } from './config/appearance/appearance';
+export { handleContextCommand, showContextWorkingSetPicker } from './config/context/context';
+export { handleEditorCommand, handleThemeCommand } from './config/appearance/editor-theme';
+export { handleModelCommand, showModelPicker } from './config/model/model';
+export { handlePermissionCommand, handleYoloCommand, showPermissionPicker } from './config/permission/permission';
+export { handleThinkingCommand } from './config/thinking/thinking';
+export { showExperimentsPanel } from './config/experiments/experiments';
 export { showSettingsSelector, showHarnessPanel } from './config/settings';
-export { showToolsInventory } from './config/harness-tools';
-export { showHarnessEyesReadiness } from './config/eyes-settings';
+export { showToolsInventory } from './config/harness/harness-tools';
+export { showHarnessEyesReadiness } from './config/eyes/eyes-settings';
 export { handleSwarmCommand } from './swarm/swarm';
 export { handleOrchestratorCommand } from './swarm/orchestrator';
 export { buildUltraworkPrompt, parseUltraworkCommand } from '#/tui/utils/mission/mission-contract';

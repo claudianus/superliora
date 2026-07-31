@@ -183,11 +183,11 @@ describe('ChromeExtensionSearchChannel', () => {
 
 describe('ResearchSearchEngine chrome extension escalate', () => {
   beforeEach(() => {
-    process.env.SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK = '1';
+    process.env['SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK'] = '1';
   });
 
   afterEach(() => {
-    delete process.env.SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK;
+    delete process.env['SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK'];
   });
   it('escalates to Ch5 after browser returns empty', async () => {
     const browserSearch = vi.fn<BrowserSearchChannel['search']>().mockResolvedValue([]);

@@ -28,18 +28,18 @@ import { formatErrorMessage } from '../../utils/event-payload';
 import { handleAccountsCommand } from '../auth/accounts';
 import { handleLoginCommand, handleLogoutCommand } from '../auth/login';
 import { handleBtwCommand } from '../btw';
-import { handleAutoCommand, handlePermissionCommand, handleYoloCommand, showPermissionPicker } from '../config/permission';
-import { handleAppearanceCommand } from '../config/appearance';
-import { handleCompactCommand, handlePlanCommand } from '../config/plan';
-import { handleContextCommand } from '../config/context';
-import { handleEditorCommand, handleThemeCommand } from '../config/editor-theme';
-import { handleMediaCommand } from '../config/media';
-import { handleModelCommand, showModelPicker } from '../config/model';
-import { handleThinkingCommand } from '../config/thinking';
-import { showExperimentsPanel } from '../config/experiments';
+import { handleAutoCommand, handlePermissionCommand, handleYoloCommand, showPermissionPicker } from '../config/permission/permission';
+import { handleAppearanceCommand } from '../config/appearance/appearance';
+import { handleCompactCommand, handlePlanCommand } from '../config/plan/plan';
+import { handleContextCommand } from '../config/context/context';
+import { handleEditorCommand, handleThemeCommand } from '../config/appearance/editor-theme';
+import { handleMediaCommand } from '../config/media/media';
+import { handleModelCommand, showModelPicker } from '../config/model/model';
+import { handleThinkingCommand } from '../config/thinking/thinking';
+import { showExperimentsPanel } from '../config/experiments/experiments';
 import { showSettingsSelector, showHarnessPanel } from '../config/settings';
-import { showHarnessEyesReadiness } from '../config/eyes-settings';
-import { showToolsInventory } from '../config/harness-tools';
+import { showHarnessEyesReadiness } from '../config/eyes/eyes-settings';
+import { showToolsInventory } from '../config/harness/harness-tools';
 import { handleGoalCommand } from '../goal';
 import { handleImproveHarnessCommand } from '../improve-harness';
 import { handleCronCommand } from '../cron';
@@ -95,13 +95,13 @@ export { handleLoginCommand, handleLogoutCommand } from '../auth/login';
 export { handleBenchCommand } from '../bench/bench';
 export { handleBtwCommand } from '../btw';
 export { handleAddDirCommand } from '../session/add-dir';
-export { handleAutoCommand, handlePermissionCommand, handleYoloCommand, showPermissionPicker } from '../config/permission';
-export { handleAppearanceCommand } from '../config/appearance';
-export { handleCompactCommand, handlePlanCommand } from '../config/plan';
-export { handleEditorCommand, handleThemeCommand } from '../config/editor-theme';
-export { handleModelCommand, showModelPicker } from '../config/model';
-export { handleThinkingCommand } from '../config/thinking';
-export { showExperimentsPanel } from '../config/experiments';
+export { handleAutoCommand, handlePermissionCommand, handleYoloCommand, showPermissionPicker } from '../config/permission/permission';
+export { handleAppearanceCommand } from '../config/appearance/appearance';
+export { handleCompactCommand, handlePlanCommand } from '../config/plan/plan';
+export { handleEditorCommand, handleThemeCommand } from '../config/appearance/editor-theme';
+export { handleModelCommand, showModelPicker } from '../config/model/model';
+export { handleThinkingCommand } from '../config/thinking/thinking';
+export { showExperimentsPanel } from '../config/experiments/experiments';
 export { showSettingsSelector } from '../config/settings';
 export { handleSwarmCommand } from '../swarm/swarm';
 export { handleUltraworkCommand, handleUltraworkModeToggle } from '../ultrawork/ultrawork';
@@ -375,7 +375,7 @@ async function handleBuiltInSlashCommand(
       handleCronCommand(host, args);
       return;
     case 'mcp':
-      void import('../config/mcp-manage').then(({ showMcpManagePanel }) => showMcpManagePanel(host));
+      void import('../config/mcp/mcp-manage').then(({ showMcpManagePanel }) => showMcpManagePanel(host));
       return;
     case 'tools':
       void showToolsInventory(host);
@@ -420,7 +420,7 @@ async function handleBuiltInSlashCommand(
       await handlePersonaCommand(host, args);
       return;
     case 'profile':
-      await import('../config/agent-profile').then(({ handleProfileCommand }) =>
+      await import('../config/harness/agent-profile').then(({ handleProfileCommand }) =>
         handleProfileCommand(host, args),
       );
       return;

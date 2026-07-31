@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { showIndexSettings } from '#/tui/commands/config/index-settings';
+import { showIndexSettings } from '#/tui/commands/config/index/index-settings';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 

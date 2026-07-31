@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { showBenchDiagnosticsSettings } from '#/tui/commands/config/bench-diagnostics-settings';
+import { showBenchDiagnosticsSettings } from '#/tui/commands/config/diagnostics/bench-diagnostics-settings';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 

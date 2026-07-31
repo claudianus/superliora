@@ -110,7 +110,7 @@ const AGENT_SWARM_LEGACY_DESCRIPTION = `Legacy compat alias of Fleet. Prefer Fle
 
 /** Primary public swarm fan-out tool — model-facing name is Fleet. */
 export class AgentSwarmTool implements BuiltinTool<AgentSwarmToolInput> {
-  readonly name = FLEET_TOOL_NAME as const;
+  readonly name: 'Fleet' | 'AgentSwarm' = FLEET_TOOL_NAME;
   readonly description = AGENT_SWARM_DESCRIPTION;
   readonly parameters: Record<string, unknown> = toInputJsonSchema(AgentSwarmToolInputSchema);
 
@@ -347,7 +347,7 @@ function escapeXmlAttribute(value: string): string {
 
 /** Hide-legacy journal replay alias — same implementation as {@link AgentSwarmTool}. */
 export class AgentSwarmLegacyTool extends AgentSwarmTool {
-  override readonly name = AGENT_SWARM_LEGACY_TOOL_NAME as const;
+  override readonly name: 'Fleet' | 'AgentSwarm' = AGENT_SWARM_LEGACY_TOOL_NAME;
   override readonly description = AGENT_SWARM_LEGACY_DESCRIPTION;
 }
 

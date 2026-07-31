@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
-import { showAppearanceSettings } from '#/tui/commands/config/appearance-settings';
+import { showAppearanceSettings } from '#/tui/commands/config/appearance/appearance-settings';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 import { currentTheme, darkColors, lightColors } from '#/tui/theme';

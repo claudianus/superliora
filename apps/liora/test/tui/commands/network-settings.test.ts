@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { showNetworkSettings } from '#/tui/commands/config/network-settings';
+import { showNetworkSettings } from '#/tui/commands/config/network/network-settings';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 

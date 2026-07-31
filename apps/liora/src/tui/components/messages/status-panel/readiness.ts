@@ -1,5 +1,5 @@
 import { renderRendererRatioProgressBar } from '#/tui/renderer';
-import { CORE_WAIST_STATUS_HINT } from '#/tui/commands/config/agent-profile';
+import { CORE_WAIST_STATUS_HINT } from '#/tui/commands/config/harness/agent-profile';
 import { safeUsageRatio } from '#/utils/usage/usage-format';
 
 import { contextValues } from './context';

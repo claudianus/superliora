@@ -23,11 +23,11 @@ describe('searchChannelScopeId', () => {
 
 describe('ResearchSearchEngine circuit breakers', () => {
   beforeEach(() => {
-    process.env.SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK = '1';
+    process.env['SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK'] = '1';
   });
 
   afterEach(() => {
-    delete process.env.SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK;
+    delete process.env['SUPERLIORA_ALLOW_DISABLE_FREE_FALLBACK'];
   });
   it('records paid provider hard fail (429 cooldown) on injected registry', async () => {
     let now = 1_000;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { showThemeSettings } from '#/tui/commands/config/theme-settings';
+import { showThemeSettings } from '#/tui/commands/config/appearance/theme-settings';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 import { currentTheme, darkColors, lightColors } from '#/tui/theme';
 import {
