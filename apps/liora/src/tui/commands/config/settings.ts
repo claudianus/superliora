@@ -72,7 +72,7 @@ function handleSettingsSelection(host: SlashCommandHost, value: SettingsSelectio
     case 'model-fallback': void showModelFallbackPicker(host); return;
     case 'permission': showPermissionPicker(host); return;
     case 'providers-api': showProvidersApiSettings(host); return;
-    case 'security': void showSecuritySettings(host); return;
+    case 'security': showSecuritySettings(host); return;
     case 'accounts': void handleAccountsCommand(host); return;
     case 'keybindings': showKeybindingsSettings(host); return;
     case 'context': showContextSettings(host); return;

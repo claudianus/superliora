@@ -7,6 +7,9 @@ import {
   formatPermissionModeLine,
   formatSandboxProfileLine,
   formatWorkspaceSandboxLines,
+  SECURITY_MCP_ALLOWLIST_TIP,
+  SECURITY_REDACTION_TIP,
+  SECURITY_SANDBOX_TIP,
   securityNavigationLines,
   securitySecretRedactionLines,
   securitySensorLines,
@@ -33,11 +36,12 @@ describe('security-glance', () => {
     expect(line).toContain('2 pending');
   });
 
-  it('lists workspace root, sandbox profile, and extra dirs', () => {
+  it('lists workspace root, sandbox profile, extra dirs, and root hints', () => {
     const lines = formatWorkspaceSandboxLines('/tmp/project', ['/tmp/extra'], 'read-only');
     expect(lines[0]).toContain('/tmp/project');
     expect(lines.some((l) => l.includes('Extra roots'))).toBe(true);
     expect(lines.some((l) => l.includes('Sandbox profile: read-only'))).toBe(true);
+    expect(lines.some((l) => l.includes('/add-dir'))).toBe(true);
     expect(formatSandboxProfileLine('workspace')).toContain('stay inside workspace roots');
   });
 
@@ -64,6 +68,14 @@ describe('security-glance', () => {
     expect(lines[0]).toContain('2 connected');
     expect(lines[0]).toContain('1 disabled');
     expect(lines.some((l) => l.includes('enabledTools allowlist'))).toBe(true);
+    expect(lines.some((l) => l.includes('disabledTools wins'))).toBe(true);
+    expect(lines.some((l) => l.includes('Scopes merge'))).toBe(true);
+  });
+
+  it('exports compact sandbox, redaction, and MCP allowlist tips', () => {
+    expect(SECURITY_SANDBOX_TIP).toContain('custom.sandboxProfile');
+    expect(SECURITY_REDACTION_TIP).toContain('redactSecretsInText');
+    expect(SECURITY_MCP_ALLOWLIST_TIP).toContain('enabledTools');
   });
 
   it('lists verification sensor tips including PostToolUse RunProjectChecks', () => {
@@ -98,6 +110,8 @@ describe('security-glance', () => {
     expect(text).toContain('Settings → Network / Proxy');
     expect(text).toContain('redactSecretsInText');
     expect(text).toContain('redteam-soft');
+    expect(text).toContain('disabledTools wins');
+    expect(text).toContain('redactSecretsInText before transcript');
     for (const tip of securitySecretRedactionLines()) {
       expect(lines).toContain(tip);
     }

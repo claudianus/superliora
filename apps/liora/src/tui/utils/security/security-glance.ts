@@ -47,6 +47,18 @@ const SANDBOX_PROFILE_TIPS: Readonly<Record<SecuritySandboxProfile, string>> = {
   off: 'Legacy profile — absolute paths outside roots are allowed (sensitive paths still blocked).',
 };
 
+/** Compact path-sandbox tip — Settings → Security picker + status panel. */
+export const SECURITY_SANDBOX_TIP =
+  'Sandbox profiles off | workspace | read-only — workspace denies paths outside roots; read-only blocks writes; off allows legacy absolute paths (sensitive paths still blocked). Set via session metadata custom.sandboxProfile · /add-dir for extra roots.';
+
+/** Compact secrets/redaction tip — agent-core SSOT. */
+export const SECURITY_REDACTION_TIP =
+  `${redactSecretsStatusLine()} · ${REDTEAM_SOFT_SUITE_TIP} · Bash hard-blocks cat/source/base64 of secrets · Glob/Grep filter .env even with includeIgnored · never commit keys — use env vars or Settings → Accounts.`;
+
+/** Compact MCP tool-allowlist tip — mcp.json scopes. */
+export const SECURITY_MCP_ALLOWLIST_TIP =
+  'MCP tool allowlist: enabledTools / disabledTools per server in mcp.json — empty enabledTools = all tools; disabledTools wins on conflict · project + user scopes merge · Settings → MCP to install, toggle, reload.';
+
 export function formatPermissionModeLine(
   mode: PermissionMode,
   sessionMode?: PermissionMode | undefined,
@@ -91,6 +103,7 @@ export function formatWorkspaceSandboxLines(
   }
   lines.push(formatSandboxProfileLine(sandboxProfile));
   lines.push('Set via session metadata custom.sandboxProfile (off | workspace | read-only).');
+  lines.push('Extra roots: /add-dir · absolute paths outside roots denied in workspace profile.');
   return lines;
 }
 
@@ -145,6 +158,8 @@ export function formatMcpAllowlistLines(
     lines.push('Config scopes: no mcp.json entries yet — add via Settings → MCP');
   }
   lines.push('Per-server tool allowlist: enabledTools / disabledTools in mcp.json');
+  lines.push('Empty enabledTools = all tools exposed; disabledTools wins when both set.');
+  lines.push('Scopes merge project → projectRoot → user — later files override name collisions.');
   return lines;
 }
 
@@ -163,9 +178,10 @@ export function securitySecretRedactionLines(): readonly string[] {
   return [
     redactSecretsStatusLine(),
     `· ${REDTEAM_SOFT_SUITE_TIP}`,
-    'Sensitive paths blocked from Read/Write/Edit (.env, SSH, cloud creds).',
+    'Sensitive paths blocked from Read/Write/Edit (.env, SSH, cloud creds, kubeconfig).',
     'Bash hard-blocks cat/source/base64 of secrets — no force escape.',
     'Glob/Grep/RepoQuery filter .env even when includeIgnored is true.',
+    'Tool/log diagnostics pass through redactSecretsInText before transcript render.',
     'Never commit API keys — env vars or Settings → Accounts.',
     'Search/index skips credential stores by default.',
   ];
