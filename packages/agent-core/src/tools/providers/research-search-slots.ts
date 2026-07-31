@@ -6,13 +6,19 @@ import type { WebSearchProvider } from '../builtin/web/web-search';
 import { LocalWebSearchProvider } from './local-web-search';
 import { MoonshotWebSearchProvider } from './moonshot-web-search';
 import {
+  BingSearchAdapter,
   BraveSearchAdapter,
   ExaSearchAdapter,
+  GoogleCseSearchAdapter,
   SearxngSearchAdapter,
   SerperSearchAdapter,
   TavilySearchAdapter,
 } from './research-search-adapters';
-import { detectSearchProviderEnvKeys, resolveResearchApiKey } from './research-search-env';
+import {
+  detectSearchProviderEnvKeys,
+  resolveGoogleCseCx,
+  resolveResearchApiKey,
+} from './research-search-env';
 import { resolveResearchSearchFreeFallback } from './research-search-free-fallback';
 import type {
   ResearchSearchEngineOptions,
@@ -49,6 +55,7 @@ export function buildProviderSlots(options: ResearchSearchEngineOptions): Provid
     if (config.enabled === false) continue;
     const apiKey = resolveResearchApiKey(config);
     if (needsApiKey(config.kind) && apiKey === undefined) continue;
+    if (config.kind === 'google_cse' && resolveGoogleCseCx(config) === undefined) continue;
 
     const provider = createRemoteProvider(config, apiKey, fetchImpl, options);
     if (provider === undefined) continue;
@@ -130,7 +137,14 @@ function mergeProviderConfigs(
 }
 
 function needsApiKey(kind: ResearchSearchProviderKind): boolean {
-  return kind === 'brave' || kind === 'tavily' || kind === 'exa' || kind === 'serper';
+  return (
+    kind === 'brave' ||
+    kind === 'tavily' ||
+    kind === 'exa' ||
+    kind === 'serper' ||
+    kind === 'google_cse' ||
+    kind === 'bing'
+  );
 }
 
 function createRemoteProvider(
@@ -152,6 +166,15 @@ function createRemoteProvider(
     case 'serper':
       if (apiKey === undefined) return undefined;
       return new SerperSearchAdapter(apiKey, fetchImpl);
+    case 'google_cse': {
+      if (apiKey === undefined) return undefined;
+      const cx = resolveGoogleCseCx(config);
+      if (cx === undefined) return undefined;
+      return new GoogleCseSearchAdapter(apiKey, cx, fetchImpl);
+    }
+    case 'bing':
+      if (apiKey === undefined) return undefined;
+      return new BingSearchAdapter(apiKey, fetchImpl);
     case 'searxng': {
       const baseUrl = config.baseUrl ?? options.local?.searxngUrl;
       if (baseUrl === undefined) return undefined;

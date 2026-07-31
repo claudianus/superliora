@@ -4,6 +4,9 @@ import type {
 } from '#/config/schema';
 import { resolveSearxngUrl } from './research-meta-status';
 
+const GOOGLE_CSE_KEY_ENVS = ['GOOGLE_CSE_API_KEY', 'GOOGLE_API_KEY'] as const;
+const GOOGLE_CSE_CX_ENVS = ['GOOGLE_CSE_ID', 'GOOGLE_CSE_CX', 'GOOGLE_SEARCH_ENGINE_ID'] as const;
+
 const ENV_KEY_MAP: ReadonlyArray<{
   readonly kind: ResearchSearchProviderKind;
   readonly envs: readonly string[];
@@ -12,7 +15,58 @@ const ENV_KEY_MAP: ReadonlyArray<{
   { kind: 'tavily', envs: ['TAVILY_API_KEY'] },
   { kind: 'exa', envs: ['EXA_API_KEY'] },
   { kind: 'serper', envs: ['SERPER_API_KEY', 'SERPER_DEV_API_KEY'] },
+  { kind: 'bing', envs: ['BING_SEARCH_API_KEY', 'AZURE_BING_SEARCH_KEY'] },
 ];
+
+export function resolveGoogleCseCx(
+  config: Pick<ResearchSearchProviderConfig, 'cx' | 'cxEnv'> = {},
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  if (config.cx !== undefined) {
+    const resolved = resolveKeyRef(config.cx, env);
+    if (resolved !== undefined) return resolved;
+  }
+  if (config.cxEnv !== undefined) {
+    const fromEnv = env[config.cxEnv]?.trim();
+    if (fromEnv !== undefined && fromEnv.length > 0) return fromEnv;
+  }
+  for (const envName of GOOGLE_CSE_CX_ENVS) {
+    const value = env[envName]?.trim();
+    if (value !== undefined && value.length > 0) return value;
+  }
+  return undefined;
+}
+
+function detectGoogleCseFromEnv(
+  env: NodeJS.ProcessEnv,
+): ResearchSearchProviderConfig | undefined {
+  let apiKeyEnv: string | undefined;
+  for (const envName of GOOGLE_CSE_KEY_ENVS) {
+    const value = env[envName]?.trim();
+    if (value !== undefined && value.length > 0) {
+      apiKeyEnv = envName;
+      break;
+    }
+  }
+  if (apiKeyEnv === undefined) return undefined;
+
+  let cxEnv: string | undefined;
+  for (const envName of GOOGLE_CSE_CX_ENVS) {
+    const value = env[envName]?.trim();
+    if (value !== undefined && value.length > 0) {
+      cxEnv = envName;
+      break;
+    }
+  }
+  if (cxEnv === undefined) return undefined;
+
+  return {
+    kind: 'google_cse',
+    apiKeyEnv,
+    cxEnv,
+    label: 'google_cse',
+  };
+}
 
 export function detectSearchProviderEnvKeys(
   env: NodeJS.ProcessEnv = process.env,
@@ -30,6 +84,10 @@ export function detectSearchProviderEnvKeys(
         break;
       }
     }
+  }
+  const googleCse = detectGoogleCseFromEnv(env);
+  if (googleCse !== undefined) {
+    detected.push(googleCse);
   }
   const searxngUrl = resolveSearxngUrl(env);
   if (searxngUrl !== undefined) {

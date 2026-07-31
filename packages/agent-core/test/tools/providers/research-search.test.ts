@@ -28,10 +28,55 @@ describe('detectSearchProviderEnvKeys', () => {
       TAVILY_API_KEY: 'tvly-key',
       EXA_API_KEY: 'exa-key',
       SERPER_API_KEY: 'serper-key',
+      BING_SEARCH_API_KEY: 'bing-key',
+      GOOGLE_CSE_API_KEY: 'google-key',
+      GOOGLE_CSE_ID: 'cx-id',
       UNRELATED: 'x',
     } as NodeJS.ProcessEnv);
 
-    expect(detected.map((d) => d.kind).toSorted()).toEqual(['brave', 'exa', 'serper', 'tavily']);
+    expect(detected.map((d) => d.kind).toSorted()).toEqual([
+      'bing',
+      'brave',
+      'exa',
+      'google_cse',
+      'serper',
+      'tavily',
+    ]);
+  });
+
+  it('skips google_cse when the search engine id is missing', () => {
+    const detected = detectSearchProviderEnvKeys({
+      GOOGLE_CSE_API_KEY: 'google-key',
+    } as NodeJS.ProcessEnv);
+    expect(detected.some((entry) => entry.kind === 'google_cse')).toBe(false);
+  });
+
+  it('detects google_cse from GOOGLE_API_KEY and GOOGLE_CSE_CX', () => {
+    const detected = detectSearchProviderEnvKeys({
+      GOOGLE_API_KEY: 'google-key',
+      GOOGLE_CSE_CX: 'cx-from-cx-env',
+    } as NodeJS.ProcessEnv);
+    expect(detected).toEqual([
+      {
+        kind: 'google_cse',
+        apiKeyEnv: 'GOOGLE_API_KEY',
+        cxEnv: 'GOOGLE_CSE_CX',
+        label: 'google_cse',
+      },
+    ]);
+  });
+
+  it('detects bing from AZURE_BING_SEARCH_KEY', () => {
+    const detected = detectSearchProviderEnvKeys({
+      AZURE_BING_SEARCH_KEY: 'azure-bing-key',
+    } as NodeJS.ProcessEnv);
+    expect(detected).toEqual([
+      {
+        kind: 'bing',
+        apiKeyEnv: 'AZURE_BING_SEARCH_KEY',
+        label: 'bing',
+      },
+    ]);
   });
 
   it('detects SearXNG from SUPERLIORA_SEARXNG_URL', () => {
@@ -470,6 +515,145 @@ describe('ResearchSearchEngine', () => {
     expect(first[0]?.url).toBe('https://brave.example/explicit');
     expect(second[0]?.url).toBe('https://tavily.example/explicit');
     expect({ braveCalls, tavilyCalls }).toEqual({ braveCalls: 1, tavilyCalls: 1 });
+  });
+
+  it('parses Google CSE JSON results', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = requestUrl(input);
+      expect(url).toContain('customsearch/v1');
+      expect(url).toContain('key=google-test');
+      expect(url).toContain('cx=my-cx');
+      expect(url).toContain('q=messi');
+      return new Response(
+        JSON.stringify({
+          items: [
+            {
+              title: 'Google CSE Hit',
+              link: 'https://example.com/google',
+              snippet: 'A useful snippet',
+            },
+          ],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    });
+
+    const engine = new ResearchSearchEngine({
+      fetchImpl,
+      search: {
+        strategy: 'fallback',
+        freeFallback: false,
+        providers: [{ kind: 'google_cse', apiKey: 'google-test', cx: 'my-cx' }],
+      },
+    });
+
+    const results = await engine.search('messi', { limit: 3 });
+    expect(results).toEqual([
+      expect.objectContaining({
+        title: 'Google CSE Hit',
+        url: 'https://example.com/google',
+        snippet: 'A useful snippet',
+      }),
+    ]);
+  });
+
+  it('parses Bing JSON results', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
+      const url = requestUrl(input);
+      expect(url).toContain('api.bing.microsoft.com/v7.0/search');
+      expect(init?.headers).toMatchObject({
+        'Ocp-Apim-Subscription-Key': 'bing-test',
+      });
+      return new Response(
+        JSON.stringify({
+          webPages: {
+            value: [
+              {
+                name: 'Bing Hit',
+                url: 'https://example.com/bing',
+                snippet: 'Bing snippet',
+                dateLastCrawled: '2026-01-01T00:00:00Z',
+              },
+            ],
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    });
+
+    const engine = new ResearchSearchEngine({
+      fetchImpl,
+      search: {
+        strategy: 'fallback',
+        freeFallback: false,
+        providers: [{ kind: 'bing', apiKey: 'bing-test' }],
+      },
+    });
+
+    const results = await engine.search('query', { limit: 2 });
+    expect(results).toEqual([
+      expect.objectContaining({
+        title: 'Bing Hit',
+        url: 'https://example.com/bing',
+        snippet: 'Bing snippet',
+        date: '2026-01-01T00:00:00Z',
+      }),
+    ]);
+  });
+
+  it('fallback uses bing before free fallback when configured', async () => {
+    let bingCalls = 0;
+    let freeCalls = 0;
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = requestUrl(input);
+      if (url.includes('api.bing.microsoft.com')) {
+        bingCalls += 1;
+        return new Response(
+          JSON.stringify({
+            webPages: {
+              value: [
+                { name: 'Paid Bing', url: 'https://example.com/bing-paid', snippet: 'bing query hit' },
+              ],
+            },
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      if (url.includes('duckduckgo.com/html')) {
+        freeCalls += 1;
+        return new Response(
+          [
+            '<html><body>',
+            '<div class="result">',
+            '<a class="result__a" href="https://free.example/c">Free</a>',
+            '<a class="result__snippet">free</a>',
+            '</div>',
+            '</body></html>',
+          ].join(''),
+          { status: 200, headers: { 'content-type': 'text/html' } },
+        );
+      }
+      return new Response('{}', { status: 404 });
+    });
+
+    const engine = new ResearchSearchEngine({
+      fetchImpl,
+      search: {
+        strategy: 'fallback',
+        freeFallback: true,
+        providers: [{ kind: 'bing', apiKey: 'bing-test' }],
+      },
+      local: {
+        searchUrl: 'https://duckduckgo.com/html/',
+        directSources: { github: false, arxiv: false, npm: false, pypi: false, crates: false },
+      },
+    });
+
+    const results = await engine.search('bing query', { limit: 1 });
+    expect(bingCalls).toBe(1);
+    expect(freeCalls).toBe(0);
+    expect(results[0]?.url).toContain('example.com/bing-paid');
+    expect(engine.status().providers.some((p) => p.kind === 'bing' && p.ready)).toBe(true);
   });
 
   it('does not request provider-native full content during metadata search', async () => {

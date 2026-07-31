@@ -38,6 +38,8 @@ export const ResearchSearchProviderKindSchema = z.enum([
   'tavily',
   'exa',
   'serper',
+  'google_cse',
+  'bing',
   'searxng',
   'duckduckgo',
   'moonshot',
@@ -54,6 +56,10 @@ export const ResearchSearchProviderConfigSchema = z.object({
   apiKey: z.string().optional(),
   /** Env var name that holds the API key (preferred over embedding secrets). */
   apiKeyEnv: z.string().optional(),
+  /** Google Custom Search engine id (cx). */
+  cx: z.string().optional(),
+  /** Env var name that holds the Google CSE cx value. */
+  cxEnv: z.string().optional(),
   /** Additional API keys for per-provider load balancing / fallback. */
   apiKeys: z.array(z.string().min(1)).optional(),
   /** Provider-specific base URL override (self-hosted SearXNG, proxies). */
@@ -124,7 +130,7 @@ export const ResearchConfigSchema = z.object({
   enabled: z.boolean().optional(),
   intensity: ResearchIntensitySchema.optional(),
   localSearch: ResearchLocalSearchConfigSchema.optional(),
-  /** Multi-provider deep research search (Brave/Tavily/Exa/Serper + free fallback). */
+  /** Multi-provider deep research search (Brave/Tavily/Exa/Serper/Google CSE/Bing + free fallback). */
   search: ResearchSearchConfigSchema.optional(),
   context7: ResearchContext7ConfigSchema.optional(),
   persistVerifiedFindings: z.boolean().optional(),

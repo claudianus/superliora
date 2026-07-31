@@ -26,6 +26,9 @@ export function clampInt(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, Math.trunc(value)));
 }
 
+/** Polite client id for paid search HTTP adapters. */
+export const RESEARCH_SEARCH_USER_AGENT = 'SuperLiora research-search (+https://superliora.dev)';
+
 function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
 }
@@ -230,6 +233,89 @@ export class ExaSearchAdapter implements WebSearchProvider {
         content: options?.includeContent === true ? stringValue(entry['text']) : undefined,
       });
     }).filter(hasUsableUrl);
+  }
+}
+
+export class GoogleCseSearchAdapter implements WebSearchProvider {
+  constructor(
+    private readonly apiKey: string,
+    private readonly cx: string,
+    private readonly fetchImpl: typeof fetch,
+  ) {}
+
+  async search(
+    query: string,
+    options?: { limit?: number; includeContent?: boolean; toolCallId?: string },
+  ): Promise<WebSearchResult[]> {
+    const limit = clampInt(options?.limit ?? 5, 1, 10);
+    const url = new URL('https://www.googleapis.com/customsearch/v1');
+    url.searchParams.set('key', this.apiKey);
+    url.searchParams.set('cx', this.cx);
+    url.searchParams.set('q', query);
+    url.searchParams.set('num', String(limit));
+    const response = await this.fetchImpl(url, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': RESEARCH_SEARCH_USER_AGENT,
+      },
+    });
+    if (response.status === 429) throw rateLimitError('google_cse', response.status);
+    if (response.status >= 400) {
+      throw new Error(`Google CSE search failed: HTTP ${String(response.status)}`);
+    }
+    const json = (await response.json()) as {
+      items?: Array<Record<string, unknown>>;
+    };
+    const results = json.items ?? [];
+    return results.slice(0, limit).map((entry) =>
+      buildResult({
+        title: stringValue(entry['title']) ?? 'Google CSE result',
+        url: stringValue(entry['link']) ?? '',
+        snippet: stringValue(entry['snippet']) ?? '',
+      }),
+    ).filter(hasUsableUrl);
+  }
+}
+
+export class BingSearchAdapter implements WebSearchProvider {
+  constructor(
+    private readonly apiKey: string,
+    private readonly fetchImpl: typeof fetch,
+  ) {}
+
+  async search(
+    query: string,
+    options?: { limit?: number; includeContent?: boolean; toolCallId?: string },
+  ): Promise<WebSearchResult[]> {
+    const limit = clampInt(options?.limit ?? 5, 1, 50);
+    const url = new URL('https://api.bing.microsoft.com/v7.0/search');
+    url.searchParams.set('q', query);
+    url.searchParams.set('count', String(limit));
+    const response = await this.fetchImpl(url, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        'Ocp-Apim-Subscription-Key': this.apiKey,
+        'User-Agent': RESEARCH_SEARCH_USER_AGENT,
+      },
+    });
+    if (response.status === 429) throw rateLimitError('bing', response.status);
+    if (response.status >= 400) {
+      throw new Error(`Bing search failed: HTTP ${String(response.status)}`);
+    }
+    const json = (await response.json()) as {
+      webPages?: { value?: Array<Record<string, unknown>> };
+    };
+    const results = json.webPages?.value ?? [];
+    return results.slice(0, limit).map((entry) =>
+      buildResult({
+        title: stringValue(entry['name']) ?? 'Bing result',
+        url: stringValue(entry['url']) ?? '',
+        snippet: stringValue(entry['snippet']) ?? '',
+        date: stringValue(entry['dateLastCrawled']),
+      }),
+    ).filter(hasUsableUrl);
   }
 }
 
