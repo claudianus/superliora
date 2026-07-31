@@ -146,8 +146,8 @@ export function resolveFleetParallelToolsGlanceFromStatus(
 ): FleetParallelToolsGlance | undefined {
   if (status === null || status === undefined || typeof status !== 'object') return undefined;
   const record = status as Record<string, unknown>;
-  const inFlight = record.parallelToolsInFlight;
-  const maxParallel = record.maxParallelTools;
+  const inFlight = record['parallelToolsInFlight'];
+  const maxParallel = record['maxParallelTools'];
   const hasInFlight = typeof inFlight === 'number' && inFlight > 0;
   const hasMax = typeof maxParallel === 'number' && maxParallel > 0;
   if (!hasInFlight && !hasMax) return undefined;

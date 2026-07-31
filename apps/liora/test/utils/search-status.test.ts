@@ -30,6 +30,18 @@ import {
   resolveSearchFreeFallback,
 } from '../../src/tui/commands/config/search-status';
 
+function mockSpawnOk(stdoutText: string) {
+  return {
+    status: 0,
+    stdout: stdoutText,
+    stderr: '',
+    pid: 1,
+    output: [null, stdoutText, ''],
+    signal: null,
+    error: undefined,
+  };
+}
+
 describe('detectSearchProviderEnvKeys', () => {
   it('lists configured providers from env', () => {
     const status = detectSearchProviderEnvKeys({
@@ -174,17 +186,9 @@ describe('research bridge Ch5 smoke handshake', () => {
         now: () => 1_000,
         spawnSync: () => {
           spawnCalls += 1;
-          return {
-            status: 0,
-            stdout: 'research-bridge-native-host smoke ok (0.1.0-stub)\n',
-            stderr: '',
-            pid: 1,
-            output: [null, 'research-bridge-native-host smoke ok (0.1.0-stub)\n', ''],
-            signal: null,
-            error: undefined,
-          };
+          return mockSpawnOk('research-bridge-native-host smoke ok (0.1.0-stub)\n');
         },
-      },
+      } as unknown as import('#/tui/commands/config/search-status').NativeHostSmokeDeps,
     });
 
     expect(spawnCalls).toBe(1);
@@ -215,17 +219,9 @@ describe('research bridge Ch5 smoke handshake', () => {
       now: () => now,
       spawnSync: () => {
         spawnCalls += 1;
-        return {
-          status: 0,
-          stdout: 'research-bridge-native-host smoke ok (cached)\n',
-          stderr: '',
-          pid: 1,
-          output: [null, 'research-bridge-native-host smoke ok (cached)\n', ''],
-          signal: null,
-          error: undefined,
-        };
+        return mockSpawnOk('research-bridge-native-host smoke ok (cached)\n');
       },
-    };
+    } as unknown as import('#/tui/commands/config/search-status').NativeHostSmokeDeps;
 
     detectSearchLateChannelEnv(env, undefined, { agentCoreRoot, smokeDeps });
     now += NATIVE_HOST_SMOKE_CACHE_TTL_MS - 1;
@@ -250,16 +246,8 @@ describe('research bridge Ch5 smoke handshake', () => {
     const late = detectSearchLateChannelEnv(env, undefined, {
       agentCoreRoot,
       smokeDeps: {
-        spawnSync: () => ({
-          status: 0,
-          stdout: 'research-bridge-native-host smoke ok (0.1.0-stub)\n',
-          stderr: '',
-          pid: 1,
-          output: [null, 'research-bridge-native-host smoke ok (0.1.0-stub)\n', ''],
-          signal: null,
-          error: undefined,
-        }),
-      },
+        spawnSync: () => mockSpawnOk('research-bridge-native-host smoke ok (0.1.0-stub)\n'),
+      } as unknown as import('#/tui/commands/config/search-status').NativeHostSmokeDeps,
     });
 
     const status = detectSearchProviderEnvKeys(env);
@@ -292,16 +280,8 @@ describe('research bridge Ch5 smoke handshake', () => {
     const late = detectSearchLateChannelEnv(env, undefined, {
       agentCoreRoot,
       smokeDeps: {
-        spawnSync: () => ({
-          status: 0,
-          stdout: 'research-bridge-native-host smoke ok (0.1.0-stub)\n',
-          stderr: '',
-          pid: 1,
-          output: [null, 'research-bridge-native-host smoke ok (0.1.0-stub)\n', ''],
-          signal: null,
-          error: undefined,
-        }),
-      },
+        spawnSync: () => mockSpawnOk('research-bridge-native-host smoke ok (0.1.0-stub)\n'),
+      } as unknown as import('#/tui/commands/config/search-status').NativeHostSmokeDeps,
     });
 
     expect(late.nativeHandshake).toBe('smoke-verified');
@@ -313,16 +293,8 @@ describe('research bridge Ch5 smoke handshake', () => {
   it('probeNativeHostSmoke parses version from stdout', () => {
     const probe = probeNativeHostSmoke('/tmp/script.mjs', {} as NodeJS.ProcessEnv, {
       now: () => 42,
-      spawnSync: () => ({
-        status: 0,
-        stdout: 'research-bridge-native-host smoke ok (9.9.9)\n',
-        stderr: '',
-        pid: 1,
-        output: [null, 'research-bridge-native-host smoke ok (9.9.9)\n', ''],
-        signal: null,
-        error: undefined,
-      }),
-    });
+      spawnSync: () => mockSpawnOk('research-bridge-native-host smoke ok (9.9.9)\n'),
+    } as unknown as import('#/tui/commands/config/search-status').NativeHostSmokeDeps);
     expect(probe.ok).toBe(true);
     expect(probe.version).toBe('9.9.9');
     expect(probe.probedAt).toBe(42);

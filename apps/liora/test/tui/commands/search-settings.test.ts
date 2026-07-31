@@ -4,6 +4,7 @@ import { showSearchSettings } from '#/tui/commands/config/search-settings';
 import type { ChoicePickerComponent } from '#/tui/components/dialogs/picker/choice-picker';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 import { currentTheme } from '#/tui/theme';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 
 function makeHost(options: {
   getStatus?: () => Promise<Record<string, unknown>>;
@@ -48,7 +49,7 @@ function makeHost(options: {
     closeCenterModal: vi.fn(),
     mountEditorReplacement: vi.fn(),
     restoreEditor: vi.fn(),
-  } as never;
+  } as unknown as SlashCommandHost;
 }
 
 describe('showSearchSettings status panel', () => {

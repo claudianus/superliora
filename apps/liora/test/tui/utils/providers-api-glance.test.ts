@@ -68,6 +68,7 @@ describe('providers-api-glance', () => {
           displayName: 'Kimi K2',
           model: 'kimi-k2-upstream',
           provider: 'moonshot',
+          maxContextSize: 256_000,
         },
       },
       providerRouteStatus: { primary: true } as never,

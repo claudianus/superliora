@@ -6,6 +6,7 @@ import {
   computerEyeFromCuaStatus,
 } from '#/tui/utils/harness-eyes-readiness';
 import { buildEyesSettingsLines, loadEyesSettingsGlance } from '#/tui/utils/eyes/eyes-glance';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 
 describe('eyes glance', () => {
   it('builds tip-heavy panel from readiness report', () => {
@@ -49,12 +50,12 @@ describe('showEyesSettings', () => {
       },
       showNotice: vi.fn(),
       showError: vi.fn(),
-    } as never;
+    } as unknown as SlashCommandHost;
 
     showEyesSettings(host);
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    expect(host.showNotice).not.toHaveBeenCalled();
+    expect(host.showNotice as ReturnType<typeof vi.fn>).not.toHaveBeenCalled();
   });
 });

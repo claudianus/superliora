@@ -80,7 +80,7 @@ export type {
   TUIStartupState,
 } from './types';
 
-export class LioraTUI {
+class LioraTUIClass {
   readonly harness: LioraHarness;
   readonly options!: LioraTUIOptions;
   session: Session | undefined;
@@ -158,7 +158,7 @@ export class LioraTUI {
 
   constructor(harness: LioraHarness, startupInput: LioraTUIStartupInput) {
     this.harness = harness;
-    wireLioraTUIControllers(this, harness, startupInput);
+    wireLioraTUIControllers(this as unknown as LioraTUI, harness, startupInput);
   }
 
   track(event: string, properties?: Parameters<LioraHarness['track']>[1]): void {
@@ -320,5 +320,13 @@ export interface LioraTUIHost {
   showApprovalPanel(payload: ApprovalPanelData): void;
   showQuestionDialog(payload: QuestionPanelData): void;
 }
+
+/** Instance type includes prototype-mixed delegates from {@link installLioraTUIDelegates}. */
+export type LioraTUI = LioraTUIClass & LioraTUIHost;
+
+export const LioraTUI = LioraTUIClass as unknown as {
+  new (harness: LioraHarness, startupInput: LioraTUIStartupInput): LioraTUI;
+  prototype: LioraTUI;
+};
 
 installLioraTUIDelegates(LioraTUI);

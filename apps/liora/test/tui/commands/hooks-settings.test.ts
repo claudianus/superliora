@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { showHooksSettings } from '#/tui/commands/config/hooks-settings';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
+import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
 function makeHooksHost(
   options: { hasSession?: boolean; hookCount?: number; registry?: { totalCount: number; events: Record<string, number> } } = {},
@@ -30,7 +32,7 @@ function makeHooksHost(
             throw new Error('no session');
           })
         : vi.fn(() => ({ getHookRegistry, listPlugins })),
-  } as never;
+  } as unknown as SlashCommandHost;
 }
 
 describe('hooks settings', () => {
@@ -40,10 +42,8 @@ describe('hooks settings', () => {
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    const lines = panel.buildLines(1).join('\n');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('Hooks (read-only)');
     expect(lines).toContain('Live registry (HookEngine)');
     expect(lines).toContain('PreToolUse×2 · Stop×1');
@@ -59,10 +59,8 @@ describe('hooks settings', () => {
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    const text = panel.buildLines(1).join('\n');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('/ext hooks');
     expect(text).not.toContain('Live registry (HookEngine)');
   });

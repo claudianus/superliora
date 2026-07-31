@@ -25,7 +25,7 @@ import type {
   TranscriptEntry,
 } from '../../types';
 import type { TUIState } from '../../tui-state';
-import type { LioraTUIHost } from '../../liora-tui';
+import type { LioraTUI } from '../../liora-tui';
 import {
   handlePlanToggleFromHost,
   handleUltraworkModeToggleFromHost,
@@ -33,11 +33,11 @@ import {
 } from './liora-tui-wiring';
 import type { ApprovalPanelData, QuestionPanelData } from '../../reverse-rpc/types';
 
-type LioraTUIConstructor = new (...args: never[]) => LioraTUIHost;
+type LioraTUIConstructor = new (...args: never[]) => LioraTUI;
 
 /** Bind coordinator public methods so liora-tui.ts stays a thin shell. */
 export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
-  const proto = Ctor.prototype as LioraTUIHost;
+  const proto = Ctor.prototype as LioraTUI;
 
   proto.getSlashCommands = function (mode = 'primary' as const) {
     return this.autocomplete.getSlashCommands(mode);
@@ -205,7 +205,7 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
   };
 
   Object.defineProperty(proto, 'backgroundTasks', {
-    get(this: LioraTUIHost) {
+    get(this: LioraTUI) {
       return this.sessionEventHandler.backgroundTasks;
     },
   });
@@ -260,7 +260,7 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
   proto.resetSessionRuntime = function () {
     this.sessionLifecycle.resetSessionRuntime();
   };
-  proto.fetchSessions = function (this: import('../../liora-tui').LioraTUIHost, scope: 'cwd' | 'all' = this.state.sessionsScope) {
+  proto.fetchSessions = function (this: LioraTUI, scope: 'cwd' | 'all' = this.state.sessionsScope) {
     return this.sessionBrowser.fetchSessions(scope);
   };
   proto.updateTerminalTitle = function () {

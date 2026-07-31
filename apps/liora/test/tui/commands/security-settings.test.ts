@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { showSecuritySettings } from '#/tui/commands/config/security-settings';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
+import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
 function makeSecurityHost(
   options: {
@@ -52,7 +54,7 @@ function makeSecurityHost(
             throw new Error('no session');
           })
         : vi.fn(() => session),
-  } as never;
+  } as unknown as SlashCommandHost;
 }
 
 describe('security settings', () => {
@@ -65,10 +67,8 @@ describe('security settings', () => {
     });
     await showSecuritySettings(host);
     expect(host.state.transcriptContainer.addChild).toHaveBeenCalledOnce();
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    const text = panel.buildLines(1).join('\n');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('Security glance');
     expect(text).toContain('live session confirms');
     expect(text).toContain('Sandbox profile: read-only');
@@ -83,10 +83,8 @@ describe('security settings', () => {
     const host = makeSecurityHost({ hasSession: false, permissionMode: 'manual' });
     await showSecuritySettings(host);
     expect(host.state.transcriptContainer.addChild).toHaveBeenCalledOnce();
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    const text = panel.buildLines(1).join('\n');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('/tmp/security-panel');
     expect(text).toContain('no active session');
     expect(text).not.toContain('live session confirms');

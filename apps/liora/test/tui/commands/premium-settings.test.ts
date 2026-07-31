@@ -8,6 +8,7 @@ import {
   setAppearanceRenderQuality,
 } from '#/tui/features/appearance/appearance-effects';
 import type { RendererDiagnosticsSnapshot } from '#/tui/renderer';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 
 function makeHost(options: {
   premiumQualityMode?: boolean;
@@ -45,7 +46,7 @@ function makeHost(options: {
             throw new Error('no session');
           })
         : vi.fn(() => session),
-  } as never;
+  } as unknown as SlashCommandHost;
 }
 
 const ENV_KEYS = ['TERM', 'CI', 'NO_COLOR', 'SSH_TTY', 'SSH_CONNECTION', 'SSH_CLIENT'] as const;
@@ -92,7 +93,7 @@ describe('showPremiumSettings', () => {
 
     const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
       .calls[0]?.[0] as UsagePanelComponent;
-    const text = panel.buildLines(1).join('\n');
+    const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('── Session (live) ─');
     expect(text).toContain('Visual Quality: ON');
     expect(text).toContain('profile premium');
@@ -111,7 +112,7 @@ describe('showPremiumSettings', () => {
 
     const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
       .calls[0]?.[0] as UsagePanelComponent;
-    const text = panel.buildLines(1).join('\n');
+    const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('Visual Quality: OFF');
     expect(text).toContain('awaiting first frame');
   });

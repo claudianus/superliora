@@ -6,6 +6,8 @@ import { createLioraHarness } from '@superliora/sdk';
 import { describe, expect, it, vi } from 'vitest';
 
 import { showHostSettings } from '#/tui/commands/config/host-settings';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
+import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
 function makeHostHost(options: {
   hasSession?: boolean;
@@ -37,22 +39,20 @@ function makeHostHost(options: {
     },
     harness,
     requireSession,
-  } as never;
+  } as unknown as SlashCommandHost;
 }
 
 describe('host settings', () => {
   it('mounts read-only host panel for in-process default', async () => {
-    const prior = process.env.SUPERLIORA_SERVER_URL;
-    delete process.env.SUPERLIORA_SERVER_URL;
+    const prior = process.env['SUPERLIORA_SERVER_URL'];
+    delete process.env['SUPERLIORA_SERVER_URL'];
     const host = makeHostHost();
     showHostSettings(host);
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    const lines = panel.buildLines(1).join('\n');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('Mode: in-process');
     expect(lines).toContain('Transport: SDK in-process RPC');
     expect(lines).toContain('Session: ses_host_panel');
@@ -60,7 +60,7 @@ describe('host settings', () => {
     expect(lines).toContain('Client env: SUPERLIORA_SERVER_URL unset');
     expect(lines).toContain('TTFT p50 in-process vs server path');
     expect(lines).toContain('complete a turn to capture a live sample');
-    if (prior != null) process.env.SUPERLIORA_SERVER_URL = prior;
+    if (prior != null) process.env['SUPERLIORA_SERVER_URL'] = prior;
   });
 
   it('surfaces live TTFT sample from appState when a step completed with timing', async () => {
@@ -71,17 +71,15 @@ describe('host settings', () => {
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    const lines = panel.buildLines(1).join('\n');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('Last TTFT: 180ms (turn 4 step 1) · in-process path');
     expect(lines).not.toContain('TTFT p50 in-process vs server path');
   });
 
   it('reports configured server URL while runtime stays in-process', async () => {
-    const prior = process.env.SUPERLIORA_SERVER_URL;
-    process.env.SUPERLIORA_SERVER_URL = 'http://127.0.0.1:58627';
+    const prior = process.env['SUPERLIORA_SERVER_URL'];
+    process.env['SUPERLIORA_SERVER_URL'] = 'http://127.0.0.1:58627';
     const home = await mkdtemp(join(tmpdir(), 'liora-host-settings-'));
     const host = makeHostHost({
       harness: createLioraHarness({
@@ -93,35 +91,31 @@ describe('host settings', () => {
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    const lines = panel.buildLines(1).join('\n');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('Mode: in-process');
     expect(lines).toContain('http://127.0.0.1:58627');
     expect(lines).toContain('not active');
     expect(lines).toContain('Client env: SUPERLIORA_SERVER_URL=http://127.0.0.1:58627');
     await rm(home, { recursive: true, force: true });
     if (prior != null) {
-      process.env.SUPERLIORA_SERVER_URL = prior;
+      process.env['SUPERLIORA_SERVER_URL'] = prior;
     } else {
-      delete process.env.SUPERLIORA_SERVER_URL;
+      delete process.env['SUPERLIORA_SERVER_URL'];
     }
   });
 
   it('documents sovereign umbrella soft gates and live status when env is set', async () => {
-    const prev = process.env.SUPERLIORA_SOVEREIGN;
-    process.env.SUPERLIORA_SOVEREIGN = '1';
+    const prev = process.env['SUPERLIORA_SOVEREIGN'];
+    process.env['SUPERLIORA_SOVEREIGN'] = '1';
     try {
       const host = makeHostHost();
       showHostSettings(host);
       await vi.waitFor(() => {
         expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
       });
-      const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-        buildLines: (n: number) => string[];
-      };
-      const lines = panel.buildLines(1).join('\n');
+      const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+      const lines = panel.snapshotBodyLines(1).join('\n');
       expect(lines).toContain('SUPERLIORA_SOVEREIGN=1');
       expect(lines).toContain('core profile');
       expect(lines).toContain('hide legacy');
@@ -134,8 +128,8 @@ describe('host settings', () => {
       expect(lines).toContain('· mission dual-emit: ON');
       expect(lines).toContain('· fleet dual-emit: ON');
     } finally {
-      if (prev === undefined) delete process.env.SUPERLIORA_SOVEREIGN;
-      else process.env.SUPERLIORA_SOVEREIGN = prev;
+      if (prev === undefined) delete process.env['SUPERLIORA_SOVEREIGN'];
+      else process.env['SUPERLIORA_SOVEREIGN'] = prev;
     }
   });
 });

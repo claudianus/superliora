@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { showMcpSettings } from '#/tui/commands/config/mcp-settings';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
+import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
 function makeMcpSettingsHost(
   options: {
@@ -33,7 +35,7 @@ function makeMcpSettingsHost(
             throw new Error('no active session');
           })
         : vi.fn(() => ({ listMcpServers, workDir: '/tmp/ws' })),
-  } as never;
+  } as unknown as SlashCommandHost;
 }
 
 describe('mcp settings', () => {
@@ -41,7 +43,7 @@ describe('mcp settings', () => {
     const host = makeMcpSettingsHost();
     showMcpSettings(host);
     expect(host.mountCenterModal).toHaveBeenCalledOnce();
-    const [component] = host.mountCenterModal.mock.calls[0] as [
+    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { render: (width: number) => string[] },
     ];
     const body = component.render(100).join('\n');
@@ -57,7 +59,7 @@ describe('mcp settings', () => {
       ],
     });
     showMcpSettings(host);
-    const [component] = host.mountCenterModal.mock.calls[0] as [
+    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
     component.handleInput('\r');
@@ -65,10 +67,8 @@ describe('mcp settings', () => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
     expect(host.requireSession().listMcpServers).toHaveBeenCalled();
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    const text = panel.buildLines(1).join('\n');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('Live session: 2 server(s)');
     expect(text).toContain('1 connected');
     expect(text).toContain('demo — connected');
@@ -77,17 +77,15 @@ describe('mcp settings', () => {
   it('works without session', async () => {
     const host = makeMcpSettingsHost({ hasSession: false });
     showMcpSettings(host);
-    const [component] = host.mountCenterModal.mock.calls[0] as [
+    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
     component.handleInput('\r');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    const text = panel.buildLines(1).join('\n');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('open a session to inspect MCP connection status');
   });
 });

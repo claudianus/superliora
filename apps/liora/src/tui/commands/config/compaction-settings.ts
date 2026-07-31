@@ -64,7 +64,7 @@ async function loadThresholdGlance(host: SlashCommandHost): Promise<CompactionTh
 }
 
 async function loadSessionGlance(host: SlashCommandHost): Promise<CompactionSessionGlance> {
-  const session: CompactionSessionGlance = {
+  const base: CompactionSessionGlance = {
     lastCompact: resolveLastCompactionFromTranscript(host.state.transcriptEntries),
   };
 
@@ -75,24 +75,28 @@ async function loadSessionGlance(host: SlashCommandHost): Promise<CompactionSess
       live.getContext().catch(() => undefined),
     ]);
 
-    session.contextUsage = status.contextUsage;
-    session.contextTokens = status.contextTokens;
-    session.maxContextTokens = status.maxContextTokens;
-    session.microCompaction = status.microCompaction;
-
     const archive = context?.contextArchive;
-    if (archive !== undefined) {
-      session.archiveEntryCount = archive.entryCount;
-      session.archiveMaxEntries = archive.maxEntries;
-    } else if (context !== undefined) {
-      session.archiveEntryCount = 0;
-      session.archiveMaxEntries = 512;
-    }
-  } catch {
-    session.microCompaction = host.state.appState.microCompaction ?? undefined;
-  }
+    const archiveFields =
+      archive !== undefined
+        ? { archiveEntryCount: archive.entryCount, archiveMaxEntries: archive.maxEntries }
+        : context !== undefined
+          ? { archiveEntryCount: 0, archiveMaxEntries: 512 }
+          : {};
 
-  return session;
+    return {
+      ...base,
+      contextUsage: status.contextUsage,
+      contextTokens: status.contextTokens,
+      maxContextTokens: status.maxContextTokens,
+      microCompaction: status.microCompaction,
+      ...archiveFields,
+    };
+  } catch {
+    return {
+      ...base,
+      microCompaction: host.state.appState.microCompaction ?? undefined,
+    };
+  }
 }
 
 async function showCompactionSettingsPanel(host: SlashCommandHost): Promise<void> {

@@ -61,6 +61,8 @@ const superpowers = {
   commandCount: 0,
   hasErrors: false,
   source: 'local-path' as const,
+  scope: 'user' as const,
+  agentCount: 0,
 };
 
 const officialEntries = [
@@ -107,6 +109,8 @@ describe('plugins selector dialogs', () => {
       commandCount: 0,
       hasErrors: false,
       source: 'zip-url',
+      scope: 'user',
+      agentCount: 0,
       originalSource: 'https://raw.githubusercontent.com/claudianus/superliora/main/plugins/official/kimi-datasource.zip',
     })).toBe('official');
     expect(pluginTrustLabel({
@@ -121,6 +125,8 @@ describe('plugins selector dialogs', () => {
       commandCount: 0,
       hasErrors: false,
       source: 'zip-url',
+      scope: 'user',
+      agentCount: 0,
       originalSource: 'https://raw.githubusercontent.com/claudianus/superliora/main/plugins/curated/superpowers.zip',
     })).toBe('curated');
     expect(pluginTrustLabel({
@@ -135,6 +141,8 @@ describe('plugins selector dialogs', () => {
       commandCount: 0,
       hasErrors: false,
       source: 'zip-url',
+      scope: 'user',
+      agentCount: 0,
       originalSource: 'https://code.kimi.com/demo.zip',
     })).toBe('third-party');
     expect(pluginTrustLabel({
@@ -149,6 +157,8 @@ describe('plugins selector dialogs', () => {
       commandCount: 0,
       hasErrors: false,
       source: 'local-path',
+      scope: 'user',
+      agentCount: 0,
       originalSource: 'https://raw.githubusercontent.com/claudianus/superliora/main/plugins/official/local',
     })).toBe('third-party');
   });
@@ -433,6 +443,8 @@ describe('plugins selector dialogs', () => {
         commandCount: 0,
         hasErrors: false,
         source: 'local-path',
+        scope: 'user',
+        agentCount: 0,
         installedAt: '2026-05-29T00:00:00.000Z',
         root: '/plugins/kimi-datasource',
         manifest: undefined,

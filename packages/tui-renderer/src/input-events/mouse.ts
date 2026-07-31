@@ -61,9 +61,9 @@ export function matchX10Mouse(
     return 'incomplete';
   }
   // X10 encodes button/modifiers in Cb - 32; coordinates are 1-based (Cx/Cy - 32).
-  const encodedButton = cb - 32;
-  const terminalX = cx - 32;
-  const terminalY = cy - 32;
+  const encodedButton = (cb ?? 0) - 32;
+  const terminalX = (cx ?? 0) - 32;
+  const terminalY = (cy ?? 0) - 32;
   const raw = input.slice(index, payloadStart + 3);
   const button = decodeSgrMouseButton(encodedButton);
   // X10 has no separate release final byte; button=3 ('none') is release.

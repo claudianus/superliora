@@ -41,7 +41,7 @@ describe('route-glance', () => {
           atMs: Date.now(),
         },
         availableModels: {
-          'cheap-model': { model: 'cheap-model', displayName: 'Cheap Model', provider: 'mock' },
+          'cheap-model': { model: 'cheap-model', displayName: 'Cheap Model', provider: 'mock', maxContextSize: 128_000 },
         },
       }),
     ).toBe('Route: failover→Cheap Model (provider-failover)');

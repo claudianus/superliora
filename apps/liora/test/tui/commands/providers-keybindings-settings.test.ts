@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { showProvidersApiSettings } from '#/tui/commands/config/providers-api-settings';
 import { showKeybindingsSettings } from '#/tui/commands/config/keybindings-settings';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
+import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
 function makeHost(options?: {
   readonly session?: {
@@ -31,7 +33,7 @@ function makeHost(options?: {
       }
       return options.session;
     },
-  } as never;
+  } as unknown as SlashCommandHost;
 }
 
 describe('providers-api settings panel', () => {
@@ -42,10 +44,8 @@ describe('providers-api settings panel', () => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
 
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    const lines = panel.buildLines(1).join('\n');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('Providers & API (read-only)');
     expect(lines).toContain('/login');
     expect(lines).toContain('W11 OSS absorb');
@@ -67,10 +67,8 @@ describe('providers-api settings panel', () => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
 
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    const lines = panel.buildLines(1).join('\n');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('── Session (live) ─');
     expect(lines).toContain('Active model: Kimi K2 (kimi-k2) · live session confirms');
     expect(lines).toContain('Active provider: moonshot · upstream kimi-k2-upstream');
@@ -83,10 +81,8 @@ describe('keybindings settings panel', () => {
     const host = makeHost();
     showKeybindingsSettings(host);
 
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    const lines = panel.buildLines(1).join('\n');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('Keyboard / Keybindings (read-only)');
     expect(lines).toContain('Live registry (keymap.ts)');
     expect(lines).toContain('Mission / Ops / Fleet samples');

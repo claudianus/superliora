@@ -23,6 +23,7 @@ import {
   OPS_FLEET_WORKTREE_TIP,
 } from '#/tui/utils/fleet/fleet-glance';
 import { FLEET_DUAL_EMIT_ENV } from '@superliora/sdk';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 
 describe('fleet settings governance tips', () => {
   it('documents import-path soft rename via fleet facade', () => {
@@ -195,7 +196,7 @@ describe('fleet session live settings', () => {
         })),
         listBackgroundTasks: vi.fn(async () => []),
       })),
-    } as never;
+    } as unknown as SlashCommandHost;
 
     showFleetSettings(host);
     await vi.waitFor(() => {
@@ -204,7 +205,7 @@ describe('fleet session live settings', () => {
 
     const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
       .calls[0]?.[0] as UsagePanelComponent;
-    const text = panel.buildLines(1).join('\n');
+    const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('── Session (live) ─');
     expect(text).toContain('1 running');
     expect(text).toContain('Parallel tools: 2 in flight · peak 3');
@@ -237,7 +238,7 @@ describe('fleet session live settings', () => {
           getStatus: vi.fn(async () => ({})),
           listBackgroundTasks: vi.fn(async () => []),
         })),
-      } as never;
+      } as unknown as SlashCommandHost;
 
       showFleetSettings(host);
       await vi.waitFor(() => {
@@ -246,7 +247,7 @@ describe('fleet session live settings', () => {
 
       const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
         .calls[0]?.[0] as UsagePanelComponent;
-      const text = panel.buildLines(1).join('\n');
+      const text = panel.snapshotBodyLines(1).join('\n');
       expect(text).toContain('── Session (live) ─');
       expect(text).toContain(`${FLEET_WORKTREE_ENV}=ON`);
     } finally {
@@ -284,7 +285,7 @@ describe('fleet session live settings', () => {
         getStatus: vi.fn(async () => ({})),
         listBackgroundTasks: vi.fn(async () => []),
       })),
-    } as never;
+    } as unknown as SlashCommandHost;
 
     showFleetSettings(host);
     await vi.waitFor(() => {
@@ -293,7 +294,7 @@ describe('fleet session live settings', () => {
 
     const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
       .calls[0]?.[0] as UsagePanelComponent;
-    const text = panel.buildLines(1).join('\n');
+    const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('── Session (live) ─');
     expect(text).toContain(warn);
   });

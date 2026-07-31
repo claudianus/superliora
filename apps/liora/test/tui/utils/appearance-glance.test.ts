@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { showAppearanceSettings } from '#/tui/commands/config/appearance-settings';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 import { currentTheme, darkColors, lightColors } from '#/tui/theme';
 import {
@@ -75,13 +76,13 @@ describe('showAppearanceSettings', () => {
         transcriptContainer: { addChild: vi.fn() },
         renderer: { invalidateFrame: vi.fn() },
       },
-    } as never;
+    } as unknown as SlashCommandHost;
 
     showAppearanceSettings(host);
 
     const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
       .calls[0]?.[0] as UsagePanelComponent;
-    const text = panel.buildLines(1).join('\n');
+    const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('Theme: auto · live palette light (tracking terminal)');
 
     currentTheme.setPalette(previousPalette);

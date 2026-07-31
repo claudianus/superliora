@@ -163,7 +163,7 @@ function modelBlockedEvent() {
 }
 
 function addedTranscriptText(host: ReturnType<typeof makeHost>['host']): string {
-  const component = host.state.transcriptContainer.addChild.mock.calls.at(-1)?.[0];
+  const component = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
   return component.render(80).join('\n').replaceAll(/\[[0-9;]*m/g, '');
 }
 

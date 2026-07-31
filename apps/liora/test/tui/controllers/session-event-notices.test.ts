@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AgentStatusUpdatedEvent } from '@superliora/sdk';
 
 import { SessionEventNotices } from '#/tui/controllers/session-event/notices';
+import type { AppState } from '#/tui/types';
 import { INTERVENTION_NEVER_HALT_TIP } from '#/tui/utils/never-halt/intervention-glance';
 import { RUNTIME_DEGRADED_BADGE_TTL_MS } from '#/tui/utils/never-halt/runtime-degraded';
 import { SEARCH_CASCADE_BADGE_TTL_MS } from '#/tui/utils/search/search-cascade';
@@ -17,7 +18,7 @@ function makeHost(interventionCount = 2) {
         interventionCount,
         runtimeDegraded: null,
         searchCascade: null,
-      },
+      } as AppState,
     },
     streamingUI: {
       flushNow: vi.fn(),

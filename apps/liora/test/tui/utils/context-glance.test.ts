@@ -41,7 +41,7 @@ describe('context glance', () => {
         active: 3,
         archived: 1,
         deleted: 0,
-        byKind: { semantic: 2, episodic: 1, procedural: 1, prospective: 0 },
+        byKind: { semantic: 2, episodic: 1, procedural: 1, prospective: 0, governance: 0 },
         byScope: { user: 2, workspace: 2, session: 0 },
       },
     });
@@ -60,7 +60,7 @@ describe('context glance', () => {
           active: 1,
           archived: 0,
           deleted: 0,
-          byKind: { semantic: 1, episodic: 0, procedural: 0, prospective: 0 },
+          byKind: { semantic: 1, episodic: 0, procedural: 0, prospective: 0, governance: 0 },
           byScope: { user: 1, workspace: 0, session: 0 },
         },
       },

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { showTelemetrySettings } from '#/tui/commands/config/telemetry-settings';
+import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
 describe('telemetry-settings', () => {
   it('renders read-only telemetry panel from harness config + live glance', () => {
@@ -18,10 +19,10 @@ describe('telemetry-settings', () => {
     showTelemetrySettings(host);
 
     expect(host.state.transcriptContainer.addChild).toHaveBeenCalledOnce();
-    const [panel] = host.state.transcriptContainer.addChild.mock.calls[0] as [
-      { buildLines: (n: number) => readonly string[] },
+    const [panel] = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      UsagePanelComponent,
     ];
-    const body = panel.buildLines(0).join('\n');
+    const body = panel.snapshotBodyLines(0).join('\n');
     expect(body).toContain('Telemetry (read-only)');
     expect(body).toContain('Config opt-in:');
     expect(body).toContain('Live sink:');

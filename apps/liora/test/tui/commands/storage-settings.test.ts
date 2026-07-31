@@ -6,6 +6,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { showStorageSettings } from '#/tui/commands/config/storage-settings';
 import { resolveStoragePaths } from '#/tui/utils/storage/storage-glance';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
+import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
 describe('storage settings', () => {
   it('resolveStoragePaths uses live session dir for journal + tool-results', () => {
@@ -22,9 +24,9 @@ describe('storage settings', () => {
   });
 
   it('mounts read-only storage panel with live harness paths', async () => {
-    const originalHome = process.env.SUPERLIORA_HOME;
+    const originalHome = process.env['SUPERLIORA_HOME'];
     const home = await mkdtemp(join(tmpdir(), 'liora-storage-settings-'));
-    process.env.SUPERLIORA_HOME = home;
+    process.env['SUPERLIORA_HOME'] = home;
     const sessionDir = join(home, 'sessions', 'bucket', 'ses_a');
     const configPath = join(home, 'config.toml');
 
@@ -43,17 +45,15 @@ describe('storage settings', () => {
         workDir: '/tmp/ws',
         summary: { sessionDir, workDir: '/tmp/ws' },
       })),
-    } as never;
+    } as unknown as SlashCommandHost;
 
     showStorageSettings(host);
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
 
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    const lines = panel.buildLines(1).join('\n');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('Storage (read-only)');
     expect(lines).toContain(`Home: ${home}`);
     expect(lines).toContain(`Config: ${configPath}`);
@@ -64,7 +64,7 @@ describe('storage settings', () => {
     expect(lines).toContain('2 session(s)');
 
     await rm(home, { recursive: true, force: true });
-    if (originalHome === undefined) delete process.env.SUPERLIORA_HOME;
-    else process.env.SUPERLIORA_HOME = originalHome;
+    if (originalHome === undefined) delete process.env['SUPERLIORA_HOME'];
+    else process.env['SUPERLIORA_HOME'] = originalHome;
   });
 });

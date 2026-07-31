@@ -377,7 +377,7 @@ describe('rest/question — resolve + dismiss', () => {
     const r = questionResolveRequestSchema.parse({
       answers: { 'q-1': { kind: 'skipped' } },
     });
-    expect(r.answers['q-1'].kind).toBe('skipped');
+    expect(r.answers['q-1']?.kind).toBe('skipped');
   });
 
   it('questionAlreadyResolvedDataSchema is { resolved: false }', () => {

@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { showIndexSettings } from '#/tui/commands/config/index-settings';
+import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
+import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
 const codemapWarm = {
   warmth: 'warm' as const,
@@ -42,7 +44,7 @@ function makeIndexHost(options: { repoQueryActive?: boolean; workDir?: string } 
       renderer: { invalidateFrame: vi.fn() },
     },
     requireSession: vi.fn(() => ({ getTools, workDir: options.workDir ?? '/workspace/demo' })),
-  } as never;
+  } as unknown as SlashCommandHost;
 }
 
 describe('index settings', () => {
@@ -52,10 +54,8 @@ describe('index settings', () => {
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    const lines = panel.buildLines(1).join('\n');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('RepoQuery: registered');
     expect(lines).toContain('Symbol codemap: warm · 42 files · 128 symbols');
     expect(lines).toContain('Codemap sqlite: /tmp/codemap.sqlite');
@@ -77,10 +77,8 @@ describe('index settings', () => {
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    expect(panel.buildLines(1).join('\n')).toContain('RepoQuery: not active');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    expect(panel.snapshotBodyLines(1).join('\n')).toContain('RepoQuery: not active');
   });
 
   it('shows cold codemap note and RepoQuery symbol tip', async () => {
@@ -92,10 +90,8 @@ describe('index settings', () => {
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
-    const panel = host.state.transcriptContainer.addChild.mock.calls[0]?.[0] as {
-      buildLines: (n: number) => string[];
-    };
-    const text = panel.buildLines(1).join('\n');
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
+    const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('Symbol codemap: cold');
     expect(text).toContain('Symbol index via RepoQuery mode=symbol');
   });

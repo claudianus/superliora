@@ -30,7 +30,7 @@ export function showMissionSettings(host: SlashCommandHost): void {
 async function loadMissionSessionGlance(host: SlashCommandHost): Promise<MissionSessionGlance> {
   const workDir = host.state.appState.workDir ?? process.cwd();
   const ultraworkMode = host.state.appState.ultraworkMode === true;
-  const glance: MissionSessionGlance = {
+  const base: MissionSessionGlance = {
     ultraworkMode,
     workDir,
     goal: host.state.appState.goal ?? null,
@@ -39,39 +39,38 @@ async function loadMissionSessionGlance(host: SlashCommandHost): Promise<Mission
 
   try {
     const session = host.requireSession();
-    const needsRemoteGoal = glance.goal == null;
+    const needsRemoteGoal = base.goal == null;
 
     const [run, goalResult, queue] = await Promise.all([
       session.getUltraworkRun().catch(() => null),
       needsRemoteGoal
-        ? session.getGoal().catch(() => ({ goal: null as const }))
-        : Promise.resolve({ goal: glance.goal ?? null }),
+        ? session.getGoal().catch(() => ({ goal: null }))
+        : Promise.resolve({ goal: base.goal ?? null }),
       readGoalQueue(session).catch(() => undefined),
     ]);
 
-    if (goalResult.goal != null) {
-      glance.goal = goalResult.goal;
-    }
+    const goal = goalResult.goal ?? base.goal;
+    const missionRun =
+      run != null
+        ? {
+            active: isActiveMissionRun(run),
+            status: run.status,
+            stage: run.stage,
+            objective: run.objective,
+          }
+        : ultraworkMode
+          ? { active: false as const, status: 'awaiting' as const }
+          : undefined;
 
-    if (run != null) {
-      glance.missionRun = {
-        active: isActiveMissionRun(run),
-        status: run.status,
-        stage: run.stage,
-        objective: run.objective,
-      };
-    } else if (ultraworkMode) {
-      glance.missionRun = { active: false, status: 'awaiting' };
-    }
-
-    if (queue != null) {
-      glance.goalQueueCount = queue.goals.length;
-    }
+    return {
+      ...base,
+      goal,
+      ...(missionRun !== undefined ? { missionRun } : {}),
+      ...(queue != null ? { goalQueueCount: queue.goals.length } : {}),
+    };
   } catch {
-    glance.sessionUnavailable = true;
+    return { ...base, sessionUnavailable: true };
   }
-
-  return glance;
 }
 
 async function showMissionSettingsPanel(host: SlashCommandHost): Promise<void> {

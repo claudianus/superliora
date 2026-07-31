@@ -44,7 +44,7 @@ export function showFleetSettings(host: SlashCommandHost): void {
 }
 
 async function loadFleetSessionLiveGlance(host: SlashCommandHost): Promise<FleetSessionLiveGlance> {
-  const glance: FleetSessionLiveGlance = {
+  const base: FleetSessionLiveGlance = {
     orchestratorWorkers: host.state.appState.orchestratorWorkers,
     makerCheckerSoftWarn: host.state.appState.makerCheckerSoftWarn,
     worktree: loadFleetWorktreeGlance(),
@@ -53,27 +53,32 @@ async function loadFleetSessionLiveGlance(host: SlashCommandHost): Promise<Fleet
   try {
     const session = host.requireSession();
     const status = await session.getStatus();
-    glance.parallelTools = resolveFleetParallelToolsGlanceFromStatus(status);
+    const parallelTools = resolveFleetParallelToolsGlanceFromStatus(status);
 
-    if (glance.orchestratorWorkers == null || glance.orchestratorWorkers.length === 0) {
+    let backgroundActive: FleetSessionLiveGlance['backgroundActive'];
+    if (base.orchestratorWorkers == null || base.orchestratorWorkers.length === 0) {
       const tasks = await session.listBackgroundTasks({ activeOnly: true }).catch(() => undefined);
       if (tasks != null && tasks.length > 0) {
         const counts = countActiveBackgroundTasks(
           new Map(tasks.map((task) => [task.taskId, task])),
         );
         if (counts.bashTasks > 0 || counts.agentTasks > 0) {
-          glance.backgroundActive = {
+          backgroundActive = {
             bash: counts.bashTasks,
             agent: counts.agentTasks,
           };
         }
       }
     }
-  } catch {
-    glance.sessionUnavailable = true;
-  }
 
-  return glance;
+    return {
+      ...base,
+      ...(parallelTools !== undefined ? { parallelTools } : {}),
+      ...(backgroundActive !== undefined ? { backgroundActive } : {}),
+    };
+  } catch {
+    return { ...base, sessionUnavailable: true };
+  }
 }
 
 async function showFleetSettingsPanel(host: SlashCommandHost): Promise<void> {

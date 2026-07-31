@@ -51,7 +51,7 @@ export interface OpsAuthGlanceInput {
 export function resolveOAuthPoolGlanceFromStatus(status: unknown): OAuthPoolGlanceLike | undefined {
   if (status === null || status === undefined || typeof status !== 'object') return undefined;
   const record = status as Record<string, unknown>;
-  const oauth = record.oauth;
+  const oauth = record['oauth'];
   if (oauth !== null && oauth !== undefined && typeof oauth === 'object') {
     const fromOAuth = pickOAuthPoolGlanceFields(oauth as Record<string, unknown>);
     if (fromOAuth !== undefined) return fromOAuth;
@@ -207,15 +207,17 @@ export function formatOpsAuthLine(
 
 function pickOAuthPoolGlanceFields(record: Record<string, unknown>): OAuthPoolGlanceLike | undefined {
   const poolSize =
-    typeof record.poolSize === 'number' && Number.isFinite(record.poolSize) && record.poolSize > 0
-      ? Math.floor(record.poolSize)
+    typeof record['poolSize'] === 'number' &&
+    Number.isFinite(record['poolSize']) &&
+    record['poolSize'] > 0
+      ? Math.floor(record['poolSize'])
       : undefined;
   const nextRefreshAtMs =
-    typeof record.nextRefreshAtMs === 'number' && Number.isFinite(record.nextRefreshAtMs)
-      ? record.nextRefreshAtMs
-      : typeof record.nextProactiveRefreshAtMs === 'number' &&
-          Number.isFinite(record.nextProactiveRefreshAtMs)
-        ? record.nextProactiveRefreshAtMs
+    typeof record['nextRefreshAtMs'] === 'number' && Number.isFinite(record['nextRefreshAtMs'])
+      ? record['nextRefreshAtMs']
+      : typeof record['nextProactiveRefreshAtMs'] === 'number' &&
+          Number.isFinite(record['nextProactiveRefreshAtMs'])
+        ? record['nextProactiveRefreshAtMs']
         : undefined;
   if (poolSize === undefined && nextRefreshAtMs === undefined) return undefined;
   return {
