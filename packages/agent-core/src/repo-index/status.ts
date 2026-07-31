@@ -8,8 +8,6 @@ import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { SOVEREIGN_UMBRELLA_ENV } from '#/profile/main-profile';
-
 import { getRepoIndexEngineWireStatus, type SqliteDriver } from './engine';
 
 export type RepoIndexBackend = 'none' | 'sqlite-fts5' | 'ast-grep' | 'zoekt';
@@ -36,16 +34,16 @@ export const REPO_INDEX_FTS_BACKEND_TIP =
 export const REPO_INDEX_FUTURE_ENABLE_TIP =
   'Future: config [index] enable + backend (fts/ast-grep/zoekt) · warm on session start.';
 
-/** W8 soft — codemap + sqlite FTS content warm when engine=sqlite and env opt-in. */
+/** Session-start codemap + sqlite FTS content warm — ON by default; opt-out SUPERLIORA_REPO_INDEX_WARM=0. */
 export const REPO_INDEX_WARM_PARALLEL_TIP =
-  'W8 soft: codemap fire-and-forget ensureReady at session start when SUPERLIORA_REPO_INDEX_WARM=1 or SUPERLIORA_SOVEREIGN=1; sqlite FTS content index warm when engine=sqlite.';
+  'Codemap fire-and-forget ensureReady at session start (default ON) · sqlite FTS content index warm when engine=sqlite · opt-out: SUPERLIORA_REPO_INDEX_WARM=0.';
 
 /** Sovereign Reform §6 — 1차 bundled FTS5; zoekt sidecar stays opt-in. */
 export const REPO_INDEX_PREFERRED_ENGINE: RepoIndexEngine = 'sqlite';
 
-/** Session (live) soft suggest when umbrella env is on and {@link REPO_INDEX_ENGINE_ENV} unset. */
+/** Session (live) when {@link REPO_INDEX_ENGINE_ENV} unset — documents sqlite default and opt-outs. */
 export const REPO_INDEX_PREFERRED_ENGINE_TIP =
-  `Preferred engine: ${REPO_INDEX_PREFERRED_ENGINE} — soft suggest ${REPO_INDEX_ENGINE_ENV}=${REPO_INDEX_PREFERRED_ENGINE} under ${SOVEREIGN_UMBRELLA_ENV}=1 (1차 bundled FTS5; not forced; zoekt sidecar stays opt-in).`;
+  `RepoIndex engine: ${REPO_INDEX_PREFERRED_ENGINE} (default) — opt-out: ${REPO_INDEX_ENGINE_ENV}=stub|off|none · zoekt sidecar: ${REPO_INDEX_ENGINE_ENV}=zoekt.`;
 
 const ENGINE_MODULE_CANDIDATES = ['engine.ts', 'content-index.ts', 'service.ts'] as const;
 
@@ -62,28 +60,28 @@ export function isRepoIndexEngineWired(env: NodeJS.ProcessEnv = process.env): bo
   return getRepoIndexEngineWireStatus(engine).wired;
 }
 
-function isSovereignUmbrellaEnvEnabled(env: NodeJS.ProcessEnv): boolean {
-  const flag = env[SOVEREIGN_UMBRELLA_ENV]?.trim();
-  if (flag === undefined || flag.length === 0) return false;
-  return flag === '1' || flag.toLowerCase() === 'true';
-}
-
-/** True when {@link REPO_INDEX_ENGINE_ENV} is unset or blank (engine resolves to stub). */
+/** True when {@link REPO_INDEX_ENGINE_ENV} is unset or blank (engine resolves to sqlite default). */
 export function isRepoIndexEngineEnvUnset(env: NodeJS.ProcessEnv = process.env): boolean {
   const raw = env[REPO_INDEX_ENGINE_ENV]?.trim();
   return raw === undefined || raw.length === 0;
 }
 
-/** Session (live) preferred-engine tip — only under umbrella sovereign reform with engine unset. */
+/** Session (live) default-engine tip when {@link REPO_INDEX_ENGINE_ENV} unset. */
 export function repoIndexPreferredEngineTipLine(env: NodeJS.ProcessEnv = process.env): string | null {
-  if (!isSovereignUmbrellaEnvEnabled(env)) return null;
   if (!isRepoIndexEngineEnvUnset(env)) return null;
   return REPO_INDEX_PREFERRED_ENGINE_TIP;
 }
 
 export function parseRepoIndexEngineEnv(raw: string | undefined): RepoIndexEngine {
   const normalized = raw?.trim().toLowerCase();
+  if (normalized === undefined || normalized.length === 0) {
+    return 'sqlite';
+  }
   switch (normalized) {
+    case 'stub':
+    case 'off':
+    case 'none':
+      return 'stub';
     case 'sqlite':
     case 'sqlite-fts5':
     case 'fts':
@@ -141,7 +139,7 @@ export function formatRepoIndexBackendLine(status: RepoIndexStatus): string {
   if (status.engine === 'stub') {
     return (
       'FTS backend: not wired yet · planned SQLite FTS5 or Zoekt sidecar · ' +
-      `engine=stub (${REPO_INDEX_ENGINE_ENV} unset)`
+      `engine=stub (${REPO_INDEX_ENGINE_ENV}=stub|off|none)`
     );
   }
   const reason =

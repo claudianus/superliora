@@ -74,6 +74,7 @@ describe('repo-index engine sqlite FTS', () => {
     });
     expect(getRepoIndexEngineWireStatus('stub').wired).toBe(false);
     expect(getRepoIndexEngineWireStatus('stub').reason).toContain('engine=stub');
+    expect(getRepoIndexEngineWireStatus('stub').reason).toContain('stub|off|none');
   });
 
   it('getRepoIndexEngineWireStatus is wired for zoekt when sidecar probe succeeds', () => {

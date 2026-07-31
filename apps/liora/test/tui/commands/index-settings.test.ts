@@ -59,15 +59,15 @@ describe('index settings', () => {
     expect(lines).toContain('RepoQuery: registered');
     expect(lines).toContain('Symbol codemap: warm · 42 files · 128 symbols');
     expect(lines).toContain('Codemap sqlite: /tmp/codemap.sqlite');
-    expect(lines).toContain('RepoIndex engine: disabled (stub');
-    expect(lines).toContain('engine=stub');
-    expect(lines).toContain('RepoIndex wire: not live · engine=stub');
-    expect(lines).toContain('FTS backend: not wired yet');
+    expect(lines).toContain('RepoIndex engine: enabled');
+    expect(lines).toContain('engine=sqlite');
+    expect(lines).toContain('RepoIndex wire: live · engine=sqlite');
+    expect(lines).toContain('FTS backend: sqlite-fts5 (live');
     expect(lines).toContain('SQLite FTS5 (1차, bundled) vs Zoekt sidecar');
     expect(lines).toContain('── Session (live) ──');
-    expect(lines).toContain('Codemap warm: OFF');
-    expect(lines).toContain('W8 soft: codemap fire-and-forget ensureReady');
-    expect(lines).toContain('RepoQuery ensureReady');
+    expect(lines).toContain('Codemap warm: ON');
+    expect(lines).toContain('default ON');
+    expect(lines).toContain('fire-and-forget ensureReady');
     expect(lines).toContain('No rebuild action here until RepoIndex engine lands.');
   });
 
