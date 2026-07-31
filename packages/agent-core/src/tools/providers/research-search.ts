@@ -8,14 +8,16 @@
  *   4. Escalate to remaining/free providers only while result quality is thin.
  *   5. Cache-friendly local stack remains available for zero-config.
  *
- * Composes paid/free backends (Brave, Tavily, Exa, Serper, SearXNG,
- * DuckDuckGo/local) with rate-limit cooldowns and free fallback.
+ * Composes paid/free backends (Brave, Tavily, Exa, Serper, Google CSE, Bing,
+ * SearXNG, DuckDuckGo/local) with rate-limit cooldowns and free fallback.
  *
  * Official endpoints (verified against public docs 2026-07):
- *   - Brave:  GET  https://api.search.brave.com/res/v1/web/search  (X-Subscription-Token)
- *   - Tavily: POST https://api.tavily.com/search                   (Bearer / api_key body)
- *   - Exa:    POST https://api.exa.ai/search                      (x-api-key)
- *   - Serper: POST https://google.serper.dev/search               (X-API-KEY)
+ *   - Brave:      GET  https://api.search.brave.com/res/v1/web/search       (X-Subscription-Token)
+ *   - Tavily:     POST https://api.tavily.com/search                        (Bearer / api_key body)
+ *   - Exa:        POST https://api.exa.ai/search                           (x-api-key)
+ *   - Serper:     POST https://google.serper.dev/search                    (X-API-KEY)
+ *   - Google CSE: GET  https://www.googleapis.com/customsearch/v1          (key + cx query params)
+ *   - Bing:       GET  https://api.bing.microsoft.com/v7.0/search           (Ocp-Apim-Subscription-Key)
  */
 
 import type { ResearchSearchRoutingStrategy } from '#/config/schema';
@@ -91,7 +93,7 @@ export {
   isChromeExtensionBridgeEnabled,
   resolveChromeExtensionBridgeUrl,
 } from './research-search-chrome-ext';
-export { detectSearchProviderEnvKeys, resolveResearchApiKey } from './research-search-env';
+export { detectSearchProviderEnvKeys, resolveGoogleCseCx, resolveResearchApiKey } from './research-search-env';
 export {
   buildMetaChannelStatus,
   researchMetaCh2Tip,

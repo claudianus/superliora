@@ -6,7 +6,9 @@ import type { ProviderSlot } from './research-search-slots';
 /** Lower = preferred in cost-aware cascade. Free is always last. */
 export const PROVIDER_COST_RANK: Readonly<Record<ResearchSearchProviderKind, number>> = {
   brave: 10,
+  bing: 12,
   serper: 20,
+  google_cse: 22,
   searxng: 25,
   moonshot: 30,
   tavily: 40,
