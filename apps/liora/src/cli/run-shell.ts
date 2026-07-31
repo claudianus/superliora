@@ -31,14 +31,19 @@ import { createMarketplaceSourceResolver } from '#/utils/plugin-marketplace-reso
 import type { CLIOptions } from './options';
 import { resolveSessionWorkDir } from './resolve-worktree';
 import { createCliTelemetryBootstrap, initializeCliTelemetry } from './telemetry';
-import type { UpdateNoticeInfo } from './update/preflight';
+import type { UpdateLifecycleNotice, UpdateNoticeInfo } from './update/types';
 import type { RuntimeDegradedEvent } from '@superliora/protocol';
 
 import { startHarnessOAuthProactiveRefresh, buildOAuthRefreshDegradedEventFromOutcome } from '#/utils/oauth/proactive-refresh-host';
 
 import { createLioraHostIdentity } from './version';
 
-export async function runShell(opts: CLIOptions, version: string, updateNotice?: UpdateNoticeInfo): Promise<void> {
+export async function runShell(
+  opts: CLIOptions,
+  version: string,
+  updateNotice?: UpdateNoticeInfo,
+  updateLifecycle?: UpdateLifecycleNotice,
+): Promise<void> {
   const startedAt = Date.now();
   const configStartedAt = startedAt;
   let tuiConfig: TuiConfig;
@@ -120,6 +125,7 @@ export async function runShell(opts: CLIOptions, version: string, updateNotice?:
     workDir,
     startupNotice: configWarning,
     updateNotice,
+    updateLifecycle,
     sessionMetadata: resolvedWork.metadata as import('@superliora/sdk').JsonObject | undefined,
   });
   surfaceOAuthDegraded = (event) => {

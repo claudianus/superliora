@@ -51,6 +51,8 @@ export interface UpdateInstallFailure {
   readonly version: string;
   readonly failedAt: string;
   readonly attempts: number;
+  /** When the user has been shown a failure notice in the TUI/CLI. */
+  readonly notifiedAt?: string | null;
 }
 
 export interface UpdateInstallSuccess {
@@ -75,10 +77,30 @@ export interface UpdateNoticeInfo {
   readonly installCommand: string;
 }
 
+/**
+ * User-visible lifecycle of auto/manual updates for TUI toast, header badge,
+ * and transcript notice. Distinct from {@link UpdateNoticeInfo} (available only).
+ */
+export type UpdateLifecycleKind = 'completed' | 'failed' | 'installing' | 'available';
+
+export interface UpdateLifecycleNotice {
+  readonly kind: UpdateLifecycleKind;
+  readonly version: string;
+  readonly title: string;
+  readonly detail?: string;
+  readonly source?: InstallSource;
+  readonly currentVersion?: string;
+  readonly installCommand?: string;
+}
+
 export type UpdatePreflightResult =
   | 'continue'
   | 'exit'
-  | { readonly action: 'continue'; readonly updateNotice: UpdateNoticeInfo };
+  | {
+      readonly action: 'continue';
+      readonly updateNotice?: UpdateNoticeInfo;
+      readonly lifecycle?: UpdateLifecycleNotice;
+    };
 
 /** Re-exported for callers that already import update types from this module. */
 export type { UpgradePlan, UpgradePlanReason } from './plan';

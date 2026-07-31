@@ -199,9 +199,17 @@ export const STRINGS_RUNTIME_CORE_EN: Readonly<Record<string, string>> = {
   'cli.runtime.update.githubInstallSuccess':
     'Updated {product} from GitHub ({version}). Restart the CLI to use the new build.',
   'cli.runtime.update.backgroundGithub':
-    '{product} updated from GitHub ({version})',
+    '{product} updated from GitHub ({version}). Restart recommended.',
   'cli.runtime.update.backgroundSuccess':
     '{product} updated to {version}\nChangelog: {changelog}',
+  'cli.runtime.update.backgroundStarted':
+    '{product} is installing update {version} in the background…',
+  'cli.runtime.update.backgroundFailed':
+    '{product} could not auto-install {version} (attempt {attempts}). Run /upgrade to retry.',
+  'cli.runtime.update.lifecycle.completedTitle': 'Updated to {version}',
+  'cli.runtime.update.lifecycle.failedTitle': 'Auto-update failed ({version})',
+  'cli.runtime.update.lifecycle.installingTitle': 'Installing {version}…',
+  'cli.runtime.update.lifecycle.availableTitle': 'Update available: {version}',
   'cli.runtime.update.source.native':
     'native (windows). Auto-update is not supported on this platform.',
   'cli.runtime.update.source.unsupported':
@@ -416,9 +424,17 @@ export const STRINGS_RUNTIME_CORE_KO: Readonly<Record<string, string>> = {
   'cli.runtime.update.githubInstallSuccess':
     'GitHub에서 {product}을(를) 업데이트했습니다 ({version}). 새 빌드를 사용하려면 CLI를 재시작하세요.',
   'cli.runtime.update.backgroundGithub':
-    'GitHub에서 {product} 업데이트됨 ({version})',
+    'GitHub에서 {product} 업데이트됨 ({version}). 재시작을 권장합니다.',
   'cli.runtime.update.backgroundSuccess':
     '{product} {version}(으)로 업데이트됨\n변경 로그: {changelog}',
+  'cli.runtime.update.backgroundStarted':
+    '{product}가 백그라운드에서 {version} 업데이트를 설치 중…',
+  'cli.runtime.update.backgroundFailed':
+    '{product} 자동 설치 실패: {version} (시도 {attempts}회). /upgrade로 다시 시도하세요.',
+  'cli.runtime.update.lifecycle.completedTitle': '{version}(으)로 업데이트됨',
+  'cli.runtime.update.lifecycle.failedTitle': '자동 업데이트 실패 ({version})',
+  'cli.runtime.update.lifecycle.installingTitle': '{version} 설치 중…',
+  'cli.runtime.update.lifecycle.availableTitle': '업데이트 가능: {version}',
   'cli.runtime.update.source.native':
     'native (windows). 이 플랫폼에서는 자동 업데이트를 지원하지 않습니다.',
   'cli.runtime.update.source.unsupported':

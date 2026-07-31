@@ -17,6 +17,7 @@ import {
   spawnForSource,
   startObservedUpgradeInstall,
 } from '#/cli/update/preflight';
+import type { UpdatePreflightResult } from '#/cli/update/types';
 import { promptForInstallChoice } from '#/cli/update/prompt';
 import type * as PromptModule from '#/cli/update/prompt';
 import { refreshUpdateCache } from '#/cli/update/refresh';
@@ -249,6 +250,20 @@ async function flushBackgroundInstall(): Promise<void> {
   });
 }
 
+/** Preflight may return plain `continue` or a continue payload with lifecycle notices. */
+function expectContinue(result: UpdatePreflightResult): void {
+  if (result === 'continue') return;
+  expect(result).toEqual(expect.objectContaining({ action: 'continue' }));
+}
+
+async function expectPreflightContinue(
+  run: Promise<UpdatePreflightResult>,
+): Promise<UpdatePreflightResult> {
+  const result = await run;
+  expectContinue(result);
+  return result;
+}
+
 describe('runUpdatePreflight', () => {
   beforeEach(() => {
     // Keep ambient shell exports (e.g. a developer's SUPERLIORA_NO_AUTO_UPDATE=1)
@@ -285,7 +300,7 @@ describe('runUpdatePreflight', () => {
     }));
     const { stdout, options } = captureOutput();
 
-    await expect(runUpdatePreflight('0.5.0', options)).resolves.toBe('continue');
+    await expectPreflightContinue(runUpdatePreflight('0.5.0', options));
 
     expect(stdout.join('')).toMatch(/updated|0\.5\.0/i);
     expect(readUpdateCache).not.toHaveBeenCalled();
@@ -299,7 +314,7 @@ describe('runUpdatePreflight', () => {
     mocks.readUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
     const { options } = captureOutput();
 
-    await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+    await expectPreflightContinue(runUpdatePreflight('0.4.0', options));
 
     expect(readUpdateCache).not.toHaveBeenCalled();
     expect(detectInstallSource).not.toHaveBeenCalled();
@@ -313,9 +328,7 @@ describe('runUpdatePreflight', () => {
     const logger = captureLogger();
     const { options } = captureOutput();
 
-    await expect(
-      runUpdatePreflight('0.4.0', { ...options, track, logger }),
-    ).resolves.toBe('continue');
+    await expectPreflightContinue(runUpdatePreflight('0.4.0', { ...options, track, logger }));
 
     // Peer holds the lock — do not spawn a second install or interrupt with a prompt.
     expect(mocks.spawn).not.toHaveBeenCalled();
@@ -335,7 +348,7 @@ describe('runUpdatePreflight', () => {
     mockSpawnExit(0);
     const { options } = captureOutput();
 
-    await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+    await expectPreflightContinue(runUpdatePreflight('0.4.0', options));
     await flushBackgroundInstall();
 
     expect(readUpdateCache).toHaveBeenCalledTimes(1);
@@ -356,7 +369,7 @@ describe('runUpdatePreflight', () => {
     mocks.detectInstallSource.mockResolvedValue('npm-global');
     const { options } = captureOutput();
 
-    await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+    await expectPreflightContinue(runUpdatePreflight('0.4.0', options));
     await flushBackgroundInstall();
 
     expect(refreshUpdateCache).toHaveBeenCalledTimes(1);
@@ -369,9 +382,7 @@ describe('runUpdatePreflight', () => {
     mocks.readUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
     mocks.refreshUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
     const { options } = captureOutput();
-    await expect(
-      runUpdatePreflight('0.4.0', { ...options, isTTY: false }),
-    ).resolves.toBe('continue');
+    await expectPreflightContinue(runUpdatePreflight('0.4.0', { ...options, isTTY: false }));
     expect(detectInstallSource).not.toHaveBeenCalled();
   });
 
@@ -380,9 +391,7 @@ describe('runUpdatePreflight', () => {
     mocks.refreshUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
     const { options } = captureOutput();
 
-    await expect(
-      runUpdatePreflight('0.4.0', { ...options, isTTY: false }),
-    ).resolves.toBe('continue');
+    await expectPreflightContinue(runUpdatePreflight('0.4.0', { ...options, isTTY: false }));
     await flushBackgroundInstall();
 
     expect(refreshUpdateCache).toHaveBeenCalledTimes(1);
@@ -454,7 +463,7 @@ describe('runUpdatePreflight', () => {
       const result = runUpdatePreflight('0.5.0', options);
       await vi.advanceTimersByTimeAsync(1_000);
 
-      await expect(result).resolves.toBe('continue');
+      await expectPreflightContinue(result);
       expect(mocks.promptForInstallChoice).toHaveBeenCalledWith(
         expect.objectContaining({
           target: { version: '0.6.0' },
@@ -520,12 +529,12 @@ describe('runUpdatePreflight', () => {
     mocks.detectInstallSource.mockResolvedValue('homebrew');
     const { stdout, options } = captureOutput();
     const result = await runUpdatePreflight('0.4.0', options);
-    expect(result).toEqual({
+    expect(result).toEqual(expect.objectContaining({
       action: 'continue',
       updateNotice: expect.objectContaining({
         installCommand: expect.stringContaining('brew upgrade kimi-code'),
       }),
-    });
+    }));
     expect(promptForInstallChoice).not.toHaveBeenCalled();
     expect(mocks.spawn).not.toHaveBeenCalled();
   });
@@ -566,14 +575,14 @@ describe('runUpdatePreflight', () => {
     try {
       const { stdout, options } = captureOutput();
       const result = await runUpdatePreflight('0.4.0', options);
-      expect(result).toEqual({
+      expect(result).toEqual(expect.objectContaining({
         action: 'continue',
         updateNotice: expect.objectContaining({
           installCommand: expect.stringContaining(
             'irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex',
           ),
         }),
-      });
+      }));
       expect(promptForInstallChoice).not.toHaveBeenCalled();
       expect(mocks.spawn).not.toHaveBeenCalled();
     } finally {
@@ -593,7 +602,7 @@ describe('runUpdatePreflight', () => {
     mockSpawnExit(0);
     const { options } = captureOutput();
 
-    await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+    await expectPreflightContinue(runUpdatePreflight('0.4.0', options));
 
     expect(readUpdateCache).not.toHaveBeenCalled();
     expect(refreshUpdateCache).not.toHaveBeenCalled();
@@ -668,12 +677,12 @@ describe('runUpdatePreflight', () => {
       const { stdout, options } = captureOutput();
 
       const result = await runUpdatePreflight('0.4.0', options);
-      expect(result).toEqual({
+      expect(result).toEqual(expect.objectContaining({
         action: 'continue',
         updateNotice: expect.objectContaining({
           installCommand: expect.stringContaining('git -C'),
         }),
-      });
+      }));
       expect(mocks.spawn).not.toHaveBeenCalled();
     } finally {
       Object.defineProperty(process, 'platform', { value: originalPlatform });
@@ -686,12 +695,12 @@ describe('runUpdatePreflight', () => {
     mocks.detectInstallSource.mockResolvedValue('unsupported');
     const { stdout, options } = captureOutput();
     const result = await runUpdatePreflight('0.4.0', options);
-    expect(result).toEqual({
+    expect(result).toEqual(expect.objectContaining({
       action: 'continue',
       updateNotice: expect.objectContaining({
         installCommand: expect.stringContaining('npm install -g @superliora/liora@0.5.0'),
       }),
-    });
+    }));
     expect(mocks.spawn).not.toHaveBeenCalled();
   });
 
@@ -702,7 +711,7 @@ describe('runUpdatePreflight', () => {
     mocks.detectInstallSource.mockResolvedValue('npm-global');
     mocks.promptForInstallChoice.mockResolvedValue('skip');
     const { options } = captureOutput();
-    await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+    await expectPreflightContinue(runUpdatePreflight('0.4.0', options));
     expect(mocks.spawn).not.toHaveBeenCalled();
   });
 
@@ -714,7 +723,7 @@ describe('runUpdatePreflight', () => {
     mocks.promptForInstallChoice.mockResolvedValue('install');
     mockSpawnExit(1);
     const { stdout, stderr, options } = captureOutput();
-    await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+    await expectPreflightContinue(runUpdatePreflight('0.4.0', options));
     expect(stderr.join('')).toContain('warning: failed to install');
     // A failed install must never print the "Updated …" success line.
     expect(stdout.join('')).not.toContain('Updated @superliora/liora');
@@ -728,7 +737,7 @@ describe('runUpdatePreflight', () => {
     mockSpawnExit(0);
     const { options } = captureOutput();
 
-    await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+    await expectPreflightContinue(runUpdatePreflight('0.4.0', options));
     expect(promptForInstallChoice).not.toHaveBeenCalled();
     expect(mocks.spawn).toHaveBeenCalledWith(
       expect.stringMatching(/^npm(\.cmd)?$/),
@@ -767,7 +776,7 @@ describe('runUpdatePreflight', () => {
     const track = vi.fn();
     const logger = captureLogger();
 
-    await expect(runUpdatePreflight('0.4.0', { ...options, track, logger })).resolves.toBe('continue');
+    await expectPreflightContinue(runUpdatePreflight('0.4.0', { ...options, track, logger }));
     await flushBackgroundInstall();
 
     expect(track).toHaveBeenCalledWith('update_background_install_started', expect.objectContaining({
@@ -799,7 +808,7 @@ describe('runUpdatePreflight', () => {
     mockSpawnExit(0);
     const { options } = captureOutput();
 
-    await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+    await expectPreflightContinue(runUpdatePreflight('0.4.0', options));
 
     expect(promptForInstallChoice).not.toHaveBeenCalled();
     expect(mocks.spawn).toHaveBeenCalledWith(
@@ -827,10 +836,12 @@ describe('runUpdatePreflight', () => {
     const first = captureOutput();
     const second = captureOutput();
 
-    await expect(Promise.all([
+    const concurrent = await Promise.all([
       runUpdatePreflight('0.4.0', first.options),
       runUpdatePreflight('0.4.0', second.options),
-    ])).resolves.toEqual(['continue', 'continue']);
+    ]);
+    expectContinue(concurrent[0]!);
+    expectContinue(concurrent[1]!);
 
     expect(mocks.spawn).toHaveBeenCalledTimes(1);
   });
@@ -843,7 +854,7 @@ describe('runUpdatePreflight', () => {
     mockSpawnExit(1);
     const { stderr, options } = captureOutput();
 
-    await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+    await expectPreflightContinue(runUpdatePreflight('0.4.0', options));
     await flushBackgroundInstall();
 
     expect(stderr.join('')).toBe('');
@@ -868,7 +879,7 @@ describe('runUpdatePreflight', () => {
     const track = vi.fn();
     const logger = captureLogger();
 
-    await expect(runUpdatePreflight('0.4.0', { ...options, track, logger })).resolves.toBe('continue');
+    await expectPreflightContinue(runUpdatePreflight('0.4.0', { ...options, track, logger }));
     await flushBackgroundInstall();
 
     expect(stderr.join('')).toBe('');
@@ -898,7 +909,7 @@ describe('runUpdatePreflight', () => {
     mockSpawnExit(1);
     const { options } = captureOutput();
 
-    await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+    await expectPreflightContinue(runUpdatePreflight('0.4.0', options));
     await flushBackgroundInstall();
 
     expect(promptForInstallChoice).not.toHaveBeenCalled();
@@ -925,7 +936,7 @@ describe('runUpdatePreflight', () => {
     mocks.promptForInstallChoice.mockResolvedValue('skip');
     const { options } = captureOutput();
 
-    await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+    await expectPreflightContinue(runUpdatePreflight('0.4.0', options));
 
     expect(promptForInstallChoice).toHaveBeenCalledWith(expect.objectContaining({
       target: { version: '0.5.0' },
@@ -948,7 +959,7 @@ describe('runUpdatePreflight', () => {
     const track = vi.fn();
     const logger = captureLogger();
 
-    await expect(runUpdatePreflight('0.5.0', { ...options, track, logger })).resolves.toBe('continue');
+    await expectPreflightContinue(runUpdatePreflight('0.5.0', { ...options, track, logger }));
 
     const rendered = stdout.join('');
     expect(rendered).toContain('SuperLiora updated to v0.5.0');
@@ -983,7 +994,7 @@ describe('runUpdatePreflight', () => {
     mocks.refreshUpdateCache.mockResolvedValue(emptyUpdateCache());
     const { stdout, options } = captureOutput();
 
-    await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+    await expectPreflightContinue(runUpdatePreflight('0.4.0', options));
 
     expect(stdout.join('')).toContain('SuperLiora updated from GitHub (origin/main@abcdef123456)');
     expect(stdout.join('')).not.toContain('vorigin/main');
@@ -1009,7 +1020,7 @@ describe('runUpdatePreflight', () => {
     mocks.refreshUpdateCache.mockResolvedValue(emptyUpdateCache());
     const { stdout, options } = captureOutput();
 
-    await expect(runUpdatePreflight('0.5.0', options)).resolves.toBe('continue');
+    await expectPreflightContinue(runUpdatePreflight('0.5.0', options));
 
     expect(stdout.join('')).toContain('SuperLiora updated to v0.5.0');
     expect(writeUpdateInstallState).toHaveBeenCalledWith(expect.objectContaining({
@@ -1047,7 +1058,7 @@ describe('runUpdatePreflight', () => {
       mocks.detectInstallSource.mockResolvedValue('npm-global');
       const { stdout, options } = captureOutput();
 
-      await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+      await expectPreflightContinue(runUpdatePreflight('0.4.0', options));
       await flushBackgroundInstall();
 
       expect(stdout.join('')).toBe('');
@@ -1082,7 +1093,7 @@ describe('runUpdatePreflight', () => {
       const { options } = captureOutput();
       const track = vi.fn();
 
-      await expect(runUpdatePreflight('0.4.0', { ...options, track })).resolves.toBe('continue');
+      await expectPreflightContinue(runUpdatePreflight('0.4.0', { ...options, track }));
       await flushBackgroundInstall();
 
       expect(mocks.spawn).toHaveBeenCalledWith(
@@ -1113,7 +1124,7 @@ describe('runUpdatePreflight', () => {
       const { options } = captureOutput();
       const track = vi.fn();
 
-      await expect(runUpdatePreflight('0.4.0', { ...options, track })).resolves.toBe('continue');
+      await expectPreflightContinue(runUpdatePreflight('0.4.0', { ...options, track }));
 
       expect(mocks.promptForInstallChoice).toHaveBeenCalledWith(
         expect.objectContaining({ target: { version: '0.5.0' } }),
@@ -1143,7 +1154,7 @@ describe('runUpdatePreflight', () => {
       const { options } = captureOutput();
       const track = vi.fn();
 
-      await expect(runUpdatePreflight('0.5.0', { ...options, track })).resolves.toBe('continue');
+      await expectPreflightContinue(runUpdatePreflight('0.5.0', { ...options, track }));
 
       expect(mocks.promptForInstallChoice).toHaveBeenCalledWith(
         expect.objectContaining({ target: { version: '0.7.0' } }),
@@ -1163,7 +1174,7 @@ describe('runUpdatePreflight', () => {
       mocks.detectInstallSource.mockResolvedValue('homebrew');
       const { stdout, options } = captureOutput();
 
-      await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+      await expectPreflightContinue(runUpdatePreflight('0.4.0', options));
       await flushBackgroundInstall();
 
       expect(stdout.join('')).toBe('');
@@ -1176,7 +1187,7 @@ describe('runUpdatePreflight', () => {
       mocks.detectInstallSource.mockResolvedValue('npm-global');
       const { options } = captureOutput();
 
-      await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+      await expectPreflightContinue(runUpdatePreflight('0.4.0', options));
       await flushBackgroundInstall();
 
       expect(refreshUpdateCache).toHaveBeenCalledTimes(1);
@@ -1191,7 +1202,7 @@ describe('runUpdatePreflight', () => {
       mocks.detectInstallSource.mockResolvedValue('npm-global');
       const { stdout, options } = captureOutput();
 
-      await expect(runUpdatePreflight('0.5.0', options)).resolves.toBe('continue');
+      await expectPreflightContinue(runUpdatePreflight('0.5.0', options));
 
       expect(stdout.join('')).toBe('');
       expect(promptForInstallChoice).not.toHaveBeenCalled();
@@ -1208,7 +1219,7 @@ describe('runUpdatePreflight', () => {
       const { options } = captureOutput();
       const track = vi.fn();
 
-      await expect(runUpdatePreflight('0.4.0', { ...options, track })).resolves.toBe('continue');
+      await expectPreflightContinue(runUpdatePreflight('0.4.0', { ...options, track }));
       await flushBackgroundInstall();
 
       expect(mocks.spawn).toHaveBeenCalledWith(
@@ -1233,7 +1244,7 @@ describe('runUpdatePreflight', () => {
       mocks.readUpdateCache.mockResolvedValue(cacheWithManifest(releasedForEveryone('0.5.0')));
       const { options } = captureOutput();
 
-      await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+      await expectPreflightContinue(runUpdatePreflight('0.4.0', options));
 
       expect(readUpdateCache).not.toHaveBeenCalled();
       expect(mocks.spawn).not.toHaveBeenCalled();
@@ -1255,7 +1266,7 @@ describe('runUpdatePreflight', () => {
       mocks.promptForInstallChoice.mockResolvedValue('skip');
       const { options } = captureOutput();
 
-      await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('continue');
+      await expectPreflightContinue(runUpdatePreflight('0.4.0', options));
 
       expect(mocks.promptForInstallChoice).toHaveBeenCalledWith(
         expect.objectContaining({ target: { version: '0.5.0' } }),

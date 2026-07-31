@@ -187,11 +187,26 @@ export class HeaderComponent implements Component {
   }
 
   /**
-   * Update available badge for the header. Shows a compact `⬆ vX.Y.Z` indicator
-   * when the preflight detected an available update. Returns null when there is
-   * no update notice.
+   * Update lifecycle / available badge for the header.
+   * - completed → success `✓ updated`
+   * - installing → warning `↻ updating`
+   * - failed → error `⚠ update`
+   * - available (or legacy updateNotice) → warning `⬆ vX.Y.Z`
    */
   private buildUpdateBadge(): string | null {
+    const lifecycle = this.state.updateLifecycle;
+    if (lifecycle !== null && lifecycle !== undefined) {
+      switch (lifecycle.kind) {
+        case 'completed':
+          return currentTheme.fg('success', '✓ updated');
+        case 'installing':
+          return currentTheme.fg('warning', '↻ updating');
+        case 'failed':
+          return currentTheme.fg('error', '⚠ update');
+        case 'available':
+          return currentTheme.fg('warning', `⬆ v${lifecycle.version}`);
+      }
+    }
     const notice = this.state.updateNotice;
     if (!notice) return null;
     return currentTheme.fg('warning', `⬆ v${notice.targetVersion}`);

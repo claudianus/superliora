@@ -70,3 +70,34 @@ export function renderBackgroundInstallSuccessNotice(version: string, source?: I
     changelog: CHANGELOG_URL,
   });
 }
+
+export function renderBackgroundInstallStartedNotice(version: string): string {
+  return tln('cli.runtime.update.backgroundStarted', {
+    product: PRODUCT_NAME,
+    version,
+  });
+}
+
+export function renderBackgroundInstallFailedNotice(version: string, attempts: number): string {
+  return tln('cli.runtime.update.backgroundFailed', {
+    product: PRODUCT_NAME,
+    version,
+    attempts: String(attempts),
+  });
+}
+
+export function formatUpdateLifecycleTitle(
+  kind: 'completed' | 'failed' | 'installing' | 'available',
+  version: string,
+): string {
+  switch (kind) {
+    case 'completed':
+      return t('cli.runtime.update.lifecycle.completedTitle', { version });
+    case 'failed':
+      return t('cli.runtime.update.lifecycle.failedTitle', { version });
+    case 'installing':
+      return t('cli.runtime.update.lifecycle.installingTitle', { version });
+    case 'available':
+      return t('cli.runtime.update.lifecycle.availableTitle', { version });
+  }
+}
