@@ -1,10 +1,12 @@
 /**
- * Settings → Compaction — threshold/template tips (SSOT §9.2).
+ * Settings → Compaction — status panel + threshold/keep/micro tips (SSOT §9.2).
  * Read-only glance at loopControl keys; manual reclaim via /compact.
  */
 
+import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
 import { UsagePanelComponent } from '../../../components/messages/usage-panel/index';
 import { requestTUILayoutRender } from '../../../utils/render/frame-render';
+import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 import {
   contextWorkingSetSnapshotFromLoopControl,
   formatTokenCount,
@@ -12,6 +14,9 @@ import {
 } from '#/tui/utils/agent/context-working-set';
 import {
   buildCompactionSettingsLines,
+  COMPACTION_KEEP_TOKENS_TIP,
+  COMPACTION_MICRO_TIP,
+  COMPACTION_THRESHOLD_TIP,
   resolveLastCompactionFromTranscript,
   type CompactionSessionGlance,
   type CompactionThresholdGlance,
@@ -19,11 +24,68 @@ import {
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 
+export { COMPACTION_KEEP_TOKENS_TIP, COMPACTION_MICRO_TIP, COMPACTION_THRESHOLD_TIP };
+
 const DEFAULT_TRIGGER_RATIO = '0.70 (engine default)';
 const DEFAULT_ASYNC_RATIO = '0.55 (engine default)';
 
 export function showCompactionSettings(host: SlashCommandHost): void {
-  void showCompactionSettingsPanel(host);
+  mountPickerDialog(
+    host,
+    new ChoicePickerComponent({
+      title: 'Compaction',
+      hint: '↑↓ · Enter · Esc',
+      searchable: true,
+      options: [
+        {
+          value: 'status',
+          label: 'Compaction status',
+          description:
+            'Live archive · last compact · context usage · micro-compaction · threshold glance.',
+        },
+        {
+          value: 'tip-threshold',
+          label: 'Threshold tip',
+          description:
+            'loopControl.compactionTriggerRatio · async pre-rot · working-set caps via Settings → Context.',
+        },
+        {
+          value: 'tip-keep-tokens',
+          label: 'Keep tokens tip',
+          description:
+            'Frozen prefix + compactionMaxRecentMessages · footer /compact nudge · manual reclaim.',
+        },
+        {
+          value: 'tip-micro',
+          label: 'Micro-compaction tip',
+          description:
+            'Tool/swarm body clears · Expand(id=…) recover · context-archive store.',
+        },
+      ],
+      onSelect: (value) => {
+        dismissPickerDialog(host);
+        if (value === 'status') {
+          void showCompactionSettingsPanel(host);
+          return;
+        }
+        if (value === 'tip-threshold') {
+          host.showStatus(COMPACTION_THRESHOLD_TIP, 'info');
+          return;
+        }
+        if (value === 'tip-keep-tokens') {
+          host.showStatus(COMPACTION_KEEP_TOKENS_TIP, 'info');
+          return;
+        }
+        if (value === 'tip-micro') {
+          host.showStatus(COMPACTION_MICRO_TIP, 'info');
+        }
+      },
+      onCancel: () => {
+        dismissPickerDialog(host);
+      },
+    }),
+    { label: 'Compaction' },
+  );
 }
 
 function defaultThresholdGlance(): CompactionThresholdGlance {
@@ -111,7 +173,9 @@ async function showCompactionSettingsPanel(host: SlashCommandHost): Promise<void
     borderToken: 'primary',
     title: ' Compaction ',
     enterBeatSeed: 'compaction-settings',
-    requestRender: () =>{  requestTUILayoutRender(host.state); },
+    requestRender: () => {
+      requestTUILayoutRender(host.state);
+    },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

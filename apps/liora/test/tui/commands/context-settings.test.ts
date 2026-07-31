@@ -2,8 +2,17 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { showCompactionSettings } from '#/tui/commands/config/context/compaction-settings';
 import { showContextSettings } from '#/tui/commands/config/context/context-settings';
+import type { ChoicePickerComponent } from '#/tui/components/dialogs/picker/choice-picker';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
+
+function selectCompactionStatus(host: SlashCommandHost): void {
+  const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+    | ChoicePickerComponent
+    | undefined;
+  expect(picker).toBeDefined();
+  (picker as unknown as { opts: { onSelect: (action: string) => void } }).opts.onSelect('status');
+}
 
 function makeSettingsHost(
   options: {
@@ -23,6 +32,7 @@ function makeSettingsHost(
     state: {
       transcriptContainer,
       transcriptEntries: [],
+      centerModalStack: [] as readonly unknown[],
       appState: {
         model: '',
         availableModels: {},
@@ -52,6 +62,11 @@ function makeSettingsHost(
         ),
       },
     },
+    mountCenterModal: vi.fn(),
+    closeCenterModal: vi.fn(),
+    mountEditorReplacement: vi.fn(),
+    restoreEditor: vi.fn(),
+    showStatus: vi.fn(),
   } as unknown as SlashCommandHost;
 }
 
@@ -73,6 +88,7 @@ describe('W9 compaction/context settings tips', () => {
       getContext: vi.fn(async () => ({ contextArchive: { entryCount: 1, maxEntries: 512 } })),
     })) as never;
     showCompactionSettings(host);
+    selectCompactionStatus(host);
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });

@@ -9,6 +9,18 @@ import type { TranscriptEntry } from '#/tui/types';
 export const COMPACTION_ARCHIVE_SOFT_TIP =
   'Context archive: (no session) — Expand(id=…) recovers liora_context_archive bodies.';
 
+/** Threshold keys in loopControl — edit via liora.toml or Settings → Context presets. */
+export const COMPACTION_THRESHOLD_TIP =
+  'Thresholds: loopControl.compactionTriggerRatio (soft ~0.70) · compactionAsyncTriggerRatio (pre-rot ~0.55) · compactionBlockRatio · compactionTriggerTokens. Working-set caps: Settings → Context (economy/balanced/deep/full_window → maxWorkingSetTokens + asyncWorkingSetTokens). No sliders here — edit liora.toml [loopControl].';
+
+/** Keep-recent tail + frozen prefix — compactionMaxRecentMessages in loopControl. */
+export const COMPACTION_KEEP_TOKENS_TIP =
+  'Keep tokens: frozen zone = leading system + initial user (engine default 2). Recent tail = loopControl.compactionMaxRecentMessages + ratio budgets. Footer nudges /compact near ~70% context usage. Manual reclaim: /compact or /compact <instruction>.';
+
+/** Micro-compaction clears long tool/swarm bodies — session status + Expand recover. */
+export const COMPACTION_MICRO_TIP =
+  'Micro-compaction: archives long tool/swarm bodies as [liora-archived id=…]. Status shows clears + last trigger (cache_miss, tool_clear, …). Recover: Expand(id=<archiveId>) from context-archive store. Legacy alias: LioraExpand. Family overflow without archive: Read receipt under ~/.superliora/tool-results/.';
+
 export interface CompactionLastCompactTip {
   readonly tokensBefore?: number;
   readonly tokensAfter?: number;
