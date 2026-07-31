@@ -2,18 +2,31 @@
  * Settings → Providers & API — read-only /login + env tips (SSOT §9.2).
  */
 
+import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
 import { UsagePanelComponent } from '../../../components/messages/usage-panel/index';
 import { requestTUILayoutRender } from '../../../utils/render/frame-render';
 import {
   buildProvidersApiSettingsLines,
   loadProvidersApiGlance,
+  PROVIDERS_API_KEY_ENVS_TIP,
+  PROVIDERS_LOGIN_TIP,
   resolveProvidersApiSessionGlance,
 } from '../../../utils/provider/providers-api-glance';
+import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
+import { SEARCH_PREFER_XAI_TIP } from '../search/search-status';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 
-async function loadProvidersSessionGlance(host: SlashCommandHost) {
-  const glance = loadProvidersApiGlance(process.env);
+export { PROVIDERS_API_KEY_ENVS_TIP, PROVIDERS_LOGIN_TIP, SEARCH_PREFER_XAI_TIP };
+
+interface ProvidersSessionSnapshot {
+  readonly webSearchActive?: boolean;
+  readonly session: ReturnType<typeof resolveProvidersApiSessionGlance>;
+}
+
+async function loadProvidersSessionSnapshot(
+  host: SlashCommandHost,
+): Promise<ProvidersSessionSnapshot> {
   const appState = host.state.appState;
   const catalogModels = Object.keys(appState.availableModels).length;
   const catalogProviders = Object.keys(appState.availableProviders ?? {}).length;
@@ -52,23 +65,86 @@ async function loadProvidersSessionGlance(host: SlashCommandHost) {
     });
   }
 
-  return { ...glance, webSearchActive, session };
+  return { webSearchActive, session };
 }
 
 export function showProvidersApiSettings(host: SlashCommandHost): void {
-  void showProvidersApiSettingsPanel(host);
+  mountPickerDialog(
+    host,
+    new ChoicePickerComponent({
+      title: 'Providers & API',
+      hint: '↑↓ · Enter · Esc',
+      searchable: true,
+      options: [
+        {
+          value: 'status',
+          label: 'Providers status',
+          description:
+            'Credential posture · live session model/provider · API key env detection · catalog size.',
+        },
+        {
+          value: 'tip-login',
+          label: '/login tip',
+          description:
+            'OAuth · catalog/custom provider · --add fallback slots · Settings → Accounts.',
+        },
+        {
+          value: 'tip-api-keys',
+          label: 'API key env tip',
+          description:
+            'KIMI_API_KEY · ANTHROPIC · OPENAI · GOOGLE · XAI · config.toml env:VAR.',
+        },
+        {
+          value: 'tip-prefer-xai',
+          label: 'PreferXai tip',
+          description:
+            'XAI_API_KEY or /login xAI → Grok Build web search before ResearchSearchEngine.',
+        },
+      ],
+      onSelect: (value) => {
+        dismissPickerDialog(host);
+        if (value === 'status') {
+          void showProvidersApiSettingsPanel(host);
+          return;
+        }
+        if (value === 'tip-login') {
+          host.showStatus(PROVIDERS_LOGIN_TIP, 'info');
+          return;
+        }
+        if (value === 'tip-api-keys') {
+          host.showStatus(PROVIDERS_API_KEY_ENVS_TIP, 'info');
+          return;
+        }
+        if (value === 'tip-prefer-xai') {
+          host.showStatus(SEARCH_PREFER_XAI_TIP, 'info');
+        }
+      },
+      onCancel: () => {
+        dismissPickerDialog(host);
+      },
+    }),
+    { label: 'Providers & API' },
+  );
 }
 
 async function showProvidersApiSettingsPanel(host: SlashCommandHost): Promise<void> {
-  const glance = await loadProvidersSessionGlance(host);
-  const lines = buildProvidersApiSettingsLines(glance);
+  const snapshot = await loadProvidersSessionSnapshot(host);
 
   const panel = new UsagePanelComponent({
-    buildLines: (_fillProgress: number) => [...lines],
+    buildLines: (_fillProgress: number) =>
+      [
+        ...buildProvidersApiSettingsLines({
+          ...loadProvidersApiGlance(process.env),
+          webSearchActive: snapshot.webSearchActive,
+          session: snapshot.session,
+        }),
+      ],
     borderToken: 'primary',
     title: ' Providers ',
     enterBeatSeed: 'providers-api',
-    requestRender: () =>{  requestTUILayoutRender(host.state); },
+    requestRender: () => {
+      requestTUILayoutRender(host.state);
+    },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);
