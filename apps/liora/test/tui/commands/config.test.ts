@@ -1154,6 +1154,11 @@ describe('harness panel and tools inventory', () => {
     }
     component.handleInput('\r');
     expect(host.restoreEditor).toHaveBeenCalled();
+    const benchPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
+      | { opts: { onSelect: (value: string) => void } }
+      | undefined;
+    expect(benchPicker).toBeDefined();
+    benchPicker!.opts.onSelect('status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
@@ -1179,6 +1184,11 @@ describe('harness panel and tools inventory', () => {
   it('renders bench diagnostics panel without session', () => {
     const host = makeHarnessHost({ session: undefined, activeSession: undefined });
     showBenchDiagnosticsSettings(host);
+    const benchPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+      | { opts: { onSelect: (value: string) => void } }
+      | undefined;
+    expect(benchPicker).toBeDefined();
+    benchPicker!.opts.onSelect('status');
     expect(host.state.transcriptContainer.addChild).toHaveBeenCalledOnce();
   });
 
