@@ -108,6 +108,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run check:settings-inventory
       - run: pnpm run check:mission-fleet-path
+      - name: Cache warm KPI (50-turn mock)
+        run: pnpm -C packages/agent-core run cache:warm-kpi
 
   typecheck:
     runs-on: ubuntu-latest
