@@ -13,6 +13,7 @@ describe('tokenNeedsProactiveRefresh', () => {
     expiresIn: 3600,
     expiresAt: 10_000,
     tokenType: 'Bearer',
+    scope: '',
   };
 
   it('returns false when plenty of lifetime remains', () => {
