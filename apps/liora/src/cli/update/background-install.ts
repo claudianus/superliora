@@ -96,6 +96,16 @@ async function shouldAutoInstallUpdates(): Promise<boolean> {
   }
 }
 
+type BackgroundStartResult =
+  | { readonly status: 'started' }
+  | { readonly status: 'already-active' }
+  | { readonly status: 'lock-held' }
+  | { readonly status: 'failure-threshold' };
+
+/**
+ * Spawn a detached install. Status distinguishes "in flight" from hard skips
+ * so the preflight can avoid double interactive prompts under concurrency.
+ */
 async function startBackgroundInstall(
   state: UpdateInstallState,
   currentVersion: string,
@@ -105,17 +115,29 @@ async function startBackgroundInstall(
   track: UpdateTrackFn | undefined,
   logger: UpdateLogger,
   rolloutTelemetry: RolloutTelemetry,
-): Promise<void> {
+): Promise<BackgroundStartResult> {
   const lock = await tryAcquireUpdateInstallLock({ version: target.version });
-  if (lock === null) return;
+  if (lock === null) {
+    logUpdateInfo(logger, 'background update install skipped', {
+      targetVersion: target.version,
+      source,
+      reason: 'lock-held',
+    });
+    return { status: 'lock-held' };
+  }
 
   try {
     const freshState = await readUpdateInstallState().catch(() => state);
-    if (
-      hasFreshActiveInstall(freshState, target) ||
-      failureAttemptsFor(freshState, target) >= AUTO_INSTALL_FAILURE_PROMPT_THRESHOLD
-    ) {
-      return;
+    if (hasFreshActiveInstall(freshState, target)) {
+      return { status: 'already-active' };
+    }
+    if (failureAttemptsFor(freshState, target) >= AUTO_INSTALL_FAILURE_PROMPT_THRESHOLD) {
+      logUpdateInfo(logger, 'background update install skipped', {
+        targetVersion: target.version,
+        source,
+        reason: 'failure-threshold',
+      });
+      return { status: 'failure-threshold' };
     }
 
     const startedState: UpdateInstallState = {
@@ -200,11 +222,18 @@ async function startBackgroundInstall(
     child.once('error', () => { finish(false); });
     child.once('exit', (code) => { finish(code === 0); });
     child.unref();
+    return { status: 'started' };
   } finally {
     await lock.release().catch(() => {});
   }
 }
 
+/**
+ * @returns true when an automatic install is in flight, freshly started, or
+ *          another process holds the install lock (caller should skip the
+ *          interactive prompt). false when auto install is off / unsupported /
+ *          exhausted retries — caller may prompt.
+ */
 export async function tryStartAutomaticBackgroundInstall(
   installState: UpdateInstallState,
   currentVersion: string,
@@ -216,13 +245,36 @@ export async function tryStartAutomaticBackgroundInstall(
   rolloutTelemetry: RolloutTelemetry,
 ): Promise<boolean> {
   const sourceCanAutoInstall = canAutoInstall(source, platform);
-  const autoInstallUpdates = sourceCanAutoInstall ? await shouldAutoInstallUpdates() : false;
-  if (!autoInstallUpdates || !sourceCanAutoInstall) return false;
-  if (failureAttemptsFor(installState, target) >= AUTO_INSTALL_FAILURE_PROMPT_THRESHOLD) {
+  if (!sourceCanAutoInstall) {
+    logUpdateInfo(logger, 'background update install skipped', {
+      targetVersion: target.version,
+      source,
+      reason: 'source-unsupported',
+    });
     return false;
   }
-  if (!hasFreshActiveInstall(installState, target)) {
-    await startBackgroundInstall(
+  const autoInstallUpdates = await shouldAutoInstallUpdates();
+  if (!autoInstallUpdates) {
+    logUpdateInfo(logger, 'background update install skipped', {
+      targetVersion: target.version,
+      source,
+      reason: 'auto-install-disabled',
+    });
+    return false;
+  }
+  if (failureAttemptsFor(installState, target) >= AUTO_INSTALL_FAILURE_PROMPT_THRESHOLD) {
+    logUpdateInfo(logger, 'background update install skipped', {
+      targetVersion: target.version,
+      source,
+      reason: 'failure-threshold',
+    });
+    return false;
+  }
+  if (hasFreshActiveInstall(installState, target)) {
+    return true;
+  }
+  try {
+    const result = await startBackgroundInstall(
       installState,
       currentVersion,
       target,
@@ -231,7 +283,18 @@ export async function tryStartAutomaticBackgroundInstall(
       track,
       logger,
       rolloutTelemetry,
-    ).catch(() => {});
+    );
+    // lock-held / already-active: peer session owns the install — stay silent.
+    // failure-threshold: surface a prompt so the user can recover manually.
+    return result.status === 'started'
+      || result.status === 'already-active'
+      || result.status === 'lock-held';
+  } catch (error) {
+    logUpdateWarn(logger, 'background update install failed to start', {
+      targetVersion: target.version,
+      source,
+      error,
+    });
+    return false;
   }
-  return true;
 }
