@@ -13,6 +13,7 @@ export async function finishStartupSession(
     host.showStatus(host.startupNotice);
     host.startupNotice = undefined;
   }
+  surfaceUpdateLifecycle(host);
   void showTmuxKeyboardWarningIfNeeded(host);
   if (host.state.startupState === 'picker') {
     void host.sessionBrowser.bootstrapFromPicker();
@@ -106,5 +107,39 @@ async function showTmuxKeyboardWarningIfNeeded(host: StartupLifecycleHost): Prom
     host.showStatus(warning, 'warning');
   } catch {
     // Best-effort: startup must not block on warning retrieval.
+  }
+}
+
+/** Toast + transcript + status so auto-update lifecycle is hard to miss. */
+function surfaceUpdateLifecycle(host: StartupLifecycleHost): void {
+  const lifecycle = host.state.appState.updateLifecycle;
+  if (lifecycle === null || lifecycle === undefined) return;
+
+  const toastMs =
+    lifecycle.kind === 'completed' || lifecycle.kind === 'failed'
+      ? 6_500
+      : lifecycle.kind === 'installing'
+        ? 4_500
+        : 3_500;
+  try {
+    host.state.toast.show(lifecycle.title, toastMs);
+  } catch {
+    // Toast is best-effort.
+  }
+
+  const detail = lifecycle.detail?.trim();
+  const statusColor =
+    lifecycle.kind === 'completed'
+      ? 'success'
+      : lifecycle.kind === 'failed'
+        ? 'error'
+        : lifecycle.kind === 'installing'
+          ? 'warning'
+          : 'info';
+  host.showStatus(lifecycle.title, statusColor);
+  if (detail !== undefined && detail.length > 0 && detail !== lifecycle.title) {
+    host.showNotice(lifecycle.title, detail);
+  } else if (lifecycle.kind === 'completed' || lifecycle.kind === 'failed') {
+    host.showNotice(lifecycle.title, detail);
   }
 }

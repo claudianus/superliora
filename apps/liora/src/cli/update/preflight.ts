@@ -12,7 +12,9 @@ import {
   refreshGitCheckoutUpdateTarget,
 } from './git-checkout';
 import {
-  showPendingBackgroundInstallNotice,
+  buildAvailableLifecycleNotice,
+  buildInstallingLifecycleNotice,
+  consumeBackgroundInstallNotices,
   tryStartAutomaticBackgroundInstall,
 } from './background-install';
 import {
@@ -48,11 +50,13 @@ import {
   NPM_PACKAGE_NAME,
   type InstallSource,
   type UpdateDecision,
+  type UpdateLifecycleNotice,
+  type UpdateNoticeInfo,
   type UpdatePreflightResult,
   type UpdateTarget,
 } from './types';
 
-export type { UpdatePreflightResult, UpdateNoticeInfo } from './types';
+export type { UpdatePreflightResult, UpdateNoticeInfo, UpdateLifecycleNotice } from './types';
 export { parseUpgradeStageLine, type UpgradeInstallStage } from './install-stages';
 export {
   installCommandFor,
@@ -158,6 +162,20 @@ export function decideUpdateAction(
   return canAutoInstall(source, platform) ? 'prompt-install' : 'manual-command';
 }
 
+function continueWith(options: {
+  readonly lifecycle?: UpdateLifecycleNotice | null;
+  readonly updateNotice?: UpdateNoticeInfo;
+}): UpdatePreflightResult {
+  const lifecycle = options.lifecycle ?? null;
+  const updateNotice = options.updateNotice;
+  if (lifecycle === null && updateNotice === undefined) return 'continue';
+  return {
+    action: 'continue',
+    ...(updateNotice !== undefined ? { updateNotice } : {}),
+    ...(lifecycle !== null ? { lifecycle } : {}),
+  };
+}
+
 export async function runUpdatePreflight(
   currentVersion: string,
   options: RunUpdatePreflightOptions = {},
@@ -173,20 +191,23 @@ export async function runUpdatePreflight(
     const deviceId = resolveUpdateDeviceId();
     const bypassRollout = isRolloutBypassedByExperimentalEnv();
     let installState = await readUpdateInstallState().catch(() => emptyUpdateInstallState());
-    // Always surface a completed background install notice, even when further
-    // auto-update work is disabled by env (user still wants to know it landed).
+    let pendingLifecycle: UpdateLifecycleNotice | null = null;
+    // Always surface completed/failed background install notices, even when
+    // further auto-update work is disabled by env.
     if (isInteractive) {
-      installState = await showPendingBackgroundInstallNotice(
+      const consumed = await consumeBackgroundInstallNotices(
         installState,
         currentVersion,
         stdout,
         options.track,
         logger,
       );
+      installState = consumed.state;
+      pendingLifecycle = consumed.lifecycle;
     }
 
     if (isAutoUpdateDisabledByEnv()) {
-      return 'continue';
+      return continueWith({ lifecycle: pendingLifecycle });
     }
 
     const githubCheckoutRoot =
@@ -198,7 +219,7 @@ export async function runUpdatePreflight(
       );
       // temporary shim until Task 2/3 lands structured handling
       const target = refreshResult?.status === 'update' ? refreshResult.target : null;
-      if (target === null) return 'continue';
+      if (target === null) return continueWith({ lifecycle: pendingLifecycle });
       const rolloutTelemetry = {
         rollout_bucket: 0,
         rollout_delay_seconds: 0,
@@ -222,15 +243,24 @@ export async function runUpdatePreflight(
           rolloutTelemetry,
         )
       ) {
-        return 'continue';
+        const installing = buildInstallingLifecycleNotice(target.version);
+        stdout.write(`${installing.detail ?? installing.title}\n`);
+        return continueWith({ lifecycle: installing });
       }
       const installCommand = installCommandFor(source, target.version, platform);
       trackUpdatePrompted(options.track, currentVersion, target, source, decision, rolloutTelemetry);
       if (decision === 'manual-command') {
-        return { action: 'continue', updateNotice: { currentVersion, targetVersion: target.version, installCommand } };
+        return continueWith({
+          lifecycle: pendingLifecycle ?? buildAvailableLifecycleNotice(
+            currentVersion,
+            target.version,
+            installCommand,
+          ),
+          updateNotice: { currentVersion, targetVersion: target.version, installCommand },
+        });
       }
       const choice = await promptInstall(currentVersion, target, source, installCommand);
-      if (choice === 'skip') return 'continue';
+      if (choice === 'skip') return continueWith({ lifecycle: pendingLifecycle });
       try {
         await installUpdate(source, target.version, platform);
         stdout.write(renderGithubCheckoutInstallSuccessMessage(target));
@@ -242,7 +272,7 @@ export async function runUpdatePreflight(
             reason: formatErrorMessage(error),
           }),
         );
-        return 'continue';
+        return continueWith({ lifecycle: pendingLifecycle });
       }
     }
 
@@ -269,7 +299,7 @@ export async function runUpdatePreflight(
         options.track,
         logger,
       );
-      return 'continue';
+      return continueWith({ lifecycle: pendingLifecycle });
     }
 
     const source: InstallSource =
@@ -279,7 +309,7 @@ export async function runUpdatePreflight(
     const decision = decideUpdateAction(target, isInteractive, source, platform);
     if (decision === 'none') {
       refreshInBackground();
-      return 'continue';
+      return continueWith({ lifecycle: pendingLifecycle });
     }
 
     if (
@@ -295,7 +325,9 @@ export async function runUpdatePreflight(
       )
     ) {
       refreshInBackground();
-      return 'continue';
+      const installing = buildInstallingLifecycleNotice(target.version);
+      stdout.write(`${installing.detail ?? installing.title}\n`);
+      return continueWith({ lifecycle: installing });
     }
 
     const userVisibleUpdate = await refreshUserVisibleUpdateTarget(
@@ -306,7 +338,7 @@ export async function runUpdatePreflight(
       cachedManifest,
     );
     const userVisibleTarget = userVisibleUpdate.target;
-    if (userVisibleTarget === null) return 'continue';
+    if (userVisibleTarget === null) return continueWith({ lifecycle: pendingLifecycle });
     const userVisibleRollout = rolloutTelemetryFor(
       deviceId,
       userVisibleTarget.version,
@@ -325,18 +357,31 @@ export async function runUpdatePreflight(
         userVisibleRollout,
       )
     ) {
-      return 'continue';
+      const installing = buildInstallingLifecycleNotice(userVisibleTarget.version);
+      stdout.write(`${installing.detail ?? installing.title}\n`);
+      return continueWith({ lifecycle: installing });
     }
 
     const installCommand = installCommandFor(source, userVisibleTarget.version, platform);
     trackUpdatePrompted(options.track, currentVersion, userVisibleTarget, source, decision, userVisibleRollout);
 
     if (decision === 'manual-command') {
-      return { action: 'continue', updateNotice: { currentVersion, targetVersion: userVisibleTarget.version, installCommand } };
+      return continueWith({
+        lifecycle: pendingLifecycle ?? buildAvailableLifecycleNotice(
+          currentVersion,
+          userVisibleTarget.version,
+          installCommand,
+        ),
+        updateNotice: {
+          currentVersion,
+          targetVersion: userVisibleTarget.version,
+          installCommand,
+        },
+      });
     }
 
     const choice = await promptInstall(currentVersion, userVisibleTarget, source, installCommand);
-    if (choice === 'skip') return 'continue';
+    if (choice === 'skip') return continueWith({ lifecycle: pendingLifecycle });
 
     try {
       await installUpdate(source, userVisibleTarget.version, platform);
@@ -350,7 +395,7 @@ export async function runUpdatePreflight(
           reason: formatErrorMessage(error),
         }),
       );
-      return 'continue';
+      return continueWith({ lifecycle: pendingLifecycle });
     }
   } catch {
     return 'continue';

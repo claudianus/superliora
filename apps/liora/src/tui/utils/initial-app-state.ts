@@ -22,6 +22,7 @@ export interface InitialAppStateInput {
     readonly targetVersion: string;
     readonly installCommand: string;
   };
+  readonly updateLifecycle?: AppState['updateLifecycle'];
 }
 
 export function createInitialAppState(input: InitialAppStateInput): AppState {
@@ -75,5 +76,6 @@ export function createInitialAppState(input: InitialAppStateInput): AppState {
     providerQuota: null,
     banner: undefined,
     updateNotice: input.updateNotice ?? null,
+    updateLifecycle: input.updateLifecycle ?? null,
   };
 }

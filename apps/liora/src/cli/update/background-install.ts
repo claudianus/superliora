@@ -3,7 +3,12 @@ import { spawn } from 'node:child_process';
 import { loadTuiConfig } from '#/tui/config';
 
 import { tryAcquireUpdateInstallLock } from './install-lock';
-import { renderBackgroundInstallSuccessNotice } from './install-messages';
+import {
+  formatUpdateLifecycleTitle,
+  renderBackgroundInstallFailedNotice,
+  renderBackgroundInstallStartedNotice,
+  renderBackgroundInstallSuccessNotice,
+} from './install-messages';
 import {
   AUTO_INSTALL_FAILURE_PROMPT_THRESHOLD,
   failureAttemptsFor,
@@ -18,21 +23,37 @@ import {
 } from './install-runtime';
 import { canAutoInstall, spawnForSource } from './install-spawn';
 import { readUpdateInstallState, writeUpdateInstallState } from './install-state';
-import type { InstallSource, UpdateInstallState, UpdateTarget } from './types';
+import type {
+  InstallSource,
+  UpdateInstallState,
+  UpdateLifecycleNotice,
+  UpdateTarget,
+} from './types';
 
-export async function showPendingBackgroundInstallNotice(
+export interface ConsumeInstallNoticesResult {
+  readonly state: UpdateInstallState;
+  readonly lifecycle: UpdateLifecycleNotice | null;
+}
+
+/**
+ * Consume one-shot success/failure notices for the next interactive launch.
+ * Writes a plain-stdout line for terminal visibility and returns a structured
+ * lifecycle payload for the TUI (toast + header + transcript).
+ */
+export async function consumeBackgroundInstallNotices(
   state: UpdateInstallState,
   currentVersion: string,
   stdout: { write(chunk: string): boolean },
   track: UpdateTrackFn | undefined,
   logger: UpdateLogger,
-): Promise<UpdateInstallState> {
+): Promise<ConsumeInstallNoticesResult> {
   const success = state.lastSuccess;
   const shouldShowSuccessNotice = success !== null
     && success.notifiedAt === null
     && (success.version === currentVersion || success.source === 'github-checkout');
-  if (shouldShowSuccessNotice) {
-    stdout.write(renderBackgroundInstallSuccessNotice(success.version, success.source));
+  if (shouldShowSuccessNotice && success !== null) {
+    const text = renderBackgroundInstallSuccessNotice(success.version, success.source);
+    stdout.write(text.endsWith('\n') ? text : `${text}\n`);
     trackUpdateEvent(track, 'update_success_notice_shown', {
       version: success.version,
       source: success.source,
@@ -52,39 +73,139 @@ export async function showPendingBackgroundInstallNotice(
       },
     };
     await writeUpdateInstallState(nextState).catch(() => {});
-    return nextState;
+    return {
+      state: nextState,
+      lifecycle: {
+        kind: 'completed',
+        version: success.version,
+        title: formatUpdateLifecycleTitle('completed', success.version),
+        detail: text.trim(),
+        source: success.source,
+      },
+    };
   }
 
   const active = state.active;
-  if (active === null || active.version !== currentVersion) return state;
-  if (success !== null && success.version === currentVersion && success.notifiedAt !== null) {
-    return state;
+  if (active !== null && active.version === currentVersion) {
+    const alreadyNotified =
+      success !== null && success.version === currentVersion && success.notifiedAt !== null;
+    if (!alreadyNotified) {
+      const text = renderBackgroundInstallSuccessNotice(active.version, active.source);
+      stdout.write(text.endsWith('\n') ? text : `${text}\n`);
+      trackUpdateEvent(track, 'update_success_notice_shown', {
+        version: active.version,
+        source: active.source,
+        inferred_from_active: true,
+      });
+      logUpdateInfo(logger, 'background update success notice shown', {
+        version: active.version,
+        inferredFromActive: true,
+      });
+      const notifiedAt = nowIso();
+      const nextState: UpdateInstallState = {
+        ...state,
+        active: null,
+        lastFailure: null,
+        lastSuccess: {
+          version: active.version,
+          source: active.source,
+          installedAt: notifiedAt,
+          notifiedAt,
+        },
+      };
+      await writeUpdateInstallState(nextState).catch(() => {});
+      return {
+        state: nextState,
+        lifecycle: {
+          kind: 'completed',
+          version: active.version,
+          title: formatUpdateLifecycleTitle('completed', active.version),
+          detail: text.trim(),
+          source: active.source,
+        },
+      };
+    }
   }
 
-  const notifiedAt = nowIso();
-  stdout.write(renderBackgroundInstallSuccessNotice(active.version, active.source));
-  trackUpdateEvent(track, 'update_success_notice_shown', {
-    version: active.version,
-    source: active.source,
-    inferred_from_active: true,
-  });
-  logUpdateInfo(logger, 'background update success notice shown', {
-    version: active.version,
-    inferredFromActive: true,
-  });
-  const nextState: UpdateInstallState = {
-    ...state,
-    active: null,
-    lastFailure: null,
-    lastSuccess: {
-      version: active.version,
-      source: active.source,
-      installedAt: notifiedAt,
-      notifiedAt,
-    },
+  const failure = state.lastFailure;
+  if (
+    failure !== null
+    && (failure.notifiedAt === null || failure.notifiedAt === undefined)
+    && failure.attempts >= AUTO_INSTALL_FAILURE_PROMPT_THRESHOLD
+  ) {
+    const text = renderBackgroundInstallFailedNotice(failure.version, failure.attempts);
+    stdout.write(text.endsWith('\n') ? text : `${text}\n`);
+    trackUpdateEvent(track, 'update_failure_notice_shown', {
+      version: failure.version,
+      attempts: failure.attempts,
+    });
+    logUpdateWarn(logger, 'background update failure notice shown', {
+      version: failure.version,
+      attempts: failure.attempts,
+    });
+    const nextState: UpdateInstallState = {
+      ...state,
+      lastFailure: {
+        ...failure,
+        notifiedAt: nowIso(),
+      },
+    };
+    await writeUpdateInstallState(nextState).catch(() => {});
+    return {
+      state: nextState,
+      lifecycle: {
+        kind: 'failed',
+        version: failure.version,
+        title: formatUpdateLifecycleTitle('failed', failure.version),
+        detail: text.trim(),
+      },
+    };
+  }
+
+  return { state, lifecycle: null };
+}
+
+/** @deprecated Use {@link consumeBackgroundInstallNotices}. */
+export async function showPendingBackgroundInstallNotice(
+  state: UpdateInstallState,
+  currentVersion: string,
+  stdout: { write(chunk: string): boolean },
+  track: UpdateTrackFn | undefined,
+  logger: UpdateLogger,
+): Promise<UpdateInstallState> {
+  const result = await consumeBackgroundInstallNotices(
+    state,
+    currentVersion,
+    stdout,
+    track,
+    logger,
+  );
+  return result.state;
+}
+
+export function buildInstallingLifecycleNotice(version: string): UpdateLifecycleNotice {
+  const detail = renderBackgroundInstallStartedNotice(version).trim();
+  return {
+    kind: 'installing',
+    version,
+    title: formatUpdateLifecycleTitle('installing', version),
+    detail,
   };
-  await writeUpdateInstallState(nextState).catch(() => {});
-  return nextState;
+}
+
+export function buildAvailableLifecycleNotice(
+  currentVersion: string,
+  targetVersion: string,
+  installCommand: string,
+): UpdateLifecycleNotice {
+  return {
+    kind: 'available',
+    version: targetVersion,
+    currentVersion,
+    title: formatUpdateLifecycleTitle('available', targetVersion),
+    detail: installCommand,
+    installCommand,
+  };
 }
 
 async function shouldAutoInstallUpdates(): Promise<boolean> {
@@ -188,6 +309,7 @@ async function startBackgroundInstall(
             version: target.version,
             failedAt: nowIso(),
             attempts,
+            notifiedAt: null,
           },
         };
       void writeUpdateInstallState(nextState).catch(() => {});

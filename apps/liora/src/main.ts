@@ -79,10 +79,14 @@ export async function handleMainCommand(
     process.exit(0);
   }
 
-  // Extract update notice when the preflight wants to show a manual-command notice.
+  // Structured update feedback for the TUI (available badge + lifecycle toast).
   const updateNotice =
     typeof preflightResult === 'object' && preflightResult !== null
       ? preflightResult.updateNotice
+      : undefined;
+  const updateLifecycle =
+    typeof preflightResult === 'object' && preflightResult !== null
+      ? preflightResult.lifecycle
       : undefined;
 
   if (validated.uiMode === 'print') {
@@ -92,7 +96,7 @@ export async function handleMainCommand(
   }
 
   applyCliProfileOverride(validated.options.profile);
-  await runShell(validated.options, version, updateNotice);
+  await runShell(validated.options, version, updateNotice, updateLifecycle);
   return { headlessCompleted: false };
 }
 

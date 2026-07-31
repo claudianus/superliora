@@ -139,7 +139,8 @@ export function buildUpgradeSettingsLines(glance: UpgradeGlanceInput): readonly 
     `· ${AUTO_UPDATE_DISABLE_ENV}=1 blocks all update preflight — unset for auto-install`,
     '· Managed source installs respect tui.toml auto_install (wrapper no longer forces off)',
     '· GitHub checkout / npm / native installs differ in canAutoInstall',
-    '· Background success notice may appear on next launch',
+    '· Auto-update success: toast + header ✓ + transcript notice on next launch',
+    '· Auto-update start: stdout + installing badge; failures surface after retries',
     '· Dev CLI (apps/liora/scripts/dev.mjs) sets NO_AUTO_UPDATE for local worktrees only',
   ];
 }

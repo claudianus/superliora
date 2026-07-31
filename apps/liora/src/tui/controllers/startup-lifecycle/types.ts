@@ -71,6 +71,7 @@ export interface StartupLifecycleHost {
   closeSession(reason: string): Promise<void>;
   requireSession(): Session;
   showStatus(msg: string, color?: ColorToken): void;
+  showNotice(title: string, detail?: string): void;
   showCommandHub(options?: { readonly intro?: boolean }): void;
   sendNormalUserInput(text: string, options?: { readonly displayText?: string }): void;
   isSessionLoadingOverlayActive(): boolean;

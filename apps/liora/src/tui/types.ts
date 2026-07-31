@@ -228,8 +228,21 @@ export interface AppState {
       readonly lastTripReason?: string;
     }>;
   } | null;
-  /** Update notice from preflight; shown as a header badge instead of stdout. */
+  /** Update available notice from preflight; shown as a header badge. */
   updateNotice?: { readonly currentVersion: string; readonly targetVersion: string; readonly installCommand: string } | null;
+  /**
+   * Auto-update lifecycle for toast + header + transcript (completed / failed /
+   * installing / available). Set once at startup from preflight.
+   */
+  updateLifecycle?: {
+    readonly kind: 'completed' | 'failed' | 'installing' | 'available';
+    readonly version: string;
+    readonly title: string;
+    readonly detail?: string;
+    readonly source?: string;
+    readonly currentVersion?: string;
+    readonly installCommand?: string;
+  } | null;
   /** Last completed step TTFT sample for Host settings (W8 latency profile). */
   lastStepTtft?: {
     readonly ms: number;
@@ -444,6 +457,7 @@ export interface LioraTUIStartupInput {
     readonly targetVersion: string;
     readonly installCommand: string;
   };
+  readonly updateLifecycle?: AppState['updateLifecycle'];
   /** Optional session metadata (e.g. worktree) stamped on createSession. */
   readonly sessionMetadata?: import('@superliora/sdk').JsonObject;
 }
