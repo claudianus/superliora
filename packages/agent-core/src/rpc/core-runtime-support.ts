@@ -27,6 +27,7 @@ import {
   managedKimiCodeEnvForPlugins,
   withManagedKimiPluginEnv,
 } from './plugin-mcp-env';
+import { disposeResearchBridgeSidecar } from '#/tools/providers/research-bridge-sidecar';
 import { createRuntimeConfig, hasStatefulGuiRuntime } from './runtime-factory';
 import type { SDKRPC } from './sdk-api';
 
@@ -156,6 +157,7 @@ export function sessionApi(context: CoreRuntimeSupportContext, sessionId: string
 
 export function clearRuntimeCache(context: CoreRuntimeSupportContext): void {
   if (context.runtimeOverride !== undefined) return;
+  disposeResearchBridgeSidecar();
   context.runtime = undefined;
 }
 

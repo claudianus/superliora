@@ -12,6 +12,8 @@ import { LocalFetchURLProvider } from '#/tools/providers/local-fetch-url';
 import { LocalWebSearchProvider } from '#/tools/providers/local-web-search';
 import { resolveSearxngUrl } from '#/tools/providers/research-meta-status';
 import { MoonshotFetchURLProvider } from '#/tools/providers/moonshot-fetch-url';
+import { ensureResearchBridgeSidecar } from '#/tools/providers/research-bridge-sidecar';
+import { isResearchBridgeEnabled } from '#/tools/providers/research-bridge-status';
 import {
   ResearchSearchEngine,
   createBrowserSearchChannel,
@@ -91,6 +93,9 @@ export async function createRuntimeConfig(input: {
           disableHostVerification: input.config.browserUse?.disableHostVerification,
         });
   const browserChannel = await createBrowserSearchChannel(browserUse, browserUseEnabled);
+  if (isResearchBridgeEnabled()) {
+    await ensureResearchBridgeSidecar();
+  }
   const chromeExtensionChannel = createChromeExtensionSearchChannel();
   const researchSearcher =
     localSearch?.enabled === false

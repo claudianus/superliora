@@ -117,7 +117,8 @@ export const NATIVE_HOST_SMOKE_SKIP_ENV = 'SUPERLIORA_RESEARCH_BRIDGE_SKIP_SMOKE
 
 export const CHROME_EXT_BRIDGE_CH5_TIP =
   `Ch5 bridge: ${CHROME_RESEARCH_BRIDGE_ENV}=1 (legacy ${CHROME_EXT_BRIDGE_ENV}=1) · optional ${CHROME_EXT_URL_ENV} ` +
-  `(default ${DEFAULT_CHROME_EXT_BRIDGE_URL}) · native-messaging host ${NATIVE_HOST_ID} + SuperLiora extension.`;
+  `(default ${DEFAULT_CHROME_EXT_BRIDGE_URL}) · runtime auto-spawns native-host --serve when loopback probe fails · ` +
+  `native-messaging host ${NATIVE_HOST_ID} + SuperLiora extension.`;
 
 export type ResearchBridgeHandshake =
   | 'off'
