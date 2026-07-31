@@ -1034,6 +1034,7 @@ describe('harness panel and tools inventory', () => {
       session: {
         workDir: '/tmp/fleet-ws',
         getStatus: vi.fn(async () => ({ permission: 'auto' })),
+        listBackgroundTasks: vi.fn(async () => []),
       },
     });
     host.harness.listSessions = vi.fn(async () =>
@@ -1048,6 +1049,11 @@ describe('harness panel and tools inventory', () => {
     }
     component.handleInput('\r');
     expect(host.restoreEditor).toHaveBeenCalled();
+    const fleetPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
+      | { opts: { onSelect: (value: string) => void } }
+      | undefined;
+    expect(fleetPicker).toBeDefined();
+    fleetPicker!.opts.onSelect('status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
@@ -1061,6 +1067,7 @@ describe('harness panel and tools inventory', () => {
     expect(lines).toContain('worktree');
     expect(lines).toContain('SUPERLIORA_FLEET_WORKTREE');
     expect(lines).toContain('SpawnWorker');
+    expect(lines).toContain('Settings → Fleet → Max workers');
   });
 
   it('renders mission panel without session', async () => {
@@ -1074,6 +1081,11 @@ describe('harness panel and tools inventory', () => {
   it('renders fleet settings panel without session', async () => {
     const host = makeHarnessHost({ session: undefined, activeSession: undefined });
     showFleetSettings(host);
+    const fleetPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+      | { opts: { onSelect: (value: string) => void } }
+      | undefined;
+    expect(fleetPicker).toBeDefined();
+    fleetPicker!.opts.onSelect('status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });

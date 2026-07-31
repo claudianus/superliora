@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { showFleetSettings } from '#/tui/commands/config/fleet/fleet-settings';
 import { FLEET_IMPORT_PATH_TIPS, FLEET_PROTOCOL_ALIAS_TIPS } from '#/tui/commands/config/fleet/fleet-settings';
+import type { ChoicePickerComponent } from '#/tui/components/dialogs/picker/choice-picker';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 import {
+  buildFleetMaxRunningTasksConfigPatch,
   buildFleetSessionLiveLines,
   buildFleetCostGuardSettingsLines,
   buildFleetWorktreeSettingsLines,
@@ -24,6 +26,54 @@ import {
 } from '#/tui/utils/fleet/fleet-glance';
 import { FLEET_DUAL_EMIT_ENV } from '@superliora/sdk';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
+
+function selectFleetAction(host: SlashCommandHost, value: string, callIndex = 0): void {
+  const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[callIndex]?.[0] as
+    | ChoicePickerComponent
+    | undefined;
+  expect(picker).toBeDefined();
+  (picker as unknown as { opts: { onSelect: (action: string) => void } }).opts.onSelect(value);
+}
+
+function makeFleetHost(options: {
+  appState?: Record<string, unknown>;
+  getConfig?: () => Promise<Record<string, unknown>>;
+  listSessions?: () => Promise<readonly unknown[]>;
+  requireSession?: () => Record<string, unknown>;
+} = {}) {
+  return {
+    state: {
+      appState: {
+        swarmMode: false,
+        orchestratorMode: false,
+        permissionMode: 'auto',
+        orchestratorWorkers: undefined,
+        sessionCostUsd: undefined,
+        ...options.appState,
+      },
+      swarmModeEntry: undefined,
+      centerModalStack: [] as readonly unknown[],
+      transcriptContainer: { addChild: vi.fn() },
+      renderer: { invalidateFrame: vi.fn() },
+    },
+    harness: {
+      getConfig: options.getConfig ?? vi.fn(async () => ({})),
+      listSessions: options.listSessions ?? vi.fn(async () => []),
+      setConfig: vi.fn(async () => undefined),
+    },
+    requireSession:
+      options.requireSession ??
+      vi.fn(() => ({
+        workDir: '/tmp/fleet-ws',
+        getStatus: vi.fn(async () => ({})),
+        listBackgroundTasks: vi.fn(async () => []),
+      })),
+    mountCenterModal: vi.fn(),
+    closeCenterModal: vi.fn(),
+    restoreEditor: vi.fn(),
+    showStatus: vi.fn(),
+  } as unknown as SlashCommandHost;
+}
 
 describe('fleet settings governance tips', () => {
   it('documents import-path soft rename via fleet facade', () => {
@@ -113,7 +163,50 @@ describe('fleet cost guard settings', () => {
   });
 });
 
-describe('fleet session live settings', () => {
+describe('showFleetSettings picker', () => {
+  it('mounts ChoicePicker with status, max-workers, and tip actions', () => {
+    const host = makeFleetHost();
+    showFleetSettings(host);
+    const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+      | ChoicePickerComponent
+      | undefined;
+    expect(picker).toBeDefined();
+    const options = (picker as unknown as { opts: { options: readonly { value: string }[] } }).opts
+      .options;
+    expect(options.map((o) => o.value)).toEqual([
+      'status',
+      'max-workers',
+      'tip-governance',
+      'tip-protocol',
+      'tip-import',
+    ]);
+  });
+
+  it('persists max workers via harness.setConfig', async () => {
+    const host = makeFleetHost();
+    showFleetSettings(host);
+    selectFleetAction(host, 'max-workers');
+    selectFleetAction(host, '4', 1);
+    await vi.waitFor(() => {
+      expect(host.harness.setConfig).toHaveBeenCalledWith(
+        buildFleetMaxRunningTasksConfigPatch(4),
+      );
+    });
+    expect(host.showStatus).toHaveBeenCalledWith(
+      'Max background workers → 4 (background.maxRunningTasks).',
+      'success',
+    );
+  });
+
+  it('shows governance tips via showStatus', () => {
+    const host = makeFleetHost();
+    showFleetSettings(host);
+    selectFleetAction(host, 'tip-governance');
+    expect(host.showStatus).toHaveBeenCalledWith(FLEET_GOVERNANCE_TIPS.join(' · '), 'info');
+  });
+});
+
+describe('showFleetSettings panel', () => {
   it('formats orchestrator worker counts', () => {
     expect(
       formatFleetWorkersSettingsLine({
@@ -171,23 +264,16 @@ describe('fleet session live settings', () => {
   });
 
   it('shows live worker and parallel tool lines when session getStatus is wired', async () => {
-    const host = {
-      state: {
-        appState: {
-          swarmMode: false,
-          orchestratorMode: true,
-          permissionMode: 'auto',
-          orchestratorWorkers: [{ id: 'w1', description: 'lint', status: 'running' }],
-          sessionCostUsd: undefined,
-        },
-        swarmModeEntry: undefined,
-        transcriptContainer: { addChild: vi.fn() },
-        renderer: { invalidateFrame: vi.fn() },
+    const host = makeFleetHost({
+      appState: {
+        swarmMode: false,
+        orchestratorMode: true,
+        permissionMode: 'auto',
+        orchestratorWorkers: [{ id: 'w1', description: 'lint', status: 'running' }],
+        sessionCostUsd: undefined,
       },
-      harness: {
-        getConfig: vi.fn(async () => ({ background: { maxRunningTasks: 4 } })),
-        listSessions: vi.fn(async () => [{ id: 'a' }]),
-      },
+      getConfig: vi.fn(async () => ({ background: { maxRunningTasks: 4 } })),
+      listSessions: vi.fn(async () => [{ id: 'a' }]),
       requireSession: vi.fn(() => ({
         workDir: '/tmp/fleet-ws',
         getStatus: vi.fn(async () => ({
@@ -196,9 +282,10 @@ describe('fleet session live settings', () => {
         })),
         listBackgroundTasks: vi.fn(async () => []),
       })),
-    } as unknown as SlashCommandHost;
+    });
 
     showFleetSettings(host);
+    selectFleetAction(host, 'status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
@@ -210,37 +297,23 @@ describe('fleet session live settings', () => {
     expect(text).toContain('1 running');
     expect(text).toContain('Parallel tools: 2 in flight · peak 3');
     expect(text).toContain(`${FLEET_WORKTREE_ENV}: off`);
+    expect(text).toContain('background.maxRunningTasks = 4');
   });
 
   it('shows live worktree env ON in fleet settings when SUPERLIORA_FLEET_WORKTREE=1', async () => {
     const prev = process.env[FLEET_WORKTREE_ENV];
     process.env[FLEET_WORKTREE_ENV] = '1';
     try {
-      const host = {
-        state: {
-          appState: {
-            swarmMode: false,
-            orchestratorMode: false,
-            permissionMode: 'auto',
-            orchestratorWorkers: undefined,
-            sessionCostUsd: undefined,
-          },
-          swarmModeEntry: undefined,
-          transcriptContainer: { addChild: vi.fn() },
-          renderer: { invalidateFrame: vi.fn() },
-        },
-        harness: {
-          getConfig: vi.fn(async () => ({})),
-          listSessions: vi.fn(async () => []),
-        },
+      const host = makeFleetHost({
         requireSession: vi.fn(() => ({
           workDir: '/tmp/fleet-ws',
           getStatus: vi.fn(async () => ({})),
           listBackgroundTasks: vi.fn(async () => []),
         })),
-      } as unknown as SlashCommandHost;
+      });
 
       showFleetSettings(host);
+      selectFleetAction(host, 'status');
       await vi.waitFor(() => {
         expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
       });
@@ -262,32 +335,24 @@ describe('fleet session live settings', () => {
   it('shows live maker-checker warn from appState in fleet settings panel', async () => {
     const warn =
       'Maker≠Checker (soft): expert lint both implements and reviews (swarm-maker-checker).';
-    const host = {
-      state: {
-        appState: {
-          swarmMode: true,
-          orchestratorMode: false,
-          permissionMode: 'auto',
-          orchestratorWorkers: undefined,
-          sessionCostUsd: undefined,
-          makerCheckerSoftWarn: warn,
-        },
-        swarmModeEntry: undefined,
-        transcriptContainer: { addChild: vi.fn() },
-        renderer: { invalidateFrame: vi.fn() },
-      },
-      harness: {
-        getConfig: vi.fn(async () => ({})),
-        listSessions: vi.fn(async () => []),
+    const host = makeFleetHost({
+      appState: {
+        swarmMode: true,
+        orchestratorMode: false,
+        permissionMode: 'auto',
+        orchestratorWorkers: undefined,
+        sessionCostUsd: undefined,
+        makerCheckerSoftWarn: warn,
       },
       requireSession: vi.fn(() => ({
         workDir: '/tmp/fleet-ws',
         getStatus: vi.fn(async () => ({})),
         listBackgroundTasks: vi.fn(async () => []),
       })),
-    } as unknown as SlashCommandHost;
+    });
 
     showFleetSettings(host);
+    selectFleetAction(host, 'status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
