@@ -43,6 +43,7 @@ import {
 import { createCompactionProvider as buildCompactionProvider } from './full-provider';
 import { runCompactionWorker } from './full-worker';
 import {
+  clampObservedOverflowTokens,
   handoffThresholdTokens,
   relaxObservedMaxContextTokens,
   resolveEffectiveMaxContextTokens,
@@ -258,9 +259,15 @@ export class FullCompaction implements CompactionPipelineContext {
     }
     if (candidates.length === 0) return;
     // Tightest (smallest) positive observation wins so a 500k API limit is not
-    // masked by a 2M estimated request * 0.85.
-    const observed = Math.max(1, Math.min(...candidates));
+    // masked by a 2M estimated request * 0.85. Unstated tiny estimates are
+    // floored so short overflow fixtures cannot multi-round thrash under a
+    // synthetic ~100-token block threshold.
     const current = this.getEffectiveMaxContextTokens();
+    const observed = clampObservedOverflowTokens({
+      observed: Math.min(...candidates),
+      currentEffective: current,
+      statedLimitTokens,
+    });
     if (current > 0 && observed >= current) return;
     this.observedMaxContextTokensByModel.set(modelAlias, observed);
   }
@@ -295,7 +302,12 @@ export class FullCompaction implements CompactionPipelineContext {
     if (strategy !== undefined) {
       return strategy.shouldSpeculativelyCompact(projectedUsedSize);
     }
-    return this.strategy.shouldCompact(projectedUsedSize);
+    // Custom strategies (tests / plugins) may only implement the core
+    // CompactionStrategy surface. Speculative pre-turn compaction is an
+    // optional soft trigger — do not fall back to shouldCompact/shouldBlock
+    // here, or a fixture that always-blocks will burn maxCompactionPerTurn
+    // before the first real step and never reach the tool loop.
+    return false;
   }
 
   recordCompactionQuality(input: {
@@ -583,16 +595,31 @@ export class FullCompaction implements CompactionPipelineContext {
     const active = this.compacting;
     if (active) {
       active.blockedByTurn = true;
-      signal.addEventListener('abort', () => {
+      const onAbort = (): void => {
         if (this.compacting === active) {
           this.cancel();
         }
-      });
+      };
+      if (signal.aborted) {
+        onAbort();
+      } else {
+        signal.addEventListener('abort', onAbort, { once: true });
+      }
       this.agent.emitEvent({
         type: 'compaction.blocked',
         turnId: this.agent.turn.currentId,
       });
-      await active.promise;
+      try {
+        await active.promise;
+      } finally {
+        signal.removeEventListener('abort', onAbort);
+        // Worker finally already releases the lock, but a race where the
+        // promise settles without clearing `compacting` must never leave the
+        // session permanently blocked at the trigger threshold.
+        if (this.compacting === active) {
+          this.releaseLockIfOwned();
+        }
+      }
     }
   }
 

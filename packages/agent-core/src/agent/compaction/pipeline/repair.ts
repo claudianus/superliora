@@ -6,7 +6,7 @@
  * targeted repair pass and revalidates the result.
  */
 
-import type { ChatProvider, Message, TokenUsage, Tool } from '@superliora/kosong';
+import type { ChatProvider, Message, TokenUsage } from '@superliora/kosong';
 import { createUserMessage } from '@superliora/kosong';
 
 import type { CompactionPlan } from '../plan/planner';
@@ -23,27 +23,16 @@ import {
   mergeTokenUsage,
 } from '../full/full-helpers';
 import { buildCompactionSummaryText } from '../micro/handoff';
+import { isAbortError } from '../../../loop/errors';
 import { estimateTokens, estimateTokensForMessages } from '../../../utils/tokens';
 import { renderPrompt } from '../../../utils/render-prompt';
 import { captureUltraworkEnvelopeSnapshot } from '#/mission';
 import compactionInstructionTemplate from '../prompts/compaction-instruction.md?raw';
 
 import { postProcessSummary, renderStructuredV2Summary } from './enrich';
-import { compactionStreamCallbacks } from './progress';
+import { runCompactionGenerate } from './generate-guard';
 import { compactionInstruction } from './summarize';
 import type { CompactionPipelineContext, RepairInput, RepairOutput } from './types';
-
-const COMPACTION_GENERATE_TOOLS: Tool[] = [];
-
-function compactionGenerateOptions(
-  ctx: CompactionPipelineContext,
-  signal: AbortSignal,
-): { readonly signal: AbortSignal; readonly runtimeModelAlias?: string } {
-  return {
-    signal,
-    runtimeModelAlias: ctx.compactionModelAlias,
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -96,6 +85,7 @@ export async function applyEvidenceSecondChanceRepair(
     input.plan,
     input.instruction,
     quality,
+    summary,
   );
   summary = repair.summary;
   repairAttempted = true;
@@ -139,6 +129,7 @@ export async function repairSummaryForQuality(
   plan: CompactionPlan,
   instruction: string | undefined,
   quality: CompactionQualityResult,
+  previousSummary = '',
 ): Promise<{ summary: string; usage: TokenUsage | null }> {
   const repairPrompt = renderPrompt(compactionInstructionTemplate, {
     customInstruction: compactionInstruction(
@@ -162,24 +153,35 @@ export async function repairSummaryForQuality(
     ...ctx.agent.context.projectForCompaction(messagesToCompact),
     createUserMessage(repairPrompt),
   ];
-  const response = await ctx.agent.generate(
-    provider,
-    ctx.agent.config.systemPrompt,
-    COMPACTION_GENERATE_TOOLS,
-    messages,
-    compactionStreamCallbacks(ctx.agent, {
-      phase: 'repairing',
-      streamKind: 'repair',
-    }),
-    compactionGenerateOptions(ctx, signal),
-  );
-  if (response.finishReason === 'truncated') {
-    throw new CompactionTruncatedError();
+  try {
+    const response = await runCompactionGenerate(ctx, signal, {
+      provider,
+      messages,
+      streamMeta: {
+        phase: 'repairing',
+        streamKind: 'repair',
+      },
+    });
+    if (response.finishReason === 'truncated') {
+      throw new CompactionTruncatedError();
+    }
+    return {
+      summary: extractCompactionSummary(response),
+      usage: response.usage,
+    };
+  } catch (error) {
+    // Repair is best-effort. Surface user abort so cancel stays responsive;
+    // every other failure keeps the pre-repair summary so the round can still
+    // assemble (or swap to the extractive backstop at the final QC gate).
+    if (isAbortError(error)) throw error;
+    ctx.agent.telemetry.track('compaction_repair_soft_fail', {
+      error_type: error instanceof Error ? error.name : 'Unknown',
+    });
+    return {
+      summary: previousSummary,
+      usage: null,
+    };
   }
-  return {
-    summary: extractCompactionSummary(response),
-    usage: response.usage,
-  };
 }
 
 // ---------------------------------------------------------------------------

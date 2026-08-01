@@ -39,7 +39,7 @@ import { latestUserText } from '../plan/quality-helpers';
 import type { CompactionBeginData, CompactionResult } from '../types';
 import { emitCompactionProgress, fractionForMergeDone, fractionForFinalizing } from './progress';
 import { summarizeCompactedPrefix } from './summarize';
-import { enrichCompactionSummary } from './enrich';
+import { enrichCompactionSummary, postProcessSummary, renderStructuredV2Summary } from './enrich';
 import {
   assembleCompactionResult,
   archiveCompactedToolExchanges,
@@ -147,6 +147,7 @@ export async function runCompactionRound(
           plan,
           data.instruction,
           initialQuality,
+          summary,
         );
         summary = repair.summary;
         // Re-scaffold in case repair returned free-form prose.
@@ -296,13 +297,34 @@ export async function runCompactionRound(
       // Criticals that survive every repair pass must not hard-stall the turn:
       // swap in the deterministic extractive backstop and continue assembling so
       // the session keeps a well-formed summary instead of freezing.
-      summary = buildEmergencyBackstopSummary(messagesToCompact, plan, data.instruction);
+      // Re-run the structured v2 render so clients still see the same
+      // `# SuperLiora Context Compaction v2 Memory` envelope as a normal pass.
+      const unresolvedCriticalCount = quality.critical.length;
+      const emergencyRaw = buildEmergencyBackstopSummary(
+        messagesToCompact,
+        plan,
+        data.instruction,
+      );
+      summary = renderStructuredV2Summary(
+        host,
+        postProcessSummary(host, emergencyRaw),
+        plan,
+      );
       usedEmergencyBackstop = true;
+      quality = {
+        critical: [],
+        warnings: [
+          ...quality.warnings,
+          'used emergency extractive backstop after QC criticals survived repair',
+        ],
+        warningCategories: [...quality.warningCategories, 'emergency_backstop'],
+        signals: quality.signals,
+      };
       contextSummary = buildCompactionSummaryText(summary);
       summaryTokens = estimateTokens(contextSummary);
       tokensAfter = summaryTokens + retainedTokens;
       host.agent.telemetry.track('compaction_qc_fallback_backstop', {
-        critical_count: quality.critical.length,
+        critical_count: unresolvedCriticalCount,
       });
     }
 

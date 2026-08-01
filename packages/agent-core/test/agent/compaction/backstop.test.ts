@@ -1,19 +1,26 @@
 import type { Message } from '@superliora/kosong';
-import { APIEmptyResponseError, APIStatusError, ChatProviderError } from '@superliora/kosong';
+import {
+  APIConnectionError,
+  APIEmptyResponseError,
+  APIStatusError,
+  APITimeoutError,
+  ChatProviderError,
+} from '@superliora/kosong';
 import { describe, expect, it } from 'vitest';
 
 import {
   buildEmergencyBackstopSummary,
+  shouldFallbackAfterCompactionRetries,
   shouldUseClassicalCompactionFallback,
 } from '../../../src/agent/compaction/backstop';
 import { LioraError, ErrorCodes } from '../../../src/errors';
 
 function statusError(status: number, message = 'status error'): APIStatusError {
-  return new APIStatusError({ statusCode: status, message });
+  return new APIStatusError(status, message);
 }
 
 function chatProviderError(): ChatProviderError {
-  return new ChatProviderError('chat provider failed', 'provider.chat_error');
+  return new ChatProviderError('chat provider failed');
 }
 
 describe('shouldUseClassicalCompactionFallback', () => {
@@ -33,7 +40,7 @@ describe('shouldUseClassicalCompactionFallback', () => {
   });
 
   it('returns true for APIEmptyResponseError', () => {
-    const err = new APIEmptyResponseError({ message: 'empty' });
+    const err = new APIEmptyResponseError('empty');
     expect(shouldUseClassicalCompactionFallback(err)).toBe(true);
   });
 
@@ -45,6 +52,19 @@ describe('shouldUseClassicalCompactionFallback', () => {
 
   it('returns true for ChatProviderError', () => {
     expect(shouldUseClassicalCompactionFallback(chatProviderError())).toBe(true);
+  });
+
+  it('returns true for APITimeoutError and APIConnectionError (hung API paths)', () => {
+    expect(shouldUseClassicalCompactionFallback(new APITimeoutError('stream idle'))).toBe(true);
+    expect(
+      shouldUseClassicalCompactionFallback(new APIConnectionError('socket hang up')),
+    ).toBe(true);
+  });
+
+  it('returns true for undici/fetch transport TypeErrors', () => {
+    const terminated = new TypeError('terminated');
+    expect(shouldUseClassicalCompactionFallback(terminated)).toBe(true);
+    expect(shouldUseClassicalCompactionFallback(new TypeError('fetch failed'))).toBe(true);
   });
 
   it('returns true when the message matches known provider signals', () => {
@@ -62,12 +82,33 @@ describe('shouldUseClassicalCompactionFallback', () => {
     expect(
       shouldUseClassicalCompactionFallback(new Error('response truncated')),
     ).toBe(true);
+    expect(
+      shouldUseClassicalCompactionFallback(new Error('ECONNRESET')),
+    ).toBe(true);
   });
 
   it('returns false for unrelated errors', () => {
     expect(shouldUseClassicalCompactionFallback(new Error('boom'))).toBe(false);
     expect(shouldUseClassicalCompactionFallback(undefined)).toBe(false);
     expect(shouldUseClassicalCompactionFallback(null)).toBe(false);
+  });
+});
+
+describe('shouldFallbackAfterCompactionRetries', () => {
+  it('returns false for abort and auth so they still surface', () => {
+    const abort = new Error('aborted');
+    abort.name = 'AbortError';
+    expect(shouldFallbackAfterCompactionRetries(abort)).toBe(false);
+    expect(
+      shouldFallbackAfterCompactionRetries(
+        new LioraError(ErrorCodes.AUTH_LOGIN_REQUIRED, 'login required'),
+      ),
+    ).toBe(false);
+  });
+
+  it('returns true for unexpected errors after the retry budget is spent', () => {
+    expect(shouldFallbackAfterCompactionRetries(new Error('boom'))).toBe(true);
+    expect(shouldFallbackAfterCompactionRetries(new APITimeoutError('idle'))).toBe(true);
   });
 });
 

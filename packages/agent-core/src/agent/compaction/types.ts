@@ -103,7 +103,8 @@ export type CompactionQualityWarningCategory =
   | 'placeholder_only_memory'
   | 'prompt_control_recalled'
   | 'token_growth'
-  | 'unstructured_summary';
+  | 'unstructured_summary'
+  | 'emergency_backstop';
 
 export interface CompactionQualitySignals {
   readonly recallEvalScore: number;
