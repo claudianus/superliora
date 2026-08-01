@@ -92,6 +92,34 @@ describe('NativeRenderLoop', () => {
     });
   });
 
+  it('schedules transcript-scroll frames immediately without FPS throttling', () => {
+    // Wheel/page navigation must not wait for ambient pacing — lag reads as scroll freeze.
+    const scheduler = new FakeRenderLoopScheduler();
+    const frames: NativeRenderFrame[] = [];
+    const loop = new NativeRenderLoop({
+      scheduler,
+      targetFps: 10,
+      render: (frame) => frames.push(frame),
+    });
+
+    loop.start();
+    loop.requestRender();
+    scheduler.advance(0);
+    scheduler.advance(10);
+    loop.requestRender('transcript-scroll');
+
+    expect(scheduler.activeTimers()[0]?.dueAt).toBe(10);
+    scheduler.advance(0);
+
+    expect(frames).toHaveLength(2);
+    expect(frames[1]).toMatchObject({
+      timestamp: 10,
+      deltaMs: 10,
+      frame: 1,
+      causes: ['transcript-scroll'],
+    });
+  });
+
   it('preempts a paced animation frame when input arrives', () => {
     const scheduler = new FakeRenderLoopScheduler();
     const frames: NativeRenderFrame[] = [];

@@ -15,6 +15,10 @@ import {
   renderPulseText,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
+import {
+  isTranscriptEntranceActive,
+  polishTranscriptLines,
+} from '#/tui/features/transcript/transcript-entrance';
 import { renderRoundedPanel } from '#/tui/utils/ui/panel-frame';
 
 import { buildContextCompositionLines } from './context';
@@ -54,6 +58,8 @@ const USAGE_FRAME_INTERVAL_MS = 80;
  * Plan usage bars via the shared appearance animation clock (no private timers).
  */
 export class UsagePanelComponent implements Component {
+  private readonly entranceStartedAtMs = appearanceAnimationNow();
+
   /** Cached coloured lines; rebuilt from `buildLines` on every invalidate. */
   private lines: readonly string[];
   private phase: UsagePanelPhase;
@@ -158,7 +164,13 @@ export class UsagePanelComponent implements Component {
       this.openedAtMs,
       appearance,
     ).map((line) => truncateToWidth(line, safeWidth, '…'));
-    return [...beat, ...body];
+    const __polishedLines = [...beat, ...body];
+    if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) return __polishedLines;
+    return polishTranscriptLines(__polishedLines, {
+      startedAtMs: this.entranceStartedAtMs,
+      kind: 'notice',
+      appearance: getActiveAppearancePreferences(),
+    });
   }
 
   private resolveFillProgress(): number {

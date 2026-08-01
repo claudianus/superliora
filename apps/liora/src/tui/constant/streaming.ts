@@ -21,27 +21,27 @@ export const STREAMING_UI_FLUSH_BURST_DELTAS = 6;
 
 // ---------------------------------------------------------------------------
 // Smooth stream reveal (client-side catch-up interpolation)
-// Premium profile: readable kinetic type-on, ~60fps ticks, longer lag budget
-// so bursts feel like streaming ink — not delayed dumps.
+// Premium profile: soft kinetic type-on with ease-in/out speed, ~60fps ticks,
+// and a longer lag budget so bursts read as streaming ink — not delayed dumps.
 // ---------------------------------------------------------------------------
 
 /** Minimum catch-up speed while the display lags the server draft (code points/sec). */
-export const STREAM_REVEAL_BASE_CPS = 32;
+export const STREAM_REVEAL_BASE_CPS = 28;
 
 /** Hard ceiling on catch-up speed so huge backlogs do not paint every frame. */
-export const STREAM_REVEAL_MAX_CPS = 240;
+export const STREAM_REVEAL_MAX_CPS = 200;
 
 /**
  * Extra code points/sec added per backlog code point before easing toward MAX.
  * Lower gain keeps mid bursts legible; lag budget still caps worst-case wait.
  */
-export const STREAM_REVEAL_BACKLOG_GAIN = 1.45;
+export const STREAM_REVEAL_BACKLOG_GAIN = 1.15;
 
 /**
  * If estimated time-to-catch-up at current speed exceeds this, jump farther
  * in a single tick so the display never lags more than ~this long.
  */
-export const STREAM_REVEAL_MAX_LAG_MS = 420;
+export const STREAM_REVEAL_MAX_LAG_MS = 520;
 
 /** Reveal timer cadence (~60fps). Independent of ambient animationFps. */
 export const STREAM_REVEAL_TICK_MS = 16;
@@ -52,8 +52,8 @@ export const STREAM_REVEAL_MIN_CHARS_PER_TICK = 1;
 /** Live caret glyph painted at the growing edge while catch-up is active. */
 export const STREAM_REVEAL_CARET = '▌';
 
-/** How long the caret blinks on after each advance (ms). */
-export const STREAM_REVEAL_CARET_ON_MS = 110;
+/** How long the caret blinks on after each advance (ms). Soft pulse, not a hard blink. */
+export const STREAM_REVEAL_CARET_ON_MS = 160;
 
 // ---------------------------------------------------------------------------
 // Staged line reveal (settled Write/Edit preview entrance)
@@ -63,7 +63,7 @@ export const STREAM_REVEAL_CARET_ON_MS = 110;
 // ---------------------------------------------------------------------------
 
 /** Total time budget for a settled tool preview to grow all of its lines. */
-export const STAGED_LINE_REVEAL_MS_PREMIUM = 400;
+export const STAGED_LINE_REVEAL_MS_PREMIUM = 520;
 
-/** Subtle profile duration — the premium curve stretched ×1.3. */
-export const STAGED_LINE_REVEAL_MS_SUBTLE = 520;
+/** Subtle profile duration — the premium curve stretched for a calmer cascade. */
+export const STAGED_LINE_REVEAL_MS_SUBTLE = 680;

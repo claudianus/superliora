@@ -3,11 +3,16 @@ import { Container, Spacer, Text } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import type { PluginCommandTrigger } from '#/tui/types';
 import {
+  appearanceAnimationNow,
   getActiveAppearancePreferences,
   renderPremiumHeadline,
   renderPulseText,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
+import {
+  isTranscriptEntranceActive,
+  polishTranscriptLines,
+} from '#/tui/features/transcript/transcript-entrance';
 import { syncAmbientAnimatedText } from '#/tui/utils/render/render-cache';
 
 const ARGS_PREVIEW_MAX = 200;
@@ -18,6 +23,7 @@ export class PluginCommandComponent extends Container {
   private readonly commandLabel: string;
   private readonly args?: string;
   ambientAnimationEpoch = -1;
+  private readonly entranceStartedAtMs = appearanceAnimationNow();
 
   constructor(
     pluginId: string,
@@ -50,7 +56,13 @@ export class PluginCommandComponent extends Container {
 
   override render(width: number): string[] {
     syncAmbientAnimatedText(this.headText, () => this.renderHead(), this);
-    return super.render(width);
+    const lines = super.render(width);
+    if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) return lines;
+    return polishTranscriptLines(lines, {
+      startedAtMs: this.entranceStartedAtMs,
+      kind: 'notice',
+      appearance: getActiveAppearancePreferences(),
+    });
   }
 
   private renderHead(): string {

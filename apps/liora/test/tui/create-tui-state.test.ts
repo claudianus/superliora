@@ -2146,6 +2146,140 @@ describe('createTUIState', () => {
     expect(scrollActions).toEqual(['line-down']);
   });
 
+  it('pure transcript-scroll through the live native callback re-projects the visible window', () => {
+    // Regression: frame-level transcript line cache used to reuse prior-frame
+    // lines on pure-scroll, freezing paint while viewport.start moved.
+    // Drive the real createTUIStateNativeRenderCallback path (not direct
+    // renderTUIStateNativeFrame, which never hits that cache).
+    const width = 24;
+    const height = 10;
+    const state = createTUIState({
+      initialAppState: fakeInitialAppState(),
+      startup: {
+        continueLast: false,
+        yolo: false,
+        auto: false,
+        plan: false,
+      },
+    });
+    Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
+    Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => width });
+    state.transcriptContainer.addChild(
+      fixedLines(
+        Array.from(
+          { length: 40 },
+          (_, index) => `L${String(index).padStart(2, '0')}-scroll-marker`,
+        ),
+      ),
+    );
+    state.editorContainer.addChild(fixedLines(['ed']));
+    state.footerContainer.addChild(fixedLines(['ft']));
+
+    const output = new FakeNativeOutput(width, height);
+    const scheduler = new FakeRenderLoopScheduler();
+    const renderer = createTUIStateNativeRenderer(state, {
+      output,
+      scheduler,
+      renderOnStart: true,
+      synchronized: true,
+    });
+
+    renderer.start();
+    scheduler.advance(0);
+
+    const bottomStart = state.transcriptViewport.start();
+    const frameAtBottom = Array.from({ length: height }, (_, y) =>
+      rowText(renderer.frameRenderer.frame, y),
+    ).join('\n');
+    expect(frameAtBottom).toContain('L39-scroll-marker');
+
+    // Two pure-scroll steps through the live invalidation path.
+    // transcript-scroll is interactive (delay 0), same class as input/resize.
+    const starts: number[] = [bottomStart];
+    const snapshots: string[] = [frameAtBottom];
+    for (let step = 0; step < 2; step++) {
+      const changed = state.transcriptViewport.scroll('line-up');
+      expect(changed).toBe(true);
+      starts.push(state.transcriptViewport.start());
+      renderer.requestRender('transcript-scroll');
+      scheduler.advance(0);
+      expect(renderer.lastFrame?.frame.causes).toContain('transcript-scroll');
+      snapshots.push(
+        Array.from({ length: height }, (_, y) =>
+          rowText(renderer.frameRenderer.frame, y),
+        ).join('\n'),
+      );
+    }
+
+    // Viewport offset actually moved each step.
+    expect(starts[1]).toBeLessThan(starts[0]!);
+    expect(starts[2]).toBeLessThan(starts[1]!);
+    // Painted frame must track the new window — freeze bug left all equal.
+    expect(snapshots[1]).not.toBe(snapshots[0]);
+    expect(snapshots[2]).not.toBe(snapshots[1]);
+    // Earlier markers become visible after scrolling up.
+    expect(snapshots[2]).toMatch(/L\d{2}-scroll-marker/);
+    expect(snapshots[2]!).not.toContain('L39-scroll-marker');
+
+    // Policy for the pure-scroll cause stays damage-only.
+    const policy = resolveTUIStateNativeFramePolicy({
+      causes: ['transcript-scroll'],
+      viewportScrolled: true,
+      structuralShift: false,
+      nextTranscriptStart: state.transcriptViewport.start(),
+      ambientAnimationAllowed: true,
+    });
+    expect(policy.force).toBe(false);
+    expect(policy.clear).toBe(false);
+
+    renderer.stop();
+  });
+
+  it('projects multi-page transcript scroll to visible window offsets only', () => {
+    const state = createTUIState({
+      initialAppState: fakeInitialAppState(),
+      startup: {
+        continueLast: false,
+        yolo: false,
+        auto: false,
+        plan: false,
+      },
+    });
+    const contentRows = 100;
+    const visibleRows = 8;
+    state.transcriptViewport.sync(contentRows, visibleRows);
+    expect(state.transcriptViewport.snapshot()).toMatchObject({
+      contentRows,
+      viewportRows: visibleRows,
+      start: contentRows - visibleRows,
+      followOutput: true,
+    });
+
+    expect(state.transcriptViewport.scroll('line-up')).toBe(true);
+    const afterLine = state.transcriptViewport.snapshot();
+    expect(afterLine.start).toBe(contentRows - visibleRows - 3); // lineScrollRows default 3
+    expect(afterLine.end - afterLine.start).toBe(visibleRows);
+    expect(afterLine.followOutput).toBe(false);
+
+    expect(state.transcriptViewport.scroll('page-up')).toBe(true);
+    const afterPage = state.transcriptViewport.snapshot();
+    expect(afterPage.start).toBeLessThan(afterLine.start);
+    expect(afterPage.end - afterPage.start).toBe(visibleRows);
+
+    expect(state.transcriptViewport.scroll('bottom')).toBe(true);
+    expect(state.transcriptViewport.snapshot()).toMatchObject({
+      start: contentRows - visibleRows,
+      followOutput: true,
+    });
+
+    expect(state.transcriptViewport.scroll('top')).toBe(true);
+    expect(state.transcriptViewport.snapshot()).toMatchObject({
+      start: 0,
+      end: visibleRows,
+      followOutput: false,
+    });
+  });
+
 });
 
 function fixedLines(lines: readonly string[]): Component {

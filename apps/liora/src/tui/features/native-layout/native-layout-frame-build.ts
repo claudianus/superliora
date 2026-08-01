@@ -204,8 +204,9 @@ export function buildTUIStateNativeFrame(
   const stageWidth = plan.stage.stage.width;
   const chrome = plan.chrome;
   const layout = plan.layout;
-  // Pure-input fast path: reuse cached transcript lines when the transcript
-  // has not changed (no structural shift, no viewport scroll).
+  // Pure-input fast path: reuse cached transcript lines when content and
+  // viewport are unchanged. Callers must not pass reuse lines for pure-scroll —
+  // the visible slice depends on viewport.start (see frame callback).
   const transcriptLines = options.reuseTranscriptLines ??
     nativeTranscriptRegionLines(state, stageWidth, layout.transcriptRows);
   const linesByRegion = {

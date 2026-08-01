@@ -13,6 +13,14 @@
 import { Container, Spacer, Text } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import {
+  appearanceAnimationNow,
+  getActiveAppearancePreferences,
+} from '#/tui/features/appearance/appearance-effects';
+import {
+  isTranscriptEntranceActive,
+  polishTranscriptLines,
+} from '#/tui/features/transcript/transcript-entrance';
+import {
   createToolChainStats,
   formatChainLiveSummary,
   formatChainSettledSummary,
@@ -27,6 +35,7 @@ export class ToolChainSummaryComponent extends Container {
   private currentLabel: string | undefined;
   private readonly summaryText: Text;
   private settled = false;
+  private readonly entranceStartedAtMs = appearanceAnimationNow();
 
   constructor(startedAt: number = Date.now()) {
     super();
@@ -35,6 +44,17 @@ export class ToolChainSummaryComponent extends Container {
     this.summaryText = new Text('', 0, 0);
     this.addChild(this.summaryText);
     this.refresh();
+  }
+
+  override render(width: number): string[] {
+    const lines = super.render(width);
+    if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) return lines;
+    return polishTranscriptLines(lines, {
+      startedAtMs: this.entranceStartedAtMs,
+      kind: 'tool',
+      streaming: !this.settled,
+      appearance: getActiveAppearancePreferences(),
+    });
   }
 
   /** Live "what is running now" label (typically the current tool name). */

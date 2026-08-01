@@ -155,12 +155,22 @@ export function createTUIStateNativeRenderCallback(
       liveGoalId: liveGoal ? state.appState.goal!.goalId : undefined,
       liveGoalStatus: liveGoal ? state.appState.goal!.status : undefined,
     });
+    // Pure-scroll must re-project the visible transcript window (virtual
+    // scroll is O(visible) via line-count LRU). Reusing prior-frame lines
+    // freezes paint while the viewport offset moves — the main scroll freeze.
+    // Chrome geometry is stable on pure scroll, so reuse chrome like pure input.
+    const pureScrollFrame = isPureTranscriptScrollFrame(
+      frame.causes,
+      layoutShift.viewportScrolled,
+      layoutShift.structuralShift,
+    );
     const reuseChrome = shouldReuseTUIChromeCache({
       hasCache: chromeCache !== undefined,
       widthMatches: chromeCache?.width === size.columns,
       stageWidthMatches: chromeCache?.stageWidth === stageProbe.stage.width,
       epochMatches: chromeCache?.chromeEpoch === chromeEpoch,
       pureInputFrame,
+      pureScrollFrame,
       chromeStatic,
       causes: frame.causes,
     })
@@ -185,23 +195,17 @@ export function createTUIStateNativeRenderCallback(
       idleAquariumMounted,
       fullscreenTakeover: isNativeFullscreenTakeover(state),
     });
-    // Pure-input fast path: skip panel probes and transcript rendering when
-    // the layout has not shifted. The editor is the only region that changes.
+    // Pure-input fast path: skip transcript re-render when layout and viewport
+    // are stable. The editor is the only region that changes.
     // Mouse clicks that alter the transcript selection invalidate the cache
     // so the selection overlay is repainted immediately.
     //
-    // Pure-scroll fast path: the transcript content has not changed — only
-    // the viewport offset moved. Reuse the cached lines so we do not
-    // regenerate the entire transcript (ANSI conversion, markdown rendering,
-    // syntax highlighting) on every wheel tick.
+    // Pure-scroll must NOT reuse transcript lines: the visible slice depends
+    // on viewport.start. Child render caches in the transcript component keep
+    // scroll paint cheap without freezing the window.
     const selectionKey = transcriptSelectionCacheKey(state);
-    const pureScrollFrame = isPureTranscriptScrollFrame(
-      frame.causes,
-      layoutShift.viewportScrolled,
-      layoutShift.structuralShift,
-    );
     const canReuseTranscript =
-      (pureInputFrame || pureScrollFrame) &&
+      pureInputFrame &&
       transcriptLineCache !== undefined &&
       transcriptLineCacheWidth === size.columns &&
       transcriptLineCacheSelectionKey === selectionKey;

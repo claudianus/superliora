@@ -84,6 +84,12 @@ export function shouldReuseTUIChromeCache(options: {
   readonly stageWidthMatches: boolean;
   readonly epochMatches: boolean;
   readonly pureInputFrame: boolean;
+  /**
+   * Pure transcript scroll: chrome geometry and epoch are stable; only the
+   * transcript viewport moved. Reuse header/footer/panels so scroll does not
+   * rebuild the chrome tree every wheel tick.
+   */
+  readonly pureScrollFrame?: boolean;
   readonly chromeStatic: boolean;
   readonly causes: readonly NativeRenderCause[];
 }): boolean {
@@ -94,7 +100,11 @@ export function shouldReuseTUIChromeCache(options: {
   if (options.causes.includes('request') || options.causes.includes('manual')) {
     return false;
   }
-  return options.pureInputFrame || options.chromeStatic;
+  return (
+    options.pureInputFrame ||
+    options.pureScrollFrame === true ||
+    options.chromeStatic
+  );
 }
 
 /** Activity + live-goal signature used to invalidate chrome cache. */
@@ -253,10 +263,19 @@ export function resolveTUIStateNativeFramePolicy(
   // soft buffers catch up after CSI wipe of the alternate screen.
   // Pure transcript scroll and append-only growth also never clear —
   // clear:true invalidates composition topology and blanks stage background.
+  // Any viewport-only move (even when causes are not pure, e.g. scroll+request)
+  // also stays clear:false when geometry is stable — fixed-height transcript
+  // paint overwrites the window without a full-buffer wipe.
+  const viewportOnlyScroll =
+    input.viewportScrolled &&
+    input.geometryShift !== true &&
+    input.contentShrunk !== true &&
+    (input.structuralShift === false || appendOnlyGrowth);
   const clear =
     force &&
     !pureScroll &&
     !appendOnlyGrowth &&
+    !viewportOnlyScroll &&
     (!ambientAnimationFrame || resizeFrame);
   const refreshTerminalPalette =
     force &&
@@ -342,10 +361,12 @@ export function shouldUseAmbientDamageOnlyPaint(input: {
     return false;
   }
 
-  // Non-pure viewport scroll still needs clears so uncovered rows wipe.
+  // Viewport moved with stable geometry: the transcript region is a fixed
+  // height window always filled by virtual-scroll paint. Damage-only overwrites
+  // every cell that changed; clear-fill would blank letterbox/stage for a frame
+  // when scroll coalesces with non-compatible causes (e.g. request).
   if (input.viewportScrolled) {
-    // content-grew + scroll (auto follow) stays damage-only above.
-    return false;
+    return true;
   }
 
   // Jewel Tank + Welcome must stay damage-only whenever the idle stage is

@@ -114,9 +114,14 @@ export class NativeRenderLoop {
 
   requestRender(cause: NativeRenderCause = 'request'): void {
     this.pendingCauses.add(cause);
-    // High-priority input arriving mid-frame must not wait for the next
+    // High-priority interaction arriving mid-frame must not wait for the next
     // paced tick — flag it so the post-frame schedule fires immediately.
-    if (this.runningFrame && (cause === 'input' || cause === 'resize')) {
+    // transcript-scroll is wheel/page navigation: lagging it behind ambient
+    // pacing feels like scroll freeze under load.
+    if (
+      this.runningFrame &&
+      (cause === 'input' || cause === 'resize' || cause === 'transcript-scroll')
+    ) {
       this.inputDuringFramePending = true;
     }
     this.scheduleNextFrame();
@@ -175,8 +180,15 @@ export class NativeRenderLoop {
 
   private resolveFrameDelay(now: number): number {
     // High-priority causes render immediately so user input is never held
-    // behind frame pacing.
-    if (this.pendingCauses.has('input') || this.pendingCauses.has('resize')) return 0;
+    // behind frame pacing. transcript-scroll is interactive navigation —
+    // wheel/page keys must not wait for the ambient interval.
+    if (
+      this.pendingCauses.has('input') ||
+      this.pendingCauses.has('resize') ||
+      this.pendingCauses.has('transcript-scroll')
+    ) {
+      return 0;
+    }
     // Input that arrived mid-frame demands an immediate follow-up.
     if (this.inputDuringFramePending) return 0;
     if (this.nextTargetTime === undefined) return 0;

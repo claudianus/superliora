@@ -7,7 +7,10 @@ import {
   isLiveGoalChromeActive,
   isPureInputFrame,
   isPureTranscriptScrollFrame,
+  resolveTUIStateNativeFramePolicy,
+  shouldForceTUIStateNativeLayoutFrame,
   shouldReuseTUIChromeCache,
+  shouldUseAmbientDamageOnlyPaint,
   tuiChromeEpoch,
 } from '#/tui/features/native-layout/native-frame-policy';
 
@@ -137,6 +140,184 @@ describe('shouldReuseTUIChromeCache', () => {
         causes: ['animation'],
       }),
     ).toBe(true);
+  });
+
+  it('reuses chrome on pure transcript scroll when geometry and epoch match', () => {
+    expect(
+      shouldReuseTUIChromeCache({
+        ...base,
+        pureInputFrame: false,
+        pureScrollFrame: true,
+        chromeStatic: false,
+        causes: ['transcript-scroll'],
+      }),
+    ).toBe(true);
+  });
+
+  it('reuses chrome on pure scroll coalesced with animation', () => {
+    expect(
+      shouldReuseTUIChromeCache({
+        ...base,
+        pureInputFrame: false,
+        pureScrollFrame: true,
+        chromeStatic: false,
+        causes: ['transcript-scroll', 'animation'],
+      }),
+    ).toBe(true);
+  });
+});
+
+describe('resolveTUIStateNativeFramePolicy pure-scroll', () => {
+  const base = {
+    priorTranscriptStart: 10,
+    nextTranscriptStart: 7,
+    ambientAnimationAllowed: true,
+  };
+
+  it('keeps pure transcript-scroll damage-only (force/clear false, no palette thrash)', () => {
+    const policy = resolveTUIStateNativeFramePolicy({
+      ...base,
+      causes: ['transcript-scroll'],
+      viewportScrolled: true,
+      structuralShift: false,
+    });
+    expect(policy.force).toBe(false);
+    expect(policy.clear).toBe(false);
+    expect(policy.refreshTerminalPalette).toBe(false);
+    expect(policy.clearTranscriptSelection).toBe(true);
+  });
+
+  it('keeps pure scroll+animation damage-only', () => {
+    const policy = resolveTUIStateNativeFramePolicy({
+      ...base,
+      causes: ['transcript-scroll', 'animation'],
+      viewportScrolled: true,
+      structuralShift: false,
+    });
+    expect(policy.force).toBe(false);
+    expect(policy.clear).toBe(false);
+    expect(policy.refreshTerminalPalette).toBe(false);
+  });
+
+  it('never clears when viewport scrolls with stable geometry even if request coalesces', () => {
+    // Non-pure causes still force present, but must not full-clear (black-band path).
+    const policy = resolveTUIStateNativeFramePolicy({
+      ...base,
+      causes: ['transcript-scroll', 'request'],
+      viewportScrolled: true,
+      structuralShift: false,
+    });
+    expect(policy.force).toBe(true);
+    expect(policy.clear).toBe(false);
+  });
+
+  it('keeps append-only content growth clear:false', () => {
+    const policy = resolveTUIStateNativeFramePolicy({
+      causes: ['request'],
+      viewportScrolled: false,
+      structuralShift: true,
+      contentGrew: true,
+      geometryShift: false,
+      contentShrunk: false,
+      nextTranscriptStart: 0,
+      ambientAnimationAllowed: false,
+    });
+    expect(policy.clear).toBe(false);
+  });
+
+  it('still forces non-pure scroll when content also requests', () => {
+    expect(
+      shouldForceTUIStateNativeLayoutFrame(['transcript-scroll', 'request'], false, {
+        viewportScrolled: true,
+      }),
+    ).toBe(true);
+  });
+});
+
+describe('shouldUseAmbientDamageOnlyPaint scroll paths', () => {
+  const base = {
+    structuralShift: false,
+    geometryShift: false,
+    contentGrew: false,
+    contentShrunk: false,
+    ambientAnimationAllowed: true,
+    idleAquariumMounted: false,
+  };
+
+  it('damage-only for pure transcript-scroll', () => {
+    expect(
+      shouldUseAmbientDamageOnlyPaint({
+        ...base,
+        viewportScrolled: true,
+        causes: ['transcript-scroll'],
+      }),
+    ).toBe(true);
+  });
+
+  it('damage-only for pure scroll+animation', () => {
+    expect(
+      shouldUseAmbientDamageOnlyPaint({
+        ...base,
+        viewportScrolled: true,
+        causes: ['transcript-scroll', 'animation'],
+      }),
+    ).toBe(true);
+  });
+
+  it('damage-only when scroll coalesces with request (stable geometry)', () => {
+    expect(
+      shouldUseAmbientDamageOnlyPaint({
+        ...base,
+        viewportScrolled: true,
+        causes: ['transcript-scroll', 'request'],
+      }),
+    ).toBe(true);
+  });
+
+  it('damage-only for content grew + scroll (auto-follow)', () => {
+    expect(
+      shouldUseAmbientDamageOnlyPaint({
+        ...base,
+        structuralShift: true,
+        contentGrew: true,
+        viewportScrolled: true,
+        causes: ['transcript-scroll', 'request'],
+      }),
+    ).toBe(true);
+  });
+
+  it('clears when content shrank (uncovered rows)', () => {
+    expect(
+      shouldUseAmbientDamageOnlyPaint({
+        ...base,
+        structuralShift: true,
+        contentShrunk: true,
+        viewportScrolled: false,
+        causes: ['request'],
+      }),
+    ).toBe(false);
+  });
+
+  it('clears on geometry shift', () => {
+    expect(
+      shouldUseAmbientDamageOnlyPaint({
+        ...base,
+        structuralShift: true,
+        geometryShift: true,
+        viewportScrolled: false,
+        causes: ['request'],
+      }),
+    ).toBe(false);
+  });
+
+  it('clears on resize', () => {
+    expect(
+      shouldUseAmbientDamageOnlyPaint({
+        ...base,
+        viewportScrolled: true,
+        causes: ['resize', 'transcript-scroll'],
+      }),
+    ).toBe(false);
   });
 });
 
