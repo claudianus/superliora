@@ -545,12 +545,8 @@ export class SubagentSwarmCoordinator {
   private removeProgress(toolCallId: string, progress: AgentSwarmProgressComponent): void {
     this.progressByToolCallId.delete(toolCallId);
     progress.dispose();
-    const children = this.host.state.transcriptContainer.children;
-    const index = children.indexOf(progress);
-    if (index >= 0) {
-      children.splice(index, 1);
-      this.host.state.transcriptContainer.invalidate();
-    }
+    this.host.state.transcriptContainer.removeChild(progress);
+    this.host.state.transcriptContainer.invalidatePaint();
     this.host.updateActivityPane();
   }
 

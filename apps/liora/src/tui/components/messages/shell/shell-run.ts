@@ -48,6 +48,10 @@ export class ShellRunComponent extends Container {
   private finalStderr = '';
   private finalIsError?: boolean;
   private readonly startedAt = Date.now();
+  /** Cached pretty body for the running tail (rebuilt only when stdout changes). */
+  private formattedBody = '';
+  private formattedSourceKey = '';
+  private lastExtraLines = 0;
 
   constructor(private readonly requestRender: () => void) {
     super();
@@ -70,6 +74,7 @@ export class ShellRunComponent extends Container {
     this.finalStdout = stdout;
     this.finalStderr = stderr;
     this.finalIsError = isError;
+    this.formattedSourceKey = '';
     this.flush();
   }
 
@@ -77,6 +82,7 @@ export class ShellRunComponent extends Container {
     if (this.disposed || !this.running) return;
     this.running = false;
     this.backgrounded = true;
+    this.formattedSourceKey = '';
     this.flush();
   }
 
@@ -85,9 +91,7 @@ export class ShellRunComponent extends Container {
   }
 
   override render(width: number): string[] {
-    // Refresh elapsed from the animation clock. Never requestRender() here —
-    // flush() used to schedule another frame on every paint of a running card,
-    // which busy-loops the TUI under scroll/ambient (permanent freeze feel).
+    // Refresh elapsed from the animation clock. Never requestRender() here.
     // Pure-scroll paint skips the refresh entirely (stale (Xs) is fine).
     if (this.running && !areLiveToolTicksSuppressed()) {
       this.refreshText();
@@ -137,6 +141,9 @@ export class ShellRunComponent extends Container {
       let extra = 0;
       if (trimmed.length === 0) {
         body = `  ${dim('Running…')}`;
+        this.formattedSourceKey = '';
+        this.formattedBody = body;
+        this.lastExtraLines = 0;
       } else {
         const lines = trimmed.split('\n');
         const preview = projectRendererLineWindow({
@@ -145,15 +152,22 @@ export class ShellRunComponent extends Container {
           tail: true,
         });
         extra = preview.hiddenLineCount;
-        // Pretty-print the visible tail (JSON / logs / paths) while the
-        // command is still running — same formatter as the finished view.
-        body = formatTranscriptOutput(preview.lines.join('\n'), {
-          isError: false,
-          mode: 'bash',
-        })
-          .split('\n')
-          .map((line) => `  ${line}`)
-          .join('\n');
+        // Re-pretty only when the visible tail source changes — ambient ticks
+        // only need to refresh the (Xs) chrome, not re-highlight the body.
+        const sourceKey = `${extra}\0${preview.lines.join('\n')}`;
+        if (sourceKey !== this.formattedSourceKey) {
+          this.formattedSourceKey = sourceKey;
+          this.lastExtraLines = extra;
+          this.formattedBody = formatTranscriptOutput(preview.lines.join('\n'), {
+            isError: false,
+            mode: 'bash',
+          })
+            .split('\n')
+            .map((line) => `  ${line}`)
+            .join('\n');
+        }
+        body = this.formattedBody;
+        extra = this.lastExtraLines;
       }
       const appearance = getActiveAppearancePreferences();
       const timingRaw = `${extra > 0 ? `+${extra} lines ` : ''}(${elapsed}s)`;
