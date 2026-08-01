@@ -435,11 +435,11 @@ describe('RendererViewport', () => {
     // Viewport at bottom: lines 17,18,19 → child-8-b, child-9-a, child-9-b.
     expect(lines).toEqual(['child-8-b', 'child-9-a', 'child-9-b']);
 
-    // Second render at the same width — line-count cache hit, and overflow
-    // child-render cache serves the visible slice without re-rendering.
+    // Second render: geometry short-circuit; overflow probes only the 2
+    // visible children (identity/content check), never the full tree.
     renderCount = 0;
     component.render(80);
-    expect(renderCount).toBe(0);
+    expect(renderCount).toBe(2);
   });
 
   it('virtualizes: renders only visible children when scrolled to the top', () => {
@@ -523,7 +523,8 @@ describe('RendererViewport', () => {
     viewport.scroll('line-up');
     renderCount = 0;
     const lines = component.render(80);
-    expect(renderCount).toBe(0);
+    // One probe render for identity/content check; must not remeasure geometry.
+    expect(renderCount).toBe(1);
     expect(lines).toEqual(['line-15', 'line-16', 'line-17']);
   });
 
@@ -860,7 +861,7 @@ describe('RendererViewport', () => {
     expect(totalRenders()).toBe(afterWarm);
   });
 
-  it('pure scroll reuses formatted overflow lines (no paintLine storm)', () => {
+  it('pure scroll formats only the visible slice of a tall child', () => {
     let paintCount = 0;
     const viewport = new RendererTranscriptViewport();
     const component = new RendererTranscriptViewportComponent({
@@ -871,23 +872,101 @@ describe('RendererViewport', () => {
         return line;
       },
     });
-    // One tall child so line-up stays inside the same overflow slot.
+    // Tall body: full format would cost 200 paintLine calls per first intersection.
     component.addChild({
       invalidate: () => {},
-      render: () => Array.from({ length: 40 }, (_, i) => `line-${i}`),
+      render: () => Array.from({ length: 200 }, (_, i) => `line-${i}`),
     });
 
     component.render(80);
-    // First paint formats the whole overflow child once (so later slices are free).
-    expect(paintCount).toBe(40);
+    // Only the visible window is formatted (not the whole 200-line body).
+    expect(paintCount).toBe(4);
     paintCount = 0;
 
-    // Scroll inside the same child — formatted cache must serve slices.
+    // Scroll inside the same child — new rows format; already-seen rows reuse sparse cache.
     viewport.scroll('line-up');
     component.render(80);
-    viewport.scroll('line-up');
+    // lineScrollRows defaults to 3 → up to 3 new lines formatted.
+    expect(paintCount).toBeLessThanOrEqual(3);
+    expect(paintCount).toBeGreaterThan(0);
+    const afterScroll = paintCount;
+    paintCount = 0;
+    // Re-render same window: sparse cache hit, no paintLine.
     component.render(80);
     expect(paintCount).toBe(0);
+    expect(afterScroll).toBeGreaterThan(0);
+  });
+
+  it('ambient paint-epoch advance does not wipe overflow format cache for static children', () => {
+    let epoch = 0;
+    let paintCount = 0;
+    const stableLines = Array.from({ length: 30 }, (_, i) => `s${i}`);
+    const viewport = new RendererTranscriptViewport();
+    const component = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => 5,
+      getCacheEpoch: () => epoch,
+      paintLine: (line) => {
+        paintCount++;
+        return line;
+      },
+    });
+    component.addChild({
+      invalidate: () => {},
+      // Stable array identity — finalized messages return cached lines.
+      render: () => stableLines,
+    });
+
+    component.render(80);
+    expect(paintCount).toBe(5);
+    paintCount = 0;
+
+    // Ambient ticks advance epoch; pure scroll must not re-format static paint.
+    epoch = 1;
+    viewport.scroll('line-up');
+    component.render(80);
+    epoch = 2;
+    viewport.scroll('line-up');
+    component.render(80);
+    // At most newly revealed rows; not a full 5-line reformat every epoch.
+    expect(paintCount).toBeLessThanOrEqual(6);
+  });
+
+  it('rapid page-down keeps paintLine near O(visible) not O(content)', () => {
+    let paintCount = 0;
+    const viewport = new RendererTranscriptViewport();
+    const component = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => 8,
+      paintLine: (line) => {
+        paintCount++;
+        return line;
+      },
+    });
+    // 50 children × 20 lines = 1000 content rows.
+    for (let i = 0; i < 50; i++) {
+      const label = `c${i}`;
+      component.addChild({
+        invalidate: () => {},
+        render: () => Array.from({ length: 20 }, (_, j) => `${label}-${j}`),
+      });
+    }
+
+    // Start at top so page-down walks through many children.
+    component.render(80);
+    viewport.scroll('top');
+    component.render(80);
+    paintCount = 0;
+
+    for (let step = 0; step < 12; step++) {
+      viewport.scroll('page-down');
+      component.render(80);
+    }
+    // 12 pages × ~8 visible rows upper bound if every row were new and never
+    // reused. With slice cache, cost stays near that ceiling — never near
+    // 50×20 full-body format storms.
+    expect(paintCount).toBeLessThanOrEqual(12 * 8);
+    expect(paintCount).toBeGreaterThan(0);
   });
 
   it('replaceChild dirties only the slot and does not cascade sibling invalidate', () => {

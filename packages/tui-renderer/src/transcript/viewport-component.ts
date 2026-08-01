@@ -36,18 +36,26 @@ interface RendererTranscriptViewportRenderCache {
 }
 
 /**
- * Overflow paint cache for virtual scroll. Holds both raw child lines and
- * already-prefixed/formatted region lines so pure scroll (same epoch + width)
- * can slice without re-running formatCanvasLine / visibleWidth.
+ * Overflow paint cache for virtual scroll.
+ *
+ * Intentionally NOT keyed on ambient paint epoch. Child components already
+ * embed epoch in their own render caches when animated; static children return
+ * the same string[] reference, so we reuse formatted slices across ambient
+ * ticks and pure scroll. Keying on epoch wiped this cache every ~16ms and
+ * re-formatted every tall historical message during fast wheel scroll — the
+ * residual freeze after geometry was decoupled from epoch.
  */
 interface RendererTranscriptOverflowRenderCache {
   inner: number;
   safeWidth: number;
-  cacheEpoch: number;
   childRefs: (Component | undefined)[];
   childRenderRefs: (string[] | undefined)[];
-  /** lead + formatCanvasLine applied; parallel to childRenderRefs. */
-  childFormattedRefs: (RendererRegionLine[] | undefined)[];
+  /**
+   * Sparse per-line formatted output (lead + canvas paint). Only lines that
+   * have entered the visible window are filled — tall tool bodies are not
+   * fully formatted on first intersection.
+   */
+  childFormattedSparse: ((RendererRegionLine | undefined)[] | undefined)[];
 }
 
 interface RendererTranscriptLineCountCacheEntry {
@@ -184,7 +192,7 @@ export class RendererTranscriptViewportComponent extends Container {
       if (this.overflowRenderCache.childRefs[index] === previous) {
         this.overflowRenderCache.childRefs[index] = undefined;
         this.overflowRenderCache.childRenderRefs[index] = undefined;
-        this.overflowRenderCache.childFormattedRefs[index] = undefined;
+        this.overflowRenderCache.childFormattedSparse[index] = undefined;
       }
     }
     this.geometrySnapshot = undefined;
@@ -245,7 +253,7 @@ export class RendererTranscriptViewportComponent extends Container {
         if (this.overflowRenderCache.childRefs[i] === child) {
           this.overflowRenderCache.childRefs[i] = undefined;
           this.overflowRenderCache.childRenderRefs[i] = undefined;
-          this.overflowRenderCache.childFormattedRefs[i] = undefined;
+          this.overflowRenderCache.childFormattedSparse[i] = undefined;
         }
       }
     }
@@ -518,12 +526,16 @@ export class RendererTranscriptViewportComponent extends Container {
       if (childStart >= endLine) break;
 
       if (childEnd > startLine) {
-        const formatted = this.resolveOverflowChildFormattedLines(i, inner, safeWidth);
         const sliceStart = Math.max(0, startLine - childStart);
-        const sliceEnd = Math.min(formatted.length, endLine - childStart);
-        for (let j = sliceStart; j < sliceEnd; j++) {
-          out.push(formatted[j]!);
-        }
+        const sliceEnd = Math.min(childLines, endLine - childStart);
+        this.appendOverflowChildFormattedSlice(
+          out,
+          i,
+          inner,
+          safeWidth,
+          sliceStart,
+          sliceEnd,
+        );
       }
 
       lineOffset = childEnd;
@@ -533,56 +545,93 @@ export class RendererTranscriptViewportComponent extends Container {
   }
 
   /**
-   * Resolve overflow paint for one child: raw render lines plus
-   * lead+formatCanvasLine output. Pure scroll reuses formatted lines when
-   * epoch/width/child identity match — no per-line visibleWidth on scroll.
+   * Format only the visible local-line slice of one overflow child.
+   * Raw child.render is cached by identity+array ref (not ambient epoch).
+   * Formatted lines are sparse so scrolling a 5k-line tool body only paints
+   * the ~viewport rows that actually appear.
    */
-  private resolveOverflowChildFormattedLines(
+  private appendOverflowChildFormattedSlice(
+    out: RendererRegionLine[],
     childIndex: number,
     inner: number,
     safeWidth: number,
-  ): RendererRegionLine[] {
+    sliceStart: number,
+    sliceEnd: number,
+  ): void {
     const child = this.children[childIndex]!;
     const lead = ' '.repeat(this.leftPad);
 
     if (!this.isCacheEnabled()) {
       const lines = child.render(inner);
-      return lines.map((line) => this.formatCanvasLine(lead + line, safeWidth));
+      for (let j = sliceStart; j < sliceEnd; j++) {
+        out.push(this.formatCanvasLine(lead + (lines[j] ?? ''), safeWidth));
+      }
+      return;
     }
 
-    const cacheEpoch = this.getCacheEpoch();
     const childCount = this.children.length;
     if (
       this.overflowRenderCache === undefined ||
       this.overflowRenderCache.inner !== inner ||
       this.overflowRenderCache.safeWidth !== safeWidth ||
-      this.overflowRenderCache.cacheEpoch !== cacheEpoch ||
       this.overflowRenderCache.childRefs.length !== childCount
     ) {
       this.overflowRenderCache = {
         inner,
         safeWidth,
-        cacheEpoch,
         childRefs: Array.from({ length: childCount }),
         childRenderRefs: Array.from({ length: childCount }),
-        childFormattedRefs: Array.from({ length: childCount }),
+        childFormattedSparse: Array.from({ length: childCount }),
       };
     }
 
     const cache = this.overflowRenderCache;
-    if (
-      cache.childRefs[childIndex] === child &&
-      cache.childFormattedRefs[childIndex] !== undefined
-    ) {
-      return cache.childFormattedRefs[childIndex];
+    let lines = cache.childRenderRefs[childIndex];
+    let sparse = cache.childFormattedSparse[childIndex];
+
+    if (cache.childRefs[childIndex] !== child || lines === undefined) {
+      lines = child.render(inner);
+      cache.childRefs[childIndex] = child;
+      cache.childRenderRefs[childIndex] = lines;
+      sparse = undefined;
+      cache.childFormattedSparse[childIndex] = undefined;
+    } else {
+      // Probe render: animated children return a new array each epoch; static
+      // caches often return the same reference. When the array is new but line
+      // strings are unchanged, keep sparse formats (critical for fast scroll).
+      const nextLines = child.render(inner);
+      if (nextLines !== lines) {
+        const prev = lines;
+        lines = nextLines;
+        cache.childRenderRefs[childIndex] = lines;
+        if (sparse === undefined || sparse.length !== lines.length || prev.length !== lines.length) {
+          sparse = undefined;
+          cache.childFormattedSparse[childIndex] = undefined;
+        } else {
+          for (let j = 0; j < sparse.length; j++) {
+            if (sparse[j] !== undefined && prev[j] !== lines[j]) {
+              sparse[j] = undefined;
+            }
+          }
+        }
+      }
     }
 
-    const lines = child.render(inner);
-    const formatted = lines.map((line) => this.formatCanvasLine(lead + line, safeWidth));
-    cache.childRefs[childIndex] = child;
-    cache.childRenderRefs[childIndex] = lines;
-    cache.childFormattedRefs[childIndex] = formatted;
-    return formatted;
+    if (sparse === undefined) {
+      sparse = Array.from({ length: lines.length });
+      cache.childFormattedSparse[childIndex] = sparse;
+    } else if (sparse.length < lines.length) {
+      sparse.length = lines.length;
+    }
+
+    for (let j = sliceStart; j < sliceEnd; j++) {
+      let formatted = sparse[j];
+      if (formatted === undefined) {
+        formatted = this.formatCanvasLine(lead + (lines[j] ?? ''), safeWidth);
+        sparse[j] = formatted;
+      }
+      out.push(formatted);
+    }
   }
 
   private renderScrollbar(
