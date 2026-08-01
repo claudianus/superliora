@@ -24,6 +24,24 @@ export const OPENAI_CHAT_TOOL_CALL_ID_POLICY: ToolCallIdPolicy = {
   maxLength: 64,
 };
 
+export interface OpenAILegacyGenerationKwargs {
+  max_tokens?: number | undefined;
+  max_completion_tokens?: number | undefined;
+  temperature?: number | undefined;
+  top_p?: number | undefined;
+  n?: number | undefined;
+  presence_penalty?: number | undefined;
+  frequency_penalty?: number | undefined;
+  stop?: string | string[] | undefined;
+  /**
+   * Sticky prompt-cache routing key for OpenAI-compatible chat completions
+   * (including xAI Grok). When set, the gateway can pin the automatic prefix
+   * cache to this session across multi-turn tool loops.
+   */
+  prompt_cache_key?: string | undefined;
+  [key: string]: unknown;
+}
+
 export interface OpenAILegacyOptions {
   apiKey?: string | undefined;
   baseUrl?: string | undefined;
@@ -35,18 +53,7 @@ export interface OpenAILegacyOptions {
   defaultHeaders?: Record<string, string>;
   toolMessageConversion?: ToolMessageConversion | undefined;
   clientFactory?: (auth: ProviderRequestAuth) => OpenAI;
-}
-
-export interface OpenAILegacyGenerationKwargs {
-  max_tokens?: number | undefined;
-  max_completion_tokens?: number | undefined;
-  temperature?: number | undefined;
-  top_p?: number | undefined;
-  n?: number | undefined;
-  presence_penalty?: number | undefined;
-  frequency_penalty?: number | undefined;
-  stop?: string | string[] | undefined;
-  [key: string]: unknown;
+  generationKwargs?: OpenAILegacyGenerationKwargs | undefined;
 }
 
 export interface OpenAIMessage {

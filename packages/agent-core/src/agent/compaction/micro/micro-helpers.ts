@@ -92,8 +92,13 @@ export function resolveArchiveRecoverToolName(availableTools: Iterable<string>):
 }
 
 /**
- * Within the micro-clearable prefix [0, cutoff), keep the newest `keep` tool
- * results per tool name; older same-family toolCallIds are overflow (AC-B2).
+ * Within the micro-clearable prefix [0, cutoff), keep the **oldest** `keep` tool
+ * results per tool name; newer same-family toolCallIds are overflow.
+ *
+ * Prompt-cache rationale: provider caches match a stable *prefix*. Clearing the
+ * oldest family members rewrites early tool results and collapses the next
+ * request's cache_read (observed: ~95% → ~0% after one micro apply). Prefer
+ * mutating near the cutoff boundary so the long cached prefix stays byte-identical.
  * Mutating tools are excluded (never family-cleared via this path alone).
  */
 export function computeFamilyBudgetOverflowToolCallIds(
@@ -123,8 +128,8 @@ export function computeFamilyBudgetOverflowToolCallIds(
       ? highValueReplayKeepN
       : keepN;
     if (ids.length <= familyKeep) continue;
-    // Keep the newest family budget (tail); older prefix overflows.
-    for (const id of ids.slice(0, ids.length - familyKeep)) {
+    // Keep the oldest family budget (head); newer results near cutoff overflow.
+    for (const id of ids.slice(familyKeep)) {
       overflow.add(id);
     }
   }

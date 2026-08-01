@@ -46,6 +46,7 @@ export interface OpenAIResponsesOptions {
   defaultHeaders?: Record<string, string>;
   toolMessageConversion?: ToolMessageConversion | undefined;
   clientFactory?: (auth: ProviderRequestAuth) => OpenAI;
+  generationKwargs?: OpenAIResponsesGenerationKwargs | undefined;
 }
 
 export interface OpenAIResponsesGenerationKwargs {
@@ -87,7 +88,7 @@ export class OpenAIResponsesChatProvider implements ChatProvider {
     this._defaultHeaders = options.defaultHeaders;
     this._model = options.model;
     this._stream = true; // Responses API always supports streaming
-    this._generationKwargs = {};
+    this._generationKwargs = { ...(options.generationKwargs ?? {}) };
     this._toolMessageConversion = options.toolMessageConversion ?? null;
     this._httpClient = options.httpClient;
     this._clientFactory = options.clientFactory;

@@ -775,7 +775,9 @@ describe('MicroCompaction', () => {
       });
 
       vi.setSystemTime(0);
-      for (let i = 1; i <= MICRO_TOOL_RESULT_FAMILY_KEEP + 2; i += 1) {
+      // keep N oldest; the newest extras are family overflow (prefix-safe).
+      const total = MICRO_TOOL_RESULT_FAMILY_KEEP + 2;
+      for (let i = 1; i <= total; i += 1) {
         appendMicroToolExchange(ctx, i, { output: `family dump ${String(i)}` });
       }
       vi.setSystemTime(61 * MINUTE);
@@ -784,8 +786,9 @@ describe('MicroCompaction', () => {
       const compacted = ctx.agent.microCompaction.compact(ctx.agent.context.history);
       vi.useRealTimers();
 
+      const overflowId = `call_micro_${String(total)}`;
       const cleared = compacted.find(
-        (message) => message.role === 'tool' && message.toolCallId === 'call_micro_1',
+        (message) => message.role === 'tool' && message.toolCallId === overflowId,
       );
       const marker = textOf(cleared, { raw: true });
       expect(marker).toContain('policyReason=family_budget_overflow');
@@ -793,7 +796,7 @@ describe('MicroCompaction', () => {
       const receiptPath = /receipt=(.+\.txt)/u.exec(marker)?.[1];
       expect(receiptPath).toBeDefined();
       const restored = await readFile(receiptPath as string, 'utf8');
-      expect(restored).toContain('family dump 1');
+      expect(restored).toContain(`family dump ${String(total)}`);
     } finally {
       vi.useRealTimers();
       await rm(home, { recursive: true, force: true });
@@ -1267,7 +1270,9 @@ describe('MicroTriggerTracker', () => {
 
 
 describe('computeFamilyBudgetOverflowToolCallIds', () => {
-  it('marks older same-family tool results beyond keep N as overflow', () => {
+  it('marks newer same-family tool results beyond keep N as overflow (prefix-safe)', () => {
+    // Keep 3 oldest Read results; r4 is overflow. Grep has only 1 → never overflow.
+    // Clearing newest (not oldest) keeps the prompt-cache prefix byte-stable.
     const messages = [
       {
         role: 'assistant' as const,
@@ -1287,10 +1292,10 @@ describe('computeFamilyBudgetOverflowToolCallIds', () => {
       { role: 'tool' as const, toolCallId: 'g1', content: [{ type: 'text' as const, text: 'e'.repeat(200) }] },
     ] as any;
     const overflow = computeFamilyBudgetOverflowToolCallIds(messages, messages.length, 3);
-    expect(overflow.has('r1')).toBe(true);
+    expect(overflow.has('r1')).toBe(false);
     expect(overflow.has('r2')).toBe(false);
     expect(overflow.has('r3')).toBe(false);
-    expect(overflow.has('r4')).toBe(false);
+    expect(overflow.has('r4')).toBe(true);
     expect(overflow.has('g1')).toBe(false);
     expect(MICRO_TOOL_RESULT_FAMILY_KEEP).toBe(3);
   });
@@ -1317,7 +1322,7 @@ describe('computeFamilyBudgetOverflowToolCallIds', () => {
       MICRO_TOOL_RESULT_FAMILY_KEEP_LOW_PRESSURE,
     );
 
-    expect([...overflow]).toEqual(['r1']);
+    expect([...overflow]).toEqual(['r7']);
   });
 });
 

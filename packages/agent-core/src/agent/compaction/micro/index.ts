@@ -27,6 +27,7 @@ import {
   microPressureThresholdTokens,
 } from '../strategy';
 import {
+  MICRO_PREFIX_PROTECT_MESSAGES,
   MICRO_TOOL_RESULT_FAMILY_KEEP,
   MICRO_TOOL_RESULT_FAMILY_KEEP_LOW_PRESSURE,
 } from './micro-constants';
@@ -59,9 +60,11 @@ export interface MicroCompactionPolicyDecision {
 
 /**
  * Keep at most this many non-mutating tool results per tool name inside the
- * micro-clearable window; older same-family results clear first (AC-B2).
+ * micro-clearable window; newer same-family results clear first so the
+ * prompt-cache prefix stays stable.
  */
 export {
+  MICRO_PREFIX_PROTECT_MESSAGES,
   MICRO_TOOL_RESULT_FAMILY_KEEP,
   MICRO_TOOL_RESULT_FAMILY_KEEP_LOW_PRESSURE,
 } from './micro-constants';
@@ -310,9 +313,24 @@ export class MicroCompaction {
       MICRO_TOOL_RESULT_FAMILY_KEEP,
       highValueReplayKeep,
     );
+    // Never rewrite the earliest conversation bytes on long sessions.
+    // Provider prompt caches match a stable prefix; mid-session micro clears
+    // of early tool results collapsed cache_read from ~95% → ~0% on xAI Grok.
+    // Short histories (unit tests / early turns) keep the full clearable window.
+    const prefixProtectUntil = this.prefixProtectUntil(messages.length, this.cutoff);
     const result: ContextMessage[] = [];
     let i = 0;
     for (const msg of messages) {
+      if (i < prefixProtectUntil) {
+        if (msg.role === 'tool' && msg.toolCallId !== undefined) {
+          const swarmMasked = maskSwarmToolResultIfStale(msg, messages, latestSwarmToolCallId);
+          result.push(swarmMasked ?? msg);
+        } else {
+          result.push(msg);
+        }
+        i++;
+        continue;
+      }
       if (
         i < this.cutoff &&
         msg.role === 'tool' &&
@@ -366,7 +384,9 @@ export class MicroCompaction {
       MICRO_TOOL_RESULT_FAMILY_KEEP,
       highValueReplayKeep,
     );
+    const prefixProtectUntil = this.prefixProtectUntil(messages.length, cutoff);
     for (let i = 0; i < messages.length && i < cutoff; i++) {
+      if (i < prefixProtectUntil) continue;
       const message = messages[i];
       if (message?.role !== 'tool' || message.toolCallId === undefined) continue;
 
@@ -470,6 +490,19 @@ export class MicroCompaction {
     } catch {
       return undefined;
     }
+  }
+
+
+  /**
+   * Prefix shield only engages once the conversation is long enough that
+   * protecting the first N messages still leaves a clearable window near the
+   * cutoff. Otherwise short sessions / unit fixtures would never micro-clear.
+   */
+  private prefixProtectUntil(messageCount: number, cutoff: number): number {
+    const protect = Math.max(0, MICRO_PREFIX_PROTECT_MESSAGES);
+    const clearableMin = 8;
+    if (messageCount <= protect + clearableMin) return 0;
+    return Math.min(protect, Math.max(0, cutoff));
   }
 
   private decideToolResultPolicy(

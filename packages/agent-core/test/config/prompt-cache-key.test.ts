@@ -83,4 +83,31 @@ describe('ProviderManager dynamic promptCacheKey', () => {
     const second = manager.resolveProviderConfig('kimi-code/kimi-for-coding');
     expect(second.provider.generationKwargs?.['prompt_cache_key']).toBe('sess-abc:v2');
   });
+
+  it('pins prompt_cache_key for OpenAI-compatible (xAI Grok) providers', () => {
+    const config: LioraConfig = {
+      defaultModel: 'xai-grok/grok-4.5',
+      providers: {
+        'xai-grok': {
+          type: 'openai',
+          apiKey: 'test-key',
+          baseUrl: 'https://api.x.ai/v1',
+        },
+      },
+      models: {
+        'xai-grok/grok-4.5': {
+          provider: 'xai-grok',
+          model: 'grok-4.5',
+          maxContextSize: 256_000,
+        },
+      },
+    };
+    const manager = new ProviderManager({
+      config: () => config,
+      promptCacheKey: () => resolvePromptCacheKey('sess-xai', config),
+    });
+    const resolved = manager.resolveProviderConfig('xai-grok/grok-4.5');
+    expect(resolved.provider.type).toBe('openai');
+    expect(resolved.provider.generationKwargs?.['prompt_cache_key']).toBe('sess-xai');
+  });
 });
