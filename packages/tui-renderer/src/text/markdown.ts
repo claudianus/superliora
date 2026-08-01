@@ -134,6 +134,16 @@ export class Markdown implements Component {
       ) {
         return this.cheapCachedLines;
       }
+      // Large cold bodies under pure-scroll: never run full Markdown parse+wrap.
+      // Plain line split + soft wrap estimate keeps first intersection interactive;
+      // ambient/content paint fills real markdown into the full cache.
+      if (this.text.length > TRANSCRIPT_MEASURE_FULL_WRAP_CHAR_CAP) {
+        const result = this.renderPlainCheap(safeWidth);
+        this.cheapCachedText = this.text;
+        this.cheapCachedWidth = safeWidth;
+        this.cheapCachedLines = result;
+        return result;
+      }
       const result = this.renderUncached(safeWidth);
       this.cheapCachedText = this.text;
       this.cheapCachedWidth = safeWidth;
@@ -173,6 +183,41 @@ export class Markdown implements Component {
       ...contentLines,
       ...Array.from({ length: paddingY }, () => emptyLine),
     ];
+  }
+
+  /**
+   * Pure-scroll stand-in for multi-k sources: split on newlines + simple width
+   * wrap without markdown fence parsing or syntax highlight.
+   */
+  private renderPlainCheap(width: number): string[] {
+    if (width <= 0) return [''];
+    if (this.text.length === 0 || this.text.trim() === '') return [];
+    const paddingX = normalizePadding(this.paddingX);
+    const paddingY = normalizePadding(this.paddingY);
+    const contentWidth = Math.max(1, width - paddingX * 2);
+    const lead = ' '.repeat(paddingX);
+    const out: string[] = [];
+    for (let p = 0; p < paddingY; p++) out.push(this.padLine('', width));
+    // Cap materialised plain lines so one cold card cannot allocate 100k strings.
+    const MAX_PLAIN_LINES = 2_000;
+    let produced = 0;
+    for (const raw of this.text.replaceAll('\t', '   ').split('\n')) {
+      if (produced >= MAX_PLAIN_LINES) break;
+      if (raw.length === 0) {
+        out.push(this.padLine(lead, width));
+        produced += 1;
+        continue;
+      }
+      let offset = 0;
+      while (offset < raw.length && produced < MAX_PLAIN_LINES) {
+        const chunk = raw.slice(offset, offset + contentWidth);
+        out.push(this.padLine(lead + chunk, width));
+        offset += contentWidth;
+        produced += 1;
+      }
+    }
+    for (let p = 0; p < paddingY; p++) out.push(this.padLine('', width));
+    return out;
   }
 
   private renderBlocks(lines: readonly string[], width: number): string[] {

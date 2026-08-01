@@ -47,6 +47,8 @@ import {
 } from './types';
 import type { CenterModalEntry } from './utils/ui/center-modal';
 import { requestTUIContentRender } from './utils/render/frame-render';
+import { wasRecentTranscriptScroll } from './utils/render/transcript-paint-mode';
+import { scheduleDeferredTranscriptFormat } from './utils/transcript/deferred-format-queue';
 
 export interface TUIState {
   renderer: TerminalRenderer;
@@ -280,7 +282,17 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
   // residual hard freeze under repeated scroll (every format completion
   // forced O(transcript) remeasure on the next wheel frame).
   setTruncatedOutputFormatAppliedHandler(() => {
-    state.transcriptContainer.invalidatePaint();
+    // Do not wipe overflow paint caches for the whole transcript — that forced
+    // every visible card to re-materialize on the next wheel frame. Truncated
+    // output revision + next ambient/content re-probe picks up pretty bodies.
+    if (wasRecentTranscriptScroll()) {
+      // Hold content repaint while the wheel is hot.
+      scheduleDeferredTranscriptFormat(() => {
+        if (wasRecentTranscriptScroll()) return;
+        requestTUIContentRender(state);
+      });
+      return;
+    }
     requestTUIContentRender(state);
   });
   return state;

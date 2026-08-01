@@ -4,6 +4,7 @@ import {
   estimateTranscriptWrappedRowCount,
   isTranscriptMeasureMode,
   measurePlaceholderLines,
+  shouldSkipExpensiveTranscriptFormat,
 } from '../transcript/measure-mode';
 import { measureDisplayWidth, splitDisplayClusters } from './metrics';
 
@@ -75,6 +76,17 @@ export class Text implements RendererComponent {
       return measurePlaceholderLines(rows);
     }
 
+    // Pure-scroll cold paint of multi-k Text: cap materialised wrap so first
+    // intersection stays interactive (full wrap still runs on ambient paint).
+    if (
+      shouldSkipExpensiveTranscriptFormat() &&
+      this.text.length > TRANSCRIPT_MEASURE_FULL_WRAP_CHAR_CAP
+    ) {
+      const result = this.renderPlainCheap(safeWidth);
+      // Do not write into full cache — ambient must re-wrap for correctness.
+      return result;
+    }
+
     const result = this.renderUncached(safeWidth);
     this.cachedText = this.text;
     this.cachedWidth = safeWidth;
@@ -99,6 +111,37 @@ export class Text implements RendererComponent {
     const emptyLine = padAnsiDisplayLine('', width, this.customBgFn);
     const emptyLines = Array.from({ length: paddingY }, () => emptyLine);
     return [...emptyLines, ...contentLines, ...emptyLines];
+  }
+
+  /** Pure-scroll multi-k stand-in: simple char wrap, hard cap on materialised rows. */
+  private renderPlainCheap(width: number): string[] {
+    if (width <= 0 || this.text.length === 0 || this.text.trim() === '') return [];
+    const paddingX = normalizePadding(this.paddingX);
+    const paddingY = normalizePadding(this.paddingY);
+    const contentWidth = Math.max(1, width - paddingX * 2);
+    const leftMargin = ' '.repeat(paddingX);
+    const rightMargin = ' '.repeat(paddingX);
+    const emptyLine = padAnsiDisplayLine('', width, this.customBgFn);
+    const out: string[] = Array.from({ length: paddingY }, () => emptyLine);
+    const MAX_PLAIN_LINES = 2_000;
+    let produced = 0;
+    for (const raw of this.text.replaceAll('\t', '   ').split('\n')) {
+      if (produced >= MAX_PLAIN_LINES) break;
+      if (raw.length === 0) {
+        out.push(padAnsiDisplayLine(leftMargin + rightMargin, width, this.customBgFn));
+        produced += 1;
+        continue;
+      }
+      let offset = 0;
+      while (offset < raw.length && produced < MAX_PLAIN_LINES) {
+        const chunk = raw.slice(offset, offset + contentWidth);
+        out.push(padAnsiDisplayLine(leftMargin + chunk + rightMargin, width, this.customBgFn));
+        offset += contentWidth;
+        produced += 1;
+      }
+    }
+    for (let i = 0; i < paddingY; i++) out.push(emptyLine);
+    return out;
   }
 }
 
