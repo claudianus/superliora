@@ -98,6 +98,15 @@ export async function buildSessionStatusResponse(
             evidence_id_recall_score: contextOS.evidenceIdRecallScore,
             latest_continuity_status: contextOS.latestContinuityStatus,
           },
+    micro_compaction:
+      context.microCompaction === undefined
+        ? undefined
+        : {
+            total: context.microCompaction.total,
+            last_trigger: context.microCompaction.lastTrigger,
+            last_context_usage_ratio: context.microCompaction.lastContextUsageRatio,
+            by_trigger: { ...context.microCompaction.byTrigger },
+          },
     oauth:
       oauth === undefined
         ? undefined

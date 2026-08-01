@@ -24,6 +24,15 @@ export const FLAG_DEFINITIONS = [
     surface: 'core',
   },
   {
+    id: 'micro_compaction',
+    title: 'Micro compaction',
+    description:
+      'Claude Code–style tool-result clearing: replace older bulky tool dumps with receipts while keeping recent turns intact (zero LLM cost). Disable with SUPERLIORA_EXPERIMENTAL_MICRO_COMPACTION=false.',
+    env: 'SUPERLIORA_EXPERIMENTAL_MICRO_COMPACTION',
+    default: true,
+    surface: 'core',
+  },
+  {
     id: 'async_compaction',
     title: 'Async background compaction',
     description:

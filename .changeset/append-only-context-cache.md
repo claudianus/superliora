@@ -1,5 +1,5 @@
 ---
-"@superliora/liora": minor
+"@superliora/liora": patch
 ---
 
-Remove micro-compaction and automatic tool-output truncation/compression so conversation history stays append-only and prompt-cache hit rates stay high. Tool results keep full content; context pressure uses full compaction only.
+Keep conversation history append-only for prompt-cache stability, but bound new tool results at write time (receipt + disk spill) so context pressure does not depend on full compaction alone.

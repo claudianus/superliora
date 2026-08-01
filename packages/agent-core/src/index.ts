@@ -456,6 +456,26 @@ export type {
   VerificationSensorLedger,
 } from './sensors/verification-sensor-ledger';
 
+export {
+  FILE_MUTATION_TOOL_NAMES,
+  MUTATION_SENSOR_GOAL_DONE_TIP,
+  MUTATION_SENSOR_MAX_PENDING,
+  MUTATION_SENSOR_RECENCY_MS,
+  MUTATION_VERIFY_NUDGE,
+  appendMutationNudge,
+  buildPendingMutationSoftTips,
+  clearPendingMutations,
+  createMutationVerificationLedger,
+  filterRecentMutations,
+  isFileMutationTool,
+  observeFileMutationToolResult,
+  recordFileMutation,
+} from './sensors/mutation-verification-sensor';
+export type {
+  MutationRecord,
+  MutationVerificationLedger,
+} from './sensors/mutation-verification-sensor';
+
 export type { CodemapStatus, CodemapWarmth } from './codemap/status';
 export {
   CODEMAP_SYMBOL_VIA_REPOQUERY_TIP,

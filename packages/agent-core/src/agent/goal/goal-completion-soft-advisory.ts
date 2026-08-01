@@ -10,6 +10,10 @@ import {
   buildTestFailureSoftTips,
   type VerificationFailureRecord,
 } from '../../sensors/verification-sensor-ledger';
+import {
+  buildPendingMutationSoftTips,
+  type MutationVerificationLedger,
+} from '../../sensors/mutation-verification-sensor';
 import { auditUltraworkCompletion, formatEvidenceHardGateNextActions } from '#/mission';
 import { parseGoalPredicateCriterion } from './predicate';
 
@@ -17,6 +21,8 @@ export interface GoalCompletionSoftAdvisoryInput {
   readonly ultraworkRun?: UltraworkRun | null | undefined;
   readonly completionCriterion?: string | undefined;
   readonly recentVerificationFailures?: readonly VerificationFailureRecord[] | undefined;
+  /** Pending Edit/Write/ApplyPatch mutations without a later green check. */
+  readonly mutationVerificationLedger?: MutationVerificationLedger | undefined;
 }
 
 export interface GoalCompletionSoftAdvisory {
@@ -102,13 +108,18 @@ export function evaluateGoalCompletionSoftAdvisory(
 ): GoalCompletionSoftAdvisory | null {
   const base = evaluateEvidenceGateSoftAdvisory(input);
   const failureTips = buildTestFailureSoftTips(input.recentVerificationFailures ?? []);
-  if (failureTips.length === 0) {
+  const mutationTips =
+    input.mutationVerificationLedger === undefined
+      ? []
+      : buildPendingMutationSoftTips(input.mutationVerificationLedger);
+  const extras = [...failureTips, ...mutationTips];
+  if (extras.length === 0) {
     return base;
   }
   if (base === null) {
-    return { tips: failureTips };
+    return { tips: extras };
   }
-  return { tips: [...base.tips, ...failureTips] };
+  return { tips: [...base.tips, ...extras] };
 }
 
 export function formatGoalCompletionSoftAdvisory(advisory: GoalCompletionSoftAdvisory): string {

@@ -22,6 +22,7 @@ import type {
 import {
   DEFAULT_COMPACTION_CONFIG,
   DEFAULT_SWARM_HANDOFF_WORKING_SET_TOKENS,
+  SWARM_MICRO_PRESSURE_RATIO,
   DefaultCompactionStrategy,
   PipelineStrategy,
   type CompactionStrategy,
@@ -231,14 +232,34 @@ export class FullCompaction implements CompactionPipelineContext {
     return resolveEffectiveMaxContextTokens({ configured, observed });
   }
 
-  observeContextOverflow(estimatedRequestTokens: number): void {
-    if (!Number.isFinite(estimatedRequestTokens) || estimatedRequestTokens <= 0) return;
+  /**
+   * Tighten the effective context ceiling after a provider overflow.
+   *
+   * Prefer a provider-stated limit (e.g. "maximum prompt length is 500000") when
+   * available — estimating from the oversized request alone can leave the
+   * observed ceiling still above the real API limit (2M * 0.85 ≫ 500k).
+   */
+  observeContextOverflow(
+    estimatedRequestTokens: number,
+    statedLimitTokens?: number,
+  ): void {
     const modelAlias = this.agent.config.modelAlias;
     if (modelAlias === undefined) return;
-    const observed = Math.max(
-      1,
-      Math.floor(estimatedRequestTokens * OVERFLOW_CONTEXT_SAFETY_RATIO),
-    );
+    const candidates: number[] = [];
+    if (Number.isFinite(estimatedRequestTokens) && estimatedRequestTokens > 0) {
+      candidates.push(Math.floor(estimatedRequestTokens * OVERFLOW_CONTEXT_SAFETY_RATIO));
+    }
+    if (
+      statedLimitTokens !== undefined &&
+      Number.isFinite(statedLimitTokens) &&
+      statedLimitTokens > 0
+    ) {
+      candidates.push(Math.floor(statedLimitTokens * OVERFLOW_CONTEXT_SAFETY_RATIO));
+    }
+    if (candidates.length === 0) return;
+    // Tightest (smallest) positive observation wins so a 500k API limit is not
+    // masked by a 2M estimated request * 0.85.
+    const observed = Math.max(1, Math.min(...candidates));
     const current = this.getEffectiveMaxContextTokens();
     if (current > 0 && observed >= current) return;
     this.observedMaxContextTokensByModel.set(modelAlias, observed);
@@ -303,9 +324,21 @@ export class FullCompaction implements CompactionPipelineContext {
     error: unknown,
     estimatedRequestTokens = this.estimateCurrentRequestTokens(),
   ): boolean {
+    const statusError = error instanceof APIStatusError ? error : undefined;
+    const overflowFromMessage =
+      statusError !== undefined &&
+      (statusError instanceof APIContextOverflowError ||
+        // Re-check message shapes so a plain 400 "maximum prompt length is N"
+        // still recovers even when the provider path did not subclass it.
+        (typeof statusError.message === 'string' &&
+          statusError.statusCode === 400 &&
+          /maximum prompt length|prompt length is \d+|request contains \d+ tokens|context[ _-]?length|too many tokens/i.test(
+            statusError.message,
+          )));
     return shouldRecoverFromOverflowStatus({
       isContextOverflowError: error instanceof APIContextOverflowError,
-      isStatus413: error instanceof APIStatusError && error.statusCode === 413,
+      isStatus413: statusError !== undefined && statusError.statusCode === 413,
+      isOverflowStatusMessage: overflowFromMessage,
       estimatedRequestTokens,
       maxContextTokens: this.getEffectiveMaxContextTokens(),
       recoveryRatio: OVERFLOW_STATUS_RECOVERY_RATIO,
@@ -425,14 +458,28 @@ export class FullCompaction implements CompactionPipelineContext {
   private checkAutoCompaction(throwOnLimit: boolean = true): boolean {
     if (this.compacting) return true;
     if (this.shouldDeferAutoCompaction()) {
+      // While UltraSwarm / foreground children defer full summarize, still run
+      // free micro clearing so tool dumps cannot balloon to multi-million tokens.
+      this.maybeRunSwarmMicroCompaction();
       return false;
     }
-    if (this.shouldSkipRecompactUntilGrowth()) return false;
-    const needsCompaction =
-      this.strategy.shouldCompact(this.tokenCountWithPending) ||
-      this.strategy.shouldBlock(this.tokenCountWithPending);
+    const used = this.tokenCountWithPending;
+    const mustBlock = this.strategy.shouldBlock(used);
+    // Hard-block residual must always re-arm — recompact growth hysteresis only
+    // applies to the soft path. Otherwise a 2M → 1.95M "complete" sets the
+    // baseline and permanently skips auto compact while still over the window.
+    if (!mustBlock && this.shouldSkipRecompactUntilGrowth()) return false;
+    const needsCompaction = mustBlock || this.strategy.shouldCompact(used);
     if (!needsCompaction) return false;
+    // Prefer zero-LLM tool clearing before an expensive full summarize round.
+    this.agent.microCompaction.detect();
     return this.beginAutoCompaction(throwOnLimit);
+  }
+
+  private maybeRunSwarmMicroCompaction(): void {
+    if (this.agent.ultraSwarmRun === undefined) return;
+    if (this.strategy.shouldBlock(this.tokenCountWithPending)) return;
+    this.agent.microCompaction.detectUnderSwarmPressure(SWARM_MICRO_PRESSURE_RATIO);
   }
 
   private shouldSkipRecompactUntilGrowth(): boolean {

@@ -48,13 +48,9 @@ tools:
   - TaskOutput
   - TaskStop
   - ReadMediaFile
-  - GenerateImage
-  - GenerateVideo
-  - VerifySurface
   - Review
-  - VisualDiff
-  # MCP tools are gated separately by the profile.
-  - mcp__*
+  # Extended visual/media/MCP tools live on superliora-full (or SearchTools
+  # discovery). Default agent waist stays session-coding focused (Phase A/B).
 
 subagents:
   coder:

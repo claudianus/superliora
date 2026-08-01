@@ -3,6 +3,7 @@ export * from './full/backstop';
 export * from './micro/boundary-compaction';
 export * from './full/full';
 export * from './micro/handoff-collapse';
+export * from './micro';
 export * from './plan/planner';
 export * from './plan/quality';
 export * from './strategy';
@@ -10,4 +11,4 @@ export * from './memory/swarm-memory-extract';
 export * from './types';
 export * from './memory';
 export * from './micro/handoff';
-export * from './tool-policy';
+// tool-policy symbols are re-exported via micro/micro-helpers to avoid dual paths.

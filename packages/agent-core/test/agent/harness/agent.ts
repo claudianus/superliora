@@ -94,6 +94,7 @@ export interface TestAgentOptions {
   readonly kaos?: Kaos | undefined;
   readonly runtime?: ToolServices | undefined;
   readonly compactionStrategy?: CompactionStrategy | undefined;
+  readonly microCompaction?: AgentOptions['microCompaction'];
   readonly generate?: GenerateFn | undefined;
   readonly hookEngine?: AgentOptions['hookEngine'];
   readonly type?: AgentOptions['type'];
@@ -189,6 +190,7 @@ export class AgentTestContext {
       persistence,
       generate: options.generate ?? this.scriptedGenerate.generate,
       compactionStrategy: options.compactionStrategy,
+      microCompaction: options.microCompaction,
       modelProvider: providerManager,
       subagentHost: options.subagentHost,
       type: options.type,
@@ -759,6 +761,7 @@ export class AgentTestContext {
       providerManagerOverrides: this.options.providerManagerOverrides,
       generate: failOnResumeGenerate,
       compactionStrategy: this.options.compactionStrategy,
+      microCompaction: this.options.microCompaction,
       subagentHost: this.options.subagentHost,
       experimentalFlags: this.options.experimentalFlags,
       persistence: new InMemoryAgentRecordPersistence(
@@ -1033,7 +1036,9 @@ function resumeStateSnapshot(agent: Agent): ResumeStateSnapshot {
 
 function resumeContextSnapshot(agent: Agent) {
   const context = agent.context.data();
-  const durableContext = context;
+  // microCompaction trigger dashboard is ephemeral; only the apply cutoff is
+  // durable (restored via micro_compaction.apply records).
+  const { microCompaction: _micro, ...durableContext } = context;
   return {
     ...durableContext,
     history: durableContext.history.filter((message) => !isSystemReminderMessage(message)),

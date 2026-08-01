@@ -38,7 +38,9 @@ import { CacheFreezeGuard } from './cache';
 import { ToolParallelStatus } from '../loop/tool-parallel-status';
 import {
   FullCompaction,
+  MicroCompaction,
   type CompactionStrategy,
+  type MicroCompactionConfig,
 } from './compaction';
 import { ContextOSManager } from './context-os';
 import { CronManager } from './cron';
@@ -107,6 +109,10 @@ import {
   createVerificationSensorLedger,
   type VerificationSensorLedger,
 } from '../sensors/verification-sensor-ledger';
+import {
+  createMutationVerificationLedger,
+  type MutationVerificationLedger,
+} from '../sensors/mutation-verification-sensor';
 
 export type { AgentRecord } from './records';
 export type { ModeActivationSource } from './mode-activation';
@@ -126,6 +132,7 @@ export interface AgentOptions {
   readonly generate?: typeof generate;
   readonly toolServices?: ToolServices;
   readonly compactionStrategy?: CompactionStrategy;
+  readonly microCompaction?: Partial<MicroCompactionConfig>;
   readonly modelProvider?: ModelProvider | undefined;
   readonly subagentHost?: SessionSubagentHost | undefined;
   readonly skills?: SkillRegistry;
@@ -196,6 +203,7 @@ export class Agent {
   readonly blobStore: BlobStore | undefined;
   readonly records: AgentRecords;
   readonly fullCompaction: FullCompaction;
+  readonly microCompaction: MicroCompaction;
   readonly cacheFreezeGuard: CacheFreezeGuard;
   readonly toolParallelStatus: ToolParallelStatus;
   readonly contextOS: ContextOSManager;
@@ -242,6 +250,8 @@ export class Agent {
   readonly sandboxProfile: SandboxProfile | undefined;
   /** W6 PostToolUse verification sensor — recent test/command failure evidence. */
   readonly verificationSensorLedger: VerificationSensorLedger;
+  /** Phase B PostToolUse sensor — file mutations pending mechanical verification. */
+  readonly mutationVerificationLedger: MutationVerificationLedger;
 
   /**
    * Print-mode (`liora -p`) only: when true and the agent ends a turn while
@@ -279,6 +289,7 @@ export class Agent {
     this.fileSnapshots = options.fileSnapshots;
     this.sandboxProfile = options.sandboxProfile;
     this.verificationSensorLedger = createVerificationSensorLedger();
+    this.mutationVerificationLedger = createMutationVerificationLedger();
 
     this.llmRequestLogger = new LlmRequestLogger(this.log);
     this.blobStore = options.homedir
@@ -297,6 +308,7 @@ export class Agent {
           : undefined),
     );
     this.fullCompaction = new FullCompaction(this, options.compactionStrategy);
+    this.microCompaction = new MicroCompaction(this, options.microCompaction);
     this.cacheFreezeGuard = new CacheFreezeGuard();
     this.toolParallelStatus = new ToolParallelStatus();
     this.contextOS = new ContextOSManager(this);

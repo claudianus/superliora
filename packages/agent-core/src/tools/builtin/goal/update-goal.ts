@@ -76,7 +76,8 @@ export class UpdateGoalTool implements BuiltinTool<UpdateGoalToolInput> {
             const advisory = evaluateGoalCompletionSoftAdvisory({
               ultraworkRun: this.agent.ultrawork?.getRun() ?? null,
               completionCriterion: completed.completionCriterion,
-              recentVerificationFailures: this.agent.verificationSensorLedger.failures,
+              recentVerificationFailures: this.agent.verificationSensorLedger?.failures ?? [],
+              mutationVerificationLedger: this.agent.mutationVerificationLedger,
             });
             const output =
               advisory === null

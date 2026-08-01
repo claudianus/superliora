@@ -221,12 +221,38 @@ const CONTEXT_OVERFLOW_MESSAGE_PATTERNS = [
   /context[ _-]?length/,
   /(?:context[ _-]?window.*exceed|exceed.*context[ _-]?window)/,
   /maximum context/,
+  /maximum prompt length/,
+  /max(?:imum)?\s+prompt\s+length/,
+  /prompt length is \d+/,
   /exceed(?:ed|s|ing)?\s+(?:the\s+)?max(?:imum)?\s+tokens?/,
   /(?:too many tokens.*(?:prompt|input|context)|(?:prompt|input|context).*too many tokens)/,
   /prompt is too long.*maximum/,
   /input token count.*exceeds?.*maximum number of tokens/,
   /request.*exceed(?:ed|s|ing)?.*model token limit/,
+  /request contains \d+ tokens/,
 ] as const;
+
+/**
+ * Extract a stated prompt/context token ceiling from a provider error message
+ * when present (e.g. "maximum prompt length is 500000 but the request contains…").
+ * Returns undefined when the message does not declare a numeric limit.
+ */
+export function parseStatedContextLimitTokens(message: string): number | undefined {
+  const patterns = [
+    /maximum prompt length is\s+(\d+)/i,
+    /max(?:imum)?\s+prompt\s+length\s*(?:is|=|:)?\s*(\d+)/i,
+    /maximum context(?:\s+length|\s+window)?(?:\s+is|\s*=|:)?\s*(\d+)/i,
+    /model token limit:\s*(\d+)/i,
+    /max(?:imum)?\s+(?:context\s+)?tokens?\s*(?:is|=|:)?\s*(\d+)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = pattern.exec(message);
+    if (match?.[1] === undefined) continue;
+    const value = Number.parseInt(match[1], 10);
+    if (Number.isFinite(value) && value > 0) return value;
+  }
+  return undefined;
+}
 
 const PROVIDER_RATE_LIMIT_MESSAGE_PATTERNS = [
   /(?:apistatuserror.*429|429.*apistatuserror)/,
