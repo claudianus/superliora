@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { IdleStageComponent } from '#/tui/components/chrome/idle-stage';
 import { TranscriptViewportComponent } from '#/tui/components/messages/transcript-viewport';
 import type { Component } from '#/tui/renderer';
 import type { TranscriptViewportState } from '#/tui/features/transcript/transcript-viewport';
+import type { AppState } from '#/tui/types';
 
 class StubComponent implements Component {
   invalidate = vi.fn();
@@ -16,6 +18,17 @@ function makeViewport(): TranscriptViewportComponent {
     sync: () => ({ start: 0, end: 0, hasOverflow: false }),
   } as unknown as TranscriptViewportState;
   return new TranscriptViewportComponent(0, 1, viewport, () => 20);
+}
+
+function makeIdle(): IdleStageComponent {
+  return new IdleStageComponent({
+    state: {
+      streamingPhase: 'idle',
+      thinking: false,
+      appearance: undefined,
+    } as unknown as AppState,
+    preferredRows: 12,
+  });
 }
 
 describe('TranscriptViewportComponent batch mount', () => {
@@ -46,5 +59,24 @@ describe('TranscriptViewportComponent batch mount', () => {
     container.addChild(new StubComponent());
     expect(invalidate).not.toHaveBeenCalled();
     expect(invalidatePaint).toHaveBeenCalledTimes(2);
+  });
+
+  it('tracks IdleStage mount with an O(1) flag', () => {
+    const container = makeViewport();
+    expect(container.hasIdleStageMounted).toBe(false);
+
+    const idle = makeIdle();
+    container.addChild(idle);
+    expect(container.hasIdleStageMounted).toBe(true);
+
+    container.dismissIdleStage();
+    expect(container.hasIdleStageMounted).toBe(false);
+    expect(container.children.some((c) => c instanceof IdleStageComponent)).toBe(false);
+
+    // Real content still clears the flag via dismissIdleStage.
+    container.addChild(makeIdle());
+    expect(container.hasIdleStageMounted).toBe(true);
+    container.addChild(new StubComponent());
+    expect(container.hasIdleStageMounted).toBe(false);
   });
 });

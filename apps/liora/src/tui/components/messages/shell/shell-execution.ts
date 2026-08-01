@@ -36,6 +36,13 @@ export class ShellExecutionComponent extends Container {
   private readonly entranceStartedAtMs = appearanceAnimationNow();
   /** Command-preview Text nodes, kept so streaming deltas can reuse them. */
   private readonly commandPreviewTexts: Text[] = [];
+  /** Result body, kept so live stdout can update without remounting. */
+  private resultOutput: TruncatedOutputComponent | undefined;
+  private resultPreviewLines = PREVIEW_LINES;
+  private resultExpanded = false;
+  private resultTailOutput = false;
+  private resultExpandHint = true;
+
   constructor(options: ShellExecutionOptions) {
     super();
 
@@ -52,6 +59,28 @@ export class ShellExecutionComponent extends Container {
         options.expandHint ?? true,
       );
     }
+  }
+
+  /**
+   * In-place live stdout update. First chunk mounts the body; later chunks
+   * only rewrite the TruncatedOutput text (no full tool-card rebuild).
+   */
+  setResultOutput(output: string, isError = false): void {
+    if (this.resultOutput !== undefined) {
+      this.resultOutput.setOutput(output);
+      return;
+    }
+    this.addResultPreview(
+      {
+        tool_call_id: '',
+        output,
+        is_error: isError,
+      },
+      this.resultExpanded,
+      this.resultPreviewLines,
+      this.resultTailOutput,
+      this.resultExpandHint,
+    );
   }
 
   private addCommandPreview(command: string, previewLines: number | undefined): void {
@@ -110,15 +139,19 @@ export class ShellExecutionComponent extends Container {
     expandHint: boolean,
   ): void {
     if (!result.output) return;
-    this.addChild(
-      new TruncatedOutputComponent(result.output, {
-        expanded,
-        isError: result.is_error ?? false,
-        maxLines: previewLines,
-        tail: tailOutput,
-        expandHint,
-      }),
-    );
+    this.resultExpanded = expanded;
+    this.resultPreviewLines = previewLines;
+    this.resultTailOutput = tailOutput;
+    this.resultExpandHint = expandHint;
+    const body = new TruncatedOutputComponent(result.output, {
+      expanded,
+      isError: result.is_error ?? false,
+      maxLines: previewLines,
+      tail: tailOutput,
+      expandHint,
+    });
+    this.resultOutput = body;
+    this.addChild(body);
   }
 
   override render(width: number): string[] {

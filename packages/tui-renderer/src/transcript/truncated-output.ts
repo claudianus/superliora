@@ -16,7 +16,7 @@ export const DEFAULT_RENDERER_TRUNCATED_OUTPUT_INDENT = 2;
 
 export class RendererTruncatedOutputComponent implements RendererComponent {
   private readonly textComponent: Text;
-  private readonly output: string;
+  private output: string;
   private readonly expanded: boolean;
   private readonly isError: boolean;
   private readonly maxLines: number;
@@ -49,6 +49,15 @@ export class RendererTruncatedOutputComponent implements RendererComponent {
   invalidate(): void {
     this.textComponent.setText(this.renderOutputText());
     this.textComponent.invalidate();
+  }
+
+  /**
+   * Replace body text in place (live tool stdout). Avoids remounting the
+   * component tree on every stream chunk.
+   */
+  setOutput(output: string): void {
+    this.output = trimRendererTrailingEmptyLines(output.split('\n')).join('\n');
+    this.invalidate();
   }
 
   render(width: number): string[] {

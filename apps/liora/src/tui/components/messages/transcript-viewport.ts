@@ -31,6 +31,8 @@ export class TranscriptViewportComponent extends RendererTranscriptViewportCompo
    * invalidate once) when the batch finishes.
    */
   private batchMountDepth = 0;
+  /** O(1) idle aquarium presence — avoids children.some every ambient frame. */
+  private idleStageMounted = false;
 
   constructor(
     leftPad: number,
@@ -78,6 +80,11 @@ export class TranscriptViewportComponent extends RendererTranscriptViewportCompo
 
   get isAquariumOverlayActive(): boolean {
     return this.aquariumOverlaySnapshot !== undefined;
+  }
+
+  /** True when an IdleStage child is mounted (Jewel Tank / night sky). */
+  get hasIdleStageMounted(): boolean {
+    return this.idleStageMounted;
   }
 
   /**
@@ -150,6 +157,9 @@ export class TranscriptViewportComponent extends RendererTranscriptViewportCompo
         this.dismissIdleStage();
       }
     }
+    if (component instanceof IdleStageComponent) {
+      this.idleStageMounted = true;
+    }
     super.addChild(component);
     // Hydrate mounts many children in one sync pass; defer invalidate so we
     // do not re-render every previous child on each add (O(n²) storm).
@@ -164,6 +174,20 @@ export class TranscriptViewportComponent extends RendererTranscriptViewportCompo
     }
   }
 
+  override removeChild(component: Component): void {
+    super.removeChild(component);
+    if (component instanceof IdleStageComponent) {
+      this.idleStageMounted = this.children.some(
+        (child) => child instanceof IdleStageComponent,
+      );
+    }
+  }
+
+  override clear(): void {
+    super.clear();
+    this.idleStageMounted = false;
+  }
+
   /** Drop every IdleStage child (idempotent). */
   dismissIdleStage(): void {
     const idle = this.children.filter((child) => child instanceof IdleStageComponent);
@@ -172,6 +196,7 @@ export class TranscriptViewportComponent extends RendererTranscriptViewportCompo
       // oxlint-disable-next-line unicorn/prefer-dom-node-remove
       this.removeChild(child);
     }
+    this.idleStageMounted = false;
   }
 }
 

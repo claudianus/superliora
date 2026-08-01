@@ -12,7 +12,6 @@ import {
 import { shouldAnimate, shouldRenderAmbientAnimationFrame } from '../../controllers/appearance/index';
 import { resolveStageLayout } from '../../controllers/layout/stage-layout';
 import type { TUIState } from '../../tui-state';
-import { IdleStageComponent } from '../../components/chrome/idle-stage';
 import {
   isLiveGoalChromeActive,
   isPureInputFrame,
@@ -181,9 +180,7 @@ export function createTUIStateNativeRenderCallback(
     // whole transcript — ~70% frame rewrite that tears into black horizontal bands
     // inside the stage even with sync wrapping.
     // Structural / viewport / resize frames keep clears so layout holes wipe.
-    const idleAquariumMounted = state.transcriptContainer.children.some(
-      (child) => child instanceof IdleStageComponent,
-    );
+    const idleAquariumMounted = state.transcriptContainer.hasIdleStageMounted;
     const ambientDamageOnly = splashJustDisposed || shouldUseAmbientDamageOnlyPaint({
       structuralShift: layoutShift.structuralShift,
       geometryShift: layoutShift.geometryShift,

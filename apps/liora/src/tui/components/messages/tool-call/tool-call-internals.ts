@@ -43,6 +43,7 @@ export interface ToolCallInternalsHost {
    * notifyTranscriptChildGeometryDirty).
    */
   markTranscriptGeometryDirty(): void;
+  liveOutputShell: import('../shell/shell-execution').ShellExecutionComponent | undefined;
 }
 
 function bodyRebuildHost(host: ToolCallInternalsHost): ToolCallBodyRebuildHost {
@@ -60,6 +61,12 @@ function bodyRebuildHost(host: ToolCallInternalsHost): ToolCallBodyRebuildHost {
     outputViewport: host.outputViewport,
     detachHint: host.detachHint,
     children: host.children,
+    get liveOutputShell() {
+      return host.liveOutputShell;
+    },
+    set liveOutputShell(value) {
+      host.liveOutputShell = value;
+    },
     get subagentBlockStartIndex() {
       return host.subagentBlockStartIndex;
     },

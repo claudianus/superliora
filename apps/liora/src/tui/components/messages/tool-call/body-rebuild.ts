@@ -30,6 +30,8 @@ export interface ToolCallBodyRebuildHost {
   readonly outputViewport: ToolCallOutputViewportMount;
   readonly detachHint: ToolCallDetachHint;
   readonly children: Component[];
+  /** Live stdout shell, retained for in-place stream patches. */
+  liveOutputShell: ShellExecutionComponent | undefined;
   get subagentBlockStartIndex(): number;
   set subagentBlockStartIndex(value: number);
   renderCache: { clear(): void };
@@ -43,6 +45,7 @@ export interface ToolCallBodyRebuildHost {
 export function rebuildToolCallContent(host: ToolCallBodyRebuildHost): void {
   host.renderCache.clear();
   host.outputViewport.reset();
+  host.liveOutputShell = undefined;
   while (host.children.length > host.callPreview.callPreviewEndIndex) {
     host.children.pop();
   }
@@ -60,6 +63,7 @@ export function rebuildToolCallContent(host: ToolCallBodyRebuildHost): void {
 export function rebuildToolCallBody(host: ToolCallBodyRebuildHost): void {
   host.renderCache.clear();
   host.outputViewport.reset();
+  host.liveOutputShell = undefined;
   while (host.children.length > 2) {
     host.children.pop();
   }
@@ -105,19 +109,19 @@ function appendDetachHintBlock(host: ToolCallBodyRebuildHost): void {
 function appendLiveOutputBlock(host: ToolCallBodyRebuildHost): void {
   if (host.result !== undefined) return;
   if (host.liveOutput.length === 0) return;
-  host.outputViewport.mount([
-    new ShellExecutionComponent({
-      result: {
-        tool_call_id: host.toolCall.id,
-        output: host.liveOutput,
-        is_error: false,
-      },
-      expanded: true,
-      resultPreviewLines: RESULT_PREVIEW_LINES,
-      tailOutput: false,
-      expandHint: false,
-    }),
-  ], true);
+  const shell = new ShellExecutionComponent({
+    result: {
+      tool_call_id: host.toolCall.id,
+      output: host.liveOutput,
+      is_error: false,
+    },
+    expanded: true,
+    resultPreviewLines: RESULT_PREVIEW_LINES,
+    tailOutput: false,
+    expandHint: false,
+  });
+  host.liveOutputShell = shell;
+  host.outputViewport.mount([shell], true);
 }
 
 function buildSubagentBlock(host: ToolCallBodyRebuildHost): void {

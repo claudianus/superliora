@@ -109,6 +109,8 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
   private static readonly MAX_PROGRESS_LINES = 24;
   private liveOutput = '';
   private liveOutputTruncated = false;
+  /** Live stdout shell — patched in place on stream chunks when possible. */
+  private liveOutputShell: import('../shell/shell-execution').ShellExecutionComponent | undefined;
 
   private onSnapshotChange: (() => void) | undefined;
   private readonly entranceStartedAtMs = appearanceAnimationNow();
@@ -336,6 +338,19 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
     const next = appendMainLiveOutputText(this.liveOutput, text, this.liveOutputTruncated);
     this.liveOutput = next.text;
     this.liveOutputTruncated = next.truncated;
+    // Hot path: patch mounted shell body instead of rebuilding the tool card.
+    if (
+      this.liveOutputShell !== undefined &&
+      this.outputViewport.active !== undefined
+    ) {
+      this.liveOutputShell.setResultOutput(this.liveOutput);
+      this.outputViewport.active.invalidate();
+      this.renderCache.clear();
+      notifyTranscriptChildGeometryDirty(this);
+      this.internalsHost().onSnapshotChange?.();
+      this.ui?.requestRender();
+      return;
+    }
     rebuildToolCallComponentContent(this.internalsHost());
     this.internalsHost().onSnapshotChange?.();
     this.ui?.requestRender();
@@ -533,6 +548,8 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
       markTranscriptGeometryDirty: () => {
         notifyTranscriptChildGeometryDirty(component);
       },
+      get liveOutputShell() { return component.liveOutputShell; },
+      set liveOutputShell(value) { component.liveOutputShell = value; },
     }))(this);
   }
 

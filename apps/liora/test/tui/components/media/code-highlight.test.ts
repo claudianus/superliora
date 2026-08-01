@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   clearHighlightCache,
   formatShellCommandPreview,
+  HIGHLIGHT_CACHE_LIMIT,
+  highlightCacheSizeForTest,
   highlightLines,
   highlightLinesWindow,
   highlightShellCommandLine,
@@ -37,6 +39,22 @@ describe('code-highlight', () => {
     expect(langFromPath('src/foo.TS')).toBe('typescript');
     expect(langFromPath('Dockerfile')).toBe('dockerfile');
     expect(langFromPath('scripts/run.sh')).toBe('bash');
+  });
+
+  it('keeps path-hinted sticky entries under thrash past the soft limit', () => {
+    chalk.level = 3;
+    const stickyCode = 'const stickyValue = 1;\n';
+    highlightLines(stickyCode, 'typescript', { pathHint: 'src/sticky.ts' });
+    expect(highlightCacheSizeForTest()).toBeGreaterThanOrEqual(1);
+
+    // Flood the LRU with non-sticky one-offs past the cap.
+    for (let i = 0; i < HIGHLIGHT_CACHE_LIMIT + 20; i++) {
+      highlightLines(`const n${String(i)} = ${String(i)};\n`, 'typescript');
+    }
+    // Sticky body must still hit without re-tokenizing from empty.
+    const again = highlightLines(stickyCode, 'typescript', { pathHint: 'src/sticky.ts' });
+    expect(again.join('\n')).toContain('stickyValue');
+    expect(highlightCacheSizeForTest()).toBeLessThanOrEqual(HIGHLIGHT_CACHE_LIMIT);
   });
 
   it('treats unsupported file extensions as plain text', () => {
