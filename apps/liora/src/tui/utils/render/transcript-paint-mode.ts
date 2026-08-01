@@ -8,9 +8,16 @@
  *
  * Scroll paint sets {@link suppressLiveToolTicks} so cards only paint cached
  * lines; ambient/content frames still run live ticks normally.
+ *
+ * {@link markTranscriptScrollActivity} lets chrome timers (footer goal / header
+ * clock) skip a beat right after scroll so they do not fight wheel frames.
  */
 
 let suppressLiveToolTicks = false;
+let lastScrollActivityMs = 0;
+
+/** How long after a scroll paint chrome timers should skip refresh. */
+export const TRANSCRIPT_SCROLL_TIMER_HOLD_MS = 180;
 
 export interface TranscriptPaintMode {
   readonly suppressLiveToolTicks?: boolean;
@@ -19,6 +26,9 @@ export interface TranscriptPaintMode {
 export function withTranscriptPaintMode<T>(mode: TranscriptPaintMode, run: () => T): T {
   const previous = suppressLiveToolTicks;
   suppressLiveToolTicks = mode.suppressLiveToolTicks === true;
+  if (suppressLiveToolTicks) {
+    lastScrollActivityMs = Date.now();
+  }
   try {
     return run();
   } finally {
@@ -28,4 +38,18 @@ export function withTranscriptPaintMode<T>(mode: TranscriptPaintMode, run: () =>
 
 export function areLiveToolTicksSuppressed(): boolean {
   return suppressLiveToolTicks;
+}
+
+/** True when a transcript-scroll paint ran recently (chrome timer holdoff). */
+export function wasRecentTranscriptScroll(
+  nowMs: number = Date.now(),
+  holdMs: number = TRANSCRIPT_SCROLL_TIMER_HOLD_MS,
+): boolean {
+  return nowMs - lastScrollActivityMs < holdMs && lastScrollActivityMs > 0;
+}
+
+/** Test helper. */
+export function resetTranscriptScrollActivityForTest(): void {
+  lastScrollActivityMs = 0;
+  suppressLiveToolTicks = false;
 }

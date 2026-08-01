@@ -23,6 +23,7 @@ import {
   isRenderCacheEnabled,
   renderCacheEpoch,
 } from '#/tui/utils/render/render-cache';
+import { areLiveToolTicksSuppressed } from '#/tui/utils/render/transcript-paint-mode';
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
@@ -139,13 +140,17 @@ export class AssistantMessageComponent implements Component {
     const safeWidth = Math.max(0, width);
     if (safeWidth <= 0) return [''];
 
+    // Pure-scroll paint: hit width cache only (no caret/entrance re-encode).
+    const scrollPaint = areLiveToolTicksSuppressed();
+
     // While streaming (transient) or still washing in, repaint every ambient tick.
     // When finalized and entrance is done, drop the epoch for O(1) cached renders.
-    const streaming = this.lastTransient && caretActive();
-    const entranceActive = isTranscriptEntranceActive(this.entranceStartedAtMs);
+    const streaming = !scrollPaint && this.lastTransient && caretActive();
+    const entranceActive = !scrollPaint && isTranscriptEntranceActive(this.entranceStartedAtMs);
     const cueActive =
-      isTurnBoundaryCueActive(this.turnStartCueAtMs) ||
-      isTurnBoundaryCueActive(this.turnEndCueAtMs);
+      !scrollPaint &&
+      (isTurnBoundaryCueActive(this.turnStartCueAtMs) ||
+        isTurnBoundaryCueActive(this.turnEndCueAtMs));
     const animated = streaming || entranceActive || cueActive;
     return this.renderCache.render({
       width: safeWidth,
@@ -155,7 +160,7 @@ export class AssistantMessageComponent implements Component {
         const appearance = getActiveAppearancePreferences();
         const prefix = !this.showBullet
           ? MESSAGE_INDENT
-          : shouldRenderAmbientEffects(appearance)
+          : shouldRenderAmbientEffects(appearance) && !scrollPaint
             ? this.markdownTransient
               ? renderPulseText(STATUS_BULLET, 'assistant:bullet:live', 'text', appearance)
               : renderSpectacularText(STATUS_BULLET, 'assistant:bullet', appearance, {
@@ -184,6 +189,8 @@ export class AssistantMessageComponent implements Component {
           leadingBlank: true,
           truncateMark: '…',
         });
+
+        if (scrollPaint) return blocked;
 
         return this.applyTurnBoundaryCues(
           polishTranscriptLines(blocked, {
