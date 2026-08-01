@@ -75,12 +75,6 @@ export interface StatusReportOptions {
     readonly evidenceIdRecallScore: number;
     readonly latestContinuityStatus: string;
   };
-  readonly microCompaction?: {
-    readonly total: number;
-    readonly lastTrigger: string | null;
-    readonly lastContextUsageRatio: number | null;
-    readonly byTrigger: Readonly<Record<string, number>>;
-  };
   readonly autoDream?: {
     readonly enabled: boolean;
     readonly inFlight: boolean;

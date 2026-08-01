@@ -13,7 +13,7 @@ export class ToolCollapseStrategy implements CompactionStrategy {
    *
    * NOTE: `computeCompactCount` returns 0 when there is nothing older to
    * collapse. PipelineStrategy treats 0 as "no additional constraint".
-   * Live tool-result clearing remains owned by MicroCompaction (usage-primary);
+   * Mid-history tool-result clearing was removed (append-only context);
    * this strategy only bounds how far full compaction may cut into recent tool groups.
    */
   constructor(

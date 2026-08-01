@@ -112,7 +112,6 @@ export function projectContext(
   let contextTokens = 0;
   let goal: GoalSnapshot | null = null;
   let swarm: { active: boolean; trigger?: string } = { active: false };
-  let microCutoff = 0;
   // Maps step.uuid → the assistant ProjectedMessage that step is filling in.
   // Cleared on context.clear / context.apply_compaction.
   let openSteps = new Map<string, ProjectedMessage>();
@@ -209,9 +208,7 @@ export function projectContext(
         if (mode === 'model') {
           messages = [];
           openSteps = new Map();
-          // Mirror agent-core clear() → microCompaction.reset() (cutoff → 0):
-          // the message indices are wiped, so any prior cutoff is meaningless.
-          microCutoff = 0;
+          //           // the message indices are wiped, so any prior cutoff is meaningless.
         } else {
           // Full history: keep all preceding messages and openSteps as-is, just
           // append a synthetic 'clear' marker inline. The original tool results
@@ -228,14 +225,12 @@ export function projectContext(
             toolStepUuids: [],
           });
         }
-        // Mirror agent-core clear() → _tokenCount = 0: the context-window fill is
-        // wiped. Derived state, so it is mode-INDEPENDENT (applied for both modes).
+                // wiped. Derived state, so it is mode-INDEPENDENT (applied for both modes).
         contextTokens = 0;
         break;
       case 'context.apply_compaction': {
         openSteps = new Map();
-        // Mirror agent-core's actual `applyCompaction` behaviour
-        // (`packages/agent-core/src/agent/context/index.ts`): history becomes
+                // (`packages/agent-core/src/agent/context/index.ts`): history becomes
         // `[summaryBubble, ...history.slice(compactedCount)]`. The summary is
         // an *assistant* message tagged `origin.kind = 'compaction_summary'`
         // (using 'system' would skew role counts and any downstream diff
@@ -282,13 +277,10 @@ export function projectContext(
           // marker inline so the compacted prefix stays visible.
           messages.push(summaryBubble);
         }
-        // Mirror agent-core applyCompaction() → microCompaction.reset() (cutoff
-        // → 0): the message list is rebuilt as [summary, ...tail], so the old
+                // → 0): the message list is rebuilt as [summary, ...tail], so the old
         // index-based cutoff no longer points at the same messages. (In full
         // mode the blanking pass does not run, so this is a no-op there.)
-        microCutoff = 0;
-        // Mirror agent-core applyCompaction() → _tokenCount = result.tokensAfter:
-        // the live context-window fill is now the post-compaction count. Derived
+                // the live context-window fill is now the post-compaction count. Derived
         // state, so it is mode-INDEPENDENT.
         contextTokens = rec.tokensAfter;
         break;
@@ -321,8 +313,7 @@ export function projectContext(
       case 'plan_mode.exit':
         planActive = false; planId = undefined; break;
       case 'context.undo': {
-        // Mirror agent-core `undo` (`agent/context/index.ts`): walk from the
-        // end, skip `origin.kind === 'injection'`, stop at
+                // end, skip `origin.kind === 'injection'`, stop at
         // `origin.kind === 'compaction_summary'`, remove others, counting real
         // user prompts via `isRealUserPrompt` until `count` is reached. Then
         // leave an undo marker.
@@ -340,8 +331,7 @@ export function projectContext(
             (pm, i) => i < cutoff || pm.message.origin?.kind === 'injection',
           );
           openSteps = new Map();
-          // Mirror agent-core undo() → microCompaction.reset(this._history.length):
-          // clamp the cutoff to the post-undo HISTORY-entry count so a later append
+                    // clamp the cutoff to the post-undo HISTORY-entry count so a later append
           // does not get blanked by a now-too-large stale cutoff. Count only history
           // entries (`isHistoryEntry`) — `messages.length` would include any surviving
           // synthetic undo/clear marker, which agent-core's `_history.length` does
@@ -350,7 +340,6 @@ export function projectContext(
           // and unaffected by blanking regardless.) With no markers, historyCount ===
           // messages.length, so this is a no-op then.
           const historyCount = messages.reduce((n, pm) => (isHistoryEntry(pm) ? n + 1 : n), 0);
-          microCutoff = Math.min(microCutoff, historyCount);
         }
         // In 'full' mode: do NOT remove — keep the undone messages and openSteps
         // as-is, only push the undo marker. `removedMessageCount` still reflects
@@ -371,10 +360,7 @@ export function projectContext(
         break;
       }
       case 'micro_compaction.apply':
-        // Track the latest cutoff; the actual content blanking is applied
-        // after the loop (mirrors agent-core MicroCompaction.compact, which
-        // runs over the full history at projection time).
-        microCutoff = rec.cutoff;
+        // Historical wire only — micro-compaction removed (append-only).
         break;
       case 'goal.create':
         goal = {
@@ -441,31 +427,6 @@ export function projectContext(
     }
   }
 
-  // Micro-compaction blanking (mirrors agent-core MicroCompaction.compact):
-  // blank any message whose HISTORY index < cutoff that is a `role: 'tool'`
-  // result with a defined toolCallId and content large enough (≥ the
-  // min-content gate), replacing its content with the truncation marker. The
-  // cutoff is an agent-core `_history` index, which never includes our synthetic
-  // 'undo'/'clear' markers, so we count only history entries (`isHistoryEntry`)
-  // — array indices would be offset by any preceding marker. This rewrite is the
-  // model's-eye view, so it runs ONLY in 'model' mode — in 'full' mode the
-  // original tool results are shown un-blanked.
-  if (mode === 'model' && microCutoff > 0) {
-    let historyIndex = 0;
-    for (const pm of messages) {
-      if (!isHistoryEntry(pm)) continue;
-      if (historyIndex >= microCutoff) break;
-      historyIndex++;
-      const m = pm.message;
-      if (
-        m.role === 'tool' &&
-        m.toolCallId !== undefined &&
-        estimateContentTokens(m.content) >= MICRO_MIN_CONTENT_TOKENS
-      ) {
-        pm.message = { ...m, content: [{ type: 'text', text: MICRO_TRUNCATED_MARKER }] };
-      }
-    }
-  }
 
   return {
     messages,
@@ -548,8 +509,6 @@ function toolResultContentForModel(result: {
   return output;
 }
 
-const MICRO_TRUNCATED_MARKER = '[Old tool result content cleared]';
-const MICRO_MIN_CONTENT_TOKENS = 100;
 
 /** Replicates agent-core's per-char token weighting exactly, over the same
  *  `text` + `think` parts its gate counts. agent-core

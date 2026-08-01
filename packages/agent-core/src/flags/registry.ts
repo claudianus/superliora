@@ -15,14 +15,6 @@ import type { FlagDefinitionInput } from './types';
  */
 export const FLAG_DEFINITIONS = [
   {
-    id: 'micro_compaction',
-    title: 'Micro compaction',
-    description: 'Trim older large tool results from context while keeping recent conversation intact.',
-    env: 'SUPERLIORA_EXPERIMENTAL_MICRO_COMPACTION',
-    default: true,
-    surface: 'core',
-  },
-  {
     id: 'anthropic_oauth',
     title: 'Anthropic OAuth login',
     description:

@@ -104,14 +104,14 @@ describe('LioraCore runtime config', () => {
     for (const def of FLAG_DEFINITIONS) {
       vi.stubEnv(def.env, '0');
     }
-    vi.stubEnv(requiredFlagEnv('micro_compaction'), '1');
+    vi.stubEnv(requiredFlagEnv('async_compaction'), '1');
 
     void new LioraCore(async () => ({}) as never, { homeDir });
     await getRootLogger().flushGlobal();
 
     const text = await readFile(resolveGlobalLogPath(homeDir), 'utf-8');
     expect(text).toContain('experimental flags enabled');
-    expect(text).toContain('micro_compaction');
+    expect(text).toContain('async_compaction');
     expect(text.match(/experimental flags enabled/g)).toHaveLength(1);
   });
 
@@ -125,14 +125,14 @@ describe('LioraCore runtime config', () => {
       join(firstHome, 'config.toml'),
       `
 [experimental]
-micro_compaction = true
+async_compaction = true
 `,
     );
     await writeFile(
       join(secondHome, 'config.toml'),
       `
 [experimental]
-micro_compaction = false
+async_compaction = false
 `,
     );
     clearExperimentalEnv();
@@ -140,8 +140,8 @@ micro_compaction = false
     const first = new LioraCore(async () => ({}) as never, { homeDir: firstHome });
     const second = new LioraCore(async () => ({}) as never, { homeDir: secondHome });
 
-    expect(experimentalFeatureEnabled(first, 'micro_compaction')).toBe(true);
-    expect(experimentalFeatureEnabled(second, 'micro_compaction')).toBe(false);
+    expect(experimentalFeatureEnabled(first, 'async_compaction')).toBe(true);
+    expect(experimentalFeatureEnabled(second, 'async_compaction')).toBe(false);
   });
 
   it('updates the scoped experimental resolver after setKimiConfig', async () => {
@@ -152,21 +152,21 @@ micro_compaction = false
       join(homeDir, 'config.toml'),
       `
 [experimental]
-micro_compaction = false
+async_compaction = false
 `,
     );
     clearExperimentalEnv();
 
     const core = new LioraCore(async () => ({}) as never, { homeDir });
-    expect(experimentalFeatureEnabled(core, 'micro_compaction')).toBe(false);
+    expect(experimentalFeatureEnabled(core, 'async_compaction')).toBe(false);
 
     await core.setKimiConfig({
       experimental: {
-        'micro_compaction': true,
+        'async_compaction': true,
       },
     });
 
-    expect(experimentalFeatureEnabled(core, 'micro_compaction')).toBe(true);
+    expect(experimentalFeatureEnabled(core, 'async_compaction')).toBe(true);
   });
 
   it('updates the shared experimental resolver while goal tools stay available', async () => {
@@ -179,7 +179,7 @@ micro_compaction = false
       join(homeDir, 'config.toml'),
       `${baseModelConfig()}
 [experimental]
-micro_compaction = false
+async_compaction = false
 `,
     );
     clearExperimentalEnv();
@@ -202,18 +202,18 @@ micro_compaction = false
     const session = core.sessions.get(created.id);
     const mainAgent = session?.getReadyAgent('main');
 
-    expect(session?.experimentalFlags.enabled('micro_compaction')).toBe(false);
-    expect(mainAgent?.experimentalFlags.enabled('micro_compaction')).toBe(false);
+    expect(session?.experimentalFlags.enabled('async_compaction')).toBe(false);
+    expect(mainAgent?.experimentalFlags.enabled('async_compaction')).toBe(false);
     expect(mainAgent?.tools.data().some((tool) => tool.name === 'CreateGoal')).toBe(true);
 
     await core.setKimiConfig({
       experimental: {
-        'micro_compaction': true,
+        'async_compaction': true,
       },
     });
 
-    expect(session?.experimentalFlags.enabled('micro_compaction')).toBe(true);
-    expect(mainAgent?.experimentalFlags.enabled('micro_compaction')).toBe(true);
+    expect(session?.experimentalFlags.enabled('async_compaction')).toBe(true);
+    expect(mainAgent?.experimentalFlags.enabled('async_compaction')).toBe(true);
     expect(mainAgent?.tools.data().some((tool) => tool.name === 'CreateGoal')).toBe(true);
 
     await rpc.reloadSession({ sessionId: created.id });

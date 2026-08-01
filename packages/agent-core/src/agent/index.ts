@@ -38,9 +38,7 @@ import { CacheFreezeGuard } from './cache';
 import { ToolParallelStatus } from '../loop/tool-parallel-status';
 import {
   FullCompaction,
-  MicroCompaction,
   type CompactionStrategy,
-  type MicroCompactionConfig,
 } from './compaction';
 import { ContextOSManager } from './context-os';
 import { CronManager } from './cron';
@@ -128,7 +126,6 @@ export interface AgentOptions {
   readonly generate?: typeof generate;
   readonly toolServices?: ToolServices;
   readonly compactionStrategy?: CompactionStrategy;
-  readonly microCompaction?: Partial<MicroCompactionConfig>;
   readonly modelProvider?: ModelProvider | undefined;
   readonly subagentHost?: SessionSubagentHost | undefined;
   readonly skills?: SkillRegistry;
@@ -201,7 +198,6 @@ export class Agent {
   readonly fullCompaction: FullCompaction;
   readonly cacheFreezeGuard: CacheFreezeGuard;
   readonly toolParallelStatus: ToolParallelStatus;
-  readonly microCompaction: MicroCompaction;
   readonly contextOS: ContextOSManager;
   readonly context: ContextMemory;
   readonly config: ConfigState;
@@ -303,7 +299,6 @@ export class Agent {
     this.fullCompaction = new FullCompaction(this, options.compactionStrategy);
     this.cacheFreezeGuard = new CacheFreezeGuard();
     this.toolParallelStatus = new ToolParallelStatus();
-    this.microCompaction = new MicroCompaction(this, options.microCompaction);
     this.contextOS = new ContextOSManager(this);
     this.context = new ContextMemory(this);
     this.config = new ConfigState(this);

@@ -365,12 +365,6 @@ export interface SessionStatus {
     readonly latestContinuityStatus: string;
   };
   /** Micro-compaction trigger dashboard when tool-result clearing has fired. */
-  readonly microCompaction?: {
-    readonly total: number;
-    readonly lastTrigger: string | null;
-    readonly lastContextUsageRatio: number | null;
-    readonly byTrigger: Readonly<Record<string, number>>;
-  };
   /** Auto-dream long-horizon memory consolidation when Liora Recall is enabled. */
   readonly autoDream?: {
     readonly enabled: boolean;

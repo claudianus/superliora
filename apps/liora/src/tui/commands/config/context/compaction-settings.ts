@@ -15,7 +15,6 @@ import {
 import {
   buildCompactionSettingsLines,
   COMPACTION_KEEP_TOKENS_TIP,
-  COMPACTION_MICRO_TIP,
   COMPACTION_THRESHOLD_TIP,
   resolveLastCompactionFromTranscript,
   type CompactionSessionGlance,
@@ -27,7 +26,7 @@ import { showContextWorkingSetPicker } from './context';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 
-export { COMPACTION_KEEP_TOKENS_TIP, COMPACTION_MICRO_TIP, COMPACTION_THRESHOLD_TIP };
+export { COMPACTION_KEEP_TOKENS_TIP, COMPACTION_THRESHOLD_TIP };
 
 const DEFAULT_TRIGGER_RATIO = '0.70 (engine default)';
 const DEFAULT_ASYNC_RATIO = '0.55 (engine default)';
@@ -44,7 +43,7 @@ export function showCompactionSettings(host: SlashCommandHost): void {
           value: 'status',
           label: 'Compaction status',
           description:
-            'Live archive · last compact · context usage · micro-compaction · threshold glance.',
+            'Live archive · last compact · context usage · threshold glance.',
         },
         {
           value: 'run-compact',
@@ -68,12 +67,6 @@ export function showCompactionSettings(host: SlashCommandHost): void {
           description:
             'Frozen prefix + compactionMaxRecentMessages · footer /compact nudge · manual reclaim.',
         },
-        {
-          value: 'tip-micro',
-          label: 'Micro-compaction tip',
-          description:
-            'Tool/swarm body clears · Expand(id=…) recover · context-archive store.',
-        },
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -96,9 +89,6 @@ export function showCompactionSettings(host: SlashCommandHost): void {
         if (value === 'tip-keep-tokens') {
           host.showStatus(COMPACTION_KEEP_TOKENS_TIP, 'info');
           return;
-        }
-        if (value === 'tip-micro') {
-          host.showStatus(COMPACTION_MICRO_TIP, 'info');
         }
       },
       onCancel: () => {
@@ -171,13 +161,11 @@ async function loadSessionGlance(host: SlashCommandHost): Promise<CompactionSess
       contextUsage: status.contextUsage,
       contextTokens: status.contextTokens,
       maxContextTokens: status.maxContextTokens,
-      microCompaction: status.microCompaction,
       ...archiveFields,
     };
   } catch {
     return {
       ...base,
-      microCompaction: host.state.appState.microCompaction ?? undefined,
     };
   }
 }

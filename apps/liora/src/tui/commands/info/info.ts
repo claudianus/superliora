@@ -205,7 +205,6 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
     status: runtimeStatus.status,
     statusError: runtimeStatus.error,
     contextOS: runtimeStatus.status?.contextOS,
-    microCompaction: runtimeStatus.status?.microCompaction,
     autoDream: runtimeStatus.status?.autoDream,
     privacyTelemetryEnabled: privacy.telemetryEnabled,
     gitStatus: createGitStatusCache(appState.workDir).getStatus(),

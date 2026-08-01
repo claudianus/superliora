@@ -124,31 +124,6 @@ export function contextOSStatusRows(options: StatusReportOptions): readonly Stat
   return [{ label: 'Context OS', value, severity }];
 }
 
-function formatMicroCompactionStatus(options: StatusReportOptions): string | undefined {
-  const micro = options.microCompaction ?? options.status?.microCompaction;
-  if (micro === undefined || micro.total <= 0) return undefined;
-  const last = micro.lastTrigger ?? 'unknown';
-  const usage =
-    micro.lastContextUsageRatio === null || micro.lastContextUsageRatio === undefined
-      ? ''
-      : ` @${(micro.lastContextUsageRatio * 100).toFixed(0)}%`;
-  const top = Object.entries(micro.byTrigger)
-    .toSorted((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([name, count]) => `${name}:${String(count)}`)
-    .join(',');
-  return `${String(micro.total)} clears · last ${last}${usage}${top.length > 0 ? ` · ${top}` : ''}`;
-}
-
-export function microCompactionStatusRows(options: StatusReportOptions): readonly StatusFieldRow[] {
-  const value = formatMicroCompactionStatus(options);
-  if (value === undefined) return [];
-  const micro = options.microCompaction ?? options.status?.microCompaction;
-  const last = micro?.lastTrigger;
-  const severity: StatusFieldRow['severity'] =
-    last === 'swarm_pressure' || last === 'usage_and_cache_miss' ? 'warning' : undefined;
-  return [{ label: 'Micro clear', value, severity }];
-}
 
 const CACHE_MISS_REASON_LINE_PREFIX = 'Miss reasons: ';
 

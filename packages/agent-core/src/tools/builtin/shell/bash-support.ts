@@ -42,12 +42,6 @@ export const BashInputSchema = z
       .describe(
         'If true, do not apply a timeout to the command. Only applies when run_in_background is true.',
       ),
-    compress_output: z
-      .boolean()
-      .optional()
-      .describe(
-        'When true, compress stdout/stderr for model context (test/build/git output patterns). Overflow can be recovered with LioraExpand when archived.',
-      ),
   })
   .superRefine((val, ctx) => {
     if (val.timeout === undefined) return;
@@ -160,11 +154,3 @@ export function foregroundDescription(args: BashInput): string {
   return `Bash: ${preview}`;
 }
 
-export function shouldCompressOutput(args: BashInput, output: string): boolean {
-  if (args.compress_output === false) return false;
-  if (args.compress_output === true) return true;
-  if (output.length < 4_000) return false;
-  return /\b(?:pnpm|npm|yarn|vitest|jest|pytest|cargo|go\s+test|tsc|eslint|oxlint|oxfmt|ruff|mypy|pyright|docker|git)\b/u.test(
-    args.command,
-  );
-}

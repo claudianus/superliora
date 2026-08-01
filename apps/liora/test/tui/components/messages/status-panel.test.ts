@@ -664,32 +664,6 @@ describe('status panel report lines', () => {
     expect(joined).toContain('missing 1');
   });
 
-  it('includes Micro clear when micro-compaction has fired', () => {
-    const lines = buildStatusReportLines({
-      version: '0.0.0-test',
-      model: 'test-model',
-      workDir: '/tmp/work',
-      sessionId: 'sess-1',
-      sessionTitle: null,
-      thinking: false,
-      permissionMode: 'manual',
-      planMode: false,
-      contextUsage: 0.005,
-      contextTokens: 50,
-      maxContextTokens: 10000,
-      availableModels: {},
-      microCompaction: {
-        total: 4,
-        lastTrigger: 'swarm_pressure',
-        lastContextUsageRatio: 0.8,
-        byTrigger: { swarm_pressure: 3, usage_pressure: 1 },
-      },
-    });
-    const joined = lines.join('\n');
-    expect(joined).toContain('Micro clear');
-    expect(joined).toContain('4 clears');
-    expect(joined).toContain('swarm_pressure');
-  });
 
   it('shows privacy/ZDR posture when telemetry flag is known', () => {
     const on = buildStatusReportLines({

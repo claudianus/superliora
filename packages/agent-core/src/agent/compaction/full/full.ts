@@ -22,7 +22,6 @@ import type {
 import {
   DEFAULT_COMPACTION_CONFIG,
   DEFAULT_SWARM_HANDOFF_WORKING_SET_TOKENS,
-  SWARM_MICRO_PRESSURE_RATIO,
   DefaultCompactionStrategy,
   PipelineStrategy,
   type CompactionStrategy,
@@ -426,7 +425,6 @@ export class FullCompaction implements CompactionPipelineContext {
   private checkAutoCompaction(throwOnLimit: boolean = true): boolean {
     if (this.compacting) return true;
     if (this.shouldDeferAutoCompaction()) {
-      this.maybeRunSwarmMicroCompaction();
       return false;
     }
     if (this.shouldSkipRecompactUntilGrowth()) return false;
@@ -462,11 +460,6 @@ export class FullCompaction implements CompactionPipelineContext {
     });
   }
 
-  private maybeRunSwarmMicroCompaction(): void {
-    if (this.agent.ultraSwarmRun === undefined) return;
-    if (this.strategy.shouldBlock(this.tokenCountWithPending)) return;
-    this.agent.microCompaction.detectUnderSwarmPressure(SWARM_MICRO_PRESSURE_RATIO);
-  }
 
   async ensureBelowHandoffThreshold(
     signal: AbortSignal,

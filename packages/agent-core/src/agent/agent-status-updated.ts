@@ -2,7 +2,6 @@ import type { AgentStatusUpdatedEvent } from '@superliora/protocol';
 import type { CircuitBreakerStatus } from '@superliora/protocol';
 import type { ProviderRouteStatus, UsageStatus } from '#/rpc';
 import { STALE_INTERVENTION_AGE_MS, type PermissionMode } from './permission';
-import type { MicroTriggerKind } from './compaction/micro';
 
 /** Minimal host surface for building `agent.status.updated` payloads. */
 export interface AgentStatusUpdatedHost {
@@ -23,16 +22,6 @@ export interface AgentStatusUpdatedHost {
       readonly missingEvidencePageCount: number;
       readonly evidenceIdRecallScore: number;
       readonly latestContinuityStatus: string | undefined;
-    };
-  };
-  readonly microCompaction: {
-    readonly triggers: {
-      snapshot(): {
-        readonly total: number;
-        readonly lastTrigger: MicroTriggerKind | null | undefined;
-        readonly lastContextUsageRatio: number | null | undefined;
-        readonly byTrigger: Record<string, number>;
-      };
     };
   };
   readonly planMode: { readonly isActive: boolean };
@@ -69,7 +58,6 @@ export function buildAgentStatusUpdatedEvent(host: AgentStatusUpdatedHost): Agen
   const usage = host.usage.status();
   const providerRoute = host.providerRouteStatus();
   const contextOSHealth = host.contextOS.health();
-  const microSnap = host.microCompaction.triggers.snapshot();
   host.permission.touchInterventionQueueForStatus();
   const pendingInterventions = host.permission.interventionQueue.snapshot().count;
   const staleInterventions = host.permission.staleInterventionCount(STALE_INTERVENTION_AGE_MS);
@@ -110,15 +98,6 @@ export function buildAgentStatusUpdatedEvent(host: AgentStatusUpdatedHost): Agen
             missingEvidencePageCount: contextOSHealth.missingEvidencePageCount,
             evidenceIdRecallScore: contextOSHealth.evidenceIdRecallScore,
             latestContinuityStatus: contextOSHealth.latestContinuityStatus ?? '',
-          },
-    microCompaction:
-      microSnap.total === 0
-        ? null
-        : {
-            total: microSnap.total,
-            lastTrigger: microSnap.lastTrigger ?? null,
-            lastContextUsageRatio: microSnap.lastContextUsageRatio ?? null,
-            byTrigger: microSnap.byTrigger,
           },
     autoDream:
       host.dream === null

@@ -164,7 +164,6 @@ export class ContextMemory {
     this.pendingToolResultIds.clear();
     this.deferredMessages = [];
     this.lastAssistantAt = null;
-    this.agent.microCompaction.reset();
     this.agent.contextOS.clear();
     this.agent.injection.onContextClear();
     this.agent.emitStatusUpdated();
@@ -184,7 +183,6 @@ export class ContextMemory {
 
   data(): AgentContextData {
     const health = this.agent.contextOS.health();
-    const micro = this.agent.microCompaction.triggers.snapshot();
     const archiveEntryCount = contextArchiveEntryCount(this.agent.tools.getStore());
     return {
       history: this.history,
@@ -208,15 +206,6 @@ export class ContextMemory {
               evidenceIdRecallScore: health.evidenceIdRecallScore,
               latestContinuityStatus: health.latestContinuityStatus,
             },
-      microCompaction:
-        micro.total === 0
-          ? undefined
-          : {
-              total: micro.total,
-              lastTrigger: micro.lastTrigger,
-              lastContextUsageRatio: micro.lastContextUsageRatio,
-              byTrigger: micro.byTrigger,
-            },
       autoDream: this.agent.dream === null ? undefined : this.agent.dream.snapshot(),
     };
   }
@@ -233,7 +222,7 @@ export class ContextMemory {
 
   project(messages: readonly ContextMessage[], options?: ProjectOptions): Message[] {
     const anomalies: ProjectionAnomaly[] = [];
-    const result = project(this.agent.microCompaction.compact(messages), {
+    const result = project(messages, {
       ...options,
       onAnomaly: (anomaly) => {
         anomalies.push(anomaly);

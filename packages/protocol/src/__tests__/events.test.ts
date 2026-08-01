@@ -563,24 +563,11 @@ describe('agentStatusUpdatedEventSchema', () => {
     });
     expect(withHealth.contextOS?.missingEvidencePageCount).toBe(1);
 
-    const withMicro = agentStatusUpdatedEventSchema.parse({
-      type: 'agent.status.updated',
-      microCompaction: {
-        total: 2,
-        lastTrigger: 'swarm_pressure',
-        lastContextUsageRatio: 0.7,
-        byTrigger: { swarm_pressure: 2 },
-      },
-    });
-    expect(withMicro.microCompaction?.total).toBe(2);
-
     const cleared = agentStatusUpdatedEventSchema.parse({
       type: 'agent.status.updated',
       contextOS: null,
-      microCompaction: null,
     });
     expect(cleared.contextOS).toBeNull();
-    expect(cleared.microCompaction).toBeNull();
 
     const withDream = agentStatusUpdatedEventSchema.parse({
       type: 'agent.status.updated',

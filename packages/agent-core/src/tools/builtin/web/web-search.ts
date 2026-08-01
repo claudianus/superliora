@@ -123,10 +123,7 @@ export class WebSearchTool implements BuiltinTool<WebSearchInput> {
         return this.softOk(buildEmptySearchMessage(healthAfter), healthAfter);
       }
 
-      const builder = new ToolResultBuilder({
-        maxChars: args.include_content === true ? 8_000 : 4_000,
-        maxLineLength: null,
-      });
+      const builder = new ToolResultBuilder({ maxLineLength: null });
 
       let first = true;
       for (const result of results) {
@@ -155,7 +152,7 @@ export class WebSearchTool implements BuiltinTool<WebSearchInput> {
     body: string,
     health: ReturnType<typeof assessSearchChannelHealth> | undefined,
   ): ExecutableToolResult {
-    const builder = new ToolResultBuilder({ maxChars: 4_000, maxLineLength: null });
+    const builder = new ToolResultBuilder({ maxLineLength: null });
     builder.write(body);
     appendSearchNeverEmptySoftFailFooter(builder, {
       degraded: true,

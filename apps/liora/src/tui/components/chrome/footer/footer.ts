@@ -35,7 +35,6 @@ export {
   formatContextOSFooterBadge,
   formatCacheHitFooterBadge,
   formatMediaFooterBadge,
-  formatMicroCompactionFooterBadge,
   formatProviderQuotaFooterBadge,
   formatWorkingSetFooterBadge,
   mediaImageKeyReady,

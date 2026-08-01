@@ -9,7 +9,7 @@ import {
   SWARM_ARCHIVED_INLINE_SUMMARY_MAX_CHARS,
   SWARM_EXPERT_BODY_MAX_CHARS,
 } from './handoff-collapse';
-import { resolveArchiveRecoverToolName } from './micro-helpers';
+import { resolveArchiveRecoverToolName } from '../tool-policy';
 
 export const SWARM_TOTAL_RESULT_MAX_CHARS = 6_000;
 

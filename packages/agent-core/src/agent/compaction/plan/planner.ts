@@ -5,7 +5,7 @@ import {
   estimateTokensForMessages,
 } from '../../../utils/tokens';
 import { surpriseScore } from './density';
-import { isStatefulOrMutatingTool } from '../micro';
+import { isStatefulOrMutatingTool } from '../tool-policy';
 
 export const CONTEXT_COMPACTION_V2_VERSION = 'super_kimi_context_compaction_v2' as const;
 

@@ -109,12 +109,6 @@ export const contextOsHealthSchema = z.object({
   latest_continuity_status: z.string(),
 });
 
-export const microCompactionDashboardSchema = z.object({
-  total: z.number().int().nonnegative(),
-  last_trigger: z.string().nullable(),
-  last_context_usage_ratio: z.number().min(0).max(1).nullable(),
-  by_trigger: z.record(z.string(), z.number().int().nonnegative()),
-});
 
 export const sessionOAuthStatusSchema = z.object({
   pool_size: z.number().int().positive().optional(),
@@ -149,7 +143,6 @@ export const sessionStatusResponseSchema = z.object({
     .optional(),
   provider_route: providerRouteStatusSchema.nullable().optional(),
   context_os: contextOsHealthSchema.optional(),
-  micro_compaction: microCompactionDashboardSchema.optional(),
   oauth: sessionOAuthStatusSchema.optional(),
 });
 export type SessionStatusResponse = z.infer<typeof sessionStatusResponseSchema>;

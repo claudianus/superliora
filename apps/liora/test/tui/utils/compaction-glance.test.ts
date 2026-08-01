@@ -3,11 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
   buildCompactionSettingsLines,
   COMPACTION_KEEP_TOKENS_TIP,
-  COMPACTION_MICRO_TIP,
   COMPACTION_THRESHOLD_TIP,
   formatContextArchiveLine,
   formatLastCompactLine,
-  formatMicroCompactionLine,
   resolveLastCompactionFromTranscript,
 } from '#/tui/utils/compaction/compaction-glance';
 
@@ -15,7 +13,6 @@ describe('compaction-glance', () => {
   it('exports focused tip strings for settings picker actions', () => {
     expect(COMPACTION_THRESHOLD_TIP).toContain('compactionTriggerRatio');
     expect(COMPACTION_KEEP_TOKENS_TIP).toContain('compactionMaxRecentMessages');
-    expect(COMPACTION_MICRO_TIP).toContain('Expand(id=');
   });
   it('formats live archive count from session context', () => {
     expect(
@@ -51,11 +48,6 @@ describe('compaction-glance', () => {
         archiveEntryCount: 2,
         archiveMaxEntries: 512,
         lastCompact: { tokensBefore: 90_000, tokensAfter: 40_000 },
-        microCompaction: {
-          total: 1,
-          lastTrigger: 'tool_clear',
-          lastContextUsageRatio: 0.62,
-        },
         contextUsage: 0.42,
         contextTokens: 105_000,
         maxContextTokens: 256_000,
@@ -66,11 +58,7 @@ describe('compaction-glance', () => {
     expect(text).toContain('Context archive: 2 entries');
     expect(text).toContain('Last compact: 90k → 40k');
     expect(text).toContain('Context usage: 42.0%');
-    expect(text).toContain('Micro-compaction: 1 clears · last tool_clear @ 62% ctx');
     expect(text).toContain('context-archive store');
   });
 
-  it('shows micro-compaction soft fallback without session', () => {
-    expect(formatMicroCompactionLine(undefined)).toBe('Micro-compaction: (no session data)');
-  });
 });

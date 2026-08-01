@@ -422,57 +422,6 @@ describe('context-projector', () => {
     expect(proj.messages[3]!.undo).toEqual({ count: 1, removedMessageCount: 2 });
   });
 
-  it('micro_compaction.apply blanks tool-result content before the cutoff', () => {
-    const bigText = 'x'.repeat(2000); // comfortably above the 100-token min
-    const toolMsg = (id: string, text: string) => ({
-      role: 'tool' as const, content: [{ type: 'text' as const, text }], toolCalls: [], toolCallId: id,
-    });
-    const entries = [
-      { lineNo: 1, data: { type: 'context.append_message' as const, message: toolMsg('c0', bigText) }, raw: {} },
-      { lineNo: 2, data: { type: 'context.append_message' as const, message: toolMsg('c1', bigText) }, raw: {} },
-      { lineNo: 3, data: { type: 'micro_compaction.apply' as const, cutoff: 1 }, raw: {} },
-    ];
-    const proj = projectContext(entries as any);
-    // index 0 < cutoff(1) and is a large tool message → blanked; index 1 kept.
-    expect(proj.messages[0]!.message.content).toEqual([{ type: 'text', text: '[Old tool result content cleared]' }]);
-    expect(proj.messages[1]!.message.content[0]).toMatchObject({ text: bigText });
-  });
-
-  it('micro_compaction.apply counts think parts toward the min-content gate', () => {
-    // A tool result dominated by a large `think` part (tiny text) must clear the
-    // min-content gate and be blanked — mirroring agent-core's token estimator,
-    // which counts both text and think parts.
-    const entries = [
-      { lineNo: 1, data: { type: 'context.append_message' as const, message: {
-          role: 'tool' as const, toolCallId: 'c0', toolCalls: [],
-          content: [
-            { type: 'text' as const, text: 'ok' },
-            { type: 'think' as const, think: 'y'.repeat(2000) },
-          ],
-        } }, raw: {} },
-      { lineNo: 2, data: { type: 'micro_compaction.apply' as const, cutoff: 1 }, raw: {} },
-    ];
-    const proj = projectContext(entries as any);
-    expect(proj.messages[0]!.message.content).toEqual([{ type: 'text', text: '[Old tool result content cleared]' }]);
-  });
-
-  it('micro_compaction.apply weights non-ASCII (CJK) chars as full tokens', () => {
-    // ~150 CJK chars. Under a naive chars/4 estimate this is ~38 tokens (< 100
-    // gate → NOT blanked, the bug). agent-core counts each non-ASCII char as a
-    // full token → ~150 tokens (>= gate → blanked). Assert it IS blanked, so a
-    // Chinese-heavy tool result diverges from agent-core no longer.
-    const cjk = '中'.repeat(150);
-    const entries = [
-      { lineNo: 1, data: { type: 'context.append_message' as const, message: {
-          role: 'tool' as const, toolCallId: 'c0', toolCalls: [],
-          content: [{ type: 'text' as const, text: cjk }],
-        } }, raw: {} },
-      { lineNo: 2, data: { type: 'micro_compaction.apply' as const, cutoff: 1 }, raw: {} },
-    ];
-    const proj = projectContext(entries as any);
-    expect(proj.messages[0]!.message.content).toEqual([{ type: 'text', text: '[Old tool result content cleared]' }]);
-  });
-
   it('context.clear resets the micro-compaction cutoff (no stale blanking)', () => {
     const bigText = 'x'.repeat(2000);
     const toolMsg = (id: string, text: string) => ({
@@ -564,7 +513,7 @@ describe('context-projector', () => {
     //   1. append u1, u2 → [u1, u2]
     //   2. undo(1) removes u2 → [u1] then pushes marker → [u1, <undo#1>]
     //   3. append u3 → [u1, <undo#1>, u3]
-    //   4. micro_compaction cutoff=5 (large) → microCutoff=5
+    //   4. async_compaction cutoff=5 (large) → microCutoff=5
     //   5. undo(1) removes u3 (cutoff index 2); the <undo#1> marker at index 1
     //      SURVIVES (1 < 2) → [u1, <undo#1>]. Clamp:
     //        - buggy  min(5, messages.length=2) = 2

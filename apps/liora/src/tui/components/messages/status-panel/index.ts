@@ -31,7 +31,6 @@ import {
   formatPremiumQualityStatus,
   formatUltraworkStatus,
   formatWorktreeStatus,
-  microCompactionStatusRows,
   privacyStatusRows,
 } from './runtime-rows';
 import {
@@ -67,7 +66,6 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
     { label: 'Mission', value: formatUltraworkStatus(options) },
     { label: 'Visual Quality', value: formatPremiumQualityStatus(options) },
     ...contextOSStatusRows(options),
-    ...microCompactionStatusRows(options),
     ...privacyStatusRows(options),
     { label: 'Session', value: sessionId },
   ];

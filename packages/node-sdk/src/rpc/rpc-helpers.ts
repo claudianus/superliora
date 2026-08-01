@@ -133,7 +133,6 @@ export function buildSessionStatus(facets: SessionStatusFacets): SessionStatus {
     usage: hasUsage ? usage : undefined,
     providerRouteStatus,
     contextOS: context.contextOS,
-    microCompaction: context.microCompaction,
     autoDream: context.autoDream,
     ...(oauth !== undefined ? { oauth } : {}),
   };
