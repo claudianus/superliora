@@ -10,6 +10,9 @@ export interface PromptStashEntry {
  * In-memory LIFO stash of prompt drafts (Ctrl-X stashes the current draft;
  * Ctrl-X on an empty editor pops the most recent one). Entries are stored
  * as-is — callers decide what counts as stashable.
+ *
+ * Entries are also mirrored to session disk via `prompt-input-state-store`
+ * so a hard kill can restore them on resume.
  */
 export class PromptStash {
   private readonly entries: PromptStashEntry[] = [];
@@ -27,5 +30,20 @@ export class PromptStash {
 
   get size(): number {
     return this.entries.length;
+  }
+
+  /** Snapshot oldest→newest for durable persistence. */
+  toArray(): readonly PromptStashEntry[] {
+    return this.entries.slice();
+  }
+
+  /** Replace the in-memory stack (used when restoring a session). */
+  replaceAll(entries: readonly PromptStashEntry[]): void {
+    this.entries.length = 0;
+    this.entries.push(...entries);
+  }
+
+  clear(): void {
+    this.entries.length = 0;
   }
 }

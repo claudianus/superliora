@@ -5,11 +5,16 @@ import type { ColorToken } from '../../theme';
 import type { AppState, QueuedMessage, TranscriptEntry } from '../../types';
 import type { TUIState } from '../../tui-state';
 import { formatErrorMessage } from '../../utils/event-payload';
+import {
+  flushPromptInputState,
+  type PromptInputRuntimeHost,
+} from '../../utils/prompt-input-state';
 import { requestTUIContentRender, requestTUILayoutRender } from '../../utils/render/frame-render';
 import type { ImageAttachmentStore } from '../../utils/image/image-attachment-store';
 import { extractMediaAttachments } from '../../utils/image/image-placeholder';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import { ttui } from '../../utils/tui-i18n';
+import type { PromptStash } from '../../utils/prompt-stash';
 import type { BtwPanelController } from '../panes/btw-panel';
 import type { StreamingUIController } from '../streaming-ui/index';
 
@@ -21,7 +26,7 @@ interface SendMessageOptions {
 }
 
 /** Host surface required by user-input / send / queue / steer dispatch. */
-export interface MessageDispatchHost {
+export interface MessageDispatchHost extends PromptInputRuntimeHost {
   state: TUIState;
   session: Session | undefined;
   deferUserMessages: boolean;
@@ -30,6 +35,7 @@ export interface MessageDispatchHost {
   readonly streamingUI: StreamingUIController;
   readonly btwPanelController: BtwPanelController;
   readonly imageStore: ImageAttachmentStore;
+  readonly promptStash: PromptStash;
 
   setAppState(patch: Partial<AppState>): void;
   handleInputModeChange(mode: 'prompt' | 'bash'): void;
@@ -60,17 +66,20 @@ export class MessageDispatchController {
     if (this.host.state.queuedMessages.length === 0) return undefined;
     const last = this.host.state.queuedMessages.at(-1)!;
     this.host.state.queuedMessages = this.host.state.queuedMessages.slice(0, -1);
+    flushPromptInputState(this.host);
     return last;
   }
 
   clearQueuedMessages(): void {
     this.host.state.queuedMessages = [];
+    flushPromptInputState(this.host);
   }
 
   shiftQueuedMessage(): QueuedMessage | undefined {
     if (this.host.state.queuedMessages.length === 0) return undefined;
     const [first, ...rest] = this.host.state.queuedMessages;
     this.host.state.queuedMessages = rest;
+    flushPromptInputState(this.host);
     return first;
   }
 
@@ -226,7 +235,10 @@ export class MessageDispatchController {
     });
 
     // Track the last user input for `/retry` / Hub → Chat → Retry.
-    if (options?.displayText === undefined) host.lastUserInput = input;
+    if (options?.displayText === undefined) {
+      host.lastUserInput = input;
+      flushPromptInputState(host);
+    }
 
     host.beginSessionRequest();
 
@@ -255,6 +267,7 @@ export class MessageDispatchController {
       mode,
     });
     host.track('input_queue');
+    flushPromptInputState(host);
   }
 
   private sendMessage(session: Session, input: string, options?: SendMessageOptions): void {

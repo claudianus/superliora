@@ -8,6 +8,7 @@ import type { ColorToken } from '../../theme';
 import type { TUIState } from '../../tui-state';
 import type { AppState } from '../../types';
 import type { TUIStateNativeInputRouter } from '../../features/native-layout/native-input-router';
+import type { PromptInputRuntimeHost } from '../../utils/prompt-input-state';
 import type { PromptStash } from '../../utils/prompt-stash';
 
 export function helpModeFromArgs(args: string): SlashCommandHelpMode {
@@ -23,10 +24,11 @@ export function helpModeFromArgs(args: string): SlashCommandHelpMode {
  * center-modal mechanics, session-loading overlay, prompt stash) and the
  * Command Hub / history / transcript search entry points.
  */
-export interface DialogsHost {
+export interface DialogsHost extends PromptInputRuntimeHost {
   state: TUIState;
   session: Session | undefined;
   readonly promptStash: PromptStash;
+  lastUserInput: string | undefined;
   skillCommands: readonly LioraSlashCommand[];
   nativeInputRouter: TUIStateNativeInputRouter | undefined;
   nativeInputModalDispose: (() => void) | undefined;

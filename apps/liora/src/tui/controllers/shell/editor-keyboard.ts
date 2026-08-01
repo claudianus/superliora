@@ -17,6 +17,11 @@ import {
   NO_ACTIVE_SESSION_MESSAGE,
 } from '../../constant/liora-tui';
 import { formatErrorMessage } from '../../utils/event-payload';
+import {
+  flushPromptInputState,
+  schedulePromptInputDraftPersist,
+  type PromptInputRuntimeHost,
+} from '../../utils/prompt-input-state';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import type { ImageAttachmentStore } from '../../utils/image/image-attachment-store';
 import { parseDroppedFilePaths } from '../../utils/media/media-drop';
@@ -24,14 +29,17 @@ import { copyTranscriptSelectionToClipboard } from '../../features/transcript/tr
 import type { PendingExit, QueuedMessage } from '../../types';
 import type { TranscriptScrollAction } from '../../features/transcript/transcript-viewport';
 import type { TUIState } from '../../tui-state';
+import type { PromptStash } from '../../utils/prompt-stash';
 import type { BtwPanelController } from '../panes/btw-panel';
 
 export type ShiftTabModeTarget = 'off' | 'ultrawork';
 
-export interface EditorKeyboardHost {
+export interface EditorKeyboardHost extends PromptInputRuntimeHost {
   state: TUIState;
   session: Session | undefined;
   cancelInFlight: (() => void) | undefined;
+  lastUserInput: string | undefined;
+  readonly promptStash: PromptStash;
 
   handleUserInput(text: string): void;
   readonly btwPanelController: BtwPanelController;
@@ -81,6 +89,8 @@ export class EditorKeyboardController {
     editor.onChange = (text: string) => {
       if (this.pendingExit) this.clearPendingExit();
       host.updateEditorBorderHighlight(text);
+      // Debounce draft persistence so a hard kill mid-type still restores text.
+      schedulePromptInputDraftPersist(host);
     };
 
     editor.onNonEscapeInput = () => {
@@ -275,6 +285,7 @@ export class EditorKeyboardController {
         host.steerMessage(session, parts);
       }
       host.updateQueueDisplay();
+      flushPromptInputState(host);
       requestTUILayoutRender(host.state);
     };
 
@@ -352,6 +363,7 @@ export class EditorKeyboardController {
           editor.onInputModeChange?.(mode);
         }
         host.updateQueueDisplay();
+        flushPromptInputState(host);
         requestTUILayoutRender(host.state);
         return true;
       }

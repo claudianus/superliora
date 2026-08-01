@@ -43,4 +43,19 @@ describe('PromptStash', () => {
     expect(stash.size).toBe(1);
     expect(stash.pop()).toEqual({ text: '   ', mode: 'prompt' });
   });
+
+  it('snapshots and replaces entries for resume restore', () => {
+    const stash = new PromptStash();
+    stash.push({ text: 'a', mode: 'prompt' });
+    stash.push({ text: 'b', mode: 'bash' });
+    expect(stash.toArray()).toEqual([
+      { text: 'a', mode: 'prompt' },
+      { text: 'b', mode: 'bash' },
+    ]);
+    stash.replaceAll([{ text: 'restored', mode: 'prompt' }]);
+    expect(stash.size).toBe(1);
+    expect(stash.pop()).toEqual({ text: 'restored', mode: 'prompt' });
+    stash.clear();
+    expect(stash.size).toBe(0);
+  });
 });

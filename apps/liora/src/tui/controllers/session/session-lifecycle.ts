@@ -19,6 +19,12 @@ import { contextWorkingSetSnapshotFromLoopControl } from '../../utils/agent/cont
 import { cacheMeterFromHitRate } from '../../utils/cache/cache-glance';
 import { formatErrorMessage } from '../../utils/event-payload';
 import { resetGoalSoftAdvisoryLedger } from '../../utils/goal/goal-soft-advisory-glance';
+import {
+  flushPromptInputState,
+  restorePromptInputState,
+  type PromptInputRuntimeHost,
+} from '../../utils/prompt-input-state';
+import type { PromptStash } from '../../utils/prompt-stash';
 import { ttui } from '../../utils/tui-i18n';
 import type { BtwPanelController } from '../panes/btw-panel';
 import type { SessionEventHandler } from '../session-event/handler';
@@ -36,16 +42,18 @@ function sameStringArrays(a: readonly string[], b: readonly string[]): boolean {
 }
 
 /** Host surface required by session attach / switch / create / close. */
-export interface SessionLifecycleHost {
+export interface SessionLifecycleHost extends PromptInputRuntimeHost {
   state: TUIState;
   session: Session | undefined;
   sessionEventUnsubscribe: (() => void) | undefined;
   aborted: boolean;
+  lastUserInput: string | undefined;
   skillCommands: LioraSlashCommand[];
   pluginCommands: LioraSlashCommand[];
   readonly skillCommandMap: Map<string, string>;
   readonly pluginCommandMap: Map<string, string>;
   readonly harness: LioraHarness;
+  readonly promptStash: PromptStash;
   readonly sessionEventHandler: SessionEventHandler;
   readonly sessionReplay: SessionReplayRenderer;
   readonly streamingUI: StreamingUIController;
@@ -122,7 +130,11 @@ export class SessionLifecycleController {
     const { host } = this;
     host.aborted = false;
     host.streamingUI.discardPending();
+    // Drop in-memory queue/stash only — do NOT flush empty state to the previous
+    // session's disk. The next session's durable prompt-input-state is restored
+    // after setSession / hydrate.
     host.state.queuedMessages = [];
+    host.promptStash.clear();
     host.state.swarmModeEntry = undefined;
     host.streamingUI.resetToolCallState();
     host.streamingUI.resetToolUi();
@@ -215,6 +227,8 @@ export class SessionLifecycleController {
 
   async switchToSession(session: Session, statusMessage: string): Promise<void> {
     const { host } = this;
+    // Persist the outgoing session's queue/draft before wiping runtime memory.
+    flushPromptInputState(host);
     this.resetSessionRuntime();
     await this.setSession(session);
     await this.syncRuntimeState(session);
@@ -233,6 +247,7 @@ export class SessionLifecycleController {
     } finally {
       host.sessionEventHandler.startSubscription();
     }
+    await restorePromptInputState(host).catch(() => undefined);
     const resumeState = session.getResumeState();
     if (resumeState?.warning !== undefined) {
       host.showStatus(`Warning: ${resumeState.warning}`, 'warning');
@@ -264,6 +279,8 @@ export class SessionLifecycleController {
           return;
         }
 
+        // Save the previous session's draft/queue before starting clean.
+        flushPromptInputState(host);
         this.resetSessionRuntime();
         host.setAppState({
           ultraworkMode: false,
