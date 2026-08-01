@@ -15,6 +15,7 @@ import type { TerminalRenderer } from '#/tui/renderer';
 
 import type {
   AppearancePreferences,
+  FooterPreferences,
   NotificationsConfig,
   OnboardingPreferences,
   UpgradePreferences,
@@ -140,6 +141,8 @@ export interface AppState {
   notifications: NotificationsConfig;
   upgrade: UpgradePreferences;
   appearance?: AppearancePreferences;
+  /** Status-bar (footer) visibility + label style from `tui.toml` `[footer]`. */
+  footer?: FooterPreferences;
   /** Persisted first-run flags from `tui.toml` `[onboarding]`. */
   onboarding?: OnboardingPreferences;
   availableModels: Record<string, ModelAlias>;

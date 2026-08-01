@@ -2,12 +2,20 @@ import { currentTheme, type ColorToken } from '#/tui/theme/theme';
 import type { AppState } from '#/tui/types';
 import type { AllProvidersUsageSnapshot } from '@superliora/sdk';
 import { renderPulseText } from '#/tui/features/appearance/appearance-effects';
-import {
-  formatWorkingSetFooterBadgeText,
-  workingSetPressure,
-} from '#/tui/utils/agent/context-working-set';
+import { workingSetPressure } from '#/tui/utils/agent/context-working-set';
+import type { FooterLabels } from '#/tui/config';
 
 import { safeContextUsage } from '#/tui/components/chrome/footer/footer-context';
+import {
+  labelCacheRate,
+  labelCacheWarm,
+  labelExtensionsReload,
+  labelMedia,
+  labelMcp,
+  labelQuota,
+  labelRuntimeDegraded,
+  labelWorkingSet,
+} from '#/tui/components/chrome/footer/footer-labels';
 import { formatCacheHitMeter } from '#/tui/utils/cache/cache-hit-meter';
 import { resolveCacheHitFromAppState } from '#/tui/utils/cache/cache-glance';
 import {
@@ -112,22 +120,24 @@ export function extensionsReloadAppStatePatch(
 export function formatExtensionsReloadFooterBadge(
   reload: AppState['extensionsReload'],
   nowMs: number = Date.now(),
+  labels: FooterLabels = 'plain',
 ): FooterBadge | null {
   if (!isExtensionsReloadActive(reload, nowMs)) return null;
-  return { text: 'ext↻', severity: 'info' };
+  return { text: labelExtensionsReload(labels), severity: 'info' };
 }
 
 /** Never-Halt search/runtime degraded badge (Ops glance). */
 export function formatRuntimeDegradedFooterBadge(
   degraded: AppState['runtimeDegraded'],
   nowMs: number = Date.now(),
+  labels: FooterLabels = 'plain',
 ): FooterBadge | null {
   if (!isRuntimeDegradedActive(degraded, nowMs)) return null;
   const scope = degraded.scope.trim().length > 0 ? degraded.scope : 'runtime';
   const severity: FooterBadgeSeverity =
     scope === 'oauth' || scope === 'llm' ? 'danger' : 'warning';
   return {
-    text: scope === 'search' ? 'search↓' : `${scope}↓`,
+    text: labelRuntimeDegraded(labels, scope),
     severity,
   };
 }
@@ -135,17 +145,20 @@ export function formatRuntimeDegradedFooterBadge(
 /** MCP health badge when any server failed / needs auth (Ops glance). */
 export function formatMcpHealthFooterBadge(
   summary: AppState['mcpServersSummary'],
+  labels: FooterLabels = 'plain',
+  /** auto: hide healthy "ok"; always: include ok */
+  includeOk: boolean = false,
 ): FooterBadge | null {
   if (summary === undefined || summary === null || summary.trim().length === 0) return null;
   const lower = summary.toLowerCase();
   if (lower.includes('fail') || lower.includes('error')) {
-    return { text: 'mcp!', severity: 'danger' };
+    return { text: labelMcp(labels, 'error'), severity: 'danger' };
   }
   if (lower.includes('auth') || lower.includes('need')) {
-    return { text: 'mcp?', severity: 'warning' };
+    return { text: labelMcp(labels, 'auth'), severity: 'warning' };
   }
-  if (lower.includes('connected') || lower.includes('ok')) {
-    return { text: 'mcp', severity: 'info' };
+  if (includeOk && (lower.includes('connected') || lower.includes('ok'))) {
+    return { text: labelMcp(labels, 'ok'), severity: 'info' };
   }
   return null;
 }
@@ -178,9 +191,10 @@ export function formatWorkingSetFooterBadge(
   workingSet: AppState['workingSet'],
   contextTokens: number,
   maxContextTokens: number,
+  labels: FooterLabels = 'plain',
 ): FooterBadge | null {
   if (workingSet === undefined || workingSet === null) return null;
-  const text = formatWorkingSetFooterBadgeText(workingSet);
+  const text = labelWorkingSet(labels, workingSet);
   if (text === null) return null;
   const pressure = workingSetPressure({
     contextTokens,
@@ -200,6 +214,7 @@ export function formatWorkingSetFooterBadge(
  */
 export function formatProviderQuotaFooterBadge(
   quota: AllProvidersUsageSnapshot | null | undefined,
+  labels: FooterLabels = 'plain',
 ): FooterBadge | null {
   if (quota === undefined || quota === null) return null;
   // Only show when at least one provider has queryable usage data.
@@ -211,7 +226,7 @@ export function formatProviderQuotaFooterBadge(
   const severity: FooterBadgeSeverity =
     ratio >= 0.90 ? 'danger' : ratio >= 0.70 ? 'warning' : 'info';
   return {
-    text: `quota ${String(pct)}%`,
+    text: labelQuota(labels, pct),
     severity,
   };
 }
@@ -247,14 +262,12 @@ export function mediaProviderKeyReady(env: NodeJS.ProcessEnv = process.env): boo
 /** Compact footer badge for beginner-visible media readiness (no MCP). */
 export function formatMediaFooterBadge(
   env: NodeJS.ProcessEnv = process.env,
+  labels: FooterLabels = 'plain',
 ): { readonly label: string; readonly severity: FooterBadgeSeverity } | null {
   const image = mediaImageKeyReady(env);
   const video = mediaVideoKeyReady(env);
   if (!image && !video) return null;
-  // Beginner-readable dense badges: modalities that are zero-config ready (no MCP).
-  if (image && video) return { label: 'img·vid', severity: 'info' };
-  if (image) return { label: 'img', severity: 'info' };
-  return { label: 'vid', severity: 'info' };
+  return { label: labelMedia(labels, image, video), severity: 'info' };
 }
 
 export { formatIndexFooterBadge } from '#/tui/utils/index/index-footer-badge';
@@ -262,10 +275,19 @@ export { formatIndexFooterBadge } from '#/tui/utils/index/index-footer-badge';
 /** Prompt-cache warm-streak badge — SSOT: AppState.cacheMeter via resolveCacheHitFromAppState. */
 export function formatCacheHitFooterBadge(
   cacheMeter: AppState['cacheMeter'],
+  labels: FooterLabels = 'plain',
 ): FooterBadge | null {
   const hit = resolveCacheHitFromAppState(cacheMeter);
   if (hit == null) return null;
-  return formatCacheHitMeter(hit.rate, hit.streak).footerBadge;
+  const meter = formatCacheHitMeter(hit.rate, hit.streak);
+  if (meter.footerBadge === null) return null;
+  const streak =
+    hit.streak !== undefined && hit.streak >= 3 ? `×${String(hit.streak)}` : '';
+  if (meter.meetsTarget) {
+    return { text: labelCacheWarm(labels, streak), severity: 'info' };
+  }
+  const pct = Math.round(hit.rate * 100);
+  return { text: labelCacheRate(labels, pct), severity: 'warning' };
 }
 
 /** Context usage line severity aligned with soft/hard reclaim ladder. */

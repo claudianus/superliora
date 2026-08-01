@@ -1,17 +1,25 @@
+import type { FooterLabels } from '#/tui/config';
 import { formatTokenCount, safeUsageRatio } from '#/utils/usage/usage-format';
+import { labelContextPrefix } from '#/tui/components/chrome/footer/footer-labels';
 
 export function safeContextUsage(usage: number): number {
   return safeUsageRatio(usage);
 }
 
-export function formatContextStatus(usage: number, tokens?: number, maxTokens?: number): string {
+export function formatContextStatus(
+  usage: number,
+  tokens?: number,
+  maxTokens?: number,
+  labels: FooterLabels = 'plain',
+): string {
   const ratio = safeContextUsage(usage);
   const pct = `${(ratio * 100).toFixed(1)}%`;
   const bar = renderContextUsageBar(ratio);
+  const prefix = labelContextPrefix(labels);
   if (maxTokens && maxTokens > 0 && tokens !== undefined) {
-    return `context: ${bar} ${pct} (${formatTokenCount(tokens)}/${formatTokenCount(maxTokens)})`;
+    return `${prefix} ${bar} ${pct} (${formatTokenCount(tokens)}/${formatTokenCount(maxTokens)})`;
   }
-  return `context: ${bar} ${pct}`;
+  return `${prefix} ${bar} ${pct}`;
 }
 
 function renderContextUsageBar(ratio: number): string {

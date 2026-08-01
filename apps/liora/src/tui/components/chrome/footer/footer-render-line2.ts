@@ -8,6 +8,7 @@ import {
 } from '#/tui/features/appearance/appearance-effects';
 import type { MotionBeatSnapshot } from '#/tui/utils/render/motion-beats';
 import type { GitStatus } from '#/utils/git/git-status';
+import { workingSetPressure } from '#/tui/utils/agent/context-working-set';
 
 import {
   contextUsageSeverity,
@@ -17,6 +18,10 @@ import {
 } from '#/tui/components/chrome/footer/footer-badges';
 import { footerNextAction } from '#/tui/components/chrome/footer/footer-chrome';
 import { formatContextStatus } from '#/tui/components/chrome/footer/footer-context';
+import {
+  footerSlotVisible,
+  resolveFooterPreferences,
+} from '#/tui/components/chrome/footer/footer-preferences';
 
 export interface RenderFooterLine2Input {
   readonly state: AppState;
@@ -29,31 +34,66 @@ export interface RenderFooterLine2Input {
 
 export function renderFooterLine2(input: RenderFooterLine2Input): string {
   const { state, appearance, git, width, transientHint, activeBeat } = input;
+  const prefs = resolveFooterPreferences(state);
+  const labels = prefs.labels;
 
-  const contextBase = formatContextStatus(
-    state.contextUsage,
-    state.contextTokens,
-    state.maxContextTokens,
-  );
-  const quotaBadge = formatProviderQuotaFooterBadge(state.providerQuota);
-  const workingSetBadge = formatWorkingSetFooterBadge(
-    state.workingSet,
-    state.contextTokens,
-    state.maxContextTokens,
-  );
-  const usageSeverity = contextUsageSeverity(state.contextUsage);
-  const contextParts: string[] = [
-    styleFooterBadge({ text: contextBase, severity: usageSeverity }, appearance),
-  ];
-  if (workingSetBadge !== null) {
-    contextParts.push(styleFooterBadge(workingSetBadge, appearance));
+  const contextParts: string[] = [];
+  if (footerSlotVisible(prefs.context, true)) {
+    const contextBase = formatContextStatus(
+      state.contextUsage,
+      state.contextTokens,
+      state.maxContextTokens,
+      labels,
+    );
+    const usageSeverity = contextUsageSeverity(state.contextUsage);
+    contextParts.push(
+      styleFooterBadge({ text: contextBase, severity: usageSeverity }, appearance),
+    );
   }
-  if (quotaBadge !== null) {
-    contextParts.push(styleFooterBadge(quotaBadge, appearance));
+
+  const pressure =
+    state.workingSet !== undefined && state.workingSet !== null
+      ? workingSetPressure({
+          contextTokens: state.contextTokens,
+          maxContextTokens: state.maxContextTokens,
+          maxWorkingSetTokens: state.workingSet.maxWorkingSetTokens,
+        })
+      : 'ok';
+  const workingSetAutoOk = pressure === 'warn' || pressure === 'danger';
+  if (
+    footerSlotVisible(
+      prefs.workingSet,
+      state.workingSet !== undefined && state.workingSet !== null,
+      workingSetAutoOk,
+    )
+  ) {
+    const workingSetBadge = formatWorkingSetFooterBadge(
+      state.workingSet,
+      state.contextTokens,
+      state.maxContextTokens,
+      labels,
+    );
+    if (workingSetBadge !== null) {
+      contextParts.push(styleFooterBadge(workingSetBadge, appearance));
+    }
   }
-  const contextText = contextParts.join(currentTheme.fg('textMuted', ' · '));
+
+  const quotaRatio = state.providerQuota?.worstRatio ?? 0;
+  const quotaAutoOk = quotaRatio >= 0.7;
+  if (footerSlotVisible(prefs.quota, true, quotaAutoOk)) {
+    const quotaBadge = formatProviderQuotaFooterBadge(state.providerQuota, labels);
+    if (quotaBadge !== null) {
+      contextParts.push(styleFooterBadge(quotaBadge, appearance));
+    }
+  }
+
+  const contextText =
+    contextParts.length > 0
+      ? contextParts.join(currentTheme.fg('textMuted', ' · '))
+      : '';
   const contextWidth = visibleWidth(contextText);
-  const nextAction = footerNextAction(state, git);
+  const nextActionEnabled = footerSlotVisible(prefs.nextAction, true);
+  const nextAction = nextActionEnabled ? footerNextAction(state, git) : null;
   const resumeBeat =
     activeBeat?.name === 'session_resume' ? activeBeat : undefined;
 

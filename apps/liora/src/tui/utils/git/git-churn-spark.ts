@@ -1,7 +1,9 @@
 import type { AppState } from '#/tui/types';
 import type { FooterBadge } from '#/tui/components/chrome/footer/footer-badges';
+import { labelGitChurn } from '#/tui/components/chrome/footer/footer-labels';
+import type { FooterLabels } from '#/tui/config';
 
-/** Footer `diff↑` micro-badge lifetime after git file churn. */
+/** Footer git-churn micro-badge lifetime after git file churn. */
 export const GIT_CHURN_BADGE_TTL_MS = 2_000;
 
 export interface GitChurnSpark {
@@ -39,12 +41,13 @@ export function formatGitChurnOpsLine(spark: GitChurnSpark | null | undefined): 
   return `churn +${String(spark.count)}`;
 }
 
-/** Dopamine Ops footer glance — brief `diff↑` badge after git churn. */
+/** Dopamine Ops footer glance — brief badge after git churn. */
 export function formatGitChurnFooterBadge(
   churn: AppState['gitChurn'],
   nowMs: number = Date.now(),
+  labels: FooterLabels = 'plain',
 ): FooterBadge | null {
   if (churn === undefined || churn === null) return null;
   if (nowMs - churn.atMs >= GIT_CHURN_BADGE_TTL_MS) return null;
-  return { text: 'diff↑', severity: 'info' };
+  return { text: labelGitChurn(labels), severity: 'info' };
 }

@@ -1,7 +1,9 @@
 import type { AppState } from '#/tui/types';
 import type { FooterBadge } from '#/tui/components/chrome/footer/footer-badges';
+import { labelFleetDone } from '#/tui/components/chrome/footer/footer-labels';
+import type { FooterLabels } from '#/tui/config';
 
-/** Footer `fleet✓` micro-badge lifetime after a worker finishes. */
+/** Footer fleet-done micro-badge lifetime after a worker finishes. */
 export const FLEET_FLOURISH_BADGE_TTL_MS = 2_000;
 
 export type FleetWorkerSnapshot = {
@@ -27,12 +29,13 @@ export function shouldFleetFlourishPulse(
   return false;
 }
 
-/** Dopamine Ops footer glance — brief `fleet✓` badge after fleet worker completion. */
+/** Dopamine Ops footer glance — brief badge after fleet worker completion. */
 export function formatFleetFlourishFooterBadge(
   flourish: AppState['fleetFlourish'],
   nowMs: number = Date.now(),
+  labels: FooterLabels = 'plain',
 ): FooterBadge | null {
   if (flourish === undefined || flourish === null) return null;
   if (nowMs - flourish.atMs >= FLEET_FLOURISH_BADGE_TTL_MS) return null;
-  return { text: 'fleet✓', severity: 'info' };
+  return { text: labelFleetDone(labels), severity: 'info' };
 }

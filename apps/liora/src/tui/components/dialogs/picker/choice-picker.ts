@@ -2,32 +2,49 @@
  * ChoicePicker — modal single-select list for slash commands that ask
  * the user to pick from a small set of preset values.
  *
- * Mirrors SessionPickerComponent's container-replacement pattern: host
- * calls `showChoicePicker(...)` which clears the editor container,
- * addChild(picker), setFocus(picker); the picker invokes `onSelect` or
- * `onCancel`, and the host tears it down.
+ * PREMIUM.md list dialog grammar + section headers + mouse (wheel + click).
  */
 
-import {Container, matchesKey, Key, truncateToWidth, visibleWidth, type Focusable} from '#/tui/renderer';
-import {CURRENT_MARK} from '#/tui/constant/symbols';
-import {renderSelectPointer} from '#/tui/utils/ui/select-pointer';
-import {currentTheme, type ColorToken} from '#/tui/theme';
-import {getActiveAppearancePreferences, renderAnimatedGradientText, renderParticleDivider, renderPremiumHeadline, renderShimmerPrefix, shouldRenderAmbientEffects} from '#/tui/features/appearance/appearance-effects';
-import {printableChar} from '#/tui/utils/printable-key';
-import {ttui} from '#/tui/utils/tui-i18n';
-import {SearchableList} from '#/tui/utils/ui/searchable-list';
+import {
+  Container,
+  matchesKey,
+  Key,
+  truncateToWidth,
+  visibleWidth,
+  type Focusable,
+  type NativeInputEvent,
+} from '#/tui/renderer';
+import { CURRENT_MARK } from '#/tui/constant/symbols';
+import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
+import { currentTheme, type ColorToken } from '#/tui/theme';
+import {
+  getActiveAppearancePreferences,
+  renderAnimatedGradientText,
+  renderParticleDivider,
+  renderPremiumHeadline,
+  renderShimmerPrefix,
+  shouldRenderAmbientEffects,
+} from '#/tui/features/appearance/appearance-effects';
+import { printableChar } from '#/tui/utils/printable-key';
+import { ttui } from '#/tui/utils/tui-i18n';
+import { SearchableList } from '#/tui/utils/ui/searchable-list';
+import {
+  resolveCenterListMouse,
+  type CenterListMouseLayout,
+} from '#/tui/utils/ui/list-dialog-mouse';
 
 export interface ChoiceOption {
   /** Value passed to onSelect (e.g. the actual editor command string). */
   readonly value: string;
   /** Display text shown in the list. */
   readonly label: string;
+  /** Optional group header (rendered once above contiguous rows). */
+  readonly section?: string;
   /** Optional semantic tone for labels that need stronger visual treatment. */
   readonly tone?: 'danger';
   /** Optional explanatory text shown below the label. */
   readonly description?: string | undefined;
-  /** Color token applied to the description while this option is selected, drawing
-   *  attention to important details. Falls back to `textMuted` when unset or not selected. */
+  /** Color token applied to the description while this option is selected. */
   readonly descriptionTone?: ColorToken;
   /** Hide from the default list, but include in search results and when current. */
   readonly searchOnly?: boolean;
@@ -84,6 +101,9 @@ export class ChoicePickerComponent extends Container implements Focusable {
   private readonly opts: ChoicePickerOptions;
   private readonly list: SearchableList<ChoiceOption>;
   private highlightedValue: string | undefined;
+  private mouseLayout: CenterListMouseLayout | undefined;
+  /** Lines stacked above this panel in center-modal overlay (breadcrumb). */
+  private crumbLines = 0;
 
   constructor(opts: ChoicePickerOptions) {
     super();
@@ -94,13 +114,18 @@ export class ChoicePickerComponent extends Container implements Focusable {
     this.list = new SearchableList({
       items: opts.options,
       toSearchText: (o) =>
-        `${o.label} ${o.description ?? ''} ${(o.keywords ?? []).join(' ')}`,
+        `${o.label} ${o.description ?? ''} ${o.section ?? ''} ${(o.keywords ?? []).join(' ')}`,
       isVisible: (o, query) => choiceOptionVisible(o, query, opts.currentValue),
-      pageSize: opts.pageSize,
+      pageSize: opts.pageSize ?? 12,
       initialIndex: Math.max(currentIdx, 0),
       searchable: opts.searchable === true,
     });
     this.syncHighlight();
+  }
+
+  /** Center-modal breadcrumb offset for click hit-testing. */
+  setCrumbLines(count: number): void {
+    this.crumbLines = Math.max(0, count);
   }
 
   handleInput(data: string): void {
@@ -112,19 +137,16 @@ export class ChoicePickerComponent extends Container implements Focusable {
       this.opts.onCancel();
       return;
     }
-    // Left/Right page through the list (this picker has no horizontal control).
-    if (matchesKey(data, Key.left)) {
+    if (matchesKey(data, Key.left) || matchesKey(data, Key.pageUp)) {
       this.list.pageUp();
       this.syncHighlight();
       return;
     }
-    if (matchesKey(data, Key.right)) {
+    if (matchesKey(data, Key.right) || matchesKey(data, Key.pageDown)) {
       this.list.pageDown();
       this.syncHighlight();
       return;
     }
-    // Enter always selects. Space selects too — but only when the list is not
-    // searchable; in a searchable list a space must reach the query instead.
     const isSpace = matchesKey(data, Key.space) || printableChar(data) === ' ';
     if (matchesKey(data, Key.enter) || (isSpace && this.opts.searchable !== true)) {
       const chosen = this.list.selected();
@@ -134,6 +156,31 @@ export class ChoicePickerComponent extends Container implements Focusable {
     if (this.list.handleKey(data)) this.syncHighlight();
   }
 
+  /** Mouse: wheel navigates, click highlights / second-click selects. */
+  handleNativeInput(event: NativeInputEvent): boolean {
+    const view = this.list.view();
+    const action = resolveCenterListMouse(event, this.mouseLayout, view.selectedIndex);
+    if (action.type === 'none') return false;
+    if (action.type === 'move') {
+      if (action.delta < 0) this.list.moveUp();
+      else this.list.moveDown();
+      this.syncHighlight();
+      return true;
+    }
+    if (action.type === 'highlight') {
+      this.list.setSelectedIndex(action.index);
+      this.syncHighlight();
+      return true;
+    }
+    if (action.type === 'activate') {
+      this.list.setSelectedIndex(action.index);
+      const chosen = this.list.selected();
+      if (chosen !== undefined) this.opts.onSelect(chosen.value);
+      return true;
+    }
+    return false;
+  }
+
   override render(width: number): string[] {
     const searchable = this.opts.searchable === true;
     const view = this.list.view();
@@ -141,12 +188,9 @@ export class ChoicePickerComponent extends Container implements Focusable {
     const appearance = getActiveAppearancePreferences();
     const animated = shouldRenderAmbientEffects(appearance);
 
-    // Header mirrors the model dialog (see model-selector.ts): border, title
-    // with a "(type to search)" suffix until you type, the hint, a blank, then
-    // the search line. Key vocabulary is lowercase to match every list dialog.
     const navParts = ['↑↓ navigate'];
-    if (view.page.pageCount > 1) navParts.push('←→ page');
-    navParts.push('Enter select', 'Esc cancel');
+    if (view.page.pageCount > 1) navParts.push('PgUp/PgDn page');
+    navParts.push('Enter select', 'wheel scroll', 'click select', 'Esc cancel');
     const hint = this.opts.hint ?? navParts.join(' · ');
 
     const titleSuffix =
@@ -182,14 +226,25 @@ export class ChoicePickerComponent extends Container implements Focusable {
       lines.push(currentTheme.fg('primary', ` Search: `) + currentTheme.fg('text', view.query));
     }
 
+    const itemLineByIndex: number[] = new Array(options.length).fill(-1);
+    let lastSection = '';
+
     if (options.length === 0) {
       lines.push(currentTheme.fg('textMuted', `   ${ttui('tui.common.noMatches')}`));
     }
     for (let i = view.page.start; i < view.page.end; i++) {
       const opt = options[i]!;
+      const section = opt.section?.trim() ?? '';
+      if (section.length > 0 && section !== lastSection) {
+        lastSection = section;
+        if (i > view.page.start || lines[lines.length - 1] !== '') {
+          // subtle gap between groups when not first
+        }
+        lines.push(currentTheme.boldFg('accent', ` ${section}`));
+      }
       const isSelected = i === view.selectedIndex;
       const isCurrent = opt.value === this.opts.currentValue;
-      // Pointer / shimmer prefix are already styled; do not chalk-wrap them again.
+      itemLineByIndex[i] = lines.length;
       const pointer = isSelected ? renderSelectPointer('choice:pointer') : ' ';
       const labelStyle = optionLabelStyle(opt, isSelected);
       const pulse = animated && isSelected ? renderShimmerPrefix(appearance) : '';
@@ -198,9 +253,10 @@ export class ChoicePickerComponent extends Container implements Focusable {
         pulse +
         pointer +
         currentTheme.fg(isSelected ? 'primary' : 'textDim', ' ');
-      line += animated && isSelected && opt.tone !== 'danger'
-        ? renderAnimatedGradientText(opt.label, `choice:row:${opt.value}`, appearance)
-        : labelStyle(opt.label);
+      line +=
+        animated && isSelected && opt.tone !== 'danger'
+          ? renderAnimatedGradientText(opt.label, `choice:row:${opt.value}`, appearance)
+          : labelStyle(opt.label);
       if (isCurrent) {
         line += ' ' + currentTheme.fg('success', CURRENT_MARK);
       }
@@ -221,11 +277,14 @@ export class ChoicePickerComponent extends Container implements Focusable {
 
     lines.push('');
     if (view.page.pageCount > 1) {
-      lines.push(
-        currentTheme.fg('textMuted',
-          ` Page ${String(view.page.page + 1)}/${String(view.page.pageCount)}`,
-        ),
-      );
+      const hiddenAbove = view.page.start;
+      const hiddenBelow = Math.max(0, options.length - view.page.end);
+      const parts: string[] = [
+        `Page ${String(view.page.page + 1)}/${String(view.page.pageCount)}`,
+      ];
+      if (hiddenBelow > 0) parts.push(`▼ ${String(hiddenBelow)} more`);
+      if (hiddenAbove > 0) parts.push(`▲ ${String(hiddenAbove)} above`);
+      lines.push(currentTheme.fg('textMuted', ` ${parts.join(' · ')}`));
     }
     const selected = options[view.selectedIndex];
     if (selected !== undefined && this.opts.renderPreview !== undefined) {
@@ -235,7 +294,15 @@ export class ChoicePickerComponent extends Container implements Focusable {
       }
     }
     lines.push(renderParticleDivider(width, `choice:bottom:${this.opts.title}`, appearance));
-    return lines.map((line) => truncateToWidth(line, width));
+
+    const out = lines.map((line) => truncateToWidth(line, width));
+    this.mouseLayout = {
+      panelLineCount: out.length,
+      panelWidth: width,
+      itemLineByIndex,
+      crumbLines: this.crumbLines,
+    };
+    return out;
   }
 
   private syncHighlight(): void {

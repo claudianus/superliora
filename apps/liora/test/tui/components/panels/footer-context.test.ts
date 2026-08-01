@@ -67,7 +67,7 @@ describe('FooterComponent — context NaN resilience', () => {
     const fc = new FooterComponent(baseState({ contextUsage: Number.NaN }));
     const out = strip(fc.render(120).join(''));
     expect(out).not.toMatch(/NaN/);
-    expect(out).toMatch(/context:.*0\.0%/);
+    expect(out).toMatch(/Context.*0\.0%/);
   });
 
   it('undefined-ish (coerced) usage → renders 0.0%', () => {
@@ -76,19 +76,19 @@ describe('FooterComponent — context NaN resilience', () => {
     );
     const out = strip(fc.render(120).join(''));
     expect(out).not.toMatch(/NaN/);
-    expect(out).toMatch(/context:.*0\.0%/);
+    expect(out).toMatch(/Context.*0\.0%/);
   });
 
   it('clamps ratios above 1.0 → renders 100.0%', () => {
     const fc = new FooterComponent(baseState({ contextUsage: 1.5 }));
     const out = strip(fc.render(120).join(''));
-    expect(out).toMatch(/context:.*100\.0%/);
+    expect(out).toMatch(/Context.*100\.0%/);
   });
 
   it('ratio 0.427 → renders 42.7%', () => {
     const fc = new FooterComponent(baseState({ contextUsage: 0.427 }));
     const out = strip(fc.render(200).join(''));
-    expect(out).toMatch(/context:.*42\.7%/);
+    expect(out).toMatch(/Context.*42\.7%/);
   });
 
   it('tokens provided but max=0 → falls back to percent-only, no division-by-zero artefact', () => {
@@ -97,7 +97,7 @@ describe('FooterComponent — context NaN resilience', () => {
     );
     const out = strip(fc.render(200).join(''));
     expect(out).not.toMatch(/Infinity|NaN/);
-    expect(out).toMatch(/context:.*0\.0%/);
+    expect(out).toMatch(/Context.*0\.0%/);
     // With maxTokens=0, token-count annotation is suppressed.
     expect(out).not.toMatch(/\(500\//);
   });
@@ -110,9 +110,9 @@ describe('FooterComponent — context NaN resilience', () => {
     const out = strip(footer.render(200).join(''));
     expect(out).toContain('kimi-k2-5');
     expect(out).not.toContain(' k2 ');
-    expect(out).toMatch(/context:.*50\.0%/);
+    expect(out).toMatch(/Context.*50\.0%/);
     // Hi-res bar: 10 cells with eighths partials (50% → 5 full blocks).
-    expect(out).toMatch(/context: █████░░░░░ 50\.0%/);
+    expect(out).toMatch(/Context █████░░░░░ 50\.0%/);
   });
 
   it('shows "thinking" label when thinking is enabled, hides it when disabled', () => {
@@ -122,8 +122,8 @@ describe('FooterComponent — context NaN resilience', () => {
     // Match the model badge phrase so rotating tips cannot false-positive.
     const onLine = strip(on.render(120)[0]!);
     const offLine = strip(off.render(120)[0]!);
-    expect(onLine).toContain('k2 thinking');
-    expect(offLine).not.toContain('k2 thinking');
+    expect(onLine).toMatch(/k2 on\b|k2 high\b/);
+    expect(offLine).not.toMatch(/k2 on\b|k2 high\b/);
   });
 
   it('labels mission mode separately from plain plan mode in the footer', () => {
@@ -132,11 +132,11 @@ describe('FooterComponent — context NaN resilience', () => {
     const [line1, line2] = footer.render(120);
     const out = strip(line1 ?? '');
 
-    expect(out).toContain('mission');
+    expect(out).toMatch(/Mission|mission/);
     expect(out).not.toContain('ultrawork');
     expect(out).not.toContain('ultrawork-ready');
     expect(out).not.toContain('plan-first');
-    expect(out).not.toContain('plan  k2');
+    expect(out).not.toMatch(/\b[Pp]lan\s+k2/);
     expect(strip(line2 ?? '')).toContain(
       'Mission: research → interview → goal → swarm → integrate → verify → learn',
     );
@@ -149,9 +149,9 @@ describe('FooterComponent — context NaN resilience', () => {
 
     const [line1, line2] = footer.render(120);
 
-    expect(strip(line1 ?? '')).toContain('mission');
+    expect(strip(line1 ?? '')).toMatch(/Mission|mission/);
     expect(strip(line1 ?? '')).not.toContain('ultrawork');
-    expect(strip(line1 ?? '')).not.toContain('plan');
+    expect(strip(line1 ?? '')).not.toMatch(/\b[Pp]lan\b/);
     expect(strip(line2 ?? '')).toContain(
       'Mission: research → interview → goal → swarm → integrate → verify → learn',
     );
@@ -176,7 +176,7 @@ describe('FooterComponent — context NaN resilience', () => {
 
     const [, line2] = footer.render(120);
     expect(strip(line2 ?? '')).toContain('Press Ctrl-C again to exit');
-    expect(strip(line2 ?? '')).toMatch(/context:.*0\.0%/);
+    expect(strip(line2 ?? '')).toMatch(/Context.*0\.0%/);
   });
 
   it('keeps the idle next action visible beside context usage', () => {
@@ -190,7 +190,7 @@ describe('FooterComponent — context NaN resilience', () => {
       expect(strip(line2 ?? '')).toContain('next: Shift-Tab toggles Mission/off · /bench for Bench');
       expect(strip(line2 ?? '')).not.toContain('Ultrawork plans, sets goal, swarms, verifies');
       expect(strip(line2 ?? '')).not.toContain('helpers');
-      expect(strip(line2 ?? '')).toMatch(/context:.*0\.0%/);
+      expect(strip(line2 ?? '')).toMatch(/Context.*0\.0%/);
     } finally {
       if (previous === undefined) delete process.env['OPENAI_API_KEY'];
       else process.env['OPENAI_API_KEY'] = previous;
@@ -210,7 +210,7 @@ describe('FooterComponent — context NaN resilience', () => {
       const footer = new FooterComponent(baseState());
       const [, line2] = footer.render(120);
       expect(strip(line2 ?? '')).toContain('OPENAI_API_KEY or GOOGLE_API_KEY for image/video');
-      expect(strip(line2 ?? '')).toMatch(/context:.*0\.0%/);
+      expect(strip(line2 ?? '')).toMatch(/Context.*0\.0%/);
     } finally {
       for (const [key, value] of Object.entries(previous)) {
         if (value === undefined) delete process.env[key];
@@ -227,7 +227,7 @@ describe('FooterComponent — context NaN resilience', () => {
       () => ({ followOutput, offsetFromBottom: 42 }),
     );
 
-    expect(strip(footer.render(120)[0] ?? '')).toContain('[history +42 rows]');
+    expect(strip(footer.render(120)[0] ?? '')).toContain('[History · 42 lines up]');
 
     followOutput = true;
     expect(strip(footer.render(120)[0] ?? '')).not.toContain('[history');

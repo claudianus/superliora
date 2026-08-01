@@ -12,6 +12,7 @@ import { showModelPicker, showLoopModelRoutingPicker, showModelFallbackPicker } 
 import { showContextWorkingSetPicker } from './context/context';
 import { showContextSettings } from './context/context-settings';
 import { showAppearanceSettings } from './appearance/appearance-settings';
+import { showFooterSettings } from './footer/footer-settings';
 import { showPermissionPicker } from './permission/permission';
 import { showThemeSettings } from './appearance/theme-settings';
 import { showMediaSettings } from './media/media-settings';
@@ -98,6 +99,7 @@ function handleSettingsSelection(host: SlashCommandHost, value: SettingsSelectio
     case 'storage':  showStorageSettings(host); return;
     case 'theme': showThemeSettings(host); return;
     case 'appearance': showAppearanceSettings(host); return;
+    case 'footer': showFooterSettings(host); return;
     case 'editor': showEditorSettings(host); return;
     case 'experiments': showExperimentsSettings(host); return;
     case 'upgrade': showUpgradeSettings(host); return;

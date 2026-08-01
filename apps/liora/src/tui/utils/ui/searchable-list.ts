@@ -92,6 +92,12 @@ export class SearchableList<T> {
     this.cursor = Math.min(Math.max(0, this.filtered().length - 1), this.cursor + 1);
   }
 
+  /** Jump the cursor to an absolute filtered index (clamped). */
+  setSelectedIndex(index: number): void {
+    const max = Math.max(0, this.filtered().length - 1);
+    this.cursor = Math.max(0, Math.min(max, index));
+  }
+
   pageUp(): void {
     this.cursor = Math.max(0, this.cursor - this.pageSize);
   }

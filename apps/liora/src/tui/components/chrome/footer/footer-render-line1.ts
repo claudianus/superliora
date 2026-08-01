@@ -45,6 +45,25 @@ import {
   thinkingLevelLabel,
 } from '#/tui/components/chrome/footer/footer-model';
 import { footerCurrentTipIndex, tipsForIndex } from '#/tui/components/chrome/footer/footer-tips';
+import {
+  footerSlotVisible,
+  resolveFooterPreferences,
+} from '#/tui/components/chrome/footer/footer-preferences';
+import {
+  labelBackgroundAgent,
+  labelBackgroundBash,
+  labelCompact,
+  labelMenu,
+  labelModeAuto,
+  labelModeMission,
+  labelModeOrchestrator,
+  labelModePlan,
+  labelModePremium,
+  labelModeSwarm,
+  labelModeYolo,
+  labelPromptIntel,
+  labelWorkers,
+} from '#/tui/components/chrome/footer/footer-labels';
 
 export interface FooterLine1TipState {
   tipDisplay: string;
@@ -78,6 +97,8 @@ export function renderFooterLine1(input: RenderFooterLine1Input): string {
     tipState,
   } = input;
 
+  const prefs = resolveFooterPreferences(state);
+  const labels = prefs.labels;
   const left: string[] = [];
   const modes: string[] = [];
   const modeBeatTitle =
@@ -88,198 +109,331 @@ export function renderFooterLine1(input: RenderFooterLine1Input): string {
         : undefined;
   const withModeBeat = (title: string, body: string): string =>
     modeBeatTitle === title ? renderShimmerPrefix(appearance) + body : body;
-  if (state.permissionMode === 'auto') modes.push(currentTheme.boldFg('warning', 'auto'));
-  if (state.permissionMode === 'yolo') {
-    modes.push(
-      withModeBeat(
-        'yolo',
-        modeBeatTitle === 'yolo'
-          ? renderPulseText('yolo', 'footer:yolo', 'warning', appearance)
-          : currentTheme.boldFg('warning', 'yolo'),
-      ),
-    );
-  }
-  if (state.ultraworkMode) {
-    modes.push(
-      withModeBeat(
-        'mission',
-        renderAnimatedGradientText('mission', 'footer:ultrawork', appearance),
-      ),
-    );
-  } else if (state.planMode) {
-    modes.push(withModeBeat('plan', renderPulseText('plan', 'plan', 'primary', appearance)));
-  }
-  if (state.swarmMode) {
-    modes.push(
-      withModeBeat('swarm', renderPulseText('swarm-armed', 'footer:swarm', 'accent', appearance)),
-    );
-  }
-  if (state.premiumQualityMode) {
-    modes.push(renderAnimatedGradientText('premium', 'footer:premium', appearance));
-  }
-  if (state.orchestratorMode) {
-    modes.push(renderPulseText('orchestrator', 'footer:orchestrator', 'accent', appearance));
-    const workers = state.orchestratorWorkers;
-    if (workers !== undefined && workers.length > 0) {
-      const running = workers.filter((w) => w.status === 'running').length;
-      const done = workers.filter((w) => w.status === 'completed').length;
-      const failed = workers.filter((w) => w.status === 'failed').length;
-      const parts: string[] = [];
-      if (running > 0) parts.push(`${String(running)}▸`);
-      if (done > 0) parts.push(`${String(done)}✓`);
-      if (failed > 0) parts.push(`${String(failed)}✗`);
-      modes.push(renderPulseText(`w:${parts.join(' ')}`, 'footer:workers', 'primary', appearance));
+
+  if (footerSlotVisible(prefs.modes, true)) {
+    if (state.permissionMode === 'auto') {
+      modes.push(currentTheme.boldFg('warning', labelModeAuto(labels)));
+    }
+    if (state.permissionMode === 'yolo') {
+      const yoloText = labelModeYolo(labels);
+      modes.push(
+        withModeBeat(
+          'yolo',
+          modeBeatTitle === 'yolo'
+            ? renderPulseText(yoloText, 'footer:yolo', 'warning', appearance)
+            : currentTheme.boldFg('warning', yoloText),
+        ),
+      );
+    }
+    if (state.ultraworkMode) {
+      modes.push(
+        withModeBeat(
+          'mission',
+          renderAnimatedGradientText(labelModeMission(labels), 'footer:ultrawork', appearance),
+        ),
+      );
+    } else if (state.planMode) {
+      modes.push(
+        withModeBeat(
+          'plan',
+          renderPulseText(labelModePlan(labels), 'plan', 'primary', appearance),
+        ),
+      );
+    }
+    if (state.swarmMode) {
+      modes.push(
+        withModeBeat(
+          'swarm',
+          renderPulseText(labelModeSwarm(labels), 'footer:swarm', 'accent', appearance),
+        ),
+      );
+    }
+    if (state.premiumQualityMode) {
+      modes.push(
+        renderAnimatedGradientText(labelModePremium(labels), 'footer:premium', appearance),
+      );
+    }
+    if (state.orchestratorMode) {
+      modes.push(
+        renderPulseText(
+          labelModeOrchestrator(labels),
+          'footer:orchestrator',
+          'accent',
+          appearance,
+        ),
+      );
+      const workers = state.orchestratorWorkers;
+      if (workers !== undefined && workers.length > 0) {
+        const running = workers.filter((w) => w.status === 'running').length;
+        const done = workers.filter((w) => w.status === 'completed').length;
+        const failed = workers.filter((w) => w.status === 'failed').length;
+        const workerLabel = labelWorkers(labels, running, done, failed);
+        if (workerLabel.length > 0) {
+          modes.push(renderPulseText(workerLabel, 'footer:workers', 'primary', appearance));
+        }
+      }
     }
   }
-  if (state.isBackgroundCompacting) {
-    modes.push(renderPulseText('compact-bg', 'footer:compact-bg', 'warning', appearance));
-  } else if (state.isCompacting) {
-    modes.push(renderPulseText('compact', 'footer:compact', 'primary', appearance));
+  // Compact / prompt-intel / media are independent prefs — not gated by modes.
+  if (prefs.showCompact) {
+    if (state.isBackgroundCompacting) {
+      modes.push(
+        renderPulseText(
+          labelCompact(labels, true),
+          'footer:compact-bg',
+          'warning',
+          appearance,
+        ),
+      );
+    } else if (state.isCompacting) {
+      modes.push(
+        renderPulseText(
+          labelCompact(labels, false),
+          'footer:compact',
+          'primary',
+          appearance,
+        ),
+      );
+    }
   }
-  const piPhase = state.promptIntelligencePhase ?? 'idle';
-  if (piPhase === 'inline') {
-    modes.push(
-      renderPulseText('ghost…', 'footer:prompt-intel-inline', 'accent', appearance),
-    );
-  } else if (piPhase === 'suggest') {
-    modes.push(
-      renderPulseText('suggest…', 'footer:prompt-intel-suggest', 'accent', appearance),
-    );
+  if (prefs.showPromptIntelligence) {
+    const piPhase = state.promptIntelligencePhase ?? 'idle';
+    if (piPhase === 'inline') {
+      modes.push(
+        renderPulseText(
+          labelPromptIntel(labels, 'inline'),
+          'footer:prompt-intel-inline',
+          'accent',
+          appearance,
+        ),
+      );
+    } else if (piPhase === 'suggest') {
+      modes.push(
+        renderPulseText(
+          labelPromptIntel(labels, 'suggest'),
+          'footer:prompt-intel-suggest',
+          'accent',
+          appearance,
+        ),
+      );
+    }
   }
-  const mediaBadge = formatMediaFooterBadge();
-  if (mediaBadge !== null) {
+  const mediaBadge = formatMediaFooterBadge(process.env, labels);
+  if (mediaBadge !== null && footerSlotVisible(prefs.mediaReady, true)) {
     modes.push(
       renderPulseText(mediaBadge.label, `footer:${mediaBadge.label}`, 'accent', appearance),
     );
   }
   if (modes.length > 0) left.push(modes.join(' '));
 
-  const transcriptViewportBadge = formatTranscriptViewportBadge(getTranscriptViewport?.());
+  const transcriptViewportBadge = formatTranscriptViewportBadge(
+    getTranscriptViewport?.(),
+    labels,
+  );
   if (transcriptViewportBadge !== null) left.push(transcriptViewportBadge);
 
-  const goalBadge = formatGoalBadge(state.goal, goalWallClockMs, appearance);
-  if (goalBadge !== null) left.push(goalBadge);
-
-  const goalXpBadge = formatGoalXpPulseFooterBadge(state.goalXpPulse);
-  if (goalXpBadge !== null) {
-    left.push(renderPulseText(goalXpBadge.text, 'footer:goal-xp', 'accent', appearance));
+  if (footerSlotVisible(prefs.goal, state.goal != null)) {
+    const goalBadge = formatGoalBadge(state.goal, goalWallClockMs, appearance);
+    if (goalBadge !== null) left.push(goalBadge);
   }
 
-  const fleetFlourishBadge = formatFleetFlourishFooterBadge(state.fleetFlourish);
-  if (fleetFlourishBadge !== null) {
-    left.push(renderPulseText(fleetFlourishBadge.text, 'footer:fleet-flourish', 'primary', appearance));
+  if (prefs.pulseGoalProgress) {
+    const goalXpBadge = formatGoalXpPulseFooterBadge(state.goalXpPulse, Date.now(), labels);
+    if (goalXpBadge !== null) {
+      left.push(renderPulseText(goalXpBadge.text, 'footer:goal-xp', 'accent', appearance));
+    }
   }
 
-  const permissionApproveBadge = formatPermissionApproveFooterBadge(state.permissionApproveFlourish);
-  if (permissionApproveBadge !== null) {
-    left.push(renderPulseText(permissionApproveBadge.text, 'footer:perm-approve', 'primary', appearance));
-  }
-
-  const gitChurnBadge = formatGitChurnFooterBadge(state.gitChurn);
-  if (gitChurnBadge !== null) {
-    left.push(styleFooterBadge(gitChurnBadge, appearance));
-  }
-
-  const opsCombo = computeOpsComboPulse(state);
-  const opsComboBadge = formatOpsComboFooterBadge(opsCombo);
-  if (opsComboBadge !== null) {
-    left.push(renderPulseText(opsComboBadge.text, 'footer:ops-combo', 'accent', appearance));
-  }
-
-  const mcpBadge = formatMcpHealthFooterBadge(state.mcpServersSummary);
-  if (mcpBadge !== null) left.push(styleFooterBadge(mcpBadge, appearance));
-
-  const extReloadBadge = formatExtensionsReloadFooterBadge(state.extensionsReload);
-  if (extReloadBadge !== null) left.push(styleFooterBadge(extReloadBadge, appearance));
-
-  const cacheBadge = formatCacheHitFooterBadge(state.cacheMeter);
-  if (cacheBadge !== null) left.push(styleFooterBadge(cacheBadge, appearance));
-
-  const indexBadge = formatIndexFooterBadge(state.workDir);
-  if (indexBadge !== null) left.push(styleFooterBadge(indexBadge, appearance));
-
-  const degradedBadge = formatRuntimeDegradedFooterBadge(state.runtimeDegraded);
-  if (degradedBadge !== null) left.push(styleFooterBadge(degradedBadge, appearance));
-
-  const cascadeBadge = formatSearchCascadeFooterBadge(state.searchCascade);
-  if (cascadeBadge !== null) left.push(styleFooterBadge(cascadeBadge, appearance));
-
-  const model = modelDisplayName(state);
-  if (model) {
-    const routeEffective = effectiveRouteModelLabel(state);
-    const modelLabel =
-      routeEffective !== undefined
-        ? `${model}${thinkingLevelLabel(state)}→${routeEffective}`
-        : `${model}${thinkingLevelLabel(state)}`;
-    const modelHot =
-      state.lastModelRouteNotice !== undefined &&
-      state.lastModelRouteNotice !== null &&
-      Date.now() - state.lastModelRouteNotice.atMs < 45_000;
-    left.push(
-      modelHot || state.streamingPhase !== 'idle' || state.thinking
-        ? renderPulseText(
-            modelLabel,
-            modelHot ? 'footer:model-route' : 'footer:model',
-            modelHot ? 'glow' : 'text',
-            appearance,
-          )
-        : currentTheme.fg('text', modelLabel),
+  if (prefs.pulseFleetComplete) {
+    const fleetFlourishBadge = formatFleetFlourishFooterBadge(
+      state.fleetFlourish,
+      Date.now(),
+      labels,
     );
-    const routeBadge = formatModelRouteBadge(state);
-    if (routeBadge !== undefined) {
+    if (fleetFlourishBadge !== null) {
       left.push(
-        renderPulseText(routeBadge, 'footer:model-failover', 'glow', appearance),
+        renderPulseText(fleetFlourishBadge.text, 'footer:fleet-flourish', 'primary', appearance),
       );
     }
   }
 
-  if (backgroundBashTaskCount > 0) {
-    const noun = backgroundBashTaskCount === 1 ? 'task' : 'tasks';
-    left.push(
-      renderPulseText(
-        `[${String(backgroundBashTaskCount)} ${noun} running]`,
-        'footer:bash-tasks',
-        'primary',
-        appearance,
-      ),
+  if (prefs.pulsePermission) {
+    const permissionApproveBadge = formatPermissionApproveFooterBadge(
+      state.permissionApproveFlourish,
+      Date.now(),
+      labels,
     );
-  }
-  if (backgroundAgentCount > 0) {
-    const noun = backgroundAgentCount === 1 ? 'agent' : 'agents';
-    left.push(
-      renderPulseText(
-        `[${String(backgroundAgentCount)} ${noun} running]`,
-        'footer:agent-tasks',
-        'primary',
-        appearance,
-      ),
-    );
+    if (permissionApproveBadge !== null) {
+      left.push(
+        renderPulseText(permissionApproveBadge.text, 'footer:perm-approve', 'primary', appearance),
+      );
+    }
   }
 
-  const cwd = shortenCwd(state.workDir);
-  if (cwd) left.push(currentTheme.fg('textDim', cwd));
+  if (prefs.pulseGitChurn) {
+    const gitChurnBadge = formatGitChurnFooterBadge(state.gitChurn, Date.now(), labels);
+    if (gitChurnBadge !== null) {
+      left.push(styleFooterBadge(gitChurnBadge, appearance));
+    }
+  }
 
-  if (git !== null) {
+  if (prefs.pulseOpsCombo) {
+    const opsCombo = computeOpsComboPulse(state);
+    const opsComboBadge = formatOpsComboFooterBadge(opsCombo, Date.now(), labels);
+    if (opsComboBadge !== null) {
+      left.push(renderPulseText(opsComboBadge.text, 'footer:ops-combo', 'accent', appearance));
+    }
+  }
+
+  if (footerSlotVisible(prefs.mcp, true)) {
+    const mcpBadge = formatMcpHealthFooterBadge(
+      state.mcpServersSummary,
+      labels,
+      prefs.mcp === 'always',
+    );
+    if (mcpBadge !== null) left.push(styleFooterBadge(mcpBadge, appearance));
+  }
+
+  if (prefs.pulseExtensionsReload) {
+    const extReloadBadge = formatExtensionsReloadFooterBadge(
+      state.extensionsReload,
+      Date.now(),
+      labels,
+    );
+    if (extReloadBadge !== null) left.push(styleFooterBadge(extReloadBadge, appearance));
+  }
+
+  if (footerSlotVisible(prefs.cache, true)) {
+    const cacheBadge = formatCacheHitFooterBadge(state.cacheMeter, labels);
+    if (cacheBadge !== null) left.push(styleFooterBadge(cacheBadge, appearance));
+  }
+
+  if (footerSlotVisible(prefs.index, true)) {
+    const indexBadge = formatIndexFooterBadge(state.workDir, process.env, labels);
+    // auto: only cold/warn; always: any
+    if (indexBadge !== null) {
+      const coldish =
+        indexBadge.severity === 'warning' || indexBadge.severity === 'danger';
+      if (prefs.index === 'always' || coldish || indexBadge.severity === 'muted') {
+        // When always, show all. When auto, skip warm "ready" noise.
+        if (prefs.index === 'always' || indexBadge.severity !== 'info') {
+          left.push(styleFooterBadge(indexBadge, appearance));
+        }
+      }
+    }
+  }
+
+  if (prefs.pulseRuntimeDegraded) {
+    const degradedBadge = formatRuntimeDegradedFooterBadge(
+      state.runtimeDegraded,
+      Date.now(),
+      labels,
+    );
+    if (degradedBadge !== null) left.push(styleFooterBadge(degradedBadge, appearance));
+  }
+
+  if (prefs.pulseSearchCascade) {
+    const cascadeBadge = formatSearchCascadeFooterBadge(
+      state.searchCascade,
+      Date.now(),
+      labels,
+    );
+    if (cascadeBadge !== null) left.push(styleFooterBadge(cascadeBadge, appearance));
+  }
+
+  if (footerSlotVisible(prefs.model, state.model.trim().length > 0)) {
+    const model = modelDisplayName(state);
+    if (model) {
+      const routeEffective = effectiveRouteModelLabel(state);
+      const modelLabel =
+        routeEffective !== undefined
+          ? `${model}${thinkingLevelLabel(state)}→${routeEffective}`
+          : `${model}${thinkingLevelLabel(state)}`;
+      const modelHot =
+        state.lastModelRouteNotice !== undefined &&
+        state.lastModelRouteNotice !== null &&
+        Date.now() - state.lastModelRouteNotice.atMs < 45_000;
+      left.push(
+        modelHot || state.streamingPhase !== 'idle' || state.thinking
+          ? renderPulseText(
+              modelLabel,
+              modelHot ? 'footer:model-route' : 'footer:model',
+              modelHot ? 'glow' : 'text',
+              appearance,
+            )
+          : currentTheme.fg('text', modelLabel),
+      );
+      if (prefs.pulseModelRoute) {
+        const routeBadge = formatModelRouteBadge(state, labels);
+        if (routeBadge !== undefined) {
+          left.push(
+            renderPulseText(routeBadge, 'footer:model-failover', 'glow', appearance),
+          );
+        }
+      }
+    }
+  }
+
+  if (footerSlotVisible(prefs.background, backgroundBashTaskCount > 0 || backgroundAgentCount > 0)) {
+    if (backgroundBashTaskCount > 0) {
+      left.push(
+        renderPulseText(
+          labelBackgroundBash(labels, backgroundBashTaskCount),
+          'footer:bash-tasks',
+          'primary',
+          appearance,
+        ),
+      );
+    }
+    if (backgroundAgentCount > 0) {
+      left.push(
+        renderPulseText(
+          labelBackgroundAgent(labels, backgroundAgentCount),
+          'footer:agent-tasks',
+          'primary',
+          appearance,
+        ),
+      );
+    }
+  }
+
+  if (footerSlotVisible(prefs.cwd, state.workDir.trim().length > 0)) {
+    const cwd = shortenCwd(state.workDir);
+    if (cwd) left.push(currentTheme.fg('textDim', cwd));
+  }
+
+  if (footerSlotVisible(prefs.git, git !== null) && git !== null) {
     left.push(formatFooterGitBadge(git));
   }
 
   const leftLine = left.join('  ');
   const leftWidth = visibleWidth(leftLine);
 
-  const menuBadge = shouldRenderAmbientEffects(appearance)
-    ? renderPulseText('Menu ?', 'footer:menu-hub', 'accent', appearance)
-    : currentTheme.fg('accent', 'Menu ?');
-  const menuPlain = 'Menu ?';
-  const menuGap = '  ';
-  const afterLeft = leftWidth + visibleWidth(menuGap) + visibleWidth(menuPlain);
-  const { primary, pair } = tipsForIndex(footerCurrentTipIndex());
-  const tipGap = 2;
-  const remaining = Math.max(0, width - afterLeft - tipGap);
+  const showMenu = footerSlotVisible(prefs.menu, true);
+  const menuPlain = labelMenu(labels);
+  const menuBadge = showMenu
+    ? shouldRenderAmbientEffects(appearance)
+      ? renderPulseText(menuPlain, 'footer:menu-hub', 'accent', appearance)
+      : currentTheme.fg('accent', menuPlain)
+    : '';
+  const menuGap = showMenu ? '  ' : '';
+  const afterLeft = leftWidth + visibleWidth(menuGap) + visibleWidth(showMenu ? menuPlain : '');
+
+  const tipsEnabled = footerSlotVisible(
+    prefs.tips,
+    true,
+    state.streamingPhase === 'idle' && !state.isCompacting && !state.isReplaying,
+  );
   let tipText = '';
-  if (pair && visibleWidth(pair) <= remaining) {
-    tipText = pair;
-  } else if (primary && visibleWidth(primary) <= remaining) {
-    tipText = primary;
+  if (tipsEnabled) {
+    const { primary, pair } = tipsForIndex(footerCurrentTipIndex());
+    const tipGap = 2;
+    const remaining = Math.max(0, width - afterLeft - tipGap);
+    if (pair && visibleWidth(pair) <= remaining) {
+      tipText = pair;
+    } else if (primary && visibleWidth(primary) <= remaining) {
+      tipText = primary;
+    }
   }
   if (tipText !== tipState.tipDisplay) {
     tipState.tipDisplay = tipText;

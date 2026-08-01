@@ -4,8 +4,10 @@
 
 import {
   DEFAULT_APPEARANCE_PREFERENCES,
+  DEFAULT_FOOTER_PREFERENCES,
   DEFAULT_ONBOARDING_PREFERENCES,
   type AppearancePreferences,
+  type FooterPreferences,
   type OnboardingPreferences,
   type TuiConfig,
 } from '../../../config';
@@ -17,6 +19,12 @@ export function currentAppearance(host: {
   return host.state.appState.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
 }
 
+export function currentFooter(host: {
+  readonly state: { readonly appState: { readonly footer?: FooterPreferences } };
+}): FooterPreferences {
+  return host.state.appState.footer ?? DEFAULT_FOOTER_PREFERENCES;
+}
+
 export function tuiConfigFromHost(
   host: {
     readonly state: {
@@ -25,6 +33,7 @@ export function tuiConfigFromHost(
         'theme' | 'editorCommand' | 'notifications' | 'upgrade' | 'disablePasteBurst' | 'permissionMode'
       > & {
         readonly appearance?: AppearancePreferences;
+        readonly footer?: FooterPreferences;
         readonly onboarding?: OnboardingPreferences;
       };
     };
@@ -39,6 +48,7 @@ export function tuiConfigFromHost(
     notifications: host.state.appState.notifications,
     upgrade: host.state.appState.upgrade,
     appearance: currentAppearance(host),
+    footer: currentFooter(host),
     onboarding: host.state.appState.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES,
     ...patch,
   };
