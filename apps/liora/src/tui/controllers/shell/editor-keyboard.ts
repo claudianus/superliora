@@ -392,10 +392,9 @@ export class EditorKeyboardController {
       host.showHistorySearch();
     };
     editor.onCommandHub = () => {
-      if (host.state.appState.streamingPhase !== 'idle') {
-        host.state.toast.show('Wait for the turn to finish, or Ctrl-C to stop', 2200);
-        return;
-      }
+      // Hub is safe mid-turn: buildDefaultCommandHubItems already disables
+      // idle-only actions (undo/rewind/…) while streaming or compacting.
+      // Operators still need Settings, model, help, cancel-adjacent jumps.
       host.showCommandHub();
     };
     editor.onTranscriptSearch = () => {

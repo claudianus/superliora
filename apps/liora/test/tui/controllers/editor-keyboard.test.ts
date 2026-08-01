@@ -234,7 +234,7 @@ describe('EditorKeyboardController double-Esc undo', () => {
 });
 
 describe('EditorKeyboardController gated shortcut toasts', () => {
-  it('toasts instead of opening Hub while streaming', () => {
+  it('opens Hub while streaming so settings/help stay reachable mid-turn', () => {
     const { editor, toastShow, showCommandHub } = createHarness({
       streamingPhase: 'waiting',
     });
@@ -243,11 +243,8 @@ describe('EditorKeyboardController gated shortcut toasts', () => {
     if (typeof handler !== 'function') throw new Error('onCommandHub not installed');
     (handler as () => void)();
 
-    expect(showCommandHub).not.toHaveBeenCalled();
-    expect(toastShow).toHaveBeenCalledWith(
-      'Wait for the turn to finish, or Ctrl-C to stop',
-      2200,
-    );
+    expect(showCommandHub).toHaveBeenCalledTimes(1);
+    expect(toastShow).not.toHaveBeenCalled();
   });
 
   it('toasts when Ctrl-R is pressed with a non-empty prompt', () => {
