@@ -91,10 +91,13 @@ const EXT_LANG_MAP: Record<string, string> = {
 /** Soft cap for full-file highlight on collapsed previews (lines beyond use windowing). */
 export const HIGHLIGHT_WINDOW_SOFT_CAP = 400;
 
-const HIGHLIGHT_CACHE_LIMIT = 48;
+/** Soft cap for the highlight LRU (expanded tools + mixed segments). */
+export const HIGHLIGHT_CACHE_LIMIT = 128;
 
 interface HighlightCacheEntry {
   readonly lines: string[];
+  /** Sticky entries (path-hinted) survive longer under thrash. */
+  sticky: boolean;
 }
 
 const highlightCache = new Map<string, HighlightCacheEntry>();
@@ -120,19 +123,32 @@ function cacheGet(key: string): string[] | undefined {
   return hit.lines;
 }
 
-function cacheSet(key: string, lines: string[]): void {
+function cacheSet(key: string, lines: string[], sticky = false): void {
   if (highlightCache.has(key)) highlightCache.delete(key);
-  highlightCache.set(key, { lines });
+  highlightCache.set(key, { lines, sticky });
   while (highlightCache.size > HIGHLIGHT_CACHE_LIMIT) {
-    const oldest = highlightCache.keys().next().value;
-    if (oldest === undefined) break;
-    highlightCache.delete(oldest);
+    // Prefer evicting non-sticky oldest; fall back to oldest overall.
+    let victim: string | undefined;
+    for (const [k, entry] of highlightCache) {
+      if (!entry.sticky) {
+        victim = k;
+        break;
+      }
+    }
+    victim ??= highlightCache.keys().next().value;
+    if (victim === undefined) break;
+    highlightCache.delete(victim);
   }
 }
 
 /** Test / theme-swap helper — drops the highlight LRU. */
 export function clearHighlightCache(): void {
   highlightCache.clear();
+}
+
+/** Test helper: current LRU size (after sticky-aware insert/evict). */
+export function highlightCacheSizeForTest(): number {
+  return highlightCache.size;
 }
 
 export function langFromPath(filePath: string): string | undefined {
@@ -151,6 +167,15 @@ export function langFromPath(filePath: string): string | undefined {
   return supportsLanguage(lang) ? lang : undefined;
 }
 
+export interface HighlightLinesOptions {
+  readonly palette?: ColorPalette;
+  /**
+   * When set (file path), the cache entry is sticky so expanded Read/Write
+   * bodies survive thrash from many one-off mixed segments.
+   */
+  readonly pathHint?: string;
+}
+
 /**
  * Highlight full `code` as `lang`. Returns plain split lines when language is
  * unknown or highlighting fails.
@@ -158,22 +183,33 @@ export function langFromPath(filePath: string): string | undefined {
 export function highlightLines(
   code: string,
   lang: string | undefined,
-  palette?: ColorPalette,
+  paletteOrOptions?: ColorPalette | HighlightLinesOptions,
 ): string[] {
+  const options: HighlightLinesOptions =
+    paletteOrOptions !== undefined &&
+    typeof paletteOrOptions === 'object' &&
+    ('palette' in paletteOrOptions || 'pathHint' in paletteOrOptions)
+      ? paletteOrOptions
+      : { palette: paletteOrOptions as ColorPalette | undefined };
+  const palette = options.palette;
+  const sticky = options.pathHint !== undefined && options.pathHint.length > 0;
+
   const normalizedLang = lang?.trim().toLowerCase();
   if (!normalizedLang) return code.split('\n');
 
   // Engine tag keeps cli-highlight and Shiki results from colliding in the
   // same cache generation when the async Shiki singleton comes online.
+  // Path sticky segment keeps large file highlights pinned under thrash.
   const engine = shikiReady() ? 's' : 'c';
-  const key = `${engine}\0${normalizedLang}\0${paletteCacheKey(palette)}\0${code.length}\0${hashText(code)}`;
+  const pathTag = sticky ? `\0p:${options.pathHint}` : '';
+  const key = `${engine}\0${normalizedLang}\0${paletteCacheKey(palette)}\0${code.length}\0${hashText(code)}${pathTag}`;
   const cached = cacheGet(key);
   if (cached !== undefined) return cached;
 
   // Preferred path: Shiki's TextMate tokenization rendered to ANSI.
   const shikiLines = shikiHighlightLines(code, normalizedLang, palette);
   if (shikiLines !== undefined) {
-    cacheSet(key, shikiLines);
+    cacheSet(key, shikiLines, sticky);
     return shikiLines;
   }
 
@@ -185,7 +221,7 @@ export function highlightLines(
       ignoreIllegals: true,
       theme: buildSyntaxHighlightTheme(palette),
     }).split('\n');
-    cacheSet(key, lines);
+    cacheSet(key, lines, sticky);
     return lines;
   } catch {
     return code.split('\n');

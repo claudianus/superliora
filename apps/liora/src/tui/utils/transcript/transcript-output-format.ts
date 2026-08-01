@@ -640,7 +640,10 @@ function formatNumberedCodeOutput(
   const highlighted =
     normalized === 'text' || normalized === 'plain'
       ? bodies
-      : highlightLines(bodyText, normalized, options.palette);
+      : highlightLines(bodyText, normalized, {
+          palette: options.palette,
+          pathHint: options.pathHint,
+        });
 
   const p = options.palette ?? currentTheme.palette;
   const out: string[] = [];
@@ -718,7 +721,10 @@ function formatCodeOutput(
   if (normalized === 'text' || normalized === 'plain') {
     return formatPlainOutput(text, options);
   }
-  const highlighted = highlightLines(text, normalized, options.palette).join('\n');
+  const highlighted = highlightLines(text, normalized, {
+    palette: options.palette,
+    pathHint: options.pathHint,
+  }).join('\n');
   return options.isError === true ? tintErrorLines(highlighted) : highlighted;
 }
 
