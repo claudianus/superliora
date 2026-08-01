@@ -32,6 +32,15 @@ import {
 
 export { OpenAIResponsesStreamedMessage };
 
+/**
+ * GPT-5.6 family supports `reasoning.context = all_turns` (and defaults to it).
+ * Earlier models only accept current_turn / omit the field.
+ */
+export function supportsReasoningAllTurnsContext(model: string): boolean {
+  const id = model.trim().toLowerCase();
+  return id.includes('gpt-5.6') || id.startsWith('gpt-5.6');
+}
+
 const OPENAI_RESPONSES_TOOL_CALL_ID_POLICY: ToolCallIdPolicy = {
   normalize: (id) => sanitizeOpenAIResponsesCallId(id, 64),
   maxLength: 64,
@@ -138,10 +147,17 @@ export class OpenAIResponsesChatProvider implements ChatProvider {
     delete kwargs['reasoning_effort'];
 
     if (reasoningEffort !== undefined) {
-      kwargs['reasoning'] = {
+      // GPT-5.6 defaults to all_turns (render prior reasoning into the next
+      // sample). Set it explicitly so multi-step tool loops keep continuity and
+      // avoid re-deriving the same chain. Older models reject unknown values.
+      const reasoning: Record<string, unknown> = {
         effort: reasoningEffort,
         summary: 'auto',
       };
+      if (supportsReasoningAllTurnsContext(this._model)) {
+        reasoning['context'] = 'all_turns';
+      }
+      kwargs['reasoning'] = reasoning;
       kwargs['include'] = ['reasoning.encrypted_content'];
     }
 

@@ -9,9 +9,19 @@ import type { ContentPart, Message, StreamedMessagePart, ToolCall } from '#/mess
 import {
   OpenAIResponsesChatProvider,
   OpenAIResponsesStreamedMessage,
+  supportsReasoningAllTurnsContext,
 } from '#/providers/openai-responses';
 import type { Tool } from '#/tool';
 import { describe, it, expect, vi } from 'vitest';
+
+describe('supportsReasoningAllTurnsContext', () => {
+  it('is true for the gpt-5.6 family only', () => {
+    expect(supportsReasoningAllTurnsContext('gpt-5.6')).toBe(true);
+    expect(supportsReasoningAllTurnsContext('gpt-5.6-sol')).toBe(true);
+    expect(supportsReasoningAllTurnsContext('gpt-5.1')).toBe(false);
+    expect(supportsReasoningAllTurnsContext('gpt-4.1')).toBe(false);
+  });
+});
 
 function makeResponsesAPIResponse() {
   return {
@@ -942,6 +952,24 @@ describe('OpenAIResponsesChatProvider', () => {
       const body = await captureRequestBody(provider, '', [], history);
 
       expect(body['reasoning']).toEqual({ effort: 'low', summary: 'auto' });
+      expect(body['include']).toEqual(['reasoning.encrypted_content']);
+    });
+
+    it('with_thinking on gpt-5.6 sets reasoning.context=all_turns for multi-step continuity', async () => {
+      const provider = new OpenAIResponsesChatProvider({
+        model: 'gpt-5.6',
+        apiKey: 'test-key',
+      }).withThinking('medium');
+      const history: Message[] = [
+        { role: 'user', content: [{ type: 'text', text: 'Think' }], toolCalls: [] },
+      ];
+      const body = await captureRequestBody(provider, '', [], history);
+
+      expect(body['reasoning']).toEqual({
+        effort: 'medium',
+        summary: 'auto',
+        context: 'all_turns',
+      });
       expect(body['include']).toEqual(['reasoning.encrypted_content']);
     });
 
