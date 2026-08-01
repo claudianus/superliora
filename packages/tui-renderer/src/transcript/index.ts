@@ -41,8 +41,11 @@ export {
 } from './geometry-parent';
 
 export {
+  isTranscriptCheapPaintMode,
   isTranscriptMeasureMode,
   resetTranscriptMeasureModeForTest,
+  shouldSkipExpensiveTranscriptFormat,
+  withTranscriptCheapPaintMode,
   withTranscriptMeasureMode,
 } from './measure-mode';
 
@@ -51,6 +54,7 @@ export { RendererPrefixedWrappedLine } from './prefixed-wrapped-line';
 export {
   DEFAULT_RENDERER_TRUNCATED_OUTPUT_INDENT,
   DEFAULT_RENDERER_TRUNCATED_OUTPUT_LINES,
+  RENDERER_TRUNCATED_OUTPUT_DEFER_CHARS,
   RENDERER_TRUNCATED_OUTPUT_EXPANDED_VISUAL_CAP,
   RENDERER_TRUNCATED_OUTPUT_HARD_CAP_LINES,
   RendererTruncatedOutputComponent,

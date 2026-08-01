@@ -13,6 +13,7 @@
 import chalk from 'chalk';
 
 import { highlightLines, langFromPath } from '#/tui/components/media/code-highlight';
+import { shouldSkipExpensiveTranscriptFormat } from '#/tui/renderer';
 import { currentTheme, type ColorPalette } from '#/tui/theme';
 
 /** Soft cap for full-document JSON pretty-print + re-highlight. */
@@ -378,6 +379,10 @@ export function formatTranscriptOutputDetailed(
   try {
     const mode = options.mode ?? 'tool';
     if (mode === 'thinking') {
+      // Thinking stays light; still serve cache hits under cheap paint.
+      if (shouldSkipExpensiveTranscriptFormat()) {
+        return { kind: 'plain', text: text };
+      }
       return { kind: 'plain', text: formatThinkingText(text, options) };
     }
 
@@ -388,6 +393,15 @@ export function formatTranscriptOutputDetailed(
       formatCache.delete(cacheKey);
       formatCache.set(cacheKey, cached);
       return cached;
+    }
+
+    // Geometry / pure-scroll: never pretty-print or highlight on cache miss.
+    // Do not write plain stubs into the format LRU (permanent paint poison).
+    if (shouldSkipExpensiveTranscriptFormat()) {
+      return {
+        kind: 'plain',
+        text: options.isError === true ? errorStyle(text) : text,
+      };
     }
 
     const result = formatBody(text, options);

@@ -13,8 +13,10 @@ import {
 } from '#/tui/features/transcript/transcript-entrance';
 
 import { formatBashOutputForDisplay, sanitizeShellOutput } from '#/tui/utils/shell-output';
+import { scheduleDeferredTranscriptFormat } from '#/tui/utils/transcript/deferred-format-queue';
 import { formatTranscriptOutput } from '#/tui/utils/transcript/transcript-output-format';
 import { areLiveToolTicksSuppressed } from '#/tui/utils/render/transcript-paint-mode';
+import { RENDERER_TRUNCATED_OUTPUT_DEFER_CHARS } from '#/tui/renderer';
 
 const RUNNING_TAIL_LINES = 5;
 // Cap the live running buffer so a command that spews output for minutes can't
@@ -129,10 +131,7 @@ export class ShellRunComponent extends Container {
         return `  ${currentTheme.fg('textDim', 'Moved to background.')}`;
       }
       if (!this.running) {
-        return formatBashOutputForDisplay(this.finalStdout, this.finalStderr, this.finalIsError)
-          .split('\n')
-          .map((line) => `  ${line}`)
-          .join('\n');
+        return this.renderFinishedBody();
       }
       const elapsed = Math.floor((appearanceAnimationNow() - this.startedAt) / 1000);
       const dim = (s: string): string => currentTheme.fg('textDim', s);
@@ -158,13 +157,14 @@ export class ShellRunComponent extends Container {
         if (sourceKey !== this.formattedSourceKey) {
           this.formattedSourceKey = sourceKey;
           this.lastExtraLines = extra;
-          this.formattedBody = formatTranscriptOutput(preview.lines.join('\n'), {
-            isError: false,
-            mode: 'bash',
-          })
+          const rawTail = preview.lines.join('\n');
+          // Plain immediately; pretty-print large tails off the hot path so a
+          // chatty command cannot freeze scroll while the timer ticks.
+          this.formattedBody = rawTail
             .split('\n')
             .map((line) => `  ${line}`)
             .join('\n');
+          this.scheduleBodyFormat(sourceKey, rawTail, false);
         }
         body = this.formattedBody;
         extra = this.lastExtraLines;
@@ -181,5 +181,87 @@ export class ShellRunComponent extends Container {
     } catch {
       return '  (output unavailable)';
     }
+  }
+
+  private renderFinishedBody(): string {
+    const key = `fin\0${this.finalStdout.length}\0${this.finalStderr.length}\0${this.finalIsError === true ? '1' : '0'}`;
+    if (key === this.formattedSourceKey && this.formattedBody.length > 0) {
+      return this.formattedBody;
+    }
+    this.formattedSourceKey = key;
+    const plain = [sanitizeShellOutput(this.finalStdout), sanitizeShellOutput(this.finalStderr)]
+      .filter((s) => s.length > 0)
+      .join('\n');
+    const totalChars = plain.length;
+    // Small finishes stay sync for snappy !cmd UX; large dumps defer pretty.
+    if (totalChars <= RENDERER_TRUNCATED_OUTPUT_DEFER_CHARS) {
+      this.formattedBody = formatBashOutputForDisplay(
+        this.finalStdout,
+        this.finalStderr,
+        this.finalIsError,
+      )
+        .split('\n')
+        .map((line) => `  ${line}`)
+        .join('\n');
+      return this.formattedBody;
+    }
+    this.formattedBody =
+      plain.length > 0
+        ? plain
+            .split('\n')
+            .map((line) => `  ${line}`)
+            .join('\n')
+        : `  ${currentTheme.fg('textDim', '(no output)')}`;
+    this.scheduleFinishedFormat(key);
+    return this.formattedBody;
+  }
+
+  private scheduleBodyFormat(sourceKey: string, rawTail: string, isError: boolean): void {
+    if (rawTail.length <= RENDERER_TRUNCATED_OUTPUT_DEFER_CHARS) {
+      this.formattedBody = formatTranscriptOutput(rawTail, {
+        isError,
+        mode: 'bash',
+      })
+        .split('\n')
+        .map((line) => `  ${line}`)
+        .join('\n');
+      return;
+    }
+    scheduleDeferredTranscriptFormat(() => {
+      if (this.disposed || this.formattedSourceKey !== sourceKey) return;
+      this.formattedBody = formatTranscriptOutput(rawTail, {
+        isError,
+        mode: 'bash',
+      })
+        .split('\n')
+        .map((line) => `  ${line}`)
+        .join('\n');
+      try {
+        this.refreshText();
+        this.requestRender();
+      } catch {
+        // Never throw from deferred format into the timer queue.
+      }
+    });
+  }
+
+  private scheduleFinishedFormat(sourceKey: string): void {
+    scheduleDeferredTranscriptFormat(() => {
+      if (this.disposed || this.formattedSourceKey !== sourceKey || this.running) return;
+      this.formattedBody = formatBashOutputForDisplay(
+        this.finalStdout,
+        this.finalStderr,
+        this.finalIsError,
+      )
+        .split('\n')
+        .map((line) => `  ${line}`)
+        .join('\n');
+      try {
+        this.refreshText();
+        this.requestRender();
+      } catch {
+        // ignore
+      }
+    });
   }
 }

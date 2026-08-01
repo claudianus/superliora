@@ -17,6 +17,7 @@ import { USER_MESSAGE_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import type { ImageAttachment } from '#/tui/utils/image/image-attachment-store';
 import { isRenderCacheEnabled } from '#/tui/utils/render/render-cache';
+import { areLiveToolTicksSuppressed } from '#/tui/utils/render/transcript-paint-mode';
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
@@ -70,9 +71,11 @@ export class UserMessageComponent implements Component {
       this.lastTimestampMarker = timestampMarker;
     }
 
+    // Pure-scroll: keep width cache (no entrance re-encode / spectacular).
+    const scrollPaint = areLiveToolTicksSuppressed();
     // While the entrance wash is active, skip the width cache so each ambient
     // tick can re-polish the fade (settled messages stay cache-stable).
-    const entranceActive = isTranscriptEntranceActive(this.entranceStartedAtMs);
+    const entranceActive = !scrollPaint && isTranscriptEntranceActive(this.entranceStartedAtMs);
     if (entranceActive) this.markRenderDirty();
 
     const lines = this.renderCache.render({
@@ -84,7 +87,7 @@ export class UserMessageComponent implements Component {
         const bullet =
           marker.length === 0
             ? ''
-            : shouldRenderAmbientEffects(appearance)
+            : shouldRenderAmbientEffects(appearance) && !scrollPaint
               ? renderSpectacularText(marker, 'user:bullet', appearance, {
                   intense: true,
                   pace: 'slow',

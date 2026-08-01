@@ -1,15 +1,34 @@
 import {
+  RENDERER_TRUNCATED_OUTPUT_DEFER_CHARS,
   RendererTruncatedOutputComponent,
   trimRendererTrailingEmptyLines,
 } from '#/tui/renderer';
 
+import {
+  BRAILLE_SPINNER_FRAMES,
+  BRAILLE_SPINNER_INTERVAL_MS,
+} from '#/tui/constant/rendering';
 import { currentTheme } from '#/tui/theme';
+import { scheduleDeferredTranscriptFormat } from '#/tui/utils/transcript/deferred-format-queue';
 import { formatTranscriptOutput } from '#/tui/utils/transcript/transcript-output-format';
 
 import type { ResultRenderer } from './types';
 import { PREVIEW_LINES } from './types';
 
 const DEFAULT_INDENT = 2;
+
+/**
+ * Optional host hook: after a deferred body format finishes, bust nested
+ * viewport paint caches and request a content frame. Set once from TUI
+ * bootstrap (or tests); components never import LioraTUI directly.
+ */
+let onDeferredFormatApplied: (() => void) | undefined;
+
+export function setTruncatedOutputFormatAppliedHandler(
+  handler: (() => void) | undefined,
+): void {
+  onDeferredFormatApplied = handler;
+}
 
 export const trimTrailingEmptyLines = trimRendererTrailingEmptyLines;
 
@@ -21,6 +40,10 @@ export const trimTrailingEmptyLines = trimRendererTrailingEmptyLines;
  *
  * Body text is pretty-printed + lightly highlighted via
  * {@link formatTranscriptOutput} (JSON, JSONL, diff, stack, logs, URLs…).
+ *
+ * Large bodies defer that work: geometry/paint first show plain text (and a
+ * small loading footer), then a budgeted queue applies highlighting so fast
+ * transcript scroll never formats dozens of tools in one frame.
  */
 export class TruncatedOutputComponent extends RendererTruncatedOutputComponent {
   constructor(
@@ -45,8 +68,14 @@ export class TruncatedOutputComponent extends RendererTruncatedOutputComponent {
       languageHint?: string;
       /** File path used to derive a language when languageHint is absent. */
       pathHint?: string;
+      /**
+       * Force sync format even for large bodies (tests / export). Default
+       * defers above {@link RENDERER_TRUNCATED_OUTPUT_DEFER_CHARS}.
+       */
+      deferFormat?: boolean;
     },
   ) {
+    const defer = options.deferFormat !== false;
     super(output, {
       expanded: options.expanded,
       isError: options.isError,
@@ -63,6 +92,28 @@ export class TruncatedOutputComponent extends RendererTruncatedOutputComponent {
           mode: 'tool',
         }),
       formatHint: (hint) => currentTheme.dim(hint),
+      deferFormatAboveChars: defer ? RENDERER_TRUNCATED_OUTPUT_DEFER_CHARS : Number.POSITIVE_INFINITY,
+      onDeferredFormat: defer
+        ? (apply) => {
+            scheduleDeferredTranscriptFormat(apply);
+          }
+        : undefined,
+      onFormatApplied: defer
+        ? () => {
+            onDeferredFormatApplied?.();
+          }
+        : undefined,
+      formatPendingHint: defer
+        ? () => {
+            const frame =
+              BRAILLE_SPINNER_FRAMES[
+                Math.floor(Date.now() / BRAILLE_SPINNER_INTERVAL_MS) %
+                  BRAILLE_SPINNER_FRAMES.length
+              ] ?? '⠋';
+            // Combined with overflow count by TruncatedOutput ("· N more").
+            return `${frame} formatting`;
+          }
+        : undefined,
     });
   }
 }

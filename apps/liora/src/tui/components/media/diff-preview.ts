@@ -180,6 +180,13 @@ export interface DiffLine {
   code: string;
 }
 
+/**
+ * Soft cap on lines fed into the LCS table. Unbounded Edit previews of
+ * multi-k file rewrites allocate O(m·n) and freeze the TUI; tail-keep so
+ * streaming edits still show the live edge.
+ */
+export const DIFF_LCS_SOFT_CAP_LINES = 400;
+
 export function computeDiffLines(
   oldText: string,
   newText: string,
@@ -187,8 +194,20 @@ export function computeDiffLines(
   newStart: number = 1,
   isIncomplete: boolean = false,
 ): DiffLine[] {
-  const oldLines = oldText ? oldText.split('\n') : [];
-  const newLines = newText ? newText.split('\n') : [];
+  let oldLines = oldText ? oldText.split('\n') : [];
+  let newLines = newText ? newText.split('\n') : [];
+  let oldStartAdj = oldStart;
+  let newStartAdj = newStart;
+  if (oldLines.length > DIFF_LCS_SOFT_CAP_LINES) {
+    const drop = oldLines.length - DIFF_LCS_SOFT_CAP_LINES;
+    oldLines = oldLines.slice(drop);
+    oldStartAdj = oldStart + drop;
+  }
+  if (newLines.length > DIFF_LCS_SOFT_CAP_LINES) {
+    const drop = newLines.length - DIFF_LCS_SOFT_CAP_LINES;
+    newLines = newLines.slice(drop);
+    newStartAdj = newStart + drop;
+  }
   const m = oldLines.length;
   const n = newLines.length;
 
@@ -210,14 +229,14 @@ export function computeDiffLines(
   let j = n;
   while (i > 0 || j > 0) {
     if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
-      reversed.push({ kind: 'context', lineNum: newStart + j - 1, code: newLines[j - 1]! });
+      reversed.push({ kind: 'context', lineNum: newStartAdj + j - 1, code: newLines[j - 1]! });
       i--;
       j--;
     } else if (j > 0 && (i === 0 || dp[i]![j - 1]! >= dp[i - 1]![j]!)) {
-      reversed.push({ kind: 'add', lineNum: newStart + j - 1, code: newLines[j - 1]! });
+      reversed.push({ kind: 'add', lineNum: newStartAdj + j - 1, code: newLines[j - 1]! });
       j--;
     } else {
-      reversed.push({ kind: 'delete', lineNum: oldStart + i - 1, code: oldLines[i - 1]! });
+      reversed.push({ kind: 'delete', lineNum: oldStartAdj + i - 1, code: oldLines[i - 1]! });
       i--;
     }
   }

@@ -17,7 +17,10 @@
  * clock) skip a beat right after scroll so they do not fight wheel frames.
  */
 
-import { isTranscriptMeasureMode } from '#/tui/renderer';
+import {
+  isTranscriptMeasureMode,
+  withTranscriptCheapPaintMode,
+} from '#/tui/renderer';
 
 let suppressLiveToolTicks = false;
 let lastScrollActivityMs = 0;
@@ -36,6 +39,11 @@ export function withTranscriptPaintMode<T>(mode: TranscriptPaintMode, run: () =>
     lastScrollActivityMs = Date.now();
   }
   try {
+    // Pure-scroll also enters renderer cheap-paint so highlight/pretty skip
+    // cache misses without poisoning Markdown / width paint caches.
+    if (suppressLiveToolTicks) {
+      return withTranscriptCheapPaintMode(run);
+    }
     return run();
   } finally {
     suppressLiveToolTicks = previous;

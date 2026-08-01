@@ -24,6 +24,22 @@ function statesEqual(left: ToolOutputViewportState, right: ToolOutputViewportSta
     left.contentRows === right.contentRows;
 }
 
+/** Optional content-revision probe for nested truncated bodies. */
+function childContentRevision(child: Component): number {
+  const withRev = child as Component & { getContentRevision?: () => number };
+  if (typeof withRev.getContentRevision === 'function') {
+    return withRev.getContentRevision();
+  }
+  // Container of truncated bodies: OR revisions so deferred format busts cache.
+  const children = (child as { children?: readonly Component[] }).children;
+  if (!Array.isArray(children) || children.length === 0) return 0;
+  let rev = 0;
+  for (const c of children) {
+    rev = (rev * 31 + childContentRevision(c)) | 0;
+  }
+  return rev;
+}
+
 export class ToolOutputViewportComponent implements Component {
   private readonly child: Component;
   private readonly getState: () => ToolOutputViewportState;
@@ -34,8 +50,10 @@ export class ToolOutputViewportComponent implements Component {
   private dragging = false;
   private lastRenderedRows = 0;
   private lastOverflow = false;
-  // child render cache: 같은 width와 invalidate가 없으면 재사용
+  // Child render cache: reuse when width + body revision match. Revision
+  // advances when deferred highlight finishes so plain→pretty is not sticky.
   private cachedChildWidth = -1;
+  private cachedChildRevision = Number.MIN_SAFE_INTEGER;
   private cachedChildLines: string[] = [];
   private cachedChildInvalid = true;
 
@@ -95,6 +113,7 @@ export class ToolOutputViewportComponent implements Component {
   invalidate(): void {
     this.child.invalidate?.();
     this.cachedChildInvalid = true;
+    this.cachedChildRevision = Number.MIN_SAFE_INTEGER;
   }
 
   render(width: number): string[] {
@@ -104,9 +123,15 @@ export class ToolOutputViewportComponent implements Component {
     const contentWidth = safeWidth > 1 ? safeWidth - 1 : safeWidth;
     let lines: string[];
 
-    if (this.cachedChildInvalid || this.cachedChildWidth !== contentWidth) {
+    const revision = childContentRevision(this.child);
+    if (
+      this.cachedChildInvalid ||
+      this.cachedChildWidth !== contentWidth ||
+      this.cachedChildRevision !== revision
+    ) {
       this.cachedChildLines = this.child.render(contentWidth);
       this.cachedChildWidth = contentWidth;
+      this.cachedChildRevision = childContentRevision(this.child);
       this.cachedChildInvalid = false;
     }
     lines = this.cachedChildLines;
