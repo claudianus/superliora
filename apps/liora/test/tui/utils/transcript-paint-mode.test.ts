@@ -9,6 +9,10 @@ import {
 import { ToolCallComponent } from '#/tui/components/messages/tool-call/index';
 import { ShellRunComponent } from '#/tui/components/messages/shell/shell-run';
 import * as toolCallInternals from '#/tui/components/messages/tool-call/tool-call-internals';
+import {
+  resetTranscriptMeasureModeForTest,
+  withTranscriptMeasureMode,
+} from '#/tui/renderer';
 
 describe('transcript paint mode (scroll hard-hang guard)', () => {
   it('restores suppress flag after withTranscriptPaintMode', () => {
@@ -63,5 +67,39 @@ describe('transcript paint mode (scroll hard-hang guard)', () => {
     });
     expect(requestRender).not.toHaveBeenCalled();
     shell.dispose();
+  });
+
+  it('geometry measure mode suppresses live tool ticks (contentRowCount path)', () => {
+    resetTranscriptScrollActivityForTest();
+    resetTranscriptMeasureModeForTest();
+    expect(areLiveToolTicksSuppressed()).toBe(false);
+    withTranscriptMeasureMode(() => {
+      expect(areLiveToolTicksSuppressed()).toBe(true);
+    });
+    expect(areLiveToolTicksSuppressed()).toBe(false);
+
+    const rebuildSpy = vi.spyOn(toolCallInternals, 'rebuildToolCallComponentBody');
+    const tc = new ToolCallComponent(
+      {
+        id: 'call_measure_mode',
+        name: 'Write',
+        args: {
+          file_path: 'measure.ts',
+          content: Array.from({ length: 20 }, (_, i) => `export const n${i} = ${i};`).join('\n'),
+        },
+        streamingStartedAtMs: Date.now(),
+      },
+      undefined,
+    );
+    tc.render(100);
+    rebuildSpy.mockClear();
+
+    // Geometry probe must not rebuildBody / re-enter live ticks.
+    withTranscriptMeasureMode(() => {
+      tc.render(100);
+      tc.render(100);
+    });
+    expect(rebuildSpy).not.toHaveBeenCalled();
+    rebuildSpy.mockRestore();
   });
 });

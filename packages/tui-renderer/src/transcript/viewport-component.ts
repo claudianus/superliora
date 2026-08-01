@@ -20,6 +20,7 @@ import {
   registerTranscriptGeometryParent,
   unregisterTranscriptGeometryParent,
 } from './geometry-parent';
+import { withTranscriptMeasureMode } from './measure-mode';
 import {
   normalizeTranscriptLineCount,
   normalizeTranscriptPadding,
@@ -416,41 +417,47 @@ export class RendererTranscriptViewportComponent extends Container {
       }
     }
 
-    let total = 0;
-    for (let i = 0; i < n; i++) {
-      const child = this.children[i]!;
-      if (geometry.childRefs[i] === child && Number.isFinite(geometry.counts[i])) {
-        total += geometry.counts[i]!;
-        continue;
+    // Probe-only: never run component live ticks / rebuilds / requestRender.
+    // Those side effects re-dirty geometry and busy-loop the main thread.
+    return withTranscriptMeasureMode(() => {
+      let total = 0;
+      for (let i = 0; i < n; i++) {
+        const child = this.children[i]!;
+        if (geometry.childRefs[i] === child && Number.isFinite(geometry.counts[i])) {
+          total += geometry.counts[i]!;
+          continue;
+        }
+        const count = child.render(inner).length;
+        geometry.childRefs[i] = child;
+        geometry.counts[i] = count;
+        total += count;
       }
-      const count = child.render(inner).length;
-      geometry.childRefs[i] = child;
-      geometry.counts[i] = count;
-      total += count;
-    }
-    geometry.total = total;
-    this.geometrySnapshot = {
-      generation: this.geometryGeneration,
-      inner,
-      n,
-      counts: geometry.counts,
-      total,
-    };
-    return { counts: geometry.counts, total };
+      geometry.total = total;
+      this.geometrySnapshot = {
+        generation: this.geometryGeneration,
+        inner,
+        n,
+        counts: geometry.counts,
+        total,
+      };
+      return { counts: geometry.counts, total };
+    });
   }
 
   private measureAllChildLineCounts(
     inner: number,
     n: number,
   ): RendererTranscriptLineCountCacheEntry {
-    const counts: number[] = Array.from({ length: n });
-    let total = 0;
-    for (let i = 0; i < n; i++) {
-      const count = this.children[i]!.render(inner).length;
-      counts[i] = count;
-      total += count;
-    }
-    return { counts, total };
+    return withTranscriptMeasureMode(() => {
+      const counts: number[] = Array.from({ length: n });
+      let total = 0;
+      for (let i = 0; i < n; i++) {
+        const count = this.children[i]!.render(inner).length;
+        counts[i] = count;
+        total += count;
+      }
+      return { counts, total };
+    });
   }
 
   private formatCanvasLine(line: string, width: number): RendererRegionLine {

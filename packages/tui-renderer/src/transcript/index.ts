@@ -40,6 +40,12 @@ export {
   type RendererTranscriptGeometryParent,
 } from './geometry-parent';
 
+export {
+  isTranscriptMeasureMode,
+  resetTranscriptMeasureModeForTest,
+  withTranscriptMeasureMode,
+} from './measure-mode';
+
 export { RendererPrefixedWrappedLine } from './prefixed-wrapped-line';
 
 export {

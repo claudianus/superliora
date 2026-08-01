@@ -4,6 +4,7 @@ import {
   composeRendererRegions,
   createRendererViewportSnapshot,
   decodeNativeInput,
+  isTranscriptMeasureMode,
   measureRendererScrollbar,
   notifyTranscriptChildGeometryDirty,
   projectRendererViewportHistoryStatus,
@@ -20,6 +21,7 @@ import {
   rendererViewportActionForInput,
   renderRendererVerticalScrollbar,
   Text,
+  withTranscriptMeasureMode,
 } from '../src';
 
 describe('RendererViewport', () => {
@@ -1279,6 +1281,29 @@ describe('RendererViewport', () => {
       ],
     });
   });
+
+  it('contentRowCount probes run under transcript measure-mode isolation', () => {
+    const viewport = new RendererTranscriptViewport();
+    const component = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => 10,
+    });
+    let sawMeasure = false;
+    component.addChild({
+      invalidate: () => {},
+      render: () => {
+        if (isTranscriptMeasureMode()) sawMeasure = true;
+        return ['line'];
+      },
+    });
+    expect(component.contentRowCount(80)).toBe(1);
+    expect(sawMeasure).toBe(true);
+    expect(isTranscriptMeasureMode()).toBe(false);
+    withTranscriptMeasureMode(() => {
+      expect(isTranscriptMeasureMode()).toBe(true);
+    });
+    expect(isTranscriptMeasureMode()).toBe(false);
+  });
 });
 
 describe('Renderer scrollbar', () => {
@@ -1418,3 +1443,4 @@ describe('Renderer scrollbar', () => {
 function rowText(buffer: RendererCellBuffer, y: number): string {
   return Array.from({ length: buffer.width }, (_, x) => buffer.getCell(x, y).char).join('');
 }
+
