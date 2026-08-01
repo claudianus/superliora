@@ -62,11 +62,7 @@ export async function runShell(
   // plugin theme id does not silently fall back to dark.
   await initImageProtocolProbe();
 
-  const resolvedWork = await resolveSessionWorkDir({
-    worktree: opts.worktree,
-    // Resume / continue must reopen the original workDir, not spawn another tree.
-    autoIsolate: opts.session === undefined && !opts.continue,
-  });
+  const resolvedWork = await resolveSessionWorkDir({ worktree: opts.worktree });
   const workDir = resolvedWork.workDir;
   const telemetryBootstrap = createCliTelemetryBootstrap();
   const telemetryClient: TelemetryClient = {

@@ -1,5 +1,5 @@
 ---
-"@superliora/liora": minor
+"@superliora/liora": patch
 ---
 
-New sessions auto-isolate into a git worktree (`~/.superliora/worktrees/`) so concurrent agents no longer share one dirty checkout. Opt out with `--no-worktree` or `SUPERLIORA_NO_WORKTREE=1`. Status bar and transcript also drop redundant model/route/compact noise that already has a dedicated surface.
+Status bar and transcript drop redundant model/route/compact noise that already has a dedicated surface. Session worktree isolation stays opt-in via `--worktree` — large or long-running work should use a dedicated worktree/branch rather than auto-creating one for every session.
