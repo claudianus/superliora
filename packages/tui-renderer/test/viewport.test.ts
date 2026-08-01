@@ -21,6 +21,7 @@ import {
   rendererViewportActionForInput,
   renderRendererVerticalScrollbar,
   Text,
+  withTranscriptCheapPaintMode,
   withTranscriptMeasureMode,
 } from '../src';
 
@@ -897,6 +898,37 @@ describe('RendererViewport', () => {
     component.render(80);
     expect(paintCount).toBe(0);
     expect(afterScroll).toBeGreaterThan(0);
+  });
+
+  it('cheap-paint pure scroll does not re-probe warm child.render every frame', () => {
+    let childRenders = 0;
+    const stable = Array.from({ length: 80 }, (_, i) => `t${i}`);
+    const viewport = new RendererTranscriptViewport();
+    const component = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => 6,
+    });
+    component.addChild({
+      invalidate: () => {},
+      render: () => {
+        childRenders += 1;
+        return stable;
+      },
+    });
+
+    // Warm geometry + overflow cache outside cheap paint (identity probe ok).
+    component.render(80);
+    const afterWarm = childRenders;
+    expect(afterWarm).toBeGreaterThan(0);
+
+    withTranscriptCheapPaintMode(() => {
+      for (let step = 0; step < 12; step++) {
+        viewport.scroll('line-up');
+        component.render(80);
+      }
+    });
+    // Under cheap paint, warm identity skips child.render re-probes entirely.
+    expect(childRenders).toBe(afterWarm);
   });
 
   it('ambient paint-epoch advance does not wipe overflow format cache for static children', () => {

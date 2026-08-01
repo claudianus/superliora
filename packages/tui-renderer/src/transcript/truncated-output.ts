@@ -185,20 +185,13 @@ export class RendererTruncatedOutputComponent implements RendererComponent {
       return;
     }
 
-    // Pure-scroll cheap paint: plain first so a wheel storm through cold
-    // history never sync-highlights dozens of cards. Schedule full format
-    // when a host queue exists; otherwise stay plain until a real paint.
+    // Pure-scroll / measure cheap paint: plain only. Do NOT enqueue deferred
+    // highlight here — a wheel storm intersecting dozens of cold tool cards
+    // used to schedule that many format jobs, and each completion wiped the
+    // whole transcript geometry cache (see host onFormatApplied). Stay plain
+    // until a real ambient/content paint schedules format once.
     if (shouldSkipExpensiveTranscriptFormat()) {
       this.ensurePlainLaidOut();
-      if (this.onDeferredFormat !== undefined && !this.deferredScheduled) {
-        this.deferredScheduled = true;
-        this.formatPending = this.shouldDeferFormat();
-        this.onDeferredFormat(() => {
-          if (this.formattedReady || !this.deferredScheduled) return;
-          this.applyFormat();
-          this.onFormatApplied?.();
-        });
-      }
       return;
     }
 

@@ -5,6 +5,7 @@ import {
   deferredTranscriptFormatQueueSizeForTest,
   flushDeferredTranscriptFormatQueueForTest,
   scheduleDeferredTranscriptFormat,
+  setDeferredFormatHoldPredicateForTest,
   setDeferredFormatSchedulerForTest,
 } from '#/tui/utils/transcript/deferred-format-queue';
 
@@ -12,11 +13,13 @@ describe('deferred transcript format queue', () => {
   afterEach(() => {
     clearDeferredTranscriptFormatQueueForTest();
     setDeferredFormatSchedulerForTest(undefined);
+    setDeferredFormatHoldPredicateForTest(undefined);
   });
 
   it('drains jobs through the scheduler with a per-turn cap', () => {
     const ran: number[] = [];
     const scheduled: Array<() => void> = [];
+    setDeferredFormatHoldPredicateForTest(() => false);
     setDeferredFormatSchedulerForTest((run) => {
       scheduled.push(run);
     });
@@ -39,8 +42,34 @@ describe('deferred transcript format queue', () => {
     expect(deferredTranscriptFormatQueueSizeForTest()).toBe(0);
   });
 
+  it('holds drain while scroll activity is recent', () => {
+    const ran: number[] = [];
+    const scheduled: Array<() => void> = [];
+    let hold = true;
+    setDeferredFormatHoldPredicateForTest(() => hold);
+    setDeferredFormatSchedulerForTest((run) => {
+      scheduled.push(run);
+    });
+
+    scheduleDeferredTranscriptFormat(() => {
+      ran.push(1);
+    });
+    expect(scheduled.length).toBe(1);
+    scheduled[0]!();
+    // Hold active: job stays queued, drain re-arms without running work.
+    expect(ran).toEqual([]);
+    expect(deferredTranscriptFormatQueueSizeForTest()).toBe(1);
+    expect(scheduled.length).toBe(2);
+
+    hold = false;
+    scheduled[1]!();
+    expect(ran).toEqual([1]);
+    expect(deferredTranscriptFormatQueueSizeForTest()).toBe(0);
+  });
+
   it('swallows job errors so one bad body cannot stall the queue', () => {
     const ran: string[] = [];
+    setDeferredFormatHoldPredicateForTest(() => false);
     setDeferredFormatSchedulerForTest((run) => {
       run();
     });

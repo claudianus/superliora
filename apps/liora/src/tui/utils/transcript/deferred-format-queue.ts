@@ -4,7 +4,12 @@
  * Fast wheel scroll used to format every newly visible tool body synchronously
  * inside `render()`, freezing the TUI. Large bodies now paint plain text first
  * and enqueue work here so at most a few formats run per idle turn.
+ *
+ * Drain is also held off while transcript scroll paint is recent so a wheel
+ * storm never interleaves multi-k highlight jobs with pure-scroll frames.
  */
+
+import { wasRecentTranscriptScroll } from '#/tui/utils/render/transcript-paint-mode';
 
 export type DeferredFormatJob = () => void;
 
@@ -12,16 +17,31 @@ export type DeferredFormatJob = () => void;
 export const DEFERRED_FORMAT_BUDGET_MS = 4;
 /** Hard cap on jobs started in one drain (even if each is tiny). */
 export const DEFERRED_FORMAT_MAX_JOBS_PER_DRAIN = 2;
+/** How long after a scroll paint before deferred formats may run. */
+export const DEFERRED_FORMAT_SCROLL_HOLD_MS = 220;
 
 const queue: DeferredFormatJob[] = [];
 let drainScheduled = false;
 let drainImpl: ((run: () => void) => void) | undefined;
+let holdPredicate: (() => boolean) | undefined;
 
 /** Override the scheduler (tests). Default: `setImmediate` / `setTimeout(0)`. */
 export function setDeferredFormatSchedulerForTest(
   schedule: ((run: () => void) => void) | undefined,
 ): void {
   drainImpl = schedule;
+}
+
+/** Override scroll-hold gate (tests). Default: recent transcript scroll. */
+export function setDeferredFormatHoldPredicateForTest(
+  predicate: (() => boolean) | undefined,
+): void {
+  holdPredicate = predicate;
+}
+
+function shouldHoldForScroll(): boolean {
+  if (holdPredicate !== undefined) return holdPredicate();
+  return wasRecentTranscriptScroll(Date.now(), DEFERRED_FORMAT_SCROLL_HOLD_MS);
 }
 
 function defaultSchedule(run: () => void): void {
@@ -42,8 +62,32 @@ function scheduleDrain(): void {
   });
 }
 
+function scheduleDrainAfterHold(): void {
+  if (drainScheduled) return;
+  drainScheduled = true;
+  // Must not use setImmediate/0 here — that busy-spins until the hold expires.
+  if (drainImpl !== undefined) {
+    drainImpl(() => {
+      drainScheduled = false;
+      drainQueue();
+    });
+    return;
+  }
+  const timer = setTimeout(() => {
+    drainScheduled = false;
+    drainQueue();
+  }, DEFERRED_FORMAT_SCROLL_HOLD_MS);
+  timer.unref?.();
+}
+
 function drainQueue(): void {
   if (queue.length === 0) return;
+  // Wheel / page-nav still active: do not start highlight jobs that fight
+  // pure-scroll frames. Reschedule after the hold window (not immediate).
+  if (shouldHoldForScroll()) {
+    scheduleDrainAfterHold();
+    return;
+  }
   const started = Date.now();
   let ran = 0;
   while (queue.length > 0 && ran < DEFERRED_FORMAT_MAX_JOBS_PER_DRAIN) {
