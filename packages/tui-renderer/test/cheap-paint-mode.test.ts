@@ -75,9 +75,10 @@ describe('transcript cheap-paint mode', () => {
     expect(builds).toBe(2);
   });
 
-  it('TruncatedOutput stays plain under cheap paint and formats later', () => {
+  it('TruncatedOutput stays plain under cheap paint without scheduling format', () => {
     const body = `${'x'.repeat(2_000)}\nmore\nlines\nhere`;
     let formatCalls = 0;
+    let scheduleCount = 0;
     let scheduled: (() => void) | undefined;
     const component = new RendererTruncatedOutputComponent(body, {
       expanded: false,
@@ -88,6 +89,7 @@ describe('transcript cheap-paint mode', () => {
         return `FMT:${text.slice(0, 12)}`;
       },
       onDeferredFormat: (apply) => {
+        scheduleCount += 1;
         scheduled = apply;
       },
     });
@@ -95,10 +97,14 @@ describe('transcript cheap-paint mode', () => {
     withTranscriptCheapPaintMode(() => {
       const lines = component.render(80);
       expect(formatCalls).toBe(0);
+      expect(scheduleCount).toBe(0);
       expect(lines.some((l) => l.includes('x'.repeat(8)))).toBe(true);
       expect(lines.some((l) => l.includes('FMT:'))).toBe(false);
     });
 
+    // Real paint schedules deferred format once.
+    component.render(80);
+    expect(scheduleCount).toBe(1);
     expect(scheduled).toBeTypeOf('function');
     scheduled?.();
     expect(formatCalls).toBe(1);

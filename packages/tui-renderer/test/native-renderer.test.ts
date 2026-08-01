@@ -800,6 +800,35 @@ describe('NativeTerminalRenderer', () => {
     renderer.stop();
   });
 
+  it('does not defer transcript-scroll frames while output is backpressured', () => {
+    // Permanent freeze: viewport.start moved on wheel but paint was deferred
+    // forever when drain never arrived (or thrash-looped). Interactive scroll
+    // must still schedule a frame.
+    const scheduler = new FakeRenderLoopScheduler();
+    const output = new FakeBackpressureOutput();
+    const frames: Array<readonly string[]> = [];
+    const renderer = new NativeTerminalRenderer({
+      output,
+      scheduler,
+      renderOnStart: true,
+      render: ({ frame, renderer: frameRenderer }) => {
+        frames.push(frame.causes);
+        frameRenderer.writeText(0, 0, `f${String(frame.frame)}`);
+      },
+    });
+
+    renderer.start();
+    scheduler.advance(0);
+    expect(renderer.isOutputBackpressured).toBe(true);
+    expect(frames).toEqual([['start']]);
+
+    renderer.requestRender('transcript-scroll');
+    scheduler.advance(0);
+
+    expect(frames.at(-1)).toEqual(expect.arrayContaining(['transcript-scroll']));
+    renderer.stop();
+  });
+
   it('keeps renderer trace history bounded and resettable', () => {
     const scheduler = new FakeRenderLoopScheduler();
     const output = new FakeOutput();

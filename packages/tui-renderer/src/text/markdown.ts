@@ -6,7 +6,13 @@ import {
   type RendererTextBackgroundFn,
 } from '../text/component';
 import { renderRendererDividerRow } from '../component-primitives/index';
-import { shouldSkipExpensiveTranscriptFormat } from '../transcript/measure-mode';
+import {
+  TRANSCRIPT_MEASURE_FULL_WRAP_CHAR_CAP,
+  estimateTranscriptWrappedRowCount,
+  isTranscriptMeasureMode,
+  measurePlaceholderLines,
+  shouldSkipExpensiveTranscriptFormat,
+} from '../transcript/measure-mode';
 
 export interface DefaultTextStyle {
   readonly color?: RendererTextBackgroundFn;
@@ -83,6 +89,34 @@ export class Markdown implements Component {
   render(width: number): string[] {
     const safeWidth = normalizeWidth(width);
     const cheap = shouldSkipExpensiveTranscriptFormat();
+
+    // Geometry probes: large bodies must not parse+wrap the whole document.
+    // Permanent freezes (10+ minutes) were contentRowCount measuring every
+    // cold multi-k assistant message with full Markdown layout.
+    if (
+      isTranscriptMeasureMode() &&
+      this.text.length > TRANSCRIPT_MEASURE_FULL_WRAP_CHAR_CAP
+    ) {
+      if (
+        this.cachedLines !== undefined &&
+        this.cachedText === this.text &&
+        this.cachedWidth === safeWidth
+      ) {
+        return this.cachedLines;
+      }
+      if (
+        this.cheapCachedLines !== undefined &&
+        this.cheapCachedText === this.text &&
+        this.cheapCachedWidth === safeWidth
+      ) {
+        return this.cheapCachedLines;
+      }
+      const paddingX = normalizePadding(this.paddingX);
+      const paddingY = normalizePadding(this.paddingY);
+      const contentWidth = Math.max(1, safeWidth - paddingX * 2);
+      const rows = estimateTranscriptWrappedRowCount(this.text, contentWidth, paddingY);
+      return measurePlaceholderLines(rows);
+    }
 
     if (cheap) {
       // Prefer full cache when already warm (highlighted layout is fine for scroll).

@@ -1,4 +1,10 @@
 import { ANSI_RESET_STYLE } from '../terminal/output';
+import {
+  TRANSCRIPT_MEASURE_FULL_WRAP_CHAR_CAP,
+  estimateTranscriptWrappedRowCount,
+  isTranscriptMeasureMode,
+  measurePlaceholderLines,
+} from '../transcript/measure-mode';
 import { measureDisplayWidth, splitDisplayClusters } from './metrics';
 
 export interface RendererComponent {
@@ -53,6 +59,20 @@ export class Text implements RendererComponent {
     const safeWidth = normalizeTextWidth(width);
     if (this.cachedLines !== undefined && this.cachedText === this.text && this.cachedWidth === safeWidth) {
       return this.cachedLines;
+    }
+
+    // Geometry probes of multi-k bodies: never run full ANSI wrap. Permanent
+    // freezes came from contentRowCount → child.render → wrap of every cold
+    // historical message in one stack with no yield.
+    if (
+      isTranscriptMeasureMode() &&
+      this.text.length > TRANSCRIPT_MEASURE_FULL_WRAP_CHAR_CAP
+    ) {
+      const paddingX = normalizePadding(this.paddingX);
+      const paddingY = normalizePadding(this.paddingY);
+      const contentWidth = Math.max(1, safeWidth - paddingX * 2);
+      const rows = estimateTranscriptWrappedRowCount(this.text, contentWidth, paddingY);
+      return measurePlaceholderLines(rows);
     }
 
     const result = this.renderUncached(safeWidth);

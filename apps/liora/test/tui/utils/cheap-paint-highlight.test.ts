@@ -53,7 +53,7 @@ describe('pure-scroll cheap paint freezes class', () => {
     expect(painted.length).toBeGreaterThan(0);
   });
 
-  it('large TruncatedOutput defers format under pure-scroll paint mode', () => {
+  it('large TruncatedOutput stays plain and does not enqueue format under pure-scroll', () => {
     setDeferredFormatSchedulerForTest(() => {
       /* hold jobs */
     });
@@ -67,9 +67,15 @@ describe('pure-scroll cheap paint freezes class', () => {
     });
 
     withTranscriptPaintMode({ suppressLiveToolTicks: true }, () => {
-      component.render(100);
-      expect(component.isFormatPending).toBe(true);
+      const lines = component.render(100);
+      // Wheel path must not schedule deferred highlight (queue storms → freeze).
+      expect(component.isFormatPending).toBe(false);
+      expect(lines.length).toBeGreaterThan(0);
     });
+
+    // Ambient/content paint may then defer format once.
+    component.render(100);
+    expect(component.isFormatPending).toBe(true);
   });
 
   it('computeDiffLines soft-caps LCS input size', () => {

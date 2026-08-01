@@ -41,14 +41,16 @@ export {
 } from './geometry-parent';
 
 export {
+  TRANSCRIPT_MEASURE_FULL_WRAP_CHAR_CAP,
+  estimateTranscriptWrappedRowCount,
   isTranscriptCheapPaintMode,
   isTranscriptMeasureMode,
+  measurePlaceholderLines,
   resetTranscriptMeasureModeForTest,
   shouldSkipExpensiveTranscriptFormat,
   withTranscriptCheapPaintMode,
   withTranscriptMeasureMode,
 } from './measure-mode';
-
 export { RendererPrefixedWrappedLine } from './prefixed-wrapped-line';
 
 export {

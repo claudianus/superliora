@@ -48,7 +48,13 @@ export class NativeRendererAutoFrameHold {
       return;
     }
     this.releaseHeldIfReady();
-    if (this.callbacks.shouldDeferFrameForBackpressure()) {
+    // Interactive navigation must never sit behind stdout backpressure —
+    // deferring transcript-scroll left the viewport stuck for minutes while
+    // drain never fired (or kept thrashing). Ambient/content may still wait.
+    if (
+      this.callbacks.shouldDeferFrameForBackpressure() &&
+      !isInteractiveRenderCause(cause)
+    ) {
       this.callbacks.deferRenderCause(cause);
       return;
     }
@@ -133,4 +139,9 @@ export class NativeRendererAutoFrameHold {
     if (this.shouldHoldAutoFrames()) return;
     this.releaseHeld();
   }
+}
+
+/** Wheel/keys/resize must paint even when stdout is backpressured. */
+export function isInteractiveRenderCause(cause: NativeRenderCause): boolean {
+  return cause === 'input' || cause === 'resize' || cause === 'transcript-scroll';
 }

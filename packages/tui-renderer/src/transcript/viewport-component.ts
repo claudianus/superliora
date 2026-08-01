@@ -20,7 +20,7 @@ import {
   registerTranscriptGeometryParent,
   unregisterTranscriptGeometryParent,
 } from './geometry-parent';
-import { withTranscriptMeasureMode } from './measure-mode';
+import { shouldSkipExpensiveTranscriptFormat, withTranscriptMeasureMode } from './measure-mode';
 import {
   normalizeTranscriptLineCount,
   normalizeTranscriptPadding,
@@ -419,27 +419,62 @@ export class RendererTranscriptViewportComponent extends Container {
 
     // Probe-only: never run component live ticks / rebuilds / requestRender.
     // Those side effects re-dirty geometry and busy-loop the main thread.
+    //
+    // Hard wall-clock budget: remasuring hundreds of cold multi-k children in
+    // one stack is the permanent-freeze class (event loop blocked for minutes).
+    // Past the budget, keep prior counts or a 1-row provisional so scroll can
+    // paint; the next content/scroll frame continues dirty slots.
     return withTranscriptMeasureMode(() => {
+      const measureStarted =
+        typeof performance !== 'undefined' && typeof performance.now === 'function'
+          ? performance.now()
+          : Date.now();
+      const MEASURE_BUDGET_MS = 12;
       let total = 0;
+      let hitBudget = false;
       for (let i = 0; i < n; i++) {
         const child = this.children[i]!;
         if (geometry.childRefs[i] === child && Number.isFinite(geometry.counts[i])) {
           total += geometry.counts[i]!;
           continue;
         }
+        if (hitBudget) {
+          const provisional =
+            Number.isFinite(geometry.counts[i]) && (geometry.counts[i] ?? 0) > 0
+              ? geometry.counts[i]!
+              : 1;
+          geometry.counts[i] = provisional;
+          // Leave childRefs undefined so the next resolve remeasures this slot.
+          geometry.childRefs[i] = undefined;
+          total += provisional;
+          continue;
+        }
         const count = child.render(inner).length;
         geometry.childRefs[i] = child;
         geometry.counts[i] = count;
         total += count;
+        const now =
+          typeof performance !== 'undefined' && typeof performance.now === 'function'
+            ? performance.now()
+            : Date.now();
+        if (now - measureStarted >= MEASURE_BUDGET_MS) {
+          hitBudget = true;
+        }
       }
       geometry.total = total;
-      this.geometrySnapshot = {
-        generation: this.geometryGeneration,
-        inner,
-        n,
-        counts: geometry.counts,
-        total,
-      };
+      // When we deferred dirty slots, do not install the O(1) snapshot so the
+      // next frame continues remasure instead of freezing wrong totals forever.
+      if (!hitBudget) {
+        this.geometrySnapshot = {
+          generation: this.geometryGeneration,
+          inner,
+          n,
+          counts: geometry.counts,
+          total,
+        };
+      } else {
+        this.geometrySnapshot = undefined;
+      }
       return { counts: geometry.counts, total };
     });
   }
@@ -602,6 +637,11 @@ export class RendererTranscriptViewportComponent extends Container {
       cache.childRenderRefs[childIndex] = lines;
       sparse = undefined;
       cache.childFormattedSparse[childIndex] = undefined;
+    } else if (shouldSkipExpensiveTranscriptFormat()) {
+      // Pure-scroll / measure: identity match is enough. Re-probing child.render
+      // every wheel frame re-enters multi-k Markdown/Text width caches and was
+      // a residual freeze when many tall cards stayed in the visible window.
+      // Ambient/content frames still probe below so live animation refs update.
     } else {
       // Probe render: animated children return a new array each epoch; static
       // caches often return the same reference. When the array is new but line

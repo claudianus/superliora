@@ -273,10 +273,14 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
   };
   self = state;
   // Deferred tool-body highlight: plain paint first, then refresh when
-  // pretty/ANSI finishes. Geometry must remeasure (JSON pretty can grow
-  // nested window height); measure mode stays cheap (no re-highlight).
+  // pretty/ANSI finishes. Paint-only — never wipe the whole transcript
+  // geometry cache. Truncated bodies keep capped row counts (maxLines /
+  // nested viewport / expanded visual cap), so pretty/ANSI almost never
+  // changes parent geometry; a full invalidateGeometryAndPaint here was the
+  // residual hard freeze under repeated scroll (every format completion
+  // forced O(transcript) remeasure on the next wheel frame).
   setTruncatedOutputFormatAppliedHandler(() => {
-    state.transcriptContainer.invalidateGeometryAndPaint();
+    state.transcriptContainer.invalidatePaint();
     requestTUIContentRender(state);
   });
   return state;

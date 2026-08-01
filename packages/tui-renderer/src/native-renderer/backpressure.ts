@@ -9,9 +9,16 @@ export interface NativeRendererBackpressureCallbacks {
   readonly loopRequestAnimationFrame: (callback: NativeAnimationFrameCallback) => number;
 }
 
+/**
+ * If `drain` never fires after write() returned false (stuck PTY / terminal),
+ * force-clear backpressure so interactive frames are not deferred forever.
+ */
+export const BACKPRESSURE_STUCK_TIMEOUT_MS = 250;
+
 export class NativeRendererBackpressure {
   private outputBackpressured = false;
   private outputDrainListener: (() => void) | undefined;
+  private stuckTimer: { unref?(): void } | undefined;
   private readonly deferredRenderCauses = new Set<NativeRenderCause>();
   private readonly deferredAnimationCallbacks = new Map<number, NativeAnimationFrameCallback>();
   private nextDeferredAnimationFrameId = -1;
@@ -60,10 +67,12 @@ export class NativeRendererBackpressure {
     };
     this.outputDrainListener = listener;
     this.output.on('drain', listener);
+    this.armStuckWatchdog();
     this.callbacks.recordMarker('terminal.output_backpressure');
   }
 
   clear(): void {
+    this.clearStuckWatchdog();
     if (this.outputDrainListener !== undefined) {
       if (this.output.off !== undefined) {
         this.output.off('drain', this.outputDrainListener);
@@ -75,6 +84,28 @@ export class NativeRendererBackpressure {
     this.outputBackpressured = false;
     this.deferredRenderCauses.clear();
     this.deferredAnimationCallbacks.clear();
+  }
+
+  private armStuckWatchdog(): void {
+    this.clearStuckWatchdog();
+    // setTimeout is process-global; prefer it over the render scheduler so a
+    // blocked render loop still recovers when drain never arrives.
+    const timer = setTimeout(() => {
+      this.stuckTimer = undefined;
+      if (!this.outputBackpressured) return;
+      this.callbacks.recordMarker('terminal.output_backpressure_stuck', {
+        timeoutMs: BACKPRESSURE_STUCK_TIMEOUT_MS,
+      });
+      this.handleDrain();
+    }, BACKPRESSURE_STUCK_TIMEOUT_MS);
+    timer.unref?.();
+    this.stuckTimer = timer;
+  }
+
+  private clearStuckWatchdog(): void {
+    if (this.stuckTimer === undefined) return;
+    clearTimeout(this.stuckTimer as ReturnType<typeof setTimeout>);
+    this.stuckTimer = undefined;
   }
 
   private handleDrain(): void {
