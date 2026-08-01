@@ -68,13 +68,12 @@ describe('transcript scroll reveal over the viewport window', () => {
     expect(seen).not.toContain('line-29');
     expect(seen).not.toContain('line-10');
     // ...and the footer promises the scroll gesture.
-    expect(seen).toContain('⋯ 27 more lines — scroll to expand');
+    expect(seen).toContain('⋯ 27 more lines — scroll for more');
   });
 
   it('expanded blocks expose every line through viewport scrolling', () => {
     const { viewport, component } = buildViewport(6);
-    // Scroll reveal flips `expanded` on the tool card; simulate the revealed
-    // state and verify the virtual-scroll window can reach all 30 lines.
+    // Expanded truncated bodies remain readable via the transcript viewport.
     component.addChild(
       new TruncatedOutputComponent(output, {
         expanded: true,
@@ -87,7 +86,7 @@ describe('transcript scroll reveal over the viewport window', () => {
     for (let i = 0; i < 30; i++) {
       expect(seen).toContain(`line-${String(i).padStart(2, '0')}`);
     }
-    expect(seen).not.toContain('scroll to expand');
+    expect(seen).not.toContain('scroll for more');
   });
 
   it('keeps the newest output in view before any scroll (follow-output)', () => {

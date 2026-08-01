@@ -20,7 +20,7 @@ describe('TruncatedOutputComponent', () => {
     const lines = strip(component.render(80).join('\n')).split('\n');
     expect(lines[0]?.startsWith('      a')).toBe(true);
     expect(lines[1]?.startsWith('      b')).toBe(true);
-    expect(lines[2]).toBe('      ⋯ 3 more lines — scroll to expand');
+    expect(lines[2]).toBe('      ⋯ 3 more lines — scroll for more');
   });
 
   it('defaults to a two-space indent for both content and hint', () => {
@@ -32,7 +32,7 @@ describe('TruncatedOutputComponent', () => {
 
     const lines = strip(component.render(80).join('\n')).split('\n');
     expect(lines[0]?.startsWith('  x')).toBe(true);
-    expect(lines[1]).toBe('  ⋯ 2 more lines — scroll to expand');
+    expect(lines[1]).toBe('  ⋯ 2 more lines — scroll for more');
   });
 
   it('omits the ctrl+o promise when expandHint is false', () => {
@@ -107,7 +107,7 @@ describe('TruncatedOutputComponent', () => {
     });
 
     const out = strip(component.render(80).join('\n'));
-    expect(out).not.toContain('scroll to expand');
+    expect(out).not.toContain('scroll for more');
     expect(out).not.toContain('more lines');
   });
 
@@ -124,6 +124,6 @@ describe('TruncatedOutputComponent', () => {
     for (const line of lines) {
       expect(visibleWidth(line)).toBeLessThanOrEqual(37);
     }
-    expect(strip(lines.at(-1) ?? '')).toContain('scroll to expand');
+    expect(strip(lines.at(-1) ?? '')).toContain('scroll for more');
   });
 });

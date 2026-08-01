@@ -76,7 +76,7 @@ export function handleNativeTUIEditorAppShortcut(
     host.onCtrlB?.();
     return true;
   }
-  // Ctrl-O: toggle tool output / reasoning expansion (advertised in card footers).
+  // Ctrl-O: cycle transcript density (minimal → compact → standard → full).
   if (matchesKey(data, Key.ctrl('o'))) {
     host.onToggleToolExpand?.();
     return true;

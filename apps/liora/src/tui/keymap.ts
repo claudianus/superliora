@@ -58,10 +58,10 @@ export const KEYMAP_ALWAYS: readonly KeymapBinding[] = [
   {
     id: 'expand-tool-output',
     key: 'Ctrl-O',
-    description: 'Toggle tool output and reasoning expansion',
+    description: 'Cycle transcript density (minimal → compact → standard → full)',
     surface: 'always',
     category: 'navigate',
-    relatedSlash: ['/ops'],
+    relatedSlash: ['/transcript', '/ops'],
   },
   {
     id: 'expand-todo',

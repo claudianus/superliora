@@ -61,7 +61,8 @@ export class ToolOutputViewportComponent implements Component {
 
   scroll(deltaRows: number): boolean {
     const current = this.getState();
-    const next = scrollToolOutputViewport(current, deltaRows);
+    // Pass expanded so max-offset uses the taller expanded window budget.
+    const next = scrollToolOutputViewport(current, deltaRows, this.expanded);
     if (next === current) return false;
     this.setState(next);
     return true;
@@ -98,28 +99,17 @@ export class ToolOutputViewportComponent implements Component {
 
   render(width: number): string[] {
     const safeWidth = Math.max(1, Math.floor(width));
-    let contentWidth = safeWidth;
+    // Always reserve a rail column when there may be overflow so expand/collapse
+    // does not reflow content width (which would bust the child render cache).
+    const contentWidth = safeWidth > 1 ? safeWidth - 1 : safeWidth;
     let lines: string[];
 
-    if (!this.expanded && safeWidth > 1) {
-      // collapsed 상태: rail 공간을 위해 safeWidth - 1로 render하되 cache 활용
-      const collapsedWidth = safeWidth - 1;
-      if (this.cachedChildInvalid || this.cachedChildWidth !== collapsedWidth) {
-        this.cachedChildLines = this.child.render(collapsedWidth);
-        this.cachedChildWidth = collapsedWidth;
-        this.cachedChildInvalid = false;
-      }
-      contentWidth = collapsedWidth;
-      lines = this.cachedChildLines;
-    } else {
-      // expanded 상태: full width로 render하되 cache 활용
-      if (this.cachedChildInvalid || this.cachedChildWidth !== safeWidth) {
-        this.cachedChildLines = this.child.render(safeWidth);
-        this.cachedChildWidth = safeWidth;
-        this.cachedChildInvalid = false;
-      }
-      lines = this.cachedChildLines;
+    if (this.cachedChildInvalid || this.cachedChildWidth !== contentWidth) {
+      this.cachedChildLines = this.child.render(contentWidth);
+      this.cachedChildWidth = contentWidth;
+      this.cachedChildInvalid = false;
     }
+    lines = this.cachedChildLines;
 
     const state = this.syncContentRows(lines.length);
 
@@ -132,7 +122,7 @@ export class ToolOutputViewportComponent implements Component {
       return visible.map((line) => truncateToWidth(line, safeWidth, '', false));
     }
 
-    const thumb = toolOutputViewportThumb(state, visible.length);
+    const thumb = toolOutputViewportThumb(state, visible.length, this.expanded);
     const active = this.hovered || this.dragging;
     return visible.map((line, row) => {
       const content = truncateToWidth(line, contentWidth, '', true);

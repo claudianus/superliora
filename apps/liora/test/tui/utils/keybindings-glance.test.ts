@@ -58,7 +58,7 @@ describe('keybindings-glance', () => {
     expect(lines).toContain('/help');
     expect(lines).toContain(String(KEYMAP_ALL.length));
     expect(lines).toContain('Shift-Tab — Toggle Mission mode');
-    expect(lines).toContain('Ctrl-O — Toggle tool output');
+    expect(lines).toContain('Ctrl-O — Cycle transcript density');
     expect(lines).toContain('Ctrl-B — Background the current work');
     expect(lines).toContain('No keybinding editor here');
   });

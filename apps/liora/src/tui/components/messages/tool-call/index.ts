@@ -1,6 +1,6 @@
 /**
  * Renders a tool call entry in the transcript.
- * Supports expand/collapse via Ctrl+O.
+ * Density/expand follows transcript detail (Ctrl+O cycles the 4 levels).
  */
 
 import {
