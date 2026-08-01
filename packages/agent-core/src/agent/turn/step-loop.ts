@@ -7,7 +7,9 @@
 
 import {
   APIContextOverflowError,
+  APIStatusError,
   grandTotal,
+  parseStatedContextLimitTokens,
 } from '@superliora/kosong';
 
 import type { Agent } from '..';
@@ -24,13 +26,17 @@ import {
 } from '../../loop/index';
 import { ToolCallDeduplicator } from './tool-dedup';
 import { observeVerificationToolResult } from '../../sensors/verification-sensor-ledger';
+import {
+  clearPendingMutations,
+  observeFileMutationToolResult,
+} from '../../sensors/mutation-verification-sensor';
 import { toolInputRecord, toolOutputText, type TurnTelemetry } from './telemetry';
 import {
   hasStepBudgetRemaining,
   isGoalOutcomeReminderOrigin,
 } from './goal-driver';
 import type { createTurnLoopDispatch } from './loop-dispatch';
-import { maybeDualWriteLargeToolResult } from './tool-result-spill';
+import { budgetToolResultForModel } from './tool-result-budget';
 
 export interface StepLoopDeps {
   readonly agent: Agent;
@@ -84,6 +90,8 @@ export async function runTurnStepLoop(
         hooks: {
           beforeStep: async ({ signal: stepSignal }) => {
             deps.flushSteerBuffer();
+            // L1 (Claude Code micro / OpenCode prune): clear old tool dumps first.
+            agent.microCompaction.detect();
             await agent.fullCompaction.beforeStep(stepSignal);
             await agent.injection.inject();
             deduper.beginStep();
@@ -186,13 +194,23 @@ export async function runTurnStepLoop(
               ctx.args,
               ctx.result,
             );
-            const { isError, output } = finalResult;
             observeVerificationToolResult(
               agent.verificationSensorLedger,
               ctx.toolCall.name,
               ctx.args,
               finalResult,
             );
+            // Green RunProjectChecks clears pending mutation soft evidence.
+            if (ctx.toolCall.name === 'RunProjectChecks' && finalResult.isError !== true) {
+              clearPendingMutations(agent.mutationVerificationLedger);
+            }
+            // Phase B: Edit/Write/ApplyPatch success → verify nudge + pending ledger.
+            const withMutationSensor = observeFileMutationToolResult(
+              agent.mutationVerificationLedger,
+              ctx.toolCall.name,
+              finalResult,
+            );
+            const { isError, output } = withMutationSensor;
             const event = isError === true ? 'PostToolUseFailure' : 'PostToolUse';
             void agent.hooks?.fireAndForgetTrigger(event, {
               matcherValue: ctx.toolCall.name,
@@ -204,13 +222,14 @@ export async function runTurnStepLoop(
                 toolOutput: isError === true ? undefined : toolOutputText(output).slice(0, 2000),
               },
             });
-            // Append-only dual-write: keep full body in context; spill huge logs
-            // to disk so post-compaction Read can re-acquire without re-running.
-            return await maybeDualWriteLargeToolResult({
+            // Bound model-visible tool bodies; full output spills to disk with a
+            // receipt + head/tail preview so context cannot grow without limit.
+            return await budgetToolResultForModel({
               homedir: agent.homedir,
               toolName: ctx.toolCall.name,
               toolCallId: ctx.toolCall.id,
-              result: finalResult,
+              result: withMutationSensor,
+              contextWindowTokens: agent.config.modelCapabilities.max_context_tokens,
             });
           },
         },
@@ -228,8 +247,16 @@ export async function runTurnStepLoop(
         isContextOverflow ||
         agent.fullCompaction.shouldRecoverFromContextOverflow(error, estimatedRequestTokens)
       ) {
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : error instanceof APIStatusError
+              ? error.message
+              : String(error);
+        const statedLimit = parseStatedContextLimitTokens(errorMessage);
         agent.fullCompaction.observeContextOverflow(
           estimatedRequestTokens ?? agent.fullCompaction.estimateCurrentRequestTokens(),
+          statedLimit,
         );
         await agent.fullCompaction.handleOverflowError(signal, error);
         continue; // Retry with compacted context

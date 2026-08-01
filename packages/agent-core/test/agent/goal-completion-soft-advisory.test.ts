@@ -141,6 +141,17 @@ describe('evaluateGoalCompletionSoftAdvisory', () => {
     expect(advisory?.tips.join('\n')).toContain('plain Goal completed without WorkGraph evidence gate');
     expect(advisory?.tips.join('\n')).toContain('recent test/command failure evidence');
   });
+
+  it('appends mutation-pending soft tips when files were mutated without a later check', () => {
+    const advisory = evaluateGoalCompletionSoftAdvisory({
+      ultraworkRun: null,
+      mutationVerificationLedger: {
+        pending: [{ toolName: 'Edit', recordedAtMs: Date.now() }],
+      },
+    });
+    expect(advisory?.tips.join('\n')).toContain('mutated this session without a subsequent green');
+    expect(advisory?.tips.join('\n')).toContain('Edit');
+  });
 });
 
 describe('formatGoalCompletionSoftAdvisory', () => {

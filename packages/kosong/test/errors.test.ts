@@ -16,8 +16,23 @@ import {
   isTransientNoBodyStatusError,
   isTransientProviderError,
   normalizeAPIStatusError,
+  parseStatedContextLimitTokens,
 } from '#/errors';
 import { describe, expect, it } from 'vitest';
+
+describe('parseStatedContextLimitTokens', () => {
+  it('extracts maximum prompt length from provider 400 copy', () => {
+    expect(
+      parseStatedContextLimitTokens(
+        "This model's maximum prompt length is 500000 but the request contains 2071943 tokens.",
+      ),
+    ).toBe(500_000);
+  });
+
+  it('returns undefined when no numeric ceiling is stated', () => {
+    expect(parseStatedContextLimitTokens('Bad request')).toBeUndefined();
+  });
+});
 
 describe('ChatProviderError', () => {
   it('is an instance of Error', () => {
@@ -332,6 +347,11 @@ describe('normalizeAPIStatusError', () => {
     [400, 'prompt is too long: 210000 tokens exceeds the maximum'],
     [400, 'input token count 131072 exceeds the maximum number of tokens allowed'],
     [400, 'Invalid request: Your request exceeded model token limit: 262144 (requested: 274613)'],
+    [
+      400,
+      'This model\'s maximum prompt length is 500000 but the request contains 2071943 tokens.',
+    ],
+    [400, 'maximum prompt length is 500000'],
   ])('normalizes %i "%s" to APIContextOverflowError', (statusCode, message) => {
     const error = normalizeAPIStatusError(statusCode, message, 'req-context');
     expect(error).toBeInstanceOf(APIContextOverflowError);

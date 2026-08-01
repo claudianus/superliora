@@ -76,11 +76,17 @@ export function resolveEffectiveMaxContextTokens(input: {
 export function shouldRecoverFromOverflowStatus(input: {
   readonly isContextOverflowError: boolean;
   readonly isStatus413: boolean;
+  /**
+   * True when the status/message pair matches known prompt-limit overflow
+   * shapes (including non-413 400s such as "maximum prompt length is N").
+   */
+  readonly isOverflowStatusMessage?: boolean;
   readonly estimatedRequestTokens: number;
   readonly maxContextTokens: number;
   readonly recoveryRatio: number;
 }): boolean {
   if (input.isContextOverflowError) return true;
+  if (input.isOverflowStatusMessage === true) return true;
   if (!input.isStatus413) return false;
   return (
     input.maxContextTokens > 0 &&

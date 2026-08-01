@@ -79,7 +79,7 @@ function restoreAgentRecord(agent: Agent, input: AgentRecord): void {
       agent.fullCompaction.markCompleted();
       return;
     case 'micro_compaction.apply':
-      // Historical wire only; micro-compaction was removed (append-only context).
+      agent.microCompaction.apply(input.cutoff);
       return;
     case 'plan_mode.enter':
       agent.planMode.restoreEnter(input);

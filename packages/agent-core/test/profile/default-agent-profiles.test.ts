@@ -231,19 +231,36 @@ describe('default agent profiles', () => {
     }
   });
 
-  it('exposes Review plus VisualDiff on write profiles without compat alias bloat on full', () => {
-    for (const name of ['agent', 'coder', 'plan']) {
-      const tools = DEFAULT_AGENT_PROFILES[name]?.tools ?? [];
-      expect(tools, name).toContain('Review');
-      expect(tools, name).not.toContain('LioraReview');
-      if (name !== 'plan') {
-        expect(tools, name).toContain('VisualDiff');
-      }
-    }
+  it('keeps Review on coding profiles; VisualDiff/media stay Extended (full/coder only)', () => {
+    // Default agent waist (Phase A): no Generate*/VerifySurface/VisualDiff/mcp__*.
+    const agentTools = DEFAULT_AGENT_PROFILES['agent']?.tools ?? [];
+    expect(agentTools).toContain('Review');
+    expect(agentTools).not.toContain('LioraReview');
+    expect(agentTools).not.toContain('VisualDiff');
+    expect(agentTools).not.toContain('GenerateImage');
+    expect(agentTools).not.toContain('GenerateVideo');
+    expect(agentTools).not.toContain('VerifySurface');
+    expect(agentTools).not.toContain('mcp__*');
+
+    const coderTools = DEFAULT_AGENT_PROFILES['coder']?.tools ?? [];
+    expect(coderTools).toContain('Review');
+    expect(coderTools).toContain('VisualDiff');
+    expect(coderTools).toContain('VerifySurface');
+    expect(coderTools).not.toContain('LioraReview');
+
+    const planTools = DEFAULT_AGENT_PROFILES['plan']?.tools ?? [];
+    expect(planTools).toContain('Review');
+    expect(planTools).not.toContain('VisualDiff');
+    expect(planTools).not.toContain('LioraReview');
+
     const fullTools = DEFAULT_AGENT_PROFILES['superliora-full']?.tools ?? [];
     expect(fullTools).toContain('Review');
     expect(fullTools).not.toContain('LioraReview');
     expect(fullTools).toContain('VisualDiff');
+    expect(fullTools).toContain('GenerateImage');
+    expect(fullTools).toContain('GenerateVideo');
+    expect(fullTools).toContain('VerifySurface');
+    expect(fullTools).toContain('mcp__*');
     for (const alias of FULL_PROFILE_COMPAT_ALIASES) {
       expect(fullTools).not.toContain(alias);
     }

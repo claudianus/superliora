@@ -4,14 +4,14 @@ import type {
 } from '../../loop/types';
 
 /**
- * No practical default cap: mid-result truncation hid evidence the model needed
- * and forced re-runs. Callers that still need a bound pass explicit `maxChars`.
- * `Number.MAX_SAFE_INTEGER` keeps the existing integer path without rewriting
- * the builder into a dual "unlimited" code branch.
+ * Default model-visible body size for shell/grep builders. Extremely large
+ * tool dumps still reach disk via {@link budgetToolResultForModel}; this is
+ * the first line of defence so a single Bash log cannot consume the window.
+ * Callers that need a larger bound pass explicit `maxChars`.
  */
-const DEFAULT_MAX_CHARS = Number.MAX_SAFE_INTEGER;
-/** No per-line clip by default — long log lines stay intact. */
-const DEFAULT_MAX_LINE_LENGTH: number | null = null;
+const DEFAULT_MAX_CHARS = 12_000;
+/** Soft per-line clip; long log lines stay mostly intact but cannot dominate. */
+const DEFAULT_MAX_LINE_LENGTH: number | null = 4_000;
 const TRUNCATION_MARKER = '[...truncated]';
 const TRUNCATION_MESSAGE = 'Output is truncated to fit in the message.';
 

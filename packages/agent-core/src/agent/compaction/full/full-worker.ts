@@ -17,6 +17,14 @@ import {
 import type { FullCompactionWorkerHost } from '../pipeline/types';
 import { runCompactionRound } from '../pipeline/round';
 
+/** Hard cap on multi-round compaction so a pathological history cannot loop forever. */
+const MAX_COMPACTION_ROUNDS = 8;
+/**
+ * Minimum absolute reduction per round to keep multi-rounding. Below this we stop
+ * rather than thrashing with near-zero progress.
+ */
+const MIN_ROUND_REDUCTION_TOKENS = 1_024;
+
 export async function runCompactionWorker(
   host: FullCompactionWorkerHost,
   signal: AbortSignal,
@@ -34,7 +42,7 @@ export async function runCompactionWorker(
       tokensAfter: 0,
     };
 
-    for (let round = 1; ; round++) {
+    for (let round = 1; round <= MAX_COMPACTION_ROUNDS; round++) {
       const result = await runCompactionRound(host, round, signal, data, compactedCount);
       if (!result) return;
 
@@ -65,8 +73,25 @@ export async function runCompactionWorker(
       finalResult.keptUserMessageCount = result.keptUserMessageCount;
       finalResult.keptHeadUserMessageCount = result.keptHeadUserMessageCount;
 
-      if (result.tokensBefore - result.tokensAfter < 1024) break;
-      if (!host.strategy.shouldBlock(result.tokensAfter)) break;
+      const reduced = result.tokensBefore - result.tokensAfter;
+      const stillBlocking = host.strategy.shouldBlock(result.tokensAfter);
+      // Keep multi-rounding while above the soft compact trigger, not only the
+      // hard block — otherwise a 2M → 1.95M pass can stop while still far over
+      // the working set / real API ceiling.
+      const stillOverSoft =
+        host.strategy.shouldCompact(result.tokensAfter) || stillBlocking;
+      if (reduced < MIN_ROUND_REDUCTION_TOKENS) {
+        if (stillBlocking || stillOverSoft) {
+          host.agent.telemetry.track('compaction_stalled_over_threshold', {
+            tokens_after: result.tokensAfter,
+            reduced,
+            round,
+            still_blocking: stillBlocking,
+          });
+        }
+        break;
+      }
+      if (!stillOverSoft) break;
       compactedCount = host.strategy.computeCompactCount(host.agent.context.history, data.source);
       if (compactedCount === 0) break;
     }
@@ -74,6 +99,18 @@ export async function runCompactionWorker(
     if (finalRawRefs.length > 0) finalResult.rawRefs = finalRawRefs;
     if (finalQualityWarnings.length > 0) {
       finalResult.qualityWarnings = [...new Set(finalQualityWarnings)];
+    }
+    if (host.strategy.shouldBlock(finalResult.tokensAfter)) {
+      // Partial win only — next beforeStep / overflow recovery must re-arm.
+      // Surface in quality warnings so TUI/debug can see it was not a clean reclaim.
+      const warning =
+        `compaction residual still over block threshold (${String(finalResult.tokensAfter)} tokens)`;
+      finalResult.qualityWarnings = [...(finalResult.qualityWarnings ?? []), warning];
+      host.agent.telemetry.track('compaction_completed_still_blocking', {
+        tokens_before: finalResult.tokensBefore,
+        tokens_after: finalResult.tokensAfter,
+        compacted_count: finalResult.compactedCount,
+      });
     }
     await host.agent.injection.injectAfterCompaction();
     injectResumeRecheckReminder(host, finalResult.summary);

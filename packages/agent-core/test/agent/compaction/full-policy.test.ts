@@ -208,6 +208,19 @@ describe('full-policy.ts — pure policy helpers', () => {
       ).toBe(true);
     });
 
+    it('recovers on overflow-shaped 400 status messages (max prompt length)', () => {
+      expect(
+        shouldRecoverFromOverflowStatus({
+          isContextOverflowError: false,
+          isStatus413: false,
+          isOverflowStatusMessage: true,
+          estimatedRequestTokens: 2_000_000,
+          maxContextTokens: 2_000_000,
+          recoveryRatio: 0.5,
+        }),
+      ).toBe(true);
+    });
+
     it('does not recover from a 413 when context usage is below the recovery ratio', () => {
       expect(
         shouldRecoverFromOverflowStatus({

@@ -1,6 +1,6 @@
 /**
- * Shared tool-name policy used by full compaction planning and swarm boundary
- * compaction. Not related to mid-history micro-clearing (removed).
+ * Shared tool-name policy used by full compaction planning, micro clearing,
+ * and swarm boundary compaction (Claude Code–style exclude_tools set).
  */
 
 /**
