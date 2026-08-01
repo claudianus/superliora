@@ -64,12 +64,8 @@ export function tryAttachAgentToolCall(
 
 function upgradeSoloAgentToGroup(state: TUIState, solo: ToolCallComponent): AgentGroupComponent {
   const group = new AgentGroupComponent(state.ui);
-  const children = state.transcriptContainer.children;
-  const idx = children.indexOf(solo);
-  if (idx >= 0) {
-    children[idx] = group;
-    state.transcriptContainer.invalidate();
-  } else {
+  // Slot replace only — full invalidate() would wipe every sibling render cache.
+  if (!state.transcriptContainer.replaceChild(solo, group)) {
     state.transcriptContainer.addChild(group);
   }
   group.attach(solo.toolCallView.id, solo);
@@ -125,12 +121,8 @@ export function tryAttachReadToolCall(
 
 function upgradeSoloReadToGroup(state: TUIState, solo: ToolCallComponent): ReadGroupComponent {
   const group = new ReadGroupComponent(state.ui);
-  const children = state.transcriptContainer.children;
-  const idx = children.indexOf(solo);
-  if (idx >= 0) {
-    children[idx] = group;
-    state.transcriptContainer.invalidate();
-  } else {
+  // Slot replace only — full invalidate() would wipe every sibling render cache.
+  if (!state.transcriptContainer.replaceChild(solo, group)) {
     state.transcriptContainer.addChild(group);
   }
   group.attach(solo.toolCallView.id, solo);

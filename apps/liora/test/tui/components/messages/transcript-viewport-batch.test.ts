@@ -35,11 +35,16 @@ describe('TranscriptViewportComponent batch mount', () => {
     expect(container.isBatchMounting).toBe(false);
   });
 
-  it('invalidates on every addChild outside a batch', () => {
+  it('paint-invalidates on every addChild outside a batch (keeps geometry)', () => {
     const container = makeViewport();
+    // Streaming appends must not cascade full invalidate() (that clears every
+    // sibling render cache and forces O(n) geometry remeasure). Paint-only
+    // drop is enough; line counts reconcile by child identity.
     const invalidate = vi.spyOn(container, 'invalidate');
+    const invalidatePaint = vi.spyOn(container, 'invalidatePaint');
     container.addChild(new StubComponent());
     container.addChild(new StubComponent());
-    expect(invalidate).toHaveBeenCalledTimes(2);
+    expect(invalidate).not.toHaveBeenCalled();
+    expect(invalidatePaint).toHaveBeenCalledTimes(2);
   });
 });

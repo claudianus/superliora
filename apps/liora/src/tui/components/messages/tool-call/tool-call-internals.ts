@@ -37,6 +37,12 @@ export interface ToolCallInternalsHost {
   ui: { requestRender(): void } | undefined;
   isSingleSubagentView(): boolean;
   getDerivedSubagentPhase(): SubagentPhase | undefined;
+  /**
+   * In-place body rebuilds change transcript row counts. Dirties only this
+   * child's geometry slot on the parent viewport (see
+   * notifyTranscriptChildGeometryDirty).
+   */
+  markTranscriptGeometryDirty(): void;
 }
 
 function bodyRebuildHost(host: ToolCallInternalsHost): ToolCallBodyRebuildHost {
@@ -81,7 +87,7 @@ export function isToolCallStreamingEditPreview(host: ToolCallInternalsHost): boo
 
 export function refreshToolCallSubagentPresentation(host: ToolCallInternalsHost, requestRender = true): void {
   host.headerText.setText(buildToolCallHeaderText(host));
-  rebuildToolCallContent(bodyRebuildHost(host));
+  rebuildToolCallComponentContent(host);
   notifyToolCallSnapshotChange(host);
   if (requestRender) host.ui?.requestRender();
 }
@@ -117,17 +123,21 @@ export function buildToolCallHeaderText(host: ToolCallInternalsHost): string {
 
 export function rebuildToolCallComponentContent(host: ToolCallInternalsHost): void {
   rebuildToolCallContent(bodyRebuildHost(host));
+  host.markTranscriptGeometryDirty();
 }
 
 export function rebuildToolCallComponentBody(host: ToolCallInternalsHost): void {
   rebuildToolCallBody(bodyRebuildHost(host));
+  host.markTranscriptGeometryDirty();
 }
 
 export function rebuildToolCallComponentSubagentBlock(host: ToolCallInternalsHost): void {
   rebuildToolCallSubagentBlock(bodyRebuildHost(host));
+  host.markTranscriptGeometryDirty();
 }
 
 export function rebuildToolCallCallPreviewBlock(host: ToolCallInternalsHost): void {
   host.callPreview.rebuildBlock(host.callPreviewHost);
+  host.markTranscriptGeometryDirty();
 }
 

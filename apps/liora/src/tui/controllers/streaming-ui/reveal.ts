@@ -94,6 +94,7 @@ export function onRevealTick(ctx: StreamingRevealContext): void {
     );
     channels.assistantReveal = tickReveal(channels.assistantReveal, nowMs);
     block.component.updateContent(visibleText(channels.assistantReveal), { transient: true });
+    ctx.state.transcriptContainer.invalidateChildGeometry(block.component);
     painted = true;
   }
 
@@ -101,6 +102,7 @@ export function onRevealTick(ctx: StreamingRevealContext): void {
   if (thinking !== undefined && !isRevealCaughtUp(channels.thinkingReveal)) {
     channels.thinkingReveal = tickReveal(channels.thinkingReveal, nowMs);
     thinking.setText(visibleText(channels.thinkingReveal));
+    ctx.state.transcriptContainer.invalidateChildGeometry(thinking);
     painted = true;
   }
 
@@ -120,11 +122,13 @@ export function snapAllActiveReveals(ctx: StreamingRevealContext): void {
       nowMs,
     );
     block.component.updateContent(block.entry.content, { transient: true });
+    ctx.state.transcriptContainer.invalidateChildGeometry(block.component);
   }
   const thinking = ctx.getActiveThinkingComponent();
   if (thinking !== undefined) {
     channels.thinkingReveal = snapRevealToTarget(channels.thinkingReveal, nowMs);
     thinking.setText(channels.thinkingReveal.target);
+    ctx.state.transcriptContainer.invalidateChildGeometry(thinking);
   }
   requestTUIContentRender(ctx.state);
   clearRevealTimer(ctx);

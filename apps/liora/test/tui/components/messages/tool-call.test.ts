@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ToolCallComponent } from '#/tui/components/messages/tool-call/index';
+import { STAGED_LINE_REVEAL_MS_PREMIUM } from '#/tui/constant/streaming';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { currentTheme } from '#/tui/theme';
@@ -2238,15 +2239,16 @@ describe('ToolCallComponent motion cues', () => {
       expect(t0).not.toContain('revealValue3');
       expect(t0).not.toContain('more lines');
 
-      // Mid-window: grown past the first line, still inside the 400ms cap.
-      vi.setSystemTime(new Date(start + 120));
+      // Mid-window under the premium staged-reveal budget (520ms, ease-in-out):
+      // first visible>=3 lands around ~242ms — still before the footer item.
+      vi.setSystemTime(new Date(start + 260));
       advanceAppearanceAnimationClock(Date.now());
       const mid = strip(component.render(100).join('\n'));
       expect(mid).toContain('revealValue3');
       expect(mid).not.toContain('more lines');
 
       // Past the premium cap: every preview line plus the collapsed footer.
-      vi.setSystemTime(new Date(start + 450));
+      vi.setSystemTime(new Date(start + STAGED_LINE_REVEAL_MS_PREMIUM + 20));
       advanceAppearanceAnimationClock(Date.now());
       const settled = strip(component.render(100).join('\n'));
       expect(settled).toContain('revealValue4');
@@ -2277,7 +2279,7 @@ describe('ToolCallComponent motion cues', () => {
       expect(t0).not.toContain('row-1');
       expect(t0).not.toContain('row-6');
 
-      vi.setSystemTime(new Date(start + 450));
+      vi.setSystemTime(new Date(start + STAGED_LINE_REVEAL_MS_PREMIUM + 20));
       advanceAppearanceAnimationClock(Date.now());
       const settled = strip(component.render(100).join('\n'));
       expect(settled).toContain('old-row-6');
@@ -2297,7 +2299,7 @@ describe('ToolCallComponent motion cues', () => {
         is_error: false,
       });
 
-      // Past reveal (400ms), entrance wash (560ms) and settle flash (420ms).
+      // Past reveal, entrance wash, and settle flash.
       vi.setSystemTime(new Date(start + 1500));
       advanceAppearanceAnimationClock(Date.now());
       const settledBytes = animated.render(100);
@@ -2374,9 +2376,9 @@ describe('ToolCallComponent motion cues', () => {
       expect(t0).toContain('revealValue1');
       expect(t0).not.toContain('revealValue3');
 
-      // A remount mid-window (e.g. a streaming-delta rebuild) inherits the
-      // first-seen clock instead of collapsing back to the first line.
-      vi.setSystemTime(new Date(start + 200));
+      // A remount after the staged budget (e.g. a streaming-delta rebuild)
+      // inherits the first-seen clock instead of collapsing back to line 1.
+      vi.setSystemTime(new Date(start + STAGED_LINE_REVEAL_MS_PREMIUM + 20));
       advanceAppearanceAnimationClock(Date.now());
       const remounted = new ToolCallComponent(
         { id: 'call_reveal_remount', name: 'Write', args: writePreviewArgs() },

@@ -17,6 +17,10 @@ import type {
   RendererTranscriptViewportRegionLinePainter,
 } from './types';
 import {
+  registerTranscriptGeometryParent,
+  unregisterTranscriptGeometryParent,
+} from './geometry-parent';
+import {
   normalizeTranscriptLineCount,
   normalizeTranscriptPadding,
   normalizeTranscriptWidth,
@@ -31,14 +35,46 @@ interface RendererTranscriptViewportRenderCache {
   out: RendererRegionLine[];
 }
 
+/**
+ * Overflow paint cache for virtual scroll. Holds both raw child lines and
+ * already-prefixed/formatted region lines so pure scroll (same epoch + width)
+ * can slice without re-running formatCanvasLine / visibleWidth.
+ */
 interface RendererTranscriptOverflowRenderCache {
   inner: number;
+  safeWidth: number;
   cacheEpoch: number;
   childRefs: (Component | undefined)[];
   childRenderRefs: (string[] | undefined)[];
+  /** lead + formatCanvasLine applied; parallel to childRenderRefs. */
+  childFormattedRefs: (RendererRegionLine[] | undefined)[];
 }
 
 interface RendererTranscriptLineCountCacheEntry {
+  counts: number[];
+  total: number;
+}
+
+/**
+ * Geometry (row counts) for one inner width. Kept separate from paint/animation
+ * epoch so ambient ticks and pure scroll never remeasure the whole tree.
+ *
+ * Per-slot `childRefs` identity: when a child is replaced or appended, only
+ * that slot is remeasured. Content mutations of the same component instance
+ * must call {@link RendererTranscriptViewportComponent.invalidate} so counts
+ * are dropped (identity alone cannot see in-place text changes).
+ */
+interface RendererTranscriptGeometryCache {
+  childRefs: (Component | undefined)[];
+  counts: number[];
+  total: number;
+}
+
+/** O(1) geometry hit when generation + width + child count are unchanged. */
+interface RendererTranscriptGeometrySnapshot {
+  generation: number;
+  inner: number;
+  n: number;
   counts: number[];
   total: number;
 }
@@ -65,22 +101,27 @@ export class RendererTranscriptViewportComponent extends Container {
   private readonly getCacheEpoch: () => number;
   private renderCache: RendererTranscriptViewportRenderCache | undefined;
 
-  // ── Virtual-scroll line-count cache ────────────────────────────────────
+  // ── Virtual-scroll geometry cache (line counts) ────────────────────────
   //
   // Every render needs the total content row count (to sync the viewport) and
   // the per-child row counts (to map a viewport line range back to the
   // children that occupy it).  Computing either requires rendering every
   // child — the dominant cost once the transcript grows past a few hundred
-  // messages.  We cache the row counts keyed by inner width so that, after the
-  // first render at a given width, subsequent renders only re-render the
-  // children that actually changed (and only paint the visible ones).
+  // messages.
   //
-  // Counts live in a small LRU keyed by inner width + cache epoch + child
-  // count, so oscillating between widths (e.g. a terminal resize drag) keeps
-  // reusing every measured width instead of evicting the previous one.
-  // invalidate() drops the whole LRU, and children that mutate call
-  // invalidate() which propagates up, so stale counts are never served.
-  private lineCountCache = new Map<string, RendererTranscriptLineCountCacheEntry>();
+  // Geometry lifetime is independent of paint/animation epoch:
+  //   - pure scroll frames reuse counts without touching off-screen children
+  //   - ambient epoch advances only bust paint caches (overflow / full paint)
+  //   - width changes remeasure at that width (small LRU of measured widths)
+  //   - invalidate() drops geometry + paint so in-place content edits are safe
+  //
+  // Keyed by inner width only (never by paint epoch). Each entry reconciles
+  // per-child Component identity so append/replace remeasures only dirty slots.
+  // When generation + inner + n match the last full resolve, contentRowCount /
+  // render skip the O(n) identity walk entirely (pure scroll hot path).
+  private lineCountCache = new Map<number, RendererTranscriptGeometryCache>();
+  private geometryGeneration = 0;
+  private geometrySnapshot: RendererTranscriptGeometrySnapshot | undefined;
   private overflowRenderCache: RendererTranscriptOverflowRenderCache | undefined;
 
   constructor(options: RendererTranscriptViewportComponentOptions) {
@@ -103,10 +144,123 @@ export class RendererTranscriptViewportComponent extends Container {
     this.getCacheEpoch = options.getCacheEpoch ?? (() => -1);
   }
 
-  override invalidate(): void {
+  /**
+   * Register the child for {@link notifyTranscriptChildGeometryDirty} so
+   * in-place height mutators (tool results, expand) can dirty only their slot.
+   */
+  override addChild(component: Component): void {
+    super.addChild(component);
+    registerTranscriptGeometryParent(this, component);
+    // Child count changed — snapshot short-circuit must re-check identity.
+    this.geometrySnapshot = undefined;
+  }
+
+  override removeChild(component: Component): void {
+    unregisterTranscriptGeometryParent(component);
+    super.removeChild(component);
+    this.geometrySnapshot = undefined;
+  }
+
+  /**
+   * Swap one mounted child for another without cascading invalidate() to every
+   * sibling (that would wipe all message render caches). Geometry remeasures
+   * only the replaced slot on the next resolve.
+   */
+  replaceChild(previous: Component, next: Component): boolean {
+    const index = this.children.indexOf(previous);
+    if (index === -1) return false;
+    unregisterTranscriptGeometryParent(previous);
+    this.children[index] = next;
+    registerTranscriptGeometryParent(this, next);
+    this.invalidateChildGeometry(next);
+    // Previous identity is gone; ensure any width entry that still points at
+    // `previous` is cleared (invalidateChildGeometry only matches `next`).
+    for (const geometry of this.lineCountCache.values()) {
+      if (geometry.childRefs[index] === previous) {
+        geometry.childRefs[index] = undefined;
+      }
+    }
+    if (this.overflowRenderCache !== undefined) {
+      if (this.overflowRenderCache.childRefs[index] === previous) {
+        this.overflowRenderCache.childRefs[index] = undefined;
+        this.overflowRenderCache.childRenderRefs[index] = undefined;
+        this.overflowRenderCache.childFormattedRefs[index] = undefined;
+      }
+    }
+    this.geometrySnapshot = undefined;
+    this.bumpGeometryGeneration();
+    return true;
+  }
+
+  override clear(): void {
+    for (const child of this.children) {
+      unregisterTranscriptGeometryParent(child);
+    }
+    super.clear();
+    this.geometrySnapshot = undefined;
+  }
+
+  /**
+   * Drop paint-only caches (full-tree paint + overflow child lines). Geometry
+   * (line counts) is preserved so a theme/epoch refresh does not remeasure
+   * every historical message. Use {@link invalidate} when content or child
+   * structure may have changed in place across the whole tree, or
+   * {@link invalidateChildGeometry} for a single in-place height change
+   * (streaming text).
+   */
+  invalidatePaint(): void {
     this.renderCache = undefined;
     this.overflowRenderCache = undefined;
+  }
+
+  /**
+   * Drop geometry + parent paint without cascading {@link Container.invalidate}
+   * to every sibling. Prefer when children already cleared their own caches
+   * (or only structure/geometry must refresh). Theme switches should still use
+   * {@link invalidate} so every message rebuilds themed ANSI.
+   */
+  invalidateGeometryAndPaint(): void {
+    this.invalidatePaint();
     this.lineCountCache.clear();
+    this.geometrySnapshot = undefined;
+    this.bumpGeometryGeneration();
+  }
+
+  /**
+   * Mark one child's row count dirty without cascading invalidate to siblings.
+   * Streaming assistant/thinking updates mutate a child in place; identity
+   * alone cannot see that height change. Only that slot is remeasured on the
+   * next resolve — O(1) geometry, not O(transcript).
+   */
+  invalidateChildGeometry(child: Component): void {
+    for (const geometry of this.lineCountCache.values()) {
+      for (let i = 0; i < geometry.childRefs.length; i++) {
+        if (geometry.childRefs[i] === child) {
+          geometry.childRefs[i] = undefined;
+        }
+      }
+    }
+    if (this.overflowRenderCache !== undefined) {
+      for (let i = 0; i < this.overflowRenderCache.childRefs.length; i++) {
+        if (this.overflowRenderCache.childRefs[i] === child) {
+          this.overflowRenderCache.childRefs[i] = undefined;
+          this.overflowRenderCache.childRenderRefs[i] = undefined;
+          this.overflowRenderCache.childFormattedRefs[i] = undefined;
+        }
+      }
+    }
+    // No-overflow paint cache is a flat concat — drop it so the next paint
+    // picks up the new height for this child.
+    this.renderCache = undefined;
+    this.geometrySnapshot = undefined;
+    this.bumpGeometryGeneration();
+  }
+
+  override invalidate(): void {
+    this.invalidatePaint();
+    this.lineCountCache.clear();
+    this.geometrySnapshot = undefined;
+    this.bumpGeometryGeneration();
     super.invalidate();
   }
 
@@ -168,13 +322,18 @@ export class RendererTranscriptViewportComponent extends Container {
     return this.renderVisibleRegionLines(width, visibleRows);
   }
 
+  private bumpGeometryGeneration(): void {
+    this.geometryGeneration = (this.geometryGeneration + 1) | 0;
+  }
+
   private renderVisibleRegionLines(width: number, visibleRows: number): RendererRegionLine[] {
     const safeWidth = normalizeTranscriptWidth(width);
     const inner = Math.max(1, safeWidth - this.leftPad - this.rightPad);
 
-    // Phase 1 — resolve per-child row counts (cached).  This is the only
-    // place that may render *all* children, and only on a cache miss; once
-    // cached, subsequent frames skip children whose render output is reused.
+    // Phase 1 — resolve per-child row counts (geometry cache).  This is the
+    // only place that may render *all* children, and only on geometry miss /
+    // identity change; pure scroll and pure paint-epoch frames skip off-screen
+    // children entirely once geometry is warm.
     const { counts: childCounts, total: totalLines } = this.resolveChildLineCounts(inner);
 
     // Phase 2 — sync the viewport with the total content size.
@@ -209,19 +368,73 @@ export class RendererTranscriptViewportComponent extends Container {
 
   private resolveChildLineCounts(inner: number): RendererTranscriptLineCountCacheEntry {
     const n = this.children.length;
-    const cacheEpoch = this.getCacheEpoch();
     const cacheEnabled = this.isCacheEnabled();
-    const key = `${inner}:${cacheEpoch}:${n}`;
-    if (cacheEnabled) {
-      const hit = this.lineCountCache.get(key);
-      if (hit !== undefined) {
-        // Refresh LRU recency (Map iterates in insertion order).
-        this.lineCountCache.delete(key);
-        this.lineCountCache.set(key, hit);
-        return hit;
+
+    if (!cacheEnabled) {
+      return this.measureAllChildLineCounts(inner, n);
+    }
+
+    // Pure scroll / repeated contentRowCount: skip the O(n) identity walk when
+    // nothing has dirtied geometry since the last full resolve at this size.
+    const snap = this.geometrySnapshot;
+    if (
+      snap !== undefined &&
+      snap.generation === this.geometryGeneration &&
+      snap.inner === inner &&
+      snap.n === n
+    ) {
+      return { counts: snap.counts, total: snap.total };
+    }
+
+    let geometry = this.lineCountCache.get(inner);
+    if (geometry === undefined) {
+      geometry = {
+        childRefs: Array.from({ length: n }),
+        counts: Array.from({ length: n }),
+        total: 0,
+      };
+      this.lineCountCache.set(inner, geometry);
+      if (this.lineCountCache.size > LINE_COUNT_CACHE_CAP) {
+        const oldest = this.lineCountCache.keys().next();
+        if (oldest.done !== true) this.lineCountCache.delete(oldest.value);
+      }
+    } else {
+      // Refresh LRU recency (Map iterates in insertion order).
+      this.lineCountCache.delete(inner);
+      this.lineCountCache.set(inner, geometry);
+      if (geometry.childRefs.length !== n) {
+        geometry.childRefs.length = n;
+        geometry.counts.length = n;
       }
     }
 
+    let total = 0;
+    for (let i = 0; i < n; i++) {
+      const child = this.children[i]!;
+      if (geometry.childRefs[i] === child && Number.isFinite(geometry.counts[i])) {
+        total += geometry.counts[i]!;
+        continue;
+      }
+      const count = child.render(inner).length;
+      geometry.childRefs[i] = child;
+      geometry.counts[i] = count;
+      total += count;
+    }
+    geometry.total = total;
+    this.geometrySnapshot = {
+      generation: this.geometryGeneration,
+      inner,
+      n,
+      counts: geometry.counts,
+      total,
+    };
+    return { counts: geometry.counts, total };
+  }
+
+  private measureAllChildLineCounts(
+    inner: number,
+    n: number,
+  ): RendererTranscriptLineCountCacheEntry {
     const counts: number[] = Array.from({ length: n });
     let total = 0;
     for (let i = 0; i < n; i++) {
@@ -229,15 +442,7 @@ export class RendererTranscriptViewportComponent extends Container {
       counts[i] = count;
       total += count;
     }
-    const entry: RendererTranscriptLineCountCacheEntry = { counts, total };
-    if (cacheEnabled) {
-      this.lineCountCache.set(key, entry);
-      if (this.lineCountCache.size > LINE_COUNT_CACHE_CAP) {
-        const oldest = this.lineCountCache.keys().next();
-        if (oldest.done !== true) this.lineCountCache.delete(oldest.value);
-      }
-    }
-    return entry;
+    return { counts, total };
   }
 
   private formatCanvasLine(line: string, width: number): RendererRegionLine {
@@ -302,7 +507,6 @@ export class RendererTranscriptViewportComponent extends Container {
     startLine: number,
     endLine: number,
   ): RendererRegionLine[] {
-    const lead = ' '.repeat(this.leftPad);
     const out: RendererRegionLine[] = [];
 
     let lineOffset = 0;
@@ -314,11 +518,11 @@ export class RendererTranscriptViewportComponent extends Container {
       if (childStart >= endLine) break;
 
       if (childEnd > startLine) {
-        const lines = this.resolveOverflowChildRenderLines(i, inner);
+        const formatted = this.resolveOverflowChildFormattedLines(i, inner, safeWidth);
         const sliceStart = Math.max(0, startLine - childStart);
-        const sliceEnd = Math.min(lines.length, endLine - childStart);
+        const sliceEnd = Math.min(formatted.length, endLine - childStart);
         for (let j = sliceStart; j < sliceEnd; j++) {
-          out.push(this.formatCanvasLine(lead + lines[j]!, safeWidth));
+          out.push(formatted[j]!);
         }
       }
 
@@ -328,35 +532,57 @@ export class RendererTranscriptViewportComponent extends Container {
     return out;
   }
 
-  private resolveOverflowChildRenderLines(childIndex: number, inner: number): string[] {
+  /**
+   * Resolve overflow paint for one child: raw render lines plus
+   * lead+formatCanvasLine output. Pure scroll reuses formatted lines when
+   * epoch/width/child identity match — no per-line visibleWidth on scroll.
+   */
+  private resolveOverflowChildFormattedLines(
+    childIndex: number,
+    inner: number,
+    safeWidth: number,
+  ): RendererRegionLine[] {
     const child = this.children[childIndex]!;
-    if (!this.isCacheEnabled()) return child.render(inner);
+    const lead = ' '.repeat(this.leftPad);
+
+    if (!this.isCacheEnabled()) {
+      const lines = child.render(inner);
+      return lines.map((line) => this.formatCanvasLine(lead + line, safeWidth));
+    }
 
     const cacheEpoch = this.getCacheEpoch();
     const childCount = this.children.length;
     if (
       this.overflowRenderCache === undefined ||
       this.overflowRenderCache.inner !== inner ||
+      this.overflowRenderCache.safeWidth !== safeWidth ||
       this.overflowRenderCache.cacheEpoch !== cacheEpoch ||
       this.overflowRenderCache.childRefs.length !== childCount
     ) {
       this.overflowRenderCache = {
         inner,
+        safeWidth,
         cacheEpoch,
         childRefs: Array.from({ length: childCount }),
         childRenderRefs: Array.from({ length: childCount }),
+        childFormattedRefs: Array.from({ length: childCount }),
       };
     }
 
     const cache = this.overflowRenderCache;
-    if (cache.childRefs[childIndex] === child && cache.childRenderRefs[childIndex] !== undefined) {
-      return cache.childRenderRefs[childIndex];
+    if (
+      cache.childRefs[childIndex] === child &&
+      cache.childFormattedRefs[childIndex] !== undefined
+    ) {
+      return cache.childFormattedRefs[childIndex];
     }
 
     const lines = child.render(inner);
+    const formatted = lines.map((line) => this.formatCanvasLine(lead + line, safeWidth));
     cache.childRefs[childIndex] = child;
     cache.childRenderRefs[childIndex] = lines;
-    return lines;
+    cache.childFormattedRefs[childIndex] = formatted;
+    return formatted;
   }
 
   private renderScrollbar(

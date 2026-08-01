@@ -5,6 +5,7 @@ import {
   createRendererViewportSnapshot,
   decodeNativeInput,
   measureRendererScrollbar,
+  notifyTranscriptChildGeometryDirty,
   projectRendererViewportHistoryStatus,
   projectRendererViewportLineWindow,
   projectRendererScrollableLineWindow,
@@ -524,6 +525,426 @@ describe('RendererViewport', () => {
     const lines = component.render(80);
     expect(renderCount).toBe(0);
     expect(lines).toEqual(['line-15', 'line-16', 'line-17']);
+  });
+
+  // ── Geometry vs paint epoch (scroll freeze guard) ──────────────────────
+  //
+  // Line counts must survive ambient/paint epoch advances and pure scroll.
+  // Coupling geometry to paint epoch remeasured every historical child on each
+  // ambient tick — the dominant freeze path under large transcripts.
+
+  function mountInstrumentedTranscript(options: {
+    childCount: number;
+    linesPerChild?: number;
+    visibleRows?: number;
+    getCacheEpoch?: () => number;
+  }): {
+    viewport: RendererTranscriptViewport;
+    component: RendererTranscriptViewportComponent;
+    renderCounts: number[];
+    totalRenders: () => number;
+  } {
+    const linesPerChild = options.linesPerChild ?? 2;
+    const renderCounts = Array.from({ length: options.childCount }, () => 0);
+    const viewport = new RendererTranscriptViewport();
+    const component = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => options.visibleRows ?? 5,
+      getCacheEpoch: options.getCacheEpoch,
+    });
+    for (let i = 0; i < options.childCount; i++) {
+      const index = i;
+      component.addChild({
+        invalidate: () => {},
+        render: () => {
+          renderCounts[index]!++;
+          return Array.from({ length: linesPerChild }, (_, line) => `c${index}-l${line}`);
+        },
+      });
+    }
+    return {
+      viewport,
+      component,
+      renderCounts,
+      totalRenders: () => renderCounts.reduce((sum, n) => sum + n, 0),
+    };
+  }
+
+  it('pure paint-epoch advance does not remeasure all children', () => {
+    let epoch = 0;
+    const { component, renderCounts, totalRenders } = mountInstrumentedTranscript({
+      childCount: 40,
+      linesPerChild: 3,
+      visibleRows: 6,
+      getCacheEpoch: () => epoch,
+    });
+
+    // Warm geometry + visible paint caches.
+    component.render(80);
+    const warmTotal = totalRenders();
+    expect(warmTotal).toBeGreaterThanOrEqual(40);
+    // Every child measured once for geometry; a few visible measured again for paint.
+    expect(renderCounts.every((n) => n >= 1)).toBe(true);
+
+    // Ambient animation tick: paint epoch advances, geometry must stay warm.
+    epoch = 1;
+    const before = totalRenders();
+    component.render(80);
+    const afterEpoch = totalRenders() - before;
+
+    // Only children intersecting the visible window may repaint — never the full tree.
+    expect(afterEpoch).toBeLessThan(40);
+    expect(afterEpoch).toBeLessThanOrEqual(6);
+    // Off-screen children must not have been touched by the epoch tick.
+    const offscreenAfterWarm = renderCounts.slice(0, 30);
+    const offscreenSnapshots = offscreenAfterWarm.map((n) => n);
+    epoch = 2;
+    component.render(80);
+    for (let i = 0; i < 30; i++) {
+      expect(renderCounts[i]).toBe(offscreenSnapshots[i]);
+    }
+  });
+
+  it('pure scroll after warm geometry stays O(visible), not O(all children)', () => {
+    const { viewport, component, renderCounts, totalRenders } = mountInstrumentedTranscript({
+      childCount: 50,
+      linesPerChild: 2,
+      visibleRows: 4,
+    });
+
+    component.render(80);
+    renderCounts.fill(0);
+
+    // Page/line/top/bottom while content + width unchanged.
+    const actions = ['page-up', 'line-up', 'line-down', 'top', 'page-down', 'bottom'] as const;
+    for (const action of actions) {
+      viewport.scroll(action);
+      const before = totalRenders();
+      component.render(80);
+      const delta = totalRenders() - before;
+      // At most a small visible subset (children spanning ~4 rows + neighbors).
+      expect(delta).toBeLessThan(50);
+      expect(delta).toBeLessThanOrEqual(6);
+    }
+
+    // After the scroll sequence, most historical children stay at 0 additional renders.
+    const untouched = renderCounts.filter((n) => n === 0).length;
+    expect(untouched).toBeGreaterThan(30);
+  });
+
+  it('keeps correct viewport windows across pure scroll actions on a large transcript', () => {
+    const { viewport, component } = mountInstrumentedTranscript({
+      childCount: 20,
+      linesPerChild: 5,
+      visibleRows: 10,
+    });
+    // 20 * 5 = 100 content rows, viewport 10 → overflow.
+
+    component.render(80);
+    expect(viewport.snapshot()).toMatchObject({
+      start: 90,
+      end: 100,
+      followOutput: true,
+      hasOverflow: true,
+      contentRows: 100,
+      viewportRows: 10,
+    });
+
+    expect(viewport.scroll('top')).toBe(true);
+    component.render(80);
+    expect(viewport.snapshot()).toMatchObject({
+      start: 0,
+      end: 10,
+      followOutput: false,
+      offsetFromBottom: 90,
+    });
+
+    expect(viewport.scroll('page-down')).toBe(true);
+    component.render(80);
+    expect(viewport.snapshot()).toMatchObject({
+      start: 9,
+      end: 19,
+      followOutput: false,
+    });
+
+    expect(viewport.scroll('bottom')).toBe(true);
+    component.render(80);
+    expect(viewport.snapshot()).toMatchObject({
+      start: 90,
+      end: 100,
+      followOutput: true,
+      offsetFromBottom: 0,
+    });
+
+    // Follow-output tracks growth while pinned to bottom.
+    component.addChild({
+      invalidate: () => {},
+      render: () => ['extra-a', 'extra-b', 'extra-c', 'extra-d', 'extra-e'],
+    });
+    component.render(80);
+    expect(viewport.snapshot()).toMatchObject({
+      start: 95,
+      end: 105,
+      followOutput: true,
+      contentRows: 105,
+    });
+  });
+
+  it('content invalidate remeasures so total height stays correct', () => {
+    const viewport = new RendererTranscriptViewport();
+    let lines = ['a', 'b'];
+    let renderCount = 0;
+    const component = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => 50,
+    });
+    component.addChild({
+      invalidate: () => {},
+      render: () => {
+        renderCount++;
+        return lines;
+      },
+    });
+    for (let i = 0; i < 9; i++) {
+      component.addChild({
+        invalidate: () => {},
+        render: () => ['x', 'y'],
+      });
+    }
+
+    expect(component.contentRowCount(80)).toBe(20);
+    const afterWarm = renderCount;
+
+    // In-place content growth (same child ref): must invalidate geometry.
+    lines = ['a', 'b', 'c', 'd', 'e', 'f'];
+    component.invalidate();
+    expect(component.contentRowCount(80)).toBe(24);
+    expect(renderCount).toBeGreaterThan(afterWarm);
+  });
+
+  it('appended child remeasures only the new slot when geometry is warm', () => {
+    const { component, renderCounts } = mountInstrumentedTranscript({
+      childCount: 15,
+      linesPerChild: 2,
+      visibleRows: 4,
+    });
+    component.render(80);
+    renderCounts.fill(0);
+
+    let newChildRenders = 0;
+    component.addChild({
+      invalidate: () => {},
+      render: () => {
+        newChildRenders++;
+        return ['new-a', 'new-b'];
+      },
+    });
+    // Identity reconcile: prior children keep geometry counts; new child is
+    // measured for geometry (+ again if it intersects the visible bottom).
+    component.render(80);
+    const priorRenders = renderCounts.reduce((sum, n) => sum + n, 0);
+    // Prior slots may repaint if they intersect the new bottom window, but
+    // geometry must not force a full remeasure of all 15.
+    expect(priorRenders).toBeLessThan(15);
+    expect(newChildRenders).toBeGreaterThan(0);
+    expect(newChildRenders).toBeLessThanOrEqual(2);
+    expect(component.contentRowCount(80)).toBe(32);
+  });
+
+  it('invalidatePaint preserves geometry counts across paint-only refresh', () => {
+    let epoch = 0;
+    const { component, totalRenders } = mountInstrumentedTranscript({
+      childCount: 25,
+      linesPerChild: 2,
+      visibleRows: 4,
+      getCacheEpoch: () => epoch,
+    });
+    component.render(80);
+    const warm = totalRenders();
+
+    component.invalidatePaint();
+    epoch = 1;
+    const before = totalRenders();
+    expect(component.contentRowCount(80)).toBe(50);
+    // contentRowCount is geometry-only — no child.render after paint invalidate.
+    expect(totalRenders()).toBe(before);
+
+    // Full render may repaint visible children (overflow cache cleared) but
+    // must not remeasure the whole tree for line counts.
+    component.render(80);
+    expect(totalRenders() - before).toBeLessThan(25);
+    expect(totalRenders()).toBeGreaterThan(warm);
+  });
+
+  it('invalidateChildGeometry remeasures only the dirty slot', () => {
+    const linesByChild: string[][] = Array.from({ length: 20 }, (_, i) => [
+      `c${i}-a`,
+      `c${i}-b`,
+    ]);
+    const renderCounts = Array.from({ length: 20 }, () => 0);
+    const viewport = new RendererTranscriptViewport();
+    const component = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => 4,
+    });
+    const children = linesByChild.map((lines, index) => {
+      const child = {
+        invalidate: () => {},
+        render: () => {
+          renderCounts[index]!++;
+          return linesByChild[index]!;
+        },
+      };
+      component.addChild(child);
+      return child;
+    });
+
+    expect(component.contentRowCount(80)).toBe(40);
+    renderCounts.fill(0);
+
+    // Grow child 5 in place (streaming-style mutation).
+    linesByChild[5] = ['x', 'y', 'z', 'w', 'v', 'u'];
+    component.invalidateChildGeometry(children[5]!);
+    expect(component.contentRowCount(80)).toBe(44);
+
+    // Only the dirty slot remeasured for geometry.
+    expect(renderCounts[5]).toBe(1);
+    expect(renderCounts.filter((n, i) => i !== 5 && n > 0)).toEqual([]);
+  });
+
+  it('notifyTranscriptChildGeometryDirty reaches the parent registered on addChild', () => {
+    let lines = ['a'];
+    const viewport = new RendererTranscriptViewport();
+    const component = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => 50,
+    });
+    // Neighbors prove only the dirty slot is remeasured.
+    for (let i = 0; i < 5; i++) {
+      component.addChild({
+        invalidate: () => {},
+        render: () => ['n'],
+      });
+    }
+    const live = {
+      invalidate: () => {},
+      render: () => lines,
+    };
+    component.addChild(live);
+    for (let i = 0; i < 5; i++) {
+      component.addChild({
+        invalidate: () => {},
+        render: () => ['n'],
+      });
+    }
+
+    expect(component.contentRowCount(80)).toBe(11);
+    lines = ['a', 'b', 'c', 'd', 'e'];
+    // Product mutators call notify — must not require a manual parent invalidate.
+    notifyTranscriptChildGeometryDirty(live);
+    expect(component.contentRowCount(80)).toBe(15);
+  });
+
+  it('geometry generation short-circuits repeated contentRowCount without child.render', () => {
+    const { component, totalRenders } = mountInstrumentedTranscript({
+      childCount: 40,
+      linesPerChild: 2,
+      visibleRows: 5,
+    });
+    component.render(80);
+    const afterWarm = totalRenders();
+    // Layout shift detection calls contentRowCount every frame — must be free.
+    for (let i = 0; i < 20; i++) {
+      expect(component.contentRowCount(80)).toBe(80);
+    }
+    expect(totalRenders()).toBe(afterWarm);
+  });
+
+  it('pure scroll reuses formatted overflow lines (no paintLine storm)', () => {
+    let paintCount = 0;
+    const viewport = new RendererTranscriptViewport();
+    const component = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => 4,
+      paintLine: (line) => {
+        paintCount++;
+        return line;
+      },
+    });
+    // One tall child so line-up stays inside the same overflow slot.
+    component.addChild({
+      invalidate: () => {},
+      render: () => Array.from({ length: 40 }, (_, i) => `line-${i}`),
+    });
+
+    component.render(80);
+    // First paint formats the whole overflow child once (so later slices are free).
+    expect(paintCount).toBe(40);
+    paintCount = 0;
+
+    // Scroll inside the same child — formatted cache must serve slices.
+    viewport.scroll('line-up');
+    component.render(80);
+    viewport.scroll('line-up');
+    component.render(80);
+    expect(paintCount).toBe(0);
+  });
+
+  it('replaceChild dirties only the slot and does not cascade sibling invalidate', () => {
+    const viewport = new RendererTranscriptViewport();
+    const component = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => 50,
+    });
+    const siblingInvalidates: number[] = [];
+    for (let i = 0; i < 10; i++) {
+      const idx = i;
+      component.addChild({
+        invalidate: () => {
+          siblingInvalidates[idx] = (siblingInvalidates[idx] ?? 0) + 1;
+        },
+        render: () => [`s${idx}`],
+      });
+    }
+    const oldChild = {
+      invalidate: () => {},
+      render: () => ['old'],
+    };
+    component.addChild(oldChild);
+    component.render(80);
+    siblingInvalidates.fill(0);
+
+    const newChild = {
+      invalidate: () => {},
+      render: () => ['new-a', 'new-b', 'new-c'],
+    };
+    expect(component.replaceChild(oldChild, newChild)).toBe(true);
+    // No full invalidate cascade to historical siblings.
+    expect(siblingInvalidates.every((n) => n === 0)).toBe(true);
+    expect(component.contentRowCount(80)).toBe(10 + 3);
+  });
+
+  it('invalidateGeometryAndPaint does not cascade child.invalidate', () => {
+    const viewport = new RendererTranscriptViewport();
+    const component = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => 10,
+    });
+    let childInvalidates = 0;
+    for (let i = 0; i < 8; i++) {
+      component.addChild({
+        invalidate: () => {
+          childInvalidates++;
+        },
+        render: () => ['x'],
+      });
+    }
+    component.render(80);
+    childInvalidates = 0;
+    component.invalidateGeometryAndPaint();
+    expect(childInvalidates).toBe(0);
+    // Geometry cleared — next count remeasures.
+    expect(component.contentRowCount(80)).toBe(8);
   });
 
   it('projects scrollable line windows with tail-follow and padding', () => {

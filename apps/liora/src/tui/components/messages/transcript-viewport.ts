@@ -153,8 +153,14 @@ export class TranscriptViewportComponent extends RendererTranscriptViewportCompo
     super.addChild(component);
     // Hydrate mounts many children in one sync pass; defer invalidate so we
     // do not re-render every previous child on each add (O(n²) storm).
+    //
+    // Outside batch mount: drop paint caches only. Geometry (per-child line
+    // counts) reconciles by Component identity on the next resolve — append
+    // remeasures the new slot only. Cascading invalidate() to every prior
+    // sibling would clear their render caches and force a full remeasure
+    // storm on every streaming message.
     if (this.batchMountDepth === 0) {
-      this.invalidate();
+      this.invalidatePaint();
     }
   }
 
