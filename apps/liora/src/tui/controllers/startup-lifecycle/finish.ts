@@ -1,6 +1,7 @@
 import type { Session } from '@superliora/sdk';
 
 import { showMissionAutoStartSessionTipIfNeeded } from '../../utils/mission/mission-autostart-session-tip';
+import { restorePromptInputState } from '../../utils/prompt-input-state';
 import { detectTmuxKeyboardWarning } from '../../utils/terminal/tmux-keyboard';
 import { ttui } from '../../utils/tui-i18n';
 import type { StartupLifecycleHost } from './types';
@@ -48,6 +49,8 @@ export async function finishStartupSession(
   if (host.session !== undefined) {
     host.sessionEventHandler.startSubscription();
     void showSessionWarnings(host, host.session);
+    // Restore prompt queue / Ctrl-X stash / editor draft after history hydrate.
+    await restorePromptInputState(host).catch(() => undefined);
   }
   void host.sessionBrowser.fetchSessions();
   if (host.session !== undefined) {

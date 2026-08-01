@@ -6,6 +6,8 @@ import type { LioraTUIOptions } from '../../types';
 import type { TUIState } from '../../tui-state';
 import type { DisposableRegistry } from '../../utils/disposables';
 import type { TUIStateNativeInputRouter } from '../../features/native-layout/native-input-router';
+import type { PromptInputRuntimeHost } from '../../utils/prompt-input-state';
+import type { PromptStash } from '../../utils/prompt-stash';
 import type { AppearanceController } from '../appearance/index';
 import type { AuthFlowController } from '../auth/auth-flow';
 import type { ClipboardImageHintController } from '../clipboard/clipboard-image-hint';
@@ -26,12 +28,14 @@ export type MutableCreateSessionOptions = {
 };
 
 /** Host surface required by TUI startup, shutdown, and signal handling. */
-export interface StartupLifecycleHost {
+export interface StartupLifecycleHost extends PromptInputRuntimeHost {
   harness: LioraHarness;
   options: LioraTUIOptions;
   session: Session | undefined;
   state: TUIState;
   aborted: boolean;
+  lastUserInput: string | undefined;
+  readonly promptStash: PromptStash;
   signalCleanupHandlers: Array<() => void>;
   isShuttingDown: boolean;
   eventLoopStarted: boolean;

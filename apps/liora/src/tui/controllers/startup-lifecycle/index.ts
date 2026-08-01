@@ -89,6 +89,16 @@ export class StartupLifecycleController {
       clearTimeout(host.detachHintClearTimer);
       host.detachHintClearTimer = undefined;
     }
+    // Best-effort: land queue/stash/draft before tearing the session down so a
+    // clean exit (and most SIGINT/SIGTERM paths) still resume with work intact.
+    try {
+      const { flushPromptInputState } = await import('../../utils/prompt-input-state');
+      flushPromptInputState(host);
+      // Give the fire-and-forget write a short window to land.
+      await new Promise<void>((resolve) => setTimeout(resolve, 40));
+    } catch {
+      // Never block shutdown on persistence failures.
+    }
     for (const dispose of host.reverseRpcDisposers) {
       dispose();
     }

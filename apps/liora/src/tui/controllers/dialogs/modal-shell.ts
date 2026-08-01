@@ -2,6 +2,7 @@ import type { Component, Focusable } from '#/tui/renderer';
 
 import { CommandHubComponent } from '../../components/dialogs/command-hub/index';
 import type { CenterModalMountOptions } from '../../utils/ui/center-modal';
+import { flushPromptInputState } from '../../utils/prompt-input-state';
 import {
   flushSuppressedTUIFrame,
   requestTUIContentRender,
@@ -248,6 +249,7 @@ export function stashPromptToggle(host: DialogsHost, delegate: ModalShellDelegat
     host.updateEditorBorderHighlight('');
     host.showStatus(ttui('tui.stash.stashed', { count: String(host.promptStash.size) }));
     requestTUIContentRender(host.state);
+    flushPromptInputState(host);
     return;
   }
   const entry = host.promptStash.pop();
@@ -264,6 +266,7 @@ export function stashPromptToggle(host: DialogsHost, delegate: ModalShellDelegat
     editor.onInputModeChange?.(mode);
   }
   host.updateQueueDisplay();
+  flushPromptInputState(host);
   requestTUILayoutRender(host.state);
   host.showStatus(ttui('tui.stash.restored', { count: String(host.promptStash.size) }));
 }
