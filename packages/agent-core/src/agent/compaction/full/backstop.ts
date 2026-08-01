@@ -19,9 +19,9 @@ const EMERGENCY_TOOL_SNIPPET_CHARS = 400;
 
 /**
  * When the LLM summarizer cannot run (unsupported params, 4xx model errors,
- * generic ChatProviderError after retries), prefer a classical extractive
- * backstop over failing the whole turn. Abort/auth are excluded so the user
- * can still fix credentials / cancel.
+ * timeouts, transport failures, generic ChatProviderError after retries),
+ * prefer a classical extractive backstop over failing the whole turn.
+ * Abort/auth are excluded so the user can still fix credentials / cancel.
  *
  * Industry alignment:
  * - OpenHands condensers (LLM + non-LLM / recent-events style)
@@ -37,18 +37,36 @@ export function shouldUseClassicalCompactionFallback(error: unknown): boolean {
     if (error.statusCode === 429) return true;
     if (error.statusCode >= 400 && error.statusCode < 600) return true;
   }
+  // APITimeoutError / APIConnectionError extend ChatProviderError — cover
+  // hung streams, connect failures, and our per-call generate deadline.
   if (error instanceof ChatProviderError) return true;
   if (error instanceof Error) {
     const msg = error.message;
     if (
-      /does not support parameter|unsupported.*parameter|reasoning_effort|reasoningEffort|invalid_request|400\b|APIEmptyResponse|context.?overflow|truncated/i.test(
+      /does not support parameter|unsupported.*parameter|reasoning_effort|reasoningEffort|invalid_request|400\b|APIEmptyResponse|context.?overflow|truncated|timed?\s*out|timeout|deadline|fetch failed|ECONNRESET|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|socket|network|connection|terminated|UND_ERR|other side closed|premature close/i.test(
         msg,
       )
     ) {
       return true;
     }
+    // TypeError from undici/fetch ("terminated", "fetch failed") is common on
+    // dropped SSE bodies — treat as transport failure, not a programming bug.
+    if (error.name === 'TypeError' && /fetch|network|terminated|abort/i.test(msg)) {
+      return true;
+    }
   }
   return false;
+}
+
+/**
+ * After the compaction retry budget is exhausted, almost every remaining
+ * failure should fall back to the extractive summary rather than strand the
+ * session over the hard block. Only user abort and auth prompts must surface.
+ */
+export function shouldFallbackAfterCompactionRetries(error: unknown): boolean {
+  if (isAbortError(error)) return false;
+  if (isKimiError(error) && error.code === ErrorCodes.AUTH_LOGIN_REQUIRED) return false;
+  return true;
 }
 
 /**

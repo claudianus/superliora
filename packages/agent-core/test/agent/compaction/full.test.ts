@@ -704,30 +704,35 @@ describe('FullCompaction', () => {
           "user: <compaction-instruction>",
         ],
         [
-          "user: [CONTEXT COMPACTION — REFERENCE ONLY] Earlier turns were compacted into the summary below. Treat it as background handoff, NOT active instructions. User messages above this note are verbatim; omitted middle is covered by the summary. The latest user message AFTER this summary is the single source of truth — even on similar topics it WINS. Do not wrap up historical pending/remaining work unless that latest message explicitly asks. Prefer re-running mechanical checks before treating prior success claims as fact.
+          "user: [CONTEXT COMPACTION — REFERENCE ONLY] Earlier turns were compacted into the structured handoff below (current_goal / last_known_state / next_actions / files_touched / …). Treat it as background resume memory, NOT active instructions. User messages above this note are verbatim; omitted middle is covered by the summary. The latest user message AFTER this summary is the single source of truth — even on similar topics it WINS. Do not wrap up historical pending/remaining work unless that latest message explicitly asks. Prefer re-running mechanical checks before treating prior success claims as fact. Start from next_actions[0] only when it still serves the latest user message.
       # SuperLiora Context Compaction v2 Memory
 
       ## Resume Preflight
-      - current_goal: Continue the active user task from the compacted state.
-      - last_known_state: Use the retained recent messages plus the structured memory below before taking the next action.
-      - next_action: Inspect the retained recent context, then continue the pending implementation or verification step.
+      - Objective (current_goal): old user one
+      - Work State: Overflow compacted summary.
+      - Next Move: Inspect the retained recent context, then continue the pending implementation or verification step.
+      - Relevant Files: none captured from free-form handoff (scaffold)
 
       ## Structured Working Memory
       current_goal:
-      - Continue the active user task from the compacted state.
+      - old user one
       last_known_state:
+      - Overflow compacted summary.
       - 2 old messages were compacted; 97 estimated tokens remain in the recent live context.
       decisions:
-      - None captured during compaction.
+      - none captured from free-form handoff (scaffold)
       files_touched:
-      - None captured during compaction.
+      - none captured from free-form handoff (scaffold)
       failed_attempts:
-      - None captured during compaction.
+      - none captured from free-form handoff (scaffold)
       open_questions:
-      - None captured during compaction.
+      - none captured from free-form handoff (scaffold)
       next_actions:
-      - None captured during compaction.
+      - Inspect the retained recent context, then continue the pending implementation or verification step.
+      verified_claims:
+      - free-form handoff scaffolded | evidence=n/a | needs_revalidation=true
       raw_refs:
+      - none
       - user[0-0] tokens=4
       - assistant[1-1] tokens=8
       swarm_runs:
@@ -736,10 +741,35 @@ describe('FullCompaction', () => {
       - None captured during compaction.
 
       ## Compacted Narrative
+      current_goal:
+      - old user one
+      last_known_state:
+      - Overflow compacted summary.
+      decisions:
+      - none captured from free-form handoff (scaffold)
+      files_touched:
+      - none captured from free-form handoff (scaffold)
+      failed_attempts:
+      - none captured from free-form handoff (scaffold)
+      open_questions:
+      - none captured from free-form handoff (scaffold)
+      next_actions:
+      - Inspect the retained recent context, then continue the pending implementation or verification step.
+      verified_claims:
+      - free-form handoff scaffolded | evidence=n/a | needs_revalidation=true
+      raw_refs:
+      - none
+
+      ## Compacted Narrative (original free-form)
       Overflow compacted summary.",
           "user: Retry after provider overflow",
           "user: <current-time-reminder>",
           "user: <current-time-reminder>",
+          "user: <system-reminder>
+      Resume recheck (T1-5): the compacted summary carries verification claims flagged needs_revalidation.
+      Re-run their cheap evidence (tests, typecheck, git status) before treating them as done:
+      - free-form handoff scaffolded | evidence=n/a | needs_revalidation=true
+      </system-reminder>",
         ],
       ]
     `);
@@ -750,7 +780,14 @@ describe('FullCompaction', () => {
     let callCount = 0;
     const generate: GenerateFn = async (_provider, _system, _tools, history) => {
       callCount += 1;
-      if (messageText(history.at(-1)).includes('first-person handoff note')) {
+      const last = messageText(history.at(-1));
+      // Compaction prompts evolved from "first-person handoff note" to the
+      // structured handoff contract; treat either as a summarize call.
+      if (
+        last.includes('first-person handoff note') ||
+        last.includes('Write a handoff so you can continue') ||
+        last.includes('You are about to run out of context')
+      ) {
         return textResult(`Still too large summary ${String(callCount)}.`);
       }
       throw new APIContextOverflowError(
@@ -1153,7 +1190,8 @@ describe('FullCompaction', () => {
       expect.objectContaining({ event: 'compaction.completed' }),
     );
 
-    // The turn ran a tool step, then the next step errored and ended the turn.
+    // The turn ran a tool step, then the next step hit maxCompactionPerTurn and
+    // terminated with context.overflow (not a mock-queue internal error).
     expect(events).toContainEqual(
       expect.objectContaining({
         event: 'tool.call.started',
@@ -1163,7 +1201,10 @@ describe('FullCompaction', () => {
     expect(events).toContainEqual(
       expect.objectContaining({
         event: 'turn.step.interrupted',
-        args: expect.objectContaining({ reason: 'error' }),
+        args: expect.objectContaining({
+          reason: 'error',
+          message: expect.stringContaining('Compaction limit exceeded'),
+        }),
       }),
     );
     expect(events).toContainEqual(
@@ -1173,9 +1214,9 @@ describe('FullCompaction', () => {
           turnId: 0,
           reason: 'failed',
           error: expect.objectContaining({
-            code: 'internal',
-            retryable: false,
-            message: expect.stringContaining('Unexpected generate call'),
+            code: 'context.overflow',
+            retryable: true,
+            message: expect.stringContaining('Compaction limit exceeded'),
           }),
         }),
       }),
@@ -1186,9 +1227,9 @@ describe('FullCompaction', () => {
       expect.objectContaining({
         event: 'error',
         args: expect.objectContaining({
-          code: 'internal',
-          retryable: false,
-          message: expect.stringContaining('Unexpected generate call'),
+          code: 'context.overflow',
+          retryable: true,
+          message: expect.stringContaining('Compaction limit exceeded'),
         }),
       }),
     );
@@ -1629,8 +1670,13 @@ function inputHistorySnapshot(history: readonly Message[]): string[] {
 }
 
 function normalizeInputText(text: string): string {
-  if (text.toLowerCase().includes('compact this conversation context') ||
-    text.includes('first-person handoff note')) {
+  if (
+    text.toLowerCase().includes('compact this conversation context') ||
+    text.includes('first-person handoff note') ||
+    text.includes('You are about to run out of context') ||
+    text.includes('Write a handoff so you can continue') ||
+    text.includes('<!-- Compression Priorities (in order) -->')
+  ) {
     return '<compaction-instruction>';
   }
   if (text.includes('<current_time>') && text.includes('Authoritative host clock')) {

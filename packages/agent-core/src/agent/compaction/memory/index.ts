@@ -57,13 +57,23 @@ export function parseStructuredCompactionMemory(summary: string): StructuredComp
   };
 
   let currentSection: StructuredListKey | null = null;
+  // Scaffold / model often emit multiline `current_goal:\n- …`. Capture the next
+  // bullet when the heading itself has no inline value; otherwise free-form
+  // handoffs look structured but QC still reports "missing current_goal".
+  let captureCurrentGoalItem = false;
   for (const line of summary.split('\n')) {
     const parsedHeading = parseStructuredHeading(line);
     if (parsedHeading !== null) {
       if (parsedHeading.key === 'currentGoal') {
         currentSection = null;
-        if (parsedHeading.value.length > 0) currentGoal = parsedHeading.value;
+        if (parsedHeading.value.length > 0) {
+          currentGoal = parsedHeading.value;
+          captureCurrentGoalItem = false;
+        } else {
+          captureCurrentGoalItem = true;
+        }
       } else {
+        captureCurrentGoalItem = false;
         currentSection = parsedHeading.key;
         if (parsedHeading.value.length > 0) sections[parsedHeading.key].push(parsedHeading.value);
       }
@@ -71,11 +81,17 @@ export function parseStructuredCompactionMemory(summary: string): StructuredComp
     }
     if (/^\s*#{1,6}\s+/.test(line)) {
       currentSection = null;
+      captureCurrentGoalItem = false;
       continue;
     }
 
     const item = normalizeMemoryItem(line);
     if (item.length === 0) continue;
+    if (captureCurrentGoalItem && (currentGoal === undefined || currentGoal.length === 0)) {
+      currentGoal = item;
+      captureCurrentGoalItem = false;
+      continue;
+    }
     if (currentSection !== null) {
       sections[currentSection].push(item);
     }

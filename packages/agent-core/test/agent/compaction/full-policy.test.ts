@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  clampObservedOverflowTokens,
   handoffThresholdTokens,
+  MIN_OBSERVED_MAX_CONTEXT_TOKENS,
   relaxObservedMaxContextTokens,
   resolveEffectiveMaxContextTokens,
   shouldDeferAutoCompaction,
@@ -192,6 +194,36 @@ describe('full-policy.ts — pure policy helpers', () => {
       expect(
         resolveEffectiveMaxContextTokens({ configured: 200_000, observed: 250_000 }),
       ).toBe(200_000);
+    });
+  });
+
+  describe('clampObservedOverflowTokens', () => {
+    it('floors unstated tiny estimates so short fixtures still tighten a large window', () => {
+      expect(
+        clampObservedOverflowTokens({
+          observed: 97,
+          currentEffective: 256_000,
+        }),
+      ).toBe(MIN_OBSERVED_MAX_CONTEXT_TOKENS);
+    });
+
+    it('still tightens a small configured window without overshooting', () => {
+      expect(
+        clampObservedOverflowTokens({
+          observed: 606,
+          currentEffective: 1_000,
+        }),
+      ).toBe(999);
+    });
+
+    it('keeps provider-stated limits as-is after the safety ratio', () => {
+      expect(
+        clampObservedOverflowTokens({
+          observed: 425_000,
+          currentEffective: 2_000_000,
+          statedLimitTokens: 500_000,
+        }),
+      ).toBe(425_000);
     });
   });
 

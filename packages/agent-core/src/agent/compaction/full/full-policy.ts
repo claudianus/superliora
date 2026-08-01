@@ -64,6 +64,15 @@ export function relaxObservedMaxContextTokens(input: {
   return Math.min(input.configured, relaxed);
 }
 
+/**
+ * Floor applied to unstated overflow observations when rewriting the session
+ * ceiling. Short fixtures (and one-shot false-positive overflows) would
+ * otherwise collapse the budget to tens of tokens and thrash multi-round
+ * compaction under a synthetic block threshold. Provider-stated limits still
+ * win as-is (after the safety ratio).
+ */
+export const MIN_OBSERVED_MAX_CONTEXT_TOKENS = 4_096;
+
 export function resolveEffectiveMaxContextTokens(input: {
   readonly configured: number;
   readonly observed: number | undefined;
@@ -71,6 +80,38 @@ export function resolveEffectiveMaxContextTokens(input: {
   if (input.observed === undefined) return input.configured;
   if (input.configured <= 0) return input.observed;
   return Math.min(input.configured, input.observed);
+}
+
+/**
+ * Clamp an overflow-derived observation so tiny unstated estimates cannot
+ * collapse the ceiling to tens of tokens (multi-round thrash), while still
+ * always allowing a real tighten step against the current effective max.
+ *
+ * Provider-stated limits are used as-is (after the safety ratio). Unstated
+ * estimates are floored to min(MIN_OBSERVED, currentEffective - 1) so short
+ * fixtures still tighten a large window without overshooting a small one.
+ */
+export function clampObservedOverflowTokens(input: {
+  readonly observed: number;
+  readonly currentEffective: number;
+  readonly statedLimitTokens?: number;
+}): number {
+  const observed = Math.max(1, Math.floor(input.observed));
+  if (
+    input.statedLimitTokens !== undefined &&
+    Number.isFinite(input.statedLimitTokens) &&
+    input.statedLimitTokens > 0
+  ) {
+    return observed;
+  }
+  if (!(input.currentEffective > 1)) {
+    return Math.max(observed, MIN_OBSERVED_MAX_CONTEXT_TOKENS);
+  }
+  const floor = Math.min(
+    MIN_OBSERVED_MAX_CONTEXT_TOKENS,
+    Math.max(1, input.currentEffective - 1),
+  );
+  return Math.max(observed, floor);
 }
 
 export function shouldRecoverFromOverflowStatus(input: {

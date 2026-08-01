@@ -169,5 +169,32 @@ describe('validateInitialCompactionSummary — structured handoff', () => {
     const result = validateInitialCompactionSummary(summary, plan, history);
     expect(result.critical).toEqual([]);
     expect(result.warningCategories).not.toContain('unstructured_summary');
+    expect(result.warningCategories).not.toContain('missing_file_hints');
+  });
+
+  it('warns when structured handoff omits useful files_touched and last_known_state', () => {
+    const summary = [
+      'current_goal: Continue harness loop',
+      'last_known_state:',
+      'decisions:',
+      '- none',
+      'files_touched:',
+      'failed_attempts:',
+      '- none',
+      'open_questions:',
+      '- none',
+      'next_actions:',
+      '- Implement next sensor',
+      'verified_claims:',
+      '- none | evidence=n/a | needs_revalidation=true',
+      'raw_refs:',
+      '- none',
+    ].join('\n');
+    const result = validateInitialCompactionSummary(summary, plan, history);
+    expect(result.critical).toEqual([]);
+    expect(result.warningCategories).toContain('missing_file_hints');
+    expect(result.warningCategories).toContain('missing_failed_attempts');
+    expect(result.warnings.some((w) => w.includes('files_touched'))).toBe(true);
+    expect(result.warnings.some((w) => w.includes('last_known_state'))).toBe(true);
   });
 });

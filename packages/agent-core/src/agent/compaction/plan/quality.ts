@@ -79,6 +79,21 @@ export function validateInitialCompactionSummary(
     if (usefulItems(memory.nextActions).length === 0) {
       critical.push('v2 summary is missing next_actions');
     }
+    // Handoff quality ratchet (OpenCode Objective/Work State/Files): warn when
+    // structured labels exist but resume anchors are empty placeholders.
+    if (usefulItems(memory.filesTouched).length === 0) {
+      warnings.push(
+        'v2 summary has no useful files_touched — list concrete paths or an explicit none',
+      );
+      warningCategories.push('missing_file_hints');
+    }
+    if (usefulItems(memory.lastKnownState).length === 0) {
+      warnings.push(
+        'v2 summary has thin last_known_state — capture Work State so the next turn can resume without re-discovery',
+      );
+      // last_known_state is continuity evidence; reuse failed_attempts category for thin work-state.
+      warningCategories.push('missing_failed_attempts');
+    }
     // raw_refs are planner-derived and injected during renderStructuredV2Summary;
     // do not fail the pre-render LLM summary when the model omits them.
   }

@@ -145,7 +145,8 @@ export function uniqueCategories(
   return [...new Set(items)];
 }
 
-export function usefulItems(items: readonly string[]): readonly string[] {
+export function usefulItems(items: readonly string[] | undefined | null): readonly string[] {
+  if (items === undefined || items === null) return [];
   return items.filter(isUsefulCompactionMemoryItem);
 }
 

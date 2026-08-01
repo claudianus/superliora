@@ -13,11 +13,9 @@ import {
   type ChatProvider,
   type Message,
   type TokenUsage,
-  type Tool,
 } from '@superliora/kosong';
 import { ErrorCodes, isKimiError } from '#/errors/index';
 
-import type { Agent } from '../..';
 import { isAbortError } from '../../../loop/errors';
 import { retryBackoffDelays, sleepForRetry } from '../../../loop/retry';
 import { renderPrompt } from '../../../utils/render-prompt';
@@ -37,6 +35,7 @@ import {
 } from '../full/adaptive-concurrency';
 import {
   buildEmergencyBackstopSummary,
+  shouldFallbackAfterCompactionRetries,
   shouldUseClassicalCompactionFallback,
 } from '../full/backstop';
 import { blockDensity, formatRawRef } from '../plan/context-helpers';
@@ -47,8 +46,8 @@ import {
 } from '../full/full-helpers';
 import { shouldUseParallelSummarize } from '../full/full-policy';
 import { splitMessagesIntoTokenBlocks, type CompactionPlan } from '../plan/planner';
+import { runCompactionGenerate } from './generate-guard';
 import {
-  compactionStreamCallbacks,
   emitCompactionProgress,
   fractionForBlocksCompleted,
   fractionForMergeDone,
@@ -56,7 +55,6 @@ import {
 } from './progress';
 import type {
   CompactionPipelineContext,
-  CompactionStreamMeta,
   SummarizeInput,
   SummarizeOutput,
 } from './types';
@@ -73,23 +71,6 @@ const DEFAULT_PARALLEL_BLOCK_TARGET = 5_000;
 const PARALLEL_BLOCK_RATE_LIMIT_RETRIES = 4;
 const MAX_COMPACTION_RETRY_ATTEMPTS = 5;
 const MAX_COMPACTION_MERGE_RETRY_ATTEMPTS = 2;
-
-/** Static empty tool list for compaction generate calls. */
-const COMPACTION_GENERATE_TOOLS: Tool[] = [];
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-function compactionGenerateOptions(
-  ctx: CompactionPipelineContext,
-  signal: AbortSignal,
-): { readonly signal: AbortSignal; readonly runtimeModelAlias?: string } {
-  return {
-    signal,
-    runtimeModelAlias: ctx.compactionModelAlias,
-  };
-}
 
 function resolveParallelBlockConcurrency(
   ctx: CompactionPipelineContext,
@@ -131,23 +112,27 @@ async function generateCompactionBlockWithRetry(
     readonly signal: AbortSignal;
     readonly provider: ChatProvider;
     readonly messages: Message[];
-    readonly streamCallbacks: ReturnType<typeof compactionStreamCallbacks>;
+    readonly streamMeta: {
+      readonly phase: 'summarizing';
+      readonly streamKind: 'block';
+      readonly blockIndex: number;
+      readonly blockCount: number;
+      readonly blocksCompleted: () => number;
+      readonly fraction: () => number;
+    };
     readonly retryCountRef: { value: number };
     readonly onRateLimit?: () => void;
   },
-): Promise<Awaited<ReturnType<Agent['generate']>>> {
+): Promise<Awaited<ReturnType<typeof runCompactionGenerate>>> {
   const delays = retryBackoffDelays(PARALLEL_BLOCK_RATE_LIMIT_RETRIES);
   let attempt = 0;
   while (true) {
     try {
-      return await ctx.agent.generate(
-        input.provider,
-        ctx.agent.config.systemPrompt,
-        COMPACTION_GENERATE_TOOLS,
-        input.messages,
-        input.streamCallbacks,
-        compactionGenerateOptions(ctx, input.signal),
-      );
+      return await runCompactionGenerate(ctx, input.signal, {
+        provider: input.provider,
+        messages: input.messages,
+        streamMeta: input.streamMeta,
+      });
     } catch (error) {
       if (isRateLimitLikeError(error)) {
         input.onRateLimit?.();
@@ -191,17 +176,14 @@ async function sequentialSummarize(
       createUserMessage(renderPrompt(compactionInstructionTemplate, { customInstruction: instruction })),
     ];
     try {
-      const response = await ctx.agent.generate(
+      const response = await runCompactionGenerate(ctx, signal, {
         provider,
-        ctx.agent.config.systemPrompt,
-        COMPACTION_GENERATE_TOOLS,
         messages,
-        compactionStreamCallbacks(ctx.agent, {
+        streamMeta: {
           phase: 'summarizing',
           streamKind: 'summary',
-        }),
-        compactionGenerateOptions(ctx, signal),
-      );
+        },
+      });
       if (response.finishReason === 'truncated') {
         throw new CompactionTruncatedError();
       }
@@ -213,6 +195,7 @@ async function sequentialSummarize(
         usedEmergencyBackstop: false,
       };
     } catch (error) {
+      if (isAbortError(error)) throw error;
       if (
         error instanceof APIContextOverflowError ||
         error instanceof CompactionTruncatedError ||
@@ -239,7 +222,13 @@ async function sequentialSummarize(
         throw error;
       }
       if (retryCountRef.value + 1 >= MAX_COMPACTION_RETRY_ATTEMPTS) {
-        if (isCompactionSummarizerError(error) || shouldUseClassicalCompactionFallback(error)) {
+        // After the retry budget, prefer classical extractive resume over
+        // stranding the session — only abort/auth must still surface.
+        if (
+          isCompactionSummarizerError(error) ||
+          shouldUseClassicalCompactionFallback(error) ||
+          shouldFallbackAfterCompactionRetries(error)
+        ) {
           ctx.agent.telemetry.track('compaction_classical_fallback', {
             reason: 'retry_exhausted',
             error_type: error instanceof Error ? error.name : 'Unknown',
@@ -308,17 +297,14 @@ async function mergeBlockSummaries(
 
   for (let attempt = 0; attempt < MAX_COMPACTION_MERGE_RETRY_ATTEMPTS; attempt++) {
     try {
-      const response = await ctx.agent.generate(
+      const response = await runCompactionGenerate(ctx, signal, {
         provider,
-        ctx.agent.config.systemPrompt,
-        COMPACTION_GENERATE_TOOLS,
         messages,
-        compactionStreamCallbacks(ctx.agent, {
+        streamMeta: {
           phase: 'summarizing',
           streamKind: 'merge',
-        }),
-        compactionGenerateOptions(ctx, signal),
-      );
+        },
+      });
       if (response.finishReason === 'truncated') {
         throw new CompactionTruncatedError();
       }
@@ -329,6 +315,7 @@ async function mergeBlockSummaries(
       };
     } catch (error) {
       lastError = error;
+      if (isAbortError(error)) throw error;
       if (
         attempt + 1 >= MAX_COMPACTION_MERGE_RETRY_ATTEMPTS ||
         !(
@@ -337,6 +324,23 @@ async function mergeBlockSummaries(
           isRetryableGenerateError(error)
         )
       ) {
+        // Merge is a quality optimization. When the LLM merge fails (timeout,
+        // 5xx, empty body…), concatenate structured/prose block summaries so
+        // the session still gets a usable handoff instead of hard-failing.
+        if (
+          shouldUseClassicalCompactionFallback(error) ||
+          shouldFallbackAfterCompactionRetries(error)
+        ) {
+          ctx.agent.telemetry.track('compaction_merge_fallback_concat', {
+            error_type: error instanceof Error ? error.name : 'Unknown',
+            block_count: blockSummaries.length,
+          });
+          return {
+            summary: concatenateBlockSummaries(blockSummaries),
+            usage: null,
+            mergeInputTokens,
+          };
+        }
         throw error;
       }
       await sleepForRetry(delays[attempt]!, signal);
@@ -345,6 +349,17 @@ async function mergeBlockSummaries(
   }
 
   throw lastError;
+}
+
+function concatenateBlockSummaries(blockSummaries: readonly string[]): string {
+  return blockSummaries
+    .map((summary, index) => {
+      const body = summary.trim();
+      if (body.length === 0) return '';
+      return `## Block ${String(index + 1)}\n${body}`;
+    })
+    .filter((part) => part.length > 0)
+    .join('\n\n');
 }
 
 // ---------------------------------------------------------------------------
@@ -407,7 +422,7 @@ async function parallelSummarize(
           signal,
           provider,
           messages,
-          streamCallbacks: compactionStreamCallbacks(ctx.agent, {
+          streamMeta: {
             phase: 'summarizing',
             streamKind: 'block',
             blockIndex: index + 1,
@@ -417,7 +432,7 @@ async function parallelSummarize(
             // block's next delta would rewind the TUI's "block n/N" counter.
             blocksCompleted: () => blocksCompleted,
             fraction: () => fractionForBlocksCompleted(blocksCompleted, blockCount),
-          }),
+          },
           retryCountRef,
           onRateLimit: () => {
             limiter.noteRateLimit();
