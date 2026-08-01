@@ -2,6 +2,7 @@ import { type TranscriptViewportState } from '#/tui/features/transcript/transcri
 import {
   RendererTranscriptViewportComponent,
   visibleWidth,
+  withTranscriptMeasureMode,
   type Component,
   type RendererScrollbarGlyphRole,
 } from '#/tui/renderer';
@@ -69,13 +70,16 @@ export class TranscriptViewportComponent extends RendererTranscriptViewportCompo
   idleTargetRows(width: number): number {
     const budget = Math.max(0, Math.trunc(this.resolveVisibleRows(width)));
     if (budget === 0) return 0;
-    let other = 0;
-    for (const child of this.children) {
-      if (child instanceof IdleStageComponent) continue;
-      other += child.render(width).length;
-    }
-    // Keep a usable multi-layer scene even when Welcome is tall.
-    return Math.max(10, budget - other);
+    // Probe-only: do not run live tool ticks while sizing the idle scene.
+    return withTranscriptMeasureMode(() => {
+      let other = 0;
+      for (const child of this.children) {
+        if (child instanceof IdleStageComponent) continue;
+        other += child.render(width).length;
+      }
+      // Keep a usable multi-layer scene even when Welcome is tall.
+      return Math.max(10, budget - other);
+    });
   }
 
   get isAquariumOverlayActive(): boolean {

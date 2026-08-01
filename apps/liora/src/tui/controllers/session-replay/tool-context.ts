@@ -131,7 +131,9 @@ export class SessionReplayToolContext {
     );
     if (childIndex >= 0) {
       children.splice(childIndex, 1);
-      state.transcriptContainer.invalidate();
+      // Slot removal only — full invalidate() would wipe every sibling render
+      // cache and force an O(transcript) remeasure storm.
+      state.transcriptContainer.invalidateGeometryAndPaint();
     }
   }
 }

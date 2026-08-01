@@ -158,8 +158,13 @@ export function tickToolCallRenderClock(
         (callbacks.getSubagentSpinnerFrame() + 1) % BRAILLE_SPINNER_FRAMES.length,
       );
       callbacks.refreshHeader();
-      callbacks.rebuildSubagentBlock();
-      callbacks.notifySnapshotChange();
+      // Share the body-rebuild budget: many live Task cards each rebuilding
+      // their subagent block every ambient tick re-dirties geometry and storms
+      // the main thread (same freeze class as uncapped rebuildBody).
+      if (takeBodyRebuildBudget(now)) {
+        callbacks.rebuildSubagentBlock();
+        callbacks.notifySnapshotChange();
+      }
       callbacks.requestRender();
     }
   } else {

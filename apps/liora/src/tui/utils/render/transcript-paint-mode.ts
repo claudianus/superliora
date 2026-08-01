@@ -9,9 +9,15 @@
  * Scroll paint sets {@link suppressLiveToolTicks} so cards only paint cached
  * lines; ambient/content frames still run live ticks normally.
  *
+ * Geometry probes (`contentRowCount` / line-count cache fills) also suppress
+ * via {@link isTranscriptMeasureMode} from the renderer package — measure must
+ * not re-enter rebuild/requestRender side effects that re-dirty geometry.
+ *
  * {@link markTranscriptScrollActivity} lets chrome timers (footer goal / header
  * clock) skip a beat right after scroll so they do not fight wheel frames.
  */
+
+import { isTranscriptMeasureMode } from '#/tui/renderer';
 
 let suppressLiveToolTicks = false;
 let lastScrollActivityMs = 0;
@@ -37,7 +43,7 @@ export function withTranscriptPaintMode<T>(mode: TranscriptPaintMode, run: () =>
 }
 
 export function areLiveToolTicksSuppressed(): boolean {
-  return suppressLiveToolTicks;
+  return suppressLiveToolTicks || isTranscriptMeasureMode();
 }
 
 /** True when a transcript-scroll paint ran recently (chrome timer holdoff). */
