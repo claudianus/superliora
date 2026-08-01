@@ -135,14 +135,11 @@ export class Markdown implements Component {
         return this.cheapCachedLines;
       }
       // Large cold bodies under pure-scroll: never run full Markdown parse+wrap.
-      // Plain line split + soft wrap estimate keeps first intersection interactive;
-      // ambient/content paint fills real markdown into the full cache.
+      // Do not pin multi-k line arrays on the component during flings — return
+      // a short plain stand-in without writing cheap cache (eviction is via
+      // overflow cache). Ambient/content paint fills real markdown.
       if (this.text.length > TRANSCRIPT_MEASURE_FULL_WRAP_CHAR_CAP) {
-        const result = this.renderPlainCheap(safeWidth);
-        this.cheapCachedText = this.text;
-        this.cheapCachedWidth = safeWidth;
-        this.cheapCachedLines = result;
-        return result;
+        return this.renderPlainCheap(safeWidth);
       }
       const result = this.renderUncached(safeWidth);
       this.cheapCachedText = this.text;
@@ -198,8 +195,8 @@ export class Markdown implements Component {
     const lead = ' '.repeat(paddingX);
     const out: string[] = [];
     for (let p = 0; p < paddingY; p++) out.push(this.padLine('', width));
-    // Cap materialised plain lines so one cold card cannot allocate 100k strings.
-    const MAX_PLAIN_LINES = 2_000;
+    // Cap materialised plain lines. 2k×many cards pinned the heap during flings.
+    const MAX_PLAIN_LINES = 400;
     let produced = 0;
     for (const raw of this.text.replaceAll('\t', '   ').split('\n')) {
       if (produced >= MAX_PLAIN_LINES) break;

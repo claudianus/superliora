@@ -76,15 +76,13 @@ export class Text implements RendererComponent {
       return measurePlaceholderLines(rows);
     }
 
-    // Pure-scroll cold paint of multi-k Text: cap materialised wrap so first
-    // intersection stays interactive (full wrap still runs on ambient paint).
+    // Pure-scroll cold paint of multi-k Text: short plain stand-in, no cache
+    // pin (overflow cache + eviction owns retention). Full wrap on ambient.
     if (
       shouldSkipExpensiveTranscriptFormat() &&
       this.text.length > TRANSCRIPT_MEASURE_FULL_WRAP_CHAR_CAP
     ) {
-      const result = this.renderPlainCheap(safeWidth);
-      // Do not write into full cache — ambient must re-wrap for correctness.
-      return result;
+      return this.renderPlainCheap(safeWidth);
     }
 
     const result = this.renderUncached(safeWidth);
@@ -123,7 +121,7 @@ export class Text implements RendererComponent {
     const rightMargin = ' '.repeat(paddingX);
     const emptyLine = padAnsiDisplayLine('', width, this.customBgFn);
     const out: string[] = Array.from({ length: paddingY }, () => emptyLine);
-    const MAX_PLAIN_LINES = 2_000;
+    const MAX_PLAIN_LINES = 400;
     let produced = 0;
     for (const raw of this.text.replaceAll('\t', '   ').split('\n')) {
       if (produced >= MAX_PLAIN_LINES) break;

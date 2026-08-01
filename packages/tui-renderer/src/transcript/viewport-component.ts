@@ -90,6 +90,15 @@ interface RendererTranscriptGeometrySnapshot {
 
 /** Max distinct widths kept in the per-child line-count LRU. */
 const LINE_COUNT_CACHE_CAP = 4;
+/**
+ * Overflow paint retention. Scrolling the whole history used to keep every
+ * visited card's full string[] forever → multi-100MB heaps → multi-second GC
+ * pauses that felt like freezes on rapid up/down flings.
+ */
+const OVERFLOW_RETAIN_VIEWPORTS = 4;
+/** Hard cap on how many children keep full line arrays (LRU by last paint). */
+const OVERFLOW_MAX_RETAINED_CHILDREN = 24;
+
 
 export class RendererTranscriptViewportComponent extends Container {
   private readonly viewport: RendererTranscriptViewportComponentOptions['viewport'];
@@ -154,6 +163,8 @@ export class RendererTranscriptViewportComponent extends Container {
    * materialize budget ran out. Hosts should schedule another content frame.
    */
   private materializeContinuePending = false;
+  /** Child indices painted recently — overflow eviction LRU (insertion order). */
+  private overflowTouchOrder: number[] = [];
 
   constructor(options: RendererTranscriptViewportComponentOptions) {
     super();
@@ -369,18 +380,15 @@ export class RendererTranscriptViewportComponent extends Container {
     const inner = Math.max(1, safeWidth - this.leftPad - this.rightPad);
     this.materializeContinuePending = false;
 
-    // Pure-scroll fling: never cold-layout. Slow pure-scroll: 1 card/frame.
-    // Content/settle: small budget so filling after a fling cannot hitch hard.
+    // Pure-scroll: never cold-layout (budget 0). Materializing even 1 multi-k
+    // card per wheel frame during rapid up/down allocated string heaps that
+    // triggered multi-second GC pauses. Fill only on content/settle frames.
     if (shouldSkipExpensiveTranscriptFormat()) {
-      const now =
+      this.coldMaterializeBudget = 0;
+      this.lastPureScrollPaintAt =
         typeof performance !== 'undefined' && typeof performance.now === 'function'
           ? performance.now()
           : Date.now();
-      const fling =
-        this.lastPureScrollPaintAt > 0 &&
-        now - this.lastPureScrollPaintAt < RendererTranscriptViewportComponent.FLING_GAP_MS;
-      this.coldMaterializeBudget = fling ? 0 : 1;
-      this.lastPureScrollPaintAt = now;
     } else {
       this.coldMaterializeBudget = RendererTranscriptViewportComponent.CONTENT_MATERIALIZE_BUDGET;
       this.lastPureScrollPaintAt = 0;
@@ -410,6 +418,10 @@ export class RendererTranscriptViewportComponent extends Container {
       snapshot.start,
       snapshot.end,
     );
+
+    // Drop off-screen / excess retained line arrays so rapid flings cannot
+    // pin the entire transcript history in the heap.
+    this.evictOverflowAwayFromWindow(childCounts, snapshot.start, snapshot.end);
 
     // Phase 5 — attach a scrollbar gutter if configured.
     if (!this.scrollbar || this.rightPad <= 0) return visibleLines;
@@ -545,6 +557,63 @@ export class RendererTranscriptViewportComponent extends Container {
     if (this.paintRegionLine !== undefined) return this.paintRegionLine(line, width);
     if (this.paintLine !== undefined) return this.paintLine(line, width);
     return line;
+  }
+
+  private touchOverflowChild(childIndex: number): void {
+    const order = this.overflowTouchOrder;
+    const prev = order.indexOf(childIndex);
+    if (prev >= 0) order.splice(prev, 1);
+    order.push(childIndex);
+  }
+
+  private clearOverflowChildSlot(childIndex: number): void {
+    const cache = this.overflowRenderCache;
+    if (cache === undefined) return;
+    cache.childRefs[childIndex] = undefined;
+    cache.childRenderRefs[childIndex] = undefined;
+    cache.childFormattedSparse[childIndex] = undefined;
+  }
+
+  /**
+   * Free full line arrays for cards far from the viewport and enforce a hard
+   * cap on retained children. Prevents GC freezes after scrolling the full
+   * history up and down repeatedly.
+   */
+  private evictOverflowAwayFromWindow(
+    childCounts: number[],
+    startLine: number,
+    endLine: number,
+  ): void {
+    const cache = this.overflowRenderCache;
+    if (cache === undefined) return;
+    const windowRows = Math.max(1, endLine - startLine);
+    const margin = windowRows * OVERFLOW_RETAIN_VIEWPORTS;
+    const keepStart = startLine - margin;
+    const keepEnd = endLine + margin;
+
+    let lineOffset = 0;
+    for (let i = 0; i < childCounts.length; i++) {
+      const childLines = childCounts[i]!;
+      const childStart = lineOffset;
+      const childEnd = lineOffset + childLines;
+      lineOffset = childEnd;
+      if (cache.childRefs[i] === undefined && cache.childRenderRefs[i] === undefined) {
+        continue;
+      }
+      // Fully outside the retain band → drop full line arrays + sparse paint.
+      if (childEnd <= keepStart || childStart >= keepEnd) {
+        this.clearOverflowChildSlot(i);
+        const touch = this.overflowTouchOrder.indexOf(i);
+        if (touch >= 0) this.overflowTouchOrder.splice(touch, 1);
+      }
+    }
+
+    // Hard cap: drop oldest touched children beyond the retain limit.
+    while (this.overflowTouchOrder.length > OVERFLOW_MAX_RETAINED_CHILDREN) {
+      const drop = this.overflowTouchOrder.shift();
+      if (drop === undefined) break;
+      this.clearOverflowChildSlot(drop);
+    }
   }
 
   /**
@@ -732,6 +801,7 @@ export class RendererTranscriptViewportComponent extends Container {
       cache.childRenderRefs[childIndex] = lines;
       sparse = undefined;
       cache.childFormattedSparse[childIndex] = undefined;
+      this.touchOverflowChild(childIndex);
       // Reconcile geometry if estimate differed from real wrap (reduces bar jump).
       this.reconcileChildGeometry(inner, childIndex, child, lines.length);
     } else if (shouldSkipExpensiveTranscriptFormat()) {
@@ -739,6 +809,7 @@ export class RendererTranscriptViewportComponent extends Container {
       // every wheel frame re-enters multi-k Markdown/Text width caches and was
       // a residual freeze when many tall cards stayed in the visible window.
       // Ambient/content frames still probe below so live animation refs update.
+      this.touchOverflowChild(childIndex);
     } else {
       // Probe render: animated children return a new array each epoch; static
       // caches often return the same reference. When the array is new but line
