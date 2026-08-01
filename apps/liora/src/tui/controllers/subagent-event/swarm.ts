@@ -18,6 +18,7 @@ import {
 } from '../../features/agent-swarm/war-room-action';
 import type { WarRoomExpertView } from '../../utils/war-room-experts';
 import type { StreamingUIController } from '../streaming-ui/index';
+import { requestTranscriptPaintRefresh } from '../../utils/render/frame-render';
 import {
   isUserCancelledSubagentError,
   renderedRowsAfterChild,
@@ -546,7 +547,8 @@ export class SubagentSwarmCoordinator {
     this.progressByToolCallId.delete(toolCallId);
     progress.dispose();
     this.host.state.transcriptContainer.removeChild(progress);
-    this.host.state.transcriptContainer.invalidatePaint();
+    // Scroll-hold aware: do not wipe overflow caches mid-fling.
+    requestTranscriptPaintRefresh(this.host.state);
     this.host.updateActivityPane();
   }
 

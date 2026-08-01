@@ -147,6 +147,13 @@ export class RendererTranscriptViewportComponent extends Container {
   private coldMaterializeBudget = 0;
   private lastPureScrollPaintAt = 0;
   private static readonly FLING_GAP_MS = 40;
+  /** Max cold layouts per non-scroll (settle/content) frame — avoids settle hitch. */
+  private static readonly CONTENT_MATERIALIZE_BUDGET = 4;
+  /**
+   * True when the last paint left visible cold placeholders because the
+   * materialize budget ran out. Hosts should schedule another content frame.
+   */
+  private materializeContinuePending = false;
 
   constructor(options: RendererTranscriptViewportComponentOptions) {
     super();
@@ -352,23 +359,30 @@ export class RendererTranscriptViewportComponent extends Container {
     this.geometryNeedsContinue = false;
   }
 
+  /** Hosts: schedule another content paint when true after a frame. */
+  get needsMaterializeContinue(): boolean {
+    return this.materializeContinuePending;
+  }
+
   private renderVisibleRegionLines(width: number, visibleRows: number): RendererRegionLine[] {
     const safeWidth = normalizeTranscriptWidth(width);
     const inner = Math.max(1, safeWidth - this.leftPad - this.rightPad);
+    this.materializeContinuePending = false;
 
-    // Pure-scroll fling detection: top→bottom storms schedule frames with delay
-    // 0, so paints land <40ms apart. Never cold-layout during a fling.
+    // Pure-scroll fling: never cold-layout. Slow pure-scroll: 1 card/frame.
+    // Content/settle: small budget so filling after a fling cannot hitch hard.
     if (shouldSkipExpensiveTranscriptFormat()) {
       const now =
         typeof performance !== 'undefined' && typeof performance.now === 'function'
           ? performance.now()
           : Date.now();
       const fling =
-        this.lastPureScrollPaintAt > 0 && now - this.lastPureScrollPaintAt < RendererTranscriptViewportComponent.FLING_GAP_MS;
+        this.lastPureScrollPaintAt > 0 &&
+        now - this.lastPureScrollPaintAt < RendererTranscriptViewportComponent.FLING_GAP_MS;
       this.coldMaterializeBudget = fling ? 0 : 1;
       this.lastPureScrollPaintAt = now;
     } else {
-      this.coldMaterializeBudget = Number.POSITIVE_INFINITY;
+      this.coldMaterializeBudget = RendererTranscriptViewportComponent.CONTENT_MATERIALIZE_BUDGET;
       this.lastPureScrollPaintAt = 0;
     }
 
@@ -533,6 +547,41 @@ export class RendererTranscriptViewportComponent extends Container {
     return line;
   }
 
+  /**
+   * After a cold materialize, replace estimate/provisional row counts with the
+   * real laid-out height so the scrollbar does not keep jumping.
+   */
+  private reconcileChildGeometry(
+    inner: number,
+    childIndex: number,
+    child: Component,
+    lineCount: number,
+  ): void {
+    const geometry = this.lineCountCache.get(inner);
+    if (geometry === undefined) return;
+    if (childIndex < 0 || childIndex >= geometry.counts.length) return;
+    const next = Math.max(0, Math.floor(lineCount));
+    const prev = geometry.counts[childIndex];
+    if (prev === next && geometry.childRefs[childIndex] === child) return;
+    const old = Number.isFinite(prev) ? (prev as number) : 0;
+    geometry.counts[childIndex] = next;
+    geometry.childRefs[childIndex] = child;
+    geometry.total = Math.max(0, geometry.total - old + next);
+    if (
+      this.geometrySnapshot !== undefined &&
+      this.geometrySnapshot.inner === inner &&
+      this.geometrySnapshot.n === geometry.counts.length
+    ) {
+      this.geometrySnapshot = {
+        generation: this.geometryGeneration,
+        inner,
+        n: geometry.counts.length,
+        counts: geometry.counts,
+        total: geometry.total,
+      };
+    }
+  }
+
   private renderAllChildren(
     width: number,
     inner: number,
@@ -664,13 +713,12 @@ export class RendererTranscriptViewportComponent extends Container {
     let sparse = cache.childFormattedSparse[childIndex];
 
     if (cache.childRefs[childIndex] !== child || lines === undefined) {
-      // Pure-scroll cold intersection: fling budget is 0 (placeholders only).
-      // Never write placeholder slots into the overflow cache so the settle
-      // content frame re-materializes real bodies.
-      if (
-        shouldSkipExpensiveTranscriptFormat() &&
-        this.coldMaterializeBudget <= 0
-      ) {
+      // Cold intersection under budget: placeholders only. Never cache them so
+      // a later content frame re-materializes. Budget applies to pure-scroll
+      // fling (0) and settle/content (small) alike — unlimited cold layouts
+      // on settle were the post-fling hitch.
+      if (this.coldMaterializeBudget <= 0) {
+        this.materializeContinuePending = true;
         const rowCount = Math.max(0, sliceEnd - sliceStart);
         const pad = ' '.repeat(this.leftPad);
         for (let k = 0; k < rowCount; k++) {
@@ -678,14 +726,14 @@ export class RendererTranscriptViewportComponent extends Container {
         }
         return;
       }
-      if (shouldSkipExpensiveTranscriptFormat()) {
-        this.coldMaterializeBudget -= 1;
-      }
+      this.coldMaterializeBudget -= 1;
       lines = child.render(inner);
       cache.childRefs[childIndex] = child;
       cache.childRenderRefs[childIndex] = lines;
       sparse = undefined;
       cache.childFormattedSparse[childIndex] = undefined;
+      // Reconcile geometry if estimate differed from real wrap (reduces bar jump).
+      this.reconcileChildGeometry(inner, childIndex, child, lines.length);
     } else if (shouldSkipExpensiveTranscriptFormat()) {
       // Pure-scroll / measure: identity match is enough. Re-probing child.render
       // every wheel frame re-enters multi-k Markdown/Text width caches and was
