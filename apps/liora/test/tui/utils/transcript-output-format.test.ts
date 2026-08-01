@@ -4,10 +4,13 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { currentTheme } from '#/tui/theme';
 import { darkColors } from '#/tui/theme/colors';
 import {
+  clearTranscriptFormatCache,
   detectTranscriptOutputKind,
   formatThinkingText,
   formatTranscriptOutput,
   formatTranscriptOutputDetailed,
+  segmentTranscriptOutput,
+  sniffCodeLanguage,
 } from '#/tui/utils/transcript/transcript-output-format';
 
 function strip(text: string): string {
@@ -20,6 +23,7 @@ describe('transcript-output-format', () => {
   afterEach(() => {
     chalk.level = previousChalkLevel;
     currentTheme.setPalette(darkColors);
+    clearTranscriptFormatCache();
   });
 
   describe('detectTranscriptOutputKind', () => {
@@ -63,8 +67,47 @@ describe('transcript-output-format', () => {
       expect(detectTranscriptOutputKind(logs)).toBe('log');
     });
 
+    it('detects Read-style numbered code dumps', () => {
+      const numbered = [
+        '1\timport chalk from "chalk";',
+        '2\texport function foo(): void {',
+        '3\t  return;',
+        '4\t}',
+      ].join('\n');
+      expect(detectTranscriptOutputKind(numbered)).toBe('numbered-code');
+    });
+
     it('falls back to plain for prose', () => {
       expect(detectTranscriptOutputKind('hello world\nnext line')).toBe('plain');
+    });
+  });
+
+  describe('sniffCodeLanguage', () => {
+    it('sniffs TypeScript and Python shapes', () => {
+      expect(
+        sniffCodeLanguage('import type { Foo } from "./bar";\nexport const x: number = 1;'),
+      ).toBe('typescript');
+      expect(sniffCodeLanguage('def main():\n    print("hi")\n')).toBe('python');
+    });
+  });
+
+  describe('segmentTranscriptOutput', () => {
+    it('splits mixed bash-like streams into contiguous kinds', () => {
+      const mixed = [
+        'INFO starting build',
+        'WARN cache miss',
+        'Error: boom',
+        '    at run (/tmp/app.ts:12:3)',
+        '    at main (/tmp/app.ts:40:1)',
+        '{"ok":true,"n":1}',
+        '{"ok":false,"n":2}',
+      ].join('\n');
+      const segments = segmentTranscriptOutput(mixed);
+      const kinds = segments.map((s) => s.kind);
+      expect(kinds).toContain('log');
+      expect(kinds).toContain('stack');
+      expect(kinds.some((k) => k === 'jsonl' || k === 'json')).toBe(true);
+      expect(segments.length).toBeGreaterThan(1);
     });
   });
 
@@ -99,13 +142,57 @@ describe('transcript-output-format', () => {
 
     it('colours stack frames without inventing text', () => {
       chalk.level = 3;
-      const stack = [
-        'Error: fail',
-        '    at run (/tmp/work/app.ts:12:3)',
-      ].join('\n');
+      const stack = ['Error: fail', '    at run (/tmp/work/app.ts:12:3)'].join('\n');
       const detailed = formatTranscriptOutputDetailed(stack);
       expect(detailed.kind).toBe('stack');
       expect(strip(detailed.text)).toBe(stack);
+      expect(detailed.text).toContain('\u001B[');
+    });
+
+    it('highlights numbered TypeScript Read dumps with gutters preserved', () => {
+      chalk.level = 3;
+      const numbered = [
+        '1\timport type { Foo } from "./bar";',
+        '2\texport function run(): number {',
+        '3\t  return 1;',
+        '4\t}',
+      ].join('\n');
+      const detailed = formatTranscriptOutputDetailed(numbered, {
+        pathHint: 'src/run.ts',
+      });
+      expect(detailed.kind === 'numbered-code' || detailed.kind === 'code').toBe(true);
+      const plain = strip(detailed.text);
+      expect(plain).toContain('import type');
+      expect(plain).toMatch(/^1\t/m);
+      expect(detailed.text).toContain('\u001B[');
+      // Gutter digits stay present; body is syntax-coloured (truecolor SGR).
+      expect(detailed.text).toMatch(/\u001B\[38;2;/);
+    });
+
+    it('uses languageHint to force code highlighting', () => {
+      chalk.level = 3;
+      const code = 'const value = "kimi";\nfunction run() { return value; }';
+      const detailed = formatTranscriptOutputDetailed(code, {
+        languageHint: 'typescript',
+      });
+      expect(detailed.kind).toBe('code');
+      expect(strip(detailed.text)).toContain('const value');
+      expect(detailed.text).toContain('\u001B[');
+    });
+
+    it('formats mixed streams without dropping content', () => {
+      chalk.level = 3;
+      const mixed = [
+        'INFO boot',
+        'ERROR fail',
+        'Error: boom',
+        '    at run (/tmp/a.ts:1:1)',
+        '{"done":true}',
+      ].join('\n');
+      const detailed = formatTranscriptOutputDetailed(mixed, { mode: 'bash' });
+      expect(strip(detailed.text).replaceAll('\r', '')).toContain('INFO boot');
+      expect(strip(detailed.text)).toContain('Error: boom');
+      expect(strip(detailed.text)).toContain('"done"');
       expect(detailed.text).toContain('\u001B[');
     });
 

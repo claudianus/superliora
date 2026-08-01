@@ -1,17 +1,18 @@
 /**
- * Transcript output formatting — pretty-print + light semantic colour for tool
+ * Transcript output formatting — pretty-print + semantic colour for tool
  * results, bash streams, expanded glances, and thinking blocks.
  *
- * Goals:
- *  - Make structured blobs (JSON / JSONL / diff / stack / logs) scannable
- *  - Keep plain text readable with soft URL / path / level accents
- *  - Never throw; never invent content; fall back to dim plain on any miss
- *  - Stay cheap on hot rebuilds (size caps, line-local work, shared highlighters)
+ * Design:
+ *  - Whole-blob kinds when confident (JSON, pure JSONL, pure diff, …)
+ *  - Mixed streams (bash / tool dumps) split into contiguous segments so
+ *    stack + log + JSON + code each get their own highlighter
+ *  - Read-style `N\t…` line gutters strip before tokenization and reattach dim
+ *  - Path / language hints promote code dumps (ts / py / …) over plain dim
+ *  - Never throw; never invent content; size-capped; shared highlight LRU
  */
-
 import chalk from 'chalk';
 
-import { highlightLines } from '#/tui/components/media/code-highlight';
+import { highlightLines, langFromPath } from '#/tui/components/media/code-highlight';
 import { currentTheme, type ColorPalette } from '#/tui/theme';
 
 /** Soft cap for full-document JSON pretty-print + re-highlight. */
@@ -20,6 +21,10 @@ export const TRANSCRIPT_OUTPUT_PRETTY_MAX_CHARS = 120_000;
 export const TRANSCRIPT_OUTPUT_LINE_DECORATE_MAX_CHARS = 400_000;
 /** Soft cap for per-line work when scanning huge blobs. */
 const MAX_SCAN_LINES = 4_000;
+/** Soft cap for mixed-segment formatting (beyond this, fall back to plain). */
+const MIXED_SEGMENT_MAX_CHARS = 200_000;
+/** Max contiguous segments before we collapse the remainder to plain. */
+const MAX_SEGMENTS = 48;
 
 export type TranscriptOutputKind =
   | 'json'
@@ -30,12 +35,16 @@ export type TranscriptOutputKind =
   | 'xml'
   | 'yaml'
   | 'code'
-  | 'plain';
+  | 'numbered-code'
+  | 'plain'
+  | 'mixed';
 
 export interface FormatTranscriptOutputOptions {
   readonly isError?: boolean;
   /** Prefer this language when content looks like a code dump. */
   readonly languageHint?: string;
+  /** File path used to derive a language when languageHint is absent. */
+  readonly pathHint?: string;
   /**
    * `tool` — default tool body (TruncatedOutput / expanded glance).
    * `bash` — already-sanitized shell streams.
@@ -50,7 +59,14 @@ export interface FormatTranscriptOutputResult {
   readonly text: string;
 }
 
-// ─── Detection ──────────────────────────────────────────────────────────────
+export interface TranscriptSegment {
+  readonly kind: Exclude<TranscriptOutputKind, 'mixed'>;
+  readonly startLine: number;
+  readonly endLine: number;
+  readonly language?: string;
+}
+
+// ─── Detection patterns ─────────────────────────────────────────────────────
 
 const LOG_LEVEL_RE =
   /^(?:\[)?(?:\d{4}[-/]\d{2}[-/]\d{2}[ T]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?Z?\s+)?(?:\[)?(FATAL|ERROR|ERR|WARN(?:ING)?|INFO|DEBUG|TRACE|CRITICAL|NOTICE)(?:\])?(?:\s*[:\-]\s*|\s+)/i;
@@ -66,6 +82,94 @@ const PATH_RE =
   /(?:^|[\s"'`(=])((?:\.\.?\/|~\/|\/|[A-Za-z]:\\)[\w.@%+\-./\\]+)(?=[\s"'`),;:]|$)/g;
 const NUMBER_TOKEN_RE = /(?<![\w.])(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?![\w.])/g;
 
+/** Read tool / cat -n style: `12\t…` or padded `  12\t…` / `  12|…` / `  12:…`. */
+const NUMBERED_LINE_RE = /^(\s*)(\d{1,7})([ \t|:]+)(.*)$/;
+
+const CODE_SNIFFERS: ReadonlyArray<{ readonly lang: string; readonly re: RegExp }> = [
+  {
+    lang: 'typescript',
+    re: /\b(?:export\s+(?:default\s+)?(?:async\s+)?function|export\s+(?:type|interface|const|enum|class|import)\b|import\s+(?:type\s+)?[\w*{].*\sfrom\s+['"]|:\s*(?:string|number|boolean|void|unknown|never|Readonly|Promise)<|as\s+const\b)/,
+  },
+  {
+    lang: 'javascript',
+    re: /\b(?:export\s+(?:default\s+)?(?:async\s+)?function|module\.exports\b|require\s*\(|=>\s*\{|const\s+\w+\s*=\s*(?:async\s*)?\()/,
+  },
+  {
+    lang: 'python',
+    re: /(?:^|\n)(?:def\s+\w+\s*\(|class\s+\w+\s*(?:\(.*\))?:|from\s+\w[\w.]*\s+import\s+|import\s+\w[\w.]*(?:\s+as\s+\w+)?\s*$|if\s+__name__\s*==\s*['"]__main__['"])/m,
+  },
+  {
+    lang: 'rust',
+    re: /\b(?:fn\s+\w+\s*(?:<[^>]*>)?\s*\(|let\s+mut\s+|impl\s+\w+|use\s+[\w:]+::|pub\s+(?:fn|struct|enum|mod)\b)/,
+  },
+  {
+    lang: 'go',
+    re: /\b(?:func\s+(?:\([^)]*\)\s*)?\w+\s*\(|package\s+\w+|type\s+\w+\s+struct\s*\{)/,
+  },
+  {
+    lang: 'java',
+    re: /\b(?:public\s+class\s+\w+|package\s+[\w.]+;|System\.out\.println|@Override\b)/,
+  },
+  {
+    lang: 'sql',
+    re: /^\s*(?:SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|WITH)\b/im,
+  },
+  {
+    lang: 'toml',
+    re: /(?:^|\n)\[[\w.-]+\]\s*(?:\n|$)/,
+  },
+  {
+    lang: 'dockerfile',
+    re: /^\s*(?:FROM|RUN|COPY|ADD|ENTRYPOINT|CMD|ENV|WORKDIR)\b/im,
+  },
+  {
+    lang: 'bash',
+    re: /(?:^|\n)(?:#!\s*\/.*(?:ba)?sh\b|set\s+-[euxo]+\b|function\s+\w+\s*\{)/,
+  },
+];
+
+// Format result LRU so transcript rebuilds of the same blob are free.
+const FORMAT_CACHE_LIMIT = 64;
+const formatCache = new Map<string, FormatTranscriptOutputResult>();
+
+function formatCacheKey(text: string, options: FormatTranscriptOutputOptions): string {
+  return [
+    options.mode ?? 'tool',
+    options.isError === true ? '1' : '0',
+    options.languageHint ?? '',
+    options.pathHint ?? '',
+    options.palette === undefined ? 't' : 'p',
+    String(text.length),
+    hashText(text),
+  ].join('\0');
+}
+
+function hashText(text: string): string {
+  let h = 0x811c9dc5;
+  const step = text.length > 8_000 ? Math.ceil(text.length / 4_000) : 1;
+  for (let i = 0; i < text.length; i += step) {
+    h ^= text.codePointAt(i) ?? 0;
+    h = Math.imul(h, 0x01000193);
+  }
+  // Mix ends so small edits near EOF still bust the key.
+  if (text.length > 0) {
+    h ^= text.codePointAt(text.length - 1) ?? 0;
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16);
+}
+
+/** Test helper — drop the format LRU. */
+export function clearTranscriptFormatCache(): void {
+  formatCache.clear();
+}
+
+// ─── Public detection ───────────────────────────────────────────────────────
+
+/**
+ * Best single-kind guess for a whole blob. Prefer
+ * {@link segmentTranscriptOutput} when mixed content is possible.
+ */
 export function detectTranscriptOutputKind(text: string): TranscriptOutputKind {
   const trimmed = text.trim();
   if (trimmed.length === 0) return 'plain';
@@ -73,12 +177,13 @@ export function detectTranscriptOutputKind(text: string): TranscriptOutputKind {
   if (looksLikeJson(trimmed)) return 'json';
   if (looksLikeJsonl(trimmed)) return 'jsonl';
 
-  const sample = sampleLines(trimmed, 40);
+  const sample = sampleLines(trimmed, 48);
   let diffHits = 0;
   let stackHits = 0;
   let logHits = 0;
   let yamlHits = 0;
   let xmlHits = 0;
+  let numberedHits = 0;
 
   for (const line of sample) {
     if (line.length === 0) continue;
@@ -87,6 +192,7 @@ export function detectTranscriptOutputKind(text: string): TranscriptOutputKind {
     if (LOG_LEVEL_RE.test(line)) logHits++;
     if (YAML_KEY_RE.test(line) && !line.includes('{') && !line.startsWith('//')) yamlHits++;
     if (XML_OPEN_RE.test(line) && /<\/?[A-Za-z_!]/.test(line)) xmlHits++;
+    if (NUMBERED_LINE_RE.test(line)) numberedHits++;
   }
 
   const nonEmpty = sample.filter((l) => l.trim().length > 0).length || 1;
@@ -95,50 +201,157 @@ export function detectTranscriptOutputKind(text: string): TranscriptOutputKind {
   if (logHits >= 2 && logHits / nonEmpty >= 0.25) return 'log';
   if (xmlHits >= 2 && xmlHits / nonEmpty >= 0.4) return 'xml';
   if (yamlHits >= 3 && yamlHits / nonEmpty >= 0.45) return 'yaml';
+  if (numberedHits >= 3 && numberedHits / nonEmpty >= 0.55) return 'numbered-code';
 
+  if (sniffCodeLanguage(trimmed) !== undefined) return 'code';
   return 'plain';
 }
 
-function looksLikeJson(trimmed: string): boolean {
-  const first = trimmed[0];
-  if (first !== '{' && first !== '[') return false;
-  if (trimmed.length > TRANSCRIPT_OUTPUT_PRETTY_MAX_CHARS) {
-    // Still treat as JSON for line decoration when it is clearly a single blob.
-    return /[\}\]]\s*$/.test(trimmed.slice(-80));
-  }
-  try {
-    JSON.parse(trimmed);
-    return true;
-  } catch {
-    return false;
-  }
-}
+/**
+ * Split text into contiguous kind segments. Empty / pure single-kind blobs
+ * yield one segment. Used for bash streams and other mixed tool dumps.
+ */
+export function segmentTranscriptOutput(
+  text: string,
+  options: FormatTranscriptOutputOptions = {},
+): TranscriptSegment[] {
+  if (text.length === 0) return [{ kind: 'plain', startLine: 0, endLine: 0 }];
 
-function looksLikeJsonl(trimmed: string): boolean {
-  const lines = sampleLines(trimmed, 30).filter((l) => l.trim().length > 0);
-  if (lines.length < 2) return false;
-  let hits = 0;
-  for (const line of lines) {
-    const t = line.trim();
-    if ((t.startsWith('{') || t.startsWith('[')) && tryParseJson(t) !== undefined) hits++;
-  }
-  return hits >= 2 && hits / lines.length >= 0.7;
-}
-
-function tryParseJson(text: string): unknown | undefined {
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return undefined;
-  }
-}
-
-function sampleLines(text: string, max: number): string[] {
   const lines = text.split('\n');
-  if (lines.length <= max) return lines;
-  const head = Math.ceil(max * 0.7);
-  const tail = max - head;
-  return [...lines.slice(0, head), ...lines.slice(-tail)];
+  if (lines.length > MAX_SCAN_LINES) {
+    const kind = detectTranscriptOutputKind(text);
+    return [
+      {
+        kind: kind === 'mixed' ? 'plain' : kind,
+        startLine: 0,
+        endLine: lines.length,
+      },
+    ];
+  }
+
+  // Whole-blob confidence first — avoid over-segmenting pure structured data.
+  const whole = detectTranscriptOutputKind(text);
+  if (
+    whole === 'json' ||
+    whole === 'jsonl' ||
+    whole === 'diff' ||
+    whole === 'xml' ||
+    whole === 'yaml' ||
+    whole === 'numbered-code' ||
+    whole === 'code'
+  ) {
+    const lang =
+      whole === 'numbered-code' || whole === 'code'
+        ? resolveLanguage(text, options)
+        : whole === 'json' || whole === 'jsonl'
+          ? 'json'
+          : whole === 'diff'
+            ? 'diff'
+            : whole === 'xml'
+              ? 'xml'
+              : whole === 'yaml'
+                ? 'yaml'
+                : undefined;
+    return [
+      {
+        kind: whole,
+        startLine: 0,
+        endLine: lines.length,
+        language: lang,
+      },
+    ];
+  }
+
+  const resolvedLang = resolveLanguage(text, options);
+  const lineKinds: Array<Exclude<TranscriptOutputKind, 'mixed'>> = lines.map((line) =>
+    classifyLine(line, resolvedLang),
+  );
+
+  // Smooth single-line noise: a plain line between two same-kind neighbours
+  // inherits the neighbours so we do not shatter coherent blocks.
+  for (let i = 1; i < lineKinds.length - 1; i++) {
+    const prev = lineKinds[i - 1]!;
+    const next = lineKinds[i + 1]!;
+    const cur = lineKinds[i]!;
+    if (cur === 'plain' && prev === next && prev !== 'plain') {
+      lineKinds[i] = prev;
+    }
+  }
+
+  const segments: TranscriptSegment[] = [];
+  let start = 0;
+  let current = lineKinds[0] ?? 'plain';
+  for (let i = 1; i <= lineKinds.length; i++) {
+    const kind = lineKinds[i];
+    if (i === lineKinds.length || kind !== current) {
+      const slice = lines.slice(start, i).join('\n');
+      const language =
+        current === 'code' || current === 'numbered-code'
+          ? resolveLanguage(slice, options) ?? resolvedLang
+          : current === 'json' || current === 'jsonl'
+            ? 'json'
+            : current === 'diff'
+              ? 'diff'
+              : current === 'xml'
+                ? 'xml'
+                : current === 'yaml'
+                  ? 'yaml'
+                  : undefined;
+      segments.push({ kind: current, startLine: start, endLine: i, language });
+      if (segments.length >= MAX_SEGMENTS) {
+        if (i < lineKinds.length) {
+          segments.push({ kind: 'plain', startLine: i, endLine: lineKinds.length });
+        }
+        break;
+      }
+      start = i;
+      current = kind ?? 'plain';
+    }
+  }
+  return segments.length > 0
+    ? segments
+    : [{ kind: 'plain', startLine: 0, endLine: lines.length }];
+}
+
+function classifyLine(
+  line: string,
+  languageHint: string | undefined,
+): Exclude<TranscriptOutputKind, 'mixed'> {
+  if (line.length === 0) return 'plain';
+  const trimmed = line.trim();
+  if (trimmed.length === 0) return 'plain';
+
+  if (NUMBERED_LINE_RE.test(line)) {
+    // Numbered lines usually belong to a code dump; keep them together.
+    return 'numbered-code';
+  }
+  if (STACK_HEADER_RE.test(trimmed) || STACK_FRAME_RE.test(line)) return 'stack';
+  if (LOG_LEVEL_RE.test(line)) return 'log';
+  if (DIFF_LINE_RE.test(line) && (/^[+-]/.test(line) || line.startsWith('@@') || line.startsWith('diff '))) {
+    return 'diff';
+  }
+  if (
+    (trimmed.startsWith('{') || trimmed.startsWith('[')) &&
+    tryParseJson(trimmed) !== undefined
+  ) {
+    return 'jsonl';
+  }
+  if (XML_OPEN_RE.test(line) && /<\/?[A-Za-z_!]/.test(line)) return 'xml';
+  if (YAML_KEY_RE.test(line) && !line.includes('{') && !line.startsWith('//')) return 'yaml';
+
+  if (languageHint !== undefined) {
+    // Inside a hinted code dump, non-empty lines stay code unless strongly
+    // reclassified above.
+    if (
+      /[{};=<>]|=>|\b(?:function|const|let|var|class|import|export|def|fn|package)\b/.test(
+        trimmed,
+      )
+    ) {
+      return 'code';
+    }
+  }
+  if (sniffCodeLanguage(trimmed) !== undefined) return 'code';
+  return 'plain';
 }
 
 // ─── Public formatters ──────────────────────────────────────────────────────
@@ -168,41 +381,285 @@ export function formatTranscriptOutputDetailed(
       return { kind: 'plain', text: formatThinkingText(text, options) };
     }
 
-    const kind =
-      options.languageHint !== undefined && options.languageHint.length > 0
-        ? 'code'
-        : detectTranscriptOutputKind(text);
-
-    switch (kind) {
-      case 'json':
-        return { kind, text: formatJsonOutput(text, options) };
-      case 'jsonl':
-        return { kind, text: formatJsonlOutput(text, options) };
-      case 'diff':
-        return { kind, text: formatCodeOutput(text, 'diff', options) };
-      case 'xml':
-        return { kind, text: formatCodeOutput(text, 'xml', options) };
-      case 'yaml':
-        return { kind, text: formatCodeOutput(text, 'yaml', options) };
-      case 'code':
-        return {
-          kind,
-          text: formatCodeOutput(text, options.languageHint ?? 'text', options),
-        };
-      case 'stack':
-        return { kind, text: formatStackOutput(text, options) };
-      case 'log':
-        return { kind, text: formatLogOutput(text, options) };
-      case 'plain':
-      default:
-        return { kind: 'plain', text: formatPlainOutput(text, options) };
+    const cacheKey = formatCacheKey(text, options);
+    const cached = formatCache.get(cacheKey);
+    if (cached !== undefined) {
+      // LRU touch
+      formatCache.delete(cacheKey);
+      formatCache.set(cacheKey, cached);
+      return cached;
     }
+
+    const result = formatBody(text, options);
+    formatCache.set(cacheKey, result);
+    while (formatCache.size > FORMAT_CACHE_LIMIT) {
+      const oldest = formatCache.keys().next().value;
+      if (oldest === undefined) break;
+      formatCache.delete(oldest);
+    }
+    return result;
   } catch {
     return {
       kind: 'plain',
       text: options.isError === true ? errorStyle(text) : dimStyle(text),
     };
   }
+}
+
+function formatBody(
+  text: string,
+  options: FormatTranscriptOutputOptions,
+): FormatTranscriptOutputResult {
+  // Explicit language / path hint → treat as code (handles Read/Edit/Write).
+  const hintedLang = resolveLanguage(text, options);
+  if (
+    (options.languageHint !== undefined && options.languageHint.length > 0) ||
+    (options.pathHint !== undefined && options.pathHint.length > 0 && hintedLang !== undefined)
+  ) {
+    if (looksNumbered(text)) {
+      return {
+        kind: 'numbered-code',
+        text: formatNumberedCodeOutput(text, hintedLang ?? 'text', options),
+      };
+    }
+    return {
+      kind: 'code',
+      text: formatCodeOutput(text, hintedLang ?? options.languageHint ?? 'text', options),
+    };
+  }
+
+  const whole = detectTranscriptOutputKind(text);
+  if (whole === 'json') return { kind: whole, text: formatJsonOutput(text, options) };
+  if (whole === 'jsonl') return { kind: whole, text: formatJsonlOutput(text, options) };
+  if (whole === 'diff') return { kind: whole, text: formatCodeOutput(text, 'diff', options) };
+  if (whole === 'xml') return { kind: whole, text: formatCodeOutput(text, 'xml', options) };
+  if (whole === 'yaml') return { kind: whole, text: formatCodeOutput(text, 'yaml', options) };
+  if (whole === 'stack') return { kind: whole, text: formatStackOutput(text, options) };
+  if (whole === 'log') return { kind: whole, text: formatLogOutput(text, options) };
+  if (whole === 'numbered-code') {
+    const lang = resolveLanguage(text, options) ?? sniffCodeLanguage(stripNumberedPrefixes(text));
+    return {
+      kind: 'numbered-code',
+      text: formatNumberedCodeOutput(text, lang ?? 'text', options),
+    };
+  }
+  if (whole === 'code') {
+    const lang = resolveLanguage(text, options) ?? sniffCodeLanguage(text) ?? 'text';
+    return { kind: 'code', text: formatCodeOutput(text, lang, options) };
+  }
+
+  // Mixed / plain — segment when the blob is large enough to benefit.
+  if (text.length <= MIXED_SEGMENT_MAX_CHARS && text.includes('\n')) {
+    const segments = segmentTranscriptOutput(text, options);
+    const distinct = new Set(segments.map((s) => s.kind));
+    if (segments.length > 1 && distinct.size > 1) {
+      return {
+        kind: 'mixed',
+        text: formatMixedSegments(text, segments, options),
+      };
+    }
+    if (segments.length === 1) {
+      const only = segments[0]!;
+      if (only.kind !== 'plain') {
+        return {
+          kind: only.kind,
+          text: formatSegmentBody(text, only, options),
+        };
+      }
+    }
+  }
+
+  return { kind: 'plain', text: formatPlainOutput(text, options) };
+}
+
+function formatMixedSegments(
+  text: string,
+  segments: readonly TranscriptSegment[],
+  options: FormatTranscriptOutputOptions,
+): string {
+  const lines = text.split('\n');
+  const out: string[] = [];
+  for (const segment of segments) {
+    const body = lines.slice(segment.startLine, segment.endLine).join('\n');
+    if (body.length === 0 && segment.endLine > segment.startLine) {
+      // Preserve blank lines between segments.
+      const blanks = segment.endLine - segment.startLine;
+      for (let i = 0; i < blanks; i++) out.push('');
+      continue;
+    }
+    const formatted = formatSegmentBody(body, segment, options);
+    out.push(formatted);
+  }
+  return out.join('\n');
+}
+
+function formatSegmentBody(
+  body: string,
+  segment: TranscriptSegment,
+  options: FormatTranscriptOutputOptions,
+): string {
+  switch (segment.kind) {
+    case 'json':
+      return formatJsonOutput(body, options);
+    case 'jsonl':
+      return formatJsonlOutput(body, options);
+    case 'diff':
+      return formatCodeOutput(body, 'diff', options);
+    case 'xml':
+      return formatCodeOutput(body, 'xml', options);
+    case 'yaml':
+      return formatCodeOutput(body, 'yaml', options);
+    case 'stack':
+      return formatStackOutput(body, options);
+    case 'log':
+      return formatLogOutput(body, options);
+    case 'numbered-code':
+      return formatNumberedCodeOutput(body, segment.language ?? 'text', options);
+    case 'code':
+      return formatCodeOutput(body, segment.language ?? 'text', options);
+    case 'plain':
+    default:
+      return formatPlainOutput(body, options);
+  }
+}
+
+// ─── Language resolution ────────────────────────────────────────────────────
+
+function resolveLanguage(
+  text: string,
+  options: FormatTranscriptOutputOptions,
+): string | undefined {
+  const hint = options.languageHint?.trim().toLowerCase();
+  if (hint !== undefined && hint.length > 0 && hint !== 'text' && hint !== 'plain') {
+    return normalizeLangId(hint);
+  }
+  if (options.pathHint !== undefined && options.pathHint.length > 0) {
+    const fromPath = langFromPath(options.pathHint);
+    if (fromPath !== undefined) return fromPath;
+  }
+  return sniffCodeLanguage(looksNumbered(text) ? stripNumberedPrefixes(text) : text);
+}
+
+function normalizeLangId(lang: string): string {
+  switch (lang) {
+    case 'ts':
+    case 'tsx':
+    case 'mts':
+    case 'cts':
+      return 'typescript';
+    case 'js':
+    case 'jsx':
+    case 'mjs':
+    case 'cjs':
+      return 'javascript';
+    case 'py':
+      return 'python';
+    case 'rs':
+      return 'rust';
+    case 'sh':
+    case 'zsh':
+    case 'shell':
+      return 'bash';
+    case 'yml':
+      return 'yaml';
+    case 'md':
+    case 'mdx':
+      return 'markdown';
+    default:
+      return lang;
+  }
+}
+
+/**
+ * Heuristic language sniff from source shape. Cheap regex only — never runs a
+ * full parser. Returns undefined when confidence is low.
+ */
+export function sniffCodeLanguage(text: string): string | undefined {
+  const sample = text.length > 8_000 ? text.slice(0, 4_000) + text.slice(-2_000) : text;
+  for (const { lang, re } of CODE_SNIFFERS) {
+    if (re.test(sample)) return lang;
+  }
+  return undefined;
+}
+
+// ─── Numbered-line helpers ──────────────────────────────────────────────────
+
+function looksNumbered(text: string): boolean {
+  const sample = sampleLines(text, 24).filter((l) => l.trim().length > 0);
+  if (sample.length < 2) return false;
+  let hits = 0;
+  for (const line of sample) {
+    if (NUMBERED_LINE_RE.test(line)) hits++;
+  }
+  return hits / sample.length >= 0.55;
+}
+
+function stripNumberedPrefixes(text: string): string {
+  return text
+    .split('\n')
+    .map((line) => {
+      const m = NUMBERED_LINE_RE.exec(line);
+      return m !== null ? (m[4] ?? '') : line;
+    })
+    .join('\n');
+}
+
+interface NumberedParts {
+  readonly gutters: Array<string | undefined>;
+  readonly bodies: string[];
+}
+
+function splitNumberedLines(text: string): NumberedParts {
+  const lines = text.split('\n');
+  const gutters: Array<string | undefined> = [];
+  const bodies: string[] = [];
+  for (const line of lines) {
+    const m = NUMBERED_LINE_RE.exec(line);
+    if (m === null) {
+      gutters.push(undefined);
+      bodies.push(line);
+      continue;
+    }
+    const indent = m[1] ?? '';
+    const num = m[2] ?? '';
+    const sep = m[3] ?? '\t';
+    gutters.push(indent + num + sep);
+    bodies.push(m[4] ?? '');
+  }
+  return { gutters, bodies };
+}
+
+function formatNumberedCodeOutput(
+  text: string,
+  lang: string,
+  options: FormatTranscriptOutputOptions,
+): string {
+  const { gutters, bodies } = splitNumberedLines(text);
+  const bodyText = bodies.join('\n');
+  const normalized = lang.trim().toLowerCase() || 'text';
+  const highlighted =
+    normalized === 'text' || normalized === 'plain'
+      ? bodies
+      : highlightLines(bodyText, normalized, options.palette);
+
+  const p = options.palette ?? currentTheme.palette;
+  const out: string[] = [];
+  for (let i = 0; i < bodies.length; i++) {
+    const gutter = gutters[i];
+    const code = highlighted[i] ?? bodies[i] ?? '';
+    if (gutter === undefined) {
+      out.push(
+        options.isError === true
+          ? softDecorate(code, p, true)
+          : code.includes('\u001B')
+            ? code
+            : softDecorate(code, p, false),
+      );
+      continue;
+    }
+    out.push(chalk.hex(p.textMuted)(gutter) + code);
+  }
+  return out.join('\n');
 }
 
 // ─── Kind formatters ────────────────────────────────────────────────────────
@@ -225,11 +682,10 @@ function formatJsonOutput(text: string, options: FormatTranscriptOutputOptions):
 }
 
 function formatJsonlOutput(text: string, options: FormatTranscriptOutputOptions): string {
-  const lines = text.split('\n');
-  if (text.length > TRANSCRIPT_OUTPUT_PRETTY_MAX_CHARS) {
-    return lines.map((line) => decorateJsonlLine(line, options)).join('\n');
-  }
-  return lines.map((line) => decorateJsonlLine(line, options)).join('\n');
+  return text
+    .split('\n')
+    .map((line) => decorateJsonlLine(line, options))
+    .join('\n');
 }
 
 function decorateJsonlLine(line: string, options: FormatTranscriptOutputOptions): string {
@@ -253,6 +709,11 @@ function formatCodeOutput(
   lang: string,
   options: FormatTranscriptOutputOptions,
 ): string {
+  // Numbered dumps may still arrive through the code path when language is
+  // known — keep gutters intact.
+  if (looksNumbered(text)) {
+    return formatNumberedCodeOutput(text, lang, options);
+  }
   const normalized = lang.trim().toLowerCase() || 'text';
   if (normalized === 'text' || normalized === 'plain') {
     return formatPlainOutput(text, options);
@@ -308,13 +769,11 @@ function decorateLogLine(line: string, options: FormatTranscriptOutputOptions): 
   const p = options.palette ?? currentTheme.palette;
   const match = LOG_LEVEL_RE.exec(line);
   if (match === null) {
-    // No level token — soft accents only (do not re-enter formatPlainLine).
     return softDecorate(line, p, options.isError === true);
   }
   const levelRaw = match[1] ?? '';
   const level = levelRaw.toUpperCase();
   const color = logLevelColor(level, p, options.isError === true);
-  // Recolour only the level token; soft-decorate the remainder.
   const prefix = match[0];
   const levelAt = prefix.toLowerCase().indexOf(levelRaw.toLowerCase());
   if (levelAt < 0) return formatPlainLine(line, options);
@@ -368,14 +827,20 @@ function formatPlainOutput(text: string, options: FormatTranscriptOutputOptions)
 function formatPlainLine(line: string, options: FormatTranscriptOutputOptions): string {
   const p = options.palette ?? currentTheme.palette;
   if (line.length === 0) return line;
-  // Prefer the shared log decorator when the level token is present — call it
-  // only via exec so we never bounce test→decorate→formatPlainLine forever.
   if (LOG_LEVEL_RE.exec(line) !== null) return decorateLogLine(line, options);
   if (STACK_FRAME_RE.test(line)) return decorateStackFrame(line, p);
   if (/^[+-](?![+-])/.test(line) || /^@@ /.test(line)) {
     if (line.startsWith('+')) return chalk.hex(p.diffAdded)(line);
     if (line.startsWith('-')) return chalk.hex(p.diffRemoved)(line);
     return chalk.hex(p.diffMeta)(line);
+  }
+  // Inline JSON object/array on an otherwise plain line.
+  const trimmed = line.trim();
+  if (
+    (trimmed.startsWith('{') || trimmed.startsWith('[')) &&
+    tryParseJson(trimmed) !== undefined
+  ) {
+    return decorateJsonlLine(line, options);
   }
   return softDecorate(line, p, options.isError === true);
 }
@@ -386,6 +851,8 @@ function mayNeedSoftDecorate(text: string): boolean {
     text.includes('https://') ||
     text.includes('/') ||
     text.includes('\\') ||
+    text.includes('{') ||
+    text.includes('[') ||
     LOG_LEVEL_RE.test(text) ||
     /(?:^|\n)\s*(?:at\s+|Error\b|Exception\b)/.test(text) ||
     /(?:^|\n)[+-]/.test(text)
@@ -491,7 +958,6 @@ function formatThinkingProse(text: string, options: FormatTranscriptOutputOption
       if (/^>\s?/.test(trimmed)) {
         return chalk.hex(p.textMuted).italic(line);
       }
-      // Inline `code` accents.
       if (line.includes('`')) {
         return decorateInlineCode(line, p);
       }
@@ -526,10 +992,11 @@ function formatThinkingWithFences(
     }
     if (code.length > 0) {
       const body = code.join('\n');
-      const hl =
+      const resolved =
         lang !== undefined && lang.length > 0
-          ? highlightLines(body, lang, options.palette)
-          : highlightLines(body, detectFenceLang(body), options.palette);
+          ? normalizeLangId(lang)
+          : detectFenceLang(body);
+      const hl = highlightLines(body, resolved, options.palette);
       for (const row of hl) out.push(row);
     }
     if (i < lines.length && /^\s*```\s*$/.test(lines[i] ?? '')) {
@@ -541,6 +1008,8 @@ function formatThinkingWithFences(
 }
 
 function detectFenceLang(body: string): string | undefined {
+  const sniffed = sniffCodeLanguage(body);
+  if (sniffed !== undefined) return sniffed;
   const kind = detectTranscriptOutputKind(body);
   switch (kind) {
     case 'json':
@@ -576,6 +1045,49 @@ function decorateInlineCode(line: string, p: ColorPalette): string {
     i = close + 1;
   }
   return out;
+}
+
+// ─── Detection helpers ──────────────────────────────────────────────────────
+
+function looksLikeJson(trimmed: string): boolean {
+  const first = trimmed[0];
+  if (first !== '{' && first !== '[') return false;
+  if (trimmed.length > TRANSCRIPT_OUTPUT_PRETTY_MAX_CHARS) {
+    return /[\}\]]\s*$/.test(trimmed.slice(-80));
+  }
+  try {
+    JSON.parse(trimmed);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function looksLikeJsonl(trimmed: string): boolean {
+  const lines = sampleLines(trimmed, 30).filter((l) => l.trim().length > 0);
+  if (lines.length < 2) return false;
+  let hits = 0;
+  for (const line of lines) {
+    const t = line.trim();
+    if ((t.startsWith('{') || t.startsWith('[')) && tryParseJson(t) !== undefined) hits++;
+  }
+  return hits >= 2 && hits / lines.length >= 0.7;
+}
+
+function tryParseJson(text: string): unknown | undefined {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+
+function sampleLines(text: string, max: number): string[] {
+  const lines = text.split('\n');
+  if (lines.length <= max) return lines;
+  const head = Math.ceil(max * 0.7);
+  const tail = max - head;
+  return [...lines.slice(0, head), ...lines.slice(-tail)];
 }
 
 // ─── Style helpers ──────────────────────────────────────────────────────────

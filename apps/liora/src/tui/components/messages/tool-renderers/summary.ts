@@ -13,10 +13,12 @@
 import type { Component } from '#/tui/renderer';
 import { Text } from '#/tui/renderer';
 
+import { langFromPath } from '#/tui/components/media/code-highlight';
 import { currentTheme } from '#/tui/theme';
 import { formatTranscriptOutput } from '#/tui/utils/transcript/transcript-output-format';
-import { renderTruncated } from './truncated';
+import { TruncatedOutputComponent, renderTruncated } from './truncated';
 import type { ResultRenderer } from './types';
+import { strArg } from './types';
 
 import {
   agentGlance,
@@ -59,9 +61,42 @@ import {
   type GlanceFn,
 } from './summary-glances';
 
-function withGlance(glance: GlanceFn | null): ResultRenderer {
+interface GlanceOptions {
+  readonly pathKeys?: readonly string[];
+  /** When true, pass path-derived language into formatTranscriptOutput. */
+  readonly codeBody?: boolean;
+}
+
+function pathFromToolCall(
+  toolCall: { readonly args: Record<string, unknown> },
+  keys: readonly string[],
+): string {
+  return strArg(toolCall.args, ...keys);
+}
+
+function withGlance(glance: GlanceFn | null, options: GlanceOptions = {}): ResultRenderer {
   return (toolCall, result, ctx) => {
-    if (result.is_error) return renderTruncated(toolCall, result, ctx);
+    const pathHint =
+      options.codeBody === true
+        ? pathFromToolCall(toolCall, options.pathKeys ?? ['path', 'file_path', 'filePath'])
+        : '';
+    const languageHint =
+      pathHint.length > 0 ? (langFromPath(pathHint) ?? undefined) : undefined;
+
+    if (result.is_error) {
+      if (options.codeBody === true) {
+        return [
+          new TruncatedOutputComponent(result.output, {
+            expanded: ctx.expanded,
+            isError: true,
+            languageHint,
+            pathHint: pathHint || undefined,
+            hintMode: 'key',
+          }),
+        ];
+      }
+      return renderTruncated(toolCall, result, ctx);
+    }
 
     const out: Component[] = [];
     if (glance !== null) {
@@ -71,12 +106,14 @@ function withGlance(glance: GlanceFn | null): ResultRenderer {
       }
     }
     if (ctx.expanded && result.output.length > 0) {
-      // Pretty-print / highlight expanded body (JSON, logs, stack, URLs…).
+      // Pretty-print / highlight expanded body (JSON, logs, stack, code, …).
       out.push(
         new Text(
           formatTranscriptOutput(result.output, {
             isError: false,
             mode: 'tool',
+            languageHint,
+            pathHint: pathHint || undefined,
           }),
           4,
           0,
@@ -86,23 +123,37 @@ function withGlance(glance: GlanceFn | null): ResultRenderer {
     return out;
   };
 }
+
 // ── Exports ──────────────────────────────────────────────────────────
 
 // Tools whose chip already conveys everything — the body is empty in
 // the collapsed state and only the raw output appears when expanded.
-export const readSummary: ResultRenderer = withGlance(null);
+// Read/Edit/Write pass path → language so expanded bodies get real syntax colour.
+export const readSummary: ResultRenderer = withGlance(null, {
+  codeBody: true,
+  pathKeys: ['path', 'file_path', 'filePath'],
+});
 export const fetchSummary: ResultRenderer = withGlance(fetchGlance);
 export const webSearchSummary: ResultRenderer = withGlance(webSearchGlance);
 export const thinkSummary: ResultRenderer = withGlance(null);
-export const editSummary: ResultRenderer = withGlance(null);
+export const editSummary: ResultRenderer = withGlance(null, {
+  codeBody: true,
+  pathKeys: ['path', 'file_path', 'filePath'],
+});
 
 export const generateMediaSummary: ResultRenderer = withGlance(generateMediaGlance);
-export const writeSummary: ResultRenderer = withGlance(null);
+export const writeSummary: ResultRenderer = withGlance(null, {
+  codeBody: true,
+  pathKeys: ['path', 'file_path', 'filePath'],
+});
 
 // Tools that benefit from inline path samples below the chip.
 export const grepSummary: ResultRenderer = withGlance(grepGlance);
 export const globSummary: ResultRenderer = withGlance(globGlance);
-export const lioraReadSummary: ResultRenderer = withGlance(lioraReadGlance);
+export const lioraReadSummary: ResultRenderer = withGlance(lioraReadGlance, {
+  codeBody: true,
+  pathKeys: ['path', 'file_path', 'filePath'],
+});
 export const lioraSymbolSummary: ResultRenderer = withGlance(lioraSymbolGlance);
 export const lioraTreeSummary: ResultRenderer = withGlance(lioraTreeGlance);
 export const lioraExpandSummary: ResultRenderer = withGlance(lioraExpandGlance);
