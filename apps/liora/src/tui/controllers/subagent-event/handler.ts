@@ -14,7 +14,6 @@ import {
   buildBackgroundAgentTranscriptEntry,
   findAgentTaskId,
   shouldSurfaceSubagentModelNotice,
-  subagentModelRouteNoticeText,
 } from './background';
 import {
   handleForegroundSubagentCompleted,
@@ -309,17 +308,8 @@ export class SubAgentEventHandler {
     ) {
       return;
     }
+    // Tool-call header already shows `· modelAlias` while the subagent runs.
     const modelAlias = event.modelAlias!;
-    this.host.showNotice(
-      'Subagent model',
-      subagentModelRouteNoticeText(
-        event.subagentName,
-        appState.model,
-        modelAlias,
-        appState.availableModels,
-      ),
-      { coalesceKey: `model-route:subagent:${event.subagentId}` },
-    );
     this.host.setAppState({
       lastModelRouteNotice: {
         kind: 'selection',

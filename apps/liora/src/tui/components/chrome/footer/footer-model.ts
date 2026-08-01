@@ -40,6 +40,7 @@ export function formatModelRouteBadge(
   // Keep the badge fresh for ~45s so operators can still read it after a switch.
   if (Date.now() - notice.atMs > 45_000) return undefined;
   const toLabel = modelRouteDisplayName(notice.toAlias, state.availableModels);
+  // Only surface true failovers here. Other routes already paint on cards/headers.
   if (notice.kind === 'failover' && notice.fromAlias !== undefined) {
     // Defensive: never badge a same-effective-model rename as failover.
     if (
@@ -56,26 +57,6 @@ export function formatModelRouteBadge(
     const fromLabel = modelRouteDisplayName(notice.fromAlias, state.availableModels);
     if (fromLabel === toLabel) return undefined;
     return labelModelRoute(labels, 'failover', fromLabel, toLabel);
-  }
-  if (notice.kind === 'selection' && notice.reason?.startsWith('compaction')) {
-    return labelModelRoute(labels, 'compact', undefined, toLabel);
-  }
-  if (notice.kind === 'selection' && notice.reason?.startsWith('completion')) {
-    return labelModelRoute(labels, 'complete', undefined, toLabel);
-  }
-  if (notice.kind === 'selection' && notice.reason === 'provider-credential') {
-    return labelModelRoute(labels, 'cred', undefined, toLabel);
-  }
-  if (notice.fromAlias !== undefined && notice.fromAlias !== notice.toAlias) {
-    if (
-      isSameEffectiveModel(
-        resolveModelRouteIdentity(notice.fromAlias, state.availableModels),
-        resolveModelRouteIdentity(notice.toAlias, state.availableModels),
-      )
-    ) {
-      return undefined;
-    }
-    return labelModelRoute(labels, 'via', undefined, toLabel);
   }
   return undefined;
 }

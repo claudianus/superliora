@@ -114,7 +114,8 @@ export function createProgram(
       new Option('--worktree [name]', t('cli.option.worktree')).argParser(
         (val: string | boolean) => (val === true ? true : (val as string)),
       ),
-    );
+    )
+    .option('--no-worktree', t('cli.option.noWorktree'));
 
   registerExportCommand(program);
   registerProviderCommand(program);
@@ -161,6 +162,13 @@ export function createProgram(
     const yoloValue = raw['yolo'] === true || raw['yes'] === true || raw['autoApprove'] === true;
     const autoValue = raw['auto'] === true;
 
+    // Commander sets worktree=false when --no-worktree is passed.
+    const rawWorktree = raw['worktree'];
+    const worktree: boolean | string | undefined =
+      rawWorktree === false
+        ? false
+        : (rawWorktree as boolean | string | undefined);
+
     const opts: CLIOptions = {
       session: sessionValue,
       continue: raw['continue'] === true || raw['C'] === true,
@@ -176,7 +184,7 @@ export function createProgram(
       channelServers: (raw['channels'] as string[] | undefined) ?? [],
       addDirs: raw['addDir'] as string[],
       resumeGoal: raw['resumeGoal'] as boolean,
-      worktree: raw['worktree'] as boolean | string | undefined,
+      worktree,
       profile: raw['profile'] as string | undefined,
     };
 

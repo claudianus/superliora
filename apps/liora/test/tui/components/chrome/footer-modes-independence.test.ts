@@ -53,7 +53,7 @@ describe('Footer modes independence', () => {
     }
   });
 
-  it('modes=off hides YOLO/Plan but still shows compact, prompt-intel, and media', () => {
+  it('modes=off hides YOLO/Plan but still shows media', () => {
     process.env['OPENAI_API_KEY'] = 'sk-test';
     setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
 
@@ -71,20 +71,21 @@ describe('Footer modes independence', () => {
     // True mode badges must stay dark when modes slot is off.
     expect(line1).not.toMatch(/\bYOLO\b/);
     expect(line1).not.toMatch(/\bPlan\b/);
-    // Independent prefs still paint.
-    expect(line1).toMatch(/Compacting/);
-    expect(line1).toMatch(/Suggesting/);
+    // Compaction owns the transcript card — status bar stays quiet about it.
+    expect(line1).not.toMatch(/Compacting/);
+    // Prompt-intel is editor-visible; media still paints.
+    expect(line1).not.toMatch(/Suggesting/);
     expect(line1).toMatch(/Images ready|Media ready/);
   });
 
-  it('showCompact=false hides compact even when modes=auto', () => {
+  it('never paints compact on the status bar even when showCompact is true', () => {
     const footer = new FooterComponent(
       baseState({
         isCompacting: true,
         footer: {
           ...DEFAULT_FOOTER_PREFERENCES,
           modes: 'auto',
-          showCompact: false,
+          showCompact: true,
           showPromptIntelligence: false,
           mediaReady: 'off',
           labels: 'plain',

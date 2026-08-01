@@ -46,7 +46,10 @@ export async function runPrompt(
   const stdout = io.stdout ?? process.stdout;
   const stderr = io.stderr ?? process.stderr;
   const promptProcess = io.process ?? process;
-  const resolvedWork = await resolveSessionWorkDir({ worktree: opts.worktree });
+  const resolvedWork = await resolveSessionWorkDir({
+    worktree: opts.worktree,
+    autoIsolate: opts.session === undefined && !opts.continue,
+  });
   const workDir = resolvedWork.workDir;
   const telemetryBootstrap = createCliTelemetryBootstrap();
   const telemetryClient: TelemetryClient = {

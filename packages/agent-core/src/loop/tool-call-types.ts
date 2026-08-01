@@ -20,17 +20,11 @@ export interface ToolCallStepContext {
   readonly turnId: string;
   readonly currentStep: number;
   readonly stepUuid: string;
-  readonly toolPreamble: ToolPreambleState;
   readonly toolParallelStatus?: ToolParallelStatus | undefined;
 }
 
 export interface ToolCallBatchContext extends ToolCallStepContext {
   readonly toolCalls: readonly ToolCall[];
-}
-
-export interface ToolPreambleState {
-  hasAssistantText: boolean;
-  emittedSyntheticPreamble: boolean;
 }
 
 export type PreflightedToolCall = RunnableToolCall | RejectedToolCall;

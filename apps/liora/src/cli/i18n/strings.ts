@@ -40,7 +40,9 @@ export const STRINGS_EN: Readonly<Record<string, string>> = {
   'cli.option.plan': 'Start with Mission plan steering.',
   'cli.option.resumeGoal': 'Automatically resume the first goal in the queue on startup.',
   'cli.option.worktree':
-    'Create a git worktree for this session (optional name). Isolates file edits from the main checkout.',
+    'Create a git worktree for this session (optional name). Default for new sessions is auto-isolate; pass a name to pin it.',
+  'cli.option.noWorktree':
+    'Stay on the current checkout (disable default session worktree isolation).',
   'cli.sub.upgrade.description':
     'Check for SuperLiora updates and install the latest version (same as update).',
   'cli.error.unknownCommand': "unknown command '{arg}'. See '{cmd} --help'.",
@@ -88,7 +90,9 @@ export const STRINGS_KO: Readonly<Record<string, string>> = {
   'cli.option.plan': 'Mission 플랜 조향으로 시작합니다.',
   'cli.option.resumeGoal': '시작 시 큐의 첫 번째 goal을 자동으로 재개합니다.',
   'cli.option.worktree':
-    '이 세션용 git worktree를 만듭니다(이름 선택). 메인 checkout과 파일 편집을 격리합니다.',
+    '이 세션용 git worktree를 만듭니다(이름 선택). 새 세션은 기본 자동 격리이며, 이름을 주면 고정합니다.',
+  'cli.option.noWorktree':
+    '현재 checkout에 그대로 둡니다(기본 세션 worktree 격리 끄기).',
   'cli.sub.upgrade.description':
     'SuperLiora 업데이트를 확인하고 최신 버전을 설치합니다 (update와 동일).',
   'cli.error.unknownCommand': "알 수 없는 명령 '{arg}'. '{cmd} --help'를 참고하세요.",

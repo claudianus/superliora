@@ -78,7 +78,7 @@ export const FOOTER_SETTINGS_SLOTS = [
   { key: 'pulseRuntimeDegraded', kind: 'pulse', label: 'Pulse: Runtime issues', tip: 'Search/auth/model degraded' },
   { key: 'pulseSearchCascade', kind: 'pulse', label: 'Pulse: Research active', tip: 'Search channel cascade' },
   { key: 'pulseModelRoute', kind: 'pulse', label: 'Pulse: Model route', tip: 'Failover / route switch' },
-  { key: 'showCompact', kind: 'pulse', label: 'Compacting status', tip: 'While context compact runs' },
+  { key: 'showCompact', kind: 'pulse', label: 'Compacting status', tip: 'Legacy pref — status bar no longer paints compact' },
   { key: 'showPromptIntelligence', kind: 'pulse', label: 'Prompt intelligence', tip: 'Suggesting / completing' },
 ] as const satisfies readonly {
   readonly key: keyof FooterPreferences;

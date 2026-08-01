@@ -23,9 +23,11 @@ export interface CLIOptions {
   /** Main agent tool profile override (sets SUPERLIORA_PROFILE for this process). */
   profile?: string;
   /**
-   * Create a git worktree for this session.
-   * - `true`: auto-generated name
-   * - `string`: explicit worktree name/slug
+   * Session worktree isolation.
+   * - `undefined` → default auto-isolate for new sessions (git checkouts)
+   * - `true` → force auto-named worktree
+   * - `string` → named worktree
+   * - `false` → stay on the current checkout (`--no-worktree`)
    */
   worktree?: boolean | string;
 }
@@ -75,6 +77,8 @@ export function validateOptions(opts: CLIOptions): ValidatedOptions {
   if (opts.yolo && opts.auto) {
     throw new OptionConflictError(t('cli.runtime.options.yoloWithAuto'));
   }
+  // Only an *explicit* --worktree conflicts with resume/continue. Default
+  // auto-isolation is suppressed on those paths inside resolveSessionWorkDir.
   if (opts.worktree !== undefined && opts.worktree !== false) {
     if (opts.session !== undefined || opts.continue) {
       throw new OptionConflictError(t('cli.runtime.options.worktreeWithResume'));

@@ -318,14 +318,12 @@ export class SessionEventTurn {
         detailParts.push(cred);
       }
       const isFailover = decision.kind === 'failover';
-      const title = isFailover
-        ? 'Model failover'
-        : decision.credentialChanged
-          ? 'Route credential'
-          : 'Route selected';
-      this.host.showNotice(title, detailParts.join(' · '), {
-        coalesceKey: 'model-route:step',
-      });
+      // Failover is the only route change worth a transcript notice.
+      if (isFailover) {
+        this.host.showNotice('Model failover', detailParts.join(' · '), {
+          coalesceKey: 'model-route:step',
+        });
+      }
       patch.lastModelRouteNotice = {
         kind: isFailover ? 'failover' : 'selection',
         fromAlias,
