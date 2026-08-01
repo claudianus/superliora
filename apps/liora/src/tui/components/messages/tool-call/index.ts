@@ -20,6 +20,7 @@ import {
   getActiveAppearancePreferences,
 } from '#/tui/features/appearance/appearance-effects';
 import { isRenderCacheEnabled, renderCacheEpoch } from '#/tui/utils/render/render-cache';
+import { areLiveToolTicksSuppressed } from '#/tui/utils/render/transcript-paint-mode';
 import {
   applyToolHeaderEntrance,
   isTranscriptEntranceActive,
@@ -170,34 +171,53 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
   }
 
   override render(width: number): string[] {
-    tickToolCallRenderClock(this.renderTickInput(), {
-      rebuildCallPreviewBlock: () =>{  rebuildToolCallCallPreviewBlock(this.internalsHost()); },
-      rebuildBody: () =>{  rebuildToolCallComponentBody(this.internalsHost()); },
-      rebuildSubagentBlock: () =>{  rebuildToolCallComponentSubagentBlock(this.internalsHost()); },
-      refreshHeader: () =>{  this.headerText.setText(buildToolCallHeaderText(this.internalsHost())); },
-      notifySnapshotChange: () => this.internalsHost().onSnapshotChange?.(),
-      requestRender: () => this.ui?.requestRender(),
-      setLastStreamingProgressTickMs: (ms) => {
-        this.lastStreamingProgressTickMs = ms;
-      },
-      setLastSubagentElapsedTickMs: (ms) => {
-        this.lastSubagentElapsedTickMs = ms;
-      },
-      setSubagentSpinnerFrame: (frame) => {
-        this.subagent.spinnerFrame = frame;
-      },
-      getSubagentSpinnerFrame: () => this.subagent.spinnerFrame,
-    });
-    this.syncAnimatedHeader();
+    // Pure-scroll paint suppresses live ticks: rebuildBody/requestRender here
+    // would keep the main thread busy across every visible tool card and make
+    // the TUI look permanently frozen under wheel storms.
+    if (!areLiveToolTicksSuppressed()) {
+      tickToolCallRenderClock(this.renderTickInput(), {
+        rebuildCallPreviewBlock: () => {
+          rebuildToolCallCallPreviewBlock(this.internalsHost());
+        },
+        rebuildBody: () => {
+          rebuildToolCallComponentBody(this.internalsHost());
+        },
+        rebuildSubagentBlock: () => {
+          rebuildToolCallComponentSubagentBlock(this.internalsHost());
+        },
+        refreshHeader: () => {
+          this.headerText.setText(buildToolCallHeaderText(this.internalsHost()));
+        },
+        notifySnapshotChange: () => this.internalsHost().onSnapshotChange?.(),
+        requestRender: () => this.ui?.requestRender(),
+        setLastStreamingProgressTickMs: (ms) => {
+          this.lastStreamingProgressTickMs = ms;
+        },
+        setLastSubagentElapsedTickMs: (ms) => {
+          this.lastSubagentElapsedTickMs = ms;
+        },
+        setSubagentSpinnerFrame: (frame) => {
+          this.subagent.spinnerFrame = frame;
+        },
+        getSubagentSpinnerFrame: () => this.subagent.spinnerFrame,
+      });
+      this.syncAnimatedHeader();
+    }
     const lines = this.renderCache.render({
       width,
-      cacheEpoch: hasToolCallLiveAnimation(this.renderTickInput()) ? renderCacheEpoch() : undefined,
+      // During pure scroll, ignore animation epoch so we hit the width cache.
+      cacheEpoch:
+        !areLiveToolTicksSuppressed() && hasToolCallLiveAnimation(this.renderTickInput())
+          ? renderCacheEpoch()
+          : undefined,
       children: this.children,
       isCacheEnabled: isRenderCacheEnabled,
     });
     if (!isTranscriptEntranceActive(this.entranceStartedAtMs) && this.result !== undefined) {
       return lines;
     }
+    // Skip entrance polish wash on pure-scroll paint (CPU only, no interaction).
+    if (areLiveToolTicksSuppressed()) return lines;
     return polishTranscriptLines(lines, {
       startedAtMs: this.entranceStartedAtMs,
       kind: 'tool',
