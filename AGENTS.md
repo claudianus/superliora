@@ -9,6 +9,7 @@ Hot-path only: package map, hard constraints, and release/workflow gates every t
 - Prefer code facts and verification over speculation. Do not scan ordinary product docs just to reverse-engineer implementation; read nested `AGENTS.md`, skills, and code that the task actually needs.
 - Keep changes focused. No drive-by code-logic refactors; TUI visual-quality reinforcement (motion, streaming visibility) is product work, not refactoring, and stays in scope.
 - Commits, PR text, and changesets must not reveal agent identity or add co-author attribution for the agent.
+- **Large or long-running work belongs on a dedicated git worktree + branch**, not the shared main checkout. Prefer `liora --worktree [name]`, `liora worktree …`, or an explicit `git worktree add` / feature branch before multi-file refactors, risky experiments, parallel agent runs, or anything that would leave the primary tree dirty for others. Small, local, reversible edits may stay on the current checkout. Do not auto-create isolation in product code for every session — guide the operator (or agent) to isolate when the blast radius warrants it.
 
 ## Project Map
 
