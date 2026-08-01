@@ -38,12 +38,9 @@ export class SubagentActivityPanel {
     const panel = this.panel;
     if (panel === undefined) return;
     this.panel = undefined;
-    const children = this.host.state.transcriptContainer.children;
-    const index = children.indexOf(panel);
-    if (index >= 0) {
-      children.splice(index, 1);
-      this.host.state.transcriptContainer.invalidate();
-    }
+    // removeChild + paint drop — no full sibling invalidate cascade.
+    this.host.state.transcriptContainer.removeChild(panel);
+    this.host.state.transcriptContainer.invalidatePaint();
   }
 
   markTerminal(subagentId: string, phase: 'completed' | 'failed'): void {

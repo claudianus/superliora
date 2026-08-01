@@ -346,7 +346,8 @@ export class TranscriptRenderController {
       if (hasDispose(child)) child.dispose();
     }
     host.state.transcriptContainer.clear();
-    host.state.transcriptContainer.invalidate();
+    // clear() already drops children; no sibling cascade needed.
+    host.state.transcriptContainer.invalidateGeometryAndPaint();
     host.btwPanelController.clear();
     this.clearTerminalInlineImages();
     // Drop todo cards, then re-bind any live goal from appState so session

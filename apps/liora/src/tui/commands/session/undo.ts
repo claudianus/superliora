@@ -111,7 +111,8 @@ async function undoByCount(host: SlashCommandHost, count: number): Promise<boole
   const lastUserComponentIndex = findUndoAnchorComponentIndex(children, count);
   if (lastUserComponentIndex !== undefined) {
     removeUndoContextComponents(children, lastUserComponentIndex);
-    host.state.transcriptContainer.invalidate();
+    // Structure change only — keep sibling message render caches.
+    host.state.transcriptContainer.invalidateGeometryAndPaint();
   }
 
   const preservedEntries = entries.slice(lastUserIndex).filter(

@@ -15,6 +15,27 @@ import {
 import { SUBAGENT_ELAPSED_INTERVAL_MS, type SubagentPhase } from './subagent';
 
 const STREAMING_PROGRESS_INTERVAL_MS = 1000;
+/** Max full body rebuilds per shared animation clock tick (all tool cards). */
+const MAX_BODY_REBUILDS_PER_TICK = 2;
+
+let rebuildBudgetNow = Number.NaN;
+let rebuildBudgetLeft = 0;
+
+function takeBodyRebuildBudget(nowMs: number): boolean {
+  if (nowMs !== rebuildBudgetNow) {
+    rebuildBudgetNow = nowMs;
+    rebuildBudgetLeft = MAX_BODY_REBUILDS_PER_TICK;
+  }
+  if (rebuildBudgetLeft <= 0) return false;
+  rebuildBudgetLeft -= 1;
+  return true;
+}
+
+/** Test helper — reset the per-tick rebuild budget. */
+export function resetToolCallRebuildBudgetForTest(): void {
+  rebuildBudgetNow = Number.NaN;
+  rebuildBudgetLeft = 0;
+}
 
 export interface ToolCallRenderTickInput {
   readonly toolCall: ToolCallBlockData;
@@ -89,9 +110,11 @@ export function tickToolCallRenderClock(
       durationMs: stagedPreviewRevealDurationMs(),
     });
     if (visible !== input.builtPreviewItemCount) {
-      // Full body rebuild keeps preview children + callPreviewEndIndex aligned.
-      // Partial rebuildBlock can leave children stuck while counters advance.
-      callbacks.rebuildBody();
+      // Cap full rebuilds per ambient tick so many live Write cards cannot
+      // each rebuildBody in one paint (main-thread storm → hard freeze feel).
+      if (takeBodyRebuildBudget(now)) {
+        callbacks.rebuildBody();
+      }
       callbacks.requestRender();
     }
   }
@@ -103,7 +126,9 @@ export function tickToolCallRenderClock(
     if (now - input.lastStreamingProgressTickMs >= STREAMING_PROGRESS_INTERVAL_MS) {
       callbacks.setLastStreamingProgressTickMs(now);
       if (input.isStreamingEditPreview) {
-        callbacks.rebuildBody();
+        if (takeBodyRebuildBudget(now)) {
+          callbacks.rebuildBody();
+        }
       } else {
         callbacks.refreshHeader();
       }

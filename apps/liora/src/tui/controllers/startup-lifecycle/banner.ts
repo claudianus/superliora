@@ -49,5 +49,6 @@ export function renderStartupBanner(host: StartupLifecycleHost): void {
   } else {
     host.state.transcriptContainer.children.unshift(banner);
   }
-  host.state.transcriptContainer.invalidate();
+  // Structure-only: do not cascade invalidate to every historical message.
+  host.state.transcriptContainer.invalidateGeometryAndPaint();
 }

@@ -141,12 +141,8 @@ export class SessionEventMcpStatus {
     }
     spinner.stop();
     const status = new StatusMessageComponent(message, color);
-    const children = state.transcriptContainer.children;
-    const idx = children.indexOf(spinner);
-    if (idx >= 0) {
-      children[idx] = status;
-      state.transcriptContainer.invalidate();
-    } else {
+    // Slot swap only — full invalidate() would wipe every sibling render cache.
+    if (!state.transcriptContainer.replaceChild(spinner, status)) {
       state.transcriptContainer.addChild(status);
     }
     this.mcpServerStatusSpinners.delete(name);
