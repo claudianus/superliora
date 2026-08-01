@@ -131,7 +131,19 @@ export class RendererTranscriptViewportComponent extends Container {
   private lineCountCache = new Map<number, RendererTranscriptGeometryCache>();
   private geometryGeneration = 0;
   private geometrySnapshot: RendererTranscriptGeometrySnapshot | undefined;
+  /**
+   * True when the last geometry resolve hit the wall-clock budget and left
+   * provisional slots. Pure-scroll must NOT re-enter remasure every frame
+   * (that re-taxed 12ms+ per wheel tick). Ambient/content continues dirty slots.
+   */
+  private geometryNeedsContinue = false;
   private overflowRenderCache: RendererTranscriptOverflowRenderCache | undefined;
+  /**
+   * Per pure-scroll frame budget for cold child.render materializations.
+   * Excess visible children paint placeholders so a wheel storm cannot
+   * fully layout dozens of multi-k cards in one stack.
+   */
+  private coldMaterializeBudget = 0;
 
   constructor(options: RendererTranscriptViewportComponentOptions) {
     super();
@@ -232,6 +244,7 @@ export class RendererTranscriptViewportComponent extends Container {
     this.invalidatePaint();
     this.lineCountCache.clear();
     this.geometrySnapshot = undefined;
+    this.geometryNeedsContinue = false;
     this.bumpGeometryGeneration();
   }
 
@@ -333,11 +346,15 @@ export class RendererTranscriptViewportComponent extends Container {
 
   private bumpGeometryGeneration(): void {
     this.geometryGeneration = (this.geometryGeneration + 1) | 0;
+    this.geometryNeedsContinue = false;
   }
 
   private renderVisibleRegionLines(width: number, visibleRows: number): RendererRegionLine[] {
     const safeWidth = normalizeTranscriptWidth(width);
     const inner = Math.max(1, safeWidth - this.leftPad - this.rightPad);
+
+    // Fresh cold-materialize budget each paint (pure-scroll spends it carefully).
+    this.coldMaterializeBudget = shouldSkipExpensiveTranscriptFormat() ? 2 : Number.POSITIVE_INFINITY;
 
     // Phase 1 — resolve per-child row counts (geometry cache).  This is the
     // only place that may render *all* children, and only on geometry miss /
@@ -385,12 +402,15 @@ export class RendererTranscriptViewportComponent extends Container {
 
     // Pure scroll / repeated contentRowCount: skip the O(n) identity walk when
     // nothing has dirtied geometry since the last full resolve at this size.
+    // Also skip while incomplete under pure-scroll — remasuring every wheel
+    // frame for 12ms was a residual permanent tax after a budget hit.
     const snap = this.geometrySnapshot;
     if (
       snap !== undefined &&
       snap.generation === this.geometryGeneration &&
       snap.inner === inner &&
-      snap.n === n
+      snap.n === n &&
+      (!this.geometryNeedsContinue || shouldSkipExpensiveTranscriptFormat())
     ) {
       return { counts: snap.counts, total: snap.total };
     }
@@ -422,8 +442,8 @@ export class RendererTranscriptViewportComponent extends Container {
     //
     // Hard wall-clock budget: remasuring hundreds of cold multi-k children in
     // one stack is the permanent-freeze class (event loop blocked for minutes).
-    // Past the budget, keep prior counts or a 1-row provisional so scroll can
-    // paint; the next content/scroll frame continues dirty slots.
+    // Past the budget, keep provisional counts + install snapshot so pure
+    // scroll is O(1); ambient/content frames continue dirty slots.
     return withTranscriptMeasureMode(() => {
       const measureStarted =
         typeof performance !== 'undefined' && typeof performance.now === 'function'
@@ -444,7 +464,7 @@ export class RendererTranscriptViewportComponent extends Container {
               ? geometry.counts[i]!
               : 1;
           geometry.counts[i] = provisional;
-          // Leave childRefs undefined so the next resolve remeasures this slot.
+          // Leave childRefs undefined so a later non-scroll resolve remeasures.
           geometry.childRefs[i] = undefined;
           total += provisional;
           continue;
@@ -462,19 +482,15 @@ export class RendererTranscriptViewportComponent extends Container {
         }
       }
       geometry.total = total;
-      // When we deferred dirty slots, do not install the O(1) snapshot so the
-      // next frame continues remasure instead of freezing wrong totals forever.
-      if (!hitBudget) {
-        this.geometrySnapshot = {
-          generation: this.geometryGeneration,
-          inner,
-          n,
-          counts: geometry.counts,
-          total,
-        };
-      } else {
-        this.geometrySnapshot = undefined;
-      }
+      this.geometryNeedsContinue = hitBudget;
+      // Always install snapshot so pure-scroll totals stay O(1) after a budget hit.
+      this.geometrySnapshot = {
+        generation: this.geometryGeneration,
+        inner,
+        n,
+        counts: geometry.counts,
+        total,
+      };
       return { counts: geometry.counts, total };
     });
   }
@@ -632,6 +648,23 @@ export class RendererTranscriptViewportComponent extends Container {
     let sparse = cache.childFormattedSparse[childIndex];
 
     if (cache.childRefs[childIndex] !== child || lines === undefined) {
+      // Pure-scroll cold intersection budget: only fully materialize a few
+      // new cards per frame. Excess slots paint dim placeholders of the right
+      // height so a wheel storm cannot layout the whole visible window sync.
+      if (
+        shouldSkipExpensiveTranscriptFormat() &&
+        this.coldMaterializeBudget <= 0
+      ) {
+        const rowCount = Math.max(0, sliceEnd - sliceStart);
+        const pad = ' '.repeat(this.leftPad);
+        for (let k = 0; k < rowCount; k++) {
+          out.push(this.formatCanvasLine(`${pad}…`, safeWidth));
+        }
+        return;
+      }
+      if (shouldSkipExpensiveTranscriptFormat()) {
+        this.coldMaterializeBudget -= 1;
+      }
       lines = child.render(inner);
       cache.childRefs[childIndex] = child;
       cache.childRenderRefs[childIndex] = lines;
