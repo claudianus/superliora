@@ -89,10 +89,6 @@ export async function executeLoopStep(deps: ExecuteLoopStepDeps): Promise<{
   signal.throwIfAborted();
 
   const stepUuid = randomUUID();
-  const toolPreamble = {
-    hasAssistantText: false,
-    emittedSyntheticPreamble: false,
-  };
 
   const step: ToolCallStepContext = {
     tools,
@@ -104,7 +100,6 @@ export async function executeLoopStep(deps: ExecuteLoopStepDeps): Promise<{
     turnId,
     currentStep,
     stepUuid,
-    toolPreamble,
     toolParallelStatus,
   };
 
@@ -124,9 +119,6 @@ export async function executeLoopStep(deps: ExecuteLoopStepDeps): Promise<{
       turnId,
       currentStep,
       stepUuid,
-      markAssistantText: () => {
-        toolPreamble.hasAssistantText = true;
-      },
     }),
   };
   const retryInput = {
@@ -313,13 +305,11 @@ function createChatStreamingCallbacks(deps: {
   readonly turnId: string;
   readonly currentStep: number;
   readonly stepUuid: string;
-  readonly markAssistantText: () => void;
 }): ChatStreamingCallbacks {
-  const { dispatchEvent, turnId, currentStep, stepUuid, markAssistantText } = deps;
+  const { dispatchEvent, turnId, currentStep, stepUuid } = deps;
 
   return {
     onTextDelta: (delta) => {
-      if (delta.trim().length > 0) markAssistantText();
       dispatchEvent({ type: 'text.delta', delta });
     },
     onThinkDelta: (delta) => {
@@ -334,7 +324,6 @@ function createChatStreamingCallbacks(deps: {
       });
     },
     onTextPart: async (part) => {
-      if (part.text.trim().length > 0) markAssistantText();
       await dispatchEvent({
         type: 'content.part',
         uuid: randomUUID(),

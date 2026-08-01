@@ -15,6 +15,19 @@ import {
   STAGE_MIN_HEIGHT,
   STAGE_MIN_WIDTH,
 } from '../../controllers/layout/stage-layout';
+
+/**
+ * Fraction of the terminal both axes must cover before a drag snaps to
+ * true fullscreen (full columns × full rows). High enough to feel
+ * intentional, low enough that a near-edge pull still latches.
+ */
+export const STAGE_FULLSCREEN_SNAP_RATIO = 0.92;
+
+/**
+ * Hysteresis exit: once snapped, the user must shrink below this fraction
+ * on either axis before the stage unlatches. Prevents edge flicker.
+ */
+export const STAGE_FULLSCREEN_EXIT_RATIO = 0.86;
 import type { TUIState } from '../../tui-state';
 import { requestTUILayoutRender } from '#/tui/utils/render/frame-render';
 import { stageFrameVisible, type StageFrameBand } from '#/tui/features/stage/stage-frame';
@@ -31,6 +44,13 @@ interface StageResizeDrag {
   readonly pressY: number;
   readonly startWidth: number;
   readonly startHeight: number;
+  /**
+   * Size before the most recent fullscreen snap in this gesture. Used as a
+   * soft restore hint when the user immediately peels back from a snap.
+   */
+  preFullscreenSize?: { readonly width: number; readonly height: number };
+  /** True while this gesture is latched to terminal-full size. */
+  snappedFullscreen: boolean;
 }
 
 let activeDrag: StageResizeDrag | undefined;
@@ -129,25 +149,34 @@ function handleStageResizeMouseEvent(
 
   if (event.action === 'press') {
     const band = resolveStageBand(state);
-    if (band === undefined || !stageFrameVisible(band, state.terminal.columns, state.terminal.rows)) {
+    if (band === undefined || !stageResizeHitAllowed(band, state.terminal.columns, state.terminal.rows)) {
       // Click outside the visible stage frame — clear any lingering hover
       // so the resize cursor doesn't stay stuck.
       clearHover(state);
       return false;
     }
-    const zone = hitTestGrab(band, event.x, event.y);
+    const zone = hitTestGrab(
+      band,
+      event.x,
+      event.y,
+      state.terminal.columns,
+      state.terminal.rows,
+    );
     if (!isResizeZone(zone)) {
       // Click inside the stage area but not on a resize grip — clear any
       // lingering hover so the resize cursor doesn't stay stuck.
       clearHover(state);
       return false;
     }
+    const alreadyFullscreen =
+      band.width >= state.terminal.columns && band.height >= state.terminal.rows;
     activeDrag = {
       zone,
       pressX: event.x,
       pressY: event.y,
       startWidth: band.width,
       startHeight: band.height,
+      snappedFullscreen: alreadyFullscreen,
     };
     hoverZone = zone;
     applyPointerShape(state, pointerShapeForZone(zone));
@@ -196,11 +225,11 @@ function handleHoverMove(state: TUIState, event: NativeInputMouseEvent): boolean
 
 function updateHoverFromPoint(state: TUIState, x: number, y: number): void {
   const band = resolveStageBand(state);
-  if (band === undefined || !stageFrameVisible(band, state.terminal.columns, state.terminal.rows)) {
+  if (band === undefined || !stageResizeHitAllowed(band, state.terminal.columns, state.terminal.rows)) {
     clearHover(state);
     return;
   }
-  const zone = hitTestGrab(band, x, y);
+  const zone = hitTestGrab(band, x, y, state.terminal.columns, state.terminal.rows);
   if (!isResizeZone(zone)) {
     clearHover(state);
     return;
@@ -216,16 +245,40 @@ function clearHover(state: TUIState): void {
   popPointerShape(state.terminal);
 }
 
-function hitTestGrab(band: StageFrameBand, x: number, y: number): PanelBorderZone {
-  // The visible stroke ring sits one cell outside the bundle (STAGE_FRAME_GAP),
-  // so expand the band by one cell: the grab border then matches the drawn
-  // frame exactly and never overlaps the transcript body inside the bundle.
-  const grabRect: RendererRect = {
-    x: band.x - 1,
-    y: band.y - 1,
-    width: band.width + 2,
-    height: band.height + 2,
+/**
+ * Build the on-screen grab rect for the stage frame. Prefer one cell outside
+ * the bundle (matches the drawn stroke), but clamp into the terminal so a
+ * full-bleed stage still exposes edge grips on the last on-screen cells.
+ */
+export function stageGrabRect(
+  band: StageFrameBand,
+  columns: number,
+  rows: number,
+): RendererRect {
+  const rawX = band.x - 1;
+  const rawY = band.y - 1;
+  const rawRight = band.x + band.width + 1;
+  const rawBottom = band.y + band.height + 1;
+  const x = Math.max(0, rawX);
+  const y = Math.max(0, rawY);
+  const right = Math.min(columns, rawRight);
+  const bottom = Math.min(rows, rawBottom);
+  return {
+    x,
+    y,
+    width: Math.max(1, right - x),
+    height: Math.max(1, bottom - y),
   };
+}
+
+function hitTestGrab(
+  band: StageFrameBand,
+  x: number,
+  y: number,
+  columns: number,
+  rows: number,
+): PanelBorderZone {
+  const grabRect = stageGrabRect(band, columns, rows);
   const zone = hitTestPanelBorder(x, y, grabRect);
   // Panel frames treat the top edge as a title-bar drag handle. The stage
   // has no window chrome — the whole ring is a resize grip, so remap.
@@ -291,6 +344,20 @@ function applyPointerShape(state: TUIState, shape: KittyPointerShape | undefined
  * geometry (dock + workspace centering included). Falls back to a fresh
  * resolve before the first frame has cached anything.
  */
+/**
+ * Whether the stage frame ring can accept resize hits. Full-bleed stages fail
+ * {@link stageFrameVisible} (no outer margin for the stroke), but the user still
+ * needs edge grips to peel out of a fullscreen snap.
+ */
+function stageResizeHitAllowed(
+  band: StageFrameBand,
+  columns: number,
+  rows: number,
+): boolean {
+  if (stageFrameVisible(band, columns, rows)) return true;
+  return isFullscreenStageSize(band, { columns, rows });
+}
+
 function resolveStageBand(state: TUIState): StageFrameBand | undefined {
   if (state.cachedStageBand !== undefined) return state.cachedStageBand;
   const layout = resolveStageLayout({
@@ -301,10 +368,61 @@ function resolveStageBand(state: TUIState): StageFrameBand | undefined {
   return layout.stage;
 }
 
+export interface TerminalSizeLike {
+  readonly columns: number;
+  readonly rows: number;
+}
+
+export interface StageSizeLike {
+  readonly width: number;
+  readonly height: number;
+}
+
+/** True when the stage already covers the full terminal surface. */
+export function isFullscreenStageSize(
+  size: StageSizeLike,
+  terminal: TerminalSizeLike,
+): boolean {
+  return size.width >= terminal.columns && size.height >= terminal.rows;
+}
+
+/**
+ * Near-fullscreen threshold for auto-snap. Both axes must clear the ratio
+ * so a wide-only or tall-only drag does not latch unexpectedly.
+ */
+export function shouldSnapToFullscreen(
+  size: StageSizeLike,
+  terminal: TerminalSizeLike,
+  ratio: number = STAGE_FULLSCREEN_SNAP_RATIO,
+): boolean {
+  if (terminal.columns <= 0 || terminal.rows <= 0) return false;
+  const minW = Math.max(STAGE_MIN_WIDTH, Math.floor(terminal.columns * ratio));
+  const minH = Math.max(STAGE_MIN_HEIGHT, Math.floor(terminal.rows * ratio));
+  return size.width >= minW && size.height >= minH;
+}
+
+/**
+ * Exit threshold with hysteresis below {@link shouldSnapToFullscreen}.
+ * Either axis falling under the ratio unlatches fullscreen.
+ */
+export function shouldExitFullscreen(
+  size: StageSizeLike,
+  terminal: TerminalSizeLike,
+  ratio: number = STAGE_FULLSCREEN_EXIT_RATIO,
+): boolean {
+  if (terminal.columns <= 0 || terminal.rows <= 0) return true;
+  const keepW = Math.max(STAGE_MIN_WIDTH, Math.floor(terminal.columns * ratio));
+  const keepH = Math.max(STAGE_MIN_HEIGHT, Math.floor(terminal.rows * ratio));
+  return size.width < keepW || size.height < keepH;
+}
+
 /**
  * Grow/shrink from the pressed edge. The stage is always centered by the
  * layout, so moving one edge by `d` cells must change the size by `2 * d`
  * (the opposite edge mirrors) to keep the center fixed in place.
+ *
+ * Near-fullscreen drags latch to the full terminal; shrinking past the
+ * exit hysteresis unlatches so the user can leave fullscreen again.
  */
 function computeNextSize(
   drag: StageResizeDrag,
@@ -320,9 +438,45 @@ function computeNextSize(
   if (zone.includes('bottom')) height = drag.startHeight + 2 * dy;
   if (zone.includes('top')) height = drag.startHeight - 2 * dy;
 
-  width = clamp(width, STAGE_MIN_WIDTH, state.terminal.columns);
-  height = clamp(height, STAGE_MIN_HEIGHT, state.terminal.rows);
-  return { width, height };
+  const terminal: TerminalSizeLike = {
+    columns: state.terminal.columns,
+    rows: state.terminal.rows,
+  };
+  width = clamp(width, STAGE_MIN_WIDTH, terminal.columns);
+  height = clamp(height, STAGE_MIN_HEIGHT, terminal.rows);
+  const raw: StageSizeLike = { width, height };
+
+  if (drag.snappedFullscreen) {
+    if (shouldExitFullscreen(raw, terminal)) {
+      // Unlatch: free resize from the raw size. Prefer a soft restore to the
+      // pre-snap size when the raw size is still larger (user only peeled a bit).
+      drag.snappedFullscreen = false;
+      const pre = drag.preFullscreenSize;
+      if (
+        pre !== undefined &&
+        raw.width >= pre.width &&
+        raw.height >= pre.height &&
+        !isFullscreenStageSize(pre, terminal)
+      ) {
+        return { width: pre.width, height: pre.height };
+      }
+      return { width: raw.width, height: raw.height };
+    }
+    return { width: terminal.columns, height: terminal.rows };
+  }
+
+  if (shouldSnapToFullscreen(raw, terminal)) {
+    if (drag.preFullscreenSize === undefined) {
+      drag.preFullscreenSize = {
+        width: drag.startWidth,
+        height: drag.startHeight,
+      };
+    }
+    drag.snappedFullscreen = true;
+    return { width: terminal.columns, height: terminal.rows };
+  }
+
+  return { width: raw.width, height: raw.height };
 }
 
 function clamp(value: number, min: number, max: number): number {

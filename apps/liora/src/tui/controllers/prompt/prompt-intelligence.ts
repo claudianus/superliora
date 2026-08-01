@@ -6,7 +6,6 @@ import type { AppState } from '../../types';
 import type { TUIState } from '../../tui-state';
 import {
   isSameEffectiveModel,
-  modelRouteDisplayName,
   resolveModelRouteIdentity,
 } from '../../utils/model/model-route-notice';
 
@@ -43,7 +42,6 @@ export interface PromptIntelligenceHost {
   session: Session | undefined;
   track(event: string, props?: Record<string, unknown>): void;
   setAppState(patch: Partial<AppState>): void;
-  showNotice(title: string, detail?: string, options?: { coalesceKey?: string }): void;
 }
 
 /**
@@ -443,8 +441,8 @@ export class PromptIntelligenceController {
 
 
   /**
-   * Surface the completion-role model once when it differs from the session
-   * main model. Ghost autocomplete fires often — coalesce + de-dupe hard.
+   * Track the completion-role model when it differs from the session main model.
+   * Ghost autocomplete fires often — keep this quiet in the transcript.
    */
   private maybeSurfaceCompletionModel(
     modelAlias: string | undefined,
@@ -481,12 +479,6 @@ export class PromptIntelligenceController {
     }
     this.lastSurfacedCompletionModel = modelAlias;
 
-    const purposeLabel = purpose === 'inline' ? 'ghost complete' : 'suggest';
-    this.host.showNotice(
-      'Completion model',
-      `${modelRouteDisplayName(sessionModel, models)} → ${modelRouteDisplayName(modelAlias, models)} · ${purposeLabel}`,
-      { coalesceKey: 'model-route:completion' },
-    );
     this.host.setAppState({
       lastModelRouteNotice: {
         kind: 'selection',

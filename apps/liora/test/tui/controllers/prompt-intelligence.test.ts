@@ -78,7 +78,6 @@ describe('PromptIntelligenceController', () => {
       session: session as never,
       track: vi.fn(),
       setAppState,
-      showNotice: vi.fn(),
     };
     const controller = new PromptIntelligenceController(host);
     controller.install();

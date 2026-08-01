@@ -52,7 +52,6 @@ import {
 import {
   labelBackgroundAgent,
   labelBackgroundBash,
-  labelCompact,
   labelMenu,
   labelModeAuto,
   labelModeMission,
@@ -61,7 +60,6 @@ import {
   labelModePremium,
   labelModeSwarm,
   labelModeYolo,
-  labelPromptIntel,
   labelWorkers,
 } from '#/tui/components/chrome/footer/footer-labels';
 
@@ -153,15 +151,6 @@ export function renderFooterLine1(input: RenderFooterLine1Input): string {
         renderAnimatedGradientText(labelModePremium(labels), 'footer:premium', appearance),
       );
     }
-    // Non-default transcript density — surface so /transcript pickers are discoverable.
-    if (appearance.transcriptDetail !== 'standard') {
-      modes.push(
-        currentTheme.boldFg(
-          appearance.transcriptDetail === 'full' ? 'accent' : 'textDim',
-          `tx:${appearance.transcriptDetail}`,
-        ),
-      );
-    }
     if (state.orchestratorMode) {
       modes.push(
         renderPulseText(
@@ -183,50 +172,8 @@ export function renderFooterLine1(input: RenderFooterLine1Input): string {
       }
     }
   }
-  // Compact / prompt-intel / media are independent prefs — not gated by modes.
-  if (prefs.showCompact) {
-    if (state.isBackgroundCompacting) {
-      modes.push(
-        renderPulseText(
-          labelCompact(labels, true),
-          'footer:compact-bg',
-          'warning',
-          appearance,
-        ),
-      );
-    } else if (state.isCompacting) {
-      modes.push(
-        renderPulseText(
-          labelCompact(labels, false),
-          'footer:compact',
-          'primary',
-          appearance,
-        ),
-      );
-    }
-  }
-  if (prefs.showPromptIntelligence) {
-    const piPhase = state.promptIntelligencePhase ?? 'idle';
-    if (piPhase === 'inline') {
-      modes.push(
-        renderPulseText(
-          labelPromptIntel(labels, 'inline'),
-          'footer:prompt-intel-inline',
-          'accent',
-          appearance,
-        ),
-      );
-    } else if (piPhase === 'suggest') {
-      modes.push(
-        renderPulseText(
-          labelPromptIntel(labels, 'suggest'),
-          'footer:prompt-intel-suggest',
-          'accent',
-          appearance,
-        ),
-      );
-    }
-  }
+  // Compaction already owns a full transcript card — do not paint status-bar compact.
+  // Prompt-intel phases (ghost complete / suggest) are already visible in the editor.
   const mediaBadge = formatMediaFooterBadge(process.env, labels);
   if (mediaBadge !== null && footerSlotVisible(prefs.mediaReady, true)) {
     modes.push(

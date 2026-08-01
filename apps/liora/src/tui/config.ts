@@ -251,7 +251,7 @@ export const DEFAULT_FOOTER_PREFERENCES: FooterPreferences = {
   pulseRuntimeDegraded: true,
   pulseSearchCascade: true,
   pulseModelRoute: true,
-  showCompact: true,
+  showCompact: false,
   showPromptIntelligence: true,
 };
 

@@ -10,7 +10,6 @@ import type { AppState, QueuedMessage } from '../../types';
 import type { TUIState } from '../../tui-state';
 import {
   isSameEffectiveModel,
-  modelRouteDisplayName,
   resolveModelRouteIdentity,
 } from '../../utils/model/model-route-notice';
 import type { StreamingUIController } from '../streaming-ui/index';
@@ -21,7 +20,6 @@ export interface CompactionEventHost {
   readonly streamingUI: StreamingUIController;
   setAppState(patch: Partial<AppState>): void;
   resetLivePane(): void;
-  showNotice(title: string, detail?: string, options?: { coalesceKey?: string }): void;
   shiftQueuedMessage(): QueuedMessage | undefined;
 }
 
@@ -47,29 +45,18 @@ export class SessionEventCompaction {
       background,
       modelAlias: event.modelAlias,
     });
+    // CompactionComponent already paints the active model on the transcript
+    // card — keep a quiet footer pulse only, no transcript notice spam.
     if (event.modelAlias !== undefined && event.modelAlias.length > 0) {
       const parentModel = this.host.state.appState.model;
       const models = this.host.state.appState.availableModels;
-      // Same underlying model as the session alias — keep quiet (alias noise).
       if (
-        parentModel.length > 0 &&
-        isSameEffectiveModel(
+        parentModel.length === 0 ||
+        !isSameEffectiveModel(
           resolveModelRouteIdentity(parentModel, models),
           resolveModelRouteIdentity(event.modelAlias, models),
         )
       ) {
-        // still no-op for notice
-      } else {
-        const fromLabel =
-          parentModel.length > 0 ? modelRouteDisplayName(parentModel, models) : undefined;
-        const toLabel = modelRouteDisplayName(event.modelAlias, models);
-        const switched =
-          fromLabel !== undefined && fromLabel !== toLabel
-            ? `${fromLabel} → ${toLabel}`
-            : toLabel;
-        this.host.showNotice('Compaction model', switched, {
-          coalesceKey: 'model-route:compaction',
-        });
         this.host.setAppState({
           lastModelRouteNotice: {
             kind: 'selection',

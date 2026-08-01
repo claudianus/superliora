@@ -64,26 +64,18 @@ describe('FooterComponent', () => {
     expect(rendered).toContain('Premium');
   });
 
-  it('renders a transcript density badge when not standard', () => {
+  it('does not surface transcript density on the status bar', () => {
     const footer = new FooterComponent({
       ...appState,
       appearance: {
         ...DEFAULT_APPEARANCE_PREFERENCES,
         profile: 'off',
-        transcriptDetail: 'compact',
+        transcriptDetail: 'minimal',
       },
     });
     const rendered = footer.render(120).join('\n');
-    expect(rendered).toContain('tx:compact');
-  });
-
-  it('hides the transcript density badge at standard detail', () => {
-    const footer = new FooterComponent({
-      ...appState,
-      appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' },
-    });
-    const rendered = footer.render(120).join('\n');
     expect(rendered).not.toContain('tx:');
+    expect(rendered).not.toContain('minimal');
   });
 
   it('renders the model name in the footer', () => {
@@ -94,7 +86,7 @@ describe('FooterComponent', () => {
     expect(rendered).toContain('kimi-k2');
   });
 
-  it('surfaces a completion-role badge when ghost complete uses a cheaper model', () => {
+  it('does not surface a completion-role badge (ghost complete is already visible in-editor)', () => {
     const footer = new FooterComponent({
       ...appState,
       model: 'kimi-k2',
@@ -123,8 +115,9 @@ describe('FooterComponent', () => {
     });
 
     const rendered = footer.render(160).join('\n');
-    expect(rendered).toMatch(/Completing with|complete/);
-    expect(rendered).toContain('Kimi Turbo');
+    expect(rendered).not.toMatch(/Completing with|complete /);
+    expect(rendered).toContain('Kimi K2');
+    expect(rendered).not.toContain('Kimi Turbo');
   });
 
   it('surfaces an effective route and failover badge when the step model differs', () => {

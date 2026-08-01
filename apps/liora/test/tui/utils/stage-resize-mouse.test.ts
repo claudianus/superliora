@@ -8,10 +8,15 @@ import type { NativeInputMouseEvent } from '#/tui/renderer';
 import {
   getStageResizeHoverZone,
   handleStageResizeMouseInput,
+  isFullscreenStageSize,
   isStageResizeDragging,
   pointerShapeForZone,
   resetStageResizeDragForTests,
   resetStageResizePointerShape,
+  shouldExitFullscreen,
+  shouldSnapToFullscreen,
+  STAGE_FULLSCREEN_EXIT_RATIO,
+  STAGE_FULLSCREEN_SNAP_RATIO,
 } from '#/tui/features/stage/stage-resize-mouse';
 import { invalidateProfile } from '#/tui/utils/terminal/terminal-capability-profile';
 
@@ -52,16 +57,23 @@ const ROWS = 80;
 // >= STAGE_FRAME_MARGIN (3) so the frame counts as visible.
 const BAND = { x: 50, y: 15, width: 100, height: 50 };
 
-function createState(): TUIState {
+function createState(options?: {
+  readonly columns?: number;
+  readonly rows?: number;
+  readonly band?: { x: number; y: number; width: number; height: number };
+}): TUIState {
+  const columns = options?.columns ?? COLS;
+  const rows = options?.rows ?? ROWS;
+  const band = options?.band ?? BAND;
   const state = createTUIState({
     initialAppState: fakeInitialAppState(),
     startup: { continueLast: false, yolo: false, auto: false, plan: false },
   });
-  Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => ROWS });
-  Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => COLS });
+  Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => rows });
+  Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => columns });
   // Swallow Kitty pointer-shape OSC so tests never leak control sequences.
   state.terminal.write = () => {};
-  state.cachedStageBand = { ...BAND };
+  state.cachedStageBand = { ...band };
   return state;
 }
 
@@ -345,5 +357,75 @@ describe('handleStageResizeMouseInput', () => {
       process.stdin.isTTY = prevTty;
       invalidateProfile();
     }
+  });
+});
+
+
+describe('stage fullscreen snap', () => {
+  beforeEach(() => {
+    resetStageResizeDragForTests();
+  });
+
+  it('shouldSnapToFullscreen requires both axes near full', () => {
+    const term = { columns: 100, rows: 40 };
+    expect(shouldSnapToFullscreen({ width: 95, height: 38 }, term)).toBe(true);
+    expect(shouldSnapToFullscreen({ width: 99, height: 20 }, term)).toBe(false);
+    expect(shouldSnapToFullscreen({ width: 50, height: 39 }, term)).toBe(false);
+    expect(STAGE_FULLSCREEN_SNAP_RATIO).toBeGreaterThan(STAGE_FULLSCREEN_EXIT_RATIO);
+  });
+
+  it('shouldExitFullscreen unlatches when either axis drops below hysteresis', () => {
+    const term = { columns: 100, rows: 40 };
+    expect(shouldExitFullscreen({ width: 100, height: 40 }, term)).toBe(false);
+    expect(shouldExitFullscreen({ width: 80, height: 40 }, term)).toBe(true);
+    expect(shouldExitFullscreen({ width: 100, height: 20 }, term)).toBe(true);
+  });
+
+  it('snaps to fullscreen when a corner drag reaches the near-full threshold', () => {
+    // Keep STAGE_FRAME_MARGIN (3) so the frame is hit-testable, but large enough
+    // that a modest outward corner drag crosses the 92% snap ratio.
+    const term = { columns: 120, rows: 50 };
+    const band = { x: 3, y: 3, width: 110, height: 42 }; // 91.7% × 84% — need growth
+    const state = createState({ columns: term.columns, rows: term.rows, band });
+    const grabRight = band.x + band.width;
+    const grabBottom = band.y + band.height;
+    expect(handleStageResizeMouseInput(state, mouse('press', grabRight, grabBottom))).toBe(true);
+    // +4 cells on each axis → width 118, height 50 → both ≥ 92% of terminal → snap.
+    expect(
+      handleStageResizeMouseInput(state, mouse('drag', grabRight + 4, grabBottom + 4)),
+    ).toBe(true);
+    expect(state.userStageSize).toEqual({ width: term.columns, height: term.rows });
+    expect(isFullscreenStageSize(state.userStageSize!, term)).toBe(true);
+  });
+
+  it('stays latched while still above the exit hysteresis', () => {
+    // Full-bleed stage: grips sit on the last on-screen cells (cols-1 / rows-1).
+    const term = { columns: 100, rows: 40 };
+    const band = { x: 0, y: 0, width: 100, height: 40 };
+    const state = createState({ columns: term.columns, rows: term.rows, band });
+    const grabRight = term.columns - 1;
+    const grabBottom = term.rows - 1;
+    expect(handleStageResizeMouseInput(state, mouse('press', grabRight, grabBottom))).toBe(true);
+    // Small inward peel: 100-4=96, 40-2=38 — still above 86% exit ratio.
+    expect(
+      handleStageResizeMouseInput(state, mouse('drag', grabRight - 2, grabBottom - 1)),
+    ).toBe(true);
+    expect(state.userStageSize).toEqual({ width: 100, height: 40 });
+  });
+
+  it('exits fullscreen when the user peels below the hysteresis', () => {
+    const term = { columns: 100, rows: 40 };
+    const band = { x: 0, y: 0, width: 100, height: 40 };
+    const state = createState({ columns: term.columns, rows: term.rows, band });
+    const grabRight = term.columns - 1;
+    const midY = Math.floor(term.rows / 2);
+    expect(handleStageResizeMouseInput(state, mouse('press', grabRight, midY))).toBe(true);
+    // Shrink width only: 100 - 2*12 = 76 < 86 → unlatch.
+    expect(
+      handleStageResizeMouseInput(state, mouse('drag', grabRight - 12, midY)),
+    ).toBe(true);
+    expect(state.userStageSize?.width).toBe(76);
+    expect(state.userStageSize?.height).toBe(40);
+    expect(isFullscreenStageSize(state.userStageSize!, term)).toBe(false);
   });
 });
