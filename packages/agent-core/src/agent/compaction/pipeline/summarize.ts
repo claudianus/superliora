@@ -27,6 +27,7 @@ import compactionInstructionTemplate from '../prompts/compaction-instruction.md?
 import {
   AdaptiveConcurrencyLimiter,
   CompactionTruncatedError,
+  DEFAULT_PARALLEL_BLOCK_CONCURRENCY,
   MAX_PARALLEL_BLOCK_CONCURRENCY,
   PARALLEL_CONCURRENCY_ENV,
   isCompactionSummarizerError,
@@ -66,8 +67,7 @@ import type {
 
 const DEFAULT_PARALLEL_BLOCK_THRESHOLD = 12_000;
 const DEFAULT_PARALLEL_BLOCK_TARGET = 6_000;
-/** Cap concurrent block LLM calls so parallel compaction cannot exhaust RPS (e.g. xAI 18/s). */
-const DEFAULT_PARALLEL_BLOCK_CONCURRENCY = 2;
+// Concurrent block LLM default lives in adaptive-concurrency (DEFAULT_PARALLEL_BLOCK_CONCURRENCY=3).
 const PARALLEL_BLOCK_RATE_LIMIT_RETRIES = 4;
 const MAX_COMPACTION_RETRY_ATTEMPTS = 5;
 const MAX_COMPACTION_MERGE_RETRY_ATTEMPTS = 2;

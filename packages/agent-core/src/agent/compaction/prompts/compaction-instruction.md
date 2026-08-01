@@ -9,7 +9,8 @@ The next turn sees only your recent user messages and this note—every assistan
 - Latest request: intent, resolved ambiguity, at-risk parts of large pastes (especially the actual ask). If multiple requests are active, which governs next; re-quote earlier asks that may have scrolled out.
 - Instructions/constraints still in force—condensed; separate settled decisions from open questions.
 - What was done: exact commands, paths, success/failure, key outputs/errors/schemas. Keep final working code; drop dead ends.
-- Unknowns: files unread, APIs unseen, unanswered questions—so the next turn checks instead of assuming.
+- Insights and root causes found while debugging/researching (not only final commands).
+- Unknowns: files unread, APIs unseen, unanswered questions—so the next turn checks instead of assuming. Label unverified claims explicitly.
 - Forward plan: exact next command/tool call, remaining sequence, decisions made, foreseeable obstacles, required final format, any patch/query/answer shape you can commit to now.
 - Durable ids when present: WorkGraph/Ultrawork node ids, AC ids, evidence_ids, archive markers (`liora-archived`), plan file paths, goal status. Prefer concrete ids over "see above".
 - Settled vs open: keep DECIDED/chosen approaches and rejected alternatives that still constrain the next step.

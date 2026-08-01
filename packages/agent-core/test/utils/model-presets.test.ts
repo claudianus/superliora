@@ -8,7 +8,11 @@ import {
   buildFallbackChain,
   classifyModelTier,
   isAuthOrCreditFailure,
+  isBlockedRoutingModel,
   ROLE_PRESETS,
+  scoreFromBenchmarks,
+  scoreModelQuality,
+  scoreModelValue,
   type ModelMetadata,
 } from '../../src/utils/model-presets';
 
@@ -289,5 +293,105 @@ describe('model-presets — autoAssignRoleModelsWithHealth', () => {
       assert.notEqual(assignment.modelAlias ?? assignment.modelId, 'grok');
       assert.notEqual(assignment.modelId, 'grok-4.5');
     }
+  });
+});
+
+describe('model-presets — models.dev benchmarks', () => {
+  it('scoreFromBenchmarks weights SWE/Terminal/AA coding benches', () => {
+    const result = scoreFromBenchmarks([
+      { name: 'SWE-Bench Verified', score: 90 },
+      { name: 'Terminal-Bench', score: 80 },
+      { name: 'Artificial Analysis Coding Index', score: 30 },
+      { name: 'Some Unknown Bench', score: 99 },
+    ]);
+    assert.ok(result);
+    assert.equal(result.count, 3);
+    assert.ok(result.score >= 70);
+    assert.ok(result.score <= 100);
+  });
+
+  it('scoreModelQuality prefers benchmarkScore over family heuristics', () => {
+    const withBench = scoreModelQuality('cheap-looking-nano', {
+      family: 'nano',
+      benchmarkScore: 88,
+      benchmarkCount: 3,
+      supportsTools: true,
+    });
+    const without = scoreModelQuality('cheap-looking-nano', {
+      family: 'nano',
+      supportsTools: true,
+    });
+    assert.ok(withBench > without);
+    assert.ok(withBench >= 80);
+  });
+
+  it('scoreModelValue rises as cost falls for fixed quality', () => {
+    assert.ok(scoreModelValue(80, 1) > scoreModelValue(80, 4));
+  });
+
+  it('isBlockedRoutingModel rejects deepseek and opencode go', () => {
+    assert.equal(isBlockedRoutingModel('deepseek-v4-flash'), true);
+    assert.equal(isBlockedRoutingModel('opencode-go'), true);
+    assert.equal(isBlockedRoutingModel('claude-sonnet-4'), false);
+  });
+
+  it('autoAssign prefers higher benchmark quality within the same tier', () => {
+    const models: ModelMetadata[] = [
+      {
+        id: 'cheap-weak',
+        provider: 'p',
+        tier: 'ultra-cheap',
+        available: true,
+        inputCostPerM: 0.1,
+        qualityScore: 40,
+        valueScore: 400,
+        supportsTools: true,
+        contextWindow: 128_000,
+      },
+      {
+        id: 'cheap-strong',
+        provider: 'p',
+        tier: 'ultra-cheap',
+        available: true,
+        inputCostPerM: 0.2,
+        qualityScore: 75,
+        valueScore: 375,
+        supportsTools: true,
+        contextWindow: 128_000,
+        benchmarkScore: 75,
+        benchmarkCount: 2,
+      },
+    ];
+    const assignments = autoAssignRoleModels(models);
+    // Compaction is value-first, but quality floor + tools still apply;
+    // both pass floors — value may pick either; coding must pick strong.
+    assert.equal(assignments.coding?.modelId, 'cheap-strong');
+  });
+
+  it('autoAssign skips deepseek even when cheapest', () => {
+    const models: ModelMetadata[] = [
+      {
+        id: 'deepseek-v4-flash',
+        provider: 'deepseek',
+        tier: 'ultra-cheap',
+        available: true,
+        inputCostPerM: 0.01,
+        qualityScore: 50,
+        valueScore: 5000,
+        supportsTools: true,
+      },
+      {
+        id: 'gemini-flash',
+        provider: 'google',
+        tier: 'ultra-cheap',
+        available: true,
+        inputCostPerM: 0.15,
+        qualityScore: 60,
+        valueScore: 400,
+        supportsTools: true,
+      },
+    ];
+    const assignments = autoAssignRoleModels(models);
+    assert.equal(assignments.compaction?.modelId, 'gemini-flash');
   });
 });

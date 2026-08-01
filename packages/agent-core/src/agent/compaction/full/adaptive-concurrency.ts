@@ -13,6 +13,12 @@ import {
 /** Hard ceiling for adaptive concurrency — providers rarely sustain more than this. */
 export const MAX_PARALLEL_BLOCK_CONCURRENCY = 8;
 
+/**
+ * Default starting concurrency for parallel block summarize.
+ * 3 balances throughput vs rate-limit retries; override via env when needed.
+ */
+export const DEFAULT_PARALLEL_BLOCK_CONCURRENCY = 3;
+
 /** Env override for initial parallel block concurrency (clamped 1..MAX). */
 export const PARALLEL_CONCURRENCY_ENV = 'SUPERLIORA_COMPACTION_PARALLEL_CONCURRENCY';
 
