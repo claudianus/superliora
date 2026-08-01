@@ -1,10 +1,12 @@
 import type { AppState } from '#/tui/types';
+import type { FooterLabels } from '#/tui/config';
 import { formatThinkingLevelSuffix } from '#/tui/utils/model/thinking-effort';
 import {
   isSameEffectiveModel,
   modelRouteDisplayName,
   resolveModelRouteIdentity,
 } from '#/tui/utils/model/model-route-notice';
+import { labelModelRoute } from '#/tui/components/chrome/footer/footer-labels';
 
 export function modelDisplayName(state: AppState): string {
   const model = state.availableModels[state.model];
@@ -29,7 +31,10 @@ export function effectiveRouteModelLabel(state: AppState): string | undefined {
   return modelRouteDisplayName(selection.modelAlias, state.availableModels);
 }
 
-export function formatModelRouteBadge(state: AppState): string | undefined {
+export function formatModelRouteBadge(
+  state: AppState,
+  labels: FooterLabels = 'plain',
+): string | undefined {
   const notice = state.lastModelRouteNotice;
   if (notice === undefined || notice === null) return undefined;
   // Keep the badge fresh for ~45s so operators can still read it after a switch.
@@ -50,16 +55,16 @@ export function formatModelRouteBadge(state: AppState): string | undefined {
     }
     const fromLabel = modelRouteDisplayName(notice.fromAlias, state.availableModels);
     if (fromLabel === toLabel) return undefined;
-    return `failover ${fromLabel}→${toLabel}`;
+    return labelModelRoute(labels, 'failover', fromLabel, toLabel);
   }
   if (notice.kind === 'selection' && notice.reason?.startsWith('compaction')) {
-    return `compact ${toLabel}`;
+    return labelModelRoute(labels, 'compact', undefined, toLabel);
   }
   if (notice.kind === 'selection' && notice.reason?.startsWith('completion')) {
-    return `complete ${toLabel}`;
+    return labelModelRoute(labels, 'complete', undefined, toLabel);
   }
   if (notice.kind === 'selection' && notice.reason === 'provider-credential') {
-    return `cred ${toLabel}`;
+    return labelModelRoute(labels, 'cred', undefined, toLabel);
   }
   if (notice.fromAlias !== undefined && notice.fromAlias !== notice.toAlias) {
     if (
@@ -70,7 +75,7 @@ export function formatModelRouteBadge(state: AppState): string | undefined {
     ) {
       return undefined;
     }
-    return `via ${toLabel}`;
+    return labelModelRoute(labels, 'via', undefined, toLabel);
   }
   return undefined;
 }

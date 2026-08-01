@@ -45,6 +45,47 @@ export const TerminalBackgroundSchema = z.enum(['off', 'session']);
  */
 export const TranscriptDetailSchema = z.enum(['minimal', 'compact', 'standard', 'full']);
 
+/**
+ * Status-bar (footer) slot visibility.
+ * - `auto`: Layered defaults (show when useful / content exists)
+ * - `always`: force show whenever data exists
+ * - `off`: never show
+ */
+export const FooterSlotSchema = z.enum(['auto', 'always', 'off']);
+export const FooterLabelsSchema = z.enum(['plain', 'compact']);
+
+export const FooterPreferencesSchema = z.object({
+  /** plain = human words (default); compact = denser short tokens */
+  labels: FooterLabelsSchema,
+  modes: FooterSlotSchema,
+  model: FooterSlotSchema,
+  cwd: FooterSlotSchema,
+  git: FooterSlotSchema,
+  context: FooterSlotSchema,
+  goal: FooterSlotSchema,
+  menu: FooterSlotSchema,
+  background: FooterSlotSchema,
+  tips: FooterSlotSchema,
+  nextAction: FooterSlotSchema,
+  workingSet: FooterSlotSchema,
+  quota: FooterSlotSchema,
+  mediaReady: FooterSlotSchema,
+  index: FooterSlotSchema,
+  mcp: FooterSlotSchema,
+  cache: FooterSlotSchema,
+  pulseGoalProgress: z.boolean(),
+  pulseFleetComplete: z.boolean(),
+  pulsePermission: z.boolean(),
+  pulseGitChurn: z.boolean(),
+  pulseOpsCombo: z.boolean(),
+  pulseExtensionsReload: z.boolean(),
+  pulseRuntimeDegraded: z.boolean(),
+  pulseSearchCascade: z.boolean(),
+  pulseModelRoute: z.boolean(),
+  showCompact: z.boolean(),
+  showPromptIntelligence: z.boolean(),
+});
+
 export const AppearancePreferencesSchema = z.object({
   profile: AppearanceProfileSchema,
   density: AppearanceDensitySchema,
@@ -56,6 +97,39 @@ export const AppearancePreferencesSchema = z.object({
   showTimestamps: z.boolean(),
   transcriptDetail: TranscriptDetailSchema,
 });
+
+const FooterConfigFileSchema = z
+  .object({
+    labels: FooterLabelsSchema.optional(),
+    modes: FooterSlotSchema.optional(),
+    model: FooterSlotSchema.optional(),
+    cwd: FooterSlotSchema.optional(),
+    git: FooterSlotSchema.optional(),
+    context: FooterSlotSchema.optional(),
+    goal: FooterSlotSchema.optional(),
+    menu: FooterSlotSchema.optional(),
+    background: FooterSlotSchema.optional(),
+    tips: FooterSlotSchema.optional(),
+    next_action: FooterSlotSchema.optional(),
+    working_set: FooterSlotSchema.optional(),
+    quota: FooterSlotSchema.optional(),
+    media_ready: FooterSlotSchema.optional(),
+    index: FooterSlotSchema.optional(),
+    mcp: FooterSlotSchema.optional(),
+    cache: FooterSlotSchema.optional(),
+    pulse_goal_progress: z.boolean().optional(),
+    pulse_fleet_complete: z.boolean().optional(),
+    pulse_permission: z.boolean().optional(),
+    pulse_git_churn: z.boolean().optional(),
+    pulse_ops_combo: z.boolean().optional(),
+    pulse_extensions_reload: z.boolean().optional(),
+    pulse_runtime_degraded: z.boolean().optional(),
+    pulse_search_cascade: z.boolean().optional(),
+    pulse_model_route: z.boolean().optional(),
+    show_compact: z.boolean().optional(),
+    show_prompt_intelligence: z.boolean().optional(),
+  })
+  .optional();
 
 export const TuiConfigFileSchema = z.object({
   theme: TuiThemeSchema.optional(),
@@ -90,6 +164,7 @@ export const TuiConfigFileSchema = z.object({
       transcript_detail: TranscriptDetailSchema.optional(),
     })
     .optional(),
+  footer: FooterConfigFileSchema,
   onboarding: z
     .object({
       hub_intro_seen: z.boolean().optional(),
@@ -109,6 +184,7 @@ export const TuiConfigSchema = z.object({
   notifications: NotificationsConfigSchema,
   upgrade: UpgradePreferencesSchema,
   appearance: AppearancePreferencesSchema.optional(),
+  footer: FooterPreferencesSchema.optional(),
   onboarding: OnboardingPreferencesSchema.optional(),
 });
 
@@ -117,6 +193,9 @@ export type TuiConfig = z.infer<typeof TuiConfigSchema>;
 export type NotificationsConfig = z.infer<typeof NotificationsConfigSchema>;
 export type UpgradePreferences = z.infer<typeof UpgradePreferencesSchema>;
 export type AppearancePreferences = z.infer<typeof AppearancePreferencesSchema>;
+export type FooterPreferences = z.infer<typeof FooterPreferencesSchema>;
+export type FooterSlot = z.infer<typeof FooterSlotSchema>;
+export type FooterLabels = z.infer<typeof FooterLabelsSchema>;
 export type OnboardingPreferences = z.infer<typeof OnboardingPreferencesSchema>;
 
 export const DEFAULT_NOTIFICATIONS_CONFIG: NotificationsConfig = {
@@ -144,6 +223,38 @@ export const DEFAULT_APPEARANCE_PREFERENCES: AppearancePreferences = {
   transcriptDetail: 'standard',
 };
 
+/** Layered status-bar defaults — plain labels, essentials on, ops opt-in. */
+export const DEFAULT_FOOTER_PREFERENCES: FooterPreferences = {
+  labels: 'plain',
+  modes: 'auto',
+  model: 'auto',
+  cwd: 'auto',
+  git: 'auto',
+  context: 'auto',
+  goal: 'auto',
+  menu: 'auto',
+  background: 'auto',
+  tips: 'auto',
+  nextAction: 'auto',
+  workingSet: 'auto',
+  quota: 'auto',
+  mediaReady: 'auto',
+  index: 'off',
+  mcp: 'auto',
+  cache: 'auto',
+  pulseGoalProgress: true,
+  pulseFleetComplete: true,
+  pulsePermission: true,
+  pulseGitChurn: true,
+  pulseOpsCombo: true,
+  pulseExtensionsReload: true,
+  pulseRuntimeDegraded: true,
+  pulseSearchCascade: true,
+  pulseModelRoute: true,
+  showCompact: true,
+  showPromptIntelligence: true,
+};
+
 export const DEFAULT_TUI_CONFIG: TuiConfig = TuiConfigSchema.parse({
   theme: 'superliora-ash',
   permissionMode: 'yolo',
@@ -152,6 +263,7 @@ export const DEFAULT_TUI_CONFIG: TuiConfig = TuiConfigSchema.parse({
   notifications: DEFAULT_NOTIFICATIONS_CONFIG,
   upgrade: DEFAULT_UPGRADE_PREFERENCES,
   appearance: DEFAULT_APPEARANCE_PREFERENCES,
+  footer: DEFAULT_FOOTER_PREFERENCES,
   onboarding: DEFAULT_ONBOARDING_PREFERENCES,
 });
 
@@ -237,6 +349,7 @@ export function normalizeTuiConfig(config: TuiConfigFileShape): TuiConfig {
       transcriptDetail:
         config.appearance?.transcript_detail ?? DEFAULT_APPEARANCE_PREFERENCES.transcriptDetail,
     },
+    footer: normalizeFooterPreferences(config.footer),
     onboarding: {
       hubIntroSeen:
         config.onboarding?.hub_intro_seen ?? DEFAULT_ONBOARDING_PREFERENCES.hubIntroSeen,
@@ -244,8 +357,46 @@ export function normalizeTuiConfig(config: TuiConfigFileShape): TuiConfig {
   });
 }
 
+function normalizeFooterPreferences(
+  raw: TuiConfigFileShape['footer'],
+): FooterPreferences {
+  const d = DEFAULT_FOOTER_PREFERENCES;
+  if (raw === undefined) return { ...d };
+  return {
+    labels: raw.labels ?? d.labels,
+    modes: raw.modes ?? d.modes,
+    model: raw.model ?? d.model,
+    cwd: raw.cwd ?? d.cwd,
+    git: raw.git ?? d.git,
+    context: raw.context ?? d.context,
+    goal: raw.goal ?? d.goal,
+    menu: raw.menu ?? d.menu,
+    background: raw.background ?? d.background,
+    tips: raw.tips ?? d.tips,
+    nextAction: raw.next_action ?? d.nextAction,
+    workingSet: raw.working_set ?? d.workingSet,
+    quota: raw.quota ?? d.quota,
+    mediaReady: raw.media_ready ?? d.mediaReady,
+    index: raw.index ?? d.index,
+    mcp: raw.mcp ?? d.mcp,
+    cache: raw.cache ?? d.cache,
+    pulseGoalProgress: raw.pulse_goal_progress ?? d.pulseGoalProgress,
+    pulseFleetComplete: raw.pulse_fleet_complete ?? d.pulseFleetComplete,
+    pulsePermission: raw.pulse_permission ?? d.pulsePermission,
+    pulseGitChurn: raw.pulse_git_churn ?? d.pulseGitChurn,
+    pulseOpsCombo: raw.pulse_ops_combo ?? d.pulseOpsCombo,
+    pulseExtensionsReload: raw.pulse_extensions_reload ?? d.pulseExtensionsReload,
+    pulseRuntimeDegraded: raw.pulse_runtime_degraded ?? d.pulseRuntimeDegraded,
+    pulseSearchCascade: raw.pulse_search_cascade ?? d.pulseSearchCascade,
+    pulseModelRoute: raw.pulse_model_route ?? d.pulseModelRoute,
+    showCompact: raw.show_compact ?? d.showCompact,
+    showPromptIntelligence: raw.show_prompt_intelligence ?? d.showPromptIntelligence,
+  };
+}
+
 export function renderTuiConfig(config: TuiConfig): string {
   const appearance = config.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
+  const footer = config.footer ?? DEFAULT_FOOTER_PREFERENCES;
   const onboarding = config.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES;
   return `# ~/.superliora/tui.toml
 # Client preferences for kimi-code.
@@ -275,6 +426,37 @@ terminal_background = "${appearance.terminalBackground}" # "off" | "session"
 terminal_palette = ${String(appearance.terminalPalette)} # true applies terminal palette until exit
 show_timestamps = ${String(appearance.showTimestamps)} # true shows HH:MM on user messages
 transcript_detail = "${appearance.transcriptDetail}" # "minimal" | "compact" | "standard" | "full"
+
+[footer]
+# Status bar — "auto" | "always" | "off" for slots; labels = "plain" | "compact"
+labels = "${footer.labels}"
+modes = "${footer.modes}"
+model = "${footer.model}"
+cwd = "${footer.cwd}"
+git = "${footer.git}"
+context = "${footer.context}"
+goal = "${footer.goal}"
+menu = "${footer.menu}"
+background = "${footer.background}"
+tips = "${footer.tips}"
+next_action = "${footer.nextAction}"
+working_set = "${footer.workingSet}"
+quota = "${footer.quota}"
+media_ready = "${footer.mediaReady}"
+index = "${footer.index}"
+mcp = "${footer.mcp}"
+cache = "${footer.cache}"
+pulse_goal_progress = ${String(footer.pulseGoalProgress)}
+pulse_fleet_complete = ${String(footer.pulseFleetComplete)}
+pulse_permission = ${String(footer.pulsePermission)}
+pulse_git_churn = ${String(footer.pulseGitChurn)}
+pulse_ops_combo = ${String(footer.pulseOpsCombo)}
+pulse_extensions_reload = ${String(footer.pulseExtensionsReload)}
+pulse_runtime_degraded = ${String(footer.pulseRuntimeDegraded)}
+pulse_search_cascade = ${String(footer.pulseSearchCascade)}
+pulse_model_route = ${String(footer.pulseModelRoute)}
+show_compact = ${String(footer.showCompact)}
+show_prompt_intelligence = ${String(footer.showPromptIntelligence)}
 
 [onboarding]
 hub_intro_seen = ${String(onboarding.hubIntroSeen)} # true skips the first-run Command Hub intro

@@ -24,7 +24,7 @@ describe('formatWorkingSetFooterBadge', () => {
       1_000_000,
     );
     expect(badge).toEqual({
-      text: `ws:${formatTokenCount(BALANCED_MAX_WORKING_SET_TOKENS)}`,
+      text: `Working set ${formatTokenCount(BALANCED_MAX_WORKING_SET_TOKENS)}`,
       severity: 'info',
     });
   });
@@ -42,7 +42,7 @@ describe('formatWorkingSetFooterBadge', () => {
     expect(badge?.severity).toBe('warning');
   });
 
-  it('shows full-window policy as ws:full', () => {
+  it('shows full-window policy as Working set full', () => {
     const badge = formatWorkingSetFooterBadge(
       {
         maxWorkingSetTokens: 0,
@@ -52,6 +52,23 @@ describe('formatWorkingSetFooterBadge', () => {
       100_000,
       1_000_000,
     );
-    expect(badge).toEqual({ text: 'ws:full', severity: 'info' });
+    expect(badge).toEqual({ text: 'Working set full', severity: 'info' });
+  });
+
+  it('compact labels keep short ws: tokens', () => {
+    const badge = formatWorkingSetFooterBadge(
+      {
+        maxWorkingSetTokens: BALANCED_MAX_WORKING_SET_TOKENS,
+        asyncWorkingSetTokens: BALANCED_ASYNC_WORKING_SET_TOKENS,
+        presetId: 'balanced',
+      },
+      100_000,
+      1_000_000,
+      'compact',
+    );
+    expect(badge).toEqual({
+      text: `ws:${formatTokenCount(BALANCED_MAX_WORKING_SET_TOKENS)}`,
+      severity: 'info',
+    });
   });
 });

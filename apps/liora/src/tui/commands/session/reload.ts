@@ -1,7 +1,12 @@
 import type { LioraConfig } from '@superliora/sdk';
 
 import { currentTheme, lightColors } from '#/tui/theme';
-import { DEFAULT_APPEARANCE_PREFERENCES, loadTuiConfig, type TuiConfig } from '../../config';
+import {
+  DEFAULT_APPEARANCE_PREFERENCES,
+  DEFAULT_FOOTER_PREFERENCES,
+  loadTuiConfig,
+  type TuiConfig,
+} from '../../config';
 import type { SlashCommandHost } from '../hub/dispatch';
 import { setExperimentalFeatures } from '../experimental-flags';
 
@@ -49,6 +54,7 @@ export async function applyReloadedTuiConfig(
     notifications: config.notifications,
     upgrade: config.upgrade,
     appearance: config.appearance ?? DEFAULT_APPEARANCE_PREFERENCES,
+    footer: config.footer ?? DEFAULT_FOOTER_PREFERENCES,
   });
   if ('setDisablePasteBurst' in host.state.editor) {
     (host.state.editor as { setDisablePasteBurst(disabled: boolean): void }).setDisablePasteBurst(

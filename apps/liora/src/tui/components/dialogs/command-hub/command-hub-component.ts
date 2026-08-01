@@ -8,6 +8,7 @@ import {
   matchesKey,
   truncateToWidth,
   type Focusable,
+  type NativeInputEvent,
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import {
@@ -23,6 +24,10 @@ import {
 } from '#/tui/features/appearance/appearance-effects';
 import { printableChar } from '#/tui/utils/printable-key';
 import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
+import {
+  resolveCenterListMouse,
+  type CenterListMouseLayout,
+} from '#/tui/utils/ui/list-dialog-mouse';
 
 import {
   COMMAND_HUB_PAGE_SIZE,
@@ -57,6 +62,8 @@ export class CommandHubComponent extends Container implements Focusable {
   private flashAtMs = 0;
   /** Last selection move — drives the pointer slide-in micro-interaction. */
   private selectionMovedAtMs = 0;
+  private mouseLayout: CenterListMouseLayout | undefined;
+  private crumbLines = 0;
 
   constructor(opts: CommandHubOptions) {
     super();
@@ -96,6 +103,30 @@ export class CommandHubComponent extends Container implements Focusable {
     this.intro = false;
     this.onIntroDismiss?.();
     this.invalidate();
+  }
+
+  /** Center-modal breadcrumb offset for click hit-testing. */
+  setCrumbLines(count: number): void {
+    this.crumbLines = Math.max(0, count);
+  }
+
+  handleNativeInput(event: NativeInputEvent): boolean {
+    const action = resolveCenterListMouse(event, this.mouseLayout, this.selectedIndex);
+    if (action.type === 'none') return false;
+    if (action.type === 'move') {
+      this.moveSelection(this.selectedIndex + action.delta);
+      return true;
+    }
+    if (action.type === 'highlight') {
+      this.moveSelection(action.index);
+      return true;
+    }
+    if (action.type === 'activate') {
+      this.moveSelection(action.index);
+      this.activate('enter');
+      return true;
+    }
+    return false;
   }
 
   handleInput(data: string): void {
@@ -191,8 +222,8 @@ export class CommandHubComponent extends Container implements Focusable {
 
     const hint =
       this.query.length > 0
-        ? '↑↓ navigate · Enter go · Esc clear filter'
-        : '↑↓ navigate · Space flip · Enter go · 1-9 hotkeys · type search · Esc cancel';
+        ? '↑↓ · Enter go · wheel scroll · Esc clear filter'
+        : '↑↓ · Space flip · Enter go · 1–9 · type search · wheel · click · Esc cancel';
     const body: string[] = [
       truncateToWidth(theme.fg('textMuted', ` ${hint}`), inner),
       truncateToWidth(` ${this.renderStatusStrip(inner - 1, appearance)}`, inner),
@@ -209,12 +240,14 @@ export class CommandHubComponent extends Container implements Focusable {
       );
       body.push(
         truncateToWidth(
-          theme.fg('textMuted', ' Space stays here · Enter applies & returns · Esc dismiss'),
+          theme.fg('textMuted', ' Space stays open · Enter applies & closes · Esc dismisses tip'),
           inner,
         ),
       );
       body.push('');
     }
+
+    const itemLineByIndex: number[] = new Array(this.filtered.length).fill(-1);
 
     if (this.filtered.length === 0) {
       body.push(
@@ -256,6 +289,7 @@ export class CommandHubComponent extends Container implements Focusable {
               : '';
         const badge = this.renderBadge(item, appearance);
         const flashing = this.flashId === item.id;
+        itemLineByIndex[index] = body.length;
         const label = flashing
           ? renderSettleFlash(item.label, `hub:flash:${item.id}`, this.flashAtMs, appearance)
           : selected
@@ -265,7 +299,10 @@ export class CommandHubComponent extends Container implements Focusable {
               : theme.fg('text', item.label);
         const kindHint =
           item.kind === 'toggle' || item.kind === 'cycle'
-            ? theme.fg('textMuted', item.kind === 'cycle' ? ' ↻' : ' ⚡')
+            ? theme.fg(
+                'textMuted',
+                item.kind === 'cycle' ? '  cycle' : selected ? '  toggle' : '',
+              )
             : '';
         body.push(
           truncateToWidth(`${slidePad} ${pointer}${hotkey}${label}${kindHint}${badge}`, inner),
@@ -302,8 +339,19 @@ export class CommandHubComponent extends Container implements Focusable {
       appearance,
       openedAtMs: this.openedAtMs,
     });
-    if (padLeft === 0) return frame.map((row) => truncateToWidth(row, regionWidth));
-    return frame.map((row) => truncateToWidth(' '.repeat(padLeft) + row, regionWidth));
+    const framed =
+      padLeft === 0
+        ? frame.map((row) => truncateToWidth(row, regionWidth))
+        : frame.map((row) => truncateToWidth(' '.repeat(padLeft) + row, regionWidth));
+    // Mouse layout: item lines are relative to panel body before outer pad;
+    // center-modal hit test uses unpadded panel geometry (matches overlay width).
+    this.mouseLayout = {
+      panelLineCount: frame.length,
+      panelWidth: boxWidth,
+      itemLineByIndex,
+      crumbLines: this.crumbLines,
+    };
+    return framed;
   }
 
   private moveSelection(next: number): void {
@@ -330,8 +378,8 @@ export class CommandHubComponent extends Container implements Focusable {
     const theme = currentTheme;
     const chips: string[] = [];
     const push = (label: string, on: boolean, id: CommandHubActionId): void => {
-      const text = on ? label.toUpperCase() : label;
-      const chip = `[${text}]`;
+      // Plain readable chips — ON is uppercase accent, off stays quiet.
+      const chip = on ? `[${label} ON]` : `[${label}]`;
       if (this.flashId === id) {
         chips.push(renderSettleFlash(chip, `hub:chip:${label}`, this.flashAtMs, appearance));
         return;
@@ -347,11 +395,12 @@ export class CommandHubComponent extends Container implements Focusable {
     const ultra = this.items.find((i) => i.id === 'modes.ultrawork');
     const premium = this.items.find((i) => i.id === 'modes.premium');
     const perm = this.items.find((i) => i.id === 'modes.permission');
-    push('plan', plan?.badge === 'ON', 'modes.plan');
-    push('swarm', swarm?.badge === 'ON', 'modes.swarm');
-    push('ultra', ultra?.badge === 'ON', 'modes.ultrawork');
-    push('pq', premium?.badge === 'ON', 'modes.premium');
-    const permChip = `[${perm?.badge ?? '—'}]`;
+    push('Plan', plan?.badge === 'ON', 'modes.plan');
+    push('Swarm', swarm?.badge === 'ON', 'modes.swarm');
+    push('Mission', ultra?.badge === 'ON', 'modes.ultrawork');
+    push('Visual', premium?.badge === 'ON', 'modes.premium');
+    const permLabel = formatPermissionChip(perm?.badge);
+    const permChip = `[${permLabel}]`;
     chips.push(
       this.flashId === 'modes.permission'
         ? renderSettleFlash(permChip, 'hub:chip:perm', this.flashAtMs, appearance)
@@ -365,12 +414,18 @@ export class CommandHubComponent extends Container implements Focusable {
     appearance: ReturnType<typeof getActiveAppearancePreferences>,
   ): string {
     if (item.badge === undefined || item.badge.length === 0) return '';
-    const raw = ` · ${item.badge}`;
+    const display =
+      item.badge === 'ON'
+        ? 'On'
+        : item.badge === 'off'
+          ? 'Off'
+          : item.badge;
+    const raw = ` · ${display}`;
     if (this.flashId === item.id) {
       return renderSettleFlash(raw, `hub:flash:${item.id}`, this.flashAtMs, appearance);
     }
     if (item.badge === 'ON') {
-      return ` ${renderPulseText(raw.trimStart(), `hub:badge:${item.id}`, 'glow', appearance)}`;
+      return ` ${renderPulseText('· On', `hub:badge:${item.id}`, 'glow', appearance)}`;
     }
     return currentTheme.fg('textMuted', raw);
   }
@@ -380,4 +435,12 @@ export class CommandHubComponent extends Container implements Focusable {
     this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, this.filtered.length - 1));
     this.invalidate();
   }
+}
+
+function formatPermissionChip(badge: string | undefined): string {
+  if (badge === undefined || badge.length === 0) return 'Permission —';
+  if (badge === 'yolo') return 'YOLO';
+  if (badge === 'auto') return 'Auto';
+  if (badge === 'manual') return 'Manual';
+  return badge;
 }

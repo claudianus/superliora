@@ -1,5 +1,7 @@
 import type { AppState } from '#/tui/types';
 import type { FooterBadge } from '#/tui/components/chrome/footer/footer-badges';
+import { labelOpsCombo } from '#/tui/components/chrome/footer/footer-labels';
+import type { FooterLabels } from '#/tui/config';
 import { CACHE_HIT_TARGET } from '#/tui/utils/cache/cache-hit-meter';
 import { isRuntimeDegradedActive } from '#/tui/utils/never-halt/runtime-degraded';
 
@@ -54,12 +56,13 @@ export function computeOpsComboPulse(
   return combo;
 }
 
-/** Dopamine Ops footer glance — brief `combo×N` badge after triple alignment. */
+/** Dopamine Ops footer glance — brief multi-signal alignment badge. */
 export function formatOpsComboFooterBadge(
   combo: OpsComboSnapshot | null | undefined,
   nowMs: number = Date.now(),
+  labels: FooterLabels = 'plain',
 ): FooterBadge | null {
   if (combo === null || combo === undefined) return null;
   if (nowMs - combo.atMs >= OPS_COMBO_PULSE_TTL_MS) return null;
-  return { text: `combo×${String(combo.score)}`, severity: 'info' };
+  return { text: labelOpsCombo(labels, combo.score), severity: 'info' };
 }

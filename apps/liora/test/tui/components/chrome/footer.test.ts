@@ -61,7 +61,7 @@ describe('FooterComponent', () => {
       appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' },
     });
     const rendered = footer.render(120).join('\n');
-    expect(rendered).toContain('premium');
+    expect(rendered).toContain('Premium');
   });
 
   it('renders the model name in the footer', () => {
@@ -101,7 +101,7 @@ describe('FooterComponent', () => {
     });
 
     const rendered = footer.render(160).join('\n');
-    expect(rendered).toContain('complete');
+    expect(rendered).toMatch(/Completing with|complete/);
     expect(rendered).toContain('Kimi Turbo');
   });
 
@@ -143,7 +143,7 @@ describe('FooterComponent', () => {
     // Session alias → effective step model
     expect(rendered).toMatch(/Kimi K2|kimi-k2/);
     expect(rendered).toContain('Kimi Turbo');
-    expect(rendered).toContain('failover');
+    expect(rendered).toMatch(/Failover|failover/);
   });
 
   it('renders the thinking effort level next to the model name', () => {
@@ -251,14 +251,14 @@ describe('FooterComponent', () => {
     }
   });
 
-  it('shows perm✓ dopamine badge after permission approval', () => {
+  it('shows Approved dopamine badge after permission approval', () => {
     const footer = new FooterComponent({
       ...appState,
       permissionApproveFlourish: { atMs: Date.now() },
       appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' },
     });
     const rendered = footer.render(120).join('\n');
-    expect(rendered).toContain('perm✓');
+    expect(rendered).toContain('Approved');
   });
 });
 

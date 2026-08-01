@@ -4,6 +4,7 @@ import type { CLIOptions } from '#/cli/options';
 
 import {
   DEFAULT_APPEARANCE_PREFERENCES,
+  DEFAULT_FOOTER_PREFERENCES,
   DEFAULT_ONBOARDING_PREFERENCES,
   type TuiConfig,
 } from '../config';
@@ -63,6 +64,7 @@ export function createInitialAppState(input: InitialAppStateInput): AppState {
     notifications: input.tuiConfig.notifications,
     upgrade: input.tuiConfig.upgrade,
     appearance: input.tuiConfig.appearance ?? DEFAULT_APPEARANCE_PREFERENCES,
+    footer: input.tuiConfig.footer ?? DEFAULT_FOOTER_PREFERENCES,
     onboarding: input.tuiConfig.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES,
     availableModels: {},
     availableProviders: {},

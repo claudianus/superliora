@@ -30,14 +30,14 @@ describe('footer media readiness badges', () => {
     process.env['OPENAI_API_KEY'] = 'sk-test';
     expect(mediaImageKeyReady()).toBe(true);
     expect(mediaVideoKeyReady()).toBe(false);
-    expect(formatMediaFooterBadge()?.label).toBe('img');
+    expect(formatMediaFooterBadge()?.label).toBe('Images ready');
   });
 
-  it('reports img·vid when image and video keys are present', () => {
+  it('reports Media ready when image and video keys are present', () => {
     clearKeys();
     process.env['OPENAI_API_KEY'] = 'sk-test';
     process.env['GOOGLE_API_KEY'] = 'g-test';
-    expect(formatMediaFooterBadge()?.label).toBe('img·vid');
+    expect(formatMediaFooterBadge()?.label).toBe('Media ready');
   });
 
   it('returns null when no media keys exist', () => {

@@ -10,9 +10,9 @@ import {
 describe('formatExtensionsReloadFooterBadge', () => {
   const atMs = 1_000_000;
 
-  it('shows ext↻ within TTL', () => {
+  it('shows Extensions reloaded within TTL', () => {
     expect(formatExtensionsReloadFooterBadge({ atMs }, atMs + EXTENSIONS_RELOAD_BADGE_TTL_MS - 1)).toEqual({
-      text: 'ext↻',
+      text: 'Extensions reloaded',
       severity: 'info',
     });
   });

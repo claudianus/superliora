@@ -206,8 +206,8 @@ describe('CommandHubComponent', () => {
     });
     const text = stripAnsi(hub.render(72).join('\n'));
     expect(text).toContain('Command Hub');
-    expect(text).toMatch(/\[PLAN\]/i);
-    expect(text).toMatch(/\[yolo\]/i);
+    expect(text).toMatch(/\[Plan ON\]/i);
+    expect(text).toMatch(/\[YOLO\]/i);
     expect(text).toMatch(/\b1\s/);
   });
 

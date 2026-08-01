@@ -67,12 +67,28 @@ export function mountCenterModal(
   if (inputRouter === undefined || panel.handleInput === undefined) return;
   const id = `center-modal:${String(++host.centerModalSequence)}`;
   const handleInput = panel.handleInput.bind(panel);
+  const handleNative =
+    'handleNativeInput' in panel &&
+    typeof (panel as { handleNativeInput?: (event: unknown) => boolean }).handleNativeInput ===
+      'function'
+      ? (panel as { handleNativeInput: (event: import('#/tui/renderer').NativeInputEvent) => boolean })
+          .handleNativeInput.bind(panel)
+      : undefined;
+  // Breadcrumb for click hit-testing (Hub › Settings → 1 crumb line).
+  const crumbCount = host.state.centerModalStack.length >= 1 ? 1 : 0;
+  if (
+    'setCrumbLines' in panel &&
+    typeof (panel as { setCrumbLines?: (n: number) => void }).setCrumbLines === 'function'
+  ) {
+    (panel as { setCrumbLines: (n: number) => void }).setCrumbLines(crumbCount);
+  }
   const disposeInput = inputRouter.pushLegacyModalTarget(
     {
       id,
       handleInput: (data) => {
         handleInput(data);
       },
+      handleNativeInput: handleNative,
     },
     { restoreFocus: false },
   );
@@ -195,11 +211,19 @@ function mountNativeInputModal(host: DialogsHost, panel: Component & Focusable):
   host.nativeInputModalDispose?.();
   const id = `editor-replacement:${String(++host.nativeInputModalSequence)}`;
   const handleInput = panel.handleInput.bind(panel);
+  const handleNative =
+    'handleNativeInput' in panel &&
+    typeof (panel as { handleNativeInput?: (event: unknown) => boolean }).handleNativeInput ===
+      'function'
+      ? (panel as { handleNativeInput: (event: import('#/tui/renderer').NativeInputEvent) => boolean })
+          .handleNativeInput.bind(panel)
+      : undefined;
   host.nativeInputModalDispose = inputRouter.pushLegacyModalTarget({
     id,
     handleInput: (data) => {
       handleInput(data);
     },
+    handleNativeInput: handleNative,
   });
 }
 

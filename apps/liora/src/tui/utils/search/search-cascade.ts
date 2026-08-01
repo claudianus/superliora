@@ -1,4 +1,6 @@
 import type { FooterBadge } from '#/tui/components/chrome/footer/footer-badges';
+import { labelSearchCascade } from '#/tui/components/chrome/footer/footer-labels';
+import type { FooterLabels } from '#/tui/config';
 import type { AppState } from '#/tui/types';
 
 export const SEARCH_CASCADE_BADGE_TTL_MS = 30_000;
@@ -150,10 +152,11 @@ export function searchCascadePatchFromToolResult(
 export function formatSearchCascadeFooterBadge(
   cascade: AppState['searchCascade'],
   nowMs: number = Date.now(),
+  labels: FooterLabels = 'plain',
 ): FooterBadge | null {
   if (cascade === undefined || cascade === null) return null;
   if (!isSearchCascadeActive(cascade, nowMs)) return null;
-  return { text: 'research↻', severity: 'info' };
+  return { text: labelSearchCascade(labels), severity: 'info' };
 }
 
 /** Ops health line, e.g. `Cascade: ch1→ch4` or `Cascade: ch1→ch4 · hops 3`. */

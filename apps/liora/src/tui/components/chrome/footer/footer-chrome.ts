@@ -8,9 +8,11 @@ import {
   type GitStatus,
 } from '#/utils/git/git-status';
 import { ttui } from '#/tui/utils/tui-i18n';
+import type { FooterLabels } from '#/tui/config';
 
 import { mediaProviderKeyReady } from '#/tui/components/chrome/footer/footer-badges';
 import { safeContextUsage } from '#/tui/components/chrome/footer/footer-context';
+import { labelHistoryViewport } from '#/tui/components/chrome/footer/footer-labels';
 
 const MAX_CWD_SEGMENTS = 3;
 
@@ -38,10 +40,14 @@ export function shortenCwd(path: string): string {
 
 export function formatTranscriptViewportBadge(
   viewport: FooterTranscriptViewportSnapshot | undefined,
+  labels: FooterLabels = 'plain',
 ): string | null {
   const status = projectRendererViewportHistoryStatus(viewport);
   if (status === undefined) return null;
-  return currentTheme.boldFg('warning', `[${status.label}]`);
+  // status.label is like "history +42 rows" — rebuild plain text from rowsBehind
+  const compact = status.label.replace(/^history \+/, '').replace(/ rows$/, '');
+  const text = labelHistoryViewport(labels, status.rowsBehind, compact);
+  return currentTheme.boldFg('warning', `[${text}]`);
 }
 
 export function footerNextAction(state: AppState, git: GitStatus | null): string | null {
