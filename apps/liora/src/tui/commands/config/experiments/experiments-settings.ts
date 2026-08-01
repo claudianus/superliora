@@ -11,7 +11,6 @@ import {
   buildExperimentsSettingsLines,
   EXPERIMENTS_CODEGRAPH_TIP,
   EXPERIMENTS_FEATURE_FLAGS_TIP,
-  EXPERIMENTS_MICRO_COMPACTION_TIP,
   type ExperimentsGlanceInput,
 } from '#/tui/utils/experiments/experiments-glance';
 
@@ -20,7 +19,6 @@ import type { SlashCommandHost } from '../../hub/dispatch';
 export {
   EXPERIMENTS_CODEGRAPH_TIP,
   EXPERIMENTS_FEATURE_FLAGS_TIP,
-  EXPERIMENTS_MICRO_COMPACTION_TIP,
 };
 
 async function loadExperimentsGlance(host: SlashCommandHost): Promise<ExperimentsGlanceInput> {
@@ -59,12 +57,6 @@ export function showExperimentsSettings(host: SlashCommandHost): void {
           description:
             'Index/codemap flags may appear here first · live wire via Settings → Index.',
         },
-        {
-          value: 'tip-micro-compaction',
-          label: 'Micro-compaction tip',
-          description:
-            'micro_compaction kill switch · SUPERLIORA_EXPERIMENTAL_MICRO_COMPACTION · Compaction recover.',
-        },
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -79,9 +71,6 @@ export function showExperimentsSettings(host: SlashCommandHost): void {
         if (value === 'tip-codegraph') {
           host.showStatus(EXPERIMENTS_CODEGRAPH_TIP, 'info');
           return;
-        }
-        if (value === 'tip-micro-compaction') {
-          host.showStatus(EXPERIMENTS_MICRO_COMPACTION_TIP, 'info');
         }
       },
       onCancel: () => {

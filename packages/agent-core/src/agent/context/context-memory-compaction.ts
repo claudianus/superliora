@@ -135,7 +135,6 @@ export function applyContextCompaction(
   }
   host.tokenCount = estimateTokensForMessages(host.history);
   host.tokenCountCoveredMessageCount = host.history.length;
-  host.agent.microCompaction.reset();
   host.agent.contextOS.recordCompaction(result);
   // The post-compaction history is
   //   [...keptMessages, summaryMessage, ...retainedSuffix]

@@ -4,7 +4,7 @@ import {
   ARCHIVE_RECOVER_LEGACY_TOOL,
   ARCHIVE_RECOVER_PREFERRED_TOOL,
   resolveArchiveRecoverToolName,
-} from '#/agent/compaction/micro/micro-helpers';
+} from '#/agent/compaction/tool-policy';
 
 describe('resolveArchiveRecoverToolName', () => {
   it('prefers Expand when both Expand and LioraExpand are registered', () => {

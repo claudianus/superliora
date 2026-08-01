@@ -19,11 +19,11 @@ function feature(
   overrides: Partial<ExperimentalFeatureState> = {},
 ): ExperimentalFeatureState {
   return {
-    id: 'micro_compaction',
-    title: 'Micro compaction',
-    description: 'Trim older tool results.',
+    id: 'async_compaction',
+    title: 'Async background compaction',
+    description: 'Background full compaction.',
     surface: 'core',
-    env: 'SUPERLIORA_EXPERIMENTAL_MICRO_COMPACTION',
+    env: 'SUPERLIORA_EXPERIMENTAL_ASYNC_COMPACTION',
     defaultEnabled: true,
     enabled: true,
     source: 'default',
@@ -49,9 +49,9 @@ describe('ExperimentsSelectorComponent', () => {
 
     expect(out).toContain('Experimental features  (type to search)');
     expect(out).toContain(' ↑↓ navigate · Space toggle · Enter apply · Esc cancel');
-    expect(out).toContain('  ❯ Micro compaction  enabled');
-    expect(out).toContain('    id micro_compaction · config · SUPERLIORA_EXPERIMENTAL_MICRO_COMPACTION');
-    expect(out).toContain('    Trim older tool results.');
+    expect(out).toContain('  ❯ Async background compaction  enabled');
+    expect(out).toContain('    id async_compaction · config · SUPERLIORA_EXPERIMENTAL_ASYNC_COMPACTION');
+    expect(out).toContain('    Background full compaction.');
     expect(out).toContain(' [ Apply changes and reload ]  no changes');
   });
 
@@ -67,16 +67,16 @@ describe('ExperimentsSelectorComponent', () => {
     selector.handleInput(' ');
 
     expect(onApply).not.toHaveBeenCalled();
-    expect(text(selector)).toContain('  ❯ Micro compaction  disabled');
+    expect(text(selector)).toContain('  ❯ Async background compaction  disabled');
     expect(text(selector)).toContain(
-      '    id micro_compaction · default · SUPERLIORA_EXPERIMENTAL_MICRO_COMPACTION · modified',
+      '    id async_compaction · default · SUPERLIORA_EXPERIMENTAL_ASYNC_COMPACTION · modified',
     );
     expect(text(selector)).toContain(' [ Apply changes and reload ]  1 change');
 
     selector.handleInput(ENTER);
 
     expect(onApply).toHaveBeenCalledWith([
-      { id: 'micro_compaction', enabled: false },
+      { id: 'async_compaction', enabled: false },
     ]);
   });
 
@@ -96,7 +96,7 @@ describe('ExperimentsSelectorComponent', () => {
     selector.handleInput(' ');
     selector.handleInput(ENTER);
 
-    expect(text(selector)).toContain('  ❯ Micro compaction  enabled');
+    expect(text(selector)).toContain('  ❯ Async background compaction  enabled');
     expect(text(selector)).toContain(' [ Apply changes and reload ]  no changes');
     expect(onApply).not.toHaveBeenCalled();
   });
@@ -113,7 +113,7 @@ describe('ExperimentsSelectorComponent', () => {
     selector.handleInput('i');
     selector.handleInput('c');
     expect(text(selector)).toContain('Search: mic');
-    expect(text(selector)).toContain('Micro compaction');
+    expect(text(selector)).toContain('Async background compaction');
 
     selector.handleInput(ESC);
     expect(onCancel).not.toHaveBeenCalled();

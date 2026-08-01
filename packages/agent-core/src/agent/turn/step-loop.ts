@@ -23,7 +23,6 @@ import {
   type RecordStepUsageInfo,
 } from '../../loop/index';
 import { ToolCallDeduplicator } from './tool-dedup';
-import { budgetToolResultForModel } from './tool-result-budget';
 import { observeVerificationToolResult } from '../../sensors/verification-sensor-ledger';
 import { toolInputRecord, toolOutputText, type TurnTelemetry } from './telemetry';
 import {
@@ -84,7 +83,6 @@ export async function runTurnStepLoop(
         hooks: {
           beforeStep: async ({ signal: stepSignal }) => {
             deps.flushSteerBuffer();
-            agent.microCompaction.detect();
             await agent.fullCompaction.beforeStep(stepSignal);
             await agent.injection.inject();
             deduper.beginStep();
@@ -205,14 +203,7 @@ export async function runTurnStepLoop(
                 toolOutput: isError === true ? undefined : toolOutputText(output).slice(0, 2000),
               },
             });
-            const budgeted = await budgetToolResultForModel({
-              homedir: agent.homedir,
-              toolName: ctx.toolCall.name,
-              toolCallId: ctx.toolCall.id,
-              result: finalResult,
-              contextWindowTokens: agent.config.modelCapabilities.max_context_tokens,
-            });
-            return budgeted;
+            return finalResult;
           },
         },
       });

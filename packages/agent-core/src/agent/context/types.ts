@@ -188,13 +188,6 @@ export interface AgentContextData {
     readonly entryCount: number;
     readonly maxEntries: number;
   };
-  /** Micro-compaction trigger dashboard (tool-result clearing path). */
-  microCompaction?: {
-    readonly total: number;
-    readonly lastTrigger: string | null;
-    readonly lastContextUsageRatio: number | null;
-    readonly byTrigger: Readonly<Record<string, number>>;
-  };
   autoDream?: {
     readonly enabled: boolean;
     readonly inFlight: boolean;

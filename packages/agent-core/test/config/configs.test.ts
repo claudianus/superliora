@@ -433,19 +433,19 @@ oauth = { storage = "file", key = "oauth/kimi-code-env-1234", oauth_host = "http
     const configPath = join(dir, 'experimental.toml');
     const toml = `
 [experimental]
-micro_compaction = false
+async_compaction = false
 `;
     const config = parseConfigString(toml, configPath);
 
     expect(config.experimental).toEqual({
-      'micro_compaction': false,
+      'async_compaction': false,
     });
 
     await writeConfigFile(configPath, config);
     const text = await readFile(configPath, 'utf-8');
 
     expect(text).toContain('[experimental]');
-    expect(text).toContain('micro_compaction = false');
+    expect(text).toContain('async_compaction = false');
     expect(parseConfigString(text, configPath).experimental).toEqual(config.experimental);
   });
 
@@ -680,17 +680,17 @@ describe('harness config schema and patch merge', () => {
   it('deep-merges experimental config patches', () => {
     const base = parseConfigString(`
 [experimental]
-micro_compaction = false
+async_compaction = false
 `);
 
     const merged = mergeConfigPatch(base, {
       experimental: {
-        'micro_compaction': true,
+        'async_compaction': true,
       },
     });
 
     expect(merged.experimental).toEqual({
-      'micro_compaction': true,
+      'async_compaction': true,
     });
   });
 

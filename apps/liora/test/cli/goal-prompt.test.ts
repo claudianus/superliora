@@ -133,7 +133,7 @@ const mocks = vi.hoisted(() => {
     session,
     eventHandlers,
     mainEvent,
-    experimentalFeatures: [{ id: 'micro_compaction', enabled: true }],
+    experimentalFeatures: [{ id: 'async_compaction', enabled: true }],
     sessions: [] as Array<{ readonly id: string; readonly workDir: string }>,
   };
 });
@@ -194,7 +194,7 @@ describe('runPrompt headless goal mode', () => {
 
   beforeEach(() => {
     savedExitCode = process.exitCode;
-    mocks.experimentalFeatures = [{ id: 'micro_compaction', enabled: true }];
+    mocks.experimentalFeatures = [{ id: 'async_compaction', enabled: true }];
     mocks.sessions = [];
     mocks.session.createGoal.mockClear();
     mocks.session.getGoal.mockClear();

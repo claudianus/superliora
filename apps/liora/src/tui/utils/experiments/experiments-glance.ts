@@ -12,9 +12,6 @@ export const EXPERIMENTS_FEATURE_FLAGS_TIP =
 export const EXPERIMENTS_CODEGRAPH_TIP =
   'Codegraph/index flags may land in Experiments first (symbol codemap, FTS warm path). Live RepoQuery + codemap wire: Settings → Index. Disable via env or [experimental] when exposed.';
 
-/** ChoicePicker tip — micro_compaction kill switch + Compaction micro recover path. */
-export const EXPERIMENTS_MICRO_COMPACTION_TIP =
-  'micro_compaction — trim older large tool results (default ON). Env: SUPERLIORA_EXPERIMENTAL_MICRO_COMPACTION. Session clears + Expand(id=…) recover: Settings → Compaction. Toggle: Settings → Harness → Experiments.';
 
 export interface ExperimentsCatalogGlance {
   readonly totalCount: number;

@@ -14,12 +14,6 @@ export interface AgentStatusContextOS {
   readonly latestContinuityStatus: string;
 }
 
-export interface AgentStatusMicroCompaction {
-  readonly total: number;
-  readonly lastTrigger: string | null;
-  readonly lastContextUsageRatio: number | null;
-  readonly byTrigger: Readonly<Record<string, number>>;
-}
 
 export interface AgentStatusAutoDream {
   readonly enabled: boolean;
@@ -54,8 +48,6 @@ export interface AgentStatusUpdatedEvent {
   readonly providerRoute?: ProviderRouteStatus | null;
   /** Present when Context OS has compacted pages; null clears prior badge. */
   readonly contextOS?: AgentStatusContextOS | null;
-  /** Present when micro-compaction has fired; null clears prior badge. */
-  readonly microCompaction?: AgentStatusMicroCompaction | null;
   readonly autoDream?: AgentStatusAutoDream | null;
   /** True when the agent is running in orchestrator mode (delegates work to workers). */
   readonly orchestratorMode?: boolean;
@@ -81,12 +73,6 @@ export const agentStatusContextOSSchema = z.object({
   latestContinuityStatus: z.string(),
 });
 
-export const agentStatusMicroCompactionSchema = z.object({
-  total: z.number().int().nonnegative(),
-  lastTrigger: z.string().nullable(),
-  lastContextUsageRatio: z.number().min(0).max(1).nullable(),
-  byTrigger: z.record(z.string(), z.number().int().nonnegative()),
-});
 
 export const agentStatusAutoDreamSchema = z.object({
   enabled: z.boolean(),
@@ -112,7 +98,6 @@ export const agentStatusUpdatedEventSchema = z.object({
   usage: usageStatusSchema.optional(),
   providerRoute: providerRouteStatusSchema.nullable().optional(),
   contextOS: agentStatusContextOSSchema.nullable().optional(),
-  microCompaction: agentStatusMicroCompactionSchema.nullable().optional(),
   autoDream: agentStatusAutoDreamSchema.nullable().optional(),
   orchestratorMode: z.boolean().optional(),
   orchestratorWorkers: z.array(z.object({

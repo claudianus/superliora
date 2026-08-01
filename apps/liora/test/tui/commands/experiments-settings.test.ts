@@ -4,7 +4,6 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   EXPERIMENTS_CODEGRAPH_TIP,
   EXPERIMENTS_FEATURE_FLAGS_TIP,
-  EXPERIMENTS_MICRO_COMPACTION_TIP,
   showExperimentsSettings,
 } from '#/tui/commands/config/experiments/experiments-settings';
 import {
@@ -20,11 +19,11 @@ function feature(
   overrides: Partial<ExperimentalFeatureState> = {},
 ): ExperimentalFeatureState {
   return {
-    id: 'micro_compaction',
-    title: 'Micro compaction',
-    description: 'Trim older tool results.',
+    id: 'async_compaction',
+    title: 'Async background compaction',
+    description: 'Background full compaction.',
     surface: 'core',
-    env: 'SUPERLIORA_EXPERIMENTAL_MICRO_COMPACTION',
+    env: 'SUPERLIORA_EXPERIMENTAL_ASYNC_COMPACTION',
     defaultEnabled: true,
     enabled: true,
     source: 'default',
@@ -111,22 +110,13 @@ describe('experiments glance', () => {
       ],
     }).join('\n');
     expect(text).toContain('Experiments (read-only)');
-    expect(text).toContain('micro_compaction ON (config)');
+    expect(text).toContain('async_compaction ON (config)');
     expect(text).toContain('prompt_intelligence OFF (config)');
     expect(text).toContain('Harness → Experiments');
     expect(text).toContain('SUPERLIORA_EXPERIMENTAL_FLAG');
   });
 });
 
-describe('experiments settings tips', () => {
-  it('exports feature-flags, codegraph, and micro-compaction tips', () => {
-    expect(EXPERIMENTS_FEATURE_FLAGS_TIP).toContain('SUPERLIORA_EXPERIMENTAL_FLAG');
-    expect(EXPERIMENTS_FEATURE_FLAGS_TIP).toContain('Harness → Experiments');
-    expect(EXPERIMENTS_CODEGRAPH_TIP).toContain('Settings → Index');
-    expect(EXPERIMENTS_MICRO_COMPACTION_TIP).toContain('micro_compaction');
-    expect(EXPERIMENTS_MICRO_COMPACTION_TIP).toContain('Settings → Compaction');
-  });
-});
 
 describe('showExperimentsSettings', () => {
   it('mounts ChoicePicker with status and read-only tip actions', () => {
@@ -142,7 +132,6 @@ describe('showExperimentsSettings', () => {
       'status',
       'tip-feature-flags',
       'tip-codegraph',
-      'tip-micro-compaction',
     ]);
   });
 
@@ -160,12 +149,6 @@ describe('showExperimentsSettings', () => {
     expect(host.showStatus).toHaveBeenCalledWith(EXPERIMENTS_CODEGRAPH_TIP, 'info');
   });
 
-  it('shows micro-compaction tip via showStatus', () => {
-    const host = makeExperimentsHost();
-    showExperimentsSettings(host);
-    selectExperimentsAction(host, 'tip-micro-compaction');
-    expect(host.showStatus).toHaveBeenCalledWith(EXPERIMENTS_MICRO_COMPACTION_TIP, 'info');
-  });
 
   it('mounts read-only experiments panel with live config flags', async () => {
     const host = makeExperimentsHost();
@@ -178,7 +161,7 @@ describe('showExperimentsSettings', () => {
       .calls[0]?.[0] as UsagePanelComponent;
     const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('Live flags:');
-    expect(text).toContain('micro_compaction ON (config)');
+    expect(text).toContain('async_compaction ON (config)');
     expect(text).toContain('prompt_intelligence OFF (config)');
     expect(host.harness.getExperimentalFeatures).toHaveBeenCalled();
   });

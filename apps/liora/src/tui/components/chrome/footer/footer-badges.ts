@@ -163,25 +163,6 @@ export function formatMcpHealthFooterBadge(
   return null;
 }
 
-/** Micro tool-result clearing badge (primary cheap context path). */
-export function formatMicroCompactionFooterBadge(
-  micro: AppState['microCompaction'],
-): FooterBadge | null {
-  if (micro === undefined || micro === null || micro.total <= 0) return null;
-  const last = micro.lastTrigger ?? 'micro';
-  const severity: FooterBadgeSeverity =
-    last === 'swarm_pressure' || last === 'usage_and_cache_miss' ? 'warning' : 'info';
-  const short =
-    last === 'usage_and_cache_miss'
-      ? 'cache-miss'
-      : last === 'swarm_pressure'
-        ? 'swarm'
-        : last;
-  return {
-    text: `μ:${short}×${String(micro.total)}`,
-    severity,
-  };
-}
 
 /**
  * Soft working-set badge, e.g. `ws:256k`. Shows the agent live-history cap

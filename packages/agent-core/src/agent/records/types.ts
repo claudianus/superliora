@@ -100,8 +100,8 @@ export interface AgentRecordEvents {
 
   'full_compaction.cancel': {};
   'full_compaction.complete': {};
+  /** Historical wire only — micro-compaction removed; replay is a no-op. */
   'micro_compaction.apply': { cutoff: number };
-
   'context.append_message': { message: ContextMessage };
   'context.append_loop_event': { event: LoopRecordedEvent };
   'context.clear': {};

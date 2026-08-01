@@ -83,12 +83,6 @@ describe('W9 compaction/context settings tips', () => {
         contextUsage: 0.5,
         contextTokens: 100_000,
         maxContextTokens: 256_000,
-        microCompaction: {
-          total: 1,
-          lastTrigger: 'tool_clear',
-          lastContextUsageRatio: 0.6,
-          byTrigger: { tool_clear: 1 },
-        },
       })),
       getContext: vi.fn(async () => ({ contextArchive: { entryCount: 1, maxEntries: 512 } })),
     })) as never;

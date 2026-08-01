@@ -46,7 +46,6 @@ export function undoContextMessages(host: ContextMemoryHost, count: number): voi
   host.openSteps.clear();
   host.pendingToolResultIds.clear();
   host.deferredMessages = [];
-  host.agent.microCompaction.reset(host.history.length);
   host.agent.emitStatusUpdated();
 
   if (
@@ -90,7 +89,6 @@ export function reclaimEphemeralUserMessagesFromContext(host: ContextMemoryHost)
     host.agent.injection.onContextMessageRemoved(i);
   }
   if (removed > 0) {
-    host.agent.microCompaction.reset(host.history.length);
     host.agent.emitStatusUpdated();
   }
   return removed;

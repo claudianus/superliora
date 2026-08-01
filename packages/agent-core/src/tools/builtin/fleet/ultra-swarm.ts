@@ -29,7 +29,7 @@ const ULTRA_SWARM_DESCRIPTION =
 import { toInputJsonSchema } from '../../support/input-schema';
 import { recordOutcomesFromSwarmResults } from '../../../expert-agents/staffing-outcome';
 import { compactSwarmToolResult } from '../../../agent/compaction/boundary-compaction';
-import { resolveArchiveRecoverToolName } from '../../../agent/compaction/micro/micro-helpers';
+import { resolveArchiveRecoverToolName } from '../../../agent/compaction/tool-policy';
 import { SWARM_HANDOFF_COMPACTION_RATIO } from '../../../agent/compaction/strategy';
 import {
   MAX_ULTRA_SWARM_SUBAGENTS,

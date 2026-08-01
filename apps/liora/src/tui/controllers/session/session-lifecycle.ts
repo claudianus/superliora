@@ -197,7 +197,6 @@ export class SessionLifecycleController {
       maxContextTokens: status.maxContextTokens,
       contextUsage: status.contextUsage,
       contextOS: status.contextOS ?? null,
-      microCompaction: status.microCompaction ?? null,
       autoDream: status.autoDream ?? null,
       providerRouteStatus: status.providerRouteStatus ?? null,
       sessionTitle: session.summary?.title ?? null,

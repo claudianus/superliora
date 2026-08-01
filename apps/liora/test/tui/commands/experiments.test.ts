@@ -13,11 +13,11 @@ function feature(
   overrides: Partial<ExperimentalFeatureState> = {},
 ): ExperimentalFeatureState {
   return {
-    id: 'micro_compaction',
-    title: 'Micro compaction',
-    description: 'Trim older tool results.',
+    id: 'async_compaction',
+    title: 'Async background compaction',
+    description: 'Background full compaction.',
     surface: 'core',
-    env: 'SUPERLIORA_EXPERIMENTAL_MICRO_COMPACTION',
+    env: 'SUPERLIORA_EXPERIMENTAL_ASYNC_COMPACTION',
     defaultEnabled: true,
     enabled: true,
     source: 'default',
@@ -34,7 +34,10 @@ function makeHost() {
     state: {
       theme: { palette: darkColors },
       ui: { requestRender: vi.fn() },
+      centerModalStack: [],
     },
+    closeCenterModal: vi.fn(),
+    mountCenterModal: vi.fn(),
     harness: {
       setConfig: vi.fn(async () => ({ providers: {} })),
       getExperimentalFeatures: vi.fn(async () => [
@@ -75,14 +78,14 @@ describe('experimental feature command handlers', () => {
     const host = makeHost();
 
     await applyExperimentalFeatureChanges(host, [
-      { id: 'micro_compaction', enabled: false },
+      { id: 'async_compaction', enabled: false },
     ]);
 
     expect(host.harness.setConfig).toHaveBeenCalledWith({
-      experimental: { 'micro_compaction': false },
+      experimental: { 'async_compaction': false },
     });
     expect(host.harness.getExperimentalFeatures).toHaveBeenCalledOnce();
-    expect(isExperimentalFlagEnabled('micro_compaction')).toBe(false);
+    expect(isExperimentalFlagEnabled('async_compaction')).toBe(false);
     expect(host.refreshSlashCommandAutocomplete).toHaveBeenCalled();
     expect(host.restoreEditor).toHaveBeenCalled();
     expect(host.session.reloadSession).toHaveBeenCalledOnce();

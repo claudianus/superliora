@@ -367,32 +367,32 @@ describe('LioraHarness config API', () => {
 
   it('returns experimental feature metadata through the harness', async () => {
     vi.stubEnv('SUPERLIORA_EXPERIMENTAL_FLAG', '0');
-    vi.stubEnv('SUPERLIORA_EXPERIMENTAL_MICRO_COMPACTION', '');
+    vi.stubEnv('SUPERLIORA_EXPERIMENTAL_ASYNC_COMPACTION', '');
     const homeDir = await makeTempDir();
     await writeFile(
       join(homeDir, 'config.toml'),
       `
 [experimental]
-micro_compaction = false
+async_compaction = false
 `,
       'utf-8',
     );
     const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
 
     const features = await harness.getExperimentalFeatures();
-    const microCompaction = features.find((feature) => feature.id === 'micro_compaction');
+    const asyncCompaction = features.find((feature) => feature.id === 'async_compaction');
 
-    expect(microCompaction).toMatchObject({
-      id: 'micro_compaction',
-      title: 'Micro compaction',
+    expect(asyncCompaction).toMatchObject({
+      id: 'async_compaction',
+      title: 'Async background compaction',
       enabled: false,
       source: 'config',
       configValue: false,
-      env: 'SUPERLIORA_EXPERIMENTAL_MICRO_COMPACTION',
+      env: 'SUPERLIORA_EXPERIMENTAL_ASYNC_COMPACTION',
     });
     expect(features).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: 'micro_compaction', enabled: false }),
+        expect.objectContaining({ id: 'async_compaction', enabled: false }),
       ]),
     );
   });

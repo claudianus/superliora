@@ -398,7 +398,7 @@ export class DeepResearchTool implements BuiltinTool<DeepResearchInput> {
         status === undefined ? [] : inferSearchChannelsFromStatus(status);
       const degraded = sources.length === 0 || health?.degraded === true;
       const hops = batches.length > 0 ? batches.length : queries.length;
-      const builder = new ToolResultBuilder({ maxChars: 12_000, maxLineLength: null });
+      const builder = new ToolResultBuilder({ maxLineLength: null });
       builder.write(
         buildDeepResearchOutput({
           question: args.question,

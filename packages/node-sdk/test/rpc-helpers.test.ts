@@ -12,7 +12,7 @@ const baseFacets = {
     cwd: '/tmp',
     systemPrompt: '',
   },
-  context: { tokenCount: 100, contextOS: undefined, microCompaction: undefined, autoDream: undefined },
+  context: { tokenCount: 100, contextOS: undefined, autoDream: undefined },
   permission: { mode: 'manual' as const },
   plan: null,
   swarmMode: false,

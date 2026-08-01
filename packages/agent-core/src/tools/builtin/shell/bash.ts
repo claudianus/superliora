@@ -37,8 +37,6 @@ import {
 } from '../../support/result-builder';
 import { appendTextToolMeta } from '../../support/text-result-meta';
 import type { ToolStore } from '../../store';
-import { archiveContent } from '../context/context-archive';
-import { compressShellOutput } from '../context/context-terse';
 import {
   buildShellChildEnv,
   type ShellEnvFilterPolicy,
@@ -66,7 +64,6 @@ import {
   normalizeTimeoutMs,
   rewriteWindowsNullRedirect,
   shellQuote,
-  shouldCompressOutput,
   SHELL_TIMEOUT_VARS,
   USER_INTERRUPT_REASON,
   windowsPathToPosixPath,
@@ -368,56 +365,9 @@ export class BashTool implements BuiltinTool<BashInput> {
         brief: `Failed with exit code: ${String(exitCode)}`,
       });
     }
-    return this.addForegroundOutputReference(taskId, this.maybeCompressForegroundResult(args, result));
+    return this.addForegroundOutputReference(taskId, result);
   }
 
-  private maybeCompressForegroundResult(
-    args: BashInput,
-    result: ExecutableToolResultBuilderResult,
-  ): ExecutableToolResultBuilderResult {
-    if (!shouldCompressOutput(args, result.output) || result.output.length === 0) return result;
-    const compressed = compressShellOutput({
-      stdout: result.output,
-      stderr: '',
-      command: args.command,
-    });
-    if (compressed.overflow === undefined || this.store === undefined) {
-      return {
-        ...result,
-        output:
-          compressed.savedPercent > 0
-            ? appendTextToolMeta(compressed.text, {
-                tool: this.name,
-                mode: 'foreground',
-                truncated: result.truncated,
-                partial: true,
-                summary: `Shell output compressed (~${String(compressed.savedPercent)}% saved).`,
-                nextStep: 'Use compress_output=false to keep raw output next time.',
-              })
-            : result.output,
-      };
-    }
-    const archived = archiveContent({
-      store: this.store,
-      content: compressed.overflow,
-      label: `bash:${args.command.slice(0, 80)}`,
-    });
-    return {
-      ...result,
-      output: appendTextToolMeta(
-        `${compressed.text}\n${archived.marker}\nrecover: Expand(id="${archived.id}")`,
-        {
-          tool: this.name,
-          mode: 'foreground',
-          truncated: result.truncated,
-          partial: true,
-          summary: `Shell output compressed and archived (~${String(compressed.savedPercent)}% saved).`,
-          nextStep:
-            'Use Expand to inspect archived overflow, or compress_output=false for raw output.',
-        },
-      ),
-    };
-  }
 
   private async addForegroundOutputReference(
     taskId: string,

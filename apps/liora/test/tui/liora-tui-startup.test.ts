@@ -539,7 +539,7 @@ describe('LioraTUI startup', () => {
     });
     const harness = makeHarness(session, {
       listSessions: vi.fn(async () => [{ id: 'ses-latest' }]),
-      getExperimentalFeatures: vi.fn(async () => [{ id: 'micro_compaction', enabled: true }]),
+      getExperimentalFeatures: vi.fn(async () => [{ id: 'async_compaction', enabled: true }]),
     });
     const driver = makeDriver(harness, makeStartupInput({ continue: true }));
 
@@ -569,7 +569,7 @@ describe('LioraTUI startup', () => {
       getGoal: vi.fn(async () => ({ goal })),
     });
     const harness = makeHarness(session, {
-      getExperimentalFeatures: vi.fn(async () => [{ id: 'micro_compaction', enabled: true }]),
+      getExperimentalFeatures: vi.fn(async () => [{ id: 'async_compaction', enabled: true }]),
     });
     const driver = makeDriver(harness, makeStartupInput()) as unknown as RuntimeStateDriver;
 

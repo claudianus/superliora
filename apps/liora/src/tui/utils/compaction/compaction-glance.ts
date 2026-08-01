@@ -17,10 +17,6 @@ export const COMPACTION_THRESHOLD_TIP =
 export const COMPACTION_KEEP_TOKENS_TIP =
   'Keep tokens: frozen zone = leading system + initial user (engine default 2). Recent tail = loopControl.compactionMaxRecentMessages + ratio budgets. Footer nudges /compact near ~70% context usage. Manual reclaim: /compact or /compact <instruction>.';
 
-/** Micro-compaction clears long tool/swarm bodies — session status + Expand recover. */
-export const COMPACTION_MICRO_TIP =
-  'Micro-compaction: archives long tool/swarm bodies as [liora-archived id=…]. Status shows clears + last trigger (cache_miss, tool_clear, …). Recover: Expand(id=<archiveId>) from context-archive store. Legacy alias: LioraExpand. Family overflow without archive: Read receipt under ~/.superliora/tool-results/.';
-
 export interface CompactionLastCompactTip {
   readonly tokensBefore?: number;
   readonly tokensAfter?: number;
@@ -32,11 +28,6 @@ export interface CompactionSessionGlance {
   readonly archiveEntryCount?: number;
   readonly archiveMaxEntries?: number;
   readonly lastCompact?: CompactionLastCompactTip;
-  readonly microCompaction?: {
-    readonly total: number;
-    readonly lastTrigger: string | null;
-    readonly lastContextUsageRatio: number | null;
-  };
   readonly contextUsage?: number;
   readonly contextTokens?: number;
   readonly maxContextTokens?: number;
@@ -82,18 +73,6 @@ export function formatLastCompactLine(last: CompactionLastCompactTip | undefined
   return undefined;
 }
 
-export function formatMicroCompactionLine(
-  micro: CompactionSessionGlance['microCompaction'],
-): string {
-  if (micro === undefined || micro === null) {
-    return 'Micro-compaction: (no session data)';
-  }
-  const ratio =
-    micro.lastContextUsageRatio !== undefined && micro.lastContextUsageRatio !== null
-      ? ` @ ${String(Math.round(micro.lastContextUsageRatio * 100))}% ctx`
-      : '';
-  return `Micro-compaction: ${String(micro.total)} clears · last ${micro.lastTrigger ?? '—'}${ratio}`;
-}
 
 export function formatContextUsageLine(
   glance: Pick<CompactionSessionGlance, 'contextUsage' | 'contextTokens' | 'maxContextTokens'>,
@@ -124,7 +103,6 @@ export function buildCompactionSettingsLines(input: {
 }): readonly string[] {
   const archiveLine = formatContextArchiveLine(input.session);
   const lastCompactLine = formatLastCompactLine(input.session.lastCompact);
-  const microLine = formatMicroCompactionLine(input.session.microCompaction);
   const usageLine = formatContextUsageLine(input.session);
 
   return [
@@ -135,7 +113,6 @@ export function buildCompactionSettingsLines(input: {
     archiveLine,
     ...(lastCompactLine != null ? [lastCompactLine] : []),
     ...(usageLine != null ? [usageLine] : []),
-    microLine,
     '',
     '── Thresholds (config) ──────────────────────',
     input.thresholds.triggerLine,

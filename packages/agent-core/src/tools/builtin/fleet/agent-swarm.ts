@@ -19,7 +19,7 @@ import type { ExecutableToolContext, ExecutableToolResult, ToolExecution } from 
 import { toInputJsonSchema } from '../../support/input-schema';
 import AGENT_SWARM_DESCRIPTION from './agent-swarm.md?raw';
 import { compactSwarmToolResult } from '../../../agent/compaction/boundary-compaction';
-import { resolveArchiveRecoverToolName } from '../../../agent/compaction/micro/micro-helpers';
+import { resolveArchiveRecoverToolName } from '../../../agent/compaction/tool-policy';
 import type { ToolStore } from '../../store';
 import { appendSwarmResearchAutonomy } from './swarm-research-autonomy';
 import {

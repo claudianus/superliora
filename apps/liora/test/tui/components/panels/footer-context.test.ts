@@ -10,7 +10,6 @@ import {
   FooterComponent,
   formatFooterGitBadge,
   formatContextOSFooterBadge,
-  formatMicroCompactionFooterBadge,
   buildWeightedTips,
 } from '#/tui/components/chrome/footer/footer';
 import { darkColors } from '#/tui/theme/colors';
@@ -324,41 +323,6 @@ describe('FooterComponent — context NaN resilience', () => {
     expect(formatContextOSFooterBadge(null)).toBeNull();
   });
 
-  it('keeps micro-compaction diagnostics out of the footer but retains the formatter', () => {
-    const footer = new FooterComponent(
-      baseState({
-        contextUsage: 0.3,
-        contextTokens: 2000,
-        maxContextTokens: 10_000,
-        microCompaction: {
-          total: 3,
-          lastTrigger: 'usage_pressure',
-          lastContextUsageRatio: 0.62,
-          byTrigger: { usage_pressure: 2, swarm_pressure: 1 },
-        },
-      }),
-    );
-    const joined = footer.render(120).map(strip).join('\n');
-    // Internal micro-compaction diagnostics are hidden from the footer.
-    expect(joined).not.toContain('μ:');
-    expect(
-      formatMicroCompactionFooterBadge({
-        total: 3,
-        lastTrigger: 'usage_pressure',
-        lastContextUsageRatio: 0.62,
-        byTrigger: { usage_pressure: 2 },
-      }),
-    ).toEqual({ text: 'μ:usage_pressure×3', severity: 'info' });
-    expect(
-      formatMicroCompactionFooterBadge({
-        total: 2,
-        lastTrigger: 'swarm_pressure',
-        lastContextUsageRatio: 0.8,
-        byTrigger: { swarm_pressure: 2 },
-      }),
-    ).toEqual({ text: 'μ:swarm×2', severity: 'warning' });
-    expect(formatMicroCompactionFooterBadge(null)).toBeNull();
-  });
 
 describe('buildWeightedTips — weighted rotation', () => {
   it('repeats higher-priority tips more often (length = sum of weights)', () => {
