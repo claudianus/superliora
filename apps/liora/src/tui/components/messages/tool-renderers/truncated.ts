@@ -43,6 +43,8 @@ export class TruncatedOutputComponent extends RendererTruncatedOutputComponent {
       hintMode?: 'key' | 'scroll';
       /** Prefer this language when the body looks like a code dump. */
       languageHint?: string;
+      /** File path used to derive a language when languageHint is absent. */
+      pathHint?: string;
     },
   ) {
     super(output, {
@@ -57,6 +59,7 @@ export class TruncatedOutputComponent extends RendererTruncatedOutputComponent {
         formatTranscriptOutput(text, {
           isError: context.isError,
           languageHint: options.languageHint,
+          pathHint: options.pathHint,
           mode: 'tool',
         }),
       formatHint: (hint) => currentTheme.dim(hint),
@@ -64,13 +67,23 @@ export class TruncatedOutputComponent extends RendererTruncatedOutputComponent {
   }
 }
 
-export const renderTruncated: ResultRenderer = (_toolCall, result, ctx) => {
+export const renderTruncated: ResultRenderer = (toolCall, result, ctx) => {
   if (!result.output) return [];
+  // Best-effort path hint for generic tools (MCP, unknown builtins).
+  const pathHint =
+    typeof toolCall.args['path'] === 'string'
+      ? toolCall.args['path']
+      : typeof toolCall.args['file_path'] === 'string'
+        ? toolCall.args['file_path']
+        : typeof toolCall.args['filePath'] === 'string'
+          ? toolCall.args['filePath']
+          : undefined;
   return [
     new TruncatedOutputComponent(result.output, {
       expanded: ctx.expanded,
       isError: result.is_error ?? false,
       hintMode: 'key',
+      pathHint,
     }),
   ];
 };

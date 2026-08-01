@@ -33,6 +33,13 @@ export {
 
 export { RendererTranscriptViewportComponent } from './viewport-component';
 
+export {
+  notifyTranscriptChildGeometryDirty,
+  registerTranscriptGeometryParent,
+  unregisterTranscriptGeometryParent,
+  type RendererTranscriptGeometryParent,
+} from './geometry-parent';
+
 export { RendererPrefixedWrappedLine } from './prefixed-wrapped-line';
 
 export {

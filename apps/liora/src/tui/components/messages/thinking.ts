@@ -6,6 +6,7 @@
  */
 
 import {
+  notifyTranscriptChildGeometryDirty,
   RendererWidthRenderCache,
   Text,
   projectRendererLineWindow,
@@ -85,6 +86,7 @@ export class ThinkingComponent implements Component {
     this.text = text;
     this.markRenderDirty();
     this.textComponent.setText(this.styled(text));
+    notifyTranscriptChildGeometryDirty(this);
   }
 
   private styled(text: string): string {
@@ -99,6 +101,7 @@ export class ThinkingComponent implements Component {
       this.finishedAt = Date.now();
     }
     this.markRenderDirty();
+    notifyTranscriptChildGeometryDirty(this);
   }
 
   dispose(): void {}
@@ -107,6 +110,7 @@ export class ThinkingComponent implements Component {
     if (this.expanded === expanded) return;
     this.expanded = expanded;
     this.markRenderDirty();
+    notifyTranscriptChildGeometryDirty(this);
   }
 
   render(width: number): string[] {

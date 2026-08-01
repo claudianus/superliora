@@ -5,6 +5,7 @@
 
 import {
   Container,
+  notifyTranscriptChildGeometryDirty,
   RendererChildrenRenderCache,
   Spacer,
   Text,
@@ -529,6 +530,9 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
       ui: component.ui,
       isSingleSubagentView: () => component.isSingleSubagentView(),
       getDerivedSubagentPhase: () => component.getDerivedSubagentPhase(),
+      markTranscriptGeometryDirty: () => {
+        notifyTranscriptChildGeometryDirty(component);
+      },
     }))(this);
   }
 

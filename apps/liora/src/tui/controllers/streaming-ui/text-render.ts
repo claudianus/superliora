@@ -81,6 +81,8 @@ export function onStreamingTextUpdate(ctx: TextRenderContext, fullText: string):
       nowMs,
     );
     block.component.updateContent(fullText, { transient: true });
+    // In-place height growth — dirty only this slot, not the whole transcript.
+    ctx.host.state.transcriptContainer.invalidateChildGeometry(block.component);
     requestTUIContentRender(ctx.host.state);
     rescheduleRevealTimerHelper(ctx.revealContext());
     return;
@@ -99,6 +101,7 @@ export function onStreamingTextUpdate(ctx: TextRenderContext, fullText: string):
   block.component.updateContent(visibleText(ctx.revealRuntime.channels.assistantReveal), {
     transient: true,
   });
+  ctx.host.state.transcriptContainer.invalidateChildGeometry(block.component);
   requestTUIContentRender(ctx.host.state);
   rescheduleRevealTimerHelper(ctx.revealContext());
 }
@@ -113,6 +116,7 @@ export function onStreamingTextEnd(ctx: TextRenderContext): void {
       nowMs,
     );
     block.component.updateContent(block.entry.content, { transient: false });
+    ctx.host.state.transcriptContainer.invalidateChildGeometry(block.component);
   }
   ctx.setStreamingBlock(null);
   ctx.revealRuntime.channels.assistantReveal = resetRevealState();
@@ -139,7 +143,9 @@ export function onThinkingUpdate(ctx: TextRenderContext, fullText: string): void
       rescheduleRevealTimerHelper(ctx.revealContext());
       return;
     }
-    ctx.getActiveThinkingComponent()!.setText(fullText);
+    const thinking = ctx.getActiveThinkingComponent()!;
+    thinking.setText(fullText);
+    state.transcriptContainer.invalidateChildGeometry(thinking);
     requestTUIContentRender(state);
     rescheduleRevealTimerHelper(ctx.revealContext());
     return;
@@ -167,7 +173,9 @@ export function onThinkingUpdate(ctx: TextRenderContext, fullText: string): void
     return;
   }
 
-  ctx.getActiveThinkingComponent()!.setText(shown);
+  const thinking = ctx.getActiveThinkingComponent()!;
+  thinking.setText(shown);
+  state.transcriptContainer.invalidateChildGeometry(thinking);
   requestTUIContentRender(state);
   rescheduleRevealTimerHelper(ctx.revealContext());
 }
@@ -180,10 +188,12 @@ export function onThinkingEnd(ctx: TextRenderContext): void {
     ctx.revealRuntime.channels.thinkingReveal,
     nowMs,
   );
+  const thinkingEnd = ctx.getActiveThinkingComponent()!;
   if (ctx.revealRuntime.channels.thinkingReveal.target.length > 0) {
-    ctx.getActiveThinkingComponent()!.setText(ctx.revealRuntime.channels.thinkingReveal.target);
+    thinkingEnd.setText(ctx.revealRuntime.channels.thinkingReveal.target);
   }
-  ctx.getActiveThinkingComponent()!.finalize();
+  thinkingEnd.finalize();
+  ctx.host.state.transcriptContainer.invalidateChildGeometry(thinkingEnd);
   ctx.setActiveThinkingComponent(undefined);
   ctx.revealRuntime.channels.thinkingReveal = resetRevealState();
   rescheduleRevealTimerHelper(ctx.revealContext());
