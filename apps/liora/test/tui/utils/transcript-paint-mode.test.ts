@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   areLiveToolTicksSuppressed,
+  resetTranscriptScrollActivityForTest,
+  wasRecentTranscriptScroll,
   withTranscriptPaintMode,
 } from '#/tui/utils/render/transcript-paint-mode';
 import { ToolCallComponent } from '#/tui/components/messages/tool-call/index';
@@ -10,11 +12,14 @@ import * as toolCallInternals from '#/tui/components/messages/tool-call/tool-cal
 
 describe('transcript paint mode (scroll hard-hang guard)', () => {
   it('restores suppress flag after withTranscriptPaintMode', () => {
+    resetTranscriptScrollActivityForTest();
     expect(areLiveToolTicksSuppressed()).toBe(false);
     withTranscriptPaintMode({ suppressLiveToolTicks: true }, () => {
       expect(areLiveToolTicksSuppressed()).toBe(true);
+      expect(wasRecentTranscriptScroll()).toBe(true);
     });
     expect(areLiveToolTicksSuppressed()).toBe(false);
+    expect(wasRecentTranscriptScroll()).toBe(true);
   });
 
   it('skips tool-card body rebuild during suppressed paint (pure scroll path)', () => {

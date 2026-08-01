@@ -22,6 +22,7 @@ import {
   renderSpectacularText,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
+import { wasRecentTranscriptScroll } from '#/tui/utils/render/transcript-paint-mode';
 
 const BRAND_MARK = `${HEADER_DIAMOND} SuperLiora`;
 const CLOCK_INTERVAL_MS = 1_000;
@@ -218,6 +219,8 @@ export class HeaderComponent implements Component {
       const next = formatLocalClock(this.nowMs());
       if (next === this.lastClockLabel) return;
       this.lastClockLabel = next;
+      // Hold off during transcript scroll so clock ticks do not fight wheel frames.
+      if (wasRecentTranscriptScroll()) return;
       this.onRefresh();
     }, CLOCK_INTERVAL_MS);
     // Unref so the clock never keeps the process alive on its own (Node/Bun).

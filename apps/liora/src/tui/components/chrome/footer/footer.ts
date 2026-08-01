@@ -22,6 +22,7 @@ import {
   GOAL_TIMER_INTERVAL_MS,
   goalSnapshotKey,
 } from '#/tui/components/chrome/footer/footer-goal';
+import { wasRecentTranscriptScroll } from '#/tui/utils/render/transcript-paint-mode';
 import {
   renderFooterLine1,
   type FooterLine1TipState,
@@ -186,6 +187,9 @@ export class FooterComponent implements Component {
     if (goal?.status === 'active') {
       if (this.goalTimer !== null) return;
       this.goalTimer = setInterval(() => {
+        // Skip a beat during/after wheel scroll so chrome refresh does not
+        // contend with interactive transcript frames.
+        if (wasRecentTranscriptScroll()) return;
         this.onRefresh();
       }, GOAL_TIMER_INTERVAL_MS);
       this.goalTimer.unref?.();

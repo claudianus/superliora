@@ -32,6 +32,7 @@ import {
 } from '#/tui/features/appearance/appearance-effects';
 import { formatElapsedTime } from '#/tui/utils/elapsed-time';
 import { isRenderCacheEnabled, renderCacheEpoch } from '#/tui/utils/render/render-cache';
+import { areLiveToolTicksSuppressed } from '#/tui/utils/render/transcript-paint-mode';
 import {
   isTranscriptEntranceActive,
   polishTranscriptLines,
@@ -114,9 +115,14 @@ export class ThinkingComponent implements Component {
   }
 
   render(width: number): string[] {
+    // Pure-scroll paint: keep the last cached body (no spinner re-encode).
+    const scrollPaint = areLiveToolTicksSuppressed();
     // Live mode advances spinner and elapsed-time suffixes from wall clock.
     // Entrance wash also needs per-frame repaint while active.
-    if (this.mode === 'live' || isTranscriptEntranceActive(this.entranceStartedAtMs)) {
+    if (
+      !scrollPaint &&
+      (this.mode === 'live' || isTranscriptEntranceActive(this.entranceStartedAtMs))
+    ) {
       this.markRenderDirty();
     }
     return this.renderCache.render({
@@ -126,7 +132,8 @@ export class ThinkingComponent implements Component {
       // are byte-stable, so drop the epoch and let the cache absorb idle
       // ticks instead of re-encoding the block every frame.
       cacheEpoch:
-        this.mode === 'live' || isTranscriptEntranceActive(this.entranceStartedAtMs)
+        !scrollPaint &&
+        (this.mode === 'live' || isTranscriptEntranceActive(this.entranceStartedAtMs))
           ? renderCacheEpoch()
           : undefined,
       isCacheEnabled: isRenderCacheEnabled,
