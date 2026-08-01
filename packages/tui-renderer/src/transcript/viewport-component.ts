@@ -140,10 +140,13 @@ export class RendererTranscriptViewportComponent extends Container {
   private overflowRenderCache: RendererTranscriptOverflowRenderCache | undefined;
   /**
    * Per pure-scroll frame budget for cold child.render materializations.
-   * Excess visible children paint placeholders so a wheel storm cannot
-   * fully layout dozens of multi-k cards in one stack.
+   * Fling (frames closer than FLING_GAP_MS) uses 0 — placeholders only —
+   * so top→bottom wheel storms never layout history sync. Slow scroll may
+   * materialize one card per frame. Ambient/content: unlimited.
    */
   private coldMaterializeBudget = 0;
+  private lastPureScrollPaintAt = 0;
+  private static readonly FLING_GAP_MS = 40;
 
   constructor(options: RendererTranscriptViewportComponentOptions) {
     super();
@@ -353,8 +356,21 @@ export class RendererTranscriptViewportComponent extends Container {
     const safeWidth = normalizeTranscriptWidth(width);
     const inner = Math.max(1, safeWidth - this.leftPad - this.rightPad);
 
-    // Fresh cold-materialize budget each paint (pure-scroll spends it carefully).
-    this.coldMaterializeBudget = shouldSkipExpensiveTranscriptFormat() ? 2 : Number.POSITIVE_INFINITY;
+    // Pure-scroll fling detection: top→bottom storms schedule frames with delay
+    // 0, so paints land <40ms apart. Never cold-layout during a fling.
+    if (shouldSkipExpensiveTranscriptFormat()) {
+      const now =
+        typeof performance !== 'undefined' && typeof performance.now === 'function'
+          ? performance.now()
+          : Date.now();
+      const fling =
+        this.lastPureScrollPaintAt > 0 && now - this.lastPureScrollPaintAt < RendererTranscriptViewportComponent.FLING_GAP_MS;
+      this.coldMaterializeBudget = fling ? 0 : 1;
+      this.lastPureScrollPaintAt = now;
+    } else {
+      this.coldMaterializeBudget = Number.POSITIVE_INFINITY;
+      this.lastPureScrollPaintAt = 0;
+    }
 
     // Phase 1 — resolve per-child row counts (geometry cache).  This is the
     // only place that may render *all* children, and only on geometry miss /
@@ -648,9 +664,9 @@ export class RendererTranscriptViewportComponent extends Container {
     let sparse = cache.childFormattedSparse[childIndex];
 
     if (cache.childRefs[childIndex] !== child || lines === undefined) {
-      // Pure-scroll cold intersection budget: only fully materialize a few
-      // new cards per frame. Excess slots paint dim placeholders of the right
-      // height so a wheel storm cannot layout the whole visible window sync.
+      // Pure-scroll cold intersection: fling budget is 0 (placeholders only).
+      // Never write placeholder slots into the overflow cache so the settle
+      // content frame re-materializes real bodies.
       if (
         shouldSkipExpensiveTranscriptFormat() &&
         this.coldMaterializeBudget <= 0
