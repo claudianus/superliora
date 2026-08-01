@@ -23,6 +23,8 @@ import {
 } from '#/tui/utils/agent/context-working-set';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 import { getDataDir } from '#/utils/paths';
+import { showContextWorkingSetPicker } from './context';
+import { showCompactionSettings } from './compaction-settings';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 
@@ -41,6 +43,16 @@ export function showContextSettings(host: SlashCommandHost): void {
           label: 'Context status',
           description:
             'Working-set preset · soft/async caps · instruction files · Liora Recall counts.',
+        },
+        {
+          value: 'working-set',
+          label: 'Change working-set…',
+          description: 'economy | balanced | deep | full — soft/async caps before auto-compact.',
+        },
+        {
+          value: 'compaction',
+          label: 'Compaction…',
+          description: 'Threshold glance · manual /compact · micro-compaction tips.',
         },
         {
           value: 'tip-working-set',
@@ -63,6 +75,14 @@ export function showContextSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
         if (value === 'status') {
           void showContextSettingsPanel(host);
+          return;
+        }
+        if (value === 'working-set') {
+          void showContextWorkingSetPicker(host);
+          return;
+        }
+        if (value === 'compaction') {
+          showCompactionSettings(host);
           return;
         }
         if (value === 'tip-working-set') {

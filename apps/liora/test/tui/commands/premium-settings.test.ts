@@ -47,6 +47,7 @@ function makeHost(options: {
             : undefined,
       },
     },
+    session: options.hasSession === false ? undefined : session,
     requireSession:
       options.hasSession === false
         ? vi.fn(() => {
@@ -57,6 +58,9 @@ function makeHost(options: {
     closeCenterModal: vi.fn(),
     restoreEditor: vi.fn(),
     showStatus: vi.fn(),
+    showNotice: vi.fn(),
+    showError: vi.fn(),
+    setAppState: vi.fn(),
   } as unknown as SlashCommandHost;
 }
 
@@ -97,7 +101,7 @@ describe('showPremiumSettings', () => {
     setAppearanceRenderHealth('healthy');
   });
 
-  it('mounts ChoicePicker with status and read-only tip actions', () => {
+  it('mounts ChoicePicker with live PQ actions and tip rows', () => {
     const host = makeHost();
     showPremiumSettings(host);
     expect(host.mountCenterModal).toHaveBeenCalledOnce();
@@ -108,6 +112,10 @@ describe('showPremiumSettings', () => {
     ).opts.options;
     expect(options.map((o) => o.value)).toEqual([
       'status',
+      'pq-on',
+      'pq-off',
+      'transcript-detail',
+      'appearance',
       'tip-motion',
       'tip-density',
       'tip-pq',

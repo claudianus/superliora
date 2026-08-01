@@ -149,7 +149,7 @@ export function formatMotionBudgetLine(glance: PremiumVisualGlance): string {
 
 export function buildPremiumSettingsLines(glance: PremiumVisualGlance): readonly string[] {
   return [
-    '── Visual Quality (read-only) ──────────────',
+    '── Visual Quality ───────────────────────────',
     'Harness art direction + TUI motion — Sovereign Reform §7 / PREMIUM.md.',
     '',
     '── Session (live) ───────────────────────────',
@@ -159,9 +159,10 @@ export function buildPremiumSettingsLines(glance: PremiumVisualGlance): readonly
     formatMotionBudgetLine(glance),
     '',
     '── Toggle ───────────────────────────────────',
-    '  /premium on|off       harness Visual Quality (requires session)',
-    '  Settings → Appearance   profile · particles · animation-fps',
-    '  /appearance status      current appearance prefs',
+    '  Settings → Visual Quality   ON/OFF · transcript density',
+    '  /premium on|off             harness Visual Quality (requires session)',
+    '  Settings → Appearance       profile · particles · animation-fps',
+    '  /transcript                 density picker',
     '',
     '── Renderer diagnostics ─────────────────────',
     '  /renderer diagnostics status   frame budget + quality HUD',
@@ -172,7 +173,5 @@ export function buildPremiumSettingsLines(glance: PremiumVisualGlance): readonly
     '· Quality auto-degrades under frame pressure (full→high→balanced→minimal)',
     '· Premium profile pins ambient effects unless appearance is off',
     '· Ops Theatre dopamine cues respect the same quality gate',
-    '',
-    'No persist slider here — use /premium and Settings → Appearance.',
   ];
 }

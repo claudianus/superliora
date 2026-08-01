@@ -39,6 +39,16 @@ export function showKeybindingsSettings(host: SlashCommandHost): void {
             'Live keymap registry counts · Mission / Ops / Fleet samples · shortcut SSOT tips.',
         },
         {
+          value: 'help',
+          label: 'Open /help shortcuts',
+          description: 'Full keyboard shortcut reference panel in the TUI.',
+        },
+        {
+          value: 'command-hub',
+          label: 'Open Command Hub',
+          description: 'Ctrl-K menu · searchable slash commands and settings.',
+        },
+        {
           value: 'tip-registry',
           label: 'Keymap registry tip',
           description: 'keymap.ts SSOT — footer tips, Command Hub, /help consume this list.',
@@ -63,6 +73,14 @@ export function showKeybindingsSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
         if (value === 'status') {
           showKeybindingsSettingsPanel(host);
+          return;
+        }
+        if (value === 'help') {
+          host.showHelpPanel();
+          return;
+        }
+        if (value === 'command-hub') {
+          host.showCommandHub?.();
           return;
         }
         if (value === 'tip-registry') {

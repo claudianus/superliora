@@ -1,5 +1,5 @@
 /**
- * Settings → Media fallback — live policy + model vision glance (SSOT §9.2).
+ * Settings → Media fallback — live policy picker + glance (SSOT §9.2).
  */
 
 import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
@@ -15,12 +15,15 @@ import {
 } from '#/tui/utils/media/media-glance';
 import { requestTUILayoutRender } from '../../../utils/render/frame-render';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
+import { showMediaFallbackPicker } from './media';
+import { handleModelCommand } from '../model/model';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 
 export { MEDIA_ANALYZE_TIP, MEDIA_BLOCK_TIP, MEDIA_PATH_TIP };
 
 export function showMediaSettings(host: SlashCommandHost): void {
+  const policy = host.state.appState.nonVisionFallbackPolicy ?? 'analyze';
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
@@ -33,6 +36,16 @@ export function showMediaSettings(host: SlashCommandHost): void {
           label: 'Media fallback status',
           description:
             'Live nonVisionFallback policy · current model image_in/video_in · effective send posture.',
+        },
+        {
+          value: 'change-policy',
+          label: `Change policy · ${policy}`,
+          description: 'analyze | path | block — when the chat model is text-only.',
+        },
+        {
+          value: 'change-model',
+          label: 'Change model…',
+          description: 'Switch to a vision-capable model to skip fallback.',
         },
         {
           value: 'tip-analyze',
@@ -54,6 +67,14 @@ export function showMediaSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
         if (value === 'status') {
           void showMediaSettingsPanel(host);
+          return;
+        }
+        if (value === 'change-policy') {
+          showMediaFallbackPicker(host);
+          return;
+        }
+        if (value === 'change-model') {
+          void handleModelCommand(host, '');
           return;
         }
         if (value === 'tip-analyze') {

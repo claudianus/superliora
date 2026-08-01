@@ -30,7 +30,10 @@ async function withTempHome<T>(run: () => Promise<T>): Promise<T> {
 function makeHost(detail = 'standard') {
   const appState = {
     theme: 'auto',
-    notifications: { enabled: true, condition: 'unfocused' },
+    permissionMode: 'yolo' as const,
+    disablePasteBurst: false,
+    editorCommand: null as string | null,
+    notifications: { enabled: true, condition: 'unfocused' as const },
     upgrade: { autoInstall: true },
     appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, transcriptDetail: detail },
   };
@@ -42,10 +45,14 @@ function makeHost(detail = 'standard') {
       applyTheme: vi.fn(),
       getSnapshot: vi.fn(),
       requestRender: vi.fn(),
+      renderer: { invalidateFrame: vi.fn() },
     },
     showStatus: vi.fn(),
     showNotice: vi.fn(),
     showError: vi.fn(),
+    mountCenterModal: vi.fn(),
+    closeCenterModal: vi.fn(),
+    restoreEditor: vi.fn(),
     setAppState: vi.fn((patch: Record<string, unknown>) => {
       Object.assign(appState, patch);
     }),
@@ -56,9 +63,27 @@ function makeHost(detail = 'standard') {
 }
 
 describe('handleTranscriptCommand', () => {
-  it('shows current detail and usage without arguments', async () => {
+  it('opens the density picker without arguments', async () => {
     const host = makeHost('compact');
     await handleTranscriptCommand(host, '');
+    expect(host.mountCenterModal).toHaveBeenCalledOnce();
+    const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as {
+      opts: { title: string; currentValue?: string; options: readonly { value: string }[] };
+    };
+    expect(picker.opts.title).toBe('Transcript detail');
+    expect(picker.opts.currentValue).toBe('compact');
+    expect(picker.opts.options.map((o) => o.value)).toEqual([
+      'minimal',
+      'compact',
+      'standard',
+      'full',
+    ]);
+    expect(host.setTranscriptDetail).not.toHaveBeenCalled();
+  });
+
+  it('shows status help without changing density', async () => {
+    const host = makeHost('compact');
+    await handleTranscriptCommand(host, 'status');
     expect(host.showNotice).toHaveBeenCalled();
     const detail = String((host.showNotice as ReturnType<typeof vi.fn>).mock.calls[0]?.[1]);
     expect(detail).toContain('compact');

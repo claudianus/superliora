@@ -85,6 +85,9 @@ describe('showProvidersApiSettings', () => {
       .options;
     expect(options.map((o) => o.value)).toEqual([
       'status',
+      'login',
+      'model',
+      'search',
       'tip-login',
       'tip-api-keys',
       'tip-prefer-xai',

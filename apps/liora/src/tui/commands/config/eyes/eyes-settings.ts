@@ -1,5 +1,5 @@
 /**
- * Settings → Eyes readiness — live browser/computer runtime glance (SSOT §9.2).
+ * Settings → Eyes readiness — live probe + doctor/install actions (SSOT §9.2).
  */
 
 import { getHostPackageRoot } from '#/cli/version';
@@ -34,7 +34,22 @@ export function showEyesSettings(host: SlashCommandHost): void {
           value: 'status',
           label: 'Eyes readiness status',
           description:
-            'Live browser-use / computer-use runtime probe · doctor hints · agent tools (read-only).',
+            'Live browser-use / computer-use runtime probe · doctor hints · agent tools.',
+        },
+        {
+          value: 'probe',
+          label: 'Run readiness probe',
+          description: 'Same live report as /eyes — refresh browser + computer runtimes.',
+        },
+        {
+          value: 'doctor-browser',
+          label: 'Browser-use doctor tip',
+          description: 'liora browser-use doctor / install — probes and Chromium deps.',
+        },
+        {
+          value: 'doctor-computer',
+          label: 'Computer-use doctor tip',
+          description: 'liora computer-use doctor / install — OS permissions + capture.',
         },
         {
           value: 'tip-slash',
@@ -59,8 +74,24 @@ export function showEyesSettings(host: SlashCommandHost): void {
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
-        if (value === 'status') {
+        if (value === 'status' || value === 'probe') {
           void showEyesSettingsPanel(host);
+          return;
+        }
+        if (value === 'doctor-browser') {
+          host.showNotice(
+            'Browser-use doctor',
+            'Run in a shell:\n  liora browser-use doctor\n  liora browser-use install\n\n' +
+              EYES_DOCTOR_TIP,
+          );
+          return;
+        }
+        if (value === 'doctor-computer') {
+          host.showNotice(
+            'Computer-use doctor',
+            'Run in a shell:\n  liora computer-use doctor\n  liora computer-use install\n\n' +
+              EYES_DOCTOR_TIP,
+          );
           return;
         }
         if (value === 'tip-slash') {

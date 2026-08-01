@@ -1,5 +1,5 @@
 /**
- * Settings → Visual Quality — live motion budget + renderer quality glance (SSOT §9.2).
+ * Settings → Visual Quality — live motion budget + real PQ / density actions.
  */
 
 import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
@@ -17,6 +17,11 @@ import {
 } from '#/tui/utils/premium/premium-glance';
 import { requestTUILayoutRender } from '../../../utils/render/frame-render';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
+import { applyPremiumQuality } from '../../premium';
+import {
+  showAppearanceSettings,
+  showTranscriptDetailPicker,
+} from '../appearance/appearance-settings';
 import { currentAppearance } from '../appearance/tui-persist';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
@@ -24,6 +29,8 @@ import type { SlashCommandHost } from '../../hub/dispatch';
 export { PREMIUM_DENSITY_TIP, PREMIUM_MOTION_TIP, PREMIUM_PQ_TIP };
 
 export function showPremiumSettings(host: SlashCommandHost): void {
+  const pqOn = host.state.appState.premiumQualityMode === true;
+  const appearance = currentAppearance(host);
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
@@ -36,6 +43,26 @@ export function showPremiumSettings(host: SlashCommandHost): void {
           label: 'Visual Quality status',
           description:
             'Harness PQ toggle · live motion budget · render quality · frame health.',
+        },
+        {
+          value: 'pq-on',
+          label: pqOn ? 'Visual Quality ON (current)' : 'Turn Visual Quality ON',
+          description: 'Harness art direction + anti-slop visuals · requires session.',
+        },
+        {
+          value: 'pq-off',
+          label: !pqOn ? 'Visual Quality OFF (current)' : 'Turn Visual Quality OFF',
+          description: 'Disable harness PQ mode for this session.',
+        },
+        {
+          value: 'transcript-detail',
+          label: `Transcript detail · ${appearance.transcriptDetail}`,
+          description: 'minimal | compact | standard | full — live tool-card density.',
+        },
+        {
+          value: 'appearance',
+          label: 'Appearance prefs…',
+          description: 'Motion profile · particles · FPS · layout density pickers.',
         },
         {
           value: 'tip-motion',
@@ -60,6 +87,22 @@ export function showPremiumSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
         if (value === 'status') {
           void showPremiumSettingsPanel(host);
+          return;
+        }
+        if (value === 'pq-on') {
+          void applyPremiumQuality(host, true);
+          return;
+        }
+        if (value === 'pq-off') {
+          void applyPremiumQuality(host, false);
+          return;
+        }
+        if (value === 'transcript-detail') {
+          showTranscriptDetailPicker(host);
+          return;
+        }
+        if (value === 'appearance') {
+          showAppearanceSettings(host);
           return;
         }
         if (value === 'tip-motion') {

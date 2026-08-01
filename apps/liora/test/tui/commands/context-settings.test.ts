@@ -130,6 +130,8 @@ describe('showContextSettings', () => {
       .options;
     expect(options.map((o) => o.value)).toEqual([
       'status',
+      'working-set',
+      'compaction',
       'tip-working-set',
       'tip-instruction',
       'tip-learning',

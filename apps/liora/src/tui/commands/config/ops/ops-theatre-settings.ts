@@ -1,5 +1,5 @@
 /**
- * Settings → Ops Theatre — ChoicePicker + live glance (SSOT §9.2).
+ * Settings → Ops Theatre — live open actions + glance (SSOT §9.2).
  */
 
 import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
@@ -15,6 +15,9 @@ import {
   OPS_THEATRE_TRAY_TIP,
 } from '../../../utils/ops/ops-theatre-glance';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
+import { showOpsTheatre } from '../../ops/ops-theatre';
+import { showFleetStatus } from '../../ops/fleet-status';
+import { showPremiumSettings } from '../premium/premium-settings';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 
@@ -38,7 +41,22 @@ export function showOpsTheatreSettings(host: SlashCommandHost): void {
         {
           value: 'status',
           label: 'Ops Theatre status',
-          description: 'Live intervention queue · permission · /ops layout tips.',
+          description: 'Live intervention queue · permission · layout tips.',
+        },
+        {
+          value: 'open',
+          label: 'Open Ops Theatre',
+          description: 'Full runtime theatre — git · fleet · steer · interrupt tray.',
+        },
+        {
+          value: 'fleet',
+          label: 'Fleet status',
+          description: 'Parallel workers · governance · /ops fleet glance.',
+        },
+        {
+          value: 'premium',
+          label: 'Visual Quality…',
+          description: 'Dopamine Ops cues share the same motion / PQ gate.',
         },
         {
           value: 'tip-open',
@@ -75,6 +93,18 @@ export function showOpsTheatreSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
         if (value === 'status') {
           void showOpsTheatreSettingsPanel(host);
+          return;
+        }
+        if (value === 'open') {
+          void showOpsTheatre(host);
+          return;
+        }
+        if (value === 'fleet') {
+          void showFleetStatus(host);
+          return;
+        }
+        if (value === 'premium') {
+          showPremiumSettings(host);
           return;
         }
         if (value === 'tip-open') {

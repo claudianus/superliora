@@ -95,6 +95,8 @@ describe('showCompactionSettings', () => {
       .options;
     expect(options.map((o) => o.value)).toEqual([
       'status',
+      'run-compact',
+      'working-set',
       'tip-threshold',
       'tip-keep-tokens',
       'tip-micro',
