@@ -64,11 +64,12 @@ import {
   webSearchSummary,
   writeSummary,
 } from './summary';
+import { formatShellCommandPreview } from '#/tui/components/media/code-highlight';
+import { Text } from '#/tui/renderer';
+
 import { renderTruncated } from './truncated';
 import type { ResultRenderer } from './types';
 import { strArg } from './types';
-import { currentTheme } from '#/tui/theme';
-import { Text } from '#/tui/renderer';
 
 /**
  * True when a tool has no dedicated renderer and falls back to the generic
@@ -81,15 +82,20 @@ export function isGenericToolResult(toolName: string): boolean {
 }
 
 /**
- * Bash result renderer: shows the command followed by the output.
- * Preserves command visibility after result arrival.
+ * Bash result renderer: syntax-highlighted command + pretty-printed body.
+ * Preserves command visibility after result arrival (collapsed and expanded).
  */
 const bashResultSummary: ResultRenderer = (toolCall, result, ctx) => {
   const components = [];
   const command = strArg(toolCall.args, 'command');
   if (command) {
-    components.push(new Text(currentTheme.dim(`$ ${command}`), 0, 0));
+    // Same `$ ` prompt + tokenizer as the live shell card (binary / flags /
+    // strings / redirects) instead of a single dim line.
+    for (const line of formatShellCommandPreview(command)) {
+      components.push(new Text(line, 0, 0));
+    }
   }
+  // TruncatedOutput runs formatTranscriptOutput (JSON / logs / stack / …).
   components.push(...renderTruncated(toolCall, result, ctx));
   return components;
 };

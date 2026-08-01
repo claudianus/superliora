@@ -14,6 +14,7 @@ import type { Component } from '#/tui/renderer';
 import { Text } from '#/tui/renderer';
 
 import { currentTheme } from '#/tui/theme';
+import { formatTranscriptOutput } from '#/tui/utils/transcript/transcript-output-format';
 import { renderTruncated } from './truncated';
 import type { ResultRenderer } from './types';
 
@@ -70,7 +71,17 @@ function withGlance(glance: GlanceFn | null): ResultRenderer {
       }
     }
     if (ctx.expanded && result.output.length > 0) {
-      out.push(new Text(currentTheme.dim(result.output), 4, 0));
+      // Pretty-print / highlight expanded body (JSON, logs, stack, URLs…).
+      out.push(
+        new Text(
+          formatTranscriptOutput(result.output, {
+            isError: false,
+            mode: 'tool',
+          }),
+          4,
+          0,
+        ),
+      );
     }
     return out;
   };

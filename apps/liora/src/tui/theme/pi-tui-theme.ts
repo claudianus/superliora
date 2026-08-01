@@ -10,9 +10,9 @@
 
 import type { MarkdownTheme } from '#/tui/renderer';
 import chalk from 'chalk';
-import { highlight, supportsLanguage } from 'cli-highlight';
 
-import { buildSyntaxHighlightTheme } from './syntax-highlight-theme';
+import { highlightLines } from '#/tui/components/media/code-highlight';
+import { detectTranscriptOutputKind } from '#/tui/utils/transcript/transcript-output-format';
 import { currentTheme } from './theme';
 
 // The Markdown renderer emits literal "### " / "#### " / ... markers for h3-h6
@@ -22,6 +22,29 @@ import { currentTheme } from './theme';
 // "### Title" and reads like unparsed markdown.
 // eslint-disable-next-line no-control-regex -- intentionally matches the ESC byte that opens ANSI SGR sequences.
 const HEADING_HASH_PREFIX = /^((?:\u001B\[[0-9;]*m)*)#{1,6}[ \t]+/;
+
+function resolveMarkdownCodeLang(code: string, lang?: string): string | undefined {
+  const normalized = lang?.trim().toLowerCase();
+  if (normalized !== undefined && normalized.length > 0 && normalized !== 'text' && normalized !== 'plain') {
+    return normalized;
+  }
+  // Fence without a language tag — sniff structured blobs so bare ```json-ish
+  // dumps still light up in assistant replies and plan boxes.
+  const kind = detectTranscriptOutputKind(code);
+  switch (kind) {
+    case 'json':
+    case 'jsonl':
+      return 'json';
+    case 'diff':
+      return 'diff';
+    case 'xml':
+      return 'xml';
+    case 'yaml':
+      return 'yaml';
+    default:
+      return undefined;
+  }
+}
 
 export function createMarkdownTheme(options?: { transient?: boolean }): MarkdownTheme {
   const transient = options?.transient === true;
@@ -47,20 +70,8 @@ export function createMarkdownTheme(options?: { transient?: boolean }): Markdown
     underline: (text) => chalk.hex(currentTheme.color('primary')).underline(text),
     highlightCode: (code: string, lang?: string) => {
       if (transient) return code.split('\n');
-
-      const normalizedLang = lang?.trim().toLowerCase();
-      const language =
-        normalizedLang !== undefined && supportsLanguage(normalizedLang) ? normalizedLang : 'text';
-      try {
-        const highlighted = highlight(code, {
-          language,
-          ignoreIllegals: true,
-          theme: buildSyntaxHighlightTheme(),
-        });
-        return highlighted.split('\n');
-      } catch {
-        return code.split('\n');
-      }
+      // Shared Shiki → cli-highlight pipeline (same as Write/Edit previews).
+      return highlightLines(code, resolveMarkdownCodeLang(code, lang));
     },
   };
 }
