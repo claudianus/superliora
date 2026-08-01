@@ -46,6 +46,7 @@ import {
   changeFlashMs,
   renderBoardMeta,
   renderBoardScrollIndicator,
+  boardNeedsMarquee,
   renderTodos,
 } from './todo-panel-render';
 import {
@@ -283,8 +284,11 @@ export class TodoPanelComponent implements Component {
     // While the change flash is active the frame is time-driven; otherwise
     // unchanged state must yield byte-identical lines so the renderer's line
     // diff can skip this panel during ambient ticks.
+    const contentWidthForMarquee = this.interiorWidth(width, resolveResponsiveLayout({ width }));
     const animating =
-      this.currentChangeSummary() !== undefined || this.subagentStrip.isAnimating();
+      this.currentChangeSummary() !== undefined ||
+      this.subagentStrip.isAnimating() ||
+      boardNeedsMarquee(this.todos, contentWidthForMarquee);
     // The goal wall-clock label advances once per second; bucketing keeps the
     // memo valid within that second.
     const secondBucket = Math.floor(appearanceAnimationNow() / 1000);

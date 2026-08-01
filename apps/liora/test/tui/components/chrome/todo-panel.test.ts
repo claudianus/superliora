@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { TodoPanelComponent, type TodoItem } from '#/tui/components/chrome/todo/todo-panel';
+import {
+  boardNeedsMarquee,
+  marqueeFitAnsi,
+} from '#/tui/components/chrome/todo/todo-panel-render';
+import { visibleWidth } from '#/tui/renderer';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { currentTheme, darkColors } from '#/tui/theme';
 import {
@@ -521,5 +526,61 @@ describe('TodoPanelComponent virtual scroll', () => {
     expect(settledText).not.toMatch(/▴|▾/);
     expect(settledText).toContain('c00');
     expect(panel.render(WIDTH)).toBe(settled);
+  });
+});
+
+
+describe('board cell marquee', () => {
+  it('fits short cells without scrolling', () => {
+    const out = marqueeFitAnsi('short', 12, 0, 'seed');
+    expect(visibleWidth(out)).toBe(12);
+    expect(stripAnsi(out)).toContain('short');
+  });
+
+  it('loops long titles across time so the full text is eventually visible', () => {
+    enablePremiumAmbient();
+    const title = 'Rewrite the kanban board so narrow terminals still show every word of the card title';
+    const width = 18;
+    const samples = new Set<string>();
+    // Cycle length scales with title width (~20s+); sample past one full loop.
+    for (let t = 0; t < 40_000; t += 250) {
+      const painted = marqueeFitAnsi(title, width, t, 'card-a');
+      expect(visibleWidth(painted)).toBe(width);
+      samples.add(stripAnsi(painted));
+    }
+    // Over a full cycle the window must move — many unique frames.
+    expect(samples.size).toBeGreaterThan(8);
+    // Reconstruct by joining unique windows: head and tail tokens both appear.
+    const joined = [...samples].join(' ');
+    expect(joined).toContain('Rewrite');
+    expect(joined).toContain('kanban');
+    expect(joined).toContain('title');
+  });
+
+  it('detects when the 3-column board needs a marquee', () => {
+    enablePremiumAmbient();
+    const long = 'A very long card title that will not fit in a narrow board column';
+    expect(boardNeedsMarquee([{ title: long, status: 'pending' }], 90)).toBe(true);
+    expect(boardNeedsMarquee([{ title: 'ok', status: 'pending' }], 90)).toBe(false);
+    // Below board min width the panel falls back to wrapped lanes.
+    expect(boardNeedsMarquee([{ title: long, status: 'pending' }], 40)).toBe(false);
+  });
+
+  it('keeps the board time-driven while a title is overflowing', () => {
+    enablePremiumAmbient();
+    const panel = new TodoPanelComponent();
+    panel.setTodos([
+      {
+        title: 'Overflowing card title for silk marquee on the doing lane of the board',
+        status: 'in_progress',
+      },
+      { title: 'next item', status: 'pending' },
+    ]);
+    advanceAppearanceAnimationClock(50_000);
+    const a = panel.render(WIDTH).join('\n');
+    advanceAppearanceAnimationClock(900);
+    const b = panel.render(WIDTH).join('\n');
+    // Marquee animation must not freeze on the memoized frame.
+    expect(a).not.toEqual(b);
   });
 });
