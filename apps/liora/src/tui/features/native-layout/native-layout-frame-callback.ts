@@ -218,6 +218,10 @@ export function createTUIStateNativeRenderCallback(
       ambientDamageOnly,
       // Reuse transcript lines when the transcript has not changed.
       reuseTranscriptLines: canReuseTranscript ? transcriptLineCache : undefined,
+      // Any transcript-scroll paint must not rebuild live tool bodies mid-frame
+      // (wheel + animation coalesce still counts). Ambient-only frames keep ticks.
+      suppressLiveToolTicks:
+        pureScrollFrame || frame.causes.includes('transcript-scroll'),
     });
     // Refresh the cache only when chrome was freshly built this frame. Reused
     // frames keep the existing cache (its lines already match nativeFrame.chrome).

@@ -14,6 +14,7 @@ import {
   cellSelectedAtColumn,
   type TranscriptSelectionRange,
 } from '#/tui/features/transcript/transcript-selection';
+import { withTranscriptPaintMode } from '#/tui/utils/render/transcript-paint-mode';
 
 /**
  * Parse transcript ANSI lines at frame-compose time (same path as footer chrome)
@@ -52,6 +53,18 @@ function backfillTranscriptLineForeground(
 }
 
 export function nativeTranscriptRegionLines(
+  state: TUIState,
+  width: number,
+  visibleRows: number,
+  options?: { readonly suppressLiveToolTicks?: boolean },
+): readonly RendererRegionLine[] {
+  return withTranscriptPaintMode(
+    { suppressLiveToolTicks: options?.suppressLiveToolTicks === true },
+    () => nativeTranscriptRegionLinesImpl(state, width, visibleRows),
+  );
+}
+
+function nativeTranscriptRegionLinesImpl(
   state: TUIState,
   width: number,
   visibleRows: number,

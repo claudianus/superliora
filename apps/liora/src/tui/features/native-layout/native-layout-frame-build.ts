@@ -178,6 +178,11 @@ export function buildTUIStateNativeFrame(
      */
     readonly reuseTranscriptLines?: readonly RendererRegionLine[];
     /**
+     * Pure scroll paint: suppress tool-card live ticks (rebuildBody /
+     * requestRender) so wheel storms cannot permanently busy-loop the UI.
+     */
+    readonly suppressLiveToolTicks?: boolean;
+    /**
      * Shell-aware workspace center band (see `resolveStageLayout`'s
      * `workspaceCenter`). When set, the stage resolves inside this band.
      */
@@ -208,7 +213,11 @@ export function buildTUIStateNativeFrame(
   // viewport are unchanged. Callers must not pass reuse lines for pure-scroll —
   // the visible slice depends on viewport.start (see frame callback).
   const transcriptLines = options.reuseTranscriptLines ??
-    nativeTranscriptRegionLines(state, stageWidth, layout.transcriptRows);
+    nativeTranscriptRegionLines(state, stageWidth, layout.transcriptRows, {
+      // Pure scroll must not run tool live ticks (rebuildBody/requestRender)
+      // inside paint — that keeps the main thread busy forever under wheel storms.
+      suppressLiveToolTicks: options.suppressLiveToolTicks === true,
+    });
   const linesByRegion = {
     transcript: transcriptLines,
     header: chrome.header,
