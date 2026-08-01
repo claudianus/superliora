@@ -1,5 +1,6 @@
 import { SubagentActivityComponent, type SubagentToolCallInput } from '../../components/subagents/subagent-activity';
 import type { TUIState } from '../../tui-state';
+import { requestTranscriptPaintRefresh } from '../../utils/render/frame-render';
 
 export interface SubagentActivityPanelHost {
   readonly state: TUIState;
@@ -40,7 +41,7 @@ export class SubagentActivityPanel {
     this.panel = undefined;
     // removeChild + paint drop — no full sibling invalidate cascade.
     this.host.state.transcriptContainer.removeChild(panel);
-    this.host.state.transcriptContainer.invalidatePaint();
+    requestTranscriptPaintRefresh(this.host.state);
   }
 
   markTerminal(subagentId: string, phase: 'completed' | 'failed'): void {
