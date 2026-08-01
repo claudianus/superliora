@@ -259,8 +259,8 @@ export const DEFAULT_COMPACTION_CONFIG: CompactionConfig = {
   // as an early trigger). Use maxWorkingSetTokens as the large-window *cap*.
   absoluteTriggerTokens: 0,
   absoluteTriggerMinContextTokens: DEFAULT_ABSOLUTE_TRIGGER_MIN_CONTEXT_TOKENS,
-  parallelBlockThreshold: 12_000,
-  parallelBlockTarget: 6_000,
+  parallelBlockThreshold: 8_000,
+  parallelBlockTarget: 5_000,
   parallelBlockConcurrency: 0,
   speculativeStepBufferTokens: DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS,
   minRecompactGrowthRatio: DEFAULT_MIN_RECOMPACT_GROWTH_RATIO,
