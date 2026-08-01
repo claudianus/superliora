@@ -7,7 +7,11 @@
  */
 
 import { projectRendererLineWindow, Text, type Component } from '#/tui/renderer';
-import { highlightLines, langFromPath, highlightLinesWindow } from '#/tui/components/media/code-highlight';
+import {
+  HIGHLIGHT_WINDOW_SOFT_CAP,
+  highlightLinesWindow,
+  langFromPath,
+} from '#/tui/components/media/code-highlight';
 import {
   diffLineBackground,
   renderDiffLinesClusteredRows,
@@ -34,31 +38,30 @@ export function buildWriteCallPreviewItems(params: {
   const writeShouldCap = !expanded;
   const plainLines = content.split('\n');
   const totalLines = plainLines.length;
-  // Collapsed: highlight only the visible window (avoid full-file tokenize).
-  // Expanded: full highlight (cached) for readable code review.
-  let allLines: string[];
-  if (writeShouldCap) {
-    const end = Math.min(totalLines, COMMAND_PREVIEW_LINES);
-    allLines = highlightLinesWindow(content, lang, { startLine: 0, endLine: end });
-  } else {
-    allLines = highlightLines(content, lang);
-  }
+  // Always bound highlight + Text nodes: nested tool viewport only shows a
+  // short slice, and materializing multi-k Text children froze expand/scroll.
+  // Collapsed uses the compact glance; expanded uses the highlight soft-cap.
+  const lineCap = writeShouldCap ? COMMAND_PREVIEW_LINES : HIGHLIGHT_WINDOW_SOFT_CAP;
+  const end = Math.min(totalLines, lineCap);
+  const allLines = highlightLinesWindow(content, lang, { startLine: 0, endLine: end });
   const preview = projectRendererLineWindow({
     lines: allLines,
-    maxLines: writeShouldCap ? COMMAND_PREVIEW_LINES : undefined,
+    maxLines: lineCap,
   });
   const shown = preview.lines;
-  const remaining = preview.hiddenLineCount;
+  const remaining = Math.max(preview.hiddenLineCount, totalLines - shown.length);
   const previewItems: Text[] = [];
   for (const [i, line] of shown.entries()) {
     const lineNum = currentTheme.dim(String(preview.startIndex + i + 1).padStart(4) + '  ');
     previewItems.push(new Text(lineNum + line, 2, 0));
   }
-  if (writeShouldCap && remaining > 0) {
+  if (remaining > 0) {
     previewItems.push(
       new Text(
         currentTheme.dim(
-          `... (${String(remaining)} more lines, ${String(totalLines)} total, ctrl+o to expand)`,
+          writeShouldCap
+            ? `... (${String(remaining)} more lines, ${String(totalLines)} total, ctrl+o to expand)`
+            : `... (${String(remaining)} more lines, ${String(totalLines)} total)`,
         ),
         2,
         0,
@@ -76,9 +79,11 @@ export function buildEditCallPreviewItems(params: {
   readonly shouldCap: boolean;
 }): Text[] {
   const { oldStr, newStr, filePath, shouldCap } = params;
+  // Always bound highlighted diff rows: unlimited edit diffs on expand
+  // rebuilt the whole LCS + highlight path and froze scroll through history.
   const rows = renderDiffLinesClusteredRows(oldStr, newStr, filePath, {
     contextLines: 3,
-    ...(shouldCap ? { maxLines: COMMAND_PREVIEW_LINES } : {}),
+    maxLines: shouldCap ? COMMAND_PREVIEW_LINES : HIGHLIGHT_WINDOW_SOFT_CAP,
   });
   const addBg = diffLineBackground('add');
   const delBg = diffLineBackground('delete');

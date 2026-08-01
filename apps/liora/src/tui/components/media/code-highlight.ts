@@ -12,6 +12,7 @@ import { extname } from 'node:path';
 
 import chalk from 'chalk';
 import { highlight, supportsLanguage } from 'cli-highlight';
+import { shouldSkipExpensiveTranscriptFormat } from '#/tui/renderer';
 
 import { buildSyntaxHighlightTheme } from '#/tui/theme/syntax-highlight-theme';
 import { currentTheme } from '#/tui/theme';
@@ -205,6 +206,13 @@ export function highlightLines(
   const key = `${engine}\0${normalizedLang}\0${paletteCacheKey(palette)}\0${code.length}\0${hashText(code)}${pathTag}`;
   const cached = cacheGet(key);
   if (cached !== undefined) return cached;
+
+  // Geometry / pure-scroll cheap paint: never tokenize on cache miss. Plain
+  // keeps line structure for wrap math; do not write plain into the highlight
+  // LRU (that would pin unstyled results as permanent paint).
+  if (shouldSkipExpensiveTranscriptFormat()) {
+    return code.split('\n');
+  }
 
   // Preferred path: Shiki's TextMate tokenization rendered to ANSI.
   const shikiLines = shikiHighlightLines(code, normalizedLang, palette);
@@ -541,6 +549,10 @@ export function highlightShellCommandLine(line: string, palette?: ColorPalette):
  * tokenizer (clearer flags/args). Longer scripts fall back to bash grammar.
  */
 export function highlightShellCommand(command: string, palette?: ColorPalette): string[] {
+  // Cheap paint / measure: never run line tokenizers on cache-cold commands.
+  if (shouldSkipExpensiveTranscriptFormat()) {
+    return command.split('\n');
+  }
   const lines = command.split('\n');
   if (lines.length > 8 || command.length > 400) {
     return highlightLines(command, 'bash', palette);

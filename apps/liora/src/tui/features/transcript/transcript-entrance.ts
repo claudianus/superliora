@@ -445,6 +445,17 @@ export function polishTranscriptLines(
   const appearance = options.appearance ?? getActiveAppearancePreferences();
   const kind = options.kind ?? 'generic';
   const nowMs = options.nowMs ?? appearanceAnimationNow();
+  // Settled + non-streaming: polish is a pure no-op — return the same
+  // reference so parent width caches keep identity (critical under pure scroll).
+  if (
+    options.streaming !== true &&
+    !isTranscriptEntranceActive(options.startedAtMs, appearance, nowMs)
+  ) {
+    return lines as string[];
+  }
+  if (!shouldRenderAmbientEffects(appearance) && options.streaming !== true) {
+    return lines as string[];
+  }
   let next = applyTranscriptEntrance(lines, options.startedAtMs, kind, appearance, nowMs);
   if (options.streaming === true) {
     next = applyStreamTailGlow(next, kind, appearance, { active: true, nowMs });

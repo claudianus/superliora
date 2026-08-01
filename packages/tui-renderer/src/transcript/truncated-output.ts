@@ -9,6 +9,7 @@ import type {
 } from './types';
 import { trimRendererTrailingEmptyLines } from './line-block';
 import { projectRendererLinePreview } from './line-projection';
+import { isTranscriptMeasureMode, shouldSkipExpensiveTranscriptFormat } from './measure-mode';
 import { normalizeTranscriptWidth } from './normalize';
 
 export const DEFAULT_RENDERER_TRUNCATED_OUTPUT_LINES = 3;
@@ -28,6 +29,13 @@ export const RENDERER_TRUNCATED_OUTPUT_HARD_CAP_LINES = 800;
  */
 export const RENDERER_TRUNCATED_OUTPUT_EXPANDED_VISUAL_CAP = 600;
 
+/**
+ * Default char threshold for deferred formatting when a host provides
+ * {@link RendererTruncatedOutputOptions.onDeferredFormat}. Below this,
+ * format stays sync for snappy small outputs.
+ */
+export const RENDERER_TRUNCATED_OUTPUT_DEFER_CHARS = 1_500;
+
 export class RendererTruncatedOutputComponent implements RendererComponent {
   private readonly textComponent: Text;
   private output: string;
@@ -44,11 +52,24 @@ export class RendererTruncatedOutputComponent implements RendererComponent {
     context: RendererTruncatedOutputFormatContext,
   ) => string;
   private readonly formatHint: (hint: string) => string;
+  private readonly deferFormatAboveChars: number | undefined;
+  private readonly onDeferredFormat: ((apply: () => void) => void) | undefined;
+  private readonly onFormatApplied: (() => void) | undefined;
+  private readonly formatPendingHint: (() => string | undefined) | undefined;
   /** Source lines dropped by the hard cap (shown in the footer when > 0). */
   private hardCapHidden = 0;
-  /** Lazy format: avoid highlight/pretty-print on construction (mount storms). */
+  /**
+   * Lazy format: avoid highlight/pretty-print on construction (mount storms)
+   * and during geometry measure (virtual-scroll line counts).
+   */
   private formattedReady = false;
   private formattedText = '';
+  /** Plain body laid out for measure / deferred-first paint. */
+  private plainLaidOut = false;
+  private deferredScheduled = false;
+  private formatPending = false;
+  /** Bumps when body text or format state changes (parent cache bust). */
+  private contentRevision = 0;
 
   constructor(output: string, options: RendererTruncatedOutputOptions) {
     const capped = capRawOutputLines(output, RENDERER_TRUNCATED_OUTPUT_HARD_CAP_LINES);
@@ -64,13 +85,31 @@ export class RendererTruncatedOutputComponent implements RendererComponent {
     this.hintMode = options.hintMode ?? 'key';
     this.formatText = options.formatText ?? ((text) => text);
     this.formatHint = options.formatHint ?? ((hint) => hint);
+    this.deferFormatAboveChars = options.deferFormatAboveChars;
+    this.onDeferredFormat = options.onDeferredFormat;
+    this.onFormatApplied = options.onFormatApplied;
+    this.formatPendingHint = options.formatPendingHint;
     // Empty until first paint — construction must stay O(cap scan), not highlight.
     this.textComponent = new Text('', this.indent, 0);
+  }
+
+  /** True while deferred highlight/pretty-print has not finished. */
+  get isFormatPending(): boolean {
+    return this.formatPending;
+  }
+
+  /** Monotonic body revision for parent paint caches. */
+  getContentRevision(): number {
+    return this.contentRevision;
   }
 
   invalidate(): void {
     this.formattedReady = false;
     this.formattedText = '';
+    this.plainLaidOut = false;
+    this.deferredScheduled = false;
+    this.formatPending = false;
+    this.contentRevision += 1;
     this.textComponent.invalidate();
   }
 
@@ -86,7 +125,7 @@ export class RendererTruncatedOutputComponent implements RendererComponent {
   }
 
   render(width: number): string[] {
-    this.ensureFormatted();
+    this.ensureBodyReady();
     const contentLines = this.textComponent.render(width);
     // Expanded still applies a visual soft-cap so one tool cannot materialize
     // tens of thousands of ANSI rows into the parent paint/geometry path.
@@ -103,25 +142,104 @@ export class RendererTruncatedOutputComponent implements RendererComponent {
 
     const hiddenFromPreview = preview.hiddenLineCount;
     const hiddenTotal = hiddenFromPreview + this.hardCapHidden;
-    if (hiddenTotal <= 0) return [...preview.lines];
+    // Do not add a pending-only footer row when nothing is truncated — that
+    // would change geometry vs measure-mode plain layout (1-line jump).
+    if (hiddenTotal <= 0) {
+      return [...preview.lines];
+    }
 
-    const hint = this.tail
+    const pendingHint = this.formatPending ? this.formatPendingHint?.() : undefined;
+    const baseHint = this.tail
       ? `... (${String(hiddenTotal)} earlier lines)`
       : !this.expandHint
         ? `... (${String(hiddenTotal)} more lines)`
         : this.hintMode === 'scroll'
           ? `⋯ ${String(hiddenTotal)} more lines — scroll for more`
           : `... (${String(hiddenTotal)} more lines, ctrl+o to expand)`;
+    // Prefer a combined footer so deferred format does not drop the overflow count.
+    // Keep the words "more lines" so existing scroll/overflow tests and UX match.
+    const hint = pendingHint !== undefined
+      ? `${pendingHint} · ${String(hiddenTotal)} more lines`
+      : baseHint;
     const hintLine = this.renderHint(width, hint);
     return preview.hintPosition === 'before'
       ? [hintLine, ...preview.lines]
       : [...preview.lines, hintLine];
   }
 
-  private ensureFormatted(): void {
+  /**
+   * Lay out body for geometry or paint without necessarily running the
+   * expensive formatText highlighter.
+   *
+   * - Measure mode: always plain (virtual-scroll line counts must not pay
+   *   highlight/pretty-print for every off-screen tool).
+   * - Paint, small body: format sync.
+   * - Paint, large body + host queue: plain first, format deferred.
+   */
+  private ensureBodyReady(): void {
     if (this.formattedReady) return;
+
+    // Geometry probes: never pay for highlight/pretty-print.
+    if (isTranscriptMeasureMode()) {
+      this.ensurePlainLaidOut();
+      return;
+    }
+
+    // Pure-scroll cheap paint: plain first so a wheel storm through cold
+    // history never sync-highlights dozens of cards. Schedule full format
+    // when a host queue exists; otherwise stay plain until a real paint.
+    if (shouldSkipExpensiveTranscriptFormat()) {
+      this.ensurePlainLaidOut();
+      if (this.onDeferredFormat !== undefined && !this.deferredScheduled) {
+        this.deferredScheduled = true;
+        this.formatPending = this.shouldDeferFormat();
+        this.onDeferredFormat(() => {
+          if (this.formattedReady || !this.deferredScheduled) return;
+          this.applyFormat();
+          this.onFormatApplied?.();
+        });
+      }
+      return;
+    }
+
+    if (this.shouldDeferFormat()) {
+      this.ensurePlainLaidOut();
+      if (!this.deferredScheduled && this.onDeferredFormat !== undefined) {
+        this.deferredScheduled = true;
+        this.formatPending = true;
+        this.onDeferredFormat(() => {
+          // Drop work if a newer setOutput/invalidate already reset us.
+          if (this.formattedReady || !this.deferredScheduled) return;
+          this.applyFormat();
+          // Host busts parent paint caches + requests a content frame.
+          this.onFormatApplied?.();
+        });
+      }
+      return;
+    }
+
+    // Small bodies on ambient/content paint: format sync for snappy UX.
+    this.applyFormat();
+  }
+
+  private shouldDeferFormat(): boolean {
+    if (this.onDeferredFormat === undefined) return false;
+    const threshold = this.deferFormatAboveChars ?? RENDERER_TRUNCATED_OUTPUT_DEFER_CHARS;
+    return this.output.length > threshold;
+  }
+
+  private ensurePlainLaidOut(): void {
+    if (this.plainLaidOut || this.formattedReady) return;
+    this.textComponent.setText(this.output);
+    this.plainLaidOut = true;
+  }
+
+  private applyFormat(): void {
     this.formattedText = this.formatText(this.output, { isError: this.isError });
     this.formattedReady = true;
+    this.formatPending = false;
+    this.plainLaidOut = true;
+    this.contentRevision += 1;
     this.textComponent.setText(this.formattedText);
   }
 

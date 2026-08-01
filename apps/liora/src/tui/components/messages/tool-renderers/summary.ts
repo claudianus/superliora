@@ -15,7 +15,6 @@ import { Text } from '#/tui/renderer';
 
 import { langFromPath } from '#/tui/components/media/code-highlight';
 import { currentTheme } from '#/tui/theme';
-import { formatTranscriptOutput } from '#/tui/utils/transcript/transcript-output-format';
 import { TruncatedOutputComponent, renderTruncated } from './truncated';
 import type { ResultRenderer } from './types';
 import { strArg } from './types';
@@ -106,18 +105,18 @@ function withGlance(glance: GlanceFn | null, options: GlanceOptions = {}): Resul
       }
     }
     if (ctx.expanded && result.output.length > 0) {
-      // Pretty-print / highlight expanded body (JSON, logs, stack, code, …).
+      // Nested truncated body: plain-first + budgeted highlight (same path as
+      // generic tool output). Avoid sync formatTranscriptOutput of multi-k
+      // Read/Grep dumps on expand — that froze fast scroll through history.
       out.push(
-        new Text(
-          formatTranscriptOutput(result.output, {
-            isError: false,
-            mode: 'tool',
-            languageHint,
-            pathHint: pathHint || undefined,
-          }),
-          4,
-          0,
-        ),
+        new TruncatedOutputComponent(result.output, {
+          expanded: true,
+          isError: false,
+          languageHint,
+          pathHint: pathHint || undefined,
+          hintMode: 'key',
+          indent: 4,
+        }),
       );
     }
     return out;

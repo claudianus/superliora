@@ -34,6 +34,7 @@ import {
   type TranscriptViewportState,
 } from './features/transcript/transcript-viewport';
 import type { ToolOutputViewportState } from './utils/tool/tool-output-viewport';
+import { setTruncatedOutputFormatAppliedHandler } from './components/messages/tool-renderers/truncated';
 import {
   INITIAL_LIVE_PANE,
   type AppState,
@@ -45,6 +46,7 @@ import {
   type TUIStartupState,
 } from './types';
 import type { CenterModalEntry } from './utils/ui/center-modal';
+import { requestTUIContentRender } from './utils/render/frame-render';
 
 export interface TUIState {
   renderer: TerminalRenderer;
@@ -270,6 +272,13 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
     swarmModeEntry: undefined,
   };
   self = state;
+  // Deferred tool-body highlight: plain paint first, then refresh when
+  // pretty/ANSI finishes. Geometry must remeasure (JSON pretty can grow
+  // nested window height); measure mode stays cheap (no re-highlight).
+  setTruncatedOutputFormatAppliedHandler(() => {
+    state.transcriptContainer.invalidateGeometryAndPaint();
+    requestTUIContentRender(state);
+  });
   return state;
 }
 

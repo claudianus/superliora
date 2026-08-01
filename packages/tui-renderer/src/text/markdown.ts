@@ -6,6 +6,7 @@ import {
   type RendererTextBackgroundFn,
 } from '../text/component';
 import { renderRendererDividerRow } from '../component-primitives/index';
+import { shouldSkipExpensiveTranscriptFormat } from '../transcript/measure-mode';
 
 export interface DefaultTextStyle {
   readonly color?: RendererTextBackgroundFn;
@@ -41,9 +42,18 @@ interface MarkdownInlineStyleContext {
 }
 
 export class Markdown implements Component {
+  /** Full-quality paint cache (syntax-highlighted fences, ambient frames). */
   private cachedText?: string;
   private cachedWidth?: number;
   private cachedLines?: string[];
+  /**
+   * Cheap-paint / measure layout cache. Stores plain-fence parse+wrap so pure
+   * scroll can reuse after first cold intersection without re-parsing multi-k
+   * bodies every wheel frame. Never used as permanent full paint (separate slot).
+   */
+  private cheapCachedText?: string;
+  private cheapCachedWidth?: number;
+  private cheapCachedLines?: string[];
   private defaultStylePrefix?: string;
 
   constructor(
@@ -64,11 +74,39 @@ export class Markdown implements Component {
     this.cachedText = undefined;
     this.cachedWidth = undefined;
     this.cachedLines = undefined;
+    this.cheapCachedText = undefined;
+    this.cheapCachedWidth = undefined;
+    this.cheapCachedLines = undefined;
     this.defaultStylePrefix = undefined;
   }
 
   render(width: number): string[] {
     const safeWidth = normalizeWidth(width);
+    const cheap = shouldSkipExpensiveTranscriptFormat();
+
+    if (cheap) {
+      // Prefer full cache when already warm (highlighted layout is fine for scroll).
+      if (
+        this.cachedLines !== undefined &&
+        this.cachedText === this.text &&
+        this.cachedWidth === safeWidth
+      ) {
+        return this.cachedLines;
+      }
+      if (
+        this.cheapCachedLines !== undefined &&
+        this.cheapCachedText === this.text &&
+        this.cheapCachedWidth === safeWidth
+      ) {
+        return this.cheapCachedLines;
+      }
+      const result = this.renderUncached(safeWidth);
+      this.cheapCachedText = this.text;
+      this.cheapCachedWidth = safeWidth;
+      this.cheapCachedLines = result;
+      return result;
+    }
+
     if (this.cachedLines !== undefined && this.cachedText === this.text && this.cachedWidth === safeWidth) {
       return this.cachedLines;
     }
@@ -77,6 +115,10 @@ export class Markdown implements Component {
     this.cachedText = this.text;
     this.cachedWidth = safeWidth;
     this.cachedLines = result;
+    // Full paint supersedes cheap layout for this width/text.
+    this.cheapCachedText = undefined;
+    this.cheapCachedWidth = undefined;
+    this.cheapCachedLines = undefined;
     return result;
   }
 

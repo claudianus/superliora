@@ -146,4 +146,26 @@ export interface RendererTruncatedOutputOptions {
     context: RendererTruncatedOutputFormatContext,
   ) => string;
   readonly formatHint?: (hint: string) => string;
+  /**
+   * When set with {@link onDeferredFormat}, bodies larger than this many
+   * source characters paint plain text immediately and run `formatText`
+   * off the scroll/paint hot path (prevents fast-scroll freezes).
+   */
+  readonly deferFormatAboveChars?: number;
+  /**
+   * Schedule `apply` to run `formatText` later. Called at most once per
+   * body revision. Hosts should process with a budgeted queue so wheel
+   * storms never format dozens of tools in one frame.
+   */
+  readonly onDeferredFormat?: (apply: () => void) => void;
+  /**
+   * Invoked after a deferred (or sync) format finishes so the host can
+   * bust parent paint caches and request a content frame.
+   */
+  readonly onFormatApplied?: () => void;
+  /**
+   * Optional footer while deferred format is in flight. Return undefined
+   * to keep the normal truncation footer only.
+   */
+  readonly formatPendingHint?: () => string | undefined;
 }

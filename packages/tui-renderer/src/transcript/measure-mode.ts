@@ -1,18 +1,19 @@
 /**
- * Geometry measure isolation for virtual-scroll line counts.
+ * Transcript render-mode isolation for virtual-scroll geometry and pure-scroll
+ * paint.
  *
- * `contentRowCount` / `resolveChildLineCounts` call `child.render(width)` only
- * to read `.length`. Tool cards and other live components historically ran
- * animation clocks inside `render()` (rebuildBody + requestRender). That made
- * every geometry probe re-enter the same expensive side effects that dirtied
- * geometry again — a sustained main-thread storm that looks like a permanent
- * TUI freeze under load (streaming tools, swarm, long transcripts).
+ * Geometry (`contentRowCount` / line-count probes) and pure-scroll frames must
+ * never pay full highlight / pretty-print / unbounded tokenize on cold bodies.
+ * Measure mode is set only around line-count probes. Cheap-paint mode is set
+ * for pure transcript scroll frames so first-intersection history cards can
+ * paint plain (or cache-hit) lines without blocking the wheel path.
  *
- * Measure mode is set only around line-count probes. Real paint paths still
- * run live ticks normally (scroll paint has its own suppress flag in liora).
+ * Real ambient/content paints leave both flags clear so live ticks and full
+ * formatting still run.
  */
 
 let measureDepth = 0;
+let cheapPaintDepth = 0;
 
 /** Run `fn` with live render side effects suppressed for geometry probes. */
 export function withTranscriptMeasureMode<T>(fn: () => T): T {
@@ -24,12 +25,39 @@ export function withTranscriptMeasureMode<T>(fn: () => T): T {
   }
 }
 
+/**
+ * Run `fn` in pure-scroll cheap paint: expensive format/highlight must not run
+ * on cache miss, and results must not be stored as permanent paint caches.
+ */
+export function withTranscriptCheapPaintMode<T>(fn: () => T): T {
+  cheapPaintDepth += 1;
+  try {
+    return fn();
+  } finally {
+    cheapPaintDepth -= 1;
+  }
+}
+
 /** True while a parent is measuring row counts (not painting). */
 export function isTranscriptMeasureMode(): boolean {
   return measureDepth > 0;
 }
 
+/** True while pure-scroll paint is active (not ambient/content). */
+export function isTranscriptCheapPaintMode(): boolean {
+  return cheapPaintDepth > 0;
+}
+
+/**
+ * Geometry or pure-scroll: skip multi-k highlight/pretty and never pin those
+ * stubs into paint/format LRUs.
+ */
+export function shouldSkipExpensiveTranscriptFormat(): boolean {
+  return measureDepth > 0 || cheapPaintDepth > 0;
+}
+
 /** Test helper. */
 export function resetTranscriptMeasureModeForTest(): void {
   measureDepth = 0;
+  cheapPaintDepth = 0;
 }
