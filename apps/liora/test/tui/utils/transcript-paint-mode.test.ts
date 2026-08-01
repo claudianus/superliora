@@ -5,6 +5,7 @@ import {
   withTranscriptPaintMode,
 } from '#/tui/utils/render/transcript-paint-mode';
 import { ToolCallComponent } from '#/tui/components/messages/tool-call/index';
+import { ShellRunComponent } from '#/tui/components/messages/shell/shell-run';
 import * as toolCallInternals from '#/tui/components/messages/tool-call/tool-call-internals';
 
 describe('transcript paint mode (scroll hard-hang guard)', () => {
@@ -43,5 +44,19 @@ describe('transcript paint mode (scroll hard-hang guard)', () => {
     });
     expect(rebuildSpy).not.toHaveBeenCalled();
     rebuildSpy.mockRestore();
+  });
+
+  it('shell-run does not requestRender from inside suppressed paint', () => {
+    const requestRender = vi.fn();
+    const shell = new ShellRunComponent(requestRender);
+    shell.append('hello\n');
+    requestRender.mockClear();
+
+    withTranscriptPaintMode({ suppressLiveToolTicks: true }, () => {
+      shell.render(80);
+      shell.render(80);
+    });
+    expect(requestRender).not.toHaveBeenCalled();
+    shell.dispose();
   });
 });

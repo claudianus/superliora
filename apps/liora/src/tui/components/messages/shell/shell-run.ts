@@ -14,6 +14,7 @@ import {
 
 import { formatBashOutputForDisplay, sanitizeShellOutput } from '#/tui/utils/shell-output';
 import { formatTranscriptOutput } from '#/tui/utils/transcript/transcript-output-format';
+import { areLiveToolTicksSuppressed } from '#/tui/utils/render/transcript-paint-mode';
 
 const RUNNING_TAIL_LINES = 5;
 // Cap the live running buffer so a command that spews output for minutes can't
@@ -84,12 +85,17 @@ export class ShellRunComponent extends Container {
   }
 
   override render(width: number): string[] {
-    // Refresh the elapsed timer from the animation clock on every render so
-    // the `(Xs)` counter advances with the render loop's ticker instead of a
-    // private setInterval. See PREMIUM.md §7.1.
-    if (this.running) this.flush();
+    // Refresh elapsed from the animation clock. Never requestRender() here —
+    // flush() used to schedule another frame on every paint of a running card,
+    // which busy-loops the TUI under scroll/ambient (permanent freeze feel).
+    // Pure-scroll paint skips the refresh entirely (stale (Xs) is fine).
+    if (this.running && !areLiveToolTicksSuppressed()) {
+      this.refreshText();
+    }
     const lines = super.render(width);
-    if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) return lines;
+    if (areLiveToolTicksSuppressed() || !isTranscriptEntranceActive(this.entranceStartedAtMs)) {
+      return lines;
+    }
     return polishTranscriptLines(lines, {
       startedAtMs: this.entranceStartedAtMs,
       kind: 'status',
@@ -101,12 +107,16 @@ export class ShellRunComponent extends Container {
   private flush(): void {
     if (this.disposed) return;
     try {
-      this.textComponent.setText(this.renderText());
+      this.refreshText();
       this.requestRender();
     } catch {
       // Never let a render/render-request error escape into a timer or event
       // handler — an uncaught exception there can take down the whole TUI.
     }
+  }
+
+  private refreshText(): void {
+    this.textComponent.setText(this.renderText());
   }
 
   private renderText(): string {

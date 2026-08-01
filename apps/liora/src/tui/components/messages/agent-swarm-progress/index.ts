@@ -18,6 +18,7 @@ import {
   isTranscriptEntranceActive,
   polishTranscriptLines,
 } from '#/tui/features/transcript/transcript-entrance';
+import { areLiveToolTicksSuppressed } from '#/tui/utils/render/transcript-paint-mode';
 import type { ColorPalette } from '#/tui/theme/colors';
 import {
   summarizeSnapshots,
@@ -503,6 +504,8 @@ export class AgentSwarmProgressComponent implements Component {
 
   private tickClockDrivenAnimation(): void {
     if (this.requestRender === undefined) return;
+    // Pure-scroll paint: never schedule another frame from inside render.
+    if (areLiveToolTicksSuppressed()) return;
     const now = Date.now();
     const hasAnimatedMembers = hasAnimatedAgentSwarmMembers(
       this.runtime.members,
