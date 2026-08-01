@@ -15,9 +15,10 @@ export const MAX_PARALLEL_BLOCK_CONCURRENCY = 8;
 
 /**
  * Default starting concurrency for parallel block summarize.
- * 3 balances throughput vs rate-limit retries; override via env when needed.
+ * 4 improves wall-clock on multi-block runs; adaptive limiter still drops on 429.
+ * Override via SUPERLIORA_COMPACTION_PARALLEL_CONCURRENCY when needed.
  */
-export const DEFAULT_PARALLEL_BLOCK_CONCURRENCY = 3;
+export const DEFAULT_PARALLEL_BLOCK_CONCURRENCY = 4;
 
 /** Env override for initial parallel block concurrency (clamped 1..MAX). */
 export const PARALLEL_CONCURRENCY_ENV = 'SUPERLIORA_COMPACTION_PARALLEL_CONCURRENCY';

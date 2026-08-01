@@ -129,45 +129,59 @@ export async function runCompactionRound(
     const initialQuality = validateInitialCompactionSummary(summary, plan, messagesToCompact);
     let quality: CompactionQualityResult = initialQuality;
     if (initialQuality.critical.length > 0 && !usedEmergencyBackstop) {
-      const repair = await repairSummaryForQuality(
-        host,
-        signal,
-        provider,
-        messagesToCompact,
-        plan,
-        data.instruction,
-        initialQuality,
-      );
-      summary = repair.summary;
-      repairAttempted = true;
-      if (repair.usage !== null) {
-        usage = mergeTokenUsage(usage, repair.usage);
-      }
-      const repairedQuality = validateInitialCompactionSummary(summary, plan, messagesToCompact);
-      // The initial summary was replaced by the repair, so its critical errors no longer
-      // apply to the current artifact. Carry forward only warnings (for telemetry) and
-      // treat the repaired summary as the source of truth for critical checks.
-      const merged = mergeCompactionQualityResults(initialQuality, repairedQuality);
-      quality = {
-        critical: repairedQuality.critical,
-        warnings: merged.warnings,
-        warningCategories: merged.warningCategories,
-        signals: repairedQuality.signals ?? initialQuality.signals,
-      };
-      if (repairedQuality.critical.length > 0) {
-        const evidenceOnly =
-          isMissingEvidenceQualityFailure(repairedQuality) &&
-          repairedQuality.critical.every((item) => item.includes('durable evidence'));
-        if (!evidenceOnly) {
-          // Surviving non-evidence criticals are deliberately NOT thrown here:
-          // throwing would hard-stall the turn. They propagate to the final
-          // quality gate below, which swaps in the deterministic backstop and
-          // lets the turn resume on a well-formed summary.
-          host.agent.telemetry.track('compaction_qc_repair_unresolved', {
-            critical_count: repairedQuality.critical.length,
-          });
+      // Evidence-id gaps are recovered deterministically after enrichment —
+      // skip an extra LLM repair RTT when that is the only critical failure.
+      const evidenceOnly =
+        isMissingEvidenceQualityFailure(initialQuality) &&
+        initialQuality.critical.every((item) => item.includes('durable evidence'));
+      if (evidenceOnly) {
+        host.agent.telemetry.track('compaction_qc_repair_skipped_evidence_only', {
+          critical_count: initialQuality.critical.length,
+        });
+      } else {
+        const repair = await repairSummaryForQuality(
+          host,
+          signal,
+          provider,
+          messagesToCompact,
+          plan,
+          data.instruction,
+          initialQuality,
+        );
+        summary = repair.summary;
+        // Re-scaffold in case repair returned free-form prose.
+        summary = ensureStructuredHandoffScaffold(summary, {
+          latestUserRequest: latestUserText(messagesToCompact),
+        });
+        repairAttempted = true;
+        if (repair.usage !== null) {
+          usage = mergeTokenUsage(usage, repair.usage);
         }
-        // Evidence-id gaps are recovered deterministically after enrichment.
+        const repairedQuality = validateInitialCompactionSummary(summary, plan, messagesToCompact);
+        // The initial summary was replaced by the repair, so its critical errors no longer
+        // apply to the current artifact. Carry forward only warnings (for telemetry) and
+        // treat the repaired summary as the source of truth for critical checks.
+        const merged = mergeCompactionQualityResults(initialQuality, repairedQuality);
+        quality = {
+          critical: repairedQuality.critical,
+          warnings: merged.warnings,
+          warningCategories: merged.warningCategories,
+          signals: repairedQuality.signals ?? initialQuality.signals,
+        };
+        if (repairedQuality.critical.length > 0) {
+          const repairedEvidenceOnly =
+            isMissingEvidenceQualityFailure(repairedQuality) &&
+            repairedQuality.critical.every((item) => item.includes('durable evidence'));
+          if (!repairedEvidenceOnly) {
+            // Surviving non-evidence criticals are deliberately NOT thrown here:
+            // throwing would hard-stall the turn. They propagate to the final
+            // quality gate below, which swaps in the deterministic backstop and
+            // lets the turn resume on a well-formed summary.
+            host.agent.telemetry.track('compaction_qc_repair_unresolved', {
+              critical_count: repairedQuality.critical.length,
+            });
+          }
+        }
       }
     }
 

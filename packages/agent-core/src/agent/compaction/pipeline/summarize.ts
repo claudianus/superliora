@@ -60,13 +60,15 @@ import type {
   SummarizeInput,
   SummarizeOutput,
 } from './types';
+import { tryMergeStructuredBlockSummaries } from './merge-structured';
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const DEFAULT_PARALLEL_BLOCK_THRESHOLD = 12_000;
-const DEFAULT_PARALLEL_BLOCK_TARGET = 6_000;
+/** Parallelize earlier so medium sessions avoid one huge sequential summarize. */
+const DEFAULT_PARALLEL_BLOCK_THRESHOLD = 8_000;
+const DEFAULT_PARALLEL_BLOCK_TARGET = 5_000;
 // Concurrent block LLM default lives in adaptive-concurrency (DEFAULT_PARALLEL_BLOCK_CONCURRENCY=3).
 const PARALLEL_BLOCK_RATE_LIMIT_RETRIES = 4;
 const MAX_COMPACTION_RETRY_ATTEMPTS = 5;
@@ -270,6 +272,20 @@ async function mergeBlockSummaries(
   instruction: string | undefined,
   retryCountRef: { value: number },
 ): Promise<{ summary: string; usage: TokenUsage | null; mergeInputTokens: number }> {
+  // Fast path: all blocks already structured → deterministic list merge (no LLM RTT).
+  const structuredMerge = tryMergeStructuredBlockSummaries(blockSummaries);
+  if (structuredMerge !== undefined) {
+    ctx.agent.telemetry.track('compaction_merge_deterministic', {
+      block_count: blockSummaries.length,
+      summary_chars: structuredMerge.length,
+    });
+    return {
+      summary: structuredMerge,
+      usage: null,
+      mergeInputTokens: 0,
+    };
+  }
+
   const blockText = blockSummaries
     .map((summary, index) => `## Block ${String(index + 1)}\n${summary.trim()}`)
     .join('\n\n');
