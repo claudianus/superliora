@@ -522,11 +522,11 @@ describe('createTUIState', () => {
     state.transcriptViewport.sync(100, 10);
     state.transcriptViewport.scroll('line-up');
 
-    expect(stripAnsi(state.footer.render(140)[0] ?? '')).toContain('[history +3 rows]');
+    expect(stripAnsi(state.footer.render(140)[0] ?? '')).toContain('[History · 3 lines up]');
 
     state.transcriptViewport.scroll('bottom');
 
-    expect(stripAnsi(state.footer.render(140)[0] ?? '')).not.toContain('[history');
+    expect(stripAnsi(state.footer.render(140)[0] ?? '')).not.toContain('[History');
   });
 
   it('can render current renderer containers through the native layout adapter', () => {
