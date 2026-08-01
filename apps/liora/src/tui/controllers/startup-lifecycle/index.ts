@@ -3,6 +3,7 @@ import type { Session } from '@superliora/sdk';
 import {
   requestTUIScrollRender,
 } from '../../utils/render/frame-render';
+import { scheduleTranscriptScrollSettleRefresh } from '../../utils/render/scroll-settle-refresh';
 import {
   scrollTranscriptViewport as applyTranscriptViewportScroll,
   type TranscriptScrollAction,
@@ -139,7 +140,12 @@ export class StartupLifecycleController {
 
   scrollTranscriptViewport(action: TranscriptScrollAction): boolean {
     const changed = applyTranscriptViewportScroll(this.host.state.transcriptViewport, action);
-    if (changed) requestTUIScrollRender(this.host.state);
+    if (changed) {
+      requestTUIScrollRender(this.host.state);
+      // After fling (top→bottom), pure-scroll paints placeholders for cold
+      // cards; settle content paint materializes the final visible window.
+      scheduleTranscriptScrollSettleRefresh(this.host.state);
+    }
     return changed;
   }
 

@@ -823,7 +823,9 @@ describe('NativeTerminalRenderer', () => {
     expect(frames).toEqual([['start']]);
 
     renderer.requestRender('transcript-scroll');
-    scheduler.advance(0);
+    // Scroll is FPS-paced (not deferred forever under backpressure). Advance a
+    // full frame interval so the paced timer fires.
+    scheduler.advance(20);
 
     expect(frames.at(-1)).toEqual(expect.arrayContaining(['transcript-scroll']));
     renderer.stop();
