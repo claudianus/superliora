@@ -60,14 +60,17 @@ export function validateInitialCompactionSummary(
     return { critical, warnings, warningCategories };
   }
 
-  // Always prefer structured handoff (OpenCode-style sections mapped to v2 labels).
-  // Free-form prose alone is a soft failure path that repair can rewrite.
+  // Structured handoff is required for multi-provider resume quality.
+  // Free-form prose is scaffolded deterministically before this check in the
+  // pipeline; remaining free-form still fails critical so repair can rewrite.
   const exactV2Attempt = hasExactV2Attempt(trimmed);
   if (!exactV2Attempt) {
     warnings.push(
       'summary is free-form; expected v2 labels (current_goal, last_known_state, next_actions, …)',
     );
     warningCategories.push('unstructured_summary');
+    critical.push('v2 summary is missing current_goal');
+    critical.push('v2 summary is missing next_actions');
   } else {
     const memory = parseStructuredCompactionMemory(trimmed);
     if (memory.currentGoal === undefined || memory.currentGoal.trim().length === 0) {

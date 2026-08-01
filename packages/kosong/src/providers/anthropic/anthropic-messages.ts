@@ -191,13 +191,18 @@ export function convertMessage(message: Message, model: string): MessageParam {
       // models reject unsigned thinking blocks, so those are only preserved
       // for non-Claude Anthropic-compatible models. An unsigned part with no
       // text carries nothing, so it is skipped.
-      if (part.encrypted !== undefined) {
+      // Empty signature strings are not valid Anthropic signatures — treat as unsigned.
+      const signature =
+        part.encrypted !== undefined && part.encrypted.length > 0 ? part.encrypted : undefined;
+      if (signature !== undefined) {
         blocks.push({
           type: 'thinking',
           thinking: part.think,
-          signature: part.encrypted,
+          signature,
         } satisfies ThinkingBlockParam);
       } else if (part.think !== '' && shouldPreserveUnsignedThinking(model)) {
+        // Non-Claude Anthropic-compatible backends need thinking before tool_use
+        // even without a signature (multi-step tool continuity).
         blocks.push({ type: 'thinking', thinking: part.think } as unknown as ThinkingBlockParam);
       }
     } else if (part.type === 'audio_url' || part.type === 'video_url') {

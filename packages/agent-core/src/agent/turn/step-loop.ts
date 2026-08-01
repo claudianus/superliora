@@ -30,6 +30,7 @@ import {
   isGoalOutcomeReminderOrigin,
 } from './goal-driver';
 import type { createTurnLoopDispatch } from './loop-dispatch';
+import { maybeDualWriteLargeToolResult } from './tool-result-spill';
 
 export interface StepLoopDeps {
   readonly agent: Agent;
@@ -203,7 +204,14 @@ export async function runTurnStepLoop(
                 toolOutput: isError === true ? undefined : toolOutputText(output).slice(0, 2000),
               },
             });
-            return finalResult;
+            // Append-only dual-write: keep full body in context; spill huge logs
+            // to disk so post-compaction Read can re-acquire without re-running.
+            return await maybeDualWriteLargeToolResult({
+              homedir: agent.homedir,
+              toolName: ctx.toolCall.name,
+              toolCallId: ctx.toolCall.id,
+              result: finalResult,
+            });
           },
         },
       });
