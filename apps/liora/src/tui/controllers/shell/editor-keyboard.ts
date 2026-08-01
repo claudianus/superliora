@@ -235,7 +235,7 @@ export class EditorKeyboardController {
       void this.openExternalEditor();
     };
 
-    // Ctrl-O / Ctrl-T toggle transcript expansion (tool output, todo panel).
+    // Ctrl-O cycles 4-level transcript density; Ctrl-T expands the todo panel.
     editor.onToggleToolExpand = () => {
       host.track('shortcut_expand');
       host.toggleToolOutputExpansion();

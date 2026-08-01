@@ -6,10 +6,13 @@ import {
   formatChainSettledSummary,
   formatDiffChip,
   formatDurationShort,
+  formatTranscriptDetailCycleLabel,
   isOneLineToolLevel,
+  nextTranscriptDetailLevel,
   recordChainTool,
   resolveTranscriptDetail,
   settleToolChain,
+  TRANSCRIPT_DETAIL_LEVELS,
 } from '#/tui/features/transcript/transcript-density';
 
 describe('resolveTranscriptDetail', () => {
@@ -28,6 +31,32 @@ describe('isOneLineToolLevel', () => {
     expect(isOneLineToolLevel('compact')).toBe(true);
     expect(isOneLineToolLevel('standard')).toBe(false);
     expect(isOneLineToolLevel('full')).toBe(false);
+  });
+});
+
+describe('nextTranscriptDetailLevel (Ctrl+O cycle)', () => {
+  it('walks all four levels and wraps', () => {
+    expect(nextTranscriptDetailLevel('minimal')).toBe('compact');
+    expect(nextTranscriptDetailLevel('compact')).toBe('standard');
+    expect(nextTranscriptDetailLevel('standard')).toBe('full');
+    expect(nextTranscriptDetailLevel('full')).toBe('minimal');
+  });
+
+  it('covers every configured level exactly once per full cycle', () => {
+    let level: (typeof TRANSCRIPT_DETAIL_LEVELS)[number] = 'standard';
+    const seen = new Set<string>();
+    for (let i = 0; i < TRANSCRIPT_DETAIL_LEVELS.length; i++) {
+      level = nextTranscriptDetailLevel(level);
+      seen.add(level);
+    }
+    expect(seen.size).toBe(TRANSCRIPT_DETAIL_LEVELS.length);
+    expect(level).toBe('standard');
+  });
+
+  it('labels each level for the density-cycle toast', () => {
+    for (const level of TRANSCRIPT_DETAIL_LEVELS) {
+      expect(formatTranscriptDetailCycleLabel(level)).toMatch(/Transcript ·/);
+    }
   });
 });
 

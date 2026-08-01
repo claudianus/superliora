@@ -429,7 +429,12 @@ Levels:
 - `minimal`: same one-line cards plus one aggregate chain summary per
   turn (`⚙ Edit src/foo.ts · 7 tools · +42/−10` while running,
   `Worked for 10m 4s · 7 tools · 2 failed` once the turn settles).
-- `full`: every card expanded (Ctrl+O semantics without the toggle).
+- `full`: every card expanded (taller nested tool windows; never unlimited unroll).
+
+**Ctrl+O** cycles the four levels live (minimal → compact → standard → full → …)
+and shows a short toast. `/transcript` and Appearance still jump to a level
+directly. Expanded tool bodies stay nested-windowed so fast transcript scroll
+cannot freeze the TUI on multi-kiloline outputs.
 
 Rules:
 

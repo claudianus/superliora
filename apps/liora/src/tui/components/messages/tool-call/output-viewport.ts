@@ -72,10 +72,13 @@ export class ToolCallOutputViewportMount {
     const viewport = this.viewport;
     if (viewport === undefined || localRow < 0) return undefined;
 
+    // Prefer last painted geometry. Re-rendering every sibling on mouse hover
+    // re-materialized multi-k line tool bodies and froze the TUI under motion.
     let startRow = 0;
     for (const child of children) {
-      const rowCount = child.render(width).length;
       if (child === viewport) {
+        const rowCount =
+          viewport.renderedRows > 0 ? viewport.renderedRows : Math.max(1, viewport.height);
         const viewportRow = localRow - startRow;
         if (viewportRow < 0 || viewportRow >= rowCount) return undefined;
         const onRail = viewport.overflowing && localColumn === Math.max(0, width - 1);
@@ -85,7 +88,7 @@ export class ToolCallOutputViewportMount {
           viewportRow,
         };
       }
-      startRow += rowCount;
+      startRow += cheapChildRowCount(child, width);
     }
     return undefined;
   }
@@ -104,4 +107,17 @@ export class ToolCallOutputViewportMount {
     this.viewportState = state;
     this.host.toolOutputViewports?.set(this.host.toolCallId, state);
   }
+}
+
+/**
+ * Row count for hit-testing without forcing a full tool-body re-paint.
+ * Uses last-rendered rows for nested viewports; falls back to a cached render
+ * only for lightweight siblings (headers, spacers).
+ */
+function cheapChildRowCount(child: Component, width: number): number {
+  if (child instanceof ToolOutputViewportComponent) {
+    if (child.renderedRows > 0) return child.renderedRows;
+    return Math.max(1, child.height);
+  }
+  return child.render(width).length;
 }

@@ -50,7 +50,7 @@ describe('tool output viewport state', () => {
     expect(toolOutputViewportMaxHeight(2)).toBe(5);
   });
 
-  it('bypasses the line window when explicitly expanded', () => {
+  it('keeps nested windowing when expanded (taller budget, never unlimited unroll)', () => {
     const state = scrollToolOutputViewport(
       syncToolOutputViewportContent(createToolOutputViewportState(), 10),
       4,
@@ -61,12 +61,21 @@ describe('tool output viewport state', () => {
       visibleRows: 5,
       overflow: true,
     });
+    // 10 content rows fit inside the expanded budget — full body visible, no rail.
     expect(projectToolOutputViewport(state, true)).toEqual({
       startRow: 0,
       endRow: 10,
       visibleRows: 10,
       overflow: false,
     });
+
+    // Large bodies stay windowed so transcript geometry stays bounded.
+    const huge = syncToolOutputViewportContent(createToolOutputViewportState(), 500);
+    const expanded = projectToolOutputViewport(huge, true);
+    expect(expanded.visibleRows).toBe(40);
+    expect(expanded.endRow - expanded.startRow).toBe(40);
+    expect(expanded.overflow).toBe(true);
+    expect(expanded.startRow).toBe(0);
   });
 
   it('derives thumb size and position from content, height, and offset', () => {

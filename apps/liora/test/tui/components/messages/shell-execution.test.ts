@@ -55,7 +55,7 @@ describe('ShellExecutionComponent', () => {
     expect(collapsedOutput).toContain('line4');
     expect(collapsedOutput).toContain('line5');
     expect(collapsedOutput).not.toContain('line6');
-    expect(collapsedOutput).toContain('⋯ 2 more lines — scroll to expand');
+    expect(collapsedOutput).toContain('⋯ 2 more lines — scroll for more');
 
     const expanded = new ShellExecutionComponent({
       result: {

@@ -27,6 +27,10 @@ import { pickForegroundTasks } from '../../utils/foreground-task';
 import { requestTUIContentRender, requestTUILayoutRender } from '../../utils/render/frame-render';
 import { isMotionTheatreActive, type MotionBeatController } from '../../utils/render/motion-beats';
 import { installTerminalThemeTracking } from '../../utils/terminal/terminal-theme';
+import {
+  formatTranscriptDetailCycleLabel,
+  nextTranscriptDetailLevel,
+} from '../../features/transcript/transcript-density';
 import { TRANSCRIPT_EXPAND_TURNS } from '../../features/transcript/transcript-window';
 import { ttui } from '../../utils/tui-i18n';
 
@@ -259,22 +263,29 @@ export class PanesController {
     );
   }
 
+  /**
+   * Ctrl+O — cycle the 4-level transcript density model
+   * (minimal → compact → standard → full → …).
+   *
+   * `full` also expands recent-turn tool/thinking bodies; other levels
+   * collapse them. Replaces the old boolean expand/collapse toggle.
+   */
   toggleToolOutputExpansion(): void {
     const { host } = this;
-    host.state.toolOutputExpanded = !host.state.toolOutputExpanded;
-    this.syncTranscriptExpansion();
-    requestTUIContentRender(host.state);
+    const next = nextTranscriptDetailLevel(host.state.transcriptDetail);
+    this.applyTranscriptDetail(next, { toast: true });
   }
 
-  /** Apply the Ctrl+O expansion state to the most recent transcript turns. */
+  /** Apply the full-density expansion state to the most recent transcript turns. */
   private syncTranscriptExpansion(): void {
     const { host } = this;
     const children = host.state.transcriptContainer.children;
     const expandCutoff = this.resolveExpansionCutoff(children);
+    const expanded = host.state.toolOutputExpanded;
     for (let i = 0; i < children.length; i++) {
       const child = children[i]!;
       if (!isExpandable(child)) continue;
-      child.setExpanded(host.state.toolOutputExpanded && i >= expandCutoff);
+      child.setExpanded(expanded && i >= expandCutoff);
     }
   }
 
@@ -284,11 +295,35 @@ export class PanesController {
    * `/transcript` and the Settings appearance selector call this.
    */
   setTranscriptDetail(level: TranscriptDetailLevel): void {
+    this.applyTranscriptDetail(level, { toast: false });
+  }
+
+  private applyTranscriptDetail(
+    level: TranscriptDetailLevel,
+    options: { readonly toast: boolean },
+  ): void {
     const { host } = this;
-    if (host.state.transcriptDetail === level) return;
+    const changed = host.state.transcriptDetail !== level;
+    if (!changed) {
+      // Still re-assert expansion for the current level (e.g. after hydrate).
+      host.state.toolOutputExpanded = level === 'full';
+      this.syncTranscriptExpansion();
+      if (options.toast) {
+        host.state.toast.show(formatTranscriptDetailCycleLabel(level), 1600);
+      }
+      requestTUIContentRender(host.state);
+      return;
+    }
     host.state.transcriptDetail = level;
+    // `full` drives the legacy toolOutputExpanded flag used by thinking /
+    // goal markers and the recent-turn expand cutoff.
+    host.state.toolOutputExpanded = level === 'full';
     for (const child of host.state.transcriptContainer.children) {
       if (child instanceof ToolCallComponent) child.setDetail(level);
+    }
+    this.syncTranscriptExpansion();
+    if (options.toast) {
+      host.state.toast.show(formatTranscriptDetailCycleLabel(level), 1600);
     }
     requestTUIContentRender(host.state);
   }

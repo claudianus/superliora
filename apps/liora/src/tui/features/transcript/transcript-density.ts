@@ -13,7 +13,9 @@ import type { TranscriptDetailLevel } from '#/tui/types';
  * Resolve the effective detail level.
  *
  * Priority: per-component local override (user clicked a block) > temporary
- * `full` (Ctrl+O held state) > configured level (`tui.toml`).
+ * `full` (legacy expand flag / density === full) > configured level (`tui.toml`).
+ * Ctrl+O now cycles `configured` through all four levels; `temporaryFull` remains
+ * for callers that only flip the expand flag.
  */
 export function resolveTranscriptDetail(opts: {
   configured: TranscriptDetailLevel;
@@ -30,11 +32,37 @@ export function isOneLineToolLevel(level: TranscriptDetailLevel): boolean {
   return level === 'compact' || level === 'minimal';
 }
 
-/** All levels in display order (densest first) — used by /transcript. */
+/** All levels in display order (densest first) — used by /transcript and Ctrl+O. */
 export const TRANSCRIPT_DETAIL_LEVELS = ['minimal', 'compact', 'standard', 'full'] as const;
 
 export function isTranscriptDetailLevel(value: string): value is TranscriptDetailLevel {
   return (TRANSCRIPT_DETAIL_LEVELS as readonly string[]).includes(value);
+}
+
+/**
+ * Cycle transcript density one step (Ctrl+O). Order is densest→richest so a
+ * single chord walks the full 4-level model instead of a boolean expand toggle.
+ */
+export function nextTranscriptDetailLevel(
+  current: TranscriptDetailLevel,
+): TranscriptDetailLevel {
+  const index = TRANSCRIPT_DETAIL_LEVELS.indexOf(current);
+  const from = index >= 0 ? index : TRANSCRIPT_DETAIL_LEVELS.indexOf('standard');
+  return TRANSCRIPT_DETAIL_LEVELS[(from + 1) % TRANSCRIPT_DETAIL_LEVELS.length]!;
+}
+
+/** Human-readable one-liner for toast / footer after a density cycle. */
+export function formatTranscriptDetailCycleLabel(level: TranscriptDetailLevel): string {
+  switch (level) {
+    case 'minimal':
+      return 'Transcript · minimal (one-line tools + chain summary)';
+    case 'compact':
+      return 'Transcript · compact (headers only)';
+    case 'standard':
+      return 'Transcript · standard (preview cards)';
+    case 'full':
+      return 'Transcript · full (expanded tool bodies)';
+  }
 }
 
 export interface ToolChainStats {
