@@ -8,7 +8,9 @@ import type { Message } from '@superliora/kosong';
 import {
   extractEvidenceIdsFromText,
   injectMissingDurableEvidenceIds,
+  validateInitialCompactionSummary,
 } from '../../../src/agent/compaction/quality';
+import type { CompactionPlan } from '../../../src/agent/compaction/plan/planner';
 
 describe('extractEvidenceIdsFromText', () => {
   // Stable durable identifiers that must survive compaction. If the
@@ -109,5 +111,58 @@ describe('injectMissingDurableEvidenceIds overflow', () => {
     const body = readFileSync(join(dir, files[0] as string), 'utf8');
     expect(body).toContain('evidence7zz');
     expect(summary).toContain(`full list: ${join(dir, files[0] as string)}`);
+  });
+});
+
+describe('validateInitialCompactionSummary — structured handoff', () => {
+  const plan = {
+    compactedTokens: 1000,
+    retainedTokens: 200,
+    compactedCount: 4,
+    rawRefs: [],
+  } as unknown as CompactionPlan;
+
+  const history = [
+    {
+      role: 'user',
+      content: [{ type: 'text', text: 'Please fix the cache hit rate regression in compaction.' }],
+      toolCalls: [],
+    },
+  ] as unknown as readonly Message[];
+
+  it('warns when the summary is free-form without v2 labels', () => {
+    const result = validateInitialCompactionSummary(
+      'I will keep working on the task after compaction.',
+      plan,
+      history,
+    );
+    expect(result.critical).toEqual([]);
+    expect(result.warningCategories).toContain('unstructured_summary');
+    expect(result.warnings.some((w) => w.includes('free-form'))).toBe(true);
+  });
+
+  it('accepts structured v2 labels with current_goal and next_actions', () => {
+    const summary = [
+      'current_goal: Fix cache hit rate regression in compaction',
+      'last_known_state:',
+      '- micro-compaction removed; full compaction is the reclaim path',
+      'decisions:',
+      '- keep tool outputs append-only',
+      'files_touched:',
+      '- packages/agent-core/src/agent/compaction/prompts/compaction-instruction.md',
+      'failed_attempts:',
+      '- none',
+      'open_questions:',
+      '- none',
+      'next_actions:',
+      '- Run focused compaction quality tests',
+      'verified_claims:',
+      '- none yet | evidence=n/a | needs_revalidation=true',
+      'raw_refs:',
+      '- none',
+    ].join('\n');
+    const result = validateInitialCompactionSummary(summary, plan, history);
+    expect(result.critical).toEqual([]);
+    expect(result.warningCategories).not.toContain('unstructured_summary');
   });
 });

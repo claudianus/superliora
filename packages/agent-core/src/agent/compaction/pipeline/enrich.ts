@@ -152,13 +152,16 @@ export function renderStructuredV2Summary(
     extractUltraworkRunLines(summary),
   );
 
+  const openQuestions = structuredMemory.openQuestions;
   return [
     '# SuperLiora Context Compaction v2 Memory',
     '',
     '## Resume Preflight',
-    `- current_goal: ${currentGoal}`,
-    '- last_known_state: Use the retained recent messages plus the structured memory below before taking the next action.',
-    `- next_action: ${nextActions[0] ?? 'Inspect the retained recent context, then continue the pending implementation or verification step.'}`,
+    // OpenCode-style Objective / Work State / Next Move / Relevant Files at a glance.
+    `- Objective (current_goal): ${currentGoal}`,
+    `- Work State: ${lastKnownState[0] ?? 'Use retained recent messages plus structured memory below.'}`,
+    `- Next Move: ${nextActions[0] ?? 'Inspect the retained recent context, then continue the pending implementation or verification step.'}`,
+    `- Relevant Files: ${fileItems[0] ?? 'See files_touched below (or re-discover from the latest user ask).'}`,
     '',
     '## Structured Working Memory',
     'current_goal:',
@@ -172,7 +175,7 @@ export function renderStructuredV2Summary(
     'failed_attempts:',
     formatStringList(failureItems),
     'open_questions:',
-    formatStringList(structuredMemory.openQuestions),
+    formatStringList(openQuestions),
     'next_actions:',
     formatStringList(nextActions),
     ...(structuredMemory.verifiedClaims.length > 0

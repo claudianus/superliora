@@ -102,7 +102,8 @@ export type CompactionQualityWarningCategory =
   | 'missing_ultrawork_checkpoint'
   | 'placeholder_only_memory'
   | 'prompt_control_recalled'
-  | 'token_growth';
+  | 'token_growth'
+  | 'unstructured_summary';
 
 export interface CompactionQualitySignals {
   readonly recallEvalScore: number;
