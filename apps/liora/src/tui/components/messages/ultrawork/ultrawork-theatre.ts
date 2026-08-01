@@ -22,6 +22,10 @@ import {
   renderToneSettleFlash,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
+import {
+  isTranscriptEntranceActive,
+  polishTranscriptLines,
+} from '#/tui/features/transcript/transcript-entrance';
 
 const ULTRAWORK_THEATRE_EVENT_TYPES = new Set<Event['type']>([
   'ultrawork.stage.changed',
@@ -71,6 +75,8 @@ export function ultraworkTheatreRunId(event: UltraworkTheatreEvent): string {
 }
 
 export class UltraworkTheatreComponent implements Component {
+  private readonly entranceStartedAtMs = appearanceAnimationNow();
+
   private run: UltraworkRun | undefined;
   private objective: string | undefined;
   private stage: UltraworkRun['stage'] | undefined;
@@ -204,7 +210,13 @@ export class UltraworkTheatreComponent implements Component {
       return ['', ...panel];
     }
     const rail = renderParticleRail(safeWidth, appearance, 'ultrawork:theatre');
-    return ['', rail, ...panel, rail];
+    const __polishedLines = ['', rail, ...panel, rail];
+    if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) return __polishedLines;
+    return polishTranscriptLines(__polishedLines, {
+      startedAtMs: this.entranceStartedAtMs,
+      kind: 'status',
+      appearance: getActiveAppearancePreferences(),
+    });
   }
 
   private isSwarmStage(): boolean {

@@ -1,5 +1,5 @@
 /**
- * Settings → Providers & API — read-only /login + env tips (SSOT §9.2).
+ * Settings → Providers & API — live login / model / search actions (SSOT §9.2).
  */
 
 import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
@@ -13,6 +13,9 @@ import {
   resolveProvidersApiSessionGlance,
 } from '../../../utils/provider/providers-api-glance';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
+import { handleLoginCommand } from '../../auth/login';
+import { handleModelCommand } from '../model/model';
+import { showSearchSettings } from '../search/search-settings';
 import { SEARCH_PREFER_XAI_TIP } from '../search/search-status';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
@@ -83,6 +86,21 @@ export function showProvidersApiSettings(host: SlashCommandHost): void {
             'Credential posture · live session model/provider · API key env detection · catalog size.',
         },
         {
+          value: 'login',
+          label: 'Login / connect provider…',
+          description: 'OAuth · catalog/custom provider · --add fallback slots.',
+        },
+        {
+          value: 'model',
+          label: 'Change model…',
+          description: 'Open the model picker for the active session.',
+        },
+        {
+          value: 'search',
+          label: 'Search channels…',
+          description: 'Prefer xAI · browser · free fallback · strategy pickers.',
+        },
+        {
           value: 'tip-login',
           label: '/login tip',
           description:
@@ -105,6 +123,18 @@ export function showProvidersApiSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
         if (value === 'status') {
           void showProvidersApiSettingsPanel(host);
+          return;
+        }
+        if (value === 'login') {
+          void handleLoginCommand(host);
+          return;
+        }
+        if (value === 'model') {
+          void handleModelCommand(host, '');
+          return;
+        }
+        if (value === 'search') {
+          showSearchSettings(host);
           return;
         }
         if (value === 'tip-login') {

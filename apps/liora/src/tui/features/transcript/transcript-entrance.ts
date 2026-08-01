@@ -24,14 +24,14 @@ import {
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
 
-/** Premium entrance length — long enough to read as motion, short enough not to lag. */
-export const TRANSCRIPT_ENTRANCE_MS_PREMIUM = 560;
+/** Premium entrance — soft wash long enough to read as ink, short enough not to lag. */
+export const TRANSCRIPT_ENTRANCE_MS_PREMIUM = 720;
 /** Subtle profile stretches the same ease so it still finishes cleanly. */
-export const TRANSCRIPT_ENTRANCE_MS_SUBTLE = 640;
-/** Live stream tail glow width in visual clusters. */
-export const STREAM_TAIL_GLOW_CLUSTERS = 28;
+export const TRANSCRIPT_ENTRANCE_MS_SUBTLE = 900;
+/** Live stream tail glow width in visual clusters (wider = silkier ink trail). */
+export const STREAM_TAIL_GLOW_CLUSTERS = 40;
 /** How long a "fresh" tail glow lingers after the last paint. */
-export const STREAM_TAIL_GLOW_MS = 480;
+export const STREAM_TAIL_GLOW_MS = 640;
 
 export type TranscriptEntranceKind =
   | 'assistant'
@@ -39,6 +39,7 @@ export type TranscriptEntranceKind =
   | 'tool'
   | 'status'
   | 'notice'
+  | 'user'
   | 'generic';
 
 function clamp01(value: number): number {
@@ -50,6 +51,24 @@ function clamp01(value: number): number {
 function easeOutCubic(t: number): number {
   const p = clamp01(t);
   return 1 - (1 - p) ** 3;
+}
+
+/** Softer settle than cubic — longer tail of motion for fade-in washes. */
+function easeOutQuint(t: number): number {
+  const p = clamp01(t);
+  return 1 - (1 - p) ** 5;
+}
+
+/** Symmetric ease for row cascade (slow start + slow finish). */
+function easeInOutCubic(t: number): number {
+  const p = clamp01(t);
+  return p < 0.5 ? 4 * p * p * p : 1 - (-2 * p + 2) ** 3 / 2;
+}
+
+/** Smoothstep (Hermite) — zero derivative at ends; great for intensity ramps. */
+function smoothstep(t: number): number {
+  const p = clamp01(t);
+  return p * p * (3 - 2 * p);
 }
 
 export function transcriptEntranceDurationMs(
@@ -69,7 +88,8 @@ export function transcriptEntranceProgress(
   const duration = transcriptEntranceDurationMs(appearance);
   // `startedAtMs` may be 0 (tests / epoch); only reject negative sentinels.
   if (duration <= 0 || startedAtMs < 0) return 1;
-  return easeOutCubic((nowMs - startedAtMs) / duration);
+  // Quint ease keeps the early frames softly dim and lands without a hard snap.
+  return easeOutQuint((nowMs - startedAtMs) / duration);
 }
 
 export function isTranscriptEntranceActive(
@@ -156,22 +176,26 @@ function applyHighlightSettle(
 ): string {
   if (line.length === 0) return line;
   if (durationMs <= 0 || startedAtMs < 0) return line;
-  const p = easeOutCubic((nowMs - startedAtMs) / durationMs);
+  const p = easeOutQuint((nowMs - startedAtMs) / durationMs);
   if (p >= 1) return line;
   const cells = ansiTextToCells(line);
   if (cells.length === 0) return line;
   const highlight = mixHexColor(
     currentTheme.color('primary'),
     currentTheme.color('glow'),
-    0.4,
+    0.45,
   );
-  const intensity = 1 - p;
-  const next = cells.map((cell) => {
+  // Smoothstep the remaining glow so the settle never pops off.
+  const intensity = smoothstep(1 - p);
+  const next = cells.map((cell, index) => {
     if (cell.char === ' ' && cell.style === undefined) return cell;
+    // Soft left→right sheen while the highlight decays.
+    const lead = cells.length <= 1 ? 1 : index / (cells.length - 1);
+    const local = clamp01(intensity * (0.85 + 0.15 * (1 - lead)));
     return {
       ...cell,
-      style: mixStyle(cell.style, highlight, intensity * 0.65, {
-        towardBold: intensity > 0.5,
+      style: mixStyle(cell.style, highlight, local * 0.7, {
+        towardBold: local > 0.55,
       }),
     };
   });
@@ -179,7 +203,7 @@ function applyHighlightSettle(
 }
 
 function mutedBlendHex(kind: TranscriptEntranceKind): string {
-  // Soft start color — brand-tinted for assistant/tool, mute for status.
+  // Soft start color — brand-tinted for assistant/tool/user, mute for status.
   switch (kind) {
     case 'assistant':
       return mixHexColor(currentTheme.color('background'), currentTheme.color('gradientStart'), 0.35);
@@ -187,6 +211,8 @@ function mutedBlendHex(kind: TranscriptEntranceKind): string {
       return mixHexColor(currentTheme.color('background'), currentTheme.color('primary'), 0.28);
     case 'thinking':
       return mixHexColor(currentTheme.color('background'), currentTheme.color('textDim'), 0.55);
+    case 'user':
+      return mixHexColor(currentTheme.color('background'), currentTheme.color('roleUser'), 0.32);
     case 'status':
     case 'notice':
       return mixHexColor(currentTheme.color('background'), currentTheme.color('accent'), 0.22);
@@ -203,6 +229,8 @@ function glowHex(kind: TranscriptEntranceKind): string {
       return currentTheme.color('primary');
     case 'thinking':
       return currentTheme.color('particle');
+    case 'user':
+      return currentTheme.color('roleUser');
     default:
       return currentTheme.color('accent');
   }
@@ -274,7 +302,9 @@ function stylesEqual(a: RendererCellStyle | undefined, b: RendererCellStyle | un
 
 /**
  * Fade a full rendered block from muted → full color over the entrance window.
- * Early rows lead slightly so the block appears to wash in top-to-bottom.
+ *
+ * Premium path: top-to-bottom cascade + left-to-right ink wash + soft glow veil.
+ * Early rows lead; later rows lag so the block appears to bloom rather than pop.
  */
 export function applyTranscriptEntrance(
   lines: readonly string[],
@@ -290,32 +320,40 @@ export function applyTranscriptEntrance(
 
   const mute = mutedBlendHex(kind);
   const glow = glowHex(kind);
+  const spark = currentTheme.color('glow');
   const rowCount = lines.length;
+  // Wider cascade on tall blocks (capped so short status lines stay snappy).
+  const cascadeSpan = Math.min(0.38, 0.18 + rowCount * 0.012);
 
   return lines.map((line, rowIndex) => {
     if (line.length === 0) return line;
-    // Top rows finish first; bottom rows lag a little for a wash-in feel.
-    const rowBias = rowCount <= 1 ? 0 : (rowIndex / (rowCount - 1)) * 0.22;
-    const rowProgress = easeOutCubic(clamp01((progress - rowBias) / Math.max(0.01, 1 - rowBias)));
+    // Top rows finish first; bottom rows lag for a wash-in cascade.
+    const rowBias = rowCount <= 1 ? 0 : (rowIndex / (rowCount - 1)) * cascadeSpan;
+    const rawRow = clamp01((progress - rowBias) / Math.max(0.01, 1 - rowBias));
+    const rowProgress = easeInOutCubic(rawRow);
     const cells = ansiTextToCells(line);
     if (cells.length === 0) return line;
 
-    // Leading edge shimmer while the block is still entering.
-    const edgeBoost = rowProgress < 0.92 ? 0.18 * (1 - rowProgress) : 0;
+    // Soft shimmer veil while the row is still blooming in.
+    const veil = rowProgress < 0.96 ? smoothstep(1 - rowProgress) : 0;
     const next = cells.map((cell, index) => {
       if (cell.char === ' ' && cell.style === undefined) return cell;
-      let intensity = rowProgress;
-      // Soft left-edge lead-in on the first couple of rows.
-      if (rowIndex <= 1 && edgeBoost > 0) {
-        const lead = clamp01(index / Math.max(1, cells.length - 1));
-        intensity = clamp01(intensity + edgeBoost * (1 - lead));
-      }
-      const toward = intensity < 0.55 ? mute : mixHexColor(mute, glow, 0.35);
+      const lead = cells.length <= 1 ? 1 : index / (cells.length - 1);
+      // Left-edge ink lead: early columns bloom slightly ahead of the rest.
+      const inkLead = 0.14 * veil * (1 - lead);
+      // Gentle horizontal sheen that travels with progress (not a hard bar).
+      const sheenWave = Math.sin((lead * 0.9 + progress * 1.4) * Math.PI) * 0.06 * veil;
+      const intensity = clamp01(rowProgress + inkLead + sheenWave);
+      const glowMix = smoothstep(intensity);
+      const toward =
+        intensity < 0.42
+          ? mute
+          : mixHexColor(mute, mixHexColor(glow, spark, 0.25), 0.28 + 0.45 * glowMix);
       return {
         ...cell,
         style: mixStyle(cell.style, toward, intensity, {
-          forceDim: intensity < 0.35,
-          towardBold: kind === 'tool' || kind === 'assistant',
+          forceDim: intensity < 0.32,
+          towardBold: (kind === 'tool' || kind === 'assistant') && intensity > 0.62,
         }),
       };
     });
@@ -326,6 +364,9 @@ export function applyTranscriptEntrance(
 /**
  * Soft brand glow on the live stream tail — the newest clusters stay brighter
  * so catch-up reads as ink flowing, not a static dump.
+ *
+ * Uses a smoothstep trail + optional breath so the tip feels alive without
+ * hard bold flicker across the whole span.
  */
 export function applyStreamTailGlow(
   lines: readonly string[],
@@ -334,6 +375,7 @@ export function applyStreamTailGlow(
   options: {
     readonly active?: boolean;
     readonly glowClusters?: number;
+    readonly nowMs?: number;
   } = {},
 ): string[] {
   if (lines.length === 0) return lines as string[];
@@ -353,15 +395,22 @@ export function applyStreamTailGlow(
   const glow = glowHex(kind);
   const spark = currentTheme.color('glow');
   const start = Math.max(0, cells.length - glowClusters);
+  const trailLen = Math.max(1, cells.length - start);
+  // Gentle breath (~2.2s) so the tip shimmers without looking like a hard blink.
+  const nowMs = options.nowMs ?? appearanceAnimationNow();
+  const breath = 0.5 + 0.5 * Math.sin((nowMs / 2200) * Math.PI * 2);
+
   const nextCells = cells.map((cell, index) => {
     if (index < start) return cell;
     if (cell.char === ' ' && cell.style === undefined) return cell;
-    const local = (index - start + 1) / Math.max(1, cells.length - start);
-    // Newest clusters closest to full brand glow + hot tip on the last few.
-    const tipBoost = local > 0.78 ? 0.32 : local > 0.55 ? 0.12 : 0;
-    const intensity = clamp01(0.22 + 0.78 * local * local + tipBoost);
+    const local = (index - start + 1) / trailLen;
+    // Smoothstep trail: soft heel, bright tip — no linear dump of intensity.
+    const trail = smoothstep(local);
+    const tipBoost = local > 0.82 ? 0.28 * breath : local > 0.6 ? 0.1 : 0;
+    const intensity = clamp01(0.16 + 0.74 * trail + tipBoost);
     const baseFg = cell.style?.fg ?? currentTheme.color('text');
-    const toward = local > 0.7 ? mixHexColor(glow, spark, 0.55) : glow;
+    const toward =
+      local > 0.72 ? mixHexColor(glow, spark, 0.45 + 0.2 * breath) : mixHexColor(baseFg, glow, 0.55);
     return {
       ...cell,
       style: {
@@ -369,7 +418,8 @@ export function applyStreamTailGlow(
         fg: mixHexColor(baseFg, toward, intensity),
         // Only the very tip goes bold. A lower threshold made whole spans
         // pop between bold/regular as the wave moved — visible flicker.
-        bold: local > 0.86 ? true : cell.style?.bold,
+        bold: local > 0.9 ? true : cell.style?.bold,
+        dim: local < 0.22 ? true : cell.style?.dim,
       },
     };
   });
@@ -397,7 +447,7 @@ export function polishTranscriptLines(
   const nowMs = options.nowMs ?? appearanceAnimationNow();
   let next = applyTranscriptEntrance(lines, options.startedAtMs, kind, appearance, nowMs);
   if (options.streaming === true) {
-    next = applyStreamTailGlow(next, kind, appearance, { active: true });
+    next = applyStreamTailGlow(next, kind, appearance, { active: true, nowMs });
   }
   return next;
 }

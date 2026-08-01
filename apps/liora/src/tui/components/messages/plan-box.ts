@@ -19,10 +19,15 @@ import {
 import chalk from 'chalk';
 
 import {
+  appearanceAnimationNow,
   getActiveAppearancePreferences,
   renderParticleRail,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
+import {
+  isTranscriptEntranceActive,
+  polishTranscriptLines,
+} from '#/tui/features/transcript/transcript-entrance';
 
 import { toTerminalHyperlink } from '#/utils/terminal-hyperlink';
 
@@ -43,6 +48,7 @@ export class PlanBoxComponent implements Component {
   private readonly status: PlanBoxOptions['status'];
   private cachedWidth: number | undefined;
   private cachedLines: string[] | undefined;
+  private readonly entranceStartedAtMs = appearanceAnimationNow();
 
   constructor(
     plan: string,
@@ -100,13 +106,21 @@ export class PlanBoxComponent implements Component {
     const lines = frame.map((line) => indent + line);
 
     const fitted = lines.map((line) => truncateToWidth(line, safeWidth, '…'));
+    let out: string[];
     if (animated && safeWidth >= 28) {
       const rail = renderParticleRail(safeWidth, appearance, 'plan');
-      return ['', rail, ...fitted, rail];
+      out = ['', rail, ...fitted, rail];
+    } else {
+      this.cachedWidth = width;
+      this.cachedLines = fitted;
+      out = fitted;
     }
-    this.cachedWidth = width;
-    this.cachedLines = fitted;
-    return fitted;
+    if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) return out;
+    return polishTranscriptLines(out, {
+      startedAtMs: this.entranceStartedAtMs,
+      kind: 'notice',
+      appearance,
+    });
   }
 
   private buildTitle(horzLen: number): string {

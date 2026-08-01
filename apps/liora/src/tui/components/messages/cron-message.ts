@@ -6,11 +6,16 @@ import { currentTheme } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
 import type { CronTranscriptData } from '#/tui/types';
 import {
+  appearanceAnimationNow,
   getActiveAppearancePreferences,
   renderPremiumHeadline,
   renderSpectacularText,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
+import {
+  isTranscriptEntranceActive,
+  polishTranscriptLines,
+} from '#/tui/features/transcript/transcript-entrance';
 
 export class CronMessageComponent implements Component {
   private readonly spacer = new Spacer(1);
@@ -19,6 +24,7 @@ export class CronMessageComponent implements Component {
   private readonly detail: string | undefined;
   private readonly promptText: Text;
   private readonly prompt: string;
+  private readonly entranceStartedAtMs = appearanceAnimationNow();
 
   constructor(
     prompt: string,
@@ -86,7 +92,12 @@ export class CronMessageComponent implements Component {
       lines.push(`${continuationIndent}${line}`);
     }
 
-    return lines;
+    if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) return lines;
+    return polishTranscriptLines(lines, {
+      startedAtMs: this.entranceStartedAtMs,
+      kind: 'notice',
+      appearance,
+    });
   }
 }
 

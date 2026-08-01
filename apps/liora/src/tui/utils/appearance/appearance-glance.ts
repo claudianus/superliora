@@ -33,9 +33,9 @@ export const APPEARANCE_MOTION_TIP =
 export const APPEARANCE_BACKGROUND_TIP =
   'Background: canvas-background on|off · terminal-background off|session · terminal-palette on|off · transcript-detail minimal|compact|standard|full · /appearance or /transcript for live projection.';
 
-/** ChoicePicker tip — persist paths; this Settings panel is read-only glance. */
+/** ChoicePicker tip — menu actions + slash paths persist the same prefs. */
 export const APPEARANCE_CHANGE_TIP =
-  'Change: /appearance <key> <value> persists tui.toml · Settings → Theme for palette · Settings → Visual Quality for harness PQ toggle · this panel is read-only status.';
+  'Change: Settings → Appearance pickers persist tui.toml · /appearance <key> <value> · /transcript for density · Settings → Theme for palette · Settings → Visual Quality for harness PQ toggle.';
 
 /** Resolve the palette currently painted by the theme engine singleton. */
 export function resolveLivePaletteKind(palette: ColorPalette): LivePaletteKind {
@@ -95,8 +95,8 @@ export function formatAppearanceBackgroundLine(glance: AppearanceSettingsGlance)
 
 export function buildAppearanceSettingsLines(glance: AppearanceSettingsGlance): readonly string[] {
   return [
-    '── Appearance (read-only) ───────────────────',
-    'Motion, density, and background — tui.toml / /appearance.',
+    '── Appearance ───────────────────────────────',
+    'Motion, density, and background — menu pickers or /appearance.',
     '',
     '── Session (live) ───────────────────────────',
     formatLiveThemeLine(glance),
@@ -104,10 +104,10 @@ export function buildAppearanceSettingsLines(glance: AppearanceSettingsGlance): 
     formatAppearanceBackgroundLine(glance),
     '',
     '── Change ───────────────────────────────────',
+    '  Settings → Appearance         live pickers (persist tui.toml)',
     '  Settings → Theme              palette picker',
-    '  /theme <name|import …>        switch without Settings',
+    '  /transcript                   density picker',
     '  /appearance <key> <value>     profile · density · particles · …',
-    '  /appearance                   status notice (same prefs)',
     '',
     'Theme name reads appState; live palette reads currentTheme at render time.',
   ];

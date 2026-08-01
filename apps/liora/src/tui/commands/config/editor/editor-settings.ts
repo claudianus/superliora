@@ -1,5 +1,5 @@
 /**
- * Settings → Editor — ChoicePicker + live glance (SSOT §9.2).
+ * Settings → Editor — live glance + external editor picker (SSOT §9.2).
  */
 
 import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
@@ -13,12 +13,18 @@ import {
 } from '#/tui/utils/editor/editor-glance';
 import { requestTUILayoutRender } from '../../../utils/render/frame-render';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
+import { showEditorPicker } from '../appearance/editor-theme';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 
 export { EDITOR_BASH_TIP, EDITOR_EXTERNAL_TIP, EDITOR_PERSIST_TIP };
 
 export function showEditorSettings(host: SlashCommandHost): void {
+  const editor = host.state.appState.editorCommand;
+  const editorLabel =
+    editor === null || editor === undefined || editor.length === 0
+      ? 'auto-detect'
+      : editor;
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
@@ -30,6 +36,11 @@ export function showEditorSettings(host: SlashCommandHost): void {
           value: 'status',
           label: 'Editor status',
           description: 'Live inputMode · external editor · VISUAL/EDITOR env.',
+        },
+        {
+          value: 'change-editor',
+          label: `Change external editor · ${editorLabel}`,
+          description: 'Searchable picker — $VISUAL / $EDITOR or a fixed command.',
         },
         {
           value: 'tip-external',
@@ -51,6 +62,10 @@ export function showEditorSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
         if (value === 'status') {
           showEditorSettingsPanel(host);
+          return;
+        }
+        if (value === 'change-editor') {
+          showEditorPicker(host);
           return;
         }
         if (value === 'tip-external') {

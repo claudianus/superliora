@@ -6,6 +6,7 @@ import {
   APPEARANCE_MOTION_TIP,
   APPEARANCE_THEME_TIP,
   showAppearanceSettings,
+  showTranscriptDetailPicker,
 } from '#/tui/commands/config/appearance/appearance-settings';
 import type { ChoicePickerComponent } from '#/tui/components/dialogs/picker/choice-picker';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
@@ -31,6 +32,9 @@ function makeHost(options: {
     closeCenterModal: vi.fn(),
     restoreEditor: vi.fn(),
     showStatus: vi.fn(),
+    setAppState: vi.fn(),
+    setTranscriptDetail: vi.fn(),
+    track: vi.fn(),
   } as unknown as SlashCommandHost;
 }
 
@@ -47,12 +51,12 @@ describe('appearance settings tips', () => {
     expect(APPEARANCE_THEME_TIP).toContain('Settings → Theme');
     expect(APPEARANCE_MOTION_TIP).toContain('/appearance');
     expect(APPEARANCE_BACKGROUND_TIP).toContain('transcript-detail');
-    expect(APPEARANCE_CHANGE_TIP).toContain('read-only');
+    expect(APPEARANCE_CHANGE_TIP).toContain('Settings → Appearance');
   });
 });
 
 describe('showAppearanceSettings', () => {
-  it('mounts ChoicePicker with status and read-only tip actions', () => {
+  it('mounts ChoicePicker with live actions and tip rows', () => {
     const host = makeHost();
     showAppearanceSettings(host);
     const options = (
@@ -62,6 +66,16 @@ describe('showAppearanceSettings', () => {
     ).opts.options;
     expect(options.map((o) => o.value)).toEqual([
       'status',
+      'theme',
+      'profile',
+      'density',
+      'transcript-detail',
+      'particles',
+      'animation-fps',
+      'timestamps',
+      'canvas-background',
+      'terminal-background',
+      'terminal-palette',
       'tip-theme',
       'tip-motion',
       'tip-background',
@@ -82,6 +96,30 @@ describe('showAppearanceSettings', () => {
     expect(host.showStatus).toHaveBeenCalledWith(APPEARANCE_CHANGE_TIP, 'info');
   });
 
+  it('opens a transcript detail picker with current level marked', () => {
+    const host = makeHost({
+      appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, transcriptDetail: 'compact' },
+    });
+    showAppearanceSettings(host);
+    selectAppearanceAction(host, 'transcript-detail');
+    expect(host.mountCenterModal).toHaveBeenCalledTimes(2);
+    const nested = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[1]?.[0] as {
+      opts: {
+        title: string;
+        currentValue?: string;
+        options: readonly { value: string }[];
+      };
+    };
+    expect(nested.opts.title).toBe('Transcript detail');
+    expect(nested.opts.currentValue).toBe('compact');
+    expect(nested.opts.options.map((o) => o.value)).toEqual([
+      'minimal',
+      'compact',
+      'standard',
+      'full',
+    ]);
+  });
+
   it('renders live theme from appState and currentTheme', () => {
     const previousPalette = currentTheme.palette;
     currentTheme.setPalette(lightColors);
@@ -97,5 +135,24 @@ describe('showAppearanceSettings', () => {
     expect(text).toContain('── Session (live) ─');
 
     currentTheme.setPalette(previousPalette);
+  });
+});
+
+describe('showTranscriptDetailPicker', () => {
+  it('mounts a four-level density picker', () => {
+    const host = makeHost({
+      appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, transcriptDetail: 'full' },
+    });
+    showTranscriptDetailPicker(host);
+    const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as {
+      opts: { currentValue?: string; options: readonly { value: string }[] };
+    };
+    expect(picker.opts.currentValue).toBe('full');
+    expect(picker.opts.options.map((o) => o.value)).toEqual([
+      'minimal',
+      'compact',
+      'standard',
+      'full',
+    ]);
   });
 });

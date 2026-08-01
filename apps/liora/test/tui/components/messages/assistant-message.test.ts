@@ -1,9 +1,9 @@
 import { Markdown, visibleWidth } from '#/tui/renderer';
 import chalk from 'chalk';
-import * as cliHighlight from 'cli-highlight';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AssistantMessageComponent } from '#/tui/components/messages/assistant-message';
+import * as codeHighlight from '#/tui/components/media/code-highlight';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { createMarkdownTheme } from '#/tui/theme/pi-tui-theme';
@@ -16,14 +16,6 @@ import {
 import { TURN_BOUNDARY_CUE_MS } from '#/tui/features/transcript/transcript-entrance';
 
 import { captureProcessWrite } from '../../../helpers/process';
-
-vi.mock('cli-highlight', async () => {
-  const actual = await vi.importActual<typeof import('cli-highlight')>('cli-highlight');
-  return {
-    ...actual,
-    highlight: vi.fn(actual.highlight),
-  };
-});
 
 function strip(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
@@ -135,17 +127,20 @@ describe('AssistantMessageComponent', () => {
   });
 
   it('skips synchronous syntax highlighting in transient markdown themes', () => {
-    const highlightSpy = vi.mocked(cliHighlight.highlight);
-    highlightSpy.mockClear();
-    const streamingTheme = createMarkdownTheme({ transient: true });
-    const finalTheme = createMarkdownTheme();
-    const code = 'const x = 1';
+    const highlightSpy = vi.spyOn(codeHighlight, 'highlightLines');
+    try {
+      const streamingTheme = createMarkdownTheme({ transient: true });
+      const finalTheme = createMarkdownTheme();
+      const code = 'const x = 1';
 
-    expect(streamingTheme.highlightCode?.(code, 'typescript')).toEqual([code]);
-    expect(highlightSpy).not.toHaveBeenCalled();
+      expect(streamingTheme.highlightCode?.(code, 'typescript')).toEqual([code]);
+      expect(highlightSpy).not.toHaveBeenCalled();
 
-    finalTheme.highlightCode?.(code, 'typescript');
-    expect(highlightSpy).toHaveBeenCalled();
+      finalTheme.highlightCode?.(code, 'typescript');
+      expect(highlightSpy).toHaveBeenCalled();
+    } finally {
+      highlightSpy.mockRestore();
+    }
   });
 
   it('shows a pulsing caret at the end of the content while streaming', () => {
@@ -163,7 +158,9 @@ describe('AssistantMessageComponent', () => {
       component.updateContent('hello world', { transient: true });
       const lines = component.render(40).map(strip);
       const lastContent = lines.filter((line) => line.trim().length > 0).at(-1) ?? '';
-      expect(lastContent).toContain('▍');
+      // Kinetic streaming caret: dual micro-trail + block glyph (▌).
+      expect(lastContent).toContain('▌');
+      expect(lastContent).toContain('hello world');
     } finally {
       for (const [key, value] of Object.entries(previousEnv)) {
         if (value === undefined) delete process.env[key];

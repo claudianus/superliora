@@ -13,6 +13,7 @@ import {
 } from '#/tui/features/transcript/transcript-entrance';
 
 import { formatBashOutputForDisplay, sanitizeShellOutput } from '#/tui/utils/shell-output';
+import { formatTranscriptOutput } from '#/tui/utils/transcript/transcript-output-format';
 
 const RUNNING_TAIL_LINES = 5;
 // Cap the live running buffer so a command that spews output for minutes can't
@@ -134,7 +135,15 @@ export class ShellRunComponent extends Container {
           tail: true,
         });
         extra = preview.hiddenLineCount;
-        body = preview.lines.map((line) => `  ${dim(line)}`).join('\n');
+        // Pretty-print the visible tail (JSON / logs / paths) while the
+        // command is still running — same formatter as the finished view.
+        body = formatTranscriptOutput(preview.lines.join('\n'), {
+          isError: false,
+          mode: 'bash',
+        })
+          .split('\n')
+          .map((line) => `  ${line}`)
+          .join('\n');
       }
       const appearance = getActiveAppearancePreferences();
       const timingRaw = `${extra > 0 ? `+${extra} lines ` : ''}(${elapsed}s)`;

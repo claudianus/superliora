@@ -18,10 +18,15 @@ import { currentTheme } from '#/tui/theme';
 import type { ImageAttachment } from '#/tui/utils/image/image-attachment-store';
 import { isRenderCacheEnabled } from '#/tui/utils/render/render-cache';
 import {
+  appearanceAnimationNow,
   getActiveAppearancePreferences,
   renderSpectacularText,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
+import {
+  isTranscriptEntranceActive,
+  polishTranscriptLines,
+} from '#/tui/features/transcript/transcript-entrance';
 
 export class UserMessageComponent implements Component {
   private text: string;
@@ -29,6 +34,7 @@ export class UserMessageComponent implements Component {
   private readonly timestamp?: number;
   private spacerComponent: Spacer;
   private imageThumbnails: ImageThumbnail[];
+  private readonly entranceStartedAtMs = appearanceAnimationNow();
 
   private readonly renderCache = new RendererWidthRenderCache();
   private lastTimestampMarker = '';
@@ -64,7 +70,12 @@ export class UserMessageComponent implements Component {
       this.lastTimestampMarker = timestampMarker;
     }
 
-    return this.renderCache.render({
+    // While the entrance wash is active, skip the width cache so each ambient
+    // tick can re-polish the fade (settled messages stay cache-stable).
+    const entranceActive = isTranscriptEntranceActive(this.entranceStartedAtMs);
+    if (entranceActive) this.markRenderDirty();
+
+    const lines = this.renderCache.render({
       width: safeWidth,
       isCacheEnabled: isRenderCacheEnabled,
       render: () => {
@@ -88,39 +99,50 @@ export class UserMessageComponent implements Component {
         });
         const continuationPrefix = ' '.repeat(bulletWidth);
 
-        const lines: string[] = [];
+        const out: string[] = [];
 
         // Spacer
         for (const line of this.spacerComponent.render(safeWidth)) {
-          lines.push(line);
+          out.push(line);
         }
 
         // Text is re-dyed from the current theme; invalidate() (theme change)
         // clears the render cache so the new colours are picked up.
         const coloredText = currentTheme.boldFg('roleUser', this.text);
         const textLines = new Text(coloredText, 0, 0).render(contentWidth);
-        lines.push(...renderRendererTranscriptLineBlock({
-          width: safeWidth,
-          prefix: headerPrefix,
-          continuationPrefix,
-          lines: textLines,
-          truncateMark: '…',
-        }));
+        out.push(
+          ...renderRendererTranscriptLineBlock({
+            width: safeWidth,
+            prefix: headerPrefix,
+            continuationPrefix,
+            lines: textLines,
+            truncateMark: '…',
+          }),
+        );
 
         // Images — indented to align with text after the bullet
         for (const thumbnail of this.imageThumbnails) {
           const imageLines = thumbnail.render(contentWidth);
-          lines.push(...renderRendererTranscriptLineBlock({
-            width: safeWidth,
-            prefix: continuationPrefix,
-            continuationPrefix,
-            lines: imageLines,
-            truncateMark: '…',
-            preserveLine: isImageLine,
-          }));
+          out.push(
+            ...renderRendererTranscriptLineBlock({
+              width: safeWidth,
+              prefix: continuationPrefix,
+              continuationPrefix,
+              lines: imageLines,
+              truncateMark: '…',
+              preserveLine: isImageLine,
+            }),
+          );
         }
-        return lines;
+        return out;
       },
+    });
+
+    if (!entranceActive) return lines;
+    return polishTranscriptLines(lines, {
+      startedAtMs: this.entranceStartedAtMs,
+      kind: 'user',
+      appearance: getActiveAppearancePreferences(),
     });
   }
 

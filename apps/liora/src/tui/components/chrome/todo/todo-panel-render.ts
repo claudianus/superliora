@@ -12,6 +12,7 @@ import {
   visibleWidth,
   wrapTextWithAnsi,
 } from '#/tui/renderer';
+import sliceAnsi from 'slice-ansi';
 import {
   GOAL_DOT,
   PENDING_GLYPH,
@@ -50,6 +51,12 @@ export const BOARD_MIN_WIDTH = 72;
 const BOARD_COLUMN_MIN_WIDTH = 16;
 export const BOARD_INDENT = '  ';
 const BOARD_SEPARATOR = ' │ ';
+/** Gap between loop copies so the title can breathe before repeating. */
+const BOARD_MARQUEE_GAP = '   ·   ';
+/** Visual columns per second for the silk marquee loop. */
+const BOARD_MARQUEE_CPS = 5.5;
+/** Soft hold at the head of a card before the loop restarts (fraction of cycle). */
+const BOARD_MARQUEE_HOLD = 0.18;
 const STALE_TOOL_CALLS = 2;
 
 /**
@@ -152,6 +159,7 @@ function renderBoard(
         padCell(
           renderLaneHeader(lane.label, lane.todos.length, lane.status, laneFlashes[lane.status]),
           columnWidth,
+          { seed: `lane:${lane.status}` },
         ),
       )
       .join(separator),
@@ -166,16 +174,20 @@ function renderBoard(
         .map((lane) => {
           const todo = lane.todos[row];
           if (todo === undefined) {
-            return padCell(currentTheme.fg('textMuted', 'No cards'), columnWidth);
+            return padCell(currentTheme.fg('textMuted', 'No cards'), columnWidth, {
+              seed: `empty:${lane.status}:${String(row)}`,
+            });
           }
           const cue = motions.get(todo.title);
           const indent = motionSlideIndent(cue);
           const cell = renderCell(todo, highlights.get(todo.title), changedAtMs, cue);
           // The slide indent borrows from the cell's own right padding, so
-          // neighbouring columns never shift.
+          // neighbouring columns never shift. Overflow titles silk-scroll
+          // inside the remaining width instead of hard-clipping.
           return indent === 0
-            ? padCell(cell, columnWidth)
-            : ' '.repeat(indent) + padCell(cell, columnWidth - indent);
+            ? padCell(cell, columnWidth, { seed: todo.title })
+            : ' '.repeat(indent) +
+                padCell(cell, columnWidth - indent, { seed: todo.title });
         })
         .join(separator),
     );
@@ -323,9 +335,106 @@ function renderWrappedCell(
   });
 }
 
-function padCell(content: string, width: number): string {
-  const truncated = truncateToWidth(content, width, '…');
-  return truncated + ' '.repeat(Math.max(0, width - visibleWidth(truncated)));
+/**
+ * Fit a board cell to a fixed column width.
+ *
+ * Short titles pad with spaces. Long titles run a soft continuous marquee
+ * (hold → scroll → loop) so narrow terminals never permanently hide the
+ * rest of a card. Ambient-off profiles fall back to a static ellipsis.
+ */
+function padCell(
+  content: string,
+  width: number,
+  options: { readonly seed?: string; readonly nowMs?: number } = {},
+): string {
+  if (width <= 0) return '';
+  const contentWidth = visibleWidth(content);
+  if (contentWidth <= width) {
+    return content + ' '.repeat(width - contentWidth);
+  }
+
+  const appearance = getActiveAppearancePreferences();
+  if (!shouldRenderAmbientEffects(appearance) || width < 6) {
+    const truncated = truncateToWidth(content, width, '…');
+    return truncated + ' '.repeat(Math.max(0, width - visibleWidth(truncated)));
+  }
+
+  return marqueeFitAnsi(
+    content,
+    width,
+    options.nowMs ?? appearanceAnimationNow(),
+    options.seed ?? content,
+  );
+}
+
+/**
+ * Continuous silk marquee for ANSI-styled board cells.
+ * Phase is seeded per card so neighbouring columns don't scroll in lockstep.
+ */
+export function marqueeFitAnsi(
+  content: string,
+  width: number,
+  nowMs: number,
+  seed: string,
+): string {
+  if (width <= 0) return '';
+  const contentWidth = visibleWidth(content);
+  if (contentWidth <= width) {
+    return content + ' '.repeat(width - contentWidth);
+  }
+
+  const gap = currentTheme.fg('textMuted', BOARD_MARQUEE_GAP);
+  const loop = content + gap;
+  const loopWidth = Math.max(1, visibleWidth(loop));
+  // Longer titles get a longer cycle so the scroll stays readable.
+  const travelMs = (loopWidth / BOARD_MARQUEE_CPS) * 1000;
+  const cycleMs = Math.max(3200, travelMs / Math.max(0.2, 1 - BOARD_MARQUEE_HOLD));
+  const phaseMs = hashSeed(seed) % cycleMs;
+  const local = ((nowMs + phaseMs) % cycleMs) / cycleMs;
+
+  // Soft head hold, then ease into the loop so the start is always readable.
+  let t: number;
+  if (local < BOARD_MARQUEE_HOLD) {
+    t = 0;
+  } else {
+    const scrollT = (local - BOARD_MARQUEE_HOLD) / (1 - BOARD_MARQUEE_HOLD);
+    // ease-in-out cubic for the travel portion
+    t = scrollT < 0.5
+      ? 4 * scrollT * scrollT * scrollT
+      : 1 - ((-2 * scrollT + 2) ** 3) / 2;
+  }
+
+  const offset = Math.floor(t * loopWidth) % loopWidth;
+  // Double the loop so a single width-window can wrap the seam.
+  const window = sliceAnsi(`${loop}${loop}`, offset, offset + width);
+  const windowWidth = visibleWidth(window);
+  return windowWidth >= width
+    ? truncateToWidth(window, width)
+    : window + ' '.repeat(width - windowWidth);
+}
+
+function hashSeed(seed: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i += 1) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/** True when the board grid is active and at least one card title overflows its column. */
+export function boardNeedsMarquee(todos: readonly TodoItem[], width: number): boolean {
+  if (width < BOARD_MIN_WIDTH || todos.length === 0) return false;
+  if (!shouldRenderAmbientEffects(getActiveAppearancePreferences())) return false;
+  const availableWidth = Math.max(1, width - visibleWidth(BOARD_INDENT));
+  const columnWidth = Math.floor(
+    (availableWidth - visibleWidth(BOARD_SEPARATOR) * (TODO_LANES.length - 1)) /
+      TODO_LANES.length,
+  );
+  if (columnWidth < BOARD_COLUMN_MIN_WIDTH) return false;
+  // Badge + marker + space ≈ 4 visual cells of chrome inside each card.
+  const titleBudget = Math.max(4, columnWidth - 4);
+  return todos.some((todo) => visibleWidth(todo.title) > titleBudget);
 }
 
 function statusMarker(status: TodoStatus): string {

@@ -72,6 +72,8 @@ describe('showMediaSettings', () => {
       .options;
     expect(options.map((o) => o.value)).toEqual([
       'status',
+      'change-policy',
+      'change-model',
       'tip-analyze',
       'tip-path',
       'tip-block',

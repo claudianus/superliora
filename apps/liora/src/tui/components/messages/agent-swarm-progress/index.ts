@@ -10,6 +10,14 @@ import {
 } from '#/tui/components/messages/agent-swarm-progress/member-events';
 import { AgentSwarmProgressWarRoom } from '#/tui/components/messages/agent-swarm-progress/war-room';
 import { currentTheme } from '#/tui/theme';
+import {
+  appearanceAnimationNow,
+  getActiveAppearancePreferences,
+} from '#/tui/features/appearance/appearance-effects';
+import {
+  isTranscriptEntranceActive,
+  polishTranscriptLines,
+} from '#/tui/features/transcript/transcript-entrance';
 import type { ColorPalette } from '#/tui/theme/colors';
 import {
   summarizeSnapshots,
@@ -89,6 +97,8 @@ import type {
 import type { WarRoomExpertView } from '#/tui/utils/war-room-experts';
 
 export class AgentSwarmProgressComponent implements Component {
+  private readonly entranceStartedAtMs = appearanceAnimationNow();
+
   private readonly progressEstimator = new AgentSwarmProgressEstimator();
   private readonly runtime: AgentSwarmProgressMemberRuntime;
   private readonly memberEvents: AgentSwarmProgressMemberEvents;
@@ -439,7 +449,13 @@ export class AgentSwarmProgressComponent implements Component {
       nowMs,
     );
     this.startAnimationIfNeeded();
-    return indentAgentSwarmProgressLines(lines, outerWidth);
+    const __polishedLines = indentAgentSwarmProgressLines(lines, outerWidth);
+    if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) return __polishedLines;
+    return polishTranscriptLines(__polishedLines, {
+      startedAtMs: this.entranceStartedAtMs,
+      kind: 'tool',
+      appearance: getActiveAppearancePreferences(),
+    });
   }
 
   private layoutRenderInput(): AgentSwarmProgressLayoutRenderInput {

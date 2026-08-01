@@ -35,6 +35,7 @@ import {
   isTranscriptEntranceActive,
   polishTranscriptLines,
 } from '#/tui/features/transcript/transcript-entrance';
+import { formatThinkingText } from '#/tui/utils/transcript/transcript-output-format';
 
 export type ThinkingRenderMode = 'live' | 'finalized';
 
@@ -87,7 +88,9 @@ export class ThinkingComponent implements Component {
   }
 
   private styled(text: string): string {
-    return currentTheme.italicFg('textDim', text);
+    // Prose-first italic base, with light lifts for fences / headings / lists
+    // so long reasoning stays scannable without shouting.
+    return formatThinkingText(text);
   }
 
   finalize(): void {

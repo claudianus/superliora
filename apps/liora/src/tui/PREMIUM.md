@@ -234,6 +234,9 @@ alongside the live `/status` PTY chrome slice (live `/ops` PTY path remains a fu
 | Ambient effects | `features/appearance/appearance-effects.ts` → `renderPulseText` / `renderShimmerPrefix` / `renderParticleRail` |
 | Settle flashes (change → rest on a final tone) | `features/appearance/appearance-effects.ts` → `renderSettleFlash` / `renderToneSettleFlash` / `renderStatusFlashLine` |
 | Entrance highlights (tool headers, turn boundaries) | `features/transcript/transcript-entrance.ts` → `applyToolHeaderEntrance` / `applyTurnBoundaryCue` |
+| Soft fade-in wash (assistant/user/status/markers) | `polishTranscriptLines` / `applyTranscriptEntrance` — quint ease, cascade + ink lead |
+| Live stream tail glow | `applyStreamTailGlow` — smoothstep trail + gentle breath on newest clusters |
+| Smooth type-on catch-up | `utils/streaming/streaming-text-reveal.ts` + `constant/streaming.ts` — ease-in-out CPS curve |
 | Staged line reveal (Write/Edit previews) | `utils/streaming-text-reveal.ts` → `computeStagedLineReveal` |
 | Adaptive streaming flush schedule | `utils/streaming-flush-schedule.ts` → `nextStreamingFlushDelay` |
 

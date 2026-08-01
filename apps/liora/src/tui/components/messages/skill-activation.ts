@@ -17,11 +17,16 @@ import { Container, Text, Spacer } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import type { SkillActivationTrigger } from '#/tui/types';
 import {
+  appearanceAnimationNow,
   getActiveAppearancePreferences,
   renderPremiumHeadline,
   renderPulseText,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
+import {
+  isTranscriptEntranceActive,
+  polishTranscriptLines,
+} from '#/tui/features/transcript/transcript-entrance';
 import { renderCacheEpoch } from '#/tui/utils/render/render-cache';
 
 const ARGS_PREVIEW_MAX = 200;
@@ -32,6 +37,7 @@ export class SkillActivationComponent extends Container {
   private name: string;
   private args?: string;
   ambientAnimationEpoch = -1;
+  private readonly entranceStartedAtMs = appearanceAnimationNow();
 
   constructor(
     name: string,
@@ -79,7 +85,13 @@ export class SkillActivationComponent extends Container {
         }
       }
     }
-    return super.render(width);
+    const lines = super.render(width);
+    if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) return lines;
+    return polishTranscriptLines(lines, {
+      startedAtMs: this.entranceStartedAtMs,
+      kind: 'notice',
+      appearance: getActiveAppearancePreferences(),
+    });
   }
 
   private renderHead(): string {

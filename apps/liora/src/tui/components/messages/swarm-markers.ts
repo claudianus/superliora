@@ -3,15 +3,22 @@ import { truncateToWidth, type Component } from '#/tui/renderer';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import {
+  appearanceAnimationNow,
   getActiveAppearancePreferences,
   renderPremiumHeadline,
   renderPulseGlyph,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
+import {
+  isTranscriptEntranceActive,
+  polishTranscriptLines,
+} from '#/tui/features/transcript/transcript-entrance';
 
 export type SwarmModeMarkerState = 'active' | 'inactive' | 'ended';
 
 export class SwarmModeMarkerComponent implements Component {
+  private readonly entranceStartedAtMs = appearanceAnimationNow();
+
   constructor(private readonly state: SwarmModeMarkerState) {}
 
   invalidate(): void {}
@@ -30,7 +37,13 @@ export class SwarmModeMarkerComponent implements Component {
     const label = animated
       ? renderPremiumHeadline(swarmMarkerLabel(this.state), `swarm:label:${this.state}`, appearance)
       : currentTheme.boldFg(token, swarmMarkerLabel(this.state));
-    return ['', truncateToWidth(marker + label, safeWidth, '…')];
+    const lines = ['', truncateToWidth(marker + label, safeWidth, '…')];
+    if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) return lines;
+    return polishTranscriptLines(lines, {
+      startedAtMs: this.entranceStartedAtMs,
+      kind: 'status',
+      appearance,
+    });
   }
 }
 

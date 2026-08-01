@@ -66,6 +66,8 @@ export function toKosongProviderConfig(
           providerValue(provider.baseUrl, provider.env, 'OPENAI_BASE_URL', 'provider base_url'),
         apiKey: providerApiKey(provider),
         reasoningKey,
+        // Sticky prompt-cache routing for OpenAI-compatible endpoints (xAI Grok).
+        generationKwargs: { prompt_cache_key: promptCacheKey },
         ...defaultHeadersField(openaiProviderHeaders(provider, model)),
       };
     case 'kimi':
@@ -93,6 +95,7 @@ export function toKosongProviderConfig(
           firstCredentialBaseUrlWhenPrimary(provider) ??
           providerValue(provider.baseUrl, provider.env, 'OPENAI_BASE_URL', 'provider base_url'),
         apiKey: providerApiKey(provider),
+        generationKwargs: { prompt_cache_key: promptCacheKey },
         ...defaultHeadersField(provider.customHeaders),
       };
     case 'vertexai': {

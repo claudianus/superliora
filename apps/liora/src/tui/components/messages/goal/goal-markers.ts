@@ -14,11 +14,16 @@ import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import type { ColorToken } from '#/tui/theme';
 import {
+  appearanceAnimationNow,
   getActiveAppearancePreferences,
   renderPremiumHeadline,
   renderPulseText,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
+import {
+  isTranscriptEntranceActive,
+  polishTranscriptLines,
+} from '#/tui/features/transcript/transcript-entrance';
 
 const HEAD_INDENT = '  ';
 const DETAIL_INDENT = '    ';
@@ -40,6 +45,7 @@ export class GoalMarkerComponent implements Component {
   private readonly expandable: boolean;
   private readonly indent: string;
   private readonly leadingBlank: boolean;
+  private readonly entranceStartedAtMs = appearanceAnimationNow();
 
   constructor(
     private readonly headline: string,
@@ -72,15 +78,20 @@ export class GoalMarkerComponent implements Component {
       ? renderPremiumHeadline(this.headline, `goal:${this.headline}`, appearance)
       : currentTheme.fg(this.textToken, this.headline);
     const hasDetail = this.detail !== undefined && this.detail.length > 0;
-    if (!hasDetail) return this.clampToWidth([`${this.indent}${dot} ${head}`], width);
+    if (!hasDetail) {
+      return this.polish(this.clampToWidth([`${this.indent}${dot} ${head}`], width), appearance);
+    }
 
     if (!this.expandable) {
-      return this.clampToWidth([`${this.indent}${dot} ${head}`], width);
+      return this.polish(this.clampToWidth([`${this.indent}${dot} ${head}`], width), appearance);
     }
     if (!this.expanded) {
-      return this.clampToWidth(
-        [`${this.indent}${dot} ${head} ${currentTheme.fg('textMuted', '(ctrl+o)')}`],
-        width,
+      return this.polish(
+        this.clampToWidth(
+          [`${this.indent}${dot} ${head} ${currentTheme.fg('textMuted', '(ctrl+o)')}`],
+          width,
+        ),
+        appearance,
       );
     }
     const out = [`${this.indent}${dot} ${head}`];
@@ -88,7 +99,16 @@ export class GoalMarkerComponent implements Component {
     for (const line of wrap(this.detail, wrapWidth)) {
       out.push(DETAIL_INDENT + currentTheme.fg('textDim', line));
     }
-    return this.clampToWidth(out, width);
+    return this.polish(this.clampToWidth(out, width), appearance);
+  }
+
+  private polish(lines: string[], appearance: ReturnType<typeof getActiveAppearancePreferences>): string[] {
+    if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) return lines;
+    return polishTranscriptLines(lines, {
+      startedAtMs: this.entranceStartedAtMs,
+      kind: 'status',
+      appearance,
+    });
   }
 
   private clampToWidth(lines: string[], width: number): string[] {

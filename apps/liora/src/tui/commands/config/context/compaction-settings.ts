@@ -22,6 +22,9 @@ import {
   type CompactionThresholdGlance,
 } from '#/tui/utils/compaction/compaction-glance';
 
+import { handleCompactCommand } from '../plan/plan';
+import { showContextWorkingSetPicker } from './context';
+
 import type { SlashCommandHost } from '../../hub/dispatch';
 
 export { COMPACTION_KEEP_TOKENS_TIP, COMPACTION_MICRO_TIP, COMPACTION_THRESHOLD_TIP };
@@ -42,6 +45,16 @@ export function showCompactionSettings(host: SlashCommandHost): void {
           label: 'Compaction status',
           description:
             'Live archive · last compact · context usage · micro-compaction · threshold glance.',
+        },
+        {
+          value: 'run-compact',
+          label: 'Run /compact now',
+          description: 'Manual context reclaim for the active session (requires session).',
+        },
+        {
+          value: 'working-set',
+          label: 'Change working-set…',
+          description: 'Soft/async caps that feed compaction thresholds.',
         },
         {
           value: 'tip-threshold',
@@ -66,6 +79,14 @@ export function showCompactionSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
         if (value === 'status') {
           void showCompactionSettingsPanel(host);
+          return;
+        }
+        if (value === 'run-compact') {
+          void handleCompactCommand(host, '');
+          return;
+        }
+        if (value === 'working-set') {
+          void showContextWorkingSetPicker(host);
           return;
         }
         if (value === 'tip-threshold') {

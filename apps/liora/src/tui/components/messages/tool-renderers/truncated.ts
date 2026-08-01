@@ -4,6 +4,7 @@ import {
 } from '#/tui/renderer';
 
 import { currentTheme } from '#/tui/theme';
+import { formatTranscriptOutput } from '#/tui/utils/transcript/transcript-output-format';
 
 import type { ResultRenderer } from './types';
 import { PREVIEW_LINES } from './types';
@@ -17,6 +18,9 @@ export const trimTrailingEmptyLines = trimRendererTrailingEmptyLines;
  * Uses the renderer Text component to compute actual visual wrapped lines,
  * then caps at PREVIEW_LINES. This handles long single-line output (e.g.
  * JSON blobs) that would otherwise wrap to dozens of visual rows.
+ *
+ * Body text is pretty-printed + lightly highlighted via
+ * {@link formatTranscriptOutput} (JSON, JSONL, diff, stack, logs, URLs…).
  */
 export class TruncatedOutputComponent extends RendererTruncatedOutputComponent {
   constructor(
@@ -37,6 +41,8 @@ export class TruncatedOutputComponent extends RendererTruncatedOutputComponent {
       // (scroll reveal), so the hint promises the gesture that actually works
       // there. 'key' restores the legacy ctrl+o wording.
       hintMode?: 'key' | 'scroll';
+      /** Prefer this language when the body looks like a code dump. */
+      languageHint?: string;
     },
   ) {
     super(output, {
@@ -48,7 +54,11 @@ export class TruncatedOutputComponent extends RendererTruncatedOutputComponent {
       tail: options.tail,
       hintMode: options.hintMode ?? 'scroll',
       formatText: (text, context) =>
-        context.isError ? currentTheme.fg('error', text) : currentTheme.dim(text),
+        formatTranscriptOutput(text, {
+          isError: context.isError,
+          languageHint: options.languageHint,
+          mode: 'tool',
+        }),
       formatHint: (hint) => currentTheme.dim(hint),
     });
   }

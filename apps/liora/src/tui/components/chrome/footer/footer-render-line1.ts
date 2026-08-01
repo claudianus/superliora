@@ -153,6 +153,15 @@ export function renderFooterLine1(input: RenderFooterLine1Input): string {
         renderAnimatedGradientText(labelModePremium(labels), 'footer:premium', appearance),
       );
     }
+    // Non-default transcript density — surface so /transcript pickers are discoverable.
+    if (appearance.transcriptDetail !== 'standard') {
+      modes.push(
+        currentTheme.boldFg(
+          appearance.transcriptDetail === 'full' ? 'accent' : 'textDim',
+          `tx:${appearance.transcriptDetail}`,
+        ),
+      );
+    }
     if (state.orchestratorMode) {
       modes.push(
         renderPulseText(

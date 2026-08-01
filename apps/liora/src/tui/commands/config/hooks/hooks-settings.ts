@@ -15,6 +15,7 @@ import {
   HOOKS_STOP_TIP,
 } from '../../../utils/hooks/hooks-glance';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
+import { showExtensionsHub } from '../extensions/extensions-hub';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 
@@ -72,6 +73,11 @@ export function showHooksSettings(host: SlashCommandHost): void {
             'Live HookEngine registry · plugin hook counts · config.toml [[hooks]] path.',
         },
         {
+          value: 'extensions',
+          label: 'Manage extensions / hooks…',
+          description: 'Plugin hooks.json · /extensions modal · enable/disable packs.',
+        },
+        {
           value: 'tip-pre-tool-use',
           label: 'PreToolUse tip',
           description: 'Gate destructive git/rm, .env writes, secret paths before tools run.',
@@ -96,6 +102,10 @@ export function showHooksSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
         if (value === 'status') {
           void showHooksSettingsPanel(host);
+          return;
+        }
+        if (value === 'extensions') {
+          showExtensionsHub(host);
           return;
         }
         if (value === 'tip-pre-tool-use') {

@@ -149,11 +149,17 @@ export function computeRevealAdvance(options: {
   if (dtMs <= 0) return 0;
 
   const rawSpeed = baseCps + backlog * gain;
-  // Ease the blend toward max so mid-size bursts feel smooth, not linear dump.
+  // Ease-in-out toward max: small backlogs stay soft, mid bursts feel silky,
+  // and only large lag ramps hard toward the ceiling (not a linear dump).
   const t = Math.min(1, Math.max(0, (rawSpeed - baseCps) / Math.max(1, maxCps - baseCps)));
-  const eased = Easing.easeOutCubic(t);
-  const speed = baseCps + (maxCps - baseCps) * eased;
+  const eased = Easing.easeInOutCubic(t);
+  // Soft start bias: first clusters of a quiet stream crawl a touch slower so
+  // type-on reads as ink, then the curve opens as backlog grows.
+  const startBias = 0.88 + 0.12 * eased;
+  const speed = (baseCps + (maxCps - baseCps) * eased) * startBias;
 
+  // Fractional carry lives in lastTickMs's companion via floor; keep at least
+  // minChars when lagging so the caret never freezes for a full frame.
   let advance = Math.floor((speed * dtMs) / 1000);
 
   // Cap perceived lag: if time-to-drain at `speed` exceeds maxLagMs, jump enough
@@ -189,7 +195,9 @@ export function computeStagedLineReveal(options: {
   if (options.durationMs <= 0) return total;
   const elapsed = Math.max(0, options.elapsedMs);
   if (elapsed >= options.durationMs) return total;
-  const eased = Easing.easeOutCubic(elapsed / options.durationMs);
+  // In-out cascade: first line appears immediately, middle lines bloom, last
+  // lines settle without a hard dump at the end of the budget.
+  const eased = Easing.easeInOutCubic(elapsed / options.durationMs);
   // Always lead with the first line so the block never mounts empty.
   return Math.max(1, Math.min(total, Math.ceil(total * eased)));
 }

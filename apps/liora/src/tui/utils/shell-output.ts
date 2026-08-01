@@ -1,4 +1,5 @@
 import { currentTheme } from '#/tui/theme';
+import { formatTranscriptOutput } from '#/tui/utils/transcript/transcript-output-format';
 
 // Captured command output can contain terminal control sequences — colours,
 // cursor moves, alternate-screen switches, hyperlinks, `\r` spinners, bells, …
@@ -43,8 +44,9 @@ export function sanitizeShellOutput(text: string): string {
 }
 
 /**
- * Format captured stdout/stderr for the transcript. Sanitizes both streams and
- * dims them; stderr is red only on actual failure.
+ * Format captured stdout/stderr for the transcript. Sanitizes both streams,
+ * pretty-prints structured blobs (JSON / logs / stack / …), and tints stderr
+ * red only on actual failure.
  *
  * Never throws: if anything goes wrong (theme lookup, huge input, …) it falls
  * back to a best-effort plain view so a render error can never crash the TUI.
@@ -54,12 +56,24 @@ export function formatBashOutputForDisplay(stdout: string, stderr: string, isErr
     const dim = (s: string): string => currentTheme.fg('textDim', s);
     const parts: string[] = [];
     const cleanStdout = sanitizeShellOutput(stdout).trimEnd();
-    if (cleanStdout.length > 0) parts.push(dim(cleanStdout));
+    if (cleanStdout.length > 0) {
+      parts.push(
+        formatTranscriptOutput(cleanStdout, {
+          isError: false,
+          mode: 'bash',
+        }),
+      );
+    }
     const cleanStderr = sanitizeShellOutput(stderr).trimEnd();
     if (cleanStderr.length > 0) {
-      // Dim grey normally; red only on actual failure (so warnings on a
-      // successful command are not mistaken for errors).
-      parts.push(isError ? currentTheme.fg('error', cleanStderr) : dim(cleanStderr));
+      // Dim / pretty-print normally; error tint only on actual failure (so
+      // warnings on a successful command are not mistaken for errors).
+      parts.push(
+        formatTranscriptOutput(cleanStderr, {
+          isError: isError === true,
+          mode: 'bash',
+        }),
+      );
     }
     return parts.length > 0 ? parts.join('\n') : dim('(no output)');
   } catch {

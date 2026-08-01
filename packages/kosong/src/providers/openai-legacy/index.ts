@@ -75,8 +75,12 @@ export class OpenAILegacyChatProvider implements ChatProvider {
         ? normalizedReasoningKey
         : undefined;
     this._reasoningEffort = undefined;
-    this._generationKwargs =
-      options.maxTokens !== undefined ? completionTokenKwargs(this._model, options.maxTokens) : {};
+    this._generationKwargs = {
+      ...(options.generationKwargs ?? {}),
+      ...(options.maxTokens !== undefined
+        ? completionTokenKwargs(this._model, options.maxTokens)
+        : {}),
+    };
     this._toolMessageConversion = options.toolMessageConversion ?? null;
     this._httpClient = options.httpClient;
     this._clientFactory = options.clientFactory;

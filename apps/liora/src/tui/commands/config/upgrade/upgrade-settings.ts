@@ -16,10 +16,12 @@ import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 import { handleUpgradeCommand } from '../../info/upgrade';
+import { showUpdatePreferencePicker } from './update-preference';
 
 export { UPGRADE_AUTO_INSTALL_TIP, UPGRADE_ENV_TIP, UPGRADE_MANUAL_TIP };
 
 export function showUpgradeSettings(host: SlashCommandHost): void {
+  const autoInstall = host.state.appState.upgrade.autoInstall;
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
@@ -36,6 +38,11 @@ export function showUpgradeSettings(host: SlashCommandHost): void {
           value: 'status',
           label: 'Update status',
           description: 'auto_install · env overrides · pending notice · config path.',
+        },
+        {
+          value: 'auto-install',
+          label: `Auto-install · ${autoInstall ? 'on' : 'off'}`,
+          description: 'Persist tui.toml upgrade.auto_install via preference picker.',
         },
         {
           value: 'tip-auto-install',
@@ -61,6 +68,10 @@ export function showUpgradeSettings(host: SlashCommandHost): void {
         }
         if (value === 'status') {
           showUpgradeSettingsPanel(host);
+          return;
+        }
+        if (value === 'auto-install') {
+          showUpdatePreferencePicker(host);
           return;
         }
         if (value === 'tip-auto-install') {

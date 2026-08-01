@@ -64,6 +64,28 @@ describe('FooterComponent', () => {
     expect(rendered).toContain('Premium');
   });
 
+  it('renders a transcript density badge when not standard', () => {
+    const footer = new FooterComponent({
+      ...appState,
+      appearance: {
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'off',
+        transcriptDetail: 'compact',
+      },
+    });
+    const rendered = footer.render(120).join('\n');
+    expect(rendered).toContain('tx:compact');
+  });
+
+  it('hides the transcript density badge at standard detail', () => {
+    const footer = new FooterComponent({
+      ...appState,
+      appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' },
+    });
+    const rendered = footer.render(120).join('\n');
+    expect(rendered).not.toContain('tx:');
+  });
+
   it('renders the model name in the footer', () => {
     const footer = new FooterComponent(appState);
 

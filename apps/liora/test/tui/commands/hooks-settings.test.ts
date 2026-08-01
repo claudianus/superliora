@@ -83,6 +83,7 @@ describe('showHooksSettings', () => {
       .options;
     expect(options.map((o) => o.value)).toEqual([
       'status',
+      'extensions',
       'tip-pre-tool-use',
       'tip-post-tool-use',
       'tip-stop',

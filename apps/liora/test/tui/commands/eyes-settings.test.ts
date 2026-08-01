@@ -55,6 +55,9 @@ describe('showEyesSettings', () => {
       .options;
     expect(options.map((o) => o.value)).toEqual([
       'status',
+      'probe',
+      'doctor-browser',
+      'doctor-computer',
       'tip-slash',
       'tip-doctor',
       'tip-tools',

@@ -3,12 +3,17 @@ import { truncateToWidth, type Component } from '#/tui/renderer';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme/theme';
 import {
+  appearanceAnimationNow,
   getActiveAppearancePreferences,
   renderPremiumAccentLine,
   renderPremiumHeadline,
   renderPulseGlyph,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
+import {
+  isTranscriptEntranceActive,
+  polishTranscriptLines,
+} from '#/tui/features/transcript/transcript-entrance';
 
 export type UltraworkModeMarkerState = 'active' | 'ended';
 
@@ -29,6 +34,8 @@ const ULTRAWORK_COMPLETION_STATUS =
 const ULTRAWORK_COMPLETION_NEXT = 'Mission mode is off. Continue with normal prompts or Shift-Tab for a new run.';
 
 export class UltraworkModeMarkerComponent implements Component {
+  private readonly entranceStartedAtMs = appearanceAnimationNow();
+
   constructor(
     private readonly options: UltraworkModeMarkerOptions,
   ) {}
@@ -91,7 +98,7 @@ export class UltraworkModeMarkerComponent implements Component {
       extraInfo.push(currentTheme.fg('textDim', truncateToWidth(`  ${this.options.progress}`, safeWidth, '…')));
     }
 
-    return [
+    const lines = [
       '',
       truncateToWidth(marker + label, safeWidth, '…'),
       truncateToWidth(pipelineLine, safeWidth, '…'),
@@ -101,6 +108,12 @@ export class UltraworkModeMarkerComponent implements Component {
       ...extraInfo,
       taskLine,
     ];
+    if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) return lines;
+    return polishTranscriptLines(lines, {
+      startedAtMs: this.entranceStartedAtMs,
+      kind: 'status',
+      appearance,
+    });
   }
 }
 

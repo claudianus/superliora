@@ -63,6 +63,8 @@ describe('showKeybindingsSettings', () => {
       .options;
     expect(options.map((o) => o.value)).toEqual([
       'status',
+      'help',
+      'command-hub',
       'tip-registry',
       'tip-help',
       'tip-command-hub',

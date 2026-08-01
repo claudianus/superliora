@@ -1,5 +1,5 @@
 /**
- * Settings → Persona — ChoicePicker + live glance (SSOT §9.2).
+ * Settings → Persona — live preset picker + glance (SSOT §9.2).
  */
 
 import { resolveConfigPath } from '@superliora/sdk';
@@ -16,6 +16,11 @@ import {
 } from '#/tui/utils/persona/persona-glance';
 import { getDataDir } from '#/utils/paths';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
+import {
+  handlePersonaCommand,
+  PERSONA_PRESET_DESCRIPTIONS,
+  PERSONA_PRESET_NAMES,
+} from '../../persona';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 
@@ -51,6 +56,16 @@ export function showPersonaSettings(host: SlashCommandHost): void {
           description: 'Active name · preset · tone · personality · config path.',
         },
         {
+          value: 'preset',
+          label: 'Choose preset…',
+          description: 'friendly · professional · concise · creative · mentor · playful.',
+        },
+        {
+          value: 'clear',
+          label: 'Clear persona',
+          description: 'Remove all persona customization (default personality).',
+        },
+        {
           value: 'tip-preset',
           label: 'Preset tip',
           description: PERSONA_PRESET_TIP,
@@ -72,6 +87,14 @@ export function showPersonaSettings(host: SlashCommandHost): void {
           void showPersonaSettingsPanel(host);
           return;
         }
+        if (value === 'preset') {
+          void showPersonaPresetPicker(host);
+          return;
+        }
+        if (value === 'clear') {
+          void handlePersonaCommand(host, 'clear');
+          return;
+        }
         if (value === 'tip-preset') {
           host.showStatus(PERSONA_PRESET_TIP, 'info');
           return;
@@ -89,6 +112,40 @@ export function showPersonaSettings(host: SlashCommandHost): void {
       },
     }),
     { label: 'Persona' },
+  );
+}
+
+async function showPersonaPresetPicker(host: SlashCommandHost): Promise<void> {
+  let current: string | undefined;
+  try {
+    const config = await host.harness.getConfig({ reload: false });
+    const preset = config.persona?.preset;
+    if (typeof preset === 'string' && preset !== 'none') current = preset;
+  } catch {
+    /* picker still works without live config */
+  }
+
+  mountPickerDialog(
+    host,
+    new ChoicePickerComponent({
+      title: 'Persona preset',
+      hint: '↑↓ · Enter · Esc',
+      searchable: true,
+      currentValue: current,
+      options: PERSONA_PRESET_NAMES.map((name) => ({
+        value: name,
+        label: name,
+        description: PERSONA_PRESET_DESCRIPTIONS[name],
+      })),
+      onSelect: (value) => {
+        dismissPickerDialog(host);
+        void handlePersonaCommand(host, `set ${value}`);
+      },
+      onCancel: () => {
+        dismissPickerDialog(host);
+      },
+    }),
+    { label: 'Persona preset' },
   );
 }
 

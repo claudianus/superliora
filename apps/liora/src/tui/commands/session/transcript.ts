@@ -1,5 +1,6 @@
 import type { AutocompleteItem } from '#/tui/renderer';
 
+import { showTranscriptDetailPicker } from '../config/appearance/appearance-settings';
 import { handleAppearanceCommand } from '../config/appearance/appearance';
 import type { SlashCommandHost } from '../hub/dispatch';
 import {
@@ -9,9 +10,9 @@ import {
 
 /**
  * `/transcript` — quick switch for transcript density (PREMIUM.md §7.9).
- * Delegates to `/appearance transcript-detail <level>` so persistence,
- * status output, and the Settings selector share one code path; the only
- * extra behavior is the no-arg status line.
+ * No-arg opens a live picker; with a level, delegates to
+ * `/appearance transcript-detail <level>` so persistence, status output,
+ * and Settings share one code path.
  */
 
 const LEVEL_HINTS: Record<(typeof TRANSCRIPT_DETAIL_LEVELS)[number], string> = {
@@ -37,13 +38,17 @@ export async function handleTranscriptCommand(
   args: string,
 ): Promise<void> {
   const raw = args.trim().toLowerCase();
-  if (raw.length === 0 || raw === 'help') {
+  if (raw.length === 0) {
+    showTranscriptDetailPicker(host);
+    return;
+  }
+  if (raw === 'help' || raw === 'status') {
     host.showNotice(
       'Transcript',
       `Detail: ${host.state.transcriptDetail}\n` +
-        `Usage: /transcript <${TRANSCRIPT_DETAIL_LEVELS.join('|')}>\n` +
-        'minimal: one-line tools + chain summary · compact: one-line tools\n' +
-        'standard: default · full: everything expanded',
+        `Usage: /transcript [<${TRANSCRIPT_DETAIL_LEVELS.join('|')}>]\n` +
+        'No args opens the density picker · minimal: one-line tools + chain summary\n' +
+        'compact: one-line tools · standard: default · full: everything expanded',
     );
     return;
   }

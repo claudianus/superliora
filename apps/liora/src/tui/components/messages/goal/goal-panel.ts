@@ -32,6 +32,10 @@ import {
   renderSpectacularText,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
+import {
+  isTranscriptEntranceActive,
+  polishTranscriptLines,
+} from '#/tui/features/transcript/transcript-entrance';
 import type { ColorToken } from '#/tui/theme';
 import { formatTokenCount } from '#/utils/usage/usage-format';
 import { formatGoalElapsed } from './goal-format';
@@ -68,25 +72,43 @@ function renderLifecycleLine(label: string, width: number): string[] {
  * change in the transcript.
  */
 export class GoalSetMessageComponent implements Component {
+  private readonly entranceStartedAtMs = appearanceAnimationNow();
+
   invalidate(): void {}
 
   render(width: number): string[] {
-    return renderLifecycleLine('Goal set', width);
+    const __polishedLines = renderLifecycleLine('Goal set', width);
+    if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) return __polishedLines;
+    return polishTranscriptLines(__polishedLines, {
+      startedAtMs: this.entranceStartedAtMs,
+      kind: 'notice',
+      appearance: getActiveAppearancePreferences(),
+    });
   }
 }
 
 export class UpcomingGoalAddedMessageComponent implements Component {
+  private readonly entranceStartedAtMs = appearanceAnimationNow();
+
   invalidate(): void {}
 
   render(width: number): string[] {
-    return renderLifecycleLine(
+    const __polishedLines = renderLifecycleLine(
       'Upcoming goal added. It will start after the current goal is complete.',
       width,
     );
+    if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) return __polishedLines;
+    return polishTranscriptLines(__polishedLines, {
+      startedAtMs: this.entranceStartedAtMs,
+      kind: 'notice',
+      appearance: getActiveAppearancePreferences(),
+    });
   }
 }
 
 export class GoalCompletionMessageComponent implements Component {
+  private readonly entranceStartedAtMs = appearanceAnimationNow();
+
   private readonly startedAtMs = appearanceAnimationNow();
 
   constructor(private readonly message: string) {}
@@ -133,11 +155,19 @@ export class GoalCompletionMessageComponent implements Component {
       }
     }
 
-    return lines;
+    const __polishedLines = lines;
+    if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) return __polishedLines;
+    return polishTranscriptLines(__polishedLines, {
+      startedAtMs: this.entranceStartedAtMs,
+      kind: 'notice',
+      appearance: getActiveAppearancePreferences(),
+    });
   }
 }
 
 export class GoalStatusMessageComponent implements Component {
+  private readonly entranceStartedAtMs = appearanceAnimationNow();
+
   constructor(private readonly goal: GoalSnapshot) {}
 
   invalidate(): void {}
@@ -149,7 +179,13 @@ export class GoalStatusMessageComponent implements Component {
       'primary',
       goalPanelTitle(this.goal),
     );
-    return ['', ...panel.render(width)];
+    const __polishedLines = ['', ...panel.render(width)];
+    if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) return __polishedLines;
+    return polishTranscriptLines(__polishedLines, {
+      startedAtMs: this.entranceStartedAtMs,
+      kind: 'status',
+      appearance: getActiveAppearancePreferences(),
+    });
   }
 }
 
