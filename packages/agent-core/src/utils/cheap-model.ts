@@ -11,6 +11,16 @@ const CHEAP_MODEL_PATTERNS: ReadonlyArray<{ pattern: string; score: number }> = 
   { pattern: 'turbo', score: 6 },
 ];
 
+/**
+ * Never auto-pick these for compaction/subagent cheap routing (policy +
+ * subscription). Keep in sync with model-presets blocked routing.
+ */
+const BLOCKED_CHEAP_ROUTING: readonly RegExp[] = [
+  /deepseek/i,
+  /opencode[-_]?go/i,
+  /\bgo[-_]?model\b/i,
+];
+
 /** Local model alias shape used for cheap/compaction routing (sync, no network). */
 export type CheapModelConfig = {
   readonly model: string;
@@ -24,6 +34,11 @@ export type CheapModelConfig = {
     readonly cache_write?: number;
   };
 };
+
+function isBlockedCheapAlias(alias: string, model: string, provider?: string): boolean {
+  const haystack = `${alias} ${model} ${provider ?? ''}`;
+  return BLOCKED_CHEAP_ROUTING.some((p) => p.test(haystack));
+}
 
 /**
  * Pick the cheapest-looking alias from a configured models record using only
@@ -43,6 +58,7 @@ export function inferCheapModelAliasSync(
 
   for (const [alias, config] of Object.entries(models)) {
     if (isAliasHealthy !== undefined && !isAliasHealthy(alias)) continue;
+    if (isBlockedCheapAlias(alias, config.model, config.provider)) continue;
     const haystack = `${alias} ${config.model}`.toLowerCase();
     for (const { pattern, score } of CHEAP_MODEL_PATTERNS) {
       if (haystack.includes(pattern) && score < bestScore) {
@@ -74,6 +90,7 @@ export function inferCheapestModelAliasByCostSync(
 
   for (const [alias, config] of Object.entries(models)) {
     if (isAliasHealthy !== undefined && !isAliasHealthy(alias)) continue;
+    if (isBlockedCheapAlias(alias, config.model, config.provider)) continue;
     const inputCost = config.cost?.input;
     if (inputCost === undefined || !Number.isFinite(inputCost) || inputCost < 0) continue;
     const maxContext = config.maxContextSize;
@@ -90,7 +107,8 @@ export function inferCheapestModelAliasByCostSync(
         ? Math.max(0, config.cost.output)
         : 0;
     // Prefer input price; small output weight breaks ties toward cheaper completions.
-    const score = inputCost + outputCost * 0.25;
+    // Soft floor avoids $0.00 junk models always winning over slightly pricier ones.
+    const score = Math.max(0.05, inputCost) + outputCost * 0.25;
     if (score < bestScore) {
       bestScore = score;
       bestAlias = alias;

@@ -110,9 +110,9 @@ describe('inferCheapestModelAliasByCostSync / resolveCompactionModelAlias', () =
   } as const;
 
   it('picks lowest local cost.input over expensive main models', () => {
+    // deepseek is policy-blocked for auto routing; next cheapest wins.
     const alias = inferCheapestModelAliasByCostSync(priced);
-    expect(alias).toMatch(/deepseek-v4-flash/);
-    expect(alias).not.toBe('xai-grok/grok-4.5');
+    expect(alias).toBe('xai-grok/grok-4.5');
   });
 
   it('skips aliases that fail the context window floor', () => {
@@ -139,8 +139,33 @@ describe('inferCheapestModelAliasByCostSync / resolveCompactionModelAlias', () =
   });
 
   it('resolveCompactionModelAlias uses cost before name heuristics', () => {
-    // nano would win name heuristic (score 1) but has no cost; cost path wins flash
-    expect(resolveCompactionModelAlias({ models: priced })).toMatch(/deepseek-v4-flash/);
+    // deepseek is policy-blocked; next cheapest priced alias wins (grok).
+    expect(resolveCompactionModelAlias({ models: priced })).toBe('xai-grok/grok-4.5');
+  });
+
+  it('never auto-picks deepseek or opencode-go for cheap routing', () => {
+    const models = {
+      'deepseek/flash': {
+        model: 'deepseek-v4-flash',
+        provider: 'deepseek',
+        cost: { input: 0.01, output: 0.02 },
+        maxContextSize: 200_000,
+      },
+      'opencode/go': {
+        model: 'opencode-go',
+        provider: 'opencode',
+        cost: { input: 0.02, output: 0.02 },
+        maxContextSize: 200_000,
+      },
+      'google/flash': {
+        model: 'gemini-2.5-flash',
+        provider: 'google',
+        cost: { input: 0.3, output: 1 },
+        maxContextSize: 200_000,
+      },
+    };
+    expect(inferCheapestModelAliasByCostSync(models)).toBe('google/flash');
+    expect(inferCheapModelAliasSync(models)).toBe('google/flash');
   });
 
   it('resolveCompactionModelAlias falls back to name heuristic without cost', () => {

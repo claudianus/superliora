@@ -19,7 +19,7 @@ export interface CompactionConfig {
   parallelBlockTarget: number;
   /**
    * Max concurrent LLM calls for parallel block summarize. `0` / omit uses the
-   * engine default (adaptive, starts at 2). Cap is always ≤ 8 so a large
+   * engine default (adaptive, starts at 3). Cap is always ≤ 8 so a large
    * session cannot open unbounded RPS against the provider.
    */
   parallelBlockConcurrency?: number;
