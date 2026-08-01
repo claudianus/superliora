@@ -34,6 +34,8 @@ import {
   validateUltraworkCompactionContinuity,
   type CompactionQualityResult,
 } from '../plan/quality';
+import { ensureStructuredHandoffScaffold } from '../plan/handoff-scaffold';
+import { latestUserText } from '../plan/quality-helpers';
 import type { CompactionBeginData, CompactionResult } from '../types';
 import { emitCompactionProgress, fractionForMergeDone, fractionForFinalizing } from './progress';
 import { summarizeCompactedPrefix } from './summarize';
@@ -118,6 +120,11 @@ export async function runCompactionRound(
       phase: 'repairing',
       streamKind: 'repair',
       fraction: fractionForMergeDone(),
+    });
+    // Provider-agnostic: free-form prose → structured v2 scaffold before QC.
+    // Repair still runs if critical gaps remain (e.g. missing durable evidence).
+    summary = ensureStructuredHandoffScaffold(summary, {
+      latestUserRequest: latestUserText(messagesToCompact),
     });
     const initialQuality = validateInitialCompactionSummary(summary, plan, messagesToCompact);
     let quality: CompactionQualityResult = initialQuality;

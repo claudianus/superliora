@@ -130,13 +130,18 @@ describe('validateInitialCompactionSummary — structured handoff', () => {
     },
   ] as unknown as readonly Message[];
 
-  it('warns when the summary is free-form without v2 labels', () => {
+  it('fails free-form summaries (critical) so repair/scaffold can rewrite', () => {
     const result = validateInitialCompactionSummary(
       'I will keep working on the task after compaction.',
       plan,
       history,
     );
-    expect(result.critical).toEqual([]);
+    expect(result.critical).toEqual(
+      expect.arrayContaining([
+        'v2 summary is missing current_goal',
+        'v2 summary is missing next_actions',
+      ]),
+    );
     expect(result.warningCategories).toContain('unstructured_summary');
     expect(result.warnings.some((w) => w.includes('free-form'))).toBe(true);
   });

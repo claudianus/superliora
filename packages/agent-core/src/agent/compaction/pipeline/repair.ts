@@ -148,10 +148,13 @@ export async function repairSummaryForQuality(
       [
         'The previous compaction summary failed deterministic quality checks.',
         `Failed checks: ${[...quality.critical, ...quality.warnings].join('; ')}`,
+        quality.warningCategories.includes('unstructured_summary')
+          ? 'Rewrite as structured v2 labels only: current_goal, last_known_state, decisions, files_touched, failed_attempts, open_questions, next_actions, verified_claims, raw_refs. Do not return free-form prose alone.'
+          : 'Keep the exact v2 section labels (current_goal, last_known_state, next_actions, …).',
         quality.warningCategories.includes('missing_evidence_ids')
           ? 'Preserve every durable identifier from the compacted history: evidence_ids, WorkGraph/node ids, AC ids, and [liora-archived id=...] markers.'
           : 'Preserve durable identifiers (evidence_ids, node ids, archive markers) when they appear in the history.',
-        'Produce a complete replacement summary. Keep the exact v2 section labels when you use structured memory.',
+        'Produce a complete replacement summary.',
       ].join('\n\n'),
     ),
   });
