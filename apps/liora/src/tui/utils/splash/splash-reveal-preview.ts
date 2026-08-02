@@ -14,12 +14,17 @@ import type { AppState } from '#/tui/types';
 import { currentTheme } from '#/tui/theme';
 import { padOrTrim } from '#/tui/features/stage/night-sky';
 import {
+  noteStageFrameBundle,
+  STAGE_FRAME_ENTRANCE_MS,
+  stageFrameBundleKey,
   stageFrameBundleRect,
   stageFrameLetterboxBands,
   stageFrameStrokeCells,
+  stageFrameVisible,
 } from '#/tui/features/stage/stage-frame';
 import { paintStageLetterboxSky } from '#/tui/features/stage/stage-letterbox-sky';
 import type { BrandMorphRect } from '#/tui/utils/splash/splash-iris';
+import { visibleWidth } from '#/tui/renderer';
 
 export interface SplashMorphScene {
   readonly lines: readonly string[];
@@ -34,6 +39,11 @@ export function buildSplashMorphScene(options: {
   readonly rows: number;
   readonly appState: AppState;
   readonly nowMs?: number;
+  /**
+   * User-drag stage size (matches planTUINativeStage / resolveStageLayout).
+   * When omitted, the responsive reading cap is used.
+   */
+  readonly userStageSize?: { readonly width: number; readonly height: number };
   /** Pre-rendered header chrome lines (placed at stage content top). */
   readonly headerLines?: readonly string[];
   /** Pre-rendered footer chrome lines (placed at stage content bottom). */
@@ -46,6 +56,7 @@ export function buildSplashMorphScene(options: {
   const layout = resolveStageLayout({
     width,
     height: rows,
+    userStageSize: options.userStageSize,
   });
   const stage = layout.stage;
   const appearance: AppearancePreferences =
@@ -77,15 +88,22 @@ export function buildSplashMorphScene(options: {
       canvas[cell.y] = spliceVisibleChar(line, width, cell.x, glyph);
     }
     // Soft veil on empty letterbox so it never reads as default-black voids.
+    // Side bands can start at y < 0 when the stage is full-height (top inset
+    // overflows) — clamp to the on-screen canvas before indexing.
     const veil = chalk.hex(muted)('·');
     for (const band of bands) {
-      for (let y = band.y; y < band.y + band.height && y < rows; y++) {
-        for (let x = band.x; x < band.x + band.width && x < width; x++) {
+      const y0 = Math.max(0, band.y);
+      const y1 = Math.min(rows, band.y + band.height);
+      const x0 = Math.max(0, band.x);
+      const x1 = Math.min(width, band.x + band.width);
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
           // Only fill truly empty plain cells (sky already wrote glyphs).
-          const plain = stripAnsi(canvas[y] ?? '');
+          const line = canvas[y] ?? ' '.repeat(width);
+          const plain = stripAnsi(line);
           if ((plain[x] ?? ' ') !== ' ') continue;
           if ((hashCell(x, y) & 31) !== 0) continue;
-          canvas[y] = spliceVisibleChar(canvas[y]!, width, x, veil);
+          canvas[y] = spliceVisibleChar(line, width, x, veil);
         }
       }
     }
@@ -105,7 +123,9 @@ export function buildSplashMorphScene(options: {
   }
 
   // Welcome + Idle inside stage content width, with chrome reserves matching
-  // the real native frame layout (header top, editor+footer bottom).
+  // the real native stack: header → transcript → editor → footer (no phantom
+  // +1/+2 gutters — those used to shift the morph scene one row below the
+  // live Welcome and make the handoff jump).
   const contentWidth = Math.max(1, stage.width);
   const headerLines = options.headerLines ?? [];
   const footerLines = options.footerLines ?? [];
@@ -114,12 +134,15 @@ export function buildSplashMorphScene(options: {
   const footerRows = footerLines.length;
   const editorRows = editorLines.length;
   const chromeRows = headerRows + footerRows + editorRows;
-  const contentBudget = Math.max(4, stage.height - chromeRows - 2);
-  const contentTop = stage.y + 1 + headerRows;
+  // Transcript budget = stage height minus fixed chrome (same as measureRendererRegions).
+  const contentBudget = Math.max(4, stage.height - chromeRows);
+  // Header pins to stage.y; transcript (Welcome) starts immediately below.
+  const headerTop = stage.y;
+  const contentTop = stage.y + headerRows;
 
-  // Paint header chrome at stage content top.
+  // Paint header chrome at stage content top (native: header.y = stage.y).
   for (let i = 0; i < headerLines.length; i++) {
-    const y = stage.y + 1 + i;
+    const y = headerTop + i;
     if (y < 0 || y >= rows) continue;
     const src = padOrTrim(headerLines[i] ?? '', contentWidth);
     canvas[y] = replaceColumns(canvas[y]!, width, stage.x, src);
@@ -145,7 +168,7 @@ export function buildSplashMorphScene(options: {
     canvas[y] = replaceColumns(canvas[y]!, width, stage.x, src);
   }
 
-  // Paint editor + footer chrome at stage content bottom.
+  // Paint editor + footer chrome at stage content bottom (native stack order).
   const bottomStart = stage.y + stage.height - footerRows - editorRows;
   for (let i = 0; i < editorLines.length; i++) {
     const y = bottomStart + i;
@@ -160,15 +183,28 @@ export function buildSplashMorphScene(options: {
     canvas[y] = replaceColumns(canvas[y]!, width, stage.x, src);
   }
 
-  // Welcome hero target: after outer '', frame top, particle rail → banner.
-  // Empirically: blank + top border + rail ≈ 3 rows into Welcome render.
-  const brandPadX = 3;
-  const brandPadY = 3;
+  // Welcome hero target: first dense figlet row inside the Welcome box.
+  // Welcome structure: outer blank → top border → particle rail → banner…
+  // Fallback pad matches that anatomy when the banner scan misses (tiny layout).
+  const brandPadX = 3; // frame │ + two-space content pad
+  const brandPadYFallback = 3;
+  const brandRowLocal = findWelcomeBannerRow(welcome) ?? brandPadYFallback;
+  const brandWidth = Math.max(8, resolveWelcomeBannerWidth(welcome, brandRowLocal, contentWidth));
   const brandTarget: BrandMorphRect = {
     x: stage.x + brandPadX,
-    y: contentTop + brandPadY,
-    width: Math.max(8, contentWidth - 4),
+    y: contentTop + brandRowLocal,
+    width: brandWidth,
   };
+
+  // Prime the stage-frame entrance as already complete so the first post-splash
+  // live frame does not re-run the 360ms ring draw over a morph that already
+  // painted the full stroke — that double-entrance was a visible snap.
+  if (stageFrameVisible(bundle, width, rows)) {
+    noteStageFrameBundle(
+      stageFrameBundleKey(bundle),
+      nowMs - STAGE_FRAME_ENTRANCE_MS,
+    );
+  }
 
   return {
     lines: canvas.map((line) => padOrTrim(line, width)),
@@ -177,7 +213,34 @@ export function buildSplashMorphScene(options: {
   };
 }
 
-function stripAnsi(text: string): string {
+/** First Welcome line that looks like figlet banner art (dense block glyphs). */
+function findWelcomeBannerRow(lines: readonly string[]): number | undefined {
+  for (let i = 0; i < lines.length; i++) {
+    const plain = stripAnsi(lines[i] ?? '');
+    const dense = plain.replaceAll(/\s/g, '').length;
+    // Banner rows are wide glyph runs; skip borders/rails/labels.
+    if (dense >= 18 && /[_\\|/█░▒▓╱╲]/.test(plain)) return i;
+  }
+  return undefined;
+}
+
+/** Visible width of the banner row (trimmed), clamped to the Welcome inner column. */
+function resolveWelcomeBannerWidth(
+  lines: readonly string[],
+  rowIndex: number,
+  contentWidth: number,
+): number {
+  const plain = stripAnsi(lines[rowIndex] ?? '');
+  // Welcome paints `  ${banner}` inside the frame — strip the 2-space pad and
+  // any trailing frame gutter when measuring the hero target width.
+  const trimmed = plain.replace(/^\s+/, '').replace(/\s+$/, '');
+  const measured = Math.max(1, visibleWidth(trimmed));
+  // Inner content is contentWidth - 4 (│ + 2 pad + │); keep target inside that.
+  return Math.min(measured, Math.max(8, contentWidth - 4));
+}
+
+function stripAnsi(text: string | undefined): string {
+  if (text === undefined || text.length === 0) return '';
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
 }
 

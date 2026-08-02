@@ -74,4 +74,41 @@ describe('buildSplashMorphScene', () => {
     const joined = scene.lines.join('\n');
     expect(joined).toMatch(/SUPERLIORA|___|\|/);
   });
+
+  it('aligns chrome + Welcome with the native header→transcript stack', () => {
+    const width = 120;
+    const rows = 40;
+    const headerLines = ['HEADER'];
+    const editorLines = ['EDITOR', 'EDITOR2', 'EDITOR3'];
+    const footerLines = ['FOOTER', 'FOOTER2'];
+    const scene = buildSplashMorphScene({
+      width,
+      rows,
+      appState,
+      nowMs: 12_000,
+      headerLines,
+      editorLines,
+      footerLines,
+    });
+
+    // Header pins to stage.y (no phantom +1 gutter).
+    const headerY = scene.stage.y;
+    const plainHeader = strip(scene.lines[headerY] ?? '');
+    expect(plainHeader.includes('HEADER')).toBe(true);
+
+    // Transcript / Welcome starts immediately under the header.
+    const contentTop = scene.stage.y + headerLines.length;
+    // Brand target is inside the Welcome box, not shifted by old +1 offset.
+    expect(scene.brandTarget.y).toBeGreaterThanOrEqual(contentTop);
+    expect(scene.brandTarget.y).toBeLessThan(contentTop + 8);
+
+    // Editor + footer sit at the bottom of the stage (native stack order).
+    const bottomStart = scene.stage.y + scene.stage.height - footerLines.length - editorLines.length;
+    expect(strip(scene.lines[bottomStart] ?? '')).toContain('EDITOR');
+    expect(strip(scene.lines[bottomStart + editorLines.length] ?? '')).toContain('FOOTER');
+  });
 });
+
+function strip(text: string): string {
+  return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
+}
