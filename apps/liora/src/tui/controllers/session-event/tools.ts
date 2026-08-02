@@ -52,6 +52,10 @@ import {
   isShellDedicatedBypassOutput,
 } from '../../utils/tools/shell-dedicated-bypass-notice';
 import {
+  formatShellSensitivePathNotice,
+  isShellSensitivePathOutput,
+} from '../../utils/tools/shell-sensitive-path-notice';
+import {
   formatAutoCheckSpawnNotice,
   isAutoCheckSpawnOutput,
 } from '../../utils/tools/auto-check-spawn-notice';
@@ -264,6 +268,16 @@ export class SessionEventTools {
       } else if (event.isError === true && isShellDedicatedBypassOutput(resultData.output)) {
         // Loop43a: Bash blocked in favor of Read/Write/Edit/Grep/Glob.
         const notice = formatShellDedicatedBypassNotice(
+          matchedCall?.name,
+          resultData.output,
+        );
+        this.host.showNotice(notice.title, notice.detail, {
+          coalesceKey: notice.coalesceKey,
+        });
+        this.host.showStatus?.(notice.status, 'warning');
+      } else if (event.isError === true && isShellSensitivePathOutput(resultData.output)) {
+        // Loop44a: Bash hard-deny for env/credential/SSH paths (no force hatch).
+        const notice = formatShellSensitivePathNotice(
           matchedCall?.name,
           resultData.output,
         );
