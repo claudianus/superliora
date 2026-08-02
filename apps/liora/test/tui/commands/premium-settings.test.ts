@@ -74,16 +74,6 @@ function selectPremiumAction(host: SlashCommandHost, value: string): void {
 
 const ENV_KEYS = ['TERM', 'CI', 'NO_COLOR', 'SSH_TTY', 'SSH_CONNECTION', 'SSH_CLIENT'] as const;
 
-describe('premium settings tips', () => {
-  it('exports motion, density, and Visual Quality tips', () => {
-    expect(PREMIUM_MOTION_TIP).toContain('profile auto|off|subtle|premium');
-    expect(PREMIUM_MOTION_TIP).toContain('/appearance');
-    expect(PREMIUM_DENSITY_TIP).toContain('transcript-detail');
-    expect(PREMIUM_DENSITY_TIP).toContain('/transcript');
-    expect(PREMIUM_PQ_TIP).toContain('/premium on|off|status');
-    expect(PREMIUM_PQ_TIP).toContain('anti-slop');
-  });
-});
 
 describe('showPremiumSettings', () => {
   const originalEnv = { ...process.env };
@@ -101,7 +91,7 @@ describe('showPremiumSettings', () => {
     setAppearanceRenderHealth('healthy');
   });
 
-  it('mounts ChoicePicker with live PQ actions and tip rows', () => {
+  it('mounts ChoicePicker with live PQ actions (no tip rows)', () => {
     const host = makeHost();
     showPremiumSettings(host);
     expect(host.mountCenterModal).toHaveBeenCalledOnce();
@@ -116,21 +106,7 @@ describe('showPremiumSettings', () => {
       'pq-off',
       'transcript-detail',
       'appearance',
-      'tip-motion',
-      'tip-density',
-      'tip-pq',
     ]);
-  });
-
-  it('shows motion, density, and PQ tips via showStatus', () => {
-    const host = makeHost();
-    showPremiumSettings(host);
-    selectPremiumAction(host, 'tip-motion');
-    expect(host.showStatus).toHaveBeenCalledWith(PREMIUM_MOTION_TIP, 'info');
-    selectPremiumAction(host, 'tip-density');
-    expect(host.showStatus).toHaveBeenCalledWith(PREMIUM_DENSITY_TIP, 'info');
-    selectPremiumAction(host, 'tip-pq');
-    expect(host.showStatus).toHaveBeenCalledWith(PREMIUM_PQ_TIP, 'info');
   });
 
   it('renders live Visual Quality + motion budget lines when session is wired', async () => {

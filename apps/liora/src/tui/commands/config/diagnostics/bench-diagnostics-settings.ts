@@ -33,16 +33,7 @@ export function showBenchDiagnosticsSettings(host: SlashCommandHost): void {
           description:
             '/bench · /ops · visual smoke · session TTFT + trace dump · W6 redteam (read-only).',
         },
-        {
-          value: 'tip-bench',
-          label: '/bench tip',
-          description: 'Evidence score, pass rate, holdout, replay hints.',
-        },
-        {
-          value: 'tip-ops',
-          label: '/ops tip',
-          description: 'Ops Theatre grid · git churn · approval tray · Never-Halt.',
-        },
+
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -50,13 +41,7 @@ export function showBenchDiagnosticsSettings(host: SlashCommandHost): void {
           void showBenchDiagnosticsSettingsPanel(host);
           return;
         }
-        if (value === 'tip-bench') {
-          host.showStatus(BENCH_SLASH_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-ops') {
-          host.showStatus(OPS_SLASH_TIP, 'info');
-        }
+
       },
       onCancel: () => {
         dismissPickerDialog(host);

@@ -67,30 +67,7 @@ export function showSkillsSettings(host: SlashCommandHost): void {
           label: 'Manage skills',
           description: 'Opens Extensions hub → Skills (canonical manage surface).',
         },
-        {
-          value: 'tip-search-skill',
-          label: 'SearchSkill tip',
-          description:
-            'Catalog discovery via SearchSkill → Skill · keyword guidance · locale discovery.',
-        },
-        {
-          value: 'tip-risk-filter',
-          label: 'Risk filter tip',
-          description:
-            'metadata.risk=high exclusion · inline/prompt only · disableModelInvocation.',
-        },
-        {
-          value: 'tip-trace-skill',
-          label: 'Trace→Skill tip',
-          description:
-            'Session-end draft suggestions · manual merge · no auto pipeline or PR bot.',
-        },
-        {
-          value: 'tip-manage',
-          label: 'Manage skills tip',
-          description:
-            'Extensions → Skills toggle · Claude import · plugin skills · hot-reload · /skills.',
-        },
+
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -102,21 +79,7 @@ export function showSkillsSettings(host: SlashCommandHost): void {
           showExtensionsHub(host);
           return;
         }
-        if (value === 'tip-search-skill') {
-          host.showStatus(SKILLS_SEARCH_SKILL_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-risk-filter') {
-          host.showStatus(SKILLS_RISK_FILTER_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-trace-skill') {
-          host.showStatus(SKILLS_TRACE_SKILL_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-manage') {
-          host.showStatus(SKILLS_MANAGE_TIP, 'info');
-        }
+
       },
       onCancel: () => {
         dismissPickerDialog(host);

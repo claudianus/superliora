@@ -55,18 +55,7 @@ export function showCompactionSettings(host: SlashCommandHost): void {
           label: 'Change working-set…',
           description: 'Soft/async caps that feed compaction thresholds.',
         },
-        {
-          value: 'tip-threshold',
-          label: 'Threshold tip',
-          description:
-            'loopControl.compactionTriggerRatio · async pre-rot · working-set caps via Settings → Context.',
-        },
-        {
-          value: 'tip-keep-tokens',
-          label: 'Keep tokens tip',
-          description:
-            'Frozen prefix + compactionMaxRecentMessages · footer /compact nudge · manual reclaim.',
-        },
+
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -82,14 +71,7 @@ export function showCompactionSettings(host: SlashCommandHost): void {
           void showContextWorkingSetPicker(host);
           return;
         }
-        if (value === 'tip-threshold') {
-          host.showStatus(COMPACTION_THRESHOLD_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-keep-tokens') {
-          host.showStatus(COMPACTION_KEEP_TOKENS_TIP, 'info');
-          return;
-        }
+
       },
       onCancel: () => {
         dismissPickerDialog(host);

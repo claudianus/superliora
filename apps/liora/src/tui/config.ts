@@ -46,6 +46,23 @@ export const TerminalBackgroundSchema = z.enum(['off', 'session']);
 export const TranscriptDetailSchema = z.enum(['minimal', 'compact', 'standard', 'full']);
 
 /**
+ * Coding-only syntax theme for transcript / code previews.
+ * Independent of the UI chrome theme. `auto` picks GitHub Dimmed/Light
+ * from canvas luminance; `palette` binds to UI ColorPalette (legacy).
+ */
+export const SyntaxThemeSchema = z.enum([
+  'auto',
+  'palette',
+  'github-dark-dimmed',
+  'github-light',
+  'one-dark-pro',
+  'catppuccin-mocha',
+  'nord',
+  'solarized-dark',
+  'solarized-light',
+]);
+
+/**
  * Status-bar (footer) slot visibility.
  * - `auto`: Layered defaults (show when useful / content exists)
  * - `always`: force show whenever data exists
@@ -96,6 +113,8 @@ export const AppearancePreferencesSchema = z.object({
   terminalPalette: z.boolean(),
   showTimestamps: z.boolean(),
   transcriptDetail: TranscriptDetailSchema,
+  /** Coding syntax theme — independent of UI chrome palette. */
+  syntaxTheme: SyntaxThemeSchema,
 });
 
 const FooterConfigFileSchema = z
@@ -162,6 +181,7 @@ export const TuiConfigFileSchema = z.object({
       terminal_palette: z.boolean().optional(),
       show_timestamps: z.boolean().optional(),
       transcript_detail: TranscriptDetailSchema.optional(),
+      syntax_theme: SyntaxThemeSchema.optional(),
     })
     .optional(),
   footer: FooterConfigFileSchema,
@@ -221,6 +241,7 @@ export const DEFAULT_APPEARANCE_PREFERENCES: AppearancePreferences = {
   terminalPalette: false,
   showTimestamps: true,
   transcriptDetail: 'standard',
+  syntaxTheme: 'auto',
 };
 
 /** Layered status-bar defaults — plain labels, essentials on, ops opt-in. */
@@ -348,6 +369,8 @@ export function normalizeTuiConfig(config: TuiConfigFileShape): TuiConfig {
         config.appearance?.show_timestamps ?? DEFAULT_APPEARANCE_PREFERENCES.showTimestamps,
       transcriptDetail:
         config.appearance?.transcript_detail ?? DEFAULT_APPEARANCE_PREFERENCES.transcriptDetail,
+      syntaxTheme:
+        config.appearance?.syntax_theme ?? DEFAULT_APPEARANCE_PREFERENCES.syntaxTheme,
     },
     footer: normalizeFooterPreferences(config.footer),
     onboarding: {
@@ -426,6 +449,7 @@ terminal_background = "${appearance.terminalBackground}" # "off" | "session"
 terminal_palette = ${String(appearance.terminalPalette)} # true applies terminal palette until exit
 show_timestamps = ${String(appearance.showTimestamps)} # true shows HH:MM on user messages
 transcript_detail = "${appearance.transcriptDetail}" # "minimal" | "compact" | "standard" | "full"
+syntax_theme = "${appearance.syntaxTheme}" # "auto" | "github-dark-dimmed" | "one-dark-pro" | "palette" | …
 
 [footer]
 # Status bar — "auto" | "always" | "off" for slots; labels = "plain" | "compact"

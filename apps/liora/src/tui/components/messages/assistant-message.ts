@@ -39,6 +39,11 @@ import {
   isTurnBoundaryCueActive,
   polishTranscriptLines,
 } from '#/tui/features/transcript/transcript-entrance';
+import {
+  applyPhaseTintLine,
+  phaseGutter,
+} from '#/tui/features/transcript/transcript-phase-tint';
+import { getActiveTranscriptDetail } from '#/tui/features/transcript/transcript-density';
 
 type AssistantMarkdownOptions = {
   transient?: boolean;
@@ -139,6 +144,8 @@ export class AssistantMessageComponent implements Component {
    * Full invalidate() reallocates the tree and is wrong for soft-evict.
    */
   softDropPaintCaches(): void {
+    // Density cycle (Ctrl+O) and theme swaps: drop width/ANSI caches without
+    // tearing down the Markdown tree so phase chrome re-reads live density.
     this.markRenderDirty();
     this.markdown?.softDropPaintCaches?.();
     this.contentContainer.softDropPaintCaches?.();
@@ -200,10 +207,35 @@ export class AssistantMessageComponent implements Component {
           truncateMark: '…',
         });
 
-        if (scrollPaint) return blocked;
+        // Soft answer-phase tint so thinking / tools / answer read as work-units.
+        const phaseTag = applyPhaseTintLine(
+          `${phaseGutter('answer')} ${currentTheme.boldFg('primary', 'answer')}`,
+          safeWidth,
+          'answer',
+        );
+        const tintedBody = blocked.map((line, i) => {
+          if (line.length === 0) return line;
+          const guttered =
+            i <= 1 ? line : phaseGutter('answer') + (line.startsWith(' ') ? line.slice(1) : line);
+          return applyPhaseTintLine(guttered, safeWidth, 'answer');
+        });
+        // Insert phase chrome after the leading blank (if any).
+        const tinted =
+          tintedBody.length > 0 && tintedBody[0] === ''
+            ? [tintedBody[0]!, phaseTag, ...tintedBody.slice(1)]
+            : [phaseTag, ...tintedBody];
+
+        // minimal density: short answer preview unless expanded via full density.
+        const detail = getActiveTranscriptDetail();
+        const previewLines =
+          detail === 'minimal' && !this.lastTransient && !hostExpandedAnswer()
+            ? collapseAnswerPreview(tinted, 4)
+            : tinted;
+
+        if (scrollPaint) return previewLines;
 
         return this.applyTurnBoundaryCues(
-          polishTranscriptLines(blocked, {
+          polishTranscriptLines(previewLines, {
             startedAtMs: this.entranceStartedAtMs,
             kind: 'assistant',
             streaming: this.lastTransient,
@@ -255,6 +287,39 @@ function lastVisibleLineIndex(lines: readonly string[]): number {
 function caretActive(): boolean {
   if (!motionEffectsAllowed()) return false;
   return resolveQualityAdjustedAmbientEffectMode(getActiveAppearancePreferences()) !== 'off';
+}
+
+/** full density (or legacy expand) shows entire answer bodies. */
+function hostExpandedAnswer(): boolean {
+  return getActiveTranscriptDetail() === 'full';
+}
+
+/** Keep a short scannable answer head in minimal density. */
+function collapseAnswerPreview(lines: readonly string[], keep: number): string[] {
+  const nonEmpty = lines.filter((l) => l.trim().length > 0);
+  if (nonEmpty.length <= keep) return [...lines];
+  const out: string[] = [];
+  let kept = 0;
+  for (const line of lines) {
+    if (line.trim().length === 0) {
+      if (kept === 0) out.push(line);
+      continue;
+    }
+    if (kept < keep) {
+      out.push(line);
+      kept++;
+    }
+  }
+  const hidden = nonEmpty.length - keep;
+  if (hidden > 0) {
+    out.push(
+      currentTheme.fg(
+        'textMuted',
+        `${MESSAGE_INDENT}… (${String(hidden)} more lines · Ctrl+O full)`,
+      ),
+    );
+  }
+  return out;
 }
 
 /** Kinetic caret — block + dual spark trail so catch-up is impossible to miss. */

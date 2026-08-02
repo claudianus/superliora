@@ -31,7 +31,7 @@ export type CommandHubActionId =
   | 'account.upgrade'
   | 'help.shortcuts'
   | 'help.commands'
-  | 'help.searchTip'
+
   | 'settings.open'
   | `settings.${string}`
   /** Slash / skill One-search rows (`searchOnly`). */

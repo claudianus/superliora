@@ -91,7 +91,7 @@ function panelText(host: SlashCommandHost): string {
 }
 
 describe('usage settings tips', () => {
-  it('exports token, quota, and context tips', () => {
+  it('exports token, quota, and context tips (glance copy, not menu rows)', () => {
     expect(USAGE_TOKEN_TIP).toContain('getStatus().usage');
     expect(USAGE_TOKEN_TIP).toContain('best-effort');
     expect(USAGE_QUOTA_TIP).toContain('/usage');
@@ -102,7 +102,7 @@ describe('usage settings tips', () => {
 });
 
 describe('showUsageSettings', () => {
-  it('mounts ChoicePicker with status and read-only tip actions', () => {
+  it('mounts ChoicePicker with status and read-only tip actions — tip-free', () => {
     const host = makeUsageHost();
     showUsageSettings(host);
     const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
@@ -113,24 +113,8 @@ describe('showUsageSettings', () => {
       .options;
     expect(options.map((o) => o.value)).toEqual([
       'status',
-      'tip-tokens',
-      'tip-quotas',
-      'tip-context',
     ]);
-  });
-
-  it('shows token tip via showStatus', () => {
-    const host = makeUsageHost();
-    showUsageSettings(host);
-    selectUsageAction(host, 'tip-tokens');
-    expect(host.showStatus).toHaveBeenCalledWith(USAGE_TOKEN_TIP, 'info');
-  });
-
-  it('shows quota tip via showStatus', () => {
-    const host = makeUsageHost();
-    showUsageSettings(host);
-    selectUsageAction(host, 'tip-quotas');
-    expect(host.showStatus).toHaveBeenCalledWith(USAGE_QUOTA_TIP, 'info');
+    expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
   it('wires live token/$ from session.getStatus', async () => {

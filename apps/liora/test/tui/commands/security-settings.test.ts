@@ -56,7 +56,7 @@ function selectSecurityAction(host: SlashCommandHost, value: string): void {
 }
 
 describe('security settings tips', () => {
-  it('exports sandbox, redaction, and MCP allowlist tips', () => {
+  it('exports sandbox, redaction, and MCP allowlist tips (glance copy, not menu rows)', () => {
     expect(SECURITY_SANDBOX_TIP).toContain('sandboxProfile');
     expect(SECURITY_SANDBOX_TIP).toContain('read-only');
     expect(SECURITY_REDACTION_TIP).toContain('redactSecretsInText');
@@ -67,7 +67,7 @@ describe('security settings tips', () => {
 });
 
 describe('showSecuritySettings', () => {
-  it('mounts ChoicePicker with status and read-only tip actions', () => {
+  it('mounts ChoicePicker with status and read-only tip actions — tip-free', () => {
     const host = makeSecurityHost();
     showSecuritySettings(host);
     const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
@@ -78,31 +78,8 @@ describe('showSecuritySettings', () => {
       .options;
     expect(options.map((o) => o.value)).toEqual([
       'status',
-      'tip-sandbox',
-      'tip-redaction',
-      'tip-mcp-allowlist',
     ]);
-  });
-
-  it('shows sandbox tip via showStatus', () => {
-    const host = makeSecurityHost();
-    showSecuritySettings(host);
-    selectSecurityAction(host, 'tip-sandbox');
-    expect(host.showStatus).toHaveBeenCalledWith(SECURITY_SANDBOX_TIP, 'info');
-  });
-
-  it('shows redaction tip via showStatus', () => {
-    const host = makeSecurityHost();
-    showSecuritySettings(host);
-    selectSecurityAction(host, 'tip-redaction');
-    expect(host.showStatus).toHaveBeenCalledWith(SECURITY_REDACTION_TIP, 'info');
-  });
-
-  it('shows MCP allowlist tip via showStatus', () => {
-    const host = makeSecurityHost();
-    showSecuritySettings(host);
-    selectSecurityAction(host, 'tip-mcp-allowlist');
-    expect(host.showStatus).toHaveBeenCalledWith(SECURITY_MCP_ALLOWLIST_TIP, 'info');
+    expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
   it('mounts read-only security panel for status action', async () => {

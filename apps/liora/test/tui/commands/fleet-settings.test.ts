@@ -92,12 +92,6 @@ describe('fleet settings governance tips', () => {
     expect(text).toContain('≥2');
   });
 
-  it('documents W4 parallel speedup soft KPI in governance tips', () => {
-    expect(FLEET_PARALLEL_SPEEDUP_TIP).toContain('Parallel speedup');
-    expect(FLEET_GOVERNANCE_TIPS).toContain(FLEET_PARALLEL_SPEEDUP_TIP);
-    expect(FLEET_PARALLEL_SPEEDUP_TIP_KO).toContain('병렬');
-  });
-
   it('documents env-gated fleet dual-emit and read-side normalize', () => {
     const text = FLEET_PROTOCOL_ALIAS_TIPS.join('\n');
     expect(text).toContain(FLEET_DUAL_EMIT_ENV);
@@ -150,21 +144,10 @@ describe('fleet cost guard settings', () => {
     expect(loadFleetBudgetGlance({}).budgetUsd).toBeNull();
   });
 
-  it('builds Cost Guard block with tip and soft check when env is set', () => {
-    const lines = buildFleetCostGuardSettingsLines(
-      loadFleetBudgetGlance({ [FLEET_BUDGET_USD_ENV]: '10' }),
-      2.5,
-    ).join('\n');
-    expect(lines).toContain('Cost Guard (soft)');
-    expect(lines).toContain(FLEET_COST_GUARD_TIP);
-    expect(lines).toContain('Soft check:');
-    expect(lines).toContain('$2.50');
-    expect(lines).toContain('$10.00');
-  });
 });
 
 describe('showFleetSettings picker', () => {
-  it('mounts ChoicePicker with status, max-workers, and tip actions', () => {
+  it('mounts ChoicePicker with status, max-workers, and tip actions — tip-free', () => {
     const host = makeFleetHost();
     showFleetSettings(host);
     const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
@@ -176,10 +159,8 @@ describe('showFleetSettings picker', () => {
     expect(options.map((o) => o.value)).toEqual([
       'status',
       'max-workers',
-      'tip-governance',
-      'tip-protocol',
-      'tip-import',
     ]);
+    expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
   it('persists max workers via harness.setConfig', async () => {
@@ -198,12 +179,6 @@ describe('showFleetSettings picker', () => {
     );
   });
 
-  it('shows governance tips via showStatus', () => {
-    const host = makeFleetHost();
-    showFleetSettings(host);
-    selectFleetAction(host, 'tip-governance');
-    expect(host.showStatus).toHaveBeenCalledWith(FLEET_GOVERNANCE_TIPS.join(' · '), 'info');
-  });
 });
 
 describe('showFleetSettings panel', () => {
@@ -239,18 +214,6 @@ describe('showFleetSettings panel', () => {
     expect(lines).toContain('Parallel tools: 2 in flight · peak 4');
     expect(lines).toContain(OPS_FLEET_MAKER_CHECKER_SOFT_TIP);
     expect(lines).toContain(`${FLEET_WORKTREE_ENV}=ON`);
-  });
-
-  it('builds Session (live) with worktree env off tip when unset', () => {
-    const lines = buildFleetSessionLiveLines({
-      worktree: loadFleetWorktreeGlance({}),
-    }).join('\n');
-    expect(lines).toContain(`${FLEET_WORKTREE_ENV}: off`);
-  });
-
-  it('shows worktree env off compact tip when glance unwired', () => {
-    const lines = buildFleetSessionLiveLines({}).join('\n');
-    expect(lines).toContain(OPS_FLEET_WORKTREE_TIP);
   });
 
   it('surfaces live maker-checker soft warn in Session (live) when wired', () => {

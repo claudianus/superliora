@@ -10,6 +10,12 @@
 
 import { fuzzyFilter, Key, matchesKey } from '#/tui/renderer';
 
+import {
+  gridMoveDown,
+  gridMoveLeft,
+  gridMoveRight,
+  gridMoveUp,
+} from './grid-nav';
 import { pageView, type PageView } from './paging';
 import { isPrintableChar, printableChar } from '#/tui/utils/printable-key';
 
@@ -27,6 +33,11 @@ export interface SearchableListOptions<T> {
   readonly initialIndex?: number;
   /** When false, typed characters are ignored. Defaults to false. */
   readonly searchable?: boolean;
+  /**
+   * Grid columns for 2D navigation (↑↓ move by columns, ←→ move within row).
+   * Defaults to 1 (classic list). Callers may update via {@link setColumns}.
+   */
+  readonly columns?: number;
 }
 
 export interface SearchableListView<T> {
@@ -45,6 +56,7 @@ export class SearchableList<T> {
   private readonly isVisible?: (item: T, query: string) => boolean;
   private readonly pageSize: number;
   private readonly searchable: boolean;
+  private columns: number;
   private query = '';
   private cursor: number;
 
@@ -54,7 +66,26 @@ export class SearchableList<T> {
     this.isVisible = opts.isVisible;
     this.pageSize = opts.pageSize ?? DEFAULT_PAGE_SIZE;
     this.searchable = opts.searchable ?? false;
+    this.columns = Math.max(1, opts.columns ?? 1);
     this.cursor = Math.max(opts.initialIndex ?? 0, 0);
+  }
+
+  /** Update grid columns (typically from render width). */
+  setColumns(columns: number): void {
+    this.columns = Math.max(1, columns);
+  }
+
+  getColumns(): number {
+    return this.columns;
+  }
+
+  /**
+   * Effective items-per-page for paging. When multi-column, one "page" is
+   * still measured in items but callers can page by whole visual rows via
+   * PgUp/PgDn stepping `pageSize` (row-oriented UIs multiply by columns).
+   */
+  pageStride(): number {
+    return this.pageSize * Math.max(1, this.columns);
   }
 
   filtered(): readonly T[] {
@@ -85,11 +116,23 @@ export class SearchableList<T> {
   }
 
   moveUp(): void {
-    this.cursor = Math.max(0, this.cursor - 1);
+    const count = this.filtered().length;
+    this.cursor = gridMoveUp({ index: this.cursor, count, columns: this.columns });
   }
 
   moveDown(): void {
-    this.cursor = Math.min(Math.max(0, this.filtered().length - 1), this.cursor + 1);
+    const count = this.filtered().length;
+    this.cursor = gridMoveDown({ index: this.cursor, count, columns: this.columns });
+  }
+
+  moveLeft(): void {
+    const count = this.filtered().length;
+    this.cursor = gridMoveLeft({ index: this.cursor, count, columns: this.columns });
+  }
+
+  moveRight(): void {
+    const count = this.filtered().length;
+    this.cursor = gridMoveRight({ index: this.cursor, count, columns: this.columns });
   }
 
   /** Jump the cursor to an absolute filtered index (clamped). */
@@ -99,11 +142,14 @@ export class SearchableList<T> {
   }
 
   pageUp(): void {
-    this.cursor = Math.max(0, this.cursor - this.pageSize);
+    this.cursor = Math.max(0, this.cursor - this.pageStride());
   }
 
   pageDown(): void {
-    this.cursor = Math.min(Math.max(0, this.filtered().length - 1), this.cursor + this.pageSize);
+    this.cursor = Math.min(
+      Math.max(0, this.filtered().length - 1),
+      this.cursor + this.pageStride(),
+    );
   }
 
   /** Clears the active query and resets the cursor. Returns whether a query was cleared. */

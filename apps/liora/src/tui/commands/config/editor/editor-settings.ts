@@ -42,21 +42,7 @@ export function showEditorSettings(host: SlashCommandHost): void {
           label: `Change external editor · ${editorLabel}`,
           description: 'Searchable picker — $VISUAL / $EDITOR or a fixed command.',
         },
-        {
-          value: 'tip-external',
-          label: 'External editor tip',
-          description: EDITOR_EXTERNAL_TIP,
-        },
-        {
-          value: 'tip-bash',
-          label: 'Bash mode tip',
-          description: EDITOR_BASH_TIP,
-        },
-        {
-          value: 'tip-persist',
-          label: 'Persist tip',
-          description: EDITOR_PERSIST_TIP,
-        },
+
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -68,17 +54,7 @@ export function showEditorSettings(host: SlashCommandHost): void {
           showEditorPicker(host);
           return;
         }
-        if (value === 'tip-external') {
-          host.showStatus(EDITOR_EXTERNAL_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-bash') {
-          host.showStatus(EDITOR_BASH_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-persist') {
-          host.showStatus(EDITOR_PERSIST_TIP, 'info');
-        }
+
       },
       onCancel: () => {
         dismissPickerDialog(host);

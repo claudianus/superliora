@@ -9,6 +9,17 @@ import type { TranscriptDetailLevel } from '#/tui/types';
  * testable projection.
  */
 
+/** Session-active density for render-time reads (thinking / answer phase). */
+let activeTranscriptDetail: TranscriptDetailLevel = 'standard';
+
+export function getActiveTranscriptDetail(): TranscriptDetailLevel {
+  return activeTranscriptDetail;
+}
+
+export function setActiveTranscriptDetail(level: TranscriptDetailLevel): void {
+  activeTranscriptDetail = level;
+}
+
 /**
  * Resolve the effective detail level.
  *
@@ -27,9 +38,27 @@ export function resolveTranscriptDetail(opts: {
   return opts.configured;
 }
 
-/** Whether a level hides tool bodies behind a one-line representation. */
+/**
+ * Whether a level hides tool bodies behind a one-line representation.
+ * Both `minimal` and `compact` collapse bodies; they differ in whether
+ * individual tool rows are shown at all (`isChainOnlyToolLevel`).
+ */
 export function isOneLineToolLevel(level: TranscriptDetailLevel): boolean {
   return level === 'compact' || level === 'minimal';
+}
+
+/**
+ * `minimal` collapses the whole tool chain into a single summary card —
+ * individual tool headers stay hidden until the operator expands the chain.
+ * `compact` still shows one header line per tool.
+ */
+export function isChainOnlyToolLevel(level: TranscriptDetailLevel): boolean {
+  return level === 'minimal';
+}
+
+/** Whether phase tint backgrounds are painted (standard+). Compact still tints headers. */
+export function isPhaseTintLevel(level: TranscriptDetailLevel): boolean {
+  return level === 'compact' || level === 'standard' || level === 'full' || level === 'minimal';
 }
 
 /** All levels in display order (densest first) — used by /transcript and Ctrl+O. */
@@ -55,13 +84,13 @@ export function nextTranscriptDetailLevel(
 export function formatTranscriptDetailCycleLabel(level: TranscriptDetailLevel): string {
   switch (level) {
     case 'minimal':
-      return 'Transcript · minimal (one-line tools + chain summary)';
+      return 'Transcript · minimal (chain-only · click bar to expand tools)';
     case 'compact':
-      return 'Transcript · compact (headers only)';
+      return 'Transcript · compact (chain bar · tool headers · phase tints)';
     case 'standard':
-      return 'Transcript · standard (preview cards)';
+      return 'Transcript · standard (chain bar · preview cards · phase tints)';
     case 'full':
-      return 'Transcript · full (expanded tool bodies)';
+      return 'Transcript · full (expanded · no chain bar)';
   }
 }
 

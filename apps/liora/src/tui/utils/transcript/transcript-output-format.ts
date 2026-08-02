@@ -13,6 +13,7 @@
 import chalk from 'chalk';
 
 import { highlightLines, langFromPath } from '#/tui/components/media/code-highlight';
+import { normalizeLangId } from '#/tui/components/media/lang-aliases';
 import { shouldSkipExpensiveTranscriptFormat } from '#/tui/renderer';
 import { currentTheme, type ColorPalette } from '#/tui/theme';
 
@@ -35,6 +36,8 @@ export type TranscriptOutputKind =
   | 'log'
   | 'xml'
   | 'yaml'
+  | 'csv'
+  | 'properties'
   | 'code'
   | 'numbered-code'
   | 'plain'
@@ -79,53 +82,67 @@ const DIFF_LINE_RE = /^(?:diff --git |index [0-9a-f]+\.\.|@@ |\+\+\+ |--- |[+-](
 const YAML_KEY_RE = /^[\w."'-]+\s*:\s*(?:$|[^{[\s]|[{[])/;
 const XML_OPEN_RE = /^\s*</;
 const URL_RE = /https?:\/\/[^\s"'<>]+/g;
+/** Paths only: absolute, home, or explicit relative (./ ../) — not bare "src/foo". */
 const PATH_RE =
-  /(?:^|[\s"'`(=])((?:\.\.?\/|~\/|\/|[A-Za-z]:\\)[\w.@%+\-./\\]+)(?=[\s"'`),;:]|$)/g;
-const NUMBER_TOKEN_RE = /(?<![\w.])(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?![\w.])/g;
+  /(?:^|[\s"'`(=])((?:\.\.?\/|~\/|\/|[A-Za-z]:\\)[\w.@%+\-./\\]{2,})(?=[\s"'`),;:]|$)/g;
+/** Numbers are NOT soft-decorated on plain lines (too aggressive for prose). */
 
 /** Read tool / cat -n style: `12\t…` or padded `  12\t…` / `  12|…` / `  12:…`. */
 const NUMBERED_LINE_RE = /^(\s*)(\d{1,7})([ \t|:]+)(.*)$/;
 
+/**
+ * High-confidence code sniffers. Each pattern is intentionally multi-token so
+ * a single prose word like "const" or "export" never triggers full highlighting.
+ * Prefer path/language hints over sniffing whenever available.
+ */
 const CODE_SNIFFERS: ReadonlyArray<{ readonly lang: string; readonly re: RegExp }> = [
   {
     lang: 'typescript',
-    re: /\b(?:export\s+(?:default\s+)?(?:async\s+)?function|export\s+(?:type|interface|const|enum|class|import)\b|import\s+(?:type\s+)?[\w*{].*\sfrom\s+['"]|:\s*(?:string|number|boolean|void|unknown|never|Readonly|Promise)<|as\s+const\b)/,
+    re: /(?:^|\n)\s*(?:export\s+(?:default\s+)?(?:async\s+)?function\s+\w+|export\s+(?:type|interface)\s+\w+|import\s+(?:type\s+)?[\w*{].*\sfrom\s+['"][^'"]+['"])/m,
   },
   {
     lang: 'javascript',
-    re: /\b(?:export\s+(?:default\s+)?(?:async\s+)?function|module\.exports\b|require\s*\(|=>\s*\{|const\s+\w+\s*=\s*(?:async\s*)?\()/,
+    re: /(?:^|\n)\s*(?:export\s+(?:default\s+)?(?:async\s+)?function\s+\w+|module\.exports\s*=|const\s+\w+\s*=\s*require\s*\()/m,
   },
   {
     lang: 'python',
-    re: /(?:^|\n)(?:def\s+\w+\s*\(|class\s+\w+\s*(?:\(.*\))?:|from\s+\w[\w.]*\s+import\s+|import\s+\w[\w.]*(?:\s+as\s+\w+)?\s*$|if\s+__name__\s*==\s*['"]__main__['"])/m,
+    re: /(?:^|\n)(?:def\s+\w+\s*\([^)]*\)\s*:|class\s+\w+\s*(?:\(.*\))?:|from\s+\w[\w.]*\s+import\s+\w|if\s+__name__\s*==\s*['"]__main__['"])/m,
   },
   {
     lang: 'rust',
-    re: /\b(?:fn\s+\w+\s*(?:<[^>]*>)?\s*\(|let\s+mut\s+|impl\s+\w+|use\s+[\w:]+::|pub\s+(?:fn|struct|enum|mod)\b)/,
+    re: /(?:^|\n)\s*(?:fn\s+\w+\s*(?:<[^>]*>)?\s*\(|pub\s+(?:fn|struct|enum|mod)\s+\w+|use\s+[\w:]+::[\w:]+)/m,
   },
   {
     lang: 'go',
-    re: /\b(?:func\s+(?:\([^)]*\)\s*)?\w+\s*\(|package\s+\w+|type\s+\w+\s+struct\s*\{)/,
+    re: /(?:^|\n)\s*(?:func\s+(?:\([^)]*\)\s*)?\w+\s*\(|package\s+\w+\s*$|type\s+\w+\s+struct\s*\{)/m,
   },
   {
     lang: 'java',
-    re: /\b(?:public\s+class\s+\w+|package\s+[\w.]+;|System\.out\.println|@Override\b)/,
+    re: /(?:^|\n)\s*(?:public\s+class\s+\w+|package\s+[\w.]+;)/m,
   },
   {
     lang: 'sql',
-    re: /^\s*(?:SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|WITH)\b/im,
+    re: /^\s*(?:SELECT\s+.+?\s+FROM\s+|INSERT\s+INTO\s+|CREATE\s+TABLE\s+)/im,
   },
   {
     lang: 'toml',
-    re: /(?:^|\n)\[[\w.-]+\]\s*(?:\n|$)/,
+    re: /(?:^|\n)\[[\w.-]+\]\s*\n\s*[\w.-]+\s*=/m,
   },
   {
     lang: 'dockerfile',
-    re: /^\s*(?:FROM|RUN|COPY|ADD|ENTRYPOINT|CMD|ENV|WORKDIR)\b/im,
+    re: /(?:^|\n)\s*(?:FROM\s+\S+|RUN\s+\S+)/m,
   },
   {
     lang: 'bash',
-    re: /(?:^|\n)(?:#!\s*\/.*(?:ba)?sh\b|set\s+-[euxo]+\b|function\s+\w+\s*\{)/,
+    re: /(?:^|\n)(?:#!\s*\/.*(?:ba)?sh\b|set\s+-[euxo]+\b)/m,
+  },
+  {
+    lang: 'graphql',
+    re: /(?:^|\n)\s*(?:type\s+\w+\s*\{|query\s+\w*\s*[\({]|mutation\s+\w*\s*[\({])/m,
+  },
+  {
+    lang: 'terraform',
+    re: /(?:^|\n)\s*(?:resource\s+"[\w_]+"\s+"[\w_-]+"|provider\s+"[\w_]+"|variable\s+"[\w_]+")/m,
   },
 ];
 
@@ -177,6 +194,8 @@ export function detectTranscriptOutputKind(text: string): TranscriptOutputKind {
 
   if (looksLikeJson(trimmed)) return 'json';
   if (looksLikeJsonl(trimmed)) return 'jsonl';
+  if (looksLikeCsv(trimmed)) return 'csv';
+  if (looksLikeProperties(trimmed)) return 'properties';
 
   const sample = sampleLines(trimmed, 48);
   let diffHits = 0;
@@ -238,6 +257,8 @@ export function segmentTranscriptOutput(
     whole === 'diff' ||
     whole === 'xml' ||
     whole === 'yaml' ||
+    whole === 'csv' ||
+    whole === 'properties' ||
     whole === 'numbered-code' ||
     whole === 'code'
   ) {
@@ -252,7 +273,11 @@ export function segmentTranscriptOutput(
               ? 'xml'
               : whole === 'yaml'
                 ? 'yaml'
-                : undefined;
+                : whole === 'csv'
+                  ? 'csv'
+                  : whole === 'properties'
+                    ? 'properties'
+                    : undefined;
     return [
       {
         kind: whole,
@@ -337,21 +362,32 @@ function classifyLine(
   ) {
     return 'jsonl';
   }
-  if (XML_OPEN_RE.test(line) && /<\/?[A-Za-z_!]/.test(line)) return 'xml';
-  if (YAML_KEY_RE.test(line) && !line.includes('{') && !line.startsWith('//')) return 'yaml';
+  if (XML_OPEN_RE.test(line) && /<\/?[A-Za-z_!]/.test(line) && /(?:\/>|>)/.test(line)) {
+    return 'xml';
+  }
+  // YAML only when the line looks like a real key:value (not prose "Note: foo").
+  if (
+    YAML_KEY_RE.test(line) &&
+    !line.includes('{') &&
+    !line.startsWith('//') &&
+    /^[\w."'-]+\s*:\s+\S/.test(trimmed)
+  ) {
+    return 'yaml';
+  }
 
   if (languageHint !== undefined) {
-    // Inside a hinted code dump, non-empty lines stay code unless strongly
-    // reclassified above.
+    // Inside a hinted code dump, keep structural code lines as code.
+    // Do not reclassify plain prose just because a keyword appears.
     if (
-      /[{};=<>]|=>|\b(?:function|const|let|var|class|import|export|def|fn|package)\b/.test(
+      /[{};]\s*$|=>\s*\{|^\s*(?:function|const|let|var|class|import|export|def|fn|package|type|interface)\b/.test(
         trimmed,
       )
     ) {
       return 'code';
     }
+    return 'plain';
   }
-  if (sniffCodeLanguage(trimmed) !== undefined) return 'code';
+  // Never promote a single line to code via sniff — sniff needs multi-line blobs.
   return 'plain';
 }
 
@@ -448,6 +484,8 @@ function formatBody(
   if (whole === 'diff') return { kind: whole, text: formatCodeOutput(text, 'diff', options) };
   if (whole === 'xml') return { kind: whole, text: formatCodeOutput(text, 'xml', options) };
   if (whole === 'yaml') return { kind: whole, text: formatCodeOutput(text, 'yaml', options) };
+  if (whole === 'csv') return { kind: whole, text: formatCsvOutput(text, options) };
+  if (whole === 'properties') return { kind: whole, text: formatPropertiesOutput(text, options) };
   if (whole === 'stack') return { kind: whole, text: formatStackOutput(text, options) };
   if (whole === 'log') return { kind: whole, text: formatLogOutput(text, options) };
   if (whole === 'numbered-code') {
@@ -523,6 +561,10 @@ function formatSegmentBody(
       return formatCodeOutput(body, 'xml', options);
     case 'yaml':
       return formatCodeOutput(body, 'yaml', options);
+    case 'csv':
+      return formatCsvOutput(body, options);
+    case 'properties':
+      return formatPropertiesOutput(body, options);
     case 'stack':
       return formatStackOutput(body, options);
     case 'log':
@@ -554,41 +596,17 @@ function resolveLanguage(
   return sniffCodeLanguage(looksNumbered(text) ? stripNumberedPrefixes(text) : text);
 }
 
-function normalizeLangId(lang: string): string {
-  switch (lang) {
-    case 'ts':
-    case 'tsx':
-    case 'mts':
-    case 'cts':
-      return 'typescript';
-    case 'js':
-    case 'jsx':
-    case 'mjs':
-    case 'cjs':
-      return 'javascript';
-    case 'py':
-      return 'python';
-    case 'rs':
-      return 'rust';
-    case 'sh':
-    case 'zsh':
-    case 'shell':
-      return 'bash';
-    case 'yml':
-      return 'yaml';
-    case 'md':
-    case 'mdx':
-      return 'markdown';
-    default:
-      return lang;
-  }
-}
-
 /**
  * Heuristic language sniff from source shape. Cheap regex only — never runs a
- * full parser. Returns undefined when confidence is low.
+ * full parser. Requires enough content that a false positive is unlikely
+ * (multi-line or ≥40 chars with a high-confidence structural match).
  */
 export function sniffCodeLanguage(text: string): string | undefined {
+  const trimmed = text.trim();
+  if (trimmed.length < 24) return undefined;
+  const lineCount = trimmed.split('\n').length;
+  // Single short line: refuse — prose often contains "import" / "const".
+  if (lineCount < 2 && trimmed.length < 80) return undefined;
   const sample = text.length > 8_000 ? text.slice(0, 4_000) + text.slice(-2_000) : text;
   for (const { lang, re } of CODE_SNIFFERS) {
     if (re.test(sample)) return lang;
@@ -735,11 +753,127 @@ function formatCodeOutput(
   if (normalized === 'text' || normalized === 'plain') {
     return formatPlainOutput(text, options);
   }
+  // Lightweight document formatters for dumps Shiki under-serves.
+  if (normalized === 'csv' || normalized === 'tsv') {
+    return formatCsvOutput(text, options);
+  }
+  if (normalized === 'properties' || normalized === 'ini' || normalized === 'dotenv') {
+    return formatPropertiesOutput(text, options);
+  }
   const highlighted = highlightLines(text, normalized, {
     palette: options.palette,
     pathHint: options.pathHint,
   }).join('\n');
   return options.isError === true ? tintErrorLines(highlighted) : highlighted;
+}
+
+/** True when the blob is mostly delimiter-separated columns (CSV/TSV). */
+function looksLikeCsv(text: string): boolean {
+  const lines = sampleLines(text, 24).filter((l) => l.trim().length > 0);
+  if (lines.length < 2) return false;
+  let commaHits = 0;
+  let tabHits = 0;
+  let consistent = 0;
+  let lastCount = -1;
+  for (const line of lines) {
+    const commas = (line.match(/,/g) ?? []).length;
+    const tabs = (line.match(/\t/g) ?? []).length;
+    if (commas >= 2) commaHits++;
+    if (tabs >= 2) tabHits++;
+    const fields = tabs > commas ? tabs + 1 : commas + 1;
+    if (fields < 3) continue;
+    if (lastCount === -1) lastCount = fields;
+    if (fields === lastCount) consistent++;
+  }
+  const sepHits = Math.max(commaHits, tabHits);
+  return sepHits >= Math.ceil(lines.length * 0.7) && consistent >= Math.ceil(lines.length * 0.6);
+}
+
+/** KEY=value / key: value env & properties files. */
+function looksLikeProperties(text: string): boolean {
+  const lines = sampleLines(text, 32).filter((l) => l.trim().length > 0 && !l.trim().startsWith('#'));
+  if (lines.length < 3) return false;
+  let hits = 0;
+  for (const line of lines) {
+    if (/^[\w.-]+\s*[=:]\s*\S/.test(line.trim())) hits++;
+  }
+  return hits / lines.length >= 0.7;
+}
+
+function formatCsvOutput(text: string, options: FormatTranscriptOutputOptions): string {
+  const p = options.palette ?? currentTheme.palette;
+  const lines = text.split('\n');
+  const sample = lines.find((l) => l.trim().length > 0) ?? '';
+  const delim = (sample.match(/\t/g)?.length ?? 0) > (sample.match(/,/g)?.length ?? 0) ? '\t' : ',';
+  const colors = [p.syntaxString, p.syntaxNumber, p.syntaxType, p.syntaxKeyword, p.syntaxMeta];
+  return lines
+    .map((line, row) => {
+      if (line.length === 0) return line;
+      const cells = splitCsvLine(line, delim);
+      if (cells.length < 2) {
+        return options.isError === true ? errorStyle(line) : dimStyle(line);
+      }
+      return cells
+        .map((cell, i) => {
+          const color = row === 0 ? p.syntaxKeyword : colors[i % colors.length]!;
+          const painted = chalk.hex(color)(cell);
+          return options.isError === true ? chalk.hex(p.error)(cell) : painted;
+        })
+        .join(chalk.hex(p.textMuted)(delim));
+    })
+    .join('\n');
+}
+
+function splitCsvLine(line: string, delim: string): string[] {
+  if (delim === '\t') return line.split('\t');
+  // Minimal CSV split: respect double-quoted fields.
+  const out: string[] = [];
+  let cur = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]!;
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (ch === delim && !inQuotes) {
+      out.push(cur);
+      cur = '';
+      continue;
+    }
+    cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+
+function formatPropertiesOutput(text: string, options: FormatTranscriptOutputOptions): string {
+  const p = options.palette ?? currentTheme.palette;
+  return text
+    .split('\n')
+    .map((line) => {
+      const trimmed = line.trim();
+      if (trimmed.length === 0) return line;
+      if (trimmed.startsWith('#') || trimmed.startsWith('!')) {
+        return chalk.hex(p.syntaxComment)(line);
+      }
+      const m = /^(\s*)([\w.-]+)(\s*[=:]\s*)(.*)$/.exec(line);
+      if (m === null) {
+        return options.isError === true ? errorStyle(line) : dimStyle(line);
+      }
+      return (
+        (m[1] ?? '') +
+        chalk.hex(p.syntaxKeyword)(m[2] ?? '') +
+        chalk.hex(p.syntaxOperator)(m[3] ?? '') +
+        chalk.hex(p.syntaxString)(m[4] ?? '')
+      );
+    })
+    .join('\n');
 }
 
 function formatStackOutput(text: string, options: FormatTranscriptOutputOptions): string {
@@ -880,8 +1014,9 @@ function mayNeedSoftDecorate(text: string): boolean {
 }
 
 /**
- * Soft accents for URLs, absolute/relative paths, and numbers on an otherwise
- * dim (or error) base line. Applied left-to-right without overlapping.
+ * Soft accents for URLs and explicit paths on an otherwise dim (or error) base
+ * line. Numbers are intentionally left alone — coloring every digit makes
+ * tool dumps unreadable and is not useful for prose/logs.
  */
 function softDecorate(line: string, p: ColorPalette, isError: boolean): string {
   if (line.length === 0) return line;
@@ -896,13 +1031,11 @@ function softDecorate(line: string, p: ColorPalette, isError: boolean): string {
   for (const match of line.matchAll(PATH_RE)) {
     const full = match[0];
     const path = match[1] ?? '';
+    // Require a path separator so we do not highlight single tokens.
+    if (!path.includes('/') && !path.includes('\\')) continue;
     const pathOffset = full.lastIndexOf(path);
     const start = (match.index ?? 0) + Math.max(0, pathOffset);
     spans.push({ start, end: start + path.length, color: p.syntaxString });
-  }
-  for (const match of line.matchAll(NUMBER_TOKEN_RE)) {
-    const start = match.index ?? 0;
-    spans.push({ start, end: start + match[0].length, color: p.syntaxNumber });
   }
 
   if (spans.length === 0) return chalk.hex(base)(line);

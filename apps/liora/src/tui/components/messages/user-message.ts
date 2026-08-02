@@ -28,6 +28,10 @@ import {
   isTranscriptEntranceActive,
   polishTranscriptLines,
 } from '#/tui/features/transcript/transcript-entrance';
+import {
+  applyPhaseTintLine,
+  phaseGutter,
+} from '#/tui/features/transcript/transcript-phase-tint';
 
 export class UserMessageComponent implements Component {
   private text: string;
@@ -137,7 +141,23 @@ export class UserMessageComponent implements Component {
             }),
           );
         }
-        return out;
+        // Soft user-phase tint so turns read as you → thinking → tools → answer.
+        const phaseTag = applyPhaseTintLine(
+          `${phaseGutter('user')} ${currentTheme.boldFg('roleUser', 'you')}`,
+          safeWidth,
+          'user',
+        );
+        const tinted: string[] = [phaseTag];
+        for (const line of out) {
+          if (line.length === 0) {
+            tinted.push(line);
+            continue;
+          }
+          const guttered =
+            phaseGutter('user') + (line.startsWith(' ') ? line.slice(1) : line);
+          tinted.push(applyPhaseTintLine(guttered, safeWidth, 'user'));
+        }
+        return tinted;
       },
     });
 

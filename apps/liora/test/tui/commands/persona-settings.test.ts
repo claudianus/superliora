@@ -67,15 +67,6 @@ describe('persona glance', () => {
     );
   });
 
-  it('builds tip-heavy panel lines with live config path and fields', () => {
-    const lines = buildPersonaSettingsLines({
-      configPath: '/home/.superliora/config.toml',
-      persona: {
-        name: 'Liora',
-        preset: 'mentor',
-        tone: 'warm',
-      },
-    });
     const text = lines.join('\n');
     expect(text).toContain('Persona (read-only)');
     expect(text).toContain('Active persona: Liora');
@@ -113,10 +104,4 @@ describe('persona settings', () => {
     expect(panel.snapshotBodyLines(1).join('\n')).toContain('config read failed');
   });
 
-  it('shows preset tip via showStatus', () => {
-    const host = makePersonaHost();
-    showPersonaSettings(host);
-    selectPersonaAction(host, 'tip-preset');
-    expect(host.showStatus).toHaveBeenCalledWith(PERSONA_PRESET_TIP, 'info');
-  });
 });

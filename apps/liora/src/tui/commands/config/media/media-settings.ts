@@ -47,21 +47,7 @@ export function showMediaSettings(host: SlashCommandHost): void {
           label: 'Change model…',
           description: 'Switch to a vision-capable model to skip fallback.',
         },
-        {
-          value: 'tip-analyze',
-          label: 'Analyze policy tip',
-          description: 'Vision catalog pre-render · injected text before chat model · paste/drop parity.',
-        },
-        {
-          value: 'tip-path',
-          label: 'Path note policy tip',
-          description: 'Pointer note instead of bytes · vision tool can read attachment later.',
-        },
-        {
-          value: 'tip-block',
-          label: 'Block policy tip',
-          description: 'Refuse send when image_in/video_in missing · switch model to skip fallback.',
-        },
+
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -77,17 +63,7 @@ export function showMediaSettings(host: SlashCommandHost): void {
           void handleModelCommand(host, '');
           return;
         }
-        if (value === 'tip-analyze') {
-          host.showStatus(MEDIA_ANALYZE_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-path') {
-          host.showStatus(MEDIA_PATH_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-block') {
-          host.showStatus(MEDIA_BLOCK_TIP, 'info');
-        }
+
       },
       onCancel: () => {
         dismissPickerDialog(host);

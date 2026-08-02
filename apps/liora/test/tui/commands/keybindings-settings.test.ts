@@ -40,7 +40,7 @@ function panelLines(host: SlashCommandHost): string {
 }
 
 describe('keybindings settings tips', () => {
-  it('exports registry, help, command hub, and future editor tips', () => {
+  it('exports registry, help, command hub, and future editor tips (glance copy, not menu rows)', () => {
     expect(KEYBINDINGS_REGISTRY_TIP).toContain('keymap.ts');
     expect(KEYBINDINGS_REGISTRY_TIP).toContain('SSOT');
     expect(KEYBINDINGS_HELP_TIP).toContain('/help');
@@ -52,7 +52,7 @@ describe('keybindings settings tips', () => {
 });
 
 describe('showKeybindingsSettings', () => {
-  it('mounts ChoicePicker with status and read-only tip actions', () => {
+  it('mounts ChoicePicker with status and read-only tip actions — tip-free', () => {
     const host = makeKeybindingsHost();
     showKeybindingsSettings(host);
     const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
@@ -65,32 +65,8 @@ describe('showKeybindingsSettings', () => {
       'status',
       'help',
       'command-hub',
-      'tip-registry',
-      'tip-help',
-      'tip-command-hub',
-      'tip-future',
     ]);
-  });
-
-  it('shows registry tip via showStatus', () => {
-    const host = makeKeybindingsHost();
-    showKeybindingsSettings(host);
-    selectKeybindingsAction(host, 'tip-registry');
-    expect(host.showStatus).toHaveBeenCalledWith(KEYBINDINGS_REGISTRY_TIP, 'info');
-  });
-
-  it('shows help tip via showStatus', () => {
-    const host = makeKeybindingsHost();
-    showKeybindingsSettings(host);
-    selectKeybindingsAction(host, 'tip-help');
-    expect(host.showStatus).toHaveBeenCalledWith(KEYBINDINGS_HELP_TIP, 'info');
-  });
-
-  it('shows command hub tip via showStatus', () => {
-    const host = makeKeybindingsHost();
-    showKeybindingsSettings(host);
-    selectKeybindingsAction(host, 'tip-command-hub');
-    expect(host.showStatus).toHaveBeenCalledWith(KEYBINDINGS_COMMAND_HUB_TIP, 'info');
+    expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
   it('mounts read-only keybindings panel for status', () => {

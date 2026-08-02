@@ -38,6 +38,7 @@ import { TasksBrowserController } from '../panes/tasks-browser';
 import { TranscriptRenderController } from '../transcript/transcript-render';
 import { UsageMonitorController } from '../usage/usage-monitor';
 import { WorkspaceBrowserController } from '../panes/workspace-browser';
+import { setActiveTranscriptDetail } from '../../features/transcript/transcript-density';
 
 function shouldRenderAmbientAnimationFrameFor(tui: LioraTUI): boolean {
   const selection = tui.state.transcriptSelection;
@@ -121,6 +122,8 @@ export function wireLioraTUIControllers(
   });
   tui.state.transcriptDetail =
     tui.state.appState.appearance?.transcriptDetail ?? 'standard';
+  // Keep render-time density readers (thinking / answer phase) in sync.
+  setActiveTranscriptDetail(tui.state.transcriptDetail);
   tui.btwPanelController = new BtwPanelController(tui);
   tui.sessionEventHandler = new SessionEventHandler(tui);
   tui.transcriptRender = new TranscriptRenderController(tui);

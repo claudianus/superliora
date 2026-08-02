@@ -1,16 +1,13 @@
 /**
- * One-line per-turn tool chain summary for the `minimal` transcript density
- * (PREMIUM.md §7.9). While the turn's tools run it shows a live aggregate
- * (`⚙ Edit · 7 tools · +42/−10`); once the turn settles it switches to past
- * tense (`Worked for 10m 4s · 7 tools · 2 failed`). Individual tool cards
- * stay mounted as one-line headers under the summary, so failure punch-through
- * and click-to-expand keep working exactly as in `compact`.
+ * Per-turn tool chain summary for `minimal` (and optional compact chrome).
+ * Live: `▌ tools · Edit · 7 tools · +42/−10`
+ * Settled: `▌ tools · Worked for 10m 4s · 7 tools · 2 failed`
  *
- * All statistics are pure projections from `#/tui/features/transcript/transcript-density`;
- * this component only owns styling and mount lifecycle.
+ * Individual tool cards stay mounted under the summary; at `minimal` density
+ * they render empty until expanded (failure punch-through still shows).
  */
 
-import { Container, Spacer, Text } from '#/tui/renderer';
+import { Container, Text } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import {
   appearanceAnimationNow,
@@ -24,11 +21,17 @@ import {
   createToolChainStats,
   formatChainLiveSummary,
   formatChainSettledSummary,
+  getActiveTranscriptDetail,
+  isChainOnlyToolLevel,
   recordChainTool,
   settleToolChain,
   type ChainToolRecord,
   type ToolChainStats,
 } from '#/tui/features/transcript/transcript-density';
+import {
+  formatPhaseHeaderLine,
+  phaseGutter,
+} from '#/tui/features/transcript/transcript-phase-tint';
 
 export class ToolChainSummaryComponent extends Container {
   private stats: ToolChainStats;
@@ -40,21 +43,38 @@ export class ToolChainSummaryComponent extends Container {
   constructor(startedAt: number = Date.now()) {
     super();
     this.stats = createToolChainStats(startedAt);
-    this.addChild(new Spacer(1));
+    // No leading spacer — phase bar sits tight under thinking / user blocks.
     this.summaryText = new Text('', 0, 0);
     this.addChild(this.summaryText);
     this.refresh();
   }
 
   override render(width: number): string[] {
-    const lines = super.render(width);
-    if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) return lines;
+    const body = this.settled
+      ? formatChainSettledSummary(this.stats)
+      : formatChainLiveSummary(this.stats, this.currentLabel);
+    // Strip leading ⚙ from pure formatter — phase header supplies chrome.
+    let detail = body.replace(/^⚙\s*/, '');
+    // minimal: tools are hidden — nudge click-to-expand on the chain bar.
+    if (isChainOnlyToolLevel(getActiveTranscriptDetail()) && this.stats.toolCount > 0) {
+      detail = `${detail} · click expand`;
+    }
+    const header = formatPhaseHeaderLine('tools', detail, width);
+    const lines = ['', header];
+    if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) {
+      return lines;
+    }
     return polishTranscriptLines(lines, {
       startedAtMs: this.entranceStartedAtMs,
       kind: 'tool',
       streaming: !this.settled,
       appearance: getActiveAppearancePreferences(),
     });
+  }
+
+  /** Paint-only invalidate — do not re-enter refresh (avoids invalidate↔refresh loops). */
+  invalidate(): void {
+    super.invalidate();
   }
 
   /** Live "what is running now" label (typically the current tool name). */
@@ -88,10 +108,15 @@ export class ToolChainSummaryComponent extends Container {
   }
 
   private refresh(): void {
+    // Keep Text child non-empty so container height stays stable for layout;
+    // real paint is done in override render() with phase tint.
     const body = this.settled
       ? formatChainSettledSummary(this.stats)
       : formatChainLiveSummary(this.stats, this.currentLabel);
-    this.summaryText.setText(currentTheme.dim(body));
+    this.summaryText.setText(
+      currentTheme.fg('primary', `${phaseGutter('tools')} tools  `) +
+        currentTheme.dim(body.replace(/^⚙\s*/, '')),
+    );
     this.invalidate();
   }
 }

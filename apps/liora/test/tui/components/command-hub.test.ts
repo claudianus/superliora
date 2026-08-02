@@ -13,6 +13,8 @@ import { noteHubActionUse, resetHubRecentsForTests } from '#/tui/utils/command/h
 const ENTER = '\r';
 const ESCAPE = '\u001B';
 const DOWN = '\u001B[B';
+const LEFT = '\u001B[D';
+const RIGHT = '\u001B[C';
 const SPACE = ' ';
 
 function stripAnsi(text: string): string {
@@ -32,9 +34,8 @@ describe('buildDefaultCommandHubItems', () => {
       true,
     );
     expect(items.some((item) => item.section === 'Start')).toBe(true);
-    expect(items.some((item) => item.id === 'help.searchTip' && item.label === 'Search tip')).toBe(
-      true,
-    );
+    expect(items.some((item) => item.id === 'help.shortcuts')).toBe(true);
+    expect(items.every((item) => item.id !== 'help.searchTip')).toBe(true);
     expect(isCommandHubToggleId('modes.plan')).toBe(true);
   });
 
@@ -96,14 +97,11 @@ describe('cyclePermissionMode', () => {
   });
 });
 
-describe('help.searchTip', () => {
-  it('stays non-nested so One-search remains the only catalog', () => {
-    const item = buildDefaultCommandHubItems({}).find(
-      (candidate) => candidate.id === 'help.searchTip',
-    );
-    expect(item?.label).toBe('Search tip');
-    expect(commandHubNestsPicker('help.searchTip')).toBe(false);
-    expect(commandHubActionToSlash('help.searchTip')).toBeUndefined();
+describe('help.searchTip removed', () => {
+  it('no longer ships a tip-only Hub row (search is the empty filter + type)', () => {
+    const items = buildDefaultCommandHubItems({});
+    expect(items.every((item) => item.id !== 'help.searchTip')).toBe(true);
+    expect(items.every((item) => !/search tip/i.test(item.label))).toBe(true);
   });
 });
 
@@ -221,6 +219,25 @@ describe('CommandHubComponent', () => {
     hub.handleInput('1');
     expect(onSelect).toHaveBeenCalledOnce();
     expect(onSelect.mock.calls[0]?.[1]).toBe('enter');
+  });
+
+  it('←→ jumps between section starts when idle (list layout)', () => {
+    const hub = new CommandHubComponent({
+      items: buildDefaultCommandHubItems({}),
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+    });
+    // Force list layout by rendering wide enough that idle still stays 1-col.
+    hub.render(72);
+    const before = stripAnsi(hub.render(72).join('\n'));
+    hub.handleInput(RIGHT);
+    const afterRight = stripAnsi(hub.render(72).join('\n'));
+    // Selection moved into a later section — description line or pointer position changes.
+    expect(afterRight).not.toBe(before);
+    hub.handleInput(LEFT);
+    hub.handleInput(LEFT);
+    const afterLeft = stripAnsi(hub.render(72).join('\n'));
+    expect(afterLeft.length).toBeGreaterThan(0);
   });
 
   it('pins Recent actions when idle', () => {

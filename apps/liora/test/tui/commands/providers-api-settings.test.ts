@@ -62,7 +62,7 @@ function panelLines(host: SlashCommandHost): string {
 }
 
 describe('providers settings tips', () => {
-  it('exports /login, API key env, and PreferXai tips', () => {
+  it('exports /login, API key env, and PreferXai tips (glance copy, not menu rows)', () => {
     expect(PROVIDERS_LOGIN_TIP).toContain('/login');
     expect(PROVIDERS_LOGIN_TIP).toContain('Settings → Accounts');
     expect(PROVIDERS_API_KEY_ENVS_TIP).toContain('KIMI_API_KEY');
@@ -74,7 +74,7 @@ describe('providers settings tips', () => {
 });
 
 describe('showProvidersApiSettings', () => {
-  it('mounts ChoicePicker with status and read-only tip actions', () => {
+  it('mounts ChoicePicker with status and read-only tip actions — tip-free', () => {
     const host = makeProvidersHost();
     showProvidersApiSettings(host);
     const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
@@ -88,31 +88,8 @@ describe('showProvidersApiSettings', () => {
       'login',
       'model',
       'search',
-      'tip-login',
-      'tip-api-keys',
-      'tip-prefer-xai',
     ]);
-  });
-
-  it('shows /login tip via showStatus', () => {
-    const host = makeProvidersHost();
-    showProvidersApiSettings(host);
-    selectProvidersAction(host, 'tip-login');
-    expect(host.showStatus).toHaveBeenCalledWith(PROVIDERS_LOGIN_TIP, 'info');
-  });
-
-  it('shows API key env tip via showStatus', () => {
-    const host = makeProvidersHost();
-    showProvidersApiSettings(host);
-    selectProvidersAction(host, 'tip-api-keys');
-    expect(host.showStatus).toHaveBeenCalledWith(PROVIDERS_API_KEY_ENVS_TIP, 'info');
-  });
-
-  it('shows PreferXai tip via showStatus', () => {
-    const host = makeProvidersHost();
-    showProvidersApiSettings(host);
-    selectProvidersAction(host, 'tip-prefer-xai');
-    expect(host.showStatus).toHaveBeenCalledWith(SEARCH_PREFER_XAI_TIP, 'info');
+    expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
   it('mounts read-only providers panel when status is selected', async () => {

@@ -51,26 +51,7 @@ export function showEyesSettings(host: SlashCommandHost): void {
           label: 'Computer-use doctor tip',
           description: 'liora computer-use doctor / install — OS permissions + capture.',
         },
-        {
-          value: 'tip-slash',
-          label: '/eyes tip',
-          description: 'Same live report from slash command or Settings → Eyes readiness.',
-        },
-        {
-          value: 'tip-doctor',
-          label: 'Doctor / install tip',
-          description: 'liora browser-use · computer-use doctor/install — probes and OS permissions.',
-        },
-        {
-          value: 'tip-tools',
-          label: 'Agent tools tip',
-          description: 'BrowserStatus / VerifySurface · ComputerCapture / ComputerAct when wired.',
-        },
-        {
-          value: 'tip-text-only',
-          label: 'Text-only fallback tip',
-          description: 'Missing runtimes do not block text work · Harness links eyes/hands surface.',
-        },
+
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -94,21 +75,7 @@ export function showEyesSettings(host: SlashCommandHost): void {
           );
           return;
         }
-        if (value === 'tip-slash') {
-          host.showStatus(EYES_SLASH_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-doctor') {
-          host.showStatus(EYES_DOCTOR_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-tools') {
-          host.showStatus(EYES_TOOLS_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-text-only') {
-          host.showStatus(EYES_TEXT_ONLY_TIP, 'info');
-        }
+
       },
       onCancel: () => {
         dismissPickerDialog(host);

@@ -54,7 +54,7 @@ function selectMcpAction(host: SlashCommandHost, value: string): void {
 }
 
 describe('mcp settings tips', () => {
-  it('exports config scopes, OAuth, and allowlist tips', () => {
+  it('exports config scopes, OAuth, and allowlist tips (glance copy, not menu rows)', () => {
     expect(MCP_CONFIG_SCOPES_TIP).toContain('mcp.json');
     expect(MCP_CONFIG_SCOPES_TIP).toContain('.superliora');
     expect(MCP_OAUTH_TIP).toContain('/mcp-config login');
@@ -63,7 +63,7 @@ describe('mcp settings tips', () => {
 });
 
 describe('showMcpSettings', () => {
-  it('mounts ChoicePicker with status, manage, and read-only tip actions', () => {
+  it('mounts ChoicePicker with status, manage, and read-only tip actions — tip-free', () => {
     const host = makeMcpSettingsHost();
     showMcpSettings(host);
     const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
@@ -75,31 +75,8 @@ describe('showMcpSettings', () => {
     expect(options.map((o) => o.value)).toEqual([
       'status',
       'manage',
-      'tip-config-scopes',
-      'tip-oauth',
-      'tip-allowlist',
     ]);
-  });
-
-  it('shows config scopes tip via showStatus', () => {
-    const host = makeMcpSettingsHost();
-    showMcpSettings(host);
-    selectMcpAction(host, 'tip-config-scopes');
-    expect(host.showStatus).toHaveBeenCalledWith(MCP_CONFIG_SCOPES_TIP, 'info');
-  });
-
-  it('shows OAuth tip via showStatus', () => {
-    const host = makeMcpSettingsHost();
-    showMcpSettings(host);
-    selectMcpAction(host, 'tip-oauth');
-    expect(host.showStatus).toHaveBeenCalledWith(MCP_OAUTH_TIP, 'info');
-  });
-
-  it('shows allowlist tip via showStatus', () => {
-    const host = makeMcpSettingsHost();
-    showMcpSettings(host);
-    selectMcpAction(host, 'tip-allowlist');
-    expect(host.showStatus).toHaveBeenCalledWith(MCP_ALLOWLIST_TIP, 'info');
+    expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
   it('mounts glance panel with live listMcpServers count', async () => {

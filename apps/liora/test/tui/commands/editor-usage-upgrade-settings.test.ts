@@ -139,24 +139,6 @@ describe('editor settings panel', () => {
     expect(text).toContain('Ctrl+G');
   });
 
-  it('shows external editor tip via showStatus', () => {
-    const host = {
-      state: {
-        appState: { inputMode: 'prompt' as const, editorCommand: null },
-        transcriptContainer: { addChild: vi.fn() },
-        renderer: { invalidateFrame: vi.fn() },
-        centerModalStack: [] as readonly unknown[],
-      },
-      mountCenterModal: vi.fn(),
-      closeCenterModal: vi.fn(),
-      restoreEditor: vi.fn(),
-      showStatus: vi.fn(),
-    } as unknown as SlashCommandHost;
-
-    showEditorSettings(host);
-    selectPickerAction(host, 'tip-external');
-    expect(host.showStatus).toHaveBeenCalledWith(EDITOR_EXTERNAL_TIP, 'info');
-  });
 });
 
 describe('upgrade settings panel', () => {
@@ -186,26 +168,4 @@ describe('upgrade settings panel', () => {
     expect(text).toContain('/upgrade');
   });
 
-  it('shows env tip via showStatus', () => {
-    const host = {
-      state: {
-        appState: {
-          version: '2.0.0',
-          upgrade: { autoInstall: false },
-          updateNotice: null,
-        },
-        transcriptContainer: { addChild: vi.fn() },
-        renderer: { invalidateFrame: vi.fn() },
-        centerModalStack: [] as readonly unknown[],
-      },
-      mountCenterModal: vi.fn(),
-      closeCenterModal: vi.fn(),
-      restoreEditor: vi.fn(),
-      showStatus: vi.fn(),
-    } as unknown as SlashCommandHost;
-
-    showUpgradeSettings(host);
-    selectPickerAction(host, 'tip-env');
-    expect(host.showStatus).toHaveBeenCalledWith(UPGRADE_ENV_TIP, 'info');
-  });
 });

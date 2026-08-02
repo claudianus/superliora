@@ -73,7 +73,7 @@ function selectNeverHaltAction(host: SlashCommandHost, value: string): void {
 }
 
 describe('never-halt settings tips', () => {
-  it('exports search fallback, oauth, intervention, and breaker tips', () => {
+  it('exports search fallback, oauth, intervention, and breaker tips (glance copy, not menu rows)', () => {
     expect(NEVER_HALT_SEARCH_FALLBACK_TIP).toContain('free fallback');
     expect(NEVER_HALT_SEARCH_FALLBACK_TIP).toContain('Settings → Search');
     expect(NEVER_HALT_OAUTH_TIP).toContain('ensureFresh');
@@ -86,7 +86,7 @@ describe('never-halt settings tips', () => {
 });
 
 describe('showNeverHaltSettings', () => {
-  it('mounts ChoicePicker with status and read-only tip actions', () => {
+  it('mounts ChoicePicker with status and read-only tip actions — tip-free', () => {
     const host = makeHost();
     showNeverHaltSettings(host);
     const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
@@ -97,39 +97,8 @@ describe('showNeverHaltSettings', () => {
       .options;
     expect(options.map((o) => o.value)).toEqual([
       'status',
-      'tip-search-fallback',
-      'tip-oauth',
-      'tip-intervention',
-      'tip-breaker',
     ]);
-  });
-
-  it('shows search fallback tip via showStatus', () => {
-    const host = makeHost();
-    showNeverHaltSettings(host);
-    selectNeverHaltAction(host, 'tip-search-fallback');
-    expect(host.showStatus).toHaveBeenCalledWith(NEVER_HALT_SEARCH_FALLBACK_TIP, 'info');
-  });
-
-  it('shows oauth tip via showStatus', () => {
-    const host = makeHost();
-    showNeverHaltSettings(host);
-    selectNeverHaltAction(host, 'tip-oauth');
-    expect(host.showStatus).toHaveBeenCalledWith(NEVER_HALT_OAUTH_TIP, 'info');
-  });
-
-  it('shows intervention tip via showStatus', () => {
-    const host = makeHost();
-    showNeverHaltSettings(host);
-    selectNeverHaltAction(host, 'tip-intervention');
-    expect(host.showStatus).toHaveBeenCalledWith(NEVER_HALT_INTERVENTION_TIP, 'info');
-  });
-
-  it('shows breaker tip via showStatus', () => {
-    const host = makeHost();
-    showNeverHaltSettings(host);
-    selectNeverHaltAction(host, 'tip-breaker');
-    expect(host.showStatus).toHaveBeenCalledWith(NEVER_HALT_BREAKER_TIP, 'info');
+    expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
   it('uses AppState circuitBreakers when getStatus is unavailable', async () => {

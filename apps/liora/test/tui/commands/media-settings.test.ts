@@ -50,7 +50,7 @@ function selectMediaAction(host: SlashCommandHost, value: string): void {
 }
 
 describe('media settings tips', () => {
-  it('exports analyze, path, and block policy tips', () => {
+  it('still exports tip strings for glance/status (not menu rows)', () => {
     expect(MEDIA_ANALYZE_TIP).toContain('analyze');
     expect(MEDIA_ANALYZE_TIP).toContain('vision-capable');
     expect(MEDIA_PATH_TIP).toContain('path');
@@ -61,7 +61,7 @@ describe('media settings tips', () => {
 });
 
 describe('showMediaSettings', () => {
-  it('mounts ChoicePicker with status and read-only tip actions', () => {
+  it('mounts ChoicePicker with real actions only (no tip rows)', () => {
     const host = makeMediaHost();
     showMediaSettings(host);
     const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
@@ -74,17 +74,8 @@ describe('showMediaSettings', () => {
       'status',
       'change-policy',
       'change-model',
-      'tip-analyze',
-      'tip-path',
-      'tip-block',
     ]);
-  });
-
-  it('shows analyze policy tip via showStatus', () => {
-    const host = makeMediaHost();
-    showMediaSettings(host);
-    selectMediaAction(host, 'tip-analyze');
-    expect(host.showStatus).toHaveBeenCalledWith(MEDIA_ANALYZE_TIP, 'info');
+    expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
   it('mounts read-only media panel with live config policy', async () => {

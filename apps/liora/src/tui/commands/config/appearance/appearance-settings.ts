@@ -17,6 +17,7 @@ import {
   TRANSCRIPT_DETAIL_LEVELS,
 } from '#/tui/features/transcript/transcript-density';
 import type { TranscriptDetailLevel } from '#/tui/types';
+import { SYNTAX_THEME_CATALOG } from '#/tui/theme/syntax-theme';
 import { ChoicePickerComponent, type ChoiceOption } from '../../../components/dialogs/picker/choice-picker';
 import { UsagePanelComponent } from '../../../components/messages/usage-panel/index';
 import { requestTUILayoutRender } from '../../../utils/render/frame-render';
@@ -30,9 +31,9 @@ import type { SlashCommandHost } from '../../hub/dispatch';
 export { APPEARANCE_BACKGROUND_TIP, APPEARANCE_CHANGE_TIP, APPEARANCE_MOTION_TIP, APPEARANCE_THEME_TIP };
 
 const TRANSCRIPT_LEVEL_HINTS: Record<TranscriptDetailLevel, string> = {
-  minimal: 'One-line tools + per-turn chain summary',
-  compact: 'One-line tool headers; click a card to expand',
-  standard: 'Default detail (5-line tool preview)',
+  minimal: 'Chain-only tools · thinking/tools/answer groups',
+  compact: 'Tool headers only · phase tints; click to expand',
+  standard: 'Default detail (preview cards · phase tints)',
   full: 'Every tool card expanded',
 };
 
@@ -77,6 +78,11 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
           description: 'minimal | compact | standard | full — live tool card density.',
         },
         {
+          value: 'syntax-theme',
+          label: `Syntax theme · ${appearance.syntaxTheme}`,
+          description: 'Coding colors independent of UI skin (GitHub Dimmed, One Dark, …).',
+        },
+        {
           value: 'particles',
           label: `Particles · ${appearance.particles}`,
           description: 'auto | off | ambient | events | premium.',
@@ -106,26 +112,7 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
           label: `Terminal palette · ${appearance.terminalPalette ? 'on' : 'off'}`,
           description: 'Inject theme palette into the terminal until exit.',
         },
-        {
-          value: 'tip-theme',
-          label: 'Theme tip',
-          description: 'Saved theme name vs live palette · auto tracks terminal.',
-        },
-        {
-          value: 'tip-motion',
-          label: 'Motion prefs tip',
-          description: 'profile · particles · animation-fps · density · timestamps.',
-        },
-        {
-          value: 'tip-background',
-          label: 'Background tip',
-          description: 'canvas · terminal-background · palette · transcript-detail.',
-        },
-        {
-          value: 'tip-change',
-          label: 'Change / persist tip',
-          description: 'Menu actions persist tui.toml · /appearance · /transcript.',
-        },
+
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -176,6 +163,9 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
             return;
           case 'transcript-detail':
             showTranscriptDetailPicker(host);
+            return;
+          case 'syntax-theme':
+            showSyntaxThemePicker(host);
             return;
           case 'particles':
             showAppearanceEnumPicker(host, {
@@ -247,18 +237,6 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
               ],
             });
             return;
-          case 'tip-theme':
-            host.showStatus(APPEARANCE_THEME_TIP, 'info');
-            return;
-          case 'tip-motion':
-            host.showStatus(APPEARANCE_MOTION_TIP, 'info');
-            return;
-          case 'tip-background':
-            host.showStatus(APPEARANCE_BACKGROUND_TIP, 'info');
-            return;
-          case 'tip-change':
-            host.showStatus(APPEARANCE_CHANGE_TIP, 'info');
-            return;
           default:
             return;
         }
@@ -268,6 +246,34 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
       },
     }),
     { label: 'Appearance' },
+  );
+}
+
+/** Public entry for Settings → Appearance → Syntax theme. */
+export function showSyntaxThemePicker(host: SlashCommandHost): void {
+  const current = currentAppearance(host).syntaxTheme;
+  mountPickerDialog(
+    host,
+    new ChoicePickerComponent({
+      title: 'Syntax theme',
+      hint: '↑↓ · Enter · Esc · coding colors only',
+      searchable: true,
+      layout: 'grid',
+      currentValue: current,
+      options: SYNTAX_THEME_CATALOG.map((entry) => ({
+        value: entry.id,
+        label: entry.label,
+        description: entry.description,
+      })),
+      onSelect: (value) => {
+        dismissPickerDialog(host);
+        void handleAppearanceCommand(host, `syntax-theme ${value}`);
+      },
+      onCancel: () => {
+        dismissPickerDialog(host);
+      },
+    }),
+    { label: 'Syntax theme' },
   );
 }
 

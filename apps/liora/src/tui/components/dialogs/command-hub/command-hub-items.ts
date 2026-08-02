@@ -238,17 +238,11 @@ export function buildDefaultCommandHubItems(state: {
       keywords: ['upgrade', 'update', 'version', 'install', 'release', 'liora update'],
     },
     {
-      id: 'help.searchTip',
-      section: 'Help',
-      label: 'Search tip',
-      description: 'Type here — settings, /commands, skills (one search)',
-      keywords: ['palette', 'omnibox', 'fuzzy', 'slash', 'command palette', 'hub'],
-    },
-    {
       id: 'help.shortcuts',
       section: 'Help',
       label: 'Shortcuts',
-      description: 'Keyboard cheatsheet',
+      description: 'Keyboard cheatsheet · type above to search settings / slash / skills',
+      keywords: ['palette', 'omnibox', 'fuzzy', 'slash', 'command palette', 'hub', 'search'],
     },
     {
       id: 'help.commands',

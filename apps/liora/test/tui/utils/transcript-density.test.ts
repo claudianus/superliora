@@ -7,10 +7,13 @@ import {
   formatDiffChip,
   formatDurationShort,
   formatTranscriptDetailCycleLabel,
+  getActiveTranscriptDetail,
+  isChainOnlyToolLevel,
   isOneLineToolLevel,
   nextTranscriptDetailLevel,
   recordChainTool,
   resolveTranscriptDetail,
+  setActiveTranscriptDetail,
   settleToolChain,
   TRANSCRIPT_DETAIL_LEVELS,
 } from '#/tui/features/transcript/transcript-density';
@@ -31,6 +34,23 @@ describe('isOneLineToolLevel', () => {
     expect(isOneLineToolLevel('compact')).toBe(true);
     expect(isOneLineToolLevel('standard')).toBe(false);
     expect(isOneLineToolLevel('full')).toBe(false);
+  });
+});
+
+describe('isChainOnlyToolLevel', () => {
+  it('hides individual tool rows only in minimal (not compact)', () => {
+    expect(isChainOnlyToolLevel('minimal')).toBe(true);
+    expect(isChainOnlyToolLevel('compact')).toBe(false);
+    expect(isChainOnlyToolLevel('standard')).toBe(false);
+  });
+});
+
+describe('active transcript detail session mirror', () => {
+  it('round-trips get/set for render-time readers', () => {
+    setActiveTranscriptDetail('minimal');
+    expect(getActiveTranscriptDetail()).toBe('minimal');
+    setActiveTranscriptDetail('standard');
+    expect(getActiveTranscriptDetail()).toBe('standard');
   });
 });
 

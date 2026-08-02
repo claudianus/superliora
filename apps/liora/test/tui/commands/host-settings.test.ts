@@ -72,7 +72,7 @@ function selectHostAction(host: SlashCommandHost, value: string): void {
 }
 
 describe('host settings tips', () => {
-  it('exports sovereign umbrella, TTFT, and future host tips', () => {
+  it('exports sovereign umbrella, TTFT, and future host tips (glance copy, not menu rows)', () => {
     expect(HOST_SOVEREIGN_UMBRELLA_TIP).toContain('SUPERLIORA_SOVEREIGN=1');
     expect(HOST_TTFT_TIP).toContain('TTFT');
     expect(HOST_FUTURE_TIP).toContain('config [host]');
@@ -80,7 +80,7 @@ describe('host settings tips', () => {
 });
 
 describe('showHostSettings', () => {
-  it('mounts ChoicePicker with status and read-only tip actions', () => {
+  it('mounts ChoicePicker with status and read-only tip actions — tip-free', () => {
     const host = makeHostHost();
     showHostSettings(host);
     const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
@@ -91,17 +91,8 @@ describe('showHostSettings', () => {
       .options;
     expect(options.map((o) => o.value)).toEqual([
       'status',
-      'tip-sovereign',
-      'tip-ttft',
-      'tip-future',
     ]);
-  });
-
-  it('shows sovereign umbrella tip via showStatus', () => {
-    const host = makeHostHost();
-    showHostSettings(host);
-    selectHostAction(host, 'tip-sovereign');
-    expect(host.showStatus).toHaveBeenCalledWith(HOST_SOVEREIGN_UMBRELLA_TIP, 'info');
+    expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
   it('mounts read-only host panel for in-process default', async () => {

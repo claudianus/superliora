@@ -18,6 +18,10 @@ import {
   type StreamingRevealContext,
   type StreamingRevealRuntime,
 } from './reveal';
+import {
+  noteStreamPhase,
+  type PhaseBoundaryState,
+} from './phase-boundary';
 import type { StreamingUIHost } from '.';
 
 export interface StreamingTextBlock {
@@ -35,6 +39,7 @@ export interface TextRenderContext {
   getCurrentTurnId(): string | undefined;
   getActiveThinkingComponent(): ThinkingComponent | undefined;
   setActiveThinkingComponent(component: ThinkingComponent | undefined): void;
+  getPhaseBoundary(): PhaseBoundaryState;
   clearPendingToolGroups(): void;
   settleActiveChainSummary(): void;
   shouldSmoothStreamReveal(): boolean;
@@ -47,6 +52,8 @@ export function onStreamingTextStart(ctx: TextRenderContext): void {
   // any) switches to its settled past-tense form.
   ctx.settleActiveChainSummary();
   ctx.clearPendingToolGroups();
+  // Advance phase tracker; answer component paints its own header.
+  noteStreamPhase(state, ctx.getPhaseBoundary(), 'answer');
   ctx.revealRuntime.channels.assistantReveal = resetRevealState(Date.now());
   rescheduleRevealTimerHelper(ctx.revealContext());
   const entry = {
@@ -135,6 +142,8 @@ export function onThinkingUpdate(ctx: TextRenderContext, fullText: string): void
     );
     if (ctx.getActiveThinkingComponent() === undefined) {
       ctx.clearPendingToolGroups();
+      // Advance phase tracker; thinking component paints its own header.
+      noteStreamPhase(state, ctx.getPhaseBoundary(), 'thinking');
       const component = new ThinkingComponent(fullText, true, 'live', state.ui);
       if (state.toolOutputExpanded) component.setExpanded(true);
       ctx.setActiveThinkingComponent(component);
@@ -164,6 +173,8 @@ export function onThinkingUpdate(ctx: TextRenderContext, fullText: string): void
 
   if (ctx.getActiveThinkingComponent() === undefined) {
     ctx.clearPendingToolGroups();
+    // Advance phase tracker; thinking component paints its own header.
+    noteStreamPhase(state, ctx.getPhaseBoundary(), 'thinking');
     const component = new ThinkingComponent(shown, true, 'live', state.ui);
     if (state.toolOutputExpanded) component.setExpanded(true);
     ctx.setActiveThinkingComponent(component);

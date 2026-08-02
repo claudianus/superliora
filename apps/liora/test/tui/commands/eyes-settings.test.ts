@@ -35,7 +35,7 @@ function selectEyesAction(host: SlashCommandHost, value: string): void {
 }
 
 describe('eyes settings tips', () => {
-  it('exports /eyes, doctor, tools, and text-only tips', () => {
+  it('exports /eyes, doctor, tools, and text-only tips (glance copy, not menu rows)', () => {
     expect(EYES_SLASH_TIP).toContain('/eyes');
     expect(EYES_DOCTOR_TIP).toContain('browser-use doctor');
     expect(EYES_TOOLS_TIP).toContain('BrowserStatus');
@@ -44,7 +44,7 @@ describe('eyes settings tips', () => {
 });
 
 describe('showEyesSettings', () => {
-  it('mounts ChoicePicker with status and read-only tip actions', () => {
+  it('mounts ChoicePicker with status and read-only tip actions — tip-free', () => {
     const host = makeEyesHost();
     showEyesSettings(host);
     const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
@@ -58,27 +58,10 @@ describe('showEyesSettings', () => {
       'probe',
       'doctor-browser',
       'doctor-computer',
-      'tip-slash',
-      'tip-doctor',
-      'tip-tools',
-      'tip-text-only',
     ]);
+    expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
-  it('shows /eyes tip via showStatus', () => {
-    const host = makeEyesHost();
-    showEyesSettings(host);
-    selectEyesAction(host, 'tip-slash');
-    expect(host.showStatus).toHaveBeenCalledWith(EYES_SLASH_TIP, 'info');
-  });
-
-  it('mounts read-only eyes panel with live readiness tips', async () => {
-    const host = makeEyesHost();
-    showEyesSettings(host);
-    selectEyesAction(host, 'status');
-    await vi.waitFor(() => {
-      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
-    });
     const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
       .calls[0]?.[0] as UsagePanelComponent;
     const lines = panel.snapshotBodyLines(1).join('\n');

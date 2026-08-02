@@ -63,7 +63,7 @@ function selectHooksAction(host: SlashCommandHost, value: string): void {
 }
 
 describe('hooks settings tips', () => {
-  it('exports PreToolUse, PostToolUse, Stop, and enable tips', () => {
+  it('exports PreToolUse, PostToolUse, Stop, and enable tips (glance copy, not menu rows)', () => {
     expect(HOOKS_PRE_TOOL_USE_TIP).toContain('PreToolUse');
     expect(HOOKS_POST_TOOL_USE_TIP).toContain('PostToolUse');
     expect(HOOKS_STOP_TIP).toContain('Stop');
@@ -72,7 +72,7 @@ describe('hooks settings tips', () => {
 });
 
 describe('showHooksSettings', () => {
-  it('mounts ChoicePicker with status and read-only tip actions', () => {
+  it('mounts ChoicePicker with status and read-only tip actions — tip-free', () => {
     const host = makeHooksHost();
     showHooksSettings(host);
     const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
@@ -84,25 +84,10 @@ describe('showHooksSettings', () => {
     expect(options.map((o) => o.value)).toEqual([
       'status',
       'extensions',
-      'tip-pre-tool-use',
-      'tip-post-tool-use',
-      'tip-stop',
-      'tip-enable',
     ]);
+    expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
-  it('shows PreToolUse tip via showStatus', () => {
-    const host = makeHooksHost();
-    showHooksSettings(host);
-    selectHooksAction(host, 'tip-pre-tool-use');
-    expect(host.showStatus).toHaveBeenCalledWith(HOOKS_PRE_TOOL_USE_TIP, 'info');
-  });
-
-  it('mounts read-only hooks panel with live registry and Pre/Post/Stop tips', async () => {
-    const host = makeHooksHost({
-      hookCount: 3,
-      registry: { totalCount: 3, events: { PreToolUse: 2, Stop: 1 } },
-    });
     showHooksSettings(host);
     selectHooksAction(host, 'status');
     await vi.waitFor(() => {

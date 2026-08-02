@@ -105,7 +105,7 @@ describe('W9 compaction/context settings tips', () => {
     expect(lines).toContain('── Session (live) ──');
   });
 
-  it('exports working-set, instruction, and learning tips', () => {
+  it('exports working-set, instruction, and learning tips (glance copy, not menu rows)', () => {
     expect(CONTEXT_WORKING_SET_TIP).toContain('soft cap');
     expect(CONTEXT_INSTRUCTION_SOFT_TIP).toContain('AGENTS.md');
     expect(CONTEXT_LEARNING_SOFT_TIP).toContain('Liora Recall');
@@ -113,7 +113,7 @@ describe('W9 compaction/context settings tips', () => {
 });
 
 describe('showContextSettings', () => {
-  it('mounts ChoicePicker with status and read-only tip actions', () => {
+  it('mounts ChoicePicker with status and read-only tip actions — tip-free', () => {
     const host = makeSettingsHost();
     showContextSettings(host);
     const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
@@ -126,31 +126,8 @@ describe('showContextSettings', () => {
       'status',
       'working-set',
       'compaction',
-      'tip-working-set',
-      'tip-instruction',
-      'tip-learning',
     ]);
-  });
-
-  it('shows working-set tip via showStatus', () => {
-    const host = makeSettingsHost();
-    showContextSettings(host);
-    selectPickerAction(host, 'tip-working-set');
-    expect(host.showStatus).toHaveBeenCalledWith(CONTEXT_WORKING_SET_TIP, 'info');
-  });
-
-  it('shows instruction tip via showStatus', () => {
-    const host = makeSettingsHost();
-    showContextSettings(host);
-    selectPickerAction(host, 'tip-instruction');
-    expect(host.showStatus).toHaveBeenCalledWith(CONTEXT_INSTRUCTION_SOFT_TIP, 'info');
-  });
-
-  it('shows learning tip via showStatus', () => {
-    const host = makeSettingsHost();
-    showContextSettings(host);
-    selectPickerAction(host, 'tip-learning');
-    expect(host.showStatus).toHaveBeenCalledWith(CONTEXT_LEARNING_SOFT_TIP, 'info');
+    expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
   it('context panel explains Instruction vs Learning memory with live wiring', async () => {
@@ -168,7 +145,6 @@ describe('showContextSettings', () => {
     expect(lines).toContain('Learning (Liora Recall): 2 active / 2 total');
     expect(lines).toContain('/memory remember');
     expect(lines).toContain('/context');
-    expect(lines).toContain('Trace→Skill draft tips');
     expect(lines).toContain('no PR bot yet');
     expect(host.harness.memory.stats).toHaveBeenCalled();
   });

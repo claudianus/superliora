@@ -33,8 +33,12 @@ describe('AssistantMessageComponent', () => {
     component.updateContent('abcdef');
 
     const lines = component.render(8).map(strip);
-    expect(lines).toEqual(['', `${STATUS_BULLET}abcdef`]);
-    expect(visibleWidth(lines[1] ?? '')).toBe(8);
+    // Leading blank + answer phase chrome + bullet content.
+    expect(lines.some((line) => line.includes('answer'))).toBe(true);
+    const content = lines.find((line) => line.includes('abcdef'));
+    expect(content).toBeDefined();
+    expect(content).toContain(STATUS_BULLET.trimEnd());
+    expect(visibleWidth(content!)).toBeLessThanOrEqual(8);
   });
 
   it('keeps assistant lines within very narrow widths', () => {

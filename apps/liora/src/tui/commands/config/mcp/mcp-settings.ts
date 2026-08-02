@@ -86,22 +86,7 @@ export function showMcpSettings(host: SlashCommandHost): void {
           description:
             'Install/toggle/reload · same leaf as Extensions → Manage → MCP · /mcp.',
         },
-        {
-          value: 'tip-config-scopes',
-          label: 'mcp.json scopes tip',
-          description:
-            'project/.superliora · project-root/.mcp.json · ~/.superliora merge order.',
-        },
-        {
-          value: 'tip-oauth',
-          label: 'OAuth tip',
-          description: 'needs-auth status · /mcp-config login · browser authorization flow.',
-        },
-        {
-          value: 'tip-allowlist',
-          label: 'Tool allowlist tip',
-          description: 'enabledTools / disabledTools per server · Security glance cross-link.',
-        },
+
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -113,17 +98,7 @@ export function showMcpSettings(host: SlashCommandHost): void {
           void showMcpManagePanel(host);
           return;
         }
-        if (value === 'tip-config-scopes') {
-          host.showStatus(MCP_CONFIG_SCOPES_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-oauth') {
-          host.showStatus(MCP_OAUTH_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-allowlist') {
-          host.showStatus(MCP_ALLOWLIST_TIP, 'info');
-        }
+
       },
       onCancel: () => {
         dismissPickerDialog(host);

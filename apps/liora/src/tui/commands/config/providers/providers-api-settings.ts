@@ -100,24 +100,7 @@ export function showProvidersApiSettings(host: SlashCommandHost): void {
           label: 'Search channels…',
           description: 'Prefer xAI · browser · free fallback · strategy pickers.',
         },
-        {
-          value: 'tip-login',
-          label: '/login tip',
-          description:
-            'OAuth · catalog/custom provider · --add fallback slots · Settings → Accounts.',
-        },
-        {
-          value: 'tip-api-keys',
-          label: 'API key env tip',
-          description:
-            'KIMI_API_KEY · ANTHROPIC · OPENAI · GOOGLE · XAI · config.toml env:VAR.',
-        },
-        {
-          value: 'tip-prefer-xai',
-          label: 'PreferXai tip',
-          description:
-            'XAI_API_KEY or /login xAI → Grok Build web search before ResearchSearchEngine.',
-        },
+
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -137,17 +120,7 @@ export function showProvidersApiSettings(host: SlashCommandHost): void {
           showSearchSettings(host);
           return;
         }
-        if (value === 'tip-login') {
-          host.showStatus(PROVIDERS_LOGIN_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-api-keys') {
-          host.showStatus(PROVIDERS_API_KEY_ENVS_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-prefer-xai') {
-          host.showStatus(SEARCH_PREFER_XAI_TIP, 'info');
-        }
+
       },
       onCancel: () => {
         dismissPickerDialog(host);
