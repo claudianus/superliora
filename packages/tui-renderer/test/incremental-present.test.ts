@@ -13,14 +13,14 @@ describe('incremental present path (Phase C)', () => {
     const presenter = new TranscriptVisibleLinePresenter({ frameBudgetMs: 50 });
     const lines = Array.from({ length: 40 }, (_, i) => `stable-line-${i}-xxxxxxxx`);
 
-    const first = presenter.present(lines);
+    const first = presenter.present(lines, { windowKey: 'w0' });
     expect(first.stats.repaintedLines).toBe(40);
     expect(first.stats.skippedLines).toBe(0);
     expect(first.hasPendingDirty).toBe(false);
 
     // Fresh array of equal content (may be string-interned by the engine).
     const linesAgain = Array.from({ length: 40 }, (_, i) => `stable-line-${i}-xxxxxxxx`);
-    const second = presenter.present(linesAgain);
+    const second = presenter.present(linesAgain, { windowKey: 'w0' });
     // Clean re-present: nothing dirty → zero repaint, full skip.
     expect(second.stats.repaintedLines).toBe(0);
     expect(second.stats.skippedLines).toBe(40);
@@ -36,20 +36,63 @@ describe('incremental present path (Phase C)', () => {
     expect(second.lines).not.toBe(first.lines);
   });
 
+  it('hash-equal rebuilt key strings do not dirty every ambient frame', () => {
+    // Regression: updateLine required content === (reference). Present keys for
+    // cell/scrollbar rows are new string instances each frame with the same
+    // bytes → false dirty thrash → full transcript flicker.
+    const engine = new IncrementalRenderer({ useHashing: true, frameBudgetMs: 50 });
+    const makeKey = (i: number) => {
+      // Force a non-interned construction path similar to regionLinePresentKey.
+      let s = '';
+      s += 'tool-row-';
+      s += String(i);
+      s += '-';
+      s += 'x'.repeat(32);
+      return s;
+    };
+    for (let i = 0; i < 20; i++) engine.appendLine(makeKey(i));
+    engine.computePaintCommands({ start: 0, end: 20 });
+
+    // Rebuild equal keys as new instances and replaceAll.
+    const rebuilt = Array.from({ length: 20 }, (_, i) => makeKey(i));
+    engine.replaceAll(rebuilt);
+    const cmds = engine.computePaintCommands({ start: 0, end: 20 });
+    expect(cmds.length).toBe(0);
+    expect(engine.lastFrameStats.repaintedLines).toBe(0);
+    expect(engine.lastFrameStats.skippedLines).toBe(20);
+  });
+
+  it('windowKey change forces full present even when placeholders match', () => {
+    const presenter = new TranscriptVisibleLinePresenter();
+    const placeholders = Array.from({ length: 12 }, () => ' …');
+    const first = presenter.present(placeholders, { windowKey: '0:12' });
+    expect(first.stats.repaintedLines).toBe(12);
+
+    // Same placeholder bytes, new scroll window — must not keep pre-scroll rows.
+    const second = presenter.present(placeholders, { windowKey: '40:52' });
+    expect(second.stats.repaintedLines).toBe(12);
+    for (let i = 0; i < 12; i++) {
+      expect(second.lines[i]).toBe(placeholders[i]);
+    }
+  });
+
   it('only dirty subset is repainted after a partial update', () => {
     const presenter = new TranscriptVisibleLinePresenter({ frameBudgetMs: 50 });
     const lines = Array.from({ length: 30 }, (_, i) => `row-${i}`);
-    presenter.present(lines);
+    presenter.present(lines, { windowKey: 'stable' });
 
     const next = lines.slice();
     next[5] = 'row-5-CHANGED';
     next[6] = 'row-6-CHANGED';
-    const result = presenter.present(next);
+    const result = presenter.present(next, { windowKey: 'stable' });
 
     expect(result.stats.repaintedLines).toBe(2);
     expect(result.stats.skippedLines).toBe(28);
     expect(result.paintCommands.length).toBe(2);
     expect(result.paintCommands.map((c) => c.row).sort()).toEqual([5, 6]);
+    // Clean rows keep prior identity; dirty take new content.
+    expect(result.lines[0]).toBe(lines[0]);
+    expect(result.lines[5]).toBe(next[5]);
   });
 
   it('engine budget stop still works; transcript presenter never defers dirty rows', () => {

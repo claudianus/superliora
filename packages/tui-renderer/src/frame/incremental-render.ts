@@ -133,17 +133,35 @@ export class IncrementalRenderer {
     if (index < 0 || index >= this.lines.length) return false;
 
     const existing = this.lines[index]!;
-    const newHash = this.useHashing ? fnv1a(content) : 0;
 
-    // Fast path: hash match means no change
-    if (this.useHashing && existing.hash === newHash && existing.content === content) {
+    if (this.useHashing) {
+      const newHash = fnv1a(content);
+      // Hash match = unchanged. Do NOT also require `existing.content === content`
+      // (reference equality): present keys are rebuilt every frame (cell joins,
+      // scrollbar gutters) as new string instances with the same bytes. That
+      // false dirty thrash repainted the whole transcript every ambient tick.
+      if (existing.hash === newHash) {
+        this._hashHits++;
+        return false;
+      }
+      this._hashMisses++;
+      this.lines[index] = {
+        hash: newHash,
+        content,
+        lastPaintedFrame: existing.lastPaintedFrame,
+        dirty: true,
+      };
+      return true;
+    }
+
+    // No hashing: value equality (JS strings compare by contents with ===).
+    if (existing.content === content) {
       this._hashHits++;
       return false;
     }
-
     this._hashMisses++;
     this.lines[index] = {
-      hash: newHash,
+      hash: 0,
       content,
       lastPaintedFrame: existing.lastPaintedFrame,
       dirty: true,
