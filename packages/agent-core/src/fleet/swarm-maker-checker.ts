@@ -1,9 +1,10 @@
 /**
  * Maker≠Checker soft collision detection for AgentSwarm / UltraSwarm.
  *
- * Hard evidence separation lives in swarm-evidence-gate; this module only
- * emits non-blocking tips when the same expert (or homogeneous AgentSwarm
- * batch) both makes and checks work.
+ * Hard evidence separation lives in swarm-evidence-gate; this module emits
+ * non-blocking tips by default. Opt-in hard gate via
+ * `SUPERLIORA_MAKER_CHECKER_HARD=1` (or `maker_checker_hard_gate=1`) blocks
+ * fan-out until a distinct checker role is present (SOTA G10).
  */
 
 export const SWARM_MAKER_CHECKER_SOFT_TIP =
@@ -11,6 +12,48 @@ export const SWARM_MAKER_CHECKER_SOFT_TIP =
 
 export const SWARM_MAKER_CHECKER_AGENT_SWARM_TIP =
   'Maker≠Checker (soft): AgentSwarm items mix implement + review/check intents in one homogeneous batch — split maker vs checker runs (swarm-maker-checker).';
+
+/** Env flag: force Maker≠Checker hard reject (default off — soft tips only). */
+export const MAKER_CHECKER_HARD_GATE_ENV = 'SUPERLIORA_MAKER_CHECKER_HARD' as const;
+/** Compat alias used in harness docs / board. */
+export const MAKER_CHECKER_HARD_GATE_ENV_ALIAS = 'maker_checker_hard_gate' as const;
+
+export const SWARM_MAKER_CHECKER_HARD_PREFIX = 'Maker≠Checker hard gate:' as const;
+
+export function isMakerCheckerHardGateEnabled(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return isTruthyEnv(env[MAKER_CHECKER_HARD_GATE_ENV]) || isTruthyEnv(env[MAKER_CHECKER_HARD_GATE_ENV_ALIAS]);
+}
+
+function isTruthyEnv(value: string | undefined): boolean {
+  if (value === undefined) return false;
+  const v = value.trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes' || v === 'on';
+}
+
+/**
+ * Soft tip stays unchanged; hard mode prefixes so callers can block spawn.
+ */
+export function applyMakerCheckerHardGate(
+  softTip: string | undefined,
+  options?: { readonly hardGate?: boolean; readonly env?: NodeJS.ProcessEnv },
+): string | undefined {
+  if (softTip === undefined) return undefined;
+  const hard =
+    options?.hardGate === true ||
+    isMakerCheckerHardGateEnabled(options?.env ?? process.env);
+  if (!hard) return softTip;
+  return [
+    `${SWARM_MAKER_CHECKER_HARD_PREFIX} fan-out blocked until a distinct checker role is present.`,
+    softTip,
+    `Disable with unset ${MAKER_CHECKER_HARD_GATE_ENV} (default soft tips only).`,
+  ].join('\n');
+}
+
+export function isMakerCheckerHardReject(message: string | undefined): boolean {
+  return typeof message === 'string' && message.startsWith(SWARM_MAKER_CHECKER_HARD_PREFIX);
+}
 
 export type SwarmMakerCheckerRole = 'maker' | 'checker';
 
@@ -220,6 +263,7 @@ export function detectMakerCheckerCollisionsFromUltraSwarmResults(
 
 export function formatMakerCheckerSoftWarn(
   collisions: readonly MakerCheckerCollision[],
+  options?: { readonly hardGate?: boolean; readonly env?: NodeJS.ProcessEnv },
 ): string | undefined {
   if (collisions.length === 0) return undefined;
   const labels = collisions.map((collision) => {
@@ -229,7 +273,8 @@ export function formatMakerCheckerSoftWarn(
   const uniqueLabels = [...new Set(labels)];
   const roster = uniqueLabels.slice(0, 4).join(', ');
   const suffix = uniqueLabels.length > 4 ? ` +${String(uniqueLabels.length - 4)} more` : '';
-  return `${SWARM_MAKER_CHECKER_SOFT_TIP} Colliding expert(s): ${roster}${suffix}.`;
+  const soft = `${SWARM_MAKER_CHECKER_SOFT_TIP} Colliding expert(s): ${roster}${suffix}.`;
+  return applyMakerCheckerHardGate(soft, options);
 }
 
 export function makerCheckerSoftWarnFromUltraSwarmResults(
@@ -242,16 +287,21 @@ export function makerCheckerSoftWarnFromUltraSwarmResults(
       readonly coverageLane?: string;
     };
   }[],
+  options?: { readonly hardGate?: boolean; readonly env?: NodeJS.ProcessEnv },
 ): string | undefined {
-  return formatMakerCheckerSoftWarn(detectMakerCheckerCollisionsFromUltraSwarmResults(results));
+  return formatMakerCheckerSoftWarn(
+    detectMakerCheckerCollisionsFromUltraSwarmResults(results),
+    options,
+  );
 }
 
 export function makerCheckerSoftWarnFromAgentSwarmItems(
   items: readonly string[],
   promptTemplate?: string,
+  options?: { readonly hardGate?: boolean; readonly env?: NodeJS.ProcessEnv },
 ): string | undefined {
   if (!detectAgentSwarmItemRoleCollision(items, promptTemplate)) return undefined;
-  return SWARM_MAKER_CHECKER_AGENT_SWARM_TIP;
+  return applyMakerCheckerHardGate(SWARM_MAKER_CHECKER_AGENT_SWARM_TIP, options);
 }
 
 /** Best-effort parse of `<expert … phase="…">` / `<agent … phase="…">` rows from tool output. */
@@ -284,8 +334,11 @@ export function detectMakerCheckerCollisionsFromSwarmOutput(
   return detectMakerCheckerCollisionsFromAssignments(rows);
 }
 
-export function makerCheckerSoftWarnFromSwarmOutput(output: string): string | undefined {
-  return formatMakerCheckerSoftWarn(detectMakerCheckerCollisionsFromSwarmOutput(output));
+export function makerCheckerSoftWarnFromSwarmOutput(
+  output: string,
+  options?: { readonly hardGate?: boolean; readonly env?: NodeJS.ProcessEnv },
+): string | undefined {
+  return formatMakerCheckerSoftWarn(detectMakerCheckerCollisionsFromSwarmOutput(output), options);
 }
 
 function xmlAttr(attrs: string, name: string): string | undefined {

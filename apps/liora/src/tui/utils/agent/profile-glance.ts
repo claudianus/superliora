@@ -23,12 +23,25 @@ export const KNOWN_MAIN_AGENT_PROFILE_NAMES = [
   'ultra-plan',
 ] as const;
 
+/**
+ * Bundled always-on tool counts (SSOT with profile yaml; not live MCP).
+ * Used for /status · /profile · Settings so guides never claim tools the waist lacks.
+ */
+export const KNOWN_PROFILE_TOOL_COUNTS: Readonly<Record<string, number>> = {
+  [SOVEREIGN_CORE_PROFILE_NAME]: 12,
+  [DEFAULT_MAIN_AGENT_PROFILE_NAME]: 30,
+  // superliora-full grows with visual/MCP globs — approximate floor for diagnostics only.
+  'superliora-full': 50,
+};
+
 export type SovereignCoreTrigger = typeof SOVEREIGN_CORE_DEFAULT_ENV | typeof SOVEREIGN_UMBRELLA_ENV;
 
 export interface ProfileLiveGlance {
   readonly effectiveProfile: string;
   readonly sovereignCoreOptIn: boolean;
   readonly sovereignCoreTrigger: SovereignCoreTrigger | null;
+  /** Bundled waist size when known; undefined for custom / specialist profiles. */
+  readonly expectedToolCount?: number;
 }
 
 function trimmed(value: string | undefined): string | undefined {
@@ -63,6 +76,10 @@ export function resolveEffectiveProfileName(
   return SOVEREIGN_CORE_PROFILE_NAME;
 }
 
+export function expectedToolCountForProfile(profileName: string): number | undefined {
+  return KNOWN_PROFILE_TOOL_COUNTS[profileName];
+}
+
 export function loadProfileLiveGlance(input: {
   readonly configProfile?: string;
   readonly env?: NodeJS.ProcessEnv;
@@ -76,7 +93,24 @@ export function loadProfileLiveGlance(input: {
     : trimmed(env[SOVEREIGN_CORE_DEFAULT_ENV]) !== undefined
       ? SOVEREIGN_CORE_DEFAULT_ENV
       : SOVEREIGN_UMBRELLA_ENV;
-  return { effectiveProfile, sovereignCoreOptIn, sovereignCoreTrigger };
+  return {
+    effectiveProfile,
+    sovereignCoreOptIn,
+    sovereignCoreTrigger,
+    expectedToolCount: expectedToolCountForProfile(effectiveProfile),
+  };
+}
+
+/**
+ * Compact diagnostic: `profile=core tools=12` — kills guide/sensor mismatch
+ * when system.md names Goal/SearchTools that core waist does not expose.
+ */
+export function formatProfileToolsBadge(glance: ProfileLiveGlance): string {
+  const count = glance.expectedToolCount;
+  if (count === undefined) {
+    return `profile=${glance.effectiveProfile}`;
+  }
+  return `profile=${glance.effectiveProfile} tools=${String(count)}`;
 }
 
 /** Live status for Settings → Tools Session (live) block. */
@@ -87,5 +121,5 @@ export function formatProfileLiveStatusLine(glance: ProfileLiveGlance): string {
         ? `Core waist: ON (${glance.sovereignCoreTrigger}=1)`
         : 'Core waist: ON (default)'
       : 'Core waist: OFF';
-  return `${waist} · Profile: ${glance.effectiveProfile}`;
+  return `${waist} · ${formatProfileToolsBadge(glance)}`;
 }

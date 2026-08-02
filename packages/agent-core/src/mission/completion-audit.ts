@@ -51,6 +51,16 @@ export type CompletionAuditCode =
    * (no verificationStatus=passed and no check-like evidence).
    */
   | 'verification_action_missing'
+  /**
+   * Plain Goal complete blocked: recent check-like failure evidence still sticky
+   * (PostToolUse verification sensor — SOTA Phase B hard gate).
+   */
+  | 'sensor_verification_failed'
+  /**
+   * Plain Goal complete blocked: Edit/Write/ApplyPatch pending without a later
+   * green RunProjectChecks / check-like Bash (mutation sensor hard gate).
+   */
+  | 'sensor_mutation_unverified'
   /** WorkGraph node status=failed (distinct from verificationStatus=failed). */
   | 'node_failed'
   /** WorkGraph node status=needs_integration — specialist handoffs not merged. */

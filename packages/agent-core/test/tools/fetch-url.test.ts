@@ -75,6 +75,22 @@ describe('FetchURLTool', () => {
     expect(toolContentString(result)).toContain('Hello, world!');
   });
 
+  it('forwards the turn abort signal to the fetcher', async () => {
+    const fetch = vi.fn().mockResolvedValue({ content: 'ok', kind: 'passthrough' });
+    const tool = new FetchURLTool({ fetch });
+    const controller = new AbortController();
+    await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c1',
+      args: { url: 'https://example.com' },
+      signal: controller.signal,
+    });
+    expect(fetch).toHaveBeenCalledWith(
+      'https://example.com',
+      expect.objectContaining({ toolCallId: 'c1', signal: controller.signal }),
+    );
+  });
+
   it('surfaces the extraction mode in the model-visible output', async () => {
     const tool = new FetchURLTool(fakeFetcher('Article body', 'extracted'));
     const result = await executeTool(tool, {
@@ -160,6 +176,7 @@ describe('FetchURLTool', () => {
     });
     expect(fetcher.fetch).toHaveBeenCalledWith('https://example.com', {
       toolCallId: 'c4',
+      signal,
     });
   });
 

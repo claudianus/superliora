@@ -14,6 +14,7 @@ import {
   emitCouncilDecisionFromReview,
   fleetCostGuardSoftTipFromAgent,
   getDefaultSwarmFileLeaseRegistry,
+  isMakerCheckerHardReject,
   makerCheckerSoftWarnFromUltraSwarmResults,
   partitionReadyWorkNodeIds,
   preferReadyWorkNodeIds,
@@ -129,6 +130,9 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
     try {
       this.swarmMode.enter('tool');
       const result = await this.runUltraSwarm(args, context.signal, context.toolCallId);
+      if (isMakerCheckerHardReject(result)) {
+        return { output: result, isError: true };
+      }
       return { output: result };
     } catch (error) {
       return {
@@ -215,6 +219,26 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       throw new Error(
         `UltraSwarm supports at most ${String(MAX_ULTRA_SWARM_SUBAGENTS)} experts. Requested: ${String(plan.experts.length)}`,
       );
+    }
+
+    // Pre-spawn Maker≠Checker hard gate from plan coverage lanes / roster.
+    // Soft tips after the run still use phase-tagged rendered results.
+    const preSpawnMakerChecker = makerCheckerSoftWarnFromUltraSwarmResults(
+      plan.experts.map((expert) => ({
+        spec: {
+          expertId: expert.expertId,
+          expertName: expert.expertName,
+          // Plan has no phase yet; coverageLane drives role classification.
+          phase: expert.coverageLane?.includes('review') ? 'review' : 'implement',
+          coverageLane: expert.coverageLane,
+        },
+      })),
+    );
+    if (
+      preSpawnMakerChecker !== undefined &&
+      isMakerCheckerHardReject(preSpawnMakerChecker)
+    ) {
+      return preSpawnMakerChecker;
     }
 
     await this.agent.fullCompaction.ensureBelowHandoffThreshold(signal, SWARM_HANDOFF_COMPACTION_RATIO);
@@ -369,6 +393,9 @@ export class UltraSwarmTool implements BuiltinTool<UltraSwarmToolInput> {
       ? '\n\n<user_steering_applied>UltraSwarm paused after user steering. Incorporate the steering note in the phase handoff and continue from the remaining work.</user_steering_applied>'
       : '';
     const makerCheckerTip = makerCheckerSoftWarnFromUltraSwarmResults(rendered);
+    if (isMakerCheckerHardReject(makerCheckerTip)) {
+      return makerCheckerTip + steerSuffix;
+    }
     const costGuardTip = fleetCostGuardSoftTipFromAgent(this.agent, rendered.length);
     const governanceSuffix = [makerCheckerTip, costGuardTip]
       .filter((line) => line !== undefined)

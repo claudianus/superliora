@@ -287,6 +287,7 @@ export {
   log,
   redact,
   resolveGlobalLogPath,
+  resolveSessionLogPath,
 } from './logging/logger';
 export { resolveLoggingConfig } from './logging/resolve-config';
 export { installGlobalProxyDispatcher } from './utils/proxy';
@@ -295,6 +296,7 @@ export type {
   LogLevel,
   LogPayload,
   Logger,
+  LoggingConfig,
 } from './logging/types';
 export type {
   AgentContextData,

@@ -118,6 +118,22 @@ describe('ThinkingComponent', () => {
     vi.useRealTimers();
   });
 
+  it('labels live thinking as stalled after 30s without new text', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-29T00:00:00Z'));
+    const component = new ThinkingComponent('plan step', true, 'live');
+
+    expect(strip(component.render(80).join('\n'))).not.toContain('stalled');
+
+    vi.advanceTimersByTime(30_000);
+    expect(strip(component.render(80).join('\n'))).toContain('stalled 30s');
+
+    // Fresh tokens clear the stall marker.
+    component.setText('plan step 2');
+    expect(strip(component.render(80).join('\n'))).not.toContain('stalled');
+    vi.useRealTimers();
+  });
+
   it('expands and collapses after finalization', () => {
     const component = new ThinkingComponent(longThinking, true, 'live');
     component.finalize();

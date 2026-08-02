@@ -25,11 +25,19 @@ import {
   type RecordStepUsageInfo,
 } from '../../loop/index';
 import { ToolCallDeduplicator } from './tool-dedup';
-import { observeVerificationToolResult } from '../../sensors/verification-sensor-ledger';
+import {
+  isCheckLikeBashCommand,
+  isVerificationCheckTool,
+  observeVerificationToolResult,
+} from '../../sensors/verification-sensor-ledger';
 import {
   clearPendingMutations,
   observeFileMutationToolResult,
 } from '../../sensors/mutation-verification-sensor';
+import {
+  evaluateStopSensor,
+  STOP_SENSOR_ORIGIN_NAME,
+} from '../../sensors/stop-sensor';
 import { toolInputRecord, toolOutputText, type TurnTelemetry } from './telemetry';
 import {
   hasStepBudgetRemaining,
@@ -52,6 +60,7 @@ export async function runTurnStepLoop(
 ): Promise<LoopTurnStopReason> {
   const { agent, turnTelemetry } = deps;
   let stopHookContinuationUsed = false;
+  let stopSensorContinuationUsed = false;
   let goalOutcomeMessageContinuationUsed = false;
   const deduper = new ToolCallDeduplicator({ telemetry: agent.telemetry });
   await agent.mcp?.waitForInitialLoad(signal);
@@ -167,7 +176,30 @@ export async function runTurnStepLoop(
               }
             }
 
-            // 4. Otherwise stop. Goal continuation is no longer driven here:
+            // 4. Built-in Stop sensor (one-shot): sticky mutation/failure evidence
+            //    without Goal hard gates still forces one repair continuation.
+            //    Skip when a Goal is active — markComplete sensor gate owns that path.
+            if (!stopSensorContinuationUsed) {
+              const hasActiveGoal = agent.goal?.getGoal?.()?.goal?.status === 'active';
+              const stopSensorBody = evaluateStopSensor({
+                verificationLedger: agent.verificationSensorLedger,
+                mutationLedger: agent.mutationVerificationLedger,
+                skip: hasActiveGoal === true,
+              });
+              if (stopSensorBody !== null) {
+                stopSensorContinuationUsed = true;
+                if (!hasStepBudgetRemaining(loopControl?.maxStepsPerTurn, ctx.stepNumber)) {
+                  return { continue: false };
+                }
+                agent.context.appendUserMessage([{ type: 'text', text: stopSensorBody }], {
+                  kind: 'system_trigger',
+                  name: STOP_SENSOR_ORIGIN_NAME,
+                });
+                return { continue: true };
+              }
+            }
+
+            // 5. Otherwise stop. Goal continuation is no longer driven here:
             //    each goal turn is an ordinary turn, and the goal driver decides
             //    whether to run another after this one ends.
             return { continue: false };
@@ -200,8 +232,13 @@ export async function runTurnStepLoop(
               ctx.args,
               finalResult,
             );
-            // Green RunProjectChecks clears pending mutation soft evidence.
-            if (ctx.toolCall.name === 'RunProjectChecks' && finalResult.isError !== true) {
+            // Green verification tools OR check-like Bash clear sticky mutation soft evidence.
+            if (
+              finalResult.isError !== true &&
+              (isVerificationCheckTool(ctx.toolCall.name) ||
+                (ctx.toolCall.name === 'Bash' &&
+                  isCheckLikeBashCommand(toolInputRecord(ctx.args)['command'])))
+            ) {
               clearPendingMutations(agent.mutationVerificationLedger);
             }
             // Phase B: Edit/Write/ApplyPatch success → verify nudge + pending ledger.

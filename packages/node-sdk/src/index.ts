@@ -66,6 +66,7 @@ export {
   log,
   redact,
   resolveGlobalLogPath,
+  resolveSessionLogPath,
   resolveLioraHome,
   SESSION_WORKTREE_CUSTOM_KEY,
   buildWorktreeMetadata,

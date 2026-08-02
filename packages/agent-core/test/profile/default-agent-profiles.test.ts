@@ -214,15 +214,40 @@ describe('default agent profiles', () => {
     }
   });
 
-  it('exposes Expand without compat alias bloat on main coding profiles', () => {
-    for (const name of ['agent', 'coder']) {
-      const tools = DEFAULT_AGENT_PROFILES[name]?.tools ?? [];
-      expect(tools, name).toContain('Expand');
-      expect(tools, name).not.toContain('LioraExpand');
+  it('keeps default agent waist ≤30 and moves Expand/Context7/media/expert edges to full', () => {
+    const agentTools = DEFAULT_AGENT_PROFILES['agent']?.tools ?? [];
+    expect(agentTools.length).toBeLessThanOrEqual(30);
+    expect(agentTools).toHaveLength(30);
+    for (const edge of [
+      'Expand',
+      'Memory',
+      'GetCurrentTime',
+      'TaskGraph',
+      'SearchExpert',
+      'Context7Resolve',
+      'Context7Docs',
+      'ReadMediaFile',
+    ] as const) {
+      expect(agentTools).not.toContain(edge);
     }
+    // Edges remain on full / specialist profiles.
     const fullTools = DEFAULT_AGENT_PROFILES['superliora-full']?.tools ?? [];
-    expect(fullTools).toContain('Expand');
+    expect(fullTools).toEqual(
+      expect.arrayContaining([
+        'Expand',
+        'Memory',
+        'GetCurrentTime',
+        'TaskGraph',
+        'SearchExpert',
+        'Context7Resolve',
+        'Context7Docs',
+        'ReadMediaFile',
+      ]),
+    );
     expect(fullTools).not.toContain('LioraExpand');
+    const coderTools = DEFAULT_AGENT_PROFILES['coder']?.tools ?? [];
+    expect(coderTools).toContain('Expand');
+    expect(coderTools).not.toContain('LioraExpand');
     for (const legacy of LEGACY_LEAN_LIORA_TOOLS) {
       expect(fullTools).not.toContain(legacy);
     }

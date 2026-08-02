@@ -4,6 +4,15 @@ import {
   formatCompletionAuditRejection,
   type CompletionAuditRejection,
 } from '#/mission';
+import {
+  buildPendingMutationSoftTips,
+  type MutationVerificationLedger,
+} from '../../sensors/mutation-verification-sensor';
+import {
+  buildTestFailureSoftTips,
+  filterRecentVerificationFailures,
+  type VerificationSensorLedger,
+} from '../../sensors/verification-sensor-ledger';
 import { GOAL_COMPLETE_REJECT_COOLDOWN_TURNS } from './goal-constants';
 import type { GoalModeHost } from './goal-mode-host';
 import { parseGoalPredicateCriterion } from './predicate';
@@ -107,6 +116,76 @@ export function auditUltraworkBoundCompletion(
   const audit = auditUltraworkCompletion({ run, requireWorkGraph: true });
   if (audit.ok) return null;
   return audit;
+}
+
+/**
+ * Hard gate for plain (and all) Goal complete paths: sticky PostToolUse sensor
+ * evidence blocks false-done. Soft tips alone were ~70% compliance; this is
+ * mechanical enforcement (SOTA Sensors > Guides).
+ *
+ * Runtime/system actors may still close after external verification (finish-run).
+ */
+export function auditSensorBoundCompletion(
+  agent: Agent,
+  actor: GoalActor,
+  nowMs: number = Date.now(),
+): CompletionAuditRejection | null {
+  if (actor === 'runtime' || actor === 'system') return null;
+
+  const failureRejection = auditRecentVerificationFailures(
+    agent.verificationSensorLedger,
+    nowMs,
+  );
+  if (failureRejection !== null) return failureRejection;
+
+  return auditPendingMutations(agent.mutationVerificationLedger, nowMs);
+}
+
+export function auditRecentVerificationFailures(
+  ledger: VerificationSensorLedger | undefined,
+  nowMs: number = Date.now(),
+): CompletionAuditRejection | null {
+  if (ledger === undefined) return null;
+  const recent = filterRecentVerificationFailures(ledger.failures, nowMs);
+  if (recent.length === 0) return null;
+  const latest = recent.at(-1)!;
+  const soft = buildTestFailureSoftTips(ledger.failures, nowMs);
+  return {
+    ok: false,
+    code: 'sensor_verification_failed',
+    reasons: [
+      'Completion rejected: recent test/command failure evidence is still sticky.',
+      `Latest: ${latest.toolName} — ${latest.summary}`,
+      ...soft.slice(0, 2),
+    ],
+    nextActions: [
+      'Re-run RunProjectChecks or the failing check-like command until green.',
+      'Green check-like Bash (test/typecheck/lint/tsc) clears this gate.',
+      'Only then call UpdateGoal(complete).',
+    ],
+  };
+}
+
+export function auditPendingMutations(
+  ledger: MutationVerificationLedger | undefined,
+  nowMs: number = Date.now(),
+): CompletionAuditRejection | null {
+  if (ledger === undefined) return null;
+  const tips = buildPendingMutationSoftTips(ledger, nowMs);
+  if (tips.length === 0) return null;
+  return {
+    ok: false,
+    code: 'sensor_mutation_unverified',
+    reasons: [
+      'Completion rejected: source files were mutated without a subsequent green verification check.',
+      ...tips.slice(0, 3),
+    ],
+    nextActions: [
+      'Run RunProjectChecks (or package-scoped test/typecheck/lint) and confirm green.',
+      'Green check-like Bash also clears pending mutations.',
+      'Only then call UpdateGoal(complete).',
+    ],
+  };
 }
 
 /**

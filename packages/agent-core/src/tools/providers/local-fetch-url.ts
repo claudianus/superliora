@@ -14,7 +14,13 @@
 
 import { promises as dns } from 'node:dns';
 
-import { HttpFetchError, type UrlFetcher, type UrlFetchResult } from '../builtin/web/fetch-url';
+import { signalWithTimeout } from '../../utils/abort';
+import {
+  HttpFetchError,
+  type UrlFetcher,
+  type UrlFetchOptions,
+  type UrlFetchResult,
+} from '../builtin/web/fetch-url';
 import { htmlToLlmText } from '../support/html-to-llm-text';
 
 const DEFAULT_USER_AGENT =
@@ -22,6 +28,8 @@ const DEFAULT_USER_AGENT =
   '(KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36';
 
 const DEFAULT_MAX_BYTES = 10 * 1024 * 1024;
+/** Per-request wall-clock budget so hung TCP/TLS cannot freeze a turn. */
+export const DEFAULT_FETCH_TIMEOUT_MS = 60_000;
 /** Prefer these containers when Defuddle auto-detection is weak. */
 export const LOCAL_WEB_RESEARCH_CONTENT_SELECTORS = Object.freeze([
   'article',
@@ -47,6 +55,11 @@ export interface LocalFetchURLProviderOptions {
   userAgent?: string;
   fetchImpl?: typeof fetch;
   maxBytes?: number;
+  /**
+   * Per-request wall-clock timeout (ms). Defaults to
+   * {@link DEFAULT_FETCH_TIMEOUT_MS}. Set to `0` to disable (tests only).
+   */
+  timeoutMs?: number;
   /**
    * Allow fetching loopback / RFC 1918 / link-local / ULA addresses.
    * Defaults to `false` — enabled only for tests and (future) explicit
@@ -167,6 +180,7 @@ export class LocalFetchURLProvider implements UrlFetcher {
   private readonly userAgent: string;
   private readonly fetchImpl: typeof fetch;
   private readonly maxBytes: number;
+  private readonly timeoutMs: number;
   private readonly allowPrivateAddresses: boolean;
   private readonly resolveDns: boolean;
   private readonly maxRedirects: number;
@@ -175,23 +189,27 @@ export class LocalFetchURLProvider implements UrlFetcher {
     this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
     this.maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
+    this.timeoutMs = options.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
     this.allowPrivateAddresses = options.allowPrivateAddresses ?? false;
     this.resolveDns = options.resolveDns ?? true;
     this.maxRedirects = options.maxRedirects ?? 5;
   }
 
-  async fetch(url: string, _options?: { toolCallId?: string }): Promise<UrlFetchResult> {
+  async fetch(url: string, options?: UrlFetchOptions): Promise<UrlFetchResult> {
     // Follow redirects manually so every hop is re-validated through the
     // full static + DNS SSRF guard. A first-hop-safe URL that 302s to an
     // internal service must still be blocked.
+    const signal = signalWithTimeout(this.timeoutMs, options?.signal);
     let currentUrl = url;
     let response: Response | undefined;
     for (let hop = 0; hop <= this.maxRedirects; hop++) {
+      signal.throwIfAborted();
       await assertSafeFetchTarget(currentUrl, this.allowPrivateAddresses, this.resolveDns);
       response = await this.fetchImpl(currentUrl, {
         method: 'GET',
         redirect: 'manual',
         headers: { 'User-Agent': this.userAgent },
+        signal,
       });
       if (response.status < 300 || response.status >= 400) break;
       const location = response.headers.get('location');

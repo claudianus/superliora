@@ -244,8 +244,10 @@ function logStepTiming(
   if (log === undefined) return;
   const timing = response.streamTiming;
   if (timing === undefined) return;
+  // turnStep uses "turn.step" (same as llm request) for grep-friendly pairing.
   log.info('llm response', {
-    turnStep: `${turnId}/${String(step)}`,
+    turnStep: `${turnId}.${String(step)}`,
+    phase: 'complete',
     ttftMs: timing.firstTokenLatencyMs,
     ...(timing.requestBuildMs !== undefined ? { requestBuildMs: timing.requestBuildMs } : {}),
     ...(timing.serverFirstTokenMs !== undefined

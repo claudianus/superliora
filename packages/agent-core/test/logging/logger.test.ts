@@ -47,21 +47,21 @@ async function readGlobalAt(dir: string): Promise<string> {
   }
 }
 
-describe('log — pre-configure noop', () => {
-  it('silently swallows calls before configure', async () => {
+describe('log — pre-configure ring', () => {
+  it('buffers calls before configure without throwing', async () => {
     expect(() => {
       log.info('before configure');
     }).not.toThrow();
     expect(await readGlobal()).toBe('');
   });
 
-  it('the same `log` import routes to sink after configure (late-binding)', async () => {
-    log.info('pre-config'); // dropped
+  it('replays the pre-configure ring after configure (late-binding)', async () => {
+    log.info('pre-config');
     await getRootLogger().configure(defaultConfig());
     log.info('post-config');
     await getRootLogger().flush();
     const text = await readGlobal();
-    expect(text).not.toContain('pre-config');
+    expect(text).toContain('pre-config');
     expect(text).toContain('post-config');
   });
 });
@@ -197,6 +197,29 @@ describe('payload shapes', () => {
     }).not.toThrow();
     await getRootLogger().flush();
     expect(await readGlobal()).not.toContain('proxy payload');
+  });
+});
+
+describe('session warn mirror', () => {
+  it('mirrors session-scoped warn/error into the global log', async () => {
+    await getRootLogger().configure(defaultConfig());
+    const handle = getRootLogger().attachSession({
+      sessionId: 'ses_mirror',
+      sessionDir: join(homeDir, 'sessions', 'ses_mirror'),
+    });
+    handle.logger.warn('provider stalled', { phase: 'open' });
+    handle.logger.info('routine step');
+    await getRootLogger().flush();
+    const globalText = await readGlobal();
+    expect(globalText).toContain('provider stalled');
+    expect(globalText).not.toContain('routine step');
+    const sessionText = await readFile(
+      join(homeDir, 'sessions', 'ses_mirror', 'logs', 'liora.log'),
+      'utf-8',
+    );
+    expect(sessionText).toContain('provider stalled');
+    expect(sessionText).toContain('routine step');
+    await handle.close();
   });
 });
 

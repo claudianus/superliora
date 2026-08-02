@@ -51,6 +51,12 @@ export interface LoggingConfig {
   readonly globalFiles: number;
   readonly sessionMaxBytes: number;
   readonly sessionFiles: number;
+  /**
+   * When true (default), session-scoped warn/error entries are also written
+   * to the global log so `~/.superliora/logs/liora.log` alone can surface
+   * failures without knowing the session directory.
+   */
+  readonly mirrorSessionWarnToGlobal?: boolean;
 }
 
 export interface SessionLogHandle {

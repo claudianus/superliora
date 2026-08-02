@@ -220,7 +220,22 @@ async function notFoundDetail(
     // stat unavailable (e.g. test fake without override); omit the hint.
   }
   detail += similarCandidateBlock(fileText, oldText);
+  detail += formatEditRemediationFooter(shownPath);
   return detail;
+}
+
+/** ACI-style recovery lines shared by not-found / not-unique Edit failures. */
+export function formatEditRemediationFooter(shownPath: string): string {
+  return [
+    '',
+    'Remediation:',
+    `- Re-Read \`${shownPath}\` (exact bytes) and rebuild old_string from that output — do not retry from memory.`,
+    '- Prefer absolute paths for path (workspace-relative is ok when unambiguous).',
+    '- For a single edit: add more unique surrounding context to old_string.',
+    '- For every occurrence: set replace_all=true.',
+    '- Multi-hunk / multi-file: prefer ApplyPatch over repeated Edit.',
+    '',
+  ].join('\n');
 }
 
 export class EditTool implements BuiltinTool<EditInput> {
@@ -329,7 +344,8 @@ export class EditTool implements BuiltinTool<EditInput> {
             isError: true,
             output:
               `old_string is not unique in ${args.path} (found ${String(count)} occurrences). ` +
-              'To replace every occurrence, set replace_all=true. To replace only one occurrence, include more surrounding context in old_string.',
+              'To replace every occurrence, set replace_all=true. To replace only one occurrence, include more surrounding context in old_string.' +
+              formatEditRemediationFooter(args.path),
           };
         }
 

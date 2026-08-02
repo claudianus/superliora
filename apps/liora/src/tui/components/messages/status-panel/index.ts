@@ -69,6 +69,12 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
     ...privacyStatusRows(options),
     { label: 'Session', value: sessionId },
   ];
+  if (options.sessionLogPath !== undefined && options.sessionLogPath.length > 0) {
+    rows.push({ label: 'Session log', value: options.sessionLogPath });
+  }
+  if (options.globalLogPath !== undefined && options.globalLogPath.length > 0) {
+    rows.push({ label: 'Global log', value: options.globalLogPath });
+  }
   if (options.providerRouteStatus !== undefined && options.providerRouteStatus !== null) {
     rows.splice(1, 0, {
       label: 'Route',

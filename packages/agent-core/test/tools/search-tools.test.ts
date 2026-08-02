@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import type { Agent } from '../../src/agent';
 import type { ToolInfo } from '../../src/agent/tool';
-import { SearchToolsTool } from '../../src/tools/builtin/collaboration/search-tools';
+import {
+  rankToolsBm25Lite,
+  SearchToolsTool,
+} from '../../src/tools/builtin/collaboration/search-tools';
 
 function agentWithTools(tools: readonly ToolInfo[]): Agent {
   return {
@@ -136,5 +139,63 @@ describe('SearchToolsTool', () => {
     const result = await exec.execute();
     expect(result.output).toContain('LioraReview');
     expect(result.output).toContain('compat alias — prefer Review');
+  });
+
+  it('ranks multi-token semantic queries with BM25-lite over name+description', () => {
+    const catalog: ToolInfo[] = [
+      {
+        name: 'Bash',
+        description: 'Execute a bash command for shell semantics',
+        active: true,
+        source: 'builtin',
+      },
+      {
+        name: 'WebSearch',
+        description: 'Search the web for current facts via multi-provider research',
+        active: true,
+        source: 'builtin',
+      },
+      {
+        name: 'ReadMediaFile',
+        description: 'Read a UTF-8 text file? No — inspect image/video media bytes',
+        active: true,
+        source: 'builtin',
+      },
+      {
+        name: 'RunProjectChecks',
+        description: 'Discover and run project checks test typecheck build smoke lint',
+        active: true,
+        source: 'builtin',
+      },
+    ];
+    const ranked = rankToolsBm25Lite(catalog, 'project typecheck lint');
+    expect(ranked[0]?.name).toBe('RunProjectChecks');
+    const mediaRanked = rankToolsBm25Lite(catalog, 'image media');
+    expect(mediaRanked[0]?.name).toBe('ReadMediaFile');
+  });
+
+  it('still prefers exact tool name matches over description hits', () => {
+    const catalog: ToolInfo[] = [
+      {
+        name: 'SearchSkill',
+        description: 'Search skill catalog metadata',
+        active: true,
+        source: 'builtin',
+      },
+      {
+        name: 'WebSearch',
+        description: 'Search the web for current facts',
+        active: true,
+        source: 'builtin',
+      },
+      {
+        name: 'Grep',
+        description: 'Search file contents with ripgrep',
+        active: true,
+        source: 'builtin',
+      },
+    ];
+    const ranked = rankToolsBm25Lite(catalog, 'websearch');
+    expect(ranked[0]?.name).toBe('WebSearch');
   });
 });

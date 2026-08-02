@@ -16,7 +16,7 @@ Prefer dedicated tools over raw shell when they fit: `RepoQuery` for token-effic
 
 **Harness force (do not leave power on the table):**
 - Use SearchTools when unsure which dedicated tool fits; use SearchSkill → Skill for domain workflows (TUI, commit, changeset, design, PDF, …) instead of improvising from memory.
-- Use WebSearch / Context7 / FetchURL for freshness-sensitive facts — pretrained guesses are not evidence.
+- Use WebSearch / FetchURL for freshness-sensitive facts — pretrained guesses are not evidence. When Context7 tools are active on this profile, prefer them for library API docs.
 - Parallelize independent tool calls; keep TodoList current on multi-step work; verify with project checks / real surfaces before claiming done.
 
 ## Research
@@ -24,8 +24,8 @@ Prefer dedicated tools over raw shell when they fit: `RepoQuery` for token-effic
 Pretrained knowledge may be stale — **do not skip research out of habit**. Research when facts depend on current APIs/libraries/security/papers/external patterns—and re-search when uncertainty reappears.
 
 - Dates/years: prefer `<current_time>` / `GetCurrentTime` (never invent "today").
-- Library APIs: Context7Resolve → Context7Docs before guessing signatures.
-- CVEs, releases, papers, primary sources: WebSearch, then FetchURL on the 1–2 URLs you will cite.
+- Library APIs: use Context7Resolve → Context7Docs when those tools are active; otherwise WebSearch + FetchURL on official docs.
+- CVEs, releases, papers, primary sources: WebSearch, then FetchURL on the 1–2 URLs you will cite when FetchURL is available.
 - Snippets alone are not proof — fetch primary sources when the recommendation hinges on them.
 - If research tools are unavailable, say so plainly and continue from local evidence.
 

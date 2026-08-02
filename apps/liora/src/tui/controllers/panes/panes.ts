@@ -142,6 +142,8 @@ export class PanesController {
         return;
       case 'waiting': {
         const spinner = this.ensureActivitySpinner('moon');
+        // First-token wait can hang on open/handshake — surface stall after 30s.
+        spinner.setStallAfterMs(30_000);
         this.syncAgentSwarmActivitySpinner(placeSpinnerInAgentSwarm ? spinner : undefined);
         if (placeSpinnerInAgentSwarm) break;
         host.state.activityContainer.addChild(
@@ -174,6 +176,8 @@ export class PanesController {
         const spinner = this.ensureActivitySpinner('comet', 'working...', (s) =>
           currentTheme.fg('primary', s),
         );
+        // Long healthy composes must not look "stalled".
+        spinner.setStallAfterMs(undefined);
         this.syncAgentSwarmActivitySpinner(undefined);
         host.state.activityContainer.addChild(
           new ActivityPaneComponent({
@@ -186,6 +190,7 @@ export class PanesController {
       }
       case 'tool': {
         const spinner = this.ensureActivitySpinner('moon');
+        spinner.setStallAfterMs(undefined);
         this.syncAgentSwarmActivitySpinner(placeSpinnerInAgentSwarm ? spinner : undefined);
         if (placeSpinnerInAgentSwarm) break;
         host.state.activityContainer.addChild(

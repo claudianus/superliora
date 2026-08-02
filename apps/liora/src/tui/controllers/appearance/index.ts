@@ -80,7 +80,11 @@ export class AppearanceController {
 
   private syncAmbientSchedule(): void {
     const appearance = this.getAppearance();
-    if (!shouldAnimate(appearance)) {
+    const forceAmbient = this.forceAmbientSchedule?.() === true;
+    // When the agent is busy we always keep a low-rate ambient tick so live
+    // thinking/waiting elapsed clocks and stall labels keep advancing even if
+    // the user turned decorative animation off.
+    if (!shouldAnimate(appearance) && !forceAmbient) {
       this.setAmbientSchedule(undefined);
       return;
     }
@@ -93,7 +97,14 @@ export class AppearanceController {
         const premiumMs = premiumAmbientIntervalMs(appearance.animationFps);
         // Splash forces the ambient schedule — keep premium cadence so the
         // cinematic does not soft-degrade to 33–100ms stutter.
-        if (this.forceAmbientSchedule?.() === true) return premiumMs;
+        if (this.forceAmbientSchedule?.() === true && shouldAnimate(appearance)) {
+          return premiumMs;
+        }
+        // Busy-only force (streaming without decorative animation): 1 Hz is
+        // enough for elapsed/stall labels without burning CPU.
+        if (this.forceAmbientSchedule?.() === true && !shouldAnimate(appearance)) {
+          return 1000;
+        }
         return rendererAmbientIntervalMs({
           requested: resolveAmbientEffectMode(appearance),
           quality: ctx.quality === 'minimal' ? 'balanced' : ctx.quality,

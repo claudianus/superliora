@@ -47,17 +47,27 @@ export {
 export type { Catalog, CatalogModel, CatalogModelEntry, CatalogProviderEntry } from './catalog';
 
 // Core functions
-export { generate, DEFAULT_STREAM_IDLE_TIMEOUT_MS } from './generate';
+export {
+  generate,
+  DEFAULT_STREAM_IDLE_TIMEOUT_MS,
+  DEFAULT_STREAM_OPEN_TIMEOUT_MS,
+  isSubstantiveStreamPart,
+} from './generate';
 export type { GenerateCallbacks, GenerateResult } from './generate';
 
-// Stream idle timeout guard
+// Stream idle / open timeout guards
 export {
+  createGenerateAbortScope,
   DEFAULT_LLM_IDLE_TIMEOUT_MS,
+  DEFAULT_LLM_OPEN_TIMEOUT_MS,
   LLM_IDLE_TIMEOUT_ENV,
+  LLM_OPEN_TIMEOUT_ENV,
+  openTimeoutError,
   resolveIdleTimeoutMs,
+  resolveOpenTimeoutMs,
   withIdleTimeout,
 } from './idle-timeout';
-export type { IdleTimeoutOptions } from './idle-timeout';
+export type { GenerateAbortScope, GenerateAbortScopeOptions, IdleTimeoutOptions } from './idle-timeout';
 
 // Tool wire schema
 export type { Tool } from './tool';

@@ -153,10 +153,12 @@ export class RotatingFileSink implements Sink {
   }
 
   private async appendChunk(chunk: string): Promise<void> {
+    // Append without per-chunk fsync: rotation/close still fsync via
+    // directory sync and explicit flush paths. Per-line fsync was the
+    // dominant cost under high-frequency llm request logging.
     const fh = await open(this.options.path, 'a');
     try {
       await fh.appendFile(chunk, 'utf-8');
-      await fh.sync();
     } finally {
       await fh.close();
     }

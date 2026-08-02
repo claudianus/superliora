@@ -19,21 +19,56 @@ export interface ResolveLoggingInput {
  * flux and reading it adds a startup-time failure surface. Users who need to
  * override the defaults set env vars:
  *
- *   KIMI_LOG_LEVEL=debug
- *   KIMI_LOG_GLOBAL_MAX_BYTES=... KIMI_LOG_GLOBAL_FILES=...
- *   KIMI_LOG_SESSION_MAX_BYTES=... KIMI_LOG_SESSION_FILES=...
+ *   SUPERLIORA_LOG_LEVEL=debug   (alias: KIMI_LOG_LEVEL)
+ *   SUPERLIORA_LOG_GLOBAL_MAX_BYTES / SUPERLIORA_LOG_GLOBAL_FILES
+ *   SUPERLIORA_LOG_SESSION_MAX_BYTES / SUPERLIORA_LOG_SESSION_FILES
+ *   SUPERLIORA_LOG_MIRROR_WARN=0  to disable warn/error global mirror
+ *
+ * Legacy `KIMI_LOG_*` names remain supported for compatibility.
  */
 export function resolveLoggingConfig(input: ResolveLoggingInput): LoggingConfig {
   const env = input.env ?? process.env;
   return {
-    level: parseLevel(env['KIMI_LOG_LEVEL']) ?? DEFAULT_LOG_LEVEL,
+    level: parseLevel(envValue(env, 'SUPERLIORA_LOG_LEVEL', 'KIMI_LOG_LEVEL')) ?? DEFAULT_LOG_LEVEL,
     globalLogPath: resolveGlobalLogPath(input.homeDir),
-    globalMaxBytes: parsePositiveInt(env['KIMI_LOG_GLOBAL_MAX_BYTES']) ?? DEFAULT_GLOBAL_MAX_BYTES,
-    globalFiles: parsePositiveInt(env['KIMI_LOG_GLOBAL_FILES']) ?? DEFAULT_GLOBAL_FILES,
+    globalMaxBytes:
+      parsePositiveInt(envValue(env, 'SUPERLIORA_LOG_GLOBAL_MAX_BYTES', 'KIMI_LOG_GLOBAL_MAX_BYTES')) ??
+      DEFAULT_GLOBAL_MAX_BYTES,
+    globalFiles:
+      parsePositiveInt(envValue(env, 'SUPERLIORA_LOG_GLOBAL_FILES', 'KIMI_LOG_GLOBAL_FILES')) ??
+      DEFAULT_GLOBAL_FILES,
     sessionMaxBytes:
-      parsePositiveInt(env['KIMI_LOG_SESSION_MAX_BYTES']) ?? DEFAULT_SESSION_MAX_BYTES,
-    sessionFiles: parsePositiveInt(env['KIMI_LOG_SESSION_FILES']) ?? DEFAULT_SESSION_FILES,
+      parsePositiveInt(
+        envValue(env, 'SUPERLIORA_LOG_SESSION_MAX_BYTES', 'KIMI_LOG_SESSION_MAX_BYTES'),
+      ) ?? DEFAULT_SESSION_MAX_BYTES,
+    sessionFiles:
+      parsePositiveInt(envValue(env, 'SUPERLIORA_LOG_SESSION_FILES', 'KIMI_LOG_SESSION_FILES')) ??
+      DEFAULT_SESSION_FILES,
+    mirrorSessionWarnToGlobal: parseBool(
+      envValue(env, 'SUPERLIORA_LOG_MIRROR_WARN', 'KIMI_LOG_MIRROR_WARN'),
+      true,
+    ),
   };
+}
+
+function envValue(
+  env: NodeJS.ProcessEnv,
+  primary: string,
+  legacy: string,
+): string | undefined {
+  const a = env[primary];
+  if (a !== undefined && a.trim().length > 0) return a;
+  const b = env[legacy];
+  if (b !== undefined && b.trim().length > 0) return b;
+  return undefined;
+}
+
+function parseBool(value: string | undefined, fallback: boolean): boolean {
+  if (value === undefined) return fallback;
+  const v = value.toLowerCase().trim();
+  if (v === '0' || v === 'false' || v === 'off' || v === 'no') return false;
+  if (v === '1' || v === 'true' || v === 'on' || v === 'yes') return true;
+  return fallback;
 }
 
 function parseLevel(value: string | undefined): LogLevel | undefined {

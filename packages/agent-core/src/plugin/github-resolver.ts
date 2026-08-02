@@ -94,7 +94,11 @@ async function tryResolveLatestReleaseTag(
   repo: string,
 ): Promise<string | undefined> {
   const url = `https://github.com/${owner}/${repo}/releases/latest`;
-  const resp = await fetch(url, { redirect: 'manual' });
+  // Bound the lookup so a hung GitHub edge cannot block plugin install forever.
+  const resp = await fetch(url, {
+    redirect: 'manual',
+    signal: AbortSignal.timeout(15_000),
+  });
 
   // Definitive "no own latest release". Distinct from transient errors.
   if (resp.status === 404) return undefined;

@@ -47,6 +47,12 @@ function shouldRenderAmbientAnimationFrameFor(tui: LioraTUI): boolean {
   );
 }
 
+function isStreamingPhaseActive(
+  phase: LioraTUI['state']['appState']['streamingPhase'],
+): boolean {
+  return phase === 'waiting' || phase === 'thinking' || phase === 'composing' || phase === 'shell';
+}
+
 /** Instantiate controllers and reverse-RPC wiring for {@link LioraTUI}. */
 export function wireLioraTUIControllers(
   tui: LioraTUI,
@@ -106,7 +112,12 @@ export function wireLioraTUIControllers(
       tui.state.renderer.invalidateFrame('palette');
     },
     shouldRenderAnimation: () => shouldRenderAmbientAnimationFrameFor(tui),
-    forceAmbientSchedule: () => tui.splashForcesAmbient,
+    forceAmbientSchedule: () =>
+      tui.splashForcesAmbient ||
+      // Live agent work needs ambient ticks so thinking/waiting elapsed clocks
+      // and stall labels keep updating even when decorative motion is off.
+      isStreamingPhaseActive(tui.state.appState.streamingPhase) ||
+      tui.state.appState.isCompacting === true,
   });
   tui.state.transcriptDetail =
     tui.state.appState.appearance?.transcriptDetail ?? 'standard';

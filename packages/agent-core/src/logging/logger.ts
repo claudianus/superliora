@@ -19,7 +19,10 @@ const ROOT_SYMBOL = Symbol.for('kimi.logger.root');
 const SESSION_LOG_ID = Symbol('kimi.logger.sessionLogId');
 const LLM_REQUEST_SESSION_LOG_OMITTED_CONTEXT_KEYS = ['sessionId'];
 const MAIN_LLM_REQUEST_SESSION_LOG_OMITTED_CONTEXT_KEYS = ['sessionId', 'agentId'];
+/** Cap for lines buffered before `configure()` so early startup is not lost. */
+const PRECONFIGURE_RING_MAX = 200;
 let nextSessionLogId = 0;
+const preconfigureRing: string[] = [];
 
 interface SessionEntry {
   readonly logId: string;
@@ -52,6 +55,13 @@ class RootLoggerImpl implements RootLogger {
     const oldGlobalSink = this.globalSink;
     this.config = config;
     this.globalSink = makeGlobalSink(config);
+    // Replay anything logged before configure (startup race).
+    if (this.globalSink !== undefined && preconfigureRing.length > 0) {
+      for (const line of preconfigureRing) {
+        this.globalSink.enqueue(line);
+      }
+      preconfigureRing.length = 0;
+    }
     return oldGlobalSink?.close() ?? Promise.resolve();
   }
 
@@ -119,7 +129,13 @@ class RootLoggerImpl implements RootLogger {
 
   emit(entry: LogEntry): void {
     const config = this.config;
-    if (config === undefined || config.level === 'off') return;
+    if (config === undefined) {
+      // Pre-configure ring: keep a short tail so early failures are not lost.
+      const formatted = formatEntry(entry);
+      if (!formatted.dropped) pushPreconfigure(formatted.text + '\n');
+      return;
+    }
+    if (config.level === 'off') return;
     if (!levelEnabled(config.level, entry.level)) return;
 
     const session = this.resolveSessionEntry(entry);
@@ -130,6 +146,15 @@ class RootLoggerImpl implements RootLogger {
       });
       if (!sessionFormatted.dropped) {
         session.sink.enqueue(sessionFormatted.text + '\n');
+      }
+      // Mirror warn/error to the global log so operators can diagnose without
+      // knowing the session directory (hangs, provider failures, aborts).
+      const mirror = config.mirrorSessionWarnToGlobal !== false;
+      if (mirror && (entry.level === 'error' || entry.level === 'warn')) {
+        const globalFormatted = formatEntry(entry);
+        if (!globalFormatted.dropped) {
+          this.globalSink?.enqueue(globalFormatted.text + '\n');
+        }
       }
     } else {
       const formatted = formatEntry(entry);
@@ -302,7 +327,6 @@ class LoggerImpl implements Logger {
     payload: LogPayload,
   ): void {
     const root = getRootInternal();
-    if (!root.isConfigured()) return;
     try {
       const { ctx: payloadCtx, error } = resolvePayload(payload);
       // Bound ctx wins so call-site can't overwrite ownership fields.
@@ -349,8 +373,16 @@ function sameLoggingConfig(a: LoggingConfig, b: LoggingConfig): boolean {
     a.globalMaxBytes === b.globalMaxBytes &&
     a.globalFiles === b.globalFiles &&
     a.sessionMaxBytes === b.sessionMaxBytes &&
-    a.sessionFiles === b.sessionFiles
+    a.sessionFiles === b.sessionFiles &&
+    (a.mirrorSessionWarnToGlobal !== false) === (b.mirrorSessionWarnToGlobal !== false)
   );
+}
+
+function pushPreconfigure(line: string): void {
+  if (preconfigureRing.length >= PRECONFIGURE_RING_MAX) {
+    preconfigureRing.shift();
+  }
+  preconfigureRing.push(line);
 }
 
 function resolvePayload(
@@ -428,8 +460,14 @@ export async function __resetRootLoggerForTest(): Promise<void> {
     await existing.__shutdownForTest();
   }
   globalAny[ROOT_SYMBOL] = undefined;
+  preconfigureRing.length = 0;
 }
 
 export function resolveGlobalLogPath(homeDir: string): string {
   return join(homeDir, 'logs', 'liora.log');
+}
+
+/** Session log file path (same layout attachSession uses). */
+export function resolveSessionLogPath(sessionDir: string): string {
+  return join(sessionDir, 'logs', 'liora.log');
 }

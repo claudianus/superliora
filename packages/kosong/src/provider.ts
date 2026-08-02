@@ -160,14 +160,25 @@ export interface GenerateOptions {
   /**
    * Maximum time (ms) to wait for the next streamed part before treating the
    * stream as stalled and aborting with an {@link APITimeoutError}. The timer
-   * resets on every received part, so a healthy slow stream is never killed —
-   * only a completely silent one.
+   * resets on every received *activity* part (non-empty text/think/tool
+   * deltas), so a healthy slow stream is never killed — only a completely
+   * silent one. Empty keepalives do not reset the budget.
    *
    * When omitted, falls back to the `SUPERLIORA_LLM_IDLE_TIMEOUT_MS`
    * environment variable, then to {@link DEFAULT_STREAM_IDLE_TIMEOUT_MS}
    * (2 minutes). Set to `0` to disable the watchdog entirely.
    */
   streamIdleTimeoutMs?: number;
+  /**
+   * Maximum time (ms) to wait for `provider.generate()` to return a stream
+   * object before treating the request as hung (TCP/TLS handshake or a
+   * create() that never resolves). This is separate from
+   * {@link streamIdleTimeoutMs}, which only runs after the stream exists.
+   *
+   * When omitted, falls back to `SUPERLIORA_LLM_OPEN_TIMEOUT_MS`, then to
+   * {@link DEFAULT_STREAM_OPEN_TIMEOUT_MS} (2 minutes). Set to `0` to disable.
+   */
+  streamOpenTimeoutMs?: number;
   /**
    * Layered system prompt for cache-optimized providers.
    * When provided, providers that support multi-block system prompts

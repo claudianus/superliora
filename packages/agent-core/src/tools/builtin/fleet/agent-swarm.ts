@@ -6,6 +6,7 @@ import type { BuiltinTool } from '../../../agent/tool';
 import {
   applyFleetWorktreeToSpawnTasks,
   fleetCostGuardSoftTipFromAgent,
+  isMakerCheckerHardReject,
   makerCheckerSoftWarnFromAgentSwarmItems,
 } from '#/fleet';
 import {
@@ -143,6 +144,9 @@ export class AgentSwarmTool implements BuiltinTool<AgentSwarmToolInput> {
     try {
       this.swarmMode.enter('tool');
       const result = await this.runSwarm(args, context.signal, context.toolCallId);
+      if (isMakerCheckerHardReject(result)) {
+        return { output: result, isError: true };
+      }
       return {
         output: result,
       };
@@ -159,6 +163,16 @@ export class AgentSwarmTool implements BuiltinTool<AgentSwarmToolInput> {
     signal: AbortSignal,
     toolCallId: string,
   ): Promise<string> {
+    // Maker≠Checker: evaluate before any spawn/worktree cost. Hard gate returns
+    // immediately; soft tip is re-attached after results.
+    const makerCheckerTip = makerCheckerSoftWarnFromAgentSwarmItems(
+      args.items ?? [],
+      args.prompt_template,
+    );
+    if (makerCheckerTip !== undefined && isMakerCheckerHardReject(makerCheckerTip)) {
+      return makerCheckerTip;
+    }
+
     const profileName = normalizeOptionalString(args.subagent_type) ?? DEFAULT_SUBAGENT_TYPE;
     if (args.items !== undefined && args.items.length > 0) {
       seedSwarmOrchestrationTodos(this.store, args.items);
@@ -209,10 +223,6 @@ export class AgentSwarmTool implements BuiltinTool<AgentSwarmToolInput> {
     const rollingWarning = takeRollingIntegrationWarning(toolCallId);
     const fleetTip =
       fleetWorktreeTips.length > 0 ? fleetWorktreeTips.join('\n') : undefined;
-    const makerCheckerTip = makerCheckerSoftWarnFromAgentSwarmItems(
-      args.items ?? [],
-      args.prompt_template,
-    );
     const costGuardTip = fleetCostGuardSoftTipFromAgent(this.agent, fleetTasks.length);
     const suffix = [rollingWarning, fleetTip, makerCheckerTip, costGuardTip]
       .filter((line) => line !== undefined)
