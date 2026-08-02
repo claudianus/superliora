@@ -19,6 +19,7 @@ import {
   type DashboardSessionStatus,
   type DashboardStatusHints,
 } from '../../utils/agent/agent-dashboard-rows';
+import { formatSessionResumeWarningNotice } from '../../utils/session/session-resume-warning-notice';
 import type { CenterModalMountOptions } from '../../utils/ui/center-modal';
 import {
   resolveExtensionsTab,
@@ -58,6 +59,11 @@ export interface SessionBrowserHost {
   syncRuntimeState(session?: Session): Promise<void>;
   showError(message: string): void;
   showStatus(message: string, color?: ColorToken): void;
+  showNotice?(
+    title: string,
+    detail: string,
+    options?: { readonly coalesceKey?: string },
+  ): void;
   showSessionWarnings(session: Session): Promise<void>;
   hasSessionContent(): boolean;
   isSessionLoadingOverlayActive(): boolean;
@@ -186,7 +192,12 @@ export class SessionBrowserController implements SessionPickerControllerState {
     this.host.sessionEventHandler.startSubscription();
     const resumeState = session.getResumeState();
     if (resumeState?.warning !== undefined) {
-      this.host.showStatus(`Warning: ${resumeState.warning}`, 'warning');
+      // Loop49a: named notice when switching/resuming from the session browser.
+      const notice = formatSessionResumeWarningNotice(resumeState.warning);
+      this.host.showNotice?.(notice.title, notice.detail, {
+        coalesceKey: notice.coalesceKey,
+      });
+      this.host.showStatus(notice.status, 'warning');
     }
     this.host.showStatus(statusMessage);
     void this.host.showSessionWarnings(session);

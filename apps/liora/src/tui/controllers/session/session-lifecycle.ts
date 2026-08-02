@@ -26,6 +26,7 @@ import {
 } from '../../utils/prompt-input-state';
 import type { PromptStash } from '../../utils/prompt-stash';
 import { formatConfigDiagnosticsNotice } from '../../utils/session/config-diagnostics-notice';
+import { formatSessionResumeWarningNotice } from '../../utils/session/session-resume-warning-notice';
 import { ttui } from '../../utils/tui-i18n';
 import type { BtwPanelController } from '../panes/btw-panel';
 import type { SessionEventHandler } from '../session-event/handler';
@@ -255,7 +256,12 @@ export class SessionLifecycleController {
     await restorePromptInputState(host).catch(() => undefined);
     const resumeState = session.getResumeState();
     if (resumeState?.warning !== undefined) {
-      host.showStatus(`Warning: ${resumeState.warning}`, 'warning');
+      // Loop49a: named notice on cold resume after history hydrate.
+      const notice = formatSessionResumeWarningNotice(resumeState.warning);
+      host.showNotice?.(notice.title, notice.detail, {
+        coalesceKey: notice.coalesceKey,
+      });
+      host.showStatus(notice.status, 'warning');
     }
     host.showStatus(statusMessage);
     void host.showSessionWarnings(session);
