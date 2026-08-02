@@ -106,9 +106,12 @@ describe('refreshGitCheckoutUpdateTarget', () => {
     const { remoteUrl } = initBareRemote();
     const repoRoot = initCheckout(remoteUrl);
     runGit(repoRoot, ['checkout', '--detach', 'HEAD']);
+    const head = runGit(repoRoot, ['rev-parse', 'HEAD']);
     await expect(refreshGitCheckoutUpdateTarget(repoRoot)).resolves.toMatchObject({
       status: 'up-to-date',
       dirty: false,
+      head,
+      upstream: 'origin/main',
     });
   });
 

@@ -14,7 +14,13 @@ export interface GitCheckoutTarget extends UpdateTarget {
 }
 
 export type GitCheckoutRefreshResult =
-  | { readonly status: 'up-to-date'; readonly dirty: boolean }
+  | {
+      readonly status: 'up-to-date';
+      readonly dirty: boolean;
+      /** Full HEAD sha — used to detect “git caught up, install/build failed”. */
+      readonly head: string;
+      readonly upstream: string;
+    }
   | { readonly status: 'update'; readonly target: GitCheckoutTarget; readonly dirty: boolean }
   | { readonly status: 'diverged'; readonly upstream: string; readonly dirty: boolean };
 
@@ -118,18 +124,27 @@ export async function refreshGitCheckoutUpdateTarget(
   });
   const local = await execGit(repoRoot, ['rev-parse', 'HEAD']);
   const remote = await execGit(repoRoot, ['rev-parse', upstream]);
-  if (local === remote) return { status: 'up-to-date', dirty };
+  if (local === remote) {
+    return { status: 'up-to-date', dirty, head: local, upstream };
+  }
   const behind = Number(await execGit(repoRoot, ['rev-list', '--count', `HEAD..${upstream}`]));
   const ahead = Number(await execGit(repoRoot, ['rev-list', '--count', `${upstream}..HEAD`]));
   if (Number.isFinite(ahead) && ahead > 0 && Number.isFinite(behind) && behind > 0) {
     return { status: 'diverged', upstream, dirty };
   }
-  if (!Number.isFinite(behind) || behind <= 0) return { status: 'up-to-date', dirty };
+  if (!Number.isFinite(behind) || behind <= 0) {
+    return { status: 'up-to-date', dirty, head: local, upstream };
+  }
   return {
     status: 'update',
     dirty,
     target: { repoRoot, upstream, version: `${upstream}@${remote.slice(0, 12)}` },
   };
+}
+
+/** Version label used by install-state / upgrade plan for a checkout HEAD. */
+export function gitCheckoutVersionLabel(upstream: string, headSha: string): string {
+  return `${upstream}@${headSha.slice(0, 12)}`;
 }
 
 async function resolveGitCheckoutUpstream(repoRoot: string): Promise<string> {

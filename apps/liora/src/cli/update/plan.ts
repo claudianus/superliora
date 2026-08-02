@@ -1,6 +1,9 @@
 import { SUPERLIORA_CHANGELOG_URL } from './changelog';
 import type { GitCheckoutRefreshResult } from './git-checkout';
-import { refreshGitCheckoutUpdateTarget } from './git-checkout';
+import {
+  gitCheckoutVersionLabel,
+  refreshGitCheckoutUpdateTarget,
+} from './git-checkout';
 import { emptyUpdateInstallState, readUpdateInstallState } from './install-state';
 import { canAutoInstall, installCommandFor } from './preflight';
 import { refreshUpdateCache } from './refresh';
@@ -104,6 +107,24 @@ export async function resolveUpgradePlan(
     try {
       const result = await deps.refreshGitCheckoutUpdateTarget();
       if (result.status === 'up-to-date') {
+        // Background install may force-checkout first, then fail on pnpm/build.
+        // HEAD matches upstream so a naive check reports "up to date" while the
+        // running dist is still stale and lastFailure blocks auto-retry.
+        // Surface the failed HEAD version as update-available so `liora upgrade`
+        // can rebuild/reinstall.
+        const failedVersion = installState.lastFailure?.version;
+        const headVersion = gitCheckoutVersionLabel(result.upstream, result.head);
+        if (failedVersion === headVersion) {
+          return basePlan({
+            source,
+            currentVersion,
+            target: { version: headVersion, upstream: result.upstream },
+            reason: 'update-available',
+            dirty: result.dirty,
+            canAutoInstall: canAutoInstall(source, deps.platform),
+            platform: deps.platform,
+          });
+        }
         return basePlan({
           source,
           currentVersion,
