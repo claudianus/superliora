@@ -383,3 +383,47 @@ describe('SessionEventNotices.handleSessionWarning (Loop41a UserPromptSubmit blo
     );
   });
 });
+
+describe('SessionEventNotices.handleSessionWarning (Loop46a AGENTS.md oversized)', () => {
+  it('surfaces soft AGENTS.md size budget as a named notice', () => {
+    const host = makeHost(0);
+    const notices = makeNotices(host);
+    const message =
+      'AGENTS.md exceeds the recommended 40,000 character budget (50,000 chars). Consider trimming project instructions to reduce context load.';
+
+    notices.handleSessionWarning({
+      type: 'warning',
+      message,
+      code: 'agents-md-oversized',
+    });
+
+    expect(host.showNotice).toHaveBeenCalledWith('AGENTS.md oversized', message, {
+      coalesceKey: 'agents-md-oversized',
+    });
+    expect(host.showStatus).toHaveBeenCalledWith(
+      'AGENTS.md oversized — consider trimming',
+      'warning',
+    );
+  });
+
+  it('surfaces hard AGENTS.md injection cap as a named notice', () => {
+    const host = makeHost(0);
+    const notices = makeNotices(host);
+    const message =
+      'AGENTS.md exceeds the hard injection cap of 120,000 characters (150,000 chars). Content was truncated before injection; trim project instructions.';
+
+    notices.handleSessionWarning({
+      type: 'warning',
+      message,
+      code: 'agents-md-oversized',
+    });
+
+    expect(host.showNotice).toHaveBeenCalledWith('AGENTS.md oversized', message, {
+      coalesceKey: 'agents-md-oversized',
+    });
+    expect(host.showStatus).toHaveBeenCalledWith(
+      'AGENTS.md hard-capped — trim project instructions',
+      'warning',
+    );
+  });
+});
