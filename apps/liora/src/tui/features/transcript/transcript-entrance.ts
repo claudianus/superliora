@@ -25,13 +25,13 @@ import {
 } from '#/tui/features/appearance/appearance-effects';
 
 /** Premium entrance — soft wash long enough to read as ink, short enough not to lag. */
-export const TRANSCRIPT_ENTRANCE_MS_PREMIUM = 720;
+export const TRANSCRIPT_ENTRANCE_MS_PREMIUM = 480;
 /** Subtle profile stretches the same ease so it still finishes cleanly. */
-export const TRANSCRIPT_ENTRANCE_MS_SUBTLE = 900;
+export const TRANSCRIPT_ENTRANCE_MS_SUBTLE = 620;
 /** Live stream tail glow width in visual clusters (wider = silkier ink trail). */
-export const STREAM_TAIL_GLOW_CLUSTERS = 40;
+export const STREAM_TAIL_GLOW_CLUSTERS = 28;
 /** How long a "fresh" tail glow lingers after the last paint. */
-export const STREAM_TAIL_GLOW_MS = 640;
+export const STREAM_TAIL_GLOW_MS = 420;
 
 export type TranscriptEntranceKind =
   | 'assistant'
@@ -396,9 +396,9 @@ export function applyStreamTailGlow(
   const spark = currentTheme.color('glow');
   const start = Math.max(0, cells.length - glowClusters);
   const trailLen = Math.max(1, cells.length - start);
-  // Gentle breath (~2.2s) so the tip shimmers without looking like a hard blink.
+  // Gentle breath (~1.6s) so the tip shimmers without looking like a hard blink.
   const nowMs = options.nowMs ?? appearanceAnimationNow();
-  const breath = 0.5 + 0.5 * Math.sin((nowMs / 2200) * Math.PI * 2);
+  const breath = 0.5 + 0.5 * Math.sin((nowMs / 1600) * Math.PI * 2);
 
   const nextCells = cells.map((cell, index) => {
     if (index < start) return cell;
@@ -456,9 +456,40 @@ export function polishTranscriptLines(
   if (!shouldRenderAmbientEffects(appearance) && options.streaming !== true) {
     return lines as string[];
   }
-  let next = applyTranscriptEntrance(lines, options.startedAtMs, kind, appearance, nowMs);
+  // Live stream: skip the full-block entrance recolor every frame. Re-parsing
+  // every ANSI cell on multi-line drafts is the main streaming hitch; only the
+  // growing edge needs the ink trail. Entrance wash still runs for settled mounts.
+  const entranceActive = isTranscriptEntranceActive(options.startedAtMs, appearance, nowMs);
+  let next = lines as string[];
+  if (entranceActive && options.streaming !== true) {
+    next = applyTranscriptEntrance(lines, options.startedAtMs, kind, appearance, nowMs);
+  } else if (entranceActive && options.streaming === true) {
+    // First ~entrance window while still streaming: wash only the last few
+    // visible lines (cheap) instead of the whole block.
+    next = applyStreamingEntranceWash(lines, options.startedAtMs, kind, appearance, nowMs);
+  }
   if (options.streaming === true) {
     next = applyStreamTailGlow(next, kind, appearance, { active: true, nowMs });
   }
   return next;
+}
+
+/**
+ * Cheap entrance for live drafts: only recolor the last few lines so early
+ * frames still bloom without O(full message) ANSI work every ambient tick.
+ */
+function applyStreamingEntranceWash(
+  lines: readonly string[],
+  startedAtMs: number,
+  kind: TranscriptEntranceKind,
+  appearance: AppearancePreferences,
+  nowMs: number,
+): string[] {
+  if (lines.length === 0) return lines as string[];
+  const tailCount = Math.min(lines.length, 4);
+  const head = lines.slice(0, lines.length - tailCount);
+  const tail = lines.slice(lines.length - tailCount);
+  const washed = applyTranscriptEntrance(tail, startedAtMs, kind, appearance, nowMs);
+  if (head.length === 0) return washed;
+  return [...head, ...washed];
 }

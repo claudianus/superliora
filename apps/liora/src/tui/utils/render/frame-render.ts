@@ -2,8 +2,8 @@ import type { TUIState } from '../../tui-state';
 import type { FrameInvalidationIntent } from '#/tui/features/native-layout/native-frame-policy';
 import { scheduleTranscriptScrollSettleRefresh } from '#/tui/utils/render/scroll-settle-refresh';
 import {
+  shouldDeferTranscriptContentInvalidation,
   shouldDeferTranscriptHeavyInvalidation,
-  wasRecentTranscriptScroll,
 } from '#/tui/utils/render/transcript-paint-mode';
 
 /**
@@ -21,10 +21,12 @@ export function invalidateTUIFrame(state: TUIState, intent: FrameInvalidationInt
   if (shouldSuppressTUIFrameRequests(state)) return;
   // During active transcript scroll, content/layout invalidations fight pure-
   // scroll paint (streaming tools, swarm, footer). Coalesce to settle refresh.
-  if (
-    (intent === 'content' || intent === 'layout') &&
-    shouldDeferTranscriptHeavyInvalidation()
-  ) {
+  // Content only yields during a real wheel storm; layout keeps the heavy hold.
+  if (intent === 'content' && shouldDeferTranscriptContentInvalidation()) {
+    scheduleTranscriptScrollSettleRefresh(state);
+    return;
+  }
+  if (intent === 'layout' && shouldDeferTranscriptHeavyInvalidation()) {
     scheduleTranscriptScrollSettleRefresh(state);
     return;
   }
@@ -33,7 +35,9 @@ export function invalidateTUIFrame(state: TUIState, intent: FrameInvalidationInt
 
 export function requestTUIContentRender(state: TUIState): void {
   if (shouldSuppressTUIFrameRequests(state)) return;
-  if (shouldDeferTranscriptHeavyInvalidation()) {
+  // Content (stream deltas, reveal ticks) only yields during a real wheel storm.
+  // Geometry/layout still uses the longer heavy hold.
+  if (shouldDeferTranscriptContentInvalidation()) {
     scheduleTranscriptScrollSettleRefresh(state);
     return;
   }

@@ -259,13 +259,14 @@ function caretActive(): boolean {
 
 /** Kinetic caret — block + dual spark trail so catch-up is impossible to miss. */
 const STREAMING_CARET = '▌';
-const CARET_PULSE_INTERVAL_MS = 280;
+/** Soft sine period — shorter than 280ms so the tip breathes at ~premium cadence. */
+const CARET_PULSE_INTERVAL_MS = 220;
 const CARET_TRAIL = ['·', '˙', '˚', '•'] as const;
 const CARET_TRAIL_OUTER = ['˙', '·', '˚'] as const;
 
 /**
  * Append a pulsing caret (+ dual micro trail) to the last non-empty content line.
- * Triangle-wave brand glow on the shared animation clock.
+ * Smooth sine breath on the shared animation clock — no hard on/off threshold.
  */
 function appendStreamingCaret(lines: readonly string[], _contentWidth: number): readonly string[] {
   if (lines.length === 0) return lines;
@@ -274,13 +275,18 @@ function appendStreamingCaret(lines: readonly string[], _contentWidth: number): 
     lastIndex--;
   }
   const now = appearanceAnimationNow();
-  const phase = (Math.sin((now / CARET_PULSE_INTERVAL_MS) * Math.PI) + 1) / 2;
-  const hot = phase > 0.48;
-  const caret = currentTheme.boldFg(hot ? 'glow' : 'gradientStart', STREAMING_CARET);
-  const trailGlyph = CARET_TRAIL[Math.floor(now / 70) % CARET_TRAIL.length] ?? '·';
-  const outerGlyph = CARET_TRAIL_OUTER[Math.floor(now / 95) % CARET_TRAIL_OUTER.length] ?? '˙';
-  const trail = currentTheme.fg(hot ? 'primary' : 'particle', trailGlyph);
-  const outer = currentTheme.fg(hot ? 'glow' : 'primary', outerGlyph);
+  // Continuous breath 0→1→0; avoid a hard threshold that flickered bold/regular.
+  const phase = (Math.sin((now / CARET_PULSE_INTERVAL_MS) * Math.PI * 2) + 1) / 2;
+  const hot = phase > 0.55;
+  const warm = phase > 0.28;
+  const caret = currentTheme.boldFg(
+    hot ? 'glow' : warm ? 'gradientStart' : 'primary',
+    STREAMING_CARET,
+  );
+  const trailGlyph = CARET_TRAIL[Math.floor(now / 55) % CARET_TRAIL.length] ?? '·';
+  const outerGlyph = CARET_TRAIL_OUTER[Math.floor(now / 80) % CARET_TRAIL_OUTER.length] ?? '˙';
+  const trail = currentTheme.fg(hot ? 'primary' : warm ? 'particle' : 'textDim', trailGlyph);
+  const outer = currentTheme.fg(hot ? 'glow' : warm ? 'primary' : 'particle', outerGlyph);
   const next = [...lines];
   next[lastIndex] = `${lines[lastIndex]}${outer}${trail}${caret}`;
   return next;
