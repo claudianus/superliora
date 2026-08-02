@@ -25,6 +25,7 @@ import {
   type PromptInputRuntimeHost,
 } from '../../utils/prompt-input-state';
 import type { PromptStash } from '../../utils/prompt-stash';
+import { formatConfigDiagnosticsNotice } from '../../utils/session/config-diagnostics-notice';
 import { ttui } from '../../utils/tui-i18n';
 import type { BtwPanelController } from '../panes/btw-panel';
 import type { SessionEventHandler } from '../session-event/handler';
@@ -73,6 +74,11 @@ export interface SessionLifecycleHost extends PromptInputRuntimeHost {
   clearTranscriptAndRedraw(): void;
   showError(msg: string): void;
   showStatus(msg: string, color?: ColorToken): void;
+  showNotice?(
+    title: string,
+    detail: string,
+    options?: { readonly coalesceKey?: string },
+  ): void;
   showSessionWarnings(session: Session): Promise<void>;
   isSessionLoadingOverlayActive(): boolean;
   runWithBusyOverlay<T>(
@@ -377,13 +383,22 @@ export class SessionLifecycleController {
     return previous;
   }
 
-  /** Surface config.toml load warnings (degraded or kept-previous config) in the status bar. */
+  /**
+   * Loop47a: surface config.toml diagnostics as a named notice (status alone
+   * was easy to miss). Soft warnings vs keep-previous hard degradation.
+   */
   private async showConfigWarningsIfAny(): Promise<void> {
     try {
       const { warnings } = await this.host.harness.getConfigDiagnostics();
-      for (const warning of warnings) {
-        this.host.showStatus(warning, 'warning');
+      if (warnings.length === 0) return;
+      const notice = formatConfigDiagnosticsNotice(warnings);
+      if (notice === undefined) return;
+      if (this.host.showNotice !== undefined) {
+        this.host.showNotice(notice.title, notice.detail, {
+          coalesceKey: notice.coalesceKey,
+        });
       }
+      this.host.showStatus(notice.status, 'warning');
     } catch {
       /* diagnostics are best-effort */
     }
