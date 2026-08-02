@@ -48,6 +48,10 @@ import {
   isSameStepDedupOutput,
 } from '../../utils/tools/same-step-dedup-notice';
 import {
+  formatShellDedicatedBypassNotice,
+  isShellDedicatedBypassOutput,
+} from '../../utils/tools/shell-dedicated-bypass-notice';
+import {
   formatAutoCheckSpawnNotice,
   isAutoCheckSpawnOutput,
 } from '../../utils/tools/auto-check-spawn-notice';
@@ -253,6 +257,16 @@ export class SessionEventTools {
     if (this.host.showNotice !== undefined) {
       if (event.isError === true && isDoomLoopHardStopOutput(resultData.output)) {
         const notice = formatDoomLoopHardStopNotice(matchedCall?.name);
+        this.host.showNotice(notice.title, notice.detail, {
+          coalesceKey: notice.coalesceKey,
+        });
+        this.host.showStatus?.(notice.status, 'warning');
+      } else if (event.isError === true && isShellDedicatedBypassOutput(resultData.output)) {
+        // Loop43a: Bash blocked in favor of Read/Write/Edit/Grep/Glob.
+        const notice = formatShellDedicatedBypassNotice(
+          matchedCall?.name,
+          resultData.output,
+        );
         this.host.showNotice(notice.title, notice.detail, {
           coalesceKey: notice.coalesceKey,
         });
