@@ -11,6 +11,10 @@ import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice
 import { ModelFallbackSelectorComponent, type ModelFallbackAction, type ModelFallbackItem } from '../../../components/dialogs/picker/model-fallback-selector';
 import { TabbedModelSelectorComponent } from '../../../components/dialogs/picker/tabbed-model-selector';
 import { formatErrorMessage } from '../../../utils/event-payload';
+import {
+  formatModelRefreshErrorNotice,
+  formatModelRefreshFailureNotice,
+} from '../../../utils/session/model-refresh-notice';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 import {
   resolveThinkingDisplay,
@@ -55,10 +59,19 @@ async function refreshModelsForPicker(host: SlashCommandHost): Promise<void> {
     );
     if (result === undefined) return;
     for (const f of result.failed) {
-      host.showStatus(`Skipped refreshing ${f.provider}: ${f.reason}`, 'warning');
+      // Loop54a: named notice for per-provider catalog failures.
+      const notice = formatModelRefreshFailureNotice(f);
+      host.showNotice?.(notice.title, notice.detail, {
+        coalesceKey: notice.coalesceKey,
+      });
+      host.showStatus(notice.status, 'warning');
     }
   } catch (error) {
-    host.showStatus(`Skipped refreshing models: ${formatErrorMessage(error)}`, 'warning');
+    const notice = formatModelRefreshErrorNotice(formatErrorMessage(error));
+    host.showNotice?.(notice.title, notice.detail, {
+      coalesceKey: notice.coalesceKey,
+    });
+    host.showStatus(notice.status, 'warning');
   }
 }
 
