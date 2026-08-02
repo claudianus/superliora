@@ -219,7 +219,7 @@ function findWelcomeBannerRow(lines: readonly string[]): number | undefined {
     const plain = stripAnsi(lines[i] ?? '');
     const dense = plain.replaceAll(/\s/g, '').length;
     // Banner rows are wide glyph runs; skip borders/rails/labels.
-    if (dense >= 18 && /[_\\|\/█░▒▓╱╲]/.test(plain)) return i;
+    if (dense >= 18 && /[_\\|/█░▒▓╱╲]/.test(plain)) return i;
   }
   return undefined;
 }
