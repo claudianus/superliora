@@ -629,6 +629,48 @@ describe('runUpdatePreflight', () => {
     }));
   });
 
+  it('github-checkout: rebuilds when HEAD is current but lastFailure matches that HEAD', async () => {
+    // Background install force-checked out first, then failed on build. Git is
+    // already at origin/main@4c1868027988, so a naive refresh returns up-to-date
+    // while dist stays stale. Failure attempts=1 still allows auto-retry.
+    const head = '4c1868027988f19775f6974038b684281e2306f6';
+    const version = `origin/main@${head.slice(0, 12)}`;
+    mocks.readUpdateInstallState.mockResolvedValue({
+      active: null,
+      lastFailure: {
+        version,
+        failedAt: '2026-08-02T13:22:08.341Z',
+        attempts: 1,
+        notifiedAt: null,
+      },
+      lastSuccess: null,
+    });
+    mocks.detectSuperLioraGithubCheckout.mockResolvedValue('/repo/superliora');
+    mocks.detectInstallSource.mockResolvedValue('github-checkout');
+    mocks.refreshGitCheckoutUpdateTarget.mockResolvedValue({
+      status: 'up-to-date',
+      dirty: false,
+      head,
+      upstream: 'origin/main',
+    });
+    mockSpawnExit(0);
+    const { options } = captureOutput();
+
+    await expectPreflightContinue(runUpdatePreflight('0.20.1', options));
+
+    expect(mocks.spawn).toHaveBeenCalledWith(
+      'bash',
+      ['-lc', expect.stringContaining('git -C')],
+      { detached: true, stdio: 'ignore' },
+    );
+    expect(writeUpdateInstallState).toHaveBeenCalledWith(expect.objectContaining({
+      active: expect.objectContaining({
+        version,
+        source: 'github-checkout',
+      }),
+    }));
+  });
+
   it('github-checkout: prompts for foreground install when auto install is disabled', async () => {
     disableAutoInstall();
     mocks.detectSuperLioraGithubCheckout.mockResolvedValue('/repo/superliora');

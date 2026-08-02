@@ -9,6 +9,7 @@ import { tln } from '#/cli/i18n';
 import { readUpdateCache } from './cache';
 import {
   detectSuperLioraGithubCheckout,
+  gitCheckoutVersionLabel,
   refreshGitCheckoutUpdateTarget,
 } from './git-checkout';
 import {
@@ -218,7 +219,24 @@ export async function runUpdatePreflight(
         () => null,
       );
       // temporary shim until Task 2/3 lands structured handling
-      const target = refreshResult?.status === 'update' ? refreshResult.target : null;
+      let target = refreshResult?.status === 'update' ? refreshResult.target : null;
+      // Git may already match upstream while a prior background install failed on
+      // build/install. Without this, auto-update and `liora upgrade` both report
+      // "up to date" and the stale dist is never rebuilt.
+      if (
+        target === null
+        && refreshResult?.status === 'up-to-date'
+        && installState.lastFailure !== null
+      ) {
+        const headVersion = gitCheckoutVersionLabel(refreshResult.upstream, refreshResult.head);
+        if (installState.lastFailure.version === headVersion) {
+          target = {
+            repoRoot: githubCheckoutRoot,
+            upstream: refreshResult.upstream,
+            version: headVersion,
+          };
+        }
+      }
       if (target === null) return continueWith({ lifecycle: pendingLifecycle });
       const rolloutTelemetry = {
         rollout_bucket: 0,
@@ -229,7 +247,11 @@ export async function runUpdatePreflight(
       const decision = decideUpdateAction(target, isInteractive, source, platform);
       // Never silently background-install over a dirty checkout — that would
       // discard local work without consent. Explicit upgrade/prompt still may.
-      const checkoutDirty = refreshResult?.status === 'update' && refreshResult.dirty;
+      // Rebuild-after-failed-install (up-to-date + lastFailure) reuses dirty from
+      // the up-to-date refresh result.
+      const checkoutDirty =
+        (refreshResult?.status === 'update' || refreshResult?.status === 'up-to-date')
+        && refreshResult.dirty === true;
       if (
         !checkoutDirty
         && await tryStartAutomaticBackgroundInstall(
