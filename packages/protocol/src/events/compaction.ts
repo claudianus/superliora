@@ -11,7 +11,8 @@ export interface CompactionResult {
 
 export interface CompactionStartedEvent {
   readonly type: 'compaction.started';
-  readonly trigger: 'manual' | 'auto';
+  /** `overflow` = reactive recovery after CONTEXT_OVERFLOW (Loop25b). */
+  readonly trigger: 'manual' | 'auto' | 'overflow';
   readonly instruction?: string;
   /**
    * `background` means full compaction is summarizing while the turn continues
@@ -95,7 +96,8 @@ export const compactionResultSchema = z.object({
 
 export const compactionStartedEventSchema = z.object({
   type: z.literal('compaction.started'),
-  trigger: z.enum(['manual', 'auto']),
+  // Loop25b: overflow recovery is distinct from threshold pre-rot auto.
+  trigger: z.enum(['manual', 'auto', 'overflow']),
   instruction: z.string().optional(),
   mode: z.enum(['blocking', 'background']).optional(),
   modelAlias: z.string().optional(),
@@ -135,6 +137,9 @@ export const compactionProgressEventSchema = z.object({
   streamKind: compactionStreamKindSchema.optional(),
   blockIndex: z.number().int().positive().optional(),
   blockCount: z.number().int().positive().optional(),
+  // Live TUI bar / "block n/N" — must not be stripped by the wire schema.
+  blocksCompleted: z.number().int().nonnegative().optional(),
+  fraction: z.number().min(0).max(1).optional(),
   blockDurationMs: z.number().nonnegative().optional(),
   blockTokens: tokenUsageSchema.optional(),
 }) satisfies z.ZodType<CompactionProgressEvent>;

@@ -40,6 +40,7 @@ export function buildOpsTheatreSmokeInput(
     cacheFreezeLine: 'Freeze: idle',
     tokenGlanceLine: 'Tokens: in 12.3K · out 1.2K · cache 99%',
     lastStepTtftLine: 'Last TTFT: 320ms (turn 1 step 0) · in-process path',
+    lastStepTtftP50Line: 'TTFT p50: 280ms (n=5, window≤20) · in-process path',
     breakerLine: 'Breakers: (no trips) · breakers: see /settings never-halt',
     authLine: 'Auth: ok',
     routeLine: null,

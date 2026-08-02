@@ -14,7 +14,11 @@ import {
 } from '../../loop/index';
 import type { StreamingThinkScrubber } from '../../utils/think-scrubber';
 import { mapLoopEvent } from './event-handler';
-import { abandonedToolResultOutput } from './error-recovery';
+import {
+  ABANDONED_TOOL_WARNING_CODE,
+  abandonedToolResultOutput,
+  formatAbandonedToolWireTip,
+} from './error-recovery';
 import type { ActiveTurn } from './types';
 import type { TurnTelemetry } from './telemetry';
 
@@ -110,6 +114,12 @@ export function closeAbandonedToolExchangeAtTurnEnd(agent: Agent, ended: TurnEnd
     agent.telemetry.track('tool_exchange_abandoned', {
       reason: ended.reason,
       closed,
+    });
+    // Loop35a: operator-visible — silent close left dangling tool cards ambiguous.
+    agent.emitEvent({
+      type: 'warning',
+      message: formatAbandonedToolWireTip(closed, ended.reason),
+      code: ABANDONED_TOOL_WARNING_CODE,
     });
   } catch (error) {
     agent.log.warn('failed to close abandoned tool exchange', { error });

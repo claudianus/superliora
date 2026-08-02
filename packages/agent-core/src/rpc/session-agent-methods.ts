@@ -335,6 +335,13 @@ export function getCacheFrozen(
   return context.sessionApi(sessionId).getCacheFrozen(payload);
 }
 
+export function getCacheFreezeViolations(
+  context: SessionAgentMethodsContext,
+  { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>,
+) {
+  return context.sessionApi(sessionId).getCacheFreezeViolations(payload);
+}
+
 export function getParallelToolsStatus(
   context: SessionAgentMethodsContext,
   { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>,

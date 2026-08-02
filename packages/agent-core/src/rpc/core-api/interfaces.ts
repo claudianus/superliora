@@ -186,6 +186,8 @@ export interface AgentAPI {
   getPermission: (payload: EmptyPayload) => PermissionData;
   getCircuitBreakers: (payload: EmptyPayload) => CircuitBreakerStatus | undefined;
   getCacheFrozen: (payload: EmptyPayload) => boolean;
+  /** Loop22b: soft/hard tool-list drift count (session lifetime). */
+  getCacheFreezeViolations: (payload: EmptyPayload) => number;
   getParallelToolsStatus: (payload: EmptyPayload) => {
     readonly parallelToolsInFlight: number;
     readonly maxParallelTools?: number;

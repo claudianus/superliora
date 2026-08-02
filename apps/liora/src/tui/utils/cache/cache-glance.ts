@@ -3,9 +3,11 @@ import type { UsageStatus } from '@superliora/sdk';
 import type { AppState } from '#/tui/types';
 
 import {
+  buildCacheMissDumpExportLines,
   formatCacheDiagnosticsLine,
   formatCacheMissReasonGlance,
   CACHE_MISS_REASON_STUB_TIP,
+  type UsageCacheMissLike,
 } from './cache-diagnostics';
 import { CACHE_FREEZE_MID_TURN_TIP, formatCacheFreezeLine } from './cache-freeze-line';
 import { formatCacheHitMeter, CACHE_HIT_TARGET, type CacheHitMeterResult } from './cache-hit-meter';
@@ -88,6 +90,8 @@ export function resolveCacheSessionGlance(input: {
   readonly statusHitRate?: number;
   readonly statusWarmStreak?: number;
   readonly cacheFrozen?: boolean;
+  /** Loop22b: soft/hard freeze drift count. */
+  readonly cacheFreezeViolations?: number;
   readonly usage?: UsageStatus;
 }): CacheSessionGlance {
   const targetTip = `target ≥${String(Math.round(CACHE_HIT_TARGET * 100))}%`;
@@ -131,12 +135,19 @@ export function resolveCacheSessionGlance(input: {
   const missReasonLine = toStyledDiagnosticsLine(formatCacheMissReasonGlance(input.usage));
   const showMissReasonStubTip = missReasonLine == null;
 
-  const freezeText = formatCacheFreezeLine(input.cacheFrozen);
+  const freezeText = formatCacheFreezeLine(
+    input.cacheFrozen,
+    input.cacheFreezeViolations,
+  );
   const freezeLine: CacheStyledLine | undefined =
     freezeText != null
       ? {
           text: freezeText,
-          tone: input.cacheFrozen === true ? 'warning' : 'muted',
+          tone:
+            input.cacheFrozen === true ||
+            (input.cacheFreezeViolations !== undefined && input.cacheFreezeViolations > 0)
+              ? 'warning'
+              : 'muted',
         }
       : undefined;
 
@@ -166,8 +177,43 @@ export function cacheInvalidateStatusMessage(epoch?: number): string {
   return CACHE_INVALIDATE_TIP;
 }
 
-export function buildCacheSettingsLines(session: CacheSessionGlance): readonly string[] {
+export interface BuildCacheSettingsLinesInput {
+  readonly session: CacheSessionGlance;
+  readonly usage?: UsageCacheMissLike | null;
+  readonly cacheHitRate?: number | null;
+  readonly cacheWarmStreak?: number | null;
+  readonly cacheFrozen?: boolean | null;
+  readonly cacheFreezeViolations?: number | null;
+  readonly capturedAtIso?: string;
+}
+
+function isBuildCacheSettingsLinesInput(
+  value: CacheSessionGlance | BuildCacheSettingsLinesInput,
+): value is BuildCacheSettingsLinesInput {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'session' in value &&
+    (value as BuildCacheSettingsLinesInput).session != null &&
+    typeof (value as BuildCacheSettingsLinesInput).session.hitLine === 'string'
+  );
+}
+
+export function buildCacheSettingsLines(
+  sessionOrInput: CacheSessionGlance | BuildCacheSettingsLinesInput,
+): readonly string[] {
+  const input: BuildCacheSettingsLinesInput = isBuildCacheSettingsLinesInput(sessionOrInput)
+    ? sessionOrInput
+    : { session: sessionOrInput };
+  const session = input.session;
   const targetTip = `target ≥${String(Math.round(CACHE_HIT_TARGET * 100))}%`;
+  const dumpLines = buildCacheMissDumpExportLines({
+    usage: input.usage,
+    cacheHitRate: input.cacheHitRate,
+    cacheWarmStreak: input.cacheWarmStreak,
+    cacheFrozen: input.cacheFrozen,
+    capturedAtIso: input.capturedAtIso,
+  });
 
   return [
     '── Prompt cache ────────────────────────────',
@@ -180,10 +226,12 @@ export function buildCacheSettingsLines(session: CacheSessionGlance): readonly s
     ...(session.missReasonLine != null ? [session.missReasonLine.text] : []),
     ...(session.freezeLine != null ? [session.freezeLine.text] : []),
     '',
+    ...dumpLines,
+    '',
     '── Cache Sacred rules ──────────────────────',
     `· Target: ${targetTip} prompt cache hit (cache✓ badge in footer + /ops)`,
     `· ${CACHE_FREEZE_MID_TURN_TIP}`,
-    `· Freeze policy: mid-turn tool-list mutate is rejected while CacheFreezeGuard is frozen.`,
+    '· Freeze policy: setActiveTools hard-blocked while frozen; step soft-check logs tool-list drift.',
     ...(session.showMissReasonStubTip ? [`· ${CACHE_MISS_REASON_STUB_TIP}`] : []),
     '· Do not mutate system / tool schemas mid-turn',
     '· Dynamic facts go at message tail only',
@@ -194,5 +242,6 @@ export function buildCacheSettingsLines(session: CacheSessionGlance): readonly s
     `· ${CACHE_INVALIDATE_TIP}`,
     '',
     'Ops: /ops shows live cache hit alongside Goal/MCP.',
+    'Export: cache miss dump JSON (`superliora.cache_miss.v1`) ships in this panel.',
   ];
 }

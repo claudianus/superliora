@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  GOAL_FALSE_COMPLETE_CODE,
+  GOAL_SOFT_ADVISORY_PREFIX,
   evaluateGoalCompletionSoftAdvisory,
   formatGoalCompletionSoftAdvisory,
+  formatGoalFalseCompleteRejectTip,
 } from '../../src/agent/goal/goal-completion-soft-advisory';
 import type { UltraworkRun } from '@superliora/protocol';
 import type { VerificationFailureRecord } from '../../src/sensors/verification-sensor-ledger';
@@ -152,12 +155,33 @@ describe('evaluateGoalCompletionSoftAdvisory', () => {
     expect(advisory?.tips.join('\n')).toContain('mutated this session without a subsequent green');
     expect(advisory?.tips.join('\n')).toContain('Edit');
   });
+
+  // Loop21c: green auto-spawn window → mutation tips suppressed (plain goal tips remain).
+  it('suppresses mutation tips when recentAutoCheckSpawnOk', () => {
+    const advisory = evaluateGoalCompletionSoftAdvisory({
+      ultraworkRun: null,
+      mutationVerificationLedger: {
+        pending: [{ toolName: 'Write', recordedAtMs: Date.now() }],
+      },
+      recentAutoCheckSpawnOk: true,
+    });
+    const text = advisory?.tips.join('\n') ?? '';
+    expect(text).not.toContain('mutated this session without a subsequent green');
+    expect(text).toContain('plain Goal completed without WorkGraph evidence gate');
+  });
 });
 
 describe('formatGoalCompletionSoftAdvisory', () => {
-  it('labels the message as non-blocking', () => {
+  it('labels the message as non-blocking with Loop36a prefix', () => {
     const text = formatGoalCompletionSoftAdvisory({ tips: ['RunProjectChecks before done.'] });
+    expect(text.startsWith(GOAL_SOFT_ADVISORY_PREFIX)).toBe(true);
     expect(text).toContain('Advisory (soft — not blocking)');
     expect(text).toContain('- RunProjectChecks before done.');
+  });
+
+  it('formats false-complete reject tip', () => {
+    const tip = formatGoalFalseCompleteRejectTip('evidence_missing');
+    expect(tip.startsWith(GOAL_FALSE_COMPLETE_CODE)).toBe(true);
+    expect(tip).toContain('evidence_missing');
   });
 });

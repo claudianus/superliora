@@ -7,7 +7,11 @@ import type { AgentEvent, TurnEndedEvent, TurnEndReason } from '../../rpc/events
 import type { TelemetryPropertyValue } from '../../telemetry';
 import { isUserCancellation } from '../../utils/abort';
 import { isRetryableProviderFailure } from '../provider-failover';
-import { GOAL_NO_PROGRESS_STREAK_K } from '../goal';
+import {
+  GOAL_NO_PROGRESS_SENSOR_ORIGIN,
+  GOAL_NO_PROGRESS_STREAK_K,
+  formatGoalNoProgressTip,
+} from '../goal';
 import type { PromptOrigin } from '../context';
 import {
   GOAL_PROVIDER_FILTERED_PAUSE_REASON,
@@ -107,6 +111,11 @@ export async function driveGoalTurnLoop(
     const progressSignature = buildGoalProgressSignature(deps.agent);
     const streak = deps.agent.goal.noteGoalTurnProgress(progressSignature);
     if (streak >= GOAL_NO_PROGRESS_STREAK_K) {
+      const tip = formatGoalNoProgressTip(
+        streak,
+        GOAL_NO_PROGRESS_STREAK_K,
+        progressSignature,
+      );
       deps.agent.context.appendSystemReminder(
         [
           '<goal_no_progress>',
@@ -114,10 +123,17 @@ export async function driveGoalTurnLoop(
           `Progress signature: ${progressSignature}`,
           'Change approach: re-read open WorkGraph nodes, run real verification, avoid repeating the same failing tool path.',
           'If truly blocked on external input, call UpdateGoal with `blocked`.',
+          tip,
           '</goal_no_progress>',
         ].join('\n'),
-        { kind: 'injection', variant: 'goal_no_progress' },
+        { kind: 'injection', variant: GOAL_NO_PROGRESS_SENSOR_ORIGIN },
       );
+      // Loop31a: wire warning so TUI can surface stalled named terminal (injection is model-only).
+      deps.agent.emitEvent({
+        type: 'warning',
+        message: tip,
+        code: GOAL_NO_PROGRESS_SENSOR_ORIGIN,
+      });
       deps.agent.telemetry.track('goal_no_progress', {
         streak,
         threshold: GOAL_NO_PROGRESS_STREAK_K,

@@ -136,19 +136,24 @@ describe('CompactionComponent', () => {
     }
   });
 
-  it('renders particle/rail enter-beat content while compacting under premium', () => {
+  it('keeps enter-beat geometry stable (single title line + progress) under premium', () => {
     enablePremiumAmbient();
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-01T00:00:00Z'));
     advanceAppearanceAnimationClock(Date.now());
     const component = new CompactionComponent();
     try {
-      // Mid enter-beat window so the particle rail is visible.
+      component.setPhase('summarizing');
+      // Mid enter-beat window: title is pinned to one line so transcript
+      // height does not thrash while the bar/preview stream live updates.
       advanceAppearanceAnimationClock(Date.now() + 200);
       const lines = component.render(48).map(strip);
       const text = lines.join('\n');
       expect(text).toMatch(/Compacting context/);
-      expect(lines.some((line) => /[·∙•◦*]/.test(line))).toBe(true);
+      expect(text).toContain('Summarizing conversation');
+      // No multi-line particle rail under the compaction card (geometry thrash).
+      const titleHits = lines.filter((line) => line.includes('Compacting context'));
+      expect(titleHits.length).toBe(1);
     } finally {
       component.dispose();
       vi.useRealTimers();
@@ -288,12 +293,23 @@ describe('CompactionComponent', () => {
 
     try {
       component.setPhase('summarizing');
-      // Mid enter-beat window: the particle rail and the bar coexist.
+      // Mid enter-beat window: stable title line + live bar coexist.
       advanceAppearanceAnimationClock(Date.now() + 200);
       const text = component.render(64).map(strip).join('\n');
 
       expect(text).toContain('Summarizing conversation');
       expect(text).toMatch(/█/);
+      // Past enter-beat TTL: still live progress (not stuck on a frozen beat).
+      advanceAppearanceAnimationClock(Date.now() + 2000);
+      component.setStreamMeta({
+        streamKind: 'block',
+        blockCount: 4,
+        blocksCompleted: 2,
+        fraction: 0.5,
+      });
+      const after = component.render(64).map(strip).join('\n');
+      expect(after).toContain('50%');
+      expect(after).toContain('block 2/4');
     } finally {
       component.dispose();
       vi.useRealTimers();

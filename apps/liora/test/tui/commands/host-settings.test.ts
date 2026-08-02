@@ -19,7 +19,15 @@ function makeHostHost(options: {
   hasSession?: boolean;
   serverUrl?: string;
   harness?: ReturnType<typeof createLioraHarness>;
-  lastStepTtft?: { ms: number; turnId?: number; step?: number; atMs: number } | null;
+  lastStepTtft?: {
+    ms: number;
+    turnId?: number;
+    step?: number;
+    atMs: number;
+    requestBuildMs?: number;
+    serverFirstTokenMs?: number;
+  } | null;
+  lastStepTtftMsWindow?: readonly number[] | null;
 } = {}) {
   const transcriptContainer = { addChild: vi.fn() };
   const requireSession = vi.fn(() => {
@@ -41,6 +49,7 @@ function makeHostHost(options: {
       appState: {
         workDir: '/tmp/superliora',
         lastStepTtft: options.lastStepTtft ?? null,
+        lastStepTtftMsWindow: options.lastStepTtftMsWindow ?? null,
       },
       renderer: { invalidateFrame: vi.fn() },
     },
@@ -112,8 +121,8 @@ describe('showHostSettings', () => {
     expect(lines).toContain('Session: ses_host_panel');
     expect(lines).toContain('Config: /tmp/superliora-home/config.toml');
     expect(lines).toContain('Client env: SUPERLIORA_SERVER_URL unset');
-    expect(lines).toContain('TTFT p50 in-process vs server path');
-    expect(lines).toContain('complete a turn to capture a live sample');
+    expect(lines).toContain('TTFT p50: complete a turn to capture live samples');
+    expect(lines).toContain('Rolling window up to 20 steps');
     if (prior != null) process.env['SUPERLIORA_SERVER_URL'] = prior;
   });
 
@@ -131,6 +140,46 @@ describe('showHostSettings', () => {
     const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('Last TTFT: 180ms (turn 4 step 1) · in-process path');
     expect(lines).not.toContain('TTFT p50 in-process vs server path');
+  });
+
+  it('surfaces TTFT api+client split when appState sample has stream timing parts', async () => {
+    const host = makeHostHost({
+      lastStepTtft: {
+        ms: 420,
+        turnId: 5,
+        step: 0,
+        atMs: Date.now(),
+        requestBuildMs: 40,
+        serverFirstTokenMs: 380,
+      },
+    });
+    showHostSettings(host);
+    selectHostAction(host, 'status');
+    await vi.waitFor(() => {
+      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
+    });
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as UsagePanelComponent;
+    const lines = panel.snapshotBodyLines(1).join('\n');
+    expect(lines).toContain(
+      'Last TTFT: 420ms (api 380ms + client 40ms) (turn 5 step 0) · in-process path',
+    );
+  });
+
+  it('surfaces TTFT p50 from appState rolling window', async () => {
+    const host = makeHostHost({
+      lastStepTtft: { ms: 300, turnId: 2, step: 1, atMs: Date.now() },
+      lastStepTtftMsWindow: [100, 200, 300],
+    });
+    showHostSettings(host);
+    selectHostAction(host, 'status');
+    await vi.waitFor(() => {
+      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
+    });
+    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[0] as UsagePanelComponent;
+    const lines = panel.snapshotBodyLines(1).join('\n');
+    expect(lines).toContain('TTFT p50: 200ms (n=3, window≤20) · in-process path');
   });
 
   it('reports configured server URL while runtime stays in-process', async () => {

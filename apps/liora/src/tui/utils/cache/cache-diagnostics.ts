@@ -90,3 +90,107 @@ export function formatCacheMissReasonOpsHealthLine(
 ): string | null {
   return formatCacheMissReasonGlance(usage)?.line ?? null;
 }
+
+// ---------------------------------------------------------------------------
+// Loop18b — structured miss dump export (`superliora.cache_miss.v1`)
+// ---------------------------------------------------------------------------
+
+export interface CacheMissDumpExportInput {
+  readonly usage?: UsageCacheMissLike | null;
+  readonly cacheHitRate?: number | null;
+  readonly cacheWarmStreak?: number | null;
+  readonly cacheFrozen?: boolean | null;
+  readonly capturedAtIso?: string;
+}
+
+export interface CacheMissDumpExport {
+  readonly schema: 'superliora.cache_miss.v1';
+  readonly capturedAt: string;
+  readonly toolBlockChanged: boolean | null;
+  readonly missReasons: CacheMissReasonHistogram;
+  readonly topMissReasons: readonly { readonly reason: string; readonly count: number }[];
+  readonly cacheHitRate: number | null;
+  readonly cacheWarmStreak: number | null;
+  readonly cacheFrozen: boolean | null;
+}
+
+export function buildCacheMissDumpPayload(
+  input: CacheMissDumpExportInput = {},
+): CacheMissDumpExport {
+  const usage = input.usage ?? null;
+  const histogram = resolveCacheMissReasonHistogram(usage) ?? {};
+  const toolBlock =
+    usage?.cacheDiagnostics?.toolBlockChanged === true
+      ? true
+      : usage?.cacheDiagnostics?.toolBlockChanged === false
+        ? false
+        : null;
+  const top = CACHE_MISS_REASON_KEYS.flatMap((key) => {
+    const count = histogram[key];
+    return typeof count === 'number' && count > 0 ? [{ reason: key, count }] : [];
+  }).sort((a, b) => b.count - a.count || a.reason.localeCompare(b.reason));
+
+  return {
+    schema: 'superliora.cache_miss.v1',
+    capturedAt: input.capturedAtIso ?? new Date().toISOString(),
+    toolBlockChanged: toolBlock,
+    missReasons: { ...histogram },
+    topMissReasons: top,
+    cacheHitRate:
+      input.cacheHitRate != null && Number.isFinite(input.cacheHitRate)
+        ? input.cacheHitRate
+        : null,
+    cacheWarmStreak:
+      input.cacheWarmStreak != null && Number.isFinite(input.cacheWarmStreak)
+        ? input.cacheWarmStreak
+        : null,
+    cacheFrozen:
+      input.cacheFrozen === true ? true : input.cacheFrozen === false ? false : null,
+  };
+}
+
+export function formatCacheMissDumpJson(payload: CacheMissDumpExport): string {
+  return `${JSON.stringify(payload, null, 2)}\n`;
+}
+
+/** Human-readable dump + JSON for Settings → Cache. */
+export function buildCacheMissDumpExportLines(
+  input: CacheMissDumpExportInput = {},
+): readonly string[] {
+  const payload = buildCacheMissDumpPayload(input);
+  const lines: string[] = [
+    '── Cache miss dump export ───────────────────',
+    `Schema: ${payload.schema}`,
+    `Captured: ${payload.capturedAt}`,
+  ];
+  if (payload.toolBlockChanged === true) {
+    lines.push('Tool block: changed (prefix risk)');
+  } else if (payload.toolBlockChanged === false) {
+    lines.push('Tool block: stable');
+  } else {
+    lines.push('Tool block: (unknown)');
+  }
+  if (payload.topMissReasons.length > 0) {
+    lines.push(
+      `Top: ${payload.topMissReasons
+        .map((e) => `${e.reason}×${String(e.count)}`)
+        .join(', ')}`,
+    );
+  } else {
+    lines.push('Top: (empty histogram — provider miss codes not yet reported)');
+  }
+  if (payload.cacheHitRate != null) {
+    lines.push(`Hit rate: ${(payload.cacheHitRate * 100).toFixed(1)}%`);
+  }
+  if (payload.cacheWarmStreak != null) {
+    lines.push(`Warm streak: ${String(payload.cacheWarmStreak)}`);
+  }
+  if (payload.cacheFrozen != null) {
+    lines.push(`Frozen: ${payload.cacheFrozen ? 'yes' : 'no'}`);
+  }
+  lines.push('', '── JSON (copy) ─────────────────────────────');
+  for (const line of formatCacheMissDumpJson(payload).trimEnd().split('\n')) {
+    lines.push(line);
+  }
+  return lines;
+}

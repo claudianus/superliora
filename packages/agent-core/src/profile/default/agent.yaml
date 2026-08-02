@@ -6,9 +6,9 @@ promptVars:
   roleAdditional: ''
 
 tools:
-  # Session-coding waist (Phase A/E): keep ApplyPatch + RepoQuery + DeepResearch;
-  # push Context7/media/expert/TaskGraph edges to superliora-full (discoverable via
-  # SearchTools active_only=false on full, or SUPERLIORA_PROFILE=superliora-full).
+  # Session-coding waist (Loop5 + Loop19c): ApplyPatch + RepoQuery + WebSearch/FetchURL.
+  # DeepResearch / Context7 / media / expert / TaskGraph stay on superliora-full
+  # (or specialist profiles). Opt-in: SUPERLIORA_PROFILE=superliora-full.
   - Read
   - Write
   - Edit
@@ -33,18 +33,17 @@ tools:
   - SearchTools
   - Agent
   - Fleet
-  # External information and user clarification.
+  # External information and user clarification (light research path).
   - WebSearch
-  # never-empty; Ch3 실패 시 Ch4/Ch5 escalate.
-  - DeepResearch
   - FetchURL
   - AskUserQuestion
   - TaskList
   - TaskOutput
   - TaskStop
   - Review
-  # Edges on superliora-full: Expand, Memory, GetCurrentTime, Context7*,
-  # ReadMediaFile, SearchExpert, TaskGraph, visual/MCP. Default waist ≤30.
+  # Edges on superliora-full / explore / coder: DeepResearch, Expand, Memory,
+  # GetCurrentTime, Context7*, ReadMediaFile, SearchExpert, TaskGraph, visual/MCP.
+  # Default agent waist target: ≤29 (headroom under hard 30 cap).
 
 subagents:
   coder:

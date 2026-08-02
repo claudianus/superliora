@@ -32,12 +32,35 @@ import {
 } from '../../sensors/verification-sensor-ledger';
 import {
   clearPendingMutations,
+  extractMutationPathsFromToolArgs,
+  deriveMutationPackageDir,
+  isFileMutationTool,
   observeFileMutationToolResult,
 } from '../../sensors/mutation-verification-sensor';
 import {
+  appendAutoCheckSpawnBlock,
+  decideAutoCheckSpawn,
+  formatAutoCheckSpawnResult,
+  recordAutoCheckSpawn,
+  wasRecentAutoCheckSpawnOk,
+} from '../../sensors/auto-check-sensor';
+import {
   evaluateStopSensor,
+  formatStopSensorWireTip,
   STOP_SENSOR_ORIGIN_NAME,
+  STOP_SENSOR_WARNING_CODE,
 } from '../../sensors/stop-sensor';
+import {
+  decideStepBudgetWarn,
+  formatStepBudgetWarnTip,
+  STEP_BUDGET_SENSOR_ORIGIN,
+} from '../../sensors/step-budget-sensor';
+import type { ExecutableToolResult } from '../../loop/types';
+import {
+  buildTurnPrefixMaterial,
+  CACHE_FREEZE_DRIFT_SENSOR_ORIGIN,
+  formatCacheFreezeDriftTip,
+} from '../cache';
 import { toolInputRecord, toolOutputText, type TurnTelemetry } from './telemetry';
 import {
   hasStepBudgetRemaining,
@@ -62,6 +85,10 @@ export async function runTurnStepLoop(
   let stopHookContinuationUsed = false;
   let stopSensorContinuationUsed = false;
   let goalOutcomeMessageContinuationUsed = false;
+  // Loop22a: one soft tip when remaining steps ≤ threshold (plain turns).
+  let stepBudgetWarnUsed = false;
+  // Loop32a: one live notice when CacheFreezeGuard soft-detects mid-turn drift.
+  let cacheFreezeDriftWarnUsed = false;
   const deduper = new ToolCallDeduplicator({ telemetry: agent.telemetry });
   await agent.mcp?.waitForInitialLoad(signal);
   // Surface the active goal at the start of the turn (append-only; no-op when
@@ -97,7 +124,57 @@ export async function runTurnStepLoop(
           }
         },
         hooks: {
-          beforeStep: async ({ signal: stepSignal }) => {
+          beforeStep: async ({ signal: stepSignal, step }) => {
+            // Loop20a: soft re-check tool-list fingerprint every step (no throw —
+            // ephemeral orchestrator tools may attach mid-session; setActiveTools
+            // remains hard-blocked while frozen).
+            if (
+              !agent.cacheFreezeGuard.checkUnchanged(
+                buildTurnPrefixMaterial(agent.tools.enabledTools),
+                'tool list',
+              )
+            ) {
+              const violations = agent.cacheFreezeGuard.getViolationCount();
+              const label = agent.cacheFreezeGuard.getLastViolationLabel() ?? 'tool list';
+              agent.log.warn('cache freeze tool list drifted mid-turn', {
+                violations,
+                label,
+              });
+              // Loop32a: status counters alone are easy to miss mid-turn — one wire warning.
+              if (!cacheFreezeDriftWarnUsed) {
+                cacheFreezeDriftWarnUsed = true;
+                const tip = formatCacheFreezeDriftTip(violations, label);
+                agent.emitEvent({
+                  type: 'warning',
+                  message: tip,
+                  code: CACHE_FREEZE_DRIFT_SENSOR_ORIGIN,
+                });
+              }
+            }
+            // Loop22a: soft step-budget early warning (one-shot per turn).
+            const maxSteps = loopControl?.maxStepsPerTurn;
+            if (typeof maxSteps === 'number' && maxSteps > 0) {
+              const decision = decideStepBudgetWarn({
+                step,
+                maxSteps,
+                alreadyWarned: stepBudgetWarnUsed,
+              });
+              if (decision.warn) {
+                stepBudgetWarnUsed = true;
+                const tip = formatStepBudgetWarnTip(decision);
+                agent.context.appendUserMessage(
+                  [{ type: 'text', text: tip }],
+                  { kind: 'injection', variant: STEP_BUDGET_SENSOR_ORIGIN },
+                );
+                // Loop28b: also emit a wire warning so TUI can surface the soft tip
+                // (injection alone is model-visible only).
+                agent.emitEvent({
+                  type: 'warning',
+                  message: tip,
+                  code: STEP_BUDGET_SENSOR_ORIGIN,
+                });
+              }
+            }
             deps.flushSteerBuffer();
             // L1 (Claude Code micro / OpenCode prune): clear old tool dumps first.
             agent.microCompaction.detect();
@@ -185,6 +262,10 @@ export async function runTurnStepLoop(
                 verificationLedger: agent.verificationSensorLedger,
                 mutationLedger: agent.mutationVerificationLedger,
                 skip: hasActiveGoal === true,
+                // Loop20b: green spawn within cooldown window → no mutation-only stop.
+                recentAutoCheckSpawnOk: wasRecentAutoCheckSpawnOk(
+                  agent.autoCheckSpawnState,
+                ),
               });
               if (stopSensorBody !== null) {
                 stopSensorContinuationUsed = true;
@@ -194,6 +275,12 @@ export async function runTurnStepLoop(
                 agent.context.appendUserMessage([{ type: 'text', text: stopSensorBody }], {
                   kind: 'system_trigger',
                   name: STOP_SENSOR_ORIGIN_NAME,
+                });
+                // Loop34a: operator-visible one-shot — injection alone is model-only.
+                agent.emitEvent({
+                  type: 'warning',
+                  message: formatStopSensorWireTip(stopSensorBody),
+                  code: STOP_SENSOR_WARNING_CODE,
                 });
                 return { continue: true };
               }
@@ -242,11 +329,21 @@ export async function runTurnStepLoop(
               clearPendingMutations(agent.mutationVerificationLedger);
             }
             // Phase B: Edit/Write/ApplyPatch success → verify nudge + pending ledger.
-            const withMutationSensor = observeFileMutationToolResult(
+            // Loop13: pass tool args so package-scoped RunProjectChecks tips work.
+            let withMutationSensor = observeFileMutationToolResult(
               agent.mutationVerificationLedger,
               ctx.toolCall.name,
               finalResult,
+              toolInputRecord(ctx.args),
             );
+            // Loop19a: opt-in rate-limited RunProjectChecks spawn (env SUPERLIORA_AUTO_CHECK_SPAWN=1).
+            withMutationSensor = await maybeAutoSpawnProjectChecks({
+              agent,
+              toolName: ctx.toolCall.name,
+              toolArgs: toolInputRecord(ctx.args),
+              result: withMutationSensor,
+              signal: ctx.signal,
+            });
             const { isError, output } = withMutationSensor;
             const event = isError === true ? 'PostToolUseFailure' : 'PostToolUse';
             void agent.hooks?.fireAndForgetTrigger(event, {
@@ -309,5 +406,97 @@ export async function runTurnStepLoop(
       }
       throw error;
     }
+  }
+}
+
+/**
+ * Loop19a: after a successful file mutation, optionally spawn RunProjectChecks
+ * when SUPERLIORA_AUTO_CHECK_SPAWN=1 and rate limits allow. Appends a compact
+ * result block under the PostToolUse nudge. Never throws into the tool path.
+ */
+async function maybeAutoSpawnProjectChecks(input: {
+  readonly agent: Agent;
+  readonly toolName: string;
+  readonly toolArgs: Record<string, unknown>;
+  readonly result: ExecutableToolResult;
+  readonly signal: AbortSignal;
+}): Promise<ExecutableToolResult> {
+  const { agent, toolName, toolArgs, result, signal } = input;
+  if (result.isError === true || !isFileMutationTool(toolName)) {
+    return result;
+  }
+  const paths = extractMutationPathsFromToolArgs(toolName, toolArgs);
+  const packageDir = deriveMutationPackageDir(paths);
+  const decision = decideAutoCheckSpawn({
+    state: agent.autoCheckSpawnState,
+    packageDir,
+    env: process.env,
+  });
+  if (!decision.spawn) {
+    return result;
+  }
+
+  const tool = agent.tools.builtinTools.get('RunProjectChecks');
+  if (tool === undefined) {
+    return result;
+  }
+
+  const textBefore = toolOutputText(result.output);
+
+  try {
+    const resolved = await tool.resolveExecution({
+      packageDir: decision.packageDir,
+      checks: [...decision.checks] as Array<
+        'test' | 'typecheck' | 'build' | 'smoke' | 'lint'
+      >,
+    });
+    if (!('execute' in resolved) || resolved.isError === true) {
+      const errBody =
+        'isError' in resolved && resolved.isError === true
+          ? toolOutputText(resolved.output)
+          : 'RunProjectChecks resolveExecution failed';
+      recordAutoCheckSpawn(agent.autoCheckSpawnState, Date.now(), { ok: false });
+      const block = formatAutoCheckSpawnResult({
+        packageDir: decision.packageDir,
+        checks: decision.checks,
+        isError: true,
+        outputText: errBody,
+      });
+      return { ...result, output: appendAutoCheckSpawnBlock(textBefore, block) };
+    }
+
+    const checkResult = await resolved.execute({
+      turnId: 'auto-check-spawn',
+      toolCallId: 'auto-check-spawn',
+      signal,
+    });
+    const spawnOk = checkResult.isError !== true;
+    recordAutoCheckSpawn(agent.autoCheckSpawnState, Date.now(), { ok: spawnOk });
+    if (spawnOk) {
+      clearPendingMutations(agent.mutationVerificationLedger);
+    }
+    const body = toolOutputText(checkResult.output);
+    const block = formatAutoCheckSpawnResult({
+      packageDir: decision.packageDir,
+      checks: decision.checks,
+      isError: checkResult.isError === true,
+      outputText: body,
+    });
+    // Keep mutation-tool success/error as-is; only append the check report.
+    return { ...result, output: appendAutoCheckSpawnBlock(textBefore, block) };
+  } catch (error) {
+    agent.log.warn('auto-check spawn failed', {
+      packageDir: decision.packageDir,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    // Still count the attempt so a broken tool cannot tight-loop.
+    recordAutoCheckSpawn(agent.autoCheckSpawnState, Date.now(), { ok: false });
+    const block = formatAutoCheckSpawnResult({
+      packageDir: decision.packageDir,
+      checks: decision.checks,
+      isError: true,
+      outputText: error instanceof Error ? error.message : String(error),
+    });
+    return { ...result, output: appendAutoCheckSpawnBlock(textBefore, block) };
   }
 }

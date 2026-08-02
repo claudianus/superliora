@@ -78,7 +78,11 @@ export type {
 export { runTurn } from './run-turn';
 export type { RunTurnInput } from './run-turn';
 export {
+  DOOM_LOOP_WARN_PREFIX,
+  REPETITION_HARD_STOP_THRESHOLD,
+  REPETITION_WARN_THRESHOLD,
   checkToolCallIdempotency,
+  formatDoomLoopWarnTip,
   getCircuitBreakerState,
   getToolCallPatternCount,
   isToolCircuitOpen,
@@ -91,4 +95,13 @@ export {
   toolCallIdempotencyKey,
   trackToolCallPattern,
 } from './tool-call-guards';
+export {
+  CIRCUIT_BREAKER_RECOVERED_CODE,
+  IDEMPOTENCY_REPLAY_CODE,
+  SLOW_TOOL_THRESHOLD_MS,
+  SLOW_TOOL_WARN_PREFIX,
+  formatCircuitBreakerProbeFailedTip,
+  formatCircuitBreakerRecoveredTip,
+  formatSlowToolWarnTip,
+} from './tool-call-execute';
 export type { CircuitBreakerState, ToolCallPatternVerdict } from './tool-call-guards';

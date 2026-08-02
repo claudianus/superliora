@@ -83,6 +83,8 @@ describe('showCacheSettings status panel', () => {
     expect(text).toContain('streak×5');
     expect(text).toContain('Status: warm');
     expect(text).toContain('Prefix: stable');
+    expect(text).toContain('Cache miss dump export');
+    expect(text).toContain('superliora.cache_miss.v1');
   });
 
   it('shows mid-turn freeze tip in Cache Sacred rules', async () => {
@@ -91,6 +93,7 @@ describe('showCacheSettings status panel', () => {
     const text = panel.render(100).join('\n');
     expect(text).toContain('Mid-turn: CacheFreezeGuard');
     expect(text).toContain('Freeze: idle');
+    expect(text).toContain('Cache miss dump export');
   });
 
   it('shows active freeze line when getStatus reports mid-turn freeze', async () => {
@@ -104,7 +107,7 @@ describe('showCacheSettings status panel', () => {
     });
     const panel = await openCacheStatusPanel(host);
     const text = panel.render(100).join('\n');
-    expect(text).toContain('Freeze: active (mid-turn)');
+    expect(text).toContain('Freeze: active (mid-turn · step soft-check on)');
     expect(text).toContain('streak×3');
   });
 

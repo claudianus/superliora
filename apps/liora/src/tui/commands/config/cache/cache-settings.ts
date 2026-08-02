@@ -34,8 +34,22 @@ function applyCacheTone(line: CacheStyledLine): string {
 
 function renderCacheSettingsLines(
   session: ReturnType<typeof resolveCacheSessionGlance>,
+  exportMeta?: {
+    readonly usage?: unknown;
+    readonly cacheHitRate?: number | null;
+    readonly cacheWarmStreak?: number | null;
+    readonly cacheFrozen?: boolean | null;
+    readonly cacheFreezeViolations?: number | null;
+  },
 ): string[] {
-  const plain = buildCacheSettingsLines(session);
+  const plain = buildCacheSettingsLines({
+    session,
+    usage: (exportMeta?.usage as never) ?? null,
+    cacheHitRate: exportMeta?.cacheHitRate,
+    cacheWarmStreak: exportMeta?.cacheWarmStreak,
+    cacheFrozen: exportMeta?.cacheFrozen,
+    cacheFreezeViolations: exportMeta?.cacheFreezeViolations,
+  });
   const toneByText = new Map<string, CacheGlanceTone | undefined>();
   toneByText.set(session.statusLine.text, session.statusLine.tone);
   if (session.prefixLine != null) toneByText.set(session.prefixLine.text, session.prefixLine.tone);
@@ -103,6 +117,15 @@ async function showCacheSettingsPanel(host: SlashCommandHost): Promise<void> {
   let session = resolveCacheSessionGlance({
     appStateCacheMeter: host.state.appState.cacheMeter,
   });
+  let exportMeta:
+    | {
+        usage?: unknown;
+        cacheHitRate?: number | null;
+        cacheWarmStreak?: number | null;
+        cacheFrozen?: boolean | null;
+        cacheFreezeViolations?: number | null;
+      }
+    | undefined;
 
   try {
     const status = await host.requireSession().getStatus();
@@ -111,13 +134,21 @@ async function showCacheSettingsPanel(host: SlashCommandHost): Promise<void> {
       statusHitRate: status.cacheHitRate,
       statusWarmStreak: status.cacheWarmStreak,
       cacheFrozen: status.cacheFrozen,
+      cacheFreezeViolations: status.cacheFreezeViolations,
       usage: status.usage,
     });
+    exportMeta = {
+      usage: status.usage,
+      cacheHitRate: status.cacheHitRate ?? null,
+      cacheWarmStreak: status.cacheWarmStreak ?? null,
+      cacheFrozen: status.cacheFrozen ?? null,
+      cacheFreezeViolations: status.cacheFreezeViolations ?? null,
+    };
   } catch {
     /* keep AppState-only glance */
   }
 
-  const lines = renderCacheSettingsLines(session);
+  const lines = renderCacheSettingsLines(session, exportMeta);
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => lines,
     borderToken: 'primary',

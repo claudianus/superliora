@@ -17,18 +17,29 @@ export async function buildSessionStatusResponse(
     throw new SessionNotFoundError(id);
   }
 
-  const [config, context, permission, plan, providerRoute, usage, circuitBreakers, cacheFrozen, oauth] =
-    await Promise.all([
-      core.rpc.getConfig({ sessionId: id, agentId: 'main' }),
-      core.rpc.getContext({ sessionId: id, agentId: 'main' }),
-      core.rpc.getPermission({ sessionId: id, agentId: 'main' }),
-      core.rpc.getPlan({ sessionId: id, agentId: 'main' }),
-      core.rpc.getProviderRouteStatus({ sessionId: id, agentId: 'main' }),
-      core.rpc.getUsage({ sessionId: id, agentId: 'main' }).catch(() => undefined),
-      core.rpc.getCircuitBreakers({ sessionId: id, agentId: 'main' }).catch(() => undefined),
-      core.rpc.getCacheFrozen({ sessionId: id, agentId: 'main' }).catch(() => undefined),
-      core.rpc.getOAuthStatus({ sessionId: id, agentId: 'main' }).catch(() => undefined),
-    ]);
+  const [
+    config,
+    context,
+    permission,
+    plan,
+    providerRoute,
+    usage,
+    circuitBreakers,
+    cacheFrozen,
+    cacheFreezeViolations,
+    oauth,
+  ] = await Promise.all([
+    core.rpc.getConfig({ sessionId: id, agentId: 'main' }),
+    core.rpc.getContext({ sessionId: id, agentId: 'main' }),
+    core.rpc.getPermission({ sessionId: id, agentId: 'main' }),
+    core.rpc.getPlan({ sessionId: id, agentId: 'main' }),
+    core.rpc.getProviderRouteStatus({ sessionId: id, agentId: 'main' }),
+    core.rpc.getUsage({ sessionId: id, agentId: 'main' }).catch(() => undefined),
+    core.rpc.getCircuitBreakers({ sessionId: id, agentId: 'main' }).catch(() => undefined),
+    core.rpc.getCacheFrozen({ sessionId: id, agentId: 'main' }).catch(() => undefined),
+    core.rpc.getCacheFreezeViolations({ sessionId: id, agentId: 'main' }).catch(() => undefined),
+    core.rpc.getOAuthStatus({ sessionId: id, agentId: 'main' }).catch(() => undefined),
+  ]);
 
   const maxContextTokens = config.modelCapabilities?.max_context_tokens ?? 0;
   const contextTokens = context.tokenCount;
@@ -50,6 +61,9 @@ export async function buildSessionStatusResponse(
     cache_hit_rate: usage?.cacheHitRate,
     cache_warm_streak: usage?.cacheWarmStreak,
     ...(cacheFrozen !== undefined ? { cache_frozen: cacheFrozen } : {}),
+    ...(cacheFreezeViolations !== undefined
+      ? { cache_freeze_violations: cacheFreezeViolations }
+      : {}),
     ...(circuitBreakers !== undefined
       ? {
           circuit_breakers: {

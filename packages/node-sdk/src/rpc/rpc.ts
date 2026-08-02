@@ -482,6 +482,7 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
       providerRouteStatus,
       circuitBreakers,
       cacheFrozen,
+      cacheFreezeViolations,
       parallelTools,
       oauth,
     ] = await Promise.all([
@@ -495,6 +496,7 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
       rpc.getProviderRouteStatus(scoped).catch(() => null),
       rpc.getCircuitBreakers(scoped).catch(() => undefined),
       rpc.getCacheFrozen(scoped).catch(() => undefined),
+      rpc.getCacheFreezeViolations(scoped).catch(() => undefined),
       rpc.getParallelToolsStatus(scoped).catch(() => undefined),
       rpc.getOAuthStatus(scoped).catch(() => undefined),
     ]);
@@ -509,6 +511,7 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
       providerRouteStatus,
       circuitBreakers,
       cacheFrozen,
+      cacheFreezeViolations,
       parallelTools,
       oauth,
     });

@@ -41,7 +41,11 @@ import {
 } from '../../utils/search/search-cascade';
 import { formatLocalResearchCacheOpsHealthLine } from '../../utils/search/local-research-cache-glance';
 import { formatSearchNeverEmptyOpsHealthLine } from '../../utils/search/search-never-empty-telemetry';
-import { formatHostTtftLine, resolveHostRuntimeMode } from '../../utils/host/host-glance';
+import {
+  formatHostTtftLine,
+  formatHostTtftP50Line,
+  resolveHostRuntimeMode,
+} from '../../utils/host/host-glance';
 import { formatOpsRouteLine } from '../../utils/model/route-glance';
 import { formatOpsAuthLineFromSessionStatus } from '../../utils/never-halt/auth-glance';
 import { resolveOpsBreakerLineFromAppState } from '../../utils/never-halt/breaker-glance';
@@ -239,7 +243,10 @@ async function collectOpsTheatreInput(host: SlashCommandHost): Promise<OpsTheatr
     cachePrefixLine =
       formatCacheDiagnosticsLine(usage?.cacheDiagnostics)?.line ?? null;
     cacheMissReasonLine = formatCacheMissReasonOpsHealthLine(usage);
-    cacheFreezeLine = formatCacheFreezeOpsHealthLine(status.cacheFrozen);
+    cacheFreezeLine = formatCacheFreezeOpsHealthLine(
+      status.cacheFrozen,
+      status.cacheFreezeViolations,
+    );
     tokenGlanceLine = formatOpsTokenGlance({
       usage: status.usage,
       cacheHitRate: status.cacheHitRate,
@@ -299,10 +306,14 @@ async function collectOpsTheatreInput(host: SlashCommandHost): Promise<OpsTheatr
     degraded,
   );
 
+  const runtimeMode = resolveHostRuntimeMode(host.harness, process.env);
   const lastStepTtft = host.state.appState.lastStepTtft ?? null;
   const lastStepTtftLine =
-    lastStepTtft != null
-      ? formatHostTtftLine(lastStepTtft, resolveHostRuntimeMode(host.harness, process.env))
+    lastStepTtft != null ? formatHostTtftLine(lastStepTtft, runtimeMode) : null;
+  const ttftWindow = host.state.appState.lastStepTtftMsWindow ?? null;
+  const lastStepTtftP50Line =
+    ttftWindow != null && ttftWindow.length > 0
+      ? formatHostTtftP50Line(ttftWindow, runtimeMode)
       : null;
 
   let gitChurnDelta: number | undefined;
@@ -355,6 +366,7 @@ async function collectOpsTheatreInput(host: SlashCommandHost): Promise<OpsTheatr
     cacheFreezeLine,
     tokenGlanceLine,
     lastStepTtftLine,
+    lastStepTtftP50Line,
     breakerLine,
     authLine: formatOpsAuthLineFromSessionStatus({
       degraded,

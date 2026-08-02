@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildCacheMissDumpExportLines,
+  buildCacheMissDumpPayload,
   formatCacheDiagnosticsLine,
+  formatCacheMissDumpJson,
   formatCacheMissReasonGlance,
   formatCacheMissReasonHistogram,
   formatCacheMissReasonOpsHealthLine,
@@ -84,5 +87,48 @@ describe('formatCacheMissReasonOpsHealthLine', () => {
         cacheDiagnostics: { missReasons: { schema_change: 2, prefix_drift: 1 } },
       }),
     ).toBe('Miss reasons: schema_change 67% · prefix_drift 33%');
+  });
+});
+
+describe('cache miss dump export', () => {
+  it('buildCacheMissDumpPayload exports superliora.cache_miss.v1 schema', () => {
+    const payload = buildCacheMissDumpPayload({
+      usage: {
+        cacheDiagnostics: {
+          toolBlockChanged: true,
+          missReasons: { schema_change: 3, prefix_drift: 1 },
+        },
+      },
+      cacheHitRate: 0.91,
+      cacheWarmStreak: 4,
+      cacheFrozen: true,
+      capturedAtIso: '2026-08-02T06:00:00.000Z',
+    });
+    expect(payload.schema).toBe('superliora.cache_miss.v1');
+    expect(payload.toolBlockChanged).toBe(true);
+    expect(payload.topMissReasons[0]).toEqual({ reason: 'schema_change', count: 3 });
+    expect(payload.cacheHitRate).toBe(0.91);
+    const json = formatCacheMissDumpJson(payload);
+    expect(json).toContain('"schema": "superliora.cache_miss.v1"');
+    expect(json).toContain('"capturedAt": "2026-08-02T06:00:00.000Z"');
+  });
+
+  it('buildCacheMissDumpExportLines includes JSON copy block', () => {
+    const lines = buildCacheMissDumpExportLines({
+      usage: {
+        cacheDiagnostics: {
+          toolBlockChanged: false,
+          missReasons: { model_switch: 2 },
+        },
+      },
+      cacheHitRate: 0.5,
+      capturedAtIso: '2026-08-02T06:00:00.000Z',
+    }).join('\n');
+    expect(lines).toContain('Cache miss dump export');
+    expect(lines).toContain('Tool block: stable');
+    expect(lines).toContain('model_switch×2');
+    expect(lines).toContain('Hit rate: 50.0%');
+    expect(lines).toContain('JSON (copy)');
+    expect(lines).toContain('superliora.cache_miss.v1');
   });
 });

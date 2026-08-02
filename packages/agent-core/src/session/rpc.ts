@@ -440,6 +440,10 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
     return (await this.getAgent(agentId)).getCacheFrozen(payload);
   }
 
+  async getCacheFreezeViolations({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
+    return (await this.getAgent(agentId)).getCacheFreezeViolations(payload);
+  }
+
   async getParallelToolsStatus({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
     return (await this.getAgent(agentId)).getParallelToolsStatus(payload);
   }

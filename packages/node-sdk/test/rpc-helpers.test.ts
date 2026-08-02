@@ -21,6 +21,7 @@ const baseFacets = {
   providerRouteStatus: null,
   circuitBreakers: undefined,
   cacheFrozen: undefined,
+  cacheFreezeViolations: undefined,
   parallelTools: undefined,
   oauth: undefined,
 } as SessionStatusFacets;
@@ -34,6 +35,23 @@ describe('buildSessionStatus cacheFrozen', () => {
   it('maps cacheFrozen=true and cacheFrozen=false when wired', () => {
     expect(buildSessionStatus({ ...baseFacets, cacheFrozen: true }).cacheFrozen).toBe(true);
     expect(buildSessionStatus({ ...baseFacets, cacheFrozen: false }).cacheFrozen).toBe(false);
+  });
+});
+
+
+describe('buildSessionStatus cacheFreezeViolations (Loop22b)', () => {
+  it('omits cacheFreezeViolations when the facet is undefined', () => {
+    const status = buildSessionStatus(baseFacets);
+    expect(status).not.toHaveProperty('cacheFreezeViolations');
+  });
+
+  it('maps cacheFreezeViolations when wired', () => {
+    const status = buildSessionStatus({
+      ...baseFacets,
+      cacheFrozen: true,
+      cacheFreezeViolations: 2,
+    });
+    expect(status.cacheFreezeViolations).toBe(2);
   });
 });
 

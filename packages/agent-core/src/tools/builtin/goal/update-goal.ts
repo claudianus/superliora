@@ -20,7 +20,9 @@ import {
 import {
   evaluateGoalCompletionSoftAdvisory,
   formatGoalCompletionSoftAdvisory,
+  formatGoalFalseCompleteRejectTip,
 } from '../../../agent/goal/goal-completion-soft-advisory';
+import { wasRecentAutoCheckSpawnOk } from '../../../sensors/auto-check-sensor';
 import {
   buildGoalBlockedReasonPrompt,
   buildGoalCompletionSummaryPrompt,
@@ -78,6 +80,9 @@ export class UpdateGoalTool implements BuiltinTool<UpdateGoalToolInput> {
               completionCriterion: completed.completionCriterion,
               recentVerificationFailures: this.agent.verificationSensorLedger?.failures ?? [],
               mutationVerificationLedger: this.agent.mutationVerificationLedger,
+              recentAutoCheckSpawnOk: wasRecentAutoCheckSpawnOk(
+                this.agent.autoCheckSpawnState,
+              ),
             });
             const output =
               advisory === null
@@ -93,7 +98,7 @@ export class UpdateGoalTool implements BuiltinTool<UpdateGoalToolInput> {
           if (rejection !== undefined) {
             return {
               output: [
-                'Goal completion rejected (false-complete guard).',
+                formatGoalFalseCompleteRejectTip(rejection.code),
                 `code: ${rejection.code}`,
                 ...rejection.reasons.map((r) => `- ${r}`),
                 'Next:',
