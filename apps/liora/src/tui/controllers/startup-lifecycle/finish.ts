@@ -2,6 +2,7 @@ import type { Session } from '@superliora/sdk';
 
 import { showMissionAutoStartSessionTipIfNeeded } from '../../utils/mission/mission-autostart-session-tip';
 import { restorePromptInputState } from '../../utils/prompt-input-state';
+import { formatSessionResumeWarningNotice } from '../../utils/session/session-resume-warning-notice';
 import { formatSessionWarningNotice } from '../../utils/session/session-warning-notice';
 import { detectTmuxKeyboardWarning } from '../../utils/terminal/tmux-keyboard';
 import { ttui } from '../../utils/tui-i18n';
@@ -45,7 +46,12 @@ export async function finishStartupSession(
   }
   const resumeState = host.session?.getResumeState();
   if (resumeState?.warning !== undefined) {
-    host.showStatus(`Warning: ${resumeState.warning}`, 'warning');
+    // Loop49a: named notice — status-line alone was easy to miss on resume.
+    const notice = formatSessionResumeWarningNotice(resumeState.warning);
+    host.showNotice(notice.title, notice.detail, {
+      coalesceKey: notice.coalesceKey,
+    });
+    host.showStatus(notice.status, 'warning');
   }
   if (host.session !== undefined) {
     host.sessionEventHandler.startSubscription();
