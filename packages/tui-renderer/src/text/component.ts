@@ -121,7 +121,8 @@ export class Text implements RendererComponent {
     const rightMargin = ' '.repeat(paddingX);
     const emptyLine = padAnsiDisplayLine('', width, this.customBgFn);
     const out: string[] = Array.from({ length: paddingY }, () => emptyLine);
-    const MAX_PLAIN_LINES = 400;
+    // Keep short: component-level stand-ins must not pin multi-k heaps.
+    const MAX_PLAIN_LINES = 240;
     let produced = 0;
     for (const raw of this.text.replaceAll('\t', '   ').split('\n')) {
       if (produced >= MAX_PLAIN_LINES) break;

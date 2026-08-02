@@ -195,8 +195,8 @@ export class Markdown implements Component {
     const lead = ' '.repeat(paddingX);
     const out: string[] = [];
     for (let p = 0; p < paddingY; p++) out.push(this.padLine('', width));
-    // Cap materialised plain lines. 2k×many cards pinned the heap during flings.
-    const MAX_PLAIN_LINES = 400;
+    // Cap materialised plain lines. Longer stand-ins × many cards pinned heaps.
+    const MAX_PLAIN_LINES = 240;
     let produced = 0;
     for (const raw of this.text.replaceAll('\t', '   ').split('\n')) {
       if (produced >= MAX_PLAIN_LINES) break;

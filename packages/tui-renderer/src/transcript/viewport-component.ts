@@ -95,9 +95,14 @@ const LINE_COUNT_CACHE_CAP = 4;
  * visited card's full string[] forever → multi-100MB heaps → multi-second GC
  * pauses that felt like freezes on rapid up/down flings.
  */
-const OVERFLOW_RETAIN_VIEWPORTS = 4;
+/** Keep only this many viewport-heights of off-screen materialize around the window. */
+const OVERFLOW_RETAIN_VIEWPORTS = 2;
 /** Hard cap on how many children keep full line arrays (LRU by last paint). */
-const OVERFLOW_MAX_RETAINED_CHILDREN = 24;
+const OVERFLOW_MAX_RETAINED_CHILDREN = 12;
+/** Exported for unit tests that assert the shipped retain ceiling. */
+export const TRANSCRIPT_OVERFLOW_MAX_RETAINED_CHILDREN = OVERFLOW_MAX_RETAINED_CHILDREN;
+/** Exported for unit tests that assert the shipped content materialize budget. */
+export const TRANSCRIPT_CONTENT_MATERIALIZE_BUDGET = 2;
 
 
 export class RendererTranscriptViewportComponent extends Container {
@@ -157,7 +162,7 @@ export class RendererTranscriptViewportComponent extends Container {
   private lastPureScrollPaintAt = 0;
   private static readonly FLING_GAP_MS = 40;
   /** Max cold layouts per non-scroll (settle/content) frame — avoids settle hitch. */
-  private static readonly CONTENT_MATERIALIZE_BUDGET = 4;
+  private static readonly CONTENT_MATERIALIZE_BUDGET = TRANSCRIPT_CONTENT_MATERIALIZE_BUDGET;
   /**
    * True when the last paint left visible cold placeholders because the
    * materialize budget ran out. Hosts should schedule another content frame.
@@ -375,6 +380,31 @@ export class RendererTranscriptViewportComponent extends Container {
     return this.materializeContinuePending;
   }
 
+  /**
+   * How many children currently hold a full raw line array in the overflow
+   * paint cache. Used by tests and diagnostics to prove retain caps.
+   */
+  get overflowRetainedFullLineChildCount(): number {
+    const cache = this.overflowRenderCache;
+    if (cache === undefined) return 0;
+    let n = 0;
+    for (const lines of cache.childRenderRefs) {
+      if (lines !== undefined && lines.length > 0) n += 1;
+    }
+    return n;
+  }
+
+  /** Total raw lines retained across overflow full-line arrays (heap proxy). */
+  get overflowRetainedRawLineCount(): number {
+    const cache = this.overflowRenderCache;
+    if (cache === undefined) return 0;
+    let n = 0;
+    for (const lines of cache.childRenderRefs) {
+      if (lines !== undefined) n += lines.length;
+    }
+    return n;
+  }
+
   private renderVisibleRegionLines(width: number, visibleRows: number): RendererRegionLine[] {
     const safeWidth = normalizeTranscriptWidth(width);
     const inner = Math.max(1, safeWidth - this.leftPad - this.rightPad);
@@ -569,9 +599,19 @@ export class RendererTranscriptViewportComponent extends Container {
   private clearOverflowChildSlot(childIndex: number): void {
     const cache = this.overflowRenderCache;
     if (cache === undefined) return;
+    const child = cache.childRefs[childIndex];
     cache.childRefs[childIndex] = undefined;
     cache.childRenderRefs[childIndex] = undefined;
     cache.childFormattedSparse[childIndex] = undefined;
+    // Soft-evict component paint caches so multi-k Text/Markdown bodies leave
+    // the heap when the card is far off-screen (overflow slot was the pin).
+    if (child !== undefined && typeof child.invalidate === 'function') {
+      try {
+        child.invalidate();
+      } catch {
+        // Never let eviction throw into paint.
+      }
+    }
   }
 
   /**
