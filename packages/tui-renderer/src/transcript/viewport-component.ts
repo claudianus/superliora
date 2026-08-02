@@ -1358,9 +1358,13 @@ function regionLineToTranscriptDisplayString(line: RendererRegionLine): string {
   return line.map((cell) => cell.char).join('');
 }
 
-/** Prefer windowed measure; fall back to full render length for legacy cards. */
+/**
+ * Prefer `measureContentRows` when present (even without paintContentRows).
+ * Geometry must not require full windowed paint support — Container/Truncated
+ * implement measure-only so multi-k placeholders never get spread.
+ */
 function measureChildContentRows(child: Component, inner: number): number {
-  if (supportsWindowedBody(child)) {
+  if (typeof child.measureContentRows === 'function') {
     return child.measureContentRows(inner);
   }
   return child.render(inner).length;

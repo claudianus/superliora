@@ -1,5 +1,9 @@
 import type { Component, RendererTextBackgroundFn } from '../text/component';
 import { visibleWidth } from '../text/component';
+import {
+  isTranscriptMeasureMode,
+  measurePlaceholderLines,
+} from '../transcript/measure-mode';
 import { normalizeLineCount, normalizeRenderWidth } from './normalize';
 
 export class Spacer implements Component {
@@ -10,6 +14,10 @@ export class Spacer implements Component {
   }
 
   invalidate(): void {}
+
+  measureContentRows(_width: number): number {
+    return normalizeLineCount(this.lines);
+  }
 
   render(_width: number): string[] {
     return Array.from({ length: normalizeLineCount(this.lines) }, () => '');
@@ -59,8 +67,30 @@ export class Box implements Component {
     }
   }
 
+  measureContentRows(width: number): number {
+    if (this.children.length === 0) return 0;
+    const safeWidth = normalizeRenderWidth(width);
+    const paddingX = normalizeLineCount(this.paddingX);
+    const paddingY = normalizeLineCount(this.paddingY);
+    const contentWidth = Math.max(1, safeWidth - paddingX * 2);
+    let childRows = 0;
+    for (const child of this.children) {
+      childRows +=
+        typeof child.measureContentRows === 'function'
+          ? child.measureContentRows(contentWidth)
+          : child.render(contentWidth).length;
+    }
+    if (childRows === 0) return 0;
+    return childRows + paddingY * 2;
+  }
+
   render(width: number): string[] {
     if (this.children.length === 0) return [];
+
+    // Geometry probes: sum child row counts; never map/spread multi-k placeholders.
+    if (isTranscriptMeasureMode()) {
+      return measurePlaceholderLines(this.measureContentRows(width));
+    }
 
     const safeWidth = normalizeRenderWidth(width);
     const paddingX = normalizeLineCount(this.paddingX);

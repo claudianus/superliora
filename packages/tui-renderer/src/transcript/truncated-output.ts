@@ -9,7 +9,12 @@ import type {
 } from './types';
 import { trimRendererTrailingEmptyLines } from './line-block';
 import { projectRendererLinePreview } from './line-projection';
-import { isTranscriptMeasureMode, shouldSkipExpensiveTranscriptFormat } from './measure-mode';
+import {
+  TRANSCRIPT_MEASURE_FULL_WRAP_CHAR_CAP,
+  isTranscriptMeasureMode,
+  measurePlaceholderLines,
+  shouldSkipExpensiveTranscriptFormat,
+} from './measure-mode';
 import { normalizeTranscriptWidth } from './normalize';
 
 export const DEFAULT_RENDERER_TRUNCATED_OUTPUT_LINES = 3;
@@ -124,8 +129,48 @@ export class RendererTruncatedOutputComponent implements RendererComponent {
     this.invalidate();
   }
 
+  /**
+   * Geometry without materializing body lines. Transcript measure mode uses
+   * length-only stubs on multi-k {@link Text}; projecting those stubs threw
+   * (`lines is not iterable` / `.slice is not a function`).
+   */
+  measureContentRows(width: number): number {
+    this.ensureBodyReady();
+    const bodyRows = this.textComponent.measureContentRows(width);
+    return this.projectedRowCount(bodyRows);
+  }
+
+  /**
+   * Windowed paint for nested/transcript overflow. Soft-cap keeps bodies small
+   * enough that a full render + slice stays interactive.
+   */
+  paintContentRows(width: number, startRow: number, endRow: number): string[] {
+    const start = Math.max(0, Math.floor(startRow));
+    const end = Math.max(start, Math.floor(endRow));
+    if (end <= start) return [];
+    // Geometry probes must not project measure placeholders into real lines.
+    if (isTranscriptMeasureMode()) {
+      const total = this.measureContentRows(width);
+      const s = Math.min(start, total);
+      const e = Math.min(end, total);
+      return measurePlaceholderLines(Math.max(0, e - s));
+    }
+    return this.render(width).slice(start, end);
+  }
+
   render(width: number): string[] {
     this.ensureBodyReady();
+
+    // Geometry probes of multi-k bodies: Text.render returns a non-iterable
+    // length stub. Never project/spread it. Small bodies still layout normally
+    // so measure-mode callers can read plain text (format stays skipped).
+    if (
+      isTranscriptMeasureMode() &&
+      this.output.length > TRANSCRIPT_MEASURE_FULL_WRAP_CHAR_CAP
+    ) {
+      return measurePlaceholderLines(this.measureContentRows(width));
+    }
+
     const contentLines = this.textComponent.render(width);
     // Expanded still applies a visual soft-cap so one tool cannot materialize
     // tens of thousands of ANSI rows into the parent paint/geometry path.
@@ -165,6 +210,24 @@ export class RendererTruncatedOutputComponent implements RendererComponent {
     return preview.hintPosition === 'before'
       ? [hintLine, ...preview.lines]
       : [...preview.lines, hintLine];
+  }
+
+  /** Match {@link render} row total from a body visual-row count. */
+  private projectedRowCount(bodyRows: number): number {
+    const safeBody = Number.isFinite(bodyRows) && bodyRows > 0 ? Math.floor(bodyRows) : 0;
+    const maxLines = this.expanded
+      ? RENDERER_TRUNCATED_OUTPUT_EXPANDED_VISUAL_CAP
+      : this.maxLines;
+    const effectiveExpanded =
+      this.expanded && safeBody <= RENDERER_TRUNCATED_OUTPUT_EXPANDED_VISUAL_CAP;
+    if (effectiveExpanded || safeBody <= maxLines) {
+      // Fully shown body: footer only when hard-cap hid source lines.
+      return safeBody + (this.hardCapHidden > 0 ? 1 : 0);
+    }
+    const shown = maxLines;
+    const hiddenFromPreview = safeBody - maxLines;
+    const hiddenTotal = hiddenFromPreview + this.hardCapHidden;
+    return shown + (hiddenTotal > 0 ? 1 : 0);
   }
 
   /**
