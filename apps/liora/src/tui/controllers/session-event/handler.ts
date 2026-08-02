@@ -33,6 +33,7 @@ import { SessionEventTools } from './tools';
 import { SessionEventTurn } from './turn';
 import { SessionEventUltrawork } from './ultrawork';
 import { SubAgentEventHandler } from '../subagent-event/handler';
+import { formatSubagentStalledNotice } from '../../utils/tools/subagent-stalled-notice';
 import type {
   AppState,
   LivePaneState,
@@ -358,6 +359,20 @@ export class SessionEventHandler {
       case 'subagent.failed':
         this.subAgentEventHandler.handleLifecycleEvent(event);
         break;
+      case 'subagent.stalled': {
+        // Loop50a: engine emits after 5m silence; was dropped by the session switch.
+        const notice = formatSubagentStalledNotice({
+          subagentId: event.subagentId,
+          subagentName: event.subagentName,
+          silentMs: event.silentMs,
+          toolCount: event.toolCount,
+        });
+        this.host.showNotice(notice.title, notice.detail, {
+          coalesceKey: notice.coalesceKey,
+        });
+        this.host.showStatus(notice.status, 'warning');
+        break;
+      }
       case 'subagent.todo.updated':
         this.subAgentEventHandler.handleSubagentTodoUpdated(event); break;
       case 'subagent.tool_call':
