@@ -2,6 +2,7 @@ import type { Session } from '@superliora/sdk';
 
 import { showMissionAutoStartSessionTipIfNeeded } from '../../utils/mission/mission-autostart-session-tip';
 import { restorePromptInputState } from '../../utils/prompt-input-state';
+import { formatSessionWarningNotice } from '../../utils/session/session-warning-notice';
 import { detectTmuxKeyboardWarning } from '../../utils/terminal/tmux-keyboard';
 import { ttui } from '../../utils/tui-i18n';
 import type { StartupLifecycleHost } from './types';
@@ -70,9 +71,13 @@ export async function showSessionWarnings(
   try {
     const warnings = await session.getSessionWarnings();
     if (host.session !== session) return;
+    // Loop48a: named notices — status-line alone was easy to miss at startup.
     for (const warning of warnings) {
-      const severity = warning.severity === 'error' ? 'error' : 'warning';
-      host.showStatus(`Warning: ${warning.message}`, severity);
+      const notice = formatSessionWarningNotice(warning);
+      host.showNotice(notice.title, notice.detail, {
+        coalesceKey: notice.coalesceKey,
+      });
+      host.showStatus(notice.status, notice.statusColor);
     }
   } catch {
     // Best-effort: startup must not block on warning retrieval.
