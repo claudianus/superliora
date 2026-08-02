@@ -383,6 +383,26 @@ export class SessionEventNotices {
       this.host.showStatus('Turn blocked — UserPromptSubmit hook', 'warning');
       return;
     }
+    // Loop46a: oversized AGENTS.md soft/hard budget — was generic "Warning:" only.
+    if (
+      event.code === 'agents-md-oversized' ||
+      (event.message.includes('AGENTS.md') &&
+        (event.message.includes('exceeds the recommended') ||
+          event.message.includes('hard injection cap')))
+    ) {
+      if (this.host.showNotice !== undefined) {
+        this.host.showNotice('AGENTS.md oversized', event.message, {
+          coalesceKey: 'agents-md-oversized',
+        });
+      }
+      this.host.showStatus(
+        event.message.includes('hard injection cap')
+          ? 'AGENTS.md hard-capped — trim project instructions'
+          : 'AGENTS.md oversized — consider trimming',
+        'warning',
+      );
+      return;
+    }
     this.host.showStatus(`Warning: ${event.message}`, 'warning');
   }
 
