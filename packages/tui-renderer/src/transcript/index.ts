@@ -31,7 +31,11 @@ export {
   projectRendererWrappedTextPreview,
 } from './line-projection';
 
-export { RendererTranscriptViewportComponent } from './viewport-component';
+export {
+  RendererTranscriptViewportComponent,
+  TRANSCRIPT_CONTENT_MATERIALIZE_BUDGET,
+  TRANSCRIPT_OVERFLOW_MAX_RETAINED_CHILDREN,
+} from './viewport-component';
 
 export {
   notifyTranscriptChildGeometryDirty,
