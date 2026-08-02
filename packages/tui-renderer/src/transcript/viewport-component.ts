@@ -529,10 +529,11 @@ export class RendererTranscriptViewportComponent extends Container {
     }
 
     // Phase 6 — incremental present on the real visible window (Phase C).
-    // Returned lines are the applied present buffer: clean rows keep prior
-    // object identity; only budgeted dirty rows are replaced. Hosts continue
-    // via needsMaterializeContinue when hasPendingDirty.
-    this.lastPresentResult = this.incrementalPresenter.present(visibleLines);
+    // windowKey invalidates identity when the scroll window moves so equal
+    // placeholder keys cannot retain pre-scroll rows (tool/output flicker).
+    this.lastPresentResult = this.incrementalPresenter.present(visibleLines, {
+      windowKey: `${snapshot.start}:${snapshot.end}:${visibleRows}:${safeWidth}`,
+    });
     return this.lastPresentResult.lines as RendererRegionLine[];
   }
 

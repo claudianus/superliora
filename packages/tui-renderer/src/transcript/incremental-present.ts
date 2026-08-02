@@ -62,10 +62,27 @@ export class TranscriptVisibleLinePresenter {
    * Present a visible window of region lines. Stable content re-present with
    * identical line keys yields repaintedLines ≈ 0, skippedLines ≈ visible, and
    * the same line object refs in {@link TranscriptPresentResult.lines}.
+   *
+   * @param windowKey When the visible scroll window moves, pass a new key so
+   *   placeholder-equal rows cannot keep pre-scroll content (flicker).
    */
-  present(lines: readonly RendererRegionLine[]): TranscriptPresentResult {
+  present(
+    lines: readonly RendererRegionLine[],
+    options?: { readonly windowKey?: string },
+  ): TranscriptPresentResult {
+    const windowKey = options?.windowKey;
+    if (windowKey !== undefined && windowKey !== this.lastWindowKey) {
+      this.lastWindowKey = windowKey;
+      // Scroll/size change: drop prior identities so we never keep pre-scroll rows.
+      this.lastPresented = undefined;
+    }
+
     const keys = lines.map(regionLinePresentKey);
     this.engine.replaceAll(keys);
+    // After a window move, force every row dirty even when placeholders hash-equal.
+    if (this.lastPresented === undefined) {
+      this.engine.invalidateAll();
+    }
     const viewport = { start: 0, end: keys.length };
     const paintCommands = this.engine.computePaintCommands(viewport);
     this.lastStats = this.engine.lastFrameStats;
@@ -81,10 +98,12 @@ export class TranscriptVisibleLinePresenter {
     };
   }
 
+  private lastWindowKey: string | undefined;
+
   /**
    * Merge dirty rows into the presented buffer. Clean rows keep the previous
-   * line reference. Scroll / full-window dirty: every dirty row is in
-   * paintCommands (no budget defer), so the window never shows stale rows.
+   * line reference so compositor/promote can skip work. Only dirty indices
+   * take incoming (never bulk-replace clean rows — that reintroduced flicker).
    */
   private applyPaintCommands(
     incoming: readonly RendererRegionLine[],
@@ -98,12 +117,8 @@ export class TranscriptVisibleLinePresenter {
       if (cmd.row >= 0 && cmd.row < n) dirtyRows.add(cmd.row);
     }
 
-    // Many dirty rows (scroll / first paint): prefer incoming for any row not
-    // known-clean so we never keep prev content at a shifted scroll offset.
-    const mostlyDirty = dirtyRows.size > n / 2;
-
     for (let i = 0; i < n; i++) {
-      if (dirtyRows.has(i) || mostlyDirty || prev === undefined || prev.length !== n) {
+      if (dirtyRows.has(i) || prev === undefined || prev.length !== n) {
         out[i] = incoming[i]!;
       } else {
         out[i] = prev[i]!;
@@ -116,6 +131,7 @@ export class TranscriptVisibleLinePresenter {
   invalidate(): void {
     this.engine.invalidateAll();
     this.lastPresented = undefined;
+    this.lastWindowKey = undefined;
   }
 
   resetStats(): void {

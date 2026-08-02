@@ -229,7 +229,13 @@ export function appendRendererRegionLineRightGutter(
   width: number,
   glyph: string,
 ): RendererRegionLine {
-  const plain = typeof line === 'string' ? line : line.map((cell) => cell.char).join('');
+  // Keep string region lines as strings so present/promote can identity-reuse
+  // stable rows. Forcing cells every frame rebuilt keys and dirtied the whole
+  // transcript window on ambient ticks (tool-card flicker).
+  if (typeof line === 'string') {
+    return renderRendererRightGutterLine(line, width, glyph);
+  }
+  const plain = line.map((cell) => cell.char).join('');
   return ansiTextToCells(renderRendererRightGutterLine(plain, width, glyph));
 }
 
