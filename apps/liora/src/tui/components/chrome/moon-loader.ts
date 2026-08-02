@@ -34,6 +34,11 @@ export class MoonLoader extends Text {
   private tip: string = '';
   private availableWidth = 0;
   private readonly startedAt = Date.now();
+  /**
+   * When set, show a stalled suffix after this many ms without a phase reset.
+   * Waiting-for-model spinners pass 30s; long tools/composing leave it unset.
+   */
+  private stallAfterMs: number | undefined;
   // Once stopped, the spinner freezes and render() no longer overwrites the
   // text — callers use setText() to plant a final ✓/✗ message.
   private stopped = false;
@@ -58,6 +63,12 @@ export class MoonLoader extends Text {
           : BRAILLE_SPINNER_INTERVAL_MS;
     this.colorFn = colorFn;
     this.label = label;
+    this.refreshDisplay();
+  }
+
+  /** Enable/disable the stalled-after-Nms suffix on the spinner label. */
+  setStallAfterMs(ms: number | undefined): void {
+    this.stallAfterMs = ms;
     this.refreshDisplay();
   }
 
@@ -150,12 +161,23 @@ export class MoonLoader extends Text {
               const frame = this.frames[frameIndex]!;
               return this.colorFn ? this.colorFn(frame) : frame;
             })();
-    const elapsed = currentTheme.fg('textDim', ` ${formatElapsedTime(this.startedAt)}`);
+    const nowMs = Date.now();
+    const elapsed = currentTheme.fg('textDim', ` ${formatElapsedTime(this.startedAt, nowMs)}`);
+    // Optional stall label (waiting-for-model only) so long freezes are visible.
+    const silentMs = nowMs - this.startedAt;
+    const stall =
+      !this.stopped &&
+      this.stallAfterMs !== undefined &&
+      silentMs >= this.stallAfterMs
+        ? currentTheme.fg('warning', ` · stalled ${formatElapsedTime(this.startedAt, nowMs)}`)
+        : '';
     const label = this.label.length > 0
       ? renderPulseText(this.label, `loader:${this.label}`, 'text')
       : '';
     const baseText =
-      label.length > 0 ? `${coloredFrame} ${label}${elapsed}` : `${coloredFrame}${elapsed}`;
+      label.length > 0
+        ? `${coloredFrame} ${label}${elapsed}${stall}`
+        : `${coloredFrame}${elapsed}${stall}`;
     this.inlineText = baseText;
     let text = baseText;
     if (this.tip) {

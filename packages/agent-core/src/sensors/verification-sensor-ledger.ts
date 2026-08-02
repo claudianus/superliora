@@ -30,8 +30,13 @@ export const VERIFICATION_SENSOR_GOAL_DONE_TIP_KO =
 
 const CHECK_TOOL_NAMES = new Set(['RunProjectChecks', 'VerifySurface']);
 
+/**
+ * Check-like Bash commands that should feed the verification/mutation sensors.
+ * Expanded beyond pure tests so green typecheck/lint/tsc also clear sticky
+ * mutation state and red failures (SOTA harness Phase B / Loop1 residual).
+ */
 const BASH_CHECK_PATTERN =
-  /\b(vitest|pnpm\s+(run\s+)?test|npm\s+(run\s+)?test|yarn\s+test|pytest|cargo\s+test|go\s+test|make\s+test|jest|mocha|playwright\s+test)\b/i;
+  /(?:^|[\s;&|])(?:vitest|jest|mocha|playwright\s+test|pytest|cargo\s+test|go\s+test|make\s+test|bun\s+test|node\s+--test|\btsc\b|oxlint|eslint|turbo\s+run|(?:pnpm|npm|yarn)(?:\s+-C\s+\S+)?(?:\s+exec)?(?:\s+run)?\s+(?:test|typecheck|lint|check|build|smoke)\b|(?:pnpm|npm|yarn)\s+-C\s+\S+\s+exec\s+(?:vitest|tsc|eslint|oxlint)\b)/i;
 
 export function createVerificationSensorLedger(): VerificationSensorLedger {
   return { failures: [] };
@@ -131,8 +136,12 @@ export function observeVerificationToolResult(
   }
 
   if (toolName === 'Bash') {
-    if (result.isError !== true) return;
     if (!isCheckLikeBashCommand(extractBashCommand(args))) return;
+    if (result.isError !== true) {
+      // Green check-like Bash clears sticky failure evidence (same as RunProjectChecks).
+      recordVerificationPass(ledger);
+      return;
+    }
     recordVerificationFailure(ledger, {
       toolName,
       summary: summarizeBashFailure(args, toolOutputText(result.output)),

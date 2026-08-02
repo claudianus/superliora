@@ -52,7 +52,18 @@ export function reportContextProjectionRepairs(
     ),
   ].slice(0, 5);
 
-  host.agent.log.warn('repaired request projection for strict provider wire validity', {
+  // Demote routine projection fixes to debug — they were drowning hang/failover
+  // signals in session logs. Keep warn only when something was actually rewritten.
+  const notableCount =
+    reordered +
+    synthesized +
+    droppedOrphan +
+    duplicateCallsDropped +
+    duplicateResultsDropped +
+    leadingDropped +
+    assistantsMerged +
+    whitespaceDropped;
+  const payload = {
     reordered,
     synthesized,
     droppedOrphan,
@@ -62,7 +73,12 @@ export function reportContextProjectionRepairs(
     assistantsMerged,
     whitespaceDropped,
     toolCallIds,
-  });
+  };
+  if (notableCount === 0) {
+    host.agent.log.debug('repaired request projection for strict provider wire validity', payload);
+  } else {
+    host.agent.log.info('repaired request projection for strict provider wire validity', payload);
+  }
   host.agent.telemetry.track('context_projection_repaired', {
     reordered,
     synthesized,

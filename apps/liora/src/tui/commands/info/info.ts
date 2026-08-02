@@ -3,6 +3,7 @@ import type {
   McpServerInfo,
   AllProvidersUsageSnapshot,
 } from '@superliora/sdk';
+import { resolveGlobalLogPath, resolveSessionLogPath } from '@superliora/sdk';
 
 import { buildMcpStatusReportLines } from '../../components/messages/mcp-status-panel';
 import {
@@ -17,6 +18,7 @@ import { formatErrorMessage } from '../../utils/event-payload';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { isMotionTheatreActive } from '../../utils/render/motion-beats';
 import { createGitStatusCache } from '#/utils/git/git-status';
+import { getDataDir } from '#/utils/paths';
 import { loadPreflightHumanWriting } from '../preflight/human-writing';
 import type { SlashCommandHost } from '../hub/dispatch';
 
@@ -180,11 +182,18 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
   const recovery = loadStatusRecoveryReadiness(appState.workDir);
   const privacy = loadPrivacySnapshot(host);
   const fieldMotion = createStatusFieldMotionState();
+  const homeDir = host.harness.homeDir ?? getDataDir();
+  const sessionDir = host.session?.summary?.sessionDir;
   const reportArgs = {
     version: appState.version,
     model: appState.model,
     workDir: appState.workDir,
     sessionId: appState.sessionId,
+    globalLogPath: resolveGlobalLogPath(homeDir),
+    sessionLogPath:
+      sessionDir !== undefined && sessionDir.trim().length > 0
+        ? resolveSessionLogPath(sessionDir)
+        : undefined,
     sessionTitle: appState.sessionTitle,
     thinking: appState.thinking,
     permissionMode: appState.permissionMode,

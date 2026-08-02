@@ -13,7 +13,14 @@
  *   4. If localFallback also throws → propagate that error.
  */
 
-import { HttpFetchError, type UrlFetcher, type UrlFetchResult } from '../builtin/web/fetch-url';
+import { signalWithTimeout } from '../../utils/abort';
+import {
+  HttpFetchError,
+  type UrlFetcher,
+  type UrlFetchOptions,
+  type UrlFetchResult,
+} from '../builtin/web/fetch-url';
+import { DEFAULT_FETCH_TIMEOUT_MS } from './local-fetch-url';
 
 export interface BearerTokenProvider {
   getAccessToken(options?: { readonly force?: boolean | undefined }): Promise<string>;
@@ -27,6 +34,8 @@ export interface MoonshotFetchURLProviderOptions {
   customHeaders?: Record<string, string>;
   localFallback: UrlFetcher;
   fetchImpl?: typeof fetch;
+  /** Per-request timeout for the Moonshot hop. Defaults to {@link DEFAULT_FETCH_TIMEOUT_MS}. */
+  timeoutMs?: number;
 }
 
 export class MoonshotFetchURLProvider implements UrlFetcher {
@@ -37,6 +46,7 @@ export class MoonshotFetchURLProvider implements UrlFetcher {
   private readonly customHeaders: Record<string, string>;
   private readonly localFallback: UrlFetcher;
   private readonly fetchImpl: typeof fetch;
+  private readonly timeoutMs: number;
 
   constructor(options: MoonshotFetchURLProviderOptions) {
     this.tokenProvider = options.tokenProvider;
@@ -46,11 +56,12 @@ export class MoonshotFetchURLProvider implements UrlFetcher {
     this.customHeaders = options.customHeaders ?? {};
     this.localFallback = options.localFallback;
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
+    this.timeoutMs = options.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
   }
 
-  async fetch(url: string, options?: { toolCallId?: string }): Promise<UrlFetchResult> {
+  async fetch(url: string, options?: UrlFetchOptions): Promise<UrlFetchResult> {
     try {
-      const content = await this.fetchViaMoonshot(url, options?.toolCallId);
+      const content = await this.fetchViaMoonshot(url, options);
       // The service returns text it has already extracted from the page.
       return { content, kind: 'extracted' };
     } catch {
@@ -62,11 +73,11 @@ export class MoonshotFetchURLProvider implements UrlFetcher {
 
   private async fetchViaMoonshot(
     url: string,
-    toolCallId: string | undefined,
+    options: UrlFetchOptions | undefined,
   ): Promise<string> {
     const bodyJson = JSON.stringify({ url });
 
-    const response = await this.post(bodyJson, toolCallId);
+    const response = await this.post(bodyJson, options);
 
     if (response.status !== 200) {
       let detail = '';
@@ -85,17 +96,22 @@ export class MoonshotFetchURLProvider implements UrlFetcher {
     return response.text();
   }
 
-  private async post(bodyJson: string, toolCallId: string | undefined): Promise<Response> {
+  private async post(
+    bodyJson: string,
+    options: UrlFetchOptions | undefined,
+  ): Promise<Response> {
     const accessToken = await this.resolveApiKey();
+    const signal = signalWithTimeout(this.timeoutMs, options?.signal);
     return this.fetchImpl(this.baseUrl, {
       method: 'POST',
+      signal,
       headers: {
         ...this.defaultHeaders,
         Authorization: `Bearer ${accessToken}`,
         Accept: 'text/markdown',
         'Content-Type': 'application/json',
-        ...(toolCallId !== undefined && toolCallId.length > 0
-          ? { 'X-Msh-Tool-Call-Id': toolCallId }
+        ...(options?.toolCallId !== undefined && options.toolCallId.length > 0
+          ? { 'X-Msh-Tool-Call-Id': options.toolCallId }
           : {}),
         ...this.customHeaders,
       },

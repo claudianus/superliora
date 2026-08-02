@@ -107,6 +107,9 @@ export class AppStateController {
     Object.assign(host.state.appState, mergedPatch);
     if ('planMode' in patch || 'ultraworkMode' in patch) host.updateEditorBorderHighlight();
     if ('appearance' in patch) host.appearanceController.apply();
+    // Resync ambient schedule when busy state flips so live clocks keep ticking
+    // (and stop) without waiting for an appearance change.
+    if (busyChanged) host.appearanceController.apply();
     if (
       host.openCommandHub !== undefined &&
       ('planMode' in patch ||

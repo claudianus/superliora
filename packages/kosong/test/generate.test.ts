@@ -1142,5 +1142,67 @@ describe('generate()', () => {
     it('exports a sensible default idle timeout', () => {
       expect(DEFAULT_STREAM_IDLE_TIMEOUT_MS).toBe(120_000);
     });
+
+    it('throws APITimeoutError when provider.generate never returns a stream', async () => {
+      const provider = {
+        name: 'mock',
+        modelName: 'mock-model',
+        async generate(
+          _system: string,
+          _tools: unknown,
+          _history: unknown,
+          options?: { signal?: AbortSignal },
+        ) {
+          await new Promise<never>((_resolve, reject) => {
+            const signal = options?.signal;
+            if (signal === undefined) return;
+            if (signal.aborted) {
+              reject(new DOMException('The operation was aborted.', 'AbortError'));
+              return;
+            }
+            signal.addEventListener(
+              'abort',
+              () => reject(new DOMException('The operation was aborted.', 'AbortError')),
+              { once: true },
+            );
+          });
+        },
+      };
+
+      await expect(
+        generate(provider as never, '', [], [], undefined, { streamOpenTimeoutMs: 40 }),
+      ).rejects.toMatchObject({
+        name: 'APITimeoutError',
+        message: expect.stringContaining('Stream open timeout'),
+      });
+    });
+
+    it('does not let empty think keepalives hold the idle watchdog open', async () => {
+      const stream: StreamedMessage = {
+        get id(): string | null {
+          return null;
+        },
+        get usage(): TokenUsage | null {
+          return null;
+        },
+        finishReason: null,
+        rawFinishReason: null,
+        async *[Symbol.asyncIterator](): AsyncIterator<StreamedMessagePart> {
+          yield { type: 'think', think: 'start' };
+          // Empty keepalives every 20ms — without countsAsActivity these would
+          // reset idle forever; with it they must not.
+          for (let i = 0; i < 20; i++) {
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            yield { type: 'think', think: '' };
+          }
+          yield { type: 'text', text: 'never reached' };
+        },
+      };
+      const provider = createMockProvider(stream);
+
+      await expect(
+        generate(provider, '', [], [], undefined, { streamIdleTimeoutMs: 60 }),
+      ).rejects.toMatchObject({ name: 'APITimeoutError' });
+    });
   });
 });

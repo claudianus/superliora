@@ -692,7 +692,7 @@ describe('harness panel and tools inventory', () => {
     expect(host.showNotice).toHaveBeenCalledOnce();
     const notice = String((host.showNotice as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] ?? '');
     expect(notice).toContain('── Session (live) ──');
-    expect(notice).toContain('Core waist: ON (default) · Profile: core');
+    expect(notice).toContain('Core waist: ON (default) · profile=core tools=12');
     expect(notice).toContain('Tools: 3 active / 5 registered');
     expect(notice).toContain('Hide legacy: ON (default)');
     expect(notice).toContain('Read');
@@ -753,7 +753,7 @@ describe('harness panel and tools inventory', () => {
       await showToolsInventory(host);
       const notice = String((host.showNotice as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] ?? '');
       expect(notice).toContain('── Session (live) ──');
-      expect(notice).toContain('Core waist: ON (SUPERLIORA_SOVEREIGN=1) · Profile: core');
+      expect(notice).toContain('Core waist: ON (SUPERLIORA_SOVEREIGN=1) · profile=core tools=12');
       expect(notice).toContain('Hide legacy: ON (SUPERLIORA_SOVEREIGN=1)');
       expect(notice).not.toContain('soft-hides legacy tool aliases');
     } finally {
@@ -781,7 +781,7 @@ describe('harness panel and tools inventory', () => {
       });
       await showToolsInventory(host);
       const notice = String((host.showNotice as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] ?? '');
-      expect(notice).toContain('Core waist: ON (SUPERLIORA_SOVEREIGN_CORE=1) · Profile: core');
+      expect(notice).toContain('Core waist: ON (SUPERLIORA_SOVEREIGN_CORE=1) · profile=core tools=12');
     } finally {
       if (prev === undefined) delete process.env['SUPERLIORA_SOVEREIGN_CORE'];
       else process.env['SUPERLIORA_SOVEREIGN_CORE'] = prev;

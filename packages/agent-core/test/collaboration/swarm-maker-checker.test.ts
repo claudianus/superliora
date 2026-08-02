@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  applyMakerCheckerHardGate,
   classifySwarmLaneRole,
   classifySwarmPhaseRole,
   detectAgentSwarmItemRoleCollision,
@@ -8,7 +9,10 @@ import {
   detectMakerCheckerCollisionsFromSwarmOutput,
   detectMakerCheckerCollisionsFromUltraSwarmResults,
   formatMakerCheckerSoftWarn,
+  isMakerCheckerHardGateEnabled,
+  isMakerCheckerHardReject,
   makerCheckerSoftWarnFromAgentSwarmItems,
+  SWARM_MAKER_CHECKER_HARD_PREFIX,
   SWARM_MAKER_CHECKER_SOFT_TIP,
 } from '#/fleet';
 
@@ -132,5 +136,68 @@ describe('swarm-maker-checker.ts — detectMakerCheckerCollisions', () => {
         { expertId: 'x', role: 'checker', phase: 'review' },
       ]),
     ).toHaveLength(1);
+  });
+});
+
+describe('swarm-maker-checker.ts — hard gate flag', () => {
+  it('defaults hard gate off', () => {
+    expect(isMakerCheckerHardGateEnabled({})).toBe(false);
+    expect(isMakerCheckerHardGateEnabled({ SUPERLIORA_MAKER_CHECKER_HARD: '0' })).toBe(false);
+  });
+
+  it('enables hard gate via SUPERLIORA_MAKER_CHECKER_HARD or alias', () => {
+    expect(isMakerCheckerHardGateEnabled({ SUPERLIORA_MAKER_CHECKER_HARD: '1' })).toBe(true);
+    expect(isMakerCheckerHardGateEnabled({ maker_checker_hard_gate: 'true' })).toBe(true);
+  });
+
+  it('prefixes soft tips when hard gate is on', () => {
+    const soft = makerCheckerSoftWarnFromAgentSwarmItems(
+      ['Implement login route', 'Review auth middleware for security gaps'],
+      undefined,
+      { env: {} },
+    );
+    expect(soft).toBeDefined();
+    expect(isMakerCheckerHardReject(soft)).toBe(false);
+
+    const hard = makerCheckerSoftWarnFromAgentSwarmItems(
+      ['Implement login route', 'Review auth middleware for security gaps'],
+      undefined,
+      { hardGate: true },
+    );
+    expect(hard).toContain(SWARM_MAKER_CHECKER_HARD_PREFIX);
+    expect(isMakerCheckerHardReject(hard)).toBe(true);
+    expect(hard).toContain(soft ?? '');
+  });
+
+  it('applyMakerCheckerHardGate is a no-op without tip', () => {
+    expect(applyMakerCheckerHardGate(undefined, { hardGate: true })).toBeUndefined();
+  });
+
+  it('documents pre-spawn contract: hard reject is detectable before queue', () => {
+    // AgentSwarm/UltraSwarm call this before runQueued / phase runners.
+    const hard = makerCheckerSoftWarnFromAgentSwarmItems(
+      ['Implement feature X', 'Review feature X for security'],
+      undefined,
+      { hardGate: true },
+    );
+    expect(isMakerCheckerHardReject(hard)).toBe(true);
+    // Soft path must remain non-reject so default product behaviour is unchanged.
+    const soft = makerCheckerSoftWarnFromAgentSwarmItems(
+      ['Implement feature X', 'Review feature X for security'],
+      undefined,
+      { env: {} },
+    );
+    expect(isMakerCheckerHardReject(soft)).toBe(false);
+  });
+
+  it('formatMakerCheckerSoftWarn respects hardGate option', () => {
+    const collisions = detectMakerCheckerCollisions([
+      { expertId: 'x', role: 'maker', phase: 'implement' },
+      { expertId: 'x', role: 'checker', phase: 'review' },
+    ]);
+    const soft = formatMakerCheckerSoftWarn(collisions, { env: {} });
+    const hard = formatMakerCheckerSoftWarn(collisions, { hardGate: true });
+    expect(soft).toContain(SWARM_MAKER_CHECKER_SOFT_TIP);
+    expect(hard).toContain(SWARM_MAKER_CHECKER_HARD_PREFIX);
   });
 });

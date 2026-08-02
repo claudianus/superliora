@@ -6,7 +6,9 @@ promptVars:
   roleAdditional: ''
 
 tools:
-  # Core waist + session orchestration (bisect-safe: keep ApplyPatch, RepoQuery, DeepResearch).
+  # Session-coding waist (Phase A/E): keep ApplyPatch + RepoQuery + DeepResearch;
+  # push Context7/media/expert/TaskGraph edges to superliora-full (discoverable via
+  # SearchTools active_only=false on full, or SUPERLIORA_PROFILE=superliora-full).
   - Read
   - Write
   - Edit
@@ -14,12 +16,10 @@ tools:
   - Grep
   - Glob
   - Bash
-  - Expand
   - RunProjectChecks
   - RepoQuery
   # Progress transparency and long-run autonomy (main agent only).
   - TodoList
-  - TaskGraph
   - EnterPlanMode
   - NextPhase
   - ExitPlanMode
@@ -27,30 +27,24 @@ tools:
   - GetGoal
   - SetGoalBudget
   - UpdateGoal
-  - GetCurrentTime
   # Skills + subagents (catalog still loads on demand).
   - Skill
   - SearchSkill
   - SearchTools
   - Agent
-  - SearchExpert
   - Fleet
   # External information and user clarification.
   - WebSearch
   # never-empty; Ch3 실패 시 Ch4/Ch5 escalate.
   - DeepResearch
   - FetchURL
-  - Context7Resolve
-  - Context7Docs
   - AskUserQuestion
-  - Memory
   - TaskList
   - TaskOutput
   - TaskStop
-  - ReadMediaFile
   - Review
-  # Extended visual/media/MCP tools live on superliora-full (or SearchTools
-  # discovery). Default agent waist stays session-coding focused (Phase A/B).
+  # Edges on superliora-full: Expand, Memory, GetCurrentTime, Context7*,
+  # ReadMediaFile, SearchExpert, TaskGraph, visual/MCP. Default waist ≤30.
 
 subagents:
   coder:

@@ -2,10 +2,11 @@ import { redactSecretsInText } from '#/security/redaction';
 
 import type { LogContext, LogEntry } from './types';
 
-export const MSG_MAX_CHARS = 200;
+/** Message body cap — long enough for stall/timeout diagnostics. */
+export const MSG_MAX_CHARS = 400;
 export const CTX_VALUE_MAX_CHARS = 2048;
-export const STACK_MAX_BYTES = 2048;
-export const ENTRY_MAX_BYTES = 4096;
+export const STACK_MAX_BYTES = 4096;
+export const ENTRY_MAX_BYTES = 8192;
 export const REDACT_MAX_DEPTH = 10;
 
 const REDACTED_KEYS: ReadonlySet<string> = new Set([

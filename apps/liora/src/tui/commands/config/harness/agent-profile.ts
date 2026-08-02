@@ -9,6 +9,8 @@ import {
   SOVEREIGN_CORE_DEFAULT_ENV,
   SOVEREIGN_CORE_PROFILE_NAME,
   SOVEREIGN_UMBRELLA_ENV,
+  expectedToolCountForProfile,
+  formatProfileToolsBadge,
   loadProfileLiveGlance,
 } from '#/tui/utils/agent/profile-glance';
 import { NO_ACTIVE_SESSION_MESSAGE } from '../../../constant/liora-tui';
@@ -49,11 +51,11 @@ const PROFILE_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   },
   {
     value: DEFAULT_MAIN_AGENT_PROFILE_NAME,
-    description: 'Default SuperLiora agent (wider orchestration surface)',
+    description: 'Session coding waist (≤30 tools; Goal/Fleet/DeepResearch)',
   },
   {
     value: 'superliora-full',
-    description: 'Legacy full tool set (backwards compatible)',
+    description: 'Legacy full tool set (Context7/media/MCP edges)',
   },
 ];
 
@@ -125,7 +127,7 @@ async function showProfileStatus(host: SlashCommandHost): Promise<void> {
 
     const lines = [
       '── Agent tool profile ─────────────────────',
-      `Effective default: ${profile.effectiveProfile}`,
+      `Effective: ${formatProfileToolsBadge(profile)}`,
       configProfile ? `Config (agent.profile): ${configProfile}` : 'Config (agent.profile): (default core)',
       envProfile ? `Env (${MAIN_AGENT_PROFILE_ENV}): ${envProfile}` : `Env (${MAIN_AGENT_PROFILE_ENV}): (unset)`,
       sovereignFlag
@@ -135,25 +137,29 @@ async function showProfileStatus(host: SlashCommandHost): Promise<void> {
         ? `Env (${SOVEREIGN_UMBRELLA_ENV}): ${sovereignUmbrella}`
         : `Env (${SOVEREIGN_UMBRELLA_ENV}): (unset)`,
       '',
-      'Core≤12 is the default product waist; TaskGraph and wider orchestration via agent or superliora-full.',
-      'Wide waist opt-out: SUPERLIORA_PROFILE=agent or agent.profile = "agent".',
+      'Core≤12 is the default product waist. Goal/SearchTools/Fleet need SUPERLIORA_PROFILE=agent (≤30) or superliora-full.',
+      'Session coding waist: SUPERLIORA_PROFILE=agent or agent.profile = "agent".',
       '',
       'Core waist (Sovereign Core ≤12 tools) — Mission/Fleet; not Ultra*:',
-      `  (default) unset profile → ${SOVEREIGN_CORE_PROFILE_NAME}`,
-      `  ${MAIN_AGENT_PROFILE_ENV}=${DEFAULT_MAIN_AGENT_PROFILE_NAME} liora  (wide waist)`,
+      `  (default) unset profile → ${SOVEREIGN_CORE_PROFILE_NAME} tools=12`,
+      `  ${MAIN_AGENT_PROFILE_ENV}=${DEFAULT_MAIN_AGENT_PROFILE_NAME} liora  (session waist tools=30)`,
       `  ${SOVEREIGN_CORE_DEFAULT_ENV}=1 / ${SOVEREIGN_UMBRELLA_ENV}=1  (other sovereign soft gates)`,
       '  config.toml → [agent] profile = "core"',
       '  /profile core  (persists config; /new to apply)',
       '',
       'Bundled profiles:',
       ...KNOWN_MAIN_AGENT_PROFILE_NAMES.map((name) => {
+        const count = expectedToolCountForProfile(name);
+        const countTag = count !== undefined ? ` tools=${String(count)}` : '';
         const tag =
           name === SOVEREIGN_CORE_PROFILE_NAME
-            ? ' — default Sovereign Core waist (12 tools)'
+            ? ` — default Sovereign Core waist (${String(count ?? 12)} tools)`
             : name === DEFAULT_MAIN_AGENT_PROFILE_NAME
-              ? ' — wide waist'
-              : '';
-        return `  ${name}${tag}`;
+              ? ' — session coding waist (≤30)'
+              : name === 'superliora-full'
+                ? ' — full edges (Context7/media/MCP)'
+                : '';
+        return `  ${name}${countTag}${tag}`;
       }),
     ];
 
@@ -162,7 +168,14 @@ async function showProfileStatus(host: SlashCommandHost): Promise<void> {
       try {
         const tools = await session.getTools();
         const active = tools.filter((tool) => tool.active).length;
-        lines.push('', `This session: ${String(active)} active tools registered.`);
+        const expected = profile.expectedToolCount;
+        const expectedNote =
+          expected !== undefined ? ` (bundled expect ~${String(expected)}; MCP may add more)` : '';
+        lines.push(
+          '',
+          `This session: ${String(active)} active tools${expectedNote}.`,
+          `Diagnostic badge: ${formatProfileToolsBadge(profile)}`,
+        );
       } catch {
         lines.push('', 'This session: tools inventory unavailable.');
       }

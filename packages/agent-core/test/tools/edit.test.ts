@@ -348,6 +348,9 @@ describe('EditTool', () => {
     expect(result.output).toContain('not unique');
     expect(result.output).toContain('set replace_all=true');
     expect(result.output).toContain('include more surrounding context');
+    expect(result.output).toContain('Remediation:');
+    expect(result.output).toContain('Re-Read');
+    expect(result.output).toMatch(/absolute paths|ApplyPatch/i);
     expect(writeAtomic).not.toHaveBeenCalled();
   });
 

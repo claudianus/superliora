@@ -37,6 +37,12 @@ interface InternalEntry {
 export type McpStatusListener = (entry: McpServerEntry) => void;
 
 const DEFAULT_STARTUP_TIMEOUT_MS = 30_000;
+/**
+ * Default per-tool-call timeout when `toolTimeoutMs` is not set in the MCP
+ * server config. Without a bound, a stuck MCP server can freeze a turn
+ * indefinitely after the agent already dispatched the call.
+ */
+export const DEFAULT_MCP_TOOL_TIMEOUT_MS = 5 * 60_000;
 
 type RuntimeMcpClient = StdioMcpClient | HttpMcpClient | SseMcpClient;
 
@@ -363,7 +369,7 @@ export class McpConnectionManager {
   }
 
   private createClient(config: McpServerConfig, name: string): RuntimeMcpClient {
-    const toolCallTimeoutMs = config.toolTimeoutMs;
+    const toolCallTimeoutMs = config.toolTimeoutMs ?? DEFAULT_MCP_TOOL_TIMEOUT_MS;
     if (config.transport === 'stdio') {
       return new StdioMcpClient(config, { toolCallTimeoutMs, defaultCwd: this.options.stdioCwd });
     }

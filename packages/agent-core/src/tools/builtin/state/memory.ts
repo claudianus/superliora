@@ -18,11 +18,32 @@ export const MEMORY_TOOL_NAME = 'Memory' as const;
 const MemoryKindSchema = z.enum(['semantic', 'episodic', 'procedural', 'prospective', 'governance']);
 const MemoryScopeSchema = z.enum(['user', 'workspace', 'session']);
 
+/**
+ * SOTA harness Phase C: Instruction (human/repo SSOT) vs Learning (ACE deltas).
+ * Stored as tags `layer:instruction` / `layer:learning` for list/search filters.
+ */
+export const MEMORY_LAYER_TAGS = {
+  instruction: 'layer:instruction',
+  learning: 'layer:learning',
+} as const;
+
+export type MemoryLayer = keyof typeof MEMORY_LAYER_TAGS;
+
 const WriteMemorySchema = z.object({
   subject: z.string().min(1).describe('Short subject for the memory.'),
   content: z.string().min(1).describe('The durable fact, preference, decision, reminder, or work note to remember.'),
   kind: MemoryKindSchema.optional().describe('Memory kind. Defaults to semantic.'),
   scope: MemoryScopeSchema.optional().describe('Visibility scope. Defaults by memory kind.'),
+  /**
+   * instruction = stable human/repo rules; learning = session-earned deltas
+   * (default). Prefer this over free-form tags alone.
+   */
+  layer: z
+    .enum(['instruction', 'learning'])
+    .optional()
+    .describe(
+      'instruction = durable human/repo SSOT rules; learning = experience deltas (default). Tagged as layer:* .',
+    ),
   tags: z.array(z.string().min(1)).optional().describe('Search tags.'),
   confidence: z.number().min(0).max(1).optional().describe('Confidence from 0 to 1.'),
   importance: z.number().min(0).max(1).optional().describe('Importance from 0 to 1.'),
@@ -106,7 +127,10 @@ export class MemoryTool implements BuiltinTool<MemoryInput> {
 }
 
 function actionName(args: MemoryInput): string {
-  if (args.write !== undefined) return 'Writing';
+  if (args.write !== undefined) {
+    const layer = args.write.layer ?? 'learning';
+    return `Writing (${layer})`;
+  }
   if (args.search !== undefined) return 'Searching';
   if (args.read !== undefined) return 'Reading';
   if (args.forget !== undefined) return 'Forgetting';
@@ -120,15 +144,27 @@ function memoryAccesses(args: MemoryInput) {
 }
 
 function toCreateInput(input: z.infer<typeof WriteMemorySchema>): MemoryCreateInput {
+  const layer: MemoryLayer = input.layer ?? 'learning';
   return {
     kind: (input.kind ?? 'semantic') as MemoryKind,
     scope: input.scope as MemoryScope | undefined,
     subject: input.subject,
     content: input.content,
-    tags: input.tags,
+    tags: mergeLayerTag(input.tags, MEMORY_LAYER_TAGS[layer]),
     confidence: input.confidence,
     importance: input.importance,
   };
+}
+
+/** Ensure layer:* tag is present once; user tags follow. */
+export function mergeLayerTag(
+  tags: readonly string[] | undefined,
+  layerTag: string,
+): string[] {
+  const rest = (tags ?? []).filter(
+    (tag) => tag !== MEMORY_LAYER_TAGS.instruction && tag !== MEMORY_LAYER_TAGS.learning,
+  );
+  return [layerTag, ...rest];
 }
 
 function renderSearchResults(results: readonly MemorySearchResult[]): string {
@@ -145,5 +181,11 @@ function renderList(memories: readonly MemoryRecord[]): string {
 
 function renderMemory(memory: MemoryRecord): string {
   const tags = memory.tags.length > 0 ? ` tags=${memory.tags.join(',')}` : '';
-  return `[${memory.id}] ${memory.kind}/${memory.scope}${tags}\nSubject: ${memory.subject}\nContent: ${memory.content}`;
+  const layer =
+    memory.tags.includes(MEMORY_LAYER_TAGS.instruction)
+      ? ' layer=instruction'
+      : memory.tags.includes(MEMORY_LAYER_TAGS.learning)
+        ? ' layer=learning'
+        : '';
+  return `[${memory.id}] ${memory.kind}/${memory.scope}${layer}${tags}\nSubject: ${memory.subject}\nContent: ${memory.content}`;
 }

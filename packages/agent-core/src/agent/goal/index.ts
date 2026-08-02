@@ -12,6 +12,7 @@ import { DEFAULT_MODE_ACTIVATION_SOURCE } from '../mode-activation';
 import type { AgentRecordOf } from '../records/types';
 import { budgetTelemetryProperties } from './budget';
 import {
+  auditSensorBoundCompletion,
   auditUltraworkBoundCompletion,
   checkCompleteRejectCooldown,
   evaluateStructuredCompletionPredicate,
@@ -347,6 +348,7 @@ export class GoalMode {
     const rejection =
       checkCompleteRejectCooldown(this.host, state, actor) ??
       auditUltraworkBoundCompletion(this.agent, actor) ??
+      auditSensorBoundCompletion(this.agent, actor) ??
       (await evaluateStructuredCompletionPredicate(this.agent, state));
 
     if (rejection !== null) {

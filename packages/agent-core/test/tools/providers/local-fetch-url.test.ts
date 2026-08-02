@@ -9,6 +9,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  DEFAULT_FETCH_TIMEOUT_MS,
   extractLocalMainContent,
   isPrivateIp,
   LocalFetchURLProvider,
@@ -233,6 +234,61 @@ describe('LocalFetchURLProvider SSRF guard', () => {
     const provider = new LocalFetchURLProvider({ fetchImpl, resolveDns: false, maxRedirects: 2 });
 
     await expect(provider.fetch('https://example.com/loop')).rejects.toThrow(/redirects/);
+  });
+});
+
+describe('LocalFetchURLProvider timeout / abort', () => {
+  it('defaults to a 60s request budget', () => {
+    expect(DEFAULT_FETCH_TIMEOUT_MS).toBe(60_000);
+  });
+
+  it('passes an AbortSignal into fetchImpl', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation((_url, init) => {
+      expect(init?.signal).toBeDefined();
+      return Promise.resolve(htmlResponse('ok', 'text/plain'));
+    });
+    const provider = providerWith(fetchImpl);
+    await provider.fetch('https://example.com/plain');
+    expect(fetchImpl).toHaveBeenCalled();
+  });
+
+  it('aborts when the caller signal is already aborted', async () => {
+    const fetchImpl = vi.fn<typeof fetch>();
+    const provider = providerWith(fetchImpl);
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      provider.fetch('https://example.com/plain', { signal: controller.signal }),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('times out a hung fetchImpl', async () => {
+    vi.useFakeTimers();
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(
+      (_url, init) =>
+        new Promise((_resolve, reject) => {
+          const signal = init?.signal;
+          if (signal === undefined) return;
+          signal.addEventListener(
+            'abort',
+            () => reject(new DOMException('The operation was aborted.', 'AbortError')),
+            { once: true },
+          );
+        }),
+    );
+    const provider = new LocalFetchURLProvider({
+      fetchImpl,
+      resolveDns: false,
+      timeoutMs: 50,
+    });
+
+    const pending = provider.fetch('https://example.com/hang');
+    pending.catch(() => {});
+    await vi.advanceTimersByTimeAsync(60);
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    vi.useRealTimers();
   });
 });
 

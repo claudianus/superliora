@@ -3,6 +3,7 @@ import { execSync } from 'node:child_process';
 import {
   createLioraHarness,
   log,
+  resolveGlobalLogPath,
   type LioraHarness,
   type TelemetryClient,
 } from '@superliora/sdk';
@@ -99,6 +100,7 @@ export async function runShell(
     nodeVersion: process.version,
     platform: `${process.platform}/${process.arch}`,
     workDir,
+    globalLogPath: resolveGlobalLogPath(harness.homeDir),
   });
 
   await harness.ensureConfigFile();

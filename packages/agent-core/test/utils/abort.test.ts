@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { isAbortError } from '../../src/loop/errors';
 import {
   abortError,
   abortable,
   isUserCancellation,
+  signalWithTimeout,
   userCancellationReason,
 } from '../../src/utils/abort';
 
@@ -72,5 +73,28 @@ describe('abortable', () => {
       name: 'AbortError',
       message: 'Aborted',
     });
+  });
+});
+
+describe('signalWithTimeout', () => {
+  it('returns the parent when timeout is disabled', () => {
+    const controller = new AbortController();
+    expect(signalWithTimeout(0, controller.signal)).toBe(controller.signal);
+  });
+
+  it('aborts when the parent aborts', () => {
+    const controller = new AbortController();
+    const combined = signalWithTimeout(60_000, controller.signal);
+    expect(combined.aborted).toBe(false);
+    controller.abort();
+    expect(combined.aborted).toBe(true);
+  });
+
+  it('aborts when the timeout elapses', async () => {
+    // AbortSignal.timeout uses the host timer; use a short real wait.
+    const combined = signalWithTimeout(30);
+    expect(combined.aborted).toBe(false);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(combined.aborted).toBe(true);
   });
 });

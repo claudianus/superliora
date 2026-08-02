@@ -98,3 +98,24 @@ export function createDeadlineAbortSignal(
     },
   };
 }
+
+/**
+ * Combine an optional parent cancel signal with a wall-clock timeout.
+ * `timeoutMs <= 0` disables the timeout and returns the parent (or a fresh
+ * never-aborted signal when no parent is given).
+ *
+ * Used by fetch/tool helpers so hung TCP cannot outlive either the caller's
+ * abort or a per-request deadline.
+ */
+export function signalWithTimeout(
+  timeoutMs: number,
+  parent?: AbortSignal,
+): AbortSignal {
+  if (timeoutMs <= 0) {
+    return parent ?? new AbortController().signal;
+  }
+  const timeout = AbortSignal.timeout(timeoutMs);
+  if (parent === undefined) return timeout;
+  if (parent.aborted) return parent;
+  return AbortSignal.any([parent, timeout]);
+}

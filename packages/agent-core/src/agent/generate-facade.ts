@@ -2,7 +2,7 @@
  * Generate proxy with shared failover + LLM route building.
  * Extracted from Agent class to reduce God Class size.
  */
-import { generate } from '@superliora/kosong';
+import { generate, type GenerateCallbacks, type StreamedMessagePart } from '@superliora/kosong';
 import { resolveCompletionBudget } from '../utils/completion-budget';
 import { runSideGenerateWithSharedFailover } from './side-generate-failover';
 import { attachLlmProviderCircuitBreakers } from './llm-provider-circuit-breaker';
@@ -19,24 +19,17 @@ export function createGenerateProxy(agent: Agent): typeof generate {
       requestProvider: typeof provider,
       requestModelAlias: string | undefined,
       requestOptions: Parameters<typeof generate>[5],
-    ) => {
-      agent.llmRequestLogger.logRequest({
+    ) =>
+      runLoggedGenerate(agent, {
         provider: requestProvider,
         modelAlias: requestModelAlias,
-        systemPrompt,
-        tools,
-        messages: history,
-        fields: requestLogFields,
-      });
-      return agent.rawGenerate(
-        requestProvider,
         systemPrompt,
         tools,
         history,
         callbacks,
         requestOptions,
-      );
-    };
+        requestLogFields,
+      });
 
     // Explicit auth: caller owns credential selection (including KosongLLM
     // after it already picked a candidate). Do not open a second failover loop.
@@ -114,24 +107,17 @@ export function generateWithSharedFailover(agent: Agent, params: {
                 credentialLabel: candidate.credentialLabel,
               });
 
-        const runOnce = (requestOptions: Parameters<typeof generate>[5]) => {
-          agent.llmRequestLogger.logRequest({
+        const runOnce = (requestOptions: Parameters<typeof generate>[5]) =>
+          runLoggedGenerate(agent, {
             provider: candidate.provider,
             modelAlias: candidateAlias,
             systemPrompt: params.systemPrompt,
             tools: params.tools,
-            messages: params.history,
-            fields: params.requestLogFields,
-          });
-          return agent.rawGenerate(
-            candidate.provider,
-            params.systemPrompt,
-            params.tools,
-            params.history,
-            params.callbacks,
+            history: params.history,
+            callbacks: params.callbacks,
             requestOptions,
-          );
-        };
+            requestLogFields: params.requestLogFields,
+          });
 
         if (withAuth === undefined) {
           return runOnce(params.generateOptions);
@@ -146,8 +132,12 @@ export function generateWithSharedFailover(agent: Agent, params: {
     routeState: agent.providerRouteState,
     attempts,
     signal: params.signal,
-    onRouteStatusChanged: () =>{  agent.emitStatusUpdated(); },
-    circuitObserver: attachLlmProviderCircuitBreakers(agent, () =>{  agent.emitStatusUpdated(); }),
+    onRouteStatusChanged: () => {
+      agent.emitStatusUpdated();
+    },
+    circuitObserver: attachLlmProviderCircuitBreakers(agent, () => {
+      agent.emitStatusUpdated();
+    }),
     onCandidateFailed: ({ candidate, failure, hasNext }) => {
       if (!hasNext) return;
       agent.log.warn('side generate credential failed; trying next candidate', {
@@ -157,6 +147,116 @@ export function generateWithSharedFailover(agent: Agent, params: {
       });
     },
   });
+}
+
+/**
+ * One generate call with lifecycle logs:
+ * `llm request` → `llm open` → `llm first_token` → (`llm response` elsewhere) / `llm request failed`.
+ */
+async function runLoggedGenerate(
+  agent: Agent,
+  input: {
+    readonly provider: Parameters<typeof generate>[0];
+    readonly modelAlias: string | undefined;
+    readonly systemPrompt: string;
+    readonly tools: Parameters<typeof generate>[2];
+    readonly history: Parameters<typeof generate>[3];
+    readonly callbacks: Parameters<typeof generate>[4];
+    readonly requestOptions: Parameters<typeof generate>[5];
+    readonly requestLogFields: ReturnType<typeof splitGenerateOptions>['requestLogFields'];
+  },
+): Promise<Awaited<ReturnType<typeof generate>>> {
+  const requestId = agent.llmRequestLogger.logRequest({
+    provider: input.provider,
+    modelAlias: input.modelAlias,
+    systemPrompt: input.systemPrompt,
+    tools: input.tools,
+    messages: input.history,
+    fields: input.requestLogFields,
+  });
+  const startedAt = Date.now();
+  let sawFirstToken = false;
+  let opened = false;
+  const fields = input.requestLogFields;
+
+  const wrappedCallbacks = wrapLifecycleCallbacks(input.callbacks, () => {
+    if (sawFirstToken) return;
+    sawFirstToken = true;
+    agent.llmRequestLogger.logFirstToken(requestId, {
+      ...(fields ?? { turnStep: 'side' }),
+      ttftMs: Date.now() - startedAt,
+    });
+  });
+
+  const prevStart = input.requestOptions?.onRequestStart;
+  const prevSent = input.requestOptions?.onRequestSent;
+  const prevEnd = input.requestOptions?.onStreamEnd;
+  const wrappedOptions: Parameters<typeof generate>[5] = {
+    ...input.requestOptions,
+    onRequestStart: () => {
+      prevStart?.();
+    },
+    onRequestSent: () => {
+      opened = true;
+      agent.llmRequestLogger.logOpen(requestId, fields);
+      prevSent?.();
+    },
+    onStreamEnd: (stats) => {
+      prevEnd?.(stats);
+    },
+  };
+
+  try {
+    return await agent.rawGenerate(
+      input.provider,
+      input.systemPrompt,
+      input.tools,
+      input.history,
+      wrappedCallbacks,
+      wrappedOptions,
+    );
+  } catch (error: unknown) {
+    const name = error instanceof Error ? error.name : typeof error;
+    const message = error instanceof Error ? error.message : String(error);
+    const phase =
+      sawFirstToken ? 'stream' : opened ? 'first_token_wait' : 'open';
+    // User cancel stays quiet — recovery already surfaces interruption.
+    const aborted =
+      (error instanceof DOMException && error.name === 'AbortError') ||
+      (error instanceof Error && error.name === 'AbortError') ||
+      input.requestOptions?.signal?.aborted === true;
+    if (!aborted) {
+      agent.llmRequestLogger.logFailure(requestId, {
+        ...(fields ?? {}),
+        errorName: name,
+        errorMessage: message.slice(0, 300),
+        elapsedMs: Date.now() - startedAt,
+        phase,
+      });
+    }
+    throw error;
+  }
+}
+
+function wrapLifecycleCallbacks(
+  callbacks: GenerateCallbacks | undefined,
+  onFirstPart: () => void,
+): GenerateCallbacks | undefined {
+  if (callbacks === undefined) {
+    return {
+      onMessagePart: () => {
+        onFirstPart();
+      },
+    };
+  }
+  const prev = callbacks.onMessagePart;
+  return {
+    ...callbacks,
+    onMessagePart: async (part: StreamedMessagePart) => {
+      onFirstPart();
+      await prev?.(part);
+    },
+  };
 }
 
 export function buildLLMRoute(agent: Agent, reservedContextSize: number | undefined): KosongLLMRoute | undefined {

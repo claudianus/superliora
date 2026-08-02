@@ -15,9 +15,36 @@ import {
 } from '../../src/sensors/verification-sensor-ledger';
 
 describe('verification-sensor-ledger', () => {
-  it('detects check-like bash commands', () => {
+  it('detects check-like bash commands including typecheck/lint/tsc', () => {
     expect(isCheckLikeBashCommand('pnpm test apps/liora')).toBe(true);
+    expect(isCheckLikeBashCommand('pnpm run typecheck')).toBe(true);
+    expect(isCheckLikeBashCommand('pnpm -C packages/agent-core run lint')).toBe(true);
+    expect(isCheckLikeBashCommand('pnpm -C packages/agent-core exec vitest run foo')).toBe(true);
+    expect(isCheckLikeBashCommand('tsc -p packages/agent-core')).toBe(true);
+    expect(isCheckLikeBashCommand('eslint src/')).toBe(true);
+    expect(isCheckLikeBashCommand('turbo run build')).toBe(true);
+    expect(isCheckLikeBashCommand('bun test')).toBe(true);
     expect(isCheckLikeBashCommand('git status')).toBe(false);
+    expect(isCheckLikeBashCommand('pnpm install')).toBe(false);
+  });
+
+  it('clears failure ledger on green check-like Bash', () => {
+    const ledger = createVerificationSensorLedger();
+    observeVerificationToolResult(
+      ledger,
+      'Bash',
+      { command: 'pnpm test' },
+      { isError: true, output: 'FAIL' },
+    );
+    expect(ledger.failures).toHaveLength(1);
+    observeVerificationToolResult(
+      ledger,
+      'Bash',
+      { command: 'pnpm run typecheck' },
+      { output: 'ok' },
+    );
+    expect(ledger.failures).toHaveLength(0);
+    expect(ledger.lastPassAtMs).toBeTypeOf('number');
   });
 
   it('records RunProjectChecks failure and clears on pass', () => {

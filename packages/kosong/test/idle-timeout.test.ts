@@ -1,8 +1,12 @@
 import { APITimeoutError } from '#/errors';
 import {
+  createGenerateAbortScope,
   DEFAULT_LLM_IDLE_TIMEOUT_MS,
+  DEFAULT_LLM_OPEN_TIMEOUT_MS,
   LLM_IDLE_TIMEOUT_ENV,
+  LLM_OPEN_TIMEOUT_ENV,
   resolveIdleTimeoutMs,
+  resolveOpenTimeoutMs,
   withIdleTimeout,
 } from '#/idle-timeout';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -152,6 +156,80 @@ describe('withIdleTimeout', () => {
     expect((error as DOMException).name).toBe('AbortError');
   });
 
+  it('does not reset the idle budget on non-activity keepalives', async () => {
+    async function* keepaliveThenStall(): AsyncGenerator<number> {
+      yield 0; // non-activity
+      await sleep(20);
+      yield 0; // still non-activity — must not extend the budget
+      await new Promise<void>(() => {});
+    }
+    const started = Date.now();
+    const error = await collect(
+      withIdleTimeout(keepaliveThenStall(), {
+        idleMs: 50,
+        countsAsActivity: (value) => value !== 0,
+      }),
+    ).catch((error: unknown) => error);
+    expect(error).toBeInstanceOf(APITimeoutError);
+    // Keepalives alone must not push us past a few idle windows.
+    expect(Date.now() - started).toBeLessThan(200);
+  });
+});
+
+describe('resolveOpenTimeoutMs', () => {
+  const originalEnv = process.env[LLM_OPEN_TIMEOUT_ENV];
+
+  beforeEach(() => {
+    delete process.env[LLM_OPEN_TIMEOUT_ENV];
+  });
+
+  afterEach(() => {
+    if (originalEnv === undefined) delete process.env[LLM_OPEN_TIMEOUT_ENV];
+    else process.env[LLM_OPEN_TIMEOUT_ENV] = originalEnv;
+  });
+
+  it('prefers the explicit per-request value, including 0 (disabled)', () => {
+    process.env[LLM_OPEN_TIMEOUT_ENV] = '5000';
+    expect(resolveOpenTimeoutMs(42)).toBe(42);
+    expect(resolveOpenTimeoutMs(0)).toBe(0);
+  });
+
+  it('falls back to the environment variable then the default', () => {
+    expect(resolveOpenTimeoutMs(undefined)).toBe(DEFAULT_LLM_OPEN_TIMEOUT_MS);
+    process.env[LLM_OPEN_TIMEOUT_ENV] = '900';
+    expect(resolveOpenTimeoutMs(undefined)).toBe(900);
+  });
+});
+
+describe('createGenerateAbortScope', () => {
+  it('aborts with openTimedOut after the open budget', async () => {
+    const scope = createGenerateAbortScope({ openMs: 30, label: 'test open' });
+    await sleep(50);
+    expect(scope.openTimedOut()).toBe(true);
+    expect(scope.signal.aborted).toBe(true);
+    scope.dispose();
+  });
+
+  it('clears the open timer so a long stream is not cut short', async () => {
+    const scope = createGenerateAbortScope({ openMs: 40 });
+    scope.clearOpenTimer();
+    await sleep(60);
+    expect(scope.openTimedOut()).toBe(false);
+    expect(scope.signal.aborted).toBe(false);
+    scope.dispose();
+  });
+
+  it('propagates caller abort immediately', () => {
+    const controller = new AbortController();
+    const scope = createGenerateAbortScope({ openMs: 5000, signal: controller.signal });
+    controller.abort();
+    expect(scope.signal.aborted).toBe(true);
+    expect(scope.openTimedOut()).toBe(false);
+    scope.dispose();
+  });
+});
+
+describe('withIdleTimeout edge cases', () => {
   it('rejects immediately when the signal is already aborted', async () => {
     const controller = new AbortController();
     controller.abort();

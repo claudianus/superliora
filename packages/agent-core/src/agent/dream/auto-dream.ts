@@ -95,7 +95,11 @@ export class AutoDreamService {
     const provider = this.resolveProvider();
     const catalog = records.map((r) => ({ id: r.id, kind: r.kind, subject: r.subject, content: r.content.slice(0, 500) }));
     const messages: Message[] = [{ role: 'user', content: [{ type: 'text', text: buildDreamPrompt(catalog) }], toolCalls: [] }];
-    const response = await this.agent.generate(provider, DREAM_SYSTEM_PROMPT, [], messages, undefined, { signal: new AbortController().signal });
+    // Bound the side generate: hung open/handshake is already covered by
+    // kosong open/idle guards; this deadline also caps total dream planning.
+    const response = await this.agent.generate(provider, DREAM_SYSTEM_PROMPT, [], messages, undefined, {
+      signal: AbortSignal.timeout(120_000),
+    });
     const text = extractText(response);
     if (text.trim().length === 0) throw new Error('auto-dream: empty plan');
     return parseDreamPlan(text, records);

@@ -32,6 +32,10 @@ export interface StatusReportOptions {
   readonly model: string;
   readonly workDir: string;
   readonly sessionId: string;
+  /** Global process log path (`~/.superliora/logs/liora.log`). */
+  readonly globalLogPath?: string;
+  /** Session-scoped log path when a session dir is known. */
+  readonly sessionLogPath?: string;
   readonly sessionTitle: string | null;
   readonly thinking: boolean;
   readonly permissionMode: PermissionMode;

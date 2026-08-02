@@ -130,7 +130,9 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
   }
 
   async getMcpStartupMetrics(_payload: EmptyPayload): Promise<McpStartupMetrics> {
-    await this.session.mcp.waitForInitialLoad();
+    // Per-server connect already has a 30s startup timeout; still bound the
+    // wait so a stuck initialLoad promise cannot hang the RPC forever.
+    await this.session.mcp.waitForInitialLoad(AbortSignal.timeout(60_000));
     return { durationMs: this.session.mcp.initialLoadDurationMs() };
   }
 

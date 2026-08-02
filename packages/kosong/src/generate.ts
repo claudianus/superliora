@@ -1,5 +1,13 @@
 import { APIEmptyResponseError, APITimeoutError } from './errors';
-import { DEFAULT_LLM_IDLE_TIMEOUT_MS, resolveIdleTimeoutMs, withIdleTimeout } from './idle-timeout';
+import {
+  createGenerateAbortScope,
+  DEFAULT_LLM_IDLE_TIMEOUT_MS,
+  DEFAULT_LLM_OPEN_TIMEOUT_MS,
+  openTimeoutError,
+  resolveIdleTimeoutMs,
+  resolveOpenTimeoutMs,
+  withIdleTimeout,
+} from './idle-timeout';
 import {
   isContentPart,
   isToolCall,
@@ -26,6 +34,13 @@ import type { TokenUsage } from './usage';
  * `streamIdleTimeoutMs` or globally via `SUPERLIORA_LLM_IDLE_TIMEOUT_MS`.
  */
 export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = DEFAULT_LLM_IDLE_TIMEOUT_MS;
+
+/**
+ * Default maximum wait (ms) for `provider.generate()` to return a stream
+ * before the request is treated as hung. Override with `streamOpenTimeoutMs`
+ * or `SUPERLIORA_LLM_OPEN_TIMEOUT_MS`.
+ */
+export const DEFAULT_STREAM_OPEN_TIMEOUT_MS = DEFAULT_LLM_OPEN_TIMEOUT_MS;
 
 /** Snapshot of a ToolCall excluding the internal `_streamIndex` routing field. */
 type StoredToolCall = Omit<ToolCall, '_streamIndex'>;
@@ -120,13 +135,99 @@ export async function generate(
     throwAbortError();
   }
 
+  const streamLabel = `Provider: ${provider.name}, model: ${provider.modelName}`;
+  const openTimeoutMs = resolveOpenTimeoutMs(options?.streamOpenTimeoutMs);
+  // One abort scope covers open + stream: caller cancel and the open deadline
+  // share a signal so hung create() is cancellable, and Esc during stream still
+  // tears down the HTTP body.
+  const abortScope = createGenerateAbortScope({
+    openMs: openTimeoutMs,
+    signal: options?.signal,
+    label: streamLabel,
+  });
+  const activeSignal = abortScope.signal;
+
   options?.onRequestStart?.();
-  const stream = await provider.generate(systemPrompt, tools, history, options);
+  let stream: StreamedMessage;
+  try {
+    // Race open against the abort scope so a provider that ignores `signal`
+    // still cannot hang forever — the open timer aborts the scope, and we
+    // reject from the abort listener even if generate() never settles.
+    stream = await new Promise<StreamedMessage>((resolve, reject) => {
+      if (activeSignal.aborted) {
+        reject(
+          abortScope.openTimedOut()
+            ? openTimeoutError(openTimeoutMs, streamLabel)
+            : new DOMException('The operation was aborted.', 'AbortError'),
+        );
+        return;
+      }
+
+      let settled = false;
+      const rejectOpen = (): void => {
+        if (settled) return;
+        settled = true;
+        reject(
+          abortScope.openTimedOut()
+            ? openTimeoutError(openTimeoutMs, streamLabel)
+            : new DOMException('The operation was aborted.', 'AbortError'),
+        );
+      };
+      const onAbort = (): void => {
+        rejectOpen();
+      };
+      activeSignal.addEventListener('abort', onAbort, { once: true });
+
+      void provider
+        .generate(systemPrompt, tools, history, {
+          ...options,
+          signal: activeSignal,
+        })
+        .then(
+          (value) => {
+            activeSignal.removeEventListener('abort', onAbort);
+            // Aborted mid-create (or after) still yields a stream — cancel it
+            // so the connection is not leaked, then reject.
+            if (settled || activeSignal.aborted) {
+              void cancelStream(value);
+              rejectOpen();
+              return;
+            }
+            settled = true;
+            resolve(value);
+          },
+          (error: unknown) => {
+            activeSignal.removeEventListener('abort', onAbort);
+            if (settled) return;
+            settled = true;
+            if (abortScope.openTimedOut()) {
+              reject(openTimeoutError(openTimeoutMs, streamLabel));
+              return;
+            }
+            reject(error);
+          },
+        );
+    });
+    // Stream object exists — stop the open-phase deadline so a long healthy
+    // decode is only governed by the per-chunk idle watchdog.
+    abortScope.clearOpenTimer();
+  } catch (error: unknown) {
+    abortScope.dispose();
+    if (abortScope.openTimedOut() && !(error instanceof APITimeoutError)) {
+      throw openTimeoutError(openTimeoutMs, streamLabel);
+    }
+    throw error;
+  }
 
   // Post-await abort check: `provider.generate()` may have resolved before
   // noticing a mid-flight abort. Reject immediately rather than draining
   // the stream.
-  await throwIfAborted(options?.signal, stream);
+  try {
+    await throwIfAborted(activeSignal, stream);
+  } catch (error: unknown) {
+    abortScope.dispose();
+    throw error;
+  }
 
   let serverDecodeMs = 0;
   let clientConsumeMs = 0;
@@ -135,15 +236,15 @@ export async function generate(
 
   // Idle watchdog: wrap the provider stream so a stalled stream (server
   // stops sending tokens without closing the connection) cannot block the
-  // agent loop indefinitely. The timer resets on every received part; only
-  // complete silence triggers the abort. The per-request
-  // `streamIdleTimeoutMs` option wins; otherwise the
+  // agent loop indefinitely. Empty keepalives do not reset the budget.
+  // The per-request `streamIdleTimeoutMs` option wins; otherwise the
   // SUPERLIORA_LLM_IDLE_TIMEOUT_MS env var, then the shared default.
   const idleTimeoutMs = resolveIdleTimeoutMs(options?.streamIdleTimeoutMs);
   const watchedStream = withIdleTimeout(stream, {
     idleMs: idleTimeoutMs,
-    label: `Provider: ${provider.name}, model: ${provider.modelName}`,
-    signal: options?.signal,
+    label: streamLabel,
+    signal: activeSignal,
+    countsAsActivity: isSubstantiveStreamPart,
   });
   const iterator = watchedStream[Symbol.asyncIterator]();
 
@@ -161,12 +262,12 @@ export async function generate(
       }
 
       try {
-        await throwIfAborted(options?.signal, stream);
+        await throwIfAborted(activeSignal, stream);
 
         // Notify raw part callback (deep copy to avoid aliasing mutations).
         if (callbacks?.onMessagePart !== undefined) {
           await callbacks.onMessagePart(deepCopyPart(part));
-          await throwIfAborted(options?.signal, stream);
+          await throwIfAborted(activeSignal, stream);
         }
 
         // Index-based routing for parallel tool call argument deltas.
@@ -208,77 +309,96 @@ export async function generate(
         clientConsumeMs += lastResumeAt - arrivedAt;
       }
     }
+
+    await throwIfAborted(activeSignal, stream);
+    if (firstPartAt !== undefined) {
+      serverDecodeMs += Date.now() - lastResumeAt;
+    }
+    options?.onStreamEnd?.(
+      firstPartAt === undefined ? undefined : { serverDecodeMs, clientConsumeMs },
+    );
+
+    // Flush the last pending part.
+    if (pendingPart !== null) {
+      flushPart(message, pendingPart, toolCallIndexMap);
+    }
+    if (message.content.length === 0 && message.toolCalls.length === 0) {
+      throw new APIEmptyResponseError(
+        'The API returned an empty response (no content, no tool calls).' +
+          formatFinishReasonHint(stream) +
+          ` Provider: ${provider.name}, model: ${provider.modelName}`,
+        {
+          finishReason: stream.finishReason,
+          rawFinishReason: stream.rawFinishReason,
+        },
+      );
+    }
+
+    // Think-only response (no real text, no tool calls) is treated as incomplete.
+    const hasThink = message.content.some((p) => p.type === 'think');
+    const hasText = message.content.some((p) => p.type === 'text' && p.text.trim().length > 0);
+    const hasToolCalls = message.toolCalls.length > 0;
+
+    if (hasThink && !hasText && !hasToolCalls) {
+      throw new APIEmptyResponseError(
+        'The API returned a response containing only thinking content ' +
+          'without any text or tool calls. This usually indicates the ' +
+          'stream was interrupted or the output token budget was exhausted ' +
+          'during reasoning.' +
+          formatFinishReasonHint(stream) +
+          ` Provider: ${provider.name}, model: ${provider.modelName}`,
+        {
+          finishReason: stream.finishReason,
+          rawFinishReason: stream.rawFinishReason,
+        },
+      );
+    }
+
+    // Fire onToolCall for every fully-assembled tool call, in final order.
+    if (callbacks?.onToolCall !== undefined) {
+      for (const toolCall of message.toolCalls) {
+        await throwIfAborted(activeSignal, stream);
+        await callbacks.onToolCall(toolCall);
+      }
+    }
+
+    return {
+      id: stream.id,
+      message,
+      usage: stream.usage,
+      finishReason: stream.finishReason,
+      rawFinishReason: stream.rawFinishReason,
+      responseHeaders: stream.responseHeaders,
+    };
   } catch (error) {
-    // On idle timeout — or a caller abort that fired while the chunk wait
+    // On idle/open timeout — or a caller abort that fired while the chunk wait
     // was stuck — actively cancel the underlying HTTP stream so the
     // connection is released promptly rather than lingering until the OS
     // reclaims it.
-    if (error instanceof APITimeoutError || (error instanceof DOMException && error.name === 'AbortError')) {
+    if (
+      error instanceof APITimeoutError ||
+      (error instanceof DOMException && error.name === 'AbortError')
+    ) {
       await cancelStream(stream);
     }
     throw error;
+  } finally {
+    abortScope.dispose();
   }
+}
 
-  await throwIfAborted(options?.signal, stream);
-  if (firstPartAt !== undefined) {
-    serverDecodeMs += Date.now() - lastResumeAt;
+/** True when a streamed part should reset the idle silence budget. */
+export function isSubstantiveStreamPart(part: StreamedMessagePart): boolean {
+  if (part.type === 'text') return part.text.length > 0;
+  if (part.type === 'think') {
+    return part.think.length > 0 || (part.encrypted !== undefined && part.encrypted.length > 0);
   }
-  options?.onStreamEnd?.(
-    firstPartAt === undefined ? undefined : { serverDecodeMs, clientConsumeMs },
-  );
-
-  // Flush the last pending part.
-  if (pendingPart !== null) {
-    flushPart(message, pendingPart, toolCallIndexMap);
+  if (part.type === 'function') return true;
+  if (part.type === 'tool_call_part') {
+    return part.argumentsPart !== null && part.argumentsPart.length > 0;
   }
-  if (message.content.length === 0 && message.toolCalls.length === 0) {
-    throw new APIEmptyResponseError(
-      'The API returned an empty response (no content, no tool calls).' +
-        formatFinishReasonHint(stream) +
-        ` Provider: ${provider.name}, model: ${provider.modelName}`,
-      {
-        finishReason: stream.finishReason,
-        rawFinishReason: stream.rawFinishReason,
-      },
-    );
-  }
-
-  // Think-only response (no real text, no tool calls) is treated as incomplete.
-  const hasThink = message.content.some((p) => p.type === 'think');
-  const hasText = message.content.some((p) => p.type === 'text' && p.text.trim().length > 0);
-  const hasToolCalls = message.toolCalls.length > 0;
-
-  if (hasThink && !hasText && !hasToolCalls) {
-    throw new APIEmptyResponseError(
-      'The API returned a response containing only thinking content ' +
-        'without any text or tool calls. This usually indicates the ' +
-        'stream was interrupted or the output token budget was exhausted ' +
-        'during reasoning.' +
-        formatFinishReasonHint(stream) +
-        ` Provider: ${provider.name}, model: ${provider.modelName}`,
-      {
-        finishReason: stream.finishReason,
-        rawFinishReason: stream.rawFinishReason,
-      },
-    );
-  }
-
-  // Fire onToolCall for every fully-assembled tool call, in final order.
-  if (callbacks?.onToolCall !== undefined) {
-    for (const toolCall of message.toolCalls) {
-      await throwIfAborted(options?.signal, stream);
-      await callbacks.onToolCall(toolCall);
-    }
-  }
-
-  return {
-    id: stream.id,
-    message,
-    usage: stream.usage,
-    finishReason: stream.finishReason,
-    rawFinishReason: stream.rawFinishReason,
-    responseHeaders: stream.responseHeaders,
-  };
+  // image/audio/video content parts count as activity when present.
+  return true;
 }
 
 type CancelableStream = StreamedMessage & {
