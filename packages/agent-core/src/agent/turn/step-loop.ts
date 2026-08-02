@@ -39,7 +39,9 @@ import {
 } from '../../sensors/mutation-verification-sensor';
 import {
   appendAutoCheckSpawnBlock,
+  AUTO_CHECK_SPAWN_ERROR_CODE,
   decideAutoCheckSpawn,
+  formatAutoCheckSpawnErrorTip,
   formatAutoCheckSpawnResult,
   recordAutoCheckSpawn,
   wasRecentAutoCheckSpawnOk,
@@ -437,11 +439,18 @@ async function maybeAutoSpawnProjectChecks(input: {
   }
 
   const tool = agent.tools.builtinTools.get('RunProjectChecks');
-  if (tool === undefined) {
-    return result;
-  }
-
   const textBefore = toolOutputText(result.output);
+
+  // Loop40a: missing tool was a silent no-op when SUPERLIORA_AUTO_CHECK_SPAWN=1.
+  if (tool === undefined) {
+    const tip = formatAutoCheckSpawnErrorTip('RunProjectChecks tool not available');
+    agent.emitEvent({
+      type: 'warning',
+      message: tip,
+      code: AUTO_CHECK_SPAWN_ERROR_CODE,
+    });
+    return { ...result, output: appendAutoCheckSpawnBlock(textBefore, tip) };
+  }
 
   try {
     const resolved = await tool.resolveExecution({
@@ -485,18 +494,20 @@ async function maybeAutoSpawnProjectChecks(input: {
     // Keep mutation-tool success/error as-is; only append the check report.
     return { ...result, output: appendAutoCheckSpawnBlock(textBefore, block) };
   } catch (error) {
+    const errMsg = error instanceof Error ? error.message : String(error);
     agent.log.warn('auto-check spawn failed', {
       packageDir: decision.packageDir,
-      error: error instanceof Error ? error.message : String(error),
+      error: errMsg,
     });
     // Still count the attempt so a broken tool cannot tight-loop.
     recordAutoCheckSpawn(agent.autoCheckSpawnState, Date.now(), { ok: false });
-    const block = formatAutoCheckSpawnResult({
-      packageDir: decision.packageDir,
-      checks: decision.checks,
-      isError: true,
-      outputText: error instanceof Error ? error.message : String(error),
+    // Loop40a: ERROR tip + wire warning so TUI surfaces spawn exceptions.
+    const tip = formatAutoCheckSpawnErrorTip(errMsg);
+    agent.emitEvent({
+      type: 'warning',
+      message: tip,
+      code: AUTO_CHECK_SPAWN_ERROR_CODE,
     });
-    return { ...result, output: appendAutoCheckSpawnBlock(textBefore, block) };
+    return { ...result, output: appendAutoCheckSpawnBlock(textBefore, tip) };
   }
 }

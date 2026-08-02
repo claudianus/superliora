@@ -337,3 +337,26 @@ describe('SessionEventNotices.handleSessionWarning (Loop35a abandoned tool)', ()
     );
   });
 });
+
+describe('SessionEventNotices.handleSessionWarning (Loop40a auto-check spawn error)', () => {
+  it('surfaces AUTO_CHECK_SPAWN ERROR wire warnings as a named notice', () => {
+    const host = makeHost(0);
+    const notices = makeNotices(host);
+    const message =
+      'AUTO_CHECK_SPAWN: ERROR: RunProjectChecks tool not available. Mutation was not auto-verified.';
+
+    notices.handleSessionWarning({
+      type: 'warning',
+      message,
+      code: 'auto-check-spawn-error',
+    });
+
+    expect(host.showNotice).toHaveBeenCalledWith('Auto-check spawn error', message, {
+      coalesceKey: 'auto-check-spawn-error',
+    });
+    expect(host.showStatus).toHaveBeenCalledWith(
+      'Auto-check spawn failed — run checks manually',
+      'warning',
+    );
+  });
+});

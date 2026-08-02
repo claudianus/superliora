@@ -4,6 +4,7 @@ import {
   AUTO_CHECK_ENV,
   AUTO_CHECK_PREFIX,
   AUTO_CHECK_SPAWN_ENV,
+  AUTO_CHECK_SPAWN_ERROR_CODE,
   AUTO_CHECK_SPAWN_MAX_PER_SESSION,
   AUTO_CHECK_SPAWN_MIN_INTERVAL_MS,
   AUTO_CHECK_SPAWN_PREFIX,
@@ -11,6 +12,7 @@ import {
   createAutoCheckSpawnState,
   decideAutoCheckSpawn,
   formatAutoCheckDirective,
+  formatAutoCheckSpawnErrorTip,
   formatAutoCheckSpawnResult,
   isAutoCheckEnabled,
   isAutoCheckSpawnEnabled,
@@ -243,5 +245,14 @@ describe('auto-check-spawn (Loop19a)', () => {
     ).toBe(false);
     recordAutoCheckSpawn(state, 20_000, { ok: false });
     expect(wasRecentAutoCheckSpawnOk(state, 20_000)).toBe(false);
+  });
+
+  // Loop40a: throw / missing-tool tip for wire + TUI.
+  it('formatAutoCheckSpawnErrorTip tags ERROR and stable code', () => {
+    const tip = formatAutoCheckSpawnErrorTip('timeout');
+    expect(tip.startsWith(`${AUTO_CHECK_SPAWN_PREFIX} ERROR:`)).toBe(true);
+    expect(tip).toContain('timeout');
+    expect(tip).toContain(`code=${AUTO_CHECK_SPAWN_ERROR_CODE}`);
+    expect(AUTO_CHECK_SPAWN_ERROR_CODE).toBe('auto-check-spawn-error');
   });
 });
