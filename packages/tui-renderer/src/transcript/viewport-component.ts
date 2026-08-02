@@ -7,7 +7,9 @@ import {
   type RendererScrollbarVariant,
 } from '../scrollbar';
 import type { RendererViewportSnapshot } from '../viewport/index';
+import type { IncrementalRenderStats } from '../frame/incremental-render';
 import {
+  supportsWindowedBody,
   type Component,
 } from '../text/component';
 import type {
@@ -20,6 +22,10 @@ import {
   registerTranscriptGeometryParent,
   unregisterTranscriptGeometryParent,
 } from './geometry-parent';
+import {
+  TranscriptVisibleLinePresenter,
+  type TranscriptPresentResult,
+} from './incremental-present';
 import { shouldSkipExpensiveTranscriptFormat, withTranscriptMeasureMode } from './measure-mode';
 import {
   normalizeTranscriptLineCount,
@@ -170,6 +176,12 @@ export class RendererTranscriptViewportComponent extends Container {
   private materializeContinuePending = false;
   /** Child indices painted recently — overflow eviction LRU (insertion order). */
   private overflowTouchOrder: number[] = [];
+  /**
+   * Incremental present engine on the real visible-window path (Phase C).
+   * Stable re-presents skip clean lines; dirty work is frame-budgeted.
+   */
+  private readonly incrementalPresenter = new TranscriptVisibleLinePresenter();
+  private lastPresentResult: TranscriptPresentResult | undefined;
 
   constructor(options: RendererTranscriptViewportComponentOptions) {
     super();
@@ -375,9 +387,33 @@ export class RendererTranscriptViewportComponent extends Container {
     this.geometryNeedsContinue = false;
   }
 
-  /** Hosts: schedule another content paint when true after a frame. */
+  /**
+   * Hosts: schedule another content paint when true after a frame.
+   * Includes cold materialize placeholders and incremental present budget stop.
+   */
   get needsMaterializeContinue(): boolean {
-    return this.materializeContinuePending;
+    return (
+      this.materializeContinuePending ||
+      this.lastPresentResult?.hasPendingDirty === true
+    );
+  }
+
+  /**
+   * Last incremental present stats from the shipped visible-window path.
+   * Stable re-present → repaintedLines ≪ visibleLines; budget stop → hasPending.
+   */
+  get lastIncrementalPresentStats(): IncrementalRenderStats | undefined {
+    return this.lastPresentResult?.stats;
+  }
+
+  /** True when the last present deferred dirty rows past the frame budget. */
+  get needsIncrementalPresentContinue(): boolean {
+    return this.lastPresentResult?.hasPendingDirty === true;
+  }
+
+  /** Test/host: force all present lines dirty (theme/resize). */
+  invalidateIncrementalPresent(): void {
+    this.incrementalPresenter.invalidate();
   }
 
   /**
@@ -401,6 +437,23 @@ export class RendererTranscriptViewportComponent extends Container {
     let n = 0;
     for (const lines of cache.childRenderRefs) {
       if (lines !== undefined) n += lines.length;
+    }
+    return n;
+  }
+
+  /**
+   * Filled (defined) sparse format slots across overflow children. Windowed
+   * multi-k bodies must stay O(viewport × retain), not geometry height.
+   */
+  get overflowFilledSparseLineCount(): number {
+    const cache = this.overflowRenderCache;
+    if (cache === undefined) return 0;
+    let n = 0;
+    for (const sparse of cache.childFormattedSparse) {
+      if (sparse === undefined) continue;
+      for (const slot of sparse) {
+        if (slot !== undefined) n += 1;
+      }
     }
     return n;
   }
@@ -435,27 +488,36 @@ export class RendererTranscriptViewportComponent extends Container {
 
     // Phase 3 — when the content fits inside the viewport (no overflow) we
     // still need every child, but we can reuse the cached prefixed lines.
+    let visibleLines: RendererRegionLine[];
     if (!snapshot.hasOverflow) {
-      return this.renderAllChildren(width, inner, safeWidth, childCounts);
+      visibleLines = this.renderAllChildren(width, inner, safeWidth, childCounts);
+    } else {
+      // Phase 4 — overflow: render only the children that intersect the visible
+      // line window.  This is the virtual-scroll fast path.
+      visibleLines = this.renderVisibleChildren(
+        inner,
+        safeWidth,
+        childCounts,
+        snapshot.start,
+        snapshot.end,
+      );
+
+      // Drop off-screen / excess retained line arrays so rapid flings cannot
+      // pin the entire transcript history in the heap.
+      this.evictOverflowAwayFromWindow(childCounts, snapshot.start, snapshot.end);
+
+      // Phase 5 — attach a scrollbar gutter if configured.
+      if (this.scrollbar && this.rightPad > 0) {
+        visibleLines = this.renderScrollbar(visibleLines, width, snapshot);
+      }
     }
 
-    // Phase 4 — overflow: render only the children that intersect the visible
-    // line window.  This is the virtual-scroll fast path.
-    const visibleLines = this.renderVisibleChildren(
-      inner,
-      safeWidth,
-      childCounts,
-      snapshot.start,
-      snapshot.end,
-    );
-
-    // Drop off-screen / excess retained line arrays so rapid flings cannot
-    // pin the entire transcript history in the heap.
-    this.evictOverflowAwayFromWindow(childCounts, snapshot.start, snapshot.end);
-
-    // Phase 5 — attach a scrollbar gutter if configured.
-    if (!this.scrollbar || this.rightPad <= 0) return visibleLines;
-    return this.renderScrollbar(visibleLines, width, snapshot);
+    // Phase 6 — incremental present on the real visible window (Phase C).
+    // Returned lines are the applied present buffer: clean rows keep prior
+    // object identity; only budgeted dirty rows are replaced. Hosts continue
+    // via needsMaterializeContinue when hasPendingDirty.
+    this.lastPresentResult = this.incrementalPresenter.present(visibleLines);
+    return this.lastPresentResult.lines as RendererRegionLine[];
   }
 
   /** Returns the inner content width (total minus horizontal padding). */
@@ -541,7 +603,7 @@ export class RendererTranscriptViewportComponent extends Container {
           total += provisional;
           continue;
         }
-        const count = child.render(inner).length;
+        const count = measureChildContentRows(child, inner);
         geometry.childRefs[i] = child;
         geometry.counts[i] = count;
         total += count;
@@ -575,7 +637,7 @@ export class RendererTranscriptViewportComponent extends Container {
       const counts: number[] = Array.from({ length: n });
       let total = 0;
       for (let i = 0; i < n; i++) {
-        const count = this.children[i]!.render(inner).length;
+        const count = measureChildContentRows(this.children[i]!, inner);
         counts[i] = count;
         total += count;
       }
@@ -778,7 +840,9 @@ export class RendererTranscriptViewportComponent extends Container {
 
   /**
    * Format only the visible local-line slice of one overflow child.
-   * Raw child.render is cached by identity+array ref (not ambient epoch).
+   * Windowed bodies ({@link supportsWindowedBody}) paint O(visible) rows and
+   * never pin full multi-k arrays in `childRenderRefs`. Legacy children still
+   * cache raw `render()` by identity+array ref (not ambient epoch).
    * Formatted lines are sparse so scrolling a 5k-line tool body only paints
    * the ~viewport rows that actually appear.
    */
@@ -793,6 +857,110 @@ export class RendererTranscriptViewportComponent extends Container {
     const child = this.children[childIndex]!;
     const lead = ' '.repeat(this.leftPad);
 
+    // ── Windowed large-body path (Text and adopters) ─────────────────────
+    // Never call full render() / never store multi-k childRenderRefs.
+    if (supportsWindowedBody(child)) {
+      if (!this.isCacheEnabled()) {
+        const windowLines = child.paintContentRows(inner, sliceStart, sliceEnd);
+        for (const line of windowLines) {
+          out.push(this.formatCanvasLine(lead + line, safeWidth));
+        }
+        return;
+      }
+
+      const childCount = this.children.length;
+      if (
+        this.overflowRenderCache === undefined ||
+        this.overflowRenderCache.inner !== inner ||
+        this.overflowRenderCache.safeWidth !== safeWidth ||
+        this.overflowRenderCache.childRefs.length !== childCount
+      ) {
+        this.overflowRenderCache = {
+          inner,
+          safeWidth,
+          childRefs: Array.from({ length: childCount }),
+          childRenderRefs: Array.from({ length: childCount }),
+          childFormattedSparse: Array.from({ length: childCount }),
+        };
+      }
+
+      const cache = this.overflowRenderCache;
+      let sparse = cache.childFormattedSparse[childIndex];
+      const identityMiss = cache.childRefs[childIndex] !== child;
+
+      if (identityMiss) {
+        if (this.coldMaterializeBudget <= 0) {
+          this.materializeContinuePending = true;
+          const rowCount = Math.max(0, sliceEnd - sliceStart);
+          const pad = ' '.repeat(this.leftPad);
+          for (let k = 0; k < rowCount; k++) {
+            out.push(this.formatCanvasLine(`${pad}…`, safeWidth));
+          }
+          return;
+        }
+        this.coldMaterializeBudget -= 1;
+        cache.childRefs[childIndex] = child;
+        // Critical: do NOT store a full multi-k array in childRenderRefs.
+        cache.childRenderRefs[childIndex] = undefined;
+        sparse = undefined;
+        cache.childFormattedSparse[childIndex] = undefined;
+        this.touchOverflowChild(childIndex);
+        const measured = child.measureContentRows(inner);
+        this.reconcileChildGeometry(inner, childIndex, child, measured);
+      } else {
+        this.touchOverflowChild(childIndex);
+      }
+
+      // Sparse must stay viewport-class, not geometry-height. Scrolling one
+      // multi-k body used to fill every visited row (2500+ formatted lines).
+      // Keep only the current slice ± OVERFLOW_RETAIN_VIEWPORTS of that window.
+      const geometryCount =
+        this.lineCountCache.get(inner)?.counts[childIndex] ??
+        Math.max(sliceEnd, child.measureContentRows(inner));
+      const windowRows = Math.max(1, sliceEnd - sliceStart);
+      const bandMargin = windowRows * OVERFLOW_RETAIN_VIEWPORTS;
+      const bandStart = Math.max(0, sliceStart - bandMargin);
+      const bandEnd = Math.min(geometryCount, sliceEnd + bandMargin);
+
+      if (sparse === undefined) {
+        sparse = Array.from({ length: geometryCount });
+        cache.childFormattedSparse[childIndex] = sparse;
+      } else if (sparse.length < geometryCount) {
+        sparse.length = geometryCount;
+      }
+
+      // Drop off-band filled slots first so a tall-body walk cannot pin multi-k.
+      for (let j = 0; j < sparse.length; j++) {
+        if (j < bandStart || j >= bandEnd) {
+          sparse[j] = undefined;
+        }
+      }
+
+      // Fill missing sparse slots for this visible window only.
+      let missingStart = -1;
+      let missingEnd = -1;
+      for (let j = sliceStart; j < sliceEnd; j++) {
+        if (sparse[j] === undefined) {
+          if (missingStart < 0) missingStart = j;
+          missingEnd = j + 1;
+        }
+      }
+      if (missingStart >= 0) {
+        const windowLines = child.paintContentRows(inner, missingStart, missingEnd!);
+        for (let k = 0; k < windowLines.length; k++) {
+          const j = missingStart + k;
+          if (j >= sliceEnd) break;
+          sparse[j] = this.formatCanvasLine(lead + windowLines[k]!, safeWidth);
+        }
+      }
+
+      for (let j = sliceStart; j < sliceEnd; j++) {
+        out.push(sparse[j] ?? this.formatCanvasLine(lead, safeWidth));
+      }
+      return;
+    }
+
+    // ── Legacy full-array path ───────────────────────────────────────────
     if (!this.isCacheEnabled()) {
       const lines = child.render(inner);
       for (let j = sliceStart; j < sliceEnd; j++) {
@@ -917,4 +1085,12 @@ export class RendererTranscriptViewportComponent extends Container {
 function regionLineToTranscriptDisplayString(line: RendererRegionLine): string {
   if (typeof line === 'string') return line;
   return line.map((cell) => cell.char).join('');
+}
+
+/** Prefer windowed measure; fall back to full render length for legacy cards. */
+function measureChildContentRows(child: Component, inner: number): number {
+  if (supportsWindowedBody(child)) {
+    return child.measureContentRows(inner);
+  }
+  return child.render(inner).length;
 }

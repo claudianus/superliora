@@ -58,10 +58,14 @@ function scheduleProgressiveFill(state: TUIState): void {
   const timer = setTimeout(() => {
     progressiveTimer = undefined;
     progressivePasses += 1;
+    // needsMaterializeContinue includes cold materialize + incremental present
+    // budget stop (hasPendingDirty) so progressive fill finishes dirty rows.
     const needsMore =
       typeof state.transcriptContainer.needsMaterializeContinue === 'boolean'
         ? state.transcriptContainer.needsMaterializeContinue
-        : false;
+        : typeof state.transcriptContainer.needsIncrementalPresentContinue === 'boolean'
+          ? state.transcriptContainer.needsIncrementalPresentContinue
+          : false;
     // Always paint at least a couple progressive frames after settle — the
     // flag is only true after a paint that used placeholders. First progressive
     // tick runs after the settle content request has had a chance to paint.
