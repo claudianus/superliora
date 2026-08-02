@@ -13,6 +13,7 @@ import {
   type McpServerStatusSnapshot,
   selectMcpStartupStatusRows,
 } from '../../utils/mcp/mcp-server-status';
+import { formatMcpStatusNotice } from '../../utils/session/mcp-status-notice';
 
 /** Host surface required by MCP server status rendering. */
 export interface McpStatusEventHost {
@@ -22,6 +23,11 @@ export interface McpStatusEventHost {
   setAppState(patch: Partial<AppState>): void;
   showError(msg: string): void;
   showStatus(msg: string, color?: ColorToken): void;
+  showNotice?(
+    title: string,
+    detail: string,
+    options?: { readonly coalesceKey?: string },
+  ): void;
 }
 
 export class SessionEventMcpStatus {
@@ -90,11 +96,18 @@ export class SessionEventMcpStatus {
       case 'failed': {
         const message = `MCP server "${server.name}" failed${server.error !== undefined ? `: ${server.error}` : ''}`;
         this.finalizeRow(server.name, message, 'error');
+        // Loop52a: named notice — transcript spinner row alone is easy to miss.
+        this.emitStatusNotice({
+          name: server.name,
+          status: 'failed',
+          error: server.error,
+        });
         return;
       }
       case 'needs-auth': {
         const message = `MCP server "${server.name}" needs OAuth — run /mcp-config login ${server.name}`;
         this.finalizeRow(server.name, message, 'warning');
+        this.emitStatusNotice({ name: server.name, status: 'needs-auth' });
         return;
       }
       case 'disabled':
@@ -147,5 +160,19 @@ export class SessionEventMcpStatus {
     }
     this.mcpServerStatusSpinners.delete(name);
     requestTUILayoutRender(state);
+  }
+
+  /** Loop52a: promote failed / needs-auth to coalesceable operator notices. */
+  private emitStatusNotice(input: {
+    readonly name: string;
+    readonly status: string;
+    readonly error?: string;
+  }): void {
+    const notice = formatMcpStatusNotice(input);
+    if (notice === undefined) return;
+    this.host.showNotice?.(notice.title, notice.detail, {
+      coalesceKey: notice.coalesceKey,
+    });
+    this.host.showStatus(notice.status, notice.color);
   }
 }
