@@ -1,6 +1,7 @@
 import { setExperimentalFeatures } from '../../commands';
 import * as slashCommands from '../../commands/hub/dispatch';
 import { DEFAULT_ONBOARDING_PREFERENCES } from '../../config';
+import { formatModelRefreshFailureNotice } from '../../utils/session/model-refresh-notice';
 import type { StartupLifecycleHost } from './types';
 
 export async function maybeStartOnboarding(host: StartupLifecycleHost): Promise<void> {
@@ -48,7 +49,12 @@ export async function refreshProviderModelsInBackground(
       host.showStatus(`${c.providerName} · +${String(c.added)} model${c.added > 1 ? 's' : ''}.`);
     }
     for (const f of result.failed) {
-      host.showStatus(`Skipped refreshing ${f.provider}: ${f.reason}`, 'warning');
+      // Loop54a: named notice — status alone was easy to miss under splash.
+      const notice = formatModelRefreshFailureNotice(f);
+      host.showNotice(notice.title, notice.detail, {
+        coalesceKey: notice.coalesceKey,
+      });
+      host.showStatus(notice.status, 'warning');
     }
   } catch {
     // Best-effort: startup must not crash on background refresh failures.
