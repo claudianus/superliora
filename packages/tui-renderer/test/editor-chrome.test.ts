@@ -164,25 +164,26 @@ describe('renderer editor chrome helpers', () => {
 
     expect(surface.lines.map(rowText)).toEqual([
       '╭────────────────╮',
-      '│ > /goal [statu │',
       '│   ❯ help       │',
+      '│ > /goal [statu │',
       '╰────────────────╯',
     ]);
     expect(surface.frameLines.map(rowText)).toEqual([
-      '╭────────────────╮',
       '│ > /goal [statu │',
+      '╰────────────────╯',
     ]);
     expect(surface.overlayLines).toEqual(['❯ help']);
-    expect(surface.cursor).toMatchObject({ x: 9, y: 1, visible: true });
+    // Overlay cap (1) + suggestion (1) + input row (0 local) → absolute y = 2
+    expect(surface.cursor).toMatchObject({ x: 9, y: 2, visible: true });
   });
 
-  it('keeps the prompt line when autocomplete omits the bottom border at frameRows=2', () => {
-    // Slash suggestions attach below the input and defer the bottom border.
-    // frameRows=2 must still paint the prompt/`/` row — not only the top edge.
+  it('keeps the prompt line when autocomplete omits the top border at frameRows=2', () => {
+    // Slash suggestions attach above the input and defer the top border.
+    // frameRows=2 must still paint the prompt/`/` row — not only the bottom edge.
     const frame = renderRendererEditorFrame({
       width: 16,
       height: 2,
-      omitBottomBorder: true,
+      omitTopBorder: true,
       inputLines: [[
         { char: '/' },
         { char: 'h' },
@@ -195,10 +196,10 @@ describe('renderer editor chrome helpers', () => {
     });
 
     expect(frame.lines.map(rowText)).toEqual([
-      '╭──────────────╮',
       '│ > /help      │',
+      '╰──────────────╯',
     ]);
-    expect(frame.cursor).toMatchObject({ x: 9, y: 1, visible: true });
+    expect(frame.cursor).toMatchObject({ x: 9, y: 0, visible: true });
 
     const surface = renderRendererEditorSurface({
       width: 16,
@@ -216,14 +217,39 @@ describe('renderer editor chrome helpers', () => {
 
     expect(surface.lines.map(rowText)).toEqual([
       '╭──────────────╮',
+      '│   ❯ help     │',
+      '│     history  │',
+      '│ > /          │',
+      '╰──────────────╯',
+    ]);
+    expect(surface.frameLines.map(rowText)).toEqual([
+      '│ > /          │',
+      '╰──────────────╯',
+    ]);
+    // top cap + 2 suggestions + input local y0 → absolute y = 3
+    expect(surface.cursor).toMatchObject({ x: 5, y: 3, visible: true });
+  });
+
+  it('still supports legacy below placement when requested', () => {
+    const surface = renderRendererEditorSurface({
+      width: 16,
+      frameRows: 2,
+      overlayPlacement: 'below',
+      content: {
+        lines: [[{ char: '/' }]],
+        cursor: { x: 1, y: 0, visible: true, shape: 'bar' },
+        contentRows: 1,
+        viewportRow: 0,
+      },
+      overlays: ['❯ help', '  history'],
+    });
+
+    expect(surface.lines.map(rowText)).toEqual([
+      '╭──────────────╮',
       '│ > /          │',
       '│   ❯ help     │',
       '│     history  │',
       '╰──────────────╯',
-    ]);
-    expect(surface.frameLines.map(rowText)).toEqual([
-      '╭──────────────╮',
-      '│ > /          │',
     ]);
     expect(surface.cursor).toMatchObject({ x: 5, y: 1, visible: true });
   });
@@ -301,6 +327,30 @@ describe('renderer editor chrome helpers', () => {
       },
       focused: true,
     }).borderStyle).toEqual({ fg: '#555555' });
+  });
+
+
+  it('places suggestions above the prompt by default for baseline stability', () => {
+    const surface = renderRendererEditorSurface({
+      width: 18,
+      content: {
+        lines: [[{ char: '/' }, { char: 'h' }]],
+        cursor: { x: 2, y: 0, visible: true, shape: 'bar' },
+        contentRows: 1,
+        viewportRow: 0,
+      },
+      overlays: ['❯ help', '  history'],
+    });
+    const rows = surface.lines.map(rowText);
+    expect(rows[0]).toMatch(/^╭/);
+    expect(rows[1]).toContain('❯ help');
+    expect(rows[2]).toContain('history');
+    expect(rows[3]).toContain('> /h');
+    expect(rows[4]).toMatch(/^╰/);
+    // Input is the last content row before bottom border → stable bottom baseline.
+    expect(rows.indexOf(rows.find((r) => r.includes('> /h'))!)).toBeGreaterThan(
+      rows.findIndex((r) => r.includes('❯ help')),
+    );
   });
 
   it('measures native editor surface rows and renders automatic scrollbars', () => {

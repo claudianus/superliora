@@ -124,18 +124,36 @@ export function projectNativeEditorRegion(
     description: editorStyles.autocompleteDescriptionStyle,
     scroll: editorStyles.autocompleteScrollStyle,
   }) ?? [];
+  // Default product placement: suggestions above the prompt (stable baseline).
+  const overlayPlacement = 'above' as const;
   const surfaceLayout = measureRendererEditorSurfaceLayout({
     height: Math.floor(rect.height),
     overlays: overlayLines,
+    overlayPlacement,
   });
   const editorFrameRect = { ...rect, height: surfaceLayout.frameRows };
+  // Above overlays omit the frame top border → contentY=0, bottom inset=1.
+  // Closed / below keep the stock geometry (top inset 1, bottom 1 or 0).
+  const frameGeometry = overlayLines.length > 0 && overlayPlacement === 'above'
+    ? {
+        ...RENDERER_EDITOR_FRAME_TEXT_INPUT_GEOMETRY,
+        contentY: 0,
+        contentBottomInset: 1,
+      }
+    : overlayLines.length > 0
+      ? {
+          ...RENDERER_EDITOR_FRAME_TEXT_INPUT_GEOMETRY,
+          contentY: 1,
+          contentBottomInset: 0,
+        }
+      : RENDERER_EDITOR_FRAME_TEXT_INPUT_GEOMETRY;
   const contentHeight = rendererEditorContentHeight(
     editorFrameRect,
-    RENDERER_EDITOR_FRAME_TEXT_INPUT_GEOMETRY,
+    frameGeometry,
   ) ?? 1;
   const contentWidth = rendererEditorContentWidth(
     editorFrameRect,
-    RENDERER_EDITOR_FRAME_TEXT_INPUT_GEOMETRY,
+    frameGeometry,
   ) ?? 1;
   const input = state.nativeEditorTextInput.inputForEditor(state.editor, {
     focused: true,
@@ -162,6 +180,7 @@ export function projectNativeEditorRegion(
     prompt: isBash ? '!' : '>',
     topLabel: isBash ? RENDERER_EDITOR_SHELL_MODE_LABEL : undefined,
     overlays: surfaceLayout.overlayLines,
+    overlayPlacement,
     scrollbar: {},
     connectedAbove: state.editor.connectedAbove && !state.editor.borderHighlighted && !ultraworkGlow,
     borderStyle: ultraworkBorderStyle ?? editorStyles.borderStyle,

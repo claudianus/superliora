@@ -103,9 +103,11 @@ export function buildNativeTUIEditorSurface(host: NativeTUIEditorRenderHost, wid
     ghostText: host.getGhostText(),
     ghostStyle: editorStyles.ghostStyle,
   });
+  const overlayPlacement = 'above' as const;
   const surfaceLayout = measureRendererEditorSurfaceLayout({
     height: measureRendererEditorSurfaceNaturalRows(overlayLines, content.contentRows),
     overlays: overlayLines,
+    overlayPlacement,
   });
   return renderRendererEditorSurface({
     width: safeWidth,
@@ -123,6 +125,7 @@ export function buildNativeTUIEditorSurface(host: NativeTUIEditorRenderHost, wid
     topLabel: host.inputMode === 'bash' ? RENDERER_EDITOR_SHELL_MODE_LABEL : undefined,
     connectedAbove: host.connectedAbove && !host.borderHighlighted,
     overlays: surfaceLayout.overlayLines,
+    overlayPlacement,
     borderStyle: editorStyles.borderStyle,
     promptStyle: editorStyles.promptStyle,
     surfaceStyle: editorStyles.surfaceStyle,

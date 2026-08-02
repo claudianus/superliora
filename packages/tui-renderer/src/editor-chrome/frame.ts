@@ -41,22 +41,26 @@ export function renderRendererEditorFrame(
     RENDERER_EDITOR_SCROLLBAR_THUMB,
   );
   const lines: RendererCell[][] = [];
-  const topLeft = options.connectedAbove === true ? '├' : '╭';
-  const topRight = options.connectedAbove === true ? '┤' : '╮';
-  lines.push(createRendererEditorBorderLine({
-    width,
-    left: topLeft,
-    right: topRight,
-    style: options.borderStyle,
-    label: options.topLabel,
-  }));
+  const omitTop = options.omitTopBorder === true;
+  const omitBottom = options.omitBottomBorder === true;
+  const topBorderRows = omitTop ? 0 : 1;
+  const bottomBorderRows = omitBottom ? 0 : 1;
+  // When autocomplete overlays attach on one side, that border is deferred to
+  // the overlay chrome. Content then uses height - remaining borders only —
+  // e.g. frameRows=2 with omitTop (above placement) still paints the prompt.
+  const contentRows = Math.max(0, height - topBorderRows - bottomBorderRows);
 
-  // When autocomplete overlays attach below the input, the bottom border is
-  // deferred to the overlay chrome. Content must then use height - 1 (top only),
-  // not height - 2 — otherwise frameRows=2 paints only the top edge and the
-  // prompt/`/` line vanishes the moment slash suggestions open.
-  const bottomBorderRows = options.omitBottomBorder === true ? 0 : 1;
-  const contentRows = Math.max(0, height - 1 - bottomBorderRows);
+  if (!omitTop) {
+    const topLeft = options.connectedAbove === true ? '├' : '╭';
+    const topRight = options.connectedAbove === true ? '┤' : '╮';
+    lines.push(createRendererEditorBorderLine({
+      width,
+      left: topLeft,
+      right: topRight,
+      style: options.borderStyle,
+      label: options.topLabel,
+    }));
+  }
 
   for (let row = 0; row < contentRows; row++) {
     const cells = createRendererEditorBlankLine(width, options.surfaceStyle);
@@ -91,7 +95,7 @@ export function renderRendererEditorFrame(
     lines.push(cells);
   }
 
-  if (height > 1 && options.omitBottomBorder !== true) {
+  if (height > 1 && !omitBottom) {
     lines.push(createRendererEditorBorderLine({
       width,
       left: '╰',
@@ -107,6 +111,7 @@ export function renderRendererEditorFrame(
       height,
       contentX,
       contentRows,
+      contentYOffset: topBorderRows,
       inputCursor: options.inputCursor,
       hasScrollbar: scrollbarLines.length > 0,
     }),
@@ -124,7 +129,18 @@ export function renderRendererEditorOverlayLines(
     RENDERER_EDITOR_CONTENT_X,
   );
   const contentWidth = Math.max(1, width - contentX - 1);
+  const cap = options.cap === 'top' ? 'top' : 'bottom';
   const lines: RendererCell[][] = [];
+
+  if (cap === 'top') {
+    lines.push(createRendererEditorBorderLine({
+      width,
+      left: '╭',
+      right: '╮',
+      style: options.borderStyle,
+    }));
+  }
+
   for (const line of options.lines) {
     const cells = createRendererEditorBlankLine(width, options.surfaceStyle);
     cells[0] = { char: '│', style: options.borderStyle };
@@ -142,11 +158,14 @@ export function renderRendererEditorOverlayLines(
     }
     lines.push(cells);
   }
-  lines.push(createRendererEditorBorderLine({
-    width,
-    left: '╰',
-    right: '╯',
-    style: options.borderStyle,
-  }));
+
+  if (cap === 'bottom') {
+    lines.push(createRendererEditorBorderLine({
+      width,
+      left: '╰',
+      right: '╯',
+      style: options.borderStyle,
+    }));
+  }
   return lines;
 }
