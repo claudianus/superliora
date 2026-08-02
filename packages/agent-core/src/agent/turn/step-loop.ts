@@ -126,7 +126,7 @@ export async function runTurnStepLoop(
           }
         },
         hooks: {
-          beforeStep: async ({ signal: stepSignal, step }) => {
+          beforeStep: async ({ signal: stepSignal, stepNumber }) => {
             // Loop20a: soft re-check tool-list fingerprint every step (no throw —
             // ephemeral orchestrator tools may attach mid-session; setActiveTools
             // remains hard-blocked while frozen).
@@ -157,7 +157,7 @@ export async function runTurnStepLoop(
             const maxSteps = loopControl?.maxStepsPerTurn;
             if (typeof maxSteps === 'number' && maxSteps > 0) {
               const decision = decideStepBudgetWarn({
-                step,
+                step: stepNumber,
                 maxSteps,
                 alreadyWarned: stepBudgetWarnUsed,
               });
@@ -459,7 +459,9 @@ async function maybeAutoSpawnProjectChecks(input: {
         'test' | 'typecheck' | 'build' | 'smoke' | 'lint'
       >,
     });
-    if (!('execute' in resolved) || resolved.isError === true) {
+    // ToolExecution = RunnableToolExecution | ExecutableToolErrorResult.
+    // Narrow on `execute` presence — RunnableToolExecution.isError is only `false|undefined`.
+    if (!('execute' in resolved) || typeof resolved.execute !== 'function') {
       const errBody =
         'isError' in resolved && resolved.isError === true
           ? toolOutputText(resolved.output)
