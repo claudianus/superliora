@@ -16,6 +16,13 @@ export type ShellSensitivePathHit = {
 };
 
 /**
+ * Loop44a — stable marker when Bash is hard-denied for a sensitive path
+ * (env / credential / SSH key). TUI matches this for a named notice; there is
+ * no force-prefix escape hatch.
+ */
+export const SHELL_SENSITIVE_PATH_CODE = 'SHELL_SENSITIVE_PATH' as const;
+
+/**
  * Returns a hit when the command clearly references a sensitive path.
  * Undefined means allow Bash (subject to other policies).
  */
@@ -36,7 +43,7 @@ export function detectShellSensitivePath(command: string): ShellSensitivePathHit
 }
 
 export function formatShellSensitivePathError(hit: ShellSensitivePathHit): string {
-  return `Bash blocked: sensitive path. ${hit.message}`;
+  return `Bash blocked: sensitive path. ${hit.message} code=${SHELL_SENSITIVE_PATH_CODE}`;
 }
 
 /**

@@ -59,5 +59,6 @@ describe('detectShellSensitivePath', () => {
     expect(msg).toContain('Bash blocked');
     expect(msg).toContain('sensitive');
     expect(msg).toContain('.env');
+    expect(msg).toContain('code=SHELL_SENSITIVE_PATH');
   });
 });
