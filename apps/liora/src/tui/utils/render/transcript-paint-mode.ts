@@ -19,6 +19,8 @@
 
 import {
   isTranscriptMeasureMode,
+  isTranscriptScrollStorm,
+  TRANSCRIPT_SCROLL_STORM_GAP_MS,
   withTranscriptCheapPaintMode,
 } from '#/tui/renderer';
 
@@ -27,6 +29,14 @@ let lastScrollActivityMs = 0;
 
 /** How long after a scroll paint chrome timers should skip refresh. */
 export const TRANSCRIPT_SCROLL_TIMER_HOLD_MS = 180;
+/**
+ * Hold content/layout invalidation after pure-scroll. Slightly longer than
+ * storm gap so format/ambient ticks cannot re-enter while the wheel is hot.
+ */
+export const TRANSCRIPT_SCROLL_INVALIDATION_HOLD_MS = Math.max(
+  TRANSCRIPT_SCROLL_TIMER_HOLD_MS,
+  TRANSCRIPT_SCROLL_STORM_GAP_MS * 5,
+);
 
 export interface TranscriptPaintMode {
   readonly suppressLiveToolTicks?: boolean;
@@ -59,7 +69,22 @@ export function wasRecentTranscriptScroll(
   nowMs: number = Date.now(),
   holdMs: number = TRANSCRIPT_SCROLL_TIMER_HOLD_MS,
 ): boolean {
+  if (isTranscriptScrollStorm(nowMs, holdMs)) return true;
   return nowMs - lastScrollActivityMs < holdMs && lastScrollActivityMs > 0;
+}
+
+/**
+ * True while content/geometry invalidation must defer (scroll storm or recent
+ * pure-scroll paint). Stronger than {@link wasRecentTranscriptScroll} for
+ * O(transcript) work like invalidateGeometryAndPaint.
+ */
+export function shouldDeferTranscriptHeavyInvalidation(
+  nowMs: number = Date.now(),
+): boolean {
+  return (
+    isTranscriptScrollStorm(nowMs, TRANSCRIPT_SCROLL_INVALIDATION_HOLD_MS) ||
+    wasRecentTranscriptScroll(nowMs, TRANSCRIPT_SCROLL_INVALIDATION_HOLD_MS)
+  );
 }
 
 /** Test helper. */

@@ -23,13 +23,21 @@ describe('formatPermissionApproveFooterBadge', () => {
 
   it('shows perm✓ within TTL', () => {
     expect(
-      formatPermissionApproveFooterBadge({ atMs }, atMs + PERMISSION_APPROVE_FLOURISH_BADGE_TTL_MS - 1),
+      formatPermissionApproveFooterBadge(
+        { atMs },
+        atMs + PERMISSION_APPROVE_FLOURISH_BADGE_TTL_MS - 1,
+        'compact',
+      ),
     ).toEqual({ text: 'perm✓', severity: 'info' });
   });
 
   it('hides at and after TTL', () => {
     expect(
-      formatPermissionApproveFooterBadge({ atMs }, atMs + PERMISSION_APPROVE_FLOURISH_BADGE_TTL_MS),
+      formatPermissionApproveFooterBadge(
+        { atMs },
+        atMs + PERMISSION_APPROVE_FLOURISH_BADGE_TTL_MS,
+        'compact',
+      ),
     ).toBeNull();
   });
 });

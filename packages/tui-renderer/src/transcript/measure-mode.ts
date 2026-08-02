@@ -5,8 +5,12 @@
  * Geometry (`contentRowCount` / line-count probes) and pure-scroll frames must
  * never pay full highlight / pretty-print / unbounded tokenize on cold bodies.
  * Measure mode is set only around line-count probes. Cheap-paint mode is set
- * for pure transcript scroll frames so first-intersection history cards can
- * paint plain (or cache-hit) lines without blocking the wheel path.
+ * for pure transcript scroll frames so the viewport uses cache/placeholder only
+ * (no child materialize on the wheel path).
+ *
+ * Scroll-storm tracking: frames closer than {@link TRANSCRIPT_SCROLL_STORM_GAP_MS}
+ * after a pure-scroll paint are "storm" — hosts must defer content invalidation
+ * and the viewport must not evict or cold-paint.
  *
  * Real ambient/content paints leave both flags clear so live ticks and full
  * formatting still run.
@@ -14,6 +18,14 @@
 
 let measureDepth = 0;
 let cheapPaintDepth = 0;
+/** Last pure-scroll paint timestamp (ms). 0 = never. */
+let lastPureScrollPaintAt = 0;
+
+/**
+ * Wheel frames closer than this are a scroll storm: no child paint, no eviction,
+ * no content invalidation that forces O(transcript) work.
+ */
+export const TRANSCRIPT_SCROLL_STORM_GAP_MS = 40;
 
 /**
  * Bodies larger than this skip full ANSI wrap under measure mode and return a
@@ -61,6 +73,40 @@ export function isTranscriptCheapPaintMode(): boolean {
  */
 export function shouldSkipExpensiveTranscriptFormat(): boolean {
   return measureDepth > 0 || cheapPaintDepth > 0;
+}
+
+/**
+ * Record a pure-scroll paint and return whether this frame is part of a storm
+ * (previous pure-scroll was within {@link TRANSCRIPT_SCROLL_STORM_GAP_MS}).
+ */
+export function noteTranscriptPureScrollPaint(
+  nowMs: number = typeof performance !== 'undefined' && typeof performance.now === 'function'
+    ? performance.now()
+    : Date.now(),
+): boolean {
+  const storm =
+    lastPureScrollPaintAt > 0 && nowMs - lastPureScrollPaintAt < TRANSCRIPT_SCROLL_STORM_GAP_MS;
+  lastPureScrollPaintAt = nowMs;
+  return storm;
+}
+
+/**
+ * True when a pure-scroll paint ran recently enough that mid-scroll content
+ * invalidation must defer (same window as storm gap, slightly longer hold for
+ * hosts that only check between frames).
+ */
+export function isTranscriptScrollStorm(
+  nowMs: number = typeof performance !== 'undefined' && typeof performance.now === 'function'
+    ? performance.now()
+    : Date.now(),
+  gapMs: number = TRANSCRIPT_SCROLL_STORM_GAP_MS,
+): boolean {
+  return lastPureScrollPaintAt > 0 && nowMs - lastPureScrollPaintAt < gapMs;
+}
+
+/** Last pure-scroll paint time (0 if none). Hosts use this for settle hold. */
+export function lastTranscriptPureScrollPaintAt(): number {
+  return lastPureScrollPaintAt;
 }
 
 /**
@@ -118,4 +164,5 @@ export function measurePlaceholderLines(rowCount: number): string[] {
 export function resetTranscriptMeasureModeForTest(): void {
   measureDepth = 0;
   cheapPaintDepth = 0;
+  lastPureScrollPaintAt = 0;
 }

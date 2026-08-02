@@ -41,13 +41,17 @@ describe('formatGitChurnFooterBadge', () => {
   const atMs = 1_000_000;
 
   it('shows diff↑ within TTL', () => {
-    expect(formatGitChurnFooterBadge({ atMs, count: 1 }, atMs + GIT_CHURN_BADGE_TTL_MS - 1)).toEqual({
+    expect(
+      formatGitChurnFooterBadge({ atMs, count: 1 }, atMs + GIT_CHURN_BADGE_TTL_MS - 1, 'compact'),
+    ).toEqual({
       text: 'diff↑',
       severity: 'info',
     });
   });
 
   it('hides at and after TTL', () => {
-    expect(formatGitChurnFooterBadge({ atMs, count: 1 }, atMs + GIT_CHURN_BADGE_TTL_MS)).toBeNull();
+    expect(
+      formatGitChurnFooterBadge({ atMs, count: 1 }, atMs + GIT_CHURN_BADGE_TTL_MS, 'compact'),
+    ).toBeNull();
   });
 });

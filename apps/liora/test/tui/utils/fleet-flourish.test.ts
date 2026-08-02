@@ -33,7 +33,7 @@ describe('formatFleetFlourishFooterBadge', () => {
 
   it('shows fleet✓ within TTL', () => {
     expect(
-      formatFleetFlourishFooterBadge({ atMs }, atMs + FLEET_FLOURISH_BADGE_TTL_MS - 1),
+      formatFleetFlourishFooterBadge({ atMs }, atMs + FLEET_FLOURISH_BADGE_TTL_MS - 1, 'compact'),
     ).toEqual({ text: 'fleet✓', severity: 'info' });
   });
 

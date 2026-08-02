@@ -47,7 +47,7 @@ describe('overflow soft-evict leaf paint drop only', () => {
         super.invalidate();
       }
 
-      softDropPaintCaches(): void {
+      override softDropPaintCaches(): void {
         softDropCalls += 1;
         super.softDropPaintCaches();
       }
@@ -111,7 +111,7 @@ describe('overflow soft-evict leaf paint drop only', () => {
         this.addChild(this.markdown);
       }
 
-      softDropPaintCaches(): void {
+      override softDropPaintCaches(): void {
         softDropCalls += 1;
         this.markdown.softDropPaintCaches();
       }

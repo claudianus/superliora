@@ -51,13 +51,17 @@ describe('formatGoalXpPulseFooterBadge', () => {
   const atMs = 1_000_000;
 
   it('shows xp within TTL', () => {
-    expect(formatGoalXpPulseFooterBadge({ atMs }, atMs + GOAL_XP_PULSE_BADGE_TTL_MS - 1)).toEqual({
+    expect(
+      formatGoalXpPulseFooterBadge({ atMs }, atMs + GOAL_XP_PULSE_BADGE_TTL_MS - 1, 'compact'),
+    ).toEqual({
       text: 'xp',
       severity: 'info',
     });
   });
 
   it('hides at and after TTL', () => {
-    expect(formatGoalXpPulseFooterBadge({ atMs }, atMs + GOAL_XP_PULSE_BADGE_TTL_MS)).toBeNull();
+    expect(
+      formatGoalXpPulseFooterBadge({ atMs }, atMs + GOAL_XP_PULSE_BADGE_TTL_MS, 'compact'),
+    ).toBeNull();
   });
 });

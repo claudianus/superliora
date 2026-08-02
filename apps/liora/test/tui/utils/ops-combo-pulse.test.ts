@@ -89,7 +89,7 @@ describe('formatOpsComboFooterBadge', () => {
 
   it('shows combo×N within TTL', () => {
     expect(
-      formatOpsComboFooterBadge({ atMs, score: 3 }, atMs + OPS_COMBO_PULSE_TTL_MS - 1),
+      formatOpsComboFooterBadge({ atMs, score: 3 }, atMs + OPS_COMBO_PULSE_TTL_MS - 1, 'compact'),
     ).toEqual({ text: 'combo×3', severity: 'info' });
   });
 

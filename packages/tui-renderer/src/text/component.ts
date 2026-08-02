@@ -605,8 +605,13 @@ export function wrapTextWithAnsi(text: string, width: number): string[] {
 }
 
 /**
- * Plain (no ANSI) wrap of `[startRow, endRow)`. Scans prefix without retaining
- * off-window line strings.
+ * Plain (no ANSI) wrap of `[startRow, endRow)`.
+ *
+ * Uses the same word-run tokenizer as the ANSI path (grapheme + display width,
+ * soft-wrap at whitespace, trim trailing spaces) but skips SGR state. Only the
+ * visible row window is retained so multi-k tool bodies can deep-scroll without
+ * pinning a full line array. Must not walk raw UTF-16 units (that splits emoji
+ * surrogates and breaks pi-tui-compatible wrap contracts).
  */
 function wrapPlainDisplayTextRange(
   text: string,
@@ -618,39 +623,74 @@ function wrapPlainDisplayTextRange(
   const tabWidth = normalizeTabWidth(options.tabWidth);
   const out: string[] = [];
   let row = 0;
-  let lineStart = 0;
-  let col = 0;
+  let current = '';
+  let currentWidth = 0;
 
-  const emitLine = (end: number): boolean => {
+  const pushLine = (line: string): boolean => {
     if (row >= endRow) return false;
-    if (row >= startRow) {
-      // Expand tabs in the emitted slice only.
-      const raw = text.slice(lineStart, end).replaceAll('\t', ' '.repeat(tabWidth));
-      out.push(raw);
-    }
+    if (row >= startRow) out.push(line);
     row += 1;
     return row < endRow;
   };
 
-  for (let i = 0; i < text.length; i++) {
+  for (const token of tokenizeAnsiWrapText(text, tabWidth)) {
     if (row >= endRow) break;
-    const ch = text.charCodeAt(i);
-    if (ch === 10 /* \n */) {
-      if (!emitLine(i)) break;
-      lineStart = i + 1;
-      col = 0;
+
+    if (token.kind === 'newline') {
+      if (!pushLine(current.trimEnd())) break;
+      current = '';
+      currentWidth = 0;
       continue;
     }
-    const w = ch === 9 /* \t */ ? tabWidth : 1;
-    if (col > 0 && col + w > maxWidth) {
-      if (!emitLine(i)) break;
-      lineStart = i;
-      col = 0;
+
+    if (token.width <= 0) {
+      current += token.text;
+      continue;
     }
-    col += w;
+
+    // Long word: hard-break via grapheme walk (same as ANSI path).
+    if (token.width > maxWidth && !token.whitespace) {
+      if (currentWidth > 0) {
+        if (!pushLine(current.trimEnd())) break;
+        current = '';
+        currentWidth = 0;
+      }
+      let piece = '';
+      let pieceWidth = 0;
+      for (const cluster of splitDisplayClusters(token.text)) {
+        if (row >= endRow) break;
+        const w = Math.max(0, cluster.width);
+        if (w <= 0) {
+          piece += cluster.text;
+          continue;
+        }
+        if (pieceWidth > 0 && pieceWidth + w > maxWidth) {
+          if (!pushLine(piece)) break;
+          piece = '';
+          pieceWidth = 0;
+        }
+        if (w > maxWidth) continue;
+        piece += cluster.text;
+        pieceWidth += w;
+      }
+      current = piece;
+      currentWidth = pieceWidth;
+      continue;
+    }
+
+    if (currentWidth > 0 && currentWidth + token.width > maxWidth) {
+      if (!pushLine(current.trimEnd())) break;
+      current = '';
+      currentWidth = 0;
+      if (token.whitespace) continue;
+    }
+
+    current += token.text;
+    currentWidth += token.width;
   }
-  if (row < endRow && (lineStart < text.length || row === 0)) {
-    emitLine(text.length);
+
+  if (row < endRow && (current.length > 0 || row === 0)) {
+    pushLine(current.trimEnd());
   }
   return out;
 }

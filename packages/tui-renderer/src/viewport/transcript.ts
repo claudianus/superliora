@@ -44,11 +44,21 @@ export class RendererTranscriptViewport {
     return this.current;
   }
 
-  scroll(action: RendererTranscriptScrollAction): boolean {
+  /**
+   * Scroll the transcript window. When `amount` is set (wheel storms / tests),
+   * it is the row delta for line actions (or page size for page actions).
+   * When omitted, line actions use {@link lineScrollRows} and page actions use
+   * the current viewport height.
+   */
+  scroll(action: RendererTranscriptScrollAction, amount?: number): boolean {
     const previous = this.current;
+    const rows =
+      amount !== undefined
+        ? normalizePositiveRows(amount)
+        : rendererTranscriptScrollRows(action, this.current.viewportRows, this.lineScrollRows);
     this.current = this.viewport.scroll(
       rendererTranscriptToViewportScrollAction(action),
-      rendererTranscriptScrollRows(action, this.current.viewportRows, this.lineScrollRows),
+      rows,
     );
     return viewportPositionChanged(previous, this.current);
   }
