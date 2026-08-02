@@ -4,7 +4,10 @@ import type {
   ExecutableToolResult,
   ToolExecution,
 } from '../../../src/loop';
-import { PathSecurityError } from '../../../src/tools/policies/path-access';
+import {
+  formatPathSecurityErrorOutput,
+  PathSecurityError,
+} from '../../../src/tools/policies/path-access';
 
 export type TestExecutableToolContext<Input> = ExecutableToolContext & {
   readonly args: Input;
@@ -22,7 +25,7 @@ export async function executeTool<Input>(
   } catch (error) {
     const output =
       error instanceof PathSecurityError
-        ? error.message
+        ? formatPathSecurityErrorOutput(error)
         : `Tool "${tool.name}" failed to resolve execution: ${
             error instanceof Error ? error.message : String(error)
           }`;

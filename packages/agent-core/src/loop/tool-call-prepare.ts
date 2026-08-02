@@ -1,4 +1,7 @@
-import { PathSecurityError } from '../tools/policies/path-access';
+import {
+  formatPathSecurityErrorOutput,
+  PathSecurityError,
+} from '../tools/policies/path-access';
 
 import { errorMessage, isAbortError } from './errors';
 import { ToolAccesses } from './tool-access';
@@ -94,7 +97,8 @@ export async function prepareToolCall(
     }
     const output =
       error instanceof PathSecurityError
-        ? error.message
+        ? // Loop45a: include stable PATH_* code for TUI named notices.
+          formatPathSecurityErrorOutput(error)
         : `Tool "${call.toolName}" failed to resolve execution: ${errorMessage(error)}`;
     return settleError(effectiveArgs, output);
   }

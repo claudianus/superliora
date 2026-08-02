@@ -56,6 +56,10 @@ import {
   isShellSensitivePathOutput,
 } from '../../utils/tools/shell-sensitive-path-notice';
 import {
+  formatPathSecurityNotice,
+  isPathSecurityOutput,
+} from '../../utils/tools/path-security-notice';
+import {
   formatAutoCheckSpawnNotice,
   isAutoCheckSpawnOutput,
 } from '../../utils/tools/auto-check-spawn-notice';
@@ -281,6 +285,13 @@ export class SessionEventTools {
           matchedCall?.name,
           resultData.output,
         );
+        this.host.showNotice(notice.title, notice.detail, {
+          coalesceKey: notice.coalesceKey,
+        });
+        this.host.showStatus?.(notice.status, 'warning');
+      } else if (event.isError === true && isPathSecurityOutput(resultData.output)) {
+        // Loop45a: Read/Write/Edit/Grep/Glob PathSecurityError (PATH_* codes).
+        const notice = formatPathSecurityNotice(matchedCall?.name, resultData.output);
         this.host.showNotice(notice.title, notice.detail, {
           coalesceKey: notice.coalesceKey,
         });
