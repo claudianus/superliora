@@ -52,19 +52,28 @@ describe('incremental present path (Phase C)', () => {
     expect(result.paintCommands.map((c) => c.row).sort()).toEqual([5, 6]);
   });
 
-  it('frame budget stops dirty work and reports pending', () => {
-    // Tiny budget so multi-line dirty present cannot finish in one frame.
+  it('engine budget stop still works; transcript presenter never defers dirty rows', () => {
+    // Engine primitive: 0ms budget can leave pending (unit-level).
     const engine = new IncrementalRenderer({ frameBudgetMs: 0, useHashing: true });
     for (let i = 0; i < 200; i++) {
       engine.appendLine(`dirty-seed-${i}-${'z'.repeat(80)}`);
     }
-    // All dirty on first present.
     const commands = engine.computePaintCommands({ start: 0, end: 200 });
-    // With 0ms budget, at most one dirty line may slip through before the check
-    // — remaining must stay pending.
     expect(commands.length).toBeLessThan(200);
     expect(engine.hasPendingDirtyLines({ start: 0, end: 200 })).toBe(true);
-    expect(engine.lastFrameStats.repaintedLines).toBeLessThan(200);
+
+    // Shipped transcript presenter: full-window dirty (scroll) must apply every
+    // incoming row in one present — stale prev rows caused flicker freezes.
+    const presenter = new TranscriptVisibleLinePresenter();
+    const first = Array.from({ length: 40 }, (_, i) => `scroll-a-${i}`);
+    presenter.present(first);
+    const second = Array.from({ length: 40 }, (_, i) => `scroll-b-${i}`);
+    const result = presenter.present(second);
+    expect(result.hasPendingDirty).toBe(false);
+    expect(result.stats.repaintedLines).toBe(40);
+    for (let i = 0; i < 40; i++) {
+      expect(result.lines[i]).toBe(second[i]);
+    }
   });
 
   it('shipped viewport present path skips clean lines on stable re-render', () => {

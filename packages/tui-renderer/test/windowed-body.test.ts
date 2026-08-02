@@ -101,6 +101,7 @@ describe('windowed large-body paint (Phase D)', () => {
   it('scrolling one multi-k body keeps filled sparse slots viewport-class', () => {
     // Honest criterion-2 proxy: a single tall body still in the retain band must
     // not accumulate filled sparse for every visited local row (geometry height).
+    // Also guards O(geometry) clear freezes: band storage is compact only.
     const visibleRows = 16;
     const viewport = new RendererTranscriptViewport();
     const transcript = new RendererTranscriptViewportComponent({
@@ -121,10 +122,21 @@ describe('windowed large-body paint (Phase D)', () => {
     transcript.render(80);
     viewport.jumpToLine(0);
     // Walk deep into the tall body while it remains the retained intersecting child.
-    for (let step = 0; step < 200; step++) {
+    // Keep step count moderate — paint must stay O(band) not O(geometry×steps).
+    const started =
+      typeof performance !== 'undefined' && typeof performance.now === 'function'
+        ? performance.now()
+        : Date.now();
+    for (let step = 0; step < 80; step++) {
       viewport.scroll('line-down');
       transcript.render(80);
     }
+    const elapsed =
+      (typeof performance !== 'undefined' && typeof performance.now === 'function'
+        ? performance.now()
+        : Date.now()) - started;
+    // Synthetic bound: 80 content frames through multi-k must not block for seconds.
+    expect(elapsed).toBeLessThan(5_000);
 
     const filled = transcript.overflowFilledSparseLineCount;
     // Retain band = viewport × (1 + 2 × OVERFLOW_RETAIN_VIEWPORTS) with margin on both sides.

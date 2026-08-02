@@ -52,17 +52,29 @@ interface RendererTranscriptViewportRenderCache {
  * re-formatted every tall historical message during fast wheel scroll — the
  * residual freeze after geometry was decoupled from epoch.
  */
+/**
+ * Viewport-class sparse format band for one overflow child.
+ * Never sized to geometry height — multi-k O(geometry) clear loops were a
+ * permanent-freeze class after windowed paint landed.
+ */
+interface RendererTranscriptSparseBand {
+  /** Local row index of slots[0]. */
+  origin: number;
+  slots: (RendererRegionLine | undefined)[];
+}
+
 interface RendererTranscriptOverflowRenderCache {
   inner: number;
   safeWidth: number;
   childRefs: (Component | undefined)[];
   childRenderRefs: (string[] | undefined)[];
   /**
-   * Sparse per-line formatted output (lead + canvas paint). Only lines that
-   * have entered the visible window are filled — tall tool bodies are not
-   * fully formatted on first intersection.
+   * Legacy full-height sparse (non-windowed children). Prefer bands for
+   * windowed multi-k bodies.
    */
   childFormattedSparse: ((RendererRegionLine | undefined)[] | undefined)[];
+  /** Windowed bodies: compact band only (viewport × retain), not geometry. */
+  childSparseBands: (RendererTranscriptSparseBand | undefined)[];
 }
 
 interface RendererTranscriptLineCountCacheEntry {
@@ -389,13 +401,11 @@ export class RendererTranscriptViewportComponent extends Container {
 
   /**
    * Hosts: schedule another content paint when true after a frame.
-   * Includes cold materialize placeholders and incremental present budget stop.
+   * Cold materialize placeholders only. Present no longer budget-defers dirty
+   * rows (that left stale scrolled content + endless progressive content).
    */
   get needsMaterializeContinue(): boolean {
-    return (
-      this.materializeContinuePending ||
-      this.lastPresentResult?.hasPendingDirty === true
-    );
+    return this.materializeContinuePending;
   }
 
   /**
@@ -449,6 +459,12 @@ export class RendererTranscriptViewportComponent extends Container {
     const cache = this.overflowRenderCache;
     if (cache === undefined) return 0;
     let n = 0;
+    for (const band of cache.childSparseBands) {
+      if (band === undefined) continue;
+      for (const slot of band.slots) {
+        if (slot !== undefined) n += 1;
+      }
+    }
     for (const sparse of cache.childFormattedSparse) {
       if (sparse === undefined) continue;
       for (const slot of sparse) {
@@ -665,6 +681,7 @@ export class RendererTranscriptViewportComponent extends Container {
     cache.childRefs[childIndex] = undefined;
     cache.childRenderRefs[childIndex] = undefined;
     cache.childFormattedSparse[childIndex] = undefined;
+    cache.childSparseBands[childIndex] = undefined;
     // Soft-evict leaf paint caches only. NEVER call full invalidate() —
     // ToolCall/Assistant invalidate rebuilds bodies and dirties geometry.
     if (child !== undefined && typeof child.softDropPaintCaches === 'function') {
@@ -674,6 +691,31 @@ export class RendererTranscriptViewportComponent extends Container {
         // Never let eviction throw into paint.
       }
     }
+  }
+
+  private ensureOverflowCache(
+    inner: number,
+    safeWidth: number,
+    childCount: number,
+  ): RendererTranscriptOverflowRenderCache {
+    if (
+      this.overflowRenderCache === undefined ||
+      this.overflowRenderCache.inner !== inner ||
+      this.overflowRenderCache.safeWidth !== safeWidth ||
+      this.overflowRenderCache.childRefs.length !== childCount
+    ) {
+      this.overflowRenderCache = {
+        inner,
+        safeWidth,
+        childRefs: Array.from({ length: childCount }),
+        childRenderRefs: Array.from({ length: childCount }),
+        childFormattedSparse: Array.from({ length: childCount }),
+        childSparseBands: Array.from({ length: childCount }),
+      };
+    } else if (this.overflowRenderCache.childSparseBands.length !== childCount) {
+      this.overflowRenderCache.childSparseBands.length = childCount;
+    }
+    return this.overflowRenderCache;
   }
 
   /**
@@ -859,6 +901,7 @@ export class RendererTranscriptViewportComponent extends Container {
 
     // ── Windowed large-body path (Text and adopters) ─────────────────────
     // Never call full render() / never store multi-k childRenderRefs.
+    // Sparse is a compact band (viewport × retain) — never geometry-length.
     if (supportsWindowedBody(child)) {
       if (!this.isCacheEnabled()) {
         const windowLines = child.paintContentRows(inner, sliceStart, sliceEnd);
@@ -869,23 +912,7 @@ export class RendererTranscriptViewportComponent extends Container {
       }
 
       const childCount = this.children.length;
-      if (
-        this.overflowRenderCache === undefined ||
-        this.overflowRenderCache.inner !== inner ||
-        this.overflowRenderCache.safeWidth !== safeWidth ||
-        this.overflowRenderCache.childRefs.length !== childCount
-      ) {
-        this.overflowRenderCache = {
-          inner,
-          safeWidth,
-          childRefs: Array.from({ length: childCount }),
-          childRenderRefs: Array.from({ length: childCount }),
-          childFormattedSparse: Array.from({ length: childCount }),
-        };
-      }
-
-      const cache = this.overflowRenderCache;
-      let sparse = cache.childFormattedSparse[childIndex];
+      const cache = this.ensureOverflowCache(inner, safeWidth, childCount);
       const identityMiss = cache.childRefs[childIndex] !== child;
 
       if (identityMiss) {
@@ -902,8 +929,8 @@ export class RendererTranscriptViewportComponent extends Container {
         cache.childRefs[childIndex] = child;
         // Critical: do NOT store a full multi-k array in childRenderRefs.
         cache.childRenderRefs[childIndex] = undefined;
-        sparse = undefined;
         cache.childFormattedSparse[childIndex] = undefined;
+        cache.childSparseBands[childIndex] = undefined;
         this.touchOverflowChild(childIndex);
         const measured = child.measureContentRows(inner);
         this.reconcileChildGeometry(inner, childIndex, child, measured);
@@ -911,9 +938,6 @@ export class RendererTranscriptViewportComponent extends Container {
         this.touchOverflowChild(childIndex);
       }
 
-      // Sparse must stay viewport-class, not geometry-height. Scrolling one
-      // multi-k body used to fill every visited row (2500+ formatted lines).
-      // Keep only the current slice ± OVERFLOW_RETAIN_VIEWPORTS of that window.
       const geometryCount =
         this.lineCountCache.get(inner)?.counts[childIndex] ??
         Math.max(sliceEnd, child.measureContentRows(inner));
@@ -921,26 +945,31 @@ export class RendererTranscriptViewportComponent extends Container {
       const bandMargin = windowRows * OVERFLOW_RETAIN_VIEWPORTS;
       const bandStart = Math.max(0, sliceStart - bandMargin);
       const bandEnd = Math.min(geometryCount, sliceEnd + bandMargin);
+      const bandLen = Math.max(0, bandEnd - bandStart);
 
-      if (sparse === undefined) {
-        sparse = Array.from({ length: geometryCount });
-        cache.childFormattedSparse[childIndex] = sparse;
-      } else if (sparse.length < geometryCount) {
-        sparse.length = geometryCount;
-      }
-
-      // Drop off-band filled slots first so a tall-body walk cannot pin multi-k.
-      for (let j = 0; j < sparse.length; j++) {
-        if (j < bandStart || j >= bandEnd) {
-          sparse[j] = undefined;
+      // Rebuild a compact band (O(band), never O(geometry)). Migrate hits that
+      // still fall inside the new band from the previous band.
+      const prevBand = cache.childSparseBands[childIndex];
+      const band: RendererTranscriptSparseBand = {
+        origin: bandStart,
+        slots: Array.from({ length: bandLen }),
+      };
+      if (prevBand !== undefined) {
+        for (let j = bandStart; j < bandEnd; j++) {
+          const prevIdx = j - prevBand.origin;
+          if (prevIdx >= 0 && prevIdx < prevBand.slots.length) {
+            band.slots[j - bandStart] = prevBand.slots[prevIdx];
+          }
         }
       }
+      cache.childSparseBands[childIndex] = band;
 
-      // Fill missing sparse slots for this visible window only.
+      // Fill missing slots for the visible window only.
       let missingStart = -1;
       let missingEnd = -1;
       for (let j = sliceStart; j < sliceEnd; j++) {
-        if (sparse[j] === undefined) {
+        const bi = j - band.origin;
+        if (bi < 0 || bi >= band.slots.length || band.slots[bi] === undefined) {
           if (missingStart < 0) missingStart = j;
           missingEnd = j + 1;
         }
@@ -950,12 +979,18 @@ export class RendererTranscriptViewportComponent extends Container {
         for (let k = 0; k < windowLines.length; k++) {
           const j = missingStart + k;
           if (j >= sliceEnd) break;
-          sparse[j] = this.formatCanvasLine(lead + windowLines[k]!, safeWidth);
+          const bi = j - band.origin;
+          if (bi >= 0 && bi < band.slots.length) {
+            band.slots[bi] = this.formatCanvasLine(lead + windowLines[k]!, safeWidth);
+          }
         }
       }
 
       for (let j = sliceStart; j < sliceEnd; j++) {
-        out.push(sparse[j] ?? this.formatCanvasLine(lead, safeWidth));
+        const bi = j - band.origin;
+        const slot =
+          bi >= 0 && bi < band.slots.length ? band.slots[bi] : undefined;
+        out.push(slot ?? this.formatCanvasLine(lead, safeWidth));
       }
       return;
     }
@@ -970,22 +1005,7 @@ export class RendererTranscriptViewportComponent extends Container {
     }
 
     const childCount = this.children.length;
-    if (
-      this.overflowRenderCache === undefined ||
-      this.overflowRenderCache.inner !== inner ||
-      this.overflowRenderCache.safeWidth !== safeWidth ||
-      this.overflowRenderCache.childRefs.length !== childCount
-    ) {
-      this.overflowRenderCache = {
-        inner,
-        safeWidth,
-        childRefs: Array.from({ length: childCount }),
-        childRenderRefs: Array.from({ length: childCount }),
-        childFormattedSparse: Array.from({ length: childCount }),
-      };
-    }
-
-    const cache = this.overflowRenderCache;
+    const cache = this.ensureOverflowCache(inner, safeWidth, childCount);
     let lines = cache.childRenderRefs[childIndex];
     let sparse = cache.childFormattedSparse[childIndex];
 

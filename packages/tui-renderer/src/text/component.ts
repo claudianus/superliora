@@ -527,6 +527,13 @@ export function wrapAnsiDisplayTextRange(
   if (maxWidth <= 0) return start === 0 ? [''] : [];
   if (text.length === 0) return start === 0 ? [''] : [];
 
+  // Plain multi-k dumps (no CSI): skip ANSI state machine. Still scans the
+  // prefix to reach startRow but allocates only the visible window — critical
+  // for deep scroll into tall tool bodies without freezing the event loop.
+  if (text.indexOf('\u001B') === -1) {
+    return wrapPlainDisplayTextRange(text, maxWidth, start, end, options);
+  }
+
   const state = new RendererAnsiState();
   const lines: string[] = [];
   let current = '';
@@ -595,6 +602,57 @@ export function wrapAnsiDisplayTextRange(
 
 export function wrapTextWithAnsi(text: string, width: number): string[] {
   return wrapAnsiDisplayText(text, width, { tabWidth: 3 });
+}
+
+/**
+ * Plain (no ANSI) wrap of `[startRow, endRow)`. Scans prefix without retaining
+ * off-window line strings.
+ */
+function wrapPlainDisplayTextRange(
+  text: string,
+  maxWidth: number,
+  startRow: number,
+  endRow: number,
+  options: RendererAnsiTextOptions = {},
+): string[] {
+  const tabWidth = normalizeTabWidth(options.tabWidth);
+  const out: string[] = [];
+  let row = 0;
+  let lineStart = 0;
+  let col = 0;
+
+  const emitLine = (end: number): boolean => {
+    if (row >= endRow) return false;
+    if (row >= startRow) {
+      // Expand tabs in the emitted slice only.
+      const raw = text.slice(lineStart, end).replaceAll('\t', ' '.repeat(tabWidth));
+      out.push(raw);
+    }
+    row += 1;
+    return row < endRow;
+  };
+
+  for (let i = 0; i < text.length; i++) {
+    if (row >= endRow) break;
+    const ch = text.charCodeAt(i);
+    if (ch === 10 /* \n */) {
+      if (!emitLine(i)) break;
+      lineStart = i + 1;
+      col = 0;
+      continue;
+    }
+    const w = ch === 9 /* \t */ ? tabWidth : 1;
+    if (col > 0 && col + w > maxWidth) {
+      if (!emitLine(i)) break;
+      lineStart = i;
+      col = 0;
+    }
+    col += w;
+  }
+  if (row < endRow && (lineStart < text.length || row === 0)) {
+    emitLine(text.length);
+  }
+  return out;
 }
 
 export function truncateAnsiDisplayText(

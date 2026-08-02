@@ -28,7 +28,13 @@ export interface TranscriptPresentResult {
   readonly hasPendingDirty: boolean;
 }
 
-const DEFAULT_PRESENT_BUDGET_MS = 8;
+/**
+ * Visible transcript windows are tens of rows, not multi-k. Budget-deferring
+ * dirty rows left stale scrolled content on screen (flicker) and kept
+ * hasPendingDirty true so progressive content frames never settled (freeze).
+ * Hash skip-clean is the win; never defer dirty rows in this path.
+ */
+const DEFAULT_PRESENT_BUDGET_MS = Number.POSITIVE_INFINITY;
 
 /**
  * Owns one IncrementalRenderer for the transcript visible window present path.
@@ -76,8 +82,9 @@ export class TranscriptVisibleLinePresenter {
   }
 
   /**
-   * Merge budgeted dirty rows into the presented buffer. Clean / deferred rows
-   * keep the previous line reference when possible.
+   * Merge dirty rows into the presented buffer. Clean rows keep the previous
+   * line reference. Scroll / full-window dirty: every dirty row is in
+   * paintCommands (no budget defer), so the window never shows stale rows.
    */
   private applyPaintCommands(
     incoming: readonly RendererRegionLine[],
@@ -86,23 +93,20 @@ export class TranscriptVisibleLinePresenter {
     const n = incoming.length;
     const prev = this.lastPresented;
     const out: RendererRegionLine[] = new Array(n);
-
-    if (prev !== undefined && prev.length === n) {
-      for (let i = 0; i < n; i++) {
-        out[i] = prev[i]!;
-      }
-    } else {
-      // Size change or first frame: seed with incoming so the window is full
-      // even when the budget only applies a subset of dirty rows.
-      for (let i = 0; i < n; i++) {
-        out[i] = incoming[i]!;
-      }
+    const dirtyRows = new Set<number>();
+    for (const cmd of paintCommands) {
+      if (cmd.row >= 0 && cmd.row < n) dirtyRows.add(cmd.row);
     }
 
-    for (const cmd of paintCommands) {
-      const row = cmd.row;
-      if (row >= 0 && row < n) {
-        out[row] = incoming[row]!;
+    // Many dirty rows (scroll / first paint): prefer incoming for any row not
+    // known-clean so we never keep prev content at a shifted scroll offset.
+    const mostlyDirty = dirtyRows.size > n / 2;
+
+    for (let i = 0; i < n; i++) {
+      if (dirtyRows.has(i) || mostlyDirty || prev === undefined || prev.length !== n) {
+        out[i] = incoming[i]!;
+      } else {
+        out[i] = prev[i]!;
       }
     }
     return out;
