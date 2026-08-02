@@ -33,6 +33,7 @@ import { SessionEventTools } from './tools';
 import { SessionEventTurn } from './turn';
 import { SessionEventUltrawork } from './ultrawork';
 import { SubAgentEventHandler } from '../subagent-event/handler';
+import { formatRuntimeDegradedNotice } from '../../utils/session/runtime-degraded-notice';
 import { formatSubagentStalledNotice } from '../../utils/tools/subagent-stalled-notice';
 import type {
   AppState,
@@ -339,6 +340,16 @@ export class SessionEventHandler {
             theatreActive: isMotionTheatreActive(this.host.state.appState),
           });
         }
+        // Loop51a: named notice (footer badge alone was easy to miss mid-turn).
+        const notice = formatRuntimeDegradedNotice({
+          scope: event.scope,
+          reason: event.reason,
+          hint: event.hint,
+        });
+        this.host.showNotice(notice.title, notice.detail, {
+          coalesceKey: notice.coalesceKey,
+        });
+        this.host.showStatus(notice.status, 'warning');
         break;
       }
       case 'session.meta.updated': this.notices.handleSessionMetaChanged(event); break;
