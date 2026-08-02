@@ -13,6 +13,14 @@ export interface RendererComponent {
   handleInput?(data: string): void;
   wantsKeyRelease?: boolean;
   invalidate(): void;
+  /**
+   * Drop leaf paint caches only (no body rebuild, no geometry dirty, no
+   * reallocation of child trees). Used when the transcript overflow cache
+   * evicts an off-screen card so multi-k line arrays can leave the heap.
+   * Prefer this over {@link invalidate} for eviction — full invalidate on
+   * ToolCall/Assistant cards rebuilds bodies mid-paint.
+   */
+  softDropPaintCaches?(): void;
 }
 
 export type Component = RendererComponent;
@@ -51,6 +59,10 @@ export class Text implements RendererComponent {
   }
 
   invalidate(): void {
+    this.softDropPaintCaches();
+  }
+
+  softDropPaintCaches(): void {
     this.cachedText = undefined;
     this.cachedWidth = undefined;
     this.cachedLines = undefined;

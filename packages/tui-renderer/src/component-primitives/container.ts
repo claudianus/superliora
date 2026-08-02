@@ -22,6 +22,13 @@ export class Container implements Component {
     }
   }
 
+  /** Recurse leaf paint-cache drop only — never full invalidate side effects. */
+  softDropPaintCaches(): void {
+    for (const child of this.children) {
+      child.softDropPaintCaches?.();
+    }
+  }
+
   render(width: number): string[] {
     const lines: string[] = [];
     for (const child of this.children) {
