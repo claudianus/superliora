@@ -7,7 +7,12 @@ import type {
 } from '../../../src/telemetry';
 import { ToolCallDeduplicator, __testing } from '../../../src/agent/turn/tool-dedup';
 
-const { REMINDER_TEXT_1, REMINDER_TEXT_3, makeReminderText2 } = __testing;
+const {
+  REMINDER_TEXT_1,
+  REMINDER_TEXT_3,
+  SAME_STEP_DEDUP_PREFIX,
+  makeReminderText2,
+} = __testing;
 
 interface RecordedTelemetryEvent {
   readonly event: string;
@@ -62,9 +67,13 @@ describe('ToolCallDeduplicator', () => {
       // Same-step dup gets a synthetic placeholder (non-error, empty string).
       expect(cached).not.toBeNull();
       expect(cached!.isError).toBeUndefined();
-      // Finalize substitutes the original's real result.
+      // Finalize substitutes the original's real result + Loop42a tip.
       const finalDup = await dedup.finalizeResult('c2', 'Read', { path: '/a' }, cached!);
-      expect(finalDup).toEqual(original);
+      expect(typeof finalDup.output).toBe('string');
+      expect(finalDup.output as string).toContain('FILE_A');
+      expect(finalDup.output as string).toContain(SAME_STEP_DEDUP_PREFIX);
+      // Original stays clean (tip is dup-only).
+      expect(original).toEqual(okResult('FILE_A'));
     });
 
     it('propagates error results to same-step dups', async () => {
@@ -74,7 +83,10 @@ describe('ToolCallDeduplicator', () => {
       const cached = dedup.checkSameStep('c2', 'Bash', { cmd: 'x' });
       expect(cached).not.toBeNull();
       const finalDup = await dedup.finalizeResult('c2', 'Bash', { cmd: 'x' }, cached!);
-      expect(finalDup).toEqual(errResult('boom'));
+      expect(finalDup.isError).toBe(true);
+      expect(typeof finalDup.output).toBe('string');
+      expect(finalDup.output as string).toContain('boom');
+      expect(finalDup.output as string).toContain(SAME_STEP_DEDUP_PREFIX);
     });
 
     it('finalizes original before dup (provider order)', async () => {
@@ -90,7 +102,21 @@ describe('ToolCallDeduplicator', () => {
       const origFinal = await dedup.finalizeResult('c1', 'Read', { path: '/a' }, okResult('A'));
       const dupFinal = await dedup.finalizeResult('c2', 'Read', { path: '/a' }, dupCached!);
       expect(origFinal).toEqual(okResult('A'));
-      expect(dupFinal).toEqual(okResult('A'));
+      expect(typeof dupFinal.output).toBe('string');
+      expect(dupFinal.output as string).toContain('A');
+      expect(dupFinal.output as string).toContain(SAME_STEP_DEDUP_PREFIX);
+    });
+
+    it('tags only synthetic dups with SAME_STEP_DEDUP tip (Loop42a)', async () => {
+      const dedup = new ToolCallDeduplicator();
+      dedup.beginStep();
+      const original = await runOriginal(dedup, 'c1', 'Bash', { cmd: 'echo x' }, okResult('x'));
+      const cached = dedup.checkSameStep('c2', 'Bash', { cmd: 'echo x' });
+      const finalDup = await dedup.finalizeResult('c2', 'Bash', { cmd: 'echo x' }, cached!);
+      expect(original.output).toBe('x');
+      expect(String(original.output)).not.toContain(SAME_STEP_DEDUP_PREFIX);
+      expect(String(finalDup.output)).toContain(SAME_STEP_DEDUP_PREFIX);
+      expect(String(finalDup.output)).toContain('identical Bash args already executed');
     });
   });
 
@@ -217,6 +243,9 @@ describe('ToolCallDeduplicator', () => {
       expect(original.output as string).toContain('repeating the exact same tool call');
       expect(finalDup.output as string).toContain('<system-reminder>');
       expect(finalDup.output as string).toContain('repeating the exact same tool call');
+      // Loop42a: synthetic path also carries the same-step marker.
+      expect(finalDup.output as string).toContain(SAME_STEP_DEDUP_PREFIX);
+      expect(original.output as string).not.toContain(SAME_STEP_DEDUP_PREFIX);
     });
 
     it('same-step spam alone does not trigger reminder', async () => {
@@ -321,7 +350,9 @@ describe('ToolCallDeduplicator', () => {
       const cached = dedup.checkSameStep('c2', 'Read', { b: 2, a: 1 });
       expect(cached).not.toBeNull();
       const finalDup = await dedup.finalizeResult('c2', 'Read', { b: 2, a: 1 }, cached!);
-      expect(finalDup).toEqual(okResult('SAME'));
+      expect(typeof finalDup.output).toBe('string');
+      expect(finalDup.output as string).toContain('SAME');
+      expect(finalDup.output as string).toContain(SAME_STEP_DEDUP_PREFIX);
     });
   });
 
@@ -357,7 +388,9 @@ describe('ToolCallDeduplicator', () => {
         }),
       ]);
       expect(finalC1).toEqual(okResult('A'));
-      expect(finalC2).toEqual(okResult('A'));
+      expect(typeof finalC2.output).toBe('string');
+      expect(finalC2.output as string).toContain('A');
+      expect(finalC2.output as string).toContain(SAME_STEP_DEDUP_PREFIX);
     });
   });
 
