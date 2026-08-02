@@ -98,6 +98,45 @@ describe('windowed large-body paint (Phase D)', () => {
     expect(pinnedFull).toBe(0);
   });
 
+  it('scrolling one multi-k body keeps filled sparse slots viewport-class', () => {
+    // Honest criterion-2 proxy: a single tall body still in the retain band must
+    // not accumulate filled sparse for every visited local row (geometry height).
+    const visibleRows = 16;
+    const viewport = new RendererTranscriptViewport();
+    const transcript = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => visibleRows,
+      leftPad: 1,
+      rightPad: 1,
+    });
+
+    // One multi-k body (thousands of rows) + padding cards so overflow exists.
+    const tallRows = 2_500;
+    transcript.addChild(new Text(multiKBody(tallRows, 48), 0, 0));
+    for (let i = 0; i < 8; i++) {
+      transcript.addChild(new Text(`pad-${i}\nsecond`, 0, 0));
+    }
+
+    // Sync geometry, jump to top of tall body, content-walk through it.
+    transcript.render(80);
+    viewport.jumpToLine(0);
+    // Walk deep into the tall body while it remains the retained intersecting child.
+    for (let step = 0; step < 200; step++) {
+      viewport.scroll('line-down');
+      transcript.render(80);
+    }
+
+    const filled = transcript.overflowFilledSparseLineCount;
+    // Retain band = viewport × (1 + 2 × OVERFLOW_RETAIN_VIEWPORTS) with margin on both sides.
+    // OVERFLOW_RETAIN_VIEWPORTS = 2 → band ≤ visible × 5, plus a small multi-child slack.
+    const maxViewportClass = visibleRows * 5 * 2; // 2 retained children slack
+    expect(filled).toBeGreaterThan(0);
+    expect(filled).toBeLessThanOrEqual(maxViewportClass);
+    // Must not approach geometry height of the tall body.
+    expect(filled).toBeLessThan(tallRows * 0.1);
+    expect(transcript.overflowRetainedRawLineCount).toBe(0);
+  });
+
   it('windowed paint of a mid-body slice matches legacy render slice for small bodies', () => {
     // Under cap: full cache + slice must equal paintContentRows.
     const body = Array.from({ length: 40 }, (_, r) => `line-${r}-abc`).join('\n');

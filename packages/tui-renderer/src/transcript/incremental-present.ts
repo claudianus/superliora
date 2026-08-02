@@ -1,9 +1,11 @@
 /**
  * Shipped transcript present step: IncrementalRenderer on the visible window.
  *
- * The viewport still produces a full visible-line window for layout/compose, but
- * this presenter tracks per-line hashes so stable re-presents skip clean rows
- * (repaint ≪ visible) and dirty work respects a hard per-frame budget.
+ * Applies dirty-only paint commands into the returned line buffer: clean rows
+ * keep the previous line object identity (compose/promote can skip work), dirty
+ * rows within the frame budget take the new line, and budget-deferred dirty
+ * rows keep the previous content until a continue frame. Hosts must schedule
+ * another content paint when {@link TranscriptPresentResult.hasPendingDirty}.
  */
 
 import {
@@ -14,9 +16,12 @@ import {
 import type { RendererRegionLine } from '../render/compositor';
 
 export interface TranscriptPresentResult {
-  /** Full visible window (unchanged) for layout/compose callers. */
+  /**
+   * Presented visible window. Clean rows reuse prior line refs; only budgeted
+   * dirty rows are replaced from the incoming window.
+   */
   readonly lines: readonly RendererRegionLine[];
-  /** Paint commands for dirty rows only (budget-capped). */
+  /** Paint commands actually applied this frame (budget-capped). */
   readonly paintCommands: readonly PaintCommand[];
   readonly stats: IncrementalRenderStats;
   /** True when budget stopped before all dirty visible rows were painted. */
@@ -31,6 +36,8 @@ const DEFAULT_PRESENT_BUDGET_MS = 8;
 export class TranscriptVisibleLinePresenter {
   private readonly engine: IncrementalRenderer;
   private lastStats: IncrementalRenderStats;
+  /** Last presented buffer — clean rows keep these object identities. */
+  private lastPresented: RendererRegionLine[] | undefined;
 
   constructor(options?: { readonly frameBudgetMs?: number }) {
     this.engine = new IncrementalRenderer({
@@ -47,7 +54,8 @@ export class TranscriptVisibleLinePresenter {
 
   /**
    * Present a visible window of region lines. Stable content re-present with
-   * identical line keys yields repaintedLines ≈ 0 and skippedLines ≈ visible.
+   * identical line keys yields repaintedLines ≈ 0, skippedLines ≈ visible, and
+   * the same line object refs in {@link TranscriptPresentResult.lines}.
    */
   present(lines: readonly RendererRegionLine[]): TranscriptPresentResult {
     const keys = lines.map(regionLinePresentKey);
@@ -55,17 +63,55 @@ export class TranscriptVisibleLinePresenter {
     const viewport = { start: 0, end: keys.length };
     const paintCommands = this.engine.computePaintCommands(viewport);
     this.lastStats = this.engine.lastFrameStats;
+
+    const presented = this.applyPaintCommands(lines, paintCommands);
+    this.lastPresented = presented;
+
     return {
-      lines,
+      lines: presented,
       paintCommands,
       stats: this.lastStats,
       hasPendingDirty: this.engine.hasPendingDirtyLines(viewport),
     };
   }
 
-  /** Force every line dirty (theme/resize). */
+  /**
+   * Merge budgeted dirty rows into the presented buffer. Clean / deferred rows
+   * keep the previous line reference when possible.
+   */
+  private applyPaintCommands(
+    incoming: readonly RendererRegionLine[],
+    paintCommands: readonly PaintCommand[],
+  ): RendererRegionLine[] {
+    const n = incoming.length;
+    const prev = this.lastPresented;
+    const out: RendererRegionLine[] = new Array(n);
+
+    if (prev !== undefined && prev.length === n) {
+      for (let i = 0; i < n; i++) {
+        out[i] = prev[i]!;
+      }
+    } else {
+      // Size change or first frame: seed with incoming so the window is full
+      // even when the budget only applies a subset of dirty rows.
+      for (let i = 0; i < n; i++) {
+        out[i] = incoming[i]!;
+      }
+    }
+
+    for (const cmd of paintCommands) {
+      const row = cmd.row;
+      if (row >= 0 && row < n) {
+        out[row] = incoming[row]!;
+      }
+    }
+    return out;
+  }
+
+  /** Force every line dirty (theme/resize) and drop presented identity. */
   invalidate(): void {
     this.engine.invalidateAll();
+    this.lastPresented = undefined;
   }
 
   resetStats(): void {

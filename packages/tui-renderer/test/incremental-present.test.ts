@@ -18,12 +18,22 @@ describe('incremental present path (Phase C)', () => {
     expect(first.stats.skippedLines).toBe(0);
     expect(first.hasPendingDirty).toBe(false);
 
-    const second = presenter.present(lines);
+    // Fresh array of equal content (may be string-interned by the engine).
+    const linesAgain = Array.from({ length: 40 }, (_, i) => `stable-line-${i}-xxxxxxxx`);
+    const second = presenter.present(linesAgain);
     // Clean re-present: nothing dirty → zero repaint, full skip.
     expect(second.stats.repaintedLines).toBe(0);
     expect(second.stats.skippedLines).toBe(40);
     expect(second.stats.visibleLines).toBe(40);
     expect(second.paintCommands.length).toBe(0);
+    // Applied buffer reuses prior presented line identity (dirty-only path).
+    for (let i = 0; i < 40; i++) {
+      expect(second.lines[i]).toBe(first.lines[i]);
+    }
+    // Prove we did not rebuild a new presented array of new row objects when
+    // nothing was dirty: the presented array shell may be new, but each clean
+    // row ref equals the previous present's row.
+    expect(second.lines).not.toBe(first.lines);
   });
 
   it('only dirty subset is repainted after a partial update', () => {
@@ -71,21 +81,35 @@ describe('incremental present path (Phase C)', () => {
         new Text(Array.from({ length: 8 }, (_, r) => `card${i}-r${r}`).join('\n'), 0, 0),
       );
     }
-    // Warm geometry + first present (dirty).
-    transcript.render(80);
+    // Warm geometry + first present (dirty). Progress materialize if needed.
+    let firstLines: string[] = [];
+    for (let i = 0; i < 20; i++) {
+      firstLines = transcript.render(80);
+      if (!transcript.needsMaterializeContinue) break;
+    }
     const first = transcript.lastIncrementalPresentStats;
     expect(first).toBeDefined();
     expect(first!.visibleLines).toBeGreaterThan(0);
-    expect(first!.repaintedLines).toBe(first!.visibleLines);
 
-    // Stable re-present — same viewport, same content.
-    transcript.render(80);
+    // Force a full dirty present then stable re-present.
+    transcript.invalidateIncrementalPresent();
+    const afterInvalidate = transcript.render(80);
+    const dirtyStats = transcript.lastIncrementalPresentStats!;
+    expect(dirtyStats.repaintedLines).toBe(dirtyStats.visibleLines);
+
+    // Stable re-present — same viewport, same content: skip-clean + same line refs.
+    const stable = transcript.render(80);
     const second = transcript.lastIncrementalPresentStats!;
     expect(second.repaintedLines).toBe(0);
     expect(second.skippedLines).toBe(second.visibleLines);
     expect(second.skippedLines).toBeGreaterThan(0);
-    // Prove skip-clean: repaint ≪ visible on stable frame.
     expect(second.repaintedLines).toBeLessThan(second.visibleLines);
+    // Live present path returns the applied buffer (identity reuse on clean).
+    expect(stable.length).toBe(afterInvalidate.length);
+    for (let i = 0; i < stable.length; i++) {
+      expect(stable[i]).toBe(afterInvalidate[i]);
+    }
+    expect(firstLines.length).toBeGreaterThan(0);
   });
 
   it('viewport scroll dirties present window (not skip-all)', () => {

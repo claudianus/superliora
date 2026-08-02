@@ -387,9 +387,15 @@ export class RendererTranscriptViewportComponent extends Container {
     this.geometryNeedsContinue = false;
   }
 
-  /** Hosts: schedule another content paint when true after a frame. */
+  /**
+   * Hosts: schedule another content paint when true after a frame.
+   * Includes cold materialize placeholders and incremental present budget stop.
+   */
   get needsMaterializeContinue(): boolean {
-    return this.materializeContinuePending;
+    return (
+      this.materializeContinuePending ||
+      this.lastPresentResult?.hasPendingDirty === true
+    );
   }
 
   /**
@@ -431,6 +437,23 @@ export class RendererTranscriptViewportComponent extends Container {
     let n = 0;
     for (const lines of cache.childRenderRefs) {
       if (lines !== undefined) n += lines.length;
+    }
+    return n;
+  }
+
+  /**
+   * Filled (defined) sparse format slots across overflow children. Windowed
+   * multi-k bodies must stay O(viewport × retain), not geometry height.
+   */
+  get overflowFilledSparseLineCount(): number {
+    const cache = this.overflowRenderCache;
+    if (cache === undefined) return 0;
+    let n = 0;
+    for (const sparse of cache.childFormattedSparse) {
+      if (sparse === undefined) continue;
+      for (const slot of sparse) {
+        if (slot !== undefined) n += 1;
+      }
     }
     return n;
   }
@@ -490,10 +513,11 @@ export class RendererTranscriptViewportComponent extends Container {
     }
 
     // Phase 6 — incremental present on the real visible window (Phase C).
-    // Layout still receives the full window; dirty/skip stats drive continue
-    // frames and prove clean re-present does not repaint every row.
+    // Returned lines are the applied present buffer: clean rows keep prior
+    // object identity; only budgeted dirty rows are replaced. Hosts continue
+    // via needsMaterializeContinue when hasPendingDirty.
     this.lastPresentResult = this.incrementalPresenter.present(visibleLines);
-    return visibleLines;
+    return this.lastPresentResult.lines as RendererRegionLine[];
   }
 
   /** Returns the inner content width (total minus horizontal padding). */
@@ -887,10 +911,17 @@ export class RendererTranscriptViewportComponent extends Container {
         this.touchOverflowChild(childIndex);
       }
 
-      // Sparse length tracks geometry count (not full painted body).
+      // Sparse must stay viewport-class, not geometry-height. Scrolling one
+      // multi-k body used to fill every visited row (2500+ formatted lines).
+      // Keep only the current slice ± OVERFLOW_RETAIN_VIEWPORTS of that window.
       const geometryCount =
         this.lineCountCache.get(inner)?.counts[childIndex] ??
         Math.max(sliceEnd, child.measureContentRows(inner));
+      const windowRows = Math.max(1, sliceEnd - sliceStart);
+      const bandMargin = windowRows * OVERFLOW_RETAIN_VIEWPORTS;
+      const bandStart = Math.max(0, sliceStart - bandMargin);
+      const bandEnd = Math.min(geometryCount, sliceEnd + bandMargin);
+
       if (sparse === undefined) {
         sparse = Array.from({ length: geometryCount });
         cache.childFormattedSparse[childIndex] = sparse;
@@ -898,7 +929,14 @@ export class RendererTranscriptViewportComponent extends Container {
         sparse.length = geometryCount;
       }
 
-      // Fill missing sparse slots for this window only.
+      // Drop off-band filled slots first so a tall-body walk cannot pin multi-k.
+      for (let j = 0; j < sparse.length; j++) {
+        if (j < bandStart || j >= bandEnd) {
+          sparse[j] = undefined;
+        }
+      }
+
+      // Fill missing sparse slots for this visible window only.
       let missingStart = -1;
       let missingEnd = -1;
       for (let j = sliceStart; j < sliceEnd; j++) {
