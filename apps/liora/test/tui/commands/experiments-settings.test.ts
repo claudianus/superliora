@@ -96,30 +96,10 @@ describe('experiments glance', () => {
     ])).toContain('1 ON · 1 OFF · 2 registered · 1 config override');
   });
 
-  it('builds tip-heavy panel with per-flag lines', () => {
-    const text = buildExperimentsSettingsLines({
-      features: [
-        feature({ enabled: true, source: 'config', configValue: true }),
-        feature({
-          id: 'prompt_intelligence',
-          title: 'Prompt intelligence',
-          enabled: false,
-          source: 'config',
-          configValue: false,
-        }),
-      ],
-    }).join('\n');
-    expect(text).toContain('Experiments (read-only)');
-    expect(text).toContain('async_compaction ON (config)');
-    expect(text).toContain('prompt_intelligence OFF (config)');
-    expect(text).toContain('Harness → Experiments');
-    expect(text).toContain('SUPERLIORA_EXPERIMENTAL_FLAG');
-  });
 });
 
-
 describe('showExperimentsSettings', () => {
-  it('mounts ChoicePicker with status and read-only tip actions', () => {
+  it('mounts ChoicePicker with status and read-only tip actions — tip-free', () => {
     const host = makeExperimentsHost();
     showExperimentsSettings(host);
     const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
@@ -130,25 +110,9 @@ describe('showExperimentsSettings', () => {
       .options;
     expect(options.map((o) => o.value)).toEqual([
       'status',
-      'tip-feature-flags',
-      'tip-codegraph',
     ]);
+    expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
-
-  it('shows feature-flags tip via showStatus', () => {
-    const host = makeExperimentsHost();
-    showExperimentsSettings(host);
-    selectExperimentsAction(host, 'tip-feature-flags');
-    expect(host.showStatus).toHaveBeenCalledWith(EXPERIMENTS_FEATURE_FLAGS_TIP, 'info');
-  });
-
-  it('shows codegraph tip via showStatus', () => {
-    const host = makeExperimentsHost();
-    showExperimentsSettings(host);
-    selectExperimentsAction(host, 'tip-codegraph');
-    expect(host.showStatus).toHaveBeenCalledWith(EXPERIMENTS_CODEGRAPH_TIP, 'info');
-  });
-
 
   it('mounts read-only experiments panel with live config flags', async () => {
     const host = makeExperimentsHost();

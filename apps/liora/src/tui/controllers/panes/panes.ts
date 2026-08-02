@@ -30,6 +30,7 @@ import { installTerminalThemeTracking } from '../../utils/terminal/terminal-them
 import {
   formatTranscriptDetailCycleLabel,
   nextTranscriptDetailLevel,
+  setActiveTranscriptDetail,
 } from '../../features/transcript/transcript-density';
 import { TRANSCRIPT_EXPAND_TURNS } from '../../features/transcript/transcript-window';
 import { ttui } from '../../utils/tui-i18n';
@@ -320,17 +321,29 @@ export class PanesController {
       return;
     }
     host.state.transcriptDetail = level;
+    setActiveTranscriptDetail(level);
     // `full` drives the legacy toolOutputExpanded flag used by thinking /
     // goal markers and the recent-turn expand cutoff.
     host.state.toolOutputExpanded = level === 'full';
     for (const child of host.state.transcriptContainer.children) {
-      if (child instanceof ToolCallComponent) child.setDetail(level);
+      if (child instanceof ToolCallComponent) {
+        child.setDetail(level);
+        continue;
+      }
+      // Thinking / answer / chain bar re-read active density on next paint.
+      const soft = child as { softDropPaintCaches?: () => void; invalidate?: () => void };
+      if (typeof soft.softDropPaintCaches === 'function') {
+        soft.softDropPaintCaches();
+      } else if (typeof soft.invalidate === 'function') {
+        soft.invalidate();
+      }
     }
     this.syncTranscriptExpansion();
     if (options.toast) {
       host.state.toast.show(formatTranscriptDetailCycleLabel(level), 1600);
     }
-    requestTUIContentRender(host.state);
+    // Geometry may change (minimal hides tool rows) — layout, not paint-only.
+    requestTUILayoutRender(host.state);
   }
 
   /**

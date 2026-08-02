@@ -57,7 +57,7 @@ function selectSkillsAction(host: SlashCommandHost, value: string): void {
 }
 
 describe('skills settings tips', () => {
-  it('exports SearchSkill, risk filter, Trace→Skill, and manage tips', () => {
+  it('exports SearchSkill, risk filter, Trace→Skill, and manage tips (glance copy, not menu rows)', () => {
     expect(SKILLS_SEARCH_SKILL_TIP).toContain('SearchSkill');
     expect(SKILLS_RISK_FILTER_TIP).toContain('metadata.risk=high');
     expect(SKILLS_TRACE_SKILL_TIP).toContain('Trace→Skill');
@@ -66,7 +66,7 @@ describe('skills settings tips', () => {
 });
 
 describe('showSkillsSettings', () => {
-  it('mounts ChoicePicker with status, manage, and tip actions', () => {
+  it('mounts ChoicePicker with status, manage, and tip actions — tip-free', () => {
     const host = makeSkillsHost();
     showSkillsSettings(host);
     const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
@@ -78,11 +78,8 @@ describe('showSkillsSettings', () => {
     expect(options.map((o) => o.value)).toEqual([
       'status',
       'manage',
-      'tip-search-skill',
-      'tip-risk-filter',
-      'tip-trace-skill',
-      'tip-manage',
     ]);
+    expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
   it('routes manage to Extensions hub', () => {
@@ -98,20 +95,6 @@ describe('showSkillsSettings', () => {
     expect(title).toBe('Extensions');
   });
 
-  it('shows SearchSkill tip via showStatus', () => {
-    const host = makeSkillsHost();
-    showSkillsSettings(host);
-    selectSkillsAction(host, 'tip-search-skill');
-    expect(host.showStatus).toHaveBeenCalledWith(SKILLS_SEARCH_SKILL_TIP, 'info');
-  });
-
-  it('mounts read-only skills panel with live catalog and SearchSkill tips', async () => {
-    const host = makeSkillsHost({ searchSkillActive: true });
-    showSkillsSettings(host);
-    selectSkillsAction(host, 'status');
-    await vi.waitFor(() => {
-      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
-    });
     const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
       .calls[0]?.[0] as UsagePanelComponent;
     const lines = panel.snapshotBodyLines(1).join('\n');

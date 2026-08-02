@@ -84,7 +84,7 @@ describe('bench diagnostics settings tips', () => {
 });
 
 describe('showBenchDiagnosticsSettings', () => {
-  it('mounts ChoicePicker with status and read-only tip actions', () => {
+  it('mounts ChoicePicker with status only — tip-free', () => {
     const host = makeBenchDiagnosticsHost();
     showBenchDiagnosticsSettings(host);
     const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
@@ -93,22 +93,11 @@ describe('showBenchDiagnosticsSettings', () => {
     expect(picker).toBeDefined();
     const options = (picker as unknown as { opts: { options: readonly { value: string }[] } }).opts
       .options;
-    expect(options.map((o) => o.value)).toEqual(['status', 'tip-bench', 'tip-ops']);
+    expect(options.map((o) => o.value)).toEqual(['status']);
+    expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
-  it('shows /bench tip via showStatus', () => {
-    const host = makeBenchDiagnosticsHost();
-    showBenchDiagnosticsSettings(host);
-    selectBenchDiagnosticsAction(host, 'tip-bench');
-    expect(host.showStatus).toHaveBeenCalledWith(BENCH_SLASH_TIP, 'info');
-  });
 
-  it('shows /ops tip via showStatus', () => {
-    const host = makeBenchDiagnosticsHost();
-    showBenchDiagnosticsSettings(host);
-    selectBenchDiagnosticsAction(host, 'tip-ops');
-    expect(host.showStatus).toHaveBeenCalledWith(OPS_SLASH_TIP, 'info');
-  });
 
   it('mounts read-only bench panel with /bench, /ops, and visual smoke tips', () => {
     const host = makeBenchDiagnosticsHost();

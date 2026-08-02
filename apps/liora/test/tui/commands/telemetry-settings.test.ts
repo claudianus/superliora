@@ -51,7 +51,7 @@ function selectPickerOption(host: SlashCommandHost, value: string): void {
 }
 
 describe('telemetry-settings', () => {
-  it('mounts ChoicePicker with status, toggles, and tips', () => {
+  it('mounts ChoicePicker with status and toggles (no tip rows)', () => {
     const host = makeHost();
     showTelemetrySettings(host);
     expect(host.mountCenterModal).toHaveBeenCalledOnce();
@@ -62,8 +62,6 @@ describe('telemetry-settings', () => {
     expect(labels).toContain('Telemetry status');
     expect(labels).toContain('Telemetry ON (opt-in)');
     expect(labels).toContain('Telemetry OFF (ZDR default)');
-    expect(labels).toContain('Local-only posture tip');
-    expect(labels).toContain('Opt-out tip');
   });
 
   it('renders status panel from harness config + live glance', async () => {
@@ -110,12 +108,4 @@ describe('telemetry-settings', () => {
     );
   });
 
-  it('shows local-only and opt-out tips', () => {
-    const host = makeHost();
-    showTelemetrySettings(host);
-    selectPickerOption(host, 'tip-local');
-    expect(host.showStatus).toHaveBeenCalledWith(TELEMETRY_LOCAL_ONLY_TIP, 'info');
-    selectPickerOption(host, 'tip-opt-out');
-    expect(host.showStatus).toHaveBeenCalledWith(TELEMETRY_OPT_OUT_TIP, 'info');
-  });
 });

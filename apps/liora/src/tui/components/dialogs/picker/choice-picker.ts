@@ -32,6 +32,7 @@ import {
   resolveCenterListMouse,
   type CenterListMouseLayout,
 } from '#/tui/utils/ui/list-dialog-mouse';
+import { resolveGridColumns } from '#/tui/utils/ui/grid-nav';
 
 export interface ChoiceOption {
   /** Value passed to onSelect (e.g. the actual editor command string). */
@@ -65,6 +66,11 @@ export interface ChoicePickerOptions {
   readonly searchable?: boolean;
   /** Items per page. Lists longer than this paginate. */
   readonly pageSize?: number;
+  /**
+   * Layout: `list` (default 1 column) or `grid` (2–3 columns when wide enough).
+   * Grid uses ←→ for horizontal focus; PgUp/PgDn still page.
+   */
+  readonly layout?: 'list' | 'grid';
   /** Called when the highlighted option changes. */
   readonly onHighlight?: (value: string) => void;
   /** Optional preview block for the highlighted option. */
@@ -137,13 +143,31 @@ export class ChoicePickerComponent extends Container implements Focusable {
       this.opts.onCancel();
       return;
     }
-    if (matchesKey(data, Key.left) || matchesKey(data, Key.pageUp)) {
-      this.list.pageUp();
+    // Grid: ←→ move columns. List (1 col): ←→ still page for muscle memory.
+    if (matchesKey(data, Key.left)) {
+      if (this.list.getColumns() > 1) this.list.moveLeft();
+      else this.list.pageUp();
       this.syncHighlight();
       return;
     }
-    if (matchesKey(data, Key.right) || matchesKey(data, Key.pageDown)) {
-      this.list.pageDown();
+    if (matchesKey(data, Key.right)) {
+      if (this.list.getColumns() > 1) this.list.moveRight();
+      else this.list.pageDown();
+      this.syncHighlight();
+      return;
+    }
+    if (matchesKey(data, Key.pageUp)) {
+      // Multi-column: step a full visual page (rows × columns).
+      const stride = this.list.pageStride();
+      const view = this.list.view();
+      this.list.setSelectedIndex(Math.max(0, view.selectedIndex - stride));
+      this.syncHighlight();
+      return;
+    }
+    if (matchesKey(data, Key.pageDown)) {
+      const stride = this.list.pageStride();
+      const view = this.list.view();
+      this.list.setSelectedIndex(view.selectedIndex + stride);
       this.syncHighlight();
       return;
     }
@@ -183,12 +207,22 @@ export class ChoicePickerComponent extends Container implements Focusable {
 
   override render(width: number): string[] {
     const searchable = this.opts.searchable === true;
+    const viewPre = this.list.view();
+    const columns = resolveGridColumns({
+      width,
+      itemCount: viewPre.items.length,
+      preferGrid: this.opts.layout === 'grid',
+      minCellWidth: 30,
+      maxColumns: 3,
+    });
+    this.list.setColumns(columns);
+    // Page size scales with grid rows so a page still fills the panel.
     const view = this.list.view();
     const options = view.items;
     const appearance = getActiveAppearancePreferences();
     const animated = shouldRenderAmbientEffects(appearance);
 
-    const navParts = ['↑↓ navigate'];
+    const navParts = columns > 1 ? ['↑↓←→ navigate'] : ['↑↓ navigate'];
     if (view.page.pageCount > 1) navParts.push('PgUp/PgDn page');
     navParts.push('Enter select', 'wheel scroll', 'click select', 'Esc cancel');
     const hint = this.opts.hint ?? navParts.join(' · ');
@@ -231,45 +265,114 @@ export class ChoicePickerComponent extends Container implements Focusable {
 
     if (options.length === 0) {
       lines.push(currentTheme.fg('textMuted', `   ${ttui('tui.common.noMatches')}`));
-    }
-    for (let i = view.page.start; i < view.page.end; i++) {
-      const opt = options[i]!;
-      const section = opt.section?.trim() ?? '';
-      if (section.length > 0 && section !== lastSection) {
-        lastSection = section;
-        if (i > view.page.start || lines[lines.length - 1] !== '') {
-          // subtle gap between groups when not first
+    } else if (columns <= 1) {
+      for (let i = view.page.start; i < view.page.end; i++) {
+        const opt = options[i]!;
+        const section = opt.section?.trim() ?? '';
+        if (section.length > 0 && section !== lastSection) {
+          lastSection = section;
+          lines.push(currentTheme.boldFg('accent', ` ${section}`));
         }
-        lines.push(currentTheme.boldFg('accent', ` ${section}`));
+        const isSelected = i === view.selectedIndex;
+        const isCurrent = opt.value === this.opts.currentValue;
+        itemLineByIndex[i] = lines.length;
+        const pointer = isSelected ? renderSelectPointer('choice:pointer') : ' ';
+        const labelStyle = optionLabelStyle(opt, isSelected);
+        const pulse = animated && isSelected ? renderShimmerPrefix(appearance) : '';
+        let line =
+          currentTheme.fg(isSelected ? 'primary' : 'textDim', '  ') +
+          pulse +
+          pointer +
+          currentTheme.fg(isSelected ? 'primary' : 'textDim', ' ');
+        line +=
+          animated && isSelected && opt.tone !== 'danger'
+            ? renderAnimatedGradientText(opt.label, `choice:row:${opt.value}`, appearance)
+            : labelStyle(opt.label);
+        if (isCurrent) {
+          line += ' ' + currentTheme.fg('success', CURRENT_MARK);
+        }
+        // Soft focus island on list rows (matches grid cell treatment).
+        if (isSelected) {
+          const pad = Math.max(0, width - visibleWidth(line));
+          line = currentTheme.bg('surfaceRaised', line + ' '.repeat(pad));
+        }
+        lines.push(line);
+        if (opt.description !== undefined && opt.description.length > 0) {
+          const descriptionWidth = Math.max(1, width - 4);
+          const descriptionColor =
+            isSelected && opt.descriptionTone !== undefined
+              ? opt.descriptionTone
+              : animated && isSelected
+                ? 'accent'
+                : 'textMuted';
+          for (const descLine of wrapDescription(opt.description, descriptionWidth)) {
+            lines.push(currentTheme.fg(descriptionColor, `    ${descLine}`));
+          }
+        }
       }
-      const isSelected = i === view.selectedIndex;
-      const isCurrent = opt.value === this.opts.currentValue;
-      itemLineByIndex[i] = lines.length;
-      const pointer = isSelected ? renderSelectPointer('choice:pointer') : ' ';
-      const labelStyle = optionLabelStyle(opt, isSelected);
-      const pulse = animated && isSelected ? renderShimmerPrefix(appearance) : '';
-      let line =
-        currentTheme.fg(isSelected ? 'primary' : 'textDim', '  ') +
-        pulse +
-        pointer +
-        currentTheme.fg(isSelected ? 'primary' : 'textDim', ' ');
-      line +=
-        animated && isSelected && opt.tone !== 'danger'
-          ? renderAnimatedGradientText(opt.label, `choice:row:${opt.value}`, appearance)
-          : labelStyle(opt.label);
-      if (isCurrent) {
-        line += ' ' + currentTheme.fg('success', CURRENT_MARK);
+    } else {
+      // 2D grid: pack cells into rows of `columns`. Section headers span full width.
+      const cellWidth = Math.max(12, Math.floor((width - 2) / columns));
+      let i = view.page.start;
+      while (i < view.page.end) {
+        const opt = options[i]!;
+        const section = opt.section?.trim() ?? '';
+        if (section.length > 0 && section !== lastSection) {
+          lastSection = section;
+          lines.push(currentTheme.boldFg('accent', ` ${section}`));
+        }
+        // Collect one visual row of same-section cells (or until page end).
+        const rowCells: number[] = [];
+        const rowSection = section;
+        while (i < view.page.end && rowCells.length < columns) {
+          const cell = options[i]!;
+          const cellSection = cell.section?.trim() ?? '';
+          if (cellSection !== rowSection && cellSection.length > 0 && rowCells.length > 0) break;
+          if (cellSection.length > 0 && cellSection !== lastSection) {
+            lastSection = cellSection;
+            if (rowCells.length > 0) break;
+            lines.push(currentTheme.boldFg('accent', ` ${cellSection}`));
+          }
+          rowCells.push(i);
+          i++;
+        }
+        const rowLineIndex = lines.length;
+        const parts: string[] = [];
+        for (const idx of rowCells) {
+          itemLineByIndex[idx] = rowLineIndex;
+          const cellOpt = options[idx]!;
+          const isSelected = idx === view.selectedIndex;
+          const isCurrent = cellOpt.value === this.opts.currentValue;
+          const pointer = isSelected ? renderSelectPointer('choice:pointer') : ' ';
+          const labelStyle = optionLabelStyle(cellOpt, isSelected);
+          let cell =
+            pointer +
+            ' ' +
+            (animated && isSelected && cellOpt.tone !== 'danger'
+              ? renderAnimatedGradientText(cellOpt.label, `choice:cell:${cellOpt.value}`, appearance)
+              : labelStyle(cellOpt.label));
+          if (isCurrent) cell += ' ' + currentTheme.fg('success', CURRENT_MARK);
+          const padded = truncateToWidth(cell, cellWidth - 1).padEnd(cellWidth - 1, ' ');
+          // Selected cell: soft raised surface so the focus island is obvious in a grid.
+          parts.push(
+            isSelected
+              ? currentTheme.bg('surfaceRaised', padded)
+              : padded,
+          );
+        }
+        lines.push(' ' + parts.join(''));
       }
-      lines.push(line);
-      if (opt.description !== undefined && opt.description.length > 0) {
+      // Selected cell description under the grid (cells themselves stay dense).
+      const selectedOpt = options[view.selectedIndex];
+      if (selectedOpt?.description !== undefined && selectedOpt.description.length > 0) {
         const descriptionWidth = Math.max(1, width - 4);
         const descriptionColor =
-          isSelected && opt.descriptionTone !== undefined
-            ? opt.descriptionTone
-            : animated && isSelected
+          selectedOpt.descriptionTone !== undefined
+            ? selectedOpt.descriptionTone
+            : animated
               ? 'accent'
               : 'textMuted';
-        for (const descLine of wrapDescription(opt.description, descriptionWidth)) {
+        for (const descLine of wrapDescription(selectedOpt.description, descriptionWidth)) {
           lines.push(currentTheme.fg(descriptionColor, `    ${descLine}`));
         }
       }

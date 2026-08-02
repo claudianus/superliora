@@ -65,21 +65,7 @@ export function showPersonaSettings(host: SlashCommandHost): void {
           label: 'Clear persona',
           description: 'Remove all persona customization (default personality).',
         },
-        {
-          value: 'tip-preset',
-          label: 'Preset tip',
-          description: PERSONA_PRESET_TIP,
-        },
-        {
-          value: 'tip-customize',
-          label: 'Customize tip',
-          description: PERSONA_CUSTOMIZE_TIP,
-        },
-        {
-          value: 'tip-persist',
-          label: 'Persist tip',
-          description: PERSONA_PERSIST_TIP,
-        },
+
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -95,17 +81,7 @@ export function showPersonaSettings(host: SlashCommandHost): void {
           void handlePersonaCommand(host, 'clear');
           return;
         }
-        if (value === 'tip-preset') {
-          host.showStatus(PERSONA_PRESET_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-customize') {
-          host.showStatus(PERSONA_CUSTOMIZE_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-persist') {
-          host.showStatus(PERSONA_PERSIST_TIP, 'info');
-        }
+
       },
       onCancel: () => {
         dismissPickerDialog(host);

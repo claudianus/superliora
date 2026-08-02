@@ -62,21 +62,7 @@ export function showFleetSettings(host: SlashCommandHost): void {
           label: 'Max workers',
           description: 'harness.setConfig → background.maxRunningTasks (background/bash cap).',
         },
-        {
-          value: 'tip-governance',
-          label: 'Evidence & budget tips',
-          description: 'Maker≠Checker · swarm-evidence-gate · swarm-budget · parallel fanout.',
-        },
-        {
-          value: 'tip-protocol',
-          label: 'Protocol alias tip',
-          description: 'ultrawork.* canonical · fleet.* read normalize · dual-emit env.',
-        },
-        {
-          value: 'tip-import',
-          label: 'Import path tip',
-          description: 'Soft rename pending — #/fleet facade vs collaboration/ on disk.',
-        },
+
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -88,17 +74,7 @@ export function showFleetSettings(host: SlashCommandHost): void {
           showFleetMaxWorkersPicker(host);
           return;
         }
-        if (value === 'tip-governance') {
-          host.showStatus(FLEET_GOVERNANCE_TIPS.join(' · '), 'info');
-          return;
-        }
-        if (value === 'tip-protocol') {
-          host.showStatus(fleetDualEmitStatusLine(), 'info');
-          return;
-        }
-        if (value === 'tip-import') {
-          host.showStatus(FLEET_IMPORT_PATH_TIPS[0] ?? '', 'info');
-        }
+
       },
       onCancel: () => {
         dismissPickerDialog(host);

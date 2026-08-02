@@ -8,6 +8,7 @@ import {
   settleActiveChainSummary as settleActiveChainSummaryHelper,
   type ChainSummaryState,
 } from './chain-summary';
+import type { PhaseBoundaryState } from './phase-boundary';
 import type { StreamingUIHost } from './host-types';
 import {
   shouldSmoothStreamReveal as shouldSmoothStreamRevealHelper,
@@ -34,6 +35,7 @@ export function createStreamingRenderContextState(args: {
   pendingToolComponents: Map<string, ToolCallComponent>;
   streamingToolCallArguments: Map<string, { name?: string; argumentsText: string; startedAtMs: number }>;
   chainSummary: ChainSummaryState;
+  phaseBoundary: PhaseBoundaryState;
   pendingAgentGroup: PendingToolGroup<AgentGroupComponent> | null;
   pendingReadGroup: PendingToolGroup<ReadGroupComponent> | null;
   setStreamingBlock: (block: StreamingTextBlock | null) => void;
@@ -75,6 +77,7 @@ export interface StreamingUIRenderContextHost {
   readonly pendingToolComponents: Map<string, ToolCallComponent>;
   readonly streamingToolCallArguments: Map<string, { name?: string; argumentsText: string; startedAtMs: number }>;
   readonly chainSummary: ChainSummaryState;
+  readonly phaseBoundary: PhaseBoundaryState;
   readonly pendingAgentGroup: PendingToolGroup<AgentGroupComponent> | null;
   readonly pendingReadGroup: PendingToolGroup<ReadGroupComponent> | null;
   setStreamingBlock(block: StreamingTextBlock | null): void;
@@ -123,6 +126,7 @@ export interface StreamingRenderContextState {
   pendingToolComponents: Map<string, ToolCallComponent>;
   streamingToolCallArguments: Map<string, { name?: string; argumentsText: string; startedAtMs: number }>;
   chainSummary: ChainSummaryState;
+  phaseBoundary: PhaseBoundaryState;
   pendingAgentGroup: PendingToolGroup<AgentGroupComponent> | null;
   pendingReadGroup: PendingToolGroup<ReadGroupComponent> | null;
   setStreamingBlock(block: StreamingTextBlock | null): void;
@@ -151,6 +155,7 @@ export function buildTextRenderContext(state: StreamingRenderContextState): Text
     setActiveThinkingComponent: (component) => {
       state.setActiveThinkingComponent(component);
     },
+    getPhaseBoundary: () => state.phaseBoundary,
     clearPendingToolGroups: () => {
       state.setPendingAgentGroup(null);
       state.setPendingReadGroup(null);
@@ -172,6 +177,7 @@ export function buildToolRenderContext(state: StreamingRenderContextState): Tool
     getPendingToolComponents: () => state.pendingToolComponents,
     getStreamingToolCallArguments: () => state.streamingToolCallArguments,
     getChainSummary: () => state.chainSummary,
+    getPhaseBoundary: () => state.phaseBoundary,
     getPendingAgentGroup: () => state.pendingAgentGroup,
     setPendingAgentGroup: (group) => {
       state.setPendingAgentGroup(group);
@@ -182,8 +188,12 @@ export function buildToolRenderContext(state: StreamingRenderContextState): Tool
     },
     getThinkingDraftLength: () => state.thinkingDraft.length,
     hasStreamingBlock: () => state.streamingBlock !== null,
-    finalizeLiveTextBuffers: (mode) =>{  state.finalizeLiveTextBuffers(mode); },
-    onToolCallStart: (toolCall) =>{  state.onToolCallStart(toolCall); },
+    finalizeLiveTextBuffers: (mode) => {
+      state.finalizeLiveTextBuffers(mode);
+    },
+    onToolCallStart: (toolCall) => {
+      state.onToolCallStart(toolCall);
+    },
   };
 }
 

@@ -14,6 +14,10 @@ import {
   ensureChainSummary as ensureChainSummaryHelper,
   type ChainSummaryState,
 } from './chain-summary';
+import {
+  noteStreamPhase,
+  type PhaseBoundaryState,
+} from './phase-boundary';
 import type { StreamingUIHost } from '.';
 import {
   tryAttachAgentToolCall as attachAgentToolCall,
@@ -35,6 +39,7 @@ export interface ToolRenderContext {
   getPendingToolComponents(): Map<string, ToolCallComponent>;
   getStreamingToolCallArguments(): Map<string, StreamingToolCallArgs>;
   getChainSummary(): ChainSummaryState;
+  getPhaseBoundary(): PhaseBoundaryState;
   getPendingAgentGroup(): PendingToolGroup<AgentGroupComponent> | null;
   setPendingAgentGroup(group: PendingToolGroup<AgentGroupComponent> | null): void;
   getPendingReadGroup(): PendingToolGroup<ReadGroupComponent> | null;
@@ -78,6 +83,8 @@ export function onToolCallStart(
   if (toolCall.name === 'AskUserQuestion') return;
 
   const { state } = ctx.host;
+  // Phase chrome: chain bar (non-full) or TurnPhaseBoundary (full — cards lack header).
+  noteStreamPhase(state, ctx.getPhaseBoundary(), 'tools');
   const tc = new ToolCallComponent(
     toolCall,
     undefined,
@@ -88,9 +95,9 @@ export function onToolCallStart(
   if (state.toolOutputExpanded) tc.setExpanded(true);
   tc.setDetail(state.transcriptDetail);
   ctx.getPendingToolComponents().set(toolCall.id, tc);
-  if (state.transcriptDetail === 'minimal') {
-    // Mounts before this tool card is appended, so the aggregate line
-    // leads the turn's one-line tool block.
+  // Chain phase bar for all densities except full (full = maximum detail chrome).
+  if (state.transcriptDetail !== 'full') {
+    // minimal: rows hidden · compact: one-line headers · standard: short previews
     ensureChainSummaryHelper(state, ctx.getChainSummary()).setCurrentLabel(toolCall.name);
   }
 
@@ -128,7 +135,7 @@ export function onToolCallEnd(
   if (tc) {
     tc.setResult(result);
     ctx.getPendingToolComponents().delete(toolCallId);
-    if (state.transcriptDetail === 'minimal') {
+    if (state.transcriptDetail !== 'full') {
       const active = ctx.getChainSummary().active;
       if (active !== null) {
         const args = matchedCall?.args ?? {};

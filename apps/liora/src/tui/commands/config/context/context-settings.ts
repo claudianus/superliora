@@ -54,22 +54,7 @@ export function showContextSettings(host: SlashCommandHost): void {
           label: 'Compaction…',
           description: 'Threshold glance · manual /compact · micro-compaction tips.',
         },
-        {
-          value: 'tip-working-set',
-          label: 'Working-set tip',
-          description:
-            'Soft cap before auto-compact · presets economy/balanced/deep/full · /context to change.',
-        },
-        {
-          value: 'tip-instruction',
-          label: 'Instruction memory tip',
-          description: 'AGENTS.md, rules, skills — human SSOT; do not auto-write.',
-        },
-        {
-          value: 'tip-learning',
-          label: 'Learning memory tip',
-          description: 'Liora Recall (/memory remember) — agent-curated durable facts.',
-        },
+
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -85,17 +70,7 @@ export function showContextSettings(host: SlashCommandHost): void {
           showCompactionSettings(host);
           return;
         }
-        if (value === 'tip-working-set') {
-          host.showStatus(CONTEXT_WORKING_SET_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-instruction') {
-          host.showStatus(CONTEXT_INSTRUCTION_SOFT_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-learning') {
-          host.showStatus(CONTEXT_LEARNING_SOFT_TIP, 'info');
-        }
+
       },
       onCancel: () => {
         dismissPickerDialog(host);

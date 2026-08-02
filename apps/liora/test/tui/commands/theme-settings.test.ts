@@ -45,7 +45,7 @@ function selectThemeAction(host: SlashCommandHost, value: string): void {
 }
 
 describe('theme settings tips', () => {
-  it('exports custom, import, and appearance tips', () => {
+  it('exports custom, import, and appearance tips (glance copy, not menu rows)', () => {
     expect(THEME_CUSTOM_TIP).toContain('~/.superliora/themes');
     expect(THEME_IMPORT_TIP).toContain('/theme import');
     expect(THEME_APPEARANCE_TIP).toContain('Settings → Appearance');
@@ -53,7 +53,7 @@ describe('theme settings tips', () => {
 });
 
 describe('showThemeSettings', () => {
-  it('mounts ChoicePicker with status, picker, and tip actions', () => {
+  it('mounts ChoicePicker with status, picker, and tip actions — tip-free', () => {
     const host = makeThemeHost();
     showThemeSettings(host);
     const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
@@ -65,10 +65,8 @@ describe('showThemeSettings', () => {
     expect(options.map((o) => o.value)).toEqual([
       'status',
       'change-theme',
-      'tip-custom',
-      'tip-import',
-      'tip-appearance',
     ]);
+    expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
   it('opens theme picker for change-theme action', () => {
@@ -76,27 +74,6 @@ describe('showThemeSettings', () => {
     showThemeSettings(host);
     selectThemeAction(host, 'change-theme');
     expect(showThemePicker).toHaveBeenCalledWith(host);
-  });
-
-  it('shows custom tip via showStatus', () => {
-    const host = makeThemeHost();
-    showThemeSettings(host);
-    selectThemeAction(host, 'tip-custom');
-    expect(host.showStatus).toHaveBeenCalledWith(THEME_CUSTOM_TIP, 'info');
-  });
-
-  it('shows import tip via showStatus', () => {
-    const host = makeThemeHost();
-    showThemeSettings(host);
-    selectThemeAction(host, 'tip-import');
-    expect(host.showStatus).toHaveBeenCalledWith(THEME_IMPORT_TIP, 'info');
-  });
-
-  it('shows appearance tip via showStatus', () => {
-    const host = makeThemeHost();
-    showThemeSettings(host);
-    selectThemeAction(host, 'tip-appearance');
-    expect(host.showStatus).toHaveBeenCalledWith(THEME_APPEARANCE_TIP, 'info');
   });
 
   it('mounts read-only theme panel for status action', () => {

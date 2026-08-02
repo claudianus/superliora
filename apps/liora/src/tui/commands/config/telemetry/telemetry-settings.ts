@@ -64,16 +64,7 @@ export function showTelemetrySettings(host: SlashCommandHost): void {
           label: 'Telemetry OFF (ZDR default)',
           description: 'harness.setConfig → telemetry = false · local-only posture.',
         },
-        {
-          value: 'tip-local',
-          label: 'Local-only posture tip',
-          description: 'Default OFF · transcripts stay on disk · device id for correlation only.',
-        },
-        {
-          value: 'tip-opt-out',
-          label: 'Opt-out tip',
-          description: `config.toml · ${TELEMETRY_DISABLE_ENV} · restart after changes.`,
-        },
+
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -89,13 +80,7 @@ export function showTelemetrySettings(host: SlashCommandHost): void {
           void setTelemetry(host, false);
           return;
         }
-        if (value === 'tip-local') {
-          host.showStatus(TELEMETRY_LOCAL_ONLY_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-opt-out') {
-          host.showStatus(TELEMETRY_OPT_OUT_TIP, 'info');
-        }
+
       },
       onCancel: () => {
         dismissPickerDialog(host);

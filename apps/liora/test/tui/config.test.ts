@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_APPEARANCE_PREFERENCES,
+  DEFAULT_FOOTER_PREFERENCES,
   DEFAULT_ONBOARDING_PREFERENCES,
   DEFAULT_TUI_CONFIG,
   INVALID_TUI_CONFIG_MESSAGE,
@@ -48,6 +49,7 @@ describe('TUI config', () => {
     expect(text).toContain('terminal_background = "off"');
     expect(text).toContain('terminal_palette = false');
     expect(text).toContain('show_timestamps = true');
+    expect(text).toContain('syntax_theme = "auto"');
     expect(text).toContain('[notifications]');
     expect(text).toContain('enabled = true');
     expect(text).toContain('notification_condition = "unfocused"');
@@ -96,7 +98,9 @@ terminal_palette = true
         terminalPalette: true,
         showTimestamps: true,
         transcriptDetail: 'standard',
+        syntaxTheme: 'auto',
       },
+      footer: DEFAULT_FOOTER_PREFERENCES,
       onboarding: DEFAULT_ONBOARDING_PREFERENCES,
     });
   });
@@ -154,6 +158,7 @@ command = "   "
       notifications: { enabled: true, condition: 'unfocused' },
       upgrade: { autoInstall: true },
       appearance: DEFAULT_APPEARANCE_PREFERENCES,
+      footer: DEFAULT_FOOTER_PREFERENCES,
       onboarding: DEFAULT_ONBOARDING_PREFERENCES,
     });
   });
@@ -211,6 +216,7 @@ command = "   "
         profile: 'subtle',
         animationFps: 10,
       },
+      footer: DEFAULT_FOOTER_PREFERENCES,
       onboarding: DEFAULT_ONBOARDING_PREFERENCES,
     });
   });

@@ -66,21 +66,7 @@ export function showExtensionsSettings(host: SlashCommandHost): void {
           label: 'Manage extensions',
           description: 'Plugins, skills, MCP, Claude import, core waist.',
         },
-        {
-          value: 'tip-audit',
-          label: 'Audit surfaces tip',
-          description: '/extensions modal · Settings glances · footer ext↻ badge.',
-        },
-        {
-          value: 'tip-manage',
-          label: 'Manage paths tip',
-          description: '/plugins /skills /mcp · marketplace · Claude import.',
-        },
-        {
-          value: 'tip-hot-reload',
-          label: 'Hot-reload tip',
-          description: 'Session reload after install/toggle · Never-Halt + ext↻ recovery.',
-        },
+
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -92,17 +78,7 @@ export function showExtensionsSettings(host: SlashCommandHost): void {
           showExtensionsHub(host);
           return;
         }
-        if (value === 'tip-audit') {
-          host.showStatus(EXTENSIONS_AUDIT_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-manage') {
-          host.showStatus(EXTENSIONS_MANAGE_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-hot-reload') {
-          host.showStatus(EXTENSIONS_HOT_RELOAD_TIP, 'info');
-        }
+
       },
       onCancel: () => {
         dismissPickerDialog(host);

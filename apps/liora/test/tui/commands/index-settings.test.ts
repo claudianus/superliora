@@ -85,7 +85,7 @@ function selectIndexAction(
 }
 
 describe('index settings', () => {
-  it('exports warm, FTS, and sqlite engine tips', () => {
+  it('exports warm, FTS, and sqlite engine tips (glance copy, not menu rows)', () => {
     expect(INDEX_WARM_TIP).toContain('default ON');
     expect(INDEX_WARM_TIP).toContain('SUPERLIORA_REPO_INDEX_WARM=0');
     expect(INDEX_FTS_TIP).toContain('SQLite FTS5');
@@ -93,7 +93,7 @@ describe('index settings', () => {
     expect(INDEX_ENGINE_TIP).toContain('sqlite (default)');
   });
 
-  it('mounts ChoicePicker with status, rebuild, and read-only tip actions', () => {
+  it('mounts ChoicePicker with status, rebuild, and read-only tip actions — tip-free', () => {
     const host = makeIndexHost();
     showIndexSettings(host);
     const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
@@ -105,17 +105,8 @@ describe('index settings', () => {
     expect(options.map((o) => o.value)).toEqual([
       'status',
       'rebuild',
-      'tip-warm',
-      'tip-fts',
-      'tip-engine',
     ]);
-  });
-
-  it('shows warm-on-default tip via showStatus', () => {
-    const host = makeIndexHost();
-    showIndexSettings(host);
-    selectIndexAction(host, 'tip-warm');
-    expect(host.showStatus).toHaveBeenCalledWith(INDEX_WARM_TIP, 'info');
+    expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
   it('mounts read-only index panel with real codemap status when warm', async () => {
@@ -158,16 +149,6 @@ describe('index settings', () => {
     expect(panel.snapshotBodyLines(1).join('\n')).toContain('RepoQuery: not active');
   });
 
-  it('shows cold codemap note and RepoQuery symbol tip', async () => {
-    const sdk = await import('@superliora/sdk');
-    vi.mocked(sdk.getCodemapStatus).mockReturnValueOnce(codemapCold);
-
-    const host = makeIndexHost({ repoQueryActive: true });
-    showIndexSettings(host);
-    selectIndexAction(host, 'status');
-    await vi.waitFor(() => {
-      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
-    });
     const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
       .calls[0]?.[0] as UsagePanelComponent;
     const text = panel.snapshotBodyLines(1).join('\n');

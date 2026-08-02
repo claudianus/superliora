@@ -69,6 +69,14 @@ export class ReadGroupComponent extends Container {
   }
 
   /**
+   * Exposes borrowed tool cards for chain-bar bulk expand (same contract as
+   * AgentGroupComponent — entries are not Container children).
+   */
+  getToolComponents(): readonly ToolCallComponent[] {
+    return this.entries.map((entry) => entry.tc);
+  }
+
+  /**
    * Borrows a standalone `ToolCallComponent` into the group as a hidden state
    * container. Snapshot changes trigger throttled refreshes. Re-attaching the
    * same toolCallId is a no-op.

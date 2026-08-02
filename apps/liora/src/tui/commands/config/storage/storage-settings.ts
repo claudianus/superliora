@@ -68,22 +68,7 @@ export function showStorageSettings(host: SlashCommandHost): void {
           description:
             'Live home paths · session dir · journal · tool-results · log dir · retention count.',
         },
-        {
-          value: 'tip-home',
-          label: 'SUPERLIORA_HOME tip',
-          description: 'Override default ~/.superliora — relocates config, sessions, cache, logs.',
-        },
-        {
-          value: 'tip-retention',
-          label: 'Session retention tip',
-          description:
-            'Transcripts · wire.jsonl journal · tool-results · export · manual cleanup.',
-        },
-        {
-          value: 'tip-logs',
-          label: 'Log level tip',
-          description: 'TUI stderr + ~/.superliora/logs · server --log-level flag.',
-        },
+
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -91,17 +76,7 @@ export function showStorageSettings(host: SlashCommandHost): void {
           void showStorageSettingsPanel(host);
           return;
         }
-        if (value === 'tip-home') {
-          host.showStatus(STORAGE_HOME_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-retention') {
-          host.showStatus(STORAGE_RETENTION_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-logs') {
-          host.showStatus(STORAGE_LOGS_TIP, 'info');
-        }
+
       },
       onCancel: () => {
         dismissPickerDialog(host);

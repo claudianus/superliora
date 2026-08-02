@@ -39,7 +39,7 @@ function panelLines(host: SlashCommandHost): string {
 }
 
 describe('network settings tips', () => {
-  it('exports proxy, NO_PROXY, and SOCKS tips', () => {
+  it('exports proxy, NO_PROXY, and SOCKS tips (glance copy, not menu rows)', () => {
     expect(NETWORK_PROXY_TIP).toContain('HTTP_PROXY');
     expect(NETWORK_PROXY_TIP).toContain('HTTPS_PROXY');
     expect(NETWORK_NO_PROXY_TIP).toContain('NO_PROXY');
@@ -50,7 +50,7 @@ describe('network settings tips', () => {
 });
 
 describe('showNetworkSettings', () => {
-  it('mounts ChoicePicker with status and read-only tip actions', () => {
+  it('mounts ChoicePicker with status and read-only tip actions — tip-free', () => {
     const host = makeNetworkHost();
     showNetworkSettings(host);
     const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
@@ -61,24 +61,8 @@ describe('showNetworkSettings', () => {
       .options;
     expect(options.map((o) => o.value)).toEqual([
       'status',
-      'tip-proxy',
-      'tip-no-proxy',
-      'tip-socks',
     ]);
-  });
-
-  it('shows proxy tip via showStatus', () => {
-    const host = makeNetworkHost();
-    showNetworkSettings(host);
-    selectNetworkAction(host, 'tip-proxy');
-    expect(host.showStatus).toHaveBeenCalledWith(NETWORK_PROXY_TIP, 'info');
-  });
-
-  it('shows NO_PROXY tip via showStatus', () => {
-    const host = makeNetworkHost();
-    showNetworkSettings(host);
-    selectNetworkAction(host, 'tip-no-proxy');
-    expect(host.showStatus).toHaveBeenCalledWith(NETWORK_NO_PROXY_TIP, 'info');
+    expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
   it('reports HTTPS_PROXY when env is set', () => {

@@ -13,10 +13,13 @@ function makeHost(mode: 'manual' | 'auto' | 'yolo' = 'manual') {
       appState: {
         permissionMode: mode,
       },
+      centerModalStack: [] as readonly unknown[],
     },
     setAppState: vi.fn((patch: Record<string, unknown>) => {
       Object.assign(host.state.appState, patch);
     }),
+    mountCenterModal: vi.fn(),
+    closeCenterModal: vi.fn(),
     mountEditorReplacement: vi.fn(),
     restoreEditor: vi.fn(),
     showError: vi.fn(),
@@ -24,8 +27,9 @@ function makeHost(mode: 'manual' | 'auto' | 'yolo' = 'manual') {
     showStatus: vi.fn(),
   } as unknown as SlashCommandHost & {
     requireSession: ReturnType<typeof vi.fn>;
-    state: { appState: { permissionMode: string } };
+    state: { appState: { permissionMode: string }; centerModalStack: readonly unknown[] };
     setAppState: ReturnType<typeof vi.fn>;
+    mountCenterModal: ReturnType<typeof vi.fn>;
     mountEditorReplacement: ReturnType<typeof vi.fn>;
     showError: ReturnType<typeof vi.fn>;
     showNotice: ReturnType<typeof vi.fn>;
@@ -38,7 +42,7 @@ describe('/permission command', () => {
   it('opens the picker when args are empty', async () => {
     const { host } = makeHost('manual');
     await handlePermissionCommand(host, '');
-    expect(host.mountEditorReplacement).toHaveBeenCalledTimes(1);
+    expect(host.mountCenterModal).toHaveBeenCalledTimes(1);
     expect(host.showError).not.toHaveBeenCalled();
     expect(host.requireSession).not.toHaveBeenCalled();
   });
@@ -70,6 +74,6 @@ describe('/permission command', () => {
   it('keeps showPermissionPicker available for settings hub', () => {
     const { host } = makeHost();
     showPermissionPicker(host);
-    expect(host.mountEditorReplacement).toHaveBeenCalledTimes(1);
+    expect(host.mountCenterModal).toHaveBeenCalledTimes(1);
   });
 });

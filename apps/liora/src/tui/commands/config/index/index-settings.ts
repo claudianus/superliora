@@ -37,21 +37,7 @@ export function showIndexSettings(host: SlashCommandHost): void {
           label: 'Rebuild now',
           description: 'Clear and rebuild symbol codemap + sqlite FTS content index.',
         },
-        {
-          value: 'tip-warm',
-          label: 'Warm-on-default tip',
-          description: 'Session-start codemap + sqlite FTS warm (default ON) · opt-out env.',
-        },
-        {
-          value: 'tip-fts',
-          label: 'FTS backend tip',
-          description: 'SQLite FTS5 bundled vs Zoekt sidecar (opt-in, high-perf).',
-        },
-        {
-          value: 'tip-engine',
-          label: 'SQLite engine tip',
-          description: 'Default engine=sqlite · stub/zoekt opt-outs via env.',
-        },
+
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -63,17 +49,7 @@ export function showIndexSettings(host: SlashCommandHost): void {
           void showIndexSettingsPanel(host);
           return;
         }
-        if (value === 'tip-warm') {
-          host.showStatus(INDEX_WARM_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-fts') {
-          host.showStatus(INDEX_FTS_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-engine') {
-          host.showStatus(INDEX_ENGINE_TIP, 'info');
-        }
+
       },
       onCancel: () => {
         dismissPickerDialog(host);

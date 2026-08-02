@@ -6,6 +6,7 @@ import { saveTuiConfig, type AppearancePreferences } from '../../../config';
 import { formatErrorMessage } from '../../../utils/event-payload';
 import { ttui } from '#/tui/utils/tui-i18n';
 import { isTranscriptDetailLevel } from '#/tui/features/transcript/transcript-density';
+import { isSyntaxThemeId } from '#/tui/theme/syntax-theme';
 import { currentAppearance, tuiConfigFromHost } from './tui-persist';
 import type { SlashCommandHost } from '../../hub/dispatch';
 
@@ -19,6 +20,7 @@ const APPEARANCE_KEYS = [
   'terminal-background',
   'terminal-palette',
   'transcript-detail',
+  'syntax-theme',
 ] as const;
 
 export async function handleAppearanceCommand(host: SlashCommandHost, args: string): Promise<void> {
@@ -58,6 +60,7 @@ export async function handleAppearanceCommand(host: SlashCommandHost, args: stri
   }
 
   host.setAppState({ appearance: next });
+  // setAppState re-applies appearance (syntax theme + Shiki caches included).
   if (key === 'transcript-detail') {
     // Live re-projection of mounted tool cards; the save above persists.
     host.setTranscriptDetail(next.transcriptDetail);
@@ -77,6 +80,7 @@ function formatAppearanceStatus(appearance: AppearancePreferences): string {
     `terminal-background: ${appearance.terminalBackground}`,
     `terminal-palette: ${appearance.terminalPalette ? 'on' : 'off'}`,
     `transcript-detail: ${appearance.transcriptDetail}`,
+    `syntax-theme: ${appearance.syntaxTheme}`,
   ].join('\n');
 }
 
@@ -133,6 +137,10 @@ function parseAppearancePatch(
     case 'transcript-detail':
       if (!isTranscriptDetailLevel(value)) return null;
       next.transcriptDetail = value;
+      return next;
+    case 'syntax-theme':
+      if (!isSyntaxThemeId(value)) return null;
+      next.syntaxTheme = value;
       return next;
     default:
       return null;

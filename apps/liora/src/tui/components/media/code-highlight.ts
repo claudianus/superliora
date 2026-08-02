@@ -17,77 +17,10 @@ import { shouldSkipExpensiveTranscriptFormat } from '#/tui/renderer';
 import { buildSyntaxHighlightTheme } from '#/tui/theme/syntax-highlight-theme';
 import { currentTheme } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme';
+import { getActiveSyntaxThemeId } from '#/tui/theme/syntax-theme';
 
+import { EXT_LANG_MAP, normalizeLangId } from './lang-aliases';
 import { shikiHighlightLines, shikiReady, warmShikiHighlighter } from './shiki-ansi';
-
-const EXT_LANG_MAP: Record<string, string> = {
-  ts: 'typescript',
-  tsx: 'typescript',
-  mts: 'typescript',
-  cts: 'typescript',
-  js: 'javascript',
-  jsx: 'javascript',
-  mjs: 'javascript',
-  cjs: 'javascript',
-  py: 'python',
-  rb: 'ruby',
-  rs: 'rust',
-  go: 'go',
-  java: 'java',
-  kt: 'kotlin',
-  kts: 'kotlin',
-  sh: 'bash',
-  bash: 'bash',
-  zsh: 'bash',
-  fish: 'bash',
-  json: 'json',
-  jsonc: 'json',
-  yaml: 'yaml',
-  yml: 'yaml',
-  toml: 'toml',
-  md: 'markdown',
-  mdx: 'markdown',
-  css: 'css',
-  scss: 'css',
-  less: 'css',
-  html: 'html',
-  htm: 'html',
-  xml: 'xml',
-  sql: 'sql',
-  c: 'c',
-  cc: 'cpp',
-  cpp: 'cpp',
-  cxx: 'cpp',
-  h: 'c',
-  hh: 'cpp',
-  hpp: 'cpp',
-  cs: 'csharp',
-  php: 'php',
-  swift: 'swift',
-  scala: 'scala',
-  r: 'r',
-  lua: 'lua',
-  pl: 'perl',
-  pm: 'perl',
-  vue: 'xml',
-  svelte: 'xml',
-  dockerfile: 'dockerfile',
-  makefile: 'makefile',
-  mk: 'makefile',
-  zig: 'rust',
-  nim: 'python',
-  ex: 'elixir',
-  exs: 'elixir',
-  erl: 'erlang',
-  hs: 'haskell',
-  proto: 'protobuf',
-  // graphql: not in cli-highlight — plain
-  // hcl/tf: cli-highlight has no hcl grammar — plain
-  nix: 'nix',
-  vim: 'vim',
-  diff: 'diff',
-  patch: 'diff',
-};
 
 /** Soft cap for full-file highlight on collapsed previews (lines beyond use windowing). */
 export const HIGHLIGHT_WINDOW_SOFT_CAP = 400;
@@ -104,8 +37,12 @@ interface HighlightCacheEntry {
 const highlightCache = new Map<string, HighlightCacheEntry>();
 
 function paletteCacheKey(palette?: ColorPalette): string {
-  if (palette === undefined) return 'theme';
+  // Include syntax theme preference so switching coding themes busts the LRU
+  // even when the UI palette is unchanged.
+  const syntaxPref = getActiveSyntaxThemeId();
+  if (palette === undefined) return `theme|${syntaxPref}`;
   return [
+    syntaxPref,
     palette.syntaxKeyword,
     palette.syntaxString,
     palette.syntaxComment,
@@ -157,15 +94,24 @@ export function langFromPath(filePath: string): string | undefined {
   const base = filePath.split(/[/\\]/).pop() ?? filePath;
   const lowerBase = base.toLowerCase();
   if (lowerBase === 'dockerfile' || lowerBase.startsWith('dockerfile.')) {
-    return supportsLanguage('dockerfile') ? 'dockerfile' : undefined;
+    return 'dockerfile';
   }
   if (lowerBase === 'makefile' || lowerBase === 'gnumakefile') {
-    return supportsLanguage('makefile') ? 'makefile' : undefined;
+    return 'makefile';
+  }
+  if (lowerBase === '.env' || lowerBase.startsWith('.env.')) {
+    return 'dotenv';
+  }
+  if (lowerBase === 'cmakelists.txt') {
+    return 'cmake';
   }
   const ext = extname(base).slice(1).toLowerCase();
   if (ext.length === 0) return undefined;
-  const lang = EXT_LANG_MAP[ext] ?? ext;
-  return supportsLanguage(lang) ? lang : undefined;
+  // Prefer shared map (Shiki-first). Unknown extensions stay plain — do not
+  // invent a language id just because a file has a suffix.
+  const mapped = EXT_LANG_MAP[ext];
+  if (mapped === undefined) return undefined;
+  return normalizeLangId(mapped);
 }
 
 export interface HighlightLinesOptions {
@@ -195,7 +141,7 @@ export function highlightLines(
   const palette = options.palette;
   const sticky = options.pathHint !== undefined && options.pathHint.length > 0;
 
-  const normalizedLang = lang?.trim().toLowerCase();
+  const normalizedLang = normalizeLangId(lang);
   if (!normalizedLang) return code.split('\n');
 
   // Engine tag keeps cli-highlight and Shiki results from colliding in the
@@ -221,11 +167,13 @@ export function highlightLines(
     return shikiLines;
   }
 
-  if (!supportsLanguage(normalizedLang)) return code.split('\n');
+  // cli-highlight fallback — only for engines it actually knows.
+  const cliLang = normalizedLang === 'tsx' ? 'typescript' : normalizedLang === 'jsx' ? 'javascript' : normalizedLang;
+  if (!supportsLanguage(cliLang)) return code.split('\n');
 
   try {
     const lines = highlight(code, {
-      language: normalizedLang,
+      language: cliLang,
       ignoreIllegals: true,
       theme: buildSyntaxHighlightTheme(palette),
     }).split('\n');

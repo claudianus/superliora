@@ -57,7 +57,7 @@ function selectStorageAction(host: SlashCommandHost, value: string): void {
 }
 
 describe('storage settings tips', () => {
-  it('exports home, retention, and logs tips', () => {
+  it('exports home, retention, and logs tips (glance copy, not menu rows)', () => {
     expect(STORAGE_HOME_TIP).toContain('SUPERLIORA_HOME');
     expect(STORAGE_RETENTION_TIP).toContain('wire.jsonl');
     expect(STORAGE_LOGS_TIP).toContain('log-level');
@@ -78,7 +78,7 @@ describe('storage settings', () => {
     expect(paths.toolResultsDir).toBe(join(sessionDir, 'agents/main/tool-results'));
   });
 
-  it('mounts ChoicePicker with status and read-only tip actions', () => {
+  it('mounts ChoicePicker with status and read-only tip actions — tip-free', () => {
     const host = makeStorageHost({
       home: '/tmp/home',
       configPath: '/tmp/home/config.toml',
@@ -92,17 +92,10 @@ describe('storage settings', () => {
       .options;
     expect(options.map((o) => o.value)).toEqual([
       'status',
-      'tip-home',
-      'tip-retention',
-      'tip-logs',
     ]);
+    expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
-  it('shows SUPERLIORA_HOME tip via showStatus', () => {
-    const host = makeStorageHost({
-      home: '/tmp/home',
-      configPath: '/tmp/home/config.toml',
-    });
     showStorageSettings(host);
     selectStorageAction(host, 'tip-home');
     expect(host.showStatus).toHaveBeenCalledWith(STORAGE_HOME_TIP, 'info');

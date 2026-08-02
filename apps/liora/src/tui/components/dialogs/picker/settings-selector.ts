@@ -48,9 +48,9 @@ type SettingsSection =
   | 'Safety'
   | 'Look & feel'
   | 'Agent'
-  | 'Tools'
+  | 'Integrations'
   | 'Account'
-  | 'Advanced';
+  | 'System';
 
 /** Exported for Settings → Harness → Settings inventory (SSOT §9 audit). */
 const SETTINGS_OPTIONS_BASE: readonly (Omit<ChoiceOption, 'keywords'> & {
@@ -169,64 +169,64 @@ const SETTINGS_OPTIONS_BASE: readonly (Omit<ChoiceOption, 'keywords'> & {
     label: 'Never-Halt',
     description: 'Resilience: fallbacks, OAuth refresh, breakers.',
   },
-  // ── Tools ───────────────────────────────────────────────────────────────
+  // ── Integrations (extensions + tools + research surfaces) ───────────────
   {
     value: 'extensions',
-    section: 'Tools',
+    section: 'Integrations',
     label: 'Extensions',
     description: 'Plugins, skills, MCP, Claude import.',
   },
   {
     value: 'mcp',
-    section: 'Tools',
+    section: 'Integrations',
     label: 'MCP servers',
     description: 'Connected MCP servers and health.',
   },
   {
     value: 'skills',
-    section: 'Tools',
+    section: 'Integrations',
     label: 'Skills',
-    description: 'Skill catalog and SearchSkill tips.',
+    description: 'Skill catalog and SearchSkill.',
   },
   {
     value: 'hooks',
-    section: 'Tools',
+    section: 'Integrations',
     label: 'Hooks',
     description: 'Pre/Post/Stop lifecycle hooks.',
   },
   {
     value: 'tools',
-    section: 'Tools',
+    section: 'Integrations',
     label: 'Tools inventory',
     description: 'Active tool waist and profiles.',
   },
   {
     value: 'media',
-    section: 'Tools',
+    section: 'Integrations',
     label: 'Media',
     description: 'Image/video fallback when the chat model is text-only.',
   },
   {
     value: 'search',
-    section: 'Tools',
+    section: 'Integrations',
     label: 'Search',
     description: 'Deep research channels and free fallback.',
   },
   {
     value: 'index',
-    section: 'Tools',
+    section: 'Integrations',
     label: 'Index',
     description: 'Repo index, codemap, FTS status.',
   },
   {
     value: 'cache',
-    section: 'Tools',
+    section: 'Integrations',
     label: 'Cache',
-    description: 'Prompt-cache hit rate and sacred tips.',
+    description: 'Prompt-cache hit rate and sacred freeze.',
   },
   {
     value: 'eyes',
-    section: 'Tools',
+    section: 'Integrations',
     label: 'Eyes readiness',
     description: 'Browser-use / computer-use status.',
   },
@@ -235,7 +235,7 @@ const SETTINGS_OPTIONS_BASE: readonly (Omit<ChoiceOption, 'keywords'> & {
     value: 'providers-api',
     section: 'Account',
     label: 'Providers & API',
-    description: 'Login, API keys, provider connect tips.',
+    description: 'Login, API keys, provider connect.',
   },
   {
     value: 'accounts',
@@ -255,48 +255,48 @@ const SETTINGS_OPTIONS_BASE: readonly (Omit<ChoiceOption, 'keywords'> & {
     label: 'Updates',
     description: 'Automatic CLI updates on or off.',
   },
-  // ── Advanced ────────────────────────────────────────────────────────────
+  // ── System ──────────────────────────────────────────────────────────────
   {
     value: 'host',
-    section: 'Advanced',
+    section: 'System',
     label: 'Host',
-    description: 'Runtime transport and latency tips.',
+    description: 'Runtime transport and latency.',
   },
   {
     value: 'network',
-    section: 'Advanced',
+    section: 'System',
     label: 'Network / Proxy',
     description: 'HTTPS_PROXY / NO_PROXY posture.',
   },
   {
     value: 'storage',
-    section: 'Advanced',
+    section: 'System',
     label: 'Storage',
     description: 'Home layout, retention, logs.',
   },
   {
     value: 'telemetry',
-    section: 'Advanced',
+    section: 'System',
     label: 'Telemetry',
-    description: 'Analytics on/off · local-only tips.',
+    description: 'Analytics on/off · local-only.',
   },
   {
     value: 'experiments',
-    section: 'Advanced',
+    section: 'System',
     label: 'Experiments',
     description: 'Feature flags (micro compaction, codegraph, …).',
   },
   {
     value: 'harness',
-    section: 'Advanced',
+    section: 'System',
     label: 'Harness',
     description: 'Tools waist, eyes, Visual Quality, experiments hub.',
   },
   {
     value: 'bench-diagnostics',
-    section: 'Advanced',
+    section: 'System',
     label: 'Bench / Diagnostics',
-    description: '/bench, /ops, internal diagnostics tips.',
+    description: '/bench, /ops, internal diagnostics.',
   },
 ];
 
@@ -321,7 +321,7 @@ export function isSettingsSelection(value: string): value is SettingsSelection {
   return SETTINGS_SELECTION_SET.has(value);
 }
 
-/** Settings always pinned in Command Hub (not search-only). */
+/** Settings always pinned in Command Hub (not search-only). Everyday + search path. */
 export const HUB_PINNED_SETTINGS: readonly SettingsSelection[] = [
   'model',
   'permission',
@@ -330,10 +330,12 @@ export const HUB_PINNED_SETTINGS: readonly SettingsSelection[] = [
   'footer',
   'context',
   'extensions',
+  'search',
   'media',
   'accounts',
   'usage',
   'upgrade',
+  'security',
 ];
 
 export interface SettingsSelectorOptions {
@@ -346,7 +348,9 @@ export class SettingsSelectorComponent extends ChoicePickerComponent {
     super({
       title: 'Settings',
       searchable: true,
-      pageSize: 14,
+      // Grid packs 2–3 columns; higher page size fills the modal with cells.
+      pageSize: 30,
+      layout: 'grid',
       options: [...SETTINGS_OPTIONS],
       onSelect: (value) => {
         if (isSettingsSelection(value)) opts.onSelect(value);

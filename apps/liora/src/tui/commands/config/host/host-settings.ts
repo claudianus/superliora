@@ -34,21 +34,7 @@ export function showHostSettings(host: SlashCommandHost): void {
           description:
             'In-process vs server client · transport · local daemon · live TTFT sample.',
         },
-        {
-          value: 'tip-sovereign',
-          label: 'Sovereign umbrella tip',
-          description: 'SUPERLIORA_SOVEREIGN=1 soft gates — profile, codemap warm, dual-emit.',
-        },
-        {
-          value: 'tip-ttft',
-          label: 'TTFT / latency tip',
-          description: 'Live last-step TTFT when a turn completes · W8 latency profile.',
-        },
-        {
-          value: 'tip-future',
-          label: 'Future host config tip',
-          description: 'Planned [host] mode picker · ACP adapter · latency profile (read-only).',
-        },
+
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -56,17 +42,7 @@ export function showHostSettings(host: SlashCommandHost): void {
           void showHostSettingsPanel(host);
           return;
         }
-        if (value === 'tip-sovereign') {
-          host.showStatus(HOST_SOVEREIGN_UMBRELLA_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-ttft') {
-          host.showStatus(HOST_TTFT_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-future') {
-          host.showStatus(HOST_FUTURE_TIP, 'info');
-        }
+
       },
       onCancel: () => {
         dismissPickerDialog(host);

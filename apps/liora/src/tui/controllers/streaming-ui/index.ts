@@ -31,6 +31,11 @@ import {
 import {
   type ChainSummaryState,
 } from './chain-summary';
+import {
+  createPhaseBoundaryState,
+  resetPhaseBoundaryState,
+  type PhaseBoundaryState,
+} from './phase-boundary';
 import { finalizeStreamingTurn } from './turn-finalize';
 import {
   setStreamingTodoList,
@@ -129,6 +134,7 @@ export class StreamingUIController {
   >();
   private _pendingToolComponents = new Map<string, ToolCallComponent>();
   private _chainSummary: ChainSummaryState = { active: null, turnIndex: -1 };
+  private _phaseBoundary: PhaseBoundaryState = createPhaseBoundaryState();
   private _pendingAgentGroup: PendingToolGroup<AgentGroupComponent> | null = null;
   private _pendingReadGroup: PendingToolGroup<ReadGroupComponent> | null = null;
 
@@ -143,6 +149,8 @@ export class StreamingUIController {
     if (turnId === this._currentTurnId) return;
     this._currentTurnId = turnId;
     this.turnStartCueArmed = turnId !== undefined;
+    // New turn (or clear): reset work-unit phase tracker for stream mounts.
+    resetPhaseBoundaryState(this._phaseBoundary);
   }
 
   setStep(step: number): void {
@@ -303,6 +311,7 @@ export class StreamingUIController {
       host: this.host,
       setCurrentTurnId: (turnId) => {
         this._currentTurnId = turnId;
+        resetPhaseBoundaryState(this._phaseBoundary);
       },
       setCurrentStep: (step) => {
         this._currentStep = step;
@@ -432,6 +441,7 @@ export class StreamingUIController {
       resetToolCallState: () =>{  this.resetToolCallState(); },
       setCurrentTurnId: (turnId) => {
         this._currentTurnId = turnId;
+        resetPhaseBoundaryState(this._phaseBoundary);
       },
       sendQueued,
     });
@@ -528,6 +538,7 @@ export class StreamingUIController {
       pendingToolComponents: this._pendingToolComponents,
       streamingToolCallArguments: this._streamingToolCallArguments,
       chainSummary: this._chainSummary,
+      phaseBoundary: this._phaseBoundary,
       pendingAgentGroup: this._pendingAgentGroup,
       pendingReadGroup: this._pendingReadGroup,
       setStreamingBlock: (block) => {

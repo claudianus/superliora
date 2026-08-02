@@ -42,30 +42,7 @@ export function showNeverHaltSettings(host: SlashCommandHost): void {
           description:
             'Live degradation · search fallback · OAuth pool · intervention queue · circuit breakers.',
         },
-        {
-          value: 'tip-search-fallback',
-          label: 'Search fallback tip',
-          description:
-            'Free DDG/local fallback · research.search.freeFallback · Settings → Search toggle.',
-        },
-        {
-          value: 'tip-oauth',
-          label: 'OAuth refresh tip',
-          description:
-            'Proactive ensureFresh poll · multi-account pool · /login --add · Settings → Accounts.',
-        },
-        {
-          value: 'tip-intervention',
-          label: 'Intervention queue tip',
-          description:
-            'Non-blocking approvals · Fleet continues · parallel tools · SUPERLIORA_PERMISSION_AUTO_EXPIRE_MS.',
-        },
-        {
-          value: 'tip-breaker',
-          label: 'Circuit breaker tip',
-          description:
-            'Per-provider 5xx/429 trips · fallbackModels routing · half-open probe · runtime.degraded.',
-        },
+
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -73,21 +50,7 @@ export function showNeverHaltSettings(host: SlashCommandHost): void {
           void showNeverHaltSettingsPanel(host);
           return;
         }
-        if (value === 'tip-search-fallback') {
-          host.showStatus(NEVER_HALT_SEARCH_FALLBACK_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-oauth') {
-          host.showStatus(NEVER_HALT_OAUTH_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-intervention') {
-          host.showStatus(NEVER_HALT_INTERVENTION_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-breaker') {
-          host.showStatus(NEVER_HALT_BREAKER_TIP, 'info');
-        }
+
       },
       onCancel: () => {
         dismissPickerDialog(host);

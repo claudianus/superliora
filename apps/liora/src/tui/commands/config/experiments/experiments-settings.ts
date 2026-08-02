@@ -45,18 +45,7 @@ export function showExperimentsSettings(host: SlashCommandHost): void {
           description:
             'Live feature flags from config + env · per-flag ON/OFF · override sources (read-only).',
         },
-        {
-          value: 'tip-feature-flags',
-          label: 'Feature flags tip',
-          description:
-            'L1–L4 resolution order · master switch · config.toml [experimental] · Harness toggles.',
-        },
-        {
-          value: 'tip-codegraph',
-          label: 'Codegraph tip',
-          description:
-            'Index/codemap flags may appear here first · live wire via Settings → Index.',
-        },
+
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -64,14 +53,7 @@ export function showExperimentsSettings(host: SlashCommandHost): void {
           void showExperimentsSettingsPanel(host);
           return;
         }
-        if (value === 'tip-feature-flags') {
-          host.showStatus(EXPERIMENTS_FEATURE_FLAGS_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-codegraph') {
-          host.showStatus(EXPERIMENTS_CODEGRAPH_TIP, 'info');
-          return;
-        }
+
       },
       onCancel: () => {
         dismissPickerDialog(host);

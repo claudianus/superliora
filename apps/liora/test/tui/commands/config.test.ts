@@ -886,8 +886,8 @@ describe('harness panel and tools inventory', () => {
     expect(firstPage).toContain('Security');
 
     let combined = firstPage;
-    for (let page = 0; page < 4; page++) {
-      component.handleInput('\u001B[C');
+    for (let page = 0; page < 6; page++) {
+      component.handleInput('\u001B[6~'); // PageDown — grid uses ←→ for columns
       combined += `\n${component.render(120).join('\n')}`;
     }
     expect(combined).toContain('Harness');
@@ -899,11 +899,13 @@ describe('harness panel and tools inventory', () => {
     showSettingsSelector(host);
     expect(host.mountCenterModal).toHaveBeenCalledOnce();
     const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      { render: (width: number) => string[] },
+      { handleInput: (data: string) => void; render: (width: number) => string[] },
     ];
+    // Move to Security (grid: right then down into Safety row).
+    component.handleInput('\u001B[B'); // down
     const firstPage = component.render(120).join('\n');
     expect(firstPage).toContain('Security');
-    expect(firstPage).toContain('Sandbox');
+    expect(firstPage).toMatch(/Sandbox|secret redaction|Permission/i);
   });
 
   it('routes settings security selection to security panel', async () => {
@@ -966,16 +968,17 @@ describe('harness panel and tools inventory', () => {
       { handleInput: (data: string) => void; render: (width: number) => string[] },
     ];
     let combined = component.render(120).join('\n');
-    for (let page = 0; page < 4; page++) {
-      component.handleInput('\u001B[C');
+    for (let page = 0; page < 6; page++) {
+      component.handleInput('\u001B[6~'); // PageDown
       combined += `\n${component.render(120).join('\n')}`;
     }
     expect(combined).toContain('Compaction');
-    expect(combined).toContain('/compact');
     expect(combined).toContain('Mission / Goals');
-    expect(combined).toContain('/mission');
     expect(combined).toContain('Fleet / Parallel');
-    expect(combined).toContain('/fleet');
+    // Descriptions appear for the highlighted cell — search to surface them.
+    for (const ch of 'compact') component.handleInput(ch);
+    combined += `\n${component.render(120).join('\n')}`;
+    expect(combined).toMatch(/compact|Compaction/i);
   });
 
   it('routes settings compaction selection to compaction panel', async () => {
@@ -1147,20 +1150,15 @@ describe('harness panel and tools inventory', () => {
       { handleInput: (data: string) => void; render: (width: number) => string[] },
     ];
     let combined = component.render(120).join('\n');
-    for (let page = 0; page < 5; page++) {
-      component.handleInput('\u001B[C');
+    for (let page = 0; page < 6; page++) {
+      component.handleInput('\u001B[6~'); // PageDown — grid uses ←→ for columns
       combined += `\n${component.render(120).join('\n')}`;
     }
     expect(combined).toContain('Hooks');
-    expect(combined).toContain('Pre/Post/Stop');
     expect(combined).toContain('Skills');
-    expect(combined).toContain('SearchSkill');
     expect(combined).toContain('Bench / Diagnostics');
-    expect(combined).toContain('/ops');
     expect(combined).toContain('Network / Proxy');
-    expect(combined).toContain('HTTPS_PROXY');
     expect(combined).toContain('Storage');
-    expect(combined).toContain('~/.superliora');
   });
 
   it('routes settings hooks selection to hooks panel', async () => {

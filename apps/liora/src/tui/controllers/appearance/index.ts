@@ -10,6 +10,10 @@ import type { AppearancePreferences } from '#/tui/config';
 import { ESC, ST } from '#/tui/constant/terminal';
 import { currentTheme } from '#/tui/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
+import { setActiveSyntaxThemeId } from '#/tui/theme/syntax-theme';
+import { clearHighlightCache } from '#/tui/components/media/code-highlight';
+import { refreshShikiSyntaxTheme } from '#/tui/components/media/shiki-ansi';
+import { clearTranscriptFormatCache } from '#/tui/utils/transcript/transcript-output-format';
 import {
   motionEffectsAllowed,
   premiumAmbientIntervalMs,
@@ -59,6 +63,12 @@ export class AppearanceController {
   apply(appearance: AppearancePreferences = this.getAppearance()): void {
     setActiveAppearancePreferences(appearance);
     currentTheme.setCanvasBackgroundEnabled(appearance.canvasBackground);
+    // Coding syntax theme is independent of UI chrome; rebind Shiki + bust caches.
+    const syntaxId = appearance.syntaxTheme ?? 'auto';
+    setActiveSyntaxThemeId(syntaxId);
+    refreshShikiSyntaxTheme(syntaxId);
+    clearHighlightCache();
+    clearTranscriptFormatCache();
     this.syncAmbientSchedule();
     this.reapplyTerminalPalette(appearance);
     this.onAppearanceApplied?.();

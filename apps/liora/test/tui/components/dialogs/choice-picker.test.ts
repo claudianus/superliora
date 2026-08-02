@@ -178,10 +178,11 @@ describe('ChoicePickerComponent', () => {
     expect(settingsOutput).toContain('Safety');
     expect(settingsOutput).toContain('Look & feel');
     expect(settingsOutput).toContain('Model routing');
-    // Practical groups paginate; page forward until Advanced / Updates appear.
+    // Practical groups paginate; PgDn until Advanced / Updates appear.
+    // (←→ are column moves in grid layout — do not use them for paging.)
     let settingsPage = settingsOutput;
     for (let i = 0; i < 8 && !settingsPage.includes('Updates'); i++) {
-      settings.handleInput('\u001B[C'); // page forward
+      settings.handleInput('\u001B[6~'); // PageDown
       settingsPage = settings.render(120).map(strip).join('\n');
     }
     expect(settingsPage).toMatch(/Updates|Automatic updates|upgrade/i);

@@ -44,21 +44,7 @@ export function showUpgradeSettings(host: SlashCommandHost): void {
           label: `Auto-install · ${autoInstall ? 'on' : 'off'}`,
           description: 'Persist tui.toml upgrade.auto_install via preference picker.',
         },
-        {
-          value: 'tip-auto-install',
-          label: 'Auto-install tip',
-          description: UPGRADE_AUTO_INSTALL_TIP,
-        },
-        {
-          value: 'tip-manual',
-          label: 'Manual upgrade tip',
-          description: UPGRADE_MANUAL_TIP,
-        },
-        {
-          value: 'tip-env',
-          label: 'Env disable tip',
-          description: UPGRADE_ENV_TIP,
-        },
+
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -74,17 +60,7 @@ export function showUpgradeSettings(host: SlashCommandHost): void {
           showUpdatePreferencePicker(host);
           return;
         }
-        if (value === 'tip-auto-install') {
-          host.showStatus(UPGRADE_AUTO_INSTALL_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-manual') {
-          host.showStatus(UPGRADE_MANUAL_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-env') {
-          host.showStatus(UPGRADE_ENV_TIP, 'info');
-        }
+
       },
       onCancel: () => {
         dismissPickerDialog(host);

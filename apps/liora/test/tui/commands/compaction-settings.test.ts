@@ -68,9 +68,8 @@ function selectCompactionAction(host: SlashCommandHost, value: string): void {
   (picker as unknown as { opts: { onSelect: (action: string) => void } }).opts.onSelect(value);
 }
 
-
 describe('showCompactionSettings', () => {
-  it('mounts ChoicePicker with status and read-only tip actions', () => {
+  it('mounts ChoicePicker with status and read-only tip actions — tip-free', () => {
     const host = makeHost();
     showCompactionSettings(host);
     const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
@@ -83,28 +82,10 @@ describe('showCompactionSettings', () => {
       'status',
       'run-compact',
       'working-set',
-      'tip-threshold',
-      'tip-keep-tokens',
     ]);
+    expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
-  it('shows threshold tip via showStatus', () => {
-    const host = makeHost();
-    showCompactionSettings(host);
-    selectCompactionAction(host, 'tip-threshold');
-    expect(host.showStatus).toHaveBeenCalledWith(COMPACTION_THRESHOLD_TIP, 'info');
-  });
-
-  it('shows live archive count and last compact tip when session is wired', async () => {
-    const host = makeHost({
-      transcriptEntries: [
-        {
-          kind: 'status',
-          text: 'Compaction complete',
-          compactionData: { tokensBefore: 200_000, tokensAfter: 80_000 },
-        },
-      ],
-    });
     showCompactionSettings(host);
     selectCompactionAction(host, 'status');
     await vi.waitFor(() => {

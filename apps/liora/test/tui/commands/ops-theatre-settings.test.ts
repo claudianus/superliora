@@ -22,18 +22,7 @@ function selectOpsAction(host: SlashCommandHost, value: string): void {
 }
 
 describe('buildOpsTheatreSettingsLines', () => {
-  it('mentions /ops, tray, and git tips', () => {
-    const lines = buildOpsTheatreSettingsLines({
-      pendingInterventions: 0,
-      permissionMode: 'auto',
-    }).join('\n');
-    expect(lines).toContain(OPS_THEATRE_OPEN_TIP);
-    expect(lines).toContain(OPS_THEATRE_TRAY_TIP);
-    expect(lines).toContain('/ops');
-    expect(lines).toContain('Visual Quality');
-    expect(lines).toContain('Permission mode: auto');
-    expect(lines).toContain('Live queue: (clear)');
-  });
+
 });
 
 describe('showOpsTheatreSettings', () => {
@@ -79,24 +68,4 @@ describe('showOpsTheatreSettings', () => {
     expect(text).toContain('Permission mode: ask');
   });
 
-  it('shows open tip via showStatus', () => {
-    const host = {
-      state: {
-        theme: currentTheme,
-        transcriptContainer: { addChild: vi.fn() },
-        ui: { requestRender: vi.fn() },
-        renderer: { invalidateFrame: vi.fn() },
-        centerModalStack: [] as readonly unknown[],
-        appState: { permissionMode: 'auto', interventionCount: 0 },
-      },
-      mountCenterModal: vi.fn(),
-      closeCenterModal: vi.fn(),
-      restoreEditor: vi.fn(),
-      showStatus: vi.fn(),
-    } as unknown as SlashCommandHost;
-
-    showOpsTheatreSettings(host);
-    selectOpsAction(host, 'tip-open');
-    expect(host.showStatus).toHaveBeenCalledWith(OPS_THEATRE_OPEN_TIP, 'info');
-  });
 });

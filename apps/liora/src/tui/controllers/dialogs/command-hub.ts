@@ -143,13 +143,6 @@ function handleCommandHubSelect(
 ): void {
   noteHubActionUse(item.id);
 
-  // Search tip — stay in Hub; One-search already covers slash/settings/skills.
-  if (item.id === 'help.searchTip') {
-    noteSuccessFeedback();
-    host.state.toast.show('Type to search — settings, slash commands, skills', 2800);
-    return;
-  }
-
   if (isSlashHubActionId(item.id)) {
     closeAllCenterModals(host);
     noteSuccessFeedback();

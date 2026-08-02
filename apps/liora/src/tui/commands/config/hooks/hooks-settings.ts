@@ -77,26 +77,7 @@ export function showHooksSettings(host: SlashCommandHost): void {
           label: 'Manage extensions / hooks…',
           description: 'Plugin hooks.json · /extensions modal · enable/disable packs.',
         },
-        {
-          value: 'tip-pre-tool-use',
-          label: 'PreToolUse tip',
-          description: 'Gate destructive git/rm, .env writes, secret paths before tools run.',
-        },
-        {
-          value: 'tip-post-tool-use',
-          label: 'PostToolUse tip',
-          description: 'Audit, format, telemetry · RunProjectChecks after Edit/Write.',
-        },
-        {
-          value: 'tip-stop',
-          label: 'Stop / lifecycle tip',
-          description: 'Session wind-down · teammate idle · SessionStart / UserPromptSubmit.',
-        },
-        {
-          value: 'tip-enable',
-          label: 'Enable hooks tip',
-          description: 'config.toml [[hooks]] · plugin hooks.json · /ext hooks audit.',
-        },
+
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -108,21 +89,7 @@ export function showHooksSettings(host: SlashCommandHost): void {
           showExtensionsHub(host);
           return;
         }
-        if (value === 'tip-pre-tool-use') {
-          host.showStatus(HOOKS_PRE_TOOL_USE_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-post-tool-use') {
-          host.showStatus(HOOKS_POST_TOOL_USE_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-stop') {
-          host.showStatus(HOOKS_STOP_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-enable') {
-          host.showStatus(HOOKS_ENABLE_TIP, 'info');
-        }
+
       },
       onCancel: () => {
         dismissPickerDialog(host);

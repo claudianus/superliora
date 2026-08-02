@@ -38,6 +38,11 @@ import {
   polishTranscriptLines,
 } from '#/tui/features/transcript/transcript-entrance';
 import { formatThinkingText } from '#/tui/utils/transcript/transcript-output-format';
+import {
+  applyPhaseTintLine,
+  phaseGutter,
+} from '#/tui/features/transcript/transcript-phase-tint';
+import { getActiveTranscriptDetail } from '#/tui/features/transcript/transcript-density';
 
 export type ThinkingRenderMode = 'live' | 'finalized';
 
@@ -159,13 +164,24 @@ export class ThinkingComponent implements Component {
         const appearance = getActiveAppearancePreferences();
 
         if (this.mode === 'live') {
-          // Live thinking always shows a short tail glance so work is transparent
-          // without waiting for Ctrl+O expand.
-          const visibleLines = projectRendererLineWindow({
-            lines: contentLines,
-            maxLines: this.expanded ? Math.max(THINKING_PREVIEW_LINES, 4) : THINKING_PREVIEW_LINES,
-            tail: true,
-          }).lines;
+          const detail = getActiveTranscriptDetail();
+          // minimal: status line only. compact+: short tail glance.
+          const maxPreview =
+            detail === 'minimal' && !this.expanded
+              ? 0
+              : this.expanded
+                ? Math.max(THINKING_PREVIEW_LINES, 4)
+                : detail === 'compact'
+                  ? Math.min(2, THINKING_PREVIEW_LINES)
+                  : THINKING_PREVIEW_LINES;
+          const visibleLines =
+            maxPreview === 0
+              ? []
+              : projectRendererLineWindow({
+                  lines: contentLines,
+                  maxLines: maxPreview,
+                  tail: true,
+                }).lines;
           const spinnerFrame =
             Math.floor(appearanceAnimationNow() / BRAILLE_SPINNER_INTERVAL_MS) %
             BRAILLE_SPINNER_FRAMES.length;
@@ -185,11 +201,22 @@ export class ThinkingComponent implements Component {
           const thinkingLabel = renderThinkingStatusLabel(
             `thinking...${elapsed}${stall}${density}`,
           );
+          const phaseTag = applyPhaseTintLine(
+            `${phaseGutter('thinking')} ${currentTheme.boldFg('syntaxMeta', 'thinking')}`,
+            width,
+            'thinking',
+          );
           const liveLines = [
             '',
+            phaseTag,
             spinner + thinkingLabel,
             ...visibleLines.map((line) => MESSAGE_INDENT + line),
-          ];
+          ].map((line, i) => {
+            if (line.length === 0 || i <= 1) return line;
+            const guttered =
+              phaseGutter('thinking') + (line.startsWith(' ') ? line.slice(1) : line);
+            return applyPhaseTintLine(guttered, width, 'thinking');
+          });
           return polishTranscriptLines(liveLines, {
             startedAtMs: this.entranceStartedAtMs,
             kind: 'thinking',
@@ -204,8 +231,16 @@ export class ThinkingComponent implements Component {
           lines.push(p + contentLines[i]);
         }
 
-        if (this.expanded) {
-          return polishTranscriptLines(lines, {
+        const tint = (raw: string[]): string[] =>
+          raw.map((line, i) => {
+            if (line.length === 0) return line;
+            const guttered =
+              i <= 1 ? line : phaseGutter('thinking') + (line.startsWith(' ') ? line.slice(1) : line);
+            return applyPhaseTintLine(guttered, width, 'thinking');
+          });
+
+        if (this.expanded || getActiveTranscriptDetail() === 'full') {
+          return polishTranscriptLines(tint(lines), {
             startedAtMs: this.entranceStartedAtMs,
             kind: 'thinking',
             appearance,
@@ -219,6 +254,14 @@ export class ThinkingComponent implements Component {
             : currentTheme.fg('textDim', STATUS_BULLET);
         const elapsed = this.renderElapsedSuffix();
         const summary = `${marker}${renderThinkingStatusLabel(`thinking complete${elapsed}`)}`;
+        // minimal: one status line only (no "N lines hidden" chrome).
+        if (getActiveTranscriptDetail() === 'minimal') {
+          return polishTranscriptLines(tint(['', summary]), {
+            startedAtMs: this.entranceStartedAtMs,
+            kind: 'thinking',
+            appearance,
+          });
+        }
         const hint = `... (${String(contentLines.length)} lines hidden, ctrl+o to expand)`;
         const indentWidth = Math.min(MESSAGE_INDENT.length, Math.max(0, width));
         const hintWidth = Math.max(0, width - indentWidth);
@@ -227,7 +270,7 @@ export class ThinkingComponent implements Component {
           summary,
           ' '.repeat(indentWidth) + currentTheme.dim(truncateToWidth(hint, hintWidth, '…')),
         ];
-        return polishTranscriptLines(collapsed, {
+        return polishTranscriptLines(tint(collapsed), {
           startedAtMs: this.entranceStartedAtMs,
           kind: 'thinking',
           appearance,

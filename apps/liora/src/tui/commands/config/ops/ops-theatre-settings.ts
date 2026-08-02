@@ -58,36 +58,7 @@ export function showOpsTheatreSettings(host: SlashCommandHost): void {
           label: 'Visual Quality…',
           description: 'Dopamine Ops cues share the same motion / PQ gate.',
         },
-        {
-          value: 'tip-open',
-          label: 'Open theatre tip',
-          description: OPS_THEATRE_OPEN_TIP,
-        },
-        {
-          value: 'tip-layout',
-          label: 'Layout tip',
-          description: OPS_THEATRE_LAYOUT_TIP,
-        },
-        {
-          value: 'tip-git',
-          label: 'Git tip',
-          description: OPS_THEATRE_GIT_TIP,
-        },
-        {
-          value: 'tip-tray',
-          label: 'Interrupt tray tip',
-          description: OPS_THEATRE_TRAY_TIP,
-        },
-        {
-          value: 'tip-steer',
-          label: 'Steer tip',
-          description: OPS_THEATRE_STEER_TIP,
-        },
-        {
-          value: 'tip-premium',
-          label: 'Dopamine Ops tip',
-          description: OPS_THEATRE_PREMIUM_TIP,
-        },
+
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -107,29 +78,7 @@ export function showOpsTheatreSettings(host: SlashCommandHost): void {
           showPremiumSettings(host);
           return;
         }
-        if (value === 'tip-open') {
-          host.showStatus(OPS_THEATRE_OPEN_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-layout') {
-          host.showStatus(OPS_THEATRE_LAYOUT_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-git') {
-          host.showStatus(OPS_THEATRE_GIT_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-tray') {
-          host.showStatus(OPS_THEATRE_TRAY_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-steer') {
-          host.showStatus(OPS_THEATRE_STEER_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-premium') {
-          host.showStatus(OPS_THEATRE_PREMIUM_TIP, 'info');
-        }
+
       },
       onCancel: () => {
         dismissPickerDialog(host);

@@ -67,6 +67,8 @@ describe('TUI menu overhaul structure (shipped modules)', () => {
     expect(sections.has('Models')).toBe(true);
     expect(sections.has('Look & feel')).toBe(true);
     expect(sections.has('Safety')).toBe(true);
+    expect(sections.has('Integrations')).toBe(true);
+    expect(sections.has('System')).toBe(true);
     expect(sections.size).toBeGreaterThanOrEqual(5);
   });
 

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ToolCallComponent } from '#/tui/components/messages/tool-call/index';
+import { ToolChainSummaryComponent } from '#/tui/components/messages/tool-chain-summary';
 import type { NativeInputMouseEvent } from '#/tui/renderer';
 import { createTUIState, type TUIState } from '#/tui/tui-state';
 import type { AppState } from '#/tui/types';
@@ -183,5 +184,35 @@ describe('handleTranscriptDensityMouse', () => {
     mountTools(component);
     expect(handleTranscriptDensityMouse(currentState, mouse('press', 0, 0))).toBe(false);
     expect(component.isOneLineCollapsed).toBe(true);
+  });
+
+  it('clicking the chain phase bar expands every tool in the turn', () => {
+    const chain = new ToolChainSummaryComponent();
+    const t1 = tool('chain_a', 'compact');
+    const t2 = tool('chain_b', 'compact');
+    currentState.transcriptContainer.addChild(chain);
+    mountTools(t1, t2);
+    expect(t1.isOneLineCollapsed).toBe(true);
+    expect(t2.isOneLineCollapsed).toBe(true);
+
+    // Resolve a viewport row that lands on the chain summary (layout-aware).
+    let chainLocalRow = -1;
+    for (let row = 0; row < 20; row++) {
+      const range = currentState.transcriptContainer.childRowRangeAt(STAGE_WIDTH, row);
+      if (range?.child === chain) {
+        chainLocalRow = row;
+        break;
+      }
+    }
+    expect(chainLocalRow).toBeGreaterThanOrEqual(0);
+    const chainClick = mouse('press', RECT_X + 2, RECT_Y + chainLocalRow);
+    expect(handleTranscriptDensityMouse(currentState, chainClick)).toBe(true);
+    expect(t1.isOneLineCollapsed).toBe(false);
+    expect(t2.isOneLineCollapsed).toBe(false);
+
+    // Second click collapses the unit again.
+    expect(handleTranscriptDensityMouse(currentState, chainClick)).toBe(true);
+    expect(t1.isOneLineCollapsed).toBe(true);
+    expect(t2.isOneLineCollapsed).toBe(true);
   });
 });

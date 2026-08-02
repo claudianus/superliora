@@ -68,7 +68,7 @@ function selectExtensionsAction(host: SlashCommandHost, value: string): void {
 }
 
 describe('extensions settings tips', () => {
-  it('exports audit, manage paths, and hot-reload tips', () => {
+  it('exports audit, manage paths, and hot-reload tips (glance copy, not menu rows)', () => {
     expect(EXTENSIONS_AUDIT_TIP).toContain('/extensions');
     expect(EXTENSIONS_MANAGE_TIP).toContain('/plugins');
     expect(EXTENSIONS_HOT_RELOAD_TIP).toContain('Hot-reload');
@@ -76,7 +76,7 @@ describe('extensions settings tips', () => {
 });
 
 describe('showExtensionsSettings', () => {
-  it('mounts ChoicePicker with status and read-only tip actions', () => {
+  it('mounts ChoicePicker with status and read-only tip actions — tip-free', () => {
     const host = makeExtensionsHost();
     showExtensionsSettings(host);
     const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
@@ -88,17 +88,8 @@ describe('showExtensionsSettings', () => {
     expect(options.map((o) => o.value)).toEqual([
       'status',
       'manage',
-      'tip-audit',
-      'tip-manage',
-      'tip-hot-reload',
     ]);
-  });
-
-  it('shows audit tip via showStatus', () => {
-    const host = makeExtensionsHost();
-    showExtensionsSettings(host);
-    selectExtensionsAction(host, 'tip-audit');
-    expect(host.showStatus).toHaveBeenCalledWith(EXTENSIONS_AUDIT_TIP, 'info');
+    expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
   it('mounts read-only extensions panel with live session counts', async () => {

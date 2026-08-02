@@ -1,22 +1,28 @@
 /**
  * Shiki-backed syntax highlighting rendered to ANSI 24-bit strings.
  *
- * Shiki's JavaScript regex engine (pure JS, no WASM) gives TextMate-grade
- * tokenization at ~1ms per snippet after a lazy ~25ms warm-up. Until the
- * singleton is ready — and for grammars the JS engine does not load —
- * callers fall back to the synchronous cli-highlight path, so rendering
- * never blocks on the async initialization.
+ * Uses curated coding themes (GitHub Dimmed, One Dark Pro, …) by default so
+ * code colors stay mild and consistent regardless of the UI chrome skin.
+ * The legacy `palette` mode still bridges ColorPalette → TextMate.
+ *
+ * Until the singleton is ready — and for grammars not yet loaded —
+ * callers fall back to the synchronous cli-highlight path.
  */
 import chalk from 'chalk';
-import { createHighlighter } from 'shiki';
-import type { BundledLanguage } from 'shiki';
+import { createHighlighter, type BundledLanguage, type BundledTheme } from 'shiki';
 import { createJavaScriptRegexEngine } from 'shiki/engine/javascript';
 
 import { currentTheme, type ColorPalette } from '#/tui/theme';
 import { buildShikiPaletteTheme, SHIKI_PALETTE_THEME_NAME } from '#/tui/theme/shiki-theme';
+import {
+  getActiveSyntaxThemeId,
+  resolveSyntaxTheme,
+  type SyntaxThemeId,
+} from '#/tui/theme/syntax-theme';
+import { normalizeLangId } from './lang-aliases';
 
 /** Common languages seen in transcripts; loaded eagerly at warm-up. */
-const SHIKI_LANGS = [
+const SHIKI_WARM_LANGS = [
   'typescript',
   'tsx',
   'javascript',
@@ -36,29 +42,55 @@ const SHIKI_LANGS = [
   'sql',
   'diff',
   'xml',
+  'java',
+  'kotlin',
+  'c',
+  'cpp',
+  'csharp',
+  'ruby',
+  'php',
+  'swift',
+  'dockerfile',
+  'makefile',
+  'graphql',
+  'ini',
+  'properties',
+  'terraform',
+  'hcl',
+  'csv',
+  'vue',
+  'svelte',
+  'scss',
+  'protobuf',
+  'powershell',
+  'dart',
+  'elixir',
+  'haskell',
 ] as const;
 
-const LANG_ALIASES: Record<string, string> = {
-  ts: 'typescript',
-  mjs: 'javascript',
-  cjs: 'javascript',
-  js: 'javascript',
-  py: 'python',
-  sh: 'shellscript',
-  shell: 'shellscript',
-  zsh: 'shellscript',
-  bash: 'shellscript',
-  yml: 'yaml',
-  md: 'markdown',
-};
+/** Bundled coding themes preloaded so preference switches are free. */
+const SHIKI_BUNDLED_THEMES = [
+  'github-dark-dimmed',
+  'github-light',
+  'one-dark-pro',
+  'catppuccin-mocha',
+  'nord',
+  'solarized-dark',
+  'solarized-light',
+  'dark-plus',
+] as const;
 
 type ShikiInstance = Awaited<ReturnType<typeof createHighlighter>>;
 
 let highlighter: ShikiInstance | undefined;
 let warmPromise: Promise<void> | undefined;
 let forceFallback = false;
-/** Signature of the palette currently loaded into the highlighter. */
+/** Signature of the palette bridge currently loaded into the highlighter. */
 let activePaletteKey: string | undefined;
+/** Last resolved Shiki theme name used for tokens. */
+let activeShikiThemeName: string | undefined;
+/** In-flight lazy language loads. */
+const pendingLangLoads = new Map<string, Promise<void>>();
 
 const PALETTE_KEY_TOKENS = [
   'syntaxText',
@@ -79,9 +111,8 @@ function paletteKey(palette: ColorPalette): string {
 }
 
 /**
- * Re-bind Shiki's colors to a new palette after a theme switch. Safe to call
- * before warm-up finishes — completion compares keys and catches up, and
- * {@link shikiHighlightLines} also calls this lazily on every miss.
+ * Re-bind Shiki's palette-bridge theme after a UI theme switch. Safe before
+ * warm-up finishes. Bundled coding themes ignore this path.
  */
 export function refreshShikiPalette(palette: ColorPalette): void {
   const key = paletteKey(palette);
@@ -90,8 +121,23 @@ export function refreshShikiPalette(palette: ColorPalette): void {
   const instance = highlighter;
   if (instance === undefined) return;
   void instance.loadTheme(buildShikiPaletteTheme(palette)).catch(() => {
-    // Theme load failed; keep the previous palette colors.
+    // Keep previous palette colors.
   });
+}
+
+/**
+ * Call after the operator changes `appearance.syntax_theme` so the next
+ * highlight uses the new theme (and clears any theme-key cache upstream).
+ */
+export function refreshShikiSyntaxTheme(preference?: SyntaxThemeId): void {
+  if (preference !== undefined) {
+    // Preference is stored on the syntax-theme module by the caller.
+  }
+  activeShikiThemeName = undefined;
+  const live = currentTheme.palette;
+  if (resolveSyntaxTheme(getActiveSyntaxThemeId(), live).usesPaletteBridge) {
+    refreshShikiPalette(live);
+  }
 }
 
 /**
@@ -103,18 +149,12 @@ export function __forceShikiFallbackForTest(value: boolean): void {
 }
 
 /**
- * Start the one-time async warm-up. Safe to call repeatedly; resolves once
- * the singleton is ready (or never sets it when initialization fails, in
- * which case the cli-highlight fallback stays in charge).
+ * Start the one-time async warm-up. Safe to call repeatedly.
  */
 export function warmShikiHighlighter(): Promise<void> {
   warmPromise ??= createHighlighter({
-      // A bundled placeholder keeps creation free of app-module state:
-      // reading currentTheme at import time is unsafe in the production
-      // bundle (module cycles can leave the palette uninitialized). The
-      // palette theme is loaded on completion instead.
-      themes: ['dark-plus'],
-      langs: [...SHIKI_LANGS],
+      themes: [...SHIKI_BUNDLED_THEMES],
+      langs: [...SHIKI_WARM_LANGS],
       engine: createJavaScriptRegexEngine({ forgiving: true }),
     })
       .then((instance) => {
@@ -122,8 +162,7 @@ export function warmShikiHighlighter(): Promise<void> {
         const live = currentTheme.palette;
         activePaletteKey = paletteKey(live);
         void instance.loadTheme(buildShikiPaletteTheme(live)).catch(() => {
-          // Keep the placeholder theme; cli-highlight fallback still matches
-          // the palette, so colors are never wrong for long.
+          // Palette bridge optional until preference is `palette`.
         });
       })
       .catch(() => {
@@ -138,14 +177,66 @@ export function shikiReady(): boolean {
 }
 
 function resolveLangId(lang: string): string {
-  const normalized = lang.trim().toLowerCase();
-  return LANG_ALIASES[normalized] ?? normalized;
+  return normalizeLangId(lang) ?? lang.trim().toLowerCase();
+}
+
+/**
+ * Map our canonical ids onto Shiki grammar ids when they differ.
+ * shellscript is the TextMate id; we accept bash.
+ */
+function shikiLangId(langId: string): string {
+  switch (langId) {
+    case 'bash':
+    case 'shell':
+    case 'zsh':
+      return 'shellscript';
+    case 'tsx':
+      return 'tsx';
+    case 'jsx':
+      return 'jsx';
+    default:
+      return langId;
+  }
+}
+
+/** Languages we already know are missing from the Shiki bundle. */
+const knownMissingLangs = new Set<string>();
+
+function ensureLanguageLoaded(instance: ShikiInstance, langId: string): boolean {
+  const shikiId = shikiLangId(langId);
+  if (knownMissingLangs.has(shikiId)) return false;
+  if (instance.getLoadedLanguages().includes(shikiId)) return true;
+  // Kick async load; this call returns miss so caller falls back until ready.
+  if (!pendingLangLoads.has(shikiId)) {
+    pendingLangLoads.set(
+      shikiId,
+      Promise.resolve()
+        .then(() => instance.loadLanguage(shikiId as BundledLanguage))
+        .then(() => {
+          pendingLangLoads.delete(shikiId);
+        })
+        .catch(() => {
+          knownMissingLangs.add(shikiId);
+          pendingLangLoads.delete(shikiId);
+        }),
+    );
+  }
+  return false;
+}
+
+function activeThemeName(palette?: ColorPalette): string {
+  const resolved = resolveSyntaxTheme(getActiveSyntaxThemeId(), palette ?? currentTheme.palette);
+  if (resolved.usesPaletteBridge && palette !== undefined) {
+    refreshShikiPalette(palette);
+  }
+  activeShikiThemeName = resolved.shikiThemeName;
+  return resolved.shikiThemeName;
 }
 
 /**
  * Highlight `code` with Shiki, returning one ANSI string per line.
  * Returns undefined when the singleton is not ready, the language is not
- * loaded, or tokenization fails — callers should fall back.
+ * loaded yet, or tokenization fails — callers should fall back.
  */
 export function shikiHighlightLines(
   code: string,
@@ -155,14 +246,22 @@ export function shikiHighlightLines(
   const instance = highlighter;
   if (instance === undefined || forceFallback) return undefined;
   const langId = resolveLangId(lang);
-  if (!instance.getLoadedLanguages().includes(langId)) return undefined;
-  // Lazy re-bind so a theme switch is reflected even without an explicit
-  // refreshShikiPalette hook on the switching code path.
-  if (palette !== undefined) refreshShikiPalette(palette);
+  if (!ensureLanguageLoaded(instance, langId)) return undefined;
+
+  const themeName = activeThemeName(palette);
+  // Palette bridge theme may not be registered yet if load is racing.
+  if (
+    themeName === SHIKI_PALETTE_THEME_NAME &&
+    !instance.getLoadedThemes().includes(SHIKI_PALETTE_THEME_NAME)
+  ) {
+    return undefined;
+  }
+
   try {
+    const shikiLang = shikiLangId(langId);
     const { tokens } = instance.codeToTokens(code, {
-      lang: langId as BundledLanguage,
-      theme: SHIKI_PALETTE_THEME_NAME,
+      lang: shikiLang as BundledLanguage,
+      theme: themeName as BundledTheme,
     });
     return tokens.map((line) =>
       line

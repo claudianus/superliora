@@ -47,7 +47,7 @@ function selectAppearanceAction(host: SlashCommandHost, value: string): void {
 }
 
 describe('appearance settings tips', () => {
-  it('exports theme, motion, background, and change tips', () => {
+  it('exports theme, motion, background, and change tips (glance copy, not menu rows)', () => {
     expect(APPEARANCE_THEME_TIP).toContain('Settings → Theme');
     expect(APPEARANCE_MOTION_TIP).toContain('/appearance');
     expect(APPEARANCE_BACKGROUND_TIP).toContain('transcript-detail');
@@ -56,7 +56,7 @@ describe('appearance settings tips', () => {
 });
 
 describe('showAppearanceSettings', () => {
-  it('mounts ChoicePicker with live actions and tip rows', () => {
+  it('mounts ChoicePicker with live actions and tip rows — tip-free', () => {
     const host = makeHost();
     showAppearanceSettings(host);
     const options = (
@@ -70,30 +70,15 @@ describe('showAppearanceSettings', () => {
       'profile',
       'density',
       'transcript-detail',
+      'syntax-theme',
       'particles',
       'animation-fps',
       'timestamps',
       'canvas-background',
       'terminal-background',
       'terminal-palette',
-      'tip-theme',
-      'tip-motion',
-      'tip-background',
-      'tip-change',
     ]);
-  });
-
-  it('shows theme, motion, background, and change tips via showStatus', () => {
-    const host = makeHost();
-    showAppearanceSettings(host);
-    selectAppearanceAction(host, 'tip-theme');
-    expect(host.showStatus).toHaveBeenCalledWith(APPEARANCE_THEME_TIP, 'info');
-    selectAppearanceAction(host, 'tip-motion');
-    expect(host.showStatus).toHaveBeenCalledWith(APPEARANCE_MOTION_TIP, 'info');
-    selectAppearanceAction(host, 'tip-background');
-    expect(host.showStatus).toHaveBeenCalledWith(APPEARANCE_BACKGROUND_TIP, 'info');
-    selectAppearanceAction(host, 'tip-change');
-    expect(host.showStatus).toHaveBeenCalledWith(APPEARANCE_CHANGE_TIP, 'info');
+    expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
   it('opens a transcript detail picker with current level marked', () => {

@@ -106,16 +106,19 @@ Baseline: `model-selector.ts`. Top-to-bottom fixed layout:
 - Key tokens are capitalized (`Enter`, `Esc`, `Tab`, `Backspace`, `D`);
   descriptions are lowercase (`navigate`, `select`, `cancel`, `page`, `delete`,
   `clear`).
-- Direction arrows are `↑↓` (never `▲/▼`).
+- Direction arrows are `↑↓` for lists; grid layouts use `↑↓←→` (never `▲/▼`).
 - "Leave the dialog" is always `cancel` (never close / back / exit / dismiss).
   Business semantics (e.g. approval reject) are the exception.
+- **Tip-only menu rows are forbidden.** Help copy belongs in glance/status
+  panels, not fake selectable options that only call `showStatus`.
 
 ### Key bindings
 
 | Action | Key | Comparison |
 |---|---|---|
-| Move | `↑` / `↓` | `matchesKey(data, Key.Up/Down)` |
-| Page | `PgUp` / `PgDn` | `matchesKey(data, Key.PageUp/Down)` |
+| Move | `↑` / `↓` | `matchesKey(data, Key.Up/Down)` — grid: step by columns |
+| Move (grid) | `←` / `→` | column step when `layout: 'grid'` and columns > 1 |
+| Page | `PgUp` / `PgDn` | `matchesKey(data, Key.PageUp/Down)` (list-mode ←→ may still page) |
 | Select | `Enter` | `matchesKey(data, Key.Return)` |
 | Cancel | `Esc` | `matchesKey(data, Key.Escape)` — two-stage in searchable lists: first clears query, then closes |
 | Delete | `D` | `printableChar(data) === 'D'` (also accepts `'d'`) |
@@ -411,7 +414,8 @@ See `src/tui/utils/tab-strip.ts` for the shared renderer.
 ### 7.9 Transcript density (minimal / compact / standard / full)
 
 Four density levels for the tool transcript, switchable live without a
-restart:
+restart. Levels must be **visually distinct within one second** of
+switching (Ctrl+O toast confirms the level).
 
 - `/transcript <minimal|compact|standard|full>` — quick switch.
 - `/appearance transcript-detail <level>` — same path, shown in the
@@ -421,15 +425,29 @@ restart:
 
 Levels:
 
-- `standard` (default): current behavior — full tool cards.
-- `compact`: every tool card collapses to its header line (status mark,
-  tool name, key argument, result chip). Click a card to expand it
-  locally; click the header again to close. Ctrl+O global expand wins
-  over the collapse.
-- `minimal`: same one-line cards plus one aggregate chain summary per
-  turn (`⚙ Edit src/foo.ts · 7 tools · +42/−10` while running,
-  `Worked for 10m 4s · 7 tools · 2 failed` once the turn settles).
+- `standard` (default): **chain phase bar** + preview tool cards + soft phase
+  tints (you / thinking / tools / answer work-units).
+- `compact`: **chain phase bar** + every tool card as a **header line**
+  (status mark, tool name, key argument, result chip) with phase tints.
+  Click a card to expand locally.
+- `minimal`: **chain-only** tools — individual tool rows stay hidden until
+  local expand (failures punch through). Aggregate chain summary per turn
+  (`▌ tools · 7 tools · +42/−10` live; `Worked for …` settled).
+  Thinking collapses to a one-line status. Answer previews short.
 - `full`: every card expanded (taller nested tool windows; never unlimited unroll).
+  No chain bar (maximum raw detail).
+
+Coding syntax colors are controlled separately via
+`appearance.syntax_theme` (default `auto` → GitHub Dark Dimmed / GitHub Light).
+
+Work-unit phase tints (soft full-width bg + left gutter) separate
+**thinking · tools · answer** so mixed transcript streams stay scannable.
+See `features/transcript/transcript-phase-tint.ts`.
+
+Phase headers: user / thinking / answer components paint their own tags;
+tools use the **chain phase bar** at minimal/compact/standard. At **full**
+density the chain bar is omitted, so stream mounts insert a one-shot
+`TurnPhaseBoundary` before the first tool card (`streaming-ui/phase-boundary.ts`).
 
 **Ctrl+O** cycles the four levels live (minimal → compact → standard → full → …)
 and shows a short toast. `/transcript` and Appearance still jump to a level
@@ -445,7 +463,11 @@ Rules:
   shows a one-line error under its header. Failures are never invisible.
 - **Rule 12 — click-to-expand.** One-line cards toggle on left click
   (whole line when collapsed, header row when locally opened so body
-  text stays selectable). Wheel, drag, and release pass through to
+  text stays selectable). The **chain phase bar** (minimal + compact +
+  standard mounts) bulk-toggles every one-line tool in the same turn —
+  expand-all if any card is collapsed, else collapse-all. Includes tools
+  nested under Agent/Read groups. Standard/full cards are left alone
+  (no one-line collapse). Wheel, drag, and release pass through to
   selection and tool-output scrolling.
 
 Implementation map:

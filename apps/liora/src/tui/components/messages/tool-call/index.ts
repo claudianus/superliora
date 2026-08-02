@@ -14,7 +14,14 @@ import type { Component, RendererRootUI } from '#/tui/renderer';
 import { createMarkdownTheme } from '#/tui/theme/pi-tui-theme';
 import type { ToolCallBlockData, ToolResultBlockData, TranscriptDetailLevel } from '#/tui/types';
 import type { ToolOutputViewportState } from '#/tui/utils/tool/tool-output-viewport';
-import { isOneLineToolLevel } from '#/tui/features/transcript/transcript-density';
+import {
+  isChainOnlyToolLevel,
+  isOneLineToolLevel,
+} from '#/tui/features/transcript/transcript-density';
+import {
+  applyPhaseTintLine,
+  phaseGutter,
+} from '#/tui/features/transcript/transcript-phase-tint';
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
@@ -171,6 +178,11 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
   }
 
   override render(width: number): string[] {
+    // `minimal` density: hide individual tool rows — the chain summary is the
+    // visible surface. Failures and local expand punch through.
+    if (this.isChainHidden) {
+      return [];
+    }
     // Pure-scroll paint suppresses live ticks: rebuildBody/requestRender here
     // would keep the main thread busy across every visible tool card and make
     // the TUI look permanently frozen under wheel storms.
@@ -213,12 +225,19 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
       children: this.children,
       isCacheEnabled: isRenderCacheEnabled,
     });
+    const tinted = lines.map((line) => {
+      if (line.trim().length === 0) return line;
+      // Soft tools-phase tint + gutter on every non-blank row (incl. compact headers).
+      const withGutter =
+        phaseGutter('tools') + (line.startsWith(' ') ? line.slice(1) : line);
+      return applyPhaseTintLine(withGutter, width, 'tools');
+    });
     if (!isTranscriptEntranceActive(this.entranceStartedAtMs) && this.result !== undefined) {
-      return lines;
+      return tinted;
     }
     // Skip entrance polish wash on pure-scroll paint (CPU only, no interaction).
-    if (areLiveToolTicksSuppressed()) return lines;
-    return polishTranscriptLines(lines, {
+    if (areLiveToolTicksSuppressed()) return tinted;
+    return polishTranscriptLines(tinted, {
       startedAtMs: this.entranceStartedAtMs,
       kind: 'tool',
       streaming: this.result === undefined,
@@ -298,6 +317,19 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
 
   get isOneLineCollapsed(): boolean {
     return isOneLineToolLevel(this.detail) && !this.detailOverrideExpanded && !this.expanded;
+  }
+
+  /**
+   * `minimal` hides individual tool rows until the operator expands one
+   * (or a failure needs punch-through). Distinct from compact headers-only.
+   */
+  get isChainHidden(): boolean {
+    return (
+      isChainOnlyToolLevel(this.detail) &&
+      !this.detailOverrideExpanded &&
+      !this.expanded &&
+      this.result?.is_error !== true
+    );
   }
 
   get toolCallId(): string {

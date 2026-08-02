@@ -32,21 +32,7 @@ export function showNetworkSettings(host: SlashCommandHost): void {
           description:
             'Outbound proxy posture · live HTTP_PROXY / HTTPS_PROXY / NO_PROXY env · SOCKS detection.',
         },
-        {
-          value: 'tip-proxy',
-          label: 'HTTP(S) proxy tip',
-          description: 'HTTP_PROXY · HTTPS_PROXY · ALL_PROXY — set before `liora` starts.',
-        },
-        {
-          value: 'tip-no-proxy',
-          label: 'NO_PROXY tip',
-          description: 'Bypass hosts · localhost auto-bypass · NO_PROXY=* (advanced).',
-        },
-        {
-          value: 'tip-socks',
-          label: 'SOCKS & egress tip',
-          description: 'SOCKS schemes · MCP localhost stays direct · sandbox egress complement.',
-        },
+
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -54,17 +40,7 @@ export function showNetworkSettings(host: SlashCommandHost): void {
           showNetworkSettingsPanel(host);
           return;
         }
-        if (value === 'tip-proxy') {
-          host.showStatus(NETWORK_PROXY_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-no-proxy') {
-          host.showStatus(NETWORK_NO_PROXY_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-socks') {
-          host.showStatus(NETWORK_SOCKS_TIP, 'info');
-        }
+
       },
       onCancel: () => {
         dismissPickerDialog(host);

@@ -39,21 +39,7 @@ export function showThemeSettings(host: SlashCommandHost): void {
           label: 'Change theme',
           description: 'Searchable picker with preview — bundled, custom, plugin, and external.',
         },
-        {
-          value: 'tip-custom',
-          label: 'Custom themes tip',
-          description: '~/.superliora/themes JSON · plugin catalog · external terminal themes.',
-        },
-        {
-          value: 'tip-import',
-          label: 'Import & apply tip',
-          description: '/theme import · tui.toml theme · /theme <name> without Settings.',
-        },
-        {
-          value: 'tip-appearance',
-          label: 'Appearance tip',
-          description: 'Motion, density, particles, canvas background — Settings → Appearance.',
-        },
+
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -65,17 +51,7 @@ export function showThemeSettings(host: SlashCommandHost): void {
           showThemePicker(host);
           return;
         }
-        if (value === 'tip-custom') {
-          host.showStatus(THEME_CUSTOM_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-import') {
-          host.showStatus(THEME_IMPORT_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-appearance') {
-          host.showStatus(THEME_APPEARANCE_TIP, 'info');
-        }
+
       },
       onCancel: () => {
         dismissPickerDialog(host);

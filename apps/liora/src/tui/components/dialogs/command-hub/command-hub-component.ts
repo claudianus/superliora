@@ -28,6 +28,13 @@ import {
   resolveCenterListMouse,
   type CenterListMouseLayout,
 } from '#/tui/utils/ui/list-dialog-mouse';
+import {
+  gridMoveDown,
+  gridMoveLeft,
+  gridMoveRight,
+  gridMoveUp,
+  resolveGridColumns,
+} from '#/tui/utils/ui/grid-nav';
 
 import {
   COMMAND_HUB_PAGE_SIZE,
@@ -64,6 +71,8 @@ export class CommandHubComponent extends Container implements Focusable {
   private selectionMovedAtMs = 0;
   private mouseLayout: CenterListMouseLayout | undefined;
   private crumbLines = 0;
+  /** Grid columns for search results (1 = list). Idle sectioned list stays 1-col. */
+  private gridColumns = 1;
 
   constructor(opts: CommandHubOptions) {
     super();
@@ -153,19 +162,69 @@ export class CommandHubComponent extends Container implements Focusable {
       return;
     }
     if (matchesKey(data, Key.up) || matchesKey(data, Key.ctrl('p'))) {
-      this.moveSelection(this.selectedIndex - 1);
+      if (this.gridColumns > 1) {
+        this.moveSelection(
+          gridMoveUp({
+            index: this.selectedIndex,
+            count: this.filtered.length,
+            columns: this.gridColumns,
+          }),
+        );
+      } else {
+        this.moveSelection(this.selectedIndex - 1);
+      }
       return;
     }
     if (matchesKey(data, Key.down) || matchesKey(data, Key.ctrl('n'))) {
-      this.moveSelection(this.selectedIndex + 1);
+      if (this.gridColumns > 1) {
+        this.moveSelection(
+          gridMoveDown({
+            index: this.selectedIndex,
+            count: this.filtered.length,
+            columns: this.gridColumns,
+          }),
+        );
+      } else {
+        this.moveSelection(this.selectedIndex + 1);
+      }
+      return;
+    }
+    if (matchesKey(data, Key.left)) {
+      if (this.gridColumns > 1) {
+        this.moveSelection(
+          gridMoveLeft({
+            index: this.selectedIndex,
+            count: this.filtered.length,
+            columns: this.gridColumns,
+          }),
+        );
+      } else {
+        // Idle list: jump to previous section start (denser navigation).
+        this.moveSelection(this.sectionJumpIndex(-1));
+      }
+      return;
+    }
+    if (matchesKey(data, Key.right)) {
+      if (this.gridColumns > 1) {
+        this.moveSelection(
+          gridMoveRight({
+            index: this.selectedIndex,
+            count: this.filtered.length,
+            columns: this.gridColumns,
+          }),
+        );
+      } else {
+        // Idle list: jump to next section start.
+        this.moveSelection(this.sectionJumpIndex(1));
+      }
       return;
     }
     if (matchesKey(data, Key.pageUp)) {
-      this.moveSelection(this.selectedIndex - COMMAND_HUB_PAGE_SIZE);
+      this.moveSelection(this.selectedIndex - COMMAND_HUB_PAGE_SIZE * Math.max(1, this.gridColumns));
       return;
     }
     if (matchesKey(data, Key.pageDown)) {
-      this.moveSelection(this.selectedIndex + COMMAND_HUB_PAGE_SIZE);
+      this.moveSelection(this.selectedIndex + COMMAND_HUB_PAGE_SIZE * Math.max(1, this.gridColumns));
       return;
     }
     if (matchesKey(data, Key.home)) {
@@ -220,10 +279,21 @@ export class CommandHubComponent extends Container implements Focusable {
     const padLeft = Math.max(0, Math.floor((regionWidth - boxWidth) / 2));
     const inner = boxWidth - 2;
 
+    // Search results: 2-column grid when wide. Idle curated list stays 1-col.
+    this.gridColumns = resolveGridColumns({
+      width: inner,
+      itemCount: this.filtered.length,
+      preferGrid: this.query.length > 0,
+      minCellWidth: 28,
+      maxColumns: 2,
+    });
+
     const hint =
       this.query.length > 0
-        ? '↑↓ · Enter go · wheel scroll · Esc clear filter'
-        : '↑↓ · Space flip · Enter go · 1–9 · type search · wheel · click · Esc cancel';
+        ? this.gridColumns > 1
+          ? '↑↓←→ · Enter go · wheel · Esc clear filter'
+          : '↑↓ · Enter go · wheel scroll · Esc clear filter'
+        : '↑↓ · ←→ section · Space flip · Enter go · 1–9 · type search · wheel · Esc cancel';
     const body: string[] = [
       truncateToWidth(theme.fg('textMuted', ` ${hint}`), inner),
       truncateToWidth(` ${this.renderStatusStrip(inner - 1, appearance)}`, inner),
@@ -256,6 +326,36 @@ export class CommandHubComponent extends Container implements Focusable {
           inner,
         ),
       );
+    } else if (this.gridColumns > 1) {
+      // Flat 2-col search grid — sections omitted so columns stay aligned.
+      const cellW = Math.max(12, Math.floor((inner - 1) / this.gridColumns));
+      for (let index = 0; index < this.filtered.length; index += this.gridColumns) {
+        const rowLine = body.length;
+        const parts: string[] = [];
+        for (let c = 0; c < this.gridColumns; c++) {
+          const i = index + c;
+          if (i >= this.filtered.length) break;
+          const item = this.filtered[i]!;
+          itemLineByIndex[i] = rowLine;
+          const selected = i === this.selectedIndex;
+          const pointer = selected ? renderSelectPointer('command-hub') : ' ';
+          const label = selected
+            ? theme.boldFg('primary', item.label)
+            : theme.fg('text', item.label);
+          const padded = truncateToWidth(`${pointer}${label}`, cellW - 1).padEnd(cellW - 1, ' ');
+          parts.push(selected ? theme.bg('surfaceRaised', padded) : padded);
+        }
+        body.push(truncateToWidth(` ${parts.join('')}`, inner));
+      }
+      const selected = this.filtered[this.selectedIndex];
+      if (selected !== undefined) {
+        body.push(
+          truncateToWidth(
+            `    ${renderShimmerPrefix(appearance)}${theme.fg('textMuted', selected.description)}`,
+            inner,
+          ),
+        );
+      }
     } else {
       let lastSection = '';
       const showHotkeys = this.query.length === 0;
@@ -352,6 +452,36 @@ export class CommandHubComponent extends Container implements Focusable {
       crumbLines: this.crumbLines,
     };
     return framed;
+  }
+
+  /**
+   * Jump to the first item of the previous/next section (idle curated list).
+   * `dir` is -1 (previous) or +1 (next).
+   */
+  private sectionJumpIndex(dir: -1 | 1): number {
+    const items = this.filtered;
+    if (items.length === 0) return 0;
+    const cur = Math.max(0, Math.min(items.length - 1, this.selectedIndex));
+    const curSection = items[cur]?.section ?? '';
+    if (dir > 0) {
+      for (let i = cur + 1; i < items.length; i++) {
+        if ((items[i]?.section ?? '') !== curSection) return i;
+      }
+      return items.length - 1;
+    }
+    // Walk back to section start, then to previous section start.
+    let sectionStart = cur;
+    while (sectionStart > 0 && (items[sectionStart - 1]?.section ?? '') === curSection) {
+      sectionStart--;
+    }
+    if (sectionStart < cur) return sectionStart;
+    if (sectionStart === 0) return 0;
+    const prevSection = items[sectionStart - 1]?.section ?? '';
+    let prevStart = sectionStart - 1;
+    while (prevStart > 0 && (items[prevStart - 1]?.section ?? '') === prevSection) {
+      prevStart--;
+    }
+    return prevStart;
   }
 
   private moveSelection(next: number): void {

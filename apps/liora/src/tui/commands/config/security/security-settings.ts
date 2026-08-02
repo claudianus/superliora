@@ -137,21 +137,7 @@ export function showSecuritySettings(host: SlashCommandHost): void {
           description:
             'Permission mode · path sandbox · network egress · redaction · MCP allowlist inventory.',
         },
-        {
-          value: 'tip-sandbox',
-          label: 'Path sandbox tip',
-          description: 'off / workspace / read-only profiles · workspace roots · /add-dir.',
-        },
-        {
-          value: 'tip-redaction',
-          label: 'Secrets & redaction tip',
-          description: 'redactSecretsInText · PATH_SENSITIVE · bash hard-blocks · Glob/Grep filters.',
-        },
-        {
-          value: 'tip-mcp-allowlist',
-          label: 'MCP tool allowlist tip',
-          description: 'enabledTools / disabledTools in mcp.json · per-server scope · Settings → MCP.',
-        },
+
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -159,17 +145,7 @@ export function showSecuritySettings(host: SlashCommandHost): void {
           void showSecuritySettingsPanel(host);
           return;
         }
-        if (value === 'tip-sandbox') {
-          host.showStatus(SECURITY_SANDBOX_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-redaction') {
-          host.showStatus(SECURITY_REDACTION_TIP, 'info');
-          return;
-        }
-        if (value === 'tip-mcp-allowlist') {
-          host.showStatus(SECURITY_MCP_ALLOWLIST_TIP, 'info');
-        }
+
       },
       onCancel: () => {
         dismissPickerDialog(host);

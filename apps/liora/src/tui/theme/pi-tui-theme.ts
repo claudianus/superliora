@@ -12,6 +12,7 @@ import type { MarkdownTheme } from '#/tui/renderer';
 import chalk from 'chalk';
 
 import { highlightLines } from '#/tui/components/media/code-highlight';
+import { normalizeLangId } from '#/tui/components/media/lang-aliases';
 import {
   detectTranscriptOutputKind,
   sniffCodeLanguage,
@@ -27,31 +28,8 @@ import { currentTheme } from './theme';
 const HEADING_HASH_PREFIX = /^((?:\u001B\[[0-9;]*m)*)#{1,6}[ \t]+/;
 
 function resolveMarkdownCodeLang(code: string, lang?: string): string | undefined {
-  const normalized = lang?.trim().toLowerCase();
-  if (normalized !== undefined && normalized.length > 0 && normalized !== 'text' && normalized !== 'plain') {
-    switch (normalized) {
-      case 'ts':
-      case 'tsx':
-      case 'mts':
-      case 'cts':
-        return 'typescript';
-      case 'js':
-      case 'jsx':
-      case 'mjs':
-      case 'cjs':
-        return 'javascript';
-      case 'py':
-        return 'python';
-      case 'sh':
-      case 'zsh':
-      case 'shell':
-        return 'bash';
-      case 'yml':
-        return 'yaml';
-      default:
-        return normalized;
-    }
-  }
+  const fromAlias = normalizeLangId(lang);
+  if (fromAlias !== undefined) return fromAlias;
   // Fence without a language tag — sniff structure + source shape so bare
   // ``` dumps of TS/JSON/diff still light up in assistant replies.
   const kind = detectTranscriptOutputKind(code);
@@ -65,6 +43,10 @@ function resolveMarkdownCodeLang(code: string, lang?: string): string | undefine
       return 'xml';
     case 'yaml':
       return 'yaml';
+    case 'csv':
+      return 'csv';
+    case 'properties':
+      return 'properties';
     case 'code':
     case 'numbered-code':
       return sniffCodeLanguage(code);
