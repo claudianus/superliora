@@ -261,6 +261,15 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
     super.invalidate();
   }
 
+  /**
+   * Overflow eviction: drop paint caches only. Do not rebuild body or dirty
+   * transcript geometry — full invalidate() does both and freezes flings.
+   */
+  softDropPaintCaches(): void {
+    this.renderCache.clear();
+    super.softDropPaintCaches?.();
+  }
+
   setExpanded(expanded: boolean): void {
     if (this.expanded === expanded) return;
     this.expanded = expanded;

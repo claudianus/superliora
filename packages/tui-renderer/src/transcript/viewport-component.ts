@@ -603,11 +603,11 @@ export class RendererTranscriptViewportComponent extends Container {
     cache.childRefs[childIndex] = undefined;
     cache.childRenderRefs[childIndex] = undefined;
     cache.childFormattedSparse[childIndex] = undefined;
-    // Soft-evict component paint caches so multi-k Text/Markdown bodies leave
-    // the heap when the card is far off-screen (overflow slot was the pin).
-    if (child !== undefined && typeof child.invalidate === 'function') {
+    // Soft-evict leaf paint caches only. NEVER call full invalidate() —
+    // ToolCall/Assistant invalidate rebuilds bodies and dirties geometry.
+    if (child !== undefined && typeof child.softDropPaintCaches === 'function') {
       try {
-        child.invalidate();
+        child.softDropPaintCaches();
       } catch {
         // Never let eviction throw into paint.
       }

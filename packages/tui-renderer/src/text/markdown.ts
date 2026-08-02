@@ -77,6 +77,10 @@ export class Markdown implements Component {
   }
 
   invalidate(): void {
+    this.softDropPaintCaches();
+  }
+
+  softDropPaintCaches(): void {
     this.cachedText = undefined;
     this.cachedWidth = undefined;
     this.cachedLines = undefined;

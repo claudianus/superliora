@@ -134,6 +134,16 @@ export class AssistantMessageComponent implements Component {
     }
   }
 
+  /**
+   * Overflow eviction: drop paint caches without tearing down Markdown.
+   * Full invalidate() reallocates the tree and is wrong for soft-evict.
+   */
+  softDropPaintCaches(): void {
+    this.markRenderDirty();
+    this.markdown?.softDropPaintCaches?.();
+    this.contentContainer.softDropPaintCaches?.();
+  }
+
   render(width: number): string[] {
     if (this.lastText.trim().length === 0) return [];
 
