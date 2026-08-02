@@ -27,16 +27,36 @@ import {
 let suppressLiveToolTicks = false;
 let lastScrollActivityMs = 0;
 
+/**
+ * Match the renderer pure-scroll stamp clock (`performance.now` when available).
+ * Mixing epoch `Date.now()` with relative `performance.now()` stamps made storm
+ * detection always miss and left content holds on paint-mode alone.
+ */
+function paintClockNowMs(): number {
+  return typeof performance !== 'undefined' && typeof performance.now === 'function'
+    ? performance.now()
+    : Date.now();
+}
+
 /** How long after a scroll paint chrome timers should skip refresh. */
 export const TRANSCRIPT_SCROLL_TIMER_HOLD_MS = 180;
 /**
- * Hold content/layout invalidation after pure-scroll. Slightly longer than
- * storm gap so format/ambient ticks cannot re-enter while the wheel is hot.
+ * Hold O(transcript) geometry/paint wipes after pure-scroll. Longer than the
+ * storm gap so multi-k rebuilds cannot re-enter while the wheel is hot.
  */
-export const TRANSCRIPT_SCROLL_INVALIDATION_HOLD_MS = Math.max(
+export const TRANSCRIPT_SCROLL_HEAVY_HOLD_MS = Math.max(
   TRANSCRIPT_SCROLL_TIMER_HOLD_MS,
-  TRANSCRIPT_SCROLL_STORM_GAP_MS * 5,
+  TRANSCRIPT_SCROLL_STORM_GAP_MS * 4,
 );
+/**
+ * Hold light content invalidation only while the wheel is still storming.
+ * A full 200ms content hold after every scroll made streaming/type-on feel
+ * sticky even when the user only flicked the transcript once.
+ */
+export const TRANSCRIPT_SCROLL_CONTENT_HOLD_MS = TRANSCRIPT_SCROLL_STORM_GAP_MS * 2;
+
+/** @deprecated Prefer {@link TRANSCRIPT_SCROLL_HEAVY_HOLD_MS}. */
+export const TRANSCRIPT_SCROLL_INVALIDATION_HOLD_MS = TRANSCRIPT_SCROLL_HEAVY_HOLD_MS;
 
 export interface TranscriptPaintMode {
   readonly suppressLiveToolTicks?: boolean;
@@ -46,7 +66,7 @@ export function withTranscriptPaintMode<T>(mode: TranscriptPaintMode, run: () =>
   const previous = suppressLiveToolTicks;
   suppressLiveToolTicks = mode.suppressLiveToolTicks === true;
   if (suppressLiveToolTicks) {
-    lastScrollActivityMs = Date.now();
+    lastScrollActivityMs = paintClockNowMs();
   }
   try {
     // Pure-scroll also enters renderer cheap-paint so highlight/pretty skip
@@ -66,7 +86,7 @@ export function areLiveToolTicksSuppressed(): boolean {
 
 /** True when a transcript-scroll paint ran recently (chrome timer holdoff). */
 export function wasRecentTranscriptScroll(
-  nowMs: number = Date.now(),
+  nowMs: number = paintClockNowMs(),
   holdMs: number = TRANSCRIPT_SCROLL_TIMER_HOLD_MS,
 ): boolean {
   if (isTranscriptScrollStorm(nowMs, holdMs)) return true;
@@ -74,16 +94,26 @@ export function wasRecentTranscriptScroll(
 }
 
 /**
- * True while content/geometry invalidation must defer (scroll storm or recent
- * pure-scroll paint). Stronger than {@link wasRecentTranscriptScroll} for
- * O(transcript) work like invalidateGeometryAndPaint.
+ * True while light content invalidation must defer. Only active during a real
+ * scroll storm — streaming deltas resume immediately once the wheel cools.
+ */
+export function shouldDeferTranscriptContentInvalidation(
+  nowMs: number = paintClockNowMs(),
+): boolean {
+  return isTranscriptScrollStorm(nowMs, TRANSCRIPT_SCROLL_CONTENT_HOLD_MS);
+}
+
+/**
+ * True while geometry/paint wipe invalidation must defer (scroll storm or
+ * recent pure-scroll paint). Stronger than content defer for O(transcript)
+ * work like invalidateGeometryAndPaint.
  */
 export function shouldDeferTranscriptHeavyInvalidation(
-  nowMs: number = Date.now(),
+  nowMs: number = paintClockNowMs(),
 ): boolean {
   return (
-    isTranscriptScrollStorm(nowMs, TRANSCRIPT_SCROLL_INVALIDATION_HOLD_MS) ||
-    wasRecentTranscriptScroll(nowMs, TRANSCRIPT_SCROLL_INVALIDATION_HOLD_MS)
+    isTranscriptScrollStorm(nowMs, TRANSCRIPT_SCROLL_HEAVY_HOLD_MS) ||
+    wasRecentTranscriptScroll(nowMs, TRANSCRIPT_SCROLL_HEAVY_HOLD_MS)
   );
 }
 

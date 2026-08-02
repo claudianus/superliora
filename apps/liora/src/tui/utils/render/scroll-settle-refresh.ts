@@ -29,9 +29,10 @@ export function scheduleTranscriptScrollSettleRefresh(state: TUIState): void {
   }
   progressivePasses = 0;
 
-  // Slightly longer than pure-scroll hold so deferred formats and settle share
-  // one quiet window after the wheel stops.
-  const delayMs = TRANSCRIPT_SCROLL_TIMER_HOLD_MS + 40;
+  // Slightly longer than chrome timer hold so deferred formats and settle share
+  // one quiet window after the wheel stops — keep this short so stream resume
+  // after a flick does not feel sticky.
+  const delayMs = TRANSCRIPT_SCROLL_TIMER_HOLD_MS + 16;
   const timer = setTimeout(() => {
     settleTimer = undefined;
     runSettlePass(state);
