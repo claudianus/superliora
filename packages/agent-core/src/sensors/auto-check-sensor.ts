@@ -18,6 +18,22 @@ export const AUTO_CHECK_SPAWN_ENV = 'SUPERLIORA_AUTO_CHECK_SPAWN' as const;
 export const AUTO_CHECK_PREFIX = 'AUTO_CHECK:' as const;
 export const AUTO_CHECK_SPAWN_PREFIX = 'AUTO_CHECK_SPAWN:' as const;
 
+/**
+ * Loop40a — wire `warning.code` when spawn cannot run (missing tool / throw).
+ * Tool-result FAILED blocks still use formatAutoCheckSpawnResult; this tip is for
+ * cases that need an operator notice beyond a green mutation card.
+ */
+export const AUTO_CHECK_SPAWN_ERROR_CODE = 'auto-check-spawn-error' as const;
+
+export function formatAutoCheckSpawnErrorTip(message: string): string {
+  const detail = message.trim().length > 0 ? message.trim() : 'unknown error';
+  return (
+    `${AUTO_CHECK_SPAWN_PREFIX} ERROR: ${detail}. ` +
+    `Mutation was not auto-verified. Run RunProjectChecks manually. ` +
+    `code=${AUTO_CHECK_SPAWN_ERROR_CODE}.`
+  );
+}
+
 /** Min wall time between spawns (session-wide). */
 export const AUTO_CHECK_SPAWN_MIN_INTERVAL_MS = 30_000;
 /** Cap spawns per agent lifetime (session). */

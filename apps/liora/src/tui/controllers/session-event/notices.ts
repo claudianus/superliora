@@ -357,6 +357,19 @@ export class SessionEventNotices {
       this.host.showStatus('Unresolved tools closed — do not assume success', 'warning');
       return;
     }
+    // Loop40a: SUPERLIORA_AUTO_CHECK_SPAWN threw or RunProjectChecks missing.
+    if (
+      event.code === 'auto-check-spawn-error' ||
+      event.message.startsWith('AUTO_CHECK_SPAWN: ERROR:')
+    ) {
+      if (this.host.showNotice !== undefined) {
+        this.host.showNotice('Auto-check spawn error', event.message, {
+          coalesceKey: 'auto-check-spawn-error',
+        });
+      }
+      this.host.showStatus('Auto-check spawn failed — run checks manually', 'warning');
+      return;
+    }
     this.host.showStatus(`Warning: ${event.message}`, 'warning');
   }
 
