@@ -79,7 +79,7 @@ describe('resolveCacheSessionGlance', () => {
     });
     expect(glance.hitLine).toContain('streak×4');
     expect(glance.statusLine.text).toContain('Status: warm');
-    expect(glance.freezeLine?.text).toBe('Freeze: active (mid-turn)');
+    expect(glance.freezeLine?.text).toBe('Freeze: active (mid-turn · step soft-check on)');
     expect(glance.prefixLine?.text).toBe('Prefix: stable');
   });
 
@@ -97,5 +97,34 @@ describe('resolveCacheSessionGlance', () => {
     expect(lines.some((line) => line.includes('Session cache hit:'))).toBe(true);
     expect(lines.some((line) => line.includes('Invalidate:'))).toBe(true);
     expect(lines.some((line) => line.includes('Freeze policy:'))).toBe(true);
+    expect(lines.some((line) => line.includes('Cache miss dump export'))).toBe(true);
+    expect(lines.some((line) => line.includes('superliora.cache_miss.v1'))).toBe(true);
+  });
+
+  it('buildCacheSettingsLines embeds usage histogram in miss dump export', () => {
+    const session = resolveCacheSessionGlance({
+      statusHitRate: 0.88,
+      statusWarmStreak: 3,
+      cacheFrozen: true,
+    });
+    const text = buildCacheSettingsLines({
+      session,
+      usage: {
+        cacheDiagnostics: {
+          toolBlockChanged: true,
+          missReasons: { schema_change: 2, prefix_drift: 1 },
+        },
+      },
+      cacheHitRate: 0.88,
+      cacheWarmStreak: 3,
+      cacheFrozen: true,
+      capturedAtIso: '2026-08-02T06:00:00.000Z',
+    }).join('\n');
+    expect(text).toContain('Tool block: changed (prefix risk)');
+    expect(text).toContain('schema_change×2');
+    expect(text).toContain('Hit rate: 88.0%');
+    expect(text).toContain('Warm streak: 3');
+    expect(text).toContain('Frozen: yes');
+    expect(text).toContain('"schema": "superliora.cache_miss.v1"');
   });
 });

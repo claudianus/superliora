@@ -668,7 +668,8 @@ describe('FullCompaction', () => {
     expect(events).toContainEqual(
       expect.objectContaining({
         event: 'compaction.started',
-        args: expect.objectContaining({ trigger: 'auto' }),
+        // Loop25b: reactive CONTEXT_OVERFLOW recovery uses trigger=overflow.
+        args: expect.objectContaining({ trigger: 'overflow' }),
       }),
     );
     expect(events).toContainEqual(
@@ -856,7 +857,8 @@ describe('FullCompaction', () => {
     expect(events).toContainEqual(
       expect.objectContaining({
         event: 'compaction.started',
-        args: expect.objectContaining({ trigger: 'auto' }),
+        // Loop25b: reactive CONTEXT_OVERFLOW recovery uses trigger=overflow.
+        args: expect.objectContaining({ trigger: 'overflow' }),
       }),
     );
     expect(events).toContainEqual(
@@ -941,7 +943,8 @@ describe('FullCompaction', () => {
     expect(records).toContainEqual({
       event: 'compaction_finished',
       properties: expect.objectContaining({
-        source: 'auto',
+        // Loop25b: overflow recovery telemetry source.
+        source: 'overflow',
         thinking_level: 'high',
       }),
     });
@@ -992,7 +995,8 @@ describe('FullCompaction', () => {
     expect(events).toContainEqual(
       expect.objectContaining({
         event: 'compaction.started',
-        args: expect.objectContaining({ trigger: 'auto' }),
+        // Loop25b: reactive CONTEXT_OVERFLOW recovery uses trigger=overflow.
+        args: expect.objectContaining({ trigger: 'overflow' }),
       }),
     );
     expect(events).toContainEqual(
@@ -1142,6 +1146,7 @@ describe('FullCompaction', () => {
     expect(events).toContainEqual(
       expect.objectContaining({
         event: 'compaction.started',
+        // Pre-rot auto (placeholder filtering), not reactive overflow recovery.
         args: expect.objectContaining({ trigger: 'auto' }),
       }),
     );

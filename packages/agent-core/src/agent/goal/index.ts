@@ -21,7 +21,9 @@ import {
 import {
   GOAL_CANCELLED_REMINDER,
   GOAL_COMPLETE_REJECT_COOLDOWN_TURNS,
+  GOAL_NO_PROGRESS_SENSOR_ORIGIN,
   GOAL_NO_PROGRESS_STREAK_K,
+  formatGoalNoProgressTip,
 } from './goal-constants';
 import type { GoalModeHost } from './goal-mode-host';
 import {
@@ -60,7 +62,12 @@ import {
 } from './types';
 
 export * from './types';
-export { GOAL_COMPLETE_REJECT_COOLDOWN_TURNS, GOAL_NO_PROGRESS_STREAK_K } from './goal-constants';
+export {
+  GOAL_COMPLETE_REJECT_COOLDOWN_TURNS,
+  GOAL_NO_PROGRESS_SENSOR_ORIGIN,
+  GOAL_NO_PROGRESS_STREAK_K,
+  formatGoalNoProgressTip,
+} from './goal-constants';
 
 /**
  * Durable goal-mode state owned by {@link GoalMode}.

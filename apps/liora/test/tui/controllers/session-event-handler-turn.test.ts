@@ -37,6 +37,7 @@ function makeHost() {
       flushNow: vi.fn(),
       resetToolUi: vi.fn(),
       finalizeTurn: vi.fn(),
+      finalizeLiveTextBuffers: vi.fn(),
       hasThinkingDraft: vi.fn(() => false),
       flushThinkingToTranscript: vi.fn(),
       appendAssistantDelta: vi.fn(),
@@ -56,6 +57,7 @@ function makeHost() {
     showError: vi.fn(),
     showStatus: vi.fn(),
     showNotice: vi.fn(),
+    setLastTurnFailed: vi.fn(),
     track: vi.fn(),
     mountEditorReplacement: vi.fn(),
     restoreEditor: vi.fn(),
@@ -71,6 +73,9 @@ function makeHost() {
     btwPanelController: { routeEvent: vi.fn(() => false) },
     tasksBrowserController: {},
   };
+  // turn end finalizes via streamingUI + coordination stubs already present
+  host.streamingUI.setTodoList = vi.fn();
+  host.streamingUI.finalizeTurn = vi.fn();
   return host as any;
 }
 
@@ -141,5 +146,83 @@ describe('SessionEventHandler step retry feedback', () => {
     const [message] = host.showStatus.mock.calls[0] as [string];
     expect(message).toContain('…');
     expect(message.length).toBeLessThan(200);
+  });
+});
+
+function stepInterruptedEvent(
+  overrides: Partial<Extract<Event, { type: 'turn.step.interrupted' }>> = {},
+) {
+  return {
+    type: 'turn.step.interrupted',
+    agentId: 'main',
+    sessionId: 's1',
+    turnId: 1,
+    step: 12,
+    reason: 'max_steps',
+    ...overrides,
+  } satisfies Event;
+}
+
+describe('SessionEventHandler max_steps exhausted UX', () => {
+  it('surfaces max_steps as a budget notice, not a generic error', () => {
+    const host = makeHost();
+    const handler = new SessionEventHandler(host);
+
+    handler.handleEvent(stepInterruptedEvent(), vi.fn());
+
+    expect(host.showError).not.toHaveBeenCalled();
+    expect(host.showNotice).toHaveBeenCalledTimes(1);
+    const [title, detail, options] = host.showNotice.mock.calls[0] as [
+      string,
+      string,
+      { coalesceKey?: string },
+    ];
+    expect(title).toBe('Step budget exhausted');
+    expect(detail).toMatch(/max_steps/);
+    expect(detail).toMatch(/maxStepsPerTurn|loop_control|STEP_BUDGET/);
+    expect(options?.coalesceKey).toBe('step-budget-exhausted');
+
+    expect(host.showStatus).toHaveBeenCalledTimes(1);
+    const [status, color] = host.showStatus.mock.calls[0] as [string, string];
+    expect(color).toBe('warning');
+    expect(status).toMatch(/step budget exhausted/);
+  });
+
+  it('keeps non-max_steps interrupts as showError', () => {
+    const host = makeHost();
+    const handler = new SessionEventHandler(host);
+
+    handler.handleEvent(stepInterruptedEvent({ reason: 'provider_timeout' }), vi.fn());
+
+    expect(host.showNotice).not.toHaveBeenCalled();
+    expect(host.showError).toHaveBeenCalledWith('step interrupted (provider_timeout)');
+  });
+});
+
+describe('SessionEventHandler provider filtered turn end (Loop37a)', () => {
+  it('surfaces reason=filtered as a named notice (goal pause)', () => {
+    const host = makeHost();
+    const handler = new SessionEventHandler(host);
+
+    handler.handleEvent(
+      {
+        type: 'turn.ended',
+        agentId: 'main',
+        sessionId: 's1',
+        turnId: 1,
+        reason: 'filtered',
+      } satisfies Event,
+      vi.fn(),
+    );
+
+    expect(host.showNotice).toHaveBeenCalledWith(
+      'Provider safety filter',
+      expect.stringMatching(/filtered|paused/i),
+      { coalesceKey: 'provider-filtered' },
+    );
+    expect(host.showStatus).toHaveBeenCalledWith(
+      expect.stringMatching(/provider safety policy|goal paused/i),
+      'error',
+    );
   });
 });

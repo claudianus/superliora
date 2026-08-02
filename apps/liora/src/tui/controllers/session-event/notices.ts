@@ -37,6 +37,7 @@ import { INTERVENTION_NEVER_HALT_TIP } from '../../utils/never-halt/intervention
 import { staleRuntimeDegradedClearPatch } from '../../utils/never-halt/runtime-degraded';
 import { staleSearchCascadeClearPatch } from '../../utils/search/search-cascade';
 import { shouldFleetFlourishPulse } from '../../utils/fleet/fleet-flourish';
+import { formatNamedSessionErrorNotice } from '../../utils/session/named-error-notice';
 import type { StreamingUIController } from '../streaming-ui/index';
 
 /** Host surface required by session notice / transcript side-effect handlers. */
@@ -47,6 +48,8 @@ export interface NoticeEventHost {
   patchLivePane(patch: Partial<LivePaneState>): void;
   showError(msg: string): void;
   showStatus(msg: string, color?: ColorToken): void;
+  /** Optional — named recovery notices for terminal error codes (Loop28a). */
+  showNotice?(title: string, detail?: string, options?: { coalesceKey?: string }): void;
   appendTranscriptEntry(entry: TranscriptEntry): void;
   updateTerminalTitle(): void;
   setLastTurnFailed(failed: boolean): void;
@@ -247,7 +250,16 @@ export class SessionEventNotices {
       this.host.showError(OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE);
       return;
     }
-    this.host.showError(formatErrorPayload(event));
+    // Loop28a: named recovery for terminal context/compaction failures.
+    const named = formatNamedSessionErrorNotice(event.code, event.message);
+    if (named !== undefined && this.host.showNotice !== undefined) {
+      this.host.showNotice(named.title, named.detail, {
+        coalesceKey: named.coalesceKey,
+      });
+      this.host.showStatus(named.status, 'error');
+    } else {
+      this.host.showError(formatErrorPayload(event));
+    }
     const sessionId = this.host.state.appState.sessionId;
     if (sessionId.length > 0) {
       this.host.showStatus(errorReportHintLine());
@@ -284,6 +296,65 @@ export class SessionEventNotices {
           : '첨부 미디어를 비전 모델로 분석했습니다.',
         'success',
       );
+      return;
+    }
+    // Loop28b: step-budget soft tip is a named notice, not a generic "Warning:".
+    if (event.code === 'step-budget-sensor' || event.message.startsWith('STEP_BUDGET:')) {
+      if (this.host.showNotice !== undefined) {
+        this.host.showNotice('Step budget low', event.message, {
+          coalesceKey: 'step-budget-soft-warn',
+        });
+      }
+      this.host.showStatus('Step budget low — finish user-visible progress', 'warning');
+      return;
+    }
+    // Loop31a: goal no-progress (named terminal: stalled) — injection alone is model-only.
+    if (
+      event.code === 'goal-no-progress-sensor' ||
+      event.message.startsWith('GOAL_NO_PROGRESS:')
+    ) {
+      if (this.host.showNotice !== undefined) {
+        this.host.showNotice('Goal stalled (no progress)', event.message, {
+          coalesceKey: 'goal-no-progress',
+        });
+      }
+      this.host.showStatus('Goal stalled — change approach or UpdateGoal(blocked)', 'warning');
+      return;
+    }
+    // Loop32a: mid-turn CacheFreezeGuard tool-list drift (prompt-cache prefix risk).
+    if (
+      event.code === 'cache-freeze-drift-sensor' ||
+      event.message.startsWith('CACHE_FREEZE_DRIFT:')
+    ) {
+      if (this.host.showNotice !== undefined) {
+        this.host.showNotice('Cache freeze drift', event.message, {
+          coalesceKey: 'cache-freeze-drift',
+        });
+      }
+      this.host.showStatus('Cache freeze: mid-turn tool list drifted', 'warning');
+      return;
+    }
+    // Loop34a: built-in Stop sensor forced one repair continuation (false-done guard).
+    if (event.code === 'stop-sensor' || event.message.startsWith('STOP_SENSOR:')) {
+      if (this.host.showNotice !== undefined) {
+        this.host.showNotice('Stop sensor: verify before done', event.message, {
+          coalesceKey: 'stop-sensor',
+        });
+      }
+      this.host.showStatus('Stop sensor — one repair continuation', 'warning');
+      return;
+    }
+    // Loop35a: unresolved tool exchanges closed at turn end (cancel/fail/max_steps).
+    if (
+      event.code === 'abandoned-tool-sensor' ||
+      event.message.startsWith('ABANDONED_TOOL:')
+    ) {
+      if (this.host.showNotice !== undefined) {
+        this.host.showNotice('Unresolved tool calls closed', event.message, {
+          coalesceKey: 'abandoned-tool',
+        });
+      }
+      this.host.showStatus('Unresolved tools closed — do not assume success', 'warning');
       return;
     }
     this.host.showStatus(`Warning: ${event.message}`, 'warning');

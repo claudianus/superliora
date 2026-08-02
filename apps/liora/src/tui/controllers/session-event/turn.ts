@@ -25,6 +25,7 @@ import {
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import { notifyTurnComplete } from '../../utils/notification/desktop-notification';
+import { appendHostTtftMsSample } from '../../utils/host/host-glance';
 import type { StreamingUIController } from '../streaming-ui/index';
 
 /** Host surface required by turn / step / assistant / thinking event handling. */
@@ -92,7 +93,16 @@ export class SessionEventTurn {
       this.coordination.markActiveAgentSwarmsCancelled();
     }
     if (event.reason === 'filtered') {
-      this.host.showStatus('Turn stopped: provider safety policy blocked the response.', 'error');
+      // Loop37a: status alone is easy to miss; named notice + goal-pause implication.
+      this.host.showNotice(
+        'Provider safety filter',
+        'The provider blocked this response (turn reason=filtered). Active Goal/Ultrawork is paused for safety policy — change approach, switch model, or resume after reviewing the prompt.',
+        { coalesceKey: 'provider-filtered' },
+      );
+      this.host.showStatus(
+        'Turn stopped: provider safety policy blocked the response (goal paused).',
+        'error',
+      );
     }
     // A cleanly-ended turn clears the retry flag (only errors set it).
     this.host.setLastTurnFailed(false);
@@ -209,11 +219,15 @@ export class SessionEventTurn {
       );
       return;
     }
-    this.host.showError(
-      reason === 'max_steps'
-        ? 'reached per-turn step limit (max_steps)'
-        : `step interrupted (${reason})`,
-    );
+    // Loop23b: max_steps is a named terminal budget state (exhausted), not a
+    // generic error — surface recovery guidance (pairs with STEP_BUDGET soft tip).
+    if (reason === 'max_steps') {
+      const notice = formatMaxStepsExhaustedNotice();
+      this.host.showNotice(notice.title, notice.detail, { coalesceKey: 'step-budget-exhausted' });
+      this.host.showStatus(notice.status, 'warning');
+      return;
+    }
+    this.host.showError(`step interrupted (${reason})`);
   }
 
   handleThinkingDelta(event: ThinkingDeltaEvent): void {
@@ -346,13 +360,21 @@ export class SessionEventTurn {
   private maybeCaptureHostTtftSample(event: TurnStepCompletedEvent): void {
     const ms = event.llmFirstTokenLatencyMs;
     if (ms === undefined) return;
+    const priorWindow = this.host.state.appState.lastStepTtftMsWindow;
     this.host.setAppState({
       lastStepTtft: {
         ms,
         turnId: event.turnId,
         step: event.step,
         atMs: Date.now(),
+        ...(event.llmRequestBuildMs !== undefined
+          ? { requestBuildMs: event.llmRequestBuildMs }
+          : {}),
+        ...(event.llmServerFirstTokenMs !== undefined
+          ? { serverFirstTokenMs: event.llmServerFirstTokenMs }
+          : {}),
       },
+      lastStepTtftMsWindow: appendHostTtftMsSample(priorWindow, ms),
     });
   }
 
@@ -401,6 +423,20 @@ export class SessionEventTurn {
       requestTUILayoutRender(state);
     }
   }
+}
+
+/** User-facing copy when a turn hits the hard per-turn step ceiling. */
+export function formatMaxStepsExhaustedNotice(): {
+  readonly title: string;
+  readonly detail: string;
+  readonly status: string;
+} {
+  return {
+    title: 'Step budget exhausted',
+    detail:
+      'This turn hit max_steps (named terminal: exhausted). Summarize progress, tighten the next action, or raise maxStepsPerTurn in loop_control. Soft STEP_BUDGET tips fire when ≤3 steps remain.',
+    status: 'Turn stopped: per-turn step budget exhausted (max_steps)',
+  };
 }
 
 function formatTurnSummary(durationMs: number | undefined, usage: TokenUsage | undefined): string | undefined {

@@ -106,6 +106,10 @@ export function cancelledTurnEndResult(turnId: number, signal: AbortSignal): Tur
 // Abandoned tool exchange
 // ---------------------------------------------------------------------------
 
+/** Loop35a — stable marker for closed unresolved tool exchanges (TUI + model). */
+export const ABANDONED_TOOL_CODE = 'ABANDONED_TOOL' as const;
+export const ABANDONED_TOOL_WARNING_CODE = 'abandoned-tool-sensor' as const;
+
 export function abandonedToolResultOutput(ended: TurnEndedEvent): string {
   const cause =
     ended.reason === 'cancelled'
@@ -113,7 +117,21 @@ export function abandonedToolResultOutput(ended: TurnEndedEvent): string {
       : ended.reason === 'failed'
         ? `the turn failed${ended.error !== undefined ? ` (${ended.error.message})` : ''}`
         : 'the turn ended';
-  return `Tool call did not complete: ${cause} before its result was recorded. Do not assume the tool completed successfully.`;
+  return (
+    `${ABANDONED_TOOL_CODE}: Tool call did not complete: ${cause} before its result was recorded. ` +
+    `Do not assume the tool completed successfully. code=${ABANDONED_TOOL_CODE}.`
+  );
+}
+
+export function formatAbandonedToolWireTip(
+  closedCount: number,
+  reason: TurnEndedEvent['reason'],
+): string {
+  return (
+    `${ABANDONED_TOOL_CODE}: closed ${String(closedCount)} unresolved tool exchange` +
+    `${closedCount === 1 ? '' : 's'} (turn ${reason}). ` +
+    `Do not assume those tools succeeded. code=${ABANDONED_TOOL_CODE}.`
+  );
 }
 
 // ---------------------------------------------------------------------------

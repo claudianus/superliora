@@ -26,7 +26,14 @@ export interface HostTtftSample {
   readonly ms: number;
   readonly turnId?: number;
   readonly step?: number;
+  /** In-process request build portion of TTFT (when stream timing split is present). */
+  readonly requestBuildMs?: number;
+  /** Upstream API wait portion of TTFT after dispatch. */
+  readonly serverFirstTokenMs?: number;
 }
+
+/** Max TTFT samples retained for session p50 (W8 latency profile). */
+export const HOST_TTFT_WINDOW_MAX = 20;
 
 export interface HostGlanceInput {
   readonly runtimeMode: HostRuntimeMode;
@@ -40,6 +47,8 @@ export interface HostGlanceInput {
   readonly uiMode: string;
   /** Last step TTFT from turn.step.completed when stream timing is present. */
   readonly lastStepTtft?: HostTtftSample | null;
+  /** Rolling total-ms samples for session p50 (newest last). */
+  readonly lastStepTtftMsWindow?: readonly number[] | null;
   /** True when {@link SOVEREIGN_UMBRELLA_ENV} is set (umbrella sovereign reform active). */
   readonly sovereignUmbrellaActive?: boolean;
   /** Session (live) block — sovereign umbrella gate checklist when umbrella env is on. */
@@ -49,9 +58,9 @@ export interface HostGlanceInput {
 export const HOST_FUTURE_TIP =
   'Future: config [host] mode (in-process | server URL) · ACP adapter · latency profile.';
 
-/** W8 soft — TTFT Done gate; live timing via SUPERLIORA_DEBUG=1 turn status. */
+/** W8 soft — shown until at least one TTFT sample is captured this session. */
 export const HOST_TTFT_TIP =
-  'Future: TTFT p50 in-process vs server path (W8 Done gate) — complete a turn to capture a live sample here.';
+  'TTFT p50: complete a turn to capture live samples (api + client split when stream timing is present). Rolling window up to 20 steps.';
 
 /** Live last-step TTFT line for Host settings when turn.step.completed carried timing. */
 export function formatHostTtftLine(
@@ -63,7 +72,50 @@ export function formatHostTtftLine(
       ? ` (turn ${String(sample.turnId)} step ${String(sample.step)})`
       : '';
   const pathLabel = runtimeMode === 'in-process' ? 'in-process' : 'server client';
-  return `Last TTFT: ${formatTtftDuration(sample.ms)}${loc} · ${pathLabel} path`;
+  const split = formatHostTtftSplit(sample);
+  return `Last TTFT: ${formatTtftDuration(sample.ms)}${split}${loc} · ${pathLabel} path`;
+}
+
+/** ` (api X + client Y)` when both TTFT split fields are present. */
+export function formatHostTtftSplit(sample: HostTtftSample): string {
+  const build = sample.requestBuildMs;
+  const server = sample.serverFirstTokenMs;
+  if (build === undefined || server === undefined) return '';
+  return ` (api ${formatTtftDuration(server)} + client ${formatTtftDuration(build)})`;
+}
+
+/** Append a TTFT total-ms sample, dropping oldest when over {@link HOST_TTFT_WINDOW_MAX}. */
+export function appendHostTtftMsSample(
+  window: readonly number[] | null | undefined,
+  ms: number,
+  max: number = HOST_TTFT_WINDOW_MAX,
+): number[] {
+  const next = [...(window ?? []), ms];
+  if (next.length <= max) return next;
+  return next.slice(next.length - max);
+}
+
+/** Median of TTFT totals (average of two middle values when even). */
+export function computeHostTtftP50Ms(samples: readonly number[]): number | undefined {
+  if (samples.length === 0) return undefined;
+  const sorted = [...samples].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 1) return sorted[mid];
+  const lo = sorted[mid - 1];
+  const hi = sorted[mid];
+  if (lo === undefined || hi === undefined) return undefined;
+  return Math.round((lo + hi) / 2);
+}
+
+/** Session p50 line — requires ≥1 sample. */
+export function formatHostTtftP50Line(
+  samples: readonly number[],
+  runtimeMode: HostRuntimeMode,
+): string | null {
+  const p50 = computeHostTtftP50Ms(samples);
+  if (p50 === undefined) return null;
+  const pathLabel = runtimeMode === 'in-process' ? 'in-process' : 'server client';
+  return `TTFT p50: ${formatTtftDuration(p50)} (n=${String(samples.length)}, window≤${String(HOST_TTFT_WINDOW_MAX)}) · ${pathLabel} path`;
 }
 
 interface ServerLockContents {
@@ -204,6 +256,11 @@ export function buildHostSettingsLines(input: HostGlanceInput): readonly string[
     input.lastStepTtft !== undefined && input.lastStepTtft !== null
       ? formatHostTtftLine(input.lastStepTtft, input.runtimeMode)
       : null;
+  const ttftWindow = input.lastStepTtftMsWindow ?? null;
+  const ttftP50Line =
+    ttftWindow !== null && ttftWindow.length > 0
+      ? formatHostTtftP50Line(ttftWindow, input.runtimeMode)
+      : null;
 
   return [
     '── Host (read-only) ──────────────────────────',
@@ -215,6 +272,7 @@ export function buildHostSettingsLines(input: HostGlanceInput): readonly string[
     input.transportLine,
     ...sessionBlock,
     ...(ttftLine !== null ? [ttftLine] : []),
+    ...(ttftP50Line !== null ? [ttftP50Line] : []),
     `Config: ${input.configPath}`,
     `Home: ${input.homeDir}`,
     daemonLine,
@@ -229,7 +287,7 @@ export function buildHostSettingsLines(input: HostGlanceInput): readonly string[
     '── Enable (future) ──────────────────────────',
     `· ${HOST_SOVEREIGN_UMBRELLA_TIP}`,
     `· ${HOST_FUTURE_TIP}`,
-    ...(ttftLine === null ? [`· ${HOST_TTFT_TIP}`] : []),
+    ...(ttftLine === null && ttftP50Line === null ? [`· ${HOST_TTFT_TIP}`] : []),
     '· Bench / Diagnostics will export cache miss dump + trace',
     '',
     'No host switch action here until W8 In-process Host + Latency lands.',
@@ -243,6 +301,7 @@ export interface LoadHostGlanceInput {
   readonly sessionId?: string;
   readonly workDir?: string;
   readonly lastStepTtft?: HostTtftSample | null;
+  readonly lastStepTtftMsWindow?: readonly number[] | null;
 }
 
 export function loadHostGlance(input: LoadHostGlanceInput): HostGlanceInput {
@@ -281,6 +340,7 @@ export function loadHostGlance(input: LoadHostGlanceInput): HostGlanceInput {
     localServerOrigin: localDaemon?.origin,
     uiMode,
     lastStepTtft: input.lastStepTtft ?? null,
+    lastStepTtftMsWindow: input.lastStepTtftMsWindow ?? null,
     sovereignUmbrellaActive: isSovereignUmbrellaEnabled(env),
   };
 }

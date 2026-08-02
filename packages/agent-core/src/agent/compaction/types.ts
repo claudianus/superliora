@@ -153,7 +153,8 @@ export interface CompactionResultRawRef {
   readonly archiveId?: string;
 }
 
-export type CompactionSource = 'manual' | 'auto';
+/** Why compaction started. `overflow` is reactive recovery after CONTEXT_OVERFLOW. */
+export type CompactionSource = 'manual' | 'auto' | 'overflow';
 
 /**
  * Inputs `ContextMemory.applyCompaction` needs to derive a `CompactionResult`.

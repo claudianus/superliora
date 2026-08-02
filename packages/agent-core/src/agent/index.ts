@@ -113,6 +113,10 @@ import {
   createMutationVerificationLedger,
   type MutationVerificationLedger,
 } from '../sensors/mutation-verification-sensor';
+import {
+  createAutoCheckSpawnState,
+  type AutoCheckSpawnState,
+} from '../sensors/auto-check-sensor';
 
 export type { AgentRecord } from './records';
 export type { ModeActivationSource } from './mode-activation';
@@ -252,6 +256,8 @@ export class Agent {
   readonly verificationSensorLedger: VerificationSensorLedger;
   /** Phase B PostToolUse sensor — file mutations pending mechanical verification. */
   readonly mutationVerificationLedger: MutationVerificationLedger;
+  /** Loop19a — rate-limited opt-in auto-spawn RunProjectChecks state. */
+  readonly autoCheckSpawnState: AutoCheckSpawnState;
 
   /**
    * Print-mode (`liora -p`) only: when true and the agent ends a turn while
@@ -290,6 +296,7 @@ export class Agent {
     this.sandboxProfile = options.sandboxProfile;
     this.verificationSensorLedger = createVerificationSensorLedger();
     this.mutationVerificationLedger = createMutationVerificationLedger();
+    this.autoCheckSpawnState = createAutoCheckSpawnState();
 
     this.llmRequestLogger = new LlmRequestLogger(this.log);
     this.blobStore = options.homedir

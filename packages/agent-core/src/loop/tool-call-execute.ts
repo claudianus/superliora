@@ -12,13 +12,18 @@ import type {
 } from './tool-call-types';
 import {
   REPETITION_HARD_STOP_THRESHOLD,
+  REPETITION_WARN_THRESHOLD,
   abortedToolOutput,
+  checkToolCallIdempotency,
+  formatDoomLoopWarnTip,
   getCircuitBreakerState,
   getToolCallPatternCount,
   isToolCircuitOpen,
+  recordToolCallExecution,
   recordToolFailureForCircuitBreaker,
   recordToolSuccessForCircuitBreaker,
   resetToolFailure,
+  toolCallIdempotencyKey,
   trackToolFailure,
 } from './tool-call-guards';
 import type { ExecutableToolResult, RunnableToolExecution, ToolCall } from './types';
@@ -30,7 +35,57 @@ const GRACE_TIMEOUT_MS = 2_000;
  * Threshold (ms) for flagging slow tool executions. Tools exceeding this
  * are logged for observability (AHE decision observability pillar).
  */
-const SLOW_TOOL_THRESHOLD_MS = 10_000;
+export const SLOW_TOOL_THRESHOLD_MS = 10_000;
+
+/** Loop27a — model-visible marker when a tool exceeds SLOW_TOOL_THRESHOLD_MS. */
+export const SLOW_TOOL_WARN_PREFIX = 'SLOW_TOOL_WARN:' as const;
+
+export function formatSlowToolWarnTip(
+  toolName: string,
+  durationMs: number,
+  thresholdMs: number = SLOW_TOOL_THRESHOLD_MS,
+): string {
+  return (
+    `${SLOW_TOOL_WARN_PREFIX} ${toolName} took ${String(durationMs)}ms ` +
+    `(threshold ${String(thresholdMs)}ms). Prefer smaller scopes or parallelize independent work; ` +
+    `do not chain more long tools without progress.`
+  );
+}
+
+/** Loop29a — successful half-open/open probe closed the tool circuit. */
+export const CIRCUIT_BREAKER_RECOVERED_CODE = 'CIRCUIT_BREAKER_RECOVERED' as const;
+
+export function formatCircuitBreakerRecoveredTip(
+  toolName: string,
+  fromState: string = 'half-open',
+): string {
+  return (
+    `${CIRCUIT_BREAKER_RECOVERED_CODE}: Tool "${toolName}" probe succeeded ` +
+    `(from ${fromState}). Circuit closed — tool is available again. ` +
+    `code=${CIRCUIT_BREAKER_RECOVERED_CODE}.`
+  );
+}
+
+/** Loop29a — half-open probe failed; circuit re-opened. */
+export function formatCircuitBreakerProbeFailedTip(toolName: string): string {
+  return (
+    `CIRCUIT_BREAKER_OPEN: Tool "${toolName}" half-open probe failed; ` +
+    `circuit re-opened. code=CIRCUIT_BREAKER_OPEN. Pick another tool or wait for cooldown.`
+  );
+}
+
+/**
+ * Loop26a — mutation tools eligible for short-window idempotency replay.
+ * Matches mutation-verification-sensor write surface (Edit/Write/ApplyPatch).
+ * Read-like tools must NOT short-circuit (stale results are worse than re-run).
+ */
+const IDEMPOTENT_MUTATION_TOOLS = new Set(['Edit', 'Write', 'ApplyPatch']);
+
+export const IDEMPOTENCY_REPLAY_CODE = 'IDEMPOTENCY_REPLAY' as const;
+
+function isIdempotentMutationTool(toolName: string): boolean {
+  return IDEMPOTENT_MUTATION_TOOLS.has(toolName);
+}
 
 export async function runRunnableToolCall(
   step: ToolCallStepContext,
@@ -48,17 +103,24 @@ export async function runRunnableToolCall(
 
   // Circuit breaker check: block tools with open circuits.
   if (isToolCircuitOpen(toolName)) {
+    const state = getCircuitBreakerState(toolName);
     step.log?.warn('tool circuit breaker open; blocking execution', {
       toolName,
       toolCallId: toolCall.id,
-      state: getCircuitBreakerState(toolName),
+      state,
     });
+    // Loop25a: stable marker so TUI can surface a named recovery notice.
     return makeErrorToolResult(
       call,
       effectiveArgs,
-      `Tool "${toolName}" is temporarily unavailable due to repeated failures. Circuit breaker open — will retry after cooldown.`,
+      `CIRCUIT_BREAKER_OPEN: Tool "${toolName}" is temporarily unavailable due to repeated failures ` +
+        `(state=${state ?? 'open'}). code=CIRCUIT_BREAKER_OPEN. Pick another tool or wait for cooldown — do not hammer the same tool.`,
     );
   }
+
+  // Loop29a: after cooldown, isToolCircuitOpen may have flipped open→half-open.
+  // This allowed call is the single probe; success closes, failure re-opens.
+  const isHalfOpenProbe = getCircuitBreakerState(toolName) === 'half-open';
 
   // Doom-loop hard stop: identical tool+args repeated past threshold in this turn.
   // trackToolCallPattern is also called from dispatchToolCall; use count check here
@@ -78,6 +140,32 @@ export async function runRunnableToolCall(
     });
   }
 
+  // Loop26a: short-window idempotency for mutation tools — replay prior result
+  // instead of re-applying the same write (guards double-apply after retry).
+  const idempotencyKey = isIdempotentMutationTool(toolName)
+    ? toolCallIdempotencyKey(toolName, effectiveArgs)
+    : undefined;
+  if (idempotencyKey !== undefined) {
+    const prior = checkToolCallIdempotency(idempotencyKey);
+    if (prior !== undefined && prior.result !== undefined) {
+      step.log?.info('idempotent mutation replay; skipping re-execution', {
+        toolName,
+        toolCallId: toolCall.id,
+        ageMs: Date.now() - prior.executedAt,
+        code: IDEMPOTENCY_REPLAY_CODE,
+      });
+      const priorOut = prior.result;
+      const tip =
+        `\n\n${IDEMPOTENCY_REPLAY_CODE}: identical ${toolName} args already applied ` +
+        `${String(Date.now() - prior.executedAt)}ms ago. ` +
+        `Replayed prior result — no second write.`;
+      return makeToolResult(call, effectiveArgs, {
+        output: priorOut.length > 0 ? `${priorOut}${tip}` : tip.trim(),
+        isError: false,
+      });
+    }
+  }
+
   const startMs = Date.now();
   let toolResult: ExecutableToolResult;
   try {
@@ -94,14 +182,22 @@ export async function runRunnableToolCall(
       trackToolFailure(toolName, step.log);
       recordToolFailureForCircuitBreaker(toolName);
     }
-    const output = aborted
+    let output = aborted
       ? abortedToolOutput(toolName, signal)
       : `Tool "${toolName}" failed: ${errorMessage(error)}`;
+    // Loop29a: thrown failure during half-open probe re-opens — same marker as isError path.
+    if (!aborted && isHalfOpenProbe) {
+      output = `${output}\n\n${formatCircuitBreakerProbeFailedTip(toolName)}`;
+      step.log?.warn('tool circuit breaker half-open probe failed; re-opened', {
+        toolName,
+        toolCallId: toolCall.id,
+      });
+    }
     return makeErrorToolResult(call, effectiveArgs, output);
   }
 
   const durationMs = Date.now() - startMs;
-  // Track slow tool executions for observability.
+  // Loop27a: slow tools — log + model-visible tip (not log-only).
   if (durationMs > SLOW_TOOL_THRESHOLD_MS) {
     step.log?.info('slow tool execution', {
       toolName,
@@ -109,15 +205,77 @@ export async function runRunnableToolCall(
       durationMs,
       thresholdMs: SLOW_TOOL_THRESHOLD_MS,
     });
+    const tip = formatSlowToolWarnTip(toolName, durationMs);
+    const base =
+      typeof toolResult.output === 'string' ? toolResult.output : String(toolResult.output ?? '');
+    toolResult = {
+      ...toolResult,
+      output: base.length > 0 ? `${base}\n\n${tip}` : tip,
+    };
   }
 
   // Track failure patterns for isError results (e.g. grace timeout, coercion).
   if (toolResult.isError === true) {
     trackToolFailure(toolName, step.log);
     recordToolFailureForCircuitBreaker(toolName);
+    // Loop29a: half-open probe failure re-opens — mark so TUI reuses open notice.
+    if (isHalfOpenProbe) {
+      const tip = formatCircuitBreakerProbeFailedTip(toolName);
+      const base =
+        typeof toolResult.output === 'string' ? toolResult.output : String(toolResult.output ?? '');
+      toolResult = {
+        ...toolResult,
+        output: base.length > 0 ? `${base}\n\n${tip}` : tip,
+      };
+      step.log?.warn('tool circuit breaker half-open probe failed; re-opened', {
+        toolName,
+        toolCallId: toolCall.id,
+      });
+    }
   } else {
     resetToolFailure(toolName);
-    recordToolSuccessForCircuitBreaker(toolName);
+    const recoveredFrom = recordToolSuccessForCircuitBreaker(toolName);
+    // Loop29a: successful probe (or any non-closed → closed) is operator-visible.
+    if (recoveredFrom !== undefined) {
+      const tip = formatCircuitBreakerRecoveredTip(toolName, recoveredFrom);
+      const base =
+        typeof toolResult.output === 'string' ? toolResult.output : String(toolResult.output ?? '');
+      toolResult = {
+        ...toolResult,
+        output: base.length > 0 ? `${base}\n\n${tip}` : tip,
+      };
+      step.log?.info('tool circuit breaker recovered', {
+        toolName,
+        toolCallId: toolCall.id,
+        fromState: recoveredFrom,
+        code: CIRCUIT_BREAKER_RECOVERED_CODE,
+      });
+    }
+    // Only cache successful mutations — replaying errors would hide retries.
+    if (idempotencyKey !== undefined) {
+      const out =
+        typeof toolResult.output === 'string'
+          ? toolResult.output
+          : String(toolResult.output ?? '');
+      recordToolCallExecution(idempotencyKey, toolName, effectiveArgs, out);
+    }
+  }
+
+  // Loop24b: one-shot soft tip when identical (tool,args) hits warn threshold.
+  // Hard stop is handled above; here we still executed but model must see the stall.
+  if (patternCount === REPETITION_WARN_THRESHOLD) {
+    const tip = formatDoomLoopWarnTip(toolName, patternCount);
+    const base =
+      typeof toolResult.output === 'string' ? toolResult.output : String(toolResult.output ?? '');
+    toolResult =
+      toolResult.isError === true
+        ? { ...toolResult, output: base.length > 0 ? `${base}\n\n${tip}` : tip }
+        : { ...toolResult, output: base.length > 0 ? `${base}\n\n${tip}` : tip };
+    step.log?.warn('doom_loop soft warn tip attached to tool result', {
+      toolName,
+      toolCallId: toolCall.id,
+      repetitionCount: patternCount,
+    });
   }
 
   return makeToolResult(call, effectiveArgs, toolResult);

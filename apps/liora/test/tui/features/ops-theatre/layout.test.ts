@@ -43,6 +43,7 @@ function sampleInput(overrides: Partial<OpsTheatreInput> = {}): OpsTheatreInput 
     cacheFreezeLine: null,
     tokenGlanceLine: 'Tokens: in 12.3K · out 1.2K · cache 99%',
     lastStepTtftLine: null,
+    lastStepTtftP50Line: null,
     breakerLine: 'Breakers: (no trips) · breakers: see /settings never-halt',
     authLine: 'Auth: ok',
     routeLine: null,
@@ -334,6 +335,17 @@ describe('renderOpsTheatreGrid', () => {
     expect(panes.health.join('\n')).not.toContain('Last TTFT:');
   });
 
+  it('shows TTFT p50 line in Runtime Health when wired from rolling window', () => {
+    const panes = buildOpsTheatrePanes(
+      sampleInput({
+        lastStepTtftP50Line: 'TTFT p50: 200ms (n=3, window≤20) · in-process path',
+      }),
+    );
+    expect(panes.health.join('\n')).toContain(
+      'TTFT p50: 200ms (n=3, window≤20) · in-process path',
+    );
+  });
+
   it('shows live breaker open count in Runtime Health when wired from AppState', () => {
     const panes = buildOpsTheatrePanes(
       sampleInput({
@@ -360,9 +372,11 @@ describe('renderOpsTheatreGrid', () => {
     expect(idle.health.join('\n')).toContain('Freeze: idle');
 
     const active = buildOpsTheatrePanes(
-      sampleInput({ cacheFreezeLine: 'Freeze: active (mid-turn)' }),
+      sampleInput({ cacheFreezeLine: 'Freeze: active (mid-turn · step soft-check on)' }),
     );
-    expect(active.health.join('\n')).toContain('Freeze: active (mid-turn)');
+    expect(active.health.join('\n')).toContain(
+      'Freeze: active (mid-turn · step soft-check on)',
+    );
   });
 
   it('omits cache freeze line when cacheFreezeLine is null', () => {

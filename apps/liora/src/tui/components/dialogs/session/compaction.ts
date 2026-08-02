@@ -25,6 +25,7 @@ import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import {
   appearanceAnimationNow,
+  enterBeatDurationMs,
   exitBeatDurationMs,
   getActiveAppearancePreferences,
   renderEnterBeat,
@@ -157,27 +158,35 @@ export class CompactionComponent extends Container {
   override render(width: number): string[] {
     const appearance = getActiveAppearancePreferences();
     const animated = shouldRenderAmbientEffects(appearance);
+    const now = appearanceAnimationNow();
 
-    if (!this.done && !this.canceled && animated) {
+    // Enter beat only for its TTL. Replaying the multi-line rail for the
+    // entire compaction window thrash-resized the transcript (rail ↔ title)
+    // and made live progress look frozen / flicker-heavy under premium.
+    if (
+      !this.done &&
+      !this.canceled &&
+      animated &&
+      now - this.startedAtMs < enterBeatDurationMs(appearance)
+    ) {
       const title = this.background ? 'Compacting context (bg)' : 'Compacting context';
-      const beat = renderEnterBeat(title, width, 'compaction', this.startedAtMs, appearance);
+      // Pin to a single title line so geometry stays stable while the beat
+      // paints (renderEnterBeat otherwise toggles 1↔2 lines).
+      const beatHead = renderEnterBeat(title, width, 'compaction', this.startedAtMs, appearance);
+      const titleLine = beatHead.at(-1) ?? currentTheme.boldFg('textStrong', title);
       const model =
         this.modelAlias !== undefined && this.modelAlias.length > 0
           ? currentTheme.fg('glow', ` · ${this.modelAlias}`)
           : '';
       const tip = this.tip ? currentTheme.fg('textDim', ` · Tip: ${this.tip}`) : '';
-      const headed =
-        (tip.length > 0 || model.length > 0) && beat.length > 0
-          ? [...beat.slice(0, -1), `${beat.at(-1) ?? ''}${model}${tip}`]
-          : beat;
-      return this.composeBeatRender(headed, width);
+      return this.composeBeatRender([`${titleLine}${model}${tip}`], width);
     }
 
     if (this.done && animated && this.doneAtMs !== undefined) {
       // Exit beat only — do not overlap crossfade on the same clock (that
       // briefly revived the old "Compacting context" label and muted the
       // token delta). After the beat, settle on buildHeader() below.
-      if (appearanceAnimationNow() - this.doneAtMs < exitBeatDurationMs(appearance)) {
+      if (now - this.doneAtMs < exitBeatDurationMs(appearance)) {
         return this.composeBeatRender(
           renderExitBeat(
             this.buildCompletePlain(),
@@ -195,6 +204,10 @@ export class CompactionComponent extends Container {
     // See PREMIUM.md §7.1 (single animation clock).
     this.headerText.setText(this.buildHeader());
     this.progressText.setText(this.done || this.canceled ? '' : this.buildProgressLine(width));
+    // Keep the streamed preview in the container path (not only beat compose).
+    if (!this.done && !this.canceled && this.summaryBuffer.length > 0) {
+      this.summaryPreviewText.setText(this.buildSummaryPreviewLines().join('\n'));
+    }
     return super.render(width);
   }
 

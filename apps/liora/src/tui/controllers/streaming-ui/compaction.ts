@@ -4,7 +4,10 @@ import { currentWorkingTip, tipText } from '../../components/chrome/working-tips
 import { CompactionComponent } from '../../components/dialogs/session/compaction';
 import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
 import { isMotionTheatreActive, type MotionBeatController } from '../../utils/render/motion-beats';
-import { requestTUILayoutRender } from '#/tui/utils/render/frame-render';
+import {
+  requestTUIContentRender,
+  requestTUILayoutRender,
+} from '#/tui/utils/render/frame-render';
 import type { TUIState } from '../../tui-state';
 
 export interface CompactionHost {
@@ -40,6 +43,7 @@ export function beginCompaction(
     nowMs: appearanceAnimationNow(),
     theatreActive: isMotionTheatreActive(state.appState),
   });
+  // Structural: new transcript card → layout.
   requestTUILayoutRender(state);
   return block;
 }
@@ -65,6 +69,7 @@ export function endCompaction(
     nowMs: appearanceAnimationNow(),
     theatreActive: isMotionTheatreActive(state.appState),
   });
+  // Terminal state may drop progress/preview lines → layout.
   requestTUILayoutRender(state);
   return undefined;
 }
@@ -85,7 +90,8 @@ export function promoteCompactionToBlocking(
 ): void {
   if (activeBlock === undefined) return;
   activeBlock.promoteToBlocking();
-  requestTUILayoutRender(host.state);
+  // Header label change only — content is enough.
+  requestTUIContentRender(host.state);
 }
 
 export function updateCompactionProgress(
@@ -109,5 +115,8 @@ export function updateCompactionProgress(
   if (delta !== undefined && delta.length > 0) {
     activeBlock.appendSummaryDelta(delta);
   }
-  requestTUILayoutRender(host.state);
+  // Progress ticks stream many times per second. Layout invalidation rebuilds
+  // transcript geometry every token and flickers the stage; content is enough
+  // because the card already owns fixed slots for bar + preview lines.
+  requestTUIContentRender(host.state);
 }

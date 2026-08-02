@@ -94,6 +94,7 @@ async function showHostSettingsPanel(host: SlashCommandHost): Promise<void> {
     sessionId,
     workDir,
     lastStepTtft: host.state.appState.lastStepTtft ?? null,
+    lastStepTtftMsWindow: host.state.appState.lastStepTtftMsWindow ?? null,
   });
   const lines = buildHostSettingsLines({
     ...glance,

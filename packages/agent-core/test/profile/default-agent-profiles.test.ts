@@ -160,7 +160,10 @@ describe('default agent profiles', () => {
   it('exposes RepoQuery as the default compact exploration surface on coding profiles', () => {
     expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toContain('RepoQuery');
     expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toContain('ApplyPatch');
-    expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toContain('DeepResearch');
+    // Loop19c: DeepResearch is edge (full/explore/coder/plan); default agent keeps WebSearch+FetchURL.
+    expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toContain('WebSearch');
+    expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toContain('FetchURL');
+    expect(DEFAULT_AGENT_PROFILES['agent']?.tools).not.toContain('DeepResearch');
     for (const name of ['coder', 'plan']) {
       const tools = DEFAULT_AGENT_PROFILES[name]?.tools ?? [];
       expect(tools).toContain('RepoQuery');
@@ -214,10 +217,11 @@ describe('default agent profiles', () => {
     }
   });
 
-  it('keeps default agent waist ≤30 and moves Expand/Context7/media/expert edges to full', () => {
+  it('keeps default agent waist ≤30 and moves Expand/Context7/media/expert/DeepResearch edges to full', () => {
     const agentTools = DEFAULT_AGENT_PROFILES['agent']?.tools ?? [];
     expect(agentTools.length).toBeLessThanOrEqual(30);
-    expect(agentTools).toHaveLength(30);
+    // Loop19c: 29 tools (DeepResearch demoted) — headroom under hard 30 cap.
+    expect(agentTools).toHaveLength(29);
     for (const edge of [
       'Expand',
       'Memory',
@@ -227,6 +231,7 @@ describe('default agent profiles', () => {
       'Context7Resolve',
       'Context7Docs',
       'ReadMediaFile',
+      'DeepResearch',
     ] as const) {
       expect(agentTools).not.toContain(edge);
     }
@@ -242,6 +247,7 @@ describe('default agent profiles', () => {
         'Context7Resolve',
         'Context7Docs',
         'ReadMediaFile',
+        'DeepResearch',
       ]),
     );
     expect(fullTools).not.toContain('LioraExpand');

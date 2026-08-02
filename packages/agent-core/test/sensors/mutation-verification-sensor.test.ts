@@ -7,7 +7,11 @@ import {
   buildPendingMutationSoftTips,
   clearPendingMutations,
   createMutationVerificationLedger,
+  deriveMutationPackageDir,
+  extractMutationPathsFromToolArgs,
+  extractPathsFromOpenCodePatch,
   filterRecentMutations,
+  formatMutationVerifyNudge,
   isFileMutationTool,
   observeFileMutationToolResult,
   recordFileMutation,
@@ -92,5 +96,98 @@ describe('mutation-verification-sensor', () => {
     recordFileMutation(ledger, 'Edit', now - 20_000);
     clearPendingMutations(ledger, now);
     expect(buildPendingMutationSoftTips(ledger, now)).toHaveLength(0);
+  });
+
+  it('derives packageDir from packages/apps paths only when unanimous', () => {
+    expect(
+      deriveMutationPackageDir([
+        'packages/agent-core/src/sensors/foo.ts',
+        'packages/agent-core/src/index.ts',
+      ]),
+    ).toBe('packages/agent-core');
+    expect(
+      deriveMutationPackageDir([
+        'packages/agent-core/src/a.ts',
+        'packages/node-sdk/src/b.ts',
+      ]),
+    ).toBeUndefined();
+    expect(deriveMutationPackageDir(['README.md'])).toBeUndefined();
+    expect(
+      deriveMutationPackageDir(['/Users/me/code/superliora/packages/agent-core/src/x.ts']),
+    ).toBe('packages/agent-core');
+  });
+
+  it('extracts paths from Edit/Write args and OpenCode patches', () => {
+    expect(
+      extractMutationPathsFromToolArgs('Edit', {
+        path: 'packages/agent-core/src/foo.ts',
+      }),
+    ).toEqual(['packages/agent-core/src/foo.ts']);
+    expect(extractMutationPathsFromToolArgs('Write', { path: 'apps/liora/src/x.ts' })).toEqual([
+      'apps/liora/src/x.ts',
+    ]);
+    const patch = `*** Begin Patch
+*** Update File: packages/agent-core/src/a.ts
+@@
+-old
++new
+*** Add File: packages/agent-core/src/b.ts
++hello
+*** End Patch`;
+    expect(extractPathsFromOpenCodePatch(patch)).toEqual([
+      'packages/agent-core/src/a.ts',
+      'packages/agent-core/src/b.ts',
+    ]);
+    expect(extractMutationPathsFromToolArgs('ApplyPatch', { patch })).toEqual([
+      'packages/agent-core/src/a.ts',
+      'packages/agent-core/src/b.ts',
+    ]);
+  });
+
+  it('records packageDir and scopes the PostToolUse nudge when args share one package', () => {
+    const ledger = createMutationVerificationLedger();
+    const result = observeFileMutationToolResult(
+      ledger,
+      'Edit',
+      { output: 'Replaced 1 occurrence in packages/agent-core/src/foo.ts' },
+      { path: 'packages/agent-core/src/foo.ts' },
+    );
+    expect(ledger.pending[0]?.packageDir).toBe('packages/agent-core');
+    const text = typeof result.output === 'string' ? result.output : '';
+    expect(text).toContain(formatMutationVerifyNudge('packages/agent-core'));
+    expect(text).toContain('packageDir=packages/agent-core');
+    expect(text).not.toBe(MUTATION_VERIFY_NUDGE);
+  });
+
+  it('keeps generic nudge when package scope is missing or mixed', () => {
+    const ledger = createMutationVerificationLedger();
+    const result = observeFileMutationToolResult(
+      ledger,
+      'Write',
+      { output: 'Wrote README.md' },
+      { path: 'README.md' },
+    );
+    expect(ledger.pending[0]?.packageDir).toBeUndefined();
+    expect(typeof result.output === 'string' ? result.output : '').toContain(MUTATION_VERIFY_NUDGE);
+  });
+
+  it('surfaces unanimous packageDir in Goal soft tips', () => {
+    const now = Date.UTC(2026, 6, 31, 12, 0, 0);
+    const ledger = createMutationVerificationLedger();
+    recordFileMutation(ledger, 'Edit', now - 5_000, 'packages/agent-core');
+    recordFileMutation(ledger, 'Write', now - 1_000, 'packages/agent-core');
+    const tips = buildPendingMutationSoftTips(ledger, now);
+    expect(tips.join('\n')).toContain('packageDir=packages/agent-core');
+    expect(tips.join('\n')).toContain('Scope: packages/agent-core');
+  });
+
+  it('omits scoped tip when recent packageDirs disagree', () => {
+    const now = Date.UTC(2026, 6, 31, 12, 0, 0);
+    const ledger = createMutationVerificationLedger();
+    recordFileMutation(ledger, 'Edit', now - 5_000, 'packages/agent-core');
+    recordFileMutation(ledger, 'Write', now - 1_000, 'apps/liora');
+    const tips = buildPendingMutationSoftTips(ledger, now);
+    expect(tips.join('\n')).not.toContain('packageDir=');
+    expect(tips.join('\n')).toContain('Run RunProjectChecks (or the package test');
   });
 });

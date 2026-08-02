@@ -40,6 +40,9 @@ export interface SubagentSwarmHost {
     | undefined;
   readonly streamingUI: StreamingUIController;
   showError(message: string): void;
+  /** Optional — Loop39a Maker≠Checker soft collision notice. */
+  showNotice?(title: string, detail?: string, options?: { coalesceKey?: string }): void;
+  showStatus?(msg: string, color?: string): void;
   updateActivityPane(): void;
 }
 
@@ -527,7 +530,23 @@ export class SubagentSwarmCoordinator {
           }
         : undefined,
       onGovernanceSoftWarn: (warn) => {
+        const previous = this.host.state.appState.makerCheckerSoftWarn ?? null;
         this.host.setAppState({ makerCheckerSoftWarn: warn ?? null });
+        // Loop39a: Ops badge alone is quiet — named notice when a soft collision appears.
+        if (
+          warn !== undefined &&
+          warn.length > 0 &&
+          warn !== previous &&
+          this.host.showNotice !== undefined
+        ) {
+          this.host.showNotice('Maker≠Checker soft collision', warn, {
+            coalesceKey: 'maker-checker-soft-warn',
+          });
+          this.host.showStatus?.(
+            'Maker≠Checker: same path edit + verify in one swarm — split roles',
+            'warning',
+          );
+        }
       },
     });
     progress.updateArgs(args, options);

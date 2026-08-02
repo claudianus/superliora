@@ -245,7 +245,11 @@ export interface AppState {
     readonly turnId?: number;
     readonly step?: number;
     readonly atMs: number;
+    readonly requestBuildMs?: number;
+    readonly serverFirstTokenMs?: number;
   } | null;
+  /** Rolling TTFT totals (ms) for session p50 — capped at HOST_TTFT_WINDOW_MAX. */
+  lastStepTtftMsWindow?: readonly number[] | null;
 }
 
 export interface ToolCallBlockData {

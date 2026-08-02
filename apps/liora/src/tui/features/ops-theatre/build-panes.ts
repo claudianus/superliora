@@ -133,6 +133,8 @@ export interface OpsTheatreInput {
   readonly tokenGlanceLine: string;
   /** Live last-step TTFT from AppState.lastStepTtft (Host SSOT formatter). */
   readonly lastStepTtftLine: string | null;
+  /** Session TTFT p50 from rolling window (Host SSOT formatter). */
+  readonly lastStepTtftP50Line?: string | null;
   readonly breakerLine: string;
   readonly authLine: string;
   readonly routeLine: string | null;
@@ -352,6 +354,7 @@ function buildHealthPane(input: OpsTheatreInput): string[] {
     ...(input.cacheFreezeLine != null ? [input.cacheFreezeLine] : []),
     input.tokenGlanceLine,
     ...(input.lastStepTtftLine != null ? [input.lastStepTtftLine] : []),
+    ...(input.lastStepTtftP50Line != null ? [input.lastStepTtftP50Line] : []),
     input.breakerLine,
     input.authLine,
     ...(input.routeLine != null ? [input.routeLine] : []),

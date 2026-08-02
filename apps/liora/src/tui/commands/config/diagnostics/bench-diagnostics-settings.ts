@@ -1,5 +1,7 @@
 /**
  * Settings → Bench / Diagnostics — read-only /bench, /ops tips (SSOT §9.2).
+ * Loop17b: session TTFT export block from AppState rolling window.
+ * Loop19b: session trace dump via session.getSessionTrace().
  */
 
 import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
@@ -10,6 +12,7 @@ import {
   buildBenchDiagnosticsSettingsLines,
   OPS_SLASH_TIP,
 } from '../../../utils/bench/bench-diagnostics-glance';
+import { resolveHostRuntimeMode } from '../../../utils/host/host-glance';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
@@ -28,7 +31,7 @@ export function showBenchDiagnosticsSettings(host: SlashCommandHost): void {
           value: 'status',
           label: 'Bench / Diagnostics status',
           description:
-            '/bench · /ops · visual smoke · W6 redteam · branding debt glance (read-only).',
+            '/bench · /ops · visual smoke · session TTFT + trace dump · W6 redteam (read-only).',
         },
         {
           value: 'tip-bench',
@@ -44,7 +47,7 @@ export function showBenchDiagnosticsSettings(host: SlashCommandHost): void {
       onSelect: (value) => {
         dismissPickerDialog(host);
         if (value === 'status') {
-          showBenchDiagnosticsSettingsPanel(host);
+          void showBenchDiagnosticsSettingsPanel(host);
           return;
         }
         if (value === 'tip-bench') {
@@ -63,8 +66,93 @@ export function showBenchDiagnosticsSettings(host: SlashCommandHost): void {
   );
 }
 
-function showBenchDiagnosticsSettingsPanel(host: SlashCommandHost): void {
-  const lines = buildBenchDiagnosticsSettingsLines();
+async function showBenchDiagnosticsSettingsPanel(host: SlashCommandHost): Promise<void> {
+  let traceDump:
+    | {
+        readonly trace: {
+          readonly sessionId: string;
+          readonly agentId: string;
+          readonly generatedAt: string;
+          readonly completeness: {
+            readonly source: string;
+            readonly recordCount: number;
+            readonly traceEventCount: number;
+            readonly messageCount: number;
+            readonly filteredInternalMessageCount: number;
+            readonly toolCallCount: number;
+            readonly toolResultCount: number;
+            readonly subagentLifecycleCount: number;
+            readonly ultraworkEventCount: number;
+            readonly redactedCount: number;
+            readonly warnings: readonly string[];
+          };
+          readonly events: readonly {
+            readonly id?: string;
+            readonly index?: number;
+            readonly type: string;
+            readonly title: string;
+            readonly summary?: string;
+            readonly time?: number;
+          }[];
+          readonly verificationArtifacts?: readonly { readonly id: string; readonly kind: string }[];
+        };
+      }
+    | null = null;
+  let traceDumpUnavailableReason: string | null = null;
+
+  const session = host.session;
+  if (session === undefined) {
+    traceDumpUnavailableReason = 'No active session — open a session, then reopen this panel.';
+  } else {
+    try {
+      const trace = await session.getSessionTrace();
+      traceDump = {
+        trace: {
+          sessionId: trace.sessionId,
+          agentId: trace.agentId,
+          generatedAt: trace.generatedAt,
+          completeness: {
+            source: trace.completeness.source,
+            recordCount: trace.completeness.recordCount,
+            traceEventCount: trace.completeness.traceEventCount,
+            messageCount: trace.completeness.messageCount,
+            filteredInternalMessageCount: trace.completeness.filteredInternalMessageCount,
+            toolCallCount: trace.completeness.toolCallCount,
+            toolResultCount: trace.completeness.toolResultCount,
+            subagentLifecycleCount: trace.completeness.subagentLifecycleCount,
+            ultraworkEventCount: trace.completeness.ultraworkEventCount,
+            redactedCount: trace.completeness.redactedCount,
+            warnings: [...trace.completeness.warnings],
+          },
+          events: trace.events.map((event) => ({
+            id: event.id,
+            index: event.index,
+            type: event.type,
+            title: event.title,
+            ...(event.summary !== undefined ? { summary: event.summary } : {}),
+            ...(event.time !== undefined ? { time: event.time } : {}),
+          })),
+          verificationArtifacts: trace.verificationArtifacts.map((a) => ({
+            id: a.id,
+            kind: a.kind,
+          })),
+        },
+      };
+    } catch {
+      traceDumpUnavailableReason =
+        'getSessionTrace failed — try /export or reopen after a turn completes.';
+    }
+  }
+
+  const lines = buildBenchDiagnosticsSettingsLines({
+    ttft: {
+      runtimeMode: resolveHostRuntimeMode(host.harness, process.env),
+      lastStepTtft: host.state.appState.lastStepTtft ?? null,
+      lastStepTtftMsWindow: host.state.appState.lastStepTtftMsWindow ?? null,
+    },
+    traceDump,
+    traceDumpUnavailableReason,
+  });
 
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => [...lines],

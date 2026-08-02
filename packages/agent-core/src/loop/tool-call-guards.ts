@@ -121,14 +121,21 @@ export function recordToolFailureForCircuitBreaker(toolName: string): boolean {
 
 /**
  * Record a tool success. Resets the circuit breaker to closed state.
+ * Returns the prior non-closed state when a recovery transition happened
+ * (Loop29a: half-open/open → closed visibility).
  */
-export function recordToolSuccessForCircuitBreaker(toolName: string): void {
+export function recordToolSuccessForCircuitBreaker(
+  toolName: string,
+): CircuitBreakerState | undefined {
   const entry = circuitBreakers.get(toolName);
   if (entry !== undefined && entry.state !== 'closed') {
+    const prior = entry.state;
     entry.state = 'closed';
     entry.failures = [];
     entry.lastStateChange = Date.now();
+    return prior;
   }
+  return undefined;
 }
 
 /**
@@ -234,9 +241,21 @@ export function resetIdempotencyTracker(): void {
  * "failure detection identifies abnormal agent behavior based on execution
  * patterns and output consistency" (Jeong & Shin, 2026).
  */
-const REPETITION_WARN_THRESHOLD = 4;
+/** Soft warn once when identical (tool,args) hits this count within a turn. */
+export const REPETITION_WARN_THRESHOLD = 4;
 /** Intra-turn identical (tool,args) hard-stop (doom_loop), separate from circuit breaker. */
 export const REPETITION_HARD_STOP_THRESHOLD = 8;
+
+/** Prefix for model-visible soft tip (Loop24b; pairs with STEP_BUDGET: tips). */
+export const DOOM_LOOP_WARN_PREFIX = 'DOOM_LOOP_WARN:' as const;
+
+export function formatDoomLoopWarnTip(toolName: string, count: number): string {
+  return (
+    `${DOOM_LOOP_WARN_PREFIX} identical ${toolName} call repeated ${String(count)} times this turn ` +
+    `(hard stop at ${String(REPETITION_HARD_STOP_THRESHOLD)}). ` +
+    `Change approach or stop retrying the same args — do not burn remaining steps on this signature.`
+  );
+}
 
 /**
  * Tracks recent tool call signatures (name + args hash) within a turn.

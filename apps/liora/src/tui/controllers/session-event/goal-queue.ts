@@ -149,6 +149,8 @@ export class SessionEventGoalQueue {
       if (event.snapshot !== null) {
         notifyGoalBlockedAttention(state, event.snapshot, change.reason);
       }
+      // Loop38a: named footer notice for budget/hook/model blocks (marker alone is quiet).
+      this.emitGoalBlockedNotice(change.reason, change.actor);
       void this.notifyQueuedGoalWaitingOnBlocked();
       if (change.actor === 'model' || change.reason === undefined) {
         this.flags.setPendingModelBlockedFallback(
@@ -311,6 +313,51 @@ export class SessionEventGoalQueue {
     host.showNotice(
       'Goal blocked.',
       'The next queued goal will start only after this goal is complete.',
+      { coalesceKey: 'goal-queue-waiting-blocked' },
+    );
+  }
+
+  /** Loop38a — operator-visible Goal blocked reasons (budget / hook / model). */
+  private emitGoalBlockedNotice(
+    reason: string | undefined,
+    actor: string | undefined,
+  ): void {
+    const text = reason?.trim() ?? '';
+    const lower = text.toLowerCase();
+    if (lower.includes('budget')) {
+      this.host.showNotice(
+        'Goal blocked: budget',
+        text.length > 0
+          ? text
+          : 'A configured goal budget was reached. Raise the budget or UpdateGoal with a smaller scope.',
+        { coalesceKey: 'goal-blocked-budget' },
+      );
+      this.host.showStatus('Goal blocked — budget reached', 'warning');
+      return;
+    }
+    if (lower.includes('userpromptsubmit') || lower.includes('hook')) {
+      this.host.showNotice(
+        'Goal blocked: prompt hook',
+        text.length > 0
+          ? text
+          : 'Blocked by UserPromptSubmit hook. Adjust hooks or the prompt, then resume.',
+        { coalesceKey: 'goal-blocked-hook' },
+      );
+      this.host.showStatus('Goal blocked — UserPromptSubmit hook', 'warning');
+      return;
+    }
+    this.host.showNotice(
+      'Goal blocked',
+      text.length > 0
+        ? text
+        : actor === 'model'
+          ? 'The model marked this goal blocked (needs external input or a hard stop).'
+          : 'Goal entered blocked status.',
+      { coalesceKey: 'goal-blocked' },
+    );
+    this.host.showStatus(
+      text.length > 0 ? `Goal blocked — ${text.slice(0, 80)}` : 'Goal blocked',
+      'warning',
     );
   }
 }

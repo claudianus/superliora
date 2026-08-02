@@ -468,11 +468,51 @@ export {
   buildPendingMutationSoftTips,
   clearPendingMutations,
   createMutationVerificationLedger,
+  deriveMutationPackageDir,
+  extractMutationPathsFromToolArgs,
+  extractPathsFromOpenCodePatch,
   filterRecentMutations,
+  formatMutationVerifyNudge,
   isFileMutationTool,
   observeFileMutationToolResult,
   recordFileMutation,
 } from './sensors/mutation-verification-sensor';
+export {
+  AUTO_CHECK_ENV,
+  AUTO_CHECK_ENV_ALIAS,
+  AUTO_CHECK_PREFIX,
+  AUTO_CHECK_SPAWN_DEFAULT_CHECKS,
+  AUTO_CHECK_SPAWN_ENV,
+  AUTO_CHECK_SPAWN_MAX_PER_SESSION,
+  AUTO_CHECK_SPAWN_MIN_INTERVAL_MS,
+  AUTO_CHECK_SPAWN_PREFIX,
+  appendAutoCheckSpawnBlock,
+  createAutoCheckSpawnState,
+  decideAutoCheckSpawn,
+  formatAutoCheckDirective,
+  formatAutoCheckSpawnResult,
+  isAutoCheckEnabled,
+  isAutoCheckSpawnEnabled,
+  recordAutoCheckSpawn,
+  resolveAutoCheckPackageDir,
+  wasRecentAutoCheckSpawnOk,
+  withAutoCheckDirective,
+} from './sensors/auto-check-sensor';
+export {
+  STEP_BUDGET_PREFIX,
+  STEP_BUDGET_SENSOR_ORIGIN,
+  STEP_BUDGET_WARN_REMAINING,
+  decideStepBudgetWarn,
+  formatStepBudgetWarnTip,
+} from './sensors/step-budget-sensor';
+export type {
+  DecideStepBudgetWarnInput,
+  StepBudgetWarnDecision,
+} from './sensors/step-budget-sensor';
+export type {
+  AutoCheckSpawnDecision,
+  AutoCheckSpawnState,
+} from './sensors/auto-check-sensor';
 export type {
   MutationRecord,
   MutationVerificationLedger,

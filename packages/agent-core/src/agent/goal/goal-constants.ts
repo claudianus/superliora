@@ -10,6 +10,28 @@ export const GOAL_COMPLETE_REJECT_COOLDOWN_TURNS = 3;
  */
 export const GOAL_NO_PROGRESS_STREAK_K = 6;
 
+/**
+ * Loop31a — stable wire `warning.code` / injection variant for goal no-progress.
+ * TUI matches this (and the `GOAL_NO_PROGRESS:` message prefix).
+ */
+export const GOAL_NO_PROGRESS_SENSOR_ORIGIN = 'goal-no-progress-sensor' as const;
+
+/** Model + operator-visible tip when progress signature stalls for K turns. */
+export function formatGoalNoProgressTip(
+  streak: number,
+  threshold: number = GOAL_NO_PROGRESS_STREAK_K,
+  progressSignature?: string,
+): string {
+  const sig =
+    progressSignature !== undefined && progressSignature.length > 0
+      ? ` Signature: ${progressSignature}.`
+      : '';
+  return (
+    `GOAL_NO_PROGRESS: No material progress for ${String(streak)} consecutive goal turns ` +
+    `(threshold K=${String(threshold)}).${sig} Change approach, re-verify, or UpdateGoal(blocked).`
+  );
+}
+
 export const GOAL_CANCELLED_REMINDER = [
   'The user cancelled the current goal.',
   'Ignore earlier active-goal reminders for that goal.',

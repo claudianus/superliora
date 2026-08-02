@@ -140,6 +140,43 @@ describe('events / display re-exports', () => {
     ).toBe(false);
   });
 
+  it('keeps blocksCompleted and fraction on compaction.progress (live TUI bar)', () => {
+    const parsed = agentEventSchema.safeParse({
+      type: 'compaction.progress',
+      phase: 'summarizing',
+      streamKind: 'block',
+      blockIndex: 2,
+      blockCount: 4,
+      blocksCompleted: 2,
+      fraction: 0.42,
+      delta: 'chunk',
+    });
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data).toMatchObject({
+      type: 'compaction.progress',
+      blocksCompleted: 2,
+      fraction: 0.42,
+      blockIndex: 2,
+      blockCount: 4,
+    });
+  });
+
+  it('accepts overflow as compaction.started trigger (reactive recovery)', () => {
+    const parsed = agentEventSchema.safeParse({
+      type: 'compaction.started',
+      trigger: 'overflow',
+      instruction: 'CONTEXT_OVERFLOW_RECOVERY: compact',
+      mode: 'blocking',
+    });
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data).toMatchObject({
+      type: 'compaction.started',
+      trigger: 'overflow',
+    });
+  });
+
   it('validates session-scoped daemon events with agentId and sessionId', () => {
     const parsed = eventSchema.parse({
       type: 'turn.started',

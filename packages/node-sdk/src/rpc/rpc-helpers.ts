@@ -68,6 +68,9 @@ export interface SessionStatusFacets {
   readonly providerRouteStatus: ProviderRouteStatus | null;
   readonly circuitBreakers: Awaited<ReturnType<ResolvedCoreAPI['getCircuitBreakers']>> | undefined;
   readonly cacheFrozen: Awaited<ReturnType<ResolvedCoreAPI['getCacheFrozen']>> | undefined;
+  readonly cacheFreezeViolations?:
+    | Awaited<ReturnType<ResolvedCoreAPI['getCacheFreezeViolations']>>
+    | undefined;
   readonly parallelTools: Awaited<ReturnType<ResolvedCoreAPI['getParallelToolsStatus']>> | undefined;
   readonly oauth: Awaited<ReturnType<ResolvedCoreAPI['getOAuthStatus']>> | undefined;
 }
@@ -91,6 +94,7 @@ export function buildSessionStatus(facets: SessionStatusFacets): SessionStatus {
     providerRouteStatus,
     circuitBreakers,
     cacheFrozen,
+    cacheFreezeViolations,
     parallelTools,
     oauth,
   } = facets;
@@ -113,6 +117,7 @@ export function buildSessionStatus(facets: SessionStatusFacets): SessionStatus {
     cacheHitRate: usage?.cacheHitRate,
     cacheWarmStreak: usage?.cacheWarmStreak,
     ...(cacheFrozen !== undefined ? { cacheFrozen } : {}),
+    ...(cacheFreezeViolations !== undefined ? { cacheFreezeViolations } : {}),
     ...(parallelTools !== undefined
       ? { parallelToolsInFlight: parallelTools.parallelToolsInFlight }
       : {}),

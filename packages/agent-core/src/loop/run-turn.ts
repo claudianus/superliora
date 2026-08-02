@@ -19,7 +19,7 @@ import {
 } from './errors';
 import type { LoopInterruptReason, LoopEventDispatcher, LoopTurnInterruptedEvent } from './events';
 import type { LLM } from './llm';
-import { resetToolFailureTracker } from './tool-call-guards';
+import { resetIdempotencyTracker, resetToolFailureTracker } from './tool-call-guards';
 import { executeLoopStep } from './turn-step';
 import type { ToolParallelStatus } from './tool-parallel-status';
 import type {
@@ -70,8 +70,9 @@ export async function runTurn(input: RunTurnInput): Promise<TurnResult> {
     recordStepUsage: hostRecordStepUsage,
     toolParallelStatus,
   } = input;
-  // Reset tool failure tracking at turn boundary to prevent cross-turn leaks.
+  // Reset tool failure + mutation idempotency at turn boundary (no cross-turn leaks).
   resetToolFailureTracker();
+  resetIdempotencyTracker();
   const turnStartMs = Date.now();
   let usage: TokenUsage = emptyUsage();
   let steps = 0;

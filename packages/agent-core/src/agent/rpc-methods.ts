@@ -323,6 +323,7 @@ export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
     getPermission: () => agent.permission.data(),
     getCircuitBreakers: () => agent.circuitBreakerStatus(),
     getCacheFrozen: () => agent.cacheFreezeGuard.isFrozen(),
+    getCacheFreezeViolations: () => agent.cacheFreezeGuard.getViolationCount(),
     getParallelToolsStatus: () => agent.toolParallelStatus.snapshot(),
     getOAuthStatus: async () => {
       if (agent.kimiConfig === undefined || agent.homedir === undefined) {

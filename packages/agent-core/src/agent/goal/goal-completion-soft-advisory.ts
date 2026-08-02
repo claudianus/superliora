@@ -23,6 +23,11 @@ export interface GoalCompletionSoftAdvisoryInput {
   readonly recentVerificationFailures?: readonly VerificationFailureRecord[] | undefined;
   /** Pending Edit/Write/ApplyPatch mutations without a later green check. */
   readonly mutationVerificationLedger?: MutationVerificationLedger | undefined;
+  /**
+   * Loop21c: green AUTO_CHECK_SPAWN within cooldown — suppress mutation-only
+   * soft tips (verification failures still surface).
+   */
+  readonly recentAutoCheckSpawnOk?: boolean | undefined;
 }
 
 export interface GoalCompletionSoftAdvisory {
@@ -108,8 +113,9 @@ export function evaluateGoalCompletionSoftAdvisory(
 ): GoalCompletionSoftAdvisory | null {
   const base = evaluateEvidenceGateSoftAdvisory(input);
   const failureTips = buildTestFailureSoftTips(input.recentVerificationFailures ?? []);
+  // Loop21c: green spawn already re-verified mutations — skip mutation tips only.
   const mutationTips =
-    input.mutationVerificationLedger === undefined
+    input.recentAutoCheckSpawnOk === true || input.mutationVerificationLedger === undefined
       ? []
       : buildPendingMutationSoftTips(input.mutationVerificationLedger);
   const extras = [...failureTips, ...mutationTips];
@@ -122,6 +128,25 @@ export function evaluateGoalCompletionSoftAdvisory(
   return { tips: [...base.tips, ...extras] };
 }
 
+/**
+ * Loop36a — stable marker so TUI can surface completion soft advisories
+ * (plain Goal complete without evidence gate / sticky failures).
+ */
+export const GOAL_SOFT_ADVISORY_PREFIX = 'GOAL_SOFT_ADVISORY:' as const;
+
 export function formatGoalCompletionSoftAdvisory(advisory: GoalCompletionSoftAdvisory): string {
-  return ['Advisory (soft — not blocking):', ...advisory.tips.map((tip) => `- ${tip}`)].join('\n');
+  return [
+    `${GOAL_SOFT_ADVISORY_PREFIX} Advisory (soft — not blocking):`,
+    ...advisory.tips.map((tip) => `- ${tip}`),
+  ].join('\n');
+}
+
+/** Loop36a — false-complete hard reject marker (isError UpdateGoal path). */
+export const GOAL_FALSE_COMPLETE_CODE = 'GOAL_FALSE_COMPLETE' as const;
+
+export function formatGoalFalseCompleteRejectTip(code: string): string {
+  return (
+    `${GOAL_FALSE_COMPLETE_CODE}: Goal completion rejected (false-complete guard). ` +
+    `code=${code}. Keep implementing and verifying; do not claim done without WorkGraph evidence.`
+  );
 }

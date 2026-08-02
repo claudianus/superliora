@@ -27,6 +27,41 @@ import {
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { searchCascadePatchFromToolResult } from '../../utils/search/search-cascade';
 import { goalSoftAdvisoryPatchFromToolResult } from '../../utils/goal/goal-soft-advisory-glance';
+import {
+  formatCircuitBreakerOpenNotice,
+  formatCircuitBreakerRecoveredNotice,
+  isCircuitBreakerOpenOutput,
+  isCircuitBreakerRecoveredOutput,
+} from '../../utils/tools/circuit-breaker-notice';
+import {
+  formatDoomLoopHardStopNotice,
+  formatDoomLoopSoftWarnNotice,
+  isDoomLoopHardStopOutput,
+  isDoomLoopSoftWarnOutput,
+} from '../../utils/tools/doom-loop-notice';
+import {
+  formatIdempotencyReplayNotice,
+  isIdempotencyReplayOutput,
+} from '../../utils/tools/idempotency-notice';
+import {
+  formatAutoCheckSpawnNotice,
+  isAutoCheckSpawnOutput,
+} from '../../utils/tools/auto-check-spawn-notice';
+import {
+  formatGoalFalseCompleteNotice,
+  formatGoalSoftAdvisoryNotice,
+  isGoalFalseCompleteOutput,
+  isGoalSoftAdvisoryOutput,
+} from '../../utils/tools/goal-completion-notice';
+import {
+  extractMutationPackageDir,
+  formatMutationVerifyNotice,
+  isMutationVerifyNudgeOutput,
+} from '../../utils/tools/mutation-verify-notice';
+import {
+  formatSlowToolWarnNotice,
+  isSlowToolWarnOutput,
+} from '../../utils/tools/slow-tool-notice';
 import type { StreamingUIController } from '../streaming-ui/index';
 
 /** Host surface required by tool / shell event handling. */
@@ -38,6 +73,9 @@ export interface ToolsEventHost {
   patchLivePane(patch: Partial<LivePaneState>): void;
   handleShellOutput(event: { commandId: string; update: { kind: string; text?: string } }): void;
   handleShellStarted(event: { commandId: string; taskId: string }): void;
+  /** Optional — doom-loop hard stop recovery notice (Loop24a). */
+  showNotice?(title: string, detail?: string, options?: { coalesceKey?: string }): void;
+  showStatus?(msg: string, color?: string): void;
 }
 
 /**
@@ -205,6 +243,84 @@ export class SessionEventTools {
           )
           .map((t) => ({ title: t.title, status: t.status }));
         streamingUI.setTodoList(sanitized);
+      }
+    }
+    // Loop24a/b + Loop25a + Loop26b: named recovery notices for engine guard rails.
+    if (this.host.showNotice !== undefined) {
+      if (event.isError === true && isDoomLoopHardStopOutput(resultData.output)) {
+        const notice = formatDoomLoopHardStopNotice(matchedCall?.name);
+        this.host.showNotice(notice.title, notice.detail, {
+          coalesceKey: notice.coalesceKey,
+        });
+        this.host.showStatus?.(notice.status, 'warning');
+      } else if (event.isError === true && isCircuitBreakerOpenOutput(resultData.output)) {
+        const notice = formatCircuitBreakerOpenNotice(matchedCall?.name);
+        this.host.showNotice(notice.title, notice.detail, {
+          coalesceKey: notice.coalesceKey,
+        });
+        this.host.showStatus?.(notice.status, 'warning');
+      } else if (
+        event.isError !== true &&
+        isCircuitBreakerRecoveredOutput(resultData.output)
+      ) {
+        // Loop29a: half-open/open → closed after successful probe.
+        const notice = formatCircuitBreakerRecoveredNotice(matchedCall?.name);
+        this.host.showNotice(notice.title, notice.detail, {
+          coalesceKey: notice.coalesceKey,
+        });
+        this.host.showStatus?.(notice.status, 'info');
+      } else if (isDoomLoopSoftWarnOutput(resultData.output)) {
+        const notice = formatDoomLoopSoftWarnNotice(matchedCall?.name);
+        this.host.showNotice(notice.title, notice.detail, {
+          coalesceKey: notice.coalesceKey,
+        });
+        this.host.showStatus?.(notice.status, 'warning');
+      } else if (isIdempotencyReplayOutput(resultData.output)) {
+        const notice = formatIdempotencyReplayNotice(matchedCall?.name);
+        this.host.showNotice(notice.title, notice.detail, {
+          coalesceKey: notice.coalesceKey,
+        });
+        this.host.showStatus?.(notice.status, 'info');
+      } else if (isSlowToolWarnOutput(resultData.output)) {
+        const notice = formatSlowToolWarnNotice(matchedCall?.name);
+        this.host.showNotice(notice.title, notice.detail, {
+          coalesceKey: notice.coalesceKey,
+        });
+        this.host.showStatus?.(notice.status, 'warning');
+      } else if (isAutoCheckSpawnOutput(resultData.output)) {
+        // Loop33a: opt-in spawn result — prefer over bare mutation-verify when both present.
+        const notice = formatAutoCheckSpawnNotice(matchedCall?.name, resultData.output);
+        this.host.showNotice(notice.title, notice.detail, {
+          coalesceKey: notice.coalesceKey,
+        });
+        this.host.showStatus?.(notice.status, notice.failed ? 'warning' : 'success');
+      } else if (event.isError === true && isGoalFalseCompleteOutput(resultData.output)) {
+        // Loop36a: false-complete hard reject on UpdateGoal(complete).
+        const notice = formatGoalFalseCompleteNotice();
+        this.host.showNotice(notice.title, notice.detail, {
+          coalesceKey: notice.coalesceKey,
+        });
+        this.host.showStatus?.(notice.status, 'warning');
+      } else if (event.isError !== true && isGoalSoftAdvisoryOutput(resultData.output)) {
+        // Loop36a: plain Goal complete without evidence hard gate.
+        const notice = formatGoalSoftAdvisoryNotice();
+        this.host.showNotice(notice.title, notice.detail, {
+          coalesceKey: notice.coalesceKey,
+        });
+        this.host.showStatus?.(notice.status, 'info');
+      } else if (
+        event.isError !== true &&
+        isMutationVerifyNudgeOutput(resultData.output)
+      ) {
+        // Loop27b: PostToolUse mutation-verify tip — operator-visible, not model-only.
+        const notice = formatMutationVerifyNotice(
+          matchedCall?.name,
+          extractMutationPackageDir(resultData.output),
+        );
+        this.host.showNotice(notice.title, notice.detail, {
+          coalesceKey: notice.coalesceKey,
+        });
+        this.host.showStatus?.(notice.status, 'info');
       }
     }
     this.host.patchLivePane({ mode: 'waiting' });

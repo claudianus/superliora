@@ -6,10 +6,14 @@ import { createLioraHarness, SDKRpcClient } from '@superliora/sdk';
 import { describe, expect, it } from 'vitest';
 
 import {
+  appendHostTtftMsSample,
   buildHostSettingsLines,
+  computeHostTtftP50Ms,
   formatHostTtftLine,
+  formatHostTtftP50Line,
   formatHostSovereignUmbrellaStatusLine,
   HOST_SOVEREIGN_UMBRELLA_TIP,
+  HOST_TTFT_WINDOW_MAX,
   isInProcessHarness,
   isSovereignUmbrellaEnabled,
   loadHostGlance,
@@ -81,7 +85,8 @@ describe('host-glance', () => {
     expect(lines).toContain('Session: ses_x');
     expect(lines).toContain('Config: /tmp/config.toml');
     expect(lines).toContain('Local server daemon: not running');
-    expect(lines).toContain('TTFT p50 in-process vs server path');
+    expect(lines).toContain('TTFT p50: complete a turn to capture live samples');
+    expect(lines).toContain('Rolling window up to 20 steps');
   });
 
   it('formatHostTtftLine renders last-step sample for Host status', () => {
@@ -89,6 +94,23 @@ describe('host-glance', () => {
       'Last TTFT: 250ms (turn 2 step 1) · in-process path',
     );
     expect(formatHostTtftLine({ ms: 1500 }, 'server')).toBe('Last TTFT: 1.5s · server client path');
+  });
+
+  it('formatHostTtftLine includes api+client split when stream timing is present', () => {
+    expect(
+      formatHostTtftLine(
+        {
+          ms: 420,
+          turnId: 2,
+          step: 1,
+          requestBuildMs: 40,
+          serverFirstTokenMs: 380,
+        },
+        'in-process',
+      ),
+    ).toBe(
+      'Last TTFT: 420ms (api 380ms + client 40ms) (turn 2 step 1) · in-process path',
+    );
   });
 
   it('buildHostSettingsLines surfaces live TTFT sample and hides future stub', () => {
@@ -102,6 +124,64 @@ describe('host-glance', () => {
     }).join('\n');
     expect(lines).toContain('Last TTFT: 320ms (turn 1 step 0) · in-process path');
     expect(lines).not.toContain('TTFT p50 in-process vs server path');
+  });
+
+  it('buildHostSettingsLines shows TTFT split when sample includes build/server parts', () => {
+    const lines = buildHostSettingsLines({
+      runtimeMode: 'in-process',
+      transportLine: 'Transport: SDK in-process RPC · ui_mode=shell',
+      configPath: '/tmp/config.toml',
+      homeDir: '/tmp/home',
+      uiMode: 'shell',
+      lastStepTtft: {
+        ms: 500,
+        turnId: 3,
+        step: 0,
+        requestBuildMs: 50,
+        serverFirstTokenMs: 450,
+      },
+    }).join('\n');
+    expect(lines).toContain('Last TTFT: 500ms (api 450ms + client 50ms) (turn 3 step 0)');
+  });
+
+  it('appendHostTtftMsSample caps at HOST_TTFT_WINDOW_MAX and drops oldest', () => {
+    let window: number[] = [];
+    for (let i = 0; i < HOST_TTFT_WINDOW_MAX + 3; i += 1) {
+      window = appendHostTtftMsSample(window, i * 10);
+    }
+    expect(window).toHaveLength(HOST_TTFT_WINDOW_MAX);
+    expect(window[0]).toBe(30);
+    expect(window.at(-1)).toBe((HOST_TTFT_WINDOW_MAX + 2) * 10);
+  });
+
+  it('computeHostTtftP50Ms returns median for odd and even windows', () => {
+    expect(computeHostTtftP50Ms([])).toBeUndefined();
+    expect(computeHostTtftP50Ms([100])).toBe(100);
+    expect(computeHostTtftP50Ms([100, 200, 300])).toBe(200);
+    expect(computeHostTtftP50Ms([100, 200, 300, 400])).toBe(250);
+  });
+
+  it('formatHostTtftP50Line renders n and path', () => {
+    expect(formatHostTtftP50Line([100, 200, 300], 'in-process')).toBe(
+      `TTFT p50: 200ms (n=3, window≤${String(HOST_TTFT_WINDOW_MAX)}) · in-process path`,
+    );
+  });
+
+  it('buildHostSettingsLines surfaces TTFT p50 from rolling window', () => {
+    const lines = buildHostSettingsLines({
+      runtimeMode: 'in-process',
+      transportLine: 'Transport: SDK in-process RPC · ui_mode=shell',
+      configPath: '/tmp/config.toml',
+      homeDir: '/tmp/home',
+      uiMode: 'shell',
+      lastStepTtft: { ms: 300, turnId: 2, step: 1 },
+      lastStepTtftMsWindow: [100, 200, 300],
+    }).join('\n');
+    expect(lines).toContain('Last TTFT: 300ms (turn 2 step 1)');
+    expect(lines).toContain(
+      `TTFT p50: 200ms (n=3, window≤${String(HOST_TTFT_WINDOW_MAX)}) · in-process path`,
+    );
+    expect(lines).not.toContain('complete a turn to capture live samples');
   });
 
   it('loadHostGlance forwards lastStepTtft when provided', () => {

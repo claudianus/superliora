@@ -397,7 +397,8 @@ export class FullCompaction implements CompactionPipelineContext {
         { cause: error instanceof Error ? error : undefined },
       );
     }
-    const didStartCompaction = this.beginAutoCompaction();
+    // Loop25b: mark as overflow recovery (not threshold pre-rot) for TUI + logs.
+    const didStartCompaction = this.beginAutoCompaction(true, { source: 'overflow' });
     if (!didStartCompaction && !this.compacting) throw error;
     // Always block on overflow errors
     await this.block(signal);
@@ -541,7 +542,10 @@ export class FullCompaction implements CompactionPipelineContext {
     }
   }
 
-  private beginAutoCompaction(throwOnLimit: boolean = true): boolean {
+  private beginAutoCompaction(
+    throwOnLimit: boolean = true,
+    options?: { readonly source?: 'auto' | 'overflow'; readonly instruction?: string },
+  ): boolean {
     if (this.compacting) return true;
     const maxCompactions = this.strategy.maxCompactionPerTurn;
     if (this.compactionCountInTurn >= maxCompactions) {
@@ -555,7 +559,15 @@ export class FullCompaction implements CompactionPipelineContext {
     if (!this.canAutoCompact(throwOnLimit)) {
       return false;
     }
-    this.begin({ source: 'auto', instruction: undefined });
+    const source = options?.source ?? 'auto';
+    this.begin({
+      source,
+      instruction:
+        options?.instruction ??
+        (source === 'overflow'
+          ? 'CONTEXT_OVERFLOW_RECOVERY: API context window exceeded — compacting so the turn can continue.'
+          : undefined),
+    });
     if (this.compacting === null) {
       return false;
     }

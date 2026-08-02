@@ -323,6 +323,8 @@ export interface SessionStatus {
   readonly cacheWarmStreak?: number;
   /** CacheFreezeGuard mid-turn freeze when wired by agent-core. */
   readonly cacheFrozen?: boolean;
+  /** Loop22b: soft/hard tool-list drift count (session lifetime). */
+  readonly cacheFreezeViolations?: number;
   /** Same-turn independent tool_calls currently executing (ToolScheduler). */
   readonly parallelToolsInFlight?: number;
   /** Peak concurrent tool_calls this turn (ToolScheduler). */

@@ -21,6 +21,9 @@ export interface CompactionEventHost {
   setAppState(patch: Partial<AppState>): void;
   resetLivePane(): void;
   shiftQueuedMessage(): QueuedMessage | undefined;
+  /** Optional — overflow-recovery notice (Loop25b). */
+  showNotice?(title: string, detail?: string, options?: { coalesceKey?: string }): void;
+  showStatus?(msg: string, color?: string): void;
 }
 
 export class SessionEventCompaction {
@@ -45,6 +48,15 @@ export class SessionEventCompaction {
       background,
       modelAlias: event.modelAlias,
     });
+    // Loop25b: overflow recovery is reactive (API window exceeded), not quiet pre-rot.
+    if (event.trigger === 'overflow' && this.host.showNotice !== undefined) {
+      this.host.showNotice(
+        'Context overflow recovery',
+        'API context window was exceeded. Compacting so the turn can continue — progress may pause briefly.',
+        { coalesceKey: 'context-overflow-recovery' },
+      );
+      this.host.showStatus?.('Compacting after context overflow…', 'warning');
+    }
     // CompactionComponent already paints the active model on the transcript
     // card — keep a quiet footer pulse only, no transcript notice spam.
     if (event.modelAlias !== undefined && event.modelAlias.length > 0) {
@@ -70,11 +82,12 @@ export class SessionEventCompaction {
     }
   }
 
-  handleBlocked(_event: CompactionBlockedEvent): void {
+  handleBlocked(event: CompactionBlockedEvent): void {
     // Background pre-rot has been awaited by the turn: promote to blocking UX.
     if (!this.host.state.appState.isBackgroundCompacting && !this.host.state.appState.isCompacting) {
       return;
     }
+    const wasBackground = this.host.state.appState.isBackgroundCompacting === true;
     this.host.streamingUI.finalizeLiveTextBuffers('waiting');
     this.host.setAppState({
       isCompacting: true,
@@ -83,6 +96,24 @@ export class SessionEventCompaction {
       streamingStartTime: Date.now(),
     });
     this.host.streamingUI.promoteCompactionToBlocking();
+    // Loop30a: operator-visible pause — badge-only promotion is easy to miss mid-turn.
+    if (this.host.showNotice !== undefined) {
+      const turn =
+        event.turnId !== undefined ? ` (turn ${String(event.turnId)})` : '';
+      this.host.showNotice(
+        'Compaction blocking turn',
+        wasBackground
+          ? `Background context compaction is still running; the turn is waiting for it to finish${turn}. Live tools pause until compact completes.`
+          : `The turn is waiting on in-flight context compaction${turn}. Progress may pause until compact completes.`,
+        { coalesceKey: 'compaction-blocked' },
+      );
+      this.host.showStatus?.(
+        wasBackground
+          ? 'Turn paused: waiting on background compaction…'
+          : 'Turn paused: waiting on compaction…',
+        'warning',
+      );
+    }
   }
 
   handleEnd(

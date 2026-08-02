@@ -136,6 +136,8 @@ export const sessionStatusResponseSchema = z.object({
   cache_hit_rate: z.number().min(0).max(1).optional(),
   cache_warm_streak: z.number().int().nonnegative().optional(),
   cache_frozen: z.boolean().optional(),
+  /** Loop22b: CacheFreezeGuard soft/hard drift count (session lifetime). */
+  cache_freeze_violations: z.number().int().nonnegative().optional(),
   circuit_breakers: circuitBreakerStatusSchema.optional(),
   role_models: z
     .object({

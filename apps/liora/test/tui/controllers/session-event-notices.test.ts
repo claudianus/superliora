@@ -29,6 +29,7 @@ function makeHost(interventionCount = 2) {
     patchLivePane: vi.fn(),
     showError: vi.fn(),
     showStatus: vi.fn(),
+    showNotice: vi.fn(),
     appendTranscriptEntry: vi.fn(),
     updateTerminalTitle: vi.fn(),
     setLastTurnFailed: vi.fn(),
@@ -225,6 +226,114 @@ describe('SessionEventNotices.handleStatusUpdate interventionCount', () => {
         runtimeDegraded: null,
         searchCascade: null,
       }),
+    );
+  });
+});
+
+describe('SessionEventNotices.handleSessionWarning (Loop31a goal no-progress)', () => {
+  it('surfaces GOAL_NO_PROGRESS wire warnings as a named notice', () => {
+    const host = makeHost(0);
+    const notices = makeNotices(host);
+    const message =
+      'GOAL_NO_PROGRESS: No material progress for 6 consecutive goal turns (threshold K=6).';
+
+    notices.handleSessionWarning({
+      type: 'warning',
+      message,
+      code: 'goal-no-progress-sensor',
+    });
+
+    expect(host.showNotice).toHaveBeenCalledWith('Goal stalled (no progress)', message, {
+      coalesceKey: 'goal-no-progress',
+    });
+    expect(host.showStatus).toHaveBeenCalledWith(
+      'Goal stalled — change approach or UpdateGoal(blocked)',
+      'warning',
+    );
+  });
+
+  it('matches the GOAL_NO_PROGRESS: prefix without code', () => {
+    const host = makeHost(0);
+    const notices = makeNotices(host);
+
+    notices.handleSessionWarning({
+      type: 'warning',
+      message: 'GOAL_NO_PROGRESS: still spinning',
+    });
+
+    expect(host.showNotice).toHaveBeenCalledWith(
+      'Goal stalled (no progress)',
+      'GOAL_NO_PROGRESS: still spinning',
+      { coalesceKey: 'goal-no-progress' },
+    );
+  });
+});
+
+describe('SessionEventNotices.handleSessionWarning (Loop32a cache freeze drift)', () => {
+  it('surfaces CACHE_FREEZE_DRIFT wire warnings as a named notice', () => {
+    const host = makeHost(0);
+    const notices = makeNotices(host);
+    const message =
+      'CACHE_FREEZE_DRIFT: mid-turn tool list fingerprint changed (drift×1). code=CACHE_FREEZE_DRIFT.';
+
+    notices.handleSessionWarning({
+      type: 'warning',
+      message,
+      code: 'cache-freeze-drift-sensor',
+    });
+
+    expect(host.showNotice).toHaveBeenCalledWith('Cache freeze drift', message, {
+      coalesceKey: 'cache-freeze-drift',
+    });
+    expect(host.showStatus).toHaveBeenCalledWith(
+      'Cache freeze: mid-turn tool list drifted',
+      'warning',
+    );
+  });
+});
+
+describe('SessionEventNotices.handleSessionWarning (Loop34a stop sensor)', () => {
+  it('surfaces STOP_SENSOR wire warnings as a named notice', () => {
+    const host = makeHost(0);
+    const notices = makeNotices(host);
+    const message =
+      'STOP_SENSOR: Stop sensor: turn ended with unverified work still sticky. Do not claim done yet.';
+
+    notices.handleSessionWarning({
+      type: 'warning',
+      message,
+      code: 'stop-sensor',
+    });
+
+    expect(host.showNotice).toHaveBeenCalledWith('Stop sensor: verify before done', message, {
+      coalesceKey: 'stop-sensor',
+    });
+    expect(host.showStatus).toHaveBeenCalledWith(
+      'Stop sensor — one repair continuation',
+      'warning',
+    );
+  });
+});
+
+describe('SessionEventNotices.handleSessionWarning (Loop35a abandoned tool)', () => {
+  it('surfaces ABANDONED_TOOL wire warnings as a named notice', () => {
+    const host = makeHost(0);
+    const notices = makeNotices(host);
+    const message =
+      'ABANDONED_TOOL: closed 2 unresolved tool exchanges (turn cancelled). Do not assume those tools succeeded.';
+
+    notices.handleSessionWarning({
+      type: 'warning',
+      message,
+      code: 'abandoned-tool-sensor',
+    });
+
+    expect(host.showNotice).toHaveBeenCalledWith('Unresolved tool calls closed', message, {
+      coalesceKey: 'abandoned-tool',
+    });
+    expect(host.showStatus).toHaveBeenCalledWith(
+      'Unresolved tools closed — do not assume success',
+      'warning',
     );
   });
 });
