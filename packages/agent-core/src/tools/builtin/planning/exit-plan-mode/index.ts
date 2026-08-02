@@ -98,24 +98,32 @@ export class ExitPlanModeTool implements BuiltinTool<ExitPlanModeInput> {
 
     const isUltra = this.agent.planMode.isUltraMode;
 
-    // Ultra Plan Mode: the phase workflow and seed sections are guidance, not
-    // hard blockers. Collect advisory notes and continue to approval.
-    const ultraAdvisories: string[] = [];
+    // Mission Ultra Plan: minimum artifacts are hard gates (not advisory-only).
     if (isUltra) {
       const phase = this.agent.planMode.phase;
       if (phase !== 'write' && phase !== 'exit') {
-        ultraAdvisories.push(
-          `ExitPlanMode was called in the ${phase} phase. The Ultra workflow recommends advancing through research -> interview -> design -> review -> write -> exit with NextPhase before approval.`,
-        );
+        return {
+          isError: true,
+          output: [
+            `ExitPlanMode blocked: still in ${phase} phase.`,
+            'Advance through research → interview → design → review → write with NextPhase, then call ExitPlanMode from write/exit.',
+          ].join('\n'),
+        };
       }
 
       const planData = await this.agent.planMode.data();
       const planContent = planData?.content ?? '';
       const missing = missingUltraPlanSections(planContent);
       if (missing.length > 0) {
-        ultraAdvisories.push(
-          `The Ultra Plan file is missing recommended sections: ${missing.join(', ')}. Consider completing the verifiable UltraGoal Seed contract.`,
-        );
+        return {
+          isError: true,
+          output: [
+            'ExitPlanMode blocked: Mission plan is missing minimum artifacts.',
+            `Missing: ${missing.join(', ')}.`,
+            'Required: Seed Spec completion criterion, AC Tree, WorkGraph, Fleet/Swarm decision line, Evaluation Plan, Execution Plan.',
+            'Complete the plan file, then call ExitPlanMode again.',
+          ].join('\n'),
+        };
       }
     }
 
@@ -127,9 +135,14 @@ export class ExitPlanModeTool implements BuiltinTool<ExitPlanModeInput> {
     if (isUltra) {
       const missingSeedSections = enforceSeedCoverage(resolvedPlan.plan);
       if (missingSeedSections.length > 0) {
-        ultraAdvisories.push(
-          `The Ultra Plan does not cover all Seed Spec sections (missing: ${missingSeedSections.join(', ')}). Consider filling them before execution.`,
-        );
+        return {
+          isError: true,
+          output: [
+            'ExitPlanMode blocked: Seed Spec coverage incomplete.',
+            `Missing sections: ${missingSeedSections.join(', ')}.`,
+            'Fill Goal, Constraints, Acceptance, Ontology/WorkGraph, Evaluation before approval.',
+          ].join('\n'),
+        };
       }
     }
 
@@ -178,16 +191,12 @@ export class ExitPlanModeTool implements BuiltinTool<ExitPlanModeInput> {
 
     this.agent.telemetry.track('plan_resolved', { outcome: 'auto_approved', ultra: isUltra });
 
-    const approvedOutput = formatPlanForOutput(
+    const output = formatPlanForOutput(
       resolvedPlan.plan,
       resolvedPlan.path,
       ultraDrift,
       seededWorkGraph,
     );
-    const output =
-      ultraAdvisories.length > 0
-        ? `${approvedOutput}\n\n---\n## Advisory notes (non-blocking)\n${ultraAdvisories.map((note) => `- ${note}`).join('\n')}`
-        : approvedOutput;
     return { isError: false, output };
   }
 

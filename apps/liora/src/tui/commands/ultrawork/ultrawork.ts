@@ -47,7 +47,7 @@ export { buildUltraworkRunId, createUltraworkEvidenceSeed } from './ultrawork-ev
 // so Goal and Ultrawork share one TUI setup path.
 
 const ULTRAWORK_ACTIVITY_TIP =
-  'Mission mode: research first, then Plan interview, verifiable Goal, Fleet decision, verify';
+  'Mission: research → interview → verifiable Goal → Fleet decision → verify (one run)';
 
 export {
   buildUltraworkPrompt,

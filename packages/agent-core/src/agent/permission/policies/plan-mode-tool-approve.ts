@@ -1,7 +1,13 @@
 import type { Agent } from '../..';
+import { isMissionPlanPhaseAllowedWrite } from '#/mission/plan-write-paths';
 import type { PermissionPolicy, PermissionPolicyContext, PermissionPolicyResult } from '../types';
 import { writeFileAccesses } from './file-access-ask';
 
+/**
+ * Approves Mission/Ultra plan-phase writes that the guard already allows
+ * (plan file + evidence root) so Manual mode does not approval-bomb them.
+ * Product-tree mutation still falls through to deny/ask policies.
+ */
 export class PlanModeToolApprovePermissionPolicy implements PermissionPolicy {
   readonly name = 'plan-mode-tool-approve';
 
@@ -19,17 +25,24 @@ export class PlanModeToolApprovePermissionPolicy implements PermissionPolicy {
       (toolName === 'Write' || toolName === 'Edit') &&
       this.agent.planMode.isActive
     ) {
-      if (writesOnlyPlanFile(context, this.agent.planMode.planFilePath)) {
-        return {
-          kind: 'approve',
-        };
-      }
-      // Auto/yolo: approve interview product writes so Auto does not stall on FallbackAsk.
-      // Manual falls through to FallbackAsk (human gate for product writes).
+      const writeAccesses = writeFileAccesses(context);
+      const writePaths =
+        writeAccesses.length > 0
+          ? writeAccesses.map((access) => access.path)
+          : extractWritePathsFromArgs(context);
+      if (writePaths.length === 0) return;
+
+      const activation = this.agent.ultrawork?.getActivation();
+      const workDir =
+        activation?.workDir !== undefined && activation.workDir.length > 0
+          ? activation.workDir
+          : this.agent.config.cwd;
       if (
-        this.agent.planMode.isUltraMode &&
-        this.agent.planMode.phase === 'interview' &&
-        (this.agent.permission.mode === 'auto' || this.agent.permission.mode === 'yolo')
+        isMissionPlanPhaseAllowedWrite(writePaths, {
+          planFilePath: this.agent.planMode.planFilePath,
+          evidenceRoot: activation?.evidenceRoot,
+          workDir,
+        })
       ) {
         return {
           kind: 'approve',
@@ -56,11 +69,9 @@ export class PlanModeToolApprovePermissionPolicy implements PermissionPolicy {
   }
 }
 
-function writesOnlyPlanFile(
-  context: PermissionPolicyContext,
-  planFilePath: string | null,
-): boolean {
-  if (planFilePath === null) return false;
-  const writeAccesses = writeFileAccesses(context);
-  return writeAccesses.every((access) => access.path === planFilePath);
+function extractWritePathsFromArgs(context: PermissionPolicyContext): string[] {
+  const args = context.toolCall.arguments;
+  if (args === null || typeof args !== 'object') return [];
+  const path = (args as { readonly path?: unknown }).path;
+  return typeof path === 'string' && path.length > 0 ? [path] : [];
 }

@@ -1,5 +1,8 @@
 import type { Agent } from '../..';
-import { isUltraworkWorkflowReportWritePath } from '#/mission';
+import {
+  isMissionPlanPhaseAllowedWrite,
+  type MissionPlanWriteContext,
+} from '#/mission/plan-write-paths';
 import type { PermissionPolicy, PermissionPolicyContext, PermissionPolicyResult } from '../types';
 import { writeFileAccesses } from './file-access-ask';
 
@@ -14,37 +17,33 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
     const toolName = context.toolCall.name;
     const { isUltraMode, phase } = this.agent.planMode;
 
-    if (
-      (toolName === 'Write' || toolName === 'Edit') &&
-      writesOnlyUltraworkWorkflowReport(context, this.agent)
-    ) {
-      return;
-    }
-
-    // Ultra Plan Mode: the phase workflow is guidance, not enforcement. The
-    // only harness-side bookkeeping left is counting interview rounds when the
-    // model asks the user; every tool approval follows the user's permission
-    // mode (auto/yolo approve, manual prompts).
+    // Ultra interview: still count rounds when the model asks the user.
     if (isUltraMode && phase === 'interview' && toolName === 'AskUserQuestion') {
       this.agent.planMode.incrementInterviewRound();
     }
 
-    // Normal plan mode guards (and ultra write/exit plan-file guard).
-    // Ultra interview product Write/Edit already returned undefined above.
-    if (
-      (toolName === 'Write' || toolName === 'Edit') &&
-      !(isUltraMode && phase === 'interview')
-    ) {
+    if (toolName === 'Write' || toolName === 'Edit') {
       const planFilePath = this.agent.planMode.planFilePath;
-      if (planFilePath === null) {
+      const writeAccesses = writeFileAccesses(context);
+      const writePaths =
+        writeAccesses.length > 0
+          ? writeAccesses.map((access) => access.path)
+          : extractWritePathsFromArgs(context);
+
+      if (writePaths.length === 0) {
         return {
           kind: 'deny',
           message: planModeWriteDeniedMessage(planFilePath),
         };
       }
-      if (writesOnlyPlanFile(context, planFilePath)) {
+
+      const allowCtx = missionWriteContext(this.agent, planFilePath);
+      if (isMissionPlanPhaseAllowedWrite(writePaths, allowCtx)) {
         return;
       }
+
+      // Legacy ultra-interview product-write exception removed: Mission plan phases
+      // only allow plan file + evidence root until ExitPlanMode.
       return {
         kind: 'deny',
         message: planModeWriteDeniedMessage(planFilePath),
@@ -61,40 +60,33 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
 
     return;
   }
-
 }
 
-function writesOnlyUltraworkWorkflowReport(
-  context: PermissionPolicyContext,
+function missionWriteContext(
   agent: Agent,
-): boolean {
-  const ultrawork = agent.ultrawork;
-  if (ultrawork === undefined) return false;
-
-  const activation = ultrawork.getActivation();
-  if (activation === undefined || ultrawork.getRun() === null) return false;
-
-  const writeAccesses = writeFileAccesses(context);
-  if (writeAccesses.length === 0) return false;
-
+  planFilePath: string | null,
+): MissionPlanWriteContext {
+  const activation = agent.ultrawork?.getActivation();
   const workDir =
-    activation.workDir.length > 0 ? activation.workDir : agent.config.cwd;
-  return writeAccesses.every((access) =>
-    isUltraworkWorkflowReportWritePath(access.path, activation.evidenceRoot, workDir),
-  );
+    activation?.workDir !== undefined && activation.workDir.length > 0
+      ? activation.workDir
+      : (agent.config?.cwd ?? '');
+  return {
+    planFilePath,
+    evidenceRoot: activation?.evidenceRoot,
+    workDir,
+  };
 }
 
-function writesOnlyPlanFile(
-  context: PermissionPolicyContext,
-  planFilePath: string,
-): boolean {
-  const writeAccesses = writeFileAccesses(context);
-  if (writeAccesses.length === 0) return false;
-  return writeAccesses.every((access) => access.path === planFilePath);
+function extractWritePathsFromArgs(context: PermissionPolicyContext): string[] {
+  const args = context.toolCall.arguments;
+  if (args === null || typeof args !== 'object') return [];
+  const path = (args as { readonly path?: unknown }).path;
+  return typeof path === 'string' && path.length > 0 ? [path] : [];
 }
 
 function planModeWriteDeniedMessage(planFilePath: string | null): string {
-  return `Plan mode is active. You may only write to the current plan file: ${
+  return `Plan mode is active. You may only write to the current plan file or Mission evidence root: ${
     planFilePath ?? '(no plan file selected yet)'
-  }. Call ExitPlanMode to exit plan mode before editing other files.`;
+  }. Call ExitPlanMode before editing product source.`;
 }

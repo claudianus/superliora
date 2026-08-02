@@ -178,7 +178,7 @@ describe('auditUltraworkCompletion', () => {
     }
   });
 
-  it('passes when non-policy nodes are done without requiredEvidence', () => {
+  it('rejects done nodes without any real verification action', () => {
     const result = auditUltraworkCompletion({
       run: baseRun({
         workGraph: {
@@ -186,6 +186,66 @@ describe('auditUltraworkCompletion', () => {
           runId: 'run-audit-1',
           nodes: [
             node({ id: 'research_1', kind: 'research', stage: 'research', status: 'done' }),
+            node({ id: 'other_1', kind: 'other', stage: 'swarm', status: 'done' }),
+          ],
+        },
+      }),
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe('verification_action_missing');
+    }
+  });
+
+  it.each([
+    ['verify-later'],
+    ['could not verify yet'],
+    ['typecheck skipped'],
+    ['lint-failed-but-ignored'],
+    ['smoke signal only'],
+    ['pnpm test not run'],
+  ])(
+    'rejects keyword-only evidence %j without verificationStatus=passed',
+    (fakeEvidence) => {
+      const result = auditUltraworkCompletion({
+        run: baseRun({
+          workGraph: {
+            id: 'g1',
+            runId: 'run-audit-1',
+            nodes: [
+              node({
+                id: 'impl_1',
+                kind: 'other',
+                stage: 'swarm',
+                status: 'done',
+                evidenceIds: [fakeEvidence],
+                verificationSummary: fakeEvidence,
+              }),
+            ],
+          },
+        }),
+      });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.code).toBe('verification_action_missing');
+      }
+    },
+  );
+
+  it('passes when non-policy nodes are done with verificationStatus=passed', () => {
+    const result = auditUltraworkCompletion({
+      run: baseRun({
+        workGraph: {
+          id: 'g1',
+          runId: 'run-audit-1',
+          nodes: [
+            node({
+              id: 'research_1',
+              kind: 'research',
+              stage: 'research',
+              status: 'done',
+              verificationStatus: 'passed',
+            }),
             node({ id: 'other_1', kind: 'other', stage: 'swarm', status: 'done' }),
           ],
         },
@@ -284,9 +344,28 @@ describe('auditUltraworkCompletion', () => {
           id: 'g1',
           runId: 'run-audit-1',
           nodes: [
-            node({ id: 'research_1', kind: 'research', stage: 'research', status: 'done' }),
+            node({
+              id: 'research_1',
+              kind: 'research',
+              stage: 'research',
+              status: 'done',
+              verificationStatus: 'passed',
+            }),
             node({ id: 'dropped_1', kind: 'other', stage: 'swarm', status: 'cancelled' }),
           ],
+        },
+      }),
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it('allows all-cancelled graphs without verification action', () => {
+    const result = auditUltraworkCompletion({
+      run: baseRun({
+        workGraph: {
+          id: 'g1',
+          runId: 'run-audit-1',
+          nodes: [node({ id: 'dropped_1', kind: 'other', stage: 'swarm', status: 'cancelled' })],
         },
       }),
     });

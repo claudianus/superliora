@@ -3,6 +3,11 @@
  *
  * The LLM calls this tool to advance to the next phase in the ultra plan
  * workflow: research → interview → design → review → write → exit.
+ *
+ * Hard rules (Mission harness reform):
+ * - Forward-only, exactly one step (no skip, no reverse).
+ * - interview→design requires verifiable goal OR explicit force_unverified override
+ *   (recorded in tool output / telemetry). Silent soft-pass is not allowed.
  */
 
 import type { Agent } from '#/agent/index';
@@ -13,29 +18,67 @@ import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';
 
+export const ULTRA_PLAN_PHASE_ORDER = [
+  'research',
+  'interview',
+  'design',
+  'review',
+  'write',
+  'exit',
+] as const;
+
+export type UltraPlanPhaseName = (typeof ULTRA_PLAN_PHASE_ORDER)[number];
+
 export const NextPhaseInputSchema = z.object({
   phase: z.enum(['research', 'interview', 'design', 'review', 'write', 'exit']).describe(
-    'The target phase to navigate to.',
+    'The target phase to navigate to. Must be exactly one step forward from the current phase.',
   ),
   advance_with_defaults: z
     .boolean()
     .optional()
     .describe(
-      'Only valid for interview→design. Soft-fills remaining seed gaps with conservative defaults; useful when advancing with a not-yet-verifiable Goal.',
+      'Only valid for interview→design when force_unverified is also true. Soft-fills remaining seed gaps with conservative defaults after an explicit unverified override.',
+    ),
+  force_unverified: z
+    .boolean()
+    .optional()
+    .describe(
+      'Only for interview→design. When true, allows advance even if the Goal is not yet true/false-verifiable. Requires a short override_reason. Prefer finishing interview to READY instead.',
+    ),
+  override_reason: z
+    .string()
+    .optional()
+    .describe(
+      'Required when force_unverified=true. Short English reason recorded for the run audit trail.',
     ),
 }).strict();
 
 export type NextPhaseInput = z.infer<typeof NextPhaseInputSchema>;
 
+export function nextUltraPlanPhase(
+  current: string,
+): UltraPlanPhaseName | undefined {
+  const index = ULTRA_PLAN_PHASE_ORDER.indexOf(current as UltraPlanPhaseName);
+  if (index < 0 || index >= ULTRA_PLAN_PHASE_ORDER.length - 1) return undefined;
+  return ULTRA_PLAN_PHASE_ORDER[index + 1];
+}
+
+export function isForwardOneStepPhase(
+  current: string,
+  target: string,
+): boolean {
+  return nextUltraPlanPhase(current) === target;
+}
+
 export class NextPhaseTool implements BuiltinTool<NextPhaseInput> {
   readonly name = 'NextPhase' as const;
-  readonly description = `Advance to the next phase in Ultra Plan Mode workflow. Call when the current phase is complete.
+  readonly description = `Advance to the next phase in Mission Ultra Plan workflow. Call when the current phase is complete.
 
 - research → interview: after a compact evidence pack for upcoming questions
-- interview → design: recommended once the Goal is verifiable (readiness READY). Verifiability, soft seed gaps, and ambiguity floors are recommendations, not hard blockers — advancing before READY appends a non-blocking warning. Capture a true/false Completion Criterion via AskUserQuestion when you can; do not Write the plan file or repeat resolved questions.
-- design → review → write → exit: advance one phase at a time
+- interview → design: HARD gate — Goal must be true/false-verifiable (readiness READY). To advance without verifiability you MUST pass force_unverified=true and override_reason (recorded). Soft seed fill alone cannot bypass.
+- design → review → write → exit: advance exactly one phase at a time
 
-This is the Ultra Plan phase-transition tool. Do not use EnterPlanMode to advance phases. Forward only, never backward.`;
+Forward only, never skip or reverse. Do not use EnterPlanMode to advance phases.`;
   readonly parameters: Record<string, unknown> = toInputJsonSchema(NextPhaseInputSchema);
 
   constructor(private readonly agent: Agent) {}
@@ -60,18 +103,17 @@ This is the Ultra Plan phase-transition tool. Do not use EnterPlanMode to advanc
     if (!this.agent.planMode.isUltraMode) {
       return {
         isError: true,
-        output: 'NextPhase is only available in Ultra Plan mode.',
+        output: 'NextPhase is only available in Ultra Plan mode (Mission).',
       };
     }
 
     const currentPhase = this.agent.planMode.phase;
     const targetPhase = args.phase;
 
-    const allPhases = ['research', 'interview', 'design', 'review', 'write', 'exit'];
-    if (!allPhases.includes(targetPhase)) {
+    if (!ULTRA_PLAN_PHASE_ORDER.includes(targetPhase)) {
       return {
         isError: true,
-        output: `Unknown target phase: ${targetPhase}. Valid phases: ${allPhases.join(', ')}.`,
+        output: `Unknown target phase: ${targetPhase}. Valid phases: ${ULTRA_PLAN_PHASE_ORDER.join(', ')}.`,
       };
     }
     if (currentPhase === targetPhase) {
@@ -80,17 +122,51 @@ This is the Ultra Plan phase-transition tool. Do not use EnterPlanMode to advanc
         output: `Already in ${currentPhase} phase.`,
       };
     }
+    if (!isForwardOneStepPhase(currentPhase, targetPhase)) {
+      const expected = nextUltraPlanPhase(currentPhase);
+      return {
+        isError: true,
+        output:
+          expected === undefined
+            ? `Cannot advance from ${currentPhase}: already at the last plan phase (exit). Call ExitPlanMode.`
+            : `Cannot skip or reverse phases: currently in ${currentPhase}; next allowed phase is ${expected} (requested ${targetPhase}).`,
+      };
+    }
 
-    let verifiabilityWarning: string | undefined;
+    let overrideNote: string | undefined;
     if (currentPhase === 'interview' && targetPhase === 'design') {
       const readiness = await this.agent.planMode.ultraEngine.interviewReadiness({ rescore: true });
-      // Verifiability is advisory: a not-yet-verifiable UltraGoal appends the
-      // readiness guide as a non-blocking warning instead of halting the
-      // workflow. Seed gaps are soft-filled so design always has a Seed Spec.
       if (!readiness.ready) {
-        verifiabilityWarning = await this.agent.planMode.ultraEngine.readinessBlockerMessage(readiness);
+        const force = args.force_unverified === true;
+        const reason = args.override_reason?.trim() ?? '';
+        if (!force || reason.length === 0) {
+          const blocker = await this.agent.planMode.ultraEngine.readinessBlockerMessage(readiness);
+          return {
+            isError: true,
+            output: [
+              'NextPhase interview→design blocked: UltraGoal is not yet true/false-verifiable.',
+              'Finish interview questions until readiness READY, or pass force_unverified=true with override_reason.',
+              '',
+              blocker,
+            ].join('\n'),
+          };
+        }
+        overrideNote = `force_unverified override recorded: ${reason}`;
+        this.agent.telemetry.track('ultra_plan_force_unverified', {
+          from: currentPhase,
+          to: targetPhase,
+          reason,
+        });
+        this.agent.planMode.ultraEngine.addInterviewRound(
+          '[force_unverified override]',
+          reason,
+          'auto',
+        );
       }
-      const softFillDefaults = args.advance_with_defaults === true || !readiness.ready;
+
+      const softFillDefaults =
+        args.advance_with_defaults === true ||
+        (args.force_unverified === true && !readiness.ready);
       if (this.agent.planMode.ultraEngine.seedSpec === null || softFillDefaults) {
         const seed = await this.agent.planMode.ultraEngine.autoGenerateSeedSpecFromInterview(
           'UltraGoal',
@@ -108,11 +184,14 @@ This is the Ultra Plan phase-transition tool. Do not use EnterPlanMode to advanc
     }
 
     this.agent.planMode.setPhase(targetPhase);
-    this.agent.telemetry.track('ultra_plan_phase_transition', { from: currentPhase, to: targetPhase });
+    this.agent.telemetry.track('ultra_plan_phase_transition', {
+      from: currentPhase,
+      to: targetPhase,
+    });
 
     let output = `Advanced from ${currentPhase} phase to ${targetPhase} phase.\n\n${this.phaseInstructions(targetPhase)}`;
-    if (verifiabilityWarning !== undefined) {
-      output += `\n\n---\n## Advisory (non-blocking): Goal not yet verifiable\n${verifiabilityWarning}`;
+    if (overrideNote !== undefined) {
+      output += `\n\n---\n## Recorded override\n${overrideNote}`;
     }
     return { output };
   }
@@ -120,13 +199,13 @@ This is the Ultra Plan phase-transition tool. Do not use EnterPlanMode to advanc
   private phaseInstructions(phase: string): string {
     const instructions: Record<string, string> = {
       interview:
-        "Interview Phase: Act as an expert leader — teach brief insights, surface unknown-unknowns, Baseline + Upgrade choices with read-only research. PATH 1/3 → RecordInterviewFinding; PATH 2 → AskUserQuestion. After 3 consecutive non-user findings, must AskUserQuestion. When the Goal is verifiable, call NextPhase({ phase: 'design' }). Soft seed gaps may still be auto-filled; they are not Design blockers.",
+        "Interview Phase (Mission): Act as an expert leader — Baseline + Upgrade choices with evidence. PATH 1 → RecordInterviewFinding; PATH 2 → AskUserQuestion. After 3 consecutive non-user findings, must AskUserQuestion. When the Goal is verifiable, call NextPhase({ phase: 'design' }). force_unverified requires override_reason.",
       design:
         "Design Phase: Read-only tools + TodoList progress tracking (Context7Resolve/Docs, WebSearch/FetchURL, Liora*, SearchSkill/Skill/SearchExpert, Bash read-only). Explore coverage lanes and expert candidates. When the design summary is ready, call NextPhase({ phase: 'review' }); do not skip to write.",
       review:
         "Review Phase: Read-only tools + TodoList progress tracking (WebSearch, FetchURL, Context7Resolve/Docs, TaskList, TaskOutput). Re-check code and external claims, then call NextPhase({ phase: 'write' }).",
       write:
-        'Write Phase: Only the current plan file may be edited; reading for verification is allowed. TodoList + NextPhase/ExitPlanMode available. Include Seed Spec, AC Tree, WorkGraph, Evaluation Plan, Execution Plan.',
+        'Write Phase: Only the Mission plan file and evidence root may be edited; reading for verification is allowed. TodoList + NextPhase/ExitPlanMode available. Include Seed Spec, AC Tree, WorkGraph, Fleet/Swarm decision, Evaluation Plan, Execution Plan.',
       exit: 'Exit Phase: Plan complete — call ExitPlanMode for approval.',
     };
     return instructions[phase] ?? '';
