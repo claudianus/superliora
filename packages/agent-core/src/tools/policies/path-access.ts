@@ -96,6 +96,17 @@ export class PathSecurityError extends Error {
   }
 }
 
+/**
+ * Loop45a — tool-result surface for PathSecurityError. Appends a stable
+ * `code=PATH_*` marker so TUI can show a named notice (message body alone is
+ * prose-only and was silent green/red cards).
+ */
+export function formatPathSecurityErrorOutput(error: PathSecurityError): string {
+  const base = error.message;
+  if (base.includes(`code=${error.code}`)) return base;
+  return `${base} code=${error.code}`;
+}
+
 const DEFAULT_PATH_CLASS: PathClass = process.platform === 'win32' ? 'win32' : 'posix';
 
 function isWin32DriveRelative(path: string): boolean {
