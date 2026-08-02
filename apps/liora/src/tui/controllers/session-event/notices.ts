@@ -370,6 +370,19 @@ export class SessionEventNotices {
       this.host.showStatus('Auto-check spawn failed — run checks manually', 'warning');
       return;
     }
+    // Loop41a: UserPromptSubmit hook blocked the turn before the agent loop.
+    if (
+      event.code === 'user-prompt-submit-block' ||
+      event.message.startsWith('USER_PROMPT_SUBMIT_BLOCK:')
+    ) {
+      if (this.host.showNotice !== undefined) {
+        this.host.showNotice('Prompt blocked by hook', event.message, {
+          coalesceKey: 'user-prompt-submit-block',
+        });
+      }
+      this.host.showStatus('Turn blocked — UserPromptSubmit hook', 'warning');
+      return;
+    }
     this.host.showStatus(`Warning: ${event.message}`, 'warning');
   }
 

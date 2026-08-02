@@ -360,3 +360,26 @@ describe('SessionEventNotices.handleSessionWarning (Loop40a auto-check spawn err
     );
   });
 });
+
+describe('SessionEventNotices.handleSessionWarning (Loop41a UserPromptSubmit block)', () => {
+  it('surfaces USER_PROMPT_SUBMIT_BLOCK wire warnings as a named notice', () => {
+    const host = makeHost(0);
+    const notices = makeNotices(host);
+    const message =
+      'USER_PROMPT_SUBMIT_BLOCK: policy denied. Turn will not start until the hook allows the prompt.';
+
+    notices.handleSessionWarning({
+      type: 'warning',
+      message,
+      code: 'user-prompt-submit-block',
+    });
+
+    expect(host.showNotice).toHaveBeenCalledWith('Prompt blocked by hook', message, {
+      coalesceKey: 'user-prompt-submit-block',
+    });
+    expect(host.showStatus).toHaveBeenCalledWith(
+      'Turn blocked — UserPromptSubmit hook',
+      'warning',
+    );
+  });
+});
