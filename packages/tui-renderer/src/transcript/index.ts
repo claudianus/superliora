@@ -38,6 +38,12 @@ export {
 } from './viewport-component';
 
 export {
+  TranscriptVisibleLinePresenter,
+  regionLinePresentKey,
+  type TranscriptPresentResult,
+} from './incremental-present';
+
+export {
   notifyTranscriptChildGeometryDirty,
   registerTranscriptGeometryParent,
   unregisterTranscriptGeometryParent,

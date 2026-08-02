@@ -21,6 +21,30 @@ export interface RendererComponent {
    * ToolCall/Assistant cards rebuilds bodies mid-paint.
    */
   softDropPaintCaches?(): void;
+  /**
+   * Optional windowed body: row count without materializing a full multi-k
+   * `string[]`. Transcript viewport prefers this over `render(width).length`.
+   */
+  measureContentRows?(width: number): number;
+  /**
+   * Optional windowed body: paint only `[startRow, endRow)` without retaining
+   * off-window line arrays. Viewport overflow path uses this so pure-scroll /
+   * settle never pin full multi-k bodies for off-window rows.
+   */
+  paintContentRows?(width: number, startRow: number, endRow: number): string[];
+}
+
+/** True when a component can measure/paint without full multi-k line arrays. */
+export function supportsWindowedBody(
+  component: RendererComponent,
+): component is RendererComponent & {
+  measureContentRows: (width: number) => number;
+  paintContentRows: (width: number, startRow: number, endRow: number) => string[];
+} {
+  return (
+    typeof component.measureContentRows === 'function' &&
+    typeof component.paintContentRows === 'function'
+  );
 }
 
 export type Component = RendererComponent;
@@ -31,10 +55,21 @@ export interface RendererAnsiTextOptions {
   readonly tabWidth?: number;
 }
 
+/**
+ * Bodies larger than this never pin a full wrapped `string[]` on {@link Text}
+ * after windowed paint. Matches the multi-k measure/cheap threshold so geometry
+ * and overflow share one working-set class.
+ */
+export const TEXT_WINDOWED_BODY_CHAR_CAP = TRANSCRIPT_MEASURE_FULL_WRAP_CHAR_CAP;
+
 export class Text implements RendererComponent {
   private cachedText?: string;
   private cachedWidth?: number;
   private cachedLines?: string[];
+  /** Row-count cache for windowed measure (never holds line strings). */
+  private measuredText?: string;
+  private measuredWidth?: number;
+  private measuredRows?: number;
   private customBgFn?: RendererTextBackgroundFn;
 
   constructor(
@@ -66,6 +101,112 @@ export class Text implements RendererComponent {
     this.cachedText = undefined;
     this.cachedWidth = undefined;
     this.cachedLines = undefined;
+    this.measuredText = undefined;
+    this.measuredWidth = undefined;
+    this.measuredRows = undefined;
+  }
+
+  /**
+   * Test/diagnostics: how many lines are pinned in the full paint cache.
+   * Multi-k windowed bodies must stay 0 after measure/paintContentRows.
+   */
+  debugCachedLineCountForTest(): number {
+    return this.cachedLines?.length ?? 0;
+  }
+
+  /**
+   * Row count without retaining a full multi-k line array. Preferred by the
+   * transcript viewport geometry path when present.
+   */
+  measureContentRows(width: number): number {
+    const safeWidth = normalizeTextWidth(width);
+    if (
+      this.measuredRows !== undefined &&
+      this.measuredText === this.text &&
+      this.measuredWidth === safeWidth
+    ) {
+      return this.measuredRows;
+    }
+    if (
+      this.cachedLines !== undefined &&
+      this.cachedText === this.text &&
+      this.cachedWidth === safeWidth
+    ) {
+      this.measuredText = this.text;
+      this.measuredWidth = safeWidth;
+      this.measuredRows = this.cachedLines.length;
+      return this.cachedLines.length;
+    }
+
+    if (safeWidth <= 0 || this.text.length === 0 || this.text.trim() === '') {
+      this.measuredText = this.text;
+      this.measuredWidth = safeWidth;
+      this.measuredRows = 0;
+      return 0;
+    }
+
+    const paddingX = normalizePadding(this.paddingX);
+    const paddingY = normalizePadding(this.paddingY);
+    const contentWidth = Math.max(1, safeWidth - paddingX * 2);
+
+    // Geometry / pure-scroll multi-k: O(source) estimate, no line array.
+    if (
+      this.text.length > TEXT_WINDOWED_BODY_CHAR_CAP &&
+      (isTranscriptMeasureMode() || shouldSkipExpensiveTranscriptFormat())
+    ) {
+      const rows = estimateTranscriptWrappedRowCount(this.text, contentWidth, paddingY);
+      this.measuredText = this.text;
+      this.measuredWidth = safeWidth;
+      this.measuredRows = rows;
+      return rows;
+    }
+
+    const normalizedText = this.text.replaceAll('\t', '   ');
+    const contentRows = countAnsiDisplayWrappedRows(normalizedText, contentWidth, { tabWidth: 3 });
+    const rows = contentRows + paddingY * 2;
+    this.measuredText = this.text;
+    this.measuredWidth = safeWidth;
+    this.measuredRows = rows;
+    return rows;
+  }
+
+  /**
+   * Paint only `[startRow, endRow)`. Multi-k bodies never write a full-line
+   * array into the component paint cache — only the returned window exists.
+   */
+  paintContentRows(width: number, startRow: number, endRow: number): string[] {
+    const safeWidth = normalizeTextWidth(width);
+    const start = Math.max(0, Math.floor(startRow));
+    const end = Math.max(start, Math.floor(endRow));
+    if (end <= start) return [];
+
+    // Warm full cache (small bodies only): slice without re-wrap.
+    if (
+      this.cachedLines !== undefined &&
+      this.cachedText === this.text &&
+      this.cachedWidth === safeWidth
+    ) {
+      return this.cachedLines.slice(start, end);
+    }
+
+    if (safeWidth <= 0 || this.text.length === 0 || this.text.trim() === '') return [];
+
+    // Pure-scroll multi-k: plain window only — never pin full stand-in arrays.
+    if (
+      shouldSkipExpensiveTranscriptFormat() &&
+      this.text.length > TEXT_WINDOWED_BODY_CHAR_CAP
+    ) {
+      return this.paintPlainCheapWindow(safeWidth, start, end);
+    }
+
+    // Multi-k ambient/content: windowed wrap, do not pin full body on `this`.
+    if (this.text.length > TEXT_WINDOWED_BODY_CHAR_CAP) {
+      return this.paintWindowUncached(safeWidth, start, end);
+    }
+
+    // Small bodies: full layout + cache, then slice (legacy render path share).
+    const full = this.render(safeWidth);
+    return full.slice(start, end);
   }
 
   render(width: number): string[] {
@@ -81,10 +222,7 @@ export class Text implements RendererComponent {
       isTranscriptMeasureMode() &&
       this.text.length > TRANSCRIPT_MEASURE_FULL_WRAP_CHAR_CAP
     ) {
-      const paddingX = normalizePadding(this.paddingX);
-      const paddingY = normalizePadding(this.paddingY);
-      const contentWidth = Math.max(1, safeWidth - paddingX * 2);
-      const rows = estimateTranscriptWrappedRowCount(this.text, contentWidth, paddingY);
+      const rows = this.measureContentRows(safeWidth);
       return measurePlaceholderLines(rows);
     }
 
@@ -97,10 +235,27 @@ export class Text implements RendererComponent {
       return this.renderPlainCheap(safeWidth);
     }
 
+    // Multi-k ambient/content via legacy render(): still materializes full
+    // array for callers that have not adopted paintContentRows. Prefer the
+    // windowed path in the transcript viewport so this is rarely hit for tall
+    // history cards. Do not leave multi-k arrays pinned on the component —
+    // callers that need retention must keep their own slice.
+    if (this.text.length > TEXT_WINDOWED_BODY_CHAR_CAP) {
+      const result = this.renderUncached(safeWidth);
+      // Intentionally do not assign cachedLines for multi-k (windowed working set).
+      this.measuredText = this.text;
+      this.measuredWidth = safeWidth;
+      this.measuredRows = result.length;
+      return result;
+    }
+
     const result = this.renderUncached(safeWidth);
     this.cachedText = this.text;
     this.cachedWidth = safeWidth;
     this.cachedLines = result;
+    this.measuredText = this.text;
+    this.measuredWidth = safeWidth;
+    this.measuredRows = result.length;
     return result;
   }
 
@@ -121,6 +276,55 @@ export class Text implements RendererComponent {
     const emptyLine = padAnsiDisplayLine('', width, this.customBgFn);
     const emptyLines = Array.from({ length: paddingY }, () => emptyLine);
     return [...emptyLines, ...contentLines, ...emptyLines];
+  }
+
+  private paintWindowUncached(width: number, startRow: number, endRow: number): string[] {
+    const paddingX = normalizePadding(this.paddingX);
+    const paddingY = normalizePadding(this.paddingY);
+    const contentWidth = Math.max(1, width - paddingX * 2);
+    const leftMargin = ' '.repeat(paddingX);
+    const rightMargin = ' '.repeat(paddingX);
+    const emptyLine = padAnsiDisplayLine('', width, this.customBgFn);
+    const out: string[] = [];
+
+    // Map absolute rows → content wrap range (skip top pad).
+    const contentStart = Math.max(0, startRow - paddingY);
+    const contentEnd = Math.max(contentStart, endRow - paddingY);
+    const normalizedText = this.text.replaceAll('\t', '   ');
+    const contentSlice = wrapAnsiDisplayTextRange(
+      normalizedText,
+      contentWidth,
+      contentStart,
+      contentEnd,
+      { tabWidth: 3 },
+    );
+
+    let contentCursor = 0;
+    for (let row = startRow; row < endRow; row++) {
+      if (row < paddingY) {
+        out.push(emptyLine);
+        continue;
+      }
+      if (contentCursor < contentSlice.length) {
+        const line = contentSlice[contentCursor]!;
+        contentCursor += 1;
+        out.push(padAnsiDisplayLine(leftMargin + line + rightMargin, width, this.customBgFn));
+        continue;
+      }
+      // Past content (bottom pad or short body): empty pad lines.
+      out.push(emptyLine);
+    }
+
+    if (
+      this.measuredRows === undefined ||
+      this.measuredText !== this.text ||
+      this.measuredWidth !== width
+    ) {
+      this.measuredText = this.text;
+      this.measuredWidth = width;
+      this.measuredRows = estimateTranscriptWrappedRowCount(this.text, contentWidth, paddingY);
+    }
+    return out;
   }
 
   /** Pure-scroll multi-k stand-in: simple char wrap, hard cap on materialised rows. */
@@ -154,6 +358,61 @@ export class Text implements RendererComponent {
     for (let i = 0; i < paddingY; i++) out.push(emptyLine);
     return out;
   }
+
+  /** Visible window of the plain cheap stand-in — O(window), no multi-k pin. */
+  private paintPlainCheapWindow(width: number, startRow: number, endRow: number): string[] {
+    const paddingX = normalizePadding(this.paddingX);
+    const paddingY = normalizePadding(this.paddingY);
+    const contentWidth = Math.max(1, width - paddingX * 2);
+    const leftMargin = ' '.repeat(paddingX);
+    const rightMargin = ' '.repeat(paddingX);
+    const emptyLine = padAnsiDisplayLine('', width, this.customBgFn);
+    const out: string[] = [];
+    const MAX_PLAIN_LINES = 240;
+
+    // Walk plain rows; emit only those in [startRow, endRow).
+    let row = 0;
+    const emit = (line: string): boolean => {
+      if (row >= endRow) return false;
+      if (row >= startRow) out.push(line);
+      row += 1;
+      return row < endRow;
+    };
+
+    for (let p = 0; p < paddingY; p++) {
+      if (!emit(emptyLine)) return out;
+    }
+
+    let produced = 0;
+    for (const raw of this.text.replaceAll('\t', '   ').split('\n')) {
+      if (produced >= MAX_PLAIN_LINES) break;
+      if (raw.length === 0) {
+        produced += 1;
+        if (!emit(padAnsiDisplayLine(leftMargin + rightMargin, width, this.customBgFn))) return out;
+        continue;
+      }
+      let offset = 0;
+      while (offset < raw.length && produced < MAX_PLAIN_LINES) {
+        const chunk = raw.slice(offset, offset + contentWidth);
+        produced += 1;
+        if (!emit(padAnsiDisplayLine(leftMargin + chunk + rightMargin, width, this.customBgFn))) {
+          return out;
+        }
+        offset += contentWidth;
+      }
+    }
+    for (let p = 0; p < paddingY && row < endRow; p++) {
+      if (!emit(emptyLine)) return out;
+    }
+    // If start is past the short stand-in, pad with empties so slice length matches.
+    while (row < startRow && row < endRow) {
+      row += 1;
+    }
+    while (out.length < endRow - startRow) {
+      out.push(emptyLine);
+    }
+    return out;
+  }
 }
 
 export function measureAnsiDisplayWidth(
@@ -184,19 +443,109 @@ export function wrapAnsiDisplayText(
   width: number,
   options: RendererAnsiTextOptions = {},
 ): string[] {
+  return wrapAnsiDisplayTextRange(text, width, 0, Number.POSITIVE_INFINITY, options);
+}
+
+/**
+ * Count wrapped display rows without allocating line strings. Used by
+ * {@link Text.measureContentRows} so multi-k geometry stays O(source) in
+ * working-set (not O(rows) retained arrays).
+ */
+export function countAnsiDisplayWrappedRows(
+  text: string,
+  width: number,
+  options: RendererAnsiTextOptions = {},
+): number {
   const maxWidth = normalizeTextWidth(width);
-  if (maxWidth <= 0) return [''];
-  if (text.length === 0) return [''];
+  if (maxWidth <= 0) return 1;
+  if (text.length === 0) return 1;
+
+  let rows = 0;
+  let currentWidth = 0;
+  const tabWidth = normalizeTabWidth(options.tabWidth);
+  let hasContent = false;
+
+  const endLine = (): void => {
+    rows += 1;
+    currentWidth = 0;
+    hasContent = false;
+  };
+
+  for (const token of tokenizeAnsiWrapText(text, tabWidth)) {
+    if (token.kind === 'newline') {
+      endLine();
+      continue;
+    }
+    if (token.width <= 0) {
+      hasContent = true;
+      continue;
+    }
+    if (token.width > maxWidth && !token.whitespace) {
+      if (currentWidth > 0) endLine();
+      // Long token breaks into ceil(width/max) rows; approximate by cluster walk.
+      let remaining = token.width;
+      while (remaining > maxWidth) {
+        rows += 1;
+        remaining -= maxWidth;
+      }
+      currentWidth = remaining;
+      hasContent = remaining > 0;
+      continue;
+    }
+    if (currentWidth > 0 && currentWidth + token.width > maxWidth) {
+      endLine();
+      if (token.whitespace) continue;
+    }
+    currentWidth += token.width;
+    hasContent = true;
+  }
+
+  if (hasContent || currentWidth > 0 || rows === 0) {
+    rows += 1;
+  }
+  return rows;
+}
+
+/**
+ * Wrap only rows in `[startRow, endRow)`. Off-window lines are not retained —
+ * the primary memory contract for windowed large-body paint.
+ */
+export function wrapAnsiDisplayTextRange(
+  text: string,
+  width: number,
+  startRow: number,
+  endRow: number,
+  options: RendererAnsiTextOptions = {},
+): string[] {
+  const maxWidth = normalizeTextWidth(width);
+  const start = Math.max(0, Math.floor(startRow));
+  const end =
+    endRow === Number.POSITIVE_INFINITY
+      ? Number.POSITIVE_INFINITY
+      : Math.max(start, Math.floor(endRow));
+  if (end <= start) return [];
+  if (maxWidth <= 0) return start === 0 ? [''] : [];
+  if (text.length === 0) return start === 0 ? [''] : [];
 
   const state = new RendererAnsiState();
   const lines: string[] = [];
   let current = '';
   let currentWidth = 0;
+  let row = 0;
   const tabWidth = normalizeTabWidth(options.tabWidth);
 
+  const pushLine = (line: string): boolean => {
+    if (row >= end) return false;
+    if (row >= start) lines.push(line);
+    row += 1;
+    return row < end;
+  };
+
   for (const token of tokenizeAnsiWrapText(text, tabWidth)) {
+    if (row >= end) break;
+
     if (token.kind === 'newline') {
-      lines.push(state.closeLine(current.trimEnd()));
+      if (!pushLine(state.closeLine(current.trimEnd()))) break;
       current = state.prefix();
       currentWidth = 0;
       continue;
@@ -210,17 +559,24 @@ export function wrapAnsiDisplayText(
 
     if (token.width > maxWidth && !token.whitespace) {
       if (currentWidth > 0) {
-        lines.push(state.closeLine(current.trimEnd()));
+        if (!pushLine(state.closeLine(current.trimEnd()))) break;
       }
       const broken = breakLongAnsiToken(token.text, maxWidth, state, tabWidth);
-      lines.push(...broken.lines);
+      let stopped = false;
+      for (const brokenLine of broken.lines) {
+        if (!pushLine(brokenLine)) {
+          stopped = true;
+          break;
+        }
+      }
+      if (stopped) break;
       current = broken.current;
       currentWidth = broken.width;
       continue;
     }
 
     if (currentWidth > 0 && currentWidth + token.width > maxWidth) {
-      lines.push(state.closeLine(current.trimEnd()));
+      if (!pushLine(state.closeLine(current.trimEnd()))) break;
       current = state.prefix();
       currentWidth = 0;
       if (token.whitespace) continue;
@@ -231,8 +587,8 @@ export function wrapAnsiDisplayText(
     state.processText(token.text);
   }
 
-  if (current.length > 0 || lines.length === 0) {
-    lines.push(state.closeLine(current.trimEnd()));
+  if (row < end && (current.length > 0 || row === 0)) {
+    pushLine(state.closeLine(current.trimEnd()));
   }
   return lines;
 }

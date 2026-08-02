@@ -143,11 +143,13 @@ describe('transcript cheap-paint mode', () => {
 
       for (let frame = 0; frame < 20; frame++) {
         const again = md.render(80);
-        expect(again).toBe(first); // same cached array identity
+        // Multi-k cheap stand-ins intentionally do NOT pin array identity
+        // (overflow eviction owns retention; pin would fight soft-evict).
         expect(again.length).toBe(first.length);
       }
-      // No additional fence highlight/layout after first cheap frame.
+      // No fence highlight under multi-k cheap paint.
       expect(layoutPasses).toBe(afterFirst);
+      expect(layoutPasses).toBe(0);
     });
 
     // Full paint must re-enter highlight once (not stuck on cheap plain).
