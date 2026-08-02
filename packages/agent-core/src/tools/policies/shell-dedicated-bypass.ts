@@ -39,6 +39,13 @@ export type { ShellDedicatedBypassHit } from './shell-bypass-rules/types';
 export const SHELL_DEDICATED_BYPASS_FORCE_PREFIX = 'LIORA_FORCE_BASH=1';
 
 /**
+ * Loop43a — stable marker when Bash is blocked because a dedicated tool
+ * (Read/Write/Edit/Grep/Glob) should handle the command. TUI matches this for a
+ * named notice instead of a bare red tool card.
+ */
+export const SHELL_DEDICATED_BYPASS_CODE = 'SHELL_DEDICATED_BYPASS' as const;
+
+/**
  * Returns a hit when the command is a dedicated-tool equivalent.
  * Undefined means allow Bash.
  */
@@ -136,5 +143,6 @@ export function formatShellDedicatedBypassError(hit: ShellDedicatedBypassHit): s
     `Bash blocked: this looks like a job for the ${hit.prefer} tool (${hit.pattern}).`,
     hit.message,
     `If you truly need the shell for this, prefix with \`${SHELL_DEDICATED_BYPASS_FORCE_PREFIX} \` and explain why in description.`,
+    `code=${SHELL_DEDICATED_BYPASS_CODE}`,
   ].join(' ');
 }
