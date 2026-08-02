@@ -59,4 +59,19 @@ describe('splash morph handoff', () => {
     expect(open.every((line) => line.replaceAll(/\s/g, '').includes('S'))).toBe(true);
   });
 
+  it('locks the full scene by progress 0.90 for a clean handoff', () => {
+    const width = 24;
+    const rows = 16;
+    const backdrop = Array.from({ length: rows }, () => 'B'.repeat(width));
+    const scene = Array.from({ length: rows }, () => 'S'.repeat(width));
+    const locked = applyStageMorphReveal({
+      backdrop,
+      scene,
+      width,
+      rows,
+      progress: 0.9,
+    });
+    expect(locked.every((line) => line.includes('S') && !line.includes('B'))).toBe(true);
+  });
+
 });

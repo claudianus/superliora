@@ -133,6 +133,8 @@ export class SplashComponent implements Component {
   private disposed = false;
   private lastCinematicFrame: string[] | undefined;
   private splashBrandTop = 0;
+  /** Widest measured figlet row from the cinematic brand phase (cols). */
+  private splashBrandWidth = 0;
   /** Cached morph scene — app state is static during the morph window. */
   private cachedMorphScene:
     | { readonly lines: readonly string[]; readonly brandTarget: { readonly x: number; readonly y: number; readonly width: number } }
@@ -382,6 +384,13 @@ export class SplashComponent implements Component {
         Math.floor(rows * 0.42) - Math.floor(banner.length / 2),
       );
       this.splashBrandTop = brandTop;
+      // Track the on-screen figlet width so morph shrink starts from the real
+      // banner extent instead of the full terminal (which over-lerped and jumped).
+      this.splashBrandWidth = Math.max(
+        this.splashBrandWidth,
+        ...banner.map((line) => visibleWidth(line)),
+        24,
+      );
       blitCentered(canvas, banner, brandTop, safeWidth);
 
       if (reveal >= bannerAll.length && fade > 0.35) {
@@ -465,8 +474,11 @@ export class SplashComponent implements Component {
       progress,
     });
 
-    // Continuous brand: fullscreen figlet → Welcome hero rect.
-    if (progress < 0.94) {
+    // Continuous brand: cinematic figlet → Welcome hero rect.
+    // Drop the overlay once the aperture has largely revealed the scene so the
+    // live Welcome banner (already in `scene`) takes over without a double-paint
+    // jump at progress ≈ 0.9.
+    if (progress < 0.82) {
       const brandTarget = fromHost?.brandTarget ?? {
         x: Math.max(0, Math.floor((width - Math.min(width, 60)) / 2)),
         y: Math.max(1, Math.floor(rows * 0.22)),
@@ -476,23 +488,34 @@ export class SplashComponent implements Component {
         this.splashBrandTop > 0
           ? this.splashBrandTop
           : Math.max(1, Math.floor(rows * 0.42) - 2);
+      // Start from the measured cinematic banner width (not full terminal) so
+      // the shrink path matches the on-screen figlet and lands on brandTarget.
+      const fromWidth = Math.max(
+        brandTarget.width,
+        this.splashBrandWidth > 0
+          ? Math.min(width, this.splashBrandWidth)
+          : Math.min(width, Math.max(40, Math.floor(width * 0.72))),
+      );
       const rect = resolveBrandMorphRect({
         progress,
         cols: width,
         fromTop,
-        fromWidth: width,
+        fromWidth,
         to: brandTarget,
       });
-      const bannerLayout = resolveResponsiveLayout({ width: rect.width, height: rows });
+      // Switch to target-width banner early so glyph density matches Welcome
+      // before the overlay is removed (avoids a "font size snap").
+      const useTargetLayout = progress >= 0.28;
+      const bannerLayout = resolveResponsiveLayout({
+        width: useTargetLayout ? brandTarget.width : Math.max(24, rect.width),
+        height: rows,
+      });
       const banner = renderWelcomeBanner(
-        progress < 0.35 ? layout : bannerLayout,
+        useTargetLayout ? bannerLayout : layout,
         this.appearance,
-        Math.max(24, rect.width),
+        Math.max(24, useTargetLayout ? brandTarget.width : rect.width),
       );
-      // Fade brand overlay as Welcome's own hero takes over.
-      if (progress < 0.88) {
-        blitAt(composite, banner, rect.y, rect.x, width);
-      }
+      blitAt(composite, banner, rect.y, rect.x, width);
     }
 
     return composite;

@@ -85,22 +85,26 @@ export function applyStageMorphReveal(options: {
   // The progress arriving here is already eased by resolveMorphProgress
   // (smoothstep). Use it directly for the aperture to avoid double-easing.
   const cy = (rows - 1) / 2;
-  // Aperture expands slightly beyond 50% so edges are fully covered at p=1.
-  const halfH = Math.max(0.5, p * (rows * 0.56));
+  // Expand slightly past half-height so edges are fully covered before p=1.
+  // 0.58 (was 0.56) closes the last letterbox rows earlier, matching the
+  // brand-overlay cut at ~0.82 so the scene is complete when the figlet leaves.
+  const halfH = Math.max(0.5, p * (rows * 0.58));
 
   for (let y = 0; y < rows; y++) {
     if (Math.abs(y - cy) > halfH) continue;
     const sceneLine = padOrTrim(scene[y] ?? ' '.repeat(width), width);
     // Soft rim: within 1 row of the aperture edge, keep backdrop visible
     // until progress is high enough to avoid a hard horizontal cutoff.
-    const atRim = Math.abs(y - cy) > halfH - 1.0 && p < 0.90;
+    const atRim = Math.abs(y - cy) > halfH - 1.0 && p < 0.88;
     if (atRim) continue;
     out[y] = sceneLine;
   }
 
   // Final lock: once the aperture covers the full frame, snap every row to
-  // scene so the handoff to the real UI is pixel-identical.
-  if (p >= 0.95) {
+  // scene so the handoff to the real UI is pixel-identical. Lock earlier
+  // (0.90) so the last ~100ms of morph is a clean stage frame — no residual
+  // backdrop rows when splashJustDisposed hands off to the live tree.
+  if (p >= 0.90) {
     for (let y = 0; y < rows; y++) {
       out[y] = padOrTrim(scene[y] ?? ' '.repeat(width), width);
     }

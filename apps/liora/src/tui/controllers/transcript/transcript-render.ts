@@ -44,6 +44,7 @@ import type {
   LoginProgressSpinnerHandle,
   TranscriptEntry,
 } from '../../types';
+import { resolveStageLayout } from '../layout/stage-layout';
 import { buildSplashMorphScene } from '../../utils/splash/splash-reveal-preview';
 import { hasDispose } from '../../utils/component-capabilities';
 import { noteErrorFeedback } from '../../utils/render/feedback-vfx';
@@ -265,11 +266,23 @@ export class TranscriptRenderController {
         requestTUILayoutRender(host.state);
       },
       getMorphScene: (width, rows) => {
-        const stageWidth = Math.max(1, width);
+        // Chrome must be measured at stage content width (not terminal width),
+        // matching planTUINativeStage — otherwise the morph preview wraps at the
+        // full terminal and the live handoff snaps when real chrome reflows.
+        const userStageSize = host.state.userStageSize;
+        const stageWidth = Math.max(
+          1,
+          resolveStageLayout({
+            width,
+            height: rows,
+            userStageSize,
+          }).stage.width,
+        );
         return buildSplashMorphScene({
           width,
           rows,
           appState: host.state.appState,
+          userStageSize,
           headerLines: host.state.headerContainer.render(stageWidth),
           footerLines: host.state.footerContainer.render(stageWidth),
           editorLines: host.state.editorContainer.render(stageWidth),
