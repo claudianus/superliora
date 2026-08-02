@@ -150,13 +150,32 @@ export function estimateTranscriptWrappedRowCount(
 /**
  * Length-only stand-in for measure mode. Geometry probes only read `.length`
  * — never allocate multi-k string arrays (that alone froze the event loop).
+ *
+ * The object is intentionally *not* a real `string[]`. Callers that need to
+ * iterate or project lines (spread, `.slice`, `.map`) must either:
+ * - short-circuit under {@link isTranscriptMeasureMode} and use `.length` only, or
+ * - implement {@link RendererComponent.measureContentRows} so geometry never
+ *   materializes through `render()`.
+ *
+ * Small counts (≤ {@link MEASURE_PLACEHOLDER_MATERIALIZE_CAP}) return a real
+ * empty-string array so nested viewports that window-slice stay safe when the
+ * projected height is already soft-capped (e.g. truncated tool bodies).
  */
+export const MEASURE_PLACEHOLDER_MATERIALIZE_CAP = 1_024;
+
 export function measurePlaceholderLines(rowCount: number): string[] {
   const n =
     Number.isFinite(rowCount) && rowCount > 0
       ? Math.min(Math.floor(rowCount), 1_000_000)
       : 0;
   if (n === 0) return [];
+  // Soft-capped bodies (truncated tool output ≤ ~601 rows) need a real array so
+  // parents that `.slice`/spread for nested viewports do not throw.
+  if (n <= MEASURE_PLACEHOLDER_MATERIALIZE_CAP) {
+    return Array.from({ length: n }, () => '');
+  }
+  // Large geometry stubs: length only. Do not implement Symbol.iterator —
+  // spreading a 100k stand-in would re-allocate and re-freeze the event loop.
   return { length: n } as unknown as string[];
 }
 

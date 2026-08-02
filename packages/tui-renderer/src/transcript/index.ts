@@ -51,6 +51,7 @@ export {
 } from './geometry-parent';
 
 export {
+  MEASURE_PLACEHOLDER_MATERIALIZE_CAP,
   TRANSCRIPT_MEASURE_FULL_WRAP_CHAR_CAP,
   TRANSCRIPT_SCROLL_STORM_GAP_MS,
   estimateTranscriptWrappedRowCount,

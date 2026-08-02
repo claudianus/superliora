@@ -1,5 +1,5 @@
 import type { Component } from '#/tui/renderer';
-import { truncateToWidth } from '#/tui/renderer';
+import { isTranscriptMeasureMode, truncateToWidth } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import {
   projectToolOutputViewport,
@@ -38,6 +38,13 @@ function childContentRevision(child: Component): number {
     rev = (rev * 31 + childContentRevision(c)) | 0;
   }
   return rev;
+}
+
+function measureChildRows(child: Component, width: number): number {
+  if (typeof child.measureContentRows === 'function') {
+    return child.measureContentRows(width);
+  }
+  return child.render(width).length;
 }
 
 export class ToolOutputViewportComponent implements Component {
@@ -116,11 +123,31 @@ export class ToolOutputViewportComponent implements Component {
     this.cachedChildRevision = Number.MIN_SAFE_INTEGER;
   }
 
+  /**
+   * Geometry without full child paint. Nested multi-k tool bodies return
+   * measure placeholders that are not always iterable — never slice them here.
+   */
+  measureContentRows(width: number): number {
+    const safeWidth = Math.max(1, Math.floor(width));
+    const contentWidth = safeWidth > 1 ? safeWidth - 1 : safeWidth;
+    const bodyRows = measureChildRows(this.child, contentWidth);
+    const state = this.syncContentRows(bodyRows);
+    const projection = projectToolOutputViewport(state, this.expanded);
+    return projection.endRow - projection.startRow;
+  }
+
   render(width: number): string[] {
     const safeWidth = Math.max(1, Math.floor(width));
     // Always reserve a rail column when there may be overflow so expand/collapse
     // does not reflow content width (which would bust the child render cache).
     const contentWidth = safeWidth > 1 ? safeWidth - 1 : safeWidth;
+
+    // Geometry probes: projected window height only — no child line arrays.
+    if (isTranscriptMeasureMode()) {
+      const rows = this.measureContentRows(safeWidth);
+      return Array.from({ length: rows }, () => '');
+    }
+
     let lines: string[];
 
     const revision = childContentRevision(this.child);

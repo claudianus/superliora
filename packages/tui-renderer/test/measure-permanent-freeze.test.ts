@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  Container,
   Markdown,
   Text,
   estimateTranscriptWrappedRowCount,
@@ -8,6 +9,7 @@ import {
   withTranscriptMeasureMode,
   RendererTranscriptViewport,
   RendererTranscriptViewportComponent,
+  RendererTruncatedOutputComponent,
 } from '../src';
 import { isInteractiveRenderCause } from '../src/native-renderer/auto-frame-hold';
 import { BACKPRESSURE_STUCK_TIMEOUT_MS } from '../src/native-renderer/backpressure';
@@ -81,6 +83,48 @@ describe('permanent freeze guards (measure + interactive scroll)', () => {
     expect(total).toBeGreaterThan(0);
     // Without measure estimates this was multi-minute. Budget + estimate must keep it interactive.
     expect(ms).toBeLessThan(500);
+  });
+
+  it('TruncatedOutput multi-k contentRowCount does not throw on measure placeholders', () => {
+    // Regression: measure mode returned { length: n } from Text; TruncatedOutput
+    // then spread/sliced it → TypeError: n.lines is not iterable.
+    const body = Array.from({ length: 500 }, (_, i) => `${'x'.repeat(40)}${i}`).join('\n');
+    expect(body.length).toBeGreaterThan(8_000);
+
+    const truncated = new RendererTruncatedOutputComponent(body, {
+      expanded: false,
+      maxLines: 3,
+    });
+    const measured = withTranscriptMeasureMode(() => truncated.render(80));
+    expect(Array.isArray(measured)).toBe(true);
+    expect(measured.length).toBeGreaterThan(0);
+    expect(measured.length).toBeLessThanOrEqual(4); // preview + footer
+
+    const viewport = new RendererTranscriptViewport();
+    const transcript = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => 12,
+    });
+    // Direct child + nested in Container (tool-call shape).
+    transcript.addChild(truncated);
+    const nested = new Container();
+    nested.addChild(
+      new RendererTruncatedOutputComponent(body, { expanded: true, maxLines: 5 }),
+    );
+    transcript.addChild(nested);
+
+    expect(() => transcript.contentRowCount(80)).not.toThrow();
+    expect(transcript.contentRowCount(80)).toBeGreaterThan(0);
+  });
+
+  it('Container under measure mode does not spread multi-k Text placeholders', () => {
+    const body = Array.from({ length: 400 }, (_, i) => `${'z'.repeat(50)}${i}`).join('\n');
+    const box = new Container();
+    box.addChild(new Text(body, 0, 0));
+    const measured = withTranscriptMeasureMode(() => box.render(80));
+    expect(measured.length).toBeGreaterThan(100);
+    // Geometry may use a length-only stub for very tall containers.
+    expect(typeof measured.length).toBe('number');
   });
 
   it('interactive causes include transcript-scroll for backpressure bypass', () => {
