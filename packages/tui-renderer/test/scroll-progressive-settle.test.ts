@@ -4,6 +4,7 @@ import {
   Text,
   RendererTranscriptViewport,
   RendererTranscriptViewportComponent,
+  TRANSCRIPT_CONTENT_MATERIALIZE_BUDGET,
   withTranscriptCheapPaintMode,
 } from '../src';
 
@@ -32,12 +33,11 @@ describe('progressive settle materialize budget', () => {
     viewport.jumpToLine(0);
     renders = 0;
 
-    // Content paint (not cheap): budget 4 cold layouts.
+    // Content paint (not cheap): budget covers a viewport of short cards.
     transcript.render(100);
-    expect(renders).toBeLessThanOrEqual(6); // geometry may touch a couple
-    // More cold cards remain — continue flag should ask for another pass.
-    // After first content paint, some slots are warm; needsMaterializeContinue
-    // is true only when placeholders were used under budget.
+    expect(renders).toBeLessThanOrEqual(TRANSCRIPT_CONTENT_MATERIALIZE_BUDGET + 4);
+    // After first content paint some slots are warm; continue is only required
+    // when placeholders remained under budget.
     expect(transcript.needsMaterializeContinue || renders > 0).toBe(true);
   });
 

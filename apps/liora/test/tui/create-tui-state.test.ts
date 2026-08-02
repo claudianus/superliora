@@ -219,7 +219,7 @@ describe('createTUIState', () => {
     expect(state.editor.getText()).toBe('x');
   });
 
-  it('composes renderer-native editor autocomplete below the native editor frame', async () => {
+  it('composes renderer-native editor autocomplete above the native editor input', async () => {
     vi.useFakeTimers();
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),
@@ -248,16 +248,19 @@ describe('createTUIState', () => {
     const frame = renderTUIStateNativeFrame(state);
 
     expect(state.editor.isShowingAutocomplete()).toBe(true);
-    // Editor region is bottom-stacked in a 6-row frame: top border, input,
-    // selected suggestion, bottom border (no blank spacer row).
-    expect(rowText(frame.renderer.frame, 4)).toContain('❯ help');
-    expect(rowText(frame.renderer.frame, 4)).toContain('Show help');
-    expect(rowText(frame.renderer.frame, 5)).toBe('╰──────────────────────╯');
-
     const editorRegion = frame.regions.find((region) => region.id === 'editor');
     const plainLines = (editorRegion?.lines ?? []).map((line) =>
       typeof line === 'string' ? line : line.map((cell) => cell.char).join(''),
     );
+    // Continuous box: top border, suggestion(s), input, bottom border.
+    // Suggestions sit above the prompt so the input rides the bottom edge.
+    expect(plainLines[0]).toMatch(/^╭/);
+    expect(plainLines.some((line) => line.includes('❯ help'))).toBe(true);
+    expect(plainLines.some((line) => line.includes('Show help'))).toBe(true);
+    const suggestionIdx = plainLines.findIndex((line) => line.includes('❯ help'));
+    const inputIdx = plainLines.findIndex((line) => line.includes('> /') || line.includes('│ >'));
+    expect(suggestionIdx).toBeGreaterThanOrEqual(0);
+    expect(inputIdx).toBeGreaterThan(suggestionIdx);
     expect(plainLines.filter((line) => line.includes('╰'))).toHaveLength(1);
     expect(plainLines.at(-1)).toBe('╰──────────────────────╯');
   });

@@ -46,6 +46,11 @@ export type CompletionAuditCode =
   /** verificationStatus=blocked on a gated node (checks could not complete). */
   | 'verification_blocked'
   | 'verification_pending'
+  /**
+   * Live Mission run closed without any real verification action
+   * (no verificationStatus=passed and no check-like evidence).
+   */
+  | 'verification_action_missing'
   /** WorkGraph node status=failed (distinct from verificationStatus=failed). */
   | 'node_failed'
   /** WorkGraph node status=needs_integration — specialist handoffs not merged. */
@@ -366,7 +371,38 @@ export function auditUltraworkCompletion(
     );
   }
 
+  // Mission hard rule: at least one real verification action on delivered work.
+  // All-cancelled graphs (deliberate scope drop) may close without checks.
+  // Keyword-only evidenceIds/summaries ("verify-later", "typecheck skipped") are
+  // NOT accepted — require an explicit verificationStatus=passed on a done node.
+  const successDone = gatedNodes.filter((n) => n.status === 'done');
+  if (successDone.length > 0 && !hasRealVerificationAction(successDone)) {
+    return reject(
+      'verification_action_missing',
+      [
+        'WorkGraph nodes are done but no verification action was recorded.',
+        'Mission complete requires verificationStatus=passed on at least one done node after real checks (tests / RunProjectChecks / smoke).',
+      ],
+      [
+        'Run project checks or scoped package tests for touched work.',
+        'Set verificationStatus=passed on verified nodes and attach evidenceIds (e.g. vitest, RunProjectChecks, smoke).',
+        'Keyword-only notes without verificationStatus=passed do not count.',
+        'Only then call UpdateGoal(complete).',
+      ],
+      successDone.map((n) => n.id),
+    );
+  }
+
   return { ok: true };
+}
+
+/**
+ * True when delivered work has an explicit verification pass.
+ * evidenceIds / verificationSummary alone never satisfy this — models can mint
+ * strings like "verify-later" or "typecheck skipped" without running checks.
+ */
+export function hasRealVerificationAction(nodes: readonly WorkGraphNode[]): boolean {
+  return nodes.some((n) => n.status === 'done' && n.verificationStatus === 'passed');
 }
 
 /** Apply evidence hard gate to a node list (copy). */

@@ -1,7 +1,10 @@
 import type { TUIState } from '../../tui-state';
 import type { FrameInvalidationIntent } from '#/tui/features/native-layout/native-frame-policy';
 import { scheduleTranscriptScrollSettleRefresh } from '#/tui/utils/render/scroll-settle-refresh';
-import { wasRecentTranscriptScroll } from '#/tui/utils/render/transcript-paint-mode';
+import {
+  shouldDeferTranscriptHeavyInvalidation,
+  wasRecentTranscriptScroll,
+} from '#/tui/utils/render/transcript-paint-mode';
 
 /**
  * Transcript batch-mount (session hydrate) grows the tree without per-child
@@ -20,7 +23,7 @@ export function invalidateTUIFrame(state: TUIState, intent: FrameInvalidationInt
   // scroll paint (streaming tools, swarm, footer). Coalesce to settle refresh.
   if (
     (intent === 'content' || intent === 'layout') &&
-    wasRecentTranscriptScroll()
+    shouldDeferTranscriptHeavyInvalidation()
   ) {
     scheduleTranscriptScrollSettleRefresh(state);
     return;
@@ -30,7 +33,7 @@ export function invalidateTUIFrame(state: TUIState, intent: FrameInvalidationInt
 
 export function requestTUIContentRender(state: TUIState): void {
   if (shouldSuppressTUIFrameRequests(state)) return;
-  if (wasRecentTranscriptScroll()) {
+  if (shouldDeferTranscriptHeavyInvalidation()) {
     scheduleTranscriptScrollSettleRefresh(state);
     return;
   }
@@ -39,7 +42,7 @@ export function requestTUIContentRender(state: TUIState): void {
 
 export function requestTUILayoutRender(state: TUIState): void {
   if (shouldSuppressTUIFrameRequests(state)) return;
-  if (wasRecentTranscriptScroll()) {
+  if (shouldDeferTranscriptHeavyInvalidation()) {
     scheduleTranscriptScrollSettleRefresh(state);
     return;
   }
@@ -62,11 +65,25 @@ export function requestTUIPaletteRender(state: TUIState): void {
  */
 export function requestTranscriptPaintRefresh(state: TUIState): void {
   if (shouldSuppressTUIFrameRequests(state)) return;
-  if (wasRecentTranscriptScroll()) {
+  if (shouldDeferTranscriptHeavyInvalidation()) {
     scheduleTranscriptScrollSettleRefresh(state);
     return;
   }
   state.transcriptContainer.invalidatePaint();
+  state.renderer.invalidateFrame('content');
+}
+
+/**
+ * Geometry wipe is O(transcript) on the next resolve. During scroll storm /
+ * recent pure-scroll, never wipe — schedule settle so the wheel path stays O(1).
+ */
+export function requestTranscriptGeometryRefresh(state: TUIState): void {
+  if (shouldSuppressTUIFrameRequests(state)) return;
+  if (shouldDeferTranscriptHeavyInvalidation()) {
+    scheduleTranscriptScrollSettleRefresh(state);
+    return;
+  }
+  state.transcriptContainer.invalidateGeometryAndPaint();
   state.renderer.invalidateFrame('content');
 }
 

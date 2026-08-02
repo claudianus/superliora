@@ -218,10 +218,10 @@ describe('Plan mode permission policy', () => {
     });
 
     const writeDeny = expectDeny(write);
-    expect(writeDeny.message ?? '').toContain('current plan file');
+    expect(writeDeny.message ?? '').toMatch(/plan file|evidence root/i);
     expect(writeDeny.message ?? '').toContain('ExitPlanMode');
     const editDeny = expectDeny(edit);
-    expect(editDeny.message ?? '').toContain('current plan file');
+    expect(editDeny.message ?? '').toMatch(/plan file|evidence root/i);
   });
 
   it('blocks file edits when plan mode has no selected plan file path', async () => {
@@ -310,7 +310,7 @@ describe('Plan mode permission policy', () => {
     );
 
     const deny = expectDeny(result);
-    expect(deny.message ?? '').toContain('current plan file');
+    expect(deny.message ?? '').toMatch(/plan file|evidence root/i);
   });
 
   it('does not block read-only tools while plan mode is active', async () => {
@@ -394,7 +394,7 @@ describe('Plan mode permission policy', () => {
     // Product edits still hard-deny via plan-file guard; research no longer
     // uses a separate phase deny for non-plan writes.
     expect(deny.message ?? '').toContain('Plan mode is active');
-    expect(deny.message ?? '').toContain('current plan file');
+    expect(deny.message ?? '').toMatch(/plan file|evidence root/i);
   });
 
   it('advances Ultra Plan from research to interview after evidence collection', async () => {
@@ -436,7 +436,7 @@ describe('Plan mode permission policy', () => {
     expect(planMode.interviewRoundCount).toBe(3);
   });
 
-  it('advances interview to design with a non-verifiable UltraGoal and appends an advisory', async () => {
+  it('hard-blocks interview→design when UltraGoal is not verifiable without force_unverified', async () => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
     planMode.setPhase('interview');
 
@@ -447,35 +447,61 @@ describe('Plan mode permission policy', () => {
       signal,
     });
 
-    expect(result.isError).not.toBe(true);
-    expect(result.output).toContain('Advanced from interview phase to design phase');
-    expect(result.output).toContain('Advisory (non-blocking): Goal not yet verifiable');
-    expect(planMode.phase).toBe('design');
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('not yet true/false-verifiable');
+    expect(planMode.phase).toBe('interview');
   });
 
-  it('lets advance_with_defaults soft-fill seed gaps and advance with an advisory at max rounds', async () => {
+  it('allows interview→design with force_unverified + override_reason and records override', async () => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
     planMode.setPhase('interview');
-    // Force non-verifiable scoring path via empty evidence + default blocked scorer in activePlanAgent.
     for (let round = 1; round <= 8; round++) {
       planMode.ultraEngine.addInterviewRound(`Round ${round}`, `Partial answer ${round}`);
     }
     await planMode.ultraEngine.calculateAmbiguityScore();
     const readiness = await planMode.ultraEngine.interviewReadiness();
     expect(readiness.ready).toBe(false);
-    expect(readiness.verifiableGoal).toBe(false);
 
     const result = await executeTool(new NextPhaseTool(agent), {
       turnId: '0',
       toolCallId: 'call_next_phase_defaults',
-      args: { phase: 'design', advance_with_defaults: true },
+      args: {
+        phase: 'design',
+        force_unverified: true,
+        override_reason: 'User accepted baseline assumptions for time-box',
+        advance_with_defaults: true,
+      },
       signal,
     });
 
     expect(result.isError).not.toBe(true);
     expect(result.output).toContain('Advanced from interview phase to design phase');
-    expect(result.output).toContain('Advisory (non-blocking): Goal not yet verifiable');
+    expect(result.output).toContain('force_unverified override recorded');
     expect(planMode.phase).toBe('design');
+  });
+
+  it('rejects NextPhase skip and reverse', async () => {
+    const { agent, planMode } = await activePlanAgent({ ultra: true });
+    expect(planMode.phase).toBe('research');
+
+    const skip = await executeTool(new NextPhaseTool(agent), {
+      turnId: '0',
+      toolCallId: 'call_skip',
+      args: { phase: 'design' },
+      signal,
+    });
+    expect(skip.isError).toBe(true);
+    expect(skip.output).toContain('Cannot skip or reverse');
+
+    planMode.setPhase('interview');
+    const reverse = await executeTool(new NextPhaseTool(agent), {
+      turnId: '0',
+      toolCallId: 'call_reverse',
+      args: { phase: 'research' },
+      signal,
+    });
+    expect(reverse.isError).toBe(true);
+    expect(reverse.output).toContain('Cannot skip or reverse');
   });
 
   it('lets ultra interview advance once the seed ledger and verifiable goal are closed', async () => {
@@ -606,7 +632,7 @@ describe('Plan mode permission policy', () => {
     expect(result.isError).toBeFalsy();
     expect(result.output).toContain('Advanced from review phase to write phase');
     expect(result.output).toContain('Write Phase');
-    expect(result.output).toContain('Only the current plan file may be edited');
+    expect(result.output).toMatch(/plan file|evidence root/i);
     expect(planMode.phase).toBe('write');
   });
 
@@ -671,20 +697,22 @@ describe('Plan mode permission policy', () => {
     expect(evaluatePlanPolicy(agent, 'Grep', { pattern: 'interview', path: '/workspace' })).toBeUndefined();
   });
 
-  it('allows product Write and Edit during Ultra Plan interview', async () => {
+  it('blocks product Write and Edit during Ultra Plan interview (Mission hard plan-phase contract)', async () => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
     planMode.setPhase('interview');
 
-    expect(
+    const writeDeny = expectDeny(
       evaluatePlanPolicy(agent, 'Write', { path: '/workspace/src/main.ts', content: 'x' }),
-    ).toBeUndefined();
-    expect(
+    );
+    expect(writeDeny.message ?? '').toContain('Plan mode is active');
+    const editDeny = expectDeny(
       evaluatePlanPolicy(agent, 'Edit', {
         path: '/workspace/src/main.ts',
         old_string: 'A',
         new_string: 'B',
       }),
-    ).toBeUndefined();
+    );
+    expect(editDeny.message ?? '').toContain('Plan mode is active');
   });
 
   it('still blocks product Write during Ultra Plan research', async () => {
@@ -695,7 +723,7 @@ describe('Plan mode permission policy', () => {
       evaluatePlanPolicy(agent, 'Write', { path: '/workspace/src/main.ts', content: 'x' }),
     );
     expect(deny.message ?? '').toContain('Plan mode is active');
-    expect(deny.message ?? '').toContain('current plan file');
+    expect(deny.message ?? '').toMatch(/plan file|evidence root/i);
   });
 
   it('defers EnterPlanMode during ultra interview to the permission mode', async () => {
@@ -954,7 +982,7 @@ describe('Plan mode permission policy', () => {
         content: 'x',
       }),
     );
-    expect(deny.message ?? '').toContain('current plan file');
+    expect(deny.message ?? '').toMatch(/plan file|evidence root/i);
   });
 
   it('allows known read-only MCP tools in Ultra Plan research phase', async () => {

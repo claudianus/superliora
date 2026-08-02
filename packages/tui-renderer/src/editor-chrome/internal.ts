@@ -92,17 +92,26 @@ export function projectRendererEditorFrameCursor(options: {
   readonly height: number;
   readonly contentX: number;
   readonly contentRows: number;
+  /** Local Y of the first content row inside the frame (0 when top border omitted). */
+  readonly contentYOffset?: number;
   readonly inputCursor: RendererCursorState | undefined;
   readonly hasScrollbar: boolean;
 }): RendererCursorState | undefined {
   const cursor = options.inputCursor;
   if (cursor === undefined || cursor.visible === false) return undefined;
   if (options.contentRows <= 0) return undefined;
+  const contentYOffset = Math.max(0, Math.floor(options.contentYOffset ?? 1));
   const maxX = Math.max(0, options.width - (options.hasScrollbar ? 3 : 2));
   const x = Math.min(maxX, Math.floor(options.contentX + cursor.x));
-  const y = Math.floor(1 + cursor.y);
+  const y = Math.floor(contentYOffset + cursor.y);
   // Keep the caret inside painted content rows (not the deferred overlay area).
-  if (x < 0 || y < 1 || y > options.contentRows || x >= options.width || y >= options.height) {
+  if (
+    x < 0
+    || y < contentYOffset
+    || y >= contentYOffset + options.contentRows
+    || x >= options.width
+    || y >= options.height
+  ) {
     return undefined;
   }
   return { ...cursor, x, y };

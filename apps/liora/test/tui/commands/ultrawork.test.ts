@@ -281,15 +281,15 @@ describe('buildUltraworkPrompt', () => {
 
     // Methodology lives in the `mission` builtin skill; the prompt is a lean pointer plus runtime data.
     expect(prompt).toContain('load the `mission` builtin skill via the Skill tool');
-    expect(prompt).toContain('`ultrawork` compat alias still works');
-    expect(prompt).toContain('phase checkpoints are advisory, not hard blocks');
+    expect(prompt).toContain('`ultrawork` is compat alias only');
+    expect(prompt).toContain('Hard gates:');
     expect(prompt).toContain(
-      'Research prelude -> Plan interview -> Goal -> Swarm decision -> Integrate -> Verify -> Learn',
+      'Research prelude -> Plan interview -> Goal -> Fleet decision -> Integrate -> Verify -> Learn',
     );
-    expect(prompt).toContain('ExitPlanMode is the approval point before post-plan implementation');
+    expect(prompt).toContain('Do not run a separate Ultrawork spine');
     expect(prompt).toContain('do not ask the user to choose branded sub-commands');
     expect(prompt).not.toContain('UltraResearch');
-    expect(prompt).toContain('플랜/리서치/골/플릿');
+    expect(prompt).not.toContain('phase checkpoints are advisory, not hard blocks');
     expect(prompt).not.toContain('울트라플랜');
     expect(prompt).toContain('UpdateGoal complete/blocked');
 
@@ -446,7 +446,8 @@ describe('handleUltraworkCommand', () => {
     expect(session.createGoal).not.toHaveBeenCalled();
     expect(session.createUltraworkRun).toHaveBeenCalled();
     expect(host.setAppState).toHaveBeenCalledWith({
-      activityTip: 'Mission mode: research first, then Plan interview, verifiable Goal, Fleet decision, verify',
+      activityTip:
+        'Mission: research → interview → verifiable Goal → Fleet decision → verify (one run)',
     });
     expect(renderedMarker(host)).toContain('Mission activated');
     expect(renderedMarker(host)).toContain('Research -> Plan -> Goal -> Fleet decision -> Integrate -> Verify -> Learn');

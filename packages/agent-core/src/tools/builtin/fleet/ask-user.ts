@@ -161,10 +161,15 @@ export class AskUserQuestionTool implements BuiltinTool<AskUserQuestionInput> {
         this.agent.telemetry.track('question_answered', {
           answered: Object.keys(autoAnswer.answers).length,
           method: 'auto',
+          auto_decisions: autoAnswer.decisions.length,
         });
         return {
           isError: false,
-          output: JSON.stringify({ answers: autoAnswer.answers, method: 'auto' }),
+          output: JSON.stringify({
+            answers: autoAnswer.answers,
+            method: 'auto',
+            decisions: autoAnswer.decisions,
+          }),
         };
       }
 
@@ -333,32 +338,154 @@ function normalizeQuestionResult(
 const AUTO_ANSWER_ASSUMPTION =
   'Assumption: proceed with baseline/minimal scope; refine if blocked.';
 
+export interface AutoInterviewDecision {
+  readonly answers: QuestionAnswers;
+  /** Structured decision records for Mission interview quality. */
+  readonly decisions: readonly AutoInterviewDecisionRecord[];
+}
+
+export interface AutoInterviewDecisionRecord {
+  readonly question: string;
+  readonly chosen: string;
+  readonly reason: string;
+  readonly confidence: number;
+  readonly source: 'recommended' | 'baseline' | 'upgrade' | 'open_assumption';
+  readonly options: readonly string[];
+}
+
 /**
  * Auto intent: full autopilot — the agent (via this helper) picks the best
  * contextual option itself. This is deliberate auto-fill, not "skip the question".
  * YOLO mode still asks the human; manual mode also waits for a real user answer.
+ *
+ * Mission quality: prefer Recommended / Baseline labels, record reason + confidence
+ * into the answer text so interview findings seed a verifiable goal without click-spam.
  */
 function tryAutoAnswerQuestions(
   args: NormalizedAskUserQuestionInput,
   mode: string | undefined,
-): { readonly answers: QuestionAnswers } | undefined {
+): AutoInterviewDecision | undefined {
   if (mode !== 'auto') return undefined;
 
   const answers: QuestionAnswers = {};
+  const decisions: AutoInterviewDecisionRecord[] = [];
   for (const question of args.questions) {
     const key = question.question;
     if (question.options.length === 0) {
-      answers[key] = AUTO_ANSWER_ASSUMPTION;
+      const chosen = AUTO_ANSWER_ASSUMPTION;
+      answers[key] = formatAutoDecisionAnswer(chosen, {
+        reason: 'Open question under auto mode — recorded conservative baseline assumption',
+        confidence: 0.55,
+        source: 'open_assumption',
+      });
+      decisions.push({
+        question: key,
+        chosen,
+        reason: 'Open question under auto mode — recorded conservative baseline assumption',
+        confidence: 0.55,
+        source: 'open_assumption',
+        options: [],
+      });
       continue;
     }
-    // Prefer an explicit Recommended option; otherwise first option is the
-    // baseline the agent authored. Descriptions stay available for telemetry.
-    const recommended = question.options.find((option) =>
-      option.label.includes('(Recommended)'),
-    );
-    const chosen = recommended ?? question.options[0];
-    answers[key] = chosen?.label ?? AUTO_ANSWER_ASSUMPTION;
+
+    const pick = pickAutoInterviewOption(question.options);
+    answers[key] = formatAutoDecisionAnswer(pick.label, {
+      reason: pick.reason,
+      confidence: pick.confidence,
+      source: pick.source,
+    });
+    decisions.push({
+      question: key,
+      chosen: pick.label,
+      reason: pick.reason,
+      confidence: pick.confidence,
+      source: pick.source,
+      options: question.options.map((o) => o.label),
+    });
   }
-  return { answers };
+  return { answers, decisions };
+}
+
+function formatAutoDecisionAnswer(
+  chosen: string,
+  meta: { readonly reason: string; readonly confidence: number; readonly source: string },
+): string {
+  return [
+    chosen,
+    `[auto decision] source=${meta.source}; confidence=${meta.confidence.toFixed(2)}; reason=${meta.reason}`,
+  ].join('\n');
+}
+
+function pickAutoInterviewOption(
+  options: ReadonlyArray<{ readonly label: string; readonly description: string }>,
+): {
+  readonly label: string;
+  readonly reason: string;
+  readonly confidence: number;
+  readonly source: AutoInterviewDecisionRecord['source'];
+} {
+  const recommended = options.find((option) =>
+    /\(Recommended\)/i.test(option.label),
+  );
+  if (recommended !== undefined) {
+    return {
+      label: recommended.label,
+      reason:
+        recommended.description.trim().length > 0
+          ? `Recommended option: ${recommended.description.trim()}`
+          : 'Explicit (Recommended) option authored for interview',
+      confidence: 0.88,
+      source: 'recommended',
+    };
+  }
+
+  const baseline = options.find((option) =>
+    /\bbaseline\b/i.test(option.label),
+  );
+  if (baseline !== undefined) {
+    return {
+      label: baseline.label,
+      reason:
+        baseline.description.trim().length > 0
+          ? `Baseline option: ${baseline.description.trim()}`
+          : 'Baseline option preserves minimal reversible scope under auto interview',
+      confidence: 0.78,
+      source: 'baseline',
+    };
+  }
+
+  const upgrade = options.find((option) => /\bupgrade\b/i.test(option.label));
+  // Prefer baseline-first ordering: first option is treated as agent-authored baseline.
+  const first = options[0]!;
+  if (upgrade !== undefined && options.indexOf(upgrade) === 0) {
+    return {
+      label: upgrade.label,
+      reason:
+        upgrade.description.trim().length > 0
+          ? `Upgrade-first list: ${upgrade.description.trim()}`
+          : 'First option is Upgrade; accepting for higher payoff under auto mode',
+      confidence: 0.72,
+      source: 'upgrade',
+    };
+  }
+
+  return {
+    label: first.label,
+    reason:
+      first.description.trim().length > 0
+        ? `First option as baseline: ${first.description.trim()}`
+        : 'First option treated as baseline under auto interview',
+    confidence: 0.7,
+    source: 'baseline',
+  };
+}
+
+/** Exported for unit tests — pure auto interview picker. */
+export function buildAutoInterviewDecisionForTest(
+  args: NormalizedAskUserQuestionInput,
+  mode: string | undefined,
+): AutoInterviewDecision | undefined {
+  return tryAutoAnswerQuestions(args, mode);
 }
 

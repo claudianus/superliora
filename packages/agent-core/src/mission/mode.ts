@@ -1,3 +1,5 @@
+import { dirname, join } from 'pathe';
+
 import type {
   TeamPlan,
   UltraworkRun,
@@ -118,6 +120,7 @@ export class UltraworkMode {
     this.interruptReason = undefined;
     this.modeEnabled = true;
     this.agent.records.logRecord({ type: 'ultrawork.mode', enabled: true });
+    this.ensureMissionEvidenceSandboxRoots(input.activation);
     try {
       seedUltraworkWorkflowReport({
         workDir: input.activation.workDir,
@@ -130,13 +133,45 @@ export class UltraworkMode {
     } catch (error) {
       this.agent.log.warn('ultrawork workflow report seed failed', { runId: input.id, error });
     }
-    const run = this.advance('plan', 'Ultrawork started');
+    const run = this.advance('plan', 'Mission started');
     this.agent.telemetry.track('ultrawork_create', {
       run_id: input.id,
       source: input.activation.source,
     });
     this.writeCheckpoint({ flush: true });
     return run;
+  }
+
+  /**
+   * Workspace sandbox would otherwise block Write to evidence roots outside
+   * (or nested under) cwd when profile is `workspace`. Register roots so plan
+   * + Mission evidence writes succeed without false PATH_OUTSIDE_WORKSPACE.
+   */
+  private ensureMissionEvidenceSandboxRoots(activation: UltraworkActivation): void {
+    const getDirs = this.agent.getAdditionalDirs?.bind(this.agent);
+    const setDirs = this.agent.setAdditionalDirs?.bind(this.agent);
+    if (typeof getDirs !== 'function' || typeof setDirs !== 'function') {
+      return;
+    }
+    const roots = new Set(getDirs());
+    const workDir = activation.workDir.length > 0 ? activation.workDir : this.agent.config.cwd;
+    if (workDir.length > 0) {
+      roots.add(join(workDir, '.superliora'));
+    }
+    const evidenceRoot = activation.evidenceRoot;
+    if (evidenceRoot.length > 0) {
+      const absolute =
+        evidenceRoot.startsWith('/') || /^[A-Za-z]:[\\/]/.test(evidenceRoot)
+          ? evidenceRoot
+          : join(workDir, evidenceRoot);
+      roots.add(absolute);
+    }
+    const planPath = this.agent.planMode?.planFilePath;
+    if (planPath !== null && planPath !== undefined) {
+      const planDir = dirname(planPath);
+      if (planDir.length > 0) roots.add(planDir);
+    }
+    setDirs([...roots]);
   }
 
   setModeEnabled(enabled: boolean): void {

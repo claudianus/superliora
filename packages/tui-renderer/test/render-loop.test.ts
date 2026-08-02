@@ -92,10 +92,9 @@ describe('NativeRenderLoop', () => {
     });
   });
 
-  it('paces transcript-scroll frames to the target FPS so flings coalesce', () => {
-    // Fling storms used delay-0 paints after every wheel tick (stacked layouts).
-    // Scroll still pre-empts multi-interval ambient waits, but caps to one
-    // frame per target interval so offsets coalesce between paints.
+  it('renders transcript-scroll immediately like input (pure-scroll is O(viewport))', () => {
+    // Pure-scroll paints are cache/placeholder only, so delay-0 is safe and
+    // keeps wheel/page navigation interactive under ambient pacing.
     const scheduler = new FakeRenderLoopScheduler();
     const frames: NativeRenderFrame[] = [];
     const loop = new NativeRenderLoop({
@@ -110,13 +109,12 @@ describe('NativeRenderLoop', () => {
     scheduler.advance(10); // t=10
     loop.requestRender('transcript-scroll');
 
-    // Not delay-0 at t=10 (that re-introduced fling freezes); paced to next target.
-    expect(scheduler.activeTimers()[0]?.dueAt).toBe(100);
-    scheduler.advance(90); // t=100
+    expect(scheduler.activeTimers()[0]?.dueAt).toBe(10);
+    scheduler.advance(0);
 
     expect(frames).toHaveLength(2);
     expect(frames[1]).toMatchObject({
-      timestamp: 100,
+      timestamp: 10,
       frame: 1,
       causes: ['transcript-scroll'],
     });

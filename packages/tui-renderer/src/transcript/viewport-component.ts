@@ -26,7 +26,12 @@ import {
   TranscriptVisibleLinePresenter,
   type TranscriptPresentResult,
 } from './incremental-present';
-import { shouldSkipExpensiveTranscriptFormat, withTranscriptMeasureMode } from './measure-mode';
+import {
+  isTranscriptCheapPaintMode,
+  noteTranscriptPureScrollPaint,
+  shouldSkipExpensiveTranscriptFormat,
+  withTranscriptMeasureMode,
+} from './measure-mode';
 import {
   normalizeTranscriptLineCount,
   normalizeTranscriptPadding,
@@ -119,8 +124,19 @@ const OVERFLOW_RETAIN_VIEWPORTS = 2;
 const OVERFLOW_MAX_RETAINED_CHILDREN = 12;
 /** Exported for unit tests that assert the shipped retain ceiling. */
 export const TRANSCRIPT_OVERFLOW_MAX_RETAINED_CHILDREN = OVERFLOW_MAX_RETAINED_CHILDREN;
-/** Exported for unit tests that assert the shipped content materialize budget. */
-export const TRANSCRIPT_CONTENT_MATERIALIZE_BUDGET = 2;
+/**
+ * Max cold materializations per content/settle frame for the *visible* window.
+ * Pure-scroll is always 0. Content must be large enough to fill a typical
+ * viewport of short cards in one frame (incremental==authoritative); windowed
+ * multi-k bodies only cost one paintContentRows each so this stays O(viewport).
+ */
+export const TRANSCRIPT_CONTENT_MATERIALIZE_BUDGET = 32;
+/**
+ * Legacy children (ToolCall etc.) above this row count never pin full
+ * `childRenderRefs` arrays — only a viewport band of formatted lines.
+ * Prevents multi-k × retained-children heaps during history walks.
+ */
+const LEGACY_FULL_LINE_RETAIN_CAP = 256;
 
 
 export class RendererTranscriptViewportComponent extends Container {
@@ -171,14 +187,11 @@ export class RendererTranscriptViewportComponent extends Container {
   private geometryNeedsContinue = false;
   private overflowRenderCache: RendererTranscriptOverflowRenderCache | undefined;
   /**
-   * Per pure-scroll frame budget for cold child.render materializations.
-   * Fling (frames closer than FLING_GAP_MS) uses 0 — placeholders only —
-   * so top→bottom wheel storms never layout history sync. Slow scroll may
-   * materialize one card per frame. Ambient/content: unlimited.
+   * Per-frame budget for cold child.render / paintContentRows materializations.
+   * Pure-scroll always forces 0 (cache/placeholder only). Content/settle uses
+   * {@link CONTENT_MATERIALIZE_BUDGET} so progressive fill cannot hitch.
    */
   private coldMaterializeBudget = 0;
-  private lastPureScrollPaintAt = 0;
-  private static readonly FLING_GAP_MS = 40;
   /** Max cold layouts per non-scroll (settle/content) frame — avoids settle hitch. */
   private static readonly CONTENT_MATERIALIZE_BUDGET = TRANSCRIPT_CONTENT_MATERIALIZE_BUDGET;
   /**
@@ -194,6 +207,15 @@ export class RendererTranscriptViewportComponent extends Container {
    */
   private readonly incrementalPresenter = new TranscriptVisibleLinePresenter();
   private lastPresentResult: TranscriptPresentResult | undefined;
+  /**
+   * Diagnostics: child.render / paintContentRows calls in the last paint.
+   * Pure-scroll must stay 0 (cache/placeholder only).
+   */
+  private childPaintCallsThisFrame = 0;
+  /** Whether the last paint was pure-scroll cheap mode. */
+  private lastPureScrollFlag = false;
+  /** Whether the last paint was inside a scroll storm (rapid successive pure-scroll). */
+  private lastStormFlag = false;
 
   constructor(options: RendererTranscriptViewportComponentOptions) {
     super();
@@ -474,23 +496,43 @@ export class RendererTranscriptViewportComponent extends Container {
     return n;
   }
 
+  /**
+   * Child.render / paintContentRows invocations in the last paint frame.
+   * Pure-scroll paints must report 0 (structurally cache/placeholder only).
+   */
+  get lastFrameChildPaintCalls(): number {
+    return this.childPaintCallsThisFrame;
+  }
+
+  /** True when the last paint ran under pure-scroll cheap-paint mode. */
+  get lastPaintWasPureScroll(): boolean {
+    return this.lastPureScrollFlag;
+  }
+
+  /** True when the last paint was a rapid successive pure-scroll (storm). */
+  get lastPaintWasScrollStorm(): boolean {
+    return this.lastStormFlag;
+  }
+
   private renderVisibleRegionLines(width: number, visibleRows: number): RendererRegionLine[] {
     const safeWidth = normalizeTranscriptWidth(width);
     const inner = Math.max(1, safeWidth - this.leftPad - this.rightPad);
     this.materializeContinuePending = false;
+    this.childPaintCallsThisFrame = 0;
 
     // Pure-scroll: never cold-layout (budget 0). Materializing even 1 multi-k
     // card per wheel frame during rapid up/down allocated string heaps that
     // triggered multi-second GC pauses. Fill only on content/settle frames.
-    if (shouldSkipExpensiveTranscriptFormat()) {
+    // Structurally: pure-scroll never calls child.render / paintContentRows —
+    // only overflow cache slots or placeholders (O(viewport)).
+    const pureScroll = shouldSkipExpensiveTranscriptFormat();
+    this.lastPureScrollFlag = pureScroll;
+    if (pureScroll) {
       this.coldMaterializeBudget = 0;
-      this.lastPureScrollPaintAt =
-        typeof performance !== 'undefined' && typeof performance.now === 'function'
-          ? performance.now()
-          : Date.now();
+      this.lastStormFlag = noteTranscriptPureScrollPaint();
     } else {
       this.coldMaterializeBudget = RendererTranscriptViewportComponent.CONTENT_MATERIALIZE_BUDGET;
-      this.lastPureScrollPaintAt = 0;
+      this.lastStormFlag = false;
     }
 
     // Phase 1 — resolve per-child row counts (geometry cache).  This is the
@@ -506,7 +548,13 @@ export class RendererTranscriptViewportComponent extends Container {
     // still need every child, but we can reuse the cached prefixed lines.
     let visibleLines: RendererRegionLine[];
     if (!snapshot.hasOverflow) {
-      visibleLines = this.renderAllChildren(width, inner, safeWidth, childCounts);
+      // Pure-scroll on non-overflowing transcripts: still avoid re-rendering
+      // the full child tree every wheel tick — reuse cache or placeholders.
+      if (pureScroll) {
+        visibleLines = this.renderAllChildrenPureScroll(width, inner, safeWidth);
+      } else {
+        visibleLines = this.renderAllChildren(width, inner, safeWidth, childCounts);
+      }
     } else {
       // Phase 4 — overflow: render only the children that intersect the visible
       // line window.  This is the virtual-scroll fast path.
@@ -516,11 +564,14 @@ export class RendererTranscriptViewportComponent extends Container {
         childCounts,
         snapshot.start,
         snapshot.end,
+        pureScroll,
       );
 
-      // Drop off-screen / excess retained line arrays so rapid flings cannot
-      // pin the entire transcript history in the heap.
-      this.evictOverflowAwayFromWindow(childCounts, snapshot.start, snapshot.end);
+      // Eviction during pure-scroll causes allocate/free thrash on rapid
+      // up/down (GC freezes). Defer eviction to content/settle frames only.
+      if (!pureScroll) {
+        this.evictOverflowAwayFromWindow(childCounts, snapshot.start, snapshot.end);
+      }
 
       // Phase 5 — attach a scrollbar gutter if configured.
       if (this.scrollbar && this.rightPad > 0) {
@@ -531,6 +582,18 @@ export class RendererTranscriptViewportComponent extends Container {
     // Phase 6 — incremental present on the real visible window (Phase C).
     // windowKey invalidates identity when the scroll window moves so equal
     // placeholder keys cannot retain pre-scroll rows (tool/output flicker).
+    // Pure-scroll storm: skip present engine (hash/replaceAll tax) — lines are
+    // already the final window; settle frames re-enter present for fidelity.
+    if (pureScroll && this.lastStormFlag) {
+      this.lastPresentResult = {
+        lines: visibleLines,
+        paintCommands: [],
+        stats: this.incrementalPresenter.lastFrameStats,
+        hasPendingDirty: false,
+      };
+      return visibleLines;
+    }
+
     this.lastPresentResult = this.incrementalPresenter.present(visibleLines, {
       windowKey: `${snapshot.start}:${snapshot.end}:${visibleRows}:${safeWidth}`,
     });
@@ -546,6 +609,28 @@ export class RendererTranscriptViewportComponent extends Container {
   private resolveChildLineCounts(inner: number): RendererTranscriptLineCountCacheEntry {
     const n = this.children.length;
     const cacheEnabled = this.isCacheEnabled();
+
+    // Pure-scroll must never cold-measure (child.render for geometry). Prefer
+    // the last snapshot/cache even across soft generation bumps so wheel
+    // storms stay O(1). Content/settle frames remasure properly.
+    if (isTranscriptCheapPaintMode()) {
+      const snap = this.geometrySnapshot;
+      if (snap !== undefined && snap.inner === inner && snap.n === n) {
+        return { counts: snap.counts, total: snap.total };
+      }
+      const geometry = this.lineCountCache.get(inner);
+      if (geometry !== undefined && geometry.counts.length === n) {
+        let total = 0;
+        for (let i = 0; i < n; i++) {
+          const c = geometry.counts[i];
+          total += Number.isFinite(c) && (c as number) > 0 ? (c as number) : 1;
+        }
+        return { counts: geometry.counts, total };
+      }
+      // No prior geometry: provisional 1-row stubs (scrollbar jitter until settle).
+      const counts = Array.from({ length: n }, () => 1);
+      return { counts, total: n };
+    }
 
     if (!cacheEnabled) {
       return this.measureAllChildLineCounts(inner, n);
@@ -819,6 +904,7 @@ export class RendererTranscriptViewportComponent extends Container {
 
     for (let i = 0; i < this.children.length; i++) {
       const child = this.children[i]!;
+      this.childPaintCallsThisFrame += 1;
       const lines = child.render(inner);
       childRefs.push(child);
       childRenderRefs.push(lines);
@@ -845,12 +931,55 @@ export class RendererTranscriptViewportComponent extends Container {
     return out;
   }
 
+  /**
+   * Non-overflow pure-scroll: reuse the last full paint cache or emit
+   * placeholders. Never re-enters child.render (that was the residual freeze
+   * when a short transcript still re-laid-out every wheel tick).
+   */
+  private renderAllChildrenPureScroll(
+    _width: number,
+    _inner: number,
+    safeWidth: number,
+  ): RendererRegionLine[] {
+    const cache = this.renderCache;
+    const cacheEpoch = this.getCacheEpoch();
+    if (
+      this.isCacheEnabled() &&
+      cache !== undefined &&
+      cache.width === safeWidth &&
+      cache.cacheEpoch === cacheEpoch &&
+      cache.childRefs.length === this.children.length &&
+      cache.out.length > 0
+    ) {
+      // Identity check without re-rendering: same child instances → reuse.
+      let identityOk = true;
+      for (let i = 0; i < this.children.length; i++) {
+        if (cache.childRefs[i] !== this.children[i]) {
+          identityOk = false;
+          break;
+        }
+      }
+      if (identityOk) return cache.out;
+    }
+    // No warm full cache: placeholder window (visible rows come from viewport
+    // sync on the overflow path; here content fits — emit empty-safe stubs).
+    this.materializeContinuePending = true;
+    const rows = Math.max(1, this.getVisibleRows(safeWidth));
+    const pad = ' '.repeat(this.leftPad);
+    const out: RendererRegionLine[] = [];
+    for (let k = 0; k < rows; k++) {
+      out.push(this.formatCanvasLine(`${pad}…`, safeWidth));
+    }
+    return out;
+  }
+
   private renderVisibleChildren(
     inner: number,
     safeWidth: number,
     childCounts: number[],
     startLine: number,
     endLine: number,
+    pureScroll = false,
   ): RendererRegionLine[] {
     const out: RendererRegionLine[] = [];
 
@@ -872,6 +1001,7 @@ export class RendererTranscriptViewportComponent extends Container {
           safeWidth,
           sliceStart,
           sliceEnd,
+          pureScroll,
         );
       }
 
@@ -883,11 +1013,14 @@ export class RendererTranscriptViewportComponent extends Container {
 
   /**
    * Format only the visible local-line slice of one overflow child.
-   * Windowed bodies ({@link supportsWindowedBody}) paint O(visible) rows and
-   * never pin full multi-k arrays in `childRenderRefs`. Legacy children still
-   * cache raw `render()` by identity+array ref (not ambient epoch).
-   * Formatted lines are sparse so scrolling a 5k-line tool body only paints
-   * the ~viewport rows that actually appear.
+   *
+   * **Pure-scroll (structural):** never calls `child.render` /
+   * `paintContentRows` / `measureContentRows`. Only reads overflow cache
+   * slots; missing rows are placeholders. Fill happens on content/settle.
+   *
+   * **Content:** windowed bodies paint O(visible) rows into a compact band;
+   * legacy children cache raw `render()` by identity and format via a compact
+   * band (never geometry-length sparse — multi-k sparse alloc was a freeze).
    */
   private appendOverflowChildFormattedSlice(
     out: RendererRegionLine[],
@@ -896,15 +1029,24 @@ export class RendererTranscriptViewportComponent extends Container {
     safeWidth: number,
     sliceStart: number,
     sliceEnd: number,
+    pureScroll = false,
   ): void {
     const child = this.children[childIndex]!;
     const lead = ' '.repeat(this.leftPad);
+    const rowCount = Math.max(0, sliceEnd - sliceStart);
+
+    // ── Pure-scroll: cache or placeholder only (O(viewport), no child paint) ──
+    if (pureScroll) {
+      this.appendPureScrollCachedSlice(out, childIndex, child, inner, safeWidth, sliceStart, sliceEnd, lead);
+      return;
+    }
 
     // ── Windowed large-body path (Text and adopters) ─────────────────────
     // Never call full render() / never store multi-k childRenderRefs.
     // Sparse is a compact band (viewport × retain) — never geometry-length.
     if (supportsWindowedBody(child)) {
       if (!this.isCacheEnabled()) {
+        this.childPaintCallsThisFrame += 1;
         const windowLines = child.paintContentRows(inner, sliceStart, sliceEnd);
         for (const line of windowLines) {
           out.push(this.formatCanvasLine(lead + line, safeWidth));
@@ -918,12 +1060,7 @@ export class RendererTranscriptViewportComponent extends Container {
 
       if (identityMiss) {
         if (this.coldMaterializeBudget <= 0) {
-          this.materializeContinuePending = true;
-          const rowCount = Math.max(0, sliceEnd - sliceStart);
-          const pad = ' '.repeat(this.leftPad);
-          for (let k = 0; k < rowCount; k++) {
-            out.push(this.formatCanvasLine(`${pad}…`, safeWidth));
-          }
+          this.pushPlaceholders(out, rowCount, safeWidth);
           return;
         }
         this.coldMaterializeBudget -= 1;
@@ -933,6 +1070,7 @@ export class RendererTranscriptViewportComponent extends Container {
         cache.childFormattedSparse[childIndex] = undefined;
         cache.childSparseBands[childIndex] = undefined;
         this.touchOverflowChild(childIndex);
+        this.childPaintCallsThisFrame += 1;
         const measured = child.measureContentRows(inner);
         this.reconcileChildGeometry(inner, childIndex, child, measured);
       } else {
@@ -941,29 +1079,11 @@ export class RendererTranscriptViewportComponent extends Container {
 
       const geometryCount =
         this.lineCountCache.get(inner)?.counts[childIndex] ??
-        Math.max(sliceEnd, child.measureContentRows(inner));
-      const windowRows = Math.max(1, sliceEnd - sliceStart);
-      const bandMargin = windowRows * OVERFLOW_RETAIN_VIEWPORTS;
-      const bandStart = Math.max(0, sliceStart - bandMargin);
-      const bandEnd = Math.min(geometryCount, sliceEnd + bandMargin);
-      const bandLen = Math.max(0, bandEnd - bandStart);
-
-      // Rebuild a compact band (O(band), never O(geometry)). Migrate hits that
-      // still fall inside the new band from the previous band.
-      const prevBand = cache.childSparseBands[childIndex];
-      const band: RendererTranscriptSparseBand = {
-        origin: bandStart,
-        slots: Array.from({ length: bandLen }),
-      };
-      if (prevBand !== undefined) {
-        for (let j = bandStart; j < bandEnd; j++) {
-          const prevIdx = j - prevBand.origin;
-          if (prevIdx >= 0 && prevIdx < prevBand.slots.length) {
-            band.slots[j - bandStart] = prevBand.slots[prevIdx];
-          }
-        }
-      }
-      cache.childSparseBands[childIndex] = band;
+        Math.max(sliceEnd, (() => {
+          this.childPaintCallsThisFrame += 1;
+          return child.measureContentRows(inner);
+        })());
+      const band = this.ensureSparseBand(cache, childIndex, sliceStart, sliceEnd, geometryCount);
 
       // Fill missing slots for the visible window only.
       let missingStart = -1;
@@ -976,6 +1096,7 @@ export class RendererTranscriptViewportComponent extends Container {
         }
       }
       if (missingStart >= 0) {
+        this.childPaintCallsThisFrame += 1;
         const windowLines = child.paintContentRows(inner, missingStart, missingEnd!);
         for (let k = 0; k < windowLines.length; k++) {
           const j = missingStart + k;
@@ -996,8 +1117,9 @@ export class RendererTranscriptViewportComponent extends Container {
       return;
     }
 
-    // ── Legacy full-array path ───────────────────────────────────────────
+    // ── Legacy path (ToolCall, composite cards) ──────────────────────────
     if (!this.isCacheEnabled()) {
+      this.childPaintCallsThisFrame += 1;
       const lines = child.render(inner);
       for (let j = sliceStart; j < sliceEnd; j++) {
         out.push(this.formatCanvasLine(lead + (lines[j] ?? ''), safeWidth));
@@ -1008,74 +1130,202 @@ export class RendererTranscriptViewportComponent extends Container {
     const childCount = this.children.length;
     const cache = this.ensureOverflowCache(inner, safeWidth, childCount);
     let lines = cache.childRenderRefs[childIndex];
-    let sparse = cache.childFormattedSparse[childIndex];
 
     if (cache.childRefs[childIndex] !== child || lines === undefined) {
       // Cold intersection under budget: placeholders only. Never cache them so
-      // a later content frame re-materializes. Budget applies to pure-scroll
-      // fling (0) and settle/content (small) alike — unlimited cold layouts
-      // on settle were the post-fling hitch.
+      // a later content frame re-materializes. Budget applies to settle/content
+      // (small) — unlimited cold layouts on settle were the post-fling hitch.
       if (this.coldMaterializeBudget <= 0) {
-        this.materializeContinuePending = true;
-        const rowCount = Math.max(0, sliceEnd - sliceStart);
-        const pad = ' '.repeat(this.leftPad);
-        for (let k = 0; k < rowCount; k++) {
-          out.push(this.formatCanvasLine(`${pad}…`, safeWidth));
-        }
+        this.pushPlaceholders(out, rowCount, safeWidth);
         return;
       }
       this.coldMaterializeBudget -= 1;
+      this.childPaintCallsThisFrame += 1;
       lines = child.render(inner);
       cache.childRefs[childIndex] = child;
+      // Cap retained full line arrays: multi-k legacy bodies keep only a
+      // viewport band of raw lines so flings cannot pin 5k×N string heaps.
+      if (lines.length > LEGACY_FULL_LINE_RETAIN_CAP) {
+        cache.childRenderRefs[childIndex] = undefined;
+        // Still format a band from this one-shot render; do not pin full array.
+        const band = this.ensureSparseBand(cache, childIndex, sliceStart, sliceEnd, lines.length);
+        for (let j = sliceStart; j < sliceEnd; j++) {
+          const bi = j - band.origin;
+          if (bi >= 0 && bi < band.slots.length) {
+            band.slots[bi] = this.formatCanvasLine(lead + (lines[j] ?? ''), safeWidth);
+          }
+          out.push(band.slots[bi] ?? this.formatCanvasLine(lead, safeWidth));
+        }
+        this.touchOverflowChild(childIndex);
+        this.reconcileChildGeometry(inner, childIndex, child, lines.length);
+        return;
+      }
       cache.childRenderRefs[childIndex] = lines;
-      sparse = undefined;
       cache.childFormattedSparse[childIndex] = undefined;
+      cache.childSparseBands[childIndex] = undefined;
       this.touchOverflowChild(childIndex);
-      // Reconcile geometry if estimate differed from real wrap (reduces bar jump).
       this.reconcileChildGeometry(inner, childIndex, child, lines.length);
-    } else if (shouldSkipExpensiveTranscriptFormat()) {
-      // Pure-scroll / measure: identity match is enough. Re-probing child.render
-      // every wheel frame re-enters multi-k Markdown/Text width caches and was
-      // a residual freeze when many tall cards stayed in the visible window.
-      // Ambient/content frames still probe below so live animation refs update.
-      this.touchOverflowChild(childIndex);
     } else {
-      // Probe render: animated children return a new array each epoch; static
-      // caches often return the same reference. When the array is new but line
-      // strings are unchanged, keep sparse formats (critical for fast scroll).
+      // Probe render only on content frames so live animation refs update.
+      this.childPaintCallsThisFrame += 1;
       const nextLines = child.render(inner);
       if (nextLines !== lines) {
-        const prev = lines;
         lines = nextLines;
-        cache.childRenderRefs[childIndex] = lines;
-        if (sparse === undefined || sparse.length !== lines.length || prev.length !== lines.length) {
-          sparse = undefined;
-          cache.childFormattedSparse[childIndex] = undefined;
+        if (lines.length > LEGACY_FULL_LINE_RETAIN_CAP) {
+          cache.childRenderRefs[childIndex] = undefined;
         } else {
-          for (let j = 0; j < sparse.length; j++) {
-            if (sparse[j] !== undefined && prev[j] !== lines[j]) {
-              sparse[j] = undefined;
-            }
-          }
+          cache.childRenderRefs[childIndex] = lines;
         }
+        cache.childFormattedSparse[childIndex] = undefined;
+        // Keep band; missing slots refilled below.
       }
     }
 
-    if (sparse === undefined) {
-      sparse = Array.from({ length: lines.length });
-      cache.childFormattedSparse[childIndex] = sparse;
-    } else if (sparse.length < lines.length) {
-      sparse.length = lines.length;
+    // Compact band format (never geometry-length sparse).
+    const geometryCount = lines?.length ??
+      this.lineCountCache.get(inner)?.counts[childIndex] ??
+      Math.max(sliceEnd, 1);
+    const band = this.ensureSparseBand(cache, childIndex, sliceStart, sliceEnd, geometryCount);
+
+    if (lines !== undefined) {
+      for (let j = sliceStart; j < sliceEnd; j++) {
+        const bi = j - band.origin;
+        if (bi < 0 || bi >= band.slots.length) {
+          out.push(this.formatCanvasLine(lead + (lines[j] ?? ''), safeWidth));
+          continue;
+        }
+        let formatted = band.slots[bi];
+        if (formatted === undefined) {
+          formatted = this.formatCanvasLine(lead + (lines[j] ?? ''), safeWidth);
+          band.slots[bi] = formatted;
+        }
+        out.push(formatted);
+      }
+      return;
+    }
+
+    // Multi-k legacy without pinned lines: only band slots (or placeholders).
+    let anyMissing = false;
+    for (let j = sliceStart; j < sliceEnd; j++) {
+      const bi = j - band.origin;
+      const slot = bi >= 0 && bi < band.slots.length ? band.slots[bi] : undefined;
+      if (slot === undefined) anyMissing = true;
+      out.push(slot ?? this.formatCanvasLine(`${' '.repeat(this.leftPad)}…`, safeWidth));
+    }
+    if (anyMissing) this.materializeContinuePending = true;
+  }
+
+  /**
+   * Pure-scroll slice: read overflow cache only. Never invokes child paint.
+   */
+  private appendPureScrollCachedSlice(
+    out: RendererRegionLine[],
+    childIndex: number,
+    child: Component,
+    inner: number,
+    safeWidth: number,
+    sliceStart: number,
+    sliceEnd: number,
+    lead: string,
+  ): void {
+    const rowCount = Math.max(0, sliceEnd - sliceStart);
+    if (!this.isCacheEnabled()) {
+      this.pushPlaceholders(out, rowCount, safeWidth);
+      return;
+    }
+
+    const cache = this.overflowRenderCache;
+    if (
+      cache === undefined ||
+      cache.inner !== inner ||
+      cache.safeWidth !== safeWidth ||
+      cache.childRefs[childIndex] !== child
+    ) {
+      this.pushPlaceholders(out, rowCount, safeWidth);
+      return;
+    }
+
+    // Prefer compact band (windowed + legacy multi-k).
+    const band = cache.childSparseBands[childIndex];
+    if (band !== undefined) {
+      let anyMissing = false;
+      for (let j = sliceStart; j < sliceEnd; j++) {
+        const bi = j - band.origin;
+        const slot =
+          bi >= 0 && bi < band.slots.length ? band.slots[bi] : undefined;
+        if (slot === undefined) anyMissing = true;
+        out.push(slot ?? this.formatCanvasLine(`${' '.repeat(this.leftPad)}…`, safeWidth));
+      }
+      if (anyMissing) this.materializeContinuePending = true;
+      return;
+    }
+
+    // Legacy full raw lines + optional full sparse (pre-band cache).
+    const lines = cache.childRenderRefs[childIndex];
+    const sparse = cache.childFormattedSparse[childIndex];
+    if (lines === undefined && sparse === undefined) {
+      this.pushPlaceholders(out, rowCount, safeWidth);
+      return;
     }
 
     for (let j = sliceStart; j < sliceEnd; j++) {
-      let formatted = sparse[j];
-      if (formatted === undefined) {
-        formatted = this.formatCanvasLine(lead + (lines[j] ?? ''), safeWidth);
-        sparse[j] = formatted;
+      if (sparse !== undefined && sparse[j] !== undefined) {
+        out.push(sparse[j]!);
+        continue;
       }
-      out.push(formatted);
+      if (lines !== undefined) {
+        // Format from cached raw lines without calling child — still O(viewport).
+        out.push(this.formatCanvasLine(lead + (lines[j] ?? ''), safeWidth));
+        continue;
+      }
+      this.materializeContinuePending = true;
+      out.push(this.formatCanvasLine(`${' '.repeat(this.leftPad)}…`, safeWidth));
     }
+  }
+
+  private pushPlaceholders(
+    out: RendererRegionLine[],
+    rowCount: number,
+    safeWidth: number,
+  ): void {
+    this.materializeContinuePending = true;
+    const pad = ' '.repeat(this.leftPad);
+    for (let k = 0; k < rowCount; k++) {
+      out.push(this.formatCanvasLine(`${pad}…`, safeWidth));
+    }
+  }
+
+  /**
+   * Compact viewport band for sparse format slots. Migrates overlapping rows
+   * from the previous band. Never sized to full geometry height.
+   */
+  private ensureSparseBand(
+    cache: RendererTranscriptOverflowRenderCache,
+    childIndex: number,
+    sliceStart: number,
+    sliceEnd: number,
+    geometryCount: number,
+  ): RendererTranscriptSparseBand {
+    const windowRows = Math.max(1, sliceEnd - sliceStart);
+    const bandMargin = windowRows * OVERFLOW_RETAIN_VIEWPORTS;
+    const bandStart = Math.max(0, sliceStart - bandMargin);
+    const bandEnd = Math.min(Math.max(geometryCount, sliceEnd), sliceEnd + bandMargin);
+    const bandLen = Math.max(0, bandEnd - bandStart);
+    const prevBand = cache.childSparseBands[childIndex];
+    const band: RendererTranscriptSparseBand = {
+      origin: bandStart,
+      slots: Array.from({ length: bandLen }),
+    };
+    if (prevBand !== undefined) {
+      for (let j = bandStart; j < bandEnd; j++) {
+        const prevIdx = j - prevBand.origin;
+        if (prevIdx >= 0 && prevIdx < prevBand.slots.length) {
+          band.slots[j - bandStart] = prevBand.slots[prevIdx];
+        }
+      }
+    }
+    cache.childSparseBands[childIndex] = band;
+    return band;
   }
 
   private renderScrollbar(

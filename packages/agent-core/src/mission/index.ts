@@ -129,6 +129,14 @@ export {
   WORKFLOW_REPORT_FILENAME,
   WORKFLOW_STAGES_FILENAME,
 } from './workflow-report';
+export {
+  isMissionPlanPhaseAllowedWrite,
+  isSingleMissionPlanPhaseAllowedWrite,
+  normalizePlanPath,
+  pathsEqualForPlanWrite,
+  planFileAllowDir,
+} from './plan-write-paths';
+export type { MissionPlanWriteContext } from './plan-write-paths';
 export { formatEvidenceHardGateNextActions } from './recovery-prompt';
 /** Work-graph store — light path; avoids ultrawork-graph tool + .md imports. */
 export { ULTRAWORK_GRAPH_STORE_KEY } from '../tools/builtin/state/ultrawork-graph-store-key';

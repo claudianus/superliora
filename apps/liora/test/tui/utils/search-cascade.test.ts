@@ -284,13 +284,13 @@ describe('formatSearchCascadeFooterBadge', () => {
 
   it('shows research↻ within TTL', () => {
     expect(
-      formatSearchCascadeFooterBadge(cascade, atMs + SEARCH_CASCADE_BADGE_TTL_MS - 1),
+      formatSearchCascadeFooterBadge(cascade, atMs + SEARCH_CASCADE_BADGE_TTL_MS - 1, 'compact'),
     ).toEqual({
       text: 'research↻',
       severity: 'info',
     });
     expect(
-      formatSearchCascadeFooterBadge({ channelsTried: [], hops: 2, atMs }, atMs + 1),
+      formatSearchCascadeFooterBadge({ channelsTried: [], hops: 2, atMs }, atMs + 1, 'compact'),
     ).toEqual({
       text: 'research↻',
       severity: 'info',
@@ -298,8 +298,12 @@ describe('formatSearchCascadeFooterBadge', () => {
   });
 
   it('hides at and after TTL', () => {
-    expect(formatSearchCascadeFooterBadge(cascade, atMs + SEARCH_CASCADE_BADGE_TTL_MS)).toBeNull();
-    expect(formatSearchCascadeFooterBadge(cascade, atMs + SEARCH_CASCADE_BADGE_TTL_MS + 1)).toBeNull();
+    expect(
+      formatSearchCascadeFooterBadge(cascade, atMs + SEARCH_CASCADE_BADGE_TTL_MS, 'compact'),
+    ).toBeNull();
+    expect(
+      formatSearchCascadeFooterBadge(cascade, atMs + SEARCH_CASCADE_BADGE_TTL_MS + 1, 'compact'),
+    ).toBeNull();
   });
 
   it('returns null when unset or empty', () => {

@@ -2,109 +2,95 @@
 name: mission
 aliases:
   - ultrawork
-description: Mission workflow methodology (ultrawork compat) — run a long, multi-domain objective through UltraResearch -> UltraPlan interview -> UltraGoal -> Swarm decision -> Integrate -> Verify -> Learn. Load via Skill as `mission` (preferred) or `ultrawork` on /ultrawork (울트라워크) activation, or when orchestrating UltraResearch, UltraPlan, UltraGoal, UltraSwarm, or an UltraworkGraph work ledger.
+description: Mission workflow methodology (ultrawork compat) — run a long multi-domain objective through Research → Plan interview → Goal → Fleet decision → Integrate → Verify → Learn. Load via Skill as `mission` (preferred) or `ultrawork` on /mission activation.
 ---
 
 # Mission workflow methodology
 
-Mission is the full harness workflow for a long objective: interview the ambiguity out of it, plan with verifiable acceptance criteria, fan out specialist work when it pays, integrate, verify on real surfaces, and persist what was learned. Load via Skill as `mission` (preferred); the `ultrawork` compat alias keeps the same body. This skill is guidance the agent follows itself — phase checkpoints are advisory, not hard gates. The only enforced gates are safety policies (plan-mode read-only, destructive-action confirmation).
+Mission is the full harness workflow for a long objective: interview the ambiguity out of it, plan with verifiable acceptance criteria, fan out Fleet specialists when it pays, integrate, verify on real surfaces, and persist what was learned.
+
+Load via Skill as **`mission`** (preferred). The `ultrawork` alias is compatibility only and runs the **same** run — do not start a second spine.
+
+## Hard vs soft (do not confuse)
+
+| Rule | Enforcement |
+|------|-------------|
+| Plan-phase product Write/Edit | **HARD deny** — only plan file + Mission evidence root until ExitPlanMode |
+| NextPhase order | **HARD** — forward one step only; no skip/reverse |
+| interview→design verifiable Goal | **HARD** — unless `force_unverified=true` + `override_reason` recorded |
+| ExitPlanMode minimum plan artifacts | **HARD** — Seed completion criterion, AC Tree, WorkGraph, Fleet/Swarm decision, Evaluation + Execution plans |
+| Live Mission goal complete | **HARD** — seeded WorkGraph + completion audit + real verification action |
+| Interview style, Baseline/Upgrade framing | Soft guidance (Auto records structured decisions) |
+| Premium polish / anti-slop | Soft guidance |
 
 ## One workflow, one run
 
-Spine, in order:
-
 ```
-UltraResearch prelude -> UltraPlan interview -> UltraGoal
-  -> Swarm decision -> Integrate -> Verify -> Learn
+Research prelude -> Plan interview -> Goal
+  -> Fleet decision (ENGAGE|ADAPTIVE|DEFER) -> Integrate -> Verify -> Learn
 ```
 
-Normalize synonyms — 울트라플랜 / 울트라리서치 / 울트라골 / 울트라스웜, `/ultraplan`, `/ultraresearch`, `/ultragoal`, `/ultraswarm` — into the same run. Do not ask the user to choose between those sub-commands; steer the one run yourself.
+Normalize synonyms — Ultrawork, UltraPlan, UltraGoal, UltraSwarm, Fleet, `/ultrawork`, `/ultraplan` — into this **Mission** run. Do not ask the user to choose between branded sub-commands.
 
 ## Activation and mode
 
-- Shift-Tab turns Mission mode ON; mode cannot turn off while a run is active. `/mission` is preferred; `/ultrawork` compat alias overrides the run; `/plan` is separate steering.
-- Start mode: the TUI shows the Auto/YOLO/Manual chooser on create (default Manual, no memory). Headless/auto without TUI defaults to Manual. Resume inherits the current permission mode and skips the chooser.
-- Activation forces Ultra Plan Research first: gather source-backed evidence before `AskUserQuestion`, and interview until the UltraGoal is true/false-verifiable.
+- Shift-Tab / `/mission` turns Mission on. `/ultrawork` is a compat alias.
+- Auto mode: AskUserQuestion is auto-answered with structured Baseline/Recommended decisions (reason + confidence recorded into interview findings). Keep writing high-quality options so auto can form a true/false-verifiable goal.
+- Manual mode: read-only tools, plan-file writes, and evidence-root writes are auto-approved during plan phases — product mutation still denied until ExitPlanMode.
+- Activation forces Research first: gather source-backed evidence before questions when the answer needs facts.
 
-## Research stage (read-only)
+## Research stage (plan mode)
 
-Investigation only — the product tree stays read-only here.
-
-- Allowed: Read/Grep/Glob, Web/Context7, Liora* tools, read-only Bash, TodoList, NextPhase.
-- No product Write/Edit, and no `AskUserQuestion` until an evidence pack exists.
-- Research tools: prefer Context7Resolve/Context7Docs for library docs; WebSearch + FetchURL for primary sources, papers, CVEs, releases; LocalResearchStack as a free fallback. Re-search when new uncertainty appears; label findings stale/offline if live search fails; never defeat CAPTCHA/paywall/login/rate-limits.
-- Subagents may use Context7Resolve/Context7Docs and WebSearch/FetchURL unless internet is forbidden.
+- Allowed writes: **Mission plan file + evidence root only**.
+- Allowed reads: Read/Grep/Glob, Web/Context7, Liora*, read-only Bash, TodoList, NextPhase.
+- No product Write/Edit. Prefer evidence pack before open-ended AskUserQuestion.
 - After the research pack: `NextPhase({ phase: "interview" })`.
 
 ## Interview stage
 
-Interview when the UltraGoal is not yet true/false-verifiable, a missing decision blocks correctness, or evidence-backed upgrades materially improve the plan; otherwise record the safe assumption and move on.
+Interview when the Goal is not yet true/false-verifiable, a missing decision blocks correctness, or evidence-backed upgrades improve the plan.
 
-- Expert-leader framing: offer Baseline + Upgrade options so the user picks the payoff, not just the safe default.
-- Do research before `AskUserQuestion` when the answer needs evidence.
-- End interview turns with `AskUserQuestion` / `RecordInterviewFinding` / `NextPhase`.
-- Product Write/Edit is allowed under planMode for investigation prototypes; the formal plan file is preferred but not forced before every edit.
-- The hard interview→design checkpoint: the UltraGoal must be true/false-verifiable. After the final needed answers: `NextPhase({ phase: "design" })`.
+- Expert-leader framing: **Baseline + Upgrade** options (mark Recommended when appropriate).
+- End turns with `AskUserQuestion` / `RecordInterviewFinding` / `NextPhase`.
+- Hard gate to design: `NextPhase({ phase: "design" })` only when verifiable, or with explicit `force_unverified` + `override_reason`.
 
 ## Design and plan artifacts
 
-UltraPlan (ultra-plan) owns the durable plan. Produce:
+Produce in the plan file:
 
-- **Seed Spec** — the refined objective and its completion contract.
-- **AC Tree** — acceptance criteria, each independently checkable.
-- **WorkGraph** — node id, AC id, stage, owner/lane, deps, required evidence.
-- **Evaluation Plan** — how each AC is verified on a real surface.
-- **Execution Plan** — ordered implementation steps.
+- **Seed Spec** — refined objective + completion contract (true/false criterion)
+- **AC Tree** — independently checkable acceptance criteria
+- **WorkGraph** — node id, AC id, stage, owner/lane, deps, required evidence
+- **Fleet / Swarm Decision** — `Swarm decision: ENGAGE|ADAPTIVE|DEFER - …`
+- **Evaluation Plan** + **Execution Plan**
 
-Advance Design -> Review -> Write -> Exit via `NextPhase` / `ExitPlanMode`. `ExitPlanMode` remains the approval point before post-plan implementation.
+Advance Design → Review → Write → Exit via `NextPhase` / `ExitPlanMode`. ExitPlanMode is the **approval point** before post-plan implementation; missing minimum sections **hard-fail**.
 
-## UltraGoal
+## Goal
 
-Create or replace the UltraGoal only after plan approval — unless `/goal` already created the active goal. In that case harden the existing seed and finish with `UpdateGoal complete/blocked`; never call `CreateGoal` again for the same work. If UltraPlan refines the objective, write the refined Seed, AC Tree, WorkGraph, Acceptance Criteria, Evaluation Plan, and Execution Plan into the plan file under the existing goal.
+Create or replace Goal only after plan approval — unless `/goal` already created the active goal. Finish with `UpdateGoal complete/blocked` only after WorkGraph + verification pass.
 
-## Swarm decision
+## Fleet decision
 
-After ExitPlanMode + UltraGoal, UltraworkGraph seeds from WorkGraph. Then decide the swarm:
+After ExitPlanMode + Goal, seed WorkGraph. Then decide:
 
-- Emit exactly: `Swarm decision: ENGAGE|DEFER - <reason>; value: <specialist value or none>; owner: <verification owner>`.
-- ENGAGE when more than one material lane, subjective quality, high risk, hard-to-observe behavior, or independent review is involved; call `UltraSwarm` (with `work_node_ids`) before further product implementation edits.
-- DEFER only if the main agent owns every lane; a DEFER needs a visible waiver.
-- Prefer `UltraSwarm auto_select`. Swarm mode is the substrate — call UltraSwarm only when specialist parallel work materially improves quality or speed.
-- Integrate before editing; verify real surfaces; Learn only verified durable findings.
+- Emit: `Swarm decision: ENGAGE|ADAPTIVE|DEFER - <reason>; value: …; owner: …`
+- ENGAGE/ADAPTIVE → call UltraSwarm / Fleet tools with `work_node_ids` before more product implementation.
+- DEFER only if main owns every lane (visible waiver).
 
-## Ledger and kanban
+## Coding quality (Mission implementation)
 
-- UltraworkGraph is the AC/work ledger; TodoList is the derived kanban (Doing/Next/Done).
-- After approval, update UltraworkGraph before product edits; keep one derived todo `in_progress`; mark nodes done only with verification evidence.
-- Capability Coverage Matrix: criterion/risk -> expertise -> evidence -> expert -> owner, derived from UltraGoal + AC Tree. Report the matrix, specialist usage, evidence paths, and risks.
+While implementing (after ExitPlanMode):
 
-## Evidence and workflow transparency
+- Prefer small, reviewable diffs; match package AGENTS.md and existing patterns.
+- Lean Context: RepoQuery/Grep before broad Read dumps.
+- Definition of Done: inspect tests/rules; run scoped checks (`RunProjectChecks`, package tests); attach evidenceIds; set `verificationStatus=passed` only after real checks.
+- No false complete: empty/incomplete WorkGraph or missing verification **blocks** UpdateGoal(complete).
 
-- Use the runtime evidence seed (when provided in the activation prompt) as the LLM Wiki / knowledge-map / coverage / review ledger root; do not leave proof only in chat.
-- Maintain `workflow-report.md` + `workflow-stages.json`; fill each stage narrative before leaving the stage.
-- Knowledge persistence ledger: final reports need `liora_recall` / `llm_wiki` rows with `wrote|skipped|blocked` + reason/path/id/evidence (`.superliora/wiki`). Promote seed wiki/knowledge-map only in Learn with evidenceState verified.
-- Memory is for durable context/preferences only.
+## Evidence
 
-## Core operating rules
-
-- **Lean Context:** prefer RepoQuery (symbol/content/path/outline) and Grep before broad Read dumps; cite paths; keep context small.
-- **Knowledge Map:** map from RepoQuery, Grep, memory, and artifact summaries before broad exploration. Prefer EXTRACTED edges over INFERRED; mark AMBIGUOUS and resolve with targeted reads/tests.
-- **Definition of Done:** inspect files/tests/rules first; small changes; focused tests when practical; relevant checks; finish only with evidence and remaining risks. Prefer deterministic verification over model claims.
-- **Premium Quality (default ON in Mission):** the Premium injector owns the full bar. For web/app/dashboard/game surfaces, write an Art Direction Brief before visual work; SearchSkill for design skills; screenshot-proof before done.
-- **Human Writing / Anti-Slop:** light pass by default; SearchSkill -> Skill only for docs/PR/changelog/TUI/plan prose; plain specific claims over hype.
-
-## Surface capabilities (conditional)
-
-### Browser / computer-use verification (visual surfaces)
-
-- Use BrowserUse/ComputerUse for rendered pages, visual QA, downloads, and desktop evidence when useful; prefer headless/background capture.
-- Prefer BrowserObserve refs and ComputerCapture SOM indexes over raw coordinates; screenshot before claiming visual/interactive done.
-- Safe GUI may auto-run in auto/yolo; high-risk GUI still needs approval. If blocked, record the blocker and use next-best evidence.
-
-### LioraBench (harness/TUI benchmark surfaces)
-
-- For harness/TUI benchmark or SOTA claims, use `node scripts/liora-agent-sota-gate.mjs` or `node scripts/qa-superliora-autonomous.mjs --phase sota-gate` (C001 system, C002 live TUI, C003 budget/cleanup/secret scan). Do not treat browser-only UI as TUI success.
+Use the runtime evidence seed as LLM Wiki / knowledge-map / coverage / review ledger root. Maintain workflow-report + stage narratives. Learn only verified durable findings.
 
 ## Finish
 
-End with real-surface verification, the knowledge persistence ledger, and `UpdateGoal complete/blocked`.
+End with real-surface verification, knowledge persistence ledger, and `UpdateGoal complete/blocked`.

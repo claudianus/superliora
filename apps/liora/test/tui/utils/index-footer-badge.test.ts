@@ -18,7 +18,7 @@ describe('formatIndexFooterBadge', () => {
 
   it('shows idx·stub-off when repo index engine is stub', () => {
     expect(
-      formatIndexFooterBadge('/tmp/project', { [REPO_INDEX_ENGINE_ENV]: 'stub' }),
+      formatIndexFooterBadge('/tmp/project', { [REPO_INDEX_ENGINE_ENV]: 'stub' }, 'compact'),
     ).toEqual({
       text: 'idx·stub-off',
       severity: 'muted',
@@ -35,7 +35,7 @@ describe('formatIndexFooterBadge', () => {
       note: null,
     });
 
-    expect(formatIndexFooterBadge('/tmp/project')).toEqual({
+    expect(formatIndexFooterBadge('/tmp/project', process.env, 'compact')).toEqual({
       text: 'idx·warm',
       severity: 'info',
     });
@@ -51,7 +51,7 @@ describe('formatIndexFooterBadge', () => {
       note: null,
     });
 
-    expect(formatIndexFooterBadge('/tmp/project')).toEqual({
+    expect(formatIndexFooterBadge('/tmp/project', process.env, 'compact')).toEqual({
       text: 'idx·cold',
       severity: 'warning',
     });
@@ -67,7 +67,7 @@ describe('formatIndexFooterBadge', () => {
       note: 'not a git repo',
     });
 
-    expect(formatIndexFooterBadge('/tmp/project')).toEqual({
+    expect(formatIndexFooterBadge('/tmp/project', process.env, 'compact')).toEqual({
       text: 'idx·off',
       severity: 'muted',
     });

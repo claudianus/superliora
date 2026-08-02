@@ -36,8 +36,8 @@ export function createPermissionDecisionPolicies(agent: Agent): PermissionPolicy
     new AgentSwarmExclusiveDenyPermissionPolicy(),
     // auto mode + AskUserQuestion historically denied; now no-op (tool auto-answers).
     new AutoModeAskUserQuestionDenyPermissionPolicy(agent),
-    // plan mode: Write/Edit outside the active plan file → deny. Ultra phase
-    // workflow is guidance only and no longer denies tools here.
+    // plan mode: Write/Edit outside plan file + Mission evidence root → deny.
+    // Mission plan-phase product mutation is hard-denied until ExitPlanMode.
     new PlanModeGuardDenyPermissionPolicy(agent),
     // User-configured deny rule matches → deny.
     new UserConfiguredDenyPermissionPolicy(agent),

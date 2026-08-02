@@ -36,14 +36,18 @@ export function renderRendererEditorSurface(
 ): RendererEditorSurfaceResult {
   const overlayLines = options.overlays ?? [];
   const hasOverlays = overlayLines.length > 0;
-  // Overlays defer the bottom border, so the input frame is top + content only
-  // (contentRows + 1), not the closed box height (contentRows + 2). Defaulting
-  // to +2 left a blank content row between the prompt and slash suggestions.
+  // Product default: suggestions above the prompt so the input rides the
+  // bottom-pinned editor edge (no jump when the region grows).
+  const placement = options.overlayPlacement ?? 'above';
+  const above = hasOverlays && placement !== 'below';
+  // With overlays, one border is deferred to overlay chrome, so the input
+  // frame is content + remaining border only (not a closed box).
   const defaultFrameRows =
     Math.max(1, options.content.lines.length) + (hasOverlays ? 1 : 2);
   const frameRows = normalizeEditorFrameSize(options.frameRows ?? defaultFrameRows);
-  const bottomBorderRows = hasOverlays ? 0 : 1;
-  const viewportRows = Math.max(0, frameRows - 1 - bottomBorderRows);
+  const topBorderRows = hasOverlays && above ? 0 : 1;
+  const bottomBorderRows = hasOverlays && !above ? 0 : 1;
+  const viewportRows = Math.max(0, frameRows - topBorderRows - bottomBorderRows);
   const contentX = normalizeEditorFrameCoordinate(
     options.contentX,
     RENDERER_EDITOR_CONTENT_X,
@@ -82,7 +86,12 @@ export function renderRendererEditorSurface(
     scrollbarLines,
     scrollbarTrackChar: scrollbarOptions?.trackChar ?? options.scrollbarTrackChar,
     scrollbarThumbChar: scrollbarOptions?.thumbChar ?? options.scrollbarThumbChar,
-    omitBottomBorder: hasOverlays,
+    // Above: top border lives on overlay chrome. Below: bottom border does.
+    omitTopBorder: hasOverlays && above,
+    omitBottomBorder: hasOverlays && !above,
+    // topLabel only paints on the frame top border; when overlays own the top
+    // cap, skip it on the frame (shell mode rarely opens slash overlays).
+    topLabel: hasOverlays && above ? undefined : options.topLabel,
   });
   const renderedOverlays = hasOverlays
     ? renderRendererEditorOverlayLines({
@@ -91,19 +100,29 @@ export function renderRendererEditorSurface(
         borderStyle: options.borderStyle,
         surfaceStyle: options.surfaceStyle,
         textStyle: options.textStyle,
+        cap: above ? 'top' : 'bottom',
       })
     : [];
+  // Local cursor is relative to the input frame; when suggestions sit above,
+  // shift Y by the painted overlay chrome height so absolute projection works.
+  const overlayOffsetY = above ? renderedOverlays.length : 0;
+  let surfaceCursor = frame.cursor;
+  if (surfaceCursor !== undefined && overlayOffsetY > 0) {
+    surfaceCursor = { ...surfaceCursor, y: surfaceCursor.y + overlayOffsetY };
+  }
   const surface: {
     readonly lines: readonly RendererRegionLine[];
     readonly frameLines: readonly RendererRegionLine[];
     readonly overlayLines: readonly RendererRegionLine[];
     cursor?: RendererCursorState;
   } = {
-    lines: [...frame.lines, ...renderedOverlays],
+    lines: above
+      ? [...renderedOverlays, ...frame.lines]
+      : [...frame.lines, ...renderedOverlays],
     frameLines: frame.lines,
     overlayLines,
   };
-  if (frame.cursor !== undefined) surface.cursor = frame.cursor;
+  if (surfaceCursor !== undefined) surface.cursor = surfaceCursor;
   return surface;
 }
 
@@ -155,7 +174,8 @@ export function measureRendererEditorSurfaceNaturalRows(
 ): number {
   const normalizedContentRows = Math.max(1, Math.floor(contentRows));
   if (overlays.length > 0) {
-    // top border + input rows + suggestion rows + bottom border (on overlay chrome)
+    // One continuous box: cap border + input rows + suggestion rows + other border.
+    // Placement (above/below) does not change total natural height.
     return 1 + normalizedContentRows + overlays.length + 1;
   }
   return Math.max(3, 2 + normalizedContentRows);
@@ -181,24 +201,28 @@ export function measureRendererEditorSurfaceLayout(
     };
   }
 
-  // Keep the prompt/input frame (top + content) and shrink suggestions first.
-  // frameRows is the open-top frame only (bottom border lives on overlay chrome).
+  const placement = options.overlayPlacement ?? 'above';
+  const above = placement !== 'below';
+  // Keep the prompt/input frame and shrink suggestions first.
+  // One border is deferred to overlay chrome:
+  // - below: frame = top + content (omit bottom)
+  // - above: frame = content + bottom (omit top)
   const minFrameRows = Math.min(
     rows,
     Math.max(2, normalizeEditorFrameSize(options.minFrameRows ?? 2)),
   );
-  const overlayBottomRows = 1;
-  // Reserve at least one row for the bottom border when height allows; if the
-  // region is only 3 tall we still keep the prompt and drop suggestions.
+  const overlayCapRows = 1;
   const frameRows =
-    rows === 0 ? 0 : Math.min(minFrameRows, Math.max(2, rows - overlayBottomRows));
+    rows === 0 ? 0 : Math.min(minFrameRows, Math.max(2, rows - overlayCapRows));
   const overlayRows = Math.min(
     overlays.length,
-    Math.max(0, rows - frameRows - overlayBottomRows),
+    Math.max(0, rows - frameRows - overlayCapRows),
   );
   return {
     rows,
     frameRows,
+    // above: frame has bottom only → contentRows = frameRows - 1
+    // below: frame has top only → contentRows = frameRows - 1
     contentRows: Math.max(0, frameRows - 1),
     overlayRows,
     overlayLines: overlays.slice(0, overlayRows),

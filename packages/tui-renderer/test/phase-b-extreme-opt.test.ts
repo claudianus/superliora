@@ -20,7 +20,9 @@ describe('Phase B extreme TUI memory/responsiveness', () => {
     expect(TRANSCRIPT_OVERFLOW_MAX_RETAINED_CHILDREN).toBeGreaterThan(0);
     expect(TRANSCRIPT_OVERFLOW_MAX_RETAINED_CHILDREN).toBeLessThanOrEqual(24);
     expect(TRANSCRIPT_CONTENT_MATERIALIZE_BUDGET).toBeGreaterThan(0);
-    expect(TRANSCRIPT_CONTENT_MATERIALIZE_BUDGET).toBeLessThanOrEqual(4);
+    // Enough to fill a typical viewport of short cards in one content frame;
+    // still a hard ceiling so settle cannot unbounded-layout the whole history.
+    expect(TRANSCRIPT_CONTENT_MATERIALIZE_BUDGET).toBeLessThanOrEqual(64);
   });
 
   it('after long history walk retained full-line children stay hard-capped', () => {

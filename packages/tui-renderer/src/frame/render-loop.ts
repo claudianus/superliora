@@ -180,18 +180,15 @@ export class NativeRenderLoop {
 
   private resolveFrameDelay(now: number): number {
     // High-priority causes render immediately so user input is never held
-    // behind frame pacing. input/resize stay delay 0.
-    if (this.pendingCauses.has('input') || this.pendingCauses.has('resize')) {
+    // behind frame pacing. transcript-scroll is wheel/page navigation: pure-
+    // scroll paint is O(viewport) cache/placeholder only, so delay-0 is safe
+    // again (the old FPS cap was guarding multi-k cold layout storms).
+    if (
+      this.pendingCauses.has('input') ||
+      this.pendingCauses.has('resize') ||
+      this.pendingCauses.has('transcript-scroll')
+    ) {
       return 0;
-    }
-    // transcript-scroll is interactive, but fling storms (top→bottom) used to
-    // schedule delay-0 paints as fast as the previous frame finished — dozens
-    // of full virtual-scroll paints per second, each cold-layouting cards.
-    // Cap scroll paints to the target FPS so offsets coalesce between frames
-    // while still feeling responsive (~16ms at 60fps).
-    if (this.pendingCauses.has('transcript-scroll')) {
-      if (this.nextTargetTime === undefined) return 0;
-      return Math.max(0, Math.min(this.targetFrameIntervalMs, this.nextTargetTime - now));
     }
     // Input that arrived mid-frame demands an immediate follow-up.
     if (this.inputDuringFramePending) return 0;

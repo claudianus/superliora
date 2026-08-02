@@ -45,8 +45,17 @@ export interface RendererEditorFrameOptions {
   readonly scrollbarThumbStyle?: RendererCellStyle;
   readonly scrollbarTrackChar?: string;
   readonly scrollbarThumbChar?: string;
+  /** When true, the frame paints no top border (used when overlays attach above). */
+  readonly omitTopBorder?: boolean;
   readonly omitBottomBorder?: boolean;
 }
+
+/**
+ * Where autocomplete suggestion rows attach relative to the input frame.
+ * - `below` (legacy): input then suggestions; bottom border deferred to overlay chrome
+ * - `above` (product default): suggestions then input; top border deferred to overlay chrome
+ */
+export type RendererEditorOverlayPlacement = 'above' | 'below';
 
 export interface RendererEditorOverlayLinesOptions {
   readonly width: number;
@@ -55,6 +64,12 @@ export interface RendererEditorOverlayLinesOptions {
   readonly surfaceStyle?: RendererCellStyle;
   readonly textStyle?: RendererCellStyle;
   readonly contentX?: number;
+  /**
+   * Which edge of the continuous editor box the overlay chrome owns.
+   * - `bottom` (default): side rails + bottom corners (suggestions below input)
+   * - `top`: top corners + side rails (suggestions above input)
+   */
+  readonly cap?: 'top' | 'bottom';
 }
 
 export interface RendererEditorFrameResult {
@@ -75,6 +90,11 @@ export interface RendererEditorSurfaceOptions
   readonly frameRows?: number;
   readonly argumentHint?: RendererEditorSurfaceArgumentHintOptions;
   readonly overlays?: readonly RendererRegionLine[];
+  /**
+   * Suggestion placement relative to the input. Defaults to `'above'` so the
+   * prompt baseline stays on the bottom-pinned editor edge.
+   */
+  readonly overlayPlacement?: RendererEditorOverlayPlacement;
   readonly scrollbar?: RendererEditorSurfaceScrollbarOptions | false;
   readonly slashTokenStyle?: RendererCellStyle;
   readonly textStyle?: RendererCellStyle;
@@ -137,6 +157,7 @@ export interface RendererEditorSurfaceLayoutOptions {
   readonly height: number;
   readonly overlays?: readonly RendererRegionLine[];
   readonly minFrameRows?: number;
+  readonly overlayPlacement?: RendererEditorOverlayPlacement;
 }
 
 export interface RendererEditorSurfaceLayoutResult {

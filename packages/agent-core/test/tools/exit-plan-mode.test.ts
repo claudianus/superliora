@@ -490,7 +490,7 @@ describe('ExitPlanModeTool', () => {
     ]);
   });
 
-  it('exits with an advisory when the Swarm decision lacks specialist value and owner', async () => {
+  it('hard-blocks ExitPlanMode when the Swarm decision lacks specialist value and owner', async () => {
     const { agent } = makeAgent({
       ultra: true,
       phase: 'exit',
@@ -530,14 +530,12 @@ describe('ExitPlanModeTool', () => {
       signal,
     });
 
-    expect(result.isError).not.toBe(true);
-    expect(result.output).toContain('Plan mode deactivated');
-    expect(result.output).toContain('Advisory notes (non-blocking)');
-    expect(result.output).toContain('Specialist value');
-    expect(result.output).toContain('Verification owner');
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('ExitPlanMode blocked');
+    expect(result.output).toMatch(/Specialist value|Verification owner|Swarm Decision|missing minimum/i);
   });
 
-  it('exits with an advisory when the WorkGraph section is missing', async () => {
+  it('hard-blocks ExitPlanMode when the WorkGraph section is missing', async () => {
     const { agent } = makeAgent({
       ultra: true,
       phase: 'exit',
@@ -583,13 +581,12 @@ describe('ExitPlanModeTool', () => {
       signal,
     });
 
-    expect(result.isError).not.toBe(true);
-    expect(result.output).toContain('Plan mode deactivated');
-    expect(result.output).toContain('Advisory notes (non-blocking)');
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('ExitPlanMode blocked');
     expect(result.output).toContain('WorkGraph');
   });
 
-  it('exits with an advisory when the Swarm decision lacks the audit line', async () => {
+  it('hard-blocks ExitPlanMode when the Swarm decision lacks the audit line', async () => {
     const { agent } = makeAgent({
       ultra: true,
       phase: 'exit',
@@ -636,13 +633,12 @@ describe('ExitPlanModeTool', () => {
       signal,
     });
 
-    expect(result.isError).not.toBe(true);
-    expect(result.output).toContain('Plan mode deactivated');
-    expect(result.output).toContain('Advisory notes (non-blocking)');
-    expect(result.output).toContain('Swarm decision audit line');
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('ExitPlanMode blocked');
+    expect(result.output).toMatch(/Swarm decision|Missing|audit/i);
   });
 
-  it('exits with an advisory when DEFER lacks a waiver', async () => {
+  it('hard-blocks ExitPlanMode when DEFER lacks a waiver', async () => {
     const { agent } = makeAgent({
       ultra: true,
       phase: 'exit',
@@ -689,13 +685,12 @@ describe('ExitPlanModeTool', () => {
       signal,
     });
 
-    expect(result.isError).not.toBe(true);
-    expect(result.output).toContain('Plan mode deactivated');
-    expect(result.output).toContain('Advisory notes (non-blocking)');
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('ExitPlanMode blocked');
     expect(result.output).toContain('Swarm DEFER waiver');
   });
 
-  it('exits with an advisory when DEFER has only a placeholder waiver', async () => {
+  it('hard-blocks ExitPlanMode when DEFER has only a placeholder waiver', async () => {
     const { agent } = makeAgent({
       ultra: true,
       phase: 'exit',
@@ -743,9 +738,8 @@ describe('ExitPlanModeTool', () => {
       signal,
     });
 
-    expect(result.isError).not.toBe(true);
-    expect(result.output).toContain('Plan mode deactivated');
-    expect(result.output).toContain('Advisory notes (non-blocking)');
+    expect(result.isError).toBe(true);
+    expect(result.output).toContain('ExitPlanMode blocked');
     expect(result.output).toContain('Swarm DEFER waiver');
   });
 
