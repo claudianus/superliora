@@ -106,6 +106,20 @@ function forceStopResult(
 const DEDUP_PLACEHOLDER_RESULT: ExecutableToolResult = { output: '' };
 
 /**
+ * Loop42a — operator + model marker appended only to same-step synthetic dups
+ * after they inherit the original's real result. TUI matches this prefix for a
+ * named notice (silent green cards previously hid the skip).
+ */
+export const SAME_STEP_DEDUP_PREFIX = 'SAME_STEP_DEDUP:' as const;
+
+function formatSameStepDedupTip(toolName: string): string {
+  return (
+    `\n\n${SAME_STEP_DEDUP_PREFIX} identical ${toolName} args already executed in this step. ` +
+    `Reused prior result — no second execution.`
+  );
+}
+
+/**
  * Detects and suppresses repetitive tool calls within a single turn.
  *
  * Two behaviours are layered:
@@ -221,7 +235,10 @@ export class ToolCallDeduplicator {
     if (this.syntheticCallIds.delete(toolCallId)) {
       const deferred = this.stepDeferreds.get(key);
       if (deferred === undefined) return result;
-      return deferred.promise;
+      // Inherit original outcome, then tag the synthetic path so operators see
+      // the skip (Loop42a). Tip is dup-only — originals stay clean.
+      const original = await deferred.promise;
+      return appendReminder(original, formatSameStepDedupTip(toolName));
     }
     const index = this.originalCallIndex.get(toolCallId);
     if (index === undefined) return result;
@@ -274,6 +291,8 @@ export const __testing = {
   REMINDER_TEXT_1,
   REMINDER_TEXT_3,
   DOOM_LOOP_HARD_STOP_TEXT,
+  SAME_STEP_DEDUP_PREFIX,
+  formatSameStepDedupTip,
   makeReminderText2,
   REPEAT_REMINDER_1_START,
   REPEAT_REMINDER_2_START,

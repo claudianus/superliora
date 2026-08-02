@@ -44,6 +44,10 @@ import {
   isIdempotencyReplayOutput,
 } from '../../utils/tools/idempotency-notice';
 import {
+  formatSameStepDedupNotice,
+  isSameStepDedupOutput,
+} from '../../utils/tools/same-step-dedup-notice';
+import {
   formatAutoCheckSpawnNotice,
   isAutoCheckSpawnOutput,
 } from '../../utils/tools/auto-check-spawn-notice';
@@ -277,6 +281,13 @@ export class SessionEventTools {
         this.host.showStatus?.(notice.status, 'warning');
       } else if (isIdempotencyReplayOutput(resultData.output)) {
         const notice = formatIdempotencyReplayNotice(matchedCall?.name);
+        this.host.showNotice(notice.title, notice.detail, {
+          coalesceKey: notice.coalesceKey,
+        });
+        this.host.showStatus?.(notice.status, 'info');
+      } else if (isSameStepDedupOutput(resultData.output)) {
+        // Loop42a: same-step identical (tool,args) reused prior result.
+        const notice = formatSameStepDedupNotice(matchedCall?.name);
         this.host.showNotice(notice.title, notice.detail, {
           coalesceKey: notice.coalesceKey,
         });
