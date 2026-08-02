@@ -4,6 +4,7 @@ import { showMissionAutoStartSessionTipIfNeeded } from '../../utils/mission/miss
 import { restorePromptInputState } from '../../utils/prompt-input-state';
 import { formatSessionResumeWarningNotice } from '../../utils/session/session-resume-warning-notice';
 import { formatSessionWarningNotice } from '../../utils/session/session-warning-notice';
+import { formatTmuxKeyboardNotice } from '../../utils/session/tmux-keyboard-notice';
 import { detectTmuxKeyboardWarning } from '../../utils/terminal/tmux-keyboard';
 import { ttui } from '../../utils/tui-i18n';
 import type { StartupLifecycleHost } from './types';
@@ -118,7 +119,12 @@ async function showTmuxKeyboardWarningIfNeeded(host: StartupLifecycleHost): Prom
   try {
     const warning = await detectTmuxKeyboardWarning();
     if (warning === undefined || host.aborted) return;
-    host.showStatus(warning, 'warning');
+    // Loop53a: named notice — long recovery string as status alone was easy to miss.
+    const notice = formatTmuxKeyboardNotice(warning);
+    host.showNotice(notice.title, notice.detail, {
+      coalesceKey: notice.coalesceKey,
+    });
+    host.showStatus(notice.status, 'warning');
   } catch {
     // Best-effort: startup must not block on warning retrieval.
   }
