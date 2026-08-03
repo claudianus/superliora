@@ -169,28 +169,28 @@ function truncateTextToTokensFromEnd(text: string, maxTokens: number): string {
   let asciiCount = 0;
   let nonAsciiCount = 0;
   let start = text.length;
-  for (let i = text.length - 1; i >= 0; i--) {
-    let isAscii = false;
-    const code = text.codePointAt(i);
-    if (code === undefined) continue;
+  for (let i = text.length - 1; i >= 0; ) {
+    // Detect a supplementary-plane pair via raw UTF-16 units: codePointAt(i - 1)
+    // would return the combined code point (>= 0x10000), so a high-surrogate
+    // range check against it never matches and the pair gets counted twice.
+    let code = text.charCodeAt(i);
+    let codePointStart = i;
     if (code >= 0xdc00 && code <= 0xdfff && i > 0) {
-      const high = text.codePointAt(i - 1);
-      if (high === undefined) {
-        isAscii = false;
-      } else if (high >= 0xd800 && high <= 0xdbff) {
+      const high = text.charCodeAt(i - 1);
+      if (high >= 0xd800 && high <= 0xdbff) {
         // Supplementary-plane code point: consume both units, always non-ASCII.
-        i--;
+        codePointStart = i - 1;
+        code = 0x10000;
       }
-    } else {
-      isAscii = code <= 127;
     }
-    if (isAscii) {
+    if (code <= 127) {
       asciiCount++;
     } else {
       nonAsciiCount++;
     }
     if (Math.ceil(asciiCount / 4) + nonAsciiCount > maxTokens) break;
-    start = i;
+    start = codePointStart;
+    i = codePointStart - 1;
   }
   return text.slice(start);
 }
