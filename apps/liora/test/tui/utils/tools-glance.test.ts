@@ -73,7 +73,7 @@ describe('tools-glance hide-legacy', () => {
       profile,
     });
     expect(lines[0]).toContain('Session (live)');
-    expect(lines[1]).toBe('Conductor: ON (default) · profile=conductor tools=30');
+    expect(lines[1]).toBe('Conductor: ON (default) · profile=conductor tools=27');
     expect(lines[2]).toBe('Tools: 3 active / 5 registered');
     expect(lines[3]).toContain('Hide legacy: ON (default)');
   });

@@ -155,12 +155,14 @@ describe('transcript viewport', () => {
     expect(transcriptViewportStart(viewport)).toBe(61);
   });
 
-  it('keeps manual scrollback mode when output starts shorter than the viewport', () => {
+  it('records manual scrollback intent without movement when output fits the viewport', () => {
     const viewport = createTranscriptViewportState();
     syncTranscriptViewport(viewport, 3, 5);
 
     expect(viewport.followOutput).toBe(true);
-    expect(scrollTranscriptViewport(viewport, 'line-up')).toBe(true);
+    // No scrollable range: scroll() reports no position change, but the
+    // manual scrollback intent is still recorded for when content overflows.
+    expect(scrollTranscriptViewport(viewport, 'line-up')).toBe(false);
     expect(viewport.followOutput).toBe(false);
     expect(viewport.offsetFromBottom).toBe(0);
     expect(transcriptViewportStart(viewport)).toBe(0);
