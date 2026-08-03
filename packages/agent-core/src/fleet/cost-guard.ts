@@ -3,11 +3,10 @@
  *
  * Emits non-blocking tips when SUPERLIORA_FLEET_BUDGET_USD is set.
  *
- * S3-R6 interim home (moved from swarm-cost-guard.ts): still consumed by
- * the AgentSwarm tool surface (tools/builtin/fleet/agent-swarm.ts) and the
- * liora TUI glances, both owned by the S3-R5 retirement. Inventory verdict:
- * REBUILD — folds into Job pool back-pressure / cost visibility; the body is
- * deleted once the R5 consumers land.
+ * S3-R6 interim home (moved from swarm-cost-guard.ts). The AgentSwarm tool
+ * consumer retired with S3-R5 (f04ac07c3); remaining consumers are the liora
+ * TUI glances. Inventory verdict: REBUILD — folds into Job pool back-pressure
+ * / cost visibility; body deletion is tracked by the R7 final sweep.
  */
 
 import type { TokenUsage } from '@superliora/kosong';

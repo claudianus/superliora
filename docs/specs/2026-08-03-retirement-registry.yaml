@@ -33,7 +33,7 @@ items:
     commit: f04ac07c3
     characterization_tests: [] # 소급 면제: 도구·정책 폐기; 대체 경로는 Job 기반 위임
     replacement_proof_tests: [packages/agent-core/test/tools/job-ledger.test.ts]
-    grep_zero: ['fleet/agent-swarm', 'fleet/swarm-channel']
+    grep_zero: ['fleet/agent-swarm', 'agent-swarm-exclusive-deny', 'swarm-mode-agent-swarm-approve']
   - id: R6-swarm-modules
     status: done
     commit: b6c59962a
