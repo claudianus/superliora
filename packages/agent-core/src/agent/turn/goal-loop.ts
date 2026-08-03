@@ -168,6 +168,7 @@ export async function endGoalTurnWithoutModel(
   turnId: number,
   input: readonly ContentPart[],
   origin: PromptOrigin,
+  releaseActiveTurn?: () => void,
 ): Promise<TurnEndedEvent> {
   agent.usage.beginTurn();
   const startedAt = Date.now();
@@ -181,6 +182,10 @@ export async function endGoalTurnWithoutModel(
   };
   agent.usage.endTurn();
   agent.fileSnapshots?.commitTurn(String(turnId));
+  // Release the turn slot before emitting so a racing prompt is not
+  // rejected with `turn.agent_busy` (the goal was just marked blocked, so
+  // the worker is done after this event).
+  releaseActiveTurn?.();
   agent.emitEvent(ended);
   return ended;
 }
