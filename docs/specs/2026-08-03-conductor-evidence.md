@@ -24,7 +24,7 @@ Pre-existing drift note: agent-core suite has 81 pre-existing failures (snapshot
 
 | AC | Criterion | Status | Evidence |
 |----|-----------|--------|----------|
-| A1 | Non-blocking interactive lane | ✅ | `job-lanes.ts` (`classifyConductorLane`, `assertNonBlockingLaunchContract`); `launchJobWorker` fire-and-forget |
+| A1 | Non-blocking interactive lane | ✅ | `job-lanes.ts` (`classifyConductorLane`; V2-3 runtime observation `observeCompletion`/`assertNonBlockingLaunch`, replacing the retired manual-boolean `assertNonBlockingLaunchContract`); `launchJobWorker` fire-and-forget |
 | A2 | ACK `job_id` + state, p50 ≤ 2s | ✅ | `JobCreateTool.run` → immediate ledger upsert + `ack(jobId, status)` synchronous return (method note in spec) |
 | A3 | Burst of 5 → 5 ledger jobs | ✅ | `splitUserMessageIntoJobIntents` + `auto_split` (job-tools.ts:188 priority falloff); job-ledger.test.ts |
 | B1 | warm 2 / max 6 configurable | ✅ | `CONDUCTOR_DEFAULT_WARM_POOL_SIZE=2`, `CONDUCTOR_DEFAULT_MAX_CONCURRENT_JOBS=6` + env overrides; `job-warm-pool.ts` live pre-spawn |
