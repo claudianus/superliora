@@ -1,0 +1,40 @@
+ CONDUCTOR JOB DESK  8 running  8 needs user  8 blocked  8 queued  8 paused  8 failed  16 done                          
+┌─ Jobs [64] ──────────────────────────────────────────────────┐┌─ Detail ─────────────────────────────────────────────┐
+│  ▸ running (8)                                              █││Prompt:   ship control tower slice #0000              │
+│  ▸ 0008     task p3       ship control tower slice #0008    █││Job:      job_0000                                    │
+│  ▸ 0032     task p3       ship control tower slice #0032    █││Status:   ▸ running                                   │
+│  ▸ 0056     task p3       ship control tower slice #0056    █││Kind:     task · priority 1                           │
+│  ▸ 0016     task p2       ship control tower slice #0016    █││Worktree: job-0                                       │
+│  ▸ 0040     task p2       ship control tower slice #0040    █││  /tmp/wt/job-0                                       │
+│❯ ▸ 0000     task p1       ship control tower slice #0000    █││Updated:  just now                                    │
+│  ▸ 0024     task p1       ship control tower slice #0024    █││Phase:    implementing                                │
+│  ▸ 0048     task p1       ship control tower slice #0048    █││Tools:    Read → Edit → Bash                          │
+│  ? needs user (8)                                           █││Heartbeat:just now                                    │
+│  ? 0017     task p3       ship control tower slice #0017    █││                                                      │
+│  ? 0041     task p3       ship control tower slice #0041    █││                                                      │
+│  ? 0001     task p2       ship control tower slice #0001    █││                                                      │
+│  ? 0025     task p2       ship control tower slice #0025    █││                                                      │
+│  ? 0049     task p2       ship control tower slice #0049    █││                                                      │
+│  ? 0009     task p1       ship control tower slice #0009    █││                                                      │
+│  ? 0033     task p1       ship control tower slice #0033    █││                                                      │
+│  ? 0057     task p1       ship control tower slice #0057    █││                                                      │
+│  ⛔ blocked (8)                                             ││└──────────────────────────────────────────────────────┘
+│  ⛔ 0002     task p3       ship control tower slice #0002   ││┌─ Inbox ──────────────────────────────────────────────┐
+│  ⛔ 0026     task p3       ship control tower slice #0026   │││completed completion notice 0 just now                │
+│  ⛔ 0050     task p3       ship control tower slice #0050   │││  worker finished cleanly                             │
+│  ⛔ 0010     task p2       ship control tower slice #0010   │││                                                      │
+│  ⛔ 0034     task p2       ship control tower slice #0034   │││                                                      │
+│  ⛔ 0058     task p2       ship control tower slice #0058   │││                                                      │
+│  ⛔ 0018     task p1       ship control tower slice #0018   │││                                                      │
+│  ⛔ 0042     task p1       ship control tower slice #0042   │││                                                      │
+│  … queued (8)                                               │││                                                      │
+│  … 0011     task p3       ship control tower slice #0011    │││                                                      │
+│  … 0035     task p3       ship control tower slice #0035    │││                                                      │
+│  … 0059     task p3       ship control tower slice #0059    │││                                                      │
+│  … 0019     task p2       ship control tower slice #0019    │││                                                      │
+│  … 0043     task p2       ship control tower slice #0043    │││                                                      │
+│  … 0003     task p1       ship control tower slice #0003    │││                                                      │
+│  … 0027     task p1       ship control tower slice #0027    │││                                                      │
+│  … 0051     task p1       ship control tower slice #0051    │││                                                      │
+└──────────────────────────────────────────────────────────────┘└──────────────────────────────────────────────────────┘
+ ↑↓ navigate  Enter/I inspect  Q/Esc cancel                                                                             

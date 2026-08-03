@@ -1,0 +1,10 @@
+# Control tower frame budget instrumentation (2026-08-03)
+# Budget: single event repaint < 8ms (apps/liora AGENTS.md).
+# Method: performance.now() around render()/setProps()+render(); warmup excluded.
+
+PASS  S1 default screen (3-job startup snapshot) repaint
+     samples=100  p50=0.530ms  p95=0.846ms  max=2.731ms  budget=8ms
+PASS  S2 20-event burst (setProps + render, 64-card board)
+     samples=20  p50=1.149ms  p95=2.965ms  max=2.965ms  budget=8ms
+PASS  S3 full 64-card board repaint
+     samples=100  p50=1.278ms  p95=3.541ms  max=4.254ms  budget=8ms
