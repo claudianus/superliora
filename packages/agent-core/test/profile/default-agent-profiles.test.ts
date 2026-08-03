@@ -135,6 +135,7 @@ describe('default agent profiles', () => {
 
   it('exposes Ultrawork orchestration tools on the full profile', () => {
     const fullTools = DEFAULT_AGENT_PROFILES['superliora-full']?.tools ?? [];
+    // V1-1 whitelist: Job* + Goal tools replaced the retired UltraSwarm tool.
     expect(fullTools).toEqual(
       expect.arrayContaining([
         'EnterPlanMode',
@@ -144,9 +145,12 @@ describe('default agent profiles', () => {
         'UpdateGoal',
         'SearchExpert',
         'Fleet',
-        'UltraSwarm',
+        'JobCreate',
+        'JobList',
+        'mcp__*',
       ]),
     );
+    expect(fullTools).not.toContain('UltraSwarm');
   });
 
   it('keeps the full profile skill runtime prompt aligned with exposed tools', () => {
