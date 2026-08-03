@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import type { Agent } from '#/agent';
 import { AutoModeAskUserQuestionDenyPermissionPolicy } from '#/agent/permission/policies/auto-mode-ask-user-question-deny';
 import { GitCwdWriteApprovePermissionPolicy } from '#/agent/permission/policies/git-cwd-write-approve';
-import { SwarmModeAgentSwarmApprovePermissionPolicy } from '#/agent/permission/policies/swarm-mode-agent-swarm-approve';
 import { YoloModeApprovePermissionPolicy } from '#/agent/permission/policies/yolo-mode-approve';
 import type { PermissionPolicyContext } from '#/agent/permission/types';
 
@@ -14,13 +13,6 @@ describe('agent/permission/policies/yolo-mode-approve', () => {
   it('uses the documented policy name', () => {
     const policy = new YoloModeApprovePermissionPolicy({} as Agent);
     expect(policy.name).toBe('yolo-mode-approve');
-  });
-});
-
-describe('agent/permission/policies/swarm-mode-agent-swarm-approve', () => {
-  it('uses the documented policy name', () => {
-    const policy = new SwarmModeAgentSwarmApprovePermissionPolicy({} as Agent);
-    expect(policy.name).toBe('swarm-mode-agent-swarm-approve');
   });
 });
 

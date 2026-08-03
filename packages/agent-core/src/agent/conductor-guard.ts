@@ -115,13 +115,7 @@ export const CONDUCTOR_DIRECT_WORK_TOOLS = ['Write', 'Edit', 'ApplyPatch'] as co
  * conductor lane (contract §2.1 "foregound spawn waiting for subagent
  * results", §3.1; inventory A-4/A-5/A-6/A-7/A-8).
  */
-export const CONDUCTOR_WORKER_WAIT_TOOLS = [
-  'Agent',
-  'Fleet',
-  'TaskOutput',
-  'UltraSwarm',
-  'AgentSwarm',
-] as const;
+export const CONDUCTOR_WORKER_WAIT_TOOLS = ['Agent', 'TaskOutput', 'UltraSwarm'] as const;
 
 /**
  * Known-safe builtin surface for the conductor lane (contract §2.1 items 2–6

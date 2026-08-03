@@ -1,6 +1,5 @@
 import type { Agent } from '../..';
 import type { PermissionPolicy } from '../types';
-import { AgentSwarmExclusiveDenyPermissionPolicy } from './agent-swarm-exclusive-deny';
 import { AutoModeApprovePermissionPolicy } from './auto-mode-approve';
 import { AutoModeAskUserQuestionDenyPermissionPolicy } from './auto-mode-ask-user-question-deny';
 import { DefaultToolApprovePermissionPolicy } from './default-tool-approve';
@@ -18,7 +17,6 @@ import { PlanModeToolApprovePermissionPolicy } from './plan-mode-tool-approve';
 import { PreToolCallHookPermissionPolicy } from './pre-tool-call-hook';
 import { SensitiveFileAccessDenyPermissionPolicy } from './sensitive-file-access-deny';
 import { SessionApprovalHistoryPermissionPolicy } from './session-approval-history';
-import { SwarmModeAgentSwarmApprovePermissionPolicy } from './swarm-mode-agent-swarm-approve';
 import {
   UserConfiguredAllowPermissionPolicy,
   UserConfiguredAskPermissionPolicy,
@@ -32,8 +30,6 @@ export function createPermissionDecisionPolicies(agent: Agent): PermissionPolicy
   return [
     // PreToolUse hook returned a block → deny.
     new PreToolCallHookPermissionPolicy(agent),
-    // AgentSwarm is batch-exclusive and must run alone, regardless of permission mode.
-    new AgentSwarmExclusiveDenyPermissionPolicy(),
     // auto mode + AskUserQuestion historically denied; now no-op (tool auto-answers).
     new AutoModeAskUserQuestionDenyPermissionPolicy(agent),
     // plan mode: Write/Edit outside plan file + Mission evidence root → deny.
@@ -70,8 +66,6 @@ export function createPermissionDecisionPolicies(agent: Agent): PermissionPolicy
     new YoloHighRiskAskPermissionPolicy(agent),
     // yolo mode → approve.
     new YoloModeApprovePermissionPolicy(agent),
-    // Swarm mode keeps AgentSwarm available without making it a globally default-approved tool.
-    new SwarmModeAgentSwarmApprovePermissionPolicy(agent),
     // Tool is in the default-approve list (read-only / UI helpers) → approve.
     new DefaultToolApprovePermissionPolicy(),
     // Write/Edit on POSIX paths inside cwd inside a git work tree → approve.

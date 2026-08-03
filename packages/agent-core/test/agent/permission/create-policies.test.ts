@@ -11,7 +11,6 @@ describe('agent/permission/policies — createPermissionDecisionPolicies', () =>
     const names = policies.map((p) => p.constructor.name);
     expect(names).toEqual([
       'PreToolCallHookPermissionPolicy',
-      'AgentSwarmExclusiveDenyPermissionPolicy',
       'AutoModeAskUserQuestionDenyPermissionPolicy',
       'PlanModeGuardDenyPermissionPolicy',
       'UserConfiguredDenyPermissionPolicy',
@@ -28,7 +27,6 @@ describe('agent/permission/policies — createPermissionDecisionPolicies', () =>
       'GitControlPathAccessAskPermissionPolicy',
       'YoloHighRiskAskPermissionPolicy',
       'YoloModeApprovePermissionPolicy',
-      'SwarmModeAgentSwarmApprovePermissionPolicy',
       'DefaultToolApprovePermissionPolicy',
       'GitCwdWriteApprovePermissionPolicy',
       'FallbackAskPermissionPolicy',
@@ -49,7 +47,6 @@ describe('agent/permission/policies — createPermissionDecisionPolicies', () =>
       .slice(0, autoApprove)
       .map((p) => p.constructor.name);
     expect(beforeAutoApprove).toContain('PreToolCallHookPermissionPolicy');
-    expect(beforeAutoApprove).toContain('AgentSwarmExclusiveDenyPermissionPolicy');
     expect(beforeAutoApprove).toContain('PlanModeGuardDenyPermissionPolicy');
     expect(beforeAutoApprove).toContain('UserConfiguredDenyPermissionPolicy');
     expect(beforeAutoApprove).toContain('SensitiveFileAccessDenyPermissionPolicy');

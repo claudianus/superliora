@@ -45,7 +45,7 @@ describe('ConductorDirectWorkGuard', () => {
       },
     );
 
-    it.each(['Agent', 'Fleet', 'TaskOutput', 'UltraSwarm', 'AgentSwarm', 'SpawnWorker'])(
+    it.each(['Agent', 'TaskOutput', 'UltraSwarm', 'SpawnWorker'])(
       'rejects worker-lifecycle waiting tool %s',
       (toolName) => {
         const guard = new ConductorDirectWorkGuard();

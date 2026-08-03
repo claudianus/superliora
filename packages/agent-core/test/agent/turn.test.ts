@@ -26,11 +26,6 @@ import type { AgentRecord, AgentRecordPersistence } from '../../src/agent/record
 import { InMemoryAgentRecordPersistence } from '../../src/agent/records';
 import { ErrorCodes, LioraError } from '../../src/errors';
 import type { Logger, LogPayload } from '../../src/logging';
-import type {
-  QueuedSubagentRunResult,
-  QueuedSubagentTask,
-  SessionSubagentHost,
-} from '../../src/session/subagent/subagent-host';
 import { recordingTelemetry, type TelemetryRecord } from '../fixtures/telemetry';
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';
 import { createCommandKaos, testAgent, type TestAgentOptions } from './harness/agent';
@@ -426,56 +421,6 @@ describe('Agent turn flow', () => {
 
     expect(ctx.agent.swarmMode.isActive).toBe(false);
     expect(eventIndex(ctx, '[wire]', 'swarm_mode.exit')).toBeGreaterThan(-1);
-  });
-
-  it('enters silent swarm mode when the agent calls AgentSwarm', async () => {
-    const runQueued = vi.fn(async <T>(
-      tasks: readonly QueuedSubagentTask<T>[],
-    ): Promise<Array<QueuedSubagentRunResult<T>>> => {
-      return tasks.map((task, index) => ({
-        task,
-        agentId: `agent-${String(index + 1)}`,
-        status: 'completed' as const,
-        result: `result ${String(index + 1)}`,
-      }));
-    });
-    const subagentHost = mockSubagentHost({
-      runQueued: runQueued as unknown as SessionSubagentHost['runQueued'],
-    });
-    const ctx = testAgent({
-      subagentHost,
-    });
-    ctx.configure({ tools: ['AgentSwarm'] });
-    await ctx.rpc.setPermission({ mode: 'yolo' });
-
-    ctx.mockNextResponse(
-      { type: 'text', text: 'I will launch a swarm.' },
-      agentSwarmCall(),
-    );
-    ctx.mockNextResponse({ type: 'text', text: 'Swarm results reviewed.' });
-
-    await ctx.rpc.prompt({ input: [{ type: 'text', text: 'Use AgentSwarm' }] });
-    await ctx.untilTurnEnd();
-
-    const enterEvent = ctx.allEvents.find(
-      (entry) => entry.type === '[wire]' && entry.event === 'swarm_mode.enter',
-    );
-    const reminderOrigins = ctx.agent.context.history
-      .map((message) => message.origin)
-      .filter((origin) => origin?.kind === 'injection');
-
-    expect(runQueued).toHaveBeenCalledTimes(1);
-    expect(enterEvent?.args).toMatchObject({ trigger: 'tool' });
-    expect(ctx.agent.swarmMode.isActive).toBe(false);
-    expect(eventIndex(ctx, '[wire]', 'swarm_mode.exit')).toBeGreaterThan(
-      eventIndex(ctx, '[rpc]', 'turn.ended'),
-    );
-    expect(reminderOrigins).not.toContainEqual({ kind: 'injection', variant: 'swarm_mode' });
-    expect(reminderOrigins).not.toContainEqual({
-      kind: 'injection',
-      variant: 'swarm_mode_exit',
-    });
-    await ctx.expectResumeMatches();
   });
 
   it('includes provider finish reason details on empty response failures', async () => {
@@ -1940,31 +1885,6 @@ function bashCallWithId(id: string, command: string): ToolCall {
     name: 'Bash',
     arguments: JSON.stringify({ command, timeout: 60 }),
   };
-}
-
-function agentSwarmCall(): ToolCall {
-  return {
-    type: 'function',
-    id: 'call_swarm',
-    name: 'AgentSwarm',
-    arguments: JSON.stringify({
-      description: 'Review files',
-      prompt_template: 'Review {{item}}',
-      items: ['src/a.ts', 'src/b.ts'],
-    }),
-  };
-}
-
-function mockSubagentHost<T extends Partial<SessionSubagentHost>>(
-  host: T,
-): T & SessionSubagentHost {
-  return {
-    spawn: vi.fn(),
-    resume: vi.fn(),
-    runQueued: vi.fn(),
-    hasActiveForegroundChildren: vi.fn().mockReturnValue(false),
-    ...host,
-  } as unknown as T & SessionSubagentHost;
 }
 
 interface ApiErrorTelemetryCase {
