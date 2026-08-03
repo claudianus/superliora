@@ -56,11 +56,21 @@ describe('agent/provider-failover — isRetryableProviderFailure', () => {
   });
 
   it('accepts PROVIDER_RATE_LIMIT and PROVIDER_CONNECTION_ERROR by code', () => {
+    // Serialized provider errors always carry the registry `retryable` flag
+    // (KIMI_ERROR_INFO), so retryability is asserted on that real payload shape.
     expect(
-      isRetryableProviderFailure({ code: ErrorCodes.PROVIDER_RATE_LIMIT, message: 'x' }),
+      isRetryableProviderFailure({
+        code: ErrorCodes.PROVIDER_RATE_LIMIT,
+        message: 'x',
+        retryable: true,
+      }),
     ).toBe(true);
     expect(
-      isRetryableProviderFailure({ code: ErrorCodes.PROVIDER_CONNECTION_ERROR, message: 'x' }),
+      isRetryableProviderFailure({
+        code: ErrorCodes.PROVIDER_CONNECTION_ERROR,
+        message: 'x',
+        retryable: true,
+      }),
     ).toBe(true);
   });
 
