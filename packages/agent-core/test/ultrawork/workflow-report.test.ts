@@ -31,7 +31,7 @@ function mockAgent(workDir: string) {
     },
     swarmMode: { isActive: false, exit: () => {} },
     goal: { getGoal: () => ({ goal: undefined }), pauseGoal: async () => {}, resumeGoal: async () => {}, cancelGoal: async () => {} },
-    tools: { getStore: () => ({ get: () => undefined }), updateStore: () => {} },
+    tools: { getStore: () => ({ get: () => undefined }), updateStore: () => {}, enabledTools: new Set<string>() },
     planMode: { isActive: false, isUltraMode: false, captureStateCheckpoint: () => undefined, planFilePath: undefined, phase: undefined, interviewRoundCount: 0 },
     background: { list: () => [] },
   } as unknown as import('../../src/agent').Agent;
