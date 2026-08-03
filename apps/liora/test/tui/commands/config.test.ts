@@ -1105,7 +1105,6 @@ describe('harness panel and tools inventory', () => {
     expect(lines).toContain('/fleet');
     expect(lines).toContain('worktree');
     expect(lines).toContain('SUPERLIORA_FLEET_WORKTREE');
-    expect(lines).toContain('SpawnWorker');
     expect(lines).toContain('Settings → Fleet → Max workers');
   });
 

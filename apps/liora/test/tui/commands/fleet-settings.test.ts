@@ -45,9 +45,7 @@ function makeFleetHost(options: {
     state: {
       appState: {
         swarmMode: false,
-        orchestratorMode: false,
         permissionMode: 'auto',
-        orchestratorWorkers: undefined,
         sessionCostUsd: undefined,
         ...options.appState,
       },
@@ -109,14 +107,9 @@ describe('fleet worktree isolation settings', () => {
     expect(loadFleetWorktreeGlance({}).envEnabled).toBe(false);
   });
 
-  it('builds worktree block with env off and orchestrator path', () => {
-    const lines = buildFleetWorktreeSettingsLines(
-      loadFleetWorktreeGlance({}),
-      false,
-    ).join('\n');
+  it('builds worktree block with env off', () => {
+    const lines = buildFleetWorktreeSettingsLines(loadFleetWorktreeGlance({})).join('\n');
     expect(lines).toContain(FLEET_WORKTREE_ENV);
-    expect(lines).toContain('Orchestrator: OFF');
-    expect(lines).toContain('SpawnWorker');
     expect(lines).toContain('AgentSwarm/UltraSwarm');
     expect(lines).toContain('per-worker git worktrees');
     expect(lines).toContain('--worktree');
@@ -125,10 +118,8 @@ describe('fleet worktree isolation settings', () => {
   it('surfaces env-on soft opt-in when SUPERLIORA_FLEET_WORKTREE=1', () => {
     const lines = buildFleetWorktreeSettingsLines(
       loadFleetWorktreeGlance({ [FLEET_WORKTREE_ENV]: '1' }),
-      true,
     ).join('\n');
     expect(lines).toContain(`${FLEET_WORKTREE_ENV}=ON`);
-    expect(lines).toContain('Orchestrator: ON');
     expect(lines).toContain('AgentSwarm/UltraSwarm attempt per-worker worktrees');
   });
 
@@ -182,30 +173,24 @@ describe('showFleetSettings picker', () => {
 });
 
 describe('showFleetSettings panel', () => {
-  it('formats orchestrator worker counts', () => {
+  it('formats background worker counts', () => {
     expect(
       formatFleetWorkersSettingsLine({
-        orchestratorWorkers: [
-          { status: 'running' },
-          { status: 'running' },
-          { status: 'completed' },
-        ],
+        backgroundActive: { bash: 2, agent: 1 },
       }),
-    ).toContain('2 running');
+    ).toContain('2 bash · 1 agent');
     expect(
       formatFleetWorkersSettingsLine({
-        orchestratorWorkers: [
-          { status: 'running' },
-          { status: 'running' },
-          { status: 'completed' },
-        ],
+        backgroundActive: { bash: 2, agent: 1 },
       }),
-    ).toContain('3 orchestrator');
+    ).toContain('background active');
+    expect(formatFleetWorkersSettingsLine({})).toBe(
+      'Workers: none active — /fleet to spawn',
+    );
   });
 
   it('builds Session (live) with parallel tools from getStatus', () => {
     const lines = buildFleetSessionLiveLines({
-      orchestratorWorkers: [{ status: 'running' }],
       parallelTools: { parallelToolsInFlight: 2, maxParallelTools: 4 },
       worktree: loadFleetWorktreeGlance({ [FLEET_WORKTREE_ENV]: '1' }),
     }).join('\n');
@@ -230,9 +215,7 @@ describe('showFleetSettings panel', () => {
     const host = makeFleetHost({
       appState: {
         swarmMode: false,
-        orchestratorMode: true,
         permissionMode: 'auto',
-        orchestratorWorkers: [{ id: 'w1', description: 'lint', status: 'running' }],
         sessionCostUsd: undefined,
       },
       getConfig: vi.fn(async () => ({ background: { maxRunningTasks: 4 } })),
@@ -257,7 +240,7 @@ describe('showFleetSettings panel', () => {
       .calls[0]?.[0] as UsagePanelComponent;
     const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('── Session (live) ─');
-    expect(text).toContain('1 running');
+    expect(text).toContain('Workers: none active — /fleet to spawn');
     expect(text).toContain('Parallel tools: 2 in flight · peak 3');
     expect(text).toContain(`${FLEET_WORKTREE_ENV}: off`);
     expect(text).toContain('background.maxRunningTasks = 4');
@@ -301,9 +284,7 @@ describe('showFleetSettings panel', () => {
     const host = makeFleetHost({
       appState: {
         swarmMode: true,
-        orchestratorMode: false,
         permissionMode: 'auto',
-        orchestratorWorkers: undefined,
         sessionCostUsd: undefined,
         makerCheckerSoftWarn: warn,
       },
