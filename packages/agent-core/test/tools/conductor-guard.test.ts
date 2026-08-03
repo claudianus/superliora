@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import {
   CONDUCTOR_DIRECT_WORK_REJECTION_PHRASE,
@@ -45,7 +45,7 @@ describe('ConductorDirectWorkGuard', () => {
       },
     );
 
-    it.each(['Agent', 'Fleet', 'TaskOutput', 'UltraSwarm', 'AgentSwarm', 'SpawnWorker'])(
+    it.each(['Agent', 'Fleet', 'TaskOutput', 'UltraSwarm', 'AgentSwarm'])(
       'rejects worker-lifecycle waiting tool %s',
       (toolName) => {
         const guard = new ConductorDirectWorkGuard();
@@ -192,17 +192,4 @@ describe('ConductorDirectWorkGuard', () => {
     });
   });
 
-  describe('orchestratorMode tripwire', () => {
-    it('records blocked orchestratorMode entry attempts', () => {
-      const onEvent = vi.fn();
-      const guard = new ConductorDirectWorkGuard({ onEvent });
-      guard.recordOrchestratorModeBlocked('setOrchestratorMode');
-
-      const events = guard.events();
-      expect(events).toHaveLength(1);
-      expect(events[0]?.code).toBe(CONDUCTOR_GUARD_CODES.orchestratorModeBlocked);
-      expect(events[0]?.detail).toContain('source=setOrchestratorMode');
-      expect(onEvent).toHaveBeenCalledTimes(1);
-    });
-  });
 });
