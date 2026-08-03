@@ -100,13 +100,12 @@ function mockSwarmTeam(): TeamPlan {
   };
 }
 
-function mockUltraSwarmAgent(
+function mockParentAgent(
   flags = new FlagResolver({}, FLAG_DEFINITIONS),
   store?: ToolStore,
 ): Agent {
   return {
     emitEvent: vi.fn(),
-    ultraSwarmEngageGate: { clear: vi.fn() },
     fullCompaction: { ensureBelowHandoffThreshold: vi.fn().mockResolvedValue(undefined) },
     experimentalFlags: flags,
     telemetry: { track: vi.fn() },
@@ -370,9 +369,16 @@ describe('current builtin collaboration tools', () => {
     });
 
     const result = await executeTool(tool, context(input));
-    expect(result.output).toBe(
-      JSON.stringify({ answers: { 'Which path?': 'A' }, method: 'auto' }),
-    );
+    const parsed = JSON.parse(result.output) as {
+      answers: Record<string, string>;
+      method: string;
+      decisions: readonly { question: string; chosen: string; source: string }[];
+    };
+    expect(parsed.method).toBe('auto');
+    expect(parsed.answers['Which path?']).toContain('A');
+    expect(parsed.decisions).toEqual([
+      expect.objectContaining({ question: 'Which path?', chosen: 'A', source: 'baseline' }),
+    ]);
     expect(requestQuestion).not.toHaveBeenCalled();
   });
 
@@ -486,7 +492,7 @@ describe('current builtin collaboration tools', () => {
     const { store } = mockToolStore();
     const team = mockSwarmTeam();
     initSwarmRunBus(store, { runId: 'uw_1', parentToolCallId: 'call_uw', team });
-    const parent = mockUltraSwarmAgent();
+    const parent = mockParentAgent();
     const run = { runId: 'uw_1', parentToolCallId: 'call_uw', team };
     const expert = team.experts[0]!;
     const onMessagePosted = vi.fn();
@@ -534,7 +540,7 @@ describe('current builtin collaboration tools', () => {
     initSwarmRunBus(store, { runId: 'uw_1', parentToolCallId: 'call_uw', team });
     const run = { runId: 'uw_1', parentToolCallId: 'call_uw', team };
     const tool = new SwarmChannelTool({
-      parentAgent: mockUltraSwarmAgent(),
+      parentAgent: mockParentAgent(),
       parentStore: store,
       run,
       expert: {
@@ -556,7 +562,7 @@ describe('current builtin collaboration tools', () => {
     expect(blocked.output).toContain('not on the staffed team');
 
     const allowedTool = new SwarmChannelTool({
-      parentAgent: mockUltraSwarmAgent(),
+      parentAgent: mockParentAgent(),
       parentStore: store,
       run,
       expert: team.experts[0]!,
@@ -584,7 +590,7 @@ describe('current builtin collaboration tools', () => {
     const run = { runId: 'uw_1', parentToolCallId: 'call_uw', team };
     const onMessagePosted = vi.fn();
     const tool = new SwarmChannelTool({
-      parentAgent: mockUltraSwarmAgent(),
+      parentAgent: mockParentAgent(),
       parentStore: store,
       run,
       expert: team.experts[0]!,

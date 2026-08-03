@@ -96,7 +96,6 @@ function makeAgent(
     telemetry: { track: vi.fn() },
     emit,
     records: { logRecord: vi.fn() },
-    ultraSwarmEngageGate: { engage: vi.fn(), isActive: false },
     tools: {
       updateStore: vi.fn((key: string, value: unknown) => {
         toolStore[key] = value;

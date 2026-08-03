@@ -87,41 +87,12 @@ describe('full-policy.ts — pure policy helpers', () => {
   });
 
   describe('shouldDeferAutoCompaction', () => {
-    it('defers while UltraSwarm is active and the soft trigger has not fired', () => {
-      expect(
-        shouldDeferAutoCompaction({
-          ultraSwarmActive: true,
-          shouldBlock: false,
-          hasActiveForegroundChildren: false,
-        }),
-      ).toBe(true);
+    it('defers while foreground children are active', () => {
+      expect(shouldDeferAutoCompaction({ hasActiveForegroundChildren: true })).toBe(true);
     });
 
-    it('does not defer when UltraSwarm is active and the hard block is imminent', () => {
-      expect(
-        shouldDeferAutoCompaction({
-          ultraSwarmActive: true,
-          shouldBlock: true,
-          hasActiveForegroundChildren: false,
-        }),
-      ).toBe(false);
-    });
-
-    it('deferring defers to foreground children only outside UltraSwarm', () => {
-      expect(
-        shouldDeferAutoCompaction({
-          ultraSwarmActive: false,
-          shouldBlock: false,
-          hasActiveForegroundChildren: true,
-        }),
-      ).toBe(true);
-      expect(
-        shouldDeferAutoCompaction({
-          ultraSwarmActive: false,
-          shouldBlock: false,
-          hasActiveForegroundChildren: false,
-        }),
-      ).toBe(false);
+    it('does not defer when no foreground children are active', () => {
+      expect(shouldDeferAutoCompaction({ hasActiveForegroundChildren: false })).toBe(false);
     });
   });
 

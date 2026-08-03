@@ -161,7 +161,7 @@ describe('ExitPlanMode telemetry', () => {
     });
   });
 
-  it('keeps UltraSwarm ENGAGE binding in manual plan approval output', async () => {
+  it('keeps Swarm ENGAGE binding in manual plan approval output', async () => {
     const { agent, exitPlanMode } = makeAgent({
       mode: 'manual',
       ultra: true,
@@ -181,8 +181,8 @@ describe('ExitPlanMode telemetry', () => {
 
     expect(result.isError).toBe(false);
     expect(exitPlanMode).toHaveBeenCalledTimes(1);
-    expect(result.output).toContain('UltraSwarm ENGAGE approved');
-    expect(result.output).toContain('call UltraSwarm before product-file edits');
+    expect(result.output).toContain('Swarm ENGAGE approved');
+    expect(result.output).toContain('before product-file edits');
   });
 
   it('handles revision requests with feedback through permission approval telemetry', async () => {

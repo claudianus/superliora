@@ -847,13 +847,9 @@ describe('SessionSubagentHost', () => {
       'GetCurrentTime',
       'Glob',
       'Grep',
-      'LioraCallgraph',
-      'LioraExpand',
-      'LioraRead',
-      'LioraSymbol',
-      'LioraTree',
       'Read',
       'ReadMediaFile',
+      'RepoQuery',
       'SearchTools',
       'TodoList',
     ]);
@@ -882,7 +878,7 @@ describe('SessionSubagentHost', () => {
     const handle = await host.spawn({
       profileName: 'academic-anthropologist',
       profileBaseName: 'explore',
-      parentToolCallId: 'call_ultra_swarm',
+      parentToolCallId: 'call_agent',
       prompt: 'Review the launch plan',
       description: 'Review plan',
       runInBackground: false,
@@ -903,13 +899,9 @@ describe('SessionSubagentHost', () => {
       'GetCurrentTime',
       'Glob',
       'Grep',
-      'LioraCallgraph',
-      'LioraExpand',
-      'LioraRead',
-      'LioraSymbol',
-      'LioraTree',
       'Read',
       'ReadMediaFile',
+      'RepoQuery',
       'SearchTools',
       'TodoList',
     ]);
@@ -920,7 +912,7 @@ describe('SessionSubagentHost', () => {
         args: expect.objectContaining({
           subagentId: 'agent-0',
           subagentName: 'academic-anthropologist',
-          parentToolCallId: 'call_ultra_swarm',
+          parentToolCallId: 'call_agent',
         }),
       }),
     );
@@ -966,6 +958,7 @@ describe('SessionSubagentHost', () => {
       description: 'Look up a short test value.',
       active: true,
       source: 'user',
+      helpVisibility: 'primary',
     });
 
     const lookupTool = child.agent.tools.loopTools.find((tool) => tool.name === 'Lookup');
@@ -1015,20 +1008,18 @@ describe('SessionSubagentHost', () => {
     expect(child.agent.config.profileName).toBe('coder');
     expect(child.llmCalls[0]?.systemPrompt).toContain('You are now running as a subagent.');
     expect(child.llmCalls[0]?.tools.map((tool) => tool.name).toSorted()).toEqual([
+      'ApplyPatch',
       'AskUserQuestion',
       'Bash',
       'Edit',
+      'Expand',
       'GetCurrentTime',
       'Glob',
       'Grep',
-      'LioraCallgraph',
-      'LioraExpand',
-      'LioraRead',
-      'LioraReview',
-      'LioraSymbol',
-      'LioraTree',
       'Read',
       'ReadMediaFile',
+      'RepoQuery',
+      'Review',
       'RunProjectChecks',
       'SearchTools',
       'TodoList',
