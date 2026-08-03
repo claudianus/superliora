@@ -150,4 +150,53 @@ describe('retire-guardrails gate (V6-7)', () => {
     expect(exitCode).toBe(2);
     expect(output).toContain('unsupported registry version: 2');
   });
+
+  it('warns but passes when a done item carries retro_guard_needed', async () => {
+    const root = makeFixture();
+    writeRegistry(
+      root,
+      [
+        'version: 1',
+        'items:',
+        '  - id: RX-retro',
+        '    status: done',
+        '    commit: abc1234',
+        '    retro_guard_needed: true',
+        '    replacement_proof_tests: [packages/fixture/test/proof.test.ts]',
+        "    grep_zero: ['FORBIDDEN_RETIRE_SYMBOL']",
+      ].join('\n'),
+    );
+    writeSource(root, 'packages/fixture/test/proof.test.ts', 'export const proof = true;');
+
+    const { exitCode, output } = await runGuardrails(root);
+    expect(exitCode).toBe(0);
+    expect(output).toContain('WARNING: retro_guard_needed');
+    expect(output).toContain('retire-guardrails: PASS');
+  });
+
+  it('reports partial items without failing the gate', async () => {
+    const root = makeFixture();
+    writeRegistry(
+      root,
+      [
+        'version: 1',
+        'items:',
+        '  - id: RX-partial',
+        '    status: partial',
+        "    grep_zero: ['FORBIDDEN_RETIRE_SYMBOL']",
+      ].join('\n'),
+    );
+    writeSource(root, 'packages/fixture/src/leak.ts', 'export const FORBIDDEN_RETIRE_SYMBOL = true;');
+
+    const { exitCode, output } = await runGuardrails(root);
+    expect(exitCode).toBe(0);
+    expect(output).toContain('PARTIAL — deferred');
+    expect(output).not.toContain('retire-guardrails: FAIL');
+  });
+
+  it('tracks the R7 final sweep item in the real registry', async () => {
+    const { exitCode, output } = await runGuardrails(repoRoot);
+    expect(exitCode).toBe(0);
+    expect(output).toContain('[R7-final-sweep]');
+  });
 });
