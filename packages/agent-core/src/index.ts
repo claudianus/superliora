@@ -60,7 +60,7 @@ export {
   selectRestaffPhaseSpecs,
   shouldSkipAdaptiveRestaff,
   shouldStopPhaseLoopAtCheckpoint,
-} from './tools/builtin/collaboration/ultra-swarm-phase';
+} from './tools/builtin/fleet/ultra-swarm-phase';
 export {
   CHECK_LIKE_EVIDENCE_TOKENS,
   applyEvidenceHardGate,
@@ -86,7 +86,7 @@ export {
   extractEvidenceIds,
   extractFileChangePaths,
   type DebateDraftHandoffEntry,
-} from './tools/builtin/collaboration/ultra-swarm-helpers';
+} from './tools/builtin/fleet/ultra-swarm-helpers';
 export {
   clearStaffingOutcomes,
   getOutcome,
