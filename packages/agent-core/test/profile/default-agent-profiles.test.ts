@@ -194,6 +194,30 @@ describe('default agent profiles', () => {
     }
   });
 
+
+  it('defines conductor meta-orchestrator profile with lifecycle + Job tools under ≤30', () => {
+    const tools = DEFAULT_AGENT_PROFILES['conductor']?.tools ?? [];
+    expect(tools.length).toBeGreaterThan(0);
+    expect(tools.length).toBeLessThanOrEqual(30);
+    for (const name of [
+      'NextPhase',
+      'ExitPlanMode',
+      'RecordInterviewFinding',
+      'CreateGoal',
+      'UpdateGoal',
+      'JobCreate',
+      'JobList',
+      'MergeJob',
+      'JobResume',
+      'JobInbox',
+      'Fleet',
+    ] as const) {
+      expect(tools).toContain(name);
+    }
+    // Worker-only waist tools stay off conductor
+    expect(tools).not.toContain('UltraworkGraph');
+  });
+
   it('defines the core waist profile with exactly 12 SSOT tools', () => {
     const coreTools = DEFAULT_AGENT_PROFILES['core']?.tools ?? [];
     expect(coreTools).toHaveLength(12);
@@ -220,8 +244,9 @@ describe('default agent profiles', () => {
   it('keeps default agent waist ≤30 and moves Expand/Context7/media/expert/DeepResearch edges to full', () => {
     const agentTools = DEFAULT_AGENT_PROFILES['agent']?.tools ?? [];
     expect(agentTools.length).toBeLessThanOrEqual(30);
-    // Loop19c: 29 tools (DeepResearch demoted) — headroom under hard 30 cap.
+    // Conductor reform: RecordInterviewFinding on agent; Review on full — stay ≤30.
     expect(agentTools).toHaveLength(29);
+    expect(agentTools).toContain('RecordInterviewFinding');
     for (const edge of [
       'Expand',
       'Memory',
@@ -262,10 +287,11 @@ describe('default agent profiles', () => {
     }
   });
 
-  it('keeps Review on coding profiles; VisualDiff/media stay Extended (full/coder only)', () => {
-    // Default agent waist (Phase A): no Generate*/VerifySurface/VisualDiff/mcp__*.
+  it('keeps Review on coder/full; agent prefers RecordInterviewFinding; VisualDiff/media Extended', () => {
+    // Default agent waist: Mission lifecycle (RecordInterviewFinding) over Review; Review on full/coder.
     const agentTools = DEFAULT_AGENT_PROFILES['agent']?.tools ?? [];
-    expect(agentTools).toContain('Review');
+    expect(agentTools).toContain('RecordInterviewFinding');
+    expect(agentTools).not.toContain('Review');
     expect(agentTools).not.toContain('LioraReview');
     expect(agentTools).not.toContain('VisualDiff');
     expect(agentTools).not.toContain('GenerateImage');

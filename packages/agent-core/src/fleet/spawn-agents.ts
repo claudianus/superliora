@@ -13,6 +13,8 @@ export interface FanoutTask {
   readonly description: string;
   readonly profileName: string;
   readonly ownership?: readonly string[];
+  /** Isolated git worktree cwd for the worker (Conductor Jobs / fleet). */
+  readonly worktreeDir?: string;
   /** Resume an existing agent instead of spawning (manual/template modes). */
   readonly resumeAgentId?: string;
   readonly swarmIndex?: number;
@@ -57,6 +59,7 @@ export function runOptionsForTask(spec: FanoutSpec, task: FanoutTask): RunSubage
     swarmIndex: task.swarmIndex,
     swarmItem: task.swarmItem,
     ownership: task.ownership,
+    worktreeDir: task.worktreeDir,
   };
 }
 

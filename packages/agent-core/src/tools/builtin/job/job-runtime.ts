@@ -1,0 +1,394 @@
+/**
+ * Conductor Job runtime (P1) — concurrency cap, always-worktree isolation, schedule.
+ * Full async worker loops land incrementally; this module owns ledger transitions
+ * and worktree lifecycle hooks that later slices attach subagent handles to.
+ */
+
+import type { Kaos } from '@superliora/kaos';
+
+import type { Logger } from '../../../logging/types';
+import {
+  createSessionWorktree,
+  gcSessionWorktrees,
+  removeSessionWorktree,
+  type CreateSessionWorktreeResult,
+} from '../../../session/worktree';
+import type { ToolStore } from '../../store';
+import {
+  getJob,
+  listJobs,
+  patchJob,
+  type JobKind,
+  type JobRecord,
+  type JobStatus,
+} from './job-ledger';
+
+/** Locked product defaults (Conductor plan). */
+export const CONDUCTOR_DEFAULT_WARM_POOL_SIZE = 2;
+export const CONDUCTOR_DEFAULT_MAX_CONCURRENT_JOBS = 6;
+/** Failed/cancelled/conflict worktrees retained this many days before GC. */
+export const CONDUCTOR_WORKTREE_FAIL_TTL_DAYS = 7;
+
+export interface ConductorPoolConfig {
+  readonly warmPoolSize: number;
+  readonly maxConcurrentJobs: number;
+  readonly failTtlDays: number;
+}
+
+export function resolveConductorPoolConfig(
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): ConductorPoolConfig {
+  return {
+    warmPoolSize: readPositiveInt(
+      env['SUPERLIORA_CONDUCTOR_WARM_POOL'],
+      CONDUCTOR_DEFAULT_WARM_POOL_SIZE,
+    ),
+    maxConcurrentJobs: readPositiveInt(
+      env['SUPERLIORA_CONDUCTOR_MAX_CONCURRENT'],
+      CONDUCTOR_DEFAULT_MAX_CONCURRENT_JOBS,
+    ),
+    failTtlDays: readPositiveInt(
+      env['SUPERLIORA_CONDUCTOR_WORKTREE_TTL_DAYS'],
+      CONDUCTOR_WORKTREE_FAIL_TTL_DAYS,
+    ),
+  };
+}
+
+function readPositiveInt(raw: string | undefined, fallback: number): number {
+  if (raw === undefined || raw.trim() === '') return fallback;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+export function countJobsWithStatus(
+  store: ToolStore,
+  statuses: readonly JobStatus[],
+): number {
+  const set = new Set(statuses);
+  return listJobs(store).filter((j) => set.has(j.status)).length;
+}
+
+export function canStartMoreJobs(
+  store: ToolStore,
+  maxConcurrent: number = resolveConductorPoolConfig().maxConcurrentJobs,
+): boolean {
+  return countJobsWithStatus(store, ['running']) < maxConcurrent;
+}
+
+export function nextQueuedJobs(
+  store: ToolStore,
+  limit: number,
+): JobRecord[] {
+  return [...listJobs(store)]
+    .filter((j) => j.status === 'queued')
+    .sort((a, b) => b.priority - a.priority || a.createdAt.localeCompare(b.createdAt))
+    .slice(0, Math.max(0, limit));
+}
+
+export type WorktreeFactory = (
+  kaos: Kaos,
+  input: { readonly repoPath: string; readonly name: string },
+) => Promise<CreateSessionWorktreeResult>;
+
+export interface AssignJobWorktreeInput {
+  readonly store: ToolStore;
+  readonly jobId: string;
+  readonly kaos: Kaos;
+  readonly repoPath: string;
+  readonly createWorktree?: WorktreeFactory;
+  readonly log?: Logger;
+}
+
+/**
+ * Always-worktree isolation for execution Jobs (locked policy).
+ * On failure: job stays queued/blocked with notes — never silent shared cwd.
+ */
+export async function assignJobWorktree(
+  input: AssignJobWorktreeInput,
+): Promise<{ readonly job?: JobRecord; readonly error?: string }> {
+  const existing = getJob(input.store, input.jobId);
+  if (existing === undefined) {
+    return { error: `Job not found: ${input.jobId}` };
+  }
+  if (existing.worktreePath) {
+    return { job: existing };
+  }
+
+  const create = input.createWorktree ?? createSessionWorktree;
+  const slug = worktreeNameForJob(existing.id);
+  try {
+    const created = await create(input.kaos, {
+      repoPath: input.repoPath,
+      name: slug,
+    });
+    const job = patchJob(input.store, existing.id, {
+      worktreePath: created.workDir,
+      notes: [existing.notes, `worktree: ${created.workDir}`].filter(Boolean).join('\n'),
+    });
+    return { job };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    input.log?.warn('Conductor job worktree create failed', {
+      jobId: existing.id,
+      error: detail,
+    });
+    const job = patchJob(input.store, existing.id, {
+      status: 'blocked',
+      notes: [existing.notes, `worktree_failed: ${detail}`].filter(Boolean).join('\n'),
+    });
+    return { job, error: detail };
+  }
+}
+
+export function worktreeNameForJob(jobId: string): string {
+  // git worktree slug: keep short/safe
+  const compact = jobId.replace(/^job_/, 'j').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40);
+  return `conductor-${compact || 'job'}`;
+}
+
+export interface ScheduleJobsInput {
+  readonly store: ToolStore;
+  readonly kaos?: Kaos;
+  readonly repoPath?: string;
+  readonly createWorktree?: WorktreeFactory;
+  readonly maxConcurrent?: number;
+  readonly log?: Logger;
+  /**
+   * When true (default), require kaos+repoPath and create worktrees.
+   * Unit tests may set false to only flip queued→running without git.
+   */
+  readonly requireWorktree?: boolean;
+  /** Optional: spawn real worker after job becomes running. */
+  readonly launchWorker?: (job: JobRecord) => Promise<void>;
+}
+
+export interface ScheduleJobsResult {
+  readonly started: readonly JobRecord[];
+  readonly deferred: number;
+  readonly blocked: readonly JobRecord[];
+  readonly backpressure: boolean;
+  readonly message: string;
+}
+
+/**
+ * Promote highest-priority queued Jobs to running under maxConcurrent.
+ * Always-worktree when kaos+repoPath provided (product default).
+ */
+export async function scheduleQueuedJobs(input: ScheduleJobsInput): Promise<ScheduleJobsResult> {
+  const max =
+    input.maxConcurrent ?? resolveConductorPoolConfig().maxConcurrentJobs;
+  const running = countJobsWithStatus(input.store, ['running']);
+  const slots = Math.max(0, max - running);
+  if (slots === 0) {
+    const queued = countJobsWithStatus(input.store, ['queued']);
+    return {
+      started: [],
+      deferred: queued,
+      blocked: [],
+      backpressure: queued > 0,
+      message:
+        queued > 0
+          ? `Backpressure: ${running}/${max} jobs running; ${queued} queued.`
+          : `Pool idle capacity full (${running}/${max} running).`,
+    };
+  }
+
+  const candidates = nextQueuedJobs(input.store, slots);
+  const started: JobRecord[] = [];
+  const blocked: JobRecord[] = [];
+  const requireWt = input.requireWorktree !== false;
+
+  for (const candidate of candidates) {
+    let job = candidate;
+    if (requireWt) {
+      if (input.kaos === undefined || input.repoPath === undefined) {
+        const b = patchJob(input.store, candidate.id, {
+          status: 'blocked',
+          notes: [candidate.notes, 'worktree_required: missing kaos/repoPath'].filter(Boolean).join(
+            '\n',
+          ),
+        });
+        if (b) blocked.push(b);
+        continue;
+      }
+      const assigned = await assignJobWorktree({
+        store: input.store,
+        jobId: candidate.id,
+        kaos: input.kaos,
+        repoPath: input.repoPath,
+        createWorktree: input.createWorktree,
+        log: input.log,
+      });
+      if (assigned.error || assigned.job === undefined) {
+        if (assigned.job) blocked.push(assigned.job);
+        continue;
+      }
+      job = assigned.job;
+    }
+
+    const runningJob = patchJob(input.store, job.id, {
+      status: 'running',
+      notes: [job.notes, 'schedule: running'].filter(Boolean).join('\n'),
+    });
+    if (runningJob) {
+      if (input.launchWorker) {
+        try {
+          await input.launchWorker(runningJob);
+          const after = getJob(input.store, runningJob.id) ?? runningJob;
+          started.push(after);
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : String(error);
+          input.log?.warn('Conductor launchWorker failed', { jobId: runningJob.id, error: detail });
+          const failed = patchJob(input.store, runningJob.id, {
+            status: 'failed',
+            notes: [runningJob.notes, `launch_failed: ${detail}`].filter(Boolean).join('\n'),
+          });
+          if (failed) blocked.push(failed);
+        }
+      } else {
+        started.push(runningJob);
+      }
+    }
+  }
+
+  const stillQueued = countJobsWithStatus(input.store, ['queued']);
+  const nowRunning = countJobsWithStatus(input.store, ['running']);
+  return {
+    started,
+    deferred: stillQueued,
+    blocked,
+    backpressure: stillQueued > 0 && nowRunning >= max,
+    message:
+      started.length > 0
+        ? `Started ${started.length} job(s); running ${nowRunning}/${max}; queued ${stillQueued}.`
+        : stillQueued > 0
+          ? `No jobs started; queued ${stillQueued}; running ${nowRunning}/${max}.`
+          : `Nothing to schedule; running ${nowRunning}/${max}.`,
+  };
+}
+
+export interface GcJobWorktreesInput {
+  readonly kaos: Kaos;
+  readonly store: ToolStore;
+  readonly failTtlDays?: number;
+  readonly dryRun?: boolean;
+}
+
+/**
+ * GC policy: successful/done jobs may drop worktrees immediately when path set;
+ * failed/cancelled/interrupted retain until TTL via session worktree GC.
+ */
+export async function gcConductorJobWorktrees(
+  input: GcJobWorktreesInput,
+): Promise<{ readonly removedJobIds: readonly string[]; readonly gc: { readonly removed: number; readonly kept: number } }> {
+  const removedJobIds: string[] = [];
+  const jobs = listJobs(input.store);
+  for (const job of jobs) {
+    if (job.status !== 'done' || !job.worktreePath) continue;
+    if (input.dryRun) {
+      removedJobIds.push(job.id);
+      continue;
+    }
+    try {
+      await removeSessionWorktree(input.kaos, { nameOrPath: job.worktreePath });
+      patchJob(input.store, job.id, {
+        worktreePath: undefined,
+        notes: [job.notes, 'worktree: removed after success'].filter(Boolean).join('\n'),
+      });
+      removedJobIds.push(job.id);
+    } catch {
+      // leave path for next GC
+    }
+  }
+
+  const ttl = input.failTtlDays ?? resolveConductorPoolConfig().failTtlDays;
+  const result = await gcSessionWorktrees(input.kaos, {
+    maxAgeDays: ttl,
+    dryRun: input.dryRun,
+  });
+  return {
+    removedJobIds,
+    gc: { removed: result.removed.length, kept: result.kept },
+  };
+}
+
+export function profileForJobKind(kind: JobKind): string {
+  switch (kind) {
+    case 'explore':
+      return 'explore';
+    case 'mission':
+      return 'plan';
+    case 'implement':
+    case 'task':
+    case 'merge':
+    default:
+      return 'coder';
+  }
+}
+
+/** Compact counts for TUI Job strip / footer badge. */
+export interface ConductorJobStripSnapshot {
+  readonly total: number;
+  readonly queued: number;
+  readonly running: number;
+  readonly blocked: number;
+  readonly needsUser: number;
+  readonly interrupted: number;
+  readonly done: number;
+  readonly failed: number;
+  readonly cancelled: number;
+}
+
+export function summarizeJobStrip(store: ToolStore): ConductorJobStripSnapshot {
+  const jobs = listJobs(store);
+  const count = (status: JobStatus): number => jobs.filter((j) => j.status === status).length;
+  return {
+    total: jobs.length,
+    queued: count('queued'),
+    running: count('running'),
+    blocked: count('blocked'),
+    needsUser: count('needs_user'),
+    interrupted: count('interrupted'),
+    done: count('done'),
+    failed: count('failed'),
+    cancelled: count('cancelled'),
+  };
+}
+
+export function formatJobStripLine(snapshot: ConductorJobStripSnapshot, unreadInbox = 0): string {
+  if (snapshot.total === 0 && unreadInbox === 0) return 'Jobs: idle';
+  const parts: string[] = [];
+  if (snapshot.running > 0) parts.push(`${snapshot.running}▸`);
+  if (snapshot.queued > 0) parts.push(`${snapshot.queued}…`);
+  if (snapshot.blocked > 0) parts.push(`${snapshot.blocked}⛔`);
+  if (snapshot.needsUser > 0) parts.push(`${snapshot.needsUser}?`);
+  if (snapshot.interrupted > 0) parts.push(`${snapshot.interrupted}⏸`);
+  if (snapshot.failed > 0) parts.push(`${snapshot.failed}✗`);
+  if (unreadInbox > 0) parts.push(`inbox ${unreadInbox}`);
+  if (parts.length === 0) {
+    return `Jobs: ${snapshot.total} tracked`;
+  }
+  return `Jobs: ${parts.join(' ')}`;
+}
+
+/**
+ * Session end / disconnect: mark in-flight jobs interrupted (resume later).
+ * Does not delete worktrees.
+ */
+export function markInFlightJobsInterrupted(
+  store: ToolStore,
+  reason = 'session interrupted',
+): readonly JobRecord[] {
+  const out: JobRecord[] = [];
+  for (const job of listJobs(store)) {
+    if (job.status !== 'running' && job.status !== 'queued') continue;
+    // Keep queued as queued so schedule can pick them up; only running → interrupted.
+    if (job.status === 'queued') continue;
+    const next = patchJob(store, job.id, {
+      status: 'interrupted',
+      notes: [job.notes, `interrupt: ${reason}`].filter(Boolean).join('\n'),
+    });
+    if (next) out.push(next);
+  }
+  return out;
+}

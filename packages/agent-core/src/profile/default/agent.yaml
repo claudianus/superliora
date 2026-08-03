@@ -23,6 +23,7 @@ tools:
   - EnterPlanMode
   - NextPhase
   - ExitPlanMode
+  - RecordInterviewFinding
   - CreateGoal
   - GetGoal
   - SetGoalBudget
@@ -40,7 +41,6 @@ tools:
   - TaskList
   - TaskOutput
   - TaskStop
-  - Review
   # Edges on superliora-full / explore / coder: DeepResearch, Expand, Memory,
   # GetCurrentTime, Context7*, ReadMediaFile, SearchExpert, TaskGraph, visual/MCP.
   # Default agent waist target: ≤29 (headroom under hard 30 cap).

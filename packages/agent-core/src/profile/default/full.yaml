@@ -56,6 +56,16 @@ tools:
   - EnterPlanMode
   - NextPhase
   - ExitPlanMode
+  - RecordInterviewFinding
+  - JobCreate
+  - JobList
+  - JobInspect
+  - JobSteer
+  - JobCancel
+  - MergeJob
+  - JobSchedule
+  - JobResume
+  - JobInbox
   - CreateGoal
   - GetGoal
   - GetCurrentTime

@@ -34,6 +34,11 @@ import type {
   ResumeUltraworkResult,
   UltraworkActivation,
 } from './types';
+import { assertMissionLifecycleTools } from './lifecycle-tools';
+import {
+  bindMissionToJob,
+  syncMissionJobStatus,
+} from '../tools/builtin/job/job-mission-bind';
 import { reconcileUltraworkFromMirror } from './mirror-reconcile';
 import { mirrorUltraworkWorkflowStage, seedUltraworkWorkflowReport, ensureUltraworkWorkflowArtifacts } from './workflow-report';
 
@@ -106,6 +111,7 @@ export class UltraworkMode {
   }
 
   create(input: CreateUltraworkRunInput): UltraworkRun {
+    assertMissionLifecycleTools(this.agent.tools.enabledTools, 'Mission');
     const existing = this.getRun();
     if (existing !== null && existing.status !== 'done' && existing.status !== 'failed') {
       throw new Error(
@@ -132,6 +138,20 @@ export class UltraworkMode {
       });
     } catch (error) {
       this.agent.log.warn('ultrawork workflow report seed failed', { runId: input.id, error });
+    }
+    // Mission-as-Job spine: ledger entry so Conductor can run parallel Jobs.
+    try {
+      const missionJob = bindMissionToJob(this.agent.tools.getStore(), {
+        missionRunId: input.id,
+        objective: input.objective,
+        status: 'running',
+      });
+      this.agent.log.debug?.('mission bound to conductor job', {
+        missionRunId: input.id,
+        jobId: missionJob.id,
+      });
+    } catch (error) {
+      this.agent.log.warn('mission job bind failed', { runId: input.id, error });
     }
     const run = this.advance('plan', 'Mission started');
     this.agent.telemetry.track('ultrawork_create', {
@@ -233,6 +253,7 @@ export class UltraworkMode {
     const reason = input.reason ?? 'Paused by user';
     this.interruptReason = reason;
     const blocked = machine.markBlocked(reason);
+    this.syncBoundJob(run.id, 'interrupted', reason);
     await this.agent.goal.pauseGoal();
     this.agent.telemetry.track('ultrawork_pause', {
       run_id: run.id,
@@ -251,6 +272,7 @@ export class UltraworkMode {
 
     this.interruptReason = input.reason;
     const blocked = machine.markBlocked(input.reason);
+    this.syncBoundJob(run.id, 'interrupted', input.reason);
     this.agent.telemetry.track('ultrawork_interrupt', {
       run_id: run.id,
       stage: run.stage,
@@ -258,6 +280,19 @@ export class UltraworkMode {
     });
     this.writeCheckpoint({ flush: true });
     return blocked;
+  }
+
+  /** Keep Conductor Job ledger in sync with Mission lifecycle (non-blocking). */
+  private syncBoundJob(
+    missionRunId: string,
+    status: 'running' | 'done' | 'failed' | 'interrupted' | 'blocked' | 'cancelled',
+    summary?: string,
+  ): void {
+    try {
+      syncMissionJobStatus(this.agent.tools.getStore(), missionRunId, status, summary);
+    } catch (error) {
+      this.agent.log.warn('mission job status sync failed', { missionRunId, status, error });
+    }
   }
 
   async resume(): Promise<ResumeUltraworkResult | null> {
@@ -350,6 +385,7 @@ export class UltraworkMode {
 
     this.interruptReason = reason;
     const failed = machine.markFailed(reason);
+    this.syncBoundJob(run.id, 'cancelled', reason);
     await this.agent.goal.cancelGoal();
     this.modeEnabled = false;
     this.agent.records.logRecord({ type: 'ultrawork.mode', enabled: false });
@@ -390,6 +426,7 @@ export class UltraworkMode {
     }
     const run = machine.advance('done', reason);
     this.emitStageChanged(run, from, 'done', reason);
+    this.syncBoundJob(run.id, 'done', reason);
     this.modeEnabled = false;
     this.agent.records.logRecord({ type: 'ultrawork.mode', enabled: false });
     // Mirror the terminal stage into the workflow report so that the

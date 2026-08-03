@@ -20,6 +20,13 @@ export interface UltraworkRunMirror {
    * Mirror schema version. Bumped when the on-disk shape changes in a way old
    * readers cannot safely consume. Readers accept their own version and
    * earlier; `readUltraworkMirrorFromDisk` validates this.
+   *
+   * Version history:
+   * - 1: initial mirror (run + activation)
+   * - 2: added planCheckpoint / goalStatus / resumeCursor / interruptReason
+   *      (recovery-resume reads these; schema-1 mirrors resume via journal
+   *      offset replay instead). Migration note: schema 1 readers accept 2;
+   *      schema 2 readers accept 1. No rewrite-on-read — old files stay put.
    */
   readonly schema: 2;
   readonly run: UltraworkRun;

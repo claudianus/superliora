@@ -34,6 +34,7 @@ export * from './goal/create-ultra-goal';
 export * from './goal/get-goal';
 export * from './goal/set-goal-budget';
 export * from './goal/update-goal';
+export * from './job';
 export * from './gui/browser-use';
 export * from './gui/computer-use';
 export * from './gui/verify-surface';

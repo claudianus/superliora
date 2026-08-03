@@ -148,6 +148,7 @@ function createFileAndContextTools(
         allowBackground,
         store: host.toolStore,
         pathPrefix: host.agent.pluginBinDirs,
+        isWorker: host.agent.type !== 'main',
       }),
     shouldCreateBuiltin(host, 'RunProjectChecks') &&
       new b.RunProjectChecksTool(kaos, cwd, { store: host.toolStore }),
@@ -260,6 +261,15 @@ function createPlanningGoalAndStateTools(
     hasCron && shouldCreateBuiltin(host, 'CronCreate') && new b.CronCreateTool(host.agent.cron),
     hasCron && shouldCreateBuiltin(host, 'CronList') && new b.CronListTool(host.agent.cron),
     hasCron && shouldCreateBuiltin(host, 'CronDelete') && new b.CronDeleteTool(host.agent.cron),
+    shouldCreateBuiltin(host, 'JobCreate') && new b.JobCreateTool(host.toolStore, host.agent),
+    shouldCreateBuiltin(host, 'JobList') && new b.JobListTool(host.toolStore),
+    shouldCreateBuiltin(host, 'JobInspect') && new b.JobInspectTool(host.toolStore),
+    shouldCreateBuiltin(host, 'JobSteer') && new b.JobSteerTool(host.toolStore, host.agent),
+    shouldCreateBuiltin(host, 'JobCancel') && new b.JobCancelTool(host.toolStore, host.agent),
+    shouldCreateBuiltin(host, 'MergeJob') && new b.MergeJobTool(host.toolStore, host.agent),
+    shouldCreateBuiltin(host, 'JobSchedule') && new b.JobScheduleTool(host.toolStore, host.agent),
+    shouldCreateBuiltin(host, 'JobResume') && new b.JobResumeTool(host.toolStore, host.agent),
+    shouldCreateBuiltin(host, 'JobInbox') && new b.JobInboxTool(host.toolStore),
   ];
 }
 

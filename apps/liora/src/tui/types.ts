@@ -60,6 +60,20 @@ export interface AppState {
   orchestratorMode?: boolean;
   /** Active orchestrator worker summaries for the status board. */
   orchestratorWorkers?: readonly { id: string; description: string; status: string; tokenOutput?: number }[];
+  /**
+   * Conductor Job desk strip (meta-orchestrator). Populated when Job* tools
+   * update the ledger or after /jobs refresh; optional until first job event.
+   */
+  conductorJobs?: {
+    readonly total: number;
+    readonly queued: number;
+    readonly running: number;
+    readonly blocked: number;
+    readonly needsUser: number;
+    readonly interrupted: number;
+    readonly failed: number;
+    readonly unreadInbox: number;
+  } | null;
   /** 'bash' when the editor is in `!` shell-command mode. */
   inputMode: 'prompt' | 'bash';
   swarmMode: boolean;

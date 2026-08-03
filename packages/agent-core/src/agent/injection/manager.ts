@@ -11,6 +11,7 @@ import { PlanModeInjector } from './plan-mode';
 import { PremiumQualityInjector } from './premium-quality';
 import { ResponseLanguageInjector } from './response-language';
 import { TodoListReminderInjector } from './todo-list';
+import { JobDeskInjector } from './job-desk';
 import { ULTRAWORK_GRAPH_STORE_KEY } from '../../tools/builtin/state/ultrawork-graph-store-key';
 import { injectUltraworkPostCompactionContinuation } from '#/mission';
 
@@ -39,6 +40,7 @@ export class InjectionManager {
       new MemoryInjector(agent),
       new ToolWorkflowInjector(agent),
       new TodoListReminderInjector(agent),
+      new JobDeskInjector(agent),
       new PlanModeInjector(agent),
       new PremiumQualityInjector(agent),
       new PermissionModeInjector(agent),

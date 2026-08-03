@@ -27,6 +27,7 @@ import type { TasksBrowserController } from '../panes/tasks-browser';
 import { SessionEventBackgroundTasks } from './background-tasks';
 import { SessionEventCompaction } from './compaction';
 import { SessionEventGoalQueue } from './goal-queue';
+import { SessionEventJobDesk } from './job-desk';
 import { SessionEventMcpStatus } from './mcp-status';
 import { SessionEventNotices } from './notices';
 import { SessionEventTools } from './tools';
@@ -79,6 +80,7 @@ export class SessionEventHandler {
   readonly subAgentEventHandler: SubAgentEventHandler;
   private readonly compaction: SessionEventCompaction;
   private readonly goalQueue: SessionEventGoalQueue;
+  private readonly jobDesk: SessionEventJobDesk;
   private readonly tools: SessionEventTools;
   private readonly turn: SessionEventTurn;
   private readonly ultrawork: SessionEventUltrawork;
@@ -100,6 +102,7 @@ export class SessionEventHandler {
         this.pendingModelBlockedFallback = value;
       },
     });
+    this.jobDesk = new SessionEventJobDesk(host);
     this.backgroundTasksHandler = new SessionEventBackgroundTasks(
       host,
       this.backgroundTasks,
@@ -354,6 +357,8 @@ export class SessionEventHandler {
       }
       case 'session.meta.updated': this.notices.handleSessionMetaChanged(event); break;
       case 'goal.updated': this.goalQueue.handleUpdated(event); break;
+      case 'job.updated': this.jobDesk.handleUpdated(event); break;
+      case 'job.inbox': this.jobDesk.handleInbox(event); break;
       case 'skill.activated': this.notices.handleSkillActivated(event); break;
       case 'plugin_command.activated': this.notices.handlePluginCommandActivated(event); break;
       case 'error': this.notices.handleSessionError(event); break;

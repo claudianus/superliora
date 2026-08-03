@@ -20,6 +20,7 @@ import type {
 } from '../../../loop/types';
 import { ToolAccesses } from '../../../loop/tool-access';
 import { toInputJsonSchema } from '../../support/input-schema';
+import type { ToolStore } from '../../store';
 import type {
   SessionSubagentHost,
   SpawnSubagentOptions,
@@ -88,9 +89,9 @@ type SpawnWorkerInput = z.infer<typeof SpawnWorkerInputSchema>;
 export class SpawnWorkerTool implements BuiltinTool<SpawnWorkerInput> {
   readonly name = 'SpawnWorker';
   readonly description =
-    'Spawn a background worker agent in an isolated git worktree. ' +
-    'The worker runs asynchronously and reports back when done. ' +
-    'Use this for all real implementation work — the orchestrator never edits files directly.';
+    'Compat Fleet path: spawn a background worker in an isolated git worktree. ' +
+    'Prefer JobCreate on Conductor for new work. When toolStore is provided, registers a Job ledger entry. ' +
+    'The worker runs asynchronously and reports back when done.';
   readonly parameters: Record<string, unknown> = toInputJsonSchema(SpawnWorkerInputSchema);
 
   constructor(
@@ -99,6 +100,7 @@ export class SpawnWorkerTool implements BuiltinTool<SpawnWorkerInput> {
     private readonly repoPath: string,
     private readonly workers: Map<string, OrchestratorWorker>,
     private readonly onWorkerComplete?: (worker: OrchestratorWorker) => void,
+    private readonly toolStore?: ToolStore,
   ) {}
 
   async resolveExecution(args: SpawnWorkerInput): Promise<ToolExecution> {
@@ -114,6 +116,20 @@ export class SpawnWorkerTool implements BuiltinTool<SpawnWorkerInput> {
     args: SpawnWorkerInput,
     ctx: ExecutableToolContext,
   ): Promise<ExecutableToolResult> {
+    // Conductor bridge — ledger registration (non-fatal).
+    if (this.toolStore !== undefined) {
+      try {
+        const { registerSpawnWorkerAsJob } = await import('../job/job-fleet-bridge');
+        registerSpawnWorkerAsJob(this.toolStore, {
+          prompt: args.prompt,
+          title: args.description,
+          ownershipPaths: args.ownership,
+        });
+      } catch {
+        // ignore
+      }
+    }
+
     const workerId = `worker-${String(this.workers.size + 1)}`;
 
     // Check dependencies — defer spawning if any dependency is not yet completed.

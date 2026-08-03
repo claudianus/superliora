@@ -26,6 +26,12 @@ import {
 } from './runtime';
 import { goalUpdatedEventSchema, type GoalUpdatedEvent } from './goal';
 import {
+  jobInboxEventSchema,
+  jobUpdatedEventSchema,
+  type JobInboxEvent,
+  type JobUpdatedEvent,
+} from './job';
+import {
   cronFiredEventSchema,
   pluginCommandActivatedEventSchema,
   skillActivatedEventSchema,
@@ -180,6 +186,8 @@ export type AgentEvent =
   | UltraworkVerificationCompletedEvent
   | UltraworkKnowledgePromotedEvent
   | GoalUpdatedEvent
+  | JobUpdatedEvent
+  | JobInboxEvent
   | SkillActivatedEvent
   | PluginCommandActivatedEvent
   | TurnStartedEvent
@@ -251,6 +259,8 @@ const agentEventDiscriminatedSchema = z.discriminatedUnion('type', [
   ultraworkVerificationCompletedEventSchema,
   ultraworkKnowledgePromotedEventSchema,
   goalUpdatedEventSchema,
+  jobUpdatedEventSchema,
+  jobInboxEventSchema,
   skillActivatedEventSchema,
   pluginCommandActivatedEventSchema,
   turnStartedEventSchema,

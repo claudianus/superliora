@@ -43,6 +43,7 @@ import { showToolsInventory } from '../config/harness/harness-tools';
 import { handleGoalCommand } from '../goal';
 import { handleImproveHarnessCommand } from '../improve-harness';
 import { handleCronCommand } from '../cron';
+import { handleJobCommand, handleJobsCommand } from '../jobs';
 import { showDiff } from '../session/diff';
 import { showLog } from '../log';
 import { showContextOsReport, showMcpServers, showQuota, showStatusReport, showUsage } from '../info/info';
@@ -372,6 +373,12 @@ async function handleBuiltInSlashCommand(
       return;
     case 'tasks':
       void host.tasksBrowserController.show();
+      return;
+    case 'jobs':
+      handleJobsCommand(host, args);
+      return;
+    case 'job':
+      handleJobCommand(host, args);
       return;
     case 'cron':
       handleCronCommand(host, args);

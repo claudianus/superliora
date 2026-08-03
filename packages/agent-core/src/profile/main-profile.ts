@@ -19,14 +19,18 @@ export const SOVEREIGN_CORE_DEFAULT_ENV = 'SUPERLIORA_SOVEREIGN_CORE';
  */
 export const SOVEREIGN_UMBRELLA_ENV = 'SUPERLIORA_SOVEREIGN';
 
-/** Sovereign Core waist (Core≤12 SSOT). Hard default when profile env/config unset. */
+/** Sovereign Core waist (Core≤12 SSOT) — worker / subagent default waist. */
 export const SOVEREIGN_CORE_PROFILE_NAME = 'core';
+
+/** Meta-orchestrator main profile (Conductor). Hard default when profile env/config unset. */
+export const SOVEREIGN_CONDUCTOR_PROFILE_NAME = 'conductor';
 
 /** Opt out of Core≤12: set SUPERLIORA_PROFILE=agent or agent.profile = "agent". */
 export const SOVEREIGN_CORE_CUTOVER_TIP =
-  'Default profile is core (Core≤12). Wide waist: SUPERLIORA_PROFILE=agent or agent.profile = "agent".';
+  'Default profile is conductor (meta orchestrator). Worker waist: SUPERLIORA_PROFILE=core. Coding waist: SUPERLIORA_PROFILE=agent or superliora-full.';
 /** Bundled profiles suitable for the main agent (documentation / validation aid). */
 export const KNOWN_MAIN_AGENT_PROFILE_NAMES = [
+  SOVEREIGN_CONDUCTOR_PROFILE_NAME,
   SOVEREIGN_CORE_PROFILE_NAME,
   DEFAULT_MAIN_AGENT_PROFILE_NAME,
   'superliora-full',
@@ -45,8 +49,8 @@ function trimmed(value: string | undefined): string | undefined {
 
 /**
  * Resolve the main agent profile name from env (highest) then config.
- * Hard default is Sovereign Core (`core`, Core≤12). Wide waist via
- * `SUPERLIORA_PROFILE=agent` or `agent.profile = "agent"`.
+ * Hard default is Conductor (`conductor`) meta-orchestrator.
+ * Worker Core≤12: `SUPERLIORA_PROFILE=core`. Coding waist: `agent` / `superliora-full`.
  * Does not validate that the profile exists in the bundled catalog.
  */
 export function resolveMainAgentProfileName(
@@ -57,7 +61,7 @@ export function resolveMainAgentProfileName(
   if (fromEnv !== undefined) return fromEnv;
   const fromConfig = trimmed(config?.agent?.profile);
   if (fromConfig !== undefined) return fromConfig;
-  return SOVEREIGN_CORE_PROFILE_NAME;
+  return SOVEREIGN_CONDUCTOR_PROFILE_NAME;
 }
 
 /**

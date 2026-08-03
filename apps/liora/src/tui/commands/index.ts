@@ -51,6 +51,7 @@ export {
   type RendererTraceCommand,
 } from './renderer';
 export { handleGoalCommand, parseGoalCommand } from './goal';
+export { handleJobCommand, handleJobsCommand } from './jobs';
 export { goalArgumentCompletions } from './hub/registry';
 export { handleForkCommand, handleInitCommand, handleTitleCommand } from './session/session';
 export { handleUndoCommand } from './session/undo';

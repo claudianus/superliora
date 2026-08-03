@@ -5,6 +5,7 @@ import {
   MAIN_AGENT_PROFILE_ENV,
   resolveMainAgentProfile,
   resolveMainAgentProfileName,
+  SOVEREIGN_CONDUCTOR_PROFILE_NAME,
   SOVEREIGN_CORE_DEFAULT_ENV,
   SOVEREIGN_CORE_PROFILE_NAME,
   SOVEREIGN_UMBRELLA_ENV,
@@ -12,32 +13,35 @@ import {
 import { DEFAULT_AGENT_PROFILES } from '../../src/profile/default';
 
 describe('resolveMainAgentProfile', () => {
-  it('defaults to core when env and config are unset', () => {
-    expect(resolveMainAgentProfileName(undefined, {})).toBe(SOVEREIGN_CORE_PROFILE_NAME);
-    expect(resolveMainAgentProfile(DEFAULT_AGENT_PROFILES, undefined, {}).name).toBe('core');
-    expect(resolveMainAgentProfile(DEFAULT_AGENT_PROFILES, undefined, {}).tools).toHaveLength(12);
+  it('defaults to conductor when env and config are unset', () => {
+    expect(resolveMainAgentProfileName(undefined, {})).toBe(SOVEREIGN_CONDUCTOR_PROFILE_NAME);
+    expect(resolveMainAgentProfile(DEFAULT_AGENT_PROFILES, undefined, {}).name).toBe('conductor');
+    const tools = resolveMainAgentProfile(DEFAULT_AGENT_PROFILES, undefined, {}).tools;
+    expect(tools.length).toBeLessThanOrEqual(30);
+    expect(tools).toEqual(expect.arrayContaining(['NextPhase', 'JobCreate', 'RecordInterviewFinding']));
+    expect(tools).not.toContain('UltraworkGraph');
   });
 
-  it('still resolves core when SUPERLIORA_SOVEREIGN_CORE=1 and profile unset', () => {
+  it('still resolves conductor when SUPERLIORA_SOVEREIGN_CORE=1 and profile unset', () => {
     expect(
       resolveMainAgentProfileName(undefined, { [SOVEREIGN_CORE_DEFAULT_ENV]: '1' }),
-    ).toBe(SOVEREIGN_CORE_PROFILE_NAME);
+    ).toBe(SOVEREIGN_CONDUCTOR_PROFILE_NAME);
     expect(
       resolveMainAgentProfile(DEFAULT_AGENT_PROFILES, undefined, {
         [SOVEREIGN_CORE_DEFAULT_ENV]: '1',
-      }).tools,
-    ).toHaveLength(12);
+      }).name,
+    ).toBe('conductor');
   });
 
-  it('still resolves core when SUPERLIORA_SOVEREIGN=1 and profile unset', () => {
+  it('still resolves conductor when SUPERLIORA_SOVEREIGN=1 and profile unset', () => {
     expect(
       resolveMainAgentProfileName(undefined, { [SOVEREIGN_UMBRELLA_ENV]: '1' }),
-    ).toBe(SOVEREIGN_CORE_PROFILE_NAME);
+    ).toBe(SOVEREIGN_CONDUCTOR_PROFILE_NAME);
     expect(
       resolveMainAgentProfile(DEFAULT_AGENT_PROFILES, undefined, {
         [SOVEREIGN_UMBRELLA_ENV]: 'true',
-      }).tools,
-    ).toHaveLength(12);
+      }).name,
+    ).toBe('conductor');
   });
 
   it('prefers SUPERLIORA_PROFILE over config', () => {

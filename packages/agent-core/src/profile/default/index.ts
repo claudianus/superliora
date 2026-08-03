@@ -1,4 +1,5 @@
 import coreYaml from './core.yaml?raw';
+import conductorYaml from './conductor.yaml?raw';
 import agentYaml from './agent.yaml?raw';
 import coderYaml from './coder.yaml?raw';
 import exploreYaml from './explore.yaml?raw';
@@ -13,6 +14,7 @@ import { loadAgentProfilesFromSources } from '../load';
 // plus any file referenced through `systemPromptPath`.
 const PROFILE_SOURCES: Record<string, string> = {
   'profile/default/core.yaml': coreYaml,
+  'profile/default/conductor.yaml': conductorYaml,
   'profile/default/agent.yaml': agentYaml,
   'profile/default/coder.yaml': coderYaml,
   'profile/default/explore.yaml': exploreYaml,
@@ -31,7 +33,7 @@ export const DEFAULT_INIT_PROMPT = initMd;
 export const SOVEREIGN_CORE_WAIST_PROFILE = 'core';
 
 export const DEFAULT_AGENT_PROFILES = loadAgentProfilesFromSources(
-  ['core.yaml', 'agent.yaml', 'coder.yaml', 'explore.yaml', 'full.yaml', 'plan.yaml', 'ultra-plan.yaml'].map(
+  ['core.yaml', 'conductor.yaml', 'agent.yaml', 'coder.yaml', 'explore.yaml', 'full.yaml', 'plan.yaml', 'ultra-plan.yaml'].map(
     (file) => `profile/default/${file}`,
   ),
   PROFILE_SOURCES,

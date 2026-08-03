@@ -49,6 +49,7 @@ import {
   detectShellSensitivePath,
   formatShellSensitivePathError,
 } from '../../policies/shell-sensitive-path';
+import { guardWorkerShellCommand } from '../job/job-worker-guards';
 import bashDescriptionTemplate from './bash.md?raw';
 import {
   backgroundResultMessage,
@@ -120,6 +121,9 @@ export class BashTool implements BuiltinTool<BashInput> {
 
   private readonly pathPrefix: readonly string[];
 
+  /** Conductor execution lane (worker/subagent): git push remote mutation hard-deny. */
+  private readonly isWorker: boolean;
+
   constructor(
     private readonly kaos: Kaos,
     private readonly cwd: string,
@@ -131,6 +135,8 @@ export class BashTool implements BuiltinTool<BashInput> {
       shellEnvPolicy?: ShellEnvFilterPolicy | undefined;
       /** Directories prepended to PATH (e.g. enabled plugin `bin/`). */
       pathPrefix?: readonly string[] | undefined;
+      /** True when this BashTool belongs to a Conductor worker lane (not `main`). */
+      isWorker?: boolean | undefined;
     },
   ) {
     this.isWindowsBash = this.kaos.osEnv.osKind === 'Windows';
@@ -138,6 +144,7 @@ export class BashTool implements BuiltinTool<BashInput> {
     this.store = options?.store;
     this.shellEnvPolicy = options?.shellEnvPolicy ?? {};
     this.pathPrefix = options?.pathPrefix ?? [];
+    this.isWorker = options?.isWorker ?? false;
     const rendered = renderBashDescription(this.kaos.osEnv.shellName);
     this.description = this.allowBackground ? rendered : withoutBackgroundDescription(rendered);
   }
@@ -303,6 +310,15 @@ export class BashTool implements BuiltinTool<BashInput> {
   ): ExecutableToolResult | undefined {
     if (signal.aborted) return { isError: true, output: 'Aborted before command started' };
     if (args.command.length === 0) return { isError: true, output: 'Command cannot be empty.' };
+    // Conductor workers: hard-deny git push / remote send-pack (land-to-main is MergeJob).
+    const isWorker = this.isWorker === true;
+    const workerGuard = guardWorkerShellCommand(args.command, { isWorker });
+    if (!workerGuard.allowed) {
+      return {
+        isError: true,
+        output: workerGuard.reason ?? 'Worker shell command denied by Conductor policy.',
+      };
+    }
     // Sensitive paths hard-deny before dedicated-tool redirects (no force hatch).
     const sensitivePath = detectShellSensitivePath(args.command);
     if (sensitivePath !== undefined) {

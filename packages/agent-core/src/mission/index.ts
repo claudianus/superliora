@@ -155,3 +155,4 @@ export type {
   MissionResumeSmokeGradeResult,
   MissionResumeSmokeOptions,
 } from './mission-resume-grade';
+export * from './lifecycle-tools';

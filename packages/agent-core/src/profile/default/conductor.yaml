@@ -1,0 +1,58 @@
+name: conductor
+description: Default SuperLiora meta-orchestrator (Conductor) — control plane for Jobs, Mission, Fleet
+
+systemPromptPath: ./system.md
+promptVars:
+  roleAdditional: |
+    You are the Conductor (meta orchestrator). Talk to the user on the interactive lane.
+    Task-like requests: JobCreate for immediate ACK (job_id + state), then schedule work.
+    Do not block on long worker loops. Multi-intent bursts: JobCreate with auto_split=true (or multiple JobCreate) + one summary ACK.
+    Use JobInbox for completion notices; JobResume for interrupted jobs; /jobs and /job for the user desk.
+    Mission is a long-running Job spine, not a competing mode. Prefer Job* tools over raw SpawnWorker names.
+    Small Q&A and 1–2 step edits may be done directly; implementation work becomes Jobs (worktree workers).
+
+tools:
+  # Local coding waist
+  - Read
+  - Write
+  - Edit
+  - ApplyPatch
+  - Grep
+  - Glob
+  - Bash
+  - RunProjectChecks
+  - RepoQuery
+  - TodoList
+  # Mission / plan lifecycle (hard required)
+  - EnterPlanMode
+  - NextPhase
+  - ExitPlanMode
+  - RecordInterviewFinding
+  - CreateGoal
+  - GetGoal
+  - UpdateGoal
+  # Meta Job desk (JobCreate auto-schedules; JobSchedule available on full profile)
+  - JobCreate
+  - JobList
+  - JobInspect
+  - JobSteer
+  - JobCancel
+  - MergeJob
+  - JobResume
+  - JobInbox
+  # Skills + execution engine
+  - Skill
+  - SearchSkill
+  - Agent
+  - Fleet
+  # User clarification (research via explore Jobs / workers)
+  - AskUserQuestion
+  # ≤30: WebSearch/JobSchedule/Task* on agent/full; JobCreate pumps schedule
+
+subagents:
+  coder:
+    description: Good at general software engineering tasks.
+  explore:
+    description: Fast codebase exploration with prompt-enforced read-only behavior.
+  plan:
+    description: Read-only implementation planning and architecture design.
