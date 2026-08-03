@@ -60,7 +60,11 @@ export class RendererTranscriptViewport {
       rendererTranscriptToViewportScrollAction(action),
       rows,
     );
-    return viewportPositionChanged(previous, this.current);
+    // No scrollable range (content fits the viewport): the offset stays clamped
+    // to 0, so the underlying viewport can only flip followOutput. Reporting
+    // that as a position change re-triggers the scroll-paint + settle-refresh
+    // chain on every wheel tick and flickers a scrollbar-less transcript.
+    return viewportPositionChanged(previous, this.current) && previous.maxOffsetFromBottom > 0;
   }
 
   jumpToLine(line: number): RendererViewportSnapshot {

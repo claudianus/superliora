@@ -322,7 +322,10 @@ describe('RendererViewport', () => {
 
     viewport.sync(3, 5);
 
-    expect(viewport.scroll('line-up')).toBe(true);
+    // No scrollable range: the offset cannot move, so the wheel reports
+    // unchanged (no flicker re-render) while the manual follow intent is
+    // still recorded for when the content eventually overflows.
+    expect(viewport.scroll('line-up')).toBe(false);
     expect(viewport.snapshot()).toMatchObject({
       start: 0,
       followOutput: false,
@@ -335,6 +338,39 @@ describe('RendererViewport', () => {
       start: 0,
       followOutput: false,
       offsetFromBottom: 5,
+    });
+  });
+
+  it('does not report movement while wheel-scrolling content that fits the viewport', () => {
+    const viewport = new RendererTranscriptViewport();
+
+    viewport.sync(3, 5);
+
+    // Wheel down at the bottom: nothing moves, nothing to repaint.
+    expect(viewport.scroll('line-down')).toBe(false);
+    expect(viewport.snapshot()).toMatchObject({
+      start: 0,
+      followOutput: true,
+      offsetFromBottom: 0,
+    });
+
+    // Wheel up ticks the follow intent but must never report a position
+    // change (offset stays clamped to 0) — repeated false here used to come
+    // back as true via the followOutput flip and flicker the transcript.
+    expect(viewport.scroll('line-up')).toBe(false);
+    expect(viewport.scroll('line-up')).toBe(false);
+    expect(viewport.snapshot()).toMatchObject({
+      start: 0,
+      followOutput: false,
+      offsetFromBottom: 0,
+    });
+
+    // Wheel down restores follow intent, still without visible movement.
+    expect(viewport.scroll('line-down')).toBe(false);
+    expect(viewport.snapshot()).toMatchObject({
+      start: 0,
+      followOutput: true,
+      offsetFromBottom: 0,
     });
   });
 
