@@ -209,9 +209,25 @@ function buildTemplateVars(
     KIMI_SKILLS: tools.includes('Skill') ? skills : '',
     KIMI_SKILL_PROMPT_MODE: context.skillPromptMode ?? 'search',
     KIMI_ADDITIONAL_DIRS_INFO: context.additionalDirsInfo ?? '',
-    ROLE_ADDITIONAL:
-      context.roleAdditional ?? promptVars['ROLE_ADDITIONAL'] ?? promptVars['roleAdditional'] ?? '',
+    // Persona (runtime) layers on top of the profile's role text instead of
+    // replacing it — otherwise a configured persona would silently drop the
+    // profile playbook (e.g. the Conductor operating guide).
+    ROLE_ADDITIONAL: mergeRoleAdditional(
+      promptVars['ROLE_ADDITIONAL'] ?? promptVars['roleAdditional'],
+      context.roleAdditional,
+    ),
   };
+}
+
+function mergeRoleAdditional(
+  profileRole: string | undefined,
+  runtimeRole: string | undefined,
+): string {
+  const profile = profileRole?.trim() ?? '';
+  const runtime = runtimeRole?.trim() ?? '';
+  if (profile.length === 0) return runtime;
+  if (runtime.length === 0) return profile;
+  return `${profile}\n\n${runtime}`;
 }
 
 function applySubagentDescriptions(

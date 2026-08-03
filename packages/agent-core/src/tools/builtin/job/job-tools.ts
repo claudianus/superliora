@@ -61,21 +61,50 @@ const JobStatusSchema = z.enum([
 
 const JobCreateInputSchema = z
   .object({
-    title: z.string().trim().min(1).describe('Short job title for the ledger and ACK.'),
-    kind: JobKindSchema.optional().describe('Job kind. Defaults to task.'),
-    priority: z.number().int().optional().describe('Higher runs sooner when scheduled. Default 0.'),
-    prompt: z.string().optional().describe('Full task brief for the worker.'),
+    title: z
+      .string()
+      .trim()
+      .min(1)
+      .describe(
+        'Short outcome-shaped title for the ledger and ACK (verb + deliverable, e.g. "Fix auth token refresh race").',
+      ),
+    kind: JobKindSchema.optional().describe(
+      'Job kind. task/implement = code work (default task), explore = read-only research, mission = long-running spine, merge = landing worker, desk = digest. Defaults to task.',
+    ),
+    priority: z
+      .number()
+      .int()
+      .optional()
+      .describe(
+        'Higher runs sooner when scheduled. Default 0. Raise only when the user signals urgency — the queue is the honest order.',
+      ),
+    prompt: z
+      .string()
+      .optional()
+      .describe(
+        'Self-sufficient worker brief: goal as a verifiable outcome, success criteria (commands/tests that prove it), scope fence (what NOT to touch), starting paths, repo constraints (AGENTS.md rules, no push, no secrets), and the user context quoted verbatim. The worker sees nothing else.',
+      ),
     ownership_paths: z
       .array(z.string().trim().min(1))
       .optional()
-      .describe('Paths this job intends to touch (conflict hints).'),
-    parent_job_id: z.string().optional(),
+      .describe(
+        'Paths this job intends to touch — the scheduler conflict hint. Overlapping ownership between parallel jobs risks racing; keep siblings disjoint or chain them via parent_job_id.',
+      ),
+    parent_job_id: z
+      .string()
+      .optional()
+      .describe('Parent job id for subtasks of an existing Job (decomposition chains).'),
     mission_run_id: z.string().optional(),
     /**
      * When true, split `prompt` (or title) into multiple Jobs via multi-intent heuristic
      * and return one summary ACK. Falls back to a single Job if split fails.
      */
-    auto_split: z.boolean().optional().describe('Split multi-intent prompt into multiple Jobs.'),
+    auto_split: z
+      .boolean()
+      .optional()
+      .describe(
+        'Split a multi-intent prompt into one Job per intent (user asked several independent things at once). Prefer explicit separate JobCreate calls when intents need different kinds/ownership; falls back to a single Job when splitting fails.',
+      ),
   })
   .strict();
 
@@ -95,7 +124,13 @@ const JobIdInputSchema = z
 const JobSteerInputSchema = z
   .object({
     job_id: z.string().trim().min(1),
-    message: z.string().trim().min(1).describe('Steering instruction for the worker / meta notes.'),
+    message: z
+      .string()
+      .trim()
+      .min(1)
+      .describe(
+        'Steering instruction for the worker / meta notes. State the delta precisely (what changed, what stays); quote the user when relevant.',
+      ),
     status: JobStatusSchema.optional().describe('Optional status update while steering.'),
   })
   .strict();
@@ -144,7 +179,10 @@ function ack(jobId: string, status: JobStatus, extra?: string): string {
 export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputSchema>> {
   readonly name = 'JobCreate' as const;
   readonly description =
-    'Create a Conductor Job on the meta ledger and return an immediate ACK (job_id + queued). Prefer this for task-like user requests so work is not lost while workers run.';
+    'Delegate work: create a Conductor Job on the meta ledger and return an immediate ACK (job_id + state). ' +
+    'The ONLY path for any file mutation, build, test, install, or verification loop on the Conductor lane — even a one-line fix. ' +
+    'Route every task-like user request here first so nothing is lost while workers run; write a self-sufficient brief (goal, success criteria, scope fence, paths, constraints) and pass ownership_paths. ' +
+    'Multi-intent messages: auto_split=true or several calls in one turn, then one summary ACK. Scheduling is offloaded — the ACK never waits for the worker.';
   readonly parameters: Record<string, unknown> = toInputJsonSchema(JobCreateInputSchema);
 
   constructor(
@@ -232,7 +270,8 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
 
 export class JobListTool implements BuiltinTool<z.infer<typeof JobListInputSchema>> {
   readonly name = 'JobList' as const;
-  readonly description = 'List Conductor Jobs on the meta ledger (optional status filter).';
+  readonly description =
+    'Read the Conductor Job ledger — the single source of truth for fleet state. Use for status questions, before creating a Job that might duplicate an existing one, and after resume/compaction to rebuild live state. Read-only; never wait on results here. Optional status filter.';
   readonly parameters: Record<string, unknown> = toInputJsonSchema(JobListInputSchema);
 
   constructor(private readonly store: ToolStore) {}
@@ -262,7 +301,8 @@ export class JobListTool implements BuiltinTool<z.infer<typeof JobListInputSchem
 
 export class JobInspectTool implements BuiltinTool<z.infer<typeof JobIdInputSchema>> {
   readonly name = 'JobInspect' as const;
-  readonly description = 'Inspect one Job record (status, paths, worktree, result summary).';
+  readonly description =
+    'Inspect one Job record: status, notes (failure/block causes such as worktree_failed, spawn_budget_exceeded), worktree path, result summary. The diagnosis step before JobResume/JobSteer/retry decisions on blocked or failed jobs.';
   readonly parameters: Record<string, unknown> = toInputJsonSchema(JobIdInputSchema);
 
   constructor(private readonly store: ToolStore) {}
@@ -289,7 +329,9 @@ export class JobInspectTool implements BuiltinTool<z.infer<typeof JobIdInputSche
 export class JobSteerTool implements BuiltinTool<z.infer<typeof JobSteerInputSchema>> {
   readonly name = 'JobSteer' as const;
   readonly description =
-    'Steer a Job: append notes and deliver to a live worker when possible.';
+    'Redirect a live Job without restarting it: append notes and deliver to the running worker when possible. ' +
+    'Use when the goal stands but details changed (scope delta, extra constraint, user preference). ' +
+    'If the goal itself changed, JobCancel + fresh JobCreate instead — never let two versions of one goal race.';
   readonly parameters: Record<string, unknown> = toInputJsonSchema(JobSteerInputSchema);
 
   constructor(
@@ -334,7 +376,8 @@ export class JobSteerTool implements BuiltinTool<z.infer<typeof JobSteerInputSch
 
 export class JobCancelTool implements BuiltinTool<z.infer<typeof JobCancelInputSchema>> {
   readonly name = 'JobCancel' as const;
-  readonly description = 'Cancel a Job and abort its worker when live.';
+  readonly description =
+    'Cancel a Job and abort its worker when live. Use for explicit stop requests or when replacing a job whose goal changed (then create the fresh Job). Record a reason — the ledger history is the fleet memory. Do not cancel on a first failure without inspecting the cause.';
   readonly parameters: Record<string, unknown> = toInputJsonSchema(JobCancelInputSchema);
 
   constructor(
@@ -539,7 +582,9 @@ const JobResumeInputSchema = z
 export class JobResumeTool implements BuiltinTool<z.infer<typeof JobResumeInputSchema>> {
   readonly name = 'JobResume' as const;
   readonly description =
-    'Resume interrupted (or explicitly identified blocked/failed/cancelled) Jobs: re-queue and schedule workers.';
+    'Restore stalled Jobs: re-queue interrupted ones (session ended mid-flight) or an explicitly identified blocked/failed/cancelled Job, and schedule workers. ' +
+    'Also the delivery path for needs_user answers: pass the user answer to resume the waiting worker. ' +
+    'For blocked jobs, JobInspect first and fix the recorded cause (e.g. git setup) — a blind second resume on the same cause is wasted work.';
   readonly parameters: Record<string, unknown> = toInputJsonSchema(JobResumeInputSchema);
 
   constructor(
@@ -593,7 +638,7 @@ const JobInboxInputSchema = z
 export class JobInboxTool implements BuiltinTool<z.infer<typeof JobInboxInputSchema>> {
   readonly name = 'JobInbox' as const;
   readonly description =
-    'Read Conductor meta Job inbox (completion/failure/needs_user notices). Optional mark_read.';
+    'Read Conductor meta Job inbox (completion/failure/blocked/needs_user notices; burst digests arrive as one escalation card). Handle it with 1–2 reads per turn — act on the highest-severity card (needs_user first), do not recite events. Optional mark_read.';
   readonly parameters: Record<string, unknown> = toInputJsonSchema(JobInboxInputSchema);
 
   constructor(private readonly store: ToolStore) {}

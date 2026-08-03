@@ -328,6 +328,27 @@ describe('default agent profiles', () => {
       expect(prompt).toContain('Use WebSearch/FetchURL when needed unless the parent forbids internet use');
     }
   });
+
+  it('renders the Conductor operating playbook into the conductor prompt', () => {
+    const prompt = DEFAULT_AGENT_PROFILES['conductor']?.systemPrompt(promptContext);
+    expect(prompt).toContain('# Conductor Operating Playbook');
+    expect(prompt).toContain('Delegation-only');
+    expect(prompt).toContain('intake → triage → route → ACK');
+    expect(prompt).toContain('Status playbook');
+    expect(prompt).toContain('Situation matrix');
+  });
+
+  it('layers runtime persona role text over the profile playbook instead of replacing it', () => {
+    const prompt = DEFAULT_AGENT_PROFILES['conductor']?.systemPrompt({
+      ...promptContext,
+      roleAdditional: '# Persona: Test\n\nTone: terse.',
+    });
+    expect(prompt).toContain('# Conductor Operating Playbook');
+    expect(prompt).toContain('# Persona: Test');
+    expect(prompt!.indexOf('# Conductor Operating Playbook')).toBeLessThan(
+      prompt!.indexOf('# Persona: Test'),
+    );
+  });
 });
 
 async function write(fileName: string, content: string): Promise<string> {
