@@ -28,7 +28,7 @@ export { showSettingsSelector, showHarnessPanel, openSettingsPane } from './conf
 export { showToolsInventory } from './config/harness/harness-tools';
 export { showHarnessEyesReadiness } from './config/eyes/eyes-settings';
 export { handleSwarmCommand } from './swarm/swarm';
-export { handleOrchestratorCommand } from './swarm/orchestrator';
+
 export { buildUltraworkPrompt, parseUltraworkCommand } from '#/tui/utils/mission/mission-contract';
 export { handleUltraworkCommand } from './ultrawork/ultrawork';
 export { showMcpServers, showQuota, showStatusReport, showUsage } from './info/info';

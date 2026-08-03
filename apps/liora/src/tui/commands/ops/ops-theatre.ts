@@ -300,7 +300,6 @@ async function collectOpsTheatreInput(host: SlashCommandHost): Promise<OpsTheatr
     host.state.appState.searchCascade,
   );
 
-  const fleetWorkers = collectFleetWorkers(host);
   const breakerLine = resolveOpsBreakerLineFromAppState(
     host.state.appState.circuitBreakers,
     degraded,
@@ -339,7 +338,7 @@ async function collectOpsTheatreInput(host: SlashCommandHost): Promise<OpsTheatr
   return {
     refreshedAt,
     sessionsLine,
-    fleetWorkers,
+    fleetWorkers: undefined,
     goal,
     git:
       gitStatus == null
@@ -418,15 +417,3 @@ async function collectOpsTheatreInput(host: SlashCommandHost): Promise<OpsTheatr
   };
 }
 
-function collectFleetWorkers(
-  host: SlashCommandHost,
-): OpsTheatreInput['fleetWorkers'] {
-  const workers = host.state.appState.orchestratorWorkers;
-  if (workers == null || workers.length === 0) {
-    return undefined;
-  }
-  return workers.map((worker) => ({
-    name: worker.description.trim().length > 0 ? worker.description : worker.id,
-    status: worker.status === 'running' ? ('running' as const) : ('idle' as const),
-  }));
-}

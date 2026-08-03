@@ -87,7 +87,6 @@ import type {
   RunShellCommandPayload,
   SetModelPayload,
   SetModelResult,
-  SetOrchestratorModePayload,
   SetPermissionPayload,
   SetPremiumQualityPayload,
   SetThinkingPayload,
@@ -147,8 +146,6 @@ export interface AgentAPI {
   getSwarmMode: (payload: EmptyPayload) => boolean;
   setPremiumQuality: (payload: SetPremiumQualityPayload) => void;
   getPremiumQuality: (payload: EmptyPayload) => boolean;
-  setOrchestratorMode: (payload: SetOrchestratorModePayload) => void;
-  getOrchestratorMode: (payload: EmptyPayload) => boolean;
   beginCompaction: (payload: BeginCompactionPayload) => void;
   cancelCompaction: (payload: EmptyPayload) => void;
   registerTool: (payload: RegisterToolPayload) => void;

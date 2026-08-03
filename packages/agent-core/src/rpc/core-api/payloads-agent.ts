@@ -64,9 +64,6 @@ export interface CancelPayload {
 export interface SetPremiumQualityPayload {
   readonly enabled: boolean;
 }
-export interface SetOrchestratorModePayload {
-  readonly enabled: boolean;
-}
 export interface SetThinkingPayload {
   readonly level: string;
 }

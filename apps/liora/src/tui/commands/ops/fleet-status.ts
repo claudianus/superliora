@@ -1,5 +1,5 @@
 /**
- * Lightweight Fleet command status — sessions, swarm/orchestrator, permission.
+ * Lightweight Fleet command status — sessions, swarm, permission.
  * Slash: /fleet (no args) shows panel instead of toggling swarm mode.
  */
 
@@ -48,7 +48,7 @@ export async function showFleetStatus(host: SlashCommandHost): Promise<void> {
 
 async function buildFleetStatusLines(host: SlashCommandHost): Promise<string[]> {
   const session = host.requireSession();
-  const { swarmMode, orchestratorMode, permissionMode } = host.state.appState;
+  const { swarmMode, permissionMode } = host.state.appState;
   const refreshedAt = new Date().toLocaleTimeString();
 
   let sessionsLine = 'Sessions: (unknown)';
@@ -111,7 +111,6 @@ async function buildFleetStatusLines(host: SlashCommandHost): Promise<string[]> 
     `── Fleet status ──────────── ${refreshedAt} ──`,
     sessionsLine,
     `Fleet mode: ${swarmMode ? 'ON' : 'OFF'}${fleetDetail}`,
-    `Orchestrator: ${orchestratorMode === true ? 'ON' : 'OFF'}`,
     `Permission: ${permissionMode}`,
     `Model: ${host.state.appState.model || '(unset)'}`,
     cacheHitLine,
@@ -123,7 +122,6 @@ async function buildFleetStatusLines(host: SlashCommandHost): Promise<string[]> 
     '  /fleet on|off     toggle fleet mode',
     '  /fleet <task>     specialist delegation',
     '  /mission          long-running Mission mode',
-    '  /orchestrator     background workers',
     '  /ops              full runtime theatre',
   ];
 }

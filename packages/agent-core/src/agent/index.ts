@@ -94,7 +94,6 @@ import type { ResponseLanguagePreference } from '../session/response-language';
 
 import { createRpcMethods } from './rpc-methods';
 import { buildPersonaRoleAdditional } from './persona';
-import { ORCHESTRATOR_SYSTEM_PREFIX, registerOrchestratorTools as registerOrchestratorToolsImpl } from './orchestrator';
 import { createGenerateProxy, buildLLMRoute as buildLLMRouteImpl } from './generate-facade';
 import { CircuitBreakerRegistry } from '../runtime/circuit-breaker';
 import { buildCircuitBreakerDegradedEvent } from '../runtime/circuit-breaker-degraded';
@@ -161,24 +160,12 @@ export interface AgentOptions {
   readonly fileSnapshots?: FileSnapshotStore | undefined;
   /** Path sandbox profile for file tools (`off` | `workspace` | `read-only`). */
   readonly sandboxProfile?: SandboxProfile | undefined;
-  /**
-   * When true, the agent operates as a meta-orchestrator: it classifies user
-   * intent, spawns/steers/queries background workers, and never performs
-   * long-running file operations itself.
-   */
-  readonly orchestratorMode?: boolean;
 }
 
 export class Agent {
   readonly type: AgentType;
-  /** Meta-orchestrator mode: delegate work to workers, never do long tasks directly. */
-  private _orchestratorMode: boolean;
   /** Delegation-only runtime guard (lazy; only for main + conductor profile). */
   private _conductorGuard: ConductorDirectWorkGuard | undefined;
-
-  get orchestratorMode(): boolean {
-    return this._orchestratorMode;
-  }
 
   /**
    * Conductor delegation-only runtime guard (meta-orchestrator v2 contract,
@@ -192,8 +179,6 @@ export class Agent {
     this._conductorGuard ??= new ConductorDirectWorkGuard({ log: this.log });
     return this._conductorGuard;
   }
-  /** Worker registry for orchestrator mode. */
-  readonly orchestratorWorkers = new Map<string, import('../tools/builtin/fleet/orchestrator').OrchestratorWorker>();
   private _kaos: Kaos;
 
   get kaos(): Kaos {
@@ -288,7 +273,6 @@ export class Agent {
 
   constructor(options: AgentOptions) {
     this.type = options.type ?? 'main';
-    this._orchestratorMode = options.orchestratorMode ?? false;
     this._kaos = options.kaos;
     this.kimiConfig = options.config;
     this.homedir = options.homedir;
@@ -374,54 +358,10 @@ export class Agent {
         () =>{  this.emitStatusUpdated(); },
       );
     }
-
-    // Register orchestrator tools when in orchestrator mode.
-    if (this.orchestratorMode && options.subagentHost !== undefined) {
-      this.registerOrchestratorTools(options.subagentHost);
-    }
   }
 
   setKaos(kaos: Kaos) {
     this._kaos = kaos;
-  }
-
-  /**
-   * Toggle orchestrator mode at runtime. Registers or unregisters the
-   * orchestrator tools (SpawnWorker / SteerWorker / QueryWorker) and
-   * re-applies the system prompt so the delegation prefix is added or
-   * removed accordingly.
-   */
-  setOrchestratorMode(enabled: boolean): void {
-    if (enabled) {
-      // Inventory B-1 retirement step ①: the conductor lane never enters
-      // orchestratorMode — delegation is Job*-only. Ignore the flag and
-      // record the attempt on the tripwire instead of registering the
-      // SpawnWorker stack.
-      const guard = this.conductorGuard;
-      if (guard !== undefined) {
-        guard.recordOrchestratorModeBlocked('setOrchestratorMode');
-        return;
-      }
-    }
-    if (this._orchestratorMode === enabled) return;
-    this._orchestratorMode = enabled;
-
-    if (enabled && this.subagentHost !== undefined) {
-      this.registerOrchestratorTools(this.subagentHost);
-    } else if (!enabled) {
-      this.tools.detachEphemeralBuiltin('SpawnWorker');
-      this.tools.detachEphemeralBuiltin('SteerWorker');
-      this.tools.detachEphemeralBuiltin('QueryWorker');
-      this.tools.detachEphemeralBuiltin('EnqueueWorkerTask');
-      this.tools.detachEphemeralBuiltin('MergeWorker');
-    }
-
-    this.emitStatusUpdated();
-  }
-
-  /** Register the three orchestrator tools with a worker-completion callback. */
-  private registerOrchestratorTools(host: SessionSubagentHost): void {
-    registerOrchestratorToolsImpl(this, host);
   }
 
   getAdditionalDirs(): readonly string[] {
@@ -492,16 +432,9 @@ export class Agent {
     // Render layered system prompt for cache-optimized providers (Anthropic)
     const layeredSystemPrompt = profile.layeredSystemPrompt?.(promptContext);
 
-    // In orchestrator mode, prepend delegation instructions so the agent
-    // classifies user intent and routes work to background workers instead
-    // of performing long-running file operations itself.
-    const effectiveSystemPrompt = this.orchestratorMode
-      ? ORCHESTRATOR_SYSTEM_PREFIX + systemPrompt
-      : systemPrompt;
-
     this.config.update({
       profileName: profile.name,
-      systemPrompt: effectiveSystemPrompt,
+      systemPrompt,
       layeredSystemPrompt,
     });
     this.config.setSystemPromptMeta({
@@ -511,23 +444,6 @@ export class Agent {
       additionalDirsTokens: estimateTokens(context?.additionalDirsInfo ?? ''),
     });
     this.tools.setActiveTools(profile.tools);
-    // Conductor guard (contract §2.3 / inventory B-1): a conductor main agent
-    // never runs orchestratorMode. The constructor may have accepted the flag
-    // before the profile was known — enforce it now that the profile is set.
-    this.enforceConductorOrchestratorBlock();
-  }
-
-  /**
-   * When the freshly applied profile is conductor, force orchestratorMode off
-   * (detaches any SpawnWorker-stack tools registered before the profile was
-   * known) and record the blocked entry attempt on the tripwire.
-   */
-  private enforceConductorOrchestratorBlock(): void {
-    if (!this._orchestratorMode) return;
-    const guard = this.conductorGuard;
-    if (guard === undefined) return;
-    guard.recordOrchestratorModeBlocked('useProfile');
-    this.setOrchestratorMode(false);
   }
 
   async resume(options?: AgentRecordsReplayOptions): Promise<{ warning?: string }> {

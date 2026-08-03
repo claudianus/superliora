@@ -221,7 +221,7 @@ export class ToolManager {
   }
 
   attachEphemeralBuiltin(tool: BuiltinTool): void {
-    // Ephemeral orchestrator tools may attach mid-session; CacheFreezeGuard
+    // Ephemeral tools may attach mid-session; CacheFreezeGuard
     // soft-detects drift per step (Loop20a) without blocking attach.
     this.ephemeralBuiltinTools.set(tool.name, tool);
     this.enabledTools.add(tool.name);

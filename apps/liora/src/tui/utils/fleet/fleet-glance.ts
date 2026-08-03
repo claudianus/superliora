@@ -69,10 +69,6 @@ export interface FleetParallelToolsGlance {
   readonly maxParallelTools?: number;
 }
 
-export interface FleetOrchestratorWorkerGlance {
-  readonly status: string;
-}
-
 export interface FleetBackgroundWorkerGlance {
   readonly bash: number;
   readonly agent: number;
@@ -81,7 +77,6 @@ export interface FleetBackgroundWorkerGlance {
 /** Live worker pool for Settings → Fleet Session (live) block. */
 export interface FleetSessionLiveGlance {
   readonly sessionUnavailable?: boolean;
-  readonly orchestratorWorkers?: readonly FleetOrchestratorWorkerGlance[];
   readonly backgroundActive?: FleetBackgroundWorkerGlance;
   readonly parallelTools?: FleetParallelToolsGlance;
   readonly makerCheckerSoftWarn?: string | null;
@@ -89,23 +84,12 @@ export interface FleetSessionLiveGlance {
   readonly worktree?: FleetWorktreeGlance;
 }
 
-/** Settings line — orchestrator pool or active background tasks when wired. */
+/** Settings line — active background tasks when wired. */
 export function formatFleetWorkersSettingsLine(
-  glance: Pick<FleetSessionLiveGlance, 'orchestratorWorkers' | 'backgroundActive'> | undefined,
+  glance: Pick<FleetSessionLiveGlance, 'backgroundActive'> | undefined,
 ): string {
   if (glance === undefined) {
     return 'Workers: (session unavailable)';
-  }
-  const workers = glance.orchestratorWorkers;
-  if (workers !== undefined && workers.length > 0) {
-    const running = workers.filter((w) => w.status === 'running').length;
-    const completed = workers.filter((w) => w.status === 'completed').length;
-    const failed = workers.filter((w) => w.status === 'failed').length;
-    const parts: string[] = [`${String(workers.length)} orchestrator`];
-    if (running > 0) parts.unshift(`${String(running)} running`);
-    if (completed > 0) parts.push(`${String(completed)} done`);
-    if (failed > 0) parts.push(`${String(failed)} failed`);
-    return `Workers: ${parts.join(' · ')}`;
   }
   const bg = glance.backgroundActive;
   if (bg !== undefined && (bg.bash > 0 || bg.agent > 0)) {
@@ -114,7 +98,7 @@ export function formatFleetWorkersSettingsLine(
     if (bg.agent > 0) parts.push(`${String(bg.agent)} agent`);
     return `Workers: ${parts.join(' · ')} background active`;
   }
-  return 'Workers: none active — /orchestrator or /fleet to spawn';
+  return 'Workers: none active — /fleet to spawn';
 }
 
 /** Settings Session (live) block — worker count + parallel tools from getStatus when wired. */
@@ -214,10 +198,6 @@ export const FLEET_GOVERNANCE_TIPS = [
 export const FLEET_WORKTREE_SESSION_TIP =
   'Session: liora --worktree [name] · /fork --worktree [name] — live (~/.superliora/worktrees).';
 
-/** Settings — orchestrator SpawnWorker worktree path (agent-core orchestrator.ts). */
-export const FLEET_WORKTREE_ORCHESTRATOR_TIP =
-  'Orchestrator (/orchestrator on): SpawnWorker creates per-worker git worktrees (agent-core).';
-
 /** Settings — AgentSwarm/UltraSwarm per-worker worktree when env opt-in is on. */
 export const FLEET_WORKTREE_SWARM_FUTURE_TIP =
   'AgentSwarm/UltraSwarm: SUPERLIORA_FLEET_WORKTREE=1 attempts per-worker git worktrees (shared workDir fallback on failure).';
@@ -228,7 +208,7 @@ export const FLEET_WORKTREE_ENV_TIP =
 
 /** Korean brief — worktree isolation operator summary. */
 export const FLEET_WORKTREE_TIP_KO =
-  '워크트리 격리: 세션(--worktree) live · Orchestrator SpawnWorker worktree · AgentSwarm worktreeDir W4 · SUPERLIORA_FLEET_WORKTREE=1 soft opt-in.';
+  '워크트리 격리: 세션(--worktree) live · AgentSwarm worktreeDir W4 · SUPERLIORA_FLEET_WORKTREE=1 soft opt-in.';
 
 export interface FleetWorktreeGlance {
   readonly envEnabled: boolean;
@@ -380,20 +360,13 @@ export function buildFleetCostGuardSettingsLines(
 
 export function buildFleetWorktreeSettingsLines(
   glance: FleetWorktreeGlance,
-  orchestratorOn: boolean,
 ): readonly string[] {
   const envStatus = formatFleetWorktreeEnvStatusLine(glance);
-
-  const orchestratorLine = orchestratorOn
-    ? 'Orchestrator: ON — SpawnWorker attempts git worktree per worker.'
-    : 'Orchestrator: OFF — /orchestrator on enables SpawnWorker worktree path.';
 
   return [
     '── Worktree isolation ───────────────────────',
     envStatus,
-    orchestratorLine,
     FLEET_WORKTREE_SESSION_TIP,
-    FLEET_WORKTREE_ORCHESTRATOR_TIP,
     FLEET_WORKTREE_SWARM_FUTURE_TIP,
     'Storage: ~/.superliora/worktrees — registry via liora worktree list.',
     'Kaos sandbox worktree profile — planned (packages/kaos); no KAOS_* env yet.',

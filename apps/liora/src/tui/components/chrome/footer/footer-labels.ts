@@ -33,29 +33,6 @@ export function labelModePremium(labels: FooterLabels): string {
   return isPlainLabels(labels) ? 'Premium' : 'premium';
 }
 
-export function labelModeOrchestrator(labels: FooterLabels): string {
-  return isPlainLabels(labels) ? 'Orchestrator' : 'orchestrator';
-}
-
-export function labelWorkers(
-  labels: FooterLabels,
-  running: number,
-  done: number,
-  failed: number,
-): string {
-  const parts: string[] = [];
-  if (isPlainLabels(labels)) {
-    if (running > 0) parts.push(`${String(running)} running`);
-    if (done > 0) parts.push(`${String(done)} done`);
-    if (failed > 0) parts.push(`${String(failed)} failed`);
-    return parts.join(' · ');
-  }
-  if (running > 0) parts.push(`${String(running)}▸`);
-  if (done > 0) parts.push(`${String(done)}✓`);
-  if (failed > 0) parts.push(`${String(failed)}✗`);
-  return `w:${parts.join(' ')}`;
-}
-
 export function labelCompact(labels: FooterLabels, background: boolean): string {
   if (isPlainLabels(labels)) {
     return background ? 'Compacting…' : 'Compacting';

@@ -143,12 +143,6 @@ export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
     getPremiumQuality: () => {
       return agent.premiumQuality.isEnabled();
     },
-    setOrchestratorMode: (payload) => {
-      agent.setOrchestratorMode(payload.enabled);
-    },
-    getOrchestratorMode: () => {
-      return agent.orchestratorMode;
-    },
     beginCompaction: (payload) => {
       agent.fullCompaction.begin({ source: 'manual', instruction: payload.instruction });
     },
