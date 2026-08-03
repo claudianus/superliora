@@ -21,12 +21,13 @@ export {
 } from '@superliora/protocol';
 
 export * from './spawn-agents';
+export * from './swarm-budget';
 export * from './swarm-evidence-gate';
 export * from './swarm-file-lease';
 export * from './swarm-humanize';
 export * from './fleet-worktree';
-export * from './maker-checker';
-export * from './cost-guard';
+export * from './swarm-maker-checker';
+export * from './swarm-cost-guard';
 /** Swarm work-node store access — same light path as #/mission. */
 export { ULTRAWORK_GRAPH_STORE_KEY } from '../tools/builtin/state/ultrawork-graph-store-key';
 export {
