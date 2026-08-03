@@ -17,7 +17,10 @@ import {
   completionFlowApi,
   runPromptTurnWithModelFallback,
 } from '../../src/session/subagent/subagent-completion-flow';
-import { isModelAliasHealthy } from '../../src/session/subagent/subagent-run-lifecycle';
+import {
+  isModelAliasHealthy,
+  markModelAliasAuthRejected,
+} from '../../src/session/subagent/subagent-run-lifecycle';
 import { resolveSubagentModelAlias } from '../../src/utils/cheap-model';
 
 interface FakeModelEntry {
@@ -119,5 +122,31 @@ describe('V7-2 (b): exploration model 403 marks the alias unhealthy', () => {
     ).rejects.toThrow();
 
     expect(sharedCredentialHealthStore.isAvailable('opencode')).toBe(true);
+  });
+});
+
+describe('markModelAliasAuthRejected', () => {
+  afterEach(() => {
+    sharedCredentialHealthStore.clear();
+  });
+
+  it('marks the alias provider auth_rejected and reports true', () => {
+    expect(
+      markModelAliasAuthRejected('opencode/explore', models, new Error('403 forbidden')),
+    ).toBe(true);
+    const record = sharedCredentialHealthStore.get('opencode');
+    expect(record?.status).toBe('auth_rejected');
+    expect(record?.failureReason).toBe('403 forbidden');
+    expect(sharedCredentialHealthStore.isAvailable('opencode')).toBe(false);
+  });
+
+  it('is a no-op for unknown aliases, missing models, or provider-less entries', () => {
+    expect(markModelAliasAuthRejected('ghost', models)).toBe(false);
+    expect(markModelAliasAuthRejected(undefined, models)).toBe(false);
+    expect(markModelAliasAuthRejected('opencode/explore', undefined)).toBe(false);
+    expect(markModelAliasAuthRejected('no-provider', { 'no-provider': { model: 'm' } })).toBe(
+      false,
+    );
+    expect(sharedCredentialHealthStore.snapshot()).toHaveLength(0);
   });
 });

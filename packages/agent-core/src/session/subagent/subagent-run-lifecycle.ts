@@ -58,6 +58,34 @@ export function isModelAliasHealthy(
 }
 
 /**
+ * Poison an alias's provider credential after a permanent auth refusal
+ * (HTTP 401/403 — e.g. an exploration model this subscription is not
+ * entitled to). The mark lands in the same shared health store that
+ * {@link isModelAliasHealthy} reads, so every later spawn/resume/retry
+ * resolution (`resolveSubagentModelAlias`) skips the alias instead of
+ * re-routing into a guaranteed 403 (V7-2 incident).
+ *
+ * Returns false when there is nothing to mark (no alias, alias missing from
+ * the models record, or a provider-less entry).
+ */
+export function markModelAliasAuthRejected(
+  alias: string | undefined,
+  models: Record<string, { provider?: string }> | undefined,
+  error?: unknown,
+): boolean {
+  if (alias === undefined || models === undefined) return false;
+  const provider = models[alias]?.provider;
+  if (provider === undefined || provider.length === 0) return false;
+  sharedCredentialHealthStore.markAuthRejected(provider, {
+    failureReason:
+      error instanceof Error && error.message.length > 0
+        ? error.message
+        : 'provider rejected credentials (HTTP 401/403)',
+  });
+  return true;
+}
+
+/**
  * Register a child in the active map, link abort + wall-clock deadline, run
  * the work, then tear down. The soft `timeoutMs` budget only steers finishing
  * mode; the hard deadline aborts a wedged child.
