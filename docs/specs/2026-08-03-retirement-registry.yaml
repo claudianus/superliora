@@ -42,4 +42,9 @@ items:
     retro_guard_needed: true # cost-guard/maker-checker/event-humanize 본체는 R5 소비자 폐기 후 삭제 — R7 스윕 추적
     grep_zero: ['swarm-(budget|cost-guard|dag-scheduler|humanize|maker-checker|run-ledger|bus-coordination)[''"]']
   - id: R7-final-sweep
-    status: pending
+    status: done
+    commit: 45f3e1bd3 # 후속: 4165b17c2(UltraSwarm 래퍼·SDK export 삭제), 863b13d13(SearchExpert 문구), acbf033c7(retro_guard 보강)
+    characterization_tests: [] # 소급 면제: 잔재는 코멘트·이름·폐기 도구 문구뿐; 동작은 보강 테스트로 고정
+    replacement_proof_tests: [packages/agent-core/test/tools/retire-guardrails.test.ts, packages/agent-core/test/collaboration/swarm-cost-guard.test.ts, packages/agent-core/test/collaboration/swarm-maker-checker.test.ts, packages/agent-core/test/collaboration/fleet-event-humanize-retro.test.ts]
+    # R3/R6 retro_guard 의무 충족: cost-guard/maker-checker/event-humanize 본체 보강 테스트가 이 스윕에 착지
+    grep_zero: ['ultraSwarmRun', 'orchestratorMode', 'FromUltraSwarmResults']
