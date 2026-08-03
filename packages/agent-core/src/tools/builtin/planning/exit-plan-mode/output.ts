@@ -1,5 +1,5 @@
 import { formatSeededWorkGraphNotice, seedUltraworkGraphFromApprovedPlan } from '#/agent/plan/work-graph-from-plan';
-import { ultraSwarmEngageNextAction } from '#/agent/plan/ultra-swarm-decision';
+import { swarmEngageNextAction } from '#/agent/plan/swarm-decision';
 import {
   combinedDrift,
   isDriftAcceptable,
@@ -29,7 +29,7 @@ export function formatPlanForOutput(
     if (seededNotice !== undefined) {
       output += `\n\n---\n## UltraworkGraph Seed\n${seededNotice}`;
     }
-    const nextAction = ultraSwarmEngageNextAction(plan, seededWorkGraph);
+    const nextAction = swarmEngageNextAction(plan, seededWorkGraph);
     if (nextAction !== undefined) {
       output += `\n\n---\n## Recommended Next Action\n${nextAction}`;
     }
@@ -37,12 +37,6 @@ export function formatPlanForOutput(
   }
 
   return output;
-}
-
-export function swarmDecisionSummary(plan: string): string | undefined {
-  const line = plan.split(/\r?\n/).find((entry) => /\bswarm decision\s*:/i.test(entry));
-  const trimmed = line?.trim();
-  return trimmed !== undefined && trimmed.length > 0 ? trimmed : undefined;
 }
 
 export function formatUltraPlanMetrics(metrics: DriftMetrics): string {
