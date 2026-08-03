@@ -25,7 +25,7 @@ export * from './swarm-budget';
 export * from './swarm-dag-scheduler';
 export * from './swarm-evidence-gate';
 export * from './swarm-file-lease';
-export * from './swarm-humanize';
+export * from './event-humanize';
 export * from './swarm-run-ledger';
 export * from './fleet-worktree';
 export * from './swarm-maker-checker';
