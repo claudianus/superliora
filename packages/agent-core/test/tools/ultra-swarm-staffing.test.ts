@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ExpertAssignment } from '../../src/expert-agents/types';
-import type { UltraSwarmRenderedResult } from '../../src/tools/builtin/collaboration/ultra-swarm-phase';
+import type { UltraSwarmRenderedResult } from '../../src/tools/builtin/fleet/ultra-swarm-phase';
 import {
   buildInitialSpecs,
   renderUltraSwarmResults,
-} from '../../src/tools/builtin/collaboration/ultra-swarm-phase';
+} from '../../src/tools/builtin/fleet/ultra-swarm-phase';
 
 function assignment(overrides: Partial<ExpertAssignment> = {}): ExpertAssignment {
   return {

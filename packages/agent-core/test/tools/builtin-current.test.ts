@@ -24,20 +24,20 @@ import { SessionSkillRegistry } from '../../src/skill';
 import { TaskListInputSchema } from '../../src/tools/background/task-list';
 import { TaskOutputInputSchema } from '../../src/tools/background/task-output';
 import { TaskStopInputSchema } from '../../src/tools/background/task-stop';
-import { AgentTool, AgentToolInputSchema } from '../../src/tools/builtin/collaboration/agent';
+import { AgentTool, AgentToolInputSchema } from '../../src/tools/builtin/fleet/agent';
 import {
   AskUserQuestionInputSchema,
   AskUserQuestionTool,
-} from '../../src/tools/builtin/collaboration/ask-user';
+} from '../../src/tools/builtin/fleet/ask-user';
 import {
   SearchExpertInputSchema,
   SearchExpertTool,
-} from '../../src/tools/builtin/collaboration/search-expert';
+} from '../../src/tools/builtin/fleet/search-expert';
 import {
   SearchSkillInputSchema,
   SearchSkillTool,
-} from '../../src/tools/builtin/collaboration/search-skill';
-import { SkillTool, SkillToolInputSchema } from '../../src/tools/builtin/collaboration/skill-tool';
+} from '../../src/tools/builtin/fleet/search-skill';
+import { SkillTool, SkillToolInputSchema } from '../../src/tools/builtin/fleet/skill-tool';
 import { EditInputSchema, EditTool } from '../../src/tools/builtin/file/edit';
 import { GlobInputSchema, GlobTool } from '../../src/tools/builtin/file/glob';
 import { GrepInputSchema, GrepTool } from '../../src/tools/builtin/file/grep';
@@ -51,16 +51,16 @@ import { createBackgroundManager } from '../agent/background/helpers';
 import {
   AgentSwarmTool,
   AgentSwarmToolInputSchema,
-} from '../../src/tools/builtin/collaboration/agent-swarm';
+} from '../../src/tools/builtin/fleet/agent-swarm';
 import {
   UltraSwarmTool,
   UltraSwarmToolInputSchema,
-} from '../../src/tools/builtin/collaboration/ultra-swarm';
+} from '../../src/tools/builtin/fleet/ultra-swarm';
 import { globalUltraSwarmOrchestrator } from '../../src/expert-agents/orchestrator';
-import { SwarmChannelTool } from '../../src/tools/builtin/collaboration/swarm-channel';
+import { SwarmChannelTool } from '../../src/tools/builtin/fleet/swarm-channel';
 import { createUltraSwarmRunContext } from '../../src/agent/ultra-swarm-run';
 import { initSwarmRunBus, renderSwarmBusDigest } from '../../src/tools/builtin/state/swarm-bus';
-import { appendSwarmResearchAutonomy } from '../../src/tools/builtin/collaboration/swarm-research-autonomy';
+import { appendSwarmResearchAutonomy } from '../../src/tools/builtin/fleet/swarm-research-autonomy';
 import { TODO_STORE_KEY } from '../../src/tools/builtin/state/todo-list';
 import { ULTRAWORK_GRAPH_STORE_KEY } from '#/mission';
 import type { ToolStore, ToolStoreData, ToolStoreKey } from '../../src/tools/store';

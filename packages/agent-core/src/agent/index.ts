@@ -193,7 +193,7 @@ export class Agent {
     return this._conductorGuard;
   }
   /** Worker registry for orchestrator mode. */
-  readonly orchestratorWorkers = new Map<string, import('../tools/builtin/collaboration/orchestrator').OrchestratorWorker>();
+  readonly orchestratorWorkers = new Map<string, import('../tools/builtin/fleet/orchestrator').OrchestratorWorker>();
   private _kaos: Kaos;
 
   get kaos(): Kaos {

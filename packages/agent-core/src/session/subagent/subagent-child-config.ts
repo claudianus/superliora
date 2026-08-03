@@ -13,7 +13,7 @@ import {
   emitSwarmCollaborationMessage,
   emitSwarmCollaborationMention,
 } from '#/fleet';
-import { SwarmChannelTool } from '../../tools/builtin/collaboration/swarm-channel';
+import { SwarmChannelTool } from '../../tools/builtin/fleet/swarm-channel';
 import {
   DEFAULT_AGENT_PROFILES,
   prepareSystemPromptContext,

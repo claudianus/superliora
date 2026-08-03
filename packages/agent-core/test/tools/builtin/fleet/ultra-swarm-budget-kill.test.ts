@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createLinkedAbortController,
   formatBudgetKillHandoff,
-} from '../../../../src/tools/builtin/collaboration/ultra-swarm';
+} from '../../../../src/tools/builtin/fleet/ultra-swarm';
 import {
   createSwarmBudgetState,
   recordSwarmBudgetRound,

@@ -156,7 +156,7 @@ describe('UltraSwarmEngageGate routing field', () => {
   });
 });
 
-import { resolveMaxExperts } from '../../src/tools/builtin/collaboration/ultra-swarm';
+import { resolveMaxExperts } from '../../src/tools/builtin/fleet/ultra-swarm';
 
 describe('resolveMaxExperts', () => {
   it('returns MAX when tool intensity is max', () => {

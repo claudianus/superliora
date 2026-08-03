@@ -33,7 +33,7 @@ const TEMPLATED = new Set([
 
 const STATIC_PLACEHOLDER_PROTOCOL_FILES = new Set([
   'agent/swarm/enter-reminder.md',
-  'tools/builtin/collaboration/agent-swarm.md',
+  'tools/builtin/fleet/agent-swarm.md',
 ]);
 
 const mdFiles = globSync('**/*.md', { cwd: SRC })

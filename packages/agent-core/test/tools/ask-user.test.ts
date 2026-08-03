@@ -8,7 +8,7 @@ import {
   AskUserQuestionInputSchema,
   AskUserQuestionTool,
   type AskUserQuestionInput,
-} from '../../src/tools/builtin/collaboration/ask-user';
+} from '../../src/tools/builtin/fleet/ask-user';
 import { executeTool } from './fixtures/execute-tool';
 import { createBackgroundManager } from '../agent/background/helpers';
 
