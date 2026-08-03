@@ -73,6 +73,45 @@ describe('resolveSubagentModelAlias', () => {
     ).toBe('kimi-k2.5');
   });
 
+  // V7-2 (a): an explorationModel whose provider credentials are not entitled
+  // (403 — marked unhealthy) must never be routed; explore falls back to the
+  // cheap `fast` alias or the parent model instead.
+  const modelsWithFast = {
+    'kimi-k2.5': { model: 'kimi-k2.5', provider: 'kimi' },
+    fast: { model: 'gemini-2.5-flash-lite', provider: 'google' },
+    'explore-model': { model: 'explore-cheap', provider: 'opencode' },
+  };
+
+  it('(V7-2a) unauthorized explorationModel falls back to models.fast', () => {
+    expect(
+      resolveSubagentModelAlias(
+        'explore',
+        undefined,
+        'kimi-k2.5',
+        modelsWithFast,
+        'explore-model',
+        {
+          isAliasHealthy: (alias) => alias !== 'explore-model',
+        },
+      ),
+    ).toBe('fast');
+  });
+
+  it('(V7-2a) unauthorized explorationModel falls back to parent model without a healthy cheap alias', () => {
+    expect(
+      resolveSubagentModelAlias(
+        'explore',
+        undefined,
+        'kimi-k2.5',
+        modelsWithFast,
+        'explore-model',
+        {
+          isAliasHealthy: (alias) => alias === 'kimi-k2.5',
+        },
+      ),
+    ).toBe('kimi-k2.5');
+  });
+
   it('inferCheapModelAliasSync skips unhealthy aliases', () => {
     expect(
       inferCheapModelAliasSync(models, (alias) => alias !== 'gemini-2.5-flash-lite'),
