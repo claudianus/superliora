@@ -62,6 +62,14 @@ describe('showEyesSettings', () => {
     expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
+  it('shows eyes readiness status panel', async () => {
+    const host = makeEyesHost();
+    showEyesSettings(host);
+    selectEyesAction(host, 'status');
+    await vi.waitFor(() => {
+      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
+    });
+
     const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
       .calls[0]?.[0] as UsagePanelComponent;
     const lines = panel.snapshotBodyLines(1).join('\n');

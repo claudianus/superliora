@@ -20,6 +20,6 @@ describe('handleProfileCommand', () => {
     await handleProfileCommand(host, 'help');
     const notice = String((host.showNotice as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] ?? '');
     expect(notice).toContain('/profile');
-    expect(notice).toContain('Core≤12 is the product waist');
+    expect(notice).toContain('Worker Core≤12: /profile core');
   });
 });

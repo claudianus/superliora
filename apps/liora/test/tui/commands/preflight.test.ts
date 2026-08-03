@@ -1154,7 +1154,7 @@ function writeHumanWritingFixture(
   workDir: string,
   fixture: { readonly contract: string; readonly humanWriting: readonly string[] },
 ) {
-  const contractDir = join(workDir, 'apps/liora/src/tui/commands');
+  const contractDir = join(workDir, 'apps/liora/src/tui/commands/ultrawork');
   const criteriaDir = join(workDir, '.superliora/bench');
   mkdirSync(contractDir, { recursive: true });
   mkdirSync(criteriaDir, { recursive: true });

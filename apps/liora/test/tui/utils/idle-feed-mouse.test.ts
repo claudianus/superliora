@@ -134,10 +134,11 @@ describe('idle feed mouse', () => {
     const outsideY = context.rect.y + context.rect.height + 2;
 
     expect(handleTranscriptSelectionMouseInput(state, mouseEvent('press', x, y))).toBe(true);
-    // Drag leaves the transcript hit rect — must clear pending (not skip idle-feed handling).
+    // Drag leaves the transcript hit rect while a selection is active — still handled
+    // (so isDragging can finalize later) and must clear idle-feed pending.
     expect(
       handleTranscriptSelectionMouseInput(state, mouseEvent('drag', x, outsideY)),
-    ).toBe(false);
+    ).toBe(true);
     // Release back near the original press must not drop food without a fresh press.
     expect(handleTranscriptSelectionMouseInput(state, mouseEvent('release', x, y))).toBe(true);
 

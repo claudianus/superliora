@@ -52,6 +52,7 @@ import {
 import {
   labelBackgroundAgent,
   labelBackgroundBash,
+  labelConductorJobs,
   labelMenu,
   labelModeAuto,
   labelModeMission,
@@ -169,6 +170,24 @@ export function renderFooterLine1(input: RenderFooterLine1Input): string {
         if (workerLabel.length > 0) {
           modes.push(renderPulseText(workerLabel, 'footer:workers', 'primary', appearance));
         }
+      }
+    }
+    const jobs = state.conductorJobs;
+    if (
+      jobs !== undefined &&
+      jobs !== null &&
+      (jobs.total > 0 ||
+        jobs.running > 0 ||
+        jobs.queued > 0 ||
+        jobs.unreadInbox > 0 ||
+        jobs.interrupted > 0 ||
+        jobs.needsUser > 0)
+    ) {
+      const jobLabel = labelConductorJobs(labels, jobs);
+      if (jobLabel.length > 0) {
+        modes.push(
+          renderPulseText(jobLabel, 'footer:conductor-jobs', 'accent', appearance),
+        );
       }
     }
   }

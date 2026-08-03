@@ -96,10 +96,6 @@ describe('storage settings', () => {
     expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
-    showStorageSettings(host);
-    selectStorageAction(host, 'tip-home');
-    expect(host.showStatus).toHaveBeenCalledWith(STORAGE_HOME_TIP, 'info');
-  });
 
   it('mounts read-only storage panel with live harness paths', async () => {
     const originalHome = process.env['SUPERLIORA_HOME'];

@@ -335,7 +335,7 @@ export class AgentSwarmProgressWarRoom {
   }
 
   private isUltraSwarmOpsFeedEnabled(): boolean {
-    return this.title === 'Fleet';
+    return this.title === 'Fleet' || this.title === 'UltraSwarm';
   }
 
   private appendConversationFeed(input: {

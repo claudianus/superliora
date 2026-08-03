@@ -401,8 +401,7 @@ describe('status panel report lines', () => {
     expect(toolsRow ?? '').toMatch(/5 active tools/);
     expect(toolsRow ?? '').toContain('SearchTools on');
     expect(toolsRow ?? '').toContain('SearchSkill on');
-    expect(toolsRow ?? '').toContain('Core≤12');
-    expect(toolsRow ?? '').toContain('TaskGraph');
+    expect(toolsRow ?? '').toContain('Conductor · worker core');
   });
 
 

@@ -492,7 +492,8 @@ describe('plugins selector dialogs', () => {
 
     const out = picker.render(120).map(strip);
     expect(out).toContain(' Remove Kimi Datasource (kimi-datasource)?');
-    expect(out).toContain('  ? Cancel');
+    // The selected row is padded by the focus island, so match the line prefix.
+    expect(out.some((line) => line.includes('  ? Cancel'))).toBe(true);
     expect(out).toContain('    Keep this plugin installed.');
     expect(out).toContain('    Remove only the install record; plugin files are left in place.');
 
@@ -533,7 +534,7 @@ describe('plugins selector dialogs', () => {
     const raw = renderRaw(picker);
     const out = raw.split('\n').map(strip);
     expect(out).toContain(' Install third-party plugin Superpowers?');
-    expect(out).toContain('  ? Exit');
+    expect(out.some((line) => line.includes('  ? Exit'))).toBe(true);
     expect(out).toContain('    Cancel the installation.');
     expect(out).toContain('    Install this third-party plugin anyway.');
     // The warning explains why confirmation is required and uses the

@@ -9,7 +9,10 @@ import {
   formatOAuthAccountRowLine,
   oauthAccountRole,
 } from '#/tui/components/dialogs/auth/accounts-manager';
-import { SettingsSelectorComponent } from '#/tui/components/dialogs/picker/settings-selector';
+import {
+  SETTINGS_OPTIONS,
+  SettingsSelectorComponent,
+} from '#/tui/components/dialogs/picker/settings-selector';
 import type { ProviderOAuthRef } from '@superliora/oauth';
 
 const ANSI_SGR = /\u001B\[[0-9;]*m/g;
@@ -22,6 +25,20 @@ const SAMPLE_REFS: readonly ProviderOAuthRef[] = [
   { storage: 'file', key: 'xai-grok', label: 'work' },
   { storage: 'file', key: 'xai-grok-account-abc' },
 ];
+
+/** Page/scroll until `needle` shows in the rendered lines (settings spans pages). */
+function pageThrough(
+  settings: SettingsSelectorComponent,
+  needle: string,
+  maxSteps = 60,
+): string[] {
+  let out = settings.render(120).map(strip);
+  for (let step = 0; step < maxSteps && !out.some((line) => line.includes(needle)); step++) {
+    settings.handleInput('\u001B[C');
+    out = settings.render(120).map(strip);
+  }
+  return out;
+}
 
 describe('accounts-manager dialogs', () => {
   it('builds PREMIUM rows with label · role · fingerprint', () => {
@@ -92,9 +109,11 @@ describe('accounts-manager dialogs', () => {
       onSelect: vi.fn(),
       onCancel: vi.fn(),
     });
-    const out = settings.render(120).map(strip);
+    const out = pageThrough(settings, 'Accounts');
     expect(out.some((line) => line.includes('Accounts'))).toBe(true);
-    expect(out.some((line) => line.includes('OAuth account pools'))).toBe(true);
+    // Grid shows only the selected cell's description; verify the catalog link instead.
+    const accounts = SETTINGS_OPTIONS.find((opt) => opt.value === 'accounts');
+    expect(accounts?.description).toMatch(/OAuth pools/);
   });
 
   it('exposes Eyes readiness in Settings options', () => {
@@ -102,11 +121,9 @@ describe('accounts-manager dialogs', () => {
       onSelect: vi.fn(),
       onCancel: vi.fn(),
     });
-    settings.handleInput('\u001B[C'); // → Eyes readiness is on page 2
-    const out = settings.render(120).map(strip);
+    const out = pageThrough(settings, 'Eyes readiness');
     expect(out.some((line) => line.includes('Eyes readiness'))).toBe(true);
-    expect(out.some((line) => line.includes('browser-use') || line.includes('computer-use'))).toBe(
-      true,
-    );
+    const eyes = SETTINGS_OPTIONS.find((opt) => opt.value === 'eyes');
+    expect(eyes?.description).toMatch(/browser-use|computer-use/);
   });
 });

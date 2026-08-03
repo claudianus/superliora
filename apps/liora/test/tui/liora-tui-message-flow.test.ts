@@ -3343,7 +3343,7 @@ command = "vim"
     const transcript = stripSgr(renderTranscript(driver));
     expect(transcript).toContain('UltraSwarm');
     expect(transcript).toContain('Working...');
-    expect(transcript).toContain('1 working');
+    expect(transcript).toContain('002');
     expect(transcript).toContain('001');
     expect(transcript).not.toContain('gameplay-engineer agent started in background');
   });
@@ -3534,8 +3534,8 @@ command = "vim"
       expect(output).toContain('>_ SuperLiora');
       expect(output).toContain('Model');
       expect(output).toContain('thinking high');
-      expect(output).toContain('Permissions  auto');
-      expect(output).toMatch(/Ultrawork\s+needs readiness/);
+      expect(output).toContain('Permissions     auto');
+      expect(output).toMatch(/Mission\s+needs readiness/);
       expect(output).toMatch(/Stages\s+Plan on \| Goal ready \| Swarm off \| Verify blocked/);
       expect(output).not.toMatch(/Planning\s+Ultrawork/);
       expect(output).toContain('Context window');
@@ -3578,6 +3578,10 @@ command = "vim"
     const previousCalls = listMcpServers.mock.calls.length;
 
     driver.handleUserInput('/mcp');
+    await vi.waitFor(() => {
+      expect(driver.state.centerModalStack.at(-1)?.panel).toBeDefined();
+    });
+    (driver.state.centerModalStack.at(-1)?.panel as { handleInput(data: string): void }).handleInput('\r');
 
     await vi.waitFor(() => {
       expect(listMcpServers).toHaveBeenCalledTimes(previousCalls + 1);
@@ -3607,6 +3611,10 @@ command = "vim"
     const { driver } = await makeDriver(session);
 
     driver.handleUserInput('/mcp');
+    await vi.waitFor(() => {
+      expect(driver.state.centerModalStack.at(-1)?.panel).toBeDefined();
+    });
+    (driver.state.centerModalStack.at(-1)?.panel as { handleInput(data: string): void }).handleInput('\r');
 
     await vi.waitFor(() => {
       const output = stripSgr(driver.state.transcriptContainer.render(120).join('\n'));
@@ -3625,6 +3633,10 @@ command = "vim"
     const { driver } = await makeDriver(session);
 
     driver.handleUserInput('/mcp');
+    await vi.waitFor(() => {
+      expect(driver.state.centerModalStack.at(-1)?.panel).toBeDefined();
+    });
+    (driver.state.centerModalStack.at(-1)?.panel as { handleInput(data: string): void }).handleInput('\r');
 
     await vi.waitFor(() => {
       const output = stripSgr(driver.state.transcriptContainer.render(120).join('\n'));

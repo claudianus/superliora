@@ -27,6 +27,7 @@ import {
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
 } from '#/tui/features/appearance/appearance-effects';
+import { startStartupEventLoop } from '#/tui/controllers/startup-lifecycle/native-renderer';
 
 vi.mock('#/tui/commands/auth/prompts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('#/tui/commands/auth/prompts')>();
@@ -669,7 +670,7 @@ describe('LioraTUI startup', () => {
     expect(driver.state.startupState).toBe('picker');
     await (driver as unknown as { bootstrapFromPicker(): Promise<void> }).bootstrapFromPicker();
 
-    const picker = driver.state.editorContainer.children[0] as { handleInput(data: string): void };
+    const picker = driver.state.centerModalStack.at(-1)?.panel as { handleInput(data: string): void };
     picker.handleInput('\r');
     await new Promise((resolve) => setImmediate(resolve));
 
@@ -709,7 +710,7 @@ describe('LioraTUI startup', () => {
     expect(driver.state.startupState).toBe('picker');
     await (driver as unknown as { bootstrapFromPicker(): Promise<void> }).bootstrapFromPicker();
 
-    const picker = driver.state.editorContainer.children[0] as { handleInput(data: string): void };
+    const picker = driver.state.centerModalStack.at(-1)?.panel as { handleInput(data: string): void };
     picker.handleInput('\r');
     await new Promise((resolve) => setImmediate(resolve));
 
@@ -734,12 +735,13 @@ describe('LioraTUI startup', () => {
       if (input.workDir === '/tmp/proj-a') return [currentWorkDirSession];
       return [currentWorkDirSession, otherWorkDirSession];
     });
-    const harness = makeHarness(makeSession({ id: 'ses-current' }), { listSessions });
+    const harness = makeHarness(makeSession({ id: 'ses-current', workDir: '/tmp/proj-a' }), { listSessions });
     const driver = makeDriver(harness, makeStartupInput());
     await expect(driver.init()).resolves.toBe(false);
 
+    (driver as unknown as { ensureNativeInputRouter(): void }).ensureNativeInputRouter();
     await (driver as unknown as { showSessionPicker(): Promise<void> }).showSessionPicker();
-    const picker = driver.state.editorContainer.children[0] as { handleInput(data: string): void };
+    const picker = driver.state.centerModalStack.at(-1)?.panel as { handleInput(data: string): void };
     picker.handleInput('\u0001');
     await new Promise((resolve) => setImmediate(resolve));
 
@@ -769,15 +771,16 @@ describe('LioraTUI startup', () => {
       if (input.workDir === '/tmp/proj-a') return [currentWorkDirSession];
       return [currentWorkDirSession, otherWorkDirSession];
     });
-    const harness = makeHarness(makeSession({ id: 'ses-current' }), { listSessions });
+    const harness = makeHarness(makeSession({ id: 'ses-current', workDir: '/tmp/proj-a' }), { listSessions });
     const driver = makeDriver(harness, makeStartupInput());
     await expect(driver.init()).resolves.toBe(false);
 
+    (driver as unknown as { ensureNativeInputRouter(): void }).ensureNativeInputRouter();
     await (driver as unknown as { showSessionPicker(): Promise<void> }).showSessionPicker();
-    const firstPicker = driver.state.editorContainer.children[0] as { handleInput(data: string): void };
+    const firstPicker = driver.state.centerModalStack.at(-1)?.panel as { handleInput(data: string): void };
     firstPicker.handleInput('\u0001');
     await new Promise((resolve) => setImmediate(resolve));
-    const allPicker = driver.state.editorContainer.children[0] as { handleInput(data: string): void };
+    const allPicker = driver.state.centerModalStack.at(-1)?.panel as { handleInput(data: string): void };
     allPicker.handleInput('\u0001');
     await new Promise((resolve) => setImmediate(resolve));
 
@@ -806,18 +809,19 @@ describe('LioraTUI startup', () => {
         resolveAllSessions = resolve;
       });
     });
-    const harness = makeHarness(makeSession({ id: 'ses-current' }), { listSessions });
+    const harness = makeHarness(makeSession({ id: 'ses-current', workDir: '/tmp/proj-a' }), { listSessions });
     const driver = makeDriver(harness, makeStartupInput());
     const mountSessionPicker = vi.spyOn(
-      driver as unknown as { mountSessionPicker(options: unknown): void },
-      'mountSessionPicker',
+      driver as unknown as { mountCenterModal(panel: unknown, options?: unknown): void },
+      'mountCenterModal',
     );
     await expect(driver.init()).resolves.toBe(false);
 
+    (driver as unknown as { ensureNativeInputRouter(): void }).ensureNativeInputRouter();
     await (driver as unknown as { showSessionPicker(): Promise<void> }).showSessionPicker();
     expect(mountSessionPicker).toHaveBeenCalledTimes(1);
 
-    const picker = driver.state.editorContainer.children[0] as { handleInput(data: string): void };
+    const picker = driver.state.centerModalStack.at(-1)?.panel as { handleInput(data: string): void };
     picker.handleInput('\u0001');
     (driver as unknown as { hideSessionPicker(): void }).hideSessionPicker();
     resolveAllSessions?.([currentWorkDirSession, otherWorkDirSession]);
@@ -844,12 +848,13 @@ describe('LioraTUI startup', () => {
       if (input.workDir === '/tmp/proj-a') return [currentWorkDirSession];
       return [currentWorkDirSession, otherWorkDirSession];
     });
-    const harness = makeHarness(makeSession({ id: 'ses-current' }), { listSessions });
+    const harness = makeHarness(makeSession({ id: 'ses-current', workDir: '/tmp/proj-a' }), { listSessions });
     const driver = makeDriver(harness, makeStartupInput());
     await expect(driver.init()).resolves.toBe(false);
 
+    (driver as unknown as { ensureNativeInputRouter(): void }).ensureNativeInputRouter();
     await (driver as unknown as { showSessionPicker(): Promise<void> }).showSessionPicker();
-    const firstPicker = driver.state.editorContainer.children[0] as {
+    const firstPicker = driver.state.centerModalStack.at(-1)?.panel as {
       handleInput(data: string): void;
       render(width: number): string[];
     };
@@ -861,7 +866,7 @@ describe('LioraTUI startup', () => {
     firstPicker.handleInput('\u0001');
     await new Promise((resolve) => setImmediate(resolve));
 
-    const allPicker = driver.state.editorContainer.children[0] as {
+    const allPicker = driver.state.centerModalStack.at(-1)?.panel as {
       handleInput(data: string): void;
       render(width: number): string[];
     };
@@ -887,7 +892,7 @@ describe('LioraTUI startup', () => {
       updatedAt: Date.now() - 1000,
     };
     const resumeSession = vi.fn(async () => makeSession({ id: 'ses-other-cwd' }));
-    const harness = makeHarness(makeSession({ id: 'ses-current' }), {
+    const harness = makeHarness(makeSession({ id: 'ses-current', workDir: '/tmp/proj-a' }), {
       resumeSession,
       listSessions: vi.fn(async () => [currentWorkDirSession, otherWorkDirSession]),
     });
@@ -895,8 +900,9 @@ describe('LioraTUI startup', () => {
     await expect(driver.init()).resolves.toBe(false);
     copyTextToClipboardMock.mockClear();
 
+    (driver as unknown as { ensureNativeInputRouter(): void }).ensureNativeInputRouter();
     await (driver as unknown as { showSessionPicker(): Promise<void> }).showSessionPicker();
-    const picker = driver.state.editorContainer.children[0] as { handleInput(data: string): void };
+    const picker = driver.state.centerModalStack.at(-1)?.panel as { handleInput(data: string): void };
     picker.handleInput('\u001B[B');
     picker.handleInput('\r');
     await new Promise((resolve) => setImmediate(resolve));
@@ -926,7 +932,7 @@ describe('LioraTUI startup', () => {
       updatedAt: Date.now() - 1000,
     };
     const resumeSession = vi.fn(async () => makeSession({ id: 'ses-other-cwd' }));
-    const harness = makeHarness(makeSession({ id: 'ses-current' }), {
+    const harness = makeHarness(makeSession({ id: 'ses-current', workDir: '/tmp/proj-a' }), {
       resumeSession,
       listSessions: vi.fn(async () => [currentWorkDirSession, otherWorkDirSession]),
     });
@@ -934,8 +940,9 @@ describe('LioraTUI startup', () => {
     await expect(driver.init()).resolves.toBe(false);
     copyTextToClipboardMock.mockClear();
 
+    (driver as unknown as { ensureNativeInputRouter(): void }).ensureNativeInputRouter();
     await (driver as unknown as { showSessionPicker(): Promise<void> }).showSessionPicker();
-    const picker = driver.state.editorContainer.children[0] as { handleInput(data: string): void };
+    const picker = driver.state.centerModalStack.at(-1)?.panel as { handleInput(data: string): void };
     picker.handleInput('\u001B[B');
     picker.handleInput('\r');
     await new Promise((resolve) => setImmediate(resolve));
@@ -961,7 +968,7 @@ describe('LioraTUI startup', () => {
       updatedAt: Date.now() - 1000,
     };
     const resumeSession = vi.fn(async () => makeSession({ id: 'ses-other-cwd' }));
-    const harness = makeHarness(makeSession({ id: 'ses-current' }), {
+    const harness = makeHarness(makeSession({ id: 'ses-current', workDir: '/tmp/proj-a' }), {
       resumeSession,
       listSessions: vi.fn(async () => [currentWorkDirSession, otherWorkDirSession]),
     });
@@ -972,7 +979,7 @@ describe('LioraTUI startup', () => {
     await expect((driver as unknown as MainTuiDriver).initMainTui()).resolves.toBe(false);
     await (driver as unknown as { bootstrapFromPicker(): Promise<void> }).bootstrapFromPicker();
 
-    const picker = driver.state.editorContainer.children[0] as { handleInput(data: string): void };
+    const picker = driver.state.centerModalStack.at(-1)?.panel as { handleInput(data: string): void };
     picker.handleInput('\u001B[B');
     picker.handleInput('\r');
     await new Promise((resolve) => setImmediate(resolve));
@@ -985,7 +992,7 @@ describe('LioraTUI startup', () => {
   });
 
   it('does not apply startup flags when switching sessions via the /sessions picker', async () => {
-    const initial = makeSession({ id: 'ses-1' });
+    const initial = makeSession({ id: 'ses-1', workDir: '/tmp/proj-a' });
     const picked = makeSession({
       id: 'ses-2',
       setPermission: vi.fn(async () => {}),
@@ -1007,8 +1014,9 @@ describe('LioraTUI startup', () => {
     const driver = makeDriver(harness, makeStartupInput({ auto: true, plan: true }));
     await expect(driver.init()).resolves.toBe(false);
 
+    (driver as unknown as { ensureNativeInputRouter(): void }).ensureNativeInputRouter();
     await (driver as unknown as { showSessionPicker(): Promise<void> }).showSessionPicker();
-    const picker = driver.state.editorContainer.children[0] as { handleInput(data: string): void };
+    const picker = driver.state.centerModalStack.at(-1)?.panel as { handleInput(data: string): void };
     picker.handleInput('\r');
     await new Promise((resolve) => setImmediate(resolve));
 
@@ -1037,7 +1045,7 @@ describe('LioraTUI startup', () => {
     await expect((driver as unknown as MainTuiDriver).initMainTui()).resolves.toBe(false);
     await (driver as unknown as { bootstrapFromPicker(): Promise<void> }).bootstrapFromPicker();
 
-    const picker = driver.state.editorContainer.children[0] as { handleInput(data: string): void };
+    const picker = driver.state.centerModalStack.at(-1)?.panel as { handleInput(data: string): void };
     picker.handleInput('\u0003');
     picker.handleInput('\r');
     await new Promise((resolve) => setImmediate(resolve));
@@ -1272,7 +1280,7 @@ describe('LioraTUI startup', () => {
     await handleLoginCommand(driver as any);
 
     expect(session.setModel).toHaveBeenCalledWith('k2');
-    expect(session.setThinking).toHaveBeenCalledWith('on');
+    expect(session.setThinking).toHaveBeenCalledWith('high');
     expect(driver.state.appState).toMatchObject({
       model: 'k2',
       thinking: true,
@@ -1778,7 +1786,7 @@ describe('LioraTUI startup', () => {
       await driver.init();
       // The renderer loop (and its ambient animation ticker) starts in
       // start(), not init(); arm it directly under fake timers.
-      (driver as unknown as { startEventLoop(): void }).startEventLoop();
+      startStartupEventLoop(driver as never, { scrollTranscriptViewport: vi.fn() });
 
       // Fill the transcript with enough entries that the old message-count gate
       // would have stopped the ambient animation ticker.

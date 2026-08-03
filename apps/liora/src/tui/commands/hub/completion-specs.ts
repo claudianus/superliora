@@ -87,6 +87,17 @@ const CRON_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'help', description: 'Show /cron usage' },
 ];
 
+const JOB_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+  { value: 'list', description: 'List Conductor jobs' },
+  { value: 'inbox', description: 'Show Job inbox notices' },
+  { value: 'resume', description: 'Resume interrupted jobs' },
+  { value: 'cancel', description: 'Cancel a job by id' },
+  { value: 'inspect', description: 'Inspect a job by id' },
+  { value: 'schedule', description: 'Pump the job scheduler' },
+  { value: 'gc', description: 'Worktree GC for finished jobs' },
+  { value: 'help', description: 'Show /job usage' },
+];
+
 const EXTENSIONS_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'plugins', description: 'Open the plugins tab' },
   { value: 'hooks', description: 'Open the hooks tab' },
@@ -321,6 +332,11 @@ export function loopArgumentCompletions(argumentPrefix: string): AutocompleteIte
 /** Argument autocompletion for the `/cron` list/delete/help subcommands. */
 export function cronArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
   return completeLeadingArg(CRON_ARG_COMPLETIONS, argumentPrefix);
+}
+
+/** Argument autocompletion for `/job` subcommands. */
+export function jobArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
+  return completeLeadingArg(JOB_ARG_COMPLETIONS, argumentPrefix);
 }
 
 /** Argument autocompletion for `/extensions` tabs and Claude import shortcuts. */

@@ -206,6 +206,42 @@ export function labelBackgroundAgent(labels: FooterLabels, count: number): strin
   return `[${String(count)} ${noun} running]`;
 }
 
+/** Compact Conductor Job strip for footer (E1). */
+export function labelConductorJobs(
+  labels: FooterLabels,
+  snap: {
+    readonly running: number;
+    readonly queued: number;
+    readonly blocked: number;
+    readonly needsUser: number;
+    readonly interrupted: number;
+    readonly failed: number;
+    readonly unreadInbox: number;
+  },
+): string {
+  const parts: string[] = [];
+  if (isPlainLabels(labels)) {
+    if (snap.running > 0) parts.push(`${String(snap.running)} running`);
+    if (snap.queued > 0) parts.push(`${String(snap.queued)} queued`);
+    if (snap.blocked > 0) parts.push(`${String(snap.blocked)} blocked`);
+    if (snap.needsUser > 0) parts.push(`${String(snap.needsUser)} need you`);
+    if (snap.interrupted > 0) parts.push(`${String(snap.interrupted)} paused`);
+    if (snap.failed > 0) parts.push(`${String(snap.failed)} failed`);
+    if (snap.unreadInbox > 0) parts.push(`${String(snap.unreadInbox)} inbox`);
+    if (parts.length === 0) return 'Jobs idle';
+    return `Jobs · ${parts.join(' · ')}`;
+  }
+  if (snap.running > 0) parts.push(`${String(snap.running)}▸`);
+  if (snap.queued > 0) parts.push(`${String(snap.queued)}…`);
+  if (snap.blocked > 0) parts.push(`${String(snap.blocked)}⛔`);
+  if (snap.needsUser > 0) parts.push(`${String(snap.needsUser)}?`);
+  if (snap.interrupted > 0) parts.push(`${String(snap.interrupted)}⏸`);
+  if (snap.failed > 0) parts.push(`${String(snap.failed)}✗`);
+  if (snap.unreadInbox > 0) parts.push(`i${String(snap.unreadInbox)}`);
+  if (parts.length === 0) return 'jobs';
+  return `jobs:${parts.join(' ')}`;
+}
+
 export function labelModelRoute(
   labels: FooterLabels,
   kind: 'failover' | 'compact' | 'complete' | 'cred' | 'via',

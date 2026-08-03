@@ -12,6 +12,8 @@ import {
 } from '#/tui/features/transcript/transcript-hit-test';
 import * as transcriptHitTest from '#/tui/features/transcript/transcript-hit-test';
 import { handleTranscriptSelectionMouseInput } from '#/tui/features/transcript/transcript-selection-mouse';
+import { createTUIStateNativeInputRouter } from '#/tui/features/native-layout/native-input-router';
+import { resetStageResizeDragForTests } from '#/tui/features/stage/stage-resize-mouse';
 import {
   copyTranscriptSelectionToClipboard,
   createTranscriptSelectionState,
@@ -207,6 +209,94 @@ describe('transcript selection mouse routing', () => {
   });
 });
 
+
+  it('finalizes and copies when drag releases outside the transcript hit area', async () => {
+    copyTextToClipboardMock.mockClear();
+    const state = createTestTuiState();
+    vi.spyOn(transcriptHitTest, 'resolveTranscriptHitTestContext').mockReturnValue({
+      rect: { x: 0, y: 0, width: 40, height: 5 },
+      viewportStart: 0,
+      visibleRows: 5,
+      stageWidth: 40,
+      leftPad: CHROME_GUTTER,
+      rightPad: CHROME_GUTTER,
+      contentWidth: 38,
+      visibleLines: [' Hello transcript'],
+    });
+
+    const press = {
+      type: 'mouse' as const,
+      raw: '',
+      ctrl: false,
+      alt: false,
+      shift: false,
+      action: 'press' as const,
+      button: 'left' as const,
+      x: CHROME_GUTTER,
+      y: 0,
+    };
+    const drag = { ...press, action: 'drag' as const, x: CHROME_GUTTER + 8 };
+    // Release far outside the transcript rect (e.g. over the editor / letterbox).
+    const releaseOutside = {
+      ...press,
+      action: 'release' as const,
+      x: 200,
+      y: 200,
+    };
+
+    expect(handleTranscriptSelectionMouseInput(state, press)).toBe(true);
+    expect(handleTranscriptSelectionMouseInput(state, drag)).toBe(true);
+    expect(handleTranscriptSelectionMouseInput(state, releaseOutside)).toBe(true);
+    expect(state.transcriptSelection.isDragging).toBe(false);
+
+    await vi.waitFor(() => {
+      expect(copyTextToClipboardMock).toHaveBeenCalled();
+      expect(state.toast.visible?.message).toBe('Copied to clipboard');
+    });
+    expect(state.transcriptSelection.hasSelection).toBe(true);
+  });
+
+  it('keeps drag active when pointer leaves content mid-drag, then copies on release', async () => {
+    copyTextToClipboardMock.mockClear();
+    const state = createTestTuiState();
+    vi.spyOn(transcriptHitTest, 'resolveTranscriptHitTestContext').mockReturnValue({
+      rect: { x: 0, y: 0, width: 40, height: 5 },
+      viewportStart: 0,
+      visibleRows: 5,
+      stageWidth: 40,
+      leftPad: CHROME_GUTTER,
+      rightPad: CHROME_GUTTER,
+      contentWidth: 38,
+      visibleLines: [' Hello transcript'],
+    });
+
+    const press = {
+      type: 'mouse' as const,
+      raw: '',
+      ctrl: false,
+      alt: false,
+      shift: false,
+      action: 'press' as const,
+      button: 'left' as const,
+      x: CHROME_GUTTER,
+      y: 0,
+    };
+    const dragInside = { ...press, action: 'drag' as const, x: CHROME_GUTTER + 6 };
+    const dragOutside = { ...press, action: 'drag' as const, x: 999, y: 999 };
+    const releaseOutside = { ...press, action: 'release' as const, x: 999, y: 999 };
+
+    expect(handleTranscriptSelectionMouseInput(state, press)).toBe(true);
+    expect(handleTranscriptSelectionMouseInput(state, dragInside)).toBe(true);
+    expect(handleTranscriptSelectionMouseInput(state, dragOutside)).toBe(true);
+    expect(state.transcriptSelection.isDragging).toBe(true);
+    expect(handleTranscriptSelectionMouseInput(state, releaseOutside)).toBe(true);
+    expect(state.transcriptSelection.isDragging).toBe(false);
+
+    await vi.waitFor(() => {
+      expect(copyTextToClipboardMock).toHaveBeenCalledWith('Hello ');
+    });
+  });
+
 describe('copyTranscriptSelectionToClipboard', () => {
   it('copies selected transcript text and skips empty selections', async () => {
     copyTextToClipboardMock.mockClear();
@@ -249,5 +339,70 @@ describe('animation gate', () => {
     resetTUIInputInteractionForTests();
     expect(shouldRenderAmbientAnimationFrame(24, true)).toBe(false);
     expect(shouldRenderAmbientAnimationFrame(24, false)).toBe(true);
+  });
+});
+
+
+describe('native router + transcript selection', () => {
+  it('does not let the focused editor steal drag/release mid-selection', async () => {
+    copyTextToClipboardMock.mockClear();
+    resetStageResizeDragForTests();
+    const state = createTestTuiState();
+    // Fixed rect/coords — independent of terminal size so stage grips never win.
+    const rect = { x: 10, y: 10, width: 40, height: 8 };
+    vi.spyOn(transcriptHitTest, 'resolveTranscriptHitTestContext').mockReturnValue({
+      rect,
+      viewportStart: 0,
+      visibleRows: 8,
+      stageWidth: 40,
+      leftPad: CHROME_GUTTER,
+      rightPad: CHROME_GUTTER,
+      contentWidth: 38,
+      visibleLines: [' Hello transcript', ' Second line here'],
+    });
+    // Editor below transcript; release lands there so focused-target would win
+    // if it still swallowed drag/release.
+    state.cachedEditorRect = { x: 0, y: 40, width: 80, height: 3 };
+    state.cachedEditorRectColumns = state.terminal.columns;
+    state.cachedEditorRectRows = state.terminal.rows;
+    state.cachedEditorRectLineCount =
+      state.editor.getNativeLayoutRowCount?.(state.terminal.columns) ?? -1;
+
+    const router = createTUIStateNativeInputRouter(state, { requestRender: false });
+    const press = {
+      type: 'mouse' as const,
+      raw: '',
+      ctrl: false,
+      alt: false,
+      shift: false,
+      action: 'press' as const,
+      button: 'left' as const,
+      x: rect.x + CHROME_GUTTER + 2,
+      y: rect.y + 1,
+    };
+    const drag = {
+      ...press,
+      action: 'drag' as const,
+      x: rect.x + CHROME_GUTTER + 10,
+      y: rect.y + 1,
+    };
+    const releaseOnEditor = {
+      ...press,
+      action: 'release' as const,
+      x: rect.x + CHROME_GUTTER + 10,
+      y: 41,
+    };
+
+    expect(router.dispatch(press).handled).toBe(true);
+    expect(state.transcriptSelection.isDragging).toBe(true);
+    expect(router.dispatch(drag).handled).toBe(true);
+    expect(router.dispatch(releaseOnEditor).handled).toBe(true);
+    expect(state.transcriptSelection.isDragging).toBe(false);
+
+    await vi.waitFor(() => {
+      expect(copyTextToClipboardMock).toHaveBeenCalled();
+      expect(state.toast.visible?.message).toBe('Copied to clipboard');
+    });
+    expect(state.transcriptSelection.hasSelection).toBe(true);
   });
 });

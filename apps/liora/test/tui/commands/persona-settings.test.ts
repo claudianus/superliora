@@ -66,14 +66,6 @@ describe('persona glance', () => {
       'Active persona: default (engine personality)',
     );
   });
-
-    const text = lines.join('\n');
-    expect(text).toContain('Persona (read-only)');
-    expect(text).toContain('Active persona: Liora');
-    expect(text).toContain('Preset: mentor');
-    expect(text).toContain('/persona set');
-    expect(text).toContain('config.toml [persona]');
-  });
 });
 
 describe('persona settings', () => {

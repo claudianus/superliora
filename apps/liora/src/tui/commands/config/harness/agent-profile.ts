@@ -6,6 +6,7 @@ import {
   DEFAULT_MAIN_AGENT_PROFILE_NAME,
   KNOWN_MAIN_AGENT_PROFILE_NAMES,
   MAIN_AGENT_PROFILE_ENV,
+  SOVEREIGN_CONDUCTOR_PROFILE_NAME,
   SOVEREIGN_CORE_DEFAULT_ENV,
   SOVEREIGN_CORE_PROFILE_NAME,
   SOVEREIGN_UMBRELLA_ENV,
@@ -20,10 +21,10 @@ import type { SlashCommandHost } from '../../hub/dispatch';
 
 /** User-facing Core waist opt-in hint (Mission/Fleet; not Ultra*). */
 export const CORE_WAIST_TIP =
-  'Core≤12 is the product waist (recommended: /profile core, /new). TaskGraph and wider orchestration: agent or superliora-full profiles.';
+  'Conductor is the default main profile (Jobs + Mission + Fleet). Worker Core≤12: /profile core. Coding waist: agent or superliora-full.';
 
 /** Compact /status Tools row hint (SSOT with CORE_WAIST_TIP). */
-export const CORE_WAIST_STATUS_HINT = 'Core≤12 product waist · TaskGraph: agent/full';
+export const CORE_WAIST_STATUS_HINT = 'Conductor · worker core · agent/full';
 
 /** W2 waist — Tools inventory footer (core.yaml SSOT; DeepResearch opt-in). */
 export const TOOLS_WAIST_TIP =
@@ -46,8 +47,12 @@ const PROFILE_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
     description: 'Show active default profile and activation paths',
   },
   {
+    value: SOVEREIGN_CONDUCTOR_PROFILE_NAME,
+    description: 'Meta orchestrator default — Jobs + Mission lifecycle + Fleet',
+  },
+  {
     value: SOVEREIGN_CORE_PROFILE_NAME,
-    description: 'Sovereign Core waist — exactly 12 universal tools',
+    description: 'Worker Core waist — exactly 12 universal tools',
   },
   {
     value: DEFAULT_MAIN_AGENT_PROFILE_NAME,
@@ -137,7 +142,7 @@ async function showProfileStatus(host: SlashCommandHost): Promise<void> {
         ? `Env (${SOVEREIGN_UMBRELLA_ENV}): ${sovereignUmbrella}`
         : `Env (${SOVEREIGN_UMBRELLA_ENV}): (unset)`,
       '',
-      'Core≤12 is the default product waist. Goal/SearchTools/Fleet need SUPERLIORA_PROFILE=agent (≤30) or superliora-full.',
+      'Conductor is the default main profile. Worker Core≤12: SUPERLIORA_PROFILE=core. Coding waist: agent (≤30) or superliora-full.',
       'Session coding waist: SUPERLIORA_PROFILE=agent or agent.profile = "agent".',
       '',
       'Core waist (Sovereign Core ≤12 tools) — Mission/Fleet; not Ultra*:',

@@ -25,6 +25,9 @@ function makeHost() {
         swarmMode: false,
         runtimeDegraded: undefined,
         lastModelRouteNotice: undefined,
+        availableModels: {
+          'kimi-model': { provider: 'kimi' },
+        },
       },
       theme: currentTheme,
       transcriptContainer: { addChild: vi.fn() },

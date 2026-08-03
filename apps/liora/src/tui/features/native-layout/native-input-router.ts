@@ -103,7 +103,10 @@ export class TUIStateNativeInputRouter {
           if (!shouldCleanup) return false;
           const changed = resetNativePointerInteractionState(state);
           if (changed) this.requestRenderAfterInput();
-          return event.type === 'mouse' && changed;
+          // Never consume mouse release: stage/tool cleanup is a side effect.
+          // Returning true here stole transcript selection finalization (and
+          // copy-on-release) whenever a resize hover or tool-mouse arm was set.
+          return false;
         },
       }),
     );
@@ -313,6 +316,15 @@ function handleTUIStateNativeEditorInput(
     );
   }
   if (event.type !== 'mouse') return false;
+  // Transcript drag selection is a global gesture. While it is active, do not
+  // let the focused editor swallow drag/release when the pointer crosses the
+  // prompt — otherwise isDragging sticks and copy never runs.
+  if (
+    state.transcriptSelection.isDragging &&
+    (event.action === 'drag' || event.action === 'release')
+  ) {
+    return false;
+  }
   return handleNativeEditorMouseInput(
     state.nativeEditorTextInput,
     state.editor,

@@ -37,9 +37,42 @@ function handleTranscriptSelectionMouseEvent(
     }
   }
 
+  const selection = state.transcriptSelection;
+
+  // Drag/release that began inside the transcript must still finalize even when
+  // the pointer leaves the hit-test rect (common when selecting long lines and
+  // releasing over the editor, gutter, or letterbox). Without this, isDragging
+  // sticks and copy never runs.
+  if (
+    (event.action === 'drag' || event.action === 'release') &&
+    selection.isDragging
+  ) {
+    const context = resolveTranscriptHitTestContext(state);
+    const point = context === undefined ? undefined : transcriptPointForMouse(event, context);
+    if (point !== undefined) {
+      if (event.action === 'drag') {
+        selection.updateDrag(point);
+        handleIdleFeedMouseInput(state, event, point);
+        return true;
+      }
+      // release inside hit area
+      if (handleIdleFeedMouseInput(state, event, point)) {
+        return true;
+      }
+      return finalizeSelectionRelease(state, selection.isDragging);
+    }
+
+    // Outside transcript content: keep last head on drag; always end on release.
+    if (event.action === 'drag') {
+      clearIdleFeedPending(state);
+      return true;
+    }
+    clearIdleFeedPending(state);
+    return finalizeSelectionRelease(state, true);
+  }
+
   const context = resolveTranscriptHitTestContext(state);
   if (context === undefined) {
-    // Out-of-bounds / no hit context must not leave a short-click feed pending.
     if (event.action === 'drag' || event.action === 'release') {
       clearIdleFeedPending(state);
     }
@@ -54,7 +87,6 @@ function handleTranscriptSelectionMouseEvent(
     return false;
   }
 
-  const selection = state.transcriptSelection;
   if (event.action === 'press') {
     selection.beginPress(point, event.shift);
     handleIdleFeedMouseInput(state, event, point);
@@ -69,8 +101,11 @@ function handleTranscriptSelectionMouseEvent(
   if (handleIdleFeedMouseInput(state, event, point)) {
     return true;
   }
-  const wasDragging = selection.isDragging;
-  selection.endPress();
+  return finalizeSelectionRelease(state, selection.isDragging);
+}
+
+function finalizeSelectionRelease(state: TUIState, wasDragging: boolean): boolean {
+  state.transcriptSelection.endPress();
   if (wasDragging) {
     // Drag-release copies the selection without clearing it, and confirms
     // with a transient toast overlay.
@@ -82,8 +117,14 @@ function handleTranscriptSelectionMouseEvent(
 async function copyTranscriptSelectionOnRelease(state: TUIState): Promise<void> {
   const text = await resolveTranscriptSelectionText(state);
   if (text === undefined) return;
-  await copyTextToClipboard(text);
-  state.toast.show('Copied to clipboard');
+  try {
+    await copyTextToClipboard(text);
+    state.toast.show('Copied to clipboard');
+  } catch {
+    // Keep highlight so Ctrl+C / retry can still work; surface a clear status.
+    state.toast.show('Copy failed — try Ctrl+C');
+  }
+  requestTUILayoutRender(state);
 }
 
 export function clearTranscriptSelection(state: TUIState): void {

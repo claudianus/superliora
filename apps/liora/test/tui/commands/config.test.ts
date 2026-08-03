@@ -467,6 +467,7 @@ describe('harness panel and tools inventory', () => {
     session?: Record<string, unknown> | undefined;
     activeSession?: Record<string, unknown> | undefined;
     premiumQualityMode?: boolean;
+    configProfile?: string;
   } = {}) {
     const transcriptContainer = {
       addChild: vi.fn(),
@@ -512,6 +513,9 @@ describe('harness panel and tools inventory', () => {
             maxWorkingSetTokens: 48_000,
             asyncWorkingSetTokens: 16_000,
           },
+          ...(options.configProfile !== undefined
+            ? { agent: { profile: options.configProfile } }
+            : {}),
         })),
         setConfig: vi.fn(async () => undefined),
         deleteConfigFields: vi.fn(async () => ({ loopControl: {} })),
@@ -692,7 +696,7 @@ describe('harness panel and tools inventory', () => {
     expect(host.showNotice).toHaveBeenCalledOnce();
     const notice = String((host.showNotice as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] ?? '');
     expect(notice).toContain('── Session (live) ──');
-    expect(notice).toContain('Core waist: ON (default) · profile=core tools=12');
+    expect(notice).toContain('Conductor: ON (default) · profile=conductor tools=30');
     expect(notice).toContain('Tools: 3 active / 5 registered');
     expect(notice).toContain('Hide legacy: ON (default)');
     expect(notice).toContain('Read');
@@ -738,6 +742,7 @@ describe('harness panel and tools inventory', () => {
     process.env['SUPERLIORA_SOVEREIGN'] = '1';
     try {
       const host = makeHarnessHost({
+        configProfile: 'core',
         session: {
           getTools: vi.fn(async () => [
             {
@@ -767,6 +772,7 @@ describe('harness panel and tools inventory', () => {
     process.env['SUPERLIORA_SOVEREIGN_CORE'] = '1';
     try {
       const host = makeHarnessHost({
+        configProfile: 'core',
         session: {
           getTools: vi.fn(async () => [
             {

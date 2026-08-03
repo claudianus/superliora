@@ -393,6 +393,7 @@ describe('SessionEventHandler goal queue promotion', () => {
       expect(host.showNotice).toHaveBeenCalledWith(
         'Goal blocked.',
         'The next queued goal will start only after this goal is complete.',
+        { coalesceKey: 'goal-queue-waiting-blocked' },
       );
     });
     expect(session.createGoal).not.toHaveBeenCalled();

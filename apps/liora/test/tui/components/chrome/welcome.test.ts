@@ -102,7 +102,7 @@ describe('WelcomeComponent', () => {
 
     // Banner font is session-random (slant/lcd/standard/smslant/small); do not
     // pin a single figlet glyph — only assert the logged-in prompt copy.
-    expect(output).toContain('Type a task · /status web·office·media·ZDR · /bench · Shift-Tab Ultrawork');
+    expect(output).toContain('Type a task · /status web·office·media·ZDR · /bench · Shift-Tab Mission');
     expect(output).not.toContain('Welcome to SuperLiora!');
     expect(output).not.toContain('Ultrawork plans, sets goal, swarms, verifies.');
     expect(output).not.toContain('helpers');

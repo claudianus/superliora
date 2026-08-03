@@ -95,6 +95,13 @@ describe('showSkillsSettings', () => {
     expect(title).toBe('Extensions');
   });
 
+  it('shows skills status panel with catalog counts', async () => {
+    const host = makeSkillsHost();
+    showSkillsSettings(host);
+    selectSkillsAction(host, 'status');
+    await vi.waitFor(() => {
+      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
+    });
     const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
       .calls[0]?.[0] as UsagePanelComponent;
     const lines = panel.snapshotBodyLines(1).join('\n');

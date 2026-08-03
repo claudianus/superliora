@@ -78,7 +78,23 @@ import {
   formatSlowToolWarnNotice,
   isSlowToolWarnOutput,
 } from '../../utils/tools/slow-tool-notice';
+import {
+  mergeConductorJobsSnapshot,
+  parseJobStripFromToolOutput,
+} from '../../utils/job/job-strip';
 import type { StreamingUIController } from '../streaming-ui/index';
+
+const CONDUCTOR_JOB_TOOLS = new Set([
+  'JobCreate',
+  'JobList',
+  'JobInspect',
+  'JobSteer',
+  'JobCancel',
+  'MergeJob',
+  'JobSchedule',
+  'JobResume',
+  'JobInbox',
+]);
 
 /** Host surface required by tool / shell event handling. */
 export interface ToolsEventHost {
@@ -259,6 +275,35 @@ export class SessionEventTools {
           )
           .map((t) => ({ title: t.title, status: t.status }));
         streamingUI.setTodoList(sanitized);
+      }
+    }
+    // Conductor Job desk → footer strip (best-effort parse of tool text).
+    if (
+      matchedCall !== undefined &&
+      CONDUCTOR_JOB_TOOLS.has(matchedCall.name) &&
+      event.isError !== true
+    ) {
+      const parsed = parseJobStripFromToolOutput(resultData.output);
+      if (parsed !== null) {
+        const next = mergeConductorJobsSnapshot(
+          this.host.state.appState.conductorJobs,
+          parsed,
+        );
+        this.host.setAppState({ conductorJobs: next });
+        if (
+          matchedCall.name === 'JobCreate' ||
+          matchedCall.name === 'JobResume' ||
+          matchedCall.name === 'JobCancel'
+        ) {
+          this.host.motionBeats?.play({
+            name: 'tool_settle',
+            seed: 'conductor-job',
+            title: 'Job desk',
+            nowMs: appearanceAnimationNow(),
+            streamThrottle: true,
+            theatreActive: isMotionTheatreActive(this.host.state.appState),
+          });
+        }
       }
     }
     // Loop24a/b + Loop25a + Loop26b: named recovery notices for engine guard rails.

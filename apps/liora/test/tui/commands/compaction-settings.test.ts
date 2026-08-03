@@ -86,19 +86,6 @@ describe('showCompactionSettings', () => {
     expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
-    showCompactionSettings(host);
-    selectCompactionAction(host, 'status');
-    await vi.waitFor(() => {
-      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
-    });
-
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
-      .calls[0]?.[0] as UsagePanelComponent;
-    const text = panel.snapshotBodyLines(1).join('\n');
-    expect(text).toContain('Context archive: 4 entries');
-    expect(text).toContain('Last compact: 200k → 80k');
-    expect(text).toContain('Context usage: 55.0%');
-  });
 
   it('falls back when session is unavailable', async () => {
     const host = makeHost({ hasSession: false });

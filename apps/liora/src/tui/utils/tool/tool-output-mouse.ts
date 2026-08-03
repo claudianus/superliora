@@ -48,9 +48,13 @@ export function handleToolOutputMouse(
   event: NativeInputMouseEvent,
 ): boolean {
   if (event.action === 'release') {
+    // Only consume release when a tool-output resize drag was active. Hover
+    // cleanup is a side effect — returning true here stole transcript
+    // selection finalization (copy-on-release) after any rail hover.
+    const hadActiveResize = activeResize !== undefined;
     const changed = resetToolOutputMouseState();
     if (changed) requestTUIContentRender(state);
-    return changed;
+    return hadActiveResize;
   }
 
   if (activeResize !== undefined) {

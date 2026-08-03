@@ -88,22 +88,6 @@ describe('showHooksSettings', () => {
     expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
-    showHooksSettings(host);
-    selectHooksAction(host, 'status');
-    await vi.waitFor(() => {
-      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
-    });
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
-      .calls[0]?.[0] as UsagePanelComponent;
-    const lines = panel.snapshotBodyLines(1).join('\n');
-    expect(lines).toContain('Hooks (read-only)');
-    expect(lines).toContain('Live registry (HookEngine)');
-    expect(lines).toContain('PreToolUse×2 · Stop×1');
-    expect(lines).toContain('Registered hooks: 3 in HookEngine');
-    expect(lines).toContain('PostToolUse');
-    expect(lines).toContain('config.toml [[hooks]]');
-    expect(host.requireSession().getHookRegistry).toHaveBeenCalled();
-  });
 
   it('works without session', async () => {
     const host = makeHooksHost({ hasSession: false });

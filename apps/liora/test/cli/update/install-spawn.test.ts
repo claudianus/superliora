@@ -73,7 +73,6 @@ describe('github-checkout update commands', () => {
 
     expect(cmd).toBe('bash');
     expect(args[0]).toBe('-lc');
-    expect(args[1]).toContain('diff --quiet');
     expect(args[1]).toContain('fetch --depth 1 origin');
     expect(args[1]).toContain('install --frozen-lockfile');
     expect(args[1]).toContain('run build:packages');

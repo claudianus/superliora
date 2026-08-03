@@ -11,9 +11,11 @@ export const DEFAULT_MAIN_AGENT_PROFILE_NAME = 'agent';
 export const MAIN_AGENT_PROFILE_ENV = 'SUPERLIORA_PROFILE';
 export const SOVEREIGN_CORE_DEFAULT_ENV = 'SUPERLIORA_SOVEREIGN_CORE';
 export const SOVEREIGN_CORE_PROFILE_NAME = 'core';
+export const SOVEREIGN_CONDUCTOR_PROFILE_NAME = 'conductor';
 
 /** Mirrors bundled profiles in packages/agent-core/src/profile/default/*.yaml */
 export const KNOWN_MAIN_AGENT_PROFILE_NAMES = [
+  SOVEREIGN_CONDUCTOR_PROFILE_NAME,
   SOVEREIGN_CORE_PROFILE_NAME,
   DEFAULT_MAIN_AGENT_PROFILE_NAME,
   'superliora-full',
@@ -28,8 +30,10 @@ export const KNOWN_MAIN_AGENT_PROFILE_NAMES = [
  * Used for /status · /profile · Settings so guides never claim tools the waist lacks.
  */
 export const KNOWN_PROFILE_TOOL_COUNTS: Readonly<Record<string, number>> = {
+  // conductor.yaml: 30 tools (JobResume/JobInbox; JobSchedule/WebSearch on full)
+  [SOVEREIGN_CONDUCTOR_PROFILE_NAME]: 30,
   [SOVEREIGN_CORE_PROFILE_NAME]: 12,
-  [DEFAULT_MAIN_AGENT_PROFILE_NAME]: 30,
+  [DEFAULT_MAIN_AGENT_PROFILE_NAME]: 29,
   // superliora-full grows with visual/MCP globs — approximate floor for diagnostics only.
   'superliora-full': 50,
 };
@@ -72,8 +76,8 @@ export function resolveEffectiveProfileName(
   if (fromEnv !== undefined) return fromEnv;
   const fromConfig = trimmed(configProfile);
   if (fromConfig !== undefined) return fromConfig;
-  if (isSovereignCoreDefaultEnabled(env)) return SOVEREIGN_CORE_PROFILE_NAME;
-  return SOVEREIGN_CORE_PROFILE_NAME;
+  // Sovereign soft flags no longer force core; main hard-default is conductor (mirrors agent-core).
+  return SOVEREIGN_CONDUCTOR_PROFILE_NAME;
 }
 
 export function expectedToolCountForProfile(profileName: string): number | undefined {
@@ -115,11 +119,15 @@ export function formatProfileToolsBadge(glance: ProfileLiveGlance): string {
 
 /** Live status for Settings → Tools Session (live) block. */
 export function formatProfileLiveStatusLine(glance: ProfileLiveGlance): string {
-  const waist =
-    glance.effectiveProfile === SOVEREIGN_CORE_PROFILE_NAME
-      ? glance.sovereignCoreOptIn && glance.sovereignCoreTrigger !== null
+  if (glance.effectiveProfile === SOVEREIGN_CONDUCTOR_PROFILE_NAME) {
+    return `Conductor: ON (default) · ${formatProfileToolsBadge(glance)}`;
+  }
+  if (glance.effectiveProfile === SOVEREIGN_CORE_PROFILE_NAME) {
+    const waist =
+      glance.sovereignCoreTrigger !== null
         ? `Core waist: ON (${glance.sovereignCoreTrigger}=1)`
-        : 'Core waist: ON (default)'
-      : 'Core waist: OFF';
-  return `${waist} · ${formatProfileToolsBadge(glance)}`;
+        : 'Core waist: ON';
+    return `${waist} · ${formatProfileToolsBadge(glance)}`;
+  }
+  return `Core waist: OFF · ${formatProfileToolsBadge(glance)}`;
 }

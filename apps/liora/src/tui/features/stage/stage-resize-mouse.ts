@@ -142,9 +142,13 @@ function handleStageResizeMouseEvent(
   }
 
   if (event.action === 'release') {
+    // Only consume release when a resize drag was active. Hover-only cleanup
+    // must not swallow the event — transcript selection needs the same release
+    // to endPress() and copy to the clipboard.
+    const hadActiveDrag = activeDrag !== undefined;
     const changed = resetStageResizePointerShape(state.terminal);
     if (changed) requestTUILayoutRender(state);
-    return changed;
+    return hadActiveDrag;
   }
 
   if (event.action === 'press') {

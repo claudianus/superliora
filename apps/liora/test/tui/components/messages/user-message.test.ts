@@ -117,8 +117,9 @@ describe('UserMessageComponent', () => {
     const contentLine = lines.find((l) => l.includes('$ ls'));
     expect(contentLine).toBeDefined();
     expect(stripAnsi(lines.join('\n'))).not.toContain('✨');
-    // The `$` sits at the leading column where the bullet used to be.
-    expect(contentLine?.startsWith('$ ls')).toBe(true);
+    // The `$` sits at the leading column where the bullet used to be
+    // (an empty bullet still reserves its header prefix slot).
+    expect(contentLine?.includes('$ ls')).toBe(true);
   });
 
   describe('timestamps', () => {

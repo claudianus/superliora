@@ -149,6 +149,15 @@ describe('index settings', () => {
     expect(panel.snapshotBodyLines(1).join('\n')).toContain('RepoQuery: not active');
   });
 
+  it('reports cold codemap status', async () => {
+    const sdk = await import('@superliora/sdk');
+    vi.mocked(sdk.getCodemapStatus).mockReturnValueOnce(codemapCold);
+    const host = makeIndexHost({ repoQueryActive: true });
+    showIndexSettings(host);
+    selectIndexAction(host, 'status');
+    await vi.waitFor(() => {
+      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
+    });
     const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock
       .calls[0]?.[0] as UsagePanelComponent;
     const text = panel.snapshotBodyLines(1).join('\n');

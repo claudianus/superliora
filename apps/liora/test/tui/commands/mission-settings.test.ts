@@ -140,9 +140,14 @@ function makeHost(options: {
         goal: null,
         ...options.appState,
       },
+      centerModalStack: [],
       transcriptContainer: { addChild: vi.fn() },
       renderer: { invalidateFrame: vi.fn() },
     },
+    mountCenterModal: vi.fn(),
+    closeCenterModal: vi.fn(),
+    mountEditorReplacement: vi.fn(),
+    restoreEditor: vi.fn(),
     requireSession:
       options.hasSession === false
         ? vi.fn(() => {
@@ -161,6 +166,13 @@ describe('showMissionSettings', () => {
     const host = makeHost();
     showMissionSettings(host);
     await vi.waitFor(() => {
+      expect(host.mountCenterModal).toHaveBeenCalled();
+    });
+    const picker = vi.mocked(host.mountCenterModal).mock.calls[0]?.[0] as {
+      handleInput(data: string): void;
+    };
+    picker.handleInput('\r');
+    await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
 
@@ -177,6 +189,13 @@ describe('showMissionSettings', () => {
   it('falls back when session is unavailable', async () => {
     const host = makeHost({ hasSession: false, appState: { ultraworkMode: false } });
     showMissionSettings(host);
+    await vi.waitFor(() => {
+      expect(host.mountCenterModal).toHaveBeenCalled();
+    });
+    const picker = vi.mocked(host.mountCenterModal).mock.calls[0]?.[0] as {
+      handleInput(data: string): void;
+    };
+    picker.handleInput('\r');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });

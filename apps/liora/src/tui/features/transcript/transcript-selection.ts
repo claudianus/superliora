@@ -210,7 +210,11 @@ export async function resolveTranscriptSelectionText(state: TUIState): Promise<s
 export async function copyTranscriptSelectionToClipboard(state: TUIState): Promise<boolean> {
   const text = await resolveTranscriptSelectionText(state);
   if (text === undefined) return false;
-  await copyTextToClipboard(text);
+  try {
+    await copyTextToClipboard(text);
+  } catch {
+    return false;
+  }
   state.transcriptSelection.clear();
   requestTUILayoutRender(state);
   return true;
