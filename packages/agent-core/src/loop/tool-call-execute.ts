@@ -93,12 +93,19 @@ export async function runRunnableToolCall(
   effectiveArgs: unknown,
   metadata: unknown,
   execution: RunnableToolExecution,
+  executionSignal?: AbortSignal | undefined,
 ): Promise<PendingToolResult> {
   const { signal } = step;
   const { toolCall, toolName } = call;
+  // Per-call force-stop (V1-4): hosts can hand the prepare/authorize hooks an
+  // extra signal (e.g. the conductor hard-budget controller). Combine it with
+  // the turn signal so aborting it stops only this call, and surface its
+  // reason in aborted tool output.
+  const effectiveSignal =
+    executionSignal === undefined ? signal : AbortSignal.any([signal, executionSignal]);
 
-  if (signal.aborted) {
-    return makeErrorToolResult(call, effectiveArgs, abortedToolOutput(toolName, signal));
+  if (effectiveSignal.aborted) {
+    return makeErrorToolResult(call, effectiveArgs, abortedToolOutput(toolName, effectiveSignal));
   }
 
   // Circuit breaker check: block tools with open circuits.
@@ -169,10 +176,10 @@ export async function runRunnableToolCall(
   const startMs = Date.now();
   let toolResult: ExecutableToolResult;
   try {
-    const raw = await executeTool(step, execution, toolCall, toolName, metadata);
+    const raw = await executeTool(step, execution, toolCall, toolName, metadata, effectiveSignal);
     toolResult = coerceToolResult(raw, toolName);
   } catch (error) {
-    const aborted = isAbortError(error) || signal.aborted;
+    const aborted = isAbortError(error) || effectiveSignal.aborted;
     if (!aborted) {
       step.log?.warn('tool execution failed', {
         toolName,
@@ -183,7 +190,7 @@ export async function runRunnableToolCall(
       recordToolFailureForCircuitBreaker(toolName);
     }
     let output = aborted
-      ? abortedToolOutput(toolName, signal)
+      ? abortedToolOutput(toolName, effectiveSignal)
       : `Tool "${toolName}" failed: ${errorMessage(error)}`;
     // Loop29a: thrown failure during half-open probe re-opens — same marker as isError path.
     if (!aborted && isHalfOpenProbe) {
@@ -287,8 +294,9 @@ async function executeTool(
   toolCall: ToolCall,
   toolName: string,
   metadata: unknown,
+  signal: AbortSignal,
 ): Promise<ExecutableToolResult> {
-  const { dispatchEvent, signal, turnId } = step;
+  const { dispatchEvent, turnId } = step;
 
   signal.throwIfAborted();
 

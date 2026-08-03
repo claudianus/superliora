@@ -356,5 +356,13 @@ export function abortedToolOutput(toolName: string, signal: AbortSignal): string
   if (isUserCancellation(signal.reason)) {
     return `The user manually interrupted "${toolName}" (and anything else running at the same time). This was a deliberate user action, not a system error, timeout, or capacity limit. Do not retry automatically or guess at the cause — wait for the user's next instruction.`;
   }
-  return `Tool "${toolName}" was aborted`;
+  // Host-supplied abort reasons (e.g. the conductor hard-budget force-stop)
+  // are model-visible so the model knows why the call was cut short.
+  const reason =
+    typeof signal.reason === 'string' && signal.reason.trim().length > 0
+      ? signal.reason.trim()
+      : undefined;
+  return reason === undefined
+    ? `Tool "${toolName}" was aborted`
+    : `Tool "${toolName}" was aborted: ${reason}`;
 }

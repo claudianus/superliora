@@ -178,6 +178,13 @@ export interface AuthorizeToolExecutionResult {
   readonly reason?: string | undefined;
   readonly syntheticResult?: ExecutableToolResult | undefined;
   readonly executionMetadata?: unknown;
+  /**
+   * Extra abort signal the loop combines with the turn signal for this one
+   * call's execution. Hosts use it to force-stop just this call without
+   * cancelling the whole turn (e.g. the conductor wall-clock hard budget,
+   * checklist V1-4).
+   */
+  readonly executionSignal?: AbortSignal | undefined;
 }
 
 export interface PrepareToolExecutionResult extends AuthorizeToolExecutionResult {

@@ -129,6 +129,10 @@ export async function prepareToolCall(
   }
 
   const executionMetadata = authorization?.executionMetadata ?? decision.metadata;
+  const executionSignal = combineExecutionSignals(
+    decision.executionSignal,
+    authorization?.executionSignal,
+  );
   await dispatchToolCall(step, call, effectiveArgs, displayFields);
   // For tools that mutate durable state, record a pre-execution intent and
   // flush it to disk BEFORE the side effect runs. A crash during execution
@@ -150,7 +154,14 @@ export async function prepareToolCall(
     task: {
       accesses: execution.accesses ?? ToolAccesses.all(),
       start: async () => ({
-        result: runRunnableToolCall(step, call, effectiveArgs, executionMetadata, execution),
+        result: runRunnableToolCall(
+          step,
+          call,
+          effectiveArgs,
+          executionMetadata,
+          execution,
+          executionSignal,
+        ),
       }),
     },
     stopBatchAfterThis: execution.stopBatchAfterThis,
@@ -233,7 +244,26 @@ async function runPrepareToolExecutionHook(
     return { kind: 'synthetic', args: effectiveArgs, result: hookResult.syntheticResult };
   }
 
-  return { kind: 'allowed', args: effectiveArgs, metadata: hookResult?.executionMetadata };
+  return {
+    kind: 'allowed',
+    args: effectiveArgs,
+    metadata: hookResult?.executionMetadata,
+    executionSignal: hookResult?.executionSignal,
+  };
+}
+
+/**
+ * Merge the optional per-call force-stop signals from the prepare and
+ * authorize hooks into one signal. The loop combines the result with the
+ * turn signal, so either hook can force-stop this call alone (V1-4).
+ */
+function combineExecutionSignals(
+  fromPrepare: AbortSignal | undefined,
+  fromAuthorize: AbortSignal | undefined,
+): AbortSignal | undefined {
+  if (fromPrepare === undefined) return fromAuthorize;
+  if (fromAuthorize === undefined) return fromPrepare;
+  return AbortSignal.any([fromPrepare, fromAuthorize]);
 }
 
 async function runAuthorizeToolExecutionHook(

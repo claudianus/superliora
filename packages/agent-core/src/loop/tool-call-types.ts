@@ -46,7 +46,13 @@ export interface RejectedToolCall {
 }
 
 export type PrepareToolExecutionDecision =
-  | { readonly kind: 'allowed'; readonly args: unknown; readonly metadata?: unknown }
+  | {
+      readonly kind: 'allowed';
+      readonly args: unknown;
+      readonly metadata?: unknown;
+      /** Per-call force-stop signal combined with the turn signal (V1-4). */
+      readonly executionSignal?: AbortSignal | undefined;
+    }
   | { readonly kind: 'synthetic'; readonly args: unknown; readonly result: ExecutableToolResult }
   | { readonly kind: 'blocked'; readonly args: unknown; readonly output: string }
   | { readonly kind: 'hookFailed'; readonly args: unknown; readonly output: string };
