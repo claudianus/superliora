@@ -47,10 +47,6 @@ export interface SetSessionPremiumQualityRpcInput extends SessionIdRpcInput {
   readonly enabled: boolean;
 }
 
-export interface SetSessionOrchestratorModeRpcInput extends SessionIdRpcInput {
-  readonly enabled: boolean;
-}
-
 export interface SetSessionPlanModeRpcInput extends SessionIdRpcInput {
   readonly enabled: boolean;
   readonly ultra?: boolean;
