@@ -9,6 +9,7 @@ import type { JobInboxEvent, JobUpdatedEvent } from '@superliora/protocol';
 
 import type { ColorToken } from '../../theme';
 import type { AppState } from '../../types';
+import { InputAckLatencyTracker } from './input-ack-latency';
 import type { JobBoardStore } from './job-board-store';
 
 export interface JobDeskEventsHost {
@@ -27,13 +28,27 @@ export class ControlTowerJobDesk {
   /** One-shot hint that the Job board is reachable while jobs run. */
   private boardHintShown = false;
 
+  /** V3-1: input submission → first JobCreate ACK latency samples. */
+  readonly inputAckLatency = new InputAckLatencyTracker();
+
   constructor(
     private readonly host: JobDeskEventsHost,
     readonly store: JobBoardStore,
   ) {}
 
+  /**
+   * V3-1 window start: called from the TUI input path
+   * (`MessageDispatchController.sendMessageInternal`) each time a prompt is
+   * handed to the session. The first `job.*` event back closes the window.
+   */
+  markInputSubmitted(): void {
+    this.inputAckLatency.markInputSubmitted(Date.now());
+  }
+
   handleUpdated(event: JobUpdatedEvent): void {
     this.store.applyJobUpdated(event);
+    // V3-1: a protocol job event is the JobCreate ACK for a pending window.
+    this.inputAckLatency.markJobEventReceived(Date.now());
     this.publish();
     this.host.jobBoardController?.repaint();
     if (
@@ -64,6 +79,8 @@ export class ControlTowerJobDesk {
   applyToolOutput(output: string): boolean {
     const changed = this.store.applyToolOutput(output);
     if (changed) {
+      // V3-1: Job* tool output that changes the board also counts as an ACK.
+      this.inputAckLatency.markJobEventReceived(Date.now());
       this.publish();
       this.host.jobBoardController?.repaint();
     }
