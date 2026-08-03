@@ -27,6 +27,9 @@ function fakeAgent(calls: unknown[] = []): Agent {
     goal: {
       getGoal: () => ({ goal: null }),
     },
+    cacheFreezeGuard: {
+      isFrozen: () => false,
+    },
   } as unknown as Agent;
 }
 
