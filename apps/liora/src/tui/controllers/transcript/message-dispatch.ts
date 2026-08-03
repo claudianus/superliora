@@ -109,7 +109,23 @@ export class MessageDispatchController {
       host.handleInputModeChange('prompt');
     }
     if (text.trim().length === 0) return;
-    if (host.state.appState.isReplaying || host.isSessionLoadingOverlayActive()) {
+    if (host.isSessionLoadingOverlayActive()) {
+      // V3-3: input preservation. The editor already consumed the draft before
+      // this handler runs (its submit is IME double-deferred, so it can land
+      // after the loading overlay mounts). Instead of rejecting and dropping
+      // the text, hand it back to the editor: the debounced draft persist
+      // picks it up, and Enter re-submits as soon as loading finishes.
+      if (wasBashMode) {
+        host.state.editor.inputMode = 'bash';
+        host.handleInputModeChange('bash');
+      }
+      host.state.editor.setText(text);
+      host.updateEditorBorderHighlight?.(text);
+      host.showStatus(ttui('tui.sessionLoading.inputHeld'), 'info');
+      return;
+    }
+    if (host.state.appState.isReplaying) {
+      // Replay viewing has no live session to submit to.
       host.showError(ttui('tui.sessionLoading.busy'));
       return;
     }
