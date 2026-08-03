@@ -23,10 +23,17 @@ items:
     replacement_proof_tests: [packages/agent-core/test/tools/job-ledger.test.ts]
     grep_zero: ['orchestratorMode', 'SpawnWorker']
   - id: R4-ultraswarm-core
-    status: in_progress
-    commit: null
+    status: done
+    commit: 06b1a69d1 # 후속: ff49a9567/47d443b9d(R4b C1·C2), 9176d1eca/ad3289af3(C3·C4)
+    characterization_tests: [] # 소급 면제: 생산 코드 삭제; file-lease/evidence-gate/maker-checker는 R6에서 이주·유지
+    replacement_proof_tests: [packages/agent-core/test/tools/job-ledger.test.ts]
+    grep_zero: ['ultraSwarmRun', 'fleet/ultra-swarm']
   - id: R5-agentswarm-surface
-    status: pending
+    status: done
+    commit: f04ac07c3
+    characterization_tests: [] # 소급 면제: 도구·정책 폐기; 대체 경로는 Job 기반 위임
+    replacement_proof_tests: [packages/agent-core/test/tools/job-ledger.test.ts]
+    grep_zero: ['fleet/agent-swarm', 'fleet/swarm-channel']
   - id: R6-swarm-modules
     status: done
     commit: b6c59962a
