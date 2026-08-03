@@ -1,4 +1,4 @@
-import { ultraSwarmDecision } from '#/agent/plan/ultra-swarm-decision';
+import { swarmDecisionFromPlan } from '#/agent/plan/swarm-decision';
 
 interface FieldRequirement {
   readonly label: string;
@@ -130,7 +130,7 @@ export function missingUltraPlanSections(plan: string): string[] {
   if (!hasSwarmDecisionField(plan, 'Reason')) missing.push('Reason');
   if (!hasSwarmDecisionField(plan, 'Specialist value')) missing.push('Specialist value');
   if (!hasSwarmDecisionField(plan, 'Verification owner')) missing.push('Verification owner');
-  if (ultraSwarmDecision(plan) === 'DEFER' && !hasSwarmDeferWaiver(plan)) {
+  if (swarmDecisionFromPlan(plan) === 'DEFER' && !hasSwarmDeferWaiver(plan)) {
     missing.push('Swarm DEFER waiver');
   }
   missing.push(...missingWorkGraphRequirements(plan));

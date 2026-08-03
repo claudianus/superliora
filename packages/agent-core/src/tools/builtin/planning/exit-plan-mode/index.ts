@@ -9,8 +9,6 @@
 import type { Agent } from '#/agent/index';
 import { seedUltraworkGraphFromApprovedPlan } from '#/agent/plan/work-graph-from-plan';
 import { maybeAdvanceUltraworkStage, maybeFinishUltraworkRun } from '#/mission';
-import { ultraSwarmDecision } from '#/agent/plan/ultra-swarm-decision';
-import { routeFromPlanSignals } from '#/agent/plan/ultra-swarm-routing';
 import type { PlanData } from '#/agent/plan';
 import {
   combinedDrift,
@@ -27,7 +25,6 @@ import DESCRIPTION from '../exit-plan-mode.md?raw';
 import {
   formatPlanForOutput,
   formatUltraPlanMetrics,
-  swarmDecisionSummary,
   type UltraPlanDriftResult,
 } from './output';
 import {
@@ -151,8 +148,6 @@ export class ExitPlanModeTool implements BuiltinTool<ExitPlanModeInput> {
       ultra: isUltra,
     });
 
-    const swarmDecision = ultraSwarmDecision(resolvedPlan.plan);
-    const engageUltraSwarm = isUltra && (swarmDecision === 'ENGAGE' || swarmDecision === 'ADAPTIVE');
     const failed = this.exitPlanMode();
     if (failed !== undefined) return failed;
 
@@ -179,14 +174,6 @@ export class ExitPlanModeTool implements BuiltinTool<ExitPlanModeInput> {
           await this.agent.goal.createGoal({ objective: runObjective, source: 'ultrawork' }, 'runtime');
         }
       }
-    }
-
-    if (engageUltraSwarm) {
-      this.agent.ultraSwarmEngageGate?.engage({
-        planPath: resolvedPlan.path,
-        reason: swarmDecisionSummary(resolvedPlan.plan),
-        routing: routeFromPlanSignals(resolvedPlan.plan) ?? undefined,
-      });
     }
 
     this.agent.telemetry.track('plan_resolved', { outcome: 'auto_approved', ultra: isUltra });
