@@ -28,6 +28,11 @@ items:
   - id: R5-agentswarm-surface
     status: pending
   - id: R6-swarm-modules
-    status: pending
+    status: done
+    commit: b6c59962a
+    characterization_tests: [] # 소급 면제: run-ledger/dag/budget은 R4가 생산 코드를 삭제해 소비자 없음; trio는 이주만 함
+    replacement_proof_tests: [packages/agent-core/test/session/swarm-file-lease.test.ts, packages/agent-core/test/session/swarm-evidence-gate.test.ts, packages/agent-core/test/tools/job-ledger.test.ts]
+    retro_guard_needed: true # cost-guard/maker-checker/event-humanize 본체는 R5 소비자 폐기 후 삭제 — R7 스윕 추적
+    grep_zero: ['swarm-(budget|cost-guard|dag-scheduler|humanize|maker-checker|run-ledger|bus-coordination)[''"]']
   - id: R7-final-sweep
     status: pending
