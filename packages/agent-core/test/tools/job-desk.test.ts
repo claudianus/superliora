@@ -246,3 +246,66 @@ describe('job desk injection caps (V4-1)', () => {
     expect(text).toContain('[truncated]');
   });
 });
+
+describe('job desk next-move guidance', () => {
+  const idleStrip = {
+    total: 0,
+    queued: 0,
+    running: 0,
+    blocked: 0,
+    needsUser: 0,
+    interrupted: 0,
+    done: 0,
+    failed: 0,
+    cancelled: 0,
+  };
+
+  function event(
+    kind: JobInboxEvent['kind'],
+    status: JobInboxEvent['status'],
+  ): JobInboxEvent {
+    return {
+      id: `e_${kind}`,
+      kind,
+      jobId: 'job_1',
+      status,
+      title: 'sample',
+      createdAt: new Date().toISOString(),
+      read: false,
+    };
+  }
+
+  it('stays silent when the desk is idle', () => {
+    const text = renderJobDeskInjection([], idleStrip);
+    expect(text).not.toContain('Next move:');
+  });
+
+  it('picks needs_user guidance above every other severity', () => {
+    const text = renderJobDeskInjection(
+      [event('job.failed', 'failed'), event('job.needs_user', 'needs_user')],
+      idleStrip,
+    );
+    expect(text).toContain('Next move: relay the worker question to the user');
+    expect(text).toContain('JobResume(job_id, answer)');
+  });
+
+  it('routes failed jobs through one inspection before retry', () => {
+    const text = renderJobDeskInjection([event('job.failed', 'failed')], idleStrip);
+    expect(text).toContain('Next move: read each failure cause once (JobInspect)');
+  });
+
+  it('routes blocked jobs through their recorded cause', () => {
+    const text = renderJobDeskInjection([event('job.blocked', 'blocked')], idleStrip);
+    expect(text).toContain('Next move: blocked notes carry the cause');
+  });
+
+  it('suggests JobResume for interrupted jobs', () => {
+    const text = renderJobDeskInjection([event('job.interrupted', 'interrupted')], idleStrip);
+    expect(text).toContain('Next move: interrupted jobs restore safely with JobResume');
+  });
+
+  it('suggests verification and merge verdict for completions', () => {
+    const text = renderJobDeskInjection([event('job.completed', 'done')], idleStrip);
+    expect(text).toContain('Next move: verify done-claims against the brief');
+  });
+});

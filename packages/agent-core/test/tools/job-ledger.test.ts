@@ -186,6 +186,7 @@ describe('job runtime scheduler', () => {
       store,
       maxConcurrent: 2,
       requireWorktree: true,
+      ensureGitRepo: false,
       kaos: {} as never,
       repoPath: '/tmp/repo',
       createWorktree: async (_kaos, input) => ({

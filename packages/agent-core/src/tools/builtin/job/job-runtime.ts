@@ -14,6 +14,7 @@ import {
   type CreateSessionWorktreeResult,
 } from '../../../session/worktree';
 import type { ToolStore } from '../../store';
+import { ensureGitRepoForWorktrees } from './job-git-bootstrap';
 import {
   getJob,
   listJobs,
@@ -97,11 +98,22 @@ export interface AssignJobWorktreeInput {
   readonly repoPath: string;
   readonly createWorktree?: WorktreeFactory;
   readonly log?: Logger;
+  /** Env for the auto-git-init opt-out (default process.env). */
+  readonly env?: Readonly<Record<string, string | undefined>>;
+  /**
+   * Run the git-repo bootstrap before worktree creation (default true).
+   * Unit tests injecting a fake worktree factory can skip it.
+   */
+  readonly ensureGitRepo?: boolean;
 }
 
 /**
  * Always-worktree isolation for execution Jobs (locked policy).
  * On failure: job stays queued/blocked with notes — never silent shared cwd.
+ *
+ * Non-git project roots are bootstrapped first (local `git init` + baseline
+ * commit, opt-out via SUPERLIORA_CONDUCTOR_AUTO_GIT_INIT=0) so Jobs can
+ * progress in fresh directories instead of blocking forever.
  */
 export async function assignJobWorktree(
   input: AssignJobWorktreeInput,
@@ -114,16 +126,47 @@ export async function assignJobWorktree(
     return { job: existing };
   }
 
+  const repo =
+    input.ensureGitRepo === false
+      ? ({ ok: true, root: input.repoPath, bootstrapped: false, baselineCommit: false } as const)
+      : await ensureGitRepoForWorktrees(input.kaos, input.repoPath, input.env);
+  if (!repo.ok) {
+    input.log?.warn('Conductor job worktree git bootstrap failed', {
+      jobId: existing.id,
+      error: repo.error,
+    });
+    const job = patchJob(input.store, existing.id, {
+      status: 'blocked',
+      notes: [existing.notes, `worktree_failed: ${repo.error}`].filter(Boolean).join('\n'),
+    });
+    return { job, error: repo.error };
+  }
+  if (repo.bootstrapped) {
+    input.log?.info('Conductor bootstrapped a local git repository for Job worktrees', {
+      jobId: existing.id,
+      repoRoot: repo.root,
+      baselineCommit: repo.baselineCommit,
+    });
+  }
+
   const create = input.createWorktree ?? createSessionWorktree;
   const slug = worktreeNameForJob(existing.id);
   try {
     const created = await create(input.kaos, {
-      repoPath: input.repoPath,
+      repoPath: repo.root,
       name: slug,
     });
     const job = patchJob(input.store, existing.id, {
       worktreePath: created.workDir,
-      notes: [existing.notes, `worktree: ${created.workDir}`].filter(Boolean).join('\n'),
+      notes: [
+        existing.notes,
+        repo.bootstrapped
+          ? `git_bootstrap: initialized ${repo.root}${repo.baselineCommit ? ' + baseline commit' : ''} for worktree isolation`
+          : '',
+        `worktree: ${created.workDir}`,
+      ]
+        .filter(Boolean)
+        .join('\n'),
     });
     return { job };
   } catch (error) {
@@ -158,6 +201,10 @@ export interface ScheduleJobsInput {
    * Unit tests may set false to only flip queued→running without git.
    */
   readonly requireWorktree?: boolean;
+  /** Forwarded to assignJobWorktree (default true; fake-factory tests opt out). */
+  readonly ensureGitRepo?: boolean;
+  /** Env for the auto-git-init opt-out (default process.env). */
+  readonly env?: Readonly<Record<string, string | undefined>>;
   /** Optional: spawn real worker after job becomes running. */
   readonly launchWorker?: (job: JobRecord) => Promise<void>;
 }
@@ -222,6 +269,8 @@ export async function scheduleQueuedJobs(input: ScheduleJobsInput): Promise<Sche
             repoPath: input.repoPath,
             createWorktree: input.createWorktree,
             log: input.log,
+            ensureGitRepo: input.ensureGitRepo,
+            env: input.env,
           });
           if (assigned.error || assigned.job === undefined) {
             return assigned.job ? { blocked: assigned.job } : {};

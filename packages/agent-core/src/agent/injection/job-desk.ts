@@ -89,6 +89,8 @@ export function renderJobDeskInjection(
   } else {
     lines.push('In-flight Jobs present; interactive lane stays free for new instructions.');
   }
+  const nextMove = nextMoveGuidance(events, strip);
+  if (nextMove !== undefined) lines.push(`Next move: ${nextMove}`);
   lines.push('</conductor_job_desk>');
   let text = lines.join('\n');
   if (text.length > JOB_DESK_MAX_CHARS) {
@@ -96,4 +98,30 @@ export function renderJobDeskInjection(
     text = `${text.slice(0, JOB_DESK_MAX_CHARS - suffix.length)}${suffix}`;
   }
   return text;
+}
+
+/**
+ * One severity-picked action line so the conductor routes instead of reciting
+ * the board. Stays short to respect the JOB_DESK_MAX_CHARS cap.
+ */
+function nextMoveGuidance(
+  events: readonly JobInboxEvent[],
+  strip: ReturnType<typeof summarizeJobStrip>,
+): string | undefined {
+  if (events.some((e) => e.status === 'needs_user' || e.kind === 'job.needs_user') || strip.needsUser > 0) {
+    return 'relay the worker question to the user now, then deliver the answer via JobResume(job_id, answer).';
+  }
+  if (events.some((e) => e.kind === 'job.failed') || strip.failed > 0) {
+    return 'read each failure cause once (JobInspect), then retry once with a corrected brief or reframe — never blind-retry twice.';
+  }
+  if (events.some((e) => e.kind === 'job.blocked' || e.status === 'blocked') || strip.blocked > 0) {
+    return 'blocked notes carry the cause (JobInspect) — fix it (git setup, trust gap, spawn budget), then JobResume.';
+  }
+  if (events.some((e) => e.kind === 'job.interrupted') || strip.interrupted > 0) {
+    return 'interrupted jobs restore safely with JobResume; worktrees survived.';
+  }
+  if (events.some((e) => e.kind === 'job.completed')) {
+    return 'verify done-claims against the brief; report when the user asks, and MergeJob-verdict if landing is wanted.';
+  }
+  return undefined;
 }
