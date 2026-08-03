@@ -514,7 +514,11 @@ describe('resolveRuntimeProvider Kimi request headers', () => {
       apiKey: 'sk-openai',
     });
     expect('defaultHeaders' in resolved.provider).toBe(false);
-    expect('generationKwargs' in resolved.provider).toBe(false);
+    // Sticky prompt-cache routing now applies to OpenAI-compatible endpoints
+    // too (e.g. xAI Grok); only the Kimi-specific request headers stay gated.
+    expect(resolved.provider).toMatchObject({
+      generationKwargs: { prompt_cache_key: 'session-test' },
+    });
   });
 });
 
@@ -705,7 +709,7 @@ describe('ProviderManager prompt cache key', () => {
     });
   });
 
-  it('does not add generation kwargs to non-Kimi providers', () => {
+  it('adds prompt-cache generation kwargs to non-Kimi providers too', () => {
     const manager = new ProviderManager({
       promptCacheKey: 'session-test',
       config: {
@@ -727,11 +731,13 @@ describe('ProviderManager prompt cache key', () => {
     });
     const resolved = manager.resolveProviderConfig('gpt-alias');
 
+    // OpenAI-compatible endpoints (xAI Grok) also get sticky prompt-cache
+    // routing now, mirroring the kimi provider.
     expect(resolved.provider).toMatchObject({
       type: 'openai',
       model: 'gpt-runtime',
+      generationKwargs: { prompt_cache_key: 'session-test' },
     });
-    expect('generationKwargs' in resolved.provider).toBe(false);
   });
 
   it('reads the current config when constructed with a function', () => {
