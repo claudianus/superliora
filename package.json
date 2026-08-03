@@ -29,6 +29,7 @@
     "check:slop": "node scripts/check-ai-slop.mjs",
     "check:test-baseline": "node scripts/check-test-baseline.mjs",
     "check:changeset": "node scripts/check-changeset.mjs",
+    "check:await-scan": "node scripts/check-await-scan.mjs",
     "dev:server": "corepack pnpm -C apps/liora run dev:server",
     "build:plugin-marketplace": "corepack pnpm -C apps/liora run build:plugin-marketplace",
     "build:expert-catalog": "node scripts/build-expert-catalog.mjs",
