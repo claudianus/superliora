@@ -1,6 +1,10 @@
 /**
- * Humanize UltraSwarm collaboration / protocol payloads for TUI live feed.
+ * Humanize collaboration / protocol payloads for TUI live feeds.
  * Pure: raw XML/protocol → short headline + body humans can scan.
+ *
+ * S3-R6 interim home (moved from swarm-humanize.ts). Inventory verdict:
+ * DELETE — the remaining consumer is the liora AgentSwarm cell feed, owned
+ * by the S3-R5 retirement; the body is deleted once that lands.
  */
 
 export type HumanizeSeverity = 'info' | 'success' | 'warning' | 'error' | 'neutral';

@@ -23,7 +23,7 @@ export {
 export * from './spawn-agents';
 export * from './swarm-evidence-gate';
 export * from './swarm-file-lease';
-export * from './swarm-humanize';
+export * from './event-humanize';
 export * from './fleet-worktree';
 export * from './maker-checker';
 export * from './cost-guard';
