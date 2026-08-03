@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  CONDUCTOR_BUDGET_TRIP_TURN_STOP,
   CONDUCTOR_DIRECT_WORK_REJECTION_PHRASE,
   CONDUCTOR_GUARD_CODES,
   CONDUCTOR_TURN_STOP_PHRASE,
@@ -290,6 +291,81 @@ describe('ConductorDirectWorkGuard', () => {
     it('returns undefined when no budget was armed', () => {
       const guard = new ConductorDirectWorkGuard();
       expect(guard.endToolBudget('missing')).toBeUndefined();
+    });
+  });
+
+  describe('hard-budget trip stop (V1-4)', () => {
+    const sleep = (ms: number): Promise<void> =>
+      new Promise((resolve) => setTimeout(resolve, ms));
+
+    it('returns a per-call signal that the hard budget aborts with a reason', async () => {
+      const guard = new ConductorDirectWorkGuard({ softBudgetMs: 5, hardBudgetMs: 12 });
+      const signal = guard.beginToolBudget('call-1', 'Bash', 'turn-1');
+      expect(signal.aborted).toBe(false);
+      await sleep(40);
+      expect(signal.aborted).toBe(true);
+      expect(String(signal.reason)).toContain('hard budget');
+      guard.endToolBudget('call-1');
+    });
+
+    it('re-arming an already armed call returns the same signal', () => {
+      const guard = new ConductorDirectWorkGuard();
+      const first = guard.beginToolBudget('call-1', 'Bash', 'turn-1');
+      const second = guard.beginToolBudget('call-1', 'Bash', 'turn-1');
+      expect(second).toBe(first);
+      guard.endToolBudget('call-1');
+    });
+
+    it('queues a turn stop with a diagnostic after three consecutive hard trips', async () => {
+      const guard = new ConductorDirectWorkGuard({ softBudgetMs: 5, hardBudgetMs: 12 });
+      for (let index = 0; index < CONDUCTOR_BUDGET_TRIP_TURN_STOP; index += 1) {
+        guard.beginToolBudget(`call-${String(index)}`, 'Bash', 'turn-1');
+        await sleep(40);
+        guard.endToolBudget(`call-${String(index)}`);
+        // Below the threshold nothing is queued yet.
+        if (index < CONDUCTOR_BUDGET_TRIP_TURN_STOP - 1) {
+          expect(guard.consumeBudgetTurnStop('turn-1')).toBeUndefined();
+        }
+      }
+      expect(guard.hardTripsInTurn('turn-1')).toBe(CONDUCTOR_BUDGET_TRIP_TURN_STOP);
+      const report = guard.consumeBudgetTurnStop('turn-1');
+      expect(report).toBeDefined();
+      expect(report).toContain('consecutive hard-budget');
+      expect(report).toContain('JobCreate');
+      // The report is consumed exactly once.
+      expect(guard.consumeBudgetTurnStop('turn-1')).toBeUndefined();
+      const codes = guard.events().map((event) => event.code);
+      expect(
+        codes.filter((code) => code === CONDUCTOR_GUARD_CODES.toolBudgetHard),
+      ).toHaveLength(CONDUCTOR_BUDGET_TRIP_TURN_STOP);
+      expect(codes).toContain(CONDUCTOR_GUARD_CODES.toolBudgetTripStop);
+    });
+
+    it('resets the trip streak when a call settles within the hard budget', async () => {
+      const guard = new ConductorDirectWorkGuard({ softBudgetMs: 200, hardBudgetMs: 12 });
+      for (let index = 0; index < 2; index += 1) {
+        guard.beginToolBudget(`slow-${String(index)}`, 'Bash', 'turn-1');
+        await sleep(40);
+        guard.endToolBudget(`slow-${String(index)}`);
+      }
+      expect(guard.hardTripsInTurn('turn-1')).toBe(2);
+      // A call that settles within budget breaks the consecutive streak.
+      guard.beginToolBudget('fast-1', 'Read', 'turn-1');
+      guard.endToolBudget('fast-1');
+      expect(guard.hardTripsInTurn('turn-1')).toBe(0);
+      expect(guard.consumeBudgetTurnStop('turn-1')).toBeUndefined();
+    });
+
+    it('resetTurnState clears trip streaks and pending turn stops', async () => {
+      const guard = new ConductorDirectWorkGuard({ softBudgetMs: 5, hardBudgetMs: 12 });
+      for (let index = 0; index < CONDUCTOR_BUDGET_TRIP_TURN_STOP; index += 1) {
+        guard.beginToolBudget(`call-${String(index)}`, 'Bash', 'turn-1');
+        await sleep(40);
+        guard.endToolBudget(`call-${String(index)}`);
+      }
+      guard.resetTurnState();
+      expect(guard.hardTripsInTurn('turn-1')).toBe(0);
+      expect(guard.consumeBudgetTurnStop('turn-1')).toBeUndefined();
     });
   });
 
