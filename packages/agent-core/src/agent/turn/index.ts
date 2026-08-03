@@ -5,6 +5,7 @@ import { basename } from 'pathe';
 import type { Agent } from '..';
 import { makeErrorPayload } from '#/errors/index';
 import type { TurnCancelSource } from '../../rpc/core-api';
+import type { TurnEndedEvent } from '../../rpc/events';
 import { abortable, isUserCancellation, userCancellationReason } from '../../utils/abort';
 import { StreamingThinkScrubber } from '../../utils/think-scrubber';
 import { USER_PROMPT_ORIGIN, type PromptOrigin } from '../context';
@@ -218,6 +219,36 @@ export class TurnFlow {
     this.activeTurn = null;
   }
 
+  /**
+   * Release the active-turn slot before `turn.ended` is emitted so a prompt
+   * that races the end event starts the next turn instead of being rejected
+   * with `turn.agent_busy`. Mirrors the post-turn clear condition in
+   * `runOneTurn`; the slot must stay held for goal continuations and
+   * retryable-failure recovery, which keep running in the same worker.
+   */
+  private releaseActiveTurnIfFinished(
+    turnId: number,
+    ended: TurnEndedEvent,
+    signal: AbortSignal,
+    standalone: boolean,
+  ): void {
+    if (!standalone) return;
+    if (this.currentId !== turnId) return;
+    if (this.agent.goal.getGoal().goal?.status === 'active') return;
+    if (ended.reason === 'failed' && isRetryableProviderFailure(ended.error)) return;
+    this.releaseActiveTurnIfOwner(signal);
+  }
+
+  private releaseActiveTurnIfOwner(signal: AbortSignal): void {
+    if (
+      this.activeTurn !== null &&
+      this.activeTurn !== 'resuming' &&
+      this.activeTurn.controller.signal === signal
+    ) {
+      this.activeTurn = null;
+    }
+  }
+
   private flushSteerBuffer(): boolean {
     const steers = this.steerBuffer;
     if (steers.length === 0) return false;
@@ -307,7 +338,9 @@ export class TurnFlow {
           this.runOneTurn(turnId, turnInput, turnOrigin, turnSignal, standalone),
         allocateTurnId: () => this.allocateTurnId(),
         endGoalTurnWithoutModel: (turnId, turnInput, turnOrigin) =>
-          endGoalTurnWithoutModel(this.agent, turnId, turnInput, turnOrigin),
+          endGoalTurnWithoutModel(this.agent, turnId, turnInput, turnOrigin, () =>
+            this.releaseActiveTurnIfOwner(signal),
+          ),
       },
       firstTurnId,
       input,
@@ -330,6 +363,8 @@ export class TurnFlow {
         assistantThinkScrubber: this.assistantThinkScrubber,
         flushSteerBuffer: () => this.flushSteerBuffer(),
         getActiveTurn: () => this.activeTurn,
+        releaseActiveTurn: (ended) =>
+          this.releaseActiveTurnIfFinished(turnId, ended, signal, standalone),
       },
       turnId,
       input,
