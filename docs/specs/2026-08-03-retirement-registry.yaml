@@ -1,0 +1,33 @@
+# V6 폐기 레지스트리 —退役 웨이브 상태와 가드레일을 추적한다.
+# 기계 검증: scripts/check-retire-guardrails.mjs (pnpm run check:retire-guardrails)
+#
+# 필드 의미:
+#   status: done | partial | in_progress | pending
+#   characterization_tests: 폐기 전 동작 고정 테스트 (소급 면제 시 [] + 사유 주석)
+#   replacement_proof_tests: 대체 구현이 동작함을 증명하는 테스트 (done 항목은 존재 필수)
+#   retro_guard_needed: true면 캐릭터라이제이션 없이 삭제됨 — 보강 테스트를 R7 스윕에 할당
+#   grep_zero: packages/*/src + apps/*/src (테스트 파일 제외)에서 0건이어야 하는 정규식
+version: 1
+items:
+  - id: R2-collaboration-shim
+    status: done
+    commit: 84d482cb2
+    characterization_tests: [] # 소급 면제: 심 재수출만 삭제, 실체는 fleet/ 이관
+    replacement_proof_tests: [packages/agent-core/test/tools/job-desk.test.ts]
+    grep_zero: ['from [''"](\.\./)*src/tools/builtin/collaboration']
+  - id: R3-orchestrator-mode-stack
+    status: done
+    commit: c0b87bb9b
+    characterization_tests: []
+    retro_guard_needed: true # 캐릭터라이제이션 없이 삭제 — 보강 테스트를 R7 스윕에 할당
+    replacement_proof_tests: [packages/agent-core/test/tools/job-ledger.test.ts]
+    grep_zero: ['orchestratorMode', 'SpawnWorker']
+  - id: R4-ultraswarm-core
+    status: in_progress
+    commit: null
+  - id: R5-agentswarm-surface
+    status: pending
+  - id: R6-swarm-modules
+    status: pending
+  - id: R7-final-sweep
+    status: pending
