@@ -1,8 +1,13 @@
 /**
- * Fleet Cost Guard soft runtime — session $ cap for AgentSwarm / UltraSwarm.
+ * Fleet Cost Guard soft runtime — session $ cap for the fleet tools.
  *
- * Hard wasted-round kill lives in swarm-budget; this module only emits
- * non-blocking tips when SUPERLIORA_FLEET_BUDGET_USD is set.
+ * Emits non-blocking tips when SUPERLIORA_FLEET_BUDGET_USD is set.
+ *
+ * S3-R6 interim home (moved from swarm-cost-guard.ts): still consumed by
+ * the AgentSwarm tool surface (tools/builtin/fleet/agent-swarm.ts) and the
+ * liora TUI glances, both owned by the S3-R5 retirement. Inventory verdict:
+ * REBUILD — folds into Job pool back-pressure / cost visibility; the body is
+ * deleted once the R5 consumers land.
  */
 
 import type { TokenUsage } from '@superliora/kosong';
