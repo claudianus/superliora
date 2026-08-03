@@ -11,13 +11,66 @@ import {
  * contract §2.2 b-1/b-3, V1 gate). Breaking this snapshot means the conductor
  * lane exposes direct-work tools again — merge blocker by contract.
  */
+/**
+ * Tools that must never appear on the conductor whitelist (checklist V1-1):
+ * file mutation, worker-lifecycle waiting, and long-running check execution —
+ * the runtime guard rejects them, and the whitelist must stay consistent with
+ * the guard instead of dangling as a bypass surface.
+ */
+const CONDUCTOR_FORBIDDEN_TOOLS = [
+  'Write',
+  'Edit',
+  'ApplyPatch',
+  'RunProjectChecks',
+  'Agent',
+  'Fleet',
+  'TaskOutput',
+] as const;
+
+/** Exact conductor whitelist snapshot (V1-1). Any list change fails here. */
+const CONDUCTOR_TOOL_SNAPSHOT = [
+  // Read-only query waist
+  'Read',
+  'Grep',
+  'Glob',
+  'Bash',
+  'RepoQuery',
+  'TodoList',
+  // Plan/goal lifecycle spine
+  'EnterPlanMode',
+  'NextPhase',
+  'ExitPlanMode',
+  'RecordInterviewFinding',
+  'CreateGoal',
+  'GetGoal',
+  'UpdateGoal',
+  // Job ledger desk — the only delegation means
+  'JobCreate',
+  'JobList',
+  'JobInspect',
+  'JobSteer',
+  'JobCancel',
+  'MergeJob',
+  'JobResume',
+  'JobInbox',
+  // Skills + user clarification
+  'Skill',
+  'SearchSkill',
+  'AskUserQuestion',
+] as const;
+
 describe('conductor delegation-only tool surface', () => {
-  it('excludes file-mutation tools from the conductor profile', () => {
+  it('excludes every forbidden direct-work/wait tool from the conductor profile', () => {
     const tools = DEFAULT_AGENT_PROFILES['conductor']?.tools ?? [];
     expect(tools.length).toBeGreaterThan(0);
-    expect(tools).not.toContain('Write');
-    expect(tools).not.toContain('Edit');
-    expect(tools).not.toContain('ApplyPatch');
+    for (const forbidden of CONDUCTOR_FORBIDDEN_TOOLS) {
+      expect(tools, `conductor must not expose ${forbidden}`).not.toContain(forbidden);
+    }
+  });
+
+  it('pins the exact conductor whitelist snapshot (V1-1)', () => {
+    const tools = DEFAULT_AGENT_PROFILES['conductor']?.tools ?? [];
+    expect(tools).toEqual([...CONDUCTOR_TOOL_SNAPSHOT]);
   });
 
   it('keeps the Job desk, lifecycle spine, and read-only waist within ≤30 tools', () => {

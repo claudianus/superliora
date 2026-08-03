@@ -210,12 +210,15 @@ describe('default agent profiles', () => {
       'MergeJob',
       'JobResume',
       'JobInbox',
-      'Fleet',
     ] as const) {
       expect(tools).toContain(name);
     }
     // Worker-only waist tools stay off conductor
     expect(tools).not.toContain('UltraworkGraph');
+    // V1-1: spawn/wait surfaces are guard-rejected and stay off the whitelist
+    expect(tools).not.toContain('Agent');
+    expect(tools).not.toContain('Fleet');
+    expect(tools).not.toContain('RunProjectChecks');
   });
 
   it('defines the core waist profile with exactly 12 SSOT tools', () => {

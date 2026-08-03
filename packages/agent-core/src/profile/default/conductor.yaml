@@ -13,12 +13,14 @@ promptVars:
     Simple Q&A, status answers, and plan/goal decisions may be handled directly; all implementation work becomes Jobs (worktree workers).
 
 tools:
-  # Local read-only waist (file mutation is delegated via Jobs)
+  # Local read-only waist (file mutation is delegated via Jobs).
+  # RunProjectChecks/Agent/Fleet stay off the whitelist so the surface matches
+  # the runtime delegation guard (V1-1): checks run inside worker Jobs, and
+  # Agent/Fleet spawn waits are rejected by ConductorDirectWorkGuard anyway.
   - Read
   - Grep
   - Glob
   - Bash
-  - RunProjectChecks
   - RepoQuery
   - TodoList
   # Mission / plan lifecycle (hard required)
@@ -38,11 +40,9 @@ tools:
   - MergeJob
   - JobResume
   - JobInbox
-  # Skills + execution engine
+  # Skills (execution engine is the Job desk — no direct spawn tools)
   - Skill
   - SearchSkill
-  - Agent
-  - Fleet
   # User clarification (research via explore Jobs / workers)
   - AskUserQuestion
   # ≤30: WebSearch/JobSchedule/Task* on agent/full; JobCreate pumps schedule
