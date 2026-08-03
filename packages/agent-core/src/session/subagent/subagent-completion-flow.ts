@@ -7,6 +7,8 @@
  * class body.
  */
 
+import { isPermanentAuthError } from '@superliora/kosong';
+
 import { listSwitchableFailoverModels } from '../../agent/provider-failover';
 import type { PromptOrigin } from '../../agent/context';
 import type { Agent } from '../../agent';
@@ -28,6 +30,7 @@ import {
 import {
   isModelAliasHealthy,
   isRetryableSubagentProviderFailure,
+  markModelAliasAuthRejected,
   runChildTurnToCompletion,
 } from './subagent-run-lifecycle';
 import {
@@ -104,6 +107,13 @@ export async function runPromptTurnWithModelFallback(
           ? fallbackAliases[hop]
           : undefined;
       if (nextAlias === undefined) {
+        // V7-2: a permanent auth refusal (401/403) from the attempted alias's
+        // provider must poison that credential in the shared health store so
+        // later spawn/resume/retry resolution never routes back into the
+        // rejected exploration model and earns another guaranteed 403.
+        if (isPermanentAuthError(error)) {
+          markModelAliasAuthRejected(lastAttemptedAlias, child.kimiConfig?.models, error);
+        }
         const failure = enrichPermanentProviderFailure(error, child);
         emitSubagentFailed(parent, childId, options, failure, (hop > 0 && lastAttemptedAlias !== undefined
             ? { fellBackToModel: lastAttemptedAlias }
