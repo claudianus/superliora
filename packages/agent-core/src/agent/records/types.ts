@@ -65,13 +65,6 @@ export interface AgentRecordEvents {
   'plan_mode.exit': {
     id?: string;
   };
-  'ultra_swarm_engage_gate.set': {
-    planPath?: string;
-    reason?: string;
-  };
-  'ultra_swarm_engage_gate.clear': {
-    reason?: string;
-  };
 
   'swarm_mode.enter': {
     trigger: SwarmModeTrigger;

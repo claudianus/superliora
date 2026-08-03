@@ -6,7 +6,7 @@
  * - every id in `dependsOn` refers to a node whose status is done/succeeded
  *   (or the dependency id is unknown — treated as not satisfied)
  *
- * No side effects; safe to call from ultra-swarm phase assignment later.
+ * No side effects; safe to call from swarm phase assignment later.
  */
 
 export type SwarmDagNodeStatus =

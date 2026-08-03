@@ -503,8 +503,6 @@ export class FullCompaction implements CompactionPipelineContext {
 
   private shouldDeferAutoCompaction(): boolean {
     return shouldDeferAutoCompactionPolicy({
-      ultraSwarmActive: false,
-      shouldBlock: this.strategy.shouldBlock(this.tokenCountWithPending),
       hasActiveForegroundChildren:
         this.agent.subagentHost?.hasActiveForegroundChildren?.() === true,
     });

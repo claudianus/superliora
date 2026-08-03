@@ -7,11 +7,7 @@ export class SwarmModeAgentSwarmApprovePermissionPolicy implements PermissionPol
   constructor(private readonly agent: Agent) {}
 
   evaluate(context: PermissionPolicyContext): PermissionPolicyResult | undefined {
-    if (
-      context.toolCall.name !== 'Fleet' &&
-      context.toolCall.name !== 'AgentSwarm' &&
-      context.toolCall.name !== 'UltraSwarm'
-    ) {
+    if (context.toolCall.name !== 'Fleet' && context.toolCall.name !== 'AgentSwarm') {
       return;
     }
     if (!this.agent.swarmMode.isActive) return;

@@ -89,10 +89,10 @@ export const DEFAULT_SPECULATIVE_STEP_BUFFER_TOKENS = 2_000;
  * models do not require ~50k growth before recompact can arm again.
  */
 export const DEFAULT_MIN_RECOMPACT_GROWTH_RATIO = 0.05;
-/** Pre-swarm handoff ceiling: force reclaim before UltraSwarm if usage is above this ratio. */
+/** Pre-swarm handoff ceiling: force reclaim before a swarm handoff if usage is above this ratio. */
 export const SWARM_HANDOFF_COMPACTION_RATIO = 0.65;
 /**
- * During UltraSwarm, allow micro (tool-result) clearing from this usage ratio.
+ * During swarm runs, allow micro (tool-result) clearing from this usage ratio.
  * Observation masking / tool-result clearing is preferred over full summarization
  * for cost and fidelity; start well before soft trigger.
  */
