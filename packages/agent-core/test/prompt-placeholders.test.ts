@@ -31,10 +31,7 @@ const TEMPLATED = new Set([
   'tools/builtin/shell/bash.md',
 ]);
 
-const STATIC_PLACEHOLDER_PROTOCOL_FILES = new Set([
-  'agent/swarm/enter-reminder.md',
-  'tools/builtin/fleet/agent-swarm.md',
-]);
+const STATIC_PLACEHOLDER_PROTOCOL_FILES = new Set(['agent/swarm/enter-reminder.md']);
 
 const mdFiles = globSync('**/*.md', { cwd: SRC })
   .map((file) => file.split('\\').join('/'))

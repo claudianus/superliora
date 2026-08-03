@@ -239,19 +239,6 @@ export function swarmOrchestrationCardTitle(item: string): string {
   return `${SWARM_ORCHESTRATION_PREFIX}${item}`;
 }
 
-export function seedSwarmOrchestrationTodos(
-  store: ToolStore,
-  items: readonly string[],
-): void {
-  const existing = store.get(TODO_STORE_KEY) ?? [];
-  const existingTitles = new Set(existing.map((todo) => todo.title));
-  const newCards = items
-    .filter((item) => !existingTitles.has(swarmOrchestrationCardTitle(item)))
-    .map((item) => ({ title: swarmOrchestrationCardTitle(item), status: 'pending' as const }));
-  if (newCards.length === 0) return;
-  store.set(TODO_STORE_KEY, [...existing, ...newCards]);
-}
-
 export function updateSwarmOrchestrationTodoStatus(
   store: ToolStore,
   item: string,

@@ -13,7 +13,6 @@ import {
   TODO_STORE_KEY,
   TodoListInputSchema,
   TodoListTool,
-  seedSwarmOrchestrationTodos,
   updateSwarmOrchestrationTodoStatus,
   type TodoItem,
 } from '../../src/tools/builtin/state/todo-list';
@@ -286,18 +285,6 @@ describe('TodoListTool', () => {
 
     // The store must be untouched on rejection — no partial clobbering.
     expect(getTodos()).toEqual([{ title: 'existing', status: 'pending' }]);
-  });
-
-  it('seeds swarm orchestration cards without duplicating existing titles', () => {
-    const { store, getTodos } = makeStore([
-      { title: '[swarm] auth module', status: 'done' },
-    ]);
-    seedSwarmOrchestrationTodos(store, ['auth module', 'ui polish']);
-
-    expect(getTodos()).toEqual([
-      { title: '[swarm] auth module', status: 'done' },
-      { title: '[swarm] ui polish', status: 'pending' },
-    ]);
   });
 
   it('updates swarm orchestration card status by item text', () => {
