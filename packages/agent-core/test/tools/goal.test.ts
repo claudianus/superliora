@@ -274,6 +274,7 @@ describe('UpdateGoalTool', () => {
           reminders.push({ content, origin });
         },
       },
+      autoCheckSpawnState: { spawnCount: 0 },
     } as unknown as Agent;
   }
 
