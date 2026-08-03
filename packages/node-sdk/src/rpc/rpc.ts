@@ -58,7 +58,6 @@ import {
   type SessionPromptRpcInput,
   type SetSessionModelRpcInput,
   type SetSessionModelRpcResult,
-  type SetSessionOrchestratorModeRpcInput,
   type SetSessionPermissionRpcInput,
   type SetSessionPlanModeRpcInput,
   type SetSessionPremiumQualityRpcInput,
@@ -85,7 +84,6 @@ export type {
   SessionPromptRpcInput,
   SetSessionModelRpcInput,
   SetSessionModelRpcResult,
-  SetSessionOrchestratorModeRpcInput,
   SetSessionPermissionRpcInput,
   SetSessionPlanModeRpcInput,
   SetSessionPremiumQualityRpcInput,
@@ -251,15 +249,6 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
   async setPremiumQuality(input: SetSessionPremiumQualityRpcInput): Promise<void> {
     const rpc = await this.getRpc();
     return rpc.setPremiumQuality({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-      enabled: input.enabled,
-    });
-  }
-
-  async setOrchestratorMode(input: SetSessionOrchestratorModeRpcInput): Promise<void> {
-    const rpc = await this.getRpc();
-    return rpc.setOrchestratorMode({
       sessionId: input.sessionId,
       agentId: this.interactiveAgentId,
       enabled: input.enabled,

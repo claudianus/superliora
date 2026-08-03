@@ -38,16 +38,6 @@ export interface AgentStatusUpdatedHost {
   readonly planMode: { readonly isActive: boolean };
   readonly swarmMode: { readonly isActive: boolean };
   readonly premiumQuality: { isEnabled(): boolean };
-  readonly orchestratorMode: boolean;
-  readonly orchestratorWorkers: ReadonlyMap<
-    string,
-    {
-      readonly id: string;
-      readonly description: string;
-      readonly status: string;
-      readonly tokenUsage?: { readonly output?: number | undefined } | undefined;
-    }
-  >;
   readonly permission: {
     readonly mode: string;
     readonly interventionQueue: { snapshot(): { readonly count: number } };
@@ -86,16 +76,6 @@ export function buildAgentStatusUpdatedEvent(host: AgentStatusUpdatedHost): Agen
     planMode: host.planMode.isActive,
     swarmMode: host.swarmMode.isActive,
     premiumQualityMode: host.premiumQuality.isEnabled(),
-    orchestratorMode: host.orchestratorMode || undefined,
-    orchestratorWorkers:
-      host.orchestratorMode && host.orchestratorWorkers.size > 0
-        ? [...host.orchestratorWorkers.values()].map((w) => ({
-            id: w.id,
-            description: w.description,
-            status: w.status as 'running' | 'completed' | 'failed',
-            tokenOutput: w.tokenUsage?.output,
-          }))
-        : undefined,
     permission: host.permission.mode as PermissionMode,
     usage,
     providerRoute,

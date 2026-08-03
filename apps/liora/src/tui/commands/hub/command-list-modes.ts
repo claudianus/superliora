@@ -119,14 +119,6 @@ export const BUILTIN_SLASH_COMMANDS_MODES = [
     availability: swarmControlAvailability,
   },
   {
-    name: 'orchestrator',
-    aliases: ['orch'],
-    description: 'Toggle orchestrator mode: delegate work to parallel background workers',
-    priority: 81,
-    argumentHint: '[on|off|status]',
-    availability: 'always',
-  },
-  {
     name: 'mission',
     aliases: [],
     hiddenAliases: ['ultrawork', 'uw'],

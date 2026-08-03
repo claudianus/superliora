@@ -58,10 +58,6 @@ export interface AppState {
   } | null;
   /** Visual Quality mode: art direction, anti-slop visuals, skill routing, screenshot proof. */
   premiumQualityMode?: boolean;
-  /** True when the agent runs in orchestrator mode (delegates to background workers). */
-  orchestratorMode?: boolean;
-  /** Active orchestrator worker summaries for the status board. */
-  orchestratorWorkers?: readonly { id: string; description: string; status: string; tokenOutput?: number }[];
   /**
    * Conductor Job desk state (meta-orchestrator). Populated when Job* tools
    * update the ledger, `job.*` events arrive, or after /jobs refresh;

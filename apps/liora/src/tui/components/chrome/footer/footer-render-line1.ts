@@ -56,12 +56,10 @@ import {
   labelMenu,
   labelModeAuto,
   labelModeMission,
-  labelModeOrchestrator,
   labelModePlan,
   labelModePremium,
   labelModeSwarm,
   labelModeYolo,
-  labelWorkers,
 } from '#/tui/components/chrome/footer/footer-labels';
 
 export interface FooterLine1TipState {
@@ -151,26 +149,6 @@ export function renderFooterLine1(input: RenderFooterLine1Input): string {
       modes.push(
         renderAnimatedGradientText(labelModePremium(labels), 'footer:premium', appearance),
       );
-    }
-    if (state.orchestratorMode) {
-      modes.push(
-        renderPulseText(
-          labelModeOrchestrator(labels),
-          'footer:orchestrator',
-          'accent',
-          appearance,
-        ),
-      );
-      const workers = state.orchestratorWorkers;
-      if (workers !== undefined && workers.length > 0) {
-        const running = workers.filter((w) => w.status === 'running').length;
-        const done = workers.filter((w) => w.status === 'completed').length;
-        const failed = workers.filter((w) => w.status === 'failed').length;
-        const workerLabel = labelWorkers(labels, running, done, failed);
-        if (workerLabel.length > 0) {
-          modes.push(renderPulseText(workerLabel, 'footer:workers', 'primary', appearance));
-        }
-      }
     }
     const jobs = state.conductorJobs;
     if (

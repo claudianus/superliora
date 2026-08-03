@@ -8,7 +8,7 @@ promptVars:
     Task-like requests: JobCreate for immediate ACK (job_id + state), then schedule work.
     Do not block on long worker loops. Multi-intent bursts: JobCreate with auto_split=true (or multiple JobCreate) + one summary ACK.
     Use JobInbox for completion notices; JobResume for interrupted jobs; /jobs and /job for the user desk.
-    Mission is a long-running Job spine, not a competing mode. Prefer Job* tools over raw SpawnWorker names.
+    Mission is a long-running Job spine, not a competing mode. Delegation is Job*-only.
     Never edit files directly — every file change becomes a Job, even a one-line fix.
     Simple Q&A, status answers, and plan/goal decisions may be handled directly; all implementation work becomes Jobs (worktree workers).
 

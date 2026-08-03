@@ -123,7 +123,6 @@ async function setFleetMaxRunningTasks(host: SlashCommandHost, maxRunningTasks: 
 
 async function loadFleetSessionLiveGlance(host: SlashCommandHost): Promise<FleetSessionLiveGlance> {
   const base: FleetSessionLiveGlance = {
-    orchestratorWorkers: host.state.appState.orchestratorWorkers,
     makerCheckerSoftWarn: host.state.appState.makerCheckerSoftWarn,
     worktree: loadFleetWorktreeGlance(),
   };
@@ -134,18 +133,16 @@ async function loadFleetSessionLiveGlance(host: SlashCommandHost): Promise<Fleet
     const parallelTools = resolveFleetParallelToolsGlanceFromStatus(status);
 
     let backgroundActive: FleetSessionLiveGlance['backgroundActive'];
-    if (base.orchestratorWorkers == null || base.orchestratorWorkers.length === 0) {
-      const tasks = await session.listBackgroundTasks({ activeOnly: true }).catch(() => undefined);
-      if (tasks != null && tasks.length > 0) {
-        const counts = countActiveBackgroundTasks(
-          new Map(tasks.map((task) => [task.taskId, task])),
-        );
-        if (counts.bashTasks > 0 || counts.agentTasks > 0) {
-          backgroundActive = {
-            bash: counts.bashTasks,
-            agent: counts.agentTasks,
-          };
-        }
+    const tasks = await session.listBackgroundTasks({ activeOnly: true }).catch(() => undefined);
+    if (tasks != null && tasks.length > 0) {
+      const counts = countActiveBackgroundTasks(
+        new Map(tasks.map((task) => [task.taskId, task])),
+      );
+      if (counts.bashTasks > 0 || counts.agentTasks > 0) {
+        backgroundActive = {
+          bash: counts.bashTasks,
+          agent: counts.agentTasks,
+        };
       }
     }
 
@@ -160,7 +157,7 @@ async function loadFleetSessionLiveGlance(host: SlashCommandHost): Promise<Fleet
 }
 
 async function showFleetSettingsPanel(host: SlashCommandHost): Promise<void> {
-  const { swarmMode, orchestratorMode, permissionMode } = host.state.appState;
+  const { swarmMode, permissionMode } = host.state.appState;
   let maxWorkersLine = formatFleetMaxRunningTasksLine(undefined);
   let sessionsLine = 'Sessions in workspace: (unknown)';
 
@@ -193,7 +190,6 @@ async function showFleetSettingsPanel(host: SlashCommandHost): Promise<void> {
     '── Status ───────────────────────────────────',
     sessionsLine,
     `Fleet mode: ${swarmMode ? 'ON' : 'OFF'}${fleetDetail}`,
-    `Orchestrator: ${orchestratorMode === true ? 'ON' : 'OFF'}`,
     `Permission: ${permissionMode ?? '(unset)'}`,
     maxWorkersLine,
     '',
@@ -223,13 +219,12 @@ async function showFleetSettingsPanel(host: SlashCommandHost): Promise<void> {
     '── Import path (soft rename) ────────────────',
     ...FLEET_IMPORT_PATH_TIPS.map((tip) => `· ${tip}`),
     '',
-    ...buildFleetWorktreeSettingsLines(loadFleetWorktreeGlance(), orchestratorMode === true),
+    ...buildFleetWorktreeSettingsLines(loadFleetWorktreeGlance()),
     '',
     '── Commands ─────────────────────────────────',
     '  /fleet              live status panel (same family as this view)',
     '  /fleet on|off       toggle fleet mode',
     '  /fleet <task>       delegate to specialists',
-    '  /orchestrator       background worker pool',
     '  /ops                Fleet theatre + git diff + health',
   ];
 

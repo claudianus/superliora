@@ -55,7 +55,6 @@ import type {
   SetModelPayload,
   SetModelResult,
   SetPermissionPayload,
-  SetOrchestratorModePayload,
   SetPremiumQualityPayload,
   SetThinkingPayload,
   SkillSearchResult,
@@ -196,18 +195,6 @@ export function getPremiumQuality(
   context: SessionAgentMethodsContext,
   { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
   return context.sessionApi(sessionId).getPremiumQuality(payload);
-}
-
-export function setOrchestratorMode(
-  context: SessionAgentMethodsContext,
-  { sessionId, ...payload }: SessionAgentPayload<SetOrchestratorModePayload>) {
-  return context.sessionApi(sessionId).setOrchestratorMode(payload);
-}
-
-export function getOrchestratorMode(
-  context: SessionAgentMethodsContext,
-  { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-  return context.sessionApi(sessionId).getOrchestratorMode(payload);
 }
 
 export function beginCompaction(

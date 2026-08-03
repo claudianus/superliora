@@ -32,14 +32,6 @@ export interface AgentStatusAutoDream {
   readonly minActiveRecords: number;
 }
 
-/** Compact worker summary for the TUI status board. */
-export interface AgentStatusOrchestratorWorker {
-  readonly id: string;
-  readonly description: string;
-  readonly status: 'running' | 'completed' | 'failed';
-  readonly tokenOutput?: number;
-}
-
 export interface AgentStatusUpdatedEvent {
   readonly type: 'agent.status.updated';
   readonly model?: string;
@@ -57,10 +49,6 @@ export interface AgentStatusUpdatedEvent {
   /** Present when micro-compaction has fired; null clears prior badge. */
   readonly microCompaction?: AgentStatusMicroCompaction | null;
   readonly autoDream?: AgentStatusAutoDream | null;
-  /** True when the agent is running in orchestrator mode (delegates work to workers). */
-  readonly orchestratorMode?: boolean;
-  /** Summary of active orchestrator workers for TUI display. */
-  readonly orchestratorWorkers?: readonly AgentStatusOrchestratorWorker[];
   /** Non-blocking permission interventions waiting on host approval. */
   readonly pendingInterventions?: number;
   /** Queue entries older than 120s (visibility only; no auto-deny). */
@@ -114,13 +102,6 @@ export const agentStatusUpdatedEventSchema = z.object({
   contextOS: agentStatusContextOSSchema.nullable().optional(),
   microCompaction: agentStatusMicroCompactionSchema.nullable().optional(),
   autoDream: agentStatusAutoDreamSchema.nullable().optional(),
-  orchestratorMode: z.boolean().optional(),
-  orchestratorWorkers: z.array(z.object({
-    id: z.string(),
-    description: z.string(),
-    status: z.enum(['running', 'completed', 'failed']),
-    tokenOutput: z.number().optional(),
-  })).optional(),
   pendingInterventions: z.number().int().nonnegative().optional(),
   staleInterventions: z.number().int().nonnegative().optional(),
   oldestInterventionAgeMs: z.number().int().nonnegative().optional(),

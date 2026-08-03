@@ -7,8 +7,8 @@
  *
  * - Stage 1 (name-based, pre-execution): file-mutation tools
  *   (Write/Edit/ApplyPatch) and worker-lifecycle-awaiting tools
- *   (Agent/Fleet/TaskOutput/swarm + orchestrator tools) are rejected with a
- *   fixed routing phrase plus a suggested Job draft, so the model flows
+ *   (Agent/Fleet/TaskOutput/swarm) are rejected with a fixed routing phrase
+ *   plus a suggested Job draft, so the model flows
  *   "reject → delegate via JobCreate" instead of "reject → retry" (§2.2 b-2).
  * - Stage 2 (access-based, post-resolveExecution): tools outside the known
  *   delegation/lifecycle/read surface are judged by declared `ToolAccesses`
@@ -34,8 +34,6 @@ export const CONDUCTOR_GUARD_CODES = {
   workerWaitBlocked: 'CONDUCTOR_WORKER_WAIT_BLOCKED',
   /** Unknown/third-party tool judged write-like by declared accesses (§2.2 b-2). */
   accessBlocked: 'CONDUCTOR_ACCESS_BLOCKED',
-  /** orchestratorMode entry attempt ignored for conductor (inventory B-1 step ①). */
-  orchestratorModeBlocked: 'CONDUCTOR_ORCHESTRATOR_MODE_BLOCKED',
   /** Tool wall-clock exceeded the soft budget (§3.2 G3 soft 5s). */
   toolBudgetSoft: 'CONDUCTOR_TOOL_BUDGET_SOFT',
   /** Tool wall-clock exceeded the hard budget (§3.2 G3 hard 15s). */
@@ -123,11 +121,6 @@ export const CONDUCTOR_WORKER_WAIT_TOOLS = [
   'TaskOutput',
   'UltraSwarm',
   'AgentSwarm',
-  'SpawnWorker',
-  'SteerWorker',
-  'QueryWorker',
-  'EnqueueWorkerTask',
-  'MergeWorker',
 ] as const;
 
 /**
@@ -317,18 +310,6 @@ export class ConductorDirectWorkGuard {
       });
     }
     return durationMs;
-  }
-
-  /** Record a blocked orchestratorMode entry attempt (inventory B-1 step ①). */
-  recordOrchestratorModeBlocked(source: string): void {
-    this.record({
-      code: CONDUCTOR_GUARD_CODES.orchestratorModeBlocked,
-      detail: `orchestratorMode entry blocked for conductor (source=${source}); delegation is Job*-only`,
-    });
-    this.log?.warn('orchestratorMode entry blocked on conductor', {
-      source,
-      code: CONDUCTOR_GUARD_CODES.orchestratorModeBlocked,
-    });
   }
 
   /** Tripwire buffer snapshot (observable/testable rejection history). */

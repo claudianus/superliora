@@ -40,7 +40,6 @@ export function createInitialAppState(input: InitialAppStateInput): AppState {
     planMode: input.cliOptions.plan,
     ultraworkMode: false,
     premiumQualityMode: false,
-    orchestratorMode: false,
     inputMode: 'prompt',
     swarmMode: false,
     thinking: false,

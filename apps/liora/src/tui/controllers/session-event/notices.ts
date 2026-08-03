@@ -36,7 +36,7 @@ import { notifyError } from '../../utils/notification/desktop-notification';
 import { INTERVENTION_NEVER_HALT_TIP } from '../../utils/never-halt/intervention-glance';
 import { staleRuntimeDegradedClearPatch } from '../../utils/never-halt/runtime-degraded';
 import { staleSearchCascadeClearPatch } from '../../utils/search/search-cascade';
-import { shouldFleetFlourishPulse } from '../../utils/fleet/fleet-flourish';
+
 import { formatNamedSessionErrorNotice } from '../../utils/session/named-error-notice';
 import type { StreamingUIController } from '../streaming-ui/index';
 
@@ -158,16 +158,6 @@ export class SessionEventNotices {
     if (event.swarmMode !== undefined) patch.swarmMode = event.swarmMode;
     if (event.premiumQualityMode !== undefined) {
       patch.premiumQualityMode = event.premiumQualityMode;
-    }
-    if (event.orchestratorMode !== undefined) {
-      patch.orchestratorMode = event.orchestratorMode;
-    }
-    if (event.orchestratorWorkers !== undefined) {
-      const prevWorkers = this.host.state.appState.orchestratorWorkers;
-      if (shouldFleetFlourishPulse(prevWorkers, event.orchestratorWorkers)) {
-        patch.fleetFlourish = { atMs: Date.now() };
-      }
-      patch.orchestratorWorkers = event.orchestratorWorkers;
     }
     if (event.permission !== undefined) {
       patch.permissionMode = event.permission;
