@@ -28,6 +28,12 @@ export interface TurnRunOneDeps {
   readonly assistantThinkScrubber: StreamingThinkScrubber;
   readonly flushSteerBuffer: () => boolean;
   getActiveTurn(): 'resuming' | ActiveTurn | null;
+  /**
+   * Release the active-turn slot before `turn.ended` is emitted so a prompt
+   * that races the end event starts the next turn instead of being rejected
+   * with `turn.agent_busy`.
+   */
+  readonly releaseActiveTurn: (ended: TurnEndedEvent) => void;
 }
 
 export async function runOneTurnFlow(
@@ -145,6 +151,10 @@ export async function runOneTurnFlow(
       inputData: { turnId, reason: 'cancelled' },
     });
   }
+  // Invariant: the session must be idle the moment turn.ended fires. Release
+  // the slot synchronously before emitting — awaiting anything (e.g. turn
+  // memory capture) in between lets a racing prompt hit `turn.agent_busy`.
+  deps.releaseActiveTurn(ended);
   agent.emitEvent(ended);
   if (agent.swarmMode.shouldAutoExit && !isUltraworkSwarmSession(agent)) {
     agent.swarmMode.exit();
