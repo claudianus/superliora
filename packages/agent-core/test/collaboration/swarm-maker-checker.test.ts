@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import * as fleetSurface from '#/fleet';
 import {
   applyMakerCheckerHardGate,
+  classifyExpertRoleString,
   classifySwarmLaneRole,
   classifySwarmPhaseRole,
   detectAgentSwarmItemRoleCollision,
@@ -175,5 +177,49 @@ describe('swarm-maker-checker.ts — hard gate flag', () => {
     const hard = formatMakerCheckerSoftWarn(collisions, { hardGate: true });
     expect(soft).toContain(SWARM_MAKER_CHECKER_SOFT_TIP);
     expect(hard).toContain(SWARM_MAKER_CHECKER_HARD_PREFIX);
+  });
+});
+
+describe('swarm-maker-checker.ts — retro guard (S3-R7)', () => {
+  it('fleet surface no longer exposes retired UltraSwarm-named helpers', () => {
+    const retired = Object.keys(fleetSurface).filter((key) => /UltraSwarm/i.test(key));
+    expect(retired).toEqual([]);
+  });
+
+  it('classifies expert role strings via the role fallback', () => {
+    expect(classifyExpertRoleString('Reviewer')).toBe('checker');
+    expect(classifyExpertRoleString('implementer')).toBe('maker');
+    expect(classifyExpertRoleString(undefined)).toBeUndefined();
+    expect(classifyExpertRoleString('   ')).toBeUndefined();
+  });
+
+  it('uses focus when phase is missing in assignment rows', () => {
+    const collisions = detectMakerCheckerCollisionsFromAssignments([
+      { expertId: 'e-2', focus: 'implement' },
+      { expertId: 'e-2', focus: 'review' },
+    ]);
+    expect(collisions).toHaveLength(1);
+    expect(collisions[0]?.expertId).toBe('e-2');
+  });
+
+  it('skips rows with unclassifiable role signals', () => {
+    expect(
+      detectMakerCheckerCollisionsFromAssignments([
+        { expertId: 'e-3', phase: 'implement' },
+        { expertId: 'e-3', phase: 'unknown-phase' },
+      ]),
+    ).toEqual([]);
+  });
+
+  it('caps the colliding expert roster at 4 names with a +N suffix', () => {
+    const collisions = ['a', 'b', 'c', 'd', 'e'].map((id) => ({
+      expertId: id,
+      expertName: `Expert ${id.toUpperCase()}`,
+      makerPhase: 'implement',
+      checkerPhase: 'review',
+    }));
+    const tip = formatMakerCheckerSoftWarn(collisions, { env: {} });
+    expect(tip).toContain('Expert A, Expert B, Expert C, Expert D');
+    expect(tip).toContain('+1 more');
   });
 });

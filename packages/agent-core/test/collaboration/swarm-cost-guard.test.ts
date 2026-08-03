@@ -111,3 +111,45 @@ describe('swarm-cost-guard.ts — runtime soft tips', () => {
     expect(fleetCostGuardSoftTipFromSwarmOutput(output)).toBe(tip);
   });
 });
+
+describe('swarm-cost-guard.ts — retro guard (S3-R7)', () => {
+  it('rejects malformed or non-positive budget env values', () => {
+    for (const bad of ['abc', '-3', '0', '', '   ']) {
+      expect(loadFleetBudgetGlance({ [FLEET_BUDGET_USD_ENV]: bad }).budgetUsd).toBeNull();
+    }
+  });
+
+  it('flags near-budget at the 80% threshold', () => {
+    const glance = loadFleetBudgetGlance({ [FLEET_BUDGET_USD_ENV]: '10' });
+    expect(evaluateFleetCostGuardSoft(glance, 8).nearBudget).toBe(true);
+    expect(evaluateFleetCostGuardSoft(glance, 8).overBudget).toBe(false);
+    expect(evaluateFleetCostGuardSoft(glance, 7.9).nearBudget).toBe(false);
+  });
+
+  it('stays silent under cap when spend tracking is available', () => {
+    const tip = formatFleetCostGuardSoftTip({
+      check: evaluateFleetCostGuardSoft(loadFleetBudgetGlance({ [FLEET_BUDGET_USD_ENV]: '10' }), 2),
+      workerCount: 2,
+      spentTrackingAvailable: true,
+    });
+    expect(tip).toBeUndefined();
+  });
+
+  it('formats a singular worker count in the unavailable-tracking tip', () => {
+    const tip = formatFleetCostGuardSoftTip({
+      check: evaluateFleetCostGuardSoft(loadFleetBudgetGlance({ [FLEET_BUDGET_USD_ENV]: '10' }), undefined),
+      workerCount: 1,
+      spentTrackingAvailable: false,
+    });
+    expect(tip).toContain('1 worker spawned');
+  });
+
+  it('returns undefined cost for zero-token usage', () => {
+    expect(
+      estimateSessionCostUsd(
+        { inputOther: 0, output: 0, inputCacheRead: 0, inputCacheCreation: 0 },
+        { input: 3, output: 15 },
+      ),
+    ).toBeUndefined();
+  });
+});
