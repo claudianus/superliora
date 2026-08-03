@@ -48,7 +48,6 @@ tools:
   - ComputerStatus
   - Agent
   - Fleet
-  - UltraSwarm
   - FetchURL
   - Context7Resolve
   - Context7Docs

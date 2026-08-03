@@ -20,10 +20,10 @@ export function ultraSwarmEngageNextAction(
     ? `Approved plan WorkGraph nodes are already seeded; pass work_node_ids: ${seededWorkGraph.nodeIds.join(', ')}.`
     : 'Pass relevant UltraworkGraph work_node_ids after seeding the graph, or omit work_node_ids until UltraworkGraph exists.';
   return [
-    'UltraSwarm ENGAGE approved.',
-    'Recommended next action: create the verifiable UltraGoal with CreateGoal if it does not already exist, then call UltraSwarm before product-file edits or single-agent implementation.',
+    'Swarm ENGAGE approved.',
+    'Recommended next action: create the verifiable UltraGoal with CreateGoal if it does not already exist, then fan the work out to Job workers (JobCreate) before product-file edits or single-agent implementation.',
     workNodeLine,
-    'Pass the Capability Coverage Matrix, acceptance criteria, risks, required evidence, and verification owner in the UltraSwarm description.',
+    'Pass the capability coverage matrix, acceptance criteria, risks, required evidence, and verification owner in the job descriptions.',
     'If specialists are no longer needed, revise the Swarm decision to DEFER with a waiver before implementation.',
   ].join(' ');
 }

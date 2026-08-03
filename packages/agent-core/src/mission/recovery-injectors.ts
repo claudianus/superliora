@@ -227,7 +227,7 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
   const resumeCursor = buildUltraworkResumeCursor(agent, run, planContext);
   const nextActions = suggestNextActions(
     run,
-    'UltraSwarm finished — integrate then verify',
+    'Swarm phase finished — integrate then verify',
     planContext,
     resumeCursor,
   );
@@ -235,7 +235,7 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
   const interruptReason = agent.ultrawork?.getInterruptReason()?.trim();
   const lines = [
     '<ultrawork_post_swarm>',
-    'UltraSwarm finished. Continue this Ultrawork run in order:',
+    'The swarm phase finished. Continue this Ultrawork run in order:',
     `Run: ${run.id} · stage=${run.stage} · status=${run.status}`,
     `Objective: ${run.objective}`,
     '1. Integrate — merge specialist output, resolve conflicts, pick an integration owner before more product edits.',
@@ -259,7 +259,7 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
     }
   }
   lines.push(
-    'Do not call UltraSwarm again unless revision gaps truly require another specialist wave.',
+    'Do not re-open specialist fan-out (Job workers) unless revision gaps truly require another wave.',
     'False-complete guard: UpdateGoal(complete) is rejected while WorkGraph is empty/incomplete or requiredEvidence lacks verificationStatus=passed. Keep working until audit passes — do not wait for the user to re-prompt.',
     '</ultrawork_post_swarm>',
   );
@@ -303,7 +303,7 @@ export function injectUltraworkPostCompactionContinuation(agent: Agent): void {
   }
   appendWorkGraphRecoveryLines(lines, run);
 
-  const stageGuidance = stageContinuationGuidance(effectiveStage, agent.ultraSwarmRun !== undefined);
+  const stageGuidance = stageContinuationGuidance(effectiveStage);
   if (stageGuidance !== undefined) {
     lines.push(stageGuidance);
   }
@@ -336,10 +336,7 @@ export function capturePlanRecoveryContextFromAgent(agent: Agent): UltraworkPlan
   };
 }
 
-function stageContinuationGuidance(stage: UltraworkStage, duringSwarm: boolean): string | undefined {
-  if (duringSwarm) {
-    return 'UltraSwarm is active. Let the current wave finish; integrate/verify after swarm completes.';
-  }
+function stageContinuationGuidance(stage: UltraworkStage): string | undefined {
   switch (stage) {
     case 'plan':
       return 'Continue UltraPlan interview/plan gate from checkpoint. Do not create a new plan file.';
@@ -347,7 +344,7 @@ function stageContinuationGuidance(stage: UltraworkStage, duringSwarm: boolean):
       return 'Refresh or extend the evidence pack as needed. Do not restart UltraResearch from scratch.';
     case 'staff':
     case 'swarm':
-      return 'Reconcile team staffing; call UltraSwarm only when ENGAGE is still required.';
+      return 'Reconcile team staffing; fan out Job workers only when ENGAGE is still required.';
     case 'integrate':
       return 'Merge specialist output and resolve conflicts before more product edits.';
     case 'verify':

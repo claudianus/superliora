@@ -112,7 +112,7 @@ function appendUltraworkCompactionSections(
       ultraworkSnapshot!.run.workGraph?.nodes.filter((node) => node.status !== 'done')
         .length ?? 0,
     ),
-    deferred_reason: ctx.agent.ultraSwarmRun !== undefined ? 'ultra_swarm_active' : 'none',
+    deferred_reason: 'none',
     envelope_token_estimate: String(estimateTokens(ultraworkEnvelope)),
   });
   return { summary: next, ultraworkSnapshot };

@@ -6,7 +6,6 @@ export * from '../cron/cron-delete';
 export * from '../cron/cron-list';
 export * from './fleet/agent';
 export * from './fleet/agent-swarm';
-export * from './fleet/ultra-swarm';
 export * from './fleet/swarm-channel';
 export * from './fleet/ask-user';
 export * from './fleet/search-expert';

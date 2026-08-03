@@ -187,7 +187,7 @@ export function suggestNextActions(
         break;
       case 'staff':
       case 'swarm':
-        actions.push('Reconcile swarm staffing; rerun UltraSwarm only if ENGAGE required.');
+        actions.push('Reconcile swarm staffing; fan out Job workers only if ENGAGE required.');
         break;
       case 'integrate':
         actions.push('Merge specialist output and resolve conflicts before more product edits.');

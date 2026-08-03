@@ -55,13 +55,6 @@ export {
   type SwarmDagNodeStatus,
 } from '#/fleet';
 export {
-  buildRestaffSpecs,
-  canAttemptRestaff,
-  selectRestaffPhaseSpecs,
-  shouldSkipAdaptiveRestaff,
-  shouldStopPhaseLoopAtCheckpoint,
-} from './tools/builtin/fleet/ultra-swarm-phase';
-export {
   CHECK_LIKE_EVIDENCE_TOKENS,
   applyEvidenceHardGate,
   evaluateEvidenceHardGate,
@@ -72,21 +65,6 @@ export {
   type EvidenceGateNode,
   type EvidenceGateResult,
 } from '#/fleet';
-export {
-  attachDraftToDebate,
-  buildDebateContext,
-  createDebate,
-  type BuildDebateContextOptions,
-  type DebateConfig,
-  type DebateState,
-} from './session/ultra-swarm-debate';
-export {
-  buildDebateDraftHandoffPack,
-  debateDraftPhasesForHandoff,
-  extractEvidenceIds,
-  extractFileChangePaths,
-  type DebateDraftHandoffEntry,
-} from './tools/builtin/fleet/ultra-swarm-helpers';
 export {
   clearStaffingOutcomes,
   getOutcome,
@@ -102,28 +80,6 @@ export {
   type StaffingOutcomeRecord,
   type SwarmVerdictOutcomeInput,
 } from './expert-agents/staffing-outcome';
-export {
-  consumeUltraSwarmRestaffRequests,
-  consumeUltraSwarmSteerRequests,
-  createUltraSwarmRunContext,
-  hasPendingUltraSwarmRestaff,
-  isRestaffSteerText,
-  requestUltraSwarmRestaff,
-  requestUltraSwarmSteer,
-  type UltraSwarmRestaffRequest,
-  type UltraSwarmRunContext,
-  type UltraSwarmSteerRequest,
-} from './agent/ultra-swarm-run';
-export {
-  buildRestaffReflectionPrompt,
-  collectRestaffGaps,
-  filterRestaffPlan,
-  needsRestaffing,
-  restaffPhaseForGaps,
-  restaffSlotsAvailable,
-  shouldPlanRestaffWave,
-  type RestaffGapResult,
-} from './session/ultra-swarm-restaff';
 export {
   STAFFING_GOLD_SEED,
   collectStaffingGoldLabels,

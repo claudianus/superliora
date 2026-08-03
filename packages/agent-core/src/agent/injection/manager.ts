@@ -146,16 +146,13 @@ export class InjectionManager {
     if (this.agent.type !== 'main') return;
     const graph = this.agent.tools.getStore().get(ULTRAWORK_GRAPH_STORE_KEY);
     const run = this.agent.ultrawork?.getRun();
-    const duringSwarm = this.agent.ultraSwarmRun !== undefined;
     if (graph === undefined || graph.nodes.length === 0) {
       if (run === null || run === undefined || run.status !== 'running') return;
     }
 
     const lines = [
       '<ultrawork_graph_status>',
-      duringSwarm
-        ? 'Post-compaction UltraworkGraph (UltraSwarm active — continue assigned nodes):'
-        : 'Post-compaction UltraworkGraph (continue assigned nodes):',
+      'Post-compaction UltraworkGraph (continue assigned nodes):',
     ];
 
     if (run !== null && run !== undefined) {
@@ -173,7 +170,7 @@ export class InjectionManager {
         pending.length > 0
           ? pending
           : graph.nodes.filter((node) => node.status === 'done');
-      const limit = duringSwarm ? 6 : 16;
+      const limit = 16;
       for (const node of nodes.slice(0, limit)) {
         lines.push(`- ${node.id}: ${node.status} — ${node.title}`);
       }

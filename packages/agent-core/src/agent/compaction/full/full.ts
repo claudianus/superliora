@@ -22,7 +22,6 @@ import type {
 import {
   DEFAULT_COMPACTION_CONFIG,
   DEFAULT_SWARM_HANDOFF_WORKING_SET_TOKENS,
-  SWARM_MICRO_PRESSURE_RATIO,
   DefaultCompactionStrategy,
   PipelineStrategy,
   type CompactionStrategy,
@@ -471,9 +470,6 @@ export class FullCompaction implements CompactionPipelineContext {
   private checkAutoCompaction(throwOnLimit: boolean = true): boolean {
     if (this.compacting) return true;
     if (this.shouldDeferAutoCompaction()) {
-      // While UltraSwarm / foreground children defer full summarize, still run
-      // free micro clearing so tool dumps cannot balloon to multi-million tokens.
-      this.maybeRunSwarmMicroCompaction();
       return false;
     }
     const used = this.tokenCountWithPending;
@@ -487,12 +483,6 @@ export class FullCompaction implements CompactionPipelineContext {
     // Prefer zero-LLM tool clearing before an expensive full summarize round.
     this.agent.microCompaction.detect();
     return this.beginAutoCompaction(throwOnLimit);
-  }
-
-  private maybeRunSwarmMicroCompaction(): void {
-    if (this.agent.ultraSwarmRun === undefined) return;
-    if (this.strategy.shouldBlock(this.tokenCountWithPending)) return;
-    this.agent.microCompaction.detectUnderSwarmPressure(SWARM_MICRO_PRESSURE_RATIO);
   }
 
   private shouldSkipRecompactUntilGrowth(): boolean {
@@ -513,7 +503,7 @@ export class FullCompaction implements CompactionPipelineContext {
 
   private shouldDeferAutoCompaction(): boolean {
     return shouldDeferAutoCompactionPolicy({
-      ultraSwarmActive: this.agent.ultraSwarmRun !== undefined,
+      ultraSwarmActive: false,
       shouldBlock: this.strategy.shouldBlock(this.tokenCountWithPending),
       hasActiveForegroundChildren:
         this.agent.subagentHost?.hasActiveForegroundChildren?.() === true,

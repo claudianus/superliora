@@ -300,7 +300,7 @@ describe('ExitPlanModeTool', () => {
 
     expect(result.isError).toBe(false);
     expect(emit).toHaveBeenCalledWith({ type: 'plan_mode.exit' });
-    expect(result.output).not.toContain('UltraSwarm ENGAGE approved');
+    expect(result.output).not.toContain('Swarm ENGAGE approved');
   });
 
   it('accepts a complete Ultra Plan written with Korean headings and field labels', async () => {
@@ -424,7 +424,7 @@ describe('ExitPlanModeTool', () => {
     expect(agent.planMode.reopenUltraInterviewForDrift).not.toHaveBeenCalled();
   });
 
-  it('tells approved Ultra Plan ENGAGE decisions to call UltraSwarm next', async () => {
+  it('tells approved Ultra Plan ENGAGE decisions to fan out Job workers next', async () => {
     const { agent, emit, toolStore } = makeAgent({
       ultra: true,
       phase: 'exit',
@@ -462,7 +462,7 @@ describe('ExitPlanModeTool', () => {
         '- Mechanical checks plus specialist verdicts.',
         '',
         '## Execution Plan',
-        '1. Call UltraSwarm with the WorkGraph node.',
+        '1. Fan the WorkGraph node out to Job workers.',
         '2. Integrate specialist output.',
         '3. Run checks.',
       ].join('\n'),
@@ -477,8 +477,8 @@ describe('ExitPlanModeTool', () => {
 
     expect(result.isError).toBe(false);
     expect(emit).toHaveBeenCalledWith({ type: 'plan_mode.exit' });
-    expect(result.output).toContain('UltraSwarm ENGAGE approved');
-    expect(result.output).toContain('call UltraSwarm before product-file edits');
+    expect(result.output).toContain('Swarm ENGAGE approved');
+    expect(result.output).toContain('Job workers (JobCreate) before product-file edits');
     expect(result.output).toContain('work_node_ids: ac_1');
     expect(result.output).toContain('## UltraworkGraph Seed');
     expect(toolStore[ULTRAWORK_GRAPH_STORE_KEY]).toMatchObject({

@@ -9,10 +9,6 @@ import type { PromisableMethods } from '../utils/types';
 import { expandCommandArguments } from '../plugin/commands';
 import type { PluginCommandOrigin } from './context';
 import {
-  hasPendingUltraSwarmRestaff,
-  requestUltraSwarmSteer,
-} from './ultra-swarm-run';
-import {
   detectUltraworkAutoActivationWithLlm,
   shouldActOnUltraworkAutoActivation,
 } from '#/mission';
@@ -33,38 +29,6 @@ export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
     cancelShellCommand: (payload) =>{  agent.tools.cancelShellCommand(payload.commandId); },
     steer: (payload) => {
       agent.telemetry.track('input_steer', { parts: payload.input.length });
-      // During UltraSwarm, route steers into the swarm checkpoint queue.
-      if (agent.ultraSwarmRun !== undefined) {
-        const text = payload.input
-          .map((part) => ('text' in part ? String(part.text ?? '') : ''))
-          .join('\n')
-          .trim();
-        if (requestUltraSwarmSteer(agent.ultraSwarmRun, text)) {
-          agent.records.logRecord({ type: 'swarm.steer', input: text });
-          // Restaff steers force a restaff wave — do not pause the phase loop.
-          if (hasPendingUltraSwarmRestaff(agent.ultraSwarmRun)) {
-            agent.telemetry.track('ultra_swarm_restaff_requested', {
-              run_id: agent.ultraSwarmRun.runId,
-              source: 'steer',
-            });
-            agent.emitEvent({
-              type: 'ultrawork.swarm.restaff_requested',
-              runId: agent.ultraSwarmRun.runId,
-              reason: text,
-            } as any);
-            return;
-          }
-          agent.forwardSteerToRunningChildren(text);
-          void agent.ultrawork.pause({ reason: 'User steering requested during UltraSwarm' });
-          agent.emitEvent({
-            type: 'ultrawork.swarm.paused',
-            runId: agent.ultraSwarmRun.runId,
-            reason: 'User steering requested',
-            input: text,
-          } as any);
-          return;
-        }
-      }
       agent.turn.steer(payload.input);
     },
     cancel: (payload) => {
@@ -225,36 +189,8 @@ export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
         },
       }),
     getUltraworkRun: () => agent.ultrawork.getRun(),
-    pauseUltrawork: (payload) => {
-      // War-room / action-dock pause must also stop UltraSwarm phase advancement.
-      if (agent.ultraSwarmRun !== undefined) {
-        agent.ultraSwarmRun.pausedForSteer = true;
-        agent.telemetry.track('ultra_swarm_pause_requested', {
-          run_id: agent.ultraSwarmRun.runId,
-          source: 'pause_ultrawork',
-          reason:
-            typeof payload.reason === 'string' && payload.reason.trim().length > 0
-              ? payload.reason.trim().slice(0, 240)
-              : undefined,
-        });
-        agent.emitEvent({
-          type: 'ultrawork.swarm.paused',
-          runId: agent.ultraSwarmRun.runId,
-          reason:
-            typeof payload.reason === 'string' && payload.reason.trim().length > 0
-              ? payload.reason
-              : 'Paused from Ultrawork pause',
-        } as any);
-      }
-      return agent.ultrawork.pause(payload);
-    },
-    resumeUltrawork: () => {
-      // Clear UltraSwarm phase pause when Ultrawork resumes so the next wave can run.
-      if (agent.ultraSwarmRun !== undefined) {
-        agent.ultraSwarmRun.pausedForSteer = false;
-      }
-      return agent.ultrawork.resume();
-    },
+    pauseUltrawork: (payload) => agent.ultrawork.pause(payload),
+    resumeUltrawork: () => agent.ultrawork.resume(),
     cancelUltrawork: (payload) => agent.ultrawork.cancel(payload.reason),
     swarmRestaff: (payload) =>
       agent.swarmRestaff(

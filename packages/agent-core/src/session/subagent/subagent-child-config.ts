@@ -1,6 +1,6 @@
 /**
- * Subagent child setup: profile resolution, spawn-time guards, ownership
- * claims, and UltraSwarm channel wiring.
+ * Subagent child setup: profile resolution, spawn-time guards, and ownership
+ * claims.
  *
  * Extracted from subagent-host so spawn/resume paths stay readable without
  * growing the SessionSubagentHost class body.
@@ -8,12 +8,6 @@
 
 import type { Agent } from '../../agent';
 import { resolveExpertCatalogEntry } from '../../expert-agents/catalog-extensions';
-import {
-  deliverSwarmBusCoordination,
-  emitSwarmCollaborationMessage,
-  emitSwarmCollaborationMention,
-} from '#/fleet';
-import { SwarmChannelTool } from '../../tools/builtin/fleet/swarm-channel';
 import {
   DEFAULT_AGENT_PROFILES,
   prepareSystemPromptContext,
@@ -166,37 +160,4 @@ export async function configureSubagentChild(
   child.useProfile(profile, context);
   child.tools.inheritUserTools(parent.tools);
   attachSubagentTodoBridge(parent, child, childId, profile.name, options);
-  attachUltraSwarmChannelIfNeeded(session, parent, child, childId, options, profile.name);
-}
-
-export function attachUltraSwarmChannelIfNeeded(
-  session: Session,
-  parent: Agent,
-  child: Agent,
-  childAgentId: string,
-  options: RunSubagentOptions,
-  profileName: string,
-): void {
-  const run = parent.ultraSwarmRun;
-  if (run === undefined || options.parentToolCallId !== run.parentToolCallId) {
-    return;
-  }
-  child.swarmFileLease = { ownerId: childAgentId, runId: run.runId };
-  if (!run.busEnabled) return;
-  const expert = run.team.experts.find((entry) => entry.id === profileName);
-  if (expert === undefined) return;
-  child.tools.attachEphemeralBuiltin(
-    new SwarmChannelTool({
-      parentAgent: parent,
-      parentStore: parent.tools.getStore(),
-      run,
-      expert,
-      childAgentId,
-      onMessagePosted: ({ message, mentionExpertIds }) => {
-        emitSwarmCollaborationMessage(parent, message);
-        emitSwarmCollaborationMention(parent, message, mentionExpertIds);
-        deliverSwarmBusCoordination(session, parent, message, mentionExpertIds);
-      },
-    }),
-  );
 }

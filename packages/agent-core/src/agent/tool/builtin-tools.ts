@@ -327,14 +327,6 @@ function createSkillAndSubagentTools(
         host.toolStore,
         host.agent,
       ),
-    host.agent.subagentHost &&
-      shouldRegisterLegacyCompat(host, 'UltraSwarm', 'Fleet') &&
-      new b.UltraSwarmTool(
-        host.agent.subagentHost,
-        host.agent.swarmMode,
-        host.toolStore,
-        host.agent,
-      ),
   ];
 }
 
