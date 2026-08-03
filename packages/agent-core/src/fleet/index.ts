@@ -26,7 +26,7 @@ export * from './swarm-file-lease';
 export * from './swarm-humanize';
 export * from './fleet-worktree';
 export * from './swarm-maker-checker';
-export * from './swarm-cost-guard';
+export * from './cost-guard';
 /** Swarm work-node store access — same light path as #/mission. */
 export { ULTRAWORK_GRAPH_STORE_KEY } from '../tools/builtin/state/ultrawork-graph-store-key';
 export {
