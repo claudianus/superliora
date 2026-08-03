@@ -9,6 +9,11 @@ import type { Agent } from '../../../agent';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ToolExecution } from '../../../loop/types';
+import {
+  JOB_CREATE_ACK_SPAWN_GRACE_MS,
+  getJobWorkerSpawner,
+  requestJobSchedulePump,
+} from '../../../session/job/job-offload';
 import { toInputJsonSchema } from '../../support/input-schema';
 import type { ToolStore } from '../../store';
 import {
@@ -28,21 +33,16 @@ import {
   type JobStatus,
 } from './job-ledger';
 import {
+  countJobsWithStatus,
   formatJobStripLine,
   resolveConductorPoolConfig,
-  scheduleQueuedJobs,
   summarizeJobStrip,
 } from './job-runtime';
 import { landJobToMain } from './job-land';
 import { evaluateMergeTrust } from './job-merge-trust';
 import { splitUserMessageIntoJobIntents } from './job-split';
 import { ensureWarmPool, warmPoolSpawner, type WarmPoolSpawner } from './job-warm-pool';
-import {
-  cancelJobWorker,
-  launchJobWorker,
-  resumeJobs,
-  steerJobWorker,
-} from './job-worker';
+import { cancelJobWorker, resumeJobs, steerJobWorker } from './job-worker';
 
 const JobKindSchema = z.enum(['task', 'explore', 'implement', 'mission', 'merge', 'desk']);
 const JobStatusSchema = z.enum([
@@ -165,16 +165,6 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
       approvalRule: this.name,
       execute: async () => {
         const pool = resolveConductorPoolConfig();
-        const kaos = this.agent?.kaos;
-        const repoPath = this.agent?.config.cwd;
-        const canSpawn = this.agent?.subagentHost !== undefined;
-        const launchWorker =
-          canSpawn && this.agent
-            ? async (job: { id: string }) => {
-                const full = getJob(this.store, job.id);
-                if (full) await launchJobWorker({ store: this.store, agent: this.agent!, job: full });
-              }
-            : undefined;
 
         const intents =
           a.auto_split === true
@@ -193,16 +183,25 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
           }),
         );
 
-        const schedule = await scheduleQueuedJobs({
-          store: this.store,
-          kaos,
-          repoPath,
-          maxConcurrent: pool.maxConcurrentJobs,
-          // If no kaos (unit tests), still flip to running without worktree.
-          requireWorktree: kaos !== undefined && repoPath !== undefined,
-          log: this.agent?.log,
-          launchWorker,
-        });
+        // V2-1 ACK deadline (G1): scheduling + worker spawns run on the
+        // offload lane (deferred pump → serialized WorkerSpawner); failures
+        // land on ledger/inbox, never on this return path. The short grace
+        // race lets a fast handshake enrich the ACK with the worker id while
+        // a slow handshake (incident 2026-08-03: ~125s) can never push the
+        // ACK past the locked 250ms deadline.
+        requestJobSchedulePump({ store: this.store, agent: this.agent });
+        if (this.agent?.subagentHost !== undefined) {
+          await Promise.race([
+            getJobWorkerSpawner().settle(),
+            new Promise<void>((resolve) => {
+              const timer = setTimeout(resolve, JOB_CREATE_ACK_SPAWN_GRACE_MS);
+              (timer as { unref?: () => void }).unref?.();
+            }),
+          ]);
+        }
+
+        const backpressure =
+          countJobsWithStatus(this.store, ['running']) >= pool.maxConcurrentJobs;
 
         const lines: string[] = [];
         if (created.length > 1) {
@@ -215,9 +214,11 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
             lines.push(`worktree: ${latest.worktreePath}`);
           }
         }
-        lines.push(schedule.message);
+        lines.push(
+          'schedule: offloaded — background pump promotes queued jobs; transitions land on ledger/inbox.',
+        );
         lines.push(`pool: warm=${pool.warmPoolSize} maxConcurrent=${pool.maxConcurrentJobs}`);
-        if (schedule.backpressure) {
+        if (backpressure) {
           lines.push('Backpressure active — new jobs remain queued until a slot frees.');
         }
         return { isError: false, output: lines.join('\n') };
@@ -499,30 +500,16 @@ export class JobScheduleTool implements BuiltinTool<Record<string, never>> {
         const pool = resolveConductorPoolConfig();
         const spawner = warmPoolSpawner(this.agent);
         const warm = ensureWarmPool(this.store, pool, spawner);
-        const kaos = this.agent?.kaos;
-        const repoPath = this.agent?.config.cwd;
-        const canSpawn = this.agent?.subagentHost !== undefined;
-        const schedule = await scheduleQueuedJobs({
-          store: this.store,
-          kaos,
-          repoPath,
-          maxConcurrent: pool.maxConcurrentJobs,
-          requireWorktree: kaos !== undefined && repoPath !== undefined,
-          log: this.agent?.log,
-          launchWorker:
-            canSpawn && this.agent
-              ? async (job) => {
-                  await launchJobWorker({ store: this.store, agent: this.agent!, job });
-                }
-              : undefined,
-        });
+        const queued = countJobsWithStatus(this.store, ['queued']);
+        const running = countJobsWithStatus(this.store, ['running']);
+        // V2-1 ACK deadline (G1): worktree attach + worker spawn run on the
+        // offload lane; this ACK reports the synchronous pool snapshot.
+        requestJobSchedulePump({ store: this.store, agent: this.agent });
         return {
           isError: false,
           output: [
             warm.message,
-            schedule.message,
-            ...schedule.started.map((j) => `started ${renderJobLine(j)}`),
-            ...schedule.blocked.map((j) => `blocked ${renderJobLine(j)}`),
+            `Schedule pump offloaded; queued ${queued}; running ${running}/${pool.maxConcurrentJobs}. Transitions land on ledger/inbox.`,
           ].join('\n'),
         };
       },
