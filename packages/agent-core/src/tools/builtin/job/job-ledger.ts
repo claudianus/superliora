@@ -53,6 +53,7 @@ export function createJob(
     readonly priority?: number;
     readonly prompt?: string;
     readonly ownershipPaths?: readonly string[];
+    readonly contextPaths?: readonly string[];
     readonly parentJobId?: string;
     readonly missionRunId?: string;
   },
@@ -68,6 +69,7 @@ export function createJob(
     updatedAt: now,
     prompt: input.prompt?.trim() || undefined,
     ownershipPaths: input.ownershipPaths,
+    contextPaths: input.contextPaths,
     parentJobId: input.parentJobId,
     missionRunId: input.missionRunId,
   };

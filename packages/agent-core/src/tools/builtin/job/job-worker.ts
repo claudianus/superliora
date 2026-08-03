@@ -38,11 +38,19 @@ export interface LaunchJobWorkerResult {
   readonly error?: string;
 }
 
-function jobPrompt(job: JobRecord): string {
+/** Cap for the parent job's result summary carried into a child worker prompt. */
+export const JOB_PRIOR_FINDINGS_MAX_CHARS = 2000;
+
+export function jobPrompt(job: JobRecord, store?: ToolStore): string {
+  const parentFindings = priorFindingsForJob(job, store);
   const parts = [
     `You are a Conductor worker for job ${job.id}.`,
     `Title: ${job.title}`,
     job.prompt?.trim() ? `Brief:\n${job.prompt.trim()}` : undefined,
+    job.contextPaths?.length
+      ? `Read these first: ${job.contextPaths.join(', ')}`
+      : undefined,
+    parentFindings,
     job.ownershipPaths?.length
       ? `Preferred paths: ${job.ownershipPaths.join(', ')}`
       : undefined,
@@ -52,6 +60,22 @@ function jobPrompt(job: JobRecord): string {
     'Complete the task, run focused checks when relevant, and finish with a short result summary.',
   ];
   return parts.filter(Boolean).join('\n\n');
+}
+
+/**
+ * Carry the parent job's result summary into a child worker prompt so
+ * explore→implement chains do not lose findings to manual copying.
+ */
+function priorFindingsForJob(job: JobRecord, store?: ToolStore): string | undefined {
+  if (store === undefined || job.parentJobId === undefined) return undefined;
+  const parent = getJob(store, job.parentJobId);
+  const summary = parent?.resultSummary?.trim();
+  if (summary === undefined || summary.length === 0) return undefined;
+  const capped =
+    summary.length > JOB_PRIOR_FINDINGS_MAX_CHARS
+      ? `${summary.slice(0, JOB_PRIOR_FINDINGS_MAX_CHARS)}\n[truncated]`
+      : summary;
+  return `Prior findings from parent job ${parent!.id}:\n${capped}`;
 }
 
 function notifyInbox(
@@ -119,7 +143,7 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
 
   const profileName = profileForJobKind(job.kind);
   const task: FanoutTask = {
-    prompt: jobPrompt(job),
+    prompt: jobPrompt(job, input.store),
     description: job.title.slice(0, 80),
     profileName,
     ownership: job.ownershipPaths ? [...job.ownershipPaths] : undefined,
@@ -365,12 +389,18 @@ export async function resumeJobs(input: {
     if (job.status === 'cancelled' && jobId === undefined) continue;
     if (job.status === 'failed' && jobId === undefined) continue;
 
-    const notes = answer !== undefined && job.status === 'needs_user'
+    const isAnswerCard = answer !== undefined && job.status === 'needs_user';
+    const notes = isAnswerCard
       ? [job.notes, `user-answer: ${answer}`].filter(Boolean).join('\n')
       : [job.notes, 'resume: re-queued'].filter(Boolean).join('\n');
     const next = patchJob(store, job.id, {
       status: 'queued',
       notes,
+      // Notes never reach a relaunched worker (jobPrompt reads the brief
+      // only), so the answer must ride on the prompt to survive relaunch.
+      ...(isAnswerCard
+        ? { prompt: [job.prompt, `[user-answer] ${answer}`].filter(Boolean).join('\n\n') }
+        : {}),
       // Keep worktreePath when present so schedule can reuse isolation.
     });
     if (next) resumed.push(next);

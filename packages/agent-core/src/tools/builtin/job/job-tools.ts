@@ -90,6 +90,12 @@ const JobCreateInputSchema = z
       .describe(
         'Paths this job intends to touch — the scheduler conflict hint. Overlapping ownership between parallel jobs risks racing; keep siblings disjoint or chain them via parent_job_id.',
       ),
+    context_paths: z
+      .array(z.string().trim().min(1))
+      .optional()
+      .describe(
+        'Read-first hints for the worker: files/dirs it should inspect before exploring on its own (entry points, failing tests, referenced specs). Saves cold-start discovery turns; keep it short (≤6).',
+      ),
     parent_job_id: z
       .string()
       .optional()
@@ -181,7 +187,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
   readonly description =
     'Delegate work: create a Conductor Job on the meta ledger and return an immediate ACK (job_id + state). ' +
     'The ONLY path for any file mutation, build, test, install, or verification loop on the Conductor lane — even a one-line fix. ' +
-    'Route every task-like user request here first so nothing is lost while workers run; write a self-sufficient brief (goal, success criteria, scope fence, paths, constraints) and pass ownership_paths. ' +
+    'Route every task-like user request here first so nothing is lost while workers run; write a self-sufficient brief (goal, success criteria, scope fence, paths, constraints), pass ownership_paths, and add context_paths for files the worker should read first. ' +
     'Multi-intent messages: auto_split=true or several calls in one turn, then one summary ACK. Scheduling is offloaded — the ACK never waits for the worker.';
   readonly parameters: Record<string, unknown> = toInputJsonSchema(JobCreateInputSchema);
 
@@ -219,6 +225,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
             priority: (a.priority ?? 0) + (intents.length - index),
             prompt: intent.prompt,
             ownershipPaths: a.ownership_paths,
+            contextPaths: a.context_paths,
             parentJobId: a.parent_job_id,
             missionRunId: a.mission_run_id,
           }),

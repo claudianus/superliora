@@ -34,6 +34,8 @@ export interface JobRecord {
   readonly updatedAt: string;
   readonly prompt?: string;
   readonly ownershipPaths?: readonly string[];
+  /** Read-first hints rendered into the worker prompt (cold-start shortcut). */
+  readonly contextPaths?: readonly string[];
   readonly worktreePath?: string;
   readonly workerAgentId?: string;
   readonly missionRunId?: string;
