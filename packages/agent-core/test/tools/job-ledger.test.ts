@@ -30,12 +30,17 @@ import {
   worktreeNameForJob,
 } from '../../src/tools/builtin/job/job-runtime';
 import {
+  createConductorJobDraftRecorder,
   JobCreateTool,
   JobInboxTool,
   JobListTool,
   JobResumeTool,
   MergeJobTool,
 } from '../../src/tools/builtin/job/job-tools';
+import {
+  CONDUCTOR_GUARD_CODES,
+  ConductorDirectWorkGuard,
+} from '../../src/agent/conductor-guard';
 import { __resetJobWorkerHandlesForTests } from '../../src/tools/builtin/job/job-handles';
 import { interruptRunningJobs, resumeJobs } from '../../src/tools/builtin/job/job-worker';
 import {
@@ -707,5 +712,61 @@ describe('conductor non-blocking job path (regression)', () => {
     expect(result.resumed).toHaveLength(1);
     expect(getJob(store, job.id)?.status).toBe('running');
     expect(getJob(store, job.id)?.workerAgentId).toBe('agent_resume');
+  });
+});
+
+describe('conductor guard draft recorder (V1-3)', () => {
+  it('records a blocked-work draft as a queued Job and ACKs the job id', () => {
+    const store = memoryStore();
+    const recorder = createConductorJobDraftRecorder(store);
+
+    const ack = recorder({
+      draft: {
+        title: 'Edit: src/auth.ts',
+        prompt: 'Perform the work that was blocked on the Conductor lane.',
+        ownership: 'worker',
+      },
+      code: CONDUCTOR_GUARD_CODES.directWorkBlocked,
+      toolName: 'Edit',
+      turnId: 'turn-1',
+      violationCount: 2,
+    });
+
+    expect(ack?.jobId).toMatch(/^job_/);
+    const job = getJob(store, ack?.jobId ?? '');
+    expect(job).toBeDefined();
+    expect(job?.status).toBe('queued');
+    expect(job?.title).toBe('Edit: src/auth.ts');
+    expect(job?.prompt).toContain('blocked on the Conductor lane');
+    expect(listJobs(store)).toHaveLength(1);
+  });
+
+  it('escalates the second guard violation straight into the ledger', () => {
+    const store = memoryStore();
+    const guard = new ConductorDirectWorkGuard({
+      recordJobDraft: createConductorJobDraftRecorder(store),
+    });
+    const call = {
+      toolName: 'Write',
+      args: { file_path: 'src/auth.ts' },
+      turnId: 'turn-1',
+    } as const;
+
+    const first = guard.evaluateToolCall(call);
+    expect(first.allowed).toBe(false);
+    expect(listJobs(store)).toHaveLength(0);
+
+    const second = guard.evaluateToolCall(call);
+    expect(second.allowed).toBe(false);
+    const jobs = listJobs(store);
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]?.status).toBe('queued');
+    expect(jobs[0]?.title).toContain('Write');
+    expect(jobs[0]?.title).toContain('src/auth.ts');
+    if (!second.allowed) {
+      // The rejection output ACKs the exact ledger entry.
+      expect(second.output).toContain(jobs[0]?.id ?? '<missing>');
+      expect(second.output).toContain('Recorded the blocked work as a queued Job');
+    }
   });
 });

@@ -7,7 +7,9 @@ import {
   CONDUCTOR_TURN_STOP_VIOLATIONS,
   CONDUCTOR_WORKER_WAIT_REJECTION_PHRASE,
   ConductorDirectWorkGuard,
+  formatConductorJobDraftRecordedAck,
 } from '../../src/agent/conductor-guard';
+import type { ConductorJobDraftRecord } from '../../src/agent/conductor-guard';
 import { ToolAccesses } from '../../src/loop/tool-access';
 
 /**
@@ -288,6 +290,134 @@ describe('ConductorDirectWorkGuard', () => {
     it('returns undefined when no budget was armed', () => {
       const guard = new ConductorDirectWorkGuard();
       expect(guard.endToolBudget('missing')).toBeUndefined();
+    });
+  });
+
+  describe('ledger escalation — second violation records a queued Job (V1-3)', () => {
+    it('records the draft into the ledger on the second violation and ACKs it', () => {
+      const recorded: ConductorJobDraftRecord[] = [];
+      const guard = new ConductorDirectWorkGuard({
+        recordJobDraft: (record) => {
+          recorded.push(record);
+          return { jobId: 'job_test_123' };
+        },
+      });
+
+      const first = guard.evaluateToolCall({
+        toolName: 'Write',
+        args: { file_path: '/repo/src/auth.ts' },
+        turnId: 'turn-1',
+        stepNumber: 2,
+      });
+      expect(first.allowed).toBe(false);
+      expect(recorded).toHaveLength(0);
+      if (!first.allowed) {
+        // First violation keeps the plain "call JobCreate" routing hint.
+        expect(first.output).toContain('Call JobCreate with this draft');
+        expect(first.output).not.toContain('Recorded the blocked work');
+      }
+
+      const second = guard.evaluateToolCall({
+        toolName: 'Write',
+        args: { file_path: '/repo/src/auth.ts' },
+        turnId: 'turn-1',
+        stepNumber: 3,
+      });
+      expect(second.allowed).toBe(false);
+      expect(recorded).toHaveLength(1);
+      expect(recorded[0]).toMatchObject({
+        code: CONDUCTOR_GUARD_CODES.directWorkBlocked,
+        toolName: 'Write',
+        turnId: 'turn-1',
+        stepNumber: 3,
+        violationCount: 2,
+      });
+      expect(recorded[0]?.draft.title).toContain('Write');
+      expect(recorded[0]?.draft.title).toContain('/repo/src/auth.ts');
+      expect(recorded[0]?.draft.ownership).toBe('worker');
+      if (!second.allowed) {
+        expect(second.output).toContain(formatConductorJobDraftRecordedAck('job_test_123'));
+        // The draft is already queued — re-calling JobCreate would duplicate it.
+        expect(second.output).not.toContain('Call JobCreate with this draft');
+        expect(second.output).toContain('Second violation this turn');
+        expect(second.jobDraft).toEqual(recorded[0]?.draft);
+      }
+    });
+
+    it('records a draft even for worker-wait rejections without an explicit draft', () => {
+      const recorded: ConductorJobDraftRecord[] = [];
+      const guard = new ConductorDirectWorkGuard({
+        recordJobDraft: (record) => {
+          recorded.push(record);
+          return { jobId: 'job_wait_1' };
+        },
+      });
+
+      guard.evaluateToolCall({ toolName: 'Agent', turnId: 'turn-1' });
+      const second = guard.evaluateToolCall({ toolName: 'Agent', turnId: 'turn-1' });
+
+      expect(recorded).toHaveLength(1);
+      expect(recorded[0]?.code).toBe(CONDUCTOR_GUARD_CODES.workerWaitBlocked);
+      expect(recorded[0]?.draft.title).toContain('Agent');
+      if (!second.allowed) {
+        expect(second.output).toContain(formatConductorJobDraftRecordedAck('job_wait_1'));
+        expect(second.jobDraft).toEqual(recorded[0]?.draft);
+      }
+    });
+
+    it('does not record beyond the second violation — the third only stops the turn', () => {
+      const recorded: ConductorJobDraftRecord[] = [];
+      const guard = new ConductorDirectWorkGuard({
+        recordJobDraft: (record) => {
+          recorded.push(record);
+          return { jobId: 'job_once' };
+        },
+      });
+      const call = { toolName: 'Write', turnId: 'turn-1' } as const;
+
+      guard.evaluateToolCall(call);
+      guard.evaluateToolCall(call);
+      const third = guard.evaluateToolCall(call);
+
+      expect(recorded).toHaveLength(1);
+      expect(third.allowed).toBe(false);
+      if (!third.allowed) {
+        expect(third.stopTurn).toBe(true);
+        expect(third.output).toContain(CONDUCTOR_TURN_STOP_PHRASE);
+      }
+    });
+
+    it('keeps rejecting without an ACK when the recorder throws', () => {
+      const guard = new ConductorDirectWorkGuard({
+        recordJobDraft: () => {
+          throw new Error('ledger unavailable');
+        },
+      });
+      const call = { toolName: 'Write', turnId: 'turn-1' } as const;
+
+      guard.evaluateToolCall(call);
+      const second = guard.evaluateToolCall(call);
+
+      expect(second.allowed).toBe(false);
+      if (!second.allowed) {
+        expect(second.output).not.toContain('Recorded the blocked work');
+        expect(second.output).toContain('Call JobCreate with this draft');
+        expect(second.stopTurn).toBeUndefined();
+      }
+    });
+
+    it('accepts a late-wired recorder via setJobDraftRecorder', () => {
+      const guard = new ConductorDirectWorkGuard();
+      guard.setJobDraftRecorder(() => ({ jobId: 'job_late' }));
+      const call = { toolName: 'Edit', turnId: 'turn-1' } as const;
+
+      guard.evaluateToolCall(call);
+      const second = guard.evaluateToolCall(call);
+
+      expect(second.allowed).toBe(false);
+      if (!second.allowed) {
+        expect(second.output).toContain(formatConductorJobDraftRecordedAck('job_late'));
+      }
     });
   });
 

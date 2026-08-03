@@ -50,7 +50,21 @@ export function shouldRegisterLegacyCompat(
   return !shouldCreateBuiltin(host, sovereignName);
 }
 
+/**
+ * V1-3 escalation wiring: the conductor guard records the blocked work as a
+ * `queued` Job draft straight into the ledger on the second violation of a
+ * turn. The guard can be constructed before tool stores exist, so the ledger
+ * sink is attached here, where both sides are reachable. No-op off the
+ * conductor lane.
+ */
+function wireConductorGuardLedgerRecording(host: BuiltinToolsHost): void {
+  const guard = host.agent.conductorGuard;
+  if (guard === undefined) return;
+  guard.setJobDraftRecorder(b.createConductorJobDraftRecorder(host.toolStore));
+}
+
 export function buildBuiltinTools(host: BuiltinToolsHost): Map<string, BuiltinTool> {
+  wireConductorGuardLedgerRecording(host);
   const {
     kaos,
     toolServices,
