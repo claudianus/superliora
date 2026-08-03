@@ -2,9 +2,9 @@
  * Humanize collaboration / protocol payloads for TUI live feeds.
  * Pure: raw XML/protocol → short headline + body humans can scan.
  *
- * S3-R6 interim home (moved from swarm-humanize.ts). Inventory verdict:
- * DELETE — the remaining consumer is the liora AgentSwarm cell feed, owned
- * by the S3-R5 retirement; the body is deleted once that lands.
+ * S3-R6 interim home (moved from swarm-humanize.ts). S3-R7 verdict: RETAIN —
+ * the liora swarm cell feed still consumes the humanizer; fold it into the
+ * Job-based fleet feed layer later.
  */
 
 export type HumanizeSeverity = 'info' | 'success' | 'warning' | 'error' | 'neutral';
