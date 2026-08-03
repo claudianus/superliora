@@ -6,8 +6,8 @@ import {
   classifySwarmPhaseRole,
   detectAgentSwarmItemRoleCollision,
   detectMakerCheckerCollisions,
+  detectMakerCheckerCollisionsFromAssignments,
   detectMakerCheckerCollisionsFromSwarmOutput,
-  detectMakerCheckerCollisionsFromUltraSwarmResults,
   formatMakerCheckerSoftWarn,
   isMakerCheckerHardGateEnabled,
   isMakerCheckerHardReject,
@@ -17,14 +17,14 @@ import {
 } from '#/fleet';
 
 describe('swarm-maker-checker.ts — role classification', () => {
-  it('maps UltraSwarm phases to maker vs checker', () => {
+  it('maps swarm phases to maker vs checker', () => {
     expect(classifySwarmPhaseRole('implement')).toBe('maker');
     expect(classifySwarmPhaseRole('plan')).toBe('maker');
     expect(classifySwarmPhaseRole('review')).toBe('checker');
     expect(classifySwarmPhaseRole('review-revision')).toBe('checker');
   });
 
-  it('maps coverage lanes using ultra-swarm heuristics', () => {
+  it('maps coverage lanes using swarm lane heuristics', () => {
     expect(classifySwarmLaneRole('architecture_implementation')).toBe('maker');
     expect(classifySwarmLaneRole('testing_evidence')).toBe('checker');
     expect(classifySwarmLaneRole('security_privacy')).toBe('checker');
@@ -33,41 +33,17 @@ describe('swarm-maker-checker.ts — role classification', () => {
 
 describe('swarm-maker-checker.ts — expert collisions', () => {
   it('returns empty when experts stay maker-only or checker-only', () => {
-    const results = detectMakerCheckerCollisionsFromUltraSwarmResults([
-      {
-        spec: {
-          expertId: 'a',
-          expertName: 'Alpha',
-          phase: 'implement',
-        },
-      },
-      {
-        spec: {
-          expertId: 'b',
-          expertName: 'Bravo',
-          phase: 'review',
-        },
-      },
+    const results = detectMakerCheckerCollisionsFromAssignments([
+      { expertId: 'a', expertName: 'Alpha', phase: 'implement' },
+      { expertId: 'b', expertName: 'Bravo', phase: 'review' },
     ]);
     expect(results).toEqual([]);
   });
 
   it('flags when the same expert both implements and reviews', () => {
-    const results = detectMakerCheckerCollisionsFromUltraSwarmResults([
-      {
-        spec: {
-          expertId: 'e-1',
-          expertName: 'Solo Expert',
-          phase: 'implement',
-        },
-      },
-      {
-        spec: {
-          expertId: 'e-1',
-          expertName: 'Solo Expert',
-          phase: 'review',
-        },
-      },
+    const results = detectMakerCheckerCollisionsFromAssignments([
+      { expertId: 'e-1', expertName: 'Solo Expert', phase: 'implement' },
+      { expertId: 'e-1', expertName: 'Solo Expert', phase: 'review' },
     ]);
     expect(results).toEqual([
       {
@@ -174,7 +150,7 @@ describe('swarm-maker-checker.ts — hard gate flag', () => {
   });
 
   it('documents pre-spawn contract: hard reject is detectable before queue', () => {
-    // AgentSwarm/UltraSwarm call this before runQueued / phase runners.
+    // Fleet fan-out callers check this before spawn/queue.
     const hard = makerCheckerSoftWarnFromAgentSwarmItems(
       ['Implement feature X', 'Review feature X for security'],
       undefined,

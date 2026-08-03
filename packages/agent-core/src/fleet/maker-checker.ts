@@ -6,9 +6,9 @@
  * `SUPERLIORA_MAKER_CHECKER_HARD=1` (or `maker_checker_hard_gate=1`) blocks
  * fan-out until a distinct checker role is present (SOTA G10).
  *
- * S3-R6 interim home (moved from swarm-maker-checker.ts). Inventory verdict:
- * DELETE — the AgentSwarm tool and liora TUI glances that still consume it
- * are owned by the S3-R5 retirement, so the body is deleted once those land.
+ * S3-R6 interim home (moved from swarm-maker-checker.ts). S3-R7 verdict:
+ * RETAIN — the liora TUI glances still consume these heuristics; the R7
+ * final sweep deleted the retired UltraSwarm-named wrappers and exports.
  */
 
 export const SWARM_MAKER_CHECKER_SOFT_TIP =
@@ -81,7 +81,7 @@ const MAKER_ITEM_HINT =
 const CHECKER_ITEM_HINT =
   /\b(review|verify|audit|check|validate|inspect|critique|approve|assess)\b/i;
 
-/** Classify UltraSwarm phase strings into maker vs checker roles. */
+/** Classify swarm phase strings into maker vs checker roles. */
 export function classifySwarmPhaseRole(phase: string): SwarmMakerCheckerRole | undefined {
   const normalized = phase.trim().toLowerCase();
   if (normalized.length === 0) return undefined;
@@ -243,28 +243,6 @@ export function detectMakerCheckerCollisionsFromAssignments(
   return detectMakerCheckerCollisions(assignments);
 }
 
-export function detectMakerCheckerCollisionsFromUltraSwarmResults(
-  results: readonly {
-    readonly spec: {
-      readonly expertId: string;
-      readonly expertName?: string;
-      readonly phase: string;
-      readonly focus?: string;
-      readonly coverageLane?: string;
-    };
-  }[],
-): readonly MakerCheckerCollision[] {
-  return detectMakerCheckerCollisionsFromAssignments(
-    results.map((result) => ({
-      expertId: result.spec.expertId,
-      expertName: result.spec.expertName,
-      phase: result.spec.phase,
-      focus: result.spec.focus,
-      coverageLane: result.spec.coverageLane,
-    })),
-  );
-}
-
 export function formatMakerCheckerSoftWarn(
   collisions: readonly MakerCheckerCollision[],
   options?: { readonly hardGate?: boolean; readonly env?: NodeJS.ProcessEnv },
@@ -279,24 +257,6 @@ export function formatMakerCheckerSoftWarn(
   const suffix = uniqueLabels.length > 4 ? ` +${String(uniqueLabels.length - 4)} more` : '';
   const soft = `${SWARM_MAKER_CHECKER_SOFT_TIP} Colliding expert(s): ${roster}${suffix}.`;
   return applyMakerCheckerHardGate(soft, options);
-}
-
-export function makerCheckerSoftWarnFromUltraSwarmResults(
-  results: readonly {
-    readonly spec: {
-      readonly expertId: string;
-      readonly expertName?: string;
-      readonly phase: string;
-      readonly focus?: string;
-      readonly coverageLane?: string;
-    };
-  }[],
-  options?: { readonly hardGate?: boolean; readonly env?: NodeJS.ProcessEnv },
-): string | undefined {
-  return formatMakerCheckerSoftWarn(
-    detectMakerCheckerCollisionsFromUltraSwarmResults(results),
-    options,
-  );
 }
 
 export function makerCheckerSoftWarnFromAgentSwarmItems(
