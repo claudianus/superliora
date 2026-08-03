@@ -65,6 +65,25 @@ export function lastAssistantText(agent: Agent): string {
   return '';
 }
 
+/**
+ * Failover hop candidates for a subagent turn: the child's configured
+ * `fallbackModels`, minus aliases whose provider credential is already
+ * marked unhealthy. Non-explore workers inherit the parent model; a hop
+ * must never route them into a provider known to be dead (e.g. exhausted
+ * credits) only to fail permanently one request later.
+ */
+export function subagentFallbackAliases(
+  child: Agent,
+  isAliasHealthy?: (alias: string) => boolean,
+): readonly string[] {
+  const healthy =
+    isAliasHealthy ??
+    ((alias: string) => isModelAliasHealthy(alias, child.kimiConfig?.models));
+  return listSwitchableFailoverModels(child)
+    .map((option) => option.alias)
+    .filter((alias) => healthy(alias));
+}
+
 export async function runPromptTurnWithModelFallback(
   parent: Agent,
   childId: string,
@@ -72,7 +91,7 @@ export async function runPromptTurnWithModelFallback(
   profileName: string,
   options: RunSubagentOptions,
 ): Promise<SubagentCompletion> {
-  const fallbackAliases = listSwitchableFailoverModels(child).map((option) => option.alias);
+  const fallbackAliases = subagentFallbackAliases(child);
   const maxFallbackHops = Math.min(SUBAGENT_MODEL_FALLBACK_HOPS, fallbackAliases.length);
   let lastAttemptedAlias = child.config.modelAlias;
 
