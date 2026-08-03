@@ -372,9 +372,12 @@ describe('runTurn — tool-call display fields', () => {
       ],
     });
     expect(echo.calls.length).toBe(0);
+    // Loop45a (4848cd2e1) appends a stable `code=PATH_*` marker to the policy
+    // message so the TUI can render a named notice; the policy message itself
+    // is still used directly.
     expect(context.toolResults()[0]?.result).toEqual({
       isError: true,
-      output: 'path policy denied',
+      output: 'path policy denied code=PATH_OUTSIDE_WORKSPACE',
     });
   });
 

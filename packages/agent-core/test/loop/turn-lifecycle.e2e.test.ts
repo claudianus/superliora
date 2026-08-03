@@ -145,7 +145,10 @@ describe('runTurn — turn lifecycle', () => {
         level: 'info',
         message: 'llm response',
         payload: {
-          turnStep: 'turn-timing/1',
+          // bf970d0c9 switched turnStep to "turn.step" for grep-friendly
+          // pairing with `llm request` and added the lifecycle `phase`.
+          turnStep: 'turn-timing.1',
+          phase: 'complete',
           ttftMs: 50,
           requestBuildMs: 7,
           serverFirstTokenMs: 43,
