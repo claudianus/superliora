@@ -19,10 +19,14 @@
  *   classifies the command via `conductor-bash-policy` and hard-denies
  *   anything that can mutate files, packages, or git state.
  * - Tripwire recorder: every block attempt and wall-clock budget overrun is
- *   recorded as a {@link ConductorGuardEvent} (§3.2 G3-lite; hard interruption
- *   of a running tool belongs to the S1 loop redesign).
- * - Violations are counted per turn; the third violation in one turn requests
- *   a forced turn stop (contract §2.2 b-2 third-violation rule).
+ *   recorded as a {@link ConductorGuardEvent} (§3.2 G3-lite). Hard-budget
+ *   overruns also abort the running call through the per-call budget signal
+ *   returned by {@link ConductorDirectWorkGuard.beginToolBudget} (V1-4).
+ * - Violations are counted per turn. On the second violation the guard
+ *   records the suggested Job draft straight into the ledger through the
+ *   injected {@link ConductorJobDraftRecorder} and ACKs the recorded job in
+ *   the rejection output; the third violation in one turn requests a forced
+ *   turn stop (contract §2.2 b-2, checklist V1-3).
  */
 
 import type { Logger } from '#/logging/types';
@@ -68,6 +72,11 @@ export interface ConductorGuardOptions {
   readonly now?: () => number;
   /** External tripwire sink (journal/TUI wiring, added later by S1/S2). */
   readonly onEvent?: ((event: ConductorGuardEvent) => void) | undefined;
+  /**
+   * Ledger sink for the second-violation escalation (V1-3). Late wiring via
+   * {@link ConductorDirectWorkGuard.setJobDraftRecorder} is also supported.
+   */
+  readonly recordJobDraft?: ConductorJobDraftRecorder | undefined;
 }
 
 export interface ConductorGuardCallContext {
@@ -89,6 +98,34 @@ export interface ConductorJobDraft {
   readonly prompt: string;
   readonly ownership: string;
 }
+
+/**
+ * What the guard hands to the ledger recorder on the second violation of a
+ * turn (checklist V1-3): the draft plus enough context to trace the record
+ * back to the blocked call.
+ */
+export interface ConductorJobDraftRecord {
+  readonly draft: ConductorJobDraft;
+  readonly code: ConductorGuardCode;
+  readonly toolName: string;
+  readonly turnId?: string | undefined;
+  readonly stepNumber?: number | undefined;
+  readonly violationCount: number;
+}
+
+/** Recorder acknowledgement — the recorded job id when the ledger assigned one. */
+export interface ConductorJobDraftAck {
+  readonly jobId?: string | undefined;
+}
+
+/**
+ * Ledger sink for escalation recording (V1-3). Implementations upsert the
+ * draft as a `queued` Job; the conductor Job scheduler picks it up. Kept
+ * synchronous because the ledger store mutation is synchronous.
+ */
+export type ConductorJobDraftRecorder = (
+  record: ConductorJobDraftRecord,
+) => ConductorJobDraftAck | undefined;
 
 export type ConductorGuardVerdict =
   | { readonly allowed: true }
@@ -112,6 +149,20 @@ export const CONDUCTOR_WORKER_WAIT_REJECTION_PHRASE =
 /** Stop-the-turn notice attached from the third violation onward. */
 export const CONDUCTOR_TURN_STOP_PHRASE =
   'Repeated direct-work attempts blocked (3 in this turn) — ending the turn. Route the work through JobCreate.';
+
+/**
+ * Ledger ACK attached when the second violation escalates to a direct ledger
+ * record (V1-3). The draft is already queued — calling JobCreate again for it
+ * would duplicate the job, so the ACK replaces the "call JobCreate" hint.
+ */
+export function formatConductorJobDraftRecordedAck(jobId: string | undefined): string {
+  const reference = jobId !== undefined ? ` (job_id: ${jobId})` : '';
+  return (
+    `Recorded the blocked work as a queued Job in the ledger${reference}. ` +
+    'The Job scheduler will pick it up — do not retry the blocked tool and ' +
+    'do not call JobCreate again for this draft.'
+  );
+}
 
 /** File-mutation tools — always rejected on the conductor lane (§2.1). */
 export const CONDUCTOR_DIRECT_WORK_TOOLS = ['Write', 'Edit', 'ApplyPatch'] as const;
@@ -197,6 +248,7 @@ export class ConductorDirectWorkGuard {
   private readonly tripwireEvents: ConductorGuardEvent[] = [];
   private readonly violationsByTurn = new Map<string, number>();
   private readonly budgets = new Map<string, ToolBudgetEntry>();
+  private jobDraftRecorder: ConductorJobDraftRecorder | undefined;
 
   constructor(options: ConductorGuardOptions = {}) {
     this.softBudgetMs = options.softBudgetMs ?? DEFAULT_SOFT_BUDGET_MS;
@@ -204,6 +256,15 @@ export class ConductorDirectWorkGuard {
     this.now = options.now ?? Date.now;
     this.log = options.log;
     this.onEvent = options.onEvent;
+    this.jobDraftRecorder = options.recordJobDraft;
+  }
+
+  /**
+   * Late-wire the ledger sink (V1-3). Tool stores only exist once builtin
+   * tools are built, which happens after the guard can first be constructed.
+   */
+  setJobDraftRecorder(recorder: ConductorJobDraftRecorder): void {
+    this.jobDraftRecorder = recorder;
   }
 
   /**
@@ -367,6 +428,16 @@ export class ConductorDirectWorkGuard {
       violationCount: count,
     });
 
+    // V1-3 escalation: on the second violation of the turn the guard records
+    // the draft as a queued Job straight into the ledger instead of only
+    // suggesting it. The third violation stops the turn; nothing is recorded
+    // after that point.
+    const escalatesToLedger = count === CONDUCTOR_TURN_STOP_VIOLATIONS - 1;
+    const draft = info.draft ?? suggestJobDraft(ctx.toolName, ctx.args);
+    const recordedAck = escalatesToLedger
+      ? this.recordQueuedJobDraft(ctx, code, draft)
+      : undefined;
+
     const basePhrase =
       code === CONDUCTOR_GUARD_CODES.workerWaitBlocked
         ? CONDUCTOR_WORKER_WAIT_REJECTION_PHRASE
@@ -377,21 +448,62 @@ export class ConductorDirectWorkGuard {
         `Suggested Job draft:\n  title: ${info.draft.title}\n  prompt: ${info.draft.prompt}\n  ownership: ${info.draft.ownership}`,
       );
     }
-    parts.push(
-      `Call JobCreate with this draft instead of retrying "${ctx.toolName}" on the Conductor lane.`,
-    );
+    if (recordedAck !== undefined) {
+      parts.push(formatConductorJobDraftRecordedAck(recordedAck.jobId));
+    } else {
+      parts.push(
+        `Call JobCreate with this draft instead of retrying "${ctx.toolName}" on the Conductor lane.`,
+      );
+    }
     const stopTurn = count >= CONDUCTOR_TURN_STOP_VIOLATIONS;
     if (stopTurn) parts.push(CONDUCTOR_TURN_STOP_PHRASE);
-    else if (count === CONDUCTOR_TURN_STOP_VIOLATIONS - 1) {
+    else if (escalatesToLedger) {
       parts.push('Second violation this turn — one more blocked attempt ends the turn.');
     }
     return {
       allowed: false,
       code,
       output: parts.join('\n\n'),
-      ...(info.draft !== undefined ? { jobDraft: info.draft } : {}),
+      ...(info.draft !== undefined || recordedAck !== undefined ? { jobDraft: draft } : {}),
       ...(stopTurn ? { stopTurn: true } : {}),
     };
+  }
+
+  /**
+   * V1-3 escalation sink: record the draft as a `queued` Job through the
+   * injected ledger recorder. Recorder failures never break the rejection —
+   * the verdict falls back to the plain "call JobCreate" hint.
+   */
+  private recordQueuedJobDraft(
+    ctx: ConductorGuardCallContext,
+    code: ConductorGuardCode,
+    draft: ConductorJobDraft,
+  ): ConductorJobDraftAck | undefined {
+    const recorder = this.jobDraftRecorder;
+    if (recorder === undefined) return undefined;
+    try {
+      const ack = recorder({
+        draft,
+        code,
+        toolName: ctx.toolName,
+        ...(ctx.turnId !== undefined ? { turnId: ctx.turnId } : {}),
+        ...(ctx.stepNumber !== undefined ? { stepNumber: ctx.stepNumber } : {}),
+        violationCount: CONDUCTOR_TURN_STOP_VIOLATIONS - 1,
+      });
+      this.log?.info('conductor guard recorded a queued Job draft into the ledger', {
+        toolName: ctx.toolName,
+        turnId: ctx.turnId,
+        jobId: ack?.jobId,
+      });
+      return ack ?? {};
+    } catch (error) {
+      this.log?.warn('conductor guard failed to record a queued Job draft', {
+        toolName: ctx.toolName,
+        turnId: ctx.turnId,
+        error,
+      });
+      return undefined;
+    }
   }
 
   private record(event: Omit<ConductorGuardEvent, 'at'>): void {

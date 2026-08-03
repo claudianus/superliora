@@ -6,6 +6,9 @@
 import { z } from 'zod';
 
 import type { Agent } from '../../../agent';
+import type {
+  ConductorJobDraftRecorder,
+} from '../../../agent/conductor-guard';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ToolExecution } from '../../../loop/types';
@@ -650,4 +653,16 @@ export function createConductorJobTools(store: ToolStore, agent?: Agent): Builti
     new JobResumeTool(store, agent),
     new JobInboxTool(store),
   ];
+}
+
+/**
+ * Ledger sink for the conductor guard's second-violation escalation
+ * (checklist V1-3): record the blocked work as a `queued` Job so the regular
+ * Job scheduler picks it up — no model round-trip through JobCreate needed.
+ */
+export function createConductorJobDraftRecorder(store: ToolStore): ConductorJobDraftRecorder {
+  return ({ draft }) => {
+    const job = createJob(store, { title: draft.title, prompt: draft.prompt });
+    return { jobId: job.id };
+  };
 }
