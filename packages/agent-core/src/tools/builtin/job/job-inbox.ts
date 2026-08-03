@@ -25,6 +25,8 @@ export interface JobInboxEvent {
   readonly summary?: string;
   readonly createdAt: string;
   readonly read: boolean;
+  /** True when this event is a desk-digest escalation card (contract §4.2). */
+  readonly digest?: boolean;
 }
 
 export interface JobInbox {
@@ -63,6 +65,7 @@ export function pushJobInboxEvent(
     readonly status: JobStatus;
     readonly title: string;
     readonly summary?: string;
+    readonly digest?: boolean;
   },
 ): JobInboxEvent {
   const event: JobInboxEvent = {
@@ -74,6 +77,7 @@ export function pushJobInboxEvent(
     summary: input.summary?.slice(0, 2000),
     createdAt: new Date().toISOString(),
     read: false,
+    digest: input.digest,
   };
   const inbox = readJobInbox(store);
   // Cap retained events to keep store small.

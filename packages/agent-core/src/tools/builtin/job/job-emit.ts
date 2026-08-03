@@ -3,7 +3,11 @@
  * Store/inbox remain source of truth; emit is best-effort for TUI/live clients.
  */
 
-import type { JobInboxEvent as WireJobInboxEvent, JobUpdatedEvent } from '@superliora/protocol';
+import {
+  JOB_EVENT_SCHEMA_VERSION,
+  type JobInboxEvent as WireJobInboxEvent,
+  type JobUpdatedEvent,
+} from '@superliora/protocol';
 
 import type { Agent } from '../../../agent';
 import type { JobInboxEvent } from './job-inbox';
@@ -15,7 +19,7 @@ export function jobRecordToUpdatedEvent(
 ): JobUpdatedEvent {
   return {
     type: 'job.updated',
-    schemaVersion: 1,
+    schemaVersion: JOB_EVENT_SCHEMA_VERSION,
     job: {
       id: job.id,
       title: job.title,
@@ -26,6 +30,7 @@ export function jobRecordToUpdatedEvent(
       workerAgentId: job.workerAgentId,
       missionRunId: job.missionRunId,
       resultSummary: job.resultSummary,
+      progress: job.progress,
     },
     change,
   };
@@ -34,13 +39,14 @@ export function jobRecordToUpdatedEvent(
 export function inboxToWireEvent(event: JobInboxEvent): WireJobInboxEvent {
   return {
     type: 'job.inbox',
-    schemaVersion: 1,
+    schemaVersion: JOB_EVENT_SCHEMA_VERSION,
     eventId: event.id,
     kind: event.kind,
     jobId: event.jobId,
     status: event.status,
     title: event.title,
     summary: event.summary,
+    digest: event.digest,
   };
 }
 

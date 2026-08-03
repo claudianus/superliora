@@ -44,7 +44,7 @@ import {
   steerJobWorker,
 } from './job-worker';
 
-const JobKindSchema = z.enum(['task', 'explore', 'implement', 'mission', 'merge']);
+const JobKindSchema = z.enum(['task', 'explore', 'implement', 'mission', 'merge', 'desk']);
 const JobStatusSchema = z.enum([
   'queued',
   'running',

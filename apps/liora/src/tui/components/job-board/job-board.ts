@@ -456,6 +456,27 @@ export class JobBoardApp extends Container implements Focusable {
       lines.push(`${label('Mission:')}${value(card.missionRunId)}`);
     }
     lines.push(`${label('Updated:')}${currentTheme.fg('textMuted', formatRelativeTime(card.updatedAtMs))}`);
+    if (card.progress !== undefined) {
+      const phase = card.progress.phase;
+      if (phase !== undefined && phase.length > 0) {
+        lines.push(
+          `${label('Phase:')}${value(truncateToWidth(singleLine(phase), Math.max(0, innerWidth - 10), ELLIPSIS))}`,
+        );
+      }
+      const tools = card.progress.recentTools;
+      if (tools !== undefined && tools.length > 0) {
+        lines.push(
+          `${label('Tools:')}${value(truncateToWidth(tools.slice(-3).join(' → '), Math.max(0, innerWidth - 10), ELLIPSIS))}`,
+        );
+      }
+      const beat = card.progress.lastHeartbeatAt;
+      if (beat !== undefined) {
+        const beatMs = Date.parse(beat);
+        if (Number.isFinite(beatMs)) {
+          lines.push(`${label('Heartbeat:')}${currentTheme.fg('textMuted', formatRelativeTime(beatMs))}`);
+        }
+      }
+    }
     if (card.resultSummary !== undefined && card.resultSummary.length > 0) {
       lines.push(`${label('Result:')}${value(truncateToWidth(singleLine(card.resultSummary), Math.max(0, innerWidth - 10), ELLIPSIS))}`);
     }

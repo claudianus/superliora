@@ -88,6 +88,7 @@ export function patchJob(
       | 'resultSummary'
       | 'notes'
       | 'prompt'
+      | 'progress'
     >
   >,
 ): JobRecord | undefined {

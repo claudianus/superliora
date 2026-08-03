@@ -329,6 +329,10 @@ export function profileForJobKind(kind: JobKind): string {
       return 'explore';
     case 'mission':
       return 'plan';
+    case 'desk':
+      // Contract §4.2: low-cost digest worker. `explore` keeps it on the
+      // cheap model slot; digest work is read-only summarization.
+      return 'explore';
     case 'implement':
     case 'task':
     case 'merge':
