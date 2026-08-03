@@ -404,8 +404,11 @@ describe('compaction — head/tail user-message retention', () => {
 
     const history = ctx.agent.context.history;
     const texts = historyTexts(ctx);
-    // [FIRST, head slice of MIDDLE, marker, tail slice of MIDDLE, LAST, summary, current-time]
-    expect(history).toHaveLength(7);
+    // [FIRST, head slice of MIDDLE, marker, tail slice of MIDDLE, LAST, summary,
+    //  current-time, resume-recheck] — the structured-scaffold pass turns the
+    // free-form summary into v2 memory whose verified claims carry
+    // needs_revalidation=true, so the T1-5 resume-recheck reminder is appended.
+    expect(history).toHaveLength(8);
     expect(texts[0]).toBe(FIRST);
     expect(/^b+$/.test(texts[1]!)).toBe(true);
     expect(MIDDLE.startsWith(texts[1]!)).toBe(true);
@@ -416,6 +419,10 @@ describe('compaction — head/tail user-message retention', () => {
     expect(MIDDLE.endsWith(texts[3]!)).toBe(true);
     expect(texts[4]).toBe(LAST);
     expect(history[5]!.origin?.kind).toBe('compaction_summary');
+    expect(history[7]!.origin).toEqual({
+      kind: 'injection',
+      variant: 'compaction_resume_recheck',
+    });
 
     const completedEvent = ctx.allEvents.find((entry) => entry.event === 'compaction.completed');
     expect(completedEvent?.args).toEqual({
