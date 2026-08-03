@@ -170,7 +170,6 @@ describe('Event public types', () => {
         case 'ultrawork.collaboration.message':
         case 'ultrawork.collaboration.debate':
         case 'ultrawork.collaboration.steer':
-        case 'ultrawork.routing.decided':
         case 'ultrawork.swarm.paused':
         case 'ultrawork.swarm.resumed':
         case 'runtime.degraded':

@@ -49,7 +49,6 @@ import { buildWarRoomActionDockState } from '#/tui/features/agent-swarm/agent-sw
 export interface AgentSwarmProgressLayoutRenderInput {
   readonly title: string;
   readonly description: string;
-  readonly routingBadge: string | undefined;
   readonly colors: ColorPalette;
   readonly members: readonly AgentSwarmMember[];
   readonly integrationReport: UltraSwarmIntegrationReport | undefined;
@@ -141,7 +140,6 @@ function renderMissionContent(
   return renderAgentSwarmMissionContent(width, {
     title: input.title,
     description: input.description,
-    routingBadge: input.routingBadge,
     summary,
     members: input.members,
     colors: input.colors,

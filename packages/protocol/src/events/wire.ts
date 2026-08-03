@@ -132,7 +132,6 @@ import {
   ultraworkResearchFindingVerifiedEventSchema,
   ultraworkResearchProviderSelectedEventSchema,
   ultraworkResearchStartedEventSchema,
-  ultraworkRoutingDecidedEventSchema,
   ultraworkStageChangedEventSchema,
   ultraworkSwarmPausedEventSchema,
   ultraworkSwarmResumedEventSchema,
@@ -148,7 +147,6 @@ import {
   type UltraworkResearchFindingVerifiedEvent,
   type UltraworkResearchProviderSelectedEvent,
   type UltraworkResearchStartedEvent,
-  type UltraworkRoutingDecidedEvent,
   type UltraworkStageChangedEvent,
   type UltraworkSwarmPausedEvent,
   type UltraworkSwarmResumedEvent,
@@ -174,7 +172,6 @@ export type AgentEvent =
   | UltraworkResearchProviderSelectedEvent
   | UltraworkResearchFindingVerifiedEvent
   | UltraworkTeamStaffedEvent
-  | UltraworkRoutingDecidedEvent
   | UltraworkTaskAssignedEvent
   | UltraworkCollaborationMessageEvent
   | UltraworkCollaborationMentionEvent
@@ -247,7 +244,6 @@ const agentEventDiscriminatedSchema = z.discriminatedUnion('type', [
   ultraworkResearchProviderSelectedEventSchema,
   ultraworkResearchFindingVerifiedEventSchema,
   ultraworkTeamStaffedEventSchema,
-  ultraworkRoutingDecidedEventSchema,
   ultraworkTaskAssignedEventSchema,
   ultraworkCollaborationMessageEventSchema,
   ultraworkCollaborationMentionEventSchema,

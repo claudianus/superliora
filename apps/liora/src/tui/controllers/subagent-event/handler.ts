@@ -166,14 +166,6 @@ export class SubAgentEventHandler {
     this.swarm.clearProgress();
   }
 
-  applyRoutingDecisionToSwarmProgress(routing: {
-    readonly decision: string;
-    readonly intensity: string;
-    readonly estimatedExperts: number;
-  }): void {
-    this.swarm.applyRoutingDecision(routing);
-  }
-
   applyCouncilDecisionToSwarmProgress(input: {
     readonly decision: string;
     readonly reason?: string;
