@@ -70,6 +70,7 @@ import {
 } from './goal-driver';
 import type { createTurnLoopDispatch } from './loop-dispatch';
 import { budgetToolResultForModel } from './tool-result-budget';
+import { CONDUCTOR_GUARD_CODES } from '../conductor-guard';
 
 export interface StepLoopDeps {
   readonly agent: Agent;
@@ -91,6 +92,9 @@ export async function runTurnStepLoop(
   let stepBudgetWarnUsed = false;
   // Loop32a: one live notice when CacheFreezeGuard soft-detects mid-turn drift.
   let cacheFreezeDriftWarnUsed = false;
+  // V1-4: set when the conductor hard-budget tripwire force-stops this turn;
+  // continuation hooks must not resume a budget-stopped turn.
+  let budgetTripStopUsed = false;
   const deduper = new ToolCallDeduplicator({ telemetry: agent.telemetry });
   await agent.mcp?.waitForInitialLoad(signal);
   // Surface the active goal at the start of the turn (append-only; no-op when
@@ -201,6 +205,9 @@ export async function runTurnStepLoop(
           // oxlint-disable-next-line no-loop-func -- stop hook continuation state is scoped to this turn.
           shouldContinueAfterStop: async (ctx) => {
             const { signal: stopSignal } = ctx;
+            // V1-4: a conductor hard-budget trip stop is a forced stop — no
+            // continuation (steered input, stop hook, or sensor) may resume it.
+            if (budgetTripStopUsed) return { continue: false };
             // 1. Flush any steered user messages.
             if (deps.flushSteerBuffer()) return { continue: true };
             stopSignal.throwIfAborted();
@@ -297,6 +304,7 @@ export async function runTurnStepLoop(
             // Conductor delegation guard (contract §2.2 b-2): stage 1 rejects
             // file-mutation and worker-wait tools by name, then arms the
             // wall-clock tripwire budget for everything it allows.
+            let executionSignal: AbortSignal | undefined;
             const conductorGuard = agent.conductorGuard;
             if (conductorGuard !== undefined) {
               const verdict = conductorGuard.evaluateToolCall({
@@ -312,7 +320,13 @@ export async function runTurnStepLoop(
                     : { output: verdict.output, isError: true };
                 return { syntheticResult };
               }
-              conductorGuard.beginToolBudget(ctx.toolCall.id, ctx.toolCall.name, ctx.turnId);
+              // V1-4: hand the per-call budget signal to the loop so a hard
+              // budget overrun force-stops the running call, not just records it.
+              executionSignal = conductorGuard.beginToolBudget(
+                ctx.toolCall.id,
+                ctx.toolCall.name,
+                ctx.turnId,
+              );
             }
             const cached = deduper.checkSameStep(
               ctx.toolCall.id,
@@ -320,7 +334,7 @@ export async function runTurnStepLoop(
               ctx.args,
             );
             if (cached !== null) return { syntheticResult: cached };
-            return undefined;
+            return executionSignal === undefined ? undefined : { executionSignal };
           },
           authorizeToolExecution: async (ctx) => {
             // Conductor delegation guard stage 2: access-based judgment for
@@ -343,8 +357,19 @@ export async function runTurnStepLoop(
             return agent.permission.beforeToolCall(ctx);
           },
           finalizeToolResult: async (ctx) => {
-            // Settle the conductor wall-clock tripwire for this call.
+            // Settle the conductor wall-clock tripwire for this call, then
+            // consume a pending hard-budget turn stop (three consecutive trips,
+            // checklist V1-4) so the turn ends with the diagnostic report.
             agent.conductorGuard?.endToolBudget(ctx.toolCall.id);
+            const budgetTripStopReport = agent.conductorGuard?.consumeBudgetTurnStop(ctx.turnId);
+            if (budgetTripStopReport !== undefined) {
+              budgetTripStopUsed = true;
+              agent.emitEvent({
+                type: 'warning',
+                message: budgetTripStopReport,
+                code: CONDUCTOR_GUARD_CODES.toolBudgetTripStop,
+              });
+            }
             // Resolve dedup BEFORE firing the PostToolUse hook so same-step
             // dups (whose ctx.result is the dedup placeholder) report the
             // original's real outcome, not an empty success.
@@ -399,13 +424,26 @@ export async function runTurnStepLoop(
             });
             // Bound model-visible tool bodies; full output spills to disk with a
             // receipt + head/tail preview so context cannot grow without limit.
-            return await budgetToolResultForModel({
+            const budgeted = await budgetToolResultForModel({
               homedir: agent.homedir,
               toolName: ctx.toolCall.name,
               toolCallId: ctx.toolCall.id,
               result: withMutationSensor,
               contextWindowTokens: agent.config.modelCapabilities.max_context_tokens,
             });
+            if (budgetTripStopReport === undefined) return budgeted;
+            // Forced turn stop: mark the final result so the loop ends the
+            // turn and the model sees the tripwire diagnostic.
+            const budgetedText = toolOutputText(budgeted.output);
+            return {
+              ...budgeted,
+              isError: true,
+              stopTurn: true,
+              output:
+                budgetedText.length > 0
+                  ? `${budgetedText}\n\n${budgetTripStopReport}`
+                  : budgetTripStopReport,
+            };
           },
         },
       });
