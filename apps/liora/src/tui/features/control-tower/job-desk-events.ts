@@ -15,7 +15,6 @@ import type { JobBoardStore } from './job-board-store';
 export interface JobDeskEventsHost {
   readonly state: {
     readonly appState: AppState;
-    readonly jobBoard: unknown;
   };
   setAppState(patch: Partial<AppState>): void;
   showStatus(msg: string, color?: ColorToken): void;
@@ -51,14 +50,10 @@ export class ControlTowerJobDesk {
     this.inputAckLatency.markJobEventReceived(Date.now());
     this.publish();
     this.host.jobBoardController?.repaint();
-    if (
-      !this.boardHintShown &&
-      event.job.status === 'running' &&
-      this.host.state.jobBoard === undefined
-    ) {
+    if (!this.boardHintShown && event.job.status === 'running') {
       this.boardHintShown = true;
       this.host.showStatus(
-        `Conductor job running: ${event.job.title} — open the job desk with /jobs board`,
+        `Conductor job running: ${event.job.title} — the Job Desk board below tracks it; /jobs board toggles the panel`,
         'info',
       );
     }

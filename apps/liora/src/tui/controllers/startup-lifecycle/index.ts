@@ -47,6 +47,7 @@ export class StartupLifecycleController {
     ui.addChild(this.host.state.transcriptContainer);
     ui.addChild(this.host.state.activityContainer);
     ui.addChild(this.host.state.todoPanelContainer);
+    ui.addChild(this.host.state.jobDeskPanelContainer);
     ui.addChild(this.host.state.queueContainer);
     ui.addChild(this.host.state.btwPanelContainer);
     ui.addChild(this.host.state.editorContainer);

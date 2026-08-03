@@ -13,13 +13,13 @@ import { GutterContainer } from './components/chrome/gutter-container';
 import { HeaderComponent } from './components/chrome/header/header';
 import type { MoonLoader, SpinnerStyle } from './components/chrome/moon-loader';
 import { TodoPanelComponent } from './components/chrome/todo/todo-panel';
+import { JobDeskPanelComponent } from './components/chrome/job-desk/job-desk-panel';
 import type { SessionRow } from './components/dialogs/session/session-picker';
 import type { TUIEditor } from './components/editor/editor-contract';
 import { createTUIEditor } from './components/editor/editor-factory';
 import { TranscriptViewportComponent } from './components/messages/transcript-viewport';
 import { CHROME_GUTTER } from './constant/rendering';
 import type { TasksBrowserState } from './controllers/panes/tasks-browser';
-import type { JobBoardState } from './controllers/panes/job-board';
 import { currentTheme, type Theme } from './theme';
 import { resolveStageLayout } from './controllers/layout/stage-layout';
 import { NativeEditorTextInputController } from './features/native-layout/native-editor-text-input';
@@ -60,6 +60,8 @@ export interface TUIState {
   activityContainer: Container;
   todoPanelContainer: Container;
   todoPanel: TodoPanelComponent;
+  jobDeskPanelContainer: Container;
+  jobDeskPanel: JobDeskPanelComponent;
   queueContainer: Container;
   btwPanelContainer: Container;
   editorContainer: Container;
@@ -107,7 +109,6 @@ export interface TUIState {
   /** Stack of floating center modals (top is visible + receives input). */
   centerModalStack: CenterModalEntry[];
   tasksBrowser: TasksBrowserState | undefined;
-  jobBoard: JobBoardState | undefined;
   externalEditorRunning: boolean;
   queuedMessages: QueuedMessage[];
   swarmModeEntry: 'manual' | 'task' | 'ultrawork' | undefined;
@@ -180,6 +181,8 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
   const activityContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const todoPanelContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const todoPanel = new TodoPanelComponent({ terminalRows: () => terminal.rows });
+  const jobDeskPanelContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
+  const jobDeskPanel = new JobDeskPanelComponent();
   const queueContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const btwPanelContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const editorContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
@@ -207,6 +210,7 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
           header: measureContainerRows(headerContainer, contentWidth),
           activity: measureContainerRows(activityContainer, contentWidth),
           todo: measureContainerRows(todoPanelContainer, contentWidth),
+          jobs: measureContainerRows(jobDeskPanelContainer, contentWidth),
           queue: measureContainerRows(queueContainer, contentWidth),
           btw: measureContainerRows(btwPanelContainer, contentWidth),
           editor: measureContainerRows(editorContainer, contentWidth),
@@ -244,6 +248,8 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
     activityContainer,
     todoPanelContainer,
     todoPanel,
+    jobDeskPanelContainer,
+    jobDeskPanel,
     queueContainer,
     btwPanelContainer,
     editorContainer,
@@ -269,7 +275,6 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
     activeDialog: null,
     centerModalStack: [],
     tasksBrowser: undefined,
-    jobBoard: undefined,
     externalEditorRunning: false,
     queuedMessages: [],
     swarmModeEntry: undefined,

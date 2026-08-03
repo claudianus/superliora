@@ -203,9 +203,6 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
   proto.setTasksBrowser = function (value: TUIState['tasksBrowser']) {
     this.state.tasksBrowser = value;
   };
-  proto.setJobBoard = function (value: TUIState['jobBoard']) {
-    this.state.jobBoard = value;
-  };
   proto.appendStartupNotice = function (extra: string) {
     this.startupNotice = combineStartupNotice(this.startupNotice, extra);
   };
