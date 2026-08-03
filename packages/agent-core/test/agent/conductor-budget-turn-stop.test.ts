@@ -17,9 +17,11 @@ import { createTurnLoopDispatch } from '../../src/agent/turn/loop-dispatch';
 import { runTurnStepLoop } from '../../src/agent/turn/step-loop';
 import { TurnTelemetry } from '../../src/agent/turn/telemetry';
 import type { GenerateFn } from '../../src/agent/turn/kosong-llm';
+import type { LioraConfig } from '../../src/config';
 import { ToolAccesses } from '../../src/loop';
 import type { ExecutableTool, ExecutableToolResult, ToolExecution } from '../../src/loop';
 import { DEFAULT_AGENT_PROFILES, type ResolvedAgentProfile } from '../../src/profile';
+import { ProviderManager } from '../../src/session/provider/provider-manager';
 import { StreamingThinkScrubber } from '../../src/utils/think-scrubber';
 import { testKaos } from '../fixtures/test-kaos';
 
@@ -111,15 +113,17 @@ function makeAgent(plan: ReadonlyArray<'tool' | 'end'>): {
   readonly callCount: () => number;
 } {
   const scripted = scriptedGenerate(plan);
+  const config: LioraConfig = {
+    providers: { openai: { type: 'openai', apiKey: 'key', defaultModel: 'gpt-test' } },
+    models: {
+      main: { provider: 'openai', model: 'gpt-test', maxContextSize: 128_000 },
+    },
+  };
   const agent = new Agent({
     kaos: testKaos,
     generate: scripted.generate,
-    config: {
-      providers: { openai: { type: 'openai', apiKey: 'key', defaultModel: 'gpt-test' } },
-      models: {
-        main: { provider: 'openai', model: 'gpt-test', maxContextSize: 128_000 },
-      },
-    },
+    config,
+    modelProvider: new ProviderManager({ config }),
   });
   agent.config.update({ modelAlias: 'main' });
   agent.useProfile(bundledProfile('conductor'));
