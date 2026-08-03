@@ -274,5 +274,6 @@ function fakeSession(input: {
     },
     writeMetadata: vi.fn(async () => {}),
     ensureAgentResumed: vi.fn(async () => agent),
+    options: { providerManager: undefined },
   };
 }
