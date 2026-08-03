@@ -106,6 +106,8 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.sessionLoading.hint': 'Restoring recent turns. Large histories can take a moment.',
   'tui.sessionLoading.locked': 'Input locked — wait for history to finish loading',
   'tui.sessionLoading.busy': 'Session history is still loading. Wait for it to finish.',
+  'tui.sessionLoading.inputHeld':
+    'Session still loading — your input is held in the editor. Press Enter again once it finishes.',
   'tui.sessionLoading.progress': 'History {current}/{total}',
   'tui.sessionLoading.forking': 'Forking session…',
   'tui.sessionLoading.creating': 'Starting a new session…',
@@ -489,6 +491,8 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.sessionLoading.hint': '최근 턴을 복원합니다. 큰 기록은 잠시 걸릴 수 있습니다.',
   'tui.sessionLoading.locked': '입력 잠금 — 기록 로딩이 끝날 때까지 기다려 주세요',
   'tui.sessionLoading.busy': '세션 기록을 아직 불러오는 중입니다. 끝날 때까지 기다려 주세요.',
+  'tui.sessionLoading.inputHeld':
+    '세션을 불러오는 중입니다 — 입력은 에디터에 보존됩니다. 로딩이 끝나면 Enter로 다시 전송하세요.',
   'tui.sessionLoading.progress': '기록 {current}/{total}',
   'tui.sessionLoading.forking': '세션 포크 중…',
   'tui.sessionLoading.creating': '새 세션 시작 중…',
