@@ -26,8 +26,9 @@ describe('await-scan gate (V2-4)', () => {
     expect(exitCode).toBe(0);
     // (b) the scan genuinely covers the job tool sources.
     expect(stdout).toContain('job-tools.ts');
-    // (c) summary line present with the LEGACY_BASELINE constant unmodified.
-    expect(stdout).toMatch(/^await-scan: violations=\d+ baseline=9 status=OK$/m);
+    // (c) summary line present; combined baseline ratcheted to 0 once V2-5
+    // offloaded the merge lane (both worker and merge lanes clean).
+    expect(stdout).toMatch(/^await-scan: violations=\d+ baseline=0 status=OK$/m);
     // (d) both scan roots are covered (tool family + session offload lane).
     expect(stdout).toMatch(/^await-scan: roots=.*session\/job/m);
     // (e) worker lane ratcheted to zero: the interactive lane never awaits
@@ -35,7 +36,10 @@ describe('await-scan gate (V2-4)', () => {
     expect(stdout).toMatch(/^await-scan: worker-lane violations=0 cap=0 status=OK$/m);
     // (f) the designated offload sink keeps its (exempt) scheduler await.
     expect(stdout).toMatch(/^await-scan: offload-sink violations=\d+ min=1 .* status=OK$/m);
-    // (g) merge lane tracked separately until V2-5 offloads landJobToMain.
-    expect(stdout).toMatch(/^await-scan: merge-lane violations=\d+ baseline=1 status=OK$/m);
+    // (g) merge lane ratcheted to 0 (V2-5): the interactive turn never
+    // awaits landJobToMain — execution runs on a kind=merge landing job.
+    expect(stdout).toMatch(/^await-scan: merge-lane violations=0 baseline=0 status=OK$/m);
+    // (h) the designated merge sink keeps its (exempt) land await.
+    expect(stdout).toMatch(/^await-scan: merge-sink violations=\d+ min=1 .* status=OK$/m);
   });
 });

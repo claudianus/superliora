@@ -8,7 +8,7 @@ import type { Kaos } from '@superliora/kaos';
 import { removeSessionWorktree } from '../../../session/worktree';
 import type { ToolStore } from '../../store';
 import type { JobRecord } from './job-ledger';
-import { patchJob } from './job-ledger';
+import { createJob, patchJob } from './job-ledger';
 
 export interface LandJobToMainInput {
   readonly store: ToolStore;
@@ -191,5 +191,105 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
     merged: true,
     gcRemoved,
     message: `Merged ${branch} into ${repoPath}${gcRemoved ? ' (worktree removed)' : ''}.`,
+  };
+}
+
+export interface DispatchMergeLandInput {
+  readonly store: ToolStore;
+  /** Job whose finished worktree branch lands on main. */
+  readonly sourceJob: JobRecord;
+  readonly trustMode: 'auto' | 'user_approved';
+  readonly trustReason: string;
+  readonly summary?: string;
+  readonly repoPath?: string;
+  readonly kaos?: Kaos;
+  /** Injectable git runner for contract tests (merge delay injection). */
+  readonly runGit?: LandJobToMainInput['runGit'];
+}
+
+export interface DispatchMergeLandResult {
+  readonly dispatched: boolean;
+  /** The kind=merge landing job that tracks the offloaded execution. */
+  readonly mergeJob?: JobRecord;
+  readonly reason: string;
+}
+
+/**
+ * V2-5 merge offloading: verdict/execution split (checklist G5).
+ *
+ * The interactive lane (MergeJob tool) decides trust and returns the verdict;
+ * this function hands execution to a kind=`merge` landing job. The land runs
+ * detached — it starts on a later microtask, never on the caller stack, and
+ * failures land on the ledger, never on the main turn. The main turn runs
+ * no `git merge` (await-scan merge lane ratcheted to 0).
+ *
+ * Synchronous portion: ledger verdict note + landing-job bookkeeping only.
+ */
+export function dispatchMergeLand(input: DispatchMergeLandInput): DispatchMergeLandResult {
+  const { store, sourceJob, trustMode, trustReason } = input;
+
+  const verdictNote = `merge: approved mode=${trustMode} — ${trustReason}`;
+  const source = patchJob(store, sourceJob.id, {
+    resultSummary: input.summary ?? sourceJob.resultSummary,
+    notes: [sourceJob.notes, verdictNote].filter(Boolean).join('\n'),
+  });
+
+  const mergeJob = createJob(store, {
+    title: `Land ${sourceJob.id} to main`,
+    kind: 'merge',
+    priority: 10,
+    prompt: [
+      `Land approved work of ${sourceJob.id} into the main workspace.`,
+      `trust: mode=${trustMode} — ${trustReason}`,
+      sourceJob.worktreePath ? `worktree: ${sourceJob.worktreePath}` : 'ledger-only (no worktree)',
+      input.repoPath ? `repo: ${input.repoPath}` : undefined,
+      'Executor: landJobToMain on the offload lane (no remote push).',
+    ]
+      .filter(Boolean)
+      .join('\n'),
+    parentJobId: sourceJob.id,
+  });
+  const running = patchJob(store, mergeJob.id, {
+    status: 'running',
+    notes: 'merge-land: dispatched (offload lane)',
+  });
+
+  // Detached execution: the land starts after the caller returned.
+  void Promise.resolve().then(async () => {
+    let land: LandJobToMainResult;
+    try {
+      land = await landJobToMain({
+        store,
+        job: source ?? sourceJob,
+        kaos: input.kaos,
+        repoPath: input.repoPath,
+        gcOnSuccess: true,
+        runGit: input.runGit,
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      patchJob(store, mergeJob.id, {
+        status: 'failed',
+        resultSummary: detail.slice(0, 2000),
+        notes: ['merge-land: dispatched (offload lane)', `merge-land_failed: ${detail}`].join('\n'),
+      });
+      return;
+    }
+    patchJob(store, mergeJob.id, {
+      status: land.ok ? 'done' : 'blocked',
+      resultSummary: land.ok ? land.message : (land.error ?? 'land failed'),
+      notes: [
+        'merge-land: dispatched (offload lane)',
+        land.ok
+          ? `merge-land: ok — ${land.message}`
+          : `merge-land_failed: ${land.error ?? 'unknown'}`,
+      ].join('\n'),
+    });
+  });
+
+  return {
+    dispatched: true,
+    mergeJob: running ?? mergeJob,
+    reason: verdictNote,
   };
 }

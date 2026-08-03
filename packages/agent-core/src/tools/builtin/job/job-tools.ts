@@ -41,7 +41,7 @@ import {
   resolveConductorPoolConfig,
   summarizeJobStrip,
 } from './job-runtime';
-import { landJobToMain } from './job-land';
+import { dispatchMergeLand, type LandJobToMainInput } from './job-land';
 import { evaluateMergeTrust } from './job-merge-trust';
 import { splitUserMessageIntoJobIntents } from './job-split';
 import { ensureWarmPool, warmPoolSpawner, type WarmPoolSpawner } from './job-warm-pool';
@@ -376,15 +376,21 @@ export class JobCancelTool implements BuiltinTool<z.infer<typeof JobCancelInputS
   }
 }
 
+export interface MergeJobToolOptions {
+  /** Injectable git runner for contract tests (merge delay injection). */
+  readonly runGit?: LandJobToMainInput['runGit'];
+}
+
 export class MergeJobTool implements BuiltinTool<z.infer<typeof MergeJobInputSchema>> {
   readonly name = 'MergeJob' as const;
   readonly description =
-    'Land or hold a Job under Conductor trust rules (small∧no conflict∧checks green∧non-dangerous + summary). Never merge on green alone. On approve, merges job worktree branch into main workspace (no remote push) and GCs worktree on success.';
+    'Land or hold a Job under Conductor trust rules (small∧no conflict∧checks green∧non-dangerous + summary). Never merge on green alone. On approve, records the verdict and offloads the actual merge to a kind=merge landing worker (no remote push); the interactive turn never runs git merge.';
   readonly parameters: Record<string, unknown> = toInputJsonSchema(MergeJobInputSchema);
 
   constructor(
     private readonly store: ToolStore,
     private readonly agent?: Agent,
+    private readonly options?: MergeJobToolOptions,
   ) {}
 
   resolveExecution(args: z.infer<typeof MergeJobInputSchema>): ToolExecution {
@@ -439,42 +445,33 @@ export class MergeJobTool implements BuiltinTool<z.infer<typeof MergeJobInputSch
           };
         }
 
-        // Trust passed — attempt worktree land when available.
-        const land = await landJobToMain({
+        // V2-5 (G5): verdict/execution split. The interactive turn returns
+        // the trust verdict only; the actual land runs on a kind=merge
+        // landing job (offload lane). Never `await` a merge here — the
+        // await-scan merge lane is ratcheted to 0.
+        const dispatch = dispatchMergeLand({
           store: this.store,
-          job: {
-            ...existing,
-            resultSummary: a.summary ?? existing.resultSummary,
-            notes: [existing.notes, `merge: approved mode=${trust.mode} — ${trust.reason}`]
-              .filter(Boolean)
-              .join('\n'),
-          },
+          sourceJob: existing,
+          trustMode: trust.mode,
+          trustReason: trust.reason,
+          summary: a.summary,
           kaos: this.agent?.kaos,
           repoPath: this.agent?.config.cwd,
-          gcOnSuccess: true,
+          runGit: this.options?.runGit,
         });
 
-        if (!land.ok) {
-          return {
-            isError: true,
-            output: ack(
-              land.job.id,
-              land.job.status,
-              `Trust OK (${trust.mode}) but land failed: ${land.error ?? 'unknown'}. Job held for manual resolve.`,
-            ),
-          };
-        }
-
+        const latest = getJob(this.store, a.job_id) ?? existing;
         return {
           isError: false,
           output: ack(
-            land.job.id,
-            land.job.status,
+            latest.id,
+            latest.status,
             [
               `Merge approved (${trust.mode}). ${trust.reason}`,
-              land.message,
-              land.merged ? 'Landed to main workspace (no remote push).' : 'Ledger-only (no worktree).',
-            ].join(' '),
+              dispatch.mergeJob
+                ? `Execution offloaded to landing worker ${dispatch.mergeJob.id} (kind=merge); land result lands on ledger/inbox. Main turn ran no git merge.`
+                : 'Dispatch failed — merge held for manual resolve.',
+            ].join('\n'),
           ),
         };
       },
