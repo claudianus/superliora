@@ -48,6 +48,11 @@ export const CONDUCTOR_GUARD_CODES = {
   toolBudgetSoft: 'CONDUCTOR_TOOL_BUDGET_SOFT',
   /** Tool wall-clock exceeded the hard budget (§3.2 G3 hard 15s). */
   toolBudgetHard: 'CONDUCTOR_TOOL_BUDGET_HARD',
+  /**
+   * Consecutive hard-budget trips reached the turn-stop threshold — the turn
+   * is force-stopped with a diagnostic report (checklist V1-4).
+   */
+  toolBudgetTripStop: 'CONDUCTOR_TOOL_BUDGET_TRIP_STOP',
 } as const;
 
 export type ConductorGuardCode =
@@ -228,6 +233,12 @@ const MAX_TRIPWIRE_EVENTS = 500;
 /** Violations within one turn that force a turn stop (§2.2 b-2). */
 export const CONDUCTOR_TURN_STOP_VIOLATIONS = 3;
 
+/**
+ * Consecutive hard-budget trips within one turn that force a turn stop
+ * (checklist V1-4). A call settling within the hard budget resets the streak.
+ */
+export const CONDUCTOR_BUDGET_TRIP_TURN_STOP = 3;
+
 const DEFAULT_SOFT_BUDGET_MS = 5_000;
 const DEFAULT_HARD_BUDGET_MS = 15_000;
 
@@ -235,6 +246,10 @@ interface ToolBudgetEntry {
   readonly toolName: string;
   readonly turnId?: string | undefined;
   readonly startMs: number;
+  /** Per-call abort controller — force-stops the call on the hard budget. */
+  readonly controller: AbortController;
+  /** Set once the hard timer fired; the streak survives until settle. */
+  hardTripped?: boolean;
   hardTimer?: ReturnType<typeof setTimeout> | undefined;
 }
 
@@ -248,6 +263,10 @@ export class ConductorDirectWorkGuard {
   private readonly tripwireEvents: ConductorGuardEvent[] = [];
   private readonly violationsByTurn = new Map<string, number>();
   private readonly budgets = new Map<string, ToolBudgetEntry>();
+  /** Consecutive hard-budget trips per turn key (V1-4 turn-stop streak). */
+  private readonly hardTripStreakByTurn = new Map<string, number>();
+  /** Pending turn-stop request per turn key → diagnostic report text. */
+  private readonly pendingBudgetTurnStop = new Map<string, string>();
   private jobDraftRecorder: ConductorJobDraftRecorder | undefined;
 
   constructor(options: ConductorGuardOptions = {}) {
@@ -332,29 +351,63 @@ export class ConductorDirectWorkGuard {
     return { allowed: true };
   }
 
-  /** Arm the wall-clock tripwire for one tool call (§3.2 G3 budgets). */
-  beginToolBudget(toolCallId: string, toolName: string, turnId?: string): void {
-    const entry: ToolBudgetEntry = { toolName, turnId, startMs: this.now() };
+  /**
+   * Arm the wall-clock tripwire for one tool call (§3.2 G3 budgets).
+   * Returns the per-call abort signal: the loop feeds it to the running
+   * execution, so a hard-budget overrun force-stops the call instead of only
+   * recording an observation (checklist V1-4). Re-arming an already armed
+   * call returns the same signal.
+   */
+  beginToolBudget(toolCallId: string, toolName: string, turnId?: string): AbortSignal {
+    const armed = this.budgets.get(toolCallId);
+    if (armed !== undefined) return armed.controller.signal;
+    const controller = new AbortController();
+    const entry: ToolBudgetEntry = { toolName, turnId, startMs: this.now(), controller };
     const timer = setTimeout(() => {
       entry.hardTimer = undefined;
+      entry.hardTripped = true;
+      const tripCount = this.noteHardTrip(turnId);
       this.record({
         code: CONDUCTOR_GUARD_CODES.toolBudgetHard,
         toolName,
         ...(turnId !== undefined ? { turnId } : {}),
         durationMs: this.now() - entry.startMs,
-        detail: `tool "${toolName}" exceeded hard budget (${String(this.hardBudgetMs)}ms); likely direct work — delegate via JobCreate`,
+        detail: `tool "${toolName}" exceeded hard budget (${String(this.hardBudgetMs)}ms); call force-stopped (trip ${String(tripCount)} in turn) — delegate via JobCreate`,
       });
-      this.log?.warn('conductor tool hard budget exceeded', {
+      this.log?.warn('conductor tool hard budget exceeded — aborting the call', {
         toolName,
         toolCallId,
         hardBudgetMs: this.hardBudgetMs,
+        tripCount,
         code: CONDUCTOR_GUARD_CODES.toolBudgetHard,
       });
+      if (
+        tripCount >= CONDUCTOR_BUDGET_TRIP_TURN_STOP &&
+        !this.pendingBudgetTurnStop.has(turnId ?? 'unknown')
+      ) {
+        const report = this.formatBudgetTripDiagnostic(turnId, toolName);
+        this.pendingBudgetTurnStop.set(turnId ?? 'unknown', report);
+        this.record({
+          code: CONDUCTOR_GUARD_CODES.toolBudgetTripStop,
+          toolName,
+          ...(turnId !== undefined ? { turnId } : {}),
+          detail: report,
+        });
+        this.log?.warn('conductor hard-budget tripwire stopping the turn', {
+          turnId,
+          tripCount,
+          code: CONDUCTOR_GUARD_CODES.toolBudgetTripStop,
+        });
+      }
+      controller.abort(
+        `exceeded the conductor wall-clock hard budget (${String(this.hardBudgetMs)}ms) and was force-stopped. Delegate long-running work via JobCreate instead of running it on the Conductor lane.`,
+      );
     }, this.hardBudgetMs);
     // Never keep the process alive for a budget timer.
     timer.unref?.();
     entry.hardTimer = timer;
     this.budgets.set(toolCallId, entry);
+    return controller.signal;
   }
 
   /**
@@ -366,6 +419,11 @@ export class ConductorDirectWorkGuard {
     if (entry === undefined) return undefined;
     this.budgets.delete(toolCallId);
     if (entry.hardTimer !== undefined) clearTimeout(entry.hardTimer);
+    if (entry.hardTripped !== true) {
+      // A call that settled without hitting the hard budget breaks the
+      // consecutive-trip streak (checklist V1-4 "3 consecutive trips").
+      this.hardTripStreakByTurn.delete(entry.turnId ?? 'unknown');
+    }
     const durationMs = this.now() - entry.startMs;
     if (durationMs > this.softBudgetMs) {
       this.record({
@@ -396,13 +454,59 @@ export class ConductorDirectWorkGuard {
     return this.violationsByTurn.get(turnId) ?? 0;
   }
 
-  /** Reset per-turn state (violation counts, pending budgets). */
+  /**
+   * Consume a pending hard-budget turn-stop request for one turn (V1-4).
+   * Returns the diagnostic report text exactly once, or `undefined` when the
+   * turn has not reached the consecutive-trip threshold.
+   */
+  consumeBudgetTurnStop(turnId?: string): string | undefined {
+    const key = turnId ?? 'unknown';
+    const report = this.pendingBudgetTurnStop.get(key);
+    if (report === undefined) return undefined;
+    this.pendingBudgetTurnStop.delete(key);
+    return report;
+  }
+
+  /** Consecutive hard-budget trips recorded so far for one turn (V1-4). */
+  hardTripsInTurn(turnId?: string): number {
+    return this.hardTripStreakByTurn.get(turnId ?? 'unknown') ?? 0;
+  }
+
+  /** Reset per-turn state (violation counts, trip streaks, pending budgets). */
   resetTurnState(): void {
     this.violationsByTurn.clear();
+    this.hardTripStreakByTurn.clear();
+    this.pendingBudgetTurnStop.clear();
     for (const entry of this.budgets.values()) {
       if (entry.hardTimer !== undefined) clearTimeout(entry.hardTimer);
     }
     this.budgets.clear();
+  }
+
+  private noteHardTrip(turnId?: string): number {
+    const key = turnId ?? 'unknown';
+    const count = (this.hardTripStreakByTurn.get(key) ?? 0) + 1;
+    this.hardTripStreakByTurn.set(key, count);
+    return count;
+  }
+
+  /** Diagnostic report attached to the turn-stop result (checklist V1-4). */
+  private formatBudgetTripDiagnostic(turnId: string | undefined, latestToolName: string): string {
+    const key = turnId ?? 'unknown';
+    const hardTrips = this.tripwireEvents.filter(
+      (event) =>
+        event.code === CONDUCTOR_GUARD_CODES.toolBudgetHard &&
+        (event.turnId ?? 'unknown') === key,
+    );
+    const recent = hardTrips.slice(-CONDUCTOR_BUDGET_TRIP_TURN_STOP);
+    const summary = recent
+      .map((event) => `${event.toolName ?? latestToolName} (${String(event.durationMs ?? 0)}ms)`)
+      .join(', ');
+    return (
+      `Conductor wall-clock tripwire: ${String(recent.length)} consecutive hard-budget ` +
+      `overruns in this turn — ${summary}. Ending the turn; delegate long-running ` +
+      'work via JobCreate instead of running it on the Conductor lane.'
+    );
   }
 
   private rejectDirectWork(
