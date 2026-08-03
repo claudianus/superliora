@@ -17,101 +17,19 @@
  * defer.
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
+
+import type { Session } from '@superliora/sdk';
 
 import {
   MessageDispatchController,
   type MessageDispatchHost,
 } from '#/tui/controllers/transcript/message-dispatch';
-import type { QueuedMessage } from '#/tui/types';
 import { ttui } from '#/tui/utils/tui-i18n';
 
-type StreamingPhase = 'idle' | 'waiting' | 'running' | 'shell';
+import { fakeDispatchHost, type FakeDispatchHost } from './control-tower-fakes';
 
-interface FakeDispatchOptions {
-  readonly loading?: boolean;
-  readonly replaying?: boolean;
-  readonly inputMode?: 'prompt' | 'bash';
-  readonly streamingPhase?: StreamingPhase;
-  readonly deferUserMessages?: boolean;
-}
-
-function fakeDispatchHost(options: FakeDispatchOptions = {}) {
-  let editorText = '';
-  const editor = {
-    getText: () => editorText,
-    setText: (text: string) => {
-      editorText = text;
-    },
-    inputMode: options.inputMode ?? ('prompt' as 'prompt' | 'bash'),
-  };
-  const appState = {
-    inputMode: options.inputMode ?? 'prompt',
-    isReplaying: options.replaying ?? false,
-    streamingPhase: options.streamingPhase ?? 'idle',
-    isCompacting: false,
-    model: 'test-model',
-  };
-  const state = {
-    queuedMessages: [] as QueuedMessage[],
-    editor,
-    appState,
-    transcriptContainer: { isBatchMounting: false },
-    renderer: { invalidateFrame: vi.fn() },
-  };
-  const session = {
-    id: 'sess_test',
-    prompt: vi.fn(async () => {}),
-    steer: vi.fn(async () => {}),
-    cancel: vi.fn(async () => {}),
-    activateSkill: vi.fn(async () => {}),
-  };
-  let loadingActive = options.loading ?? false;
-  const host = {
-    state,
-    session,
-    deferUserMessages: options.deferUserMessages ?? false,
-    lastUserInput: undefined as string | undefined,
-    harness: {
-      interactiveAgentId: 'main',
-      withInteractiveAgent: (_agentId: string, run: () => void) => {
-        run();
-      },
-    },
-    streamingUI: { getTurnContext: () => ({ turnId: 'turn_1' }) },
-    btwPanelController: { sendUserInput: vi.fn(() => false) },
-    imageStore: {},
-    promptStash: { toArray: () => [], replaceAll: () => {} },
-    setAppState: vi.fn((patch: Record<string, unknown>) => {
-      Object.assign(appState, patch);
-    }),
-    handleInputModeChange: vi.fn((mode: 'prompt' | 'bash') => {
-      appState.inputMode = mode;
-      editor.inputMode = mode;
-    }),
-    isSessionLoadingOverlayActive: vi.fn(() => loadingActive),
-    showError: vi.fn(),
-    showStatus: vi.fn(),
-    persistInputHistory: vi.fn(async () => {}),
-    runShellCommandFromInput: vi.fn(),
-    updateQueueDisplay: vi.fn(),
-    dispatchSlashInput: vi.fn(),
-    appStateController: { supportsCurrentModelCapability: () => true },
-    beginSessionRequest: vi.fn(),
-    failSessionRequest: vi.fn(),
-    appendTranscriptEntry: vi.fn(),
-    track: vi.fn(),
-    updateEditorBorderHighlight: vi.fn(),
-    // Test handles.
-    editorText: () => editorText,
-    setLoading: (value: boolean) => {
-      loadingActive = value;
-    },
-  };
-  return host;
-}
-
-function controllerFor(host: ReturnType<typeof fakeDispatchHost>): MessageDispatchController {
+function controllerFor(host: FakeDispatchHost): MessageDispatchController {
   return new MessageDispatchController(host as unknown as MessageDispatchHost);
 }
 
@@ -260,7 +178,7 @@ describe('V3-2 — queueing path characterization (pre-rework safety net)', () =
   it('re-sends queued prompts through the interactive agent and shell items as commands', () => {
     const host = fakeDispatchHost();
     const dispatch = controllerFor(host);
-    const session = host.session as unknown as Parameters<MessageDispatchHost['sendQueuedMessage']>[0];
+    const session = host.session as unknown as Session;
 
     dispatch.sendQueuedMessage(session, { text: 'queued work' });
     expect(host.session.prompt).toHaveBeenCalledWith('queued work');
@@ -273,7 +191,7 @@ describe('V3-2 — queueing path characterization (pre-rework safety net)', () =
   it('steers mid-turn by appending to the transcript and calling session.steer once', () => {
     const host = fakeDispatchHost({ streamingPhase: 'running' });
     const dispatch = controllerFor(host);
-    const session = host.session as unknown as Parameters<MessageDispatchHost['steerMessage']>[0];
+    const session = host.session as unknown as Session;
 
     dispatch.steerMessage(session, ['slow down', 'skip the flaky suite']);
 
@@ -288,7 +206,7 @@ describe('V3-2 — queueing path characterization (pre-rework safety net)', () =
   it('queues steers under defer and sends them as prompts when idle', () => {
     const deferred = fakeDispatchHost({ deferUserMessages: true, streamingPhase: 'running' });
     controllerFor(deferred).steerMessage(
-      deferred.session as unknown as Parameters<MessageDispatchHost['steerMessage']>[0],
+      deferred.session as unknown as Session,
       ['hold this'],
     );
     expect(deferred.session.steer).not.toHaveBeenCalled();
@@ -296,7 +214,7 @@ describe('V3-2 — queueing path characterization (pre-rework safety net)', () =
 
     const idle = fakeDispatchHost();
     controllerFor(idle).steerMessage(
-      idle.session as unknown as Parameters<MessageDispatchHost['steerMessage']>[0],
+      idle.session as unknown as Session,
       ['fresh start'],
     );
     expect(idle.session.prompt).toHaveBeenCalledWith('fresh start');

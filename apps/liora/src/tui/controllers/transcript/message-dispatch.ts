@@ -51,6 +51,8 @@ export interface MessageDispatchHost extends PromptInputRuntimeHost {
   failSessionRequest(message: string): void;
   appendTranscriptEntry(entry: TranscriptEntry): void;
   track(event: string, properties?: Parameters<LioraHarness['track']>[1]): void;
+  /** V3-1 latency window start; the job desk closes it on the first job event. */
+  readonly controlTowerDesk: { markInputSubmitted(): void };
 }
 
 /**
@@ -257,6 +259,10 @@ export class MessageDispatchController {
     }
 
     host.beginSessionRequest();
+    // V3-1 latency window start: t0 for input → first JobCreate ACK. The job
+    // desk closes the window when a job event arrives; non-Conductor sessions
+    // simply never produce an ACK sample.
+    host.controlTowerDesk.markInputSubmitted();
 
     const sdkInput = options?.parts ?? input;
     void session.prompt(sdkInput).catch((error: unknown) => {
