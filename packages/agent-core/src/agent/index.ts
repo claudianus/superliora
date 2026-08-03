@@ -27,6 +27,8 @@ import { estimateTokens } from '../utils/tokens';
 import type { McpConnectionManager } from '../mcp';
 import { FlagResolver, type ExperimentalFlagResolver } from '../flags';
 import type { PreparedSystemPromptContext, ResolvedAgentProfile } from '../profile';
+import { SOVEREIGN_CONDUCTOR_PROFILE_NAME } from '../profile/main-profile';
+import { ConductorDirectWorkGuard } from './conductor-guard';
 import type { FileSnapshotStore } from '../session/file-snapshot';
 import type { ModelProvider } from '../session/provider/provider-manager';
 import type { SessionSubagentHost } from '../session/subagent/subagent-host';
@@ -171,9 +173,24 @@ export class Agent {
   readonly type: AgentType;
   /** Meta-orchestrator mode: delegate work to workers, never do long tasks directly. */
   private _orchestratorMode: boolean;
+  /** Delegation-only runtime guard (lazy; only for main + conductor profile). */
+  private _conductorGuard: ConductorDirectWorkGuard | undefined;
 
   get orchestratorMode(): boolean {
     return this._orchestratorMode;
+  }
+
+  /**
+   * Conductor delegation-only runtime guard (meta-orchestrator v2 contract,
+   * invariant 1–2). Active only for a main agent running the `conductor`
+   * profile; `undefined` for workers/subagents and non-conductor waists
+   * (contract §2.3 — delegation-only defines the conductor profile itself).
+   */
+  get conductorGuard(): ConductorDirectWorkGuard | undefined {
+    if (this.type !== 'main') return undefined;
+    if (this.config.profileName !== SOVEREIGN_CONDUCTOR_PROFILE_NAME) return undefined;
+    this._conductorGuard ??= new ConductorDirectWorkGuard({ log: this.log });
+    return this._conductorGuard;
   }
   /** Worker registry for orchestrator mode. */
   readonly orchestratorWorkers = new Map<string, import('../tools/builtin/collaboration/orchestrator').OrchestratorWorker>();
@@ -375,6 +392,17 @@ export class Agent {
    * removed accordingly.
    */
   setOrchestratorMode(enabled: boolean): void {
+    if (enabled) {
+      // Inventory B-1 retirement step ①: the conductor lane never enters
+      // orchestratorMode — delegation is Job*-only. Ignore the flag and
+      // record the attempt on the tripwire instead of registering the
+      // SpawnWorker stack.
+      const guard = this.conductorGuard;
+      if (guard !== undefined) {
+        guard.recordOrchestratorModeBlocked('setOrchestratorMode');
+        return;
+      }
+    }
     if (this._orchestratorMode === enabled) return;
     this._orchestratorMode = enabled;
 
@@ -483,6 +511,23 @@ export class Agent {
       additionalDirsTokens: estimateTokens(context?.additionalDirsInfo ?? ''),
     });
     this.tools.setActiveTools(profile.tools);
+    // Conductor guard (contract §2.3 / inventory B-1): a conductor main agent
+    // never runs orchestratorMode. The constructor may have accepted the flag
+    // before the profile was known — enforce it now that the profile is set.
+    this.enforceConductorOrchestratorBlock();
+  }
+
+  /**
+   * When the freshly applied profile is conductor, force orchestratorMode off
+   * (detaches any SpawnWorker-stack tools registered before the profile was
+   * known) and record the blocked entry attempt on the tripwire.
+   */
+  private enforceConductorOrchestratorBlock(): void {
+    if (!this._orchestratorMode) return;
+    const guard = this.conductorGuard;
+    if (guard === undefined) return;
+    guard.recordOrchestratorModeBlocked('useProfile');
+    this.setOrchestratorMode(false);
   }
 
   async resume(options?: AgentRecordsReplayOptions): Promise<{ warning?: string }> {

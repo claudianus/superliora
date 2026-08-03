@@ -294,6 +294,26 @@ export async function runTurnStepLoop(
             return { continue: false };
           },
           prepareToolExecution: async (ctx) => {
+            // Conductor delegation guard (contract §2.2 b-2): stage 1 rejects
+            // file-mutation and worker-wait tools by name, then arms the
+            // wall-clock tripwire budget for everything it allows.
+            const conductorGuard = agent.conductorGuard;
+            if (conductorGuard !== undefined) {
+              const verdict = conductorGuard.evaluateToolCall({
+                toolName: ctx.toolCall.name,
+                args: ctx.args,
+                turnId: ctx.turnId,
+                stepNumber: ctx.stepNumber,
+              });
+              if (!verdict.allowed) {
+                const syntheticResult: ExecutableToolResult =
+                  verdict.stopTurn === true
+                    ? { output: verdict.output, isError: true, stopTurn: true }
+                    : { output: verdict.output, isError: true };
+                return { syntheticResult };
+              }
+              conductorGuard.beginToolBudget(ctx.toolCall.id, ctx.toolCall.name, ctx.turnId);
+            }
             const cached = deduper.checkSameStep(
               ctx.toolCall.id,
               ctx.toolCall.name,
@@ -303,9 +323,28 @@ export async function runTurnStepLoop(
             return undefined;
           },
           authorizeToolExecution: async (ctx) => {
+            // Conductor delegation guard stage 2: access-based judgment for
+            // tools outside the known delegation/read surface (plugin/MCP/new
+            // builtins). Runs before the permission policy so a rejection is
+            // never relaxed downstream.
+            const conductorGuard = agent.conductorGuard;
+            if (conductorGuard !== undefined) {
+              const verdict = conductorGuard.authorizeExecution({
+                toolName: ctx.toolCall.name,
+                execution: ctx.execution,
+                turnId: ctx.turnId,
+                stepNumber: ctx.stepNumber,
+              });
+              if (!verdict.allowed) {
+                conductorGuard.endToolBudget(ctx.toolCall.id);
+                return { block: true, reason: verdict.output };
+              }
+            }
             return agent.permission.beforeToolCall(ctx);
           },
           finalizeToolResult: async (ctx) => {
+            // Settle the conductor wall-clock tripwire for this call.
+            agent.conductorGuard?.endToolBudget(ctx.toolCall.id);
             // Resolve dedup BEFORE firing the PostToolUse hook so same-step
             // dups (whose ctx.result is the dedup placeholder) report the
             // original's real outcome, not an empty success.
