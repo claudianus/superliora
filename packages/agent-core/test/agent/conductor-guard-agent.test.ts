@@ -12,8 +12,8 @@ function bundledProfile(name: string): ResolvedAgentProfile {
 }
 
 /**
- * Agent-level wiring for the conductor delegation guard:
- * guard activation scope (inventory B-1 ①).
+ * Agent-level wiring for the conductor delegation guard: guard activation
+ * scope (main agent + conductor profile only, contract §2.3).
  */
 describe('Agent conductor guard wiring', () => {
   function makeAgent(): Agent {

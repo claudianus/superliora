@@ -15,6 +15,9 @@
  *   (write/readwrite/all rejected) with a conservative write default for
  *   third-party/MCP tools that declare nothing. This blocks prompt-level
  *   bypasses via plugin or newly added tools.
+ * - Bash stays on the lane for read-only inspection only (V1-5): stage 1
+ *   classifies the command via `conductor-bash-policy` and hard-denies
+ *   anything that can mutate files, packages, or git state.
  * - Tripwire recorder: every block attempt and wall-clock budget overrun is
  *   recorded as a {@link ConductorGuardEvent} (§3.2 G3-lite; hard interruption
  *   of a running tool belongs to the S1 loop redesign).
@@ -26,6 +29,7 @@ import type { Logger } from '#/logging/types';
 
 import type { ToolResourceAccess } from '../loop/tool-access';
 import type { RunnableToolExecution } from '../loop/types';
+import { isConductorBashCommandReadOnly } from './conductor-bash-policy';
 
 export const CONDUCTOR_GUARD_CODES = {
   /** File-mutation / write tool rejected on the conductor lane (§2.1). */
@@ -34,6 +38,8 @@ export const CONDUCTOR_GUARD_CODES = {
   workerWaitBlocked: 'CONDUCTOR_WORKER_WAIT_BLOCKED',
   /** Unknown/third-party tool judged write-like by declared accesses (§2.2 b-2). */
   accessBlocked: 'CONDUCTOR_ACCESS_BLOCKED',
+  /** Bash write command rejected on the conductor lane (§2.1 item 3, V1-5). */
+  bashWriteBlocked: 'CONDUCTOR_BASH_WRITE_BLOCKED',
   /** Tool wall-clock exceeded the soft budget (§3.2 G3 soft 5s). */
   toolBudgetSoft: 'CONDUCTOR_TOOL_BUDGET_SOFT',
   /** Tool wall-clock exceeded the hard budget (§3.2 G3 hard 15s). */
@@ -127,8 +133,9 @@ export const CONDUCTOR_WORKER_WAIT_TOOLS = [
  * Known-safe builtin surface for the conductor lane (contract §2.1 items 2–6
  * plus the read-only query waist). These keep passing stage 2 even when they
  * declare `all` accesses (ledger mutations such as JobCreate are delegation
- * itself, not direct work). Bash stays listed pending the read-only policy
- * job; its long-running cases are caught by the wall-clock tripwire below.
+ * itself, not direct work). Bash passes stage 2 by name because stage 1 owns
+ * its command-level read-only classification (V1-5); long-running shells are
+ * caught by the wall-clock tripwire below.
  */
 const CONDUCTOR_DELEGATION_SAFE_TOOLS: ReadonlySet<string> = new Set([
   // Job ledger desk — the only delegation means (§2.1 item 2)
@@ -221,6 +228,18 @@ export class ConductorDirectWorkGuard {
       return this.rejectDirectWork(ctx, CONDUCTOR_GUARD_CODES.workerWaitBlocked, {
         detail: `worker-lifecycle tool "${ctx.toolName}" invoked on conductor lane`,
       });
+    }
+    if (ctx.toolName === 'Bash') {
+      // V1-5: the conductor lane keeps Bash read-only. Anything not on the
+      // inspection allowlist (installs, builds, migrations, git writes, shell
+      // redirection/chaining tricks) is direct work and becomes a Job.
+      const command = pickStringField(ctx.args, ['command']);
+      if (!isConductorBashCommandReadOnly(command)) {
+        return this.rejectDirectWork(ctx, CONDUCTOR_GUARD_CODES.bashWriteBlocked, {
+          detail: `Bash command classified as write on conductor lane: ${truncateMiddle(command ?? '<missing>', 120)}`,
+          draft: suggestJobDraft(ctx.toolName, ctx.args),
+        });
+      }
     }
     return { allowed: true };
   }
@@ -402,7 +421,13 @@ function declaresFileWrite(access: ToolResourceAccess): boolean {
 }
 
 function suggestJobDraft(toolName: string, args: unknown): ConductorJobDraft {
-  const target = pickStringField(args, ['file_path', 'path', 'notebook_path', 'directory']);
+  const target = pickStringField(args, [
+    'file_path',
+    'path',
+    'notebook_path',
+    'directory',
+    'command',
+  ]);
   const title = target !== undefined
     ? `${toolName}: ${truncateMiddle(target, 80)}`
     : `${toolName} work blocked on Conductor — delegate`;

@@ -61,10 +61,109 @@ describe('ConductorDirectWorkGuard', () => {
 
     it('allows the read-only and delegation surface', () => {
       const guard = new ConductorDirectWorkGuard();
-      for (const toolName of ['Read', 'Grep', 'Glob', 'RepoQuery', 'Bash', 'JobCreate', 'JobInbox']) {
+      for (const toolName of ['Read', 'Grep', 'Glob', 'RepoQuery', 'JobCreate', 'JobInbox']) {
         expect(guard.evaluateToolCall({ toolName, turnId: 'turn-1' }).allowed, toolName).toBe(true);
       }
+      // Bash passes only with a read-only command (V1-5 classification).
+      expect(
+        guard.evaluateToolCall({
+          toolName: 'Bash',
+          args: { command: 'git status' },
+          turnId: 'turn-1',
+        }).allowed,
+      ).toBe(true);
       expect(guard.events()).toHaveLength(0);
+    });
+  });
+
+  describe('Bash read-only contract (V1-5)', () => {
+    const WRITE_COMMANDS = [
+      'pnpm install',
+      'npm install express',
+      'pnpm run build',
+      'make test',
+      'node scripts/migrate.mjs',
+      'git commit -m "fix"',
+      'git push origin main',
+      'git rebase main',
+      'git checkout -b feature',
+      'rm -rf dist',
+      'mkdir out',
+      'echo done > status.txt',
+      'git status && rm -rf /tmp/x',
+      'pnpm --version; pnpm install',
+      'find . -name "*.log" -delete',
+      'git branch -D stale',
+      'git tag v1.0.0',
+      'git config user.name "bot"',
+      'git stash push',
+      'sudo systemctl restart app',
+    ] as const;
+
+    const READ_ONLY_COMMANDS = [
+      'git status',
+      'git log --oneline -5',
+      'git diff HEAD~1',
+      'git show HEAD',
+      'git branch -a',
+      'git tag --list',
+      'git config --get user.email',
+      'git worktree list',
+      'ls -la',
+      'pwd',
+      'rg "RunProjectChecks" packages',
+      'git -C /repo log -1',
+    ] as const;
+
+    it.each(WRITE_COMMANDS)('hard-denies write command: %s', (command) => {
+      const guard = new ConductorDirectWorkGuard();
+      const verdict = guard.evaluateToolCall({
+        toolName: 'Bash',
+        args: { command },
+        turnId: 'turn-1',
+        stepNumber: 1,
+      });
+
+      expect(verdict.allowed, command).toBe(false);
+      if (verdict.allowed) return;
+      expect(verdict.code).toBe(CONDUCTOR_GUARD_CODES.bashWriteBlocked);
+      expect(verdict.output).toContain(CONDUCTOR_DIRECT_WORK_REJECTION_PHRASE);
+      expect(verdict.output).toContain('Suggested Job draft');
+      expect(verdict.output).toContain('JobCreate');
+      expect(guard.events()[0]?.code).toBe(CONDUCTOR_GUARD_CODES.bashWriteBlocked);
+    });
+
+    it.each(READ_ONLY_COMMANDS)('allows read-only command: %s', (command) => {
+      const guard = new ConductorDirectWorkGuard();
+      const verdict = guard.evaluateToolCall({
+        toolName: 'Bash',
+        args: { command },
+        turnId: 'turn-1',
+      });
+      expect(verdict.allowed, command).toBe(true);
+      expect(guard.events()).toHaveLength(0);
+    });
+
+    it('denies Bash without a command (conservative default)', () => {
+      const guard = new ConductorDirectWorkGuard();
+      expect(guard.evaluateToolCall({ toolName: 'Bash', turnId: 'turn-1' }).allowed).toBe(false);
+      expect(
+        guard.evaluateToolCall({ toolName: 'Bash', args: {}, turnId: 'turn-1' }).allowed,
+      ).toBe(false);
+    });
+
+    it('counts a blocked write command toward turn-violation escalation', () => {
+      const guard = new ConductorDirectWorkGuard();
+      guard.evaluateToolCall({ toolName: 'Bash', args: { command: 'pnpm install' }, turnId: 't' });
+      guard.evaluateToolCall({ toolName: 'Write', turnId: 't' });
+      const third = guard.evaluateToolCall({
+        toolName: 'Bash',
+        args: { command: 'git push' },
+        turnId: 't',
+      });
+      expect(third.allowed).toBe(false);
+      if (third.allowed) return;
+      expect(third.stopTurn).toBe(true);
     });
   });
 
@@ -191,5 +290,4 @@ describe('ConductorDirectWorkGuard', () => {
       expect(guard.endToolBudget('missing')).toBeUndefined();
     });
   });
-
 });
