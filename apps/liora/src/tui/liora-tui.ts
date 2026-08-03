@@ -230,7 +230,6 @@ export interface LioraTUIHost {
   pushTranscriptEntry(entry: TranscriptEntry): void;
   setExternalEditorRunning(running: boolean): void;
   setTasksBrowser(value: TUIState['tasksBrowser']): void;
-  setJobBoard(value: TUIState['jobBoard']): void;
   appendStartupNotice(extra: string): void;
   readonly backgroundTasks: ReadonlyMap<string, BackgroundTaskInfo>;
   getCurrentSessionId(): string;

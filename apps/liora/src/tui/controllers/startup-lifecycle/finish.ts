@@ -1,6 +1,5 @@
 import type { Session } from '@superliora/sdk';
 
-import { shouldOpenControlTowerAtStartup } from '../../features/control-tower/default-screen';
 import { showMissionAutoStartSessionTipIfNeeded } from '../../utils/mission/mission-autostart-session-tip';
 import { restorePromptInputState } from '../../utils/prompt-input-state';
 import { formatSessionResumeWarningNotice } from '../../utils/session/session-resume-warning-notice';
@@ -67,31 +66,9 @@ export async function finishStartupSession(
   }
   void host.refreshDynamicSlashCommands(host.session);
   host.usageMonitor.start();
-  await maybeOpenControlTowerDefaultScreen(host);
   if (host.options.startup.resumeGoal === true) {
     void resumeGoalFromQueue(host);
   }
-}
-
-/**
- * V5-1: the Conductor profile boots into the job desk board — the control
- * tower is the default screen, `Esc` returns to the transcript.
- */
-async function maybeOpenControlTowerDefaultScreen(host: StartupLifecycleHost): Promise<void> {
-  if (host.aborted || host.session === undefined) return;
-  if (host.state.startupState !== 'ready') return;
-  const open = await shouldOpenControlTowerAtStartup({
-    getConfigProfile: async () => {
-      const config = await host.harness.getConfig();
-      return config.agent?.profile?.trim();
-    },
-  });
-  if (!open || host.aborted || host.session === undefined) return;
-  host.jobBoardController.show();
-  host.showStatus(
-    'Control tower is the default screen — press Esc to return to the transcript.',
-    'textMuted',
-  );
 }
 
 export async function showSessionWarnings(

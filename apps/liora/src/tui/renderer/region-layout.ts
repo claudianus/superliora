@@ -8,6 +8,7 @@ export type RendererRegionId =
   | 'transcript'
   | 'activity'
   | 'todo'
+  | 'jobs'
   | 'queue'
   | 'btw'
   | 'editor'
@@ -36,6 +37,7 @@ export interface RendererRegionLayout {
 const FIXED_REGION_IDS: readonly RendererFixedRegionId[] = [
   'activity',
   'todo',
+  'jobs',
   'queue',
   'btw',
   'editor',

@@ -1,10 +1,12 @@
 import { collectFooterStaleAppStatePatches } from '../../components/chrome/footer/footer-badges';
+import { syncJobDeskPanelContainer } from '../../components/chrome/job-desk/job-desk-panel';
 import type { CommandHubComponent } from '../../components/dialogs/command-hub/index';
 import type { AppState, LivePaneState } from '../../types';
 import { INITIAL_LIVE_PANE } from '../../types';
 import type { TUIState } from '../../tui-state';
 import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
 import { requestTUIContentRender, requestTUILayoutRender } from '../../utils/render/frame-render';
+import { emptyConductorJobsSnapshot } from '../../utils/job/job-strip';
 import { isMotionTheatreActive, type MotionBeatController } from '../../utils/render/motion-beats';
 import { hasPatchChanges } from '../../utils/object-patch';
 import type { AppearanceController } from '../appearance/index';
@@ -103,6 +105,7 @@ export class AppStateController {
       host.state.appState.streamingPhase !== 'idle' &&
       patch.streamingPhase === 'idle';
     const goalChanged = 'goal' in patch;
+    const conductorJobsChanged = 'conductorJobs' in patch;
     const modeBeats = collectFooterModeBeats(host.state.appState, patch);
     Object.assign(host.state.appState, mergedPatch);
     if ('planMode' in patch || 'ultraworkMode' in patch) host.updateEditorBorderHighlight();
@@ -140,6 +143,9 @@ export class AppStateController {
     if (goalChanged) {
       this.syncGoalMonitorPanel();
     }
+    if (conductorJobsChanged) {
+      this.syncJobDeskPanel();
+    }
     host.updateActivityPane();
     if (busyChanged) {
       host.updateQueueDisplay();
@@ -157,6 +163,16 @@ export class AppStateController {
     if (!host.state.todoPanel.isEmpty()) {
       host.state.todoPanelContainer.addChild(host.state.todoPanel);
     }
+    requestTUILayoutRender(host.state);
+  }
+
+  /** Push the latest conductorJobs ledger into the in-transcript Job Desk. */
+  syncJobDeskPanel(): void {
+    const { host } = this;
+    host.state.jobDeskPanel.setSnapshot(
+      host.state.appState.conductorJobs ?? emptyConductorJobsSnapshot(),
+    );
+    syncJobDeskPanelContainer(host.state);
     requestTUILayoutRender(host.state);
   }
 
