@@ -6,10 +6,18 @@
 import type { SlashCommandHost } from './hub/dispatch';
 
 const JOBS_USAGE =
-  'Usage: /jobs — list Conductor jobs; /job <id> — inspect; /job resume [id] — resume interrupted; /job answer <id> <text> — answer needs_user card; /job cancel <id>; /job inbox; /job gc — worktree GC hint; /job help';
+  'Usage: /jobs — list Conductor jobs; /jobs board — open the job desk board; /job <id> — inspect; /job resume [id] — resume interrupted; /job answer <id> <text> — answer needs_user card; /job cancel <id>; /job inbox; /job gc — worktree GC hint; /job help';
+
+function isBoardArgs(args: string): boolean {
+  return args === 'board' || args === 'view' || args === 'open';
+}
 
 export function handleJobsCommand(host: SlashCommandHost, rawArgs: string): void {
   const args = rawArgs.trim();
+  if (isBoardArgs(args)) {
+    host.jobBoardController.toggle();
+    return;
+  }
   if (args.length === 0) {
     host.sendNormalUserInput(
       'Use JobList to show the Conductor job ledger as a compact table (id, status, kind, priority, title, worktree). Include JobInbox unread summary via JobInbox if any. Do not start new work.',
@@ -35,6 +43,12 @@ export function handleJobCommand(host: SlashCommandHost, rawArgs: string): void 
     case 'help':
     case '?':
       host.showStatus(JOBS_USAGE);
+      return;
+
+    case 'board':
+    case 'view':
+    case 'open':
+      host.jobBoardController.toggle();
       return;
 
     case 'list':

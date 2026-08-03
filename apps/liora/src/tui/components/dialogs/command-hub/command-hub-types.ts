@@ -22,6 +22,7 @@ export type CommandHubActionId =
   | 'workspace.diff'
   | 'workspace.log'
   | 'workspace.tasks'
+  | 'workspace.jobs'
   | 'workspace.status'
   | 'extend.extensions'
   | 'appearance.theme'

@@ -192,6 +192,12 @@ export function buildDefaultCommandHubItems(state: {
       description: 'Open the tasks browser',
     },
     {
+      id: 'workspace.jobs',
+      section: 'Workspace',
+      label: 'Job board',
+      description: 'Open the Conductor job desk board',
+    },
+    {
       id: 'workspace.status',
       section: 'Workspace',
       label: 'Status',

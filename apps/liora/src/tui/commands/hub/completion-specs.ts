@@ -89,6 +89,7 @@ const CRON_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
 
 const JOB_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'list', description: 'List Conductor jobs' },
+  { value: 'board', description: 'Open the job desk board view' },
   { value: 'inbox', description: 'Show Job inbox notices' },
   { value: 'resume', description: 'Resume interrupted jobs' },
   { value: 'cancel', description: 'Cancel a job by id' },

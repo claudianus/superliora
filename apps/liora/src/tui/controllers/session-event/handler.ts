@@ -24,6 +24,7 @@ import type { WarRoomExpertView } from '../../utils/war-room-experts';
 import type { BtwPanelController } from '../panes/btw-panel';
 import type { StreamingUIController } from '../streaming-ui/index';
 import type { TasksBrowserController } from '../panes/tasks-browser';
+import type { JobBoardController } from '../panes/job-board';
 import { SessionEventBackgroundTasks } from './background-tasks';
 import { SessionEventCompaction } from './compaction';
 import { SessionEventGoalQueue } from './goal-queue';
@@ -74,6 +75,7 @@ export interface SessionEventHost {
   setLastTurnFailed(failed: boolean): void;
   readonly btwPanelController: BtwPanelController;
   readonly tasksBrowserController: TasksBrowserController;
+  readonly jobBoardController: JobBoardController;
 }
 
 export class SessionEventHandler {
