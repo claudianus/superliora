@@ -25,6 +25,7 @@ const buildAgent = (): { agent: Agent; log: ReturnType<typeof vi.fn>; append: Re
     records: { logRecord: log },
     emitEvent,
     telemetry: { track: vi.fn() },
+    turn: { prompt: vi.fn() },
   } as unknown as Agent;
   return { agent, log, append };
 };
@@ -59,7 +60,7 @@ describe('agent/skill/manager — activate', () => {
     const manager = new SkillManager(agent, registry);
     await expect(
       manager.activate({ name: 'demo', args: '' } as unknown as ActivateSkillPayload),
-    ).resolves.toBeDefined();
+    ).resolves.toBeUndefined();
     // expect any of them to be a function call — either success or a specific
     // thrown error from those layers.
     await manager
