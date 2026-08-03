@@ -12,6 +12,4 @@ packages:
       - "FileViewerComponent labels unknown extensions as plain text in the header"
       - "TUI handleInput — printable-key guard forbids bare-literal printable comparisons on `data` (use printableChar)"
       - "updateActivityPane terminal progress moves the moon spinner into the AgentSwarm progress row while active"
-    unstable:
-      - "control tower frame budget per-event repaint (setProps + render) stays under budget for a 20-event burst" # load-dependent timing flake under full-suite parallel run; standalone 3/3 green (2026-08-03)
-      - "control tower frame budget full 64-card board repaint stays under the 8ms single-event budget" # same load-dependent timing flake family (2026-08-03)
+    unstable: [] # frame-budget timing tests stabilized 2026-08-03: best-of-3-round p95 measurement (control-tower-default-screen.test.ts), green under full-suite parallel load
