@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -74,7 +74,7 @@ describe('Agent tools', () => {
     // Bootstrap with empty enabled set still materializes the full builtin catalog.
     expect(beforeNames.length).toBeGreaterThan(20);
     expect(beforeNames).toEqual(
-      expect.arrayContaining(['TodoList', 'EnterPlanMode', 'UltraworkGraph', 'Bash']),
+      expect.arrayContaining(['TodoList', 'EnterPlanMode', 'TaskGraph', 'Bash']),
     );
 
     ctx.agent.tools.setActiveTools(['Read', 'Bash']);
@@ -366,10 +366,11 @@ describe('Agent tools', () => {
       subagentHost,
       experimentalFlags: new FlagResolver({}, FLAG_DEFINITIONS),
     });
-    ctx.configure({ tools: ['AgentSwarm', 'UltraSwarm', 'SearchExpert'] });
+    // AgentSwarm/UltraSwarm were retired (S3-R4); Agent is the subagent/swarm
+    // launcher and SearchExpert stays the expert discovery surface.
+    ctx.configure({ tools: ['Agent', 'SearchExpert'] });
 
-    expect(ctx.agent.tools.loopTools.some((tool) => tool.name === 'AgentSwarm')).toBe(true);
-    expect(ctx.agent.tools.loopTools.some((tool) => tool.name === 'UltraSwarm')).toBe(true);
+    expect(ctx.agent.tools.loopTools.some((tool) => tool.name === 'Agent')).toBe(true);
     expect(ctx.agent.tools.loopTools.some((tool) => tool.name === 'SearchExpert')).toBe(true);
   });
 
@@ -417,7 +418,7 @@ describe('Agent tools', () => {
       }),
     ).toMatchInlineSnapshot(`
       [wire] permission.set_mode         { "mode": "auto", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "auto", "providerRoute": null, "contextOS": null, "autoDream": null }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "auto", "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
       [wire] tools.register_user_tool    { "name": "Lookup", "description": "Look up a short test value.", "parameters": { "type": "object", "properties": { "query": { "type": "string" } }, "required": [ "query" ], "additionalProperties": false }, "time": "<time>" }
       [wire] turn.prompt                 { "input": [ { "type": "text", "text": "Look up moon" } ], "origin": { "kind": "user" }, "time": "<time>" }
       [emit] turn.started                { "turnId": 0, "origin": { "kind": "user" } }
@@ -447,7 +448,7 @@ describe('Agent tools', () => {
       [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-1>", "turnId": "0", "step": 1, "usage": { "inputOther": 229, "output": 16, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }, "time": "<time>" }
       [emit] turn.step.completed         { "turnId": 0, "step": 1, "stepId": "<uuid-1>", "usage": { "inputOther": 229, "output": 16, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }
       [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 229, "output": 16, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 245, "maxContextTokens": 1000000, "contextUsage": 0.000245, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "auto", "usage": { "byModel": { "mock-model": { "inputOther": 229, "output": 16, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 229, "output": 16, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 229, "output": 16, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0 }, "providerRoute": null, "contextOS": null, "autoDream": null }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 245, "maxContextTokens": 1000000, "contextUsage": 0.000245, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "auto", "usage": { "byModel": { "mock-model": { "inputOther": 229, "output": 16, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 229, "output": 16, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 229, "output": 16, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0, "searchNeverEmpty": { "hardFailCount": 0, "softDegradeCount": 0 } }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
       [wire] context.append_loop_event   { "event": { "type": "step.begin", "uuid": "<uuid-3>", "turnId": "0", "step": 2 }, "time": "<time>" }
       [emit] turn.step.started           { "turnId": 0, "step": 2, "stepId": "<uuid-3>" }
       [emit] assistant.delta             { "turnId": 0, "delta": "The lookup result is moon-result." }
@@ -455,7 +456,7 @@ describe('Agent tools', () => {
       [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-3>", "turnId": "0", "step": 2, "usage": { "inputOther": 249, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }, "time": "<time>" }
       [emit] turn.step.completed         { "turnId": 0, "step": 2, "stepId": "<uuid-3>", "usage": { "inputOther": 249, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }
       [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 249, "output": 12, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 261, "maxContextTokens": 1000000, "contextUsage": 0.000261, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "auto", "usage": { "byModel": { "mock-model": { "inputOther": 478, "output": 28, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 478, "output": 28, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 478, "output": 28, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0, "cacheDiagnostics": { "toolBlockHash": "576b24bc", "toolBlockChanged": false, "injectionCount": 0, "messageCount": 4 } }, "providerRoute": null, "contextOS": null, "autoDream": null }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 261, "maxContextTokens": 1000000, "contextUsage": 0.000261, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "auto", "usage": { "byModel": { "mock-model": { "inputOther": 478, "output": 28, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 478, "output": 28, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 478, "output": 28, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0, "cacheDiagnostics": { "toolBlockHash": "576b24bc", "toolBlockChanged": false, "injectionCount": 0, "messageCount": 4, "missReasons": { "schema_change": 1 } }, "searchNeverEmpty": { "hardFailCount": 0, "softDegradeCount": 0 } }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
       [emit] turn.ended                  { "turnId": 0, "reason": "completed" }
     `);
     expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
@@ -522,11 +523,19 @@ describe('Agent tools', () => {
       ctx.mockNextResponse({ type: 'text', text: 'done' });
       await ctx.untilTurnEnd();
 
+      // Oversized results now spill to disk; the model context keeps a
+      // structured receipt plus a head/tail preview (tool-result-budget.ts).
       const toolText = ctx.compactHistory().find((message) => message.role === 'tool')?.text ?? '';
       expect(toolText).toContain('tail survives');
-      expect(toolText).toContain(largeOutput);
-      expect(toolText).not.toContain('receipt: true');
-      expect(existsSync(join(sessionDir, 'tool-results'))).toBe(false);
+      expect(toolText).toContain('receipt: true');
+      expect(toolText).toContain('full output persisted to disk');
+      expect(toolText).toContain('### Preview (head/tail)');
+      expect(toolText).not.toContain(largeOutput);
+      const spillDir = join(sessionDir, 'tool-results');
+      expect(existsSync(spillDir)).toBe(true);
+      const spillFiles = readdirSync(spillDir);
+      expect(spillFiles).toHaveLength(1);
+      expect(readFileSync(join(spillDir, spillFiles[0]!), 'utf8')).toBe(largeOutput);
     } finally {
       rmSync(sessionDir, { recursive: true, force: true });
     }
