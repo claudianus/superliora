@@ -178,7 +178,9 @@ describe('default agent profiles', () => {
         'Bash',
         'Agent',
         'Fleet',
-        'UltraSwarm',
+        'JobCreate',
+        'CreateGoal',
+        'UpdateGoal',
         'Skill',
         'Memory',
         'WebSearch',
@@ -189,8 +191,11 @@ describe('default agent profiles', () => {
         'EnterPlanMode',
         'NextPhase',
         'ExitPlanMode',
+        'mcp__*',
       ]),
     );
+    // V1-1 whitelist retired the swarm tool; Job* + Goal tools cover orchestration.
+    expect(DEFAULT_AGENT_PROFILES['superliora-full']?.tools).not.toContain('UltraSwarm');
     expect(DEFAULT_AGENT_PROFILES['coder']?.tools).toEqual(
       expect.arrayContaining([
         'Read',
