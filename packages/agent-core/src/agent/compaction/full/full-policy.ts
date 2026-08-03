@@ -31,14 +31,8 @@ export function shouldSkipRecompactUntilGrowth(input: {
 }
 
 export function shouldDeferAutoCompaction(input: {
-  readonly ultraSwarmActive: boolean;
-  readonly shouldBlock: boolean;
   readonly hasActiveForegroundChildren: boolean;
 }): boolean {
-  if (input.ultraSwarmActive) {
-    if (input.shouldBlock) return false;
-    return true;
-  }
   return input.hasActiveForegroundChildren;
 }
 

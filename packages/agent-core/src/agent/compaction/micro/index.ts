@@ -200,7 +200,7 @@ export class MicroCompaction {
   }
 
   /**
-   * Projection-time trimming under context pressure (e.g. during UltraSwarm).
+   * Projection-time trimming under context pressure (e.g. during a swarm run).
    * Skips the cache-miss gate so high usage can be relieved without full compaction.
    */
   detectUnderSwarmPressure(minUsageRatio: number): void {

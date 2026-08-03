@@ -58,7 +58,6 @@ import { HookEngine } from '../session/hooks';
 import { InjectionManager } from './injection/manager';
 import { PermissionManager, type PermissionManagerOptions } from './permission';
 import { PlanMode } from './plan';
-import { UltraSwarmEngageGate } from './plan/ultra-swarm-engage-gate';
 import {
   AgentRecords,
   BlobStore,
@@ -213,7 +212,6 @@ export class Agent {
   readonly injection: InjectionManager;
   readonly permission: PermissionManager;
   readonly planMode: PlanMode;
-  readonly ultraSwarmEngageGate: UltraSwarmEngageGate;
   /**
    * Optional swarm file-lease identity for Edit/Write conflict checks.
    * Set on subagent workers when a swarm run is active; undefined otherwise.
@@ -319,7 +317,6 @@ export class Agent {
     this.injection = new InjectionManager(this);
     this.permission = new PermissionManager(this, options.permission);
     this.planMode = new PlanMode(this);
-    this.ultraSwarmEngageGate = new UltraSwarmEngageGate(this);
     this.swarmFileLease = undefined;
     this.swarmMode = new SwarmMode(this);
     this.usage = new UsageRecorder(this);

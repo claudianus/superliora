@@ -47,8 +47,6 @@ const SESSION_TO_AGENT_ALLOWLIST = new Set([
   'session/subagent/subagent-verification-gate.ts',
   'session/team-hooks.ts',
   'session/trace.ts',
-  'session/ultra-swarm-debate.ts',
-  'session/ultra-swarm-debate-cycle.ts',
   'session/vision-analyzer/types.ts',
 ]);
 

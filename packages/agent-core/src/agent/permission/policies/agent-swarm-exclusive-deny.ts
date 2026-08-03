@@ -27,7 +27,7 @@ export class AgentSwarmExclusiveDenyPermissionPolicy implements PermissionPolicy
 }
 
 function isSwarmToolName(toolName: string): boolean {
-  return toolName === 'Fleet' || toolName === 'AgentSwarm' || toolName === 'UltraSwarm';
+  return toolName === 'Fleet' || toolName === 'AgentSwarm';
 }
 
 function swarmToolLabel(toolNames: readonly string[]): string {

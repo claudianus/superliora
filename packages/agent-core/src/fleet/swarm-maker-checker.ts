@@ -88,7 +88,7 @@ export function classifySwarmPhaseRole(phase: string): SwarmMakerCheckerRole | u
   return undefined;
 }
 
-/** Classify coverage lane / roster role strings (mirrors ultra-swarm-phase heuristics). */
+/** Classify coverage lane / roster role strings (mirrors swarm-phase heuristics). */
 export function classifySwarmLaneRole(
   coverageLane: string | undefined,
 ): SwarmMakerCheckerRole | undefined {
