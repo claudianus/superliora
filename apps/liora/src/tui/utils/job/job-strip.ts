@@ -7,6 +7,7 @@ import type {
   JobEventKind,
   JobEventStatus,
   JobInboxEvent,
+  JobProgressSnapshot,
   JobSnapshot,
 } from '@superliora/protocol';
 
@@ -21,6 +22,8 @@ export interface ConductorJobCard {
   readonly workerAgentId?: string;
   readonly missionRunId?: string;
   readonly resultSummary?: string;
+  /** Worker progress from `job.updated` v2 (phase/recent tools/heartbeat). */
+  readonly progress?: JobProgressSnapshot;
   readonly updatedAtMs: number;
   readonly previousStatus?: JobEventStatus;
 }
@@ -96,6 +99,7 @@ export function upsertConductorJobCard(
     workerAgentId: job.workerAgentId,
     missionRunId: job.missionRunId,
     resultSummary: job.resultSummary,
+    progress: job.progress,
     updatedAtMs: nowMs,
     previousStatus: change?.previousStatus,
   };
@@ -253,7 +257,14 @@ const JOB_STATUSES: readonly JobEventStatus[] = [
   'interrupted',
 ];
 
-const JOB_KINDS: readonly JobEventKind[] = ['task', 'explore', 'implement', 'mission', 'merge'];
+const JOB_KINDS: readonly JobEventKind[] = [
+  'task',
+  'explore',
+  'implement',
+  'mission',
+  'merge',
+  'desk',
+];
 
 function normalizeJobStatus(raw: string): JobEventStatus | undefined {
   const lower = raw.toLowerCase();

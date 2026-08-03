@@ -14,3 +14,4 @@ export * from './job-worker-guards';
 export * from './job-warm-pool';
 export * from './job-land';
 export * from './job-fleet-bridge';
+export * from './job-desk';

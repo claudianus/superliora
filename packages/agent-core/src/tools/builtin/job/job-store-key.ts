@@ -3,6 +3,8 @@
  * Execution-lane Jobs are tracked here; Fleet/workers attach later.
  */
 
+import type { JobProgressSnapshot } from '@superliora/protocol';
+
 export const JOB_LEDGER_STORE_KEY = 'job_ledger' as const;
 export const JOB_WARM_POOL_STORE_KEY = 'job_warm_pool' as const;
 
@@ -16,7 +18,11 @@ export type JobStatus =
   | 'cancelled'
   | 'interrupted';
 
-export type JobKind = 'task' | 'explore' | 'implement' | 'mission' | 'merge';
+/**
+ * `desk` (contract §4.2): inbox/notification digest worker that keeps burst
+ * handling off the main conductor turn.
+ */
+export type JobKind = 'task' | 'explore' | 'implement' | 'mission' | 'merge' | 'desk';
 
 export interface JobRecord {
   readonly id: string;
@@ -34,6 +40,8 @@ export interface JobRecord {
   readonly resultSummary?: string;
   readonly parentJobId?: string;
   readonly notes?: string;
+  /** Worker progress (phase/recent tools/heartbeat) mirrored to `job.updated` v2. */
+  readonly progress?: JobProgressSnapshot;
 }
 
 export interface JobLedger {

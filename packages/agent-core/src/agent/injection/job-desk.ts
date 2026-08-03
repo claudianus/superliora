@@ -9,6 +9,10 @@ import {
   type JobInboxEvent,
 } from '#/tools/builtin/job/job-inbox';
 import {
+  DESK_DIGEST_TRIGGER_COUNT,
+  runDeskDigestCycle,
+} from '#/tools/builtin/job/job-desk';
+import {
   formatJobStripLine,
   summarizeJobStrip,
 } from '#/tools/builtin/job/job-runtime';
@@ -16,8 +20,8 @@ import {
 import { DynamicInjector } from './injector';
 
 const JOB_DESK_VARIANT = 'conductor_job_desk';
-const MAX_EVENTS = 5;
-const MAX_CHARS = 1_500;
+export const JOB_DESK_MAX_EVENTS = 5;
+export const JOB_DESK_MAX_CHARS = 1_500;
 
 export class JobDeskInjector extends DynamicInjector {
   protected override readonly injectionVariant = JOB_DESK_VARIANT;
@@ -37,7 +41,18 @@ export class JobDeskInjector extends DynamicInjector {
       return renderJobDeskInjection([], strip);
     }
 
-    const batch = unread.slice(0, MAX_EVENTS);
+    // Contract §4.2 offloading: a burst is digested here (ledger-only, no
+    // spawn) so the main turn sees exactly one escalation card instead of a
+    // multi-event digest loop.
+    if (unread.length >= DESK_DIGEST_TRIGGER_COUNT) {
+      const cycle = runDeskDigestCycle(store);
+      if (cycle.offloaded && cycle.escalation) {
+        const strip = summarizeJobStrip(store);
+        return renderJobDeskInjection([cycle.escalation], strip, { batched: cycle.batched });
+      }
+    }
+
+    const batch = unread.slice(0, JOB_DESK_MAX_EVENTS);
     const strip = summarizeJobStrip(store);
     const text = renderJobDeskInjection(batch, strip);
     // Mark delivered so we do not re-inject every step (toast/TUI still have store).
@@ -49,14 +64,21 @@ export class JobDeskInjector extends DynamicInjector {
   }
 }
 
-function renderJobDeskInjection(
+/** Exported for cap tests (V4-1); keep in sync with injector budget. */
+export function renderJobDeskInjection(
   events: readonly JobInboxEvent[],
   strip: ReturnType<typeof summarizeJobStrip>,
+  opts: { readonly batched?: number } = {},
 ): string {
   const lines = [
     '<conductor_job_desk>',
     formatJobStripLine(strip, events.length),
   ];
+  if (opts.batched !== undefined && opts.batched > 0) {
+    lines.push(
+      `inbox ${opts.batched} (batched) — burst offloaded to desk digest; one escalation card below.`,
+    );
+  }
   if (events.length > 0) {
     lines.push('Unread job notices (use JobInbox / JobInspect as needed):');
     for (const e of events) {
@@ -69,8 +91,9 @@ function renderJobDeskInjection(
   }
   lines.push('</conductor_job_desk>');
   let text = lines.join('\n');
-  if (text.length > MAX_CHARS) {
-    text = `${text.slice(0, MAX_CHARS - 28)}\n… [truncated]\n</conductor_job_desk>`;
+  if (text.length > JOB_DESK_MAX_CHARS) {
+    const suffix = '\n… [truncated]\n</conductor_job_desk>';
+    text = `${text.slice(0, JOB_DESK_MAX_CHARS - suffix.length)}${suffix}`;
   }
   return text;
 }
