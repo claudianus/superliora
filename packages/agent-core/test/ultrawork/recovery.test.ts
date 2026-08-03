@@ -118,7 +118,15 @@ describe('Ultrawork goal completion', () => {
     agent.tools.updateStore(ULTRAWORK_GRAPH_STORE_KEY, {
       id: 'run-mark-complete-with-graph:work_graph',
       runId: 'run-mark-complete-with-graph',
-      nodes: [{ id: 'node-1', title: 'Implement', stage: 'integrate', status: 'done' }],
+      nodes: [
+        {
+          id: 'node-1',
+          title: 'Implement',
+          stage: 'integrate',
+          status: 'done',
+          verificationStatus: 'passed',
+        },
+      ],
     });
     agent.ultrawork.syncWorkGraphFromStore();
 
@@ -146,7 +154,15 @@ describe('Ultrawork goal completion', () => {
     agent.tools.updateStore(ULTRAWORK_GRAPH_STORE_KEY, {
       id: 'run-graph-done-closes-goal:work_graph',
       runId: 'run-graph-done-closes-goal',
-      nodes: [{ id: 'node-1', title: 'Implement', stage: 'integrate', status: 'done' }],
+      nodes: [
+        {
+          id: 'node-1',
+          title: 'Implement',
+          stage: 'integrate',
+          status: 'done',
+          verificationStatus: 'passed',
+        },
+      ],
     });
     agent.ultrawork.syncWorkGraphFromStore();
 
@@ -157,8 +173,8 @@ describe('Ultrawork goal completion', () => {
     });
   });
 
-  it('syncWorkGraphFromStore + maybeFinishUltraworkRun closes goal (UltraSwarm path)', async () => {
-    // UltraSwarm's updateWorkNodes calls syncWorkGraphFromStore() then
+  it('syncWorkGraphFromStore + maybeFinishUltraworkRun closes goal', async () => {
+    // UltraworkGraph node updates call syncWorkGraphFromStore() then
     // maybeFinishUltraworkRun() after marking work nodes done. This test
     // verifies that path terminates both the run and the active goal.
     const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
@@ -232,7 +248,13 @@ describe('Ultrawork goal completion', () => {
       id: 'run-finish-allows-cancelled:work_graph',
       runId: 'run-finish-allows-cancelled',
       nodes: [
-        { id: 'node-ok', title: 'Done work', stage: 'integrate', status: 'done' },
+        {
+          id: 'node-ok',
+          title: 'Done work',
+          stage: 'integrate',
+          status: 'done',
+          verificationStatus: 'passed',
+        },
         { id: 'node-drop', title: 'Dropped scope', stage: 'swarm', status: 'cancelled' },
       ],
     });
@@ -1501,7 +1523,7 @@ describe('Ultrawork recovery', () => {
     expect(text).toContain('requiredEvidence');
   });
 
-  it('reinjects ultrawork graph status after compaction even during swarm', async () => {
+  it('reinjects ultrawork graph status after compaction', async () => {
     const agent = new Agent({ kaos: testKaos.withCwd(mkdtempSync(join(tmpdir(), "uw-rec-"))) });
     agent.ultrawork.create({
       id: 'run-graph-inject',
@@ -1533,7 +1555,6 @@ describe('Ultrawork recovery', () => {
       ],
     };
     agent.tools.getStore().set(ULTRAWORK_GRAPH_STORE_KEY, graph);
-    Object.defineProperty(agent, 'ultraSwarmRun', { value: { runId: 'swarm-1' }, configurable: true });
 
     const append = vi.spyOn(agent.context, 'appendSystemReminder');
     await agent.injection.injectAfterCompaction();
