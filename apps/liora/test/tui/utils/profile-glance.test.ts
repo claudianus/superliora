@@ -17,10 +17,10 @@ describe('profile-glance', () => {
     const glance = loadProfileLiveGlance({ env: {} });
     expect(glance.effectiveProfile).toBe('conductor');
     expect(glance.sovereignCoreOptIn).toBe(false);
-    expect(glance.expectedToolCount).toBe(30); // conductor
-    expect(formatProfileToolsBadge(glance)).toBe('profile=conductor tools=30');
+    expect(glance.expectedToolCount).toBe(27); // conductor
+    expect(formatProfileToolsBadge(glance)).toBe('profile=conductor tools=27');
     expect(formatProfileLiveStatusLine(glance)).toBe(
-      'Conductor: ON (default) · profile=conductor tools=30',
+      'Conductor: ON (default) · profile=conductor tools=27',
     );
   });
 
@@ -32,7 +32,7 @@ describe('profile-glance', () => {
     expect(glance.sovereignCoreOptIn).toBe(true);
     expect(glance.sovereignCoreTrigger).toBe(SOVEREIGN_CORE_DEFAULT_ENV);
     expect(formatProfileLiveStatusLine(glance)).toBe(
-      'Conductor: ON (default) · profile=conductor tools=30',
+      'Conductor: ON (default) · profile=conductor tools=27',
     );
   });
 
@@ -55,7 +55,7 @@ describe('profile-glance', () => {
     expect(glance.effectiveProfile).toBe('conductor');
     expect(glance.sovereignCoreTrigger).toBe(SOVEREIGN_UMBRELLA_ENV);
     expect(formatProfileLiveStatusLine(glance)).toBe(
-      'Conductor: ON (default) · profile=conductor tools=30',
+      'Conductor: ON (default) · profile=conductor tools=27',
     );
   });
 
@@ -68,7 +68,7 @@ describe('profile-glance', () => {
   it('maps bundled waist sizes for diagnostics', () => {
     expect(expectedToolCountForProfile('core')).toBe(12);
     expect(expectedToolCountForProfile('agent')).toBe(29);
-    expect(expectedToolCountForProfile('conductor')).toBe(30);
+    expect(expectedToolCountForProfile('conductor')).toBe(27);
     expect(expectedToolCountForProfile('custom-profile')).toBeUndefined();
   });
 });
