@@ -70,7 +70,7 @@ export function isModelAliasHealthy(
  */
 export function markModelAliasAuthRejected(
   alias: string | undefined,
-  models: Record<string, { provider?: string }> | undefined,
+  models: Record<string, { model?: string; provider?: string }> | undefined,
   error?: unknown,
 ): boolean {
   if (alias === undefined || models === undefined) return false;
