@@ -5,15 +5,15 @@
  *
  * S3-R6 interim home (moved from swarm-cost-guard.ts). The AgentSwarm tool
  * consumer retired with S3-R5 (f04ac07c3); remaining consumers are the liora
- * TUI glances. Inventory verdict: REBUILD — folds into Job pool back-pressure
- * / cost visibility; body deletion is tracked by the R7 final sweep.
+ * TUI glances. S3-R7 verdict: RETAIN — the body folds into Job pool
+ * back-pressure / cost visibility later; retired UltraSwarm branding removed.
  */
 
 import type { TokenUsage } from '@superliora/kosong';
 import type { UsageStatus } from '#/rpc/events';
 import type { Agent } from '../agent';
 
-/** W4 soft: session $ cap env (AgentSwarm/UltraSwarm — opt-in). */
+/** W4 soft: session $ cap env (fleet fan-out — opt-in). */
 export const FLEET_BUDGET_USD_ENV = 'SUPERLIORA_FLEET_BUDGET_USD';
 
 /** Runtime soft tip prefix — appended to swarm tool results (no kill). */
