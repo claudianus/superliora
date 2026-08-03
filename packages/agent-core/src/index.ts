@@ -43,18 +43,6 @@ export {
   type SwarmBudgetSuggestion,
 } from '#/fleet';
 export {
-  SWARM_DAG_DONE_STATUSES,
-  SWARM_DAG_TERMINAL_STATUSES,
-  areDependenciesSatisfied,
-  partitionReadyWorkNodeIds,
-  preferReadyWorkNodeIds,
-  readyNodeIds,
-  rebindPhaseWorkNodeIds,
-  type PhaseWorkNodeBinding,
-  type SwarmDagNode,
-  type SwarmDagNodeStatus,
-} from '#/fleet';
-export {
   CHECK_LIKE_EVIDENCE_TOKENS,
   applyEvidenceHardGate,
   evaluateEvidenceHardGate,
