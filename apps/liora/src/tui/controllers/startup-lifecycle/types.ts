@@ -60,7 +60,7 @@ export interface StartupLifecycleHost extends PromptInputRuntimeHost {
   readonly usageMonitor: UsageMonitorController;
   readonly editorKeyboard: EditorKeyboardController;
   readonly tasksBrowserController: TasksBrowserController;
-  readonly jobBoardController: { close(): void };
+  readonly jobBoardController: { close(): void; show(): void };
   readonly promptIntelligence: PromptIntelligenceController;
   readonly dialogs: DialogsController;
   readonly panes: PanesController;
@@ -76,7 +76,7 @@ export interface StartupLifecycleHost extends PromptInputRuntimeHost {
   closeSession(reason: string): Promise<void>;
   requireSession(): Session;
   showStatus(msg: string, color?: ColorToken): void;
-  showNotice(title: string, detail?: string): void;
+  showNotice(title: string, detail?: string, options?: { coalesceKey?: string }): void;
   showCommandHub(options?: { readonly intro?: boolean }): void;
   sendNormalUserInput(text: string, options?: { readonly displayText?: string }): void;
   isSessionLoadingOverlayActive(): boolean;
