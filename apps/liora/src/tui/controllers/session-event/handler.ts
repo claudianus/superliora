@@ -267,16 +267,6 @@ export class SessionEventHandler {
       this.host.streamingUI.setTurnId(String(event.turnId));
     }
 
-    if (event.type === 'ultrawork.routing.decided') {
-      this.subAgentEventHandler.applyRoutingDecisionToSwarmProgress({
-        decision: event.decision,
-        intensity: event.intensity,
-        estimatedExperts: event.estimatedExperts,
-      });
-      requestTUILayoutRender(this.host.state);
-      return;
-    }
-
     if (event.type === 'ultrawork.swarm.paused') {
       this.subAgentEventHandler.applySwarmPausedToSwarmProgress({
         reason: event.reason,

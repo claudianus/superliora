@@ -21,7 +21,6 @@ export const FLEET_ULTRAWORK_EVENT_SUFFIXES = [
   'collaboration.debate',
   'collaboration.steer',
   'team.staffed',
-  'routing.decided',
   'task.assigned',
   'council.decision',
   'swarm.paused',

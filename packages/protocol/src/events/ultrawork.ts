@@ -57,16 +57,6 @@ export interface UltraworkTeamStaffedEvent {
   readonly team: TeamPlan;
 }
 
-export interface UltraworkRoutingDecidedEvent {
-  readonly type: 'ultrawork.routing.decided';
-  readonly runId: string;
-  readonly toolCallId?: string;
-  readonly decision: 'ENGAGE' | 'ADAPTIVE' | 'DEFER';
-  readonly intensity: 'light' | 'standard' | 'heavy';
-  readonly estimatedExperts: number;
-  readonly rationale: string;
-}
-
 export interface UltraworkTaskAssignedEvent {
   readonly type: 'ultrawork.task.assigned';
   readonly runId: string;
@@ -172,16 +162,6 @@ export const ultraworkTeamStaffedEventSchema = z.object({
   toolCallId: z.string().min(1).optional(),
   team: teamPlanSchema,
 }) satisfies z.ZodType<UltraworkTeamStaffedEvent>;
-
-export const ultraworkRoutingDecidedEventSchema = z.object({
-  type: z.literal('ultrawork.routing.decided'),
-  runId: z.string().min(1),
-  toolCallId: z.string().min(1).optional(),
-  decision: z.enum(['ENGAGE', 'ADAPTIVE', 'DEFER']),
-  intensity: z.enum(['light', 'standard', 'heavy']),
-  estimatedExperts: z.number().int().min(0),
-  rationale: z.string().min(1),
-}) satisfies z.ZodType<UltraworkRoutingDecidedEvent>;
 
 export const ultraworkTaskAssignedEventSchema = z.object({
   type: z.literal('ultrawork.task.assigned'),

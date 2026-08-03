@@ -15,7 +15,6 @@ export const MISSION_ULTRAWORK_EVENT_SUFFIXES = [
   'research.provider.selected',
   'research.finding.verified',
   'team.staffed',
-  'routing.decided',
   'task.assigned',
   'collaboration.message',
   'collaboration.mention',

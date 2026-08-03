@@ -106,7 +106,6 @@ export class AgentSwarmProgressComponent implements Component {
   private readonly warRoom: AgentSwarmProgressWarRoom;
   private description: string;
   private readonly title: string;
-  private routingBadge: string | undefined;
   private readonly requestRender: (() => void) | undefined;
   private readonly availableGridHeight: (() => number | undefined) | undefined;
   private itemsStarted = false;
@@ -254,15 +253,6 @@ export class AgentSwarmProgressComponent implements Component {
         focus: meta?.focus,
       };
     });
-  }
-
-  applyRoutingDecision(routing: {
-    readonly decision: string;
-    readonly intensity: string;
-    readonly estimatedExperts: number;
-  }): void {
-    this.routingBadge = `${routing.decision} · ${routing.intensity}`;
-    this.requestRender?.();
   }
 
   applyCouncilDecision(input: {
@@ -464,7 +454,6 @@ export class AgentSwarmProgressComponent implements Component {
     return {
       title: this.title,
       description: this.description,
-      routingBadge: this.routingBadge,
       colors: this.colors,
       members: this.runtime.members,
       integrationReport: this.runtime.integrationReport,

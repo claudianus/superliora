@@ -80,16 +80,6 @@ export class SubagentSwarmCoordinator {
     this.host.updateActivityPane();
   }
 
-  applyRoutingDecision(routing: {
-    readonly decision: string;
-    readonly intensity: string;
-    readonly estimatedExperts: number;
-  }): void {
-    for (const progress of this.progressByToolCallId.values()) {
-      progress.applyRoutingDecision(routing);
-    }
-  }
-
   applyCouncilDecision(input: { readonly decision: string; readonly reason?: string }): void {
     for (const progress of this.progressByToolCallId.values()) {
       progress.applyCouncilDecision(input);

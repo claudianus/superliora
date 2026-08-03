@@ -85,22 +85,18 @@ export function renderAgentSwarmMissionContent(
   input: {
     readonly title: string;
     readonly description: string;
-    readonly routingBadge: string | undefined;
     readonly summary: AgentSwarmSummary | undefined;
     readonly members: readonly AgentSwarmMember[];
     readonly colors: ColorPalette;
   },
 ): string[] {
-  const { title, description, routingBadge, summary, members, colors } = input;
+  const { title, description, summary, members, colors } = input;
   const gradientTitle = renderAnimatedGradientText(title, `agent-swarm:title:${title}`);
   const renderedDescription = description.length > 0
     ? chalk.hex(colors.text)(description)
     : '';
   const stats = summary === undefined ? '' : renderMissionStats(summary, members);
   const headlineParts = [gradientTitle];
-  if (routingBadge !== undefined) {
-    headlineParts.push(`${chalk.hex(colors.textDim)('·')} ${chalk.hex(colors.primary)(routingBadge)}`);
-  }
   if (renderedDescription.length > 0) {
     headlineParts.push(`${chalk.hex(colors.textDim)('·')} ${renderedDescription}`);
   }
