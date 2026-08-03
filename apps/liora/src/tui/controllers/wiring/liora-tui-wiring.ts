@@ -16,6 +16,8 @@ import { AutocompleteController } from '../shell/autocomplete';
 import { AppearanceController, shouldRenderAmbientAnimationFrame } from '../appearance/index';
 import { BtwPanelController } from '../panes/btw-panel';
 import { ClipboardImageHintController } from '../clipboard/clipboard-image-hint';
+import { JobBoardStore } from '../../features/control-tower/job-board-store';
+import { ControlTowerJobDesk } from '../../features/control-tower/job-desk-events';
 import { DialogsController } from '../dialogs/index';
 import { EditorKeyboardController } from '../shell/editor-keyboard';
 import { MessageDispatchController } from '../transcript/message-dispatch';
@@ -126,6 +128,10 @@ export function wireLioraTUIControllers(
   // Keep render-time density readers (thinking / answer phase) in sync.
   setActiveTranscriptDetail(tui.state.transcriptDetail);
   tui.btwPanelController = new BtwPanelController(tui);
+  // Conductor job desk single source (V5-3): all `job.*` events converge on
+  // this store before the session event handler is wired.
+  tui.jobBoardStore = new JobBoardStore();
+  tui.controlTowerDesk = new ControlTowerJobDesk(tui, tui.jobBoardStore);
   tui.sessionEventHandler = new SessionEventHandler(tui);
   tui.transcriptRender = new TranscriptRenderController(tui);
   tui.panes = new PanesController(tui);
