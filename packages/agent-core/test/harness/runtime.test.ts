@@ -317,7 +317,13 @@ custom_headers = { "X-Test" = "1" }
     await session!.options.toolServices?.webSearcher!.search('kimi');
 
     expect(getAccessToken).toHaveBeenCalledWith();
-    const init = fetchImpl.mock.calls[0]?.[1] as RequestInit;
+    // Browser-channel probes run before the search request, so pick the
+    // moonshot POST out by URL rather than assuming call order.
+    const moonshotCall = fetchImpl.mock.calls.find(
+      (call) => String(call[0]) === 'https://search.example/v1',
+    );
+    expect(moonshotCall).toBeDefined();
+    const init = moonshotCall?.[1] as RequestInit;
     expect(init.headers).toMatchObject({
       Authorization: 'Bearer service-token',
       'User-Agent': 'kimi-code-cli/0.0.0-test',
