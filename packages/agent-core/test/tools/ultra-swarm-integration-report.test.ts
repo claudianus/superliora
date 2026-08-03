@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildUltraSwarmIntegrationReportXml,
   extractHandoffDigest,
-} from '../../src/tools/builtin/collaboration/ultra-swarm-integration-report';
+} from '../../src/tools/builtin/fleet/ultra-swarm-integration-report';
 
 describe('ultra-swarm integration report', () => {
   it('extracts structured handoff sections', () => {

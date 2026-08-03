@@ -33,7 +33,7 @@ const TEMPLATED = new Set([
 
 const STATIC_PLACEHOLDER_PROTOCOL_FILES = new Set([
   'agent/swarm/enter-reminder.md',
-  'tools/builtin/collaboration/agent-swarm.md',
+  'tools/builtin/fleet/agent-swarm.md',
 ]);
 
 const mdFiles = globSync('**/*.md', { cwd: SRC })
@@ -88,12 +88,15 @@ describe('prompt placeholders', () => {
     }
   });
 
-  it('compaction prompt asks for a first-person handoff and verification caution', () => {
+  it('compaction prompt asks for a structured handoff contract and verification caution', () => {
     const content = readFileSync(
       join(SRC, 'agent/compaction/prompts/compaction-instruction.md'),
       'utf-8',
     );
-    expect(content.toLowerCase()).toContain('first-person handoff');
+    expect(content.toLowerCase()).toContain('structured handoff');
+    expect(content).toContain('current_goal:');
+    expect(content).toContain('next_actions:');
+    expect(content).toContain('verified_claims:');
     expect(content.toLowerCase()).toMatch(/request|goal|task/);
     expect(content.toLowerCase()).toMatch(/assistant|tool/);
     expect(content.toLowerCase()).toMatch(/unverified|verify|caution|evidence/);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { extractFileChangePaths, hasCitedEvidence } from '../../../../src/tools/builtin/collaboration/ultra-swarm-helpers';
+import { extractFileChangePaths, hasCitedEvidence } from '../../../../src/tools/builtin/fleet/ultra-swarm-helpers';
 
 describe('extractFileChangePaths', () => {
   it('extracts labeled file change lists', () => {

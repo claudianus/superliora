@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   needsReviewRetry,
   type UltraSwarmReviewResultLike,
-} from '../../../../src/tools/builtin/collaboration/ultra-swarm-helpers';
+} from '../../../../src/tools/builtin/fleet/ultra-swarm-helpers';
 
 function reviewResult(
   overrides: Partial<UltraSwarmReviewResultLike> = {},

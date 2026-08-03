@@ -13,7 +13,7 @@ import type { ApprovalResponse, SDKAgentRPC, SDKSessionRPC } from '../../src/rpc
 import { Session } from '../../src/session';
 import { SessionSkillRegistry, type SkillDefinition } from '../../src/skill';
 import type { SkillRegistry as AgentSkillRegistry } from '../../src/agent/skill';
-import { SkillTool } from '../../src/tools/builtin/collaboration/skill-tool';
+import { SkillTool } from '../../src/tools/builtin/fleet/skill-tool';
 import { executeTool } from '../tools/fixtures/execute-tool';
 
 

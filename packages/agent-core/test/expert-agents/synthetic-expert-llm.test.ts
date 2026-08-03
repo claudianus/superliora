@@ -10,7 +10,7 @@ import {
   registerSyntheticExpert,
 } from '../../src/expert-agents/synthetic-expert-registry';
 import { resolveExpertCatalogEntry } from '../../src/expert-agents/catalog-extensions';
-import { planFromSyntheticExperts } from '../../src/tools/builtin/collaboration/ultra-swarm-helpers';
+import { planFromSyntheticExperts } from '../../src/tools/builtin/fleet/ultra-swarm-helpers';
 
 describe('synthetic expert LLM fallback', () => {
   afterEach(() => {

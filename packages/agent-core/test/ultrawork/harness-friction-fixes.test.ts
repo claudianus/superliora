@@ -4,9 +4,9 @@ import { describe, expect, it } from 'vitest';
 import {
   buildUltraSwarmIntegrationReportXml,
   type UltraSwarmIntegrationReportInput,
-} from '../../src/tools/builtin/collaboration/ultra-swarm-integration-report';
-import { inferVerdict } from '../../src/tools/builtin/collaboration/ultra-swarm-helpers';
-import { workNodeOutcome } from '../../src/tools/builtin/collaboration/ultra-swarm-phase';
+} from '../../src/tools/builtin/fleet/ultra-swarm-integration-report';
+import { inferVerdict } from '../../src/tools/builtin/fleet/ultra-swarm-helpers';
+import { workNodeOutcome } from '../../src/tools/builtin/fleet/ultra-swarm-phase';
 import {
   inferEffectiveUltraworkStage,
   summarizeWorkGraphProgress,
