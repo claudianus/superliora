@@ -36,7 +36,7 @@ Activate (should_activate=true) when the dominant intent is to execute substanti
 - multi-step product work spanning research/plan/implement/verify
 - multi-lane or multi-file features, refactors, migrations, architecture changes
 - end-to-end goals where acceptance criteria and evidence matter
-- explicit requests to run Ultrawork / UltraPlan / UltraGoal / UltraResearch / UltraSwarm (or clearly equivalent branded workflow names in any language)
+- explicit requests to run Ultrawork / UltraPlan / UltraGoal / UltraResearch (or clearly equivalent branded workflow names in any language)
 
 Do NOT activate when:
 - the user is only asking what Ultrawork/Ultra* is, how it works, or similar meta questions

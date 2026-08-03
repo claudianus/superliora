@@ -1,8 +1,3 @@
-import {
-  hasPendingUltraSwarmRestaff,
-  requestUltraSwarmRestaff,
-  requestUltraSwarmSteer,
-} from './ultra-swarm-run';
 import { join } from 'pathe';
 
 import { normalizeAdditionalDirs } from '../config';
@@ -64,7 +59,6 @@ import { InjectionManager } from './injection/manager';
 import { PermissionManager, type PermissionManagerOptions } from './permission';
 import { PlanMode } from './plan';
 import { UltraSwarmEngageGate } from './plan/ultra-swarm-engage-gate';
-import type { UltraSwarmRunContext } from './ultra-swarm-run';
 import {
   AgentRecords,
   BlobStore,
@@ -220,10 +214,9 @@ export class Agent {
   readonly permission: PermissionManager;
   readonly planMode: PlanMode;
   readonly ultraSwarmEngageGate: UltraSwarmEngageGate;
-  ultraSwarmRun: UltraSwarmRunContext | undefined;
   /**
-   * Optional UltraSwarm file-lease identity for Edit/Write conflict checks.
-   * Set on subagent workers when an UltraSwarm run is active; undefined otherwise.
+   * Optional swarm file-lease identity for Edit/Write conflict checks.
+   * Set on subagent workers when a swarm run is active; undefined otherwise.
    */
   swarmFileLease: { ownerId?: string; runId?: string } | undefined;
   /**
@@ -327,7 +320,6 @@ export class Agent {
     this.permission = new PermissionManager(this, options.permission);
     this.planMode = new PlanMode(this);
     this.ultraSwarmEngageGate = new UltraSwarmEngageGate(this);
-    this.ultraSwarmRun = undefined;
     this.swarmFileLease = undefined;
     this.swarmMode = new SwarmMode(this);
     this.usage = new UsageRecorder(this);
@@ -464,64 +456,14 @@ export class Agent {
     return result;
   }
 
-  
   /**
-   * Mid-run UltraSwarm steering. Queues a redirect at the next phase/wave
-   * checkpoint (fallback for children spawned later) and also forwards it to
-   * the children that are running right now so they adjust mid-flight.
+   * War-room / /swarm restaff request. UltraSwarm was retired (S3-R4), so no
+   * swarm run can be active and restaff always rejects. The method stays as a
+   * graceful no-op until the war-room RPC/TUI surface is removed, keeping the
+   * `session.swarmRestaff` chain compiling and the steer-fallback path live.
    */
-  swarmSteer(input: string): boolean {
-    const accepted = requestUltraSwarmSteer(this.ultraSwarmRun, input);
-    if (!accepted) return false;
-    this.records.logRecord({ type: 'swarm.steer', input });
-    // War-room restaff must not pause the run — it forces an adaptive restaff wave.
-    if (hasPendingUltraSwarmRestaff(this.ultraSwarmRun)) {
-      this.telemetry.track('ultra_swarm_restaff_requested', {
-        run_id: this.ultraSwarmRun?.runId,
-        source: 'swarm_steer',
-      });
-      return true;
-    }
-    this.forwardSteerToRunningChildren(input);
-    void this.ultrawork.pause({ reason: 'User steering requested during UltraSwarm' });
-    return true;
-  }
-
-  /**
-   * War-room / /swarm restaff: force an adaptive restaff wave after the current phase.
-   * Does not pause Ultrawork or break the phase loop.
-   */
-  swarmRestaff(reason = 'User requested restaff'): boolean {
-    const accepted = requestUltraSwarmRestaff(this.ultraSwarmRun, reason);
-    if (accepted) {
-      this.records.logRecord({ type: 'swarm.restaff', input: reason });
-      this.telemetry.track('ultra_swarm_restaff_requested', {
-        run_id: this.ultraSwarmRun?.runId,
-        source: 'swarm_restaff',
-      });
-      if (this.ultraSwarmRun !== undefined) {
-        this.emitEvent({
-          type: 'ultrawork.swarm.restaff_requested',
-          runId: this.ultraSwarmRun.runId,
-          reason,
-        } as any);
-      }
-    }
-    return accepted;
-  }
-
-  /**
-   * Forward an accepted swarm steer to the currently-running child subagents in
-   * real time (each active child buffers it and flushes at its next step
-   * boundary). The phase-checkpoint queue stays as the fallback for children
-   * spawned after the steer.
-   */
-  forwardSteerToRunningChildren(input: string): void {
-    if (this.subagentHost === undefined) return;
-    const forwarded = this.subagentHost.steerRunningChildren([{ type: 'text', text: input }]);
-    if (forwarded > 0) {
-      this.telemetry.track('swarm_steer_forwarded', { children: forwarded });
-    }
+  swarmRestaff(_reason = 'User requested restaff'): boolean {
+    return false;
   }
 
   get rpcMethods(): PromisableMethods<AgentAPI> {

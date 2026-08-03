@@ -8,11 +8,6 @@ import {
   ToolCollapseStrategy,
   resolveCompactionBlockRatio,
 } from '../../agent/compaction';
-import {
-  startSwarmStandupTimer,
-  type SwarmStandupTimerHandle,
-  type SwarmStandupTimerInput,
-} from '#/fleet';
 import { userCancellationReason } from '../../utils/abort';
 import type { Session } from '../index';
 import {
@@ -43,7 +38,6 @@ import {
 import { emitSubagentFailed, emitSubagentSpawned } from './subagent-events';
 import {
   assertContractCompiles,
-  attachUltraSwarmChannelIfNeeded,
   claimChildOwnership,
   configureSubagentChild,
   ensureIdleSubagent,
@@ -139,15 +133,6 @@ export class SessionSubagentHost {
     return true;
   }
 
-  startSwarmStandupTimer(
-    parent: Agent,
-    store: import('../../tools/store').ToolStore,
-    input: SwarmStandupTimerInput,
-    intervalMs?: number,
-  ): SwarmStandupTimerHandle {
-    return startSwarmStandupTimer(this.session, parent, store, input, intervalMs);
-  }
-
   async spawn(options: SpawnSubagentOptions): Promise<SubagentHandle> {
     options.signal.throwIfAborted();
 
@@ -227,14 +212,6 @@ export class SessionSubagentHost {
       emitSubagentSpawned(parent, this.ownerAgentId, agentId, profileName, runOptions, modelAlias);
       try {
         child.config.update({ modelAlias });
-        attachUltraSwarmChannelIfNeeded(
-          this.session,
-          parent,
-          child,
-          agentId,
-          runOptions,
-          profileName,
-        );
         return await subagentCompletionFlow.runPromptTurn(
           parent,
           agentId,

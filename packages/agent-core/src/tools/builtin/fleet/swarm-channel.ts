@@ -5,11 +5,11 @@ import type {
   SwarmBusMessage,
   SwarmBusMessageKind,
   TeamExpertAssignment,
+  TeamPlan,
 } from '@superliora/protocol';
 import { z } from 'zod';
 
 import type { Agent } from '../../../agent/index';
-import type { UltraSwarmRunContext } from '../../../agent/ultra-swarm-run';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
@@ -56,7 +56,12 @@ export type SwarmChannelToolInput = z.infer<typeof SwarmChannelToolInputSchema>;
 export interface SwarmChannelRuntime {
   readonly parentAgent: Agent;
   readonly parentStore: ToolStore;
-  readonly run: UltraSwarmRunContext;
+  /** Structural remnant of the retired UltraSwarm run context (S3-R4). */
+  readonly run: {
+    readonly runId: string;
+    readonly parentToolCallId: string;
+    readonly team: TeamPlan;
+  };
   readonly expert: TeamExpertAssignment;
   readonly childAgentId: string;
   readonly onMessagePosted?: (input: {

@@ -72,14 +72,6 @@ export function emitSubagentSpawned(
   options: RunSubagentOptions,
   modelAlias?: string,
 ): void {
-  const run = parent.ultraSwarmRun;
-  if (
-    run !== undefined &&
-    run.busEnabled &&
-    options.parentToolCallId === run.parentToolCallId
-  ) {
-    run.expertAgentIds.set(profileName, childId);
-  }
   parent.emitEvent({
     type: 'subagent.spawned',
     subagentId: childId,

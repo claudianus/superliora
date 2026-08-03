@@ -10,7 +10,6 @@ import {
   registerSyntheticExpert,
 } from '../../src/expert-agents/synthetic-expert-registry';
 import { resolveExpertCatalogEntry } from '../../src/expert-agents/catalog-extensions';
-import { planFromSyntheticExperts } from '../../src/tools/builtin/collaboration/ultra-swarm-helpers';
 
 describe('synthetic expert LLM fallback', () => {
   afterEach(() => {
@@ -73,11 +72,4 @@ describe('synthetic expert LLM fallback', () => {
     expect(resolveExpertCatalogEntry(expert.id)?.id).toBe(expert.id);
   });
 
-  it('planFromSyntheticExperts produces assignments with selection reason', () => {
-    const expert = buildDeterministicSyntheticExpert('Ship a premium TUI meter');
-    const plan = planFromSyntheticExperts('Ship a premium TUI meter', [expert]);
-    expect(plan.experts).toHaveLength(1);
-    expect(plan.experts[0]!.selectionReason).toContain('LLM-synthesized');
-    expect(plan.experts[0]!.prompt.length).toBeGreaterThan(50);
-  });
 });

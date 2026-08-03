@@ -134,7 +134,9 @@ export function attachToolStreamBridge(
   options: RunSubagentOptions,
 ): () => void {
   const originalEmitEvent = child.emitEvent.bind(child);
-  const runId = resolveToolStreamRunId(parent, options);
+  // UltraSwarm run correlation was retired (S3-R4); child tool streams no
+  // longer carry a swarm run id.
+  const runId: string | undefined = undefined;
   const toolNames = new Map<string, string>();
   child.emitEvent = (event: AgentEvent) => {
     originalEmitEvent(event);
@@ -173,16 +175,6 @@ export function attachToolStreamBridge(
   return () => {
     child.emitEvent = originalEmitEvent;
   };
-}
-
-function resolveToolStreamRunId(
-  parent: Agent,
-  options: RunSubagentOptions,
-): string | undefined {
-  const run = parent.ultraSwarmRun;
-  if (run === undefined) return undefined;
-  if (options.parentToolCallId !== run.parentToolCallId) return undefined;
-  return run.runId;
 }
 
 async function writeProgressCheckpoint(

@@ -35,15 +35,15 @@ describe('ultra-swarm-decision — ultraSwarmEngageNextAction', () => {
       seeded: true,
       nodeIds: ['ac_1', 'ac_2'],
     });
-    expect(out).toContain('UltraSwarm ENGAGE approved');
+    expect(out).toContain('Swarm ENGAGE approved');
     expect(out).toContain('Approved plan WorkGraph nodes are already seeded');
     expect(out).toContain('work_node_ids: ac_1, ac_2');
-    expect(out).toContain('Pass the Capability Coverage Matrix');
+    expect(out).toContain('capability coverage matrix');
   });
 
   it('returns the unseeded next-action line when the graph is not seeded', () => {
     const out = ultraSwarmEngageNextAction('swarm decision: ENGAGE', { seeded: false, nodeIds: [] });
-    expect(out).toContain('UltraSwarm ENGAGE approved');
+    expect(out).toContain('Swarm ENGAGE approved');
     expect(out).toContain('Pass relevant UltraworkGraph work_node_ids after seeding the graph');
   });
 
