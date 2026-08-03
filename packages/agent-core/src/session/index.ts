@@ -41,7 +41,7 @@ import {
 } from './lifecycle/session-plugin-reminder';
 import { SessionAgentLifecycle } from './lifecycle/session-agent-lifecycle';
 import { SessionResources } from './lifecycle/session-resources';
-import { triggerSessionEnd, triggerSessionStart } from './lifecycle/session-lifecycle-hooks';
+import { triggerSessionEnd, triggerSessionStart, triggerSetup } from './lifecycle/session-lifecycle-hooks';
 import { notifyAdditionalDirAdded } from './lifecycle/session-workspace-dirs';
 import { collectSessionWarnings } from './lifecycle/session-warnings';
 import type {
@@ -269,6 +269,7 @@ export class Session {
       agent.printDrainDeadlineMs = Date.now() + ceilingS * 1000;
     }
     await triggerSessionStart(this.hookEngine, 'startup');
+    await triggerSetup(this.hookEngine, 'startup');
     return agent;
   }
 
