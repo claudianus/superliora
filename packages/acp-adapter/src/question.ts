@@ -35,7 +35,7 @@ function skipOptionId(questionIndex: number): string {
  *    tool side, not here).
  *  - One trailing `reject_once` "Skip" option so the user can dismiss
  *    the prompt without forcing an answer. The SDK's ask-user tool
- *    already understands dismissal (`packages/agent-core/src/tools/builtin/collaboration/ask-user.ts:126`
+ *    already understands dismissal (`packages/agent-core/src/tools/builtin/fleet/ask-user.ts:195`
  *    emits `question_dismissed` and resolves with a null result); the
  *    Skip surface is the user-facing path into that branch.
  *

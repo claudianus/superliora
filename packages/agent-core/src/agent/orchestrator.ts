@@ -9,7 +9,7 @@ import {
   QueryWorkerTool,
   SpawnWorkerTool,
   SteerWorkerTool,
-} from '../tools/builtin/collaboration/orchestrator';
+} from '../tools/builtin/fleet/orchestrator';
 import type { SessionSubagentHost } from '../session/subagent/subagent-host';
 import type { Agent } from './index';
 
