@@ -30,19 +30,6 @@ export {
   type HumanizedCollaborationEvent,
 } from '#/fleet';
 export {
-  DEFAULT_WASTED_ROUNDS_KILL_THRESHOLD,
-  createSwarmBudgetState,
-  evaluateSwarmBudget,
-  isWastedBudgetRound,
-  recordSwarmBudgetRound,
-  suggestSwarmBudgetKill,
-  type CreateSwarmBudgetStateOptions,
-  type SwarmBudgetRoundInput,
-  type SwarmBudgetRoundRecord,
-  type SwarmBudgetState,
-  type SwarmBudgetSuggestion,
-} from '#/fleet';
-export {
   CHECK_LIKE_EVIDENCE_TOKENS,
   applyEvidenceHardGate,
   evaluateEvidenceHardGate,

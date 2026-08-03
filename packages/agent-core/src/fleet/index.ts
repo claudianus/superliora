@@ -21,7 +21,6 @@ export {
 } from '@superliora/protocol';
 
 export * from './spawn-agents';
-export * from './swarm-budget';
 export * from './swarm-evidence-gate';
 export * from './swarm-file-lease';
 export * from './swarm-humanize';
