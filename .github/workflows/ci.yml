@@ -82,6 +82,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run lint
       - run: pnpm run check:imports
+      - run: pnpm run check:retire-guardrails
       - run: pnpm run check:layering -- --fail
       - run: pnpm run check:loc -- --fail
       - run: pnpm run check:dir -- --fail
