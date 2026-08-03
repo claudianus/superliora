@@ -1,10 +1,14 @@
 /**
- * Maker≠Checker soft collision detection for AgentSwarm / UltraSwarm.
+ * Maker≠Checker soft collision detection for the fleet fan-out tools.
  *
  * Hard evidence separation lives in swarm-evidence-gate; this module emits
  * non-blocking tips by default. Opt-in hard gate via
  * `SUPERLIORA_MAKER_CHECKER_HARD=1` (or `maker_checker_hard_gate=1`) blocks
  * fan-out until a distinct checker role is present (SOTA G10).
+ *
+ * S3-R6 interim home (moved from swarm-maker-checker.ts). Inventory verdict:
+ * DELETE — the AgentSwarm tool and liora TUI glances that still consume it
+ * are owned by the S3-R5 retirement, so the body is deleted once those land.
  */
 
 export const SWARM_MAKER_CHECKER_SOFT_TIP =
