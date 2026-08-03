@@ -5,7 +5,7 @@ import type { ToolInfo } from '../../src/agent/tool';
 import {
   rankToolsBm25Lite,
   SearchToolsTool,
-} from '../../src/tools/builtin/collaboration/search-tools';
+} from '../../src/tools/builtin/fleet/search-tools';
 
 function agentWithTools(tools: readonly ToolInfo[]): Agent {
   return {

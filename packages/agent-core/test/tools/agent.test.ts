@@ -4,7 +4,7 @@ import { ToolAccesses } from '../../src/loop';
 import type { Logger, LogPayload } from '../../src/logging';
 import type { ResolvedAgentProfile } from '../../src/profile';
 import type { SessionSubagentHost } from '../../src/session/subagent/subagent-host';
-import { AgentTool, AgentToolInputSchema } from '../../src/tools/builtin/collaboration/agent';
+import { AgentTool, AgentToolInputSchema } from '../../src/tools/builtin/fleet/agent';
 import { userCancellationReason } from '../../src/utils/abort';
 import { agentTask, createBackgroundManager } from '../agent/background/helpers';
 import { executeTool } from './fixtures/execute-tool';

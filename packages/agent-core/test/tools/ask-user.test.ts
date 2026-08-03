@@ -8,7 +8,7 @@ import {
   AskUserQuestionInputSchema,
   AskUserQuestionTool,
   type AskUserQuestionInput,
-} from '../../src/tools/builtin/collaboration/ask-user';
+} from '../../src/tools/builtin/fleet/ask-user';
 import { executeTool } from './fixtures/execute-tool';
 import { createBackgroundManager } from '../agent/background/helpers';
 
@@ -197,16 +197,19 @@ describe('AskUserQuestionTool', () => {
     });
 
     expect(result.isError).toBe(false);
-    expect(result.output).toBe(
-      JSON.stringify({
-        answers: { 'Which database?': 'Postgres (Recommended)' },
-        method: 'auto',
-      }),
-    );
+    const output = typeof result.output === 'string' ? JSON.parse(result.output) : result.output;
+    expect(output.method).toBe('auto');
+    expect(output.answers['Which database?']).toContain('Postgres (Recommended)');
+    expect(output.decisions?.[0]).toMatchObject({
+      question: 'Which database?',
+      chosen: 'Postgres (Recommended)',
+      source: 'recommended',
+    });
     expect(requestQuestion).not.toHaveBeenCalled();
     expect(telemetryTrack).toHaveBeenCalledWith('question_answered', {
       answered: 1,
       method: 'auto',
+      auto_decisions: 1,
     });
   });
 
@@ -249,6 +252,7 @@ describe('AskUserQuestionTool', () => {
     expect(telemetryTrack).toHaveBeenCalledWith('question_answered', {
       answered: 1,
       method: 'auto',
+      auto_decisions: 1,
     });
   });
 
@@ -282,7 +286,7 @@ describe('AskUserQuestionTool', () => {
 
     expect(recordUltraInterviewAnswers).toHaveBeenCalledWith(
       expect.any(Array),
-      { 'Which database?': 'A (Recommended)' },
+      { 'Which database?': expect.stringContaining('A (Recommended)') },
       'auto',
     );
     expect(requestQuestion).not.toHaveBeenCalled();

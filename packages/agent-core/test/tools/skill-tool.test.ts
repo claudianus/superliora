@@ -9,11 +9,11 @@ import {
   NestedSkillTooDeepError,
   SkillTool,
   SkillToolInputSchema,
-} from '../../src/tools/builtin/collaboration/skill-tool';
+} from '../../src/tools/builtin/fleet/skill-tool';
 import {
   SearchSkillInputSchema,
   SearchSkillTool,
-} from '../../src/tools/builtin/collaboration/search-skill';
+} from '../../src/tools/builtin/fleet/search-skill';
 import { executeTool } from './fixtures/execute-tool';
 
 const signal = new AbortController().signal;

@@ -17,7 +17,7 @@ import { describe, expect, it } from 'vitest';
 import { FLAG_DEFINITIONS, FlagResolver } from '../../src/flags';
 import { TaskListTool } from '../../src/tools/background/task-list';
 import { compileToolArgsValidator, validateToolArgs } from '../../src/tools/args-validator';
-import { AskUserQuestionTool } from '../../src/tools/builtin/collaboration/ask-user';
+import { AskUserQuestionTool } from '../../src/tools/builtin/fleet/ask-user';
 import { LioraReadTool } from '../../src/tools/builtin/context/liora-read';
 import { createFakeKaos } from './fixtures/fake-kaos';
 
