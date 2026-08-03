@@ -21,6 +21,7 @@ import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { isMotionTheatreActive } from '../../utils/render/motion-beats';
 import { searchCascadePatchFromDegraded } from '../../utils/search/search-cascade';
 import type { WarRoomExpertView } from '../../utils/war-room-experts';
+import type { ControlTowerJobDesk } from '../../features/control-tower/job-desk-events';
 import type { BtwPanelController } from '../panes/btw-panel';
 import type { StreamingUIController } from '../streaming-ui/index';
 import type { TasksBrowserController } from '../panes/tasks-browser';
@@ -28,7 +29,6 @@ import type { JobBoardController } from '../panes/job-board';
 import { SessionEventBackgroundTasks } from './background-tasks';
 import { SessionEventCompaction } from './compaction';
 import { SessionEventGoalQueue } from './goal-queue';
-import { SessionEventJobDesk } from './job-desk';
 import { SessionEventMcpStatus } from './mcp-status';
 import { SessionEventNotices } from './notices';
 import { SessionEventTools } from './tools';
@@ -76,13 +76,14 @@ export interface SessionEventHost {
   readonly btwPanelController: BtwPanelController;
   readonly tasksBrowserController: TasksBrowserController;
   readonly jobBoardController: JobBoardController;
+  /** Conductor job desk — single consumer of `job.*` protocol events (V5-3). */
+  readonly controlTowerDesk: ControlTowerJobDesk;
 }
 
 export class SessionEventHandler {
   readonly subAgentEventHandler: SubAgentEventHandler;
   private readonly compaction: SessionEventCompaction;
   private readonly goalQueue: SessionEventGoalQueue;
-  private readonly jobDesk: SessionEventJobDesk;
   private readonly tools: SessionEventTools;
   private readonly turn: SessionEventTurn;
   private readonly ultrawork: SessionEventUltrawork;
@@ -104,7 +105,6 @@ export class SessionEventHandler {
         this.pendingModelBlockedFallback = value;
       },
     });
-    this.jobDesk = new SessionEventJobDesk(host);
     this.backgroundTasksHandler = new SessionEventBackgroundTasks(
       host,
       this.backgroundTasks,
@@ -359,8 +359,8 @@ export class SessionEventHandler {
       }
       case 'session.meta.updated': this.notices.handleSessionMetaChanged(event); break;
       case 'goal.updated': this.goalQueue.handleUpdated(event); break;
-      case 'job.updated': this.jobDesk.handleUpdated(event); break;
-      case 'job.inbox': this.jobDesk.handleInbox(event); break;
+      case 'job.updated': this.host.controlTowerDesk.handleUpdated(event); break;
+      case 'job.inbox': this.host.controlTowerDesk.handleInbox(event); break;
       case 'skill.activated': this.notices.handleSkillActivated(event); break;
       case 'plugin_command.activated': this.notices.handlePluginCommandActivated(event); break;
       case 'error': this.notices.handleSessionError(event); break;

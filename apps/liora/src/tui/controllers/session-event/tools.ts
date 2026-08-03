@@ -78,10 +78,6 @@ import {
   formatSlowToolWarnNotice,
   isSlowToolWarnOutput,
 } from '../../utils/tools/slow-tool-notice';
-import {
-  mergeConductorJobsSnapshot,
-  parseJobStripFromToolOutput,
-} from '../../utils/job/job-strip';
 import type { StreamingUIController } from '../streaming-ui/index';
 
 const CONDUCTOR_JOB_TOOLS = new Set([
@@ -108,6 +104,8 @@ export interface ToolsEventHost {
   /** Optional — doom-loop hard stop recovery notice (Loop24a). */
   showNotice?(title: string, detail?: string, options?: { coalesceKey?: string }): void;
   showStatus?(msg: string, color?: string): void;
+  /** Conductor job desk sink; Job* tool output backfills through the board store. */
+  readonly controlTowerDesk?: { applyToolOutput(output: string): boolean };
 }
 
 /**
@@ -277,19 +275,15 @@ export class SessionEventTools {
         streamingUI.setTodoList(sanitized);
       }
     }
-    // Conductor Job desk → footer strip (best-effort parse of tool text).
+    // Conductor Job desk — best-effort tool-text backfill converges on the
+    // board store (V5-3 single source).
     if (
       matchedCall !== undefined &&
       CONDUCTOR_JOB_TOOLS.has(matchedCall.name) &&
       event.isError !== true
     ) {
-      const parsed = parseJobStripFromToolOutput(resultData.output);
-      if (parsed !== null) {
-        const next = mergeConductorJobsSnapshot(
-          this.host.state.appState.conductorJobs,
-          parsed,
-        );
-        this.host.setAppState({ conductorJobs: next });
+      const applied = this.host.controlTowerDesk?.applyToolOutput(resultData.output) ?? false;
+      if (applied) {
         if (
           matchedCall.name === 'JobCreate' ||
           matchedCall.name === 'JobResume' ||
