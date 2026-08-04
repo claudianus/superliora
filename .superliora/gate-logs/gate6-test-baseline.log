@@ -1,0 +1,10 @@
+
+> @superliora/monorepo@0.1.1 check:test-baseline /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr
+> node scripts/check-test-baseline.mjs
+
+[apps/liora] 4781/4791 passed, 7 failed (baseline 7, unstable 0)
+test-baseline: OK (no regressions, no unrecorded fixes)
+
+real	0m51.895s
+user	9m4.706s
+sys	2m16.752s

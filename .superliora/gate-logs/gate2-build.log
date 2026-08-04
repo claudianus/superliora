@@ -1,0 +1,684 @@
+
+> @superliora/monorepo@0.1.1 build /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr
+> corepack pnpm -r run build
+
+Scope: 18 of 19 workspace projects
+apps/site build$ tsc -b && vite build
+apps/vis build$ corepack pnpm run build:deps && corepack pnpm --filter @superliora/vis-server build && corepack pnpm --filter @superliora/vis-web build && node scripts/copy-web-dist.mjs
+packages/gui-use build$ tsdown
+apps/vis/web build$ vite build
+apps/vis build: > @superliora/vis@0.1.1 build:deps /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/apps/vis
+apps/vis build: > corepack pnpm --filter @superliora/agent-core... build
+apps/vis build: Scope: 6 of 19 workspace projects
+apps/vis build: ../../packages/gui-use build$ tsdown
+apps/vis build: ../../packages/kaos build$ tsdown
+apps/vis build: ../../packages/kosong build$ tsdown
+apps/vis build: ../../packages/oauth build$ tsdown
+packages/gui-use build: ℹ tsdown v0.22.0 powered by rolldown v1.0.1
+apps/vis build: ../../packages/gui-use build: ℹ tsdown v0.22.0 powered by rolldown v1.0.1
+apps/vis build: ../../packages/oauth build: ℹ tsdown v0.22.0 powered by rolldown v1.0.1
+apps/vis build: ../../packages/kaos build: ℹ tsdown v0.22.0 powered by rolldown v1.0.1
+apps/vis build: ../../packages/kosong build: ℹ tsdown v0.22.0 powered by rolldown v1.0.1
+packages/gui-use build: ℹ config file: /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/gui-use/tsdown.config.ts 
+apps/vis build: ../../packages/kosong build: ℹ config file: /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/kosong/tsdown.config.ts 
+apps/vis build: ../../packages/gui-use build: ℹ config file: /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/gui-use/tsdown.config.ts 
+apps/vis build: ../../packages/kaos build: ℹ config file: /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/kaos/tsdown.config.ts 
+apps/vis build: ../../packages/oauth build: ℹ config file: /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/oauth/tsdown.config.ts 
+packages/gui-use build: ℹ entry: ./src/index.ts
+packages/gui-use build: ℹ tsconfig: tsconfig.json
+packages/gui-use build: ℹ Build start
+apps/vis build: ../../packages/kosong build: ℹ entry: ./src/index.ts, ./src/providers/kimi/index.ts, ./src/providers/openai-legacy/index.ts, ./src/providers/openai-responses.ts, ./src/providers/anthropic/index.ts, ./src/providers/google-genai.ts, ./src/providers/openai-common.ts
+apps/vis build: ../../packages/kosong build: ℹ tsconfig: tsconfig.json
+apps/vis build: ../../packages/gui-use build: ℹ entry: ./src/index.ts
+apps/vis build: ../../packages/gui-use build: ℹ tsconfig: tsconfig.json
+apps/vis build: ../../packages/kaos build: ℹ entry: ./src/index.ts
+apps/vis build: ../../packages/kaos build: ℹ tsconfig: tsconfig.json
+apps/vis build: ../../packages/oauth build: ℹ entry: ./src/index.ts
+apps/vis build: ../../packages/gui-use build: ℹ Build start
+apps/vis build: ../../packages/kosong build: ℹ Build start
+apps/vis build: ../../packages/oauth build: ℹ tsconfig: tsconfig.json
+apps/vis build: ../../packages/kaos build: ℹ Build start
+apps/vis build: ../../packages/oauth build: ℹ Build start
+apps/vis build: ../../packages/kaos build: ℹ dist/index.mjs    41.92 kB │ gzip: 12.10 kB
+apps/vis build: ../../packages/kaos build: ℹ dist/index.d.mts  15.15 kB │ gzip:  4.47 kB
+apps/vis build: ../../packages/kaos build: ℹ 2 files, total: 57.07 kB
+apps/vis build: ../../packages/kaos build: ✔ Build complete in 466ms
+apps/vis build: ../../packages/kaos build: Done
+apps/vis build: ../../packages/protocol build$ tsdown
+apps/vis build: ../../packages/oauth build: ℹ dist/index.mjs    179.94 kB │ gzip: 41.45 kB
+apps/vis build: ../../packages/oauth build: ℹ dist/index.d.mts   73.95 kB │ gzip: 18.36 kB
+apps/vis build: ../../packages/oauth build: ℹ 2 files, total: 253.90 kB
+apps/vis build: ../../packages/oauth build: ✔ Build complete in 570ms
+apps/vis build: ../../packages/protocol build: ℹ tsdown v0.22.0 powered by rolldown v1.0.1
+apps/vis build: ../../packages/oauth build: Done
+apps/vis build: ../../packages/protocol build: ℹ config file: /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/protocol/tsdown.config.ts 
+apps/vis build: ../../packages/protocol build: ℹ entry: ./src/index.ts
+apps/vis build: ../../packages/protocol build: ℹ tsconfig: tsconfig.json
+apps/vis build: ../../packages/protocol build: ℹ Build start
+apps/vis build: ../../packages/protocol build: ℹ dist/index.mjs  143.43 kB │ gzip: 30.41 kB
+apps/vis build: ../../packages/protocol build: ℹ 1 files, total: 143.43 kB
+apps/vis build: ../../packages/protocol build: ✔ Build complete in 27ms
+apps/vis build: ../../packages/protocol build: Done
+packages/gui-use build: ℹ dist/index.mjs    69.14 kB │ gzip: 15.74 kB
+packages/gui-use build: ℹ dist/index.d.mts  18.56 kB │ gzip:  2.50 kB
+packages/gui-use build: ℹ 2 files, total: 87.70 kB
+packages/gui-use build: ✔ Build complete in 701ms
+apps/vis build: ../../packages/gui-use build: ℹ dist/index.mjs    69.14 kB │ gzip: 15.74 kB
+apps/vis build: ../../packages/gui-use build: ℹ dist/index.d.mts  18.56 kB │ gzip:  2.50 kB
+apps/vis build: ../../packages/gui-use build: ℹ 2 files, total: 87.70 kB
+apps/vis build: ../../packages/gui-use build: ✔ Build complete in 709ms
+packages/gui-use build: Done
+packages/kaos build$ tsdown
+apps/vis build: ../../packages/gui-use build: Done
+packages/kaos build: ℹ tsdown v0.22.0 powered by rolldown v1.0.1
+packages/kaos build: ℹ config file: /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/kaos/tsdown.config.ts 
+packages/kaos build: ℹ entry: ./src/index.ts
+packages/kaos build: ℹ tsconfig: tsconfig.json
+packages/kaos build: ℹ Build start
+packages/kaos build: ℹ Cleaning 2 files
+apps/vis build: ../../packages/kosong build: ℹ dist/index.mjs                            29.40 kB │ gzip: 8.81 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/providers/openai-common.mjs           0.68 kB │ gzip: 0.30 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/providers/kimi/index.mjs              0.48 kB │ gzip: 0.24 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/providers/google-genai.mjs            0.30 kB │ gzip: 0.17 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/providers/openai-responses.mjs        0.27 kB │ gzip: 0.16 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/providers/openai-legacy/index.mjs     0.26 kB │ gzip: 0.16 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/providers/anthropic/index.mjs         0.21 kB │ gzip: 0.15 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/openai-responses-CPsyQuv7.mjs        33.42 kB │ gzip: 8.13 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/anthropic-Bxt0NblN.mjs               29.92 kB │ gzip: 8.42 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/kimi-C_2mbY2i.mjs                    25.89 kB │ gzip: 7.41 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/google-genai-C-2T7mwL.mjs            19.77 kB │ gzip: 5.60 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/openai-legacy-CERt2IFw.mjs           15.94 kB │ gzip: 4.44 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/errors-COCKegOM.mjs                  14.43 kB │ gzip: 4.27 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/openai-common-Dy0gXVa6.mjs            9.83 kB │ gzip: 3.10 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/qwen-cache-CYyPB68s.mjs               4.69 kB │ gzip: 1.64 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/tool-call-id-D_ZPCPcR.mjs             3.72 kB │ gzip: 1.22 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/request-auth-DaJvYzCz.mjs             2.38 kB │ gzip: 1.12 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/merge-user-messages-Cyh9lO2Y.mjs      0.74 kB │ gzip: 0.41 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/index.d.mts                          19.15 kB │ gzip: 6.33 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/providers/openai-common.d.mts         0.86 kB │ gzip: 0.34 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/providers/kimi/index.d.mts            0.57 kB │ gzip: 0.28 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/providers/google-genai.d.mts          0.41 kB │ gzip: 0.20 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/providers/openai-responses.d.mts      0.39 kB │ gzip: 0.19 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/providers/openai-legacy/index.d.mts   0.37 kB │ gzip: 0.19 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/providers/anthropic/index.d.mts       0.25 kB │ gzip: 0.16 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/errors-BFBZd8nh.d.mts                22.88 kB │ gzip: 7.51 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/index-4ubpdsZN.d.mts                  7.70 kB │ gzip: 2.60 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/openai-common-Dkvq_Wgi.d.mts          4.40 kB │ gzip: 1.59 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/index-DLzd1cct.d.mts                  4.04 kB │ gzip: 1.57 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/index-D1_eNyQj.d.mts                  3.98 kB │ gzip: 1.32 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/google-genai-C1wNjjdB.d.mts           3.86 kB │ gzip: 1.24 kB
+apps/vis build: ../../packages/kosong build: ℹ dist/openai-responses-DYvkD0YH.d.mts       3.58 kB │ gzip: 1.28 kB
+apps/vis build: ../../packages/kosong build: ℹ 32 files, total: 264.79 kB
+apps/vis build: ../../packages/kosong build: ✔ Build complete in 869ms
+apps/vis build: ../../packages/kosong build: Done
+apps/vis build: ../../packages/agent-core build$ tsdown
+apps/vis build: ../../packages/agent-core build: ℹ tsdown v0.22.0 powered by rolldown v1.0.1
+apps/vis build: ../../packages/agent-core build: ℹ config file: /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/agent-core/tsdown.config.ts 
+apps/vis build: ../../packages/agent-core build: ℹ entry: ./src/index.ts
+apps/vis build: ../../packages/agent-core build: ℹ tsconfig: tsconfig.json
+apps/vis build: ../../packages/agent-core build: ℹ Build start
+packages/kaos build: ℹ dist/index.mjs    41.92 kB │ gzip: 12.10 kB
+packages/kaos build: ℹ dist/index.d.mts  15.15 kB │ gzip:  4.47 kB
+packages/kaos build: ℹ 2 files, total: 57.07 kB
+packages/kaos build: ✔ Build complete in 321ms
+packages/kaos build: Done
+packages/kosong build$ tsdown
+packages/kosong build: ℹ tsdown v0.22.0 powered by rolldown v1.0.1
+packages/kosong build: ℹ config file: /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/kosong/tsdown.config.ts 
+packages/kosong build: ℹ entry: ./src/index.ts, ./src/providers/kimi/index.ts, ./src/providers/openai-legacy/index.ts, ./src/providers/openai-responses.ts, ./src/providers/anthropic/index.ts, ./src/providers/google-genai.ts, ./src/providers/openai-common.ts
+packages/kosong build: ℹ tsconfig: tsconfig.json
+packages/kosong build: ℹ Build start
+packages/kosong build: ℹ Cleaning 36 files
+apps/site build: vite v6.4.2 building for production...
+apps/vis/web build: vite v6.4.2 building for production...
+apps/site build: transforming...
+apps/vis/web build: transforming...
+packages/kosong build: ℹ dist/index.mjs                            29.40 kB │ gzip: 8.81 kB
+packages/kosong build: ℹ dist/providers/openai-common.mjs           0.68 kB │ gzip: 0.30 kB
+packages/kosong build: ℹ dist/providers/kimi/index.mjs              0.48 kB │ gzip: 0.24 kB
+packages/kosong build: ℹ dist/providers/google-genai.mjs            0.30 kB │ gzip: 0.17 kB
+packages/kosong build: ℹ dist/providers/openai-responses.mjs        0.27 kB │ gzip: 0.16 kB
+packages/kosong build: ℹ dist/providers/openai-legacy/index.mjs     0.26 kB │ gzip: 0.16 kB
+packages/kosong build: ℹ dist/providers/anthropic/index.mjs         0.21 kB │ gzip: 0.15 kB
+packages/kosong build: ℹ dist/openai-responses-CPsyQuv7.mjs        33.42 kB │ gzip: 8.13 kB
+packages/kosong build: ℹ dist/anthropic-Bxt0NblN.mjs               29.92 kB │ gzip: 8.42 kB
+packages/kosong build: ℹ dist/kimi-C_2mbY2i.mjs                    25.89 kB │ gzip: 7.41 kB
+packages/kosong build: ℹ dist/google-genai-C-2T7mwL.mjs            19.77 kB │ gzip: 5.60 kB
+packages/kosong build: ℹ dist/openai-legacy-CERt2IFw.mjs           15.94 kB │ gzip: 4.44 kB
+packages/kosong build: ℹ dist/errors-COCKegOM.mjs                  14.43 kB │ gzip: 4.27 kB
+packages/kosong build: ℹ dist/openai-common-Dy0gXVa6.mjs            9.83 kB │ gzip: 3.10 kB
+packages/kosong build: ℹ dist/qwen-cache-CYyPB68s.mjs               4.69 kB │ gzip: 1.64 kB
+packages/kosong build: ℹ dist/tool-call-id-D_ZPCPcR.mjs             3.72 kB │ gzip: 1.22 kB
+packages/kosong build: ℹ dist/request-auth-DaJvYzCz.mjs             2.38 kB │ gzip: 1.12 kB
+packages/kosong build: ℹ dist/merge-user-messages-Cyh9lO2Y.mjs      0.74 kB │ gzip: 0.41 kB
+packages/kosong build: ℹ dist/index.d.mts                          19.15 kB │ gzip: 6.33 kB
+packages/kosong build: ℹ dist/providers/openai-common.d.mts         0.86 kB │ gzip: 0.34 kB
+packages/kosong build: ℹ dist/providers/kimi/index.d.mts            0.57 kB │ gzip: 0.28 kB
+packages/kosong build: ℹ dist/providers/google-genai.d.mts          0.41 kB │ gzip: 0.20 kB
+packages/kosong build: ℹ dist/providers/openai-responses.d.mts      0.39 kB │ gzip: 0.19 kB
+packages/kosong build: ℹ dist/providers/openai-legacy/index.d.mts   0.37 kB │ gzip: 0.19 kB
+packages/kosong build: ℹ dist/providers/anthropic/index.d.mts       0.25 kB │ gzip: 0.16 kB
+packages/kosong build: ℹ dist/errors-BFBZd8nh.d.mts                22.88 kB │ gzip: 7.51 kB
+packages/kosong build: ℹ dist/index-4ubpdsZN.d.mts                  7.70 kB │ gzip: 2.60 kB
+packages/kosong build: ℹ dist/openai-common-Dkvq_Wgi.d.mts          4.40 kB │ gzip: 1.59 kB
+packages/kosong build: ℹ dist/index-DLzd1cct.d.mts                  4.04 kB │ gzip: 1.57 kB
+packages/kosong build: ℹ dist/index-D1_eNyQj.d.mts                  3.98 kB │ gzip: 1.32 kB
+packages/kosong build: ℹ dist/google-genai-C1wNjjdB.d.mts           3.86 kB │ gzip: 1.24 kB
+packages/kosong build: ℹ dist/openai-responses-DYvkD0YH.d.mts       3.58 kB │ gzip: 1.28 kB
+packages/kosong build: ℹ 32 files, total: 264.79 kB
+packages/kosong build: ✔ Build complete in 696ms
+packages/kosong build: Done
+packages/oauth build$ tsdown
+packages/oauth build: ℹ tsdown v0.22.0 powered by rolldown v1.0.1
+packages/oauth build: ℹ config file: /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/oauth/tsdown.config.ts 
+packages/oauth build: ℹ entry: ./src/index.ts
+packages/oauth build: ℹ tsconfig: tsconfig.json
+packages/oauth build: ℹ Build start
+packages/oauth build: ℹ Cleaning 2 files
+apps/site build: ✓ 40 modules transformed.
+apps/site build: rendering chunks...
+apps/site build: computing gzip size...
+apps/site build: dist/en/index.html               2.57 kB │ gzip:  0.86 kB
+apps/site build: dist/index.html                  2.89 kB │ gzip:  1.07 kB
+apps/site build: dist/assets/main-C8LyXwVi.css   39.06 kB │ gzip:  8.33 kB
+apps/site build: dist/assets/main-WSXoZjYp.js   252.26 kB │ gzip: 76.08 kB
+apps/site build: ✓ built in 418ms
+apps/site build: Done
+packages/protocol build$ tsdown
+apps/vis/web build: ✓ 129 modules transformed.
+packages/protocol build: ℹ tsdown v0.22.0 powered by rolldown v1.0.1
+packages/protocol build: ℹ config file: /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/protocol/tsdown.config.ts 
+packages/protocol build: ℹ entry: ./src/index.ts
+packages/protocol build: ℹ tsconfig: tsconfig.json
+packages/protocol build: ℹ Build start
+packages/protocol build: ℹ Cleaning 1 files
+packages/protocol build: ℹ dist/index.mjs  143.43 kB │ gzip: 30.41 kB
+packages/protocol build: ℹ 1 files, total: 143.43 kB
+packages/protocol build: ✔ Build complete in 24ms
+packages/protocol build: Done
+packages/telemetry build$ tsdown
+apps/vis/web build: rendering chunks...
+apps/vis/web build: computing gzip size...
+apps/vis/web build: dist/index.html                   1.54 kB │ gzip:   0.73 kB
+apps/vis/web build: dist/assets/index-DIzO79E6.css   24.14 kB │ gzip:   5.86 kB
+apps/vis/web build: dist/assets/index-Cu4z-xv0.js   372.25 kB │ gzip: 109.62 kB
+apps/vis/web build: ✓ built in 601ms
+apps/vis/web build: Done
+packages/tui-renderer build$ tsdown
+packages/telemetry build: ℹ tsdown v0.22.0 powered by rolldown v1.0.1
+packages/telemetry build: ℹ config file: /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/telemetry/tsdown.config.ts 
+packages/telemetry build: ℹ entry: ./src/index.ts
+packages/telemetry build: ℹ tsconfig: tsconfig.json
+packages/telemetry build: ℹ Build start
+packages/oauth build: ℹ dist/index.mjs    179.94 kB │ gzip: 41.45 kB
+packages/oauth build: ℹ dist/index.d.mts   73.95 kB │ gzip: 18.36 kB
+packages/oauth build: ℹ 2 files, total: 253.90 kB
+packages/oauth build: ✔ Build complete in 432ms
+packages/tui-renderer build: ℹ tsdown v0.22.0 powered by rolldown v1.0.1
+packages/oauth build: Done
+packages/tui-renderer build: ℹ config file: /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/tui-renderer/tsdown.config.ts 
+packages/tui-renderer build: ℹ entry: ./src/index.ts
+packages/tui-renderer build: ℹ target: node24.15.0
+packages/tui-renderer build: ℹ tsconfig: tsconfig.json
+packages/tui-renderer build: ℹ Build start
+packages/telemetry build: ℹ dist/index.mjs    20.62 kB │ gzip: 5.76 kB
+packages/telemetry build: ℹ dist/index.d.mts   5.80 kB │ gzip: 1.55 kB
+packages/telemetry build: ℹ 2 files, total: 26.42 kB
+packages/telemetry build: ✔ Build complete in 294ms
+packages/telemetry build: Done
+packages/tui-renderer build: ℹ dist/index.mjs    672.64 kB │ gzip: 156.88 kB
+packages/tui-renderer build: ℹ dist/index.d.mts  263.11 kB │ gzip:  59.22 kB
+packages/tui-renderer build: ℹ 2 files, total: 935.75 kB
+packages/tui-renderer build: ✔ Build complete in 624ms
+packages/tui-renderer build: Done
+apps/vis build: ../../packages/agent-core build: (rolldown-plugin-dts:fake-js plugin) `declare module "../../store"` will be kept as-is in the output. Relative module declaration may cause unexpected issues. Found in /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/agent-core/src/tools/builtin/state/todo-list.d.ts.
+apps/vis build: ../../packages/agent-core build: (rolldown-plugin-dts:fake-js plugin) `declare module "../../store"` will be kept as-is in the output. Relative module declaration may cause unexpected issues. Found in /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/agent-core/src/tools/builtin/state/ultrawork-graph.d.ts.
+apps/vis build: ../../packages/agent-core build: (rolldown-plugin-dts:fake-js plugin) `declare module "../../store"` will be kept as-is in the output. Relative module declaration may cause unexpected issues. Found in /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/agent-core/src/tools/builtin/job/job-ledger.d.ts.
+apps/vis build: ../../packages/agent-core build: (rolldown-plugin-dts:fake-js plugin) `declare module "../../store"` will be kept as-is in the output. Relative module declaration may cause unexpected issues. Found in /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/agent-core/src/tools/builtin/job/job-inbox.d.ts.
+apps/vis build: ../../packages/agent-core build: (rolldown-plugin-dts:fake-js plugin) `declare module "../../store"` will be kept as-is in the output. Relative module declaration may cause unexpected issues. Found in /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/agent-core/src/tools/builtin/job/job-warm-pool.d.ts.
+apps/vis build: ../../packages/agent-core build: ℹ Hint: consider adding deps.onlyBundle option to avoid unintended bundling of dependencies, or set deps.onlyBundle: false to disable this hint.
+apps/vis build: ../../packages/agent-core build: See more at https://tsdown.dev/options/dependencies#deps-onlybundle
+apps/vis build: ../../packages/agent-core build: Detected dependencies in bundle:
+apps/vis build: ../../packages/agent-core build: - picomatch
+apps/vis build: ../../packages/agent-core build: - buffer-crc32
+apps/vis build: ../../packages/agent-core build: - yazl
+apps/vis build: ../../packages/agent-core build: ℹ dist/index.mjs      8.10 MB
+apps/vis build: ../../packages/agent-core build: ℹ dist/index.d.mts  670.34 kB │ gzip: 145.32 kB
+apps/vis build: ../../packages/agent-core build: ℹ 2 files, total: 8.77 MB
+apps/vis build: ../../packages/agent-core build: [33m[INEFFECTIVE_DYNAMIC_IMPORT] [0msrc/autopilot/git.ts is dynamically imported by src/tools/builtin/fleet/orchestrator.ts but also statically imported by src/autopilot/index.ts, src/autopilot/mode.ts, src/session/worktree.ts, dynamic import will not move module into another chunk.
+apps/vis build: ../../packages/agent-core build: [33m[INEFFECTIVE_DYNAMIC_IMPORT] [0msrc/tools/builtin/job/job-fleet-bridge.ts is dynamically imported by src/tools/builtin/fleet/orchestrator.ts but also statically imported by src/tools/builtin/job/index.ts, dynamic import will not move module into another chunk.
+apps/vis build: ../../packages/agent-core build: [33m[INEFFECTIVE_DYNAMIC_IMPORT] [0msrc/tools/providers/xai-grok-build.ts is dynamically imported by src/tools/builtin/media/generate-image.ts, src/tools/builtin/media/generate-video.ts but also statically imported by src/rpc/runtime-factory.ts, dynamic import will not move module into another chunk.
+apps/vis build: ../../packages/agent-core build: ✔ Build complete in 2901ms
+apps/vis build: ../../packages/agent-core build: Done
+apps/vis build: > @superliora/vis-server@0.1.1 build /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/apps/vis/server
+apps/vis build: > tsdown
+apps/vis build: ℹ tsdown v0.22.0 powered by rolldown v1.0.1
+apps/vis build: ℹ config file: /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/apps/vis/server/tsdown.config.ts 
+apps/vis build: ℹ entry: src/index.ts
+apps/vis build: ℹ tsconfig: tsconfig.json
+apps/vis build:  WARN  `external` is deprecated. Use `deps.neverBundle` instead.
+apps/vis build: ℹ Build start
+apps/vis build: ℹ dist/server.mjs    44.21 kB │ gzip: 12.93 kB
+apps/vis build: ℹ dist/server.d.mts   0.01 kB │ gzip:  0.03 kB
+apps/vis build: ℹ 2 files, total: 44.22 kB
+apps/vis build: ✔ Build complete in 1148ms
+apps/vis build: > @superliora/vis-web@0.1.1 build /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/apps/vis/web
+apps/vis build: > vite build
+apps/vis build: vite v6.4.2 building for production...
+apps/vis build: transforming...
+apps/vis build: ✓ 129 modules transformed.
+apps/vis build: rendering chunks...
+apps/vis build: computing gzip size...
+apps/vis build: dist/index.html                   1.54 kB │ gzip:   0.73 kB
+apps/vis build: dist/assets/index-DIzO79E6.css   24.14 kB │ gzip:   5.86 kB
+apps/vis build: dist/assets/index-Cu4z-xv0.js   372.25 kB │ gzip: 109.62 kB
+apps/vis build: ✓ built in 487ms
+apps/vis build: [copy-web-dist] copied /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/apps/vis/web/dist -> /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/apps/vis/server/dist/public
+apps/vis build: Done
+packages/server-e2e build$ tsdown
+packages/agent-core build$ tsdown
+packages/server-e2e build: ℹ tsdown v0.22.0 powered by rolldown v1.0.1
+packages/agent-core build: ℹ tsdown v0.22.0 powered by rolldown v1.0.1
+packages/agent-core build: ℹ config file: /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/agent-core/tsdown.config.ts 
+packages/agent-core build: ℹ entry: ./src/index.ts
+packages/agent-core build: ℹ tsconfig: tsconfig.json
+packages/agent-core build: ℹ Build start
+packages/server-e2e build: ℹ config file: /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/server-e2e/tsdown.config.ts 
+packages/server-e2e build: ℹ entry: ./src/index.ts
+packages/server-e2e build: ℹ tsconfig: tsconfig.json
+packages/server-e2e build: ℹ Build start
+packages/agent-core build: ℹ Cleaning 2 files
+packages/server-e2e build: ℹ dist/index.mjs  162.05 kB │ gzip: 36.04 kB
+packages/server-e2e build: ℹ 1 files, total: 162.05 kB
+packages/server-e2e build: ✔ Build complete in 22ms
+packages/server-e2e build: Done
+packages/agent-core build: (rolldown-plugin-dts:fake-js plugin) `declare module "../../store"` will be kept as-is in the output. Relative module declaration may cause unexpected issues. Found in /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/agent-core/src/tools/builtin/state/todo-list.d.ts.
+packages/agent-core build: (rolldown-plugin-dts:fake-js plugin) `declare module "../../store"` will be kept as-is in the output. Relative module declaration may cause unexpected issues. Found in /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/agent-core/src/tools/builtin/state/ultrawork-graph.d.ts.
+packages/agent-core build: (rolldown-plugin-dts:fake-js plugin) `declare module "../../store"` will be kept as-is in the output. Relative module declaration may cause unexpected issues. Found in /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/agent-core/src/tools/builtin/job/job-ledger.d.ts.
+packages/agent-core build: (rolldown-plugin-dts:fake-js plugin) `declare module "../../store"` will be kept as-is in the output. Relative module declaration may cause unexpected issues. Found in /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/agent-core/src/tools/builtin/job/job-inbox.d.ts.
+packages/agent-core build: (rolldown-plugin-dts:fake-js plugin) `declare module "../../store"` will be kept as-is in the output. Relative module declaration may cause unexpected issues. Found in /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/agent-core/src/tools/builtin/job/job-warm-pool.d.ts.
+packages/agent-core build: ℹ Hint: consider adding deps.onlyBundle option to avoid unintended bundling of dependencies, or set deps.onlyBundle: false to disable this hint.
+packages/agent-core build: See more at https://tsdown.dev/options/dependencies#deps-onlybundle
+packages/agent-core build: Detected dependencies in bundle:
+packages/agent-core build: - picomatch
+packages/agent-core build: - buffer-crc32
+packages/agent-core build: - yazl
+packages/agent-core build: ℹ dist/index.mjs      8.10 MB
+packages/agent-core build: ℹ dist/index.d.mts  670.34 kB │ gzip: 145.32 kB
+packages/agent-core build: ℹ 2 files, total: 8.77 MB
+packages/agent-core build: [33m[INEFFECTIVE_DYNAMIC_IMPORT] [0msrc/autopilot/git.ts is dynamically imported by src/tools/builtin/fleet/orchestrator.ts but also statically imported by src/autopilot/index.ts, src/autopilot/mode.ts, src/session/worktree.ts, dynamic import will not move module into another chunk.
+packages/agent-core build: [33m[INEFFECTIVE_DYNAMIC_IMPORT] [0msrc/tools/builtin/job/job-fleet-bridge.ts is dynamically imported by src/tools/builtin/fleet/orchestrator.ts but also statically imported by src/tools/builtin/job/index.ts, dynamic import will not move module into another chunk.
+packages/agent-core build: [33m[INEFFECTIVE_DYNAMIC_IMPORT] [0msrc/tools/providers/xai-grok-build.ts is dynamically imported by src/tools/builtin/media/generate-image.ts, src/tools/builtin/media/generate-video.ts but also statically imported by src/rpc/runtime-factory.ts, dynamic import will not move module into another chunk.
+packages/agent-core build: ✔ Build complete in 2586ms
+packages/agent-core build: Done
+packages/node-sdk build$ tsdown && corepack pnpm run build:dts
+apps/vis/server build$ tsdown
+packages/server build$ tsdown
+packages/server build: ℹ tsdown v0.22.0 powered by rolldown v1.0.1
+apps/vis/server build: ℹ tsdown v0.22.0 powered by rolldown v1.0.1
+packages/node-sdk build: ℹ tsdown v0.22.0 powered by rolldown v1.0.1
+apps/vis/server build: ℹ config file: /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/apps/vis/server/tsdown.config.ts 
+apps/vis/server build: ℹ entry: src/index.ts
+apps/vis/server build: ℹ tsconfig: tsconfig.json
+apps/vis/server build:  WARN  `external` is deprecated. Use `deps.neverBundle` instead.
+apps/vis/server build: ℹ Build start
+packages/server build: ℹ config file: /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/server/tsdown.config.ts 
+packages/server build: ℹ entry: ./src/index.ts
+packages/server build: ℹ tsconfig: tsconfig.json
+packages/node-sdk build: ℹ config file: /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/node-sdk/tsdown.config.ts 
+packages/server build: ℹ Build start
+packages/node-sdk build: ℹ entry: ./src/index.ts
+apps/vis/server build: ℹ Cleaning 7 files
+packages/node-sdk build: ℹ tsconfig: tsconfig.json
+packages/node-sdk build: ℹ Build start
+packages/node-sdk build: ℹ Cleaning 1 files
+packages/node-sdk build: ℹ Hint: consider adding deps.onlyBundle option to avoid unintended bundling of dependencies, or set deps.onlyBundle: false to disable this hint.
+packages/node-sdk build: See more at https://tsdown.dev/options/dependencies#deps-onlybundle
+packages/node-sdk build: Detected dependencies in bundle:
+packages/node-sdk build: - pathe
+packages/node-sdk build: - @anthropic-ai/sdk
+packages/node-sdk build: - standardwebhooks
+packages/node-sdk build: - @stablelib/base64
+packages/node-sdk build: - fast-sha256
+packages/node-sdk build: - tslib
+packages/node-sdk build: - @aws-crypto/sha256-js
+packages/node-sdk build: - @aws-sdk/util-utf8-browser
+packages/node-sdk build: - @aws-crypto/util
+packages/node-sdk build: - @smithy/fetch-http-handler
+packages/node-sdk build: - @smithy/types
+packages/node-sdk build: - @smithy/protocol-http
+packages/node-sdk build: - @smithy/util-middleware
+packages/node-sdk build: - @smithy/is-array-buffer
+packages/node-sdk build: - @smithy/util-buffer-from
+packages/node-sdk build: - @smithy/util-utf8
+packages/node-sdk build: - @smithy/util-hex-encoding
+packages/node-sdk build: - @smithy/util-uri-escape
+packages/node-sdk build: - @smithy/signature-v4
+packages/node-sdk build: - @anthropic-ai/bedrock-sdk
+packages/node-sdk build: - @aws-crypto/crc32
+packages/node-sdk build: - @smithy/eventstream-codec
+packages/node-sdk build: - @smithy/eventstream-serde-universal
+packages/node-sdk build: - @smithy/eventstream-serde-node
+packages/node-sdk build: - @smithy/util-base64
+packages/node-sdk build: - @smithy/middleware-stack
+packages/node-sdk build: - @smithy/util-stream
+packages/node-sdk build: - @smithy/querystring-builder
+packages/node-sdk build: - @smithy/node-http-handler
+packages/node-sdk build: - @smithy/smithy-client
+packages/node-sdk build: - @aws-sdk/middleware-eventstream
+packages/node-sdk build: - @aws-sdk/core
+packages/node-sdk build: - @smithy/core
+packages/node-sdk build: - @aws-sdk/middleware-websocket
+packages/node-sdk build: - @aws-sdk/eventstream-handler-node
+packages/node-sdk build: - @aws-sdk/client-bedrock-runtime
+packages/node-sdk build: - retry
+packages/node-sdk build: - p-retry
+packages/node-sdk build: - extend
+packages/node-sdk build: - gaxios
+packages/node-sdk build: - bignumber.js
+packages/node-sdk build: - json-bigint
+packages/node-sdk build: - gcp-metadata
+packages/node-sdk build: - google-logging-utils
+packages/node-sdk build: - base64-js
+packages/node-sdk build: - google-auth-library
+packages/node-sdk build: - safe-buffer
+packages/node-sdk build: - ecdsa-sig-formatter
+packages/node-sdk build: - jws
+packages/node-sdk build: - buffer-equal-constant-time
+packages/node-sdk build: - jwa
+packages/node-sdk build: - ws
+packages/node-sdk build: - @google/genai
+packages/node-sdk build: - openai
+packages/node-sdk build: - @anthropic-ai/vertex-sdk
+packages/node-sdk build: - picomatch
+packages/node-sdk build: - nunjucks
+packages/node-sdk build: - asap
+packages/node-sdk build: - a-sync-waterfall
+packages/node-sdk build: - readdirp
+packages/node-sdk build: - chokidar
+packages/node-sdk build: - ulid
+packages/node-sdk build: - asn1
+packages/node-sdk build: - safer-buffer
+packages/node-sdk build: - tweetnacl
+packages/node-sdk build: - bcrypt-pbkdf
+packages/node-sdk build: - ssh2
+packages/node-sdk build: - graceful-fs
+packages/node-sdk build: - signal-exit
+packages/node-sdk build: - proper-lockfile
+packages/node-sdk build: - js-yaml
+packages/node-sdk build: - object-keys
+packages/node-sdk build: - es-define-property
+packages/node-sdk build: - es-errors
+packages/node-sdk build: - gopd
+packages/node-sdk build: - define-data-property
+packages/node-sdk build: - has-property-descriptors
+packages/node-sdk build: - define-properties
+packages/node-sdk build: - es-object-atoms
+packages/node-sdk build: - math-intrinsics
+packages/node-sdk build: - has-symbols
+packages/node-sdk build: - get-proto
+packages/node-sdk build: - function-bind
+packages/node-sdk build: - call-bind-apply-helpers
+packages/node-sdk build: - dunder-proto
+packages/node-sdk build: - hasown
+packages/node-sdk build: - get-intrinsic
+packages/node-sdk build: - set-function-length
+packages/node-sdk build: - call-bind
+packages/node-sdk build: - call-bound
+packages/node-sdk build: - es-abstract
+packages/node-sdk build: - is-callable
+packages/node-sdk build: - for-each
+packages/node-sdk build: - has-tostringtag
+packages/node-sdk build: - is-regex
+packages/node-sdk build: - safe-regex-test
+packages/node-sdk build: - regexp.escape
+packages/node-sdk build: - minisearch
+packages/node-sdk build: - pend
+packages/node-sdk build: - yauzl
+packages/node-sdk build: - buffer-crc32
+packages/node-sdk build: - @upstash/context7-sdk
+packages/node-sdk build: - ajv
+packages/node-sdk build: - fast-deep-equal
+packages/node-sdk build: - json-schema-traverse
+packages/node-sdk build: - fast-uri
+packages/node-sdk build: - ajv-formats
+packages/node-sdk build: - pkce-challenge
+packages/node-sdk build: - @modelcontextprotocol/sdk
+packages/node-sdk build: - linkedom
+packages/node-sdk build: - entities
+packages/node-sdk build: - htmlparser2
+packages/node-sdk build: - domelementtype
+packages/node-sdk build: - domhandler
+packages/node-sdk build: - dom-serializer
+packages/node-sdk build: - domutils
+packages/node-sdk build: - boolbase
+packages/node-sdk build: - css-what
+packages/node-sdk build: - css-select
+packages/node-sdk build: - nth-check
+packages/node-sdk build: - uhyphen
+packages/node-sdk build: - cssom
+packages/node-sdk build: - zod-to-json-schema
+packages/node-sdk build: - eventsource-parser
+packages/node-sdk build: - eventsource
+packages/node-sdk build: - undici
+packages/node-sdk build: - smart-buffer
+packages/node-sdk build: - socks
+packages/node-sdk build: - ip-address
+packages/node-sdk build: - isexe
+packages/node-sdk build: - which
+packages/node-sdk build: - path-key
+packages/node-sdk build: - cross-spawn
+packages/node-sdk build: - shebang-regex
+packages/node-sdk build: - shebang-command
+packages/node-sdk build: - defuddle
+packages/node-sdk build: - @xmldom/xmldom
+packages/node-sdk build: - mathml-to-latex
+packages/node-sdk build: - temml
+packages/node-sdk build: - @mixmark-io/domino
+packages/node-sdk build: - turndown
+packages/node-sdk build: - ignore
+packages/node-sdk build: - cloakbrowser
+packages/node-sdk build: - agent-base
+packages/node-sdk build: - https-proxy-agent
+packages/node-sdk build: - @aws/lambda-invoke-store
+packages/node-sdk build: - @aws-sdk/credential-provider-env
+packages/node-sdk build: - @smithy/credential-provider-imds
+packages/node-sdk build: - @aws-sdk/credential-provider-http
+packages/node-sdk build: - @aws-sdk/nested-clients
+packages/node-sdk build: - @aws-sdk/xml-builder
+packages/node-sdk build: - @aws-sdk/token-providers
+packages/node-sdk build: - @aws-sdk/credential-provider-sso
+packages/node-sdk build: - @aws-sdk/credential-provider-login
+packages/node-sdk build: - @aws-sdk/signature-v4-multi-region
+packages/node-sdk build: - @aws-sdk/credential-provider-process
+packages/node-sdk build: - @aws-sdk/credential-provider-web-identity
+packages/node-sdk build: - @aws-sdk/credential-provider-ini
+packages/node-sdk build: - @aws-sdk/credential-provider-node
+packages/node-sdk build: - @aws-sdk/credential-provider-cognito-identity
+packages/node-sdk build: - @aws-sdk/credential-providers
+packages/node-sdk build: - bowser
+packages/node-sdk build: - bmp-ts
+packages/node-sdk build: - tinycolor2
+packages/node-sdk build: - @jimp/utils
+packages/node-sdk build: - @jimp/js-bmp
+packages/node-sdk build: - omggif
+packages/node-sdk build: - gifwrap
+packages/node-sdk build: - image-q
+packages/node-sdk build: - @jimp/js-gif
+packages/node-sdk build: - jpeg-js
+packages/node-sdk build: - @jimp/js-jpeg
+packages/node-sdk build: - pngjs
+packages/node-sdk build: - @jimp/js-png
+packages/node-sdk build: - pako
+packages/node-sdk build: - utif2
+packages/node-sdk build: - @jimp/js-tiff
+packages/node-sdk build: - @jimp/types
+packages/node-sdk build: - @jimp/plugin-blit
+packages/node-sdk build: - @jimp/plugin-blur
+packages/node-sdk build: - @jimp/plugin-circle
+packages/node-sdk build: - @jimp/plugin-color
+packages/node-sdk build: - await-to-js
+packages/node-sdk build: - @jimp/file-ops
+packages/node-sdk build: - mime
+packages/node-sdk build: - @jimp/core
+packages/node-sdk build: - exif-parser
+packages/node-sdk build: - @jimp/plugin-resize
+packages/node-sdk build: - @jimp/plugin-contain
+packages/node-sdk build: - @jimp/plugin-crop
+packages/node-sdk build: - @jimp/plugin-cover
+packages/node-sdk build: - @jimp/plugin-displace
+packages/node-sdk build: - @jimp/plugin-dither
+packages/node-sdk build: - @jimp/plugin-fisheye
+packages/node-sdk build: - @jimp/plugin-flip
+packages/node-sdk build: - any-base
+packages/node-sdk build: - @jimp/plugin-hash
+packages/node-sdk build: - @jimp/plugin-mask
+packages/node-sdk build: - @jimp/plugin-print
+packages/node-sdk build: - @jimp/plugin-rotate
+packages/node-sdk build: - @jimp/plugin-threshold
+packages/node-sdk build: - @jimp/plugin-quantize
+packages/node-sdk build: - jimp
+packages/node-sdk build: - strtok3
+packages/node-sdk build: - @borewit/text-codec
+packages/node-sdk build: - token-types
+packages/node-sdk build: - @tokenizer/inflate
+packages/node-sdk build: - uint8array-extras
+packages/node-sdk build: - file-type
+packages/node-sdk build: - web-streams-polyfill
+packages/node-sdk build: - fetch-blob
+packages/node-sdk build: - formdata-polyfill
+packages/node-sdk build: - node-domexception
+packages/node-sdk build: - tar
+packages/node-sdk build: - mmdb-lib
+packages/node-sdk build: - node-pty
+packages/node-sdk build: - node-fetch
+packages/node-sdk build: - playwright-core
+packages/node-sdk build: - fsevents
+packages/node-sdk build: - ms
+packages/node-sdk build: - debug
+packages/node-sdk build: - has-flag
+packages/node-sdk build: - supports-color
+packages/node-sdk build: - data-uri-to-buffer
+packages/node-sdk build: ℹ dist/index.mjs                       16.11 MB
+packages/node-sdk build: ℹ dist/playwright-core-DLRNFpl0.mjs     5.81 MB
+packages/node-sdk build: ℹ dist/esm-DY0m2jzP.mjs               825.03 kB │ gzip: 183.84 kB
+packages/node-sdk build: ℹ dist/dist-cjs-D6OWEKA8.mjs          499.63 kB │ gzip:  98.37 kB
+packages/node-sdk build: ℹ dist/checksum-m8GLZXO8.mjs          238.75 kB │ gzip:  51.09 kB
+packages/node-sdk build: ℹ dist/from-CNcdSK2a.mjs              171.68 kB │ gzip:  30.01 kB
+packages/node-sdk build: ℹ dist/assets/fsevents-mvLcArqM.node  163.63 kB │ gzip:  18.71 kB
+packages/node-sdk build: ℹ dist/file-type-BwxAedva.mjs         107.85 kB │ gzip:  23.40 kB
+packages/node-sdk build: ℹ dist/index.min-DUb-F9nO.mjs         104.36 kB │ gzip:  28.13 kB
+packages/node-sdk build: ℹ dist/dist-B8xFqvc7.mjs               65.14 kB │ gzip:  17.92 kB
+packages/node-sdk build: ℹ dist/human-Cy5W9BR0.mjs              63.15 kB │ gzip:  12.13 kB
+packages/node-sdk build: ℹ dist/es5-oXM37fE1.mjs                53.12 kB │ gzip:   8.56 kB
+packages/node-sdk build: ℹ dist/dist-cjs-DdnHO1Ca.mjs           48.53 kB │ gzip:  10.17 kB
+packages/node-sdk build: ℹ dist/src-ZwcnyBbV.mjs                43.03 kB │ gzip:  11.39 kB
+packages/node-sdk build: ℹ dist/lib-CXloIU-C.mjs                40.62 kB │ gzip:   9.14 kB
+packages/node-sdk build: ℹ dist/src-2C00q9Ll.mjs                22.83 kB │ gzip:   7.02 kB
+packages/node-sdk build: ℹ dist/lib-BGUhVRHr.mjs                16.22 kB │ gzip:   4.37 kB
+packages/node-sdk build: ℹ dist/dist-B53bWCHh.mjs               15.71 kB │ gzip:   4.26 kB
+packages/node-sdk build: ℹ dist/multipart-parser-CQVV-xkc.mjs    9.01 kB │ gzip:   2.66 kB
+packages/node-sdk build: ℹ dist/config-C352miTk.mjs              4.24 kB │ gzip:   1.71 kB
+packages/node-sdk build: ℹ dist/chunk-DNHTS3r1.mjs               2.02 kB │ gzip:   0.89 kB
+packages/node-sdk build: ℹ 21 files, total: 24.41 MB
+packages/node-sdk build: ../../node_modules/.pnpm/playwright-core@1.61.1/node_modules/playwright-core/lib/coreBundle.js (64502:28) [33m[EVAL] [0mUse of direct `eval` function is strongly discouraged as it poses security risks and may cause issues with minification.
+packages/node-sdk build:        [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m ../../node_modules/.pnpm/playwright-core@1.61.1/node_modules/playwright-core/lib/coreBundle.js:64502:29 [38;5;246m][0m
+packages/node-sdk build:        [38;5;246m│[0m
+packages/node-sdk build:  [38;5;246m64502 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249mc[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249ms[0m[38;5;249mt[0m[38;5;249m [0m[38;5;249mv[0m[38;5;249ma[0m[38;5;249ml[0m[38;5;249mu[0m[38;5;249me[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m [0meval[38;5;249m([0m[38;5;249m`[0m[38;5;249m([0m[38;5;249m$[0m[38;5;249m{[0m[38;5;249me[0m[38;5;249mx[0m[38;5;249mp[0m[38;5;249mr[0m[38;5;249m}[0m[38;5;249m)[0m[38;5;249m`[0m[38;5;249m)[0m[38;5;249m;[0m
+packages/node-sdk build:  [38;5;240m      │[0m                             ──┬─  
+packages/node-sdk build:  [38;5;240m      │[0m                               ╰─── Use of direct `eval` here.
+packages/node-sdk build:  [38;5;240m      │[0m 
+packages/node-sdk build:  [38;5;240m      │[0m [38;5;115mHelp[0m: Consider using indirect eval. For more information, check the documentation: https://rolldown.rs/guide/troubleshooting#avoiding-direct-eval
+packages/node-sdk build: [38;5;246m───────╯[0m
+packages/node-sdk build: ../../node_modules/.pnpm/playwright-core@1.61.1/node_modules/playwright-core/lib/coreBundle.js (64509:28) [33m[EVAL] [0mUse of direct `eval` function is strongly discouraged as it poses security risks and may cause issues with minification.
+packages/node-sdk build:        [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m ../../node_modules/.pnpm/playwright-core@1.61.1/node_modules/playwright-core/lib/coreBundle.js:64509:29 [38;5;246m][0m
+packages/node-sdk build:        [38;5;246m│[0m
+packages/node-sdk build:  [38;5;246m64509 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249mc[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249ms[0m[38;5;249mt[0m[38;5;249m [0m[38;5;249mv[0m[38;5;249ma[0m[38;5;249ml[0m[38;5;249mu[0m[38;5;249me[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m [0meval[38;5;249m([0m[38;5;249m`[0m[38;5;249m([0m[38;5;249m$[0m[38;5;249m{[0m[38;5;249me[0m[38;5;249mx[0m[38;5;249mp[0m[38;5;249mr[0m[38;5;249m}[0m[38;5;249m)[0m[38;5;249m`[0m[38;5;249m)[0m[38;5;249m;[0m
+packages/node-sdk build:  [38;5;240m      │[0m                             ──┬─  
+packages/node-sdk build:  [38;5;240m      │[0m                               ╰─── Use of direct `eval` here.
+packages/node-sdk build:  [38;5;240m      │[0m 
+packages/node-sdk build:  [38;5;240m      │[0m [38;5;115mHelp[0m: Consider using indirect eval. For more information, check the documentation: https://rolldown.rs/guide/troubleshooting#avoiding-direct-eval
+packages/node-sdk build: [38;5;246m───────╯[0m
+packages/node-sdk build: ../../node_modules/.pnpm/playwright-core@1.61.1/node_modules/playwright-core/lib/coreBundle.js (42608:33) [33m[UNRESOLVED_IMPORT] [0mCould not resolve 'chromium-bidi/lib/cjs/bidiMapper/BidiMapper' in ../../node_modules/.pnpm/playwright-core@1.61.1/node_modules/playwright-core/lib/coreBundle.js
+packages/node-sdk build:        [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m ../../node_modules/.pnpm/playwright-core@1.61.1/node_modules/playwright-core/lib/coreBundle.js:42608:34 [38;5;246m][0m
+packages/node-sdk build:        [38;5;246m│[0m
+packages/node-sdk build:  [38;5;246m42608 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249mb[0m[38;5;249mi[0m[38;5;249md[0m[38;5;249mi[0m[38;5;249mM[0m[38;5;249ma[0m[38;5;249mp[0m[38;5;249mp[0m[38;5;249me[0m[38;5;249mr[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m [0m[38;5;249m_[0m[38;5;249m_[0m[38;5;249mt[0m[38;5;249mo[0m[38;5;249mE[0m[38;5;249mS[0m[38;5;249mM[0m[38;5;249m([0m[38;5;249mr[0m[38;5;249me[0m[38;5;249mq[0m[38;5;249mu[0m[38;5;249mi[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249m([0m"chromium-bidi/lib/cjs/bidiMapper/BidiMapper"[38;5;249m)[0m[38;5;249m)[0m[38;5;249m;[0m
+packages/node-sdk build:  [38;5;240m      │[0m                                  ──────────────────────┬──────────────────────  
+packages/node-sdk build:  [38;5;240m      │[0m                                                        ╰──────────────────────── Module not found, treating it as an external dependency
+packages/node-sdk build: [38;5;246m───────╯[0m
+packages/node-sdk build: ../../node_modules/.pnpm/playwright-core@1.61.1/node_modules/playwright-core/lib/coreBundle.js (42609:40) [33m[UNRESOLVED_IMPORT] [0mCould not resolve 'chromium-bidi/lib/cjs/cdp/CdpConnection' in ../../node_modules/.pnpm/playwright-core@1.61.1/node_modules/playwright-core/lib/coreBundle.js
+packages/node-sdk build:        [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m ../../node_modules/.pnpm/playwright-core@1.61.1/node_modules/playwright-core/lib/coreBundle.js:42609:41 [38;5;246m][0m
+packages/node-sdk build:        [38;5;246m│[0m
+packages/node-sdk build:  [38;5;246m42609 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249mb[0m[38;5;249mi[0m[38;5;249md[0m[38;5;249mi[0m[38;5;249mC[0m[38;5;249md[0m[38;5;249mp[0m[38;5;249mC[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249mn[0m[38;5;249me[0m[38;5;249mc[0m[38;5;249mt[0m[38;5;249mi[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m [0m[38;5;249m_[0m[38;5;249m_[0m[38;5;249mt[0m[38;5;249mo[0m[38;5;249mE[0m[38;5;249mS[0m[38;5;249mM[0m[38;5;249m([0m[38;5;249mr[0m[38;5;249me[0m[38;5;249mq[0m[38;5;249mu[0m[38;5;249mi[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249m([0m"chromium-bidi/lib/cjs/cdp/CdpConnection"[38;5;249m)[0m[38;5;249m)[0m[38;5;249m;[0m
+packages/node-sdk build:  [38;5;240m      │[0m                                         ────────────────────┬────────────────────  
+packages/node-sdk build:  [38;5;240m      │[0m                                                             ╰────────────────────── Module not found, treating it as an external dependency
+packages/node-sdk build: [38;5;246m───────╯[0m
+packages/node-sdk build: [33m[INEFFECTIVE_DYNAMIC_IMPORT] [0m../agent-core/src/autopilot/git.ts is dynamically imported by ../agent-core/src/tools/builtin/fleet/orchestrator.ts but also statically imported by ../agent-core/src/autopilot/index.ts, ../agent-core/src/autopilot/mode.ts, ../agent-core/src/session/worktree.ts, dynamic import will not move module into another chunk.
+packages/node-sdk build: [33m[INEFFECTIVE_DYNAMIC_IMPORT] [0m../agent-core/src/tools/builtin/job/job-fleet-bridge.ts is dynamically imported by ../agent-core/src/tools/builtin/fleet/orchestrator.ts but also statically imported by ../agent-core/src/tools/builtin/job/index.ts, dynamic import will not move module into another chunk.
+packages/node-sdk build: [33m[INEFFECTIVE_DYNAMIC_IMPORT] [0m../agent-core/src/tools/providers/xai-grok-build.ts is dynamically imported by ../agent-core/src/tools/builtin/media/generate-image.ts, ../agent-core/src/tools/builtin/media/generate-video.ts but also statically imported by ../agent-core/src/rpc/runtime-factory.ts, dynamic import will not move module into another chunk.
+packages/node-sdk build: ✔ Build complete in 853ms
+packages/node-sdk build: > @superliora/sdk@0.10.1 build:dts /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/node-sdk
+packages/node-sdk build: > node scripts/build-dts.mjs
+apps/vis/server build: ℹ dist/server.mjs    44.21 kB │ gzip: 12.93 kB
+apps/vis/server build: ℹ dist/server.d.mts   0.01 kB │ gzip:  0.03 kB
+apps/vis/server build: ℹ 2 files, total: 44.22 kB
+apps/vis/server build: ✔ Build complete in 1295ms
+apps/vis/server build: Done
+packages/server build: ℹ dist/index.mjs    299.10 kB │ gzip: 72.58 kB
+packages/server build: ℹ dist/index.d.mts   27.64 kB │ gzip:  9.04 kB
+packages/server build: ℹ 2 files, total: 326.74 kB
+packages/server build: ✔ Build complete in 1539ms
+packages/server build: Done
+packages/node-sdk build: [1mapi-extractor 7.58.7 [36m - https://api-extractor.com/[39m
+packages/node-sdk build: [22m
+packages/node-sdk build: Using configuration from ./api-extractor.json
+packages/node-sdk build: Analysis will use the bundled TypeScript version 5.9.3
+packages/node-sdk build: *** The target project appears to use TypeScript 6.0.2 which is newer than the bundled compiler engine; consider upgrading API Extractor.
+packages/node-sdk build: [33mWarning: .tmp-api-extractor/dts/agent-core/src/agent/compaction/full/full.d.ts:36:55 - (tsdoc-code-span-missing-delimiter) The code span is missing its closing backtick[39m
+packages/node-sdk build: [33mWarning: .tmp-api-extractor/dts/agent-core/src/agent/compaction/full/full.d.ts:37:12 - (tsdoc-code-span-missing-delimiter) The code span is missing its closing backtick[39m
+packages/node-sdk build: API Extractor completed successfully
+packages/node-sdk build: Done
+packages/acp-adapter build$ tsdown
+packages/acp-adapter build: ℹ tsdown v0.22.0 powered by rolldown v1.0.1
+packages/acp-adapter build: ℹ config file: /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/acp-adapter/tsdown.config.ts 
+packages/acp-adapter build: ℹ entry: ./src/index.ts
+packages/acp-adapter build: ℹ tsconfig: tsconfig.json
+packages/acp-adapter build: ℹ Build start
+packages/acp-adapter build: ℹ dist/index.mjs    130.51 kB │ gzip: 38.85 kB
+packages/acp-adapter build: ℹ dist/index.d.mts   39.55 kB │ gzip: 12.73 kB
+packages/acp-adapter build: ℹ 2 files, total: 170.06 kB
+packages/acp-adapter build: ✔ Build complete in 1235ms
+packages/acp-adapter build: Done
+apps/liora prebuild$ node scripts/sync-upstream-baseline.mjs && node scripts/build-vis-asset.mjs
+apps/liora prebuild: [sync-upstream-baseline] wrote /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/apps/liora/src/generated/upstream-baseline.generated.ts
+apps/liora prebuild: [build-vis-asset] building vis web single-file bundle…
+apps/liora prebuild: vite v6.4.2 building for production...
+apps/liora prebuild: transforming...
+apps/liora prebuild: ✓ 129 modules transformed.
+apps/liora prebuild: rendering chunks...
+apps/liora prebuild: [plugin vite:singlefile] 
+apps/liora prebuild: [plugin vite:singlefile] Inlining: index-5Xn1dEXU.js
+apps/liora prebuild: [plugin vite:singlefile] Inlining: style-DIzO79E6.css
+apps/liora prebuild: computing gzip size...
+apps/liora prebuild: dist-single/index.html  397.88 kB │ gzip: 116.00 kB
+apps/liora prebuild: ✓ built in 499ms
+apps/liora prebuild: [build-vis-asset] wrote /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/apps/liora/src/generated/vis-web-asset.ts (151 KB base64)
+apps/liora prebuild: Done
+apps/liora build$ tsdown && node scripts/copy-expert-personas.mjs && node scripts/check-cli-bundle.mjs
+apps/liora build: ℹ tsdown v0.22.0 powered by rolldown v1.0.1
+apps/liora build: ℹ config file: /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/apps/liora/tsdown.config.ts 
+apps/liora build: ℹ entry: ./src/main.ts
+apps/liora build: ℹ target: node22.19.0
+apps/liora build: ℹ tsconfig: tsconfig.json
+apps/liora build: ℹ Build start
+apps/liora build: ℹ Granting execute permission to dist/main.mjs
+apps/liora build: ℹ dist/main.mjs  17.89 MB
+apps/liora build: ℹ 1 files, total: 17.89 MB
+apps/liora build: ✔ Build complete in 1222ms
+apps/liora build: Copied expert personas → /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/apps/liora/dist/catalog-personas.json (4567979 bytes)
+apps/liora build: CLI bundle check passed: /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/apps/liora/dist/main.mjs
+apps/liora build: Done
+
+real	0m21.668s
+user	0m55.478s
+sys	0m8.236s

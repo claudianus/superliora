@@ -1,0 +1,9 @@
+
+> @superliora/liora@0.20.1 smoke /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/apps/liora
+> node scripts/smoke.mjs
+
+Bundle smoke passed: /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/apps/liora/dist/main.mjs
+
+real	0m1.831s
+user	0m1.778s
+sys	0m0.234s

@@ -1,0 +1,18 @@
+
+> @superliora/sdk@0.10.1 build:dts /Users/modumaru/.superliora/worktrees/superliora-5eccc730/conductor-jmsco4lf83925mr/packages/node-sdk
+> node scripts/build-dts.mjs
+
+
+[1mapi-extractor 7.58.7 [36m - https://api-extractor.com/[39m
+[22m
+Using configuration from ./api-extractor.json
+Analysis will use the bundled TypeScript version 5.9.3
+*** The target project appears to use TypeScript 6.0.2 which is newer than the bundled compiler engine; consider upgrading API Extractor.
+[33mWarning: .tmp-api-extractor/dts/agent-core/src/agent/compaction/full/full.d.ts:36:55 - (tsdoc-code-span-missing-delimiter) The code span is missing its closing backtick[39m
+[33mWarning: .tmp-api-extractor/dts/agent-core/src/agent/compaction/full/full.d.ts:37:12 - (tsdoc-code-span-missing-delimiter) The code span is missing its closing backtick[39m
+
+API Extractor completed successfully
+
+real	0m6.719s
+user	0m10.984s
+sys	0m0.897s
