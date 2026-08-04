@@ -448,6 +448,8 @@ export function providerDefaultApiKeyEnv(
     case 'bedrock':
     case 'vertex_claude':
       return undefined;
+    case 'cursor':
+      return 'CURSOR_ACCESS_TOKEN';
     default: {
       const exhaustive: never = type;
       return exhaustive;

@@ -59,6 +59,17 @@ export {
   toTokenInfo as toXaiTokenInfo,
   type XaiTokenExchange,
 } from './flow/oauth-flow-xai';
+export {
+  buildCursorLoginUrl,
+  jwtExpiresInSeconds,
+  parseCursorTokenResponse,
+  pollCursorAuth,
+  refreshCursorToken,
+  runCursorDeepLinkFlow,
+  toCursorTokenInfo,
+  type CursorTokenExchange,
+  type RunCursorDeepLinkFlowOptions,
+} from './flow/oauth-flow-cursor';
 
 export type { LoginOptions, OAuthManagerOptions, OAuthRefreshOutcome } from './flow/oauth-manager';
 export { OAuthManager, defaultRefreshThreshold, newInstanceId } from './flow/oauth-manager';
@@ -252,6 +263,11 @@ export type {
 
 export {
   ANTHROPIC_PROFILE,
+  CURSOR_AGENT_BASE_URL,
+  CURSOR_CLIENT_TYPE,
+  CURSOR_CLIENT_VERSION_DEFAULT,
+  CURSOR_PROFILE,
+  cursorAuthHeaders,
   EXPERIMENTAL_PROVIDER_PROFILES,
   getProviderProfile,
   isOAuthProviderId,
@@ -260,6 +276,7 @@ export {
   KIMI_PROFILE,
   OPENAI_PROFILE,
   PROVIDER_PROFILES,
+  resolveCursorClientVersion,
   resolveXaiGrokRoute,
   XAI_GROK_API_BASE_URL,
   XAI_GROK_BUILD_BASE_URL,

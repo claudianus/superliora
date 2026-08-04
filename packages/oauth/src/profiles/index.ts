@@ -5,6 +5,14 @@
  */
 
 import { ANTHROPIC_PROFILE } from './anthropic';
+import {
+  CURSOR_AGENT_BASE_URL,
+  CURSOR_CLIENT_TYPE,
+  CURSOR_CLIENT_VERSION_DEFAULT,
+  CURSOR_PROFILE,
+  cursorAuthHeaders,
+  resolveCursorClientVersion,
+} from './cursor';
 import { KIMI_PROFILE } from './kimi';
 import { OPENAI_PROFILE } from './openai';
 import type { OAuthProviderId, ProviderProfile } from './provider-profile';
@@ -42,6 +50,7 @@ export const PROVIDER_PROFILES: readonly ProviderProfile[] = [
  */
 export const EXPERIMENTAL_PROVIDER_PROFILES: readonly { readonly profile: ProviderProfile; readonly flag: string }[] = [
   { profile: ANTHROPIC_PROFILE, flag: 'anthropic_oauth' },
+  { profile: CURSOR_PROFILE, flag: 'cursor_oauth' },
 ];
 
 /** All profiles (always-on + experimental), for id-based lookup. */
@@ -66,8 +75,14 @@ export function isOAuthProviderId(id: string): boolean {
 
 export {
   ANTHROPIC_PROFILE,
+  CURSOR_AGENT_BASE_URL,
+  CURSOR_CLIENT_TYPE,
+  CURSOR_CLIENT_VERSION_DEFAULT,
+  CURSOR_PROFILE,
+  cursorAuthHeaders,
   KIMI_PROFILE,
   OPENAI_PROFILE,
+  resolveCursorClientVersion,
   XAI_PROFILE,
   XAI_GROK_API_BASE_URL,
   XAI_GROK_BUILD_BASE_URL,

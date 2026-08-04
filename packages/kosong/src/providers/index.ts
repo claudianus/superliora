@@ -10,6 +10,7 @@ import {
 } from './capability-registry';
 import { GoogleGenAIChatProvider, type GoogleGenAIOptions } from './google-genai';
 import { KimiChatProvider, type LioraOptions } from './kimi';
+import { CursorChatProvider, type CursorOptions } from '#/providers/cursor/index';
 import { OpenAILegacyChatProvider, type OpenAILegacyOptions } from '#/providers/openai-legacy/index';
 import { OpenAIResponsesChatProvider, type OpenAIResponsesOptions } from './openai-responses';
 import { VertexClaudeChatProvider, type VertexClaudeOptions } from './vertex-claude';
@@ -22,7 +23,8 @@ export type ProviderConfig =
   | ({ type: 'openai_responses' } & OpenAIResponsesOptions)
   | ({ type: 'vertexai' } & GoogleGenAIOptions)
   | ({ type: 'bedrock' } & BedrockOptions)
-  | ({ type: 'vertex_claude' } & VertexClaudeOptions);
+  | ({ type: 'vertex_claude' } & VertexClaudeOptions)
+  | ({ type: 'cursor' } & CursorOptions);
 
 export type ProviderType = ProviderConfig['type'];
 
@@ -44,6 +46,8 @@ export function createProvider(config: ProviderConfig): ChatProvider {
       return new BedrockChatProvider(config);
     case 'vertex_claude':
       return new VertexClaudeChatProvider(config);
+    case 'cursor':
+      return new CursorChatProvider(config);
     default: {
       const exhaustive: never = config;
       throw new Error(`Unknown provider type: ${String(exhaustive)}`);
@@ -73,6 +77,7 @@ export function getModelCapability(wire: ProviderType, modelName: string): Model
     case 'vertexai':
       return getGoogleGenAIModelCapability(modelName);
     case 'kimi':
+    case 'cursor':
       return UNKNOWN_CAPABILITY;
     default: {
       const exhaustive: never = wire;

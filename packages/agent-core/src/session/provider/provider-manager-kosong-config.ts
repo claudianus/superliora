@@ -131,6 +131,16 @@ export function toKosongProviderConfig(
         ...(betaApi !== undefined ? { betaApi } : {}),
         ...defaultHeadersField(provider.customHeaders),
       };
+    case 'cursor':
+      return {
+        type: 'cursor',
+        model,
+        baseUrl:
+          firstCredentialBaseUrlWhenPrimary(provider) ??
+          providerValue(provider.baseUrl, provider.env, 'CURSOR_AGENT_BASE_URL', 'provider base_url'),
+        apiKey: providerApiKey(provider),
+        ...defaultHeadersField(provider.customHeaders),
+      };
     default: {
       const exhaustive: never = effectiveType;
       throw new LioraError(

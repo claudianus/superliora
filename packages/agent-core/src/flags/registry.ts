@@ -24,6 +24,15 @@ export const FLAG_DEFINITIONS = [
     surface: 'core',
   },
   {
+    id: 'cursor_oauth',
+    title: 'Cursor OAuth login',
+    description:
+      'Show a Cursor account login option in the provider picker. Uses reverse-engineered Cursor CLI OAuth + Connect-RPC (unofficial); Cursor may reject third-party clients or change the wire without notice. Disable with SUPERLIORA_EXPERIMENTAL_CURSOR_OAUTH=false.',
+    env: 'SUPERLIORA_EXPERIMENTAL_CURSOR_OAUTH',
+    default: true,
+    surface: 'core',
+  },
+  {
     id: 'micro_compaction',
     title: 'Micro compaction',
     description:

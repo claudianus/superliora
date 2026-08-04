@@ -59,6 +59,11 @@ export function providerApiKeyCredentials(provider: ProviderConfig): ApiKeyCrede
       // Cloud-hosted Claude authenticates via the platform credential chain
       // (AWS IAM / GCP ADC), not API keys. No credential pool to build.
       return [];
+    case 'cursor':
+      return uniqueApiKeyCredentials([
+        fallbackProviderApiKeyCredential(provider, 'CURSOR_ACCESS_TOKEN', 'provider api_key'),
+        ...credentials,
+      ]);
     default: {
       const exhaustive: never = provider.type;
       throw new LioraError(
@@ -147,6 +152,8 @@ function hasLegacyApiKeySource(provider: ProviderConfig): boolean {
     case 'bedrock':
     case 'vertex_claude':
       return false;
+    case 'cursor':
+      return nonEmptyString(provider.env?.['CURSOR_ACCESS_TOKEN']) !== undefined;
     default: {
       const exhaustive: never = provider.type;
       return exhaustive;
@@ -245,6 +252,8 @@ export function hasConfiguredApiKeySource(provider: ProviderConfig): boolean {
       // Cloud-hosted Claude is always considered "configured" — the credential
       // chain (AWS IAM / GCP ADC) is resolved at request time, not in config.
       return true;
+    case 'cursor':
+      return nonEmptyString(provider.env?.['CURSOR_ACCESS_TOKEN']) !== undefined;
     default: {
       const exhaustive: never = provider.type;
       throw new LioraError(
