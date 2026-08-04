@@ -60,6 +60,33 @@ describe('normalizeAvailableModels', () => {
     });
   });
 
+  it('strips the GetUsableModels cursor- wire prefix from picker ids', () => {
+    const models = normalizeAvailableModels([
+      {
+        name: 'cursor-grok-4.5',
+        clientDisplayName: 'Cursor Grok 4.5',
+        serverModelName: 'cursor-grok-4.5',
+        supportsThinking: true,
+        supportsImages: false,
+        variants: [
+          {
+            legacySlug: 'cursor-grok-4.5-high-fast',
+            displayName: 'Cursor Grok 4.5 High',
+            isDefaultNonMaxConfig: true,
+            parameterValues: [
+              { id: 'effort', value: 'high' },
+              { id: 'fast', value: 'true' },
+            ],
+          },
+        ],
+      },
+    ]);
+
+    expect(models).toHaveLength(1);
+    expect(models[0]?.id).toBe('grok-4.5-high-fast');
+    expect(models[0]?.serverModelId).toBe('grok-4.5');
+  });
+
   it('keeps the preferred variant when duplicate slugs appear', () => {
     const models = normalizeAvailableModels([
       {

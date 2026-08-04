@@ -5,6 +5,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { encodeConnectFrame } from './connect';
+import { toCursorWireModelId } from './model-id';
 import {
   concatBytes,
   encodeProtobufValue,
@@ -41,15 +42,16 @@ export function buildRunFrames(params: CursorRunParams): Uint8Array[] {
   );
   const messages = fieldLd(2, fieldLd(1, fieldLd(1, inner)));
 
+  const wireModelId = toCursorWireModelId(params.modelId);
   const req = concatBytes(
     fieldStr(1, ''),
     messages,
     fieldLd(4, encodeMcpTools(params.tools)),
     fieldStr(5, conv),
-    fieldLd(9, encodeModelMeta(params.modelId, false)),
+    fieldLd(9, encodeModelMeta(wireModelId, false)),
     fieldVarint(12, 0),
     fieldLd(14, fieldStr(1, 'default')),
-    fieldLd(14, encodeModelMeta(params.modelId, false)),
+    fieldLd(14, encodeModelMeta(wireModelId, false)),
     fieldStr(16, conv),
   );
   const frame0 = encodeConnectFrame(fieldLd(1, req));

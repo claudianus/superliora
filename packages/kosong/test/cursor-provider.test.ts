@@ -14,8 +14,19 @@ import {
   fieldVarint,
   ConnectFrameDecoder,
   renderCursorPrompt,
+  toCursorWireModelId,
 } from '../src/providers/cursor/index';
 import type { Message } from '../src/message';
+
+describe('toCursorWireModelId', () => {
+  it('strips cursor- prefix and maps auto to default', () => {
+    expect(toCursorWireModelId('cursor-grok-4.5-high-fast')).toBe('grok-4.5-high-fast');
+    expect(toCursorWireModelId('grok-4.5-high-fast')).toBe('grok-4.5-high-fast');
+    expect(toCursorWireModelId('auto')).toBe('default');
+    expect(toCursorWireModelId('cursor-auto')).toBe('default');
+    expect(toCursorWireModelId('composer-2.5')).toBe('composer-2.5');
+  });
+});
 
 describe('cursor connect framing', () => {
   it('encodes and decodes Connect frames across chunk boundaries', () => {
@@ -101,6 +112,21 @@ describe('cursor run frames', () => {
     const decoded = decoder.push(frames[0]!);
     expect(decoded).toHaveLength(1);
     expect(decoded[0]!.payload.length).toBeGreaterThan(0);
+  });
+
+  it('encodes stripped wire ids for prefixed catalog model names', () => {
+    const frames = buildRunFrames({
+      prompt: 'hi',
+      modelId: 'cursor-grok-4.5-high-fast',
+      cwd: '/tmp',
+      mode: 1,
+      tools: [],
+    });
+    const decoder = new ConnectFrameDecoder();
+    const decoded = decoder.push(frames[0]!);
+    const payload = Buffer.from(decoded[0]!.payload);
+    expect(payload.includes(Buffer.from('grok-4.5-high-fast', 'utf8'))).toBe(true);
+    expect(payload.includes(Buffer.from('cursor-grok-4.5-high-fast', 'utf8'))).toBe(false);
   });
 
   it('encodes empty tools as zero-length mcp_tools body placeholder', () => {

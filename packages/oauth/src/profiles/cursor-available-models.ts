@@ -161,7 +161,11 @@ export function normalizeAvailableModels(rawModels: readonly unknown[]): CursorD
           ];
 
     variantRecords.forEach((variant, index) => {
-      const publicId = (stringProp(variant, 'legacySlug') ?? name).trim();
+      // AvailableModels / GetUsableModels may return `cursor-grok-4.5-high`; AgentService
+      // wants the bare wire id (`grok-4.5-high`). Same strip as opencodex issue #117.
+      const publicId = stripCursorWirePrefix(
+        (stringProp(variant, 'legacySlug') ?? name).trim(),
+      );
       if (publicId.length === 0) return;
       const rank = rankVariant(variant, index);
       const existingRank = ranks.get(publicId);
@@ -180,13 +184,14 @@ export function normalizeAvailableModels(rawModels: readonly unknown[]): CursorD
           publicId,
         parameters,
       );
+      const wireServerId = stripCursorWirePrefix(serverModelId);
 
       byId.set(publicId, {
         id: publicId,
         displayName,
         maxContextSize: context,
         capabilities,
-        ...(serverModelId !== publicId ? { serverModelId } : {}),
+        ...(wireServerId !== publicId ? { serverModelId: wireServerId } : {}),
       });
       ranks.set(publicId, rank);
     });
@@ -388,6 +393,12 @@ function cleanDisplayName(
   const fast = parameters.some((p) => p.id === 'fast' && p.value === 'true');
   if (fast && !/\bfast\b/i.test(cleaned)) cleaned = `${cleaned} Fast`;
   return cleaned.length > 0 ? cleaned : value;
+}
+
+/** Strip GetUsableModels `cursor-` prefix (`cursor-grok-4.5-high` → `grok-4.5-high`). */
+export function stripCursorWirePrefix(modelId: string): string {
+  const id = modelId.trim();
+  return id.startsWith('cursor-') ? id.slice('cursor-'.length) : id;
 }
 
 function stringProp(record: Record<string, unknown>, key: string): string | undefined {

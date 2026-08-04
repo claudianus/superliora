@@ -12,6 +12,7 @@ import {
   cursorModelsToPresets,
   fetchCursorAvailableModels,
   normalizeAvailableModels,
+  stripCursorWirePrefix,
 } from './cursor-available-models';
 import {
   CURSOR_AGENT_BASE_URL,
@@ -97,6 +98,7 @@ export {
   normalizeAvailableModels,
   OPENAI_PROFILE,
   resolveCursorClientVersion,
+  stripCursorWirePrefix,
   XAI_PROFILE,
   XAI_GROK_API_BASE_URL,
   XAI_GROK_BUILD_BASE_URL,
