@@ -12,6 +12,11 @@ import {
   type ManagedKimiOAuthRef,
 } from '../kimi';
 import {
+  applyCursorOAuthModelAliases,
+  CURSOR_OAUTH_PROVIDER_ID,
+  fetchCursorAvailableModels,
+} from '../profiles/cursor-available-models';
+import {
   applyOpenPlatformConfig,
   fetchOpenPlatformModels,
   filterModelsByPrefix,
@@ -86,7 +91,8 @@ export interface RefreshProviderOptions {
  *
  *  1. Managed SuperLiora (OAuth) — `GET /models` against the runtime endpoint.
  *  2. Open platforms (moonshot-cn, moonshot-ai, …) — platform catalog fetch.
- *  3. Custom registries (models.dev-style, keyed by `provider.source`).
+ *  3. Cursor OAuth — `AvailableModels` Connect RPC when `cursor-oauth` is configured.
+ *  4. Custom registries (models.dev-style, keyed by `provider.source`).
  *
  * Each branch diffs old vs new and only writes when something actually changed
  * (`removeProvider` then `setConfig`). Failures are collected per-provider and
@@ -254,7 +260,75 @@ export async function refreshProviderModels(
   }
 
   // ---------------------------------------------------------------------------
-  // 3. Custom Registry providers (grouped by URL, with API-key candidates)
+  // 3. Cursor OAuth (AvailableModels)
+  // ---------------------------------------------------------------------------
+  const cursorWanted = targetId === undefined || targetId === CURSOR_OAUTH_PROVIDER_ID;
+  if (cursorWanted) {
+    const cursorProvider = readProvider(config, CURSOR_OAUTH_PROVIDER_ID);
+    const cursorOAuth = cursorProvider?.oauth;
+    if (
+      cursorProvider !== undefined &&
+      cursorProvider.type === 'cursor' &&
+      cursorOAuth !== undefined &&
+      typeof cursorOAuth === 'object' &&
+      cursorOAuth !== null
+    ) {
+      try {
+        const accessToken = await host.resolveOAuthToken(
+          CURSOR_OAUTH_PROVIDER_ID,
+          cursorOAuth as ManagedKimiOAuthRef,
+        );
+        const discovered = await fetchCursorAvailableModels({ accessToken });
+        if (discovered !== undefined && discovered.length > 0) {
+          const next = structuredClone(config);
+          applyCursorOAuthModelAliases(next, discovered);
+          const refreshedAliasKeys = providerRefreshAliasKeys(
+            config,
+            next,
+            CURSOR_OAUTH_PROVIDER_ID,
+            `${CURSOR_OAUTH_PROVIDER_ID}/`,
+          );
+          restoreProviderAliases(
+            next,
+            preserveUserProviderAliases(config, CURSOR_OAUTH_PROVIDER_ID, refreshedAliasKeys),
+          );
+          restoreDefaultSelection(next, config.defaultModel, config.defaultThinking);
+          clampDanglingDefault(next);
+          clearDefaultThinkingWhenDefaultRemoved(next, config.defaultModel);
+
+          if (providerModelsEqual(config, next, CURSOR_OAUTH_PROVIDER_ID, refreshedAliasKeys)) {
+            unchanged.push(CURSOR_OAUTH_PROVIDER_ID);
+          } else {
+            const { added, removed } = computeChanges(
+              collectModelIdsForAliases(config, refreshedAliasKeys),
+              collectModelIdsForAliases(next, refreshedAliasKeys),
+            );
+            await host.removeProvider(CURSOR_OAUTH_PROVIDER_ID);
+            config = await host.setConfig({
+              providers: next.providers,
+              models: next.models,
+              defaultModel: next.defaultModel,
+              defaultThinking: next.defaultThinking,
+            });
+            changed.push({
+              providerId: CURSOR_OAUTH_PROVIDER_ID,
+              providerName: 'Cursor',
+              added,
+              removed,
+            });
+          }
+        }
+      } catch (error) {
+        failed.push({
+          provider: CURSOR_OAUTH_PROVIDER_ID,
+          reason: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 4. Custom Registry providers (grouped by URL, with API-key candidates)
   // ---------------------------------------------------------------------------
   const customSources = new Map<
     string,

@@ -6,6 +6,14 @@
 
 import { ANTHROPIC_PROFILE } from './anthropic';
 import {
+  applyCursorOAuthModelAliases,
+  CURSOR_FALLBACK_MODELS,
+  CURSOR_OAUTH_PROVIDER_ID,
+  cursorModelsToPresets,
+  fetchCursorAvailableModels,
+  normalizeAvailableModels,
+} from './cursor-available-models';
+import {
   CURSOR_AGENT_BASE_URL,
   CURSOR_CLIENT_TYPE,
   CURSOR_CLIENT_VERSION_DEFAULT,
@@ -75,12 +83,18 @@ export function isOAuthProviderId(id: string): boolean {
 
 export {
   ANTHROPIC_PROFILE,
+  applyCursorOAuthModelAliases,
   CURSOR_AGENT_BASE_URL,
   CURSOR_CLIENT_TYPE,
   CURSOR_CLIENT_VERSION_DEFAULT,
+  CURSOR_FALLBACK_MODELS,
+  CURSOR_OAUTH_PROVIDER_ID,
   CURSOR_PROFILE,
   cursorAuthHeaders,
+  cursorModelsToPresets,
+  fetchCursorAvailableModels,
   KIMI_PROFILE,
+  normalizeAvailableModels,
   OPENAI_PROFILE,
   resolveCursorClientVersion,
   XAI_PROFILE,
@@ -97,4 +111,5 @@ export {
   xaiGrokBuildRequestHeaders,
   xaiGrokRouteConfig,
 };
+export type { CursorDiscoveredModel, FetchCursorAvailableModelsOptions } from './cursor-available-models';
 export type { XaiGrokRoute, XaiGrokRouteConfig } from './xai';

@@ -8,6 +8,9 @@ import {
 import {
   allocateManagedKimiOAuthAccountKey,
   allocateProviderOAuthAccountKey,
+  applyCursorOAuthModelAliases,
+  CURSOR_OAUTH_PROVIDER_ID,
+  fetchCursorAvailableModels,
   getProviderProfile,
   listProviderOAuthRefs,
   mergeProviderOAuthLogin,
@@ -261,17 +264,38 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
     );
     freshConfig.providers[providerId] = mergedProvider as (typeof freshConfig.providers)[string];
 
-    // Resolve the model list from the models.dev catalog when possible
-    // (so new models like Grok 4.5 appear without a release), falling back
-    // to the profile preset when the catalog is unavailable. This keeps the
-    // provider usable immediately without a per-request /models fetch.
-    const resolvedModels = await resolveOAuthProviderModels(providerId, profile.models);
-    if (resolvedModels !== undefined && resolvedModels.length > 0) {
-      const models = freshConfig.models ?? {};
-      for (const alias of resolvedModels) {
-        models[`${providerId}/${alias.model}`] = alias;
+    // Resolve the model list from a live catalog when possible (models.dev for
+    // most OAuth providers; Cursor AvailableModels for cursor-oauth), falling
+    // back to the profile preset when discovery fails.
+    let accessToken: string | undefined;
+    if (providerId === CURSOR_OAUTH_PROVIDER_ID) {
+      try {
+        accessToken = await manager.ensureFresh(providerId, { storageKey });
+      } catch {
+        // Discovery falls back to presets when the token cannot be read.
       }
-      freshConfig.models = models;
+    }
+    const resolvedModels = await resolveOAuthProviderModels(providerId, profile.models, {
+      accessToken,
+    });
+    if (resolvedModels !== undefined && resolvedModels.length > 0) {
+      if (providerId === CURSOR_OAUTH_PROVIDER_ID) {
+        applyCursorOAuthModelAliases(
+          freshConfig,
+          resolvedModels.map((alias) => ({
+            id: alias.model,
+            displayName: alias.displayName ?? alias.model,
+            maxContextSize: alias.maxContextSize,
+            capabilities: alias.capabilities ?? [],
+          })),
+        );
+      } else {
+        const models = freshConfig.models ?? {};
+        for (const alias of resolvedModels) {
+          models[`${providerId}/${alias.model}`] = alias;
+        }
+        freshConfig.models = models;
+      }
     }
 
     await host.harness.setConfig({
@@ -330,16 +354,57 @@ function presetModelToAlias(providerId: string, preset: ProviderModelPreset): Mo
   };
 }
 
+export interface ResolveOAuthProviderModelsOptions {
+  /** Fresh access token; used for Cursor AvailableModels discovery. */
+  readonly accessToken?: string;
+}
+
 /**
- * Resolves the model list for an OAuth provider. Prefers the live models.dev
- * catalog (so newly released models surface without a release), and falls back
- * to the profile preset when the catalog is unavailable or has no entry for
- * the provider. Returns `undefined` when neither source yields models.
+ * Resolves the model list for an OAuth provider. Prefers a live catalog
+ * (Cursor AvailableModels for `cursor-oauth`, models.dev otherwise) and falls
+ * back to the profile preset when discovery fails. Returns `undefined` when
+ * neither source yields models.
  */
 export async function resolveOAuthProviderModels(
   providerId: string,
   presets: readonly ProviderModelPreset[] | undefined,
+  options: ResolveOAuthProviderModelsOptions = {},
 ): Promise<readonly ModelAlias[] | undefined> {
+  if (providerId === CURSOR_OAUTH_PROVIDER_ID) {
+    let token = options.accessToken?.trim();
+    if (token === undefined || token.length === 0) {
+      try {
+        token = await new OAuthProviderManager().ensureFresh(providerId);
+      } catch {
+        token = undefined;
+      }
+    }
+    if (token !== undefined && token.length > 0) {
+      try {
+        const live = await fetchCursorAvailableModels({ accessToken: token });
+        if (live !== undefined && live.length > 0) {
+          return live.map((model) =>
+            presetModelToAlias(providerId, {
+              id: model.id,
+              displayName: model.displayName,
+              maxContextSize: model.maxContextSize,
+              capabilities: model.capabilities,
+            }),
+          );
+        }
+      } catch (error) {
+        log.warn(
+          `Failed to load Cursor AvailableModels for "${providerId}", using preset.`,
+          formatErrorMessage(error),
+        );
+      }
+    }
+    if (presets !== undefined && presets.length > 0) {
+      return presets.map((preset) => presetModelToAlias(providerId, preset));
+    }
+    return undefined;
+  }
+
   const catalogId = oauthProviderCatalogId(providerId);
   try {
     const catalog = await loadCatalog();
