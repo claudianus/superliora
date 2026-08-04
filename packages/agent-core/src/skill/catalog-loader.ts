@@ -1,31 +1,83 @@
 import { access, readFile } from 'node:fs/promises';
-import { dirname, join } from 'pathe';
+import { dirname, join, resolve } from 'pathe';
 import { fileURLToPath } from 'node:url';
 
 import type { SkillDefinition } from './types';
 import { enrichSkillForSearch } from './skill-composition';
 import type { SessionSkillRegistry } from './registry';
 
-const SKILL_DIR = dirname(import.meta.filename);
-const CATALOG_DIR = join(SKILL_DIR, 'catalog');
-const SEARCH_INDEX_PATH = join(SKILL_DIR, 'catalog-search-index.json');
+const MODULE_DIR = dirname(import.meta.filename);
+/** Points at a directory containing `catalog/` and optionally `catalog-search-index.json`. */
+const CATALOG_DIR_ENV = 'SUPERLIORA_SKILL_CATALOG_DIR';
+const REPO_SKILL_DIR_RELATIVE = join('packages', 'agent-core', 'src', 'skill');
+const MAX_ANCESTOR_DEPTH = 8;
 
-export async function resolveSkillCatalogDir(): Promise<string | undefined> {
+export interface SkillCatalogLayout {
+  readonly catalogDir: string;
+  readonly indexPath?: string | undefined;
+}
+
+let layoutPromise: Promise<SkillCatalogLayout | undefined> | undefined;
+
+async function pathExists(path: string): Promise<boolean> {
   try {
-    await access(CATALOG_DIR);
-    return CATALOG_DIR;
+    await access(path);
+    return true;
   } catch {
-    return undefined;
+    return false;
   }
 }
 
-export async function resolveSkillCatalogSearchIndexPath(): Promise<string | undefined> {
-  try {
-    await access(SEARCH_INDEX_PATH);
-    return SEARCH_INDEX_PATH;
-  } catch {
-    return undefined;
+/**
+ * Candidate skill-data directories in priority order: env override, the
+ * directory this module runs from (source/tsx), then repo-layout matches in
+ * each ancestor. The last one matters for the bundled CLI, where
+ * `import.meta.filename` is `apps/liora/dist/main.mjs` and the catalog lives
+ * several levels up inside the checkout (dev builds and source installs).
+ */
+export function catalogDataDirCandidates(startDir: string): readonly string[] {
+  const dirs: string[] = [];
+  const override = process.env[CATALOG_DIR_ENV]?.trim();
+  if (override !== undefined && override.length > 0) dirs.push(resolve(override));
+  dirs.push(startDir);
+  let current = startDir;
+  for (let depth = 0; depth < MAX_ANCESTOR_DEPTH; depth += 1) {
+    const parent = dirname(current);
+    if (parent === current) break;
+    dirs.push(join(parent, REPO_SKILL_DIR_RELATIVE));
+    current = parent;
   }
+  return dirs;
+}
+
+export async function resolveCatalogLayoutFromCandidates(
+  dirs: readonly string[],
+): Promise<SkillCatalogLayout | undefined> {
+  for (const dir of dirs) {
+    const catalogDir = join(dir, 'catalog');
+    // The catalog tree is required: Skill loadContent reads SKILL.md from it.
+    if (!(await pathExists(catalogDir))) continue;
+    const indexPath = join(dir, 'catalog-search-index.json');
+    return { catalogDir, indexPath: (await pathExists(indexPath)) ? indexPath : undefined };
+  }
+  return undefined;
+}
+
+export function resolveCatalogLayoutFrom(startDir: string): Promise<SkillCatalogLayout | undefined> {
+  return resolveCatalogLayoutFromCandidates(catalogDataDirCandidates(startDir));
+}
+
+export function resolveCatalogLayout(): Promise<SkillCatalogLayout | undefined> {
+  layoutPromise ??= resolveCatalogLayoutFrom(MODULE_DIR);
+  return layoutPromise;
+}
+
+export async function resolveSkillCatalogDir(): Promise<string | undefined> {
+  return (await resolveCatalogLayout())?.catalogDir;
+}
+
+export async function resolveSkillCatalogSearchIndexPath(): Promise<string | undefined> {
+  return (await resolveCatalogLayout())?.indexPath;
 }
 
 interface CatalogSearchIndexSkill {
@@ -54,26 +106,23 @@ interface CatalogSearchIndex {
  * is invoked (via loadContent).
  */
 export async function registerCatalogSkills(registry: SessionSkillRegistry): Promise<number> {
-  const indexPath = await resolveSkillCatalogSearchIndexPath();
-  if (indexPath !== undefined) {
-    return registerCatalogSkillsFromSearchIndex(registry, indexPath);
+  const layout = await resolveCatalogLayout();
+  if (layout === undefined) return 0;
+  if (layout.indexPath !== undefined) {
+    return registerCatalogSkillsFromSearchIndex(registry, layout.indexPath, layout.catalogDir);
   }
 
   // Fallback for incomplete checkouts that still have the raw catalog tree.
-  const catalogDir = await resolveSkillCatalogDir();
-  if (catalogDir === undefined) return 0;
   const before = registry.listSkills().length;
-  await registry.loadRoots([{ path: catalogDir, source: 'builtin' }]);
+  await registry.loadRoots([{ path: layout.catalogDir, source: 'builtin' }]);
   return registry.listSkills().length - before;
 }
 
 async function registerCatalogSkillsFromSearchIndex(
   registry: SessionSkillRegistry,
   indexPath: string,
+  catalogDir: string,
 ): Promise<number> {
-  const catalogDir = await resolveSkillCatalogDir();
-  if (catalogDir === undefined) return 0;
-
   const raw = await readFile(indexPath, 'utf8');
   const index = JSON.parse(raw) as CatalogSearchIndex;
   if (!Array.isArray(index.skills) || index.skills.length === 0) return 0;

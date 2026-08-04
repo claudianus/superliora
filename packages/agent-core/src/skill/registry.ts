@@ -234,11 +234,18 @@ export class SessionSkillRegistry implements AgentSkillRegistry {
   async ensureCatalogLoaded(): Promise<void> {
     if (this.catalogLoaded || this.disableCatalogLoad) return;
     this.catalogLoadPromise ??= (async () => {
+      try {
         await registerCatalogSkills(this);
+      } catch (error) {
+        // A corrupt index or unreadable catalog must not break SearchSkill —
+        // fall back to local skills and warn once instead of retrying forever.
+        this.onWarning('Skill catalog load failed; SearchSkill will only see local skills.', error);
+      } finally {
         this.catalogLoaded = true;
         // Catalog registration mutates the skill set; rebuild search index next query.
         this.searchEngine = undefined;
-      })();
+      }
+    })();
     await this.catalogLoadPromise;
   }
 
