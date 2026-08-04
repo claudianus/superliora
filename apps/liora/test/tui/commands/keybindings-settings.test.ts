@@ -77,7 +77,7 @@ describe('showKeybindingsSettings', () => {
     const lines = panelLines(host);
     expect(lines).toContain('Keyboard / Keybindings (read-only)');
     expect(lines).toContain('Live registry (keymap.ts)');
-    expect(lines).toContain('Mission / Ops / Fleet samples');
+    expect(lines).toContain('Mission / Fleet / Transcript samples');
     expect(lines).toContain('/help');
     expect(lines).toContain('Shift-Tab');
   });

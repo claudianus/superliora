@@ -221,7 +221,6 @@ export function buildMissionSettingsLines(
     '  /mission <objective>   start or replace Mission run',
     '  /mission pause|resume|cancel   lifecycle',
     '  /goal                    verifiable Goal contract',
-    '  /ops                     Mission theatre + evidence stream',
     '',
     '── Evidence checks ──────────────────────────',
     'ContextOS tracks evidence-id recall before resume.',

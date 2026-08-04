@@ -7,7 +7,6 @@ import { createLioraHarness } from '@superliora/sdk';
 
 import {
   BENCH_SLASH_TIP,
-  OPS_SLASH_TIP,
   showBenchDiagnosticsSettings,
 } from '#/tui/commands/config/diagnostics/bench-diagnostics-settings';
 import type { ChoicePickerComponent } from '#/tui/components/dialogs/picker/choice-picker';
@@ -75,11 +74,9 @@ function selectBenchDiagnosticsAction(host: SlashCommandHost, value: string): vo
 }
 
 describe('bench diagnostics settings tips', () => {
-  it('exports /bench and /ops slash tips', () => {
+  it('exports the /bench slash tip', () => {
     expect(BENCH_SLASH_TIP).toContain('/bench');
     expect(BENCH_SLASH_TIP).toContain('final-quality-gate');
-    expect(OPS_SLASH_TIP).toContain('/ops');
-    expect(OPS_SLASH_TIP).toContain('Ops Theatre');
   });
 });
 
@@ -99,7 +96,7 @@ describe('showBenchDiagnosticsSettings', () => {
 
 
 
-  it('mounts read-only bench panel with /bench, /ops, and visual smoke tips', () => {
+  it('mounts read-only bench panel with /bench and visual smoke tips', () => {
     const host = makeBenchDiagnosticsHost();
     showBenchDiagnosticsSettings(host);
     selectBenchDiagnosticsAction(host, 'status');
@@ -109,11 +106,8 @@ describe('showBenchDiagnosticsSettings', () => {
       .calls[0]?.[0] as UsagePanelComponent;
     const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('/bench');
-    expect(lines).toContain('/ops');
     expect(lines).toContain('smoke:visual');
-    expect(lines).toContain('.superliora/visual-smoke/ops-theatre.txt');
-    expect(lines).toContain('renderOpsTheatreSmokeGrid');
-    expect(lines).toContain('Fleet · Goal · Git · Health');
+    expect(lines).not.toContain('/ops');
     expect(lines).toContain('Bench (SSOT)');
     expect(lines).toContain('Branding debt (glance-only)');
     expect(lines).not.toContain('.superliora/bench/internal-latest.md');

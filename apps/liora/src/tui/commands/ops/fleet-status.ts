@@ -122,6 +122,5 @@ async function buildFleetStatusLines(host: SlashCommandHost): Promise<string[]> 
     '  /fleet on|off     toggle fleet mode',
     '  /fleet <task>     specialist delegation',
     '  /mission          long-running Mission mode',
-    '  /ops              full runtime theatre',
   ];
 }

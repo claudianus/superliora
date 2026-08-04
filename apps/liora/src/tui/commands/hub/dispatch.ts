@@ -367,9 +367,6 @@ async function handleBuiltInSlashCommand(
     case 'dashboard':
       void host.showAgentDashboard();
       return;
-    case 'ops':
-      void import('../ops/ops-theatre').then(({ showOpsTheatre }) => showOpsTheatre(host));
-      return;
     case 'extensions':
       void host.showExtensionsModal(args);
       return;

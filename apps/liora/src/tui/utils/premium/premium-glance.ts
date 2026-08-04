@@ -172,6 +172,5 @@ export function buildPremiumSettingsLines(glance: PremiumVisualGlance): readonly
     '· Single animation clock — no raw setInterval in components',
     '· Quality auto-degrades under frame pressure (full→high→balanced→minimal)',
     '· Premium profile pins ambient effects unless appearance is off',
-    '· Ops Theatre dopamine cues respect the same quality gate',
   ];
 }

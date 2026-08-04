@@ -82,17 +82,17 @@ export function buildNeverHaltSettingsLines(input: NeverHaltSettingsGlanceInput)
     'Per-provider breaker opens on repeated 5xx/429;',
     'traffic routes to fallbackModels until cooldown.',
     'Half-open: one probe after cooldown — success closes, failure reopens.',
-    'Failures emit runtime.degraded for Ops/footer.',
+    'Failures emit runtime.degraded for the footer.',
     ...breakerLines,
     '',
     '── Live signals ────────────────────────────',
-    'Footer + /ops glance (TTL badges):',
+    'Footer glance (TTL badges):',
     '· search↓ — search channel degraded',
     '· oauth↓ — token refresh needed',
     '· cache✓ — prompt cache ≥99% hit (×N streak)',
     '· breakers — Ops Breakers: open/half/closed',
-    '· stale×N — Ops tray interventions aging',
-    '· queue depth + oldest age — /ops intervention tray',
+    '· stale×N — interventions aging',
+    '· queue depth + oldest age — intervention queue',
     '· research↻ — recent WebSearch/DeepResearch cascade',
     '',
     '── Live monitor ────────────────────────────',
@@ -103,6 +103,5 @@ export function buildNeverHaltSettingsLines(input: NeverHaltSettingsGlanceInput)
             : ''
         }`
       : 'Now: (no active degradation)',
-    'Run /ops for live Goal · git · MCP · approval tray.',
   ];
 }

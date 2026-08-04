@@ -229,7 +229,7 @@ export function buildCacheSettingsLines(
     ...dumpLines,
     '',
     '── Cache Sacred rules ──────────────────────',
-    `· Target: ${targetTip} prompt cache hit (cache✓ badge in footer + /ops)`,
+    `· Target: ${targetTip} prompt cache hit (cache✓ badge in footer)`,
     `· ${CACHE_FREEZE_MID_TURN_TIP}`,
     '· Freeze policy: setActiveTools hard-blocked while frozen; step soft-check logs tool-list drift.',
     ...(session.showMissReasonStubTip ? [`· ${CACHE_MISS_REASON_STUB_TIP}`] : []),
@@ -241,7 +241,6 @@ export function buildCacheSettingsLines(
     '── Invalidate ───────────────────────────────',
     `· ${CACHE_INVALIDATE_TIP}`,
     '',
-    'Ops: /ops shows live cache hit alongside Goal/MCP.',
     'Export: cache miss dump JSON (`superliora.cache_miss.v1`) ships in this panel.',
   ];
 }

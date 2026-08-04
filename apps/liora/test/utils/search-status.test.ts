@@ -404,7 +404,7 @@ describe('buildSearchSettingsStatusLines', () => {
     expect(text).toContain('── Session (live) ──');
     expect(text).toContain('Cascade: ch1→ch4');
     expect(text).not.toContain(
-      'Cascade: both tools emit channelsTried on degrade → footer research↻ + /ops Cascade line (~30s).',
+      'Cascade: both tools emit channelsTried on degrade → footer research↻ line (~30s).',
     );
   });
 
@@ -421,7 +421,7 @@ describe('buildSearchSettingsStatusLines', () => {
     expect(text).toContain('── Session (live) ──');
     expect(text).toContain('Cascade channelsTried: live after WebSearch/DeepResearch degrade');
     expect(text).toContain(
-      'Cascade: both tools emit channelsTried on degrade → footer research↻ + /ops Cascade line (~30s).',
+      'Cascade: both tools emit channelsTried on degrade → footer research↻ line (~30s).',
     );
   });
 });
