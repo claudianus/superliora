@@ -25,6 +25,7 @@ import {
   extractAnswerText,
   extractExecMessage,
   extractInteractionQuery,
+  extractKvMessage,
   extractReasoningText,
   extractToolCall,
   isCursorProgressPayload,
@@ -32,6 +33,7 @@ import {
 import { buildRunFrames, heartbeatFrame, type CursorAgentTool, type CursorRunParams } from './frames';
 import {
   encodeInteractionQueryReply,
+  encodeKvReply,
   encodeNativeExecReject,
   encodeRequestContextReply,
 } from './replies';
@@ -39,10 +41,10 @@ import {
 const AGENT_PATH = '/agent.v1.AgentService/Run';
 const HEARTBEAT_INTERVAL_MS = 5_000;
 const FIRST_BYTE_TIMEOUT_MS = 60_000;
-/** Align with kosong LLM idle default — 8s was killing slow Grok turns. */
-const IDLE_TIMEOUT_MS = 120_000;
-/** Wait briefly for sibling parallel tool calls before ending the turn. */
-const TOOL_FINALIZE_GRACE_MS = 150;
+/** Align with kosong LLM idle default — must survive long tool-assembly gaps. */
+const IDLE_TIMEOUT_MS = 180_000;
+/** Wait for sibling parallel tool calls before ending the Cursor turn. */
+const TOOL_FINALIZE_GRACE_MS = 400;
 
 export type CursorStreamEvent =
   | { readonly type: 'text'; readonly text: string }
@@ -351,22 +353,25 @@ async function* decodeResponseStream(
 
       const frames = decoder.push(new Uint8Array(result.value));
       for (const frame of frames) {
+        // Any server frame (progress, requestContext, KV, …) proves liveness.
+        // Previously only yielded text/think/tool events reset idle, so long
+        // tool-assembly gaps of tokenDelta/heartbeat frames hit Premature close.
+        gotOutput = true;
+        if (firstByteTimer !== undefined) {
+          clearTimeout(firstByteTimer);
+          firstByteTimer = undefined;
+        }
+        resetIdle();
+
         for (const event of handleFrame(frame, options.writeFrame, options.tools)) {
           if (event.type === 'end') {
             yield* flushToolsAndEnd();
             return;
           }
-          gotOutput = true;
-          if (firstByteTimer !== undefined) {
-            clearTimeout(firstByteTimer);
-            firstByteTimer = undefined;
-          }
-          resetIdle();
           if (event.type === 'tool_call') {
             pendingTools.push(event);
             continue;
           }
-          // Progress-only frames still refresh idle via resetIdle above.
           if (event.type === 'text' || event.type === 'think') {
             yield event;
           }
@@ -384,18 +389,16 @@ async function* decodeResponseStream(
       throw new Error('Cursor upstream timed out before sending any output.');
     }
     if (idleTimedOut) {
-      throw new Error(
-        'Cursor upstream went idle while waiting for client replies (request context / tools).',
-      );
+      throw new Error('Cursor upstream went idle with no frames; retry the turn.');
     }
     yield { type: 'end' };
   } catch (error) {
     if (options.signal?.aborted || isCursorAbortedError(error)) throw cursorAbortedError();
-    // Map Node's premature-close (from stream.close() on idle) to a clearer error.
-    if (idleTimedOut || isPrematureClose(error)) {
-      throw new Error(
-        'Cursor upstream closed early (unanswered exec/query or idle). Retry the turn.',
-      );
+    if (idleTimedOut) {
+      throw new Error('Cursor upstream went idle with no frames; retry the turn.');
+    }
+    if (isPrematureClose(error)) {
+      throw new Error('Cursor upstream closed the stream early; retry the turn.');
     }
     throw error;
   } finally {
@@ -426,7 +429,14 @@ function* handleFrame(
     return;
   }
 
-  // 2) Exec channel: request context, client MCP tools, or reject native exec.
+  // 2) KV get/set — ack empty so blob round-trips cannot stall the turn.
+  const kv = extractKvMessage(payload);
+  if (kv !== undefined) {
+    writeFrame(encodeKvReply(kv.id, kv.caseField));
+    return;
+  }
+
+  // 3) Exec channel: request context, client MCP tools, or reject native exec.
   const exec = extractExecMessage(payload);
   if (exec !== undefined) {
     if (exec.caseField === 10) {
@@ -447,16 +457,18 @@ function* handleFrame(
         return;
       }
       // Non-superliora MCP — reject so the stream does not hang.
-      const reject = encodeNativeExecReject(exec.id, exec.execId, exec.caseField, exec.caseData);
-      if (reject !== undefined) writeFrame(reject);
+      for (const frameOut of encodeNativeExecReject(exec.id, exec.execId, exec.caseField, exec.caseData)) {
+        writeFrame(frameOut);
+      }
       return;
     }
-    const reject = encodeNativeExecReject(exec.id, exec.execId, exec.caseField, exec.caseData);
-    if (reject !== undefined) writeFrame(reject);
+    for (const frameOut of encodeNativeExecReject(exec.id, exec.execId, exec.caseField, exec.caseData)) {
+      writeFrame(frameOut);
+    }
     return;
   }
 
-  // 3) InteractionUpdate toolCallCompleted for SuperLiora MCP tools.
+  // 4) InteractionUpdate toolCallCompleted for SuperLiora MCP tools.
   const tool = extractToolCall(payload);
   if (tool !== undefined) {
     yield {

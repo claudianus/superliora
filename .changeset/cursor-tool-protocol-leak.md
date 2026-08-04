@@ -2,4 +2,4 @@
 "@superliora/liora": patch
 ---
 
-Fix Cursor provider turns that leaked raw `<tool_call>` / `mcp_superliora_*` markup and died with Premature close by answering request-context and interaction queries, rejecting hanging native exec, and recovering text-form tool calls.
+Fix Cursor provider turns that leaked raw tool markup or died mid-run: answer request-context/interaction/KV frames, close shell streams, keep idle alive on progress frames, and recover text-form tool calls.

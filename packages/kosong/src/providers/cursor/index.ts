@@ -138,12 +138,15 @@ export {
   extractToolCall,
   extractExecMessage,
   extractInteractionQuery,
+  extractKvMessage,
   normalizeCursorToolName,
 } from './extract';
 export {
   encodeInteractionQueryReply,
+  encodeKvReply,
   encodeNativeExecReject,
   encodeRequestContextReply,
+  encodeExecStreamClose,
 } from './replies';
 export { recoverToolCallsFromCursorText, sanitizeCursorAssistantText } from './sanitize';
 export {
