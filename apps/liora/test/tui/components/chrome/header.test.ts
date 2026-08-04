@@ -101,22 +101,23 @@ describe('HeaderComponent', () => {
     }
   });
 
-  it('refreshes when the local clock second changes', () => {
+  it('reads the local clock from the shared chrome rebuild path (no private timer)', () => {
     let now = new Date('2026-07-18T13:47:02+09:00').getTime();
     const onRefresh = vi.fn();
     const header = new HeaderComponent(baseState(), onRefresh, () => now);
 
-    vi.advanceTimersByTime(999);
+    const first = header.render(120).join('\n');
+    expect(first).toContain('01:47:02 PM');
+
+    // Private setInterval removed (PREMIUM §7.1) — advancing timers alone must
+    // not fire onRefresh; ambient/chrome rebuilds supply the next clock label.
+    vi.advanceTimersByTime(1_000);
     expect(onRefresh).not.toHaveBeenCalled();
 
     now += 1_000;
-    vi.advanceTimersByTime(1);
-    expect(onRefresh).toHaveBeenCalledTimes(1);
-
+    const second = header.render(120).join('\n');
+    expect(second).toContain('01:47:03 PM');
     header.dispose();
-    now += 1_000;
-    vi.advanceTimersByTime(1_000);
-    expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 
   it('hides on tiny terminals', () => {

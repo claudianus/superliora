@@ -54,7 +54,7 @@ export function onStreamingTextStart(ctx: TextRenderContext): void {
   ctx.clearPendingToolGroups();
   // Advance phase tracker; answer component paints its own header.
   noteStreamPhase(state, ctx.getPhaseBoundary(), 'answer');
-  ctx.revealRuntime.channels.assistantReveal = resetRevealState(Date.now());
+  ctx.revealRuntime.channels.assistantReveal = resetRevealState(appearanceAnimationNow());
   rescheduleRevealTimerHelper(ctx.revealContext());
   const entry = {
     id: nextTranscriptId(),
@@ -80,7 +80,7 @@ export function onStreamingTextUpdate(ctx: TextRenderContext, fullText: string):
 
   // Truth source: full server draft always lives on the transcript entry.
   block.entry.content = fullText;
-  const nowMs = Date.now();
+  const nowMs = appearanceAnimationNow();
 
   if (!ctx.shouldSmoothStreamReveal()) {
     ctx.revealRuntime.channels.assistantReveal = snapRevealToTarget(
@@ -117,7 +117,7 @@ export function onStreamingTextEnd(ctx: TextRenderContext): void {
   const block = ctx.getStreamingBlock();
   if (block !== null) {
     // Snap any lagging reveal so finalize never leaves a partial body.
-    const nowMs = Date.now();
+    const nowMs = appearanceAnimationNow();
     ctx.revealRuntime.channels.assistantReveal = snapRevealToTarget(
       setRevealTarget(ctx.revealRuntime.channels.assistantReveal, block.entry.content, nowMs),
       nowMs,
@@ -133,7 +133,7 @@ export function onStreamingTextEnd(ctx: TextRenderContext): void {
 export function onThinkingUpdate(ctx: TextRenderContext, fullText: string): void {
   if (fullText.length === 0 && ctx.getActiveThinkingComponent() === undefined) return;
   const { state } = ctx.host;
-  const nowMs = Date.now();
+  const nowMs = appearanceAnimationNow();
 
   if (!ctx.shouldSmoothStreamReveal()) {
     ctx.revealRuntime.channels.thinkingReveal = snapRevealToTarget(
@@ -193,7 +193,7 @@ export function onThinkingUpdate(ctx: TextRenderContext, fullText: string): void
 
 export function onThinkingEnd(ctx: TextRenderContext): void {
   if (ctx.getActiveThinkingComponent() === undefined) return;
-  const nowMs = Date.now();
+  const nowMs = appearanceAnimationNow();
   // Snap full thinking body before finalize so collapsed previews are complete.
   ctx.revealRuntime.channels.thinkingReveal = snapRevealToTarget(
     ctx.revealRuntime.channels.thinkingReveal,

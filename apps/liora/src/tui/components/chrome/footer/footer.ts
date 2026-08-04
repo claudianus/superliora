@@ -18,11 +18,7 @@ import {
 
 import type { FooterTranscriptViewportSnapshot } from '#/tui/components/chrome/footer/footer-chrome';
 import { collectFooterStaleAppStatePatches } from '#/tui/components/chrome/footer/footer-badges';
-import {
-  GOAL_TIMER_INTERVAL_MS,
-  goalSnapshotKey,
-} from '#/tui/components/chrome/footer/footer-goal';
-import { wasRecentTranscriptScroll } from '#/tui/utils/render/transcript-paint-mode';
+import { goalSnapshotKey } from '#/tui/components/chrome/footer/footer-goal';
 import {
   renderFooterLine1,
   type FooterLine1TipState,
@@ -55,7 +51,6 @@ export class FooterComponent implements Component {
   private transientHint: string | null = null;
   private goalSnapshotKey: string | null = null;
   private goalObservedAtMs = Date.now();
-  private goalTimer: ReturnType<typeof setInterval> | null = null;
   /**
    * Non-terminal background-task counts split by kind so the footer can
    * render two distinct badges. `bashTasks` covers `bash-*` BPM tasks
@@ -79,7 +74,6 @@ export class FooterComponent implements Component {
     this.gitCacheWorkDir = state.workDir;
     this.gitCache = createGitStatusCache(state.workDir, { onChange: this.onRefresh });
     this.syncGoalClock(state.goal);
-    this.syncGoalTimer(state.goal);
   }
 
   /** Optional source for mode_enter/mode_exit shimmer while a beat is live. */
@@ -98,7 +92,6 @@ export class FooterComponent implements Component {
       this.gitCache = createGitStatusCache(state.workDir, { onChange: this.onRefresh });
     }
     this.syncGoalClock(state.goal);
-    this.syncGoalTimer(state.goal);
     this.state = state;
   }
 
@@ -164,41 +157,17 @@ export class FooterComponent implements Component {
   }
 
   /**
-   * Tear down owned resources (goal timer). Called from the TUI shutdown path
-   * so the refresh interval does not keep firing into a stopped renderer.
+   * Tear down owned resources. Goal wall-clock advances on ambient/chrome
+   * rebuilds while a live goal keeps chrome dynamic (PREMIUM §7.1).
    * Idempotent.
    */
-  dispose(): void {
-    if (this.goalTimer !== null) {
-      clearInterval(this.goalTimer);
-      this.goalTimer = null;
-    }
-  }
+  dispose(): void {}
 
   private syncGoalClock(goal: AppState['goal']): void {
     const key = goalSnapshotKey(goal);
     if (key === this.goalSnapshotKey) return;
     this.goalSnapshotKey = key;
     this.goalObservedAtMs = Date.now();
-  }
-
-  private syncGoalTimer(goal: AppState['goal']): void {
-    if (goal?.status === 'active') {
-      if (this.goalTimer !== null) return;
-      this.goalTimer = setInterval(() => {
-        // Skip a beat during/after wheel scroll so chrome refresh does not
-        // contend with interactive transcript frames.
-        if (wasRecentTranscriptScroll()) return;
-        this.onRefresh();
-      }, GOAL_TIMER_INTERVAL_MS);
-      this.goalTimer.unref?.();
-      return;
-    }
-
-    if (this.goalTimer !== null) {
-      clearInterval(this.goalTimer);
-      this.goalTimer = null;
-    }
   }
 
   private goalWallClockMs(goal: AppState['goal']): number | undefined {

@@ -110,10 +110,12 @@ export class AppearanceController {
         if (this.forceAmbientSchedule?.() === true && shouldAnimate(appearance)) {
           return premiumMs;
         }
-        // Busy-only force (streaming without decorative animation): 1 Hz is
-        // enough for elapsed/stall labels without burning CPU.
+        // Busy-only force (streaming without decorative animation): keep the
+        // moon/braille spinner cadence so waiting glyphs do not freeze at 1fps
+        // while decorative particles stay off.
         if (this.forceAmbientSchedule?.() === true && !shouldAnimate(appearance)) {
-          return 1000;
+          // Match MOON_SPINNER_INTERVAL_MS without importing chrome constants here.
+          return 120;
         }
         return rendererAmbientIntervalMs({
           requested: resolveAmbientEffectMode(appearance),

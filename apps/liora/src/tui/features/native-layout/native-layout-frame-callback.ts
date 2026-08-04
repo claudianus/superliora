@@ -5,11 +5,13 @@ import {
 import { currentTheme } from '#/tui/theme';
 import {
   advanceAppearanceAnimationClock,
+  ambientAnimationActive,
   getActiveAppearancePreferences,
   setAppearanceRenderQuality,
 } from '#/tui/features/appearance/appearance-effects';
 
 import { shouldAnimate, shouldRenderAmbientAnimationFrame } from '../../controllers/appearance/index';
+import { tickArmedStreamReveal } from '../../controllers/streaming-ui/reveal';
 import { resolveStageLayout } from '../../controllers/layout/stage-layout';
 import type { TUIState } from '../../tui-state';
 import {
@@ -66,6 +68,9 @@ export function createTUIStateNativeRenderCallback(
       resetStageResizePointerShape(state.terminal);
     }
     advanceAppearanceAnimationClock(frame.timestamp);
+    // Advance smooth stream reveal on the shared clock before layout so type-on
+    // catch-up paints in this frame (no private setTimeout chain).
+    tickArmedStreamReveal();
     setAppearanceRenderQuality(quality.level);
     // The frame buffer may already be capped below the real terminal height
     // (see `measureFrameHeight` in createTUIStateNativeRenderer), so layout
@@ -134,20 +139,19 @@ export function createTUIStateNativeRenderCallback(
     // matches the on-screen geometry exactly, dock and workspace centering
     // included.
     state.cachedStageBand = stageProbe.stage;
-    // Chrome (header/footer/panels) only carries time-based content while the
-    // agent is active — the activity pane's moon spinner and the footer's
-    // pulsing model label both gate on `streamingPhase !== 'idle' || thinking`.
-    // A live goal also keeps chrome dynamic: footer goal badge + Todo Board
-    // monitor wall-clock / status pulse must re-render on content + animation
-    // ticks (footer 1s timer invalidates 'content' → cause 'request').
-    // When idle with no live goal, chrome is fully static, so animation frames
-    // can reuse the cached chrome lines instead of re-rendering the whole
-    // chrome tree every tick (the dominant per-frame cost once the transcript
-    // is long). The chromeEpoch guard forces a rebuild whenever activity or
-    // live-goal presence starts/stops so stale chrome is never reused.
+    // Chrome is static only when nothing time-varying paints there: no live
+    // agent work, no live goal badge, and no ambient motion (header particle
+    // divider / spectacular brand). When ambient is on, animation frames must
+    // rebuild chrome — reusing the cache freezes the particle rail while the
+    // idle aquarium keeps moving. chromeEpoch still invalidates on activity /
+    // live-goal transitions so stale chrome is never reused across modes.
     const liveGoal = isLiveGoalChromeActive(state.appState.goal);
+    const appearance = state.appState.appearance ?? getActiveAppearancePreferences();
     const chromeStatic =
-      state.appState.streamingPhase === 'idle' && !state.appState.thinking && !liveGoal;
+      state.appState.streamingPhase === 'idle' &&
+      !state.appState.thinking &&
+      !liveGoal &&
+      !ambientAnimationActive(appearance);
     const chromeEpoch = tuiChromeEpoch({
       streamingPhase: state.appState.streamingPhase,
       thinking: state.appState.thinking,

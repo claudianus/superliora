@@ -106,11 +106,12 @@ export class StreamingUIController {
   readonly pendingToolCallFlushIds = this._flushState.pendingToolCallFlushIds;
 
   /**
-   * Shared catch-up reveal timer for assistant + thinking display lag.
-   * Runs only while at least one channel still lags its server draft.
+   * Shared catch-up reveal state for assistant + thinking display lag.
+   * Advanced on the native ambient/content frame clock while armed.
    */
   private readonly revealRuntime = {
-    revealTimer: undefined as ReturnType<typeof setTimeout> | undefined,
+    revealArmed: false,
+    lastRevealTickMs: 0,
     channels: {
       assistantReveal: createStreamingTextRevealState(),
       thinkingReveal: createStreamingTextRevealState(),

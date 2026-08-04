@@ -22,17 +22,15 @@ import {
   renderSpectacularText,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
-import { wasRecentTranscriptScroll } from '#/tui/utils/render/transcript-paint-mode';
 
 const BRAND_MARK = `${HEADER_DIAMOND} SuperLiora`;
-const CLOCK_INTERVAL_MS = 1_000;
 const CLOCK_GAP = '  ';
 
 export class HeaderComponent implements Component {
   private state: AppState;
+  /** Kept for call-site compatibility; chrome rebuilds drive the clock label. */
   private readonly onRefresh: () => void;
   private readonly nowMs: () => number;
-  private clockTimer: ReturnType<typeof setInterval> | null = null;
   private lastClockLabel = '';
 
   constructor(
@@ -44,7 +42,7 @@ export class HeaderComponent implements Component {
     this.onRefresh = onRefresh;
     this.nowMs = nowMs;
     this.lastClockLabel = formatLocalClock(this.nowMs());
-    this.startClock();
+    void this.onRefresh;
   }
 
   setState(state: AppState): void {
@@ -54,10 +52,7 @@ export class HeaderComponent implements Component {
   invalidate(): void {}
 
   dispose(): void {
-    if (this.clockTimer !== null) {
-      clearInterval(this.clockTimer);
-      this.clockTimer = null;
-    }
+    // Clock labels advance on ambient/chrome rebuilds (PREMIUM §7.1) — no timer.
   }
 
   render(width: number): string[] {
@@ -213,20 +208,6 @@ export class HeaderComponent implements Component {
     return currentTheme.fg('warning', `⬆ v${notice.targetVersion}`);
   }
 
-  private startClock(): void {
-    if (this.clockTimer !== null) return;
-    this.clockTimer = setInterval(() => {
-      const next = formatLocalClock(this.nowMs());
-      if (next === this.lastClockLabel) return;
-      this.lastClockLabel = next;
-      // Hold off during transcript scroll so clock ticks do not fight wheel frames.
-      if (wasRecentTranscriptScroll()) return;
-      this.onRefresh();
-    }, CLOCK_INTERVAL_MS);
-    // Unref so the clock never keeps the process alive on its own (Node/Bun).
-    const timer = this.clockTimer as { unref?: () => void };
-    timer.unref?.();
-  }
 }
 
 /**

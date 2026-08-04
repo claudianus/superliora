@@ -63,6 +63,13 @@ export class AssistantMessageComponent implements Component {
   private turnEndCueAtMs: number | undefined;
 
   private readonly renderCache = new RendererWidthRenderCache();
+  /**
+   * Markdown body lines while streaming — reused across ambient ticks until
+   * the draft text or content width changes (avoids re-tokenizing every frame).
+   */
+  private streamingContentLinesCache:
+    | { readonly text: string; readonly contentWidth: number; readonly lines: string[] }
+    | undefined;
 
   constructor(showBullet: boolean = true) {
     this.showBullet = showBullet;
@@ -71,6 +78,7 @@ export class AssistantMessageComponent implements Component {
 
   private markRenderDirty(): void {
     this.renderCache.clear();
+    this.streamingContentLinesCache = undefined;
   }
 
   setShowBullet(show: boolean): void {
@@ -192,7 +200,28 @@ export class AssistantMessageComponent implements Component {
           1,
           measureRendererTranscriptContentWidth({ width: safeWidth, prefix }) - caretReserve,
         );
-        const contentLines = this.contentContainer.render(contentWidth);
+        // Ambient ticks only need caret/tail-glow refresh; reuse markdown lines
+        // until the server draft or width actually changes.
+        let contentLines: string[];
+        if (
+          streaming &&
+          this.streamingContentLinesCache !== undefined &&
+          this.streamingContentLinesCache.text === this.lastText &&
+          this.streamingContentLinesCache.contentWidth === contentWidth
+        ) {
+          contentLines = this.streamingContentLinesCache.lines;
+        } else {
+          contentLines = this.contentContainer.render(contentWidth);
+          if (streaming) {
+            this.streamingContentLinesCache = {
+              text: this.lastText,
+              contentWidth,
+              lines: contentLines,
+            };
+          } else {
+            this.streamingContentLinesCache = undefined;
+          }
+        }
 
         const lines = streaming
           ? appendStreamingCaret(contentLines, contentWidth)

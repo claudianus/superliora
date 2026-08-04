@@ -142,6 +142,19 @@ describe('shouldReuseTUIChromeCache', () => {
     ).toBe(true);
   });
 
+  it('does not treat chrome as reusable when motion keeps chrome live', () => {
+    // chromeStatic=false when ambientAnimationActive — animation frames must
+    // rebuild the header particle divider instead of freezing a cached rail.
+    expect(
+      shouldReuseTUIChromeCache({
+        ...base,
+        pureInputFrame: false,
+        chromeStatic: false,
+        causes: ['animation'],
+      }),
+    ).toBe(false);
+  });
+
   it('reuses chrome on pure transcript scroll when geometry and epoch match', () => {
     expect(
       shouldReuseTUIChromeCache({

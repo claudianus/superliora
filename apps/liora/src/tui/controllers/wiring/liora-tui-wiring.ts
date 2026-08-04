@@ -121,7 +121,10 @@ export function wireLioraTUIControllers(
       // Live agent work needs ambient ticks so thinking/waiting elapsed clocks
       // and stall labels keep updating even when decorative motion is off.
       isStreamingPhaseActive(tui.state.appState.streamingPhase) ||
-      tui.state.appState.isCompacting === true,
+      tui.state.appState.isCompacting === true ||
+      // Active goal wall-clock in the footer needs chrome rebuilds even when
+      // the agent is idle and decorative motion is off.
+      tui.state.appState.goal?.status === 'active',
   });
   tui.state.transcriptDetail =
     tui.state.appState.appearance?.transcriptDetail ?? 'standard';

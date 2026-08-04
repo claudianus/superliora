@@ -122,6 +122,9 @@ export async function runWithBusyOverlay<T>(
 
 export function startSessionLoadingPulse(host: DialogsHost): void {
   stopSessionLoadingPulse(host);
+  // Hydrate batch-mount suppresses ambient/content invalidation, so the
+  // loading overlay cannot ride the shared animation clock alone. Pulse via
+  // flushSuppressedTUIFrame (unref'd) until the overlay ends.
   host.sessionLoadingPulseTimer = setInterval(() => {
     if (host.sessionLoadingOverlay === undefined) {
       stopSessionLoadingPulse(host);
@@ -129,6 +132,7 @@ export function startSessionLoadingPulse(host: DialogsHost): void {
     }
     flushSuppressedTUIFrame(host.state, 'content');
   }, 100);
+  host.sessionLoadingPulseTimer.unref?.();
 }
 
 /** Also called directly from `LioraTUI#stop` during shutdown. */
