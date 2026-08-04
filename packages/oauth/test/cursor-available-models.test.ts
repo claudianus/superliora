@@ -62,7 +62,7 @@ describe('normalizeAvailableModels', () => {
     });
   });
 
-  it('rewrites legacy effort-fast slugs to GetUsableModels wire order', () => {
+  it('keeps effort-then-fast Grok slugs (opencodex #797)', () => {
     const models = normalizeAvailableModels([
       {
         name: 'cursor-grok-4.5',
@@ -85,7 +85,7 @@ describe('normalizeAvailableModels', () => {
     ]);
 
     expect(models).toHaveLength(1);
-    expect(models[0]?.id).toBe('grok-4.5-fast-high');
+    expect(models[0]?.id).toBe('grok-4.5-high-fast');
     expect(models[0]?.serverModelId).toBe('grok-4.5');
   });
 
@@ -117,8 +117,8 @@ describe('normalizeAvailableModels', () => {
 
 describe('toCursorCatalogModelId / decodeUsableModelIds', () => {
   it('normalizes discovery ids the way Run expects', () => {
-    expect(toCursorCatalogModelId('cursor-grok-4.5-high-fast')).toBe('grok-4.5-fast-high');
-    expect(toCursorCatalogModelId('grok-4.5-fast-high')).toBe('grok-4.5-fast-high');
+    expect(toCursorCatalogModelId('cursor-grok-4.5-high-fast')).toBe('grok-4.5-high-fast');
+    expect(toCursorCatalogModelId('grok-4.5-fast-high')).toBe('grok-4.5-high-fast');
     expect(toCursorCatalogModelId('auto')).toBe('default');
   });
 

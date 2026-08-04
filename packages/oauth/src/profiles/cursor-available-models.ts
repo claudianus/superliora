@@ -18,7 +18,8 @@ const USABLE_MODELS_PATH = '/agent.v1.AgentService/GetUsableModels';
 const DEFAULT_API_HOST = 'https://api2.cursor.sh';
 const DEFAULT_CONTEXT = 200_000;
 const DEFAULT_TIMEOUT_MS = 8_000;
-const EFFORT_THEN_FAST = /^(.+)-(none|low|medium|high|xhigh|max)-fast$/i;
+/** Stale inverted form written by #880 before opencodex #797 landing. */
+const FAST_THEN_EFFORT = /^(.+)-fast-(none|low|medium|high|xhigh|max)$/i;
 
 export interface CursorDiscoveredModel {
   readonly id: string;
@@ -44,7 +45,8 @@ export const CURSOR_FALLBACK_MODELS: readonly CursorDiscoveredModel[] = [
   { id: 'gpt-5.3-codex', displayName: 'GPT-5.3 Codex', maxContextSize: 272_000, capabilities: ['thinking', 'tool_use'] },
   { id: 'gemini-3.1-pro', displayName: 'Gemini 3.1 Pro', maxContextSize: 1_000_000, capabilities: ['thinking', 'tool_use', 'image_in'] },
   { id: 'gemini-3.5-flash', displayName: 'Gemini 3.5 Flash', maxContextSize: 1_000_000, capabilities: ['thinking', 'tool_use', 'image_in'] },
-  { id: 'grok-4.5-fast-high', displayName: 'Grok 4.5 Fast', maxContextSize: 256_000, capabilities: ['thinking', 'tool_use'] },
+  { id: 'grok-4.5-high-fast', displayName: 'Grok 4.5 Fast', maxContextSize: 500_000, capabilities: ['thinking', 'tool_use'] },
+  { id: 'grok-4.5-high', displayName: 'Grok 4.5', maxContextSize: 500_000, capabilities: ['thinking', 'tool_use'] },
   { id: 'grok-code-fast-1', displayName: 'Grok Code Fast 1', maxContextSize: 128_000, capabilities: ['tool_use'] },
   { id: 'kimi-k2.7-code', displayName: 'Kimi K2.7 Code', maxContextSize: 262_000, capabilities: ['thinking', 'tool_use'] },
   { id: 'glm-5.2-high', displayName: 'GLM 5.2 High', maxContextSize: 200_000, capabilities: ['thinking', 'tool_use'] },
@@ -590,11 +592,14 @@ export function stripCursorWirePrefix(modelId: string): string {
   return id.startsWith('cursor-') ? id.slice('cursor-'.length) : id;
 }
 
-/** AvailableModels legacySlug uses effort-then-fast; Run wants fast-then-effort. */
+/**
+ * Undo the inverted `#880` form (`*-fast-{effort}` → `*-{effort}-fast`).
+ * Current Cursor / opencodex wire ids keep effort before fast (opencodex #797).
+ */
 export function rewriteCursorLegacyFastSuffix(modelId: string): string {
-  const match = EFFORT_THEN_FAST.exec(modelId);
+  const match = FAST_THEN_EFFORT.exec(modelId);
   if (match === null) return modelId;
-  return `${match[1]}-fast-${match[2]!.toLowerCase()}`;
+  return `${match[1]}-${match[2]!.toLowerCase()}-fast`;
 }
 
 /** Normalize a discovery id into the catalog / Run wire form. */
