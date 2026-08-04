@@ -48,10 +48,13 @@ export function buildRunFrames(params: CursorRunParams): Uint8Array[] {
     messages,
     fieldLd(4, encodeMcpTools(params.tools)),
     fieldStr(5, conv),
-    fieldLd(9, encodeModelMeta(wireModelId, false)),
+    // RequestedModel / ModelDetails: model_id only. Effort+fast are baked into
+    // GetUsableModels wire ids (`grok-4.5-fast-high`); do not invent a `fast=false`
+    // parameter that fights the id (opencodex ModelDetails path).
+    fieldLd(9, encodeModelMeta(wireModelId)),
     fieldVarint(12, 0),
     fieldLd(14, fieldStr(1, 'default')),
-    fieldLd(14, encodeModelMeta(wireModelId, false)),
+    fieldLd(14, encodeModelMeta(wireModelId)),
     fieldStr(16, conv),
   );
   const frame0 = encodeConnectFrame(fieldLd(1, req));
@@ -105,7 +108,6 @@ function encodeMcpToolDef(tool: CursorAgentTool): Uint8Array {
   );
 }
 
-function encodeModelMeta(name: string, fast: boolean): Uint8Array {
-  const kv = concatBytes(fieldStr(1, 'fast'), fieldStr(2, fast ? 'true' : 'false'));
-  return concatBytes(fieldStr(1, name), fieldLd(3, kv));
+function encodeModelMeta(name: string): Uint8Array {
+  return fieldStr(1, name);
 }

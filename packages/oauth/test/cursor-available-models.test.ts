@@ -4,7 +4,9 @@ import {
   applyCursorOAuthModelAliases,
   CURSOR_FALLBACK_MODELS,
   cursorModelsToPresets,
+  decodeUsableModelIds,
   normalizeAvailableModels,
+  toCursorCatalogModelId,
 } from '../src/profiles/cursor-available-models';
 
 describe('normalizeAvailableModels', () => {
@@ -60,7 +62,7 @@ describe('normalizeAvailableModels', () => {
     });
   });
 
-  it('strips the GetUsableModels cursor- wire prefix from picker ids', () => {
+  it('rewrites legacy effort-fast slugs to GetUsableModels wire order', () => {
     const models = normalizeAvailableModels([
       {
         name: 'cursor-grok-4.5',
@@ -83,7 +85,7 @@ describe('normalizeAvailableModels', () => {
     ]);
 
     expect(models).toHaveLength(1);
-    expect(models[0]?.id).toBe('grok-4.5-high-fast');
+    expect(models[0]?.id).toBe('grok-4.5-fast-high');
     expect(models[0]?.serverModelId).toBe('grok-4.5');
   });
 
@@ -110,6 +112,25 @@ describe('normalizeAvailableModels', () => {
 
     expect(models).toHaveLength(1);
     expect(models[0]?.displayName).toBe('Sonnet');
+  });
+});
+
+describe('toCursorCatalogModelId / decodeUsableModelIds', () => {
+  it('normalizes discovery ids the way Run expects', () => {
+    expect(toCursorCatalogModelId('cursor-grok-4.5-high-fast')).toBe('grok-4.5-fast-high');
+    expect(toCursorCatalogModelId('grok-4.5-fast-high')).toBe('grok-4.5-fast-high');
+    expect(toCursorCatalogModelId('auto')).toBe('default');
+  });
+
+  it('decodes GetUsableModelsResponse model_id fields', () => {
+    const response = Buffer.concat([
+      pbLen(1, pbStr(1, 'cursor-grok-4.5-high')),
+      pbLen(1, pbStr(1, 'composer-2.5')),
+    ]);
+    expect(decodeUsableModelIds(new Uint8Array(response))).toEqual([
+      'cursor-grok-4.5-high',
+      'composer-2.5',
+    ]);
   });
 });
 
@@ -154,3 +175,24 @@ describe('cursorModelsToPresets / applyCursorOAuthModelAliases', () => {
     expect(config.models?.['xai-grok/grok-4']).toBeDefined();
   });
 });
+
+function pbStr(field: number, value: string): Buffer {
+  return pbLen(field, Buffer.from(value, 'utf8'));
+}
+
+function pbLen(field: number, payload: Buffer): Buffer {
+  const tag = Buffer.from(encodeVarint((field << 3) | 2));
+  const len = Buffer.from(encodeVarint(payload.length));
+  return Buffer.concat([tag, len, payload]);
+}
+
+function encodeVarint(value: number): number[] {
+  const out: number[] = [];
+  let v = value >>> 0;
+  while (v >= 0x80) {
+    out.push((v & 0x7f) | 0x80);
+    v >>>= 7;
+  }
+  out.push(v);
+  return out;
+}
