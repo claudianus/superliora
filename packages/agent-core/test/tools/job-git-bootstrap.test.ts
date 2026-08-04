@@ -95,6 +95,44 @@ describe('ensureGitRepoForWorktrees', () => {
     await expect(git(kaos, repo, 'rev-parse', '--verify', 'HEAD')).resolves.toBeDefined();
   });
 
+  it('bootstraps a completely empty directory with an empty baseline commit', async () => {
+    const repo = await makeTempDir('liora-gitempty-');
+
+    const result = await ensureGitRepoForWorktrees(kaos, repo, {});
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.bootstrapped).toBe(true);
+    expect(result.baselineCommit).toBe(true);
+
+    // `git worktree add HEAD` must work afterwards — the original failure mode.
+    await expect(git(kaos, repo, 'rev-parse', '--verify', 'HEAD')).resolves.toBeDefined();
+    const subject = await git(kaos, repo, 'log', '-1', '--format=%s');
+    expect(subject).toBe(GIT_BOOTSTRAP_BASELINE_MESSAGE);
+  });
+
+  it('adds a baseline commit to an initialized repo with no commits (unborn HEAD)', async () => {
+    const repo = await makeTempDir('liora-gitunborn-');
+    await git(kaos, repo, 'init');
+    await writeFile(join(repo, 'a.txt'), 'a\n', 'utf-8');
+
+    const result = await ensureGitRepoForWorktrees(kaos, repo, {});
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.bootstrapped).toBe(false);
+    expect(result.baselineCommit).toBe(true);
+    await expect(git(kaos, repo, 'rev-parse', '--verify', 'HEAD')).resolves.toBeDefined();
+  });
+
+  it('honors the legacy conductor opt-out env too', async () => {
+    const repo = await makeTempDir('liora-gitlegacyoptout-');
+    const result = await ensureGitRepoForWorktrees(kaos, repo, {
+      SUPERLIORA_CONDUCTOR_AUTO_GIT_INIT: '0',
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error).toContain('SUPERLIORA_CONDUCTOR_AUTO_GIT_INIT');
+  });
+
   it('memoizes a successful bootstrap per path', async () => {
     const repo = await makeTempDir('liora-gitmemo-');
     await writeFile(join(repo, 'a.txt'), 'a\n', 'utf-8');

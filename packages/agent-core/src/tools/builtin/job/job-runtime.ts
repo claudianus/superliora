@@ -137,7 +137,13 @@ export async function assignJobWorktree(
     });
     const job = patchJob(input.store, existing.id, {
       status: 'blocked',
-      notes: [existing.notes, `worktree_failed: ${repo.error}`].filter(Boolean).join('\n'),
+      notes: [
+        existing.notes,
+        `worktree_failed: ${repo.error}`,
+        'hint: fix the git setup above, then JobResume this job.',
+      ]
+        .filter(Boolean)
+        .join('\n'),
     });
     return { job, error: repo.error };
   }

@@ -7,6 +7,7 @@ import { createWorktree, removeWorktree, runGit } from '#/autopilot/git';
 import { resolveLioraHome } from '#/config/path';
 import { ErrorCodes, LioraError } from '#/errors/index';
 import { slugifyWorkDirName } from '#/utils/workdir-slug';
+import { ensureGitRepoForWorktrees } from './git-bootstrap';
 
 export const SESSION_WORKTREE_CUSTOM_KEY = 'worktree' as const;
 
@@ -41,6 +42,15 @@ export interface CreateSessionWorktreeInput {
   readonly homeDir?: string | undefined;
   /** Optional session id to stamp on the registry entry. */
   readonly sessionId?: string | undefined;
+  /**
+   * Auto-bootstrap a git repository when `repoPath` is not inside one (or
+   * the repo has no commits yet): local `git init` + baseline commit so
+   * `git worktree add` can run. Default true; opt out per process via
+   * `SUPERLIORA_AUTO_GIT_INIT=0` (legacy `SUPERLIORA_CONDUCTOR_AUTO_GIT_INIT`).
+   */
+  readonly bootstrapRepo?: boolean | undefined;
+  /** Env used for the bootstrap opt-out check (default process.env). */
+  readonly env?: Readonly<Record<string, string | undefined>> | undefined;
 }
 
 export interface CreateSessionWorktreeResult {
@@ -186,7 +196,21 @@ export async function createSessionWorktree(
   kaos: Kaos,
   input: CreateSessionWorktreeInput,
 ): Promise<CreateSessionWorktreeResult> {
-  const repoRoot = await resolveGitRepoRoot(kaos, input.repoPath);
+  // Fresh/empty folders have no repo (or no commits), which used to hard-fail
+  // every worktree entrypoint. Bootstrap first so `worktree add` always has
+  // a repo root and a valid base ref; the result is memoized per path.
+  let probePath = input.repoPath;
+  if (input.bootstrapRepo !== false) {
+    const repo = await ensureGitRepoForWorktrees(kaos, input.repoPath, input.env ?? process.env);
+    if (!repo.ok) {
+      throw new LioraError(ErrorCodes.WORKTREE_NOT_A_GIT_REPO, repo.error, {
+        details: { cwd: input.repoPath },
+      });
+    }
+    probePath = repo.root;
+  }
+
+  const repoRoot = await resolveGitRepoRoot(kaos, probePath);
   const name = generateWorktreeName(input.name);
   const baseRef = (input.baseRef?.trim() ?? 'HEAD').trim();
   const target = defaultWorktreePath({ homeDir: input.homeDir, repoRoot, name });
