@@ -6,12 +6,16 @@ import {
   concatBytes,
   decodeProtobufValue,
   encodeConnectFrame,
+  encodeExecStreamClose,
   encodeInteractionQueryReply,
+  encodeKvReply,
+  encodeNativeExecReject,
   encodeProtobufValue,
   encodeRequestContextReply,
   extractAnswerText,
   extractExecMessage,
   extractInteractionQuery,
+  extractKvMessage,
   extractReasoningText,
   extractToolCall,
   fieldLd,
@@ -185,6 +189,27 @@ describe('cursor client replies', () => {
     expect(frame[0]).toBe(0);
     expect(Buffer.from(frame).includes(Buffer.from('Skill', 'utf8'))).toBe(true);
     expect(Buffer.from(frame).includes(Buffer.from('superliora', 'utf8'))).toBe(true);
+  });
+
+  it('acks KV get/set so blob round-trips cannot stall', () => {
+    const getArgs = concatBytes(fieldVarint(1, 7), fieldLd(2, fieldStr(1, 'blob')));
+    const getPayload = fieldLd(4, getArgs);
+    expect(extractKvMessage(getPayload)).toEqual({ id: 7, caseField: 2 });
+    const getReply = encodeKvReply(7, 2);
+    expect(getReply[0]).toBe(0);
+
+    const setArgs = concatBytes(fieldVarint(1, 8), fieldLd(3, fieldStr(1, 'blob')));
+    expect(extractKvMessage(fieldLd(4, setArgs))?.caseField).toBe(3);
+    expect(encodeKvReply(8, 3)[0]).toBe(0);
+  });
+
+  it('rejects shellStream with streamClose so Cursor unblocks', () => {
+    const frames = encodeNativeExecReject(4, 'e1', 14, concatBytes(fieldStr(1, 'ls'), fieldStr(2, '/tmp')));
+    expect(frames.length).toBeGreaterThanOrEqual(3);
+    const close = encodeExecStreamClose(4);
+    expect(close[0]).toBe(0);
+    // Last reject frame should be streamClose control.
+    expect(Buffer.from(frames[frames.length - 1]!).equals(Buffer.from(close))).toBe(true);
   });
 });
 

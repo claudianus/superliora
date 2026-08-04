@@ -2,8 +2,8 @@
  * Client → server Connect frames that keep Cursor's AgentService/Run alive.
  *
  * Cursor blocks the turn on unanswered `requestContextArgs`, `interactionQuery`,
- * and native-exec messages. Leaving them hanging is the main cause of idle
- * stream close → `Premature close` in SuperLiora's Cursor bridge.
+ * native-exec, and KV messages. Leaving them hanging stalls the stream until the
+ * client idle timer (or Cursor) closes it.
  */
 
 import { encodeConnectFrame } from './connect';
@@ -72,105 +72,159 @@ export function encodeInteractionQueryReply(queryId: number, queryField: number 
 }
 
 /**
- * Reject a native exec Cursor asked us to run locally. Keeps the stream alive so
- * the model can fall back to advertised SuperLiora MCP tools.
+ * Ack a KV get/set with an empty success result so Cursor does not block the turn
+ * on blob round-trips we do not persist.
+ */
+export function encodeKvReply(kvId: number, caseField: number | undefined): Uint8Array {
+  const parts: Uint8Array[] = [fieldVarint(1, kvId)];
+  if (caseField === 2) {
+    // getBlobArgs → empty getBlobResult (miss)
+    parts.push(fieldLd(2, new Uint8Array(0)));
+  } else if (caseField === 3) {
+    // setBlobArgs → empty setBlobResult (ok)
+    parts.push(fieldLd(3, new Uint8Array(0)));
+  }
+  return encodeConnectFrame(fieldLd(3, concatBytes(...parts)));
+}
+
+/**
+ * Reject a native exec Cursor asked us to run locally. Returns one or more
+ * Connect frames (shell streams need streamClose or the turn stays pending).
  */
 export function encodeNativeExecReject(
   execId: number,
   execIdStr: string | undefined,
   execCase: number,
   argsBuf: Uint8Array,
-): Uint8Array | undefined {
+): Uint8Array[] {
   const path = firstStringField(argsBuf, 1) ?? '';
   const command = firstStringField(argsBuf, 1) ?? '';
   const cwd = firstStringField(argsBuf, 2) ?? '';
   const url = firstStringField(argsBuf, 1) ?? '';
 
+  const shellRejected = fieldLd(
+    4,
+    concatBytes(
+      fieldStr(1, command),
+      fieldStr(2, cwd),
+      fieldStr(3, NATIVE_EXEC_DISABLED),
+      fieldVarint(4, 0),
+    ),
+  );
+
   switch (execCase) {
     case 2: // shellArgs → shellResult.rejected(4)
-    case 14: // shellStreamArgs
-      return encodeExecClientMessage(
-        execId,
-        execIdStr,
-        2,
-        fieldLd(
-          4,
-          concatBytes(
-            fieldStr(1, command),
-            fieldStr(2, cwd),
-            fieldStr(3, NATIVE_EXEC_DISABLED),
-            fieldVarint(4, 0),
-          ),
-        ),
-      );
+      return [encodeExecClientMessage(execId, execIdStr, 2, shellRejected)];
+    case 14: {
+      // shellStreamArgs: Cursor waits for streamClose after stream events.
+      const streamRejected = fieldLd(5, concatBytes(
+        fieldStr(1, command),
+        fieldStr(2, cwd),
+        fieldStr(3, NATIVE_EXEC_DISABLED),
+        fieldVarint(4, 0),
+      ));
+      return [
+        encodeExecClientMessage(execId, execIdStr, 14, streamRejected),
+        encodeExecClientMessage(execId, execIdStr, 2, shellRejected),
+        encodeExecStreamClose(execId),
+      ];
+    }
     case 3: // writeArgs → writeResult.rejected(6)
-      return encodeExecClientMessage(
-        execId,
-        execIdStr,
-        3,
-        fieldLd(6, concatBytes(fieldStr(1, path), fieldStr(2, NATIVE_EXEC_DISABLED))),
-      );
+      return [
+        encodeExecClientMessage(
+          execId,
+          execIdStr,
+          3,
+          fieldLd(6, concatBytes(fieldStr(1, path), fieldStr(2, NATIVE_EXEC_DISABLED))),
+        ),
+      ];
     case 4: // deleteArgs → deleteResult.rejected(6)
-      return encodeExecClientMessage(
-        execId,
-        execIdStr,
-        4,
-        fieldLd(6, concatBytes(fieldStr(1, path), fieldStr(2, NATIVE_EXEC_DISABLED))),
-      );
+      return [
+        encodeExecClientMessage(
+          execId,
+          execIdStr,
+          4,
+          fieldLd(6, concatBytes(fieldStr(1, path), fieldStr(2, NATIVE_EXEC_DISABLED))),
+        ),
+      ];
     case 5: // grepArgs → grepResult.error(2)
-      return encodeExecClientMessage(execId, execIdStr, 5, fieldLd(2, fieldStr(1, NATIVE_EXEC_DISABLED)));
+      return [encodeExecClientMessage(execId, execIdStr, 5, fieldLd(2, fieldStr(1, NATIVE_EXEC_DISABLED)))];
     case 7: // readArgs → readResult.error(2)
-      return encodeExecClientMessage(
-        execId,
-        execIdStr,
-        7,
-        fieldLd(2, concatBytes(fieldStr(1, path), fieldStr(2, NATIVE_EXEC_DISABLED))),
-      );
+      return [
+        encodeExecClientMessage(
+          execId,
+          execIdStr,
+          7,
+          fieldLd(2, concatBytes(fieldStr(1, path), fieldStr(2, NATIVE_EXEC_DISABLED))),
+        ),
+      ];
     case 8: // lsArgs → lsResult.error(2)
-      return encodeExecClientMessage(
-        execId,
-        execIdStr,
-        8,
-        fieldLd(2, concatBytes(fieldStr(1, path), fieldStr(2, NATIVE_EXEC_DISABLED))),
-      );
+      return [
+        encodeExecClientMessage(
+          execId,
+          execIdStr,
+          8,
+          fieldLd(2, concatBytes(fieldStr(1, path), fieldStr(2, NATIVE_EXEC_DISABLED))),
+        ),
+      ];
     case 9: // diagnosticsArgs → diagnosticsResult.error(2)
-      return encodeExecClientMessage(
-        execId,
-        execIdStr,
-        9,
-        fieldLd(2, concatBytes(fieldStr(1, path), fieldStr(2, NATIVE_EXEC_DISABLED))),
-      );
+      return [
+        encodeExecClientMessage(
+          execId,
+          execIdStr,
+          9,
+          fieldLd(2, concatBytes(fieldStr(1, path), fieldStr(2, NATIVE_EXEC_DISABLED))),
+        ),
+      ];
     case 11: // mcpArgs (non-client) → mcpResult.error
-      return encodeExecClientMessage(
-        execId,
-        execIdStr,
-        11,
-        fieldLd(2, fieldStr(1, NATIVE_EXEC_DISABLED)),
-      );
+      return [encodeExecClientMessage(execId, execIdStr, 11, fieldLd(2, fieldStr(1, NATIVE_EXEC_DISABLED)))];
+    case 16: // backgroundShellSpawnArgs
+      return [
+        encodeExecClientMessage(
+          execId,
+          execIdStr,
+          16,
+          fieldLd(2, fieldStr(1, NATIVE_EXEC_DISABLED)),
+        ),
+        encodeExecStreamClose(execId),
+      ];
     case 17: // listMcpResources
-      return encodeExecClientMessage(
-        execId,
-        execIdStr,
-        17,
-        fieldLd(2, fieldStr(1, NATIVE_EXEC_DISABLED)),
-      );
+      return [encodeExecClientMessage(execId, execIdStr, 17, fieldLd(2, fieldStr(1, NATIVE_EXEC_DISABLED)))];
     case 18: // readMcpResource
-      return encodeExecClientMessage(
-        execId,
-        execIdStr,
-        18,
-        fieldLd(2, fieldStr(1, NATIVE_EXEC_DISABLED)),
-      );
+      return [encodeExecClientMessage(execId, execIdStr, 18, fieldLd(2, fieldStr(1, NATIVE_EXEC_DISABLED)))];
     case 20: // fetchArgs → fetchResult.error
-      return encodeExecClientMessage(
-        execId,
-        execIdStr,
-        20,
-        fieldLd(2, concatBytes(fieldStr(1, url), fieldStr(2, NATIVE_EXEC_DISABLED))),
-      );
+      return [
+        encodeExecClientMessage(
+          execId,
+          execIdStr,
+          20,
+          fieldLd(2, concatBytes(fieldStr(1, url), fieldStr(2, NATIVE_EXEC_DISABLED))),
+        ),
+      ];
+    case 21: // recordScreen
+    case 22: // computerUse
+      return [encodeExecClientMessage(execId, execIdStr, execCase, fieldLd(2, fieldStr(1, NATIVE_EXEC_DISABLED)))];
+    case 23: // writeShellStdin
+      return [
+        encodeExecClientMessage(execId, execIdStr, 23, fieldLd(2, fieldStr(1, NATIVE_EXEC_DISABLED))),
+        encodeExecStreamClose(execId),
+      ];
     default:
-      return undefined;
+      // Unknown exec case: throw on the control channel so Cursor unblocks.
+      return [encodeExecThrow(execId, NATIVE_EXEC_DISABLED)];
   }
+}
+
+/** execClientControlMessage.streamClose — required after shellStreamArgs. */
+export function encodeExecStreamClose(execId: number): Uint8Array {
+  return encodeConnectFrame(fieldLd(5, fieldLd(1, fieldVarint(1, execId))));
+}
+
+/** execClientControlMessage.throw — last-resort unblock for unknown exec. */
+export function encodeExecThrow(execId: number, error: string): Uint8Array {
+  return encodeConnectFrame(
+    fieldLd(5, fieldLd(2, concatBytes(fieldVarint(1, execId), fieldStr(2, error)))),
+  );
 }
 
 function encodeExecClientMessage(

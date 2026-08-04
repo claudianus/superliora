@@ -107,6 +107,30 @@ export function extractInteractionQuery(payload: Uint8Array): CursorInteractionQ
   return undefined;
 }
 
+export interface CursorKvMessage {
+  readonly id: number;
+  /** Oneof field number inside KvServerMessage.message (2=getBlob, 3=setBlob). */
+  readonly caseField?: number;
+}
+
+/** Parse `kv_server_message` (AgentServerMessage field 4). */
+export function extractKvMessage(payload: Uint8Array): CursorKvMessage | undefined {
+  for (const top of iterFields(payload)) {
+    if (top.field !== 4 || top.wire !== 2) continue;
+    let id = 0;
+    let caseField: number | undefined;
+    for (const field of iterFields(top.data)) {
+      if (field.field === 1 && field.wire === 0 && field.varint !== undefined) {
+        id = Number(field.varint);
+      } else if (field.wire === 2 && (field.field === 2 || field.field === 3)) {
+        caseField ??= field.field;
+      }
+    }
+    return { id, ...(caseField === undefined ? {} : { caseField }) };
+  }
+  return undefined;
+}
+
 /** True when this frame is a progress/heartbeat-style update with no user-visible payload. */
 export function isCursorProgressPayload(payload: Uint8Array): boolean {
   for (const top of iterFields(payload)) {
