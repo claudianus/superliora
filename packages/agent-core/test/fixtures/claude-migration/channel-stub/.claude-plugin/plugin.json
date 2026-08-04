@@ -1,7 +1,0 @@
-{
-  "name": "channel-stub",
-  "version": "1.0.0",
-  "channels": [
-    { "server": "alerts" }
-  ]
-}

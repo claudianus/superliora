@@ -3,23 +3,10 @@
 // Persona bodies live in catalog-personas and load only when an expert is hydrated.
 
 import type { ExpertCatalogEntry } from './types';
-import {
-  EXPERT_CATALOG_META,
-  EXPERT_CATALOG_META_BY_ID,
-  EXPERT_CATALOG_SOURCE_COUNTS,
-  EXPERT_DIVISIONS,
-} from './catalog-meta';
+import { EXPERT_CATALOG_META_BY_ID } from './catalog-meta';
 import { loadExpertPersonaText } from './catalog-persona-loader';
 
-export {
-  EXPERT_CATALOG_META,
-  EXPERT_CATALOG_META_BY_ID,
-  EXPERT_CATALOG_SOURCE_COUNTS,
-  EXPERT_DIVISIONS,
-};
-
-/** Meta-only catalog for search/indexing (personaText empty). */
-export const EXPERT_CATALOG: readonly ExpertCatalogEntry[] = EXPERT_CATALOG_META;
+export { EXPERT_CATALOG_META, EXPERT_CATALOG_META_BY_ID } from './catalog-meta';
 
 /**
  * Minimal persona when catalog JSON is missing a body for a known meta id.

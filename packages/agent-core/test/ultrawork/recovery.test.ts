@@ -1577,7 +1577,7 @@ describe('Ultrawork recovery', () => {
 
 describe('suggestNextActions fallbacks', () => {
   it('never returns an empty action list', async () => {
-    const { suggestNextActions } = await import('../../src/ultrawork/recovery-prompt');
+    const { suggestNextActions } = await import('../../src/mission/recovery-prompt');
     const actions = suggestNextActions({
       id: 'run-empty-actions',
       objective: 'Ship feature',
@@ -1597,7 +1597,7 @@ describe('suggestNextActions fallbacks', () => {
   });
 
   it('prioritizes seeding WorkGraph when graph is missing or empty', async () => {
-    const { suggestNextActions } = await import('../../src/ultrawork/recovery-prompt');
+    const { suggestNextActions } = await import('../../src/mission/recovery-prompt');
     const missing = suggestNextActions({
       id: 'run-no-graph',
       objective: 'Ship feature',
@@ -1639,7 +1639,7 @@ describe('suggestNextActions fallbacks', () => {
   });
 
   it('promotes high-resume and long-running stages into next_actions', async () => {
-    const { suggestNextActions } = await import('../../src/ultrawork/recovery-prompt');
+    const { suggestNextActions } = await import('../../src/mission/recovery-prompt');
     const now = Date.now();
     const actions = suggestNextActions({
       id: 'run-next-actions-circuit-break',
@@ -1696,7 +1696,7 @@ describe('suggestNextActions fallbacks', () => {
   });
 
   it('embeds analyzeFailedNodes category guidance into failed next_actions', async () => {
-    const { suggestNextActions } = await import('../../src/ultrawork/recovery-prompt');
+    const { suggestNextActions } = await import('../../src/mission/recovery-prompt');
     const actions = suggestNextActions({
       id: 'run-failed-category',
       objective: 'Ship feature',
@@ -1733,7 +1733,7 @@ describe('suggestNextActions fallbacks', () => {
   });
 
   it('promotes owned stuck running nodes into next_actions', async () => {
-    const { suggestNextActions } = await import('../../src/ultrawork/recovery-prompt');
+    const { suggestNextActions } = await import('../../src/mission/recovery-prompt');
     const actions = suggestNextActions({
       id: 'run-stuck-owned',
       objective: 'Ship feature',
@@ -1771,7 +1771,7 @@ describe('suggestNextActions fallbacks', () => {
   });
 
   it('fills a defensive fallback when stage guidance is empty', async () => {
-    const { suggestNextActions } = await import('../../src/ultrawork/recovery-prompt');
+    const { suggestNextActions } = await import('../../src/mission/recovery-prompt');
     // Force an empty path by skipping interrupt/plan context and using a stage
     // that still produces stage guidance — assert non-empty is the contract.
     const actions = suggestNextActions({
@@ -1792,7 +1792,7 @@ describe('suggestNextActions fallbacks', () => {
   });
 
   it('surfaces queued nodes waiting on dependsOn when not blocked', async () => {
-    const { suggestNextActions } = await import('../../src/ultrawork/recovery-prompt');
+    const { suggestNextActions } = await import('../../src/mission/recovery-prompt');
     const actions = suggestNextActions({
       id: 'run-queued-deps',
       objective: 'Ship feature',
@@ -1834,7 +1834,7 @@ describe('suggestNextActions fallbacks', () => {
   });
 
   it('prioritizes blocked WorkGraph nodes in next actions', async () => {
-    const { suggestNextActions } = await import('../../src/ultrawork/recovery-prompt');
+    const { suggestNextActions } = await import('../../src/mission/recovery-prompt');
     const actions = suggestNextActions({
       id: 'run-blocked-actions',
       objective: 'Ship feature',
@@ -1876,7 +1876,7 @@ describe('suggestNextActions fallbacks', () => {
   });
 
   it('surfaces verification gaps with missing required evidence', async () => {
-    const { suggestNextActions } = await import('../../src/ultrawork/recovery-prompt');
+    const { suggestNextActions } = await import('../../src/mission/recovery-prompt');
     const actions = suggestNextActions({
       id: 'run-verify-gaps',
       objective: 'Ship feature',
@@ -1923,7 +1923,7 @@ describe('suggestNextActions fallbacks', () => {
   });
 
   it('surfaces evidence hard-gate next_actions for done-without-evidence nodes', async () => {
-    const { suggestNextActions } = await import('../../src/ultrawork/recovery-prompt');
+    const { suggestNextActions } = await import('../../src/mission/recovery-prompt');
     const actions = suggestNextActions({
       id: 'run-evidence-gate',
       objective: 'Ship feature',
@@ -2067,7 +2067,7 @@ describe('suggestNextActions fallbacks', () => {
   });
 
   it('flags ownerless running WorkGraph nodes in next actions', async () => {
-    const { suggestNextActions } = await import('../../src/ultrawork/recovery-prompt');
+    const { suggestNextActions } = await import('../../src/mission/recovery-prompt');
     const actions = suggestNextActions({
       id: 'run-orphan-running',
       objective: 'Ship feature',

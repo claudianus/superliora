@@ -29,7 +29,7 @@
   "imports": {
     "#/mission": "./src/mission/index.ts",
     "#/fleet": "./src/fleet/index.ts",
-    "#/ultrawork": "./src/ultrawork/index.ts",
+    "#/ultrawork": "./src/mission/index.ts",
     "#/collaboration": "./src/fleet/index.ts",
     "#/*": [
       "./src/*.ts",
@@ -58,8 +58,8 @@
       "default": "./src/fleet/index.ts"
     },
     "./ultrawork": {
-      "types": "./src/ultrawork/index.ts",
-      "default": "./src/ultrawork/index.ts"
+      "types": "./src/mission/index.ts",
+      "default": "./src/mission/index.ts"
     },
     "./collaboration": {
       "types": "./src/fleet/index.ts",

@@ -30,9 +30,9 @@ export const MISSION_PROTOCOL_ALIAS_TIPS = [
   'Journal golden sequences require dual-emit OFF; durable trace stays ultrawork.* only.',
 ] as const;
 
-/** Import-path soft path — hard disk rename pending (W5). */
+/** Import-path guidance — shim folder removed; package aliases still redirect. */
 export const MISSION_IMPORT_PATH_TIPS = [
-  'Hard rename pending: ultrawork/ folder stays on disk until W5 cutover.',
+  'Compat aliases: #/ultrawork and @superliora/agent-core/ultrawork re-export mission (prefer #/mission).',
   'New wiring: import via @superliora/agent-core/mission or agent-core #/mission (not #/ultrawork).',
   'SDK apps: @superliora/sdk/mission — wire types remain ultrawork.* until hard rename.',
   'Liora TUI cross-imports: #/tui/utils/mission/mission-contract (not commands/ultrawork/ultrawork-contract).',

@@ -165,24 +165,6 @@ export async function consumeBackgroundInstallNotices(
   return { state, lifecycle: null };
 }
 
-/** @deprecated Use {@link consumeBackgroundInstallNotices}. */
-export async function showPendingBackgroundInstallNotice(
-  state: UpdateInstallState,
-  currentVersion: string,
-  stdout: { write(chunk: string): boolean },
-  track: UpdateTrackFn | undefined,
-  logger: UpdateLogger,
-): Promise<UpdateInstallState> {
-  const result = await consumeBackgroundInstallNotices(
-    state,
-    currentVersion,
-    stdout,
-    track,
-    logger,
-  );
-  return result.state;
-}
-
 export function buildInstallingLifecycleNotice(version: string): UpdateLifecycleNotice {
   const detail = renderBackgroundInstallStartedNotice(version).trim();
   return {

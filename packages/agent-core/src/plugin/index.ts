@@ -9,7 +9,7 @@ export type { PluginManagerOptions } from './manager';
 export { PluginHost } from './host';
 export { expandCommandArguments, loadPluginCommand, parseCommandText } from './commands';
 export { resolveInstallSource } from './source';
-export type { InstallSource, ResolvedSource } from './source';
+export type { ResolvedSource } from './source';
 export { downloadZip, extractZip } from './archive';
 export { loadClaudeHooks } from './hooks-adapter';
 export { loadClaudeMcpServers } from './mcp';

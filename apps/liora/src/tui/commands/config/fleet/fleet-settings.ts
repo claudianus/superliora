@@ -28,9 +28,9 @@ import {
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 
-/** Import-path soft path — hard disk rename pending (W5). */
+/** Import-path guidance — shim folder removed; package aliases still redirect. */
 export const FLEET_IMPORT_PATH_TIPS = [
-  'Hard rename pending: collaboration/ folder stays on disk until W5 cutover.',
+  'Compat aliases: #/collaboration and @superliora/agent-core/collaboration re-export fleet (prefer #/fleet).',
   'New wiring: import via @superliora/agent-core/fleet or agent-core #/fleet (not #/collaboration).',
   'SDK apps: @superliora/sdk/fleet — wire types remain ultrawork.collaboration.* / ultrawork.swarm.*.',
 ] as const;

@@ -55,9 +55,6 @@ export const TRANSCRIPT_SCROLL_HEAVY_HOLD_MS = Math.max(
  */
 export const TRANSCRIPT_SCROLL_CONTENT_HOLD_MS = TRANSCRIPT_SCROLL_STORM_GAP_MS * 2;
 
-/** @deprecated Prefer {@link TRANSCRIPT_SCROLL_HEAVY_HOLD_MS}. */
-export const TRANSCRIPT_SCROLL_INVALIDATION_HOLD_MS = TRANSCRIPT_SCROLL_HEAVY_HOLD_MS;
-
 export interface TranscriptPaintMode {
   readonly suppressLiveToolTicks?: boolean;
 }
