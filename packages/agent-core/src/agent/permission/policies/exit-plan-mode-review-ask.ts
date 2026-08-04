@@ -1,9 +1,5 @@
 import type { Agent } from '../..';
-import {
-  ultraSwarmDecision,
-  ultraSwarmEngageNextAction,
-} from '../../plan/ultra-swarm-decision';
-import { routeFromPlanSignals } from '../../plan/ultra-swarm-routing';
+import { planSwarmEngageNextAction } from '../../plan/swarm-decision';
 import type { ApprovalResponse, PermissionPolicy, PermissionPolicyContext, PermissionPolicyResult } from '../types';
 
 interface ExitPlanModeOption {
@@ -53,19 +49,12 @@ export class ExitPlanModeReviewAskPermissionPolicy implements PermissionPolicy {
 
     const selected = selectedExitPlanModeOption(display.options, result.selectedLabel);
 
-    const isUltra =  this.agent.planMode.isUltraMode;
-    const nextAction = isUltra ? ultraSwarmEngageNextAction(display.plan) : undefined;
+    const nextAction = this.agent.planMode.isUltraMode
+      ? planSwarmEngageNextAction(display.plan)
+      : undefined;
     const failed = this.exitPlanMode();
     if (failed !== undefined) {
       return { kind: 'result' as const, syntheticResult: failed };
-    }
-    const swarmDecision = ultraSwarmDecision(display.plan);
-    if (isUltra && (swarmDecision === 'ENGAGE' || swarmDecision === 'ADAPTIVE')) {
-      this.agent.ultraSwarmEngageGate?.engage({
-        planPath: display.path,
-        reason: swarmDecisionSummary(display.plan),
-        routing: routeFromPlanSignals(display.plan) ?? undefined,
-      });
     }
 
     if (result.selectedLabel !== undefined && result.selectedLabel.length > 0) {
@@ -178,12 +167,6 @@ export class ExitPlanModeReviewAskPermissionPolicy implements PermissionPolicy {
 
     this.agent.telemetry.track('plan_resolved', { outcome: 'rejected' });
   }
-}
-
-function swarmDecisionSummary(plan: string): string | undefined {
-  const line = plan.split(/\r?\n/).find((entry) => /\bswarm decision\s*:/i.test(entry));
-  const trimmed = line?.trim();
-  return trimmed !== undefined && trimmed.length > 0 ? trimmed : undefined;
 }
 
 function selectedExitPlanModeOption(

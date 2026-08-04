@@ -213,7 +213,6 @@ export async function ensureWorkGraphForResume(
   const resolvedPlanPath = await resolveApprovedUltraworkPlanPath(agent, [
     planFilePath,
     mirror?.planCheckpoint?.planFilePath,
-    agent.ultraSwarmEngageGate.data()?.planPath,
     agent.planMode.planFilePath ?? undefined,
   ]);
   if (resolvedPlanPath === undefined) return undefined;

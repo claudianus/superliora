@@ -141,7 +141,6 @@ async function applyPlanCheckpointQuiet(
 ): Promise<void> {
   const approvedPlanPath = await resolveApprovedUltraworkPlanPath(agent, [
     checkpoint.planFilePath,
-    agent.ultraSwarmEngageGate.data()?.planPath,
     planMode.planFilePath ?? undefined,
   ]);
   if (approvedPlanPath !== undefined) {

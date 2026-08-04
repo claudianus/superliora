@@ -117,7 +117,6 @@ function mockUltraSwarmAgent(
 ): Agent {
   return {
     emitEvent: vi.fn(),
-    ultraSwarmEngageGate: { clear: vi.fn() },
     fullCompaction: { ensureBelowHandoffThreshold: vi.fn().mockResolvedValue(undefined) },
     experimentalFlags: flags,
     telemetry: { track: vi.fn() },

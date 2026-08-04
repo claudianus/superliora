@@ -93,12 +93,6 @@ function restoreAgentRecord(agent: Agent, input: AgentRecord): void {
     case 'plan_mode.exit':
       agent.planMode.exit(input.id);
       return;
-    case 'ultra_swarm_engage_gate.set':
-      agent.ultraSwarmEngageGate.restoreEngage(input);
-      return;
-    case 'ultra_swarm_engage_gate.clear':
-      agent.ultraSwarmEngageGate.restoreClear();
-      return;
     case 'swarm_mode.enter':
       agent.swarmMode.restoreEnter(input.trigger);
       return;
