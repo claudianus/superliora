@@ -119,6 +119,24 @@ describe('app shortcut pre-handler (native path)', () => {
     router.dispose();
   });
 
+  it('opens Job Deck on Alt+J via tryHandleAppShortcut (Kitty ESC+j)', () => {
+    const state = createState();
+    const openDeck = vi.fn();
+    state.editor.onOpenJobDeck = openDeck;
+    const legacy = encodeNativeInputAsLegacySequence({
+      type: 'key',
+      key: 'character',
+      raw: '\u001bj',
+      text: 'j',
+      ctrl: false,
+      alt: true,
+      shift: false,
+    });
+    expect(legacy).toBeDefined();
+    expect(state.editor.tryHandleAppShortcut?.(legacy!)).toBe(true);
+    expect(openDeck).toHaveBeenCalledOnce();
+  });
+
   it('does not treat Ctrl-Y as an app retry shortcut', () => {
     const state = createState();
     const legacy = encodeNativeInputAsLegacySequence({

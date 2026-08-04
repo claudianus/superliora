@@ -134,6 +134,12 @@ export interface TUIState {
   cachedTranscriptRows?: number;
   cachedTranscriptLineCount?: number;
   /**
+   * Chrome fingerprint for the transcript hit-test layout cache. Job Desk /
+   * Todo board mount and height changes must bust the cache so mouse clicks
+   * see fresh region rects (especially `cachedJobsRect`).
+   */
+  cachedHitTestChromeSig?: string;
+  /**
    * Cached todo board region rect from the same stage plan that fills the
    * transcript cache above. Wheel events hit-test against it so scrolls
    * landing on the board move the board, not the transcript.

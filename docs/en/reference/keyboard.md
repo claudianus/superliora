@@ -71,7 +71,7 @@ Tool-output expansion, todo expansion, Plan steering, and retry live in Command 
 
 | Shortcut | Function |
 | --- | --- |
-| `Alt-J` | Open the Conductor Job Deck monitor (worker transcripts, tokens, elapsed). Same entry as `/jobs deck` or clicking a Job Desk card |
+| `Alt-J` | Open the Conductor Job Deck monitor (worker transcripts, tokens, elapsed). Same entry as `/jobs deck` or clicking a Job Desk card. In Kitty on macOS, set `macos_option_as_alt yes` (or `left`) so Option sends Alt |
 
 ## Approval Panel
 

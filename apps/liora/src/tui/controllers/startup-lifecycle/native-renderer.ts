@@ -19,7 +19,7 @@ import {
 import { createTUIStateNativeRenderCallback } from '../../features/native-layout/native-layout-frame';
 import { installTerminalFocusTracking } from '../../utils/terminal/terminal-focus';
 import { getTUIStateNativeTodoRect } from '../../features/transcript/transcript-hit-test';
-import { jobDeskCardIdAtMouse } from '../../features/job-desk/job-desk-mouse';
+import { jobDeskHitAtMouse } from '../../features/job-desk/job-desk-mouse';
 import type { TranscriptScrollAction } from '../../features/transcript/transcript-viewport';
 import { ClipboardImageHintController } from '../clipboard/clipboard-image-hint';
 import type { StartupLifecycleHost } from './types';
@@ -57,34 +57,40 @@ export function ensureStartupNativeInputRouter(
     scrollTodoPanel: (event) => scrollStartupTodoPanelAtMouse(host, event),
     clickJobDesk: (event) => {
       if (event.type !== 'mouse') return false;
-      const jobId = jobDeskCardIdAtMouse(host.state, event);
-      if (jobId === undefined) return false;
-      host.jobBoardController.openDeck(jobId);
+      const hit = jobDeskHitAtMouse(host.state, event);
+      if (hit === undefined) return false;
+      host.jobBoardController.openDeck(hit.kind === 'card' ? hit.jobId : undefined);
       return true;
     },
     handlePreEditorInput: (event) => {
       if (event.type !== 'key' || event.eventType === 'release') return false;
       if (event.alt && scrollStartupTodoPanelByKey(host, event.key)) return true;
-      // Alt+J — open the interactive Job Deck when the ledger has cards.
+      // Native Alt+J (Kitty CSI-u / ESC+j). Also mirrored via tryHandleAppShortcut
+      // → editor.onOpenJobDeck so legacy sequences stay in sync with Ctrl-K etc.
       if (
         event.alt &&
         event.key === 'character' &&
         event.text !== undefined &&
         event.text.toLowerCase() === 'j'
       ) {
-        const jobs = host.state.appState.conductorJobs?.jobs ?? [];
-        if (jobs.length === 0) {
-          host.showStatus('No Conductor jobs yet — Job Deck opens once jobs exist.', 'textMuted');
-          return true;
-        }
-        host.jobBoardController.openDeck();
-        return true;
+        return openJobDeckFromShortcut(host);
       }
       const legacy = encodeNativeInputAsLegacySequence(event);
       if (legacy === undefined) return false;
       return host.state.editor.tryHandleAppShortcut?.(legacy) === true;
     },
   });
+}
+
+/** Shared by native Alt+J and the editor app-shortcut path (matchesKey). */
+export function openJobDeckFromShortcut(host: StartupLifecycleHost): boolean {
+  const jobs = host.state.appState.conductorJobs?.jobs ?? [];
+  if (jobs.length === 0) {
+    host.showStatus('No Conductor jobs yet — Job Deck opens once jobs exist.', 'textMuted');
+    return true;
+  }
+  host.jobBoardController.openDeck();
+  return true;
 }
 
 export function stopStartupNativeRendererAdapters(host: StartupLifecycleHost): void {

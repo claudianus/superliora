@@ -5,6 +5,7 @@ import type { AppState, LivePaneState } from '../../types';
 import { INITIAL_LIVE_PANE } from '../../types';
 import type { TUIState } from '../../tui-state';
 import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
+import { invalidateTranscriptHitTestCache } from '../../features/transcript/transcript-hit-test';
 import { requestTUIContentRender, requestTUILayoutRender } from '../../utils/render/frame-render';
 import { emptyConductorJobsSnapshot } from '../../utils/job/job-strip';
 import { isMotionTheatreActive, type MotionBeatController } from '../../utils/render/motion-beats';
@@ -163,6 +164,7 @@ export class AppStateController {
     if (!host.state.todoPanel.isEmpty()) {
       host.state.todoPanelContainer.addChild(host.state.todoPanel);
     }
+    invalidateTranscriptHitTestCache(host.state);
     requestTUILayoutRender(host.state);
   }
 
@@ -173,6 +175,9 @@ export class AppStateController {
       host.state.appState.conductorJobs ?? emptyConductorJobsSnapshot(),
     );
     syncJobDeskPanelContainer(host.state);
+    // Job Desk mount/height changes move chrome regions — bust mouse hit-test
+    // cache so clicks land on the live jobs rect (Kitty SGR coords included).
+    invalidateTranscriptHitTestCache(host.state);
     requestTUILayoutRender(host.state);
   }
 
