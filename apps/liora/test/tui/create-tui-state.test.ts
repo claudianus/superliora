@@ -2079,6 +2079,9 @@ describe('createTUIState', () => {
         plan: false,
       },
     });
+    // Overflowing transcript (content exceeds the viewport) so the wheel tick
+    // has a scrollable range and routes into the viewport scroll callback.
+    state.transcriptViewport.sync(40, 10);
     const scrollActions: string[] = [];
     const nativeInput = createTUIStateNativeInputRouter(state, {
       requestRender: false,
@@ -2120,6 +2123,9 @@ describe('createTUIState', () => {
         plan: false,
       },
     });
+    // Overflowing transcript: the bound behavior is exercised at the scroll
+    // limit rather than on a transcript with nothing to scroll.
+    state.transcriptViewport.sync(40, 10);
     const scrollActions: string[] = [];
     const nativeInput = createTUIStateNativeInputRouter(state, {
       requestRender: false,
@@ -2147,6 +2153,55 @@ describe('createTUIState', () => {
       targetId: 'transcript-scroll',
     });
     expect(scrollActions).toEqual(['line-down']);
+  });
+
+  it('consumes wheel input without scrolling when the transcript has no overflow', () => {
+    // Regression: when the transcript fits the viewport there is no scrollable
+    // range. A wheel tick used to clamp the offset and flip followOutput on
+    // every direction switch — reporting a change and scheduling scroll +
+    // settle/progressive repaints that flicker even though nothing can move.
+    const state = createTUIState({
+      initialAppState: fakeInitialAppState(),
+      startup: {
+        continueLast: false,
+        yolo: false,
+        auto: false,
+        plan: false,
+      },
+    });
+    state.transcriptViewport.sync(3, 10);
+    const scrollActions: string[] = [];
+    const nativeInput = createTUIStateNativeInputRouter(state, {
+      requestRender: false,
+      scrollTranscriptViewport: (action) => {
+        scrollActions.push(action);
+        return true;
+      },
+    });
+    const event: NativeInputEvent = {
+      type: 'mouse',
+      raw: '\u001B[<64;1;1M',
+      button: 'wheel-up',
+      action: 'wheel',
+      x: 0,
+      y: 0,
+      ctrl: false,
+      alt: false,
+      shift: false,
+    };
+
+    expect(nativeInput.dispatch(event)).toEqual({
+      event,
+      route: 'global',
+      handled: true,
+      targetId: 'transcript-scroll',
+    });
+    expect(scrollActions).toEqual([]);
+    expect(state.transcriptViewport.snapshot()).toMatchObject({
+      followOutput: true,
+      offsetFromBottom: 0,
+      hasOverflow: false,
+    });
   });
 
   it('pure transcript-scroll through the live native callback re-projects the visible window', () => {

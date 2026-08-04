@@ -176,6 +176,18 @@ export class TUIStateNativeInputRouter {
           onInput: (event) => {
             const action = transcriptScrollActionForNativeInput(event);
             if (action === undefined) return false;
+            // Nothing to scroll: when the transcript fits the viewport there is
+            // no scrollable range, so wheel ticks must not reach the viewport.
+            // Scrolling here would clamp the offset and flip `followOutput`,
+            // which reports a change on every direction switch and schedules
+            // scroll + settle/progressive repaints — visible flicker for
+            // content that cannot move. Consume the tick instead.
+            if (
+              event.type === 'mouse' &&
+              !state.transcriptViewport.snapshot().hasOverflow
+            ) {
+              return true;
+            }
             // Always consume wheel / viewport scroll keys. Returning false when
             // already at top/bottom used to leave the event unhandled and risk
             // fallthrough into other handlers (and, historically, false Esc paths).
