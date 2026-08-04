@@ -1,9 +1,10 @@
 import { access, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'pathe';
-import { afterEach, describe, expect, it } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it } from 'vitest';
 import { LocalKaos } from '@superliora/kaos';
 
+import { resetGitBootstrapCache, AUTO_GIT_INIT_ENV } from '#/session/git-bootstrap';
 import {
   buildWorktreeMetadata,
   createSessionWorktree,
@@ -79,6 +80,10 @@ describe('session worktree helpers', () => {
 });
 
 describe('session worktree lifecycle', () => {
+  beforeEach(() => {
+    resetGitBootstrapCache();
+  });
+
   it('creates, lists, and removes isolated worktrees', async () => {
     const homeDir = await makeTempDir('liora-wt-home-');
     const repo = await makeTempDir('liora-wt-repo-');
@@ -134,12 +139,52 @@ describe('session worktree lifecycle', () => {
     expect(gc.kept).toBe(1);
   }, 60_000);
 
-  it('rejects non-git directories', async () => {
+  it('auto-bootstraps a non-git directory and creates the worktree', async () => {
+    const homeDir = await makeTempDir('liora-wt-home-new-');
+    const dir = await makeTempDir('liora-wt-new-');
+    const kaos = await LocalKaos.create();
+    await writeFile(join(dir, 'hello.txt'), 'hello\n', 'utf-8');
+
+    const created = await createSessionWorktree(kaos, {
+      repoPath: dir,
+      name: 'fresh-start',
+      homeDir,
+      env: {},
+    });
+
+    expect(await realpath(created.meta.repoRoot)).toBe(await realpath(dir));
+    expect(created.meta.branch).toBe('liora/fresh-start');
+    // Baseline snapshot must be present in the worktree checkout.
+    await expect(access(join(created.workDir, 'hello.txt'))).resolves.toBeUndefined();
+  }, 60_000);
+
+  it('auto-bootstraps a completely empty folder (no files, no commits)', async () => {
+    const homeDir = await makeTempDir('liora-wt-home-empty-');
+    const dir = await makeTempDir('liora-wt-empty-');
+    const kaos = await LocalKaos.create();
+
+    const created = await createSessionWorktree(kaos, {
+      repoPath: dir,
+      name: 'empty-start',
+      homeDir,
+      env: {},
+    });
+
+    expect(created.meta.branch).toBe('liora/empty-start');
+    expect(created.workDir.startsWith(worktreesRoot(homeDir))).toBe(true);
+  }, 60_000);
+
+  it('rejects non-git directories when auto bootstrap is opted out', async () => {
     const homeDir = await makeTempDir('liora-wt-home-nogit-');
     const dir = await makeTempDir('liora-wt-nogit-');
     const kaos = await LocalKaos.create();
     await expect(
-      createSessionWorktree(kaos, { repoPath: dir, name: 'x', homeDir }),
+      createSessionWorktree(kaos, {
+        repoPath: dir,
+        name: 'x',
+        homeDir,
+        env: { [AUTO_GIT_INIT_ENV]: '0' },
+      }),
     ).rejects.toMatchObject({ code: ErrorCodes.WORKTREE_NOT_A_GIT_REPO });
   });
 });
