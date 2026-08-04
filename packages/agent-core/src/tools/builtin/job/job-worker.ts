@@ -71,7 +71,14 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
     job.worktreePath
       ? `You are running in an isolated worktree: ${job.worktreePath}. Do not push to remotes.`
       : undefined,
-    'Complete the task, run focused checks when relevant, and finish with a short result summary.',
+    [
+      'Worker contract:',
+      '- Trace the brief against the codebase before editing (callers / fail path / success criteria).',
+      '- Prefer the smallest diff that meets success criteria; stay inside ownership/context paths when set.',
+      '- After each meaningful change, run focused checks when available; cite that evidence in the result summary.',
+      '- If blocked (env, missing info, contradiction), stop with a concrete blocker and what you tried — do not invent.',
+      '- Final summary: what changed, how verified, what remains.',
+    ].join('\n'),
   ];
   return parts.filter(Boolean).join('\n\n');
 }

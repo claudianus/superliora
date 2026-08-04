@@ -390,6 +390,8 @@ describe('default agent profiles', () => {
       expect(prompt).toContain('Automate only after the workflow is understood and stable');
       expect(prompt).toContain('Minimize dependencies, indirection, and configuration');
       expect(prompt).toContain('does this actually improve the outcome');
+      expect(prompt).toContain('# Execution Loop');
+      expect(prompt).toContain('One verifiable increment per batch');
     }
   });
 

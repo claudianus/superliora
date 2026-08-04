@@ -48,6 +48,9 @@ describe('agent/injection/tool-workflow — buildToolWorkflowGuidance', () => {
     const result = buildToolWorkflowGuidance(fullCap);
     expect(result.length).toBeGreaterThan(0);
     expect(result).toContain('Tool / Skill / Research Workflow');
+    expect(result).toContain('Explore before edit');
+    expect(result).toContain('One increment per batch');
+    expect(result).toContain('root cause');
   });
 
   it('omits sections when the corresponding capability is disabled', () => {
@@ -78,5 +81,11 @@ describe('agent/injection/tool-workflow — buildToolWorkflowSparseGuidance', ()
   it('returns a non-empty string for the empty capability set', () => {
     const sparse = buildToolWorkflowSparseGuidance({});
     expect(sparse.length).toBeGreaterThan(0);
+  });
+
+  it('keeps the XP cadence bits in the sparse reminder', () => {
+    const sparse = buildToolWorkflowSparseGuidance(fullCap);
+    expect(sparse).toContain('explore→edit→check');
+    expect(sparse).toContain('XP loop');
   });
 });
