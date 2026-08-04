@@ -1,39 +1,43 @@
 /**
  * Map a catalog / config model id onto the AgentService/Run wire id.
  *
- * Mirrors opencodex v2.10 (`cursorCodexToWireModelId` + issue #117 + #797):
- * - GetUsableModels may return ids with a `cursor-` prefix
- *   (`cursor-grok-4.5-high-fast`); strip before Run.
- * - Grok Fast puts the mode marker AFTER effort (`grok-4.5-high-fast`), not
- *   before (`grok-4.5-fast-high`). See opencodex `cursorWireModelIdWithEffort`.
- * - Auto-router is advertised as `auto`; the wire id is `default`.
+ * Live GetUsableModels returns Grok as `cursor-grok-4.5-high-fast` (prefix
+ * required) and Composer/GPT as bare ids. Run accepts those ids verbatim —
+ * stripping `cursor-` from Grok yields ERROR_BAD_MODEL_NAME (live-verified).
  */
 
-const CURSOR_WIRE_PREFIX = 'cursor-';
+/** Stale inverted form from a brief SuperLiora mis-rewrite. */
+const FAST_THEN_EFFORT = /^(.+)-fast-(none|low|medium|high|xhigh|max)$/i;
 
-/** Strip the GetUsableModels `cursor-` prefix when present. */
-export function stripCursorWirePrefix(modelId: string): string {
-  const id = modelId.trim();
-  return id.startsWith(CURSOR_WIRE_PREFIX) ? id.slice(CURSOR_WIRE_PREFIX.length) : id;
+/**
+ * Undo stale `*-fast-{effort}` catalog ids → current `*-{effort}-fast`.
+ * Does NOT strip a leading `cursor-` prefix.
+ */
+export function rewriteCursorLegacyFastSuffix(modelId: string): string {
+  const match = FAST_THEN_EFFORT.exec(modelId);
+  if (match === null) return modelId;
+  return `${match[1]}-${match[2]!.toLowerCase()}-fast`;
 }
 
 /**
- * Older SuperLiora catalogs rewrote effort-then-fast → fast-then-effort.
- * Current Cursor / opencodex wire ids use effort-then-fast; undo that rewrite
- * when a stale config still has the inverted form.
+ * @deprecated Comparison helper only — never call before AgentService/Run for Grok.
  */
-export function rewriteCursorLegacyFastSuffix(modelId: string): string {
-  // Stale inverted form from #880: grok-4.5-fast-high → grok-4.5-high-fast
-  const inverted = /^(.+)-fast-(none|low|medium|high|xhigh|max)$/i.exec(modelId);
-  if (inverted !== null) {
-    return `${inverted[1]}-${inverted[2]!.toLowerCase()}-fast`;
-  }
+export function stripCursorWirePrefix(modelId: string): string {
+  const id = modelId.trim();
+  return id.startsWith('cursor-') ? id.slice('cursor-'.length) : id;
+}
+
+/** Restore the GetUsableModels `cursor-` prefix for Grok family ids. */
+export function ensureCursorGrokWirePrefix(modelId: string): string {
+  if (modelId.startsWith('cursor-')) return modelId;
+  // Live catalog: cursor-grok-4.5-{low,medium,high}[-fast]
+  if (/^grok-4\.5(?:-|$)/.test(modelId)) return `cursor-${modelId}`;
   return modelId;
 }
 
 /** Resolve the model id Cursor Connect expects for AgentService/Run. */
 export function toCursorWireModelId(modelId: string): string {
-  const stripped = stripCursorWirePrefix(modelId);
-  if (stripped === 'auto') return 'default';
-  return rewriteCursorLegacyFastSuffix(stripped);
+  const id = modelId.trim();
+  if (id === 'auto' || id === 'cursor-auto') return 'default';
+  return ensureCursorGrokWirePrefix(rewriteCursorLegacyFastSuffix(id));
 }

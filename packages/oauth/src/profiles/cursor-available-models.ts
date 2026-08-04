@@ -18,7 +18,7 @@ const USABLE_MODELS_PATH = '/agent.v1.AgentService/GetUsableModels';
 const DEFAULT_API_HOST = 'https://api2.cursor.sh';
 const DEFAULT_CONTEXT = 200_000;
 const DEFAULT_TIMEOUT_MS = 8_000;
-/** Stale inverted form written by #880 before opencodex #797 landing. */
+/** Stale inverted form from a brief SuperLiora mis-rewrite. */
 const FAST_THEN_EFFORT = /^(.+)-fast-(none|low|medium|high|xhigh|max)$/i;
 
 export interface CursorDiscoveredModel {
@@ -45,8 +45,8 @@ export const CURSOR_FALLBACK_MODELS: readonly CursorDiscoveredModel[] = [
   { id: 'gpt-5.3-codex', displayName: 'GPT-5.3 Codex', maxContextSize: 272_000, capabilities: ['thinking', 'tool_use'] },
   { id: 'gemini-3.1-pro', displayName: 'Gemini 3.1 Pro', maxContextSize: 1_000_000, capabilities: ['thinking', 'tool_use', 'image_in'] },
   { id: 'gemini-3.5-flash', displayName: 'Gemini 3.5 Flash', maxContextSize: 1_000_000, capabilities: ['thinking', 'tool_use', 'image_in'] },
-  { id: 'grok-4.5-high-fast', displayName: 'Grok 4.5 Fast', maxContextSize: 500_000, capabilities: ['thinking', 'tool_use'] },
-  { id: 'grok-4.5-high', displayName: 'Grok 4.5', maxContextSize: 500_000, capabilities: ['thinking', 'tool_use'] },
+  { id: 'cursor-grok-4.5-high-fast', displayName: 'Grok 4.5 Fast', maxContextSize: 500_000, capabilities: ['thinking', 'tool_use'] },
+  { id: 'cursor-grok-4.5-high', displayName: 'Grok 4.5', maxContextSize: 500_000, capabilities: ['thinking', 'tool_use'] },
   { id: 'grok-code-fast-1', displayName: 'Grok Code Fast 1', maxContextSize: 128_000, capabilities: ['tool_use'] },
   { id: 'kimi-k2.7-code', displayName: 'Kimi K2.7 Code', maxContextSize: 262_000, capabilities: ['thinking', 'tool_use'] },
   { id: 'glm-5.2-high', displayName: 'GLM 5.2 High', maxContextSize: 200_000, capabilities: ['thinking', 'tool_use'] },
@@ -175,11 +175,17 @@ export async function fetchCursorUsableModels(options: {
     const wireId = toCursorCatalogModelId(id);
     return {
       id: wireId,
-      displayName: wireId === 'default' ? 'Auto' : wireId,
+      displayName: displayNameForWireId(wireId),
       maxContextSize: DEFAULT_CONTEXT,
       capabilities: ['thinking', 'tool_use'] as const,
     };
   });
+}
+
+function displayNameForWireId(wireId: string): string {
+  if (wireId === 'default') return 'Auto';
+  // Picker label: drop the GetUsableModels `cursor-` family prefix when present.
+  return wireId.startsWith('cursor-') ? wireId.slice('cursor-'.length) : wireId;
 }
 
 /** Normalize AvailableModels JSON into picker entries (one per variant slug). */
@@ -213,8 +219,7 @@ export function normalizeAvailableModels(rawModels: readonly unknown[]): CursorD
           ];
 
     variantRecords.forEach((variant, index) => {
-      // Strip `cursor-` and rewrite effort-then-fast legacySlugs to Run wire form
-      // (`grok-4.5-high-fast` → `grok-4.5-fast-high`). Same rules as opencodex.
+      // Keep GetUsableModels / legacySlug ids verbatim (including `cursor-` for Grok).
       const publicId = toCursorCatalogModelId(
         (stringProp(variant, 'legacySlug') ?? name).trim(),
       );
@@ -233,7 +238,7 @@ export function normalizeAvailableModels(rawModels: readonly unknown[]): CursorD
           stringProp(variant, 'displayName') ??
           stringProp(raw, 'clientDisplayName') ??
           stringProp(raw, 'inputboxShortModelName') ??
-          publicId,
+          displayNameForWireId(publicId),
         parameters,
       );
       const wireServerId = toCursorCatalogModelId(serverModelId);
@@ -586,27 +591,32 @@ function cleanDisplayName(
   return cleaned.length > 0 ? cleaned : value;
 }
 
-/** Strip GetUsableModels `cursor-` prefix (`cursor-grok-4.5-high` → `grok-4.5-high`). */
+/**
+ * @deprecated Comparison helper only — do not use before AgentService/Run.
+ * Live Grok ids must keep the `cursor-` prefix on the wire.
+ */
 export function stripCursorWirePrefix(modelId: string): string {
   const id = modelId.trim();
   return id.startsWith('cursor-') ? id.slice('cursor-'.length) : id;
 }
 
-/**
- * Undo the inverted `#880` form (`*-fast-{effort}` → `*-{effort}-fast`).
- * Current Cursor / opencodex wire ids keep effort before fast (opencodex #797).
- */
+/** Undo stale `*-fast-{effort}` → `*-{effort}-fast`. Keeps a leading `cursor-`. */
 export function rewriteCursorLegacyFastSuffix(modelId: string): string {
   const match = FAST_THEN_EFFORT.exec(modelId);
   if (match === null) return modelId;
   return `${match[1]}-${match[2]!.toLowerCase()}-fast`;
 }
 
-/** Normalize a discovery id into the catalog / Run wire form. */
+/** Normalize a discovery id into the catalog / Run wire form (Grok keeps `cursor-`). */
 export function toCursorCatalogModelId(modelId: string): string {
-  const stripped = stripCursorWirePrefix(modelId);
-  if (stripped === 'auto') return 'default';
-  return rewriteCursorLegacyFastSuffix(stripped);
+  const id = modelId.trim();
+  if (id === 'auto' || id === 'cursor-auto') return 'default';
+  let next = rewriteCursorLegacyFastSuffix(id);
+  // AvailableModels sometimes omits the prefix that GetUsableModels / Run require.
+  if (!next.startsWith('cursor-') && /^grok-4\.5(?:-|$)/.test(next)) {
+    next = `cursor-${next}`;
+  }
+  return next;
 }
 
 function stringProp(record: Record<string, unknown>, key: string): string | undefined {

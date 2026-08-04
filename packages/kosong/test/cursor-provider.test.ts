@@ -19,15 +19,12 @@ import {
 import type { Message } from '../src/message';
 
 describe('toCursorWireModelId', () => {
-  it('strips cursor- prefix, keeps effort-then-fast, maps auto to default', () => {
-    // opencodex #797: Grok Fast wire ids are `{base}-{effort}-fast`.
-    expect(toCursorWireModelId('cursor-grok-4.5-high-fast')).toBe('grok-4.5-high-fast');
-    expect(toCursorWireModelId('grok-4.5-high-fast')).toBe('grok-4.5-high-fast');
-    // Undo stale inverted catalog ids from #880.
-    expect(toCursorWireModelId('grok-4.5-fast-high')).toBe('grok-4.5-high-fast');
-    expect(toCursorWireModelId('grok-4.5-high')).toBe('grok-4.5-high');
+  it('keeps GetUsableModels Grok prefix and maps auto to default', () => {
+    // Live Run rejects bare grok-4.5-*; prefix is required.
+    expect(toCursorWireModelId('cursor-grok-4.5-high-fast')).toBe('cursor-grok-4.5-high-fast');
+    expect(toCursorWireModelId('grok-4.5-high-fast')).toBe('cursor-grok-4.5-high-fast');
+    expect(toCursorWireModelId('grok-4.5-fast-high')).toBe('cursor-grok-4.5-high-fast');
     expect(toCursorWireModelId('auto')).toBe('default');
-    expect(toCursorWireModelId('cursor-auto')).toBe('default');
     expect(toCursorWireModelId('composer-2.5')).toBe('composer-2.5');
   });
 });
@@ -118,10 +115,10 @@ describe('cursor run frames', () => {
     expect(decoded[0]!.payload.length).toBeGreaterThan(0);
   });
 
-  it('encodes effort-then-fast wire ids for prefixed catalog model names', () => {
+  it('encodes prefixed Grok wire ids (bare grok is rejected by Run)', () => {
     const frames = buildRunFrames({
       prompt: 'hi',
-      modelId: 'cursor-grok-4.5-high-fast',
+      modelId: 'grok-4.5-high-fast',
       cwd: '/tmp',
       mode: 1,
       tools: [],
@@ -129,8 +126,7 @@ describe('cursor run frames', () => {
     const decoder = new ConnectFrameDecoder();
     const decoded = decoder.push(frames[0]!);
     const payload = Buffer.from(decoded[0]!.payload);
-    expect(payload.includes(Buffer.from('grok-4.5-high-fast', 'utf8'))).toBe(true);
-    expect(payload.includes(Buffer.from('cursor-grok-4.5-high-fast', 'utf8'))).toBe(false);
+    expect(payload.includes(Buffer.from('cursor-grok-4.5-high-fast', 'utf8'))).toBe(true);
   });
 
   it('encodes empty tools as zero-length mcp_tools body placeholder', () => {
