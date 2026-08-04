@@ -19,10 +19,12 @@ import {
 import type { Message } from '../src/message';
 
 describe('toCursorWireModelId', () => {
-  it('strips cursor- prefix, rewrites effort-fast order, maps auto to default', () => {
-    expect(toCursorWireModelId('cursor-grok-4.5-high-fast')).toBe('grok-4.5-fast-high');
-    expect(toCursorWireModelId('grok-4.5-high-fast')).toBe('grok-4.5-fast-high');
-    expect(toCursorWireModelId('grok-4.5-fast-high')).toBe('grok-4.5-fast-high');
+  it('strips cursor- prefix, keeps effort-then-fast, maps auto to default', () => {
+    // opencodex #797: Grok Fast wire ids are `{base}-{effort}-fast`.
+    expect(toCursorWireModelId('cursor-grok-4.5-high-fast')).toBe('grok-4.5-high-fast');
+    expect(toCursorWireModelId('grok-4.5-high-fast')).toBe('grok-4.5-high-fast');
+    // Undo stale inverted catalog ids from #880.
+    expect(toCursorWireModelId('grok-4.5-fast-high')).toBe('grok-4.5-high-fast');
     expect(toCursorWireModelId('grok-4.5-high')).toBe('grok-4.5-high');
     expect(toCursorWireModelId('auto')).toBe('default');
     expect(toCursorWireModelId('cursor-auto')).toBe('default');
@@ -116,7 +118,7 @@ describe('cursor run frames', () => {
     expect(decoded[0]!.payload.length).toBeGreaterThan(0);
   });
 
-  it('encodes GetUsableModels-ordered wire ids for legacy catalog names', () => {
+  it('encodes effort-then-fast wire ids for prefixed catalog model names', () => {
     const frames = buildRunFrames({
       prompt: 'hi',
       modelId: 'cursor-grok-4.5-high-fast',
@@ -127,9 +129,8 @@ describe('cursor run frames', () => {
     const decoder = new ConnectFrameDecoder();
     const decoded = decoder.push(frames[0]!);
     const payload = Buffer.from(decoded[0]!.payload);
-    expect(payload.includes(Buffer.from('grok-4.5-fast-high', 'utf8'))).toBe(true);
+    expect(payload.includes(Buffer.from('grok-4.5-high-fast', 'utf8'))).toBe(true);
     expect(payload.includes(Buffer.from('cursor-grok-4.5-high-fast', 'utf8'))).toBe(false);
-    expect(payload.includes(Buffer.from('grok-4.5-high-fast', 'utf8'))).toBe(false);
   });
 
   it('encodes empty tools as zero-length mcp_tools body placeholder', () => {

@@ -32,7 +32,8 @@ export interface CursorOptions {
   readonly cwd?: string;
 }
 
-const DEFAULT_BASE_URL = 'https://agentn.global.api5.cursor.sh';
+/** Matches opencodex v2.10 Cursor provider baseUrl. */
+const DEFAULT_BASE_URL = 'https://api2.cursor.sh';
 const DEFAULT_CLIENT_VERSION = 'cli-2026.07.08-0c04a8a';
 
 export class CursorChatProvider implements ChatProvider {

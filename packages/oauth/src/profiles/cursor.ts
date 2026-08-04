@@ -25,8 +25,11 @@ import type { ProviderProfile } from './provider-profile';
 
 const CURSOR_OAUTH_HOST = 'https://api2.cursor.sh';
 const CURSOR_LOGIN_HOST = 'https://cursor.com';
-/** Default agent host used by current Cursor CLI clients (non-privacy). */
-export const CURSOR_AGENT_BASE_URL = 'https://agentn.global.api5.cursor.sh';
+/**
+ * Default agent host — matches opencodex v2.10 (`providers.cursor.baseUrl`).
+ * Override with `providers.cursor-oauth.base_url` if needed.
+ */
+export const CURSOR_AGENT_BASE_URL = 'https://api2.cursor.sh';
 
 export {
   CURSOR_CLIENT_TYPE,

@@ -1,16 +1,15 @@
 /**
  * Map a catalog / config model id onto the AgentService/Run wire id.
  *
- * Mirrors opencodex (`cursorCodexToWireModelId` + issue #117 + GetUsableModels naming):
- * - Discovery may return ids with a `cursor-` prefix (`cursor-grok-4.5-high`).
- * - AvailableModels `legacySlug` uses effort-then-fast (`grok-4.5-high-fast`);
- *   Run / GetUsableModels want fast-then-effort (`grok-4.5-fast-high`).
+ * Mirrors opencodex v2.10 (`cursorCodexToWireModelId` + issue #117 + #797):
+ * - GetUsableModels may return ids with a `cursor-` prefix
+ *   (`cursor-grok-4.5-high-fast`); strip before Run.
+ * - Grok Fast puts the mode marker AFTER effort (`grok-4.5-high-fast`), not
+ *   before (`grok-4.5-fast-high`). See opencodex `cursorWireModelIdWithEffort`.
  * - Auto-router is advertised as `auto`; the wire id is `default`.
  */
 
 const CURSOR_WIRE_PREFIX = 'cursor-';
-const EFFORT_THEN_FAST =
-  /^(.+)-(none|low|medium|high|xhigh|max)-fast$/i;
 
 /** Strip the GetUsableModels `cursor-` prefix when present. */
 export function stripCursorWirePrefix(modelId: string): string {
@@ -19,13 +18,17 @@ export function stripCursorWirePrefix(modelId: string): string {
 }
 
 /**
- * Rewrite AvailableModels legacySlug ordering to the GetUsableModels / Run form.
- * `grok-4.5-high-fast` → `grok-4.5-fast-high`.
+ * Older SuperLiora catalogs rewrote effort-then-fast → fast-then-effort.
+ * Current Cursor / opencodex wire ids use effort-then-fast; undo that rewrite
+ * when a stale config still has the inverted form.
  */
 export function rewriteCursorLegacyFastSuffix(modelId: string): string {
-  const match = EFFORT_THEN_FAST.exec(modelId);
-  if (match === null) return modelId;
-  return `${match[1]}-fast-${match[2]!.toLowerCase()}`;
+  // Stale inverted form from #880: grok-4.5-fast-high → grok-4.5-high-fast
+  const inverted = /^(.+)-fast-(none|low|medium|high|xhigh|max)$/i.exec(modelId);
+  if (inverted !== null) {
+    return `${inverted[1]}-${inverted[2]!.toLowerCase()}-fast`;
+  }
+  return modelId;
 }
 
 /** Resolve the model id Cursor Connect expects for AgentService/Run. */
