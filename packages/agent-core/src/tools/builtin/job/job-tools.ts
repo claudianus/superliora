@@ -625,18 +625,25 @@ export class JobInboxTool implements BuiltinTool<z.infer<typeof JobInboxInputSch
       execute: async () => {
         const limit = a.limit ?? 20;
         const unread = listUnreadJobInbox(this.store).slice(-limit);
+        let marked = 0;
+        if (a.mark_read === true && unread.length > 0) {
+          marked = markJobInboxRead(
+            this.store,
+            unread.map((e) => e.id),
+          );
+        }
+        // Render the strip from post-mark state so the ACK line and the TUI
+        // strip parse never report a stale unread count for this call.
         const strip = summarizeJobStrip(this.store);
         const unreadCount = listUnreadJobInbox(this.store).length;
         const lines = [
           formatJobStripLine(strip, unreadCount),
-          renderJobInboxBrief(unread.length > 0 ? unread : readJobInbox(this.store).events.slice(-limit)),
+          renderJobInboxBrief(
+            unread.length > 0 ? unread : readJobInbox(this.store).events.slice(-limit),
+          ),
         ];
         if (a.mark_read === true && unread.length > 0) {
-          const n = markJobInboxRead(
-            this.store,
-            unread.map((e) => e.id),
-          );
-          lines.push(`Marked ${n} event(s) read.`);
+          lines.push(`Marked ${marked} event(s) read.`);
         }
         return { isError: false, output: lines.join('\n') };
       },

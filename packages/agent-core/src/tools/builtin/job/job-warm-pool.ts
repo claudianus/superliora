@@ -177,7 +177,9 @@ export function warmPoolSpawner(
           'Until then, reply with a single line: "warm worker ready".',
         ].join('\n'),
         description: `warm-worker-${slot}-of-${total}`,
-        profileName: 'core',
+        // Must be a resolvable subagent profile: 'core' is a main waist and
+        // throws in resolveSubagentProfile, silently deadening the pool.
+        profileName: 'coder',
         runInBackground: true,
         parentToolCallId: `warm:${slot}`,
         signal: controller.signal,

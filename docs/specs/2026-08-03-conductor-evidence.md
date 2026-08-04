@@ -42,7 +42,7 @@ Pre-existing drift note: agent-core suite has 81 pre-existing failures (snapshot
 | F3 | `job.*` protocol + journal version | ✅ | `protocol/src/events/job.ts` (`job.updated`/`job.inbox`, `schemaVersion: 1`) wired into `agentEventSchema`; mirror schema 1→2 dual-read |
 | F4 | Focused tests agent-core + liora | ✅ | job-ledger.test.ts (20), main-profile (7), default-agent-profiles (21), job-events (2), job-strip (3) = 53 goal tests + mission/bash scope |
 | G1 | docs/specs architecture doc | ✅ | `2026-08-03-meta-orchestrator-conductor.md` (final status) |
-| G2 | Demo: 3 parallel + 1 Mission-profile job, meta responsive | ✅ | Code-level demo test: `job-ledger.test.ts` "G2 demo scenario" — 3 parallel `implement` jobs scheduled with a running `kind=mission` job under maxConcurrent, meta stays responsive (inbox notices + ledger reads while workers run). Live TTY/LLM demo not possible in this environment (no provider API key; `ANTHROPIC_BASE_URL` only) — test is the evidence. |
+| G2 | Demo: 3 parallel + 1 Mission-profile job, meta responsive | ✅ | Code-level demo test: `job-ledger.test.ts` "G2 demo scenario" — 3 parallel `implement` jobs scheduled with a running `kind=mission` job under maxConcurrent, meta stays responsive (inbox notices + ledger reads while workers run). Extended 2026-08-03: failure notice arrives mid-run, meta lane reads + `mark_read` clears it (post-mark strip carries no stale unread count; re-reads render `[read]`) while the other worker keeps running. Live TTY/LLM demo not possible in this environment (no provider API key; `ANTHROPIC_BASE_URL` only) — test is the evidence. |
 | G3 | Changeset user-visible | ✅ | `.changeset/conductor-default-job-ledger-p0.md` (agent-core minor, liora patch, protocol minor) |
 | G4 | WorkGraph + verification evidence ids | ✅ | WorkGraph WG-P0-1..WG-P5-2 in goal plan; evidence ids = table above (this file) |
 
@@ -62,3 +62,15 @@ Pre-existing drift note: agent-core suite has 81 pre-existing failures (snapshot
 | WG-P4-1 | D1,D2,D3 | ✅ Fleet unified entry + shims |
 | WG-P5-1 | F*,G* | ✅ checks + evidence pack (this file) |
 | WG-P5-2 | G1,G3 | ✅ final spec + changeset |
+
+## Hardening run (2026-08-03, non-blocking contract audit)
+
+Follow-up audit after a production session blocked the meta loop ~125s. Findings and fixes:
+
+- **Job ledger path is non-blocking by construction.** `JobCreate`/`JobSchedule` → `scheduleQueuedJobs` → `launchJobWorker` await only the spawn handshake; worker lifetime is `void handle.completion` with ledger `done`/`failed` + inbox + scheduler pump in the tail. No `await` on worker completion exists on the ACK path. The observed 125s block came from a direct `Agent` spawn outside the job path, not the ledger path.
+- **Scheduler hardened.** `scheduleQueuedJobs` now promotes candidates concurrently (`Promise.all`): per-job worktree creation and spawn handshakes no longer serialize into the ACK latency. Ledger patches stay synchronous read-modify-write.
+- **JobInbox `mark_read` fixed.** The tool marked events after rendering the strip, so the ACK line (and the TUI footer parsed from it) kept a stale unread count. It now marks first, reports the post-mark strip, and read events render with a `[read]` prefix on re-reads. Store-level `markJobInboxRead` was already correct. The `N✗` badge is the ledger failed-job count by design, not an unread marker.
+- **Warm pool profile fixed.** Pre-spawn used `profileName: 'core'` (a main profile, throws in `resolveSubagentProfile`) which silently deadened the pool; now `'coder'`.
+- **Model routing audit.** `resolveSubagentModelAlias` keeps non-explore workers on the parent model; no spawn path passes an explore base for job workers. The incident's exploration-model injection matched the failover hop (`fallback_models`), which could land on a provider already known dead. Failover candidates are now filtered by credential health (`subagentFallbackAliases`); regression in `test/session/subagent-model-fallback.test.ts`.
+
+Tests: `job-ledger.test.ts` 25 (G2 extended + "conductor non-blocking job path (regression)" — ACK before completion, concurrent promotion under maxConcurrent, interrupted→resume non-blocking), `subagent-model-fallback.test.ts` 5.

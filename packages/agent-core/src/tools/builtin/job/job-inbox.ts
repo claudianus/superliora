@@ -108,7 +108,7 @@ export function renderJobInboxBrief(events: readonly JobInboxEvent[]): string {
     'Job inbox:',
     ...events.map(
       (e) =>
-        `- ${e.kind} ${e.jobId} [${e.status}] ${e.title}${e.summary ? ` — ${e.summary.slice(0, 120)}` : ''}`,
+        `- ${e.read ? '[read] ' : ''}${e.kind} ${e.jobId} [${e.status}] ${e.title}${e.summary ? ` — ${e.summary.slice(0, 120)}` : ''}`,
     ),
   ].join('\n');
 }

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   createJob,
@@ -36,7 +36,8 @@ import {
   JobResumeTool,
   MergeJobTool,
 } from '../../src/tools/builtin/job/job-tools';
-import { resumeJobs } from '../../src/tools/builtin/job/job-worker';
+import { __resetJobWorkerHandlesForTests } from '../../src/tools/builtin/job/job-handles';
+import { interruptRunningJobs, resumeJobs } from '../../src/tools/builtin/job/job-worker';
 import {
   assertMissionLifecycleTools,
   missingMissionLifecycleTools,
@@ -544,5 +545,167 @@ describe('G2 demo scenario (evidence)', () => {
     });
     expect(listUnreadJobInbox(store)).toHaveLength(1);
     expect(listJobs(store).filter((j) => j.status === 'running')).toHaveLength(4);
+  });
+
+  it('meta lane reads and clears a failure notice while another worker keeps running', async () => {
+    const store = memoryStore();
+    const a = createJob(store, { title: 'g2 worker A', kind: 'implement', priority: 2 });
+    const b = createJob(store, { title: 'g2 worker B', kind: 'implement', priority: 1 });
+    await scheduleQueuedJobs({
+      store,
+      maxConcurrent: 6,
+      requireWorktree: false,
+      launchWorker: async (job) => {
+        patchJob(store, job.id, { workerAgentId: `worker_${job.id}` });
+      },
+    });
+
+    // B fails mid-flight (ownership conflict) while A keeps running.
+    patchJob(store, b.id, { status: 'failed', resultSummary: 'ownership conflict' });
+    pushJobInboxEvent(store, {
+      kind: 'job.failed',
+      jobId: b.id,
+      status: 'failed',
+      title: b.title,
+      summary: 'ownership conflict',
+    });
+
+    // Meta lane stays responsive: read + mark_read without blocking on A.
+    const inbox = new JobInboxTool(store);
+    const exec = inbox.resolveExecution({ mark_read: true });
+    if (exec.isError) throw new Error('resolve failed');
+    const out = await exec.execute({
+      turnId: 't',
+      toolCallId: 'c_inbox',
+      signal: new AbortController().signal,
+    });
+    const text = String(out.output);
+    expect(text).toMatch(/job\.failed/);
+    expect(text).toMatch(/Marked 1 event\(s\) read\./);
+    // Post-mark strip must not carry a stale unread badge.
+    expect(text).not.toMatch(/inbox \d+/);
+    expect(listUnreadJobInbox(store)).toHaveLength(0);
+    expect(getJob(store, a.id)?.status).toBe('running');
+
+    // Second call: no unread left; the old notice is rendered as already read.
+    const exec2 = inbox.resolveExecution({ mark_read: true });
+    if (exec2.isError) throw new Error('resolve failed');
+    const out2 = await exec2.execute({
+      turnId: 't',
+      toolCallId: 'c_inbox_2',
+      signal: new AbortController().signal,
+    });
+    const text2 = String(out2.output);
+    expect(text2).toMatch(/\[read\] job\.failed/);
+    expect(text2).not.toMatch(/Marked/);
+    expect(text2).not.toMatch(/inbox \d+/);
+  });
+});
+
+describe('conductor non-blocking job path (regression)', () => {
+  afterEach(() => {
+    __resetJobWorkerHandlesForTests();
+  });
+
+  it('JobCreate ACK returns before worker completion; completion patches ledger + inbox', async () => {
+    const store = memoryStore();
+    let resolveCompletion!: (value: { result: string }) => void;
+    const completion = new Promise<{ result: string }>((resolve) => {
+      resolveCompletion = resolve;
+    });
+    const spawnProfiles: string[] = [];
+    const host = {
+      spawn: async (options: { prompt: string; profileName?: string }) => {
+        spawnProfiles.push(options.profileName ?? '');
+        return {
+          agentId: 'agent_worker_ack',
+          profileName: options.profileName ?? 'coder',
+          resumed: false,
+          completion,
+        } as never;
+      },
+    };
+    const agent = { subagentHost: host, config: { cwd: undefined } } as never;
+    const tool = new JobCreateTool(store, agent);
+    const exec = tool.resolveExecution({ title: 'ack non-blocking', kind: 'implement' });
+    if (exec.isError) throw new Error('resolve failed');
+    const result = await exec.execute({
+      turnId: 't',
+      toolCallId: 'c_ack',
+      signal: new AbortController().signal,
+    });
+    expect(result.isError).toBe(false);
+    const match = /ACK (job_\w+)/.exec(String(result.output));
+    expect(match).not.toBeNull();
+    const jobId = match![1]!;
+
+    // ACK returned while the worker is still alive: no terminal state, no inbox.
+    expect(spawnProfiles).toEqual(['coder']);
+    expect(getJob(store, jobId)?.status).toBe('running');
+    expect(getJob(store, jobId)?.workerAgentId).toBe('agent_worker_ack');
+    expect(listUnreadJobInbox(store)).toHaveLength(0);
+
+    // Worker completes later → fire-and-forget tail patches ledger + inbox.
+    resolveCompletion({ result: 'worker summary' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(getJob(store, jobId)?.status).toBe('done');
+    expect(getJob(store, jobId)?.resultSummary).toBe('worker summary');
+    const unread = listUnreadJobInbox(store);
+    expect(unread).toHaveLength(1);
+    expect(unread[0]?.kind).toBe('job.completed');
+  });
+
+  it('promotes queued jobs concurrently under maxConcurrent (launch handshakes do not serialize)', async () => {
+    const store = memoryStore();
+    for (let i = 0; i < 3; i += 1) {
+      createJob(store, { title: `par ${i}`, priority: 3 - i });
+    }
+    let inFlight = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const result = await scheduleQueuedJobs({
+      store,
+      maxConcurrent: 6,
+      requireWorktree: false,
+      launchWorker: async (job) => {
+        inFlight += 1;
+        // A serial scheduler deadlocks on the gate before the 3rd launch starts.
+        if (inFlight < 3) await gate;
+        else release();
+        patchJob(store, job.id, { workerAgentId: `worker_${job.id}` });
+      },
+    });
+    expect(result.started).toHaveLength(3);
+    expect(inFlight).toBe(3);
+  });
+
+  it('interrupted → resume re-launches without awaiting worker completion', async () => {
+    const store = memoryStore();
+    const job = createJob(store, { title: 'resume path', kind: 'implement' });
+    patchJob(store, job.id, { status: 'running' });
+    const interrupted = interruptRunningJobs({ store, reason: 'pause' });
+    expect(interrupted).toHaveLength(1);
+    expect(getJob(store, job.id)?.status).toBe('interrupted');
+
+    // Worker that never settles in this test: resume must still return.
+    const completion = new Promise<never>(() => {});
+    const host = {
+      spawn: async (options: { profileName?: string }) =>
+        ({
+          agentId: 'agent_resume',
+          profileName: options.profileName ?? 'coder',
+          resumed: false,
+          completion,
+        }) as never,
+    };
+    const agent = { subagentHost: host, config: { cwd: undefined } } as never;
+    const result = await resumeJobs({ store, agent, jobId: job.id });
+    expect(result.ok).toBe(true);
+    expect(result.resumed).toHaveLength(1);
+    expect(getJob(store, job.id)?.status).toBe('running');
+    expect(getJob(store, job.id)?.workerAgentId).toBe('agent_resume');
   });
 });

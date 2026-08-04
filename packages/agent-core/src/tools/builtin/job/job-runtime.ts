@@ -194,61 +194,72 @@ export async function scheduleQueuedJobs(input: ScheduleJobsInput): Promise<Sche
   }
 
   const candidates = nextQueuedJobs(input.store, slots);
-  const started: JobRecord[] = [];
-  const blocked: JobRecord[] = [];
   const requireWt = input.requireWorktree !== false;
 
-  for (const candidate of candidates) {
-    let job = candidate;
-    if (requireWt) {
-      if (input.kaos === undefined || input.repoPath === undefined) {
-        const b = patchJob(input.store, candidate.id, {
-          status: 'blocked',
-          notes: [candidate.notes, 'worktree_required: missing kaos/repoPath'].filter(Boolean).join(
-            '\n',
-          ),
-        });
-        if (b) blocked.push(b);
-        continue;
-      }
-      const assigned = await assignJobWorktree({
-        store: input.store,
-        jobId: candidate.id,
-        kaos: input.kaos,
-        repoPath: input.repoPath,
-        createWorktree: input.createWorktree,
-        log: input.log,
-      });
-      if (assigned.error || assigned.job === undefined) {
-        if (assigned.job) blocked.push(assigned.job);
-        continue;
-      }
-      job = assigned.job;
-    }
+  // Promote candidates concurrently. Worktree creation and worker spawn
+  // handshakes are independent per job; a serial chain would make the
+  // JobCreate ACK pay their summed latency (A2 non-blocking contract).
+  // Ledger patches stay synchronous read-modify-write, so interleaving is
+  // safe, and result order follows candidate priority order.
+  const outcomes = await Promise.all(
+    candidates.map(
+      async (candidate): Promise<{ started?: JobRecord; blocked?: JobRecord }> => {
+        let job = candidate;
+        if (requireWt) {
+          if (input.kaos === undefined || input.repoPath === undefined) {
+            const b = patchJob(input.store, candidate.id, {
+              status: 'blocked',
+              notes: [candidate.notes, 'worktree_required: missing kaos/repoPath']
+                .filter(Boolean)
+                .join('\n'),
+            });
+            return b ? { blocked: b } : {};
+          }
+          const assigned = await assignJobWorktree({
+            store: input.store,
+            jobId: candidate.id,
+            kaos: input.kaos,
+            repoPath: input.repoPath,
+            createWorktree: input.createWorktree,
+            log: input.log,
+          });
+          if (assigned.error || assigned.job === undefined) {
+            return assigned.job ? { blocked: assigned.job } : {};
+          }
+          job = assigned.job;
+        }
 
-    const runningJob = patchJob(input.store, job.id, {
-      status: 'running',
-      notes: [job.notes, 'schedule: running'].filter(Boolean).join('\n'),
-    });
-    if (runningJob) {
-      if (input.launchWorker) {
+        const runningJob = patchJob(input.store, job.id, {
+          status: 'running',
+          notes: [job.notes, 'schedule: running'].filter(Boolean).join('\n'),
+        });
+        if (!runningJob) return {};
+        if (!input.launchWorker) return { started: runningJob };
         try {
           await input.launchWorker(runningJob);
           const after = getJob(input.store, runningJob.id) ?? runningJob;
-          started.push(after);
+          return { started: after };
         } catch (error) {
           const detail = error instanceof Error ? error.message : String(error);
-          input.log?.warn('Conductor launchWorker failed', { jobId: runningJob.id, error: detail });
+          input.log?.warn('Conductor launchWorker failed', {
+            jobId: runningJob.id,
+            error: detail,
+          });
           const failed = patchJob(input.store, runningJob.id, {
             status: 'failed',
             notes: [runningJob.notes, `launch_failed: ${detail}`].filter(Boolean).join('\n'),
           });
-          if (failed) blocked.push(failed);
+          return failed ? { blocked: failed } : {};
         }
-      } else {
-        started.push(runningJob);
-      }
-    }
+      },
+    ),
+  );
+
+  const started: JobRecord[] = [];
+  const blocked: JobRecord[] = [];
+  for (const outcome of outcomes) {
+    if (outcome.started) started.push(outcome.started);
+    if (outcome.blocked) blocked.push(outcome.blocked);
   }
 
   const stillQueued = countJobsWithStatus(input.store, ['queued']);
