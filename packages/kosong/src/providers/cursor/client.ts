@@ -4,6 +4,10 @@
  * The agent host rejects HTTP/1.1 (AWS ALB 464), so this uses `node:http2`.
  * The request stream stays open with paced frames + heartbeats while the
  * response is read — half-closing early yields Cursor's "No exec result".
+ *
+ * Cursor also blocks mid-turn on `requestContextArgs`, `interactionQuery`, and
+ * native-exec messages. Those must be answered on the open request stream or
+ * the idle close surfaces as `Premature close` with leaked tool-call text.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -17,13 +21,28 @@ import {
   parseConnectEndError,
   type ConnectFrame,
 } from './connect';
-import { extractAnswerText, extractReasoningText, extractToolCall } from './extract';
-import { buildRunFrames, heartbeatFrame, type CursorRunParams } from './frames';
+import {
+  extractAnswerText,
+  extractExecMessage,
+  extractInteractionQuery,
+  extractReasoningText,
+  extractToolCall,
+  isCursorProgressPayload,
+} from './extract';
+import { buildRunFrames, heartbeatFrame, type CursorAgentTool, type CursorRunParams } from './frames';
+import {
+  encodeInteractionQueryReply,
+  encodeNativeExecReject,
+  encodeRequestContextReply,
+} from './replies';
 
 const AGENT_PATH = '/agent.v1.AgentService/Run';
 const HEARTBEAT_INTERVAL_MS = 5_000;
 const FIRST_BYTE_TIMEOUT_MS = 60_000;
-const IDLE_TIMEOUT_MS = 8_000;
+/** Align with kosong LLM idle default — 8s was killing slow Grok turns. */
+const IDLE_TIMEOUT_MS = 120_000;
+/** Wait briefly for sibling parallel tool calls before ending the turn. */
+const TOOL_FINALIZE_GRACE_MS = 150;
 
 export type CursorStreamEvent =
   | { readonly type: 'text'; readonly text: string }
@@ -149,7 +168,11 @@ export class CursorAgentClient {
           );
         }
 
-        yield* decodeResponseStream(req, options.signal);
+        yield* decodeResponseStream(req, {
+          signal: options.signal,
+          writeFrame: paced.write,
+          tools: params.tools,
+        });
       } finally {
         paced.stop();
       }
@@ -164,7 +187,11 @@ export class CursorAgentClient {
 export function createPacedBody(
   frames: Uint8Array[],
   signal?: AbortSignal,
-): { readonly stream: Readable; readonly stop: () => void } {
+): {
+  readonly stream: Readable;
+  readonly write: (frame: Uint8Array) => void;
+  readonly stop: () => void;
+} {
   let heartbeat: ReturnType<typeof setInterval> | undefined;
   let closed = false;
 
@@ -182,6 +209,10 @@ export function createPacedBody(
   const pushFrame = (frame: Uint8Array): boolean => {
     if (closed) return false;
     return stream.push(Buffer.from(frame));
+  };
+
+  const write = (frame: Uint8Array): void => {
+    pushFrame(frame);
   };
 
   const stop = (): void => {
@@ -235,7 +266,7 @@ export function createPacedBody(
     { once: true },
   );
 
-  return { stream, stop };
+  return { stream, write, stop };
 }
 
 function cursorAbortedError(): Error {
@@ -248,37 +279,81 @@ function isCursorAbortedError(error: unknown): boolean {
 
 async function* decodeResponseStream(
   stream: http2.ClientHttp2Stream,
-  signal?: AbortSignal,
+  options: {
+    readonly signal?: AbortSignal;
+    readonly writeFrame: (frame: Uint8Array) => void;
+    readonly tools: readonly CursorAgentTool[];
+  },
 ): AsyncGenerator<CursorStreamEvent> {
   const decoder = new ConnectFrameDecoder();
   let gotOutput = false;
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
   let firstByteTimer: ReturnType<typeof setTimeout> | undefined;
   let timedOut = false;
+  let idleTimedOut = false;
+  const pendingTools: Array<Extract<CursorStreamEvent, { type: 'tool_call' }>> = [];
+  const iterator = (stream as AsyncIterable<Buffer>)[Symbol.asyncIterator]();
+  let nextChunk: Promise<IteratorResult<Buffer>> | undefined;
 
   const resetIdle = (): void => {
     if (idleTimer !== undefined) clearTimeout(idleTimer);
     idleTimer = setTimeout(() => {
+      idleTimedOut = true;
       timedOut = true;
-      stream.close();
+      try {
+        stream.close();
+      } catch {
+        // ignore
+      }
     }, IDLE_TIMEOUT_MS);
+  };
+
+  const flushToolsAndEnd = function* (): Generator<CursorStreamEvent> {
+    for (const tool of pendingTools) yield tool;
+    pendingTools.length = 0;
+    yield { type: 'end' };
   };
 
   firstByteTimer = setTimeout(() => {
     if (!gotOutput) {
       timedOut = true;
-      stream.close();
+      try {
+        stream.close();
+      } catch {
+        // ignore
+      }
     }
   }, FIRST_BYTE_TIMEOUT_MS);
 
   try {
-    for await (const chunk of stream as AsyncIterable<Buffer>) {
-      if (signal?.aborted) throw cursorAbortedError();
-      const frames = decoder.push(new Uint8Array(chunk));
+    for (;;) {
+      if (options.signal?.aborted) throw cursorAbortedError();
+
+      nextChunk ??= iterator.next();
+      let result: IteratorResult<Buffer>;
+      if (pendingTools.length > 0) {
+        const raced = await Promise.race([
+          nextChunk.then((value) => ({ kind: 'chunk' as const, value })),
+          sleep(TOOL_FINALIZE_GRACE_MS, options.signal).then(() => ({ kind: 'grace' as const })),
+        ]);
+        if (raced.kind === 'grace') {
+          yield* flushToolsAndEnd();
+          return;
+        }
+        result = raced.value;
+        nextChunk = undefined;
+      } else {
+        result = await nextChunk;
+        nextChunk = undefined;
+      }
+
+      if (result.done) break;
+
+      const frames = decoder.push(new Uint8Array(result.value));
       for (const frame of frames) {
-        for (const event of frameToEvents(frame)) {
+        for (const event of handleFrame(frame, options.writeFrame, options.tools)) {
           if (event.type === 'end') {
-            yield event;
+            yield* flushToolsAndEnd();
             return;
           }
           gotOutput = true;
@@ -287,21 +362,41 @@ async function* decodeResponseStream(
             firstByteTimer = undefined;
           }
           resetIdle();
-          yield event;
           if (event.type === 'tool_call') {
-            yield { type: 'end' };
-            return;
+            pendingTools.push(event);
+            continue;
+          }
+          // Progress-only frames still refresh idle via resetIdle above.
+          if (event.type === 'text' || event.type === 'think') {
+            yield event;
           }
         }
       }
     }
-    if (signal?.aborted) throw cursorAbortedError();
+
+    if (pendingTools.length > 0) {
+      yield* flushToolsAndEnd();
+      return;
+    }
+
+    if (options.signal?.aborted) throw cursorAbortedError();
     if (timedOut && !gotOutput) {
       throw new Error('Cursor upstream timed out before sending any output.');
     }
+    if (idleTimedOut) {
+      throw new Error(
+        'Cursor upstream went idle while waiting for client replies (request context / tools).',
+      );
+    }
     yield { type: 'end' };
   } catch (error) {
-    if (signal?.aborted || isCursorAbortedError(error)) throw cursorAbortedError();
+    if (options.signal?.aborted || isCursorAbortedError(error)) throw cursorAbortedError();
+    // Map Node's premature-close (from stream.close() on idle) to a clearer error.
+    if (idleTimedOut || isPrematureClose(error)) {
+      throw new Error(
+        'Cursor upstream closed early (unanswered exec/query or idle). Retry the turn.',
+      );
+    }
     throw error;
   } finally {
     if (idleTimer !== undefined) clearTimeout(idleTimer);
@@ -309,7 +404,11 @@ async function* decodeResponseStream(
   }
 }
 
-function* frameToEvents(frame: ConnectFrame): Generator<CursorStreamEvent> {
+function* handleFrame(
+  frame: ConnectFrame,
+  writeFrame: (frame: Uint8Array) => void,
+  tools: readonly CursorAgentTool[],
+): Generator<CursorStreamEvent> {
   if ((frame.flags & CONNECT_FLAG_END) !== 0) {
     const error = parseConnectEndError(frame.payload);
     if (error !== undefined) {
@@ -319,6 +418,45 @@ function* frameToEvents(frame: ConnectFrame): Generator<CursorStreamEvent> {
     return;
   }
   const payload = decodeFramePayload(frame);
+
+  // 1) Answer interaction queries immediately (server blocks until matched id).
+  const query = extractInteractionQuery(payload);
+  if (query !== undefined) {
+    writeFrame(encodeInteractionQueryReply(query.id, query.queryField));
+    return;
+  }
+
+  // 2) Exec channel: request context, client MCP tools, or reject native exec.
+  const exec = extractExecMessage(payload);
+  if (exec !== undefined) {
+    if (exec.caseField === 10) {
+      // requestContextArgs — advertise tools so Cursor can call mcp_superliora_*.
+      writeFrame(encodeRequestContextReply(exec.id, exec.execId, tools));
+      return;
+    }
+    if (exec.caseField === 11) {
+      const tool = extractToolCall(payload);
+      if (tool !== undefined) {
+        // Client-tool bridge: surface the call; grace timer ends the Cursor turn (no mcpResult).
+        yield {
+          type: 'tool_call',
+          name: tool.name,
+          inputJson: tool.inputJson,
+          ...(tool.toolCallId === undefined ? {} : { toolCallId: tool.toolCallId }),
+        };
+        return;
+      }
+      // Non-superliora MCP — reject so the stream does not hang.
+      const reject = encodeNativeExecReject(exec.id, exec.execId, exec.caseField, exec.caseData);
+      if (reject !== undefined) writeFrame(reject);
+      return;
+    }
+    const reject = encodeNativeExecReject(exec.id, exec.execId, exec.caseField, exec.caseData);
+    if (reject !== undefined) writeFrame(reject);
+    return;
+  }
+
+  // 3) InteractionUpdate toolCallCompleted for SuperLiora MCP tools.
   const tool = extractToolCall(payload);
   if (tool !== undefined) {
     yield {
@@ -329,6 +467,12 @@ function* frameToEvents(frame: ConnectFrame): Generator<CursorStreamEvent> {
     };
     return;
   }
+
+  // Progress frames (tokenDelta / heartbeat / toolCallStarted) only refresh idle.
+  if (isCursorProgressPayload(payload)) {
+    return;
+  }
+
   const think = extractReasoningText(payload);
   if (think !== undefined) {
     yield { type: 'think', text: think };
@@ -337,6 +481,12 @@ function* frameToEvents(frame: ConnectFrame): Generator<CursorStreamEvent> {
   if (text !== undefined) {
     yield { type: 'text', text };
   }
+}
+
+function isPrematureClose(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const msg = error.message.toLowerCase();
+  return msg.includes('premature close') || (error as NodeJS.ErrnoException).code === 'ERR_STREAM_PREMATURE_CLOSE';
 }
 
 function waitForResponseHeaders(

@@ -5,6 +5,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { encodeConnectFrame } from './connect';
+import { CURSOR_PROVIDER_ID } from './constants';
 import { toCursorWireModelId } from './model-id';
 import {
   concatBytes,
@@ -102,7 +103,7 @@ function encodeMcpToolDef(tool: CursorAgentTool): Uint8Array {
     fieldStr(1, tool.name),
     fieldStr(2, tool.description),
     fieldLd(3, encodeProtobufValue(tool.inputSchema)),
-    fieldStr(4, 'superliora'),
+    fieldStr(4, CURSOR_PROVIDER_ID),
     fieldStr(5, tool.name),
   );
 }

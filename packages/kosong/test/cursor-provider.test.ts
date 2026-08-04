@@ -6,18 +6,26 @@ import {
   concatBytes,
   decodeProtobufValue,
   encodeConnectFrame,
+  encodeInteractionQueryReply,
   encodeProtobufValue,
+  encodeRequestContextReply,
   extractAnswerText,
+  extractExecMessage,
+  extractInteractionQuery,
   extractReasoningText,
   extractToolCall,
   fieldLd,
   fieldStr,
   fieldVarint,
+  normalizeCursorToolName,
+  recoverToolCallsFromCursorText,
+  sanitizeCursorAssistantText,
   ConnectFrameDecoder,
   renderCursorPrompt,
   toCursorWireModelId,
 } from '../src/providers/cursor/index';
 import type { Message } from '../src/message';
+import { CursorStreamedMessage } from '../src/providers/cursor/stream';
 
 describe('toCursorWireModelId', () => {
   it('keeps GetUsableModels Grok prefix and maps auto to default', () => {
@@ -69,7 +77,7 @@ describe('cursor response extraction', () => {
   });
 
   it('extracts MCP tool calls from exec_server_message', () => {
-    // McpArgs { name=1, args=2 entry, tool_name=5 }
+    // McpArgs { name=1, args=2 entry, tool_name=5, provider=4 }
     const argEntry = concatBytes(
       fieldStr(1, 'file_path'),
       fieldLd(2, encodeProtobufValue('/tmp/x')),
@@ -79,13 +87,104 @@ describe('cursor response extraction', () => {
       fieldLd(2, argEntry),
       fieldStr(5, 'Read'),
       fieldStr(3, 'call-1'),
+      fieldStr(4, 'superliora'),
     );
-    const exec = fieldLd(11, mcpArgs);
+    const exec = concatBytes(fieldVarint(1, 9), fieldLd(11, mcpArgs));
     const payload = fieldLd(2, exec);
     const call = extractToolCall(payload);
     expect(call?.name).toBe('Read');
     expect(call?.toolCallId).toBe('call-1');
     expect(JSON.parse(call?.inputJson ?? '{}')).toEqual({ file_path: '/tmp/x' });
+    const execMsg = extractExecMessage(payload);
+    expect(execMsg?.id).toBe(9);
+    expect(execMsg?.caseField).toBe(11);
+  });
+
+  it('extracts MCP tool calls from interactionUpdate.toolCallCompleted', () => {
+    const mcpArgs = concatBytes(
+      fieldStr(1, 'mcp_superliora_Skill'),
+      fieldLd(2, concatBytes(fieldStr(1, 'skill'), fieldLd(2, encodeProtobufValue('game-art')))),
+      fieldStr(5, 'Skill'),
+      fieldStr(4, 'superliora'),
+      fieldStr(3, 'tc-9'),
+    );
+    const mcpToolCall = fieldLd(1, mcpArgs); // McpToolCall.args
+    const toolCall = fieldLd(15, mcpToolCall); // ToolCall.mcp_tool_call
+    const completed = concatBytes(fieldStr(1, 'tc-9'), fieldLd(2, toolCall));
+    const interaction = fieldLd(3, completed); // tool_call_completed
+    const payload = fieldLd(1, interaction); // interaction_update
+    const call = extractToolCall(payload);
+    expect(call?.name).toBe('Skill');
+    expect(call?.toolCallId).toBe('tc-9');
+    expect(JSON.parse(call?.inputJson ?? '{}')).toEqual({ skill: 'game-art' });
+  });
+
+  it('parses interaction_query ids for client replies', () => {
+    const query = concatBytes(fieldVarint(1, 42), fieldLd(2, new Uint8Array(0)));
+    const payload = fieldLd(7, query);
+    expect(extractInteractionQuery(payload)).toEqual({ id: 42, queryField: 2 });
+    const reply = encodeInteractionQueryReply(42, 2);
+    expect(reply[0]).toBe(0); // Connect data frame
+  });
+});
+
+describe('cursor tool name + text sanitize', () => {
+  it('strips mcp_superliora_ display prefix', () => {
+    expect(normalizeCursorToolName('mcp_superliora_Skill')).toBe('Skill');
+    expect(normalizeCursorToolName('mcp__superliora__TodoList')).toBe('TodoList');
+    expect(normalizeCursorToolName('Bash')).toBe('Bash');
+  });
+
+  it('removes leaked protocol tags and recovers text-form tool calls', () => {
+    const leaked = [
+      'ok',
+      '<tool_call>',
+      'mcp_superliora_Skill(skill=game-art)',
+      'mcp_superliora_JobList(limit=20)',
+      '</assistant>',
+      '<tool_result>Skill "game-art" loaded inline. Follow its instructions.</tool_result>',
+      'next',
+    ].join('\n');
+    expect(sanitizeCursorAssistantText(leaked)).toBe('ok\n\nnext');
+    const recovered = recoverToolCallsFromCursorText(leaked);
+    expect(recovered.map((call) => call.name)).toEqual(['Skill', 'JobList']);
+    expect(JSON.parse(recovered[0]!.inputJson)).toEqual({ skill: 'game-art' });
+    expect(JSON.parse(recovered[1]!.inputJson)).toEqual({ limit: 20 });
+  });
+
+  it('CursorStreamedMessage recovers text tool calls and hides protocol markup', async () => {
+    async function* events() {
+      yield {
+        type: 'text' as const,
+        text: 'hi\n<tool_call>\nmcp_superliora_Skill(skill=game-art)\n</tool_call>\n',
+      };
+      yield { type: 'end' as const };
+    }
+    const parts: Array<{ type: string; name?: string; text?: string }> = [];
+    const stream = new CursorStreamedMessage(events());
+    for await (const part of stream) {
+      if (part.type === 'text') parts.push({ type: 'text', text: part.text });
+      if (part.type === 'function') parts.push({ type: 'function', name: part.name });
+    }
+    expect(parts.some((part) => part.type === 'text' && part.text === 'hi')).toBe(true);
+    expect(parts.some((part) => part.type === 'function' && part.name === 'Skill')).toBe(true);
+    expect(parts.some((part) => part.text?.includes('tool_call'))).toBe(false);
+    expect(stream.finishReason).toBe('tool_calls');
+  });
+});
+
+describe('cursor client replies', () => {
+  it('encodes requestContext reply with advertised tools', () => {
+    const frame = encodeRequestContextReply(3, 'exec-1', [
+      {
+        name: 'Skill',
+        description: 'load a skill',
+        inputSchema: { type: 'object', properties: { skill: { type: 'string' } } },
+      },
+    ]);
+    expect(frame[0]).toBe(0);
+    expect(Buffer.from(frame).includes(Buffer.from('Skill', 'utf8'))).toBe(true);
+    expect(Buffer.from(frame).includes(Buffer.from('superliora', 'utf8'))).toBe(true);
   });
 });
 

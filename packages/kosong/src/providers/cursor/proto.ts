@@ -62,6 +62,8 @@ export interface PbField {
   readonly field: number;
   readonly wire: number;
   readonly data: Uint8Array;
+  /** Present when `wire === 0` (varint). */
+  readonly varint?: bigint;
 }
 
 export function* iterFields(buf: Uint8Array): Generator<PbField> {
@@ -76,7 +78,7 @@ export function* iterFields(buf: Uint8Array): Generator<PbField> {
       const v = readVarint(buf, offset);
       if (v === undefined) return;
       offset = v.next;
-      yield { field, wire, data: new Uint8Array(0) };
+      yield { field, wire, data: new Uint8Array(0), varint: v.value };
     } else if (wire === 2) {
       const len = readVarint(buf, offset);
       if (len === undefined) return;
