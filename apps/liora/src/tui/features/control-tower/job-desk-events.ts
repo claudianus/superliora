@@ -53,7 +53,7 @@ export class ControlTowerJobDesk {
     if (!this.boardHintShown && event.job.status === 'running') {
       this.boardHintShown = true;
       this.host.showStatus(
-        `Conductor job running: ${event.job.title} — the Job Desk board below tracks it; /jobs board toggles the panel`,
+        `Conductor job running: ${event.job.title} — Job Desk tracks it; click a card or /jobs deck for the worker transcript`,
         'info',
       );
     }

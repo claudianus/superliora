@@ -6,16 +6,29 @@
 import type { SlashCommandHost } from './hub/dispatch';
 
 const JOBS_USAGE =
-  'Usage: /jobs — list Conductor jobs; /jobs board — show/hide the Job Desk panel in the transcript; /job <id> — inspect; /job resume [id] — resume interrupted; /job answer <id> <text> — answer needs_user card; /job cancel <id>; /job inbox; /job gc — worktree GC hint; /job help';
+  'Usage: /jobs — list Conductor jobs; /jobs board — show/hide the Job Desk panel; /jobs deck [id] — open the interactive Job Deck monitor; /job <id> — inspect; /job resume [id] — resume interrupted; /job answer <id> <text> — answer needs_user card; /job cancel <id>; /job inbox; /job gc — worktree GC hint; /job help';
 
 function isBoardArgs(args: string): boolean {
   return args === 'board' || args === 'view' || args === 'open';
+}
+
+function isDeckArgs(args: string): boolean {
+  return args === 'deck' || args === 'monitor' || args === 'watch';
 }
 
 export function handleJobsCommand(host: SlashCommandHost, rawArgs: string): void {
   const args = rawArgs.trim();
   if (isBoardArgs(args)) {
     host.jobBoardController.toggle();
+    return;
+  }
+  if (isDeckArgs(args)) {
+    host.jobBoardController.openDeck();
+    return;
+  }
+  if (args.startsWith('deck ') || args.startsWith('monitor ') || args.startsWith('watch ')) {
+    // /jobs deck <id> — drill into one card directly.
+    host.jobBoardController.openDeck(args.replace(/^\S+\s+/u, '').trim() || undefined);
     return;
   }
   if (args.length === 0) {
@@ -50,6 +63,14 @@ export function handleJobCommand(host: SlashCommandHost, rawArgs: string): void 
     case 'open':
       host.jobBoardController.toggle();
       return;
+
+    case 'deck':
+    case 'monitor':
+    case 'watch': {
+      const jobId = tokens.slice(1).join(' ').trim();
+      host.jobBoardController.openDeck(jobId.length > 0 ? jobId : undefined);
+      return;
+    }
 
     case 'list':
     case 'ls':

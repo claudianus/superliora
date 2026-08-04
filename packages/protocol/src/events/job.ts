@@ -52,6 +52,12 @@ export interface JobProgressSnapshot {
   readonly stepsCompleted?: number;
   /** Total steps when known. */
   readonly stepsTotal?: number;
+  /** Cumulative worker input tokens (non-cache), when the emitter reports usage. */
+  readonly tokensIn?: number;
+  /** Cumulative worker output tokens, when known. */
+  readonly tokensOut?: number;
+  /** Cumulative cache-read tokens, when known. */
+  readonly cacheRead?: number;
 }
 
 export interface JobSnapshot {
@@ -66,6 +72,10 @@ export interface JobSnapshot {
   readonly resultSummary?: string;
   /** Worker progress (schemaVersion 2; absent on v1 snapshots). */
   readonly progress?: JobProgressSnapshot;
+  /** ISO timestamp when the job entered the ledger (queue). */
+  readonly createdAt?: string;
+  /** ISO timestamp of the last ledger mutation for this job. */
+  readonly updatedAt?: string;
 }
 
 export interface JobUpdatedEvent {
@@ -124,6 +134,9 @@ export const jobProgressSnapshotSchema = z.object({
   lastHeartbeatAt: z.string().optional(),
   stepsCompleted: z.number().int().optional(),
   stepsTotal: z.number().int().optional(),
+  tokensIn: z.number().nonnegative().optional(),
+  tokensOut: z.number().nonnegative().optional(),
+  cacheRead: z.number().nonnegative().optional(),
 }) satisfies z.ZodType<JobProgressSnapshot>;
 
 /** Dual-read: accept v1 and v2 payloads on the same schemas. */
@@ -143,6 +156,8 @@ export const jobSnapshotSchema = z.object({
   missionRunId: z.string().optional(),
   resultSummary: z.string().optional(),
   progress: jobProgressSnapshotSchema.optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
 }) satisfies z.ZodType<JobSnapshot>;
 
 export const jobUpdatedEventSchema = z.object({

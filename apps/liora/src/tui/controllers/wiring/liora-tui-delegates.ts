@@ -32,6 +32,7 @@ import {
   openUndoSelectorFromHost,
 } from './liora-tui-wiring';
 import type { ApprovalPanelData, QuestionPanelData } from '../../reverse-rpc/types';
+import { openJobDeckViewer } from '../../commands/jobs-deck';
 
 type LioraTUIConstructor = new (...args: never[]) => LioraTUI;
 
@@ -466,6 +467,9 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
   };
   proto.openUndoSelector = function () {
     openUndoSelectorFromHost(this);
+  };
+  proto.openJobDeck = function (jobId?: string) {
+    openJobDeckViewer(this, jobId);
   };
   proto.showApprovalPanel = function (payload: ApprovalPanelData) {
     this.reverseRpcPanels.showApprovalPanel(payload);

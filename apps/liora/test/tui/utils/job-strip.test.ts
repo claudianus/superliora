@@ -3,11 +3,17 @@ import { describe, expect, it } from 'vitest';
 import {
   appendJobInboxEntry,
   emptyConductorJobsSnapshot,
+  formatJobDuration,
   JOB_BOARD_MAX_CARDS,
   JOB_BOARD_MAX_INBOX,
+  jobElapsedMs,
+  longestActiveJobElapsedMs,
   mergeConductorJobsSnapshot,
+  parseIsoMs,
   parseJobLedgerCards,
   parseJobStripFromToolOutput,
+  patchConductorJobUsage,
+  resolveConductorJobCard,
   upsertConductorJobCard,
   type ConductorJobCard,
 } from '#/tui/utils/job/job-strip';
@@ -139,5 +145,96 @@ describe('job-strip', () => {
     }
     expect(inbox).toHaveLength(JOB_BOARD_MAX_INBOX);
     expect(inbox[inbox.length - 1]?.eventId).toBe(`evt_${String(JOB_BOARD_MAX_INBOX + 2)}`);
+  });
+
+  it('formats compact durations across scales', () => {
+    expect(formatJobDuration(500)).toBe('0s');
+    expect(formatJobDuration(42_000)).toBe('42s');
+    expect(formatJobDuration(3 * 60_000 + 12_000)).toBe('3m 12s');
+    expect(formatJobDuration(65 * 60_000)).toBe('1h 05m');
+    expect(formatJobDuration(51 * 3_600_000)).toBe('2d 3h');
+  });
+
+  it('computes elapsed time — live cards track now, terminal cards freeze', () => {
+    const created = '2026-01-01T00:00:00.000Z';
+    const createdMs = parseIsoMs(created) as number;
+    const running: ConductorJobCard = {
+      id: 'job_run',
+      title: 'run',
+      status: 'running',
+      kind: 'task',
+      priority: 1,
+      createdAtMs: createdMs,
+      updatedAtMs: createdMs + 10_000,
+    };
+    expect(jobElapsedMs(running, createdMs + 60_000)).toBe(60_000);
+    const done: ConductorJobCard = { ...running, id: 'job_done', status: 'done' };
+    // Terminal cards freeze at updatedAt, not the query clock.
+    expect(jobElapsedMs(done, createdMs + 60_000)).toBe(10_000);
+    expect(jobElapsedMs({ ...running, createdAtMs: undefined }, createdMs)).toBeUndefined();
+  });
+
+  it('longestActiveJobElapsedMs skips terminal cards', () => {
+    const base = parseIsoMs('2026-01-01T00:00:00.000Z') as number;
+    const cards: ConductorJobCard[] = [
+      { id: 'a', title: 'a', status: 'running', kind: 'task', priority: 1, createdAtMs: base, updatedAtMs: base },
+      { id: 'b', title: 'b', status: 'queued', kind: 'task', priority: 1, createdAtMs: base + 30_000, updatedAtMs: base },
+      { id: 'c', title: 'c', status: 'done', kind: 'task', priority: 1, createdAtMs: base - 999_000, updatedAtMs: base },
+    ];
+    expect(longestActiveJobElapsedMs(cards, base + 45_000)).toBe(45_000);
+    expect(longestActiveJobElapsedMs([], base)).toBeUndefined();
+  });
+
+  it('resolveConductorJobCard accepts full, short, and unique prefix ids', () => {
+    const cards: ConductorJobCard[] = [
+      { id: 'job_a1b2c3d4ef00', title: 'a', status: 'running', kind: 'task', priority: 1, updatedAtMs: 0 },
+      { id: 'job_b2c3d4e5ff11', title: 'b', status: 'queued', kind: 'task', priority: 1, updatedAtMs: 0 },
+    ];
+    expect(resolveConductorJobCard(cards, 'job_a1b2c3d4ef00')?.id).toBe('job_a1b2c3d4ef00');
+    expect(resolveConductorJobCard(cards, 'a1b2c3d4')?.id).toBe('job_a1b2c3d4ef00');
+    expect(resolveConductorJobCard(cards, 'b2c3')?.id).toBe('job_b2c3d4e5ff11');
+    expect(resolveConductorJobCard(cards, 'nope')).toBeUndefined();
+    expect(resolveConductorJobCard(cards, '')).toBeUndefined();
+  });
+
+  it('patchConductorJobUsage updates one card and preserves others', () => {
+    const cards: ConductorJobCard[] = [
+      { id: 'job_a', title: 'a', status: 'running', kind: 'task', priority: 1, updatedAtMs: 0 },
+      { id: 'job_b', title: 'b', status: 'queued', kind: 'task', priority: 1, updatedAtMs: 0 },
+    ];
+    const next = patchConductorJobUsage(cards, 'job_a', { input: 10, output: 20, cacheRead: 30 });
+    expect(next?.[0]?.usage).toEqual({ input: 10, output: 20, cacheRead: 30 });
+    expect(next?.[1]?.usage).toBeUndefined();
+    expect(patchConductorJobUsage(cards, 'missing', { input: 1, output: 0, cacheRead: 0 })).toBeUndefined();
+  });
+
+  it('upsert preserves createdAtMs and stamps statusChangedAtMs on lane moves', () => {
+    const created = '2026-01-01T00:00:00.000Z';
+    let cards = upsertConductorJobCard(
+      [],
+      {
+        id: 'job_x',
+        title: 'work',
+        status: 'queued',
+        kind: 'task',
+        priority: 1,
+        createdAt: created,
+        updatedAt: created,
+      },
+      undefined,
+      100,
+    );
+    expect(cards[0]?.createdAtMs).toBe(parseIsoMs(created));
+    expect(cards[0]?.statusChangedAtMs).toBe(100);
+    // Follow-up event without createdAt keeps the original ledger birth time.
+    cards = upsertConductorJobCard(
+      cards,
+      { id: 'job_x', title: 'work', status: 'running', kind: 'task', priority: 1 },
+      { previousStatus: 'queued' },
+      500,
+    );
+    expect(cards[0]?.createdAtMs).toBe(parseIsoMs(created));
+    expect(cards[0]?.statusChangedAtMs).toBe(500);
+    expect(cards[0]?.previousStatus).toBe('queued');
   });
 });

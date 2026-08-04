@@ -139,6 +139,8 @@ export interface TUIState {
    * landing on the board move the board, not the transcript.
    */
   cachedTodoRect?: RendererRect;
+  /** Jobs chrome region rect (same stage plan as cachedTodoRect). */
+  cachedJobsRect?: RendererRect;
   /**
    * User-chosen stage size from a corner/edge drag-resize. When set, the stage
    * holds this size (clamped to the terminal) instead of the responsive reading

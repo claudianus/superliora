@@ -31,6 +31,8 @@
 | `/new` | `/clear` | 开启全新会话，丢弃当前上下文 | 否 |
 | `/sessions` | `/resume` | 浏览历史会话并切换/恢复 | 否 |
 | `/tasks` | `/task` | 浏览后台任务列表 | 是 |
+| `/jobs [board\|deck [id]]` | — | Conductor Job 工作台：列出任务、切换转录区内 Job Desk 看板（`board`），或打开交互式 Job Deck 监视器（`deck` / `monitor` / `watch`）。点击 Job Desk 卡片或按 <kbd>Alt</kbd>+<kbd>J</kbd> 可打开 Deck。Deck 内：<kbd>Enter</kbd> 进入 worker 转录（含 token 与耗时）；<kbd>S</kbd>/<kbd>A</kbd>/<kbd>R</kbd>/<kbd>X</kbd> 分别用于 steer、回答、恢复、取消 | 是 |
+| `/job …` | — | Conductor Job 操作：`board`、`deck [id]`、`list`、`inbox`、`resume [id]`、`answer <id> <text>`、`cancel <id>`、`inspect <id>`、`schedule`、`gc` | 是 |
 | `/fork` | — | 基于当前会话 fork 一份新会话，保留完整对话历史 | 否 |
 | `/title [<text>]` | `/rename` | 不带参数时显示当前会话标题；带参数时设置为新标题（最长 200 字符） | 是 |
 | `/compact [<instruction>]` | — | 压缩当前对话上下文，释放 token 占用；可附带自定义指令，提示模型压缩时保留哪些信息 | 否 |

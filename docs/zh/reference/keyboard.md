@@ -69,6 +69,10 @@ SuperLiora CLI 的 TUI 交互模式把主提示区快捷键保持精简，多数
 
 工具输出展开、待办展开、Plan 调向与重试在 Command Hub 或斜杠命令（`/plan`、`/retry` 等）中提供，不再作为主提示区独立和弦。
 
+| 快捷键 | 功能 |
+| --- | --- |
+| `Alt-J` | 打开 Conductor Job Deck 监视器（worker 转录、token、耗时）。与 `/jobs deck` 或点击 Job Desk 卡片相同 |
+
 ## 审批面板
 
 当 Agent 发起需要确认的工具调用时，TUI 会弹出审批面板。详细审批流程见[交互与输入](../guides/interaction.md#审批流程)，面板内可用键位如下：

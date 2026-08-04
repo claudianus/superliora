@@ -26,6 +26,22 @@ export interface ConductorJobCard {
   readonly progress?: JobProgressSnapshot;
   readonly updatedAtMs: number;
   readonly previousStatus?: JobEventStatus;
+  /** Ledger creation time (epoch ms) from `job.updated` v2 `createdAt`. */
+  readonly createdAtMs?: number;
+  /** When the status last changed — drives lane-move settle flashes. */
+  readonly statusChangedAtMs?: number;
+  /**
+   * Last-known worker token usage (from progress heartbeat or Job Deck
+   * drill-down fetch). Survives plain `job.updated` refreshes.
+   */
+  readonly usage?: ConductorJobUsage;
+}
+
+/** Dense token strip for Job Desk cards / Job Deck usage rows. */
+export interface ConductorJobUsage {
+  readonly input: number;
+  readonly output: number;
+  readonly cacheRead: number;
 }
 
 /** One `job.inbox` notice kept for the board drill-down. */
@@ -89,6 +105,10 @@ export function upsertConductorJobCard(
   change: { readonly previousStatus?: JobEventStatus } | undefined,
   nowMs: number,
 ): readonly ConductorJobCard[] {
+  const existing = cards.find((entry) => entry.id === job.id);
+  const createdAtMs = parseIsoMs(job.createdAt) ?? existing?.createdAtMs;
+  const statusChanged = existing !== undefined && existing.status !== job.status;
+  const usage = usageFromProgress(job.progress) ?? existing?.usage;
   const card: ConductorJobCard = {
     id: job.id,
     title: job.title,
@@ -100,10 +120,14 @@ export function upsertConductorJobCard(
     missionRunId: job.missionRunId,
     resultSummary: job.resultSummary,
     progress: job.progress,
-    updatedAtMs: nowMs,
-    previousStatus: change?.previousStatus,
+    updatedAtMs: parseIsoMs(job.updatedAt) ?? nowMs,
+    previousStatus: change?.previousStatus ?? (statusChanged ? existing.status : undefined),
+    createdAtMs,
+    // Preserve the original change time on plain refreshes; re-arm on a move.
+    statusChangedAtMs: statusChanged || existing === undefined ? nowMs : existing.statusChangedAtMs,
+    ...(usage === undefined ? {} : { usage }),
   };
-  const next = cards.filter((existing) => existing.id !== job.id);
+  const next = cards.filter((entry) => entry.id !== job.id);
   next.push(card);
   if (next.length <= JOB_BOARD_MAX_CARDS) return next;
   // Trim oldest terminal card first; fall back to the oldest card overall.
@@ -295,4 +319,117 @@ export function mergeConductorJobsSnapshot(
     inbox: patch.inbox ?? base.inbox,
     maxConcurrent: patch.maxConcurrent ?? base.maxConcurrent,
   };
+}
+
+/** Parse an ISO timestamp into epoch ms; undefined when absent/invalid. */
+export function parseIsoMs(iso: string | undefined): number | undefined {
+  if (iso === undefined || iso.length === 0) return undefined;
+  const ms = Date.parse(iso);
+  return Number.isFinite(ms) ? ms : undefined;
+}
+
+const TERMINAL_JOB_STATUSES: ReadonlySet<JobEventStatus> = new Set<JobEventStatus>([
+  'done',
+  'failed',
+  'cancelled',
+]);
+
+/**
+ * Wall-clock age of a job card: live jobs count against `now`, terminal jobs
+ * freeze at their last ledger update (≈ completion time).
+ */
+export function jobElapsedMs(card: ConductorJobCard, nowMs: number): number | undefined {
+  if (card.createdAtMs === undefined) return undefined;
+  const end = TERMINAL_JOB_STATUSES.has(card.status)
+    ? Math.max(card.updatedAtMs, card.createdAtMs)
+    : nowMs;
+  return Math.max(0, end - card.createdAtMs);
+}
+
+/** Compact human duration: `42s`, `3m 12s`, `1h 05m`, `2d 3h`. */
+export function formatJobDuration(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  if (seconds < 60) return `${String(seconds)}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${String(minutes)}m ${String(seconds % 60).padStart(2, '0')}s`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${String(hours)}h ${String(minutes % 60).padStart(2, '0')}m`;
+  const days = Math.floor(hours / 24);
+  return `${String(days)}d ${String(hours % 24)}h`;
+}
+
+/** Longest live-job age across the ledger — the desk's wall clock. */
+export function longestActiveJobElapsedMs(
+  cards: readonly ConductorJobCard[],
+  nowMs: number,
+): number | undefined {
+  let longest: number | undefined;
+  for (const card of cards) {
+    if (TERMINAL_JOB_STATUSES.has(card.status)) continue;
+    const elapsed = jobElapsedMs(card, nowMs);
+    if (elapsed !== undefined && (longest === undefined || elapsed > longest)) {
+      longest = elapsed;
+    }
+  }
+  return longest;
+}
+
+/** Map progress heartbeat token fields onto the dense card usage shape. */
+export function usageFromProgress(
+  progress: JobProgressSnapshot | undefined,
+): ConductorJobUsage | undefined {
+  if (progress === undefined) return undefined;
+  if (
+    progress.tokensIn === undefined &&
+    progress.tokensOut === undefined &&
+    progress.cacheRead === undefined
+  ) {
+    return undefined;
+  }
+  return {
+    input: progress.tokensIn ?? 0,
+    output: progress.tokensOut ?? 0,
+    cacheRead: progress.cacheRead ?? 0,
+  };
+}
+
+/**
+ * Resolve a full or short job id against the ledger.
+ * Accepts `job_…`, bare short prefixes (`a1b2c3d4`), and unique substring hits.
+ */
+export function resolveConductorJobCard(
+  cards: readonly ConductorJobCard[],
+  query: string | undefined,
+): ConductorJobCard | undefined {
+  if (query === undefined) return undefined;
+  const needle = query.trim();
+  if (needle.length === 0) return undefined;
+  const exact = cards.find((card) => card.id === needle);
+  if (exact !== undefined) return exact;
+  const withPrefix = needle.startsWith('job_') ? needle : `job_${needle}`;
+  const prefixed = cards.find((card) => card.id === withPrefix);
+  if (prefixed !== undefined) return prefixed;
+  const lower = needle.toLowerCase();
+  const prefixHits = cards.filter(
+    (card) =>
+      card.id.toLowerCase().startsWith(withPrefix.toLowerCase()) ||
+      card.id.replace(/^job_/u, '').toLowerCase().startsWith(lower),
+  );
+  if (prefixHits.length === 1) return prefixHits[0];
+  const contains = cards.filter((card) => card.id.toLowerCase().includes(lower));
+  return contains.length === 1 ? contains[0] : undefined;
+}
+
+/** Patch one card's remembered usage; returns undefined when the id is unknown. */
+export function patchConductorJobUsage(
+  cards: readonly ConductorJobCard[],
+  jobId: string,
+  usage: ConductorJobUsage,
+): readonly ConductorJobCard[] | undefined {
+  const index = cards.findIndex((card) => card.id === jobId);
+  if (index < 0) return undefined;
+  const next = [...cards];
+  const previous = next[index]!;
+  next[index] = { ...previous, usage };
+  return next;
 }

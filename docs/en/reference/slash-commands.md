@@ -31,6 +31,8 @@ Some commands are only available in the idle state. Executing these commands whi
 | `/new` | `/clear` | Start a fresh session, discarding the current context | No |
 | `/sessions` | `/resume` | Browse historical sessions and switch to / restore one | No |
 | `/tasks` | `/task` | Browse the background task list | Yes |
+| `/jobs [board\|deck [id]]` | — | Conductor Job desk: list jobs, toggle the in-transcript Job Desk kanban (`board`), or open the interactive Job Deck monitor (`deck` / `monitor` / `watch`). Click a Job Desk card or press <kbd>Alt</kbd>+<kbd>J</kbd> to open the deck. Inside the deck: <kbd>Enter</kbd> opens a worker transcript with tokens and elapsed time; <kbd>S</kbd>/<kbd>A</kbd>/<kbd>R</kbd>/<kbd>X</kbd> steer, answer, resume, or cancel | Yes |
+| `/job …` | — | Conductor Job actions: `board`, `deck [id]`, `list`, `inbox`, `resume [id]`, `answer <id> <text>`, `cancel <id>`, `inspect <id>`, `schedule`, `gc` | Yes |
 | `/fork` | — | Fork a new session from the current one, preserving the full conversation history | No |
 | `/title [<text>]` | `/rename` | Without arguments, display the current session title; with an argument, set a new title (max 200 characters) | Yes |
 | `/compact [<instruction>]` | — | Compact the current conversation context to free up token usage; an optional custom instruction can hint to the model what to preserve | No |

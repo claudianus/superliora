@@ -89,7 +89,9 @@ const CRON_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
 
 const JOB_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'list', description: 'List Conductor jobs' },
-  { value: 'board', description: 'Open the job desk board view' },
+  { value: 'board', description: 'Show/hide the Job Desk kanban panel' },
+  { value: 'deck', description: 'Open the interactive Job Deck monitor' },
+  { value: 'monitor', description: 'Alias for deck — worker transcripts + tokens' },
   { value: 'inbox', description: 'Show Job inbox notices' },
   { value: 'resume', description: 'Resume interrupted jobs' },
   { value: 'cancel', description: 'Cancel a job by id' },
@@ -338,6 +340,18 @@ export function cronArgumentCompletions(argumentPrefix: string): AutocompleteIte
 /** Argument autocompletion for `/job` subcommands. */
 export function jobArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
   return completeLeadingArg(JOB_ARG_COMPLETIONS, argumentPrefix);
+}
+
+const JOBS_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+  { value: 'board', description: 'Show/hide the Job Desk kanban panel' },
+  { value: 'deck', description: 'Open the interactive Job Deck monitor' },
+  { value: 'monitor', description: 'Alias for deck — worker transcripts + tokens' },
+  { value: 'watch', description: 'Alias for deck' },
+];
+
+/** Argument autocompletion for `/jobs` board/deck aliases. */
+export function jobsArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
+  return completeLeadingArg(JOBS_ARG_COMPLETIONS, argumentPrefix);
 }
 
 /** Argument autocompletion for `/extensions` tabs and Claude import shortcuts. */

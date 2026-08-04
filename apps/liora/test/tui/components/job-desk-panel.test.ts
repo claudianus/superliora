@@ -141,6 +141,55 @@ describe('JobDeskPanelComponent', () => {
     expect(panel.isEmpty()).toBe(true);
     expect(panel.isHidden()).toBe(false);
   });
+
+  it('hitTestCard resolves the job id on the rendered card row', () => {
+    const panel = new JobDeskPanelComponent();
+    panel.setSnapshot(snapshotOf([card('job_a1b2c3d4', 'migrate the billing service', 'running')]));
+    const lines = panel.render(120).map(stripAnsi);
+    const row = lines.findIndex((line) => line.includes('migrate the billing'));
+    expect(row).toBeGreaterThanOrEqual(0);
+    // Sweep across the card row; some cell must resolve to the card id.
+    let hit: string | undefined;
+    for (let x = 0; x < 120 && hit === undefined; x += 1) {
+      hit = panel.hitTestCard(x, row);
+    }
+    expect(hit).toBe('job_a1b2c3d4');
+    // Points outside the board never resolve.
+    expect(panel.hitTestCard(0, 0)).toBeUndefined();
+    expect(panel.hitTestCard(5, row + 500)).toBeUndefined();
+  });
+
+  it('exposes elapsed chips and the desk wall clock in the frame', () => {
+    const panel = new JobDeskPanelComponent();
+    const createdIso = new Date(Date.now() - 3 * 60_000 - 12_000).toISOString();
+    const runningCard: ConductorJobCard = {
+      ...card('job_a1b2c3d4', 'long haul work', 'running'),
+      createdAtMs: Date.parse(createdIso),
+      workerAgentId: 'agent_worker01',
+    };
+    panel.setSnapshot(snapshotOf([runningCard]));
+    const joined = panel.render(120).map(stripAnsi).join('\n');
+    expect(joined).toContain('⏱');
+    expect(joined).toContain('3m 1');
+    expect(joined).toContain('workers');
+    expect(joined).toContain('/jobs deck');
+    expect(joined).toContain('Alt+J');
+  });
+
+  it('renders remembered token chips on cards', () => {
+    const panel = new JobDeskPanelComponent();
+    panel.setSnapshot(
+      snapshotOf([
+        {
+          ...card('job_a1b2c3d4', 'token work', 'running'),
+          usage: { input: 12_000, output: 500, cacheRead: 0 },
+        },
+      ]),
+    );
+    const joined = panel.render(120).map(stripAnsi).join('\n');
+    expect(joined).toContain('tok');
+    expect(joined).toMatch(/12\.5k|12500/);
+  });
 });
 
 describe('syncJobDeskPanelContainer', () => {

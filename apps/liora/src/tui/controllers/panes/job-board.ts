@@ -8,13 +8,22 @@
  */
 
 import type { ColorToken } from '../../theme';
+import type { AppState } from '../../types';
 import type { TUIState } from '../../tui-state';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { syncJobDeskPanelContainer } from '../../components/chrome/job-desk/job-desk-panel';
+import type { ConductorJobUsage } from '../../utils/job/job-strip';
 
 export interface JobBoardHost {
   readonly state: TUIState;
   showStatus(msg: string, color?: ColorToken): void;
+  setAppState(patch: Partial<AppState>): void;
+  /** Mount the interactive Job Deck viewer (wired by LioraTUI). */
+  readonly openJobDeck?: (jobId?: string) => void;
+  readonly jobBoardStore?: {
+    applyJobUsage(jobId: string, usage: ConductorJobUsage): boolean;
+    snapshot(): import('../../utils/job/job-strip').ConductorJobsSnapshot;
+  };
 }
 
 export class JobBoardController {
@@ -31,6 +40,28 @@ export class JobBoardController {
     } else {
       this.show();
     }
+  }
+
+  /**
+   * Open the interactive Job Deck viewer, optionally focused on one job
+   * (mouse card click / `/jobs deck <id>`). Falls back to a hint when the
+   * opener is not wired.
+   */
+  openDeck(jobId?: string): void {
+    if (this.host.openJobDeck !== undefined) {
+      this.host.openJobDeck(jobId);
+      return;
+    }
+    this.host.showStatus('Job Deck is unavailable in this host.', 'textMuted');
+  }
+
+  /** Persist Job Deck–fetched token usage onto the desk ledger. */
+  rememberUsage(jobId: string, usage: ConductorJobUsage): void {
+    const store = this.host.jobBoardStore;
+    if (store === undefined) return;
+    if (!store.applyJobUsage(jobId, usage)) return;
+    this.host.setAppState({ conductorJobs: store.snapshot() });
+    this.repaint();
   }
 
   /** Un-hide the panel; it mounts once the ledger has cards. */
