@@ -139,6 +139,14 @@ async function finalizeBackgroundTask(
     entry.pendingOutput = [];
     entry.pendingOutputBytes = 0;
   }
+  // Terminal tasks never append output again. When the output already streams
+  // to `output.log` (the authoritative copy read by getOutputSnapshot), drop
+  // the in-memory ring so long sessions don't retain up to 1 MiB per task.
+  if (entry.outputPersistStarted && host.persistence !== undefined) {
+    entry.outputChunks.length = 0;
+    entry.pendingOutput = [];
+    entry.pendingOutputBytes = 0;
+  }
   fireTerminalEffects(host, entry);
   entry.foregroundRelease?.resolve('terminal');
   entry.terminal.resolve();
