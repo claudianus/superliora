@@ -34,7 +34,8 @@ export type JobEventKind =
   | 'implement'
   | 'mission'
   | 'merge'
-  | 'desk';
+  | 'desk'
+  | 'goal-driver';
 
 /**
  * Worker progress reported with `job.updated` (schemaVersion 2).
@@ -114,6 +115,7 @@ export const jobEventKindSchema = z.enum([
   'mission',
   'merge',
   'desk',
+  'goal-driver',
 ]) satisfies z.ZodType<JobEventKind>;
 
 export const jobProgressSnapshotSchema = z.object({

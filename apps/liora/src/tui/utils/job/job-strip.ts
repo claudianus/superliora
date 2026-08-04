@@ -264,6 +264,7 @@ const JOB_KINDS: readonly JobEventKind[] = [
   'mission',
   'merge',
   'desk',
+  'goal-driver',
 ];
 
 function normalizeJobStatus(raw: string): JobEventStatus | undefined {

@@ -7,6 +7,7 @@
 
 import type { TokenUsage } from '@superliora/kosong';
 
+import type { GoalBudgetLimits, GoalStatus } from '../../agent/goal/types';
 import type { SubagentResultContract } from './subagent-result-contract';
 
 export type {
@@ -15,6 +16,18 @@ export type {
   ResumeQueuedSubagentTask,
   SpawnQueuedSubagentTask,
 } from './subagent-batch';
+
+/**
+ * Goal migrated onto the worker agent at spawn time
+ * (spec 2026-08-04-goal-driver-jobs). The runtime creates the goal
+ * mechanically before the task prompt turn; the turn engine then drives the
+ * autonomous continuation loop on the worker lane.
+ */
+export interface SubagentGoalBinding {
+  readonly objective: string;
+  readonly completionCriterion?: string;
+  readonly budgetLimits?: GoalBudgetLimits;
+}
 
 export interface RunSubagentOptions {
   readonly parentToolCallId: string;
@@ -33,6 +46,11 @@ export interface RunSubagentOptions {
   readonly ownership?: readonly string[];
   /** Isolated git worktree cwd for fleet workers (SUPERLIORA_FLEET_WORKTREE=1 soft path). */
   readonly worktreeDir?: string;
+  /**
+   * Migrate a Goal onto the worker agent before its task prompt turn
+   * (goal-driver Jobs): the worker self-continues toward it in its own lane.
+   */
+  readonly goal?: SubagentGoalBinding;
   readonly onReady?: () => void;
   readonly suppressRateLimitFailureEvent?: boolean;
 }
@@ -46,6 +64,14 @@ export type SubagentCompletion = {
   readonly result: string;
   readonly usage?: TokenUsage;
   readonly contract?: SubagentResultContract;
+  /**
+   * Terminal state of a migrated goal (goal-driver Jobs). `complete` when the
+   * worker met the objective (the record is cleared on completion), otherwise
+   * the stopped status (`blocked`/`paused`) the caller maps onto its ledger.
+   */
+  readonly goalStatus?: GoalStatus;
+  readonly goalId?: string;
+  readonly goalTerminalReason?: string;
 };
 
 export type SubagentHandle = {

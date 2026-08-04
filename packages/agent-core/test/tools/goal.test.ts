@@ -372,6 +372,20 @@ describe('ToolManager goal tool registration', () => {
     expect(names).not.toContain('SetGoalBudget');
   });
 
+  it('exposes the goal reporting pair to a subagent whitelisting GetGoal+UpdateGoal (goal-driver)', () => {
+    // Spec 2026-08-04-goal-driver-jobs: a driver worker profile that lists
+    // both GetGoal and UpdateGoal earns the pair so it can inspect budget
+    // pressure and close its runtime-migrated goal. CreateGoal stays
+    // main-only — migration is mechanical, never model-initiated.
+    const ctxAgent = testAgent({ type: 'sub' });
+    ctxAgent.configure({ tools: ['Read', 'GetGoal', 'UpdateGoal'] });
+    ctxAgent.agent.tools.initializeBuiltinTools();
+    const names = ctxAgent.agent.tools.loopTools.map((tool) => tool.name);
+    expect(names).toContain('GetGoal');
+    expect(names).toContain('UpdateGoal');
+    expect(names).not.toContain('CreateGoal');
+  });
+
   it('goal mutation tools are always present for cache stability', async () => {
     const store = makeStore();
     const ctxAgent = testAgent({

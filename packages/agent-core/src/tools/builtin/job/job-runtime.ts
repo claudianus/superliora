@@ -382,6 +382,10 @@ export function profileForJobKind(kind: JobKind): string {
       // Contract §4.2: low-cost digest worker. `explore` keeps it on the
       // cheap model slot; digest work is read-only summarization.
       return 'explore';
+    case 'goal-driver':
+      // Spec 2026-08-04-goal-driver-jobs: coder waist plus goal lifecycle
+      // tools so the driver can report complete/blocked on its migrated goal.
+      return 'goal-driver';
     case 'implement':
     case 'task':
     case 'merge':

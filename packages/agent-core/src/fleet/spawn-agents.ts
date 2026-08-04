@@ -1,4 +1,5 @@
 import type { SubagentHandle, RunSubagentOptions, SpawnSubagentOptions } from '../session/subagent/subagent-host';
+import type { SubagentGoalBinding } from '../session/subagent/subagent-host-types';
 
 /**
  * Unified fan-out primitive (harness reform T4-1). Agent (manual), AgentSwarm
@@ -15,6 +16,8 @@ export interface FanoutTask {
   readonly ownership?: readonly string[];
   /** Isolated git worktree cwd for the worker (Conductor Jobs / fleet). */
   readonly worktreeDir?: string;
+  /** Migrate a Goal onto the worker (goal-driver Jobs); it self-continues. */
+  readonly goal?: SubagentGoalBinding;
   /** Resume an existing agent instead of spawning (manual/template modes). */
   readonly resumeAgentId?: string;
   readonly swarmIndex?: number;
@@ -60,6 +63,7 @@ export function runOptionsForTask(spec: FanoutSpec, task: FanoutTask): RunSubage
     swarmItem: task.swarmItem,
     ownership: task.ownership,
     worktreeDir: task.worktreeDir,
+    goal: task.goal,
   };
 }
 
