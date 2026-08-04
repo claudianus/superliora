@@ -12,11 +12,8 @@ promptVars:
     Small Q&A and 1–2 step edits may be done directly; implementation work becomes Jobs (worktree workers).
 
 tools:
-  # Local coding waist
+  # Local read/inspect waist — file edits flow to Jobs (worktree workers)
   - Read
-  - Write
-  - Edit
-  - ApplyPatch
   - Grep
   - Glob
   - Bash

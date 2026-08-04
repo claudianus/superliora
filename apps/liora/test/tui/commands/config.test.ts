@@ -696,7 +696,7 @@ describe('harness panel and tools inventory', () => {
     expect(host.showNotice).toHaveBeenCalledOnce();
     const notice = String((host.showNotice as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] ?? '');
     expect(notice).toContain('── Session (live) ──');
-    expect(notice).toContain('Conductor: ON (default) · profile=conductor tools=30');
+    expect(notice).toContain('Conductor: ON (default) · profile=conductor tools=27');
     expect(notice).toContain('Tools: 3 active / 5 registered');
     expect(notice).toContain('Hide legacy: ON (default)');
     expect(notice).toContain('Read');
