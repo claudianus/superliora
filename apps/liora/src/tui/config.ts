@@ -113,6 +113,12 @@ export const AppearancePreferencesSchema = z.object({
   terminalPalette: z.boolean(),
   showTimestamps: z.boolean(),
   transcriptDetail: TranscriptDetailSchema,
+  /**
+   * Structured-first tool rendering. Orthogonal to {@link transcriptDetail}:
+   * density picks how many rows a result gets, neat picks whether those rows
+   * are a structured card or the raw output body.
+   */
+  neat: z.boolean(),
   /** Coding syntax theme — independent of UI chrome palette. */
   syntaxTheme: SyntaxThemeSchema,
 });
@@ -181,6 +187,7 @@ export const TuiConfigFileSchema = z.object({
       terminal_palette: z.boolean().optional(),
       show_timestamps: z.boolean().optional(),
       transcript_detail: TranscriptDetailSchema.optional(),
+      neat: z.boolean().optional(),
       syntax_theme: SyntaxThemeSchema.optional(),
     })
     .optional(),
@@ -241,6 +248,7 @@ export const DEFAULT_APPEARANCE_PREFERENCES: AppearancePreferences = {
   terminalPalette: false,
   showTimestamps: true,
   transcriptDetail: 'standard',
+  neat: true,
   syntaxTheme: 'auto',
 };
 
@@ -369,6 +377,7 @@ export function normalizeTuiConfig(config: TuiConfigFileShape): TuiConfig {
         config.appearance?.show_timestamps ?? DEFAULT_APPEARANCE_PREFERENCES.showTimestamps,
       transcriptDetail:
         config.appearance?.transcript_detail ?? DEFAULT_APPEARANCE_PREFERENCES.transcriptDetail,
+      neat: config.appearance?.neat ?? DEFAULT_APPEARANCE_PREFERENCES.neat,
       syntaxTheme:
         config.appearance?.syntax_theme ?? DEFAULT_APPEARANCE_PREFERENCES.syntaxTheme,
     },
@@ -449,6 +458,7 @@ terminal_background = "${appearance.terminalBackground}" # "off" | "session"
 terminal_palette = ${String(appearance.terminalPalette)} # true applies terminal palette until exit
 show_timestamps = ${String(appearance.showTimestamps)} # true shows HH:MM on user messages
 transcript_detail = "${appearance.transcriptDetail}" # "minimal" | "compact" | "standard" | "full"
+neat = ${String(appearance.neat)} # true renders structured tool cards; false shows raw output
 syntax_theme = "${appearance.syntaxTheme}" # "auto" | "github-dark-dimmed" | "one-dark-pro" | "palette" | …
 
 [footer]

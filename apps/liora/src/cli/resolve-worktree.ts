@@ -35,7 +35,11 @@ export async function resolveSessionWorkDir(
   if (input.worktree === undefined || input.worktree === false) {
     // Age-based GC uses lastAccessedAt — bump when the operator is already
     // sitting inside a registered session worktree.
-    await touchWorktreeAccess(homeDir, cwd).catch(() => {});
+    // ponytail: fire-and-forget so the common non-worktree launch does not pay a
+    // registry read before the first token. Ceiling: a session that exits within
+    // the read may leave lastAccessedAt one run stale, which only makes age-GC
+    // (operator-driven, --dry-run first) see the worktree as older than it is.
+    void touchWorktreeAccess(homeDir, cwd).catch(() => {});
     return { workDir: cwd };
   }
 

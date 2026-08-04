@@ -12,7 +12,7 @@
 
 import type { ContentPart, Message, TokenUsage, Tool, ToolCall } from '@superliora/kosong';
 
-import type { ToolInputDisplay } from '../tools/display';
+import type { ToolInputDisplay, ToolResultDisplay } from '../tools/display';
 import type { ToolAccesses } from './tool-access';
 import type { LLM } from './llm';
 
@@ -80,6 +80,12 @@ export interface ExecutableToolSuccessResult {
    * budgeting must not treat the visible output as complete source text.
    */
   readonly truncated?: boolean | undefined;
+  /**
+   * Structured projection of `output` for clients that render cards rather than
+   * raw text. Same side-channel contract as {@link message}: never part of the
+   * data stream the model sees.
+   */
+  readonly resultDisplay?: ToolResultDisplay | undefined;
 }
 
 export interface ExecutableToolErrorResult {
@@ -91,6 +97,8 @@ export interface ExecutableToolErrorResult {
   readonly stopTurn?: boolean | undefined;
   /** See {@link ExecutableToolSuccessResult.truncated}. */
   readonly truncated?: boolean | undefined;
+  /** See {@link ExecutableToolSuccessResult.resultDisplay}. */
+  readonly resultDisplay?: ToolResultDisplay | undefined;
 }
 
 export type ExecutableToolResult = ExecutableToolSuccessResult | ExecutableToolErrorResult;

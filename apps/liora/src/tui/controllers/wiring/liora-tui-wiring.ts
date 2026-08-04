@@ -41,7 +41,10 @@ import { JobBoardController } from '../panes/job-board';
 import { TranscriptRenderController } from '../transcript/transcript-render';
 import { UsageMonitorController } from '../usage/usage-monitor';
 import { WorkspaceBrowserController } from '../panes/workspace-browser';
-import { setActiveTranscriptDetail } from '../../features/transcript/transcript-density';
+import {
+  setActiveNeatMode,
+  setActiveTranscriptDetail,
+} from '../../features/transcript/transcript-density';
 
 function shouldRenderAmbientAnimationFrameFor(tui: LioraTUI): boolean {
   const selection = tui.state.transcriptSelection;
@@ -130,6 +133,10 @@ export function wireLioraTUIControllers(
     tui.state.appState.appearance?.transcriptDetail ?? 'standard';
   // Keep render-time density readers (thinking / answer phase) in sync.
   setActiveTranscriptDetail(tui.state.transcriptDetail);
+  setActiveNeatMode(tui.state.appState.appearance?.neat ?? true);
+  // Legacy expand flag used when mounting thinking/tool cards — seed from density
+  // so transcript_detail=full at boot expands without requiring Ctrl+O once.
+  tui.state.toolOutputExpanded = tui.state.transcriptDetail === 'full';
   tui.btwPanelController = new BtwPanelController(tui);
   // Conductor job desk single source (V5-3): all `job.*` events converge on
   // this store before the session event handler is wired.

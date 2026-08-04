@@ -92,7 +92,7 @@ describe('EnterPlanModeTool', () => {
     expect(result.output).toContain('already active');
   });
 
-  it('points active Ultra Plan sessions to NextPhase instead of re-entering plan mode', async () => {
+  it('points active structured plan sessions to NextPhase instead of re-entering plan mode', async () => {
     const { agent } = makeAgent({ active: true, ultra: true });
     const result = await executeTool(new EnterPlanModeTool(agent), {
       turnId: '0',
@@ -102,7 +102,7 @@ describe('EnterPlanModeTool', () => {
     });
 
     expect(result).toMatchObject({ isError: true });
-    expect(result.output).toContain('Ultra Plan mode is already active');
+    expect(result.output).toContain('Structured plan mode is already active');
     expect(result.output).toContain('NextPhase');
     expect(result.output).not.toContain('ExitPlanMode');
   });

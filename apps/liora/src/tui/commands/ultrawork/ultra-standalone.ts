@@ -390,23 +390,35 @@ export async function handleUltraPlanCommand(host: SlashCommandHost, args: strin
     return;
   }
 
-  // Enter Ultra Plan mode with standalone source — no Ultrawork stage advancement
+  // Enter structured plan (standalone). On Conductor this is Plan Desk → mission Job.
+  const session = host.requireSession();
   try {
-    await host.requireSession().setPlanMode(true, true, prompt || undefined, 'standalone');
+    await session.setPlanMode(true, true, prompt || undefined, 'standalone');
   } catch (error) {
     host.showError(`Failed to enter Plan interview mode: ${formatErrorMessage(error)}`);
     return;
   }
 
+  const status = await session.getStatus().catch(() => null);
+  const actuallyOn = status?.planMode === true;
   host.setAppState({
-    planMode: true,
-    activityTip: 'Plan interview mode (standalone): research, interview, verifiable criteria',
+    planMode: actuallyOn,
+    activityTip: actuallyOn
+      ? 'Plan interview mode (standalone): research, interview, verifiable criteria'
+      : 'Plan Desk: planning Job accepted — watch Job strip / inbox',
   });
   host.track('ultraplan_start');
-  host.showStatus('Plan interview mode active. Answer questions to build a verifiable plan.');
+  if (actuallyOn) {
+    host.showStatus('Plan interview mode active. Answer questions to build a verifiable plan.');
+  } else {
+    host.showStatus(
+      'Plan Desk: planning Job accepted. Conductor stays free — answer worker questions when they appear; check JobInbox.',
+    );
+  }
 
-  // If user provided initial context, send it as input
-  if (prompt.length > 0) {
+  // If user provided initial context and plan is inline, send it as input.
+  // Plan Desk already seeded the Job brief from the same context.
+  if (actuallyOn && prompt.length > 0) {
     host.sendNormalUserInput(prompt);
   }
 }

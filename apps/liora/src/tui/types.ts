@@ -8,6 +8,7 @@ import type {
   ProviderConfig,
   PromptPart,
   ToolInputDisplay,
+  ToolResultDisplay,
   AllProvidersUsageSnapshot,
 } from '@superliora/sdk';
 
@@ -279,6 +280,12 @@ export interface ToolResultBlockData {
   output: string;
   is_error?: boolean;
   synthetic?: boolean;
+  /**
+   * Structured projection emitted by agent-core (`tool.result` `display`).
+   * Present only when the harness recognized the result shape; neat cards read
+   * it instead of parsing `output`.
+   */
+  display?: ToolResultDisplay;
 }
 
 export interface SubagentReplayToolCallData {

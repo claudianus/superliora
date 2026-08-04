@@ -50,8 +50,23 @@ async function applyPlanMode(host: SlashCommandHost, session: Session, enabled: 
   }
   try {
     await session.setPlanMode(enabled, ultra);
-    host.setAppState({ planMode: enabled, ultraworkMode: false, activityTip: null });
-    if (enabled) {
+    if (!enabled) {
+      host.setAppState({ planMode: false, ultraworkMode: false, activityTip: null });
+      host.showNotice('Plan mode: OFF');
+      return;
+    }
+    // Conductor Plan Desk: enterPlan delegates to a mission Job and does not
+    // activate plan mode on the main agent — reflect that in AppState.
+    const status = await session.getStatus().catch(() => null);
+    const actuallyOn = status?.planMode === true;
+    host.setAppState({
+      planMode: actuallyOn,
+      ultraworkMode: false,
+      activityTip: actuallyOn
+        ? null
+        : 'Plan Desk: planning Job accepted — watch Job strip / inbox',
+    });
+    if (actuallyOn) {
       const plan = await session.getPlan().catch(() => null);
       host.showNotice(
         ultra ? 'Plan mode: ON (structured pipeline)' : 'Plan mode: ON (free-form)',
@@ -59,7 +74,10 @@ async function applyPlanMode(host: SlashCommandHost, session: Session, enabled: 
       );
       return;
     }
-    host.showNotice('Plan mode: OFF');
+    host.showNotice(
+      'Plan Desk: planning delegated to a Job',
+      'Conductor stays free — plan worker runs research/interview. Check Job strip / JobInbox.',
+    );
   } catch (error) {
     const msg = formatErrorMessage(error);
     host.showError(`Failed to set plan mode: ${msg}`);

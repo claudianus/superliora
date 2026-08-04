@@ -29,7 +29,9 @@ import { isMotionTheatreActive, type MotionBeatController } from '../../utils/re
 import { installTerminalThemeTracking } from '../../utils/terminal/terminal-theme';
 import {
   formatTranscriptDetailCycleLabel,
+  getActiveNeatMode,
   nextTranscriptDetailLevel,
+  setActiveNeatMode,
   setActiveTranscriptDetail,
 } from '../../features/transcript/transcript-density';
 import { TRANSCRIPT_EXPAND_TURNS } from '../../features/transcript/transcript-window';
@@ -325,9 +327,33 @@ export class PanesController {
     // `full` drives the legacy toolOutputExpanded flag used by thinking /
     // goal markers and the recent-turn expand cutoff.
     host.state.toolOutputExpanded = level === 'full';
-    for (const child of host.state.transcriptContainer.children) {
+    this.reprojectTranscriptChildren(level);
+    this.syncTranscriptExpansion();
+    if (options.toast) {
+      host.state.toast.show(formatTranscriptDetailCycleLabel(level), 1600);
+    }
+    // Geometry may change (minimal hides tool rows) — layout, not paint-only.
+    requestTUILayoutRender(host.state);
+  }
+
+  /**
+   * Toggle neat mode live. Structured cards and raw bodies swap in place using
+   * the same re-projection density uses, so `/neat` needs no reload.
+   */
+  setNeatMode(enabled: boolean): void {
+    if (getActiveNeatMode() === enabled) return;
+    setActiveNeatMode(enabled);
+    // `setDetail` short-circuits on an unchanged level, so tool cards need the
+    // explicit rebuild that `invalidate` performs.
+    this.reprojectTranscriptChildren(undefined);
+    requestTUILayoutRender(this.host.state);
+  }
+
+  private reprojectTranscriptChildren(level: TranscriptDetailLevel | undefined): void {
+    for (const child of this.host.state.transcriptContainer.children) {
       if (child instanceof ToolCallComponent) {
-        child.setDetail(level);
+        if (level === undefined) child.invalidate();
+        else child.setDetail(level);
         continue;
       }
       // Thinking / answer / chain bar re-read active density on next paint.
@@ -338,12 +364,6 @@ export class PanesController {
         soft.invalidate();
       }
     }
-    this.syncTranscriptExpansion();
-    if (options.toast) {
-      host.state.toast.show(formatTranscriptDetailCycleLabel(level), 1600);
-    }
-    // Geometry may change (minimal hides tool rows) — layout, not paint-only.
-    requestTUILayoutRender(host.state);
   }
 
   /**

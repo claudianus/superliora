@@ -11,6 +11,7 @@
  * and awaits the user's answer.
  */
 
+import { basename } from 'node:path';
 import { z } from 'zod';
 
 import type { Agent } from '../../../agent/index';
@@ -28,6 +29,7 @@ import type {
 } from '../../../rpc/sdk-api';
 import type { TelemetryPropertyValue } from '../../../telemetry';
 import { toInputJsonSchema } from '../../support/input-schema';
+import { raiseJobNeedsUserForWorker } from '../job/job-worker-ledger-bridge';
 import DESCRIPTION from './ask-user.md?raw';
 
 // ── Input schema ─────────────────────────────────────────────────────
@@ -172,6 +174,11 @@ export class AskUserQuestionTool implements BuiltinTool<AskUserQuestionInput> {
           }),
         };
       }
+
+      // Plan Desk / Job workers: surface needs_user on the parent Job ledger
+      // so Conductor JobInbox sees the interview card while the shared RPC
+      // question UI still collects the answer.
+      maybeRaiseJobNeedsUser(this.agent, args.questions);
 
       const result = await this.agent.rpc!.requestQuestion!(
         {
@@ -487,5 +494,15 @@ export function buildAutoInterviewDecisionForTest(
   mode: string | undefined,
 ): AutoInterviewDecision | undefined {
   return tryAutoAnswerQuestions(args, mode);
+}
+
+function maybeRaiseJobNeedsUser(
+  agent: Agent,
+  questions: NormalizedAskUserQuestionInput['questions'],
+): void {
+  if (agent.type !== 'sub' || agent.homedir === undefined) return;
+  const workerAgentId = basename(agent.homedir);
+  const question = questions[0]?.question?.trim() || 'User input needed';
+  raiseJobNeedsUserForWorker(workerAgentId, { question });
 }
 

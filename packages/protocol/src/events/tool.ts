@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
-import { ToolInputDisplaySchema, type ToolInputDisplay } from '../display';
+import {
+  ToolInputDisplaySchema,
+  ToolResultDisplaySchema,
+  type ToolInputDisplay,
+  type ToolResultDisplay,
+} from '../display';
 import { toolUpdateSchema, type ToolUpdate } from './common';
 
 export interface ToolCallDeltaEvent {
@@ -57,6 +62,12 @@ export interface ToolResultEvent {
   readonly output: unknown;
   readonly isError?: boolean;
   readonly synthetic?: boolean;
+  /**
+   * Structured projection of `output` for clients that render cards instead of
+   * raw text. Emitters attach it when the result shape is recognized; `output`
+   * stays the canonical stream the model consumed.
+   */
+  readonly display?: ToolResultDisplay;
 }
 
 export interface ToolsUpdateStoreEvent {
@@ -130,6 +141,7 @@ export const toolResultEventSchema = z.object({
   output: z.unknown(),
   isError: z.boolean().optional(),
   synthetic: z.boolean().optional(),
+  display: ToolResultDisplaySchema.optional(),
 }) satisfies z.ZodType<ToolResultEvent>;
 
 export const toolsUpdateStoreEventSchema = z.object({

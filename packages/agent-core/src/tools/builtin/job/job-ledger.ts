@@ -61,6 +61,8 @@ export function createJob(
     readonly goalObjective?: string;
     readonly goalCompletionCriterion?: string;
     readonly goalBudgetLimits?: GoalBudgetLimits;
+    /** Plan Desk: ultra structured pipeline vs regular free-form plan. */
+    readonly planStructured?: boolean;
   },
 ): JobRecord {
   const now = new Date().toISOString();
@@ -80,6 +82,7 @@ export function createJob(
     goalObjective: input.goalObjective,
     goalCompletionCriterion: input.goalCompletionCriterion,
     goalBudgetLimits: input.goalBudgetLimits,
+    planStructured: input.planStructured,
   };
   return upsertJob(store, job);
 }

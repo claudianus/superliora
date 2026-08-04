@@ -78,6 +78,11 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
           description: 'minimal | compact | standard | full — live tool card density.',
         },
         {
+          value: 'neat',
+          label: `Neat cards · ${appearance.neat ? 'on' : 'off'}`,
+          description: 'Structured tool result cards instead of raw output dumps.',
+        },
+        {
           value: 'syntax-theme',
           label: `Syntax theme · ${appearance.syntaxTheme}`,
           description: 'Coding colors independent of UI skin (GitHub Dimmed, One Dark, …).',
@@ -197,6 +202,17 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
               choices: [
                 { value: 'on', label: 'on', description: 'Show HH:MM on user messages' },
                 { value: 'off', label: 'off', description: 'Hide message timestamps' },
+              ],
+            });
+            return;
+          case 'neat':
+            showAppearanceEnumPicker(host, {
+              title: 'Neat cards',
+              key: 'neat',
+              current: appearance.neat ? 'on' : 'off',
+              choices: [
+                { value: 'on', label: 'on', description: 'Structured cards for tool results' },
+                { value: 'off', label: 'off', description: 'Raw tool output' },
               ],
             });
             return;

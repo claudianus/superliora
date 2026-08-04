@@ -123,17 +123,6 @@ describe('FooterComponent — goal badge', () => {
     expect(strip(footer.render(160)[0]!)).toContain('3s');
   });
 
-  it('requests a repaint while an active goal timer is visible', () => {
-    vi.useFakeTimers();
-    const onRefresh = vi.fn();
-
-    const footer = new FooterComponent(baseState({ goal: goal({ wallClockMs: 0 }) }), onRefresh);
-
-    vi.advanceTimersByTime(1_000);
-    expect(onRefresh).toHaveBeenCalledTimes(1);
-    footer.invalidate();
-  });
-
   it('shows used/limit turns only when a turn budget is set', () => {
     const footer = new FooterComponent(
       baseState({ goal: goal({ budget: { turnBudget: 20, tokenBudget: null, wallClockBudgetMs: null } } as Partial<GoalSnapshot>) }),

@@ -21,9 +21,12 @@ export interface JobBoardHost {
   setAppState(patch: Partial<AppState>): void;
   /** Mount the interactive Job Deck viewer (wired by LioraTUI). */
   readonly openJobDeck?: (jobId?: string) => void;
-  readonly jobBoardStore?: {
+  /**
+   * V5-3: `appState.conductorJobs` has exactly one writer, the control-tower
+   * sink. Usage backfill goes through it rather than patching appState here.
+   */
+  readonly controlTowerDesk?: {
     applyJobUsage(jobId: string, usage: ConductorJobUsage): boolean;
-    snapshot(): import('../../utils/job/job-strip').ConductorJobsSnapshot;
   };
 }
 
@@ -59,11 +62,7 @@ export class JobBoardController {
 
   /** Persist Job Deck–fetched token usage onto the desk ledger. */
   rememberUsage(jobId: string, usage: ConductorJobUsage): void {
-    const store = this.host.jobBoardStore;
-    if (store === undefined) return;
-    if (!store.applyJobUsage(jobId, usage)) return;
-    this.host.setAppState({ conductorJobs: store.snapshot() });
-    this.repaint();
+    this.host.controlTowerDesk?.applyJobUsage(jobId, usage);
   }
 
   /** Un-hide the panel; it mounts once the ledger has cards. */

@@ -27,6 +27,7 @@
 
 import type { ContentPart } from '@superliora/kosong';
 
+import { classifyStructuredOutput, type ToolResultDisplay } from '../tools/display';
 import { compressImageContentParts } from '../tools/support/image-compress';
 import { persistOriginalImage } from '../tools/support/image-originals';
 import type { MCPContentBlock, MCPToolResult } from './types';
@@ -151,7 +152,12 @@ export async function mcpResultToExecutableOutput(
   result: MCPToolResult,
   qualifiedToolName: string,
   options: McpOutputOptions = {},
-): Promise<{ output: string | ContentPart[]; isError: boolean; truncated?: true }> {
+): Promise<{
+  output: string | ContentPart[];
+  isError: boolean;
+  truncated?: true;
+  resultDisplay?: ToolResultDisplay;
+}> {
   const converted: ContentPart[] = [];
   for (const block of result.content) {
     const part = convertMCPContentBlock(block);
@@ -186,9 +192,16 @@ export async function mcpResultToExecutableOutput(
   const capped = applyBinaryPartCap(compressed);
   const truncated = budgeted.truncated || capped.truncated;
   const output = collapseSingleText(capped.parts);
-  return truncated
-    ? { output, isError: result.isError, truncated: true }
-    : { output, isError: result.isError };
+  // JSON bodies (the common MCP shape) earn a structured display so clients
+  // render a key/value card instead of a raw blob. Truncated output is skipped:
+  // a sliced JSON string no longer parses, and a partial object would misread.
+  const resultDisplay = truncated ? undefined : classifyStructuredOutput(output);
+  return {
+    output,
+    isError: result.isError,
+    ...(truncated ? { truncated: true as const } : {}),
+    ...(resultDisplay === undefined ? {} : { resultDisplay }),
+  };
 }
 
 /**

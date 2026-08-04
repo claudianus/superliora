@@ -89,6 +89,7 @@ export type {
   ApprovalScope,
   ApprovalResponse,
   ToolInputDisplay,
+  ToolResultDisplay,
 } from '@superliora/agent-core';
 
 // Question reverse-RPC request and answer payloads.

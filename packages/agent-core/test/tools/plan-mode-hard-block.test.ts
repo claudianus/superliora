@@ -409,7 +409,7 @@ describe('Plan mode permission policy', () => {
 
     expect(result.isError).toBeFalsy();
     expect(result.output).toContain('Advanced from research phase to interview phase');
-    expect(result.output).toContain('expert leader');
+    expect(result.output).toContain('Socratic');
     expect(planMode.phase).toBe('interview');
   });
 
@@ -491,7 +491,7 @@ describe('Plan mode permission policy', () => {
       signal,
     });
     expect(skip.isError).toBe(true);
-    expect(skip.output).toContain('Cannot skip or reverse');
+     expect(skip.output).toContain('Cannot reverse or skip arbitrarily');
 
     planMode.setPhase('interview');
     const reverse = await executeTool(new NextPhaseTool(agent), {
@@ -501,7 +501,7 @@ describe('Plan mode permission policy', () => {
       signal,
     });
     expect(reverse.isError).toBe(true);
-    expect(reverse.output).toContain('Cannot skip or reverse');
+    expect(reverse.output).toContain('Cannot reverse or skip arbitrarily');
   });
 
   it('lets ultra interview advance once the seed ledger and verifiable goal are closed', async () => {
@@ -538,8 +538,8 @@ describe('Plan mode permission policy', () => {
 
     expect(result.isError).toBeFalsy();
     expect(result.output).toContain('Advanced from interview phase to design phase');
-    expect(result.output).toContain("call NextPhase({ phase: 'review' })");
-    expect(result.output).toContain('TodoList progress tracking');
+    expect(result.output).toContain('Design Phase (optional)');
+    expect(result.output).toContain("NextPhase({ phase: 'write' })");
     expect(planMode.phase).toBe('design');
     expect(planMode.ultraEngine.seedSpec?.goal).toContain('implement guarded Ultrawork mode');
   });
@@ -649,9 +649,8 @@ describe('Plan mode permission policy', () => {
 
     expect(result.isError).toBeFalsy();
     expect(result.output).toContain('Advanced from design phase to review phase');
-    expect(result.output).toContain('WebSearch');
-    expect(result.output).toContain('FetchURL');
-    expect(result.output).toContain('TodoList progress tracking');
+    expect(result.output).toContain('Review Phase (optional)');
+    expect(result.output).toContain("NextPhase({ phase: 'write' })");
     expect(planMode.phase).toBe('review');
   });
 

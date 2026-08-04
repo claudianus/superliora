@@ -332,6 +332,9 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
   proto.setTranscriptDetail = function (level: TranscriptDetailLevel) {
     this.panes.setTranscriptDetail(level);
   };
+  proto.setNeatMode = function (enabled: boolean) {
+    this.panes.setNeatMode(enabled);
+  };
   proto.toggleTodoPanelExpansion = function () {
     this.panes.toggleTodoPanelExpansion();
   };

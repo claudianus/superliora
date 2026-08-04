@@ -12,7 +12,7 @@
  * `result`, `workspaceDir`) stay on `ToolCallComponent` and are passed in
  * where needed.
  */
-import type { TokenUsage } from '@superliora/sdk';
+import type { TokenUsage, ToolResultDisplay } from '@superliora/sdk';
 import { appendStreamingArgsPreview } from '#/tui/utils/event-payload';
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 
@@ -408,7 +408,12 @@ export class ToolCallSubagentState {
   }
 
   /** Returns `true` if state actually changed (caller should re-render). */
-  finishSubToolCall(result: { tool_call_id: string; output: string; is_error?: boolean | undefined }): boolean {
+  finishSubToolCall(result: {
+    tool_call_id: string;
+    output: string;
+    is_error?: boolean | undefined;
+    display?: ToolResultDisplay | undefined;
+  }): boolean {
     const ongoing = this.ongoingSubCalls.get(result.tool_call_id);
     if (ongoing === undefined) return false;
     this.ongoingSubCalls.delete(result.tool_call_id);
@@ -424,6 +429,7 @@ export class ToolCallSubagentState {
       ongoing.args,
       result.is_error === true ? 'failed' : 'done',
       result.output,
+      result.display,
     );
     while (this.finishedSubCalls.length > MAX_SUB_TOOL_CALLS_SHOWN) {
       this.finishedSubCalls.shift();
@@ -466,6 +472,7 @@ export class ToolCallSubagentState {
     args: Record<string, unknown>,
     phase: SubToolActivity['phase'],
     output?: string,
+    display?: ToolResultDisplay,
   ): void {
     const existing = this.subToolActivities.get(id);
     if (existing !== undefined) {
@@ -473,6 +480,7 @@ export class ToolCallSubagentState {
       existing.args = args;
       existing.phase = phase;
       if (output !== undefined) existing.output = output;
+      if (display !== undefined) existing.display = display;
       return;
     }
     this.subToolActivities.set(id, {
@@ -481,6 +489,7 @@ export class ToolCallSubagentState {
       args,
       phase,
       ...(output !== undefined ? { output } : {}),
+      ...(display !== undefined ? { display } : {}),
       orderSeq: ++this.subToolOrderSeq,
     });
   }

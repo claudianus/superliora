@@ -96,7 +96,7 @@ export function buildAmbiguityScoreResult(input: BuildAmbiguityScoreInput): Buil
   const hitMaxRounds = totalRounds >= MAX_INTERVIEW_ROUNDS;
   if (hitMaxRounds && !hardReady) {
     progressMessages.push(
-      `Interview round cap (${MAX_INTERVIEW_ROUNDS}) reached — Design remains blocked until UltraGoal is verifiable.`,
+      `Interview round cap (${MAX_INTERVIEW_ROUNDS}) reached — write/design remain blocked until UltraGoal is verifiable.`,
     );
   }
 

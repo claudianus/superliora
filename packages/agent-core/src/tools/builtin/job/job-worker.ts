@@ -18,6 +18,10 @@ import {
   setJobWorkerAgentId,
   abortJobWorker as abortRegisteredJobWorker,
 } from './job-handles';
+import {
+  bindJobWorkerLedger,
+  unbindJobWorkerLedger,
+} from './job-worker-ledger-bridge';
 import { emitJobEvents, inboxToWireEvent, jobRecordToUpdatedEvent } from './job-emit';
 import { inboxKindForStatus, pushJobInboxEvent } from './job-inbox';
 import { getJob, listJobs, patchJob, type JobRecord, type JobStatus } from './job-ledger';
@@ -59,6 +63,19 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
         ]
           .filter(Boolean)
           .join('\n')
+      : undefined,
+    job.kind === 'mission'
+      ? job.planStructured === false
+        ? [
+            'Plan Desk (regular): plan mode is active — write a concrete plan file, then ExitPlanMode.',
+            'Do not call EnterPlanMode or NextPhase. Do not implement product code.',
+          ].join('\n')
+        : [
+            'Plan Desk (ultra): structured plan mode is already active.',
+            'Do not call EnterPlanMode again. Use NextPhase / AskUserQuestion / RecordInterviewFinding.',
+            'When UltraGoal is verifiable, prefer NextPhase({ phase: \'write\' }) over design/review.',
+            'Write only to the plan file, then ExitPlanMode. Do not implement product code.',
+          ].join('\n')
       : undefined,
     job.prompt?.trim() ? `Brief:\n${job.prompt.trim()}` : undefined,
     job.contextPaths?.length
@@ -208,6 +225,15 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
             budgetLimits: job.goalBudgetLimits,
           }
         : undefined,
+    // Plan Desk: plan mode on the plan-profile worker (not Conductor).
+    plan:
+      job.kind === 'mission'
+        ? {
+            ultra: job.planStructured !== false,
+            initialContext: job.prompt?.trim() || job.title,
+            planId: `job-${job.id}`,
+          }
+        : undefined,
   };
   const parentToolCallId = `job:${job.id}:${randomUUID().slice(0, 8)}`;
   const spec: FanoutSpec = {
@@ -224,6 +250,7 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
   try {
     const handle = await spawn(host, spec, task);
     setJobWorkerAgentId(job.id, handle.agentId);
+    bindJobWorkerLedger(handle.agentId, input.store, job.id);
     patchJob(input.store, job.id, {
       workerAgentId: handle.agentId,
       notes: [job.notes, `worker: ${handle.agentId} (${profileName})`].filter(Boolean).join('\n'),
@@ -307,6 +334,7 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
         }
       })
       .finally(() => {
+        unbindJobWorkerLedger(handle.agentId);
         clearJobWorkerHandle(job.id);
         pumpSchedulerAfterWorker(input.agent, input.store);
       });

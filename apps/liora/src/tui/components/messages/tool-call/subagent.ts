@@ -8,6 +8,8 @@ import {
   projectRendererLineWindow,
   projectRendererNonEmptyLineWindow,
 } from '#/tui/renderer';
+import type { ToolResultDisplay } from '@superliora/sdk';
+
 import { BRAILLE_SPINNER_INTERVAL_MS } from '#/tui/constant/rendering';
 import { appearanceAnimationNow } from '#/tui/features/appearance/appearance-effects';
 import { TOOL_HEADER_ENTRANCE_MS } from '#/tui/features/transcript/transcript-entrance';
@@ -73,6 +75,8 @@ export interface SubToolActivity {
   args: Record<string, unknown>;
   phase: 'ongoing' | 'done' | 'failed';
   output?: string;
+  /** Structured result projection, when the worker's harness attached one. */
+  display?: ToolResultDisplay;
   readonly orderSeq: number;
 }
 

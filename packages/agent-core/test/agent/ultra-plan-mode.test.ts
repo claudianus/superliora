@@ -583,7 +583,7 @@ describe('UltraPlanModeEngine', () => {
         interviewRoundCount: engine.interviewState.rounds.length,
       });
       expect(guide).toContain(`Round cap: ${MAX_INTERVIEW_ROUNDS}`);
-      expect(guide).toContain('never bypasses a non-verifiable');
+      expect(guide).toContain('Keep interviewing for a true/false Completion Criterion');
     });
 
     it('keeps readiness.ready false when only soft seed floors fail is not applicable — hardReady tracks verifiableGoal only', async () => {

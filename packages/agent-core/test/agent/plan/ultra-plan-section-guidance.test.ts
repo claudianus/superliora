@@ -40,7 +40,7 @@ describe('agent/plan/ultra-plan-section-guidance — required sections + guidanc
   });
 
   it('exposes MAX_INTERVIEW_ROUNDS as a positive soft cap', () => {
-    expect(MAX_INTERVIEW_ROUNDS).toBe(8);
+    expect(MAX_INTERVIEW_ROUNDS).toBe(5);
     expect(MAX_INTERVIEW_ROUNDS).toBeGreaterThan(0);
   });
 

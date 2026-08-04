@@ -33,6 +33,7 @@ import { improveHarnessArgumentCompletions } from '../improve-harness';
 import { pluginsArgumentCompletions } from '../plugins/plugins';
 import { rendererArgumentCompletions } from '../renderer';
 import { transcriptArgumentCompletions } from '../session/transcript';
+import { neatArgumentCompletions } from '../session/neat';
 
 export const BUILTIN_SLASH_COMMANDS_SESSION = [
 {
@@ -94,6 +95,15 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
     priority: 80,
     argumentHint: '[minimal|compact|standard|full]',
     completeArgs: transcriptArgumentCompletions,
+    availability: 'always',
+  },
+  {
+    name: 'neat',
+    aliases: [],
+    description: 'Toggle structured tool result cards instead of raw output',
+    priority: 80,
+    argumentHint: '[on|off|toggle|status]',
+    completeArgs: neatArgumentCompletions,
     availability: 'always',
   },
   {

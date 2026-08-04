@@ -6,6 +6,7 @@ import type { NativeInputMouseEvent } from '#/tui/renderer';
 import { createTUIState, type TUIState } from '#/tui/tui-state';
 import type { AppState } from '#/tui/types';
 import { handleTranscriptDensityMouse } from '#/tui/features/transcript/transcript-density-mouse';
+import { hitTestChromeSignature } from '#/tui/features/transcript/transcript-hit-test';
 
 const FRAME_WIDTH = 80;
 const FRAME_HEIGHT = 40;
@@ -96,6 +97,9 @@ function mountTools(...components: ToolCallComponent[]): void {
   currentState.cachedTranscriptColumns = FRAME_WIDTH;
   currentState.cachedTranscriptRows = FRAME_HEIGHT;
   currentState.cachedTranscriptLineCount = editorLineCount;
+  // Without the chrome signature the hit-test falls back to a real stage plan
+  // and ignores the rect pinned above.
+  currentState.cachedHitTestChromeSig = hitTestChromeSignature(currentState);
 }
 
 function mouse(

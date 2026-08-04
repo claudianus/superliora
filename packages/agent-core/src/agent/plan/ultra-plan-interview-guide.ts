@@ -176,7 +176,7 @@ export function formatInterviewReadinessGuide(
 
   if (interviewRoundCount >= MAX_INTERVIEW_ROUNDS) {
     lines.push(
-      `Round cap: ${interviewRoundCount}/${MAX_INTERVIEW_ROUNDS} (soft). advance_with_defaults may soft-fill seed gaps only after UltraGoal is verifiable — it never bypasses a non-verifiable goal. Keep interviewing for a true/false Completion Criterion, or call NextPhase({ phase: "design", advance_with_defaults: true }) once verifiable.`,
+      `Round cap: ${interviewRoundCount}/${MAX_INTERVIEW_ROUNDS} (soft). Keep interviewing for a true/false Completion Criterion, or once verifiable call NextPhase({ phase: "write" }) (preferred) or design with advance_with_defaults.`,
     );
   }
 

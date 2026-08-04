@@ -20,6 +20,7 @@ const APPEARANCE_KEYS = [
   'terminal-background',
   'terminal-palette',
   'transcript-detail',
+  'neat',
   'syntax-theme',
 ] as const;
 
@@ -64,6 +65,8 @@ export async function handleAppearanceCommand(host: SlashCommandHost, args: stri
   if (key === 'transcript-detail') {
     // Live re-projection of mounted tool cards; the save above persists.
     host.setTranscriptDetail(next.transcriptDetail);
+  } else if (key === 'neat') {
+    host.setNeatMode(next.neat);
   }
   host.track('appearance_changed', { key, value });
   host.showStatus(`Appearance ${key} set to ${value}.`, 'success');
@@ -80,6 +83,7 @@ function formatAppearanceStatus(appearance: AppearancePreferences): string {
     `terminal-background: ${appearance.terminalBackground}`,
     `terminal-palette: ${appearance.terminalPalette ? 'on' : 'off'}`,
     `transcript-detail: ${appearance.transcriptDetail}`,
+    `neat: ${appearance.neat ? 'on' : 'off'}`,
     `syntax-theme: ${appearance.syntaxTheme}`,
   ].join('\n');
 }
@@ -104,6 +108,13 @@ function parseAppearancePatch(
         const enabled = parseOnOff(value);
         if (enabled === undefined) return null;
         next.showTimestamps = enabled;
+        return next;
+      }
+    case 'neat':
+      {
+        const enabled = parseOnOff(value);
+        if (enabled === undefined) return null;
+        next.neat = enabled;
         return next;
       }
     case 'particles':

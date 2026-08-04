@@ -73,6 +73,7 @@ export function mapLoopEvent(event: LoopEvent, turnId: number): AgentEvent | und
         toolCallId: event.toolCallId,
         output: event.result.output,
         isError: event.result.isError,
+        display: event.result.resultDisplay,
       };
     case 'turn.interrupted':
       if (event.activeStep === undefined) return undefined;

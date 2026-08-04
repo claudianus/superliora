@@ -38,13 +38,25 @@ import {
 } from '#/tui/utils/agent/context-working-set';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
-function makeHost(options: { planMode?: boolean; planPath?: string | undefined } = {}) {
+function makeHost(
+  options: {
+    planMode?: boolean;
+    planPath?: string | undefined;
+    /** When true, simulate Conductor Plan Desk (enterPlan does not activate main planMode). */
+    planDeskDelegate?: boolean;
+  } = {},
+) {
+  let planMode = options.planMode ?? false;
   const session = {
     clearPlan: vi.fn(async () => {}),
     getPlan: vi.fn(async () => (
       options.planPath === undefined ? null : { path: options.planPath }
     )),
-    setPlanMode: vi.fn(async () => {}),
+    setPlanMode: vi.fn(async (enabled: boolean) => {
+      // Non-Conductor: plan mode sticks. Plan Desk: RPC succeeds but status stays off.
+      planMode = options.planDeskDelegate === true ? false : enabled;
+    }),
+    getStatus: vi.fn(async () => ({ planMode })),
     getUltraworkRun: vi.fn(async () => null),
   };
   const host = {
@@ -183,6 +195,19 @@ describe('handlePlanCommand', () => {
 
     expect(session.setPlanMode).toHaveBeenCalledWith(true, true);
     expect(host.showNotice).toHaveBeenCalledWith('Plan mode: ON (structured pipeline)', undefined);
+  });
+
+  it('announces Plan Desk when Conductor delegates instead of activating plan mode', async () => {
+    const { host, session } = makeHost({ planDeskDelegate: true });
+
+    await handlePlanCommand(host, 'on');
+
+    expect(session.setPlanMode).toHaveBeenCalledWith(true, false);
+    expect(host.showNotice).toHaveBeenCalledWith(
+      'Plan Desk: planning delegated to a Job',
+      'Conductor stays free — plan worker runs research/interview. Check Job strip / JobInbox.',
+    );
+    expect(host.state.appState.planMode).toBe(false);
   });
 });
 

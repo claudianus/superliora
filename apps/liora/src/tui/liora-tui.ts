@@ -271,6 +271,7 @@ export interface LioraTUIHost {
   updateQueueDisplay(): void;
   toggleToolOutputExpansion(): void;
   setTranscriptDetail(level: TranscriptDetailLevel): void;
+  setNeatMode(enabled: boolean): void;
   toggleTodoPanelExpansion(): void;
   detachCurrentForegroundTask(): Promise<void>;
   updateEditorBorderHighlight(text?: string): void;

@@ -45,6 +45,7 @@ import type {
   RunSubagentOptions,
   SubagentCompletion,
   SubagentGoalBinding,
+  SubagentPlanBinding,
 } from './subagent-host-types';
 import { buildChildResultContract } from './subagent-verification-gate';
 import SUMMARY_CONTINUATION_PROMPT from '../summary-continuation.md?raw';
@@ -156,6 +157,9 @@ export async function runPromptTurn(
   if (options.goal !== undefined) {
     await migrateGoalToWorker(child, options.goal);
   }
+  if (options.plan !== undefined) {
+    await migratePlanToWorker(child, options.plan);
+  }
   const turnId = child.turn.prompt([{ type: 'text', text: childPrompt }], SUBAGENT_PROMPT_ORIGIN);
   if (turnId === null) {
     throw new Error(`Agent instance "${childId}" could not start a turn`);
@@ -186,6 +190,25 @@ export async function migrateGoalToWorker(
   if (binding.budgetLimits !== undefined) {
     await child.goal.setBudgetLimits({ budgetLimits: binding.budgetLimits }, 'system');
   }
+}
+
+/**
+ * Plan Desk: activate plan mode on the worker before its first turn so
+ * research/interview/write run where Write + web tools exist — not on Conductor.
+ */
+export async function migratePlanToWorker(
+  child: Agent,
+  binding: SubagentPlanBinding,
+): Promise<void> {
+  if (child.planMode.isActive) return;
+  await child.planMode.enter(
+    binding.planId,
+    false,
+    true,
+    binding.ultra ?? true,
+    binding.initialContext ?? '',
+    'standalone',
+  );
 }
 
 export async function waitForChildCompletion(

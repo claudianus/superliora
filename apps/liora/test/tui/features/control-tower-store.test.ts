@@ -196,7 +196,7 @@ describe('ControlTowerJobDesk — single sink side effects', () => {
     desk.handleUpdated(jobUpdated('job_a', 'running'));
     desk.handleUpdated(jobUpdated('job_b', 'running'));
     expect(host.showStatus).toHaveBeenCalledTimes(1);
-    expect(host.showStatus.mock.calls[0]?.[0]).toContain('/jobs board');
+    expect(host.showStatus.mock.calls[0]?.[0]).toContain('/jobs deck');
   });
 
   it('tool-output backfill republishes only when the store changed', () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  isAllowedUltraPlanAdvance,
   isForwardOneStepPhase,
   nextUltraPlanPhase,
   ULTRA_PLAN_PHASE_ORDER,
@@ -22,6 +23,12 @@ describe('Mission phase gates (pure)', () => {
       const to = ULTRA_PLAN_PHASE_ORDER[i + 1]!;
       expect(isForwardOneStepPhase(from, to)).toBe(true);
     }
+  });
+
+  it('allows interview→write and design→write fast paths', () => {
+    expect(isAllowedUltraPlanAdvance('interview', 'write')).toBe(true);
+    expect(isAllowedUltraPlanAdvance('design', 'write')).toBe(true);
+    expect(isAllowedUltraPlanAdvance('research', 'write')).toBe(false);
   });
 
   it('flags missing minimum ExitPlanMode sections', () => {

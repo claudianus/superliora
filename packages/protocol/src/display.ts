@@ -140,6 +140,29 @@ export const ToolResultDisplaySchema = z.discriminatedUnion('kind', [
     kind: z.literal('todo_list'),
     items: z.array(z.object({ title: z.string(), status: z.string() })),
   }),
+  z.object({
+    kind: z.literal('check_report'),
+    /** Recognized runner family, e.g. `vitest`, `tsc`, `eslint`, `git`, `pnpm`. */
+    tool: z.string(),
+    exit_code: z.number(),
+    passed: z.number().optional(),
+    failed: z.number().optional(),
+    skipped: z.number().optional(),
+    warnings: z.number().optional(),
+    duration_ms: z.number().optional(),
+    /** Headline the client shows when no counts apply (e.g. git summaries). */
+    summary: z.string().optional(),
+    /** Actionable rows (failing tests, type errors, changed files). */
+    findings: z
+      .array(
+        z.object({
+          file: z.string(),
+          line: z.number().optional(),
+          message: z.string(),
+        }),
+      )
+      .optional(),
+  }),
   z.object({ kind: z.literal('structured'), data: z.unknown() }),
   z.object({
     kind: z.literal('text'),

@@ -1,4 +1,4 @@
-import type { TokenUsage } from '@superliora/sdk';
+import type { TokenUsage, ToolResultDisplay } from '@superliora/sdk';
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 
 import type { SubagentTextKind } from './subagent';
@@ -135,6 +135,7 @@ export function finishToolCallSubToolCall(
     tool_call_id: string;
     output: string;
     is_error?: boolean | undefined;
+    display?: ToolResultDisplay | undefined;
   },
 ): void {
   if (!host.subagent.finishSubToolCall(result)) return;

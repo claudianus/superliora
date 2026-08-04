@@ -21,6 +21,21 @@ export function setActiveTranscriptDetail(level: TranscriptDetailLevel): void {
 }
 
 /**
+ * Neat mode — structured-first tool rendering. Orthogonal to density: density
+ * decides how many rows a tool gets, neat decides whether those rows are a
+ * structured card or the raw output body.
+ */
+let activeNeatMode = true;
+
+export function getActiveNeatMode(): boolean {
+  return activeNeatMode;
+}
+
+export function setActiveNeatMode(enabled: boolean): void {
+  activeNeatMode = enabled;
+}
+
+/**
  * Resolve the effective detail level.
  *
  * Priority: per-component local override (user clicked a block) > temporary

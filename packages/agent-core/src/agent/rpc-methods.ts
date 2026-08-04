@@ -18,6 +18,11 @@ import {
   resolveUltraworkObjectiveProfile,
 } from '#/mission';
 import { buildSessionOAuthStatus } from '../runtime/session-oauth-status';
+import {
+  delegateConductorPlanDesk,
+  isConductorPlanDeskLane,
+} from '../tools/builtin/planning/plan-desk';
+import { resolvePlanModeKind } from '../tools/builtin/planning/resolve-plan-mode-kind';
 import type { Agent } from './index';
 
 export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
@@ -79,13 +84,31 @@ export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
       return agent.config.modelAlias ?? '';
     },
     enterPlan: async (payload) => {
+      const source = payload.source ?? 'standalone';
+      const routed = resolvePlanModeKind({
+        ultra: payload.ultra,
+        initialContext: payload.initialContext,
+        source,
+      });
+      const useUltra = routed.kind === 'ultra';
+      if (isConductorPlanDeskLane(agent)) {
+        if (agent.planMode.isActive) {
+          agent.planMode.cancel();
+        }
+        await delegateConductorPlanDesk(agent, {
+          ultra: useUltra,
+          initialContext: payload.initialContext,
+          source,
+        });
+        return;
+      }
       await agent.planMode.enter(
         undefined,
         false,
         true,
-        payload.ultra ?? false,
+        useUltra,
         payload.initialContext ?? '',
-        payload.source ?? 'standalone',
+        source,
       );
     },
     cancelPlan: (payload) => {

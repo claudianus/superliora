@@ -3,6 +3,10 @@
  *
  * The LLM calls this tool to enter plan mode directly. Entering plan mode
  * does not require approval in any permission mode.
+ *
+ * On the Conductor lane, Plan Desk intercepts: create a mission Job and ACK
+ * instead of activating the structured-plan engine inline (tool waist +
+ * ConductorDirectWorkGuard cannot run research/write phases).
  */
 
 import type { Agent } from '#/agent/index';
@@ -13,16 +17,25 @@ import { ToolAccesses } from '../../../loop/tool-access';
 import type { ToolExecution } from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';
 import DESCRIPTION from './enter-plan-mode.md?raw';
+import { delegateConductorPlanDesk, isConductorPlanDeskLane } from './plan-desk';
+import { resolvePlanModeKind } from './resolve-plan-mode-kind';
 
 // ── Input schema ─────────────────────────────────────────────────────
 
 export const EnterPlanModeInputSchema = z.object({
-  ultra: z.boolean().optional().describe('Enter Ultra Plan mode with Seed Spec, AC Tree, and Evaluation Plan support.'),
+  ultra: z
+    .boolean()
+    .optional()
+    .describe(
+      'true = Ultra/structured (Socratic interview → Seed Spec/AC Tree; for vague/greenfield/high-stakes). false = Regular free-form plan (scoped, already-clear work). Omit to auto-route from initial_context.',
+    ),
   initial_context: z
     .string()
     .trim()
     .optional()
-    .describe('Optional original task context used to seed Ultra Plan ambiguity scoring.'),
+    .describe(
+      'User task text for routing + Ultra ambiguity scoring / Plan Job brief. Always pass the original ask when available.',
+    ),
 }).strict();
 export type EnterPlanModeInput = z.infer<typeof EnterPlanModeInputSchema>;
 
@@ -36,16 +49,48 @@ export class EnterPlanModeTool implements BuiltinTool<EnterPlanModeInput> {
   resolveExecution(args: EnterPlanModeInput): ToolExecution {
     return {
       accesses: ToolAccesses.all(),
-      description: args.ultra ? 'Requesting to enter Ultra Plan mode' : 'Requesting to enter plan mode',
+      description: args.ultra
+        ? 'Delegating structured plan to a Job (or entering plan mode)'
+        : 'Requesting to enter plan mode',
       approvalRule: this.name,
       execute: async () => {
+        const activationSource =
+          this.agent.ultrawork.getRun()?.status === 'running' ? ('ultrawork' as const) : ('standalone' as const);
+        const routed = resolvePlanModeKind({
+          ultra: args.ultra,
+          initialContext: args.initial_context,
+          source: activationSource,
+        });
+        const useUltra = routed.kind === 'ultra';
+
+        // Plan Desk: Conductor never runs the phase engine on its own lane.
+        if (isConductorPlanDeskLane(this.agent)) {
+          if (this.agent.planMode.isActive) {
+            this.agent.planMode.cancel();
+          }
+          const delegated = await delegateConductorPlanDesk(this.agent, {
+            ultra: useUltra,
+            initialContext: args.initial_context,
+            source: activationSource,
+          });
+          this.agent.telemetry.track('plan_enter_resolved', {
+            outcome: 'plan_desk_delegated',
+            ultra: useUltra,
+            route_reason: routed.reason,
+            job_id: delegated.job.id,
+          });
+          return {
+            output: `${delegated.output}\n\nRoute: ${routed.kind} (${routed.reason})`,
+          };
+        }
+
         // Guard: already in plan mode
         if (this.agent.planMode.isActive) {
           if (this.agent.planMode.isUltraMode) {
             return {
               isError: true,
               output:
-                'Ultra Plan mode is already active. Do not call EnterPlanMode again or pass it a phase argument. Use NextPhase to advance Ultra Plan phases.',
+                'Structured plan mode is already active. Do not call EnterPlanMode again or pass it a phase argument. Use NextPhase to advance phases.',
             };
           }
           return {
@@ -55,12 +100,11 @@ export class EnterPlanModeTool implements BuiltinTool<EnterPlanModeInput> {
         }
 
         try {
-          const activationSource = this.agent.ultrawork.getRun()?.status === 'running' ? 'ultrawork' as const : 'standalone' as const;
           await this.agent.planMode.enter(
             undefined,
             false,
             true,
-            args.ultra ?? false,
+            useUltra,
             args.initial_context ?? '',
             activationSource,
           );
@@ -69,8 +113,14 @@ export class EnterPlanModeTool implements BuiltinTool<EnterPlanModeInput> {
           return { isError: true, output: `Failed to enter plan mode: ${message}` };
         }
 
-        this.agent.telemetry.track('plan_enter_resolved', { outcome: 'auto_approved', ultra: args.ultra ?? false });
-        return { output: enteredPlanModeMessage(this.agent.planMode.planFilePath, args.ultra ?? false) };
+        this.agent.telemetry.track('plan_enter_resolved', {
+          outcome: 'auto_approved',
+          ultra: useUltra,
+          route_reason: routed.reason,
+        });
+        return {
+          output: `${enteredPlanModeMessage(this.agent.planMode.planFilePath, useUltra)}\n\nRoute: ${routed.kind} (${routed.reason})`,
+        };
       },
     };
   }
