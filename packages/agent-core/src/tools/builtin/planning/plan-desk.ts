@@ -4,7 +4,9 @@
  * Conductor must not run the structured-plan phase engine inline: its tool
  * waist lacks Write/WebSearch/… and ConductorDirectWorkGuard rejects file
  * mutation. EnterPlanMode / enterPlan RPC on the conductor lane create a
- * `kind=mission` Job (profile `plan`) and ACK immediately.
+ * `kind=mission` Job (profile `plan`) and ACK immediately — but only once a
+ * task context exists to brief the worker with; see
+ * {@link shouldDelegateToPlanDesk}.
  */
 
 import type { Agent } from '#/agent/index';
@@ -30,9 +32,20 @@ export interface PlanDeskDelegateResult {
   readonly output: string;
 }
 
-/** True when this agent is the interactive Conductor control plane. */
-export function isConductorPlanDeskLane(agent: Agent): boolean {
-  return agent.type === 'main' && agent.config.profileName === SOVEREIGN_CONDUCTOR_PROFILE_NAME;
+/**
+ * True when planning should hand off to a Plan Desk job instead of running
+ * inline: the interactive Conductor lane, and only once there is a task to
+ * brief a worker with.
+ *
+ * Without context there is nothing to plan, so an explicit `/plan` or
+ * `Session.setPlanMode(true)` activates plan mode on the lane and lets the
+ * operator keep the plan file — same reasoning as session bootstrap.
+ */
+export function shouldDelegateToPlanDesk(agent: Agent, initialContext?: string): boolean {
+  if (agent.type !== 'main' || agent.config.profileName !== SOVEREIGN_CONDUCTOR_PROFILE_NAME) {
+    return false;
+  }
+  return (initialContext ?? '').trim().length > 0;
 }
 
 /**

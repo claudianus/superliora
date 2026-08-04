@@ -20,7 +20,7 @@ import {
 import { buildSessionOAuthStatus } from '../runtime/session-oauth-status';
 import {
   delegateConductorPlanDesk,
-  isConductorPlanDeskLane,
+  shouldDelegateToPlanDesk,
 } from '../tools/builtin/planning/plan-desk';
 import { resolvePlanModeKind } from '../tools/builtin/planning/resolve-plan-mode-kind';
 import type { Agent } from './index';
@@ -91,7 +91,7 @@ export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
         source,
       });
       const useUltra = routed.kind === 'ultra';
-      if (isConductorPlanDeskLane(agent)) {
+      if (shouldDelegateToPlanDesk(agent, payload.initialContext)) {
         if (agent.planMode.isActive) {
           agent.planMode.cancel();
         }

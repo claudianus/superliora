@@ -17,7 +17,7 @@ import { ToolAccesses } from '../../../loop/tool-access';
 import type { ToolExecution } from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';
 import DESCRIPTION from './enter-plan-mode.md?raw';
-import { delegateConductorPlanDesk, isConductorPlanDeskLane } from './plan-desk';
+import { delegateConductorPlanDesk, shouldDelegateToPlanDesk } from './plan-desk';
 import { resolvePlanModeKind } from './resolve-plan-mode-kind';
 
 // ── Input schema ─────────────────────────────────────────────────────
@@ -64,7 +64,7 @@ export class EnterPlanModeTool implements BuiltinTool<EnterPlanModeInput> {
         const useUltra = routed.kind === 'ultra';
 
         // Plan Desk: Conductor never runs the phase engine on its own lane.
-        if (isConductorPlanDeskLane(this.agent)) {
+        if (shouldDelegateToPlanDesk(this.agent, args.initial_context)) {
           if (this.agent.planMode.isActive) {
             this.agent.planMode.cancel();
           }

@@ -9,7 +9,7 @@ import { SOVEREIGN_CONDUCTOR_PROFILE_NAME } from '../../../src/profile/main-prof
 import { EnterPlanModeTool } from '../../../src/tools/builtin/planning/enter-plan-mode';
 import {
   delegateConductorPlanDesk,
-  isConductorPlanDeskLane,
+  shouldDelegateToPlanDesk,
 } from '../../../src/tools/builtin/planning/plan-desk';
 import { listUnreadJobInbox } from '../../../src/tools/builtin/job/job-inbox';
 import { listJobs, patchJob } from '../../../src/tools/builtin/job/job-ledger';
@@ -63,21 +63,27 @@ function makeConductorAgent(store: ToolStore): Agent {
 }
 
 describe('Plan Desk', () => {
-  it('detects the conductor lane only for main + conductor profile', () => {
+  it('delegates only for main + conductor profile with task context', () => {
     const store = makeStore();
-    expect(isConductorPlanDeskLane(makeConductorAgent(store))).toBe(true);
+    expect(shouldDelegateToPlanDesk(makeConductorAgent(store), 'Ship a game')).toBe(true);
     expect(
-      isConductorPlanDeskLane({
+      shouldDelegateToPlanDesk({
         type: 'sub',
         config: { profileName: SOVEREIGN_CONDUCTOR_PROFILE_NAME },
-      } as unknown as Agent),
+      } as unknown as Agent, 'Ship a game'),
     ).toBe(false);
     expect(
-      isConductorPlanDeskLane({
+      shouldDelegateToPlanDesk({
         type: 'main',
         config: { profileName: 'agent' },
-      } as unknown as Agent),
+      } as unknown as Agent, 'Ship a game'),
     ).toBe(false);
+  });
+
+  it('keeps bare /plan on the lane — a desk job has nothing to brief a worker with', () => {
+    const agent = makeConductorAgent(makeStore());
+    expect(shouldDelegateToPlanDesk(agent)).toBe(false);
+    expect(shouldDelegateToPlanDesk(agent, '   ')).toBe(false);
   });
 
   it('delegateConductorPlanDesk creates a mission Job without entering plan mode', async () => {
