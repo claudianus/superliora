@@ -243,14 +243,23 @@ export const SUBCOMMAND_STRINGS_EN: Readonly<Record<string, string>> = {
   'cli.sub.worktree.cmd.list.desc': 'List registered session worktrees',
   'cli.sub.worktree.cmd.rm.desc': 'Remove a session worktree by name or path',
   'cli.sub.worktree.cmd.gc.desc': 'Garbage-collect stale session worktrees',
+  'cli.sub.worktree.cmd.hygiene.desc':
+    'Prune registry drift, age-GC worktrees, and clean orphan liora/* branches',
   'cli.sub.worktree.opt.repoOnly': 'Limit to worktrees for the current git repository',
   'cli.sub.worktree.opt.maxAgeDays': 'Maximum age in days for GC (default 14)',
   'cli.sub.worktree.opt.dryRun': 'Show what would be removed without deleting',
+  'cli.sub.worktree.opt.noArchive':
+    'Do not archive unmerged orphan liora/* tips before deleting them',
+  'cli.sub.worktree.opt.staleRemotes':
+    'Also delete remote branches whose tip is already in origin/main',
   'cli.sub.worktree.arg.nameOrPath': 'Worktree name or absolute path',
   'cli.sub.worktree.list.empty': 'No session worktrees registered.',
   'cli.sub.worktree.rm.ok': 'Removed worktree {{name}} ({{path}})',
   'cli.sub.worktree.gc.ok': 'GC removed {{removed}} worktree(s); {{kept}} kept',
   'cli.sub.worktree.gc.invalidAge': 'Invalid --max-age-days value',
+  'cli.sub.worktree.hygiene.ok':
+    'Hygiene: {{removed}} worktree(s) removed, {{kept}} kept; archived {{archived}} tip(s); deleted {{localBranches}} local branch(es), {{remotes}} remote(s)',
+  'cli.sub.worktree.hygiene.needRepo': 'Not a git repository; --repo requires a git checkout',
 };
 
 export const SUBCOMMAND_STRINGS_KO: Readonly<Record<string, string>> = {
@@ -498,12 +507,19 @@ export const SUBCOMMAND_STRINGS_KO: Readonly<Record<string, string>> = {
   'cli.sub.worktree.cmd.list.desc': '등록된 세션 worktree 목록',
   'cli.sub.worktree.cmd.rm.desc': '이름 또는 경로로 세션 worktree 삭제',
   'cli.sub.worktree.cmd.gc.desc': '오래된 세션 worktree 정리',
+  'cli.sub.worktree.cmd.hygiene.desc':
+    '레지스트리 정리, worktree GC, 고아 liora/* 브랜치 청소',
   'cli.sub.worktree.opt.repoOnly': '현재 git 저장소의 worktree만',
   'cli.sub.worktree.opt.maxAgeDays': 'GC 최대 보관 일수 (기본 14)',
   'cli.sub.worktree.opt.dryRun': '삭제 없이 대상만 표시',
+  'cli.sub.worktree.opt.noArchive': '머지되지 않은 고아 liora/* tip을 아카이브 태그 없이 삭제',
+  'cli.sub.worktree.opt.staleRemotes': 'origin/main에 이미 포함된 원격 브랜치도 삭제',
   'cli.sub.worktree.arg.nameOrPath': 'worktree 이름 또는 절대 경로',
   'cli.sub.worktree.list.empty': '등록된 세션 worktree가 없습니다.',
   'cli.sub.worktree.rm.ok': 'worktree {{name}} 삭제됨 ({{path}})',
   'cli.sub.worktree.gc.ok': 'GC로 {{removed}}개 삭제, {{kept}}개 유지',
   'cli.sub.worktree.gc.invalidAge': '잘못된 --max-age-days 값',
+  'cli.sub.worktree.hygiene.ok':
+    'Hygiene: worktree {{removed}}개 삭제·{{kept}}개 유지; tip 아카이브 {{archived}}개; 로컬 브랜치 {{localBranches}}개·원격 {{remotes}}개 삭제',
+  'cli.sub.worktree.hygiene.needRepo': 'git 저장소가 아닙니다. --repo는 git 체크아웃이 필요합니다',
 };
