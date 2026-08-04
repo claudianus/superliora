@@ -62,7 +62,7 @@ describe('normalizeAvailableModels', () => {
     });
   });
 
-  it('keeps effort-then-fast Grok slugs (opencodex #797)', () => {
+  it('keeps cursor- prefix on Grok slugs for Run', () => {
     const models = normalizeAvailableModels([
       {
         name: 'cursor-grok-4.5',
@@ -85,8 +85,8 @@ describe('normalizeAvailableModels', () => {
     ]);
 
     expect(models).toHaveLength(1);
-    expect(models[0]?.id).toBe('grok-4.5-high-fast');
-    expect(models[0]?.serverModelId).toBe('grok-4.5');
+    expect(models[0]?.id).toBe('cursor-grok-4.5-high-fast');
+    expect(models[0]?.serverModelId).toBe('cursor-grok-4.5');
   });
 
   it('keeps the preferred variant when duplicate slugs appear', () => {
@@ -117,9 +117,11 @@ describe('normalizeAvailableModels', () => {
 
 describe('toCursorCatalogModelId / decodeUsableModelIds', () => {
   it('normalizes discovery ids the way Run expects', () => {
-    expect(toCursorCatalogModelId('cursor-grok-4.5-high-fast')).toBe('grok-4.5-high-fast');
-    expect(toCursorCatalogModelId('grok-4.5-fast-high')).toBe('grok-4.5-high-fast');
+    expect(toCursorCatalogModelId('cursor-grok-4.5-high-fast')).toBe('cursor-grok-4.5-high-fast');
+    expect(toCursorCatalogModelId('grok-4.5-high-fast')).toBe('cursor-grok-4.5-high-fast');
+    expect(toCursorCatalogModelId('grok-4.5-fast-high')).toBe('cursor-grok-4.5-high-fast');
     expect(toCursorCatalogModelId('auto')).toBe('default');
+    expect(toCursorCatalogModelId('composer-2.5')).toBe('composer-2.5');
   });
 
   it('decodes GetUsableModelsResponse model_id fields', () => {

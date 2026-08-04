@@ -133,6 +133,7 @@ export { buildRunFrames, heartbeatFrame } from './frames';
 export { encodeConnectFrame, ConnectFrameDecoder } from './connect';
 export { extractAnswerText, extractReasoningText, extractToolCall } from './extract';
 export {
+  ensureCursorGrokWirePrefix,
   rewriteCursorLegacyFastSuffix,
   stripCursorWirePrefix,
   toCursorWireModelId,

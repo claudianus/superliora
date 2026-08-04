@@ -48,9 +48,8 @@ export function buildRunFrames(params: CursorRunParams): Uint8Array[] {
     messages,
     fieldLd(4, encodeMcpTools(params.tools)),
     fieldStr(5, conv),
-    // RequestedModel / ModelDetails: model_id only. Effort+fast are baked into
-    // GetUsableModels wire ids (`grok-4.5-fast-high`); do not invent a `fast=false`
-    // parameter that fights the id (opencodex ModelDetails path).
+    // RequestedModel model_id: use GetUsableModels ids verbatim (keep `cursor-`
+    // for Grok — stripping it returns ERROR_BAD_MODEL_NAME on api2.cursor.sh).
     fieldLd(9, encodeModelMeta(wireModelId)),
     fieldVarint(12, 0),
     fieldLd(14, fieldStr(1, 'default')),
