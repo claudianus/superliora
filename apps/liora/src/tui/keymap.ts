@@ -61,7 +61,7 @@ export const KEYMAP_ALWAYS: readonly KeymapBinding[] = [
     description: 'Cycle transcript density (minimal → compact → standard → full)',
     surface: 'always',
     category: 'navigate',
-    relatedSlash: ['/transcript', '/ops'],
+    relatedSlash: ['/transcript'],
   },
   {
     id: 'expand-todo',
@@ -69,7 +69,7 @@ export const KEYMAP_ALWAYS: readonly KeymapBinding[] = [
     description: 'Expand or collapse the todo list',
     surface: 'always',
     category: 'navigate',
-    relatedSlash: ['/ops'],
+    relatedSlash: [],
   },
 ];
 
@@ -128,7 +128,7 @@ export const KEYMAP_STREAMING: readonly KeymapBinding[] = [
     description: 'Steer while a turn is running',
     surface: 'streaming',
     category: 'agent',
-    relatedSlash: ['/mission', '/ops', '/fleet'],
+    relatedSlash: ['/mission', '/fleet'],
   },
   {
     id: 'background',

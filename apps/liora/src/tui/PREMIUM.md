@@ -198,28 +198,6 @@ static fallbacks.
 "Premium" means **more than a 2-frame blink**: multi-frame pulses, staged
 reveals, and quality-gated ambient that still reads under SSH/`off`.
 
-### 7.4 Dopamine Ops (Ops Theatre)
-
-Long-running Mission/Fleet work uses reward-shaped motion **on top of**
-readable Ops density. Spec source: Sovereign annex Ops Theatre.
-
-| Effect | Trigger | Constraint |
-|---|---|---|
-| Goal XP / progress pulse | evidence pass, todo done | 150–400ms; quality level |
-| Fleet card flourish | worker complete | batch invalidation ≤8ms/frame |
-| Cache hit streak spark | warm hit streak ≥3 | footer `cache✓×N`; no rain |
-| Search channel cascade | DeepResearch hop | channel light-up only |
-| Critical interrupt flash | auth/budget/approval | sticky tray; `off` disables flash |
-| Idle ambient | long wait | reuse existing idle-scene |
-
-Hard rules: success/warn/error/info tokens only; one card = one Fleet worker or Mission goal;
-interrupt tray stays visible without scroll. Density never hides approvals.
-
-**Visual verification:** Ops Theatre grid has a deterministic fixture at
-`tui/features/ops-theatre/smoke-fixture.ts` (`renderOpsTheatreSmokeSnapshot`) — unit-tested
-and written to `.superliora/visual-smoke/ops-theatre.txt` by `pnpm -C apps/liora run smoke:visual`
-alongside the live `/status` PTY chrome slice (live `/ops` PTY path remains a future harness slice).
-
 ---
 
 ## 8. Shared Primitives (reuse, don't reinvent)

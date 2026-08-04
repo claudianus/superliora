@@ -1,5 +1,5 @@
 /**
- * Compact token / cache / cost one-liner for Ops Theatre Runtime Health.
+ * Compact token / cache / cost one-liner for the Usage settings glance.
  */
 
 import { formatTokenCount } from '#/utils/usage/usage-format';

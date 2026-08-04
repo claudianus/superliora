@@ -38,6 +38,16 @@ export interface FileSnapshotStoreOptions {
 }
 
 /**
+ * Retention caps for the in-memory index. Long agent sessions commit a
+ * snapshot every turn; without eviction the before-write file contents grow
+ * the heap linearly. Oldest turns are evicted first — `/rewind` to an
+ * evicted turn is a no-op (same as an unknown turn id), which trades the
+ * rare very-deep rewind for bounded memory.
+ */
+export const MAX_SNAPSHOT_RETAINED_TURNS = 96;
+export const MAX_SNAPSHOT_RETAINED_BYTES = 32 * 1024 * 1024;
+
+/**
  * In-memory turn snapshot index with optional disk mirror under snapshotDir.
  */
 export class FileSnapshotStore {
@@ -47,6 +57,8 @@ export class FileSnapshotStore {
   private readonly turns = new Map<string, TurnFileSnapshot>();
   /** First-write-wins per path within a turn. */
   private readonly pending = new Map<string, Map<string, FileSnapshotEntry>>();
+  /** Approximate retained content size across committed snapshots. */
+  private retainedBytes = 0;
 
   constructor(options: FileSnapshotStoreOptions) {
     this.kaos = options.kaos;
@@ -107,7 +119,11 @@ export class FileSnapshotStore {
       createdAt,
       entries: Array.from(bucket.values()),
     };
+    const existing = this.turns.get(turnId);
+    if (existing !== undefined) this.dropTurn(existing);
     this.turns.set(turnId, snapshot);
+    this.retainedBytes += snapshotBytes(snapshot);
+    this.evictExcess();
     return snapshot;
   }
 
@@ -186,14 +202,47 @@ export class FileSnapshotStore {
     for (const snap of ordered) {
       if (snap.turnId === turnId) drop = true;
       if (drop) {
-        this.turns.delete(snap.turnId);
-        this.pending.delete(snap.turnId);
+        this.dropTurn(snap);
       }
     }
+  }
+
+  /** Release the oldest committed snapshots until both retention caps hold. */
+  private evictExcess(): void {
+    while (
+      this.turns.size > MAX_SNAPSHOT_RETAINED_TURNS ||
+      this.retainedBytes > MAX_SNAPSHOT_RETAINED_BYTES
+    ) {
+      // Map iterates in insertion order: first key is the oldest commit.
+      const oldest = this.turns.keys().next().value;
+      if (oldest === undefined) break;
+      const snapshot = this.turns.get(oldest);
+      if (snapshot === undefined) {
+        this.turns.delete(oldest);
+        continue;
+      }
+      this.dropTurn(snapshot);
+    }
+  }
+
+  private dropTurn(snapshot: TurnFileSnapshot): void {
+    if (this.turns.delete(snapshot.turnId)) {
+      this.retainedBytes = Math.max(0, this.retainedBytes - snapshotBytes(snapshot));
+    }
+    this.pending.delete(snapshot.turnId);
   }
 
   /** Optional path helper for session-relative snapshot dirs. */
   static snapshotDirForSession(sessionDir: string): string {
     return join(sessionDir, 'file-snapshots');
   }
+}
+
+/** Approximate heap cost of a snapshot's before-write contents. */
+function snapshotBytes(snapshot: TurnFileSnapshot): number {
+  let bytes = 0;
+  for (const entry of snapshot.entries) {
+    if (entry.content !== null) bytes += entry.content.length;
+  }
+  return bytes;
 }

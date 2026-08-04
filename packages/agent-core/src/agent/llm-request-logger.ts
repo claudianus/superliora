@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 
 import type { Logger } from '#/logging/types';
 import type { ChatProvider, GenerateOptions, Message, Tool } from '@superliora/kosong';
@@ -16,6 +16,9 @@ export type LlmRequestId = string;
 
 export class LlmRequestLogger {
   private lastConfigLogSignature: string | undefined;
+  /** Reference cache: tool definitions rarely change within a session. */
+  private lastToolsRef: readonly Tool[] | undefined;
+  private lastToolsSigJson: string | undefined;
 
   constructor(private readonly log: Logger) {}
 
@@ -45,7 +48,7 @@ export class LlmRequestLogger {
     const signature = JSON.stringify({
       ...config,
       systemPromptHash: fingerprint(systemPrompt),
-      toolsHash: fingerprint(JSON.stringify(toolSignature(tools))),
+      toolsHash: fingerprint(this.toolsSignatureJson(tools)),
     });
     if (signature !== this.lastConfigLogSignature) {
       this.lastConfigLogSignature = signature;
@@ -63,6 +66,22 @@ export class LlmRequestLogger {
     if (partialMessageCount > 0) requestFields['partialMessageCount'] = partialMessageCount;
     this.log.info('llm request', requestFields);
     return requestId;
+  }
+
+  /**
+   * Serialize tool definitions once per tools-array reference. The signature
+   * only feeds log dedup, but the tool schema runs to hundreds of KB, so a
+   * full stringify on every generate call would block the event loop on
+   * step-heavy turns.
+   */
+  private toolsSignatureJson(tools: readonly Tool[]): string {
+    if (tools === this.lastToolsRef && this.lastToolsSigJson !== undefined) {
+      return this.lastToolsSigJson;
+    }
+    const json = JSON.stringify(toolSignature(tools));
+    this.lastToolsRef = tools;
+    this.lastToolsSigJson = json;
+    return json;
   }
 
   logOpen(requestId: string, fields?: LLMRequestLogFields): void {
@@ -121,6 +140,18 @@ function toolSignature(tools: readonly Tool[]) {
   return tools.map(({ name, description, parameters }) => ({ name, description, parameters }));
 }
 
+/**
+ * Cheap change-detection fingerprint (FNV-1a + length). The value only
+ * dedupes the `llm config` log line — crypto strength is unnecessary and a
+ * sha256 over the full system prompt on every request is pure overhead.
+ */
 function fingerprint(content: string): string {
-  return createHash('sha256').update(content).digest('hex');
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < content.length; i += 1) {
+    const codePoint = content.codePointAt(i);
+    if (codePoint === undefined) continue;
+    hash ^= codePoint;
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `${String(content.length)}:${(hash >>> 0).toString(16).padStart(8, '0')}`;
 }

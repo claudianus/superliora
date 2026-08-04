@@ -140,27 +140,34 @@ export class OpenAIResponsesStreamedMessage implements StreamedMessage {
   private async *_convertStreamResponse(
     response: AsyncIterable<RawObject>,
   ): AsyncGenerator<StreamedMessagePart> {
-    const functionCallArgumentsByIndex = new Map<number | string, string>();
-    let unindexedFunctionCallArguments: string | undefined;
+    // Argument deltas accumulate as chunk arrays: tool-call arguments can be
+    // tens of KB, and per-delta string concatenation re-copies the whole
+    // accumulator every time (O(n^2)). Joining happens once, at final-event
+    // suffix validation.
+    const functionCallArgumentChunksByIndex = new Map<number | string, string[]>();
+    let unindexedFunctionCallChunks: string[] | undefined;
 
     const hasFunctionCallArguments = (streamIndex: number | string | undefined): boolean =>
       streamIndex === undefined
-        ? unindexedFunctionCallArguments !== undefined
-        : functionCallArgumentsByIndex.has(streamIndex);
+        ? unindexedFunctionCallChunks !== undefined
+        : functionCallArgumentChunksByIndex.has(streamIndex);
 
-    const getFunctionCallArguments = (streamIndex: number | string | undefined): string =>
-      streamIndex === undefined
-        ? (unindexedFunctionCallArguments as string)
-        : functionCallArgumentsByIndex.get(streamIndex)!;
+    const getFunctionCallArguments = (streamIndex: number | string | undefined): string => {
+      const chunks =
+        streamIndex === undefined
+          ? unindexedFunctionCallChunks
+          : functionCallArgumentChunksByIndex.get(streamIndex);
+      return chunks === undefined ? '' : chunks.join('');
+    };
 
     const setFunctionCallArguments = (
       streamIndex: number | string | undefined,
       argumentsValue: string,
     ): void => {
       if (streamIndex === undefined) {
-        unindexedFunctionCallArguments = argumentsValue;
+        unindexedFunctionCallChunks = [argumentsValue];
       } else {
-        functionCallArgumentsByIndex.set(streamIndex, argumentsValue);
+        functionCallArgumentChunksByIndex.set(streamIndex, [argumentsValue]);
       }
     };
 
@@ -169,16 +176,17 @@ export class OpenAIResponsesStreamedMessage implements StreamedMessage {
       argumentsPart: string,
       context: string,
     ): void => {
-      if (!hasFunctionCallArguments(streamIndex)) {
+      const chunks =
+        streamIndex === undefined
+          ? unindexedFunctionCallChunks
+          : functionCallArgumentChunksByIndex.get(streamIndex);
+      if (chunks === undefined) {
         failResponsesDecode(
           context,
           `received function-call arguments for unknown stream index ${formatResponseStreamIndex(streamIndex)}.`,
         );
       }
-      setFunctionCallArguments(
-        streamIndex,
-        getFunctionCallArguments(streamIndex) + argumentsPart,
-      );
+      chunks.push(argumentsPart);
     };
 
     const yieldFinalArgumentsSuffix = function* (

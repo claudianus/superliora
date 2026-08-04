@@ -30,8 +30,8 @@ export interface KeybindingsGlanceInput {
   readonly idleCount: number;
   readonly streamingCount: number;
   readonly missionSamples: readonly string[];
-  readonly opsSamples: readonly string[];
   readonly fleetSamples: readonly string[];
+  readonly transcriptSamples: readonly string[];
 }
 
 function sampleLinesForSlash(slash: string): readonly string[] {
@@ -50,8 +50,8 @@ export function loadKeybindingsGlance(): KeybindingsGlanceInput {
     idleCount: counts.idle,
     streamingCount: counts.streaming,
     missionSamples: sampleLinesForSlash('/mission'),
-    opsSamples: sampleLinesForSlash('/ops'),
     fleetSamples: sampleLinesForSlash('/fleet'),
+    transcriptSamples: sampleLinesForSlash('/transcript'),
   };
 }
 
@@ -65,10 +65,10 @@ export function buildKeybindingsSettingsLines(input: KeybindingsGlanceInput): re
     '· Footer tips, Command Hub cheatsheet, and /help consume this list',
     '· Do not fork shortcut copy elsewhere',
     '',
-    '── Mission / Ops / Fleet samples ────────────',
+    '── Mission / Fleet / Transcript samples ─────',
     ...input.missionSamples,
-    ...input.opsSamples,
     ...input.fleetSamples,
+    ...input.transcriptSamples,
     '',
     '── Tips ─────────────────────────────────────',
     '· /help — full keyboard shortcut reference in the TUI',

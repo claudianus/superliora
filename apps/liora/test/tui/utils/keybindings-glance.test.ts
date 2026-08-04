@@ -23,17 +23,13 @@ describe('keymap registry', () => {
     expect(counts.streaming).toBe(KEYMAP_STREAMING.length);
   });
 
-  it('tags Mission / Ops / Fleet slash samples', () => {
+  it('tags Mission / Fleet slash samples', () => {
     expect(keymapBindingsForSlash('/mission').map((b) => b.id)).toEqual([
       'interrupt',
       'ultrawork',
       'steer',
     ]);
-    expect(keymapBindingsForSlash('/ops').map((b) => b.id)).toEqual([
-      'expand-tool-output',
-      'expand-todo',
-      'steer',
-    ]);
+    expect(keymapBindingsForSlash('/ops')).toEqual([]);
     expect(keymapBindingsForSlash('/fleet').map((b) => b.id)).toEqual([
       'interrupt',
       'steer',
@@ -54,7 +50,7 @@ describe('keybindings-glance', () => {
     const lines = buildKeybindingsSettingsLines(glance).join('\n');
     expect(lines).toContain('Keyboard / Keybindings (read-only)');
     expect(lines).toContain('Live registry (keymap.ts)');
-    expect(lines).toContain('Mission / Ops / Fleet samples');
+    expect(lines).toContain('Mission / Fleet / Transcript samples');
     expect(lines).toContain('/help');
     expect(lines).toContain(String(KEYMAP_ALL.length));
     expect(lines).toContain('Shift-Tab — Toggle Mission mode');

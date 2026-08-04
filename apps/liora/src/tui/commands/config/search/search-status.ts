@@ -736,9 +736,8 @@ export function buildSearchSettingsStatusLines(input: {
     ...(freeOnlyKpiLine == null ? [`· ${SEARCH_FREE_ONLY_KPI_TIP}`] : []),
     ...(cascadeLiveLine == null
       ? [
-          'Cascade: both tools emit channelsTried on degrade → footer research↻ + /ops Cascade line (~30s).',
+          'Cascade: both tools emit channelsTried on degrade → footer research↻ line (~30s).',
         ]
       : []),
-    'Ops: /ops Runtime Health shows Cascade path (± hops), late-channel suffix, and breaker health.',
   ];
 }

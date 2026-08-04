@@ -225,7 +225,6 @@ async function showFleetSettingsPanel(host: SlashCommandHost): Promise<void> {
     '  /fleet              live status panel (same family as this view)',
     '  /fleet on|off       toggle fleet mode',
     '  /fleet <task>       delegate to specialists',
-    '  /ops                Fleet theatre + git diff + health',
   ];
 
   const panel = new UsagePanelComponent({

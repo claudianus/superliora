@@ -581,8 +581,7 @@ describe('built-in slash command registry', () => {
     expect(primaryNames).toContain('swarm');
     expect(primaryNames).toContain('mission');
     expect(primaryNames).toContain('fleet');
-    expect(primaryNames).toContain('ops');
-    expect(findBuiltInSlashCommand('ops')?.description).toContain('Ops Theatre');
+    expect(primaryNames).not.toContain('ops');
     expect(primaryNames).not.toContain('ultrawork');
     expect(primaryNames).not.toContain('ultraswarm');
     expect(primaryNames).not.toContain('experiments');

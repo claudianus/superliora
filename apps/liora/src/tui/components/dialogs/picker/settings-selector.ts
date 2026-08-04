@@ -19,7 +19,6 @@ export type SettingsSelection =
   | 'compaction'
   | 'mission'
   | 'fleet'
-  | 'ops'
   | 'media'
   | 'harness'
   | 'tools'
@@ -158,12 +157,6 @@ const SETTINGS_OPTIONS_BASE: readonly (Omit<ChoiceOption, 'keywords'> & {
     description: 'Workers, budget, worktree isolation.',
   },
   {
-    value: 'ops',
-    section: 'Agent',
-    label: 'Ops Theatre',
-    description: 'Live ops panes — git, interventions, health.',
-  },
-  {
     value: 'never-halt',
     section: 'Agent',
     label: 'Never-Halt',
@@ -296,7 +289,7 @@ const SETTINGS_OPTIONS_BASE: readonly (Omit<ChoiceOption, 'keywords'> & {
     value: 'bench-diagnostics',
     section: 'System',
     label: 'Bench / Diagnostics',
-    description: '/bench, /ops, internal diagnostics.',
+    description: '/bench, internal diagnostics.',
   },
 ];
 

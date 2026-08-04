@@ -32,8 +32,9 @@ export function takeDrainBatchCount(pending: readonly AgentRecord[]): number {
   let approxBytes = 0;
   for (const record of pending) {
     if (count >= MAX_DRAIN_BATCH_RECORDS) break;
-    // Cheap size estimate: avoid full stringify twice. Over-estimate slightly
-    // so we stay under the join ceiling even when JSON expands keys.
+    // Size estimate reuses the cached serialized line so the writer never
+    // stringifies a record twice. Slightly over-count for the newline so we
+    // stay under the join ceiling even when JSON expands keys.
     const estimate = estimateRecordBytes(record);
     if (count > 0 && approxBytes + estimate > MAX_DRAIN_BATCH_BYTES) break;
     approxBytes += estimate;
@@ -42,12 +43,26 @@ export function takeDrainBatchCount(pending: readonly AgentRecord[]): number {
   return Math.max(1, count);
 }
 
+/**
+ * Serialized JSONL line cache for one drain pass. Batch counting estimates
+ * bytes per record and the writer serializes the same records again; without
+ * the cache every record (including large tool outputs) would run a full
+ * JSON.stringify twice. WeakMap so drained records stay collectible.
+ */
+const drainLineCache = new WeakMap<AgentRecord, string>();
+
+function serializedLine(record: AgentRecord): string {
+  const cached = drainLineCache.get(record);
+  if (cached !== undefined) return cached;
+  const line = JSON.stringify(record);
+  drainLineCache.set(record, line);
+  return line;
+}
+
 export function estimateRecordBytes(record: AgentRecord): number {
-  // Rough UTF-8 estimate without a full stringify of every pending row.
-  // Prefer known large text fields; fall back to a modest default.
+  // Serialize once and reuse the exact line the writer will emit.
   try {
-    const asJson = JSON.stringify(record);
-    return asJson.length + 1; // + newline
+    return serializedLine(record).length + 1; // + newline
   } catch {
     // Circular / non-serializable should not happen for AgentRecord; if it
     // does, force a single-record batch so the real write path surfaces it.
@@ -62,7 +77,7 @@ export async function writeJsonlLines(
 ): Promise<void> {
   let chunk = '';
   for (const record of records) {
-    const line = `${JSON.stringify(record)}\n`;
+    const line = `${serializedLine(record)}\n`;
     if (chunk.length > 0 && chunk.length + line.length > MAX_WRITE_CHUNK_CHARS) {
       // Use write(Buffer) (not writeFile): writeFile on a FileHandle rewrites
       // from position 0 and would clobber earlier chunks in the same open handle.
@@ -89,7 +104,7 @@ export async function writeJsonlLines(
 export function writeJsonlLinesSync(fd: number, records: readonly AgentRecord[]): void {
   let chunk = '';
   for (const record of records) {
-    const line = `${JSON.stringify(record)}\n`;
+    const line = `${serializedLine(record)}\n`;
     if (chunk.length > 0 && chunk.length + line.length > MAX_WRITE_CHUNK_CHARS) {
       appendFileSync(fd, chunk, 'utf8');
       chunk = '';

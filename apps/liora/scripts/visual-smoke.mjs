@@ -3,20 +3,12 @@
 // node-pty, drive a short input scenario, capture ANSI frames, and assert the
 // live chrome actually renders. Snapshots land in .superliora/visual-smoke/
 // so regressions can be diffed by hand.
-//
-// Ops Theatre: deterministic grid + intervention tray via
-// scripts/ops-theatre-visual-smoke.ts (renderOpsTheatreSmokeSnapshot) →
-// .superliora/visual-smoke/ops-theatre.txt; PTY segment still drives /status.
-import { spawn as spawnProcess } from 'node:child_process';
-import { createRequire } from 'node:module';
 import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { spawn } from 'node-pty';
-
-const require = createRequire(import.meta.url);
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const appRoot = join(__dirname, '..');
@@ -88,25 +80,6 @@ function inspectSynchronizedFrames(text) {
   }
 
   return { balanced: true, bodies, outside };
-}
-
-function runOpsTheatreVisualSmoke() {
-  const tsxCli = require.resolve('tsx/cli');
-  const scriptPath = join(__dirname, 'ops-theatre-visual-smoke.ts');
-  const tsconfigPath = join(appRoot, 'tsconfig.dev.json');
-  const rawTextLoader = join(repoRoot, 'build', 'register-raw-text-loader.mjs');
-  return new Promise((resolve, reject) => {
-    const child = spawnProcess(
-      process.execPath,
-      [tsxCli, '--tsconfig', tsconfigPath, '--import', rawTextLoader, scriptPath],
-      { cwd: repoRoot, stdio: 'inherit' },
-    );
-    child.on('error', reject);
-    child.on('exit', (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`ops-theatre-visual-smoke exited with code ${String(code)}`));
-    });
-  });
 }
 
 async function main() {
@@ -216,8 +189,6 @@ async function main() {
     console.error(`visual-smoke: ${String(failures.length)} check(s) failed`);
     process.exit(1);
   }
-
-  await runOpsTheatreVisualSmoke();
 }
 
 main().catch((error) => {

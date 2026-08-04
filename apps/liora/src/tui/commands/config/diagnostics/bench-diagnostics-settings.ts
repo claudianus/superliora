@@ -1,5 +1,5 @@
 /**
- * Settings → Bench / Diagnostics — read-only /bench, /ops tips (SSOT §9.2).
+ * Settings → Bench / Diagnostics — read-only /bench tips (SSOT §9.2).
  * Loop17b: session TTFT export block from AppState rolling window.
  * Loop19b: session trace dump via session.getSessionTrace().
  */
@@ -10,14 +10,13 @@ import { requestTUILayoutRender } from '../../../utils/render/frame-render';
 import {
   BENCH_SLASH_TIP,
   buildBenchDiagnosticsSettingsLines,
-  OPS_SLASH_TIP,
 } from '../../../utils/bench/bench-diagnostics-glance';
 import { resolveHostRuntimeMode } from '../../../utils/host/host-glance';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 
-export { BENCH_SLASH_TIP, OPS_SLASH_TIP };
+export { BENCH_SLASH_TIP };
 
 export function showBenchDiagnosticsSettings(host: SlashCommandHost): void {
   mountPickerDialog(
@@ -31,7 +30,7 @@ export function showBenchDiagnosticsSettings(host: SlashCommandHost): void {
           value: 'status',
           label: 'Bench / Diagnostics status',
           description:
-            '/bench · /ops · visual smoke · session TTFT + trace dump · W6 redteam (read-only).',
+            '/bench · visual smoke · session TTFT + trace dump · W6 redteam (read-only).',
         },
 
       ],

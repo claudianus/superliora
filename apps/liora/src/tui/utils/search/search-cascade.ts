@@ -206,7 +206,7 @@ export function resolveSearchCascadeOpsHealthLines(
 }
 
 export const SEARCH_CASCADE_SESSION_STUB_TIP =
-  'Cascade channelsTried: live after WebSearch/DeepResearch degrade (~30s · footer research↻ + /ops)';
+  'Cascade channelsTried: live after WebSearch/DeepResearch degrade (~30s · footer research↻)';
 
 /** Settings Session (live) — recent channelsTried from AppState when within TTL (SSOT). */
 export function formatSearchCascadeSessionGlance(

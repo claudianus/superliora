@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { FileSnapshotStore } from '../../src/session/file-snapshot';
+import {
+  FileSnapshotStore,
+  MAX_SNAPSHOT_RETAINED_TURNS,
+} from '../../src/session/file-snapshot';
 import { createFakeKaos } from '../tools/fixtures/fake-kaos';
 
 describe('FileSnapshotStore (unit-rewind)', () => {
@@ -84,5 +87,26 @@ describe('FileSnapshotStore (unit-rewind)', () => {
     store.discardFrom('t1');
     expect(store.getTurn('t1')).toBeUndefined();
     expect(store.getTurn('t2')).toBeUndefined();
+  });
+
+  it('evicts the oldest turns beyond the retention cap', async () => {
+    const kaos = createFakeKaos({
+      readText: vi.fn(async () => 'snapshot content'),
+    });
+    const store = new FileSnapshotStore({ kaos });
+    const total = MAX_SNAPSHOT_RETAINED_TURNS + 8;
+    for (let i = 0; i < total; i += 1) {
+      const turnId = `t${String(i)}`;
+      await store.captureBeforeWrite(turnId, `/workspace/f${String(i)}.ts`);
+      store.commitTurn(turnId, i);
+    }
+    const retained = store.listTurns();
+    expect(retained).toHaveLength(MAX_SNAPSHOT_RETAINED_TURNS);
+    // Oldest turns are evicted; newest survives.
+    expect(retained[0]?.turnId).toBe(`t${String(total - MAX_SNAPSHOT_RETAINED_TURNS)}`);
+    expect(retained.at(-1)?.turnId).toBe(`t${String(total - 1)}`);
+    // Rewind to an evicted turn is a no-op, like an unknown turn id.
+    const result = await store.restoreTurn('t0');
+    expect(result.restored).toEqual([]);
   });
 });
