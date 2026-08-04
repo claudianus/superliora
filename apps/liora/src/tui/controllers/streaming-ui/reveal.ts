@@ -1,6 +1,9 @@
 import { STREAM_REVEAL_TICK_MS } from '../../constant/streaming';
 import { shouldAnimate } from '../appearance/index';
-import { getActiveAppearancePreferences } from '../../features/appearance/appearance-effects';
+import {
+  appearanceAnimationNow,
+  getActiveAppearancePreferences,
+} from '../../features/appearance/appearance-effects';
 import {
   isRevealCaughtUp,
   resetRevealState,
@@ -21,7 +24,14 @@ export interface StreamingRevealChannels {
 }
 
 export interface StreamingRevealRuntime {
-  revealTimer: ReturnType<typeof setTimeout> | undefined;
+  /**
+   * When true, the native frame callback advances reveal via
+   * {@link tickArmedStreamReveal} on the shared animation clock.
+   * Replaces a private setTimeout chain (PREMIUM §7.1).
+   */
+  revealArmed: boolean;
+  /** Last reveal advance on `appearanceAnimationNow()` (min-interval guard). */
+  lastRevealTickMs: number;
   channels: StreamingRevealChannels;
 }
 
@@ -35,6 +45,9 @@ export interface StreamingRevealContext {
   } | null;
   getActiveThinkingComponent(): ThinkingComponent | undefined;
 }
+
+/** Context currently armed for ambient-driven catch-up ticks. */
+let armedRevealCtx: StreamingRevealContext | undefined;
 
 export function shouldSmoothStreamReveal(isReplaying: boolean): boolean {
   if (isReplaying) return false;
@@ -50,38 +63,70 @@ export function resetRevealChannels(
   ctx.runtime.channels.thinkingReveal = resetRevealState(nowMs);
 }
 
+/** Disarm ambient reveal ticks (name kept for call-site compatibility). */
 export function clearRevealTimer(ctx: StreamingRevealContext): void {
-  if (ctx.runtime.revealTimer === undefined) return;
-  clearTimeout(ctx.runtime.revealTimer);
-  ctx.runtime.revealTimer = undefined;
+  ctx.runtime.revealArmed = false;
+  ctx.runtime.lastRevealTickMs = 0;
+  if (armedRevealCtx === ctx) armedRevealCtx = undefined;
 }
 
-/** Start / stop the shared reveal timer based on remaining lag. */
-export function rescheduleRevealTimer(ctx: StreamingRevealContext): void {
+function channelsStillLagging(ctx: StreamingRevealContext): boolean {
   const { channels } = ctx.runtime;
   const assistantLag =
     ctx.getStreamingBlock() !== null && !isRevealCaughtUp(channels.assistantReveal);
   const thinkingLag =
     ctx.getActiveThinkingComponent() !== undefined &&
     !isRevealCaughtUp(channels.thinkingReveal);
-  if (!assistantLag && !thinkingLag) {
+  return assistantLag || thinkingLag;
+}
+
+/**
+ * Arm / disarm shared-clock reveal catch-up. While lagging, the next native
+ * frames call {@link tickArmedStreamReveal}; we also invalidate once so a
+ * wake happens even if ambient is momentarily gated.
+ */
+export function rescheduleRevealTimer(ctx: StreamingRevealContext): void {
+  if (!channelsStillLagging(ctx)) {
     clearRevealTimer(ctx);
     return;
   }
-  if (ctx.runtime.revealTimer !== undefined) return;
-  ctx.runtime.revealTimer = setTimeout(() => {
-    ctx.runtime.revealTimer = undefined;
-    onRevealTick(ctx);
-  }, STREAM_REVEAL_TICK_MS);
+  armedRevealCtx = ctx;
+  ctx.runtime.revealArmed = true;
+  requestTUIContentRender(ctx.state);
 }
 
-export function onRevealTick(ctx: StreamingRevealContext): void {
+/**
+ * Advance armed reveal channels on the shared animation clock.
+ * Called from the native frame callback after `advanceAppearanceAnimationClock`.
+ */
+export function tickArmedStreamReveal(): void {
+  const ctx = armedRevealCtx;
+  if (ctx === undefined || !ctx.runtime.revealArmed) return;
+  if (!shouldSmoothStreamReveal(ctx.isReplaying)) {
+    snapAllActiveReveals(ctx);
+    return;
+  }
+  const nowMs = appearanceAnimationNow();
+  if (
+    ctx.runtime.lastRevealTickMs > 0 &&
+    nowMs - ctx.runtime.lastRevealTickMs < STREAM_REVEAL_TICK_MS
+  ) {
+    return;
+  }
+  onRevealTick(ctx, { inFrame: true });
+}
+
+export function onRevealTick(
+  ctx: StreamingRevealContext,
+  options: { readonly inFrame?: boolean } = {},
+): void {
   if (!shouldSmoothStreamReveal(ctx.isReplaying)) {
     snapAllActiveReveals(ctx);
     return;
   }
 
-  const nowMs = Date.now();
+  const nowMs = appearanceAnimationNow();
+  ctx.runtime.lastRevealTickMs = nowMs;
   let painted = false;
   const { channels } = ctx.runtime;
 
@@ -106,14 +151,29 @@ export function onRevealTick(ctx: StreamingRevealContext): void {
     painted = true;
   }
 
-  if (painted) {
+  // Inside a native frame the current paint already rebuilds the transcript;
+  // only schedule a follow-up wake when we are driving reveal outside a frame.
+  if (painted && options.inFrame !== true) {
     requestTUIContentRender(ctx.state);
   }
-  rescheduleRevealTimer(ctx);
+
+  if (channelsStillLagging(ctx)) {
+    armedRevealCtx = ctx;
+    ctx.runtime.revealArmed = true;
+    if (options.inFrame === true) {
+      // Ensure another frame lands after STREAM_REVEAL_TICK_MS even if ambient
+      // soft-degrades — content invalidation coalesces with the render loop.
+      requestTUIContentRender(ctx.state);
+    } else {
+      rescheduleRevealTimer(ctx);
+    }
+  } else {
+    clearRevealTimer(ctx);
+  }
 }
 
 export function snapAllActiveReveals(ctx: StreamingRevealContext): void {
-  const nowMs = Date.now();
+  const nowMs = appearanceAnimationNow();
   const { channels } = ctx.runtime;
   const block = ctx.getStreamingBlock();
   if (block !== null) {

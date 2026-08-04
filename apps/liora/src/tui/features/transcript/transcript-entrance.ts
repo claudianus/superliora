@@ -368,6 +368,19 @@ export function applyTranscriptEntrance(
  * Uses a smoothstep trail + optional breath so the tip feels alive without
  * hard bold flicker across the whole span.
  */
+/** Quantize breath so identical tip lines skip ANSI re-parse between phases. */
+const STREAM_TAIL_GLOW_BREATH_QUANT_MS = 80;
+
+let streamTailGlowCache:
+  | {
+      readonly line: string;
+      readonly kind: TranscriptEntranceKind;
+      readonly breathQ: number;
+      readonly glowClusters: number;
+      readonly out: string;
+    }
+  | undefined;
+
 export function applyStreamTailGlow(
   lines: readonly string[],
   kind: TranscriptEntranceKind = 'assistant',
@@ -388,16 +401,30 @@ export function applyStreamTailGlow(
   const line = lines[lastIndex]!;
   if (line.trim().length === 0) return lines as string[];
 
+  const glowClusters = options.glowClusters ?? STREAM_TAIL_GLOW_CLUSTERS;
+  // Gentle breath (~1.6s) so the tip shimmers without looking like a hard blink.
+  const nowMs = options.nowMs ?? appearanceAnimationNow();
+  const breathQ = Math.floor(nowMs / STREAM_TAIL_GLOW_BREATH_QUANT_MS);
+  if (
+    streamTailGlowCache !== undefined &&
+    streamTailGlowCache.line === line &&
+    streamTailGlowCache.kind === kind &&
+    streamTailGlowCache.breathQ === breathQ &&
+    streamTailGlowCache.glowClusters === glowClusters
+  ) {
+    if (streamTailGlowCache.out === line) return lines as string[];
+    const cached = [...lines];
+    cached[lastIndex] = streamTailGlowCache.out;
+    return cached;
+  }
+
   const cells = ansiTextToCells(line);
   if (cells.length === 0) return lines as string[];
 
-  const glowClusters = options.glowClusters ?? STREAM_TAIL_GLOW_CLUSTERS;
   const glow = glowHex(kind);
   const spark = currentTheme.color('glow');
   const start = Math.max(0, cells.length - glowClusters);
   const trailLen = Math.max(1, cells.length - start);
-  // Gentle breath (~1.6s) so the tip shimmers without looking like a hard blink.
-  const nowMs = options.nowMs ?? appearanceAnimationNow();
   const breath = 0.5 + 0.5 * Math.sin((nowMs / 1600) * Math.PI * 2);
 
   const nextCells = cells.map((cell, index) => {
@@ -425,7 +452,9 @@ export function applyStreamTailGlow(
   });
 
   const next = [...lines];
-  next[lastIndex] = cellsToAnsi(nextCells);
+  const out = cellsToAnsi(nextCells);
+  next[lastIndex] = out;
+  streamTailGlowCache = { line, kind, breathQ, glowClusters, out };
   return next;
 }
 

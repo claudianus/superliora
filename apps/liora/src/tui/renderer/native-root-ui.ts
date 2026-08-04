@@ -19,8 +19,10 @@ import {
   type RendererRootUI,
   type RendererTerminalHost,
 } from '@harness-kit/tui-renderer';
+// Import state module directly — avoid the appearance-effects barrel (particles
+// import `#/tui/renderer` and would cycle through this facade).
+import { setAppearanceRenderHealth } from '../features/appearance/appearance-state';
 import { noteFocusFeedback } from '../utils/render/feedback-vfx';
-
 export interface LioraNativeRootUIOptions
   extends Omit<NativeRootUIOptions, 'render'> {}
 
@@ -85,13 +87,19 @@ export class LioraNativeRootUI<TComponent extends Component = Component>
     });
     this.renderer = new NativeTerminalRenderer({
       ...options,
-      adaptiveQuality: false,
+      // Adaptive quality must stay on so frame pressure softens VFX before
+      // ambient freezes; health feeds appearance soft-degrade via onFrame.
+      adaptiveQuality: options.adaptiveQuality ?? true,
       outputPolicy: options.outputPolicy ?? premiumDefaults.outputPolicy,
       onInput: (data) => {
         this.handleRawInput(data.toString('utf8'));
       },
       onInputEvent: (event) => {
         this.inputRouter?.dispatch(event);
+      },
+      onFrame: (result, stats) => {
+        setAppearanceRenderHealth(stats.health);
+        options.onFrame?.(result, stats);
       },
       render: (frame) => this.renderNativeFrame(frame),
     });

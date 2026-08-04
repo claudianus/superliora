@@ -33,7 +33,8 @@ export class MoonLoader extends Text {
   private inlineText = '';
   private tip: string = '';
   private availableWidth = 0;
-  private readonly startedAt = Date.now();
+  /** Elapsed/stall baseline on the shared animation clock (PREMIUM §7.1). */
+  private readonly startedAtClock = appearanceAnimationNow();
   /**
    * When set, show a stalled suffix after this many ms without a phase reset.
    * Waiting-for-model spinners pass 30s; long tools/composing leave it unset.
@@ -161,15 +162,21 @@ export class MoonLoader extends Text {
               const frame = this.frames[frameIndex]!;
               return this.colorFn ? this.colorFn(frame) : frame;
             })();
-    const nowMs = Date.now();
-    const elapsed = currentTheme.fg('textDim', ` ${formatElapsedTime(this.startedAt, nowMs)}`);
+    const nowMs = appearanceAnimationNow();
+    const elapsed = currentTheme.fg(
+      'textDim',
+      ` ${formatElapsedTime(this.startedAtClock, nowMs)}`,
+    );
     // Optional stall label (waiting-for-model only) so long freezes are visible.
-    const silentMs = nowMs - this.startedAt;
+    const silentMs = nowMs - this.startedAtClock;
     const stall =
       !this.stopped &&
       this.stallAfterMs !== undefined &&
       silentMs >= this.stallAfterMs
-        ? currentTheme.fg('warning', ` · stalled ${formatElapsedTime(this.startedAt, nowMs)}`)
+        ? currentTheme.fg(
+            'warning',
+            ` · stalled ${formatElapsedTime(this.startedAtClock, nowMs)}`,
+          )
         : '';
     const label = this.label.length > 0
       ? renderPulseText(this.label, `loader:${this.label}`, 'text')

@@ -17,12 +17,24 @@ export function shouldSuppressTUIFrameRequests(state: TUIState): boolean {
   return state.transcriptContainer.isBatchMounting;
 }
 
+function isLiveStreamingContent(state: TUIState): boolean {
+  const phase = state.appState?.streamingPhase;
+  return (
+    phase === 'waiting' || phase === 'thinking' || phase === 'composing' || phase === 'shell'
+  );
+}
+
 export function invalidateTUIFrame(state: TUIState, intent: FrameInvalidationIntent): void {
   if (shouldSuppressTUIFrameRequests(state)) return;
   // During active transcript scroll, content/layout invalidations fight pure-
   // scroll paint (streaming tools, swarm, footer). Coalesce to settle refresh.
   // Content only yields during a real wheel storm; layout keeps the heavy hold.
-  if (intent === 'content' && shouldDeferTranscriptContentInvalidation()) {
+  // Live streaming content stays exempt so type-on does not pause mid-wheel.
+  if (
+    intent === 'content' &&
+    shouldDeferTranscriptContentInvalidation() &&
+    !isLiveStreamingContent(state)
+  ) {
     scheduleTranscriptScrollSettleRefresh(state);
     return;
   }
@@ -36,8 +48,9 @@ export function invalidateTUIFrame(state: TUIState, intent: FrameInvalidationInt
 export function requestTUIContentRender(state: TUIState): void {
   if (shouldSuppressTUIFrameRequests(state)) return;
   // Content (stream deltas, reveal ticks) only yields during a real wheel storm.
-  // Geometry/layout still uses the longer heavy hold.
-  if (shouldDeferTranscriptContentInvalidation()) {
+  // Geometry/layout still uses the longer heavy hold. Active streams keep
+  // painting through light storms so catch-up does not feel paused.
+  if (shouldDeferTranscriptContentInvalidation() && !isLiveStreamingContent(state)) {
     scheduleTranscriptScrollSettleRefresh(state);
     return;
   }

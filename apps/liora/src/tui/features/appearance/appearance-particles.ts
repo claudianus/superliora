@@ -10,6 +10,7 @@ import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
   motionEffectsAllowed,
+  premiumAmbientIntervalMs,
   resolveQualityAdjustedAmbientEffectMode,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-state';
@@ -49,9 +50,18 @@ const COMET_HEAD = '•';
 const COMET_MID = '∙';
 const COMET_TAIL = '·';
 const STAR_DUST = ['·', '∙', '◦'] as const;
-/** Header/divider comet cadence — slow enough to read as drift, not scroll. */
-const COMET_TICK_MS_PREMIUM = 48;
+/** Subtle comet cadence floor when ambient is not premium. */
 const COMET_TICK_MS_SUBTLE = 96;
+/** Soft ceiling so low animationFps settings still drift visibly. */
+const COMET_TICK_MS_PREMIUM_MAX = 48;
+
+/** Premium comet phase step — tracks user animationFps (≥ ambient wake). */
+function cometTickMs(premium: boolean, appearance: AppearancePreferences): number {
+  if (!premium) return COMET_TICK_MS_SUBTLE;
+  const ambientMs = premiumAmbientIntervalMs(appearance.animationFps);
+  if (!Number.isFinite(ambientMs) || ambientMs <= 0) return COMET_TICK_MS_PREMIUM_MAX;
+  return Math.min(COMET_TICK_MS_PREMIUM_MAX, Math.max(16, ambientMs));
+}
 
 function paintCellIfEmpty(cells: string[], index: number, styled: string): void {
   if (index < 0 || index >= cells.length) return;
@@ -115,7 +125,7 @@ export function renderParticleRail(
 
   const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
   const premium = mode === 'premium';
-  const tickMs = premium ? COMET_TICK_MS_PREMIUM : COMET_TICK_MS_SUBTLE;
+  const tickMs = cometTickMs(premium, appearance);
   const now = appearanceAnimationNow();
   // Sub-cell phase keeps trails from "jumping" a full column each tick.
   const phase = now / tickMs;
@@ -194,7 +204,7 @@ export function renderParticleDivider(
   const cells = Array.from({ length: safeWidth }, () => currentTheme.dimFg(baseToken, baseChar));
   if (safeWidth < 8) return cells.join('');
 
-  const tickMs = premium ? COMET_TICK_MS_PREMIUM : COMET_TICK_MS_SUBTLE;
+  const tickMs = cometTickMs(premium, appearance);
   const phase = now / tickMs;
 
   // Soft traveling highlight band (wide, dim) — reads as light, not dots.
@@ -274,7 +284,7 @@ export function renderMeteorField(
   const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
   const premium = mode === 'premium';
   const now = appearanceAnimationNow();
-  const tickMs = premium ? COMET_TICK_MS_PREMIUM : COMET_TICK_MS_SUBTLE;
+  const tickMs = cometTickMs(premium, appearance);
   const phase = now / tickMs;
   const base = hashRendererEffectSeed(seed);
 

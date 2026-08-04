@@ -66,6 +66,20 @@ describe('content invalidation hold while transcript scroll is hot', () => {
     expect(invalidateFrame).not.toHaveBeenCalled();
   });
 
+  it('keeps streaming content painting through a light scroll storm', () => {
+    const invalidateFrame = vi.fn();
+    const state = fakeState({ invalidateFrame });
+    (state as { appState: { streamingPhase: string } }).appState = {
+      streamingPhase: 'composing',
+    };
+
+    noteTranscriptPureScrollPaint();
+    noteTranscriptPureScrollPaint();
+    expect(shouldDeferTranscriptContentInvalidation()).toBe(true);
+    requestTUIContentRender(state);
+    expect(invalidateFrame).toHaveBeenCalledWith('content');
+  });
+
   it('allows content render when scroll is not hot', () => {
     const invalidateFrame = vi.fn();
     const state = fakeState({ invalidateFrame });
