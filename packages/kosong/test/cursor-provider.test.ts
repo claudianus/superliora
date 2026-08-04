@@ -329,4 +329,34 @@ describe('createPacedBody abort', () => {
       process.off('uncaughtException', onUncaught);
     }
   });
+
+  it('abort() destroys without half-close (client-tool suspend path)', async () => {
+    const uncaught: Error[] = [];
+    const onUncaught = (error: Error): void => {
+      uncaught.push(error);
+    };
+    process.on('uncaughtException', onUncaught);
+    try {
+      const paced = createPacedBody([new Uint8Array([1, 2, 3])]);
+      paced.stream.resume();
+      paced.abort();
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(uncaught).toEqual([]);
+      expect(paced.stream.destroyed).toBe(true);
+    } finally {
+      process.off('uncaughtException', onUncaught);
+    }
+  });
+});
+
+describe('cursor No exec result trailer', () => {
+  it('parseConnectEndError recognizes Cursor No exec result', async () => {
+    const { parseConnectEndError } = await import('../src/providers/cursor/connect');
+    const payload = Buffer.from(
+      JSON.stringify({ error: { code: 'internal', message: 'No exec result' } }),
+      'utf8',
+    );
+    const err = parseConnectEndError(payload);
+    expect(err?.message).toContain('No exec result');
+  });
 });

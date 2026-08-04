@@ -3,11 +3,15 @@
  *
  * The agent host rejects HTTP/1.1 (AWS ALB 464), so this uses `node:http2`.
  * The request stream stays open with paced frames + heartbeats while the
- * response is read — half-closing early yields Cursor's "No exec result".
+ * response is read.
  *
- * Cursor also blocks mid-turn on `requestContextArgs`, `interactionQuery`, and
- * native-exec messages. Those must be answered on the open request stream or
- * the idle close surfaces as `Premature close` with leaked tool-call text.
+ * Client (SuperLiora) MCP tools are a Responses-style bridge: when Cursor asks
+ * us to run `mcp_superliora_*` via `mcpArgs`, we surface the tool call and
+ * **RST_STREAM cancel** the Run — we must NOT half-close the request body or
+ * Cursor returns `No exec result`. Same shape as opencodex's cancelCursorRun.
+ *
+ * Cursor also blocks mid-turn on `requestContextArgs`, `interactionQuery`, KV,
+ * and native-exec messages — those must be answered on the open request stream.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -115,6 +119,8 @@ export class CursorAgentClient {
       /* run() observes abort / stream end */
     });
 
+    let suspendClientTools = false;
+
     try {
       await new Promise<void>((resolve, reject) => {
         const onConnect = (): void => {
@@ -159,6 +165,20 @@ export class CursorAgentClient {
       const paced = createPacedBody(frames, options.signal);
       paced.stream.pipe(req);
 
+      const cancelCursorRun = (): void => {
+        // RST_STREAM — do NOT half-close the request body (that yields No exec result).
+        try {
+          req.close(http2.constants.NGHTTP2_CANCEL);
+        } catch {
+          try {
+            req.destroy();
+          } catch {
+            // ignore
+          }
+        }
+        paced.abort();
+      };
+
       try {
         if (options.signal?.aborted) throw cursorAbortedError();
         const status = await waitForResponseHeaders(req, options.signal);
@@ -174,9 +194,17 @@ export class CursorAgentClient {
           signal: options.signal,
           writeFrame: paced.write,
           tools: params.tools,
+          cancelCursorRun,
+          markClientToolSuspend: () => {
+            suspendClientTools = true;
+          },
         });
       } finally {
-        paced.stop();
+        if (suspendClientTools) {
+          cancelCursorRun();
+        } else {
+          paced.stop();
+        }
       }
     } finally {
       options.signal?.removeEventListener('abort', onAbort);
@@ -193,6 +221,8 @@ export function createPacedBody(
   readonly stream: Readable;
   readonly write: (frame: Uint8Array) => void;
   readonly stop: () => void;
+  /** Destroy without half-close (client-tool suspend / cancel). */
+  readonly abort: () => void;
 } {
   let heartbeat: ReturnType<typeof setInterval> | undefined;
   let closed = false;
@@ -222,6 +252,13 @@ export function createPacedBody(
     closed = true;
     if (heartbeat !== undefined) clearInterval(heartbeat);
     stream.push(null);
+  };
+
+  const abort = (): void => {
+    if (closed) return;
+    closed = true;
+    if (heartbeat !== undefined) clearInterval(heartbeat);
+    stream.destroy();
   };
 
   const fail = (error: Error): void => {
@@ -268,7 +305,7 @@ export function createPacedBody(
     { once: true },
   );
 
-  return { stream, write, stop };
+  return { stream, write, stop, abort };
 }
 
 function cursorAbortedError(): Error {
@@ -279,12 +316,19 @@ function isCursorAbortedError(error: unknown): boolean {
   return error instanceof Error && error.message === 'Cursor request aborted.';
 }
 
+function isNoExecResultError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return /no exec result/i.test(error.message);
+}
+
 async function* decodeResponseStream(
   stream: http2.ClientHttp2Stream,
   options: {
     readonly signal?: AbortSignal;
     readonly writeFrame: (frame: Uint8Array) => void;
     readonly tools: readonly CursorAgentTool[];
+    readonly cancelCursorRun: () => void;
+    readonly markClientToolSuspend: () => void;
   },
 ): AsyncGenerator<CursorStreamEvent> {
   const decoder = new ConnectFrameDecoder();
@@ -293,6 +337,7 @@ async function* decodeResponseStream(
   let firstByteTimer: ReturnType<typeof setTimeout> | undefined;
   let timedOut = false;
   let idleTimedOut = false;
+  let expectedCancel = false;
   const pendingTools: Array<Extract<CursorStreamEvent, { type: 'tool_call' }>> = [];
   const iterator = (stream as AsyncIterable<Buffer>)[Symbol.asyncIterator]();
   let nextChunk: Promise<IteratorResult<Buffer>> | undefined;
@@ -310,9 +355,14 @@ async function* decodeResponseStream(
     }, IDLE_TIMEOUT_MS);
   };
 
-  const flushToolsAndEnd = function* (): Generator<CursorStreamEvent> {
+  const flushToolsAndSuspend = function* (): Generator<CursorStreamEvent> {
+    options.markClientToolSuspend();
+    expectedCancel = true;
     for (const tool of pendingTools) yield tool;
     pendingTools.length = 0;
+    // Cancel before yielding end so Cursor never sees a half-closed request
+    // while mcpArgs is still unanswered.
+    options.cancelCursorRun();
     yield { type: 'end' };
   };
 
@@ -339,7 +389,7 @@ async function* decodeResponseStream(
           sleep(TOOL_FINALIZE_GRACE_MS, options.signal).then(() => ({ kind: 'grace' as const })),
         ]);
         if (raced.kind === 'grace') {
-          yield* flushToolsAndEnd();
+          yield* flushToolsAndSuspend();
           return;
         }
         result = raced.value;
@@ -353,9 +403,7 @@ async function* decodeResponseStream(
 
       const frames = decoder.push(new Uint8Array(result.value));
       for (const frame of frames) {
-        // Any server frame (progress, requestContext, KV, …) proves liveness.
-        // Previously only yielded text/think/tool events reset idle, so long
-        // tool-assembly gaps of tokenDelta/heartbeat frames hit Premature close.
+        // Any server frame proves liveness (progress / requestContext / KV / …).
         gotOutput = true;
         if (firstByteTimer !== undefined) {
           clearTimeout(firstByteTimer);
@@ -365,7 +413,11 @@ async function* decodeResponseStream(
 
         for (const event of handleFrame(frame, options.writeFrame, options.tools)) {
           if (event.type === 'end') {
-            yield* flushToolsAndEnd();
+            if (pendingTools.length > 0) {
+              yield* flushToolsAndSuspend();
+            } else {
+              yield { type: 'end' };
+            }
             return;
           }
           if (event.type === 'tool_call') {
@@ -380,7 +432,7 @@ async function* decodeResponseStream(
     }
 
     if (pendingTools.length > 0) {
-      yield* flushToolsAndEnd();
+      yield* flushToolsAndSuspend();
       return;
     }
 
@@ -394,6 +446,16 @@ async function* decodeResponseStream(
     yield { type: 'end' };
   } catch (error) {
     if (options.signal?.aborted || isCursorAbortedError(error)) throw cursorAbortedError();
+    // Intentional RST after client-tool suspend — not a user-facing failure.
+    if (expectedCancel && (isPrematureClose(error) || isNoExecResultError(error))) {
+      return;
+    }
+    // Cursor timed out waiting for mcpResult but we already have the tool calls:
+    // treat as successful suspend (same bridge semantics).
+    if (pendingTools.length > 0 && isNoExecResultError(error)) {
+      yield* flushToolsAndSuspend();
+      return;
+    }
     if (idleTimedOut) {
       throw new Error('Cursor upstream went idle with no frames; retry the turn.');
     }
@@ -415,6 +477,8 @@ function* handleFrame(
   if ((frame.flags & CONNECT_FLAG_END) !== 0) {
     const error = parseConnectEndError(frame.payload);
     if (error !== undefined) {
+      // Surface as a thrown error so decodeResponseStream can convert
+      // "No exec result" + pending tools into a successful suspend.
       throw new Error(`${error.message}: ${error.detail}`);
     }
     yield { type: 'end' };
@@ -447,7 +511,8 @@ function* handleFrame(
     if (exec.caseField === 11) {
       const tool = extractToolCall(payload);
       if (tool !== undefined) {
-        // Client-tool bridge: surface the call; grace timer ends the Cursor turn (no mcpResult).
+        // Client-tool bridge: surface the call; grace + RST ends the Cursor turn
+        // without writing mcpResult (opencodex Responses bridge).
         yield {
           type: 'tool_call',
           name: tool.name,
