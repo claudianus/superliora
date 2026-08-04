@@ -131,7 +131,21 @@ export class CursorChatProvider implements ChatProvider {
 
 export { buildRunFrames, heartbeatFrame } from './frames';
 export { encodeConnectFrame, ConnectFrameDecoder } from './connect';
-export { extractAnswerText, extractReasoningText, extractToolCall } from './extract';
+export { CURSOR_PROVIDER_ID } from './constants';
+export {
+  extractAnswerText,
+  extractReasoningText,
+  extractToolCall,
+  extractExecMessage,
+  extractInteractionQuery,
+  normalizeCursorToolName,
+} from './extract';
+export {
+  encodeInteractionQueryReply,
+  encodeNativeExecReject,
+  encodeRequestContextReply,
+} from './replies';
+export { recoverToolCallsFromCursorText, sanitizeCursorAssistantText } from './sanitize';
 export {
   ensureCursorGrokWirePrefix,
   rewriteCursorLegacyFastSuffix,
