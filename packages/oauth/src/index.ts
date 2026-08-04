@@ -283,6 +283,7 @@ export {
   OPENAI_PROFILE,
   PROVIDER_PROFILES,
   resolveCursorClientVersion,
+  stripCursorWirePrefix,
   resolveXaiGrokRoute,
   XAI_GROK_API_BASE_URL,
   XAI_GROK_BUILD_BASE_URL,
