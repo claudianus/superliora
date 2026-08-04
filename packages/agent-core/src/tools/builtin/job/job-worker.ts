@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { Agent } from '../../../agent';
 import { type FanoutSpec, type FanoutTask, spawnOneAgent } from '../../../fleet/spawn-agents';
+import { requestJobSchedulePump } from '../../../session/job/job-offload';
 import { DEFAULT_SUBAGENT_TIMEOUT_MS } from '../../../session/subagent/subagent-host';
 import { userCancellationReason } from '../../../utils/abort';
 import type { ToolStore } from '../../store';
@@ -20,7 +21,7 @@ import {
 import { emitJobEvents, inboxToWireEvent, jobRecordToUpdatedEvent } from './job-emit';
 import { inboxKindForStatus, pushJobInboxEvent } from './job-inbox';
 import { getJob, listJobs, patchJob, type JobRecord, type JobStatus } from './job-ledger';
-import { profileForJobKind, scheduleQueuedJobs, resolveConductorPoolConfig } from './job-runtime';
+import { profileForJobKind } from './job-runtime';
 
 export interface LaunchJobWorkerInput {
   readonly store: ToolStore;
@@ -186,19 +187,24 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
       })
       .finally(() => {
         clearJobWorkerHandle(job.id);
-        void pumpSchedulerAfterWorker(input.agent, input.store);
+        pumpSchedulerAfterWorker(input.agent, input.store);
       });
 
     return { ok: true, workerAgentId: handle.agentId };
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     clearJobWorkerHandle(job.id);
+    const current = getJob(input.store, job.id);
+    // A budget-exceeded hold (recorded `blocked` by the offload lane) stays
+    // blocked; a late spawn failure must not overwrite the hold state.
+    const keepBlocked = current?.status === 'blocked';
     const updated = patchJob(input.store, job.id, {
-      status: 'failed',
-      notes: [job.notes, `spawn_failed: ${detail}`].filter(Boolean).join('\n'),
-      resultSummary: detail.slice(0, 2000),
+      ...(keepBlocked
+        ? {}
+        : { status: 'failed' as const, resultSummary: detail.slice(0, 2000) }),
+      notes: [current?.notes ?? job.notes, `spawn_failed: ${detail}`].filter(Boolean).join('\n'),
     });
-    if (updated) notifyInbox(input.store, updated, 'failed', detail);
+    if (updated && !keepBlocked) notifyInbox(input.store, updated, 'failed', detail);
     return { ok: false, error: detail };
   }
 }
@@ -241,7 +247,7 @@ export async function cancelJobWorker(input: {
   if (job) notifyInbox(input.store, job, 'cancelled', input.reason);
 
   if (input.agent) {
-    void pumpSchedulerAfterWorker(input.agent, input.store);
+    pumpSchedulerAfterWorker(input.agent, input.store);
   }
 
   return { ok: true, job, aborted };
@@ -295,25 +301,13 @@ export function steerJobWorker(input: {
   return { ok: true, job, steered };
 }
 
-export async function pumpSchedulerAfterWorker(agent: Agent, store: ToolStore): Promise<void> {
-  const pool = resolveConductorPoolConfig();
-  const kaos = agent.kaos;
-  const repoPath = agent.config.cwd;
-  const schedule = await scheduleQueuedJobs({
-    store,
-    kaos,
-    repoPath,
-    maxConcurrent: pool.maxConcurrentJobs,
-    requireWorktree: true,
-    log: agent.log,
-    launchWorker: async (job) => {
-      await launchJobWorker({ store, agent, job });
-    },
-  });
-  agent.log?.debug?.('conductor schedule after worker', {
-    message: schedule.message,
-    started: schedule.started.map((j) => j.id),
-  });
+/**
+ * Completion/cancel hook: request a scheduler pump on the offload lane.
+ * V2-1: the pump is deferred (setImmediate) and serialized; failures are
+ * recorded by the offload lane, never on the completion/cancel path.
+ */
+export function pumpSchedulerAfterWorker(agent: Agent, store: ToolStore): void {
+  requestJobSchedulePump({ store, agent });
 }
 
 /**
@@ -393,25 +387,10 @@ export async function resumeJobs(input: {
 
   let scheduleMessage = 'Queued for schedule.';
   if (agent) {
-    const pool = resolveConductorPoolConfig();
-    const kaos = agent.kaos;
-    const repoPath = agent.config.cwd;
-    const canSpawn = agent.subagentHost !== undefined;
-    const schedule = await scheduleQueuedJobs({
-      store,
-      kaos,
-      repoPath,
-      maxConcurrent: pool.maxConcurrentJobs,
-      requireWorktree: kaos !== undefined && repoPath !== undefined,
-      log: agent.log,
-      launchWorker:
-        canSpawn
-          ? async (job) => {
-              await launchJobWorker({ store, agent, job });
-            }
-          : undefined,
-    });
-    scheduleMessage = schedule.message;
+    // V2-1 ACK deadline: re-queue is synchronous; the schedule pump runs on
+    // the offload lane so JobResume ACKs without waiting for spawns.
+    requestJobSchedulePump({ store, agent });
+    scheduleMessage = 'Scheduling offloaded — transitions land on ledger/inbox.';
   }
 
   return {
