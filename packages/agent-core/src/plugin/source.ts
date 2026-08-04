@@ -10,9 +10,6 @@ export type ResolvedSource =
   | { kind: 'zip-url'; path: string }
   | { kind: 'github'; owner: string; repo: string; ref?: GithubRef };
 
-// Kept as a back-compat alias for downstream code that imported the old name.
-export type InstallSource = ResolvedSource;
-
 const SHA_RE = /^[0-9a-f]{7,40}$/;
 
 export function resolveInstallSource(source: string): ResolvedSource {

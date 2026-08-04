@@ -76,7 +76,7 @@ function makeFleetHost(options: {
 describe('fleet settings governance tips', () => {
   it('documents import-path soft rename via fleet facade', () => {
     const text = FLEET_IMPORT_PATH_TIPS.join('\n');
-    expect(text).toContain('Hard rename pending');
+    expect(text).toContain('Compat aliases');
     expect(text).toContain('#/fleet');
     expect(text).toContain('@superliora/sdk/fleet');
     expect(text).toContain('not #/collaboration');

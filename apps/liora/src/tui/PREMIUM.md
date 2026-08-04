@@ -211,7 +211,7 @@ reveals, and quality-gated ambient that still reads under SSH/`off`.
 | Panel chrome (borders, title, hint, footer) | `renderRendererPanelChromeRows` from `@harness-kit/tui-renderer` |
 | Divider rows | `renderRendererDividerRow` |
 | Progress bars | `renderRendererSegmentedProgressBar` / `renderRendererRatioProgressBar` |
-| Gradient text | `theme/gradient-text.ts` → `gradientText` |
+| Gradient text | `features/appearance/appearance-gradient.ts` / `renderRendererGradientTextAnsi` |
 | Ambient effects | `features/appearance/appearance-effects.ts` → `renderPulseText` / `renderShimmerPrefix` / `renderParticleRail` |
 | Settle flashes (change → rest on a final tone) | `features/appearance/appearance-effects.ts` → `renderSettleFlash` / `renderToneSettleFlash` / `renderStatusFlashLine` |
 | Entrance highlights (tool headers, turn boundaries) | `features/transcript/transcript-entrance.ts` → `applyToolHeaderEntrance` / `applyTurnBoundaryCue` |

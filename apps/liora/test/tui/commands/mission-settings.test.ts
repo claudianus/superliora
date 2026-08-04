@@ -52,7 +52,7 @@ describe('mission protocol alias tips', () => {
 
   it('documents import-path soft rename via mission facade', () => {
     const text = MISSION_IMPORT_PATH_TIPS.join('\n');
-    expect(text).toContain('Hard rename pending');
+    expect(text).toContain('Compat aliases');
     expect(text).toContain('#/mission');
     expect(text).toContain('@superliora/sdk/mission');
     expect(text).toContain('not #/ultrawork');

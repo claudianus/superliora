@@ -20,7 +20,7 @@ export default defineConfig({
       {
         find: /^@superliora\/agent-core\/ultrawork$/,
         replacement: fileURLToPath(
-          new URL('../agent-core/src/ultrawork/index.ts', import.meta.url),
+          new URL('../agent-core/src/mission/index.ts', import.meta.url),
         ),
       },
       {
