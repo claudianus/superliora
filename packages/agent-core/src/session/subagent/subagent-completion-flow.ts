@@ -41,7 +41,11 @@ import {
   triggerSubagentStop,
 } from './subagent-events';
 import { attachToolStreamBridge, startProgressReporter } from './subagent-telemetry';
-import type { RunSubagentOptions, SubagentCompletion } from './subagent-host-types';
+import type {
+  RunSubagentOptions,
+  SubagentCompletion,
+  SubagentGoalBinding,
+} from './subagent-host-types';
 import { buildChildResultContract } from './subagent-verification-gate';
 import SUMMARY_CONTINUATION_PROMPT from '../summary-continuation.md?raw';
 
@@ -149,12 +153,39 @@ export async function runPromptTurn(
 
   emitSubagentStarted(parent, childId, options);
   const workSnapshot = await snapshotChildWork(child);
+  if (options.goal !== undefined) {
+    await migrateGoalToWorker(child, options.goal);
+  }
   const turnId = child.turn.prompt([{ type: 'text', text: childPrompt }], SUBAGENT_PROMPT_ORIGIN);
   if (turnId === null) {
     throw new Error(`Agent instance "${childId}" could not start a turn`);
   }
   observeFirstRequest(child, options);
   return waitForChildCompletion(parent, childId, child, profileName, options, workSnapshot);
+}
+
+/**
+ * Goal migration (spec 2026-08-04-goal-driver-jobs): create the goal on the
+ * worker agent mechanically before its task prompt turn. The turn engine
+ * already drives continuation turns while a goal is `active`, so the worker
+ * becomes an autonomous loop on its own lane — no new machinery. Budget
+ * limits are attached in the same breath; they are the circuit breakers the
+ * loop checks between continuation turns.
+ */
+export async function migrateGoalToWorker(
+  child: Agent,
+  binding: SubagentGoalBinding,
+): Promise<void> {
+  await child.goal.createGoal(
+    {
+      objective: binding.objective,
+      completionCriterion: binding.completionCriterion,
+    },
+    'system',
+  );
+  if (binding.budgetLimits !== undefined) {
+    await child.goal.setBudgetLimits({ budgetLimits: binding.budgetLimits }, 'system');
+  }
 }
 
 export async function waitForChildCompletion(
@@ -201,7 +232,10 @@ export async function collectChildCompletion(
   await child.fullCompaction.ensureBelowHandoffThreshold(options.signal);
 
   let result = lastAssistantText(child);
-  let remainingContinuations = SUMMARY_CONTINUATION_ATTEMPTS;
+  // A migrated goal still `active` means another prompt re-enters the goal
+  // loop — never trigger that from the summary expansion path.
+  const goalStillActive = options.goal !== undefined && child.goal.getActiveGoal() !== null;
+  let remainingContinuations = goalStillActive ? 0 : SUMMARY_CONTINUATION_ATTEMPTS;
   while (remainingContinuations > 0 && result.length < SUMMARY_MIN_LENGTH) {
     remainingContinuations -= 1;
     options.signal.throwIfAborted();
@@ -239,7 +273,24 @@ export async function collectChildCompletion(
       /* rolling integration must never break completion */
     }
   }
-  return { result, usage, contract };
+  // Goal-driver terminal state (spec 2026-08-04-goal-driver-jobs §3.5):
+  // `complete` clears the durable record, so a null goal on a migrated run
+  // means success; anything else is the stopped status the Job maps to blocked.
+  if (options.goal === undefined) {
+    return { result, usage, contract };
+  }
+  const goalFinal = child.goal.getGoal().goal;
+  if (goalFinal === null) {
+    return { result, usage, contract, goalStatus: 'complete' };
+  }
+  return {
+    result,
+    usage,
+    contract,
+    goalStatus: goalFinal.status,
+    goalId: goalFinal.goalId,
+    goalTerminalReason: goalFinal.terminalReason,
+  };
 }
 
 export async function retrySubagentTurn(

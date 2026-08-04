@@ -83,11 +83,18 @@ export class OpenAIResponsesChatProvider implements ChatProvider {
   private _httpClient: unknown;
   private _clientFactory: ((auth: ProviderRequestAuth) => OpenAI) | undefined;
   /**
-   * Server-side conversation chaining: when store is enabled, the previous
-   * response ID is forwarded so the API can reuse its cached prefix instead
-   * of re-processing the full input array. Controlled by SUPERLIORA_OPENAI_STORE.
+   * Server-side conversation chaining state (shared with clones): when store
+   * is enabled, the previous response ID is forwarded together with ONLY the
+   * appended history delta so the API can reuse its stored conversation
+   * instead of re-processing the full input array. Clones created by
+   * `withGenerationKwargs`/`withMaxCompletionTokens` must share this holder,
+   * otherwise per-step clones drop the chain after every request.
+   * Controlled by SUPERLIORA_OPENAI_STORE.
    */
-  private _previousResponseId: string | null = null;
+  private readonly _chainState: {
+    previousResponseId: string | null;
+    lastHistory: readonly Message[] | null;
+  };
   private readonly _storeEnabled: boolean;
 
   constructor(options: OpenAIResponsesOptions) {
@@ -107,6 +114,7 @@ export class OpenAIResponsesChatProvider implements ChatProvider {
     }
 
     this._client = this._apiKey === undefined ? undefined : this._buildClient(this._apiKey);
+    this._chainState = { previousResponseId: null, lastHistory: null };
     this._storeEnabled = process.env['SUPERLIORA_OPENAI_STORE'] === '1';
   }
 
@@ -142,6 +150,34 @@ export class OpenAIResponsesChatProvider implements ChatProvider {
       ...convertHistoryMessages(normalizedHistory, this._model, this._toolMessageConversion),
     );
 
+    // Chaining sends only the appended delta on top of the stored previous
+    // response. It is only valid when the new history is a strict extension
+    // of the previously sent one (same message objects); any rewrite
+    // (compaction/undo) falls back to the full input and resets the chain.
+    let chainableDelta: unknown[] | undefined;
+    if (this._storeEnabled && this._chainState.previousResponseId !== null) {
+      const last = this._chainState.lastHistory;
+      if (last !== null && history.length > last.length) {
+        let prefixUnchanged = true;
+        for (let i = 0; i < last.length; i++) {
+          if (history[i] !== last[i]) {
+            prefixUnchanged = false;
+            break;
+          }
+        }
+        if (prefixUnchanged) {
+          const deltaItems = convertHistoryMessages(
+            normalizedHistory.slice(last.length),
+            this._model,
+            this._toolMessageConversion,
+          );
+          if (deltaItems.length > 0) {
+            chainableDelta = deltaItems;
+          }
+        }
+      }
+    }
+
     const kwargs: Record<string, unknown> = { ...this._generationKwargs };
     const reasoningEffort = kwargs['reasoning_effort'] as string | undefined;
     delete kwargs['reasoning_effort'];
@@ -173,7 +209,7 @@ export class OpenAIResponsesChatProvider implements ChatProvider {
       const client = this._createClient(options?.auth);
       const createParams: Record<string, unknown> = {
         model: this._model,
-        input,
+        input: chainableDelta ?? input,
         tools: tools.map((t) => convertTool(t)),
         store: this._storeEnabled,
         stream: this._stream,
@@ -183,9 +219,10 @@ export class OpenAIResponsesChatProvider implements ChatProvider {
         createParams['instructions'] = systemPrompt;
       }
       // Server-side prefix caching: chain to the previous response so the API
-      // reuses its cached context instead of re-processing the full input.
-      if (this._storeEnabled && this._previousResponseId !== null) {
-        createParams['previous_response_id'] = this._previousResponseId;
+      // reuses its stored conversation. Only sent with a delta input —
+      // pairing it with the full history would duplicate the conversation.
+      if (chainableDelta !== undefined && this._chainState.previousResponseId !== null) {
+        createParams['previous_response_id'] = this._chainState.previousResponseId;
       }
 
       if (
@@ -211,7 +248,8 @@ export class OpenAIResponsesChatProvider implements ChatProvider {
       if (this._storeEnabled) {
         const responseId = streamed.id;
         if (responseId !== null) {
-          this._previousResponseId = responseId;
+          this._chainState.previousResponseId = responseId;
+          this._chainState.lastHistory = history;
         }
       }
       return streamed;

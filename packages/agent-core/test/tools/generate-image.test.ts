@@ -81,6 +81,7 @@ describe('GenerateImage provider selection', () => {
       GOOGLE_API_KEY: process.env['GOOGLE_API_KEY'],
       GEMINI_API_KEY: process.env['GEMINI_API_KEY'],
       QWEN_TOKEN_PLAN_API_KEY: process.env['QWEN_TOKEN_PLAN_API_KEY'],
+      ALIBABA_TOKEN_PLAN_API_KEY: process.env['ALIBABA_TOKEN_PLAN_API_KEY'],
     };
     try {
       delete process.env['XAI_API_KEY'];
@@ -88,6 +89,7 @@ describe('GenerateImage provider selection', () => {
       delete process.env['GOOGLE_API_KEY'];
       delete process.env['GEMINI_API_KEY'];
       delete process.env['QWEN_TOKEN_PLAN_API_KEY'];
+      delete process.env['ALIBABA_TOKEN_PLAN_API_KEY'];
       expect(isGenerateImageAvailable({})).toBe(false);
     } finally {
       for (const [key, value] of Object.entries(prev)) {

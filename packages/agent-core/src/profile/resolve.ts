@@ -160,8 +160,12 @@ function createLayeredSystemPromptRenderer(merged: MergedAgentProfile): LayeredS
       // Layer 2: Session-static (OS, shell, cwd)
       const layer2Session = renderPrompt(layer2SessionTemplate, vars);
 
-      // Layer 3: Dynamic (AGENTS.md, skills, listing)
-      const layer3Dynamic = renderPrompt(layer3DynamicTemplate, vars);
+      // Layer 3: Dynamic (AGENTS.md, skills, listing) — rendered with the role
+      // section blanked so it is byte-identical across workers with different
+      // roles; the role rides as a separate trailing block instead.
+      const roleAdditional = vars['ROLE_ADDITIONAL'] ?? '';
+      const layer3Vars = { ...vars, ROLE_ADDITIONAL: '' };
+      const layer3Dynamic = renderPrompt(layer3DynamicTemplate, layer3Vars);
 
       // Combined for backward compatibility
       const combined = renderPrompt(merged.systemPromptTemplate, vars);
@@ -170,6 +174,7 @@ function createLayeredSystemPromptRenderer(merged: MergedAgentProfile): LayeredS
         layer1Static,
         layer2Session,
         layer3Dynamic,
+        ...(roleAdditional.trim().length > 0 ? { roleAdditional } : {}),
         combined,
       };
     } catch (error) {

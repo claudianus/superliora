@@ -59,6 +59,14 @@ import {
 } from '../../sensors/step-budget-sensor';
 import type { ExecutableToolResult } from '../../loop/types';
 import {
+  DOOMED_RUN_HARD_STOP_STREAK,
+  DOOMED_RUN_WARN_ORIGIN,
+  DOOMED_RUN_WARN_STREAK,
+  formatDoomedRunWarnTip,
+  hasDoomedRunWarnReminder,
+  trailingToolErrorStreak,
+} from './doomed-run-guard';
+import {
   buildTurnPrefixMaterial,
   CACHE_FREEZE_DRIFT_SENSOR_ORIGIN,
   formatCacheFreezeDriftTip,
@@ -200,7 +208,34 @@ export async function runTurnStepLoop(
             );
             await agent.fullCompaction.afterStep();
             deduper.endStep();
-            return stopForGoalBudget ? { stopTurn: true } : undefined;
+            if (stopForGoalBudget) return { stopTurn: true };
+            // E4 doomed-run guard: unattended runs must not burn their whole
+            // budget on a losing streak. Warn once, then force-stop the turn.
+            if (agent.type === 'sub') {
+              const streak = trailingToolErrorStreak(agent.context.history);
+              if (streak >= DOOMED_RUN_HARD_STOP_STREAK) {
+                agent.log.warn('doomed run hard stop: consecutive tool failures', { streak });
+                agent.telemetry.track('doomed_run_hard_stop', {
+                  error_streak: streak,
+                  profile: agent.config.profileName,
+                });
+                return { stopTurn: true };
+              }
+              if (
+                streak >= DOOMED_RUN_WARN_STREAK &&
+                !hasDoomedRunWarnReminder(agent.context.history)
+              ) {
+                agent.telemetry.track('doomed_run_warn', {
+                  error_streak: streak,
+                  profile: agent.config.profileName,
+                });
+                agent.context.appendUserMessage(
+                  [{ type: 'text', text: formatDoomedRunWarnTip(streak) }],
+                  { kind: 'injection', variant: DOOMED_RUN_WARN_ORIGIN },
+                );
+              }
+            }
+            return undefined;
           },
           // oxlint-disable-next-line no-loop-func -- stop hook continuation state is scoped to this turn.
           shouldContinueAfterStop: async (ctx) => {

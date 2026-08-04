@@ -76,6 +76,7 @@ export function computeFamilyBudgetOverflowToolCallIds(
   cutoff: number,
   keep: number = MICRO_TOOL_RESULT_FAMILY_KEEP,
   highValueReplayKeep: number = keep,
+  index?: ToolNameIndex,
 ): ReadonlySet<string> {
   const keepN = Math.max(0, Math.floor(keep));
   const highValueReplayKeepN = Math.max(keepN, Math.floor(highValueReplayKeep));
@@ -85,7 +86,7 @@ export function computeFamilyBudgetOverflowToolCallIds(
   for (let i = 0; i < limit; i++) {
     const msg = messages[i];
     if (msg?.role !== 'tool' || msg.toolCallId === undefined) continue;
-    const toolName = toolNameForMessage(msg.toolCallId, messages);
+    const toolName = toolNameForMessage(msg.toolCallId, messages, index);
     if (toolName === undefined) continue;
     if (isStatefulOrMutatingTool(toolName)) continue;
     const list = byFamily.get(toolName) ?? [];
@@ -106,22 +107,44 @@ export function computeFamilyBudgetOverflowToolCallIds(
   return overflow;
 }
 
-export function findLatestSwarmToolCallId(messages: readonly ContextMessage[]): string | undefined {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i];
-    if (message?.role !== 'tool' || message.toolCallId === undefined) continue;
-    const toolName = toolNameForMessage(message.toolCallId, messages);
-    if (toolName === 'UltraSwarm' || toolName === 'AgentSwarm' || toolName === 'Fleet') {
-      return message.toolCallId;
+export const SWARM_TOOL_NAMES: ReadonlySet<string> = new Set([
+  'UltraSwarm',
+  'AgentSwarm',
+  'Fleet',
+]);
+
+export function isSwarmToolName(toolName: string | undefined): boolean {
+  return toolName !== undefined && SWARM_TOOL_NAMES.has(toolName);
+}
+
+/**
+ * toolCallId → toolName index over one message array. Built once per
+ * projection source (memoized by reference in buildToolNameIndex) so the
+ * per-tool-result lookups in micro compaction stay O(1) instead of
+ * re-scanning the whole history each time (O(n²) on long sessions).
+ */
+export type ToolNameIndex = ReadonlyMap<string, string>;
+
+/**
+ * Forward pass keeps the last declaration of an id authoritative —
+ * equivalent to the legacy latest-first reverse scan.
+ */
+export function buildToolNameIndex(messages: readonly ContextMessage[]): ToolNameIndex {
+  const map = new Map<string, string>();
+  for (const message of messages) {
+    for (const toolCall of message.toolCalls ?? []) {
+      map.set(toolCall.id, toolCall.name);
     }
   }
-  return undefined;
+  return map;
 }
 
 export function toolNameForMessage(
   toolCallId: string,
   messages: readonly ContextMessage[],
+  index?: ToolNameIndex,
 ): string | undefined {
+  if (index !== undefined) return index.get(toolCallId);
   for (let i = messages.length - 1; i >= 0; i--) {
     const match = messages[i]?.toolCalls?.find((toolCall) => toolCall.id === toolCallId);
     if (match !== undefined) return match.name;
@@ -129,14 +152,11 @@ export function toolNameForMessage(
   return undefined;
 }
 
-export function maskSwarmToolResultIfStale(
-  message: ContextMessage,
-  messages: readonly ContextMessage[],
-  latestSwarmToolCallId: string | undefined,
-): ContextMessage | null {
-  if (message.toolCallId === latestSwarmToolCallId) return null;
-  const toolName = toolNameForMessage(message.toolCallId ?? '', messages);
-  if (toolName !== 'UltraSwarm' && toolName !== 'AgentSwarm' && toolName !== 'Fleet') return null;
+/**
+ * Return a masked copy of one swarm tool result message, or `null` when the
+ * message is not a swarm result or masking would not change its content.
+ */
+function maskSwarmToolMessage(message: ContextMessage): ContextMessage | null {
   const fullText = message.content
     .filter((part): part is Extract<typeof part, { type: 'text' }> => part.type === 'text')
     .map((part) => part.text)
@@ -148,6 +168,56 @@ export function maskSwarmToolResultIfStale(
     ...message,
     content: [{ type: 'text', text: masked } satisfies ContentPart],
   };
+}
+
+/**
+ * Append-time swarm masking: when a swarm tool result lands, replace every
+ * swarm result that is not the newest one with its masked form — exactly
+ * once, in the stored segments (history + deferred tail). Masking at append
+ * time (instead of lazily during each projection) keeps projected bytes a
+ * pure function of the stored messages — the provider prefix cache is
+ * invalidated by the append itself, never by a later mid-history rewrite.
+ * Also covers a late-arriving older result: it masks itself when a newer
+ * swarm result is already stored.
+ */
+export function maskStaleSwarmToolResults(segments: readonly ContextMessage[][]): number {
+  const index = new Map<string, string>();
+  for (const segment of segments) {
+    for (const message of segment) {
+      for (const toolCall of message.toolCalls ?? []) {
+        index.set(toolCall.id, toolCall.name);
+      }
+    }
+  }
+  // Projection order is segment order, so scan the last segment backwards
+  // first to find the newest swarm result.
+  let latestSwarmToolCallId: string | undefined;
+  for (let s = segments.length - 1; s >= 0 && latestSwarmToolCallId === undefined; s--) {
+    const segment = segments[s];
+    if (segment === undefined) continue;
+    for (let i = segment.length - 1; i >= 0; i--) {
+      const message = segment[i];
+      if (message?.role !== 'tool' || message.toolCallId === undefined) continue;
+      if (isSwarmToolName(index.get(message.toolCallId))) {
+        latestSwarmToolCallId = message.toolCallId;
+        break;
+      }
+    }
+  }
+  let maskedCount = 0;
+  for (const segment of segments) {
+    for (let i = 0; i < segment.length; i++) {
+      const message = segment[i];
+      if (message?.role !== 'tool' || message.toolCallId === undefined) continue;
+      if (message.toolCallId === latestSwarmToolCallId) continue;
+      if (!isSwarmToolName(index.get(message.toolCallId))) continue;
+      const masked = maskSwarmToolMessage(message);
+      if (masked === null) continue;
+      segment[i] = masked;
+      maskedCount += 1;
+    }
+  }
+  return maskedCount;
 }
 
 

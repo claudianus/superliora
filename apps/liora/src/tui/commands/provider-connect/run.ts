@@ -11,6 +11,11 @@ import type { Catalog } from '@superliora/sdk';
 
 import { DEFAULT_OAUTH_PROVIDER_NAME, PRODUCT_NAME } from '../../constant/liora-tui';
 import {
+  ALIBABA_TOKEN_PLAN_CATALOG_ID,
+  ALIBABA_TOKEN_PLAN_CN_CATALOG_ID,
+  isTokenPlanCatalogId,
+} from '#/tui/utils/model/qwen-token-plan';
+import {
   type ProviderCatalogSelection,
 } from '#/tui/utils/model/provider-catalog-options';
 import { promptProviderCatalog } from '../auth/prompts';
@@ -61,10 +66,21 @@ export async function runUnifiedProviderConnect(
       await connectCloudProvider(host, selection.providerId);
       break;
     case 'qwen-token-plan':
-      await connectQwenTokenPlan(host);
+      await connectQwenTokenPlan(
+        host,
+        selection.region === 'cn' ? ALIBABA_TOKEN_PLAN_CN_CATALOG_ID : ALIBABA_TOKEN_PLAN_CATALOG_ID,
+      );
       break;
     case 'catalog':
-      await connectCatalogProvider(host, catalog, selection.providerId);
+      // Alibaba Token Plan catalog entries are the same service as the
+      // first-class Qwen Token Plan integration — route them through the
+      // dedicated flow (media tools, harness tools, live models) instead of
+      // the generic catalog apply.
+      if (isTokenPlanCatalogId(selection.providerId)) {
+        await connectQwenTokenPlan(host, selection.providerId);
+      } else {
+        await connectCatalogProvider(host, catalog, selection.providerId);
+      }
       break;
     case 'custom-endpoint':
       await connectCustomEndpoint(host);

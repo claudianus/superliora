@@ -9,6 +9,7 @@ import type { Agent } from '../../../agent';
 import type {
   ConductorJobDraftRecorder,
 } from '../../../agent/conductor-guard';
+import { MAX_GOAL_OBJECTIVE_LENGTH } from '../../../agent/goal/types';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ToolExecution } from '../../../loop/types';
@@ -47,7 +48,15 @@ import { splitUserMessageIntoJobIntents } from './job-split';
 import { ensureWarmPool, warmPoolSpawner, type WarmPoolSpawner } from './job-warm-pool';
 import { cancelJobWorker, resumeJobs, steerJobWorker } from './job-worker';
 
-const JobKindSchema = z.enum(['task', 'explore', 'implement', 'mission', 'merge', 'desk']);
+const JobKindSchema = z.enum([
+  'task',
+  'explore',
+  'implement',
+  'mission',
+  'merge',
+  'desk',
+  'goal-driver',
+]);
 const JobStatusSchema = z.enum([
   'queued',
   'running',
@@ -69,7 +78,7 @@ const JobCreateInputSchema = z
         'Short outcome-shaped title for the ledger and ACK (verb + deliverable, e.g. "Fix auth token refresh race").',
       ),
     kind: JobKindSchema.optional().describe(
-      'Job kind. task/implement = code work (default task), explore = read-only research, mission = long-running spine, merge = landing worker, desk = digest. Defaults to task.',
+      'Job kind. task/implement = code work (default task), explore = read-only research, mission = long-running spine, merge = landing worker, desk = digest, goal-driver = autonomous goal loop (the runtime migrates a Goal onto the worker, which self-continues toward it; use prompt as the objective and goal_completion_criterion as its finish line). Defaults to task.',
     ),
     priority: z
       .number()
@@ -90,11 +99,35 @@ const JobCreateInputSchema = z
       .describe(
         'Paths this job intends to touch — the scheduler conflict hint. Overlapping ownership between parallel jobs risks racing; keep siblings disjoint or chain them via parent_job_id.',
       ),
+    context_paths: z
+      .array(z.string().trim().min(1))
+      .optional()
+      .describe(
+        'Read-first hints for the worker: files/dirs it should inspect before exploring on its own (entry points, failing tests, referenced specs). Saves cold-start discovery turns; keep it short (≤6).',
+      ),
     parent_job_id: z
       .string()
       .optional()
       .describe('Parent job id for subtasks of an existing Job (decomposition chains).'),
     mission_run_id: z.string().optional(),
+    goal_completion_criterion: z
+      .string()
+      .trim()
+      .optional()
+      .describe(
+        'kind=goal-driver only: the verifiable finish line the driver goal must meet (commands passing, behavior observable). The runtime creates the Goal with it — do not restate it as an instruction to the worker.',
+      ),
+    goal_budget: z
+      .object({
+        token_budget: z.number().int().positive().optional(),
+        turn_budget: z.number().int().positive().optional(),
+        wall_clock_budget_ms: z.number().int().positive().optional(),
+      })
+      .strict()
+      .optional()
+      .describe(
+        'kind=goal-driver only: hard circuit breakers for the autonomous loop (tokens / continuation turns / wall-clock ms). Exceeding any limit blocks the goal and the Job — set limits for open-ended objectives.',
+      ),
     /**
      * When true, split `prompt` (or title) into multiple Jobs via multi-intent heuristic
      * and return one summary ACK. Falls back to a single Job if split fails.
@@ -181,7 +214,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
   readonly description =
     'Delegate work: create a Conductor Job on the meta ledger and return an immediate ACK (job_id + state). ' +
     'The ONLY path for any file mutation, build, test, install, or verification loop on the Conductor lane — even a one-line fix. ' +
-    'Route every task-like user request here first so nothing is lost while workers run; write a self-sufficient brief (goal, success criteria, scope fence, paths, constraints) and pass ownership_paths. ' +
+    'Route every task-like user request here first so nothing is lost while workers run; write a self-sufficient brief (goal, success criteria, scope fence, paths, constraints), pass ownership_paths, and add context_paths for files the worker should read first. ' +
     'Multi-intent messages: auto_split=true or several calls in one turn, then one summary ACK. Scheduling is offloaded — the ACK never waits for the worker.';
   readonly parameters: Record<string, unknown> = toInputJsonSchema(JobCreateInputSchema);
 
@@ -212,6 +245,20 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
             ? splitUserMessageIntoJobIntents(a.prompt?.trim() || a.title)
             : [{ title: a.title, prompt: a.prompt ?? a.title }];
 
+        const isGoalDriver = a.kind === 'goal-driver';
+        if (isGoalDriver) {
+          // The brief becomes the migrated goal objective; GoalMode rejects
+          // objectives over its cap, so fail fast on the ACK path instead of
+          // at worker spawn.
+          const objective = a.prompt?.trim() || a.title;
+          if (objective.length > MAX_GOAL_OBJECTIVE_LENGTH) {
+            return {
+              isError: true,
+              output: `goal-driver objective exceeds ${MAX_GOAL_OBJECTIVE_LENGTH} characters — shorten the brief.`,
+            };
+          }
+        }
+
         const created = intents.map((intent, index) =>
           createJob(this.store, {
             title: intent.title || a.title,
@@ -219,8 +266,23 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
             priority: (a.priority ?? 0) + (intents.length - index),
             prompt: intent.prompt,
             ownershipPaths: a.ownership_paths,
+            contextPaths: a.context_paths,
             parentJobId: a.parent_job_id,
             missionRunId: a.mission_run_id,
+            ...(isGoalDriver
+              ? {
+                  goalObjective: intent.prompt?.trim() || intent.title || a.title,
+                  goalCompletionCriterion: a.goal_completion_criterion,
+                  goalBudgetLimits:
+                    a.goal_budget !== undefined
+                      ? {
+                          tokenBudget: a.goal_budget.token_budget,
+                          turnBudget: a.goal_budget.turn_budget,
+                          wallClockBudgetMs: a.goal_budget.wall_clock_budget_ms,
+                        }
+                      : undefined,
+                }
+              : {}),
           }),
         );
 
@@ -525,7 +587,7 @@ export class MergeJobTool implements BuiltinTool<z.infer<typeof MergeJobInputSch
 export class JobScheduleTool implements BuiltinTool<Record<string, never>> {
   readonly name = 'JobSchedule' as const;
   readonly description =
-    'Run the Conductor scheduler: pre-spawn warm workers, promote queued Jobs to running under maxConcurrent, attaching worktrees when possible.';
+    'Run the Conductor scheduler: record warm pool readiness, promote queued Jobs to running under maxConcurrent, attaching worktrees when possible.';
   readonly parameters: Record<string, unknown> = toInputJsonSchema(z.object({}).strict());
 
   constructor(

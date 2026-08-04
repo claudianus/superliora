@@ -45,8 +45,10 @@ export interface CompactionConfig {
    */
   asyncTriggerRatio: number;
   /**
-   * Number of leading messages (system + initial user) kept in a frozen zone
-   * that is never included in the compacted prefix. Defaults to 2.
+   * Number of leading messages (system + initial user) forming the frozen
+   * zone. Enforcement lives in `applyContextCompaction`, which keeps the
+   * first real user message (the original task) verbatim across compaction.
+   * Defaults to 2.
    */
   frozenZoneSize: number;
 }

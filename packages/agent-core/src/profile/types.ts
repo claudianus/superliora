@@ -58,8 +58,13 @@ export interface LayeredSystemPrompt {
   readonly layer1Static: string;
   /** Session-static context - fixed within a session */
   readonly layer2Session: string;
-  /** Dynamic context - may change per request */
+  /** Dynamic context - may change per request (role text excluded) */
   readonly layer3Dynamic: string;
+  /**
+   * Per-agent role/persona text rendered as a trailing system block after the
+   * cached layers, so fan-out workers share the layer1–layer3 cache prefix.
+   */
+  readonly roleAdditional?: string;
   /** Combined prompt for providers without multi-block support */
   readonly combined: string;
 }

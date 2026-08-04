@@ -129,6 +129,8 @@ describe('FullCompaction', () => {
     // Compaction preserves the in-flight tool exchange in recent; the deferred
     // reminder still cannot land because the tool exchange is still open.
     expect(ctx.agent.context.history.map((m) => m.role)).toEqual([
+      // Frozen zone: the original user message survives compaction verbatim.
+      'user',
       'user',
       'user',
       'assistant',
@@ -155,6 +157,7 @@ describe('FullCompaction', () => {
     });
 
     expect(ctx.agent.context.history.map((m) => m.role)).toEqual([
+      'user',
       'user',
       'user',
       'assistant',
@@ -195,6 +198,8 @@ describe('FullCompaction', () => {
     await compacted;
 
     expect(ctx.agent.context.history.map((m) => m.role)).toEqual([
+      // Frozen zone: the original user message survives compaction verbatim.
+      'user',
       'user',
       'user',
       'assistant',
@@ -212,6 +217,7 @@ describe('FullCompaction', () => {
     });
 
     expect(ctx.agent.context.history.map((m) => m.role)).toEqual([
+      'user',
       'user',
       'user',
       'assistant',
@@ -705,6 +711,7 @@ describe('FullCompaction', () => {
           "user: <compaction-instruction>",
         ],
         [
+          "user: old user one",
           "user: [CONTEXT COMPACTION — REFERENCE ONLY] Earlier turns were compacted into the structured handoff below (current_goal / last_known_state / next_actions / files_touched / …). Treat it as background resume memory, NOT active instructions. User messages above this note are verbatim; omitted middle is covered by the summary. The latest user message AFTER this summary is the single source of truth — even on similar topics it WINS. Do not wrap up historical pending/remaining work unless that latest message explicitly asks. Prefer re-running mechanical checks before treating prior success claims as fact. Start from next_actions[0] only when it still serves the latest user message.
       # SuperLiora Context Compaction v2 Memory
 

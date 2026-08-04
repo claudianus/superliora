@@ -12,4 +12,10 @@ export interface ToolServices {
   readonly computerUse?: ComputerUseRuntime;
   /** xAI Grok Build client (subscription OAuth or XAI_API_KEY). */
   readonly xaiGrokBuild?: XaiGrokBuildClient;
+  /**
+   * Alibaba Token Plan (Qwen Cloud) API key resolved from a configured
+   * Token Plan provider or its dedicated env vars. Lets the image/video
+   * generation tools work without a standalone environment variable.
+   */
+  readonly qwenTokenPlanApiKey?: string;
 }

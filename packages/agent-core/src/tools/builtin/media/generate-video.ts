@@ -1,8 +1,9 @@
 /**
  * GenerateVideoTool — text/image-to-video via provider keys on the machine.
  *
- * Zero-config with QWEN_TOKEN_PLAN_API_KEY (happyhorse models, async task)
- * or GOOGLE_API_KEY/GEMINI_API_KEY (Gemini omni-flash).
+ * Zero-config with QWEN_TOKEN_PLAN_API_KEY / ALIBABA_TOKEN_PLAN_API_KEY
+ * (same Token Plan service; happyhorse models, async task) or
+ * GOOGLE_API_KEY/GEMINI_API_KEY (Gemini omni-flash).
  *
  * Qwen Cloud Token Plan: supports text-to-video (happyhorse-1.1-t2v),
  * image-to-video (happyhorse-1.1-i2v), and reference-to-video
@@ -92,7 +93,11 @@ function resolveVideoProvider(
   const xaiReady =
     env.xaiGrokBuild !== undefined ||
     nonEmpty(env.xaiApiKey ?? process.env['XAI_API_KEY']) !== undefined;
-  const qwen = nonEmpty(env.qwenTokenPlanApiKey ?? process.env['QWEN_TOKEN_PLAN_API_KEY']);
+  const qwen = nonEmpty(
+    env.qwenTokenPlanApiKey ??
+      process.env['QWEN_TOKEN_PLAN_API_KEY'] ??
+      process.env['ALIBABA_TOKEN_PLAN_API_KEY'],
+  );
   const google = nonEmpty(
     env.googleApiKey ?? process.env['GOOGLE_API_KEY'] ?? process.env['GEMINI_API_KEY'],
   );
@@ -296,8 +301,14 @@ async function generateWithQwenVideo(
   workspace: WorkspaceConfig,
   env: GenerateVideoProviderEnv,
 ): Promise<GeneratedVideo> {
-  const apiKey = nonEmpty(env.qwenTokenPlanApiKey ?? process.env['QWEN_TOKEN_PLAN_API_KEY']);
-  if (apiKey === undefined) throw new Error('QWEN_TOKEN_PLAN_API_KEY is not set.');
+  const apiKey = nonEmpty(
+    env.qwenTokenPlanApiKey ??
+      process.env['QWEN_TOKEN_PLAN_API_KEY'] ??
+      process.env['ALIBABA_TOKEN_PLAN_API_KEY'],
+  );
+  if (apiKey === undefined) {
+    throw new Error('QWEN_TOKEN_PLAN_API_KEY / ALIBABA_TOKEN_PLAN_API_KEY is not set.');
+  }
   const fetchImpl = env.fetchImpl ?? globalThis.fetch.bind(globalThis);
 
   // Select mode: reference images → r2v, first frame → i2v, otherwise t2v.

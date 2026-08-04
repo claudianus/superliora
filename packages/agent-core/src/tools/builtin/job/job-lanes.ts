@@ -28,7 +28,12 @@ export function classifyConductorLane(input: {
   readonly hasMultiIntent?: boolean;
   readonly kind?: JobKind;
 }): LaneClassification {
-  if (input.kind === 'mission' || input.kind === 'implement' || input.kind === 'merge') {
+  if (
+    input.kind === 'mission' ||
+    input.kind === 'implement' ||
+    input.kind === 'merge' ||
+    input.kind === 'goal-driver'
+  ) {
     return {
       lane: 'execution',
       reason: `kind=${input.kind}`,

@@ -149,10 +149,8 @@ export async function repairSummaryForQuality(
       ].join('\n\n'),
     ),
   });
-  const messages = [
-    ...ctx.agent.context.projectForCompaction(messagesToCompact),
-    createUserMessage(repairPrompt),
-  ];
+  const projected = repairProjection(ctx, messagesToCompact, repairPrompt, previousSummary);
+  const messages = [...projected.messages, createUserMessage(projected.prompt)];
   try {
     const response = await runCompactionGenerate(ctx, signal, {
       provider,
@@ -187,6 +185,48 @@ export async function repairSummaryForQuality(
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
+/** Token cap for the raw prefix re-sent during a repair round. */
+const REPAIR_PREFIX_MAX_TOKENS = 64_000;
+
+/**
+ * Build the repair LLM input. The full prefix is re-sent only up to the
+ * budget; the most recent messages win because the previous draft (attached
+ * to the prompt) still covers the elided older material. This bounds repair
+ * input tokens instead of re-transmitting the entire prefix per attempt.
+ */
+function repairProjection(
+  ctx: CompactionPipelineContext,
+  messagesToCompact: readonly Message[],
+  repairPrompt: string,
+  previousSummary: string,
+): { messages: readonly Message[]; prompt: string } {
+  let projected = ctx.agent.context.projectForCompaction(messagesToCompact);
+  let elidedNote = '';
+  if (estimateTokensForMessages(projected) > REPAIR_PREFIX_MAX_TOKENS) {
+    let keptFrom = 0;
+    let tokens = 0;
+    for (let i = projected.length - 1; i >= 0; i--) {
+      const messageTokens = estimateTokensForMessages([projected[i]!]);
+      if (tokens + messageTokens > REPAIR_PREFIX_MAX_TOKENS) break;
+      tokens += messageTokens;
+      keptFrom = i;
+    }
+    if (keptFrom > 0) {
+      projected = projected.slice(keptFrom);
+      elidedNote = `\n\nNote: the oldest ${keptFrom} messages of the compacted prefix were elided to fit the repair budget; for that older material rely on the previous draft below.`;
+      ctx.agent.telemetry.track('compaction_repair_prefix_elided', {
+        dropped_messages: keptFrom,
+      });
+    }
+  }
+  const draft = previousSummary.trim();
+  const prompt =
+    draft.length === 0
+      ? `${repairPrompt}${elidedNote}`
+      : `${repairPrompt}${elidedNote}\n\nPrevious draft (fix its failed checks; keep what is already correct):\n${draft}`;
+  return { messages: projected, prompt };
+}
 
 export function revalidateAfterEvidenceRepair(
   ctx: CompactionPipelineContext,

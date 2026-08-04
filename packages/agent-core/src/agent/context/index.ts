@@ -57,6 +57,7 @@ export class ContextMemory {
   tokenCountCoveredMessageCount = 0;
   openSteps: Map<string, ContextMessage> = new Map();
   pendingToolResultIds = new Set<string>();
+  toolCallNames = new Map<string, string>();
   /**
    * Tool-call ids whose results may still arrive after a compaction raced
    * ahead of them. Maps each id to the `_history.length` at the time it was
@@ -162,6 +163,7 @@ export class ContextMemory {
     this.tokenCountCoveredMessageCount = 0;
     this.openSteps.clear();
     this.pendingToolResultIds.clear();
+    this.toolCallNames.clear();
     this.deferredMessages = [];
     this.lastAssistantAt = null;
     this.agent.microCompaction.reset();

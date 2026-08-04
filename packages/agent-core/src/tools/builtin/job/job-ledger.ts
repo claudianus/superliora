@@ -1,3 +1,4 @@
+import type { GoalBudgetLimits } from '../../../agent/goal/types';
 import type { ToolStore } from '../../store';
 import {
   createJobId,
@@ -53,8 +54,13 @@ export function createJob(
     readonly priority?: number;
     readonly prompt?: string;
     readonly ownershipPaths?: readonly string[];
+    readonly contextPaths?: readonly string[];
     readonly parentJobId?: string;
     readonly missionRunId?: string;
+    /** Goal-driver binding (spec 2026-08-04-goal-driver-jobs). */
+    readonly goalObjective?: string;
+    readonly goalCompletionCriterion?: string;
+    readonly goalBudgetLimits?: GoalBudgetLimits;
   },
 ): JobRecord {
   const now = new Date().toISOString();
@@ -68,8 +74,12 @@ export function createJob(
     updatedAt: now,
     prompt: input.prompt?.trim() || undefined,
     ownershipPaths: input.ownershipPaths,
+    contextPaths: input.contextPaths,
     parentJobId: input.parentJobId,
     missionRunId: input.missionRunId,
+    goalObjective: input.goalObjective,
+    goalCompletionCriterion: input.goalCompletionCriterion,
+    goalBudgetLimits: input.goalBudgetLimits,
   };
   return upsertJob(store, job);
 }
@@ -86,9 +96,11 @@ export function patchJob(
       | 'worktreePath'
       | 'workerAgentId'
       | 'resultSummary'
+      | 'resultContract'
       | 'notes'
       | 'prompt'
       | 'progress'
+      | 'goalId'
     >
   >,
 ): JobRecord | undefined {

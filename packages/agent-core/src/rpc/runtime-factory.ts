@@ -124,6 +124,7 @@ export async function createRuntimeConfig(input: {
     input.config,
     input.resolveOAuthTokenProvider,
   );
+  const qwenTokenPlanApiKey = resolveTokenPlanApiKey(input.config);
   const xaiWebSearcher =
     xaiGrokBuild === undefined ? undefined : new XaiGrokWebSearchProvider(xaiGrokBuild);
   const fallbackSearcher = researchSearcher ?? localSearcher;
@@ -149,6 +150,7 @@ export async function createRuntimeConfig(input: {
           }),
     webSearcher,
     xaiGrokBuild,
+    qwenTokenPlanApiKey,
     browserUse,
     computerUse:
       input.config.computerUse?.enabled === false
@@ -214,6 +216,29 @@ function resolveXaiGrokBuildClient(
     tokenProvider,
     customHeaders,
   });
+}
+
+/** Provider ids that identify the Alibaba Token Plan service in configs. */
+const TOKEN_PLAN_PROVIDER_IDS = [
+  'qwen-token-plan',
+  'alibaba-token-plan',
+  'alibaba-token-plan-cn',
+] as const;
+
+/** Env vars that may carry a Token Plan dedicated API key. */
+const TOKEN_PLAN_ENV_KEYS = ['QWEN_TOKEN_PLAN_API_KEY', 'ALIBABA_TOKEN_PLAN_API_KEY'] as const;
+
+function resolveTokenPlanApiKey(config: LioraConfig): string | undefined {
+  // Env vars take priority over configured provider entries.
+  for (const envKey of TOKEN_PLAN_ENV_KEYS) {
+    const value = nonEmptyString(process.env[envKey]);
+    if (value !== undefined) return value;
+  }
+  for (const providerId of TOKEN_PLAN_PROVIDER_IDS) {
+    const apiKey = nonEmptyString(config.providers[providerId]?.apiKey);
+    if (apiKey !== undefined) return apiKey;
+  }
+  return undefined;
 }
 
 function serviceCredentials(

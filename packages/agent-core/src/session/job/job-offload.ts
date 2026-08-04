@@ -9,9 +9,9 @@
  *   ledger-only; worktree I/O and spawn handshakes suspend onto their own
  *   promises, so the ACK path never blocks. Pump failures are logged, never
  *   thrown into the caller.
- * - worker spawns run behind the serialized `WorkerSpawner` (V2-2): one
- *   handshake at a time, budget-abort after 30s, and budget-exceeded spawns
- *   recorded as `blocked` on ledger + inbox.
+ * - worker spawns run behind the bounded-concurrency `WorkerSpawner` (V2-2):
+ *   up to 3 handshakes at a time, budget-abort after 30s, and budget-exceeded
+ *   spawns recorded as `blocked` on ledger + inbox.
  *
  * The pump drain starts inline — not on a later macrotask — so a just-created
  * job's spawn handshake begins (microtask lane) before the JobCreate ACK

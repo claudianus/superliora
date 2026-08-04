@@ -29,15 +29,27 @@ const CACHEABLE_TYPES = new Set([
   'web_search_tool_result',
 ]);
 
+/**
+ * Find the last cacheable block of a message, walking backwards past blocks
+ * that cannot carry cache_control (e.g. trailing `thinking`). Returns the
+ * block to annotate, or undefined when nothing in the message is cacheable.
+ */
+function lastCacheableBlock(content: ContentBlockParam[]): CacheableBlock | undefined {
+  for (let i = content.length - 1; i >= 0; i--) {
+    const block = content[i] as CacheableBlock;
+    if (CACHEABLE_TYPES.has(block.type)) return block;
+  }
+  return undefined;
+}
+
 export function injectCacheControlOnLastBlock(messages: MessageParam[]): void {
   const lastMessage = messages.at(-1);
   if (lastMessage === undefined) return;
   const content = lastMessage.content;
   if (!Array.isArray(content) || content.length === 0) return;
-  const lastBlock = content.at(-1) as CacheableBlock | undefined;
-  if (lastBlock === undefined) return;
-  if (CACHEABLE_TYPES.has(lastBlock.type)) {
-    lastBlock.cache_control = CACHE_CONTROL;
+  const target = lastCacheableBlock(content);
+  if (target !== undefined) {
+    target.cache_control = CACHE_CONTROL;
   }
 }
 
@@ -54,10 +66,9 @@ export function injectCacheControlOnPenultimateBlock(messages: MessageParam[]): 
   if (penultimate === undefined) return;
   const content = penultimate.content;
   if (!Array.isArray(content) || content.length === 0) return;
-  const lastBlock = content.at(-1) as CacheableBlock | undefined;
-  if (lastBlock === undefined) return;
-  if (CACHEABLE_TYPES.has(lastBlock.type)) {
-    lastBlock.cache_control = CACHE_CONTROL;
+  const target = lastCacheableBlock(content);
+  if (target !== undefined) {
+    target.cache_control = CACHE_CONTROL;
   }
 }
 

@@ -1,19 +1,37 @@
 /**
- * Qwen Cloud Token Plan — first-class provider integration.
+ * Alibaba Token Plan (Qwen Cloud) — first-class provider integration.
  *
- * Zero-config: when `QWEN_TOKEN_PLAN_API_KEY` is set (or the user connects
- * via /provider), text generation, image generation, video generation, and
- * visual understanding all activate automatically. Harness tools (web
- * search, code interpreter, web extractor, image search) run server-side
- * and are invoked automatically by qwen3.7/3.8 models — no client setup.
+ * The models.dev catalog lists this service as `alibaba-token-plan` (and the
+ * China region as `alibaba-token-plan-cn`); it is the exact same service as
+ * the historical "Qwen Cloud Token Plan" entry point. All three identities
+ * are treated as one service here: connecting through any of them activates
+ * text generation, image generation, video generation, and visual
+ * understanding. Harness tools (web search, code interpreter, web extractor,
+ * image search) run server-side and are invoked automatically by the models
+ * that support them — no client setup.
+ *
+ * Zero-config: when `QWEN_TOKEN_PLAN_API_KEY` or `ALIBABA_TOKEN_PLAN_API_KEY`
+ * is set (or the user connects via /provider), everything activates
+ * automatically. Model names and metadata resolve live from the models.dev
+ * catalog whenever it is reachable; the built-in presets below are the
+ * offline fallback.
  */
 
-import type { LioraConfig } from '@superliora/sdk';
+import type { Catalog, LioraConfig } from '@superliora/sdk';
 
 // ── Constants ──────────────────────────────────────────────────────────
 
-/** Token Plan dedicated API key environment variable. */
+/** Token Plan dedicated API key environment variable (legacy name). */
 export const QWEN_TOKEN_PLAN_ENV_KEY = 'QWEN_TOKEN_PLAN_API_KEY';
+
+/** Token Plan API key environment variable listed by models.dev. */
+export const ALIBABA_TOKEN_PLAN_ENV_KEY = 'ALIBABA_TOKEN_PLAN_API_KEY';
+
+/** Every env var that may carry a Token Plan dedicated key. */
+export const TOKEN_PLAN_ENV_KEYS: readonly string[] = [
+  QWEN_TOKEN_PLAN_ENV_KEY,
+  ALIBABA_TOKEN_PLAN_ENV_KEY,
+];
 
 /** Optional override for the base URL (e.g. regional endpoint). */
 export const QWEN_TOKEN_PLAN_BASE_URL_ENV = 'QWEN_TOKEN_PLAN_BASE_URL';
@@ -21,9 +39,46 @@ export const QWEN_TOKEN_PLAN_BASE_URL_ENV = 'QWEN_TOKEN_PLAN_BASE_URL';
 /** Provider id used in config.providers and model alias prefixes. */
 export const QWEN_TOKEN_PLAN_PROVIDER_ID = 'qwen-token-plan';
 
-/** OpenAI-compatible chat completions base URL. */
+/** models.dev catalog id for the same service (global region). */
+export const ALIBABA_TOKEN_PLAN_CATALOG_ID = 'alibaba-token-plan';
+
+/** models.dev catalog id for the same service (China region). */
+export const ALIBABA_TOKEN_PLAN_CN_CATALOG_ID = 'alibaba-token-plan-cn';
+
+/** Every catalog id that maps to the Token Plan service. */
+export const TOKEN_PLAN_CATALOG_IDS: readonly string[] = [
+  ALIBABA_TOKEN_PLAN_CATALOG_ID,
+  ALIBABA_TOKEN_PLAN_CN_CATALOG_ID,
+];
+
+/**
+ * Every provider id that identifies a Token Plan service entry in
+ * `config.providers` (the canonical first-class id plus the models.dev
+ * catalog ids a user may have connected through).
+ */
+export const TOKEN_PLAN_PROVIDER_IDS: readonly string[] = [
+  QWEN_TOKEN_PLAN_PROVIDER_ID,
+  ALIBABA_TOKEN_PLAN_CATALOG_ID,
+  ALIBABA_TOKEN_PLAN_CN_CATALOG_ID,
+];
+
+/** Returns `true` when `providerId` refers to any Token Plan service entry. */
+export function isTokenPlanProviderId(providerId: string): boolean {
+  return TOKEN_PLAN_PROVIDER_IDS.includes(providerId);
+}
+
+/** Returns `true` when `catalogId` is a models.dev Token Plan entry. */
+export function isTokenPlanCatalogId(catalogId: string): boolean {
+  return TOKEN_PLAN_CATALOG_IDS.includes(catalogId);
+}
+
+/** OpenAI-compatible chat completions base URL (global region). */
 export const QWEN_TOKEN_PLAN_BASE_URL =
   'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1';
+
+/** OpenAI-compatible chat completions base URL (China region). */
+export const QWEN_TOKEN_PLAN_CN_BASE_URL =
+  'https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1';
 
 /** Multimodal generation (image) API endpoint. */
 export const QWEN_TOKEN_PLAN_IMAGE_API_URL =
@@ -135,6 +190,7 @@ export const QWEN_TOKEN_PLAN_IMAGE_MODELS = [
   'wan2.7-image',
   'wan2.7-image-pro',
   'qwen-image-2.0',
+  'qwen-image-2.0-pro',
 ] as const;
 
 /** Video generation models available on Token Plan. */
@@ -149,16 +205,23 @@ export const QWEN_TOKEN_PLAN_VIDEO_MODELS = {
 /**
  * Resolves the Token Plan API key from the environment or an existing
  * provider config. Returns `undefined` when no key is available.
+ *
+ * Checks both dedicated env vars and every Token Plan provider identity
+ * (canonical first-class id plus the models.dev catalog ids).
  */
 export function detectQwenTokenPlanKey(config?: LioraConfig): string | undefined {
   // 1. Environment variable takes priority.
-  const envKey = process.env[QWEN_TOKEN_PLAN_ENV_KEY]?.trim();
-  if (envKey !== undefined && envKey.length > 0) return envKey;
+  for (const envKey of TOKEN_PLAN_ENV_KEYS) {
+    const value = process.env[envKey]?.trim();
+    if (value !== undefined && value.length > 0) return value;
+  }
 
   // 2. Fall back to an already-configured provider entry.
-  const provider = config?.providers?.[QWEN_TOKEN_PLAN_PROVIDER_ID];
-  if (provider?.apiKey !== undefined && provider.apiKey.length > 0) {
-    return provider.apiKey;
+  for (const providerId of TOKEN_PLAN_PROVIDER_IDS) {
+    const provider = config?.providers?.[providerId];
+    if (provider?.apiKey !== undefined && provider.apiKey.length > 0) {
+      return provider.apiKey;
+    }
   }
 
   return undefined;
@@ -183,25 +246,128 @@ export function validateQwenTokenPlanKeyFormat(key: string): string | undefined 
   return undefined;
 }
 
+// ── Live model resolution from the models.dev catalog ──────────────────
+
+type TokenPlanCatalogModelEntry = NonNullable<Catalog[string]['models']>[string];
+
+/**
+ * Model-family heuristic for server-side harness tool eligibility. Mirrors
+ * `qwenHarnessToolsForModel` in `packages/kosong` so catalog-derived models
+ * (which are not in the built-in presets) resolve the same tool set.
+ */
+export function qwenHarnessToolsForModelId(modelId: string): readonly string[] {
+  const normalized = modelId.toLowerCase();
+  // qwen3.8* and qwen3.7-plus support every harness tool.
+  if (normalized.includes('qwen3.8') || normalized.includes('qwen3.7-plus')) {
+    return ALL_HARNESS_TOOLS;
+  }
+  // Other qwen3.7 variants support the core tools only.
+  if (normalized.includes('qwen3.7')) {
+    return CORE_HARNESS_TOOLS;
+  }
+  // Non-Qwen models (GLM, DeepSeek, Kimi, …) run without harness tools.
+  return [];
+}
+
+function isEmbeddingModel(model: TokenPlanCatalogModelEntry): boolean {
+  const markers = [model.id, model.name, model.family];
+  return markers.some(
+    (value) =>
+      typeof value === 'string' &&
+      (value.toLowerCase().includes('embedding') || /(?:^|[-_/])embed(?:$|[-_/])/.test(value.toLowerCase())),
+  );
+}
+
+/**
+ * Extracts the live text-generation model list for the Token Plan service
+ * from a models.dev-style catalog entry. Returns `undefined` when the entry
+ * is missing or yields no usable chat model — callers fall back to the
+ * built-in {@link QWEN_TOKEN_PLAN_TEXT_MODELS} presets.
+ *
+ * Image/video-output models are excluded (they back the media tools, not
+ * chat aliases); capabilities and harness tools derive from the catalog's
+ * `reasoning` / `tool_call` / `modalities` metadata.
+ */
+export function tokenPlanTextModelsFromCatalog(
+  catalog: Catalog,
+  catalogId: string = ALIBABA_TOKEN_PLAN_CATALOG_ID,
+): readonly QwenTokenPlanModelDef[] | undefined {
+  const entry = catalog[catalogId];
+  const models = entry?.models;
+  if (models === undefined) return undefined;
+
+  const defs: QwenTokenPlanModelDef[] = [];
+  for (const model of Object.values(models)) {
+    const id = model.id;
+    if (typeof id !== 'string' || id.length === 0) continue;
+    // Chat aliases carry text output; image/video models are media-only.
+    const outputs = model.modalities?.output;
+    if (outputs !== undefined && !outputs.includes('text')) continue;
+    if (isEmbeddingModel(model)) continue;
+    const context = model.limit?.context;
+    if (typeof context !== 'number' || !Number.isInteger(context) || context <= 0) continue;
+
+    const capabilities: string[] = [];
+    if (model.reasoning === true) capabilities.push('thinking');
+    if (model.tool_call !== false) capabilities.push('tool_use');
+    if (model.modalities?.input?.includes('image') === true) capabilities.push('image_in');
+
+    const output = model.limit?.output;
+    defs.push({
+      id,
+      displayName: typeof model.name === 'string' && model.name.length > 0 ? model.name : id,
+      maxContextSize: context,
+      ...(typeof output === 'number' && output > 0 ? { maxOutputSize: output } : {}),
+      capabilities,
+      harnessTools: qwenHarnessToolsForModelId(id),
+    });
+  }
+  return defs.length > 0 ? defs : undefined;
+}
+
 // ── Config application ─────────────────────────────────────────────────
+
+export interface ApplyQwenTokenPlanOptions {
+  /**
+   * Live model list resolved from the models.dev catalog. Falls back to the
+   * built-in {@link QWEN_TOKEN_PLAN_TEXT_MODELS} presets when omitted.
+   */
+  readonly models?: readonly QwenTokenPlanModelDef[];
+  /** Regional base URL (e.g. the China endpoint). Env override still wins. */
+  readonly baseUrl?: string;
+}
 
 export interface ApplyQwenTokenPlanResult {
   readonly providerId: string;
   readonly defaultModel: string;
   readonly modelCount: number;
+  /** Where the applied model metadata came from. */
+  readonly modelSource: 'catalog' | 'preset';
 }
 
+/** Preferred default models, in priority order. */
+const TOKEN_PLAN_DEFAULT_MODEL_PRIORITY: readonly string[] = [
+  'qwen3.8-max-preview',
+  'qwen3.8-max',
+];
+
 /**
- * Writes the Qwen Token Plan provider and all text model aliases into
- * `config`, sets the default model to `qwen3.8-max-preview`, and returns
- * metadata for status display.
+ * Writes the Token Plan provider and its text model aliases into `config`,
+ * sets the default model, and returns metadata for status display. Model
+ * metadata comes from the models.dev catalog when `options.models` is
+ * provided, otherwise from the built-in presets.
  */
 export function applyQwenTokenPlanProvider(
   config: LioraConfig,
   apiKey: string,
+  options: ApplyQwenTokenPlanOptions = {},
 ): ApplyQwenTokenPlanResult {
+  const envBaseUrl = process.env[QWEN_TOKEN_PLAN_BASE_URL_ENV]?.trim();
   const baseUrl =
-    process.env[QWEN_TOKEN_PLAN_BASE_URL_ENV]?.trim() ?? QWEN_TOKEN_PLAN_BASE_URL;
+    envBaseUrl !== undefined && envBaseUrl.length > 0
+      ? envBaseUrl
+      : options.baseUrl ?? QWEN_TOKEN_PLAN_BASE_URL;
+  const textModels = options.models ?? QWEN_TOKEN_PLAN_TEXT_MODELS;
 
   // Register provider.
   config.providers = {
@@ -225,7 +391,7 @@ export function applyQwenTokenPlanProvider(
   }
 
   // Register text model aliases.
-  for (const modelDef of QWEN_TOKEN_PLAN_TEXT_MODELS) {
+  for (const modelDef of textModels) {
     models[`${QWEN_TOKEN_PLAN_PROVIDER_ID}/${modelDef.id}`] = {
       provider: QWEN_TOKEN_PLAN_PROVIDER_ID,
       model: modelDef.id,
@@ -237,26 +403,30 @@ export function applyQwenTokenPlanProvider(
   }
   config.models = models;
 
-  // Set default model.
-  const defaultModel = `${QWEN_TOKEN_PLAN_PROVIDER_ID}/${QWEN_TOKEN_PLAN_TEXT_MODELS[0]!.id}`;
+  // Set default model: preferred flagship when present, else the first model.
+  const preferred = TOKEN_PLAN_DEFAULT_MODEL_PRIORITY.find((id) =>
+    textModels.some((m) => m.id === id),
+  );
+  const defaultModelId = preferred ?? textModels[0]!.id;
+  const defaultModel = `${QWEN_TOKEN_PLAN_PROVIDER_ID}/${defaultModelId}`;
   config.defaultModel = defaultModel;
   config.defaultThinking = true;
 
   return {
     providerId: QWEN_TOKEN_PLAN_PROVIDER_ID,
     defaultModel,
-    modelCount: QWEN_TOKEN_PLAN_TEXT_MODELS.length,
+    modelCount: textModels.length,
+    modelSource: options.models !== undefined ? 'catalog' : 'preset',
   };
 }
 
 /**
- * Returns the harness tools supported by a given Qwen Token Plan model.
+ * Returns the harness tools supported by a given Token Plan model.
  * Informational only: harness tools run server-side and are invoked
  * automatically — no client-side tool injection is required.
  */
 export function getQwenHarnessToolsForModel(modelId: string): readonly string[] {
-  const def = QWEN_TOKEN_PLAN_TEXT_MODELS.find((m) => m.id === modelId);
-  return def?.harnessTools ?? [];
+  return qwenHarnessToolsForModelId(modelId);
 }
 
 /**

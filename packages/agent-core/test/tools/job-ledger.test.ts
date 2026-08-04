@@ -42,7 +42,12 @@ import {
   ConductorDirectWorkGuard,
 } from '../../src/agent/conductor-guard';
 import { __resetJobWorkerHandlesForTests } from '../../src/tools/builtin/job/job-handles';
-import { interruptRunningJobs, resumeJobs } from '../../src/tools/builtin/job/job-worker';
+import {
+  interruptRunningJobs,
+  jobPrompt,
+  JOB_PRIOR_FINDINGS_MAX_CHARS,
+  resumeJobs,
+} from '../../src/tools/builtin/job/job-worker';
 import {
   assertMissionLifecycleTools,
   missingMissionLifecycleTools,
@@ -350,14 +355,20 @@ describe('merge trust + worker guards + warm pool', () => {
     expect(guardWorkerShellCommand('git status', { isWorker: true }).allowed).toBe(true);
     expect(guardWorkerShellCommand('git push origin HEAD', { isWorker: false }).allowed).toBe(true);
 
-    const { ensureWarmPool, creditWarmPoolSlot, readWarmPoolState } = await import(
-      '../../src/tools/builtin/job/job-warm-pool'
-    );
+    const { ensureWarmPool, creditWarmPoolSlot, readWarmPoolState, warmPoolSpawner } =
+      await import('../../src/tools/builtin/job/job-warm-pool');
     const store = memoryStore();
-    const first = ensureWarmPool(store, { warmPoolSize: 2, maxConcurrentJobs: 6 });
+    const first = ensureWarmPool(store, { warmPoolSize: 2, maxConcurrentJobs: 6, failTtlDays: 7 });
     expect(first.deficit).toBe(2);
+    // Record-only default: message stays neutral and pre-spawn is gated off.
+    expect(first.message).toMatch(/pre-spawn disabled/);
+    expect(warmPoolSpawner({ subagentHost: {} }, {})).toBeUndefined();
+    expect(warmPoolSpawner(undefined, { SUPERLIORA_CONDUCTOR_WARM_POOL_SPAWN: '1' })).toBeUndefined();
+    expect(
+      warmPoolSpawner({ subagentHost: {} }, { SUPERLIORA_CONDUCTOR_WARM_POOL_SPAWN: '1' }),
+    ).not.toBeUndefined();
     creditWarmPoolSlot(store, 2);
-    const second = ensureWarmPool(store, { warmPoolSize: 2, maxConcurrentJobs: 6 });
+    const second = ensureWarmPool(store, { warmPoolSize: 2, maxConcurrentJobs: 6, failTtlDays: 7 });
     expect(second.deficit).toBe(0);
     expect(readWarmPoolState(store).readySlots).toBe(2);
   });
@@ -460,6 +471,172 @@ describe('job inbox + resume + strip', () => {
     expect(strip.queued).toBe(1);
     expect(formatJobStripLine(strip, 2)).toMatch(/Jobs:/);
     expect(formatJobStripLine(strip, 2)).toMatch(/inbox 2/);
+  });
+});
+
+describe('worker context handoff', () => {
+  it('renders context_paths and parent findings into the worker prompt', () => {
+    const store = memoryStore();
+    const parent = createJob(store, { title: 'explore auth', kind: 'explore' });
+    patchJob(store, parent.id, {
+      status: 'done',
+      resultSummary: 'entry point is src/auth/session.ts',
+    });
+    const child = createJob(store, {
+      title: 'fix auth race',
+      kind: 'implement',
+      prompt: 'Fix the token refresh race.',
+      contextPaths: ['src/auth/session.ts', 'test/auth.test.ts'],
+      parentJobId: parent.id,
+      ownershipPaths: ['src/auth'],
+    });
+
+    const prompt = jobPrompt(child, store);
+    expect(prompt).toContain('Read these first: src/auth/session.ts, test/auth.test.ts');
+    expect(prompt).toContain(`Prior findings from parent job ${parent.id}:`);
+    expect(prompt).toContain('entry point is src/auth/session.ts');
+    // Read-first hints land before scope hints so the worker scans top-down.
+    expect(prompt.indexOf('Read these first')).toBeLessThan(prompt.indexOf('Preferred paths'));
+  });
+
+  it('caps parent findings at the handoff budget', () => {
+    const store = memoryStore();
+    const parent = createJob(store, { title: 'long explore' });
+    patchJob(store, parent.id, {
+      status: 'done',
+      resultSummary: 'x'.repeat(JOB_PRIOR_FINDINGS_MAX_CHARS + 50),
+    });
+    const child = createJob(store, { title: 'child', parentJobId: parent.id });
+
+    const prompt = jobPrompt(child, store);
+    expect(prompt).toContain('[truncated]');
+    expect(prompt).not.toContain('x'.repeat(JOB_PRIOR_FINDINGS_MAX_CHARS + 1));
+  });
+
+  it('persists needs_user answers onto the prompt so relaunched workers see them', async () => {
+    const store = memoryStore();
+    const job = createJob(store, { title: 'needs answer', prompt: 'Original brief.' });
+    patchJob(store, job.id, { status: 'needs_user' });
+
+    const result = await resumeJobs({ store, jobId: job.id, answer: 'Use sqlite.' });
+    expect(result.ok).toBe(true);
+    const updated = getJob(store, job.id);
+    expect(updated?.prompt).toContain('Original brief.');
+    expect(updated?.prompt).toContain('[user-answer] Use sqlite.');
+    expect(updated?.notes).toContain('user-answer: Use sqlite.');
+    expect(jobPrompt(updated!, store)).toContain('[user-answer] Use sqlite.');
+  });
+
+  it('delivers context_paths and parent findings through JobCreate into the spawned prompt', async () => {
+    const store = memoryStore();
+    const parent = createJob(store, { title: 'explore first', kind: 'explore' });
+    patchJob(store, parent.id, { status: 'done', resultSummary: 'race lives in refresh()' });
+
+    const spawnedPrompts: string[] = [];
+    const completion = new Promise<never>(() => {});
+    const host = {
+      spawn: async (options: { prompt: string; profileName?: string }) => {
+        spawnedPrompts.push(options.prompt);
+        return {
+          agentId: 'agent_ctx',
+          profileName: options.profileName ?? 'coder',
+          resumed: false,
+          completion,
+        } as never;
+      },
+    };
+    const agent = { subagentHost: host, config: { cwd: undefined } } as never;
+    const tool = new JobCreateTool(store, agent);
+    const exec = tool.resolveExecution({
+      title: 'implement after explore',
+      kind: 'implement',
+      prompt: 'Fix the refresh race.',
+      context_paths: ['src/auth/session.ts'],
+      parent_job_id: parent.id,
+    });
+    if (exec.isError) throw new Error('resolve failed');
+    const out = await exec.execute({
+      turnId: 't',
+      toolCallId: 'c_ctx',
+      signal: new AbortController().signal,
+    });
+    expect(out.isError).toBe(false);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(spawnedPrompts).toHaveLength(1);
+    expect(spawnedPrompts[0]).toContain('Read these first: src/auth/session.ts');
+    expect(spawnedPrompts[0]).toContain('race lives in refresh()');
+  });
+
+  it('marks jobs failed when the completion contract reports verification failure', async () => {
+    const store = memoryStore();
+    const contract = {
+      agent_id: 'agent_vf',
+      profile: 'coder',
+      deviations: [],
+      summary: 'implemented the fix',
+      files_changed: ['src/auth/session.ts'],
+      verification: { tests: 'failed', typecheck: 'passed', lint: 'not_run' },
+      verification_failed: true,
+    };
+    let resolveCompletion!: (value: {
+      result: string;
+      contract: typeof contract;
+    }) => void;
+    const completion = new Promise<{ result: string; contract: typeof contract }>(
+      (resolve) => {
+        resolveCompletion = resolve;
+      },
+    );
+    const host = {
+      spawn: async (options: { prompt: string; profileName?: string }) => ({
+        agentId: 'agent_vf',
+        profileName: options.profileName ?? 'coder',
+        resumed: false,
+        completion,
+      }),
+    };
+    const agent = { subagentHost: host, config: { cwd: undefined } } as never;
+    const tool = new JobCreateTool(store, agent);
+    const exec = tool.resolveExecution({ title: 'risky change', kind: 'implement' });
+    if (exec.isError) throw new Error('resolve failed');
+    await exec.execute({
+      turnId: 't',
+      toolCallId: 'c_vf',
+      signal: new AbortController().signal,
+    });
+    resolveCompletion({ result: 'done\n<subagent-result>...</subagent-result>', contract });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const job = listJobs(store)[0];
+    if (!job) throw new Error('job missing');
+    expect(job.status).toBe('failed');
+    expect(job.resultSummary).toContain('verification failed');
+    expect(job.resultSummary).toContain('implemented the fix');
+    expect(job.resultContract?.files_changed).toEqual(['src/auth/session.ts']);
+  });
+
+  it('propagates structured contract facts into child prior findings', () => {
+    const store = memoryStore();
+    const parent = createJob(store, { title: 'parent', kind: 'implement' });
+    patchJob(store, parent.id, {
+      status: 'done',
+      resultSummary: 'done',
+      resultContract: {
+        agent_id: 'agent_p',
+        profile: 'coder',
+        deviations: [],
+        summary: 'done',
+        files_changed: ['src/a.ts', 'src/b.ts'],
+        verification: { tests: 'passed', typecheck: 'passed', lint: 'not_run' },
+        verification_failed: false,
+      },
+    });
+    const child = createJob(store, { title: 'child', parentJobId: parent.id });
+
+    const prompt = jobPrompt(child, store);
+    expect(prompt).toContain('Files changed: src/a.ts, src/b.ts');
+    expect(prompt).toContain('Verification: tests=passed, typecheck=passed, lint=not_run');
   });
 });
 

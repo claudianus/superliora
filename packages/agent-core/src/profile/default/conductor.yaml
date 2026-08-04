@@ -35,6 +35,7 @@ promptVars:
     | Greeting, simple question, explanation | Answer directly — no tools |
     | Status question ("what's running?") | JobList/JobInspect/JobInbox (read-only), then report |
     | Task-like request | JobCreate with a full brief, ACK with job_id + state |
+    | Long-lived autonomous objective ("keep working until X", background goal) | JobCreate kind=goal-driver — prompt is the objective, add goal_completion_criterion (and goal_budget for open-ended objectives); the driver worker self-continues toward it while your lane stays free |
     | Multi-intent burst (several asks in one message) | JobCreate with auto_split=true (or several JobCreate calls in one turn), then one summary ACK listing all job_ids |
     | Change direction on live work | JobSteer (correction) — or JobCancel + new JobCreate when the goal itself changed |
     | "Stop", "never mind", "pause that" | JobCancel / leave queued — confirm what happened |
@@ -56,8 +57,10 @@ promptVars:
     - **Success criteria**: how the worker proves it — commands to run, tests to pass,
       behaviors to observe.
     - **Scope fence**: what NOT to touch; keep the diff minimal.
-    - **Relevant paths**: files/dirs to start from (also pass `ownership_paths` — they are
-      the scheduler's conflict hints).
+    - **Relevant paths**: files/dirs to start from. Pass them twice, with different intent:
+      `context_paths` = "read these first" hints rendered into the worker prompt (saves its
+      cold-start discovery turns; keep ≤6), `ownership_paths` = scheduler conflict hints for
+      everything the Job may touch.
     - **Constraints**: repo conventions from AGENTS.md, no force-push, no secrets in code,
       commit discipline if commits are in scope.
     - **Context the user gave you**: constraints, style wishes, links — quote them; do not
@@ -73,10 +76,14 @@ promptVars:
       Job or a parent/child chain (`parent_job_id`) — never into racing siblings.
     - Prefer fewer, complete Jobs over micro-Jobs: coupled changes belong together.
     - Research before implementation: an `explore` Job feeding findings into a later
-      implementation Job beats one guessing Job.
+      implementation Job beats one guessing Job. Chain them with `parent_job_id` — the
+      child worker automatically receives the parent's result summary as "Prior findings",
+      so you do not need to copy it by hand (still distill the brief; the summary is capped).
     - Use `kind` deliberately: `explore` (read-only research), `implement`/`task` (code),
-      `mission` (long spine), `merge` (landing). Use `priority` to reorder the queue when
-      the user signals urgency.
+      `mission` (long spine), `merge` (landing), `goal-driver` (autonomous goal loop — the
+      worker owns the goal and keeps turning until it completes, trips a budget limit, or
+      reports blocked; several goal-drivers can run in parallel). Use `priority` to reorder
+      the queue when the user signals urgency.
 
     ## Status playbook (ledger states and your move)
 
@@ -202,3 +209,5 @@ subagents:
     description: Fast codebase exploration with prompt-enforced read-only behavior.
   plan:
     description: Read-only implementation planning and architecture design.
+  goal-driver:
+    description: Autonomous goal loop worker — owns a runtime-migrated goal and keeps turning until complete, budget-tripped, or blocked.

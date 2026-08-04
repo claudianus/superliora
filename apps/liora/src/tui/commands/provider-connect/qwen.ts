@@ -1,30 +1,74 @@
+import type { Catalog } from '@superliora/sdk';
+
 import {
+  ALIBABA_TOKEN_PLAN_CATALOG_ID,
+  ALIBABA_TOKEN_PLAN_CN_CATALOG_ID,
   applyQwenTokenPlanProvider,
+  QWEN_TOKEN_PLAN_BASE_URL,
+  QWEN_TOKEN_PLAN_CN_BASE_URL,
   QWEN_TOKEN_PLAN_PROVIDER_ID,
   QWEN_TOKEN_PLAN_TEXT_MODELS,
+  TOKEN_PLAN_ENV_KEYS,
+  tokenPlanTextModelsFromCatalog,
   validateQwenTokenPlanKeyFormat,
 } from '#/tui/utils/model/qwen-token-plan';
 import { type ProviderCatalogOption } from '#/tui/utils/model/provider-catalog-options';
+import { loadCatalog } from '#/utils/catalog-cache';
 import { promptApiKeyForCatalogProvider } from '../auth/prompts';
 import type { SlashCommandHost } from '../hub/dispatch';
 import { openModelPickerForProvider } from './model-picker';
 
 /**
- * Connects Qwen Cloud Token Plan — a first-class multimodal subscription
- * supporting text generation, image generation (wan2.7-image), video
- * generation (happyhorse-1.1), server-side harness tools (web_search,
- * code_interpreter, …), and visual understanding. The user only needs to
- * provide their dedicated API key (sk-sp-xxxxx format).
+ * Connects Alibaba Token Plan (Qwen Cloud) — a first-class multimodal
+ * subscription supporting text generation, image generation (wan2.7-image,
+ * qwen-image-2.0), video generation (happyhorse-1.1), server-side harness
+ * tools (web_search, code_interpreter, …), and visual understanding. The
+ * user only needs to provide their dedicated API key (sk-sp-xxxxx format).
+ *
+ * Model names and metadata resolve live from the models.dev catalog
+ * (`alibaba-token-plan` / `alibaba-token-plan-cn`); the built-in presets are
+ * the offline fallback. `catalogId` selects the region entry.
  */
-export async function connectQwenTokenPlan(host: SlashCommandHost): Promise<void> {
+export async function connectQwenTokenPlan(
+  host: SlashCommandHost,
+  catalogId: string = ALIBABA_TOKEN_PLAN_CATALOG_ID,
+): Promise<void> {
+  // Resolve the live model list from models.dev (best-effort, cached on disk).
+  let catalog: Catalog | undefined;
+  try {
+    catalog = await loadCatalog();
+  } catch {
+    catalog = undefined;
+  }
+  const liveModels = catalog === undefined
+    ? undefined
+    : tokenPlanTextModelsFromCatalog(catalog, catalogId);
+  const usingLiveModels = liveModels !== undefined;
+
+  const catalogEntry = catalog?.[catalogId];
+  const fallbackBaseUrl =
+    catalogId === ALIBABA_TOKEN_PLAN_CN_CATALOG_ID
+      ? QWEN_TOKEN_PLAN_CN_BASE_URL
+      : QWEN_TOKEN_PLAN_BASE_URL;
+  const baseUrl =
+    typeof catalogEntry?.api === 'string' && catalogEntry.api.length > 0
+      ? catalogEntry.api
+      : fallbackBaseUrl;
+
   const option: ProviderCatalogOption = {
     value: 'qwen-token-plan',
-    label: 'Qwen Cloud (Token Plan)',
+    label:
+      typeof catalogEntry?.name === 'string' && catalogEntry.name.length > 0
+        ? catalogEntry.name
+        : 'Qwen Cloud (Token Plan)',
     authKind: 'api-key',
-    modelCount: QWEN_TOKEN_PLAN_TEXT_MODELS.length,
-    baseUrl: 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1',
-    envVars: ['QWEN_TOKEN_PLAN_API_KEY'],
-    docUrl: 'https://docs.qwencloud.com/token-plan/overview',
+    modelCount: liveModels?.length ?? QWEN_TOKEN_PLAN_TEXT_MODELS.length,
+    baseUrl,
+    envVars: [...TOKEN_PLAN_ENV_KEYS],
+    docUrl:
+      typeof catalogEntry?.doc === 'string' && catalogEntry.doc.length > 0
+        ? catalogEntry.doc
+        : 'https://docs.qwencloud.com/token-plan/overview',
   };
 
   const apiKey = await promptApiKeyForCatalogProvider(host, option);
@@ -42,7 +86,10 @@ export async function connectQwenTokenPlan(host: SlashCommandHost): Promise<void
   }
 
   const freshConfig = await host.harness.getConfig();
-  const result = applyQwenTokenPlanProvider(freshConfig, apiKey);
+  const result = applyQwenTokenPlanProvider(freshConfig, apiKey, {
+    ...(liveModels !== undefined ? { models: liveModels } : {}),
+    baseUrl,
+  });
 
   await host.harness.setConfig({
     providers: freshConfig.providers,
@@ -53,8 +100,9 @@ export async function connectQwenTokenPlan(host: SlashCommandHost): Promise<void
 
   await host.authFlow.refreshConfigAfterLogin();
   host.track('connect', { provider: QWEN_TOKEN_PLAN_PROVIDER_ID, method: 'qwen_token_plan' });
+  const modelSource = usingLiveModels ? 'live models.dev catalog' : 'built-in presets';
   host.showStatus(
-    `Qwen Cloud (Token Plan) connected: ${String(result.modelCount)} models. ` +
+    `Alibaba Token Plan (Qwen Cloud) connected: ${String(result.modelCount)} models from ${modelSource}. ` +
     'Image/video generation, harness tools, and visual understanding enabled.',
     'success',
   );

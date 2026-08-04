@@ -695,6 +695,8 @@ describe('Agent context', () => {
     expect(ctx.agent.context.messages.map((message) => message.role)).toEqual([
       'user',
       'user',
+      // Frozen zone: the original user message survives compaction verbatim.
+      'user',
       'assistant',
       'tool',
       'tool',
@@ -713,6 +715,7 @@ describe('Agent context', () => {
     });
 
     expect(ctx.agent.context.messages.map((message) => message.role)).toEqual([
+      'user',
       'user',
       'user',
       'assistant',
@@ -848,6 +851,7 @@ describe('Agent context', () => {
       system: <system-prompt>
       tools: []
       messages:
+        user: text "old user message"
         user: text "summary of old context"
         user: text "recent user message\\n\\nnew prompt"
         user: text <current-time-reminder>

@@ -414,6 +414,9 @@ export async function runCompactionRound(
     });
     const applied = host.agent.context.applyCompaction(result);
     host.lastCompactedTokenCount = applied.tokensAfter;
+    // The next request re-sends the retained tail from a cold cache; observe
+    // its cache-read/creation split to measure how the tail size tunes.
+    host.agent.usage.noteCompactionApplied('full', result.retainedTokens);
     return applied;
   } catch (error) {
     if (isAbortError(error)) return;

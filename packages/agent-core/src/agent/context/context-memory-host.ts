@@ -10,6 +10,11 @@ export interface ContextMemoryHost {
   tokenCountCoveredMessageCount: number;
   openSteps: Map<string, ContextMessage>;
   pendingToolResultIds: Set<string>;
+  /**
+   * toolCallId → tool name for calls whose results have not landed yet.
+   * Lets the append path detect swarm results without re-scanning history.
+   */
+  toolCallNames: Map<string, string>;
   lateAcceptedToolCallIds: Map<string, number>;
   intendedToolCalls: Map<string, LoopToolIntendEvent>;
   deferredMessages: ContextMessage[];

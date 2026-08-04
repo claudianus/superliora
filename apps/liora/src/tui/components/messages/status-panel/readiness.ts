@@ -130,7 +130,12 @@ const QWEN_TOKEN_PLAN_PROVIDER_ID = 'qwen-token-plan';
 
 function formatQwenTokenPlanGate(options: StatusReportOptions): string {
   const providers = options.availableProviders ?? {};
-  const tokenPlanProvider = providers[QWEN_TOKEN_PLAN_PROVIDER_ID];
+  // Any Token Plan identity counts: the canonical first-class id plus the
+  // models.dev catalog ids (alibaba-token-plan / alibaba-token-plan-cn).
+  const tokenPlanProvider =
+    providers[QWEN_TOKEN_PLAN_PROVIDER_ID] ??
+    providers['alibaba-token-plan'] ??
+    providers['alibaba-token-plan-cn'];
   if (tokenPlanProvider === undefined) return 'not connected';
   const hasKey = tokenPlanProvider.apiKey !== undefined && tokenPlanProvider.apiKey.length > 0;
   if (!hasKey) return 'configured (no key)';

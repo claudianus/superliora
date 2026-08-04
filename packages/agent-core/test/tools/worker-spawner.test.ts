@@ -1,13 +1,14 @@
 /**
  * V2-2 spawn isolation tests (contract §3, checklist V2-2):
- * serialized spawn queue, duplicate-spawn rejection, failure isolation,
- * and the spawn budget guard.
+ * bounded-concurrency spawn queue, duplicate-spawn rejection, failure
+ * isolation, and the spawn budget guard.
  */
 
 import { describe, expect, it } from 'vitest';
 
 import {
   JOB_WORKER_SPAWN_BUDGET_MS,
+  JOB_WORKER_SPAWN_MAX_CONCURRENT,
   WorkerSpawner,
   type WorkerSpawnPhase,
 } from '../../src/session/job/worker-spawner';
@@ -21,8 +22,51 @@ describe('WorkerSpawner (V2-2 spawn isolation)', () => {
     expect(JOB_WORKER_SPAWN_BUDGET_MS).toBe(30_000);
   });
 
-  it('serializes concurrent spawns in FIFO order', async () => {
+  it('locks the parallel handshake budget at 3', () => {
+    expect(JOB_WORKER_SPAWN_MAX_CONCURRENT).toBe(3);
+  });
+
+  it('spawns a batch in parallel up to the concurrency cap', async () => {
     const spawner = new WorkerSpawner();
+    const running: string[] = [];
+    const done: string[] = [];
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const gates: Record<string, () => void> = {};
+
+    const makeRun = (key: string) => async () => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      running.push(key);
+      await new Promise<void>((resolve) => {
+        gates[key] = resolve;
+      });
+      inFlight -= 1;
+      done.push(key);
+    };
+
+    expect(spawner.enqueue({ key: 'job_a', run: makeRun('job_a') }).queued).toBe(true);
+    expect(spawner.enqueue({ key: 'job_b', run: makeRun('job_b') }).queued).toBe(true);
+    expect(spawner.enqueue({ key: 'job_c', run: makeRun('job_c') }).queued).toBe(true);
+    await defer();
+
+    // All three handshakes run in parallel under the default cap — batches
+    // no longer pay n×budget.
+    expect(running).toEqual(['job_a', 'job_b', 'job_c']);
+    expect(maxInFlight).toBe(3);
+    expect(spawner.isSpawning('job_a')).toBe(true);
+
+    gates['job_a']!();
+    gates['job_b']!();
+    gates['job_c']!();
+    await spawner.settle();
+    expect(done).toEqual(['job_a', 'job_b', 'job_c']);
+    expect(spawner.queuedCount).toBe(0);
+    expect(spawner.currentSpawningKey).toBeUndefined();
+  });
+
+  it('serializes spawns in FIFO order when concurrency is 1', async () => {
+    const spawner = new WorkerSpawner({ maxConcurrent: 1 });
     const running: string[] = [];
     const done: string[] = [];
     let inFlight = 0;
@@ -93,7 +137,8 @@ describe('WorkerSpawner (V2-2 spawn isolation)', () => {
   });
 
   it('isolates spawn failures from the caller stack and the queue', async () => {
-    const spawner = new WorkerSpawner();
+    // Serialized so the failure phase order stays deterministic.
+    const spawner = new WorkerSpawner({ maxConcurrent: 1 });
     const phases: Array<{ key: string; phase: WorkerSpawnPhase }> = [];
 
     // enqueue itself must not throw even though the task will throw.
@@ -124,7 +169,9 @@ describe('WorkerSpawner (V2-2 spawn isolation)', () => {
   });
 
   it('enforces the spawn budget: abort, record, and move on without stalling', async () => {
-    const spawner = new WorkerSpawner({ budgetMs: 5 });
+    // Serialized so the hung handshake is proven to block nothing — the
+    // queue moves on to the next spawn after the budget fires.
+    const spawner = new WorkerSpawner({ budgetMs: 5, maxConcurrent: 1 });
     const phases: WorkerSpawnPhase[] = [];
     let timedOut = 0;
     let aborted: AbortSignal | undefined;

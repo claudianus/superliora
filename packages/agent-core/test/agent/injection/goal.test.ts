@@ -217,6 +217,25 @@ describe('GoalInjector content', () => {
     expect(text).toContain('Do not invent budgets');
     expect(text).toContain('not reasonable');
   });
+
+  it('slims repeat reminders while an earlier copy is still visible in context', async () => {
+    const store = makeStore();
+    await store.createGoal({ objective: 'Ship feature X' });
+    const { agent, reminders } = injectorAgent(store);
+    const injector = new GoalInjector(agent);
+    await injector.inject();
+    await injector.inject();
+    const first = reminders[0]!;
+    const second = reminders[1]!;
+    expect(first).toContain('## Autonomous execution pattern');
+    // The static pattern prose is not repeated verbatim every boundary —
+    // the earlier copy is still in the history.
+    expect(second).not.toContain('## Autonomous execution pattern');
+    expect(second).toContain('earlier goal reminder');
+    // Live data (objective/status) still rides on every reminder.
+    expect(second).toContain('<untrusted_objective>\nShip feature X\n</untrusted_objective>');
+    expect(second.length).toBeLessThan(first.length);
+  });
 });
 
 describe('InjectionManager goal integration', () => {
@@ -285,7 +304,21 @@ describe('InjectionManager goal integration', () => {
     expect(goalReminderRecords(persistence)).toHaveLength(0);
   });
 
-  it('subagent injectGoal does not add a goal reminder', async () => {
+  it('subagent injectGoal adds no reminder while it carries no goal', async () => {
+    const store = makeStore();
+    const persistence = new InMemoryAgentRecordPersistence();
+    const ctx = testAgent({ type: 'sub', goal: store, persistence });
+    ctx.configure();
+
+    await ctx.agent.injection.injectGoal();
+
+    expect(goalReminderRecords(persistence)).toHaveLength(0);
+  });
+
+  it('subagent injectGoal surfaces a migrated goal (goal-driver worker)', async () => {
+    // Spec 2026-08-04-goal-driver-jobs: the runtime migrates a goal onto the
+    // worker agent after construction; the boundary injector comes online the
+    // moment a goal exists so continuation turns see objective/budget context.
     const store = makeStore();
     await store.createGoal({ objective: 'Ship feature X' });
     const persistence = new InMemoryAgentRecordPersistence();
@@ -294,6 +327,8 @@ describe('InjectionManager goal integration', () => {
 
     await ctx.agent.injection.injectGoal();
 
-    expect(goalReminderRecords(persistence)).toHaveLength(0);
+    const goalRecords = goalReminderRecords(persistence);
+    expect(goalRecords).toHaveLength(1);
+    expect(JSON.stringify(goalRecords[0])).toContain('<untrusted_objective>');
   });
 });

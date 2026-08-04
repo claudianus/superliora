@@ -38,11 +38,33 @@ export interface LaunchJobWorkerResult {
   readonly error?: string;
 }
 
-function jobPrompt(job: JobRecord): string {
+/** Cap for the parent job's result summary carried into a child worker prompt. */
+export const JOB_PRIOR_FINDINGS_MAX_CHARS = 2000;
+
+export function jobPrompt(job: JobRecord, store?: ToolStore): string {
+  const parentFindings = priorFindingsForJob(job, store);
   const parts = [
     `You are a Conductor worker for job ${job.id}.`,
     `Title: ${job.title}`,
+    job.goalObjective
+      ? [
+          'This job owns an autonomous goal. The runtime created it on your agent —',
+          'do not create or replace it; pursue it across turns until done.',
+          `Objective: ${job.goalObjective}`,
+          job.goalCompletionCriterion
+            ? `Completion criterion: ${job.goalCompletionCriterion}`
+            : undefined,
+          'Report the outcome through UpdateGoal: complete when the criterion is met',
+          '(with verification evidence), blocked when an external blocker stops you.',
+        ]
+          .filter(Boolean)
+          .join('\n')
+      : undefined,
     job.prompt?.trim() ? `Brief:\n${job.prompt.trim()}` : undefined,
+    job.contextPaths?.length
+      ? `Read these first: ${job.contextPaths.join(', ')}`
+      : undefined,
+    parentFindings,
     job.ownershipPaths?.length
       ? `Preferred paths: ${job.ownershipPaths.join(', ')}`
       : undefined,
@@ -52,6 +74,50 @@ function jobPrompt(job: JobRecord): string {
     'Complete the task, run focused checks when relevant, and finish with a short result summary.',
   ];
   return parts.filter(Boolean).join('\n\n');
+}
+
+/**
+ * Carry the parent job's result summary into a child worker prompt so
+ * explore→implement chains do not lose findings to manual copying.
+ */
+function priorFindingsForJob(job: JobRecord, store?: ToolStore): string | undefined {
+  if (store === undefined || job.parentJobId === undefined) return undefined;
+  const parent = getJob(store, job.parentJobId);
+  if (parent === undefined) return undefined;
+  const summary = parent.resultSummary?.trim();
+  const factLines = contractFactLines(parent.resultContract);
+  if ((summary === undefined || summary.length === 0) && factLines.length === 0) {
+    return undefined;
+  }
+  const cappedSummary =
+    summary === undefined || summary.length === 0
+      ? undefined
+      : summary.length > JOB_PRIOR_FINDINGS_MAX_CHARS
+        ? `${summary.slice(0, JOB_PRIOR_FINDINGS_MAX_CHARS)}\n[truncated]`
+        : summary;
+  const body = [cappedSummary, ...factLines].filter(Boolean).join('\n');
+  return `Prior findings from parent job ${parent.id}:\n${body}`;
+}
+
+/** Structured handoff facts from the worker contract (files changed, verification). */
+function contractFactLines(
+  contract: JobRecord['resultContract'],
+): readonly string[] {
+  if (contract === undefined) return [];
+  const lines: string[] = [];
+  if (contract.files_changed.length > 0) {
+    const shown = contract.files_changed.slice(0, 10).join(', ');
+    const more =
+      contract.files_changed.length > 10
+        ? ` (+${contract.files_changed.length - 10} more)`
+        : '';
+    lines.push(`Files changed: ${shown}${more}`);
+  }
+  const v = contract.verification;
+  if (v.tests !== 'not_run' || v.typecheck !== 'not_run' || v.lint !== 'not_run') {
+    lines.push(`Verification: tests=${v.tests}, typecheck=${v.typecheck}, lint=${v.lint}`);
+  }
+  return lines;
 }
 
 function notifyInbox(
@@ -119,11 +185,22 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
 
   const profileName = profileForJobKind(job.kind);
   const task: FanoutTask = {
-    prompt: jobPrompt(job),
+    prompt: jobPrompt(job, input.store),
     description: job.title.slice(0, 80),
     profileName,
     ownership: job.ownershipPaths ? [...job.ownershipPaths] : undefined,
     worktreeDir: job.worktreePath,
+    // Goal-driver (spec 2026-08-04-goal-driver-jobs): the goal migrates onto
+    // the worker, whose turn engine then runs the autonomous loop. The brief
+    // doubles as the objective; JobCreate validated its length.
+    goal:
+      job.kind === 'goal-driver'
+        ? {
+            objective: job.goalObjective ?? job.prompt?.trim() ?? job.title,
+            completionCriterion: job.goalCompletionCriterion,
+            budgetLimits: job.goalBudgetLimits,
+          }
+        : undefined,
   };
   const parentToolCallId = `job:${job.id}:${randomUUID().slice(0, 8)}`;
   const spec: FanoutSpec = {
@@ -153,19 +230,56 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
         if (current?.status === 'cancelled' || current?.status === 'interrupted') {
           return;
         }
-        const summary =
+        const contract = completion.contract;
+        const rawSummary =
           typeof completion.result === 'string'
-            ? completion.result.slice(0, 4000)
-            : String(completion.result ?? '').slice(0, 4000);
+            ? completion.result
+            : String(completion.result ?? '');
+        // Prefer the contract summary: the free-form result may embed the JSON
+        // envelope, which eats the stored-summary budget without adding signal.
+        const summary =
+          (contract?.summary.trim() || rawSummary.trim()).slice(0, 4000) || 'worker completed';
+        const verificationFailed = contract?.verification_failed === true;
+        // Goal-driver terminal mapping (spec 2026-08-04-goal-driver-jobs §3.5):
+        // a stopped goal (blocked/paused — budget circuit breaker, stagnation,
+        // or a worker-reported blocker) escalates as a resumable `blocked` Job;
+        // the verification gate still outranks it (invariant 4).
+        const goalStopped =
+          completion.goalStatus === 'blocked' || completion.goalStatus === 'paused';
+        const finalStatus: JobStatus = verificationFailed
+          ? 'failed'
+          : goalStopped
+            ? 'blocked'
+            : 'done';
+        const goalReason = completion.goalTerminalReason
+          ? ` (${completion.goalTerminalReason})`
+          : '';
+        const resultSummary = verificationFailed
+          ? `verification failed — ${summary}`
+          : goalStopped
+            ? `goal ${completion.goalStatus}${goalReason} — ${summary}`
+            : summary;
         const updated = patchJob(input.store, job.id, {
-          status: 'done',
-          resultSummary: summary || 'worker completed',
-          notes: [getJob(input.store, job.id)?.notes, 'worker: completed']
+          // A done with a failed verification gate misled the conductor:
+          // surface explicit verification failures as failed so the playbook
+          // routes them to inspection instead of merge/land.
+          status: finalStatus,
+          resultSummary,
+          ...(contract !== undefined ? { resultContract: contract } : {}),
+          ...(completion.goalId !== undefined ? { goalId: completion.goalId } : {}),
+          notes: [
+            getJob(input.store, job.id)?.notes,
+            verificationFailed
+              ? 'worker: completed but verification failed'
+              : goalStopped
+                ? `worker: goal ${completion.goalStatus}${goalReason}`
+                : 'worker: completed',
+          ]
             .filter(Boolean)
             .join('\n'),
         });
         if (updated) {
-          notifyInbox(input.store, updated, 'done', updated.resultSummary, input.agent);
+          notifyInbox(input.store, updated, finalStatus, updated.resultSummary, input.agent);
         }
       })
       .catch((error: unknown) => {
@@ -365,12 +479,18 @@ export async function resumeJobs(input: {
     if (job.status === 'cancelled' && jobId === undefined) continue;
     if (job.status === 'failed' && jobId === undefined) continue;
 
-    const notes = answer !== undefined && job.status === 'needs_user'
+    const isAnswerCard = answer !== undefined && job.status === 'needs_user';
+    const notes = isAnswerCard
       ? [job.notes, `user-answer: ${answer}`].filter(Boolean).join('\n')
       : [job.notes, 'resume: re-queued'].filter(Boolean).join('\n');
     const next = patchJob(store, job.id, {
       status: 'queued',
       notes,
+      // Notes never reach a relaunched worker (jobPrompt reads the brief
+      // only), so the answer must ride on the prompt to survive relaunch.
+      ...(isAnswerCard
+        ? { prompt: [job.prompt, `[user-answer] ${answer}`].filter(Boolean).join('\n\n') }
+        : {}),
       // Keep worktreePath when present so schedule can reuse isolation.
     });
     if (next) resumed.push(next);

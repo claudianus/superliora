@@ -218,7 +218,9 @@ export function extractUsage(usage: unknown): TokenUsage | null {
   }
 
   return {
-    inputOther: promptTokens - cached,
+    // Clamp: some backends report cached_tokens larger than prompt_tokens
+    // during transient inconsistencies; negative usage poisons KPIs.
+    inputOther: Math.max(0, promptTokens - cached),
     output: completionTokens,
     inputCacheRead: cached,
     inputCacheCreation: 0,

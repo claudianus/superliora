@@ -842,7 +842,6 @@ describe('SessionSubagentHost', () => {
     expect(child.agent.permission.data().rules).toEqual(parent.agent.permission.rules);
     expect(child.llmCalls[0]?.systemPrompt).toContain('codebase exploration specialist');
     expect(child.llmCalls[0]?.tools.map((tool) => tool.name).toSorted()).toEqual([
-      'AskUserQuestion',
       'Bash',
       'GetCurrentTime',
       'Glob',
@@ -894,7 +893,6 @@ describe('SessionSubagentHost', () => {
     expect(child.llmCalls[0]?.systemPrompt).toContain('cultural anthropologist');
     expect(child.llmCalls[0]?.systemPrompt).toContain('codebase exploration specialist');
     expect(child.llmCalls[0]?.tools.map((tool) => tool.name).toSorted()).toEqual([
-      'AskUserQuestion',
       'Bash',
       'GetCurrentTime',
       'Glob',
@@ -1009,7 +1007,6 @@ describe('SessionSubagentHost', () => {
     expect(child.llmCalls[0]?.systemPrompt).toContain('You are now running as a subagent.');
     expect(child.llmCalls[0]?.tools.map((tool) => tool.name).toSorted()).toEqual([
       'ApplyPatch',
-      'AskUserQuestion',
       'Bash',
       'Edit',
       'Expand',

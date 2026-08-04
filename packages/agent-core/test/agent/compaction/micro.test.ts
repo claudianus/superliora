@@ -862,6 +862,45 @@ describe('MicroCompaction', () => {
     expect(hasMarker(compacted)).toBe(false);
   });
 
+  it('still resolves mutating tools appended after the index was cached', () => {
+    vi.useFakeTimers();
+    const ctx = testAgent({
+      microCompaction: {
+        keepRecentMessages: 0,
+        minContentTokens: 1,
+        cacheMissedThresholdMs: 60 * MINUTE,
+        minContextUsageRatio: 0,
+      },
+    });
+
+    vi.setSystemTime(0);
+    appendMicroToolExchange(ctx, 1, { output: 'first lookup result\n'.repeat(80) });
+    vi.setSystemTime(61 * MINUTE);
+    ctx.agent.microCompaction.detect();
+    // First pass builds the tool-name index for the current history array.
+    ctx.agent.microCompaction.compact(ctx.agent.context.history);
+
+    // The history array grows in place — same reference, new tool call.
+    appendMicroToolExchange(ctx, 2, {
+      toolName: 'Write',
+      output: 'wrote important file\n'.repeat(80),
+    });
+    // A trailing exchange pushes the Write result out of the recent window so
+    // only the mutating-tool guard (name lookup through the index) keeps it.
+    appendMicroToolExchange(ctx, 3, { output: 'later lookup result\n'.repeat(80) });
+    vi.setSystemTime(122 * MINUTE);
+    ctx.agent.microCompaction.detect();
+
+    const compacted = ctx.agent.microCompaction.compact(ctx.agent.context.history);
+    // The cleared marker embeds a rawResult preview, so assert on the guard
+    // keeping the full result body instead of the marker.
+    const writeTool = compacted
+      .filter((message) => message.role === 'tool')
+      .find((m) => textOf(m, { raw: true }).includes('wrote important file'));
+    expect(writeTool).toBeDefined();
+    expect(textOf(writeTool, { raw: true })).not.toContain(DEFAULT_MARKER);
+  });
+
   it('keeps media metadata in cleared rich tool result markers', () => {
     vi.useFakeTimers();
     const ctx = testAgent({

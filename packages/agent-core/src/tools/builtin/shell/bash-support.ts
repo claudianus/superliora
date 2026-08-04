@@ -22,8 +22,10 @@ export const BashInputSchema = z
       .int()
       .positive()
       .default(DEFAULT_TIMEOUT_S)
+      // Defaults/caps live in the tool description (bash.md); repeating the
+      // numbers here doubled the same prose in every request's tool block.
       .describe(
-        `Optional timeout in seconds for the command to execute. Foreground default ${String(DEFAULT_TIMEOUT_S)}s, max ${String(MAX_TIMEOUT_S)}s. Background default ${String(DEFAULT_BACKGROUND_TIMEOUT_S)}s, max ${String(MAX_BACKGROUND_TIMEOUT_S)}s. Ignored for background commands when disable_timeout=true.`,
+        'Optional timeout in seconds. Capped per foreground/background mode (validation enforces the limit). Ignored for background commands when disable_timeout=true.',
       )
       .optional(),
     description: z

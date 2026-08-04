@@ -84,7 +84,12 @@ export function buildBuiltinTools(host: BuiltinToolsHost): Map<string, BuiltinTo
     host.enabledTools.has('TaskList') &&
     host.enabledTools.has('TaskOutput') &&
     host.enabledTools.has('TaskStop');
-  const goalToolsEnabled = host.agent.type === 'main';
+  // Goal tools normally belong to the main lane only; a worker profile that
+  // explicitly whitelists them (goal-driver, spec 2026-08-04-goal-driver-jobs)
+  // earns the pair so a runtime-migrated goal can be inspected and closed.
+  const goalToolsEnabled =
+    host.agent.type === 'main' ||
+    (host.enabledTools.has('GetGoal') && host.enabledTools.has('UpdateGoal'));
   return new Map(
     [
       ...createFileAndContextTools(
@@ -227,7 +232,10 @@ function resolveMediaProviderEnv(agent: Agent): b.GenerateImageProviderEnv & b.G
     xaiApiKey: nonEmptyEnv('XAI_API_KEY'),
     openaiApiKey: nonEmptyEnv('OPENAI_API_KEY'),
     googleApiKey: nonEmptyEnv('GOOGLE_API_KEY') ?? nonEmptyEnv('GEMINI_API_KEY'),
-    qwenTokenPlanApiKey: nonEmptyEnv('QWEN_TOKEN_PLAN_API_KEY'),
+    qwenTokenPlanApiKey:
+      services?.qwenTokenPlanApiKey ??
+      nonEmptyEnv('QWEN_TOKEN_PLAN_API_KEY') ??
+      nonEmptyEnv('ALIBABA_TOKEN_PLAN_API_KEY'),
   };
 }
 

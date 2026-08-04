@@ -20,6 +20,51 @@ const ACTIVE_BACKGROUND_TASK_GUIDANCE =
 
 const ULTRAWORK_GRAPH_INJECTION_MAX_CHARS = 3_500;
 
+/**
+ * Batched per-step injection budget. The batch message is append-only tail
+ * content re-read on every request, so a runaway contributor (large memory
+ * block, workflow dump) must not flood it unbounded. Parts are trimmed
+ * head-first with a marker; caps are generous enough that normal batches
+ * (~3-6k chars) never trip them.
+ */
+export const INJECTION_PART_MAX_CHARS = 10_000;
+export const INJECTION_BATCH_MAX_CHARS = 20_000;
+
+const INJECTION_TRIM_MARKER = '\n…[trimmed for injection budget]';
+
+/** Head-first trim of one contribution so a note about the cut survives. */
+function trimInjectionPart(part: string, limit: number): string {
+  if (part.length <= limit) return part;
+  return `${part.slice(0, limit - INJECTION_TRIM_MARKER.length)}${INJECTION_TRIM_MARKER}`;
+}
+
+/**
+ * Enforce the per-part and total batch budgets. When the total still exceeds
+ * the batch cap after per-part trimming, the largest part keeps shrinking —
+ * small contributors are never dropped outright.
+ */
+function capBatchParts(parts: readonly string[]): string[] {
+  const capped = parts.map((part) => trimInjectionPart(part, INJECTION_PART_MAX_CHARS));
+  let total = capped.reduce((sum, part) => sum + part.length, 0);
+  while (total > INJECTION_BATCH_MAX_CHARS) {
+    let largest = 0;
+    for (let i = 1; i < capped.length; i++) {
+      if ((capped[i] ?? '').length > (capped[largest] ?? '').length) largest = i;
+    }
+    const current = capped[largest] ?? '';
+    if (current.length <= INJECTION_TRIM_MARKER.length) break;
+    const nextLength = Math.max(
+      INJECTION_TRIM_MARKER.length,
+      current.length - (total - INJECTION_BATCH_MAX_CHARS),
+    );
+    capped[largest] = trimInjectionPart(current, nextLength);
+    total = capped.reduce((sum, part) => sum + part.length, 0);
+  }
+  return capped;
+}
+
+export { capBatchParts as __testing__capBatchParts };
+
 export class InjectionManager {
   private readonly injectors: DynamicInjector[];
   /** Injectors whose getInjection() depends on the trailing context shape.
@@ -32,7 +77,7 @@ export class InjectionManager {
   // `inject()` loop. Boundary-cadence append-only injection keeps one fresh copy
   // near the tail without mutating the prefix, so prompt caching is preserved and
   // the context does not grow O(n^2) the way per-step injection did.
-  private readonly goalInjector: GoalInjector | null;
+  private goalInjector: GoalInjector | null;
 
   constructor(protected readonly agent: Agent) {
     this.injectors = [
@@ -68,7 +113,7 @@ export class InjectionManager {
     }
     if (parts.length > 0) {
       const index = this.agent.context.history.length;
-      this.agent.context.appendSystemReminder(parts.join('\n\n'), {
+      this.agent.context.appendSystemReminder(capBatchParts(parts).join('\n\n'), {
         kind: 'injection',
         variant: 'batch',
       });
@@ -86,7 +131,8 @@ export class InjectionManager {
   /**
    * Appends a fresh goal-context reminder at a continuation boundary. Append-only
    * (never mutates the prefix) so prompt caching is preserved; no-ops when goal
-   * mode is off, the agent is not the main agent, or there is nothing to inject.
+   * mode is off, the agent carries no goal (main-only by creation, or a
+   * migrated goal-driver worker), or there is nothing to inject.
    */
   async injectGoal(): Promise<void> {
     await this.activeGoalInjector()?.inject();
@@ -130,6 +176,13 @@ export class InjectionManager {
   }
 
   private activeGoalInjector(): GoalInjector | null {
+    if (this.goalInjector === null && this.agent.goal.getGoal().goal !== null) {
+      // Goal-driver worker (spec 2026-08-04-goal-driver-jobs): the goal is
+      // migrated onto the subagent after construction, so the injector comes
+      // online the moment a goal exists — subagents never create goals on
+      // their own, which keeps this scoped to migrated drivers.
+      this.goalInjector = new GoalInjector(this.agent);
+    }
     return this.goalInjector;
   }
 
