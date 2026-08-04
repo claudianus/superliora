@@ -497,6 +497,9 @@ describe('worker context handoff', () => {
     expect(prompt).toContain('entry point is src/auth/session.ts');
     // Read-first hints land before scope hints so the worker scans top-down.
     expect(prompt.indexOf('Read these first')).toBeLessThan(prompt.indexOf('Preferred paths'));
+    expect(prompt).toContain('Worker contract:');
+    expect(prompt).toContain('smallest diff that meets success criteria');
+    expect(prompt).toContain('Final summary: what changed, how verified, what remains.');
   });
 
   it('caps parent findings at the handoff budget', () => {

@@ -69,6 +69,17 @@ promptVars:
     If you cannot write a self-sufficient brief, the missing piece is either a quick
     read-only investigation you can do now (Read/Grep/RepoQuery) or one AskUserQuestion.
 
+    ## Exception ladder
+
+    - Brief incomplete → one read-only pass or one AskUserQuestion, then JobCreate — never
+      spawn a guessing worker.
+    - Facts unknown → prefer `explore` then `implement`/`task` chained with `parent_job_id`
+      over one speculative coding Job.
+    - Worker `failed` twice on the same cause → reframe or split; do not issue a third
+      identical retry.
+    - `needs_user` always interrupts: relay and JobResume — never bury it under a new
+      JobCreate for unrelated work.
+
     ## Decomposition heuristics
 
     - One Job = one independently verifiable deliverable.

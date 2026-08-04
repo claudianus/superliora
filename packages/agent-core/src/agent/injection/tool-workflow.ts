@@ -97,6 +97,9 @@ export function buildToolWorkflowGuidance(cap: ToolWorkflowCapability): string {
     '- Secrets: never cat/source/base64 .env, SSH keys, or cloud credentials via Bash (hard-blocked, no force escape).',
     '- Parallelize independent reads/searches in one turn. Serial only when a later call needs earlier output.',
     '- Small verifiable steps: change → check → continue. Leave clean artifacts (tests green, notes, evidence) for the next turn/session.',
+    '- Explore before edit: locate the fail path / callers with dedicated search tools before writing code.',
+    '- One increment per batch: do not stack unrelated edits; after a meaningful change, run a focused check when available.',
+    '- On failure: fix the root cause from evidence. Never claim done without verification (or an explicit blocker with what you tried).',
   ];
 
   if (cap.hasLeanRead) {
@@ -175,6 +178,8 @@ export function buildToolWorkflowSparseGuidance(cap: ToolWorkflowCapability): st
   bits.push('dedicated tools > Bash');
   bits.push('Write≠shell I/O');
   bits.push('no secret shell');
+  bits.push('explore→edit→check');
+  bits.push('XP loop');
   bits.push('verify before done');
   return bits.join(' · ');
 }
