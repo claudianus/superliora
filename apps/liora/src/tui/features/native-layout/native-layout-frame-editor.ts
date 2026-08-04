@@ -172,6 +172,11 @@ export function projectNativeEditorRegion(
     style: editorStyles.textStyle,
     placeholderStyle: editorStyles.placeholderStyle,
     selectionStyle: editorStyles.selectionStyle,
+    // Prompt-intelligence paints ghost via editor.setGhostText; the component
+    // path (buildNativeTUIEditorSurface) already forwards it — native layout
+    // must too or the on-screen prompt never shows the dim continuation.
+    ghostText: state.editor.getGhostText?.(),
+    ghostStyle: editorStyles.ghostStyle,
   });
   const surface = renderRendererEditorSurface({
     width: Math.floor(rect.width),
