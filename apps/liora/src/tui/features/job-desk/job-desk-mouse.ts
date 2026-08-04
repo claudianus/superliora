@@ -1,7 +1,7 @@
 /**
- * Mouse drill-down for the Conductor Job Desk: a left click on a kanban
- * card resolves to that job id so the input router can open the
- * interactive Job Deck viewer on it.
+ * Mouse drill-down for the Conductor Job Desk: a left click inside the
+ * jobs region opens the interactive Job Deck viewer (focused on the card
+ * under the pointer when the hit map resolves one).
  */
 
 import type { NativeInputMouseEvent } from '#/tui/renderer';
@@ -9,15 +9,19 @@ import type { NativeInputMouseEvent } from '#/tui/renderer';
 import { getTUIStateNativeJobsRect } from '#/tui/features/transcript/transcript-hit-test';
 import type { TUIState } from '../../tui-state';
 
-/** Job id under a left-click inside the Job Desk region, when any. */
-export function jobDeskCardIdAtMouse(
+export type JobDeskMouseHit =
+  | { readonly kind: 'card'; readonly jobId: string }
+  | { readonly kind: 'panel' };
+
+/** Job Desk hit under a left-click, when the pointer is inside the jobs region. */
+export function jobDeskHitAtMouse(
   state: TUIState,
   event: NativeInputMouseEvent,
-): string | undefined {
+): JobDeskMouseHit | undefined {
   if (event.action !== 'press' || event.button !== 'left') return undefined;
   if (!state.jobDeskPanel.shouldMount()) return undefined;
   const rect = getTUIStateNativeJobsRect(state);
-  if (rect === undefined) return undefined;
+  if (rect === undefined || rect.height <= 0 || rect.width <= 0) return undefined;
   if (
     event.x < rect.x ||
     event.x >= rect.x + rect.width ||
@@ -26,5 +30,15 @@ export function jobDeskCardIdAtMouse(
   ) {
     return undefined;
   }
-  return state.jobDeskPanel.hitTestCard(event.x - rect.x, event.y - rect.y);
+  const jobId = state.jobDeskPanel.hitTestCard(event.x - rect.x, event.y - rect.y);
+  return jobId === undefined ? { kind: 'panel' } : { kind: 'card', jobId };
+}
+
+/** Card id under the pointer, when the click lands on a kanban card. */
+export function jobDeskCardIdAtMouse(
+  state: TUIState,
+  event: NativeInputMouseEvent,
+): string | undefined {
+  const hit = jobDeskHitAtMouse(state, event);
+  return hit?.kind === 'card' ? hit.jobId : undefined;
 }

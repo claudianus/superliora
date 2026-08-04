@@ -71,7 +71,7 @@ SuperLiora CLI 的 TUI 交互模式把主提示区快捷键保持精简，多数
 
 | 快捷键 | 功能 |
 | --- | --- |
-| `Alt-J` | 打开 Conductor Job Deck 监视器（worker 转录、token、耗时）。与 `/jobs deck` 或点击 Job Desk 卡片相同 |
+| `Alt-J` | 打开 Conductor Job Deck 监视器（worker 转录、token、耗时）。与 `/jobs deck` 或点击 Job Desk 卡片相同。Kitty（macOS）需设置 `macos_option_as_alt yes`（或 `left`），Option 才会作为 Alt 发送 |
 
 ## 审批面板
 

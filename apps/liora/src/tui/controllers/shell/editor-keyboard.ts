@@ -26,6 +26,7 @@ import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import type { ImageAttachmentStore } from '../../utils/image/image-attachment-store';
 import { parseDroppedFilePaths } from '../../utils/media/media-drop';
 import { copyTranscriptSelectionToClipboard } from '../../features/transcript/transcript-selection';
+import type { ColorToken } from '../../theme';
 import type { PendingExit, QueuedMessage } from '../../types';
 import type { TranscriptScrollAction } from '../../features/transcript/transcript-viewport';
 import type { TUIState } from '../../tui-state';
@@ -67,6 +68,8 @@ export interface EditorKeyboardHost extends PromptInputRuntimeHost {
   stashPromptToggle(): void;
   setExternalEditorRunning(running: boolean): void;
   scrollTranscriptViewport(action: TranscriptScrollAction): boolean;
+  showStatus(msg: string, color?: ColorToken): void;
+  readonly jobBoardController: { openDeck(jobId?: string): void };
 }
 
 export class EditorKeyboardController {
@@ -396,6 +399,14 @@ export class EditorKeyboardController {
       // idle-only actions (undo/rewind/…) while streaming or compacting.
       // Operators still need Settings, model, help, cancel-adjacent jumps.
       host.showCommandHub();
+    };
+    editor.onOpenJobDeck = () => {
+      const jobs = host.state.appState.conductorJobs?.jobs ?? [];
+      if (jobs.length === 0) {
+        host.showStatus('No Conductor jobs yet — Job Deck opens once jobs exist.', 'textMuted');
+        return;
+      }
+      host.jobBoardController.openDeck();
     };
     editor.onTranscriptSearch = () => {
       host.showTranscriptSearch();

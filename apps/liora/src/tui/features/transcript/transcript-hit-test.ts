@@ -27,6 +27,34 @@ export interface TranscriptHitTestContext extends TranscriptLayoutContext {
   readonly visibleLines: readonly RendererRegionLine[];
 }
 
+/**
+ * Bust the transcript/todo/jobs hit-test layout cache. Call when chrome that
+ * affects region geometry mounts, unmounts, or changes height (Job Desk,
+ * Todo board). Without this, mouse clicks keep using stale rects after the
+ * Job Desk appears mid-session.
+ */
+export function invalidateTranscriptHitTestCache(state: TUIState): void {
+  state.cachedTranscriptRect = undefined;
+  state.cachedTranscriptVisibleRows = undefined;
+  state.cachedTranscriptStageWidth = undefined;
+  state.cachedTranscriptColumns = undefined;
+  state.cachedTranscriptRows = undefined;
+  state.cachedTranscriptLineCount = undefined;
+  state.cachedHitTestChromeSig = undefined;
+  state.cachedTodoRect = undefined;
+  state.cachedJobsRect = undefined;
+}
+
+/** Cheap chrome signature — jobs/todo mount + card counts drive region height. */
+export function hitTestChromeSignature(state: TUIState): string {
+  const jobs = state.appState.conductorJobs;
+  const jobCount = jobs?.jobs.length ?? 0;
+  const jobsMounted = state.jobDeskPanel.shouldMount() ? 1 : 0;
+  const jobsHidden = state.jobDeskPanel.isHidden() ? 1 : 0;
+  const todoEmpty = state.todoPanel.isEmpty() ? 1 : 0;
+  return `j${String(jobsMounted)}h${String(jobsHidden)}n${String(jobCount)}t${String(todoEmpty)}`;
+}
+
 export function resolveTranscriptLayoutContext(
   state: TUIState,
   width = state.terminal.columns,
@@ -37,6 +65,7 @@ export function resolveTranscriptLayoutContext(
   // Cheap editor line-count probe for cache invalidation (same key as the
   // editor rect cache in getTUIStateNativeEditorRect).
   const editorLineCount = state.editor.getNativeLayoutRowCount?.(frameWidth) ?? -1;
+  const chromeSig = hitTestChromeSignature(state);
   let rect: RendererRect | undefined;
   let visibleRows: number;
   let stageWidth: number;
@@ -45,7 +74,8 @@ export function resolveTranscriptLayoutContext(
     state.cachedTranscriptRect !== undefined &&
     state.cachedTranscriptColumns === frameWidth &&
     state.cachedTranscriptRows === frameHeight &&
-    state.cachedTranscriptLineCount === editorLineCount
+    state.cachedTranscriptLineCount === editorLineCount &&
+    state.cachedHitTestChromeSig === chromeSig
   ) {
     rect = state.cachedTranscriptRect;
     visibleRows = state.cachedTranscriptVisibleRows ?? 0;
@@ -70,6 +100,7 @@ export function resolveTranscriptLayoutContext(
     state.cachedTranscriptColumns = frameWidth;
     state.cachedTranscriptRows = frameHeight;
     state.cachedTranscriptLineCount = editorLineCount;
+    state.cachedHitTestChromeSig = chromeSig;
     state.cachedTodoRect = plan.layout.regions.find((region) => region.id === 'todo')?.rect;
     state.cachedJobsRect = plan.layout.regions.find((region) => region.id === 'jobs')?.rect;
   }
@@ -135,16 +166,6 @@ export function getTUIStateNativeJobsRect(
   width = state.terminal.columns,
   height = state.terminal.rows,
 ): RendererRect | undefined {
-  const frameWidth = Math.max(1, Math.trunc(width));
-  const frameHeight = Math.max(1, Math.trunc(height));
-  // Warm jobs cache: same frame key as the transcript layout cache.
-  if (
-    state.cachedJobsRect !== undefined &&
-    state.cachedTranscriptColumns === frameWidth &&
-    state.cachedTranscriptRows === frameHeight
-  ) {
-    return state.cachedJobsRect;
-  }
   resolveTranscriptHitTestContext(state, width, height);
   return state.cachedJobsRect;
 }

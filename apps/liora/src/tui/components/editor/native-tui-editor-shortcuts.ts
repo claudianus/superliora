@@ -18,6 +18,7 @@ export interface NativeTUIEditorShortcutHost {
   onShiftTab?: () => void;
   onHistorySearch?: () => void;
   onCommandHub?: () => void;
+  onOpenJobDeck?: () => void;
   onTranscriptSearch?: () => void;
   onStashToggle?: () => void;
   onTranscriptPageUp?: () => boolean;
@@ -97,6 +98,11 @@ export function handleNativeTUIEditorAppShortcut(
   // Ctrl-K / Ctrl-Space: Command Hub (One-search).
   if (matchesKey(data, Key.ctrl('k')) || matchesKey(data, Key.ctrl(Key.space))) {
     host.onCommandHub?.();
+    return true;
+  }
+  // Alt+J: Conductor Job Deck (Kitty CSI-u + legacy ESC+j via matchesKey).
+  if (matchesKey(data, Key.alt('j'))) {
+    host.onOpenJobDeck?.();
     return true;
   }
   // "?": open Command Hub when the editor is empty (native pre-handler path).

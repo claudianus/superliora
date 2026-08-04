@@ -10,6 +10,7 @@
 import type { ColorToken } from '../../theme';
 import type { AppState } from '../../types';
 import type { TUIState } from '../../tui-state';
+import { invalidateTranscriptHitTestCache } from '../../features/transcript/transcript-hit-test';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { syncJobDeskPanelContainer } from '../../components/chrome/job-desk/job-desk-panel';
 import type { ConductorJobUsage } from '../../utils/job/job-strip';
@@ -36,7 +37,8 @@ export class JobBoardController {
 
   toggle(): void {
     if (this.isOpen()) {
-      this.close();
+      this.hide();
+      this.host.showStatus('Job Desk hidden — /jobs board shows it again.', 'textMuted');
     } else {
       this.show();
     }
@@ -78,6 +80,14 @@ export class JobBoardController {
     );
   }
 
+  /** Operator hide — also busts mouse hit-test cache via repaint callers. */
+  hide(): void {
+    const panel = this.host.state.jobDeskPanel;
+    if (panel.isHidden()) return;
+    panel.setHidden(true);
+    this.repaint();
+  }
+
   /**
    * Session-close hook: drop the stale ledger. The panel stays un-hidden so
    * the next session's jobs auto-mount it again (the empty slot collapses).
@@ -86,6 +96,7 @@ export class JobBoardController {
     const { state } = this.host;
     state.jobDeskPanel.clear();
     syncJobDeskPanelContainer(state);
+    invalidateTranscriptHitTestCache(state);
     requestTUILayoutRender(state);
   }
 
@@ -93,6 +104,7 @@ export class JobBoardController {
   repaint(): void {
     const { state } = this.host;
     syncJobDeskPanelContainer(state);
+    invalidateTranscriptHitTestCache(state);
     requestTUILayoutRender(state);
   }
 }
