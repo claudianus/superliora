@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import {
   gcSessionWorktreesAuto,
+  hygieneSessionWorktreesAuto,
   listSessionWorktrees,
   removeSessionWorktreeAuto,
   resolveGitRepoRootAuto,
@@ -100,6 +101,81 @@ export function registerWorktreeCommand(
         resolved.exit(1);
       }
     });
+
+  worktree
+    .command('hygiene')
+    .description(t('cli.sub.worktree.cmd.hygiene.desc'))
+    .option('--max-age-days <days>', t('cli.sub.worktree.opt.maxAgeDays'), '14')
+    .option('--dry-run', t('cli.sub.worktree.opt.dryRun'), false)
+    .option('--repo', t('cli.sub.worktree.opt.repoOnly'), false)
+    // Commander: --no-archive implies default archive=true.
+    .option('--no-archive', t('cli.sub.worktree.opt.noArchive'))
+    .option('--stale-remotes', t('cli.sub.worktree.opt.staleRemotes'), false)
+    .action(
+      async (opts: {
+        maxAgeDays?: string;
+        dryRun?: boolean;
+        repo?: boolean;
+        archive?: boolean;
+        staleRemotes?: boolean;
+      }) => {
+        const resolved = resolveDeps(deps);
+        try {
+          const maxAgeDays = Number.parseInt(opts.maxAgeDays ?? '14', 10);
+          if (!Number.isFinite(maxAgeDays) || maxAgeDays < 0) {
+            throw new Error(t('cli.sub.worktree.gc.invalidAge'));
+          }
+
+          let repoRoot: string | undefined;
+          try {
+            repoRoot = await resolveGitRepoRootAuto(resolved.cwd());
+          } catch {
+            repoRoot = undefined;
+          }
+          if (opts.repo === true && repoRoot === undefined) {
+            throw new Error(t('cli.sub.worktree.hygiene.needRepo'));
+          }
+
+          const archive = opts.archive !== false;
+          const result = await hygieneSessionWorktreesAuto({
+            homeDir: resolved.homeDir(),
+            maxAgeDays,
+            dryRun: opts.dryRun === true,
+            // Always scope orphan/remote sweeps to the current repo when available
+            // so empty registries still clean local liora/* leftovers.
+            repoRoot,
+            archive,
+            staleRemotes: opts.staleRemotes === true,
+          });
+
+          const prefix = result.dryRun ? '[dry-run] ' : '';
+          resolved.stdout.write(
+            `${prefix}${t('cli.sub.worktree.hygiene.ok', {
+              removed: String(result.removedWorktrees.length),
+              kept: String(result.keptWorktrees),
+              archived: String(result.archivedTags.length),
+              localBranches: String(result.deletedLocalBranches.length),
+              remotes: String(result.deletedRemoteBranches.length),
+            })}\n`,
+          );
+          for (const entry of result.removedWorktrees) {
+            resolved.stdout.write(`  wt - ${entry.name}  ${entry.path}\n`);
+          }
+          for (const tag of result.archivedTags) {
+            resolved.stdout.write(`  tag  ${tag}\n`);
+          }
+          for (const branch of result.deletedLocalBranches) {
+            resolved.stdout.write(`  br - ${branch}\n`);
+          }
+          for (const remote of result.deletedRemoteBranches) {
+            resolved.stdout.write(`  remote - ${remote}\n`);
+          }
+        } catch (error) {
+          resolved.stderr.write(`${formatError(error)}\n`);
+          resolved.exit(1);
+        }
+      },
+    );
 }
 
 function resolveDeps(deps: Partial<WorktreeCommandDeps> | undefined): WorktreeCommandDeps {

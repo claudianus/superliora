@@ -5,11 +5,13 @@ import { beforeEach, afterEach, describe, expect, it } from 'vitest';
 import { LocalKaos } from '@superliora/kaos';
 
 import { resetGitBootstrapCache, AUTO_GIT_INIT_ENV } from '#/session/git-bootstrap';
+import { runGit } from '#/autopilot/git';
 import {
   buildWorktreeMetadata,
   createSessionWorktree,
   gcSessionWorktrees,
   generateWorktreeName,
+  hygieneSessionWorktrees,
   isSessionWorktreeMeta,
   listSessionWorktrees,
   normalizeWorktreeName,
@@ -187,4 +189,132 @@ describe('session worktree lifecycle', () => {
       }),
     ).rejects.toMatchObject({ code: ErrorCodes.WORKTREE_NOT_A_GIT_REPO });
   });
+
+  it('removes the merged liora/* branch when the worktree is removed', async () => {
+    const homeDir = await makeTempDir('liora-wt-home-br-');
+    const repo = await makeTempDir('liora-wt-repo-br-');
+    const kaos = await LocalKaos.create();
+    await initGitRepo(kaos, repo);
+
+    await createSessionWorktree(kaos, {
+      repoPath: repo,
+      name: 'gone-soon',
+      homeDir,
+    });
+    const before = await runGit(kaos, repo, [
+      'show-ref',
+      '--verify',
+      '--quiet',
+      'refs/heads/liora/gone-soon',
+    ]);
+    expect(before.ok).toBe(true);
+
+    await removeSessionWorktree(kaos, {
+      homeDir,
+      nameOrPath: 'gone-soon',
+      repoRoot: repo,
+    });
+
+    const after = await runGit(kaos, repo, [
+      'show-ref',
+      '--verify',
+      '--quiet',
+      'refs/heads/liora/gone-soon',
+    ]);
+    expect(after.ok).toBe(false);
+  }, 60_000);
+
+  it('hygiene archives then deletes unmerged orphan liora/* tips', async () => {
+    const homeDir = await makeTempDir('liora-wt-home-hyg-');
+    const repo = await makeTempDir('liora-wt-repo-hyg-');
+    const kaos = await LocalKaos.create();
+    await initGitRepo(kaos, repo);
+
+    // Create an orphan branch with a unique tip (not registered in the WT registry).
+    const mk = async (...args: string[]) => {
+      const proc = await kaos.exec(...args);
+      proc.stdin.end();
+      const code = await proc.wait();
+      if (code !== 0) throw new Error(`failed: ${args.join(' ')}`);
+    };
+    await mk('git', '-C', repo, 'checkout', '-b', 'liora/orphan-unique');
+    await writeFile(join(repo, 'orphan.txt'), 'unique\n', 'utf-8');
+    await mk('git', '-C', repo, 'add', 'orphan.txt');
+    await mk('git', '-C', repo, 'commit', '-m', 'orphan tip');
+    await mk('git', '-C', repo, 'checkout', '-');
+
+    const dry = await hygieneSessionWorktrees(kaos, {
+      homeDir,
+      repoRoot: repo,
+      dryRun: true,
+      archive: true,
+    });
+    expect(dry.archivedTags).toContain('archive/tips/liora-orphan-unique');
+    expect(dry.deletedLocalBranches).toContain('liora/orphan-unique');
+
+    const stillThere = await runGit(kaos, repo, [
+      'show-ref',
+      '--verify',
+      '--quiet',
+      'refs/heads/liora/orphan-unique',
+    ]);
+    expect(stillThere.ok).toBe(true);
+
+    const applied = await hygieneSessionWorktrees(kaos, {
+      homeDir,
+      repoRoot: repo,
+      dryRun: false,
+      archive: true,
+    });
+    expect(applied.archivedTags).toContain('archive/tips/liora-orphan-unique');
+    expect(applied.deletedLocalBranches).toContain('liora/orphan-unique');
+
+    const branchGone = await runGit(kaos, repo, [
+      'show-ref',
+      '--verify',
+      '--quiet',
+      'refs/heads/liora/orphan-unique',
+    ]);
+    expect(branchGone.ok).toBe(false);
+
+    const tagKept = await runGit(kaos, repo, [
+      'show-ref',
+      '--verify',
+      '--quiet',
+      'refs/tags/archive/tips/liora-orphan-unique',
+    ]);
+    expect(tagKept.ok).toBe(true);
+  }, 60_000);
+
+  it('hygiene deletes merged orphan liora/* branches without archiving', async () => {
+    const homeDir = await makeTempDir('liora-wt-home-merged-');
+    const repo = await makeTempDir('liora-wt-repo-merged-');
+    const kaos = await LocalKaos.create();
+    await initGitRepo(kaos, repo);
+
+    const mk = async (...args: string[]) => {
+      const proc = await kaos.exec(...args);
+      proc.stdin.end();
+      const code = await proc.wait();
+      if (code !== 0) throw new Error(`failed: ${args.join(' ')}`);
+    };
+    // Branch tip == HEAD → already an ancestor of HEAD; no unique commits.
+    await mk('git', '-C', repo, 'branch', 'liora/orphan-merged');
+
+    const result = await hygieneSessionWorktrees(kaos, {
+      homeDir,
+      repoRoot: repo,
+      archive: true,
+    });
+    expect(result.deletedLocalBranches).toContain('liora/orphan-merged');
+    expect(result.archivedTags).not.toContain('archive/tips/liora-orphan-merged');
+
+    const gone = await runGit(kaos, repo, [
+      'show-ref',
+      '--verify',
+      '--quiet',
+      'refs/heads/liora/orphan-merged',
+    ]);
+    expect(gone.ok).toBe(false);
+  }, 60_000);
 });

@@ -2,6 +2,7 @@ import {
   buildWorktreeMetadata,
   createSessionWorktreeAuto,
   resolveLioraHome,
+  touchWorktreeAccess,
   type SessionWorktreeMeta,
 } from '@superliora/sdk';
 
@@ -29,19 +30,25 @@ export async function resolveSessionWorkDir(
   input: ResolveWorktreeInput,
 ): Promise<ResolveWorktreeResult> {
   const cwd = input.cwd ?? process.cwd();
+  const homeDir = input.homeDir ?? resolveLioraHome();
+
   if (input.worktree === undefined || input.worktree === false) {
+    // Age-based GC uses lastAccessedAt — bump when the operator is already
+    // sitting inside a registered session worktree.
+    await touchWorktreeAccess(homeDir, cwd).catch(() => {});
     return { workDir: cwd };
   }
 
   const name =
     typeof input.worktree === 'string' && input.worktree.length > 0 ? input.worktree : undefined;
-  const homeDir = input.homeDir ?? resolveLioraHome();
 
   const created = await createSessionWorktreeAuto({
     repoPath: cwd,
     name,
     homeDir,
   });
+
+  await touchWorktreeAccess(homeDir, created.workDir).catch(() => {});
 
   return {
     workDir: created.workDir,

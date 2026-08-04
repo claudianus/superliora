@@ -79,6 +79,40 @@ export interface GcWorktreesOptions {
   readonly dryRun?: boolean | undefined;
 }
 
+export interface HygieneWorktreesOptions {
+  readonly homeDir?: string | undefined;
+  /** Limit orphan-branch / stale-remote sweeps to this repo root. */
+  readonly repoRoot?: string | undefined;
+  /** Drop registry entries older than this many days (default 14). */
+  readonly maxAgeDays?: number | undefined;
+  readonly dryRun?: boolean | undefined;
+  /**
+   * Delete orphan local `liora/*` branches with no registry entry.
+   * Merged tips are deleted; unmerged tips are archived then deleted when
+   * {@link archive} is true (default). Default true.
+   */
+  readonly deleteOrphanBranches?: boolean | undefined;
+  /**
+   * Before deleting an unmerged orphan `liora/*` tip, create
+   * `archive/tips/<slug>` annotated tag. Default true.
+   */
+  readonly archive?: boolean | undefined;
+  /**
+   * Delete remote heads whose tip is an ancestor of origin/main (or main).
+   * Never deletes `main`. Default false.
+   */
+  readonly staleRemotes?: boolean | undefined;
+}
+
+export interface HygieneWorktreesResult {
+  readonly removedWorktrees: readonly WorktreeRecord[];
+  readonly keptWorktrees: number;
+  readonly archivedTags: readonly string[];
+  readonly deletedLocalBranches: readonly string[];
+  readonly deletedRemoteBranches: readonly string[];
+  readonly dryRun: boolean;
+}
+
 interface WorktreeRegistryFile {
   readonly version: 1;
   entries: WorktreeRecord[];
@@ -86,6 +120,8 @@ interface WorktreeRegistryFile {
 
 const REGISTRY_VERSION = 1 as const;
 const DEFAULT_MAX_AGE_DAYS = 14;
+const LIORA_BRANCH_PREFIX = 'liora/';
+const ARCHIVE_TIPS_PREFIX = 'archive/tips/';
 
 /** Compare paths allowing macOS /var vs /private/var divergence. */
 function pathEquals(a: string, b: string): boolean {
@@ -312,6 +348,12 @@ export async function removeSessionWorktree(
     entries: registry.entries.filter((entry) => entry.path !== match.path),
   };
   await writeRegistry(options.homeDir, next);
+
+  // Drop the matching liora/* branch when its tip is already in HEAD.
+  if (match.branch.startsWith(LIORA_BRANCH_PREFIX)) {
+    await maybeDeleteMergedLioraBranch(kaos, match.repoRoot, match.branch).catch(() => {});
+  }
+
   return match;
 }
 
@@ -362,9 +404,14 @@ export async function touchWorktreeAccess(
 ): Promise<void> {
   const registry = await readRegistry(homeDir);
   const now = new Date().toISOString();
+  const key = resolve(pathOrName);
   let changed = false;
   const entries = registry.entries.map((entry) => {
-    if (entry.path === pathOrName || entry.name === pathOrName) {
+    if (
+      entry.path === pathOrName ||
+      entry.name === pathOrName ||
+      pathEquals(entry.path, key)
+    ) {
       changed = true;
       return { ...entry, lastAccessedAt: now };
     }
@@ -373,6 +420,97 @@ export async function touchWorktreeAccess(
   if (changed) {
     await writeRegistry(homeDir, { version: REGISTRY_VERSION, entries });
   }
+}
+
+/**
+ * Reconcile registry ↔ git worktrees, age-GC, orphan `liora/*` branches
+ * (archive-then-delete for unmerged tips), and optional stale remotes.
+ */
+export async function hygieneSessionWorktrees(
+  kaos: Kaos,
+  options: HygieneWorktreesOptions = {},
+): Promise<HygieneWorktreesResult> {
+  const dryRun = options.dryRun === true;
+  const archive = options.archive !== false;
+  const deleteOrphanBranches = options.deleteOrphanBranches !== false;
+  const archivedTags: string[] = [];
+  const deletedLocalBranches: string[] = [];
+  const deletedRemoteBranches: string[] = [];
+
+  const registry = await readRegistry(options.homeDir);
+  const repoRoots = collectRepoRoots(registry.entries, options.repoRoot);
+
+  for (const repoRoot of repoRoots) {
+    await runGit(kaos, repoRoot, ['worktree', 'prune']).catch(() => {});
+  }
+
+  // Drop registry rows whose path vanished (reconcile), then age-GC the rest.
+  if (!dryRun) {
+    const stillPresent: WorktreeRecord[] = [];
+    for (const entry of registry.entries) {
+      if (await pathExists(entry.path)) {
+        stillPresent.push(entry);
+      }
+    }
+    if (stillPresent.length !== registry.entries.length) {
+      await writeRegistry(options.homeDir, {
+        version: REGISTRY_VERSION,
+        entries: stillPresent,
+      });
+    }
+  }
+
+  const gc = await gcSessionWorktrees(kaos, {
+    homeDir: options.homeDir,
+    maxAgeDays: options.maxAgeDays,
+    dryRun,
+  });
+
+  if (deleteOrphanBranches) {
+    const liveRegistry = dryRun
+      ? registry
+      : await readRegistry(options.homeDir);
+    const registeredBranches = new Set(
+      liveRegistry.entries.map((entry) => entry.branch),
+    );
+    // Also treat GC dry-run targets as still registered so we do not
+    // double-count their branches as orphans in the same dry-run pass.
+    if (dryRun) {
+      for (const entry of gc.removed) {
+        registeredBranches.add(entry.branch);
+      }
+    }
+
+    for (const repoRoot of repoRoots) {
+      const result = await sweepOrphanLioraBranches(kaos, {
+        repoRoot,
+        registeredBranches,
+        archive,
+        dryRun,
+      });
+      archivedTags.push(...result.archivedTags);
+      deletedLocalBranches.push(...result.deletedLocalBranches);
+    }
+  }
+
+  if (options.staleRemotes === true) {
+    for (const repoRoot of repoRoots) {
+      const remotes = await sweepStaleRemoteBranches(kaos, {
+        repoRoot,
+        dryRun,
+      });
+      deletedRemoteBranches.push(...remotes);
+    }
+  }
+
+  return {
+    removedWorktrees: gc.removed,
+    keptWorktrees: gc.kept,
+    archivedTags,
+    deletedLocalBranches,
+    deletedRemoteBranches,
+    dryRun,
+  };
 }
 
 async function upsertRegistryEntry(
@@ -504,7 +642,189 @@ export async function gcSessionWorktreesAuto(
   return gcSessionWorktrees(kaos, options);
 }
 
+export async function hygieneSessionWorktreesAuto(
+  options: HygieneWorktreesOptions = {},
+): Promise<HygieneWorktreesResult> {
+  const kaos = await LocalKaos.create();
+  return hygieneSessionWorktrees(kaos, options);
+}
+
 export async function resolveGitRepoRootAuto(cwd: string): Promise<string> {
   const kaos = await LocalKaos.create();
   return resolveGitRepoRoot(kaos, cwd);
+}
+
+function collectRepoRoots(
+  entries: readonly WorktreeRecord[],
+  repoRoot: string | undefined,
+): string[] {
+  if (repoRoot !== undefined) {
+    return [resolve(repoRoot)];
+  }
+  const roots = new Set<string>();
+  for (const entry of entries) {
+    roots.add(resolve(entry.repoRoot));
+  }
+  return [...roots];
+}
+
+async function resolveMergeBaseRef(kaos: Kaos, repoRoot: string): Promise<string> {
+  for (const candidate of ['origin/main', 'main', 'master', 'HEAD'] as const) {
+    const verified = await runGit(kaos, repoRoot, ['rev-parse', '--verify', candidate]);
+    if (verified.ok) return candidate;
+  }
+  return 'HEAD';
+}
+
+async function isAncestorOf(
+  kaos: Kaos,
+  repoRoot: string,
+  tip: string,
+  baseRef: string,
+): Promise<boolean> {
+  const result = await runGit(kaos, repoRoot, ['merge-base', '--is-ancestor', tip, baseRef]);
+  return result.ok;
+}
+
+async function listLocalLioraBranches(
+  kaos: Kaos,
+  repoRoot: string,
+): Promise<readonly string[]> {
+  const result = await runGit(kaos, repoRoot, [
+    'for-each-ref',
+    '--format=%(refname:short)',
+    `refs/heads/${LIORA_BRANCH_PREFIX}`,
+  ]);
+  if (!result.ok) return [];
+  return result.stdout
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith(LIORA_BRANCH_PREFIX));
+}
+
+function archiveTagForBranch(branch: string): string {
+  const slug = branch.replaceAll('/', '-');
+  return `${ARCHIVE_TIPS_PREFIX}${slug}`;
+}
+
+async function maybeDeleteMergedLioraBranch(
+  kaos: Kaos,
+  repoRoot: string,
+  branch: string,
+): Promise<boolean> {
+  const baseRef = await resolveMergeBaseRef(kaos, repoRoot);
+  const merged = await isAncestorOf(kaos, repoRoot, branch, baseRef);
+  if (!merged) return false;
+  const del = await runGit(kaos, repoRoot, ['branch', '-D', branch]);
+  return del.ok;
+}
+
+async function sweepOrphanLioraBranches(
+  kaos: Kaos,
+  input: {
+    readonly repoRoot: string;
+    readonly registeredBranches: ReadonlySet<string>;
+    readonly archive: boolean;
+    readonly dryRun: boolean;
+  },
+): Promise<{ readonly archivedTags: string[]; readonly deletedLocalBranches: string[] }> {
+  const archivedTags: string[] = [];
+  const deletedLocalBranches: string[] = [];
+  const baseRef = await resolveMergeBaseRef(kaos, input.repoRoot);
+  const branches = await listLocalLioraBranches(kaos, input.repoRoot);
+
+  for (const branch of branches) {
+    if (input.registeredBranches.has(branch)) continue;
+
+    const merged = await isAncestorOf(kaos, input.repoRoot, branch, baseRef);
+    if (!merged && !input.archive) {
+      // Unique tip and archive disabled — leave alone.
+      continue;
+    }
+
+    if (!merged && input.archive) {
+      const tag = archiveTagForBranch(branch);
+      if (input.dryRun) {
+        archivedTags.push(tag);
+        deletedLocalBranches.push(branch);
+        continue;
+      }
+      const existing = await runGit(kaos, input.repoRoot, ['rev-parse', '--verify', `refs/tags/${tag}`]);
+      if (!existing.ok) {
+        const tagged = await runGit(kaos, input.repoRoot, [
+          'tag',
+          '-a',
+          tag,
+          branch,
+          '-m',
+          `hygiene archive: ${branch}`,
+        ]);
+        if (!tagged.ok) continue;
+      }
+      archivedTags.push(tag);
+    }
+
+    if (input.dryRun) {
+      deletedLocalBranches.push(branch);
+      continue;
+    }
+
+    const del = await runGit(kaos, input.repoRoot, ['branch', '-D', branch]);
+    if (del.ok) {
+      deletedLocalBranches.push(branch);
+    }
+  }
+
+  return { archivedTags, deletedLocalBranches };
+}
+
+async function sweepStaleRemoteBranches(
+  kaos: Kaos,
+  input: { readonly repoRoot: string; readonly dryRun: boolean },
+): Promise<string[]> {
+  const deleted: string[] = [];
+  const baseRef = await resolveMergeBaseRef(kaos, input.repoRoot);
+  const listed = await runGit(kaos, input.repoRoot, ['ls-remote', '--heads', 'origin']);
+  if (!listed.ok) return deleted;
+
+  const names: string[] = [];
+  for (const line of listed.stdout.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) continue;
+    const parts = trimmed.split(/\s+/);
+    const ref = parts[1];
+    if (ref === undefined || !ref.startsWith('refs/heads/')) continue;
+    const name = ref.slice('refs/heads/'.length);
+    if (name === 'main' || name === 'master') continue;
+    names.push(name);
+  }
+
+  for (const name of names) {
+    const tipRef = `refs/remotes/origin/${name}`;
+    // Prefer fetched remote-tracking ref; fall back to ls-remote sha via fetch --dry-run skip
+    let tip = tipRef;
+    const hasTracking = await runGit(kaos, input.repoRoot, ['rev-parse', '--verify', tipRef]);
+    if (!hasTracking.ok) {
+      // Use origin/<name> after a lightweight fetch of that one ref tip from ls-remote line
+      const shaLine = listed.stdout
+        .split('\n')
+        .map((l) => l.trim())
+        .find((l) => l.endsWith(`\trefs/heads/${name}`) || l.endsWith(` refs/heads/${name}`));
+      if (shaLine === undefined) continue;
+      tip = shaLine.split(/\s+/)[0] ?? '';
+      if (tip.length === 0) continue;
+    }
+
+    const merged = await isAncestorOf(kaos, input.repoRoot, tip, baseRef);
+    if (!merged) continue;
+
+    if (input.dryRun) {
+      deleted.push(name);
+      continue;
+    }
+    const push = await runGit(kaos, input.repoRoot, ['push', 'origin', '--delete', name]);
+    if (push.ok) deleted.push(name);
+  }
+
+  return deleted;
 }
