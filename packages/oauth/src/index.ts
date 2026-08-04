@@ -263,17 +263,23 @@ export type {
 
 export {
   ANTHROPIC_PROFILE,
+  applyCursorOAuthModelAliases,
   CURSOR_AGENT_BASE_URL,
   CURSOR_CLIENT_TYPE,
   CURSOR_CLIENT_VERSION_DEFAULT,
+  CURSOR_FALLBACK_MODELS,
+  CURSOR_OAUTH_PROVIDER_ID,
   CURSOR_PROFILE,
   cursorAuthHeaders,
+  cursorModelsToPresets,
   EXPERIMENTAL_PROVIDER_PROFILES,
+  fetchCursorAvailableModels,
   getProviderProfile,
   isOAuthProviderId,
   isXaiGrokApiBaseUrl,
   isXaiGrokBuildBaseUrl,
   KIMI_PROFILE,
+  normalizeAvailableModels,
   OPENAI_PROFILE,
   PROVIDER_PROFILES,
   resolveCursorClientVersion,
@@ -290,6 +296,8 @@ export {
   xaiGrokRouteConfig,
 } from './profiles';
 export type {
+  CursorDiscoveredModel,
+  FetchCursorAvailableModelsOptions,
   OAuthFlowKind,
   OAuthProviderId,
   OAuthProviderWire,

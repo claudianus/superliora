@@ -4,7 +4,21 @@ vi.mock('#/utils/catalog-cache', () => ({
   loadCatalog: vi.fn(),
 }));
 
+vi.mock('@superliora/oauth', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@superliora/oauth')>();
+  return {
+    ...actual,
+    fetchCursorAvailableModels: vi.fn(),
+    OAuthProviderManager: class {
+      async ensureFresh() {
+        return 'cursor-token';
+      }
+    },
+  };
+});
+
 const { loadCatalog } = await import('#/utils/catalog-cache');
+const { fetchCursorAvailableModels } = await import('@superliora/oauth');
 const { resolveOAuthProviderModels } = await import('#/tui/commands/provider-connect/oauth');
 
 const XAI_PRESETS = [
@@ -67,5 +81,43 @@ describe('resolveOAuthProviderModels', () => {
     const result = await resolveOAuthProviderModels('xai-grok', undefined);
 
     expect(result).toBeUndefined();
+  });
+
+  it('prefers Cursor AvailableModels over static presets', async () => {
+    vi.mocked(fetchCursorAvailableModels).mockResolvedValue([
+      {
+        id: 'composer-2.5',
+        displayName: 'Composer 2.5',
+        maxContextSize: 200_000,
+        capabilities: ['thinking', 'tool_use'],
+      },
+      {
+        id: 'claude-4.6-opus-high',
+        displayName: 'Claude 4.6 Opus',
+        maxContextSize: 200_000,
+        capabilities: ['thinking', 'tool_use', 'image_in'],
+      },
+    ]);
+
+    const result = await resolveOAuthProviderModels(
+      'cursor-oauth',
+      [{ id: 'composer-1', displayName: 'Composer 1', maxContextSize: 100_000 }],
+      { accessToken: 'tok' },
+    );
+
+    expect(result?.map((m) => m.model)).toEqual(['composer-2.5', 'claude-4.6-opus-high']);
+    expect(fetchCursorAvailableModels).toHaveBeenCalledWith({ accessToken: 'tok' });
+  });
+
+  it('falls back to Cursor presets when AvailableModels is empty', async () => {
+    vi.mocked(fetchCursorAvailableModels).mockResolvedValue(undefined);
+
+    const result = await resolveOAuthProviderModels(
+      'cursor-oauth',
+      [{ id: 'composer-2.5', displayName: 'Composer 2.5', maxContextSize: 200_000 }],
+      { accessToken: 'tok' },
+    );
+
+    expect(result?.map((m) => m.model)).toEqual(['composer-2.5']);
   });
 });

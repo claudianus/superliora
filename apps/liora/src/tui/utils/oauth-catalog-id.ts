@@ -7,7 +7,7 @@
 export function oauthProviderCatalogId(id: string): string {
   if (id === 'openai-codex') return 'openai';
   if (id === 'xai-grok') return 'xai';
-  // Cursor OAuth uses local model presets, not models.dev.
+  // Cursor OAuth uses AvailableModels RPC, not models.dev.
   if (id === 'cursor-oauth') return 'cursor-oauth';
   return id;
 }
