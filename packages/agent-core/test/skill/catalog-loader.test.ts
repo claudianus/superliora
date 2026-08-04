@@ -1,12 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { join, resolve } from 'pathe';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import { registerBuiltinSkills, registerCatalogSkills } from '../../src/skill/builtin';
 import {
+  catalogDataDirCandidates,
+  resolveCatalogLayoutFrom,
+  resolveCatalogLayoutFromCandidates,
   resolveSkillCatalogDir,
   resolveSkillCatalogSearchIndexPath,
 } from '../../src/skill/catalog-loader';
 import { SessionSkillRegistry } from '../../src/skill/registry';
 import { shouldComposeSkill } from '../../src/skill/skill-composition';
+
+const REPO_ROOT = resolve(import.meta.dirname, '../../../..');
+const CATALOG_ENV = 'SUPERLIORA_SKILL_CATALOG_DIR';
 
 describe('skill catalog loader', () => {
   it('registers catalog skills from the search index when available', async () => {
@@ -59,5 +66,39 @@ describe('skill catalog loader', () => {
     const againStart = performance.now();
     await registry.ensureCatalogLoaded();
     expect(performance.now() - againStart).toBeLessThan(50);
+  });
+});
+
+describe('skill catalog layout resolution', () => {
+  const savedEnv = process.env[CATALOG_ENV];
+  afterEach(() => {
+    if (savedEnv === undefined) delete process.env[CATALOG_ENV];
+    else process.env[CATALOG_ENV] = savedEnv;
+  });
+
+  it('finds the catalog from a bundled app dist dir by walking ancestors', async () => {
+    // Bundled CLI runs from apps/liora/dist/main.mjs, so import.meta.filename
+    // no longer sits inside packages/agent-core/src/skill. The repo-layout
+    // ancestor walk must recover the catalog for SearchSkill.
+    const layout = await resolveCatalogLayoutFrom(join(REPO_ROOT, 'apps/liora/dist'));
+    expect(layout?.catalogDir).toBe(join(REPO_ROOT, 'packages/agent-core/src/skill/catalog'));
+    expect(layout?.indexPath).toBe(
+      join(REPO_ROOT, 'packages/agent-core/src/skill/catalog-search-index.json'),
+    );
+  });
+
+  it('prefers the SUPERLIORA_SKILL_CATALOG_DIR override', async () => {
+    process.env[CATALOG_ENV] = join(REPO_ROOT, 'packages/agent-core/src/skill');
+    const candidates = catalogDataDirCandidates('/does/not/matter');
+    expect(candidates[0]).toBe(join(REPO_ROOT, 'packages/agent-core/src/skill'));
+
+    const layout = await resolveCatalogLayoutFrom('/does/not/matter');
+    expect(layout?.catalogDir).toBe(join(REPO_ROOT, 'packages/agent-core/src/skill/catalog'));
+  });
+
+  it('returns undefined when no candidate has a catalog tree', async () => {
+    delete process.env[CATALOG_ENV];
+    const layout = await resolveCatalogLayoutFromCandidates(['/definitely/missing']);
+    expect(layout).toBeUndefined();
   });
 });
