@@ -131,7 +131,11 @@ export class CursorChatProvider implements ChatProvider {
 export { buildRunFrames, heartbeatFrame } from './frames';
 export { encodeConnectFrame, ConnectFrameDecoder } from './connect';
 export { extractAnswerText, extractReasoningText, extractToolCall } from './extract';
-export { stripCursorWirePrefix, toCursorWireModelId } from './model-id';
+export {
+  rewriteCursorLegacyFastSuffix,
+  stripCursorWirePrefix,
+  toCursorWireModelId,
+} from './model-id';
 export { renderCursorPrompt } from './prompt';
 export {
   encodeProtobufValue,

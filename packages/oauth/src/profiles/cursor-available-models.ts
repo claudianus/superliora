@@ -13,9 +13,12 @@ import type { ProviderModelPreset } from './provider-profile';
 import { CURSOR_CLIENT_TYPE, resolveCursorClientVersion } from './cursor-client';
 
 const AVAILABLE_MODELS_PATH = '/aiserver.v1.AiService/AvailableModels';
+/** Same RPC opencodex uses for account-usable Run wire ids. */
+const USABLE_MODELS_PATH = '/agent.v1.AgentService/GetUsableModels';
 const DEFAULT_API_HOST = 'https://api2.cursor.sh';
 const DEFAULT_CONTEXT = 200_000;
 const DEFAULT_TIMEOUT_MS = 8_000;
+const EFFORT_THEN_FAST = /^(.+)-(none|low|medium|high|xhigh|max)-fast$/i;
 
 export interface CursorDiscoveredModel {
   readonly id: string;
@@ -93,8 +96,9 @@ export interface FetchCursorAvailableModelsOptions {
 }
 
 /**
- * Fetch the account's Cursor model catalog. Returns `undefined` on transport /
- * parse failure so callers can fall back to static presets.
+ * Fetch the account's Cursor model catalog. Prefers GetUsableModels wire ids
+ * (what AgentService/Run accepts — same as opencodex), then AvailableModels JSON.
+ * Returns `undefined` on total failure so callers can fall back to static presets.
  */
 export async function fetchCursorAvailableModels(
   options: FetchCursorAvailableModelsOptions,
@@ -103,6 +107,14 @@ export async function fetchCursorAvailableModels(
   if (token.length === 0) return undefined;
   const host = (options.apiHost ?? DEFAULT_API_HOST).replace(/\/$/, '');
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+
+  const usable = await fetchCursorUsableModels({
+    accessToken: token,
+    apiHost: host,
+    timeoutMs,
+    signal: options.signal,
+  });
+  if (usable !== undefined && usable.length > 0) return usable;
 
   let raw: unknown;
   try {
@@ -128,6 +140,44 @@ export async function fetchCursorAvailableModels(
   if (!Array.isArray(modelsRaw)) return undefined;
   const models = normalizeAvailableModels(modelsRaw);
   return models.length > 0 ? models : undefined;
+}
+
+/**
+ * GetUsableModels unary (empty protobuf body, `application/proto`).
+ * Returns Run-ready wire ids after prefix / legacy-fast normalization.
+ */
+export async function fetchCursorUsableModels(options: {
+  readonly accessToken: string;
+  readonly apiHost?: string;
+  readonly timeoutMs?: number;
+  readonly signal?: AbortSignal;
+}): Promise<CursorDiscoveredModel[] | undefined> {
+  const token = options.accessToken.trim();
+  if (token.length === 0) return undefined;
+  const host = (options.apiHost ?? DEFAULT_API_HOST).replace(/\/$/, '');
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+
+  let body: Uint8Array;
+  try {
+    body = await postProtoEmpty(host, USABLE_MODELS_PATH, token, {
+      timeoutMs,
+      signal: options.signal,
+    });
+  } catch {
+    return undefined;
+  }
+
+  const ids = decodeUsableModelIds(body);
+  if (ids.length === 0) return undefined;
+  return ids.map((id) => {
+    const wireId = toCursorCatalogModelId(id);
+    return {
+      id: wireId,
+      displayName: wireId === 'default' ? 'Auto' : wireId,
+      maxContextSize: DEFAULT_CONTEXT,
+      capabilities: ['thinking', 'tool_use'] as const,
+    };
+  });
 }
 
 /** Normalize AvailableModels JSON into picker entries (one per variant slug). */
@@ -161,9 +211,9 @@ export function normalizeAvailableModels(rawModels: readonly unknown[]): CursorD
           ];
 
     variantRecords.forEach((variant, index) => {
-      // AvailableModels / GetUsableModels may return `cursor-grok-4.5-high`; AgentService
-      // wants the bare wire id (`grok-4.5-high`). Same strip as opencodex issue #117.
-      const publicId = stripCursorWirePrefix(
+      // Strip `cursor-` and rewrite effort-then-fast legacySlugs to Run wire form
+      // (`grok-4.5-high-fast` → `grok-4.5-fast-high`). Same rules as opencodex.
+      const publicId = toCursorCatalogModelId(
         (stringProp(variant, 'legacySlug') ?? name).trim(),
       );
       if (publicId.length === 0) return;
@@ -184,7 +234,7 @@ export function normalizeAvailableModels(rawModels: readonly unknown[]): CursorD
           publicId,
         parameters,
       );
-      const wireServerId = stripCursorWirePrefix(serverModelId);
+      const wireServerId = toCursorCatalogModelId(serverModelId);
 
       byId.set(publicId, {
         id: publicId,
@@ -198,6 +248,145 @@ export function normalizeAvailableModels(rawModels: readonly unknown[]): CursorD
   }
 
   return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
+}
+
+async function postProtoEmpty(
+  baseUrl: string,
+  path: string,
+  accessToken: string,
+  options: { readonly timeoutMs: number; readonly signal?: AbortSignal },
+): Promise<Uint8Array> {
+  const url = new URL(baseUrl);
+  return await new Promise((resolve, reject) => {
+    const session = http2.connect(baseUrl);
+    let settled = false;
+    const timer = setTimeout(() => {
+      finish(new Error(`Cursor GetUsableModels timed out after ${options.timeoutMs}ms`));
+    }, options.timeoutMs);
+
+    const finish = (error?: Error, value?: Uint8Array): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      options.signal?.removeEventListener('abort', onAbort);
+      try {
+        session.close();
+      } catch {
+        // ignore
+      }
+      if (error !== undefined) reject(error);
+      else if (value !== undefined) resolve(value);
+      else reject(new Error('Cursor GetUsableModels returned no body'));
+    };
+
+    const onAbort = (): void => {
+      finish(new Error('Cursor GetUsableModels aborted'));
+    };
+    options.signal?.addEventListener('abort', onAbort, { once: true });
+    if (options.signal?.aborted) {
+      onAbort();
+      return;
+    }
+
+    session.once('error', (error) => finish(error));
+    session.once('connect', () => {
+      // opencodex: empty protobuf body — `req.end()` with NO buffer argument.
+      const req = session.request({
+        ':method': 'POST',
+        ':path': path,
+        ':authority': url.host,
+        ':scheme': 'https',
+        authorization: `Bearer ${accessToken}`,
+        'content-type': 'application/proto',
+        'connect-protocol-version': '1',
+        'x-cursor-client-type': CURSOR_CLIENT_TYPE,
+        'x-cursor-client-version': resolveCursorClientVersion(),
+        'x-ghost-mode': 'true',
+        'x-session-id': randomUUID(),
+      });
+      const chunks: Buffer[] = [];
+      req.on('data', (chunk: Buffer) => {
+        chunks.push(chunk);
+      });
+      req.on('error', (error) => finish(error));
+      req.on('response', (headers) => {
+        const status = headers[':status'];
+        if (typeof status === 'number' && status >= 400) {
+          finish(new Error(`Cursor GetUsableModels failed (HTTP ${status})`));
+        }
+      });
+      req.on('end', () => {
+        finish(undefined, new Uint8Array(Buffer.concat(chunks)));
+      });
+      req.end();
+    });
+  });
+}
+
+/** Decode GetUsableModelsResponse { repeated ModelDetails models = 1 } → model_id strings. */
+export function decodeUsableModelIds(buf: Uint8Array): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const model of iterLenFields(buf, 1)) {
+    for (const idField of iterLenFields(model, 1)) {
+      const id = Buffer.from(idField).toString('utf8').trim();
+      if (id.length === 0 || /[\x00-\x1f]/.test(id) || seen.has(id)) continue;
+      seen.add(id);
+      ids.push(id);
+      if (ids.length >= 500) return ids;
+    }
+  }
+  return ids;
+}
+
+function iterLenFields(buf: Uint8Array, fieldNumber: number): Uint8Array[] {
+  const out: Uint8Array[] = [];
+  let offset = 0;
+  while (offset < buf.length) {
+    const tag = readVarint(buf, offset);
+    if (tag === undefined) break;
+    offset = tag.next;
+    const field = Number(tag.value >> 3n);
+    const wire = Number(tag.value & 7n);
+    if (wire === 2) {
+      const len = readVarint(buf, offset);
+      if (len === undefined) break;
+      offset = len.next;
+      const end = offset + Number(len.value);
+      if (end > buf.length) break;
+      if (field === fieldNumber) out.push(buf.subarray(offset, end));
+      offset = end;
+    } else if (wire === 0) {
+      const v = readVarint(buf, offset);
+      if (v === undefined) break;
+      offset = v.next;
+    } else if (wire === 1) {
+      offset += 8;
+    } else if (wire === 5) {
+      offset += 4;
+    } else {
+      break;
+    }
+  }
+  return out;
+}
+
+function readVarint(
+  buf: Uint8Array,
+  offset: number,
+): { value: bigint; next: number } | undefined {
+  let value = 0n;
+  let shift = 0n;
+  let i = offset;
+  while (i < buf.length) {
+    const byte = buf[i]!;
+    i += 1;
+    value |= BigInt(byte & 0x7f) << shift;
+    if ((byte & 0x80) === 0) return { value, next: i };
+    shift += 7n;
+    if (shift > 63n) return undefined;
+  }
+  return undefined;
 }
 
 async function postConnectJson(
@@ -399,6 +588,20 @@ function cleanDisplayName(
 export function stripCursorWirePrefix(modelId: string): string {
   const id = modelId.trim();
   return id.startsWith('cursor-') ? id.slice('cursor-'.length) : id;
+}
+
+/** AvailableModels legacySlug uses effort-then-fast; Run wants fast-then-effort. */
+export function rewriteCursorLegacyFastSuffix(modelId: string): string {
+  const match = EFFORT_THEN_FAST.exec(modelId);
+  if (match === null) return modelId;
+  return `${match[1]}-fast-${match[2]!.toLowerCase()}`;
+}
+
+/** Normalize a discovery id into the catalog / Run wire form. */
+export function toCursorCatalogModelId(modelId: string): string {
+  const stripped = stripCursorWirePrefix(modelId);
+  if (stripped === 'auto') return 'default';
+  return rewriteCursorLegacyFastSuffix(stripped);
 }
 
 function stringProp(record: Record<string, unknown>, key: string): string | undefined {
