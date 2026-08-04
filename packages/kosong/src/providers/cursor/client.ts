@@ -83,17 +83,29 @@ export class CursorAgentClient {
 
     if (options.signal?.aborted) {
       closeSession();
-      throw new Error('Cursor request aborted.');
+      throw cursorAbortedError();
     }
     const onAbort = (): void => {
       closeSession();
     };
     options.signal?.addEventListener('abort', onAbort, { once: true });
+    // Session RST/close after connect must not become an unhandled 'error'.
+    session.on('error', () => {
+      /* run() observes abort / stream end */
+    });
 
     try {
       await new Promise<void>((resolve, reject) => {
-        session.once('connect', () => resolve());
-        session.once('error', reject);
+        const onConnect = (): void => {
+          session.off('error', onError);
+          resolve();
+        };
+        const onError = (error: Error): void => {
+          session.off('connect', onConnect);
+          reject(error);
+        };
+        session.once('connect', onConnect);
+        session.once('error', onError);
       });
 
       const headers: http2.OutgoingHttpHeaders = {
@@ -118,11 +130,18 @@ export class CursorAgentClient {
       };
 
       const req = session.request(headers, { endStream: false });
+      // Closing the session on abort can RST the request; swallow so it cannot
+      // surface as an unhandled 'error' on the HTTP/2 stream.
+      req.on('error', () => {
+        /* handled via abort / generator exit */
+      });
       const paced = createPacedBody(frames, options.signal);
       paced.stream.pipe(req);
 
       try {
+        if (options.signal?.aborted) throw cursorAbortedError();
         const status = await waitForResponseHeaders(req, options.signal);
+        if (options.signal?.aborted) throw cursorAbortedError();
         if (status !== undefined && status >= 400) {
           const errBody = await readAll(req);
           throw new Error(
@@ -141,7 +160,8 @@ export class CursorAgentClient {
   }
 }
 
-function createPacedBody(
+/** @internal Exported for abort / stream lifecycle tests. */
+export function createPacedBody(
   frames: Uint8Array[],
   signal?: AbortSignal,
 ): { readonly stream: Readable; readonly stop: () => void } {
@@ -152,6 +172,11 @@ function createPacedBody(
     read() {
       // Push-driven from the async pace loop.
     },
+  });
+  // destroy(error) without a listener becomes an unhandled 'error' and kills the
+  // process — always attach before any abort path can run.
+  stream.on('error', () => {
+    /* abort / pipe teardown */
   });
 
   const pushFrame = (frame: Uint8Array): boolean => {
@@ -177,7 +202,8 @@ function createPacedBody(
     try {
       for (let index = 0; index < frames.length; index++) {
         if (signal?.aborted) {
-          fail(new Error('Cursor request aborted.'));
+          // Clean end — do not destroy(error); abort is observed by run().
+          stop();
           return;
         }
         pushFrame(frames[index]!);
@@ -187,12 +213,16 @@ function createPacedBody(
       if (closed) return;
       heartbeat = setInterval(() => {
         if (signal?.aborted) {
-          fail(new Error('Cursor request aborted.'));
+          stop();
           return;
         }
         pushFrame(heartbeatFrame());
       }, HEARTBEAT_INTERVAL_MS);
     } catch (error) {
+      if (signal?.aborted || isCursorAbortedError(error)) {
+        stop();
+        return;
+      }
       fail(error instanceof Error ? error : new Error(String(error)));
     }
   })();
@@ -200,12 +230,20 @@ function createPacedBody(
   signal?.addEventListener(
     'abort',
     () => {
-      fail(new Error('Cursor request aborted.'));
+      stop();
     },
     { once: true },
   );
 
   return { stream, stop };
+}
+
+function cursorAbortedError(): Error {
+  return new Error('Cursor request aborted.');
+}
+
+function isCursorAbortedError(error: unknown): boolean {
+  return error instanceof Error && error.message === 'Cursor request aborted.';
 }
 
 async function* decodeResponseStream(
@@ -235,7 +273,7 @@ async function* decodeResponseStream(
 
   try {
     for await (const chunk of stream as AsyncIterable<Buffer>) {
-      if (signal?.aborted) throw new Error('Cursor request aborted.');
+      if (signal?.aborted) throw cursorAbortedError();
       const frames = decoder.push(new Uint8Array(chunk));
       for (const frame of frames) {
         for (const event of frameToEvents(frame)) {
@@ -257,10 +295,14 @@ async function* decodeResponseStream(
         }
       }
     }
+    if (signal?.aborted) throw cursorAbortedError();
     if (timedOut && !gotOutput) {
       throw new Error('Cursor upstream timed out before sending any output.');
     }
     yield { type: 'end' };
+  } catch (error) {
+    if (signal?.aborted || isCursorAbortedError(error)) throw cursorAbortedError();
+    throw error;
   } finally {
     if (idleTimer !== undefined) clearTimeout(idleTimer);
     if (firstByteTimer !== undefined) clearTimeout(firstByteTimer);
@@ -303,21 +345,31 @@ function waitForResponseHeaders(
 ): Promise<number | undefined> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
-      reject(new Error('Cursor request aborted.'));
+      reject(cursorAbortedError());
       return;
     }
+    let settled = false;
+    const settle = (fn: () => void): void => {
+      if (settled) return;
+      settled = true;
+      signal?.removeEventListener('abort', onAbort);
+      fn();
+    };
     const onAbort = (): void => {
-      reject(new Error('Cursor request aborted.'));
+      settle(() => reject(cursorAbortedError()));
     };
     signal?.addEventListener('abort', onAbort, { once: true });
     req.once('response', (headers) => {
-      signal?.removeEventListener('abort', onAbort);
-      const status = headers[':status'];
-      resolve(typeof status === 'number' ? status : undefined);
+      settle(() => {
+        const status = headers[':status'];
+        resolve(typeof status === 'number' ? status : undefined);
+      });
     });
     req.once('error', (error) => {
-      signal?.removeEventListener('abort', onAbort);
-      reject(error);
+      settle(() => {
+        if (signal?.aborted) reject(cursorAbortedError());
+        else reject(error);
+      });
     });
   });
 }
@@ -333,7 +385,7 @@ async function readAll(stream: http2.ClientHttp2Stream): Promise<Uint8Array> {
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
-      reject(new Error('Cursor request aborted.'));
+      reject(cursorAbortedError());
       return;
     }
     const timer = setTimeout(() => {
@@ -342,7 +394,7 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
     }, ms);
     const onAbort = (): void => {
       clearTimeout(timer);
-      reject(new Error('Cursor request aborted.'));
+      reject(cursorAbortedError());
     };
     signal?.addEventListener('abort', onAbort, { once: true });
   });

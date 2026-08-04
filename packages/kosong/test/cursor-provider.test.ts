@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { createPacedBody } from '../src/providers/cursor/client';
 import {
   buildRunFrames,
   concatBytes,
@@ -181,5 +182,27 @@ describe('cursor field helpers', () => {
   it('fieldVarint / fieldLd produce non-empty tags', () => {
     expect(fieldVarint(4, 1).length).toBeGreaterThan(1);
     expect(fieldLd(1, new Uint8Array([1, 2, 3])).length).toBe(5);
+  });
+});
+
+describe('createPacedBody abort', () => {
+  it('abort ends the body stream without an unhandled Readable error', async () => {
+    const uncaught: Error[] = [];
+    const onUncaught = (error: Error): void => {
+      uncaught.push(error);
+    };
+    process.on('uncaughtException', onUncaught);
+    try {
+      const ac = new AbortController();
+      const paced = createPacedBody([new Uint8Array([1, 2, 3])], ac.signal);
+      // Drain so pipe teardown is not required for a clean end.
+      paced.stream.resume();
+      ac.abort();
+      await new Promise<void>((resolve) => paced.stream.once('end', () => resolve()));
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(uncaught).toEqual([]);
+    } finally {
+      process.off('uncaughtException', onUncaught);
+    }
   });
 });
