@@ -22,6 +22,7 @@ export const ProviderTypeSchema = z.enum([
   'vertexai',
   'bedrock',
   'vertex_claude',
+  'cursor',
 ]);
 
 export type ProviderType = z.infer<typeof ProviderTypeSchema>;

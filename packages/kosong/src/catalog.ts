@@ -69,6 +69,7 @@ const KNOWN_WIRE_TYPES = [
   'google-genai',
   'openai_responses',
   'vertexai',
+  'cursor',
 ] as const satisfies readonly ProviderType[];
 
 function isWireType(value: unknown): value is ProviderType {

@@ -15,6 +15,11 @@ import { join } from 'node:path';
 
 import { OAuthError } from '../errors';
 import {
+  refreshCursorToken,
+  runCursorDeepLinkFlow,
+  toCursorTokenInfo,
+} from './oauth-flow-cursor';
+import {
   refreshPkceToken,
   runPkceBrowserFlow,
   type GenericPkceFlowConfig,
@@ -144,6 +149,8 @@ export class OAuthProviderManager {
         return this.loginDeviceCodeOpenai(profile, callbacks, options);
       case 'pkce_browser':
         return this.loginPkceBrowser(profile, callbacks, options);
+      case 'deep_link_poll':
+        return this.loginDeepLinkPoll(profile, callbacks, options);
     }
   }
 
@@ -244,6 +251,22 @@ export class OAuthProviderManager {
     await this.storage.save(storageKey, token);
     return token;
   }
+
+  private async loginDeepLinkPoll(
+    profile: ProviderProfile,
+    callbacks: ProviderLoginCallbacks,
+    options: ProviderLoginOptions,
+  ): Promise<TokenInfo> {
+    const token = toCursorTokenInfo(
+      await runCursorDeepLinkFlow(profile.flow, {
+        onAuthorizeUrl: callbacks.onAuthorizeUrl,
+        signal: options.signal,
+      }),
+    );
+    const storageKey = options.storageKey ?? this.storageName(profile.id);
+    await this.storage.save(storageKey, token);
+    return token;
+  }
 }
 
 /** Adapts a ProviderFlowConfig to the GenericPkceFlowConfig shape. */
@@ -270,6 +293,8 @@ async function refreshForFlow(
       const token = await refreshOpenAiToken(flow, refreshToken);
       return toOpenAiTokenInfo(token);
     }
+    case 'deep_link_poll':
+      return toCursorTokenInfo(await refreshCursorToken(flow, refreshToken));
     case 'pkce_browser': {
       if (flow.oauthHost.includes('x.ai')) {
         const { tokenUrl } = await resolveXaiEndpoints(flow);

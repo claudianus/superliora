@@ -17,7 +17,7 @@ import type { OAuthFlowConfig } from '../types';
  * union (mirroring `ProviderType` in `@superliora/kosong`) so this package does
  * not need to depend on kosong.
  */
-export type OAuthProviderWire = 'anthropic' | 'openai' | 'openai_responses' | 'kimi';
+export type OAuthProviderWire = 'anthropic' | 'openai' | 'openai_responses' | 'kimi' | 'cursor';
 
 /** The OAuth authorization strategy a provider uses. */
 export type OAuthFlowKind =
@@ -26,7 +26,9 @@ export type OAuthFlowKind =
   /** OpenAI Codex custom device-code flow (usercode → poll → token exchange). */
   | 'device_code_openai'
   /** OAuth 2.0 PKCE authorization-code with a loopback browser callback. */
-  | 'pkce_browser';
+  | 'pkce_browser'
+  /** Cursor deep-link PKCE: open login URL, poll `/auth/poll` (no loopback). */
+  | 'deep_link_poll';
 
 /**
  * Configuration needed to run an OAuth flow. The base {@link OAuthFlowConfig}
