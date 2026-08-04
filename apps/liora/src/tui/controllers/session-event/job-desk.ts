@@ -8,8 +8,10 @@ import type { ColorToken } from '#/tui/theme';
 import type { AppState } from '../../types';
 import type { TUIState } from '../../tui-state';
 import {
+  appendJobInboxEntry,
   emptyConductorJobsSnapshot,
   mergeConductorJobsSnapshot,
+  upsertConductorJobCard,
   type ConductorJobsSnapshot,
 } from '../../utils/job/job-strip';
 
@@ -18,6 +20,8 @@ export type JobDeskHost = {
   setAppState(patch: Partial<AppState>): void;
   showStatus(msg: string, color?: ColorToken): void;
   showNotice(title: string, detail?: string, options?: { coalesceKey?: string }): void;
+  /** Live Job board repaint hook; absent until the controller is wired. */
+  readonly jobBoardController?: { repaint(): void };
 };
 
 function applyStatusDelta(
@@ -56,6 +60,9 @@ function applyStatusDelta(
 }
 
 export class SessionEventJobDesk {
+  /** One-shot hint that the Job board is reachable while jobs run. */
+  private boardHintShown = false;
+
   constructor(private readonly host: JobDeskHost) {}
 
   handleUpdated(event: JobUpdatedEvent): void {
@@ -66,9 +73,22 @@ export class SessionEventJobDesk {
       next = applyStatusDelta(next, previousStatus, -1);
     }
     next = applyStatusDelta(next, event.job.status, 1);
+    next.jobs = upsertConductorJobCard(prev.jobs, event.job, event.change, Date.now());
     this.host.setAppState({
       conductorJobs: mergeConductorJobsSnapshot(prev, next),
     });
+    this.host.jobBoardController?.repaint();
+    if (
+      !this.boardHintShown &&
+      event.job.status === 'running' &&
+      this.host.state.jobBoard === undefined
+    ) {
+      this.boardHintShown = true;
+      this.host.showStatus(
+        `Conductor job running: ${event.job.title} — open the job desk with /jobs board`,
+        'info',
+      );
+    }
   }
 
   handleInbox(event: JobInboxEvent): void {
@@ -76,8 +96,10 @@ export class SessionEventJobDesk {
     this.host.setAppState({
       conductorJobs: mergeConductorJobsSnapshot(prev, {
         unreadInbox: Math.max(0, prev.unreadInbox + 1),
+        inbox: appendJobInboxEntry(prev.inbox, event, Date.now()),
       }),
     });
+    this.host.jobBoardController?.repaint();
     const kindLabel = event.kind.replace(/^job\./, '');
     const detail = event.summary ? event.summary.slice(0, 120) : event.jobId;
     this.host.showNotice(`Job ${kindLabel}: ${event.title}`, detail, {

@@ -13,6 +13,8 @@ import type {
 
 import type { TerminalRenderer } from '#/tui/renderer';
 
+import type { ConductorJobsSnapshot } from './utils/job/job-strip';
+
 import type {
   AppearancePreferences,
   FooterPreferences,
@@ -61,19 +63,11 @@ export interface AppState {
   /** Active orchestrator worker summaries for the status board. */
   orchestratorWorkers?: readonly { id: string; description: string; status: string; tokenOutput?: number }[];
   /**
-   * Conductor Job desk strip (meta-orchestrator). Populated when Job* tools
-   * update the ledger or after /jobs refresh; optional until first job event.
+   * Conductor Job desk state (meta-orchestrator). Populated when Job* tools
+   * update the ledger, `job.*` events arrive, or after /jobs refresh;
+   * optional until first job event. `jobs` / `inbox` feed the Job board view.
    */
-  conductorJobs?: {
-    readonly total: number;
-    readonly queued: number;
-    readonly running: number;
-    readonly blocked: number;
-    readonly needsUser: number;
-    readonly interrupted: number;
-    readonly failed: number;
-    readonly unreadInbox: number;
-  } | null;
+  conductorJobs?: ConductorJobsSnapshot | null;
   /** 'bash' when the editor is in `!` shell-command mode. */
   inputMode: 'prompt' | 'bash';
   swarmMode: boolean;

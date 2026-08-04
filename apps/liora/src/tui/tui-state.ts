@@ -19,6 +19,7 @@ import { createTUIEditor } from './components/editor/editor-factory';
 import { TranscriptViewportComponent } from './components/messages/transcript-viewport';
 import { CHROME_GUTTER } from './constant/rendering';
 import type { TasksBrowserState } from './controllers/panes/tasks-browser';
+import type { JobBoardState } from './controllers/panes/job-board';
 import { currentTheme, type Theme } from './theme';
 import { resolveStageLayout } from './controllers/layout/stage-layout';
 import { NativeEditorTextInputController } from './features/native-layout/native-editor-text-input';
@@ -106,6 +107,7 @@ export interface TUIState {
   /** Stack of floating center modals (top is visible + receives input). */
   centerModalStack: CenterModalEntry[];
   tasksBrowser: TasksBrowserState | undefined;
+  jobBoard: JobBoardState | undefined;
   externalEditorRunning: boolean;
   queuedMessages: QueuedMessage[];
   swarmModeEntry: 'manual' | 'task' | 'ultrawork' | undefined;
@@ -267,6 +269,7 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
     activeDialog: null,
     centerModalStack: [],
     tasksBrowser: undefined,
+    jobBoard: undefined,
     externalEditorRunning: false,
     queuedMessages: [],
     swarmModeEntry: undefined,

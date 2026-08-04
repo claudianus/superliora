@@ -60,6 +60,7 @@ export interface SessionLifecycleHost extends PromptInputRuntimeHost {
   readonly sessionReplay: SessionReplayRenderer;
   readonly streamingUI: StreamingUIController;
   readonly tasksBrowserController: TasksBrowserController;
+  readonly jobBoardController: { close(): void };
   readonly btwPanelController: BtwPanelController;
   readonly approvalController: ApprovalController;
   readonly questionController: QuestionController;
@@ -151,6 +152,7 @@ export class SessionLifecycleController {
     host.pluginCommands = [];
     host.pluginCommandMap.clear();
     host.tasksBrowserController.close();
+    host.jobBoardController.close();
     host.btwPanelController.clear();
     host.state.footer.setBackgroundCounts({ bashTasks: 0, agentTasks: 0 });
     host.streamingUI.setTodoList([]);

@@ -13,6 +13,7 @@ import type { AuthFlowController } from '../../controllers/auth/auth-flow';
 import type { BtwPanelController } from '../../controllers/panes/btw-panel';
 import type { StreamingUIController } from '../../controllers/streaming-ui/index';
 import type { TasksBrowserController } from '../../controllers/panes/tasks-browser';
+import type { JobBoardController } from '../../controllers/panes/job-board';
 import type { ResolvedTheme } from '../../theme/colors';
 import type { TUIState } from '../../tui-state';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
@@ -236,6 +237,7 @@ export interface SlashCommandHost {
   readonly streamingUI: StreamingUIController;
   readonly btwPanelController: BtwPanelController;
   readonly tasksBrowserController: TasksBrowserController;
+  readonly jobBoardController: JobBoardController;
   readonly authFlow: AuthFlowController;
   /** Transition beat queue (status open, plan enter/exit, …). */
   readonly motionBeats: MotionBeatController;

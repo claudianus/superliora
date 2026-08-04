@@ -43,6 +43,7 @@ import { ShellInputController } from './controllers/shell/shell-input';
 import { StartupLifecycleController } from './controllers/startup-lifecycle/index';
 import { StreamingUIController } from './controllers/streaming-ui/index';
 import { TasksBrowserController } from './controllers/panes/tasks-browser';
+import { JobBoardController } from './controllers/panes/job-board';
 import { TranscriptRenderController } from './controllers/transcript/transcript-render';
 import { UsageMonitorController } from './controllers/usage/usage-monitor';
 import { WorkspaceBrowserController } from './controllers/panes/workspace-browser';
@@ -127,6 +128,7 @@ class LioraTUIClass {
   messageDispatch!: MessageDispatchController;
   sessionReplay!: SessionReplayRenderer;
   tasksBrowserController!: TasksBrowserController;
+  jobBoardController!: JobBoardController;
   usageMonitor!: UsageMonitorController;
   editorKeyboard!: EditorKeyboardController;
   promptIntelligence!: PromptIntelligenceController;
@@ -224,6 +226,7 @@ export interface LioraTUIHost {
   pushTranscriptEntry(entry: TranscriptEntry): void;
   setExternalEditorRunning(running: boolean): void;
   setTasksBrowser(value: TUIState['tasksBrowser']): void;
+  setJobBoard(value: TUIState['jobBoard']): void;
   appendStartupNotice(extra: string): void;
   readonly backgroundTasks: ReadonlyMap<string, BackgroundTaskInfo>;
   getCurrentSessionId(): string;

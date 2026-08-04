@@ -35,6 +35,7 @@ import { ShellInputController } from '../shell/shell-input';
 import { StartupLifecycleController } from '../startup-lifecycle/index';
 import { StreamingUIController } from '../streaming-ui/index';
 import { TasksBrowserController } from '../panes/tasks-browser';
+import { JobBoardController } from '../panes/job-board';
 import { TranscriptRenderController } from '../transcript/transcript-render';
 import { UsageMonitorController } from '../usage/usage-monitor';
 import { WorkspaceBrowserController } from '../panes/workspace-browser';
@@ -145,6 +146,7 @@ export function wireLioraTUIControllers(
   tui.startupLifecycle = new StartupLifecycleController(tui);
   tui.nativeRendererDiagnostics = new NativeRendererDiagnosticsController(tui);
   tui.tasksBrowserController = new TasksBrowserController(tui);
+  tui.jobBoardController = new JobBoardController(tui);
   tui.usageMonitor = new UsageMonitorController({
     harness: tui.harness,
     setAppState: (patch) =>{  tui.setAppState(patch); },
