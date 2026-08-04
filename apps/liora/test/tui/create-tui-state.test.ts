@@ -265,6 +265,32 @@ describe('createTUIState', () => {
     expect(plainLines.at(-1)).toBe('╰──────────────────────╯');
   });
 
+  it('paints prompt-intelligence ghost text in the native editor region', () => {
+    const state = createTUIState({
+      initialAppState: fakeInitialAppState(),
+      startup: {
+        continueLast: false,
+        yolo: false,
+        auto: false,
+        plan: false,
+      },
+    });
+    Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => 8 });
+    Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => 40 });
+    state.editorContainer.addChild(state.editor);
+    state.editor.setText('please fix the');
+    state.editor.setCursorPosition({ line: 0, col: 'please fix the'.length });
+    // setCursorPosition clears ghost — set after cursor is final.
+    state.editor.setGhostText(' login flow', 'inline');
+
+    const frame = renderTUIStateNativeFrame(state);
+    const editorRegion = frame.regions.find((region) => region.id === 'editor');
+    const plainLines = (editorRegion?.lines ?? []).map((line) =>
+      typeof line === 'string' ? line : line.map((cell) => cell.char).join(''),
+    );
+    expect(plainLines.some((line) => line.includes('please fix the login flow'))).toBe(true);
+  });
+
   it('keeps incremental native frames free of stale ghost cells while typing with autocomplete open', async () => {
     const width = 30;
     const height = 12;
