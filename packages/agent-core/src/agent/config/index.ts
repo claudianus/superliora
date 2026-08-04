@@ -34,6 +34,8 @@ export class ConfigState {
   private _systemPrompt: string = '';
   private _layeredSystemPrompt: LayeredSystemPrompt | undefined;
   private _systemPromptMeta: SystemPromptMeta | undefined;
+  /** Memoized runtime provider; keyed by serialized config + thinking level. */
+  private providerCache: { key: string; provider: ChatProvider } | null = null;
 
   constructor(protected readonly agent: Agent) {
     this._cwd = agent.kaos.getcwd();
@@ -133,7 +135,21 @@ export class ConfigState {
   }
 
   get provider(): ChatProvider {
-    return this.createRuntimeProvider(this.resolvedProviderConfig);
+    const resolved = this.resolvedProviderConfig;
+    const providerConfig = resolved?.provider;
+    if (providerConfig === undefined) {
+      throw new LioraError(ErrorCodes.MODEL_NOT_CONFIGURED, 'Provider not set');
+    }
+    // Reuse one instance per identical (config, thinking) pair: HTTP client
+    // reuse cuts per-step setup latency, and stateful provider internals
+    // (e.g. OpenAI Responses chain state) survive across steps.
+    const cacheKey = `${JSON.stringify(providerConfig)}::${this.thinkingLevel}`;
+    if (this.providerCache !== null && this.providerCache.key === cacheKey) {
+      return this.providerCache.provider;
+    }
+    const provider = this.createRuntimeProvider(resolved);
+    this.providerCache = { key: cacheKey, provider };
+    return provider;
   }
 
   get providerRoute(): ResolvedRuntimeProviderRoute | undefined {

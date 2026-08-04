@@ -6,7 +6,9 @@
  * skill catalog required.
  *
  * Qwen Cloud Token Plan support: uses the multimodal-generation API with
- * wan2.7-image (default), wan2.7-image-pro, or qwen-image-2.0 models.
+ * wan2.7-image (default), wan2.7-image-pro, or qwen-image-2.0/-pro models.
+ * Keys are read from QWEN_TOKEN_PLAN_API_KEY or ALIBABA_TOKEN_PLAN_API_KEY
+ * (the same service, see models.dev `alibaba-token-plan`).
  */
 
 import type { Kaos } from '@superliora/kaos';
@@ -47,7 +49,7 @@ export const GenerateImageInputSchema = z.object({
       'Force a provider. Default auto picks the first available (xai Grok Build → qwen → openai → google).',
     ),
   model: z
-    .enum(['wan2.7-image', 'wan2.7-image-pro', 'qwen-image-2.0'])
+    .enum(['wan2.7-image', 'wan2.7-image-pro', 'qwen-image-2.0', 'qwen-image-2.0-pro'])
     .optional()
     .describe('Qwen image model (qwen provider only). Defaults to wan2.7-image.'),
   aspect_ratio: z
@@ -76,7 +78,11 @@ export function resolveImageGenerationProvider(
   const xaiReady =
     env.xaiGrokBuild !== undefined ||
     nonEmpty(env.xaiApiKey ?? process.env['XAI_API_KEY']) !== undefined;
-  const qwen = nonEmpty(env.qwenTokenPlanApiKey ?? process.env['QWEN_TOKEN_PLAN_API_KEY']);
+  const qwen = nonEmpty(
+    env.qwenTokenPlanApiKey ??
+      process.env['QWEN_TOKEN_PLAN_API_KEY'] ??
+      process.env['ALIBABA_TOKEN_PLAN_API_KEY'],
+  );
   const openai = nonEmpty(env.openaiApiKey ?? process.env['OPENAI_API_KEY']);
   const google = nonEmpty(
     env.googleApiKey ?? process.env['GOOGLE_API_KEY'] ?? process.env['GEMINI_API_KEY'],
@@ -262,8 +268,14 @@ async function generateWithQwen(
   args: GenerateImageInput,
   env: GenerateImageProviderEnv,
 ): Promise<GeneratedImage> {
-  const apiKey = nonEmpty(env.qwenTokenPlanApiKey ?? process.env['QWEN_TOKEN_PLAN_API_KEY']);
-  if (apiKey === undefined) throw new Error('QWEN_TOKEN_PLAN_API_KEY is not set.');
+  const apiKey = nonEmpty(
+    env.qwenTokenPlanApiKey ??
+      process.env['QWEN_TOKEN_PLAN_API_KEY'] ??
+      process.env['ALIBABA_TOKEN_PLAN_API_KEY'],
+  );
+  if (apiKey === undefined) {
+    throw new Error('QWEN_TOKEN_PLAN_API_KEY / ALIBABA_TOKEN_PLAN_API_KEY is not set.');
+  }
   const fetchImpl = env.fetchImpl ?? globalThis.fetch.bind(globalThis);
   const model = args.model ?? 'wan2.7-image';
   const size = toQwenImageSize(args.size);

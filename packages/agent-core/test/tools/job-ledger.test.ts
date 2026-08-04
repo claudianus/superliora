@@ -355,14 +355,20 @@ describe('merge trust + worker guards + warm pool', () => {
     expect(guardWorkerShellCommand('git status', { isWorker: true }).allowed).toBe(true);
     expect(guardWorkerShellCommand('git push origin HEAD', { isWorker: false }).allowed).toBe(true);
 
-    const { ensureWarmPool, creditWarmPoolSlot, readWarmPoolState } = await import(
-      '../../src/tools/builtin/job/job-warm-pool'
-    );
+    const { ensureWarmPool, creditWarmPoolSlot, readWarmPoolState, warmPoolSpawner } =
+      await import('../../src/tools/builtin/job/job-warm-pool');
     const store = memoryStore();
-    const first = ensureWarmPool(store, { warmPoolSize: 2, maxConcurrentJobs: 6 });
+    const first = ensureWarmPool(store, { warmPoolSize: 2, maxConcurrentJobs: 6, failTtlDays: 7 });
     expect(first.deficit).toBe(2);
+    // Record-only default: message stays neutral and pre-spawn is gated off.
+    expect(first.message).toMatch(/pre-spawn disabled/);
+    expect(warmPoolSpawner({ subagentHost: {} }, {})).toBeUndefined();
+    expect(warmPoolSpawner(undefined, { SUPERLIORA_CONDUCTOR_WARM_POOL_SPAWN: '1' })).toBeUndefined();
+    expect(
+      warmPoolSpawner({ subagentHost: {} }, { SUPERLIORA_CONDUCTOR_WARM_POOL_SPAWN: '1' }),
+    ).not.toBeUndefined();
     creditWarmPoolSlot(store, 2);
-    const second = ensureWarmPool(store, { warmPoolSize: 2, maxConcurrentJobs: 6 });
+    const second = ensureWarmPool(store, { warmPoolSize: 2, maxConcurrentJobs: 6, failTtlDays: 7 });
     expect(second.deficit).toBe(0);
     expect(readWarmPoolState(store).readySlots).toBe(2);
   });
@@ -560,6 +566,77 @@ describe('worker context handoff', () => {
     expect(spawnedPrompts).toHaveLength(1);
     expect(spawnedPrompts[0]).toContain('Read these first: src/auth/session.ts');
     expect(spawnedPrompts[0]).toContain('race lives in refresh()');
+  });
+
+  it('marks jobs failed when the completion contract reports verification failure', async () => {
+    const store = memoryStore();
+    const contract = {
+      agent_id: 'agent_vf',
+      profile: 'coder',
+      deviations: [],
+      summary: 'implemented the fix',
+      files_changed: ['src/auth/session.ts'],
+      verification: { tests: 'failed', typecheck: 'passed', lint: 'not_run' },
+      verification_failed: true,
+    };
+    let resolveCompletion!: (value: {
+      result: string;
+      contract: typeof contract;
+    }) => void;
+    const completion = new Promise<{ result: string; contract: typeof contract }>(
+      (resolve) => {
+        resolveCompletion = resolve;
+      },
+    );
+    const host = {
+      spawn: async (options: { prompt: string; profileName?: string }) => ({
+        agentId: 'agent_vf',
+        profileName: options.profileName ?? 'coder',
+        resumed: false,
+        completion,
+      }),
+    };
+    const agent = { subagentHost: host, config: { cwd: undefined } } as never;
+    const tool = new JobCreateTool(store, agent);
+    const exec = tool.resolveExecution({ title: 'risky change', kind: 'implement' });
+    if (exec.isError) throw new Error('resolve failed');
+    await exec.execute({
+      turnId: 't',
+      toolCallId: 'c_vf',
+      signal: new AbortController().signal,
+    });
+    resolveCompletion({ result: 'done\n<subagent-result>...</subagent-result>', contract });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const job = listJobs(store)[0];
+    if (!job) throw new Error('job missing');
+    expect(job.status).toBe('failed');
+    expect(job.resultSummary).toContain('verification failed');
+    expect(job.resultSummary).toContain('implemented the fix');
+    expect(job.resultContract?.files_changed).toEqual(['src/auth/session.ts']);
+  });
+
+  it('propagates structured contract facts into child prior findings', () => {
+    const store = memoryStore();
+    const parent = createJob(store, { title: 'parent', kind: 'implement' });
+    patchJob(store, parent.id, {
+      status: 'done',
+      resultSummary: 'done',
+      resultContract: {
+        agent_id: 'agent_p',
+        profile: 'coder',
+        deviations: [],
+        summary: 'done',
+        files_changed: ['src/a.ts', 'src/b.ts'],
+        verification: { tests: 'passed', typecheck: 'passed', lint: 'not_run' },
+        verification_failed: false,
+      },
+    });
+    const child = createJob(store, { title: 'child', parentJobId: parent.id });
+
+    const prompt = jobPrompt(child, store);
+    expect(prompt).toContain('Files changed: src/a.ts, src/b.ts');
+    expect(prompt).toContain('Verification: tests=passed, typecheck=passed, lint=not_run');
   });
 });
 

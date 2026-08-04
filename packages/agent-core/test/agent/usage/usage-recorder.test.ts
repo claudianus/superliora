@@ -247,3 +247,64 @@ describe('agent/usage — UsageRecorder', () => {
     expect(rec.status()?.cacheDiagnostics?.missReasons).toBeUndefined();
   });
 });
+
+describe('agent/usage — post-compaction cache recovery observation', () => {
+  const makeTrackedAgent = () => {
+    const track = vi.fn();
+    const agent = {
+      records: { logRecord: vi.fn() },
+      emitStatusUpdated: vi.fn(),
+      telemetry: { track },
+    } as unknown as Agent;
+    return { agent, track };
+  };
+
+  it('tracks the first record after noteCompactionApplied exactly once', () => {
+    const { agent, track } = makeTrackedAgent();
+    const rec = new UsageRecorder(agent);
+    rec.noteCompactionApplied('full', 1234);
+    rec.record('claude', u({ inputOther: 10, inputCacheRead: 90, inputCacheCreation: 100 }), 'turn');
+    expect(track).toHaveBeenCalledTimes(1);
+    expect(track).toHaveBeenCalledWith(
+      'compaction_cache_recovery',
+      expect.objectContaining({
+        kind: 'full',
+        scope: 'turn',
+        model: 'claude',
+        input_tokens: 200,
+        cache_read_tokens: 90,
+        cache_creation_tokens: 100,
+        input_other_tokens: 10,
+        cache_read_ratio: 0.45,
+        retained_tokens: 1234,
+      }),
+    );
+    // One-shot: later records do not re-fire the observation.
+    rec.record('claude', u({ inputOther: 1 }), 'turn');
+    expect(track).toHaveBeenCalledTimes(1);
+  });
+
+  it('omits retained_tokens for micro compaction and reports zero input safely', () => {
+    const { agent, track } = makeTrackedAgent();
+    const rec = new UsageRecorder(agent);
+    rec.noteCompactionApplied('micro');
+    rec.record('gpt-4o', u({ output: 5 }), 'session');
+    expect(track).toHaveBeenCalledTimes(1);
+    const [event, properties] = track.mock.calls[0] ?? [];
+    expect(event).toBe('compaction_cache_recovery');
+    expect(properties).toMatchObject({
+      kind: 'micro',
+      scope: 'session',
+      input_tokens: 0,
+      cache_read_ratio: 0,
+    });
+    expect(properties).not.toHaveProperty('retained_tokens');
+  });
+
+  it('never fires without an armed compaction', () => {
+    const { agent, track } = makeTrackedAgent();
+    const rec = new UsageRecorder(agent);
+    rec.record('claude', u({ inputCacheRead: 10 }), 'turn');
+    expect(track).not.toHaveBeenCalled();
+  });
+});

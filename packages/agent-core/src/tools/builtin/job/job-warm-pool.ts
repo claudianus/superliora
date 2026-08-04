@@ -1,7 +1,9 @@
 /**
  * Warm pool for Conductor workers (config + ledger placeholders).
- * Pre-spawned live agents are a later slice; this tracks desired warm slots
- * and records readiness so schedule/backpressure can use the same config.
+ * Tracks desired warm slots and records readiness so schedule/backpressure
+ * use the same config. Live pre-spawn is opt-in and idle-only (see
+ * warmPoolSpawner): there is no warm-worker reuse path yet, so the default
+ * records the pool without spending tokens on idle agents.
  */
 
 import type { ToolStore } from '../../store';
@@ -103,7 +105,7 @@ export function ensureWarmPool(
       ? 'warm pool satisfied'
       : spawned > 0
         ? `pre-spawn requested ${spawned}; waiting for boots`
-        : 'warm pre-spawn unavailable (no spawner); desired size recorded';
+        : 'record-only: pre-spawn disabled; desired size recorded';
 
   const finalState: WarmPoolState = {
     schemaVersion: 1,
@@ -114,16 +116,21 @@ export function ensureWarmPool(
   };
   writeWarmPoolState(store, finalState);
   const remaining = Math.max(0, config.warmPoolSize - finalState.readySlots);
+  let message: string;
+  if (remaining === 0) {
+    message = `Warm pool ready: ${finalState.readySlots}/${config.warmPoolSize}`;
+  } else if (spawner === undefined) {
+    // Record-only mode is the normal default — phrase it neutrally so the
+    // conductor does not chase a deficit that pre-spawn cannot fill.
+    message = `Warm pool recorded: desired ${config.warmPoolSize} (pre-spawn disabled)`;
+  } else {
+    message = `Warm pool deficit ${remaining} (desired ${config.warmPoolSize}, ready ${finalState.readySlots}); pre-spawned ${spawned} worker(s)`;
+  }
   return {
     state: finalState,
     deficit: remaining,
     spawned,
-    message:
-      remaining === 0
-        ? `Warm pool ready: ${finalState.readySlots}/${config.warmPoolSize}`
-        : `Warm pool deficit ${remaining} (desired ${config.warmPoolSize}, ready ${finalState.readySlots})${
-            spawned > 0 ? `; pre-spawned ${spawned} worker(s)` : ''
-          }`,
+    message,
   };
 }
 
@@ -144,6 +151,13 @@ export function creditWarmPoolSlot(store: ToolStore, delta = 1): WarmPoolState {
  * subagents with an idle prompt. Boots are fire-and-forget; each success
  * credits the slot via creditWarmPoolSlot. Returns undefined when the
  * agent has no subagentHost (scheduler keeps recording desired size only).
+ *
+ * Pre-spawn is opt-in (`SUPERLIORA_CONDUCTOR_WARM_POOL_SPAWN=1`): warm
+ * workers currently have no consumption path — `host.resume` does not
+ * re-apply the job worktree cwd (set once at spawn via
+ * `configureSubagentChild`), so a warm worker could never safely take a
+ * worktree-isolated job. Default-off pre-spawn avoids paying an idle-prompt
+ * LLM turn per slot per schedule that nothing ever reuses.
  */
 export function warmPoolSpawner(
   agent:
@@ -152,7 +166,11 @@ export function warmPoolSpawner(
         log?: { debug?: (message: string, payload?: unknown) => void };
       }
     | undefined,
+  env: Readonly<Record<string, string | undefined>> = process.env,
 ): WarmPoolSpawner | undefined {
+  if (env['SUPERLIORA_CONDUCTOR_WARM_POOL_SPAWN'] !== '1') {
+    return undefined;
+  }
   if (agent === undefined || agent.subagentHost === undefined) {
     return undefined;
   }

@@ -7,7 +7,9 @@ const PROVIDER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   'xai-grok': 'xAI Grok',
   'anthropic-oauth': 'Anthropic Claude',
   'clinepass': 'ClinePass',
-  'qwen-token-plan': 'Qwen Token Plan',
+  'qwen-token-plan': 'Alibaba Token Plan',
+  'alibaba-token-plan': 'Alibaba Token Plan',
+  'alibaba-token-plan-cn': 'Alibaba Token Plan (China)',
 };
 
 export function providerDisplayName(providerKey: string): string {

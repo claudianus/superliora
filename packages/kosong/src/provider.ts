@@ -122,6 +122,12 @@ export interface LayeredSystemPrompt {
   readonly layer2Session: string;
   /** Dynamic context - may change per request */
   readonly layer3Dynamic: string;
+  /**
+   * Per-agent role/persona text, kept out of the cached layers so parallel
+   * workers with distinct roles share one identical system prefix. Emitted as
+   * a trailing system block (no cache breakpoint) when non-empty.
+   */
+  readonly roleAdditional?: string;
 }
 
 export interface GenerateOptions {

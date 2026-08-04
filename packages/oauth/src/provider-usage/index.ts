@@ -72,7 +72,11 @@ export async function fetchProviderUsage(
   if (providerKey === 'clinepass') {
     return fetchClinePassUsage(providerKey, accessToken, baseUrl, opts);
   }
-  if (providerKey === 'qwen-token-plan') {
+  if (
+    providerKey === 'qwen-token-plan' ||
+    providerKey === 'alibaba-token-plan' ||
+    providerKey === 'alibaba-token-plan-cn'
+  ) {
     return fetchQwenTokenPlanUsage(providerKey, accessToken, baseUrl, opts);
   }
   // Unknown provider — report as unavailable.

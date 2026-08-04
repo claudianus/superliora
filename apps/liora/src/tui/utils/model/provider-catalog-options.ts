@@ -24,7 +24,15 @@ import {
 
 import { isExperimentalFlagEnabled } from '#/tui/commands/experimental-flags';
 import { oauthProviderCatalogId } from '#/tui/utils/oauth-catalog-id';
-import { QWEN_TOKEN_PLAN_TEXT_MODELS } from '#/tui/utils/model/qwen-token-plan';
+import {
+  ALIBABA_TOKEN_PLAN_CATALOG_ID,
+  ALIBABA_TOKEN_PLAN_CN_CATALOG_ID,
+  QWEN_TOKEN_PLAN_BASE_URL,
+  QWEN_TOKEN_PLAN_PROVIDER_ID,
+  QWEN_TOKEN_PLAN_TEXT_MODELS,
+  TOKEN_PLAN_ENV_KEYS,
+  isTokenPlanCatalogId,
+} from '#/tui/utils/model/qwen-token-plan';
 
 /** How the user will authenticate for a given entry. */
 export type ProviderAuthKind = 'oauth' | 'api-key' | 'keyless' | 'cloud' | 'custom';
@@ -55,7 +63,7 @@ export type ProviderCatalogSelection =
   | { readonly kind: 'oauth'; readonly providerId: string }
   | { readonly kind: 'catalog'; readonly providerId: string }
   | { readonly kind: 'cloud'; readonly providerId: 'bedrock' | 'vertex_claude' }
-  | { readonly kind: 'qwen-token-plan' }
+  | { readonly kind: 'qwen-token-plan'; readonly region?: 'global' | 'cn' }
   | { readonly kind: 'custom-endpoint' }
   | { readonly kind: 'custom-registry' };
 
@@ -105,6 +113,9 @@ export function buildProviderCatalogOptions(catalog: Catalog): readonly Provider
   }
 
   for (const [id, entry] of Object.entries(catalog)) {
+    // Alibaba Token Plan entries are merged into the first-class Token Plan
+    // rows below (same service, dedicated multimodal integration).
+    if (isTokenPlanCatalogId(id)) continue;
     const wire = inferWireType(entry);
     if (wire === undefined) continue;
     const models = catalogProviderModels(entry);
@@ -140,17 +151,58 @@ export function buildProviderCatalogOptions(catalog: Catalog): readonly Provider
     docUrl: 'https://platform.claude.com/docs/en/build-with-claude/claude-on-vertex-ai',
   });
 
-  // Qwen Cloud Token Plan — first-class multimodal subscription with text,
-  // image, video generation, harness tools, and visual understanding.
+  // Alibaba Token Plan (Qwen Cloud) — first-class multimodal subscription
+  // with text, image, video generation, harness tools, and visual
+  // understanding. Identical to the models.dev `alibaba-token-plan` entry;
+  // model names/metadata resolve live from the catalog when present.
+  const tokenPlanEntry = catalog[ALIBABA_TOKEN_PLAN_CATALOG_ID];
+  const tokenPlanLiveModels =
+    tokenPlanEntry === undefined ? undefined : catalogProviderModels(tokenPlanEntry);
   options.push({
     value: 'qwen-token-plan',
-    label: 'Qwen Cloud (Token Plan)',
+    label:
+      typeof tokenPlanEntry?.name === 'string' && tokenPlanEntry.name.length > 0
+        ? tokenPlanEntry.name
+        : 'Qwen Cloud (Token Plan)',
     authKind: 'api-key',
-    modelCount: QWEN_TOKEN_PLAN_TEXT_MODELS.length,
-    baseUrl: 'https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1',
-    envVars: ['QWEN_TOKEN_PLAN_API_KEY'],
-    docUrl: 'https://docs.qwencloud.com/token-plan/overview',
+    modelCount: tokenPlanLiveModels?.length ?? QWEN_TOKEN_PLAN_TEXT_MODELS.length,
+    baseUrl:
+      typeof tokenPlanEntry?.api === 'string' && tokenPlanEntry.api.length > 0
+        ? tokenPlanEntry.api
+        : QWEN_TOKEN_PLAN_BASE_URL,
+    envVars: [...TOKEN_PLAN_ENV_KEYS],
+    docUrl:
+      typeof tokenPlanEntry?.doc === 'string' && tokenPlanEntry.doc.length > 0
+        ? tokenPlanEntry.doc
+        : 'https://docs.qwencloud.com/token-plan/overview',
+    catalogId: QWEN_TOKEN_PLAN_PROVIDER_ID,
   });
+
+  // China-region lane of the same service, surfaced only when the catalog
+  // carries it. Selecting it runs the identical dedicated connect flow.
+  const tokenPlanCnEntry = catalog[ALIBABA_TOKEN_PLAN_CN_CATALOG_ID];
+  if (tokenPlanCnEntry !== undefined) {
+    const cnLiveModels = catalogProviderModels(tokenPlanCnEntry);
+    options.push({
+      value: 'qwen-token-plan:cn',
+      label:
+        typeof tokenPlanCnEntry.name === 'string' && tokenPlanCnEntry.name.length > 0
+          ? tokenPlanCnEntry.name
+          : 'Qwen Cloud (Token Plan · China)',
+      authKind: 'api-key',
+      modelCount: cnLiveModels.length,
+      baseUrl:
+        typeof tokenPlanCnEntry.api === 'string' && tokenPlanCnEntry.api.length > 0
+          ? tokenPlanCnEntry.api
+          : undefined,
+      envVars: [...TOKEN_PLAN_ENV_KEYS],
+      docUrl:
+        typeof tokenPlanCnEntry.doc === 'string' && tokenPlanCnEntry.doc.length > 0
+          ? tokenPlanCnEntry.doc
+          : undefined,
+      catalogId: QWEN_TOKEN_PLAN_PROVIDER_ID,
+    });
+  }
 
   options.push({
     value: 'custom-endpoint',
@@ -195,6 +247,15 @@ export function resolveProviderSelection(value: string): ProviderCatalogSelectio
   if (value === 'custom-endpoint') return { kind: 'custom-endpoint' };
   if (value === 'custom-registry') return { kind: 'custom-registry' };
   if (value === 'qwen-token-plan') return { kind: 'qwen-token-plan' };
+  if (value === 'qwen-token-plan:cn') return { kind: 'qwen-token-plan', region: 'cn' };
+  // The models.dev catalog ids for the same service route to the dedicated
+  // Token Plan flow regardless of how they reached the dispatcher.
+  if (value === `catalog:${ALIBABA_TOKEN_PLAN_CATALOG_ID}`) {
+    return { kind: 'qwen-token-plan' };
+  }
+  if (value === `catalog:${ALIBABA_TOKEN_PLAN_CN_CATALOG_ID}`) {
+    return { kind: 'qwen-token-plan', region: 'cn' };
+  }
   if (value.startsWith('cloud:')) {
     const providerId = value.slice('cloud:'.length);
     if (providerId === 'bedrock' || providerId === 'vertex_claude') {

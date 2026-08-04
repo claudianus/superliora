@@ -57,6 +57,19 @@ export class UsageRecorder {
   private lastStepModel: string | undefined;
   private lastCacheDiagnostics: CacheDiagnostics | undefined;
   private readonly missReasonCounts: CacheMissReasonHistogram = {};
+  /**
+   * One-shot observation armed by a compaction: the next recorded usage is
+   * the first request that re-sends the retained tail, so its cache-read vs
+   * cache-creation split measures how much of the tail the provider cache
+   * actually gave back (tuning signal for retained-tail size).
+   */
+  private pendingCacheRecovery:
+    | {
+        readonly kind: 'full' | 'micro';
+        readonly retainedTokens?: number;
+        readonly recordedAt: number;
+      }
+    | null = null;
 
   constructor(protected readonly agent?: Agent) {}
 
@@ -68,6 +81,15 @@ export class UsageRecorder {
   endTurn(): void {
     this.currentTurn = undefined;
     this.turnWarmStreakCounted = false;
+  }
+
+  /** Arm a one-shot cache-recovery observation for the next recorded usage. */
+  noteCompactionApplied(kind: 'full' | 'micro', retainedTokens?: number): void {
+    this.pendingCacheRecovery = {
+      kind,
+      ...(retainedTokens !== undefined ? { retainedTokens } : {}),
+      recordedAt: Date.now(),
+    };
   }
 
   record(model: string, usage: TokenUsage, scope: UsageRecordScope = 'session'): void {
@@ -84,6 +106,25 @@ export class UsageRecorder {
       this.currentTurn =
         this.currentTurn === undefined ? copyUsage(usage) : addUsage(this.currentTurn, usage);
       this.updateWarmHitStreakFromTurn(this.currentTurn);
+    }
+    const recovery = this.pendingCacheRecovery;
+    if (recovery !== null) {
+      this.pendingCacheRecovery = null;
+      const input = inputTotal(usage);
+      this.agent?.telemetry.track('compaction_cache_recovery', {
+        kind: recovery.kind,
+        scope,
+        model,
+        input_tokens: input,
+        cache_read_tokens: usage.inputCacheRead,
+        cache_creation_tokens: usage.inputCacheCreation,
+        input_other_tokens: usage.inputOther,
+        cache_read_ratio: input > 0 ? usage.inputCacheRead / input : 0,
+        ...(recovery.retainedTokens !== undefined
+          ? { retained_tokens: recovery.retainedTokens }
+          : {}),
+        ms_since_compaction: Date.now() - recovery.recordedAt,
+      });
     }
     this.agent?.emitStatusUpdated();
   }

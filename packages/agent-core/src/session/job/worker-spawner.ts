@@ -1,11 +1,11 @@
 /**
  * V2-2 spawn isolation (contract §3, checklist V2-2).
  *
- * Worker spawns run behind a serialized queue so the interactive lane never
- * awaits spawn preparation:
+ * Worker spawns run behind a bounded-concurrency queue so the interactive
+ * lane never awaits spawn preparation:
  *
- * - queue: concurrent enqueue calls never spawn in parallel — one spawn
- *   handshake runs at a time, in FIFO order;
+ * - queue: concurrent enqueue calls spawn at most `maxConcurrent` handshakes
+ *   at a time, in FIFO order (batched schedules no longer pay n×budget);
  * - spawning state: a key (job id) is either queued or spawning; duplicate
  *   enqueues are rejected so resume/schedule races cannot double-spawn;
  * - failure isolation: a throwing or hanging spawn never rejects into the
@@ -17,6 +17,9 @@
 
 /** Locked spawn budget (checklist V2-2): blocked + reason after 30s. */
 export const JOB_WORKER_SPAWN_BUDGET_MS = 30_000;
+
+/** Parallel spawn handshakes. Keys are deduped per job and each handshake owns its own worktree/agent, so distinct jobs spawn safely in parallel. */
+export const JOB_WORKER_SPAWN_MAX_CONCURRENT = 3;
 
 export type WorkerSpawnPhase =
   | 'spawning'
@@ -38,18 +41,22 @@ export interface WorkerSpawnTask {
 export interface WorkerSpawnerOptions {
   /** Override the spawn budget (tests). Defaults to JOB_WORKER_SPAWN_BUDGET_MS. */
   readonly budgetMs?: number;
+  /** Override the spawn concurrency (tests). Defaults to JOB_WORKER_SPAWN_MAX_CONCURRENT. */
+  readonly maxConcurrent?: number;
 }
 
 export class WorkerSpawner {
   private readonly queue: WorkerSpawnTask[] = [];
   private readonly queuedKeys = new Set<string>();
   private readonly budgetMs: number;
-  private spawningKey: string | undefined;
+  private readonly maxConcurrent: number;
+  private readonly spawningKeys = new Set<string>();
   private drainScheduled = false;
   private drainInFlight: Promise<void> | undefined;
 
   constructor(options: WorkerSpawnerOptions = {}) {
     this.budgetMs = options.budgetMs ?? JOB_WORKER_SPAWN_BUDGET_MS;
+    this.maxConcurrent = Math.max(1, options.maxConcurrent ?? JOB_WORKER_SPAWN_MAX_CONCURRENT);
   }
 
   /**
@@ -57,7 +64,7 @@ export class WorkerSpawner {
    * preparation. Duplicate keys (queued or currently spawning) are rejected.
    */
   enqueue(task: WorkerSpawnTask): { readonly queued: boolean; readonly duplicate: boolean } {
-    if (this.queuedKeys.has(task.key) || this.spawningKey === task.key) {
+    if (this.queuedKeys.has(task.key) || this.spawningKeys.has(task.key)) {
       return { queued: false, duplicate: true };
     }
     this.queue.push(task);
@@ -66,13 +73,13 @@ export class WorkerSpawner {
     return { queued: true, duplicate: false };
   }
 
-  /** Key currently mid-spawn, when any. */
+  /** A key currently mid-spawn, when any (first in start order). */
   get currentSpawningKey(): string | undefined {
-    return this.spawningKey;
+    return this.spawningKeys.values().next().value as string | undefined;
   }
 
   isSpawning(key: string): boolean {
-    return this.spawningKey === key;
+    return this.spawningKeys.has(key);
   }
 
   isQueued(key: string): boolean {
@@ -108,11 +115,21 @@ export class WorkerSpawner {
   private beginDrain(): void {
     if (this.drainInFlight !== undefined) return;
     const drain = (async () => {
-      while (this.queue.length > 0) {
-        const task = this.queue.shift();
-        if (task === undefined) break;
-        this.queuedKeys.delete(task.key);
-        await this.runOne(task);
+      // Keep up to maxConcurrent handshakes in flight; pull the next queued
+      // task as soon as any one settles so batches no longer serialize.
+      const inFlight = new Set<Promise<void>>();
+      for (;;) {
+        while (inFlight.size < this.maxConcurrent && this.queue.length > 0) {
+          const task = this.queue.shift();
+          if (task === undefined) break;
+          this.queuedKeys.delete(task.key);
+          const slot = this.runOne(task).finally(() => {
+            inFlight.delete(slot);
+          });
+          inFlight.add(slot);
+        }
+        if (inFlight.size === 0) break;
+        await Promise.race(inFlight);
       }
     })();
     this.drainInFlight = drain;
@@ -124,7 +141,7 @@ export class WorkerSpawner {
   }
 
   private async runOne(task: WorkerSpawnTask): Promise<void> {
-    this.spawningKey = task.key;
+    this.spawningKeys.add(task.key);
     this.emitPhase(task, 'spawning');
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -165,7 +182,7 @@ export class WorkerSpawner {
       this.emitPhase(task, 'spawn_failed');
     } finally {
       if (timer !== undefined) clearTimeout(timer);
-      this.spawningKey = undefined;
+      this.spawningKeys.delete(task.key);
     }
   }
 

@@ -1,7 +1,5 @@
 import type { PlanFilePath } from '../plan';
-import type { Agent } from '..';
 import { isRealUserPromptOrigin } from '../context/types';
-import { buildResponseLanguageDirective } from './response-language';
 import { DynamicInjector } from './injector';
 import {
   NO_AI_SLOP_SKILL_MANDATE_COMPACT,
@@ -53,10 +51,10 @@ export class PlanModeInjector extends DynamicInjector {
       this.wasActive = true;
       if (isUltraMode) {
         this.lastUltraPhase = phase;
-        return withResponseLanguage(await phaseReminder(planFilePath, phase, this.agent), this.agent);
+        return await phaseReminder(planFilePath, phase, this.agent);
       }
       if (await this.hasCurrentPlanContent()) {
-        return withResponseLanguage(reentryReminder(planFilePath), this.agent);
+        return reentryReminder(planFilePath);
       }
     }
 
@@ -65,23 +63,23 @@ export class PlanModeInjector extends DynamicInjector {
       if (this.lastUltraPhase !== phase) {
         this.lastUltraPhase = phase;
         this.injectedAt = null;
-        return withResponseLanguage(await phaseReminder(planFilePath, phase, this.agent), this.agent);
+        return await phaseReminder(planFilePath, phase, this.agent);
       }
       const ultraVariant = this.getUltraVariant();
       if (ultraVariant === null) return undefined;
       return ultraVariant === 'full'
-        ? withResponseLanguage(await phaseReminder(planFilePath, phase, this.agent), this.agent)
-        : withResponseLanguage(await phaseSparseReminder(planFilePath, phase, this.agent), this.agent);
+        ? await phaseReminder(planFilePath, phase, this.agent)
+        : await phaseSparseReminder(planFilePath, phase, this.agent);
     }
 
     const variant = this.getVariant();
     if (variant === null) return undefined;
 
     return variant === 'full'
-      ? withResponseLanguage(fullReminder(planFilePath), this.agent)
+      ? fullReminder(planFilePath)
       : variant === 'sparse'
-        ? withResponseLanguage(sparseReminder(planFilePath), this.agent)
-        : withResponseLanguage(reentryReminder(planFilePath), this.agent);
+        ? sparseReminder(planFilePath)
+        : reentryReminder(planFilePath);
   }
 
   protected getVariant(): PlanModeVariant | null {
@@ -139,12 +137,6 @@ export class PlanModeInjector extends DynamicInjector {
 function withPlanFileFooter(body: string, planFilePath: PlanFilePath): string {
   if (planFilePath === null || planFilePath.length === 0) return body;
   return `${body}\n\nPlan file: ${planFilePath}`;
-}
-
-function withResponseLanguage(body: string, agent: Agent): string {
-  const preference = agent.getResponseLanguagePreference?.();
-  if (preference === undefined) return body;
-  return `${body}\n\n${buildResponseLanguageDirective(preference, { wrapped: false })}`;
 }
 
 const PLAN_MODE_BLOCKED_TOOLS =

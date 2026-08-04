@@ -9,7 +9,9 @@ whenToUse: |
   Use this agent for non-trivial software engineering work that may require reading files, editing code, running commands, and returning a compact but technically complete summary to the parent agent.
 tools:
   # Lean coding surface for specialist workers (no goal/swarm/media generation
-  # bloat; Context7 left to main agent to save specialist tokens).
+  # bloat; Context7 left to main agent to save specialist tokens). No
+  # AskUserQuestion (workers must not ask the end user) and no mcp__* wildcard
+  # (unbounded schema bloat on every spawn).
   - Read
   - Write
   - Edit
@@ -27,11 +29,9 @@ tools:
   - VerifySurface
   - Review
   - VisualDiff
-  - AskUserQuestion
   - Memory
   - TodoList
   - Skill
   - SearchSkill
   - SearchTools
   - GetCurrentTime
-  - mcp__*

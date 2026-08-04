@@ -29,7 +29,6 @@ tools:
   - DeepResearch
   - FetchURL
   - ReadMediaFile
-  - AskUserQuestion
   - TodoList
   - GetCurrentTime
   - Skill

@@ -227,7 +227,10 @@ function resolveMediaProviderEnv(agent: Agent): b.GenerateImageProviderEnv & b.G
     xaiApiKey: nonEmptyEnv('XAI_API_KEY'),
     openaiApiKey: nonEmptyEnv('OPENAI_API_KEY'),
     googleApiKey: nonEmptyEnv('GOOGLE_API_KEY') ?? nonEmptyEnv('GEMINI_API_KEY'),
-    qwenTokenPlanApiKey: nonEmptyEnv('QWEN_TOKEN_PLAN_API_KEY'),
+    qwenTokenPlanApiKey:
+      services?.qwenTokenPlanApiKey ??
+      nonEmptyEnv('QWEN_TOKEN_PLAN_API_KEY') ??
+      nonEmptyEnv('ALIBABA_TOKEN_PLAN_API_KEY'),
   };
 }
 

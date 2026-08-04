@@ -31,7 +31,6 @@ tools:
   - FetchURL
   - ReadMediaFile
   - Review
-  - AskUserQuestion
   - TodoList
   - Skill
   - SearchSkill

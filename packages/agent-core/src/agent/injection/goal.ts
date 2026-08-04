@@ -40,7 +40,12 @@ export class GoalInjector extends DynamicInjector {
         && this.agent.ultrawork?.getRun() !== undefined
         && this.agent.ultrawork?.getRun()?.status !== 'done'
         && this.agent.ultrawork?.getRun()?.status !== 'failed';
-      return buildGoalReminder(goal, { ultraworkLive:  ultraworkLive });
+      // An earlier reminder is still visible in the history (`injectedAt`
+      // tracks it across compaction/message removal): repeat only the live
+      // status/budget data and skip the static execution-pattern prose that
+      // would otherwise accumulate verbatim every continuation turn.
+      const slim = this.injectedAt !== null;
+      return buildGoalReminder(goal, { ultraworkLive, slim });
     }
     if (goal.status === 'blocked') return buildBlockedNote(goal);
     if (goal.status === 'paused') return buildPausedNote(goal);
@@ -99,7 +104,7 @@ function buildPausedNote(goal: GoalSnapshot): string {
 
 function buildGoalReminder(
   goal: GoalSnapshot,
-  opts: { ultraworkLive?: boolean } = {},
+  opts: { ultraworkLive?: boolean; slim?: boolean } = {},
 ): string {
   const lines: string[] = [
     'You are working under an active goal (goal mode).',
@@ -136,14 +141,24 @@ function buildGoalReminder(
   lines.push(budgetBandGuidance(goal));
 
   // Slim autonomous pattern (AC-B1): keep the loop contract without 6 long bullets every turn.
-  lines.push(
-    '',
-    '## Autonomous execution pattern',
-    '',
-    'Goal mode is iterative. Keep the self-audit brief. If simple, already answered, impossible, unsafe, or contradictory: explain if useful, then UpdateGoal `complete` or `blocked` in the same turn. Otherwise do one coherent slice — not after only a plan/summary/first pass/partial result.',
-    'When pursuing this goal: decompose via TodoList; finish each item with verify (tests/build); on failure fix root cause (≥2 attempts); only UpdateGoal `complete` when all required work is done with proof. UpdateGoal `blocked` only for real external blockers.',
-    'If objective/latest request states an explicit hard budget not recorded, call SetGoalBudget first. Do not invent budgets. If a requested budget is not reasonable, do not set it; tell the user.',
-  );
+  if (opts.slim === true) {
+    // A full reminder with the execution pattern already sits earlier in the
+    // context; repeating it each boundary only grows the tail. One pointer
+    // keeps the contract active at negligible cost.
+    lines.push(
+      '',
+      'Follow the goal-mode autonomous execution pattern given in the earlier goal reminder in this context.',
+    );
+  } else {
+    lines.push(
+      '',
+      '## Autonomous execution pattern',
+      '',
+      'Goal mode is iterative. Keep the self-audit brief. If simple, already answered, impossible, unsafe, or contradictory: explain if useful, then UpdateGoal `complete` or `blocked` in the same turn. Otherwise do one coherent slice — not after only a plan/summary/first pass/partial result.',
+      'When pursuing this goal: decompose via TodoList; finish each item with verify (tests/build); on failure fix root cause (≥2 attempts); only UpdateGoal `complete` when all required work is done with proof. UpdateGoal `blocked` only for real external blockers.',
+      'If objective/latest request states an explicit hard budget not recorded, call SetGoalBudget first. Do not invent budgets. If a requested budget is not reasonable, do not set it; tell the user.',
+    );
+  }
 
   if (opts.ultraworkLive === true) {
     lines.push(

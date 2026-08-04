@@ -11,16 +11,15 @@ import {
 } from '../../../utils/tokens';
 import { buildToolOutputReceipt } from '../../turn/tool-result-budget';
 import {
+  buildToolNameIndex,
   computeFamilyBudgetOverflowToolCallIds,
   contentPreview,
-  findLatestSwarmToolCallId,
   isKnownMutatingTool,
   isStatefulOrMutatingTool,
-  maskSwarmToolResultIfStale,
   pruneClearedReceipts,
   resolveArchiveRecoverToolName,
-  toolNameForMessage,
   truncateForMarker,
+  type ToolNameIndex,
 } from './micro-helpers';
 import {
   DEFAULT_MICRO_WORKING_SET_TOKENS,
@@ -150,6 +149,21 @@ export class MicroCompaction {
   readonly triggers = new MicroTriggerTracker();
   private cutoff = 0;
   readonly config: MicroCompactionConfig;
+  /**
+   * toolCallId → toolName index memoized per message-array reference.
+   * Projections re-read the same history array many times per turn
+   * (messages/strictMessages/repair), so rebuilding the index once per
+   * source turns the per-tool-result name lookup from O(n) into O(1).
+   * The key must include the length: the history array grows in place
+   * (same reference, new appended toolCalls), so a reference-only check
+   * would permanently hide messages appended after the first build and
+   * silently disable the mutating-tool preservation guard.
+   */
+  private toolNameIndexCache: {
+    source: readonly ContextMessage[];
+    length: number;
+    index: ToolNameIndex;
+  } | null = null;
 
   constructor(
     public readonly agent: Agent,
@@ -270,6 +284,9 @@ export class MicroCompaction {
         effect.truncatedToolResultTokensAfter;
       this.triggers.record(trigger, contextUsageRatio);
       const dashboard = this.triggers.snapshot();
+      // A cutoff change rewrites the clearable window, so the next request
+      // re-pays cache creation for everything after it — observe the split.
+      this.agent.usage.noteCompactionApplied('micro');
       this.agent.telemetry.track('micro_compaction_finished', {
         keep_recent_messages: config.keepRecentMessages,
         min_content_tokens: config.minContentTokens,
@@ -302,7 +319,9 @@ export class MicroCompaction {
   compact(messages: readonly ContextMessage[]): readonly ContextMessage[] {
     if (!this.agent.experimentalFlags.enabled('micro_compaction')) return messages;
 
-    const latestSwarmToolCallId = findLatestSwarmToolCallId(messages);
+    // One index per projection source: every family/policy lookup below
+    // resolves tool names through it instead of re-scanning the history.
+    const index = this.toolNameIndexFor(messages);
     const highValueReplayKeep = resolveMicroToolResultFamilyKeep(
       estimateTokensForMessages(messages.slice(0, this.cutoff)),
       this.config.maxWorkingSetTokens,
@@ -312,6 +331,7 @@ export class MicroCompaction {
       this.cutoff,
       MICRO_TOOL_RESULT_FAMILY_KEEP,
       highValueReplayKeep,
+      index,
     );
     // Never rewrite the earliest conversation bytes on long sessions.
     // Provider prompt caches match a stable prefix; mid-session micro clears
@@ -322,26 +342,9 @@ export class MicroCompaction {
     let i = 0;
     for (const msg of messages) {
       if (i < prefixProtectUntil) {
-        if (msg.role === 'tool' && msg.toolCallId !== undefined) {
-          const swarmMasked = maskSwarmToolResultIfStale(msg, messages, latestSwarmToolCallId);
-          result.push(swarmMasked ?? msg);
-        } else {
-          result.push(msg);
-        }
+        result.push(msg);
         i++;
         continue;
-      }
-      if (
-        i < this.cutoff &&
-        msg.role === 'tool' &&
-        msg.toolCallId !== undefined
-      ) {
-        const swarmMasked = maskSwarmToolResultIfStale(msg, messages, latestSwarmToolCallId);
-        if (swarmMasked !== null) {
-          result.push(swarmMasked);
-          i++;
-          continue;
-        }
       }
       if (
         i < this.cutoff &&
@@ -374,6 +377,7 @@ export class MicroCompaction {
     let truncatedToolResultTokensBefore = 0;
     let truncatedToolResultTokensAfter = 0;
     const clearedPolicyReasons = new Set<MicroCompactionPolicyDecision['reason']>();
+    const index = this.toolNameIndexFor(messages);
     const highValueReplayKeep = resolveMicroToolResultFamilyKeep(
       estimateTokensForMessages(messages.slice(0, cutoff)),
       this.config.maxWorkingSetTokens,
@@ -383,6 +387,7 @@ export class MicroCompaction {
       cutoff,
       MICRO_TOOL_RESULT_FAMILY_KEEP,
       highValueReplayKeep,
+      index,
     );
     const prefixProtectUntil = this.prefixProtectUntil(messages.length, cutoff);
     for (let i = 0; i < messages.length && i < cutoff; i++) {
@@ -553,15 +558,21 @@ export class MicroCompaction {
     ]);
   }
 
+  private toolNameIndexFor(messages: readonly ContextMessage[]): ToolNameIndex {
+    const cached = this.toolNameIndexCache;
+    if (cached !== null && cached.source === messages && cached.length === messages.length) {
+      return cached.index;
+    }
+    const index = buildToolNameIndex(messages);
+    this.toolNameIndexCache = { source: messages, length: messages.length, index };
+    return index;
+  }
+
   private toolNameFor(
     toolCallId: string,
     messages: readonly ContextMessage[],
   ): string | undefined {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const match = messages[i]?.toolCalls.find((toolCall) => toolCall.id === toolCallId);
-      if (match !== undefined) return match.name;
-    }
-    return undefined;
+    return this.toolNameIndexFor(messages).get(toolCallId);
   }
 }
 

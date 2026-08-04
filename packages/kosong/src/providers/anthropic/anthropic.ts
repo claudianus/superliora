@@ -181,12 +181,19 @@ export class AnthropicChatProvider implements ChatProvider {
     let system: TextBlockParam[] | undefined;
 
     if (layered !== undefined) {
-      // Multi-block system with cache_control on static layer
-      system = [
+      // Multi-block system with the breakpoint on the LAST shared layer so the
+      // whole tools+layer1+layer2+layer3 prefix is cached as one entry. A
+      // layer1-only breakpoint would cache a strict subset that the last-block
+      // entry supersedes, wasting one of the four breakpoint slots while
+      // leaving layer2/layer3 (AGENTS.md, directory listings) uncached until
+      // the moving message breakpoints. The per-agent role text (if any) rides
+      // as a trailing block WITHOUT a breakpoint: it diverges across parallel
+      // workers, so caching it per-worker would fragment the shared prefix —
+      // leaving it unmarked keeps one identical cache entry for all workers.
+      const systemBlocks: TextBlockParam[] = [
         {
           type: 'text',
           text: layered.layer1Static,
-          cache_control: CACHE_CONTROL,
         } as TextBlockParam,
         {
           type: 'text',
@@ -195,8 +202,17 @@ export class AnthropicChatProvider implements ChatProvider {
         {
           type: 'text',
           text: layered.layer3Dynamic,
+          cache_control: CACHE_CONTROL,
         } as TextBlockParam,
       ];
+      const roleAdditional = layered.roleAdditional?.trim() ?? '';
+      if (roleAdditional.length > 0) {
+        systemBlocks.push({
+          type: 'text',
+          text: layered.roleAdditional,
+        } as TextBlockParam);
+      }
+      system = systemBlocks;
     } else if (systemPrompt) {
       // Fallback to single-block system
       system = [

@@ -10,10 +10,26 @@ export async function maybeStartOnboarding(host: StartupLifecycleHost): Promise<
     config.defaultModel !== undefined ||
     Object.keys(config.providers ?? {}).length > 0;
   if (!hasProvider) {
-    const qwenKey = process.env['QWEN_TOKEN_PLAN_API_KEY']?.trim();
-    if (qwenKey !== undefined && qwenKey.length > 0) {
-      const { applyQwenTokenPlanProvider } = await import('#/tui/utils/model/qwen-token-plan');
-      applyQwenTokenPlanProvider(config, qwenKey);
+    const tokenPlanKey =
+      process.env['QWEN_TOKEN_PLAN_API_KEY']?.trim() ||
+      process.env['ALIBABA_TOKEN_PLAN_API_KEY']?.trim();
+    if (tokenPlanKey !== undefined && tokenPlanKey.length > 0) {
+      const { applyQwenTokenPlanProvider, tokenPlanTextModelsFromCatalog } = await import(
+        '#/tui/utils/model/qwen-token-plan'
+      );
+      // Resolve the live model list from models.dev when reachable; the
+      // apply step falls back to built-in presets when this returns
+      // `undefined` (offline or catalog unavailable).
+      let liveModels: ReturnType<typeof tokenPlanTextModelsFromCatalog>;
+      try {
+        const { loadCatalog } = await import('#/utils/catalog-cache');
+        liveModels = tokenPlanTextModelsFromCatalog(await loadCatalog());
+      } catch {
+        liveModels = undefined;
+      }
+      applyQwenTokenPlanProvider(config, tokenPlanKey, {
+        ...(liveModels !== undefined ? { models: liveModels } : {}),
+      });
       await host.harness.setConfig({
         providers: config.providers,
         models: config.models,
@@ -22,8 +38,8 @@ export async function maybeStartOnboarding(host: StartupLifecycleHost): Promise<
       });
       await host.authFlow.refreshConfigAfterLogin();
       host.showStatus(
-        'Qwen Cloud (Token Plan) auto-configured from QWEN_TOKEN_PLAN_API_KEY. ' +
-          'Text, image, and video generation enabled; harness tools run server-side on qwen3.7/3.8 models.',
+        'Alibaba Token Plan (Qwen Cloud) auto-configured from the Token Plan API key. ' +
+          'Text, image, and video generation enabled; harness tools run server-side on supported models.',
         'success',
       );
     } else {
