@@ -31,6 +31,8 @@ export function jobRecordToUpdatedEvent(
       missionRunId: job.missionRunId,
       resultSummary: job.resultSummary,
       progress: job.progress,
+      createdAt: job.createdAt,
+      updatedAt: job.updatedAt,
     },
     change,
   };

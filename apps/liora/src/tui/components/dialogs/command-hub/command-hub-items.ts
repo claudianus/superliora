@@ -198,6 +198,13 @@ export function buildDefaultCommandHubItems(state: {
       description: 'Open the Conductor job desk board',
     },
     {
+      id: 'workspace.jobDeck',
+      section: 'Workspace',
+      label: 'Job Deck monitor',
+      description: 'Interactive Conductor deck — worker transcripts, tokens, elapsed',
+      keywords: ['conductor', 'deck', 'monitor', 'worker', 'transcript'],
+    },
+    {
       id: 'workspace.status',
       section: 'Workspace',
       label: 'Status',

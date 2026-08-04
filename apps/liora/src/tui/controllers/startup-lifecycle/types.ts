@@ -60,7 +60,7 @@ export interface StartupLifecycleHost extends PromptInputRuntimeHost {
   readonly usageMonitor: UsageMonitorController;
   readonly editorKeyboard: EditorKeyboardController;
   readonly tasksBrowserController: TasksBrowserController;
-  readonly jobBoardController: { close(): void; show(): void };
+  readonly jobBoardController: { close(): void; show(): void; openDeck(jobId?: string): void };
   readonly promptIntelligence: PromptIntelligenceController;
   readonly dialogs: DialogsController;
   readonly panes: PanesController;

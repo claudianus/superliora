@@ -69,6 +69,10 @@ When pasting an image or video, a placeholder is shown in the input box — the 
 
 Tool-output expansion, todo expansion, Plan steering, and retry live in Command Hub or slash commands (`/plan`, `/retry`, …) — not as separate main-prompt chords.
 
+| Shortcut | Function |
+| --- | --- |
+| `Alt-J` | Open the Conductor Job Deck monitor (worker transcripts, tokens, elapsed). Same entry as `/jobs deck` or clicking a Job Desk card |
+
 ## Approval Panel
 
 When the Agent initiates a tool call that requires confirmation, the TUI displays an approval panel. For the full approval workflow, see [Interaction & Input](../guides/interaction.md#审批流程). The available keys inside the panel are:

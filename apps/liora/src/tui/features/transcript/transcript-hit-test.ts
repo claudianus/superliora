@@ -71,6 +71,7 @@ export function resolveTranscriptLayoutContext(
     state.cachedTranscriptRows = frameHeight;
     state.cachedTranscriptLineCount = editorLineCount;
     state.cachedTodoRect = plan.layout.regions.find((region) => region.id === 'todo')?.rect;
+    state.cachedJobsRect = plan.layout.regions.find((region) => region.id === 'jobs')?.rect;
   }
   if (rect === undefined) return undefined;
 
@@ -123,6 +124,29 @@ export function getTUIStateNativeTodoRect(
 ): RendererRect | undefined {
   resolveTranscriptHitTestContext(state, width, height);
   return state.cachedTodoRect;
+}
+
+/**
+ * Rect of the Conductor Job Desk region — clicks inside it hit-test the
+ * panel's card map and drill into the interactive Job Deck viewer.
+ */
+export function getTUIStateNativeJobsRect(
+  state: TUIState,
+  width = state.terminal.columns,
+  height = state.terminal.rows,
+): RendererRect | undefined {
+  const frameWidth = Math.max(1, Math.trunc(width));
+  const frameHeight = Math.max(1, Math.trunc(height));
+  // Warm jobs cache: same frame key as the transcript layout cache.
+  if (
+    state.cachedJobsRect !== undefined &&
+    state.cachedTranscriptColumns === frameWidth &&
+    state.cachedTranscriptRows === frameHeight
+  ) {
+    return state.cachedJobsRect;
+  }
+  resolveTranscriptHitTestContext(state, width, height);
+  return state.cachedJobsRect;
 }
 
 export function transcriptPointForMouse(

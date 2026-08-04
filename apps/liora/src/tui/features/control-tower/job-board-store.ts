@@ -12,8 +12,10 @@ import {
   emptyConductorJobsSnapshot,
   mergeConductorJobsSnapshot,
   parseJobStripFromToolOutput,
+  patchConductorJobUsage,
   upsertConductorJobCard,
   type ConductorJobCard,
+  type ConductorJobUsage,
   type ConductorJobsSnapshot,
 } from '../../utils/job/job-strip';
 
@@ -82,6 +84,28 @@ export class JobBoardStore {
 
   reset(): void {
     this.publish(emptyConductorJobsSnapshot());
+  }
+
+  /**
+   * Remember worker token usage fetched by the Job Deck drill-down so the
+   * in-transcript desk can show dense token chips without re-polling.
+   * Returns true when a card was patched.
+   */
+  applyJobUsage(jobId: string, usage: ConductorJobUsage): boolean {
+    const prev = this.current;
+    const jobs = patchConductorJobUsage(prev.jobs, jobId, usage);
+    if (jobs === undefined) return false;
+    const previous = prev.jobs.find((card) => card.id === jobId);
+    if (
+      previous?.usage !== undefined &&
+      previous.usage.input === usage.input &&
+      previous.usage.output === usage.output &&
+      previous.usage.cacheRead === usage.cacheRead
+    ) {
+      return false;
+    }
+    this.publish(this.deriveFromCards(jobs, prev.unreadInbox, prev.inbox, prev.maxConcurrent));
+    return true;
   }
 
   private deriveFromCards(

@@ -323,6 +323,7 @@ export interface LioraTUIHost {
   hideExtensionsModal(): void;
   hideSessionPicker(): void;
   openUndoSelector(): void;
+  openJobDeck(jobId?: string): void;
   showApprovalPanel(payload: ApprovalPanelData): void;
   focusPendingApprovalPanel(): boolean;
   showQuestionDialog(payload: QuestionPanelData): void;
