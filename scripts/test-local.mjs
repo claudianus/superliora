@@ -73,10 +73,13 @@ function git(...args) {
   return res.status === 0 ? res.stdout.split('\n').filter(Boolean) : undefined;
 }
 
+/** `undefined` when git cannot answer — an unknown scope must not read as "nothing changed". */
 function changedFiles(base) {
-  const mergeBase = git('merge-base', base, 'HEAD')?.[0] ?? base;
-  const committed = git('diff', '--name-only', `${mergeBase}...HEAD`) ?? [];
-  const worktree = git('status', '--porcelain') ?? [];
+  const mergeBase = git('merge-base', base, 'HEAD')?.[0];
+  if (mergeBase === undefined) return undefined;
+  const committed = git('diff', '--name-only', `${mergeBase}...HEAD`);
+  const worktree = git('status', '--porcelain');
+  if (committed === undefined || worktree === undefined) return undefined;
   const untracked = worktree.map((line) => line.slice(3).split(' -> ').at(-1) ?? '');
   return [...new Set([...committed, ...untracked])].filter(Boolean);
 }
@@ -132,11 +135,9 @@ function decideScope(changed, closureOf, dirHasTests) {
 }
 
 function affectedFilters(base) {
-  return decideScope(
-    changedFiles(base),
-    () => changedWorkspaceClosure(base),
-    hasTests,
-  );
+  const changed = changedFiles(base);
+  if (changed === undefined) return { filters: undefined, reason: `git could not diff against ${base}` };
+  return decideScope(changed, () => changedWorkspaceClosure(base), hasTests);
 }
 
 function selfCheck() {
@@ -158,7 +159,13 @@ function selfCheck() {
       console.error(`self-check FAIL ${JSON.stringify(files)}: expected ${want}, got ${actual}`);
     }
   }
-  console.log(failed === 0 ? `self-check OK (${cases.length} cases)` : `self-check FAILED (${failed})`);
+  // Fail open, not silent: an unresolvable base must widen to the full suite.
+  if (affectedFilters('no/such/ref').filters !== undefined) {
+    failed++;
+    console.error('self-check FAIL: an unresolvable base did not fall back to the full suite');
+  }
+  const total = cases.length + 1;
+  console.log(failed === 0 ? `self-check OK (${total} cases)` : `self-check FAILED (${failed})`);
   process.exit(failed === 0 ? 0 : 1);
 }
 
