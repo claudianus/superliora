@@ -18,6 +18,7 @@ function strip(text: string): string {
 interface MakeOptions {
   readonly onPick?: (path: string) => void;
   readonly onPreview?: (path: string) => void;
+  readonly onBlame?: (path: string) => void;
   readonly onClose?: () => void;
   readonly maxVisible?: number;
 }
@@ -32,6 +33,7 @@ function makeExplorer(options: MakeOptions = {}): FileExplorerComponent {
     source: 'git',
     onPick: options.onPick ?? vi.fn(),
     onPreview: options.onPreview ?? vi.fn(),
+    onBlame: options.onBlame,
     onClose: options.onClose ?? vi.fn(),
     maxVisible: options.maxVisible,
   });
@@ -200,6 +202,42 @@ describe('FileExplorerComponent', () => {
   it('advertises the v shortcut in the footer hint', () => {
     const footer = renderedLines(makeExplorer()).at(-1) ?? '';
     expect(footer).toContain('view');
+  });
+
+  it('blames a file with b (onBlame, without picking or closing)', () => {
+    const onPick = vi.fn();
+    const onClose = vi.fn();
+    const onBlame = vi.fn();
+    const explorer = makeExplorer({ onPick, onClose, onBlame });
+    explorer.handleInput(ENTER); // expand src
+    explorer.handleInput('j'); // util
+    explorer.handleInput('j'); // app.ts
+    explorer.handleInput('b');
+
+    expect(onBlame).toHaveBeenCalledWith('src/app.ts');
+    expect(onPick).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('ignores b on directories and when onBlame is omitted', () => {
+    const onBlame = vi.fn();
+    const withBlame = makeExplorer({ onBlame });
+    expect(selectedLine(withBlame)).toContain('src');
+    withBlame.handleInput('b');
+    expect(onBlame).not.toHaveBeenCalled();
+
+    const without = makeExplorer();
+    without.handleInput(ENTER);
+    without.handleInput('j');
+    without.handleInput('j');
+    without.handleInput('b');
+    const footer = renderedLines(without).at(-1) ?? '';
+    expect(footer).not.toContain('blame');
+  });
+
+  it('advertises the b shortcut in the footer when onBlame is set', () => {
+    const footer = renderedLines(makeExplorer({ onBlame: vi.fn() })).at(-1) ?? '';
+    expect(footer).toContain('blame');
   });
 
   describe('filter mode', () => {

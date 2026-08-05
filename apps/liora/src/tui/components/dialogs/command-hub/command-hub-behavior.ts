@@ -26,10 +26,14 @@ export function commandHubNestsPicker(id: CommandHubActionId): boolean {
     case 'start.sessions':
     case 'chat.model':
     case 'chat.thinking':
+    case 'chat.loops':
     case 'modes.permission':
     case 'extend.extensions':
     case 'appearance.theme':
     case 'appearance.appearance':
+    case 'workspace.jobOps':
+    case 'workspace.cron':
+    case 'fleet.warRoom':
     case 'help.shortcuts':
     case 'help.commands':
       return true;

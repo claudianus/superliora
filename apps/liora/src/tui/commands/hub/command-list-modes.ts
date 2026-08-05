@@ -38,7 +38,7 @@ export const BUILTIN_SLASH_COMMANDS_MODES = [
   {
     name: 'yolo',
     aliases: ['yes'],
-    description: 'Toggle auto-approve mode (prefer Menu → Permission)',
+    description: 'Toggle auto-approve mode (prefer Menu → Permission / Settings → Permission)',
     priority: 50,
     argumentHint: '[on|off]',
     completeArgs: toggleOnOffArgumentCompletions,
@@ -48,7 +48,7 @@ export const BUILTIN_SLASH_COMMANDS_MODES = [
   {
     name: 'auto',
     aliases: [],
-    description: 'Toggle auto permission mode (prefer Menu → Permission)',
+    description: 'Toggle auto permission mode (prefer Menu → Permission / Settings → Permission)',
     priority: 50,
     argumentHint: '[on|off]',
     completeArgs: toggleOnOffArgumentCompletions,

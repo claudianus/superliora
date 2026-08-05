@@ -18,6 +18,8 @@ import { SETTINGS_PRESETS_ROW, showSettingPresetsPicker } from '#/tui/utils/sett
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { handleGoalCommand } from '../../goal';
+import { handleUltraPlanCommand } from '../../ultrawork/ultra-standalone';
 
 export {
   MISSION_EVIDENCE_SENSOR_TIPS,
@@ -41,6 +43,16 @@ export function showMissionSettings(host: SlashCommandHost): void {
           value: 'status',
           label: 'Mission status',
           description: 'Live run · goal queue · auto-start · evidence / protocol tips.',
+        },
+        {
+          value: 'goal-queue',
+          label: 'Manage goal queue',
+          description: 'Upcoming goals · same as /goal next manage',
+        },
+        {
+          value: 'ultraplan',
+          label: 'Ultra Plan',
+          description: 'Structured plan pipeline · /ultraplan',
         },
         {
           value: 'auto-on',
@@ -68,6 +80,14 @@ export function showMissionSettings(host: SlashCommandHost): void {
         }
         if (value === 'status') {
           void showMissionSettingsPanel(host);
+          return;
+        }
+        if (value === 'goal-queue') {
+          void handleGoalCommand(host, 'next manage');
+          return;
+        }
+        if (value === 'ultraplan') {
+          void handleUltraPlanCommand(host, '');
           return;
         }
         if (value === 'auto-on') {

@@ -15,12 +15,18 @@ export function commandHubActionToSlash(id: CommandHubActionId): string | undefi
       return '/sessions';
     case 'start.export':
       return '/export-md';
+    case 'start.fork':
+      return '/fork';
     case 'modes.plan':
       return '/plan';
     case 'modes.swarm':
       return '/swarm';
     case 'modes.ultrawork':
       return undefined;
+    case 'modes.goals':
+      return '/goal next manage';
+    case 'modes.ultraplan':
+      return '/ultraplan';
     case 'modes.premium':
       return '/premium';
     case 'modes.permission':
@@ -34,15 +40,26 @@ export function commandHubActionToSlash(id: CommandHubActionId): string | undefi
     case 'chat.undo':
     case 'now.undo':
       return '/undo';
+    case 'chat.rewind':
+      return '/rewind';
     case 'chat.compact':
     case 'now.compact':
       return '/compact';
+    case 'chat.loops':
+    case 'workspace.jobOps':
+    case 'workspace.cron':
+    case 'fleet.warRoom':
+      return undefined;
+    case 'workspace.dashboard':
+      return '/dashboard';
     case 'workspace.files':
       return '/files';
     case 'workspace.diff':
       return '/diff';
     case 'workspace.log':
       return '/log';
+    case 'workspace.errors':
+      return '/errors';
     case 'workspace.tasks':
       return '/tasks';
     case 'workspace.jobs':
@@ -61,6 +78,8 @@ export function commandHubActionToSlash(id: CommandHubActionId): string | undefi
       return '/login';
     case 'account.accounts':
       return '/accounts';
+    case 'account.logout':
+      return '/logout';
     case 'account.upgrade':
       return '/upgrade';
     case 'chat.btw':

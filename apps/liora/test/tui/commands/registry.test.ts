@@ -600,13 +600,18 @@ describe('built-in slash command registry', () => {
     expect(primaryNames).not.toContain('yolo');
     expect(primaryNames).not.toContain('auto');
     expect(primaryNames).not.toContain('plugins');
+    expect(primaryNames).not.toContain('aquarium');
+    expect(primaryNames).not.toContain('feed');
+    expect(primaryNames).not.toContain('term');
     expect(primaryNames).not.toContain('reload');
     expect(primaryNames).not.toContain('reload-tui');
     expect(primaryNames).not.toContain('export-debug-zip');
     expect(advancedNames).toEqual(
       expect.arrayContaining([
+        'aquarium',
         'auto',
         'experiments',
+        'feed',
         'plugins',
         'quota',
         'reload',
@@ -626,7 +631,9 @@ describe('built-in slash command registry', () => {
       (command) => command.name === 'mission',
     );
     expect((mission)?.hiddenAliases).toEqual(['ultrawork', 'uw']);
-    expect(diagnosticNames).toEqual(expect.arrayContaining(['bench', 'export-debug-zip', 'preflight', 'renderer']));
+    expect(diagnosticNames).toEqual(
+      expect.arrayContaining(['bench', 'export-debug-zip', 'preflight', 'renderer', 'term']),
+    );
     const help = findBuiltInSlashCommand('help') as LioraSlashCommand | undefined;
     expect(helpArgumentCompletions('')?.map((item) => item.value)).toEqual(['advanced']);
     expect(helpArgumentCompletions('')?.[0]?.description).toBe('Show steering controls');

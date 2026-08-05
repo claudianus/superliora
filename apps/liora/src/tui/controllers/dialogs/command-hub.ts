@@ -9,6 +9,13 @@ import {
   type CommandHubSelectMode,
 } from '../../components/dialogs/command-hub/index';
 import {
+  showHubCronPicker,
+  showHubFleetPicker,
+  showHubJobOpsPicker,
+  showHubLoopsPicker,
+  type HubNestedPickerHost,
+} from '../../components/dialogs/command-hub/hub-nested-pickers';
+import {
   advancedHelpIntro,
   advancedKeyboardShortcuts,
   HelpPanelComponent,
@@ -258,6 +265,22 @@ function handleCommandHubAction(
     );
     return;
   }
+  if (item.id === 'workspace.jobOps') {
+    showHubJobOpsPicker(hubNestedPickerHost(host, slashHost));
+    return;
+  }
+  if (item.id === 'chat.loops') {
+    showHubLoopsPicker(hubNestedPickerHost(host, slashHost));
+    return;
+  }
+  if (item.id === 'workspace.cron') {
+    showHubCronPicker(hubNestedPickerHost(host, slashHost));
+    return;
+  }
+  if (item.id === 'fleet.warRoom') {
+    showHubFleetPicker(hubNestedPickerHost(host, slashHost));
+    return;
+  }
   if (item.id === 'workspace.search') {
     restoreInputText(host, delegate, '/search ');
     host.state.toast.show('Type a search pattern after /search', 2200);
@@ -278,4 +301,31 @@ function handleCommandHubAction(
   if (slash !== undefined) {
     host.dispatchSlash(slash);
   }
+}
+
+function hubNestedPickerHost(host: DialogsHost, slashHost: SlashCommandHost): HubNestedPickerHost {
+  return {
+    state: slashHost.state,
+    dispatchSlash: (command) => {
+      host.dispatchSlash(command);
+    },
+    closeAllCenterModals: () => {
+      closeAllCenterModals(host);
+    },
+    restoreInputText: (text) => {
+      slashHost.restoreInputText(text);
+    },
+    mountCenterModal: (panel, options) => {
+      slashHost.mountCenterModal(panel, options);
+    },
+    closeCenterModal: () => {
+      slashHost.closeCenterModal();
+    },
+    mountEditorReplacement: (panel) => {
+      slashHost.mountEditorReplacement(panel);
+    },
+    restoreEditor: () => {
+      slashHost.restoreEditor();
+    },
+  };
 }

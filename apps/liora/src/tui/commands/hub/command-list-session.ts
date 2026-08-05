@@ -181,6 +181,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
     aliases: ['terminal'],
     description: 'Show detected terminal capabilities',
     priority: 62,
+    visibility: 'diagnostic',
     availability: 'always',
   },
   {
@@ -214,7 +215,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'plugins',
     aliases: [],
-    description: 'Manage plugins (prefer Menu → Extensions)',
+    description: 'Manage plugins (prefer Extensions Hub)',
     priority: 60,
     visibility: 'advanced',
     availability: 'always',
@@ -397,6 +398,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
     aliases: ['tank'],
     description: 'Overlay a Welcome-sized Jewel Tank (covers chat until the next message)',
     priority: 70,
+    visibility: 'advanced',
     availability: 'always',
   },
   {
@@ -404,6 +406,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
     aliases: ['food'],
     description: 'Drop food into the visible Jewel Tank',
     priority: 70,
+    visibility: 'advanced',
     availability: 'always',
   },
   {

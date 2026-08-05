@@ -3,7 +3,8 @@
  * (git-aware) as an expandable tree; navigating to a file and pressing
  * Enter/Space/L inserts its relative path into the editor via `onPick`.
  * Pressing `v` on a file opens a read-only preview via `onPreview`
- * (directories toggle, same as Enter). Pressing `/` or `f` starts a
+ * (directories toggle, same as Enter). Pressing `b` on a file opens git
+ * blame via `onBlame` when provided. Pressing `/` or `f` starts a
  * type-to-filter search over all paths; Esc clears the filter first and
  * closes on a second press.
  *
@@ -45,6 +46,8 @@ export interface FileExplorerOptions {
   readonly onPick: (relativePath: string) => void;
   /** Open a read-only preview of a file (`v`). Directories toggle instead. */
   readonly onPreview?: (relativePath: string) => void;
+  /** Open git blame for a file (`b`). No-op on directories. */
+  readonly onBlame?: (relativePath: string) => void;
   readonly onClose: () => void;
   /** Body frame height (including its two border rows). Defaults to 24. */
   readonly maxVisible?: number;
@@ -154,6 +157,12 @@ export class FileExplorerComponent extends Container implements Focusable {
     this.opts.onPreview?.(row.node.path);
   }
 
+  private blameSelected(): void {
+    const row = this.selectedRow();
+    if (row === undefined || row.node.kind !== 'file') return;
+    this.opts.onBlame?.(row.node.path);
+  }
+
   private collapseOrParent(): void {
     const row = this.selectedRow();
     if (row === undefined) return;
@@ -202,6 +211,10 @@ export class FileExplorerComponent extends Container implements Focusable {
     }
     if (k === 'v' || k === 'V') {
       this.previewOrToggle();
+      return;
+    }
+    if (k === 'b' && this.opts.onBlame !== undefined) {
+      this.blameSelected();
       return;
     }
     if (k === '/' || k === 'f' || k === 'F') {
@@ -302,9 +315,11 @@ export class FileExplorerComponent extends Container implements Focusable {
     }
     const filterHint =
       this.filterQuery.length > 0 ? ` ${key('f')} ${dim('edit filter')} ` : '';
+    const blameHint =
+      this.opts.onBlame !== undefined ? `${key('b')} ${dim('blame')}  ` : '';
     const line =
       ` ${key('↑/↓')} ${dim('move')}  ${key('enter')} ${dim('open/toggle')}  ` +
-      `${key('v')} ${dim('view')}  ${key('h')} ${dim('collapse')}  ${key('esc')} ${dim('close')}${filterHint} `;
+      `${key('v')} ${dim('view')}  ${blameHint}${key('h')} ${dim('collapse')}  ${key('esc')} ${dim('close')}${filterHint} `;
     return fitLine(line, width);
   }
 
