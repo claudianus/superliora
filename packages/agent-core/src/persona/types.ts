@@ -6,6 +6,7 @@
 /** Canonical preset ids (after legacy normalize). */
 export type PersonaPresetId =
   | 'none'
+  | 'liora'
   | 'efficient'
   | 'professional'
   | 'friendly'
@@ -16,7 +17,9 @@ export type PersonaPresetId =
   | 'creative'
   | 'nerdy'
   | 'playful'
-  | 'skeptical';
+  | 'skeptical'
+  | 'caveman'
+  | 'adhd';
 
 /** Legacy ids accepted when reading config; normalized before apply/compile. */
 export type PersonaPresetLegacyId = 'concise';

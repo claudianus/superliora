@@ -1,11 +1,14 @@
 # SuperLiora documentation archive
 
-GitHub Pages is now served from the Vite-built static site in `apps/site/`.
+GitHub Pages is served from the Vite-built static site in `apps/site/`.
 
 - Korean site: https://claudianus.github.io/superliora/
 - English site: https://claudianus.github.io/superliora/en/
 
-The markdown files under `docs/` remain as reference material for older guides. Do not add VitePress configuration or media assets here; update `apps/site/` for the public landing page.
+The markdown files under `docs/` are non-deployed reference and archive material.
+`docs/en/` is the maintained user-facing reference tree; `docs/specs/` and
+`docs/research/` contain internal notes. Do not add VitePress configuration or
+media assets here; update `apps/site/` for the public landing page.
 
 ## Internal research
 

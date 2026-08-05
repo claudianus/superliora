@@ -156,7 +156,6 @@
     "packages/agent-core/src/skill/catalog/",
     ".qoder/**",
     "docs/research/**",
-    "scripts/visual-verify.ts",
     "packages/agent-core/test/fixtures/**"
   ]
 }

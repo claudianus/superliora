@@ -100,7 +100,7 @@ liora provider list                      # 모델 / 자격 증명
 | `packages/acp-adapter` | Agent Client Protocol 어댑터 |
 | `packages/kosong` | LLM / provider 추상화 |
 | `packages/kaos` | 실행 환경 추상화 |
-| `docs/` | 미배포 EN/ZH 레퍼런스 (공개 사이트 아님) |
+| `docs/` | 미배포 English 레퍼런스와 내부 아카이브 (공개 사이트 아님) |
 
 ## 개발
 

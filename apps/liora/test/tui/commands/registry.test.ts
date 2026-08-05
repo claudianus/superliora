@@ -188,6 +188,7 @@ describe('built-in slash command registry', () => {
       'instructions',
       'clear',
       'help',
+      'liora',
       'efficient',
       'professional',
       'friendly',
@@ -199,8 +200,10 @@ describe('built-in slash command registry', () => {
       'nerdy',
       'playful',
       'skeptical',
+      'caveman',
+      'adhd',
     ]);
-    expect(values('l')).toEqual(['list']);
+    expect(values('l')).toEqual(['list', 'liora']);
     expect(values('p')).toEqual(['personality', 'professional', 'pair', 'playful']);
     expect(values('i')).toEqual(['instructions']);
     expect(values('fr')).toEqual(['friendly']);
@@ -212,6 +215,7 @@ describe('built-in slash command registry', () => {
     expect(values('friendly')).toBeNull();
     expect(values('unknown')).toBeNull();
     expect(values('set ')).toEqual([
+      'set liora',
       'set efficient',
       'set professional',
       'set friendly',
@@ -223,6 +227,8 @@ describe('built-in slash command registry', () => {
       'set nerdy',
       'set playful',
       'set skeptical',
+      'set caveman',
+      'set adhd',
     ]);
     expect(values('set p')).toEqual(['set professional', 'set pair', 'set playful']);
     expect(values('set professional')).toBeNull();

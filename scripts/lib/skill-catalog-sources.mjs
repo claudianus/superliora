@@ -74,10 +74,24 @@ function shouldSkipPath(skillPath, excludeParts) {
   return excludeParts.some((part) => skillPath.includes(part));
 }
 
+async function assertNoSymlinks(rootDir) {
+  const entries = await readdir(rootDir, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = join(rootDir, entry.name);
+    if (entry.isSymbolicLink()) {
+      throw new Error(`Refusing to copy symlink from skill tree: ${fullPath}`);
+    }
+    if (entry.isDirectory()) {
+      await assertNoSymlinks(fullPath);
+    }
+  }
+}
+
 async function copySkillTree(skillMdPath, destDir, catalogSource, catalogId) {
   const skillDir = dirname(skillMdPath);
+  await assertNoSymlinks(skillDir);
   await mkdir(dirname(destDir), { recursive: true });
-  await cp(skillDir, destDir, { recursive: true, force: true });
+  await cp(skillDir, destDir, { recursive: true, force: true, dereference: true });
   const skillMd = join(destDir, 'SKILL.md');
   const text = await readFile(skillMd, 'utf8');
   await writeFile(skillMd, injectCatalogMetadata(text, catalogSource, catalogId), 'utf8');

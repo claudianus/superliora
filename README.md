@@ -100,7 +100,7 @@ liora provider list                      # models / credentials
 | `packages/acp-adapter` | Agent Client Protocol adapter |
 | `packages/kosong` | LLM / provider abstraction |
 | `packages/kaos` | Execution environment abstractions |
-| `docs/` | Unpublished EN/ZH reference (not the public site) |
+| `docs/` | Unpublished English reference and internal archive (not the public site) |
 
 ## Development
 
