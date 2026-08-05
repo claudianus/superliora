@@ -7,6 +7,7 @@ import {
   effortsForModel,
   formatModelWithThinking,
   formatThinkingLevelSuffix,
+  modelUsesEmbeddedThinkingEffort,
   providerThinkingFamily,
   resolveThinkingDisplay,
   resolveThinkingLevelForApply,
@@ -18,6 +19,8 @@ function model(
   options: {
     readonly supportEfforts?: readonly string[];
     readonly defaultEffort?: string;
+    readonly protocol?: 'anthropic';
+    readonly adaptiveThinking?: boolean;
   } = {},
 ): ModelAlias {
   return {
@@ -28,6 +31,10 @@ function model(
     capabilities: ['thinking'],
     ...(options.supportEfforts !== undefined ? { supportEfforts: options.supportEfforts } : {}),
     ...(options.defaultEffort !== undefined ? { defaultEffort: options.defaultEffort } : {}),
+    ...(options.protocol !== undefined ? { protocol: options.protocol } : {}),
+    ...(options.adaptiveThinking !== undefined
+      ? { adaptiveThinking: options.adaptiveThinking }
+      : {}),
   } as unknown as ModelAlias;
 }
 
@@ -44,6 +51,29 @@ describe('thinking-effort utils', () => {
     const m = model('managed:kimi-api', { supportEfforts: ['low', 'high', 'max'] });
     expect(effortsForModel(m)).toEqual(['low', 'high', 'max']);
     expect(defaultEffortForModel(m)).toBe('high');
+  });
+
+  it('does not replace an explicit empty effort list with provider defaults', () => {
+    expect(effortsForModel(model('openai', { supportEfforts: [] }))).toEqual([]);
+  });
+
+  it('treats Cursor model ids as the source of reasoning strength', () => {
+    const m = {
+      ...model('cursor-oauth', { supportEfforts: [] }),
+      model: 'gpt-5.4-medium',
+    };
+    expect(modelUsesEmbeddedThinkingEffort(m)).toBe(true);
+    expect(effortsForModel(m)).toEqual([]);
+    expect(formatThinkingLevelSuffix('high', { thinking: true, model: m })).toBe('');
+    expect(formatModelWithThinking('GPT-5.4 (medium)', 'high', { thinking: true, model: m })).toBe(
+      'GPT-5.4 (medium)',
+    );
+    expect(
+      modelUsesEmbeddedThinkingEffort({
+        provider: 'cursor-oauth',
+        capabilities: ['tool_use'],
+      }),
+    ).toBe(false);
   });
 
   it('falls back to provider-aware defaults without supportEfforts', () => {
@@ -66,6 +96,16 @@ describe('thinking-effort utils', () => {
     expect(wireEffortForModel('xhigh', model('managed:kimi-api'))).toBe('high');
     expect(wireEffortForModel('max', model('openai'))).toBe('xhigh');
     expect(wireEffortForModel('high', model('openai'))).toBe('high');
+    expect(
+      wireEffortForModel(
+        'max',
+        model('managed:kimi-code', {
+          supportEfforts: ['low', 'medium', 'high', 'max'],
+          protocol: 'anthropic',
+          adaptiveThinking: true,
+        }),
+      ),
+    ).toBe('max');
   });
 
   it('builds transparent display labels when request ≠ wire', () => {

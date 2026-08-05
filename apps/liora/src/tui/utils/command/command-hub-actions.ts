@@ -50,8 +50,6 @@ export function commandHubActionToSlash(id: CommandHubActionId): string | undefi
     case 'workspace.cron':
     case 'fleet.warRoom':
       return undefined;
-    case 'workspace.dashboard':
-      return '/dashboard';
     case 'workspace.files':
       return '/files';
     case 'workspace.diff':

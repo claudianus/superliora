@@ -23,7 +23,6 @@ export type CommandHubActionId =
   | 'chat.compact'
   | 'chat.btw'
   | 'chat.loops'
-  | 'workspace.dashboard'
   | 'workspace.files'
   | 'workspace.search'
   | 'workspace.diff'

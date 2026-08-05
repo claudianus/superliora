@@ -211,13 +211,6 @@ export function buildDefaultCommandHubItems(state: {
       keywords: ['loop', 'interval', 'repeat'],
     },
     {
-      id: 'workspace.dashboard',
-      section: 'Workspace',
-      label: 'Agent dashboard',
-      description: 'Needs input · working · waiting',
-      keywords: ['dashboard', 'dash', 'agents'],
-    },
-    {
       id: 'workspace.files',
       section: 'Workspace',
       label: 'Files',

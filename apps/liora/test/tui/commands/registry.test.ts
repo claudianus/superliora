@@ -100,6 +100,8 @@ describe('built-in slash command registry', () => {
     expect(findBuiltInSlashCommand('usage')?.aliases).not.toContain('status');
     expect(findBuiltInSlashCommand('web')?.name).toBe('web');
     expect(findBuiltInSlashCommand('fetch')?.name).toBe('web');
+    expect(findBuiltInSlashCommand('dashboard')).toBeUndefined();
+    expect(findBuiltInSlashCommand('dash')).toBeUndefined();
     expect(findBuiltInSlashCommand('unknown')).toBeUndefined();
   });
 
@@ -759,6 +761,11 @@ describe('built-in slash command registry', () => {
       capabilities: ['always_thinking'],
       supportEfforts: ['low', 'medium'],
     })).toEqual(['on', 'low', 'medium']);
+    expect(values('', {
+      provider: 'cursor-oauth',
+      capabilities: ['thinking'],
+      supportEfforts: [],
+    })).toEqual([]);
     expect(values('', {
       capabilities: ['tool_use'],
     })).toEqual(['off']);

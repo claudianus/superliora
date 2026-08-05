@@ -146,6 +146,7 @@ export class AppStateController {
     }
     if (conductorJobsChanged) {
       this.syncJobDeskPanel();
+      host.appearanceController.refreshAmbientSchedule();
     }
     host.updateActivityPane();
     if (busyChanged) {

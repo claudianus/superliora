@@ -971,6 +971,7 @@ describe('status panel report lines', () => {
       contextTokens: 100,
       maxContextTokens: 1000,
       contextUsage: 0.1,
+      roleModels: {},
     };
 
     const configured = buildStatusReportLines({
@@ -988,9 +989,13 @@ describe('status panel report lines', () => {
     expect(completionRow).toContain('auto');
     const explorationRow = configured.find((line) => line.includes('Exploration'));
     expect(explorationRow).toContain('kimi-research');
+    expect(configured.find((line) => line.includes('Coding'))).toContain('auto');
+    expect(configured.find((line) => line.includes('Planning'))).toContain('auto');
+    expect(configured.find((line) => line.includes('Debugging'))).toContain('auto');
 
     const withoutRoles = buildStatusReportLines({ ...base, status }).map(strip);
-    expect(withoutRoles.join('\n')).not.toContain('Role models');
+    expect(withoutRoles.join('\n')).toContain('Role models');
+    expect(withoutRoles.find((line) => line.includes('Coding'))).toContain('auto');
   });
 
   it('surfaces last effective model route and failover notice', () => {
@@ -1114,7 +1119,7 @@ describe('status panel report lines', () => {
     expect(output).toContain('Loop model routing');
     expect(lines.find((line) => line.includes('Coding'))).toContain('override · code-pro');
     expect(lines.find((line) => line.includes('Debugging'))).toContain('override · debug-pro');
-    expect(lines.find((line) => line.includes('Completion'))).toContain('default');
+    expect(lines.find((line) => line.includes('Completion'))).toContain('auto');
     expect(output).not.toContain('completion: auto');
   });
 

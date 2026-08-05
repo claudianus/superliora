@@ -35,15 +35,16 @@ export function createCompactionProvider(
   host: FullCompactionProviderHost,
   usedContextTokens: number,
 ): ChatProvider {
+  const runtimeConfig = host.agent.runtimeConfig ?? host.agent.kimiConfig;
   // When a dedicated compaction model is configured, summarize with it
   // instead of the (usually more expensive) main model. Without an explicit
   // alias, pick the lowest local models.*.cost (then name-heuristic cheap
   // tier) so routine compaction does not spend main-model tokens. The alias
   // is resolved through the same ModelProvider so auth/routing stays consistent.
-  const configuredCompactionModel = host.agent.kimiConfig?.loopControl?.compactionModel;
+  const configuredCompactionModel = runtimeConfig?.loopControl?.compactionModel;
   const compactionModelAlias = resolveCompactionModelAlias({
     explicit: configuredCompactionModel,
-    models: host.agent.kimiConfig?.models,
+    models: runtimeConfig?.models,
     minContextTokens: usedContextTokens > 0 ? usedContextTokens : undefined,
   });
   host.compactionModelAlias =
@@ -73,7 +74,7 @@ export function createCompactionProvider(
       : undefined;
   const budget = resolveCompletionBudget({
     maxOutputSize: host.agent.config.maxOutputSize ?? defaultCompactionCap,
-    reservedContextSize: host.agent.kimiConfig?.loopControl?.reservedContextSize,
+    reservedContextSize: runtimeConfig?.loopControl?.reservedContextSize,
   });
   // Compaction must emit visible summary text. Thinking models can spend the
   // entire output budget on reasoning alone, which kosong surfaces as

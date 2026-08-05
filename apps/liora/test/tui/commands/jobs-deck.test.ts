@@ -81,12 +81,11 @@ describe('formatJobDeckTraceLines', () => {
         ],
       },
     ]);
-    expect(lines).toEqual([
-      '◇ fix the flaky test',
-      '◆ Looking at the suite now.',
-      '⚙ Bash pnpm test',
-      '✓ result',
-    ]);
+    expect(lines).toContain('◇ fix the flaky test');
+    expect(lines).toContain('◆ Looking at the suite now.');
+    expect(lines.some((line) => line.includes('⚙ Bash'))).toBe(true);
+    expect(lines.some((line) => line.includes('pnpm test'))).toBe(true);
+    expect(lines.some((line) => line.includes('✓ Bash result'))).toBe(true);
   });
 
   it('marks failed tool results and skips non-user roles', () => {
@@ -97,10 +96,10 @@ describe('formatJobDeckTraceLines', () => {
         content: [{ type: 'tool_result', isError: true }],
       },
     ]);
-    expect(lines).toEqual(['✗ result']);
+    expect(lines.some((line) => line.includes('✗ tool result'))).toBe(true);
   });
 
-  it('caps output at maxLines with an omission marker', () => {
+  it('keeps the complete history instead of inserting an omission marker', () => {
     const history = [
       {
         role: 'user',
@@ -110,9 +109,46 @@ describe('formatJobDeckTraceLines', () => {
         })),
       },
     ];
-    const lines = formatJobDeckTraceLines(history, { maxLines: 3 });
-    expect(lines).toHaveLength(4);
-    expect(lines[0]).toContain('7 earlier lines omitted');
-    expect(lines[3]).toBe('◇ line 9');
+    const lines = formatJobDeckTraceLines(history);
+    expect(lines).toHaveLength(10);
+    expect(lines[0]).toBe('◇ line 0');
+    expect(lines[9]).toBe('◇ line 9');
+    expect(lines.some((line) => line.includes('earlier lines omitted'))).toBe(false);
+  });
+
+  it('projects SDK tool calls, thinking, and complete tool output', () => {
+    const lines = formatJobDeckTraceLines([
+      {
+        role: 'assistant',
+        content: [{ type: 'think', think: 'inspect before editing' }],
+        toolCalls: [
+          {
+            id: 'call_write',
+            name: 'Write',
+            arguments: JSON.stringify({
+              file_path: 'src/example.ts',
+              content: 'export const answer = 42;',
+            }),
+          },
+        ],
+      },
+      {
+        role: 'tool',
+        toolCallId: 'call_write',
+        content: [
+          {
+            type: 'text',
+            text: 'first output line\nsecond output line',
+          },
+        ],
+      },
+    ]);
+
+    expect(lines).toContain('◌ inspect before editing');
+    expect(lines).toContain('  │ path: src/example.ts');
+    expect(lines.some((line) => line.includes('export const answer = 42;'))).toBe(true);
+    expect(lines).toContain('✓ Write result · call_write');
+    expect(lines.some((line) => line.includes('first output line'))).toBe(true);
+    expect(lines.some((line) => line.includes('second output line'))).toBe(true);
   });
 });

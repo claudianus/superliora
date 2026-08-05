@@ -72,6 +72,8 @@ export interface ProviderCredentialLocalLimits {
 
 export interface ModelProvider {
   readonly defaultModel?: string;
+  /** Live runtime config when the host supports config reloads. */
+  currentConfig?(): LioraConfig;
   resolveProviderConfig(model: string): ResolvedRuntimeProvider;
   resolveProviderRoute?(model: string): ResolvedRuntimeProviderRoute | undefined;
   resolveAuth?(model: string, options?: ResolveAuthOptions): AuthorizedRequest | undefined;

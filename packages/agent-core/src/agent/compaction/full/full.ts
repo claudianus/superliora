@@ -145,11 +145,12 @@ export class FullCompaction implements CompactionPipelineContext {
     });
     // Resolve effective summarizer early so the TUI can show which model is
     // about to write the compaction summary (cheap auto / explicit / main).
-    const configuredCompactionModel = this.agent.kimiConfig?.loopControl?.compactionModel;
+    const runtimeConfig = this.agent.runtimeConfig ?? this.agent.kimiConfig;
+    const configuredCompactionModel = runtimeConfig?.loopControl?.compactionModel;
     const resolvedCompactionModel =
       resolveCompactionModelAlias({
         explicit: configuredCompactionModel,
-        models: this.agent.kimiConfig?.models,
+        models: runtimeConfig?.models,
       }) ?? this.agent.config.modelAlias;
     this.agent.emitEvent({
       type: 'compaction.started',

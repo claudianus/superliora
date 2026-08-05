@@ -28,7 +28,7 @@ export function loopModelRoutingRows(config: LoopModelRoutingConfig): readonly L
     return {
       ...role,
       ...(model === undefined ? {} : { model }),
-      state: model === undefined ? 'default' : `override · ${model}`,
+      state: model === undefined ? 'auto' : `override · ${model}`,
     };
   });
 }

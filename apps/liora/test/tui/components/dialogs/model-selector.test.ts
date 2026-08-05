@@ -285,6 +285,35 @@ describe('ModelSelectorComponent', () => {
     expect(onSelect).toHaveBeenLastCalledWith({ alias: 'kimi', thinking: true, effort: 'max' });
   });
 
+  it('does not show an effort control for Cursor variants', () => {
+    const onSelect = vi.fn();
+    const cursorModel = {
+      ...model('GPT-5.4 (medium)', ['thinking']),
+      provider: 'cursor-oauth',
+      model: 'gpt-5.4-medium',
+      supportEfforts: [],
+      defaultEffort: 'medium',
+    } as unknown as ModelAlias;
+    const picker = new ModelSelectorComponent({
+      models: { cursor: cursorModel },
+      currentValue: 'cursor',
+      currentThinking: true,
+      onSelect,
+      onCancel: vi.fn(),
+    });
+
+    const out = text(picker);
+    expect(out).not.toContain('Thinking');
+    expect(out).not.toContain('Effort');
+
+    picker.handleInput('\r');
+    expect(onSelect).toHaveBeenCalledWith({
+      alias: 'cursor',
+      thinking: true,
+      effort: undefined,
+    });
+  });
+
   it('lets letter keys still filter while effort digits stay bound', () => {
     const onSelect = vi.fn();
     const models: Record<string, ModelAlias> = {

@@ -1978,6 +1978,81 @@ describe('SessionSubagentHost', () => {
     expect(child.agent.config.modelAlias).not.toBe('cheap-haiku');
   });
 
+  it('re-evaluates the coding role model at spawn, retry, and resume', async () => {
+    const models = {
+      'code-pro': {
+        provider: 'test-provider',
+        model: 'code-pro',
+        maxContextSize: 1_000_000,
+        capabilities: ['tool_use', 'thinking'],
+      },
+      'code-next': {
+        provider: 'test-provider',
+        model: 'code-next',
+        maxContextSize: 1_000_000,
+        capabilities: ['tool_use', 'thinking'],
+      },
+      'code-final': {
+        provider: 'test-provider',
+        model: 'code-final',
+        maxContextSize: 1_000_000,
+        capabilities: ['tool_use', 'thinking'],
+      },
+    };
+    const parent = testAgent({
+      initialConfig: {
+        providers: {},
+        models,
+        loopControl: { codingModel: 'code-pro' },
+      },
+    });
+    parent.configure();
+    const child = testAgent({ initialConfig: { providers: {}, models } });
+    child.configure();
+    const summary =
+      'Implemented the coding task and verified the change with the relevant checks, then left a complete technical handoff for the parent worker to continue without repeating the finished work. '.repeat(
+        2,
+      );
+    child.mockNextResponse({ type: 'text', text: summary });
+    const session = fakeSession(parent.agent, child.agent);
+    const host = new SessionSubagentHost(session, 'main');
+
+    const spawned = await host.spawn({
+      profileName: 'coder',
+      parentToolCallId: 'call_agent',
+      prompt: 'Implement the change',
+      description: 'Implement change',
+      runInBackground: false,
+      signal,
+    });
+    await spawned.completion;
+    expect(child.agent.config.modelAlias).toBe('code-pro');
+
+    parent.configureLoopControl({ codingModel: 'code-next' });
+    child.mockNextResponse({ type: 'text', text: summary });
+    const retried = await host.retry(spawned.agentId, {
+      parentToolCallId: 'call_agent',
+      prompt: 'Implement the change',
+      description: 'Retry implementation',
+      runInBackground: false,
+      signal,
+    });
+    await retried.completion;
+    expect(child.agent.config.modelAlias).toBe('code-next');
+
+    parent.configureLoopControl({ codingModel: 'code-final' });
+    child.mockNextResponse({ type: 'text', text: summary });
+    const resumed = await host.resume(spawned.agentId, {
+      parentToolCallId: 'call_agent',
+      prompt: 'Continue the implementation',
+      description: 'Resume implementation',
+      runInBackground: false,
+      signal,
+    });
+    await resumed.completion;
+    expect(child.agent.config.modelAlias).toBe('code-final');
+  });
+
   describe('model fallback on retryable provider failure', () => {
     afterEach(() => {
       vi.restoreAllMocks();

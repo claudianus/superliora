@@ -357,6 +357,9 @@ export interface SessionStatus {
     readonly compaction?: string;
     readonly completion?: string;
     readonly exploration?: string;
+    readonly coding?: string;
+    readonly planning?: string;
+    readonly debugging?: string;
   };
   readonly usage?: SessionUsage;
   readonly providerRouteStatus?: ProviderRouteStatus | null;

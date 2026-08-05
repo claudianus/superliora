@@ -17,14 +17,37 @@ const EFFORT_SET = new Set<string>(THINKING_EFFORT_ORDER);
 
 export type ProviderThinkingFamily = 'kimi' | 'openai' | 'anthropic' | 'gemini' | 'unknown';
 
+/** Cursor embeds the reasoning variant in the model id instead of accepting a
+ * separate thinking-effort request field. */
+export function modelUsesEmbeddedThinkingEffort(
+  model:
+    | {
+        readonly provider?: string;
+        readonly capabilities?: readonly string[];
+        readonly adaptiveThinking?: boolean;
+      }
+    | undefined,
+): boolean {
+  const provider = model?.provider?.trim().toLowerCase();
+  if (provider !== 'cursor-oauth' && provider !== 'cursor') return false;
+  const capabilities = model?.capabilities;
+  if (capabilities === undefined) return true;
+  return (
+    capabilities.some((capability) => capability.trim().toLowerCase() === 'thinking') ||
+    capabilities.some((capability) => capability.trim().toLowerCase() === 'always_thinking') ||
+    model?.adaptiveThinking === true
+  );
+}
+
 /** Conservative defaults when a model does not declare `supportEfforts`. */
 const DEFAULT_EFFORTS_BY_FAMILY: Record<ProviderThinkingFamily, readonly ThinkingEffortName[]> = {
   // Kimi wire maps xhigh/max → high, so offering them is misleading.
   kimi: ['low', 'medium', 'high'],
   // OpenAI maps max → xhigh; expose the wire name, not a duplicate max.
   openai: ['low', 'medium', 'high', 'xhigh'],
-  // Anthropic support is model-specific; keep the full ladder when unknown.
-  anthropic: ['low', 'medium', 'high', 'xhigh', 'max'],
+  // Anthropic support is model-specific; only catalog-declared models expose
+  // xhigh/max so an unavailable catalog does not advertise false controls.
+  anthropic: ['low', 'medium', 'high'],
   // Gemini clamps above high to high.
   gemini: ['low', 'medium', 'high'],
   // OpenAI-compatible custom endpoints often only accept low/medium/high.
@@ -69,10 +92,11 @@ export function providerThinkingFamily(provider: string | undefined): ProviderTh
  * a provider-family default that matches what the adapter can actually send.
  */
 export function effortsForModel(model: ModelAlias | undefined): readonly ThinkingEffortName[] {
+  if (modelUsesEmbeddedThinkingEffort(model)) return [];
   const declared = model?.supportEfforts
     ?.map((effort) => parseThinkingEffort(effort))
     .filter((effort): effort is ThinkingEffortName => effort !== undefined);
-  if (declared !== undefined && declared.length > 0) {
+  if (declared !== undefined) {
     // Keep declared order, drop unknowns already filtered.
     return declared;
   }
@@ -129,7 +153,11 @@ export function wireEffortForModel(
   const clamped = clampEffortToModel(effort, model);
   if (clamped === 'off') return 'off';
 
-  const family = providerThinkingFamily(model?.provider);
+  // A Kimi alias can route through Anthropic's adaptive protocol; use the
+  // effective wire protocol instead of the provider label in that case.
+  const family = model?.protocol === 'anthropic'
+    ? 'anthropic'
+    : providerThinkingFamily(model?.provider);
   switch (family) {
     case 'kimi':
     case 'gemini':
@@ -169,6 +197,10 @@ export function resolveThinkingDisplay(
     readonly model?: ModelAlias;
   } = {},
 ): ThinkingDisplay {
+  if (modelUsesEmbeddedThinkingEffort(options.model) && options.thinking !== false) {
+    return { requested: 'on', effective: 'on', label: 'on' };
+  }
+
   const raw =
     level !== undefined && level.trim().length > 0
       ? level.trim().toLowerCase()
@@ -203,6 +235,7 @@ export function formatThinkingLevelSuffix(
     readonly model?: ModelAlias;
   } = {},
 ): string {
+  if (modelUsesEmbeddedThinkingEffort(options.model)) return '';
   const display = resolveThinkingDisplay(level, options);
   if (display.label === 'off') {
     // Keep footer quiet when thinking is off (previous UX showed nothing).
@@ -220,6 +253,7 @@ export function formatModelWithThinking(
     readonly model?: ModelAlias;
   } = {},
 ): string {
+  if (modelUsesEmbeddedThinkingEffort(options.model)) return modelName;
   const display = resolveThinkingDisplay(level, options);
   if (display.label === 'off') {
     return options.thinking === true ? `${modelName} · on` : modelName;

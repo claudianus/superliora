@@ -6,6 +6,7 @@ export const SETTINGS_SEARCH_KEYWORDS = {
   model: ['llm', 'thinking', 'provider'],
   'model-routing': ['loop', 'routing', 'role'],
   'model-fallback': ['failover', 'fallback', 'chain'],
+  'model-reset': ['reset', 'default', 'restore', 'auto', 'factory'],
   permission: ['yolo', 'auto', 'manual', 'approve', 'approval'],
   'providers-api': ['api', 'apikey', 'baseurl', 'connect', 'login'],
   security: ['redaction', 'redact', 'sandbox', 'allowlist', 'secrets', 'egress'],

@@ -292,7 +292,7 @@ export class PromptIntelligenceService {
   }
 
   private completionModelAlias(): string | undefined {
-    return this.agent.kimiConfig?.loopControl?.completionModel;
+    return (this.agent.runtimeConfig ?? this.agent.kimiConfig)?.loopControl?.completionModel;
   }
 
   /**
@@ -304,7 +304,9 @@ export class PromptIntelligenceService {
    * the user pinned `completionModel` explicitly.
    */
   private async inferCheapModelAlias(): Promise<string | undefined> {
-    const models = this.agent.kimiConfig?.models as Record<string, CheapModelConfig> | undefined;
+    const models = (this.agent.runtimeConfig ?? this.agent.kimiConfig)?.models as
+      | Record<string, CheapModelConfig>
+      | undefined;
     if (models === undefined) return undefined;
 
     const isAcceptable = (alias: string): boolean => {
@@ -363,7 +365,11 @@ export class PromptIntelligenceService {
         // No cheap alias: only use the session main model if it itself looks cheap.
         const mainAlias = this.agent.config.modelAlias ?? '';
         const mainModel =
-          (this.agent.kimiConfig?.models as Record<string, CheapModelConfig> | undefined)?.[mainAlias]
+          (
+            (this.agent.runtimeConfig ?? this.agent.kimiConfig)?.models as
+              | Record<string, CheapModelConfig>
+              | undefined
+          )?.[mainAlias]
             ?.model ?? mainAlias;
         if (!looksLikeCheapCompletionModel(mainAlias) && !looksLikeCheapCompletionModel(mainModel)) {
           this.agent.log.debug?.(

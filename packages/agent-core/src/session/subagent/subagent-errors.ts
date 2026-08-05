@@ -110,7 +110,9 @@ export function enrichPermanentProviderFailure(error: unknown, child: Agent): un
   const base = error instanceof Error ? error.message : String(error);
   const modelAlias = child.config.modelAlias;
   const providerName =
-    modelAlias === undefined ? undefined : child.kimiConfig?.models?.[modelAlias]?.provider;
+    modelAlias === undefined
+      ? undefined
+      : (child.runtimeConfig ?? child.kimiConfig)?.models?.[modelAlias]?.provider;
   const enriched = new Error(
     `${PERMANENT_PROVIDER_FAILURE_MARKER} ` +
       `(provider=${providerName ?? 'unknown'}, model=${modelAlias ?? 'unknown'}): ${base}. ` +

@@ -85,7 +85,7 @@ export function isRateLimitOrQuotaFailure(error: LioraErrorPayload | undefined):
 export function listSwitchableFailoverModels(agent: Agent): readonly FailoverModelOption[] {
   const currentAlias = agent.config.modelAlias;
   if (currentAlias === undefined) return [];
-  const config = agent.kimiConfig;
+  const config = agent.runtimeConfig ?? agent.kimiConfig;
   if (config?.models === undefined) return [];
 
   const fallbacks = config.models[currentAlias]?.fallbackModels ?? [];

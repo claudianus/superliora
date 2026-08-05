@@ -15,6 +15,7 @@ import { pluginsArgumentCompletions } from '../plugins/plugins';
 import { rendererArgumentCompletions } from '../renderer';
 import { transcriptArgumentCompletions } from '../session/transcript';
 import type { SlashCommandAvailability } from '../types';
+import { modelUsesEmbeddedThinkingEffort } from '#/tui/utils/model/thinking-effort';
 
 /** Subcommands offered when autocompleting `/goal <…>`. */
 const GOAL_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
@@ -51,6 +52,7 @@ const THINKING_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
 ];
 
 export interface ThinkingCompletionModel {
+  readonly provider?: string;
   readonly capabilities?: readonly string[];
   readonly adaptiveThinking?: boolean;
   readonly supportEfforts?: readonly string[];
@@ -284,6 +286,7 @@ export function thinkingArgumentCompletionsForModel(
   model: ThinkingCompletionModel | undefined,
 ): AutocompleteItem[] | null {
   const completions = thinkingCompletionSpecsForModel(model);
+  if (completions.length === 0) return [];
   return completeLeadingArg(completions, argumentPrefix);
 }
 
@@ -291,6 +294,7 @@ export function thinkingCompletionSpecsForModel(
   model: ThinkingCompletionModel | undefined,
 ): readonly ArgCompletionSpec[] {
   if (model === undefined) return THINKING_ARG_COMPLETIONS;
+  if (modelUsesEmbeddedThinkingEffort(model)) return [];
   const caps = new Set((model.capabilities ?? []).map((cap) => cap.trim().toLowerCase()));
   const alwaysThinking = caps.has('always_thinking');
   const supportsThinking =
@@ -301,7 +305,7 @@ export function thinkingCompletionSpecsForModel(
 
   const supportEfforts = model.supportEfforts?.map((effort) => effort.trim().toLowerCase());
   const supported =
-    supportEfforts === undefined || supportEfforts.length === 0
+    supportEfforts === undefined
       ? undefined
       : new Set(supportEfforts);
   return THINKING_ARG_COMPLETIONS.filter((item) => {

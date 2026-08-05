@@ -65,6 +65,8 @@ const FRAME_INSET_X = 4;
 const FRAME_INSET_Y = 1;
 /** Ticker rotates through running workers on this cadence. */
 const TICKER_ROTATE_MS = 2400;
+/** Keep the in-transcript worker roster bounded under large mission fan-out. */
+const LIVE_WORKER_CAP = 4;
 
 interface JobDeskLane {
   readonly key: string;
@@ -118,7 +120,10 @@ export class JobDeskPanelComponent implements Component {
   private hitInsetY = FRAME_INSET_Y;
 
   setSnapshot(snapshot: ConductorJobsSnapshot): void {
+    if (snapshot === this.snapshot) return;
     this.snapshot = snapshot;
+    this.lastRender = undefined;
+    this.cardHits = [];
   }
 
   getSnapshot(): ConductorJobsSnapshot {
@@ -196,6 +201,7 @@ export class JobDeskPanelComponent implements Component {
     }
     const ticker = this.renderTicker(s, contentWidth, now);
     if (ticker !== undefined) lines.push(ticker);
+    lines.push(...this.renderWorkerRoster(s, contentWidth, now));
     // Lane hits are recorded in lane-local rows; shift them into content-row
     // space (meta + ticker/rail rows precede the lanes) before hit-testing.
     const laneRowOffset = lines.length;
@@ -327,6 +333,63 @@ export class JobDeskPanelComponent implements Component {
       stale ? currentTheme.fg('warning', ' ⌛ heartbeat stale') : ''
     }`;
     return `${JOB_DESK_INDENT}${truncateToWidth(text, width, '…')}`;
+  }
+
+  /** Compact live worker roster; the deck remains the full-detail surface. */
+  private renderWorkerRoster(
+    s: ConductorJobsSnapshot,
+    width: number,
+    now: number,
+  ): string[] {
+    const workers = s.jobs
+      .filter((card) => card.status === 'running' && card.workerAgentId !== undefined)
+      .toSorted(
+        (a, b) =>
+          (b.liveActivity?.atMs ?? 0) - (a.liveActivity?.atMs ?? 0) ||
+          b.updatedAtMs - a.updatedAtMs,
+      );
+    if (workers.length === 0) return [];
+
+    const visible = workers.slice(0, LIVE_WORKER_CAP);
+    const lines = [
+      `${JOB_DESK_INDENT}${currentTheme.boldFg(
+        'primary',
+        `Live workers (${String(workers.length)})`,
+      )}`,
+    ];
+    for (const card of visible) {
+      const activity = card.liveActivity;
+      const marker =
+        activity?.status === 'error'
+          ? currentTheme.fg('error', '✗')
+          : activity?.status === 'ok'
+            ? currentTheme.fg('success', '✓')
+            : renderPulseGlyph(PULSE_ACTIVE_FRAMES, `job-worker:${card.id}`, '▸', 'primary');
+      const tool = activity?.name ?? card.progress?.recentTools?.at(-1) ?? 'starting';
+      const target = activity?.target ?? card.progress?.phase;
+      const action = target === undefined ? tool : `${tool} ${target}`;
+      const stale = isHeartbeatStale(card, now);
+      const token =
+        card.liveTokens === undefined
+          ? ''
+          : currentTheme.fg('textMuted', ` · ~${formatDenseTokens(card.liveTokens)}tok`);
+      const staleLabel = stale ? currentTheme.fg('warning', ' · heartbeat stale') : '';
+      const name = card.workerName ?? shortJobId(card.workerAgentId!);
+      const body = `${JOB_DESK_INDENT}  ${marker} ${currentTheme.fg(
+        'text',
+        name,
+      )} ${currentTheme.fg('textDim', shortJobId(card.id))} · ${action}${token}${staleLabel}`;
+      lines.push(truncateToWidth(body, width, '…'));
+    }
+    if (workers.length > LIVE_WORKER_CAP) {
+      lines.push(
+        currentTheme.fg(
+          'textDim',
+          `${JOB_DESK_INDENT}  … +${String(workers.length - LIVE_WORKER_CAP)} more in Job Deck`,
+        ),
+      );
+    }
+    return lines;
   }
 
   // ── kanban grid / stacked lanes ───────────────────────────────────────

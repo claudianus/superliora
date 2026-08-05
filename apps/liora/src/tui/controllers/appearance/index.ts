@@ -88,6 +88,11 @@ export class AppearanceController {
     this.resetTerminalColors();
   }
 
+  /** Re-evaluate the shared ticker without rebinding the terminal palette. */
+  refreshAmbientSchedule(): void {
+    this.syncAmbientSchedule();
+  }
+
   private syncAmbientSchedule(): void {
     const appearance = this.getAppearance();
     const forceAmbient = this.forceAmbientSchedule?.() === true;

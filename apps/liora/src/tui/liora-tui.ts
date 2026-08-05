@@ -318,8 +318,6 @@ export interface LioraTUIHost {
   showWebContent(rawUrl: string | undefined): void;
   showBlame(rawPath: string | undefined): void;
   showSessionPicker(): Promise<void>;
-  showAgentDashboard(): Promise<void>;
-  hideAgentDashboard(): void;
   showExtensionsModal(args?: string): Promise<void>;
   hideExtensionsModal(): void;
   hideSessionPicker(): void;

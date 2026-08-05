@@ -264,6 +264,11 @@ export class Agent {
 
   private additionalDirs: readonly string[];
 
+  /** Runtime config may be reloaded while a session remains active. */
+  get runtimeConfig(): LioraConfig | undefined {
+    return this.modelProvider?.currentConfig?.() ?? this.kimiConfig;
+  }
+
   constructor(options: AgentOptions) {
     this.type = options.type ?? 'main';
     this._kaos = options.kaos;

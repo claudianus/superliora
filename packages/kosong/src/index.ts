@@ -44,7 +44,13 @@ export {
   catalogProviderModels,
   inferWireType,
 } from './catalog';
-export type { Catalog, CatalogModel, CatalogModelEntry, CatalogProviderEntry } from './catalog';
+export type {
+  Catalog,
+  CatalogModel,
+  CatalogModelEntry,
+  CatalogProviderEntry,
+  CatalogReasoningOption,
+} from './catalog';
 
 // Core functions
 export {

@@ -218,7 +218,6 @@ export class PanesController {
   private resolveActivityPaneMode(): EffectiveActivityPaneMode {
     const { host } = this;
     if (host.state.activeDialog === 'session-picker') return 'hidden';
-    if (host.state.activeDialog === 'agent-dashboard') return 'hidden';
     if (host.state.activeDialog === 'extensions') return 'hidden';
     if (host.state.livePane.pendingApproval !== null) return 'hidden';
     if (host.state.appState.isCompacting) return 'hidden';

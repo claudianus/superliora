@@ -19,9 +19,11 @@ const KEEP_MODEL = new Set([
   "id",
   "name",
   "family",
+  "cost",
   "limit",
   "tool_call",
   "reasoning",
+  "reasoning_options",
   "interleaved",
   "modalities",
 ]);

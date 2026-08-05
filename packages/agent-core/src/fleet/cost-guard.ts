@@ -163,7 +163,8 @@ export function fleetCostGuardSoftTipFromAgent(
   env: NodeJS.ProcessEnv = process.env,
 ): string | undefined {
   const alias = agent.config.modelAlias;
-  const pricing = alias !== undefined ? agent.kimiConfig?.models?.[alias]?.cost : undefined;
+  const pricing =
+    alias !== undefined ? (agent.runtimeConfig ?? agent.kimiConfig)?.models?.[alias]?.cost : undefined;
   return fleetCostGuardSoftTipFromUsage({
     env,
     usage: agent.usage.data(),

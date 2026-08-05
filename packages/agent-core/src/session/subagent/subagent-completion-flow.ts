@@ -13,7 +13,6 @@ import { listSwitchableFailoverModels } from '../../agent/provider-failover';
 import type { PromptOrigin } from '../../agent/context';
 import type { Agent } from '../../agent';
 import { updateSwarmOrchestrationTodoStatus } from '../../tools/builtin/state/todo-list';
-import { resolveSubagentModelAlias } from '../../utils/cheap-model';
 import { collectGitContext } from '../git-context';
 import { maybeRunRollingCheck, recordChildCompletion } from '../rolling-integration';
 import {
@@ -33,6 +32,11 @@ import {
   markModelAliasAuthRejected,
   runChildTurnToCompletion,
 } from './subagent-run-lifecycle';
+import {
+  currentAgentConfig,
+  resolveSubagentModelSelection,
+  type SubagentModelSelection,
+} from './subagent-model-routing';
 import {
   emitSubagentFailed,
   emitSubagentStarted,
@@ -84,9 +88,10 @@ export function subagentFallbackAliases(
   child: Agent,
   isAliasHealthy?: (alias: string) => boolean,
 ): readonly string[] {
+  const models = currentAgentConfig(child)?.models;
   const healthy =
     isAliasHealthy ??
-    ((alias: string) => isModelAliasHealthy(alias, child.kimiConfig?.models));
+    ((alias: string) => isModelAliasHealthy(alias, models));
   return listSwitchableFailoverModels(child)
     .map((option) => option.alias)
     .filter((alias) => healthy(alias));
@@ -117,7 +122,7 @@ export async function runPromptTurnWithModelFallback(
         // later spawn/resume/retry resolution never routes back into the
         // rejected exploration model and earns another guaranteed 403.
         if (isPermanentAuthError(error)) {
-          markModelAliasAuthRejected(lastAttemptedAlias, child.kimiConfig?.models, error);
+          markModelAliasAuthRejected(lastAttemptedAlias, currentAgentConfig(child)?.models, error);
         }
         const failure = enrichPermanentProviderFailure(error, child);
         emitSubagentFailed(parent, childId, options, failure, (hop > 0 && lastAttemptedAlias !== undefined
@@ -324,17 +329,10 @@ export async function retrySubagentTurn(
   options: RunSubagentOptions,
 ): Promise<SubagentCompletion> {
   options.signal.throwIfAborted();
+  const selection = resolveSubagentModelSelection(parent, profileName);
   child.config.update({
-    modelAlias: resolveSubagentModelAlias(
-      profileName,
-      undefined,
-      parent.config.modelAlias,
-      parent.kimiConfig?.models,
-      parent.kimiConfig?.loopControl?.explorationModel,
-      {
-        isAliasHealthy: (alias) => isModelAliasHealthy(alias, parent.kimiConfig?.models),
-      },
-    ),
+    modelAlias: selection.alias,
+    thinkingLevel: selection.thinkingLevel,
   });
   emitSubagentStarted(parent, agentId, options);
   const workSnapshot = await snapshotChildWork(child);
@@ -360,16 +358,14 @@ export function resolveResumeModelAlias(
   profileName: string,
   parent: Agent,
 ): string | undefined {
-  return resolveSubagentModelAlias(
-    profileName,
-    undefined,
-    parent.config.modelAlias,
-    parent.kimiConfig?.models,
-    parent.kimiConfig?.loopControl?.explorationModel,
-    {
-      isAliasHealthy: (alias) => isModelAliasHealthy(alias, parent.kimiConfig?.models),
-    },
-  );
+  return resolveResumeModelSelection(profileName, parent).alias;
+}
+
+export function resolveResumeModelSelection(
+  profileName: string,
+  parent: Agent,
+): SubagentModelSelection {
+  return resolveSubagentModelSelection(parent, profileName);
 }
 
 export function spawnModelAlias(
@@ -377,16 +373,7 @@ export function spawnModelAlias(
   profileBaseName: string | undefined,
   parent: Agent,
 ): string | undefined {
-  return resolveSubagentModelAlias(
-    profileName,
-    profileBaseName,
-    parent.config.modelAlias,
-    parent.kimiConfig?.models,
-    parent.kimiConfig?.loopControl?.explorationModel,
-    {
-      isAliasHealthy: (alias) => isModelAliasHealthy(alias, parent.kimiConfig?.models),
-    },
-  );
+  return resolveSubagentModelSelection(parent, profileName, profileBaseName).alias;
 }
 
 /** Indirection so intra-module callers and tests share one `runPromptTurn` binding. */

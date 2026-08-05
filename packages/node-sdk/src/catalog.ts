@@ -52,12 +52,19 @@ function capabilityToStrings(capability: ModelCapability): string[] | undefined 
 
 /** Builds a kimi-code model alias from a normalized catalog model. */
 export function catalogModelToAlias(providerId: string, model: CatalogModel): ModelAlias {
+  const capabilities = capabilityToStrings(model.capability);
   return {
     provider: providerId,
     model: model.id,
     maxContextSize: model.capability.max_context_tokens,
     maxOutputSize: model.maxOutputSize,
-    capabilities: capabilityToStrings(model.capability),
+    capabilities:
+      model.alwaysThinking && capabilities !== undefined
+        ? [...capabilities, 'always_thinking']
+        : capabilities,
+    ...(model.supportEfforts !== undefined
+      ? { supportEfforts: [...model.supportEfforts] }
+      : {}),
     displayName: model.name,
     reasoningKey: model.reasoningKey,
     cost: model.cost,

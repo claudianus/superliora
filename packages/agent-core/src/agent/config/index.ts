@@ -66,7 +66,7 @@ export class ConfigState {
     if (changed.thinkingLevel !== undefined) {
       this._thinkingLevel = resolveThinkingEffort(
         changed.thinkingLevel,
-        this.agent.kimiConfig?.thinking,
+        this.agent.runtimeConfig?.thinking,
         this.currentThinkingDefaults,
       );
     }
@@ -84,14 +84,7 @@ export class ConfigState {
 
   data(): AgentConfigData {
     const resolved = this.tryResolvedProviderConfig();
-    const loopControl = this.agent.kimiConfig?.loopControl;
-    const hasRoleModels =
-      loopControl?.compactionModel !== undefined ||
-      loopControl?.completionModel !== undefined ||
-      loopControl?.explorationModel !== undefined ||
-      loopControl?.codingModel !== undefined ||
-      loopControl?.planningModel !== undefined ||
-      loopControl?.debuggingModel !== undefined;
+    const loopControl = this.agent.runtimeConfig?.loopControl;
     return {
       cwd: this.cwd,
       provider: resolved?.provider,
@@ -101,16 +94,14 @@ export class ConfigState {
       thinkingLevel: this.thinkingLevel,
       systemPrompt: this.systemPrompt,
       layeredSystemPrompt: this._layeredSystemPrompt,
-      roleModels: hasRoleModels
-        ? {
-            compaction: loopControl?.compactionModel,
-            completion: loopControl?.completionModel,
-            exploration: loopControl?.explorationModel,
-            coding: loopControl?.codingModel,
-            planning: loopControl?.planningModel,
-            debugging: loopControl?.debuggingModel,
-          }
-        : undefined,
+      roleModels: {
+        compaction: loopControl?.compactionModel,
+        completion: loopControl?.completionModel,
+        exploration: loopControl?.explorationModel,
+        coding: loopControl?.codingModel,
+        planning: loopControl?.planningModel,
+        debugging: loopControl?.debuggingModel,
+      },
     };
   }
 
@@ -185,7 +176,7 @@ export class ConfigState {
     if (this._thinkingLevel === 'off' && this.alwaysThinkingModel) {
       return resolveThinkingEffort(
         'on',
-        this.agent.kimiConfig?.thinking,
+        this.agent.runtimeConfig?.thinking,
         this.currentThinkingDefaults,
       );
     }
@@ -198,7 +189,7 @@ export class ConfigState {
 
   private get currentThinkingDefaults(): ThinkingModelDefaults | undefined {
     if (this._modelAlias === undefined) return undefined;
-    const configured = this.agent.kimiConfig?.models?.[this._modelAlias];
+    const configured = this.agent.runtimeConfig?.models?.[this._modelAlias];
     if (configured !== undefined) return configured;
     const resolved = this.tryResolvedProviderConfig();
     if (resolved === undefined) return undefined;

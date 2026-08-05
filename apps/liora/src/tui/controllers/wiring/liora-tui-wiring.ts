@@ -127,7 +127,12 @@ export function wireLioraTUIControllers(
       tui.state.appState.isCompacting === true ||
       // Active goal wall-clock in the footer needs chrome rebuilds even when
       // the agent is idle and decorative motion is off.
-      tui.state.appState.goal?.status === 'active',
+      tui.state.appState.goal?.status === 'active' ||
+      // Conductor workers run independently of the main turn, so their live
+      // desk and open Job Deck need the same shared ambient clock.
+      tui.state.appState.conductorJobs?.jobs.some(
+        (card) => card.status === 'running' && card.workerAgentId !== undefined,
+      ) === true,
   });
   tui.state.transcriptDetail =
     tui.state.appState.appearance?.transcriptDetail ?? 'standard';

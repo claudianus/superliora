@@ -212,7 +212,6 @@ describe('ControlTowerJobDesk — single sink side effects', () => {
       }),
       showStatus: vi.fn(),
       showNotice: vi.fn(),
-      jobBoardController: { repaint: vi.fn() },
       appStatePatch,
     };
     return host;
@@ -227,7 +226,6 @@ describe('ControlTowerJobDesk — single sink side effects', () => {
     expect(host.setAppState).toHaveBeenCalledTimes(1);
     expect(host.appStatePatch[0]?.conductorJobs).toBe(store.snapshot());
     expect(host.appStatePatch[0]?.conductorJobs?.running).toBe(1);
-    expect(host.jobBoardController.repaint).toHaveBeenCalledTimes(1);
 
     desk.handleInbox(jobInbox('evt_1', 'job_a'));
     expect(host.appStatePatch[1]?.conductorJobs?.unreadInbox).toBe(1);
@@ -236,6 +234,45 @@ describe('ControlTowerJobDesk — single sink side effects', () => {
       'done',
       { coalesceKey: 'job-inbox:evt_1' },
     );
+  });
+
+  it('publishes immediate worker tool activity without waiting for a heartbeat', () => {
+    const host = fakeDeskHost();
+    const store = new JobBoardStore();
+    const desk = new ControlTowerJobDesk(host, store);
+    const base = jobUpdated('job_worker', 'running');
+    desk.handleUpdated({
+      ...base,
+      job: { ...base.job, workerAgentId: 'agent_worker' },
+    });
+
+    desk.handleSubagentToolCall({
+      type: 'subagent.tool_call',
+      subagentId: 'agent_worker',
+      toolCallId: 'call_1',
+      name: 'Read',
+      detail: { kind: 'read', path: 'src/parser.ts' },
+    });
+
+    let card = store.snapshot().jobs.find((entry) => entry.id === 'job_worker');
+    expect(card?.liveActivity).toMatchObject({
+      toolCallId: 'call_1',
+      name: 'Read',
+      target: 'src/parser.ts',
+      status: 'running',
+    });
+    expect(card?.progress?.recentTools).toEqual(['Read']);
+
+    desk.handleSubagentToolResult({
+      type: 'subagent.tool_result',
+      subagentId: 'agent_worker',
+      toolCallId: 'call_1',
+      name: 'Read',
+    });
+
+    card = store.snapshot().jobs.find((entry) => entry.id === 'job_worker');
+    expect(card?.liveActivity?.status).toBe('ok');
+    expect(host.setAppState).toHaveBeenCalledTimes(3);
   });
 
   it('shows the board hint once while a job runs and the board is closed', () => {

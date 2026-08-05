@@ -24,6 +24,12 @@ export interface ConductorJobCard {
   readonly resultSummary?: string;
   /** Worker progress from `job.updated` v2 (phase/recent tools/heartbeat). */
   readonly progress?: JobProgressSnapshot;
+  /** Immediate parent-side tool telemetry for the owning worker. */
+  readonly liveActivity?: ConductorJobActivity;
+  /** Worker profile name from the latest subagent telemetry event. */
+  readonly workerName?: string;
+  /** Combined token count from the latest `subagent.progress` heartbeat. */
+  readonly liveTokens?: number;
   readonly updatedAtMs: number;
   readonly previousStatus?: JobEventStatus;
   /** Ledger creation time (epoch ms) from `job.updated` v2 `createdAt`. */
@@ -42,6 +48,15 @@ export interface ConductorJobUsage {
   readonly input: number;
   readonly output: number;
   readonly cacheRead: number;
+}
+
+export interface ConductorJobActivity {
+  readonly toolCallId: string;
+  readonly name: string;
+  readonly workerName?: string;
+  readonly target?: string;
+  readonly status: 'running' | 'ok' | 'error';
+  readonly atMs: number;
 }
 
 /** One `job.inbox` notice kept for the board drill-down. */
@@ -125,6 +140,9 @@ export function upsertConductorJobCard(
     createdAtMs,
     // Preserve the original change time on plain refreshes; re-arm on a move.
     statusChangedAtMs: statusChanged || existing === undefined ? nowMs : existing.statusChangedAtMs,
+    ...(existing?.liveActivity === undefined ? {} : { liveActivity: existing.liveActivity }),
+    ...(existing?.workerName === undefined ? {} : { workerName: existing.workerName }),
+    ...(existing?.liveTokens === undefined ? {} : { liveTokens: existing.liveTokens }),
     ...(usage === undefined ? {} : { usage }),
   };
   const next = cards.filter((entry) => entry.id !== job.id);
@@ -438,6 +456,8 @@ export function patchConductorJobProgressByWorker(
     readonly lastTool?: string;
     readonly lastTarget?: string;
     readonly toolCount?: number;
+    readonly workerName?: string;
+    readonly tokens?: number;
     readonly atMs: number;
   },
 ): readonly ConductorJobCard[] | undefined {
@@ -457,7 +477,49 @@ export function patchConductorJobProgressByWorker(
     lastHeartbeatAt: new Date(beat.atMs).toISOString(),
   };
   const next = [...cards];
-  next[index] = { ...previous, progress };
+  next[index] = {
+    ...previous,
+    progress,
+    ...(beat.tokens === undefined ? {} : { liveTokens: beat.tokens }),
+    ...(beat.workerName === undefined ? {} : { workerName: beat.workerName }),
+  };
+  return next;
+}
+
+/** Join an immediate worker tool-call/result event onto its owning card. */
+export function patchConductorJobActivityByWorker(
+  cards: readonly ConductorJobCard[],
+  workerAgentId: string,
+  activity: ConductorJobActivity,
+): readonly ConductorJobCard[] | undefined {
+  const index = cards.findIndex((card) => card.workerAgentId === workerAgentId);
+  if (index < 0) return undefined;
+  const previous = cards[index]!;
+  const previousActivity = previous.liveActivity;
+  const target =
+    activity.target ??
+    (previousActivity?.toolCallId === activity.toolCallId ? previousActivity.target : undefined);
+  const trail = previous.progress?.recentTools ?? [];
+  const recentTools =
+    activity.name.length === 0 || activity.name === trail[trail.length - 1]
+      ? trail
+      : [...trail, activity.name].slice(-PROGRESS_TOOL_TRAIL_MAX);
+  const progress: JobProgressSnapshot = {
+    ...previous.progress,
+    ...(target === undefined ? {} : { phase: target }),
+    ...(recentTools.length === 0 ? {} : { recentTools }),
+    lastHeartbeatAt: new Date(activity.atMs).toISOString(),
+  };
+  const next = [...cards];
+  next[index] = {
+    ...previous,
+    progress,
+    ...(activity.workerName === undefined ? {} : { workerName: activity.workerName }),
+    liveActivity: {
+      ...activity,
+      ...(target === undefined ? {} : { target }),
+    },
+  };
   return next;
 }
 

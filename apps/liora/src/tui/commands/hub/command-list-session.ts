@@ -127,13 +127,6 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
     priority: 80,
   },
   {
-    name: 'dashboard',
-    aliases: ['dash', 'agents'],
-    description: '에이전트 대시보드 — 입력 필요 / 작업 중 / 대기',
-    priority: 85,
-    availability: 'always',
-  },
-  {
     name: 'extensions',
     aliases: ['ext', 'import-claude'],
     description: '확장 기능 — 플러그인/훅/스킬/MCP · Claude 가져오기',

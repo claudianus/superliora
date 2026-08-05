@@ -7,6 +7,7 @@ import type { ModelAlias } from '@superliora/sdk';
 import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../../../constant/liora-tui';
 import { formatErrorMessage } from '../../../utils/event-payload';
 import {
+  modelUsesEmbeddedThinkingEffort,
   resolveThinkingDisplay,
   resolveThinkingLevelForApply,
 } from '#/tui/utils/model/thinking-effort';
@@ -88,6 +89,9 @@ function validateThinkingLevelForModel(
   model: ModelAlias | undefined,
 ): string | undefined {
   if (model === undefined) return undefined;
+  if (modelUsesEmbeddedThinkingEffort(model)) {
+    return 'Cursor model variants include their reasoning strength in the model name.';
+  }
   const caps = model.capabilities ?? [];
   const alwaysThinking = caps.includes('always_thinking');
   const supportsThinking =
@@ -100,6 +104,9 @@ function validateThinkingLevelForModel(
 
   const supportEfforts = model.supportEfforts;
   if (supportEfforts !== undefined && level !== 'on') {
+    if (supportEfforts.length === 0) {
+      return 'Current model has no selectable thinking efforts; use on or off.';
+    }
     const supported = new Set(supportEfforts.map((effort) => effort.trim().toLowerCase()));
     if (!supported.has(level)) {
       return `Current model supports thinking efforts: ${supportEfforts.join(', ')}.`;
@@ -115,6 +122,9 @@ function formatThinkingLevels(): string {
 function formatThinkingStatus(host: SlashCommandHost): string {
   const modelAlias = host.state.appState.model.trim();
   const model = host.state.appState.availableModels[modelAlias];
+  if (modelUsesEmbeddedThinkingEffort(model)) {
+    return `Thinking is selected by the Cursor model variant (${model?.displayName ?? model?.model ?? modelAlias}).`;
+  }
   const display = resolveThinkingDisplay(
     host.state.appState.thinkingLevel ?? (host.state.appState.thinking ? 'on' : 'off'),
     { thinking: host.state.appState.thinking, model },
@@ -138,7 +148,10 @@ function formatThinkingStatus(host: SlashCommandHost): string {
   const supportEfforts = model?.supportEfforts;
   const defaultEffort = model?.defaultEffort ?? 'high';
 
-  if (supportEfforts !== undefined && supportEfforts.length > 0) {
+  if (supportEfforts !== undefined && supportEfforts.length === 0) {
+    return `Thinking is ${levelLabel}. This model has no selectable effort; use /thinking on or off.`;
+  }
+  if (supportEfforts !== undefined) {
     return `Thinking is ${levelLabel}. Default effort: ${defaultEffort}. Supported: ${supportEfforts.join(', ')}. Use /thinking <level>.`;
   }
   return `Thinking is ${levelLabel}. Default effort: ${defaultEffort}. Use /thinking <${formatThinkingLevels()}>.`;

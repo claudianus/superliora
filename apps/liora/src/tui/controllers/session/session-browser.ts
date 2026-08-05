@@ -2,9 +2,7 @@ import type { Component, Focusable } from '#/tui/renderer';
 import { copyTextToClipboard } from '#/utils/clipboard/clipboard-text';
 import { quoteShellArg } from '#/utils/shell-quote';
 import type { LioraHarness, Session } from '@superliora/sdk';
-import { resolve } from 'pathe';
 
-import { AgentDashboardComponent } from '../../components/dialogs/session/agent-dashboard';
 import { ExtensionsModalComponent } from '../../components/dialogs/session/extensions-modal';
 import type { SessionRow } from '../../components/dialogs/session/session-picker';
 import type { SessionLoadingPhase } from '../../components/dialogs/session/session-loading-overlay';
@@ -13,12 +11,6 @@ import { MAX_TERMINAL_TITLE_LENGTH } from '../../constant/terminal';
 import type { ColorToken } from '../../theme';
 import type { AppState, LioraTUIOptions } from '../../types';
 import type { TUIState } from '../../tui-state';
-import {
-  dashboardRowsFromSessions,
-  type DashboardSessionRow,
-  type DashboardSessionStatus,
-  type DashboardStatusHints,
-} from '../../utils/agent/agent-dashboard-rows';
 import { formatSessionResumeWarningNotice } from '../../utils/session/session-resume-warning-notice';
 import type { CenterModalMountOptions } from '../../utils/ui/center-modal';
 import {
@@ -41,7 +33,7 @@ import { ttui } from '../../utils/tui-i18n';
 import type { EditorKeyboardController } from '../shell/editor-keyboard';
 import type { SessionEventHandler } from '../session-event/handler';
 
-/** Host surface for session picker, agent dashboard, and extensions browser. */
+/** Host surface for session picker and extensions browser. */
 export interface SessionBrowserHost {
   state: TUIState;
   session: Session | undefined;
@@ -99,7 +91,7 @@ export interface SessionBrowserHost {
 }
 
 /**
- * Session picker, agent dashboard, extensions modal, fetch/resume/reload, and
+ * Session picker, extensions modal, fetch/resume/reload, and
  * startup-mode application for resumed sessions. LioraTUI keeps thin delegates.
  */
 export class SessionBrowserController implements SessionPickerControllerState {
@@ -227,68 +219,6 @@ export class SessionBrowserController implements SessionPickerControllerState {
       closeOnCancel: false,
       forwardEditorExit: false,
     });
-  }
-
-  async showAgentDashboard(): Promise<void> {
-    if (this.host.state.appState.isReplaying || this.host.isSessionLoadingOverlayActive()) {
-      this.host.showError(ttui('tui.sessionLoading.busy'));
-      return;
-    }
-    this.host.state.loadingSessions = true;
-    let summaries: Awaited<ReturnType<LioraHarness['listSessions']>> = [];
-    try {
-      summaries = await this.host.runWithBusyOverlay(
-        {
-          title: ttui('tui.sessionLoading.dashboard'),
-          detail: ttui('tui.sessionLoading.dashboard'),
-          phase: 'working',
-        },
-        async () => this.host.harness.listSessions({ workDir: this.host.state.appState.workDir }),
-      );
-      // Keep session-picker cache in sync for other dialogs.
-      this.host.state.sessions = sessionRowsForPicker(
-        summaries,
-        this.host.state.appState.sessionId,
-        this.host.hasSessionContent(),
-      );
-    } catch {
-      this.host.state.sessions = [];
-      this.host.showStatus(ttui('tui.sessions.fetchFailed'), 'warning');
-    } finally {
-      this.host.state.loadingSessions = false;
-    }
-
-    const statusHints = this.buildDashboardStatusHints(summaries.map((s) => s.id));
-    const rows = dashboardRowsFromSessions(summaries, {
-      currentSessionId: this.host.state.appState.sessionId,
-      currentSessionHasContent: this.host.hasSessionContent(),
-      statusHints,
-    });
-
-    this.host.state.activeDialog = 'agent-dashboard';
-    this.host.mountEditorReplacement(
-      new AgentDashboardComponent({
-        sessions: rows,
-        loading: false,
-        currentSessionId: this.host.state.appState.sessionId,
-        onSelect: (session: DashboardSessionRow) => {
-          void this.handleAgentDashboardSelect(session).catch((error) => {
-            this.host.showError(`세션 연결 실패: ${formatErrorMessage(error)}`);
-          });
-        },
-        onCancel: () => {
-          this.hideAgentDashboard();
-        },
-      }),
-    );
-  }
-
-  hideAgentDashboard(): void {
-    if (this.host.state.activeDialog === 'agent-dashboard') {
-      this.host.state.activeDialog = null;
-    }
-    this.host.editorKeyboard.clearPendingExit();
-    this.host.restoreEditor();
   }
 
   async showExtensionsModal(args?: string): Promise<void> {
@@ -476,24 +406,6 @@ export class SessionBrowserController implements SessionPickerControllerState {
     );
   }
 
-  private async handleAgentDashboardSelect(session: DashboardSessionRow): Promise<void> {
-    const asRow: SessionRow = {
-      id: session.id,
-      title: session.title,
-      last_prompt: session.last_prompt,
-      work_dir: session.work_dir,
-      updated_at: session.updated_at,
-      metadata: session.metadata,
-    };
-    if (resolve(session.work_dir) !== resolve(this.host.state.appState.workDir)) {
-      await this.showResumeOtherWorkDirHint(asRow);
-      return;
-    }
-    const switched = await this.resumeSession(session.id);
-    if (!switched) return;
-    this.hideAgentDashboard();
-  }
-
   private async handleExtensionsAction(
     action:
       | { readonly kind: 'open-plugins' }
@@ -529,24 +441,6 @@ export class SessionBrowserController implements SessionPickerControllerState {
 
   private async runClaudeImportInventory(): Promise<void> {
     await runClaudeImportInventoryForHost(this.host);
-  }
-
-  private buildDashboardStatusHints(
-    sessionIds: readonly string[],
-  ): DashboardStatusHints {
-    const hints: Record<string, DashboardSessionStatus> = {};
-    const currentId = this.host.state.appState.sessionId;
-    for (const id of sessionIds) {
-      if (id !== currentId) continue;
-      if (this.host.state.livePane.pendingApproval !== null) {
-        hints[id] = 'needs_input';
-      } else if (this.host.state.appState.streamingPhase !== 'idle') {
-        hints[id] = 'working';
-      } else {
-        hints[id] = 'idle';
-      }
-    }
-    return hints;
   }
 
   private async renameSessionFromPicker(session: SessionRow, newTitle: string): Promise<void> {

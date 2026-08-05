@@ -13,6 +13,7 @@ export interface CatalogModelEntry {
   readonly limit?: { readonly context?: number; readonly output?: number };
   readonly tool_call?: boolean;
   readonly reasoning?: boolean;
+  readonly reasoning_options?: readonly CatalogReasoningOption[];
   readonly interleaved?: boolean | { readonly field?: string };
   readonly modalities?: {
     readonly input?: readonly string[];
@@ -26,6 +27,20 @@ export interface CatalogModelEntry {
     readonly cache_write?: number;
   };
 }
+
+export type CatalogReasoningOption =
+  | {
+      readonly type: 'effort';
+      readonly values?: readonly (string | null)[];
+    }
+  | {
+      readonly type: 'toggle';
+    }
+  | {
+      readonly type: 'budget_tokens';
+      readonly min?: number;
+      readonly max?: number;
+    };
 
 export interface CatalogProviderEntry {
   readonly id?: string;
@@ -52,6 +67,11 @@ export interface CatalogModel {
   readonly name?: string;
   readonly maxOutputSize?: number;
   readonly reasoningKey?: string;
+  /** Normalized discrete effort values declared by models.dev. An empty array
+   * means the provider exposes reasoning but no discrete effort control. */
+  readonly supportEfforts?: readonly string[];
+  /** True when the catalog says reasoning cannot be disabled for this model. */
+  readonly alwaysThinking?: boolean;
   readonly capability: ModelCapability;
   /** Per-million-token pricing in USD (models.dev `cost` field). */
   readonly cost?: {
@@ -141,11 +161,16 @@ export function catalogModelToCapability(model: CatalogModelEntry): CatalogModel
   if (!isUsableChatModel(model)) return undefined;
   const inputs = model.modalities?.input ?? [];
   const output = model.limit?.output;
+  const thinking = catalogThinkingMetadata(model);
   return {
     id: model.id,
     name: typeof model.name === 'string' && model.name.length > 0 ? model.name : undefined,
     maxOutputSize: typeof output === 'number' && output > 0 ? output : undefined,
     reasoningKey: catalogReasoningKey(model.interleaved),
+    ...(thinking.supportEfforts !== undefined
+      ? { supportEfforts: thinking.supportEfforts }
+      : {}),
+    ...(thinking.alwaysThinking ? { alwaysThinking: true } : {}),
     cost: model.cost,
     capability: {
       image_in: inputs.includes('image'),
@@ -155,6 +180,42 @@ export function catalogModelToCapability(model: CatalogModelEntry): CatalogModel
       tool_use: model.tool_call ?? true,
       max_context_tokens: context,
     },
+  };
+}
+
+const KNOWN_THINKING_EFFORTS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
+
+function catalogThinkingMetadata(model: CatalogModelEntry): {
+  readonly supportEfforts: readonly string[] | undefined;
+  readonly alwaysThinking: boolean;
+} {
+  const options = model.reasoning_options;
+  if (!Array.isArray(options)) {
+    return { supportEfforts: undefined, alwaysThinking: false };
+  }
+
+  const effortValues = options
+    .filter((option): option is Extract<CatalogReasoningOption, { readonly type: 'effort' }> => {
+      return option?.type === 'effort';
+    })
+    .flatMap((option) => (Array.isArray(option.values) ? option.values : []));
+  const supportEfforts = [...new Set(
+    effortValues
+      .map((value) => (typeof value === 'string' ? value.trim().toLowerCase() : undefined))
+      .filter((value): value is string => value !== undefined && KNOWN_THINKING_EFFORTS.has(value)),
+  )];
+  const hasOffEffort = effortValues.some(
+    (value) => value === null || (typeof value === 'string' && value.trim().toLowerCase() === 'none'),
+  );
+  const hasToggle = options.some((option) => option?.type === 'toggle');
+
+  return {
+    // An explicit effort option with no recognized graded values is different
+    // from an omitted option: do not fall back to a guessed provider ladder.
+    supportEfforts: options.some((option) => option?.type === 'effort') ? supportEfforts : [],
+    // models.dev defines an explicit toggle or an effort value of `none` as
+    // the off path. Without either, reasoning is always on for this model.
+    alwaysThinking: Boolean(model.reasoning) && !hasToggle && !hasOffEffort,
   };
 }
 

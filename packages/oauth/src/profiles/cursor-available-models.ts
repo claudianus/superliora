@@ -20,6 +20,7 @@ const DEFAULT_CONTEXT = 200_000;
 const DEFAULT_TIMEOUT_MS = 8_000;
 /** Stale inverted form from a brief SuperLiora mis-rewrite. */
 const FAST_THEN_EFFORT = /^(.+)-fast-(none|low|medium|high|xhigh|max)$/i;
+const CURSOR_EMBEDDED_EFFORT_SUFFIX = /(?:^|-)(low|medium|high|xhigh|max)(?:-fast)?$/i;
 
 export interface CursorDiscoveredModel {
   readonly id: string;
@@ -57,9 +58,10 @@ export function cursorModelsToPresets(
 ): ProviderModelPreset[] {
   return models.map((model) => ({
     id: model.id,
-    displayName: model.displayName,
+    displayName: cursorDisplayName(model.id, model.displayName),
     maxContextSize: model.maxContextSize,
     capabilities: model.capabilities,
+    ...cursorThinkingMetadata(model.id),
   }));
 }
 
@@ -82,7 +84,8 @@ export function applyCursorOAuthModelAliases(
       model: model.id,
       maxContextSize: model.maxContextSize,
       capabilities: [...model.capabilities],
-      displayName: model.displayName,
+      displayName: cursorDisplayName(model.id, model.displayName),
+      ...cursorThinkingMetadata(model.id),
     };
   }
   config.models = nextModels;
@@ -171,21 +174,48 @@ export async function fetchCursorUsableModels(options: {
 
   const ids = decodeUsableModelIds(body);
   if (ids.length === 0) return undefined;
-  return ids.map((id) => {
-    const wireId = toCursorCatalogModelId(id);
-    return {
-      id: wireId,
-      displayName: displayNameForWireId(wireId),
-      maxContextSize: DEFAULT_CONTEXT,
-      capabilities: ['thinking', 'tool_use'] as const,
-    };
-  });
+  return ids.map((id) => cursorUsableModelToDiscoveredModel(toCursorCatalogModelId(id)));
+}
+
+/** Adds known fallback metadata to the id-only GetUsableModels response. */
+export function cursorUsableModelToDiscoveredModel(modelId: string): CursorDiscoveredModel {
+  const fallback = CURSOR_FALLBACK_MODELS.find((model) => model.id === modelId);
+  const displayName = fallback?.displayName ?? displayNameForWireId(modelId);
+  return {
+    id: modelId,
+    displayName: cursorDisplayName(modelId, displayName),
+    maxContextSize: fallback?.maxContextSize ?? DEFAULT_CONTEXT,
+    capabilities: fallback?.capabilities ?? ['thinking', 'tool_use'],
+  };
 }
 
 function displayNameForWireId(wireId: string): string {
   if (wireId === 'default') return 'Auto';
   // Picker label: drop the GetUsableModels `cursor-` family prefix when present.
   return wireId.startsWith('cursor-') ? wireId.slice('cursor-'.length) : wireId;
+}
+
+function cursorEmbeddedEffort(modelId: string): string | undefined {
+  return CURSOR_EMBEDDED_EFFORT_SUFFIX.exec(modelId)?.[1]?.toLowerCase();
+}
+
+function cursorThinkingMetadata(
+  modelId: string,
+): Pick<ProviderModelPreset, 'supportEfforts' | 'defaultEffort'> {
+  const defaultEffort = cursorEmbeddedEffort(modelId);
+  return {
+    // Cursor selects the reasoning variant in the model id and does not
+    // expose a separate effort field on AgentService/Run.
+    supportEfforts: [],
+    ...(defaultEffort !== undefined ? { defaultEffort } : {}),
+  };
+}
+
+function cursorDisplayName(modelId: string, displayName: string): string {
+  const effort = cursorEmbeddedEffort(modelId);
+  if (effort === undefined) return displayName;
+  const displayTokens = new Set(displayName.toLowerCase().split(/[^a-z0-9]+/));
+  return displayTokens.has(effort) ? displayName : `${displayName} (${effort})`;
 }
 
 /** Normalize AvailableModels JSON into picker entries (one per variant slug). */
@@ -201,7 +231,7 @@ export function normalizeAvailableModels(rawModels: readonly unknown[]): CursorD
     const supportsThinking = boolProp(raw, 'supportsThinking', true);
     const supportsImages = boolProp(raw, 'supportsImages', false);
     const capabilities = buildCapabilities(supportsThinking, supportsImages);
-    const serverModelId = stringProp(raw, 'serverModelName')?.trim() || name;
+    const serverModelId = stringProp(raw, 'serverModelName')?.trim() ?? name;
     const variants = arrayProp(raw, 'variants');
     const variantRecords =
       variants.length > 0
@@ -233,13 +263,16 @@ export function normalizeAvailableModels(rawModels: readonly unknown[]): CursorD
         contextFromParameters(parameters) ??
         contextFromText(stringProp(variant, 'tooltipData'), stringProp(raw, 'tooltipData')) ??
         DEFAULT_CONTEXT;
-      const displayName = cleanDisplayName(
-        stringProp(variant, 'displayNameOutsidePicker') ??
-          stringProp(variant, 'displayName') ??
-          stringProp(raw, 'clientDisplayName') ??
-          stringProp(raw, 'inputboxShortModelName') ??
-          displayNameForWireId(publicId),
-        parameters,
+      const displayName = cursorDisplayName(
+        publicId,
+        cleanDisplayName(
+          stringProp(variant, 'displayNameOutsidePicker') ??
+            stringProp(variant, 'displayName') ??
+            stringProp(raw, 'clientDisplayName') ??
+            stringProp(raw, 'inputboxShortModelName') ??
+            displayNameForWireId(publicId),
+          parameters,
+        ),
       );
       const wireServerId = toCursorCatalogModelId(serverModelId);
 

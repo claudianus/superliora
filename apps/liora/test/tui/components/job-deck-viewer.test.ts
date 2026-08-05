@@ -131,4 +131,35 @@ describe('JobDeckViewerComponent', () => {
     viewer.handleInput('\u001b');
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
+
+  it('keeps a full transcript buffer with top, tail, and Home/End navigation', async () => {
+    const snap = snapshotOf([
+      card('job_a1b2c3d4', 'long worker', 'running', {
+        workerAgentId: 'agent_w1',
+      }),
+    ]);
+    const viewer = new JobDeckViewerComponent({
+      getSnapshot: () => snap,
+      loadWorker: async () => ({
+        lines: Array.from({ length: 40 }, (_, index) => `line ${String(index)}`),
+      }),
+      onAction: vi.fn(),
+      onCancel: vi.fn(),
+    });
+
+    viewer.handleInput('\r');
+    await vi.waitFor(() => {
+      expect(viewer.render(100).join('\n')).toContain('line 39');
+    });
+
+    expect(viewer.render(100).join('\n')).not.toContain('line 0');
+    viewer.handleInput('g');
+    expect(viewer.render(100).join('\n')).toContain('line 0');
+    viewer.handleInput('\u001b[F');
+    expect(viewer.render(100).join('\n')).toContain('line 39');
+    viewer.handleInput('\u001b[H');
+    expect(viewer.render(100).join('\n')).toContain('line 0');
+    viewer.handleInput('F');
+    expect(viewer.render(100).join('\n')).toContain('line 39');
+  });
 });

@@ -32,10 +32,9 @@ export function beginSessionLoading(
     });
     return;
   }
-  // Drop any open picker/dashboard so a second resume cannot start mid-load.
+  // Drop any open picker so a second resume cannot start mid-load.
   if (
     host.state.activeDialog === 'session-picker' ||
-    host.state.activeDialog === 'agent-dashboard' ||
     host.state.activeDialog === 'command' ||
     host.state.activeDialog === 'help' ||
     host.state.activeDialog === 'search'
