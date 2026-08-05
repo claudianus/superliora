@@ -39,7 +39,8 @@ export type SettingsSelection =
   | 'storage'
   | 'experiments'
   | 'upgrade'
-  | 'usage';
+  | 'usage'
+  | 'memory';
 
 /** Practical group order — everyday settings first, power tools later. */
 type SettingsSection =
@@ -222,6 +223,12 @@ const SETTINGS_OPTIONS_BASE: readonly (Omit<ChoiceOption, 'keywords'> & {
     section: 'Integrations',
     label: 'Eyes readiness',
     description: 'Browser-use / computer-use status.',
+  },
+  {
+    value: 'memory',
+    section: 'Integrations',
+    label: 'Memory',
+    description: 'Liora Recall — stats, search, remember, wiki.',
   },
   // ── Account ─────────────────────────────────────────────────────────────
   {

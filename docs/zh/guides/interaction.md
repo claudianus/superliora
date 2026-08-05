@@ -23,6 +23,8 @@ SuperLiora CLI 支持在输入框中直接粘贴图片和视频，让 AI 结合�
 
 ## 斜杠命令
 
+日常操作优先走 **Command Hub**（`Ctrl-K` / `?` / `/help`）：Job ops、Memory（经 Settings）、目标队列、仪表盘等。开启 swarm 时 Hub 另有 **Fleet → War Room…**。Context OS 在 Settings → Bench/Diagnostics；Files 资源管理器按 `b` 打开 blame。输入 `/` 仍打开补全，用于需要键入参数的高级快捷方式；主补全列表会降级冗余开关（优先 Hub / Settings）。
+
 以 `/` 开头的内容会被识别为斜杠命令。输入 `/` 后弹出补全菜单，随后续字符实时过滤；按 `Esc` 关闭菜单，匹配失败时内容会作为普通消息发送给 Agent。
 
 已激活的 [Agent Skills](../customization/skills.md) 会自动注册为斜杠命令：普通外部 Skill 以 `/skill:<name>` 调用，外部子 Skill 以 `/parent.child` 这样的点分命令显示，内置 Skill 直接以 `/<name>` 出现在斜杠命令面板中；若外部 Skill 名称与系统斜杠命令不冲突，也可以省略 `skill:` 前缀直接输入 `/<name>`。

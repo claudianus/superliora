@@ -15,6 +15,7 @@ import { resolveHostRuntimeMode } from '../../../utils/host/host-glance';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { showContextOsReport } from '../../info/info';
 
 export { BENCH_SLASH_TIP };
 
@@ -32,7 +33,11 @@ export function showBenchDiagnosticsSettings(host: SlashCommandHost): void {
           description:
             '/bench · visual smoke · session TTFT + trace dump · W6 redteam (read-only).',
         },
-
+        {
+          value: 'context-os',
+          label: 'Context OS report',
+          description: 'Diagnose context injection / Context OS (same as /context-os).',
+        },
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -40,7 +45,10 @@ export function showBenchDiagnosticsSettings(host: SlashCommandHost): void {
           void showBenchDiagnosticsSettingsPanel(host);
           return;
         }
-
+        if (value === 'context-os') {
+          void showContextOsReport(host);
+          return;
+        }
       },
       onCancel: () => {
         dismissPickerDialog(host);

@@ -628,6 +628,7 @@ describe('harness panel and tools inventory', () => {
     ];
     expect(component).toBeTruthy();
     const body = component.render(80).join('\n');
+    expect(body).toContain('Agent profile');
     expect(body).toContain('Tools inventory');
     expect(body).toContain('Eyes readiness');
     expect(body).toContain('Visual Quality');
@@ -646,7 +647,8 @@ describe('harness panel and tools inventory', () => {
     const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
-    // presets=0, tools=1
+    // presets=0, agent-profile=1, tools=2
+    component.handleInput('\u001B[B');
     component.handleInput('\u001B[B');
     component.handleInput('\r');
     // showToolsInventory is async
@@ -664,7 +666,8 @@ describe('harness panel and tools inventory', () => {
     const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
-    // presets=0, tools=1, eyes=2
+    // presets=0, agent-profile=1, tools=2, eyes=3
+    component.handleInput('\u001B[B');
     component.handleInput('\u001B[B');
     component.handleInput('\u001B[B');
     component.handleInput('\r');
@@ -851,8 +854,8 @@ describe('harness panel and tools inventory', () => {
 
   it('routes harness panel premium selection to Visual Quality settings panel', async () => {
     const host = makeHarnessHost({ session: {}, premiumQualityMode: true });
-    // presets=0, tools=1, eyes=2, premium=3
-    await selectHarnessOption(host, 3);
+    // presets=0, agent-profile=1, tools=2, eyes=3, premium=4
+    await selectHarnessOption(host, 4);
     expect(host.restoreEditor).toHaveBeenCalled();
     const premiumPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
       | { opts: { onSelect: (value: string) => void; title?: string } }
@@ -866,8 +869,8 @@ describe('harness panel and tools inventory', () => {
 
   it('routes harness panel experiments selection to experiments panel', async () => {
     const host = makeHarnessHost({ session: {} });
-    // experiments=4 (presets, tools, eyes, premium, experiments)
-    await selectHarnessOption(host, 4);
+    // experiments=5 (presets, agent-profile, tools, eyes, premium, experiments)
+    await selectHarnessOption(host, 5);
     expect(host.restoreEditor).toHaveBeenCalled();
     await vi.waitFor(() => {
       expect(host.harness.getExperimentalFeatures).toHaveBeenCalled();
@@ -876,8 +879,8 @@ describe('harness panel and tools inventory', () => {
 
   it('routes harness panel context selection to context working-set picker', async () => {
     const host = makeHarnessHost({ session: {} });
-    // context=5
-    await selectHarnessOption(host, 5);
+    // context=6
+    await selectHarnessOption(host, 6);
     expect(host.restoreEditor).toHaveBeenCalled();
     // picker remounts via mountEditorReplacement after restore
     await vi.waitFor(() => {

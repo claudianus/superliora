@@ -38,10 +38,56 @@ describe('buildDefaultCommandHubItems', () => {
     expect(isCommandHubToggleId('modes.plan')).toBe(true);
   });
 
+  it('includes Phase 1 operator Hub rows', () => {
+    const items = buildDefaultCommandHubItems({});
+    const ids = new Set(items.map((item) => item.id));
+    for (const id of [
+      'workspace.dashboard',
+      'workspace.errors',
+      'workspace.jobOps',
+      'workspace.cron',
+      'chat.rewind',
+      'chat.loops',
+      'start.fork',
+      'account.logout',
+      'modes.goals',
+      'modes.ultraplan',
+    ] as const) {
+      expect(ids.has(id)).toBe(true);
+    }
+    expect(items.find((item) => item.id === 'modes.ultraplan')?.searchOnly).toBe(true);
+    expect(items.find((item) => item.id === 'modes.ultrawork')?.description).toContain(
+      'type objective',
+    );
+    expect(items.find((item) => item.id === 'help.commands')?.description).toContain(
+      'prefer Hub search',
+    );
+    expect(commandHubNestsPicker('workspace.jobOps')).toBe(true);
+    expect(commandHubNestsPicker('chat.loops')).toBe(true);
+    expect(commandHubNestsPicker('workspace.cron')).toBe(true);
+    expect(commandHubActionToSlash('workspace.dashboard')).toBe('/dashboard');
+    expect(commandHubActionToSlash('chat.rewind')).toBe('/rewind');
+    expect(commandHubActionToSlash('modes.goals')).toBe('/goal next manage');
+    expect(commandHubActionToSlash('modes.ultraplan')).toBe('/ultraplan');
+  });
+
+  it('adds Fleet War Room when swarmMode is on, and omits it when off', () => {
+    const off = buildDefaultCommandHubItems({ swarmMode: false });
+    expect(off.some((item) => item.id === 'fleet.warRoom')).toBe(false);
+
+    const on = buildDefaultCommandHubItems({ swarmMode: true });
+    const warRoom = on.find((item) => item.id === 'fleet.warRoom');
+    expect(warRoom?.section).toBe('Fleet');
+    expect(warRoom?.label).toBe('War Room…');
+    expect(commandHubNestsPicker('fleet.warRoom')).toBe(true);
+    expect(commandHubActionToSlash('fleet.warRoom')).toBeUndefined();
+  });
+
   it('adds a Now section while streaming and hides Chat undo/compact dupes', () => {
     const items = buildDefaultCommandHubItems({ streamingPhase: 'composing' });
     expect(items.some((item) => item.id === 'now.steer' && item.section === 'Now')).toBe(true);
     expect(items.some((item) => item.id === 'chat.undo')).toBe(false);
+    expect(items.some((item) => item.id === 'chat.rewind')).toBe(false);
     expect(items.some((item) => item.id === 'now.undo')).toBe(true);
   });
 
@@ -61,6 +107,7 @@ describe('commandHubActionToSlash', () => {
     expect(commandHubActionToSlash('extend.extensions')).toBeUndefined();
     expect(commandHubActionToSlash('help.shortcuts')).toBeUndefined();
     expect(commandHubActionToSlash('now.compact')).toBe('/compact');
+    expect(commandHubActionToSlash('fleet.warRoom')).toBeUndefined();
   });
 });
 

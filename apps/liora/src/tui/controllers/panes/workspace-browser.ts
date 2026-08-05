@@ -87,6 +87,13 @@ export class WorkspaceBrowserController {
             onPreview: (relativePath) => {
               this.showFileViewer(relativePath);
             },
+            onBlame: (relativePath) => {
+              // showBlame() bails while a dialog is active, so tear the
+              // explorer down first (same mechanics as file-viewer blame).
+              this.host.state.activeDialog = null;
+              this.host.restoreEditor();
+              this.showBlame(relativePath);
+            },
             onClose: () => {
               this.hideFileExplorer();
             },

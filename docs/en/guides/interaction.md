@@ -23,6 +23,8 @@ After pasting, the input box shows a placeholder that you can edit like normal t
 
 ## Slash commands
 
+Everyday actions belong in the **Command Hub** (`Ctrl-K` / `?` / `/help`): Job ops, Memory (via Settings), goal queue, dashboard, and more. When swarm mode is on, Hub also shows **Fleet → War Room…**. Context OS is under Settings → Bench/Diagnostics; Files explorer `b` opens blame. Typing `/` still opens autocomplete for power-user shortcuts and commands that need typed arguments — the primary list demotes redundant toggles (prefer Hub / Settings).
+
 Anything starting with `/` is treated as a slash command. Typing `/` opens a completion menu that filters in real time as you keep typing; press `Esc` to close the menu. If nothing matches, the input is sent to the agent as a regular message.
 
 Active [Agent Skills](../customization/skills.md) are automatically registered as slash commands: ordinary external Skills are invoked with `/skill:<name>`, external sub-skills appear as dotted commands such as `/parent.child`, and built-in Skills appear directly as `/<name>` in the slash command panel. If an external skill name does not conflict with a system slash command, you can also drop the `skill:` prefix and type `/<name>` directly.

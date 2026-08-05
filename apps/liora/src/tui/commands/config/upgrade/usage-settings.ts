@@ -14,6 +14,7 @@ import {
   USAGE_TOKEN_TIP,
 } from '#/tui/utils/usage/usage-settings-glance';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
+import { showQuota } from '../../info/info';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 
@@ -33,7 +34,11 @@ export function showUsageSettings(host: SlashCommandHost): void {
           description:
             'Live token/$ from getStatus · context window · session cost · fleet budget cap.',
         },
-
+        {
+          value: 'quota',
+          label: 'Quota',
+          description: 'Live provider subscription quotas and API credits (/quota).',
+        },
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -41,7 +46,9 @@ export function showUsageSettings(host: SlashCommandHost): void {
           void showUsageSettingsPanel(host);
           return;
         }
-
+        if (value === 'quota') {
+          void showQuota(host);
+        }
       },
       onCancel: () => {
         dismissPickerDialog(host);

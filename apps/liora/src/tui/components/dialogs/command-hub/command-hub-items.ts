@@ -74,9 +74,24 @@ export function buildDefaultCommandHubItems(state: {
       id: 'modes.ultrawork',
       section: 'Modes',
       label: 'Start Mission…',
-      description: 'Type /mission <objective> · Settings → Mission / Goals for auto-start',
+      description: 'Enter → type objective',
       badge: onOff(state.ultraworkMode),
-      keywords: ['ultrawork', 'uw', 'goal', 'pipeline'],
+      keywords: ['ultrawork', 'uw', 'goal', 'pipeline', 'mission'],
+    },
+    {
+      id: 'modes.goals',
+      section: 'Modes',
+      label: 'Manage goal queue',
+      description: 'Upcoming goals · pause / resume / reorder',
+      keywords: ['goal', 'queue', 'ralph', 'next'],
+    },
+    {
+      id: 'modes.ultraplan',
+      section: 'Modes',
+      label: 'Ultra Plan',
+      description: 'Structured plan pipeline (research → write)',
+      searchOnly: true,
+      keywords: ['ultraplan', 'up', 'plan', 'pipeline'],
     },
     {
       id: 'modes.premium',
@@ -94,6 +109,19 @@ export function buildDefaultCommandHubItems(state: {
       badge: state.permissionMode,
       kind: 'cycle',
     },
+  );
+
+  if (state.swarmMode === true) {
+    items.push({
+      id: 'fleet.warRoom',
+      section: 'Fleet',
+      label: 'War Room…',
+      description: 'Talk · message · pause · restaff · raw · fleet status',
+      keywords: ['swarm', 'fleet', 'warroom', 'talk', 'restaff', 'pause'],
+    });
+  }
+
+  items.push(
     {
       id: 'start.new',
       section: 'Start',
@@ -111,6 +139,13 @@ export function buildDefaultCommandHubItems(state: {
       section: 'Start',
       label: 'Export Markdown',
       description: 'Save this chat as a Markdown file',
+    },
+    {
+      id: 'start.fork',
+      section: 'Start',
+      label: 'Fork session',
+      description: 'Branch this chat (`/fork --worktree` for git isolation)',
+      keywords: ['fork', 'worktree', 'branch'],
     },
     {
       id: 'chat.model',
@@ -146,6 +181,13 @@ export function buildDefaultCommandHubItems(state: {
         description: 'Withdraw the last user message',
       },
       {
+        id: 'chat.rewind',
+        section: 'Chat',
+        label: 'Rewind files',
+        description: 'Restore files from the last write/edit snapshot',
+        keywords: ['rewind', 'snapshot', 'restore'],
+      },
+      {
         id: 'chat.compact',
         section: 'Chat',
         label: 'Compact context',
@@ -160,6 +202,20 @@ export function buildDefaultCommandHubItems(state: {
       section: 'Chat',
       label: 'Side question (btw)',
       description: 'Ask a forked side agent',
+    },
+    {
+      id: 'chat.loops',
+      section: 'Chat',
+      label: 'Conversation loops',
+      description: 'List or stop in-chat periodic prompts',
+      keywords: ['loop', 'interval', 'repeat'],
+    },
+    {
+      id: 'workspace.dashboard',
+      section: 'Workspace',
+      label: 'Agent dashboard',
+      description: 'Needs input · working · waiting',
+      keywords: ['dashboard', 'dash', 'agents'],
     },
     {
       id: 'workspace.files',
@@ -186,6 +242,13 @@ export function buildDefaultCommandHubItems(state: {
       description: 'Browse git history',
     },
     {
+      id: 'workspace.errors',
+      section: 'Workspace',
+      label: 'Errors',
+      description: 'Browse errors from this session transcript',
+      keywords: ['problems', 'errors'],
+    },
+    {
       id: 'workspace.tasks',
       section: 'Workspace',
       label: 'Background tasks',
@@ -203,6 +266,20 @@ export function buildDefaultCommandHubItems(state: {
       label: 'Job Deck monitor',
       description: 'Interactive Conductor deck — worker transcripts, tokens, elapsed',
       keywords: ['conductor', 'deck', 'monitor', 'worker', 'transcript'],
+    },
+    {
+      id: 'workspace.jobOps',
+      section: 'Workspace',
+      label: 'Job ops',
+      description: 'List · inbox · resume · cancel · inspect · schedule · GC',
+      keywords: ['job', 'conductor', 'inbox', 'resume', 'cancel', 'gc'],
+    },
+    {
+      id: 'workspace.cron',
+      section: 'Workspace',
+      label: 'Cron jobs',
+      description: 'List or delete scheduled jobs',
+      keywords: ['cron', 'schedule', 'scheduled'],
     },
     {
       id: 'workspace.status',
@@ -244,6 +321,13 @@ export function buildDefaultCommandHubItems(state: {
       description: 'Manage OAuth account pools',
     },
     {
+      id: 'account.logout',
+      section: 'Account',
+      label: 'Logout',
+      description: 'Disconnect a configured provider',
+      keywords: ['logout', 'disconnect', 'sign out'],
+    },
+    {
       id: 'account.upgrade',
       section: 'Account',
       label: 'Update',
@@ -261,7 +345,7 @@ export function buildDefaultCommandHubItems(state: {
       id: 'help.commands',
       section: 'Help',
       label: 'All slash commands',
-      description: 'Power-user command list',
+      description: 'Power-user list · prefer Hub search for everyday actions',
     },
     ...buildSettingsJumpHubItems(),
   );

@@ -1,6 +1,8 @@
 # Slash Commands
 
-Prefer the **Command Hub** dashboard for everyday use: press `Ctrl-K` or `?` on an empty prompt (or run `/help`). Space flips modes in place; Enter applies and returns to chat; `1`–`9` jump to a row. Nested pickers stack with Esc back (Esc clears a filter first). Retry is under Hub → Chat (or `/retry`). Slash commands remain for power users and scripting.
+Prefer the **Command Hub** dashboard for everyday use: press `Ctrl-K` or `?` on an empty prompt (or run `/help`). Space flips modes in place; Enter applies and returns to chat; `1`–`9` jump to a row. Nested pickers stack with Esc back (Esc clears a filter first). Retry is under Hub → Chat (or `/retry`).
+
+**Hub is primary** for operator workflows (Job ops, goal queue, dashboard, rewind, logout, …). Use slash when you need typed arguments or a keyboard shortcut. **Memory** lives under Settings → Memory (Integrations); **Job ops** under Hub → Workspace → Job ops. With swarm on, **War Room…** is under Hub → Fleet (`Ctrl-K`). **Context OS** is under Settings → Bench/Diagnostics; Files explorer `b` opens blame. Power-user slash still works — Help → All slash commands is a searchable list, not the everyday path.
 
 Slash commands are built-in control commands provided by SuperLiora CLI in the interactive TUI, covering account configuration, session management, mode switching, information queries, and more. Type `/` in the input box to trigger command completion — the candidate list filters in real time as you continue typing; command aliases are also matched.
 

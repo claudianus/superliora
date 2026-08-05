@@ -43,6 +43,7 @@ import { showFleetSettings } from './fleet/fleet-settings';
 import { showSettingsInventory } from './diagnostics/settings-inventory';
 import { showProvidersApiSettings } from './providers/providers-api-settings';
 import { showKeybindingsSettings } from './keybindings/keybindings-settings';
+import { showMemorySettings } from './memory/memory-settings';
 
 export function showSettingsSelector(host: SlashCommandHost): void {
   mountPickerDialog(
@@ -106,6 +107,7 @@ function handleSettingsSelection(host: SlashCommandHost, value: SettingsSelectio
     case 'upgrade': showUpgradeSettings(host); return;
     case 'persona': showPersonaSettings(host); return;
     case 'usage':  showUsageSettings(host); return;
+    case 'memory': showMemorySettings(host); return;
   }
 }
 
@@ -121,6 +123,11 @@ export function showHarnessPanel(host: SlashCommandHost): void {
       searchable: true,
       options: [
         SETTINGS_PRESETS_ROW,
+        {
+          value: 'agent-profile',
+          label: 'Agent profile',
+          description: 'Core waist · agent · superliora-full — same as /profile',
+        },
         {
           value: 'tools',
           label: 'Tools inventory',
@@ -157,6 +164,7 @@ export function showHarnessPanel(host: SlashCommandHost): void {
         dismissPickerDialog(host);
         switch (value) {
           case 'presets':
+          case 'agent-profile':
             showSettingPresetsPicker(host, {
               title: 'Agent profile presets',
               catalog: AGENT_PROFILE_PRESETS,

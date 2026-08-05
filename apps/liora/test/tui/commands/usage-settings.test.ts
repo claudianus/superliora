@@ -113,6 +113,7 @@ describe('showUsageSettings', () => {
       .options;
     expect(options.map((o) => o.value)).toEqual([
       'status',
+      'quota',
     ]);
     expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });

@@ -81,7 +81,7 @@ describe('bench diagnostics settings tips', () => {
 });
 
 describe('showBenchDiagnosticsSettings', () => {
-  it('mounts ChoicePicker with status only — tip-free', () => {
+  it('mounts ChoicePicker with status + Context OS — tip-free', () => {
     const host = makeBenchDiagnosticsHost();
     showBenchDiagnosticsSettings(host);
     const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
@@ -90,7 +90,7 @@ describe('showBenchDiagnosticsSettings', () => {
     expect(picker).toBeDefined();
     const options = (picker as unknown as { opts: { options: readonly { value: string }[] } }).opts
       .options;
-    expect(options.map((o) => o.value)).toEqual(['status']);
+    expect(options.map((o) => o.value)).toEqual(['status', 'context-os']);
     expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 

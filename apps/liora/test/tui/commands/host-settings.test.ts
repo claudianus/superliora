@@ -91,6 +91,9 @@ describe('showHostSettings', () => {
       .options;
     expect(options.map((o) => o.value)).toEqual([
       'status',
+      'dirs-list',
+      'dirs-add',
+      'dirs-remove',
     ]);
     expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
