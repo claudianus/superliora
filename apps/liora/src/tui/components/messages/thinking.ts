@@ -165,23 +165,28 @@ export class ThinkingComponent implements Component {
 
         if (this.mode === 'live') {
           const detail = getActiveTranscriptDetail();
+          // full: same as finalized — show the whole body while streaming.
           // minimal: status line only. compact+: short tail glance.
           const maxPreview =
-            detail === 'minimal' && !this.expanded
-              ? 0
-              : this.expanded
-                ? Math.max(THINKING_PREVIEW_LINES, 4)
-                : detail === 'compact'
-                  ? Math.min(2, THINKING_PREVIEW_LINES)
-                  : THINKING_PREVIEW_LINES;
+            detail === 'full'
+              ? contentLines.length
+              : detail === 'minimal' && !this.expanded
+                ? 0
+                : this.expanded
+                  ? Math.max(THINKING_PREVIEW_LINES, 4)
+                  : detail === 'compact'
+                    ? Math.min(2, THINKING_PREVIEW_LINES)
+                    : THINKING_PREVIEW_LINES;
           const visibleLines =
             maxPreview === 0
               ? []
-              : projectRendererLineWindow({
-                  lines: contentLines,
-                  maxLines: maxPreview,
-                  tail: true,
-                }).lines;
+              : detail === 'full'
+                ? contentLines
+                : projectRendererLineWindow({
+                    lines: contentLines,
+                    maxLines: maxPreview,
+                    tail: true,
+                  }).lines;
           const spinnerFrame =
             Math.floor(appearanceAnimationNow() / BRAILLE_SPINNER_INTERVAL_MS) %
             BRAILLE_SPINNER_FRAMES.length;

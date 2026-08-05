@@ -234,6 +234,9 @@ export async function createSessionWithOverrides(
     if (permissionMode !== undefined) {
       mainAgent.permission.setMode(permissionMode);
     }
+    // Bootstrap activates plan mode directly even on a Conductor lane: there is
+    // no task context yet, and a plan-desk job needs one to brief a worker. The
+    // desk handoff belongs to `EnterPlanMode`, once the model has a request.
     if (config.defaultPlanMode === true) {
       await mainAgent.planMode.enter();
     }

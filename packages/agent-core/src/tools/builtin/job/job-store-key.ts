@@ -63,6 +63,11 @@ export interface JobRecord {
   readonly resultContract?: SubagentResultContract;
   readonly parentJobId?: string;
   readonly notes?: string;
+  /**
+   * Plan Desk: when kind=mission, whether the worker activates Ultra (structured)
+   * plan mode. undefined/true = ultra; false = regular free-form plan.
+   */
+  readonly planStructured?: boolean;
   /** Worker progress (phase/recent tools/heartbeat) mirrored to `job.updated` v2. */
   readonly progress?: JobProgressSnapshot;
 }

@@ -110,7 +110,8 @@ describe('Local logging — harness integration', () => {
       workDir,
     });
 
-    log.warn('session diagnostic', { sessionId: session.id });
+    log.info('session diagnostic', { sessionId: session.id });
+    log.warn('session failure', { sessionId: session.id });
     log.warn('untagged event');
 
     // Drain the in-process logger via export's flush path is overkill; just
@@ -135,6 +136,9 @@ describe('Local logging — harness integration', () => {
     const sessionLog = await readFile(sessionLogPath, 'utf-8');
     expect(global).not.toContain('session diagnostic');
     expect(sessionLog).toContain('session diagnostic');
+    // warn/error mirror up so the global log alone surfaces failures.
+    expect(sessionLog).toContain('session failure');
+    expect(global).toContain('session failure');
     expect(global).toContain('untagged event');
     expect(sessionLog).not.toContain('untagged event');
   });
@@ -309,7 +313,9 @@ describe('Local logging — harness integration', () => {
       expect(sessionLog).toContain('export session log flush failed');
       expect(sessionLog).toContain('export global log flush failed');
       expect(globalLog).toContain('global untagged marker');
-      expect(globalLog).not.toContain('export global log flush failed');
+      // Session-scoped warns mirror into the global log: a flush failure is
+      // exactly the case an operator must see without the session directory.
+      expect(globalLog).toContain('export global log flush failed');
     } finally {
       flushSessionSpy.mockRestore();
       flushGlobalSpy.mockRestore();

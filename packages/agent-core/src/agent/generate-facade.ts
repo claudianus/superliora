@@ -227,7 +227,7 @@ async function runLoggedGenerate(
       input.requestOptions?.signal?.aborted === true;
     if (!aborted) {
       agent.llmRequestLogger.logFailure(requestId, {
-        ...(fields ?? {}),
+        ...fields,
         errorName: name,
         errorMessage: message.slice(0, 300),
         elapsedMs: Date.now() - startedAt,

@@ -231,6 +231,7 @@ export class SessionEventTools {
       output: serializeToolResultOutput(event.output),
       is_error: event.isError,
       synthetic: event.synthetic,
+      display: event.display,
     };
     const matchedCall = streamingUI.completeToolResult(event.toolCallId, resultData);
     // Push result to activity feed

@@ -51,7 +51,7 @@ export class PlanModeInjector extends DynamicInjector {
       this.wasActive = true;
       if (isUltraMode) {
         this.lastUltraPhase = phase;
-        return await phaseReminder(planFilePath, phase, this.agent);
+        return phaseReminder(planFilePath, phase, this.agent);
       }
       if (await this.hasCurrentPlanContent()) {
         return reentryReminder(planFilePath);
@@ -63,13 +63,13 @@ export class PlanModeInjector extends DynamicInjector {
       if (this.lastUltraPhase !== phase) {
         this.lastUltraPhase = phase;
         this.injectedAt = null;
-        return await phaseReminder(planFilePath, phase, this.agent);
+        return phaseReminder(planFilePath, phase, this.agent);
       }
       const ultraVariant = this.getUltraVariant();
       if (ultraVariant === null) return undefined;
       return ultraVariant === 'full'
-        ? await phaseReminder(planFilePath, phase, this.agent)
-        : await phaseSparseReminder(planFilePath, phase, this.agent);
+        ? phaseReminder(planFilePath, phase, this.agent)
+        : phaseSparseReminder(planFilePath, phase, this.agent);
     }
 
     const variant = this.getVariant();

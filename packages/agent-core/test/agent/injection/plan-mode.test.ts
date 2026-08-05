@@ -170,7 +170,7 @@ describe('PlanModeInjector content', () => {
     expect(text).toContain('response language');
   });
 
-  it('recommends a verifiable UltraGoal before Design without hard-blocking', async () => {
+  it('recommends a verifiable UltraGoal with Ouroboros-style Socratic interview guidance', async () => {
     const agent = planAgent({
       isActive: true,
       isUltraMode: true,
@@ -182,28 +182,19 @@ describe('PlanModeInjector content', () => {
     await injector.inject();
 
     const text = lastReminder(agent);
-    expect(text).toContain('interview quality drives plan quality');
-    expect(text).toContain('expert leader who teaches');
-    expect(text).toContain('unknown-unknowns');
-    expect(text).toContain('Baseline + 1-3 Upgrades');
-    expect(text).toContain('UltraGoal must be judgeable as complete/incomplete, true/false, or pass/fail');
-    expect(text).toContain('Recommended for NextPhase to Design: a verifiable UltraGoal');
-    expect(text).toContain('Soft seed gaps, ambiguity floors, and open_gaps are recommendations');
-    expect(text).toContain('assumption-led');
-    expect(text).toContain('Research-first before AskUserQuestion');
-    expect(text).toContain('Context7Resolve/Context7Docs for library APIs');
-    expect(text).toContain('WebSearch/FetchURL for external facts');
+    expect(text).toContain('Ouroboros-aligned Socratic');
+    expect(text).toContain('ONLY an interviewer');
+    expect(text).toContain('ambiguity ≤ 0.2');
+    expect(text).toContain('Baseline + 1–3 Upgrades');
+    expect(text).toContain('Ontological');
+    expect(text).toContain('Prefer NextPhase({ phase: \'write\' })');
+    expect(text).toContain('Context7');
+    expect(text).toContain('WebSearch/FetchURL');
     expect(text).toContain('Perspective: researcher');
     expect(text).not.toContain('{{perspective}}');
-    expect(text).toContain('benchmarks, best practices');
     expect(text).toContain('Your turn MUST end with AskUserQuestion, RecordInterviewFinding, or NextPhase');
-    expect(text).toContain('Same-turn investigation (including product Write/Edit prototypes) is allowed');
-    expect(text).toContain('Do not call EnterPlanMode while already in Ultra Plan');
-    expect(text).toContain('Do not advance just because the task feels actionable');
-    expect(text).toContain('live readiness checklist below');
-    expect(text).toContain('Prefer not to Write the formal plan file during Interview');
+    expect(text).toContain('Do not call EnterPlanMode again');
     expect(text).toContain('Interview readiness:');
-    expect(text).toContain('through the researcher perspective');
   });
 
   it('keeps expert-leader essentials in sparse Ultra Plan interview reminders', async () => {
@@ -221,9 +212,8 @@ describe('PlanModeInjector content', () => {
     await injector.inject();
 
     const text = lastReminder(agent);
-    expect(text).toContain('Expert-leader interview');
+    expect(text).toContain('Socratic interview');
     expect(text).toContain('Baseline + Upgrades');
-    expect(text).toContain('current perspective lens');
     expect(text).toContain('Perspective: researcher');
     expect(text).toContain('Interview readiness:');
   });
@@ -262,7 +252,7 @@ describe('PlanModeInjector content', () => {
   });
 
 
-  it('routes Ultra Plan design to review before write', async () => {
+  it('routes Ultra Plan design with optional fast path to write', async () => {
     const agent = planAgent({
       isActive: true,
       isUltraMode: true,
@@ -274,12 +264,8 @@ describe('PlanModeInjector content', () => {
     await injector.inject();
 
     const text = lastReminder(agent);
-    expect(text).toContain("call NextPhase({ phase: 'review' })");
-    expect(text).toContain('Do not skip directly to write');
-    expect(text).toContain('SearchSkill');
-    expect(text).toContain('Skill');
-    expect(text).toContain('TodoList progress tracking');
-    expect(text).toContain('TodoList for the live design board');
+    expect(text).toContain('Design Phase (optional)');
+    expect(text).toContain("NextPhase({ phase: 'write' })");
   });
 
   it('routes Ultra Plan review to write after verification', async () => {
@@ -294,14 +280,10 @@ describe('PlanModeInjector content', () => {
     await injector.inject();
 
     const text = lastReminder(agent);
-    expect(text).toContain("call NextPhase({ phase: 'write' })");
-    expect(text).toContain('WebSearch');
-    expect(text).toContain('FetchURL');
-    expect(text).toContain('Re-search when external claims stay uncertain');
-    expect(text).toContain('read-only Bash');
-    expect(text).toContain('cat, sed -n, head/tail');
-    expect(text).toContain('TodoList progress tracking');
-    expect(text).toContain('TodoList for verification gaps');
+    expect(text).toContain('Review Phase (optional)');
+    expect(text).toContain("NextPhase({ phase: 'write' })");
+    expect(text).toContain('TaskList');
+    expect(text).toContain('TaskOutput');
   });
 
   it('keeps Ultra Plan write instructions scoped to the plan file', async () => {
@@ -430,8 +412,8 @@ describe('PlanModeInjector cadence', () => {
 
     const text = lastReminder(agent);
     // After 5 assistant turns without a user prompt, Ultra Plan stays sparse (not full phase dump).
-    expect(text).toContain('Expert-leader interview');
-    expect(text).not.toContain('PATH 1 auto-answer from code/config');
+    expect(text).toContain('Socratic interview');
+    expect(text).not.toContain('PATH 1 code/config facts');
   });
 
   it('re-sends full Ultra Plan phase instructions when the phase changes', async () => {
@@ -451,6 +433,6 @@ describe('PlanModeInjector cadence', () => {
     history(agent).push({ role: 'assistant' } as never);
     await injector.inject();
     expect(lastReminder(agent)).toContain('Interview Phase');
-    expect(lastReminder(agent)).toContain('PATH 1 auto-answer from code/config');
+    expect(lastReminder(agent)).toContain('PATH 1 code/config facts');
   });
 });

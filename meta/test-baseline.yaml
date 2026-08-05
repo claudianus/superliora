@@ -4,12 +4,5 @@ version: 1
 packages:
   - dir: apps/liora
     runner: vitest
-    failures:
-      - "AgentDashboardComponent accessibility announces selection position as plain text and documents Home/End in hints"
-      - "AgentDashboardComponent accessibility supports Home/End jump for keyboard-only navigation"
-      - "copyTextToClipboard throws an Error when all platform clipboard commands fail"
-      - "FileMentionProvider does not tag the primary help suggestion as advanced"
-      - "FileViewerComponent labels unknown extensions as plain text in the header"
-      - "TUI handleInput — printable-key guard forbids bare-literal printable comparisons on `data` (use printableChar)"
-      - "updateActivityPane terminal progress moves the moon spinner into the AgentSwarm progress row while active"
-    unstable: [] # frame-budget timing tests stabilized 2026-08-03: best-of-3-round p95 measurement (control-tower-default-screen.test.ts), green under full-suite parallel load
+    failures: []
+    unstable: []

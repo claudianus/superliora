@@ -7,6 +7,7 @@ import {
   isActiveMissionRun,
   missionModeDisableBlockedMessage,
 } from '#/tui/utils/mission/mission-contract';
+import { resolvePlanActivation } from '#/tui/utils/plan-activation';
 
 export async function handlePlanCommand(host: SlashCommandHost, args: string): Promise<void> {
   const session = host.session;
@@ -50,8 +51,26 @@ async function applyPlanMode(host: SlashCommandHost, session: Session, enabled: 
   }
   try {
     await session.setPlanMode(enabled, ultra);
-    host.setAppState({ planMode: enabled, ultraworkMode: false, activityTip: null });
-    if (enabled) {
+    if (!enabled) {
+      host.setAppState({ planMode: false, ultraworkMode: false, activityTip: null });
+      host.showNotice('Plan mode: OFF');
+      return;
+    }
+    // Conductor Plan Desk: enterPlan with task context delegates to a mission
+    // Job instead of activating plan mode here — reflect that in AppState.
+    const activation = await resolvePlanActivation(session);
+    host.setAppState({
+      // An unreadable status counts as on: `setPlanMode` already succeeded, and
+      // a stale `false` would make the next bare `/plan` re-enter instead of
+      // toggling off.
+      planMode: activation !== 'delegated',
+      ultraworkMode: false,
+      activityTip:
+        activation === 'delegated'
+          ? 'Plan Desk: planning Job accepted — watch Job strip / inbox'
+          : null,
+    });
+    if (activation === 'inline') {
       const plan = await session.getPlan().catch(() => null);
       host.showNotice(
         ultra ? 'Plan mode: ON (structured pipeline)' : 'Plan mode: ON (free-form)',
@@ -59,7 +78,17 @@ async function applyPlanMode(host: SlashCommandHost, session: Session, enabled: 
       );
       return;
     }
-    host.showNotice('Plan mode: OFF');
+    if (activation === 'unknown') {
+      host.showNotice(
+        'Plan mode requested',
+        'Could not read session status — check the footer or /status for where planning landed.',
+      );
+      return;
+    }
+    host.showNotice(
+      'Plan Desk: planning delegated to a Job',
+      'Conductor stays free — plan worker runs research/interview. Check Job strip / JobInbox.',
+    );
   } catch (error) {
     const msg = formatErrorMessage(error);
     host.showError(`Failed to set plan mode: ${msg}`);

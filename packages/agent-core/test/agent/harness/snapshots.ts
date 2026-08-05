@@ -297,6 +297,9 @@ function normalizeObjectField(
     return '<protocol-version>';
   }
   if (key === 'cwd' && typeof value === 'string') return '<cwd>';
+  // Wall-clock age of a pending approval: 0 on a fast machine, 1+ on a loaded
+  // CI runner. Pinning the exact millisecond only buys snapshot flakes.
+  if (key === 'oldestInterventionAgeMs' && typeof value === 'number') return '<age-ms>';
   return normalizeValue(value, uuidLabels);
 }
 

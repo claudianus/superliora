@@ -38,13 +38,25 @@ import {
 } from '#/tui/utils/agent/context-working-set';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
-function makeHost(options: { planMode?: boolean; planPath?: string | undefined } = {}) {
+function makeHost(
+  options: {
+    planMode?: boolean;
+    planPath?: string | undefined;
+    /** When true, simulate Conductor Plan Desk (enterPlan does not activate main planMode). */
+    planDeskDelegate?: boolean;
+  } = {},
+) {
+  let planMode = options.planMode ?? false;
   const session = {
     clearPlan: vi.fn(async () => {}),
     getPlan: vi.fn(async () => (
       options.planPath === undefined ? null : { path: options.planPath }
     )),
-    setPlanMode: vi.fn(async () => {}),
+    setPlanMode: vi.fn(async (enabled: boolean) => {
+      // Non-Conductor: plan mode sticks. Plan Desk: RPC succeeds but status stays off.
+      planMode = options.planDeskDelegate === true ? false : enabled;
+    }),
+    getStatus: vi.fn(async () => ({ planMode })),
     getUltraworkRun: vi.fn(async () => null),
   };
   const host = {
@@ -183,6 +195,34 @@ describe('handlePlanCommand', () => {
 
     expect(session.setPlanMode).toHaveBeenCalledWith(true, true);
     expect(host.showNotice).toHaveBeenCalledWith('Plan mode: ON (structured pipeline)', undefined);
+  });
+
+  it('announces Plan Desk when Conductor delegates instead of activating plan mode', async () => {
+    const { host, session } = makeHost({ planDeskDelegate: true });
+
+    await handlePlanCommand(host, 'on');
+
+    expect(session.setPlanMode).toHaveBeenCalledWith(true, false);
+    expect(host.showNotice).toHaveBeenCalledWith(
+      'Plan Desk: planning delegated to a Job',
+      'Conductor stays free — plan worker runs research/interview. Check Job strip / JobInbox.',
+    );
+    expect(host.state.appState.planMode).toBe(false);
+  });
+
+  it('keeps plan mode on when the session status cannot be read', async () => {
+    const { host, session } = makeHost();
+    session.getStatus.mockRejectedValue(new Error('rpc down'));
+
+    await handlePlanCommand(host, 'on');
+
+    // A stale `false` here would make the next bare `/plan` re-enter instead of
+    // toggling off, so an unreadable status counts as on.
+    expect(host.state.appState.planMode).toBe(true);
+    expect(host.showNotice).toHaveBeenCalledWith(
+      'Plan mode requested',
+      'Could not read session status — check the footer or /status for where planning landed.',
+    );
   });
 });
 

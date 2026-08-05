@@ -136,7 +136,9 @@ export class TranscriptRenderController {
       }
       case 'thinking': {
         const thinking = new ThinkingComponent(entry.content, true);
-        if (host.state.toolOutputExpanded) thinking.setExpanded(true);
+        if (host.state.toolOutputExpanded || host.state.transcriptDetail === 'full') {
+          thinking.setExpanded(true);
+        }
         return thinking;
       }
       case 'tool_call':

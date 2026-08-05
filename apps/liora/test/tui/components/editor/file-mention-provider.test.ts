@@ -324,9 +324,11 @@ describe('FileMentionProvider', () => {
     const result = await provider.getSuggestions(['/h'], 0, 2, { signal: ctrl() });
 
     expect(result).not.toBeNull();
+    // Compare against the command's own copy — the tag, not the wording, is
+    // what this guards.
     expect(result!.items[0]).toMatchObject({
       value: 'help',
-      description: 'Show available commands and shortcuts',
+      description: help.description,
     });
     expect(result!.items[0]?.description).not.toContain('[advanced]');
   });

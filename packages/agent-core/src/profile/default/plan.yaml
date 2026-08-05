@@ -40,3 +40,4 @@ tools:
   - ExitPlanMode
   - NextPhase
   - RecordInterviewFinding
+  - AskUserQuestion

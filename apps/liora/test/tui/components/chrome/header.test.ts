@@ -107,7 +107,9 @@ describe('HeaderComponent', () => {
     const header = new HeaderComponent(baseState(), onRefresh, () => now);
 
     const first = header.render(120).join('\n');
-    expect(first).toContain('01:47:02 PM');
+    // Label comes from the local clock; asserting a literal would pin the
+    // suite to one timezone (the formatter itself is covered below).
+    expect(first).toContain(formatLocalClock(now));
 
     // Private setInterval removed (PREMIUM §7.1) — advancing timers alone must
     // not fire onRefresh; ambient/chrome rebuilds supply the next clock label.
@@ -116,7 +118,7 @@ describe('HeaderComponent', () => {
 
     now += 1_000;
     const second = header.render(120).join('\n');
-    expect(second).toContain('01:47:03 PM');
+    expect(second).toContain(formatLocalClock(now));
     header.dispose();
   });
 
@@ -157,8 +159,8 @@ describe('HeaderComponent', () => {
       const ansiA = [...lineA.matchAll(/\u001B\[[0-9;]*m/g)].map((m) => m[0]);
       const ansiB = [...lineB.matchAll(/\u001B\[[0-9;]*m/g)].map((m) => m[0]);
 
-      expect(strip(lineA)).toContain('01:47:02 PM');
-      expect(strip(lineB)).toContain('01:47:03 PM');
+      expect(strip(lineA)).toContain(formatLocalClock(t0));
+      expect(strip(lineB)).toContain(formatLocalClock(t1));
       // Color sequence length stays aligned; the shared SGR runs should not
       // reshuffle solely because the second digit advanced.
       expect(ansiA.length).toBe(ansiB.length);

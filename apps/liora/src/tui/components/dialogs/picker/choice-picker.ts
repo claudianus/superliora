@@ -260,7 +260,7 @@ export class ChoicePickerComponent extends Container implements Focusable {
       lines.push(currentTheme.fg('primary', ` Search: `) + currentTheme.fg('text', view.query));
     }
 
-    const itemLineByIndex: number[] = new Array(options.length).fill(-1);
+    const itemLineByIndex: number[] = Array.from({ length: options.length }, () => -1);
     let lastSection = '';
 
     if (options.length === 0) {

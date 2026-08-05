@@ -69,6 +69,7 @@ export type {
   ToolListUpdatedEvent,
   ToolListUpdatedReason,
   ToolProgressEvent,
+  ToolResultDisplay,
   ToolResultEvent,
   ToolsUpdateStoreEvent,
   ToolUpdate,

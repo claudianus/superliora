@@ -643,26 +643,6 @@ export const WIRE_RENDERERS: RendererMap = {
     detail: (r) => <JsonViewer value={r.ultraPlan} defaultOpenDepth={1} />,
   },
 
-  'ultra_swarm_engage_gate.set': {
-    tone: 'lifecycle',
-    label: 'engage+',
-    headline: (r) => ({
-      main: (
-        <span className="truncate text-fg-1">
-          {r.reason ?? r.planPath ?? <Dim>ultra swarm engage gate set</Dim>}
-        </span>
-      ),
-    }),
-  },
-
-  'ultra_swarm_engage_gate.clear': {
-    tone: 'lifecycle',
-    label: 'engage×',
-    headline: (r) => ({
-      main: <span className="truncate text-fg-1">{r.reason ?? <Dim>engage gate cleared</Dim>}</span>,
-    }),
-  },
-
   'swarm.steer': {
     tone: 'lifecycle',
     label: 'steer',

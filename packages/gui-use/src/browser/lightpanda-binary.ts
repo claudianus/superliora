@@ -131,10 +131,27 @@ async function probeLightpandaServe(
   ], {
     stdio: ['ignore', 'ignore', 'pipe'],
   });
+  // A missing or non-executable binary reports ENOENT/EACCES asynchronously.
+  // Without a listener Node escalates it to an uncaught exception that takes
+  // the host process down instead of failing this probe.
+  let spawnError: Error | undefined;
+  proc.once('error', (error) => {
+    spawnError = error;
+  });
 
   try {
     const deadline = Date.now() + (options.timeoutMs ?? 15_000);
     while (Date.now() < deadline) {
+      if (spawnError !== undefined) {
+        return {
+          ok: false,
+          code: 1,
+          stdout: '',
+          stderr: spawnError.message,
+          command: [binaryPath, 'serve'],
+          error: spawnError.message,
+        };
+      }
       try {
         const response = await fetch(`http://${host}:${String(port)}/json/version`, {
           signal: AbortSignal.timeout(1_000),

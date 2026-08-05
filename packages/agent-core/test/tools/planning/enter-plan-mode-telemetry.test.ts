@@ -51,6 +51,7 @@ describe('EnterPlanMode telemetry', () => {
       expect(telemetryTrack).toHaveBeenCalledWith('plan_enter_resolved', {
         outcome: 'auto_approved',
         ultra: false,
+        route_reason: 'no initial_context — default regular (pass ultra=true for structured)',
       });
     },
   );

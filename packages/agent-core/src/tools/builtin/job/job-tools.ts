@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 
-import type { Agent } from '../../../agent';
+import type { Agent } from '../../../agent/index';
 import type {
   ConductorJobDraftRecorder,
 } from '../../../agent/conductor-guard';
@@ -78,7 +78,7 @@ const JobCreateInputSchema = z
         'Short outcome-shaped title for the ledger and ACK (verb + deliverable, e.g. "Fix auth token refresh race").',
       ),
     kind: JobKindSchema.optional().describe(
-      'Job kind. task/implement = code work (default task), explore = read-only research, mission = long-running spine, merge = landing worker, desk = digest, goal-driver = autonomous goal loop (the runtime migrates a Goal onto the worker, which self-continues toward it; use prompt as the objective and goal_completion_criterion as its finish line). Defaults to task.',
+      'Job kind. task/implement = code work (default task), explore = read-only research, mission = Plan Desk / long-running spine (plan profile + structured plan at spawn), merge = landing worker, desk = digest, goal-driver = autonomous goal loop (the runtime migrates a Goal onto the worker, which self-continues toward it; use prompt as the objective and goal_completion_criterion as its finish line). Defaults to task.',
     ),
     priority: z
       .number()

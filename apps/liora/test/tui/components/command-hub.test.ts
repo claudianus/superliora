@@ -35,7 +35,6 @@ describe('buildDefaultCommandHubItems', () => {
     );
     expect(items.some((item) => item.section === 'Start')).toBe(true);
     expect(items.some((item) => item.id === 'help.shortcuts')).toBe(true);
-    expect(items.every((item) => item.id !== 'help.searchTip')).toBe(true);
     expect(isCommandHubToggleId('modes.plan')).toBe(true);
   });
 
@@ -100,7 +99,9 @@ describe('cyclePermissionMode', () => {
 describe('help.searchTip removed', () => {
   it('no longer ships a tip-only Hub row (search is the empty filter + type)', () => {
     const items = buildDefaultCommandHubItems({});
-    expect(items.every((item) => item.id !== 'help.searchTip')).toBe(true);
+    // The id is gone from the union, so compare as strings — the guard has to
+    // outlive the type it used to check.
+    expect(items.map((item) => item.id as string)).not.toContain('help.searchTip');
     expect(items.every((item) => !/search tip/i.test(item.label))).toBe(true);
   });
 });

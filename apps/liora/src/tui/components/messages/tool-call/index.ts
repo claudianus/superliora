@@ -3,6 +3,8 @@
  * Density/expand follows transcript detail (Ctrl+O cycles the 4 levels).
  */
 
+import type { ToolResultDisplay } from '@superliora/sdk';
+
 import {
   Container,
   notifyTranscriptChildGeometryDirty,
@@ -284,7 +286,7 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
    * Overflow eviction: drop paint caches only. Do not rebuild body or dirty
    * transcript geometry — full invalidate() does both and freezes flings.
    */
-  softDropPaintCaches(): void {
+  override softDropPaintCaches(): void {
     this.renderCache.clear();
     super.softDropPaintCaches?.();
   }
@@ -548,6 +550,7 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
     tool_call_id: string;
     output: string;
     is_error?: boolean | undefined;
+    display?: ToolResultDisplay | undefined;
   }): void {
     finishToolCallSubToolCall(this.subagentEventHost(), result);
   }

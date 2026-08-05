@@ -73,7 +73,7 @@ export class ToolChainSummaryComponent extends Container {
   }
 
   /** Paint-only invalidate — do not re-enter refresh (avoids invalidate↔refresh loops). */
-  invalidate(): void {
+  override invalidate(): void {
     super.invalidate();
   }
 

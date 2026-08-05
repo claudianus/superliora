@@ -72,7 +72,7 @@ export function applyCursorOAuthModelAliases(
   },
   models: readonly CursorDiscoveredModel[],
 ): void {
-  const nextModels: Record<string, unknown> = { ...(config.models ?? {}) };
+  const nextModels: Record<string, unknown> = { ...config.models };
   for (const key of Object.keys(nextModels)) {
     if (key.startsWith(`${CURSOR_OAUTH_PROVIDER_ID}/`)) delete nextModels[key];
   }
@@ -264,7 +264,7 @@ async function postProtoEmpty(
   options: { readonly timeoutMs: number; readonly signal?: AbortSignal },
 ): Promise<Uint8Array> {
   const url = new URL(baseUrl);
-  return await new Promise((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const session = http2.connect(baseUrl);
     let settled = false;
     const timer = setTimeout(() => {
@@ -407,7 +407,7 @@ async function postConnectJson(
   const requestId = randomUUID();
   const payload = Buffer.from(JSON.stringify(body), 'utf8');
 
-  return await new Promise((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const session = http2.connect(baseUrl);
     let settled = false;
     const timer = setTimeout(() => {

@@ -172,6 +172,8 @@ describe('Event public types', () => {
         case 'ultrawork.collaboration.steer':
         case 'ultrawork.swarm.paused':
         case 'ultrawork.swarm.resumed':
+        case 'job.updated':
+        case 'job.inbox':
         case 'runtime.degraded':
           return;
         default:

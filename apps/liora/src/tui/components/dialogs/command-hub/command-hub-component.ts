@@ -317,7 +317,7 @@ export class CommandHubComponent extends Container implements Focusable {
       body.push('');
     }
 
-    const itemLineByIndex: number[] = new Array(this.filtered.length).fill(-1);
+    const itemLineByIndex: number[] = Array.from({ length: this.filtered.length }, () => -1);
 
     if (this.filtered.length === 0) {
       body.push(

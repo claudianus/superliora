@@ -86,6 +86,7 @@ import { handleUltraworkCommand, handleUltraworkModeToggle } from '../ultrawork/
 import { handleLoopCommand } from '../loop';
 import { handleRewindCommand } from '../session/rewind';
 import { handleTranscriptCommand } from '../session/transcript';
+import { handleNeatCommand } from '../session/neat';
 import { handleUndoCommand } from '../session/undo';
 import { handleUpgradeCommand } from '../info/upgrade';
 
@@ -148,6 +149,8 @@ export interface SlashCommandHost {
   showNotice(title: string, detail?: string, options?: ShowNoticeOptions): void;
   /** Apply transcript density live (PREMIUM.md §7.9); /appearance persists it. */
   setTranscriptDetail(level: TranscriptDetailLevel): void;
+  /** Apply neat (structured-first) tool rendering live; /appearance persists it. */
+  setNeatMode(enabled: boolean): void;
   appendTranscriptEntry(entry: TranscriptEntry): void;
   track(event: string, props?: Record<string, unknown>): void;
   mountEditorReplacement(panel: Component & Focusable): void;
@@ -495,6 +498,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'transcript':
       await handleTranscriptCommand(host, args);
+      return;
+    case 'neat':
+      await handleNeatCommand(host, args);
       return;
     case 'title':
       await handleTitleCommand(host, args);

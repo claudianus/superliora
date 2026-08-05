@@ -44,13 +44,16 @@ describe('copyTextToClipboard', () => {
     await expect(copyTextToClipboard('cd "/tmp/proj-b"')).resolves.toBeUndefined();
   });
 
-  it('throws an Error when all platform clipboard commands fail', async () => {
+  it('falls back to OSC 52 when all platform clipboard commands fail', async () => {
     clipboardMock.setText = undefined as unknown as ReturnType<typeof vi.fn>;
     spawnSyncMock.mockReturnValue({ status: 1, stderr: 'missing' } as ReturnType<typeof spawnSync>);
+    const write = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
 
-    await expect(copyTextToClipboard('cd "/tmp/proj-b"')).rejects.toBeInstanceOf(Error);
-    await expect(copyTextToClipboard('cd "/tmp/proj-b"')).rejects.toThrow(
-      /(?:clip\.exe|pbcopy|wl-copy|xclip) exited with code 1: missing/,
-    );
+    // A copy must never surface as an error: over SSH the terminal escape is
+    // the only path that works, so the platform failure is not the end.
+    await expect(copyTextToClipboard('cd "/tmp/proj-b"')).resolves.toBeUndefined();
+    const encoded = Buffer.from('cd "/tmp/proj-b"', 'utf8').toString('base64');
+    expect(write).toHaveBeenCalledWith(`\u001B]52;c;${encoded}\u001B\\`);
+    write.mockRestore();
   });
 });

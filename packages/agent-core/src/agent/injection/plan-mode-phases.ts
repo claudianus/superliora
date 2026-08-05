@@ -36,41 +36,39 @@ Evidence-first: prefer RepoQuery, Grep, Glob before broad Read; cite concrete pa
 Distill an evidence pack; do not ask the user.
 Your turn MUST end with a short evidence-pack summary, then call NextPhase({ phase: 'interview' }).`,
 
-  interview: `## Interview Phase
-Mission: interview quality drives plan quality. Act as an expert leader who teaches, surfaces unknown-unknowns, and elevates the goal with evidence-backed upgrades.
+  interview: `## Interview Phase (Ouroboros-aligned Socratic)
+You are ONLY an interviewer/requirements engineer — never promise to implement. Crystallize vague asks into a Seed; stop when ambiguity ≤ 0.2 and UltraGoal is true/false-verifiable.
 
 Allowed: ${ULTRA_PLAN_READ_TOOLS}, AskUserQuestion, RecordInterviewFinding, NextPhase, product Write/Edit for investigation prototypes.
 ${ULTRA_PLAN_INTERVIEW_GUARDS}
 
-Routing:
-- PATH 1 auto-answer from code/config via RecordInterviewFinding(origin="code").
-- PATH 2 user judgment (goal, acceptance, trade-offs, visual/scope) via AskUserQuestion.
-- PATH 3 external facts: research first, RecordInterviewFinding(origin="research"); confirm surprises with the user.
-- When in doubt → PATH 2. After 3 consecutive non-user findings, must AskUserQuestion. Research-first before AskUserQuestion when options need evidence. Prefer Context7Resolve/Context7Docs for library APIs; WebSearch/FetchURL for external facts; RepoQuery, Grep, Glob for codebase facts.
+Provenance (same spirit as [from-code]/[from-user]/[from-research]):
+- PATH 1 code/config facts → RecordInterviewFinding(origin="code") — do not re-ask the user.
+- PATH 2 human judgment (goal, acceptance, trade-offs, scope) → AskUserQuestion.
+- PATH 3 external facts → research first, RecordInterviewFinding(origin="research"); confirm surprises with the user.
+- After 3 consecutive non-user findings → must AskUserQuestion. Prefer RepoQuery/Grep/Glob before broad Read; Context7 for library APIs; WebSearch/FetchURL for external facts.
 ${LIBRARY_DOCS_RESEARCH_GUIDANCE}
 
-UltraGoal must be judgeable as complete/incomplete, true/false, or pass/fail.
-Recommended for NextPhase to Design: a verifiable UltraGoal. Soft seed gaps, ambiguity floors, and open_gaps are recommendations and do not block Design; NextPhase soft-fills the Seed Spec and advances with a readiness warning.
-Follow the live readiness checklist below; do not guess or repeat resolved topics.
-Prefer not to Write the formal plan file during Interview (Seed Spec auto-extracts on Design). Product Write/Edit for investigation prototypes is allowed under planMode.
+Question quality:
+- Ontological: "What IS this?", assumptions, root vs symptom — 1–2 focused questions per turn.
+- Baseline + 1–3 Upgrades (payoff/trade-off) + Defer/minimal when the choice locks the UltraGoal.
+- Breadth: if one file/bug dominated 2+ rounds, zoom out to unresolved tracks before drilling deeper.
+- High-context / prior notes: first turn may present a short numbered synthesis (confirmed / inferred / human-only) and ask which line is wrong — inverted correction, not blank-slate re-ask.
+- Stop when scope, non-goals, outputs, and verification are explicit enough for a Seed — do not open another deep sub-question just to refine wording.
+
+Hard gate for NextPhase: verifiable UltraGoal (complete/incomplete or pass/fail). Soft seed gaps do not block. Prefer NextPhase({ phase: 'write' }) once READY; use design only if architecture is still open. Do not call EnterPlanMode again.
 
 Round {{round}} | Perspective: {{perspective}} — {{perspectiveDescription}} | ambiguity {{ambiguityScore}} | milestone {{milestone}} | next {{nextMilestone}}
 
-AskUserQuestion: 1-2 focused assumption-led questions — Baseline + 1-3 Upgrades (payoff/trade-off) + Defer/minimal. Prioritize decisions that lock a verifiable UltraGoal. Lead with a short insight when helpful. Do not advance just because the task feels actionable. Do not call EnterPlanMode while already in Ultra Plan; use NextPhase.
+Your turn MUST end with AskUserQuestion, RecordInterviewFinding, or NextPhase.`,
 
-Your turn MUST end with AskUserQuestion, RecordInterviewFinding, or NextPhase. Same-turn investigation (including product Write/Edit prototypes) is allowed.`,
-
-  design: `## Design Phase
+  design: `## Design Phase (optional)
 Allowed: ${ULTRA_PLAN_READ_TOOLS}. Product Write/Edit BLOCKED by plan mode (plan-file Write/Edit allowed, but converge first); CronCreate/CronDelete BLOCKED.
-Converge on one approach. TodoList for the live design board; SearchSkill/Skill when useful; SearchExpert for UltraSwarm candidates.
-Guidance: finish the design before writing the plan file; ExitPlanMode is not phase-gated but exits only after a complete Seed Spec. Your turn MUST end with a design summary, then call NextPhase({ phase: 'review' }). Do not skip directly to write.`,
+Converge on one approach only if still open after interview. Prefer NextPhase({ phase: 'write' }); use review only when code verification is still needed.`,
 
-  review: `## Review Phase
-Allowed: ${ULTRA_PLAN_READ_TOOLS}, TaskList, TaskOutput. Product Write/Edit BLOCKED by plan mode; CronCreate/CronDelete BLOCKED. General Bash follows your permission mode — keep it read-only here.
-Verify design against code. Re-search when external claims stay uncertain. TodoList for verification gaps.
-Bash read-only: cat, sed -n, head/tail, grep/rg, read-only git (+ ls/find/jq as needed).
-Guidance: verification only; defer plan edits to the Write phase. ExitPlanMode is not phase-gated.
-Your turn MUST end with a verification summary, then call NextPhase({ phase: 'write' }).`,
+  review: `## Review Phase (optional)
+Allowed: ${ULTRA_PLAN_READ_TOOLS}, TaskList, TaskOutput. Product Write/Edit BLOCKED by plan mode; CronCreate/CronDelete BLOCKED.
+Verify design against code when needed, then NextPhase({ phase: 'write' }).`,
 
   write: `## Write Phase
 You may ONLY write to the current plan file. All other file edits BLOCKED. Reading (Read, Grep, Glob, RepoQuery, WebSearch, FetchURL) for quick verification — stay on the plan file. TodoList for progress; SearchSkill/Skill for no-AI-slop; NextPhase or ExitPlanMode when complete.
@@ -90,11 +88,11 @@ If ExitPlanMode reports missing sections, Read/fix only that plan file and retry
 };
 
 const INTERVIEW_SPARSE_ESSENTIALS = [
-  'Expert-leader interview — keep every round valuable:',
-  '- Teach one brief insight/unknown-unknown when it helps decide.',
-  '- AskUserQuestion: Baseline + Upgrades (payoff/trade-off) + Defer; research-first when options need evidence.',
-  '- Close the open gap below through the current perspective lens — not a bare checklist question.',
-  '- Same-turn read-only research is fine when it improves the next AskUserQuestion.',
+  'Socratic interview — keep every round valuable:',
+  '- Ontological / assumption-led; Baseline + Upgrades (payoff/trade-off) + Defer.',
+  '- PATH 1/3 RecordInterviewFinding; PATH 2 AskUserQuestion; research-first when options need evidence.',
+  '- Close the open gap below through the current perspective lens.',
+  '- When UltraGoal is verifiable (ambiguity ≤ 0.2), NextPhase({ phase: \'write\' }).',
 ].join('\n');
 
 export function phaseReminder(planFilePath: PlanFilePath, phase: string, agent?: Agent): Promise<string> {

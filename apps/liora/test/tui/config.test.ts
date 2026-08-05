@@ -98,6 +98,7 @@ terminal_palette = true
         terminalPalette: true,
         showTimestamps: true,
         transcriptDetail: 'standard',
+        neat: true,
         syntaxTheme: 'auto',
       },
       footer: DEFAULT_FOOTER_PREFERENCES,
@@ -130,6 +131,12 @@ density = "compact"
 
     expect(config.appearance?.density).toBe('compact');
     expect(config.appearance?.showTimestamps).toBe(DEFAULT_APPEARANCE_PREFERENCES.showTimestamps);
+  });
+
+  it('defaults neat to on and honors an explicit neat = false', () => {
+    expect(DEFAULT_APPEARANCE_PREFERENCES.neat).toBe(true);
+    expect(parseTuiConfig('[appearance]\ndensity = "compact"\n').appearance?.neat).toBe(true);
+    expect(parseTuiConfig('[appearance]\nneat = false\n').appearance?.neat).toBe(false);
   });
 
   it('rejects an invalid show_timestamps value like other appearance fields', async () => {

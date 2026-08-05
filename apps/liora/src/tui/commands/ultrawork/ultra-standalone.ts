@@ -15,6 +15,7 @@
 
 import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
 import { formatErrorMessage } from '../../utils/event-payload';
+import { resolvePlanActivation } from '../../utils/plan-activation';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import type { SlashCommandHost } from '../hub/dispatch';
 import { showFleetStatus } from '../ops/fleet-status';
@@ -390,23 +391,43 @@ export async function handleUltraPlanCommand(host: SlashCommandHost, args: strin
     return;
   }
 
-  // Enter Ultra Plan mode with standalone source — no Ultrawork stage advancement
+  // Enter structured plan (standalone). On Conductor this is Plan Desk → mission Job.
+  const session = host.requireSession();
   try {
-    await host.requireSession().setPlanMode(true, true, prompt || undefined, 'standalone');
+    await session.setPlanMode(true, true, prompt || undefined, 'standalone');
   } catch (error) {
     host.showError(`Failed to enter Plan interview mode: ${formatErrorMessage(error)}`);
     return;
   }
 
+  const activation = await resolvePlanActivation(session);
+  const delegated = activation === 'delegated';
   host.setAppState({
-    planMode: true,
-    activityTip: 'Plan interview mode (standalone): research, interview, verifiable criteria',
+    // An unreadable status counts as on: `setPlanMode` already succeeded, and a
+    // stale `false` here would leave `/ultraplan` unable to toggle plan mode
+    // back off (the guards above read this flag).
+    planMode: !delegated,
+    activityTip: delegated
+      ? 'Plan Desk: planning Job accepted — watch Job strip / inbox'
+      : 'Plan interview mode (standalone): research, interview, verifiable criteria',
   });
   host.track('ultraplan_start');
-  host.showStatus('Plan interview mode active. Answer questions to build a verifiable plan.');
+  if (delegated) {
+    host.showStatus(
+      'Plan Desk: planning Job accepted. Conductor stays free — answer worker questions when they appear; check JobInbox.',
+    );
+  } else if (activation === 'unknown') {
+    host.showStatus(
+      'Plan interview mode requested. Could not read session status — check the footer or /status for where planning landed.',
+    );
+  } else {
+    host.showStatus('Plan interview mode active. Answer questions to build a verifiable plan.');
+  }
 
-  // If user provided initial context, send it as input
-  if (prompt.length > 0) {
+  // Plan Desk already seeded the Job brief from this context, so only the inline
+  // lane needs it as input. On an unreadable status, send it: a dropped prompt
+  // loses the operator's request, a duplicate one only repeats it.
+  if (!delegated && prompt.length > 0) {
     host.sendNormalUserInput(prompt);
   }
 }

@@ -31,7 +31,7 @@ function fakeInitialAppState(): AppState {
     streamingPhase: 'idle',
     appearance: undefined,
     goal: null,
-  } as AppState;
+  } as unknown as AppState;
 }
 
 describe('scroll + deferred format geometry isolation', () => {

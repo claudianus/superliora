@@ -8,8 +8,6 @@ import {
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
 
-export const GOAL_TIMER_INTERVAL_MS = 1_000;
-
 const SOTA_GOAL_OBJECTIVE_PATTERN = /\b(?:ultrawork|sota|harness|tui|liorabench|zdr)\b|super\s+kimi/i;
 
 function formatBadgeElapsed(ms: number): string {

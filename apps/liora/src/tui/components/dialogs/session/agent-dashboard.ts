@@ -164,6 +164,22 @@ export class AgentDashboardComponent extends Container implements Focusable {
       this.moveSelection(1);
       return;
     }
+    // Keyboard-only operators need a one-key jump to either end of the list
+    // (WCAG 2.1.1); wrapping arrows alone make a long list a scroll chore.
+    if (matchesKey(data, Key.home)) {
+      this.jumpTo(0);
+      return;
+    }
+    if (matchesKey(data, Key.end)) {
+      this.jumpTo(this.flat.length - 1);
+      return;
+    }
+  }
+
+  private jumpTo(index: number): void {
+    if (this.flat.length === 0) return;
+    this.selectedIndex = Math.min(Math.max(index, 0), this.flat.length - 1);
+    this.ensureVisible();
   }
 
   private moveSelection(delta: number): void {
@@ -197,17 +213,18 @@ export class AgentDashboardComponent extends Container implements Focusable {
 
     const counts = dashboardGroupCounts(this.groups);
     const summary = `입력 ${String(counts.needs_input)} · 작업 ${String(counts.working)} · 대기 ${String(counts.idle)}`;
-    const hint = '↑↓ 이동 · Enter 연결 · Esc 닫기';
 
     if (this.flat.length === 0) {
       return this.renderChrome(width, {
         title,
         titleSuffix: currentTheme.fg('textMuted', `  ${summary}`),
-        hint,
+        hint: 'Esc 닫기',
         body: [currentTheme.fg('textMuted', '표시할 세션이 없습니다.')],
         footerTopGap: false,
       });
     }
+
+    const hint = '↑↓ 이동 · Home/End 끝 · Enter 연결 · Esc 닫기';
 
     const body: string[] = [];
     // Map flat index → row for selection highlighting across group headers.
@@ -259,8 +276,18 @@ export class AgentDashboardComponent extends Container implements Focusable {
       titleSuffix: currentTheme.fg('textMuted', `  ${summary}`),
       hint,
       body,
+      // Position and group as plain text: colour and the pointer glyph alone
+      // do not tell a screen reader (or a mono terminal) where focus sits.
+      footer: [currentTheme.fg('textMuted', this.selectionAnnouncement())],
       footerTopGap: false,
     });
+  }
+
+  private selectionAnnouncement(): string {
+    const selected = this.flat[this.selectedIndex];
+    const position = `선택 ${String(this.selectedIndex + 1)}/${String(this.flat.length)}`;
+    if (selected === undefined) return position;
+    return `${position} · ${DASHBOARD_GROUP_LABELS_KO[selected.status]}`;
   }
 
   private renderChrome(

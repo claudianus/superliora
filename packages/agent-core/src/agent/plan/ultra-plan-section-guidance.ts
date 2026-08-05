@@ -62,7 +62,7 @@ export const ULTRA_PLAN_SECTION_GUIDANCE: Record<
 };
 
 
-/** Soft cap on interview rounds — surfaces a warning in the readiness guide but
- *  does not bypass the Design gate. */
-export const MAX_INTERVIEW_ROUNDS = 8;
+/** Soft cap on interview rounds (Ouroboros-style: stop when clear, not when tired).
+ *  Surfaces a warning in the readiness guide; does not bypass the verifiable-goal gate. */
+export const MAX_INTERVIEW_ROUNDS = 5;
 

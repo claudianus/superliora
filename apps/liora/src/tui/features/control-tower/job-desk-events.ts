@@ -9,6 +9,7 @@ import type { JobInboxEvent, JobUpdatedEvent } from '@superliora/protocol';
 
 import type { ColorToken } from '../../theme';
 import type { AppState } from '../../types';
+import type { ConductorJobUsage } from '../../utils/job/job-strip';
 import { InputAckLatencyTracker } from './input-ack-latency';
 import type { JobBoardStore } from './job-board-store';
 
@@ -68,6 +69,14 @@ export class ControlTowerJobDesk {
     this.host.showNotice(`Job ${kindLabel}: ${event.title}`, detail, {
       coalesceKey: `job-inbox:${event.eventId}`,
     });
+  }
+
+  /** Job Deck–fetched token usage backfill through the same store. */
+  applyJobUsage(jobId: string, usage: ConductorJobUsage): boolean {
+    if (!this.store.applyJobUsage(jobId, usage)) return false;
+    this.publish();
+    this.host.jobBoardController?.repaint();
+    return true;
   }
 
   /** Best-effort Job* tool-output backfill through the same store. */

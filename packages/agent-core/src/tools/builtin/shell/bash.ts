@@ -36,6 +36,7 @@ import {
   ToolResultBuilder,
 } from '../../support/result-builder';
 import { appendTextToolMeta } from '../../support/text-result-meta';
+import { classifyCommandOutput } from '../../display';
 import type { ToolStore } from '../../store';
 import {
   buildShellChildEnv,
@@ -220,6 +221,7 @@ export class BashTool implements BuiltinTool<BashInput> {
       : foregroundTimeoutMs;
 
     const builder = new ToolResultBuilder();
+    const startedAtMs = Date.now();
     let proc: KaosProcess;
     try {
       proc = await this.spawn(effectiveCwd, command);
@@ -298,7 +300,14 @@ export class BashTool implements BuiltinTool<BashInput> {
         );
       }
 
-      return await this.foregroundCompletionResult(taskId, proc, builder, foregroundTimeoutMs, args);
+      return await this.foregroundCompletionResult(
+        taskId,
+        proc,
+        builder,
+        foregroundTimeoutMs,
+        args,
+        startedAtMs,
+      );
     } finally {
       collectForegroundOutput = false;
     }
@@ -357,6 +366,7 @@ export class BashTool implements BuiltinTool<BashInput> {
     builder: ToolResultBuilder,
     foregroundTimeoutMs: number,
     args: BashInput,
+    startedAtMs: number,
   ): Promise<ExecutableToolResult> {
     const current = this.backgroundManager.getTask(taskId);
     const exitCode = current?.kind === 'process' ? current.exitCode : proc.exitCode;
@@ -381,7 +391,16 @@ export class BashTool implements BuiltinTool<BashInput> {
         brief: `Failed with exit code: ${String(exitCode)}`,
       });
     }
-    return this.addForegroundOutputReference(taskId, result);
+    const withDisplay: ExecutableToolResultBuilderResult = {
+      ...result,
+      resultDisplay: classifyCommandOutput({
+        command: args.command,
+        exitCode: exitCode ?? undefined,
+        output: result.output,
+        durationMs: Date.now() - startedAtMs,
+      }),
+    };
+    return this.addForegroundOutputReference(taskId, withDisplay);
   }
 
 

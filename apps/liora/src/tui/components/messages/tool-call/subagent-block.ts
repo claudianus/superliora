@@ -24,6 +24,10 @@ import { currentTheme } from '#/tui/theme';
 import type { TokenUsage } from '@superliora/sdk';
 import { renderPulseText } from '#/tui/features/appearance/appearance-effects';
 import { applyToolHeaderEntrance } from '#/tui/features/transcript/transcript-entrance';
+import {
+  getActiveNeatMode,
+  getActiveTranscriptDetail,
+} from '#/tui/features/transcript/transcript-density';
 
 import { extractKeyArgument, formatSubagentContextTokens, formatSubagentTokens } from './format';
 import {
@@ -36,6 +40,7 @@ import {
   type SubagentPhase,
   type SubToolActivity,
 } from './subagent';
+import { renderNeatCard } from '../tool-renderers/neat-card';
 import { isGenericToolResult } from '../tool-renderers/registry';
 import { TruncatedOutputComponent } from '../tool-renderers/truncated';
 
@@ -248,14 +253,24 @@ function formatSubToolActivityRow(
   });
 }
 
-function subToolOutputPreview(activity: SubToolActivity): Component | undefined {
+function subToolOutputPreview(activity: SubToolActivity): Component[] {
+  // Worker activity gets the same neat treatment as the main agent: a
+  // structured card wins over the raw tail whenever the harness attached one.
+  const card =
+    getActiveNeatMode() && activity.display !== undefined
+      ? renderNeatCard(activity.display, { seed: activity.id })
+      : undefined;
+  // Mirror the main agent: only density `full` keeps the raw tail below the
+  // card, and only for the tools that show a raw tail at all (Bash and tools
+  // without a dedicated renderer, filtered below).
+  if (card !== undefined && getActiveTranscriptDetail() !== 'full') return card;
   const output = activity.output;
-  if (output === undefined || output.trim().length === 0) return undefined;
-  // Mirror the main agent: Bash and any tool without a dedicated renderer
-  // (every MCP tool included) get a truncated output preview. Recognized
-  // tools keep their compact activity row only.
-  if (activity.name !== 'Bash' && !isGenericToolResult(activity.name)) return undefined;
-  return new TruncatedOutputComponent(output, {
+  if (output === undefined || output.trim().length === 0) return card ?? [];
+  // Bash and any tool without a dedicated renderer (every MCP tool included)
+  // get a truncated output preview. Recognized tools keep their compact
+  // activity row only.
+  if (activity.name !== 'Bash' && !isGenericToolResult(activity.name)) return card ?? [];
+  const body = new TruncatedOutputComponent(output, {
     // Subagent output is always fixed-truncated; it does not take part in
     // the ctrl+o expand toggle, so don't advertise it either.
     expanded: false,
@@ -265,6 +280,7 @@ function subToolOutputPreview(activity: SubToolActivity): Component | undefined 
     indent: SUBAGENT_SUBTOOL_OUTPUT_INDENT,
     tail: activity.phase === 'ongoing',
   });
+  return card === undefined ? [body] : [...card, body];
 }
 
 /**
@@ -289,8 +305,7 @@ export function buildSingleSubagentBlockComponents(state: SingleSubagentBlockSta
     items.push(
       new Text(formatSubToolActivityRow(`  ${mark} `, verb, activity, state.workspaceDir), 0, 0),
     );
-    const preview = subToolOutputPreview(activity);
-    if (preview !== undefined) items.push(preview);
+    items.push(...subToolOutputPreview(activity));
   }
 
   if (state.derivedSubagentPhase === 'failed' && state.subagentError !== undefined) {
@@ -309,16 +324,27 @@ export function buildSingleSubagentBlockComponents(state: SingleSubagentBlockSta
 
   const outputLine = tailNonEmptyLines(state.subagentText, 1).at(-1);
   if (state.derivedSubagentPhase !== 'done' && state.subagentThinkingText.trim().length > 0) {
-    // Scroll thinking within a fixed two-row window (width-aware), matching
-    // the main agent's live thinking instead of growing without bound.
-    items.push(
-      new RendererPrefixedWrappedLine({
-        firstPrefix: `  ${currentTheme.dim('◌')} `,
-        continuationPrefix: '    ',
-        text: currentTheme.dim(state.subagentThinkingText.trimEnd()),
-        tailLines: THINKING_PREVIEW_LINES,
-      }),
-    );
+    const detail = getActiveTranscriptDetail();
+    // Match main-agent thinking density: minimal hides body; full shows all;
+    // compact/standard keep a short tail window.
+    if (detail !== 'minimal') {
+      const thinkingText = state.subagentThinkingText.trimEnd();
+      items.push(
+        new RendererPrefixedWrappedLine({
+          firstPrefix: `  ${currentTheme.dim('◌')} `,
+          continuationPrefix: '    ',
+          text: currentTheme.dim(thinkingText),
+          ...(detail === 'full'
+            ? {}
+            : {
+                tailLines:
+                  detail === 'compact'
+                    ? Math.min(2, THINKING_PREVIEW_LINES)
+                    : THINKING_PREVIEW_LINES,
+              }),
+        }),
+      );
+    }
   }
   if (outputLine !== undefined) {
     items.push(

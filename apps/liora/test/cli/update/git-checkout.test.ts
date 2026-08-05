@@ -26,7 +26,10 @@ function runGit(repoRoot: string, args: readonly string[]): string {
 function initBareRemote(): { readonly bareDir: string; readonly remoteUrl: string } {
   const bareDir = mkdtempSync(join(tmpdir(), 'liora-upstream-'));
   tempDirs.push(bareDir);
-  runGit(bareDir, ['init', '--bare']);
+  // Pin the branch name: on a host whose `init.defaultBranch` is `master` the
+  // bare HEAD would point at a ref this test never pushes, and clones would
+  // land with no working tree at all.
+  runGit(bareDir, ['init', '--bare', '--initial-branch=main']);
   return { bareDir, remoteUrl: bareDir };
 }
 

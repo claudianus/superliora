@@ -29,6 +29,17 @@ export interface SubagentGoalBinding {
   readonly budgetLimits?: GoalBudgetLimits;
 }
 
+/**
+ * Structured plan activated on the worker at spawn (Plan Desk / mission Jobs).
+ * Mirrors goal migration: the runtime calls planMode.enter before the task turn.
+ */
+export interface SubagentPlanBinding {
+  /** Structured pipeline (research→interview→…); default true for Plan Desk. */
+  readonly ultra?: boolean;
+  readonly initialContext?: string;
+  readonly planId?: string;
+}
+
 export interface RunSubagentOptions {
   readonly parentToolCallId: string;
   readonly parentToolCallUuid?: string;
@@ -51,6 +62,11 @@ export interface RunSubagentOptions {
    * (goal-driver Jobs): the worker self-continues toward it in its own lane.
    */
   readonly goal?: SubagentGoalBinding;
+  /**
+   * Activate structured / free-form plan mode on the worker before its task
+   * prompt (Plan Desk mission Jobs).
+   */
+  readonly plan?: SubagentPlanBinding;
   readonly onReady?: () => void;
   readonly suppressRateLimitFailureEvent?: boolean;
 }

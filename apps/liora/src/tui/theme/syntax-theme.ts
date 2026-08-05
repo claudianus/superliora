@@ -29,7 +29,8 @@ export function getActiveSyntaxThemeId(): SyntaxThemeId {
   return activeSyntaxThemeId;
 }
 
-export function setActiveSyntaxThemeId(id: SyntaxThemeId | string): SyntaxThemeId {
+/** Accepts any string: config and RPC feed unvalidated ids through here. */
+export function setActiveSyntaxThemeId(id: string): SyntaxThemeId {
   const next: SyntaxThemeId = isSyntaxThemeId(id) ? id : 'auto';
   activeSyntaxThemeId = next;
   return next;

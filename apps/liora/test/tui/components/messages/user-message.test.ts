@@ -13,6 +13,7 @@ function stripAnsi(text: string): string {
 describe('UserMessageComponent', () => {
   afterEach(() => {
     vi.unstubAllEnvs();
+    setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
   });
 
   it('renders video placeholders as plain text, not inline image escapes', () => {
@@ -223,6 +224,10 @@ describe('formatClockTime', () => {
 });
 
 function stubTerminalImageProtocol(protocol: 'kitty' | 'none'): void {
+  // Motion off: the entrance wash bypasses the width cache and the spectacular
+  // bullet interleaves SGR runs, so ambient effects would make every
+  // cache-identity and substring assertion below depend on the host terminal.
+  setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
   vi.stubEnv('TERM', protocol === 'kitty' ? 'xterm-kitty' : 'xterm-256color');
   vi.stubEnv('TERM_PROGRAM', '');
   vi.stubEnv('KITTY_WINDOW_ID', protocol === 'kitty' ? '1' : '');

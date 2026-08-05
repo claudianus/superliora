@@ -18,6 +18,7 @@ import {
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import { renderPremiumHeadline } from '#/tui/features/appearance/appearance-effects';
+import { printableChar } from '#/tui/utils/printable-key';
 import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 import { renderTabStrip } from '#/tui/utils/ui/tab-strip';
 import {
@@ -123,7 +124,8 @@ export class ExtensionsModalComponent extends Container implements Focusable {
       return;
     }
     // i = Claude import shortcut (onboarding surface inside extensions).
-    if (data === 'i' || data === 'I') {
+    // Kitty-mode terminals send letters as CSI-u, so decode before comparing.
+    if (printableChar(data).toLowerCase() === 'i') {
       this.onAction({ kind: 'import-claude' });
     }
   }

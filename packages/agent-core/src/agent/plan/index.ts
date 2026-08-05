@@ -13,6 +13,7 @@ import {
   type UltraPlanData,
   type UltraPlanPhase,
 } from './ultra-plan-mode';
+import { shouldSkipUltraResearchPhase } from './ultra-plan-start-phase';
 
 export type PlanData = null | {
   id: string;
@@ -60,7 +61,9 @@ export class PlanMode {
     this._planId = id;
     this._planFilePath = null;
     this._isUltraMode = ultra;
-    this._phase = ultra ? 'research' : 'interview';
+    // Ultra: skip research when context is already rich / greenfield (Ouroboros inverted / blank-slate).
+    this._phase =
+      ultra && !shouldSkipUltraResearchPhase(initialContext) ? 'research' : 'interview';
     this._interviewRoundCount = 0;
 
     let enterRecorded = false;

@@ -54,6 +54,7 @@ export function routeChildAgentToolEvent(
       tool_call_id: `${childAgentId}:${event.toolCallId}`,
       output: serializeToolResultOutput(event.output),
       is_error: event.isError,
+      display: event.display,
     });
   } else if (event.type === 'agent.status.updated') {
     const usageObj = event.usage;

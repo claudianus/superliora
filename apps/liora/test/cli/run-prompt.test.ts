@@ -64,7 +64,8 @@ const mocks = vi.hoisted(() => {
     harnessListSessions: vi.fn(async () => [{ id: 'ses_previous', workDir: process.cwd() }]),
     harnessClose: vi.fn(),
     harnessTrack: vi.fn(),
-    harnessGetCachedAccessToken: vi.fn(),
+    // Proactive refresh only warms a provider the operator logged into.
+    harnessGetCachedAccessToken: vi.fn(async () => 'cached-token'),
     harnessBroadcastRuntimeDegraded: vi.fn(),
     harnessResolveOAuthTokenProvider: vi.fn(() => ({ getAccessToken: vi.fn(async () => 'token') })),
     initializeTelemetry: vi.fn(),

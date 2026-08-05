@@ -1,7 +1,7 @@
 /**
  * Shared fakes for Conductor input-path tests (V3-1 / V3-2 / V3-3).
  *
- * `fakeDispatchHost` satisfies `MessageDispatchHost` with vi.fn() surfaces —
+ * `fakeDispatchHost` satisfies `MessageDispatchHost` with spy surfaces —
  * no renderer, no disk (sessionDir undefined keeps prompt-input persistence
  * a no-op), deterministic streaming state.
  */
@@ -11,6 +11,13 @@ import { vi } from 'vitest';
 import type { QueuedMessage } from '#/tui/types';
 
 export type FakeStreamingPhase = 'idle' | 'waiting' | 'running' | 'shell';
+
+/**
+ * Bare spy with an explicit signature. An untyped `vi.fn` infers `Mock<Procedure>`, and
+ * `Procedure` has no public export, so the inferred host type would not be
+ * nameable in declaration output (TS2883).
+ */
+const spy = () => vi.fn<(...args: unknown[]) => void>();
 
 export interface FakeDispatchOptions {
   readonly loading?: boolean;
@@ -41,7 +48,7 @@ export function fakeDispatchHost(options: FakeDispatchOptions = {}) {
     editor,
     appState,
     transcriptContainer: { isBatchMounting: false },
-    renderer: { invalidateFrame: vi.fn() },
+    renderer: { invalidateFrame: spy() },
   };
   const session = {
     id: 'sess_test',
@@ -74,19 +81,19 @@ export function fakeDispatchHost(options: FakeDispatchOptions = {}) {
       editor.inputMode = mode;
     }),
     isSessionLoadingOverlayActive: vi.fn(() => loadingActive),
-    showError: vi.fn(),
-    showStatus: vi.fn(),
+    showError: spy(),
+    showStatus: spy(),
     persistInputHistory: vi.fn(async () => {}),
-    runShellCommandFromInput: vi.fn(),
-    updateQueueDisplay: vi.fn(),
-    dispatchSlashInput: vi.fn(),
+    runShellCommandFromInput: spy(),
+    updateQueueDisplay: spy(),
+    dispatchSlashInput: spy(),
     appStateController: { supportsCurrentModelCapability: () => true },
-    beginSessionRequest: vi.fn(),
-    failSessionRequest: vi.fn(),
-    appendTranscriptEntry: vi.fn(),
-    track: vi.fn(),
-    updateEditorBorderHighlight: vi.fn(),
-    controlTowerDesk: { markInputSubmitted: vi.fn() },
+    beginSessionRequest: spy(),
+    failSessionRequest: spy(),
+    appendTranscriptEntry: spy(),
+    track: spy(),
+    updateEditorBorderHighlight: spy(),
+    controlTowerDesk: { markInputSubmitted: spy() },
     // Test handles.
     editorText: () => editorText,
     setLoading: (value: boolean) => {

@@ -147,14 +147,19 @@ describe('StreamingUIController smooth reveal', () => {
     expect(ui.hasActiveThinkingComponent()).toBe(false);
   });
 
-  it('clears reveal timers on resetLiveText', () => {
+  it('disarms reveal catch-up on resetLiveText', () => {
     const { host } = createHost();
     const ui = new StreamingUIController(host);
+    // Catch-up rides the shared frame clock, not a private timer (PREMIUM §7.1).
+    const armed = () =>
+      (ui as unknown as { revealRuntime: { revealArmed: boolean } }).revealRuntime.revealArmed;
+
     ui.onStreamingTextStart();
     ui.onStreamingTextUpdate('partial stream that lags a bit '.repeat(10));
-    expect(vi.getTimerCount()).toBeGreaterThan(0);
+    expect(armed()).toBe(true);
+
     ui.resetLiveText();
-    // No streaming block; any leftover reveal timer should be gone.
+    expect(armed()).toBe(false);
     expect(ui.getStreamingBlockComponent()).toBeUndefined();
   });
 });

@@ -42,6 +42,7 @@ function makeHost() {
       flushThinkingToTranscript: vi.fn(),
       appendAssistantDelta: vi.fn(),
       scheduleFlush: vi.fn(),
+      setTodoList: vi.fn(),
     },
     motionBeats: {
       play: vi.fn(),
@@ -73,9 +74,6 @@ function makeHost() {
     btwPanelController: { routeEvent: vi.fn(() => false) },
     tasksBrowserController: {},
   };
-  // turn end finalizes via streamingUI + coordination stubs already present
-  host.streamingUI.setTodoList = vi.fn();
-  host.streamingUI.finalizeTurn = vi.fn();
   return host as any;
 }
 

@@ -70,6 +70,7 @@ describe('showAppearanceSettings', () => {
       'profile',
       'density',
       'transcript-detail',
+      'neat',
       'syntax-theme',
       'particles',
       'animation-fps',

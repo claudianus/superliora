@@ -1,9 +1,10 @@
 import { visibleWidth, type RendererRootUI } from '#/tui/renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ThinkingComponent } from '#/tui/components/messages/thinking';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { advanceAppearanceAnimationClock } from '#/tui/features/appearance/appearance-effects';
+import { setActiveTranscriptDetail } from '#/tui/features/transcript/transcript-density';
 
 function strip(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
@@ -12,6 +13,10 @@ function strip(text: string): string {
 const longThinking = ['line1', 'line2', 'line3', 'line4', 'line5', 'line6', 'line7'].join('\n');
 
 describe('ThinkingComponent', () => {
+  afterEach(() => {
+    setActiveTranscriptDetail('standard');
+  });
+
   it('shows the live spinner header and a short content glance while streaming', () => {
     advanceAppearanceAnimationClock(0);
     const component = new ThinkingComponent('working it out', true, 'live');
@@ -156,6 +161,31 @@ describe('ThinkingComponent', () => {
 
     for (const line of component.render(37)) {
       expect(visibleWidth(line)).toBeLessThanOrEqual(37);
+    }
+  });
+
+  it('shows the full live thinking body when transcript detail is full', () => {
+    setActiveTranscriptDetail('full');
+    try {
+      const component = new ThinkingComponent(longThinking, true, 'live');
+      const out = strip(component.render(80).join('\n'));
+      expect(out).toContain('line1');
+      expect(out).toContain('line7');
+      expect(out).not.toContain('ctrl+o to expand');
+    } finally {
+      setActiveTranscriptDetail('standard');
+    }
+  });
+
+  it('hides live thinking body at minimal density', () => {
+    setActiveTranscriptDetail('minimal');
+    try {
+      const component = new ThinkingComponent(longThinking, true, 'live');
+      const out = strip(component.render(80).join('\n'));
+      expect(out).toContain('thinking...');
+      expect(out).not.toContain('line7');
+    } finally {
+      setActiveTranscriptDetail('standard');
     }
   });
 });

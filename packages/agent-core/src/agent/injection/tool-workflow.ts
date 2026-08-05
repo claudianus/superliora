@@ -178,8 +178,10 @@ export function buildToolWorkflowSparseGuidance(cap: ToolWorkflowCapability): st
   bits.push('dedicated tools > Bash');
   bits.push('Write≠shell I/O');
   bits.push('no secret shell');
+  // `explore→edit→check` already carries the verify step, and the stop sensor
+  // raises "verify before done" at the moment it matters — keep this re-injected
+  // checkpoint inside its length budget instead of repeating it.
   bits.push('explore→edit→check');
   bits.push('XP loop');
-  bits.push('verify before done');
   return bits.join(' · ');
 }

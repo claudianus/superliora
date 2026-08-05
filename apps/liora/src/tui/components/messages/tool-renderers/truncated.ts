@@ -2,16 +2,20 @@ import {
   RENDERER_TRUNCATED_OUTPUT_DEFER_CHARS,
   RendererTruncatedOutputComponent,
   trimRendererTrailingEmptyLines,
+  type Component,
 } from '#/tui/renderer';
 
 import {
   BRAILLE_SPINNER_FRAMES,
   BRAILLE_SPINNER_INTERVAL_MS,
 } from '#/tui/constant/rendering';
+import { getActiveNeatMode } from '#/tui/features/transcript/transcript-density';
 import { currentTheme } from '#/tui/theme';
+import type { ToolResultBlockData } from '#/tui/types';
 import { scheduleDeferredTranscriptFormat } from '#/tui/utils/transcript/deferred-format-queue';
 import { formatTranscriptOutput } from '#/tui/utils/transcript/transcript-output-format';
 
+import { renderNeatCard } from './neat-card';
 import type { ResultRenderer } from './types';
 import { PREVIEW_LINES } from './types';
 
@@ -119,7 +123,12 @@ export class TruncatedOutputComponent extends RendererTruncatedOutputComponent {
 }
 
 export const renderTruncated: ResultRenderer = (toolCall, result, ctx) => {
-  if (!result.output) return [];
+  // Neat mode intercepts here rather than in the registry: this is the single
+  // funnel every raw body passes through (Bash, MCP, unknown builtins, and the
+  // error fallback of every dedicated renderer), so one check covers them all.
+  const card = neatCardFor(result);
+  if (card !== undefined && !ctx.expanded) return card;
+  if (!result.output) return card ?? [];
   // Best-effort path hint for generic tools (MCP, unknown builtins).
   const pathHint =
     typeof toolCall.args['path'] === 'string'
@@ -129,12 +138,18 @@ export const renderTruncated: ResultRenderer = (toolCall, result, ctx) => {
         : typeof toolCall.args['filePath'] === 'string'
           ? toolCall.args['filePath']
           : undefined;
-  return [
-    new TruncatedOutputComponent(result.output, {
-      expanded: ctx.expanded,
-      isError: result.is_error ?? false,
-      hintMode: 'key',
-      pathHint,
-    }),
-  ];
+  const body = new TruncatedOutputComponent(result.output, {
+    expanded: ctx.expanded,
+    isError: result.is_error ?? false,
+    hintMode: 'key',
+    pathHint,
+  });
+  // Expanded (density `full`) keeps the card as a headline above the raw body,
+  // so structure and full text are never mutually exclusive.
+  return card === undefined ? [body] : [...card, body];
 };
+
+function neatCardFor(result: ToolResultBlockData): Component[] | undefined {
+  if (!getActiveNeatMode() || result.display === undefined) return undefined;
+  return renderNeatCard(result.display, { seed: result.tool_call_id });
+}

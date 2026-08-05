@@ -6,7 +6,8 @@
 export type SessionWarningLike = {
   readonly code?: string;
   readonly message: string;
-  readonly severity?: 'error' | 'warning' | 'info' | string;
+  /** Typically `error`, `warning`, or `info`; the wire may carry anything. */
+  readonly severity?: string;
 };
 
 export type SessionWarningNotice = {

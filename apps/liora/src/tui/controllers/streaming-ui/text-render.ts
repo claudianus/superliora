@@ -145,7 +145,9 @@ export function onThinkingUpdate(ctx: TextRenderContext, fullText: string): void
       // Advance phase tracker; thinking component paints its own header.
       noteStreamPhase(state, ctx.getPhaseBoundary(), 'thinking');
       const component = new ThinkingComponent(fullText, true, 'live', state.ui);
-      if (state.toolOutputExpanded) component.setExpanded(true);
+      if (state.toolOutputExpanded || state.transcriptDetail === 'full') {
+        component.setExpanded(true);
+      }
       ctx.setActiveThinkingComponent(component);
       state.transcriptContainer.addChild(component);
       requestTUILayoutRender(state);
@@ -176,7 +178,9 @@ export function onThinkingUpdate(ctx: TextRenderContext, fullText: string): void
     // Advance phase tracker; thinking component paints its own header.
     noteStreamPhase(state, ctx.getPhaseBoundary(), 'thinking');
     const component = new ThinkingComponent(shown, true, 'live', state.ui);
-    if (state.toolOutputExpanded) component.setExpanded(true);
+    if (state.toolOutputExpanded || state.transcriptDetail === 'full') {
+      component.setExpanded(true);
+    }
     ctx.setActiveThinkingComponent(component);
     state.transcriptContainer.addChild(component);
     requestTUILayoutRender(state);
