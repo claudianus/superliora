@@ -78,4 +78,6 @@ export interface CommandHubOptions {
   /** First-run coach overlay. */
   readonly intro?: boolean;
   readonly onIntroDismiss?: () => void;
+  /** Terminal row count for the list page size. Defaults to stdout. */
+  readonly terminalRows?: () => number;
 }

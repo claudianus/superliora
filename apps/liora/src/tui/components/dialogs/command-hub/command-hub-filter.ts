@@ -10,17 +10,11 @@ const SECTION_ORDER = [
   'Start',
   'Chat',
   'Workspace',
+  'Fleet',
   'Extend',
   'Appearance',
   'Account',
   'Settings',
-  'Settings · Models',
-  'Settings · Safety',
-  'Settings · Look & feel',
-  'Settings · Agent',
-  'Settings · Integrations',
-  'Settings · Account',
-  'Settings · System',
   'Commands',
   'Skills',
   'Help',
@@ -29,9 +23,6 @@ const SECTION_ORDER = [
 function sectionRank(section: string): number {
   const exact = SECTION_ORDER.indexOf(section as (typeof SECTION_ORDER)[number]);
   if (exact !== -1) return exact;
-  if (section.startsWith('Settings')) {
-    return SECTION_ORDER.indexOf('Settings');
-  }
   return 99;
 }
 

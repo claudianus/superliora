@@ -197,24 +197,19 @@ describe('CommandHubComponent', () => {
     expect(onSelect.mock.calls[0]?.[1]).toBe('space');
   });
 
-  it('Space on open rows activates (not a silent no-op)', () => {
+  it('Space while filtering extends the query (multi-word search)', () => {
     const onSelect = vi.fn();
     const hub = new CommandHubComponent({
       items: buildDefaultCommandHubItems({}),
       onSelect,
       onCancel: vi.fn(),
     });
-    for (const ch of 'files') hub.handleInput(ch);
-    while (onSelect.mock.calls.length === 0) {
-      const selected = stripAnsi(hub.render(72).join('\n'));
-      if (selected.includes('Browse the project tree')) {
-        hub.handleInput(SPACE);
-        break;
-      }
-      hub.handleInput(DOWN);
-    }
-    expect(onSelect.mock.calls[0]?.[0]?.id).toBe('workspace.files');
-    expect(onSelect.mock.calls[0]?.[1]).toBe('space');
+    for (const ch of 'job') hub.handleInput(ch);
+    hub.handleInput(SPACE);
+    expect(onSelect).not.toHaveBeenCalled();
+    for (const ch of 'ops') hub.handleInput(ch);
+    const text = stripAnsi(hub.render(72).join('\n'));
+    expect(text).toContain('job ops');
   });
 
   it('Esc clears filter before closing', () => {
@@ -225,10 +220,10 @@ describe('CommandHubComponent', () => {
       onCancel,
     });
     for (const ch of 'model') hub.handleInput(ch);
-    expect(stripAnsi(hub.render(72).join('\n'))).toContain('filter: model');
+    expect(stripAnsi(hub.render(72).join('\n'))).toMatch(/model.*\d+\/\d+/);
     hub.handleInput(ESCAPE);
     expect(onCancel).not.toHaveBeenCalled();
-    expect(stripAnsi(hub.render(72).join('\n'))).not.toContain('filter: model');
+    expect(stripAnsi(hub.render(72).join('\n'))).toContain('Search actions');
     hub.handleInput(ESCAPE);
     expect(onCancel).toHaveBeenCalledOnce();
   });
@@ -244,7 +239,7 @@ describe('CommandHubComponent', () => {
     expect(onCancel).toHaveBeenCalledOnce();
   });
 
-  it('renders status strip and hotkey digits', () => {
+  it('renders the slim status strip with mode LEDs', () => {
     const hub = new CommandHubComponent({
       items: buildDefaultCommandHubItems({ planMode: true, permissionMode: 'yolo' }),
       onSelect: vi.fn(),
@@ -252,12 +247,12 @@ describe('CommandHubComponent', () => {
     });
     const text = stripAnsi(hub.render(72).join('\n'));
     expect(text).toContain('Command Hub');
-    expect(text).toMatch(/\[Plan ON\]/i);
-    expect(text).toMatch(/\[YOLO\]/i);
-    expect(text).toMatch(/\b1\s/);
+    expect(text).toContain('Plan ● on');
+    expect(text).toContain('Swarm ○ off');
+    expect(text).toContain('Perm YOLO');
   });
 
-  it('number hotkey activates a row when not filtering', () => {
+  it('digits type into the search query (no hidden hotkeys)', () => {
     const onSelect = vi.fn();
     const hub = new CommandHubComponent({
       items: buildDefaultCommandHubItems({}),
@@ -265,28 +260,29 @@ describe('CommandHubComponent', () => {
       onCancel: vi.fn(),
     });
     hub.handleInput('1');
-    expect(onSelect).toHaveBeenCalledOnce();
-    expect(onSelect.mock.calls[0]?.[1]).toBe('enter');
+    expect(onSelect).not.toHaveBeenCalled();
+    const text = stripAnsi(hub.render(72).join('\n'));
+    expect(text).toMatch(/❯ 1/);
+    expect(text).toMatch(/\d+\/\d+/);
   });
 
-  it('←→ moves between categories and items in wide idle two-pane', () => {
+  it('←→ jumps between sections', () => {
+    resetHubRecentsForTests();
     const hub = new CommandHubComponent({
       items: buildDefaultCommandHubItems({}),
       onSelect: vi.fn(),
       onCancel: vi.fn(),
     });
-    hub.render(96);
-    const modesView = stripAnsi(hub.render(96).join('\n'));
-    expect(modesView).toContain('Modes');
-    expect(modesView).toMatch(/Plan mode/i);
-    hub.handleInput(LEFT);
-    hub.handleInput(DOWN);
-    const startView = stripAnsi(hub.render(96).join('\n'));
-    expect(startView).toMatch(/New session|Start/i);
+    const bottom = (lines: string[]): string =>
+      lines.find((line) => line.includes('╰')) ?? '';
+    const first = stripAnsi(hub.render(96).join('\n')).split('\n');
+    expect(bottom(first)).toContain('Modes');
     hub.handleInput(RIGHT);
-    const itemsFocused = stripAnsi(hub.render(96).join('\n'));
-    expect(itemsFocused.length).toBeGreaterThan(0);
-    expect(itemsFocused).not.toBe(modesView);
+    const next = stripAnsi(hub.render(96).join('\n')).split('\n');
+    expect(bottom(next)).toContain('Start');
+    hub.handleInput(LEFT);
+    const back = stripAnsi(hub.render(96).join('\n')).split('\n');
+    expect(bottom(back)).toContain('Modes');
   });
 
   it('pins Recent actions when idle', () => {
@@ -333,17 +329,20 @@ describe('CommandHubComponent', () => {
     expect(lines.some((line) => line.includes('│'))).toBe(true);
   });
 
-  it('embeds the live filter and match count in the bottom border', () => {
+  it('shows the query and match count in the always-visible search row', () => {
     const hub = new CommandHubComponent({
       items: buildDefaultCommandHubItems({}),
       onSelect: vi.fn(),
       onCancel: vi.fn(),
     });
+    const idle = stripAnsi(hub.render(72).join('\n'));
+    expect(idle).toContain('Search actions, settings, skills');
     for (const ch of 'model') hub.handleInput(ch);
-    const lines = stripAnsi(hub.render(72).join('\n')).split('\n');
-    const bottom = lines.find((line) => line.includes('╰')) ?? '';
-    expect(bottom).toContain('filter: model');
-    expect(bottom).toMatch(/\d+\/\d+/);
+    const filtered = stripAnsi(hub.render(72).join('\n'));
+    expect(filtered).toMatch(/❯ model/);
+    expect(filtered).toMatch(/\d+\/\d+/);
+    const bottom = filtered.split('\n').find((line) => line.includes('╰')) ?? '';
+    expect(bottom).toContain('Esc clear');
   });
 
   it('pulses the empty state when nothing matches', () => {
@@ -372,5 +371,65 @@ describe('CommandHubComponent', () => {
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+});
+
+describe('CommandHubComponent palette redesign', () => {
+  const makeHub = (terminalRows?: number): CommandHubComponent =>
+    new CommandHubComponent({
+      items: buildDefaultCommandHubItems({}),
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+      terminalRows: terminalRows === undefined ? undefined : () => terminalRows,
+    });
+
+  it('windows the idle list by terminal height with more-indicators', () => {
+    resetHubRecentsForTests();
+    const hub = makeHub(20);
+    const first = stripAnsi(hub.render(96).join('\n'));
+    expect(first).toMatch(/▼ \d+ more/);
+    expect(first).not.toMatch(/▲ \d+ more/);
+    hub.handleInput('\u001B[6~'); // PageDown
+    const paged = stripAnsi(hub.render(96).join('\n'));
+    expect(paged).toMatch(/▲ \d+ more/);
+  });
+
+  it('keeps every rendered row inside the frame width', () => {
+    resetHubRecentsForTests();
+    const hub = makeHub();
+    for (const width of [56, 72, 96, 120]) {
+      for (const line of stripAnsi(hub.render(width).join('\n')).split('\n')) {
+        expect(line.length).toBeLessThanOrEqual(width);
+      }
+    }
+  });
+
+  it('shows inline descriptions on wide renders, selected-only on narrow', () => {
+    resetHubRecentsForTests();
+    const wide = makeHub();
+    for (const ch of 'model') wide.handleInput(ch);
+    const wideLines = stripAnsi(wide.render(100).join('\n')).split('\n');
+    expect(
+      wideLines.some((line) => line.includes('Model') && line.includes('Switch the LLM')),
+    ).toBe(true);
+
+    const narrow = makeHub();
+    for (const ch of 'model') narrow.handleInput(ch);
+    const narrowLines = stripAnsi(narrow.render(60).join('\n')).split('\n');
+    expect(
+      narrowLines.some((line) => line.includes('Model') && line.includes('Switch the LLM')),
+    ).toBe(false);
+  });
+
+  it('resets the cursor to the best match when the query changes', () => {
+    resetHubRecentsForTests();
+    const hub = makeHub();
+    hub.handleInput(DOWN);
+    hub.handleInput(DOWN);
+    for (const ch of 'diff') hub.handleInput(ch);
+    const text = stripAnsi(hub.render(96).join('\n'));
+    const bottom = text.split('\n').find((line) => line.includes('╰')) ?? '';
+    // First fuzzy match is selected → its section shows in the bottom border.
+    expect(bottom).toContain('Workspace');
   });
 });

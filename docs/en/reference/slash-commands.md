@@ -1,6 +1,6 @@
 # Slash Commands
 
-Prefer the **Command Hub** dashboard for everyday use: press `Ctrl-K` or `?` on an empty prompt (or run `/help`). Space flips modes in place; Enter applies and returns to chat; `1`–`9` jump to a row. Nested pickers stack with Esc back (Esc clears a filter first). Retry is under Hub → Chat (or `/retry`).
+Prefer the **Command Hub** dashboard for everyday use: press `Ctrl-K` or `?` on an empty prompt (or run `/help`). Type to fuzzy-search every action, setting, and slash command — matched letters highlight in the list. On the idle list Space flips the selected mode in place; once you type, Space and digits extend the search. Enter applies and returns to chat. Nested pickers stack with Esc back (Esc clears a filter first). Retry is under Hub → Chat (or `/retry`).
 
 **Hub is primary** for operator workflows (Job ops, goal queue, dashboard, rewind, logout, …). Use slash when you need typed arguments or a keyboard shortcut. **Memory** lives under Settings → Memory (Integrations); **Job ops** under Hub → Workspace → Job ops. With swarm on, **War Room…** is under Hub → Fleet (`Ctrl-K`). **Context OS** is under Settings → Bench/Diagnostics; Files explorer `b` opens blame. Power-user slash still works — Help → All slash commands is a searchable list, not the everyday path.
 

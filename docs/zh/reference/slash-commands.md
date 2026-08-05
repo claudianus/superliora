@@ -1,6 +1,6 @@
 # 斜杠命令
 
-日常操作优先用 **Command Hub** 仪表盘：按 `Ctrl-K`，或在空提示符按 `?`（或运行 `/help`）。Space 就地切换模式；Enter 应用并回到对话；`1`–`9` 直达行。嵌套选择器支持 Esc 返回（有筛选时 Esc 先清空）。重试在 Hub → Chat（或 `/retry`）。
+日常操作优先用 **Command Hub** 仪表盘：按 `Ctrl-K`，或在空提示符按 `?`（或运行 `/help`）。输入即可模糊搜索所有操作、设置与斜杠命令，匹配的字母会在列表中高亮。在初始列表按 Space 就地切换所选模式；输入后 Space 与数字并入搜索词。Enter 应用并回到对话。嵌套选择器支持 Esc 返回（有筛选时 Esc 先清空）。重试在 Hub → Chat（或 `/retry`）。
 
 **Hub 是日常主入口**（Job ops、目标队列、仪表盘、rewind、logout 等）。需要键入参数或快捷键时再用斜杠。**Memory** 在 Settings → Memory（Integrations）；**Job ops** 在 Hub → Workspace → Job ops。开启 swarm 时，**War Room…** 在 Hub → Fleet（`Ctrl-K`）。**Context OS** 在 Settings → Bench/Diagnostics；Files 资源管理器按 `b` 打开 blame。高级斜杠仍可用 — Help → All slash commands 是可搜索列表，不是日常路径。
 
