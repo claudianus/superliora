@@ -12,6 +12,7 @@ import {
   emptyConductorJobsSnapshot,
   mergeConductorJobsSnapshot,
   parseJobStripFromToolOutput,
+  patchConductorJobProgressByWorker,
   patchConductorJobUsage,
   upsertConductorJobCard,
   type ConductorJobCard,
@@ -84,6 +85,30 @@ export class JobBoardStore {
 
   reset(): void {
     this.publish(emptyConductorJobsSnapshot());
+  }
+
+  /**
+   * `subagent.progress` heartbeat for a job worker: join it onto the card by
+   * `workerAgentId` so the desk ticker moves between ledger events.
+   * Returns true when a card was patched.
+   */
+  applySubagentProgress(beat: {
+    readonly subagentId: string;
+    readonly lastTool?: string;
+    readonly lastTarget?: string;
+    readonly toolCount?: number;
+    readonly atMs?: number;
+  }): boolean {
+    const prev = this.current;
+    const jobs = patchConductorJobProgressByWorker(prev.jobs, beat.subagentId, {
+      lastTool: beat.lastTool,
+      lastTarget: beat.lastTarget,
+      toolCount: beat.toolCount,
+      atMs: beat.atMs ?? Date.now(),
+    });
+    if (jobs === undefined) return false;
+    this.publish(this.deriveFromCards(jobs, prev.unreadInbox, prev.inbox, prev.maxConcurrent));
+    return true;
   }
 
   /**

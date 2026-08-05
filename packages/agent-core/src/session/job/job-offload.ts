@@ -10,8 +10,8 @@
  *   promises, so the ACK path never blocks. Pump failures are logged, never
  *   thrown into the caller.
  * - worker spawns run behind the bounded-concurrency `WorkerSpawner` (V2-2):
- *   up to 3 handshakes at a time, budget-abort after 30s, and budget-exceeded
- *   spawns recorded as `blocked` on ledger + inbox.
+ *   concurrency follows the job pool setting (`maxConcurrentJobs`), budget-abort
+ *   after 30s, and budget-exceeded spawns recorded as `blocked` on ledger + inbox.
  *
  * The pump drain starts inline — not on a later macrotask — so a just-created
  * job's spawn handshake begins (microtask lane) before the JobCreate ACK
@@ -20,6 +20,7 @@
  */
 
 import type { Agent } from '../../agent';
+import { requestConductorWake } from './conductor-wake';
 import { emitJobEvents, jobRecordToUpdatedEvent } from '../../tools/builtin/job/job-emit';
 import { pushJobInboxEvent } from '../../tools/builtin/job/job-inbox';
 import { getJob, patchJob, type JobRecord } from '../../tools/builtin/job/job-ledger';
@@ -54,10 +55,18 @@ const state: OffloadState = {
   pumpInFlight: undefined,
 };
 
-const workerSpawner = new WorkerSpawner();
+let workerSpawner: WorkerSpawner | undefined;
 
-/** Shared serialized spawner used by the schedule pump (V2-2). */
+/**
+ * Shared spawner used by the schedule pump (V2-2). Built lazily so its
+ * handshake concurrency matches the resolved job concurrency (env override
+ * included): a lower spawn cap left the 4th..6th promoted job sitting in
+ * `running` with no worker attached until an earlier handshake settled.
+ */
 export function getJobWorkerSpawner(): WorkerSpawner {
+  workerSpawner ??= new WorkerSpawner({
+    maxConcurrent: resolveConductorPoolConfig().maxConcurrentJobs,
+  });
   return workerSpawner;
 }
 
@@ -72,7 +81,7 @@ export function enqueueJobWorkerSpawn(input: {
   readonly job: JobRecord;
 }): { readonly queued: boolean; readonly duplicate: boolean } {
   const { store, agent, job } = input;
-  return workerSpawner.enqueue({
+  return getJobWorkerSpawner().enqueue({
     key: job.id,
     run: ({ signal }) =>
       launchJobWorker({ store, agent, job, signal }).then((result) => {
@@ -108,6 +117,7 @@ export function enqueueJobWorkerSpawn(input: {
         emitJobEvents(agent, [
           jobRecordToUpdatedEvent(updated, { reason: 'spawn_budget_exceeded' }),
         ]);
+        requestConductorWake({ agent, store });
       }
     },
   });

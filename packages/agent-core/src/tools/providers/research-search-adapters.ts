@@ -21,6 +21,13 @@ export function isRateLimitError(error: unknown): boolean {
   return msg.includes('429') || msg.includes('rate limit') || msg.includes('too many requests');
 }
 
+/** HTTP 403 / bot-wall rejections — cool the slot down like a rate limit. */
+export function isBlockedError(error: unknown): boolean {
+  if (error instanceof SearchRateLimitError) return error.status === 403;
+  if (!(error instanceof Error)) return false;
+  return /\b403\b/.test(error.message);
+}
+
 export function clampInt(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
   return Math.min(max, Math.max(min, Math.trunc(value)));

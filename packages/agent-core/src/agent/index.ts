@@ -13,6 +13,9 @@ import type {
   SDKAgentRPC,
   UsageStatus,
 } from '#/rpc';
+import type { ProviderExtrasStatus } from '@superliora/protocol';
+import { buildProviderExtrasStatus } from '#/tools/providers/extras/index';
+import { resolveProviderMcpServers } from '#/mcp/provider-servers';
 import { generate } from '@superliora/kosong';
 
 import type { EnabledPluginSessionStart, PluginAgentDef, PluginCommandDef } from '#/plugin/index';
@@ -488,6 +491,17 @@ export class Agent {
   providerRouteStatus(): ProviderRouteStatus | null {
     const route = this.buildLLMRoute(this.kimiConfig?.loopControl?.reservedContextSize);
     return route === undefined ? null : this.providerRouteState.snapshot(route);
+  }
+
+  providerExtrasStatus(): ProviderExtrasStatus {
+    return buildProviderExtrasStatus({
+      config: this.kimiConfig,
+      engine: this.toolServices?.researchSearch,
+      autoMcpServers:
+        this.kimiConfig === undefined
+          ? []
+          : Object.keys(resolveProviderMcpServers(this.kimiConfig)),
+    });
   }
 
   circuitBreakerStatus(): CircuitBreakerStatus | undefined {

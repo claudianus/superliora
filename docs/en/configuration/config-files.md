@@ -205,6 +205,19 @@ base_url = "https://api.moonshot.cn/v1/fetch"
 api_key = "sk-xxx"
 ```
 
+## `extras`
+
+`extras` holds provider-extras preferences. Detected services (Z.AI, Token Plan, xAI, Codex) are all on by default; `disabledProviders` is the per-service off switch written by **Settings → Provider extras**.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `disabledProviders` | `string[]` | `[]` | Provider-extras ids (`zai`, `qwen-token-plan`, `xai-grok`, `openai-codex`) to opt out of — a disabled service contributes no search slot, media backend, or auto-injected MCP servers |
+
+```toml
+[extras]
+disabledProviders = ["xai-grok"]
+```
+
 ## `permission`
 
 `permission` sets permission rules that are automatically loaded when a session starts, controlling whether the Agent needs user confirmation before calling a tool. Rules are written as a `[[permission.rules]]` array of tables, matched in order — the first matching rule takes effect.

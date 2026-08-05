@@ -26,15 +26,21 @@ const SAMPLE_REFS: readonly ProviderOAuthRef[] = [
   { storage: 'file', key: 'xai-grok-account-abc' },
 ];
 
-/** Page/scroll until `needle` shows in the rendered lines (settings spans pages). */
+/** Filter the searchable settings picker until `needle` shows in the rendered lines. */
 function pageThrough(
   settings: SettingsSelectorComponent,
   needle: string,
   maxSteps = 60,
 ): string[] {
   let out = settings.render(120).map(strip);
+  // Searchable picker: type the needle so grid pagination cannot hide it.
+  for (const ch of needle.toLowerCase()) {
+    if (out.some((line) => line.includes(needle))) break;
+    settings.handleInput(ch);
+    out = settings.render(120).map(strip);
+  }
   for (let step = 0; step < maxSteps && !out.some((line) => line.includes(needle)); step++) {
-    settings.handleInput('\u001B[C');
+    settings.handleInput('\u001B[6~');
     out = settings.render(120).map(strip);
   }
   return out;

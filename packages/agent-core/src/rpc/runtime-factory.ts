@@ -8,6 +8,7 @@
 import { createBrowserUseRuntime, CuaComputerRuntime } from '@superliora/gui-use';
 import { join } from 'pathe';
 
+import { sharedNetResilience } from '#/runtime/net-resilience/index';
 import { LocalFetchURLProvider } from '#/tools/providers/local-fetch-url';
 import { LocalWebSearchProvider } from '#/tools/providers/local-web-search';
 import { resolveSearxngUrl } from '#/tools/providers/research-meta-status';
@@ -19,6 +20,16 @@ import {
   createBrowserSearchChannel,
   createChromeExtensionSearchChannel,
 } from '#/tools/providers/research-search';
+import {
+  CODEX_DEFAULT_BASE_URL,
+  CODEX_DEFAULT_EXTRAS_MODEL,
+  type CodexExtrasOptions,
+} from '#/tools/providers/codex-extras';
+import {
+  getProviderExtrasDeclaration,
+  isProviderExtrasEnabled,
+  resolveZaiSearchProviderConfig,
+} from '#/tools/providers/extras/index';
 import {
   PreferXaiGrokWebSearchProvider,
   XaiGrokBuildClient,
@@ -50,7 +61,7 @@ export async function createRuntimeConfig(input: {
   readonly circuitBreakers?: CircuitBreakerRegistry | undefined;
   readonly onCircuitBreakerChanged?: (() => void) | undefined;
 }): Promise<ToolServices> {
-  const localFetcher = new LocalFetchURLProvider();
+  const localFetcher = new LocalFetchURLProvider({ resilience: sharedNetResilience });
   const localSearch = input.config.research?.localSearch;
   const localOptions = {
     urlFetcher: localFetcher,
@@ -59,6 +70,7 @@ export async function createRuntimeConfig(input: {
     searxngUrl: resolveSearxngUrl(process.env, localSearch?.searxngUrl),
     yacyUrl: localSearch?.yacyUrl,
     directSources: localSearch?.directSources,
+    resilience: sharedNetResilience,
     offlineMode: localSearch?.offlineMode,
     cachePath:
       input.homeDir === undefined
@@ -97,11 +109,26 @@ export async function createRuntimeConfig(input: {
     await ensureResearchBridgeSidecar();
   }
   const chromeExtensionChannel = createChromeExtensionSearchChannel();
+  const codex = resolveCodexExtras(input.config, input.resolveOAuthTokenProvider);
+  // Z.AI extras: env keys are engine-detected; a config.providers key is
+  // injected as an explicit slot (unless the user already configured one),
+  // and the Settings off switch suppresses the env-detected slot.
+  const zaiSearchProvider = resolveZaiSearchProviderConfig(input.config);
+  const configuredSearchProviders = input.config.research?.search?.providers ?? [];
+  const injectZai =
+    zaiSearchProvider !== undefined &&
+    !configuredSearchProviders.some((p) => p.kind === 'zai');
   const researchSearcher =
     localSearch?.enabled === false
       ? undefined
       : new ResearchSearchEngine({
-          search: input.config.research?.search,
+          search: injectZai
+            ? {
+                ...input.config.research?.search,
+                providers: [...configuredSearchProviders, zaiSearchProvider],
+              }
+            : input.config.research?.search,
+          disabledEnvKinds: isProviderExtrasEnabled(input.config, 'zai') ? undefined : ['zai'],
           local: localOptions,
           urlFetcher: localFetcher,
           browserChannel,
@@ -117,6 +144,14 @@ export async function createRuntimeConfig(input: {
                   defaultHeaders: input.kimiRequestHeaders,
                   customHeaders: searchService.customHeaders,
                   tokenProvider: moonshotCreds?.tokenProvider,
+                },
+          codex:
+            codex === undefined
+              ? undefined
+              : {
+                  tokenProvider: codex.tokenProvider,
+                  baseUrl: codex.baseUrl,
+                  model: codex.model,
                 },
         });
 
@@ -149,8 +184,10 @@ export async function createRuntimeConfig(input: {
             ...serviceCredentials(fetchService, input.resolveOAuthTokenProvider),
           }),
     webSearcher,
+    researchSearch: researchSearcher,
     xaiGrokBuild,
     qwenTokenPlanApiKey,
+    codex,
     browserUse,
     computerUse:
       input.config.computerUse?.enabled === false
@@ -174,6 +211,7 @@ function resolveXaiGrokBuildClient(
   config: LioraConfig,
   resolveOAuthTokenProvider: OAuthTokenProviderResolver | undefined,
 ): XaiGrokBuildClient | undefined {
+  if (!isProviderExtrasEnabled(config, 'xai-grok')) return undefined;
   const provider =
     config.providers['xai-grok'] ??
     config.providers[XAI_PROFILE.id] ??
@@ -218,23 +256,50 @@ function resolveXaiGrokBuildClient(
   });
 }
 
-/** Provider ids that identify the Alibaba Token Plan service in configs. */
-const TOKEN_PLAN_PROVIDER_IDS = [
-  'qwen-token-plan',
-  'alibaba-token-plan',
-  'alibaba-token-plan-cn',
-] as const;
+/**
+ * Resolve Codex (ChatGPT subscription) extras credentials from the
+ * configured `openai-codex` provider OAuth session. Returns undefined when
+ * the user is not signed in with ChatGPT.
+ */
+function resolveCodexExtras(
+  config: LioraConfig,
+  resolveOAuthTokenProvider: OAuthTokenProviderResolver | undefined,
+): CodexExtrasOptions | undefined {
+  if (!isProviderExtrasEnabled(config, 'openai-codex')) return undefined;
+  const provider = config.providers['openai-codex'];
+  const oauthRef =
+    provider?.oauth ??
+    (provider?.oauths !== undefined && provider.oauths.length > 0
+      ? provider.oauths[0]
+      : undefined);
+  if (oauthRef === undefined) return undefined;
+  const tokenProvider = resolveOAuthTokenProvider?.('openai-codex', oauthRef);
+  if (tokenProvider === undefined) return undefined;
 
-/** Env vars that may carry a Token Plan dedicated API key. */
-const TOKEN_PLAN_ENV_KEYS = ['QWEN_TOKEN_PLAN_API_KEY', 'ALIBABA_TOKEN_PLAN_API_KEY'] as const;
+  const baseUrl = nonEmptyString(provider?.baseUrl) ?? CODEX_DEFAULT_BASE_URL;
+  return {
+    tokenProvider,
+    baseUrl,
+    model: nonEmptyString(process.env['SUPERLIORA_CODEX_EXTRAS_MODEL']) ?? CODEX_DEFAULT_EXTRAS_MODEL,
+  };
+}
 
+/**
+ * Resolve the Alibaba Token Plan (Qwen Cloud) API key from dedicated env
+ * vars or a configured Token Plan provider, so media tools work without the
+ * user exporting a standalone key. Identity data (env keys, provider ids)
+ * comes from the shared provider-extras registry.
+ */
 function resolveTokenPlanApiKey(config: LioraConfig): string | undefined {
+  if (!isProviderExtrasEnabled(config, 'qwen-token-plan')) return undefined;
+  const declaration = getProviderExtrasDeclaration('qwen-token-plan');
+  if (declaration === undefined) return undefined;
   // Env vars take priority over configured provider entries.
-  for (const envKey of TOKEN_PLAN_ENV_KEYS) {
+  for (const envKey of declaration.envKeys) {
     const value = nonEmptyString(process.env[envKey]);
     if (value !== undefined) return value;
   }
-  for (const providerId of TOKEN_PLAN_PROVIDER_IDS) {
+  for (const providerId of declaration.providerIds) {
     const apiKey = nonEmptyString(config.providers[providerId]?.apiKey);
     if (apiKey !== undefined) return apiKey;
   }

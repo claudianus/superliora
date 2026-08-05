@@ -401,13 +401,15 @@ export const fetchGlance: GlanceFn = (toolCall, result) => {
 
 export const webSearchGlance: GlanceFn = (_toolCall, result) => {
   if (result.output.includes('No search results found.')) return 'no results';
+  const channels = /^Channels:\s+(.+)$/m.exec(result.output)?.[1]?.trim();
   const titles: string[] = [];
   for (const line of result.output.split('\n')) {
     const m = /^\s*Title:\s+(.+)$/.exec(line);
     if (m && m[1] !== undefined) titles.push(m[1].trim());
     if (titles.length >= GLANCE_SAMPLES) break;
   }
-  if (titles.length === 0) return '';
-  return titles.join(' · ');
+  if (titles.length === 0) return channels !== undefined && channels.length > 0 ? channels : '';
+  const head = channels !== undefined && channels.length > 0 ? `${channels} · ` : '';
+  return `${head}${titles.join(' · ')}`;
 };
 

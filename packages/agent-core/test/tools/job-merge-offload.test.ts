@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import {
+  buildSubagentResultContract,
+  type SubagentResultContract,
+} from '../../src/session/subagent/subagent-result-contract';
 import { getJob, listJobs, createJob, patchJob } from '../../src/tools/builtin/job/job-ledger';
 import { MergeJobTool } from '../../src/tools/builtin/job/job-tools';
 import type { ToolStore } from '../../src/tools/store';
@@ -40,12 +44,24 @@ interface GitCall {
   readonly args: readonly string[];
 }
 
+/** Auto-approve reads green off the ledger contract, not the tool arguments. */
+function greenContract(filesChanged: readonly string[]): SubagentResultContract {
+  return buildSubagentResultContract({
+    agentId: 'agent_worker',
+    profile: 'coder',
+    summary: 'worker finished the task',
+    filesChanged,
+    verification: { tests: 'passed', typecheck: 'passed', lint: 'passed' },
+  });
+}
+
 function finishedJobWithWorktree(store: ToolStore, title: string) {
   const job = createJob(store, { title, kind: 'implement' });
   const done = patchJob(store, job.id, {
     status: 'done',
     worktreePath: `/tmp/v2-5/${job.id}`,
     resultSummary: 'worker finished the task',
+    resultContract: greenContract(['src/example.ts']),
   });
   if (!done) throw new Error('failed to prepare source job');
   return done;
@@ -219,6 +235,7 @@ describe('V2-5 merge offloading (verdict/execution split)', () => {
     const source = patchJob(store, created.id, {
       status: 'done',
       resultSummary: 'no worktree work',
+      resultContract: greenContract(['docs/example.md']),
     });
     if (!source) throw new Error('failed to prepare source job');
 

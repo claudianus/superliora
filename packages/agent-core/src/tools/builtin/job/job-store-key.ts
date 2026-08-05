@@ -9,7 +9,6 @@ import type { GoalBudgetLimits } from '../../../agent/goal/types';
 import type { SubagentResultContract } from '../../../session/subagent/subagent-result-contract';
 
 export const JOB_LEDGER_STORE_KEY = 'job_ledger' as const;
-export const JOB_WARM_POOL_STORE_KEY = 'job_warm_pool' as const;
 
 export type JobStatus =
   | 'queued'

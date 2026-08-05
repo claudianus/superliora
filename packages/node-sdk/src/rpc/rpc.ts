@@ -474,6 +474,7 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
       cacheFreezeViolations,
       parallelTools,
       oauth,
+      providerExtras,
     ] = await Promise.all([
       rpc.getConfig(scoped),
       rpc.getContext(scoped),
@@ -488,6 +489,7 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
       rpc.getCacheFreezeViolations(scoped).catch(() => undefined),
       rpc.getParallelToolsStatus(scoped).catch(() => undefined),
       rpc.getOAuthStatus(scoped).catch(() => undefined),
+      rpc.getProviderExtrasStatus(scoped).catch(() => undefined),
     ]);
     return buildSessionStatus({
       config,
@@ -503,6 +505,7 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
       cacheFreezeViolations,
       parallelTools,
       oauth,
+      providerExtras,
     });
   }
 

@@ -43,10 +43,10 @@ export const GenerateImageInputSchema = z.object({
     .optional()
     .describe('Output size when the selected provider supports it. Defaults to 1024x1024.'),
   provider: z
-    .enum(['auto', 'xai', 'openai', 'google', 'qwen'])
+    .enum(['auto', 'xai', 'openai', 'google', 'qwen', 'codex'])
     .optional()
     .describe(
-      'Force a provider. Default auto picks the first available (xai Grok Build → qwen → openai → google).',
+      'Force a provider. Default auto picks the first available (xai Grok Build → qwen → codex → openai → google).',
     ),
   model: z
     .enum(['wan2.7-image', 'wan2.7-image-pro', 'qwen-image-2.0', 'qwen-image-2.0-pro'])
@@ -66,34 +66,46 @@ export interface GenerateImageProviderEnv {
   readonly qwenTokenPlanApiKey?: string;
   readonly xaiApiKey?: string;
   readonly xaiGrokBuild?: import('../../providers/xai-grok-build').XaiGrokBuildClient;
+  /** OpenAI Codex (ChatGPT subscription) extras credentials. */
+  readonly codex?: import('../../providers/codex-extras').CodexExtrasOptions;
+  /** Extras services switched off in Settings — their env-key fallbacks are skipped. */
+  readonly extrasDisabled?: readonly string[];
   readonly fetchImpl?: typeof fetch;
 }
 
-export type ImageGenerationProvider = 'xai' | 'openai' | 'google' | 'qwen';
+export type ImageGenerationProvider = 'xai' | 'openai' | 'google' | 'qwen' | 'codex';
+
+function extrasAllows(env: GenerateImageProviderEnv, id: string): boolean {
+  return !(env.extrasDisabled ?? []).includes(id);
+}
 
 export function resolveImageGenerationProvider(
   preferred: 'auto' | ImageGenerationProvider | undefined,
   env: GenerateImageProviderEnv = {},
 ): ImageGenerationProvider | undefined {
+  const xaiEnv = extrasAllows(env, 'xai-grok') ? process.env['XAI_API_KEY'] : undefined;
   const xaiReady =
-    env.xaiGrokBuild !== undefined ||
-    nonEmpty(env.xaiApiKey ?? process.env['XAI_API_KEY']) !== undefined;
+    env.xaiGrokBuild !== undefined || nonEmpty(env.xaiApiKey ?? xaiEnv) !== undefined;
   const qwen = nonEmpty(
     env.qwenTokenPlanApiKey ??
-      process.env['QWEN_TOKEN_PLAN_API_KEY'] ??
-      process.env['ALIBABA_TOKEN_PLAN_API_KEY'],
+      (extrasAllows(env, 'qwen-token-plan')
+        ? process.env['QWEN_TOKEN_PLAN_API_KEY'] ?? process.env['ALIBABA_TOKEN_PLAN_API_KEY']
+        : undefined),
   );
+  const codex = env.codex;
   const openai = nonEmpty(env.openaiApiKey ?? process.env['OPENAI_API_KEY']);
   const google = nonEmpty(
     env.googleApiKey ?? process.env['GOOGLE_API_KEY'] ?? process.env['GEMINI_API_KEY'],
   );
   if (preferred === 'xai') return xaiReady ? 'xai' : undefined;
   if (preferred === 'qwen') return qwen !== undefined ? 'qwen' : undefined;
+  if (preferred === 'codex') return codex !== undefined ? 'codex' : undefined;
   if (preferred === 'openai') return openai !== undefined ? 'openai' : undefined;
   if (preferred === 'google') return google !== undefined ? 'google' : undefined;
-  // Auto priority: xAI Grok Build subscription → qwen → openai → google
+  // Auto priority: xAI Grok Build subscription → qwen → codex → openai → google
   if (xaiReady) return 'xai';
   if (qwen !== undefined) return 'qwen';
+  if (codex !== undefined) return 'codex';
   if (openai !== undefined) return 'openai';
   if (google !== undefined) return 'google';
   return undefined;
@@ -148,7 +160,7 @@ export class GenerateImageTool implements BuiltinTool<GenerateImageInput> {
       return {
         isError: true,
         output:
-          'No image-generation provider found. Sign in with xAI Grok (/login), or set XAI_API_KEY / QWEN_TOKEN_PLAN_API_KEY / OPENAI_API_KEY / GOOGLE_API_KEY, then retry. Check readiness with /status.',
+          'No image-generation provider found. Sign in with xAI Grok or OpenAI Codex (/login), or set XAI_API_KEY / QWEN_TOKEN_PLAN_API_KEY / OPENAI_API_KEY / GOOGLE_API_KEY, then retry. Check readiness with /status.',
       };
     }
 
@@ -163,9 +175,11 @@ export class GenerateImageTool implements BuiltinTool<GenerateImageInput> {
           ? await generateWithXai(args, this.env)
           : provider === 'qwen'
             ? await generateWithQwen(args, this.env)
-            : provider === 'openai'
-              ? await generateWithOpenAI(args, this.env)
-              : await generateWithGoogle(args, this.env);
+            : provider === 'codex'
+              ? await generateWithCodex(args, this.env)
+              : provider === 'openai'
+                ? await generateWithOpenAI(args, this.env)
+                : await generateWithGoogle(args, this.env);
       await this.kaos.writeBytes(safePath, generated.bytes);
       return {
         output: [
@@ -270,8 +284,9 @@ async function generateWithQwen(
 ): Promise<GeneratedImage> {
   const apiKey = nonEmpty(
     env.qwenTokenPlanApiKey ??
-      process.env['QWEN_TOKEN_PLAN_API_KEY'] ??
-      process.env['ALIBABA_TOKEN_PLAN_API_KEY'],
+      (extrasAllows(env, 'qwen-token-plan')
+        ? process.env['QWEN_TOKEN_PLAN_API_KEY'] ?? process.env['ALIBABA_TOKEN_PLAN_API_KEY']
+        : undefined),
   );
   if (apiKey === undefined) {
     throw new Error('QWEN_TOKEN_PLAN_API_KEY / ALIBABA_TOKEN_PLAN_API_KEY is not set.');
@@ -328,6 +343,36 @@ async function generateWithQwen(
   }
 
   throw new Error('Qwen image generation returned no image content.');
+}
+
+// ── OpenAI Codex (ChatGPT subscription) image generation ───────────────
+
+async function generateWithCodex(
+  args: GenerateImageInput,
+  env: GenerateImageProviderEnv,
+): Promise<GeneratedImage> {
+  const codex = env.codex;
+  if (codex === undefined) {
+    throw new Error('OpenAI Codex (ChatGPT) session is not available for image generation.');
+  }
+  const { generateCodexImage } = await import('../../providers/codex-extras');
+  try {
+    const result = await generateCodexImage(
+      {
+        ...codex,
+        ...(env.fetchImpl !== undefined ? { fetchImpl: env.fetchImpl } : {}),
+      },
+      { prompt: args.prompt, ...(args.size !== undefined ? { size: args.size } : {}) },
+    );
+    return { bytes: result.bytes, mimeType: result.mimeType, model: result.model };
+  } catch (error) {
+    // Subscription path failed (quota, backend gap) — fall back to the
+    // platform OpenAI key when one is configured instead of erroring out.
+    if (nonEmpty(env.openaiApiKey ?? process.env['OPENAI_API_KEY']) !== undefined) {
+      return generateWithOpenAI(args, env);
+    }
+    throw error;
+  }
 }
 
 // ── OpenAI image generation ────────────────────────────────────────────

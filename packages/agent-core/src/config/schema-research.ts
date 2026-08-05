@@ -45,6 +45,8 @@ export const ResearchSearchProviderKindSchema = z.enum([
   'duckduckgo_ia',
   'duckduckgo',
   'moonshot',
+  'zai',
+  'codex',
 ]);
 
 export type ResearchSearchProviderKind = z.infer<typeof ResearchSearchProviderKindSchema>;

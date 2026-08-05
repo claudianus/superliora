@@ -35,6 +35,7 @@ export {
   RendererTranscriptViewportComponent,
   TRANSCRIPT_CONTENT_MATERIALIZE_BUDGET,
   TRANSCRIPT_OVERFLOW_MAX_RETAINED_CHILDREN,
+  TRANSCRIPT_SCROLL_MATERIALIZE_BUDGET,
 } from './viewport-component';
 
 export {

@@ -1,5 +1,6 @@
 import type {
   ExportSessionManifest,
+  ProviderExtrasStatus,
   ProviderRouteSelection,
   ProviderRouteStatus,
   ResumeSessionResult,
@@ -74,6 +75,7 @@ export type {
   ProcessBackgroundTaskInfo,
   PromptOrigin,
   ProviderConfig,
+  ProviderExtrasStatus,
   ProviderRouteSelection,
   ProviderRouteStatus,
   ProviderType,
@@ -356,6 +358,8 @@ export interface SessionStatus {
   };
   readonly usage?: SessionUsage;
   readonly providerRouteStatus?: ProviderRouteStatus | null;
+  /** Provider-extras harness status (detected services, search cascade, media routing). */
+  readonly extras?: ProviderExtrasStatus | undefined;
   /** Context OS continuity/evidence health when compacted pages exist. */
   readonly contextOS?: {
     readonly pageCount: number;

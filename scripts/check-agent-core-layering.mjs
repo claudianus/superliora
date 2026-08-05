@@ -23,6 +23,7 @@ const SESSION_TO_AGENT_ALLOWLIST = new Set([
   'session/conversation-loops.ts',
   'session/export/manifest.ts',
   'session/index.ts',
+  'session/job/conductor-wake.ts',
   'session/job/job-offload.ts',
   'session/lifecycle/session-agent-lifecycle.ts',
   'session/lifecycle/session-close-lifecycle.ts',

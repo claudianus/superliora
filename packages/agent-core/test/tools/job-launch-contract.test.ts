@@ -101,7 +101,7 @@ describe('V2-3 non-blocking launch contract (runtime observation)', () => {
     await drainMicrotasks();
     expect(probe.settled).toBe(true);
     expect(getJob(store, job.id)?.status).toBe('done');
-    expect(getJob(store, job.id)?.resultSummary).toBe('v2-3 worker done');
+    expect(getJob(store, job.id)?.resultSummary).toContain('v2-3 worker done');
   });
 
   it('a launch that awaits completion is caught by the observed assertion', async () => {
@@ -154,6 +154,6 @@ describe('V2-3 non-blocking launch contract (runtime observation)', () => {
     await drainMicrotasks();
     expect(probe.settled).toBe(true);
     expect(getJob(store, job.id)?.status).toBe('done');
-    expect(getJob(store, job.id)?.resultSummary).toBe('fast worker done');
+    expect(getJob(store, job.id)?.resultSummary).toContain('fast worker done');
   });
 });

@@ -170,6 +170,42 @@ describe('ResearchSearchEngine', () => {
     expect(engine.status().providers.some((p) => p.kind === 'duckduckgo')).toBe(true);
   });
 
+  it('lastChannels reports the slot labels that served the last query', async () => {
+    const html = [
+      '<html><body>',
+      '<div class="result">',
+      '<a class="result__a" href="https://example.com/docs">Example Docs</a>',
+      '<a class="result__snippet">Official docs snippet</a>',
+      '</div>',
+      '</body></html>',
+    ].join('');
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = requestUrl(input);
+      if (url.includes('api.duckduckgo.com')) {
+        return emptyDdgInstantAnswerResponse();
+      }
+      return new Response(html, {
+        status: 200,
+        headers: { 'content-type': 'text/html' },
+      });
+    });
+
+    const engine = new ResearchSearchEngine({
+      fetchImpl,
+      search: { strategy: 'auto', freeFallback: true },
+      local: {
+        searchUrl: 'https://duckduckgo.com/html/',
+        directSources: { github: false, arxiv: false, npm: false, pypi: false, crates: false },
+      },
+    });
+
+    expect(engine.lastChannels()).toEqual([]);
+    const results = await engine.search('example docs', { limit: 2 });
+    expect(results.length).toBeGreaterThan(0);
+    const ddgLabel = engine.status().providers.find((p) => p.kind === 'duckduckgo')?.label;
+    expect(engine.lastChannels()).toContain(ddgLabel);
+  });
+
   it('calls Brave when a key is configured and cools down on 429', async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
       const url = requestUrl(input);
@@ -1092,5 +1128,38 @@ describe('inferSearchChannelsFromStatus', () => {
       ],
     });
     expect(channels).toEqual(['ch1', 'ch4', 'ch5']);
+  });
+});
+
+describe('disabledEnvKinds (provider extras off switch)', () => {
+  const ZAI_ENV_KEYS = ['Z_AI_API_KEY', 'ZAI_API_KEY'] as const;
+
+  it('suppresses the env-detected zai slot while keeping explicit providers', () => {
+    const prev = Object.fromEntries(ZAI_ENV_KEYS.map((k) => [k, process.env[k]]));
+    try {
+      delete process.env['Z_AI_API_KEY'];
+      process.env['ZAI_API_KEY'] = 'zai-env-key';
+
+      const enabled = new ResearchSearchEngine({ search: { freeFallback: false } });
+      expect(enabled.status().providers.some((p) => p.kind === 'zai')).toBe(true);
+
+      const disabled = new ResearchSearchEngine({
+        search: { freeFallback: false },
+        disabledEnvKinds: ['zai'],
+      });
+      expect(disabled.status().providers.some((p) => p.kind === 'zai')).toBe(false);
+
+      const explicit = new ResearchSearchEngine({
+        search: { freeFallback: false, providers: [{ kind: 'zai', apiKey: 'zai-explicit' }] },
+        disabledEnvKinds: ['zai'],
+      });
+      expect(explicit.status().providers.some((p) => p.kind === 'zai')).toBe(true);
+    } finally {
+      for (const key of ZAI_ENV_KEYS) {
+        const value = prev[key];
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
   });
 });

@@ -1,12 +1,15 @@
 /**
  * Mission / Conductor lifecycle tool surface — hard requirement for plan/goal progression.
+ *
+ * Owning a Mission run is not the same as running its plan phases. `NextPhase`
+ * and `RecordInterviewFinding` drive the interview/phase engine inside a plan
+ * worker; the conductor creates the run and delegates those phases to a Job, so
+ * requiring them here would gate the run owner on tools it must never call.
  */
 
 export const MISSION_LIFECYCLE_TOOL_NAMES = [
   'EnterPlanMode',
-  'NextPhase',
   'ExitPlanMode',
-  'RecordInterviewFinding',
   'CreateGoal',
   'GetGoal',
   'UpdateGoal',

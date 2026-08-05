@@ -370,6 +370,12 @@ export function getProviderRouteStatus(
   return context.sessionApi(sessionId).getProviderRouteStatus(payload);
 }
 
+export function getProviderExtrasStatus(
+  context: SessionAgentMethodsContext,
+  { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
+  return context.sessionApi(sessionId).getProviderExtrasStatus(payload);
+}
+
 export function resetProviderRouteStatus(
   context: SessionAgentMethodsContext,
   { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {

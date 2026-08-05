@@ -133,9 +133,16 @@ export const computerCaptureGlance: GlanceFn = (_toolCall, result) => {
 };
 
 export const generateMediaGlance: GlanceFn = (_toolCall, result) => {
+  const provider = /^Generated (?:image|video) with (.+)\.$/m.exec(result.output)?.[1];
+  let path = '';
   for (const line of result.output.split('\n')) {
     const trimmed = line.trim();
-    if (trimmed.startsWith('Path:')) return trimmed.slice('Path:'.length).trim();
+    if (trimmed.startsWith('Path:')) {
+      path = trimmed.slice('Path:'.length).trim();
+      break;
+    }
   }
-  return '';
+  if (provider !== undefined && path.length > 0) return `${provider} · ${path}`;
+  if (provider !== undefined) return provider;
+  return path;
 };

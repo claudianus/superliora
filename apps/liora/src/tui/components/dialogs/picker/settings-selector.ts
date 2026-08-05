@@ -29,6 +29,7 @@ export type SettingsSelection =
   | 'hooks'
   | 'skills'
   | 'search'
+  | 'provider-extras'
   | 'index'
   | 'host'
   | 'cache'
@@ -205,6 +206,12 @@ const SETTINGS_OPTIONS_BASE: readonly (Omit<ChoiceOption, 'keywords'> & {
     section: 'Integrations',
     label: 'Search',
     description: 'Deep research channels and free fallback.',
+  },
+  {
+    value: 'provider-extras',
+    section: 'Integrations',
+    label: 'Provider extras',
+    description: 'Auto-detected plan extras (search, image/video, MCP) — per-service off.',
   },
   {
     value: 'index',

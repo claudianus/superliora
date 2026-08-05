@@ -22,7 +22,6 @@ import {
 import {
   canStartMoreJobs,
   formatJobStripLine,
-  markInFlightJobsInterrupted,
   nextQueuedJobs,
   resolveConductorPoolConfig,
   scheduleQueuedJobs,
@@ -41,6 +40,7 @@ import {
   CONDUCTOR_GUARD_CODES,
   ConductorDirectWorkGuard,
 } from '../../src/agent/conductor-guard';
+import { buildSubagentResultContract } from '../../src/session/subagent/subagent-result-contract';
 import { __resetJobWorkerHandlesForTests } from '../../src/tools/builtin/job/job-handles';
 import {
   interruptRunningJobs,
@@ -113,7 +113,6 @@ describe('job ledger', () => {
 describe('job runtime scheduler', () => {
   it('exposes locked pool defaults', () => {
     const cfg = resolveConductorPoolConfig({});
-    expect(cfg.warmPoolSize).toBe(2);
     expect(cfg.maxConcurrentJobs).toBe(6);
     expect(cfg.failTtlDays).toBe(7);
   });
@@ -308,7 +307,16 @@ describe('merge trust + worker guards + warm pool', () => {
     ).toBe(false);
 
     const store = memoryStore();
-    createJob(store, { title: 'merge me', ownershipPaths: ['src/x.ts'] });
+    const created = createJob(store, { title: 'merge me', ownershipPaths: ['src/x.ts'] });
+    patchJob(store, created.id, {
+      resultContract: buildSubagentResultContract({
+        agentId: 'agent_x',
+        profile: 'coder',
+        summary: 'done',
+        filesChanged: ['src/x.ts'],
+        verification: { tests: 'passed', typecheck: 'passed', lint: 'passed' },
+      }),
+    });
     const job = listJobs(store)[0]!;
     const tool = new MergeJobTool(store);
     const holdExec = tool.resolveExecution({
@@ -346,7 +354,7 @@ describe('merge trust + worker guards + warm pool', () => {
     expect(listJobs(store)[0]?.status).toBe('done');
   });
 
-  it('blocks worker git push and records warm pool', async () => {
+  it('blocks worker git push', async () => {
     const { guardWorkerShellCommand, isWorkerForbiddenGitRemoteCommand } = await import(
       '../../src/tools/builtin/job/job-worker-guards'
     );
@@ -354,23 +362,6 @@ describe('merge trust + worker guards + warm pool', () => {
     expect(guardWorkerShellCommand('git push --force', { isWorker: true }).allowed).toBe(false);
     expect(guardWorkerShellCommand('git status', { isWorker: true }).allowed).toBe(true);
     expect(guardWorkerShellCommand('git push origin HEAD', { isWorker: false }).allowed).toBe(true);
-
-    const { ensureWarmPool, creditWarmPoolSlot, readWarmPoolState, warmPoolSpawner } =
-      await import('../../src/tools/builtin/job/job-warm-pool');
-    const store = memoryStore();
-    const first = ensureWarmPool(store, { warmPoolSize: 2, maxConcurrentJobs: 6, failTtlDays: 7 });
-    expect(first.deficit).toBe(2);
-    // Record-only default: message stays neutral and pre-spawn is gated off.
-    expect(first.message).toMatch(/pre-spawn disabled/);
-    expect(warmPoolSpawner({ subagentHost: {} }, {})).toBeUndefined();
-    expect(warmPoolSpawner(undefined, { SUPERLIORA_CONDUCTOR_WARM_POOL_SPAWN: '1' })).toBeUndefined();
-    expect(
-      warmPoolSpawner({ subagentHost: {} }, { SUPERLIORA_CONDUCTOR_WARM_POOL_SPAWN: '1' }),
-    ).not.toBeUndefined();
-    creditWarmPoolSlot(store, 2);
-    const second = ensureWarmPool(store, { warmPoolSize: 2, maxConcurrentJobs: 6, failTtlDays: 7 });
-    expect(second.deficit).toBe(0);
-    expect(readWarmPoolState(store).readySlots).toBe(2);
   });
 });
 
@@ -461,7 +452,7 @@ describe('job inbox + resume + strip', () => {
     const b = createJob(store, { title: 'b' });
     patchJob(store, a.id, { status: 'running' });
     patchJob(store, b.id, { status: 'queued' });
-    const interrupted = markInFlightJobsInterrupted(store, 'test disconnect');
+    const interrupted = interruptRunningJobs({ store, reason: 'test disconnect' });
     expect(interrupted).toHaveLength(1);
     expect(interrupted[0]?.status).toBe('interrupted');
     expect(listJobs(store).find((j) => j.id === b.id)?.status).toBe('queued');
@@ -660,17 +651,15 @@ describe('mission lifecycle tools', () => {
       'WebSearch',
     ]);
     const missing = missingMissionLifecycleTools(core);
-    expect(missing).toContain('NextPhase');
-    expect(missing).toContain('RecordInterviewFinding');
-    expect(() => assertMissionLifecycleTools(core, 'Mission')).toThrow(/NextPhase/);
+    expect(missing).toContain('EnterPlanMode');
+    expect(missing).toContain('CreateGoal');
+    expect(() => assertMissionLifecycleTools(core, 'Mission')).toThrow(/EnterPlanMode/);
   });
 
-  it('passes for conductor surface', () => {
+  it('passes for the conductor surface, which delegates plan phases to a worker', () => {
     const conductor = new Set([
       'EnterPlanMode',
-      'NextPhase',
       'ExitPlanMode',
-      'RecordInterviewFinding',
       'CreateGoal',
       'GetGoal',
       'UpdateGoal',
@@ -836,7 +825,11 @@ describe('conductor non-blocking job path (regression)', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(getJob(store, jobId)?.status).toBe('done');
-    expect(getJob(store, jobId)?.resultSummary).toBe('worker summary');
+    // No result contract came back, so the completion carries no verification
+    // evidence and the summary says so (P1-5).
+    expect(getJob(store, jobId)?.resultSummary).toBe(
+      'unverified (checks did not run) — worker summary',
+    );
     const unread = listUnreadJobInbox(store);
     expect(unread).toHaveLength(1);
     expect(unread[0]?.kind).toBe('job.completed');

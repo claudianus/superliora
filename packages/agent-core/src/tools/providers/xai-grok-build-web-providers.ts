@@ -20,20 +20,36 @@ export class XaiGrokWebSearchProvider implements WebSearchProvider {
  * then fall back to the multi-provider research stack.
  */
 export class PreferXaiGrokWebSearchProvider implements WebSearchProvider {
+  private lastServed: 'xai' | 'fallback' | undefined;
+
+  /** Forwards the research stack health when the fallback exposes it. */
+  readonly status: WebSearchProvider['status'];
+
   constructor(
     private readonly xai: WebSearchProvider,
     readonly researchFallback: WebSearchProvider,
-  ) {}
+  ) {
+    this.status = researchFallback.status?.bind(researchFallback);
+  }
 
   async search(
     query: string,
     options?: { limit?: number; includeContent?: boolean; toolCallId?: string },
   ): Promise<WebSearchResult[]> {
     try {
-      return await this.xai.search(query, options);
+      const results = await this.xai.search(query, options);
+      this.lastServed = 'xai';
+      return results;
     } catch {
+      this.lastServed = 'fallback';
       return this.researchFallback.search(query, options);
     }
+  }
+
+  /** Channels that served the latest query — xAI or the research cascade. */
+  lastChannels(): readonly string[] {
+    if (this.lastServed === 'xai') return ['xai-grok'];
+    return this.researchFallback.lastChannels?.() ?? [];
   }
 }
 

@@ -25,13 +25,11 @@ import {
 } from './job-ledger';
 
 /** Locked product defaults (Conductor plan). */
-export const CONDUCTOR_DEFAULT_WARM_POOL_SIZE = 2;
 export const CONDUCTOR_DEFAULT_MAX_CONCURRENT_JOBS = 6;
 /** Failed/cancelled/conflict worktrees retained this many days before GC. */
 export const CONDUCTOR_WORKTREE_FAIL_TTL_DAYS = 7;
 
 export interface ConductorPoolConfig {
-  readonly warmPoolSize: number;
   readonly maxConcurrentJobs: number;
   readonly failTtlDays: number;
 }
@@ -40,10 +38,6 @@ export function resolveConductorPoolConfig(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): ConductorPoolConfig {
   return {
-    warmPoolSize: readPositiveInt(
-      env['SUPERLIORA_CONDUCTOR_WARM_POOL'],
-      CONDUCTOR_DEFAULT_WARM_POOL_SIZE,
-    ),
     maxConcurrentJobs: readPositiveInt(
       env['SUPERLIORA_CONDUCTOR_MAX_CONCURRENT'],
       CONDUCTOR_DEFAULT_MAX_CONCURRENT_JOBS,
@@ -224,6 +218,18 @@ export interface ScheduleJobsResult {
 }
 
 /**
+ * The `explore` profile has no write tools, so a worktree buys isolation
+ * nothing can use while costing a `git worktree add` plus registry I/O per
+ * job. Running in the main checkout is also more accurate: the worker then
+ * sees uncommitted work, which is usually what the question is about. Keyed on
+ * the profile, not the kind, so `desk` digests come along for free and a new
+ * read-only kind cannot forget to opt in.
+ */
+function needsWorktree(kind: JobKind): boolean {
+  return profileForJobKind(kind) !== 'explore';
+}
+
+/**
  * Promote highest-priority queued Jobs to running under maxConcurrent.
  * Always-worktree when kaos+repoPath provided (product default).
  */
@@ -258,7 +264,7 @@ export async function scheduleQueuedJobs(input: ScheduleJobsInput): Promise<Sche
     candidates.map(
       async (candidate): Promise<{ started?: JobRecord; blocked?: JobRecord }> => {
         let job = candidate;
-        if (requireWt) {
+        if (requireWt && needsWorktree(candidate.kind)) {
           if (input.kaos === undefined || input.repoPath === undefined) {
             const b = patchJob(input.store, candidate.id, {
               status: 'blocked',
@@ -445,24 +451,3 @@ export function formatJobStripLine(snapshot: ConductorJobStripSnapshot, unreadIn
   return `Jobs: ${parts.join(' ')}`;
 }
 
-/**
- * Session end / disconnect: mark in-flight jobs interrupted (resume later).
- * Does not delete worktrees.
- */
-export function markInFlightJobsInterrupted(
-  store: ToolStore,
-  reason = 'session interrupted',
-): readonly JobRecord[] {
-  const out: JobRecord[] = [];
-  for (const job of listJobs(store)) {
-    if (job.status !== 'running' && job.status !== 'queued') continue;
-    // Keep queued as queued so schedule can pick them up; only running → interrupted.
-    if (job.status === 'queued') continue;
-    const next = patchJob(store, job.id, {
-      status: 'interrupted',
-      notes: [job.notes, `interrupt: ${reason}`].filter(Boolean).join('\n'),
-    });
-    if (next) out.push(next);
-  }
-  return out;
-}

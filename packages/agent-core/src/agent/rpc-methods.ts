@@ -291,6 +291,7 @@ export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
     getPlan: () => agent.planMode.data(),
     getUsage: () => agent.usage.status() ?? agent.usage.data(),
     getProviderRouteStatus: () => agent.providerRouteStatus(),
+    getProviderExtrasStatus: () => agent.providerExtrasStatus(),
     resetProviderRouteStatus: () => agent.resetProviderRouteStatus(),
     getTools: () => agent.tools.data(),
     getBackground: (payload) => agent.background.list(payload.activeOnly ?? false, payload.limit),

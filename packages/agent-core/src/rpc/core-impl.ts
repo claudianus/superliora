@@ -261,6 +261,7 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   getPlan = delegateContextMethod(sessionAgentMethods.getPlan);
   getUsage = delegateContextMethod(sessionAgentMethods.getUsage);
   getProviderRouteStatus = delegateContextMethod(sessionAgentMethods.getProviderRouteStatus);
+  getProviderExtrasStatus = delegateContextMethod(sessionAgentMethods.getProviderExtrasStatus);
   resetProviderRouteStatus = delegateContextMethod(sessionAgentMethods.resetProviderRouteStatus);
   getTools = delegateContextMethod(sessionAgentMethods.getTools);
   getBackground = delegateContextMethod(sessionAgentMethods.getBackground);

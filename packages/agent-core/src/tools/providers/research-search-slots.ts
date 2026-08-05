@@ -3,8 +3,10 @@ import type {
   ResearchSearchProviderKind,
 } from '#/config/schema';
 import type { WebSearchProvider } from '../builtin/web/web-search';
+import { CodexWebSearchProvider } from './codex-extras';
 import { LocalWebSearchProvider } from './local-web-search';
 import { MoonshotWebSearchProvider } from './moonshot-web-search';
+import { ZaiWebSearchProvider } from './zai-web-search';
 import {
   BingSearchAdapter,
   BraveSearchAdapter,
@@ -46,7 +48,8 @@ type ProviderConfigWithHint = ResearchSearchProviderConfig & {
 export function buildProviderSlots(options: ResearchSearchEngineOptions): ProviderSlot[] {
   const fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
   const configured = options.search?.providers ?? [];
-  const envDetected = detectSearchProviderEnvKeys();
+  const disabledEnvKinds = new Set(options.disabledEnvKinds ?? []);
+  const envDetected = detectSearchProviderEnvKeys().filter((c) => !disabledEnvKinds.has(c.kind));
   const merged = mergeProviderConfigs(configured, envDetected);
 
   const slots: ProviderSlot[] = [];
@@ -91,6 +94,28 @@ export function buildProviderSlots(options: ResearchSearchEngineOptions): Provid
         defaultHeaders: options.moonshot.defaultHeaders,
         customHeaders: options.moonshot.customHeaders,
         tokenProvider: options.moonshot.tokenProvider,
+        fetchImpl,
+      }),
+      cooldownUntil: 0,
+      useCount: 0,
+      keyCursor: 0,
+    });
+    index += 1;
+  }
+
+  // OpenAI Codex (ChatGPT subscription) search via OAuth bearer.
+  if (options.codex?.tokenProvider !== undefined) {
+    slots.push({
+      id: `codex:${String(index)}`,
+      kind: 'codex',
+      label: 'codex',
+      source: 'config',
+      weight: 1,
+      rpm: undefined,
+      provider: new CodexWebSearchProvider({
+        tokenProvider: options.codex.tokenProvider,
+        ...(options.codex.baseUrl !== undefined ? { baseUrl: options.codex.baseUrl } : {}),
+        ...(options.codex.model !== undefined ? { model: options.codex.model } : {}),
         fetchImpl,
       }),
       cooldownUntil: 0,
@@ -158,7 +183,8 @@ function needsApiKey(kind: ResearchSearchProviderKind): boolean {
     kind === 'exa' ||
     kind === 'serper' ||
     kind === 'google_cse' ||
-    kind === 'bing'
+    kind === 'bing' ||
+    kind === 'zai'
   );
 }
 
@@ -190,6 +216,13 @@ function createRemoteProvider(
     case 'bing':
       if (apiKey === undefined) return undefined;
       return new BingSearchAdapter(apiKey, fetchImpl);
+    case 'zai':
+      if (apiKey === undefined) return undefined;
+      return new ZaiWebSearchProvider({
+        apiKey,
+        ...(config.baseUrl !== undefined ? { baseUrl: config.baseUrl } : {}),
+        fetchImpl,
+      });
     case 'searxng': {
       const baseUrl = config.baseUrl ?? options.local?.searxngUrl;
       if (baseUrl === undefined) return undefined;
@@ -205,6 +238,9 @@ function createRemoteProvider(
       });
     case 'moonshot':
       // Handled via options.moonshot in buildProviderSlots.
+      return undefined;
+    case 'codex':
+      // Handled via options.codex in buildProviderSlots (OAuth, no API key).
       return undefined;
     default:
       return undefined;

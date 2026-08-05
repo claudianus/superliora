@@ -334,8 +334,10 @@ describe('default agent profiles', () => {
     expect(prompt).toContain('# Conductor Operating Playbook');
     expect(prompt).toContain('Delegation-only');
     expect(prompt).toContain('intake → triage → route → ACK');
-    expect(prompt).toContain('Status playbook');
-    expect(prompt).toContain('Situation matrix');
+    // Per-state routing moved into the job desk injection; the static prompt
+    // keeps the principles the desk cannot restate every turn.
+    expect(prompt).toContain('Never wait on workers');
+    expect(prompt).toContain('Job brief quality bar');
   });
 
   it('layers runtime persona role text over the profile playbook instead of replacing it', () => {

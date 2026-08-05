@@ -11,7 +11,6 @@ export * from './job-mission-bind';
 export * from './job-emit';
 export * from './job-merge-trust';
 export * from './job-worker-guards';
-export * from './job-warm-pool';
 export * from './job-land';
 export * from './job-desk';
 export * from './job-worker-ledger-bridge';

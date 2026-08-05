@@ -77,10 +77,16 @@ export interface GenerateVideoProviderEnv {
   readonly qwenTokenPlanApiKey?: string;
   readonly xaiApiKey?: string;
   readonly xaiGrokBuild?: import('../../providers/xai-grok-build').XaiGrokBuildClient;
+  /** Extras services switched off in Settings — their env-key fallbacks are skipped. */
+  readonly extrasDisabled?: readonly string[];
   readonly fetchImpl?: typeof fetch;
 }
 
 export type VideoGenerationProvider = 'xai' | 'google' | 'qwen';
+
+function extrasAllows(env: GenerateVideoProviderEnv, id: string): boolean {
+  return !(env.extrasDisabled ?? []).includes(id);
+}
 
 export function isGenerateVideoAvailable(env: GenerateVideoProviderEnv = {}): boolean {
   return resolveVideoProvider('auto', env) !== undefined;
@@ -90,13 +96,14 @@ function resolveVideoProvider(
   preferred: 'auto' | VideoGenerationProvider | undefined,
   env: GenerateVideoProviderEnv = {},
 ): VideoGenerationProvider | undefined {
+  const xaiEnv = extrasAllows(env, 'xai-grok') ? process.env['XAI_API_KEY'] : undefined;
   const xaiReady =
-    env.xaiGrokBuild !== undefined ||
-    nonEmpty(env.xaiApiKey ?? process.env['XAI_API_KEY']) !== undefined;
+    env.xaiGrokBuild !== undefined || nonEmpty(env.xaiApiKey ?? xaiEnv) !== undefined;
   const qwen = nonEmpty(
     env.qwenTokenPlanApiKey ??
-      process.env['QWEN_TOKEN_PLAN_API_KEY'] ??
-      process.env['ALIBABA_TOKEN_PLAN_API_KEY'],
+      (extrasAllows(env, 'qwen-token-plan')
+        ? process.env['QWEN_TOKEN_PLAN_API_KEY'] ?? process.env['ALIBABA_TOKEN_PLAN_API_KEY']
+        : undefined),
   );
   const google = nonEmpty(
     env.googleApiKey ?? process.env['GOOGLE_API_KEY'] ?? process.env['GEMINI_API_KEY'],
@@ -303,8 +310,9 @@ async function generateWithQwenVideo(
 ): Promise<GeneratedVideo> {
   const apiKey = nonEmpty(
     env.qwenTokenPlanApiKey ??
-      process.env['QWEN_TOKEN_PLAN_API_KEY'] ??
-      process.env['ALIBABA_TOKEN_PLAN_API_KEY'],
+      (extrasAllows(env, 'qwen-token-plan')
+        ? process.env['QWEN_TOKEN_PLAN_API_KEY'] ?? process.env['ALIBABA_TOKEN_PLAN_API_KEY']
+        : undefined),
   );
   if (apiKey === undefined) {
     throw new Error('QWEN_TOKEN_PLAN_API_KEY / ALIBABA_TOKEN_PLAN_API_KEY is not set.');

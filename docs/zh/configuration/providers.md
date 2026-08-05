@@ -215,6 +215,19 @@ Provider 使用 OpenAI 兼容端点 `https://token-plan.ap-southeast-1.maas.aliy
 
 额度用量在 Qwen Cloud 控制台查看；CLI 尽力展示 rate-limit 响应头。参见 [Token Plan 概览](https://docs.qwencloud.com/token-plan/overview)。
 
+## Provider extras
+
+部分套餐在文本对话之外还提供额外的 API 能力。当检测到匹配的 key 或 OAuth 挂载时（来自 provider 配置项、环境变量或 `/login`），CLI 会自动把对应能力接入相应的内置工具，无需额外配置。
+
+| 服务 | 检测来源 | 接入工具 |
+| --- | --- | --- |
+| Z.AI (GLM Coding Plan) | `Z_AI_API_KEY` / `ZAI_API_KEY`、`zai` provider | `web_search`、MCP 服务器 |
+| Alibaba Token Plan | `QWEN_TOKEN_PLAN_API_KEY` / `ALIBABA_TOKEN_PLAN_API_KEY` | `generate_image`、`generate_video` |
+| xAI Grok Build | `XAI_API_KEY`、`xai-grok` provider | `web_search`、`generate_image`、`generate_video` |
+| OpenAI Codex (ChatGPT) | ChatGPT OAuth 挂载 | `web_search`、`generate_image` |
+
+`/status` 的 **Extras** 区块展示检测到的服务，**Settings → Provider extras** 列出每个服务及各自的开关。关闭某个服务会写入 [`extras.disabledProviders`](./config-files.md#extras)，对新会话生效；显式配置（例如 `search.providers` 条目）不受开关影响。
+
 ## 下一步
 
 - [配置文件](./config-files.md) — `providers` 和 `models` 表的完整字段参考

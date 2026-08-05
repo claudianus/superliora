@@ -4,8 +4,9 @@
  * isolation, and the spawn budget guard.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+import { CONDUCTOR_DEFAULT_MAX_CONCURRENT_JOBS } from '../../src/tools/builtin/job/job-runtime';
 import {
   JOB_WORKER_SPAWN_BUDGET_MS,
   JOB_WORKER_SPAWN_MAX_CONCURRENT,
@@ -22,8 +23,44 @@ describe('WorkerSpawner (V2-2 spawn isolation)', () => {
     expect(JOB_WORKER_SPAWN_BUDGET_MS).toBe(30_000);
   });
 
-  it('locks the parallel handshake budget at 3', () => {
-    expect(JOB_WORKER_SPAWN_MAX_CONCURRENT).toBe(3);
+  it('never caps handshakes below the job concurrency', () => {
+    // A lower spawn cap promotes jobs to `running` faster than workers attach.
+    expect(JOB_WORKER_SPAWN_MAX_CONCURRENT).toBeGreaterThanOrEqual(
+      CONDUCTOR_DEFAULT_MAX_CONCURRENT_JOBS,
+    );
+  });
+
+  it('sizes the shared offload spawner from the resolved pool config', async () => {
+    vi.resetModules();
+    process.env['SUPERLIORA_CONDUCTOR_MAX_CONCURRENT'] = '5';
+    try {
+      const { getJobWorkerSpawner } = await import('../../src/session/job/job-offload');
+      const spawner = getJobWorkerSpawner();
+      let inFlight = 0;
+      let maxInFlight = 0;
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      for (let i = 0; i < 8; i += 1) {
+        spawner.enqueue({
+          key: `job_${i}`,
+          run: async () => {
+            inFlight += 1;
+            maxInFlight = Math.max(maxInFlight, inFlight);
+            await gate;
+            inFlight -= 1;
+          },
+        });
+      }
+      await defer();
+      expect(maxInFlight).toBe(5);
+      release();
+      await spawner.settle();
+    } finally {
+      delete process.env['SUPERLIORA_CONDUCTOR_MAX_CONCURRENT'];
+      vi.resetModules();
+    }
   });
 
   it('spawns a batch in parallel up to the concurrency cap', async () => {

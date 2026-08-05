@@ -215,6 +215,19 @@ The provider uses the OpenAI-compatible endpoint `https://token-plan.ap-southeas
 
 Credit usage is visible in the Qwen Cloud console; the CLI surfaces rate-limit headers on a best-effort basis. See the [Token Plan overview](https://docs.qwencloud.com/token-plan/overview).
 
+## Provider extras
+
+Some plans ship API surface beyond text chat. When a matching key or OAuth mount is detected — from a configured provider entry, an environment variable, or `/login` — the CLI routes the extra into the corresponding built-in tool automatically; no further setup is needed.
+
+| Service | Detection | Feeds |
+| --- | --- | --- |
+| Z.AI (GLM Coding Plan) | `Z_AI_API_KEY` / `ZAI_API_KEY`, `zai` provider | `web_search`, MCP servers |
+| Alibaba Token Plan | `QWEN_TOKEN_PLAN_API_KEY` / `ALIBABA_TOKEN_PLAN_API_KEY` | `generate_image`, `generate_video` |
+| xAI Grok Build | `XAI_API_KEY`, `xai-grok` provider | `web_search`, `generate_image`, `generate_video` |
+| OpenAI Codex (ChatGPT) | ChatGPT OAuth mount | `web_search`, `generate_image` |
+
+`/status` shows an **Extras** section with what was detected, and **Settings → Provider extras** lists each service with a per-service off switch. Turning a service off persists to [`extras.disabledProviders`](./config-files.md#extras) and applies to new sessions; explicit configuration (for example a `search.providers` entry) is never affected.
+
 ## Next steps
 
 - [Configuration files](./config-files.md) — full field reference for the `providers` and `models` tables

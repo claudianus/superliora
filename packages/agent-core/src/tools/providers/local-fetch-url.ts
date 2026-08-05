@@ -14,6 +14,12 @@
 
 import { promises as dns } from 'node:dns';
 
+import {
+  NetResilienceRegistry,
+  backoffMs,
+  classifyHttpBlock,
+  type NetHostPolicy,
+} from '../../runtime/net-resilience';
 import { signalWithTimeout } from '../../utils/abort';
 import {
   HttpFetchError,
@@ -80,7 +86,19 @@ export interface LocalFetchURLProviderOptions {
    * the full static + DNS SSRF guard. Defaults to 5.
    */
   maxRedirects?: number;
+  /** Per-host pacing/cooldown harness. Defaults to the process-wide registry. */
+  resilience?: NetResilienceRegistry;
 }
+
+/** Polite per-host pacing for keyless fetching; cool down after repeated blocks. */
+const FETCH_HOST_POLICY: NetHostPolicy = {
+  minIntervalMs: 250,
+  jitterMs: 250,
+  blockThreshold: 3,
+  cooldownMs: 5 * 60_000,
+};
+const FETCH_MAX_BLOCK_RETRIES = 1;
+const FETCH_RETRY_BASE_BACKOFF_MS = 800;
 
 /**
  * True when the IP literal is private / loopback / link-local / ULA / CGNAT.
@@ -184,6 +202,7 @@ export class LocalFetchURLProvider implements UrlFetcher {
   private readonly allowPrivateAddresses: boolean;
   private readonly resolveDns: boolean;
   private readonly maxRedirects: number;
+  private readonly resilience: NetResilienceRegistry;
 
   constructor(options: LocalFetchURLProviderOptions = {}) {
     this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
@@ -193,13 +212,46 @@ export class LocalFetchURLProvider implements UrlFetcher {
     this.allowPrivateAddresses = options.allowPrivateAddresses ?? false;
     this.resolveDns = options.resolveDns ?? true;
     this.maxRedirects = options.maxRedirects ?? 5;
+    // Per-instance by default so cooldown state never leaks across tests or
+    // independent engines; the runtime factory passes the shared registry.
+    this.resilience = options.resilience ?? new NetResilienceRegistry();
   }
 
   async fetch(url: string, options?: UrlFetchOptions): Promise<UrlFetchResult> {
+    const signal = signalWithTimeout(this.timeoutMs, options?.signal);
+    let host = '';
+    try {
+      host = new URL(url).hostname;
+    } catch {
+      // Invalid URL: let fetchFollowingRedirects raise the canonical error.
+    }
+
+    for (let attempt = 0; ; attempt++) {
+      if (host.length > 0) {
+        this.resilience.assertReady(host);
+        await this.resilience.pace(host, FETCH_HOST_POLICY);
+      }
+      try {
+        const result = await this.fetchFollowingRedirects(url, signal);
+        if (host.length > 0) this.resilience.noteSuccess(host);
+        return result;
+      } catch (error) {
+        const block = error instanceof HttpFetchError ? classifyHttpBlock(error.status) : undefined;
+        if (block === undefined || host.length === 0) throw error;
+        this.resilience.noteBlock(host, block, FETCH_HOST_POLICY);
+        if (attempt >= FETCH_MAX_BLOCK_RETRIES) throw error;
+        await this.resilience.sleep(backoffMs(attempt, FETCH_RETRY_BASE_BACKOFF_MS));
+      }
+    }
+  }
+
+  private async fetchFollowingRedirects(
+    url: string,
+    signal: AbortSignal,
+  ): Promise<UrlFetchResult> {
     // Follow redirects manually so every hop is re-validated through the
     // full static + DNS SSRF guard. A first-hop-safe URL that 302s to an
     // internal service must still be blocked.
-    const signal = signalWithTimeout(this.timeoutMs, options?.signal);
     let currentUrl = url;
     let response: Response | undefined;
     for (let hop = 0; hop <= this.maxRedirects; hop++) {

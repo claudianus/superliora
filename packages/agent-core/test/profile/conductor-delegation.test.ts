@@ -25,6 +25,10 @@ const CONDUCTOR_FORBIDDEN_TOOLS = [
   'Agent',
   'Fleet',
   'TaskOutput',
+  // Plan-phase engine: the playbook forbids running phases on this lane, so
+  // paying for their descriptions every turn only leaves room to misfire.
+  'NextPhase',
+  'RecordInterviewFinding',
 ] as const;
 
 /** Exact conductor whitelist snapshot (V1-1). Any list change fails here. */
@@ -38,9 +42,7 @@ const CONDUCTOR_TOOL_SNAPSHOT = [
   'TodoList',
   // Plan/goal lifecycle spine
   'EnterPlanMode',
-  'NextPhase',
   'ExitPlanMode',
-  'RecordInterviewFinding',
   'CreateGoal',
   'GetGoal',
   'UpdateGoal',
@@ -89,9 +91,7 @@ describe('conductor delegation-only tool surface', () => {
         'MergeJob',
         // Plan/goal lifecycle management (§2.1 item 5)
         'EnterPlanMode',
-        'NextPhase',
         'ExitPlanMode',
-        'RecordInterviewFinding',
         'CreateGoal',
         'GetGoal',
         'UpdateGoal',

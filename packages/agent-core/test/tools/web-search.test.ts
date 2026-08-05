@@ -10,6 +10,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { NetResilienceRegistry } from '../../src/runtime/net-resilience';
 import {
   WebSearchInputSchema,
   WebSearchTool,
@@ -18,6 +19,7 @@ import {
 import type { UrlFetcher } from '../../src/tools/builtin/web/fetch-url';
 import { LocalWebSearchProvider } from '../../src/tools/providers/local-web-search';
 import { MoonshotWebSearchProvider } from '../../src/tools/providers/moonshot-web-search';
+import { PreferXaiGrokWebSearchProvider } from '../../src/tools/providers/xai-grok-build-web-providers';
 import { ResearchSearchEngine } from '../../src/tools/providers/research-search';
 import {
   getLocalResearchCacheTelemetry,
@@ -94,6 +96,71 @@ describe('WebSearchTool', () => {
     expect(content).toContain('https://example.com/1');
     expect(content).toContain('Result 2');
     expect(content).toContain('2024-01-01');
+  });
+
+  it('appends a Channels routing footer when the provider reports served channels', async () => {
+    const provider: WebSearchProvider = {
+      ...fakeProvider([
+        { title: 'Result 1', url: 'https://example.com/1', snippet: 'Snippet 1' },
+      ]),
+      lastChannels: () => ['Brave', 'Local'],
+    };
+    const tool = new WebSearchTool(provider);
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c-channels',
+      args: { query: 'test query' },
+      signal,
+    });
+    expect(result.isError).toBe(false);
+    expect(toolContentString(result)).toContain('Channels: Brave → Local');
+  });
+
+  it('routes the Channels footer through the xAI-prefer wrapper', async () => {
+    const fallback: WebSearchProvider = {
+      ...fakeProvider([{ title: 'Result 1', url: 'https://example.com/1', snippet: 'Snippet 1' }]),
+      lastChannels: () => ['zai'],
+    };
+    const wrapOk = new WebSearchTool(
+      new PreferXaiGrokWebSearchProvider(
+        fakeProvider([{ title: 'X', url: 'https://example.com/x', snippet: 'S' }]),
+        fallback,
+      ),
+    );
+    const okResult = await executeTool(wrapOk, {
+      turnId: 't1',
+      toolCallId: 'c-xai-channels',
+      args: { query: 'test query' },
+      signal,
+    });
+    expect(toolContentString(okResult)).toContain('Channels: xai-grok');
+
+    const xaiDown: WebSearchProvider = {
+      search: async () => {
+        throw new Error('xai down');
+      },
+    };
+    const wrapFallback = new WebSearchTool(new PreferXaiGrokWebSearchProvider(xaiDown, fallback));
+    const fbResult = await executeTool(wrapFallback, {
+      turnId: 't1',
+      toolCallId: 'c-fallback-channels',
+      args: { query: 'test query' },
+      signal,
+    });
+    expect(toolContentString(fbResult)).toContain('Channels: zai');
+  });
+
+  it('omits the Channels footer when the provider has no routing log', async () => {
+    const tool = new WebSearchTool(
+      fakeProvider([{ title: 'Result 1', url: 'https://example.com/1', snippet: 'Snippet 1' }]),
+    );
+    const result = await executeTool(tool, {
+      turnId: 't1',
+      toolCallId: 'c-no-channels',
+      args: { query: 'test query' },
+      signal,
+    });
+    expect(toolContentString(result)).not.toContain('Channels:');
   });
 
   it('renders the snippet under a "Snippet:" label consistent with the schema term', async () => {
@@ -404,10 +471,13 @@ describe('LocalWebSearchProvider', () => {
       '</div>',
       '</body></html>',
     ].join('');
-    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response(html, {
-      status: 200,
-      headers: { 'content-type': 'text/html; charset=utf-8' },
-    }));
+    // Fresh Response per call: adapters fan out in parallel and a shared
+    // body can only be consumed once.
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async () =>
+      new Response(html, {
+        status: 200,
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      }));
     const provider = new LocalWebSearchProvider({
       fetchImpl,
       searchUrl: 'https://duckduckgo.com/html/',
@@ -416,14 +486,184 @@ describe('LocalWebSearchProvider', () => {
     const results = await provider.search('kimi code latest docs', { limit: 1 });
 
     expect(fetchImpl).toHaveBeenCalled();
-    const requestUrl = fetchImpl.mock.calls[0]?.[0] as URL;
-    expect(requestUrl.hostname).toContain('duckduckgo.com');
+    // Primary + direct-source adapters fan out in parallel, so the DDG call
+    // is not guaranteed to be the first one on the wire.
+    const ddgCall = fetchImpl.mock.calls.find(
+      (call) => (call[0] as URL).hostname.includes('duckduckgo.com'),
+    );
+    const requestUrl = ddgCall?.[0] as URL;
+    expect(requestUrl).toBeDefined();
     expect(requestUrl.searchParams.get('q')).toContain('kimi code latest docs');
     expect(results[0]).toMatchObject({
       title: 'Example Docs',
       url: 'https://example.com/docs',
     });
     expect(results[0]?.snippet).toContain('Official docs snippet');
+  });
+
+  it('retries a blocked DuckDuckGo request once with a rotated UA, then succeeds', async () => {
+    const html = [
+      '<html><body>',
+      '<div class="result">',
+      '<a class="result__a" href="https://example.com/docs">Example Docs</a>',
+      '<a class="result__snippet">Official docs snippet</a>',
+      '</div>',
+      '</body></html>',
+    ].join('');
+    let ddgCalls = 0;
+    const seenUAs: string[] = [];
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
+      const url = input as URL;
+      if (url.hostname.includes('duckduckgo.com')) {
+        ddgCalls += 1;
+        seenUAs.push((init?.headers as Record<string, string>)['User-Agent'] ?? '');
+        if (ddgCalls === 1) {
+          return new Response('forbidden', { status: 403 });
+        }
+      }
+      return new Response(html, {
+        status: 200,
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      });
+    });
+    const resilience = new NetResilienceRegistry({ sleep: async () => undefined });
+    const provider = new LocalWebSearchProvider({
+      fetchImpl,
+      resilience,
+      directSources: { github: false, arxiv: false, npm: false, pypi: false, crates: false },
+    });
+
+    const results = await provider.search('example docs', { limit: 3 });
+
+    expect(ddgCalls).toBe(2);
+    expect(seenUAs[0]).not.toBe('');
+    expect(seenUAs[1]).not.toBe(seenUAs[0]);
+    expect(results[0]).toMatchObject({ title: 'Example Docs', url: 'https://example.com/docs' });
+    expect(resilience.snapshot('duckduckgo.com').coolingDown).toBe(false);
+  });
+
+  it('cools down a repeatedly blocked host so later searches skip it fast', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = input as URL;
+      if (url.hostname.includes('duckduckgo.com')) {
+        return new Response('forbidden', { status: 403 });
+      }
+      return new Response('<html><body></body></html>', {
+        status: 200,
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      });
+    });
+    const resilience = new NetResilienceRegistry({ sleep: async () => undefined });
+    const provider = new LocalWebSearchProvider({
+      fetchImpl,
+      resilience,
+      directSources: { github: false, arxiv: false, npm: false, pypi: false, crates: false },
+    });
+
+    await provider.search('first query', { limit: 3 });
+    const callsBefore = fetchImpl.mock.calls.length;
+    await provider.search('second query', { limit: 3 });
+    const secondSearchCalls = fetchImpl.mock.calls.slice(callsBefore);
+
+    // Both DDG hosts are in cooldown: the second search must not touch them.
+    expect(
+      secondSearchCalls.filter((call) => (call[0] as URL).hostname.includes('duckduckgo.com')),
+    ).toEqual([]);
+  });
+
+  it('parses static Bing HTML results', async () => {
+    const bingHtml = [
+      '<html><body><ol id="b_results">',
+      '<li class="b_algo"><h2><a href="https://example.com/bing-doc">Bing Doc</a></h2>',
+      '<div class="b_caption"><p>Bing snippet text</p></div></li>',
+      '<li class="b_ad"><h2><a href="https://ads.example.com/buy">Ad</a></h2></li>',
+      '</ol></body></html>',
+    ].join('');
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = input as URL;
+      if (url.hostname.includes('bing.com')) {
+        return new Response(bingHtml, { status: 200, headers: { 'content-type': 'text/html' } });
+      }
+      return new Response('<html><body></body></html>', {
+        status: 200,
+        headers: { 'content-type': 'text/html' },
+      });
+    });
+    const provider = new LocalWebSearchProvider({
+      fetchImpl,
+      directSources: { github: false, arxiv: false, npm: false, pypi: false, crates: false },
+    });
+
+    const results = await provider.search('example bing doc', { limit: 5 });
+
+    const bingHit = results.find((result) => result.url === 'https://example.com/bing-doc');
+    expect(bingHit).toBeDefined();
+    expect(bingHit?.snippet).toContain('Bing snippet text');
+    expect(bingHit?.snippet).toContain('[bing]');
+    expect(results.some((result) => result.url.includes('ads.example.com'))).toBe(false);
+  });
+
+  it('merges Bing and DuckDuckGo results without duplicates', async () => {
+    const ddgHtml = [
+      '<html><body>',
+      '<div class="result">',
+      '<a class="result__a" href="https://example.com/shared">Shared Page</a>',
+      '<a class="result__snippet">shared snippet</a>',
+      '</div>',
+      '</body></html>',
+    ].join('');
+    const bingHtml = [
+      '<html><body><ol id="b_results">',
+      '<li class="b_algo"><h2><a href="https://example.com/shared">Shared Page</a></h2>',
+      '<div class="b_caption"><p>shared snippet</p></div></li>',
+      '<li class="b_algo"><h2><a href="https://example.com/bing-only">Bing Only</a></h2>',
+      '<div class="b_caption"><p>bing only snippet</p></div></li>',
+      '</ol></body></html>',
+    ].join('');
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = input as URL;
+      const body = url.hostname.includes('bing.com') ? bingHtml : ddgHtml;
+      return new Response(body, { status: 200, headers: { 'content-type': 'text/html' } });
+    });
+    const provider = new LocalWebSearchProvider({
+      fetchImpl,
+      directSources: { github: false, arxiv: false, npm: false, pypi: false, crates: false },
+    });
+
+    const results = await provider.search('shared page example', { limit: 10 });
+
+    const shared = results.filter((result) => result.url === 'https://example.com/shared');
+    expect(shared).toHaveLength(1);
+    expect(results.some((result) => result.url === 'https://example.com/bing-only')).toBe(true);
+  });
+
+  it('keeps DuckDuckGo results when Bing is blocked and cooling down', async () => {
+    const ddgHtml = [
+      '<html><body>',
+      '<div class="result">',
+      '<a class="result__a" href="https://example.com/docs">Example Docs</a>',
+      '<a class="result__snippet">docs snippet</a>',
+      '</div>',
+      '</body></html>',
+    ].join('');
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (input) => {
+      const url = input as URL;
+      if (url.hostname.includes('bing.com')) {
+        return new Response('forbidden', { status: 403 });
+      }
+      return new Response(ddgHtml, { status: 200, headers: { 'content-type': 'text/html' } });
+    });
+    const resilience = new NetResilienceRegistry({ sleep: async () => undefined });
+    const provider = new LocalWebSearchProvider({
+      fetchImpl,
+      resilience,
+      directSources: { github: false, arxiv: false, npm: false, pypi: false, crates: false },
+    });
+
+    const results = await provider.search('example docs', { limit: 5 });
+
+    expect(results.some((result) => result.url === 'https://example.com/docs')).toBe(true);
+    expect(resilience.snapshot('www.bing.com').coolingDown).toBe(true);
   });
 
   it('rejects oversized local search responses before parsing', async () => {
@@ -634,10 +874,12 @@ describe('LocalWebSearchProvider', () => {
       '</div>',
       '</body></html>',
     ].join('');
-    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response(html, {
-      status: 200,
-      headers: { 'content-type': 'text/html; charset=utf-8' },
-    }));
+    // Fresh body per call: the primary adapters fan out in parallel.
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async () =>
+      new Response(html, {
+        status: 200,
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      }));
     const provider = new LocalWebSearchProvider({
       fetchImpl,
       searchUrl: 'https://duckduckgo.com/html/',
@@ -647,13 +889,16 @@ describe('LocalWebSearchProvider', () => {
 
     try {
       await provider.search('cache telemetry query', { limit: 1 });
+      const callsAfterFirst = fetchImpl.mock.calls.length;
+      expect(callsAfterFirst).toBeGreaterThan(0);
       await provider.search('cache telemetry query', { limit: 1 });
       expect(getLocalResearchCacheTelemetry()).toEqual({
         hits: 1,
         misses: 1,
         hitRate: 0.5,
       });
-      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      // Second search came from the disk cache: no new network calls.
+      expect(fetchImpl).toHaveBeenCalledTimes(callsAfterFirst);
     } finally {
       await rm(cacheDir, { recursive: true, force: true });
     }

@@ -8,6 +8,7 @@ import type { BackgroundConfig } from '../../config';
 import { parseBooleanEnv, resolveConfigValue } from '../../config';
 import type { Logger } from '#/logging/types';
 import { Agent } from '../../agent';
+import { interruptRunningJobs } from '../../tools/builtin/job/job-worker';
 import { abortError } from '../../utils/abort';
 
 const BACKGROUND_KEEP_ALIVE_ON_EXIT_ENV = 'SUPERLIORA_BACKGROUND_KEEP_ALIVE_ON_EXIT';
@@ -49,6 +50,28 @@ export async function waitForSettlementOrTimeout(
 
 export class SessionCloseLifecycle {
   constructor(private readonly opts: SessionCloseLifecycleOptions) {}
+
+  /**
+   * Record in-flight Conductor Jobs as `interrupted` before turns are
+   * cancelled. Ordering is the point: the worker completion callback keeps an
+   * already-terminal `interrupted` state, so a job marked here survives the
+   * cancellation that follows instead of landing as `failed`, and `/job
+   * resume` has something to restore in the next session.
+   */
+  interruptJobsOnClose(): void {
+    for (const agent of this.opts.readyAgents()) {
+      if (agent.type !== 'main') continue;
+      try {
+        interruptRunningJobs({
+          store: agent.tools.getStore(),
+          reason: 'session closed',
+        });
+      } catch (error: unknown) {
+        this.opts.log.debug('job interrupt on session close failed', { error });
+      }
+      return;
+    }
+  }
 
   async cancelActiveTurnsOnClose(): Promise<void> {
     const backgroundAgentIds = this.activeBackgroundAgentIds();

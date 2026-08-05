@@ -3,7 +3,8 @@
  *
  * Acceptance:
  * - Alternating up/down storm on a large N×M transcript stays interactive
- * - Pure-scroll never cold-paints children (childPaintCalls === 0)
+ * - Pure-scroll child paint stays inside the per-frame scroll budget, so cold
+ *   layout can never stack across a fling (the multi-second freeze class)
  * - Overflow retain stays hard-capped after content walk + storm
  * - Post-storm content settle paints non-empty fidelity without hang
  */
@@ -15,9 +16,19 @@ import {
   RendererTranscriptViewportComponent,
   TRANSCRIPT_CONTENT_MATERIALIZE_BUDGET,
   TRANSCRIPT_OVERFLOW_MAX_RETAINED_CHILDREN,
+  TRANSCRIPT_SCROLL_MATERIALIZE_BUDGET,
   resetTranscriptMeasureModeForTest,
   withTranscriptCheapPaintMode,
 } from '../src';
+
+/**
+ * Paint calls one budgeted scroll materialize can cost: the geometry measure,
+ * the geometry-count fallback, and the band fill.
+ */
+const SCROLL_PAINT_CALLS_PER_CARD = 3;
+/** Per-frame ceiling on child paint during a pure-scroll storm. */
+const SCROLL_FRAME_PAINT_CEILING =
+  TRANSCRIPT_SCROLL_MATERIALIZE_BUDGET * SCROLL_PAINT_CALLS_PER_CARD;
 
 /**
  * Timing budgets vs multi-second hang class.
@@ -79,7 +90,7 @@ describe('structural pure-scroll storm (hard budget)', () => {
     resetTranscriptMeasureModeForTest();
   });
 
-  it('alternating up/down storm stays under hard per-frame budget with zero child paint', () => {
+  it('alternating up/down storm stays under hard per-frame budget with bounded child paint', () => {
     const width = 100;
     const { viewport, transcript, childRenderCalls } = buildLargeTranscript({
       messages: 300,
@@ -105,7 +116,9 @@ describe('structural pure-scroll storm (hard budget)', () => {
       for (let i = 0; i < WARMUP; i++) {
         viewport.scroll(i % 2 === 0 ? 'line-up' : 'line-down', 90);
         transcript.render(width);
-        expect(transcript.lastFrameChildPaintCalls).toBe(0);
+        expect(transcript.lastFrameChildPaintCalls).toBeLessThanOrEqual(
+          SCROLL_FRAME_PAINT_CEILING,
+        );
       }
 
       const t0 = performance.now();
@@ -118,7 +131,8 @@ describe('structural pure-scroll storm (hard budget)', () => {
         frameMs.push(f1 - f0);
         expect(painted.length).toBeGreaterThan(0);
         expect(painted.length).toBeLessThanOrEqual(30);
-        // Structural: pure-scroll never enters child paint.
+        // Structural: these jumps clear a screen per frame, so they stay on the
+        // fling path — no cold layout at all, however far the storm travels.
         expect(transcript.lastFrameChildPaintCalls).toBe(0);
         expect(transcript.lastPaintWasPureScroll).toBe(true);
       }
@@ -129,8 +143,9 @@ describe('structural pure-scroll storm (hard budget)', () => {
       const max = frameMs[frameMs.length - 1]!;
       const mean = frameMs.reduce((a, b) => a + b, 0) / frameMs.length;
 
-      // Structural contract (never flake): pure-scroll does not paint children.
-      expect(childRenderCalls.count).toBe(0);
+      // Structural contract (never flake): only the first paint has no prior
+      // position to compare against; every fling frame after it stays cold-free.
+      expect(childRenderCalls.count).toBeLessThanOrEqual(SCROLL_FRAME_PAINT_CEILING);
       expect(transcript.overflowRetainedFullLineChildCount).toBeLessThanOrEqual(
         TRANSCRIPT_OVERFLOW_MAX_RETAINED_CHILDREN,
       );
@@ -142,7 +157,7 @@ describe('structural pure-scroll storm (hard budget)', () => {
     });
   });
 
-  it('mid-storm content invalidation does not force child paint on pure-scroll frames', () => {
+  it('mid-storm content invalidation keeps pure-scroll child paint budgeted', () => {
     const width = 90;
     const { viewport, transcript, childRenderCalls } = buildLargeTranscript({
       messages: 120,
@@ -165,10 +180,12 @@ describe('structural pure-scroll storm (hard budget)', () => {
         }
         viewport.scroll(i % 2 === 0 ? 'line-down' : 'line-up', 70);
         transcript.render(width);
-        expect(transcript.lastFrameChildPaintCalls).toBe(0);
+        expect(transcript.lastFrameChildPaintCalls).toBeLessThanOrEqual(
+          SCROLL_FRAME_PAINT_CEILING,
+        );
       }
     });
-    expect(childRenderCalls.count).toBe(0);
+    expect(childRenderCalls.count).toBeLessThanOrEqual(SCROLL_FRAME_PAINT_CEILING);
   });
 
   it('post-storm settle paints non-empty fidelity and exits continue within budget', () => {
@@ -215,6 +232,42 @@ describe('structural pure-scroll storm (hard budget)', () => {
     expect(totalChildPaints).toBeGreaterThan(0);
   });
 
+  it('cheap band-fill of an identity-cached windowed card requests a fidelity upgrade', () => {
+    const width = 100;
+    const viewport = new RendererTranscriptViewport();
+    const transcript = new RendererTranscriptViewportComponent({
+      viewport,
+      getVisibleRows: () => 24,
+      leftPad: 1,
+      rightPad: 1,
+    });
+    const body = Array.from({ length: 400 }, (_, r) => `row-${r}-${'x'.repeat(48)}`).join('\n');
+    transcript.addChild(new Text(body, 0, 0));
+    transcript.contentRowCount(width);
+
+    // Warm identity + band cache at full fidelity (content frames).
+    viewport.jumpToLine(0);
+    for (let p = 0; p < 20; p++) {
+      transcript.render(width);
+      if (!transcript.needsMaterializeContinue) break;
+    }
+    expect(transcript.needsMaterializeContinue).toBe(false);
+
+    // Wheel step away from the bottom exposes new rows of the same
+    // (identity-cached) card; the cheap band fill must mark them for a
+    // settle-frame fidelity upgrade — unmarked slots stayed unstyled.
+    withTranscriptCheapPaintMode(() => {
+      viewport.scroll('line-up', 6);
+      transcript.render(width);
+    });
+    expect(transcript.needsMaterializeContinue).toBe(true);
+
+    for (let p = 0; p < 20 && transcript.needsMaterializeContinue; p++) {
+      transcript.render(width);
+    }
+    expect(transcript.needsMaterializeContinue).toBe(false);
+  });
+
   it('top→bottom fling then reverse storm stays interactive', () => {
     const width = 80;
     const { viewport, transcript, childRenderCalls } = buildLargeTranscript({
@@ -232,16 +285,20 @@ describe('structural pure-scroll storm (hard budget)', () => {
       for (let i = 0; i < 50; i++) {
         viewport.scroll('line-down', 120);
         transcript.render(width);
-        expect(transcript.lastFrameChildPaintCalls).toBe(0);
+        expect(transcript.lastFrameChildPaintCalls).toBeLessThanOrEqual(
+          SCROLL_FRAME_PAINT_CEILING,
+        );
       }
       for (let i = 0; i < 50; i++) {
         viewport.scroll('line-up', 120);
         transcript.render(width);
-        expect(transcript.lastFrameChildPaintCalls).toBe(0);
+        expect(transcript.lastFrameChildPaintCalls).toBeLessThanOrEqual(
+          SCROLL_FRAME_PAINT_CEILING,
+        );
       }
     });
     const ms = performance.now() - t0;
     expect(ms).toBeLessThan(400);
-    expect(childRenderCalls.count).toBe(0);
+    expect(childRenderCalls.count).toBeLessThanOrEqual(SCROLL_FRAME_PAINT_CEILING);
   });
 });

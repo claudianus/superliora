@@ -122,6 +122,7 @@ export async function createSessionWithOverrides(
   const baseMcpConfig = await resolveSessionMcpConfig({
     cwd: workDir,
     homeDir: context.homeDir,
+    config,
   });
   const withCallerMcp = mergeCallerMcpServers(baseMcpConfig, options.mcpServers);
   const parentKaos = overrides.kaos ?? (await context.getKaos());
@@ -317,6 +318,7 @@ export async function resumeSessionWithOverrides(
   const baseMcpConfig = await resolveSessionMcpConfig({
     cwd: summary.workDir,
     homeDir: context.homeDir,
+    config,
   });
   const withCallerMcp = mergeCallerMcpServers(baseMcpConfig, input.mcpServers);
   await context.pluginsReady;

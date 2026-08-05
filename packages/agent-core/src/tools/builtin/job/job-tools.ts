@@ -34,6 +34,7 @@ import {
   renderJobLedger,
   renderJobLine,
   type JobKind,
+  type JobRecord,
   type JobStatus,
 } from './job-ledger';
 import {
@@ -43,9 +44,8 @@ import {
   summarizeJobStrip,
 } from './job-runtime';
 import { dispatchMergeLand, type LandJobToMainInput } from './job-land';
-import { evaluateMergeTrust } from './job-merge-trust';
+import { evaluateMergeTrust, mergeTrustInputFromLedger } from './job-merge-trust';
 import { splitUserMessageIntoJobIntents } from './job-split';
-import { ensureWarmPool, warmPoolSpawner, type WarmPoolSpawner } from './job-warm-pool';
 import { cancelJobWorker, resumeJobs, steerJobWorker } from './job-worker';
 
 const JobKindSchema = z.enum([
@@ -192,7 +192,9 @@ const MergeJobInputSchema = z
     checks_green: z
       .boolean()
       .optional()
-      .describe('True only if project checks passed. Required for auto; never sufficient alone.'),
+      .describe(
+        'Only tightens: the ledger verification contract decides green. Pass false to withdraw a green the worker recorded.',
+      ),
     force_user_confirm: z
       .boolean()
       .optional()
@@ -200,7 +202,9 @@ const MergeJobInputSchema = z
     paths: z
       .array(z.string())
       .optional()
-      .describe('Paths in the merge; dangerous paths block meta auto.'),
+      .describe(
+        'Extra paths to weigh; unioned with the files the worker changed. Dangerous paths block meta auto.',
+      ),
   })
   .strict();
 
@@ -208,6 +212,50 @@ function ack(jobId: string, status: JobStatus, extra?: string): string {
   const line = `ACK ${jobId} state=${status}`;
   return extra ? `${line}\n${extra}` : line;
 }
+
+/**
+ * Diagnosis view for one job. A full `JSON.stringify` of the record spent most
+ * of its tokens on the brief and the raw contract, which is not what a blocked
+ * or failed job is inspected for — the cause, the verification verdict, and
+ * where the work lives are.
+ */
+export function renderJobInspect(job: JobRecord): string {
+  const v = job.resultContract?.verification;
+  const files = job.resultContract?.files_changed ?? [];
+  const lines: string[] = [
+    renderJobLine(job),
+    `created=${job.createdAt} updated=${job.updatedAt}`,
+  ];
+  const push = (label: string, value: string | undefined): void => {
+    if (value !== undefined && value.length > 0) lines.push(`${label}: ${value}`);
+  };
+  push('worktree', job.worktreePath);
+  push('worker', job.workerAgentId);
+  push('parent', job.parentJobId);
+  push('mission', job.missionRunId);
+  push('goal', job.goalObjective);
+  push('context_paths', job.contextPaths?.join(', '));
+  if (v !== undefined) {
+    lines.push(`verification: tests=${v.tests} typecheck=${v.typecheck} lint=${v.lint}`);
+  }
+  if (files.length > 0) {
+    const shown = files.slice(0, 10).join(', ');
+    const more = files.length > 10 ? ` (+${files.length - 10} more)` : '';
+    lines.push(`files_changed: ${shown}${more}`);
+  }
+  push('result', job.resultSummary);
+  push('notes', job.notes === undefined ? undefined : `\n${job.notes}`);
+  const brief = job.prompt?.trim();
+  if (brief !== undefined && brief.length > 0) {
+    lines.push(
+      `brief:\n${brief.length > JOB_INSPECT_BRIEF_MAX_CHARS ? `${brief.slice(0, JOB_INSPECT_BRIEF_MAX_CHARS)}\n[truncated]` : brief}`,
+    );
+  }
+  return lines.join('\n');
+}
+
+/** The brief is already in the worker's prompt; inspect only needs its shape. */
+const JOB_INSPECT_BRIEF_MAX_CHARS = 800;
 
 export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputSchema>> {
   readonly name = 'JobCreate' as const;
@@ -320,7 +368,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
         lines.push(
           'schedule: offloaded — background pump promotes queued jobs; transitions land on ledger/inbox.',
         );
-        lines.push(`pool: warm=${pool.warmPoolSize} maxConcurrent=${pool.maxConcurrentJobs}`);
+        lines.push(`pool: maxConcurrent=${pool.maxConcurrentJobs}`);
         if (backpressure) {
           lines.push('Backpressure active — new jobs remain queued until a slot frees.');
         }
@@ -382,7 +430,7 @@ export class JobInspectTool implements BuiltinTool<z.infer<typeof JobIdInputSche
       execute: async () => {
         const job = getJob(this.store, parsed.data.job_id);
         if (!job) return { isError: true, output: `Job not found: ${parsed.data.job_id}` };
-        return { isError: false, output: JSON.stringify(job, null, 2) };
+        return { isError: false, output: renderJobInspect(job) };
       },
     };
   }
@@ -524,16 +572,20 @@ export class MergeJobTool implements BuiltinTool<z.infer<typeof MergeJobInputSch
           };
         }
 
-        const paths = a.paths ?? existing.ownershipPaths ?? [];
-        const trust = evaluateMergeTrust({
-          approve: true,
-          diffLines: a.diff_lines,
-          hasConflict: a.has_conflict,
-          checksGreen: a.checks_green,
-          paths,
-          hasSummary: Boolean(a.summary?.trim() || existing.resultSummary?.trim()),
-          forceUserConfirm: a.force_user_confirm === true,
-        });
+        const trust = evaluateMergeTrust(
+          mergeTrustInputFromLedger({
+            job: existing,
+            claim: {
+              approve: true,
+              diffLines: a.diff_lines,
+              hasConflict: a.has_conflict,
+              checksGreen: a.checks_green,
+              paths: a.paths,
+              summary: a.summary,
+              forceUserConfirm: a.force_user_confirm === true,
+            },
+          }),
+        );
 
         if (!trust.ok) {
           const job = patchJob(this.store, a.job_id, {
@@ -587,7 +639,7 @@ export class MergeJobTool implements BuiltinTool<z.infer<typeof MergeJobInputSch
 export class JobScheduleTool implements BuiltinTool<Record<string, never>> {
   readonly name = 'JobSchedule' as const;
   readonly description =
-    'Run the Conductor scheduler: record warm pool readiness, promote queued Jobs to running under maxConcurrent, attaching worktrees when possible.';
+    'Run the Conductor scheduler: promote queued Jobs to running under maxConcurrent, attaching worktrees when possible.';
   readonly parameters: Record<string, unknown> = toInputJsonSchema(z.object({}).strict());
 
   constructor(
@@ -603,8 +655,6 @@ export class JobScheduleTool implements BuiltinTool<Record<string, never>> {
       approvalRule: this.name,
       execute: async () => {
         const pool = resolveConductorPoolConfig();
-        const spawner = warmPoolSpawner(this.agent);
-        const warm = ensureWarmPool(this.store, pool, spawner);
         const queued = countJobsWithStatus(this.store, ['queued']);
         const running = countJobsWithStatus(this.store, ['running']);
         // V2-1 ACK deadline (G1): worktree attach + worker spawn run on the
@@ -612,10 +662,7 @@ export class JobScheduleTool implements BuiltinTool<Record<string, never>> {
         requestJobSchedulePump({ store: this.store, agent: this.agent });
         return {
           isError: false,
-          output: [
-            warm.message,
-            `Schedule pump offloaded; queued ${queued}; running ${running}/${pool.maxConcurrentJobs}. Transitions land on ledger/inbox.`,
-          ].join('\n'),
+          output: `Schedule pump offloaded; queued ${queued}; running ${running}/${pool.maxConcurrentJobs}. Transitions land on ledger/inbox.`,
         };
       },
     };

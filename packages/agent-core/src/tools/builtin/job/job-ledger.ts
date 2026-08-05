@@ -112,11 +112,39 @@ export function patchJob(
   const next: JobRecord = {
     ...existing,
     ...patch,
+    ...(patch.notes === undefined ? {} : { notes: capJobNotes(patch.notes) }),
     id: existing.id,
     createdAt: existing.createdAt,
     updatedAt: new Date().toISOString(),
   };
   return upsertJob(store, next);
+}
+
+/** Newest notes kept when a job's append-only trail is trimmed. */
+export const JOB_NOTES_MAX_LINES = 12;
+export const JOB_NOTES_MAX_CHARS = 2_000;
+
+/**
+ * More than a dozen call sites append to `notes` with no reader ever pruning
+ * it, and JobInspect used to dump the whole record. Capping at the single
+ * ledger write point beats trimming at each caller: the oldest lines are the
+ * ones nobody diagnoses from, and the newest are what JobInspect is opened for.
+ */
+export function capJobNotes(notes: string): string {
+  let lines = notes.split('\n');
+  let dropped = 0;
+  if (lines.length > JOB_NOTES_MAX_LINES) {
+    dropped = lines.length - JOB_NOTES_MAX_LINES;
+    lines = lines.slice(-JOB_NOTES_MAX_LINES);
+  }
+  let text = lines.join('\n');
+  while (text.length > JOB_NOTES_MAX_CHARS && lines.length > 1) {
+    lines = lines.slice(1);
+    dropped += 1;
+    text = lines.join('\n');
+  }
+  if (text.length > JOB_NOTES_MAX_CHARS) text = text.slice(-JOB_NOTES_MAX_CHARS);
+  return dropped > 0 ? `[${dropped} earlier note(s) trimmed]\n${text}` : text;
 }
 
 export function renderJobLine(job: JobRecord): string {
