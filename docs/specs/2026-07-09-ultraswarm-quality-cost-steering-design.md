@@ -330,7 +330,7 @@ swarmLaneQuality?: string;    // testing/evidence
 swarmLaneProduct?: string;    // product requirements
 ```
 
-write-tui 스킬 규칙에 따라 `theme-schema.json` + `docs/en/customization/themes.md` + `docs/zh/customization/themes.md` + custom-theme 스킬 토큰 테이블 동기화.
+write-tui 스킬 규칙에 따라 `theme-schema.json` + `docs/en/customization/themes.md` + custom-theme 스킬 토큰 테이블 동기화.
 
 ### 기존 코드 정합
 - `AgentSwarmProgressComponent` 확장 — 새 컴포넌트 추가가 아닌 기존 컴포넌트의 `renderUltraSwarmLayout()` 강화.
@@ -405,7 +405,7 @@ TUI (병렬):
 TUI 작업:
 - `AgentSwarmProgressComponent.renderUltraSwarmLayout()` 풀 대시보드로 확장.
 - sticky/pinned 동작(swarm 중 transcript 상단 고정).
-- lane별 색상 토큰 추가 + 테마 동기화(`colors.ts`, `theme-schema.json`, `docs/*/themes.md`, custom-theme 스킬).
+- lane별 색상 토큰 추가 + 테마 동기화(`colors.ts`, `theme-schema.json`, `docs/en/customization/themes.md`, custom-theme 스킬).
 - 전문가별 색상 렌더링.
 - debate/cost/steer 상태를 하나의 대시보드로 통합.
 

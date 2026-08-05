@@ -1,89 +1,26 @@
 ---
 name: gen-docs
-description: Update SuperLiora CLI user documentation after meaningful code changes that affect product behavior or user experience.
+description: Update the English reference docs only when documentation is explicitly in scope.
 ---
 
 # Gen Docs
 
-## Overview
+`docs/` is an unpublished archive. The public site lives in `apps/site/`.
+`docs/en/` is the only maintained user-facing reference tree; `docs/specs/` and
+`docs/research/` are internal notes.
 
-This repository keeps bilingual reference documentation under `docs/`. `docs/en/` and `docs/zh/` are mirrored pairs for most pages; update both in the same change. **Changelog is the exception** — English is the source, and Chinese is translated from English.
-
-**`docs/` is not the deployed public site.** GitHub Pages serves the hand-built `apps/site/` directory instead (see `docs/AGENTS.md`); `docs/` has no live VitePress build. Treat this skill as reference-maintenance (keep pages factually accurate and bilingually mirrored), not as updating a marketed product surface — see `docs/AGENTS.md` for the current scope.
-
-Use this skill to update the corresponding reference pages whenever the codebase has changes that affect product behavior or user experience.
-
-## Prerequisites
-
-This skill depends on the following being in place. If any are missing, stop and report to the user before continuing:
-
-- `docs/` directory with mirrored `docs/zh/` and `docs/en/` trees.
-- `docs/AGENTS.md` — defines source-of-truth rules and terminology.
-- `docs/scripts/sync-changelog.mjs` — auto-syncs root `CHANGELOG.md` to `docs/en/release-notes/changelog.md`.
-- `translate-docs` skill in `.agents/skills/` — handles bilingual synchronization.
+Use this skill only when the user asks for documentation work or the change
+explicitly requires a reference update. Do not turn every product change into a
+docs task.
 
 ## Workflow
 
-1. **Inspect changes**
+1. Read the implementation and identify the exact user-visible behavior.
+2. Update only the affected page under `docs/en/`.
+3. Keep examples neutral (`example.com`, `example.test`, `YOUR_API_KEY`) and
+   preserve command names, flags, config keys, and file paths.
+4. Avoid broad rewrites. If no existing page is affected, leave `docs/` alone.
+5. Check links and scan the diff; there is no bilingual mirror or docs build.
 
-   - `git log main..HEAD --oneline` — commits on the current branch
-   - `git diff main..HEAD --stat` — file-level scope
-   - `ls .changeset/*.md` (excluding `README.md`) — pending changeset entries
-   - Read `CHANGELOG.md` and any subpackage `packages/*/CHANGELOG.md` for already-recorded entries.
-
-2. **Understand user-facing impact**
-
-   For each change, read the actual implementation when needed; **do not infer behavior from commit messages or PR titles alone**. Skip:
-
-   - Internal refactors with no externally visible behavior change
-   - Tests, CI, type-only changes
-   - Tooling / build-system changes that do not change how users invoke the CLI
-
-   If after the scan you conclude there is no user-facing impact, say so and stop.
-
-3. **Sync English changelog**
-
-   Run:
-
-   ```bash
-   node docs/scripts/sync-changelog.mjs
-   ```
-
-   This updates `docs/en/release-notes/changelog.md` from the root `CHANGELOG.md`. Never edit the docs changelog by hand.
-
-4. **Update user docs**
-
-   Following the rules in `docs/AGENTS.md`, edit the affected pages in whichever locale you are working in, then sync the mirror. Match terminology with the term table in `docs/AGENTS.md` and the existing wording in surrounding pages.
-
-   Cover all relevant sections:
-
-   - Guides (getting-started, use cases, interaction, sessions, IDE integration)
-   - Customization (skills, agents, MCP, hooks, plugins, etc.)
-   - Configuration (config files, env vars, providers, data locations)
-   - Reference (CLI subcommands, slash commands, keyboard shortcuts)
-   - Release notes (`docs/zh/release-notes/breaking-changes.md` if a breaking change is involved)
-
-5. **Sync bilingual content**
-
-   Invoke the `translate-docs` skill. It will:
-
-   - Sync updated non-changelog pages between `docs/en/` and `docs/zh/`
-   - Translate the English changelog → Chinese under `docs/zh/release-notes/changelog.md`
-
-## Rules and conventions
-
-- **Locale sync**: Non-changelog pages stay mirrored between `docs/en/` and `docs/zh/`. Changelog flows English → Chinese.
-- **Terminology**: Use the term table in `docs/AGENTS.md` exactly. Do not invent new translations or use synonyms.
-- **Scope discipline**: Only update sections affected by the recent changes. Do not opportunistically rewrite unrelated docs.
-- **Public examples**: Never write real internal endpoints, key names, account names, or service names into docs. Use neutral placeholders such as `https://api.example.com/v1`, `https://registry.example.com/v1/models/api.json`, `example.test`, and `YOUR_API_KEY`.
-- **Breaking changes**: If any change is breaking, also update `docs/en/release-notes/breaking-changes.md` (under `## Unreleased`) with `**Affected**` + `**Migration**` subsections, and mirror it in `docs/zh/release-notes/breaking-changes.md`.
-- **Do not edit auto-synced files**: `docs/en/release-notes/changelog.md` is regenerated by the sync script; any manual edit will be overwritten.
-
-## Common mistakes
-
-- Describing what code changed instead of what the user can now do (or can no longer do).
-- Adding a new section heading per feature instead of weaving the change into existing prose.
-- Updating only one locale and leaving its mirror stale.
-- Editing only the mirror to fix wording that should be corrected in the locale you changed first.
-- Inventing new terminology that drifts from the `docs/AGENTS.md` term table.
-- Using real internal values in examples instead of neutral `example` placeholders.
+Skip docs updates for tests, internal refactors, type-only changes, and tooling
+changes with no user-facing invocation change.

@@ -32,7 +32,7 @@ This is a pnpm monorepo. The most relevant entry points are:
 - `packages/node-sdk` — public TypeScript SDK (`@superliora/sdk`)
 - `packages/agent-core`, `kosong`, `kaos`, `oauth`, `telemetry` — internal engine packages
 - `apps/site/` — the public landing page (deployed to GitHub Pages)
-- `docs/` — unpublished bilingual (`en`/`zh`) reference pages; not the deployed site (see `docs/AGENTS.md`)
+- `docs/` — unpublished English reference and internal archive; not the deployed site (see `docs/AGENTS.md`)
 
 For the full project map, see [AGENTS.md](AGENTS.md).
 
@@ -87,7 +87,7 @@ This repo uses [changesets](https://github.com/changesets/changesets) to manage 
 
 Use the [PR template](.github/pull_request_template.md) when opening a feature pull request.
 
-PR titles must follow [Conventional Commits](#commit-convention); CI runs `pnpm lint`, `pnpm typecheck`, and `pnpm test` on every PR. If behavior changes, update the reference pages under `docs/` for accuracy (see `docs/AGENTS.md` — it is not the deployed site, but is still read directly on GitHub) — use the `gen-docs` skill when working with coding agents.
+PR titles must follow [Conventional Commits](#commit-convention); CI runs `pnpm lint`, `pnpm typecheck`, and `pnpm test` on every PR. Update `docs/en/` only when reference documentation is explicitly in scope; it is not a required sync surface for every behavior change. When requested, use the `gen-docs` skill (see `docs/AGENTS.md`).
 
 ## Code Style
 

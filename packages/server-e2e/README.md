@@ -65,7 +65,7 @@ timeline of case logs, HTTP request / response envelopes, WebSocket frames, and
 test results. JSON payloads are kept in collapsed detail blocks so the terminal
 can stay concise while the full wire trace remains available.
 
-`docker:e2e` builds `liora-server:dev` from the root `Dockerfile`, layers
+`docker:e2e` builds a Node/pnpm base image from the root `Dockerfile`, layers
 `packages/server-e2e/Dockerfile` on top, then runs a one-shot Docker container.
 The container starts the server on container-local `127.0.0.1:58627` and runs
 `pnpm test:scenarios` in the same container. The launcher intentionally does

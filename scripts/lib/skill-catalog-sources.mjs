@@ -77,7 +77,7 @@ function shouldSkipPath(skillPath, excludeParts) {
 async function copySkillTree(skillMdPath, destDir, catalogSource, catalogId) {
   const skillDir = dirname(skillMdPath);
   await mkdir(dirname(destDir), { recursive: true });
-  await cp(skillDir, destDir, { recursive: true, force: true });
+  await cp(skillDir, destDir, { recursive: true, force: true, dereference: true });
   const skillMd = join(destDir, 'SKILL.md');
   const text = await readFile(skillMd, 'utf8');
   await writeFile(skillMd, injectCatalogMetadata(text, catalogSource, catalogId), 'utf8');

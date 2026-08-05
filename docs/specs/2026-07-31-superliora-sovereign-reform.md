@@ -223,7 +223,7 @@ flowchart TB
 | `LioraExpand` | 리네임 | `Expand` / `ArchiveExpand` | `liora-expand.ts` |
 | `LioraReview` | 리네임 | `Review` | `tools/builtin/review/` |
 | layer1 문구의 `LioraRead` 권고 | 재작성 | Repo\* / Read | `profile/default/layer1-static.md` |
-| 문서 en/zh slash | 전면 교체 | Mission/Fleet | `docs/*/reference/slash-commands.md` |
+| English slash 문서 | 전면 교체 | Mission/Fleet | `docs/en/reference/slash-commands.md` |
 
 ### 3.2 호환 정책
 
@@ -729,7 +729,7 @@ Visual Quality `full`에서 공격적, `off`/SSH/CI는 정보만.
 ### W12 — Cleanup & Docs (지속)
 
 - 별칭 제거  
-- en/zh docs  
+- English reference docs
 - changeset 정책 (major는 별도 승인 — tool rename은 호환 기간 후 minor로 유도 가능하나 **breaking 시 사용자 승인**)
 
 ### W13 — Deep Research Channel Matrix (**최우선 병행**, 2–4주)

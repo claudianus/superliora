@@ -18,9 +18,7 @@ plugins/cdn/
 .superliora/local.toml
 .kimi-sandbox/
 
-Dockerfile
 docker-compose.yml
-.dockerignore
 
 docs/superpowers/
 reports/

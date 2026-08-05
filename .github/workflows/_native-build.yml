@@ -97,7 +97,7 @@ jobs:
         if: runner.os == 'macOS' && inputs.sign-macos
         uses: ./.github/actions/macos-notarize
         with:
-          binary-path: ${{ github.workspace }}/apps/liora/dist-native/bin/${{ matrix.target }}/kimi
+          binary-path: ${{ github.workspace }}/apps/liora/dist-native/bin/${{ matrix.target }}/liora
           notarization-key-p8: ${{ secrets.APPLE_NOTARIZATION_KEY_P8 }}
           notarization-key-id: ${{ secrets.APPLE_NOTARIZATION_KEY_ID }}
           notarization-issuer-id: ${{ secrets.APPLE_NOTARIZATION_ISSUER_ID }}

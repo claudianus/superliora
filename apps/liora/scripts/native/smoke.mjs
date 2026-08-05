@@ -76,7 +76,7 @@ const versionOutput = await runKimi(['--version']);
 assertIncludes(versionOutput, expectedVersion, '--version');
 
 const helpOutput = await runKimi(['--help']);
-assertIncludes(helpOutput, 'Usage: kimi', '--help');
+assertIncludes(helpOutput, 'Usage: liora', '--help');
 
 const exportHelpOutput = await runKimi(['export', '--help']);
 assertIncludes(exportHelpOutput, 'Usage: liora export', 'export --help');

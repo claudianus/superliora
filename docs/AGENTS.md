@@ -1,15 +1,21 @@
 # Documentation Agent Guide
 
-`docs/` is **not** the public site. GitHub Pages ships `apps/site/dist` (see `.github/workflows/docs-deploy.yml`). Nothing in `apps/site/` links here. `docs/.vitepress/` is gone; ignore any stale `docs/dist/`.
+`docs/` is an unpublished reference/archive, not the public site. GitHub Pages ships
+`apps/site/dist` through `.github/workflows/pages.yml`; nothing under `docs/` is
+deployed.
 
-`docs/en/` and `docs/zh/` are an unpublished bilingual reference (GitHub browse + a few in-repo links, e.g. write-tui theme tokens). Low-priority accuracy, not a marketed surface.
+`docs/en/` is the only maintained user-facing reference locale. `docs/specs/` and
+`docs/research/` are internal notes and historical design material. Keep this tree
+low priority: update it only when documentation work is explicitly in scope.
 
 ## Rules
 
 - Do not reintroduce VitePress config, package files, or build tooling.
-- Edits: keep facts correct and keep `docs/en/` ↔ `docs/zh/` mirrored (same headings/structure). Match the surrounding page tone; no formal style guide required.
+- Keep requested English reference edits factually correct and focused.
+- Do not mirror or translate pages under `docs/`.
 - No big rewrites or new product docs here — that belongs in `apps/site/`.
-- Skills that still touch this tree (`gen-docs`, `translate-docs`, `sync-changelog`) stay in “reference only, keep accurate” mode. Prose: `.agents/skills/no-ai-slop/SKILL.md` when needed.
+- `gen-docs` and `sync-changelog` are optional reference workflows, not automatic
+  requirements for product changes.
 
 ## Platform facts (if a page mentions them)
 
@@ -22,12 +28,8 @@
 
 Do not mix hosts: `api.kimi.com/coding/…` for SuperLiora CLI/IDE; `api.moonshot.cn/v1` for Open Platform.
 
-## Bilingual terms
-
-Keep pairs recognizable: Agent/agent, Shell/shell, Plan mode/Plan 模式, YOLO mode/YOLO 模式, Thinking mode/Thinking 模式, skill/Skill, session/会话, context/上下文, API key/API 密钥, tool call/工具调用. Leave `JSON`, `JSONL`, `OAuth`, `macOS`, `Node.js`, `npm`, `pnpm`, `TypeScript` unchanged in both locales.
-
-Chinese: full-width punctuation; space between CJK and adjacent English/numbers/code/links.
-
 ## Changelog
 
-English source: `docs/en/release-notes/changelog.md`. Chinese is translated from it — `sync-changelog` skill.
+`docs/en/release-notes/changelog.md` is an archival English reference page.
+`apps/liora/CHANGELOG.md` remains the release source of truth; do not add a
+routine docs sync to product changes.

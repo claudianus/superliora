@@ -89,10 +89,11 @@ function parseSettingsOptions(source) {
       /(?:export\s+)?const SETTINGS_OPTIONS_BASE[\s\S]*?\];/,
     ) ?? source.match(/export const SETTINGS_OPTIONS[\s\S]*?\];/);
   if (!block) return options;
-  const entryRe = /value:\s*'([^']+)',\s*\n\s*label:\s*'([^']+)'/g;
+  const entryRe = /\{\s*value:\s*'([^']+)',([\s\S]*?)\n\s*\}/g;
   let match;
   while ((match = entryRe.exec(block[0])) !== null) {
-    options.push({ value: match[1], label: match[2] });
+    const label = match[2].match(/label:\s*'([^']+)'/)?.[1];
+    if (label !== undefined) options.push({ value: match[1], label });
   }
   return options;
 }

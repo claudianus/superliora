@@ -10,7 +10,7 @@
 # server binds inside the container only, so this workflow can run alongside the
 # docker-compose.yml server that publishes host port 7878.
 
-ARG BASE_IMAGE=kimi-server:dev
+ARG BASE_IMAGE=liora-server-e2e-base:dev
 FROM ${BASE_IMAGE}
 
 ENV KIMI_CODE_HOME=/data/docker-e2e/kimi-code-home \
