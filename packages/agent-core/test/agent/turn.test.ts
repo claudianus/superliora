@@ -1646,7 +1646,7 @@ describe('Agent turn flow', () => {
       [emit] assistant.delta             { "turnId": 0, "delta": "I will run Bash." }
       [emit] tool.call.delta             { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "argumentsPart": "{\\"command\\":\\"printf should-not-run\\",\\"timeout\\":60}" }
       [wire] context.append_loop_event   { "event": { "type": "content.part", "uuid": "<uuid-2>", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "part": { "type": "text", "text": "I will run Bash." } }, "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "manual", "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null, "pendingInterventions": 1, "oldestInterventionAgeMs": 0 }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "manual", "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null, "pendingInterventions": 1, "oldestInterventionAgeMs": "<age-ms>" }
       [emit] requestApproval             { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "Running: printf should-not-run", "display": { "kind": "command", "command": "printf should-not-run", "cwd": "<cwd>", "language": "bash" } }
     `);
     expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
@@ -1711,7 +1711,7 @@ describe('Agent turn flow', () => {
       [emit] assistant.delta             { "turnId": 0, "delta": "I will ask first." }
       [emit] tool.call.delta             { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "argumentsPart": "{\\"command\\":\\"printf approved\\",\\"timeout\\":60}" }
       [wire] context.append_loop_event   { "event": { "type": "content.part", "uuid": "<uuid-2>", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "part": { "type": "text", "text": "I will ask first." } }, "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "manual", "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null, "pendingInterventions": 1, "oldestInterventionAgeMs": 0 }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "manual", "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null, "pendingInterventions": 1, "oldestInterventionAgeMs": "<age-ms>" }
       [emit] requestApproval             { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "Running: printf approved", "display": { "kind": "command", "command": "printf approved", "cwd": "<cwd>", "language": "bash" } }
     `);
     expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
@@ -1788,7 +1788,7 @@ describe('Agent turn flow', () => {
       [emit] assistant.delta             { "turnId": 0, "delta": "I will wait for approval." }
       [emit] tool.call.delta             { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "argumentsPart": "{\\"command\\":\\"printf should-not-run\\",\\"timeout\\":60}" }
       [wire] context.append_loop_event   { "event": { "type": "content.part", "uuid": "<uuid-2>", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "part": { "type": "text", "text": "I will wait for approval." } }, "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "manual", "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null, "pendingInterventions": 1, "oldestInterventionAgeMs": 0 }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "manual", "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null, "pendingInterventions": 1, "oldestInterventionAgeMs": "<age-ms>" }
       [emit] requestApproval             { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "Running: printf should-not-run", "display": { "kind": "command", "command": "printf should-not-run", "cwd": "<cwd>", "language": "bash" } }
     `);
     expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`

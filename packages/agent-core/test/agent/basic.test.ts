@@ -108,7 +108,7 @@ it('runs an agent turn through builtin tool approval and execution', async () =>
     [emit] assistant.delta             { "turnId": 0, "delta": "I will run that." }
     [emit] tool.call.delta             { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "argumentsPart": "{\\"command\\":\\"printf lookup-result\\",\\"timeout\\":60}" }
     [wire] context.append_loop_event   { "event": { "type": "content.part", "uuid": "<uuid-2>", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "part": { "type": "text", "text": "I will run that." } }, "time": "<time>" }
-    [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "manual", "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null, "pendingInterventions": 1, "oldestInterventionAgeMs": 0 }
+    [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "manual", "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null, "pendingInterventions": 1, "oldestInterventionAgeMs": "<age-ms>" }
     [emit] requestApproval             { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "Running: printf lookup-result", "display": { "kind": "command", "command": "printf lookup-result", "cwd": "<cwd>", "language": "bash" } }
   `);
   expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
