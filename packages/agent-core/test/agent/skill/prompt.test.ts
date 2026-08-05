@@ -17,7 +17,7 @@ describe('agent/skill/prompt.ts — renderUserSlashSkillPrompt', () => {
     const out = renderUserSlashSkillPrompt(baseInput);
     expect(out).toContain('User activated the skill "commit"');
     expect(out).toContain('skill_application_protocol');
-    expect(out).toContain('<kimi-skill-loaded name="commit" trigger="user-slash"');
+    expect(out).toContain('<liora-skill-loaded name="commit" trigger="user-slash"');
     expect(out).toContain('args="-m feat"');
     expect(out).toContain('skill body');
   });
@@ -49,10 +49,10 @@ describe('agent/skill/prompt.ts — renderModelToolSkillPrompt', () => {
 });
 
 describe('agent/skill/prompt.ts — renderSkillLoadedBlock', () => {
-  it('emits a `<kimi-skill-loaded>` envelope with name and trigger', () => {
+  it('emits a `<liora-skill-loaded>` envelope with name and trigger', () => {
     const out = renderSkillLoadedBlock({ ...baseInput, trigger: 'user-slash' });
     expect(out).toBe(
-      '<kimi-skill-loaded name="commit" trigger="user-slash" args="-m feat">\nskill body\n</kimi-skill-loaded>',
+      '<liora-skill-loaded name="commit" trigger="user-slash" args="-m feat">\nskill body\n</liora-skill-loaded>',
     );
   });
 

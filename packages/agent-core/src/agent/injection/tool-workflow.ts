@@ -99,6 +99,7 @@ export function buildToolWorkflowGuidance(cap: ToolWorkflowCapability): string {
     '- Explore before edit: locate the fail path / callers with dedicated search tools before writing code.',
     '- One increment per batch: do not stack unrelated edits; after a meaningful change, run a focused check when available.',
     '- On failure: fix the root cause from evidence. Never claim done without verification (or an explicit blocker with what you tried).',
+    '- Truth: claims need receipts (check + result). Never fabricate paths, URLs, command output, or test results. Verify library/API signatures against the installed version (workspace types/source, Context7, official docs) before writing calls.',
   ];
 
   if (cap.hasLeanRead) {
@@ -115,7 +116,7 @@ export function buildToolWorkflowGuidance(cap: ToolWorkflowCapability): string {
 
   if (cap.hasSearchSkill || cap.hasSkill) {
     lines.push(
-      '- Skills (progressive disclosure): SearchSkill with 3–12 concise English task keywords first; then Skill(exact name). Never invent skill names or call Skill with "search". Reuse already-loaded <kimi-skill-loaded> content. Apply selectively — AGENTS.md and repo facts win.',
+      '- Skills (progressive disclosure): SearchSkill with 3–12 concise English task keywords first; then Skill(exact name). Never invent skill names or call Skill with "search". Reuse already-loaded <liora-skill-loaded> content. Apply selectively — AGENTS.md and repo facts win.',
     );
   }
 

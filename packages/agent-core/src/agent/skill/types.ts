@@ -7,7 +7,6 @@ export interface SkillRegistry {
   listInvocableSkills(): readonly SkillDefinition[];
   getSkillRoots(): readonly string[];
   getModelSkillListing(): string;
-  getLegacyModelSkillListing?(): string;
   searchByQuery?(query: string, topK?: number): Promise<readonly SkillSearchHit[]>;
   ensureCatalogLoaded?(): Promise<void>;
 }

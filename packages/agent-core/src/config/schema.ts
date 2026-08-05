@@ -482,6 +482,7 @@ export const LioraConfigSchema = z.object({
   extraSkillDirs: z.array(z.string()).optional(),
   skillSearchLimit: z.number().int().min(1).max(20).optional(),
   skillSearchMaxLimit: z.number().int().min(1).max(20).optional(),
+  // 'legacy-list' is deprecated and renders as 'search'; kept so old configs parse.
   skillPromptMode: z.enum(['search', 'legacy-list']).optional(),
   loopControl: LoopControlSchema.optional(),
   background: BackgroundConfigSchema.optional(),
@@ -554,6 +555,7 @@ export const LioraConfigPatchSchema = z
     extraSkillDirs: z.array(z.string()).optional(),
     skillSearchLimit: z.number().int().min(1).max(20).optional(),
     skillSearchMaxLimit: z.number().int().min(1).max(20).optional(),
+    // 'legacy-list' is deprecated and renders as 'search'; kept so old configs parse.
     skillPromptMode: z.enum(['search', 'legacy-list']).optional(),
     loopControl: LoopControlPatchSchema.optional(),
     background: BackgroundConfigPatchSchema.optional(),

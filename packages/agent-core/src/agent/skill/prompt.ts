@@ -49,9 +49,9 @@ export function renderModelToolSkillPrompt(input: RenderModelToolSkillPromptInpu
 
 export function renderSkillLoadedBlock(input: RenderSkillLoadedBlockInput): string {
   return [
-    `<kimi-skill-loaded${renderSkillAttributes(input)}>`,
+    `<liora-skill-loaded${renderSkillAttributes(input)}>`,
     input.skillContent,
-    '</kimi-skill-loaded>',
+    '</liora-skill-loaded>',
   ].join('\n');
 }
 
