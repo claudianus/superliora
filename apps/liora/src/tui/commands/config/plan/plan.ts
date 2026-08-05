@@ -7,6 +7,7 @@ import {
   isActiveMissionRun,
   missionModeDisableBlockedMessage,
 } from '#/tui/utils/mission/mission-contract';
+import { resolvePlanActivation } from '#/tui/utils/plan-activation';
 
 export async function handlePlanCommand(host: SlashCommandHost, args: string): Promise<void> {
   const session = host.session;
@@ -55,22 +56,29 @@ async function applyPlanMode(host: SlashCommandHost, session: Session, enabled: 
       host.showNotice('Plan mode: OFF');
       return;
     }
-    // Conductor Plan Desk: enterPlan delegates to a mission Job and does not
-    // activate plan mode on the main agent — reflect that in AppState.
-    const status = await session.getStatus().catch(() => null);
-    const actuallyOn = status?.planMode === true;
+    // Conductor Plan Desk: enterPlan with task context delegates to a mission
+    // Job instead of activating plan mode here — reflect that in AppState.
+    const activation = await resolvePlanActivation(session);
     host.setAppState({
-      planMode: actuallyOn,
+      planMode: activation === 'inline',
       ultraworkMode: false,
-      activityTip: actuallyOn
-        ? null
-        : 'Plan Desk: planning Job accepted — watch Job strip / inbox',
+      activityTip:
+        activation === 'delegated'
+          ? 'Plan Desk: planning Job accepted — watch Job strip / inbox'
+          : null,
     });
-    if (actuallyOn) {
+    if (activation === 'inline') {
       const plan = await session.getPlan().catch(() => null);
       host.showNotice(
         ultra ? 'Plan mode: ON (structured pipeline)' : 'Plan mode: ON (free-form)',
         plan?.path !== undefined ? `Plan file: ${plan.path}` : undefined,
+      );
+      return;
+    }
+    if (activation === 'unknown') {
+      host.showNotice(
+        'Plan mode requested',
+        'Could not read session status — check the footer or /status for where planning landed.',
       );
       return;
     }

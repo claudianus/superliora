@@ -256,28 +256,30 @@ function formatSubToolActivityRow(
 function subToolOutputPreview(activity: SubToolActivity): Component[] {
   // Worker activity gets the same neat treatment as the main agent: a
   // structured card wins over the raw tail whenever the harness attached one.
-  if (getActiveNeatMode() && activity.display !== undefined) {
-    const card = renderNeatCard(activity.display, { seed: activity.id });
-    if (card !== undefined) return card;
-  }
+  const card =
+    getActiveNeatMode() && activity.display !== undefined
+      ? renderNeatCard(activity.display, { seed: activity.id })
+      : undefined;
+  // Mirror the main agent: only density `full` keeps the raw tail below the
+  // card, so structure and full text are never mutually exclusive.
+  if (card !== undefined && getActiveTranscriptDetail() !== 'full') return card;
   const output = activity.output;
-  if (output === undefined || output.trim().length === 0) return [];
-  // Mirror the main agent: Bash and any tool without a dedicated renderer
-  // (every MCP tool included) get a truncated output preview. Recognized
-  // tools keep their compact activity row only.
-  if (activity.name !== 'Bash' && !isGenericToolResult(activity.name)) return [];
-  return [
-    new TruncatedOutputComponent(output, {
-      // Subagent output is always fixed-truncated; it does not take part in
-      // the ctrl+o expand toggle, so don't advertise it either.
-      expanded: false,
-      expandHint: false,
-      isError: activity.phase === 'failed',
-      maxLines: RESULT_PREVIEW_LINES,
-      indent: SUBAGENT_SUBTOOL_OUTPUT_INDENT,
-      tail: activity.phase === 'ongoing',
-    }),
-  ];
+  if (output === undefined || output.trim().length === 0) return card ?? [];
+  // Bash and any tool without a dedicated renderer (every MCP tool included)
+  // get a truncated output preview. Recognized tools keep their compact
+  // activity row only.
+  if (activity.name !== 'Bash' && !isGenericToolResult(activity.name)) return card ?? [];
+  const body = new TruncatedOutputComponent(output, {
+    // Subagent output is always fixed-truncated; it does not take part in
+    // the ctrl+o expand toggle, so don't advertise it either.
+    expanded: false,
+    expandHint: false,
+    isError: activity.phase === 'failed',
+    maxLines: RESULT_PREVIEW_LINES,
+    indent: SUBAGENT_SUBTOOL_OUTPUT_INDENT,
+    tail: activity.phase === 'ongoing',
+  });
+  return card === undefined ? [body] : [...card, body];
 }
 
 /**

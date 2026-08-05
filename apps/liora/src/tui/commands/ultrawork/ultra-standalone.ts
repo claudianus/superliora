@@ -15,6 +15,7 @@
 
 import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
 import { formatErrorMessage } from '../../utils/event-payload';
+import { resolvePlanActivation } from '../../utils/plan-activation';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import type { SlashCommandHost } from '../hub/dispatch';
 import { showFleetStatus } from '../ops/fleet-status';
@@ -399,26 +400,27 @@ export async function handleUltraPlanCommand(host: SlashCommandHost, args: strin
     return;
   }
 
-  const status = await session.getStatus().catch(() => null);
-  const actuallyOn = status?.planMode === true;
+  const activation = await resolvePlanActivation(session);
+  const delegated = activation === 'delegated';
   host.setAppState({
-    planMode: actuallyOn,
-    activityTip: actuallyOn
-      ? 'Plan interview mode (standalone): research, interview, verifiable criteria'
-      : 'Plan Desk: planning Job accepted — watch Job strip / inbox',
+    planMode: activation === 'inline',
+    activityTip: delegated
+      ? 'Plan Desk: planning Job accepted — watch Job strip / inbox'
+      : 'Plan interview mode (standalone): research, interview, verifiable criteria',
   });
   host.track('ultraplan_start');
-  if (actuallyOn) {
-    host.showStatus('Plan interview mode active. Answer questions to build a verifiable plan.');
-  } else {
+  if (delegated) {
     host.showStatus(
       'Plan Desk: planning Job accepted. Conductor stays free — answer worker questions when they appear; check JobInbox.',
     );
+  } else {
+    host.showStatus('Plan interview mode active. Answer questions to build a verifiable plan.');
   }
 
-  // If user provided initial context and plan is inline, send it as input.
-  // Plan Desk already seeded the Job brief from the same context.
-  if (actuallyOn && prompt.length > 0) {
+  // Plan Desk already seeded the Job brief from this context, so only the inline
+  // lane needs it as input. On an unreadable status, send it: a dropped prompt
+  // loses the operator's request, a duplicate one only repeats it.
+  if (!delegated && prompt.length > 0) {
     host.sendNormalUserInput(prompt);
   }
 }
