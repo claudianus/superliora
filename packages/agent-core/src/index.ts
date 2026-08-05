@@ -143,6 +143,7 @@ export type {
   MoonshotServiceConfig,
   OAuthRef,
   PersonaConfig,
+  PersonaPresetSchemaId,
   ProviderConfig,
   ProviderType,
   ServicesConfig,
@@ -158,6 +159,25 @@ export {
   resolveLioraHome,
   writeConfigFile,
 } from './config';
+export type {
+  PersonaPresetDefinition,
+  PersonaPresetId,
+  PersonaPresetInputId,
+  PersonaPresetLegacyId,
+  PersonaSkillBundle,
+} from './persona';
+export {
+  PERSONA_PRESET_CATALOG,
+  PERSONA_PRESET_IDS,
+  PERSONA_PRESET_SCHEMA_VALUES,
+  PERSONA_PRESETS,
+  atomicPersonaConfigForPreset,
+  buildPersonaRoleAdditional,
+  getPersonaPreset,
+  isEmptyPersona,
+  isPersonaPresetId,
+  normalizePersonaPresetId,
+} from './persona';
 export type { MemorySourceRef } from './memory';
 export type {
   ExperimentalFeatureState,

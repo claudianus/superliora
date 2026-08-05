@@ -1,34 +1,25 @@
-import type { PersonaConfig } from '@superliora/sdk';
+import {
+  PERSONA_PRESET_CATALOG,
+  PERSONA_PRESET_IDS,
+  atomicPersonaConfigForPreset,
+  getPersonaPreset,
+  isEmptyPersona,
+  isPersonaPresetId,
+  normalizePersonaPresetId,
+  type PersonaConfig,
+  type PersonaPresetId,
+} from '@superliora/sdk';
 
+import { applyPersonaSkillBundle } from '../utils/persona/apply-skill-bundle';
 import { formatErrorMessage } from '../utils/event-payload';
 import type { SlashCommandHost } from './hub/dispatch';
 
-// ---------------------------------------------------------------------------
-// Presets
-// ---------------------------------------------------------------------------
+/** Selectable preset ids (excludes `none`). */
+export const PERSONA_PRESET_NAMES = PERSONA_PRESET_IDS;
 
-export const PERSONA_PRESET_NAMES = [
-  'friendly',
-  'professional',
-  'concise',
-  'creative',
-  'mentor',
-  'playful',
-] as const;
-type PresetName = (typeof PERSONA_PRESET_NAMES)[number];
-
-export const PERSONA_PRESET_DESCRIPTIONS: Record<PresetName, string> = {
-  friendly: 'Warm, approachable, encouraging — a helpful expert friend',
-  professional: 'Precise, thorough, dependable — formal and structured',
-  concise: 'Efficient and minimal — fewest words, maximum accuracy',
-  creative: 'Imaginative and curious — novel angles, vivid expression',
-  mentor: 'Patient and Socratic — guides understanding, explains the why',
-  playful: 'Witty and energetic — fun interactions, always correct',
-};
-
-// ---------------------------------------------------------------------------
-// Command handler
-// ---------------------------------------------------------------------------
+export const PERSONA_PRESET_DESCRIPTIONS: Record<string, string> = Object.fromEntries(
+  PERSONA_PRESET_CATALOG.map((preset) => [preset.id, preset.description]),
+);
 
 export async function handlePersonaCommand(host: SlashCommandHost, args: string): Promise<void> {
   const raw = args.trim();
@@ -111,9 +102,9 @@ export async function handlePersonaCommand(host: SlashCommandHost, args: string)
     }
 
     default: {
-      // Treat bare text as a preset name if it matches, otherwise as free-form instructions.
-      if (PERSONA_PRESET_NAMES.includes(subcmd?.toLowerCase() as PresetName)) {
-        await applyPreset(host, subcmd!.toLowerCase());
+      const normalized = normalizePersonaPresetId(subcmd?.toLowerCase() ?? '');
+      if (typeof normalized === 'string' && isPersonaPresetId(normalized) && normalized !== 'none') {
+        await applyPreset(host, normalized);
         return;
       }
       host.showError(
@@ -124,15 +115,11 @@ export async function handlePersonaCommand(host: SlashCommandHost, args: string)
   }
 }
 
-// ---------------------------------------------------------------------------
-// Actions
-// ---------------------------------------------------------------------------
-
 async function showPersonaStatus(host: SlashCommandHost): Promise<void> {
   const config = await host.harness.getConfig({ reload: false });
   const persona = config.persona;
 
-  if (persona === undefined || isEmptyPersona(persona)) {
+  if (isEmptyPersona(persona)) {
     host.showNotice(
       'Persona',
       'No persona configured. The agent uses its default personality.\n\nUse /persona set <preset> or /persona help to customize.',
@@ -141,18 +128,29 @@ async function showPersonaStatus(host: SlashCommandHost): Promise<void> {
   }
 
   const lines: string[] = [];
-  if (persona.name !== undefined && persona.name.trim().length > 0) lines.push(`Name: ${persona.name}`);
-  if (persona.preset !== undefined && persona.preset !== 'none') lines.push(`Preset: ${persona.preset}`);
-  if (persona.personality !== undefined && persona.personality.trim().length > 0) lines.push(`Personality: ${persona.personality}`);
-  if (persona.tone !== undefined && persona.tone.trim().length > 0) lines.push(`Tone: ${persona.tone}`);
-  if (persona.instructions !== undefined && persona.instructions.trim().length > 0) lines.push(`Instructions: ${persona.instructions}`);
+  if (persona?.name !== undefined && persona.name.trim().length > 0) {
+    lines.push(`Name: ${persona.name}`);
+  }
+  if (persona?.preset !== undefined && persona.preset !== 'none') {
+    const normalized = normalizePersonaPresetId(persona.preset);
+    lines.push(`Preset: ${normalized}`);
+  }
+  if (persona?.personality !== undefined && persona.personality.trim().length > 0) {
+    lines.push(`Personality: ${persona.personality}`);
+  }
+  if (persona?.tone !== undefined && persona.tone.trim().length > 0) {
+    lines.push(`Tone: ${persona.tone}`);
+  }
+  if (persona?.instructions !== undefined && persona.instructions.trim().length > 0) {
+    lines.push(`Instructions: ${persona.instructions}`);
+  }
 
   host.showNotice('Persona', lines.join('\n'));
 }
 
 function showPresetList(host: SlashCommandHost): void {
-  const lines = PERSONA_PRESET_NAMES.map(
-    (name) => `  ${name.padEnd(14)} ${PERSONA_PRESET_DESCRIPTIONS[name]}`,
+  const lines = PERSONA_PRESET_CATALOG.map(
+    (preset) => `  ${preset.id.padEnd(14)} ${preset.description}`,
   );
   host.showNotice(
     'Persona Presets',
@@ -166,62 +164,81 @@ function showPersonaHelp(host: SlashCommandHost): void {
     [
       '/persona                     Show current persona',
       '/persona list                List available presets',
-      '/persona set <preset>        Apply a preset (friendly, professional, …)',
+      '/persona set <preset>        Apply a preset (atomic — clears custom overrides)',
       '/persona name <name>         Set a display name for the persona',
-      '/persona tone <desc>         Set response tone (e.g. "warm and casual")',
-      '/persona personality <desc>  Set personality traits',
+      '/persona tone <desc>         Override response tone (Advanced)',
+      '/persona personality <desc>  Override personality traits (Advanced)',
       '/persona instructions <text> Add free-form behavioral instructions',
-      '/persona clear               Remove all persona customization',
+      '/persona clear               Remove [persona] from config.toml',
       '',
       'Persona settings persist in ~/.superliora/config.toml [persona].',
+      'Preset skill bundles adjust skills-state.json without wiping other toggles.',
       'Changes apply immediately to the active session.',
     ].join('\n'),
   );
 }
 
-async function applyPreset(host: SlashCommandHost, presetName: string): Promise<void> {
-  if (!PERSONA_PRESET_NAMES.includes(presetName as PresetName)) {
+export async function applyPreset(host: SlashCommandHost, presetName: string): Promise<void> {
+  const normalized = normalizePersonaPresetId(presetName.toLowerCase());
+  if (
+    typeof normalized !== 'string' ||
+    !isPersonaPresetId(normalized) ||
+    normalized === 'none'
+  ) {
     host.showError(
       `Unknown preset: "${presetName}". Available: ${PERSONA_PRESET_NAMES.join(', ')}.`,
     );
     return;
   }
 
-  await patchPersona(host, { preset: presetName as PresetName });
-  host.showStatus(
-    `Persona preset "${presetName}" applied. ${PERSONA_PRESET_DESCRIPTIONS[presetName as PresetName]}.`,
-    'success',
-  );
+  const preset = getPersonaPreset(normalized as Exclude<PersonaPresetId, 'none'>);
+  try {
+    await host.harness.setConfig({
+      persona: atomicPersonaConfigForPreset(normalized),
+    });
+    const skillResult = await applyPersonaSkillBundle(preset?.skillBundle);
+    const session = host.session;
+    if (session !== undefined) {
+      await session.reloadSession();
+      await host.reloadCurrentSessionView(session, 'Persona applied.');
+      await host.refreshDynamicSlashCommands?.(session);
+    }
+    const skillNote =
+      skillResult.enabled.length > 0
+        ? ` Skills enabled: ${skillResult.enabled.join(', ')}.`
+        : '';
+    host.showStatus(
+      `Persona preset "${normalized}" applied. ${preset?.description ?? ''}${skillNote}`,
+      'success',
+    );
+  } catch (error) {
+    host.showError(`Failed to apply persona: ${formatErrorMessage(error)}`);
+  }
 }
 
 async function clearPersona(host: SlashCommandHost): Promise<void> {
   try {
-    // Set all fields to empty/none to clear them.
-    await host.harness.setConfig({
-      persona: {
-        name: '',
-        preset: 'none',
-        personality: '',
-        tone: '',
-        instructions: '',
-      },
-    });
-    // Reload the active session so the change takes effect immediately.
+    await host.harness.deleteConfigFields(['persona']);
     const session = host.session;
     if (session !== undefined) {
       await session.reloadSession();
       await host.reloadCurrentSessionView(session, 'Persona cleared.');
     }
-    host.showStatus('Persona cleared. The agent uses its default personality.', 'success');
+    host.showStatus(
+      'Persona cleared. Skill toggles were left unchanged — manage them under Settings → Skills.',
+      'success',
+    );
   } catch (error) {
     host.showError(`Failed to clear persona: ${formatErrorMessage(error)}`);
   }
 }
 
-async function patchPersona(host: SlashCommandHost, patch: Partial<PersonaConfig>): Promise<void> {
+export async function patchPersona(
+  host: SlashCommandHost,
+  patch: Partial<PersonaConfig>,
+): Promise<void> {
   try {
     await host.harness.setConfig({ persona: patch });
-    // Reload the active session so the new persona takes effect immediately.
     const session = host.session;
     if (session !== undefined) {
       await session.reloadSession();
@@ -230,18 +247,4 @@ async function patchPersona(host: SlashCommandHost, patch: Partial<PersonaConfig
   } catch (error) {
     host.showError(`Failed to update persona: ${formatErrorMessage(error)}`);
   }
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function isEmptyPersona(persona: PersonaConfig): boolean {
-  return (
-    (persona.name === undefined || persona.name.trim().length === 0) &&
-    (persona.preset === undefined || persona.preset === 'none') &&
-    (persona.personality === undefined || persona.personality.trim().length === 0) &&
-    (persona.tone === undefined || persona.tone.trim().length === 0) &&
-    (persona.instructions === undefined || persona.instructions.trim().length === 0)
-  );
 }

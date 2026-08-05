@@ -16,7 +16,8 @@ export interface RemoveKimiProviderPayload {
 }
 
 export type DeleteConfigFieldPath =
-  `loopControl.${'compaction' | 'completion' | 'exploration' | 'coding' | 'planning' | 'debugging'}Model`;
+  | `loopControl.${'compaction' | 'completion' | 'exploration' | 'coding' | 'planning' | 'debugging'}Model`
+  | 'persona';
 
 export interface DeleteConfigFieldsPayload {
   readonly paths: readonly DeleteConfigFieldPath[];

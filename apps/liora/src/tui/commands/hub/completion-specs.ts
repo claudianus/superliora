@@ -213,7 +213,7 @@ const ADD_DIR_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
 const PERSONA_SET_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = PERSONA_PRESET_NAMES.map(
   (name) => ({
     value: name,
-    description: PERSONA_PRESET_DESCRIPTIONS[name],
+    description: PERSONA_PRESET_DESCRIPTIONS[name] ?? name,
   }),
 );
 

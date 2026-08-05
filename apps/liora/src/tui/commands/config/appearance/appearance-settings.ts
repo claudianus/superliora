@@ -22,8 +22,15 @@ import { ChoicePickerComponent, type ChoiceOption } from '../../../components/di
 import { UsagePanelComponent } from '../../../components/messages/usage-panel/index';
 import { requestTUILayoutRender } from '../../../utils/render/frame-render';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
+import { saveTuiConfig, type AppearancePreferences } from '#/tui/config';
+import {
+  APPEARANCE_PRESETS,
+  matchAppearancePresetId,
+} from '#/tui/utils/settings/appearance-presets';
+import { SETTINGS_PRESETS_ROW, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
+import { formatErrorMessage } from '#/tui/utils/event-payload';
 import { handleAppearanceCommand } from './appearance';
-import { currentAppearance } from './tui-persist';
+import { currentAppearance, tuiConfigFromHost } from './tui-persist';
 import { showThemeSettings } from './theme-settings';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
@@ -51,6 +58,7 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
+        SETTINGS_PRESETS_ROW,
         {
           value: 'status',
           label: 'Appearance status',
@@ -122,6 +130,9 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
       onSelect: (value) => {
         dismissPickerDialog(host);
         switch (value) {
+          case 'presets':
+            showAppearancePresets(host);
+            return;
           case 'status':
             showAppearanceSettingsPanel(host);
             return;
@@ -369,4 +380,26 @@ function showAppearanceSettingsPanel(host: SlashCommandHost): void {
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);
+}
+
+function showAppearancePresets(host: SlashCommandHost): void {
+  const current = currentAppearance(host);
+  showSettingPresetsPicker(host, {
+    title: 'Appearance presets',
+    catalog: APPEARANCE_PRESETS,
+    currentId: matchAppearancePresetId(current),
+    onApply: async (preset) => {
+      const next: AppearancePreferences = { ...current, ...preset.patch };
+      try {
+        await saveTuiConfig(tuiConfigFromHost(host, { appearance: next }));
+      } catch (error) {
+        host.showStatus(`Failed to save appearance: ${formatErrorMessage(error)}`, 'error');
+        return;
+      }
+      host.setAppState({ appearance: next });
+      host.setTranscriptDetail(next.transcriptDetail);
+      host.setNeatMode(next.neat);
+      host.showStatus(`Appearance preset "${preset.label}" applied.`, 'success');
+    },
+  });
 }

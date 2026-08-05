@@ -33,6 +33,9 @@ import {
   type SearchRoutingStrategySetting,
 } from './search-status';
 
+import { SEARCH_PRESETS } from '#/tui/utils/settings/search-presets';
+import { SETTINGS_PRESETS_ROW, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
+
 export function showSearchSettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
@@ -41,6 +44,7 @@ export function showSearchSettings(host: SlashCommandHost): void {
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
+        SETTINGS_PRESETS_ROW,
         {
           value: 'status',
           label: 'Channel status',
@@ -105,6 +109,36 @@ export function showSearchSettings(host: SlashCommandHost): void {
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
+        if (value === 'presets') {
+          showSettingPresetsPicker(host, {
+            title: 'Search presets',
+            catalog: SEARCH_PRESETS,
+            onApply: async (preset) => {
+              try {
+                const strategy = preset.patch.strategy as SearchRoutingStrategySetting | undefined;
+                if (strategy !== undefined) {
+                  await host.harness.setConfig(buildSearchStrategyConfigPatch(strategy));
+                }
+                if (preset.patch.freeFallback !== undefined) {
+                  await host.harness.setConfig(
+                    buildSearchFreeFallbackConfigPatch(preset.patch.freeFallback),
+                  );
+                }
+                if (preset.patch.browserEscalate !== undefined) {
+                  await host.harness.setConfig(
+                    buildSearchBrowserEscalateConfigPatch(preset.patch.browserEscalate),
+                  );
+                }
+                host.showStatus(`Search preset "${preset.label}" applied.`, 'success');
+              } catch (error) {
+                host.showError(
+                  `Failed to apply search preset: ${error instanceof Error ? error.message : String(error)}`,
+                );
+              }
+            },
+          });
+          return;
+        }
         if (value === 'status' || value === 'tips') {
           void showSearchStatusPanel(host);
           return;

@@ -1,6 +1,6 @@
 /**
  * Command Hub One-search entries that jump straight into a Settings pane.
- * Everyday panes stay visible; the rest appear when you type.
+ * Everyday panes stay visible (grouped by Settings section); the rest appear when you type.
  */
 
 import type { CommandHubItem } from '../../components/dialogs/command-hub/command-hub-types';
@@ -25,7 +25,6 @@ export function buildSettingsJumpHubItems(): CommandHubItem[] {
   const panes = SETTINGS_OPTIONS.map((option) =>
     settingsJumpHubItem(option.value as SettingsSelection, option),
   );
-  // Pinned first (stable practical order), then search-only power panes.
   const pinned = panes.filter((item) => !item.searchOnly);
   const rest = panes.filter((item) => item.searchOnly === true);
   return [browse, ...pinned, ...rest];
@@ -40,15 +39,17 @@ function settingsJumpHubItem(
   },
 ): CommandHubItem {
   const pinned = PINNED.has(selection);
+  const group = option.section ?? 'More';
   return {
     id: `settings.${selection}`,
-    section: pinned ? 'Settings' : 'Settings · more',
+    section: `Settings · ${group}`,
     label: option.label,
     description: option.description ?? '',
     searchOnly: !pinned,
     keywords: [
       ...(SETTINGS_SEARCH_KEYWORDS[selection] ?? []),
-      ...(option.section !== undefined ? [option.section] : []),
+      group,
+      'settings',
     ],
   };
 }

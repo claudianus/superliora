@@ -79,6 +79,7 @@ describe('showCompactionSettings', () => {
     const options = (picker as unknown as { opts: { options: readonly { value: string }[] } }).opts
       .options;
     expect(options.map((o) => o.value)).toEqual([
+      'presets',
       'status',
       'run-compact',
       'working-set',

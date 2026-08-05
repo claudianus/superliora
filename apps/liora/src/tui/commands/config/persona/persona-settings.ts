@@ -1,10 +1,15 @@
 /**
- * Settings → Persona — live preset picker + glance (SSOT §9.2).
+ * Settings → Persona — preset picker, Advanced editors, glance.
  */
 
-import { resolveConfigPath } from '@superliora/sdk';
+import {
+  PERSONA_PRESET_CATALOG,
+  normalizePersonaPresetId,
+  resolveConfigPath,
+} from '@superliora/sdk';
 
 import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
+import { PlainTextInputDialogComponent } from '../../../components/dialogs/shared/plain-text-input-dialog';
 import { UsagePanelComponent } from '../../../components/messages/usage-panel/index';
 import { requestTUILayoutRender } from '../../../utils/render/frame-render';
 import {
@@ -17,9 +22,9 @@ import {
 import { getDataDir } from '#/utils/paths';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 import {
+  applyPreset,
   handlePersonaCommand,
-  PERSONA_PRESET_DESCRIPTIONS,
-  PERSONA_PRESET_NAMES,
+  patchPersona,
 } from '../../persona';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
@@ -47,25 +52,45 @@ export function showPersonaSettings(host: SlashCommandHost): void {
     host,
     new ChoicePickerComponent({
       title: 'Persona',
-      hint: '↑↓ · Enter · Esc',
+      hint: '↑↓←→ · Enter · Esc',
       searchable: true,
+      layout: 'grid',
       options: [
         {
           value: 'status',
           label: 'Persona status',
-          description: 'Active name · preset · tone · personality · config path.',
+          description: 'Active name · preset · tone · config path.',
         },
         {
           value: 'preset',
-          label: 'Choose preset…',
-          description: 'friendly · professional · concise · creative · mentor · playful.',
+          label: 'Presets…',
+          description: PERSONA_PRESET_TIP,
+        },
+        {
+          value: 'name',
+          label: 'Display name…',
+          description: 'Label in the persona prompt header.',
+        },
+        {
+          value: 'tone',
+          label: 'Tone override…',
+          description: PERSONA_CUSTOMIZE_TIP,
+        },
+        {
+          value: 'personality',
+          label: 'Personality override…',
+          description: 'Replaces preset personality line when set.',
+        },
+        {
+          value: 'instructions',
+          label: 'Custom instructions…',
+          description: 'Extra behavioral rules appended to the persona block.',
         },
         {
           value: 'clear',
           label: 'Clear persona',
-          description: 'Remove all persona customization (default personality).',
+          description: 'Delete [persona] from config (skills unchanged).',
         },
-
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
@@ -77,11 +102,14 @@ export function showPersonaSettings(host: SlashCommandHost): void {
           void showPersonaPresetPicker(host);
           return;
         }
+        if (value === 'name' || value === 'tone' || value === 'personality' || value === 'instructions') {
+          void showPersonaFieldEditor(host, value);
+          return;
+        }
         if (value === 'clear') {
           void handlePersonaCommand(host, 'clear');
           return;
         }
-
       },
       onCancel: () => {
         dismissPickerDialog(host);
@@ -96,7 +124,9 @@ async function showPersonaPresetPicker(host: SlashCommandHost): Promise<void> {
   try {
     const config = await host.harness.getConfig({ reload: false });
     const preset = config.persona?.preset;
-    if (typeof preset === 'string' && preset !== 'none') current = preset;
+    if (typeof preset === 'string' && preset !== 'none') {
+      current = String(normalizePersonaPresetId(preset));
+    }
   } catch {
     /* picker still works without live config */
   }
@@ -104,24 +134,67 @@ async function showPersonaPresetPicker(host: SlashCommandHost): Promise<void> {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Persona preset',
-      hint: '↑↓ · Enter · Esc',
+      title: 'Persona presets',
+      hint: '↑↓←→ · Enter · Esc',
       searchable: true,
+      layout: 'grid',
       currentValue: current,
-      options: PERSONA_PRESET_NAMES.map((name) => ({
-        value: name,
-        label: name,
-        description: PERSONA_PRESET_DESCRIPTIONS[name],
-      })),
+      options: PERSONA_PRESET_CATALOG.map((preset) => {
+        const skills = preset.skillBundle?.enableSkills?.join(', ');
+        const skillBadge = skills !== undefined && skills.length > 0 ? ` · skills: ${skills}` : '';
+        return {
+          value: preset.id,
+          label: preset.label,
+          description: `${preset.description}${skillBadge}`,
+        };
+      }),
       onSelect: (value) => {
         dismissPickerDialog(host);
-        void handlePersonaCommand(host, `set ${value}`);
+        void applyPreset(host, value);
       },
       onCancel: () => {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Persona preset' },
+    { label: 'Persona presets' },
+  );
+}
+
+async function showPersonaFieldEditor(
+  host: SlashCommandHost,
+  field: 'name' | 'tone' | 'personality' | 'instructions',
+): Promise<void> {
+  let initial = '';
+  try {
+    const config = await host.harness.getConfig({ reload: false });
+    const persona = config.persona;
+    initial = (persona?.[field] ?? '').toString();
+  } catch {
+    /* empty initial */
+  }
+
+  const titles: Record<typeof field, string> = {
+    name: 'Persona display name',
+    tone: 'Tone override',
+    personality: 'Personality override',
+    instructions: 'Custom instructions',
+  };
+
+  mountPickerDialog(
+    host,
+    new PlainTextInputDialogComponent({
+      title: titles[field],
+      prefill: initial,
+      allowEmpty: true,
+      onDone: (result) => {
+        dismissPickerDialog(host);
+        if (result.kind !== 'ok') return;
+        void patchPersona(host, { [field]: result.value }).then(() => {
+          host.showStatus(`Persona ${field} updated.`, 'success');
+        });
+      },
+    }),
+    { label: titles[field] },
   );
 }
 

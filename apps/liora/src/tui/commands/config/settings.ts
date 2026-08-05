@@ -19,6 +19,9 @@ import { showMediaSettings } from './media/media-settings';
 import { showExperimentsPanel } from './experiments/experiments';
 import { showExperimentsSettings } from './experiments/experiments-settings';
 import { showToolsInventory } from './harness/harness-tools';
+import { handleProfileCommand } from './harness/agent-profile';
+import { AGENT_PROFILE_PRESETS } from '#/tui/utils/settings/profile-presets';
+import { SETTINGS_PRESETS_ROW, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
 import { showEyesSettings } from './eyes/eyes-settings';
 import { showExtensionsSettings } from './extensions/extensions-settings';
 import { showMcpSettings } from './mcp/mcp-settings';
@@ -117,6 +120,7 @@ export function showHarnessPanel(host: SlashCommandHost): void {
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
+        SETTINGS_PRESETS_ROW,
         {
           value: 'tools',
           label: 'Tools inventory',
@@ -152,6 +156,15 @@ export function showHarnessPanel(host: SlashCommandHost): void {
       onSelect: (value) => {
         dismissPickerDialog(host);
         switch (value) {
+          case 'presets':
+            showSettingPresetsPicker(host, {
+              title: 'Agent profile presets',
+              catalog: AGENT_PROFILE_PRESETS,
+              onApply: async (preset) => {
+                await handleProfileCommand(host, preset.patch.profile);
+              },
+            });
+            return;
           case 'tools':
             void showToolsInventory(host);
             return;

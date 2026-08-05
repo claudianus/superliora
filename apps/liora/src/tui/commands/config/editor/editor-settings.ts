@@ -13,7 +13,12 @@ import {
 } from '#/tui/utils/editor/editor-glance';
 import { requestTUILayoutRender } from '../../../utils/render/frame-render';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
+import { saveTuiConfig } from '#/tui/config';
+import { EDITOR_PRESETS } from '#/tui/utils/settings/editor-presets';
+import { SETTINGS_PRESETS_ROW, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
+import { formatErrorMessage } from '#/tui/utils/event-payload';
 import { showEditorPicker } from '../appearance/editor-theme';
+import { tuiConfigFromHost } from '../appearance/tui-persist';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 
@@ -32,6 +37,7 @@ export function showEditorSettings(host: SlashCommandHost): void {
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
+        SETTINGS_PRESETS_ROW,
         {
           value: 'status',
           label: 'Editor status',
@@ -46,6 +52,27 @@ export function showEditorSettings(host: SlashCommandHost): void {
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
+        if (value === 'presets') {
+          showSettingPresetsPicker(host, {
+            title: 'Editor / notifications presets',
+            catalog: EDITOR_PRESETS,
+            onApply: async (preset) => {
+              try {
+                await saveTuiConfig(tuiConfigFromHost(host, { ...preset.patch }));
+                if (preset.patch.notifications !== undefined) {
+                  host.setAppState({ notifications: preset.patch.notifications });
+                }
+                if (preset.patch.disablePasteBurst !== undefined) {
+                  host.setAppState({ disablePasteBurst: preset.patch.disablePasteBurst });
+                }
+                host.showStatus(`Editor preset "${preset.label}" applied.`, 'success');
+              } catch (error) {
+                host.showError(`Failed to save editor preset: ${formatErrorMessage(error)}`);
+              }
+            },
+          });
+          return;
+        }
         if (value === 'status') {
           showEditorSettingsPanel(host);
           return;

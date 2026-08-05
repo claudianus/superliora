@@ -188,15 +188,20 @@ describe('built-in slash command registry', () => {
       'instructions',
       'clear',
       'help',
-      'friendly',
+      'efficient',
       'professional',
-      'concise',
-      'creative',
+      'friendly',
+      'candid',
       'mentor',
+      'reviewer',
+      'pair',
+      'creative',
+      'nerdy',
       'playful',
+      'skeptical',
     ]);
     expect(values('l')).toEqual(['list']);
-    expect(values('p')).toEqual(['personality', 'professional', 'playful']);
+    expect(values('p')).toEqual(['personality', 'professional', 'pair', 'playful']);
     expect(values('i')).toEqual(['instructions']);
     expect(values('fr')).toEqual(['friendly']);
     expect(personaArgumentCompletions('to')).toEqual([
@@ -207,14 +212,19 @@ describe('built-in slash command registry', () => {
     expect(values('friendly')).toBeNull();
     expect(values('unknown')).toBeNull();
     expect(values('set ')).toEqual([
-      'set friendly',
+      'set efficient',
       'set professional',
-      'set concise',
-      'set creative',
+      'set friendly',
+      'set candid',
       'set mentor',
+      'set reviewer',
+      'set pair',
+      'set creative',
+      'set nerdy',
       'set playful',
+      'set skeptical',
     ]);
-    expect(values('set p')).toEqual(['set professional', 'set playful']);
+    expect(values('set p')).toEqual(['set professional', 'set pair', 'set playful']);
     expect(values('set professional')).toBeNull();
     expect(values('preset m')).toEqual(['preset mentor']);
     // Free-form second tokens for name/tone/instructions stay unclobbered.

@@ -27,6 +27,7 @@ import {
 } from '@superliora/sdk';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { SETTINGS_PRESETS_ROW } from '#/tui/utils/settings/show-setting-presets';
 
 /** Import-path guidance — shim folder removed; package aliases still redirect. */
 export const FLEET_IMPORT_PATH_TIPS = [
@@ -52,6 +53,7 @@ export function showFleetSettings(host: SlashCommandHost): void {
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
+        SETTINGS_PRESETS_ROW,
         {
           value: 'status',
           label: 'Fleet status',
@@ -66,12 +68,12 @@ export function showFleetSettings(host: SlashCommandHost): void {
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
-        if (value === 'status') {
-          void showFleetSettingsPanel(host);
+        if (value === 'presets' || value === 'max-workers') {
+          showFleetMaxWorkersPicker(host);
           return;
         }
-        if (value === 'max-workers') {
-          showFleetMaxWorkersPicker(host);
+        if (value === 'status') {
+          void showFleetSettingsPanel(host);
           return;
         }
 

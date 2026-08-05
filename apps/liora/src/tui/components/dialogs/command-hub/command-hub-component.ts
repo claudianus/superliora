@@ -1,5 +1,5 @@
 /**
- * Command Hub component — center modal with status strip, search, and action list.
+ * Command Hub component — wide center modal with status strip, search, and 2-pane idle nav.
  */
 
 import {
@@ -45,12 +45,20 @@ import {
   hubEaseOutCubic,
 } from './command-hub-animation';
 import { filterHubItems } from './command-hub-filter';
+import {
+  HUB_CATEGORY_COL_WIDTH,
+  hubCategories,
+  hubItemsInCategory,
+  hubPreferTwoPane,
+} from './command-hub-panes';
 import type {
   CommandHubActionId,
   CommandHubItem,
   CommandHubOptions,
   CommandHubSelectMode,
 } from './command-hub-types';
+
+type HubFocusPane = 'categories' | 'items';
 
 export class CommandHubComponent extends Container implements Focusable {
   focused = false;
@@ -71,8 +79,12 @@ export class CommandHubComponent extends Container implements Focusable {
   private selectionMovedAtMs = 0;
   private mouseLayout: CenterListMouseLayout | undefined;
   private crumbLines = 0;
-  /** Grid columns for search results (1 = list). Idle sectioned list stays 1-col. */
+  /** Grid columns for item pane / search results (1 = list). */
   private gridColumns = 1;
+  /** Idle two-pane: which side has focus. */
+  private focusPane: HubFocusPane = 'items';
+  private categoryIndex = 0;
+  private twoPane = false;
 
   constructor(opts: CommandHubOptions) {
     super();
@@ -84,19 +96,15 @@ export class CommandHubComponent extends Container implements Focusable {
     this.query = opts.initialQuery ?? '';
     this.intro = opts.intro === true;
     this.filtered = filterHubItems(this.items, this.query);
+    this.syncCategoryFromSelection();
   }
 
   /** Live-refresh badges / Now section while Hub stays open. */
   setItems(items: readonly CommandHubItem[]): void {
-    const selectedId = this.filtered[this.selectedIndex]?.id;
+    const selectedId = this.visibleItems()[this.selectedIndex]?.id;
     this.items = items;
     this.filtered = filterHubItems(this.items, this.query);
-    if (selectedId !== undefined) {
-      const next = this.filtered.findIndex((item) => item.id === selectedId);
-      this.selectedIndex = next === -1 ? 0 : next;
-    } else {
-      this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, this.filtered.length - 1));
-    }
+    this.syncCategoryFromSelection(selectedId);
     this.invalidate();
   }
 
@@ -123,15 +131,17 @@ export class CommandHubComponent extends Container implements Focusable {
     const action = resolveCenterListMouse(event, this.mouseLayout, this.selectedIndex);
     if (action.type === 'none') return false;
     if (action.type === 'move') {
-      this.moveSelection(this.selectedIndex + action.delta);
+      this.moveItemSelection(this.selectedIndex + action.delta);
       return true;
     }
     if (action.type === 'highlight') {
-      this.moveSelection(action.index);
+      this.focusPane = 'items';
+      this.moveItemSelection(action.index);
       return true;
     }
     if (action.type === 'activate') {
-      this.moveSelection(action.index);
+      this.focusPane = 'items';
+      this.moveItemSelection(action.index);
       this.activate('enter');
       return true;
     }
@@ -144,7 +154,6 @@ export class CommandHubComponent extends Container implements Focusable {
         this.dismissIntro();
         return;
       }
-      // Two-stage Esc: clear filter first, then close (searchable dialog convention).
       if (this.query.length > 0) {
         this.query = '';
         this.refilter();
@@ -154,85 +163,116 @@ export class CommandHubComponent extends Container implements Focusable {
       return;
     }
     if (matchesKey(data, Key.enter)) {
+      if (this.twoPane && this.focusPane === 'categories') {
+        this.focusPane = 'items';
+        this.selectedIndex = 0;
+        this.invalidate();
+        return;
+      }
       this.activate('enter');
       return;
     }
     if (matchesKey(data, Key.space) || printableChar(data) === ' ') {
+      if (this.twoPane && this.focusPane === 'categories') {
+        this.focusPane = 'items';
+        this.invalidate();
+        return;
+      }
       this.activate('space');
       return;
     }
+
+    if (this.twoPane && this.focusPane === 'categories') {
+      this.handleCategoryKeys(data);
+      return;
+    }
+
     if (matchesKey(data, Key.up) || matchesKey(data, Key.ctrl('p'))) {
       if (this.gridColumns > 1) {
-        this.moveSelection(
+        this.moveItemSelection(
           gridMoveUp({
             index: this.selectedIndex,
-            count: this.filtered.length,
+            count: this.visibleItems().length,
             columns: this.gridColumns,
           }),
         );
       } else {
-        this.moveSelection(this.selectedIndex - 1);
+        this.moveItemSelection(this.selectedIndex - 1);
       }
       return;
     }
     if (matchesKey(data, Key.down) || matchesKey(data, Key.ctrl('n'))) {
       if (this.gridColumns > 1) {
-        this.moveSelection(
+        this.moveItemSelection(
           gridMoveDown({
             index: this.selectedIndex,
-            count: this.filtered.length,
+            count: this.visibleItems().length,
             columns: this.gridColumns,
           }),
         );
       } else {
-        this.moveSelection(this.selectedIndex + 1);
+        this.moveItemSelection(this.selectedIndex + 1);
       }
       return;
     }
     if (matchesKey(data, Key.left)) {
+      if (this.twoPane && this.gridColumns <= 1) {
+        this.focusPane = 'categories';
+        this.invalidate();
+        return;
+      }
       if (this.gridColumns > 1) {
-        this.moveSelection(
-          gridMoveLeft({
-            index: this.selectedIndex,
-            count: this.filtered.length,
-            columns: this.gridColumns,
-          }),
-        );
+        const next = gridMoveLeft({
+          index: this.selectedIndex,
+          count: this.visibleItems().length,
+          columns: this.gridColumns,
+        });
+        if (this.twoPane && next === this.selectedIndex && this.selectedIndex % this.gridColumns === 0) {
+          this.focusPane = 'categories';
+          this.invalidate();
+          return;
+        }
+        this.moveItemSelection(next);
       } else {
-        // Idle list: jump to previous section start (denser navigation).
-        this.moveSelection(this.sectionJumpIndex(-1));
+        this.moveItemSelection(this.sectionJumpIndex(-1));
       }
       return;
     }
     if (matchesKey(data, Key.right)) {
       if (this.gridColumns > 1) {
-        this.moveSelection(
+        this.moveItemSelection(
           gridMoveRight({
             index: this.selectedIndex,
-            count: this.filtered.length,
+            count: this.visibleItems().length,
             columns: this.gridColumns,
           }),
         );
+      } else if (this.twoPane) {
+        // Already on items pane; no-op stay.
+        this.invalidate();
       } else {
-        // Idle list: jump to next section start.
-        this.moveSelection(this.sectionJumpIndex(1));
+        this.moveItemSelection(this.sectionJumpIndex(1));
       }
       return;
     }
     if (matchesKey(data, Key.pageUp)) {
-      this.moveSelection(this.selectedIndex - COMMAND_HUB_PAGE_SIZE * Math.max(1, this.gridColumns));
+      this.moveItemSelection(
+        this.selectedIndex - COMMAND_HUB_PAGE_SIZE * Math.max(1, this.gridColumns),
+      );
       return;
     }
     if (matchesKey(data, Key.pageDown)) {
-      this.moveSelection(this.selectedIndex + COMMAND_HUB_PAGE_SIZE * Math.max(1, this.gridColumns));
+      this.moveItemSelection(
+        this.selectedIndex + COMMAND_HUB_PAGE_SIZE * Math.max(1, this.gridColumns),
+      );
       return;
     }
     if (matchesKey(data, Key.home)) {
-      this.moveSelection(0);
+      this.moveItemSelection(0);
       return;
     }
     if (matchesKey(data, Key.end)) {
-      this.moveSelection(this.filtered.length - 1);
+      this.moveItemSelection(this.visibleItems().length - 1);
       return;
     }
     if (matchesKey(data, Key.backspace) || matchesKey(data, Key.delete)) {
@@ -244,15 +284,56 @@ export class CommandHubComponent extends Container implements Focusable {
     }
     const ch = printableChar(data);
     if (ch !== undefined && ch.length > 0 && ch !== ' ') {
-      // Empty filter: 1–9 is a hotkey (activate that row). Typing starts search.
       if (this.query.length === 0 && ch >= '1' && ch <= '9') {
         const index = Number(ch) - 1;
-        if (this.filtered[index] !== undefined) {
+        if (this.visibleItems()[index] !== undefined) {
           this.selectedIndex = index;
           this.activate('enter');
         }
         return;
       }
+      if (this.intro) this.dismissIntro();
+      this.query += ch;
+      this.refilter();
+    }
+  }
+
+  private handleCategoryKeys(data: string): void {
+    const cats = hubCategories(this.filtered);
+    if (matchesKey(data, Key.up) || matchesKey(data, Key.ctrl('p'))) {
+      this.categoryIndex = Math.max(0, this.categoryIndex - 1);
+      this.selectedIndex = 0;
+      this.selectionMovedAtMs = appearanceAnimationNow();
+      this.invalidate();
+      return;
+    }
+    if (matchesKey(data, Key.down) || matchesKey(data, Key.ctrl('n'))) {
+      this.categoryIndex = Math.min(cats.length - 1, this.categoryIndex + 1);
+      this.selectedIndex = 0;
+      this.selectionMovedAtMs = appearanceAnimationNow();
+      this.invalidate();
+      return;
+    }
+    if (matchesKey(data, Key.right) || matchesKey(data, Key.enter)) {
+      this.focusPane = 'items';
+      this.selectedIndex = 0;
+      this.invalidate();
+      return;
+    }
+    if (matchesKey(data, Key.home)) {
+      this.categoryIndex = 0;
+      this.selectedIndex = 0;
+      this.invalidate();
+      return;
+    }
+    if (matchesKey(data, Key.end)) {
+      this.categoryIndex = Math.max(0, cats.length - 1);
+      this.selectedIndex = 0;
+      this.invalidate();
+      return;
+    }
+    const ch = printableChar(data);
+    if (ch !== undefined && ch.length > 0 && ch !== ' ') {
       if (this.intro) this.dismissIntro();
       this.query += ch;
       this.refilter();
@@ -266,7 +347,6 @@ export class CommandHubComponent extends Container implements Focusable {
     const now = appearanceAnimationNow();
     const regionWidth = Math.max(24, width);
 
-    // Entry: the box scales in from ~86% while rows cascade right after.
     const entryT = ambient ? hubEaseOutCubic((now - this.openedAtMs) / HUB_ENTRY_MS) : 1;
     const minWidth = Math.min(
       regionWidth,
@@ -279,21 +359,30 @@ export class CommandHubComponent extends Container implements Focusable {
     const padLeft = Math.max(0, Math.floor((regionWidth - boxWidth) / 2));
     const inner = boxWidth - 2;
 
-    // Search results: 2-column grid when wide. Idle curated list stays 1-col.
+    const filtering = this.query.length > 0;
+    this.twoPane = hubPreferTwoPane(this.query, inner);
+    if (!this.twoPane) this.focusPane = 'items';
+
+    const itemsPaneWidth = this.twoPane
+      ? Math.max(24, inner - HUB_CATEGORY_COL_WIDTH - 1)
+      : inner;
+
     this.gridColumns = resolveGridColumns({
-      width: inner,
-      itemCount: this.filtered.length,
-      preferGrid: this.query.length > 0,
+      width: itemsPaneWidth,
+      itemCount: this.visibleItems().length,
+      preferGrid: filtering || this.twoPane,
       minCellWidth: 28,
-      maxColumns: 2,
+      maxColumns: 3,
     });
 
-    const hint =
-      this.query.length > 0
-        ? this.gridColumns > 1
-          ? '↑↓←→ · Enter go · wheel · Esc clear filter'
-          : '↑↓ · Enter go · wheel scroll · Esc clear filter'
-        : '↑↓ · ←→ section · Space flip · Enter go · 1–9 · type search · wheel · Esc cancel';
+    const hint = filtering
+      ? this.gridColumns > 1
+        ? '↑↓←→ · Enter go · wheel · Esc clear filter'
+        : '↑↓ · Enter go · wheel scroll · Esc clear filter'
+      : this.twoPane
+        ? '↑↓←→ navigate · ← categories · Space flip · Enter go · 1–9 · type search · Esc'
+        : '↑↓ · ←→ section · Space flip · Enter go · 1–9 · type search · Esc';
+
     const body: string[] = [
       truncateToWidth(theme.fg('textMuted', ` ${hint}`), inner),
       truncateToWidth(` ${this.renderStatusStrip(inner - 1, appearance)}`, inner),
@@ -317,108 +406,24 @@ export class CommandHubComponent extends Container implements Focusable {
       body.push('');
     }
 
-    const itemLineByIndex: number[] = Array.from({ length: this.filtered.length }, () => -1);
+    const visible = this.visibleItems();
+    const itemLineByIndex: number[] = Array.from({ length: visible.length }, () => -1);
 
-    if (this.filtered.length === 0) {
+    if (visible.length === 0 && !this.twoPane) {
       body.push(
         truncateToWidth(
           ` ${renderPulseText('No matches — Esc clears the filter', 'hub:empty', 'accent', appearance)}`,
           inner,
         ),
       );
+    } else if (this.twoPane) {
+      this.renderTwoPane(body, itemLineByIndex, inner, itemsPaneWidth, appearance, ambient, now);
     } else if (this.gridColumns > 1) {
-      // Flat 2-col search grid — sections omitted so columns stay aligned.
-      const cellW = Math.max(12, Math.floor((inner - 1) / this.gridColumns));
-      for (let index = 0; index < this.filtered.length; index += this.gridColumns) {
-        const rowLine = body.length;
-        const parts: string[] = [];
-        for (let c = 0; c < this.gridColumns; c++) {
-          const i = index + c;
-          if (i >= this.filtered.length) break;
-          const item = this.filtered[i]!;
-          itemLineByIndex[i] = rowLine;
-          const selected = i === this.selectedIndex;
-          const pointer = selected ? renderSelectPointer('command-hub') : ' ';
-          const label = selected
-            ? theme.boldFg('primary', item.label)
-            : theme.fg('text', item.label);
-          const padded = truncateToWidth(`${pointer}${label}`, cellW - 1).padEnd(cellW - 1, ' ');
-          parts.push(selected ? theme.bg('surfaceRaised', padded) : padded);
-        }
-        body.push(truncateToWidth(` ${parts.join('')}`, inner));
-      }
-      const selected = this.filtered[this.selectedIndex];
-      if (selected !== undefined) {
-        body.push(
-          truncateToWidth(
-            `    ${renderShimmerPrefix(appearance)}${theme.fg('textMuted', selected.description)}`,
-            inner,
-          ),
-        );
-      }
+      this.renderItemGrid(body, itemLineByIndex, visible, inner, appearance, 0);
     } else {
-      let lastSection = '';
-      const showHotkeys = this.query.length === 0;
-      for (let index = 0; index < this.filtered.length; index += 1) {
-        const item = this.filtered[index]!;
-        if (item.section !== lastSection) {
-          lastSection = item.section;
-          const sectionLabel =
-            item.section === 'Now' || item.section === 'Recent'
-              ? renderPulseText(item.section, `hub:sec:${item.section}`, 'accent', appearance)
-              : theme.boldFg('accent', item.section);
-          body.push(truncateToWidth(` ${sectionLabel}`, inner));
-        }
-        const selected = index === this.selectedIndex;
-        // Entry cascade: rows brighten in a stagger, top to bottom.
-        const reveal = ambient ? hubClamp01((now - this.openedAtMs - 60 - index * 24) / 200) : 1;
-        const pointer = selected ? renderSelectPointer('command-hub') : ' ';
-        // Pointer slides in one cell after a move — the row "catches" the cursor.
-        const slidePad =
-          selected &&
-          ambient &&
-          this.selectionMovedAtMs > 0 &&
-          now - this.selectionMovedAtMs < HUB_SLIDE_MS
-            ? ' '
-            : '';
-        const hotkey =
-          showHotkeys && index < 9
-            ? theme.fg('textMuted', `${String(index + 1)} `)
-            : showHotkeys
-              ? '  '
-              : '';
-        const badge = this.renderBadge(item, appearance);
-        const flashing = this.flashId === item.id;
-        itemLineByIndex[index] = body.length;
-        const label = flashing
-          ? renderSettleFlash(item.label, `hub:flash:${item.id}`, this.flashAtMs, appearance)
-          : selected
-            ? theme.boldFg('primary', item.label)
-            : reveal < 1
-              ? theme.fg('textMuted', item.label)
-              : theme.fg('text', item.label);
-        const kindHint =
-          item.kind === 'toggle' || item.kind === 'cycle'
-            ? theme.fg(
-                'textMuted',
-                item.kind === 'cycle' ? '  cycle' : selected ? '  toggle' : '',
-              )
-            : '';
-        body.push(
-          truncateToWidth(`${slidePad} ${pointer}${hotkey}${label}${kindHint}${badge}`, inner),
-        );
-        if (selected) {
-          body.push(
-            truncateToWidth(
-              `    ${renderShimmerPrefix(appearance)}${theme.fg('textMuted', item.description)}`,
-              inner,
-            ),
-          );
-        }
-      }
+      this.renderSectionedList(body, itemLineByIndex, inner, appearance, ambient, now);
     }
 
-    const filtering = this.query.length > 0;
     const titleStyled =
       renderPulseText('•', 'hub:orn:l', 'accent', appearance) +
       ` ${renderPremiumHeadline(this.title, 'command-hub:title', appearance)} ` +
@@ -426,7 +431,9 @@ export class CommandHubComponent extends Container implements Focusable {
     const footerLeftPlain = filtering ? `filter: ${this.query}` : undefined;
     const footerRightPlain = filtering
       ? `${String(this.filtered.length)}/${String(this.items.length)}`
-      : undefined;
+      : this.twoPane
+        ? hubCategories(this.filtered)[this.categoryIndex]
+        : undefined;
     const frame = renderPremiumBoxFrame(body, {
       width: boxWidth,
       title: titleStyled,
@@ -443,8 +450,6 @@ export class CommandHubComponent extends Container implements Focusable {
       padLeft === 0
         ? frame.map((row) => truncateToWidth(row, regionWidth))
         : frame.map((row) => truncateToWidth(' '.repeat(padLeft) + row, regionWidth));
-    // Mouse layout: item lines are relative to panel body before outer pad;
-    // center-modal hit test uses unpadded panel geometry (matches overlay width).
     this.mouseLayout = {
       panelLineCount: frame.length,
       panelWidth: boxWidth,
@@ -454,10 +459,243 @@ export class CommandHubComponent extends Container implements Focusable {
     return framed;
   }
 
-  /**
-   * Jump to the first item of the previous/next section (idle curated list).
-   * `dir` is -1 (previous) or +1 (next).
-   */
+  private renderTwoPane(
+    body: string[],
+    itemLineByIndex: number[],
+    inner: number,
+    itemsPaneWidth: number,
+    appearance: ReturnType<typeof getActiveAppearancePreferences>,
+    ambient: boolean,
+    now: number,
+  ): void {
+    const theme = currentTheme;
+    const cats = hubCategories(this.filtered);
+    if (cats.length === 0) {
+      body.push(truncateToWidth(theme.fg('textMuted', ' No actions'), inner));
+      return;
+    }
+    if (this.categoryIndex >= cats.length) this.categoryIndex = cats.length - 1;
+    const catW = HUB_CATEGORY_COL_WIDTH;
+    const visible = this.visibleItems();
+    const catFocus = this.focusPane === 'categories';
+    const rowCount = Math.max(cats.length, Math.ceil(visible.length / Math.max(1, this.gridColumns)));
+
+    for (let row = 0; row < rowCount; row++) {
+      const cat = cats[row];
+      let left = ' '.repeat(catW);
+      if (cat !== undefined) {
+        const selected = row === this.categoryIndex;
+        const pointer = selected && catFocus ? renderSelectPointer('command-hub') : ' ';
+        const label = selected
+          ? catFocus
+            ? theme.boldFg('primary', cat)
+            : theme.boldFg('accent', cat)
+          : theme.fg('textMuted', cat);
+        left = truncateToWidth(`${pointer}${label}`, catW - 1).padEnd(catW - 1, ' ');
+        if (selected && catFocus) left = theme.bg('surfaceRaised', left);
+      }
+
+      const parts: string[] = [];
+      if (this.gridColumns > 1) {
+        const cellW = Math.max(12, Math.floor((itemsPaneWidth - 1) / this.gridColumns));
+        const base = row * this.gridColumns;
+        for (let c = 0; c < this.gridColumns; c++) {
+          const i = base + c;
+          if (i >= visible.length) break;
+          const item = visible[i]!;
+          itemLineByIndex[i] = body.length;
+          const selected = i === this.selectedIndex && !catFocus;
+          const pointer = selected ? renderSelectPointer('command-hub') : ' ';
+          const hotkey =
+            i < 9 ? theme.fg('textMuted', `${String(i + 1)} `) : '  ';
+          const label = selected
+            ? theme.boldFg('primary', item.label)
+            : theme.fg('text', item.label);
+          const padded = truncateToWidth(`${pointer}${hotkey}${label}`, cellW - 1).padEnd(
+            cellW - 1,
+            ' ',
+          );
+          parts.push(selected ? theme.bg('surfaceRaised', padded) : padded);
+        }
+      } else if (visible[row] !== undefined) {
+        const item = visible[row]!;
+        itemLineByIndex[row] = body.length;
+        const selected = row === this.selectedIndex && !catFocus;
+        const reveal = ambient ? hubClamp01((now - this.openedAtMs - 60 - row * 24) / 200) : 1;
+        const pointer = selected ? renderSelectPointer('command-hub') : ' ';
+        const hotkey =
+          row < 9 ? theme.fg('textMuted', `${String(row + 1)} `) : '  ';
+        const label = selected
+          ? theme.boldFg('primary', item.label)
+          : reveal < 1
+            ? theme.fg('textMuted', item.label)
+            : theme.fg('text', item.label);
+        const badge = this.renderBadge(item, appearance);
+        parts.push(truncateToWidth(`${pointer}${hotkey}${label}${badge}`, itemsPaneWidth - 1));
+      }
+
+      const right = truncateToWidth(parts.join(''), itemsPaneWidth);
+      const divider = theme.fg('textMuted', '│');
+      body.push(truncateToWidth(` ${left}${divider}${right}`, inner));
+    }
+
+    const selected = visible[this.selectedIndex];
+    if (selected !== undefined && !catFocus) {
+      body.push(
+        truncateToWidth(
+          ` ${' '.repeat(catW)}${renderShimmerPrefix(appearance)}${theme.fg('textMuted', selected.description)}`,
+          inner,
+        ),
+      );
+    } else if (catFocus) {
+      const cat = cats[this.categoryIndex] ?? '';
+      body.push(
+        truncateToWidth(
+          ` ${theme.fg('textMuted', `${cat} · → items · ${String(visible.length)} actions`)}`,
+          inner,
+        ),
+      );
+    }
+  }
+
+  private renderItemGrid(
+    body: string[],
+    itemLineByIndex: number[],
+    visible: readonly CommandHubItem[],
+    inner: number,
+    appearance: ReturnType<typeof getActiveAppearancePreferences>,
+    _pad: number,
+  ): void {
+    const theme = currentTheme;
+    const cellW = Math.max(12, Math.floor((inner - 1) / this.gridColumns));
+    for (let index = 0; index < visible.length; index += this.gridColumns) {
+      const rowLine = body.length;
+      const parts: string[] = [];
+      for (let c = 0; c < this.gridColumns; c++) {
+        const i = index + c;
+        if (i >= visible.length) break;
+        const item = visible[i]!;
+        itemLineByIndex[i] = rowLine;
+        const selected = i === this.selectedIndex;
+        const pointer = selected ? renderSelectPointer('command-hub') : ' ';
+        const label = selected
+          ? theme.boldFg('primary', item.label)
+          : theme.fg('text', item.label);
+        const padded = truncateToWidth(`${pointer}${label}`, cellW - 1).padEnd(cellW - 1, ' ');
+        parts.push(selected ? theme.bg('surfaceRaised', padded) : padded);
+      }
+      body.push(truncateToWidth(` ${parts.join('')}`, inner));
+    }
+    const selected = visible[this.selectedIndex];
+    if (selected !== undefined) {
+      body.push(
+        truncateToWidth(
+          `    ${renderShimmerPrefix(appearance)}${theme.fg('textMuted', selected.description)}`,
+          inner,
+        ),
+      );
+    }
+  }
+
+  private renderSectionedList(
+    body: string[],
+    itemLineByIndex: number[],
+    inner: number,
+    appearance: ReturnType<typeof getActiveAppearancePreferences>,
+    ambient: boolean,
+    now: number,
+  ): void {
+    const theme = currentTheme;
+    let lastSection = '';
+    const showHotkeys = this.query.length === 0;
+    for (let index = 0; index < this.filtered.length; index += 1) {
+      const item = this.filtered[index]!;
+      if (item.section !== lastSection) {
+        lastSection = item.section;
+        const sectionLabel =
+          item.section === 'Now' || item.section === 'Recent'
+            ? renderPulseText(item.section, `hub:sec:${item.section}`, 'accent', appearance)
+            : theme.boldFg('accent', item.section);
+        body.push(truncateToWidth(` ${sectionLabel}`, inner));
+      }
+      const selected = index === this.selectedIndex;
+      const reveal = ambient ? hubClamp01((now - this.openedAtMs - 60 - index * 24) / 200) : 1;
+      const pointer = selected ? renderSelectPointer('command-hub') : ' ';
+      const slidePad =
+        selected &&
+        ambient &&
+        this.selectionMovedAtMs > 0 &&
+        now - this.selectionMovedAtMs < HUB_SLIDE_MS
+          ? ' '
+          : '';
+      const hotkey =
+        showHotkeys && index < 9
+          ? theme.fg('textMuted', `${String(index + 1)} `)
+          : showHotkeys
+            ? '  '
+            : '';
+      const badge = this.renderBadge(item, appearance);
+      const flashing = this.flashId === item.id;
+      itemLineByIndex[index] = body.length;
+      const label = flashing
+        ? renderSettleFlash(item.label, `hub:flash:${item.id}`, this.flashAtMs, appearance)
+        : selected
+          ? theme.boldFg('primary', item.label)
+          : reveal < 1
+            ? theme.fg('textMuted', item.label)
+            : theme.fg('text', item.label);
+      const kindHint =
+        item.kind === 'toggle' || item.kind === 'cycle'
+          ? theme.fg(
+              'textMuted',
+              item.kind === 'cycle' ? '  cycle' : selected ? '  toggle' : '',
+            )
+          : '';
+      body.push(
+        truncateToWidth(`${slidePad} ${pointer}${hotkey}${label}${kindHint}${badge}`, inner),
+      );
+      if (selected) {
+        body.push(
+          truncateToWidth(
+            `    ${renderShimmerPrefix(appearance)}${theme.fg('textMuted', item.description)}`,
+            inner,
+          ),
+        );
+      }
+    }
+  }
+
+  private visibleItems(): CommandHubItem[] {
+    if (!this.twoPane || this.query.length > 0) return [...this.filtered];
+    const cats = hubCategories(this.filtered);
+    const cat = cats[this.categoryIndex];
+    if (cat === undefined) return [...this.filtered];
+    return hubItemsInCategory(this.filtered, cat);
+  }
+
+  private syncCategoryFromSelection(preferredId?: string): void {
+    const cats = hubCategories(this.filtered);
+    if (cats.length === 0) {
+      this.categoryIndex = 0;
+      this.selectedIndex = 0;
+      return;
+    }
+    if (preferredId !== undefined) {
+      for (let ci = 0; ci < cats.length; ci++) {
+        const items = hubItemsInCategory(this.filtered, cats[ci]!);
+        const idx = items.findIndex((item) => item.id === preferredId);
+        if (idx >= 0) {
+          this.categoryIndex = ci;
+          this.selectedIndex = idx;
+          return;
+        }
+      }
+    }
+    this.categoryIndex = Math.min(this.categoryIndex, cats.length - 1);
+    const visible = this.visibleItems();
+    this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, visible.length - 1));
+  }
+
   private sectionJumpIndex(dir: -1 | 1): number {
     const items = this.filtered;
     if (items.length === 0) return 0;
@@ -469,7 +707,6 @@ export class CommandHubComponent extends Container implements Focusable {
       }
       return items.length - 1;
     }
-    // Walk back to section start, then to previous section start.
     let sectionStart = cur;
     while (sectionStart > 0 && (items[sectionStart - 1]?.section ?? '') === curSection) {
       sectionStart--;
@@ -484,8 +721,9 @@ export class CommandHubComponent extends Container implements Focusable {
     return prevStart;
   }
 
-  private moveSelection(next: number): void {
-    const clamped = Math.max(0, Math.min(this.filtered.length - 1, next));
+  private moveItemSelection(next: number): void {
+    const count = this.visibleItems().length;
+    const clamped = Math.max(0, Math.min(Math.max(0, count - 1), next));
     if (clamped !== this.selectedIndex) {
       this.selectionMovedAtMs = appearanceAnimationNow();
     }
@@ -494,10 +732,9 @@ export class CommandHubComponent extends Container implements Focusable {
   }
 
   private activate(mode: CommandHubSelectMode): void {
-    const item = this.filtered[this.selectedIndex];
+    const item = this.visibleItems()[this.selectedIndex];
     if (item === undefined) return;
     if (this.intro) this.dismissIntro();
-    // Space on open rows = open (same as Enter). Silent no-op felt broken.
     this.onSelect(item, mode);
   }
 
@@ -508,7 +745,6 @@ export class CommandHubComponent extends Container implements Focusable {
     const theme = currentTheme;
     const chips: string[] = [];
     const push = (label: string, on: boolean, id: CommandHubActionId): void => {
-      // Plain readable chips — ON is uppercase accent, off stays quiet.
       const chip = on ? `[${label} ON]` : `[${label}]`;
       if (this.flashId === id) {
         chips.push(renderSettleFlash(chip, `hub:chip:${label}`, this.flashAtMs, appearance));
@@ -545,11 +781,7 @@ export class CommandHubComponent extends Container implements Focusable {
   ): string {
     if (item.badge === undefined || item.badge.length === 0) return '';
     const display =
-      item.badge === 'ON'
-        ? 'On'
-        : item.badge === 'off'
-          ? 'Off'
-          : item.badge;
+      item.badge === 'ON' ? 'On' : item.badge === 'off' ? 'Off' : item.badge;
     const raw = ` · ${display}`;
     if (this.flashId === item.id) {
       return renderSettleFlash(raw, `hub:flash:${item.id}`, this.flashAtMs, appearance);
@@ -562,7 +794,13 @@ export class CommandHubComponent extends Container implements Focusable {
 
   private refilter(): void {
     this.filtered = filterHubItems(this.items, this.query);
-    this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, this.filtered.length - 1));
+    if (this.query.length > 0) {
+      this.focusPane = 'items';
+      this.twoPane = false;
+      this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, this.filtered.length - 1));
+    } else {
+      this.syncCategoryFromSelection();
+    }
     this.invalidate();
   }
 }

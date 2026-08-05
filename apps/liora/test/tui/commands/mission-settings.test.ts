@@ -171,6 +171,8 @@ describe('showMissionSettings', () => {
     const picker = vi.mocked(host.mountCenterModal).mock.calls[0]?.[0] as {
       handleInput(data: string): void;
     };
+    // presets=0, status=1
+    picker.handleInput('\u001B[B');
     picker.handleInput('\r');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
@@ -195,6 +197,8 @@ describe('showMissionSettings', () => {
     const picker = vi.mocked(host.mountCenterModal).mock.calls[0]?.[0] as {
       handleInput(data: string): void;
     };
+    // presets=0, status=1
+    picker.handleInput('\u001B[B');
     picker.handleInput('\r');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();

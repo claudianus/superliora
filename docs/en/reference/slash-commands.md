@@ -23,6 +23,7 @@ Some commands are only available in the idle state. Executing these commands whi
 | `/permission` | — | Select a permission mode | Yes |
 | `/editor` | — | Configure the external editor launched by `Ctrl-G` | Yes |
 | `/theme` | — | Switch the terminal UI color theme | Yes |
+| `/persona` | `/character` | Apply persona presets or edit tone/personality. See [Persona presets](../customization/persona.md) | Yes |
 
 ## Session Management
 

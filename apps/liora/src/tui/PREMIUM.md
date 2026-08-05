@@ -258,7 +258,8 @@ shortcuts) use a **center modal**, not the bottom editor-replacement strip.
 
 - **Placement.** Host mounts via `mountCenterModal` → compositor region
   `liora-center-modal` with `placement: 'center'` (`utils/center-modal.ts`).
-  Max content width 72 cols; margin 2 from viewport edges.
+  Max content width 120 cols; margin 2 from viewport edges
+  (`CENTER_MODAL_MAX_WIDTH` in `utils/ui/center-modal.ts`).
 - **Chrome.** The overlay region uses `border: false`; the panel owns its
   chrome so nothing doubles. List pickers keep the §3 two-line chrome. The
   Command Hub floats in a rounded box drawn by `renderPremiumBoxFrame`
@@ -276,12 +277,15 @@ shortcuts) use a **center modal**, not the bottom editor-replacement strip.
   Pickers opened under an existing center modal default to `push` so Esc
   returns (breadcrumb `Hub › Model` when entries carry `label`).
 - **Command Hub (One-search Command Surface).** Status strip + Space flips
-  modes in place; Enter flips and closes (return to chat). `1`–`9` hotkeys
-  when not filtering; Esc clears filter then closes. Typing fuzzy-filters
-  curated rows, Settings jumps, and slash/skills (`searchOnly`) with the same
-  `fuzzyFilter` as Settings — do not add a second searchable omnibox for the
-  same catalog. Nested pickers (Settings, model, …) push; Stop interrupts;
-  Recent pins; first-run intro uses `tui.toml` `[onboarding] hub_intro_seen`.
+  modes in place; Enter flips and closes (return to chat). Idle wide layout
+  is a **two-pane** surface: left categories (`↑↓`, `→`/`Enter` to items),
+  right item grid (`↑↓←→`, `←` returns to categories). Hint:
+  `↑↓←→ navigate · ← categories`. `1`–`9` hotkeys when not filtering; Esc
+  clears filter then closes. Typing fuzzy-filters curated rows, Settings
+  jumps, and slash/skills (`searchOnly`) with the same `fuzzyFilter` as
+  Settings — do not add a second searchable omnibox for the same catalog.
+  Nested pickers (Settings, model, …) push; Stop interrupts; Recent pins;
+  first-run intro uses `tui.toml` `[onboarding] hub_intro_seen`.
 - **Z-order.** Center modal (~8000) sits above stage/toast chrome and below
   diagnostics HUD (~10000).
 - **Do not use center modal for:** approval/question/credential, session

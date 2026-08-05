@@ -1,0 +1,96 @@
+/**
+ * Footer (status bar) named packs.
+ */
+
+import {
+  DEFAULT_FOOTER_PREFERENCES,
+  type FooterPreferences,
+} from '#/tui/config';
+
+import type { SettingPreset } from './setting-presets';
+
+export type FooterPresetId = 'minimal' | 'standard' | 'dense';
+
+export const FOOTER_PRESETS: readonly SettingPreset<FooterPresetId, FooterPreferences>[] = [
+  {
+    id: 'minimal',
+    label: 'Minimal',
+    badge: 'quiet',
+    description: 'Model + context + menu only; tips/pulses off.',
+    patch: {
+      ...DEFAULT_FOOTER_PREFERENCES,
+      labels: 'plain',
+      modes: 'off',
+      model: 'always',
+      cwd: 'off',
+      git: 'off',
+      context: 'auto',
+      goal: 'off',
+      menu: 'always',
+      background: 'off',
+      tips: 'off',
+      nextAction: 'off',
+      workingSet: 'off',
+      quota: 'off',
+      mediaReady: 'off',
+      index: 'off',
+      mcp: 'off',
+      cache: 'off',
+      pulseGoalProgress: false,
+      pulseFleetComplete: false,
+      pulsePermission: false,
+      pulseGitChurn: false,
+      pulseOpsCombo: false,
+      pulseExtensionsReload: false,
+      pulseRuntimeDegraded: true,
+      pulseSearchCascade: false,
+      pulseModelRoute: false,
+      showCompact: false,
+      showPromptIntelligence: false,
+    },
+  },
+  {
+    id: 'standard',
+    label: 'Standard',
+    badge: 'recommended',
+    description: 'Layered defaults — essentials auto, helpful pulses on.',
+    patch: { ...DEFAULT_FOOTER_PREFERENCES },
+  },
+  {
+    id: 'dense',
+    label: 'Dense',
+    badge: 'power',
+    description: 'Compact labels · show most slots · all pulses.',
+    patch: {
+      ...DEFAULT_FOOTER_PREFERENCES,
+      labels: 'compact',
+      modes: 'always',
+      model: 'always',
+      cwd: 'always',
+      git: 'always',
+      context: 'always',
+      goal: 'always',
+      menu: 'always',
+      background: 'always',
+      tips: 'auto',
+      nextAction: 'always',
+      workingSet: 'always',
+      quota: 'always',
+      mediaReady: 'auto',
+      index: 'auto',
+      mcp: 'auto',
+      cache: 'auto',
+      pulseGoalProgress: true,
+      pulseFleetComplete: true,
+      pulsePermission: true,
+      pulseGitChurn: true,
+      pulseOpsCombo: true,
+      pulseExtensionsReload: true,
+      pulseRuntimeDegraded: true,
+      pulseSearchCascade: true,
+      pulseModelRoute: true,
+      showCompact: true,
+      showPromptIntelligence: true,
+    },
+  },
+];

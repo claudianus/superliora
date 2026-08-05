@@ -16,7 +16,8 @@ import { currentTheme } from '#/tui/theme';
 
 export const CENTER_MODAL_REGION_ID = 'liora-center-modal';
 export const CENTER_MODAL_Z_INDEX = 8_000;
-export const CENTER_MODAL_MAX_WIDTH = 72;
+/** Wide Command Hub / Settings ceiling; viewport still wins via centerModalContentWidth. */
+export const CENTER_MODAL_MAX_WIDTH = 120;
 export const CENTER_MODAL_MARGIN = 2;
 
 export interface CenterModalEntry {

@@ -76,6 +76,7 @@ describe('showSkillsSettings', () => {
     const options = (picker as unknown as { opts: { options: readonly { value: string }[] } }).opts
       .options;
     expect(options.map((o) => o.value)).toEqual([
+      'presets',
       'status',
       'manage',
     ]);

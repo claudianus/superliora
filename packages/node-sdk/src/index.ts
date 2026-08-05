@@ -107,6 +107,25 @@ export type {
 } from '@superliora/agent-core';
 
 export { loadRuntimeConfigSafe, resolveConfigPath } from '@superliora/agent-core';
+export type {
+  PersonaPresetDefinition,
+  PersonaPresetId,
+  PersonaPresetInputId,
+  PersonaPresetLegacyId,
+  PersonaSkillBundle,
+} from '@superliora/agent-core';
+export {
+  PERSONA_PRESET_CATALOG,
+  PERSONA_PRESET_IDS,
+  PERSONA_PRESET_SCHEMA_VALUES,
+  PERSONA_PRESETS,
+  atomicPersonaConfigForPreset,
+  buildPersonaRoleAdditional,
+  getPersonaPreset,
+  isEmptyPersona,
+  isPersonaPresetId,
+  normalizePersonaPresetId,
+} from '@superliora/agent-core';
 export {
   formatContextOSDiagnoseLine,
   formatContextOSHealthLine,
