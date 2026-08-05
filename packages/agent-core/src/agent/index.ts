@@ -13,7 +13,7 @@ import type {
   SDKAgentRPC,
   UsageStatus,
 } from '#/rpc';
-import type { ProviderExtrasStatus } from '@superliora/protocol';
+import type { ProviderExtrasStatus, RuntimeDegradedEvent } from '@superliora/protocol';
 import { buildProviderExtrasStatus } from '#/tools/providers/extras/index';
 import { resolveProviderMcpServers } from '#/mcp/provider-servers';
 import { generate } from '@superliora/kosong';
@@ -94,7 +94,6 @@ import { createGenerateProxy, buildLLMRoute as buildLLMRouteImpl } from './gener
 import { CircuitBreakerRegistry } from '../runtime/circuit-breaker';
 import { buildCircuitBreakerDegradedEvent } from '../runtime/circuit-breaker-degraded';
 import { buildOAuthRefreshDegradedEvent } from '../runtime/oauth-refresh-degraded';
-import type { RuntimeDegradedEvent } from '@superliora/protocol';
 import { attachResearchSearchCircuitBreakers } from '../tools/providers/research-search-circuit-breaker';
 import { attachLlmProviderCircuitBreakers } from './llm-provider-circuit-breaker';
 import { mapCircuitBreakerRegistrySnapshot } from '../runtime/circuit-breaker-status';
