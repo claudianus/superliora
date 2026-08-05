@@ -7,18 +7,18 @@ import {
 } from '#/agent/skill/prompt';
 
 describe('agent/skill/prompt — renderUserSlashSkillPrompt', () => {
-  it('emits a user-slash skill prompt with the wrapped <kimi-skill-loaded> block', () => {
+  it('emits a user-slash skill prompt with the wrapped <liora-skill-loaded> block', () => {
     const result = renderUserSlashSkillPrompt({
       skillName: 'demo',
       skillArgs: '',
       skillContent: 'do the thing',
     });
     expect(result).toContain('User activated the skill "demo"');
-    expect(result).toContain('<kimi-skill-loaded');
+    expect(result).toContain('<liora-skill-loaded');
     expect(result).toContain('name="demo"');
     expect(result).toContain('trigger="user-slash"');
     expect(result).toContain('do the thing');
-    expect(result).toContain('</kimi-skill-loaded>');
+    expect(result).toContain('</liora-skill-loaded>');
   });
 });
 
@@ -68,7 +68,7 @@ describe('agent/skill/prompt — renderSkillLoadedBlock', () => {
       trigger: 'user-slash',
     });
     expect(result).toContain('do the thing');
-    expect(result).toMatch(/<\/kimi-skill-loaded>/);
+    expect(result).toMatch(/<\/liora-skill-loaded>/);
   });
 
   it('omits undefined source / dir attributes', () => {

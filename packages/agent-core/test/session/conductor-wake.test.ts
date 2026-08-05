@@ -133,6 +133,36 @@ describe('requestConductorWake', () => {
       requestConductorWake({ agent, store });
     }).not.toThrow();
   });
+
+  it('arms one re-check on the active turn settle, closing the mid-turn notice gap', async () => {
+    const store = memoryStore();
+    const { agent, prompts, setBusy } = fakeAgent('main');
+    let settle!: () => void;
+    const turnSettled = new Promise<void>((resolve) => {
+      settle = resolve;
+    });
+    (
+      agent.turn as unknown as { waitForCurrentTurn: () => Promise<void> }
+    ).waitForCurrentTurn = () => turnSettled;
+
+    setBusy(true);
+    pushDoneNotice(store);
+    requestConductorWake({ agent, store });
+    // Coalesced while the lane is busy — no immediate wake.
+    expect(prompts).toHaveLength(0);
+
+    // A second notice during the same turn does not arm another re-check.
+    pushDoneNotice(store, 'job_y');
+    requestConductorWake({ agent, store });
+
+    // The turn ends with notices still unread (they landed after the final
+    // inject): the wake must fire off the settle, not the next user prompt.
+    setBusy(false);
+    settle();
+    await drainMicrotasks();
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]?.origin).toEqual(CONDUCTOR_WAKE_ORIGIN);
+  });
 });
 
 describe('wake wiring on terminal job events', () => {

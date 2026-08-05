@@ -152,7 +152,28 @@ export function renderJobLine(job: JobRecord): string {
     job.ownershipPaths && job.ownershipPaths.length > 0
       ? ` paths=${job.ownershipPaths.join(',')}`
       : '';
-  return `- ${job.id} [${job.status}] (${job.kind} p${job.priority}) ${job.title}${paths}`;
+  const live = job.status === 'running' ? renderJobProgressSuffix(job) : '';
+  return `- ${job.id} [${job.status}] (${job.kind} p${job.priority}) ${job.title}${paths}${live}`;
+}
+
+/**
+ * Compact live-progress suffix for a running job, e.g.
+ * ` — Bash: pnpm test · 12s ago`. Empty when the worker has not reported yet.
+ */
+export function renderJobProgressSuffix(job: JobRecord, nowMs: number = Date.now()): string {
+  const progress = job.progress;
+  if (progress === undefined) return '';
+  const parts: string[] = [];
+  if (progress.phase !== undefined && progress.phase.length > 0) parts.push(progress.phase);
+  if (progress.lastHeartbeatAt !== undefined) {
+    const ageMs = nowMs - Date.parse(progress.lastHeartbeatAt);
+    if (Number.isFinite(ageMs) && ageMs >= 0) {
+      parts.push(
+        ageMs < 60_000 ? `${Math.round(ageMs / 1000)}s ago` : `${Math.round(ageMs / 60_000)}m ago`,
+      );
+    }
+  }
+  return parts.length === 0 ? '' : ` — ${parts.join(' · ')}`;
 }
 
 export function renderJobLedger(jobs: readonly JobRecord[]): string {

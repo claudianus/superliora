@@ -100,10 +100,7 @@ function resolveMergedProfile(
     name: profile.name,
     description: profile.description,
     systemPromptTemplate: profile.systemPromptTemplate ?? parent?.systemPromptTemplate ?? '',
-    promptVars: {
-      ...parent?.promptVars,
-      ...profile.promptVars,
-    },
+    promptVars: mergePromptVars(parent?.promptVars, profile.promptVars),
     tools: profile.tools !== undefined ? [...profile.tools] : [...(parent?.tools ?? [])],
     whenToUse: profile.whenToUse ?? parent?.whenToUse,
     subagents: cloneSubagents(profile.subagents),
@@ -188,32 +185,60 @@ function createLayeredSystemPromptRenderer(merged: MergedAgentProfile): LayeredS
   };
 }
 
+/**
+ * Merge prompt vars along the extends chain. `roleAdditional` replaces the
+ * parent's value (historical semantics); `roleAdditionalAppend` concatenates
+ * onto the inherited role text, letting shared base profiles carry common
+ * guidance without copy-paste.
+ */
+function mergePromptVars(
+  parentVars: Record<string, string> | undefined,
+  ownVars: Record<string, string> | undefined,
+): Record<string, string> {
+  const merged: Record<string, string> = { ...parentVars, ...ownVars };
+  const append = merged['roleAdditionalAppend']?.trim();
+  delete merged['roleAdditionalAppend'];
+  if (append !== undefined && append.length > 0) {
+    const base = (merged['roleAdditional'] ?? merged['ROLE_ADDITIONAL'] ?? '').trim();
+    merged['roleAdditional'] = base.length > 0 ? `${base}\n\n${append}` : append;
+  }
+  return merged;
+}
+
 function buildTemplateVars(
   context: SystemPromptContext,
   promptVars: Record<string, string>,
   tools: readonly string[],
 ): Record<string, string> {
+  // `skillPromptMode: legacy-list` is deprecated and renders as `search`.
   const skills =
     typeof context.skills === 'string'
       ? context.skills
-      : context.skillPromptMode === 'legacy-list'
-        ? (
-            context.skills?.getLegacyModelSkillListing?.() ??
-            context.skills?.getModelSkillListing() ??
-            ''
-          )
-        : (context.skills?.getModelSkillListing() ?? '');
+      : (context.skills?.getModelSkillListing() ?? '');
+
+  // SUPERLIORA_* are the canonical template variables. KIMI_* remain as
+  // deprecated aliases so custom profiles authored against them keep
+  // rendering — do not add new KIMI_* entries.
+  const canonical = {
+    SUPERLIORA_OS: context.osEnv.osKind,
+    SUPERLIORA_SHELL: `${context.osEnv.shellName} (\`${context.osEnv.shellPath}\`)`,
+    SUPERLIORA_WORK_DIR: context.cwd,
+    SUPERLIORA_WORK_DIR_LS: context.cwdListing ?? '',
+    SUPERLIORA_AGENTS_MD: context.agentsMd ?? '',
+    SUPERLIORA_SKILLS: tools.includes('Skill') ? skills : '',
+    SUPERLIORA_ADDITIONAL_DIRS_INFO: context.additionalDirsInfo ?? '',
+  };
 
   return {
     ...promptVars,
-    KIMI_OS: context.osEnv.osKind,
-    KIMI_SHELL: `${context.osEnv.shellName} (\`${context.osEnv.shellPath}\`)`,
-    KIMI_WORK_DIR: context.cwd,
-    KIMI_WORK_DIR_LS: context.cwdListing ?? '',
-    KIMI_AGENTS_MD: context.agentsMd ?? '',
-    KIMI_SKILLS: tools.includes('Skill') ? skills : '',
-    KIMI_SKILL_PROMPT_MODE: context.skillPromptMode ?? 'search',
-    KIMI_ADDITIONAL_DIRS_INFO: context.additionalDirsInfo ?? '',
+    ...canonical,
+    KIMI_OS: canonical.SUPERLIORA_OS,
+    KIMI_SHELL: canonical.SUPERLIORA_SHELL,
+    KIMI_WORK_DIR: canonical.SUPERLIORA_WORK_DIR,
+    KIMI_WORK_DIR_LS: canonical.SUPERLIORA_WORK_DIR_LS,
+    KIMI_AGENTS_MD: canonical.SUPERLIORA_AGENTS_MD,
+    KIMI_SKILLS: canonical.SUPERLIORA_SKILLS,
+    KIMI_ADDITIONAL_DIRS_INFO: canonical.SUPERLIORA_ADDITIONAL_DIRS_INFO,
     // Persona (runtime) layers on top of the profile's role text instead of
     // replacing it — otherwise a configured persona would silently drop the
     // profile playbook (e.g. the Conductor operating guide).

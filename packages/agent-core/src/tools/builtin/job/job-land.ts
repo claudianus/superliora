@@ -9,6 +9,7 @@ import { removeSessionWorktree } from '../../../session/worktree';
 import type { ToolStore } from '../../store';
 import type { JobRecord } from './job-ledger';
 import { createJob, patchJob } from './job-ledger';
+import { commitJobWorktreeIfDirty } from './job-worktree-commit';
 
 export interface LandJobToMainInput {
   readonly store: ToolStore;
@@ -144,13 +145,48 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
     };
   }
 
+  // Commit backstop: the merge below only sees the branch, so a dirty tree
+  // (worker never committed) would be silently excluded from the merge and
+  // destroyed by worktree GC. Snapshot first; if the snapshot itself fails,
+  // hold the land instead of discarding work.
+  const snapshot = await commitJobWorktreeIfDirty({
+    worktreePath,
+    jobId: job.id,
+    jobTitle: job.title,
+    run: async (cwd, args) => {
+      const r = await runGit(cwd, args);
+      return { ok: r.code === 0, stdout: r.stdout, stderr: r.stderr };
+    },
+  });
+  if (snapshot.error !== undefined) {
+    const next = patchJob(store, job.id, {
+      status: 'blocked',
+      notes: [job.notes, `land: worktree dirty and snapshot failed — ${snapshot.error}`]
+        .filter(Boolean)
+        .join('\n'),
+    });
+    return {
+      ok: false,
+      job: next ?? job,
+      merged: false,
+      gcRemoved: false,
+      message: '',
+      error: `worktree has uncommitted changes and snapshot failed: ${snapshot.error}`,
+    };
+  }
+  const snapshotNote = snapshot.committed
+    ? 'land: snapshotted uncommitted worker changes onto the branch before merge'
+    : undefined;
+
   // Ensure main workspace is clean enough for merge (non-fatal warn path via stderr).
   const merge = await runGit(repoPath, ['merge', '--no-edit', branch]);
   if (merge.code !== 0) {
     const detail = (merge.stderr || merge.stdout || 'merge failed').slice(0, 500);
     const next = patchJob(store, job.id, {
       status: 'blocked',
-      notes: [job.notes, `land: merge failed — ${detail}`].filter(Boolean).join('\n'),
+      notes: [job.notes, snapshotNote, `land: merge failed — ${detail}`]
+        .filter(Boolean)
+        .join('\n'),
     });
     return {
       ok: false,
@@ -178,6 +214,7 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
     resultSummary: job.resultSummary ?? `landed branch ${branch}`,
     notes: [
       job.notes,
+      snapshotNote,
       `land: merged ${branch} into main workspace`,
       gcRemoved ? 'land: worktree GC removed' : 'land: worktree retained',
     ]

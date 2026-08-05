@@ -111,7 +111,7 @@ describe('model skill runtime prompt', () => {
     expect(rendered).toContain('SearchSkill');
     expect(rendered).toContain('English task keywords');
     expect(rendered).toContain('Translate non-English user requests');
-    expect(rendered).toContain('<kimi-skill-loaded>');
+    expect(rendered).toContain('<liora-skill-loaded>');
     expect(rendered).not.toContain('skill-1499');
     expect(rendered).not.toContain('description 1499');
     expect(rendered.length).toBeLessThan(1500);

@@ -235,6 +235,19 @@ export function renderJobInspect(job: JobRecord): string {
   push('mission', job.missionRunId);
   push('goal', job.goalObjective);
   push('context_paths', job.contextPaths?.join(', '));
+  if (job.progress !== undefined) {
+    push(
+      'progress',
+      [
+        job.progress.phase,
+        job.progress.lastHeartbeatAt !== undefined
+          ? `heartbeat=${job.progress.lastHeartbeatAt}`
+          : undefined,
+      ]
+        .filter(Boolean)
+        .join(' · '),
+    );
+  }
   if (v !== undefined) {
     lines.push(`verification: tests=${v.tests} typecheck=${v.typecheck} lint=${v.lint}`);
   }

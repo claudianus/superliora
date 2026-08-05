@@ -31,6 +31,7 @@ import { emitJobEvents, inboxToWireEvent, jobRecordToUpdatedEvent } from './job-
 import { inboxKindForStatus, pushJobInboxEvent } from './job-inbox';
 import { getJob, listJobs, patchJob, type JobRecord, type JobStatus } from './job-ledger';
 import { profileForJobKind } from './job-runtime';
+import { commitJobWorktreeIfDirty } from './job-worktree-commit';
 
 export interface LaunchJobWorkerInput {
   readonly store: ToolStore;
@@ -98,6 +99,11 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
       '- Trace the brief against the codebase before editing (callers / fail path / success criteria).',
       '- Prefer the smallest diff that meets success criteria; stay inside ownership/context paths when set.',
       '- After each meaningful change, run focused checks when available; cite that evidence in the result summary.',
+      ...(job.worktreePath !== undefined
+        ? [
+            '- Commit your work in the job worktree before finishing (`git add -A && git commit`; local commits only, never push). This brief explicitly authorizes those commits — no confirmation loop needed. Land-to-main merges the branch, so uncommitted changes are invisible to it and lost at worktree GC.',
+          ]
+        : []),
       '- If blocked (env, missing info, contradiction), stop with a concrete blocker and what you tried — do not invent.',
       '- Final summary: what changed, how verified, what remains.',
     ].join('\n'),
@@ -176,6 +182,31 @@ function isTerminalOrCancelled(status: JobStatus): boolean {
     status === 'failed' ||
     status === 'interrupted'
   );
+}
+
+/**
+ * Snapshot a dirty job worktree at worker completion/failure (commit
+ * backstop — see job-worktree-commit). Returns the ledger note line, or
+ * undefined when the tree was clean or no git path exists. Never throws into
+ * the completion path.
+ */
+async function snapshotWorkerWorktree(
+  agent: Agent,
+  job: JobRecord,
+): Promise<string | undefined> {
+  if (job.worktreePath === undefined || agent.kaos === undefined) return undefined;
+  try {
+    const result = await commitJobWorktreeIfDirty({
+      kaos: agent.kaos,
+      worktreePath: job.worktreePath,
+      jobId: job.id,
+      jobTitle: job.title,
+    });
+    if (result.committed) return 'commit: snapshotted dirty worktree (worker had not committed)';
+    return result.error !== undefined ? `commit_failed: ${result.error}` : undefined;
+  } catch (error) {
+    return `commit_failed: ${error instanceof Error ? error.message : String(error)}`;
+  }
 }
 
 /**
@@ -264,12 +295,15 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
 
     // Fire-and-forget: interactive lane must not await worker completion.
     void handle.completion
-      .then((completion) => {
+      .then(async (completion) => {
         const current = getJob(input.store, job.id);
         // If cancelled/interrupted while running, keep that terminal state.
         if (current?.status === 'cancelled' || current?.status === 'interrupted') {
           return;
         }
+        // Commit backstop: a dirty worktree here means the worker skipped the
+        // contract — snapshot so land/merge and GC cannot lose the work.
+        const commitNote = await snapshotWorkerWorktree(input.agent, current ?? job);
         const contract = completion.contract;
         const rawSummary =
           typeof completion.result === 'string'
@@ -316,6 +350,7 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
           ...(completion.goalId !== undefined ? { goalId: completion.goalId } : {}),
           notes: [
             getJob(input.store, job.id)?.notes,
+            commitNote,
             verificationFailed
               ? 'worker: completed but verification failed'
               : goalStopped
@@ -331,16 +366,19 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
           notifyInbox(input.store, updated, finalStatus, updated.resultSummary, input.agent);
         }
       })
-      .catch((error: unknown) => {
+      .catch(async (error: unknown) => {
         const current = getJob(input.store, job.id);
         if (current?.status === 'cancelled' || current?.status === 'interrupted') {
           return;
         }
+        // A crashed worker can leave partial work in the tree — snapshot it
+        // so the failure path does not silently discard recoverable changes.
+        const commitNote = await snapshotWorkerWorktree(input.agent, current ?? job);
         const detail = error instanceof Error ? error.message : String(error);
         const updated = patchJob(input.store, job.id, {
           status: 'failed',
           resultSummary: detail.slice(0, 2000),
-          notes: [getJob(input.store, job.id)?.notes, `worker_failed: ${detail}`]
+          notes: [getJob(input.store, job.id)?.notes, commitNote, `worker_failed: ${detail}`]
             .filter(Boolean)
             .join('\n'),
         });

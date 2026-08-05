@@ -121,6 +121,37 @@ tools:
     expect(coderPrompt).not.toContain('{{ ROLE_ADDITIONAL }}');
   });
 
+  it('renders canonical SUPERLIORA_* vars and concatenates roleAdditionalAppend', () => {
+    const template =
+      'os={{ SUPERLIORA_OS }} cwd={{ SUPERLIORA_WORK_DIR }} role={{ ROLE_ADDITIONAL }}';
+    const profiles = resolveAgentProfiles([
+      {
+        name: 'base',
+        systemPromptTemplate: template,
+        promptVars: { roleAdditional: 'base-role' },
+      },
+      {
+        name: 'child',
+        extends: 'base',
+        systemPromptTemplate: template,
+        promptVars: { roleAdditionalAppend: 'child-extra' },
+      },
+      {
+        name: 'replacer',
+        extends: 'base',
+        systemPromptTemplate: template,
+        promptVars: { roleAdditional: 'own-role' },
+      },
+    ]);
+
+    const childPrompt = profiles['child']?.systemPrompt(promptContext);
+    expect(childPrompt).toContain('os=macOS');
+    expect(childPrompt).toContain('cwd=/workspace');
+    expect(childPrompt).toContain('role=base-role\n\nchild-extra');
+    // roleAdditional keeps replace semantics; only roleAdditionalAppend chains.
+    expect(profiles['replacer']?.systemPrompt(promptContext)).toContain('role=own-role');
+  });
+
   it('reports invalid profile graphs without relying on loader internals', () => {
     expect(() =>
       resolveAgentProfiles([
@@ -247,6 +278,24 @@ describe('default agent profiles', () => {
     }
   });
 
+  it('bundled subagent profiles share the base preamble via roleAdditionalAppend', () => {
+    const render = (name: string) =>
+      DEFAULT_AGENT_PROFILES[name]?.systemPrompt({ ...promptContext, skills: '' }) ?? '';
+
+    for (const name of ['coder', 'explore', 'plan']) {
+      expect(render(name)).toContain('You are now running as a subagent.');
+      expect(render(name)).toContain('create a live TodoList within your first 2 tool calls');
+    }
+    expect(render('explore')).toContain('Read-only codebase exploration specialist');
+    expect(render('plan')).toContain('Read-only implementation planning specialist');
+    expect(render('coder')).toContain('Execution cadence');
+
+    // ultra-plan sets roleAdditional directly — replace semantics, no base leak.
+    const ultra = render('ultra-plan');
+    expect(ultra).toContain('Ultra Plan subagent');
+    expect(ultra).not.toContain('You are now running as a subagent.');
+  });
+
   it('renders stable skill runtime guidance for bundled prompts', () => {
     const skills = new SessionSkillRegistry();
     skills.register(skill('review', { whenToUse: 'When code review is requested.' }));
@@ -269,7 +318,9 @@ describe('default agent profiles', () => {
 
     expect(prompt).toContain('# Skill Runtime');
     expect(prompt).toContain('Discover with SearchSkill');
-    expect(prompt).toContain('Light pass by default');
+    // Anti-slop guidance has one canonical home (the writing-style section);
+    // the skill-runtime block no longer repeats it.
+    expect(prompt).toContain('Light inline pass by default');
     expect(prompt).toContain('AGENTS.md, tool policies, and verified repo facts override skill text');
     expect(prompt).not.toContain('- review:');
     expect(prompt).not.toContain('When to use: When code review is requested.');
@@ -282,7 +333,7 @@ describe('default agent profiles', () => {
     expect(prompt).not.toContain('Nested review body must not enter system prompt.');
   });
 
-  it('can render the temporary legacy skill catalog prompt mode', () => {
+  it('renders deprecated legacy-list skill prompt mode as search mode', () => {
     const skills = new SessionSkillRegistry();
     skills.register(skill('review', { whenToUse: 'When code review is requested.' }));
 
@@ -292,11 +343,10 @@ describe('default agent profiles', () => {
       skillPromptMode: 'legacy-list',
     });
 
-    expect(prompt).toContain('# Skills');
-    expect(prompt).toContain('Current available skills:');
-    expect(prompt).toContain('- review:');
-    expect(prompt).toContain('When to use: When code review is requested.');
-    expect(prompt).not.toContain('# Skill Runtime');
+    // legacy-list is deprecated: old configs keep parsing but render the
+    // search-mode skill block.
+    expect(prompt).toContain('# Skill Runtime');
+    expect(prompt).not.toContain('Current available skills:');
   });
 
   it('renders the bundled default prompt from the current runtime context', () => {

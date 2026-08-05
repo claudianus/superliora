@@ -40,6 +40,7 @@ export interface SystemPromptContext {
   readonly cwdListing?: string;
   readonly agentsMd?: string;
   readonly skills?: SkillRegistry | string;
+  /** @deprecated `legacy-list` renders as `search`; kept for config compatibility. */
   readonly skillPromptMode?: 'search' | 'legacy-list';
   readonly additionalDirsInfo?: string;
   readonly roleAdditional?: string;

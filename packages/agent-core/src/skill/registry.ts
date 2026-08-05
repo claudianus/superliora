@@ -21,7 +21,7 @@ const MODEL_SKILL_RUNTIME_PROMPT = [
   'SearchSkill metadata is enough to decide skip; load a skill only when its workflow would improve quality.',
   'After load: apply skill content selectively — keep steps that clearly help quality; skip mismatched, redundant, or unsafe parts.',
   'Prefer AGENTS.md, tool policies, and verified repo facts over skill text when they conflict.',
-  'If matching <kimi-skill-loaded> is already in context, reuse it instead of reloading.',
+  'If matching <liora-skill-loaded> is already in context, reuse it instead of reloading.',
 ].join('\n');
 
 export class SkillNotFoundError extends Error {
@@ -188,11 +188,6 @@ export class SessionSkillRegistry implements AgentSkillRegistry {
     return this.listInvocableSkills().length === 0 ? '' : MODEL_SKILL_RUNTIME_PROMPT;
   }
 
-  getLegacyModelSkillListing(): string {
-    const rendered = renderGroupedSkills(this.listInvocableSkills(), formatLegacyModelSkill);
-    return rendered.length === 0 ? '' : `Current available skills:\n${rendered}`;
-  }
-
   async searchByQuery(
     query: string,
     topK?: number,
@@ -288,15 +283,6 @@ function renderGroupedSkills(
 
 function formatFullSkill(skill: SkillDefinition): readonly string[] {
   return [`- ${skill.name}`, `  - Path: ${skill.path}`, `  - Description: ${skill.description}`];
-}
-
-function formatLegacyModelSkill(skill: SkillDefinition): readonly string[] {
-  const lines = [`- ${skill.name}: ${skill.description}`];
-  const whenToUse = skill.metadata.whenToUse;
-  if (typeof whenToUse === 'string' && whenToUse.trim().length > 0) {
-    lines.push(`  When to use: ${whenToUse.trim()}`);
-  }
-  return lines;
 }
 
 function clampSearchLimit(value: number, max: number): number {

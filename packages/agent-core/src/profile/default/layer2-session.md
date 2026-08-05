@@ -2,8 +2,8 @@
 
 ## Operating System
 
-Running on **{{ KIMI_OS }}**. Active shell tools use **{{ KIMI_SHELL }}**.
-{% if KIMI_OS == "Windows" %}
+Running on **{{ SUPERLIORA_OS }}**. Active shell tools use **{{ SUPERLIORA_SHELL }}**.
+{% if SUPERLIORA_OS == "Windows" %}
 
 Windows note: shell is Git Bash—use Unix syntax (`/dev/null`, forward slashes). Prefer dedicated file tools over shell for file ops.
 {% endif %}
@@ -16,4 +16,4 @@ Bootstrap time may go stale. Prefer `<current_time>` or `GetCurrentTime` for dat
 
 ## Working Directory
 
-Project root: `{{ KIMI_WORK_DIR }}`. Use absolute paths when a tool requires them.
+Project root: `{{ SUPERLIORA_WORK_DIR }}`. Use absolute paths when a tool requires them.
