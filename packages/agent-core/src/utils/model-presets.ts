@@ -301,7 +301,7 @@ function mergeModelEntries(a: ModelsDevModelEntry, b: ModelsDevModelEntry): Mode
   };
 }
 
-async function fetchJson(url: string): Promise<unknown | undefined> {
+async function fetchJson(url: string): Promise<unknown> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => {

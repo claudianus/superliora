@@ -219,7 +219,7 @@ describe('Session.prompt events', () => {
       expect(mainCall?.systemPrompt).toContain('You are SuperLiora CLI');
       // Skill Runtime only when Skill tools are exposed (invocable skills).
       expect(mainCall?.systemPrompt).toContain('## Research');
-      expect(mainCall?.systemPrompt).toContain('WebSearch/FetchURL');
+      expect(mainCall?.systemPrompt).toMatch(/WebSearch\s*\/\s*FetchURL/);
       expect(fakeProviderState.providerConfigs[0]).toMatchObject({
         type: 'kimi',
         defaultHeaders: expect.objectContaining({

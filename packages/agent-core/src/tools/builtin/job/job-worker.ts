@@ -5,7 +5,7 @@
 
 import { randomUUID } from 'node:crypto';
 
-import type { Agent } from '../../../agent';
+import type { Agent } from '../../../agent/index';
 import { type FanoutSpec, type FanoutTask, spawnOneAgent } from '../../../fleet/spawn-agents';
 import { getJobWorkerSpawner, requestJobSchedulePump } from '../../../session/job/job-offload';
 import { DEFAULT_SUBAGENT_TIMEOUT_MS } from '../../../session/subagent/subagent-host';

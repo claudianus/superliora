@@ -73,7 +73,7 @@ export interface TranscriptSegment {
 // ─── Detection patterns ─────────────────────────────────────────────────────
 
 const LOG_LEVEL_RE =
-  /^(?:\[)?(?:\d{4}[-/]\d{2}[-/]\d{2}[ T]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?Z?\s+)?(?:\[)?(FATAL|ERROR|ERR|WARN(?:ING)?|INFO|DEBUG|TRACE|CRITICAL|NOTICE)(?:\])?(?:\s*[:\-]\s*|\s+)/i;
+  /^(?:\[)?(?:\d{4}[-/]\d{2}[-/]\d{2}[ T]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?Z?\s+)?(?:\[)?(FATAL|ERROR|ERR|WARN(?:ING)?|INFO|DEBUG|TRACE|CRITICAL|NOTICE)(?:\])?(?:\s*[:-]\s*|\s+)/i;
 
 const STACK_FRAME_RE =
   /^\s*(?:at\s+|→\s+|↳\s+|File\s+")|(?:\s+\(?[A-Za-z]:?[/\\][^\s:]+:\d+(?::\d+)?\)?$)/;
@@ -138,7 +138,7 @@ const CODE_SNIFFERS: ReadonlyArray<{ readonly lang: string; readonly re: RegExp 
   },
   {
     lang: 'graphql',
-    re: /(?:^|\n)\s*(?:type\s+\w+\s*\{|query\s+\w*\s*[\({]|mutation\s+\w*\s*[\({])/m,
+    re: /(?:^|\n)\s*(?:type\s+\w+\s*\{|query\s+\w*\s*[({]|mutation\s+\w*\s*[({])/m,
   },
   {
     lang: 'terraform',
@@ -983,7 +983,7 @@ function formatPlainLine(line: string, options: FormatTranscriptOutputOptions): 
   if (line.length === 0) return line;
   if (LOG_LEVEL_RE.exec(line) !== null) return decorateLogLine(line, options);
   if (STACK_FRAME_RE.test(line)) return decorateStackFrame(line, p);
-  if (/^[+-](?![+-])/.test(line) || /^@@ /.test(line)) {
+  if (/^[+-](?![+-])/.test(line) || line.startsWith('@@ ')) {
     if (line.startsWith('+')) return chalk.hex(p.diffAdded)(line);
     if (line.startsWith('-')) return chalk.hex(p.diffRemoved)(line);
     return chalk.hex(p.diffMeta)(line);
@@ -1206,7 +1206,7 @@ function looksLikeJson(trimmed: string): boolean {
   const first = trimmed[0];
   if (first !== '{' && first !== '[') return false;
   if (trimmed.length > TRANSCRIPT_OUTPUT_PRETTY_MAX_CHARS) {
-    return /[\}\]]\s*$/.test(trimmed.slice(-80));
+    return /[}\]]\s*$/.test(trimmed.slice(-80));
   }
   try {
     JSON.parse(trimmed);
@@ -1227,7 +1227,7 @@ function looksLikeJsonl(trimmed: string): boolean {
   return hits >= 2 && hits / lines.length >= 0.7;
 }
 
-function tryParseJson(text: string): unknown | undefined {
+function tryParseJson(text: string): unknown {
   try {
     return JSON.parse(text) as unknown;
   } catch {

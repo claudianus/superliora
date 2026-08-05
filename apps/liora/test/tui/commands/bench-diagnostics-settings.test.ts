@@ -46,7 +46,7 @@ function makeBenchDiagnosticsHost(options: {
   lastStepTtftMsWindow?: readonly number[] | null;
 } = {}) {
   const transcriptContainer = { addChild: vi.fn() };
-  const harness = createLioraHarness({ homeDir, workDir });
+  const harness = createLioraHarness({ homeDir, projectDir: workDir });
   return {
     state: {
       transcriptContainer,

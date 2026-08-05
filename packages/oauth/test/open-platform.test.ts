@@ -50,11 +50,19 @@ describe('oauth/open-platform — pure helpers', () => {
   });
 
   describe('filterModelsByPrefix', () => {
-    it('returns an array of the same length as the input', () => {
-      const models = [sampleModel('a'), sampleModel('b'), sampleModel('c')];
+    it('keeps only the models a platform allows by prefix', () => {
       const platform = OPEN_PLATFORMS[0];
       if (platform === undefined) throw new Error('OPEN_PLATFORMS[0] is undefined');
-      expect(filterModelsByPrefix(models, platform).length).toBe(models.length);
+      const allowed = `${platform.allowedPrefixes?.[0] ?? ''}2-preview`;
+      const models = [sampleModel(allowed), sampleModel('some-other-model')];
+      expect(filterModelsByPrefix(models, platform).map((m) => m.id)).toEqual([allowed]);
+    });
+
+    it('passes every model through when the platform declares no prefixes', () => {
+      const models = [sampleModel('a'), sampleModel('b')];
+      const platform = OPEN_PLATFORMS[0];
+      if (platform === undefined) throw new Error('OPEN_PLATFORMS[0] is undefined');
+      expect(filterModelsByPrefix(models, { ...platform, allowedPrefixes: [] })).toEqual(models);
     });
 
     it('returns an empty-array-friendly result for an empty input', () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { AgentSwarmProgressComponent } from '#/tui/components/messages/agent-swarm-progress/index';
+import { MOON_SPINNER_FRAMES } from '#/tui/constant/rendering';
 import { ActivityPaneComponent } from '#/tui/components/panes/activity-pane';
 import type { SessionEventHandler } from '#/tui/controllers/session-event/handler';
 import { LioraTUI, type LioraTUIStartupInput, type TUIState } from '#/tui/liora-tui';
@@ -184,12 +185,12 @@ describe('updateActivityPane terminal progress', () => {
       expect(setProgress).toHaveBeenLastCalledWith(true);
       expect(state.activitySpinner).not.toBeNull();
       expect(state.activityContainer.children).toHaveLength(0);
-      // The moon spinner cycles through phases (🌑🌒🌓🌔🌕🌖🌗🌘) from the
-      // shared animation clock, so the glyph at render time is nondeterministic.
-      // Assert any moon-phase glyph leads the swarm progress row with the
-      // elapsed-time + working label, keeping the intent (spinner in the row).
+      // The moon spinner cycles frames from the shared animation clock, so the
+      // glyph at render time is nondeterministic. Assert any frame leads the
+      // swarm progress row with the elapsed-time + working label, keeping the
+      // intent (spinner in the row).
       expect(strip(progress.render(80).join('\n'))).toMatch(
-        /(?:🌑|🌒|🌓|🌔|🌕|🌖|🌗|🌘)\s+0s Working\.\.\./,
+        new RegExp(`(?:${MOON_SPINNER_FRAMES.join('|')})\\s+0s Working\\.\\.\\.`),
       );
 
       state.activitySpinner?.instance.stop();

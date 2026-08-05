@@ -5,7 +5,7 @@
 
 import { z } from 'zod';
 
-import type { Agent } from '../../../agent';
+import type { Agent } from '../../../agent/index';
 import type {
   ConductorJobDraftRecorder,
 } from '../../../agent/conductor-guard';

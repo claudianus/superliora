@@ -111,18 +111,15 @@ export class TranscriptVisibleLinePresenter {
   ): RendererRegionLine[] {
     const n = incoming.length;
     const prev = this.lastPresented;
-    const out: RendererRegionLine[] = new Array(n);
+    const out: RendererRegionLine[] = [];
     const dirtyRows = new Set<number>();
     for (const cmd of paintCommands) {
       if (cmd.row >= 0 && cmd.row < n) dirtyRows.add(cmd.row);
     }
 
     for (let i = 0; i < n; i++) {
-      if (dirtyRows.has(i) || prev === undefined || prev.length !== n) {
-        out[i] = incoming[i]!;
-      } else {
-        out[i] = prev[i]!;
-      }
+      const keepPrev = !dirtyRows.has(i) && prev !== undefined && prev.length === n;
+      out.push(keepPrev ? prev[i]! : incoming[i]!);
     }
     return out;
   }

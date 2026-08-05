@@ -9,7 +9,7 @@ import {
   type JobUpdatedEvent,
 } from '@superliora/protocol';
 
-import type { Agent } from '../../../agent';
+import type { Agent } from '../../../agent/index';
 import type { JobInboxEvent } from './job-inbox';
 import type { JobRecord } from './job-ledger';
 

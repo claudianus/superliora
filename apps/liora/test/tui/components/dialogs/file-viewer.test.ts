@@ -61,10 +61,10 @@ describe('FileViewerComponent', () => {
   });
 
   it('labels unknown extensions as plain text in the header', () => {
-    const viewer = makeViewer({ relativePath: 'Makefile', content: 'all:\n\techo hi' });
+    const viewer = makeViewer({ relativePath: 'notes.zzz', content: 'one\ntwo' });
     const header = renderedLines(viewer)[0] ?? '';
 
-    expect(header).toContain('Makefile');
+    expect(header).toContain('notes.zzz');
     expect(header).toContain('text ·');
     expect(header).toContain('2 lines');
   });

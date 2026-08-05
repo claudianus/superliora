@@ -27,9 +27,11 @@ export async function maybeStartOnboarding(host: StartupLifecycleHost): Promise<
       } catch {
         liveModels = undefined;
       }
-      applyQwenTokenPlanProvider(config, tokenPlanKey, {
-        ...(liveModels !== undefined ? { models: liveModels } : {}),
-      });
+      applyQwenTokenPlanProvider(
+        config,
+        tokenPlanKey,
+        liveModels === undefined ? {} : { models: liveModels },
+      );
       await host.harness.setConfig({
         providers: config.providers,
         models: config.models,

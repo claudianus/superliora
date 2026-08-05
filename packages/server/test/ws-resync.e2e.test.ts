@@ -64,8 +64,10 @@ afterEach(async () => {
       // ignore
     }
   }
-  rmSync(tmpDir, { recursive: true, force: true });
-  rmSync(bridgeHome, { recursive: true, force: true });
+  // Retry: a closing server can still be flushing logs/journals into these
+  // dirs, and macOS then reports ENOTEMPTY on the first sweep.
+  rmSync(tmpDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 });
+  rmSync(bridgeHome, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 });
 });
 
 async function spawn(): Promise<RunningServer> {

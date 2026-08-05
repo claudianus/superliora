@@ -409,8 +409,6 @@ export function projectContext(
       case 'subagent.lifecycle':
       // Wire kinds keep legacy ultrawork/swarm names; Liora TUI SSOT labels are Mission/Fleet.
       case 'ultrawork.event':
-      case 'ultra_swarm_engage_gate.set':
-      case 'ultra_swarm_engage_gate.clear':
         break;
       case 'plan_mode.state':
       case 'premium-quality.mode':

@@ -2,6 +2,7 @@ import { Container, Key, matchesKey, renderRendererPanelChromeRows, truncateToWi
 
 import { currentTheme } from '#/tui/theme/theme';
 import { renderPremiumHeadline } from '#/tui/features/appearance/appearance-effects';
+import { printableChar } from '#/tui/utils/printable-key';
 import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 
 export interface ModelFallbackItem {
@@ -62,6 +63,8 @@ export class ModelFallbackSelectorComponent extends Container implements Focusab
 
   handleInput(data: string): void {
     const count = this.opts.fallbacks.length;
+    // Kitty-mode terminals send letters as CSI-u; decode before comparing.
+    const ch = printableChar(data).toLowerCase();
 
     if (matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl('c'))) {
       this.opts.onCancel();
@@ -89,12 +92,12 @@ export class ModelFallbackSelectorComponent extends Container implements Focusab
       return;
     }
 
-    if (data === 'a' || data === 'A') {
+    if (ch === 'a') {
       this.opts.onSelect({ type: 'add' });
       return;
     }
 
-    if (data === 'd' || data === 'D') {
+    if (ch === 'd') {
       if (count > 0) {
         this.opts.onSelect({ type: 'remove', index: this.selectedIndex });
       }
@@ -119,7 +122,7 @@ export class ModelFallbackSelectorComponent extends Container implements Focusab
       return;
     }
 
-    if (data === 'r' || data === 'R') {
+    if (ch === 'r') {
       if (count > 0) {
         this.opts.onSelect({ type: 'clear' });
         this.selectedIndex = 0;
