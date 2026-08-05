@@ -276,16 +276,25 @@ shortcuts) use a **center modal**, not the bottom editor-replacement strip.
   (Settings → child picker). Only the top panel renders and receives keys.
   Pickers opened under an existing center modal default to `push` so Esc
   returns (breadcrumb `Hub › Model` when entries carry `label`).
-- **Command Hub (One-search Command Surface).** Status strip + Space flips
-  modes in place; Enter flips and closes (return to chat). Idle wide layout
-  is a **two-pane** surface: left categories (`↑↓`, `→`/`Enter` to items),
-  right item grid (`↑↓←→`, `←` returns to categories). Hint:
-  `↑↓←→ navigate · ← categories`. `1`–`9` hotkeys when not filtering; Esc
-  clears filter then closes. Typing fuzzy-filters curated rows, Settings
-  jumps, and slash/skills (`searchOnly`) with the same `fuzzyFilter` as
-  Settings — do not add a second searchable omnibox for the same catalog.
-  Nested pickers (Settings, model, …) push; Stop interrupts; Recent pins;
-  first-run intro uses `tui.toml` `[onboarding] hub_intro_seen`.
+- **Command Hub (One-search Command Surface).** Single-column rich palette:
+  an always-visible search row (placeholder + match count) on top, a slim
+  mode-status strip (`Plan ●on` LED chips) under it, then a windowed
+  section list. Every row is `❯ label · inline description · right badge`;
+  the selected row gets a full-width `surfaceRaised` island. The list pages
+  by terminal height (`pageView`, `▲/▼ n more` indicators) so the modal
+  never outgrows the viewport. Inline descriptions on every row when
+  inner ≥ 72 cols; below that only the selected row shows one underneath.
+  Idle Space flips the selected toggle/cycle in place (Enter flips and
+  closes); once a query exists, Space types (multi-word search). `←→`
+  jump sections, PgUp/PgDn page, Esc clears the filter then closes.
+  Typing fuzzy-filters curated rows, Settings jumps, and slash/skills
+  (`searchOnly`) with the same `fuzzyFilter` as Settings — matched
+  characters highlight in the label (`command-hub-highlight.ts`) and each
+  row carries its section as a dim `Section · ` description prefix instead
+  of per-row section headers. Do not add a second searchable omnibox for
+  the same catalog. Nested pickers (Settings, model, …) push; Stop
+  interrupts; Recent pins; first-run intro uses `tui.toml` `[onboarding]
+  hub_intro_seen`.
 - **Z-order.** Center modal (~8000) sits above stage/toast chrome and below
   diagnostics HUD (~10000).
 - **Do not use center modal for:** approval/question/credential, session

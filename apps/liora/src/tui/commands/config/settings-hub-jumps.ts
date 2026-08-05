@@ -42,7 +42,9 @@ function settingsJumpHubItem(
   const group = option.section ?? 'More';
   return {
     id: `settings.${selection}`,
-    section: `Settings · ${group}`,
+    // One flat Settings section in the idle list — the group stays searchable
+    // via keywords without fragmenting the section headers.
+    section: 'Settings',
     label: option.label,
     description: option.description ?? '',
     searchOnly: !pinned,

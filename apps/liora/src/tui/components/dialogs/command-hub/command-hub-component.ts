@@ -1,5 +1,10 @@
 /**
- * Command Hub component — wide center modal with status strip, search, and 2-pane idle nav.
+ * Command Hub component — single-column rich palette in a premium center modal.
+ *
+ * Fixed top-to-bottom layout: search row · slim mode strip · divider ·
+ * windowed section list. Every row carries label + inline description +
+ * right-aligned badge; the selected row gets a full-width raised island.
+ * Fuzzy matches highlight inside labels while filtering.
  */
 
 import {
@@ -7,6 +12,7 @@ import {
   Key,
   matchesKey,
   truncateToWidth,
+  visibleWidth,
   type Focusable,
   type NativeInputEvent,
 } from '#/tui/renderer';
@@ -22,19 +28,13 @@ import {
   renderShimmerPrefix,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
-import { printableChar } from '#/tui/utils/printable-key';
+import { isPrintableChar, printableChar } from '#/tui/utils/printable-key';
 import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 import {
   resolveCenterListMouse,
   type CenterListMouseLayout,
 } from '#/tui/utils/ui/list-dialog-mouse';
-import {
-  gridMoveDown,
-  gridMoveLeft,
-  gridMoveRight,
-  gridMoveUp,
-  resolveGridColumns,
-} from '#/tui/utils/ui/grid-nav';
+import { pageView } from '#/tui/utils/ui/paging';
 
 import {
   COMMAND_HUB_PAGE_SIZE,
@@ -45,12 +45,7 @@ import {
   hubEaseOutCubic,
 } from './command-hub-animation';
 import { filterHubItems } from './command-hub-filter';
-import {
-  HUB_CATEGORY_COL_WIDTH,
-  hubCategories,
-  hubItemsInCategory,
-  hubPreferTwoPane,
-} from './command-hub-panes';
+import { hubHighlightSegments } from './command-hub-highlight';
 import type {
   CommandHubActionId,
   CommandHubItem,
@@ -58,7 +53,14 @@ import type {
   CommandHubSelectMode,
 } from './command-hub-types';
 
-type HubFocusPane = 'categories' | 'items';
+/** Fixed label column; descriptions and badges align to its right edge. */
+const HUB_LABEL_COL_WIDTH = 24;
+/** Inner width at which every row gets an inline description. */
+const HUB_WIDE_MIN_INNER = 72;
+/** Never show more rows than this per page, however tall the terminal. */
+const HUB_MAX_PAGE_SIZE = 18;
+/** Rows reserved for chrome (search, strip, divider, frame, indicators). */
+const HUB_CHROME_ROWS = 16;
 
 export class CommandHubComponent extends Container implements Focusable {
   focused = false;
@@ -68,6 +70,7 @@ export class CommandHubComponent extends Container implements Focusable {
   private readonly onCancel: () => void;
   private readonly onIntroDismiss: (() => void) | undefined;
   private readonly title: string;
+  private readonly terminalRows: () => number;
   private filtered: CommandHubItem[];
   private selectedIndex = 0;
   private query = '';
@@ -79,12 +82,10 @@ export class CommandHubComponent extends Container implements Focusable {
   private selectionMovedAtMs = 0;
   private mouseLayout: CenterListMouseLayout | undefined;
   private crumbLines = 0;
-  /** Grid columns for item pane / search results (1 = list). */
-  private gridColumns = 1;
-  /** Idle two-pane: which side has focus. */
-  private focusPane: HubFocusPane = 'items';
-  private categoryIndex = 0;
-  private twoPane = false;
+  /** Item index of the first row in the last rendered window (mouse offset). */
+  private windowStart = 0;
+  /** Rows per page; refreshed every render from the terminal height. */
+  private pageSize = COMMAND_HUB_PAGE_SIZE;
 
   constructor(opts: CommandHubOptions) {
     super();
@@ -95,16 +96,19 @@ export class CommandHubComponent extends Container implements Focusable {
     this.title = opts.title ?? 'Command Hub';
     this.query = opts.initialQuery ?? '';
     this.intro = opts.intro === true;
+    this.terminalRows = opts.terminalRows ?? (() => process.stdout.rows || 24);
     this.filtered = filterHubItems(this.items, this.query);
-    this.syncCategoryFromSelection();
   }
 
   /** Live-refresh badges / Now section while Hub stays open. */
   setItems(items: readonly CommandHubItem[]): void {
-    const selectedId = this.visibleItems()[this.selectedIndex]?.id;
+    const selectedId = this.filtered[this.selectedIndex]?.id;
     this.items = items;
     this.filtered = filterHubItems(this.items, this.query);
-    this.syncCategoryFromSelection(selectedId);
+    const idx =
+      selectedId === undefined ? -1 : this.filtered.findIndex((item) => item.id === selectedId);
+    this.selectedIndex =
+      idx >= 0 ? idx : Math.min(this.selectedIndex, Math.max(0, this.filtered.length - 1));
     this.invalidate();
   }
 
@@ -128,20 +132,22 @@ export class CommandHubComponent extends Container implements Focusable {
   }
 
   handleNativeInput(event: NativeInputEvent): boolean {
-    const action = resolveCenterListMouse(event, this.mouseLayout, this.selectedIndex);
+    const action = resolveCenterListMouse(
+      event,
+      this.mouseLayout,
+      this.selectedIndex - this.windowStart,
+    );
     if (action.type === 'none') return false;
     if (action.type === 'move') {
-      this.moveItemSelection(this.selectedIndex + action.delta);
+      this.moveSelection(this.selectedIndex + action.delta);
       return true;
     }
     if (action.type === 'highlight') {
-      this.focusPane = 'items';
-      this.moveItemSelection(action.index);
+      this.moveSelection(action.index + this.windowStart);
       return true;
     }
     if (action.type === 'activate') {
-      this.focusPane = 'items';
-      this.moveItemSelection(action.index);
+      this.moveSelection(action.index + this.windowStart);
       this.activate('enter');
       return true;
     }
@@ -163,116 +169,39 @@ export class CommandHubComponent extends Container implements Focusable {
       return;
     }
     if (matchesKey(data, Key.enter)) {
-      if (this.twoPane && this.focusPane === 'categories') {
-        this.focusPane = 'items';
-        this.selectedIndex = 0;
-        this.invalidate();
-        return;
-      }
       this.activate('enter');
       return;
     }
-    if (matchesKey(data, Key.space) || printableChar(data) === ' ') {
-      if (this.twoPane && this.focusPane === 'categories') {
-        this.focusPane = 'items';
-        this.invalidate();
-        return;
-      }
-      this.activate('space');
-      return;
-    }
-
-    if (this.twoPane && this.focusPane === 'categories') {
-      this.handleCategoryKeys(data);
-      return;
-    }
-
     if (matchesKey(data, Key.up) || matchesKey(data, Key.ctrl('p'))) {
-      if (this.gridColumns > 1) {
-        this.moveItemSelection(
-          gridMoveUp({
-            index: this.selectedIndex,
-            count: this.visibleItems().length,
-            columns: this.gridColumns,
-          }),
-        );
-      } else {
-        this.moveItemSelection(this.selectedIndex - 1);
-      }
+      this.moveSelection(this.selectedIndex - 1);
       return;
     }
     if (matchesKey(data, Key.down) || matchesKey(data, Key.ctrl('n'))) {
-      if (this.gridColumns > 1) {
-        this.moveItemSelection(
-          gridMoveDown({
-            index: this.selectedIndex,
-            count: this.visibleItems().length,
-            columns: this.gridColumns,
-          }),
-        );
-      } else {
-        this.moveItemSelection(this.selectedIndex + 1);
-      }
+      this.moveSelection(this.selectedIndex + 1);
       return;
     }
     if (matchesKey(data, Key.left)) {
-      if (this.twoPane && this.gridColumns <= 1) {
-        this.focusPane = 'categories';
-        this.invalidate();
-        return;
-      }
-      if (this.gridColumns > 1) {
-        const next = gridMoveLeft({
-          index: this.selectedIndex,
-          count: this.visibleItems().length,
-          columns: this.gridColumns,
-        });
-        if (this.twoPane && next === this.selectedIndex && this.selectedIndex % this.gridColumns === 0) {
-          this.focusPane = 'categories';
-          this.invalidate();
-          return;
-        }
-        this.moveItemSelection(next);
-      } else {
-        this.moveItemSelection(this.sectionJumpIndex(-1));
-      }
+      this.moveSelection(this.sectionJumpIndex(-1));
       return;
     }
     if (matchesKey(data, Key.right)) {
-      if (this.gridColumns > 1) {
-        this.moveItemSelection(
-          gridMoveRight({
-            index: this.selectedIndex,
-            count: this.visibleItems().length,
-            columns: this.gridColumns,
-          }),
-        );
-      } else if (this.twoPane) {
-        // Already on items pane; no-op stay.
-        this.invalidate();
-      } else {
-        this.moveItemSelection(this.sectionJumpIndex(1));
-      }
+      this.moveSelection(this.sectionJumpIndex(1));
       return;
     }
     if (matchesKey(data, Key.pageUp)) {
-      this.moveItemSelection(
-        this.selectedIndex - COMMAND_HUB_PAGE_SIZE * Math.max(1, this.gridColumns),
-      );
+      this.moveSelection(this.selectedIndex - this.pageSize);
       return;
     }
     if (matchesKey(data, Key.pageDown)) {
-      this.moveItemSelection(
-        this.selectedIndex + COMMAND_HUB_PAGE_SIZE * Math.max(1, this.gridColumns),
-      );
+      this.moveSelection(this.selectedIndex + this.pageSize);
       return;
     }
     if (matchesKey(data, Key.home)) {
-      this.moveItemSelection(0);
+      this.moveSelection(0);
       return;
     }
     if (matchesKey(data, Key.end)) {
-      this.moveItemSelection(this.visibleItems().length - 1);
+      this.moveSelection(this.filtered.length - 1);
       return;
     }
     if (matchesKey(data, Key.backspace) || matchesKey(data, Key.delete)) {
@@ -283,61 +212,16 @@ export class CommandHubComponent extends Container implements Focusable {
       return;
     }
     const ch = printableChar(data);
-    if (ch !== undefined && ch.length > 0 && ch !== ' ') {
-      if (this.query.length === 0 && ch >= '1' && ch <= '9') {
-        const index = Number(ch) - 1;
-        if (this.visibleItems()[index] !== undefined) {
-          this.selectedIndex = index;
-          this.activate('enter');
-        }
-        return;
-      }
-      if (this.intro) this.dismissIntro();
-      this.query += ch;
-      this.refilter();
-    }
-  }
-
-  private handleCategoryKeys(data: string): void {
-    const cats = hubCategories(this.filtered);
-    if (matchesKey(data, Key.up) || matchesKey(data, Key.ctrl('p'))) {
-      this.categoryIndex = Math.max(0, this.categoryIndex - 1);
-      this.selectedIndex = 0;
-      this.selectionMovedAtMs = appearanceAnimationNow();
-      this.invalidate();
+    if (!isPrintableChar(ch)) return;
+    if (ch === ' ' && this.query.length === 0) {
+      // Idle Space flips the selected toggle/cycle in place; a leading space
+      // never starts a search query.
+      if (isFlipTarget(this.filtered[this.selectedIndex])) this.activate('space');
       return;
     }
-    if (matchesKey(data, Key.down) || matchesKey(data, Key.ctrl('n'))) {
-      this.categoryIndex = Math.min(cats.length - 1, this.categoryIndex + 1);
-      this.selectedIndex = 0;
-      this.selectionMovedAtMs = appearanceAnimationNow();
-      this.invalidate();
-      return;
-    }
-    if (matchesKey(data, Key.right) || matchesKey(data, Key.enter)) {
-      this.focusPane = 'items';
-      this.selectedIndex = 0;
-      this.invalidate();
-      return;
-    }
-    if (matchesKey(data, Key.home)) {
-      this.categoryIndex = 0;
-      this.selectedIndex = 0;
-      this.invalidate();
-      return;
-    }
-    if (matchesKey(data, Key.end)) {
-      this.categoryIndex = Math.max(0, cats.length - 1);
-      this.selectedIndex = 0;
-      this.invalidate();
-      return;
-    }
-    const ch = printableChar(data);
-    if (ch !== undefined && ch.length > 0 && ch !== ' ') {
-      if (this.intro) this.dismissIntro();
-      this.query += ch;
-      this.refilter();
-    }
+    if (this.intro) this.dismissIntro();
+    this.query += ch;
+    this.refilter();
   }
 
   override render(width: number): string[] {
@@ -359,32 +243,11 @@ export class CommandHubComponent extends Container implements Focusable {
     const padLeft = Math.max(0, Math.floor((regionWidth - boxWidth) / 2));
     const inner = boxWidth - 2;
 
-    const filtering = this.query.length > 0;
-    this.twoPane = hubPreferTwoPane(this.query, inner);
-    if (!this.twoPane) this.focusPane = 'items';
-
-    const itemsPaneWidth = this.twoPane
-      ? Math.max(24, inner - HUB_CATEGORY_COL_WIDTH - 1)
-      : inner;
-
-    this.gridColumns = resolveGridColumns({
-      width: itemsPaneWidth,
-      itemCount: this.visibleItems().length,
-      preferGrid: filtering || this.twoPane,
-      minCellWidth: 28,
-      maxColumns: 3,
-    });
-
-    const hint = filtering
-      ? this.gridColumns > 1
-        ? '↑↓←→ · Enter go · wheel · Esc clear filter'
-        : '↑↓ · Enter go · wheel scroll · Esc clear filter'
-      : this.twoPane
-        ? '↑↓←→ navigate · ← categories · Space flip · Enter go · 1–9 · type search · Esc'
-        : '↑↓ · ←→ section · Space flip · Enter go · 1–9 · type search · Esc';
+    const filtering = this.query.trim().length > 0;
+    this.pageSize = hubListPageSize(this.terminalRows());
 
     const body: string[] = [
-      truncateToWidth(theme.fg('textMuted', ` ${hint}`), inner),
+      this.renderSearchRow(inner, filtering),
       truncateToWidth(` ${this.renderStatusStrip(inner - 1, appearance)}`, inner),
       truncateToWidth(renderParticleDivider(inner, 'hub:strip', appearance), inner),
       '',
@@ -406,43 +269,40 @@ export class CommandHubComponent extends Container implements Focusable {
       body.push('');
     }
 
-    const visible = this.visibleItems();
-    const itemLineByIndex: number[] = Array.from({ length: visible.length }, () => -1);
-
-    if (visible.length === 0 && !this.twoPane) {
+    const itemLineByIndex: number[] = [];
+    if (this.filtered.length === 0) {
       body.push(
         truncateToWidth(
-          ` ${renderPulseText('No matches — Esc clears the filter', 'hub:empty', 'accent', appearance)}`,
+          ` ${renderPulseText(`No matches for '${this.query.trim()}'`, 'hub:empty', 'accent', appearance)}`,
           inner,
         ),
       );
-    } else if (this.twoPane) {
-      this.renderTwoPane(body, itemLineByIndex, inner, itemsPaneWidth, appearance, ambient, now);
-    } else if (this.gridColumns > 1) {
-      this.renderItemGrid(body, itemLineByIndex, visible, inner, appearance, 0);
+      body.push(truncateToWidth(theme.fg('textMuted', ' Esc clears the filter'), inner));
     } else {
-      this.renderSectionedList(body, itemLineByIndex, inner, appearance, ambient, now);
+      this.renderWindow(body, itemLineByIndex, inner, filtering, appearance, ambient, now);
     }
 
     const titleStyled =
       renderPulseText('•', 'hub:orn:l', 'accent', appearance) +
       ` ${renderPremiumHeadline(this.title, 'command-hub:title', appearance)} ` +
       renderPulseText('•', 'hub:orn:r', 'accent', appearance);
-    const footerLeftPlain = filtering ? `filter: ${this.query}` : undefined;
-    const footerRightPlain = filtering
-      ? `${String(this.filtered.length)}/${String(this.items.length)}`
-      : this.twoPane
-        ? hubCategories(this.filtered)[this.categoryIndex]
-        : undefined;
+    const selected = this.filtered[this.selectedIndex];
+    const flip = !filtering && isFlipTarget(selected);
+    const hintPlain = filtering
+      ? '↑↓ navigate · Enter run · Esc clear'
+      : flip
+        ? '↑↓ navigate · Enter run · Space flip · Esc close'
+        : '↑↓ navigate · Enter run · Esc close';
+    const sectionPlain = selected?.section;
     const frame = renderPremiumBoxFrame(body, {
       width: boxWidth,
       title: titleStyled,
       titlePlain: `• ${this.title} •`,
-      footerLeft: footerLeftPlain === undefined ? undefined : theme.fg('textMuted', footerLeftPlain),
-      footerLeftPlain,
+      footerLeft: theme.fg('textMuted', hintPlain),
+      footerLeftPlain: hintPlain,
       footerRight:
-        footerRightPlain === undefined ? undefined : theme.boldFg('primary', footerRightPlain),
-      footerRightPlain,
+        sectionPlain === undefined ? undefined : theme.boldFg('primary', sectionPlain),
+      footerRightPlain: sectionPlain,
       appearance,
       openedAtMs: this.openedAtMs,
     });
@@ -459,241 +319,219 @@ export class CommandHubComponent extends Container implements Focusable {
     return framed;
   }
 
-  private renderTwoPane(
+  /** Search input row — always visible so the palette teaches itself. */
+  private renderSearchRow(inner: number, filtering: boolean): string {
+    const theme = currentTheme;
+    const cursor = theme.fg('primary', '▌');
+    const left = filtering
+      ? ` ${theme.fg('primary', '❯')} ${theme.fg('text', this.query)}${cursor}`
+      : ` ${theme.fg('textMuted', '❯')} ${cursor}${theme.fg('textMuted', ' Search actions, settings, skills…')}`;
+    const countPlain = filtering
+      ? `${String(this.filtered.length)}/${String(this.items.length)}`
+      : String(this.items.length);
+    const pad = Math.max(1, inner - visibleWidth(left) - visibleWidth(countPlain) - 1);
+    return truncateToWidth(
+      `${left}${' '.repeat(pad)}${theme.fg('textMuted', countPlain)}`,
+      inner,
+    );
+  }
+
+  private renderWindow(
     body: string[],
     itemLineByIndex: number[],
     inner: number,
-    itemsPaneWidth: number,
+    filtering: boolean,
     appearance: ReturnType<typeof getActiveAppearancePreferences>,
     ambient: boolean,
     now: number,
   ): void {
     const theme = currentTheme;
-    const cats = hubCategories(this.filtered);
-    if (cats.length === 0) {
-      body.push(truncateToWidth(theme.fg('textMuted', ' No actions'), inner));
-      return;
+    const page = pageView(this.filtered.length, this.selectedIndex, this.pageSize);
+    this.windowStart = page.start;
+
+    if (page.page > 0) {
+      body.push(truncateToWidth(theme.fg('textMuted', `  ▲ ${String(page.start)} more`), inner));
     }
-    if (this.categoryIndex >= cats.length) this.categoryIndex = cats.length - 1;
-    const catW = HUB_CATEGORY_COL_WIDTH;
-    const visible = this.visibleItems();
-    const catFocus = this.focusPane === 'categories';
-    const rowCount = Math.max(cats.length, Math.ceil(visible.length / Math.max(1, this.gridColumns)));
-
-    for (let row = 0; row < rowCount; row++) {
-      const cat = cats[row];
-      let left = ' '.repeat(catW);
-      if (cat !== undefined) {
-        const selected = row === this.categoryIndex;
-        const pointer = selected && catFocus ? renderSelectPointer('command-hub') : ' ';
-        const label = selected
-          ? catFocus
-            ? theme.boldFg('primary', cat)
-            : theme.boldFg('accent', cat)
-          : theme.fg('textMuted', cat);
-        left = truncateToWidth(`${pointer}${label}`, catW - 1).padEnd(catW - 1, ' ');
-        if (selected && catFocus) left = theme.bg('surfaceRaised', left);
-      }
-
-      const parts: string[] = [];
-      if (this.gridColumns > 1) {
-        const cellW = Math.max(12, Math.floor((itemsPaneWidth - 1) / this.gridColumns));
-        const base = row * this.gridColumns;
-        for (let c = 0; c < this.gridColumns; c++) {
-          const i = base + c;
-          if (i >= visible.length) break;
-          const item = visible[i]!;
-          itemLineByIndex[i] = body.length;
-          const selected = i === this.selectedIndex && !catFocus;
-          const pointer = selected ? renderSelectPointer('command-hub') : ' ';
-          const hotkey =
-            i < 9 ? theme.fg('textMuted', `${String(i + 1)} `) : '  ';
-          const label = selected
-            ? theme.boldFg('primary', item.label)
-            : theme.fg('text', item.label);
-          const padded = truncateToWidth(`${pointer}${hotkey}${label}`, cellW - 1).padEnd(
-            cellW - 1,
-            ' ',
-          );
-          parts.push(selected ? theme.bg('surfaceRaised', padded) : padded);
-        }
-      } else if (visible[row] !== undefined) {
-        const item = visible[row]!;
-        itemLineByIndex[row] = body.length;
-        const selected = row === this.selectedIndex && !catFocus;
-        const reveal = ambient ? hubClamp01((now - this.openedAtMs - 60 - row * 24) / 200) : 1;
-        const pointer = selected ? renderSelectPointer('command-hub') : ' ';
-        const hotkey =
-          row < 9 ? theme.fg('textMuted', `${String(row + 1)} `) : '  ';
-        const label = selected
-          ? theme.boldFg('primary', item.label)
-          : reveal < 1
-            ? theme.fg('textMuted', item.label)
-            : theme.fg('text', item.label);
-        const badge = this.renderBadge(item, appearance);
-        parts.push(truncateToWidth(`${pointer}${hotkey}${label}${badge}`, itemsPaneWidth - 1));
-      }
-
-      const right = truncateToWidth(parts.join(''), itemsPaneWidth);
-      const divider = theme.fg('textMuted', '│');
-      body.push(truncateToWidth(` ${left}${divider}${right}`, inner));
-    }
-
-    const selected = visible[this.selectedIndex];
-    if (selected !== undefined && !catFocus) {
-      body.push(
-        truncateToWidth(
-          ` ${' '.repeat(catW)}${renderShimmerPrefix(appearance)}${theme.fg('textMuted', selected.description)}`,
-          inner,
-        ),
-      );
-    } else if (catFocus) {
-      const cat = cats[this.categoryIndex] ?? '';
-      body.push(
-        truncateToWidth(
-          ` ${theme.fg('textMuted', `${cat} · → items · ${String(visible.length)} actions`)}`,
-          inner,
-        ),
-      );
-    }
-  }
-
-  private renderItemGrid(
-    body: string[],
-    itemLineByIndex: number[],
-    visible: readonly CommandHubItem[],
-    inner: number,
-    appearance: ReturnType<typeof getActiveAppearancePreferences>,
-    _pad: number,
-  ): void {
-    const theme = currentTheme;
-    const cellW = Math.max(12, Math.floor((inner - 1) / this.gridColumns));
-    for (let index = 0; index < visible.length; index += this.gridColumns) {
-      const rowLine = body.length;
-      const parts: string[] = [];
-      for (let c = 0; c < this.gridColumns; c++) {
-        const i = index + c;
-        if (i >= visible.length) break;
-        const item = visible[i]!;
-        itemLineByIndex[i] = rowLine;
-        const selected = i === this.selectedIndex;
-        const pointer = selected ? renderSelectPointer('command-hub') : ' ';
-        const label = selected
-          ? theme.boldFg('primary', item.label)
-          : theme.fg('text', item.label);
-        const padded = truncateToWidth(`${pointer}${label}`, cellW - 1).padEnd(cellW - 1, ' ');
-        parts.push(selected ? theme.bg('surfaceRaised', padded) : padded);
-      }
-      body.push(truncateToWidth(` ${parts.join('')}`, inner));
-    }
-    const selected = visible[this.selectedIndex];
-    if (selected !== undefined) {
-      body.push(
-        truncateToWidth(
-          `    ${renderShimmerPrefix(appearance)}${theme.fg('textMuted', selected.description)}`,
-          inner,
-        ),
-      );
-    }
-  }
-
-  private renderSectionedList(
-    body: string[],
-    itemLineByIndex: number[],
-    inner: number,
-    appearance: ReturnType<typeof getActiveAppearancePreferences>,
-    ambient: boolean,
-    now: number,
-  ): void {
-    const theme = currentTheme;
     let lastSection = '';
-    const showHotkeys = this.query.length === 0;
-    for (let index = 0; index < this.filtered.length; index += 1) {
-      const item = this.filtered[index]!;
-      if (item.section !== lastSection) {
+    for (let i = page.start; i < page.end; i += 1) {
+      const item = this.filtered[i]!;
+      // Filtered results arrive in score order — section headers would
+      // flicker per row, so rows carry their section as a dim prefix instead.
+      if (!filtering && item.section !== lastSection) {
         lastSection = item.section;
-        const sectionLabel =
-          item.section === 'Now' || item.section === 'Recent'
-            ? renderPulseText(item.section, `hub:sec:${item.section}`, 'accent', appearance)
-            : theme.boldFg('accent', item.section);
-        body.push(truncateToWidth(` ${sectionLabel}`, inner));
+        body.push(this.renderSectionHeader(item.section, inner, appearance));
       }
-      const selected = index === this.selectedIndex;
-      const reveal = ambient ? hubClamp01((now - this.openedAtMs - 60 - index * 24) / 200) : 1;
-      const pointer = selected ? renderSelectPointer('command-hub') : ' ';
-      const slidePad =
-        selected &&
-        ambient &&
-        this.selectionMovedAtMs > 0 &&
-        now - this.selectionMovedAtMs < HUB_SLIDE_MS
-          ? ' '
-          : '';
-      const hotkey =
-        showHotkeys && index < 9
-          ? theme.fg('textMuted', `${String(index + 1)} `)
-          : showHotkeys
-            ? '  '
-            : '';
-      const badge = this.renderBadge(item, appearance);
-      const flashing = this.flashId === item.id;
-      itemLineByIndex[index] = body.length;
-      const label = flashing
-        ? renderSettleFlash(item.label, `hub:flash:${item.id}`, this.flashAtMs, appearance)
-        : selected
-          ? theme.boldFg('primary', item.label)
-          : reveal < 1
-            ? theme.fg('textMuted', item.label)
-            : theme.fg('text', item.label);
-      const kindHint =
-        item.kind === 'toggle' || item.kind === 'cycle'
-          ? theme.fg(
-              'textMuted',
-              item.kind === 'cycle' ? '  cycle' : selected ? '  toggle' : '',
-            )
-          : '';
+      itemLineByIndex.push(body.length);
+      body.push(...this.renderItemRow(item, i, inner, filtering, appearance, ambient, now));
+    }
+    if (page.page < page.pageCount - 1) {
       body.push(
-        truncateToWidth(`${slidePad} ${pointer}${hotkey}${label}${kindHint}${badge}`, inner),
+        truncateToWidth(
+          theme.fg('textMuted', `  ▼ ${String(this.filtered.length - page.end)} more`),
+          inner,
+        ),
       );
-      if (selected) {
-        body.push(
-          truncateToWidth(
-            `    ${renderShimmerPrefix(appearance)}${theme.fg('textMuted', item.description)}`,
-            inner,
-          ),
-        );
-      }
     }
   }
 
-  private visibleItems(): CommandHubItem[] {
-    if (!this.twoPane || this.query.length > 0) return [...this.filtered];
-    const cats = hubCategories(this.filtered);
-    const cat = cats[this.categoryIndex];
-    if (cat === undefined) return [...this.filtered];
-    return hubItemsInCategory(this.filtered, cat);
+  private renderSectionHeader(
+    section: string,
+    inner: number,
+    appearance: ReturnType<typeof getActiveAppearancePreferences>,
+  ): string {
+    const theme = currentTheme;
+    const label =
+      section === 'Now' || section === 'Recent'
+        ? renderPulseText(section, `hub:sec:${section}`, 'accent', appearance)
+        : theme.boldFg('accent', section);
+    const fill = inner - visibleWidth(section) - 4;
+    const rule = fill > 2 ? ` ${theme.dimFg('textMuted', '╌'.repeat(fill))}` : '';
+    return truncateToWidth(` ${label}${rule}`, inner);
   }
 
-  private syncCategoryFromSelection(preferredId?: string): void {
-    const cats = hubCategories(this.filtered);
-    if (cats.length === 0) {
-      this.categoryIndex = 0;
-      this.selectedIndex = 0;
-      return;
-    }
-    if (preferredId !== undefined) {
-      for (let ci = 0; ci < cats.length; ci++) {
-        const items = hubItemsInCategory(this.filtered, cats[ci]!);
-        const idx = items.findIndex((item) => item.id === preferredId);
-        if (idx >= 0) {
-          this.categoryIndex = ci;
-          this.selectedIndex = idx;
-          return;
-        }
+  private renderItemRow(
+    item: CommandHubItem,
+    index: number,
+    inner: number,
+    filtering: boolean,
+    appearance: ReturnType<typeof getActiveAppearancePreferences>,
+    ambient: boolean,
+    now: number,
+  ): string[] {
+    const theme = currentTheme;
+    const selected = index === this.selectedIndex;
+    const flashing = this.flashId === item.id;
+    const reveal = ambient ? hubClamp01((now - this.openedAtMs - 60 - index * 24) / 200) : 1;
+    const pointer = selected ? renderSelectPointer('command-hub') : ' ';
+    const slidePad =
+      selected && ambient && this.selectionMovedAtMs > 0 && now - this.selectionMovedAtMs < HUB_SLIDE_MS
+        ? ' '
+        : '';
+
+    const baseLabel = (text: string): string =>
+      selected
+        ? theme.boldFg('primary', text)
+        : reveal < 1
+          ? theme.fg('textMuted', text)
+          : theme.fg('text', text);
+    const labelStyled = flashing
+      ? renderSettleFlash(item.label, `hub:flash:${item.id}`, this.flashAtMs, appearance)
+      : filtering
+        ? hubHighlightSegments(item.label, this.query)
+            .map((seg) => (seg.matched ? theme.boldFg('accent', seg.text) : baseLabel(seg.text)))
+            .join('')
+        : baseLabel(item.label);
+
+    const badge = this.renderBadge(item, appearance, selected);
+    const badgeWidth = visibleWidth(badge);
+    // One trailing column keeps the badge off the rounded border.
+    const maxContent = inner - (badgeWidth > 0 ? badgeWidth + 2 : 1);
+    const wide = inner >= HUB_WIDE_MIN_INNER;
+    const description = filtering
+      ? `${item.section} · ${item.description}`
+      : item.description;
+
+    let leftPart: string;
+    let descStyled = '';
+    if (wide) {
+      const labelCell =
+        truncateToWidth(labelStyled, HUB_LABEL_COL_WIDTH) +
+        ' '.repeat(Math.max(0, HUB_LABEL_COL_WIDTH - visibleWidth(item.label)));
+      leftPart = `${slidePad} ${pointer} ${labelCell} `;
+      const descRoom = maxContent - visibleWidth(leftPart);
+      if (descRoom > 6 && description.length > 0) {
+        descStyled = filtering
+          ? truncateToWidth(
+              theme.fg('textDim', `${item.section} · `) + theme.fg('textMuted', item.description),
+              descRoom,
+            )
+          : truncateToWidth(theme.fg('textMuted', description), descRoom);
       }
+    } else {
+      leftPart = `${slidePad} ${pointer} ${labelStyled}`;
     }
-    this.categoryIndex = Math.min(this.categoryIndex, cats.length - 1);
-    const visible = this.visibleItems();
-    this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, visible.length - 1));
+
+    const content = truncateToWidth(leftPart + descStyled, maxContent);
+    const gap = Math.max(
+      badgeWidth > 0 ? 1 : 0,
+      inner - 1 - visibleWidth(content) - badgeWidth,
+    );
+    const line = truncateToWidth(`${content}${' '.repeat(gap)}${badge} `, inner);
+
+    const lines: string[] = [];
+    if (selected && !flashing) {
+      lines.push(theme.bg('surfaceRaised', padToVisibleWidth(line, inner)));
+    } else {
+      lines.push(line);
+    }
+    if (!wide && selected && description.length > 0) {
+      lines.push(
+        truncateToWidth(
+          `    ${renderShimmerPrefix(appearance)}${theme.fg('textMuted', description)}`,
+          inner,
+        ),
+      );
+    }
+    return lines;
+  }
+
+  private renderBadge(
+    item: CommandHubItem,
+    appearance: ReturnType<typeof getActiveAppearancePreferences>,
+    selected: boolean,
+  ): string {
+    if (item.badge === undefined || item.badge.length === 0) return '';
+    const theme = currentTheme;
+    const display =
+      item.badge === 'ON' ? '● On' : item.badge === 'off' ? '○ off' : item.badge;
+    if (this.flashId === item.id) {
+      return renderSettleFlash(display, `hub:flash:${item.id}`, this.flashAtMs, appearance);
+    }
+    if (item.badge === 'ON') {
+      return selected
+        ? theme.boldFg('success', display)
+        : renderPulseText(display, `hub:badge:${item.id}`, 'glow', appearance);
+    }
+    if (item.badge === 'off') return theme.fg('textDim', display);
+    return theme.fg('accent', display);
+  }
+
+  private renderStatusStrip(
+    width: number,
+    appearance: ReturnType<typeof getActiveAppearancePreferences>,
+  ): string {
+    const theme = currentTheme;
+    const chips: string[] = [];
+    const push = (label: string, on: boolean, id: CommandHubActionId): void => {
+      const led = on ? '● on' : '○ off';
+      if (this.flashId === id) {
+        chips.push(renderSettleFlash(`${label} ${led}`, `hub:chip:${label}`, this.flashAtMs, appearance));
+        return;
+      }
+      chips.push(
+        theme.fg('textMuted', `${label} `) +
+          (on
+            ? renderPulseText(led, `hub:chip:${label}`, 'glow', appearance)
+            : theme.fg('textDim', led)),
+      );
+    };
+    const plan = this.items.find((i) => i.id === 'modes.plan');
+    const swarm = this.items.find((i) => i.id === 'modes.swarm');
+    const ultra = this.items.find((i) => i.id === 'modes.ultrawork');
+    const premium = this.items.find((i) => i.id === 'modes.premium');
+    const perm = this.items.find((i) => i.id === 'modes.permission');
+    push('Plan', plan?.badge === 'ON', 'modes.plan');
+    push('Swarm', swarm?.badge === 'ON', 'modes.swarm');
+    push('Mission', ultra?.badge === 'ON', 'modes.ultrawork');
+    push('Visual', premium?.badge === 'ON', 'modes.premium');
+    const permLabel = formatPermissionChip(perm?.badge);
+    chips.push(
+      this.flashId === 'modes.permission'
+        ? renderSettleFlash(`Perm ${permLabel}`, 'hub:chip:perm', this.flashAtMs, appearance)
+        : theme.fg('textMuted', 'Perm ') +
+            renderPulseText(permLabel, 'hub:chip:perm', 'primary', appearance),
+    );
+    return truncateToWidth(chips.join('  '), Math.max(8, width));
   }
 
   private sectionJumpIndex(dir: -1 | 1): number {
@@ -721,9 +559,8 @@ export class CommandHubComponent extends Container implements Focusable {
     return prevStart;
   }
 
-  private moveItemSelection(next: number): void {
-    const count = this.visibleItems().length;
-    const clamped = Math.max(0, Math.min(Math.max(0, count - 1), next));
+  private moveSelection(next: number): void {
+    const clamped = Math.max(0, Math.min(Math.max(0, this.filtered.length - 1), next));
     if (clamped !== this.selectedIndex) {
       this.selectionMovedAtMs = appearanceAnimationNow();
     }
@@ -732,83 +569,40 @@ export class CommandHubComponent extends Container implements Focusable {
   }
 
   private activate(mode: CommandHubSelectMode): void {
-    const item = this.visibleItems()[this.selectedIndex];
+    const item = this.filtered[this.selectedIndex];
     if (item === undefined) return;
     if (this.intro) this.dismissIntro();
     this.onSelect(item, mode);
   }
 
-  private renderStatusStrip(
-    width: number,
-    appearance: ReturnType<typeof getActiveAppearancePreferences>,
-  ): string {
-    const theme = currentTheme;
-    const chips: string[] = [];
-    const push = (label: string, on: boolean, id: CommandHubActionId): void => {
-      const chip = on ? `[${label} ON]` : `[${label}]`;
-      if (this.flashId === id) {
-        chips.push(renderSettleFlash(chip, `hub:chip:${label}`, this.flashAtMs, appearance));
-        return;
-      }
-      chips.push(
-        on
-          ? renderPulseText(chip, `hub:chip:${label}`, 'glow', appearance)
-          : theme.fg('textMuted', chip),
-      );
-    };
-    const plan = this.items.find((i) => i.id === 'modes.plan');
-    const swarm = this.items.find((i) => i.id === 'modes.swarm');
-    const ultra = this.items.find((i) => i.id === 'modes.ultrawork');
-    const premium = this.items.find((i) => i.id === 'modes.premium');
-    const perm = this.items.find((i) => i.id === 'modes.permission');
-    push('Plan', plan?.badge === 'ON', 'modes.plan');
-    push('Swarm', swarm?.badge === 'ON', 'modes.swarm');
-    push('Mission', ultra?.badge === 'ON', 'modes.ultrawork');
-    push('Visual', premium?.badge === 'ON', 'modes.premium');
-    const permLabel = formatPermissionChip(perm?.badge);
-    const permChip = `[${permLabel}]`;
-    chips.push(
-      this.flashId === 'modes.permission'
-        ? renderSettleFlash(permChip, 'hub:chip:perm', this.flashAtMs, appearance)
-        : renderPulseText(permChip, 'hub:chip:perm', 'primary', appearance),
-    );
-    return truncateToWidth(chips.join(' '), Math.max(8, width));
-  }
-
-  private renderBadge(
-    item: CommandHubItem,
-    appearance: ReturnType<typeof getActiveAppearancePreferences>,
-  ): string {
-    if (item.badge === undefined || item.badge.length === 0) return '';
-    const display =
-      item.badge === 'ON' ? 'On' : item.badge === 'off' ? 'Off' : item.badge;
-    const raw = ` · ${display}`;
-    if (this.flashId === item.id) {
-      return renderSettleFlash(raw, `hub:flash:${item.id}`, this.flashAtMs, appearance);
-    }
-    if (item.badge === 'ON') {
-      return ` ${renderPulseText('· On', `hub:badge:${item.id}`, 'glow', appearance)}`;
-    }
-    return currentTheme.fg('textMuted', raw);
-  }
-
   private refilter(): void {
     this.filtered = filterHubItems(this.items, this.query);
-    if (this.query.length > 0) {
-      this.focusPane = 'items';
-      this.twoPane = false;
-      this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, this.filtered.length - 1));
-    } else {
-      this.syncCategoryFromSelection();
-    }
+    // Palette convention: the best fuzzy+recency match lands under the cursor.
+    this.selectedIndex = 0;
     this.invalidate();
   }
 }
 
+function isFlipTarget(item: CommandHubItem | undefined): boolean {
+  return item?.kind === 'toggle' || item?.kind === 'cycle';
+}
+
+function hubListPageSize(terminalRows: number): number {
+  if (!Number.isFinite(terminalRows) || terminalRows <= 0) return COMMAND_HUB_PAGE_SIZE;
+  return Math.max(
+    COMMAND_HUB_PAGE_SIZE,
+    Math.min(HUB_MAX_PAGE_SIZE, terminalRows - HUB_CHROME_ROWS),
+  );
+}
+
+function padToVisibleWidth(line: string, width: number): string {
+  return line + ' '.repeat(Math.max(0, width - visibleWidth(line)));
+}
+
 function formatPermissionChip(badge: string | undefined): string {
-  if (badge === undefined || badge.length === 0) return 'Permission —';
+  if (badge === undefined || badge.length === 0) return '—';
   if (badge === 'yolo') return 'YOLO';
-  if (badge === 'auto') return 'Auto';
-  if (badge === 'manual') return 'Manual';
+  if (badge === 'auto') return 'auto';
+  if (badge === 'manual') return 'manual';
   return badge;
 }
