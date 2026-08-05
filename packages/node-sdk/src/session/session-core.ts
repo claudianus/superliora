@@ -419,10 +419,10 @@ export abstract class SessionCore {
     this.ensureOpen();
     const memoryQuery = normalizeRequiredString(
       query,
-      'Memory search query cannot be empty',
+      'Memory recall query cannot be empty',
       ErrorCodes.REQUEST_INVALID,
     );
-    return this.rpc.memorySearch({
+    return this.rpc.memoryRecall({
       ...options,
       query: memoryQuery,
       sessionId: this.id,
@@ -433,8 +433,8 @@ export abstract class SessionCore {
   async remember(input: MemoryCreateInput): Promise<MemoryRecord> {
     this.ensureOpen();
     const scopeKey = input.scopeKey ?? (input.scope === 'session' ? this.id : input.scope === 'workspace' ? this.workDir : undefined);
-    if (scopeKey === undefined) return this.rpc.memoryCreate(input);
-    return this.rpc.memoryCreate({ ...input, scopeKey });
+    if (scopeKey === undefined) return this.rpc.memoryRemember(input);
+    return this.rpc.memoryRemember({ ...input, scopeKey });
   }
 
   async listSkills(): Promise<readonly SkillSummary[]> {

@@ -2,7 +2,6 @@ import type { ToolInfo } from '@superliora/sdk';
 
 /** Mirrors agent-core COMPAT_BRANDING_TOOL_HELP — TUI cannot import agent-core. */
 const COMPAT_PREFERRED: Readonly<Record<string, string>> = {
-  LioraExpand: 'Expand',
   LioraReview: 'Review',
   CreateUltraGoal: 'CreateGoal',
   UltraworkGraph: 'TaskGraph',

@@ -174,7 +174,7 @@ async function loadPreflightMemorySearch(
   if (query.length === 0) return {};
   try {
     const results = host.session === undefined
-      ? await host.harness.memory.search({ query, limit: 3 })
+      ? await host.harness.memory.recall({ query, limit: 3 })
       : await host.session.recall(query, { limit: 3 });
     return { results };
   } catch (error) {

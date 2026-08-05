@@ -1029,13 +1029,14 @@ function memoryStats(input: { readonly total: number; readonly active: number })
     active: input.active,
     archived: 0,
     deleted: 0,
-    byKind: {
-      semantic: input.active,
-      episodic: 0,
-      procedural: 0,
-      prospective: 0,
-      governance: 0,
+    byType: {
+      fact: input.active,
+      event: 0,
+      procedure: 0,
+      task: 0,
+      rule: 0,
     },
+    candidates: 0,
     byScope: {
       user: 0,
       workspace: input.active,
@@ -1047,7 +1048,8 @@ function memoryStats(input: { readonly total: number; readonly active: number })
 function memoryRecord(subject: string): MemoryRecord {
   return {
     id: 'mem_1',
-    kind: 'semantic',
+    type: 'fact',
+    epistemic: 'direct',
     scope: 'workspace',
     subject,
     content: 'Harness preflight memory.',
@@ -1058,8 +1060,11 @@ function memoryRecord(subject: string): MemoryRecord {
     source: { kind: 'user' },
     createdAt: 1,
     updatedAt: 1,
+    recordedAt: 1,
     accessCount: 0,
     supersedes: [],
+    evidenceRefs: [],
+    links: [],
     metadata: {},
   };
 }

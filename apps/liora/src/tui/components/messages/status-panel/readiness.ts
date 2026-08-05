@@ -174,16 +174,16 @@ function formatToolsGate(options: StatusReportOptions): string {
 
 function formatMemoryGate(options: StatusReportOptions): string {
   const dream = options.autoDream ?? options.status?.autoDream;
-  let dreamPart = 'auto-dream on';
+  let dreamPart = 'reflection on';
   if (dream !== undefined && dream !== null) {
     if (!dream.enabled) {
-      dreamPart = 'auto-dream off';
+      dreamPart = 'reflection off';
     } else if (dream.inFlight) {
-      dreamPart = 'auto-dream…';
+      dreamPart = 'reflection…';
     } else if (dream.runs > 0) {
-      dreamPart = `auto-dream×${String(dream.runs)}`;
+      dreamPart = `reflection×${String(dream.runs)}`;
     } else {
-      dreamPart = `auto-dream ≥${String(dream.minHours)}h/${String(dream.minActiveRecords)}rec`;
+      dreamPart = `reflection ≥${String(dream.minHours)}h/${String(dream.minActiveRecords)} candidate(s)`;
     }
   }
   return `prefs | session recall | ${dreamPart}`;

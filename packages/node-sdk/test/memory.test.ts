@@ -17,30 +17,30 @@ afterEach(async () => {
 });
 
 describe('LioraHarness memory', () => {
-  it('exposes durable Liora Recall through harness and session helpers', async () => {
+  it('exposes durable Liora Memory through harness and session helpers', async () => {
     const homeDir = await makeTempDir();
     const workDir = await makeTempDir();
     const harness = createLioraHarness({ identity: TEST_IDENTITY, homeDir });
 
     try {
       const global = await harness.memory.remember({
-        kind: 'procedural',
+        type: 'procedure',
         scope: 'user',
         subject: 'search preference',
         content: 'The user prefers rg for repository search.',
         tags: ['preference'],
         importance: 0.9,
       });
-      const globalResults = await harness.memory.search({ query: 'repository search rg', limit: 3 });
+      const globalResults = await harness.memory.recall({ query: 'repository search rg', limit: 3 });
 
       expect(globalResults[0]?.memory.id).toBe(global.id);
 
       const session = await harness.createSession({ id: 'ses_memory', workDir });
       const projectMemory = await session.remember({
-        kind: 'semantic',
+        type: 'fact',
         scope: 'workspace',
         subject: 'project codename',
-        content: 'This workspace is testing Liora Recall.',
+        content: 'This workspace is testing Liora Memory.',
         tags: ['manual'],
       });
       const sessionResults = await session.recall('testing recall workspace', { limit: 5 });
@@ -53,7 +53,7 @@ describe('LioraHarness memory', () => {
 });
 
 async function makeTempDir(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'kimi-sdk-memory-'));
+  const dir = await mkdtemp(join(tmpdir(), 'liora-sdk-memory-'));
   tempDirs.push(dir);
   return dir;
 }

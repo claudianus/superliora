@@ -55,7 +55,7 @@ import {
 import { AutoDreamService } from './dream/auto-dream';
 import { PromptIntelligenceService } from './intelligence/prompt-intelligence';
 import { AutopilotMode } from '../autopilot';
-import { LioraRecallStore } from '../memory/store';
+import { LioraMemoryStore } from '../memory/store';
 import { PremiumQualityMode } from '../premium-quality';
 import { HookEngine } from '../session/hooks';
 import { InjectionManager } from './injection/manager';
@@ -151,7 +151,7 @@ export interface AgentOptions {
   readonly additionalDirs?: readonly string[];
   readonly memory?: AgentMemoryRuntime;
   readonly responseLanguagePreference?: (() => ResponseLanguagePreference | undefined) | undefined;
-  readonly dreamStore?: LioraRecallStore;
+  readonly dreamStore?: LioraMemoryStore;
   /** Shared session file-snapshot store for `/rewind` (optional; agent-standalone safe). */
   readonly fileSnapshots?: FileSnapshotStore | undefined;
   /** Path sandbox profile for file tools (`off` | `workspace` | `read-only`). */

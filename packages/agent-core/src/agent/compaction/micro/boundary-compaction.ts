@@ -17,7 +17,7 @@ export interface BoundaryCompactionOptions {
   readonly expertBodyMaxChars?: number;
   readonly totalResultMaxChars?: number;
   readonly runId?: string;
-  /** Recover tool hint for archived bodies; defaults to Expand when registered, else LioraExpand. */
+  /** Recover tool hint for archived bodies; the public recovery tool is Expand. */
   readonly recoverToolName?: string;
 }
 

@@ -57,6 +57,24 @@ Foreground mode blocks the current turn until the command completes or times out
 
 **`FetchURL`** accepts a single `url` parameter and returns the page content. For HTML pages, the host extracts the body text rather than returning the full HTML; plain text or Markdown pages are passed through directly. Also requires a host-provided implementation.
 
+## Liora Memory
+
+| Tool | Default Approval | Description |
+| --- | --- | --- |
+| `Memory` | Requires approval for writes | Manage durable Liora Memory records |
+
+`Memory` accepts one operation at a time:
+
+- `remember`: save a fact, event, procedure, task, or rule. Explicit records are active; automatic captures are isolated as `candidate`.
+- `recall`: retrieve records with optional type, time, token-budget, score, and bounded link-expansion filters. Candidate records are never injected by default.
+- `reflect`: promote candidates after deterministic duplicate and temporal-conflict checks.
+- `forget`: create a tombstone; explicit purge is separate from the normal tool path.
+- `inspect`: report the canonical store path, counts, integrity, audit events, or one record.
+
+When `RepoQuery` returns `derived_links`, copy those edges into `remember.links` to keep file, symbol, and indexed-line provenance with the durable record.
+
+Retrieved content is marked as untrusted context and escaped before prompt injection. It must not override system or developer instructions, permissions, tool schemas, or the user request.
+
 ## Plan Mode
 
 | Tool | Default Approval | Description |

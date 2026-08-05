@@ -374,7 +374,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.tip.toolDescs':
     'tool descs stay dense — Grep over shell rg; Read parallelizes multi-file pulls',
   'tui.tip.autoDream':
-    '/status Memory shows auto-dream on/×N (default on, ≥4h/8 records) — long-horizon recall hygiene',
+    '/status Memory shows reflection on/×N (default on, ≥4h/8 candidates) — long-horizon memory hygiene',
   'tui.tip.microBadges': 'footer μ badges show micro clears (cache-miss/swarm) without config',
   'tui.tip.mediaZeroConfig':
     'media: GenerateImage/Video zero-config when OPENAI/GOOGLE keys are present',
@@ -388,7 +388,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
     '/login connects providers; OPENAI_API_KEY or GOOGLE_API_KEY for image/video',
   'tui.tip.glances': 'TUI glances: thinking 4 · command 4 · result 3 (not densify 1/1/2)',
   'tui.tip.recall':
-    'Liora Recall injects ≤6 memories · 480 chars each; Bash soft-caps 4k; LioraExpand pages 120 lines',
+    'Liora Memory injects ≤6 memories · 480 chars each; Bash soft-caps 4k; Expand pages 120 lines',
 
   // ── Appearance settings ─────────────────────────────────────────────────
   'tui.appearance.timestamps': 'Timestamps',
@@ -754,7 +754,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.tip.toolDescs':
     '도구 설명은 조밀하게 — shell rg 대신 Grep; Read는 다중 파일 병렬',
   'tui.tip.autoDream':
-    '/status Memory는 auto-dream on/×N (기본 on, ≥4h/8 records) — 장기 회상 위생',
+    '/status Memory는 reflection on/×N (기본 on, ≥4h/8 candidates) — 장기 기억 위생',
   'tui.tip.microBadges': 'footer μ 배지는 설정 없이 micro clear(cache-miss/swarm)를 표시',
   'tui.tip.mediaZeroConfig':
     'media: OPENAI/GOOGLE 키가 있으면 GenerateImage/Video 제로컨피그',
@@ -768,7 +768,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
     '/login으로 프로바이더 연결; 이미지/영상은 OPENAI_API_KEY 또는 GOOGLE_API_KEY',
   'tui.tip.glances': 'TUI glance: thinking 4 · command 4 · result 3 (densify 1/1/2 아님)',
   'tui.tip.recall':
-    'Liora Recall은 메모리 ≤6개 · 각 480자; Bash soft-cap 4k; LioraExpand 120줄 페이지',
+    'Liora Memory는 메모리 ≤6개 · 각 480자; Bash soft-cap 4k; Expand 120줄 페이지',
 
   // ── Appearance settings ─────────────────────────────────────────────────
   'tui.appearance.timestamps': '타임스탬프',

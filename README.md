@@ -40,7 +40,7 @@ Inside an interactive session, `Shift-Tab` (or `/ultrawork`, `liora --plan`) run
 4. **UltraResearch loop** — cite sources before high-risk choices  
 5. **UltraSwarm** — ENGAGE or DEFER up to 128 specialist subagents  
 6. **Integrate → Verify** — merge work and close with tests / runtime evidence  
-7. **Learn** — write project-local LLM Wiki pages; store only durable facts in Liora Recall  
+7. **Learn** — write project-local LLM Wiki pages; store only durable facts in Liora Memory
 
 ## Capability map
 
@@ -51,7 +51,7 @@ Inside an interactive session, `Shift-Tab` (or `/ultrawork`, `liora --plan`) run
 | **UltraResearch** | Check APIs, papers, advisories; leave citations |
 | **UltraSwarm** | ENGAGE/DEFER gate + specialist subagents (max 128) |
 | **Context OS** | Compaction, working memory, continuity repair, rehydration |
-| **Liora Recall** | Semantic · episodic · procedural · prospective memory |
+| **Liora Memory** | Fact · event · procedure · task · rule memory |
 | **LLM Wiki** | Project-local reviewable knowledge from Ultrawork runs |
 | **Browser-use** | CloakBrowser + Playwright page observation and control |
 | **Computer-use** | CUA/MCP native desktop capture and control |

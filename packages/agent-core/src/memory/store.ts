@@ -1,5 +1,5 @@
 /**
- * Liora Recall store — public `LioraRecallStore` API and session/agent
+ * Liora Memory store — public `LioraMemoryStore` API and session/agent
  * runtime views.
  *
  * This is a thin coordinator: on-disk persistence (SQLite + `records/`
@@ -16,40 +16,41 @@ import { renderMemoryInjection } from './render';
 import { redactMemoryText, shouldSkipMemoryText } from './redact';
 import { MemoryPersistence, SCHEMA_VERSION, STORE_RELATIVE_PATH } from './store-persistence';
 import {
-  assertMemoryKind,
+  assertMemoryType,
   assertMemoryScope,
   assertMemoryStatus,
   buildListFilter,
   clamp01,
-  defaultScopeForKind,
+  defaultScopeForType,
   defaultScopeKey,
   extractMemoryCandidates,
   hasAllTags,
-  isMemoryKind,
+  isMemoryType,
+  isMemoryEvidenceRefLike,
+  isMemoryLinkLike,
   isMemoryRecordLike,
   isMemoryScope,
   limit,
   MAX_LIMIT,
-  MEMORY_KINDS,
+  MEMORY_TYPES,
   MEMORY_SCOPES,
   contentPartsToText,
   normalizeComparable,
   normalizeCreateInput,
   normalizeRequired,
   normalizeTags,
-  prioritizeInjectionKinds,
+  prioritizeInjectionTypes,
   sanitizeMetadata,
   scoreMemory,
   stripUndefined,
 } from './store-query';
 import type {
   AgentMemoryRuntime,
-  LioraRecallConfig,
-  MemoryConsolidateResult,
+  LioraMemoryConfig,
   MemoryCreateInput,
   MemoryExportResult,
   MemoryImportResult,
-  MemoryKind,
+  MemoryInspectResult,
   MemoryListRequest,
   MemoryRecord,
   MemoryRuntimeAgentContext,
@@ -57,15 +58,18 @@ import type {
   MemoryScope,
   MemorySearchRequest,
   MemorySearchResult,
+  MemoryReflectInput,
+  MemoryReflectResult,
   MemoryStats,
   MemoryTurnCaptureInput,
+  MemoryType,
   MemoryUpdateInput,
   SessionMemoryRuntime,
 } from './types';
 
-export interface LioraRecallStoreOptions {
+export interface LioraMemoryStoreOptions {
   readonly homeDir: string;
-  readonly config?: (() => LioraRecallConfig | undefined) | undefined;
+  readonly config?: (() => LioraMemoryConfig | undefined) | undefined;
   readonly now?: (() => number) | undefined;
 }
 
@@ -82,18 +86,26 @@ export interface MemoryIntegrityReport {
 const DEFAULT_INJECTION_LIMIT = 2;
 const DEFAULT_INJECTION_MIN_SCORE = 0.35;
 
-// Recall precision (T2-5): governance/semantic memories are durable rules
-// and facts; episodic noise should not crowd them out of the tiny injection
+// Recall precision (T2-5): rule/fact memories are durable guidance; event
+// noise should not crowd them out of the tiny injection window.
 // cap. Candidates are fetched wide, boosted, re-ranked, then capped.
 const INJECTION_CANDIDATE_MULTIPLIER = 3;
 const INJECTION_CANDIDATE_FLOOR = 6;
 
-export class LioraRecallStore {
+function temporalWindowsOverlap(left: MemoryRecord, right: MemoryRecord): boolean {
+  const leftStart = left.validFrom ?? Number.NEGATIVE_INFINITY;
+  const rightStart = right.validFrom ?? Number.NEGATIVE_INFINITY;
+  const leftEnd = Math.min(left.validTo ?? Number.POSITIVE_INFINITY, left.invalidAt ?? Number.POSITIVE_INFINITY);
+  const rightEnd = Math.min(right.validTo ?? Number.POSITIVE_INFINITY, right.invalidAt ?? Number.POSITIVE_INFINITY);
+  return Math.max(leftStart, rightStart) < Math.min(leftEnd, rightEnd);
+}
+
+export class LioraMemoryStore {
   private readonly persistence: MemoryPersistence;
   private readonly now: () => number;
-  private readonly config: (() => LioraRecallConfig | undefined) | undefined;
+  private readonly config: (() => LioraMemoryConfig | undefined) | undefined;
 
-  constructor(options: LioraRecallStoreOptions) {
+  constructor(options: LioraMemoryStoreOptions) {
     this.now = options.now ?? Date.now;
     this.config = options.config;
     const dbPath = options.config?.()?.storePath ?? join(options.homeDir, STORE_RELATIVE_PATH);
@@ -135,12 +147,12 @@ export class LioraRecallStore {
   }
 
   runtimeForSession(context: MemoryRuntimeSessionContext): SessionMemoryRuntime {
-    return new LioraRecallSessionRuntime(this, context);
+    return new LioraMemorySessionRuntime(this, context);
   }
 
   async remember(input: MemoryCreateInput): Promise<MemoryRecord> {
     if (!this.isEnabled()) {
-      throw new Error('Liora Recall is disabled by config.');
+      throw new Error('Liora Memory is disabled by config.');
     }
     const subject = normalizeRequired(input.subject, 'Memory subject cannot be empty.');
     const redacted = redactMemoryText(normalizeRequired(input.content, 'Memory content cannot be empty.'));
@@ -165,10 +177,27 @@ export class LioraRecallStore {
       throw new Error('Memory content appears to contain multiple secrets and was not saved.');
     }
     const now = this.now();
+    if (
+      (patch.evidenceRefs !== undefined && patch.evidenceRefs.some((ref) => !isMemoryEvidenceRefLike(ref))) ||
+      (patch.links !== undefined && patch.links.some((link) => !isMemoryLinkLike(link)))
+    ) {
+      throw new Error('Memory provenance contains an invalid reference or link.');
+    }
+    const scope = patch.scope ?? existing.scope;
+    const scopeKey =
+      patch.scopeKey !== undefined
+        ? patch.scopeKey
+        : patch.scope !== undefined && patch.scope !== existing.scope
+          ? undefined
+          : existing.scopeKey;
+    if (scope !== 'user' && (scopeKey === undefined || scopeKey.trim().length === 0)) {
+      throw new Error(`Memory ${scope} scope requires a scopeKey.`);
+    }
     const record = stripUndefined({
       ...existing,
-      kind: patch.kind ?? existing.kind,
-      scope: patch.scope ?? existing.scope,
+      type: patch.type ?? existing.type,
+      epistemic: patch.epistemic ?? existing.epistemic,
+      scope,
       subject: patch.subject === undefined ? existing.subject : normalizeRequired(patch.subject, 'Memory subject cannot be empty.'),
       content,
       tags: patch.tags === undefined ? existing.tags : normalizeTags(patch.tags),
@@ -176,14 +205,18 @@ export class LioraRecallStore {
       importance: clamp01(patch.importance ?? existing.importance),
       status: patch.status ?? existing.status,
       updatedAt: now,
+      recordedAt: existing.recordedAt,
       supersedes: existing.supersedes,
       metadata: patch.metadata === undefined ? existing.metadata : sanitizeMetadata(patch.metadata),
-      scopeKey: patch.scopeKey ?? existing.scopeKey,
+      scopeKey: scope === 'user' ? undefined : scopeKey,
       validFrom: patch.validFrom ?? existing.validFrom,
       validTo: patch.validTo ?? existing.validTo,
+      invalidAt: patch.invalidAt ?? existing.invalidAt,
       supersededBy: patch.supersededBy ?? existing.supersededBy,
+      evidenceRefs: patch.evidenceRefs ?? existing.evidenceRefs,
+      links: patch.links ?? existing.links,
     });
-    assertMemoryKind(record.kind);
+    assertMemoryType(record.type);
     assertMemoryScope(record.scope);
     assertMemoryStatus(record.status);
     this.persistence.upsertRecord(record);
@@ -204,6 +237,7 @@ export class LioraRecallStore {
       ...existing,
       status: 'deleted' as const,
       updatedAt: now,
+      invalidAt: existing.invalidAt ?? now,
     };
     this.persistence.upsertRecord(deletedRecord);
     this.persistence.writeMarkdownRecord(deletedRecord);
@@ -217,43 +251,132 @@ export class LioraRecallStore {
     return records.filter((record) => hasAllTags(record, request.tags));
   }
 
-  async search(request: MemorySearchRequest): Promise<readonly MemorySearchResult[]> {
+  async recall(request: MemorySearchRequest): Promise<readonly MemorySearchResult[]> {
     if (!this.isEnabled()) return [];
-    const query = request.query?.trim();
+    const effectiveRequest =
+      request.asOf === undefined ? { ...request, asOf: this.now() } : request;
+    const query = effectiveRequest.query?.trim();
     const records = this.persistence
-      .searchRecords(query, request)
-      .filter(({ record }) => hasAllTags(record, request.tags));
+      .searchRecords(query, effectiveRequest)
+      .filter(({ record }) => hasAllTags(record, effectiveRequest.tags));
     const scored = records.map(({ record, rank }) => scoreMemory(record, query, rank, this.now()));
     const minScore =
-      typeof request.minScore === 'number' && Number.isFinite(request.minScore) ? request.minScore : undefined;
-    const ranked = scored.toSorted((a, b) => b.score - a.score || b.memory.updatedAt - a.memory.updatedAt);
-    const sorted = (minScore === undefined ? ranked : ranked.filter((result) => result.score >= minScore)).slice(
-      0,
-      limit(request.limit),
+      typeof effectiveRequest.minScore === 'number' && Number.isFinite(effectiveRequest.minScore)
+        ? effectiveRequest.minScore
+        : undefined;
+    const scoredRanked = scored.toSorted((a, b) => b.score - a.score || b.memory.updatedAt - a.memory.updatedAt);
+    let ranked = scoredRanked;
+    const filtered = minScore === undefined ? ranked : ranked.filter((result) => result.score >= minScore);
+    if (request.expandLinks === true && filtered.length > 0) {
+      const known = new Set(filtered.map((result) => result.memory.id));
+      const linked = this.persistence.expandMemoryLinks([...known], 2, 32, effectiveRequest.asOf);
+      for (const entry of linked) {
+        const memory = await this.get(entry.id);
+        if (
+          memory === undefined ||
+          known.has(memory.id) ||
+          !this.matchesRecallBoundary(memory, effectiveRequest)
+        )
+          continue;
+        const result = scoreMemory(memory, query, undefined, this.now());
+        ranked = [...ranked, { ...result, reasons: [...result.reasons, 'linked'], linkPath: entry.path }];
+        known.add(memory.id);
+      }
+      ranked = ranked.toSorted((a, b) => b.score - a.score || b.memory.updatedAt - a.memory.updatedAt);
+    } else {
+      ranked = filtered;
+    }
+    const sorted = this.applyTokenBudget(
+      ranked.filter((result) => minScore === undefined || result.score >= minScore),
+      effectiveRequest.tokenBudget,
+      effectiveRequest.limit,
     );
+    if (sorted.length === 0 && minScore !== undefined && scoredRanked.length > 0) {
+      const best = scoredRanked[0]!;
+      return [
+        {
+          ...best,
+          abstained: true,
+          abstentionReason: `best score ${best.score.toFixed(2)} is below minimum ${minScore.toFixed(2)}`,
+        },
+      ];
+    }
     if (sorted.length > 0) {
       this.persistence.touch(sorted.map((result) => result.memory.id));
     }
     return sorted;
   }
 
+  private matchesRecallBoundary(memory: MemoryRecord, request: MemorySearchRequest): boolean {
+    const archived =
+      request.includeArchived === true &&
+      (memory.status === 'archived' || memory.status === 'superseded');
+    const deleted = request.includeDeleted === true && memory.status === 'deleted';
+    const candidate = request.includeCandidates === true && memory.status === 'candidate';
+    if (memory.status !== 'active' && !archived && !deleted && !candidate) return false;
+    if (request.scope !== undefined && memory.scope !== request.scope) return false;
+    if (request.scopeKey !== undefined && memory.scopeKey !== request.scopeKey) return false;
+    if (
+      request.scope === undefined &&
+      memory.scope !== 'user' &&
+      memory.scopeKey !== (memory.scope === 'workspace' ? request.workspaceKey : request.sessionId)
+    ) {
+      return false;
+    }
+    if (request.asOf !== undefined) {
+      if (memory.recordedAt > request.asOf) return false;
+      if (memory.validFrom !== undefined && memory.validFrom > request.asOf) return false;
+      if (memory.validTo !== undefined && memory.validTo <= request.asOf) return false;
+      if (
+        request.includeDeleted !== true &&
+        memory.invalidAt !== undefined &&
+        memory.invalidAt <= request.asOf
+      ) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private applyTokenBudget(
+    results: readonly MemorySearchResult[],
+    tokenBudget: number | undefined,
+    requestedLimit: number | undefined,
+  ): readonly MemorySearchResult[] {
+    const cap = limit(requestedLimit);
+    if (tokenBudget === undefined || !Number.isFinite(tokenBudget)) return results.slice(0, cap);
+    let used = 0;
+    const boundedBudget = Math.max(1, Math.floor(tokenBudget));
+    const selected: MemorySearchResult[] = [];
+    for (const result of results) {
+      const estimated = Math.max(1, Math.ceil((result.memory.subject.length + result.memory.content.length) / 4));
+      if (selected.length > 0 && used + estimated > boundedBudget) break;
+      selected.push(result);
+      used += estimated;
+      if (selected.length >= cap) break;
+    }
+    return selected;
+  }
+
   async stats(): Promise<MemoryStats> {
     const rows = this.persistence.statsRows();
-    const byKind = Object.fromEntries(MEMORY_KINDS.map((kind) => [kind, 0])) as Record<MemoryKind, number>;
+    const byType = Object.fromEntries(MEMORY_TYPES.map((type) => [type, 0])) as Record<MemoryType, number>;
     const byScope = Object.fromEntries(MEMORY_SCOPES.map((scope) => [scope, 0])) as Record<MemoryScope, number>;
     let total = 0;
     let active = 0;
     let archived = 0;
     let deleted = 0;
+    let candidates = 0;
     for (const row of rows) {
       total += row.count;
       if (row.status === 'active') active += row.count;
       if (row.status === 'archived') archived += row.count;
       if (row.status === 'deleted') deleted += row.count;
-      if (isMemoryKind(row.kind)) byKind[row.kind] += row.count;
+      if (row.status === 'candidate') candidates += row.count;
+      if (isMemoryType(row.kind)) byType[row.kind] += row.count;
       if (isMemoryScope(row.scope)) byScope[row.scope] += row.count;
     }
-    return { total, active, archived, deleted, byKind, byScope };
+    return { total, active, archived, deleted, candidates, byType, byScope };
   }
 
   async exportRecords(request: MemoryListRequest = {}): Promise<MemoryExportResult> {
@@ -283,35 +406,94 @@ export class LioraRecallStore {
     return { imported, skipped, updated };
   }
 
-  async consolidate(): Promise<MemoryConsolidateResult> {
+  async reflect(input: MemoryReflectInput = {}): Promise<MemoryReflectResult> {
     const active = await this.list({ status: 'active', limit: MAX_LIMIT });
-    const groups = new Map<string, MemoryRecord[]>();
-    for (const memory of active) {
-      const key = [
-        memory.kind,
+    const candidates = await this.list({ status: 'candidate', limit: input.limit ?? MAX_LIMIT });
+    let promoted = 0;
+    let rejected = 0;
+    let merged = 0;
+    let activeRecords = [...active];
+    const memoryKey = (memory: MemoryRecord): string =>
+      [
+        memory.type,
         memory.scope,
         memory.scopeKey ?? '',
         normalizeComparable(memory.subject),
         normalizeComparable(memory.content),
       ].join('\0');
-      const group = groups.get(key);
-      if (group === undefined) groups.set(key, [memory]);
-      else group.push(memory);
-    }
-    let merged = 0;
-    for (const group of groups.values()) {
-      if (group.length < 2) continue;
-      const [keeper, ...duplicates] = group.toSorted((a, b) => b.updatedAt - a.updatedAt);
-      if (keeper === undefined) continue;
-      for (const duplicate of duplicates) {
-        await this.update(duplicate.id, {
-          status: 'superseded',
-          supersededBy: keeper.id,
-        });
-        merged += 1;
+    for (const candidate of candidates) {
+      const duplicate = activeRecords.find((memory) => memoryKey(memory) === memoryKey(candidate));
+      if (duplicate !== undefined) {
+        if (input.dryRun !== true) {
+          await this.update(candidate.id, { status: 'superseded', supersededBy: duplicate.id });
+        }
+        rejected += 1;
+        continue;
       }
+      const conflict = activeRecords.find(
+        (memory) =>
+          memory.type === candidate.type &&
+          memory.scope === candidate.scope &&
+          memory.scopeKey === candidate.scopeKey &&
+          normalizeComparable(memory.subject) === normalizeComparable(candidate.subject) &&
+          temporalWindowsOverlap(memory, candidate),
+      );
+      if (
+        conflict !== undefined &&
+        input.force !== true &&
+        (candidate.recordedAt < conflict.recordedAt ||
+          (candidate.recordedAt === conflict.recordedAt && candidate.id < conflict.id))
+      ) {
+        if (input.dryRun !== true) {
+          await this.update(candidate.id, { status: 'superseded', supersededBy: conflict.id });
+        }
+        rejected += 1;
+        continue;
+      }
+      if (conflict !== undefined && input.dryRun !== true) {
+        await this.update(conflict.id, { status: 'superseded', supersededBy: candidate.id });
+      }
+      promoted += 1;
+      if (conflict !== undefined) {
+        activeRecords = activeRecords.filter((memory) => memory.id !== conflict.id);
+      }
+      activeRecords.push({ ...candidate, status: 'active' });
+      if (input.dryRun !== true) {
+        await this.update(candidate.id, { status: 'active' });
+      }
+      if (conflict !== undefined) merged += 1;
     }
-    return { examined: active.length, merged };
+    if (input.dryRun !== true) await this.applyRetention();
+    return { examined: active.length + candidates.length, merged, promoted, rejected };
+  }
+
+  private async applyRetention(): Promise<void> {
+    const retentionDays = this.config?.()?.retentionDays;
+    if (retentionDays === undefined || !Number.isFinite(retentionDays)) return;
+    const cutoff = this.now() - Math.max(1, retentionDays) * 86_400_000;
+    const records = await this.list({ status: 'active', limit: MAX_LIMIT });
+    for (const record of records) {
+      if (record.updatedAt < cutoff) await this.update(record.id, { status: 'archived' });
+    }
+  }
+
+  async inspect(): Promise<MemoryInspectResult> {
+    const integrity = this.checkIntegrity();
+    return {
+      storePath: this.getStorePath(),
+      schemaVersion: SCHEMA_VERSION,
+      integrity,
+      stats: await this.stats(),
+      recentEvents: this.persistence.recentEvents(),
+    };
+  }
+
+  async purge(id: string): Promise<boolean> {
+    const existing = await this.get(id);
+    if (existing === undefined) return false;
+    const purged = this.persistence.purgeRecord(id);
+    if (purged) this.persistence.insertEvent(id, 'purge', { kind: 'system' });
+    return purged;
   }
 
   async recordTurn(
@@ -319,7 +501,7 @@ export class LioraRecallStore {
     input: MemoryTurnCaptureInput,
   ): Promise<readonly MemoryRecord[]> {
     if (!this.isEnabled()) return [];
-    if (this.config?.()?.autoCapture === false) return [];
+    if (this.config?.()?.captureMode === 'off') return [];
     if (context.agentType !== 'main') return [];
     const text = contentPartsToText(input.input).trim();
     if (text.length === 0 || shouldSkipMemoryText(text)) return [];
@@ -340,29 +522,27 @@ export class LioraRecallStore {
     if (context.agentType !== 'main') return undefined;
     const hasQuery = query !== undefined && query.trim().length > 0;
     const cap = this.config?.()?.maxRetrieved ?? DEFAULT_INJECTION_LIMIT;
-    // Recall precision (T2-5): fetch a wider candidate window, then let
-    // governance/semantic memories outrank marginal episodic hits before
-    // the cap is applied.
-    const results = await this.search({
+    const results = await this.recall({
       query,
       workspaceKey: context.workDir,
       sessionId: context.sessionId,
       limit: Math.max(cap * INJECTION_CANDIDATE_MULTIPLIER, INJECTION_CANDIDATE_FLOOR),
       includeArchived: false,
+      includeCandidates: false,
       minScore: hasQuery ? (this.config?.()?.minInjectionScore ?? DEFAULT_INJECTION_MIN_SCORE) : undefined,
     });
-    return renderMemoryInjection(prioritizeInjectionKinds(results).slice(0, cap));
+    return renderMemoryInjection(prioritizeInjectionTypes(results).slice(0, cap));
   }
 }
 
-class LioraRecallSessionRuntime implements SessionMemoryRuntime {
+class LioraMemorySessionRuntime implements SessionMemoryRuntime {
   constructor(
-    private readonly store: LioraRecallStore,
+    private readonly store: LioraMemoryStore,
     private readonly context: MemoryRuntimeSessionContext,
   ) {}
 
   forAgent(context: MemoryRuntimeAgentContext): AgentMemoryRuntime {
-    return new LioraRecallAgentRuntime(this.store, {
+    return new LioraMemoryAgentRuntime(this.store, {
       ...context,
       sessionId: this.context.sessionId,
       workDir: context.workDir || this.context.workDir,
@@ -370,9 +550,9 @@ class LioraRecallSessionRuntime implements SessionMemoryRuntime {
   }
 }
 
-class LioraRecallAgentRuntime implements AgentMemoryRuntime {
+class LioraMemoryAgentRuntime implements AgentMemoryRuntime {
   constructor(
-    private readonly store: LioraRecallStore,
+    private readonly store: LioraMemoryStore,
     private readonly context: MemoryRuntimeAgentContext,
   ) {}
 
@@ -380,8 +560,8 @@ class LioraRecallAgentRuntime implements AgentMemoryRuntime {
     return this.store.isEnabled();
   }
 
-  search(request: MemorySearchRequest): Promise<readonly MemorySearchResult[]> {
-    return this.store.search(this.withContext(request));
+  recall(request: MemorySearchRequest): Promise<readonly MemorySearchResult[]> {
+    return this.store.recall(this.withContext(request));
   }
 
   list(request: MemoryListRequest = {}): Promise<readonly MemoryRecord[]> {
@@ -393,11 +573,26 @@ class LioraRecallAgentRuntime implements AgentMemoryRuntime {
   }
 
   remember(input: MemoryCreateInput): Promise<MemoryRecord> {
+    const source = input.source ?? {
+      kind: 'tool' as const,
+      sessionId: this.context.sessionId,
+      agentId: this.context.agentId,
+    };
     return this.store.remember({
       ...input,
-      scope: input.scope ?? defaultScopeForKind(input.kind),
-      scopeKey: input.scopeKey ?? defaultScopeKey(input.scope ?? defaultScopeForKind(input.kind), this.context),
-      source: input.source ?? { kind: 'tool', sessionId: this.context.sessionId, agentId: this.context.agentId },
+      scope: input.scope ?? defaultScopeForType(input.type),
+      scopeKey: input.scopeKey ?? defaultScopeKey(input.scope ?? defaultScopeForType(input.type), this.context),
+      source,
+      links: [
+        ...(input.links ?? []),
+        {
+          targetKind: 'run',
+          targetId: this.context.sessionId,
+          relation: 'remembered-in-session',
+          confidence: 1,
+          source,
+        },
+      ],
     });
   }
 
@@ -417,6 +612,14 @@ class LioraRecallAgentRuntime implements AgentMemoryRuntime {
     const existing = await this.visibleRecord(id);
     if (existing === undefined) return false;
     return this.store.forget(id);
+  }
+
+  reflect(input: MemoryReflectInput = {}): Promise<MemoryReflectResult> {
+    return this.store.reflect(input);
+  }
+
+  inspect(): Promise<MemoryInspectResult> {
+    return this.store.inspect();
   }
 
   getInjection(query?: string): Promise<string | undefined> {

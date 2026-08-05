@@ -224,9 +224,9 @@ export const MemoryConfigSchema = z.object({
   storePath: z.string().min(1).optional(),
   maxRetrieved: z.number().int().min(0).max(20).optional(),
   minInjectionScore: z.number().min(0).max(1).optional(),
-  autoCapture: z.boolean().optional(),
-  captureEpisodic: z.boolean().optional(),
-  autoConsolidate: z.boolean().optional(),
+  captureMode: z.enum(['off', 'explicit', 'candidate']).optional(),
+  reflectEnabled: z.boolean().optional(),
+  retentionDays: z.number().int().min(1).optional(),
 });
 
 export type MemoryConfig = z.infer<typeof MemoryConfigSchema>;

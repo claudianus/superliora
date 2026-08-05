@@ -110,7 +110,7 @@ describe('TUI surface leak checks', () => {
           'Autonomy      bounded now -> headless target',
           'Recovery      resumable evidence ready -> durable target',
           'Tools         search first; load tools on demand',
-          'Memory        prefs | session recall | long-run notes | auto-dream',
+          'Memory        prefs | session recall | long-run notes | reflection',
           'Flow          ███░ 3/4 verify queued',
           'Stages        Plan on | Goal ready | Swarm armed | Verify queued',
           'Next          Type task; Mission will interview before goal, swarm, and edits.',
@@ -141,7 +141,7 @@ describe('TUI surface leak checks', () => {
           'Autonomy      bounded now -> headless target',
           'Recovery      resumable evidence ready -> durable target',
           'Tools         search first; load tools on demand',
-          'Memory        prefs | session recall | long-run notes | auto-dream',
+          'Memory        prefs | session recall | long-run notes | reflection',
         ].join('\n'),
       ),
     ).toBe(true);

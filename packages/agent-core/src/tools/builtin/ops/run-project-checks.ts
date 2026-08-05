@@ -225,7 +225,7 @@ export class RunProjectChecksTool implements BuiltinTool<RunProjectChecksInput> 
       label: `run-project-checks:${kind}:${command.slice(0, 60)}`,
     });
     return {
-      preview: `${preview}\n${archived.marker}\nrecover: LioraExpand(id="${archived.id}")`,
+      preview: `${preview}\n${archived.marker}\nrecover: Expand(id="${archived.id}")`,
       logPath: `archive:${archived.id}`,
     };
   }

@@ -50,7 +50,8 @@
     "gate": "corepack pnpm run lint && corepack pnpm run typecheck && node scripts/test-local.mjs --all",
     "clean": "corepack pnpm -r run clean",
     "prepare": "simple-git-hooks",
-    "bench:staffing-gold": "tsx scripts/staffing-gold-bench.mjs"
+    "bench:staffing-gold": "tsx scripts/staffing-gold-bench.mjs",
+    "bench:memory": "tsx scripts/memory-benchmark.mjs"
   },
   "devDependencies": {
     "@microsoft/api-extractor": "7.58.7",

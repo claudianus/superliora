@@ -158,7 +158,6 @@ describe('buildBuiltinTools legacy compat env gate', () => {
     expect(names).not.toContain('LioraReview');
     expect(names).not.toContain('CreateUltraGoal');
     expect(names).not.toContain('UltraworkGraph');
-    expect(names).not.toContain('LioraExpand');
   });
 
   it('omits legacy review/goal/graph aliases on bootstrap when hide flag is set', () => {
@@ -198,6 +197,5 @@ describe('buildBuiltinTools legacy compat env gate', () => {
     expect(names).toContain('LioraReview');
     expect(names).toContain('CreateUltraGoal');
     expect(names).toContain('UltraworkGraph');
-    expect(names).toContain('LioraExpand');
   });
 });

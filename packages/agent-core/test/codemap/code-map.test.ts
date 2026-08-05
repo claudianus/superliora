@@ -4,7 +4,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { CodeMap, getCodeMapForWorkspace } from '#/codemap/code-map';
+import {
+  codeMapHitsToMemoryLinks,
+  CodeMap,
+  getCodeMapForWorkspace,
+} from '#/codemap/code-map';
 
 // Keep getCodeMapForWorkspace's persistent db inside a throwaway home so
 // tests never touch the real ~/.superliora.
@@ -38,6 +42,28 @@ describe('CodeMap', () => {
 
   afterEach(() => {
     rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('converts deterministic symbol hits into derived provenance links', () => {
+    expect(
+      codeMapHitsToMemoryLinks([
+        {
+          filePath: 'src/memory/store.ts',
+          startLine: 42,
+          kind: 'function',
+          signature: 'function recall',
+          exported: true,
+        },
+      ]),
+    ).toEqual([
+      {
+        targetKind: 'symbol',
+        targetId: 'src/memory/store.ts#L42',
+        relation: 'derived:codemap',
+        confidence: 0.95,
+        source: { kind: 'system', excerpt: 'function recall' },
+      },
+    ]);
   });
 
   it('degrades gracefully when the workspace is not a git repository', () => {

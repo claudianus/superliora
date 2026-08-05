@@ -26,7 +26,8 @@ function makeSettingsHost(
       active: number;
       archived: number;
       deleted: number;
-      byKind: Record<string, number>;
+      byType: Record<string, number>;
+      candidates: number;
       byScope: Record<string, number>;
     };
     workDir?: string;
@@ -61,8 +62,9 @@ function makeSettingsHost(
             active: 2,
             archived: 0,
             deleted: 0,
-            byKind: { semantic: 2, episodic: 0, procedural: 0, prospective: 0 },
+            byType: { fact: 2, event: 0, procedure: 0, task: 0, rule: 0 },
             byScope: { user: 2, workspace: 0, session: 0 },
+            candidates: 0,
           },
         ),
       },
@@ -108,7 +110,7 @@ describe('W9 compaction/context settings tips', () => {
   it('exports working-set, instruction, and learning tips (glance copy, not menu rows)', () => {
     expect(CONTEXT_WORKING_SET_TIP).toContain('soft cap');
     expect(CONTEXT_INSTRUCTION_SOFT_TIP).toContain('AGENTS.md');
-    expect(CONTEXT_LEARNING_SOFT_TIP).toContain('Liora Recall');
+    expect(CONTEXT_LEARNING_SOFT_TIP).toContain('Liora Memory');
   });
 });
 
@@ -142,7 +144,7 @@ describe('showContextSettings', () => {
     expect(lines).toContain('Instruction vs Learning');
     expect(lines).toContain('Live');
     expect(lines).toContain('Instruction files:');
-    expect(lines).toContain('Learning (Liora Recall): 2 active / 2 total');
+    expect(lines).toContain('Learning (Liora Memory): 2 active / 2 total');
     expect(lines).toContain('/memory remember');
     expect(lines).toContain('/context');
     expect(lines).toContain('no PR bot yet');

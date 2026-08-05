@@ -29,7 +29,7 @@ async function jsonOf(response: Response): Promise<unknown> {
   return response.json();
 }
 
-describe('Liora Recall memory REST API', () => {
+describe('Liora Memory REST API', () => {
   afterEach(async () => {
     await closeAll();
   });
@@ -37,11 +37,11 @@ describe('Liora Recall memory REST API', () => {
   it('creates, searches, reads, lists, and forgets memories', async () => {
     const server = await boot();
 
-    const create = await server.authedFetch('/api/v1/memories', {
+    const create = await server.authedFetch('/api/v1/memories:remember', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        kind: 'semantic',
+        type: 'fact',
         subject: 'preferred shell',
         content: 'The user prefers pnpm commands through the harness when possible.',
         tags: ['preference', 'workflow'],
@@ -55,7 +55,7 @@ describe('Liora Recall memory REST API', () => {
     const created = createMemoryResponseSchema.parse(createdEnvelope.data);
     const memoryId = created.memory.id;
 
-    const search = await server.authedFetch('/api/v1/memories:search', {
+    const search = await server.authedFetch('/api/v1/memories:recall', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ query: 'pnpm harness workflow', limit: 5 }),

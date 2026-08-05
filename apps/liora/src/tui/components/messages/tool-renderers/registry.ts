@@ -111,7 +111,6 @@ export function pickResultRenderer(toolName: string): ResultRenderer {
     case 'LioraTree':
       return lioraTreeSummary;
     case 'Expand':
-    case 'LioraExpand':
       return lioraExpandSummary;
     case 'LioraCallgraph':
       return lioraCallgraphSummary;

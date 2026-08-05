@@ -224,11 +224,11 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   },
   {
     name: 'memory',
-    aliases: ['recall'],
-    description: 'Manage Liora Recall long-term memory',
+    aliases: [],
+    description: 'Manage Liora Memory',
     priority: 60,
     availability: 'always',
-    argumentHint: '[stats|list|search|wiki|remember|forget|consolidate]',
+    argumentHint: '[remember|recall|reflect|forget|inspect]',
     completeArgs: memoryArgumentCompletions,
   },
   {

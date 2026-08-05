@@ -57,6 +57,24 @@
 
 **`FetchURL`** 接受单个 `url` 参数，返回页面内容。对 HTML 页面，宿主会提取正文而非返回完整 HTML；纯文本或 Markdown 页面直接透传。同样需要宿主注入实现。
 
+## Liora Memory
+
+| 工具 | 默认审批 | 说明 |
+| --- | --- | --- |
+| `Memory` | 写入时需审批 | 管理 Liora Memory 长期记录 |
+
+`Memory` 每次接受一个操作：
+
+- `remember`：保存 fact、event、procedure、task 或 rule。显式记录直接 active；自动捕获的记录会隔离为 `candidate`。
+- `recall`：按 type、时间、token budget、分数和有界 link expansion 条件召回记录。默认不会注入 candidate。
+- `reflect`：经过确定性的重复和时间冲突检查后提升 candidate。
+- `forget`：创建 tombstone；显式 purge 与普通工具路径分开。
+- `inspect`：报告权威存储路径、计数、完整性、审计事件或一条记录。
+
+当 `RepoQuery` 返回 `derived_links` 时，将这些边复制到 `remember.links`，以便在长期记录中保留文件、符号和索引行的来源。
+
+召回内容会标记为不可信上下文，并在注入提示词前转义。它不能覆盖 system/developer 指令、权限、工具 schema 或用户请求。
+
 ## Plan 模式
 
 | 工具 | 默认审批 | 说明 |

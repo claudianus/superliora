@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 
 import type { RepoQueryIndexStatus } from '#/tools/builtin/file/repo-query-core';
+import type { MemoryLink } from '#/memory';
 
 import {
   getContentIndexForWorkspace,
@@ -39,6 +40,7 @@ export interface RepoIndexContentQueryInput {
 
 export interface RepoIndexContentQueryResult {
   readonly results: readonly string[];
+  readonly derived_links?: readonly MemoryLink[] | undefined;
   readonly index_status: RepoQueryIndexStatus;
   readonly hint: string;
   readonly next_step: string;
@@ -282,14 +284,22 @@ function resolveWorkspaceDir(input: RepoIndexContentQueryInput): string {
 function querySqliteContentIndex(
   input: RepoIndexContentQueryInput,
   limit: number,
-): readonly string[] {
+): { readonly results: readonly string[]; readonly derivedLinks: readonly MemoryLink[] } {
   const workspaceDir = resolveWorkspaceDir(input);
   const index = getContentIndexForWorkspace(workspaceDir);
-  if (!index.ensureReady()) {
-    return [];
-  }
+  if (!index.ensureReady()) return { results: [], derivedLinks: [] };
   const scope = input.path?.trim();
-  return index.query(input.query, scope, limit);
+  const hits = index.queryHits(input.query, scope, limit);
+  return {
+    results: hits.map((hit) => `${hit.path}:L${String(hit.line)} ${hit.body}`),
+    derivedLinks: hits.map((hit) => ({
+      targetKind: 'file' as const,
+      targetId: `${hit.path}#L${String(hit.line)}`,
+      relation: 'derived:repo-index',
+      confidence: 0.9,
+      source: { kind: 'system' as const, excerpt: hit.body.slice(0, 240) },
+    })),
+  };
 }
 
 interface ZoektFragmentJson {
@@ -638,12 +648,13 @@ export function queryRepoIndexContent(
     };
   }
 
-  const results = querySqliteContentIndex(input, limit);
-  if (results.length > 0) {
+  const indexed = querySqliteContentIndex(input, limit);
+  if (indexed.results.length > 0) {
     return {
-      results,
+      results: indexed.results,
+      derived_links: indexed.derivedLinks,
       index_status: 'partial',
-      hint: `${REPO_INDEX_CONTENT_STUB_HINT}${scopeNote} · driver=${wire.driver ?? 'unknown'} · ${String(results.length)} hit(s)`,
+      hint: `${REPO_INDEX_CONTENT_STUB_HINT}${scopeNote} · driver=${wire.driver ?? 'unknown'} · ${String(indexed.results.length)} hit(s)`,
       next_step: REPO_INDEX_CONTENT_STUB_NEXT_STEP,
     };
   }

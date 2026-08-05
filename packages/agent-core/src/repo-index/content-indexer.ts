@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative } from 'node:path';
 
 import { resolveLioraHome } from '#/config/path';
+import type { MemoryLink } from '#/memory';
 
 interface SqliteRunResult {
   readonly changes: number;
@@ -136,6 +137,22 @@ export interface ContentIndexReport {
   readonly ms: number;
 }
 
+export interface ContentIndexHit {
+  readonly path: string;
+  readonly line: number;
+  readonly body: string;
+}
+
+export function contentIndexHitToMemoryLink(hit: ContentIndexHit): MemoryLink {
+  return {
+    targetKind: 'file',
+    targetId: `${hit.path}#L${String(hit.line)}`,
+    relation: 'derived:repo-index',
+    confidence: 0.9,
+    source: { kind: 'system', excerpt: hit.body.slice(0, 240) },
+  };
+}
+
 export class ContentIndexStore {
   private readonly db: SqliteDatabase;
 
@@ -163,6 +180,10 @@ export class ContentIndexStore {
   }
 
   query(match: string, scope: string | undefined, limit: number): readonly string[] {
+    return this.queryHits(match, scope, limit).map((hit) => `${hit.path}:L${String(hit.line)} ${hit.body}`);
+  }
+
+  queryHits(match: string, scope: string | undefined, limit: number): readonly ContentIndexHit[] {
     let sql = 'SELECT path, line, body FROM repo_content WHERE repo_content MATCH ?';
     const params: (string | number)[] = [match];
     if (scope !== undefined && scope.length > 0) {
@@ -173,12 +194,11 @@ export class ContentIndexStore {
     params.push(limit);
 
     const rows = this.db.prepare(sql).all(...params);
-    return rows.map((row) => {
-      const path = String(row['path'] ?? '');
-      const line = String(row['line'] ?? '');
-      const body = String(row['body'] ?? '');
-      return `${path}:L${line} ${body}`;
-    });
+    return rows.map((row) => ({
+      path: String(row['path'] ?? ''),
+      line: Number(row['line'] ?? 0),
+      body: String(row['body'] ?? ''),
+    }));
   }
 
   getMeta(key: string): string | undefined {
@@ -271,6 +291,14 @@ export class ContentIndexer {
       return [];
     }
     return this.store.query(match, scope, limit);
+  }
+
+  queryHits(inputQuery: string, scope: string | undefined, limit: number): readonly ContentIndexHit[] {
+    const match = escapeFts5Token(inputQuery);
+    if (match === null) {
+      return [];
+    }
+    return this.store.queryHits(match, scope, limit);
   }
 
   lineCount(): number {
@@ -367,6 +395,15 @@ class WorkspaceContentIndex {
     if (this.indexer === undefined) return [];
     try {
       return this.indexer.query(inputQuery, scope, limit);
+    } catch {
+      return [];
+    }
+  }
+
+  queryHits(inputQuery: string, scope: string | undefined, limit: number): readonly ContentIndexHit[] {
+    if (this.indexer === undefined) return [];
+    try {
+      return this.indexer.queryHits(inputQuery, scope, limit);
     } catch {
       return [];
     }

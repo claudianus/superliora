@@ -74,9 +74,9 @@ import {
   providerConfigResponseSchema,
 } from '../rest/config';
 import {
-  consolidateMemoriesResponseSchema,
   createMemoryRequestSchema,
   listMemoriesQuerySchema,
+  reflectMemoriesResponseSchema,
   searchMemoriesRequestSchema,
 } from '../rest/memory';
 import {
@@ -478,23 +478,25 @@ describe('rest/memory — memory CRUD/query', () => {
   });
 
   it('createMemoryRequestSchema requires subject and content', () => {
-    expect(() => createMemoryRequestSchema.parse({ kind: 'semantic' })).toThrow();
+    expect(() => createMemoryRequestSchema.parse({ type: 'fact' })).toThrow();
     expect(
-      createMemoryRequestSchema.parse({ kind: 'semantic', subject: 's', content: 'c' })
+      createMemoryRequestSchema.parse({ type: 'fact', subject: 's', content: 'c' })
         .subject,
     ).toBe('s');
   });
 
-  it('searchMemoriesRequestSchema accepts kind/kinds together', () => {
+  it('searchMemoriesRequestSchema accepts type/types together', () => {
     const r = searchMemoriesRequestSchema.parse({
-      kind: 'semantic',
-      kinds: ['semantic'],
+      type: 'fact',
+      types: ['fact'],
     });
-    expect(r.kind).toBe('semantic');
+    expect(r.type).toBe('fact');
   });
 
-  it('consolidateMemoriesResponseSchema accepts zero counts', () => {
-    expect(consolidateMemoriesResponseSchema.parse({ examined: 0, merged: 0 }).merged).toBe(0);
+  it('reflectMemoriesResponseSchema accepts zero counts', () => {
+    expect(
+      reflectMemoriesResponseSchema.parse({ examined: 0, merged: 0, promoted: 0, rejected: 0 }).merged,
+    ).toBe(0);
   });
 });
 

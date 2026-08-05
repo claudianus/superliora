@@ -14,7 +14,7 @@ const MAX_MALFORMED_EVIDENCE_WARNING_SAMPLES = 3;
 const MALFORMED_EVIDENCE_WARNING_PREFIX = 'Malformed evidence ignored: ';
 
 const EVIDENCE_PATTERNS = {
-  llmWiki: /\b(?:llm[-_\s]?wiki|llms\.txt|liora recall|durable memory|memory readiness)\b/iu,
+  llmWiki: /\b(?:llm[-_\s]?wiki|llms\.txt|liora memory|durable memory|memory readiness)\b/iu,
   knowledgeMap:
     /\b(?:liora knowledge map|kimi knowledge map|knowledge[-_\s]?map|compact[-_\s]?project[-_\s]?map|relationship_confidence|path_affected_questions|EXTRACTED, INFERRED, or AMBIGUOUS)\b/iu,
   browserUsePath: /\b(?:browser[-_]?use|browser_use|playwright|chromium)\b/iu,

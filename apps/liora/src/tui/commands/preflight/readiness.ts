@@ -42,7 +42,7 @@ export function nextPreflightAction(
 ): string {
   if (!isBenchReady(bench)) return bench.nextAction;
   if (!isMemoryReady(memory)) return `Run ${preflightRecallMemoryCommand(memory.query)}.`;
-  if (memory.query.length === 0) return 'Run /preflight --query=<recall query> to verify Liora Recall retrieval.';
+  if (memory.query.length === 0) return 'Run /preflight --query=<recall query> to verify Liora Memory retrieval.';
   if (memory.searchError !== undefined) return 'Fix recall search, then rerun /preflight.';
   if ((memory.searchResults?.length ?? 0) === 0) return `Run ${preflightRecallMemoryCommand(memory.query)}, then rerun /preflight.`;
   if (!memory.evidence.llmWiki.ready) return preflightRuntimeEvidenceAction('llm-wiki/durable-memory');

@@ -43,7 +43,6 @@ import { enrichCompactionSummary, postProcessSummary, renderStructuredV2Summary 
 import {
   assembleCompactionResult,
   archiveCompactedToolExchanges,
-  persistCompactionRecall,
   type CompletedCompactionResult,
 } from './assemble';
 import {
@@ -108,7 +107,7 @@ export async function runCompactionRound(
     plan = host.planner.plan(originalHistory, compactedCount);
 
     // Archive compacted tool-exchange groups so their original content stays
-    // recoverable via liora-expand after the prefix is summarized away.
+    // recoverable via Expand after the prefix is summarized away.
     const { rawRefs: archivedRawRefs, guidance: archiveGuidance } =
       archiveCompactedToolExchanges(host, originalHistory, plan);
     if (archivedRawRefs !== plan.rawRefs) {
@@ -351,7 +350,6 @@ export async function runCompactionRound(
       source: data.source,
       provider,
     });
-    const recallMemorySavedCount = await persistCompactionRecall(host, result);
     const qualitySignals = quality.signals;
     const qualityWarningCategories = result.qualityWarningCategories ?? [];
 
@@ -387,7 +385,6 @@ export async function runCompactionRound(
       placeholderItemCount: qualitySignals?.placeholderItemCount,
       tokensSavedRatio: qualitySignals?.tokensSavedRatio,
       failureSignature: qualitySignals?.failureSignature,
-      recallMemorySavedCount,
       round,
       thinkingLevel: host.agent.config.thinkingLevel,
       usage,

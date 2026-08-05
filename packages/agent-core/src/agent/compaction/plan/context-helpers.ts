@@ -3,7 +3,6 @@
  */
 
 import type { Message } from '@superliora/kosong';
-import type { MemoryCreateInput, MemoryKind, MemoryScope } from '../../../memory';
 import { surpriseScore } from './density';
 import type { CompactionPlan } from './planner';
 import type {
@@ -305,85 +304,5 @@ export function blockDensity(block: readonly Message[]): number {
     }
   }
   return surpriseScore(parts.join('\n').slice(0, 16_000));
-}
-
-export type CompactionRecallSource = {
-  readonly summary: string;
-  readonly algorithmVersion?: string;
-  readonly contextPack: {
-    readonly contextOS: {
-      readonly continuity: { readonly status: string };
-      readonly qualitySignals?: {
-        readonly criticalFactCount?: number;
-        readonly recallEvalScore?: number;
-      };
-    };
-  };
-};
-
-export function createCompactionRecallMemories(result: CompactionRecallSource): readonly MemoryCreateInput[] {
-  const memory = parseStructuredCompactionMemory(result.summary);
-  const currentGoal = usefulRecallItems([memory.currentGoal]).at(0);
-  const decisions = usefulRecallItems(memory.decisions);
-  const filesTouched = usefulRecallItems(memory.filesTouched);
-  const failedAttempts = usefulRecallItems(memory.failedAttempts);
-  const nextActions = usefulRecallItems(memory.nextActions);
-  const records: MemoryCreateInput[] = [];
-
-  const workspaceSections = formatRecallSections([
-    ['Current goal', currentGoal === undefined ? [] : [currentGoal]],
-    ['Decisions', decisions],
-    ['Files touched', filesTouched],
-    ['Failed attempts', failedAttempts],
-  ]);
-  if (workspaceSections.length > 0) {
-    records.push({
-      kind: 'semantic' satisfies MemoryKind,
-      scope: 'workspace' satisfies MemoryScope,
-      subject: recallSubject('Compaction working memory', currentGoal ?? decisions[0] ?? filesTouched[0]),
-      content: workspaceSections,
-      tags: recallTags(['compaction', 'context-os', 'workspace'], [
-        decisions.length > 0 ? 'decision' : undefined,
-        filesTouched.length > 0 ? 'file' : undefined,
-        failedAttempts.length > 0 ? 'failure' : undefined,
-      ]),
-      confidence: 0.82,
-      importance: result.contextPack.contextOS.qualitySignals?.criticalFactCount
-        ? 0.82
-        : 0.68,
-      source: { kind: 'auto', excerpt: 'compaction structured working memory' },
-      metadata: {
-        source: 'compaction',
-        algorithmVersion: result.algorithmVersion,
-        recallEvalScore: result.contextPack.contextOS.qualitySignals?.recallEvalScore,
-        contextOSStatus: result.contextPack.contextOS.continuity.status,
-      },
-    });
-  }
-
-  const prospectiveSections = formatRecallSections([
-    ['Current goal', currentGoal === undefined ? [] : [currentGoal]],
-    ['Next actions', nextActions],
-  ]);
-  if (nextActions.length > 0 && prospectiveSections.length > 0) {
-    records.push({
-      kind: 'prospective' satisfies MemoryKind,
-      scope: 'session' satisfies MemoryScope,
-      subject: recallSubject('Compaction next actions', currentGoal ?? nextActions[0]),
-      content: prospectiveSections,
-      tags: recallTags(['compaction', 'next-actions', 'session'], []),
-      confidence: 0.86,
-      importance: 0.84,
-      source: { kind: 'auto', excerpt: 'compaction next actions' },
-      metadata: {
-        source: 'compaction',
-        algorithmVersion: result.algorithmVersion,
-        recallEvalScore: result.contextPack.contextOS.qualitySignals?.recallEvalScore,
-        contextOSStatus: result.contextPack.contextOS.continuity.status,
-      },
-    });
-  }
-
-  return records;
 }
 

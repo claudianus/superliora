@@ -34,7 +34,6 @@ const DEFAULT_APPROVE_TOOLS = new Set([
   'LioraSymbol',
   'LioraCallgraph',
   'Expand',
-  'LioraExpand',
   'Context7Resolve',
   'Context7Docs',
   'SearchSkill',

@@ -537,7 +537,7 @@ describe('built-in slash command registry', () => {
       {
         value: '--query=',
         label: '--query=',
-        description: 'Override Liora Recall readiness query',
+        description: 'Override Liora Memory readiness query',
       },
     ]);
     expect(values('--query=')).toBeNull();
@@ -828,8 +828,8 @@ describe('built-in slash command registry', () => {
   it('keeps memory diagnostics out of the default memory completion list', () => {
     const primaryValues = memoryArgumentCompletions('')?.map((item) => item.value);
 
-    expect(primaryValues).toContain('wiki');
-    expect(primaryValues).toContain('verify');
+    expect(primaryValues).not.toContain('wiki');
+    expect(primaryValues).not.toContain('verify');
     expect(primaryValues).not.toContain('readiness');
     expect(primaryValues).not.toContain('health');
     expect(memoryArgumentCompletions('r')?.map((item) => item.value)).not.toContain('readiness');

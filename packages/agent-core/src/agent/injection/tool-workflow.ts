@@ -36,7 +36,6 @@ const TOOL_CAPABILITY_NAMES = {
   LioraTree: 'hasLeanRead',
   LioraCallgraph: 'hasLeanRead',
   Expand: 'hasLeanRead',
-  LioraExpand: 'hasLeanRead',
   VerifySurface: 'hasVerifySurface',
   RunProjectChecks: 'hasRunProjectChecks',
   TodoList: 'hasTodoList',

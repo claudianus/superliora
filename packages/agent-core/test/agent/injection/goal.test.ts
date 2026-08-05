@@ -108,7 +108,6 @@ describe('GoalInjector content', () => {
     expect(text).toContain('active goal');
     expect(text).toContain('UpdateGoal');
     expect(text).not.toContain('Liora Lean Context');
-    expect(text).not.toContain('LioraExpand');
     // Active goal reminders inject every continuation turn — keep them compact.
     // Includes the autonomous-execution pattern section (spec-decomposition guidance).
     // Includes autonomous-execution pattern + failure-recovery guidance.

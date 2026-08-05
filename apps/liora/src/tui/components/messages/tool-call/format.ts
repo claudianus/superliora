@@ -223,7 +223,6 @@ export function extractKeyArgument(
     LioraSymbol: ['name', 'path'],
     LioraTree: ['path'],
     Expand: ['id'],
-    LioraExpand: ['id'],
     LioraCallgraph: ['symbol', 'path'],
     Write: ['path', 'file_path'],
     GenerateImage: ['path', 'prompt'],

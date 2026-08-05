@@ -48,12 +48,14 @@ export type {
   LioraConfigPatch,
   KnowledgePromotion,
   LoopControl,
-  MemoryConsolidateResult,
   MemoryCreateInput,
   MemoryExportResult,
   MemoryImportResult,
   MemoryListRequest,
+  MemoryInspectResult,
   MemoryRecord,
+  MemoryReflectInput,
+  MemoryReflectResult,
   MemorySearchRequest,
   MemorySearchResult,
   MemoryStats,
@@ -377,7 +379,7 @@ export interface SessionStatus {
     readonly lastContextUsageRatio: number | null;
     readonly byTrigger: Readonly<Record<string, number>>;
   };
-  /** Auto-dream long-horizon memory consolidation when Liora Recall is enabled. */
+  /** Automatic long-horizon memory reflection when Liora Memory is enabled. */
   readonly autoDream?: {
     readonly enabled: boolean;
     readonly inFlight: boolean;

@@ -2,7 +2,6 @@ import type { ToolHelpVisibility, ToolInfo } from './types';
 
 /** Legacy Ultra/Liora compat tools still registered; prefer sovereign public names. */
 export const COMPAT_BRANDING_TOOL_HELP = {
-  LioraExpand: { preferred: 'Expand', visibility: 'advanced' },
   LioraReview: { preferred: 'Review', visibility: 'advanced' },
   CreateUltraGoal: { preferred: 'CreateGoal', visibility: 'advanced' },
   UltraworkGraph: { preferred: 'TaskGraph', visibility: 'advanced' },

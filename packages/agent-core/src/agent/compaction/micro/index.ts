@@ -448,7 +448,7 @@ export class MicroCompaction {
       .map((part) => part.text)
       .join('\n');
     // Archive ids come from the context-archive marker; keep them recoverable
-    // across micro-compaction (Expand preferred, LioraExpand legacy fallback).
+    // across micro-compaction (single Expand recovery tool).
     const archiveId = /\[liora-archived id=([a-f0-9]{12})\b/u.exec(fullText)?.[1];
     if (archiveId !== undefined) {
       lines.push(`archiveId=${archiveId}`);

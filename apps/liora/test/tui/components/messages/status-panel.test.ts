@@ -113,7 +113,7 @@ describe('status panel report lines', () => {
       /Media\s+set OPENAI_API_KEY or GOOGLE\/GEMINI_API_KEY for GenerateImage\/GenerateVideo \(no MCP\)/,
     );
     expect(output).toMatch(/Catalog\s+1 models \/ 1 providers; active managed:kimi-api/);
-    expect(output).toMatch(/Memory\s+prefs \| session recall \| auto-dream/);
+    expect(output).toMatch(/Memory\s+prefs \| session recall \| reflection/);
     expect(output).toMatch(/Flow\s+███░ 3\/4 verify queued/);
     expect(output).toMatch(/Stages\s+Plan on \| Goal active \| Swarm armed \| Verify queued/);
     expect(output).toMatch(/Blockers\s+none detected/);
@@ -204,7 +204,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(
       /Media\s+set OPENAI_API_KEY or GOOGLE\/GEMINI_API_KEY for GenerateImage\/GenerateVideo \(no MCP\)/,
     );
-    expect(output).toMatch(/Memory\s+prefs \| session recall \| auto-dream/);
+    expect(output).toMatch(/Memory\s+prefs \| session recall \| reflection/);
     expect(output).toMatch(/Flow\s+███░ 3\/4 verify blocked/);
     expect(output).toMatch(/Stages\s+Plan off \| Goal ready \| Swarm off \| Verify blocked/);
     expect(output).toMatch(/Blockers\s+model setup/);
@@ -604,7 +604,7 @@ describe('status panel report lines', () => {
   });
 
 
-  it('surfaces auto-dream run counts on the Memory gate when available', () => {
+  it('surfaces reflection run counts on the Memory gate when available', () => {
     const lines = buildStatusReportLines({
       version: '0.0.0-test',
       model: 'test-model',
@@ -629,7 +629,7 @@ describe('status panel report lines', () => {
         minActiveRecords: 8,
       },
     });
-    expect(lines.join('\n')).toMatch(/Memory\s+prefs \| session recall \| auto-dream×3/);
+    expect(lines.join('\n')).toMatch(/Memory\s+prefs \| session recall \| reflection×3/);
   });
 
   it('includes Context OS health when compacted pages exist', () => {

@@ -45,6 +45,20 @@
 | `/export-debug-zip` | — | 将当前会话导出为调试用 ZIP 压缩包（与 [`liora export`](./liora-command.md#kimi-export) 行为一致） | 否 |
 | `/add-dir [<path>]` | — | 为当前会话添加额外的工作目录。不带路径（或传入 `list`）运行时列出已配置的目录。添加时可选择是否将目录记入项目的 `.superliora/local.toml` | 否 |
 
+## Liora Memory
+
+`/memory` 是唯一的长期记忆操作入口。主要操作包括：
+
+| 命令 | 说明 |
+| --- | --- |
+| `/memory inspect [<memory-id>]` | 显示 canonical SQLite 路径、schema、计数、完整性、审计事件，或查看一条记录 |
+| `/memory remember <subject> :: <content>` | 保存显式 fact 记录 |
+| `/memory recall <query>` | 在 scope、时间、provenance 和分数边界下召回相关记录 |
+| `/memory reflect` | 提升符合条件的 candidate，并处理重复记录或时间冲突 |
+| `/memory forget <memory-id>` | 将记录标记为 tombstone，不立即删除其审计轨迹 |
+
+`Context OS` 和压缩摘要属于临时工作上下文，不是长期记录。`memory/records/` 下的 Markdown 文件只是恢复镜像；`memory/liora-memory.sqlite` 才是权威来源。打开新存储时会一次性导入旧的 `kimi-recall.sqlite`、`liora-recall.sqlite`、record marker 和 JSON episode。
+
 ## 模式与运行控制
 
 | 命令 | 别名 | 说明 | 随时可用 |

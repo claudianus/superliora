@@ -18,7 +18,7 @@ import {
   FlagResolver,
   type ExperimentalFeatureState,
 } from '../flags';
-import { LioraRecallStore } from '../memory';
+import { LioraMemoryStore } from '../memory';
 import { Session } from '../session';
 import type { OAuthTokenProviderResolver } from '../session/provider/provider-manager';
 import { SessionStore } from '../session/store/index';
@@ -71,7 +71,7 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   readonly projectDir: string;
   readonly appVersion: string | undefined;
   readonly experimentalFlags: FlagResolver;
-  readonly memory: LioraRecallStore;
+  readonly memory: LioraMemoryStore;
   private readonly uncaughtListener:
     | ((error: Error, origin: NodeJS.UncaughtExceptionOrigin) => void)
     | undefined;
@@ -118,7 +118,7 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
       this.config.experimental,
     );
     this.sessionStore = new SessionStore(this.homeDir);
-    this.memory = new LioraRecallStore({
+    this.memory = new LioraMemoryStore({
       homeDir: this.homeDir,
       config: () => this.config.memory,
     });
@@ -176,16 +176,17 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
     return this.experimentalFlags.explainAll();
   }
 
-  memorySearch = delegateContextMethod(memoryMethods.memorySearch);
+  memoryRecall = delegateContextMethod(memoryMethods.memoryRecall);
   memoryList = delegateContextMethod(memoryMethods.memoryList);
   memoryGet = delegateContextMethod(memoryMethods.memoryGet);
-  memoryCreate = delegateContextMethod(memoryMethods.memoryCreate);
+  memoryRemember = delegateContextMethod(memoryMethods.memoryRemember);
   memoryUpdate = delegateContextMethod(memoryMethods.memoryUpdate);
   memoryForget = delegateContextMethod(memoryMethods.memoryForget);
   memoryStats = delegateContextMethod(memoryMethods.memoryStats);
   memoryExport = delegateContextMethod(memoryMethods.memoryExport);
   memoryImport = delegateContextMethod(memoryMethods.memoryImport);
-  memoryConsolidate = delegateContextMethod(memoryMethods.memoryConsolidate);
+  memoryReflect = delegateContextMethod(memoryMethods.memoryReflect);
+  memoryInspect = delegateContextMethod(memoryMethods.memoryInspect);
 
   emergencyFlushSync(): void {
     for (const session of this.sessions.values()) {

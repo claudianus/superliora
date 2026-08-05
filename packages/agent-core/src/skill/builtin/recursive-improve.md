@@ -22,7 +22,7 @@ Gather execution evidence from available sources:
 - **Tool results**: look for error patterns, timeouts, truncated outputs that forced workarounds.
 - **User feedback**: explicit complaints, rejections, "that's not what I meant", re-asks.
 - **Test results**: failing tests, flaky tests, coverage gaps in changed areas.
-- **Memory**: search Liora Recall for past failure patterns and unresolved issues.
+- **Memory**: recall Liora Memory for past failure patterns and unresolved issues.
 
 Quantify: count occurrences, identify the top 3 most impactful problems by frequency × severity.
 
@@ -64,7 +64,7 @@ For each root cause, design the smallest change that eliminates the problem:
 
 ### 6. Record (persist learning)
 
-- Write a Liora Recall memory with: what was wrong, what was changed, why, and the verification result.
+- Remember a Liora Memory record with: what was wrong, what was changed, why, and the verification result.
 - If the improvement reveals a pattern, note it for future cycles.
 
 ## Constraints

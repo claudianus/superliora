@@ -83,6 +83,10 @@ exports[`API surface snapshot > matches the documented v1 route table and meta e
     ],
     [
       "GET",
+      "/api/v1/memories/inspect",
+    ],
+    [
+      "GET",
       "/api/v1/memories/stats",
     ],
     [
@@ -215,14 +219,6 @@ exports[`API surface snapshot > matches the documented v1 route table and meta e
     ],
     [
       "POST",
-      "/api/v1/memories",
-    ],
-    [
-      "POST",
-      "/api/v1/memories:consolidate",
-    ],
-    [
-      "POST",
       "/api/v1/memories:export",
     ],
     [
@@ -231,7 +227,15 @@ exports[`API surface snapshot > matches the documented v1 route table and meta e
     ],
     [
       "POST",
-      "/api/v1/memories:search",
+      "/api/v1/memories:recall",
+    ],
+    [
+      "POST",
+      "/api/v1/memories:reflect",
+    ],
+    [
+      "POST",
+      "/api/v1/memories:remember",
     ],
     [
       "POST",

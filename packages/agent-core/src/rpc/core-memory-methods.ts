@@ -2,12 +2,12 @@
  * Memory RPC method bodies — extracted from core-impl.ts.
  */
 
-import type { LioraRecallStore } from '../memory';
+import type { LioraMemoryStore } from '../memory';
 
 import type {
   EmptyPayload,
-  MemoryConsolidateResult,
-  MemoryCreatePayload,
+  MemoryInspectResult,
+  MemoryRememberPayload,
   MemoryExportResult,
   MemoryForgetPayload,
   MemoryGetPayload,
@@ -15,21 +15,23 @@ import type {
   MemoryImportResult,
   MemoryListPayload,
   MemoryRecord,
-  MemorySearchPayload,
+  MemoryRecallPayload,
   MemorySearchResult,
+  MemoryReflectPayload,
+  MemoryReflectResult,
   MemoryStats,
   MemoryUpdatePayload,
 } from './core-api';
 
 export interface CoreMemoryMethodsContext {
-  readonly memory: LioraRecallStore;
+  readonly memory: LioraMemoryStore;
 }
 
-export function memorySearch(
+export function memoryRecall(
   context: CoreMemoryMethodsContext,
-  payload: MemorySearchPayload,
+  payload: MemoryRecallPayload,
 ): Promise<readonly MemorySearchResult[]> {
-  return context.memory.search(payload);
+  return context.memory.recall(payload);
 }
 
 export function memoryList(
@@ -46,9 +48,9 @@ export function memoryGet(
   return context.memory.get(payload.id);
 }
 
-export function memoryCreate(
+export function memoryRemember(
   context: CoreMemoryMethodsContext,
-  payload: MemoryCreatePayload,
+  payload: MemoryRememberPayload,
 ): Promise<MemoryRecord> {
   return context.memory.remember(payload);
 }
@@ -88,9 +90,16 @@ export function memoryImport(
   return context.memory.importRecords(payload.records);
 }
 
-export function memoryConsolidate(
+export function memoryReflect(
+  context: CoreMemoryMethodsContext,
+  payload: MemoryReflectPayload,
+): Promise<MemoryReflectResult> {
+  return context.memory.reflect(payload);
+}
+
+export function memoryInspect(
   context: CoreMemoryMethodsContext,
   _payload: EmptyPayload,
-): Promise<MemoryConsolidateResult> {
-  return context.memory.consolidate();
+): Promise<MemoryInspectResult> {
+  return context.memory.inspect();
 }

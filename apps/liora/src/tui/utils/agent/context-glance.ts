@@ -1,5 +1,5 @@
 /**
- * Context settings glance — live instruction files + Liora Recall counts (SSOT §9.2 / W9).
+ * Context settings glance — live instruction files + Liora Memory counts (SSOT §9.2 / W9).
  */
 
 import { existsSync, readFileSync, statSync } from 'node:fs';
@@ -15,7 +15,7 @@ export const CONTEXT_INSTRUCTION_SOFT_TIP =
   'Instruction — AGENTS.md, rules, skills: human SSOT; do not auto-write.';
 
 export const CONTEXT_LEARNING_SOFT_TIP =
-  'Learning — Liora Recall (/memory remember): agent-curated durable facts.';
+  'Learning — Liora Memory (/memory remember): agent-curated durable facts.';
 
 export interface InstructionFileHit {
   readonly name: string;
@@ -182,15 +182,15 @@ export function formatInstructionFilesLine(glance: ContextInstructionGlance | un
 export function formatLearningMemoryLine(memory: ContextMemoryGlance | undefined): string {
   const stats = memory?.stats;
   if (stats !== undefined) {
-    const kinds = (['semantic', 'episodic', 'procedural', 'prospective'] as const)
-      .filter((kind) => (stats.byKind[kind] ?? 0) > 0)
-      .map((kind) => `${kind} ${String(stats.byKind[kind])}`)
+    const types = (['fact', 'event', 'procedure', 'task', 'rule'] as const)
+      .filter((type) => (stats.byType[type] ?? 0) > 0)
+      .map((type) => `${type} ${String(stats.byType[type])}`)
       .join(', ');
-    const kindPart = kinds.length > 0 ? ` · ${kinds}` : '';
-    return `Learning (Liora Recall): ${String(stats.active)} active / ${String(stats.total)} total${kindPart}`;
+    const typePart = types.length > 0 ? ` · ${types}` : '';
+    return `Learning (Liora Memory): ${String(stats.active)} active / ${String(stats.total)} total${typePart}`;
   }
   if (memory?.statsError !== undefined) {
-    return `Learning (Liora Recall): unavailable (${memory.statsError})`;
+    return `Learning (Liora Memory): unavailable (${memory.statsError})`;
   }
   return CONTEXT_LEARNING_SOFT_TIP;
 }

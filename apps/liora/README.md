@@ -19,7 +19,7 @@ SuperLiora is designed for software work where provider availability, route heal
 | Routing | Supports `auto`, `fallback`, `fill_first`, `round_robin`, `weighted_round_robin`, `least_used`, `lowest_latency`, `rate_limit_aware`, and `random`. |
 | Quota handling | Classifies auth, quota, rate-limit, timeout, server, connection, and empty-response failures, then cools down unhealthy candidates. |
 | Long context | Uses Context OS compaction, structured working memory, repair, and bounded rehydration. |
-| Memory | Supports Liora Recall semantic, episodic, procedural, prospective, and governance memory scopes. |
+| Memory | Uses one canonical SQLite Liora Memory store for fact, event, procedure, task, and rule records; operate it with `/memory inspect|remember|recall|reflect|forget`. |
 | Workflow | Runs UltraWork planning, research, goal creation, swarm execution, integration, verification, and learning. |
 | TUI | Provides premium themes, bundled terminal palettes, syntax-aware colors, and clearer status surfaces. |
 

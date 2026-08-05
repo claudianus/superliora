@@ -19,7 +19,7 @@ import {
 } from '../config';
 import type { FlagResolver } from '../flags';
 import { resolveSessionMcpConfig, mergeCallerMcpServers, type SessionMcpConfig } from '../mcp';
-import type { LioraRecallStore } from '../memory';
+import type { LioraMemoryStore } from '../memory';
 import { Session, type SessionSkillConfig } from '../session';
 import {
   responseLanguagePreferenceFromHostLocale,
@@ -77,7 +77,7 @@ export interface SessionLifecycleContext {
   readonly plugins: PluginManager;
   readonly pluginHost: PluginHost;
   readonly pluginsReady: Promise<void>;
-  readonly memory: LioraRecallStore;
+  readonly memory: LioraMemoryStore;
   readonly experimentalFlags: FlagResolver;
   readonly telemetry: TelemetryClient;
   readonly appVersion: string | undefined;

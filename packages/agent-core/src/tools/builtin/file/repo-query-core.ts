@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import type { MemoryLink } from '#/memory';
+
 export const REPO_QUERY_MODES = ['symbol', 'content', 'path', 'outline'] as const;
 export type RepoQueryMode = (typeof REPO_QUERY_MODES)[number];
 
@@ -34,6 +36,8 @@ export type RepoQueryIndexStatus = 'cold' | 'warm' | 'partial';
 export interface RepoQueryResultEnvelope {
   readonly mode: RepoQueryMode;
   readonly results: readonly string[];
+  /** Machine-readable edges that can be copied into a Memory record's links. */
+  readonly derived_links?: readonly MemoryLink[] | undefined;
   readonly index_status: RepoQueryIndexStatus;
   readonly took_ms: number;
   readonly truncated: boolean;
@@ -90,6 +94,23 @@ export function formatRepoQueryOutput(envelope: RepoQueryResultEnvelope): string
   }
   if (envelope.next_step !== undefined && envelope.next_step.length > 0) {
     lines.push(`next_step: ${envelope.next_step}`);
+  }
+  const derivedLinks = envelope.derived_links ?? [];
+  if (derivedLinks.length > 0) {
+    lines.push('derived_links:');
+    for (const link of derivedLinks) {
+      lines.push(
+        `- ${JSON.stringify({
+          target_kind: link.targetKind,
+          target_id: link.targetId,
+          relation: link.relation,
+          confidence: link.confidence,
+          ...(link.validFrom === undefined ? {} : { valid_from: link.validFrom }),
+          ...(link.validTo === undefined ? {} : { valid_to: link.validTo }),
+        })}`,
+      );
+    }
+    lines.push('derived_links_note: pass these edges to Memory.remember.links to retain provenance.');
   }
   lines.push('</repo_query>');
   return lines.join('\n');

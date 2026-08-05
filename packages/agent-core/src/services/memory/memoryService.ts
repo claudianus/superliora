@@ -1,11 +1,13 @@
 import { Disposable, InstantiationType, registerSingleton } from '../../di';
 import type {
-  MemoryConsolidateResult,
   MemoryCreateInput,
   MemoryExportResult,
   MemoryImportResult,
   MemoryListRequest,
+  MemoryInspectResult,
   MemoryRecord,
+  MemoryReflectInput,
+  MemoryReflectResult,
   MemorySearchRequest,
   MemorySearchResult,
   MemoryStats,
@@ -21,8 +23,8 @@ export class MemoryService extends Disposable implements IMemoryService {
     super();
   }
 
-  search(request: MemorySearchRequest): Promise<readonly MemorySearchResult[]> {
-    return this.core.rpc.memorySearch(request);
+  recall(request: MemorySearchRequest): Promise<readonly MemorySearchResult[]> {
+    return this.core.rpc.memoryRecall(request);
   }
 
   list(request: MemoryListRequest = {}): Promise<readonly MemoryRecord[]> {
@@ -33,8 +35,8 @@ export class MemoryService extends Disposable implements IMemoryService {
     return this.core.rpc.memoryGet({ id });
   }
 
-  create(input: MemoryCreateInput): Promise<MemoryRecord> {
-    return this.core.rpc.memoryCreate(input);
+  remember(input: MemoryCreateInput): Promise<MemoryRecord> {
+    return this.core.rpc.memoryRemember(input);
   }
 
   update(id: string, patch: MemoryUpdateInput): Promise<MemoryRecord> {
@@ -57,8 +59,12 @@ export class MemoryService extends Disposable implements IMemoryService {
     return this.core.rpc.memoryImport({ records });
   }
 
-  consolidate(): Promise<MemoryConsolidateResult> {
-    return this.core.rpc.memoryConsolidate({});
+  reflect(input: MemoryReflectInput = {}): Promise<MemoryReflectResult> {
+    return this.core.rpc.memoryReflect(input);
+  }
+
+  inspect(): Promise<MemoryInspectResult> {
+    return this.core.rpc.memoryInspect({});
   }
 }
 

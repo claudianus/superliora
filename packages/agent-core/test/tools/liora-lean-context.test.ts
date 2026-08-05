@@ -1,7 +1,6 @@
 import type { Kaos } from '@superliora/kaos';
 import { describe, expect, it, vi } from 'vitest';
 
-import { LioraExpandTool } from '../../src/tools/builtin/context/liora-expand';
 import { LioraReadTool } from '../../src/tools/builtin/context/liora-read';
 import type { ToolStore, ToolStoreData, ToolStoreKey } from '../../src/tools/store';
 import type { WorkspaceConfig } from '../../src/tools/support/workspace';

@@ -34,7 +34,7 @@ export type LioraReadInput = z.infer<typeof LioraReadInputSchema>;
 const DESCRIPTION = [
   'Token-efficient file read with lean context modes.',
   'Prefer this over Read for orientation (mode=signatures|map|auto) and use Read only for edit-ready exact bytes.',
-  'Overflow is archived reversibly — recover with LioraExpand.',
+  'Overflow is archived reversibly — recover with Expand.',
 ].join(' ');
 
 export class LioraReadTool implements BuiltinTool<LioraReadInput> {
@@ -145,7 +145,7 @@ function finalize(
   });
   return {
     output: appendTextToolMeta(
-      `${text}\n${archived.marker}\narchived_summary: ${archived.summary}\nrecover: LioraExpand(id="${archived.id}")`,
+      `${text}\n${archived.marker}\narchived_summary: ${archived.summary}\nrecover: Expand(id="${archived.id}")`,
       {
         tool: LIORA_READ_TOOL_NAME,
         mode: meta.mode,
@@ -153,7 +153,7 @@ function finalize(
         truncated: true,
         summary,
         stats: { total_lines: meta.lineCount, rendered_lines: meta.renderedLines },
-        nextStep: 'Call LioraExpand for archived overflow, or use Read for exact edit-ready bytes.',
+      nextStep: 'Call Expand for archived overflow, or use Read for exact edit-ready bytes.',
       },
     ),
   };

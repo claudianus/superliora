@@ -22,12 +22,14 @@ import type {
   LioraConfigPatch,
   KimiHostIdentity,
   ListSessionsOptions,
-  MemoryConsolidateResult,
   MemoryCreateInput,
   MemoryExportResult,
   MemoryImportResult,
   MemoryListRequest,
+  MemoryInspectResult,
   MemoryRecord,
+  MemoryReflectInput,
+  MemoryReflectResult,
   MemorySearchRequest,
   MemorySearchResult,
   MemoryStats,
@@ -341,8 +343,8 @@ export class LioraHarness {
 export class LioraMemoryClient {
   constructor(private readonly rpc: SDKRpcClientBase) {}
 
-  search(request: MemorySearchRequest): Promise<readonly MemorySearchResult[]> {
-    return this.rpc.memorySearch(request);
+  recall(request: MemorySearchRequest): Promise<readonly MemorySearchResult[]> {
+    return this.rpc.memoryRecall(request);
   }
 
   list(request: MemoryListRequest = {}): Promise<readonly MemoryRecord[]> {
@@ -354,7 +356,7 @@ export class LioraMemoryClient {
   }
 
   remember(input: MemoryCreateInput): Promise<MemoryRecord> {
-    return this.rpc.memoryCreate(input);
+    return this.rpc.memoryRemember(input);
   }
 
   update(id: string, patch: MemoryUpdateInput): Promise<MemoryRecord> {
@@ -377,8 +379,12 @@ export class LioraMemoryClient {
     return this.rpc.memoryImport(records);
   }
 
-  consolidate(): Promise<MemoryConsolidateResult> {
-    return this.rpc.memoryConsolidate();
+  reflect(input: MemoryReflectInput = {}): Promise<MemoryReflectResult> {
+    return this.rpc.memoryReflect(input);
+  }
+
+  inspect(): Promise<MemoryInspectResult> {
+    return this.rpc.memoryInspect();
   }
 }
 

@@ -42,7 +42,7 @@ export function showContextSettings(host: SlashCommandHost): void {
           value: 'status',
           label: 'Context status',
           description:
-            'Working-set preset · soft/async caps · instruction files · Liora Recall counts.',
+            'Working-set preset · soft/async caps · instruction files · Liora Memory counts.',
         },
         {
           value: 'working-set',

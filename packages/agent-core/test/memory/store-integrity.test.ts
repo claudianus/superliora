@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'pathe';
 import { afterEach, beforeEach, describe, it, vi } from 'vitest';
 
-import { LioraRecallStore } from '../../src/memory/store';
+import { LioraMemoryStore } from '../../src/memory/store';
 
 interface SqliteHandle {
   prepare(sql: string): { run(...params: unknown[]): unknown };
@@ -20,13 +20,13 @@ const openSqlite = (path: string): SqliteHandle => {
   return new sqlite.DatabaseSync(path);
 };
 
-describe('LioraRecallStore — integrity checking', () => {
+describe('LioraMemoryStore — integrity checking', () => {
   let homeDir: string;
 
   beforeEach(() => {
     homeDir = join(
       tmpdir(),
-      `liora-recall-integrity-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      `liora-memory-integrity-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     );
   });
 
@@ -38,9 +38,9 @@ describe('LioraRecallStore — integrity checking', () => {
   const recordsDir = (): string => join(homeDir, 'memory', 'records');
 
   it('reports a healthy store as ok with no issues', async () => {
-    const store = new LioraRecallStore({ homeDir });
-    await store.remember({ kind: 'semantic', subject: 'Tea', content: 'User prefers oolong tea.' });
-    await store.remember({ kind: 'procedural', subject: 'Deploy', content: 'Deploy via pnpm release.' });
+    const store = new LioraMemoryStore({ homeDir });
+    await store.remember({ type: 'fact', subject: 'Tea', content: 'User prefers oolong tea.' });
+    await store.remember({ type: 'procedure', subject: 'Deploy', content: 'Deploy via pnpm release.' });
 
     const report = store.checkIntegrity();
     assert.equal(report.ok, true);
@@ -54,10 +54,10 @@ describe('LioraRecallStore — integrity checking', () => {
   });
 
   it('detects a row deleted out-of-band and repairs it from the mirror', async () => {
-    const store = new LioraRecallStore({ homeDir });
-    await store.remember({ kind: 'semantic', subject: 'Kept', content: 'Stays in the database.' });
+    const store = new LioraMemoryStore({ homeDir });
+    await store.remember({ type: 'fact', subject: 'Kept', content: 'Stays in the database.' });
     const lost = await store.remember({
-      kind: 'semantic',
+      type: 'fact',
       subject: 'Lost',
       content: 'Deleted out-of-band.',
     });
@@ -90,14 +90,15 @@ describe('LioraRecallStore — integrity checking', () => {
   });
 
   it('reports a count mismatch caused by an orphan mirror file', async () => {
-    const store = new LioraRecallStore({ homeDir });
-    await store.remember({ kind: 'semantic', subject: 'Solo', content: 'Only real record.' });
+    const store = new LioraMemoryStore({ homeDir });
+    await store.remember({ type: 'fact', subject: 'Solo', content: 'Only real record.' });
 
     // Drop a parseable mirror file with no matching database row.
     const orphanId = randomUUID();
     const orphanRecord = {
       id: orphanId,
-      kind: 'semantic',
+      type: 'fact',
+      epistemic: 'direct',
       scope: 'user',
       subject: 'Orphan',
       content: 'Mirror file without a database row.',
@@ -107,12 +108,19 @@ describe('LioraRecallStore — integrity checking', () => {
       status: 'active',
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      recordedAt: Date.now(),
+      accessCount: 0,
+      supersedes: [],
+      source: { kind: 'system' },
+      evidenceRefs: [],
+      links: [],
+      metadata: {},
     };
     const encoded = Buffer.from(JSON.stringify(orphanRecord), 'utf8').toString('base64url');
     const stem = `memory_${Buffer.from(orphanId, 'utf8').toString('base64url')}`;
     writeFileSync(
       join(recordsDir(), `${stem}.md`),
-      `# Orphan\n\n<!-- kimi-recall-record-json-base64:${encoded} -->\n`,
+      `# Orphan\n\n<!-- liora-memory-record-json-base64:${encoded} -->\n`,
       'utf8',
     );
 
@@ -129,15 +137,15 @@ describe('LioraRecallStore — integrity checking', () => {
   });
 
   it('warns at open on a persistent count mismatch but never throws', async () => {
-    const store = new LioraRecallStore({ homeDir });
-    await store.remember({ kind: 'semantic', subject: 'Tea', content: 'User prefers oolong tea.' });
+    const store = new LioraMemoryStore({ homeDir });
+    await store.remember({ type: 'fact', subject: 'Tea', content: 'User prefers oolong tea.' });
 
     // An unparseable stray file the mirror restore cannot absorb, so the
     // mismatch survives the constructor's restore pass.
     writeFileSync(join(recordsDir(), 'stray.md'), 'not a memory record\n', 'utf8');
 
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const reopened = new LioraRecallStore({ homeDir });
+    const reopened = new LioraMemoryStore({ homeDir });
     assert.equal((await reopened.list()).length, 1, 'open must succeed and keep the data');
     assert.ok(
       warn.mock.calls.some((args) => String(args[0]).includes('records/ mirror has 2 markdown files')),
