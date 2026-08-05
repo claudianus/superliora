@@ -209,6 +209,21 @@ describe('handlePlanCommand', () => {
     );
     expect(host.state.appState.planMode).toBe(false);
   });
+
+  it('keeps plan mode on when the session status cannot be read', async () => {
+    const { host, session } = makeHost();
+    session.getStatus.mockRejectedValue(new Error('rpc down'));
+
+    await handlePlanCommand(host, 'on');
+
+    // A stale `false` here would make the next bare `/plan` re-enter instead of
+    // toggling off, so an unreadable status counts as on.
+    expect(host.state.appState.planMode).toBe(true);
+    expect(host.showNotice).toHaveBeenCalledWith(
+      'Plan mode requested',
+      'Could not read session status — check the footer or /status for where planning landed.',
+    );
+  });
 });
 
 describe('handleThemeCommand', () => {

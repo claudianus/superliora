@@ -403,7 +403,10 @@ export async function handleUltraPlanCommand(host: SlashCommandHost, args: strin
   const activation = await resolvePlanActivation(session);
   const delegated = activation === 'delegated';
   host.setAppState({
-    planMode: activation === 'inline',
+    // An unreadable status counts as on: `setPlanMode` already succeeded, and a
+    // stale `false` here would leave `/ultraplan` unable to toggle plan mode
+    // back off (the guards above read this flag).
+    planMode: !delegated,
     activityTip: delegated
       ? 'Plan Desk: planning Job accepted — watch Job strip / inbox'
       : 'Plan interview mode (standalone): research, interview, verifiable criteria',
@@ -412,6 +415,10 @@ export async function handleUltraPlanCommand(host: SlashCommandHost, args: strin
   if (delegated) {
     host.showStatus(
       'Plan Desk: planning Job accepted. Conductor stays free — answer worker questions when they appear; check JobInbox.',
+    );
+  } else if (activation === 'unknown') {
+    host.showStatus(
+      'Plan interview mode requested. Could not read session status — check the footer or /status for where planning landed.',
     );
   } else {
     host.showStatus('Plan interview mode active. Answer questions to build a verifiable plan.');

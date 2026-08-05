@@ -60,7 +60,10 @@ async function applyPlanMode(host: SlashCommandHost, session: Session, enabled: 
     // Job instead of activating plan mode here — reflect that in AppState.
     const activation = await resolvePlanActivation(session);
     host.setAppState({
-      planMode: activation === 'inline',
+      // An unreadable status counts as on: `setPlanMode` already succeeded, and
+      // a stale `false` would make the next bare `/plan` re-enter instead of
+      // toggling off.
+      planMode: activation !== 'delegated',
       ultraworkMode: false,
       activityTip:
         activation === 'delegated'

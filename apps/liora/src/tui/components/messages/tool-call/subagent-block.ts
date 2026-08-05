@@ -261,7 +261,8 @@ function subToolOutputPreview(activity: SubToolActivity): Component[] {
       ? renderNeatCard(activity.display, { seed: activity.id })
       : undefined;
   // Mirror the main agent: only density `full` keeps the raw tail below the
-  // card, so structure and full text are never mutually exclusive.
+  // card, and only for the tools that show a raw tail at all (Bash and tools
+  // without a dedicated renderer, filtered below).
   if (card !== undefined && getActiveTranscriptDetail() !== 'full') return card;
   const output = activity.output;
   if (output === undefined || output.trim().length === 0) return card ?? [];
