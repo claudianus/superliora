@@ -41,6 +41,28 @@ describe('GenerateImage provider selection', () => {
     ).toBe('openai');
   });
 
+  it('prefers Codex over platform keys when a ChatGPT session is present', () => {
+    const codex = {
+      tokenProvider: { getAccessToken: async () => 'codex-token' },
+      baseUrl: 'https://chatgpt.com/backend-api/codex',
+      model: 'gpt-5.1-codex',
+    };
+    expect(
+      resolveImageGenerationProvider('auto', {
+        codex,
+        openaiApiKey: 'sk-test',
+        googleApiKey: 'google-test',
+      }),
+    ).toBe('codex');
+    expect(resolveImageGenerationProvider('auto', { codex, qwenTokenPlanApiKey: 'sk-sp-x' })).toBe(
+      'qwen',
+    );
+    expect(resolveImageGenerationProvider('codex', { codex })).toBe('codex');
+    expect(
+      resolveImageGenerationProvider('codex', { openaiApiKey: 'sk-test' }),
+    ).toBeUndefined();
+  });
+
   it('honors forced provider only when that key exists', () => {
     expect(
       resolveImageGenerationProvider('google', {
@@ -93,6 +115,46 @@ describe('GenerateImage provider selection', () => {
       expect(isGenerateImageAvailable({})).toBe(false);
     } finally {
       for (const [key, value] of Object.entries(prev)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
+
+  it('skips env fallbacks for extras services switched off in Settings', () => {
+    const ENV_KEYS = [
+      'XAI_API_KEY',
+      'QWEN_TOKEN_PLAN_API_KEY',
+      'ALIBABA_TOKEN_PLAN_API_KEY',
+      'OPENAI_API_KEY',
+      'GOOGLE_API_KEY',
+      'GEMINI_API_KEY',
+    ] as const;
+    const prev = Object.fromEntries(ENV_KEYS.map((k) => [k, process.env[k]]));
+    try {
+      process.env['XAI_API_KEY'] = 'xai-env';
+      process.env['QWEN_TOKEN_PLAN_API_KEY'] = 'sk-sp-env';
+      delete process.env['ALIBABA_TOKEN_PLAN_API_KEY'];
+      delete process.env['OPENAI_API_KEY'];
+      delete process.env['GOOGLE_API_KEY'];
+      delete process.env['GEMINI_API_KEY'];
+
+      // Disabled xai-grok: its env key no longer makes xai ready.
+      expect(resolveImageGenerationProvider('auto', { extrasDisabled: ['xai-grok'] })).toBe('qwen');
+      expect(
+        resolveImageGenerationProvider('xai', { extrasDisabled: ['xai-grok'] }),
+      ).toBeUndefined();
+      // Both off: nothing left from env keys.
+      expect(
+        resolveImageGenerationProvider('auto', {
+          extrasDisabled: ['xai-grok', 'qwen-token-plan'],
+        }),
+      ).toBeUndefined();
+      // Enabled: env keys flow as before.
+      expect(resolveImageGenerationProvider('auto', {})).toBe('xai');
+    } finally {
+      for (const key of ENV_KEYS) {
+        const value = prev[key];
         if (value === undefined) delete process.env[key];
         else process.env[key] = value;
       }

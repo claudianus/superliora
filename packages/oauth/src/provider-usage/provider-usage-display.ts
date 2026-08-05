@@ -10,6 +10,8 @@ const PROVIDER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   'qwen-token-plan': 'Alibaba Token Plan',
   'alibaba-token-plan': 'Alibaba Token Plan',
   'alibaba-token-plan-cn': 'Alibaba Token Plan (China)',
+  'zai-coding-plan': 'Z.AI (GLM Coding Plan)',
+  'zai': 'Z.AI',
 };
 
 export function providerDisplayName(providerKey: string): string {

@@ -11,6 +11,7 @@ const ENV_KEY_MAP: ReadonlyArray<{
   readonly kind: ResearchSearchProviderKind;
   readonly envs: readonly string[];
 }> = [
+  { kind: 'zai', envs: ['Z_AI_API_KEY', 'ZAI_API_KEY'] },
   { kind: 'brave', envs: ['BRAVE_API_KEY', 'BRAVE_SEARCH_API_KEY'] },
   { kind: 'tavily', envs: ['TAVILY_API_KEY'] },
   { kind: 'exa', envs: ['EXA_API_KEY'] },

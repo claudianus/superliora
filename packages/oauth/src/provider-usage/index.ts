@@ -27,6 +27,7 @@ import { fetchOpenAiCodexUsage } from './provider-usage-fetch-codex';
 import { fetchKimiManagedUsage } from './provider-usage-fetch-kimi';
 import { fetchQwenTokenPlanUsage } from './provider-usage-fetch-qwen';
 import { fetchXaiGrokUsage } from './provider-usage-fetch-xai';
+import { fetchZaiUsage } from './provider-usage-fetch-zai';
 import type {
   AllProvidersUsageSnapshot,
   FetchProviderUsageOptions,
@@ -78,6 +79,9 @@ export async function fetchProviderUsage(
     providerKey === 'alibaba-token-plan-cn'
   ) {
     return fetchQwenTokenPlanUsage(providerKey, accessToken, baseUrl, opts);
+  }
+  if (providerKey === 'zai-coding-plan' || providerKey === 'zai') {
+    return fetchZaiUsage(providerKey, accessToken, baseUrl, opts);
   }
   // Unknown provider — report as unavailable.
   return {

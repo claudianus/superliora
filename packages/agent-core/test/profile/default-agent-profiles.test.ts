@@ -204,9 +204,8 @@ describe('default agent profiles', () => {
     expect(tools.length).toBeGreaterThan(0);
     expect(tools.length).toBeLessThanOrEqual(30);
     for (const name of [
-      'NextPhase',
+      'EnterPlanMode',
       'ExitPlanMode',
-      'RecordInterviewFinding',
       'CreateGoal',
       'UpdateGoal',
       'JobCreate',
@@ -219,6 +218,9 @@ describe('default agent profiles', () => {
     }
     // Worker-only waist tools stay off conductor
     expect(tools).not.toContain('UltraworkGraph');
+    // Plan phases run inside a plan worker, never on this lane
+    expect(tools).not.toContain('NextPhase');
+    expect(tools).not.toContain('RecordInterviewFinding');
     // V1-1: spawn/wait surfaces are guard-rejected and stay off the whitelist
     expect(tools).not.toContain('Agent');
     expect(tools).not.toContain('Fleet');

@@ -677,6 +677,17 @@ describe('harness config schema and patch merge', () => {
     expect(merged.raw?.['theme']).toBe('dark');
   });
 
+  it('accepts extras.disabledProviders patches and replaces the list wholesale', () => {
+    const base = parseConfigString(`
+[extras]
+disabled_providers = ["zai"]
+`);
+    const merged = mergeConfigPatch(base, {
+      extras: { disabledProviders: ['openai-codex', 'xai-grok'] },
+    });
+    expect(merged.extras?.disabledProviders).toEqual(['openai-codex', 'xai-grok']);
+  });
+
   it('deep-merges experimental config patches', () => {
     const base = parseConfigString(`
 [experimental]

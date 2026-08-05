@@ -16,6 +16,7 @@ import {
   formatJobStripLine,
   summarizeJobStrip,
 } from '#/tools/builtin/job/job-runtime';
+import { UNVERIFIED_SUMMARY_PREFIX } from '#/session/subagent/subagent-result-contract';
 
 import { DynamicInjector } from './injector';
 
@@ -102,26 +103,41 @@ export function renderJobDeskInjection(
 
 /**
  * One severity-picked action line so the conductor routes instead of reciting
- * the board. Stays short to respect the JOB_DESK_MAX_CHARS cap.
+ * the board. This is where the per-state playbook lives: the static profile
+ * prompt pays for every branch on every turn, while a desk line costs only
+ * when the board is actually in that state. Stays one line to respect the
+ * JOB_DESK_MAX_CHARS cap.
  */
 function nextMoveGuidance(
   events: readonly JobInboxEvent[],
   strip: ReturnType<typeof summarizeJobStrip>,
 ): string | undefined {
   if (events.some((e) => e.status === 'needs_user' || e.kind === 'job.needs_user') || strip.needsUser > 0) {
-    return 'relay the worker question to the user now, then deliver the answer via JobResume(job_id, answer).';
+    return 'relay the worker question to the user now, then deliver the answer via JobResume(job_id, answer). This is the one state that interrupts whatever else you were doing.';
+  }
+  if (strip.failed > 1) {
+    return 'repeated failures: stop retrying, diagnose from the ledger (JobInspect), then reframe with a smaller scope or escalate to the user with the evidence.';
   }
   if (events.some((e) => e.kind === 'job.failed') || strip.failed > 0) {
     return 'read each failure cause once (JobInspect), then retry once with a corrected brief or reframe — never blind-retry twice.';
   }
   if (events.some((e) => e.kind === 'job.blocked' || e.status === 'blocked') || strip.blocked > 0) {
-    return 'blocked notes carry the cause (JobInspect) — fix it (git setup, trust gap, spawn budget), then JobResume.';
+    return 'blocked notes carry the cause (JobInspect): worktree/git setup, merge trust gap, spawn budget. Fix the cause, then JobResume — never resume blindly twice on the same one.';
   }
   if (events.some((e) => e.kind === 'job.interrupted') || strip.interrupted > 0) {
     return 'interrupted jobs restore safely with JobResume; worktrees survived.';
   }
+  if (events.some((e) => e.summary?.startsWith(UNVERIFIED_SUMMARY_PREFIX) === true)) {
+    return 'a done-claim landed with no checks run — delegate a verify Job before MergeJob; auto-approve holds without a green contract.';
+  }
   if (events.some((e) => e.kind === 'job.completed')) {
-    return 'verify done-claims against the brief; report when the user asks, and MergeJob-verdict if landing is wanted.';
+    return 'verify done-claims against the brief; report the outcome, and MergeJob-verdict if landing is wanted.';
+  }
+  if (strip.queued > 0) {
+    return 'queued work is waiting on a pool slot — report the order honestly (running, then queued) and raise priority instead of creating a duplicate.';
+  }
+  if (strip.running > 0) {
+    return 'workers are live: steer only on real new information, never poll, and keep the lane free for the user.';
   }
   return undefined;
 }

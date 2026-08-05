@@ -5,7 +5,11 @@
  * appState and drives the board repaint plus notice side effects.
  */
 
-import type { JobInboxEvent, JobUpdatedEvent } from '@superliora/protocol';
+import type {
+  JobInboxEvent,
+  JobUpdatedEvent,
+  SubagentProgressEvent,
+} from '@superliora/protocol';
 
 import type { ColorToken } from '../../theme';
 import type { AppState } from '../../types';
@@ -69,6 +73,16 @@ export class ControlTowerJobDesk {
     this.host.showNotice(`Job ${kindLabel}: ${event.title}`, detail, {
       coalesceKey: `job-inbox:${event.eventId}`,
     });
+  }
+
+  /**
+   * Worker heartbeat: only jobs that own the subagent repaint, so unrelated
+   * subagent traffic costs a map lookup and nothing else.
+   */
+  handleSubagentProgress(event: SubagentProgressEvent): void {
+    if (!this.store.applySubagentProgress(event)) return;
+    this.publish();
+    this.host.jobBoardController?.repaint();
   }
 
   /** Job Deck–fetched token usage backfill through the same store. */

@@ -381,6 +381,8 @@ export class SessionEventHandler {
         this.host.showStatus(notice.status, 'warning');
         break;
       }
+      case 'subagent.progress':
+        this.host.controlTowerDesk.handleSubagentProgress(event); break;
       case 'subagent.todo.updated':
         this.subAgentEventHandler.handleSubagentTodoUpdated(event); break;
       case 'subagent.tool_call':

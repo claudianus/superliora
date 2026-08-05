@@ -26,7 +26,7 @@ import type { ResearchSearchRoutingStrategy } from '#/config/schema';
 import type { CircuitBreakerRegistry } from '#/runtime/circuit-breaker';
 import type { UrlFetcher } from '../builtin/web/fetch-url';
 import type { WebSearchProvider, WebSearchResult } from '../builtin/web/web-search';
-import { clampInt, isRateLimitError } from './research-search-adapters';
+import { clampInt, isBlockedError, isRateLimitError } from './research-search-adapters';
 import {
   assessSearchChannelHealth,
   type SearchChannelHealth,
@@ -145,6 +145,9 @@ export class ResearchSearchEngine implements WebSearchProvider {
   private onCircuitBreakerChanged: (() => void) | undefined;
   private readonly slots: ProviderSlot[];
   private rrCursor = 0;
+  // ponytail: advisory routing log for the tool card; concurrent searches may
+  // merge labels. Upgrade path: key the set by toolCallId.
+  private readonly servedThisQuery = new Set<string>();
 
   constructor(options: ResearchSearchEngineOptions = {}) {
     this.strategy = options.search?.strategy ?? 'auto';
@@ -190,6 +193,11 @@ export class ResearchSearchEngine implements WebSearchProvider {
     if (onChanged !== undefined) {
       this.onCircuitBreakerChanged = onChanged;
     }
+  }
+
+  /** Labels of the channels that served results for the most recent query. */
+  lastChannels(): readonly string[] {
+    return [...this.servedThisQuery];
   }
 
   status(): ResearchSearchStatus {
@@ -262,6 +270,7 @@ export class ResearchSearchEngine implements WebSearchProvider {
     },
   ): Promise<WebSearchResult[]> {
     const trimmed = query.trim();
+    this.servedThisQuery.clear();
     if (trimmed.length === 0) return [];
     // Efficiency default: prefer 3 hits; model can raise limit intentionally.
     const limit = clampInt(options?.limit ?? 3, 1, 20);
@@ -330,6 +339,7 @@ export class ResearchSearchEngine implements WebSearchProvider {
       try {
         const browserResults = await this.browserChannel.search(query, limit);
         if (browserResults.length > 0) {
+          this.servedThisQuery.add('browser');
           this.recordChannelSuccess('browser');
           return browserResults;
         }
@@ -354,6 +364,7 @@ export class ResearchSearchEngine implements WebSearchProvider {
     try {
       const results = await this.chromeExtensionChannel.search(query, limit);
       if (results.length > 0) {
+        this.servedThisQuery.add('chrome-ext');
         this.recordChannelSuccess('chrome-ext');
       }
       return results;
@@ -521,12 +532,13 @@ export class ResearchSearchEngine implements WebSearchProvider {
         toolCallId: options?.toolCallId,
       });
       slot.useCount += 1;
+      if (results.length > 0) this.servedThisQuery.add(slot.label);
       if (!this.isFreeSlot(slot)) {
         this.recordChannelSuccess(slot.kind);
       }
       return results;
     } catch (error) {
-      if (isRateLimitError(error)) {
+      if (isRateLimitError(error) || isBlockedError(error)) {
         slot.cooldownUntil = this.now() + this.cooldownMs;
       }
       if (!this.isFreeSlot(slot)) {

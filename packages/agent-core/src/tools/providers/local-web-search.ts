@@ -1,3 +1,10 @@
+import {
+  NetResilienceRegistry,
+  backoffMs,
+  classifyHttpBlock,
+  looksLikeCaptchaBody,
+  type NetHostPolicy,
+} from '../../runtime/net-resilience';
 import type { UrlFetcher } from '../builtin/web/fetch-url';
 import type { WebSearchProvider, WebSearchResult } from '../builtin/web/web-search';
 
@@ -6,6 +13,7 @@ import {
   recordLocalResearchCacheHit,
   recordLocalResearchCacheMiss,
 } from './local-research-cache-telemetry';
+import { BING_SEARCH_URL, parseBingResults } from './local-web-search-bing-parse';
 import {
   parseDuckDuckGoLiteResults,
   parseDuckDuckGoResults,
@@ -27,7 +35,6 @@ import {
   clampInt,
   DDG_LITE_SEARCH_URL,
   DEFAULT_SEARCH_URL,
-  DEFAULT_USER_AGENT,
   ensureTrailingSlash,
   fetchWithTimeout,
   hasUsableUrl,
@@ -64,11 +71,103 @@ export interface LocalWebSearchProviderOptions {
   offlineMode?: 'auto' | 'always' | 'never';
   cachePath?: string;
   cacheTtlMs?: number;
+  /** Include the keyless Bing HTML endpoint in the primary fan-out. Default true. */
+  bing?: boolean;
+  /** Per-host pacing/cooldown harness. Defaults to the process-wide registry. */
+  resilience?: NetResilienceRegistry;
+}
+
+/** DDG HTML endpoints rate-limit aggressively; pace and cool down per host. */
+const DDG_HOST_POLICY: NetHostPolicy = {
+  minIntervalMs: 350,
+  jitterMs: 500,
+  blockThreshold: 2,
+  cooldownMs: 5 * 60_000,
+};
+const DDG_MAX_BLOCK_RETRIES = 1;
+const DDG_RETRY_BASE_BACKOFF_MS = 600;
+
+/** Bing's static HTML endpoint behaves similarly to DDG's under load. */
+const BING_HOST_POLICY: NetHostPolicy = {
+  minIntervalMs: 400,
+  jitterMs: 600,
+  blockThreshold: 2,
+  cooldownMs: 5 * 60_000,
+};
+const BING_MAX_BLOCK_RETRIES = 1;
+const BING_RETRY_BASE_BACKOFF_MS = 700;
+
+interface ResilientHtmlFetchOptions {
+  readonly resilience: NetResilienceRegistry;
+  readonly hostPolicy: NetHostPolicy;
+  readonly maxBlockRetries: number;
+  readonly retryBaseBackoffMs: number;
+  readonly url: URL;
+  readonly pinnedUserAgent?: string | undefined;
+  readonly fetchImpl: typeof fetch;
+  readonly timeoutMs: number;
+  readonly maxBytes: number;
+}
+
+/**
+ * GET an HTML search page through the resilience harness: cooldown fast-fail,
+ * per-host pacing, UA rotation, one backoff retry on 429/403/202/captcha.
+ * Returns the page body; throws when the host stays blocked.
+ */
+async function fetchHtmlWithResilience(options: ResilientHtmlFetchOptions): Promise<string> {
+  const host = options.url.hostname;
+  options.resilience.assertReady(host);
+
+  let lastStatus = 0;
+  let lastStatusText = '';
+  let blockedByBody = false;
+  for (let attempt = 0; attempt <= options.maxBlockRetries; attempt++) {
+    await options.resilience.pace(host, options.hostPolicy);
+    const userAgent = options.pinnedUserAgent ?? options.resilience.pickUserAgent(host);
+
+    // Network/timeout failures are not host blocks — a flaky local link must
+    // not bench an otherwise healthy host into cooldown, so they propagate
+    // untouched (same rule as FetchURL).
+    const response = await fetchWithTimeout(options.fetchImpl, options.url, {
+      method: 'GET',
+      headers: {
+        Accept: 'text/html,application/xhtml+xml',
+        'User-Agent': userAgent,
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+    }, options.timeoutMs);
+
+    lastStatus = response.status;
+    lastStatusText = response.statusText;
+    const block = classifyHttpBlock(response.status);
+    if (block === undefined) {
+      const html = await readBoundedText(response, options.maxBytes);
+      if (looksLikeCaptchaBody(html)) {
+        blockedByBody = true;
+        options.resilience.noteBlock(host, 'captcha', options.hostPolicy);
+      } else {
+        options.resilience.noteSuccess(host);
+        return html;
+      }
+    } else {
+      await response.body?.cancel().catch(() => undefined);
+      options.resilience.noteBlock(host, block, options.hostPolicy);
+    }
+
+    if (attempt < options.maxBlockRetries) {
+      await options.resilience.sleep(backoffMs(attempt, options.retryBaseBackoffMs));
+    }
+  }
+
+  if (blockedByBody && lastStatus < 400) {
+    throw new Error(`Local search blocked by "${host}": bot check page returned.`);
+  }
+  throw new Error(`Local search request failed: HTTP ${String(lastStatus)} ${lastStatusText}`);
 }
 
 export class LocalWebSearchProvider implements WebSearchProvider {
   private readonly searchUrl: string;
-  private readonly userAgent: string;
+  private readonly pinnedUserAgent: string | undefined;
   private readonly fetchImpl: typeof fetch;
   private readonly maxBytes: number;
   private readonly urlFetcher: UrlFetcher | undefined;
@@ -80,10 +179,12 @@ export class LocalWebSearchProvider implements WebSearchProvider {
   private readonly offlineMode: 'auto' | 'always' | 'never';
   private readonly cache: LocalResearchCache | undefined;
   private readonly cacheTtlMs: number;
+  private readonly bingEnabled: boolean;
+  private readonly resilience: NetResilienceRegistry;
 
   constructor(options: LocalWebSearchProviderOptions = {}) {
     this.searchUrl = options.searchUrl ?? DEFAULT_SEARCH_URL;
-    this.userAgent = options.userAgent ?? DEFAULT_USER_AGENT;
+    this.pinnedUserAgent = options.userAgent;
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
     this.maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES;
     this.urlFetcher = options.urlFetcher;
@@ -101,6 +202,10 @@ export class LocalWebSearchProvider implements WebSearchProvider {
     this.offlineMode = options.offlineMode ?? 'auto';
     this.cache = options.cachePath === undefined ? undefined : new LocalResearchCache(options.cachePath);
     this.cacheTtlMs = options.cacheTtlMs ?? DEFAULT_WEB_CACHE_TTL_MS;
+    this.bingEnabled = options.bing ?? true;
+    // Per-instance by default so cooldown state never leaks across tests or
+    // independent engines; the runtime factory passes the shared registry.
+    this.resilience = options.resilience ?? new NetResilienceRegistry();
   }
 
   async search(
@@ -212,13 +317,23 @@ export class LocalWebSearchProvider implements WebSearchProvider {
       new DuckDuckGoHtmlAdapter({
         searchUrl: this.searchUrl,
         liteSearchUrl: DDG_LITE_SEARCH_URL,
-        userAgent: this.userAgent,
+        userAgent: this.pinnedUserAgent,
         fetchImpl: this.fetchImpl,
         maxBytes: this.maxBytes,
         timeoutMs: this.timeoutMs,
         intent,
+        resilience: this.resilience,
       }),
     ];
+    if (this.bingEnabled) {
+      adapters.push(new BingHtmlAdapter({
+        userAgent: this.pinnedUserAgent,
+        fetchImpl: this.fetchImpl,
+        maxBytes: this.maxBytes,
+        timeoutMs: this.timeoutMs,
+        resilience: this.resilience,
+      }));
+    }
     if (this.searxngUrl !== undefined) {
       adapters.push(new SearxngAdapter(this.searxngUrl, this.fetchImpl, this.timeoutMs));
     }
@@ -273,6 +388,7 @@ export class LocalWebSearchProvider implements WebSearchProvider {
       searchUrl: this.searchUrl,
       searxngUrl: this.searxngUrl,
       yacyUrl: this.yacyUrl,
+      bing: this.bingEnabled,
       directSources: this.directSources,
     });
   }
@@ -282,28 +398,31 @@ class DuckDuckGoHtmlAdapter implements LocalSearchAdapter {
   readonly id = 'duckduckgo-html';
   private readonly searchUrl: string;
   private readonly liteSearchUrl: string;
-  private readonly userAgent: string;
+  private readonly pinnedUserAgent: string | undefined;
   private readonly fetchImpl: typeof fetch;
   private readonly maxBytes: number;
   private readonly timeoutMs: number;
   private readonly intent: SearchIntent;
+  private readonly resilience: NetResilienceRegistry;
 
   constructor(options: {
     readonly searchUrl: string;
     readonly liteSearchUrl: string;
-    readonly userAgent: string;
+    readonly userAgent?: string | undefined;
     readonly fetchImpl: typeof fetch;
     readonly maxBytes: number;
     readonly timeoutMs: number;
     readonly intent: SearchIntent;
+    readonly resilience: NetResilienceRegistry;
   }) {
     this.searchUrl = options.searchUrl;
     this.liteSearchUrl = options.liteSearchUrl;
-    this.userAgent = options.userAgent;
+    this.pinnedUserAgent = options.userAgent;
     this.fetchImpl = options.fetchImpl;
     this.maxBytes = options.maxBytes;
     this.timeoutMs = options.timeoutMs;
     this.intent = options.intent;
+    this.resilience = options.resilience;
   }
 
   async search(query: string, limit: number): Promise<WebSearchResult[]> {
@@ -339,22 +458,17 @@ class DuckDuckGoHtmlAdapter implements LocalSearchAdapter {
     if (!url.searchParams.has('kp')) url.searchParams.set('kp', '-2');
     if (this.intent.kind === 'news') url.searchParams.set('iar', 'news');
 
-    const response = await fetchWithTimeout(this.fetchImpl, url, {
-      method: 'GET',
-      headers: {
-        Accept: 'text/html,application/xhtml+xml',
-        'User-Agent': this.userAgent,
-        'Accept-Language': 'en-US,en;q=0.9',
-      },
-    }, this.timeoutMs);
-    if (response.status >= 400) {
-      await response.body?.cancel().catch(() => undefined);
-      throw new Error(
-        `Local search request failed: HTTP ${String(response.status)} ${response.statusText}`,
-      );
-    }
-
-    const html = await readBoundedText(response, this.maxBytes);
+    const html = await fetchHtmlWithResilience({
+      resilience: this.resilience,
+      hostPolicy: DDG_HOST_POLICY,
+      maxBlockRetries: DDG_MAX_BLOCK_RETRIES,
+      retryBaseBackoffMs: DDG_RETRY_BASE_BACKOFF_MS,
+      url,
+      pinnedUserAgent: this.pinnedUserAgent,
+      fetchImpl: this.fetchImpl,
+      timeoutMs: this.timeoutMs,
+      maxBytes: this.maxBytes,
+    });
     const parsed = endpoint.includes('lite.duckduckgo.com')
       ? parseDuckDuckGoLiteResults(html, limit)
       : parseDuckDuckGoResults(html, limit);
@@ -365,6 +479,56 @@ class DuckDuckGoHtmlAdapter implements LocalSearchAdapter {
         snippet: prefixedSnippet('duckduckgo', result.snippet),
         date: result.date,
         content: result.content,
+      }),
+    );
+  }
+}
+
+class BingHtmlAdapter implements LocalSearchAdapter {
+  readonly id = 'bing-html';
+  private readonly searchUrl: string;
+  private readonly pinnedUserAgent: string | undefined;
+  private readonly fetchImpl: typeof fetch;
+  private readonly maxBytes: number;
+  private readonly timeoutMs: number;
+  private readonly resilience: NetResilienceRegistry;
+
+  constructor(options: {
+    readonly searchUrl?: string | undefined;
+    readonly userAgent?: string | undefined;
+    readonly fetchImpl: typeof fetch;
+    readonly maxBytes: number;
+    readonly timeoutMs: number;
+    readonly resilience: NetResilienceRegistry;
+  }) {
+    this.searchUrl = options.searchUrl ?? BING_SEARCH_URL;
+    this.pinnedUserAgent = options.userAgent;
+    this.fetchImpl = options.fetchImpl;
+    this.maxBytes = options.maxBytes;
+    this.timeoutMs = options.timeoutMs;
+    this.resilience = options.resilience;
+  }
+
+  async search(query: string, limit: number): Promise<WebSearchResult[]> {
+    const url = new URL(this.searchUrl);
+    url.searchParams.set('q', query);
+    url.searchParams.set('count', String(Math.min(Math.max(limit * 2, 10), 30)));
+    const html = await fetchHtmlWithResilience({
+      resilience: this.resilience,
+      hostPolicy: BING_HOST_POLICY,
+      maxBlockRetries: BING_MAX_BLOCK_RETRIES,
+      retryBaseBackoffMs: BING_RETRY_BASE_BACKOFF_MS,
+      url,
+      pinnedUserAgent: this.pinnedUserAgent,
+      fetchImpl: this.fetchImpl,
+      timeoutMs: this.timeoutMs,
+      maxBytes: this.maxBytes,
+    });
+    return parseBingResults(html, limit).map((result) =>
+      buildResult({
+        title: result.title,
+        url: result.url,
+        snippet: prefixedSnippet('bing', result.snippet),
       }),
     );
   }

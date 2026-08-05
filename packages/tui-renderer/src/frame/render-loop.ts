@@ -116,12 +116,7 @@ export class NativeRenderLoop {
     this.pendingCauses.add(cause);
     // High-priority interaction arriving mid-frame must not wait for the next
     // paced tick — flag it so the post-frame schedule fires immediately.
-    // transcript-scroll is wheel/page navigation: lagging it behind ambient
-    // pacing feels like scroll freeze under load.
-    if (
-      this.runningFrame &&
-      (cause === 'input' || cause === 'resize' || cause === 'transcript-scroll')
-    ) {
+    if (this.runningFrame && (cause === 'input' || cause === 'resize')) {
       this.inputDuringFramePending = true;
     }
     this.scheduleNextFrame();
@@ -180,14 +175,12 @@ export class NativeRenderLoop {
 
   private resolveFrameDelay(now: number): number {
     // High-priority causes render immediately so user input is never held
-    // behind frame pacing. transcript-scroll is wheel/page navigation: pure-
-    // scroll paint is O(viewport) cache/placeholder only, so delay-0 is safe
-    // again (the old FPS cap was guarding multi-k cold layout storms).
-    if (
-      this.pendingCauses.has('input') ||
-      this.pendingCauses.has('resize') ||
-      this.pendingCauses.has('transcript-scroll')
-    ) {
+    // behind frame pacing. transcript-scroll is deliberately not one of them:
+    // a high-resolution wheel emits well above 60 events/s and delay-0 turned
+    // each one into its own full transcript-region rewrite. The viewport offset
+    // is mutated synchronously on every wheel event regardless of paint, so
+    // pacing coalesces a burst into one frame at the same scroll distance.
+    if (this.pendingCauses.has('input') || this.pendingCauses.has('resize')) {
       return 0;
     }
     // Input that arrived mid-frame demands an immediate follow-up.

@@ -1,12 +1,16 @@
 import type { BrowserUseRuntime, ComputerUseRuntime } from '@superliora/gui-use';
 import type { UrlFetcher } from '../builtin/web/fetch-url';
 import type { WebSearchProvider } from '../builtin/web/web-search';
+import type { CodexExtrasOptions } from '../providers/codex-extras';
 import type { Context7Provider } from '../providers/context7';
+import type { ResearchSearchEngine } from '../providers/research-search';
 import type { XaiGrokBuildClient } from '../providers/xai-grok-build';
 
 export interface ToolServices {
   readonly urlFetcher?: UrlFetcher;
   readonly webSearcher?: WebSearchProvider;
+  /** Multi-provider search engine when built; powers the /status Extras cascade. */
+  readonly researchSearch?: ResearchSearchEngine;
   readonly context7?: Context7Provider;
   readonly browserUse?: BrowserUseRuntime;
   readonly computerUse?: ComputerUseRuntime;
@@ -18,4 +22,10 @@ export interface ToolServices {
    * generation tools work without a standalone environment variable.
    */
   readonly qwenTokenPlanApiKey?: string;
+  /**
+   * OpenAI Codex (ChatGPT subscription) extras credentials: powers the
+   * engine's codex search slot and the GenerateImage codex backend with
+   * the OAuth session token — no extra API key required.
+   */
+  readonly codex?: CodexExtrasOptions;
 }

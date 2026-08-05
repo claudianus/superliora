@@ -50,6 +50,8 @@ export interface WebSearchProvider {
   search(query: string, options?: WebSearchOptions): Promise<WebSearchResult[]>;
   /** When implemented (e.g. ResearchSearchEngine), enables channel health hints. */
   status?(): ResearchSearchStatus;
+  /** Labels of the channels that served the most recent query (routing log). */
+  lastChannels?(): readonly string[];
 }
 
 // ── Input schema ─────────────────────────────────────────────────────
@@ -136,6 +138,9 @@ export class WebSearchTool implements BuiltinTool<WebSearchInput> {
         builder.write(`Snippet: ${result.snippet}\n\n`);
         if (result.content) builder.write(`${result.content}\n\n`);
       }
+
+      const channels = this.provider.lastChannels?.() ?? [];
+      if (channels.length > 0) builder.write(`Channels: ${channels.join(' → ')}\n`);
 
       appendSearchNeverEmptySoftFailFooter(builder, {
         degraded: healthAfter?.degraded === true,

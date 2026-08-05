@@ -90,12 +90,50 @@ export const CLINEPASS_CATALOG_ENTRY: CatalogProviderEntry = {
   models: CLINEPASS_MODELS,
 };
 
+/** Z.AI GLM Coding Plan API base (OpenAI-compatible chat). */
+export const ZAI_CODING_PLAN_API_BASE = 'https://api.z.ai/api/coding/paas/v4';
+
+export const ZAI_CODING_PLAN_PROVIDER_ID = 'zai-coding-plan';
+
+/** Env vars checked for an existing Z.AI API key. */
+export const ZAI_API_KEY_ENVS = ['Z_AI_API_KEY', 'ZAI_API_KEY'] as const;
+
+/**
+ * Curated Z.AI GLM Coding Plan models.
+ *
+ * The coding plan subscription also bundles dedicated MCP extras (web search,
+ * web reader, zread, vision) that SuperLiora auto-injects when the key is
+ * detected — no extra configuration required.
+ *
+ * @see https://docs.z.ai/devpack/overview
+ */
+const ZAI_CODING_PLAN_MODELS: Readonly<Record<string, LocalCatalogModel>> = {
+  'glm-5.2': model('glm-5.2', 'GLM-5.2', 200_000, 131_072, true),
+  'glm-5-turbo': model('glm-5-turbo', 'GLM-5 Turbo', 200_000, 131_072, true),
+  'glm-4.7': model('glm-4.7', 'GLM-4.7', 200_000, 131_072, true),
+  'glm-4.6v': model('glm-4.6v', 'GLM-4.6V', 131_072, 65_536, true, { imageIn: true }),
+};
+
+export const ZAI_CODING_PLAN_CATALOG_ENTRY: CatalogProviderEntry = {
+  id: ZAI_CODING_PLAN_PROVIDER_ID,
+  name: 'Z.AI (GLM Coding Plan)',
+  api: ZAI_CODING_PLAN_API_BASE,
+  env: [...ZAI_API_KEY_ENVS],
+  // Explicit wire type: id "zai-coding-plan" does not match the openai
+  // substring heuristic used by inferWireType.
+  type: 'openai',
+  npm: '@ai-sdk/openai-compatible',
+  doc: 'https://docs.z.ai/devpack/overview',
+  models: ZAI_CODING_PLAN_MODELS,
+};
+
 /**
  * SuperLiora-owned catalog entries layered on top of models.dev.
  * Add future curated providers here.
  */
 export const LOCAL_CATALOG_PROVIDERS: Readonly<Record<string, CatalogProviderEntry>> = {
   [CLINEPASS_PROVIDER_ID]: CLINEPASS_CATALOG_ENTRY,
+  [ZAI_CODING_PLAN_PROVIDER_ID]: ZAI_CODING_PLAN_CATALOG_ENTRY,
 };
 
 /**
@@ -116,6 +154,7 @@ function model(
   context: number,
   output: number,
   reasoning: boolean,
+  options?: { imageIn?: boolean },
 ): LocalCatalogModel {
   return {
     id,
@@ -125,6 +164,9 @@ function model(
     reasoning,
     // OpenAI-compatible gateways round-trip thinking via reasoning_content.
     interleaved: reasoning ? true : undefined,
-    modalities: { input: ['text'], output: ['text'] },
+    modalities: {
+      input: options?.imageIn === true ? ['text', 'image'] : ['text'],
+      output: ['text'],
+    },
   };
 }

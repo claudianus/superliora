@@ -40,6 +40,34 @@ export const VERIFICATION_NOT_RUN: SubagentVerificationStatus = {
 
 const MAX_FILES_CHANGED = 100;
 
+/**
+ * Every gate actually ran and passed. The completion gate skips often
+ * (explore jobs, multi-package changes, paths outside the workspace layout,
+ * gate timeouts), so "did not fail" is a much weaker fact than this.
+ */
+export function verificationIsGreen(
+  verification: SubagentVerificationStatus | undefined,
+): boolean {
+  if (verification === undefined) return false;
+  return (
+    verification.tests === 'passed' &&
+    verification.typecheck === 'passed' &&
+    verification.lint === 'passed'
+  );
+}
+
+/** Marks a `done` job whose checks never ran, on the summary the desk/ACK show. */
+export const UNVERIFIED_SUMMARY_PREFIX = 'unverified (checks did not run) — ';
+
+/** Nothing failed, but at least one gate never ran — a `done` without evidence. */
+export function verificationIsUnverified(
+  verification: SubagentVerificationStatus | undefined,
+): boolean {
+  if (verification === undefined) return true;
+  const verdicts = [verification.tests, verification.typecheck, verification.lint];
+  return !verdicts.includes('failed') && verdicts.includes('not_run');
+}
+
 /** Git state snapshot taken before the child starts working. */
 export interface GitWorkSnapshot {
   readonly head: string | undefined;

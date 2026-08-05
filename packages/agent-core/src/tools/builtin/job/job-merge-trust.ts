@@ -4,6 +4,9 @@
  * Green tests alone never suffice.
  */
 
+import { verificationIsGreen } from '../../../session/subagent/subagent-result-contract';
+import type { JobRecord } from './job-store-key';
+
 export interface MergeTrustInput {
   readonly approve: boolean;
   /** Diff line count or approximate size; small threshold default 200. */
@@ -24,6 +27,8 @@ export type MergeTrustVerdict =
   | { readonly ok: false; readonly mode: 'hold'; readonly reason: string };
 
 const DEFAULT_SMALL_DIFF = 200;
+/** A change spanning more files than this is not small, whatever the line claim says. */
+const DEFAULT_SMALL_FILES = 20;
 
 /** Paths that always require user confirmation for land-to-main. */
 export const MERGE_DANGEROUS_PATH_PATTERNS: readonly RegExp[] = [
@@ -84,6 +89,15 @@ export function evaluateMergeTrust(input: MergeTrustInput): MergeTrustVerdict {
       reason: `Diff too large (${lines} lines > ${max}) — user confirm required.`,
     };
   }
+  // The line count is self-reported; the file list is not. A wide change can
+  // never read as small, however few lines the caller claims it touched.
+  if (paths.length > DEFAULT_SMALL_FILES) {
+    return {
+      ok: false,
+      mode: 'hold',
+      reason: `Change spans ${paths.length} files (> ${DEFAULT_SMALL_FILES}) — user confirm required.`,
+    };
+  }
   if (input.hasSummary !== true) {
     return {
       ok: false,
@@ -95,5 +109,49 @@ export function evaluateMergeTrust(input: MergeTrustInput): MergeTrustVerdict {
     ok: true,
     mode: 'auto',
     reason: `Trust rules passed: small (≤${max}), no conflict, checks green, non-dangerous paths, summary present.`,
+  };
+}
+
+/** What the conductor claims about a merge, straight off the tool arguments. */
+export interface MergeTrustClaim {
+  readonly approve: boolean;
+  readonly diffLines?: number;
+  readonly hasConflict?: boolean;
+  readonly checksGreen?: boolean;
+  readonly paths?: readonly string[];
+  readonly summary?: string;
+  readonly forceUserConfirm?: boolean;
+}
+
+/**
+ * Ground the verdict in what the worker actually produced, and let the
+ * conductor's claim make it stricter only. `checks_green` can be withdrawn
+ * but never granted — the ledger's verification contract is the sole witness.
+ * `has_conflict` can be raised but never cleared, and claimed paths union with
+ * the files the worker really touched. Diff size has no ledger witness, so the
+ * claim stands there; an absent claim still reads as too large, and the file
+ * count from the contract caps "small" independently.
+ */
+export function mergeTrustInputFromLedger(input: {
+  readonly job: Pick<JobRecord, 'ownershipPaths' | 'resultContract' | 'resultSummary'>;
+  readonly claim: MergeTrustClaim;
+}): MergeTrustInput {
+  const { job, claim } = input;
+  const contract = job.resultContract;
+  const paths = [
+    ...new Set([
+      ...(contract?.files_changed ?? []),
+      ...(job.ownershipPaths ?? []),
+      ...(claim.paths ?? []),
+    ]),
+  ];
+  return {
+    approve: claim.approve,
+    checksGreen: verificationIsGreen(contract?.verification) && claim.checksGreen !== false,
+    hasConflict: claim.hasConflict === true,
+    paths,
+    ...(claim.diffLines === undefined ? {} : { diffLines: claim.diffLines }),
+    hasSummary: Boolean(claim.summary?.trim() ?? '') || Boolean(job.resultSummary?.trim() ?? ''),
+    forceUserConfirm: claim.forceUserConfirm === true,
   };
 }

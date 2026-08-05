@@ -17,6 +17,7 @@ import {
 
 import { buildManagedUsageReportLines } from '../usage-panel/index';
 import { contextValues } from './context';
+import { extrasStatusRows } from './extras';
 import { addStatusFieldRows, createStatusFieldMotionState } from './field-motion';
 import {
   formatProviderRouteSummary,
@@ -221,6 +222,21 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
     addStatusFieldRows(
       lines,
       providerRouteRows(options.providerRouteStatus),
+      muted,
+      value,
+      errorStyle,
+      warningStyle,
+      options.fieldMotion,
+    );
+  }
+
+  const extras = options.status?.extras;
+  if (extras !== undefined && extras.providers.length > 0) {
+    lines.push('');
+    lines.push(accent('Extras'));
+    addStatusFieldRows(
+      lines,
+      extrasStatusRows(extras),
       muted,
       value,
       errorStyle,

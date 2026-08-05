@@ -425,6 +425,31 @@ export const McpServerConfigSchema = z.preprocess((raw) => {
 
 export type McpServerConfig = z.infer<typeof McpServerConfigSchema>;
 
+export const McpConfigSchema = z.object({
+  /**
+   * Auto-inject provider-bundled MCP servers (e.g. Z.AI web search / reader /
+   * zread / vision) when the matching API key is detected. Default true.
+   * User-declared servers with the same name always win over auto-injected
+   * ones. `SUPERLIORA_NO_PROVIDER_MCP=1` disables injection process-wide.
+   */
+  autoProviderServers: z.boolean().optional(),
+});
+
+export type McpConfig = z.infer<typeof McpConfigSchema>;
+
+export const ExtrasConfigSchema = z.object({
+  /**
+   * Provider-extras ids ('zai', 'qwen-token-plan', 'xai-grok', 'openai-codex')
+   * the user opted out of. A disabled service contributes no search slot,
+   * media backend, or auto-injected MCP servers even when its key/OAuth is
+   * detected. Everything stays auto-detected by default — this is the only
+   * off switch, per the zero-config rule.
+   */
+  disabledProviders: z.array(z.string()).optional(),
+});
+
+export type ExtrasConfig = z.infer<typeof ExtrasConfigSchema>;
+
 export const AgentConfigSchema = z.object({
   /**
    * Bundled main agent profile (`core`, `agent`, `superliora-full`, …).
@@ -465,6 +490,8 @@ export const LioraConfigSchema = z.object({
   modelCatalog: ModelCatalogConfigSchema.optional(),
   browserUse: BrowserUseConfigSchema.optional(),
   computerUse: ComputerUseConfigSchema.optional(),
+  mcp: McpConfigSchema.optional(),
+  extras: ExtrasConfigSchema.optional(),
   persona: PersonaConfigSchema.optional(),
   agent: AgentConfigSchema.optional(),
   experimental: ExperimentalConfigSchema.optional(),
@@ -539,6 +566,7 @@ export const LioraConfigPatchSchema = z
     agent: AgentConfigPatchSchema.optional(),
     experimental: ExperimentalConfigPatchSchema.optional(),
     telemetry: z.boolean().optional(),
+    extras: ExtrasConfigSchema.optional(),
   })
   .strict();
 

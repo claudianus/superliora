@@ -420,6 +420,47 @@ export function resolveConductorJobCard(
   return contains.length === 1 ? contains[0] : undefined;
 }
 
+/** Newest tool wins, no immediate repeats, at most this many in the trail. */
+const PROGRESS_TOOL_TRAIL_MAX = 3;
+
+/**
+ * Join a `subagent.progress` heartbeat onto the job card that spawned the
+ * worker. The ledger has a `progress` field but no writer — this fills the
+ * board ticker from telemetry the session already emits every few seconds,
+ * so the desk shows live worker activity without a ledger write per beat.
+ * Returns undefined only when no card owns the worker; a matching card
+ * always repaints (the heartbeat timestamp moves every beat).
+ */
+export function patchConductorJobProgressByWorker(
+  cards: readonly ConductorJobCard[],
+  workerAgentId: string,
+  beat: {
+    readonly lastTool?: string;
+    readonly lastTarget?: string;
+    readonly toolCount?: number;
+    readonly atMs: number;
+  },
+): readonly ConductorJobCard[] | undefined {
+  const index = cards.findIndex((card) => card.workerAgentId === workerAgentId);
+  if (index < 0) return undefined;
+  const previous = cards[index]!;
+  const trail = previous.progress?.recentTools ?? [];
+  const recentTools =
+    beat.lastTool === undefined || beat.lastTool === trail[trail.length - 1]
+      ? trail
+      : [...trail, beat.lastTool].slice(-PROGRESS_TOOL_TRAIL_MAX);
+  const progress: JobProgressSnapshot = {
+    ...previous.progress,
+    ...(beat.lastTarget === undefined ? {} : { phase: beat.lastTarget }),
+    ...(recentTools.length === 0 ? {} : { recentTools }),
+    ...(beat.toolCount === undefined ? {} : { stepsCompleted: beat.toolCount }),
+    lastHeartbeatAt: new Date(beat.atMs).toISOString(),
+  };
+  const next = [...cards];
+  next[index] = { ...previous, progress };
+  return next;
+}
+
 /** Patch one card's remembered usage; returns undefined when the id is unknown. */
 export function patchConductorJobUsage(
   cards: readonly ConductorJobCard[],

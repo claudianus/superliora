@@ -21,6 +21,7 @@ export * from './fs';
 export * from './file';
 export * from './modelCatalog';
 export * from './providerRoute';
+export * from './providerExtras';
 export * from './ultrawork';
 export * from './autopilot';
 

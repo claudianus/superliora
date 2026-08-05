@@ -15,11 +15,18 @@
  *   moves on (the 120s spawn-chain incident cannot repeat).
  */
 
+import { CONDUCTOR_DEFAULT_MAX_CONCURRENT_JOBS } from '../../tools/builtin/job/job-runtime';
+
 /** Locked spawn budget (checklist V2-2): blocked + reason after 30s. */
 export const JOB_WORKER_SPAWN_BUDGET_MS = 30_000;
 
-/** Parallel spawn handshakes. Keys are deduped per job and each handshake owns its own worktree/agent, so distinct jobs spawn safely in parallel. */
-export const JOB_WORKER_SPAWN_MAX_CONCURRENT = 3;
+/**
+ * Parallel spawn handshakes. Keys are deduped per job and each handshake owns
+ * its own worktree/agent, so distinct jobs spawn safely in parallel. Tracks
+ * the job concurrency default: a spawn cap below it promotes jobs to `running`
+ * faster than workers can attach.
+ */
+export const JOB_WORKER_SPAWN_MAX_CONCURRENT = CONDUCTOR_DEFAULT_MAX_CONCURRENT_JOBS;
 
 export type WorkerSpawnPhase =
   | 'spawning'

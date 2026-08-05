@@ -7,8 +7,13 @@ import { randomUUID } from 'node:crypto';
 
 import type { Agent } from '../../../agent/index';
 import { type FanoutSpec, type FanoutTask, spawnOneAgent } from '../../../fleet/spawn-agents';
+import { requestConductorWake } from '../../../session/job/conductor-wake';
 import { getJobWorkerSpawner, requestJobSchedulePump } from '../../../session/job/job-offload';
 import { DEFAULT_SUBAGENT_TIMEOUT_MS } from '../../../session/subagent/subagent-host';
+import {
+  UNVERIFIED_SUMMARY_PREFIX,
+  verificationIsUnverified,
+} from '../../../session/subagent/subagent-result-contract';
 import { userCancellationReason } from '../../../utils/abort';
 import type { ToolStore } from '../../store';
 import {
@@ -161,6 +166,7 @@ function notifyInbox(
     summary,
   });
   emitJobEvents(agent, [inboxToWireEvent(event), jobRecordToUpdatedEvent(job, { reason: kind })]);
+  if (agent !== undefined) requestConductorWake({ agent, store });
 }
 
 function isTerminalOrCancelled(status: JobStatus): boolean {
@@ -250,7 +256,7 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
   try {
     const handle = await spawn(host, spec, task);
     setJobWorkerAgentId(job.id, handle.agentId);
-    bindJobWorkerLedger(handle.agentId, input.store, job.id);
+    bindJobWorkerLedger(handle.agentId, input.store, job.id, input.agent);
     patchJob(input.store, job.id, {
       workerAgentId: handle.agentId,
       notes: [job.notes, `worker: ${handle.agentId} (${profileName})`].filter(Boolean).join('\n'),
@@ -274,6 +280,11 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
         const summary =
           (contract?.summary.trim() || rawSummary.trim()).slice(0, 4000) || 'worker completed';
         const verificationFailed = contract?.verification_failed === true;
+        // The gate skips more often than it runs (explore jobs, multi-package
+        // changes, paths outside the workspace layout, gate timeouts). Such a
+        // job is still `done`, but saying so plainly keeps the conductor from
+        // reading "no failure" as "verified" when it decides to merge.
+        const unverified = !verificationFailed && verificationIsUnverified(contract?.verification);
         // Goal-driver terminal mapping (spec 2026-08-04-goal-driver-jobs §3.5):
         // a stopped goal (blocked/paused — budget circuit breaker, stagnation,
         // or a worker-reported blocker) escalates as a resumable `blocked` Job;
@@ -292,7 +303,9 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
           ? `verification failed — ${summary}`
           : goalStopped
             ? `goal ${completion.goalStatus}${goalReason} — ${summary}`
-            : summary;
+            : unverified
+              ? `${UNVERIFIED_SUMMARY_PREFIX}${summary}`
+              : summary;
         const updated = patchJob(input.store, job.id, {
           // A done with a failed verification gate misled the conductor:
           // surface explicit verification failures as failed so the playbook
@@ -307,7 +320,9 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
               ? 'worker: completed but verification failed'
               : goalStopped
                 ? `worker: goal ${completion.goalStatus}${goalReason}`
-                : 'worker: completed',
+                : unverified
+                  ? 'worker: completed unverified (checks did not run)'
+                  : 'worker: completed',
           ]
             .filter(Boolean)
             .join('\n'),
@@ -354,7 +369,7 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
       ...(keepState ? {} : { status: 'failed' as const, resultSummary: detail.slice(0, 2000) }),
       notes: [current?.notes ?? job.notes, `spawn_failed: ${detail}`].filter(Boolean).join('\n'),
     });
-    if (updated && !keepState) notifyInbox(input.store, updated, 'failed', detail);
+    if (updated && !keepState) notifyInbox(input.store, updated, 'failed', detail, input.agent);
     return { ok: false, error: detail };
   }
 }

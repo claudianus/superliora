@@ -39,6 +39,24 @@ export interface ResearchSearchEngineOptions {
       getAccessToken(options?: { readonly force?: boolean | undefined }): Promise<string>;
     };
   };
+  /**
+   * OpenAI Codex (ChatGPT subscription) extras credentials. When present,
+   * the engine adds a subscription-tier search slot backed by the Codex
+   * backend `web_search` server tool.
+   */
+  readonly codex?: {
+    readonly baseUrl?: string | undefined;
+    readonly model?: string | undefined;
+    readonly tokenProvider: {
+      getAccessToken(options?: { readonly force?: boolean | undefined }): Promise<string>;
+    };
+  };
+  /**
+   * Provider kinds whose env-detected slots are suppressed (Settings →
+   * Provider extras off switch). Explicit `search.providers` entries are
+   * user config and always stay.
+   */
+  readonly disabledEnvKinds?: readonly ResearchSearchProviderKind[] | undefined;
   readonly fetchImpl?: typeof fetch;
   readonly urlFetcher?: UrlFetcher;
   readonly browserChannel?: BrowserSearchChannel | undefined;

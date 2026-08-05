@@ -4,7 +4,7 @@ import type { ContextOSRetrievalDiagnostics } from '#/agent/context-os';
 import type { BackgroundTaskInfo } from '#/agent/background';
 import type { GoalSnapshot, GoalToolResult } from '#/agent/goal';
 import type { PermissionData } from '#/agent/permission';
-import type { CircuitBreakerStatus } from '@superliora/protocol';
+import type { CircuitBreakerStatus, ProviderExtrasStatus } from '@superliora/protocol';
 import type { PlanData } from '#/agent/plan';
 import type { ToolInfo } from '#/agent/tool';
 import type { LioraConfig } from '#/config';
@@ -199,6 +199,8 @@ export interface AgentAPI {
   getPlan: (payload: EmptyPayload) => PlanData;
   getUsage: (payload: EmptyPayload) => UsageStatus;
   getProviderRouteStatus: (payload: EmptyPayload) => ProviderRouteStatus | null;
+  /** Provider-extras harness status (detected services, search cascade, media routing). */
+  getProviderExtrasStatus: (payload: EmptyPayload) => ProviderExtrasStatus;
   resetProviderRouteStatus: (payload: EmptyPayload) => ProviderRouteStatus | null;
   getTools: (payload: EmptyPayload) => readonly ToolInfo[];
   getBackground: (payload: GetBackgroundPayload) => readonly BackgroundTaskInfo[];

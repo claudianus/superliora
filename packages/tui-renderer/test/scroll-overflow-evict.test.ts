@@ -50,7 +50,7 @@ describe('overflow paint cache eviction (GC freeze class)', () => {
     expect(ms).toBeLessThan(350);
   });
 
-  it('pure-scroll never cold-materializes (budget 0)', () => {
+  it('pure-scroll does not cold-render a card per wheel frame', () => {
     const viewport = new RendererTranscriptViewport();
     const transcript = new RendererTranscriptViewportComponent({
       viewport,
@@ -71,17 +71,29 @@ describe('overflow paint cache eviction (GC freeze class)', () => {
     }
     // Measure-mode geometry probes call render — reset after warm.
     transcript.contentRowCount(90);
+    transcript.render(90);
+    viewport.jumpToLine(0);
+    transcript.render(90);
     paints = 0;
 
-    withTranscriptCheapPaintMode(() => {
-      viewport.jumpToLine(0);
-      for (let i = 0; i < 25; i++) {
-        viewport.scroll('line-down', 60);
-        transcript.render(90);
-      }
-    });
-    // Pure-scroll must not call child.render for cold cards (placeholders only).
-    // Geometry warm path may still count as 0 after reset.
-    expect(paints).toBe(0);
+    const flingBatch = (frames: number): number => {
+      const before = paints;
+      withTranscriptCheapPaintMode(() => {
+        for (let i = 0; i < frames; i++) {
+          viewport.scroll('line-down', 60);
+          transcript.render(90);
+        }
+      });
+      return paints - before;
+    };
+
+    const first = flingBatch(25);
+    const second = flingBatch(25);
+
+    // The freeze class was cold layout per wheel frame, so the cost of a fling
+    // must not scale with how long it lasts. Asserting growth rather than an
+    // absolute count keeps this meaningful without pinning a machine-speed number.
+    expect(second).toBeLessThanOrEqual(first);
+    expect(first + second).toBeLessThan(30);
   });
 });

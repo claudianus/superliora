@@ -92,9 +92,11 @@ describe('NativeRenderLoop', () => {
     });
   });
 
-  it('renders transcript-scroll immediately like input (pure-scroll is O(viewport))', () => {
-    // Pure-scroll paints are cache/placeholder only, so delay-0 is safe and
-    // keeps wheel/page navigation interactive under ambient pacing.
+  it('paces transcript-scroll instead of painting every wheel tick', () => {
+    // A high-resolution wheel emits well above the frame rate. Delay-0 turned
+    // each tick into its own full transcript-region rewrite; pacing coalesces
+    // the burst into one frame. Scroll distance is unaffected — the viewport
+    // offset moves on the event, not on the paint.
     const scheduler = new FakeRenderLoopScheduler();
     const frames: NativeRenderFrame[] = [];
     const loop = new NativeRenderLoop({
@@ -109,15 +111,52 @@ describe('NativeRenderLoop', () => {
     scheduler.advance(10); // t=10
     loop.requestRender('transcript-scroll');
 
+    // Paced to the frame interval, not fired at t=10.
+    expect(scheduler.activeTimers()[0]?.dueAt).toBe(100);
+    scheduler.advance(0);
+    expect(frames).toHaveLength(1);
+
+    // Further wheel ticks inside the same interval fold into that one frame.
+    scheduler.advance(30);
+    loop.requestRender('transcript-scroll');
+    scheduler.advance(30);
+    loop.requestRender('transcript-scroll');
+    expect(frames).toHaveLength(1);
+
+    scheduler.advance(30); // t=100
+    expect(frames).toHaveLength(2);
+    expect(frames[1]).toMatchObject({
+      timestamp: 100,
+      frame: 1,
+      causes: ['transcript-scroll'],
+    });
+  });
+
+  it('still preempts a paced frame when input arrives during scroll', () => {
+    // Pacing scroll must not make keystrokes wait behind a wheel burst.
+    const scheduler = new FakeRenderLoopScheduler();
+    const frames: NativeRenderFrame[] = [];
+    const loop = new NativeRenderLoop({
+      scheduler,
+      targetFps: 10,
+      render: (frame) => frames.push(frame),
+    });
+
+    loop.start();
+    loop.requestRender();
+    scheduler.advance(0);
+    scheduler.advance(10);
+    loop.requestRender('transcript-scroll');
+    expect(scheduler.activeTimers()[0]?.dueAt).toBe(100);
+
+    loop.requestRender('input');
     expect(scheduler.activeTimers()[0]?.dueAt).toBe(10);
     scheduler.advance(0);
 
     expect(frames).toHaveLength(2);
-    expect(frames[1]).toMatchObject({
-      timestamp: 10,
-      frame: 1,
-      causes: ['transcript-scroll'],
-    });
+    expect(frames[1]?.causes).toEqual(
+      expect.arrayContaining(['transcript-scroll', 'input']),
+    );
   });
 
   it('preempts a paced animation frame when input arrives', () => {

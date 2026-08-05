@@ -301,6 +301,7 @@ export class Session {
       await Promise.allSettled(
         Array.from(this.readyAgents(), async (agent) => agent.cron?.stop()),
       );
+      this.closeLifecycle.interruptJobsOnClose();
       await this.closeLifecycle.cancelActiveTurnsOnClose();
       await this.closeLifecycle.stopBackgroundTasksOnExit();
       // Flush each active Ultrawork run to a flushed checkpoint before the

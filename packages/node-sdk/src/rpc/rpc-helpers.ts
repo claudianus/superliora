@@ -3,6 +3,7 @@ import {
   makeErrorPayload,
   type CoreAPI,
   type Event,
+  type ProviderExtrasStatus,
   type ProviderRouteStatus,
   type RPCMethods,
 } from '@superliora/agent-core';
@@ -73,6 +74,7 @@ export interface SessionStatusFacets {
     | undefined;
   readonly parallelTools: Awaited<ReturnType<ResolvedCoreAPI['getParallelToolsStatus']>> | undefined;
   readonly oauth: Awaited<ReturnType<ResolvedCoreAPI['getOAuthStatus']>> | undefined;
+  readonly providerExtras?: ProviderExtrasStatus | undefined;
 }
 
 /**
@@ -97,6 +99,7 @@ export function buildSessionStatus(facets: SessionStatusFacets): SessionStatus {
     cacheFreezeViolations,
     parallelTools,
     oauth,
+    providerExtras,
   } = facets;
   const maxContextTokens = config.modelCapabilities?.max_context_tokens ?? 0;
   const contextTokens = context.tokenCount;
@@ -140,5 +143,6 @@ export function buildSessionStatus(facets: SessionStatusFacets): SessionStatus {
     contextOS: context.contextOS,
     autoDream: context.autoDream,
     ...(oauth !== undefined ? { oauth } : {}),
+    ...(providerExtras !== undefined ? { extras: providerExtras } : {}),
   };
 }

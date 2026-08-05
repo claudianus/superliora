@@ -2223,7 +2223,7 @@ describe('createTUIState', () => {
     expect(frameAtBottom).toContain('L39-scroll-marker');
 
     // Two pure-scroll steps through the live invalidation path.
-    // transcript-scroll is interactive (delay 0), same class as input/resize.
+    // transcript-scroll is FPS-paced, so advance past one frame interval.
     const starts: number[] = [bottomStart];
     const snapshots: string[] = [frameAtBottom];
     for (let step = 0; step < 2; step++) {
@@ -2231,7 +2231,7 @@ describe('createTUIState', () => {
       expect(changed).toBe(true);
       starts.push(state.transcriptViewport.start());
       renderer.requestRender('transcript-scroll');
-      scheduler.advance(0);
+      scheduler.advance(20);
       expect(renderer.lastFrame?.frame.causes).toContain('transcript-scroll');
       snapshots.push(
         Array.from({ length: height }, (_, y) =>

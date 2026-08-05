@@ -26,6 +26,7 @@ import { showEyesSettings } from './eyes/eyes-settings';
 import { showExtensionsSettings } from './extensions/extensions-settings';
 import { showMcpSettings } from './mcp/mcp-settings';
 import { showSearchSettings } from './search/search-settings';
+import { showProviderExtrasSettings } from './extras/extras-settings';
 import { showIndexSettings } from './index/index-settings';
 import { showHostSettings } from './host/host-settings';
 import { showCacheSettings } from './cache/cache-settings';
@@ -91,6 +92,7 @@ function handleSettingsSelection(host: SlashCommandHost, value: SettingsSelectio
     case 'hooks':  showHooksSettings(host); return;
     case 'skills':  showSkillsSettings(host); return;
     case 'search': showSearchSettings(host); return;
+    case 'provider-extras': showProviderExtrasSettings(host); return;
     case 'index': showIndexSettings(host); return;
     case 'host': showHostSettings(host); return;
     case 'cache': showCacheSettings(host); return;

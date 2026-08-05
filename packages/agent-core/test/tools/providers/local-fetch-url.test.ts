@@ -8,6 +8,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { NetResilienceRegistry } from '../../../src/runtime/net-resilience';
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
   extractLocalMainContent,
@@ -289,6 +290,54 @@ describe('LocalFetchURLProvider timeout / abort', () => {
     await vi.advanceTimersByTimeAsync(60);
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
     vi.useRealTimers();
+  });
+});
+
+describe('LocalFetchURLProvider net resilience', () => {
+  it('retries a 429 once and returns the body on recovery', async () => {
+    let calls = 0;
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async () => {
+      calls += 1;
+      if (calls === 1) return new Response('slow down', { status: 429 });
+      return htmlResponse('plain body', 'text/plain; charset=utf-8');
+    });
+    const resilience = new NetResilienceRegistry({ sleep: async () => undefined });
+    const provider = new LocalFetchURLProvider({ fetchImpl, resolveDns: false, resilience });
+
+    const result = await provider.fetch('https://example.com/file.txt');
+
+    expect(result).toEqual({ content: 'plain body', kind: 'passthrough' });
+    expect(calls).toBe(2);
+    expect(resilience.snapshot('example.com').coolingDown).toBe(false);
+  });
+
+  it('cools down a host after repeated 403s and fast-fails the next fetch', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response('no', { status: 403 }));
+    const resilience = new NetResilienceRegistry({ sleep: async () => undefined });
+    const provider = new LocalFetchURLProvider({ fetchImpl, resolveDns: false, resilience });
+
+    // blockThreshold 3: fetch a = 2 blocked attempts, fetch b trips the
+    // threshold on its first attempt and the retry is cut short by the
+    // cooldown fast-fail.
+    await expect(provider.fetch('https://example.com/a')).rejects.toMatchObject({ status: 403 });
+    await expect(provider.fetch('https://example.com/b')).rejects.toThrow(/cooling down/i);
+    expect(resilience.snapshot('example.com').coolingDown).toBe(true);
+
+    const callsBefore = fetchImpl.mock.calls.length;
+    await expect(provider.fetch('https://example.com/c')).rejects.toThrow(/cooling down/i);
+    expect(fetchImpl).toHaveBeenCalledTimes(callsBefore);
+  });
+
+  it('does not retry a plain 404', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response('no', { status: 404 }));
+    const resilience = new NetResilienceRegistry({ sleep: async () => undefined });
+    const provider = new LocalFetchURLProvider({ fetchImpl, resolveDns: false, resilience });
+
+    await expect(provider.fetch('https://example.com/missing')).rejects.toMatchObject({
+      status: 404,
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(resilience.snapshot('example.com').consecutiveBlocks).toBe(0);
   });
 });
 

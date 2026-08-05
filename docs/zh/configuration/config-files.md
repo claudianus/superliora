@@ -205,6 +205,19 @@ base_url = "https://api.moonshot.cn/v1/fetch"
 api_key = "sk-xxx"
 ```
 
+## `extras`
+
+`extras` 存放 provider extras 的偏好设置。检测到的服务（Z.AI、Token Plan、xAI、Codex）默认全部启用；`disabledProviders` 是按服务关闭的开关，由 **Settings → Provider extras** 写入。
+
+| 字段 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `disabledProviders` | `string[]` | `[]` | 要停用的 provider extras id（`zai`、`qwen-token-plan`、`xai-grok`、`openai-codex`）——停用后该服务不再提供搜索槽位、媒体后端或自动注入的 MCP 服务器 |
+
+```toml
+[extras]
+disabledProviders = ["xai-grok"]
+```
+
 ## `permission`
 
 `permission` 设置会话启动时自动加载的权限规则，控制 Agent 调用工具时是否需要用户确认。规则用 `[[permission.rules]]` 数组表写出，按顺序匹配，第一条命中即生效。

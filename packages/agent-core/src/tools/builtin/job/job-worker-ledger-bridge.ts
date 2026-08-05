@@ -4,6 +4,8 @@
  * while the question UI still uses the shared session RPC.
  */
 
+import type { Agent } from '../../../agent/index';
+import { requestConductorWake } from '../../../session/job/conductor-wake';
 import type { ToolStore } from '../../store';
 import { pushJobInboxEvent } from './job-inbox';
 import { listJobs, patchJob, type JobRecord } from './job-ledger';
@@ -11,6 +13,7 @@ import { listJobs, patchJob, type JobRecord } from './job-ledger';
 interface WorkerLedgerBinding {
   readonly store: ToolStore;
   readonly jobId: string;
+  readonly agent?: Agent;
 }
 
 const byWorkerAgentId = new Map<string, WorkerLedgerBinding>();
@@ -19,8 +22,9 @@ export function bindJobWorkerLedger(
   workerAgentId: string,
   store: ToolStore,
   jobId: string,
+  agent?: Agent,
 ): void {
-  byWorkerAgentId.set(workerAgentId, { store, jobId });
+  byWorkerAgentId.set(workerAgentId, { store, jobId, agent });
 }
 
 export function unbindJobWorkerLedger(workerAgentId: string): void {
@@ -65,6 +69,12 @@ export function raiseJobNeedsUserForWorker(
     title: next.title,
     summary: `Job ${next.id} needs input: ${input.question}`,
   });
+  // Shared-RPC interviews (status stays `running`) reach the user through the
+  // question UI directly — waking the conductor there would double-ask. Only
+  // the paused path relies on the conductor relay, so only it wakes.
+  if (pause && binding.agent !== undefined) {
+    requestConductorWake({ agent: binding.agent, store: binding.store });
+  }
   return next;
 }
 

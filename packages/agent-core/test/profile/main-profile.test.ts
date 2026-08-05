@@ -18,7 +18,7 @@ describe('resolveMainAgentProfile', () => {
     expect(resolveMainAgentProfile(DEFAULT_AGENT_PROFILES, undefined, {}).name).toBe('conductor');
     const tools = resolveMainAgentProfile(DEFAULT_AGENT_PROFILES, undefined, {}).tools;
     expect(tools.length).toBeLessThanOrEqual(30);
-    expect(tools).toEqual(expect.arrayContaining(['NextPhase', 'JobCreate', 'RecordInterviewFinding']));
+    expect(tools).toEqual(expect.arrayContaining(['JobCreate', 'JobInbox', 'EnterPlanMode']));
     expect(tools).not.toContain('UltraworkGraph');
   });
 

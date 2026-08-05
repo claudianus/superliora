@@ -126,15 +126,24 @@ const OVERFLOW_MAX_RETAINED_CHILDREN = 12;
 export const TRANSCRIPT_OVERFLOW_MAX_RETAINED_CHILDREN = OVERFLOW_MAX_RETAINED_CHILDREN;
 /**
  * Max cold materializations per content/settle frame for the *visible* window.
- * Pure-scroll is always 0. Content must be large enough to fill a typical
- * viewport of short cards in one frame (incremental==authoritative); windowed
- * multi-k bodies only cost one paintContentRows each so this stays O(viewport).
+ * Content must be large enough to fill a typical viewport of short cards in one
+ * frame (incremental==authoritative); windowed multi-k bodies only cost one
+ * paintContentRows each so this stays O(viewport).
  */
 export const TRANSCRIPT_CONTENT_MATERIALIZE_BUDGET = 32;
 /**
+ * Max cold materializations per pure-scroll frame, and only for children cheap
+ * enough to pass {@link canScrollMaterializeChild}. A wheel step exposes one or
+ * two new cards; painting those inline is what keeps `…` placeholders off the
+ * screen during scroll instead of waiting for the settle frame. Expensive
+ * multi-k legacy bodies still get placeholders (the original fling guard).
+ */
+export const TRANSCRIPT_SCROLL_MATERIALIZE_BUDGET = 2;
+/**
  * Legacy children (ToolCall etc.) above this row count never pin full
  * `childRenderRefs` arrays — only a viewport band of formatted lines.
- * Prevents multi-k × retained-children heaps during history walks.
+ * Prevents multi-k × retained-children heaps during history walks. Also the
+ * cost ceiling for cold materialize on a scroll frame.
  */
 const LEGACY_FULL_LINE_RETAIN_CAP = 256;
 
@@ -202,6 +211,13 @@ export class RendererTranscriptViewportComponent extends Container {
   /** Child indices painted recently — overflow eviction LRU (insertion order). */
   private overflowTouchOrder: number[] = [];
   /**
+   * Children whose cached slice was materialized under cheap (scroll) paint.
+   * Highlight / pretty-print short-circuit to plain text in that mode, so the
+   * slot is real content but unstyled — a content frame must re-materialize it
+   * before the cache counts as authoritative.
+   */
+  private readonly cheapMaterializedChildren = new Set<number>();
+  /**
    * Incremental present engine on the real visible-window path (Phase C).
    * Stable re-presents skip clean lines; dirty work is frame-budgeted.
    */
@@ -216,6 +232,8 @@ export class RendererTranscriptViewportComponent extends Container {
   private lastPureScrollFlag = false;
   /** Whether the last paint was inside a scroll storm (rapid successive pure-scroll). */
   private lastStormFlag = false;
+  /** Visible-window start of the previous paint — scroll distance per frame. */
+  private lastPaintedStart: number | undefined;
 
   constructor(options: RendererTranscriptViewportComponentOptions) {
     super();
@@ -304,6 +322,7 @@ export class RendererTranscriptViewportComponent extends Container {
   invalidatePaint(): void {
     this.renderCache = undefined;
     this.overflowRenderCache = undefined;
+    this.cheapMaterializedChildren.clear();
   }
 
   /**
@@ -514,21 +533,33 @@ export class RendererTranscriptViewportComponent extends Container {
     return this.lastStormFlag;
   }
 
+  /**
+   * Whether this frame jumped further than one screen since the last paint.
+   * Distance, not frequency, is what makes cold layout unaffordable — paced
+   * wheel frames are always close together in time but move only a few rows.
+   */
+  private isFlingPaint(start: number, visibleRows: number): boolean {
+    const previous = this.lastPaintedStart;
+    if (previous === undefined) return false;
+    return Math.abs(start - previous) > Math.max(1, visibleRows);
+  }
+
   private renderVisibleRegionLines(width: number, visibleRows: number): RendererRegionLine[] {
     const safeWidth = normalizeTranscriptWidth(width);
     const inner = Math.max(1, safeWidth - this.leftPad - this.rightPad);
     this.materializeContinuePending = false;
     this.childPaintCallsThisFrame = 0;
 
-    // Pure-scroll: never cold-layout (budget 0). Materializing even 1 multi-k
-    // card per wheel frame during rapid up/down allocated string heaps that
-    // triggered multi-second GC pauses. Fill only on content/settle frames.
-    // Structurally: pure-scroll never calls child.render / paintContentRows —
-    // only overflow cache slots or placeholders (O(viewport)).
+    // Pure-scroll cold layout is cost-gated, not banned. Materializing a multi-k
+    // legacy card per wheel frame during rapid up/down allocated string heaps
+    // that triggered multi-second GC pauses — but a blanket ban meant every
+    // uncached card painted as `…` until the settle frame, which reads as
+    // flicker. Cheap cards (windowed bodies, or ≤ LEGACY_FULL_LINE_RETAIN_CAP
+    // rows) now paint inline under a small budget; expensive ones still wait.
     const pureScroll = shouldSkipExpensiveTranscriptFormat();
     this.lastPureScrollFlag = pureScroll;
     if (pureScroll) {
-      this.coldMaterializeBudget = 0;
+      this.coldMaterializeBudget = TRANSCRIPT_SCROLL_MATERIALIZE_BUDGET;
       this.lastStormFlag = noteTranscriptPureScrollPaint();
     } else {
       this.coldMaterializeBudget = RendererTranscriptViewportComponent.CONTENT_MATERIALIZE_BUDGET;
@@ -543,6 +574,15 @@ export class RendererTranscriptViewportComponent extends Container {
 
     // Phase 2 — sync the viewport with the total content size.
     const snapshot = this.viewport.sync(totalLines, visibleRows);
+
+    // A fling travels more than a screen per frame: the content is unreadable
+    // in flight, and cold-laying out cards along the way is the multi-second
+    // GC-pause class. Drop back to placeholder-only for those frames; a wheel
+    // step (a few rows, even coalesced) stays under the bar and paints for real.
+    if (pureScroll && this.isFlingPaint(snapshot.start, visibleRows)) {
+      this.coldMaterializeBudget = 0;
+    }
+    this.lastPaintedStart = snapshot.start;
 
     // Phase 3 — when the content fits inside the viewport (no overflow) we
     // still need every child, but we can reuse the cached prefixed lines.
@@ -761,6 +801,7 @@ export class RendererTranscriptViewportComponent extends Container {
   }
 
   private clearOverflowChildSlot(childIndex: number): void {
+    this.cheapMaterializedChildren.delete(childIndex);
     const cache = this.overflowRenderCache;
     if (cache === undefined) return;
     const child = cache.childRefs[childIndex];
@@ -798,6 +839,7 @@ export class RendererTranscriptViewportComponent extends Container {
         childFormattedSparse: Array.from({ length: childCount }),
         childSparseBands: Array.from({ length: childCount }),
       };
+      this.cheapMaterializedChildren.clear();
     } else if (this.overflowRenderCache.childSparseBands.length !== childCount) {
       this.overflowRenderCache.childSparseBands.length = childCount;
     }
@@ -1035,8 +1077,16 @@ export class RendererTranscriptViewportComponent extends Container {
     const lead = ' '.repeat(this.leftPad);
     const rowCount = Math.max(0, sliceEnd - sliceStart);
 
-    // ── Pure-scroll: cache or placeholder only (O(viewport), no child paint) ──
-    if (pureScroll) {
+    // ── Pure-scroll: cache first, then a budgeted cold paint for cheap cards ──
+    // Serving only the cache meant every card the wheel reached painted as `…`
+    // until the settle frame ~200ms later. Cards that cost O(viewport) to paint
+    // are materialized inline instead; expensive multi-k legacy bodies keep the
+    // placeholder path so a fling cannot stack full renders.
+    if (
+      pureScroll &&
+      (this.pureScrollSliceIsCached(childIndex, child, inner, safeWidth, sliceStart, sliceEnd) ||
+        !this.canScrollMaterializeChild(childIndex, child, inner))
+    ) {
       this.appendPureScrollCachedSlice(out, childIndex, child, inner, safeWidth, sliceStart, sliceEnd, lead);
       return;
     }
@@ -1056,7 +1106,8 @@ export class RendererTranscriptViewportComponent extends Container {
 
       const childCount = this.children.length;
       const cache = this.ensureOverflowCache(inner, safeWidth, childCount);
-      const identityMiss = cache.childRefs[childIndex] !== child;
+      const identityMiss =
+        cache.childRefs[childIndex] !== child || this.needsFidelityUpgrade(childIndex);
 
       if (identityMiss) {
         if (this.coldMaterializeBudget <= 0) {
@@ -1070,6 +1121,7 @@ export class RendererTranscriptViewportComponent extends Container {
         cache.childFormattedSparse[childIndex] = undefined;
         cache.childSparseBands[childIndex] = undefined;
         this.touchOverflowChild(childIndex);
+        this.noteMaterializedFidelity(childIndex);
         this.childPaintCallsThisFrame += 1;
         const measured = child.measureContentRows(inner);
         this.reconcileChildGeometry(inner, childIndex, child, measured);
@@ -1106,6 +1158,9 @@ export class RendererTranscriptViewportComponent extends Container {
             band.slots[bi] = this.formatCanvasLine(lead + windowLines[k]!, safeWidth);
           }
         }
+        // Slots painted under cheap scroll mode hold real but unstyled
+        // content — mark so the settle frame upgrades them to full fidelity.
+        this.noteMaterializedFidelity(childIndex);
       }
 
       for (let j = sliceStart; j < sliceEnd; j++) {
@@ -1131,7 +1186,11 @@ export class RendererTranscriptViewportComponent extends Container {
     const cache = this.ensureOverflowCache(inner, safeWidth, childCount);
     let lines = cache.childRenderRefs[childIndex];
 
-    if (cache.childRefs[childIndex] !== child || lines === undefined) {
+    if (
+      cache.childRefs[childIndex] !== child ||
+      lines === undefined ||
+      this.needsFidelityUpgrade(childIndex)
+    ) {
       // Cold intersection under budget: placeholders only. Never cache them so
       // a later content frame re-materializes. Budget applies to settle/content
       // (small) — unlimited cold layouts on settle were the post-fling hitch.
@@ -1143,6 +1202,7 @@ export class RendererTranscriptViewportComponent extends Container {
       this.childPaintCallsThisFrame += 1;
       lines = child.render(inner);
       cache.childRefs[childIndex] = child;
+      this.noteMaterializedFidelity(childIndex);
       // Cap retained full line arrays: multi-k legacy bodies keep only a
       // viewport band of raw lines so flings cannot pin 5k×N string heaps.
       if (lines.length > LEGACY_FULL_LINE_RETAIN_CAP) {
@@ -1165,8 +1225,10 @@ export class RendererTranscriptViewportComponent extends Container {
       cache.childSparseBands[childIndex] = undefined;
       this.touchOverflowChild(childIndex);
       this.reconcileChildGeometry(inner, childIndex, child, lines.length);
-    } else {
+    } else if (!isTranscriptCheapPaintMode()) {
       // Probe render only on content frames so live animation refs update.
+      // A scroll frame that reached here only needs missing band slots filled;
+      // re-rendering the whole card per wheel tick is what this path guards.
       this.childPaintCallsThisFrame += 1;
       const nextLines = child.render(inner);
       if (nextLines !== lines) {
@@ -1213,6 +1275,85 @@ export class RendererTranscriptViewportComponent extends Container {
       out.push(slot ?? this.formatCanvasLine(`${' '.repeat(this.leftPad)}…`, safeWidth));
     }
     if (anyMissing) this.materializeContinuePending = true;
+  }
+
+  /**
+   * True when the whole slice can be served from the overflow cache without a
+   * single placeholder. Mirrors the reads {@link appendPureScrollCachedSlice}
+   * performs, so a `false` here means that call would emit `…`.
+   */
+  private pureScrollSliceIsCached(
+    childIndex: number,
+    child: Component,
+    inner: number,
+    safeWidth: number,
+    sliceStart: number,
+    sliceEnd: number,
+  ): boolean {
+    if (!this.isCacheEnabled()) return false;
+    const cache = this.overflowRenderCache;
+    if (
+      cache === undefined ||
+      cache.inner !== inner ||
+      cache.safeWidth !== safeWidth ||
+      cache.childRefs[childIndex] !== child
+    ) {
+      return false;
+    }
+
+    const band = cache.childSparseBands[childIndex];
+    if (band !== undefined) {
+      for (let j = sliceStart; j < sliceEnd; j++) {
+        const bi = j - band.origin;
+        if (bi < 0 || bi >= band.slots.length || band.slots[bi] === undefined) return false;
+      }
+      return true;
+    }
+
+    if (cache.childRenderRefs[childIndex] !== undefined) return true;
+    const sparse = cache.childFormattedSparse[childIndex];
+    if (sparse === undefined) return false;
+    for (let j = sliceStart; j < sliceEnd; j++) {
+      if (sparse[j] === undefined) return false;
+    }
+    return true;
+  }
+
+  /**
+   * Whether a cold card is cheap enough to paint on a wheel frame.
+   *
+   * Windowed bodies paint only the visible slice, so their cost is O(viewport)
+   * no matter how tall the body is. Legacy cards materialize a full `render()`,
+   * so only short ones qualify — stacking multi-k renders per wheel tick is the
+   * GC-pause class this budget exists to prevent. Unknown geometry stays out.
+   */
+  private canScrollMaterializeChild(
+    childIndex: number,
+    child: Component,
+    inner: number,
+  ): boolean {
+    if (this.coldMaterializeBudget <= 0) return false;
+    if (supportsWindowedBody(child)) return true;
+    const rows = this.lineCountCache.get(inner)?.counts[childIndex];
+    return typeof rows === 'number' && Number.isFinite(rows) && rows <= LEGACY_FULL_LINE_RETAIN_CAP;
+  }
+
+  /**
+   * Record whether the slot just materialized carries full or cheap formatting,
+   * and ask the host for a content frame when it is cheap.
+   */
+  private noteMaterializedFidelity(childIndex: number): void {
+    if (isTranscriptCheapPaintMode()) {
+      this.cheapMaterializedChildren.add(childIndex);
+      this.materializeContinuePending = true;
+      return;
+    }
+    this.cheapMaterializedChildren.delete(childIndex);
+  }
+
+  /** True when a slot holds cheap-paint output and this frame can do better. */
+  private needsFidelityUpgrade(childIndex: number): boolean {
+    return !isTranscriptCheapPaintMode() && this.cheapMaterializedChildren.has(childIndex);
   }
 
   /**

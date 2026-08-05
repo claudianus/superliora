@@ -110,6 +110,54 @@ describe('JobBoardStore — counters derive from cards', () => {
   });
 });
 
+describe('JobBoardStore — worker heartbeat joins onto the owning card', () => {
+  function withWorker(id: string, workerAgentId: string): JobUpdatedEvent {
+    const base = jobUpdated(id, 'running');
+    return { ...base, job: { ...base.job, workerAgentId } };
+  }
+
+  it('fills the ticker from subagent.progress without a ledger write', () => {
+    const store = new JobBoardStore();
+    store.applyJobUpdated(withWorker('job_a', 'agent_1'));
+
+    expect(
+      store.applySubagentProgress({
+        subagentId: 'agent_1',
+        lastTool: 'Grep',
+        lastTarget: 'src/parser.ts',
+        toolCount: 4,
+        atMs: Date.parse('2026-08-05T00:00:00.000Z'),
+      }),
+    ).toBe(true);
+
+    const progress = store.snapshot().jobs.find((card) => card.id === 'job_a')?.progress;
+    expect(progress?.phase).toBe('src/parser.ts');
+    expect(progress?.recentTools).toEqual(['Grep']);
+    expect(progress?.stepsCompleted).toBe(4);
+    expect(progress?.lastHeartbeatAt).toBe('2026-08-05T00:00:00.000Z');
+  });
+
+  it('keeps a bounded tool trail and drops repeats', () => {
+    const store = new JobBoardStore();
+    store.applyJobUpdated(withWorker('job_a', 'agent_1'));
+    for (const lastTool of ['Read', 'Read', 'Grep', 'Edit', 'Shell']) {
+      store.applySubagentProgress({ subagentId: 'agent_1', lastTool });
+    }
+    expect(store.snapshot().jobs[0]?.progress?.recentTools).toEqual(['Grep', 'Edit', 'Shell']);
+  });
+
+  it('ignores heartbeats from subagents no job owns', () => {
+    const store = new JobBoardStore();
+    store.applyJobUpdated(withWorker('job_a', 'agent_1'));
+    const listener = vi.fn();
+    store.subscribe(listener);
+    expect(store.applySubagentProgress({ subagentId: 'agent_other', lastTool: 'Read' })).toBe(
+      false,
+    );
+    expect(listener).not.toHaveBeenCalled();
+  });
+});
+
 describe('JobBoardStore — tool output backfill converges on the same store', () => {
   it('applies strip-line counts and maxConcurrent', () => {
     const store = new JobBoardStore();

@@ -5,6 +5,7 @@ import { ProviderManager } from '../../session/provider/provider-manager';
 import { analyzeMediaPart } from '../../session/vision-analyzer';
 import { extendWorkspaceWithSkillRoots } from '../../skill/scanner';
 import * as b from '../../tools/builtin';
+import { isProviderExtrasEnabled } from '../../tools/providers/extras/index';
 import { createVisualDiffTool } from '../../tools/visual-diff-tool';
 import type { ToolStore } from '../../tools/store';
 import { DEFAULT_AGENT_PROFILES } from '../../profile';
@@ -227,15 +228,21 @@ function buildReadMediaVisionFallback(agent: Agent): b.ReadMediaVisionFallback |
 
 function resolveMediaProviderEnv(agent: Agent): b.GenerateImageProviderEnv & b.GenerateVideoProviderEnv {
   const services = agent.toolServices;
+  const config = agent.kimiConfig;
+  const xaiOn = isProviderExtrasEnabled(config, 'xai-grok');
+  const qwenOn = isProviderExtrasEnabled(config, 'qwen-token-plan');
   return {
     xaiGrokBuild: services?.xaiGrokBuild,
-    xaiApiKey: nonEmptyEnv('XAI_API_KEY'),
+    xaiApiKey: xaiOn ? nonEmptyEnv('XAI_API_KEY') : undefined,
     openaiApiKey: nonEmptyEnv('OPENAI_API_KEY'),
     googleApiKey: nonEmptyEnv('GOOGLE_API_KEY') ?? nonEmptyEnv('GEMINI_API_KEY'),
     qwenTokenPlanApiKey:
       services?.qwenTokenPlanApiKey ??
-      nonEmptyEnv('QWEN_TOKEN_PLAN_API_KEY') ??
-      nonEmptyEnv('ALIBABA_TOKEN_PLAN_API_KEY'),
+      (qwenOn
+        ? nonEmptyEnv('QWEN_TOKEN_PLAN_API_KEY') ?? nonEmptyEnv('ALIBABA_TOKEN_PLAN_API_KEY')
+        : undefined),
+    codex: services?.codex,
+    extrasDisabled: config?.extras?.disabledProviders ?? [],
   };
 }
 

@@ -5,6 +5,9 @@ import type { ProviderSlot } from './research-search-slots';
 
 /** Lower = preferred in cost-aware cascade. Free is always last. */
 export const PROVIDER_COST_RANK: Readonly<Record<ResearchSearchProviderKind, number>> = {
+  // Subscription-plan extras first: the user already paid for this quota.
+  zai: 8,
+  codex: 9,
   brave: 10,
   bing: 12,
   serper: 20,
