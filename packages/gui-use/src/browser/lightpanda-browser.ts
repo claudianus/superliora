@@ -167,10 +167,17 @@ export class LightpandaBrowserRuntime implements BrowserUseRuntime {
     ];
     if (this.options.obeyRobots === true) args.push('--obey-robots');
 
-    this.serverProcess = spawn(binaryPath, args, {
+    const proc = spawn(binaryPath, args, {
       stdio: ['ignore', 'ignore', 'pipe'],
     });
-    await waitForCdpReady(host, port);
+    this.serverProcess = proc;
+    // A missing or non-executable binary reports ENOENT/EACCES asynchronously.
+    // Without a listener Node escalates it to an uncaught exception that takes
+    // the host process down instead of failing this launch.
+    const spawnFailure = new Promise<never>((_resolve, reject) => {
+      proc.once('error', (error: Error) => reject(error));
+    });
+    await Promise.race([waitForCdpReady(host, port), spawnFailure]);
     const browser = await chromium.connectOverCDP(`http://${host}:${String(port)}`);
     if (browser === undefined) {
       throw new Error('Lightpanda CDP connection did not return a browser.');

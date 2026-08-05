@@ -168,7 +168,9 @@ describe('transcript cheap-paint mode', () => {
 
     withTranscriptCheapPaintMode(() => {
       // Frame 0: cold intersection of all 8 cards.
+      const cold0 = performance.now();
       for (const card of cards) card.render(100);
+      const coldMs = performance.now() - cold0;
       const coldCalls = highlightCalls;
 
       // Frames 1..19: pure scroll over the same cards — must not re-layout.
@@ -178,9 +180,11 @@ describe('transcript cheap-paint mode', () => {
       }
       const warmMs = performance.now() - t0;
       expect(highlightCalls).toBe(coldCalls);
-      // Thrash baseline was ~547ms/frame for this workload; amortized warm
-      // path must stay far below that (layout already cached).
-      expect(warmMs).toBeLessThan(200);
+      // Budget relative to the measured cold frame, not to wall-clock: a
+      // thrashing renderer re-pays layout every frame (~19x cold), so staying
+      // near a single cold frame is the invariant. A shared CI runner is slow
+      // enough that an absolute ms budget alone flakes.
+      expect(warmMs).toBeLessThan(Math.max(200, coldMs * 2));
     });
   });
 

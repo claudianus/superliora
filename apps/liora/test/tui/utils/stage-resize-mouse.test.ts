@@ -77,6 +77,39 @@ function createState(options?: {
   return state;
 }
 
+/**
+ * Force an interactive Kitty profile for pointer-shape assertions. Clearing
+ * `CI` is not enough — the capability probe also treats `GITHUB_ACTIONS` /
+ * `GITLAB_CI` as non-interactive, which is exactly where this suite runs.
+ */
+function withKittyPointerTerminal(run: () => void): void {
+  const prevTerm = process.env['TERM'];
+  const prevCi = process.env['CI'];
+  const prevGithub = process.env['GITHUB_ACTIONS'];
+  const prevGitlab = process.env['GITLAB_CI'];
+  const prevTty = process.stdin.isTTY;
+  process.env['TERM'] = 'kitty';
+  delete process.env['CI'];
+  delete process.env['GITHUB_ACTIONS'];
+  delete process.env['GITLAB_CI'];
+  process.stdin.isTTY = true;
+  invalidateProfile();
+  try {
+    run();
+  } finally {
+    if (prevTerm === undefined) delete process.env['TERM'];
+    else process.env['TERM'] = prevTerm;
+    if (prevCi === undefined) delete process.env['CI'];
+    else process.env['CI'] = prevCi;
+    if (prevGithub === undefined) delete process.env['GITHUB_ACTIONS'];
+    else process.env['GITHUB_ACTIONS'] = prevGithub;
+    if (prevGitlab === undefined) delete process.env['GITLAB_CI'];
+    else process.env['GITLAB_CI'] = prevGitlab;
+    process.stdin.isTTY = prevTty;
+    invalidateProfile();
+  }
+}
+
 function mouse(
   action: NativeInputMouseEvent['action'],
   x: number,
@@ -106,14 +139,7 @@ describe('handleStageResizeMouseInput', () => {
   });
 
   it('lights the resize grip and reports a pointer shape on hover move', () => {
-    const prevTerm = process.env['TERM'];
-    const prevCi = process.env['CI'];
-    const prevTty = process.stdin.isTTY;
-    process.env['TERM'] = 'kitty';
-    delete process.env['CI'];
-    process.stdin.isTTY = true;
-    invalidateProfile();
-    try {
+    withKittyPointerTerminal(() => {
       const state = createState();
       const writes: string[] = [];
       state.terminal.write = (chunk: string) => {
@@ -132,14 +158,7 @@ describe('handleStageResizeMouseInput', () => {
       expect(handleStageResizeMouseInput(state, mouse('move', MID_X, MID_Y, 'none'))).toBe(true);
       expect(getStageResizeHoverZone()).toBeUndefined();
       expect(writes.some((w) => w.includes('\u001B]22;<\u001B\\'))).toBe(true);
-    } finally {
-      if (prevTerm === undefined) delete process.env['TERM'];
-      else process.env['TERM'] = prevTerm;
-      if (prevCi === undefined) delete process.env['CI'];
-      else process.env['CI'] = prevCi;
-      process.stdin.isTTY = prevTty;
-      invalidateProfile();
-    }
+    });
   });
 
   it('never writes pointer shape sequences for unsupported terminals', () => {
@@ -262,14 +281,7 @@ describe('handleStageResizeMouseInput', () => {
   });
 
   it('pops the pointer shape when the pointer leaves the grip while hovering', () => {
-    const prevTerm = process.env['TERM'];
-    const prevCi = process.env['CI'];
-    const prevTty = process.stdin.isTTY;
-    process.env['TERM'] = 'kitty';
-    delete process.env['CI'];
-    process.stdin.isTTY = true;
-    invalidateProfile();
-    try {
+    withKittyPointerTerminal(() => {
       const state = createState();
       const writes: string[] = [];
       state.terminal.write = (chunk: string) => {
@@ -285,14 +297,7 @@ describe('handleStageResizeMouseInput', () => {
       expect(handleStageResizeMouseInput(state, mouse('move', MID_X, MID_Y, 'none'))).toBe(true);
       expect(getStageResizeHoverZone()).toBeUndefined();
       expect(writes.some((w) => w.includes('\u001B]22;<\u001B\\'))).toBe(true);
-    } finally {
-      if (prevTerm === undefined) delete process.env['TERM'];
-      else process.env['TERM'] = prevTerm;
-      if (prevCi === undefined) delete process.env['CI'];
-      else process.env['CI'] = prevCi;
-      process.stdin.isTTY = prevTty;
-      invalidateProfile();
-    }
+    });
   });
 
   it('clears drag and hover on release outside the stage frame', () => {
@@ -318,14 +323,7 @@ describe('handleStageResizeMouseInput', () => {
   });
 
   it('resetStageResizePointerShape pops a pushed shape and clears drag/hover state', () => {
-    const prevTerm = process.env['TERM'];
-    const prevCi = process.env['CI'];
-    const prevTty = process.stdin.isTTY;
-    process.env['TERM'] = 'kitty';
-    delete process.env['CI'];
-    process.stdin.isTTY = true;
-    invalidateProfile();
-    try {
+    withKittyPointerTerminal(() => {
       const state = createState();
       const writes: string[] = [];
       state.terminal.write = (chunk: string) => {
@@ -349,14 +347,7 @@ describe('handleStageResizeMouseInput', () => {
       writes.length = 0;
       resetStageResizePointerShape(state.terminal);
       expect(writes).toEqual([]);
-    } finally {
-      if (prevTerm === undefined) delete process.env['TERM'];
-      else process.env['TERM'] = prevTerm;
-      if (prevCi === undefined) delete process.env['CI'];
-      else process.env['CI'] = prevCi;
-      process.stdin.isTTY = prevTty;
-      invalidateProfile();
-    }
+    });
   });
 });
 
