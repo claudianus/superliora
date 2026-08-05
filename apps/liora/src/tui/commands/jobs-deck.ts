@@ -6,6 +6,11 @@
 
 import type { SlashCommandHost } from './hub/dispatch';
 import {
+  formatShellCommandPreview,
+  highlightLines,
+  langFromPath,
+} from '../components/media/code-highlight';
+import {
   JobDeckViewerComponent,
   type JobDeckWorkerLoad,
 } from '../components/dialogs/job-deck/job-deck-viewer';
@@ -15,6 +20,7 @@ import {
   resolveConductorJobCard,
 } from '../utils/job/job-strip';
 import { formatErrorMessage } from '../utils/event-payload';
+import { formatTranscriptOutput } from '../utils/transcript/transcript-output-format';
 import { shortJobId } from '../components/job-board/job-board-helpers';
 
 export function openJobDeckViewer(host: SlashCommandHost, jobId?: string): void {
@@ -126,63 +132,267 @@ function routeJobDeckAction(
   }
 }
 
-/**
- * Structural worker transcript formatter: user/assistant text plus tool
- * call headers, so the drill-down shows what the worker is actually doing.
- */
-export function formatJobDeckTraceLines(
-  history: readonly {
-    readonly role?: string;
-    readonly content?: readonly unknown[];
-  }[],
-  options: { readonly maxLines?: number } = {},
-): readonly string[] {
-  const maxLines = options.maxLines ?? 400;
-  const lines: string[] = [];
-  for (const message of history) {
-    const role = message.role === 'assistant' ? 'assistant' : message.role === 'user' ? 'user' : 'other';
-    if (role === 'other') continue;
-    const content = message.content ?? [];
-    for (const item of content) {
-      if (item === null || typeof item !== 'object') continue;
-      const part = item as Record<string, unknown>;
-      const type = typeof part['type'] === 'string' ? part['type'] : '';
-      if (type === 'text') {
-        const text = typeof part['text'] === 'string' ? part['text'].trim() : '';
-        if (text.length === 0) continue;
-        const prefix = role === 'assistant' ? '◆' : '◇';
-        for (const paragraph of text.split(/\n+/)) {
-          const trimmed = paragraph.trim();
-          if (trimmed.length > 0) lines.push(`${prefix} ${trimmed}`);
-        }
-        continue;
-      }
-      if (type === 'toolCall' || type === 'tool_use') {
-        const name = typeof part['name'] === 'string' ? part['name'] : 'tool';
-        const detail = summarizeToolInput(part['input']);
-        lines.push(detail.length > 0 ? `⚙ ${name} ${detail}` : `⚙ ${name}`);
-        continue;
-      }
-      if (type === 'toolResult' || type === 'tool_result') {
-        const status = part['isError'] === true ? '✗' : '✓';
-        lines.push(`${status} result`);
-      }
-    }
-  }
-  if (lines.length <= maxLines) return lines;
-  const omitted = lines.length - maxLines;
-  return [`… ${String(omitted)} earlier lines omitted`, ...lines.slice(-maxLines)];
+interface JobDeckTraceMessage {
+  readonly role?: string;
+  readonly content?: readonly unknown[];
+  readonly toolCalls?: readonly unknown[];
+  readonly toolCallId?: string;
+  readonly isError?: boolean;
 }
 
-function summarizeToolInput(input: unknown): string {
-  if (input === null || typeof input !== 'object') return '';
-  const record = input as Record<string, unknown>;
-  const preferred = ['command', 'file_path', 'path', 'pattern', 'query', 'url', 'description', 'objective'];
-  for (const key of preferred) {
-    const value = record[key];
-    if (typeof value === 'string' && value.length > 0) {
-      return value.length > 60 ? `${value.slice(0, 59)}…` : value;
+interface JobDeckTraceToolCall {
+  readonly id: string;
+  readonly name: string;
+  readonly input: unknown;
+}
+
+/** Full-fidelity worker transcript projection; viewport windowing happens in the component. */
+export function formatJobDeckTraceLines(
+  history: readonly JobDeckTraceMessage[],
+): readonly string[] {
+  const lines: string[] = [];
+  const toolCalls = new Map<string, JobDeckTraceToolCall>();
+  let inlineToolCallId = 0;
+
+  for (const message of history) {
+    const role = message.role;
+    if (role === 'user' || role === 'assistant') {
+      appendMessageContent(lines, role, message.content, toolCalls, () => {
+        inlineToolCallId += 1;
+        return `inline_${String(inlineToolCallId)}`;
+      });
+      for (const rawCall of message.toolCalls ?? []) {
+        const call = normalizeToolCall(rawCall, () => {
+          inlineToolCallId += 1;
+          return `inline_${String(inlineToolCallId)}`;
+        });
+        if (call === undefined) continue;
+        toolCalls.set(call.id, call);
+        appendToolCall(lines, call);
+      }
+      continue;
+    }
+    if (role === 'tool') {
+      const call = message.toolCallId === undefined ? undefined : toolCalls.get(message.toolCallId);
+      appendToolResult(
+        lines,
+        call?.name ?? 'tool',
+        message.toolCallId,
+        contentValue(message.content),
+        message.isError === true,
+        call?.input,
+      );
     }
   }
-  return '';
+  return lines;
+}
+
+function appendMessageContent(
+  lines: string[],
+  role: 'user' | 'assistant',
+  content: readonly unknown[] | undefined,
+  toolCalls: Map<string, JobDeckTraceToolCall>,
+  nextInlineId: () => string,
+): void {
+  for (const item of content ?? []) {
+    if (item === null || typeof item !== 'object') continue;
+    const part = item as Record<string, unknown>;
+    const type = typeof part['type'] === 'string' ? part['type'] : '';
+    if (type === 'text') {
+      appendText(lines, role === 'assistant' ? '◆' : '◇', stringValue(part['text']));
+      continue;
+    }
+    if (type === 'think') {
+      appendText(lines, '◌', stringValue(part['think']));
+      continue;
+    }
+    if (type === 'image_url' || type === 'audio_url' || type === 'video_url') {
+      lines.push(`${role === 'assistant' ? '◆' : '◇'} [${type.replace('_url', '')} attachment]`);
+      continue;
+    }
+    if (type === 'toolCall' || type === 'tool_use') {
+      const call = normalizeToolCall(part, nextInlineId);
+      if (call === undefined) continue;
+      toolCalls.set(call.id, call);
+      appendToolCall(lines, call);
+      continue;
+    }
+    if (type === 'toolResult' || type === 'tool_result') {
+      const toolCallId = stringValue(part['toolCallId'] ?? part['tool_call_id']);
+      const call =
+        toolCallId === undefined
+          ? [...toolCalls.values()].at(-1)
+          : toolCalls.get(toolCallId);
+      appendToolResult(
+        lines,
+        call?.name ?? stringValue(part['name']) ?? 'tool',
+        toolCallId,
+        valueToText(part['output'] ?? part['content']),
+        part['isError'] === true || part['is_error'] === true,
+        call?.input,
+      );
+    }
+}
+}
+
+function appendText(lines: string[], prefix: string, text: string | undefined): void {
+  if (text === undefined) return;
+  for (const line of text.split('\n')) {
+    lines.push(`${prefix} ${line}`);
+  }
+}
+
+function normalizeToolCall(
+  raw: unknown,
+  nextInlineId: () => string,
+): JobDeckTraceToolCall | undefined {
+  if (raw === null || typeof raw !== 'object') return undefined;
+  const value = raw as Record<string, unknown>;
+  const name = stringValue(value['name']) ?? 'tool';
+  const id = stringValue(value['id']) ?? stringValue(value['toolCallId']) ?? nextInlineId();
+  const rawInput = value['input'] ?? value['args'] ?? value['arguments'];
+  return {
+    id,
+    name,
+    input: typeof rawInput === 'string' ? parseToolArguments(rawInput) : rawInput,
+  };
+}
+
+function appendToolCall(lines: string[], call: JobDeckTraceToolCall): void {
+  lines.push(`⚙ ${call.name} · ${call.id}`);
+  for (const line of formatToolInputLines(call.name, call.input)) {
+    lines.push(`  │ ${line}`);
+  }
+}
+
+function appendToolResult(
+  lines: string[],
+  name: string,
+  toolCallId: string | undefined,
+  output: string,
+  isError: boolean,
+  input: unknown,
+): void {
+  const status = isError ? '✗' : '✓';
+  const id = toolCallId === undefined ? '' : ` · ${toolCallId}`;
+  lines.push(`${status} ${name} result${id}`);
+  const path = pathFromToolInput(input);
+  const formatted = formatTranscriptOutput(output, {
+    isError,
+    mode: name === 'Bash' ? 'bash' : 'tool',
+    ...(path === undefined ? {} : { pathHint: path }),
+  });
+  if (formatted.length === 0) {
+    lines.push('  │ (empty)');
+    return;
+  }
+  for (const line of formatted.split('\n')) {
+    lines.push(`  │ ${line}`);
+  }
+}
+
+function formatToolInputLines(name: string, input: unknown): readonly string[] {
+  const record = asRecord(input);
+  const path = pathFromToolInput(input);
+  const command = stringValue(record?.['command']);
+  if (name === 'Bash' && command !== undefined) {
+    const lines = ['command:', ...formatShellCommandPreview(command)];
+    const extras = withoutKeys(record, ['command']);
+    if (Object.keys(extras).length > 0) {
+      lines.push('arguments:', ...formatJsonLines(extras));
+    }
+    return lines;
+  }
+
+  if (path !== undefined && record !== undefined) {
+    const lines = [`path: ${path}`];
+    for (const key of ['content', 'old_string', 'new_string']) {
+      const code = stringValue(record[key]);
+      if (code === undefined) continue;
+      lines.push(
+        `${key}:`,
+        ...highlightLines(code, langFromPath(path), { pathHint: path }),
+      );
+    }
+    const extras = withoutKeys(record, ['content', 'old_string', 'new_string', 'path', 'file_path', 'filePath']);
+    if (Object.keys(extras).length > 0) {
+      lines.push('arguments:', ...formatJsonLines(extras));
+    }
+    return lines;
+  }
+
+  const serialized = serializeTraceValue(input);
+  return formatJsonLines(serialized, path);
+}
+
+function formatJsonLines(value: unknown, pathHint?: string): string[] {
+  const formatted = formatTranscriptOutput(serializeTraceValue(value), {
+    mode: 'tool',
+    ...(pathHint === undefined ? {} : { pathHint }),
+  });
+  return formatted.length === 0 ? [] : formatted.split('\n');
+}
+
+function withoutKeys(
+  record: Record<string, unknown> | undefined,
+  keys: readonly string[],
+): Record<string, unknown> {
+  if (record === undefined) return {};
+  const excluded = new Set(keys);
+  return Object.fromEntries(Object.entries(record).filter(([key]) => !excluded.has(key)));
+}
+
+function contentValue(content: readonly unknown[] | undefined): string {
+  return valueToText(content);
+}
+
+function valueToText(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) {
+    const text = value
+      .flatMap((part) => {
+        const record = asRecord(part);
+        return record?.['type'] === 'text' && typeof record['text'] === 'string'
+          ? [record['text']]
+          : [];
+      })
+      .join('');
+    if (text.length > 0) return text;
+  }
+  return value === undefined ? '' : serializeTraceValue(value);
+}
+
+function serializeTraceValue(value: unknown): string {
+  if (value === undefined) return '';
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function parseToolArguments(raw: string): unknown {
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    return raw;
+  }
+}
+
+function pathFromToolInput(input: unknown): string | undefined {
+  const record = asRecord(input);
+  return (
+    stringValue(record?.['file_path']) ??
+    stringValue(record?.['path']) ??
+    stringValue(record?.['filePath'])
+  );
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : undefined;
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
 }

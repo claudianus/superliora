@@ -386,7 +386,11 @@ export class SessionEventHandler {
       case 'subagent.todo.updated':
         this.subAgentEventHandler.handleSubagentTodoUpdated(event); break;
       case 'subagent.tool_call':
+        this.host.controlTowerDesk.handleSubagentToolCall(event);
+        this.subAgentEventHandler.handleSubagentToolActivity(event);
+        break;
       case 'subagent.tool_result':
+        this.host.controlTowerDesk.handleSubagentToolResult(event);
         this.subAgentEventHandler.handleSubagentToolActivity(event); break;
       case 'tools.update_store':
         this.tools.handleToolsUpdateStore(event); break;

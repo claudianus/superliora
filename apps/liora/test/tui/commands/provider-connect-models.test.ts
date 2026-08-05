@@ -106,6 +106,11 @@ describe('resolveOAuthProviderModels', () => {
     );
 
     expect(result?.map((m) => m.model)).toEqual(['composer-2.5', 'claude-4.6-opus-high']);
+    expect(result?.[1]).toMatchObject({
+      displayName: 'Claude 4.6 Opus (high)',
+      supportEfforts: [],
+      defaultEffort: 'high',
+    });
     expect(fetchCursorAvailableModels).toHaveBeenCalledWith({ accessToken: 'tok' });
   });
 

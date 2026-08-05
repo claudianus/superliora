@@ -59,7 +59,6 @@ export function mountCenterModal(
     case 'blame':
     case 'error-navigator':
     case 'search':
-    case 'agent-dashboard':
       return;
     default:
       break;
@@ -184,9 +183,8 @@ export function restoreEditor(host: DialogsHost): void {
   host.nativeInputModalDispose?.();
   host.nativeInputModalDispose = undefined;
   host.nativeInputRouter?.focusEditor();
-  // Only clear a generic command-dialog marker. Help/session-picker/
-  // agent-dashboard manage their own `activeDialog` lifecycle and may
-  // already be null here.
+  // Only clear a generic command-dialog marker. Help/session-picker manage
+  // their own `activeDialog` lifecycle and may already be null here.
   if (host.state.activeDialog === 'command' || host.state.activeDialog === 'session-loading') {
     host.state.activeDialog = null;
   }

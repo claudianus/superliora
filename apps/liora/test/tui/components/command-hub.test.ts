@@ -42,7 +42,6 @@ describe('buildDefaultCommandHubItems', () => {
     const items = buildDefaultCommandHubItems({});
     const ids = new Set(items.map((item) => item.id));
     for (const id of [
-      'workspace.dashboard',
       'workspace.errors',
       'workspace.jobOps',
       'workspace.cron',
@@ -55,6 +54,7 @@ describe('buildDefaultCommandHubItems', () => {
     ] as const) {
       expect(ids.has(id)).toBe(true);
     }
+    expect([...ids].some((id) => id.includes('dashboard'))).toBe(false);
     expect(items.find((item) => item.id === 'modes.ultraplan')?.searchOnly).toBe(true);
     expect(items.find((item) => item.id === 'modes.ultrawork')?.description).toContain(
       'type objective',
@@ -65,7 +65,6 @@ describe('buildDefaultCommandHubItems', () => {
     expect(commandHubNestsPicker('workspace.jobOps')).toBe(true);
     expect(commandHubNestsPicker('chat.loops')).toBe(true);
     expect(commandHubNestsPicker('workspace.cron')).toBe(true);
-    expect(commandHubActionToSlash('workspace.dashboard')).toBe('/dashboard');
     expect(commandHubActionToSlash('chat.rewind')).toBe('/rewind');
     expect(commandHubActionToSlash('modes.goals')).toBe('/goal next manage');
     expect(commandHubActionToSlash('modes.ultraplan')).toBe('/ultraplan');

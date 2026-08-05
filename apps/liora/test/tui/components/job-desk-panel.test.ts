@@ -190,6 +190,46 @@ describe('JobDeskPanelComponent', () => {
     expect(joined).toContain('tok');
     expect(joined).toMatch(/12\.5k|12500/);
   });
+
+  it('renders the live worker roster with the current tool and target', () => {
+    const panel = new JobDeskPanelComponent();
+    panel.setSnapshot(
+      snapshotOf([
+        {
+          ...card('job_worker01', 'worker mission', 'running'),
+          workerAgentId: 'agent_worker01',
+          workerName: 'builder',
+          liveTokens: 12_482,
+          progress: {
+            phase: 'src/parser.ts',
+            recentTools: ['Read'],
+          },
+          liveActivity: {
+            toolCallId: 'call_1',
+            name: 'Read',
+            target: 'src/parser.ts',
+            status: 'running',
+            atMs: Date.now(),
+          },
+        },
+      ]),
+    );
+
+    const joined = panel.render(120).map(stripAnsi).join('\n');
+    expect(joined).toContain('Live workers (1)');
+    expect(joined).toContain('builder');
+    expect(joined).toContain('Read src/parser.ts');
+    expect(joined).toContain('12.5ktok');
+  });
+
+  it('invalidates rendered lines when a live snapshot arrives', () => {
+    const panel = new JobDeskPanelComponent();
+    panel.setSnapshot(snapshotOf([card('job_a1b2c3d4', 'first work', 'running')]));
+    expect(panel.render(120).join('\n')).toContain('first work');
+
+    panel.setSnapshot(snapshotOf([card('job_a1b2c3d4', 'new work', 'running')]));
+    expect(panel.render(120).join('\n')).toContain('new work');
+  });
 });
 
 describe('syncJobDeskPanelContainer', () => {

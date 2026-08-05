@@ -12,9 +12,11 @@ import {
   emptyConductorJobsSnapshot,
   mergeConductorJobsSnapshot,
   parseJobStripFromToolOutput,
+  patchConductorJobActivityByWorker,
   patchConductorJobProgressByWorker,
   patchConductorJobUsage,
   upsertConductorJobCard,
+  type ConductorJobActivity,
   type ConductorJobCard,
   type ConductorJobUsage,
   type ConductorJobsSnapshot,
@@ -97,6 +99,7 @@ export class JobBoardStore {
     readonly lastTool?: string;
     readonly lastTarget?: string;
     readonly toolCount?: number;
+    readonly tokens?: number;
     readonly atMs?: number;
   }): boolean {
     const prev = this.current;
@@ -104,8 +107,24 @@ export class JobBoardStore {
       lastTool: beat.lastTool,
       lastTarget: beat.lastTarget,
       toolCount: beat.toolCount,
+      tokens: beat.tokens,
       atMs: beat.atMs ?? Date.now(),
     });
+    if (jobs === undefined) return false;
+    this.publish(this.deriveFromCards(jobs, prev.unreadInbox, prev.inbox, prev.maxConcurrent));
+    return true;
+  }
+
+  /**
+   * Immediate parent-side tool telemetry. The heartbeat remains the fallback
+   * for phases where no tool event was emitted.
+   */
+  applySubagentActivity(
+    workerAgentId: string,
+    activity: ConductorJobActivity,
+  ): boolean {
+    const prev = this.current;
+    const jobs = patchConductorJobActivityByWorker(prev.jobs, workerAgentId, activity);
     if (jobs === undefined) return false;
     this.publish(this.deriveFromCards(jobs, prev.unreadInbox, prev.inbox, prev.maxConcurrent));
     return true;

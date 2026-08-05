@@ -65,6 +65,19 @@ describe('catalogModelToAlias', () => {
       displayName: 'M1',
     });
   });
+
+  it('carries catalog effort values through to the model alias', () => {
+    expect(
+      catalogModelToAlias('openai', {
+        ...model,
+        supportEfforts: ['low', 'high', 'max'],
+        alwaysThinking: true,
+      }),
+    ).toMatchObject({
+      supportEfforts: ['low', 'high', 'max'],
+      capabilities: ['image_in', 'thinking', 'tool_use', 'always_thinking'],
+    });
+  });
 });
 
 describe('applyCatalogProvider', () => {

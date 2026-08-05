@@ -55,7 +55,6 @@ export interface EditorKeyboardHost extends PromptInputRuntimeHost {
   detachCurrentForegroundTask(): void;
   cancelRunningShellCommand(): void;
   hideSessionPicker(): void;
-  hideAgentDashboard(): void;
   hideExtensionsModal(): void;
   openUndoSelector(): void;
   stop(exitCode?: number): Promise<void>;
@@ -177,11 +176,6 @@ export class EditorKeyboardController {
       }
       if (host.state.activeDialog === 'session-picker') {
         host.hideSessionPicker();
-        this.clearPendingUndoEsc();
-        return;
-      }
-      if (host.state.activeDialog === 'agent-dashboard') {
-        host.hideAgentDashboard();
         this.clearPendingUndoEsc();
         return;
       }

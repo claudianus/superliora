@@ -221,7 +221,6 @@ export interface SlashCommandHost {
   setNativeRendererTrace(command: RendererTraceCommand): void;
   createNewSession(): Promise<void>;
   showSessionPicker(): Promise<void>;
-  showAgentDashboard(): Promise<void>;
   showExtensionsModal(args?: string): Promise<void>;
   sendNormalUserInput(text: string, options?: { readonly displayText?: string }): void;
   sendSkillActivation(session: Session, skillName: string, skillArgs: string): void;
@@ -366,9 +365,6 @@ async function handleBuiltInSlashCommand(
       return;
     case 'sessions':
       void host.showSessionPicker();
-      return;
-    case 'dashboard':
-      void host.showAgentDashboard();
       return;
     case 'extensions':
       void host.showExtensionsModal(args);

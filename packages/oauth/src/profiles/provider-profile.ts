@@ -95,6 +95,9 @@ export interface ProviderModelPreset {
   readonly displayName?: string;
   readonly maxContextSize: number;
   readonly capabilities?: readonly string[];
+  /** Declared discrete thinking efforts; an empty array means no effort UI. */
+  readonly supportEfforts?: readonly string[];
+  readonly defaultEffort?: string;
 }
 
 export const OAUTH_PROVIDER_IDS = ['managed:kimi-api', 'openai-codex', 'xai-grok'] as const;

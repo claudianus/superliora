@@ -10,12 +10,13 @@ import {SearchableList} from '#/tui/utils/ui/searchable-list';
 import {
   defaultEffortForModel as defaultEffortForModelUtil,
   effortsForModel as effortsForModelUtil,
+  modelUsesEmbeddedThinkingEffort,
   wireEffortForModel,
 } from '#/tui/utils/model/thinking-effort';
 
 import type { ChoiceOption } from './choice-picker';
 
-type ThinkingAvailability = 'toggle' | 'always-on' | 'unsupported';
+type ThinkingAvailability = 'toggle' | 'always-on' | 'embedded' | 'unsupported';
 
 interface ModelChoice {
   readonly alias: string;
@@ -103,6 +104,7 @@ function formatCost(model: ModelAlias): string | undefined {
 }
 
 function thinkingAvailability(model: ModelAlias): ThinkingAvailability {
+  if (modelUsesEmbeddedThinkingEffort(model)) return 'embedded';
   const caps = model.capabilities ?? [];
   if (caps.includes('always_thinking')) return 'always-on';
   if (caps.includes('thinking') || model.adaptiveThinking === true) return 'toggle';
@@ -111,6 +113,7 @@ function thinkingAvailability(model: ModelAlias): ThinkingAvailability {
 
 function effectiveThinking(model: ModelAlias, thinkingDraft: boolean): boolean {
   const availability = thinkingAvailability(model);
+  if (availability === 'embedded') return true;
   if (availability === 'always-on') return true;
   if (availability === 'unsupported') return false;
   return thinkingDraft;
@@ -235,10 +238,11 @@ export class ModelSelectorComponent extends Container implements Focusable {
       const selected = this.selectedChoice();
       if (selected === undefined) return;
       const thinking = effectiveThinking(selected.model, this.draftFor(selected));
+      const efforts = effortsForModel(selected.model);
       this.opts.onSelect({
         alias: selected.alias,
         thinking,
-        effort: thinking ? this.effortFor(selected) : undefined,
+        effort: thinking && efforts.length > 0 ? this.effortFor(selected) : undefined,
       });
       return;
     }
@@ -247,10 +251,11 @@ export class ModelSelectorComponent extends Container implements Focusable {
       const selected = this.selectedChoice();
       if (selected === undefined) return;
       const thinking = effectiveThinking(selected.model, this.draftFor(selected));
+      const efforts = effortsForModel(selected.model);
       this.opts.onSessionOnlySelect({
         alias: selected.alias,
         thinking,
-        effort: thinking ? this.effortFor(selected) : undefined,
+        effort: thinking && efforts.length > 0 ? this.effortFor(selected) : undefined,
       });
     }
   }
@@ -275,7 +280,8 @@ export class ModelSelectorComponent extends Container implements Focusable {
     if (
       selectedForHint !== undefined &&
       thinkingAvailability(selectedForHint.model) !== 'unsupported' &&
-      effectiveThinking(selectedForHint.model, this.draftFor(selectedForHint))
+      effectiveThinking(selectedForHint.model, this.draftFor(selectedForHint)) &&
+      effortsForModel(selectedForHint.model).length > 0
     ) {
       hintParts.push('1-5 effort');
     }
@@ -342,16 +348,18 @@ export class ModelSelectorComponent extends Container implements Focusable {
 
     const selected = this.selectedChoice();
     if (selected !== undefined) {
-      if (footer.length > 0) footer.push('');
       const availability = thinkingAvailability(selected.model);
-      const thinkingHeader = availability === 'toggle' ? ' Thinking  (←→ to switch)' : ' Thinking';
-      footer.push(currentTheme.fg('textMuted', thinkingHeader));
-      footer.push(this.renderThinkingControl(selected));
+      const thinkingOn = effectiveThinking(selected.model, this.draftFor(selected));
+      if (availability !== 'embedded') {
+        if (footer.length > 0) footer.push('');
+        const thinkingHeader = availability === 'toggle' ? ' Thinking  (←→ to switch)' : ' Thinking';
+        footer.push(currentTheme.fg('textMuted', thinkingHeader));
+        footer.push(this.renderThinkingControl(selected));
+      }
       // Show effort selector when thinking is enabled. Digits bind to effort
       // before search, so the control stays usable even while searchable.
-      const thinkingOn = effectiveThinking(selected.model, this.draftFor(selected));
-      if (thinkingOn && availability !== 'unsupported') {
-        const efforts = effortsForModel(selected.model);
+      const efforts = effortsForModel(selected.model);
+      if (thinkingOn && availability !== 'unsupported' && efforts.length > 0) {
         const digitHint = efforts.length <= 1 ? '1' : `1-${String(efforts.length)}`;
         footer.push(
           currentTheme.fg(

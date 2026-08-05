@@ -5,6 +5,7 @@ export type SettingsSelection =
   | 'model'
   | 'model-routing'
   | 'model-fallback'
+  | 'model-reset'
   | 'theme'
   | 'appearance'
   | 'footer'
@@ -76,6 +77,12 @@ const SETTINGS_OPTIONS_BASE: readonly (Omit<ChoiceOption, 'keywords'> & {
     section: 'Models',
     label: 'Model fallback',
     description: 'Automatic failover when a provider errors.',
+  },
+  {
+    value: 'model-reset',
+    section: 'Models',
+    label: 'Reset model settings',
+    description: 'Restore model defaults, role routing, thinking, and fallback chains.',
   },
   // ── Safety ──────────────────────────────────────────────────────────────
   {

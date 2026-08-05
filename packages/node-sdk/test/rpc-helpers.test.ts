@@ -38,6 +38,25 @@ describe('buildSessionStatus cacheFrozen', () => {
   });
 });
 
+describe('buildSessionStatus role models', () => {
+  it('preserves all six loop-control roles', () => {
+    const roleModels = {
+      compaction: 'compact',
+      completion: 'complete',
+      exploration: 'explore',
+      coding: 'code',
+      planning: 'plan',
+      debugging: 'debug',
+    };
+    const status = buildSessionStatus({
+      ...baseFacets,
+      config: { ...baseFacets.config, roleModels },
+    });
+
+    expect(status.roleModels).toEqual(roleModels);
+  });
+});
+
 
 describe('buildSessionStatus cacheFreezeViolations (Loop22b)', () => {
   it('omits cacheFreezeViolations when the facet is undefined', () => {

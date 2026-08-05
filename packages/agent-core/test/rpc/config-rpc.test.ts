@@ -152,6 +152,51 @@ debugging_model = "debug"
     expect(reloaded.loopControl?.explorationModel).toBe('explore');
   });
 
+  it('deletes model defaults and removes an empty thinking section', async () => {
+    const modelSettingsToml = `
+default_provider = "kimi"
+default_model = "k2"
+default_thinking = true
+
+[thinking]
+mode = "on"
+effort = "max"
+
+[providers.kimi]
+type = "kimi"
+api_key = "sk-good"
+
+[models.k2]
+provider = "kimi"
+model = "kimi-for-coding"
+max_context_size = 128000
+`;
+    const home = await makeHome(modelSettingsToml);
+    const configPath = path.join(home, 'config.toml');
+    const core = makeCore(home);
+
+    const deleted = await core.deleteConfigFields({
+      paths: [
+        'defaultProvider',
+        'defaultModel',
+        'defaultThinking',
+        'thinking.mode',
+        'thinking.effort',
+      ],
+    });
+
+    expect(deleted.defaultProvider).toBeUndefined();
+    expect(deleted.defaultModel).toBeUndefined();
+    expect(deleted.defaultThinking).toBeUndefined();
+    expect(deleted.thinking).toBeUndefined();
+
+    const persisted = await readFile(configPath, 'utf-8');
+    expect(persisted).not.toContain('default_provider');
+    expect(persisted).not.toContain('default_model');
+    expect(persisted).not.toContain('default_thinking');
+    expect(persisted).not.toContain('[thinking]');
+  });
+
   it('rejects invalid batches without changing config', async () => {
     const home = await makeHome(ROUTING_MODELS_TOML);
     const configPath = path.join(home, 'config.toml');

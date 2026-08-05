@@ -39,7 +39,7 @@ describe('loop model routing', () => {
       state: 'override · compact-fast',
     });
     expect(rows.find((row) => row.key === 'completion')).toMatchObject({
-      state: 'default',
+      state: 'auto',
     });
     expect(rows.find((row) => row.key === 'coding')).toMatchObject({
       model: 'code-pro',

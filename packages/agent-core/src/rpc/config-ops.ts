@@ -15,6 +15,11 @@ import type { DeleteConfigFieldsPayload } from './core-api';
 export type DeleteConfigFieldPath = DeleteConfigFieldsPayload['paths'][number];
 
 export const DELETE_CONFIG_FIELD_PATHS = new Set<DeleteConfigFieldPath>([
+  'defaultProvider',
+  'defaultModel',
+  'defaultThinking',
+  'thinking.mode',
+  'thinking.effort',
   'loopControl.compactionModel',
   'loopControl.completionModel',
   'loopControl.explorationModel',
@@ -84,6 +89,22 @@ function deleteConfigField(config: LioraConfig, path: DeleteConfigFieldPath): bo
   if (path === 'persona') {
     if (!Object.hasOwn(config, 'persona')) return false;
     delete config.persona;
+    return true;
+  }
+
+  if (path === 'defaultProvider' || path === 'defaultModel' || path === 'defaultThinking') {
+    if (!Object.hasOwn(config, path)) return false;
+    delete config[path];
+    return true;
+  }
+
+  if (path === 'thinking.mode' || path === 'thinking.effort') {
+    const thinking = config.thinking;
+    if (thinking === undefined || !Object.hasOwn(thinking, path.slice('thinking.'.length))) {
+      return false;
+    }
+    delete thinking[path.slice('thinking.'.length) as keyof typeof thinking];
+    if (Object.keys(thinking).length === 0) delete config.thinking;
     return true;
   }
 

@@ -86,6 +86,61 @@ describe('catalogModelToCapability', () => {
     });
   });
 
+  it('preserves declared reasoning efforts and marks effort-only models always-on', () => {
+    expect(
+      catalogModelToCapability({
+        id: 'gpt-5.4',
+        limit: { context: 200000 },
+        reasoning: true,
+        reasoning_options: [
+          { type: 'effort', values: ['low', 'medium', 'high', 'xhigh', 'max'] },
+        ],
+      }),
+    ).toMatchObject({
+      supportEfforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+      alwaysThinking: true,
+    });
+  });
+
+  it('treats an explicit off effort or toggle as the off path', () => {
+    expect(
+      catalogModelToCapability({
+        id: 'gpt-5.4',
+        limit: { context: 200000 },
+        reasoning: true,
+        reasoning_options: [
+          { type: 'effort', values: ['none', 'low', 'medium', 'high', 'max'] },
+        ],
+      }),
+    ).toMatchObject({
+      supportEfforts: ['low', 'medium', 'high', 'max'],
+    });
+    expect(
+      catalogModelToCapability({
+        id: 'deepseek-v4',
+        limit: { context: 200000 },
+        reasoning: true,
+        reasoning_options: [
+          { type: 'toggle' },
+          { type: 'effort', values: ['high', 'max'] },
+        ],
+      }),
+    ).toMatchObject({
+      supportEfforts: ['high', 'max'],
+    });
+    expect(
+      catalogModelToCapability({
+        id: 'budget-model',
+        limit: { context: 200000 },
+        reasoning: true,
+        reasoning_options: [{ type: 'budget_tokens' }],
+      }),
+    ).toMatchObject({
+      supportEfforts: [],
+      alwaysThinking: true,
+    });
+  });
+
   it('defaults tool_use to true and skips models without a positive context', () => {
     expect(catalogModelToCapability({ id: 'm', limit: { context: 1000 } })?.capability.tool_use).toBe(
       true,

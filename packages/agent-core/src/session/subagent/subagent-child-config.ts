@@ -13,14 +13,13 @@ import {
   prepareSystemPromptContext,
   type ResolvedAgentProfile,
 } from '../../profile';
-import { resolveSubagentModelAlias } from '../../utils/cheap-model';
 import { checkContractFile } from '../contract-check';
 import { getDefaultSwarmFileLeaseRegistry } from '#/fleet';
 import type { Session } from '../index';
 import {
   createExpertSubagentProfile,
-  isModelAliasHealthy,
 } from './subagent-run-lifecycle';
+import { resolveSubagentModelSelection } from './subagent-model-routing';
 import { attachSubagentTodoBridge } from './subagent-telemetry';
 import type { RunSubagentOptions } from './subagent-host-types';
 import type { ActiveChildEntry } from './subagent-run-lifecycle';
@@ -134,19 +133,11 @@ export async function configureSubagentChild(
   profileBaseName?: string,
 ): Promise<void> {
   const cwd = options.worktreeDir ?? parent.config.cwd;
+  const modelSelection = resolveSubagentModelSelection(parent, profile.name, profileBaseName);
   child.config.update({
     cwd,
-    modelAlias: resolveSubagentModelAlias(
-      profile.name,
-      profileBaseName,
-      parent.config.modelAlias,
-      parent.kimiConfig?.models,
-      parent.kimiConfig?.loopControl?.explorationModel,
-      {
-        isAliasHealthy: (alias) => isModelAliasHealthy(alias, parent.kimiConfig?.models),
-      },
-    ),
-    thinkingLevel: parent.config.thinkingLevel,
+    modelAlias: modelSelection.alias,
+    thinkingLevel: modelSelection.thinkingLevel,
   });
   if (options.worktreeDir !== undefined) {
     child.setKaos(parent.kaos.withCwd(cwd));

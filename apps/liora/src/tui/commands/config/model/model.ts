@@ -5,7 +5,7 @@
  * and the tabbed model picker with thinking-level selection.
  */
 
-import type { ModelAlias } from '@superliora/sdk';
+import type { DeleteConfigFieldPath, ModelAlias } from '@superliora/sdk';
 
 import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
 import { ModelFallbackSelectorComponent, type ModelFallbackAction, type ModelFallbackItem } from '../../../components/dialogs/picker/model-fallback-selector';
@@ -36,6 +36,20 @@ import {
 import type { SlashCommandHost } from '../../hub/dispatch';
 
 const MODEL_PICKER_REFRESH_TIMEOUT_MS = 2_000;
+
+const MODEL_SETTINGS_RESET_PATHS: readonly DeleteConfigFieldPath[] = [
+  'defaultProvider',
+  'defaultModel',
+  'defaultThinking',
+  'thinking.mode',
+  'thinking.effort',
+  'loopControl.compactionModel',
+  'loopControl.completionModel',
+  'loopControl.explorationModel',
+  'loopControl.codingModel',
+  'loopControl.planningModel',
+  'loopControl.debuggingModel',
+];
 
 export async function handleModelCommand(host: SlashCommandHost, args: string): Promise<void> {
   const alias = args.trim();
@@ -102,21 +116,32 @@ export async function showLoopModelRoutingPicker(host: SlashCommandHost): Promis
 
 function mountLoopModelRoutingPicker(host: SlashCommandHost, config: LoopModelRoutingConfig): void {
   const rows = loopModelRoutingRows(config);
+  const autoRoutingValue = '__smart_auto__';
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
       title: 'Model routing',
       hint: '↑↓ navigate · Enter select · Esc cancel',
-      notice: 'Overrides apply to future resolution; the current session is unchanged.',
+      notice: 'Unset roles use smart automatic routing; overrides apply to future resolution.',
       noticeTone: 'warning',
-      options: rows.map((row) => ({
-        value: row.key,
-        label: row.label,
-        description: row.model === undefined
-          ? 'default (no explicit override)'
-          : `override · ${row.model}`,
-      })),
+      options: [
+        {
+          value: autoRoutingValue,
+          label: 'Smart auto routing',
+          description: 'Clear all role overrides and select each worker model by role and health.',
+        },
+        ...rows.map((row) => ({
+          value: row.key,
+          label: row.label,
+          description: row.model === undefined ? 'auto' : `override · ${row.model}`,
+        })),
+      ],
       onSelect: (value) => {
+        if (value === autoRoutingValue) {
+          dismissPickerDialog(host);
+          void resetAllLoopModelRouting(host, rows);
+          return;
+        }
         const row = rows.find((candidate) => candidate.key === value);
         if (row === undefined) return;
         dismissPickerDialog(host);
@@ -128,6 +153,28 @@ function mountLoopModelRoutingPicker(host: SlashCommandHost, config: LoopModelRo
     }),
     { label: 'Model routing' },
   );
+}
+
+async function resetAllLoopModelRouting(
+  host: SlashCommandHost,
+  rows: readonly (LoopModelRoutingRole & { readonly model?: string })[],
+): Promise<void> {
+  const paths = rows
+    .filter((row) => row.model !== undefined)
+    .map((row) => loopModelRoutingDeletePath(row));
+  if (paths.length === 0) {
+    host.showStatus('All role routing is already set to auto.');
+    void showLoopModelRoutingPicker(host);
+    return;
+  }
+
+  try {
+    const config = (await host.harness.deleteConfigFields(paths)) as LoopModelRoutingConfig;
+    host.showStatus('All role routing overrides cleared. Smart auto routing is active.', 'success');
+    mountLoopModelRoutingPicker(host, config);
+  } catch (error) {
+    host.showError(`Failed to enable smart auto routing: ${formatErrorMessage(error)}`);
+  }
 }
 
 function showLoopRoleModelPicker(host: SlashCommandHost, role: LoopModelRoutingRole & { readonly model?: string }): void {
@@ -197,7 +244,7 @@ export async function resetLoopModelRoutingChoice(
   role: LoopModelRoutingRole & { readonly model?: string },
 ): Promise<void> {
   if (role.model === undefined) {
-    host.showStatus(`${role.label} routing already uses the default.`);
+    host.showStatus(`${role.label} routing already uses auto routing.`);
     void showLoopModelRoutingPicker(host);
     return;
   }
@@ -213,10 +260,68 @@ export async function resetLoopModelRoutingChoice(
   }
 
   host.showStatus(
-    `${role.label} routing reset to default. Future resolution will use the default; the current session is unchanged.`,
+    `${role.label} routing reset to auto. Future resolution will use auto routing; the current session is unchanged.`,
     'success',
   );
   mountLoopModelRoutingPicker(host, config);
+}
+
+export function showModelSettingsReset(host: SlashCommandHost): void {
+  mountPickerDialog(
+    host,
+    new ChoicePickerComponent({
+      title: 'Reset model settings',
+      hint: '↑↓ navigate · Enter select · Esc cancel',
+      notice: 'Provider credentials and discovered model catalog are kept.',
+      noticeTone: 'warning',
+      options: [
+        {
+          value: 'reset',
+          label: 'Reset all model settings',
+          description:
+            'Restore model defaults, thinking, role routing, and fallback chains to automatic behavior.',
+          tone: 'danger',
+        },
+        {
+          value: 'cancel',
+          label: 'Cancel',
+          description: 'Keep the current model configuration.',
+        },
+      ],
+      onSelect: (value) => {
+        dismissPickerDialog(host);
+        if (value !== 'reset') return;
+        void resetModelSettings(host);
+      },
+      onCancel: () => {
+        dismissPickerDialog(host);
+      },
+    }),
+    { label: 'Reset model settings' },
+  );
+}
+
+async function resetModelSettings(host: SlashCommandHost): Promise<void> {
+  try {
+    const config = await host.harness.getConfig({ reload: true });
+    const fallbackModels = Object.fromEntries(
+      Object.entries(config.models ?? {})
+        .filter(([, model]) => (model.fallbackModels?.length ?? 0) > 0)
+        .map(([alias]) => [alias, { fallbackModels: [] }]),
+    );
+    if (Object.keys(fallbackModels).length > 0) {
+      await host.harness.setConfig({ models: fallbackModels });
+    }
+    await host.harness.deleteConfigFields(MODEL_SETTINGS_RESET_PATHS);
+  } catch (error) {
+    host.showError(`Failed to reset model settings: ${formatErrorMessage(error)}`);
+    return;
+  }
+
+  host.showStatus(
+    'Model settings reset to defaults. The current session is unchanged; future resolution uses auto routing.',
+    'success',
+  );
 }
 
 export async function showModelFallbackPicker(host: SlashCommandHost): Promise<void> {

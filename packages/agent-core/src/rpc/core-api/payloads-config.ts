@@ -17,6 +17,10 @@ export interface RemoveKimiProviderPayload {
 
 export type DeleteConfigFieldPath =
   | `loopControl.${'compaction' | 'completion' | 'exploration' | 'coding' | 'planning' | 'debugging'}Model`
+  | 'defaultProvider'
+  | 'defaultModel'
+  | 'defaultThinking'
+  | `thinking.${'mode' | 'effort'}`
   | 'persona';
 
 export interface DeleteConfigFieldsPayload {

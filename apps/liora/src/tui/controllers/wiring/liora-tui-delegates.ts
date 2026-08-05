@@ -453,12 +453,6 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
   proto.showSessionPicker = function () {
     return this.sessionBrowser.showSessionPicker();
   };
-  proto.showAgentDashboard = function () {
-    return this.sessionBrowser.showAgentDashboard();
-  };
-  proto.hideAgentDashboard = function () {
-    this.sessionBrowser.hideAgentDashboard();
-  };
   proto.showExtensionsModal = function (args?: string) {
     return this.sessionBrowser.showExtensionsModal(args);
   };

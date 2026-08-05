@@ -4,6 +4,7 @@ import {
   applyCursorOAuthModelAliases,
   CURSOR_FALLBACK_MODELS,
   cursorModelsToPresets,
+  cursorUsableModelToDiscoveredModel,
   decodeUsableModelIds,
   normalizeAvailableModels,
   toCursorCatalogModelId,
@@ -134,6 +135,18 @@ describe('toCursorCatalogModelId / decodeUsableModelIds', () => {
       'composer-2.5',
     ]);
   });
+
+  it('reuses fallback capabilities for id-only usable-model responses', () => {
+    expect(cursorUsableModelToDiscoveredModel('grok-code-fast-1')).toMatchObject({
+      capabilities: ['tool_use'],
+      maxContextSize: 128_000,
+    });
+    expect(cursorUsableModelToDiscoveredModel('gpt-5.4-medium')).toMatchObject({
+      capabilities: ['thinking', 'tool_use'],
+      displayName: 'GPT-5.4 (medium)',
+      maxContextSize: 272_000,
+    });
+  });
 });
 
 describe('cursorModelsToPresets / applyCursorOAuthModelAliases', () => {
@@ -141,6 +154,11 @@ describe('cursorModelsToPresets / applyCursorOAuthModelAliases', () => {
     const presets = cursorModelsToPresets(CURSOR_FALLBACK_MODELS);
     expect(presets.length).toBeGreaterThan(5);
     expect(presets.some((p) => p.id === 'composer-2.5')).toBe(true);
+    expect(presets.find((p) => p.id === 'gpt-5.4-medium')).toMatchObject({
+      displayName: 'GPT-5.4 (medium)',
+      supportEfforts: [],
+      defaultEffort: 'medium',
+    });
   });
 
   it('replaces cursor-oauth aliases without touching other providers', () => {
@@ -173,6 +191,7 @@ describe('cursorModelsToPresets / applyCursorOAuthModelAliases', () => {
       provider: 'cursor-oauth',
       model: 'composer-2.5',
       maxContextSize: 200_000,
+      supportEfforts: [],
     });
     expect(config.models?.['xai-grok/grok-4']).toBeDefined();
   });

@@ -4,7 +4,12 @@ import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { applyLoopModelRoutingChoice, resetLoopModelRoutingChoice, showLoopModelRoutingPicker } from '#/tui/commands/config/model/model';
+import {
+  applyLoopModelRoutingChoice,
+  resetLoopModelRoutingChoice,
+  showLoopModelRoutingPicker,
+  showModelSettingsReset,
+} from '#/tui/commands/config/model/model';
 import { handleAppearanceCommand } from '#/tui/commands/config/appearance/appearance';
 import { handleContextCommand } from '#/tui/commands/config/context/context';
 import { handlePlanCommand } from '#/tui/commands/config/plan/plan';
@@ -977,8 +982,8 @@ describe('harness panel and tools inventory', () => {
     const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
-    // security is index 4: model, routing, fallback, permission, security
-    for (let i = 0; i < 4; i++) {
+    // security is index 5: model, routing, fallback, reset, permission, security
+    for (let i = 0; i < 5; i++) {
       component.handleInput('\u001B[B');
     }
     component.handleInput('\r');
@@ -1343,9 +1348,9 @@ describe('harness panel and tools inventory', () => {
     for (const label of ['Compaction', 'Completion', 'Exploration', 'Coding', 'Planning', 'Debugging']) {
       expect(routingBody).toContain(label);
     }
-    expect(routingBody).toContain('default (no explicit override)');
+    expect(routingBody).toContain('auto');
 
-    for (let i = 0; i < 3; i++) routingPicker.handleInput('\u001B[B');
+    for (let i = 0; i < 4; i++) routingPicker.handleInput('\u001B[B');
     routingPicker.handleInput('\r');
     const [modelPicker] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[1] as [
       { handleInput: (data: string) => void },
@@ -1372,6 +1377,7 @@ describe('harness panel and tools inventory', () => {
     const [routingPicker] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
+    for (let i = 0; i < 4; i++) routingPicker.handleInput('\u001B[B');
     routingPicker.handleInput('\r');
     const [modelPicker] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[1] as [
       { handleInput: (data: string) => void },
@@ -1382,6 +1388,41 @@ describe('harness panel and tools inventory', () => {
     expect(host.harness.deleteConfigFields).not.toHaveBeenCalled();
   });
 
+  it('clears every role override from the smart auto routing action', async () => {
+    const host = makeHarnessHost();
+    host.harness.getConfig.mockResolvedValue({
+      loopControl: {
+        compactionModel: 'compact',
+        completionModel: 'complete',
+        explorationModel: 'explore',
+        codingModel: 'code',
+        planningModel: 'plan',
+        debuggingModel: 'debug',
+      },
+    });
+    await showLoopModelRoutingPicker(host);
+    const [routingPicker] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      { handleInput: (data: string) => void },
+    ];
+
+    routingPicker.handleInput('\r');
+
+    await vi.waitFor(() => {
+      expect(host.harness.deleteConfigFields).toHaveBeenCalledWith([
+        'loopControl.compactionModel',
+        'loopControl.completionModel',
+        'loopControl.explorationModel',
+        'loopControl.codingModel',
+        'loopControl.planningModel',
+        'loopControl.debuggingModel',
+      ]);
+    });
+    expect(host.showStatus).toHaveBeenCalledWith(
+      expect.stringContaining('Smart auto routing is active'),
+      'success',
+    );
+  });
+
   it('routes Alt+R from a configured role to deleteConfigFields', async () => {
     const host = makeHarnessHost();
     host.harness.getConfig.mockResolvedValue({ loopControl: { codingModel: 'code-pro' } });
@@ -1389,7 +1430,7 @@ describe('harness panel and tools inventory', () => {
     const [routingPicker] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
-    for (let i = 0; i < 3; i++) routingPicker.handleInput('\u001B[B');
+    for (let i = 0; i < 4; i++) routingPicker.handleInput('\u001B[B');
     routingPicker.handleInput('\r');
     const [modelPicker] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[1] as [
       { handleInput: (data: string) => void },
@@ -1400,7 +1441,7 @@ describe('harness panel and tools inventory', () => {
       expect(host.harness.deleteConfigFields).toHaveBeenCalledWith(['loopControl.codingModel']);
     });
     expect(host.showStatus).toHaveBeenCalledWith(
-      expect.stringContaining('Coding routing reset to default'),
+      expect.stringContaining('Coding routing reset to auto'),
       'success',
     );
   });
@@ -1414,6 +1455,44 @@ describe('harness panel and tools inventory', () => {
     host.harness.deleteConfigFields.mockRejectedValueOnce(new Error('delete denied'));
     await resetLoopModelRoutingChoice(host, { ...LOOP_MODEL_ROUTING_ROLES[3], model: 'code-pro' });
     expect(host.showError).toHaveBeenCalledWith('Failed to reset Coding routing override: delete denied');
+  });
+
+  it('confirms and resets all model settings through the config APIs', async () => {
+    const host = makeHarnessHost();
+    host.harness.getConfig.mockResolvedValue({
+      models: {
+        primary: { fallbackModels: ['backup'] },
+      },
+    });
+    showModelSettingsReset(host);
+    const [resetPicker] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
+      { handleInput: (data: string) => void },
+    ];
+
+    resetPicker.handleInput('\r');
+
+    await vi.waitFor(() => {
+      expect(host.harness.setConfig).toHaveBeenCalledWith({
+        models: { primary: { fallbackModels: [] } },
+      });
+      expect(host.harness.deleteConfigFields).toHaveBeenCalledWith([
+        'defaultProvider',
+        'defaultModel',
+        'defaultThinking',
+        'thinking.mode',
+        'thinking.effort',
+        'loopControl.compactionModel',
+        'loopControl.completionModel',
+        'loopControl.explorationModel',
+        'loopControl.codingModel',
+        'loopControl.planningModel',
+        'loopControl.debuggingModel',
+      ]);
+    });
+    expect(host.showStatus).toHaveBeenCalledWith(
+      expect.stringContaining('Model settings reset to defaults'),
+      'success',
+    );
   });
 
 });

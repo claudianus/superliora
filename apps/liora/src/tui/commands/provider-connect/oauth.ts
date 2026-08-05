@@ -10,6 +10,7 @@ import {
   allocateProviderOAuthAccountKey,
   applyCursorOAuthModelAliases,
   CURSOR_OAUTH_PROVIDER_ID,
+  cursorModelsToPresets,
   fetchCursorAvailableModels,
   getProviderProfile,
   listProviderOAuthRefs,
@@ -350,6 +351,10 @@ function presetModelToAlias(providerId: string, preset: ProviderModelPreset): Mo
     model: preset.id,
     maxContextSize: preset.maxContextSize,
     capabilities: preset.capabilities !== undefined ? [...preset.capabilities] : undefined,
+    ...(preset.supportEfforts !== undefined
+      ? { supportEfforts: [...preset.supportEfforts] }
+      : {}),
+    ...(preset.defaultEffort !== undefined ? { defaultEffort: preset.defaultEffort } : {}),
     displayName: preset.displayName,
   };
 }
@@ -383,14 +388,17 @@ export async function resolveOAuthProviderModels(
       try {
         const live = await fetchCursorAvailableModels({ accessToken: token });
         if (live !== undefined && live.length > 0) {
-          return live.map((model) =>
-            presetModelToAlias(providerId, {
-              id: model.id,
-              displayName: model.displayName,
-              maxContextSize: model.maxContextSize,
-              capabilities: model.capabilities,
-            }),
-          );
+          return live.map((model) => {
+            const preset = cursorModelsToPresets([model])[0];
+            return preset === undefined
+              ? presetModelToAlias(providerId, {
+                  id: model.id,
+                  displayName: model.displayName,
+                  maxContextSize: model.maxContextSize,
+                  capabilities: model.capabilities,
+                })
+              : presetModelToAlias(providerId, preset);
+          });
         }
       } catch (error) {
         log.warn(

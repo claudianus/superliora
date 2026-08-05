@@ -103,6 +103,7 @@ interface TranscriptState {
   followTail: boolean;
   lastFetchMs: number;
   fetching: boolean;
+  fetchGeneration: number;
 }
 
 export class JobDeckViewerComponent extends Container implements Focusable {
@@ -400,6 +401,7 @@ export class JobDeckViewerComponent extends Container implements Focusable {
       followTail: true,
       lastFetchMs: 0,
       fetching: false,
+      fetchGeneration: 0,
     };
     this.statusText = undefined;
     this.repaint();
@@ -421,8 +423,9 @@ export class JobDeckViewerComponent extends Container implements Focusable {
       return;
     }
     if (matchesKey(data, Key.down)) {
-      state.scrollOffset = Math.min(Math.max(0, state.lines.length - 1), state.scrollOffset + 1);
-      state.followTail = state.scrollOffset >= Math.max(0, state.lines.length - DECK_TRANSCRIPT_ROWS);
+      const maxOffset = Math.max(0, state.lines.length - DECK_TRANSCRIPT_ROWS);
+      state.scrollOffset = Math.min(maxOffset, state.scrollOffset + 1);
+      state.followTail = state.scrollOffset >= maxOffset;
       this.repaint();
       return;
     }
@@ -433,8 +436,21 @@ export class JobDeckViewerComponent extends Container implements Focusable {
       return;
     }
     if (matchesKey(data, Key.pageDown)) {
-      state.scrollOffset = Math.min(Math.max(0, state.lines.length - 1), state.scrollOffset + DECK_TRANSCRIPT_ROWS);
-      state.followTail = state.scrollOffset >= Math.max(0, state.lines.length - DECK_TRANSCRIPT_ROWS);
+      const maxOffset = Math.max(0, state.lines.length - DECK_TRANSCRIPT_ROWS);
+      state.scrollOffset = Math.min(maxOffset, state.scrollOffset + DECK_TRANSCRIPT_ROWS);
+      state.followTail = state.scrollOffset >= maxOffset;
+      this.repaint();
+      return;
+    }
+    if (matchesKey(data, Key.home)) {
+      state.scrollOffset = 0;
+      state.followTail = false;
+      this.repaint();
+      return;
+    }
+    if (matchesKey(data, Key.end)) {
+      state.scrollOffset = Math.max(0, state.lines.length - DECK_TRANSCRIPT_ROWS);
+      state.followTail = true;
       this.repaint();
       return;
     }
@@ -447,6 +463,7 @@ export class JobDeckViewerComponent extends Container implements Focusable {
     }
     if (ch === 'f' || ch === 'F') {
       state.followTail = true;
+      state.scrollOffset = Math.max(0, state.lines.length - DECK_TRANSCRIPT_ROWS);
       this.repaint();
       return;
     }
@@ -466,18 +483,20 @@ export class JobDeckViewerComponent extends Container implements Focusable {
   private maybeRefreshTranscript(): void {
     const state = this.transcript;
     if (state === undefined || state.fetching || state.error !== undefined) return;
-    if (state.card.status !== 'running' && state.lines.length > 0) return;
+    if (state.card.status !== 'running') return;
     if (Date.now() - state.lastFetchMs < DECK_TRANSCRIPT_REFRESH_MS) return;
     void this.fetchTranscript(state);
   }
 
   private async fetchTranscript(state: TranscriptState): Promise<void> {
+    const requestId = state.fetchGeneration + 1;
+    state.fetchGeneration = requestId;
     state.fetching = true;
     state.lastFetchMs = Date.now();
     try {
       const load = await this.loadWorker(state.card);
       // Drop stale responses if the operator already left the drill-down.
-      if (this.transcript !== state) return;
+      if (this.transcript !== state || state.fetchGeneration !== requestId) return;
       state.lines = load.lines;
       state.usage = load.usage;
       state.error = load.error;
@@ -486,13 +505,15 @@ export class JobDeckViewerComponent extends Container implements Focusable {
         state.scrollOffset = Math.max(0, state.lines.length - DECK_TRANSCRIPT_ROWS);
       }
     } catch {
-      if (this.transcript === state) {
+      if (this.transcript === state && state.fetchGeneration === requestId) {
         state.loading = false;
         state.error = 'Could not load the worker transcript.';
       }
     } finally {
-      state.fetching = false;
-      this.repaint();
+      if (this.transcript === state && state.fetchGeneration === requestId) {
+        state.fetching = false;
+        this.repaint();
+      }
     }
   }
 
@@ -524,7 +545,7 @@ export class JobDeckViewerComponent extends Container implements Focusable {
       ` ${title}`,
       theme.fg(
         'textMuted',
-        ' ↑↓ scroll · PgUp/PgDn page · G top · F tail · S steer · R refresh · Esc cancel',
+        ' ↑↓ scroll · PgUp/PgDn page · Home/End · G/F top/tail · S steer · R refresh · Esc back',
       ),
       this.renderUsageStrip(state, width),
       ` ${renderParticleRail(
@@ -584,6 +605,14 @@ export class JobDeckViewerComponent extends Container implements Focusable {
     const tools = state.card.progress?.recentTools;
     if (tools !== undefined && tools.length > 0) {
       parts.push(theme.fg('textDim', tools.slice(-3).join(' → ')));
+    }
+    if (state.card.liveActivity !== undefined) {
+      const activity = state.card.liveActivity;
+      const target = activity.target === undefined ? '' : ` ${activity.target}`;
+      parts.push(theme.fg('primary', `${activity.name}${target}`));
+    }
+    if (state.card.liveTokens !== undefined) {
+      parts.push(theme.fg('textMuted', `~${formatTokenCount(state.card.liveTokens)} live tok`));
     }
     if (state.fetching && !state.loading) {
       parts.push(theme.fg('textMuted', `${renderShimmerPrefix()}syncing`));

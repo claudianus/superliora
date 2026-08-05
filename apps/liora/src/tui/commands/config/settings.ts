@@ -8,7 +8,12 @@ import { showUpgradeSettings } from './upgrade/upgrade-settings';
 import { showPremiumSettings } from './premium/premium-settings';
 import { showPersonaSettings } from './persona/persona-settings';
 import type { SlashCommandHost } from '../hub/dispatch';
-import { showModelPicker, showLoopModelRoutingPicker, showModelFallbackPicker } from './model/model';
+import {
+  showModelPicker,
+  showLoopModelRoutingPicker,
+  showModelFallbackPicker,
+  showModelSettingsReset,
+} from './model/model';
 import { showContextWorkingSetPicker } from './context/context';
 import { showContextSettings } from './context/context-settings';
 import { showAppearanceSettings } from './appearance/appearance-settings';
@@ -73,6 +78,7 @@ function handleSettingsSelection(host: SlashCommandHost, value: SettingsSelectio
     case 'model': showModelPicker(host); return;
     case 'model-routing': void showLoopModelRoutingPicker(host); return;
     case 'model-fallback': void showModelFallbackPicker(host); return;
+    case 'model-reset': showModelSettingsReset(host); return;
     case 'permission': showPermissionPicker(host); return;
     case 'providers-api': showProvidersApiSettings(host); return;
     case 'security': showSecuritySettings(host); return;

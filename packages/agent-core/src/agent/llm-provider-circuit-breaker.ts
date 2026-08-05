@@ -46,7 +46,7 @@ export function formatLlmTurnFailureReason(error: LioraErrorPayload): string {
 export function resolveAgentLlmProviderId(agent: Agent): string | undefined {
   const alias = agent.config.modelAlias;
   if (alias === undefined) return undefined;
-  return agent.kimiConfig?.models?.[alias]?.provider;
+  return (agent.runtimeConfig ?? agent.kimiConfig)?.models?.[alias]?.provider;
 }
 
 export type LlmProviderCircuitObserver = {

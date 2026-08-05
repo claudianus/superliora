@@ -208,10 +208,20 @@ export class SessionSubagentHost {
     child.swarmFileLease = { ownerId: agentId, runId: options.parentToolCallId };
     subagentCompletionFlow.prepareResumeCheckpoint(agentId, child);
     const completion = this.runWithActiveChild(agentId, options, async (runOptions) => {
-      const modelAlias = subagentCompletionFlow.resolveResumeModelAlias(profileName, parent);
-      emitSubagentSpawned(parent, this.ownerAgentId, agentId, profileName, runOptions, modelAlias);
+      const modelSelection = subagentCompletionFlow.resolveResumeModelSelection(profileName, parent);
+      emitSubagentSpawned(
+        parent,
+        this.ownerAgentId,
+        agentId,
+        profileName,
+        runOptions,
+        modelSelection.alias,
+      );
       try {
-        child.config.update({ modelAlias });
+        child.config.update({
+          modelAlias: modelSelection.alias,
+          thinkingLevel: modelSelection.thinkingLevel,
+        });
         return await subagentCompletionFlow.runPromptTurn(
           parent,
           agentId,

@@ -92,7 +92,6 @@ export interface TUIState {
   sessionsScope: 'cwd' | 'all';
   activeDialog:
     | 'session-picker'
-    | 'agent-dashboard'
     | 'session-loading'
     | 'extensions'
     | 'help'
