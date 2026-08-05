@@ -1,10 +1,12 @@
 import type {
-  MemoryConsolidateResult,
   MemoryCreateInput,
   MemoryExportResult,
   MemoryImportResult,
   MemoryListRequest,
+  MemoryInspectResult,
   MemoryRecord,
+  MemoryReflectInput,
+  MemoryReflectResult,
   MemorySearchRequest,
   MemorySearchResult,
   MemoryStats,
@@ -12,21 +14,24 @@ import type {
 } from '#/memory';
 
 export type {
-  MemoryConsolidateResult,
   MemoryCreateInput,
   MemoryExportResult,
   MemoryImportResult,
   MemoryListRequest,
+  MemoryInspectResult,
   MemoryRecord,
+  MemoryReflectInput,
+  MemoryReflectResult,
   MemorySearchRequest,
   MemorySearchResult,
   MemoryStats,
   MemoryUpdateInput,
 };
 
-export type MemorySearchPayload = MemorySearchRequest;
+export type MemoryRecallPayload = MemorySearchRequest;
 export type MemoryListPayload = MemoryListRequest;
-export type MemoryCreatePayload = MemoryCreateInput;
+export type MemoryRememberPayload = MemoryCreateInput;
+export type MemoryReflectPayload = MemoryReflectInput;
 
 export interface MemoryGetPayload {
   readonly id: string;

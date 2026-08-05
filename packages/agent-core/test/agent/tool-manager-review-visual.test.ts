@@ -116,36 +116,14 @@ describe('ToolManager LioraReview + Review + VisualDiff registration', () => {
   });
 });
 
-describe('ToolManager LioraExpand + Expand registration', () => {
-  const showLegacyEnvKey = 'SUPERLIORA_SHOW_LEGACY_TOOL_NAMES';
-
-  afterEach(() => {
-    delete process.env[showLegacyEnvKey];
-  });
-
-  it('creates Expand but omits LioraExpand on bootstrap by default', () => {
+describe('ToolManager Expand registration', () => {
+  it('creates the single Expand tool on bootstrap', () => {
     const agent = makeAgent();
     const infos = [...agent.tools.toolInfos()];
     const names = infos.map((info) => info.name);
     expect(names).toContain('Expand');
-    expect(names).not.toContain('LioraExpand');
 
     const sovereign = infos.find((info) => info.name === 'Expand');
-    expect(sovereign?.helpVisibility).toBe('primary');
-  });
-
-  it('creates LioraExpand and Expand builtins when SHOW_LEGACY opt-out is set', () => {
-    process.env[showLegacyEnvKey] = '1';
-    const agent = makeAgent();
-    agent.tools.initializeBuiltinTools();
-    const infos = [...agent.tools.toolInfos()];
-    const names = infos.map((info) => info.name);
-    expect(names).toContain('LioraExpand');
-    expect(names).toContain('Expand');
-
-    const legacy = infos.find((info) => info.name === 'LioraExpand');
-    const sovereign = infos.find((info) => info.name === 'Expand');
-    expect(legacy?.helpVisibility).toBe('advanced');
     expect(sovereign?.helpVisibility).toBe('primary');
   });
 

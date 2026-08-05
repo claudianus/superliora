@@ -7,7 +7,7 @@ import {
   autopilotRunSchema,
 } from '../autopilot';
 import {
-  memoryKindSchema,
+  memoryTypeSchema,
   memoryRecordSchema,
   memoryScopeSchema,
   memorySearchResultSchema,
@@ -85,17 +85,17 @@ describe('protocol/autopilot — zod schemas', () => {
 });
 
 describe('protocol/memory — zod schemas', () => {
-  it('memoryKindSchema accepts the canonical kinds', () => {
+  it('memoryTypeSchema accepts the canonical types', () => {
     for (const v of [
-      'semantic',
-      'episodic',
-      'procedural',
-      'prospective',
-      'governance',
+      'fact',
+      'event',
+      'procedure',
+      'task',
+      'rule',
     ]) {
-      expect(memoryKindSchema.parse(v)).toBe(v);
+      expect(memoryTypeSchema.parse(v)).toBe(v);
     }
-    expect(() => memoryKindSchema.parse('weird')).toThrow();
+    expect(() => memoryTypeSchema.parse('weird')).toThrow();
   });
 
   it('memoryScopeSchema accepts the canonical scopes', () => {
@@ -105,7 +105,7 @@ describe('protocol/memory — zod schemas', () => {
   });
 
   it('memoryStatusSchema accepts the canonical statuses', () => {
-    for (const v of ['active', 'archived', 'superseded', 'deleted']) {
+    for (const v of ['candidate', 'active', 'archived', 'superseded', 'deleted']) {
       expect(memoryStatusSchema.parse(v)).toBe(v);
     }
   });
@@ -113,7 +113,8 @@ describe('protocol/memory — zod schemas', () => {
   it('memoryRecordSchema accepts a minimal record', () => {
     const rec = memoryRecordSchema.parse({
       id: 'm-1',
-      kind: 'semantic',
+      type: 'fact',
+      epistemic: 'direct',
       scope: 'user',
       subject: 's',
       content: 'c',
@@ -124,8 +125,11 @@ describe('protocol/memory — zod schemas', () => {
       source: { kind: 'user' },
       created_at: 1,
       updated_at: 1,
+      recorded_at: 1,
       access_count: 0,
       supersedes: [],
+      evidence_refs: [],
+      links: [],
       metadata: {},
     });
     expect(rec.id).toBe('m-1');
@@ -134,7 +138,8 @@ describe('protocol/memory — zod schemas', () => {
   it('memorySearchResultSchema wraps a record with score and reasons', () => {
     const rec = memoryRecordSchema.parse({
       id: 'm-1',
-      kind: 'semantic',
+      type: 'fact',
+      epistemic: 'direct',
       scope: 'user',
       subject: 's',
       content: 'c',
@@ -145,8 +150,11 @@ describe('protocol/memory — zod schemas', () => {
       source: { kind: 'user' },
       created_at: 1,
       updated_at: 1,
+      recorded_at: 1,
       access_count: 0,
       supersedes: [],
+      evidence_refs: [],
+      links: [],
       metadata: {},
     });
     const result = memorySearchResultSchema.parse({

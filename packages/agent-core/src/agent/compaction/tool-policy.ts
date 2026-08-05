@@ -32,15 +32,12 @@ const KNOWN_MUTATING_TOOLS = new Set([
   'Write',
 ]);
 
-export const ARCHIVE_RECOVER_LEGACY_TOOL = 'LioraExpand';
-export const ARCHIVE_RECOVER_PREFERRED_TOOL = 'Expand';
+export const ARCHIVE_RECOVER_TOOL = 'Expand';
 
-/** Prefer sovereign Expand when registered; fall back to legacy LioraExpand. */
+/** Archive recovery has one public tool name. */
 export function resolveArchiveRecoverToolName(availableTools: Iterable<string>): string {
-  const names = new Set(availableTools);
-  if (names.has(ARCHIVE_RECOVER_PREFERRED_TOOL)) return ARCHIVE_RECOVER_PREFERRED_TOOL;
-  if (names.has(ARCHIVE_RECOVER_LEGACY_TOOL)) return ARCHIVE_RECOVER_LEGACY_TOOL;
-  return ARCHIVE_RECOVER_LEGACY_TOOL;
+  void availableTools;
+  return ARCHIVE_RECOVER_TOOL;
 }
 
 export function isStatefulOrMutatingTool(toolName: string): boolean {

@@ -22,7 +22,7 @@ function tool(name: string, active = true): ToolInfo {
 const PRIMARY_SOVEREIGN_TOOLS = ['Review', 'Expand', 'CreateGoal', 'RepoQuery', 'TaskGraph'] as const;
 const PRIMARY_CORE_FILE_TOOLS = ['ApplyPatch'] as const;
 const PRIMARY_SEARCH_TOOLS = ['WebSearch', 'DeepResearch'] as const;
-const LIORA_COMPAT_TOOLS = ['LioraExpand', 'LioraReview'] as const;
+const LIORA_COMPAT_TOOLS = ['LioraReview'] as const;
 
 describe('tool help visibility', () => {
   it('marks sovereign public tools as primary', () => {
@@ -63,7 +63,6 @@ describe('tool help visibility', () => {
   it('marks the five branding-debt compat tools as advanced', () => {
     expect(Object.keys(COMPAT_BRANDING_TOOL_HELP).toSorted()).toEqual([
       'CreateUltraGoal',
-      'LioraExpand',
       'LioraReview',
       'UltraSwarm',
       'UltraworkGraph',
@@ -76,7 +75,6 @@ describe('tool help visibility', () => {
   it('hides compat aliases from primary help when preferred tools exist', () => {
     const catalog = [
       tool('Expand'),
-      tool('LioraExpand'),
       tool('Review'),
       tool('LioraReview'),
       tool('CreateGoal'),
@@ -107,7 +105,6 @@ describe('tool help visibility', () => {
     for (const name of LIORA_COMPAT_TOOLS) {
       expect(publicNames).not.toContain(name);
     }
-    expect(publicNames).not.toContain('LioraExpand');
     expect(publicNames).not.toContain('LioraReview');
     expect(publicNames).not.toContain('CreateUltraGoal');
     expect(publicNames).not.toContain('UltraworkGraph');
@@ -121,7 +118,6 @@ describe('tool help visibility', () => {
   });
 
   it('surfaces compat hint for SearchTools hits', () => {
-    expect(formatCompatToolHelpHint('LioraExpand')).toBe('compat alias — prefer Expand');
     expect(formatCompatToolHelpHint('LioraReview')).toBe('compat alias — prefer Review');
     expect(formatCompatToolHelpHint('UltraworkGraph')).toBe('compat alias — prefer TaskGraph');
     expect(formatCompatToolHelpHint('UltraSwarm')).toBe('compat alias — prefer Fleet');

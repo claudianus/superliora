@@ -42,6 +42,10 @@ $SUPERLIORA_HOME  （默认 ~/.superliora）
 │       └── <key>-<suffix>.json
 ├── sessions/               # 会话数据（详见下文）
 │   └── <workDirKey>/<sessionId>/
+├── memory/
+│   ├── liora-memory.sqlite # Liora Memory 唯一权威的长期存储
+│   ├── records/             # 供人工查看和恢复的 Markdown 镜像
+│   └── episodes/            # 存在时只读一次的旧 JSON 输入
 ├── bin/
 │   ├── rg                  # Grep 使用的托管 ripgrep 二进制（Windows 为 rg.exe）
 │   └── fd                  # 文件引用使用的托管 fd 二进制（Windows 为 fd.exe）
@@ -67,6 +71,9 @@ $SUPERLIORA_HOME  （默认 ~/.superliora）
 - **`skills/`**：Kimi 专属用户级 Skills。该目录会随 `SUPERLIORA_HOME` 移动；跨工具通用 Skills 仍可放在 `~/.agents/skills/`。详见 [Agent Skills](../customization/skills.md)。
 - **`plugins/installed.json`**：记录已安装的 plugin、每个 plugin 的启用状态，以及通过 `/plugins` 或 `/plugins mcp disable|enable` 修改的 MCP server 能力状态。本地路径和 zip URL 安装的文件会复制到 `plugins/managed/<id>/`。详见 [Plugins](../customization/plugins.md)。
 - **`credentials/`**：OAuth 凭据目录，权限 `0o700`（目录）/ `0o600`（文件），仅当前用户可读写。托管供应商凭据存为 `credentials/<name>.json`，MCP server 凭据存在 `credentials/mcp/` 子目录下。凭据写入使用原子流程（tmp → fsync → rename）防止写损。
+- **`memory/liora-memory.sqlite`**：唯一权威的长期记忆存储，保存 fact、event、procedure、task、rule 记录及其 provenance、时间字段、links 和审计事件。
+- **`memory/records/`**：供人工检查和故障恢复使用的 Markdown 投影。SQLite 仍是权威来源；不支持直接编辑镜像文件来写入记忆。
+- **`memory/episodes/`**：旧 JSON episode 的一次性迁移输入。打开新存储时会迁移现有的 `kimi-recall.sqlite` / `liora-recall.sqlite` 文件和旧 record marker；v2 API 不再使用它们。
 
 ## 会话数据
 
@@ -109,6 +116,7 @@ $SUPERLIORA_HOME  （默认 ~/.superliora）
 | 重置配置 | 删除 `~/.superliora/config.toml` |
 | 重置终端界面偏好 | 删除 `~/.superliora/tui.toml` |
 | 清理所有会话 | 删除 `~/.superliora/sessions/` 和 `session_index.jsonl` |
+| 重置 Liora Memory 长期记忆 | 删除 `~/.superliora/memory/` |
 | 清理诊断日志 | 删除 `~/.superliora/logs/` |
 | 清理输入历史 | 删除 `~/.superliora/user-history/` |
 | 重置更新状态 | 删除 `~/.superliora/updates/latest.json` |

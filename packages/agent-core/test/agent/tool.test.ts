@@ -98,7 +98,7 @@ describe('Agent tools', () => {
     ).toEqual(['Grep', 'Read', 'TodoList']);
   });
 
-  it('exposes Memory when Liora Recall is enabled', () => {
+  it('exposes Memory when Liora Memory is enabled', () => {
     const ctx = testAgent();
     ctx.configure();
     installMemory(ctx.agent, true);
@@ -107,7 +107,7 @@ describe('Agent tools', () => {
     expect(ctx.agent.tools.loopTools.map((tool) => tool.name)).toContain('Memory');
   });
 
-  it('hides Memory when Liora Recall is disabled', () => {
+  it('hides Memory when Liora Memory is disabled', () => {
     const ctx = testAgent();
     ctx.configure();
     installMemory(ctx.agent, false);

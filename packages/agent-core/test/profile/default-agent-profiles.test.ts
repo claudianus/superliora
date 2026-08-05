@@ -23,7 +23,6 @@ const LEGACY_LIORA_TOOLS = [
   'LioraTree',
   'LioraSymbol',
   'LioraCallgraph',
-  'LioraExpand',
   'LioraReview',
 ] as const;
 
@@ -33,7 +32,6 @@ const LEGACY_LEAN_LIORA_TOOLS = [...LEGACY_LIORA_TOOLS] as const;
 /** Compat aliases dropped from superliora-full when the preferred tool is already listed. */
 const FULL_PROFILE_COMPAT_ALIASES = [
   'LioraReview',
-  'LioraExpand',
   'CreateUltraGoal',
   'UltraworkGraph',
 ] as const;
@@ -284,10 +282,8 @@ describe('default agent profiles', () => {
         'DeepResearch',
       ]),
     );
-    expect(fullTools).not.toContain('LioraExpand');
     const coderTools = DEFAULT_AGENT_PROFILES['coder']?.tools ?? [];
     expect(coderTools).toContain('Expand');
-    expect(coderTools).not.toContain('LioraExpand');
     for (const legacy of LEGACY_LEAN_LIORA_TOOLS) {
       expect(fullTools).not.toContain(legacy);
     }
@@ -337,7 +333,7 @@ describe('default agent profiles', () => {
     expect(exploreTools).not.toContain('VisualDiff');
   });
 
-  it('exposes Liora Recall only to writable coding profiles', () => {
+  it('exposes Liora Memory only to writable coding profiles', () => {
     expect(DEFAULT_AGENT_PROFILES['coder']?.tools).toContain('Memory');
     expect(DEFAULT_AGENT_PROFILES['superliora-full']?.tools).toContain('Memory');
     expect(DEFAULT_AGENT_PROFILES['explore']?.tools).not.toContain('Memory');

@@ -5,7 +5,6 @@ import type { ChatProvider, Message } from '@superliora/kosong';
 import { archiveContent } from '../../../tools/builtin/context/context-archive';
 import {
   countStructuredMemoryItems,
-  createCompactionRecallMemories,
   evaluateContinuity,
   extractFileHints,
   inferMemoryTiers,
@@ -208,44 +207,9 @@ function buildContextOS(
   };
 }
 
-export async function persistCompactionRecall(
-  ctx: CompactionPipelineContext,
-  result: CompletedCompactionResult,
-): Promise<number> {
-  const memory = ctx.agent.memory;
-  if (memory === undefined || !memory.isEnabled()) return 0;
-  const inputs = createCompactionRecallMemories(result);
-  if (inputs.length === 0) return 0;
-
-  let saved = 0;
-  for (const input of inputs) {
-    try {
-      await memory.remember(input);
-      saved += 1;
-    } catch (error) {
-      ctx.agent.log.warn('liora recall compaction memory save failed', error);
-      ctx.agent.telemetry.track('liora_recall_compaction_memory_save_failed', {
-        memory_kind: input.kind,
-        memory_scope: input.scope,
-        subject: input.subject,
-      });
-    }
-  }
-  if (saved > 0) {
-    ctx.agent.telemetry.track('liora_recall_compaction_memory_saved', {
-      saved_count: saved,
-      requested_count: inputs.length,
-      recall_eval_score: result.contextPack.contextOS.qualitySignals?.recallEvalScore,
-      evidence_id_recall_score: result.contextPack.contextOS.qualitySignals?.evidenceIdRecallScore,
-      critical_fact_count: result.contextPack.contextOS.qualitySignals?.criticalFactCount,
-    });
-  }
-  return saved;
-}
-
 /**
  * Archive compacted tool-exchange groups so the model can recover their
- * original content via `liora-expand` after compaction. Returns rawRefs with
+ * original content via `Expand` after compaction. Returns rawRefs with
  * the resolved archive ids plus a short guidance section for the summary.
  *
  * Only tool_exchange groups are archived: they carry the command/output

@@ -10,8 +10,7 @@ import { isSwarmToolResult, maskStaleSwarmToolResult } from './boundary-compacti
 import { MICRO_TOOL_RESULT_FAMILY_KEEP } from './micro-constants';
 
 export {
-  ARCHIVE_RECOVER_LEGACY_TOOL,
-  ARCHIVE_RECOVER_PREFERRED_TOOL,
+  ARCHIVE_RECOVER_TOOL,
   isKnownMutatingTool,
   isStatefulOrMutatingTool,
   resolveArchiveRecoverToolName,

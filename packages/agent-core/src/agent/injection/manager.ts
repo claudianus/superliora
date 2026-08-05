@@ -67,11 +67,6 @@ export { capBatchParts as __testing__capBatchParts };
 
 export class InjectionManager {
   private readonly injectors: DynamicInjector[];
-  /** Injectors whose getInjection() depends on the trailing context shape.
-   * These run AFTER the main batch append so they observe the batch message
-   * in the history (mirroring the old sequential behaviour where earlier
-   * injectors' messages were already visible to later ones). */
-  private readonly contextDependentInjectors: DynamicInjector[];
   // Goal context is injected at continuation boundaries (turn start, each
   // continuation, after compaction) via `injectGoal()`, NOT in the per-step
   // `inject()` loop. Boundary-cadence append-only injection keeps one fresh copy
@@ -90,8 +85,6 @@ export class InjectionManager {
       new PremiumQualityInjector(agent),
       new PermissionModeInjector(agent),
       new ResponseLanguageInjector(agent),
-    ];
-    this.contextDependentInjectors = [
       new ContextOSInjector(agent),
     ];
     this.goalInjector = agent.type === 'main' ? new GoalInjector(agent) : null;
@@ -120,11 +113,6 @@ export class InjectionManager {
       for (const injector of contributors) {
         injector.markBatchInjected(index);
       }
-    }
-    // Context-dependent injectors run after the batch so they observe the
-    // batch message in the trailing history (preserves their guard semantics).
-    for (const injector of this.contextDependentInjectors) {
-      await injector.inject();
     }
   }
 
@@ -170,9 +158,8 @@ export class InjectionManager {
 
   /** Per-step injectors plus the boundary goal injector, for lifecycle events. */
   private lifecycleInjectors(): DynamicInjector[] {
-    const all = [...this.contextDependentInjectors, ...this.injectors];
     const goalInjector = this.activeGoalInjector();
-    return goalInjector === null ? all : [goalInjector, ...all];
+    return goalInjector === null ? this.injectors : [goalInjector, ...this.injectors];
   }
 
   private activeGoalInjector(): GoalInjector | null {

@@ -146,7 +146,7 @@ export const translations: Record<Lang, Translation> = {
     meta: {
       title: 'SuperLiora — Blood Moon 터미널 AI 코딩 하네스',
       description:
-        'SuperLiora는 Blood Moon(#E63946) 브랜드의 터미널 AI 코딩 하네스입니다. Mission으로 조사·계획·목표·Fleet·검증·학습을 한 흐름에 묶고, Liora Recall·LLM Wiki·브라우저/컴퓨터 사용까지 같은 조종석에서 다룹니다.',
+        'SuperLiora는 Blood Moon(#E63946) 브랜드의 터미널 AI 코딩 하네스입니다. Mission으로 조사·계획·목표·Fleet·검증·학습을 한 흐름에 묶고, Liora Memory·LLM Wiki·브라우저/컴퓨터 사용까지 같은 조종석에서 다룹니다.',
       ogLocale: 'ko_KR',
     },
     skip: '본문으로 이동',
@@ -181,8 +181,8 @@ export const translations: Record<Lang, Translation> = {
           body: 'ENGAGE/DEFER gate 뒤에서 최대 128명의 specialist를 운용합니다.',
         },
         {
-          title: 'Liora Recall',
-          body: 'semantic·episodic·procedural·prospective 기억을 세션 밖으로 남깁니다.',
+          title: 'Liora Memory',
+          body: 'fact·event·procedure·task·rule 기억을 세션 밖으로 남깁니다.',
         },
         {
           title: 'Browser + Desktop',
@@ -209,7 +209,7 @@ export const translations: Record<Lang, Translation> = {
         },
         {
           title: 'Knowledge carry-over',
-          body: '검증된 결정을 LLM Wiki와 Recall에 남겨 다음 세션이 같은 출발점에서 시작합니다.',
+          body: '검증된 결정을 LLM Wiki와 Liora Memory에 남겨 다음 세션이 같은 출발점에서 시작합니다.',
         },
       ],
     },
@@ -242,7 +242,7 @@ export const translations: Record<Lang, Translation> = {
         'Plan interview로 요구·제약·비목표·위험을 true/false 기준까지 좁힙니다.',
         'Goal이 목표, 예산, acceptance criteria를 고정합니다.',
         'Fleet은 ENGAGE/DEFER를 먼저 기록한 뒤 specialist를 붙입니다.',
-        'Learn 단계에서 프로젝트 로컬 LLM Wiki와 필요한 Recall 항목을 갱신합니다.',
+        'Learn 단계에서 프로젝트 로컬 LLM Wiki와 필요한 Liora Memory 기록을 갱신합니다.',
       ],
       steps: [
         { num: '01', title: 'Research', body: 'API, 릴리스 노트, 코드 사실을 먼저 확인합니다.' },
@@ -250,7 +250,7 @@ export const translations: Record<Lang, Translation> = {
         { num: '03', title: 'Goal', body: 'Goal로 완료 기준과 예산을 잠급니다.' },
         { num: '04', title: 'Fleet', body: 'ENGAGE/DEFER 뒤 전문 에이전트를 배치합니다.' },
         { num: '05', title: 'Verify', body: '테스트, 런타임, 레드팀으로 닫습니다.' },
-        { num: '06', title: 'Learn', body: 'Wiki·Recall에 검증된 지식만 남깁니다.' },
+        { num: '06', title: 'Learn', body: 'Wiki·Liora Memory에 검증된 지식만 남깁니다.' },
       ],
     },
     harness: {
@@ -270,15 +270,15 @@ export const translations: Record<Lang, Translation> = {
     memory: {
       kicker: 'Memory stack',
       title: '세션이 끝나도 맥락이 남습니다',
-      body: 'Context OS가 긴 대화를 압축·복구하고, Liora Recall이 장기 기억을 관리하며, LLM Wiki가 프로젝트 로컬 검토 문서를 만듭니다. 코드와 테스트가 최종 기준입니다.',
+      body: 'Context OS가 긴 대화를 압축·복구하고, Liora Memory가 장기 기억을 관리하며, LLM Wiki가 프로젝트 로컬 검토 문서를 만듭니다. 코드와 테스트가 최종 기준입니다.',
       cards: [
         {
           title: 'Context OS',
           body: 'structured working memory, repair, bounded rehydration으로 긴 세션 연속성을 유지합니다.',
         },
         {
-          title: 'Liora Recall',
-          body: 'semantic · episodic · procedural · prospective 기억을 검색 가능하게 보관합니다.',
+          title: 'Liora Memory',
+          body: 'fact · event · procedure · task · rule 기억을 검색 가능하게 보관합니다.',
         },
         {
           title: 'LLM Wiki',
@@ -344,9 +344,9 @@ export const translations: Record<Lang, Translation> = {
           body: 'compaction, working memory, continuity repair, rehydration.',
         },
         {
-          title: 'Liora Recall',
+          title: 'Liora Memory',
           tag: 'memory',
-          body: 'semantic · episodic · procedural · prospective 장기 기억.',
+          body: 'fact · event · procedure · task · rule 장기 기억.',
         },
         {
           title: 'Browser-use',
@@ -421,7 +421,7 @@ export const translations: Record<Lang, Translation> = {
     meta: {
       title: 'SuperLiora — Blood Moon terminal AI coding harness',
       description:
-        'SuperLiora is a Blood Moon (#E63946) terminal AI coding harness. Mission binds research, planning, goals, fleet execution, verification, and learning — with Liora Recall, LLM Wiki, browser-use, and computer-use in one cockpit.',
+        'SuperLiora is a Blood Moon (#E63946) terminal AI coding harness. Mission binds research, planning, goals, fleet execution, verification, and learning — with Liora Memory, LLM Wiki, browser-use, and computer-use in one cockpit.',
       ogLocale: 'en_US',
     },
     skip: 'Skip to main content',
@@ -456,8 +456,8 @@ export const translations: Record<Lang, Translation> = {
           body: 'Run up to 128 specialists behind an ENGAGE/DEFER gate.',
         },
         {
-          title: 'Liora Recall',
-          body: 'Keep semantic, episodic, procedural, and prospective memory durable.',
+          title: 'Liora Memory',
+          body: 'Keep fact, event, procedure, task, and rule memory durable.',
         },
         {
           title: 'Browser + Desktop',
@@ -484,7 +484,7 @@ export const translations: Record<Lang, Translation> = {
         },
         {
           title: 'Knowledge carry-over',
-          body: 'Leave verified decisions in LLM Wiki and Recall so the next session starts warm.',
+          body: 'Leave verified decisions in LLM Wiki and Liora Memory so the next session starts warm.',
         },
       ],
     },
@@ -517,7 +517,7 @@ export const translations: Record<Lang, Translation> = {
         'Plan interview narrows requirements, constraints, non-goals, and risks to true/false criteria.',
         'Goal locks objectives, budgets, and acceptance criteria.',
         'Fleet records ENGAGE/DEFER first, then attaches specialists.',
-        'Learn updates the project-local LLM Wiki and only the Recall facts that deserve durability.',
+        'Learn updates the project-local LLM Wiki and only the Liora Memory records that deserve durability.',
       ],
       steps: [
         { num: '01', title: 'Research', body: 'Ground in APIs, release notes, and code facts.' },
@@ -525,7 +525,7 @@ export const translations: Record<Lang, Translation> = {
         { num: '03', title: 'Goal', body: 'Lock completion criteria and budget with Goal.' },
         { num: '04', title: 'Fleet', body: 'Place specialists after ENGAGE/DEFER.' },
         { num: '05', title: 'Verify', body: 'Close with tests, runtime, and red-team checks.' },
-        { num: '06', title: 'Learn', body: 'Write only verified knowledge into Wiki/Recall.' },
+        { num: '06', title: 'Learn', body: 'Write only verified knowledge into Wiki/Liora Memory.' },
       ],
     },
     harness: {
@@ -545,15 +545,15 @@ export const translations: Record<Lang, Translation> = {
     memory: {
       kicker: 'Memory stack',
       title: 'Context that survives the session boundary',
-      body: 'Context OS compresses and repairs long chats, Liora Recall stores durable memory, and LLM Wiki leaves project-local review docs. Code and tests remain the final source of truth.',
+      body: 'Context OS compresses and repairs long chats, Liora Memory stores durable memory, and LLM Wiki leaves project-local review docs. Code and tests remain the final source of truth.',
       cards: [
         {
           title: 'Context OS',
           body: 'Structured working memory, repair, and bounded rehydration for long-session continuity.',
         },
         {
-          title: 'Liora Recall',
-          body: 'Searchable semantic, episodic, procedural, and prospective memory.',
+          title: 'Liora Memory',
+          body: 'Searchable fact, event, procedure, task, and rule memory.',
         },
         {
           title: 'LLM Wiki',
@@ -619,9 +619,9 @@ export const translations: Record<Lang, Translation> = {
           body: 'Compaction, working memory, continuity repair, rehydration.',
         },
         {
-          title: 'Liora Recall',
+          title: 'Liora Memory',
           tag: 'memory',
-          body: 'Semantic, episodic, procedural, and prospective durable memory.',
+          body: 'Fact, event, procedure, task, and rule durable memory.',
         },
         {
           title: 'Browser-use',

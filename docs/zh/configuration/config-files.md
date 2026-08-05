@@ -167,6 +167,29 @@ max_context_size = 1047576
 | `compaction_model` | `string` | — | 用于压缩摘要的模型别名；设为在 `[models]` 中注册的更便宜或更快的模型可降低压缩成本，不设则使用主对话模型 |
 | `completion_model` | `string` | — | 用于提示词智能（行内自动补全和下一步任务推荐）的模型别名；设为在 `[models]` 中注册的更快或更便宜的模型以获得低延迟预测，不设则使用主对话模型 |
 
+## `memory`
+
+`[memory]` 控制 Liora Memory 的长期存储。长期记录统一保存在一个 SQLite 数据库中；Context OS 和压缩仍属于临时工作上下文。自动生成的 candidate 不会进入 recall，直到 `/memory reflect` 将其提升。
+
+| 字段 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `enabled` | `boolean` | `true` | 启用 Memory 工具和长期 recall |
+| `store_path` | `string` | `$SUPERLIORA_HOME/memory/liora-memory.sqlite` | 覆盖 canonical SQLite 路径 |
+| `max_retrieved` | `integer` | — | 自动注入时选择的最大记录数（0–20） |
+| `min_injection_score` | `number` | `0.35` | 自动注入的最低查询匹配分数（0–1） |
+| `capture_mode` | `string` | `explicit` | `off` 禁用捕获；`explicit` 只保存显式 remember；`candidate` 还会捕获符合条件的轮次候选 |
+| `reflect_enabled` | `boolean` | `true` | 是否允许自动 reflect candidate 记录 |
+| `retention_days` | `integer` | — | reflect 时将超过该天数的 active 记录归档 |
+
+示例：
+
+```toml
+[memory]
+capture_mode = "candidate"
+min_injection_score = 0.4
+retention_days = 180
+```
+
 ## `background`
 
 `background` 控制后台任务（通过 `Bash` 工具或 `Agent` 工具的 `run_in_background=true` 参数启动）的并发数。

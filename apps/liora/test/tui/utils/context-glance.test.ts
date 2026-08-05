@@ -41,12 +41,13 @@ describe('context glance', () => {
         active: 3,
         archived: 1,
         deleted: 0,
-        byKind: { semantic: 2, episodic: 1, procedural: 1, prospective: 0, governance: 0 },
+        byType: { fact: 2, event: 1, procedure: 1, task: 0, rule: 0 },
         byScope: { user: 2, workspace: 2, session: 0 },
+        candidates: 0,
       },
     });
     expect(line).toContain('3 active / 4 total');
-    expect(line).toContain('semantic 2');
+    expect(line).toContain('fact 2');
   });
 
   it('buildContextSettingsLines includes live section', () => {
@@ -60,8 +61,9 @@ describe('context glance', () => {
           active: 1,
           archived: 0,
           deleted: 0,
-          byKind: { semantic: 1, episodic: 0, procedural: 0, prospective: 0, governance: 0 },
+          byType: { fact: 1, event: 0, procedure: 0, task: 0, rule: 0 },
           byScope: { user: 1, workspace: 0, session: 0 },
+          candidates: 0,
         },
       },
     });

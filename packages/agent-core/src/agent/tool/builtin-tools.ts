@@ -160,8 +160,6 @@ function createFileAndContextTools(
     shouldCreateBuiltin(host, 'LioraTree') && new b.LioraTreeTool(kaos, workspace),
     shouldCreateBuiltin(host, 'LioraSymbol') && new b.LioraSymbolTool(kaos, workspace),
     shouldCreateBuiltin(host, 'LioraCallgraph') && new b.LioraCallgraphTool(kaos, workspace),
-    shouldRegisterLegacyCompat(host, 'LioraExpand', 'Expand') &&
-      b.createLioraExpandTool(host.toolStore),
     shouldCreateBuiltin(host, 'Expand') && b.createExpandTool(host.toolStore),
     shouldCreateBuiltin(host, 'Bash') &&
       new b.BashTool(kaos, cwd, background, {

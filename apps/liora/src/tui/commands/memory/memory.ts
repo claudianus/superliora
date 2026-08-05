@@ -29,18 +29,14 @@ export { loadMemoryReadinessEvidence, formatEvidenceSignal } from './evidence-re
 
 export async function handleMemoryCommand(host: SlashCommandHost, rawArgs: string): Promise<void> {
   const args = rawArgs.trim();
-  const [command = 'stats', ...rest] = args.length === 0 ? ['stats'] : args.split(/\s+/u);
+  const [command = 'inspect', ...rest] = args.length === 0 ? ['inspect'] : args.split(/\s+/u);
   const tail = rest.join(' ').trim();
   switch (command.toLowerCase()) {
-    case 'stats':
-      await showMemoryStats(host);
+    case 'inspect':
+      await inspectMemory(host, tail);
       return;
-    case 'list':
-      await listMemories(host, tail);
-      return;
-    case 'search':
     case 'recall':
-      await searchMemories(host, tail);
+      await recallMemories(host, tail);
       return;
     case 'readiness':
     case 'health':
@@ -54,44 +50,41 @@ export async function handleMemoryCommand(host: SlashCommandHost, rawArgs: strin
       verifyProjectEvidence(host);
       return;
     case 'remember':
-    case 'write':
       await rememberMemory(host, tail);
       return;
     case 'forget':
-    case 'delete':
       await forgetMemory(host, tail);
       return;
-    case 'consolidate':
-      await consolidateMemories(host);
+    case 'reflect':
+      await reflectMemories(host);
       return;
     default:
-      host.showError('Usage: /memory [stats|list|search|wiki|verify|readiness|health|remember|forget|consolidate]');
+      host.showError('Usage: /memory [remember|recall|reflect|forget|inspect]');
   }
 }
 
-async function showMemoryStats(host: SlashCommandHost): Promise<void> {
-  const stats = await host.harness.memory.stats();
+async function inspectMemory(host: SlashCommandHost, id: string): Promise<void> {
+  if (id.length > 0) {
+    const memory = await host.harness.memory.get(id);
+    host.showNotice('Liora Memory inspect', memory === undefined ? `No memory found: ${id}` : renderMemory(memory));
+    return;
+  }
+  const inspection = await host.harness.memory.inspect();
   host.showNotice(
-    'Liora Recall',
-    `active ${stats.active} / total ${stats.total}\nsemantic ${stats.byKind.semantic}, episodic ${stats.byKind.episodic}, procedural ${stats.byKind.procedural}, prospective ${stats.byKind.prospective}`,
+    'Liora Memory',
+    `path ${inspection.storePath}\nschema ${inspection.schemaVersion}\n${durableStatsLine(inspection.stats, undefined)}\nintegrity ${inspection.integrity.ok ? 'ok' : inspection.integrity.issues.join('; ')}`,
   );
 }
 
-async function listMemories(host: SlashCommandHost, args: string): Promise<void> {
-  const limit = parseLimit(args, 10);
-  const memories = await host.harness.memory.list({ limit });
-  host.showNotice('Liora Recall memories', renderMemories(memories));
-}
-
-async function searchMemories(host: SlashCommandHost, query: string): Promise<void> {
+async function recallMemories(host: SlashCommandHost, query: string): Promise<void> {
   if (query.length === 0) {
-    host.showError('Usage: /memory search <query>');
+    host.showError('Usage: /memory recall <query>');
     return;
   }
   const results = host.session === undefined
-    ? await host.harness.memory.search({ query, limit: 8 })
+    ? await host.harness.memory.recall({ query, limit: 8 })
     : await host.session.recall(query, { limit: 8 });
-  host.showNotice('Liora Recall search', renderSearchResults(results));
+  host.showNotice('Liora Memory recall', renderSearchResults(results));
 }
 
 async function showMemoryReadiness(host: SlashCommandHost, query: string): Promise<void> {
@@ -149,7 +142,7 @@ async function loadMemoryReadinessSearch(
   if (query.length === 0) return {};
   try {
     const results = host.session === undefined
-      ? await host.harness.memory.search({ query, limit: 3 })
+      ? await host.harness.memory.recall({ query, limit: 3 })
       : await host.session.recall(query, { limit: 3 });
     return { results };
   } catch (error) {
@@ -165,7 +158,7 @@ async function rememberMemory(host: SlashCommandHost, args: string): Promise<voi
   }
   const memory = host.session === undefined
     ? await host.harness.memory.remember({
-      kind: 'semantic',
+      type: 'fact',
       scope: 'user',
       subject: parsed.subject,
       content: parsed.content,
@@ -174,7 +167,7 @@ async function rememberMemory(host: SlashCommandHost, args: string): Promise<voi
       confidence: 0.95,
     })
     : await host.session.remember({
-      kind: 'semantic',
+      type: 'fact',
       scope: 'workspace',
       subject: parsed.subject,
       content: parsed.content,
@@ -182,7 +175,7 @@ async function rememberMemory(host: SlashCommandHost, args: string): Promise<voi
       importance: 0.8,
       confidence: 0.95,
     });
-  host.showStatus(`Liora Recall saved ${memory.id}`);
+  host.showStatus(`Liora Memory remembered ${memory.id}`);
 }
 
 async function forgetMemory(host: SlashCommandHost, id: string): Promise<void> {
@@ -191,19 +184,12 @@ async function forgetMemory(host: SlashCommandHost, id: string): Promise<void> {
     return;
   }
   const forgotten = await host.harness.memory.forget(id);
-  host.showStatus(forgotten ? `Liora Recall forgot ${id}` : `No Liora Recall memory found for ${id}`);
+  host.showStatus(forgotten ? `Liora Memory forgot ${id}` : `No Liora Memory found for ${id}`);
 }
 
-async function consolidateMemories(host: SlashCommandHost): Promise<void> {
-  const result = await host.harness.memory.consolidate();
-  host.showStatus(`Liora Recall consolidated ${result.merged}/${result.examined} duplicate memories`);
-}
-
-function parseLimit(args: string, fallback: number): number {
-  if (args.trim().length === 0) return fallback;
-  const parsed = Number(args.trim());
-  if (!Number.isInteger(parsed) || parsed <= 0) return fallback;
-  return Math.min(parsed, 50);
+async function reflectMemories(host: SlashCommandHost): Promise<void> {
+  const result = await host.harness.memory.reflect();
+  host.showStatus(`Liora Memory reflected ${result.promoted} candidates; merged ${result.merged}`);
 }
 
 function parseRememberArgs(args: string): { readonly subject: string; readonly content: string } | undefined {
@@ -218,24 +204,23 @@ function parseRememberArgs(args: string): { readonly subject: string; readonly c
 
 function renderSearchResults(results: readonly MemorySearchResult[]): string {
   if (results.length === 0) return 'No matching memories.';
-  return results
+  const recalled = results.filter((result) => result.abstained !== true);
+  if (recalled.length === 0) {
+    return `Liora Memory abstained: ${results[0]?.abstentionReason ?? 'no result met the recall boundary.'}`;
+  }
+  return recalled
     .map((result, index) => `${index + 1}. ${result.score.toFixed(2)} ${renderMemory(result.memory)}`)
     .join('\n\n');
 }
 
-function renderMemories(memories: readonly MemoryRecord[]): string {
-  if (memories.length === 0) return 'No memories stored yet.';
-  return memories.map((memory, index) => `${index + 1}. ${renderMemory(memory)}`).join('\n\n');
-}
-
 function renderMemory(memory: MemoryRecord): string {
   const tags = memory.tags.length === 0 ? '' : ` [${memory.tags.join(', ')}]`;
-  return `${memory.subject}${tags}\n${memory.id} ${memory.kind}/${memory.scope}\n${memory.content}`;
+  return `${memory.subject}${tags}\n${memory.id} ${memory.type}/${memory.scope}\n${memory.content}`;
 }
 
 export function buildMemoryReadinessLines(snapshot: MemoryReadinessSnapshot): string[] {
   const lines = [
-    'SuperLiora / Liora Recall readiness',
+    'SuperLiora / Liora Memory readiness',
     durableStatsLine(snapshot.stats, snapshot.statsError),
     memoryKindsLine(snapshot.stats),
     recallSearchLine(snapshot.query, snapshot.searchResults, snapshot.searchError),
@@ -268,7 +253,7 @@ function durableStatsLine(stats: MemoryStats | undefined, error: string | undefi
 
 function memoryKindsLine(stats: MemoryStats | undefined): string {
   if (stats === undefined) return 'Memory kinds  unavailable';
-  return `Memory kinds  semantic ${stats.byKind.semantic}, episodic ${stats.byKind.episodic}, procedural ${stats.byKind.procedural}, prospective ${stats.byKind.prospective}`;
+  return `Memory types  fact ${stats.byType.fact}, event ${stats.byType.event}, procedure ${stats.byType.procedure}, task ${stats.byType.task}, rule ${stats.byType.rule}`;
 }
 
 function recallSearchLine(
@@ -276,16 +261,16 @@ function recallSearchLine(
   results: readonly MemorySearchResult[] | undefined,
   error: string | undefined,
 ): string {
-  if (query.length === 0) return 'Recall search  skipped; pass a query to verify retrieval';
-  if (error !== undefined) return `Recall search  unavailable for "${query}": ${error}`;
-  if (results === undefined || results.length === 0) return `Recall search  0 matches for "${query}"`;
+  if (query.length === 0) return 'Memory recall  skipped; pass a query to verify retrieval';
+  if (error !== undefined) return `Memory recall  unavailable for "${query}": ${error}`;
+  if (results === undefined || results.length === 0) return `Memory recall  0 matches for "${query}"`;
   const top = results[0];
-  if (top === undefined) return `Recall search  0 matches for "${query}"`;
-  return `Recall search  ${results.length} matches for "${query}"; top ${top.score.toFixed(2)} ${top.memory.subject}`;
+  if (top === undefined) return `Memory recall  0 matches for "${query}"`;
+  return `Memory recall  ${results.length} matches for "${query}"; top ${top.score.toFixed(2)} ${top.memory.subject}`;
 }
 
 function nextMemoryReadinessAction(snapshot: MemoryReadinessSnapshot): string {
-  if (snapshot.stats === undefined) return 'Fix Liora Recall availability, then rerun /memory readiness.';
+  if (snapshot.stats === undefined) return 'Fix Liora Memory availability, then rerun /memory readiness.';
   if (snapshot.stats.total === 0) return 'Create a durable memory with /memory remember <subject> :: <content>.';
   if (snapshot.query.length === 0) return 'Run /memory readiness <query> to verify recall retrieval.';
   if (snapshot.searchError !== undefined) return 'Fix recall search, then rerun /memory readiness <query>.';

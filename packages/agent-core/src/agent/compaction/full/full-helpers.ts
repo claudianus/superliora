@@ -103,7 +103,6 @@ export type CompactionFinishedTelemetryInput = {
   readonly placeholderItemCount?: number;
   readonly tokensSavedRatio?: number;
   readonly failureSignature?: string;
-  readonly recallMemorySavedCount: number;
   readonly round: number;
   readonly thinkingLevel: string;
   readonly usage: TokenUsage | null;
@@ -142,7 +141,6 @@ function baseCompactionFinishedProperties(
     placeholder_item_count: input.placeholderItemCount,
     tokens_saved_ratio: input.tokensSavedRatio,
     failure_signature: input.failureSignature,
-    recall_memory_saved_count: input.recallMemorySavedCount,
     round: input.round,
     thinking_level: input.thinkingLevel,
     ...usageTelemetryProperties(input.usage),

@@ -141,7 +141,6 @@ export function buildCompactionSettingsLines(input: {
     'Micro-compaction archives long tool/swarm bodies as [liora-archived id=…].',
     'Cleared markers carry archiveId=<12-hex> + recover=<tool> for the id path.',
     'Recover full body: Expand(id=<archiveId>) — session context-archive store.',
-    'Legacy alias: LioraExpand when Expand is off the active tool waist.',
     'Family overflow without archive: Read receipt under ~/.superliora/tool-results/.',
     'Summary insufficient? Expand before re-running expensive tools.',
     '',

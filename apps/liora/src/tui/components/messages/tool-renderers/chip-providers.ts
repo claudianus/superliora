@@ -234,7 +234,7 @@ const memoryChip: ChipProvider = (_toolCall, result) => {
   if (/Memory saved:/i.test(result.output)) return 'saved';
   if (/Memory forgotten:/i.test(result.output)) return 'forgotten';
   if (/No memory found:/i.test(result.output)) return 'missing';
-  if (/Liora Recall is disabled/i.test(result.output)) return 'disabled';
+  if (/Liora Memory is disabled/i.test(result.output)) return 'disabled';
   // Numbered search/list rows: "1. score=..." or "1. [id]"
   let count = 0;
   for (const line of result.output.split('\n')) {
@@ -497,7 +497,6 @@ LioraRead: lioraReadChip,
 LioraSymbol: lioraSymbolChip,
 LioraTree: lioraTreeChip,
 Expand: lioraExpandChip,
-LioraExpand: lioraExpandChip,
 LioraCallgraph: lioraCallgraphChip,
 ReadMediaFile: readMediaChip,
 Grep: grepChip,

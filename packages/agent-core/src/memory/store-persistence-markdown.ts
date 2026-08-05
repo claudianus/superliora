@@ -1,5 +1,5 @@
 /**
- * Markdown mirror helpers for Liora Recall persistence — extracted from
+ * Markdown mirror helpers for Liora Memory persistence — extracted from
  * `store-persistence.ts`.
  *
  * Owns the base64-embedded JSON record format under `records/*.md`. The
@@ -11,16 +11,20 @@ import { readFileSync } from 'node:fs';
 
 import {
   clamp01,
+  isMemoryEvidenceRefLike,
+  isMemoryLinkLike,
   isMemoryRecordLike,
   isMemorySourceRefLike,
   normalizeTags,
+  parseMemoryType,
   sanitizeMetadata,
   stripUndefined,
 } from './store-query';
 import type { MemoryRecord, MemorySourceRef } from './types';
 
-const MARKDOWN_RECORD_SCHEMA_VERSION = 1;
-const MARKDOWN_RECORD_MARKER = 'kimi-recall-record-json-base64';
+const MARKDOWN_RECORD_SCHEMA_VERSION = 2;
+const MARKDOWN_RECORD_MARKER = 'liora-memory-record-json-base64';
+const LEGACY_MARKDOWN_RECORD_MARKER = 'kimi-recall-record-json-base64';
 const SYSTEM_MEMORY_SOURCE: MemorySourceRef = { kind: 'system' };
 
 export function readMarkdownRecord(path: string): MemoryRecord | undefined {
@@ -42,7 +46,7 @@ export function renderMarkdownRecord(record: MemoryRecord): string {
     '---',
     `schema_version: ${MARKDOWN_RECORD_SCHEMA_VERSION}`,
     `id: ${record.id}`,
-    `kind: ${record.kind}`,
+    `type: ${record.type}`,
     `scope: ${record.scope}`,
     `status: ${record.status}`,
     '---',
@@ -50,7 +54,7 @@ export function renderMarkdownRecord(record: MemoryRecord): string {
     `# ${singleLine(record.subject)}`,
     '',
     `- id: ${record.id}`,
-    `- kind: ${record.kind}`,
+    `- type: ${record.type}`,
     `- scope: ${record.scope}${record.scopeKey === undefined ? '' : `:${record.scopeKey}`}`,
     `- status: ${record.status}`,
     `- confidence: ${record.confidence}`,
@@ -72,35 +76,76 @@ export function memoryRecordFileStem(id: string): string {
 }
 
 function normalizeMarkdownRecord(value: unknown): MemoryRecord | undefined {
-  if (!isMemoryRecordLike(value)) return undefined;
-  return stripUndefined({
-    id: value.id,
-    kind: value.kind,
-    scope: value.scope,
-    scopeKey: typeof value.scopeKey === 'string' ? value.scopeKey : undefined,
-    subject: value.subject,
-    content: value.content,
-    tags: normalizeTags(value.tags),
-    confidence: clamp01(value.confidence),
-    importance: clamp01(value.importance),
-    status: value.status,
-    source: isMemorySourceRefLike(value.source) ? value.source : SYSTEM_MEMORY_SOURCE,
-    createdAt: value.createdAt,
-    updatedAt: value.updatedAt,
-    accessedAt: typeof value.accessedAt === 'number' ? value.accessedAt : undefined,
-    accessCount: Number.isFinite(value.accessCount) ? value.accessCount : 0,
-    validFrom: typeof value.validFrom === 'number' ? value.validFrom : undefined,
-    validTo: typeof value.validTo === 'number' ? value.validTo : undefined,
-    supersedes: Array.isArray(value.supersedes)
-      ? value.supersedes.filter((entry): entry is string => typeof entry === 'string')
+  if (typeof value !== 'object' || value === null) return undefined;
+  const candidate = value as Record<string, unknown>;
+  const source = isMemorySourceRefLike(candidate['source']) ? candidate['source'] : SYSTEM_MEMORY_SOURCE;
+  const createdAt = typeof candidate['createdAt'] === 'number' ? candidate['createdAt'] : Date.now();
+  const normalized = {
+    ...candidate,
+    type: parseMemoryType(
+      typeof candidate['type'] === 'string'
+        ? candidate['type']
+        : typeof candidate['kind'] === 'string'
+          ? candidate['kind']
+          : 'fact',
+    ),
+    epistemic:
+      candidate['epistemic'] === 'direct' ||
+      candidate['epistemic'] === 'inferred' ||
+      candidate['epistemic'] === 'preference' ||
+      candidate['epistemic'] === 'summary'
+        ? candidate['epistemic']
+        : source.kind === 'auto'
+          ? 'inferred'
+          : 'direct',
+    recordedAt: typeof candidate['recordedAt'] === 'number' ? candidate['recordedAt'] : createdAt,
+    evidenceRefs: Array.isArray(candidate['evidenceRefs'])
+      ? candidate['evidenceRefs'].filter(isMemoryEvidenceRefLike)
       : [],
-    supersededBy: typeof value.supersededBy === 'string' ? value.supersededBy : undefined,
-    metadata: sanitizeMetadata(value.metadata ?? {}),
+    links: Array.isArray(candidate['links'])
+      ? candidate['links'].filter(isMemoryLinkLike)
+      : [],
+  };
+  if (!isMemoryRecordLike(normalized)) return undefined;
+  return stripUndefined({
+    id: normalized.id,
+    type: normalized.type,
+    epistemic: normalized.epistemic,
+    scope: normalized.scope,
+    scopeKey: typeof normalized.scopeKey === 'string' ? normalized.scopeKey : undefined,
+    subject: normalized.subject,
+    content: normalized.content,
+    tags: normalizeTags(normalized.tags),
+    confidence: clamp01(normalized.confidence),
+    importance: clamp01(normalized.importance),
+    status: normalized.status,
+    source,
+    createdAt: normalized.createdAt,
+    updatedAt: normalized.updatedAt,
+    recordedAt: normalized.recordedAt,
+    accessedAt: typeof normalized.accessedAt === 'number' ? normalized.accessedAt : undefined,
+    accessCount: Number.isFinite(normalized.accessCount) ? normalized.accessCount : 0,
+    validFrom: typeof normalized.validFrom === 'number' ? normalized.validFrom : undefined,
+    validTo: typeof normalized.validTo === 'number' ? normalized.validTo : undefined,
+    invalidAt: typeof normalized.invalidAt === 'number' ? normalized.invalidAt : undefined,
+    supersedes: Array.isArray(normalized.supersedes)
+      ? normalized.supersedes.filter((entry): entry is string => typeof entry === 'string')
+      : [],
+    supersededBy: typeof normalized.supersededBy === 'string' ? normalized.supersededBy : undefined,
+    evidenceRefs: normalized.evidenceRefs,
+    links: normalized.links,
+    metadata: sanitizeMetadata(
+      typeof normalized.metadata === 'object' && normalized.metadata !== null && !Array.isArray(normalized.metadata)
+        ? normalized.metadata as Record<string, unknown>
+        : {},
+    ),
   });
 }
 
 function markdownRecordRegex(): RegExp {
-  return new RegExp(`\\n<!-- ${MARKDOWN_RECORD_MARKER}:([A-Za-z0-9_-]+) -->\\n?$`);
+  return new RegExp(
+    `\\n<!-- (?:${MARKDOWN_RECORD_MARKER}|${LEGACY_MARKDOWN_RECORD_MARKER}):([A-Za-z0-9_-]+) -->\\n?$`,
+  );
 }
 
 function singleLine(value: string): string {

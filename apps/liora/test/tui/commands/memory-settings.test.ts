@@ -33,15 +33,15 @@ function selectMemoryAction(host: SlashCommandHost, value: string): void {
 }
 
 describe('memory settings', () => {
-  it('opens a picker and dispatches stats through handleMemoryCommand', () => {
+  it('opens a picker and dispatches inspect through handleMemoryCommand', () => {
     const host = makeMemoryHost();
     showMemorySettings(host);
     expect(host.mountCenterModal).toHaveBeenCalledOnce();
-    selectMemoryAction(host, 'stats');
-    expect(handleMemoryCommand).toHaveBeenCalledWith(host, 'stats');
+    selectMemoryAction(host, 'inspect');
+    expect(handleMemoryCommand).toHaveBeenCalledWith(host, 'inspect');
   });
 
-  it('lists wiki as an action row', () => {
+  it('lists the five Liora Memory operations', () => {
     const host = makeMemoryHost();
     showMemorySettings(host);
     const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
@@ -50,7 +50,7 @@ describe('memory settings', () => {
     const options = (picker as unknown as { opts: { options: readonly { value: string }[] } }).opts
       .options;
     expect(options.map((option) => option.value)).toEqual(
-      expect.arrayContaining(['stats', 'list', 'search', 'remember', 'forget', 'wiki', 'consolidate']),
+      expect.arrayContaining(['inspect', 'recall', 'remember', 'reflect', 'forget']),
     );
   });
 });

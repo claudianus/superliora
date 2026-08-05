@@ -375,7 +375,7 @@ function renderIndexPage(manifest: LlmWikiManifest): string {
 Updated: ${manifest.updatedAt}
 Workspace root: ${manifest.workspaceRoot}
 
-This project-local wiki stores human-reviewable, source-backed Mission knowledge. Code remains the source of truth. Liora Recall remains the global searchable memory and should only receive concise durable facts, decisions, or user preferences.
+This project-local wiki stores human-reviewable, source-backed Mission knowledge. Code remains the source of truth. Liora Memory remains the global searchable memory and should only receive concise durable facts, decisions, or user preferences.
 
 ## Latest Run
 
@@ -422,12 +422,12 @@ ${input.objective}
 
 - This page is the project-local LLM Wiki record for the Mission run.
 - Startup content is a seed. During Learn, replace placeholders with verified findings, durable decisions, and source-backed evidence.
-- Liora Recall remains global searchable memory; this wiki is project-local review material.
+- Liora Memory remains global searchable memory; this wiki is project-local review material.
 
 ## Durable Decisions
 
 - Store project-specific reviewable knowledge under ${artifacts.wikiRootPath}.
-- Store only concise cross-session facts or preferences in Liora Recall.
+- Store only concise cross-session facts or preferences in Liora Memory.
 - Treat code, tests, and runtime evidence as the final source of truth.
 
 ## Evidence Links
@@ -459,7 +459,7 @@ ${lanes}
 
 - Start with ${artifacts.wikiIndexPath}, then inspect this run page and the linked knowledge map.
 - Use LioraRead/LioraSymbol/LioraTree for compact source maps before broad reads.
-- Use Liora Recall for concise durable memories only when they are relevant to the current task.
+- Use Liora Memory for concise durable memories only when they are relevant to the current task.
 `;
 }
 

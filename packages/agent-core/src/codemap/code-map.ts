@@ -11,6 +11,7 @@ import { extractSymbols } from '#/codemap/extract';
 import { CodeIndexer, type IndexReport } from '#/codemap/indexer';
 import { SymbolIndexStore, type SymbolHit } from '#/codemap/store';
 import { resolveLioraHome } from '#/config/path';
+import type { MemoryLink } from '#/memory';
 
 export interface CodeMapHit {
   readonly filePath: string;
@@ -18,6 +19,22 @@ export interface CodeMapHit {
   readonly kind: string;
   readonly signature: string;
   readonly exported: boolean;
+}
+
+/** Deterministic, derived provenance edge; never canonical memory itself. */
+export function codeMapHitToMemoryLink(hit: CodeMapHit): MemoryLink {
+  const targetKind = hit.kind === 'function' || hit.kind === 'class' || hit.kind === 'method' ? 'symbol' : 'file';
+  return {
+    targetKind,
+    targetId: `${hit.filePath}#L${String(hit.startLine)}`,
+    relation: 'derived:codemap',
+    confidence: 0.95,
+    source: { kind: 'system', excerpt: hit.signature },
+  };
+}
+
+export function codeMapHitsToMemoryLinks(hits: readonly CodeMapHit[]): readonly MemoryLink[] {
+  return hits.map(codeMapHitToMemoryLink);
 }
 
 export class CodeMap {

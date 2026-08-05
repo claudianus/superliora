@@ -67,7 +67,7 @@ describe('memory readiness slash command builders', () => {
     const text = lines.join('\n');
 
     expect(text).toContain('Durable memory  active 2 / total 2');
-    expect(text).toContain('Recall search  1 matches for "launch recall"; top 0.91 recall launch token [REDACTED_SECRET]');
+    expect(text).toContain('Memory recall  1 matches for "launch recall"; top 0.91 recall launch token [REDACTED_SECRET]');
     expect(text).toContain('LLM-wiki/durable  verified; 1 match');
     expect(text).toContain('Knowledge-map evidence  verified; 1 match');
     expect(text).toContain('Browser-use evidence  verified; 2 matches');
@@ -88,7 +88,7 @@ describe('memory readiness slash command builders', () => {
       const text = lines.join('\n');
 
       expect(text).toContain('Durable memory  active 0 / total 0');
-      expect(text).toContain('Recall search  skipped; pass a query to verify retrieval');
+      expect(text).toContain('Memory recall  skipped; pass a query to verify retrieval');
       expect(text).toContain('Knowledge-map evidence  missing; No Liora Knowledge Map evidence found.');
       expect(text).toContain('Browser-use evidence  missing; No browser-use evidence found.');
       expect(text).toContain('Computer-use evidence  missing; No computer-use evidence found.');
@@ -312,10 +312,9 @@ describe('memory readiness slash command builders', () => {
     const healthValues = memoryArgumentCompletions('h')?.map((item) => item.value);
     const readinessValues = memoryArgumentCompletions('r')?.map((item) => item.value);
 
-    expect(primaryValues).toContain('wiki');
-    expect(primaryValues).toContain('verify');
+    expect(primaryValues).toEqual(['inspect', 'recall', 'remember', 'forget', 'reflect']);
     expect(healthValues).toBeUndefined();
-    expect(readinessValues).toEqual(['remember']);
+    expect(readinessValues).toEqual(['recall', 'remember', 'reflect']);
   });
 
   it('redacts secret-looking text defensively', () => {
@@ -333,13 +332,14 @@ function memoryStats(input: { readonly total: number; readonly active: number })
     active: input.active,
     archived: 0,
     deleted: 0,
-    byKind: {
-      semantic: input.active,
-      episodic: 0,
-      procedural: 0,
-      prospective: 0,
-      governance: 0,
+    byType: {
+      fact: input.active,
+      event: 0,
+      procedure: 0,
+      task: 0,
+      rule: 0,
     },
+    candidates: 0,
     byScope: {
       user: input.active,
       workspace: 0,
@@ -351,7 +351,8 @@ function memoryStats(input: { readonly total: number; readonly active: number })
 function memoryRecord(subject: string): MemoryRecord {
   return {
     id: 'mem_1',
-    kind: 'semantic',
+    type: 'fact',
+    epistemic: 'direct',
     scope: 'workspace',
     subject,
     content: 'Harness readiness memory.',
@@ -362,8 +363,11 @@ function memoryRecord(subject: string): MemoryRecord {
     source: { kind: 'user' },
     createdAt: 1,
     updatedAt: 1,
+    recordedAt: 1,
     accessCount: 0,
     supersedes: [],
+    evidenceRefs: [],
+    links: [],
     metadata: {},
   };
 }

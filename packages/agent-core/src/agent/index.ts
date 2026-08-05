@@ -13,7 +13,7 @@ import type {
   SDKAgentRPC,
   UsageStatus,
 } from '#/rpc';
-import type { ProviderExtrasStatus } from '@superliora/protocol';
+import type { ProviderExtrasStatus, RuntimeDegradedEvent } from '@superliora/protocol';
 import { buildProviderExtrasStatus } from '#/tools/providers/extras/index';
 import { resolveProviderMcpServers } from '#/mcp/provider-servers';
 import { generate } from '@superliora/kosong';
@@ -55,7 +55,7 @@ import {
 import { AutoDreamService } from './dream/auto-dream';
 import { PromptIntelligenceService } from './intelligence/prompt-intelligence';
 import { AutopilotMode } from '../autopilot';
-import { LioraRecallStore } from '../memory/store';
+import { LioraMemoryStore } from '../memory/store';
 import { PremiumQualityMode } from '../premium-quality';
 import { HookEngine } from '../session/hooks';
 import { InjectionManager } from './injection/manager';
@@ -94,7 +94,6 @@ import { createGenerateProxy, buildLLMRoute as buildLLMRouteImpl } from './gener
 import { CircuitBreakerRegistry } from '../runtime/circuit-breaker';
 import { buildCircuitBreakerDegradedEvent } from '../runtime/circuit-breaker-degraded';
 import { buildOAuthRefreshDegradedEvent } from '../runtime/oauth-refresh-degraded';
-import type { RuntimeDegradedEvent } from '@superliora/protocol';
 import { attachResearchSearchCircuitBreakers } from '../tools/providers/research-search-circuit-breaker';
 import { attachLlmProviderCircuitBreakers } from './llm-provider-circuit-breaker';
 import { mapCircuitBreakerRegistrySnapshot } from '../runtime/circuit-breaker-status';
@@ -151,7 +150,7 @@ export interface AgentOptions {
   readonly additionalDirs?: readonly string[];
   readonly memory?: AgentMemoryRuntime;
   readonly responseLanguagePreference?: (() => ResponseLanguagePreference | undefined) | undefined;
-  readonly dreamStore?: LioraRecallStore;
+  readonly dreamStore?: LioraMemoryStore;
   /** Shared session file-snapshot store for `/rewind` (optional; agent-standalone safe). */
   readonly fileSnapshots?: FileSnapshotStore | undefined;
   /** Path sandbox profile for file tools (`off` | `workspace` | `read-only`). */

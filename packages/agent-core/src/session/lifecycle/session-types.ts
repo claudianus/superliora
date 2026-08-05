@@ -15,7 +15,7 @@ import type { TelemetryClient } from '../../telemetry';
 import type { ToolServices } from '../../tools/support/services';
 import type { ExperimentalFlagResolver } from '../../flags';
 import type { SessionMemoryRuntime } from '../../memory';
-import type { LioraRecallStore } from '../../memory/store';
+import type { LioraMemoryStore } from '../../memory/store';
 
 export interface SessionOptions {
   readonly kaos: Kaos;
@@ -42,7 +42,7 @@ export interface SessionOptions {
   readonly experimentalFlags?: ExperimentalFlagResolver;
   readonly additionalDirs?: readonly string[];
   readonly memory?: SessionMemoryRuntime;
-  readonly dreamStore?: LioraRecallStore;
+  readonly dreamStore?: LioraMemoryStore;
   /**
    * Print-mode (`liora -p`) only: hold the main turn open while background
    * subagents are still running before the run exits.

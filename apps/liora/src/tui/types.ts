@@ -100,7 +100,7 @@ export interface AppState {
     readonly evidenceIdRecallScore: number;
     readonly latestContinuityStatus: string;
   } | null;
-  /** Auto-dream long-horizon memory consolidation dashboard. */
+  /** Liora Memory reflection scheduler dashboard. */
   autoDream?: {
     readonly enabled: boolean;
     readonly inFlight: boolean;

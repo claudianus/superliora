@@ -1,5 +1,5 @@
 /**
- * Settings → Memory — Liora Recall actions via existing /memory handlers (no new config keys).
+ * Settings → Memory — the five Liora Memory operations.
  */
 
 import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
@@ -13,23 +13,18 @@ export function showMemorySettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Memory (Liora Recall)',
+      title: 'Liora Memory',
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
         {
-          value: 'stats',
-          label: 'Stats',
-          description: 'Active / total counts by kind',
+          value: 'inspect',
+          label: 'Inspect',
+          description: 'Store health, audit, and record details',
         },
         {
-          value: 'list',
-          label: 'List memories',
-          description: 'Recent stored memories',
-        },
-        {
-          value: 'search',
-          label: 'Search…',
+          value: 'recall',
+          label: 'Recall…',
           description: 'Recall by query',
         },
         {
@@ -43,40 +38,23 @@ export function showMemorySettings(host: SlashCommandHost): void {
           description: 'Delete by memory id',
         },
         {
-          value: 'wiki',
-          label: 'LLM Wiki status',
-          description: 'Project wiki / evidence roots',
-        },
-        {
-          value: 'consolidate',
-          label: 'Consolidate',
-          description: 'Merge duplicate memories',
+          value: 'reflect',
+          label: 'Reflect',
+          description: 'Promote and merge candidate memories',
         },
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
-        if (value === 'stats') {
-          void handleMemoryCommand(host, 'stats');
+        if (value === 'inspect' || value === 'reflect') {
+          void handleMemoryCommand(host, value);
           return;
         }
-        if (value === 'list') {
-          void handleMemoryCommand(host, 'list');
-          return;
-        }
-        if (value === 'wiki') {
-          void handleMemoryCommand(host, 'wiki');
-          return;
-        }
-        if (value === 'consolidate') {
-          void handleMemoryCommand(host, 'consolidate');
-          return;
-        }
-        if (value === 'search') {
+        if (value === 'recall') {
           promptMemoryArgs(host, {
-            title: 'Memory search',
+            title: 'Memory recall query',
             prefill: '',
             onDone: (query) => {
-              void handleMemoryCommand(host, `search ${query}`);
+              void handleMemoryCommand(host, `recall ${query}`);
             },
           });
           return;

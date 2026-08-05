@@ -4,15 +4,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'pathe';
 import { afterEach, beforeEach, describe, it } from 'vitest';
 
-import { LioraRecallStore } from '../../src/memory/store';
+import { LioraMemoryStore } from '../../src/memory/store';
 
-describe('LioraRecallStore — corruption recovery', () => {
+describe('LioraMemoryStore — corruption recovery', () => {
   let homeDir: string;
 
   beforeEach(() => {
     homeDir = join(
       tmpdir(),
-      `liora-recall-recovery-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      `liora-memory-recovery-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     );
   });
 
@@ -20,7 +20,7 @@ describe('LioraRecallStore — corruption recovery', () => {
     await fs.rm(homeDir, { recursive: true, force: true }).catch(() => {});
   });
 
-  const dbFile = (): string => join(homeDir, 'memory', 'kimi-recall.sqlite');
+  const dbFile = (): string => join(homeDir, 'memory', 'liora-memory.sqlite');
   const memoryDir = (): string => join(homeDir, 'memory');
 
   /**
@@ -37,10 +37,10 @@ describe('LioraRecallStore — corruption recovery', () => {
   };
 
   it('opens a healthy database without quarantining anything', async () => {
-    const store = new LioraRecallStore({ homeDir });
-    await store.remember({ kind: 'semantic', subject: 'Tea', content: 'User prefers oolong tea.' });
+    const store = new LioraMemoryStore({ homeDir });
+    await store.remember({ type: 'fact', subject: 'Tea', content: 'User prefers oolong tea.' });
 
-    const reopened = new LioraRecallStore({ homeDir });
+    const reopened = new LioraMemoryStore({ homeDir });
     const rows = await reopened.list();
     assert.equal(rows.length, 1);
     assert.equal(rows[0]?.subject, 'Tea');
@@ -52,9 +52,9 @@ describe('LioraRecallStore — corruption recovery', () => {
   });
 
   it('quarantines a corrupt database and rebuilds from the records mirror', async () => {
-    const store = new LioraRecallStore({ homeDir });
+    const store = new LioraMemoryStore({ homeDir });
     const record = await store.remember({
-      kind: 'semantic',
+      type: 'fact',
       subject: 'Editor',
       content: 'User edits in Neovim.',
     });
@@ -62,26 +62,26 @@ describe('LioraRecallStore — corruption recovery', () => {
     // Smash the SQLite header so the next open sees "file is not a database".
     corruptDatabase(Buffer.from('this is definitely not a sqlite database file'));
 
-    const healed = new LioraRecallStore({ homeDir });
+    const healed = new LioraMemoryStore({ homeDir });
     const rows = await healed.list();
     assert.equal(rows.length, 1, 'records mirror should repopulate the fresh database');
     assert.equal(rows[0]?.id, record.id);
     assert.equal(rows[0]?.content, 'User edits in Neovim.');
 
     const quarantined = readdirSync(memoryDir()).filter((file) =>
-      file.startsWith('kimi-recall.sqlite.corrupt-'),
+      file.startsWith('liora-memory.sqlite.corrupt-'),
     );
     assert.ok(quarantined.length > 0, 'expected the corrupt file to be quarantined, not deleted');
     assert.ok(existsSync(dbFile()), 'expected a fresh database at the original path');
 
     // The rebuilt store is fully writable, not a limp read-only fallback.
-    await healed.remember({ kind: 'episodic', subject: 'Aftermath', content: 'Recovery verified.' });
+    await healed.remember({ type: 'event', subject: 'Aftermath', content: 'Recovery verified.' });
     assert.equal((await healed.list()).length, 2);
   });
 
   it('rejects a database that keeps the magic header but loses its pages', async () => {
-    const store = new LioraRecallStore({ homeDir });
-    await store.remember({ kind: 'procedural', subject: 'Deploy', content: 'Deploy via pnpm release.' });
+    const store = new LioraMemoryStore({ homeDir });
+    await store.remember({ type: 'procedure', subject: 'Deploy', content: 'Deploy via pnpm release.' });
 
     // Magic header intact, every page garbage: the probe must refuse the file
     // instead of trusting a database that only looks plausible.
@@ -89,12 +89,12 @@ describe('LioraRecallStore — corruption recovery', () => {
     Buffer.from('SQLite format 3\u0000').copy(garbage);
     corruptDatabase(garbage);
 
-    const healed = new LioraRecallStore({ homeDir });
+    const healed = new LioraMemoryStore({ homeDir });
     const rows = await healed.list();
     assert.equal(rows.length, 1);
     assert.equal(rows[0]?.subject, 'Deploy');
     assert.ok(
-      readdirSync(memoryDir()).some((file) => file.startsWith('kimi-recall.sqlite.corrupt-')),
+      readdirSync(memoryDir()).some((file) => file.startsWith('liora-memory.sqlite.corrupt-')),
       'expected quick_check failure to quarantine the file',
     );
   });

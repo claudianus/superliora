@@ -1,6 +1,5 @@
-import { IMemoryService, type IInstantiationService, type MemoryCreateInput, type MemoryListRequest, type MemoryRecord as CoreMemoryRecord, type MemorySearchRequest, type MemorySourceRef, type MemoryUpdateInput } from '@superliora/agent-core';
+import { IMemoryService, type IInstantiationService, type MemoryCreateInput, type MemoryEvidenceRef, type MemoryLink, type MemoryListRequest, type MemoryRecord as CoreMemoryRecord, type MemoryReflectInput, type MemorySearchRequest, type MemorySearchResult, type MemorySourceRef, type MemoryUpdateInput } from '@superliora/agent-core';
 import {
-  consolidateMemoriesResponseSchema,
   createMemoryRequestSchema,
   createMemoryResponseSchema,
   exportMemoriesResponseSchema,
@@ -8,11 +7,16 @@ import {
   getMemoryResponseSchema,
   importMemoriesRequestSchema,
   importMemoriesResponseSchema,
+  inspectMemoryResponseSchema,
   listMemoriesQuerySchema,
   listMemoriesResponseSchema,
+  memoryEvidenceRefSchema,
+  memoryLinkSchema,
   memoryStatsResponseSchema,
   searchMemoriesRequestSchema,
   searchMemoriesResponseSchema,
+  reflectMemoriesResponseSchema,
+  reflectMemoriesRequestSchema,
   updateMemoryRequestSchema,
   updateMemoryResponseSchema,
   type MemoryRecord,
@@ -67,7 +71,7 @@ export function registerMemoriesRoutes(app: MemoriesRouteHost, ix: IInstantiatio
       path: '/memories',
       querystring: listMemoriesQuerySchema,
       success: { data: listMemoriesResponseSchema },
-      description: 'List Liora Recall memories',
+      description: 'List Liora Memory records',
       tags: ['memories'],
       operationId: 'listMemories',
     },
@@ -78,35 +82,35 @@ export function registerMemoriesRoutes(app: MemoriesRouteHost, ix: IInstantiatio
   );
   app.get(listRoute.path, listRoute.options, listRoute.handler as Parameters<MemoriesRouteHost['get']>[2]);
 
-  const searchRoute = defineRoute(
+  const recallRoute = defineRoute(
     {
       method: 'POST',
-      path: '/memories::search',
+      path: '/memories::recall',
       body: searchMemoriesRequestSchema,
       success: { data: searchMemoriesResponseSchema },
-      description: 'Search Liora Recall memories',
+      description: 'Recall Liora Memory records',
       tags: ['memories'],
-      operationId: 'searchMemories',
+      operationId: 'recallMemories',
     },
     async (req, reply) => {
-      const results = await ix.invokeFunction((a) => a.get(IMemoryService).search(toSearchRequest(req.body)));
-      reply.send(okEnvelope({ memories: results.map((result) => ({ ...result, memory: toRestMemory(result.memory) })) }, req.id));
+      const results = await ix.invokeFunction((a) => a.get(IMemoryService).recall(toSearchRequest(req.body)));
+      reply.send(okEnvelope({ memories: results.map(toRestSearchResult) }, req.id));
     },
   );
-  app.post(searchRoute.path, searchRoute.options, searchRoute.handler as Parameters<MemoriesRouteHost['post']>[2]);
+  app.post(recallRoute.path, recallRoute.options, recallRoute.handler as Parameters<MemoriesRouteHost['post']>[2]);
 
   const createRoute = defineRoute(
     {
       method: 'POST',
-      path: '/memories',
+      path: '/memories::remember',
       body: createMemoryRequestSchema,
       success: { data: createMemoryResponseSchema },
-      description: 'Create a Liora Recall memory',
+      description: 'Remember a Liora Memory record',
       tags: ['memories'],
-      operationId: 'createMemory',
+      operationId: 'rememberMemory',
     },
     async (req, reply) => {
-      const memory = await ix.invokeFunction((a) => a.get(IMemoryService).create(toCreateInput(req.body)));
+      const memory = await ix.invokeFunction((a) => a.get(IMemoryService).remember(toCreateInput(req.body)));
       reply.send(okEnvelope({ memory: toRestMemory(memory) }, req.id));
     },
   );
@@ -118,7 +122,7 @@ export function registerMemoriesRoutes(app: MemoriesRouteHost, ix: IInstantiatio
       path: '/memories/{memory_id}',
       params: memoryIdParamSchema,
       success: { data: getMemoryResponseSchema },
-      description: 'Get a Liora Recall memory',
+      description: 'Get a Liora Memory record',
       tags: ['memories'],
       operationId: 'getMemory',
     },
@@ -137,7 +141,7 @@ export function registerMemoriesRoutes(app: MemoriesRouteHost, ix: IInstantiatio
       params: memoryIdParamSchema,
       body: updateMemoryRequestSchema,
       success: { data: updateMemoryResponseSchema },
-      description: 'Update a Liora Recall memory',
+      description: 'Update a Liora Memory record',
       tags: ['memories'],
       operationId: 'updateMemory',
     },
@@ -155,7 +159,7 @@ export function registerMemoriesRoutes(app: MemoriesRouteHost, ix: IInstantiatio
       path: '/memories/{memory_id}',
       params: memoryIdParamSchema,
       success: { data: forgetMemoryResponseSchema },
-      description: 'Forget a Liora Recall memory',
+      description: 'Forget a Liora Memory record',
       tags: ['memories'],
       operationId: 'forgetMemory',
     },
@@ -172,7 +176,7 @@ export function registerMemoriesRoutes(app: MemoriesRouteHost, ix: IInstantiatio
       method: 'GET',
       path: '/memories/stats',
       success: { data: memoryStatsResponseSchema },
-      description: 'Get Liora Recall memory stats',
+      description: 'Get Liora Memory stats',
       tags: ['memories'],
       operationId: 'memoryStats',
     },
@@ -189,7 +193,7 @@ export function registerMemoriesRoutes(app: MemoriesRouteHost, ix: IInstantiatio
       path: '/memories::export',
       body: listMemoriesQuerySchema.partial(),
       success: { data: exportMemoriesResponseSchema },
-      description: 'Export Liora Recall memories',
+      description: 'Export Liora Memory records',
       tags: ['memories'],
       operationId: 'exportMemories',
     },
@@ -206,7 +210,7 @@ export function registerMemoriesRoutes(app: MemoriesRouteHost, ix: IInstantiatio
       path: '/memories::import',
       body: importMemoriesRequestSchema,
       success: { data: importMemoriesResponseSchema },
-      description: 'Import Liora Recall memories',
+      description: 'Import Liora Memory records',
       tags: ['memories'],
       operationId: 'importMemories',
     },
@@ -217,42 +221,76 @@ export function registerMemoriesRoutes(app: MemoriesRouteHost, ix: IInstantiatio
   );
   app.post(importRoute.path, importRoute.options, importRoute.handler as Parameters<MemoriesRouteHost['post']>[2]);
 
-  const consolidateRoute = defineRoute(
+  const reflectRoute = defineRoute(
     {
       method: 'POST',
-      path: '/memories::consolidate',
-      success: { data: consolidateMemoriesResponseSchema },
-      description: 'Consolidate duplicate Liora Recall memories',
+      path: '/memories::reflect',
+      body: reflectMemoriesRequestSchema,
+      success: { data: reflectMemoriesResponseSchema },
+      description: 'Reflect over Liora Memory candidates',
       tags: ['memories'],
-      operationId: 'consolidateMemories',
+      operationId: 'reflectMemories',
     },
     async (req, reply) => {
-      const result = await ix.invokeFunction((a) => a.get(IMemoryService).consolidate());
+      const result = await ix.invokeFunction((a) =>
+        a.get(IMemoryService).reflect(toReflectInput(req.body)),
+      );
       reply.send(okEnvelope(result, req.id));
     },
   );
-  app.post(consolidateRoute.path, consolidateRoute.options, consolidateRoute.handler as Parameters<MemoriesRouteHost['post']>[2]);
+  app.post(reflectRoute.path, reflectRoute.options, reflectRoute.handler as Parameters<MemoriesRouteHost['post']>[2]);
+
+  const inspectRoute = defineRoute(
+    {
+      method: 'GET',
+      path: '/memories/inspect',
+      success: { data: inspectMemoryResponseSchema },
+      description: 'Inspect Liora Memory health and audit',
+      tags: ['memories'],
+      operationId: 'inspectMemory',
+    },
+    async (req, reply) => {
+      const result = await ix.invokeFunction((a) => a.get(IMemoryService).inspect());
+      reply.send(
+        okEnvelope(
+          {
+            store_path: result.storePath,
+            schema_version: result.schemaVersion,
+            integrity: result.integrity,
+            stats: result.stats,
+            recent_events: result.recentEvents,
+          },
+          req.id,
+        ),
+      );
+    },
+  );
+  app.get(inspectRoute.path, inspectRoute.options, inspectRoute.handler as Parameters<MemoriesRouteHost['get']>[2]);
 }
 
 function toSearchRequest(input: z.infer<typeof searchMemoriesRequestSchema>): MemorySearchRequest {
   const request: Mutable<MemorySearchRequest> = {};
   if (input.query !== undefined) request.query = input.query;
-  if (input.kind !== undefined) request.kind = input.kind;
-  if (input.kinds !== undefined) request.kinds = input.kinds;
+  if (input.type !== undefined) request.type = input.type;
+  if (input.types !== undefined) request.types = input.types;
   if (input.scope !== undefined) request.scope = input.scope;
   if (input.scope_key !== undefined) request.scopeKey = input.scope_key;
   if (input.workspace_key !== undefined) request.workspaceKey = input.workspace_key;
   if (input.session_id !== undefined) request.sessionId = input.session_id;
   if (input.tags !== undefined) request.tags = input.tags;
   if (input.limit !== undefined) request.limit = input.limit;
+  if (input.token_budget !== undefined) request.tokenBudget = input.token_budget;
+  if (input.as_of !== undefined) request.asOf = input.as_of;
   if (input.include_archived !== undefined) request.includeArchived = input.include_archived;
   if (input.include_deleted !== undefined) request.includeDeleted = input.include_deleted;
+  if (input.include_candidates !== undefined) request.includeCandidates = input.include_candidates;
+  if (input.expand_links !== undefined) request.expandLinks = input.expand_links;
   return request;
 }
 
 function toListRequest(input: z.infer<typeof listMemoriesQuerySchema>): MemoryListRequest {
   const request: Mutable<MemoryListRequest> = {};
-  if (input.kind !== undefined) request.kind = input.kind;
+  if (input.type !== undefined) request.type = input.type;
   if (input.scope !== undefined) request.scope = input.scope;
   if (input.scope_key !== undefined) request.scopeKey = input.scope_key;
   if (input.status !== undefined) request.status = input.status;
@@ -264,10 +302,11 @@ function toListRequest(input: z.infer<typeof listMemoriesQuerySchema>): MemoryLi
 
 function toCreateInput(input: z.infer<typeof createMemoryRequestSchema>): MemoryCreateInput {
   const request: Mutable<MemoryCreateInput> = {
-    kind: input.kind,
+    type: input.type,
     subject: input.subject,
     content: input.content,
   };
+  if (input.epistemic !== undefined) request.epistemic = input.epistemic;
   if (input.scope !== undefined) request.scope = input.scope;
   if (input.scope_key !== undefined) request.scopeKey = input.scope_key;
   if (input.tags !== undefined) request.tags = input.tags;
@@ -275,13 +314,16 @@ function toCreateInput(input: z.infer<typeof createMemoryRequestSchema>): Memory
   if (input.importance !== undefined) request.importance = input.importance;
   if (input.valid_from !== undefined) request.validFrom = input.valid_from;
   if (input.valid_to !== undefined) request.validTo = input.valid_to;
+  if (input.evidence_refs !== undefined) request.evidenceRefs = input.evidence_refs.map(toCoreEvidenceRef);
+  if (input.links !== undefined) request.links = input.links.map(toCoreLink);
   if (input.metadata !== undefined) request.metadata = input.metadata;
   return request;
 }
 
 function toUpdateInput(input: z.infer<typeof updateMemoryRequestSchema>): MemoryUpdateInput {
   const request: Mutable<MemoryUpdateInput> = {};
-  if (input.kind !== undefined) request.kind = input.kind;
+  if (input.type !== undefined) request.type = input.type;
+  if (input.epistemic !== undefined) request.epistemic = input.epistemic;
   if (input.scope !== undefined) request.scope = input.scope;
   if (input.scope_key !== undefined) request.scopeKey = input.scope_key;
   if (input.subject !== undefined) request.subject = input.subject;
@@ -292,15 +334,40 @@ function toUpdateInput(input: z.infer<typeof updateMemoryRequestSchema>): Memory
   if (input.status !== undefined) request.status = input.status;
   if (input.valid_from !== undefined) request.validFrom = input.valid_from;
   if (input.valid_to !== undefined) request.validTo = input.valid_to;
+  if (input.invalid_at !== undefined) request.invalidAt = input.invalid_at;
   if (input.superseded_by !== undefined) request.supersededBy = input.superseded_by;
+  if (input.evidence_refs !== undefined) request.evidenceRefs = input.evidence_refs.map(toCoreEvidenceRef);
+  if (input.links !== undefined) request.links = input.links.map(toCoreLink);
   if (input.metadata !== undefined) request.metadata = input.metadata;
   return request;
+}
+
+function toReflectInput(
+  input: z.infer<typeof reflectMemoriesRequestSchema>,
+): MemoryReflectInput {
+  return {
+    ...(input.limit === undefined ? {} : { limit: input.limit }),
+    ...(input.dry_run === undefined ? {} : { dryRun: input.dry_run }),
+    ...(input.force === undefined ? {} : { force: input.force }),
+  };
+}
+
+function toRestSearchResult(result: MemorySearchResult): z.infer<typeof searchMemoriesResponseSchema>['memories'][number] {
+  return {
+    memory: toRestMemory(result.memory),
+    score: result.score,
+    reasons: [...result.reasons],
+    ...(result.linkPath === undefined ? {} : { link_path: [...result.linkPath] }),
+    ...(result.abstained === undefined ? {} : { abstained: result.abstained }),
+    ...(result.abstentionReason === undefined ? {} : { abstention_reason: result.abstentionReason }),
+  };
 }
 
 function toRestMemory(memory: CoreMemoryRecord): MemoryRecord {
   const response: Mutable<MemoryRecord> = {
     id: memory.id,
-    kind: memory.kind,
+    type: memory.type,
+    epistemic: memory.epistemic,
     scope: memory.scope,
     subject: memory.subject,
     content: memory.content,
@@ -311,14 +378,26 @@ function toRestMemory(memory: CoreMemoryRecord): MemoryRecord {
     source: toRestSource(memory.source),
     created_at: memory.createdAt,
     updated_at: memory.updatedAt,
+    recorded_at: memory.recordedAt,
     access_count: memory.accessCount,
     supersedes: [...memory.supersedes],
+    evidence_refs: memory.evidenceRefs.map((ref) => ({ ...ref })),
+    links: memory.links.map((link) => ({
+      target_kind: link.targetKind,
+      target_id: link.targetId,
+      relation: link.relation,
+      confidence: link.confidence,
+      ...(link.validFrom === undefined ? {} : { valid_from: link.validFrom }),
+      ...(link.validTo === undefined ? {} : { valid_to: link.validTo }),
+      ...(link.source === undefined ? {} : { source: toRestSource(link.source) }),
+    })),
     metadata: memory.metadata,
   };
   if (memory.scopeKey !== undefined) response.scope_key = memory.scopeKey;
   if (memory.accessedAt !== undefined) response.accessed_at = memory.accessedAt;
   if (memory.validFrom !== undefined) response.valid_from = memory.validFrom;
   if (memory.validTo !== undefined) response.valid_to = memory.validTo;
+  if (memory.invalidAt !== undefined) response.invalid_at = memory.invalidAt;
   if (memory.supersededBy !== undefined) response.superseded_by = memory.supersededBy;
   return response;
 }
@@ -331,6 +410,38 @@ function toRestSource(source: MemorySourceRef): RestMemorySourceRef {
   if (source.messageId !== undefined) response.message_id = source.messageId;
   if (source.excerpt !== undefined) response.excerpt = source.excerpt;
   return response;
+}
+
+function toCoreEvidenceRef(input: z.infer<typeof memoryEvidenceRefSchema>): MemoryEvidenceRef {
+  return {
+    kind: input.kind,
+    id: input.id,
+    ...(input.excerpt === undefined ? {} : { excerpt: input.excerpt }),
+    ...(input.sha256 === undefined ? {} : { sha256: input.sha256 }),
+  };
+}
+
+function toCoreLink(input: z.infer<typeof memoryLinkSchema>): MemoryLink {
+  return {
+    targetKind: input.target_kind,
+    targetId: input.target_id,
+    relation: input.relation,
+    confidence: input.confidence,
+    ...(input.valid_from === undefined ? {} : { validFrom: input.valid_from }),
+    ...(input.valid_to === undefined ? {} : { validTo: input.valid_to }),
+    ...(input.source === undefined ? {} : { source: toCoreSource(input.source) }),
+  };
+}
+
+function toCoreSource(source: RestMemorySourceRef): MemorySourceRef {
+  return {
+    kind: source.kind,
+    ...(source.session_id === undefined ? {} : { sessionId: source.session_id }),
+    ...(source.agent_id === undefined ? {} : { agentId: source.agent_id }),
+    ...(source.turn_id === undefined ? {} : { turnId: source.turn_id }),
+    ...(source.message_id === undefined ? {} : { messageId: source.message_id }),
+    ...(source.excerpt === undefined ? {} : { excerpt: source.excerpt }),
+  };
 }
 
 type Mutable<T> = {

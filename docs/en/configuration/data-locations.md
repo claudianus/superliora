@@ -42,6 +42,10 @@ $SUPERLIORA_HOME  (default: ~/.superliora)
 │       └── <key>-<suffix>.json
 ├── sessions/               # Session data (see below)
 │   └── <workDirKey>/<sessionId>/
+├── memory/
+│   ├── liora-memory.sqlite # Canonical durable Liora Memory store
+│   ├── records/             # Human-readable recovery mirror
+│   └── episodes/            # Legacy JSON input, imported once when present
 ├── bin/
 │   ├── rg                  # managed ripgrep binary for Grep (rg.exe on Windows)
 │   └── fd                  # managed fd binary for file references (fd.exe on Windows)
@@ -67,6 +71,9 @@ Each top-level file under the data root serves a specific purpose; most are mana
 - **`skills/`**: Kimi-specific user-level Skills. This directory moves with `SUPERLIORA_HOME`; generic cross-tool Skills can still live under `~/.agents/skills/`. See [Agent Skills](../customization/skills.md).
 - **`plugins/installed.json`**: records installed plugins, each plugin's enabled state, and MCP server capability state changes made via `/plugins` or `/plugins mcp disable|enable`. Files installed from local paths or zip URLs are copied to `plugins/managed/<id>/`. See [Plugins](../customization/plugins.md).
 - **`credentials/`**: OAuth credential directory, with permissions `0o700` (directory) / `0o600` (files), readable and writable only by the current user. Managed provider credentials are stored as `credentials/<name>.json`; MCP server credentials are stored under `credentials/mcp/`. Credentials are written using an atomic flow (tmp → fsync → rename) to prevent corruption.
+- **`memory/liora-memory.sqlite`**: the only authoritative durable memory store. It contains fact, event, procedure, task, and rule records, their provenance, temporal fields, links, and audit events.
+- **`memory/records/`**: a Markdown projection used for human inspection and recovery. SQLite remains authoritative; editing a mirror file is not a supported write API.
+- **`memory/episodes/`**: a one-shot migration input for legacy JSON episodes. Existing `kimi-recall.sqlite` / `liora-recall.sqlite` files and legacy record markers are migrated when the new store opens; they are not used as the v2 API.
 
 ## Session data
 
@@ -109,6 +116,7 @@ Deleting the data root directory (`~/.superliora/` or the path set by `SUPERLIOR
 | Reset configuration | Delete `~/.superliora/config.toml` |
 | Reset terminal UI preferences | Delete `~/.superliora/tui.toml` |
 | Clear all sessions | Delete `~/.superliora/sessions/` and `session_index.jsonl` |
+| Reset durable Liora Memory | Delete `~/.superliora/memory/` |
 | Clear diagnostic logs | Delete `~/.superliora/logs/` |
 | Clear input history | Delete `~/.superliora/user-history/` |
 | Reset update state | Delete `~/.superliora/updates/latest.json` |

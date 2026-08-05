@@ -75,6 +75,28 @@ describe('formatRepoQueryOutput', () => {
     expect(output).toContain('next_step: Use Read.');
     expect(output).toContain('</repo_query>');
   });
+
+  it('renders derived graph links as copyable memory provenance', () => {
+    const output = formatRepoQueryOutput({
+      mode: 'symbol',
+      results: ['src/a.ts:L4 function save'],
+      derived_links: [
+        {
+          targetKind: 'symbol',
+          targetId: 'src/a.ts#L4',
+          relation: 'derived:codemap',
+          confidence: 0.95,
+        },
+      ],
+      index_status: 'warm',
+      took_ms: 1,
+      truncated: false,
+    });
+    expect(output).toContain('derived_links:');
+    expect(output).toContain('"target_kind":"symbol"');
+    expect(output).toContain('"target_id":"src/a.ts#L4"');
+    expect(output).toContain('Memory.remember.links');
+  });
 });
 
 describe('softFailRepoQuery', () => {

@@ -118,7 +118,6 @@ const READ_ONLY_TOOL_NAMES = new Set([
   'LioraTree',
   'LioraCallgraph',
   'Expand',
-  'LioraExpand',
   'WebSearch',
   'FetchURL',
   'Context7Resolve',

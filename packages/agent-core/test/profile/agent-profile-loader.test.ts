@@ -241,7 +241,7 @@ describe('default agent profiles', () => {
     expect(DEFAULT_AGENT_PROFILES['explore']?.tools).not.toContain('ApplyPatch');
     for (const name of ['explore', 'plan'] as const) {
       const tools = DEFAULT_AGENT_PROFILES[name]?.tools ?? [];
-      for (const legacy of ['LioraRead', 'LioraTree', 'LioraSymbol', 'LioraCallgraph', 'LioraExpand']) {
+      for (const legacy of ['LioraRead', 'LioraTree', 'LioraSymbol', 'LioraCallgraph']) {
         expect(tools).not.toContain(legacy);
       }
     }

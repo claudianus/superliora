@@ -134,7 +134,7 @@ export function HeroCommandCenter() {
         <Panel className="col-span-2 sm:col-span-2">
           <div className="mb-3 flex items-center gap-2 text-xs font-semibold text-text">
             <MemoryIcon className={`${iconSize} text-cyan`} />
-            <span>Liora Recall</span>
+            <span>Liora Memory</span>
           </div>
           <div className="flex gap-2">
             {['Semantic', 'Episodic', 'Procedural'].map((m) => (

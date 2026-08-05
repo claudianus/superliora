@@ -52,8 +52,8 @@ export const FLAG_DEFINITIONS = [
   },
   {
     id: 'auto_dream',
-    title: 'Auto-dream memory consolidation',
-    description: 'After each user turn, fire a cheap-gated background job that consolidates long-term memory with an LLM without blocking the live session.',
+    title: 'Liora Memory reflection',
+    description: 'After each user turn, use a cheap-gated background job to promote candidate records through deterministic reflection without blocking the live session.',
     env: 'SUPERLIORA_EXPERIMENTAL_AUTO_DREAM',
     default: true,
     surface: 'core',

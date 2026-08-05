@@ -120,7 +120,7 @@ function renderFullView(
     renderedLines += 1;
   }
   const truncated = renderedLines < lines.length;
-  if (truncated) rendered.push('[...truncated — use LioraExpand or LioraRead mode=lines]');
+  if (truncated) rendered.push('[...truncated — use Expand or LioraRead mode=lines]');
   rendered.push('</liora_read>');
   const text = rendered.join('\n');
   return {

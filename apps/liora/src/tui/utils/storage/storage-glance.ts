@@ -14,7 +14,7 @@ export const STORAGE_HOME_TIP =
 
 /** Session retention — transcripts, journal, tool-results; no auto-purge yet. */
 export const STORAGE_RETENTION_TIP =
-  'Session retention: transcripts under <home>/sessions/<workdir-bucket>/<id>/ · durable journal agents/*/wire.jsonl · cleared tool receipts agents/main/tool-results/. Resume via session picker · export via `liora export`. No automatic purge in Settings — manual cleanup by deleting dirs. Goal queue: <sessionDir>/goal-queue.json when Mission active.';
+  'Session retention: transcripts under <home>/sessions/<workdir-bucket>/<id>/ · durable journal agents/*/wire.jsonl · cleared tool receipts agents/main/tool-results/. Liora Memory lives in memory/liora-memory.sqlite with records/ as a recovery mirror. Resume via session picker · export via `liora export`.';
 
 /** Log level — interactive TUI stderr vs server daemon flag. */
 export const STORAGE_LOGS_TIP =
@@ -93,7 +93,7 @@ export function buildStorageSettingsLines(input: StorageGlanceInput): readonly s
     '',
     '── Home layout ──────────────────────────────',
     '· skills/ · skills-state.json · cache/ · logs/ · user-history/',
-    '· memory/kimi-recall.sqlite + records/ · credentials/ · mcp.json',
+    '· memory/liora-memory.sqlite + records/ · episodes/ (migration input only) · credentials/ · mcp.json',
     '· updates/ (CLI auto-update state) · bin/ (managed tools)',
     '· Override entire tree: export SUPERLIORA_HOME before launch',
     '',

@@ -24,8 +24,25 @@ import {
   setZoektFetchOverrideForTests,
   setZoektSidecarProbeOverrideForTests,
 } from '#/repo-index/engine';
+import { contentIndexHitToMemoryLink } from '#/repo-index/content-indexer';
 
 describe('repo-index engine sqlite FTS', () => {
+  it('converts indexed lines into derived file provenance links', () => {
+    expect(
+      contentIndexHitToMemoryLink({
+        path: 'packages/agent-core/src/memory/store.ts',
+        line: 42,
+        body: 'return memory.recall(request);',
+      }),
+    ).toEqual({
+      targetKind: 'file',
+      targetId: 'packages/agent-core/src/memory/store.ts#L42',
+      relation: 'derived:repo-index',
+      confidence: 0.9,
+      source: { kind: 'system', excerpt: 'return memory.recall(request);' },
+    });
+  });
+
   let dir: string;
   const probeToken = 'UniqueEngineFtsProbeToken';
 
@@ -124,6 +141,13 @@ describe('repo-index engine sqlite FTS', () => {
     expect(result.results.length).toBeGreaterThanOrEqual(1);
     expect(result.results[0]).toContain(probeToken);
     expect(result.results[0]).toMatch(/^probe\.ts:L\d+ /);
+    expect(result.derived_links).toMatchObject([
+      {
+        targetKind: 'file',
+        targetId: expect.stringMatching(/^probe\.ts#L\d+$/),
+        relation: 'derived:repo-index',
+      },
+    ]);
     expect(result.index_status).toBe('partial');
     expect(result.hint).toContain(REPO_INDEX_CONTENT_STUB_HINT);
     expect(result.next_step.length).toBeGreaterThan(0);

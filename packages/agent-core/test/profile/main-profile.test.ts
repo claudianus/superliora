@@ -78,7 +78,6 @@ describe('resolveMainAgentProfile', () => {
       'LioraTree',
       'LioraSymbol',
       'LioraCallgraph',
-      'LioraExpand',
       'LioraReview',
     ]) {
       expect(profile.tools).not.toContain(legacy);

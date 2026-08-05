@@ -188,7 +188,7 @@ const APPEARANCE_VALUE_COMPLETIONS: Readonly<
 };
 
 const PREFLIGHT_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
-  { value: '--query=', description: 'Override Liora Recall readiness query' },
+  { value: '--query=', description: 'Override Liora Memory readiness query' },
 ];
 
 const EDITOR_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
@@ -231,14 +231,11 @@ const PERSONA_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
 ];
 
 const MEMORY_PRIMARY_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
-  { value: 'stats', description: 'Show Liora Recall memory stats' },
-  { value: 'list', description: 'List recent memories' },
-  { value: 'search', description: 'Search memories' },
-  { value: 'wiki', description: 'Show project-local LLM Wiki status' },
-  { value: 'verify', description: 'Promote LLM Wiki and knowledge-map seed evidence to verified' },
+  { value: 'inspect', description: 'Inspect store health and records' },
+  { value: 'recall', description: 'Recall memories by query' },
   { value: 'remember', description: 'Write a memory' },
   { value: 'forget', description: 'Forget a memory by id' },
-  { value: 'consolidate', description: 'Merge exact duplicate memories' },
+  { value: 'reflect', description: 'Promote and merge candidate memories' },
 ];
 
 /** Argument autocompletion for the `/goal` command (subcommands). */

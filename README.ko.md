@@ -40,7 +40,7 @@ SuperLiora(`liora`)는 오래 이어지는 소프트웨어 작업을 위한 AI �
 4. **UltraResearch loop** — 고위험 결정 전에 출처를 남깁니다  
 5. **UltraSwarm** — 최대 128 specialist를 ENGAGE/DEFER 게이트로 운용합니다  
 6. **Integrate → Verify** — 통합 후 테스트·런타임 증거로 닫습니다  
-7. **Learn** — 프로젝트 로컬 LLM Wiki를 쓰고, 장기 사실만 Liora Recall에 남깁니다  
+7. **Learn** — 프로젝트 로컬 LLM Wiki를 쓰고, 장기 사실만 Liora Memory에 남깁니다
 
 ## 기능 맵
 
@@ -51,7 +51,7 @@ SuperLiora(`liora`)는 오래 이어지는 소프트웨어 작업을 위한 AI �
 | **UltraResearch** | API·논문·보안 권고 확인 및 인용 |
 | **UltraSwarm** | ENGAGE/DEFER + specialist (최대 128) |
 | **Context OS** | compaction, working memory, repair, rehydration |
-| **Liora Recall** | semantic · episodic · procedural · prospective 기억 |
+| **Liora Memory** | fact · event · procedure · task · rule 기억 |
 | **LLM Wiki** | Ultrawork 런 기반 프로젝트 로컬 검토 문서 |
 | **Browser-use** | CloakBrowser + Playwright 웹 관찰·조작 |
 | **Computer-use** | CUA/MCP 네이티브 데스크톱 캡처·조작 |

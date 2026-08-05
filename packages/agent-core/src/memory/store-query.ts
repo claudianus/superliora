@@ -1,5 +1,5 @@
 /**
- * Pure query/business logic for Liora Recall — extracted from `store.ts`.
+ * Pure query/business logic for Liora Memory — extracted from `store.ts`.
  *
  * Everything here is free of I/O: memory scoring/ranking, SQL clause
  * construction (the resulting strings/params are executed by
@@ -11,10 +11,12 @@ import { randomUUID } from 'node:crypto';
 
 import { shouldSkipMemoryText } from './redact';
 import type {
-  LioraRecallConfig,
+  LioraMemoryConfig,
   MemoryCreateInput,
-  MemoryKind,
+  MemoryEvidenceRef,
+  MemoryEpistemic,
   MemoryListRequest,
+  MemoryLink,
   MemoryRecord,
   MemoryRuntimeAgentContext,
   MemoryScope,
@@ -23,10 +25,12 @@ import type {
   MemorySourceRef,
   MemoryStatus,
   MemoryTurnCaptureInput,
+  MemoryType,
 } from './types';
 
 interface ExplicitMemoryCandidate {
-  readonly kind: MemoryKind;
+  readonly type: MemoryType;
+  readonly epistemic: MemoryEpistemic;
   readonly scope: MemoryScope;
   readonly content: string;
   readonly tags: readonly string[];
@@ -34,44 +38,49 @@ interface ExplicitMemoryCandidate {
   readonly utility: number;
 }
 
-export const MEMORY_KINDS: readonly MemoryKind[] = [
-  'semantic',
-  'episodic',
-  'procedural',
-  'prospective',
-  'governance',
+export const MEMORY_TYPES: readonly MemoryType[] = [
+  'fact',
+  'event',
+  'procedure',
+  'task',
+  'rule',
 ];
 export const MEMORY_SCOPES: readonly MemoryScope[] = ['user', 'workspace', 'session'];
-export const MEMORY_STATUSES: readonly MemoryStatus[] = ['active', 'archived', 'superseded', 'deleted'];
+export const MEMORY_STATUSES: readonly MemoryStatus[] = [
+  'candidate',
+  'active',
+  'archived',
+  'superseded',
+  'deleted',
+];
 
 export const DEFAULT_LIMIT = 20;
 export const MAX_LIMIT = 100;
 
-// Recall precision (T2-5): governance/semantic memories are durable rules
-// and facts; episodic noise should not crowd them out of the tiny injection
-// cap. Candidates are fetched wide, boosted, re-ranked, then capped.
-const KIND_PRIORITY_BOOST = 0.05;
-const PRIORITY_INJECTION_KINDS: ReadonlySet<MemoryKind> = new Set(['governance', 'semantic']);
+// Durable rules and facts should outrank noisy event memories at the tiny
+// prompt boundary. Candidates are fetched wide, re-ranked, then capped.
+const TYPE_PRIORITY_BOOST = 0.05;
+const PRIORITY_INJECTION_TYPES: ReadonlySet<MemoryType> = new Set(['rule', 'fact']);
 
-export function prioritizeInjectionKinds(
+export function prioritizeInjectionTypes(
   results: readonly MemorySearchResult[],
 ): readonly MemorySearchResult[] {
   return results
     .map((result) => ({
       result,
       boosted:
-        result.score + (PRIORITY_INJECTION_KINDS.has(result.memory.kind) ? KIND_PRIORITY_BOOST : 0),
+        result.score + (PRIORITY_INJECTION_TYPES.has(result.memory.type) ? TYPE_PRIORITY_BOOST : 0),
     }))
     .toSorted((a, b) => b.boosted - a.boosted || b.result.score - a.result.score)
     .map((entry) => entry.result);
 }
 
 // ---------------------------------------------------------------------------
-// Kind/scope/status validation
+// Type/scope/status validation
 // ---------------------------------------------------------------------------
 
-export function isMemoryKind(value: string): value is MemoryKind {
-  return MEMORY_KINDS.includes(value as MemoryKind);
+export function isMemoryType(value: string): value is MemoryType {
+  return MEMORY_TYPES.includes(value as MemoryType);
 }
 
 export function isMemoryScope(value: string): value is MemoryScope {
@@ -82,9 +91,16 @@ export function isMemoryStatus(value: string): value is MemoryStatus {
   return MEMORY_STATUSES.includes(value as MemoryStatus);
 }
 
-export function parseMemoryKind(value: string): MemoryKind {
-  if (isMemoryKind(value)) return value;
-  return 'semantic';
+export function parseMemoryType(value: string): MemoryType {
+  if (isMemoryType(value)) return value;
+  const legacyTypes: Readonly<Record<string, MemoryType>> = {
+    semantic: 'fact',
+    episodic: 'event',
+    procedural: 'procedure',
+    prospective: 'task',
+    governance: 'rule',
+  };
+  return legacyTypes[value] ?? 'fact';
 }
 
 export function parseMemoryScope(value: string): MemoryScope {
@@ -97,8 +113,8 @@ export function parseMemoryStatus(value: string): MemoryStatus {
   return 'active';
 }
 
-export function assertMemoryKind(value: string): asserts value is MemoryKind {
-  if (!isMemoryKind(value)) throw new Error(`Invalid memory kind: ${value}`);
+export function assertMemoryType(value: string): asserts value is MemoryType {
+  if (!isMemoryType(value)) throw new Error(`Invalid memory type: ${value}`);
 }
 
 export function assertMemoryScope(value: string): asserts value is MemoryScope {
@@ -114,19 +130,75 @@ export function isMemoryRecordLike(value: unknown): value is MemoryRecord {
   const record = value as Record<string, unknown>;
   return (
     typeof record['id'] === 'string' &&
-    typeof record['kind'] === 'string' &&
-    isMemoryKind(record['kind']) &&
+    typeof record['type'] === 'string' &&
+    isMemoryType(record['type']) &&
+    (record['epistemic'] === 'direct' ||
+      record['epistemic'] === 'inferred' ||
+      record['epistemic'] === 'preference' ||
+      record['epistemic'] === 'summary') &&
     typeof record['scope'] === 'string' &&
     isMemoryScope(record['scope']) &&
     typeof record['subject'] === 'string' &&
     typeof record['content'] === 'string' &&
     Array.isArray(record['tags']) &&
+    record['tags'].every((tag) => typeof tag === 'string') &&
     typeof record['confidence'] === 'number' &&
+    record['confidence'] >= 0 &&
+    record['confidence'] <= 1 &&
     typeof record['importance'] === 'number' &&
+    record['importance'] >= 0 &&
+    record['importance'] <= 1 &&
     typeof record['status'] === 'string' &&
     isMemoryStatus(record['status']) &&
+    isMemorySourceRefLike(record['source']) &&
     typeof record['createdAt'] === 'number' &&
-    typeof record['updatedAt'] === 'number'
+    typeof record['updatedAt'] === 'number' &&
+    typeof record['recordedAt'] === 'number' &&
+    Array.isArray(record['supersedes']) &&
+    record['supersedes'].every((id) => typeof id === 'string') &&
+    Array.isArray(record['evidenceRefs']) &&
+    record['evidenceRefs'].every(isMemoryEvidenceRefLike) &&
+    Array.isArray(record['links']) &&
+    record['links'].every(isMemoryLinkLike)
+  );
+}
+
+export function isMemoryEvidenceRefLike(value: unknown): value is MemoryEvidenceRef {
+  if (typeof value !== 'object' || value === null) return false;
+  const ref = value as Record<string, unknown>;
+  return (
+    (ref['kind'] === 'file' ||
+      ref['kind'] === 'symbol' ||
+      ref['kind'] === 'run' ||
+      ref['kind'] === 'message' ||
+      ref['kind'] === 'memory' ||
+      ref['kind'] === 'url') &&
+    typeof ref['id'] === 'string' &&
+    ref['id'].length > 0 &&
+    (ref['excerpt'] === undefined || typeof ref['excerpt'] === 'string') &&
+    (ref['sha256'] === undefined || typeof ref['sha256'] === 'string')
+  );
+}
+
+export function isMemoryLinkLike(value: unknown): value is MemoryLink {
+  if (typeof value !== 'object' || value === null) return false;
+  const link = value as Record<string, unknown>;
+  return (
+    (link['targetKind'] === 'memory' ||
+      link['targetKind'] === 'file' ||
+      link['targetKind'] === 'symbol' ||
+      link['targetKind'] === 'run' ||
+      link['targetKind'] === 'evidence') &&
+    typeof link['targetId'] === 'string' &&
+    link['targetId'].length > 0 &&
+    typeof link['relation'] === 'string' &&
+    link['relation'].length > 0 &&
+    typeof link['confidence'] === 'number' &&
+    link['confidence'] >= 0 &&
+    link['confidence'] <= 1 &&
+    (link['validFrom'] === undefined || typeof link['validFrom'] === 'number') &&
+    (link['validTo'] === undefined || typeof link['validTo'] === 'number') &&
+    (link['source'] === undefined || isMemorySourceRefLike(link['source']))
   );
 }
 
@@ -193,6 +265,7 @@ export function hasAllTags(record: MemoryRecord, tags: readonly string[] | undef
 
 export function allowedStatuses(request: MemorySearchRequest): readonly MemoryStatus[] {
   const statuses: MemoryStatus[] = ['active'];
+  if (request.includeCandidates === true) statuses.push('candidate');
   if (request.includeArchived === true) {
     statuses.push('archived', 'superseded');
   }
@@ -215,9 +288,9 @@ export function buildListFilter(
 ): { readonly clauses: readonly string[]; readonly params: readonly unknown[] } {
   const clauses: string[] = [];
   const params: unknown[] = [];
-  if (request.kind !== undefined) {
+  if (request.type !== undefined) {
     clauses.push('kind = ?');
-    params.push(request.kind);
+    params.push(request.type);
   }
   if (request.scope !== undefined) {
     clauses.push('scope = ?');
@@ -254,13 +327,13 @@ export function buildSearchFilter(
   const statuses = allowedStatuses(request);
   clauses.push(`status IN (${statuses.map(() => '?').join(', ')})`);
   params.push(...statuses);
-  if (request.kind !== undefined) {
+  if (request.type !== undefined) {
     clauses.push('kind = ?');
-    params.push(request.kind);
+    params.push(request.type);
   }
-  if (request.kinds !== undefined && request.kinds.length > 0) {
-    clauses.push(`kind IN (${request.kinds.map(() => '?').join(', ')})`);
-    params.push(...request.kinds);
+  if (request.types !== undefined && request.types.length > 0) {
+    clauses.push(`kind IN (${request.types.map(() => '?').join(', ')})`);
+    params.push(...request.types);
   }
   if (request.scope !== undefined) {
     clauses.push('scope = ?');
@@ -282,6 +355,18 @@ export function buildSearchFilter(
     }
     clauses.push(`(${scopeClauses.join(' OR ')})`);
   }
+  if (request.asOf !== undefined) {
+    clauses.push('recorded_at <= ?');
+    params.push(request.asOf);
+    clauses.push('(valid_from IS NULL OR valid_from <= ?)');
+    params.push(request.asOf);
+    clauses.push('(valid_to IS NULL OR valid_to > ?)');
+    params.push(request.asOf);
+    if (request.includeDeleted !== true) {
+      clauses.push('(invalid_at IS NULL OR invalid_at > ?)');
+      params.push(request.asOf);
+    }
+  }
   return { clauses, params };
 }
 
@@ -300,7 +385,11 @@ export function scoreMemory(
   const recency = Math.max(0, 1 - ageDays / 365);
   const frequency = accessFrequencyScore(memory.accessCount);
   const score = clamp01(
-    lexical * 0.5 + memory.importance * 0.2 + memory.confidence * 0.1 + recency * 0.1 + frequency * 0.1,
+    lexical * 0.45 +
+      memory.importance * 0.2 +
+      memory.confidence * 0.15 +
+      recency * 0.1 +
+      frequency * 0.1,
   );
   const reasons = [
     lexical > 0.1 ? 'text-match' : 'recent-important',
@@ -352,30 +441,45 @@ export function normalizeCreateInput(
   content: string,
   now: number,
 ): MemoryRecord {
-  assertMemoryKind(input.kind);
+  assertMemoryType(input.type);
   const scope = input.scope ?? 'user';
   assertMemoryScope(scope);
+  if (scope !== 'user' && (input.scopeKey === undefined || input.scopeKey.trim().length === 0)) {
+    throw new Error(`Memory ${scope} scope requires a scopeKey.`);
+  }
   const source = input.source ?? { kind: 'user' };
+  if ((input.evidenceRefs ?? []).some((ref) => !isMemoryEvidenceRefLike(ref))) {
+    throw new Error('Memory evidenceRefs contains an invalid reference.');
+  }
+  if ((input.links ?? []).some((link) => !isMemoryLinkLike(link))) {
+    throw new Error('Memory links contains an invalid link.');
+  }
+  const status = source.kind === 'auto' ? 'candidate' : input.status ?? 'active';
   return stripUndefined({
     id: randomUUID(),
-    kind: input.kind,
+    type: input.type,
+    epistemic: input.epistemic ?? (source.kind === 'auto' ? 'inferred' : 'direct'),
     scope,
-    scopeKey: input.scopeKey,
+    scopeKey: scope === 'user' ? undefined : input.scopeKey,
     subject,
     content,
     tags: normalizeTags(input.tags ?? []),
     confidence: clamp01(input.confidence ?? 0.85),
     importance: clamp01(input.importance ?? 0.55),
-    status: 'active' as const,
+    status,
     source,
     createdAt: now,
     updatedAt: now,
+    recordedAt: now,
     accessedAt: undefined,
     accessCount: 0,
     validFrom: input.validFrom,
     validTo: input.validTo,
+    invalidAt: undefined,
     supersedes: [],
     supersededBy: undefined,
+    evidenceRefs: input.evidenceRefs ?? [],
+    links: input.links ?? [],
     metadata: sanitizeMetadata(input.metadata ?? {}),
   });
 }
@@ -395,19 +499,22 @@ export function extractMemoryCandidates(
   text: string,
   context: MemoryRuntimeAgentContext,
   input: MemoryTurnCaptureInput,
-  config: LioraRecallConfig | undefined,
+  config: LioraMemoryConfig | undefined,
 ): readonly MemoryCreateInput[] {
   const captures: MemoryCreateInput[] = [];
+  const captureMode = config?.captureMode ?? 'explicit';
   for (const explicit of explicitMemorySentences(text)) {
     captures.push({
-      kind: explicit.kind,
+      type: explicit.type,
+      epistemic: explicit.epistemic,
       scope: explicit.scope,
       scopeKey: defaultScopeKey(explicit.scope, context),
       subject: summarizeSubject(explicit.content),
       content: explicit.content,
       tags: explicit.tags,
       confidence: 0.92,
-      importance: explicit.kind === 'procedural' ? 0.85 : 0.72,
+      importance: explicit.type === 'procedure' ? 0.85 : 0.72,
+      status: 'candidate',
       source: {
         kind: 'auto',
         sessionId: context.sessionId,
@@ -415,6 +522,15 @@ export function extractMemoryCandidates(
         turnId: input.turnId,
         excerpt: excerpt(text),
       },
+      links: [
+        {
+          targetKind: 'run',
+          targetId: context.sessionId,
+          relation: 'captured-in-session',
+          confidence: 1,
+          source: { kind: 'auto', sessionId: context.sessionId, agentId: context.agentId, turnId: input.turnId },
+        },
+      ],
       metadata: {
         capture: 'explicit',
         captureSignal: explicit.signal,
@@ -422,9 +538,14 @@ export function extractMemoryCandidates(
       },
     });
   }
-  if (captures.length === 0 && config?.captureEpisodic !== false && shouldCaptureEpisode(text, input.reason)) {
+  if (
+    captures.length === 0 &&
+    captureMode === 'candidate' &&
+    shouldCaptureEpisode(text, input.reason)
+  ) {
     captures.push({
-      kind: 'episodic',
+      type: 'event',
+      epistemic: 'summary',
       scope: 'workspace',
       scopeKey: context.workDir,
       subject: summarizeSubject(text),
@@ -432,6 +553,7 @@ export function extractMemoryCandidates(
       tags: inferTags(text),
       confidence: 0.65,
       importance: 0.48,
+      status: 'candidate',
       source: {
         kind: 'auto',
         sessionId: context.sessionId,
@@ -439,6 +561,15 @@ export function extractMemoryCandidates(
         turnId: input.turnId,
         excerpt: excerpt(text),
       },
+      links: [
+        {
+          targetKind: 'run',
+          targetId: context.sessionId,
+          relation: 'captured-in-session',
+          confidence: 1,
+          source: { kind: 'auto', sessionId: context.sessionId, agentId: context.agentId, turnId: input.turnId },
+        },
+      ],
       metadata: {
         capture: 'episode',
         captureSignal: 'completed-work',
@@ -453,7 +584,8 @@ function explicitMemorySentences(text: string): readonly ExplicitMemoryCandidate
   const results: ExplicitMemoryCandidate[] = [];
   const patterns: readonly {
     readonly regex: RegExp;
-    readonly kind: MemoryKind;
+    readonly type: MemoryType;
+    readonly epistemic: MemoryEpistemic;
     readonly scope: MemoryScope;
     readonly tags: readonly string[];
     readonly signal: string;
@@ -461,7 +593,8 @@ function explicitMemorySentences(text: string): readonly ExplicitMemoryCandidate
   }[] = [
     {
       regex: /(?:기억해줘|기억해|메모해줘|메모해|remember(?: that)?|note(?: that)?)[:\s]+(.+)/giu,
-      kind: 'semantic',
+      type: 'fact',
+      epistemic: 'direct',
       scope: 'user',
       tags: ['explicit'],
       signal: 'explicit-request',
@@ -469,7 +602,8 @@ function explicitMemorySentences(text: string): readonly ExplicitMemoryCandidate
     },
     {
       regex: /(?:앞으로|from now on|always|prefer|선호|취향)[:\s,]+(.+)/giu,
-      kind: 'procedural',
+      type: 'procedure',
+      epistemic: 'preference',
       scope: 'user',
       tags: ['preference'],
       signal: 'preference-directive',
@@ -477,7 +611,8 @@ function explicitMemorySentences(text: string): readonly ExplicitMemoryCandidate
     },
     {
       regex: /(?:remind me|리마인드해줘|알려줘)[:\s]+(.+)/giu,
-      kind: 'prospective',
+      type: 'task',
+      epistemic: 'direct',
       scope: 'user',
       tags: ['reminder'],
       signal: 'reminder-request',
@@ -489,7 +624,8 @@ function explicitMemorySentences(text: string): readonly ExplicitMemoryCandidate
       const content = normalizeMemorySentence(match[1] ?? '');
       if (content.length > 0 && !shouldSkipMemoryText(content) && !isTransientMemoryCandidate(content)) {
         results.push({
-          kind: pattern.kind,
+          type: pattern.type,
+          epistemic: pattern.epistemic,
           scope: pattern.scope,
           content,
           tags: pattern.tags,
@@ -517,8 +653,8 @@ function isTransientMemoryCandidate(text: string): boolean {
   );
 }
 
-export function defaultScopeForKind(kind: MemoryKind): MemoryScope {
-  if (kind === 'episodic') return 'workspace';
+export function defaultScopeForType(type: MemoryType): MemoryScope {
+  if (type === 'event') return 'workspace';
   return 'user';
 }
 

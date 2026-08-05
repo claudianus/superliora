@@ -9,7 +9,7 @@
 import type { Kaos } from '@superliora/kaos';
 
 import type { BuiltinTool } from '../../../agent/tool';
-import { getCodeMapForWorkspace } from '../../../codemap/code-map';
+import { codeMapHitsToMemoryLinks, getCodeMapForWorkspace } from '../../../codemap/code-map';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolOutput, ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { queryRepoIndexContentAsync } from '../../../repo-index/engine';
@@ -166,6 +166,7 @@ export class RepoQueryTool implements BuiltinTool<RepoQueryInput> {
         output: formatRepoQueryOutput({
           mode: 'content',
           results: [...indexQuery.results],
+          ...(indexQuery.derived_links === undefined ? {} : { derived_links: indexQuery.derived_links }),
           index_status: indexQuery.index_status,
           took_ms: Date.now() - started,
           truncated: indexQuery.results.length >= limit,
@@ -307,6 +308,7 @@ export class RepoQueryTool implements BuiltinTool<RepoQueryInput> {
         output: formatRepoQueryOutput({
           mode: 'symbol',
           results,
+          ...(hits.length === 0 ? {} : { derived_links: codeMapHitsToMemoryLinks(hits) }),
           index_status: 'warm',
           took_ms: Date.now() - started,
           truncated: hits.length >= limit,
@@ -415,6 +417,9 @@ export class RepoQueryTool implements BuiltinTool<RepoQueryInput> {
       output: formatRepoQueryOutput({
         mode: 'outline',
         results,
+          ...(filtered.length === 0
+            ? {}
+            : { derived_links: codeMapHitsToMemoryLinks(filtered.slice(0, limit)) }),
         index_status: 'partial',
         took_ms: Date.now() - started,
         truncated,

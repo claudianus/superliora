@@ -2,9 +2,9 @@
 "@superliora/liora": minor
 ---
 
-Add auto-dream background memory consolidation, an autopilot issue-to-PR pipeline, and a structured diff code-review tool — all gated behind experimental flags (default off).
+Add the Liora Memory reflection scheduler, an autopilot issue-to-PR pipeline, and a structured diff code-review tool.
 
-Auto-dream (`SUPERLIORA_EXPERIMENTAL_AUTO_DREAM`): after each user turn, a cheap-gated background job asks the LLM to semantically cluster and merge long-term-memory records, backing up the store first and rolling back on failure.
+Liora Memory reflection (`SUPERLIORA_EXPERIMENTAL_AUTO_DREAM`): a cheap-gated background job promotes candidate records through deterministic duplicate and temporal-conflict checks. The canonical store owns the operation; no LLM rewrite or backup/rollback layer is involved.
 
 Autopilot (`SUPERLIORA_EXPERIMENTAL_AUTO_PILOT`): a queue-based autonomous repo loop — ingest issues, run agent in a worktree, verify, open PR, retry on failure.
 

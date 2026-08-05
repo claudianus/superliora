@@ -1,5 +1,5 @@
 /**
- * SQLite engine helpers for Liora Recall persistence — extracted from
+ * SQLite engine helpers for Liora Memory persistence — extracted from
  * `store-persistence.ts`.
  *
  * Owns the node:sqlite handle wrapper, corruption error classification,
@@ -10,12 +10,19 @@
 import { createRequire } from 'node:module';
 
 import {
-  parseMemoryKind,
+  parseMemoryType,
   parseMemoryScope,
   parseMemoryStatus,
+  isMemoryEvidenceRefLike,
+  isMemoryLinkLike,
   stripUndefined,
 } from './store-query';
-import type { MemoryRecord, MemorySourceRef } from './types';
+import type {
+  MemoryEvidenceRef,
+  MemoryLink,
+  MemoryRecord,
+  MemorySourceRef,
+} from './types';
 
 interface SqliteRunResult {
   readonly changes: number;
@@ -41,6 +48,7 @@ interface SqliteModule {
 export interface MemoryRow {
   readonly id: string;
   readonly kind: string;
+  readonly epistemic: string;
   readonly scope: string;
   readonly scope_key: string | null;
   readonly subject: string;
@@ -52,13 +60,17 @@ export interface MemoryRow {
   readonly source_json: string;
   readonly created_at: number;
   readonly updated_at: number;
+  readonly recorded_at: number;
   readonly accessed_at: number | null;
   readonly access_count: number;
   readonly valid_from: number | null;
   readonly valid_to: number | null;
+  readonly invalid_at: number | null;
   readonly supersedes_json: string;
   readonly superseded_by: string | null;
   readonly metadata_json: string;
+  readonly evidence_json: string;
+  readonly links_json: string;
   readonly rank?: number | null;
 }
 
@@ -91,7 +103,8 @@ export function corruptionErrorMessage(error: unknown): string {
 export function rowToMemory(row: MemoryRow): MemoryRecord {
   const base = {
     id: row.id,
-    kind: parseMemoryKind(row.kind),
+    type: parseMemoryType(row.kind),
+    epistemic: parseEpistemic(row.epistemic),
     scope: parseMemoryScope(row.scope),
     subject: row.subject,
     content: row.content,
@@ -102,8 +115,11 @@ export function rowToMemory(row: MemoryRow): MemoryRecord {
     source: parseSourceRef(row.source_json),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    recordedAt: row.recorded_at,
     accessCount: row.access_count,
     supersedes: parseJsonArray(row.supersedes_json),
+    evidenceRefs: parseJsonObjects<MemoryEvidenceRef>(row.evidence_json).filter(isMemoryEvidenceRefLike),
+    links: parseJsonObjects<MemoryLink>(row.links_json).filter(isMemoryLinkLike),
     metadata: parseJsonObject(row.metadata_json),
   };
   return stripUndefined({
@@ -112,6 +128,7 @@ export function rowToMemory(row: MemoryRow): MemoryRecord {
     accessedAt: row.accessed_at ?? undefined,
     validFrom: row.valid_from ?? undefined,
     validTo: row.valid_to ?? undefined,
+    invalidAt: row.invalid_at ?? undefined,
     supersededBy: row.superseded_by ?? undefined,
   });
 }
@@ -122,6 +139,7 @@ export function isMemoryRow(value: unknown): value is MemoryRow {
   return (
     typeof row['id'] === 'string' &&
     typeof row['kind'] === 'string' &&
+    typeof row['epistemic'] === 'string' &&
     typeof row['scope'] === 'string' &&
     (typeof row['scope_key'] === 'string' || row['scope_key'] === null) &&
     typeof row['subject'] === 'string' &&
@@ -133,13 +151,17 @@ export function isMemoryRow(value: unknown): value is MemoryRow {
     typeof row['source_json'] === 'string' &&
     typeof row['created_at'] === 'number' &&
     typeof row['updated_at'] === 'number' &&
+    typeof row['recorded_at'] === 'number' &&
     (typeof row['accessed_at'] === 'number' || row['accessed_at'] === null) &&
     typeof row['access_count'] === 'number' &&
     (typeof row['valid_from'] === 'number' || row['valid_from'] === null) &&
     (typeof row['valid_to'] === 'number' || row['valid_to'] === null) &&
+    (typeof row['invalid_at'] === 'number' || row['invalid_at'] === null) &&
     typeof row['supersedes_json'] === 'string' &&
     (typeof row['superseded_by'] === 'string' || row['superseded_by'] === null) &&
-    typeof row['metadata_json'] === 'string'
+    typeof row['metadata_json'] === 'string' &&
+    typeof row['evidence_json'] === 'string' &&
+    typeof row['links_json'] === 'string'
   );
 }
 
@@ -164,6 +186,21 @@ function parseJsonArray(text: string): readonly string[] {
   } catch {
     return [];
   }
+}
+
+function parseJsonObjects<T>(text: string): readonly T[] {
+  try {
+    const value = JSON.parse(text) as unknown;
+    if (!Array.isArray(value)) return [];
+    return value.filter((entry): entry is T => typeof entry === 'object' && entry !== null);
+  } catch {
+    return [];
+  }
+}
+
+function parseEpistemic(value: string): MemoryRecord['epistemic'] {
+  if (value === 'direct' || value === 'inferred' || value === 'preference' || value === 'summary') return value;
+  return 'direct';
 }
 
 function parseJsonObject(text: string): Readonly<Record<string, unknown>> {

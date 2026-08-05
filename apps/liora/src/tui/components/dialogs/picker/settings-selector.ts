@@ -235,7 +235,7 @@ const SETTINGS_OPTIONS_BASE: readonly (Omit<ChoiceOption, 'keywords'> & {
     value: 'memory',
     section: 'Integrations',
     label: 'Memory',
-    description: 'Liora Recall — stats, search, remember, wiki.',
+    description: 'Liora Memory — inspect, recall, remember, reflect.',
   },
   // ── Account ─────────────────────────────────────────────────────────────
   {

@@ -169,16 +169,16 @@ describe('chip registry', () => {
     expect(out).toBe('3 entries');
   });
 
-  it('LioraExpand chip shows window range when present', () => {
+  it('Expand chip shows window range when present', () => {
     const out = chipFor(
-      'LioraExpand',
+      'Expand',
       { id: 'arch-1' },
       result(
         [
-          '<liora_expand id="arch-1" label="src/foo.ts">',
+          '<expand id="arch-1" label="src/foo.ts">',
           'window: 1-20 of 200',
           '1\tline one',
-          '</liora_expand>',
+          '</expand>',
         ].join('\n'),
       ),
     );
@@ -249,15 +249,15 @@ describe('chip registry', () => {
   it('Memory chip counts search hits', () => {
     const out = chipFor(
       'Memory',
-      { search: { query: 'prefs' } },
-      result('1. score=0.91 [m1] semantic/user\nSubject: Theme\nContent: dark\n\n2. score=0.80 [m2] semantic/user\nSubject: Lang\nContent: ko'),
+      { recall: { query: 'prefs' } },
+      result('1. score=0.91 [m1] fact/user\nSubject: Theme\nContent: dark\n\n2. score=0.80 [m2] fact/user\nSubject: Lang\nContent: ko'),
     );
     expect(out).toBe('2 memories');
   });
 
   it('Memory chip shows saved status', () => {
     expect(
-      chipFor('Memory', { write: { subject: 'Theme', content: 'dark' } }, result('Memory saved: m1\n[m1] semantic/user\nSubject: Theme\nContent: dark')),
+      chipFor('Memory', { remember: { subject: 'Theme', content: 'dark' } }, result('Memory saved: m1\n[m1] fact/user\nSubject: Theme\nContent: dark')),
     ).toBe('saved');
   });
   it('NextPhase chip shows from→to phase', () => {

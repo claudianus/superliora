@@ -167,6 +167,29 @@ You can also switch models temporarily without touching the config file — by s
 | `compaction_model` | `string` | — | Model alias used for compaction summarization, set to a cheaper or faster model registered under `[models]` to lower compaction cost; unset uses the main conversation model |
 | `completion_model` | `string` | — | Model alias used for prompt intelligence (inline autocomplete and next-task suggestions), set to a faster or cheaper model registered under `[models]` for low-latency predictions; unset uses the main conversation model |
 
+## `memory`
+
+`[memory]` controls the Liora Memory durable store. Long-term records live in one SQLite database; Context OS and compaction remain transient working context. Automatic candidates never enter recall until `/memory reflect` promotes them.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `enabled` | `boolean` | `true` | Enable the Memory tool and durable recall |
+| `store_path` | `string` | `$SUPERLIORA_HOME/memory/liora-memory.sqlite` | Override the canonical SQLite path |
+| `max_retrieved` | `integer` | — | Maximum records selected for automatic injection (0–20) |
+| `min_injection_score` | `number` | `0.35` | Minimum query-match score for automatic injection (0–1) |
+| `capture_mode` | `string` | `explicit` | `off` disables capture; `explicit` stores explicit remembers; `candidate` also captures eligible turn candidates |
+| `reflect_enabled` | `boolean` | `true` | Allow automatic reflection of candidate records |
+| `retention_days` | `integer` | — | Archive active records older than this many days during reflection |
+
+Example:
+
+```toml
+[memory]
+capture_mode = "candidate"
+min_injection_score = 0.4
+retention_days = 180
+```
+
 ## `background`
 
 `background` controls the concurrency behavior of background tasks (launched via the `Bash` tool or the `Agent` tool's `run_in_background=true` parameter).

@@ -21,7 +21,6 @@ describe('tool-help-filter', () => {
   it('hides advanced compat tools when preferred names are present', () => {
     const catalog: ToolInfo[] = [
       tool('Expand'),
-      tool('LioraExpand', 'advanced'),
       tool('Review'),
       tool('LioraReview', 'advanced'),
       tool('CreateGoal'),
@@ -34,7 +33,6 @@ describe('tool-help-filter', () => {
     ]);
     expect(listHiddenCompatAliases(catalog)).toEqual([
       'CreateUltraGoal→CreateGoal',
-      'LioraExpand→Expand',
       'LioraReview→Review',
     ]);
   });

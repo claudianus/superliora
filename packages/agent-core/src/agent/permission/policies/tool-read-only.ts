@@ -17,7 +17,6 @@ export const READ_ONLY_TOOL_NAMES = new Set<string>([
   'LioraSymbol',
   'LioraCallgraph',
   'Expand',
-  'LioraExpand',
   'WebSearch',
   'FetchURL',
   'Context7Resolve',

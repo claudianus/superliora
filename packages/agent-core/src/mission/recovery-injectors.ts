@@ -240,7 +240,7 @@ export function injectUltraworkPostSwarmContinuation(agent: Agent): void {
     `Objective: ${run.objective}`,
     '1. Integrate — merge specialist output, resolve conflicts, pick an integration owner before more product edits.',
     '2. Verify — mechanical + real-surface checks for acceptance criteria.',
-    '3. Learn — persist only verified durable findings to Liora Recall or LLM Wiki.',
+    '3. Learn — persist only verified durable findings to Liora Memory or LLM Wiki.',
   ];
   if (interruptReason !== undefined && interruptReason.length > 0) {
     lines.push(`Interrupt reason: ${interruptReason}`);
@@ -350,7 +350,7 @@ function stageContinuationGuidance(stage: UltraworkStage): string | undefined {
     case 'verify':
       return 'Re-run mechanical checks and capture runtime evidence for open AC. Prefer deterministic proof over claimed success. Verification checklist: (1) typecheck/lint pass, (2) tests pass, (3) acceptance criteria have runtime evidence, (4) no regressions in adjacent surfaces.';
     case 'learn':
-      return 'Promote only verified findings to Liora Recall or LLM Wiki.';
+      return 'Promote only verified findings to Liora Memory or LLM Wiki.';
     default:
       return undefined;
   }

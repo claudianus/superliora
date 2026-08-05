@@ -47,6 +47,20 @@ Some commands are only available in the idle state. Executing these commands whi
 | `/export-debug-zip` | — | Export the current session as a debug ZIP archive (same behavior as [`liora export`](./liora-command.md#kimi-export)) | No |
 | `/add-dir [<path>]` | — | Add an extra workspace directory to the current session. Run without a path (or with `list`) to list configured directories. When adding, choose whether to remember the directory for the project in `.superliora/local.toml` | No |
 
+## Liora Memory
+
+`/memory` is the single durable-memory surface. Its primary operations are:
+
+| Command | Description |
+| --- | --- |
+| `/memory inspect [<memory-id>]` | Show the canonical SQLite path, schema, counts, integrity, audit events, or one record |
+| `/memory remember <subject> :: <content>` | Save an explicit fact record |
+| `/memory recall <query>` | Recall relevant records using scope, time, provenance, and score boundaries |
+| `/memory reflect` | Promote eligible candidate records and resolve duplicates or temporal conflicts |
+| `/memory forget <memory-id>` | Tombstone a record without immediately deleting its audit trail |
+
+`Context OS` and compaction summaries are transient working context, not durable records. The Markdown files under `memory/records/` are a recovery mirror; `memory/liora-memory.sqlite` is authoritative. Legacy `kimi-recall.sqlite`, `liora-recall.sqlite`, record markers, and JSON episodes are imported once when the new store opens.
+
 ## Modes & Run Control
 
 | Command | Alias | Description | Always available |

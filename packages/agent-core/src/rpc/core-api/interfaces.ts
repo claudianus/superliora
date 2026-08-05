@@ -12,10 +12,11 @@ import type { ExperimentalFeatureState } from '#/flags';
 import type { ResumeSessionResult } from '#/rpc/resumed';
 import type { SessionMeta } from '#/session';
 import type {
-  MemoryConsolidateResult,
   MemoryExportResult,
   MemoryImportResult,
+  MemoryInspectResult,
   MemoryRecord,
+  MemoryReflectResult,
   MemorySearchResult,
   MemoryStats,
 } from '#/memory';
@@ -118,12 +119,13 @@ import type {
   SetKimiConfigPayload,
 } from './payloads-config';
 import type {
-  MemoryCreatePayload,
   MemoryForgetPayload,
   MemoryGetPayload,
   MemoryImportPayload,
   MemoryListPayload,
-  MemorySearchPayload,
+  MemoryRecallPayload,
+  MemoryRememberPayload,
+  MemoryReflectPayload,
   MemoryUpdatePayload,
 } from './payloads-memory';
 
@@ -267,14 +269,15 @@ export interface CoreAPI extends SessionAPIWithId {
   reloadPlugins: (payload: EmptyPayload) => ReloadPluginsResult;
   getPluginInfo: (payload: GetPluginInfoPayload) => PluginInfo;
   listPluginThemes: (payload: EmptyPayload) => readonly import('#/plugin/themes').PluginThemeDef[];
-  memorySearch: (payload: MemorySearchPayload) => readonly MemorySearchResult[];
+  memoryRecall: (payload: MemoryRecallPayload) => readonly MemorySearchResult[];
   memoryList: (payload: MemoryListPayload) => readonly MemoryRecord[];
   memoryGet: (payload: MemoryGetPayload) => MemoryRecord | undefined;
-  memoryCreate: (payload: MemoryCreatePayload) => MemoryRecord;
+  memoryRemember: (payload: MemoryRememberPayload) => MemoryRecord;
   memoryUpdate: (payload: MemoryUpdatePayload) => MemoryRecord;
   memoryForget: (payload: MemoryForgetPayload) => boolean;
   memoryStats: (payload: EmptyPayload) => MemoryStats;
   memoryExport: (payload: MemoryListPayload) => MemoryExportResult;
   memoryImport: (payload: MemoryImportPayload) => MemoryImportResult;
-  memoryConsolidate: (payload: EmptyPayload) => MemoryConsolidateResult;
+  memoryReflect: (payload: MemoryReflectPayload) => MemoryReflectResult;
+  memoryInspect: (payload: EmptyPayload) => MemoryInspectResult;
 }

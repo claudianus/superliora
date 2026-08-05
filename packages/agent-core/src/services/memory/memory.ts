@@ -1,11 +1,13 @@
 import { createDecorator } from '../../di';
 import type {
-  MemoryConsolidateResult,
   MemoryCreateInput,
   MemoryExportResult,
   MemoryImportResult,
   MemoryListRequest,
+  MemoryInspectResult,
   MemoryRecord,
+  MemoryReflectInput,
+  MemoryReflectResult,
   MemorySearchRequest,
   MemorySearchResult,
   MemoryStats,
@@ -14,16 +16,17 @@ import type {
 
 export interface IMemoryService {
   readonly _serviceBrand: undefined;
-  search(request: MemorySearchRequest): Promise<readonly MemorySearchResult[]>;
+  recall(request: MemorySearchRequest): Promise<readonly MemorySearchResult[]>;
   list(request?: MemoryListRequest): Promise<readonly MemoryRecord[]>;
   get(id: string): Promise<MemoryRecord | undefined>;
-  create(input: MemoryCreateInput): Promise<MemoryRecord>;
+  remember(input: MemoryCreateInput): Promise<MemoryRecord>;
   update(id: string, patch: MemoryUpdateInput): Promise<MemoryRecord>;
   forget(id: string): Promise<boolean>;
   stats(): Promise<MemoryStats>;
   exportMemories(request?: MemoryListRequest): Promise<MemoryExportResult>;
   importMemories(records: readonly MemoryRecord[]): Promise<MemoryImportResult>;
-  consolidate(): Promise<MemoryConsolidateResult>;
+  reflect(input?: MemoryReflectInput): Promise<MemoryReflectResult>;
+  inspect(): Promise<MemoryInspectResult>;
 }
 
 export const IMemoryService = createDecorator<IMemoryService>('memoryService');

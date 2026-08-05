@@ -3,12 +3,14 @@
  */
 
 import type {
-  MemoryConsolidateResult,
   MemoryCreateInput,
   MemoryExportResult,
   MemoryImportResult,
   MemoryListRequest,
+  MemoryInspectResult,
   MemoryRecord,
+  MemoryReflectInput,
+  MemoryReflectResult,
   MemorySearchRequest,
   MemorySearchResult,
   MemoryStats,
@@ -18,9 +20,9 @@ import type {
 import { SDKRpcClientInteractiveBase } from './rpc-interactive-base';
 
 export abstract class SDKRpcClientMemoryMixin extends SDKRpcClientInteractiveBase {
-  async memorySearch(input: MemorySearchRequest): Promise<readonly MemorySearchResult[]> {
+  async memoryRecall(input: MemorySearchRequest): Promise<readonly MemorySearchResult[]> {
     const rpc = await this.getRpc();
-    return rpc.memorySearch(input);
+    return rpc.memoryRecall(input);
   }
 
   async memoryList(input: MemoryListRequest = {}): Promise<readonly MemoryRecord[]> {
@@ -33,9 +35,9 @@ export abstract class SDKRpcClientMemoryMixin extends SDKRpcClientInteractiveBas
     return rpc.memoryGet({ id });
   }
 
-  async memoryCreate(input: MemoryCreateInput): Promise<MemoryRecord> {
+  async memoryRemember(input: MemoryCreateInput): Promise<MemoryRecord> {
     const rpc = await this.getRpc();
-    return rpc.memoryCreate(input);
+    return rpc.memoryRemember(input);
   }
 
   async memoryUpdate(id: string, patch: MemoryUpdateInput): Promise<MemoryRecord> {
@@ -63,8 +65,13 @@ export abstract class SDKRpcClientMemoryMixin extends SDKRpcClientInteractiveBas
     return rpc.memoryImport({ records });
   }
 
-  async memoryConsolidate(): Promise<MemoryConsolidateResult> {
+  async memoryReflect(input: MemoryReflectInput = {}): Promise<MemoryReflectResult> {
     const rpc = await this.getRpc();
-    return rpc.memoryConsolidate({});
+    return rpc.memoryReflect(input);
+  }
+
+  async memoryInspect(): Promise<MemoryInspectResult> {
+    const rpc = await this.getRpc();
+    return rpc.memoryInspect({});
   }
 }
