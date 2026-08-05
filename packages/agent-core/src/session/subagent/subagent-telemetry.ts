@@ -12,6 +12,10 @@
 
 import type { Agent } from '../../agent';
 import type { AgentEvent } from '@superliora/protocol';
+import {
+  reportJobWorkerProgress,
+  reportJobWorkerStalled,
+} from '../../tools/builtin/job/job-worker-ledger-bridge';
 import { TODO_STORE_KEY, type TodoItem } from '../../tools/builtin/state/todo-list';
 import { snapshotChildWork } from './subagent-result-contract';
 import { writeSubagentCheckpoint } from './subagent-checkpoint';
@@ -78,6 +82,13 @@ export function startProgressReporter(
       budgetRemainingMs,
       finishing,
     });
+    // Conductor Job lane: mirror the heartbeat onto the job ledger so
+    // JobList/JobInspect and the desk injection see live worker state.
+    // No-op for subagents that are not job workers.
+    reportJobWorkerProgress(childId, {
+      phase: progressPhaseLabel(stats, finishing),
+      lastHeartbeatAt: new Date(now).toISOString(),
+    });
     if (finishing && !finishingNotified) {
       finishingNotified = true;
       child.context.appendSystemReminder(SUBAGENT_FINISHING_REMINDER, {
@@ -98,6 +109,7 @@ export function startProgressReporter(
         silentMs: now - lastChangeAt,
         toolCount: stats.toolCount,
       });
+      reportJobWorkerStalled(childId, now - lastChangeAt);
     }
     if (
       stats.toolCount - lastCheckpointToolCount >= CHECKPOINT_TOOL_DELTA &&
@@ -115,6 +127,14 @@ export function startProgressReporter(
   // Progress reporting must never keep the event loop alive on its own.
   timer.unref?.();
   return () =>{  clearInterval(timer); };
+}
+
+/** Compact phase label for the job ledger snapshot, e.g. `Bash: pnpm test`. */
+function progressPhaseLabel(stats: SubagentProgressStats, finishing: boolean): string {
+  if (finishing) return 'finishing';
+  if (stats.lastTool === undefined) return 'starting';
+  const target = stats.lastTarget === undefined ? '' : `: ${stats.lastTarget}`;
+  return `${stats.lastTool}${target}`.slice(0, 80);
 }
 
 /**

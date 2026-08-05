@@ -12,17 +12,20 @@ import {
   DESK_DIGEST_TRIGGER_COUNT,
   runDeskDigestCycle,
 } from '#/tools/builtin/job/job-desk';
+import { listJobs, renderJobProgressSuffix } from '#/tools/builtin/job/job-ledger';
 import {
   formatJobStripLine,
   summarizeJobStrip,
 } from '#/tools/builtin/job/job-runtime';
 import { UNVERIFIED_SUMMARY_PREFIX } from '#/session/subagent/subagent-result-contract';
+import type { ToolStore } from '#/tools/store';
 
 import { DynamicInjector } from './injector';
 
 const JOB_DESK_VARIANT = 'conductor_job_desk';
 export const JOB_DESK_MAX_EVENTS = 5;
 export const JOB_DESK_MAX_CHARS = 1_500;
+export const JOB_DESK_MAX_LIVE = 4;
 
 export class JobDeskInjector extends DynamicInjector {
   protected override readonly injectionVariant = JOB_DESK_VARIANT;
@@ -31,6 +34,7 @@ export class JobDeskInjector extends DynamicInjector {
     if (this.agent.type !== 'main') return undefined;
     const store = this.agent.tools.getStore();
     const unread = listUnreadJobInbox(store);
+    const live = liveWorkerLines(store);
     if (unread.length === 0) {
       // Still show strip when in-flight jobs exist (no inbox spam).
       const strip = summarizeJobStrip(store);
@@ -39,7 +43,7 @@ export class JobDeskInjector extends DynamicInjector {
       }
       // Throttle strip-only: once per injectedAt cycle is enough via DynamicInjector.
       if (this.injectedAt !== null) return undefined;
-      return renderJobDeskInjection([], strip);
+      return renderJobDeskInjection([], strip, { live });
     }
 
     // Contract §4.2 offloading: a burst is digested here (ledger-only, no
@@ -49,13 +53,16 @@ export class JobDeskInjector extends DynamicInjector {
       const cycle = runDeskDigestCycle(store);
       if (cycle.offloaded && cycle.escalation) {
         const strip = summarizeJobStrip(store);
-        return renderJobDeskInjection([cycle.escalation], strip, { batched: cycle.batched });
+        return renderJobDeskInjection([cycle.escalation], strip, {
+          batched: cycle.batched,
+          live,
+        });
       }
     }
 
     const batch = unread.slice(0, JOB_DESK_MAX_EVENTS);
     const strip = summarizeJobStrip(store);
-    const text = renderJobDeskInjection(batch, strip);
+    const text = renderJobDeskInjection(batch, strip, { live });
     // Mark delivered so we do not re-inject every step (toast/TUI still have store).
     markJobInboxRead(
       store,
@@ -65,11 +72,22 @@ export class JobDeskInjector extends DynamicInjector {
   }
 }
 
+/**
+ * Live progress lines for running workers (ledger `progress` mirrored from
+ * the subagent reporter). Capped so a full pool cannot eat the inject budget.
+ */
+function liveWorkerLines(store: ToolStore): string[] {
+  return listJobs(store)
+    .filter((j) => j.status === 'running' && j.progress !== undefined)
+    .slice(0, JOB_DESK_MAX_LIVE)
+    .map((j) => `- ${j.id}${renderJobProgressSuffix(j)}`);
+}
+
 /** Exported for cap tests (V4-1); keep in sync with injector budget. */
 export function renderJobDeskInjection(
   events: readonly JobInboxEvent[],
   strip: ReturnType<typeof summarizeJobStrip>,
-  opts: { readonly batched?: number } = {},
+  opts: { readonly batched?: number; readonly live?: readonly string[] } = {},
 ): string {
   const lines = [
     '<conductor_job_desk>',
@@ -79,6 +97,10 @@ export function renderJobDeskInjection(
     lines.push(
       `inbox ${opts.batched} (batched) — burst offloaded to desk digest; one escalation card below.`,
     );
+  }
+  if (opts.live !== undefined && opts.live.length > 0) {
+    lines.push('Live workers:');
+    lines.push(...opts.live);
   }
   if (events.length > 0) {
     lines.push('Unread job notices (use JobInbox / JobInspect as needed):');

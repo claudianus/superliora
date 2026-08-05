@@ -27,7 +27,7 @@ import {
   pushJobInboxEvent,
   type JobInboxEvent,
 } from '../../src/tools/builtin/job/job-inbox';
-import { listJobs, patchJob } from '../../src/tools/builtin/job/job-ledger';
+import { createJob, listJobs, patchJob } from '../../src/tools/builtin/job/job-ledger';
 import { profileForJobKind, summarizeJobStrip } from '../../src/tools/builtin/job/job-runtime';
 import type { ToolStore } from '../../src/tools/store';
 
@@ -220,6 +220,26 @@ describe('job desk injection caps (V4-1)', () => {
     expect(text).not.toContain('(batched)');
     const noticeLines = text!.split('\n').filter((line) => line.startsWith('- job.completed'));
     expect(noticeLines).toHaveLength(3);
+    expect(text!.length).toBeLessThanOrEqual(JOB_DESK_MAX_CHARS);
+  });
+
+  it('strip-only injection lists live worker progress from the ledger', async () => {
+    const store = memoryStore();
+    const job = createJob(store, { title: 'live worker', kind: 'implement' });
+    patchJob(store, job.id, {
+      status: 'running',
+      progress: {
+        phase: 'Bash: pnpm test',
+        lastHeartbeatAt: new Date().toISOString(),
+      },
+    });
+    const injector = new JobDeskInjector(fakeMainAgent(store));
+
+    const text = await injector.collectForBatch();
+    expect(text).toBeDefined();
+    expect(text).toContain('Live workers:');
+    expect(text).toContain(job.id);
+    expect(text).toContain('Bash: pnpm test');
     expect(text!.length).toBeLessThanOrEqual(JOB_DESK_MAX_CHARS);
   });
 

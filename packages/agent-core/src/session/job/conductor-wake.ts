@@ -28,6 +28,12 @@ export const CONDUCTOR_WAKE_PROMPT = [
   'Never run builds/tests/verification loops on this lane — delegate them as Jobs.',
 ].join('\n');
 
+/**
+ * Agents with a wake re-check already armed on the active turn's settle.
+ * Collapses a burst of notices during one turn into a single re-check.
+ */
+const wakeRecheckArmed = new WeakSet<Agent>();
+
 export function requestConductorWake(input: {
   readonly agent: Agent;
   readonly store: ToolStore;
@@ -37,10 +43,25 @@ export function requestConductorWake(input: {
   try {
     if (listUnreadJobInbox(store).length === 0) return;
     if (agent.turn.hasActiveTurn) {
-      // Coalescing: the running turn's per-step inject cycle surfaces the
-      // notice. ponytail: a notice landing between the final inject and turn
-      // end waits for the next event/user prompt (pre-wake latency); the
-      // upgrade path is a one-shot turn.ended re-check armed here.
+      // Coalescing: the running turn's per-step inject cycle usually surfaces
+      // the notice. For the gap between the final inject and turn end, arm a
+      // one-shot re-check on the turn settle — an unread inbox then starts the
+      // wake turn immediately instead of waiting for the next user prompt.
+      if (wakeRecheckArmed.has(agent)) return;
+      let settled: Promise<unknown> | undefined;
+      try {
+        settled = agent.turn.waitForCurrentTurn();
+      } catch {
+        // Turn ended in the race window; the next notice re-enters here.
+        settled = undefined;
+      }
+      if (settled === undefined) return;
+      wakeRecheckArmed.add(agent);
+      const recheck = (): void => {
+        wakeRecheckArmed.delete(agent);
+        requestConductorWake({ agent, store });
+      };
+      void settled.then(recheck, recheck);
       return;
     }
     agent.turn.prompt([{ type: 'text', text: CONDUCTOR_WAKE_PROMPT }], CONDUCTOR_WAKE_ORIGIN);
