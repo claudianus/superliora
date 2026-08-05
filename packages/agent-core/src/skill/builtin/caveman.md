@@ -86,6 +86,4 @@ Example — destructive op:
 
 ## Boundaries
 
-Persisted outside chat: write normal prose — code, comments, commits, docs, issue/PR/MR text, memory files (/caveman-compress exempt). "stop caveman" or "normal mode": revert. Level persist until changed or session end.
-
-<!-- Vendored from github.com/JuliusBrussee/caveman — MIT License, Copyright (c) 2026 Julius Brussee. -->
+Persisted outside chat: write normal prose — code, comments, commits, docs, issue/PR/MR text, and memory files unless the user explicitly requests a compression workflow. "stop caveman" or "normal mode": revert. Level persist until changed or session end.

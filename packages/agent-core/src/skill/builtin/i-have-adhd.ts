@@ -1,5 +1,5 @@
-import { parseSkillText } from '../parser';
-import type { SkillDefinition } from '../types';
+import { parseSkillText } from '#/skill/parser';
+import type { SkillDefinition } from '#/skill/types';
 import I_HAVE_ADHD_BODY from './i-have-adhd.md?raw';
 
 // Vendored from github.com/ayghri/i-have-adhd (MIT, (c) 2026 Ayoub Ghriss).

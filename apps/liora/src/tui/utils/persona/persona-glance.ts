@@ -31,8 +31,8 @@ export interface PersonaGlanceInput {
 
 export { isEmptyPersona };
 
-function isPersonaOptedOut(persona: PersonaConfig | undefined): boolean {
-  return persona?.preset === 'none' && isEmptyPersona(persona);
+export function isPersonaOptedOut(persona: PersonaConfig | undefined): boolean {
+  return persona?.preset === 'none' && isEmptyPersona({ ...persona, name: undefined });
 }
 
 /** Live active persona label from config.toml [persona]. */

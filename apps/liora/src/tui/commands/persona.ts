@@ -12,6 +12,7 @@ import {
 
 import { applyPersonaSkillBundle } from '../utils/persona/apply-skill-bundle';
 import { formatErrorMessage } from '../utils/event-payload';
+import { isPersonaOptedOut } from '../utils/persona/persona-glance';
 import type { SlashCommandHost } from './hub/dispatch';
 
 /** Selectable preset ids (excludes `none`). */
@@ -119,7 +120,7 @@ async function showPersonaStatus(host: SlashCommandHost): Promise<void> {
   const config = await host.harness.getConfig({ reload: false });
   const persona = config.persona;
 
-  if (persona?.preset === 'none' && isEmptyPersona(persona)) {
+  if (isPersonaOptedOut(persona)) {
     host.showNotice(
       'Persona',
       'Personas are disabled (preset = "none").\n\nUse /persona set <preset> or remove preset = "none" to enable a persona.',

@@ -1,5 +1,5 @@
-import { parseSkillText } from '../parser';
-import type { SkillDefinition } from '../types';
+import { parseSkillText } from '#/skill/parser';
+import type { SkillDefinition } from '#/skill/types';
 import CAVEMAN_BODY from './caveman.md?raw';
 
 // Vendored from github.com/JuliusBrussee/caveman (MIT, (c) 2026 Julius Brussee).

@@ -4,7 +4,7 @@
 
 import type { PersonaConfig } from '../config';
 
-import { DEFAULT_PERSONA_PRESET_ID, getPersonaPreset } from './presets';
+import { DEFAULT_PERSONA_PRESET_ID, getPersonaPreset } from '#/persona/presets';
 import type { PersonaPresetId, PersonaPresetInputId } from './types';
 
 const LEGACY_PRESET_ALIASES: Readonly<Record<string, PersonaPresetId>> = {

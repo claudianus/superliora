@@ -19,7 +19,9 @@ change. Use it only when a released version is missing from
 1. Confirm the version has been released and exists in the source changelog.
 2. Copy only the missing version blocks into the English archive.
 3. Remove changeset headings, PR links, and commit-hash decorations while
-   preserving the user-facing entry text and release date.
+   preserving the user-facing entry text. If an archive heading needs a date,
+   source it from the published release tag and write `## <version> (YYYY-MM-DD)`;
+   never invent a date.
 4. Keep examples neutral and do not add unreleased changeset drafts.
 5. Review the diff and leave all other docs untouched.
 
