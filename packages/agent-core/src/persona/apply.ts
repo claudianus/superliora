@@ -4,7 +4,7 @@
 
 import type { PersonaConfig } from '../config';
 
-import { getPersonaPreset } from './presets';
+import { DEFAULT_PERSONA_PRESET_ID, getPersonaPreset } from './presets';
 import type { PersonaPresetId, PersonaPresetInputId } from './types';
 
 const LEGACY_PRESET_ALIASES: Readonly<Record<string, PersonaPresetId>> = {
@@ -53,18 +53,19 @@ export function isEmptyPersona(persona: PersonaConfig | undefined): boolean {
 
 /**
  * Compile `[persona]` into a `# Persona` ROLE_ADDITIONAL block.
- * Preset text is the base; non-empty custom fields layer on top (Advanced).
+ * Unset preset resolves to {@link DEFAULT_PERSONA_PRESET_ID}; explicit `none`
+ * means no preset base. Preset text is the base; non-empty custom fields layer
+ * on top (Advanced).
  */
 export function buildPersonaRoleAdditional(persona: PersonaConfig | undefined): string | undefined {
-  if (persona === undefined) return undefined;
-
   const parts: string[] = [];
-  const rawPreset = persona.preset;
-  const presetId = normalizePersonaPresetId(rawPreset);
+  const presetId = normalizePersonaPresetId(persona?.preset) ?? DEFAULT_PERSONA_PRESET_ID;
 
-  if (presetId !== undefined && presetId !== 'none' && isPersonaPresetId(presetId)) {
+  let presetLabel: string | undefined;
+  if (presetId !== 'none' && isPersonaPresetId(presetId)) {
     const preset = getPersonaPreset(presetId);
     if (preset !== undefined) {
+      presetLabel = preset.label;
       parts.push(`Personality: ${preset.personality}`);
       parts.push(`Tone: ${preset.tone}`);
       if (preset.instructions !== undefined && preset.instructions.trim().length > 0) {
@@ -73,9 +74,9 @@ export function buildPersonaRoleAdditional(persona: PersonaConfig | undefined): 
     }
   }
 
-  const customPersonality = persona.personality?.trim() ?? '';
-  const customTone = persona.tone?.trim() ?? '';
-  const customInstructions = persona.instructions?.trim() ?? '';
+  const customPersonality = persona?.personality?.trim() ?? '';
+  const customTone = persona?.tone?.trim() ?? '';
+  const customInstructions = persona?.instructions?.trim() ?? '';
 
   if (customPersonality.length > 0) {
     // Replace preset personality line when overriding, else append.
@@ -96,10 +97,9 @@ export function buildPersonaRoleAdditional(persona: PersonaConfig | undefined): 
 
   if (parts.length === 0) return undefined;
 
-  const header =
-    persona.name !== undefined && persona.name.trim().length > 0
-      ? `# Persona: ${persona.name.trim()}`
-      : '# Persona';
+  const customName = persona?.name?.trim();
+  const headerName = customName !== undefined && customName.length > 0 ? customName : presetLabel;
+  const header = headerName !== undefined ? `# Persona: ${headerName}` : '# Persona';
 
   return `${header}\n\n${parts.join('\n')}`;
 }

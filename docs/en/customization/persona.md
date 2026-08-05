@@ -5,7 +5,7 @@ Persona controls how the **main agent** talks: tone, personality, and optional c
 ## Quick start
 
 1. Open the Command Hub (`Ctrl-K` / `Ctrl-Space` / `?`) or Settings → Persona.
-2. Choose **Presets…** and pick a named pack (Efficient, Mentor, Reviewer, …).
+2. Choose **Presets…** and pick a named pack (Efficient, Mentor, Reviewer, Caveman, ADHD, …).
 3. The session reloads so the new block applies immediately.
 
 Slash shortcuts:
@@ -20,7 +20,13 @@ Slash shortcuts:
 
 Selecting a preset is **atomic**: it sets the preset id and clears custom tone / personality / instructions overrides. Some presets also enable related skills in `~/.superliora/skills-state.json` (listed skills only — other toggles stay as they were). Clearing persona removes `[persona]` from `config.toml` but does not undo skill toggles.
 
+**Caveman** and **ADHD** ship with matching built-in skills (vendored from [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman) and [ayghri/i-have-adhd](https://github.com/ayghri/i-have-adhd), both MIT). The bundle re-enables them if you disabled them; the preset still applies its prompt lines with the skills off. Invoke the full rule sets any time with `/caveman` and `/i-have-adhd`.
+
 Legacy `concise` in config is treated as `efficient`.
+
+## Default persona
+
+With no `[persona]` in `config.toml`, the built-in **Liora** preset applies — concise, plain-spoken, and teaches while helping. Pick another preset to switch, or set `preset = "none"` to disable personas entirely.
 
 ## Advanced overrides
 

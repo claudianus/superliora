@@ -3,6 +3,7 @@
  */
 
 import {
+  DEFAULT_PERSONA_PRESET_ID,
   PERSONA_PRESET_CATALOG,
   normalizePersonaPresetId,
   resolveConfigPath,
@@ -89,7 +90,7 @@ export function showPersonaSettings(host: SlashCommandHost): void {
         {
           value: 'clear',
           label: 'Clear persona',
-          description: 'Delete [persona] from config (skills unchanged).',
+          description: 'Delete [persona] — default Liora preset applies; skills unchanged.',
         },
       ],
       onSelect: (value) => {
@@ -120,12 +121,13 @@ export function showPersonaSettings(host: SlashCommandHost): void {
 }
 
 async function showPersonaPresetPicker(host: SlashCommandHost): Promise<void> {
-  let current: string | undefined;
+  let current: string | undefined = DEFAULT_PERSONA_PRESET_ID;
   try {
     const config = await host.harness.getConfig({ reload: false });
     const preset = config.persona?.preset;
-    if (typeof preset === 'string' && preset !== 'none') {
-      current = String(normalizePersonaPresetId(preset));
+    if (typeof preset === 'string') {
+      const normalized = normalizePersonaPresetId(preset);
+      current = normalized === 'none' ? undefined : String(normalized);
     }
   } catch {
     /* picker still works without live config */

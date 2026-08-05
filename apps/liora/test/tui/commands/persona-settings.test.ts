@@ -63,7 +63,10 @@ describe('persona glance', () => {
       'Active persona: mentor (preset)',
     );
     expect(formatActivePersonaLine(undefined)).toBe(
-      'Active persona: default (engine personality)',
+      'Active persona: Liora (default preset)',
+    );
+    expect(formatActivePersonaLine({ preset: 'none' })).toBe(
+      'Active persona: disabled (preset = none)',
     );
   });
 });
@@ -80,6 +83,7 @@ describe('persona settings', () => {
       .calls[0]?.[0] as UsagePanelComponent;
     const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('Active persona: Coach');
+    expect(text).toContain('liora');
     expect(text).toContain('efficient');
     expect(text).toContain('mentor');
     expect(host.harness.getConfig).toHaveBeenCalledWith({ reload: true });
@@ -97,4 +101,21 @@ describe('persona settings', () => {
     expect(panel.snapshotBodyLines(1).join('\n')).toContain('config read failed');
   });
 
+  it('marks implicit Liora as current in the preset picker', async () => {
+    const host = makePersonaHost();
+    showPersonaSettings(host);
+    selectPersonaAction(host, 'preset');
+
+    await vi.waitFor(() => {
+      expect((host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(2);
+    });
+
+    const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[1]?.[0] as
+      | ChoicePickerComponent
+      | undefined;
+    expect(picker).toBeDefined();
+    expect((picker as unknown as { opts: { currentValue?: string } }).opts.currentValue).toBe(
+      'liora',
+    );
+  });
 });

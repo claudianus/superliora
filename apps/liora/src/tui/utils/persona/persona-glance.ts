@@ -3,11 +3,16 @@
  */
 
 import {
+  DEFAULT_PERSONA_PRESET_ID,
   PERSONA_PRESET_CATALOG,
+  getPersonaPreset,
   isEmptyPersona,
   normalizePersonaPresetId,
   type PersonaConfig,
 } from '@superliora/sdk';
+
+const DEFAULT_PERSONA_LABEL =
+  getPersonaPreset(DEFAULT_PERSONA_PRESET_ID)?.label ?? DEFAULT_PERSONA_PRESET_ID;
 
 export const PERSONA_PRESET_TIP =
   'Choose Presets… — atomic apply clears custom overrides and may enable related skills.';
@@ -26,10 +31,18 @@ export interface PersonaGlanceInput {
 
 export { isEmptyPersona };
 
+function isPersonaOptedOut(persona: PersonaConfig | undefined): boolean {
+  return persona?.preset === 'none' && isEmptyPersona(persona);
+}
+
 /** Live active persona label from config.toml [persona]. */
 export function formatActivePersonaLine(persona: PersonaConfig | undefined): string {
+  if (isPersonaOptedOut(persona)) {
+    return 'Active persona: disabled (preset = none)';
+  }
+
   if (isEmptyPersona(persona)) {
-    return 'Active persona: default (engine personality)';
+    return `Active persona: ${DEFAULT_PERSONA_LABEL} (default preset)`;
   }
 
   const name = persona?.name?.trim();
@@ -47,6 +60,10 @@ export function formatActivePersonaLine(persona: PersonaConfig | undefined): str
 }
 
 function formatPersonaDetailLines(persona: PersonaConfig | undefined): readonly string[] {
+  if (isPersonaOptedOut(persona)) {
+    return ['Preset: none (personas disabled)'];
+  }
+
   if (isEmptyPersona(persona) || persona === undefined) return [];
 
   const lines: string[] = [];

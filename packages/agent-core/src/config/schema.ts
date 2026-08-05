@@ -319,6 +319,7 @@ export type BrowserUseConfig = z.infer<typeof BrowserUseConfigSchema>;
 /** Built-in + legacy (`concise`) persona preset ids accepted in config.toml. */
 export const PersonaPresetSchema = z.enum([
   'none',
+  'liora',
   'efficient',
   'professional',
   'friendly',
@@ -330,6 +331,8 @@ export const PersonaPresetSchema = z.enum([
   'nerdy',
   'playful',
   'skeptical',
+  'caveman',
+  'adhd',
   /** @deprecated Prefer `efficient`. Normalized at prompt compile time. */
   'concise',
 ]);

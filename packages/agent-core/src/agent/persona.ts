@@ -2,6 +2,7 @@
  * Compatibility re-export — SSOT lives in `#/persona`.
  */
 export {
+  DEFAULT_PERSONA_PRESET_ID,
   PERSONA_PRESET_CATALOG,
   PERSONA_PRESET_IDS,
   PERSONA_PRESETS,

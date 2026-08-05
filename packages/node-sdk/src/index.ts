@@ -115,6 +115,7 @@ export type {
   PersonaSkillBundle,
 } from '@superliora/agent-core';
 export {
+  DEFAULT_PERSONA_PRESET_ID,
   PERSONA_PRESET_CATALOG,
   PERSONA_PRESET_IDS,
   PERSONA_PRESET_SCHEMA_VALUES,

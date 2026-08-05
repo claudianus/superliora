@@ -119,10 +119,18 @@ async function showPersonaStatus(host: SlashCommandHost): Promise<void> {
   const config = await host.harness.getConfig({ reload: false });
   const persona = config.persona;
 
+  if (persona?.preset === 'none' && isEmptyPersona(persona)) {
+    host.showNotice(
+      'Persona',
+      'Personas are disabled (preset = "none").\n\nUse /persona set <preset> or remove preset = "none" to enable a persona.',
+    );
+    return;
+  }
+
   if (isEmptyPersona(persona)) {
     host.showNotice(
       'Persona',
-      'No persona configured. The agent uses its default personality.\n\nUse /persona set <preset> or /persona help to customize.',
+      'No persona configured — the default Liora preset is active.\n\nUse /persona set <preset> or /persona help to customize. Set preset = "none" in config.toml to disable personas.',
     );
     return;
   }
@@ -169,9 +177,10 @@ function showPersonaHelp(host: SlashCommandHost): void {
       '/persona tone <desc>         Override response tone (Advanced)',
       '/persona personality <desc>  Override personality traits (Advanced)',
       '/persona instructions <text> Add free-form behavioral instructions',
-      '/persona clear               Remove [persona] from config.toml',
+      '/persona clear               Remove [persona] (default Liora preset applies)',
       '',
       'Persona settings persist in ~/.superliora/config.toml [persona].',
+      'With no [persona] configured, the default Liora preset applies; preset = "none" disables.',
       'Preset skill bundles adjust skills-state.json without wiping other toggles.',
       'Changes apply immediately to the active session.',
     ].join('\n'),
@@ -225,7 +234,7 @@ async function clearPersona(host: SlashCommandHost): Promise<void> {
       await host.reloadCurrentSessionView(session, 'Persona cleared.');
     }
     host.showStatus(
-      'Persona cleared. Skill toggles were left unchanged — manage them under Settings → Skills.',
+      'Persona cleared — the default Liora preset now applies. Skill toggles were left unchanged — manage them under Settings → Skills.',
       'success',
     );
   } catch (error) {

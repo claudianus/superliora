@@ -1,5 +1,7 @@
 import type { SessionSkillRegistry } from '../registry';
+import { CAVEMAN_SKILL } from './caveman';
 import { CUSTOM_THEME_SKILL } from './custom-theme';
+import { I_HAVE_ADHD_SKILL } from './i-have-adhd';
 import { IMPORT_FROM_CC_CODEX_SKILL } from './import-from-cc-codex';
 import { MCP_CONFIG_SKILL } from './mcp-config';
 import { RECURSIVE_IMPROVE_SKILL } from './recursive-improve';
@@ -24,6 +26,8 @@ export function registerBuiltinSkills(registry: SessionSkillRegistry): void {
   registry.registerBuiltinSkill(MISSION_SKILL);
   registry.registerBuiltinSkill(ULTRAWORK_SKILL);
   registry.registerBuiltinSkill(AVOID_AI_WRITING_SKILL);
+  registry.registerBuiltinSkill(CAVEMAN_SKILL);
+  registry.registerBuiltinSkill(I_HAVE_ADHD_SKILL);
   registry.registerBuiltinSkill(SUB_SKILL_PARENT);
   registry.registerBuiltinSkill(SUB_SKILL_REVIEW);
   registry.registerBuiltinSkill(SUB_SKILL_CONSOLIDATE);
@@ -35,7 +39,9 @@ export async function registerCatalogSkills(registry: SessionSkillRegistry): Pro
 
 export {
   AVOID_AI_WRITING_SKILL,
+  CAVEMAN_SKILL,
   CUSTOM_THEME_SKILL,
+  I_HAVE_ADHD_SKILL,
   IMPORT_FROM_CC_CODEX_SKILL,
   MCP_CONFIG_SKILL,
   RECURSIVE_IMPROVE_SKILL,
