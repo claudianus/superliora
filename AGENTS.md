@@ -52,6 +52,30 @@ Package boundaries stay as in Project Map. Inside a package:
 - Prefer existing tests for the module under change; add a new file when the area is new or the suite would become unreadable.
 - Do not weaken code quality for external compatibility unless asked. Breaking user-facing changes need an explicit major decision (below).
 
+## Local test gate (MANDATORY)
+
+**Never push to find out whether tests pass.** GitHub CI is a ~15-minute backstop; the full local suite is ~2 minutes. A red CI run that a local run would have caught is a process failure, not bad luck.
+
+| When | Command | Cost |
+|---|---|---|
+| One file / one case | `node scripts/test-local.mjs <path> -t "case"` | ~5s |
+| While iterating | `pnpm run test:local` — changed workspaces **and their pnpm dependents** | seconds–1 min |
+| Before every push | `pnpm run gate` — lint + typecheck + full suite | ~3.5 min |
+| Whole suite only | `pnpm run test:all` | ~2.5 min |
+
+`test:local` widens to the full suite when a shared file (root config, `scripts/`) changes and skips the run entirely when only docs/changesets changed; `--scope` prints the decision without running, `--all` forces everything.
+
+**Always run tests through `scripts/test-local.mjs`, not bare `vitest`.** A dev shell is not a runner: `NO_COLOR` / `TERM=dumb` silently disable TUI motion, a local timezone hides UTC clock assertions, `init.defaultBranch=main` hides bare-repo HEAD assumptions, and provider keys in your shell let network paths pass that CI cannot reach. The runner strips that state; `node scripts/test-local.mjs --env` prints exactly what it changes. Bare `pnpm exec vitest` is for `--watch` only, and its green result proves nothing about CI.
+
+Tests you write must hold under that parity env:
+
+- No hardcoded local clock strings — derive the expected label from the same formatter (`TZ=UTC` in the runner).
+- Pin appearance/motion (`profile: 'off'`) when asserting cached line identity or plain-substring output; ambient effects re-render and interleave SGR runs.
+- Never rely on ambient git config: set `user.email` / `user.name` and pass `--initial-branch` in fixtures that create repos.
+- No wall-clock perf budgets. Measure the cheap path against the expensive one it replaces, not against an absolute millisecond number.
+
+Debt rule: a test that only asserts an export exists, a constant equals its own literal, or `typeof x === 'function'` is noise — do not add one, and delete the ones you find. Runtime behavior or nothing.
+
 ## Workflow
 
 - Match local package boundaries and patterns before inventing new ones. Use `#/` imports where the package already does.

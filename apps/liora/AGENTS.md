@@ -74,3 +74,4 @@ The **Command Hub** (`Ctrl-K` / `Ctrl-Space` / `?` / `/help`) is the single sear
 - Constants live under `constant/`, not scattered in components.
 - Prefer flat code over one-line wrappers; pure helpers stay off the `LioraTUI` class.
 - Behavior changes to transcript, render, keys, or the bundled CLI need a focused test or `pnpm -C apps/liora run build && pnpm -C apps/liora run smoke` — not inspection alone.
+- Run TUI tests through `node scripts/test-local.mjs apps/liora/test/<path>` (root `AGENTS.md` → "Local test gate"). Motion is forced off under `NO_COLOR`/`TERM=dumb`/`CI`, so a bare local `vitest` exercises a different render path than CI: a test that asserts cached line identity or plain substrings must pin `profile: 'off'` itself instead of inheriting your shell.

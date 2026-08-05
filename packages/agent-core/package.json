@@ -78,8 +78,9 @@
     "search:never-empty-kpi": "node scripts/search-never-empty-kpi.mjs",
     "deep-research:never-empty-kpi": "node scripts/deep-research-never-empty-kpi.mjs",
     "prove:claude-plugins": "node scripts/prove-claude-plugins.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.src.json --noEmit",
     "typecheck:src": "tsc -p tsconfig.src.json --noEmit",
+    "typecheck:tests": "tsc -p tsconfig.json --noEmit",
     "clean": "rm -rf dist"
   },
   "dependencies": {

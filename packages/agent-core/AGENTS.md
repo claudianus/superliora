@@ -40,7 +40,8 @@ Prefer extending the owning module over growing god files. New cross-cutting hel
 
 - Prefer `test/` mirrors of the module under change (`test/loop`, `test/session`, `test/agent`, …).
 - Add a new file when the area is new or the suite would become unreadable.
-- Run focused vitest before broad package runs: `pnpm -C packages/agent-core exec vitest run <path>`.
+- Run focused first, through the parity runner: `node scripts/test-local.mjs packages/agent-core/test/<path>`. Root `AGENTS.md` → "Local test gate" is mandatory here too; bare `vitest` green does not predict CI.
+- `pnpm -C packages/agent-core run typecheck` checks `src` only, matching CI. `typecheck:tests` adds `test/` and is **known red** (~300 errors, mostly Node/vitest type drift in mocks); vitest does not typecheck, so those tests still run. Do not add to the pile, and fix the files you touch.
 
 ## Commands
 

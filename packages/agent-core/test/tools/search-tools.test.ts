@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { Agent } from '../../src/agent';
 import type { ToolInfo } from '../../src/agent/tool';
+import type { ExecutableToolContext } from '../../src/loop';
 import {
   rankToolsBm25Lite,
   SearchToolsTool,
@@ -13,6 +14,10 @@ function agentWithTools(tools: readonly ToolInfo[]): Agent {
       data: () => tools,
     },
   } as unknown as Agent;
+}
+
+function toolContext(): ExecutableToolContext {
+  return { turnId: 't', toolCallId: 'c_search_tools', signal: new AbortController().signal };
 }
 
 describe('SearchToolsTool', () => {
@@ -28,7 +33,7 @@ describe('SearchToolsTool', () => {
     const exec = tool.resolveExecution({});
     expect(exec.isError).toBeUndefined();
     if (exec.isError) return;
-    const result = await exec.execute();
+    const result = await exec.execute(toolContext());
     expect(result.isError).toBeUndefined();
     expect(result.output).toContain('WebSearch');
     expect(result.output).toContain('active_total="3"');
@@ -39,7 +44,7 @@ describe('SearchToolsTool', () => {
     const tool = new SearchToolsTool(agentWithTools(sample));
     const exec = tool.resolveExecution({ query: 'search' });
     if (exec.isError) throw new Error('unexpected parse error');
-    const result = await exec.execute();
+    const result = await exec.execute(toolContext());
     expect(result.output).toContain('WebSearch');
     expect(result.output).toContain('SearchSkill');
     expect(result.output).not.toContain('Read');
@@ -49,7 +54,7 @@ describe('SearchToolsTool', () => {
     const tool = new SearchToolsTool(agentWithTools(sample));
     const exec = tool.resolveExecution({ query: 'Inactive', active_only: false });
     if (exec.isError) throw new Error('unexpected parse error');
-    const result = await exec.execute();
+    const result = await exec.execute(toolContext());
     expect(result.output).toContain('InactiveThing');
   });
 
@@ -75,7 +80,7 @@ describe('SearchToolsTool', () => {
     const tool = new SearchToolsTool(agentWithTools(compat));
     const exec = tool.resolveExecution({});
     if (exec.isError) throw new Error('unexpected parse error');
-    const result = await exec.execute();
+    const result = await exec.execute(toolContext());
     expect(result.output).toContain('Review');
     expect(result.output).toContain('CreateGoal');
     expect(result.output).not.toContain('LioraReview');
@@ -97,7 +102,7 @@ describe('SearchToolsTool', () => {
     const tool = new SearchToolsTool(agentWithTools(patchSurface));
     const exec = tool.resolveExecution({});
     if (exec.isError) throw new Error('unexpected parse error');
-    const result = await exec.execute();
+    const result = await exec.execute(toolContext());
     expect(result.output).toContain('ApplyPatch');
     expect(result.output).toContain('Edit');
   });
@@ -117,7 +122,7 @@ describe('SearchToolsTool', () => {
     const tool = new SearchToolsTool(agentWithTools(searchSurface));
     const exec = tool.resolveExecution({});
     if (exec.isError) throw new Error('unexpected parse error');
-    const result = await exec.execute();
+    const result = await exec.execute(toolContext());
     expect(result.output).toContain('DeepResearch');
     expect(result.output).toContain('WebSearch');
   });
@@ -136,7 +141,7 @@ describe('SearchToolsTool', () => {
     const tool = new SearchToolsTool(agentWithTools(compat));
     const exec = tool.resolveExecution({ query: 'LioraReview' });
     if (exec.isError) throw new Error('unexpected parse error');
-    const result = await exec.execute();
+    const result = await exec.execute(toolContext());
     expect(result.output).toContain('LioraReview');
     expect(result.output).toContain('compat alias — prefer Review');
   });

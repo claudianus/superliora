@@ -380,7 +380,7 @@ describe('auditUltraworkCompletion', () => {
           runId: 'run-audit-1',
           nodes: [
             node({ id: 'research_1', kind: 'research', stage: 'research', status: 'done' }),
-            node({ id: 'impl_1', kind: 'implementation', stage: 'implement', status: 'failed' }),
+            node({ id: 'impl_1', kind: 'implementation', stage: 'swarm', status: 'failed' }),
           ],
         },
       }),

@@ -2,7 +2,17 @@ import { describe, expect, it } from 'vitest';
 
 import type { Kaos } from '@superliora/kaos';
 
+import type { ExecutableToolContext, ToolExecution } from '../../src/loop';
 import { createVisualDiffTool, VisualDiffTool } from '../../src/tools/visual-diff-tool';
+
+function runnable(execution: ToolExecution) {
+  if (execution.isError === true) throw new Error(`unexpected parse error: ${String(execution.output)}`);
+  return execution;
+}
+
+function toolContext(): ExecutableToolContext {
+  return { turnId: 't', toolCallId: 'c_visual_diff', signal: new AbortController().signal };
+}
 
 function fakePng(width: number, height: number, payload = new Uint8Array([1, 2, 3])): Uint8Array {
   const out = new Uint8Array(8 + 4 + 4 + 4 + 4 + payload.length);
@@ -76,7 +86,7 @@ describe('VisualDiffTool factory', () => {
       right_path: 'right.png',
     });
     expect(execution.isError).toBeFalsy();
-    const result = await execution.execute!();
+    const result = await runnable(execution).execute(toolContext());
     expect(result.isError).toBeFalsy();
     const output = result.output as string;
     expect(output).toContain('dimension mismatch');
@@ -98,7 +108,7 @@ describe('VisualDiffTool factory', () => {
       right_path: 'right.jpg',
     });
     expect(execution.isError).toBeFalsy();
-    const result = await execution.execute!();
+    const result = await runnable(execution).execute(toolContext());
     expect(result.isError).toBeFalsy();
     const output = result.output as string;
     expect(output.split('\n')[0]).toContain('320x240');
