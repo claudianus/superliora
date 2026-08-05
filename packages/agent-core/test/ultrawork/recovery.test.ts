@@ -221,7 +221,7 @@ describe('Ultrawork goal completion', () => {
       runId: 'run-finish-rejects-failed',
       nodes: [
         { id: 'node-ok', title: 'Done work', stage: 'integrate', status: 'done' },
-        { id: 'node-fail', title: 'Broken work', stage: 'implement', status: 'failed' },
+        { id: 'node-fail', title: 'Broken work', stage: 'swarm', status: 'failed' },
       ],
     });
     agent.ultrawork.syncWorkGraphFromStore();

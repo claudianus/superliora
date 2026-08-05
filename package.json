@@ -43,8 +43,11 @@
     "lint:fix": "corepack pnpm run lint --fix",
     "sherif": "sherif",
     "test": "vitest run",
+    "test:local": "node scripts/test-local.mjs",
+    "test:all": "node scripts/test-local.mjs --all",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "gate": "corepack pnpm run lint && corepack pnpm run typecheck && node scripts/test-local.mjs --all",
     "clean": "corepack pnpm -r run clean",
     "prepare": "simple-git-hooks",
     "bench:staffing-gold": "tsx scripts/staffing-gold-bench.mjs"
