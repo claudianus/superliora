@@ -17,6 +17,8 @@ import {
 } from '#/tui/utils/premium/premium-glance';
 import { requestTUILayoutRender } from '../../../utils/render/frame-render';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
+import { PREMIUM_PRESETS } from '#/tui/utils/settings/premium-presets';
+import { SETTINGS_PRESETS_ROW, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
 import { applyPremiumQuality } from '../../premium';
 import {
   showAppearanceSettings,
@@ -38,6 +40,7 @@ export function showPremiumSettings(host: SlashCommandHost): void {
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
+        SETTINGS_PRESETS_ROW,
         {
           value: 'status',
           label: 'Visual Quality status',
@@ -68,6 +71,17 @@ export function showPremiumSettings(host: SlashCommandHost): void {
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
+        if (value === 'presets') {
+          showSettingPresetsPicker(host, {
+            title: 'Visual Quality presets',
+            catalog: PREMIUM_PRESETS,
+            currentId: pqOn ? 'on' : 'off',
+            onApply: async (preset) => {
+              await applyPremiumQuality(host, preset.patch.premiumQuality);
+            },
+          });
+          return;
+        }
         if (value === 'status') {
           void showPremiumSettingsPanel(host);
           return;

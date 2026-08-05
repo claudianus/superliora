@@ -13,6 +13,8 @@ import {
   type MissionSessionGlance,
 } from '#/tui/utils/mission/mission-glance';
 import { isActiveMissionRun } from '#/tui/utils/mission/mission-contract';
+import { MISSION_PRESETS } from '#/tui/utils/settings/mission-presets';
+import { SETTINGS_PRESETS_ROW, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
@@ -34,6 +36,7 @@ export function showMissionSettings(host: SlashCommandHost): void {
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
+        SETTINGS_PRESETS_ROW,
         {
           value: 'status',
           label: 'Mission status',
@@ -53,6 +56,16 @@ export function showMissionSettings(host: SlashCommandHost): void {
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
+        if (value === 'presets') {
+          showSettingPresetsPicker(host, {
+            title: 'Mission presets',
+            catalog: MISSION_PRESETS,
+            onApply: async (preset) => {
+              await setMissionAutoStart(host, preset.patch.autoStart);
+            },
+          });
+          return;
+        }
         if (value === 'status') {
           void showMissionSettingsPanel(host);
           return;

@@ -14,10 +14,26 @@ const SECTION_ORDER = [
   'Appearance',
   'Account',
   'Settings',
+  'Settings · Models',
+  'Settings · Safety',
+  'Settings · Look & feel',
+  'Settings · Agent',
+  'Settings · Integrations',
+  'Settings · Account',
+  'Settings · System',
   'Commands',
   'Skills',
   'Help',
 ] as const;
+
+function sectionRank(section: string): number {
+  const exact = SECTION_ORDER.indexOf(section as (typeof SECTION_ORDER)[number]);
+  if (exact !== -1) return exact;
+  if (section.startsWith('Settings')) {
+    return SECTION_ORDER.indexOf('Settings');
+  }
+  return 99;
+}
 
 function hubItemSearchText(item: CommandHubItem): string {
   return [
@@ -63,10 +79,8 @@ export function filterHubItems(items: readonly CommandHubItem[], query: string):
   const rest = items
     .filter((item) => !recentIds.has(item.id) && item.searchOnly !== true)
     .toSorted((a, b) => {
-      const sa = SECTION_ORDER.indexOf(a.section as (typeof SECTION_ORDER)[number]);
-      const sb = SECTION_ORDER.indexOf(b.section as (typeof SECTION_ORDER)[number]);
-      const oa = sa === -1 ? 99 : sa;
-      const ob = sb === -1 ? 99 : sb;
+      const oa = sectionRank(a.section);
+      const ob = sectionRank(b.section);
       if (oa !== ob) return oa - ob;
       return (authoredIndex.get(a.id) ?? 0) - (authoredIndex.get(b.id) ?? 0);
     });

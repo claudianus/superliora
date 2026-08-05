@@ -21,6 +21,9 @@ import {
   type CompactionThresholdGlance,
 } from '#/tui/utils/compaction/compaction-glance';
 
+import { COMPACTION_PRESETS } from '#/tui/utils/settings/compaction-presets';
+import { SETTINGS_PRESETS_ROW, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
+import { formatErrorMessage } from '#/tui/utils/event-payload';
 import { handleCompactCommand } from '../plan/plan';
 import { showContextWorkingSetPicker } from './context';
 
@@ -39,6 +42,7 @@ export function showCompactionSettings(host: SlashCommandHost): void {
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
+        SETTINGS_PRESETS_ROW,
         {
           value: 'status',
           label: 'Compaction status',
@@ -59,6 +63,27 @@ export function showCompactionSettings(host: SlashCommandHost): void {
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
+        if (value === 'presets') {
+          showSettingPresetsPicker(host, {
+            title: 'Compaction presets',
+            catalog: COMPACTION_PRESETS,
+            onApply: async (preset) => {
+              try {
+                await host.harness.setConfig({
+                  loopControl: { ...preset.patch },
+                });
+                const session = host.session;
+                if (session !== undefined) {
+                  await session.reloadSession();
+                }
+                host.showStatus(`Compaction preset "${preset.label}" applied.`, 'success');
+              } catch (error) {
+                host.showError(`Failed to apply compaction preset: ${formatErrorMessage(error)}`);
+              }
+            },
+          });
+          return;
+        }
         if (value === 'status') {
           void showCompactionSettingsPanel(host);
           return;

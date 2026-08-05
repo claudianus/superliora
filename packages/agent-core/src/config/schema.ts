@@ -316,11 +316,29 @@ export const BrowserUseConfigSchema = z.object({
 
 export type BrowserUseConfig = z.infer<typeof BrowserUseConfigSchema>;
 
+/** Built-in + legacy (`concise`) persona preset ids accepted in config.toml. */
+export const PersonaPresetSchema = z.enum([
+  'none',
+  'efficient',
+  'professional',
+  'friendly',
+  'candid',
+  'mentor',
+  'reviewer',
+  'pair',
+  'creative',
+  'nerdy',
+  'playful',
+  'skeptical',
+  /** @deprecated Prefer `efficient`. Normalized at prompt compile time. */
+  'concise',
+]);
+
 export const PersonaConfigSchema = z.object({
   /** Display name for the persona (e.g. "Liora", "Mentor"). Empty string clears. */
   name: z.string().optional(),
   /** Built-in preset identifier. 'none' explicitly disables presets. */
-  preset: z.enum(['none', 'friendly', 'professional', 'concise', 'creative', 'mentor', 'playful']).optional(),
+  preset: PersonaPresetSchema.optional(),
   /** Personality traits description injected into the system prompt. */
   personality: z.string().optional(),
   /** Response tone/style guidance (e.g. "warm and casual", "formal and precise"). */
@@ -330,6 +348,7 @@ export const PersonaConfigSchema = z.object({
 });
 
 export type PersonaConfig = z.infer<typeof PersonaConfigSchema>;
+export type PersonaPresetSchemaId = z.infer<typeof PersonaPresetSchema>;
 
 export const ComputerUseConfigSchema = z.object({
   enabled: z.boolean().optional(),

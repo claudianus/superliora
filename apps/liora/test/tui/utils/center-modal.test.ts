@@ -9,8 +9,9 @@ import {
 } from '#/tui/utils/ui/center-modal';
 
 describe('centerModalContentWidth', () => {
-  it('caps at 72 and leaves margin', () => {
-    expect(centerModalContentWidth(120)).toBe(72);
+  it('caps at 120 and leaves margin', () => {
+    expect(centerModalContentWidth(200)).toBe(120);
+    expect(centerModalContentWidth(120)).toBe(116);
     expect(centerModalContentWidth(40)).toBe(36);
     expect(centerModalContentWidth(20)).toBe(24);
   });

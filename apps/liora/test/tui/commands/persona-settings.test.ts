@@ -80,7 +80,8 @@ describe('persona settings', () => {
       .calls[0]?.[0] as UsagePanelComponent;
     const text = panel.snapshotBodyLines(1).join('\n');
     expect(text).toContain('Active persona: Coach');
-    expect(text).toContain('friendly, professional');
+    expect(text).toContain('efficient');
+    expect(text).toContain('mentor');
     expect(host.harness.getConfig).toHaveBeenCalledWith({ reload: true });
   });
 

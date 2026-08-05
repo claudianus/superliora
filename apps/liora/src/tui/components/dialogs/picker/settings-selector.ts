@@ -117,7 +117,7 @@ const SETTINGS_OPTIONS_BASE: readonly (Omit<ChoiceOption, 'keywords'> & {
     value: 'persona',
     section: 'Look & feel',
     label: 'Persona',
-    description: 'Agent tone and personality.',
+    description: 'Preset tone packs + skill bundles · Advanced overrides.',
   },
   {
     value: 'editor',
@@ -321,6 +321,7 @@ export const HUB_PINNED_SETTINGS: readonly SettingsSelection[] = [
   'theme',
   'appearance',
   'footer',
+  'persona',
   'context',
   'extensions',
   'search',

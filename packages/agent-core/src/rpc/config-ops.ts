@@ -21,6 +21,7 @@ export const DELETE_CONFIG_FIELD_PATHS = new Set<DeleteConfigFieldPath>([
   'loopControl.codingModel',
   'loopControl.planningModel',
   'loopControl.debuggingModel',
+  'persona',
 ]);
 const CONFIG_PATH_SEGMENT = /^[A-Za-z][A-Za-z0-9]*$/;
 
@@ -58,8 +59,9 @@ export function validateDeleteConfigFields(
     }
 
     const segments = path.split('.');
+    const segmentCountOk = segments.length === 1 || segments.length === 2;
     if (
-      segments.length !== 2 ||
+      !segmentCountOk ||
       segments.some(
         (segment) =>
           segment === '__proto__' ||
@@ -79,6 +81,12 @@ export function validateDeleteConfigFields(
 }
 
 function deleteConfigField(config: LioraConfig, path: DeleteConfigFieldPath): boolean {
+  if (path === 'persona') {
+    if (!Object.hasOwn(config, 'persona')) return false;
+    delete config.persona;
+    return true;
+  }
+
   const loopControl = config.loopControl;
   if (loopControl === undefined) return false;
 

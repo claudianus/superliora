@@ -21,6 +21,8 @@ import {
 } from '../../../components/chrome/footer/footer-preferences';
 import type { SlashCommandHost } from '../../hub/dispatch';
 import { currentFooter, tuiConfigFromHost } from '../appearance/tui-persist';
+import { FOOTER_PRESETS } from '#/tui/utils/settings/footer-presets';
+import { SETTINGS_PRESETS_ROW, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
 
 export const FOOTER_STATUS_TIP =
   'Status bar: Settings → Status bar · tui.toml [footer] · labels plain|compact · slots auto|always|off.';
@@ -32,6 +34,7 @@ export function showFooterSettings(host: SlashCommandHost): void {
 function openFooterSettingsPicker(host: SlashCommandHost): void {
   const footer = currentFooter(host);
   const options = [
+    SETTINGS_PRESETS_ROW,
     {
       value: 'status',
       label: 'Status bar overview',
@@ -74,6 +77,16 @@ function openFooterSettingsPicker(host: SlashCommandHost): void {
       options,
       onSelect: (value) => {
         dismissPickerDialog(host);
+        if (value === 'presets') {
+          showSettingPresetsPicker(host, {
+            title: 'Status bar presets',
+            catalog: FOOTER_PRESETS,
+            onApply: async (preset) => {
+              await persistFooter(host, { ...preset.patch }, `Status bar preset "${preset.label}" applied.`);
+            },
+          });
+          return;
+        }
         if (value === 'status') {
           host.showStatus(buildFooterOverview(currentFooter(host)), 'info');
           return;

@@ -15,7 +15,10 @@ import {
 } from '../../../utils/skills/skills-glance';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 import { getDataDir } from '#/utils/paths';
-import { loadSkillsState } from '#/utils/skills/skills-state';
+import { loadSkillsState, saveSkillsState } from '#/utils/skills/skills-state';
+import { SKILLS_PRESETS } from '#/tui/utils/settings/skills-presets';
+import { SETTINGS_PRESETS_ROW, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
+import { formatErrorMessage } from '#/tui/utils/event-payload';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 
@@ -56,6 +59,7 @@ export function showSkillsSettings(host: SlashCommandHost): void {
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
+        SETTINGS_PRESETS_ROW,
         {
           value: 'status',
           label: 'Skills status',
@@ -71,6 +75,26 @@ export function showSkillsSettings(host: SlashCommandHost): void {
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
+        if (value === 'presets') {
+          showSettingPresetsPicker(host, {
+            title: 'Skills presets',
+            catalog: SKILLS_PRESETS,
+            onApply: async (preset) => {
+              try {
+                const state = await loadSkillsState();
+                const next = new Set(state.disabled);
+                for (const name of preset.patch.enable) next.delete(name);
+                for (const name of preset.patch.disable) next.add(name);
+                await saveSkillsState({ disabled: [...next] });
+                await host.refreshDynamicSlashCommands?.(host.session);
+                host.showStatus(`Skills preset "${preset.label}" applied.`, 'success');
+              } catch (error) {
+                host.showError(`Failed to apply skills preset: ${formatErrorMessage(error)}`);
+              }
+            },
+          });
+          return;
+        }
         if (value === 'status') {
           void showSkillsSettingsPanel(host);
           return;

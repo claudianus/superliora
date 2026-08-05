@@ -101,6 +101,7 @@ describe('showPremiumSettings', () => {
       }
     ).opts.options;
     expect(options.map((o) => o.value)).toEqual([
+      'presets',
       'status',
       'pq-on',
       'pq-off',

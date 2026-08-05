@@ -23,6 +23,7 @@
 | `/permission` | — | 选择权限模式 | 是 |
 | `/editor` | — | 配置 `Ctrl-G` 调起的外部编辑器 | 是 |
 | `/theme` | — | 切换终端 UI 配色主题 | 是 |
+| `/persona` | `/character` | 应用人格预设或编辑语气/性格。详见 [人格预设](../customization/persona.md) | 是 |
 
 ## 会话管理
 

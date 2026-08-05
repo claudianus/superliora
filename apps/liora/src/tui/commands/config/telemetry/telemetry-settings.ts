@@ -16,6 +16,8 @@ import {
   TELEMETRY_LOCAL_ONLY_TIP,
   TELEMETRY_OPT_OUT_TIP,
 } from '../../../utils/telemetry/telemetry-glance';
+import { TELEMETRY_PRESETS } from '#/tui/utils/settings/telemetry-presets';
+import { SETTINGS_PRESETS_ROW, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 
@@ -49,6 +51,7 @@ export function showTelemetrySettings(host: SlashCommandHost): void {
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
+        SETTINGS_PRESETS_ROW,
         {
           value: 'status',
           label: 'Telemetry status',
@@ -68,6 +71,26 @@ export function showTelemetrySettings(host: SlashCommandHost): void {
       ],
       onSelect: (value) => {
         dismissPickerDialog(host);
+        if (value === 'presets') {
+          showSettingPresetsPicker(host, {
+            title: 'Telemetry presets',
+            catalog: TELEMETRY_PRESETS,
+            onApply: async (preset) => {
+              try {
+                await host.harness.setConfig(buildTelemetryConfigPatch(preset.patch.telemetry));
+                host.showStatus(
+                  `Telemetry ${preset.patch.telemetry ? 'ON' : 'OFF'} (${preset.label}).`,
+                  'success',
+                );
+              } catch (error) {
+                host.showError(
+                  `Failed to update telemetry: ${error instanceof Error ? error.message : String(error)}`,
+                );
+              }
+            },
+          });
+          return;
+        }
         if (value === 'status') {
           void showTelemetrySettingsPanel(host);
           return;

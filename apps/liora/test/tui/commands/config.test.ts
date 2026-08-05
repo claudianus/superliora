@@ -646,7 +646,8 @@ describe('harness panel and tools inventory', () => {
     const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
-    // First option is tools; Enter selects it.
+    // presets=0, tools=1
+    component.handleInput('\u001B[B');
     component.handleInput('\r');
     // showToolsInventory is async
     await Promise.resolve();
@@ -663,7 +664,8 @@ describe('harness panel and tools inventory', () => {
     const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void },
     ];
-    // Move to eyes (second option) then Enter.
+    // presets=0, tools=1, eyes=2
+    component.handleInput('\u001B[B');
     component.handleInput('\u001B[B');
     component.handleInput('\r');
     expect(host.restoreEditor).toHaveBeenCalled();
@@ -849,8 +851,8 @@ describe('harness panel and tools inventory', () => {
 
   it('routes harness panel premium selection to Visual Quality settings panel', async () => {
     const host = makeHarnessHost({ session: {}, premiumQualityMode: true });
-    // tools=0, eyes=1, premium=2
-    await selectHarnessOption(host, 2);
+    // presets=0, tools=1, eyes=2, premium=3
+    await selectHarnessOption(host, 3);
     expect(host.restoreEditor).toHaveBeenCalled();
     const premiumPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
       | { opts: { onSelect: (value: string) => void; title?: string } }
@@ -864,8 +866,8 @@ describe('harness panel and tools inventory', () => {
 
   it('routes harness panel experiments selection to experiments panel', async () => {
     const host = makeHarnessHost({ session: {} });
-    // experiments=3 (tools, eyes, premium, experiments)
-    await selectHarnessOption(host, 3);
+    // experiments=4 (presets, tools, eyes, premium, experiments)
+    await selectHarnessOption(host, 4);
     expect(host.restoreEditor).toHaveBeenCalled();
     await vi.waitFor(() => {
       expect(host.harness.getExperimentalFeatures).toHaveBeenCalled();
@@ -874,8 +876,8 @@ describe('harness panel and tools inventory', () => {
 
   it('routes harness panel context selection to context working-set picker', async () => {
     const host = makeHarnessHost({ session: {} });
-    // context=4
-    await selectHarnessOption(host, 4);
+    // context=5
+    await selectHarnessOption(host, 5);
     expect(host.restoreEditor).toHaveBeenCalled();
     // picker remounts via mountEditorReplacement after restore
     await vi.waitFor(() => {

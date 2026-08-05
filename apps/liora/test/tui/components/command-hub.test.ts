@@ -222,23 +222,24 @@ describe('CommandHubComponent', () => {
     expect(onSelect.mock.calls[0]?.[1]).toBe('enter');
   });
 
-  it('←→ jumps between section starts when idle (list layout)', () => {
+  it('←→ moves between categories and items in wide idle two-pane', () => {
     const hub = new CommandHubComponent({
       items: buildDefaultCommandHubItems({}),
       onSelect: vi.fn(),
       onCancel: vi.fn(),
     });
-    // Force list layout by rendering wide enough that idle still stays 1-col.
-    hub.render(72);
-    const before = stripAnsi(hub.render(72).join('\n'));
+    hub.render(96);
+    const modesView = stripAnsi(hub.render(96).join('\n'));
+    expect(modesView).toContain('Modes');
+    expect(modesView).toMatch(/Plan mode/i);
+    hub.handleInput(LEFT);
+    hub.handleInput(DOWN);
+    const startView = stripAnsi(hub.render(96).join('\n'));
+    expect(startView).toMatch(/New session|Start/i);
     hub.handleInput(RIGHT);
-    const afterRight = stripAnsi(hub.render(72).join('\n'));
-    // Selection moved into a later section — description line or pointer position changes.
-    expect(afterRight).not.toBe(before);
-    hub.handleInput(LEFT);
-    hub.handleInput(LEFT);
-    const afterLeft = stripAnsi(hub.render(72).join('\n'));
-    expect(afterLeft.length).toBeGreaterThan(0);
+    const itemsFocused = stripAnsi(hub.render(96).join('\n'));
+    expect(itemsFocused.length).toBeGreaterThan(0);
+    expect(itemsFocused).not.toBe(modesView);
   });
 
   it('pins Recent actions when idle', () => {
