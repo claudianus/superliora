@@ -15,6 +15,7 @@ tools:
   - Glob
   - RepoQuery
   - Bash
+  - Script
   - RunProjectChecks
   - TaskList
   - TaskOutput
@@ -30,6 +31,7 @@ tools:
   - Memory
   - Skill
   - SearchSkill
+  - SkillCreate
   - SearchTools
   - SearchExpert
   - WebSearch
@@ -42,6 +44,8 @@ tools:
   - VerifySurface
   - Review
   - Expand
+  - Compact
+  - Refine
   - VisualDiff
   - ComputerCapture
   - ComputerAct

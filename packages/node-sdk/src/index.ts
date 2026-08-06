@@ -135,6 +135,14 @@ export type {
   ContextOSHealthSnapshot,
   ContextOSRetrievalDiagnostics,
 } from '@superliora/agent-core';
+export type {
+  HarnessEntry,
+  HarnessRefinementEvent,
+  HarnessScope,
+  HarnessStatusSnapshot,
+  HarnessStatusView,
+  RefineRunResult,
+} from '@superliora/agent-core';
 
 export type { RepoIndexBackend, RepoIndexEngine, RepoIndexStatus } from '@superliora/agent-core';
 export {

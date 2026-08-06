@@ -71,7 +71,11 @@ export type CompletionAuditCode =
   /** Structured GoalPredicate evaluation failed (paths/tests/evidence). */
   | 'predicate_failed'
   /** Complete re-attempted before the post-reject cooldown elapsed. */
-  | 'reject_cooldown';
+  | 'reject_cooldown'
+  /** User-set goal gate command exited non-zero (or timed out). */
+  | 'gate_failed'
+  /** Gate command kept failing through its maxRetries budget; goal is parked. */
+  | 'gate_retry_exhausted';
 
 export interface CompletionAuditRejection {
   readonly ok: false;

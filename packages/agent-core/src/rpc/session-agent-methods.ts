@@ -45,8 +45,10 @@ import type {
   PluginCommandDef,
   PromptPayload,
   ReconnectMcpServerPayload,
+  RefineHarnessPayload,
   RegisterToolPayload,
   ResumeUltraworkPayloadResult,
+  RollbackHarnessRefinementPayload,
   RewindFilesPayload,
   RewindFilesResult,
   RunShellCommandPayload,
@@ -207,6 +209,24 @@ export function cancelCompaction(
   context: SessionAgentMethodsContext,
   { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
   return context.sessionApi(sessionId).cancelCompaction(payload);
+}
+
+export function refineHarness(
+  context: SessionAgentMethodsContext,
+  { sessionId, ...payload }: SessionAgentPayload<RefineHarnessPayload>) {
+  return context.sessionApi(sessionId).refineHarness(payload);
+}
+
+export function rollbackHarnessRefinement(
+  context: SessionAgentMethodsContext,
+  { sessionId, ...payload }: SessionAgentPayload<RollbackHarnessRefinementPayload>) {
+  return context.sessionApi(sessionId).rollbackHarnessRefinement(payload);
+}
+
+export function getHarnessStatus(
+  context: SessionAgentMethodsContext,
+  { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
+  return context.sessionApi(sessionId).getHarnessStatus(payload);
 }
 
 export function registerTool(

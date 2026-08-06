@@ -8,7 +8,10 @@ import {
   type AgentContextData,
   type ContextComposition,
   type ContextOSRetrievalDiagnostics,
+  type HarnessRefinementEvent,
+  type HarnessStatusView,
   type InlineCompleteResult,
+  type RefineRunResult,
   type SwarmModeTrigger,
   type SuggestPromptsResult,
   type TurnCancelSource,
@@ -28,6 +31,7 @@ import type {
   AddAdditionalDirOptions,
   AddAdditionalDirResult,
   CompactOptions,
+  RefineOptions,
   MemoryCreateInput,
   MemoryRecord,
   MemorySearchRequest,
@@ -316,6 +320,29 @@ export abstract class SessionCore {
       sessionId: this.id,
       ...(instruction !== undefined ? { instruction } : {}),
     });
+  }
+
+  async refine(options: RefineOptions = {}): Promise<RefineRunResult> {
+    this.ensureOpen();
+    const instructions = normalizeOptionalString(options.instructions);
+    return this.rpc.refineHarness({
+      sessionId: this.id,
+      ...(options.scope !== undefined ? { scope: options.scope } : {}),
+      ...(instructions !== undefined ? { instructions } : {}),
+    });
+  }
+
+  async rollbackRefinement(refinementId: string): Promise<HarnessRefinementEvent> {
+    this.ensureOpen();
+    return this.rpc.rollbackHarnessRefinement({
+      sessionId: this.id,
+      refinementId,
+    });
+  }
+
+  async getHarnessStatus(): Promise<HarnessStatusView> {
+    this.ensureOpen();
+    return this.rpc.getHarnessStatus({ sessionId: this.id });
   }
 
   async cancelCompaction(): Promise<void> {

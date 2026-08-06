@@ -18,7 +18,9 @@ function context<Input>(args: Input, toolCallId = 'call_agent') {
 function mockSubagentHost<T extends Pick<SessionSubagentHost, 'spawn'> & Partial<SessionSubagentHost>>(
   host: T,
 ): T & SessionSubagentHost {
-  return { resume: vi.fn(), ...host } as unknown as T & SessionSubagentHost;
+  // steerChild defaults to "not running" so resume tests fall through to the
+  // resume path; override it to exercise the mid-run message branch.
+  return { resume: vi.fn(), steerChild: vi.fn(() => false), ...host } as unknown as T & SessionSubagentHost;
 }
 
 function agentTool(
@@ -307,6 +309,31 @@ describe('AgentTool', () => {
     expect(result.output).toContain('agent_id: agent-existing');
     expect(result.output).toContain('actual_subagent_type: explore');
     expect(result.output).toContain('resumed result');
+  });
+
+  it('steers the prompt into a still-running agent instead of resuming it', async () => {
+    const steerChild = vi.fn(() => true);
+    const host = mockSubagentHost({
+      spawn: vi.fn(),
+      steerChild,
+    });
+    const tool = agentTool(host);
+
+    const result = await executeTool(tool,
+      context({
+        prompt: 'Switch to the other file',
+        description: 'Redirect',
+        resume: 'agent-running',
+      }),
+    );
+
+    expect(steerChild).toHaveBeenCalledWith('agent-running', [
+      { type: 'text', text: 'Switch to the other file' },
+    ]);
+    expect(host.spawn).not.toHaveBeenCalled();
+    expect(host.resume).not.toHaveBeenCalled();
+    expect(result.isError).toBeFalsy();
+    expect(result.output).toContain('Message delivered to running agent agent-running');
   });
 
   it('returns an error when resuming with a subagent type', async () => {

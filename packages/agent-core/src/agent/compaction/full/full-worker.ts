@@ -170,6 +170,7 @@ export async function runCompactionWorker(
     injectResumeRecheckReminder(host, finalResult.summary);
     host.syncCompactionBaseline();
     host.triggerPostCompactHook(data, finalResult);
+    host.agent.refine?.maybeAutoRefine('compaction');
     host.markCompleted();
     host.agent.emitEvent({ type: 'compaction.completed', result: finalResult });
     host.agent.turn.onCompactionFinished();

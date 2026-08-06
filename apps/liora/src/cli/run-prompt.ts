@@ -147,7 +147,11 @@ export async function runPrompt(
     // the turn-run alive across continuation turns, so the normal prompt-turn
     // waiter blocks until the goal is terminal; we then emit a summary and set a
     // distinct exit code.
-    const goalCreate = parseHeadlessGoalCreate(opts.prompt!);
+    const parsedGoal = parseHeadlessGoalCreate(opts.prompt!);
+    const goalCreate =
+      parsedGoal !== undefined && opts.autonomousGate !== undefined
+        ? { ...parsedGoal, gateCommand: opts.autonomousGate }
+        : parsedGoal;
     const recoveryPrefix =
       resumed ? await maybeAutoResumeHeadlessUltrawork(session, stderr) : undefined;
     if (goalCreate !== undefined) {

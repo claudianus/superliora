@@ -265,6 +265,13 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
     argumentHint: '<instruction>',
   },
   {
+    name: 'refine',
+    aliases: [],
+    description: 'Refine the harness from the trajectory (prompt notes, memory, skills, subagent specs)',
+    priority: 80,
+    argumentHint: '[--global] [status|rollback <id>] | [instructions]',
+  },
+  {
     name: 'goal',
     aliases: [],
     description: 'Simple goal loop: set objective, agent iterates until done (Ralph Loop)',

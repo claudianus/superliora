@@ -8,10 +8,13 @@ import {
   type CredentialResponse,
   type Event,
   type ExperimentalFeatureState,
+  type HarnessRefinementEvent,
+  type HarnessStatusView,
   type InlineCompleteResult,
   type QuestionRequest,
   type QuestionResult,
   type RPCCallOptions,
+  type RefineRunResult,
   type SuggestPromptsResult,
   type ToolCallRequest,
   type ToolCallResponse,
@@ -35,6 +38,7 @@ import type {
   LioraConfigPatch,
   ProviderRouteStatus,
   CompactOptions,
+  RefineOptions,
   SessionPlan,
   SessionStatus,
   SessionUsage,
@@ -331,6 +335,35 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
       sessionId: input.sessionId,
       agentId: this.interactiveAgentId,
       ...(input.instruction !== undefined ? { instruction: input.instruction } : {}),
+    });
+  }
+
+  async refineHarness(input: SessionIdRpcInput & RefineOptions): Promise<RefineRunResult> {
+    const rpc = await this.getRpc();
+    return rpc.refineHarness({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+      ...(input.scope !== undefined ? { scope: input.scope } : {}),
+      ...(input.instructions !== undefined ? { instructions: input.instructions } : {}),
+    });
+  }
+
+  async rollbackHarnessRefinement(
+    input: SessionIdRpcInput & { refinementId: string },
+  ): Promise<HarnessRefinementEvent> {
+    const rpc = await this.getRpc();
+    return rpc.rollbackHarnessRefinement({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+      refinementId: input.refinementId,
+    });
+  }
+
+  async getHarnessStatus(input: SessionIdRpcInput): Promise<HarnessStatusView> {
+    const rpc = await this.getRpc();
+    return rpc.getHarnessStatus({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
     });
   }
 

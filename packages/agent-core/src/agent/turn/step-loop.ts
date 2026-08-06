@@ -8,7 +8,6 @@
 import {
   APIContextOverflowError,
   APIStatusError,
-  grandTotal,
   parseStatedContextLimitTokens,
 } from '@superliora/kosong';
 
@@ -131,7 +130,13 @@ export async function runTurnStepLoop(
         recordStepUsage: async (usage, info?: RecordStepUsageInfo) => {
           stepUsageModel = info?.model ?? model;
           try {
-            const snapshot = await agent.goal.recordTokenUsage(grandTotal(usage));
+            // Goal budgets exclude cache-read tokens: those are repeated
+            // context served from the provider cache, and counting them makes
+            // long goal loops exhaust the budget far before the non-cached
+            // work reaches the configured cap (Prime Agent parity).
+            const snapshot = await agent.goal.recordTokenUsage(
+              usage.inputOther + usage.inputCacheCreation + usage.output,
+            );
             stopForGoalBudget = snapshot?.budget.overBudget === true;
           } catch (error) {
             agent.log.warn('goal token accounting failed', { error });

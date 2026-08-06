@@ -416,6 +416,7 @@ export function projectContext(
       case 'swarm.restaff':
       case 'ultrawork.mode':
       case 'ultrawork.run':
+      case 'harness.state':
         break;
       default: {
         const _exhaustive: never = rec;

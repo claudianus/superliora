@@ -16,13 +16,14 @@ interface TelemetryRecord {
   readonly properties: TelemetryProperties;
 }
 
-function makeGoalMode() {
+function makeGoalMode(options: { readonly cwd?: string } = {}) {
   const records: AgentRecord[] = [];
   const replay: AgentReplayRecord[] = [];
   const events: Array<{ readonly type: string; readonly snapshot?: GoalSnapshot | null; readonly change?: GoalChange }> = [];
   const telemetry: TelemetryRecord[] = [];
   const reminders: Array<{ readonly content: string; readonly origin: unknown }> = [];
   const agent = {
+    config: { cwd: options.cwd ?? process.cwd() },
     records: {
       logRecord: (record: AgentRecord) => {
         records.push(record);
@@ -192,6 +193,74 @@ describe('GoalMode lifecycle', () => {
       }),
     ]);
     await expect(goals.cancelGoal()).rejects.toMatchObject({ code: ErrorCodes.GOAL_NOT_FOUND });
+  });
+});
+
+describe('GoalMode gate command', () => {
+  // Gate commands run via the system shell in a temp cwd that is not a git
+  // worktree, so the workspace hash is unavailable and every attempt runs.
+  async function makeGatedGoal(gateCommand: string) {
+    const { mkdtemp } = await import('node:fs/promises');
+    const { tmpdir } = await import('node:os');
+    const path = await import('pathe');
+    const cwd = await mkdtemp(path.join(tmpdir(), 'goal-gate-'));
+    const harness = makeGoalMode({ cwd });
+    await harness.goals.createGoal({ objective: 'work', gateCommand });
+    return harness;
+  }
+
+  it('stores the gate command on the snapshot and the create record', async () => {
+    const { goals, records } = await makeGatedGoal('exit 0');
+    expect(goals.getGoal().goal?.gateCommand).toBe('exit 0');
+    const create = records.find((record) => record.type === 'goal.create');
+    expect(create).toMatchObject({ gateCommand: 'exit 0' });
+  });
+
+  it('rejects completion when the gate fails and keeps the goal active', async () => {
+    const { goals } = await makeGatedGoal('exit 1');
+
+    const completed = await goals.markComplete({ reason: 'done' }, 'model');
+
+    expect(completed).toBeNull();
+    expect(goals.getGoal().goal?.status).toBe('active');
+    expect(goals.getLastCompletionRejection()?.code).toBe('gate_failed');
+  });
+
+  it('completes when the gate passes', async () => {
+    const { goals } = await makeGatedGoal('exit 0');
+
+    const completed = await goals.markComplete({ reason: 'done' }, 'model');
+
+    expect(completed?.status).toBe('complete');
+    expect(goals.getGoal().goal).toBeNull();
+  });
+
+  it('restores the gate command from the create record on replay', async () => {
+    const { goals, records } = await makeGatedGoal('npm run check');
+    const create = records.find((record) => record.type === 'goal.create');
+    expect(create).toBeDefined();
+
+    const restored = makeGoalMode();
+    restored.goals.restoreCreate(create as never);
+
+    expect(restored.goals.getGoal().goal?.gateCommand).toBe('npm run check');
+  });
+
+  it('blocks the goal once the gate retry budget is exhausted', async () => {
+    const { goals } = await makeGatedGoal('exit 1');
+
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      expect(await goals.markComplete({ reason: 'done' }, 'model')).toBeNull();
+      expect(goals.getLastCompletionRejection()?.code).toBe('gate_failed');
+      // Burn through the reject cooldown so the next attempt reaches the gate.
+      for (let turn = 0; turn < 3; turn += 1) await goals.incrementTurn();
+    }
+
+    const blocked = await goals.markComplete({ reason: 'done' }, 'model');
+
+    expect(blocked?.status).toBe('blocked');
+    expect(goals.getGoal().goal?.status).toBe('blocked');
+    expect(goals.getLastCompletionRejection()?.code).toBe('gate_retry_exhausted');
   });
 });
 

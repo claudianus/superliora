@@ -51,6 +51,7 @@ export async function runHeadlessGoal(
     await session.createGoal({
       objective: goal.objective,
       replace: goal.replace,
+      gateCommand: goal.gateCommand,
     });
     goalCreated = true;
     const turnPrompt = mergeRecoveryPrompt(goal.prompt ?? goal.objective, recoveryPrefix);

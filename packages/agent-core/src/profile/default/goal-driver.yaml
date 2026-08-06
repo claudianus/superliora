@@ -39,7 +39,10 @@ tools:
   - Grep
   - Glob
   - Bash
+  - Script
   - Expand
+  - Compact
+  - Refine
   - RunProjectChecks
   - RepoQuery
   - WebSearch
@@ -53,6 +56,7 @@ tools:
   - TodoList
   - Skill
   - SearchSkill
+  - SkillCreate
   - SearchTools
   - GetCurrentTime
   - GetGoal

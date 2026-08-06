@@ -3,6 +3,11 @@ import type { AgentContextData, ContextComposition } from '#/agent/context';
 import type { ContextOSRetrievalDiagnostics } from '#/agent/context-os';
 import type { BackgroundTaskInfo } from '#/agent/background';
 import type { GoalSnapshot, GoalToolResult } from '#/agent/goal';
+import type {
+  HarnessRefinementEvent,
+  HarnessStatusView,
+  RefineRunResult,
+} from '#/agent/refine';
 import type { PermissionData } from '#/agent/permission';
 import type { CircuitBreakerStatus, ProviderExtrasStatus } from '@superliora/protocol';
 import type { PlanData } from '#/agent/plan';
@@ -85,6 +90,8 @@ import type {
   PromptIntelligenceCallOptions,
   PromptPayload,
   RegisterToolPayload,
+  RefineHarnessPayload,
+  RollbackHarnessRefinementPayload,
   RunShellCommandPayload,
   SetModelPayload,
   SetModelResult,
@@ -150,6 +157,11 @@ export interface AgentAPI {
   getPremiumQuality: (payload: EmptyPayload) => boolean;
   beginCompaction: (payload: BeginCompactionPayload) => void;
   cancelCompaction: (payload: EmptyPayload) => void;
+  refineHarness: (payload: RefineHarnessPayload) => Promise<RefineRunResult>;
+  rollbackHarnessRefinement: (
+    payload: RollbackHarnessRefinementPayload,
+  ) => Promise<HarnessRefinementEvent>;
+  getHarnessStatus: (payload: EmptyPayload) => HarnessStatusView;
   registerTool: (payload: RegisterToolPayload) => void;
   unregisterTool: (payload: UnregisterToolPayload) => void;
   setActiveTools: (payload: SetActiveToolsPayload) => void;

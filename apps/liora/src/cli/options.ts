@@ -20,6 +20,12 @@ export interface CLIOptions {
   addDirs?: string[];
   /** Automatically resume the first goal in the queue on startup. */
   resumeGoal?: boolean;
+  /**
+   * Shell command gating goal completion (`--autonomous-gate`): every
+   * completion attempt runs it and a non-zero exit keeps the goal loop going.
+   * Headless `-p "/goal ..."` runs only.
+   */
+  autonomousGate?: string;
   /** Main agent tool profile override (sets SUPERLIORA_PROFILE for this process). */
   profile?: string;
   /**
@@ -78,6 +84,12 @@ export function validateOptions(opts: CLIOptions): ValidatedOptions {
   if (opts.worktree !== undefined && opts.worktree !== false) {
     if (opts.session !== undefined || opts.continue) {
       throw new OptionConflictError(t('cli.runtime.options.worktreeWithResume'));
+    }
+  }
+  if (opts.autonomousGate !== undefined) {
+    const goalPrompt = promptMode && /^\/(goal|ultragoal|ultrawork|uw|ug)(\s|$)/.test(prompt.trim());
+    if (!goalPrompt) {
+      throw new OptionConflictError(t('cli.runtime.options.autonomousGateNeedsGoal'));
     }
   }
   return { options: opts, uiMode: promptMode ? 'print' : 'shell' };

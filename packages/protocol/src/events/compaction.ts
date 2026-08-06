@@ -11,8 +11,11 @@ export interface CompactionResult {
 
 export interface CompactionStartedEvent {
   readonly type: 'compaction.started';
-  /** `overflow` = reactive recovery after CONTEXT_OVERFLOW (Loop25b). */
-  readonly trigger: 'manual' | 'auto' | 'overflow';
+  /**
+   * `overflow` = reactive recovery after CONTEXT_OVERFLOW (Loop25b).
+   * `agent` = the model's own Compact tool call.
+   */
+  readonly trigger: 'manual' | 'auto' | 'overflow' | 'agent';
   readonly instruction?: string;
   /**
    * `background` means full compaction is summarizing while the turn continues
@@ -97,7 +100,8 @@ export const compactionResultSchema = z.object({
 export const compactionStartedEventSchema = z.object({
   type: z.literal('compaction.started'),
   // Loop25b: overflow recovery is distinct from threshold pre-rot auto.
-  trigger: z.enum(['manual', 'auto', 'overflow']),
+  // `agent` covers the model-initiated Compact tool.
+  trigger: z.enum(['manual', 'auto', 'overflow', 'agent']),
   instruction: z.string().optional(),
   mode: z.enum(['blocking', 'background']).optional(),
   modelAlias: z.string().optional(),

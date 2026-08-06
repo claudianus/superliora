@@ -197,6 +197,24 @@ export class AgentTool implements BuiltinTool<AgentToolInput> {
         };
       }
 
+      // A2A direct message: resuming a child that is mid-turn steers the
+      // prompt into its active turn (takes effect at its next step boundary)
+      // instead of failing the idle check. The reply arrives through the
+      // normal completion channel.
+      if (resumeAgentId !== undefined && resumeAgentId.length > 0) {
+        const steered = this.subagentHost.steerChild(resumeAgentId, [
+          { type: 'text', text: args.prompt },
+        ]);
+        if (steered) {
+          return {
+            output: [
+              `Message delivered to running agent ${resumeAgentId}.`,
+              'It takes effect at that agent\'s next step boundary; its reply arrives with the task result.',
+            ].join('\n'),
+          };
+        }
+      }
+
       const operation = resumeAgentId !== undefined && resumeAgentId.length > 0 ? 'resume' : 'spawn';
       const resolvedProfileName =
         requestedProfileName === undefined

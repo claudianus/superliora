@@ -22,6 +22,12 @@ export const CreateGoalToolInputSchema = z
       .string()
       .optional()
       .describe('How to verify the goal is complete. Include when the user provides one.'),
+    gateCommand: z
+      .string()
+      .optional()
+      .describe(
+        'Shell command that must exit 0 before the goal may complete (e.g. "npm run check"). Every completion attempt runs it; a failure returns the output tail and keeps the goal active. Include when the user names a verification command.',
+      ),
     replace: z
       .boolean()
       .optional()
@@ -52,6 +58,7 @@ export class CreateGoalTool implements BuiltinTool<CreateGoalToolInput> {
           {
             objective: args.objective,
             completionCriterion: args.completionCriterion,
+            gateCommand: args.gateCommand,
             replace: args.replace,
             source: activationSource,
           },

@@ -80,6 +80,11 @@ export interface GoalState {
   goalId: string;
   objective: string;
   completionCriterion?: string;
+  /**
+   * Shell command that must exit 0 before `markComplete` is allowed
+   * (autonomous gate). Set at creation; persisted via the `goal.create` record.
+   */
+  gateCommand?: string;
   status: GoalStatus;
   turnsUsed: number;
   tokensUsed: number;
@@ -116,6 +121,7 @@ export interface GoalSnapshot {
   readonly goalId: string;
   readonly objective: string;
   readonly completionCriterion?: string;
+  readonly gateCommand?: string;
   readonly status: GoalStatus;
   readonly turnsUsed: number;
   readonly tokensUsed: number;
@@ -161,6 +167,11 @@ export interface GoalChange {
 export interface CreateGoalInput {
   readonly objective: string;
   readonly completionCriterion?: string;
+  /**
+   * Shell command gating completion: every `markComplete` runs it and a
+   * non-zero exit rejects the completion with the bounded output tail.
+   */
+  readonly gateCommand?: string;
   readonly replace?: boolean;
   /** Whether this goal was created standalone or as part of Ultrawork orchestration. */
   readonly source?: ModeActivationSource;

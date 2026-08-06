@@ -13,7 +13,8 @@
 //
 // Any other flag is forwarded to vitest (`--bail=1`, `--reporter=dot`, `-t name`, …).
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 const repoRoot = resolve(import.meta.dirname, '..');
@@ -64,7 +65,10 @@ function parityEnv() {
     else if (DELETE_ENV_PREFIX.some((p) => key.startsWith(p))) delete env[key];
     else if (DELETE_ENV_MATCH.test(key)) delete env[key];
   }
-  return { ...env, ...SET_ENV };
+  // Tests must never read or write the operator's real liora home (harness
+  // state, oauth cache): point SUPERLIORA_HOME at a per-run temp dir.
+  const lioraHome = mkdtempSync(join(tmpdir(), 'superliora-test-home-'));
+  return { ...env, ...SET_ENV, SUPERLIORA_HOME: lioraHome };
 }
 
 // --- affected workspace detection -----------------------------------------

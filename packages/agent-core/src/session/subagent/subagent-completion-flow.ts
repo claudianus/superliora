@@ -21,6 +21,7 @@ import {
   readSubagentCheckpoint,
 } from './subagent-checkpoint';
 import { getDefaultSwarmFileLeaseRegistry } from '#/fleet';
+import { computeSubagentFriction } from './subagent-friction';
 import { snapshotChildWork, type GitWorkSnapshot } from './subagent-result-contract';
 import {
   enrichPermanentProviderFailure,
@@ -257,6 +258,9 @@ export async function collectChildCompletion(
 ): Promise<SubagentCompletion> {
   await runChildTurnToCompletion(child, options.signal);
 
+  // Friction is computed before the handoff compaction: the walk needs the
+  // tool results that compaction is about to collapse.
+  const friction = computeSubagentFriction(child.context.history);
   await child.fullCompaction.ensureBelowHandoffThreshold(options.signal);
 
   let result = lastAssistantText(child);
@@ -305,16 +309,17 @@ export async function collectChildCompletion(
   // `complete` clears the durable record, so a null goal on a migrated run
   // means success; anything else is the stopped status the Job maps to blocked.
   if (options.goal === undefined) {
-    return { result, usage, contract };
+    return { result, usage, contract, friction };
   }
   const goalFinal = child.goal.getGoal().goal;
   if (goalFinal === null) {
-    return { result, usage, contract, goalStatus: 'complete' };
+    return { result, usage, contract, friction, goalStatus: 'complete' };
   }
   return {
     result,
     usage,
     contract,
+    friction,
     goalStatus: goalFinal.status,
     goalId: goalFinal.goalId,
     goalTerminalReason: goalFinal.terminalReason,

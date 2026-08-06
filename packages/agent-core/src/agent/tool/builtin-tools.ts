@@ -161,6 +161,12 @@ function createFileAndContextTools(
     shouldCreateBuiltin(host, 'LioraSymbol') && new b.LioraSymbolTool(kaos, workspace),
     shouldCreateBuiltin(host, 'LioraCallgraph') && new b.LioraCallgraphTool(kaos, workspace),
     shouldCreateBuiltin(host, 'Expand') && b.createExpandTool(host.toolStore),
+    shouldCreateBuiltin(host, 'Compact') && new b.CompactTool(host.agent),
+    // Refine is main-only: subagents carry no harness state to edit (the
+    // service is null there), so don't spend their schema budget on it.
+    shouldCreateBuiltin(host, 'Refine') &&
+      host.agent.type === 'main' &&
+      new b.RefineTool(host.agent),
     shouldCreateBuiltin(host, 'Bash') &&
       new b.BashTool(kaos, cwd, background, {
         allowBackground,
@@ -168,6 +174,7 @@ function createFileAndContextTools(
         pathPrefix: host.agent.pluginBinDirs,
         isWorker: host.agent.type !== 'main',
       }),
+    shouldCreateBuiltin(host, 'Script') && new b.ScriptTool(host.agent, kaos),
     shouldCreateBuiltin(host, 'RunProjectChecks') &&
       new b.RunProjectChecksTool(kaos, cwd, { store: host.toolStore }),
     shouldCreateBuiltin(host, 'ReadMediaFile') &&
@@ -314,6 +321,9 @@ function createSkillAndSubagentTools(
     (host.agent.skills?.registry.listInvocableSkills().length ?? 0) > 0;
   return [
     shouldCreateBuiltin(host, 'SearchTools') && new b.SearchToolsTool(host.agent),
+    host.agent.skills !== null &&
+      shouldCreateBuiltin(host, 'SkillCreate') &&
+      new b.SkillCreateTool(host.agent),
     hasInvocableSkills && shouldCreateBuiltin(host, 'Skill') && new b.SkillTool(host.agent),
     hasInvocableSkills &&
       shouldCreateBuiltin(host, 'SearchSkill') &&

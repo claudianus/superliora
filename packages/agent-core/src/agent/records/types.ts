@@ -4,6 +4,7 @@ import type { UltraworkRun } from '@superliora/protocol';
 
 import type { LoopRecordedEvent } from '../../loop';
 import type { GoalActor, GoalBudgetLimits, GoalStatus } from '../goal';
+import type { HarnessState } from '../refine/state';
 import type { ToolStoreUpdate } from '../../tools/store';
 import type { CompactionBeginData, CompactionResult } from '../compaction';
 import type { AgentConfigUpdateData } from '../config';
@@ -106,6 +107,10 @@ export interface AgentRecordEvents {
     goalId: string;
     objective: string;
     completionCriterion?: string;
+    gateCommand?: string;
+  };
+  'harness.state': {
+    state: HarnessState;
   };
   'goal.update': {
     status?: GoalStatus;

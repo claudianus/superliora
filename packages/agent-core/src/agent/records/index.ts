@@ -153,6 +153,9 @@ function restoreAgentRecord(agent: Agent, input: AgentRecord): void {
     case 'goal.clear':
       agent.goal.restoreClear(input);
       return;
+    case 'harness.state':
+      agent.refine?.restoreState(input.state);
+      return;
     case 'subagent.lifecycle':
     case 'ultrawork.event':
       agent.replayBuilder.push({ type: 'agent_event', event: input.event as AgentEvent });

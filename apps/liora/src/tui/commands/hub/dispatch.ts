@@ -32,6 +32,7 @@ import { handleBtwCommand } from '../btw';
 import { handleAutoCommand, handlePermissionCommand, handleYoloCommand, showPermissionPicker } from '../config/permission/permission';
 import { handleAppearanceCommand } from '../config/appearance/appearance';
 import { handleCompactCommand, handlePlanCommand } from '../config/plan/plan';
+import { handleRefineCommand } from '../refine';
 import { handleContextCommand } from '../config/context/context';
 import { handleEditorCommand, handleThemeCommand } from '../config/appearance/editor-theme';
 import { handleMediaCommand } from '../config/media/media';
@@ -530,6 +531,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'compact':
       await handleCompactCommand(host, args);
+      return;
+    case 'refine':
+      await handleRefineCommand(host, args);
       return;
     case 'goal':
       await handleGoalCommand(host, args);

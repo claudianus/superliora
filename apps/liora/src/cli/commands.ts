@@ -110,6 +110,7 @@ export function createProgram(
       ),
     )
     .option('--resume-goal', t('cli.option.resumeGoal'), false)
+    .option('--autonomous-gate <command>', t('cli.option.autonomousGate'))
     .addOption(
       new Option('--worktree [name]', t('cli.option.worktree')).argParser(
         (val: string | boolean) => (val === true ? true : (val as string)),
@@ -176,6 +177,7 @@ export function createProgram(
       channelServers: (raw['channels'] as string[] | undefined) ?? [],
       addDirs: raw['addDir'] as string[],
       resumeGoal: raw['resumeGoal'] as boolean,
+      autonomousGate: raw['autonomousGate'] as string | undefined,
       worktree: raw['worktree'] as boolean | string | undefined,
       profile: raw['profile'] as string | undefined,
     };
