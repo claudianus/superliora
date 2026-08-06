@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   SWARM_TOTAL_RESULT_MAX_CHARS,
   isSwarmToolResult,
-  maskStaleSwarmToolResult,
 } from '#/agent/compaction/boundary-compaction';
 
 describe('compaction/boundary-compaction — isSwarmToolResult', () => {
@@ -29,13 +28,6 @@ describe('compaction/boundary-compaction — isSwarmToolResult', () => {
   it('is case-insensitive on the tag name', () => {
     expect(isSwarmToolResult('<ULTRA_SWARM_RESULT>...')).toBe(true);
     expect(isSwarmToolResult('<Agent_Swarm_Result>...')).toBe(true);
-  });
-});
-
-describe('compaction/boundary-compaction — maskStaleSwarmToolResult', () => {
-  it('returns the text verbatim when it is not a swarm tool result', () => {
-    const plain = 'plain text without any tags';
-    expect(maskStaleSwarmToolResult(plain)).toBe(plain);
   });
 });
 

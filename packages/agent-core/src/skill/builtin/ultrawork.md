@@ -7,7 +7,7 @@ description: Mission workflow methodology (ultrawork compat) — run a long mult
 
 # Mission workflow methodology
 
-Mission is the full harness workflow for a long objective: interview the ambiguity out of it, plan with verifiable acceptance criteria, fan out Fleet specialists when it pays, integrate, verify on real surfaces, and persist what was learned.
+Mission is the full harness workflow for a long objective: interview the ambiguity out of it, plan with verifiable acceptance criteria, fan out Job workers when it pays, integrate, verify on real surfaces, and persist what was learned.
 
 Load via Skill as **`mission`** (preferred). The `ultrawork` alias is compatibility only and runs the **same** run — do not start a second spine.
 
@@ -30,7 +30,7 @@ Research prelude -> Plan interview -> Goal
   -> Fleet decision (ENGAGE|ADAPTIVE|DEFER) -> Integrate -> Verify -> Learn
 ```
 
-Normalize synonyms — Ultrawork, UltraPlan, UltraGoal, UltraSwarm, Fleet, `/ultrawork`, `/ultraplan` — into this **Mission** run. Do not ask the user to choose between branded sub-commands.
+Normalize synonyms — Ultrawork, UltraPlan, UltraGoal, `/ultrawork`, `/ultraplan` — into this **Mission** run. Do not ask the user to choose between branded sub-commands.
 
 ## Activation and mode
 
@@ -75,7 +75,7 @@ Create or replace Goal only after plan approval — unless `/goal` already creat
 After ExitPlanMode + Goal, seed WorkGraph. Then decide:
 
 - Emit: `Swarm decision: ENGAGE|ADAPTIVE|DEFER - <reason>; value: …; owner: …`
-- ENGAGE/ADAPTIVE → call UltraSwarm / Fleet tools with `work_node_ids` before more product implementation.
+- ENGAGE/ADAPTIVE → fan the work out to Job workers (`JobCreate`) before more product implementation; carry the `work_node_ids`, coverage matrix, acceptance criteria, and verification owner in the job descriptions.
 - DEFER only if main owns every lane (visible waiver).
 
 ## Coding quality (Mission implementation)

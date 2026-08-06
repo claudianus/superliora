@@ -2,10 +2,6 @@ import { createToolMessage } from '@superliora/kosong';
 
 import type { LoopRecordedEvent } from '../../loop';
 import { estimateTokensForMessages } from '../../utils/tokens';
-import {
-  isSwarmToolName,
-  maskStaleSwarmToolResults,
-} from '../compaction/micro/micro-helpers';
 import type { ContextMemoryHost } from './context-memory-host';
 import {
   TOOL_INTERRUPTED_ON_RESUME_OUTPUT,
@@ -149,7 +145,6 @@ export function handleContextLoopEvent(host: ContextMemoryHost, event: LoopRecor
     case 'tool.result': {
       const acceptsLateResult = host.lateAcceptedToolCallIds.has(event.toolCallId);
       if (!host.pendingToolResultIds.has(event.toolCallId) && !acceptsLateResult) return;
-      const toolName = host.toolCallNames.get(event.toolCallId);
       host.toolCallNames.delete(event.toolCallId);
       const message = createToolMessage(event.toolCallId, toolResultOutputForModel(event.result));
       host.pushHistory({
@@ -162,17 +157,6 @@ export function handleContextLoopEvent(host: ContextMemoryHost, event: LoopRecor
       // A result also settles the intend window — clear it so the resume
       // path does not treat a result-bearing call as still ambiguous.
       host.intendedToolCalls.delete(event.toolCallId);
-      // Swarm results mask at append time: once a fresh swarm result lands, the
-      // earlier swarm results collapse in the stored history exactly once.
-      // Projection then stays a pure function of history, so the prompt-cache
-      // prefix is never rewritten mid-history by a later projection pass.
-      if (isSwarmToolName(toolName)) {
-        const masked = maskStaleSwarmToolResults([host.history, host.deferredMessages]);
-        if (masked > 0) {
-          host.markContextChanged();
-          host.agent.log.debug('masked stale swarm tool results at append', { masked });
-        }
-      }
       host.flushDeferredMessagesIfToolExchangeClosed();
       return;
     }

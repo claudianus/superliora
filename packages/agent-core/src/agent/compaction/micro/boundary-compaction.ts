@@ -1,7 +1,6 @@
 import {
   archiveContent,
   expandArchivedContent,
-  formatArchiveMarker,
 } from '../../../tools/builtin/context/context-archive';
 import type { ToolStore } from '../../../tools/store';
 import {
@@ -83,32 +82,6 @@ export function compactSwarmToolResult(
     applied: archiveIds.length > 0 || output.length < rawXml.length,
     fallback: false,
   };
-}
-
-/**
- * Projection-time mask for stale swarm tool results: keep XML metadata, replace
- * expert bodies with archive markers only.
- */
-export function maskStaleSwarmToolResult(text: string): string {
-  if (!isSwarmToolResult(text)) return text;
-  if (ULTRA_SWARM_ROOT_RE.test(text)) {
-    return text.replace(EXPERT_BLOCK_RE, (_match, attrs: string, inner: string) => {
-      const expertId = readXmlAttribute(attrs, 'expert_id') ?? 'unknown';
-      const archiveId = extractArchiveIdFromInner(inner);
-      const selectionReason = SELECTION_REASON_RE.exec(inner)?.[0] ?? '';
-      const marker = archiveId === undefined
-        ? collapseForHandoff(stripSelectionReason(inner), 240)
-        : formatArchiveMarker(archiveId, `swarm-handoff:${expertId}`);
-      return `<expert ${attrs}>\n${selectionReason}${marker}\n</expert>`;
-    });
-  }
-  return text.replace(SUBAGENT_BLOCK_RE, (_match, attrs: string, inner: string) => {
-    const archiveId = extractArchiveIdFromInner(inner);
-    const marker = archiveId === undefined
-      ? collapseForHandoff(inner.trim(), 240)
-      : formatArchiveMarker(archiveId, 'swarm-handoff:subagent');
-    return `<subagent${attrs}>${marker}</subagent>`;
-  });
 }
 
 export function expandSwarmArchivedBody(store: ToolStore, archiveId: string): string | undefined {
