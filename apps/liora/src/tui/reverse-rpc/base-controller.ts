@@ -14,9 +14,14 @@ export interface ReverseRpcUIHooks<TPayload> {
   hidePanel(): void;
 }
 
+export interface ReverseRpcShowOptions {
+  readonly signal?: AbortSignal | undefined;
+}
+
 interface Pending<TPayload, TResponse> {
   readonly payload: TPayload;
   readonly resolve: (data: TResponse) => void;
+  abortCleanup?: (() => void) | undefined;
 }
 
 export abstract class ReverseRpcController<TPayload, TResponse> {
@@ -32,9 +37,23 @@ export abstract class ReverseRpcController<TPayload, TResponse> {
    * Called when a reverse RPC request arrives from core. The returned promise
    * resolves after the user responds or `cancelAll` forces cancellation.
    */
-  show(payload: TPayload): Promise<TResponse> {
+  show(payload: TPayload, options: ReverseRpcShowOptions = {}): Promise<TResponse> {
     return new Promise<TResponse>((resolve) => {
       const entry: Pending<TPayload, TResponse> = { payload, resolve };
+      const signal = options.signal;
+      if (signal?.aborted === true) {
+        resolve(this.createCancelResponse(String(signal.reason ?? 'aborted')));
+        return;
+      }
+      if (signal !== undefined) {
+        const onAbort = (): void => {
+          this.cancelEntry(entry, String(signal.reason ?? 'aborted'));
+        };
+        signal.addEventListener('abort', onAbort, { once: true });
+        entry.abortCleanup = () => {
+          signal.removeEventListener('abort', onAbort);
+        };
+      }
       if (this.current === null) {
         this.current = entry;
         this.uiHooks?.showPanel(payload);
@@ -48,8 +67,10 @@ export abstract class ReverseRpcController<TPayload, TResponse> {
   respond(data: TResponse): void {
     const pending = this.current;
     this.current = null;
-    pending?.resolve(data);
     if (pending !== null) {
+      pending.abortCleanup?.();
+      pending.abortCleanup = undefined;
+      pending.resolve(data);
       this.drainAutoResolved(pending.payload, data);
     }
     this.advanceOrHide();
@@ -62,12 +83,27 @@ export abstract class ReverseRpcController<TPayload, TResponse> {
     this.queue = [];
     this.uiHooks?.hidePanel();
     for (const entry of all) {
+      entry.abortCleanup?.();
+      entry.abortCleanup = undefined;
       entry.resolve(this.createCancelResponse(reason));
     }
   }
 
   hasPending(): boolean {
     return this.current !== null || this.queue.length > 0;
+  }
+
+  private cancelEntry(entry: Pending<TPayload, TResponse>, reason: string): void {
+    if (this.current === entry) {
+      this.respond(this.createCancelResponse(reason));
+      return;
+    }
+    const queuedIndex = this.queue.indexOf(entry);
+    if (queuedIndex < 0) return;
+    this.queue.splice(queuedIndex, 1);
+    entry.abortCleanup?.();
+    entry.abortCleanup = undefined;
+    entry.resolve(this.createCancelResponse(reason));
   }
 
   private advanceOrHide(): void {
@@ -87,6 +123,8 @@ export abstract class ReverseRpcController<TPayload, TResponse> {
       if (auto === undefined) {
         remaining.push(entry);
       } else {
+        entry.abortCleanup?.();
+        entry.abortCleanup = undefined;
         entry.resolve(auto);
       }
     }

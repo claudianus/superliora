@@ -10,6 +10,7 @@ import type {
   Event,
   QuestionRequest,
   QuestionResult,
+  RPCCallOptions,
   SDKAPI,
   ToolCallRequest,
   ToolCallResponse,
@@ -32,8 +33,9 @@ export class ClientAPI implements SDKAPI {
 
   requestQuestion(
     request: QuestionRequest & { sessionId: string; agentId: string },
+    options?: RPCCallOptions,
   ): Promise<QuestionResult> {
-    return this.client.requestQuestion(request);
+    return this.client.requestQuestion(request, options);
   }
 
   requestCredential(

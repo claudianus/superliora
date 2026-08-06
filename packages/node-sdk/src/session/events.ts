@@ -154,9 +154,16 @@ export type MaybePromise<T> = T | Promise<T>;
 
 export type { CredentialRequest, CredentialResponse } from '@superliora/agent-core';
 
+export interface InteractionHandlerOptions {
+  readonly signal?: AbortSignal | undefined;
+}
+
 export type ApprovalHandler = (request: ApprovalRequest) => MaybePromise<ApprovalResponse>;
 
-export type QuestionHandler = (request: QuestionRequest) => MaybePromise<QuestionResult>;
+export type QuestionHandler = (
+  request: QuestionRequest,
+  options?: InteractionHandlerOptions,
+) => MaybePromise<QuestionResult>;
 
 export type CredentialHandler = (
   request: CredentialRequest,

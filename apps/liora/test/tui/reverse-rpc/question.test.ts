@@ -78,6 +78,36 @@ describe('question reverse-rpc', () => {
     await expect(handler(questionEvent())).resolves.toBeNull();
   });
 
+  it('passes the reverse-rpc abort signal into the queued controller', async () => {
+    const controller = new QuestionController();
+    const show = vi
+      .spyOn(controller, 'show')
+      .mockResolvedValue({ answers: ['Alpha'], method: 'enter' });
+    const handler = createQuestionAskHandler(controller);
+    const signal = new AbortController().signal;
+    const payload = {
+      id: 'q-1',
+      tool_call_id: 'q-1',
+      questions: [
+        {
+          question: 'Q1?',
+          header: undefined,
+          body: undefined,
+          multi_select: false,
+          other_label: undefined,
+          other_description: undefined,
+          options: [{ label: 'Alpha', description: undefined }],
+        },
+      ],
+    };
+
+    await expect(handler(questionEvent(), { signal })).resolves.toEqual({
+      answers: { 'Q1?': 'Alpha' },
+      method: 'enter',
+    });
+    expect(show).toHaveBeenCalledWith(payload, { signal });
+  });
+
   it('maps multiple question answers by question text', async () => {
     const controller = new QuestionController();
     const show = vi

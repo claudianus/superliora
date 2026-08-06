@@ -308,6 +308,17 @@ describe('ConductorDirectWorkGuard', () => {
       guard.endToolBudget('call-1');
     });
 
+    it('does not time out while waiting for an operator question', async () => {
+      const guard = new ConductorDirectWorkGuard({ softBudgetMs: 5, hardBudgetMs: 12 });
+      const signal = guard.beginToolBudget('question-1', 'AskUserQuestion', 'turn-1');
+
+      expect(signal.aborted).toBe(false);
+      await sleep(40);
+
+      expect(guard.endToolBudget('question-1')).toBeUndefined();
+      expect(guard.events()).toHaveLength(0);
+    });
+
     it('re-arming an already armed call returns the same signal', () => {
       const guard = new ConductorDirectWorkGuard();
       const first = guard.beginToolBudget('call-1', 'Bash', 'turn-1');

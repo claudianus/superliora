@@ -1,4 +1,9 @@
-import type { QuestionHandler, QuestionRequest, QuestionResult } from '@superliora/sdk';
+import type {
+  InteractionHandlerOptions,
+  QuestionHandler,
+  QuestionRequest,
+  QuestionResult,
+} from '@superliora/sdk';
 
 import type {
   QuestionPanelData,
@@ -8,9 +13,13 @@ import type {
 import type { QuestionController } from './controller';
 
 export function createQuestionAskHandler(controller: QuestionController): QuestionHandler {
-  return async (event): Promise<QuestionResult> => {
+  return async (event, options?: InteractionHandlerOptions): Promise<QuestionResult> => {
     try {
-      const answers = await controller.show(adaptQuestionRequest(event));
+      const payload = adaptQuestionRequest(event);
+      const answers =
+        options === undefined
+          ? await controller.show(payload)
+          : await controller.show(payload, options);
       return adaptQuestionAnswers(event, answers);
     } catch {
       return null;
