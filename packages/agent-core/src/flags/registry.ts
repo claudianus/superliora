@@ -59,6 +59,14 @@ export const FLAG_DEFINITIONS = [
     surface: 'core',
   },
   {
+    id: 'auto_refine',
+    title: 'Auto harness refinement',
+    description: 'Every 25 turns (and after compactions), a cheap review-gate model decides whether the recent trajectory holds a reusable lesson; only then does a refine run apply small harness edits (prompt notes, memory, skills, subagent specs) with rollback support. At most one auto attempt per 20 minutes. Manual /refine works regardless. Disable with SUPERLIORA_EXPERIMENTAL_AUTO_REFINE=false.',
+    env: 'SUPERLIORA_EXPERIMENTAL_AUTO_REFINE',
+    default: true,
+    surface: 'core',
+  },
+  {
     id: 'auto_pilot',
     title: 'Autopilot issue-to-PR pipeline',
     description: 'Queue-based autonomous repo loop: ingest issues, run agent in a worktree, verify, open PR, poll CI, auto-merge on label, with a repair loop. Disable with SUPERLIORA_EXPERIMENTAL_AUTO_PILOT=false.',

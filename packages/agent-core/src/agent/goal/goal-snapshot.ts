@@ -34,6 +34,7 @@ export function toGoalSnapshot(state: GoalState, now: number = Date.now()): Goal
     goalId: state.goalId,
     objective: state.objective,
     completionCriterion: state.completionCriterion,
+    ...(state.gateCommand !== undefined ? { gateCommand: state.gateCommand } : {}),
     status: state.status,
     turnsUsed: state.turnsUsed,
     tokensUsed: state.tokensUsed,

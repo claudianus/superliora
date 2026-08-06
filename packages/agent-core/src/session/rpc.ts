@@ -34,8 +34,10 @@ import type {
   PromptPayload,
   RunShellCommandPayload,
   ReconnectMcpServerPayload,
+  RefineHarnessPayload,
   RenameSessionPayload,
   RegisterToolPayload,
+  RollbackHarnessRefinementPayload,
   SearchSkillsPayload,
   SessionAPI,
   SetActiveToolsPayload,
@@ -273,6 +275,18 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
 
   async cancelCompaction({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
     return (await this.getAgent(agentId)).cancelCompaction(payload);
+  }
+
+  async refineHarness({ agentId, ...payload }: AgentScopedPayload<RefineHarnessPayload>) {
+    return (await this.getAgent(agentId)).refineHarness(payload);
+  }
+
+  async rollbackHarnessRefinement({ agentId, ...payload }: AgentScopedPayload<RollbackHarnessRefinementPayload>) {
+    return (await this.getAgent(agentId)).rollbackHarnessRefinement(payload);
+  }
+
+  async getHarnessStatus({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
+    return (await this.getAgent(agentId)).getHarnessStatus(payload);
   }
 
   async registerTool({ agentId, ...payload }: AgentScopedPayload<RegisterToolPayload>) {

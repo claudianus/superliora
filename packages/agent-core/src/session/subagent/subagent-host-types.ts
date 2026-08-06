@@ -8,6 +8,7 @@
 import type { TokenUsage } from '@superliora/kosong';
 
 import type { GoalBudgetLimits, GoalStatus } from '../../agent/goal/types';
+import type { SubagentFriction } from './subagent-friction';
 import type { SubagentResultContract } from './subagent-result-contract';
 
 export type {
@@ -80,6 +81,8 @@ export type SubagentCompletion = {
   readonly result: string;
   readonly usage?: TokenUsage;
   readonly contract?: SubagentResultContract;
+  /** Deterministic struggle stats for the parent's refine pipeline. */
+  readonly friction?: SubagentFriction;
   /**
    * Terminal state of a migrated goal (goal-driver Jobs). `complete` when the
    * worker met the objective (the record is cleared on completion), otherwise

@@ -627,6 +627,19 @@ export const WIRE_RENDERERS: RendererMap = {
     headline: () => ({ main: <Dim>goal cleared</Dim> }),
   },
 
+  'harness.state': {
+    tone: 'lifecycle',
+    label: 'harness',
+    headline: (r) => ({
+      main: (
+        <span className="truncate text-fg-1">
+          {r.state.entries.length} entries · {r.state.refinements.length} refinements
+        </span>
+      ),
+    }),
+    detail: (r) => <JsonViewer value={r.state} defaultOpenDepth={1} />,
+  },
+
   'plan_mode.state': {
     tone: 'lifecycle',
     label: 'plan·',

@@ -16,6 +16,7 @@ tools:
   - Grep
   - Glob
   - Bash
+  - Script
   - RunProjectChecks
   - RepoQuery
   # Progress transparency and long-run autonomy (main agent only).
@@ -31,6 +32,7 @@ tools:
   # Skills + subagents (catalog still loads on demand).
   - Skill
   - SearchSkill
+  - SkillCreate
   - SearchTools
   - Agent
   - Fleet

@@ -239,6 +239,9 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   getPremiumQuality = delegateContextMethod(sessionAgentMethods.getPremiumQuality);
   beginCompaction = delegateContextMethod(sessionAgentMethods.beginCompaction);
   cancelCompaction = delegateContextMethod(sessionAgentMethods.cancelCompaction);
+  refineHarness = delegateContextMethod(sessionAgentMethods.refineHarness);
+  rollbackHarnessRefinement = delegateContextMethod(sessionAgentMethods.rollbackHarnessRefinement);
+  getHarnessStatus = delegateContextMethod(sessionAgentMethods.getHarnessStatus);
   registerTool = delegateContextMethod(sessionAgentMethods.registerTool);
   unregisterTool = delegateContextMethod(sessionAgentMethods.unregisterTool);
   setActiveTools = delegateContextMethod(sessionAgentMethods.setActiveTools);

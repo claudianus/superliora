@@ -106,6 +106,13 @@ export class SessionSkillRegistry implements AgentSkillRegistry {
     this.indexPluginSkill(enriched, options);
   }
 
+  unregister(name: string): void {
+    const key = normalizeSkillName(name);
+    if (this.byName.delete(key)) {
+      this.searchEngine = undefined;
+    }
+  }
+
   getSkill(name: string): SkillDefinition | undefined {
     const key = normalizeSkillName(name);
     const existing = this.byName.get(key);

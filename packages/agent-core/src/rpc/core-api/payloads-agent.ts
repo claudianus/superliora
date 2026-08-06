@@ -86,6 +86,24 @@ export interface EnterSwarmPayload {
 export interface BeginCompactionPayload {
   readonly instruction?: string;
 }
+export interface RefineHarnessPayload {
+  readonly scope?: 'local' | 'global';
+  readonly instructions?: string;
+}
+export interface RollbackHarnessRefinementPayload {
+  readonly refinementId: string;
+}
+
+// Refine value types re-exported for SDK/TUI consumers (same pattern as
+// payloads-goal re-exporting goal types).
+export type {
+  HarnessEntry,
+  HarnessRefinementEvent,
+  HarnessScope,
+  HarnessStatusSnapshot,
+  HarnessStatusView,
+  RefineRunResult,
+} from '#/agent/refine';
 export interface UndoHistoryPayload {
   readonly count: number;
 }
@@ -154,4 +172,6 @@ export interface CreateGoalPayload {
   readonly objective: string;
   readonly replace?: boolean;
   readonly source?: 'standalone' | 'ultrawork';
+  /** Shell command that must pass before the goal may complete. */
+  readonly gateCommand?: string;
 }

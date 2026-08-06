@@ -20,6 +20,8 @@ export interface HeadlessGoalCreate {
   readonly replace: boolean;
   readonly prompt?: string;
   readonly ultrawork?: boolean;
+  /** Shell command gating goal completion (`--autonomous-gate`). */
+  readonly gateCommand?: string;
 }
 
 /**

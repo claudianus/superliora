@@ -12,6 +12,7 @@ import type { Kaos } from '@superliora/kaos';
 
 import type { Agent } from '../../agent';
 import { runGit, type GitResult } from '../git-context';
+import { renderFrictionSection, type SubagentFriction } from './subagent-friction';
 
 export type VerificationVerdict = 'passed' | 'failed' | 'not_run';
 
@@ -115,13 +116,20 @@ export function formatSubagentResultEnvelope(contract: SubagentResultContract): 
   return `<subagent-result>\n${JSON.stringify(envelope, null, 2)}\n</subagent-result>`;
 }
 
-/** Append the contract envelope to a completion summary when present. */
+/** Append the contract envelope and friction report to a completion summary. */
 export function renderSubagentCompletionText(completion: {
   readonly result: string;
   readonly contract?: SubagentResultContract;
+  readonly friction?: SubagentFriction;
 }): string {
-  if (completion.contract === undefined) return completion.result;
-  return `${completion.result}\n\n${formatSubagentResultEnvelope(completion.contract)}`;
+  const parts = [completion.result];
+  if (completion.contract !== undefined) {
+    parts.push(formatSubagentResultEnvelope(completion.contract));
+  }
+  const frictionSection =
+    completion.friction !== undefined ? renderFrictionSection(completion.friction) : undefined;
+  if (frictionSection !== undefined) parts.push(frictionSection);
+  return parts.join('\n\n');
 }
 
 /**

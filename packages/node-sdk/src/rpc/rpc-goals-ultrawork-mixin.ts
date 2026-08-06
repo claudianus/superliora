@@ -28,6 +28,7 @@ export abstract class SDKRpcClientGoalsUltraworkMixin extends SDKRpcClientMemory
       objective: input.objective,
       replace: input.replace,
       source: input.source,
+      gateCommand: input.gateCommand,
     });
   }
 

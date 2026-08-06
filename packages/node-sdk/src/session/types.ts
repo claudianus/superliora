@@ -122,6 +122,8 @@ export interface CreateGoalInput {
   readonly replace?: boolean;
   /** Whether this goal is standalone or part of Ultrawork orchestration. */
   readonly source?: 'standalone' | 'ultrawork';
+  /** Shell command that must exit 0 before the goal may complete (autonomous gate). */
+  readonly gateCommand?: string;
 }
 
 export interface CreateUltraworkRunInput {
@@ -284,6 +286,11 @@ export interface GetConfigOptions {
 
 export interface CompactOptions {
   readonly instruction?: string | undefined;
+}
+
+export interface RefineOptions {
+  readonly scope?: 'local' | 'global' | undefined;
+  readonly instructions?: string | undefined;
 }
 
 export interface ReloadSessionOptions {

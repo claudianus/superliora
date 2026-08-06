@@ -252,7 +252,8 @@ describe('default agent profiles', () => {
     const agentTools = DEFAULT_AGENT_PROFILES['agent']?.tools ?? [];
     expect(agentTools.length).toBeLessThanOrEqual(30);
     // Conductor reform: RecordInterviewFinding on agent; Review on full — stay ≤30.
-    expect(agentTools).toHaveLength(29);
+    // SkillCreate (continual-harness skill authoring) fills the last headroom slot.
+    expect(agentTools).toHaveLength(30);
     expect(agentTools).toContain('RecordInterviewFinding');
     for (const edge of [
       'Expand',

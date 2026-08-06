@@ -42,6 +42,7 @@ export function restoreGoalCreate(host: GoalModeHost, record: AgentRecordOf<'goa
     goalId: record.goalId,
     objective: record.objective,
     completionCriterion: record.completionCriterion,
+    ...(record.gateCommand !== undefined ? { gateCommand: record.gateCommand } : {}),
     status: 'active',
     turnsUsed: 0,
     tokensUsed: 0,

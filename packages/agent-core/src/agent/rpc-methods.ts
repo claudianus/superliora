@@ -139,6 +139,27 @@ export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
       }
       agent.fullCompaction.cancel();
     },
+    refineHarness: (payload) => {
+      if (agent.refine === null) {
+        throw new LioraError(ErrorCodes.REQUEST_INVALID, 'Refine is only available on the main agent.');
+      }
+      return agent.refine.refine({
+        ...(payload.scope !== undefined ? { scope: payload.scope } : {}),
+        ...(payload.instructions !== undefined ? { instructions: payload.instructions } : {}),
+      });
+    },
+    rollbackHarnessRefinement: (payload) => {
+      if (agent.refine === null) {
+        throw new LioraError(ErrorCodes.REQUEST_INVALID, 'Refine is only available on the main agent.');
+      }
+      return agent.refine.rollback(payload.refinementId);
+    },
+    getHarnessStatus: () => {
+      if (agent.refine === null) {
+        throw new LioraError(ErrorCodes.REQUEST_INVALID, 'Refine is only available on the main agent.');
+      }
+      return agent.refine.statusView();
+    },
     registerTool: (payload) => {
       agent.tools.registerUserTool(payload);
     },

@@ -12,6 +12,8 @@ export const STRINGS_RUNTIME_CORE_EN: Readonly<Record<string, string>> = {
   'cli.runtime.options.showThinkingPromptOnly':
     'Show thinking is only supported in prompt mode.',
   'cli.runtime.options.promptWithYolo': 'Cannot combine --prompt with --yolo.',
+  'cli.runtime.options.autonomousGateNeedsGoal':
+    '--autonomous-gate only applies to a headless goal run: use with -p "/goal <objective>".',
   'cli.runtime.options.promptWithAuto': 'Cannot combine --prompt with --auto.',
   'cli.runtime.options.promptWithPlan': 'Cannot combine --prompt with --plan.',
   'cli.runtime.options.sessionNoIdPrompt':
@@ -241,6 +243,8 @@ export const STRINGS_RUNTIME_CORE_KO: Readonly<Record<string, string>> = {
   'cli.runtime.options.showThinkingPromptOnly':
     '사고 출력은 프롬프트 모드에서만 지원됩니다.',
   'cli.runtime.options.promptWithYolo': '--prompt와 --yolo는 함께 사용할 수 없습니다.',
+  'cli.runtime.options.autonomousGateNeedsGoal':
+    '--autonomous-gate는 헤드리스 goal 실행에만 적용됩니다. -p "/goal <목표>"와 함께 사용하세요.',
   'cli.runtime.options.promptWithAuto': '--prompt와 --auto는 함께 사용할 수 없습니다.',
   'cli.runtime.options.promptWithPlan': '--prompt와 --plan은 함께 사용할 수 없습니다.',
   'cli.runtime.options.sessionNoIdPrompt':

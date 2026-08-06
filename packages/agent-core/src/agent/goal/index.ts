@@ -35,6 +35,7 @@ import {
   trackGoalCreated,
   trackGoalEvent,
 } from './goal-persistence';
+import { auditGoalGate, type GateAttempt } from './goal-gate';
 import {
   normalizeGoalAfterReplay,
   restoreGoalClear,
@@ -108,6 +109,8 @@ export class GoalMode {
   private lastProgressSignature: string | undefined;
   private noProgressStreak = 0;
   private lastCompletionRejection: CompletionAuditRejection | undefined;
+  /** Last gate run, used to skip re-running a failed gate on an unchanged workspace. */
+  private lastGateAttempt: GateAttempt | undefined;
 
   constructor(private readonly agent: Agent) {
   }
@@ -181,10 +184,12 @@ export class GoalMode {
     }
 
     const completionCriterion = normalizeCompletionCriterion(input.completionCriterion);
+    const gateCommand = normalizeCompletionCriterion(input.gateCommand);
     const state: GoalState = {
       goalId: randomUUID(),
       objective,
       completionCriterion,
+      ...(gateCommand !== undefined ? { gateCommand } : {}),
       status: 'active',
       turnsUsed: 0,
       tokensUsed: 0,
@@ -199,6 +204,7 @@ export class GoalMode {
       goalId: state.goalId,
       objective: state.objective,
       completionCriterion: state.completionCriterion,
+      ...(gateCommand !== undefined ? { gateCommand } : {}),
     });
     trackGoalCreated(this.host, actor, input.replace === true);
     this.activationSource = input.source ?? DEFAULT_MODE_ACTIVATION_SOURCE;
@@ -352,14 +358,41 @@ export class GoalMode {
     const state = this.state;
     if (state === undefined || state.status !== 'active') return null;
 
-    const rejection =
+    let rejection =
       checkCompleteRejectCooldown(this.host, state, actor) ??
       auditUltraworkBoundCompletion(this.agent, actor) ??
       auditSensorBoundCompletion(this.agent, actor) ??
       (await evaluateStructuredCompletionPredicate(this.agent, state));
 
+    // User-set gate command runs last (most expensive) and applies to every
+    // actor — it is the operator's own verification, not a model-only guard.
+    if (rejection === null && state.gateCommand !== undefined) {
+      const gate = await auditGoalGate(
+        {
+          command: state.gateCommand,
+          cwd: this.agent.config.cwd,
+        },
+        this.lastGateAttempt,
+      );
+      this.lastGateAttempt = gate.attempt;
+      rejection = gate.outcome.kind === 'passed' ? null : gate.outcome.rejection;
+    }
+
     if (rejection !== null) {
       recordCompletionRejection(this.host, state, rejection, actor);
+      if (rejection.code === 'gate_retry_exhausted') {
+        // Measured refinement: a terminal gate failure scores every active
+        // harness entry; entries that correlate with regression roll back.
+        void this.agent.refine?.recordGateOutcome('exhausted').catch((error: unknown) => {
+          this.agent.log.warn('refine gate-outcome scoring failed', error);
+        });
+        // The operator's verifier keeps failing and the retry budget is spent:
+        // park the goal (resumable) instead of burning the whole token budget.
+        return this.markBlocked(
+          { reason: `Goal gate retry budget exhausted: \`${state.gateCommand ?? ''}\` still fails.` },
+          'system',
+        );
+      }
       // Keep goal active so the autonomous loop continues.
       return null;
     }
@@ -369,6 +402,15 @@ export class GoalMode {
     this.lastRejectAtTurn = undefined;
     this.noProgressStreak = 0;
     this.lastProgressSignature = undefined;
+    const gateRan = this.lastGateAttempt !== undefined;
+    this.lastGateAttempt = undefined;
+
+    if (gateRan) {
+      // Measured refinement: a passed gate confirms every active harness entry.
+      void this.agent.refine?.recordGateOutcome('passed').catch((error: unknown) => {
+        this.agent.log.warn('refine gate-outcome scoring failed', error);
+      });
+    }
 
     this.applyStatus(state, 'complete');
     state.terminalReason = input.reason;
@@ -468,6 +510,7 @@ export class GoalMode {
     actor: GoalActor,
     opts: { emit?: boolean; track?: boolean } = {},
   ): void {
+    this.lastGateAttempt = undefined;
     clearGoalInternal(this.host, actor, opts);
   }
 

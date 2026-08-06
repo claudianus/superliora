@@ -985,7 +985,10 @@ describe('SessionSubagentHost', () => {
     parent.configure();
     parent.newEvents();
 
-    const child = testAgent();
+    // The child stands in for a spawned subagent: build it with type 'sub'
+    // so main-only tools (Refine) stay out of its loop tools, matching the
+    // production spawn path.
+    const child = testAgent({ type: 'sub' });
     child.mockNextResponse({ type: 'text', text: 'Implemented the requested fix in the target module, updated all affected call sites, and confirmed the change compiles cleanly and passes the existing test suite. No unrelated code paths were touched while making this change.' });
     const session = fakeSession(parent.agent, child.agent);
     const host = new SessionSubagentHost(session, 'main');
@@ -1008,6 +1011,7 @@ describe('SessionSubagentHost', () => {
     expect(child.llmCalls[0]?.tools.map((tool) => tool.name).toSorted()).toEqual([
       'ApplyPatch',
       'Bash',
+      'Compact',
       'Edit',
       'Expand',
       'GetCurrentTime',
@@ -1018,6 +1022,7 @@ describe('SessionSubagentHost', () => {
       'RepoQuery',
       'Review',
       'RunProjectChecks',
+      'Script',
       'SearchTools',
       'TodoList',
       'VerifySurface',

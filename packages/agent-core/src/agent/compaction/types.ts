@@ -153,8 +153,12 @@ export interface CompactionResultRawRef {
   readonly archiveId?: string;
 }
 
-/** Why compaction started. `overflow` is reactive recovery after CONTEXT_OVERFLOW. */
-export type CompactionSource = 'manual' | 'auto' | 'overflow';
+/**
+ * Why compaction started. `overflow` is reactive recovery after CONTEXT_OVERFLOW.
+ * `agent` is the model's own Compact tool call — runs in the background like
+ * `auto`, but attributed to the model in events/telemetry.
+ */
+export type CompactionSource = 'manual' | 'auto' | 'overflow' | 'agent';
 
 /**
  * Inputs `ContextMemory.applyCompaction` needs to derive a `CompactionResult`.

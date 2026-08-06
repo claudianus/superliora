@@ -2,6 +2,6 @@ Launch a subagent — same-process loop, own context. Delegating keeps intermedi
 
 **Prompting:** subagent starts with zero context. State goal, known facts, exact paths/commands; prefer questions over prescribed steps for investigations. Unless web is forbidden, tell it to use Context7Resolve/Context7Docs for library APIs and WebSearch/FetchURL for primary sources.
 
-**Notes:** prefer resume (`resume` id) over respawn; results only visible to you — summarize for the user; fixed 30-minute timeout — resume on timeout. Once running, do not redo its work.
+**Notes:** prefer resume (`resume` id) over respawn; results only visible to you — summarize for the user; fixed 30-minute timeout — resume on timeout. Once running, do not redo its work. Resuming a still-running agent sends your prompt as a mid-run message instead of starting a new turn — use it to redirect or answer it.
 
 **When NOT to use:** trivial one–two step work you can do directly.

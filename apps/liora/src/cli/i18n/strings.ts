@@ -39,6 +39,8 @@ export const STRINGS_EN: Readonly<Record<string, string>> = {
     'Add an additional workspace directory for this session. Can be repeated.',
   'cli.option.plan': 'Start with Mission plan steering.',
   'cli.option.resumeGoal': 'Automatically resume the first goal in the queue on startup.',
+  'cli.option.autonomousGate':
+    'Shell command that must pass before a headless goal may complete (e.g. "npm run check"). A failed gate returns its output to the agent and the loop continues.',
   'cli.option.worktree':
     'Create a git worktree for this session (optional name). Isolates file edits from the main checkout.',
   'cli.sub.upgrade.description':
@@ -87,6 +89,8 @@ export const STRINGS_KO: Readonly<Record<string, string>> = {
   'cli.option.addDir': '이 세션에 추가 작업 디렉터리를 등록합니다. 여러 번 지정할 수 있습니다.',
   'cli.option.plan': 'Mission 플랜 조향으로 시작합니다.',
   'cli.option.resumeGoal': '시작 시 큐의 첫 번째 goal을 자동으로 재개합니다.',
+  'cli.option.autonomousGate':
+    '헤드리스 goal이 완료되기 전에 통과해야 하는 셸 명령입니다(예: "npm run check"). 실패 시 출력이 에이전트에게 반환되고 루프가 계속됩니다.',
   'cli.option.worktree':
     '이 세션용 git worktree를 만듭니다(이름 선택). 메인 checkout과 파일 편집을 격리합니다.',
   'cli.sub.upgrade.description':
