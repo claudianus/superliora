@@ -9,6 +9,8 @@ import {
 } from '../../config';
 import type { SlashCommandHost } from '../hub/dispatch';
 import { setExperimentalFeatures } from '../experimental-flags';
+import { formatErrorMessage } from '#/tui/utils/event-payload';
+import { restoreTuiSessionState } from '#/tui/utils/tui-session-state';
 
 export async function handleReloadTuiCommand(host: SlashCommandHost): Promise<void> {
   const tuiConfig = await loadTuiConfig();
@@ -48,19 +50,31 @@ export async function applyReloadedTuiConfig(
     : undefined;
   await host.applyTheme(config.theme, resolved);
   host.refreshTerminalThemeTracking();
+  if (host.session !== undefined) {
+    try {
+      await host.session.setPermission(config.permissionMode);
+    } catch (error) {
+      host.showError(`Failed to apply permission mode: ${formatErrorMessage(error)}`);
+    }
+  }
+  const appearance = config.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
   host.setAppState({
+    permissionMode: config.permissionMode,
     editorCommand: config.editorCommand,
     disablePasteBurst: config.disablePasteBurst,
     notifications: config.notifications,
     upgrade: config.upgrade,
-    appearance: config.appearance ?? DEFAULT_APPEARANCE_PREFERENCES,
+    appearance,
     footer: config.footer ?? DEFAULT_FOOTER_PREFERENCES,
   });
+  host.setTranscriptDetail(appearance.transcriptDetail);
+  host.setNeatMode(appearance.neat);
   if ('setDisablePasteBurst' in host.state.editor) {
     (host.state.editor as { setDisablePasteBurst(disabled: boolean): void }).setDisablePasteBurst(
       config.disablePasteBurst,
     );
   }
+  await restoreTuiSessionState(host);
 }
 
 function applyRuntimeConfig(host: SlashCommandHost, config: LioraConfig): void {

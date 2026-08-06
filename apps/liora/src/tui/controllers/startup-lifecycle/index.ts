@@ -4,6 +4,7 @@ import {
   requestTUIScrollRender,
 } from '../../utils/render/frame-render';
 import { scheduleTranscriptScrollSettleRefresh } from '../../utils/render/scroll-settle-refresh';
+import { writeTuiSessionState } from '../../utils/tui-session-state';
 import {
   scrollTranscriptViewport as applyTranscriptViewportScroll,
   type TranscriptScrollAction,
@@ -96,6 +97,7 @@ export class StartupLifecycleController {
     try {
       const { flushPromptInputState } = await import('../../utils/prompt-input-state');
       flushPromptInputState(host);
+      await writeTuiSessionState(host).catch(() => undefined);
       // Give the fire-and-forget write a short window to land.
       await new Promise<void>((resolve) => setTimeout(resolve, 40));
     } catch {

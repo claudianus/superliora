@@ -149,6 +149,7 @@ export class TranscriptRenderController {
             host.state.ui,
             host.state.appState.workDir,
             host.state.toolOutputViewports,
+            host.state.persistSessionUiState,
           );
           if (host.state.toolOutputExpanded) tc.setExpanded(true);
           tc.setDetail(host.state.transcriptDetail);

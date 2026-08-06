@@ -22,11 +22,11 @@ import {
 } from '../../components/dialogs/help/help-panel';
 import { ShortcutsPanelComponent } from '../../components/dialogs/command-hub/shortcuts-panel';
 import {
-  DEFAULT_APPEARANCE_PREFERENCES,
   DEFAULT_ONBOARDING_PREFERENCES,
   saveTuiConfig,
 } from '../../config';
 import { showExtensionsSettings } from '../../commands/config/extensions/extensions-settings';
+import { tuiConfigFromHost } from '../../commands/config/appearance/tui-persist';
 import { openSettingsPane, showSettingsSelector } from '../../commands/config/settings';
 import {
   isSettingsHubActionId,
@@ -42,6 +42,7 @@ import { commandHubActionToSlash } from '../../utils/command/command-hub-actions
 import { noteSuccessFeedback } from '../../utils/render/feedback-vfx';
 import { requestTUIContentRender } from '../../utils/render/frame-render';
 import { noteHubActionUse } from '../../utils/command/hub-recents';
+import { formatErrorMessage } from '../../utils/event-payload';
 import type { ModalShellDelegate } from './modal-shell';
 import {
   closeAllCenterModals,
@@ -127,18 +128,9 @@ async function markHubIntroSeen(host: DialogsHost): Promise<void> {
   const onboarding = { ...previous, hubIntroSeen: true };
   host.setAppState({ onboarding });
   try {
-    await saveTuiConfig({
-      theme: host.state.appState.theme,
-      permissionMode: host.state.appState.permissionMode,
-      disablePasteBurst: host.state.appState.disablePasteBurst ?? false,
-      editorCommand: host.state.appState.editorCommand,
-      notifications: host.state.appState.notifications,
-      upgrade: host.state.appState.upgrade,
-      appearance: host.state.appState.appearance ?? DEFAULT_APPEARANCE_PREFERENCES,
-      onboarding,
-    });
-  } catch {
-    // Best-effort persistence; intro still dismissed in-session.
+    await saveTuiConfig(tuiConfigFromHost(host, { onboarding }));
+  } catch (error) {
+    host.showStatus(`Failed to save Command Hub preferences: ${formatErrorMessage(error)}`, 'error');
   }
 }
 

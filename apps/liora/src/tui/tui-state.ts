@@ -152,6 +152,8 @@ export interface TUIState {
    * cap. `undefined` = follow the default cap.
    */
   userStageSize?: { width: number; height: number };
+  /** Hook installed by the coordinator for durable session UI gestures. */
+  persistSessionUiState?: () => void;
   /**
    * Stage bundle rect (userStageSize applied, workspace-dock aware) from the
    * most recent render. The corner/edge resize hit-test reads this so the grab

@@ -64,6 +64,11 @@ export function showEditorSettings(host: SlashCommandHost): void {
                 }
                 if (preset.patch.disablePasteBurst !== undefined) {
                   host.setAppState({ disablePasteBurst: preset.patch.disablePasteBurst });
+                  if ('setDisablePasteBurst' in host.state.editor) {
+                    (host.state.editor as { setDisablePasteBurst(disabled: boolean): void }).setDisablePasteBurst(
+                      preset.patch.disablePasteBurst,
+                    );
+                  }
                 }
                 host.showStatus(`Editor preset "${preset.label}" applied.`, 'success');
               } catch (error) {

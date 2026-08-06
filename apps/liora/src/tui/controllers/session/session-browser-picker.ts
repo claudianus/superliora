@@ -40,7 +40,7 @@ export async function openSessionPickerFlow(
     return;
   }
   state.sessionPickerOptions = options;
-  await fetchSessions('cwd');
+  await fetchSessions(host.state.sessionsScope);
   mountSessionPicker({
     applyStartupModes: options.applyStartupModes,
     onCancel: () => {

@@ -14,6 +14,8 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { resolveLioraHome } from '@superliora/agent-core';
+
 import {
   DEFAULT_LOCK_PATH,
   ServerLockedError,
@@ -231,8 +233,8 @@ describe('acquireLock — updatePort', () => {
 });
 
 describe('acquireLock — defaults', () => {
-  it('DEFAULT_LOCK_PATH points under the kimi-code home', () => {
-    expect(DEFAULT_LOCK_PATH).toMatch(/[/\\]\.superliora[/\\]server[/\\]lock$/);
+  it('DEFAULT_LOCK_PATH points under the liora home', () => {
+    expect(DEFAULT_LOCK_PATH).toBe(join(resolveLioraHome(), 'server', 'lock'));
   });
 });
 

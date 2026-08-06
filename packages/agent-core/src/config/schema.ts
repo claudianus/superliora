@@ -528,6 +528,8 @@ const MissionConfigPatchSchema = MissionConfigSchema.partial();
 const ModelCatalogConfigPatchSchema = ModelCatalogConfigSchema.partial();
 const BrowserUseConfigPatchSchema = BrowserUseConfigSchema.partial();
 const ComputerUseConfigPatchSchema = ComputerUseConfigSchema.partial();
+const McpConfigPatchSchema = McpConfigSchema.partial();
+const ExtrasConfigPatchSchema = ExtrasConfigSchema.partial();
 const ExperimentalConfigPatchSchema = ExperimentalConfigSchema;
 const AgentConfigPatchSchema = AgentConfigSchema.partial();
 const MoonshotServiceConfigPatchSchema = MoonshotServiceConfigSchema.partial();
@@ -567,11 +569,12 @@ export const LioraConfigPatchSchema = z
     modelCatalog: ModelCatalogConfigPatchSchema.optional(),
     browserUse: BrowserUseConfigPatchSchema.optional(),
     computerUse: ComputerUseConfigPatchSchema.optional(),
+    mcp: McpConfigPatchSchema.optional(),
     persona: PersonaConfigSchema.partial().optional(),
     agent: AgentConfigPatchSchema.optional(),
     experimental: ExperimentalConfigPatchSchema.optional(),
     telemetry: z.boolean().optional(),
-    extras: ExtrasConfigSchema.optional(),
+    extras: ExtrasConfigPatchSchema.optional(),
   })
   .strict();
 

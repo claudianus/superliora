@@ -91,6 +91,7 @@ export function onToolCallStart(
     state.ui,
     state.appState.workDir,
     state.toolOutputViewports,
+    state.persistSessionUiState,
   );
   if (state.toolOutputExpanded) tc.setExpanded(true);
   tc.setDetail(state.transcriptDetail);

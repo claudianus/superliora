@@ -301,6 +301,59 @@ describe('LioraHarness config API', () => {
     expect(text).toContain('claim_stale_after_ms = 15000');
   });
 
+  it('round-trips newly persisted sections through the harness API', async () => {
+    const homeDir = await makeTempDir();
+    const configPath = join(homeDir, 'config.toml');
+    await writeFile(
+      configPath,
+      `
+[models.k2]
+provider = "kimi"
+model = "kimi-k2"
+max_context_size = 128000
+
+[models.k2.overrides]
+display_name = "K2"
+future_override = true
+
+[media]
+non_vision_fallback = "path"
+future_flag = true
+
+[mcp]
+auto_provider_servers = false
+
+[extras]
+disabled_providers = ["zai"]
+
+[agent]
+profile = "core"
+`,
+      'utf-8',
+    );
+    const harness = createLioraHarness({ homeDir, identity: TEST_IDENTITY });
+
+    await harness.setConfig({
+      media: { nonVisionFallback: 'block' },
+      mcp: { autoProviderServers: true },
+      extras: { disabledProviders: ['qwen-token-plan'] },
+      agent: { profile: 'superliora-full' },
+      models: { k2: { overrides: { displayName: 'K2 patched' } } },
+    });
+
+    const config = await harness.getConfig({ reload: true });
+    expect(config.media).toEqual({ nonVisionFallback: 'block' });
+    expect(config.mcp).toEqual({ autoProviderServers: true });
+    expect(config.extras).toEqual({ disabledProviders: ['qwen-token-plan'] });
+    expect(config.agent).toEqual({ profile: 'superliora-full' });
+    expect(config.models?.k2?.overrides).toMatchObject({
+      displayName: 'K2 patched',
+    });
+    const text = await readFile(configPath, 'utf-8');
+    expect(text).toContain('future_flag = true');
+    expect(text).toContain('future_override = true');
+  });
+
   it('forwards config field deletions through the harness RPC', async () => {
     const homeDir = await makeTempDir();
     const configPath = join(homeDir, 'config.toml');

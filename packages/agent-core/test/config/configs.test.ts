@@ -317,6 +317,78 @@ source = { kind = "apiJson", url = "https://registry.example/api.json", apiKey =
     });
   });
 
+  it('round-trips media, MCP, extras, agent, and nested model overrides', async () => {
+    const dir = makeTempDir();
+    const configPath = join(dir, 'sections.toml');
+    const config = parseConfigString(
+      `
+[providers.kimi]
+type = "kimi"
+api_key = "sk-test"
+
+[models.k2]
+provider = "kimi"
+model = "kimi-for-coding"
+max_context_size = 128000
+
+[models.k2.overrides]
+display_name = "K2 custom"
+max_output_size = 8192
+future_override = true
+
+[models.k2.overrides.cost]
+cache_read = 0.25
+
+[media]
+non_vision_fallback = "path"
+future_flag = true
+
+[mcp]
+auto_provider_servers = false
+
+[extras]
+disabled_providers = ["zai"]
+
+[agent]
+profile = "core"
+`,
+      configPath,
+    );
+
+    expect(config.media).toEqual({ nonVisionFallback: 'path' });
+    expect(config.mcp).toEqual({ autoProviderServers: false });
+    expect(config.extras).toEqual({ disabledProviders: ['zai'] });
+    expect(config.agent).toEqual({ profile: 'core' });
+    expect(config.models?.k2?.overrides).toMatchObject({
+      displayName: 'K2 custom',
+      maxOutputSize: 8192,
+      cost: { cache_read: 0.25 },
+    });
+
+    const patched = mergeConfigPatch(config, {
+      media: { nonVisionFallback: 'block' },
+      mcp: { autoProviderServers: true },
+      extras: { disabledProviders: ['qwen-token-plan'] },
+      agent: { profile: 'superliora-full' },
+      models: { k2: { overrides: { displayName: 'K2 patched' } } },
+    });
+    await writeConfigFile(configPath, patched);
+
+    const text = await readFile(configPath, 'utf-8');
+    expect(text).toContain('future_flag = true');
+    expect(text).toContain('future_override = true');
+    const reloaded = parseConfigString(text, configPath);
+    expect(reloaded.media).toEqual({ nonVisionFallback: 'block' });
+    expect(reloaded.mcp).toEqual({ autoProviderServers: true });
+    expect(reloaded.extras).toEqual({ disabledProviders: ['qwen-token-plan'] });
+    expect(reloaded.agent).toEqual({ profile: 'superliora-full' });
+    expect(reloaded.models?.k2?.overrides).toMatchObject({
+      displayName: 'K2 patched',
+      maxOutputSize: 8192,
+      cost: { cache_read: 0.25 },
+    });
+  });
+
   it('parses and round-trips provider api key pools', async () => {
     const dir = makeTempDir();
     const configPath = join(dir, 'provider-api-keys.toml');

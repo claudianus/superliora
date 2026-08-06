@@ -47,6 +47,12 @@ async function setDefaultModel(
   await host.harness.setConfig({
     defaultModel: alias,
     defaultThinking: thinking,
+    thinking: {
+      mode: thinking ? 'on' : 'off',
+      ...(thinking && effort !== undefined && effort !== 'on' && effort !== 'off'
+        ? { effort }
+        : {}),
+    },
   });
   await host.authFlow.refreshConfigAfterLogin();
   // refreshConfigAfterLogin may re-activate with only boolean thinking; apply

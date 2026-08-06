@@ -16,7 +16,6 @@ tools:
   - Grep
   - Glob
   - Bash
-  - Script
   - RunProjectChecks
   - RepoQuery
   # Progress transparency and long-run autonomy (main agent only).

@@ -11,6 +11,13 @@ import type { ChoicePickerComponent } from '#/tui/components/dialogs/picker/choi
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
+vi.mock('#/tui/utils/harness-eyes-readiness', () => ({
+  loadHarnessEyesReadiness: vi.fn(async () => ({
+    generatedAt: '2026-01-01T00:00:00.000Z',
+    lines: [],
+  })),
+}));
+
 function makeEyesHost() {
   const transcriptContainer = { addChild: vi.fn() };
   return {

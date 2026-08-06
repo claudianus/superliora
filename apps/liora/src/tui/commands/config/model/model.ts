@@ -608,7 +608,7 @@ async function performModelSwitch(
   let persisted = false;
   if (persist) {
     try {
-      persisted = await persistModelSelection(host, alias, thinking);
+      persisted = await persistModelSelection(host, alias, thinking, effort);
     } catch (error) {
       const msg = formatErrorMessage(error);
       host.showError(`Switched to ${alias}, but failed to save default: ${msg}`);
@@ -635,14 +635,32 @@ async function performModelSwitch(
   host.showStatus(status, 'success');
 }
 
-async function persistModelSelection(host: SlashCommandHost, alias: string, thinking: boolean): Promise<boolean> {
+async function persistModelSelection(
+  host: SlashCommandHost,
+  alias: string,
+  thinking: boolean,
+  effort?: string,
+): Promise<boolean> {
   const config = await host.harness.getConfig({ reload: true });
-  if (config.defaultModel === alias && config.defaultThinking === thinking) {
+  const persistedEffort =
+    thinking && effort !== undefined && effort !== 'on' && effort !== 'off'
+      ? effort
+      : config.thinking?.effort;
+  if (
+    config.defaultModel === alias &&
+    config.defaultThinking === thinking &&
+    config.thinking?.mode === (thinking ? 'on' : 'off') &&
+    config.thinking?.effort === persistedEffort
+  ) {
     return false;
   }
   await host.harness.setConfig({
     defaultModel: alias,
     defaultThinking: thinking,
+    thinking: {
+      mode: thinking ? 'on' : 'off',
+      ...(persistedEffort !== undefined ? { effort: persistedEffort } : {}),
+    },
   });
   return true;
 }

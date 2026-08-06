@@ -68,6 +68,17 @@ export async function handleThinkingCommand(host: SlashCommandHost, args: string
   const display = resolveThinkingDisplay(applied, { thinking: enabled, model });
   host.setAppState({ thinking: enabled, thinkingLevel: display.requested });
   host.track('thinking_toggle', { enabled, level: display.requested });
+  try {
+    await host.harness.setConfig({
+      defaultThinking: enabled,
+      thinking: {
+        mode: enabled ? 'on' : 'off',
+        ...(enabled && applied !== 'on' ? { effort: applied } : {}),
+      },
+    });
+  } catch (error) {
+    host.showError(`Thinking changed, but failed to save the default: ${formatErrorMessage(error)}`);
+  }
   const statusLabel =
     display.label === 'off'
       ? 'off'

@@ -142,6 +142,35 @@ describe('config routes', () => {
     });
   });
 
+  it('reports pooled API keys and OAuth references without exposing credentials', async () => {
+    seedConfig(
+      [
+        '[providers.api-pool]',
+        'type = "openai"',
+        'api_keys = ["sk-pool"]',
+        '',
+        '[providers.oauth-pool]',
+        'type = "openai"',
+        '',
+        '[[providers.oauth-pool.oauths]]',
+        'storage = "file"',
+        'key = "oauth/pool"',
+        '',
+      ].join('\n'),
+    );
+    const r = await bootDaemon();
+
+    const res = await appOf(r).inject({ method: 'GET', url: '/api/v1/config' });
+    const env = envelopeOf<{
+      providers: Record<string, { has_api_key?: boolean }>;
+    }>(res.json());
+    const body = JSON.stringify(res.json());
+    expect(env.data?.providers['api-pool']?.has_api_key).toBe(true);
+    expect(env.data?.providers['oauth-pool']?.has_api_key).toBe(true);
+    expect(body).not.toContain('sk-pool');
+    expect(body).not.toContain('oauth/pool');
+  });
+
   it('POST /config merges changes and persists to disk', async () => {
     seedCatalogConfig();
     const r = await bootDaemon();
