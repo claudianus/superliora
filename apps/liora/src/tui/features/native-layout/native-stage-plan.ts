@@ -15,7 +15,7 @@ export interface TUINativeStageChrome {
   readonly header: readonly RendererRegionLine[];
   readonly activity: readonly RendererRegionLine[];
   readonly todo: readonly RendererRegionLine[];
-  readonly jobs: readonly RendererRegionLine[];
+  readonly mission: readonly RendererRegionLine[];
   readonly queue: readonly RendererRegionLine[];
   readonly btw: readonly RendererRegionLine[];
   readonly footer: readonly RendererRegionLine[];
@@ -76,7 +76,7 @@ export function planTUINativeStage(
   const footerLines = reuse?.footer ?? state.footerContainer.render(contentWidth);
   const activityLines = reuse?.activity ?? state.activityContainer.render(contentWidth);
   const todoLines = reuse?.todo ?? state.todoPanelContainer.render(contentWidth);
-  const jobsLines = reuse?.jobs ?? state.jobDeskPanelContainer.render(contentWidth);
+  const missionLines = reuse?.mission ?? state.missionControlContainer.render(contentWidth);
   const queueLines = reuse?.queue ?? state.queueContainer.render(contentWidth);
   const btwLines = reuse?.btw ?? state.btwPanelContainer.render(contentWidth);
 
@@ -85,7 +85,7 @@ export function planTUINativeStage(
     headerLines.length +
     activityLines.length +
     todoLines.length +
-    jobsLines.length +
+    missionLines.length +
     queueLines.length +
     btwLines.length +
     footerLines.length;
@@ -107,7 +107,7 @@ export function planTUINativeStage(
       header: headerLines.length,
       activity: activityLines.length,
       todo: todoLines.length,
-      jobs: jobsLines.length,
+      mission: missionLines.length,
       queue: queueLines.length,
       btw: btwLines.length,
       editor: editorRows,
@@ -122,7 +122,7 @@ export function planTUINativeStage(
       header: headerLines,
       activity: activityLines,
       todo: todoLines,
-      jobs: jobsLines,
+      mission: missionLines,
       queue: queueLines,
       btw: btwLines,
       footer: footerLines,

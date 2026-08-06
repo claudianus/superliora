@@ -34,6 +34,13 @@ export interface LandJobToMainResult {
   readonly error?: string;
 }
 
+/**
+ * Ledger-only approval (no worktree): nothing was merged, so the message must
+ * never read as "landed". Kept as a const so summaries cannot drift.
+ */
+export const LAND_LEDGER_ONLY_MESSAGE =
+  'Nothing merged (no worktree on job); approval recorded on ledger only.';
+
 async function defaultRunGit(
   kaos: Kaos | undefined,
   cwd: string,
@@ -103,14 +110,16 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
   if (!worktreePath) {
     const next = patchJob(store, job.id, {
       status: 'done',
-      notes: [job.notes, 'land: no worktree — ledger-only approve'].filter(Boolean).join('\n'),
+      notes: [job.notes, 'land: no worktree — ledger-only approve (nothing merged)']
+        .filter(Boolean)
+        .join('\n'),
     });
     return {
       ok: true,
       job: next ?? job,
       merged: false,
       gcRemoved: false,
-      message: 'No worktree on job; merge recorded on ledger only.',
+      message: LAND_LEDGER_ONLY_MESSAGE,
     };
   }
 
@@ -198,6 +207,35 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
     };
   }
 
+  // Post-merge receipt: prove main actually contains the branch now. A merge
+  // exit code of 0 alone is not evidence — "Already up to date" against the
+  // wrong checkout leaves no trace, and a text claim of "landed" without this
+  // check is exactly the false-completion shape the ledger must not record.
+  const head = await runGit(repoPath, ['rev-parse', 'HEAD']);
+  const mergeSha = head.code === 0 ? head.stdout.trim() : '';
+  const ancestor = await runGit(repoPath, ['merge-base', '--is-ancestor', branch, 'HEAD']);
+  if (mergeSha.length === 0 || ancestor.code !== 0) {
+    const detail =
+      mergeSha.length === 0
+        ? 'could not read HEAD after merge'
+        : `branch ${branch} is not an ancestor of main HEAD after merge`;
+    const next = patchJob(store, job.id, {
+      status: 'blocked',
+      notes: [job.notes, snapshotNote, `land: post-merge verification failed — ${detail}`]
+        .filter(Boolean)
+        .join('\n'),
+    });
+    return {
+      ok: false,
+      job: next ?? job,
+      merged: false,
+      gcRemoved: false,
+      message: '',
+      error: `land verification failed: ${detail}`,
+    };
+  }
+  const landReceipt = { mergeSha, branch, verifiedAt: new Date().toISOString() };
+
   let gcRemoved = false;
   if (input.gcOnSuccess !== false && input.kaos) {
     try {
@@ -212,10 +250,11 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
     status: 'done',
     worktreePath: gcRemoved ? undefined : worktreePath,
     resultSummary: job.resultSummary ?? `landed branch ${branch}`,
+    landReceipt,
     notes: [
       job.notes,
       snapshotNote,
-      `land: merged ${branch} into main workspace`,
+      `land: merged ${branch} into main workspace (receipt ${mergeSha.slice(0, 12)})`,
       gcRemoved ? 'land: worktree GC removed' : 'land: worktree retained',
     ]
       .filter(Boolean)
@@ -227,7 +266,7 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
     job: next ?? job,
     merged: true,
     gcRemoved,
-    message: `Merged ${branch} into ${repoPath}${gcRemoved ? ' (worktree removed)' : ''}.`,
+    message: `Merged ${branch} into ${repoPath} at ${mergeSha.slice(0, 12)}${gcRemoved ? ' (worktree removed)' : ''}.`,
   };
 }
 

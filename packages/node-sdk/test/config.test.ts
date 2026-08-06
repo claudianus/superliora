@@ -346,7 +346,7 @@ profile = "core"
     expect(config.mcp).toEqual({ autoProviderServers: true });
     expect(config.extras).toEqual({ disabledProviders: ['qwen-token-plan'] });
     expect(config.agent).toEqual({ profile: 'superliora-full' });
-    expect(config.models?.k2?.overrides).toMatchObject({
+    expect(config.models?.['k2']?.overrides).toMatchObject({
       displayName: 'K2 patched',
     });
     const text = await readFile(configPath, 'utf-8');

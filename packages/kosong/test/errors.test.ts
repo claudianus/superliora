@@ -15,6 +15,7 @@ import {
   isToolExchangeAdjacencyError,
   isTransientNoBodyStatusError,
   isTransientProviderError,
+  isTransientTryAgainError,
   normalizeAPIStatusError,
   parseStatedContextLimitTokens,
 } from '#/errors';
@@ -264,6 +265,60 @@ describe('isRetryableGenerateError', () => {
     ).toBe(false);
     expect(isRetryableGenerateError(new APIStatusError(400, 'non-retryable'))).toBe(false);
   });
+
+  it('retries provider-declared temporary 4xx failures', () => {
+    expect(
+      isRetryableGenerateError(
+        new APIStatusError(
+          400,
+          'resource_exhausted: ERROR_PROVIDER_ERROR — temporary - try again in a moment',
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      isRetryableGenerateError(new APIStatusError(503, 'service temporarily unavailable')),
+    ).toBe(true);
+  });
+});
+
+describe('isTransientTryAgainError', () => {
+  it('matches provider-declared try-again / resource-exhausted signals', () => {
+    expect(
+      isTransientTryAgainError(
+        new APIStatusError(400, 'resource_exhausted: temporary - try again in a moment'),
+      ),
+    ).toBe(true);
+    expect(isTransientTryAgainError(new ChatProviderError('please retry in a moment'))).toBe(true);
+  });
+
+  it('vetoes permanent auth/quota lookalikes and non-errors', () => {
+    expect(
+      isTransientTryAgainError(new APIStatusError(403, 'forbidden: try again with a new key')),
+    ).toBe(false);
+    expect(
+      isTransientTryAgainError(
+        new APIStatusError(400, 'insufficient_quota: try again after upgrading your plan'),
+      ),
+    ).toBe(false);
+    expect(isTransientTryAgainError(new Error('bad request'))).toBe(false);
+    expect(isTransientTryAgainError('temporary - try again')).toBe(false);
+  });
+
+  it('never treats context overflow as transient even when the copy says try again', () => {
+    expect(
+      isTransientTryAgainError(
+        new APIStatusError(
+          400,
+          'Your input exceeds the context window of this model. Please adjust your input and try again.',
+        ),
+      ),
+    ).toBe(false);
+    expect(
+      isTransientTryAgainError(
+        new APIContextOverflowError(400, 'context length exceeded, try again with less'),
+      ),
+    ).toBe(false);
+  });
 });
 
 describe('isTransientNoBodyStatusError', () => {
@@ -505,6 +560,26 @@ describe('isTransientProviderError', () => {
     expect(isTransientProviderError(new Error('[provider.api_error] 400 Bad Request'))).toBe(
       false,
     );
+  });
+
+  it('treats provider-declared temporary 4xx as transient', () => {
+    expect(
+      isTransientProviderError(
+        new APIStatusError(400, 'resource_exhausted: temporary - try again in a moment'),
+      ),
+    ).toBe(true);
+    // Wire-level payload messages lose the status code — the message fallback
+    // must still recognize the try-again signal.
+    expect(
+      isTransientProviderError(
+        new Error('[provider.api_error] 400 resource_exhausted — temporary - try again'),
+      ),
+    ).toBe(true);
+    expect(
+      isTransientProviderError(
+        new APIStatusError(400, 'insufficient_quota: try again after upgrading'),
+      ),
+    ).toBe(false);
   });
 
   it('treats connection-level network failures as transient', () => {

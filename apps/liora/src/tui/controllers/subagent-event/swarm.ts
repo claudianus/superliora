@@ -7,7 +7,7 @@ import {
   swarmProgressTitleForToolName,
 } from '../../components/messages/agent-swarm-progress/index';
 import type { TodoItem } from '../../components/chrome/todo/todo-panel-types';
-import { describeSubagentToolFeedBody } from '../../components/subagents/subagent-activity';
+import { describeSubagentToolFeedBody } from '../../utils/tools/subagent-tool-detail';
 import type { ToolResultBlockData, AppState } from '../../types';
 import type { TUIState } from '../../tui-state';
 import { argsRecord } from '../../utils/event-payload';

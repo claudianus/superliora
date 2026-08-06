@@ -3265,6 +3265,10 @@ command = "vim"
 
   it('keeps UltraSwarm progress unified when expert subagents spawn in background', async () => {
     const { driver } = await makeDriver();
+    // The Mission Control fallback band takes chrome rows once the background
+    // experts land on the roster; give the war-room card enough height to keep
+    // its title inside the internal viewport.
+    setTerminalRows(driver, 40);
     const sendQueued = vi.fn();
 
     driver.sessionEventHandler.handleEvent(

@@ -5,6 +5,7 @@ import {
   emptyJobLedger,
   JOB_LEDGER_STORE_KEY,
   type JobKind,
+  type JobLandReceipt,
   type JobLedger,
   type JobRecord,
   type JobStatus,
@@ -100,6 +101,7 @@ export function patchJob(
       | 'workerAgentId'
       | 'resultSummary'
       | 'resultContract'
+      | 'landReceipt'
       | 'notes'
       | 'prompt'
       | 'progress'
@@ -181,5 +183,5 @@ export function renderJobLedger(jobs: readonly JobRecord[]): string {
   return ['Job ledger:', ...jobs.map(renderJobLine)].join('\n');
 }
 
-export type { JobKind, JobLedger, JobRecord, JobStatus };
+export type { JobKind, JobLandReceipt, JobLedger, JobRecord, JobStatus };
 export { JOB_LEDGER_STORE_KEY, createJobId, emptyJobLedger };

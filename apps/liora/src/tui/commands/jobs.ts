@@ -6,7 +6,7 @@
 import type { SlashCommandHost } from './hub/dispatch';
 
 const JOBS_USAGE =
-  'Usage: /jobs — list Conductor jobs; /jobs board — show/hide the Job Desk panel; /jobs deck [id] — open the interactive Job Deck monitor; /job <id> — inspect; /job resume [id] — resume interrupted; /job answer <id> <text> — answer needs_user card; /job cancel <id>; /job inbox; /job gc — worktree GC hint; /job help';
+  'Usage: /jobs — list Conductor jobs; /jobs deck [id] — open the interactive Job Deck monitor; /agents — toggle the Mission Control dock; /job <id> — inspect; /job resume [id] — resume interrupted; /job answer <id> <text> — answer needs_user card; /job cancel <id>; /job inbox; /job gc — worktree GC hint; /job help';
 
 function isBoardArgs(args: string): boolean {
   return args === 'board' || args === 'view' || args === 'open';
@@ -19,7 +19,9 @@ function isDeckArgs(args: string): boolean {
 export function handleJobsCommand(host: SlashCommandHost, rawArgs: string): void {
   const args = rawArgs.trim();
   if (isBoardArgs(args)) {
-    host.jobBoardController.toggle();
+    // The in-stack Job Desk board was absorbed into Mission Control; the
+    // deck viewer is the board now.
+    host.jobBoardController.openDeck();
     return;
   }
   if (isDeckArgs(args)) {
@@ -61,7 +63,7 @@ export function handleJobCommand(host: SlashCommandHost, rawArgs: string): void 
     case 'board':
     case 'view':
     case 'open':
-      host.jobBoardController.toggle();
+      host.jobBoardController.openDeck();
       return;
 
     case 'deck':

@@ -80,4 +80,56 @@ describe('Mission auto interview quality', () => {
     expect(result?.decisions[0]?.source).toBe('baseline');
     expect(result?.decisions[0]?.chosen).toContain('Baseline');
   });
+
+  it('never auto-answers destructive or irreversible questions under auto', () => {
+    const destructiveCases = [
+      'Delete the stale worktrees?',
+      'Force push the rewritten branch?',
+      'Merge job_a into main?',
+      'Land the parent branch to main?',
+      'Deploy to production now?',
+      'Share the private API token with the reviewer?',
+      'Reset --hard and discard local changes?',
+      'Publish the package publicly?',
+    ];
+    for (const question of destructiveCases) {
+      const result = buildAutoInterviewDecisionForTest(
+        {
+          questions: [
+            {
+              question,
+              header: 'Confirm',
+              options: [
+                { label: 'Yes (Recommended)', description: 'Proceed' },
+                { label: 'No', description: 'Stop' },
+              ],
+              multi_select: false,
+            },
+          ],
+        },
+        'auto',
+      );
+      expect(result, `expected human fallback for: ${question}`).toBeUndefined();
+    }
+  });
+
+  it('keeps auto-answering benign questions under auto', () => {
+    const result = buildAutoInterviewDecisionForTest(
+      {
+        questions: [
+          {
+            question: 'Which test runner should the fix use?',
+            header: 'Test',
+            options: [
+              { label: 'Vitest (Recommended)', description: 'Existing setup' },
+              { label: 'Node test runner', description: 'Stdlib' },
+            ],
+            multi_select: false,
+          },
+        ],
+      },
+      'auto',
+    );
+    expect(result).toBeDefined();
+  });
 });

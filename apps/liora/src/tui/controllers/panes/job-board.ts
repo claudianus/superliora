@@ -1,28 +1,21 @@
 /**
- * Conductor Job desk controller — visibility of the in-transcript kanban
- * panel (chrome slot below the Todo board). The old full-screen control
- * tower takeover is gone: the operator keeps the prompt input and the
- * transcript at all times. Data stays event-driven (`job.updated` /
- * `job.inbox` → appState.conductorJobs → AppStateController re-syncs the
- * panel snapshot); this controller only toggles / repaints the slot.
+ * Conductor Job Deck entry point. The in-transcript kanban panel surface
+ * was absorbed into Mission Control; this controller now only opens the
+ * interactive deck viewer (Alt+J, /jobs board, Command Hub) and persists
+ * deck-fetched worker usage back onto the desk ledger. Job events still
+ * flow through `job-desk-events` into `appState.conductorJobs`, which
+ * Mission Control renders as condensed lanes.
  */
 
 import type { ColorToken } from '../../theme';
-import type { AppState } from '../../types';
-import type { TUIState } from '../../tui-state';
-import { invalidateTranscriptHitTestCache } from '../../features/transcript/transcript-hit-test';
-import { requestTUILayoutRender } from '../../utils/render/frame-render';
-import { syncJobDeskPanelContainer } from '../../components/chrome/job-desk/job-desk-panel';
 import type { ConductorJobUsage } from '../../utils/job/job-strip';
 
 export interface JobBoardHost {
-  readonly state: TUIState;
   showStatus(msg: string, color?: ColorToken): void;
-  setAppState(patch: Partial<AppState>): void;
   /** Mount the interactive Job Deck viewer (wired by LioraTUI). */
   readonly openJobDeck?: (jobId?: string) => void;
   /**
-   * V5-3: `appState.conductorJobs` has exactly one writer, the control-tower
+   * `appState.conductorJobs` has exactly one writer, the control-tower
    * sink. Usage backfill goes through it rather than patching appState here.
    */
   readonly controlTowerDesk?: {
@@ -33,24 +26,9 @@ export interface JobBoardHost {
 export class JobBoardController {
   constructor(private readonly host: JobBoardHost) {}
 
-  /** The panel counts as open while it is not operator-hidden. */
-  isOpen(): boolean {
-    return !this.host.state.jobDeskPanel.isHidden();
-  }
-
-  toggle(): void {
-    if (this.isOpen()) {
-      this.hide();
-      this.host.showStatus('Job Desk hidden — /jobs board shows it again.', 'textMuted');
-    } else {
-      this.show();
-    }
-  }
-
   /**
    * Open the interactive Job Deck viewer, optionally focused on one job
-   * (mouse card click / `/jobs deck <id>`). Falls back to a hint when the
-   * opener is not wired.
+   * (`/jobs deck <id>`). Falls back to a hint when the opener is not wired.
    */
   openDeck(jobId?: string): void {
     if (this.host.openJobDeck !== undefined) {
@@ -63,47 +41,5 @@ export class JobBoardController {
   /** Persist Job Deck–fetched token usage onto the desk ledger. */
   rememberUsage(jobId: string, usage: ConductorJobUsage): void {
     this.host.controlTowerDesk?.applyJobUsage(jobId, usage);
-  }
-
-  /** Un-hide the panel; it mounts once the ledger has cards. */
-  show(): void {
-    const panel = this.host.state.jobDeskPanel;
-    if (!panel.isHidden()) return;
-    panel.setHidden(false);
-    this.repaint();
-    this.host.showStatus(
-      panel.isEmpty()
-        ? 'Job Desk will appear here once Conductor jobs exist.'
-        : 'Job Desk shown — /jobs board hides it.',
-      'textMuted',
-    );
-  }
-
-  /** Operator hide — also busts mouse hit-test cache via repaint callers. */
-  hide(): void {
-    const panel = this.host.state.jobDeskPanel;
-    if (panel.isHidden()) return;
-    panel.setHidden(true);
-    this.repaint();
-  }
-
-  /**
-   * Session-close hook: drop the stale ledger. The panel stays un-hidden so
-   * the next session's jobs auto-mount it again (the empty slot collapses).
-   */
-  close(): void {
-    const { state } = this.host;
-    state.jobDeskPanel.clear();
-    syncJobDeskPanelContainer(state);
-    invalidateTranscriptHitTestCache(state);
-    requestTUILayoutRender(state);
-  }
-
-  /** Re-mount the slot from the panel's current snapshot + visibility. */
-  repaint(): void {
-    const { state } = this.host;
-    syncJobDeskPanelContainer(state);
-    invalidateTranscriptHitTestCache(state);
-    requestTUILayoutRender(state);
   }
 }

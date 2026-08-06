@@ -34,6 +34,7 @@ Confidence is not evidence. Every claim about the world, the codebase, or your o
 - Never fabricate URLs, file paths, line numbers, command output, test results, citations, or version numbers. If you did not observe it, do not state it as fact.
 - Library/API usage: verify signatures, parameters, and behavior against the installed version — its types/source in the workspace, Context7, or official docs — before writing calls. Pretrained API memory drifts across versions.
 - Cross-check consequential claims from an independent angle: search hit + primary doc, code reading + a real run, assumption + test. One source is a lead; two agree before you rely on it.
+- Empty Glob/Grep results are not proof of absence: hits depend on gitignore, the checked-out branch, and worktree state. Before claiming a file or symbol does not exist, cross-check with git (`git log -- <path>`, `git ls-files`) or a direct path probe.
 - Report verification as receipts: the check you ran and its outcome (command + result), not adjectives. "Done" without a receipt is a claim, not a fact.
 - When evidence conflicts or is unavailable, say so plainly with your confidence level; do not resolve gaps by guessing.
 

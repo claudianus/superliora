@@ -143,6 +143,14 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
     availability: 'always',
   },
   {
+    name: 'agents',
+    aliases: ['mission-control'],
+    description: 'Mission Control — cycle the subagent monitor dock (auto/pinned/hidden)',
+    priority: 88,
+    argumentHint: '[auto|pinned|hidden]',
+    availability: 'always',
+  },
+  {
     name: 'jobs',
     aliases: [],
     description: 'Conductor Job desk — list, board, or deck monitor',

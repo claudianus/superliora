@@ -17,9 +17,9 @@ import {
   type TUIStateNativeInputRouter,
 } from '../../features/native-layout/native-input-router';
 import { createTUIStateNativeRenderCallback } from '../../features/native-layout/native-layout-frame';
+import { missionWorkspaceCenterRect } from '../../features/mission-control/dock';
 import { installTerminalFocusTracking } from '../../utils/terminal/terminal-focus';
 import { getTUIStateNativeTodoRect } from '../../features/transcript/transcript-hit-test';
-import { jobDeskHitAtMouse } from '../../features/job-desk/job-desk-mouse';
 import type { TranscriptScrollAction } from '../../features/transcript/transcript-viewport';
 import { ClipboardImageHintController } from '../clipboard/clipboard-image-hint';
 import type { StartupLifecycleHost } from './types';
@@ -41,6 +41,10 @@ export function attachStartupNativeRendererCallback(host: StartupLifecycleHost):
       onAuthoritativeFrame: () => {
         host.appearanceController.reapplyTerminalPalette();
       },
+      // Mission Control right dock reserves its band by shrinking the stage's
+      // workspace center (first consumer of the workspace-dock frame hook).
+      workspaceCenter: ({ columns, rows }) =>
+        missionWorkspaceCenterRect(host.state, columns, rows) ?? null,
     }),
   );
   host.state.toast.onChanged = () => {
@@ -55,13 +59,6 @@ export function ensureStartupNativeInputRouter(
   host.nativeInputRouter ??= createTUIStateNativeInputRouter(host.state, {
     scrollTranscriptViewport: (action) => callbacks.scrollTranscriptViewport(action),
     scrollTodoPanel: (event) => scrollStartupTodoPanelAtMouse(host, event),
-    clickJobDesk: (event) => {
-      if (event.type !== 'mouse') return false;
-      const hit = jobDeskHitAtMouse(host.state, event);
-      if (hit === undefined) return false;
-      host.jobBoardController.openDeck(hit.kind === 'card' ? hit.jobId : undefined);
-      return true;
-    },
     handlePreEditorInput: (event) => {
       if (event.type !== 'key' || event.eventType === 'release') return false;
       if (event.alt && scrollStartupTodoPanelByKey(host, event.key)) return true;

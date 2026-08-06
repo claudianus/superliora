@@ -1,4 +1,4 @@
-import { APIStatusError } from '@superliora/kosong';
+import { APIStatusError, ChatProviderError } from '@superliora/kosong';
 import { describe, expect, it } from 'vitest';
 
 import { toKimiErrorPayload } from '#/errors/serialize';
@@ -57,6 +57,39 @@ describe('toKimiErrorPayload permanent quota vs rate limit', () => {
     );
     expect(payload.code).toBe('provider.api_error');
     expect(payload.retryable).toBe(false);
+  });
+});
+
+describe('toKimiErrorPayload provider-declared transient signals', () => {
+  it('marks a 400 resource_exhausted try-again payload retryable', () => {
+    const payload = toKimiErrorPayload(
+      new APIStatusError(
+        400,
+        'resource_exhausted: ERROR_PROVIDER_ERROR — temporary - try again in a moment',
+        'req-t',
+      ),
+    );
+    expect(payload.code).toBe('provider.api_error');
+    expect(payload.retryable).toBe(true);
+  });
+
+  it('keeps ordinary 400 validation errors non-retryable', () => {
+    const payload = toKimiErrorPayload(
+      new APIStatusError(400, 'Invalid request body: model is required', 'req-v'),
+    );
+    expect(payload.code).toBe('provider.api_error');
+    expect(payload.retryable).toBe(false);
+  });
+
+  it('marks capacity / try-again ChatProviderError payloads retryable', () => {
+    expect(
+      toKimiErrorPayload(
+        new ChatProviderError('Error: The model is currently overloaded, try again later'),
+      ).retryable,
+    ).toBe(true);
+    expect(
+      toKimiErrorPayload(new ChatProviderError('Error: something broke')).retryable,
+    ).toBe(false);
   });
 });
 

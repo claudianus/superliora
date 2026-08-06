@@ -8,7 +8,6 @@ import type {
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import type { SessionEventHost } from '../session-event/handler';
 import type { WarRoomExpertView } from '../../utils/war-room-experts';
-import { SubagentActivityPanel } from './activity';
 import {
   buildBackgroundAgentMetadata,
   buildBackgroundAgentTranscriptEntry,
@@ -50,7 +49,6 @@ export class SubAgentEventHandler {
   readonly subagentInfo: Map<string, SubagentInfo> = new Map();
   backgroundAgentMetadata: Map<string, BackgroundAgentMetadata> = new Map();
   private readonly swarm: SubagentSwarmCoordinator;
-  private readonly activityPanel: SubagentActivityPanel;
 
   constructor(
     private readonly host: SessionEventHost,
@@ -60,15 +58,12 @@ export class SubAgentEventHandler {
       this.requestRender();
     };
     this.swarm = new SubagentSwarmCoordinator(this.host, requestRender);
-    this.activityPanel = new SubagentActivityPanel(this.host, requestRender);
   }
 
   resetRuntimeState(): void {
     this.subagentInfo.clear();
     this.backgroundAgentMetadata.clear();
     this.swarm.reset();
-    this.activityPanel.reset();
-    this.host.state.todoPanel.clearSubagents();
   }
 
   routeChildAgentEvent(event: Event): boolean {
@@ -108,14 +103,8 @@ export class SubAgentEventHandler {
   handleSubagentTodoUpdated(
     event: Extract<Event, { type: 'subagent.todo.updated' }>,
   ): void {
-    // Phase 5-B: mirror child todo progress onto the Todo Board's subagents
-    // strip so foreground and background subagents stay visible even when
-    // no swarm grid owns the parent tool call.
-    this.host.state.todoPanel.setSubagentTodos({
-      subagentId: event.subagentId,
-      name: event.subagentName,
-      todos: event.todos.map((todo) => ({ title: todo.title, status: todo.status })),
-    });
+    // Child todo ratios render on the Mission Control worker row (fed from
+    // the session-event dispatch); the swarm grid keeps its own member view.
     this.swarm.applyMemberTodos(
       event.parentToolCallId,
       event.subagentId,
@@ -125,12 +114,10 @@ export class SubAgentEventHandler {
   }
 
   /**
-   * Live subagent tool feed (Phase 1-A): routes the parent-emitted
-   * `subagent.tool_call` / `subagent.tool_result` events into the background
-   * subagent activity panel. Swarm-orchestrated subagents are routed into
-   * their swarm lane's ops feed instead (Phase 1-B). Foreground subagents
-   * are skipped — their existing surfaces already stream raw child tool
-   * events.
+   * Live subagent tool feed (Phase 1-A): swarm-orchestrated subagents route
+   * into their swarm lane's ops feed (Phase 1-B). Every subagent — swarm or
+   * not — also flows into the Mission Control ops feed via the session-event
+   * dispatch, so the old transcript activity panel is gone.
    */
   handleSubagentToolActivity(
     event: Extract<Event, { type: 'subagent.tool_call' | 'subagent.tool_result' }>,
@@ -141,25 +128,7 @@ export class SubAgentEventHandler {
       this.shouldUseSwarmProgressUi(info.parentToolCallId, info.runInBackground)
     ) {
       this.swarm.routeToolActivity(event, info.parentToolCallId);
-      return;
     }
-    if (event.type === 'subagent.tool_call') {
-      this.activityPanel.recordToolCall({
-        subagentId: event.subagentId,
-        subagentName: event.subagentName ?? info?.name,
-        toolCallId: event.toolCallId,
-        name: event.name,
-        argsPreview: event.argsPreview,
-        detail: event.detail,
-      });
-      return;
-    }
-    this.activityPanel.recordToolResult({
-      subagentId: event.subagentId,
-      toolCallId: event.toolCallId,
-      name: event.name ?? '',
-      isError: event.isError ?? false,
-    });
   }
 
   clearAgentSwarmProgress(): void {
@@ -336,11 +305,6 @@ export class SubAgentEventHandler {
   private handleSubagentCompleted(
     event: SubagentLifecycleEventOf<'subagent.completed'>,
   ): void {
-    // Phase 5-B: finished subagents leave the Todo Board strip regardless of
-    // which surface (swarm grid, background panel) owned their run.
-    if (this.host.state.todoPanel.removeSubagent(event.subagentId)) {
-      this.requestRender();
-    }
     const info = this.subagentInfo.get(event.subagentId);
     if (
       info !== undefined &&
@@ -351,7 +315,6 @@ export class SubAgentEventHandler {
       return;
     }
 
-    this.activityPanel.markTerminal(event.subagentId, 'completed');
     const backgroundMeta = this.backgroundAgentMetadata.get(event.subagentId);
     if (backgroundMeta !== undefined) {
       const taskId = findAgentTaskId(
@@ -377,11 +340,6 @@ export class SubAgentEventHandler {
   private handleSubagentFailed(
     event: SubagentLifecycleEventOf<'subagent.failed'>,
   ): void {
-    // Phase 5-B: failed subagents leave the strip too; the removal flash is
-    // the only trace, matching the completed path.
-    if (this.host.state.todoPanel.removeSubagent(event.subagentId)) {
-      this.requestRender();
-    }
     const info = this.subagentInfo.get(event.subagentId);
     if (
       info !== undefined &&
@@ -391,7 +349,6 @@ export class SubAgentEventHandler {
       return;
     }
 
-    this.activityPanel.markTerminal(event.subagentId, 'failed');
     const backgroundMeta = this.backgroundAgentMetadata.get(event.subagentId);
     if (backgroundMeta !== undefined) {
       const taskId = findAgentTaskId(

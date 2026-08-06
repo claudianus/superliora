@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   createJob,
@@ -218,6 +218,101 @@ describe('job runtime scheduler', () => {
     const updated = listJobs(store).find((j) => j.id === job.id);
     expect(updated?.status).toBe('running');
     expect(updated?.worktreePath).toContain('/tmp/worktrees/');
+  });
+
+  it('chains a child job onto the parent worktree instead of a private branch', async () => {
+    const store = memoryStore();
+    const parent = createJob(store, { title: 'parent', priority: 5 });
+    patchJob(store, parent.id, {
+      status: 'running',
+      worktreePath: '/tmp/worktrees/conductor-parent',
+    });
+    const child = createJob(store, { title: 'child fix', priority: 5, parentJobId: parent.id });
+
+    const createWorktree = vi.fn(async (_kaos: unknown, input: { name: string }) => ({
+      workDir: `/tmp/worktrees/${input.name}`,
+      meta: {
+        path: `/tmp/worktrees/${input.name}`,
+        branch: 'liora/x',
+        repoRoot: '/tmp/repo',
+        name: input.name,
+        baseRef: 'HEAD',
+        createdAt: new Date().toISOString(),
+      },
+      record: {
+        name: input.name,
+        path: `/tmp/worktrees/${input.name}`,
+        repoRoot: '/tmp/repo',
+        branch: 'liora/x',
+        baseRef: 'HEAD',
+        createdAt: new Date().toISOString(),
+        lastAccessedAt: new Date().toISOString(),
+      },
+    }));
+    const result = await scheduleQueuedJobs({
+      store,
+      maxConcurrent: 3,
+      requireWorktree: true,
+      ensureGitRepo: false,
+      kaos: {} as never,
+      repoPath: '/tmp/repo',
+      createWorktree: createWorktree as never,
+    });
+
+    expect(result.started).toHaveLength(1);
+    expect(createWorktree).not.toHaveBeenCalled();
+    const updated = getJob(store, child.id);
+    expect(updated?.worktreePath).toBe('/tmp/worktrees/conductor-parent');
+    expect(updated?.notes).toContain('chained onto parent');
+  });
+
+  it('gives the child its own worktree once the parent landed', async () => {
+    const store = memoryStore();
+    const parent = createJob(store, { title: 'parent landed', priority: 5 });
+    patchJob(store, parent.id, {
+      status: 'done',
+      worktreePath: '/tmp/worktrees/conductor-parent',
+      landReceipt: {
+        mergeSha: 'abc123',
+        branch: 'liora/conductor-parent',
+        verifiedAt: new Date().toISOString(),
+      },
+    });
+    const child = createJob(store, { title: 'late child', priority: 5, parentJobId: parent.id });
+
+    const result = await scheduleQueuedJobs({
+      store,
+      maxConcurrent: 3,
+      requireWorktree: true,
+      ensureGitRepo: false,
+      kaos: {} as never,
+      repoPath: '/tmp/repo',
+      createWorktree: async (_kaos, input) => ({
+        workDir: `/tmp/worktrees/${input.name}`,
+        meta: {
+          path: `/tmp/worktrees/${input.name}`,
+          branch: 'liora/x',
+          repoRoot: '/tmp/repo',
+          name: input.name,
+          baseRef: 'HEAD',
+          createdAt: new Date().toISOString(),
+        },
+        record: {
+          name: input.name,
+          path: `/tmp/worktrees/${input.name}`,
+          repoRoot: '/tmp/repo',
+          branch: 'liora/x',
+          baseRef: 'HEAD',
+          createdAt: new Date().toISOString(),
+          lastAccessedAt: new Date().toISOString(),
+        },
+      }),
+    });
+
+    expect(result.started).toHaveLength(1);
+    const updated = getJob(store, child.id);
+    expect(updated?.worktreePath).not.toBe('/tmp/worktrees/conductor-parent');
+    expect(updated?.worktreePath).toContain('/tmp/worktrees/conductor-');
   });
 });
 

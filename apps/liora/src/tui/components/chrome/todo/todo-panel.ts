@@ -55,10 +55,7 @@ import {
   computeViewportBoardRows,
   nextScrollOffset,
 } from './todo-panel-scroll';
-import { TodoPanelSubagentStrip } from './todo-panel-subagent-strip';
 import type {
-  SubagentStripEntry,
-  SubagentTodosInput,
   TodoBoardScrollAction,
   TodoBoardScrollSnapshot,
   TodoItem,
@@ -74,8 +71,6 @@ export {
 } from './todo-panel-model';
 export { formatSwarmMemberTodoLines } from './todo-panel-render';
 export type {
-  SubagentStripEntry,
-  SubagentTodosInput,
   TodoBoardScrollAction,
   TodoBoardScrollSnapshot,
   TodoItem,
@@ -104,7 +99,6 @@ export class TodoPanelComponent implements Component {
   private lastBoardRows = 0;
   private boardShrinkRequestedAtMs: number | undefined;
   private readonly motion = new TodoPanelMotionTracker();
-  private readonly subagentStrip = new TodoPanelSubagentStrip();
   /** Frame memo: identical state yields the same lines array so the renderer diff skips the panel. */
   private lastRender:
     | {
@@ -113,7 +107,6 @@ export class TodoPanelComponent implements Component {
         readonly todos: readonly TodoItem[];
         readonly goal: GoalSnapshot | null;
         readonly calls: number;
-        readonly subagents: number;
         readonly secondBucket: number;
         readonly scroll: number;
         readonly budget: number;
@@ -174,22 +167,6 @@ export class TodoPanelComponent implements Component {
     return this.todos;
   }
 
-  setSubagentTodos(input: SubagentTodosInput): void {
-    this.subagentStrip.setTodos(input);
-  }
-
-  removeSubagent(subagentId: string): boolean {
-    return this.subagentStrip.remove(subagentId);
-  }
-
-  clearSubagents(): void {
-    this.subagentStrip.clear();
-  }
-
-  getSubagentStrip(): readonly SubagentStripEntry[] {
-    return this.subagentStrip.getStrip();
-  }
-
   bumpActivity(): void {
     this.callsSinceUpdate += 1;
   }
@@ -210,7 +187,6 @@ export class TodoPanelComponent implements Component {
     this.lastBoardRows = 0;
     this.boardShrinkRequestedAtMs = undefined;
     this.motion.reset();
-    this.subagentStrip.reset();
     this.lastRender = undefined;
     this.scrollOffset = 0;
   }
@@ -287,7 +263,6 @@ export class TodoPanelComponent implements Component {
     const contentWidthForMarquee = this.interiorWidth(width, resolveResponsiveLayout({ width }));
     const animating =
       this.currentChangeSummary() !== undefined ||
-      this.subagentStrip.isAnimating() ||
       boardNeedsMarquee(this.todos, contentWidthForMarquee);
     // The goal wall-clock label advances once per second; bucketing keeps the
     // memo valid within that second.
@@ -302,7 +277,6 @@ export class TodoPanelComponent implements Component {
       memo.todos === this.todos &&
       memo.goal === this.goal &&
       memo.calls === this.callsSinceUpdate &&
-      memo.subagents === this.subagentStrip.getVersion() &&
       memo.secondBucket === secondBucket &&
       memo.scroll === this.scrollOffset &&
       memo.budget === budget
@@ -337,16 +311,6 @@ export class TodoPanelComponent implements Component {
 
     if (this.todos.length > 0) {
       lines.push(...this.buildTodoContent(width, profile));
-      // Subagents strip (Phase 5-B): live child progress below the lanes.
-      // It follows the board's visibility — rendered only while the board
-      // itself is on screen, inside the same panel frame.
-      const stripLines = this.subagentStrip.render(contentWidth);
-      if (stripLines.length > 0) {
-        lines.push(
-          currentTheme.fg('border', `  ${'─'.repeat(Math.max(4, Math.min(24, contentWidth - 2)))}`),
-        );
-        lines.push(...stripLines);
-      }
     }
 
     if (profile === 'tiny') {
@@ -498,7 +462,6 @@ export class TodoPanelComponent implements Component {
       todos: this.todos,
       goal: this.goal,
       calls: this.callsSinceUpdate,
-      subagents: this.subagentStrip.getVersion(),
       secondBucket,
       scroll: this.scrollOffset,
       budget,

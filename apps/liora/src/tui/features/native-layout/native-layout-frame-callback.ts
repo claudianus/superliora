@@ -237,7 +237,7 @@ export function createTUIStateNativeRenderCallback(
         header: nativeFrame.chrome.header,
         activity: nativeFrame.chrome.activity,
         todo: nativeFrame.chrome.todo,
-        jobs: nativeFrame.chrome.jobs,
+        mission: nativeFrame.chrome.mission,
         queue: nativeFrame.chrome.queue,
         btw: nativeFrame.chrome.btw,
         footer: nativeFrame.chrome.footer,

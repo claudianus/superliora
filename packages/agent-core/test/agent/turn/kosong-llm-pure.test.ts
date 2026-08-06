@@ -1,3 +1,4 @@
+import { APIStatusError } from '@superliora/kosong';
 import { describe, expect, it } from 'vitest';
 
 import { type Message, buildMessagesWithSystem, classifyProviderRouteFailure } from '#/agent/turn/kosong-llm';
@@ -46,6 +47,17 @@ describe('agent/turn/kosong-llm — classifyProviderRouteFailure', () => {
 
   it('classifies a generic Error as undefined (no recognized status)', () => {
     expect(classifyProviderRouteFailure(new Error('boom'), 1000)).toBeUndefined();
+  });
+
+  it('fails over a provider-declared temporary 400 like a server blip', () => {
+    const err = new APIStatusError(
+      400,
+      'resource_exhausted: ERROR_PROVIDER_ERROR — temporary - try again in a moment',
+    );
+    expect(classifyProviderRouteFailure(err, 1000)?.kind).toBe('server');
+    expect(
+      classifyProviderRouteFailure(new APIStatusError(400, 'Invalid request body'), 1000),
+    ).toBeUndefined();
   });
 
   it('returns undefined for an unrelated error', () => {

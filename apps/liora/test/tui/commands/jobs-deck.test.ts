@@ -14,7 +14,6 @@ function createHost() {
     showStatus: vi.fn(),
     sendNormalUserInput: vi.fn(),
     jobBoardController: {
-      toggle: vi.fn(),
       openDeck: vi.fn(),
       rememberUsage: vi.fn(),
     },
@@ -22,7 +21,6 @@ function createHost() {
     showStatus: ReturnType<typeof vi.fn>;
     sendNormalUserInput: ReturnType<typeof vi.fn>;
     jobBoardController: {
-      toggle: ReturnType<typeof vi.fn>;
       openDeck: ReturnType<typeof vi.fn>;
       rememberUsage: ReturnType<typeof vi.fn>;
     };
@@ -51,11 +49,10 @@ describe('/jobs deck routing', () => {
     expect(host.jobBoardController.openDeck).toHaveBeenCalledWith('job_a1b2c3d4');
   });
 
-  it('keeps /jobs board on the panel toggle', () => {
+  it('routes /jobs board to the deck (the board surface is Mission Control now)', () => {
     const host = createHost();
     handleJobsCommand(host, 'board');
-    expect(host.jobBoardController.toggle).toHaveBeenCalledTimes(1);
-    expect(host.jobBoardController.openDeck).not.toHaveBeenCalled();
+    expect(host.jobBoardController.openDeck).toHaveBeenCalledTimes(1);
   });
 
   it('/job deck <id> also opens the deck', () => {

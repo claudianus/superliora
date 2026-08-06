@@ -345,6 +345,50 @@ function normalizeQuestionResult(
 const AUTO_ANSWER_ASSUMPTION =
   'Assumption: proceed with baseline/minimal scope; refine if blocked.';
 
+/**
+ * Destructive / irreversible question signals: auto mode must never silently
+ * approve these — a wrong auto-pick is data loss or a public irreversible
+ * action. Matched against question text, header, and option labels.
+ * ponytail: heuristic on free text — false positives only fall through to the
+ * human RPC, false negatives are the real risk, so patterns err inclusive.
+ */
+const DESTRUCTIVE_QUESTION_PATTERNS = [
+  /\bdelete[sd]?\b/i,
+  /\bremove[sd]?\b/i,
+  /\bdrop\b/i,
+  /\bdestroy(?:ing)?\b/i,
+  /\berase\b/i,
+  /\bwipe[sd]?\b/i,
+  /\breset\s+--hard\b/i,
+  /\bforce[-\s]?push\b/i,
+  /\bpush\b[^\n]*\b(?:--force|--force-with-lease|-f)\b/i,
+  /\boverwrite[sd]?\b/i,
+  /\bdiscard(?:ing)?\b/i,
+  /\brevert\b/i,
+  /\brollback\b/i,
+  /\birreversible\b/i,
+  /\bpermanent(?:ly)?\b/i,
+  /\bcannot\s+be\s+undone\b/i,
+  /\bmerge[sd]?\b/i,
+  /\bland(?:ing|ed|s)?\b/i,
+  /\bdeploy(?:ing|ment|s)?\b/i,
+  /\bpublish(?:ing|es)?\b/i,
+  /\brelease[sd]?\b/i,
+  /\bshare[sd]?\b[^\n]*\b(?:private|secret|credential|token|api[-\s]?key|password)\b/i,
+  /\b(?:private|secret|credential|token|api[-\s]?key|password)\b[^\n]*\bshare[sd]?\b/i,
+] as const;
+
+function isDestructiveQuestion(
+  question: NormalizedAskUserQuestionInput['questions'][number],
+): boolean {
+  const text = [
+    question.question,
+    question.header,
+    ...question.options.flatMap((option) => [option.label, option.description]),
+  ].join('\n');
+  return DESTRUCTIVE_QUESTION_PATTERNS.some((pattern) => pattern.test(text));
+}
+
 export interface AutoInterviewDecision {
   readonly answers: QuestionAnswers;
   /** Structured decision records for Mission interview quality. */
@@ -373,6 +417,9 @@ function tryAutoAnswerQuestions(
   mode: string | undefined,
 ): AutoInterviewDecision | undefined {
   if (mode !== 'auto') return undefined;
+  // Never auto-approve destructive or irreversible decisions — even full
+  // autopilot falls through to the human RPC for these.
+  if (args.questions.some(isDestructiveQuestion)) return undefined;
 
   const answers: QuestionAnswers = {};
   const decisions: AutoInterviewDecisionRecord[] = [];

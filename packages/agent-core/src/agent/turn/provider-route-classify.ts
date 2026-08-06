@@ -13,6 +13,7 @@ import {
   isProviderCapacityError,
   isProviderRateLimitError,
   isTransientNoBodyStatusError,
+  isTransientTryAgainError,
 } from '@superliora/kosong';
 
 import { ErrorCodes, isKimiError } from '../../errors';
@@ -190,6 +191,11 @@ export function classifyProviderRouteFailure(
   // xAI capacity / high-demand often surfaces as plain ChatProviderError without
   // a 5xx statusCode — still fail over / cooldown like a transient server blip.
   if (isProviderCapacityError(error)) {
+    return { kind: 'server', cooldownMs: cooldownMs(DEFAULT_SERVER_COOLDOWN_MS) };
+  }
+  // Provider-declared "temporary / try again" signals (e.g. a 400
+  // resource_exhausted) fail over like a transient server blip too.
+  if (isTransientTryAgainError(error)) {
     return { kind: 'server', cooldownMs: cooldownMs(DEFAULT_SERVER_COOLDOWN_MS) };
   }
   if (!(error instanceof APIStatusError)) return undefined;

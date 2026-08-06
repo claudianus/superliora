@@ -210,7 +210,7 @@ export class AgentRefineService {
     for (const scope of ['local', 'global'] as const) {
       const targetState = scope === 'global' ? this.globalState : this.localState;
       if (targetState === null || targetState.entries.length === 0) continue;
-      for (const entry of [...targetState.entries]) {
+      for (const entry of Array.from(targetState.entries)) {
         const score = {
           confirmed: (entry.score?.confirmed ?? 0) + (outcome === 'passed' ? 1 : 0),
           failed: (entry.score?.failed ?? 0) + (outcome === 'exhausted' ? 1 : 0),
@@ -218,7 +218,7 @@ export class AgentRefineService {
         upsertEntry(targetState, { ...entry, score });
       }
       if (outcome === 'exhausted') {
-        for (const entry of [...targetState.entries]) {
+        for (const entry of Array.from(targetState.entries)) {
           if (entry.score === undefined) continue;
           if (entry.score.failed < 2 || entry.score.failed <= entry.score.confirmed) continue;
           await this.autoRollbackEntry(targetState, scope, entry);

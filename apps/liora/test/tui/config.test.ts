@@ -101,6 +101,7 @@ terminal_palette = true
         transcriptDetail: 'standard',
         neat: true,
         syntaxTheme: 'auto',
+        missionControl: 'auto',
       },
       footer: DEFAULT_FOOTER_PREFERENCES,
       onboarding: DEFAULT_ONBOARDING_PREFERENCES,

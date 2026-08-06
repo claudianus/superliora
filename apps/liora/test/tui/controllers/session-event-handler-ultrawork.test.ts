@@ -55,6 +55,10 @@ function makeHost() {
       active: vi.fn(),
       clear: vi.fn(),
     },
+    missionControl: {
+      handleEvent: vi.fn(),
+      reset: vi.fn(),
+    },
     requireSession: vi.fn(function (this: { session: unknown }) {
       return this.session;
     }),

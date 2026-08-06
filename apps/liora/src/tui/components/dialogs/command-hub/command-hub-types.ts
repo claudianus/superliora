@@ -29,7 +29,7 @@ export type CommandHubActionId =
   | 'workspace.log'
   | 'workspace.errors'
   | 'workspace.tasks'
-  | 'workspace.jobs'
+  | 'workspace.missionControl'
   | 'workspace.jobDeck'
   | 'workspace.jobOps'
   | 'workspace.cron'

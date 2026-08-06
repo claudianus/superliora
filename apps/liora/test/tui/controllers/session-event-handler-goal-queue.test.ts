@@ -85,6 +85,10 @@ function makeHost(options: { createGoalRejects?: boolean } = {}) {
       active: vi.fn(),
       clear: vi.fn(),
     },
+    missionControl: {
+      handleEvent: vi.fn(),
+      reset: vi.fn(),
+    },
     requireSession: vi.fn(() => session),
     setAppState: vi.fn(),
     setLastTurnFailed: vi.fn(),

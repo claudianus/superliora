@@ -6,11 +6,12 @@ import { SessionEventHandler } from '#/tui/controllers/session-event/handler';
 import { getBuiltInPalette } from '#/tui/theme';
 
 /**
- * Phase 5-B routing seam: `subagent.todo.updated` must reach the Todo Board
- * strip, and lifecycle completion/failure must remove the row. The host mock
- * mirrors session-event-handler-turn.test.ts; the todo panel is a spy so the
- * assertions stay on the wiring, not the component (covered separately in
- * test/tui/components/chrome/todo/todo-panel.test.ts).
+ * Mission Control routing seam: every session event — `subagent.todo.updated`
+ * included — must reach the Mission Control controller, and session resets
+ * must clear its roster. The host mock mirrors
+ * session-event-handler-turn.test.ts; the controller is a spy so the
+ * assertions stay on the wiring (the registry itself is covered by
+ * test/tui/controllers/mission-control-registry.test.ts).
  */
 function makeHost() {
   const host = {
@@ -28,9 +29,6 @@ function makeHost() {
       toolOutputExpanded: false,
       todoPanel: {
         getTodos: vi.fn(() => []),
-        setSubagentTodos: vi.fn(),
-        removeSubagent: vi.fn(() => false),
-        clearSubagents: vi.fn(),
       },
       transcriptContainer: { addChild: vi.fn(), isBatchMounting: false },
       ui: { requestRender: vi.fn() },
@@ -53,6 +51,10 @@ function makeHost() {
       play: vi.fn(),
       active: vi.fn(),
       clear: vi.fn(),
+    },
+    missionControl: {
+      handleEvent: vi.fn(),
+      reset: vi.fn(),
     },
     requireSession: vi.fn(),
     setAppState: vi.fn(),
@@ -97,72 +99,39 @@ function todoUpdatedEvent(): Event {
   } as Event;
 }
 
-describe('SessionEventHandler subagent todo routing', () => {
-  it('routes subagent.todo.updated onto the Todo Board strip', () => {
+describe('SessionEventHandler Mission Control feed', () => {
+  it('feeds subagent.todo.updated into Mission Control', () => {
     const host = makeHost();
     const handler = new SessionEventHandler(host);
+    const event = todoUpdatedEvent();
 
-    handler.handleEvent(todoUpdatedEvent(), vi.fn());
+    handler.handleEvent(event, vi.fn());
 
-    expect(host.state.todoPanel.setSubagentTodos).toHaveBeenCalledTimes(1);
-    expect(host.state.todoPanel.setSubagentTodos).toHaveBeenCalledWith({
+    expect(host.missionControl.handleEvent).toHaveBeenCalledWith(event);
+  });
+
+  it('feeds subagent lifecycle events into Mission Control', () => {
+    const host = makeHost();
+    const handler = new SessionEventHandler(host);
+    const event = {
+      agentId: 'main',
+      sessionId: 's1',
+      type: 'subagent.completed',
       subagentId: 'sub-1',
-      name: 'explore',
-      todos: [
-        { title: 'find code', status: 'done' },
-        { title: 'summarize', status: 'in_progress' },
-        { title: 'report', status: 'pending' },
-      ],
-    });
-    // The strip update requests a layout frame.
-    expect(host.state.renderer.invalidateFrame).toHaveBeenCalledWith('layout');
+      resultSummary: 'done',
+    } as Event;
+
+    handler.handleEvent(event, vi.fn());
+
+    expect(host.missionControl.handleEvent).toHaveBeenCalledWith(event);
   });
 
-  it('removes the strip row when the subagent completes', () => {
+  it('resets Mission Control when runtime state resets between sessions', () => {
     const host = makeHost();
     const handler = new SessionEventHandler(host);
 
-    handler.handleEvent(todoUpdatedEvent(), vi.fn());
-    handler.handleEvent(
-      {
-        agentId: 'main',
-        sessionId: 's1',
-        type: 'subagent.completed',
-        subagentId: 'sub-1',
-        resultSummary: 'done',
-      } as Event,
-      vi.fn(),
-    );
+    handler.resetRuntimeState();
 
-    expect(host.state.todoPanel.removeSubagent).toHaveBeenCalledWith('sub-1');
-  });
-
-  it('removes the strip row when the subagent fails', () => {
-    const host = makeHost();
-    const handler = new SessionEventHandler(host);
-
-    handler.handleEvent(todoUpdatedEvent(), vi.fn());
-    handler.handleEvent(
-      {
-        agentId: 'main',
-        sessionId: 's1',
-        type: 'subagent.failed',
-        subagentId: 'sub-1',
-        error: 'boom',
-      } as Event,
-      vi.fn(),
-    );
-
-    expect(host.state.todoPanel.removeSubagent).toHaveBeenCalledWith('sub-1');
-  });
-
-  it('clears the strip when runtime state resets between sessions', () => {
-    const host = makeHost();
-    const handler = new SessionEventHandler(host);
-
-    handler.handleEvent(todoUpdatedEvent(), vi.fn());
-    handler.subAgentEventHandler.resetRuntimeState();
-
-    expect(host.state.todoPanel.clearSubagents).toHaveBeenCalledTimes(1);
+    expect(host.missionControl.reset).toHaveBeenCalledTimes(1);
   });
 });

@@ -29,7 +29,6 @@ import type { TranscriptScrollAction } from '#/tui/features/transcript/transcrip
 export const TUI_NATIVE_EDITOR_INPUT_TARGET_ID = 'editor';
 const TUI_NATIVE_POINTER_CLEANUP_HANDLER_ID = 'pointer-cleanup';
 const TUI_NATIVE_STAGE_RESIZE_HANDLER_ID = 'stage-resize';
-const TUI_NATIVE_JOB_DESK_HANDLER_ID = 'job-desk';
 const TUI_NATIVE_TOOL_OUTPUT_HANDLER_ID = 'tool-output';
 const TUI_NATIVE_TRANSCRIPT_DENSITY_HANDLER_ID = 'transcript-density';
 const TUI_NATIVE_TRANSCRIPT_SELECTION_HANDLER_ID = 'transcript-selection';
@@ -66,12 +65,6 @@ export interface TUIStateNativeInputRouterOptions {
    * handler owns its own render request.
    */
   readonly scrollTodoPanel?: (event: NativeInputEvent) => boolean;
-  /**
-   * Left clicks inside the Conductor Job Desk region: hit-test the kanban
-   * card map and open the interactive Job Deck viewer on that job.
-   * Returning true consumes the click before transcript selection sees it.
-   */
-  readonly clickJobDesk?: (event: NativeInputEvent) => boolean;
 }
 
 export class TUIStateNativeInputRouter {
@@ -127,19 +120,6 @@ export class TUIStateNativeInputRouter {
         },
       }),
     );
-    if (options.clickJobDesk !== undefined) {
-      // Registered before tool output / transcript selection: a click on a
-      // Job Desk card drills into the deck viewer instead of selecting text.
-      this.disposers.push(
-        this.router.registerGlobalHandler({
-          id: TUI_NATIVE_JOB_DESK_HANDLER_ID,
-          onInput: (event) => {
-            if (event.type !== 'mouse') return false;
-            return options.clickJobDesk?.(event) === true;
-          },
-        }),
-      );
-    }
     this.disposers.push(
       this.router.registerGlobalHandler({
         id: TUI_NATIVE_TOOL_OUTPUT_HANDLER_ID,

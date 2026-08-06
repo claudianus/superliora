@@ -4,7 +4,9 @@ import {
   APIStatusError,
   APITimeoutError,
   ChatProviderError,
+  isProviderCapacityError,
   isTransientNoBodyStatusError,
+  isTransientTryAgainError,
 } from '@superliora/kosong';
 
 import { LioraError } from './classes';
@@ -106,7 +108,9 @@ export function toKimiErrorPayload(error: unknown): LioraErrorPayload {
             ? true
             : isTransientNoBodyStatusError(error)
               ? true
-              : KIMI_ERROR_INFO[resolvedCode].retryable;
+              : isTransientTryAgainError(error)
+                ? true
+                : KIMI_ERROR_INFO[resolvedCode].retryable;
     return {
       code: resolvedCode,
       message,
@@ -160,7 +164,9 @@ export function toKimiErrorPayload(error: unknown): LioraErrorPayload {
         ? false
         : looksLikeRateLimit
           ? true
-          : KIMI_ERROR_INFO[ErrorCodes.PROVIDER_API_ERROR].retryable,
+          : isProviderCapacityError(error) || isTransientTryAgainError(error)
+            ? true
+            : KIMI_ERROR_INFO[ErrorCodes.PROVIDER_API_ERROR].retryable,
     };
   }
 

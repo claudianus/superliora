@@ -120,6 +120,32 @@ export async function assignJobWorktree(
     return { job: existing };
   }
 
+  // Chain rule: a child job continues its parent's deliverable (e.g. a
+  // defect-fix chained after review), so it must commit onto the parent's
+  // landing branch. On a private branch the child's commits are never seen by
+  // MergeJob (source = parent) — the "fix committed but landed nowhere"
+  // failure mode. Reuse only while the parent holds an unmerged worktree;
+  // once the parent landed (landReceipt set) or its worktree was GC'd, the
+  // child falls through to its own worktree.
+  // ponytail: chains are sequential by design (child queued after the parent
+  // completes); concurrent parent+child writers on one worktree are not
+  // guarded.
+  if (existing.parentJobId !== undefined) {
+    const parent = getJob(input.store, existing.parentJobId);
+    if (parent?.worktreePath !== undefined && parent.landReceipt === undefined) {
+      const job = patchJob(input.store, existing.id, {
+        worktreePath: parent.worktreePath,
+        notes: [
+          existing.notes,
+          `worktree: chained onto parent ${parent.id} branch (${parent.worktreePath})`,
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      });
+      return { job };
+    }
+  }
+
   const repo =
     input.ensureGitRepo === false
       ? ({ ok: true, root: input.repoPath, bootstrapped: false, baselineCommit: false } as const)
