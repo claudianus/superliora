@@ -160,6 +160,86 @@ describe('RunProjectChecksTool', () => {
     expect(payload.exitCode).toBe(0);
   });
 
+  it('verifies a static site when package.json is missing', async () => {
+    const kaos = createFakeKaos({
+      getcwd: () => '/site',
+      readText: async () => {
+        throw new Error('ENOENT: no package.json');
+      },
+      glob: (async function* (_path: string, pattern: string) {
+        if (pattern === '**/*.html') yield '/site/index.html';
+        if (pattern === '**/*.js') yield '/site/app.js';
+      }) as Kaos['glob'],
+      exec: (async (...args: string[]) => {
+        if (args[0] === 'node' && args[1] === '--check') return fakeProcess(0);
+        throw new Error(`unexpected exec: ${args.join(' ')}`);
+      }) as Kaos['exec'],
+      stat: async () => ({ isFile: () => true }) as never,
+    });
+
+    const tool = new RunProjectChecksTool(kaos, '/site');
+    const result = await executeTool(tool, context({ checks: ['test', 'typecheck', 'lint'] }));
+    const payload = JSON.parse(String(result.output)) as {
+      exitCode: number;
+      checks: Array<{ name: string; exitCode: number; command?: string }>;
+      summary: string;
+    };
+    expect(result.isError).toBeFalsy();
+    expect(payload.exitCode).toBe(0);
+    expect(payload.checks).toHaveLength(1);
+    expect(payload.checks[0]?.name).toBe('static');
+    expect(payload.summary).toContain('Static site checks');
+  });
+
+  it('fails the static check when shipped JS does not parse', async () => {
+    const kaos = createFakeKaos({
+      getcwd: () => '/site',
+      readText: async () => {
+        throw new Error('ENOENT: no package.json');
+      },
+      glob: (async function* (_path: string, pattern: string) {
+        if (pattern === '**/*.html') yield '/site/index.html';
+        if (pattern === '**/*.js') yield '/site/app.js';
+      }) as Kaos['glob'],
+      exec: (async (...args: string[]) => {
+        if (args[0] === 'node' && args[1] === '--check') {
+          return fakeProcess(1, '', 'SyntaxError: Unexpected token');
+        }
+        throw new Error(`unexpected exec: ${args.join(' ')}`);
+      }) as Kaos['exec'],
+      stat: async () => ({ isFile: () => true }) as never,
+    });
+
+    const tool = new RunProjectChecksTool(kaos, '/site');
+    const result = await executeTool(tool, context({ checks: ['test'] }));
+    const payload = JSON.parse(String(result.output)) as {
+      exitCode: number;
+      checks: Array<{ name: string; exitCode: number; logPreview?: string }>;
+    };
+    expect(result.isError).toBe(true);
+    expect(payload.exitCode).toBe(1);
+    expect(payload.checks[0]?.name).toBe('static');
+    expect(payload.checks[0]?.logPreview).toContain('SyntaxError');
+  });
+
+  it('keeps the package.json error when the directory is not a static site', async () => {
+    const kaos = createFakeKaos({
+      getcwd: () => '/empty',
+      readText: async () => {
+        throw new Error('ENOENT: no package.json');
+      },
+      glob: (async function* () {
+        // no static files at all
+      }) as Kaos['glob'],
+    });
+
+    const tool = new RunProjectChecksTool(kaos, '/empty');
+    const result = await executeTool(tool, context({ checks: ['test'] }));
+    const payload = JSON.parse(String(result.output)) as { exitCode: number; summary: string };
+    expect(result.isError).toBe(true);
+    expect(payload.summary).toContain('Failed to read package.json');
+  });
+
   it('buildResultPayload aggregates exit codes', () => {
     const allPass = buildResultPayload([
       { name: 'test', exitCode: 0, durationMs: 10 },

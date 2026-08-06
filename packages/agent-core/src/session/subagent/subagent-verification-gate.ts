@@ -7,8 +7,14 @@
  * class body.
  */
 
+import type { Kaos } from '@superliora/kaos';
+
 import type { Agent } from '../../agent';
 import { RunProjectChecksTool } from '../../tools/builtin/ops/run-project-checks';
+import {
+  isStaticSiteChangeSet,
+  runStaticSiteChecks,
+} from '../../tools/builtin/ops/static-site-checks';
 import {
   buildSubagentResultContract,
   collectFilesChanged,
@@ -62,7 +68,15 @@ export async function runCompletionVerification(
 ): Promise<SubagentVerificationStatus> {
   if (profileName === 'explore') return VERIFICATION_NOT_RUN;
   const packageDir = deriveVerificationPackageDir(filesChanged);
-  if (packageDir === undefined) return VERIFICATION_NOT_RUN;
+  if (packageDir === undefined) {
+    // Static-site contract: pure HTML/CSS/JS change sets have no package.json
+    // scripts to run. Verify what the deliverable can prove (existence + JS
+    // syntax) instead of recording "checks did not run" forever.
+    if (isStaticSiteChangeSet(filesChanged)) {
+      return runStaticCompletionVerification(child.kaos, child.config.cwd, filesChanged);
+    }
+    return VERIFICATION_NOT_RUN;
+  }
   try {
     const tool = new RunProjectChecksTool(child.kaos, child.config.cwd);
     const execution = tool.resolveExecution({
@@ -90,6 +104,27 @@ export async function runCompletionVerification(
       typecheck: verdictFromCheckOutcomes(checks, 'typecheck'),
       lint: verdictFromCheckOutcomes(checks, 'lint'),
     };
+  } catch {
+    return VERIFICATION_NOT_RUN;
+  }
+}
+
+/**
+ * Static-site completion contract. One check stands in for the whole gate —
+ * a static site has no test/typecheck/lint toolchain, so existence + JS
+ * syntax is the entire verifiable surface — so the verdict maps onto all
+ * three slots and `verificationIsGreen` can actually go green.
+ */
+async function runStaticCompletionVerification(
+  kaos: Kaos,
+  cwd: string,
+  filesChanged: readonly string[],
+): Promise<SubagentVerificationStatus> {
+  try {
+    const outcome = await runStaticSiteChecks(kaos, cwd, filesChanged);
+    return outcome.ok
+      ? { tests: 'passed', typecheck: 'passed', lint: 'passed' }
+      : { tests: 'failed', typecheck: 'failed', lint: 'failed' };
   } catch {
     return VERIFICATION_NOT_RUN;
   }

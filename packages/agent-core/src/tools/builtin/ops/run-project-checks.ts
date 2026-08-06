@@ -6,7 +6,7 @@
  */
 
 import type { Kaos, KaosProcess } from '@superliora/kaos';
-import { join, normalize, resolve } from 'pathe';
+import { join, normalize, relative, resolve } from 'pathe';
 import type { Readable } from 'node:stream';
 import { z } from 'zod';
 
@@ -18,13 +18,14 @@ import { literalRulePattern } from '../../support/rule-match';
 import type { ToolStore } from '../../store';
 import { archiveContent } from '../context/context-archive';
 import DESCRIPTION from './run-project-checks.md?raw';
+import { MAX_STATIC_JS_CHECKS, runStaticSiteChecks } from './static-site-checks';
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 const MAX_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_LOG_CHARS = 12_000;
 const STREAM_CAP_BYTES = 512 * 1024;
 
-export const PROJECT_CHECK_KINDS = ['test', 'typecheck', 'build', 'smoke', 'lint'] as const;
+export const PROJECT_CHECK_KINDS = ['test', 'typecheck', 'build', 'smoke', 'lint', 'static'] as const;
 export type ProjectCheckKind = (typeof PROJECT_CHECK_KINDS)[number];
 
 export const RunProjectChecksInputSchema = z.object({
@@ -82,6 +83,9 @@ const SCRIPT_CANDIDATES: Record<ProjectCheckKind, readonly string[]> = {
   build: ['build', 'build:prod', 'compile'],
   smoke: ['smoke', 'test:smoke', 'check:smoke'],
   lint: ['lint', 'eslint', 'check:lint'],
+  // Static sites have no scripts by definition; the static fallback verifies
+  // them directly when package.json is missing.
+  static: [],
 };
 
 const DEFAULT_CHECKS: readonly ProjectCheckKind[] = ['test', 'typecheck', 'build'];
@@ -135,6 +139,16 @@ export class RunProjectChecksTool implements BuiltinTool<RunProjectChecksInput> 
     try {
       scripts = await readPackageScripts(this.kaos, packageRoot);
     } catch (error) {
+      // No readable package.json: a static site (HTML/CSS/JS) can still
+      // verify itself — file existence + `node --check` on shipped JS —
+      // instead of erroring out as "no checks applicable".
+      const staticPayload = await this.staticSiteFallback(packageRoot, signal);
+      if (staticPayload !== undefined) {
+        return {
+          isError: staticPayload.exitCode !== 0,
+          output: JSON.stringify(staticPayload, undefined, 2),
+        };
+      }
       const message = error instanceof Error ? error.message : String(error);
       const payload: RunProjectChecksResult = {
         exitCode: 1,
@@ -204,6 +218,50 @@ export class RunProjectChecksTool implements BuiltinTool<RunProjectChecksInput> 
       isError: payload.exitCode !== 0,
       output: JSON.stringify(payload, undefined, 2),
     };
+  }
+
+  /**
+   * Static-site fallback when package.json is unreadable: verify the site the
+   * way a static deliverable can be verified — every shipped JS file parses.
+   * Returns undefined when the directory does not look like a static site.
+   */
+  private async staticSiteFallback(
+    packageRoot: string,
+    signal: AbortSignal,
+  ): Promise<RunProjectChecksResult | undefined> {
+    const jsFiles: string[] = [];
+    let sawHtml = false;
+    for (const ext of ['.js', '.mjs', '.cjs']) {
+      for await (const match of this.kaos.glob(packageRoot, `**/*${ext}`)) {
+        if (signal.aborted) return undefined;
+        if (match.includes('node_modules')) continue;
+        jsFiles.push(relative(packageRoot, match));
+        if (jsFiles.length >= MAX_STATIC_JS_CHECKS) break;
+      }
+      if (jsFiles.length >= MAX_STATIC_JS_CHECKS) break;
+    }
+    for await (const match of this.kaos.glob(packageRoot, '**/*.html')) {
+      if (match.includes('node_modules')) continue;
+      sawHtml = true;
+      break;
+    }
+    if (!sawHtml && jsFiles.length === 0) return undefined;
+
+    const started = Date.now();
+    const outcome = await runStaticSiteChecks(this.kaos, packageRoot, jsFiles);
+    const detail = [
+      ...outcome.missingFiles.map((file) => `missing: ${file}`),
+      ...outcome.failures.map((failure) => `${failure.file}: ${failure.detail}`),
+    ].join('\n');
+    const check: ProjectCheckResult = {
+      name: 'static',
+      exitCode: outcome.ok ? 0 : 1,
+      durationMs: Date.now() - started,
+      command: `node --check (${String(outcome.jsChecked)} js file(s))`,
+      ...(detail.length > 0 ? { logPreview: detail } : {}),
+    };
+    const payload = buildResultPayload([check]);
+    return { ...payload, summary: `Static site checks (no package.json): ${payload.summary}` };
   }
 
   private capAndMaybeArchive(
