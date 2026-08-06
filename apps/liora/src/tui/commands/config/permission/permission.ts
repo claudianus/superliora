@@ -9,9 +9,13 @@ import { ttui } from '#/tui/utils/tui-i18n';
 import type { SlashCommandHost } from '../../hub/dispatch';
 import { tuiConfigFromHost } from '../appearance/tui-persist';
 
-/** Fire-and-forget persistence of the current permission mode to tui.toml. */
-function persistPermissionMode(host: SlashCommandHost): Promise<void> {
-  return saveTuiConfig(tuiConfigFromHost(host));
+/** Persist the current permission mode and surface a write failure. */
+async function persistPermissionMode(host: SlashCommandHost): Promise<void> {
+  try {
+    await saveTuiConfig(tuiConfigFromHost(host));
+  } catch (error) {
+    host.showError(`Failed to save permission mode: ${formatErrorMessage(error)}`);
+  }
 }
 
 export async function handleYoloCommand(host: SlashCommandHost, args: string): Promise<void> {
@@ -31,7 +35,7 @@ export async function handleYoloCommand(host: SlashCommandHost, args: string): P
     }
     await session.setPermission('yolo');
     host.setAppState({ permissionMode: 'yolo' });
-    void persistPermissionMode(host);
+    await persistPermissionMode(host);
     host.showNotice(ttui('tui.permission.yolo.on.title'), ttui('tui.permission.yolo.on.detail'), { coalesceKey: 'permission-mode-yolo' });
     return;
   }
@@ -43,7 +47,7 @@ export async function handleYoloCommand(host: SlashCommandHost, args: string): P
     }
     await session.setPermission('manual');
     host.setAppState({ permissionMode: 'manual' });
-    void persistPermissionMode(host);
+    await persistPermissionMode(host);
     host.showNotice(ttui('tui.permission.yolo.off.title'), undefined, { coalesceKey: 'permission-mode-yolo' });
     return;
   }
@@ -52,12 +56,12 @@ export async function handleYoloCommand(host: SlashCommandHost, args: string): P
   if (currentMode === 'yolo') {
     await session.setPermission('manual');
     host.setAppState({ permissionMode: 'manual' });
-    void persistPermissionMode(host);
+    await persistPermissionMode(host);
     host.showNotice(ttui('tui.permission.yolo.off.title'), undefined, { coalesceKey: 'permission-mode-yolo' });
   } else {
     await session.setPermission('yolo');
     host.setAppState({ permissionMode: 'yolo' });
-    void persistPermissionMode(host);
+    await persistPermissionMode(host);
     host.showNotice(ttui('tui.permission.yolo.on.title'), ttui('tui.permission.yolo.on.detail'), { coalesceKey: 'permission-mode-yolo' });
   }
 }
@@ -79,7 +83,7 @@ export async function handleAutoCommand(host: SlashCommandHost, args: string): P
     }
     await session.setPermission('auto');
     host.setAppState({ permissionMode: 'auto' });
-    void persistPermissionMode(host);
+    await persistPermissionMode(host);
     host.showNotice(ttui('tui.permission.auto.on.title'), ttui('tui.permission.auto.on.detail'), { coalesceKey: 'permission-mode-auto' });
     return;
   }
@@ -91,7 +95,7 @@ export async function handleAutoCommand(host: SlashCommandHost, args: string): P
     }
     await session.setPermission('manual');
     host.setAppState({ permissionMode: 'manual' });
-    void persistPermissionMode(host);
+    await persistPermissionMode(host);
     host.showNotice(ttui('tui.permission.auto.off.title'), undefined, { coalesceKey: 'permission-mode-auto' });
     return;
   }
@@ -100,12 +104,12 @@ export async function handleAutoCommand(host: SlashCommandHost, args: string): P
   if (currentMode === 'auto') {
     await session.setPermission('manual');
     host.setAppState({ permissionMode: 'manual' });
-    void persistPermissionMode(host);
+    await persistPermissionMode(host);
     host.showNotice(ttui('tui.permission.auto.off.title'), undefined, { coalesceKey: 'permission-mode-auto' });
   } else {
     await session.setPermission('auto');
     host.setAppState({ permissionMode: 'auto' });
-    void persistPermissionMode(host);
+    await persistPermissionMode(host);
     host.showNotice(ttui('tui.permission.auto.on.title'), ttui('tui.permission.auto.on.detail'), { coalesceKey: 'permission-mode-auto' });
   }
 }
@@ -168,5 +172,6 @@ async function applyPermissionChoice(host: SlashCommandHost, mode: PermissionMod
   }
 
   host.setAppState({ permissionMode: mode });
+  await persistPermissionMode(host);
   host.showNotice(ttui('tui.permission.mode.set', { mode }));
 }

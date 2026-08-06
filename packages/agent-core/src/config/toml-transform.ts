@@ -34,6 +34,14 @@ export function transformTomlData(data: Record<string, unknown>): Record<string,
       result[targetKey] = transformPlainObject(value);
     } else if (targetKey === 'computerUse' && isPlainObject(value)) {
       result[targetKey] = transformPlainObject(value);
+    } else if (targetKey === 'media' && isPlainObject(value)) {
+      result[targetKey] = transformPlainObject(value);
+    } else if (targetKey === 'mcp' && isPlainObject(value)) {
+      result[targetKey] = transformPlainObject(value);
+    } else if (targetKey === 'extras' && isPlainObject(value)) {
+      result[targetKey] = transformPlainObject(value);
+    } else if (targetKey === 'agent' && isPlainObject(value)) {
+      result[targetKey] = transformPlainObject(value);
     } else if (targetKey === 'persona' && isPlainObject(value)) {
       result[targetKey] = transformPlainObject(value);
     } else if (targetKey === 'experimental' && isPlainObject(value)) {
@@ -90,6 +98,13 @@ function transformModelData(data: Record<string, unknown>): Record<string, unkno
   const out = transformPlainObject(data);
   if (isPlainObject(out['routing'])) {
     out['routing'] = transformPlainObject(out['routing']);
+  }
+  if (isPlainObject(out['overrides'])) {
+    const overrides = transformPlainObject(out['overrides']);
+    if (isPlainObject(overrides['routing'])) {
+      overrides['routing'] = transformPlainObject(overrides['routing']);
+    }
+    out['overrides'] = overrides;
   }
   return out;
 }

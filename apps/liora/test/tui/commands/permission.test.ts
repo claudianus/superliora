@@ -1,6 +1,11 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import { handlePermissionCommand, showPermissionPicker } from '#/tui/commands/config/permission/permission';
+import { DEFAULT_APPEARANCE_PREFERENCES, loadTuiConfig } from '#/tui/config';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 
 function makeHost(mode: 'manual' | 'auto' | 'yolo' = 'manual') {
@@ -11,7 +16,13 @@ function makeHost(mode: 'manual' | 'auto' | 'yolo' = 'manual') {
     requireSession: vi.fn(() => session),
     state: {
       appState: {
+        theme: 'dark',
         permissionMode: mode,
+        disablePasteBurst: false,
+        editorCommand: null,
+        notifications: { enabled: true, condition: 'unfocused' },
+        upgrade: { autoInstall: true },
+        appearance: DEFAULT_APPEARANCE_PREFERENCES,
       },
       centerModalStack: [] as readonly unknown[],
     },
@@ -47,12 +58,22 @@ describe('/permission command', () => {
     expect(host.requireSession).not.toHaveBeenCalled();
   });
 
-  it('sets a valid mode directly', async () => {
-    const { host, session } = makeHost('manual');
-    await handlePermissionCommand(host, 'yolo');
-    expect(session.setPermission).toHaveBeenCalledWith('yolo');
-    expect(host.setAppState).toHaveBeenCalledWith({ permissionMode: 'yolo' });
-    expect(host.mountEditorReplacement).not.toHaveBeenCalled();
+  it('sets a valid mode directly and persists it', async () => {
+    const previousHome = process.env['SUPERLIORA_HOME'];
+    const home = await mkdtemp(join(tmpdir(), 'liora-permission-'));
+    process.env['SUPERLIORA_HOME'] = home;
+    try {
+      const { host, session } = makeHost('manual');
+      await handlePermissionCommand(host, 'yolo');
+      expect(session.setPermission).toHaveBeenCalledWith('yolo');
+      expect(host.setAppState).toHaveBeenCalledWith({ permissionMode: 'yolo' });
+      expect((await loadTuiConfig()).permissionMode).toBe('yolo');
+      expect(host.mountEditorReplacement).not.toHaveBeenCalled();
+    } finally {
+      await rm(home, { recursive: true, force: true });
+      if (previousHome === undefined) delete process.env['SUPERLIORA_HOME'];
+      else process.env['SUPERLIORA_HOME'] = previousHome;
+    }
   });
 
   it('rejects unknown modes without mutating state', async () => {

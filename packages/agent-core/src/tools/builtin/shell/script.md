@@ -29,7 +29,7 @@ Programmatic subagent fan-out (main agent only):
 ```js
 const items = ['src/auth', 'src/api', 'src/db'];
 const reviews = await Promise.all(items.map(dir =>
-  agent(`Review ${dir} for error-handling gaps. Return 3 bullets max.`)
+  agent('Review ' + dir + ' for error-handling gaps. Return 3 bullets max.')
 ));
 return reviews.join('\n---\n');
 ```

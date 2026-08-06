@@ -43,6 +43,13 @@ import {
 } from '#/tui/utils/agent/context-working-set';
 import { UsagePanelComponent } from '#/tui/components/messages/usage-panel/index';
 
+vi.mock('#/tui/utils/harness-eyes-readiness', () => ({
+  loadHarnessEyesReadiness: vi.fn(async () => ({
+    generatedAt: '2026-01-01T00:00:00.000Z',
+    lines: [],
+  })),
+}));
+
 function makeHost(
   options: {
     planMode?: boolean;
@@ -99,6 +106,10 @@ function makeThemeHost() {
     }),
     refreshTerminalThemeTracking: vi.fn(),
     setAppState: vi.fn((patch: Record<string, unknown>) => Object.assign(appState, patch)),
+    harness: {
+      setConfig: vi.fn(async () => ({})),
+      getConfig: vi.fn(async () => ({ defaultModel: 'k2', defaultThinking: false })),
+    },
     showError: vi.fn(),
     showNotice: vi.fn(),
     showStatus: vi.fn(),
@@ -142,6 +153,10 @@ function makeThinkingHost(
       appState,
     },
     setAppState: vi.fn((patch: Record<string, unknown>) => Object.assign(appState, patch)),
+    harness: {
+      setConfig: vi.fn(async () => ({})),
+      getConfig: vi.fn(async () => ({ defaultModel: 'k2', defaultThinking: false })),
+    },
     skillCommandMap: new Map<string, string>(),
     pluginCommandMap: new Map<string, string>(),
     showError: vi.fn(),
@@ -382,6 +397,10 @@ describe('handleThinkingCommand', () => {
     expect(host.track).toHaveBeenCalledWith('thinking_toggle', {
       enabled: true,
       level: 'max',
+    });
+    expect(host.harness.setConfig).toHaveBeenCalledWith({
+      defaultThinking: true,
+      thinking: { mode: 'on', effort: 'max' },
     });
     // supportEfforts include max; Kimi wire maps max→high so status notes the wire.
     expect(host.showStatus).toHaveBeenCalledWith(

@@ -132,6 +132,7 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
     ui?: RendererRootUI,
     private readonly workspaceDir?: string,
     toolOutputViewports?: Map<string, ToolOutputViewportState>,
+    persistSessionUiState?: () => void,
   ) {
     super();
     this.toolCall = toolCall;
@@ -146,6 +147,7 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
     this.outputViewport = new ToolCallOutputViewportMount({
       toolCallId: toolCall.id,
       toolOutputViewports,
+      persistSessionUiState,
       isExpanded: () => this.expanded,
       addChild: (child) =>{  this.addChild(child); },
     });

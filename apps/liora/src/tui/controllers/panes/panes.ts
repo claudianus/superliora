@@ -36,6 +36,7 @@ import {
 } from '../../features/transcript/transcript-density';
 import { TRANSCRIPT_EXPAND_TURNS } from '../../features/transcript/transcript-window';
 import { ttui } from '../../utils/tui-i18n';
+import { persistTuiSessionState } from '../../utils/tui-session-state';
 
 /** How long the one-shot "moved to background" footer hint stays visible. */
 const DETACH_HINT_DISPLAY_MS = 4_000;
@@ -281,6 +282,7 @@ export class PanesController {
     const { host } = this;
     const next = nextTranscriptDetailLevel(host.state.transcriptDetail);
     this.applyTranscriptDetail(next, { toast: true });
+    persistTuiSessionState(host);
   }
 
   /** Apply the full-density expansion state to the most recent transcript turns. */

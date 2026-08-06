@@ -2,6 +2,11 @@ import type { Session } from '@superliora/sdk';
 
 import { showMissionAutoStartSessionTipIfNeeded } from '../../utils/mission/mission-autostart-session-tip';
 import { restorePromptInputState } from '../../utils/prompt-input-state';
+import {
+  pruneTuiSessionToolOutputViewports,
+  restoreTuiSessionState,
+  writeTuiSessionState,
+} from '../../utils/tui-session-state';
 import { formatSessionResumeWarningNotice } from '../../utils/session/session-resume-warning-notice';
 import { formatSessionWarningNotice } from '../../utils/session/session-warning-notice';
 import { formatTmuxKeyboardNotice } from '../../utils/session/tmux-keyboard-notice';
@@ -23,6 +28,9 @@ export async function finishStartupSession(
     void host.sessionBrowser.bootstrapFromPicker();
     return;
   }
+  if (host.session !== undefined) {
+    await restoreTuiSessionState(host);
+  }
   if (shouldReplayHistory) {
     const session = host.requireSession();
     const ownsColdStartOverlay = !host.isSessionLoadingOverlayActive();
@@ -40,6 +48,7 @@ export async function finishStartupSession(
       await host.sessionReplay.hydrateFromReplay(session);
       host.sessionBrowser.applyStartupPermissionAndPlanToAppState();
     } finally {
+      pruneTuiSessionToolOutputViewports(host);
       if (ownsColdStartOverlay) {
         host.endSessionLoading();
       }
@@ -59,6 +68,7 @@ export async function finishStartupSession(
     void showSessionWarnings(host, host.session);
     // Restore prompt queue / Ctrl-X stash / editor draft after history hydrate.
     await restorePromptInputState(host).catch(() => undefined);
+    await writeTuiSessionState(host).catch(() => undefined);
   }
   void host.sessionBrowser.fetchSessions();
   if (host.session !== undefined) {

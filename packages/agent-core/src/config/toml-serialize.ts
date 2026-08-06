@@ -3,13 +3,18 @@ import {
   type BrowserUseConfig,
   type CacheConfig,
   type ComputerUseConfig,
+  type AgentConfig,
+  type ExtrasConfig,
   type ExperimentalConfig,
   type HookDefConfig,
   type LioraConfig,
   type LoopControl,
   type MemoryConfig,
+  type MediaConfig,
+  type McpConfig,
   type ModelCatalogConfig,
   type ModelAlias,
+  type ModelAliasOverrides,
   type MoonshotServiceConfig,
   type OAuthRef,
   type PermissionConfig,
@@ -58,6 +63,7 @@ export function configToTomlData(config: LioraConfig): Record<string, unknown> {
   setSection(out, 'services', config.services, servicesToToml);
   setSection(out, 'loop_control', config.loopControl, loopControlToToml);
   setSection(out, 'background', config.background, backgroundToToml);
+  setSection(out, 'media', config.media, mediaToToml);
   setSection(out, 'memory', config.memory, memoryToToml);
   setSection(out, 'cache', config.cache, cacheToToml);
   setSection(out, 'research', config.research, researchToToml);
@@ -65,7 +71,10 @@ export function configToTomlData(config: LioraConfig): Record<string, unknown> {
   setSection(out, 'model_catalog', config.modelCatalog, modelCatalogToToml);
   setSection(out, 'browser_use', config.browserUse, browserUseToToml);
   setSection(out, 'computer_use', config.computerUse, computerUseToToml);
+  setSection(out, 'mcp', config.mcp, mcpToToml);
+  setSection(out, 'extras', config.extras, extrasToToml);
   setSection(out, 'persona', config.persona, personaToToml);
+  setSection(out, 'agent', config.agent, agentToToml);
   setSection(out, 'experimental', config.experimental, experimentalToToml);
   setSection(out, 'permission', config.permission, permissionToToml);
   setHooks(out, config.hooks);
@@ -142,7 +151,15 @@ function modelToToml(model: ModelAlias, rawModel: unknown): Record<string, unkno
     if (key === 'capabilities' && Array.isArray(value)) {
       out[camelToSnake(key)] = [...value];
     } else if (key === 'routing' && value !== undefined) {
-      out[camelToSnake(key)] = plainObjectToToml(value as Record<string, unknown>);
+      out[camelToSnake(key)] = plainObjectToToml(
+        value as Record<string, unknown>,
+        out[camelToSnake(key)],
+      );
+    } else if (key === 'overrides' && isPlainObject(value)) {
+      out[camelToSnake(key)] = modelOverridesToToml(
+        value as ModelAliasOverrides,
+        out[camelToSnake(key)],
+      );
     } else {
       setDefined(out, camelToSnake(key), value);
     }
@@ -150,8 +167,32 @@ function modelToToml(model: ModelAlias, rawModel: unknown): Record<string, unkno
   return out;
 }
 
-function plainObjectToToml(value: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
+function modelOverridesToToml(
+  overrides: ModelAliasOverrides,
+  rawOverrides: unknown,
+): Record<string, unknown> {
+  const out = cloneRecord(rawOverrides);
+  for (const [key, value] of Object.entries(overrides)) {
+    if (key === 'cost' && isPlainObject(value)) {
+      const cost = cloneRecord(out[camelToSnake(key)]);
+      for (const [costKey, costValue] of Object.entries(value)) {
+        setDefined(cost, costKey, costValue);
+      }
+      out[camelToSnake(key)] = cost;
+    } else if (key === 'routing' && isPlainObject(value)) {
+      out[camelToSnake(key)] = plainObjectToToml(value, out[camelToSnake(key)]);
+    } else {
+      setDefined(out, camelToSnake(key), value);
+    }
+  }
+  return out;
+}
+
+function plainObjectToToml(
+  value: Record<string, unknown>,
+  rawValue?: unknown,
+): Record<string, unknown> {
+  const out = cloneRecord(rawValue);
   for (const [key, entryValue] of Object.entries(value)) {
     setDefined(out, camelToSnake(key), entryValue);
   }
@@ -253,6 +294,30 @@ function backgroundToToml(
 ): Record<string, unknown> {
   const out = cloneRecord(rawBackground);
   for (const [key, value] of Object.entries(background)) {
+    setDefined(out, camelToSnake(key), value);
+  }
+  return out;
+}
+
+function mediaToToml(media: MediaConfig, rawMedia: unknown): Record<string, unknown> {
+  const out = cloneRecord(rawMedia);
+  for (const [key, value] of Object.entries(media)) {
+    setDefined(out, camelToSnake(key), value);
+  }
+  return out;
+}
+
+function mcpToToml(mcp: McpConfig, rawMcp: unknown): Record<string, unknown> {
+  const out = cloneRecord(rawMcp);
+  for (const [key, value] of Object.entries(mcp)) {
+    setDefined(out, camelToSnake(key), value);
+  }
+  return out;
+}
+
+function extrasToToml(extras: ExtrasConfig, rawExtras: unknown): Record<string, unknown> {
+  const out = cloneRecord(rawExtras);
+  for (const [key, value] of Object.entries(extras)) {
     setDefined(out, camelToSnake(key), value);
   }
   return out;
@@ -374,6 +439,14 @@ function personaToToml(
 ): Record<string, unknown> {
   const out = cloneRecord(rawPersona);
   for (const [key, value] of Object.entries(persona)) {
+    setDefined(out, camelToSnake(key), value);
+  }
+  return out;
+}
+
+function agentToToml(agent: AgentConfig, rawAgent: unknown): Record<string, unknown> {
+  const out = cloneRecord(rawAgent);
+  for (const [key, value] of Object.entries(agent)) {
     setDefined(out, camelToSnake(key), value);
   }
   return out;

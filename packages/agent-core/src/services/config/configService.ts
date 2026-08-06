@@ -67,15 +67,30 @@ function toConfigResponse(config: LioraConfig): ConfigResponse {
     extra_skill_dirs: config.extraSkillDirs,
     loop_control: config.loopControl,
     background: config.background,
+    media: config.media,
+    memory: config.memory,
+    cache: config.cache,
+    research: config.research,
+    mission: config.mission,
+    model_catalog: config.modelCatalog,
+    browser_use: config.browserUse,
+    computer_use: config.computerUse,
+    mcp: config.mcp,
+    extras: config.extras,
+    persona: config.persona,
+    agent: config.agent,
     experimental: config.experimental,
     telemetry: config.telemetry,
-    raw: config.raw,
+    raw: config.raw === undefined ? undefined : redactConfigRaw(config.raw),
   };
 }
 
 function hasProviderCredential(provider: ProviderConfig): boolean {
   if (nonEmpty(provider.apiKey) !== undefined) return true;
+  if (provider.apiKeys?.length !== undefined && provider.apiKeys.length > 0) return true;
+  if (provider.credentials?.length !== undefined && provider.credentials.length > 0) return true;
   if (provider.oauth !== undefined) return true;
+  if (provider.oauths?.length !== undefined && provider.oauths.length > 0) return true;
   return false;
 }
 
@@ -83,6 +98,25 @@ function nonEmpty(value: string | undefined): string | undefined {
   if (value === undefined) return undefined;
   const trimmed = value.trim();
   return trimmed.length === 0 ? undefined : trimmed;
+}
+
+function redactConfigRaw(raw: Record<string, unknown>): Record<string, unknown> {
+  return redactConfigValue(raw) as Record<string, unknown>;
+}
+
+function redactConfigValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redactConfigValue);
+  if (value === null || typeof value !== 'object') return value;
+
+  const out: Record<string, unknown> = {};
+  for (const [key, entryValue] of Object.entries(value)) {
+    out[key] = isCredentialKey(key) ? '[redacted]' : redactConfigValue(entryValue);
+  }
+  return out;
+}
+
+function isCredentialKey(key: string): boolean {
+  return /api[_-]?key|oauth|credential|access[_-]?token|refresh[_-]?token|secret|password/i.test(key);
 }
 
 function convertKeysSnakeToCamel(obj: unknown): unknown {

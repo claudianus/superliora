@@ -11,7 +11,6 @@ import { MAX_TERMINAL_TITLE_LENGTH } from '../../constant/terminal';
 import type { ColorToken } from '../../theme';
 import type { AppState, LioraTUIOptions } from '../../types';
 import type { TUIState } from '../../tui-state';
-import { formatSessionResumeWarningNotice } from '../../utils/session/session-resume-warning-notice';
 import type { CenterModalMountOptions } from '../../utils/ui/center-modal';
 import {
   resolveExtensionsTab,
@@ -19,6 +18,7 @@ import {
   type ExtensionsTabId,
 } from '../../utils/agent/extensions-rows';
 import { formatErrorMessage } from '../../utils/event-payload';
+import { persistTuiSessionState } from '../../utils/tui-session-state';
 import { runClaudeImportInventoryForHost } from './session-browser-claude-import';
 import {
   handleSessionPickerSelectFlow,
@@ -45,10 +45,8 @@ export interface SessionBrowserHost {
 
   requireSession(): Session;
   setAppState(patch: Partial<AppState>): void;
-  resetSessionRuntime(): void;
   updateTerminalTitle(): void;
   refreshDynamicSlashCommands(session?: Session): Promise<void>;
-  syncRuntimeState(session?: Session): Promise<void>;
   showError(message: string): void;
   showStatus(message: string, color?: ColorToken): void;
   showNotice?(
@@ -85,7 +83,6 @@ export interface SessionBrowserHost {
   switchToSession(session: Session, statusMessage: string): Promise<void>;
   clearReverseRpcPanels(): void;
   cancelPendingReverseRpc(reason: string): void;
-  registerSessionHandlers(session: Session): void;
   stop(exitCode?: number): Promise<void>;
   runPluginsCommand(): Promise<void>;
 }
@@ -142,6 +139,7 @@ export class SessionBrowserController implements SessionPickerControllerState {
   async fetchSessions(scope: 'cwd' | 'all' = this.host.state.sessionsScope): Promise<void> {
     this.host.state.loadingSessions = true;
     this.host.state.sessionsScope = scope;
+    persistTuiSessionState(this.host);
     try {
       const sessions =
         scope === 'all'
@@ -169,30 +167,7 @@ export class SessionBrowserController implements SessionPickerControllerState {
     session.setApprovalHandler(undefined);
     session.setQuestionHandler(undefined);
     this.host.cancelPendingReverseRpc('reloading session');
-
-    this.host.resetSessionRuntime();
-    this.host.session = session;
-    this.host.harness.setTelemetryContext({ sessionId: session.id });
-    this.host.registerSessionHandlers(session);
-    await this.host.syncRuntimeState(session);
-    this.updateTerminalTitle();
-    try {
-      await this.host.refreshDynamicSlashCommands(session);
-    } catch {
-      /* keep the reloaded session usable even if dynamic skills fail */
-    }
-    this.host.sessionEventHandler.startSubscription();
-    const resumeState = session.getResumeState();
-    if (resumeState?.warning !== undefined) {
-      // Loop49a: named notice when switching/resuming from the session browser.
-      const notice = formatSessionResumeWarningNotice(resumeState.warning);
-      this.host.showNotice?.(notice.title, notice.detail, {
-        coalesceKey: notice.coalesceKey,
-      });
-      this.host.showStatus(notice.status, 'warning');
-    }
-    this.host.showStatus(statusMessage);
-    void this.host.showSessionWarnings(session);
+    await this.host.switchToSession(session, statusMessage);
   }
 
   updateTerminalTitle(): void {

@@ -138,7 +138,11 @@ export class AuthFlowController {
       return;
     }
 
-    await this.activateModelAfterLogin(defaultModel, config.defaultThinking);
+    await this.activateModelAfterLogin(
+      defaultModel,
+      config.defaultThinking,
+      config.thinking?.effort,
+    );
     const appStatePatch: Partial<AppState> = {
       availableModels,
       availableProviders,
@@ -152,7 +156,11 @@ export class AuthFlowController {
     };
     if (config.defaultThinking !== undefined) {
       appStatePatch.thinking = config.defaultThinking;
-      appStatePatch.thinkingLevel = config.defaultThinking ? 'on' : 'off';
+      appStatePatch.thinkingLevel = resolveThinkingLevelForApply(
+        config.defaultThinking,
+        config.thinking?.effort,
+        selected,
+      );
     }
     host.setAppState(appStatePatch);
   }

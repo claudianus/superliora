@@ -147,6 +147,7 @@ function handleStageResizeMouseEvent(
     // to endPress() and copy to the clipboard.
     const hadActiveDrag = activeDrag !== undefined;
     const changed = resetStageResizePointerShape(state.terminal);
+    if (hadActiveDrag) state.persistSessionUiState?.();
     if (changed) requestTUILayoutRender(state);
     return hadActiveDrag;
   }

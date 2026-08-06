@@ -15,6 +15,7 @@ export class ToolCallOutputViewportMount {
     private readonly host: {
       readonly toolCallId: string;
       readonly toolOutputViewports: Map<string, ToolOutputViewportState> | undefined;
+      readonly persistSessionUiState?: () => void;
       isExpanded: () => boolean;
       addChild: (child: Component) => void;
     },
@@ -104,8 +105,10 @@ export class ToolCallOutputViewportMount {
   }
 
   private setState(state: ToolOutputViewportState): void {
+    const previous = this.host.toolOutputViewports?.get(this.host.toolCallId);
     this.viewportState = state;
     this.host.toolOutputViewports?.set(this.host.toolCallId, state);
+    if (previous?.height !== state.height) this.host.persistSessionUiState?.();
   }
 }
 

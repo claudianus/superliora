@@ -146,6 +146,11 @@ function makeSession(overrides: Record<string, unknown> = {}) {
       sessionMetadata: {},
       agents: {
         main: {
+          config: {
+            modelAlias: 'k2',
+            provider: undefined,
+            modelCapabilities: { max_context_tokens: 100 },
+          },
           status: {
             model: 'k2',
             thinkingLevel: 'off',
@@ -155,7 +160,7 @@ function makeSession(overrides: Record<string, unknown> = {}) {
             maxContextTokens: 100,
             contextUsage: 0,
           },
-          context: { history: [] },
+          context: { history: [], tokenCount: 0 },
           replay: [],
         },
       },
@@ -497,7 +502,7 @@ command = "vim"
     });
     expect(harness.track).toHaveBeenCalledWith('input_command', { command: 'reload' });
     const transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).toContain('hello before reload');
+    expect(transcript).not.toContain('hello before reload');
     expect(transcript).toContain('Session reloaded.');
   });
 
@@ -4273,6 +4278,7 @@ command = "vim"
       expect(setConfig).toHaveBeenCalledWith({
         defaultModel: 'turbo',
         defaultThinking: true,
+        thinking: { mode: 'on', effort: 'high' },
       });
     });
     expect(driver.state.appState.model).toBe('turbo');
@@ -4370,6 +4376,7 @@ command = "vim"
       expect(setConfig).toHaveBeenCalledWith({
         defaultModel: 'turbo',
         defaultThinking: true,
+        thinking: { mode: 'on', effort: 'low' },
       });
     });
     expect(driver.state.appState.model).toBe('turbo');
@@ -4408,6 +4415,7 @@ command = "vim"
       expect(setConfig).toHaveBeenCalledWith({
         defaultModel: 'k2',
         defaultThinking: false,
+        thinking: { mode: 'off' },
       });
     });
     expect(session.setModel).not.toHaveBeenCalled();

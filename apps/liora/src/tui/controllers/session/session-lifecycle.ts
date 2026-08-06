@@ -24,6 +24,11 @@ import {
   restorePromptInputState,
   type PromptInputRuntimeHost,
 } from '../../utils/prompt-input-state';
+import {
+  pruneTuiSessionToolOutputViewports,
+  restoreTuiSessionState,
+  writeTuiSessionState,
+} from '../../utils/tui-session-state';
 import type { PromptStash } from '../../utils/prompt-stash';
 import { formatConfigDiagnosticsNotice } from '../../utils/session/config-diagnostics-notice';
 import { formatSessionResumeWarningNotice } from '../../utils/session/session-resume-warning-notice';
@@ -229,6 +234,7 @@ export class SessionLifecycleController {
   }
 
   async closeSession(reason: string): Promise<void> {
+    await writeTuiSessionState(this.host).catch(() => undefined);
     const previous = this.unloadCurrentSession(reason);
     await previous?.close();
   }
@@ -237,6 +243,7 @@ export class SessionLifecycleController {
     const { host } = this;
     // Persist the outgoing session's queue/draft before wiping runtime memory.
     flushPromptInputState(host);
+    await writeTuiSessionState(host).catch(() => undefined);
     this.resetSessionRuntime();
     await this.setSession(session);
     await this.syncRuntimeState(session);
@@ -246,6 +253,8 @@ export class SessionLifecycleController {
     } catch {
       /* keep the switched session usable even if dynamic skills fail */
     }
+    host.state.toolOutputViewports.clear();
+    await restoreTuiSessionState(host);
     host.clearTranscriptAndRedraw();
     try {
       await host.sessionReplay.hydrateFromReplay(session);
@@ -253,9 +262,11 @@ export class SessionLifecycleController {
       const msg = formatErrorMessage(error);
       host.showError(`Failed to replay session history: ${msg}`);
     } finally {
+      pruneTuiSessionToolOutputViewports(host);
       host.sessionEventHandler.startSubscription();
     }
     await restorePromptInputState(host).catch(() => undefined);
+    await writeTuiSessionState(host).catch(() => undefined);
     const resumeState = session.getResumeState();
     if (resumeState?.warning !== undefined) {
       // Loop49a: named notice on cold resume after history hydrate.
@@ -294,6 +305,7 @@ export class SessionLifecycleController {
 
         // Save the previous session's draft/queue before starting clean.
         flushPromptInputState(host);
+        await writeTuiSessionState(host).catch(() => undefined);
         this.resetSessionRuntime();
         host.setAppState({
           ultraworkMode: false,

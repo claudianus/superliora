@@ -45,7 +45,7 @@ notification_condition = "always"
 [upgrade]
 auto_install = false
 `);
-    const session = { reloadSession: vi.fn() };
+    const session = { reloadSession: vi.fn(), setPermission: vi.fn(async () => {}) };
     const host = makeHost({ session });
 
     await handleReloadTuiCommand(host);
@@ -53,6 +53,7 @@ auto_install = false
     expect(host.harness.getConfig).not.toHaveBeenCalled();
     expect(host.harness.getExperimentalFeatures).not.toHaveBeenCalled();
     expect(session.reloadSession).not.toHaveBeenCalled();
+    expect(session.setPermission).toHaveBeenCalledWith('yolo');
     expect(host.state.appState).toMatchObject({
       theme: 'light',
       editorCommand: 'vim',
@@ -67,7 +68,11 @@ auto_install = false
 
   it('reloads the active session, refreshes runtime config, and applies tui.toml', async () => {
     await writeTuiConfig('theme = "light"\n');
-    const session = { id: 'ses-1', reloadSession: vi.fn(async () => ({})) };
+    const session = {
+      id: 'ses-1',
+      reloadSession: vi.fn(async () => ({})),
+      setPermission: vi.fn(async () => {}),
+    };
     const host = makeHost({ session });
 
     await handleReloadCommand(host);
@@ -75,6 +80,7 @@ auto_install = false
     expect(session.reloadSession).toHaveBeenCalledWith({
       forcePluginSessionStartReminder: true,
     });
+    expect(session.setPermission).toHaveBeenCalledWith('yolo');
     expect(host.reloadCurrentSessionView).toHaveBeenCalledWith(
       session,
       'Session reloaded.',
@@ -167,6 +173,9 @@ function makeHost({
     refreshTerminalThemeTracking: vi.fn(),
     refreshSlashCommandAutocomplete: vi.fn(),
     reloadCurrentSessionView: vi.fn(async () => {}),
+    setTranscriptDetail: vi.fn(),
+    setNeatMode: vi.fn(),
+    showError: vi.fn(),
     showStatus: vi.fn(),
   } as unknown as SlashCommandHost & {
     readonly harness: {

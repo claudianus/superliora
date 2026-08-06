@@ -7,6 +7,7 @@ import type { ApprovalPanelData, QuestionPanelData } from '../../reverse-rpc/typ
 import { createTUIState } from '../../tui-state';
 import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
+import { persistTuiSessionState } from '../../utils/tui-session-state';
 import { createInitialAppState } from '../../utils/initial-app-state';
 import type { LioraTUIStartupInput } from '../../types';
 import type { LioraTUI } from '../../liora-tui';
@@ -156,6 +157,7 @@ export function wireLioraTUIControllers(
   tui.reverseRpcPanels = new ReverseRpcPanelsController(tui);
   tui.sessionReplay = new SessionReplayRenderer(tui as unknown as SessionReplayHost);
   tui.sessionLifecycle = new SessionLifecycleController(tui);
+  tui.state.persistSessionUiState = () => persistTuiSessionState(tui);
   tui.messageDispatch = new MessageDispatchController(tui);
   tui.autocomplete = new AutocompleteController(tui);
   tui.shellInput = new ShellInputController(tui);
