@@ -187,6 +187,12 @@ export function isRetryableGenerateError(error: unknown): boolean {
   if (isTransientNoBodyStatusError(error)) {
     return true;
   }
+  // Provider-declared "temporary / try again" signals on other 4xx (e.g. a
+  // 400 resource_exhausted) are transient too — permanent lookalikes were
+  // vetoed above.
+  if (isTransientTryAgainError(error)) {
+    return true;
+  }
   return error instanceof APIStatusError && [429, 500, 502, 503, 504].includes(error.statusCode);
 }
 
@@ -284,6 +290,35 @@ export function isProviderCapacityError(error: unknown): boolean {
   if (isPermanentQuotaOrBillingError(error)) return false;
   const lowerMessage = errorMessage(error).toLowerCase();
   return PROVIDER_CAPACITY_MESSAGE_PATTERNS.some((pattern) => pattern.test(lowerMessage));
+}
+
+/**
+ * Provider-declared transient signals: the provider/gateway explicitly says
+ * the failure is temporary and asks for a retry, but on a non-5xx status —
+ * e.g. a 400 with `resource_exhausted ... "temporary - try again in a
+ * moment"`. Permanent auth/quota are vetoed inside so lookalikes ("account
+ * temporarily suspended", "insufficient quota, try again") stay non-retryable.
+ */
+const PROVIDER_TRY_AGAIN_MESSAGE_PATTERNS = [
+  /resource[_\s-]?exhausted/,
+  /\btemporary\b/,
+  /temporarily (?:unavailable|overloaded|busy)/,
+  /try again/,
+  /please retry/,
+] as const;
+
+export function isTransientTryAgainError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  if (isPermanentAuthError(error)) return false;
+  if (isPermanentQuotaOrBillingError(error)) return false;
+  // Context overflow is deterministic — retrying the same request never fits
+  // the window, and provider copy often ends with "…and try again".
+  if (error instanceof APIContextOverflowError) return false;
+  const lowerMessage = error.message.toLowerCase();
+  if (CONTEXT_OVERFLOW_MESSAGE_PATTERNS.some((pattern) => pattern.test(lowerMessage))) {
+    return false;
+  }
+  return PROVIDER_TRY_AGAIN_MESSAGE_PATTERNS.some((pattern) => pattern.test(lowerMessage));
 }
 
 export function isContextOverflowErrorCode(code: string | null | undefined): boolean {
@@ -403,7 +438,12 @@ export function isTransientProviderError(error: unknown): boolean {
   if (error instanceof APIConnectionError) return true;
 
   const statusCode = getStatusCode(error);
-  if (statusCode !== undefined) return statusCode >= 500 && statusCode <= 599;
+  if (statusCode !== undefined) {
+    if (statusCode >= 500 && statusCode <= 599) return true;
+    // A 4xx the provider explicitly marks as temporary (resource_exhausted /
+    // "try again") is transient despite the status class.
+    return statusCode >= 400 && statusCode < 500 && isTransientTryAgainError(error);
+  }
 
   const errorCode = getErrorCode(error);
   if (errorCode !== undefined) return TRANSIENT_NETWORK_ERROR_CODES.has(errorCode);
@@ -411,6 +451,7 @@ export function isTransientProviderError(error: unknown): boolean {
   const lowerMessage = errorMessage(error).toLowerCase();
   if (/\b5\d{2}\b/.test(lowerMessage)) return true;
   if (TIMEOUT_RE.test(lowerMessage)) return false;
+  if (isTransientTryAgainError(error)) return true;
   return TRANSIENT_PROVIDER_MESSAGE_PATTERNS.some((pattern) => pattern.test(lowerMessage));
 }
 

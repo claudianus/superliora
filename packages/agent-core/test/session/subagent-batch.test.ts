@@ -1065,6 +1065,35 @@ describe('SubagentBatch transient provider retry', () => {
       vi.useRealTimers();
     }
   });
+
+  it('retries a provider-declared temporary 400 (resource_exhausted try-again)', async () => {
+    vi.useFakeTimers();
+    try {
+      const { runBatch, attempts } = createMockBatchRunner();
+      const running = runBatch([queuedTask(1)]);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(attempts).toHaveLength(1);
+
+      attempts[0]!.outcome.reject(
+        new Error('[provider.api_error] 400 resource_exhausted — temporary - try again'),
+      );
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(attempts).toHaveLength(2);
+
+      attempts[1]!.outcome.resolve({
+        task: attempts[1]!.task,
+        agentId: 'agent-1-retry',
+        status: 'completed',
+        result: 'recovered',
+      });
+      const results = await running;
+      expect(results).toHaveLength(1);
+      expect(results[0]!.status).toBe('completed');
+      expect(results[0]!.result).toBe('recovered');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe('SubagentBatch permanent provider failure fail-fast', () => {
