@@ -12,7 +12,13 @@ import {
   DESK_DIGEST_TRIGGER_COUNT,
   runDeskDigestCycle,
 } from '#/tools/builtin/job/job-desk';
-import { listJobs, renderJobProgressSuffix } from '#/tools/builtin/job/job-ledger';
+import {
+  listJobs,
+  readJobLedger,
+  renderJobLine,
+  renderJobProgressSuffix,
+  type JobRecord,
+} from '#/tools/builtin/job/job-ledger';
 import {
   formatJobStripLine,
   summarizeJobStrip,
@@ -23,12 +29,39 @@ import type { ToolStore } from '#/tools/store';
 import { DynamicInjector } from './injector';
 
 const JOB_DESK_VARIANT = 'conductor_job_desk';
+export const JOB_DESK_POST_COMPACTION_VARIANT = 'conductor_job_post_compaction';
 export const JOB_DESK_MAX_EVENTS = 5;
 export const JOB_DESK_MAX_CHARS = 1_500;
 export const JOB_DESK_MAX_LIVE = 4;
+const JOB_DESK_POST_COMPACTION_MAX_JOBS = 6;
+
+const POST_COMPACTION_STATUSES: ReadonlySet<JobRecord['status']> = new Set([
+  'needs_user',
+  'blocked',
+  'running',
+  'interrupted',
+  'queued',
+  'failed',
+]);
 
 export class JobDeskInjector extends DynamicInjector {
   protected override readonly injectionVariant = JOB_DESK_VARIANT;
+
+  /**
+   * Rebuild a read-only fleet snapshot at the compaction boundary. Normal desk
+   * injection owns inbox delivery; this path only runs when no unread event
+   * needs delivery, so it cannot consume or duplicate an inbox notice.
+   */
+  injectPostCompaction(): void {
+    if (this.agent.type !== 'main') return;
+    const text = renderConductorJobPostCompactionSnapshot(this.agent.tools.getStore());
+    if (text === undefined) return;
+    this.injectedAt = this.agent.context.history.length;
+    this.agent.context.appendSystemReminder(text, {
+      kind: 'injection',
+      variant: JOB_DESK_POST_COMPACTION_VARIANT,
+    });
+  }
 
   protected override getInjection(): string | undefined {
     if (this.agent.type !== 'main') return undefined;
@@ -70,6 +103,42 @@ export class JobDeskInjector extends DynamicInjector {
     );
     return text;
   }
+}
+
+export function renderConductorJobPostCompactionSnapshot(
+  store: ToolStore,
+): string | undefined {
+  const unread = listUnreadJobInbox(store);
+  if (unread.length > 0) return undefined;
+
+  const strip = summarizeJobStrip(store);
+  const jobs = readJobLedger(store).jobs
+    .filter((job) => POST_COMPACTION_STATUSES.has(job.status))
+    .toSorted(
+      (a, b) =>
+        b.priority - a.priority ||
+        a.createdAt.localeCompare(b.createdAt) ||
+        a.id.localeCompare(b.id),
+    );
+  if (jobs.length === 0) return undefined;
+
+  const lines = [
+    '<conductor_job_post_compaction>',
+    'Read-only ledger snapshot after context compaction. The ledger is authoritative; inspect before claiming completion.',
+    formatJobStripLine(strip),
+    'Jobs:',
+    ...jobs.slice(0, JOB_DESK_POST_COMPACTION_MAX_JOBS).map(renderJobLine),
+  ];
+  const nextMove = nextMoveGuidance([], strip);
+  if (nextMove !== undefined) lines.push(`Next move: ${nextMove}`);
+  lines.push('</conductor_job_post_compaction>');
+
+  let text = lines.join('\n');
+  if (text.length > JOB_DESK_MAX_CHARS) {
+    const suffix = '\n… [truncated]\n</conductor_job_post_compaction>';
+    text = `${text.slice(0, JOB_DESK_MAX_CHARS - suffix.length)}${suffix}`;
+  }
+  return text;
 }
 
 /**

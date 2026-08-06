@@ -39,16 +39,15 @@ export interface CompactionConfig {
    */
   asyncWorkingSetTokens: number;
   /**
-   * Lower ratio at which background (async) compaction may start while the
-   * turn keeps running. The regular `triggerRatio` stays the synchronous
-   * threshold. Only consulted when async compaction is enabled.
+   * Lower ratio at which background (async) pre-rotation may start. The
+   * regular `triggerRatio` stays the synchronous threshold. Only consulted
+   * when async compaction is enabled.
    */
   asyncTriggerRatio: number;
   /**
-   * Number of leading messages (system + initial user) forming the frozen
-   * zone. Enforcement lives in `applyContextCompaction`, which keeps the
-   * first real user message (the original task) verbatim across compaction.
-   * Defaults to 2.
+   * Number of leading history slots (including the provider system prefix)
+   * forming the frozen zone. Enforcement lives in `applyContextCompaction`;
+   * the default of 2 preserves the first real user message verbatim.
    */
   frozenZoneSize: number;
 }

@@ -112,6 +112,7 @@ export function handleContextLoopEvent(host: ContextMemoryHost, event: LoopRecor
         return;
       }
       openStep.content.push(event.part);
+      host.markContextChanged();
       return;
     }
     case 'tool.call': {
@@ -129,6 +130,7 @@ export function handleContextLoopEvent(host: ContextMemoryHost, event: LoopRecor
       });
       host.pendingToolResultIds.add(event.toolCallId);
       host.toolCallNames.set(event.toolCallId, event.name);
+      host.markContextChanged();
       return;
     }
     case 'tool.intend': {
@@ -167,6 +169,7 @@ export function handleContextLoopEvent(host: ContextMemoryHost, event: LoopRecor
       if (isSwarmToolName(toolName)) {
         const masked = maskStaleSwarmToolResults([host.history, host.deferredMessages]);
         if (masked > 0) {
+          host.markContextChanged();
           host.agent.log.debug('masked stale swarm tool results at append', { masked });
         }
       }

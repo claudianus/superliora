@@ -54,6 +54,7 @@ export { COMPACTION_PROJECTION_OPTIONS } from './context-memory-projection';
 export class ContextMemory {
   private _history: ContextMessage[] = [];
   private _tokenCount = 0;
+  private _historyRevision = 0;
   tokenCountCoveredMessageCount = 0;
   openSteps: Map<string, ContextMessage> = new Map();
   pendingToolResultIds = new Set<string>();
@@ -90,6 +91,15 @@ export class ContextMemory {
 
   set history(value: ContextMessage[]) {
     this._history = value;
+    this.markContextChanged();
+  }
+
+  get historyRevision(): number {
+    return this._historyRevision;
+  }
+
+  markContextChanged(): void {
+    this._historyRevision += 1;
   }
 
   get tokenCount(): number {
@@ -153,11 +163,13 @@ export class ContextMemory {
     } else {
       this._history.pop();
     }
+    this.markContextChanged();
     return true;
   }
 
   clear(): void {
     this.agent.records.logRecord({ type: 'context.clear' });
+    this.markContextChanged();
     this._history = [];
     this._tokenCount = 0;
     this.tokenCountCoveredMessageCount = 0;
@@ -305,6 +317,7 @@ export class ContextMemory {
     });
     if (this.hasOpenToolExchange()) {
       this.deferredMessages.push(message);
+      this.markContextChanged();
       return;
     }
     this.pushHistory(message);
@@ -342,6 +355,7 @@ export class ContextMemory {
       this.tokenCountCoveredMessageCount = this._history.length + messages.length;
     }
     this._history.push(...messages);
+    this.markContextChanged();
     for (const message of messages) {
       if (message.role === 'assistant') {
         this.lastAssistantAt = this.agent.records.restoring?.time ?? Date.now();

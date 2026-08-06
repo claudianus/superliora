@@ -12,7 +12,7 @@ import {
 import type { ContextMemoryHost } from './context-memory-host';
 import type { ContextMessage } from './types';
 
-/** Max size of the original-task message kept verbatim across compaction. */
+/** Token budget for the leading user messages kept verbatim across compaction. */
 export const FROZEN_HEAD_MAX_TOKENS = 2000;
 
 export function applyContextCompaction(
@@ -30,18 +30,29 @@ export function applyContextCompaction(
     host.agent.records.restoring !== null && input.keptHeadUserMessageCount === undefined;
   const maxContextTokens = host.agent.config.modelCapabilities.max_context_tokens;
   const userMessageBudget = resolveCompactionUserMessageBudget(maxContextTokens);
-  // Frozen zone: the first real user message is the original task. Keep it
-  // verbatim across compaction so intent survives summarization losslessly
-  // and the history prefix stays byte-stable for prompt caching. Skip when
-  // the task is too large for the window — retaining it could hold the
-  // context above the trigger and cause compaction oscillation.
-  const frozenCandidate = compactableUserMessages[0];
-  const frozenHead =
-    hasRetainedLiveContext &&
-    frozenCandidate !== undefined &&
-    estimateTokensForMessages([frozenCandidate]) <= FROZEN_HEAD_MAX_TOKENS
-      ? [frozenCandidate]
-      : [];
+  // Frozen zone: the configured leading history slots include one slot for
+  // the provider's system prefix, so the default of 2 preserves the first
+  // real user message. Keep the selected user messages verbatim so intent
+  // survives summarization losslessly and the history prefix stays stable.
+  const frozenUserMessageLimit = Math.max(
+    0,
+    Math.floor(host.agent.fullCompaction.strategy.frozenZoneSize) - 1,
+  );
+  const frozenHead: ContextMessage[] = [];
+  let frozenHeadTokens = 0;
+  if (hasRetainedLiveContext) {
+    for (const candidate of compactableUserMessages.slice(0, frozenUserMessageLimit)) {
+      const candidateTokens = estimateTokensForMessages([candidate]);
+      if (
+        candidateTokens > FROZEN_HEAD_MAX_TOKENS ||
+        frozenHeadTokens + candidateTokens > FROZEN_HEAD_MAX_TOKENS
+      ) {
+        break;
+      }
+      frozenHead.push(candidate);
+      frozenHeadTokens += candidateTokens;
+    }
+  }
   const selection = hasRetainedLiveContext
     ? { head: frozenHead, tail: [], elided: false, omittedTokens: 0 }
     : restoreTailOnly

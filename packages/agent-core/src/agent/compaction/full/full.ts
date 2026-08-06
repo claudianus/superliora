@@ -46,6 +46,7 @@ import {
   handoffThresholdTokens,
   relaxObservedMaxContextTokens,
   resolveEffectiveMaxContextTokens,
+  shouldDeferAsyncCompaction,
   shouldDeferAutoCompaction as shouldDeferAutoCompactionPolicy,
   shouldRecoverFromOverflowStatus,
   shouldSkipRecompactUntilGrowth as shouldSkipRecompactUntilGrowthPolicy,
@@ -86,7 +87,7 @@ export class FullCompaction implements CompactionPipelineContext {
   ) {
     this.strategy = createDefaultFullCompactionStrategy(
       agent,
-      () => this.getEffectiveMaxContextTokens(),
+      () => this.getEffectiveHistoryContextTokens(),
       strategy,
     );
 
@@ -223,6 +224,20 @@ export class FullCompaction implements CompactionPipelineContext {
 
   estimateCurrentRequestTokens(): number {
     return this.estimateRequestTokens(this.agent.context.messages);
+  }
+
+  /**
+   * History budget after reserving the prompt material that is sent on every
+   * normal agent request. Trigger ratios operate on history tokens, while the
+   * provider limit applies to system prompt + tools + history together.
+   */
+  getEffectiveHistoryContextTokens(): number {
+    const maxContextTokens = this.getEffectiveMaxContextTokens();
+    if (maxContextTokens <= 0) return maxContextTokens;
+    const fixedPromptTokens =
+      estimateTokens(this.agent.config.systemPrompt) +
+      estimateTokensForTools(this.agent.tools.loopTools);
+    return Math.max(0, maxContextTokens - fixedPromptTokens);
   }
 
   getEffectiveMaxContextTokens(): number {
@@ -463,9 +478,23 @@ export class FullCompaction implements CompactionPipelineContext {
 
   private shouldAsyncCompactNow(usedSize: number): boolean {
     if (this.compacting !== null) return false;
-    if (this.shouldDeferAutoCompaction()) return false;
+    if (
+      shouldDeferAsyncCompaction({
+        hasActiveForegroundChildren:
+          this.agent.subagentHost?.hasActiveForegroundChildren?.() === true,
+        hasRunningConductorJobs: this.hasRunningConductorJobs(),
+      })
+    ) {
+      return false;
+    }
     if (this.shouldSkipRecompactUntilGrowth()) return false;
     return this.strategy.shouldAsyncCompact(usedSize);
+  }
+
+  private hasRunningConductorJobs(): boolean {
+    if (this.agent.type !== 'main') return false;
+    const ledger = this.agent.tools.getStore().get('job_ledger');
+    return ledger?.jobs.some((job) => job.status === 'running') ?? false;
   }
 
   private checkAutoCompaction(throwOnLimit: boolean = true): boolean {
@@ -497,7 +526,7 @@ export class FullCompaction implements CompactionPipelineContext {
       lastCompactedTokenCount: this.lastCompactedTokenCount,
       tokenCountWithPending: this.tokenCountWithPending,
       minGrowthRatio,
-      maxContextTokens: this.getEffectiveMaxContextTokens(),
+      maxContextTokens: this.getEffectiveHistoryContextTokens(),
       maxWorkingSetTokens,
     });
   }
@@ -519,7 +548,7 @@ export class FullCompaction implements CompactionPipelineContext {
       this.agent.kimiConfig?.loopControl?.compactionTriggerRatio ??
       DEFAULT_COMPACTION_CONFIG.triggerRatio;
     const threshold = handoffThresholdTokens({
-      maxTokens: this.agent.config.modelCapabilities.max_context_tokens,
+      maxTokens: this.getEffectiveHistoryContextTokens(),
       triggerRatio,
       // Cap pre-swarm reclaim near the agent working set, not the full 1M window.
       maxWorkingSetTokens: DEFAULT_SWARM_HANDOFF_WORKING_SET_TOKENS,

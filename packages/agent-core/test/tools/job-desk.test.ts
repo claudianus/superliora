@@ -10,6 +10,7 @@ import type { Agent } from '../../src/agent';
 import {
   JOB_DESK_MAX_CHARS,
   JobDeskInjector,
+  renderConductorJobPostCompactionSnapshot,
   renderJobDeskInjection,
 } from '../../src/agent/injection/job-desk';
 import {
@@ -264,6 +265,61 @@ describe('job desk injection caps (V4-1)', () => {
     const text = renderJobDeskInjection(events, strip);
     expect(text.length).toBeLessThanOrEqual(JOB_DESK_MAX_CHARS);
     expect(text).toContain('[truncated]');
+  });
+
+  it('renders a deterministic read-only ledger snapshot without consuming inbox', () => {
+    const store = memoryStore();
+    const queued = createJob(store, { title: 'queued worker', kind: 'implement' });
+    patchJob(store, queued.id, { status: 'queued', priority: 2 });
+    const needsUser = createJob(store, { title: 'needs user', kind: 'task' });
+    patchJob(store, needsUser.id, { status: 'needs_user', priority: 3 });
+    const done = createJob(store, { title: 'done worker', kind: 'explore' });
+    patchJob(store, done.id, { status: 'done' });
+
+    const text = renderConductorJobPostCompactionSnapshot(store);
+
+    expect(text).toBeDefined();
+    expect(text).toContain('<conductor_job_post_compaction>');
+    expect(text).toContain(needsUser.id);
+    expect(text).toContain(queued.id);
+    expect(text).not.toContain(done.id);
+    expect(text!.indexOf(needsUser.id)).toBeLessThan(text!.indexOf(queued.id));
+    expect(listUnreadJobInbox(store)).toHaveLength(0);
+    expect(text!.length).toBeLessThanOrEqual(JOB_DESK_MAX_CHARS);
+  });
+
+  it('skips the snapshot when inbox delivery is pending', () => {
+    const store = memoryStore();
+    const job = createJob(store, { title: 'completed worker', kind: 'task' });
+    patchJob(store, job.id, { status: 'failed' });
+    pushCompletion(store, 42, 'failed');
+
+    expect(renderConductorJobPostCompactionSnapshot(store)).toBeUndefined();
+    expect(listUnreadJobInbox(store)).toHaveLength(1);
+  });
+
+  it('marks the post-compaction snapshot as delivered for the next desk cycle', async () => {
+    const store = memoryStore();
+    const job = createJob(store, { title: 'running worker', kind: 'implement' });
+    patchJob(store, job.id, { status: 'running' });
+    const history: unknown[] = [];
+    const agent = {
+      type: 'main',
+      tools: { getStore: () => store },
+      context: {
+        history,
+        appendSystemReminder: (text: string) => {
+          history.push(text);
+        },
+      },
+    } as unknown as Agent;
+    const injector = new JobDeskInjector(agent);
+
+    injector.injectPostCompaction();
+
+    expect(history).toHaveLength(1);
+    expect(history[0]).toContain('<conductor_job_post_compaction>');
+    await expect(injector.collectForBatch()).resolves.toBeUndefined();
   });
 });
 

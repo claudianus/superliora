@@ -67,6 +67,7 @@ export { capBatchParts as __testing__capBatchParts };
 
 export class InjectionManager {
   private readonly injectors: DynamicInjector[];
+  private readonly jobDeskInjector: JobDeskInjector;
   // Goal context is injected at continuation boundaries (turn start, each
   // continuation, after compaction) via `injectGoal()`, NOT in the per-step
   // `inject()` loop. Boundary-cadence append-only injection keeps one fresh copy
@@ -75,12 +76,13 @@ export class InjectionManager {
   private goalInjector: GoalInjector | null;
 
   constructor(protected readonly agent: Agent) {
+    this.jobDeskInjector = new JobDeskInjector(agent);
     this.injectors = [
       new CurrentTimeInjector(agent),
       new MemoryInjector(agent),
       new ToolWorkflowInjector(agent),
       new TodoListReminderInjector(agent),
-      new JobDeskInjector(agent),
+      this.jobDeskInjector,
       new PlanModeInjector(agent),
       new PremiumQualityInjector(agent),
       new PermissionModeInjector(agent),
@@ -131,6 +133,7 @@ export class InjectionManager {
     this.injectActiveBackgroundTasks();
     this.injectUltraworkGraphStatus();
     injectUltraworkPostCompactionContinuation(this.agent);
+    this.jobDeskInjector.injectPostCompaction();
     await this.inject();
   }
 

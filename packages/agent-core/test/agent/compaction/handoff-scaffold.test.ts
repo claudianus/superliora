@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { ensureStructuredHandoffScaffold } from '../../../src/agent/compaction/plan/handoff-scaffold';
-import { hasExactV2Attempt } from '../../../src/agent/compaction/plan/quality-helpers';
+import {
+  hasExactV2Attempt,
+  latestUserText,
+} from '../../../src/agent/compaction/plan/quality-helpers';
+import type { ContextMessage } from '../../../src/agent/context';
 
 describe('ensureStructuredHandoffScaffold', () => {
   it('leaves structured summaries unchanged', () => {
@@ -29,5 +33,24 @@ describe('ensureStructuredHandoffScaffold', () => {
     expect(out).toContain('Run quality tests');
     expect(out).toContain('## Compacted Narrative (original free-form)');
     expect(out).toContain('Did some work on the footer badge.');
+  });
+
+  it('ignores user-role injections when selecting the latest user request', () => {
+    const messages: ContextMessage[] = [
+      {
+        role: 'user',
+        content: [{ type: 'text', text: 'Fix the Conductor handoff.' }],
+        toolCalls: [],
+        origin: { kind: 'user' },
+      },
+      {
+        role: 'user',
+        content: [{ type: 'text', text: '<conductor_job_desk>running</conductor_job_desk>' }],
+        toolCalls: [],
+        origin: { kind: 'injection', variant: 'conductor_job_desk' },
+      },
+    ];
+
+    expect(latestUserText(messages)).toBe('Fix the Conductor handoff.');
   });
 });

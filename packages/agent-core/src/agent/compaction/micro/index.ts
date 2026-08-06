@@ -173,7 +173,10 @@ export class MicroCompaction {
   }
 
   reset(maxCutoff = 0): void {
-    this.cutoff = Math.min(this.cutoff, maxCutoff);
+    const next = Math.min(this.cutoff, maxCutoff);
+    if (next === this.cutoff) return;
+    this.cutoff = next;
+    this.agent.context?.markContextChanged?.();
   }
 
   apply(cutoff: number): void {
@@ -189,7 +192,10 @@ export class MicroCompaction {
     // negatives (defensive — detection logic should not pass a negative
     // value) and never let the new cutoff regress behind the previous one.
     const safe = Math.max(0, cutoff);
-    this.cutoff = safe > this.cutoff ? safe : this.cutoff;
+    const next = safe > this.cutoff ? safe : this.cutoff;
+    if (next === this.cutoff) return;
+    this.cutoff = next;
+    this.agent.context?.markContextChanged?.();
   }
 
   detect(): void {

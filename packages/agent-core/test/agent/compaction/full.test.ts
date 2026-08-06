@@ -54,6 +54,7 @@ import { HookEngine, type HookEngineTriggerArgs } from '../../../src/session/hoo
 import { inferCheapModelAliasSync } from '../../../src/utils/cheap-model';
 import { estimateTokensForMessages } from '../../../src/utils/tokens';
 import { expandArchivedContent } from '../../../src/tools/builtin/context/context-archive';
+import { writeJobLedger } from '../../../src/tools/builtin/job/job-ledger';
 import { recordingTelemetry, type TelemetryRecord } from '../../fixtures/telemetry';
 import { agentTask, waitForTerminal } from '../background/helpers';
 import type { TestAgentContext, TestAgentOptions } from '../harness/agent';
@@ -449,6 +450,109 @@ describe('FullCompaction', () => {
     ).toBe(true);
 
     await ctx.expectResumeMatches();
+  });
+
+  it('reserves system prompt and tool overhead before applying trigger ratios', async () => {
+    const ctx = testAgent({
+      experimentalFlags: new FlagResolver(
+        { SUPERLIORA_EXPERIMENTAL_ASYNC_COMPACTION: '0' },
+        FLAG_DEFINITIONS,
+      ),
+      initialConfig: {
+        providers: {},
+        loopControl: {
+          reservedContextSize: 0,
+          compactionTriggerTokens: 1_000_000,
+        },
+      },
+    });
+    ctx.configure({
+      provider: CATALOGUED_PROVIDER,
+      modelCapabilities: {
+        ...CATALOGUED_MODEL_CAPABILITIES,
+        max_context_tokens: 20_000,
+      },
+    });
+    ctx.agent.config.update({ systemPrompt: 'large fixed prompt '.repeat(1_000) });
+    ctx.appendExchange(1, 'old user one', 'old assistant one', 6_000);
+    ctx.appendExchange(2, 'old user two', 'old assistant two', 12_000);
+
+    expect(ctx.agent.fullCompaction.getEffectiveHistoryContextTokens()).toBeLessThan(20_000);
+    ctx.mockNextResponse({ type: 'text', text: 'Overhead-aware compacted summary.' });
+    await ctx.agent.fullCompaction.beforeStep(new AbortController().signal);
+
+    expect(ctx.llmCalls).toHaveLength(1);
+    expect(messageText(ctx.llmCalls[0]?.history.at(-1))).toContain('Respond with text only');
+  });
+
+  it('defers async pre-rotation while an execution Job runs, then compacts when idle', async () => {
+    const ctx = testAgent();
+    ctx.configure({
+      provider: CATALOGUED_PROVIDER,
+      modelCapabilities: {
+        ...CATALOGUED_MODEL_CAPABILITIES,
+        max_context_tokens: 100_000,
+      },
+    });
+    ctx.appendExchange(1, 'old user one', 'old assistant one', 30_000);
+    ctx.appendExchange(2, 'old user two', 'old assistant two', 60_000);
+    writeJobLedger(ctx.agent.tools.getStore(), {
+      schemaVersion: 1,
+      jobs: [
+        {
+          id: 'job_running',
+          title: 'running execution',
+          status: 'running',
+          kind: 'implement',
+          priority: 1,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    });
+
+    await ctx.agent.fullCompaction.afterStep();
+    expect(ctx.agent.fullCompaction.isCompacting).toBe(false);
+    expect(ctx.llmCalls).toHaveLength(0);
+
+    writeJobLedger(ctx.agent.tools.getStore(), { schemaVersion: 1, jobs: [] });
+    ctx.mockNextResponse({ type: 'text', text: 'Idle fleet compacted summary.' });
+    await ctx.agent.fullCompaction.afterStep();
+    await ctx.agent.fullCompaction.beforeStep(new AbortController().signal);
+
+    expect(ctx.llmCalls).toHaveLength(1);
+  });
+
+  it('does not defer a synchronous compaction for a running execution Job', async () => {
+    const ctx = testAgent();
+    ctx.configure({
+      provider: CATALOGUED_PROVIDER,
+      modelCapabilities: {
+        ...CATALOGUED_MODEL_CAPABILITIES,
+        max_context_tokens: 100_000,
+      },
+    });
+    ctx.appendExchange(1, 'old user one', 'old assistant one', 40_000);
+    ctx.appendExchange(2, 'old user two', 'old assistant two', 80_000);
+    writeJobLedger(ctx.agent.tools.getStore(), {
+      schemaVersion: 1,
+      jobs: [
+        {
+          id: 'job_running_sync',
+          title: 'running execution',
+          status: 'running',
+          kind: 'implement',
+          priority: 1,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    });
+    ctx.mockNextResponse({ type: 'text', text: 'Sync compacted summary.' });
+
+    await ctx.agent.fullCompaction.beforeStep(new AbortController().signal);
+
+    expect(ctx.llmCalls).toHaveLength(1);
   });
 
   it('honors loopControl.compactionTriggerRatio for auto compaction', async () => {
@@ -1123,6 +1227,9 @@ describe('FullCompaction', () => {
         return textResult('Placeholder compacted summary.');
       }
       if (callCount === 3) {
+        return textResult('Placeholder compacted summary.');
+      }
+      if (callCount === 4) {
         await callbacks?.onMessagePart?.({
           type: 'text',
           text: 'Recovered after ignoring the placeholder.',
@@ -1149,7 +1256,7 @@ describe('FullCompaction', () => {
     await ctx.rpc.prompt({ input: [{ type: 'text', text: promptThatFitsWithoutPlaceholder }] });
     const events = await ctx.untilTurnEnd();
 
-    expect(callCount).toBe(3);
+    expect(callCount).toBe(4);
     expect(events).toContainEqual(
       expect.objectContaining({
         event: 'compaction.started',

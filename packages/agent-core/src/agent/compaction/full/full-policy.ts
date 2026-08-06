@@ -36,6 +36,13 @@ export function shouldDeferAutoCompaction(input: {
   return input.hasActiveForegroundChildren;
 }
 
+export function shouldDeferAsyncCompaction(input: {
+  readonly hasActiveForegroundChildren: boolean;
+  readonly hasRunningConductorJobs: boolean;
+}): boolean {
+  return input.hasActiveForegroundChildren || input.hasRunningConductorJobs;
+}
+
 export function handoffThresholdTokens(input: {
   readonly maxTokens: number | undefined;
   readonly triggerRatio: number;
