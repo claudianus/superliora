@@ -2,9 +2,10 @@
  * Theme system public API.
  */
 
+import { DEFAULT_TUI_THEME } from '../config';
 import { getBuiltInPalette } from './colors';
 import type { ColorPalette, ResolvedTheme } from './colors';
-import { loadCustomThemeMerged } from './custom-theme-loader';
+import { loadCustomThemeMerged, loadCustomThemeMergedSync } from './custom-theme-loader';
 import { detectTerminalTheme } from './detect';
 
 export { currentTheme, Theme } from './theme';
@@ -48,7 +49,7 @@ export function isThemeName(_value: string): _value is ThemeName {
  * - `'auto'` triggers terminal background detection.
  * - `'dark'` / `'light'` return the built-in palette.
  * - Any other string loads a custom theme from `~/.superliora/themes/`;
- *   missing / invalid files fall back to dark palette.
+ *   missing / invalid files fall back to the Neon Noir default.
  */
 export async function getColorPalette(theme: ThemeName): Promise<ColorPalette> {
   if (theme === 'light') return getBuiltInPalette('light');
@@ -59,15 +60,21 @@ export async function getColorPalette(theme: ThemeName): Promise<ColorPalette> {
   }
   // custom theme
   const custom = await loadCustomThemeMerged(theme);
-  return custom ?? getBuiltInPalette('dark');
+  const fallback = await loadCustomThemeMerged(DEFAULT_TUI_THEME);
+  return custom ?? fallback ?? getBuiltInPalette('dark');
 }
 
 /**
  * Synchronous fallback used by paths that cannot wait on terminal probes.
  * `'auto'` collapses to `'dark'`; explicit choices pass through.
- * Custom themes are not supported here — falls back to dark.
+ * Missing custom themes fall back to Neon Noir.
  */
 export function getColorPaletteSync(theme: ThemeName): ColorPalette {
   if (theme === 'light') return getBuiltInPalette('light');
-  return getBuiltInPalette('dark');
+  if (theme === 'dark' || theme === 'auto') return getBuiltInPalette('dark');
+  return (
+    loadCustomThemeMergedSync(theme) ??
+    loadCustomThemeMergedSync(DEFAULT_TUI_THEME) ??
+    getBuiltInPalette('dark')
+  );
 }

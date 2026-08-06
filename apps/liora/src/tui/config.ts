@@ -18,6 +18,7 @@ export const INVALID_TUI_CONFIG_MESSAGE =
   'Invalid TUI config in ~/.superliora/tui.toml; using defaults.';
 
 export const TuiThemeSchema = z.string();
+export const DEFAULT_TUI_THEME = 'superliora-neon-noir';
 
 export const NotificationConditionSchema = z.enum(['unfocused', 'always']);
 
@@ -285,7 +286,7 @@ export const DEFAULT_FOOTER_PREFERENCES: FooterPreferences = {
 };
 
 export const DEFAULT_TUI_CONFIG: TuiConfig = TuiConfigSchema.parse({
-  theme: 'superliora-ash',
+  theme: DEFAULT_TUI_THEME,
   permissionMode: 'yolo',
   disablePasteBurst: false,
   editorCommand: null,

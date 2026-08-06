@@ -245,6 +245,7 @@ describe('handleThemeCommand', () => {
       });
       expect(host.showStatus).toHaveBeenCalledWith('Theme set to "superliora-neon-noir".');
       expect(host.showError).not.toHaveBeenCalled();
+      expect((await loadTuiConfig()).theme).toBe('superliora-neon-noir');
     });
   });
 

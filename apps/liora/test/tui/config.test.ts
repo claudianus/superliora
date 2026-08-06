@@ -8,6 +8,7 @@ import {
   DEFAULT_APPEARANCE_PREFERENCES,
   DEFAULT_FOOTER_PREFERENCES,
   DEFAULT_ONBOARDING_PREFERENCES,
+  DEFAULT_TUI_THEME,
   DEFAULT_TUI_CONFIG,
   INVALID_TUI_CONFIG_MESSAGE,
   loadTuiConfig,
@@ -36,7 +37,7 @@ describe('TUI config', () => {
     expect(result).toEqual(DEFAULT_TUI_CONFIG);
     const text = readFileSync(filePath, 'utf-8');
     expect(text).toContain('Client preferences for kimi-code.');
-    expect(text).toContain('theme = "superliora-ash"');
+    expect(text).toContain(`theme = "${DEFAULT_TUI_THEME}"`);
     expect(text).toContain('command = ""');
     expect(text).toContain('[upgrade]');
     expect(text).toContain('auto_install = true');
@@ -158,7 +159,7 @@ command = "   "
 `);
 
     expect(config).toEqual({
-      theme: 'superliora-ash',
+      theme: DEFAULT_TUI_THEME,
       permissionMode: 'yolo',
       disablePasteBurst: false,
       editorCommand: null,
