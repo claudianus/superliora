@@ -248,10 +248,11 @@ export function buildDefaultCommandHubItems(state: {
       description: 'Open the tasks browser',
     },
     {
-      id: 'workspace.jobs',
+      id: 'workspace.missionControl',
       section: 'Workspace',
-      label: 'Job board',
-      description: 'Open the Conductor job desk board',
+      label: 'Mission Control',
+      description: 'Cycle the subagent monitor dock — auto · pinned · hidden',
+      keywords: ['agents', 'subagent', 'monitor', 'dock', 'workers', 'mission'],
     },
     {
       id: 'workspace.jobDeck',

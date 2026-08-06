@@ -14,6 +14,7 @@ import type { BtwPanelController } from '../../controllers/panes/btw-panel';
 import type { StreamingUIController } from '../../controllers/streaming-ui/index';
 import type { TasksBrowserController } from '../../controllers/panes/tasks-browser';
 import type { JobBoardController } from '../../controllers/panes/job-board';
+import type { MissionControlController } from '../../controllers/mission-control/controller';
 import type { ResolvedTheme } from '../../theme/colors';
 import type { TUIState } from '../../tui-state';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
@@ -45,6 +46,7 @@ import { showToolsInventory } from '../config/harness/harness-tools';
 import { handleGoalCommand } from '../goal';
 import { handleImproveHarnessCommand } from '../improve-harness';
 import { handleCronCommand } from '../cron';
+import { handleAgentsCommand } from '../agents';
 import { handleJobCommand, handleJobsCommand } from '../jobs';
 import { showDiff } from '../session/diff';
 import { showLog } from '../log';
@@ -241,6 +243,7 @@ export interface SlashCommandHost {
   readonly btwPanelController: BtwPanelController;
   readonly tasksBrowserController: TasksBrowserController;
   readonly jobBoardController: JobBoardController;
+  readonly missionControl: MissionControlController;
   readonly authFlow: AuthFlowController;
   /** Transition beat queue (status open, plan enter/exit, …). */
   readonly motionBeats: MotionBeatController;
@@ -372,6 +375,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'tasks':
       void host.tasksBrowserController.show();
+      return;
+    case 'agents':
+      await handleAgentsCommand(host, args);
       return;
     case 'jobs':
       handleJobsCommand(host, args);

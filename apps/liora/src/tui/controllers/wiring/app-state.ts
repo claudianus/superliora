@@ -1,5 +1,4 @@
 import { collectFooterStaleAppStatePatches } from '../../components/chrome/footer/footer-badges';
-import { syncJobDeskPanelContainer } from '../../components/chrome/job-desk/job-desk-panel';
 import type { CommandHubComponent } from '../../components/dialogs/command-hub/index';
 import type { AppState, LivePaneState } from '../../types';
 import { INITIAL_LIVE_PANE } from '../../types';
@@ -7,7 +6,6 @@ import type { TUIState } from '../../tui-state';
 import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
 import { invalidateTranscriptHitTestCache } from '../../features/transcript/transcript-hit-test';
 import { requestTUIContentRender, requestTUILayoutRender } from '../../utils/render/frame-render';
-import { emptyConductorJobsSnapshot } from '../../utils/job/job-strip';
 import { isMotionTheatreActive, type MotionBeatController } from '../../utils/render/motion-beats';
 import { hasPatchChanges } from '../../utils/object-patch';
 import type { AppearanceController } from '../appearance/index';
@@ -70,6 +68,7 @@ export interface AppStateHost {
   readonly dialogs: DialogsController;
   readonly sessionEventHandler: SessionEventHandler;
   readonly promptIntelligence: PromptIntelligenceController;
+  readonly missionControl: { pushView(): void; syncPreferences(): void };
 
   updateEditorBorderHighlight(text?: string): void;
   updateActivityPane(): void;
@@ -110,7 +109,12 @@ export class AppStateController {
     const modeBeats = collectFooterModeBeats(host.state.appState, patch);
     Object.assign(host.state.appState, mergedPatch);
     if ('planMode' in patch || 'ultraworkMode' in patch) host.updateEditorBorderHighlight();
-    if ('appearance' in patch) host.appearanceController.apply();
+    if ('appearance' in patch) {
+      host.appearanceController.apply();
+      // `mission_control` rides the appearance prefs; keep the panel's
+      // pinned placeholder in sync no matter which command set it.
+      host.missionControl.syncPreferences();
+    }
     // Resync ambient schedule when busy state flips so live clocks keep ticking
     // (and stop) without waiting for an appearance change.
     if (busyChanged) host.appearanceController.apply();
@@ -145,7 +149,8 @@ export class AppStateController {
       this.syncGoalMonitorPanel();
     }
     if (conductorJobsChanged) {
-      this.syncJobDeskPanel();
+      // Job lanes live in Mission Control now — push the new ledger snapshot.
+      host.missionControl.pushView();
       host.appearanceController.refreshAmbientSchedule();
     }
     host.updateActivityPane();
@@ -165,19 +170,6 @@ export class AppStateController {
     if (!host.state.todoPanel.isEmpty()) {
       host.state.todoPanelContainer.addChild(host.state.todoPanel);
     }
-    invalidateTranscriptHitTestCache(host.state);
-    requestTUILayoutRender(host.state);
-  }
-
-  /** Push the latest conductorJobs ledger into the in-transcript Job Desk. */
-  syncJobDeskPanel(): void {
-    const { host } = this;
-    host.state.jobDeskPanel.setSnapshot(
-      host.state.appState.conductorJobs ?? emptyConductorJobsSnapshot(),
-    );
-    syncJobDeskPanelContainer(host.state);
-    // Job Desk mount/height changes move chrome regions — bust mouse hit-test
-    // cache so clicks land on the live jobs rect (Kitty SGR coords included).
     invalidateTranscriptHitTestCache(host.state);
     requestTUILayoutRender(host.state);
   }

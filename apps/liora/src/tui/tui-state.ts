@@ -13,7 +13,9 @@ import { GutterContainer } from './components/chrome/gutter-container';
 import { HeaderComponent } from './components/chrome/header/header';
 import type { MoonLoader, SpinnerStyle } from './components/chrome/moon-loader';
 import { TodoPanelComponent } from './components/chrome/todo/todo-panel';
-import { JobDeskPanelComponent } from './components/chrome/job-desk/job-desk-panel';
+import { MissionControlFallbackComponent } from './components/panes/mission-control/fallback';
+import { MissionControlPanelComponent } from './components/panes/mission-control/panel';
+import { missionFallbackActive } from './features/mission-control/dock';
 import type { SessionRow } from './components/dialogs/session/session-picker';
 import type { TUIEditor } from './components/editor/editor-contract';
 import { createTUIEditor } from './components/editor/editor-factory';
@@ -60,8 +62,8 @@ export interface TUIState {
   activityContainer: Container;
   todoPanelContainer: Container;
   todoPanel: TodoPanelComponent;
-  jobDeskPanelContainer: Container;
-  jobDeskPanel: JobDeskPanelComponent;
+  missionControlContainer: Container;
+  missionControlPanel: MissionControlPanelComponent;
   queueContainer: Container;
   btwPanelContainer: Container;
   editorContainer: Container;
@@ -133,9 +135,9 @@ export interface TUIState {
   cachedTranscriptRows?: number;
   cachedTranscriptLineCount?: number;
   /**
-   * Chrome fingerprint for the transcript hit-test layout cache. Job Desk /
-   * Todo board mount and height changes must bust the cache so mouse clicks
-   * see fresh region rects (especially `cachedJobsRect`).
+   * Chrome fingerprint for the transcript hit-test layout cache. Mission
+   * Control / Todo board mount and height changes must bust the cache so
+   * mouse clicks see fresh region rects.
    */
   cachedHitTestChromeSig?: string;
   /**
@@ -144,8 +146,6 @@ export interface TUIState {
    * landing on the board move the board, not the transcript.
    */
   cachedTodoRect?: RendererRect;
-  /** Jobs chrome region rect (same stage plan as cachedTodoRect). */
-  cachedJobsRect?: RendererRect;
   /**
    * User-chosen stage size from a corner/edge drag-resize. When set, the stage
    * holds this size (clamped to the terminal) instead of the responsive reading
@@ -190,8 +190,15 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
   const activityContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const todoPanelContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const todoPanel = new TodoPanelComponent({ terminalRows: () => terminal.rows });
-  const jobDeskPanelContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
-  const jobDeskPanel = new JobDeskPanelComponent();
+  const missionControlContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
+  const missionControlPanel = new MissionControlPanelComponent();
+  missionControlContainer.addChild(
+    new MissionControlFallbackComponent({
+      panel: missionControlPanel,
+      visible: () =>
+        self !== undefined && missionFallbackActive(self, terminal.columns),
+    }),
+  );
   const queueContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const btwPanelContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const editorContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
@@ -219,7 +226,7 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
           header: measureContainerRows(headerContainer, contentWidth),
           activity: measureContainerRows(activityContainer, contentWidth),
           todo: measureContainerRows(todoPanelContainer, contentWidth),
-          jobs: measureContainerRows(jobDeskPanelContainer, contentWidth),
+          mission: measureContainerRows(missionControlContainer, contentWidth),
           queue: measureContainerRows(queueContainer, contentWidth),
           btw: measureContainerRows(btwPanelContainer, contentWidth),
           editor: measureContainerRows(editorContainer, contentWidth),
@@ -257,8 +264,8 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
     activityContainer,
     todoPanelContainer,
     todoPanel,
-    jobDeskPanelContainer,
-    jobDeskPanel,
+    missionControlContainer,
+    missionControlPanel,
     queueContainer,
     btwPanelContainer,
     editorContainer,

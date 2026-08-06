@@ -19,6 +19,7 @@ import { BtwPanelController } from '../panes/btw-panel';
 import { ClipboardImageHintController } from '../clipboard/clipboard-image-hint';
 import { JobBoardStore } from '../../features/control-tower/job-board-store';
 import { ControlTowerJobDesk } from '../../features/control-tower/job-desk-events';
+import { MissionControlController } from '../mission-control/controller';
 import { DialogsController } from '../dialogs/index';
 import { EditorKeyboardController } from '../shell/editor-keyboard';
 import { MessageDispatchController } from '../transcript/message-dispatch';
@@ -107,6 +108,11 @@ export function wireLioraTUIControllers(
 
   tui.streamingUI = new StreamingUIController(tui);
   tui.authFlow = new AuthFlowController(tui);
+  // Before AppearanceController: its constructor evaluates forceAmbientSchedule,
+  // which reads tui.missionControl.hasLiveWorkers().
+  tui.missionControl = new MissionControlController(tui);
+  // Reflect the persisted `mission_control` mode on the panel placeholder.
+  tui.missionControl.syncPreferences();
   tui.appearanceController = new AppearanceController({
     terminal: tui.state.terminal,
     getAppearance: () => tui.state.appState.appearance ?? DEFAULT_APPEARANCE_PREFERENCES,
@@ -133,7 +139,10 @@ export function wireLioraTUIControllers(
       // desk and open Job Deck need the same shared ambient clock.
       tui.state.appState.conductorJobs?.jobs.some(
         (card) => card.status === 'running' && card.workerAgentId !== undefined,
-      ) === true,
+      ) === true ||
+      // Mission Control roster: live elapsed clocks + the completed-worker
+      // linger expiry need 1s chrome ticks even while the main turn idles.
+      tui.missionControl.hasLiveWorkers(),
   });
   tui.state.transcriptDetail =
     tui.state.appState.appearance?.transcriptDetail ?? 'standard';

@@ -31,7 +31,7 @@ export function openJobDeckViewer(host: SlashCommandHost, jobId?: string): void 
   const snapshot = host.state.appState.conductorJobs ?? emptyConductorJobsSnapshot();
   if (snapshot.jobs.length === 0) {
     host.showStatus(
-      'No Conductor jobs yet — the Job Desk panel and deck open once jobs exist.',
+      'No Conductor jobs yet — the Job Deck opens once jobs exist.',
       'textMuted',
     );
     return;

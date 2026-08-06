@@ -40,6 +40,7 @@ import {
   createStageFrameOverlayRegions,
   stageFrameBundleRect,
 } from '#/tui/features/stage/stage-frame';
+import { resolveMissionDockRect } from '#/tui/features/mission-control/dock';
 import {
   getStageResizeHoverZone,
   isStageResizeDragging,
@@ -87,7 +88,7 @@ function emptyNativeFrameChrome(): TUIStateNativeFrameChrome {
     header: [],
     activity: [],
     todo: [],
-    jobs: [],
+    mission: [],
     queue: [],
     btw: [],
     footer: [],
@@ -224,7 +225,7 @@ export function buildTUIStateNativeFrame(
     header: chrome.header,
     activity: chrome.activity,
     todo: chrome.todo,
-    jobs: chrome.jobs,
+    mission: chrome.mission,
     queue: chrome.queue,
     btw: chrome.btw,
     editor: plan.editorLines,
@@ -316,6 +317,25 @@ export function buildTUIStateNativeFrame(
       resizeDragging: isStageResizeDragging(),
     }),
   );
+  // Mission Control right dock: painted after the stage frame so the panel
+  // owns its band (the stage already resolved inside the remaining center
+  // band via the workspaceCenter hook).
+  const missionDock = resolveMissionDockRect(state, width, height);
+  if (missionDock !== undefined && missionDock.width > 0 && missionDock.height > 0) {
+    const dockLines = state.missionControlPanel.renderDock(missionDock.width, missionDock.height);
+    const projected = projectRendererCursorMarkerLines({
+      lines: dockLines,
+      rect: missionDock,
+      viewport: { x: 0, y: 0, width, height },
+    });
+    regions.push({
+      id: 'mission-dock',
+      rect: missionDock,
+      content: promoteRendererRegionLinesToCells(projected.lines),
+      clear: !ambientDamageOnly,
+      background: canvasBackground,
+    });
+  }
   const diagnosticsOverlay = skipDecorative
     ? undefined
     : createTUIStateDiagnosticsOverlayRegion(

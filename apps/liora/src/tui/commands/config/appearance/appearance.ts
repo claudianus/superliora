@@ -20,6 +20,7 @@ const APPEARANCE_KEYS = [
   'terminal-background',
   'terminal-palette',
   'transcript-detail',
+  'mission-control',
   'neat',
   'syntax-theme',
 ] as const;
@@ -83,6 +84,7 @@ function formatAppearanceStatus(appearance: AppearancePreferences): string {
     `terminal-background: ${appearance.terminalBackground}`,
     `terminal-palette: ${appearance.terminalPalette ? 'on' : 'off'}`,
     `transcript-detail: ${appearance.transcriptDetail}`,
+    `mission-control: ${appearance.missionControl}`,
     `neat: ${appearance.neat ? 'on' : 'off'}`,
     `syntax-theme: ${appearance.syntaxTheme}`,
   ].join('\n');
@@ -148,6 +150,10 @@ function parseAppearancePatch(
     case 'transcript-detail':
       if (!isTranscriptDetailLevel(value)) return null;
       next.transcriptDetail = value;
+      return next;
+    case 'mission-control':
+      if (!isOneOf(value, ['auto', 'pinned', 'hidden'])) return null;
+      next.missionControl = value;
       return next;
     case 'syntax-theme':
       if (!isSyntaxThemeId(value)) return null;

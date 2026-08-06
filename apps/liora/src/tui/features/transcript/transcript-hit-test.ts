@@ -9,6 +9,10 @@ import { CHROME_GUTTER } from '../../constant/rendering';
 import type { TUIState } from '../../tui-state';
 import { planTUINativeStage } from '#/tui/features/native-layout/native-stage-plan';
 import {
+  missionFallbackActive,
+  missionWorkspaceCenterRect,
+} from '#/tui/features/mission-control/dock';
+import {
   plainTextFromRegionLine,
   type TranscriptSelectionPoint,
 } from '#/tui/features/transcript/transcript-selection-model';
@@ -28,10 +32,10 @@ export interface TranscriptHitTestContext extends TranscriptLayoutContext {
 }
 
 /**
- * Bust the transcript/todo/jobs hit-test layout cache. Call when chrome that
- * affects region geometry mounts, unmounts, or changes height (Job Desk,
- * Todo board). Without this, mouse clicks keep using stale rects after the
- * Job Desk appears mid-session.
+ * Bust the transcript/todo hit-test layout cache. Call when chrome that
+ * affects region geometry mounts, unmounts, or changes height (Mission
+ * Control fallback, Todo board). Without this, mouse clicks keep using
+ * stale rects after a panel appears mid-session.
  */
 export function invalidateTranscriptHitTestCache(state: TUIState): void {
   state.cachedTranscriptRect = undefined;
@@ -42,17 +46,16 @@ export function invalidateTranscriptHitTestCache(state: TUIState): void {
   state.cachedTranscriptLineCount = undefined;
   state.cachedHitTestChromeSig = undefined;
   state.cachedTodoRect = undefined;
-  state.cachedJobsRect = undefined;
 }
 
-/** Cheap chrome signature — jobs/todo mount + card counts drive region height. */
+/** Cheap chrome signature — mission/todo mount + content counts drive region height. */
 export function hitTestChromeSignature(state: TUIState): string {
-  const jobs = state.appState.conductorJobs;
-  const jobCount = jobs?.jobs.length ?? 0;
-  const jobsMounted = state.jobDeskPanel.shouldMount() ? 1 : 0;
-  const jobsHidden = state.jobDeskPanel.isHidden() ? 1 : 0;
+  const view = state.missionControlPanel.currentView;
+  const missionMounted = missionFallbackActive(state, state.terminal.columns) ? 1 : 0;
+  const missionRows =
+    view.snapshot.workers.length + view.snapshot.ops.length + (view.jobs?.jobs.length ?? 0);
   const todoEmpty = state.todoPanel.isEmpty() ? 1 : 0;
-  return `j${String(jobsMounted)}h${String(jobsHidden)}n${String(jobCount)}t${String(todoEmpty)}`;
+  return `m${String(missionMounted)}r${String(missionRows)}t${String(todoEmpty)}`;
 }
 
 export function resolveTranscriptLayoutContext(
@@ -81,8 +84,10 @@ export function resolveTranscriptLayoutContext(
     visibleRows = state.cachedTranscriptVisibleRows ?? 0;
     stageWidth = state.cachedTranscriptStageWidth ?? frameWidth;
   } else {
-    // Slow path: full layout computation.
+    // Slow path: full layout computation. The Mission Control dock shrinks
+    // the stage via workspaceCenter — hit tests must agree with the paint.
     const plan = planTUINativeStage(state, frameWidth, frameHeight, {
+      workspaceCenter: missionWorkspaceCenterRect(state, frameWidth, frameHeight),
       resolveEditorFallbackLines: (contentWidth) => state.editorContainer.render(contentWidth),
       resolveEditorRows: ({ editorLineCount: elc, contentHeight, fixedRowsWithoutEditor }) =>
         Math.min(
@@ -102,7 +107,6 @@ export function resolveTranscriptLayoutContext(
     state.cachedTranscriptLineCount = editorLineCount;
     state.cachedHitTestChromeSig = chromeSig;
     state.cachedTodoRect = plan.layout.regions.find((region) => region.id === 'todo')?.rect;
-    state.cachedJobsRect = plan.layout.regions.find((region) => region.id === 'jobs')?.rect;
   }
   if (rect === undefined) return undefined;
 
@@ -155,19 +159,6 @@ export function getTUIStateNativeTodoRect(
 ): RendererRect | undefined {
   resolveTranscriptHitTestContext(state, width, height);
   return state.cachedTodoRect;
-}
-
-/**
- * Rect of the Conductor Job Desk region — clicks inside it hit-test the
- * panel's card map and drill into the interactive Job Deck viewer.
- */
-export function getTUIStateNativeJobsRect(
-  state: TUIState,
-  width = state.terminal.columns,
-  height = state.terminal.rows,
-): RendererRect | undefined {
-  resolveTranscriptHitTestContext(state, width, height);
-  return state.cachedJobsRect;
 }
 
 export function transcriptPointForMouse(

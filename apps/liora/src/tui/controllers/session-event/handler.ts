@@ -26,6 +26,7 @@ import type { BtwPanelController } from '../panes/btw-panel';
 import type { StreamingUIController } from '../streaming-ui/index';
 import type { TasksBrowserController } from '../panes/tasks-browser';
 import type { JobBoardController } from '../panes/job-board';
+import type { MissionControlController } from '../mission-control/controller';
 import { SessionEventBackgroundTasks } from './background-tasks';
 import { SessionEventCompaction } from './compaction';
 import { SessionEventGoalQueue } from './goal-queue';
@@ -78,6 +79,8 @@ export interface SessionEventHost {
   readonly jobBoardController: JobBoardController;
   /** Conductor job desk — single consumer of `job.*` protocol events (V5-3). */
   readonly controlTowerDesk: ControlTowerJobDesk;
+  /** Mission Control — merged worker roster feeding the dock/fallback panel. */
+  readonly missionControl: MissionControlController;
 }
 
 export class SessionEventHandler {
@@ -197,6 +200,7 @@ export class SessionEventHandler {
   private pendingModelBlockedFallback: GoalChange | undefined;
 
   resetRuntimeState(): void {
+    this.host.missionControl.reset();
     this.backgroundTasksHandler.resetRuntimeState();
     this.ultrawork.resetRuntimeState();
     this.subAgentEventHandler.resetRuntimeState();
@@ -402,6 +406,9 @@ export class SessionEventHandler {
       case 'tool.list.updated': break;
       default: break;
     }
+    // Mission Control registry feeds off the same dispatch (no-op for events
+    // it does not track). Job-lane refreshes flow through the app-state sync.
+    this.host.missionControl.handleEvent(event);
   }
 
   stopAllMcpServerStatusSpinners(): void {

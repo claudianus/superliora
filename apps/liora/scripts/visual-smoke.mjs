@@ -119,6 +119,13 @@ async function main() {
   pty.write('/status\r');
   await sleep(STATUS_SETTLE_MS);
 
+  // Mission Control dock: widen past the dock threshold, pin it, and let the
+  // empty-state placeholder paint into the right band.
+  pty.resize(160, 36);
+  await sleep(STEP_MS);
+  pty.write('/agents pinned\r');
+  await sleep(STATUS_SETTLE_MS);
+
   // Exercise resize and high-rate SGR wheel input against the live PTY. The
   // stress segment excludes initial alternate-screen setup. Resize may erase
   // the display, but that erase must stay inside a synchronized redraw frame.
@@ -161,6 +168,7 @@ async function main() {
   const checks = [
     ['rendered terminal chrome', plain.includes('Directory:') || plain.includes('SuperLiora')],
     ['echoed typed input', plain.includes(PROMPT_TEXT)],
+    ['mission control dock renders when pinned', plain.includes('Mission Control')],
     ['substantial frame output', frames.length > 500],
     ['resize/wheel stress produced frames', stressFrames.length > 500 && stressSyncStarts > 0],
     ['stress synchronized frames are balanced', stressInspection.balanced && stressSyncStarts === stressSyncEnds],
