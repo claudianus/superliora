@@ -37,6 +37,13 @@ export type JobKind =
   | 'desk'
   | 'goal-driver';
 
+/** Post-merge receipt: command-level proof that main contains the landed branch. */
+export interface JobLandReceipt {
+  readonly mergeSha: string;
+  readonly branch: string;
+  readonly verifiedAt: string;
+}
+
 export interface JobRecord {
   readonly id: string;
   readonly title: string;
@@ -60,6 +67,8 @@ export interface JobRecord {
   readonly resultSummary?: string;
   /** Machine-readable handoff facts (files changed, verification) from the worker contract. */
   readonly resultContract?: SubagentResultContract;
+  /** Set only after post-merge verification proves main contains the branch. */
+  readonly landReceipt?: JobLandReceipt;
   readonly parentJobId?: string;
   readonly notes?: string;
   /**
