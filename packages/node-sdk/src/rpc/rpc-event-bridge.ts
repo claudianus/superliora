@@ -21,7 +21,12 @@ import {
   type QuestionResult,
 } from '@superliora/agent-core';
 
-import type { ApprovalHandler, CredentialHandler, QuestionHandler } from '#/session/events';
+import type {
+  ApprovalHandler,
+  CredentialHandler,
+  InteractionHandlerOptions,
+  QuestionHandler,
+} from '#/session/events';
 import { invokeInteractionHandler } from '#/rpc/rpc-helpers';
 import type { Unsubscribe } from '#/session/types';
 
@@ -89,11 +94,13 @@ export class SdkEventBridge {
 
   async requestQuestion(
     request: QuestionRequest & { sessionId: string; agentId: string },
+    options?: InteractionHandlerOptions,
   ): Promise<QuestionResult> {
     return invokeInteractionHandler(this.questionHandlers.get(request.sessionId), request, {
       errorCode: ErrorCodes.SESSION_QUESTION_HANDLER_ERROR,
       notRegisteredResult: null,
       errorResult: null,
+      signal: options?.signal,
       emitEvent: (event) => {
         this.receiveEvent(event);
       },

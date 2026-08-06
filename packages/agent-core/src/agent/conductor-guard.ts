@@ -22,6 +22,8 @@
  *   recorded as a {@link ConductorGuardEvent} (§3.2 G3-lite). Hard-budget
  *   overruns also abort the running call through the per-call budget signal
  *   returned by {@link ConductorDirectWorkGuard.beginToolBudget} (V1-4).
+ *   Interactive question waits are exempt so the operator can answer them
+ *   without racing the conductor's direct-work timer.
  * - Violations are counted per turn. On the second violation the guard
  *   records the suggested Job draft straight into the ledger through the
  *   injected {@link ConductorJobDraftRecorder} and ACKs the recorded job in
@@ -224,8 +226,12 @@ const CONDUCTOR_DELEGATION_SAFE_TOOLS: ReadonlySet<string> = new Set([
   'Bash',
 ]);
 
+/** Tools that intentionally wait for operator input instead of doing work. */
+export const CONDUCTOR_INTERACTIVE_WAIT_TOOLS = ['AskUserQuestion'] as const;
+
 const DIRECT_WORK_TOOL_SET: ReadonlySet<string> = new Set(CONDUCTOR_DIRECT_WORK_TOOLS);
 const WORKER_WAIT_TOOL_SET: ReadonlySet<string> = new Set(CONDUCTOR_WORKER_WAIT_TOOLS);
+const INTERACTIVE_WAIT_TOOL_SET: ReadonlySet<string> = new Set(CONDUCTOR_INTERACTIVE_WAIT_TOOLS);
 
 /** Cap for the in-memory tripwire buffer (bounded memory for long sessions). */
 const MAX_TRIPWIRE_EVENTS = 500;
@@ -241,6 +247,7 @@ export const CONDUCTOR_BUDGET_TRIP_TURN_STOP = 3;
 
 const DEFAULT_SOFT_BUDGET_MS = 5_000;
 const DEFAULT_HARD_BUDGET_MS = 15_000;
+const NEVER_ABORT_SIGNAL = new AbortController().signal;
 
 interface ToolBudgetEntry {
   readonly toolName: string;
@@ -356,11 +363,14 @@ export class ConductorDirectWorkGuard {
    * Returns the per-call abort signal: the loop feeds it to the running
    * execution, so a hard-budget overrun force-stops the call instead of only
    * recording an observation (checklist V1-4). Re-arming an already armed
-   * call returns the same signal.
+   * call returns the same signal. Interactive question waits return a
+   * non-aborting signal and are intentionally not subject to this wall-clock
+   * budget.
    */
   beginToolBudget(toolCallId: string, toolName: string, turnId?: string): AbortSignal {
     const armed = this.budgets.get(toolCallId);
     if (armed !== undefined) return armed.controller.signal;
+    if (INTERACTIVE_WAIT_TOOL_SET.has(toolName)) return NEVER_ABORT_SIGNAL;
     const controller = new AbortController();
     const entry: ToolBudgetEntry = { toolName, turnId, startMs: this.now(), controller };
     const timer = setTimeout(() => {

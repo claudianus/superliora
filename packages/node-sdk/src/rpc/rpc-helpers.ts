@@ -8,7 +8,7 @@ import {
   type RPCMethods,
 } from '@superliora/agent-core';
 
-import type { MaybePromise } from '#/session/events';
+import type { InteractionHandlerOptions, MaybePromise } from '#/session/events';
 import type { SessionStatus } from '#/session/types';
 
 export type ResolvedCoreAPI = RPCMethods<CoreAPI>;
@@ -31,19 +31,25 @@ export async function invokeInteractionHandler<
   TRequest extends { sessionId: string; agentId: string },
   TResult,
 >(
-  handler: ((request: TRequest) => MaybePromise<TResult>) | undefined,
+  handler:
+    | ((request: TRequest, options?: InteractionHandlerOptions) => MaybePromise<TResult>)
+    | undefined,
   request: TRequest,
   options: {
     readonly errorCode: (typeof ErrorCodes)[keyof typeof ErrorCodes];
     readonly notRegisteredResult: TResult;
     readonly errorResult: TResult;
     readonly emitEvent: (event: Event) => void;
+    readonly signal?: AbortSignal | undefined;
   },
 ): Promise<TResult> {
   if (handler === undefined) return options.notRegisteredResult;
 
   try {
-    return await handler(request);
+    return await handler(
+      request,
+      options.signal === undefined ? undefined : { signal: options.signal },
+    );
   } catch (error) {
     options.emitEvent({
       type: 'error',

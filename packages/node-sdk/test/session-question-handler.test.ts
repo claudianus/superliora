@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { Session, type QuestionHandler, type QuestionRequest, type QuestionResult } from '#/index';
+import {
+  Session,
+  type InteractionHandlerOptions,
+  type QuestionHandler,
+  type QuestionRequest,
+  type QuestionResult,
+} from '#/index';
 import type { SDKRpcClientBase } from '#/rpc/rpc';
 
 describe('Session question handler', () => {
@@ -99,6 +105,27 @@ describe('Session question handler', () => {
       }),
     );
   });
+
+  it('forwards the caller abort signal to the question handler', async () => {
+    const rpc = new FakeSDKRpcClient();
+    const session = new Session({
+      id: 'ses_question_abort',
+      workDir: '/tmp',
+      rpc: rpc.asRpc(),
+    });
+    const signal = new AbortController().signal;
+    const handler = vi.fn(
+      (_request: QuestionRequest, options?: InteractionHandlerOptions): QuestionResult => {
+        expect(options?.signal).toBe(signal);
+        return { 'Continue?': 'yes' };
+      },
+    );
+    session.setQuestionHandler(handler);
+
+    await expect(
+      rpc.requestQuestion(session.id, 'agent-1', questionRequest('Continue?'), { signal }),
+    ).resolves.toEqual({ 'Continue?': 'yes' });
+  });
 });
 
 function questionRequest(question: string): QuestionRequest {
@@ -132,11 +159,13 @@ class FakeSDKRpcClient {
     sessionId: string,
     agentId: string,
     request: QuestionRequest,
+    options?: InteractionHandlerOptions,
   ): Promise<QuestionResult> {
     const handler = this.questionHandlers.get(sessionId);
     if (handler === undefined) return null;
     try {
-      return await handler({ ...request, sessionId, agentId } as QuestionRequest);
+      const withAgent = { ...request, sessionId, agentId } as QuestionRequest;
+      return options === undefined ? await handler(withAgent) : await handler(withAgent, options);
     } catch {
       return null;
     }

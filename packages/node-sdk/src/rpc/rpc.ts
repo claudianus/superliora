@@ -11,6 +11,7 @@ import {
   type InlineCompleteResult,
   type QuestionRequest,
   type QuestionResult,
+  type RPCCallOptions,
   type SuggestPromptsResult,
   type ToolCallRequest,
   type ToolCallResponse,
@@ -576,8 +577,9 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
 
   async requestQuestion(
     request: QuestionRequest & { sessionId: string; agentId: string },
+    options?: RPCCallOptions,
   ): Promise<QuestionResult> {
-    return this.eventBridge.requestQuestion(request);
+    return this.eventBridge.requestQuestion(request, options);
   }
 
   async requestCredential(

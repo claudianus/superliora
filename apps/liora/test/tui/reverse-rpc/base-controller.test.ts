@@ -60,6 +60,27 @@ describe('ReverseRpcController', () => {
     expect(hidePanel).toHaveBeenCalledTimes(1);
   });
 
+  it('removes an aborted request without leaving a stale panel active', async () => {
+    const controller = new TestController();
+    const showPanel = vi.fn();
+    const hidePanel = vi.fn();
+    controller.setUIHooks({ showPanel, hidePanel });
+
+    const abort = new AbortController();
+    const first = controller.show('first', { signal: abort.signal });
+    const second = controller.show('second');
+
+    abort.abort('turn ended');
+
+    await expect(first).resolves.toBe('cancel:turn ended');
+    expect(showPanel).toHaveBeenLastCalledWith('second');
+    expect(controller.hasPending()).toBe(true);
+
+    controller.respond('answer-second');
+    await expect(second).resolves.toBe('answer-second');
+    expect(hidePanel).toHaveBeenCalledOnce();
+  });
+
   it('auto-resolves matching queued requests via the autoResolveFor hook', async () => {
     class AutoController extends ReverseRpcController<
       { action: string; id: string },
