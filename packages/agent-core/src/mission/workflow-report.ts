@@ -5,7 +5,7 @@ import type { UltraworkRun, UltraworkStage } from '@superliora/protocol';
 
 import type { Agent } from '../agent';
 import { ULTRAWORK_STAGE_ORDER } from './state';
-import { writeFileAtomic } from './run-store';
+import { writeFileAtomicSync } from '../utils/fs';
 
 export const WORKFLOW_REPORT_FILENAME = 'workflow-report.md';
 export const WORKFLOW_STAGES_FILENAME = 'workflow-stages.json';
@@ -140,8 +140,8 @@ export function seedUltraworkWorkflowReport(input: SeedUltraworkWorkflowReportIn
     ],
   };
 
-  writeFileAtomic(join(input.workDir, paths.stagesPath), `${JSON.stringify(ledger, null, 2)}\n`);
-  writeFileAtomic(
+  writeFileAtomicSync(join(input.workDir, paths.stagesPath), `${JSON.stringify(ledger, null, 2)}\n`);
+  writeFileAtomicSync(
     join(input.workDir, paths.reportPath),
     renderWorkflowReportSeed({
       runId: input.runId,
@@ -184,7 +184,7 @@ export function recordUltraworkWorkflowStage(input: RecordUltraworkWorkflowStage
     updatedAt: at,
     transitions: [...ledger.transitions, transition],
   };
-  writeFileAtomic(stagesAbsolutePath, `${JSON.stringify(nextLedger, null, 2)}\n`);
+  writeFileAtomicSync(stagesAbsolutePath, `${JSON.stringify(nextLedger, null, 2)}\n`);
 
   const report = readFileSync(reportAbsolutePath, 'utf8');
   const timelineRow = `| ${at} | ${input.from ?? '—'} | ${input.to} | ${escapeTableCell(input.reason ?? '—')} |`;
@@ -193,7 +193,7 @@ export function recordUltraworkWorkflowStage(input: RecordUltraworkWorkflowStage
   const withCompletion = input.to === 'done'
     ? appendRunCompletion(withCurrentStage, at, input.reason)
     : withCurrentStage;
-  writeFileAtomic(reportAbsolutePath, withCompletion);
+  writeFileAtomicSync(reportAbsolutePath, withCompletion);
   return true;
 }
 

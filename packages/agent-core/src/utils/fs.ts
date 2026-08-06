@@ -104,6 +104,47 @@ export async function writeFileAtomicDurable(
 }
 
 /**
+ * Synchronously write a file atomically and durably: stage a uniquely-
+ * named temp file, fsync it, rename it into place, then fsync the parent
+ * directory. A crash mid-write cannot leave the target truncated.
+ */
+export function writeFileAtomicSync(targetPath: string, content: string): void {
+  const directory = dirname(targetPath);
+  nodeFs.mkdirSync(directory, { recursive: true });
+  const hex = randomBytes(4).toString('hex');
+  const tmpPath = `${targetPath}.tmp.${process.pid}.${hex}`;
+  let renamed = false;
+  try {
+    const fd = openSync(tmpPath, 'w');
+    try {
+      nodeFs.writeFileSync(fd, content, 'utf8');
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
+    nodeFs.renameSync(tmpPath, targetPath);
+    renamed = true;
+    // Commit the directory entry so the rename survives a power loss.
+    if (process.platform !== 'win32') {
+      const dirFd = openSync(directory, 'r');
+      try {
+        fsyncSync(dirFd);
+      } finally {
+        closeSync(dirFd);
+      }
+    }
+  } finally {
+    if (!renamed) {
+      try {
+        nodeFs.unlinkSync(tmpPath);
+      } catch {
+        // ignore — temp may not exist if open itself failed
+      }
+    }
+  }
+}
+
+/**
  * atomicWrite — cross-platform atomic file replacement.
  *
  * Guarantees that readers never observe a half-written file:

@@ -12,7 +12,7 @@ import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 import { join } from 'pathe';
 
 import { resolveLioraHome } from '../config/path';
-import { writeFileAtomic } from '#/mission';
+import { writeFileAtomicSync } from '#/utils/fs';
 
 export interface StaffingOutcomeInput {
   /** Hire was kept / accepted into the team. */
@@ -176,7 +176,7 @@ export function persistStaffingOutcomesToDisk(): boolean {
       updatedAt: new Date().toISOString(),
       records,
     };
-    writeFileAtomic(path, `${JSON.stringify(payload, null, 2)}\n`);
+    writeFileAtomicSync(path, `${JSON.stringify(payload, null, 2)}\n`);
     return true;
   } catch {
     return false;

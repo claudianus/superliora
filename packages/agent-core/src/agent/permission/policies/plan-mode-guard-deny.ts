@@ -1,8 +1,8 @@
 import type { Agent } from '../..';
 import {
-  isMissionPlanPhaseAllowedWrite,
-  type MissionPlanWriteContext,
-} from '#/mission/plan-write-paths';
+  isPlanPhaseAllowedWrite,
+  type PlanWriteContext,
+} from '#/agent/plan/plan-write-paths';
 import type { PermissionPolicy, PermissionPolicyContext, PermissionPolicyResult } from '../types';
 import { writeFileAccesses } from './file-access-ask';
 
@@ -38,7 +38,7 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
       }
 
       const allowCtx = missionWriteContext(this.agent, planFilePath);
-      if (isMissionPlanPhaseAllowedWrite(writePaths, allowCtx)) {
+      if (isPlanPhaseAllowedWrite(writePaths, allowCtx)) {
         return;
       }
 
@@ -65,7 +65,7 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
 function missionWriteContext(
   agent: Agent,
   planFilePath: string | null,
-): MissionPlanWriteContext {
+): PlanWriteContext {
   const activation = agent.ultrawork?.getActivation();
   const workDir =
     activation?.workDir !== undefined && activation.workDir.length > 0

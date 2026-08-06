@@ -10,7 +10,7 @@ import {
   extractTextFromGenerateResponse,
   parseJsonResponse,
   validateStringField,
-} from './llm-classifier-utils';
+} from '../utils/llm-classifier-utils';
 
 export type UltraworkCoverageLaneId =
   | 'product_requirements'

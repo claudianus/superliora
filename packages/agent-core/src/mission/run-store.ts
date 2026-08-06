@@ -1,9 +1,9 @@
-import { closeSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
-import { randomBytes } from 'node:crypto';
-import { dirname, join } from 'pathe';
+import { readFileSync } from 'node:fs';
+import { join } from 'pathe';
 
 import type { UltraworkRun } from '@superliora/protocol';
 
+import { writeFileAtomicSync } from '../utils/fs';
 import type { Agent } from '../agent';
 import type { UltraworkActivation, UltraworkRunMirror, UltraworkPlanRecoveryContext } from './types';
 
@@ -30,48 +30,6 @@ export function readUltraworkMirrorFromDisk(
   }
 }
 
-/**
- * Synchronously write a file atomically and durably: stage a uniquely-
- * named temp file, fsync it, rename it into place, then fsync the parent
- * directory. A crash mid-write cannot leave the target truncated.
- * Exported for reuse by workflow-report and other durable writes.
- */
-export function writeFileAtomic(targetPath: string, content: string): void {
-  const directory = dirname(targetPath);
-  mkdirSync(directory, { recursive: true });
-  const hex = randomBytes(4).toString('hex');
-  const tmpPath = `${targetPath}.tmp.${process.pid}.${hex}`;
-  let renamed = false;
-  try {
-    const fd = openSync(tmpPath, 'w');
-    try {
-      writeFileSync(fd, content, 'utf8');
-      fsyncSync(fd);
-    } finally {
-      closeSync(fd);
-    }
-    renameSync(tmpPath, targetPath);
-    renamed = true;
-    // Commit the directory entry so the rename survives a power loss.
-    if (process.platform !== 'win32') {
-      const dirFd = openSync(directory, 'r');
-      try {
-        fsyncSync(dirFd);
-      } finally {
-        closeSync(dirFd);
-      }
-    }
-  } finally {
-    if (!renamed) {
-      try {
-        unlinkSync(tmpPath);
-      } catch {
-        // ignore — temp may not exist if open itself failed
-      }
-    }
-  }
-}
-
 export function mirrorUltraworkRunToDisk(input: {
   readonly workDir: string;
   readonly run: UltraworkRun;
@@ -90,7 +48,7 @@ export function mirrorUltraworkRunToDisk(input: {
     journalOffset: input.journalOffset,
     lastCheckpointAt: new Date().toISOString(),
   };
-  writeFileAtomic(targetPath, `${JSON.stringify(mirror, null, 2)}\n`);
+  writeFileAtomicSync(targetPath, `${JSON.stringify(mirror, null, 2)}\n`);
 }
 
 export function checkpointUltraworkRun(

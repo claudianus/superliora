@@ -11,7 +11,7 @@ import {
   extractTextFromGenerateResponse,
   parseJsonResponse,
   validateStringField,
-} from './llm-classifier-utils';
+} from '../utils/llm-classifier-utils';
 
 export const CONTINUE_GOAL_INPUT =
   'Continue from where you left off. Resume the active goal without restarting earlier Ultrawork stages or redoing completed work.';

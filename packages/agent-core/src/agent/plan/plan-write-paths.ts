@@ -5,9 +5,9 @@
 
 import { normalize } from 'pathe';
 
-import { isUltraworkWorkflowReportWritePath } from './workflow-report';
+import { isUltraworkWorkflowReportWritePath } from '#/mission/workflow-report';
 
-export interface MissionPlanWriteContext {
+export interface PlanWriteContext {
   readonly planFilePath: string | null | undefined;
   readonly evidenceRoot?: string | null | undefined;
   readonly workDir: string;
@@ -41,17 +41,17 @@ export function normalizePlanPath(path: string, workDir: string): string {
  * True when every write path is the active plan file and/or Mission evidence root
  * (workflow report, wiki ledger, research notes under evidence root).
  */
-export function isMissionPlanPhaseAllowedWrite(
+export function isPlanPhaseAllowedWrite(
   writePaths: readonly string[],
-  ctx: MissionPlanWriteContext,
+  ctx: PlanWriteContext,
 ): boolean {
   if (writePaths.length === 0) return false;
-  return writePaths.every((path) => isSingleMissionPlanPhaseAllowedWrite(path, ctx));
+  return writePaths.every((path) => isSinglePlanPhaseAllowedWrite(path, ctx));
 }
 
-export function isSingleMissionPlanPhaseAllowedWrite(
+export function isSinglePlanPhaseAllowedWrite(
   path: string,
-  ctx: MissionPlanWriteContext,
+  ctx: PlanWriteContext,
 ): boolean {
   const workDir = typeof ctx.workDir === 'string' && ctx.workDir.length > 0 ? ctx.workDir : '';
   if (

@@ -1,5 +1,5 @@
 import type { Agent } from '../..';
-import { isMissionPlanPhaseAllowedWrite } from '#/mission/plan-write-paths';
+import { isPlanPhaseAllowedWrite } from '#/agent/plan/plan-write-paths';
 import type { PermissionPolicy, PermissionPolicyContext, PermissionPolicyResult } from '../types';
 import { writeFileAccesses } from './file-access-ask';
 
@@ -38,7 +38,7 @@ export class PlanModeToolApprovePermissionPolicy implements PermissionPolicy {
           ? activation.workDir
           : this.agent.config.cwd;
       if (
-        isMissionPlanPhaseAllowedWrite(writePaths, {
+        isPlanPhaseAllowedWrite(writePaths, {
           planFilePath: this.agent.planMode.planFilePath,
           evidenceRoot: activation?.evidenceRoot,
           workDir,

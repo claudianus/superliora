@@ -2,7 +2,7 @@ import { readFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { resolveLioraHome } from '#/config/path';
-import { writeFileAtomic } from '#/mission';
+import { writeFileAtomicSync } from '#/utils/fs';
 
 export const SUBAGENT_CHECKPOINT_VERSION = 1;
 
@@ -53,7 +53,7 @@ export function writeSubagentCheckpoint(
       savedAt: new Date().toISOString(),
       ...input,
     };
-    writeFileAtomic(subagentCheckpointPath(subagentId, homeDir), JSON.stringify(checkpoint));
+    writeFileAtomicSync(subagentCheckpointPath(subagentId, homeDir), JSON.stringify(checkpoint));
   } catch {
     // Best effort only.
   }

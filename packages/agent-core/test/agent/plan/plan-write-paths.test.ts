@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  isMissionPlanPhaseAllowedWrite,
+  isPlanPhaseAllowedWrite,
   normalizePlanPath,
   pathsEqualForPlanWrite,
   planFileAllowDir,
-} from '#/mission/plan-write-paths';
+} from '#/agent/plan/plan-write-paths';
 
-describe('mission plan-write-paths', () => {
+describe('plan-write-paths', () => {
   const workDir = '/workspace/project';
   const planFile = '/home/user/.superliora/plans/hero-plan.md';
   const evidenceRoot = '.superliora/evidence/ultrawork-runs/run-1';
@@ -25,7 +25,7 @@ describe('mission plan-write-paths', () => {
 
   it('allows plan file and evidence-root workflow/research paths', () => {
     expect(
-      isMissionPlanPhaseAllowedWrite([planFile], {
+      isPlanPhaseAllowedWrite([planFile], {
         planFilePath: planFile,
         evidenceRoot,
         workDir,
@@ -33,7 +33,7 @@ describe('mission plan-write-paths', () => {
     ).toBe(true);
 
     expect(
-      isMissionPlanPhaseAllowedWrite([`${evidenceRoot}/workflow-report.md`], {
+      isPlanPhaseAllowedWrite([`${evidenceRoot}/workflow-report.md`], {
         planFilePath: planFile,
         evidenceRoot,
         workDir,
@@ -41,7 +41,7 @@ describe('mission plan-write-paths', () => {
     ).toBe(true);
 
     expect(
-      isMissionPlanPhaseAllowedWrite(
+      isPlanPhaseAllowedWrite(
         [`${workDir}/${evidenceRoot}/research/notes.md`],
         {
           planFilePath: planFile,
@@ -54,7 +54,7 @@ describe('mission plan-write-paths', () => {
 
   it('denies product-tree paths outside allow-list', () => {
     expect(
-      isMissionPlanPhaseAllowedWrite(['/workspace/project/src/main.ts'], {
+      isPlanPhaseAllowedWrite(['/workspace/project/src/main.ts'], {
         planFilePath: planFile,
         evidenceRoot,
         workDir,
@@ -62,7 +62,7 @@ describe('mission plan-write-paths', () => {
     ).toBe(false);
 
     expect(
-      isMissionPlanPhaseAllowedWrite(
+      isPlanPhaseAllowedWrite(
         [planFile, '/workspace/project/src/main.ts'],
         {
           planFilePath: planFile,
