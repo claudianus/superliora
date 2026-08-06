@@ -6,6 +6,7 @@ import type { ContextMessage } from './types';
 export interface ContextMemoryHost {
   readonly agent: Agent;
   history: ContextMessage[];
+  readonly historyRevision: number;
   tokenCount: number;
   tokenCountCoveredMessageCount: number;
   openSteps: Map<string, ContextMessage>;
@@ -20,6 +21,7 @@ export interface ContextMemoryHost {
   deferredMessages: ContextMessage[];
   lastAssistantAt: number | null;
   lastProjectionRepairSignature: string | null;
+  markContextChanged(): void;
   appendLoopEvent(event: LoopRecordedEvent): void;
   pushHistory(...messages: ContextMessage[]): void;
   flushDeferredMessagesIfToolExchangeClosed(): void;

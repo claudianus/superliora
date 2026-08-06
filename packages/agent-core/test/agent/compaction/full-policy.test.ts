@@ -6,6 +6,7 @@ import {
   MIN_OBSERVED_MAX_CONTEXT_TOKENS,
   relaxObservedMaxContextTokens,
   resolveEffectiveMaxContextTokens,
+  shouldDeferAsyncCompaction,
   shouldDeferAutoCompaction,
   shouldRecoverFromOverflowStatus,
   shouldSkipRecompactUntilGrowth,
@@ -93,6 +94,35 @@ describe('full-policy.ts — pure policy helpers', () => {
 
     it('does not defer when no foreground children are active', () => {
       expect(shouldDeferAutoCompaction({ hasActiveForegroundChildren: false })).toBe(false);
+    });
+  });
+
+  describe('shouldDeferAsyncCompaction', () => {
+    it('defers when execution-lane jobs are running', () => {
+      expect(
+        shouldDeferAsyncCompaction({
+          hasActiveForegroundChildren: false,
+          hasRunningConductorJobs: true,
+        }),
+      ).toBe(true);
+    });
+
+    it('keeps async compaction available when the fleet is idle', () => {
+      expect(
+        shouldDeferAsyncCompaction({
+          hasActiveForegroundChildren: false,
+          hasRunningConductorJobs: false,
+        }),
+      ).toBe(false);
+    });
+
+    it('preserves foreground-child deferral', () => {
+      expect(
+        shouldDeferAsyncCompaction({
+          hasActiveForegroundChildren: true,
+          hasRunningConductorJobs: false,
+        }),
+      ).toBe(true);
     });
   });
 

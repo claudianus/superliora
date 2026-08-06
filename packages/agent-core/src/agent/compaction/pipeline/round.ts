@@ -53,6 +53,13 @@ import {
 import type { FullCompactionRoundHost } from './types';
 import { PROGRESS_WEIGHT_PLAN } from './types';
 
+export class StaleCompactionContextError extends Error {
+  constructor() {
+    super('Context changed while compaction was being summarized.');
+    this.name = 'StaleCompactionContextError';
+  }
+}
+
 export async function runCompactionRound(
   host: FullCompactionRoundHost,
   round: number,
@@ -62,6 +69,7 @@ export async function runCompactionRound(
 ): Promise<CompactionResult | undefined> {
   const startedAt = Date.now();
   const originalHistory = [...host.agent.context.history];
+  const originalHistoryRevision = host.agent.context.historyRevision;
   const tokensBefore = estimateTokensForMessages(originalHistory);
   const retryCount = { value: 0 };
   try {
@@ -190,11 +198,19 @@ export async function runCompactionRound(
     }
 
     const newHistory = host.agent.context.history;
+    if (
+      newHistory.length !== originalHistory.length ||
+      host.agent.context.historyRevision !== originalHistoryRevision
+    ) {
+      // Context changed during compaction. A revision catches in-place updates
+      // that preserve message identity; the length check catches an appended
+      // tail even if a caller bypasses the revision hook.
+      throw new StaleCompactionContextError();
+    }
     for (let i = 0; i < originalHistory.length; i++) {
       if (newHistory[i] !== originalHistory[i]) {
-        // History changed during compaction, likely due to undo
-        host.cancel();
-        return undefined;
+        // History changed during compaction, likely due to undo.
+        throw new StaleCompactionContextError();
       }
     }
 
@@ -417,6 +433,7 @@ export async function runCompactionRound(
     return applied;
   } catch (error) {
     if (isAbortError(error)) return;
+    if (error instanceof StaleCompactionContextError) throw error;
     host.agent.telemetry.track('compaction_failed', {
       source: data.source,
       tokens_before: tokensBefore,

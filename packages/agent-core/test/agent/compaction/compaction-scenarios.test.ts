@@ -4,10 +4,8 @@
 //   * GUARD tests lock in behavior we rely on (so future refactors can't
 //     silently regress it).
 //   * PROBE tests exercise the high-risk scenarios surfaced in review and in
-//     our own audit, asserting the DESIRED behavior. Where the current
-//     implementation does NOT meet that bar, the probe is marked `it.fails`:
-//     the suite stays green, but the test documents the exact defect and will
-//     start failing (forcing its removal) the day the behavior is fixed.
+//     our own audit, asserting the DESIRED behavior. Each probe is a live
+//     regression guard: the suite must fail while the behavior is broken.
 //
 // Compaction is a hot path, so these intentionally drive the real
 // Agent/ContextMemory/FullCompaction machinery through the test harness rather
@@ -190,7 +188,7 @@ describe('compaction — probe tests (high-risk scenarios)', () => {
   // the pre-compaction snapshot, and the all-user rebuild would drop the appended
   // assistant/tool tail — so compaction detects the changed history and cancels,
   // leaving the appended turn intact for a later clean-boundary compaction.
-  it.fails('preserves an assistant turn appended while the summarizer call is in flight', async () => {
+  it('cancels when an assistant turn is appended while the summarizer call is in flight', async () => {
     let ctx!: TestAgentContext;
     const appendDuringGenerate: GenerateFn = async () => {
       // Simulate the turn loop completing a step while compaction awaits.
@@ -225,6 +223,35 @@ describe('compaction — probe tests (high-risk scenarios)', () => {
     await ctx.once('compaction.cancelled');
 
     expect(historyTexts(ctx).join('\n')).toContain('RACE-ASSISTANT-OUTPUT');
+  });
+
+  it('cancels when an assistant message is mutated in place during summarization', async () => {
+    let ctx!: TestAgentContext;
+    const appendDuringGenerate: GenerateFn = async () => {
+      ctx.agent.context.appendLoopEvent({
+        type: 'content.part',
+        uuid: 'race-part',
+        turnId: '',
+        step: 9,
+        stepUuid: 'live-step',
+        part: { type: 'text', text: 'RACE-IN-PLACE-OUTPUT' },
+      });
+      return textResult('Compacted summary.');
+    };
+    ctx = testAgent({ generate: appendDuringGenerate });
+    ctx.configure({ provider: PROVIDER, modelCapabilities: CAPS });
+    ctx.appendExchange(1, 'user one', 'assistant one', 40);
+    ctx.agent.context.appendLoopEvent({
+      type: 'step.begin',
+      uuid: 'live-step',
+      turnId: '',
+      step: 9,
+    });
+
+    await ctx.rpc.beginCompaction({});
+    await ctx.once('compaction.cancelled');
+
+    expect(historyTexts(ctx).join('\n')).toContain('RACE-IN-PLACE-OUTPUT');
   });
 
   // PROBE #1b — a user-ROLE message that compaction would drop (background-task

@@ -12,6 +12,7 @@ import { estimateTokens } from '../../../utils/tokens';
 import type { CompactionPlan } from '../plan/planner';
 import { renderMessagesToText } from '../plan/render-messages';
 import { extractEvidenceIdsFromText } from '../plan/quality';
+import { latestUserText } from '../plan/quality-helpers';
 
 const EMERGENCY_NARRATIVE_MAX_TOKENS = 8_000;
 const EMERGENCY_MESSAGE_SNIPPET_CHARS = 600;
@@ -131,13 +132,8 @@ export function buildEmergencyBackstopSummary(
 }
 
 function findLatestUserText(messages: readonly Message[]): string | undefined {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i];
-    if (message?.role !== 'user') continue;
-    const text = extractText(message, ' ').replaceAll(/\s+/g, ' ').trim();
-    if (text.length > 0) return truncateChars(text, EMERGENCY_MESSAGE_SNIPPET_CHARS);
-  }
-  return undefined;
+  const text = latestUserText(messages);
+  return text === undefined ? undefined : truncateChars(text, EMERGENCY_MESSAGE_SNIPPET_CHARS);
 }
 
 function collectAssistantDecisions(messages: readonly Message[]): string[] {

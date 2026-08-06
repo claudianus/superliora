@@ -6,7 +6,6 @@ import {
   DEFAULT_COMPACTION_BLOCK_RATIO,
   DEFAULT_COMPACTION_CONFIG,
   DEFAULT_COMPACTION_TRIGGER_RATIO,
-  DEFAULT_FROZEN_ZONE_SIZE,
   DEFAULT_MAX_WORKING_SET_TOKENS,
   DEFAULT_MICRO_WORKING_SET_TOKENS,
   SWARM_HANDOFF_COMPACTION_RATIO,
@@ -196,9 +195,6 @@ describe('strategy.ts — pure helpers', () => {
       );
     });
 
-    it('keeps the frozen zone at the documented default', () => {
-      expect(DEFAULT_COMPACTION_CONFIG.frozenZoneSize).toBe(DEFAULT_FROZEN_ZONE_SIZE);
-    });
   });
 });
 

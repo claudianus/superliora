@@ -12,6 +12,7 @@ import {
   isUsefulCompactionMemoryItem,
   parseStructuredCompactionMemory,
 } from '../memory';
+import { isRealUserPromptOrigin, type ContextMessage } from '../../context/types';
 
 export const V2_REQUIRED_LABELS = [
   'current_goal',
@@ -102,7 +103,12 @@ export function hasExactV2Attempt(summary: string): boolean {
 export function latestUserText(messages: readonly Message[]): string | undefined {
   for (let i = messages.length - 1; i >= 0; i--) {
     const message = messages[i];
-    if (message?.role !== 'user') continue;
+    if (
+      message?.role !== 'user' ||
+      !isRealUserPromptOrigin((message as ContextMessage).origin)
+    ) {
+      continue;
+    }
     const text = extractText(message, ' ').replaceAll(/\s+/g, ' ').trim();
     if (text.length > 0) return text;
   }

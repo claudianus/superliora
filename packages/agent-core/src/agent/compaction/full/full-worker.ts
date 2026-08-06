@@ -18,7 +18,10 @@ import {
 } from '../pipeline/assemble';
 import { resolveCompactionWorkerTimeoutMs } from '../pipeline/generate-guard';
 import type { FullCompactionWorkerHost } from '../pipeline/types';
-import { runCompactionRound } from '../pipeline/round';
+import {
+  runCompactionRound,
+  StaleCompactionContextError,
+} from '../pipeline/round';
 
 /** Hard cap on multi-round compaction so a pathological history cannot loop forever. */
 const MAX_COMPACTION_ROUNDS = 8;
@@ -27,6 +30,8 @@ const MAX_COMPACTION_ROUNDS = 8;
  * rather than thrashing with near-zero progress.
  */
 const MIN_ROUND_REDUCTION_TOKENS = 1_024;
+/** Bound wasted summarizer calls when a live turn keeps mutating the context. */
+const MAX_STALE_CONTEXT_RETRIES = 3;
 
 export async function runCompactionWorker(
   host: FullCompactionWorkerHost,
@@ -49,17 +54,41 @@ export async function runCompactionWorker(
       tokensBefore: 0,
       tokensAfter: 0,
     };
+    let staleContextRetries = 0;
 
     for (let round = 1; round <= MAX_COMPACTION_ROUNDS; round++) {
       deadline.signal.throwIfAborted();
-      const result = await runCompactionRound(
-        host,
-        round,
-        deadline.signal,
-        data,
-        compactedCount,
-      );
+      let result: CompactionResult | undefined;
+      try {
+        result = await runCompactionRound(
+          host,
+          round,
+          deadline.signal,
+          data,
+          compactedCount,
+        );
+      } catch (error) {
+        if (!(error instanceof StaleCompactionContextError)) throw error;
+        staleContextRetries += 1;
+        host.agent.telemetry.track('compaction_stale_context_retry', {
+          retry: staleContextRetries,
+          round,
+        });
+        if (staleContextRetries > MAX_STALE_CONTEXT_RETRIES) {
+          host.agent.telemetry.track('compaction_stale_context_retry_exhausted', {
+            retries: staleContextRetries,
+          });
+          return;
+        }
+        compactedCount = host.strategy.computeCompactCount(
+          host.agent.context.history,
+          data.source,
+        );
+        if (compactedCount === 0) return;
+        continue;
+      }
       if (!result) return;
+      staleContextRetries = 0;
 
       finalResult.summary = result.summary;
       finalResult.compactedCount += result.compactedCount - 1;

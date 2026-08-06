@@ -16,6 +16,8 @@ export function undoContextMessages(host: ContextMemoryHost, count: number): voi
 
   let removedUserCount = 0;
   const removedMessages = new Set<ContextMessage>();
+  const hadOpenSteps = host.openSteps.size > 0;
+  const hadDeferredMessages = host.deferredMessages.length > 0;
   let stoppedAtBoundary = false;
   for (let i = host.history.length - 1; i >= 0; i--) {
     const message = host.history[i];
@@ -41,6 +43,9 @@ export function undoContextMessages(host: ContextMemoryHost, count: number): voi
     }
   }
 
+  if (removedMessages.size > 0 || hadOpenSteps || hadDeferredMessages) {
+    host.markContextChanged();
+  }
   host.agent.replayBuilder.removeLastMessages(removedMessages);
 
   host.openSteps.clear();
@@ -90,6 +95,7 @@ export function reclaimEphemeralUserMessagesFromContext(host: ContextMemoryHost)
     host.agent.injection.onContextMessageRemoved(i);
   }
   if (removed > 0) {
+    host.markContextChanged();
     host.agent.microCompaction.reset(host.history.length);
     host.agent.emitStatusUpdated();
   }
