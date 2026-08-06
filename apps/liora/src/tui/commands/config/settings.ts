@@ -44,8 +44,6 @@ import { showNetworkSettings } from './network/network-settings';
 import { showStorageSettings } from './storage/storage-settings';
 import { showSecuritySettings } from './security/security-settings';
 import { showCompactionSettings } from './context/compaction-settings';
-import { showMissionSettings } from './mission/mission-settings';
-import { showFleetSettings } from './fleet/fleet-settings';
 import { showSettingsInventory } from './diagnostics/settings-inventory';
 import { showProvidersApiSettings } from './providers/providers-api-settings';
 import { showKeybindingsSettings } from './keybindings/keybindings-settings';
@@ -86,8 +84,6 @@ function handleSettingsSelection(host: SlashCommandHost, value: SettingsSelectio
     case 'keybindings': showKeybindingsSettings(host); return;
     case 'context': showContextSettings(host); return;
     case 'compaction': showCompactionSettings(host); return;
-    case 'mission': showMissionSettings(host); return;
-    case 'fleet': showFleetSettings(host); return;
     case 'media': showMediaSettings(host); return;
     case 'harness': showHarnessPanel(host); return;
     case 'tools': void showToolsInventory(host); return;

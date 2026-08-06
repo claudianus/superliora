@@ -1,10 +1,6 @@
 import type { GoalSnapshot } from '@superliora/sdk';
 
 import { parseGoalCommand } from '#/tui/commands/goal';
-import {
-  buildMissionPrompt,
-  parseMissionCommand,
-} from '#/tui/utils/mission/mission-contract';
 
 /**
  * Headless goal-mode support for the `liora -p "/goal <objective>"` prompt path.
@@ -19,7 +15,6 @@ export interface HeadlessGoalCreate {
   readonly objective: string;
   readonly replace: boolean;
   readonly prompt?: string;
-  readonly ultrawork?: boolean;
   /** Shell command gating goal completion (`--autonomous-gate`). */
   readonly gateCommand?: string;
 }
@@ -54,7 +49,6 @@ export function goalExitCode(status: string | undefined): number {
 }
 
 const GOAL_PREFIX = /^\/goal(\s|$)/;
-const ULTRAGOAL_PREFIX = /^\/(?:ultragoal|ultrawork|uw|ug)(\s|$)/;
 
 /**
  * Parses a headless prompt into a goal-create request, or `undefined` when the
@@ -64,28 +58,16 @@ const ULTRAGOAL_PREFIX = /^\/(?:ultragoal|ultrawork|uw|ug)(\s|$)/;
  */
 export function parseHeadlessGoalCreate(prompt: string): HeadlessGoalCreate | undefined {
   const trimmed = prompt.trim();
-  if (ULTRAGOAL_PREFIX.test(trimmed)) {
-    const args = trimmed.replace(/^\/(?:ultragoal|ultrawork|uw|ug)/, '').trim();
-    const parsed = parseMissionCommand(args);
-    if (parsed.kind !== 'create') return undefined;
-    return {
-      objective: parsed.objective,
-      replace: parsed.replace,
-      prompt: buildMissionPrompt(parsed.objective, 'headless'),
-      ultrawork: true,
-    };
-  }
   if (!GOAL_PREFIX.test(trimmed)) return undefined;
   const args = trimmed.replace(/^\/goal/, '').trim();
   const parsed = parseGoalCommand(args);
   if (parsed.kind !== 'create') return undefined;
+  // No prompt wrapper: `runHeadlessGoal` creates the goal before the turn, and
+  // agent-core's goal injection re-states the (escaped) objective and the
+  // UpdateGoal contract on every turn, so the turn prompt is the objective.
   return {
     objective: parsed.objective,
     replace: parsed.replace,
-    prompt: buildMissionPrompt(parsed.objective, 'goal', parsed.replace, {
-      activeGoalAlreadyCreated: true,
-    }),
-    ultrawork: true,
   };
 }
 

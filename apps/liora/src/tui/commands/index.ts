@@ -27,10 +27,6 @@ export { showExperimentsPanel } from './config/experiments/experiments';
 export { showSettingsSelector, showHarnessPanel, openSettingsPane } from './config/settings';
 export { showToolsInventory } from './config/harness/harness-tools';
 export { showHarnessEyesReadiness } from './config/eyes/eyes-settings';
-export { handleSwarmCommand } from './swarm/swarm';
-
-export { buildUltraworkPrompt, parseUltraworkCommand } from '#/tui/utils/mission/mission-contract';
-export { handleUltraworkCommand } from './ultrawork/ultrawork';
 export { showMcpServers, showQuota, showStatusReport, showUsage } from './info/info';
 export {
   buildMemoryReadinessLines,

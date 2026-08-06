@@ -10,9 +10,9 @@ export const HOOKS_PRE_TOOL_USE_TIP =
 export const HOOKS_POST_TOOL_USE_TIP =
   'PostToolUse / PostToolUseFailure — audit, format, telemetry side-effects · Edit/Write triggers RunProjectChecks or scoped lint/type after file changes.';
 
-/** Compact Stop tip — session wind-down and swarm cleanup. */
+/** Compact Stop tip — session wind-down and worker cleanup. */
 export const HOOKS_STOP_TIP =
-  'Stop / StopFailure — session wind-down, teammate idle, swarm cleanup · SessionStart / UserPromptSubmit bootstrap context and expand prompts.';
+  'Stop / StopFailure — session wind-down, teammate idle, worker cleanup · SessionStart / UserPromptSubmit bootstrap context and expand prompts.';
 
 /** Compact enable tip — manual hook setup paths. */
 export const HOOKS_ENABLE_TIP =
@@ -72,7 +72,7 @@ export function buildHooksSettingsLines(input: HooksGlanceInput): readonly strin
     '· PreToolUse — gate destructive git/rm, .env writes, secret paths',
     '· PostToolUse / PostToolUseFailure — audit, format, telemetry side-effects',
     '· PostToolUse (Edit/Write) — RunProjectChecks or scoped lint/type after file changes',
-    '· Stop / StopFailure — session wind-down, teammate idle, swarm cleanup',
+    '· Stop / StopFailure — session wind-down, teammate idle, worker cleanup',
     '· SessionStart / UserPromptSubmit — bootstrap context, expand prompts',
     '',
     '── Enable (manual) ──────────────────────────',

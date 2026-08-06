@@ -55,10 +55,8 @@ import {
   labelConductorJobs,
   labelMenu,
   labelModeAuto,
-  labelModeMission,
   labelModePlan,
   labelModePremium,
-  labelModeSwarm,
   labelModeYolo,
 } from '#/tui/components/chrome/footer/footer-labels';
 
@@ -122,26 +120,11 @@ export function renderFooterLine1(input: RenderFooterLine1Input): string {
         ),
       );
     }
-    if (state.ultraworkMode) {
-      modes.push(
-        withModeBeat(
-          'mission',
-          renderAnimatedGradientText(labelModeMission(labels), 'footer:ultrawork', appearance),
-        ),
-      );
-    } else if (state.planMode) {
+    if (state.planMode) {
       modes.push(
         withModeBeat(
           'plan',
           renderPulseText(labelModePlan(labels), 'plan', 'primary', appearance),
-        ),
-      );
-    }
-    if (state.swarmMode) {
-      modes.push(
-        withModeBeat(
-          'swarm',
-          renderPulseText(labelModeSwarm(labels), 'footer:swarm', 'accent', appearance),
         ),
       );
     }

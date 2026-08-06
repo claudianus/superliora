@@ -69,12 +69,6 @@ export {
 } from '#/tui/features/appearance/appearance-motion';
 
 export {
-  resolveUltraworkBorderGlowHex,
-  resolveUltraworkEditorBorderStyle,
-  paintUltraworkEditorBorderGlow,
-} from '#/tui/features/appearance/appearance-ultrawork';
-
-export {
   type PremiumBoxFrameOptions,
   renderPremiumBoxFrame,
 } from '#/tui/features/appearance/appearance-box-frame';

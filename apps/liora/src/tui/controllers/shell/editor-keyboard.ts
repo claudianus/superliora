@@ -33,8 +33,6 @@ import type { TUIState } from '../../tui-state';
 import type { PromptStash } from '../../utils/prompt-stash';
 import type { BtwPanelController } from '../panes/btw-panel';
 
-export type ShiftTabModeTarget = 'off' | 'ultrawork';
-
 export interface EditorKeyboardHost extends PromptInputRuntimeHost {
   state: TUIState;
   session: Session | undefined;
@@ -58,7 +56,6 @@ export interface EditorKeyboardHost extends PromptInputRuntimeHost {
   hideExtensionsModal(): void;
   openUndoSelector(): void;
   stop(exitCode?: number): Promise<void>;
-  handleUltraworkModeToggle(next: boolean): void;
   handleInputModeChange(mode: 'prompt' | 'bash'): void;
   clearQueuedMessages(): void;
   showHistorySearch(): void;
@@ -204,23 +201,6 @@ export class EditorKeyboardController {
         return;
       }
       this.armPendingUndoEsc();
-    };
-
-    editor.onShiftTab = () => {
-      if (host.session === undefined) {
-        host.showError(NO_ACTIVE_SESSION_MESSAGE);
-        return;
-      }
-      const next = nextShiftTabModeTarget(host.state.appState);
-      if (next === 'ultrawork') {
-        host.track('shortcut_ultrawork_toggle', { enabled: true });
-        host.track('shortcut_mode_switch', { to_mode: 'ultrawork' });
-        host.handleUltraworkModeToggle(true);
-        return;
-      }
-      host.track('shortcut_ultrawork_toggle', { enabled: false });
-      host.track('shortcut_mode_switch', { to_mode: 'agent' });
-      host.handleUltraworkModeToggle(false);
     };
 
     editor.onInputModeChange = (mode) => {
@@ -588,11 +568,4 @@ export class EditorKeyboardController {
       this.host.setExternalEditorRunning(false);
     }
   }
-}
-
-export function nextShiftTabModeTarget(state: {
-  readonly ultraworkMode?: boolean;
-}): ShiftTabModeTarget {
-  if (state.ultraworkMode === true) return 'off';
-  return 'ultrawork';
 }

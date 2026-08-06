@@ -11,10 +11,6 @@ import type {
 } from '@superliora/sdk';
 
 import {
-  SwarmModeMarkerComponent,
-  type SwarmModeMarkerState,
-} from '../../components/messages/swarm-markers';
-import {
   OAUTH_LOGIN_REQUIRED_CODE,
   OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE,
 } from '../../constant/liora-tui';
@@ -121,10 +117,6 @@ export class SessionEventNotices {
   }
 
   handleStatusUpdate(event: AgentStatusUpdatedEvent): void {
-    const shouldRenderSwarmEnded =
-      event.swarmMode === false &&
-      this.host.state.appState.swarmMode &&
-      this.host.state.swarmModeEntry === 'task';
     const patch: Partial<AppState> = {};
     if (event.contextUsage !== undefined) patch.contextUsage = event.contextUsage;
     if (event.contextTokens !== undefined) patch.contextTokens = event.contextTokens;
@@ -155,7 +147,6 @@ export class SessionEventNotices {
     if (event.planMode !== undefined) {
       patch.planMode = event.planMode;
     }
-    if (event.swarmMode !== undefined) patch.swarmMode = event.swarmMode;
     if (event.premiumQualityMode !== undefined) {
       patch.premiumQualityMode = event.premiumQualityMode;
     }
@@ -204,19 +195,6 @@ export class SessionEventNotices {
     const staleCascade = staleSearchCascadeClearPatch(this.host.state.appState.searchCascade);
     if (staleCascade !== null) Object.assign(patch, staleCascade);
     if (Object.keys(patch).length > 0) this.host.setAppState(patch);
-    if (event.swarmMode === false) {
-      this.host.state.swarmModeEntry = undefined;
-      if (shouldRenderSwarmEnded) {
-        this.renderSwarmModeMarker('ended');
-      }
-    }
-  }
-
-  renderSwarmModeMarker(state: SwarmModeMarkerState): void {
-    this.host.state.transcriptContainer.addChild(
-      new SwarmModeMarkerComponent(state),
-    );
-    requestTUILayoutRender(this.host.state);
   }
 
   handleSessionMetaChanged(event: SessionMetaUpdatedEvent): void {

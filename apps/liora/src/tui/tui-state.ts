@@ -112,7 +112,6 @@ export interface TUIState {
   tasksBrowser: TasksBrowserState | undefined;
   externalEditorRunning: boolean;
   queuedMessages: QueuedMessage[];
-  swarmModeEntry: 'manual' | 'task' | 'ultrawork' | undefined;
   /**
    * Cached editor rect from the last call to getTUIStateNativeEditorRect.
    * Avoids a full layout recomputation (planTUINativeStage) on every keystroke.
@@ -293,7 +292,6 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
     tasksBrowser: undefined,
     externalEditorRunning: false,
     queuedMessages: [],
-    swarmModeEntry: undefined,
   };
   self = state;
   // Deferred tool-body highlight: plain paint first, then refresh when

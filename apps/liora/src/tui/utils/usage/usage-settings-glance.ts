@@ -14,10 +14,9 @@ export const USAGE_QUOTA_TIP =
 
 /** ChoicePicker tip — context window, footer badge, and related commands. */
 export const USAGE_CONTEXT_TIP =
-  'Footer badge mirrors contextUsage between refreshes. /usage — bars and composition · /status — model + route snapshot · Settings → Fleet — SUPERLIORA_FLEET_BUDGET_USD cap.';
+  'Footer badge mirrors contextUsage between refreshes. /usage — bars and composition · /status — model + route snapshot.';
 
 import { formatContextUsageLine } from '#/tui/utils/compaction/compaction-glance';
-import { loadFleetBudgetGlance } from '#/tui/utils/fleet/fleet-glance';
 import { formatOpsTokenGlance } from '#/tui/utils/usage/ops-token-glance';
 
 export interface UsageSettingsGlance {
@@ -36,20 +35,14 @@ export function loadUsageSettingsGlance(input: {
   readonly contextUsage?: number;
   readonly contextTokens?: number;
   readonly maxContextTokens?: number;
-  readonly env?: NodeJS.ProcessEnv;
   readonly sessionError?: string;
 }): UsageSettingsGlance {
-  const budget = loadFleetBudgetGlance(input.env);
-  const budgetUsd =
-    budget.budgetUsd !== null && budget.budgetUsd > 0 ? budget.budgetUsd : undefined;
-
   const usage = input.status?.usage;
   const cacheHitRate = input.status?.cacheHitRate;
   const tokenLine = formatOpsTokenGlance({
     usage,
     cacheHitRate,
     costUsd: input.sessionCostUsd,
-    budgetUsd,
   });
 
   const contextUsage = input.status?.contextUsage ?? input.contextUsage;
@@ -88,7 +81,6 @@ export function buildUsageSettingsLines(glance: UsageSettingsGlance): readonly s
     '── Full report ──────────────────────────────',
     '  /usage                        bars, plan quotas, composition',
     '  /status                       model + route + context snapshot',
-    '  Settings → Fleet              SUPERLIORA_FLEET_BUDGET_USD cap',
     '',
     '── Tips ─────────────────────────────────────',
     '· Token totals refresh from session.getStatus().usage',

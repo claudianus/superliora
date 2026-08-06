@@ -87,7 +87,7 @@ export function validateOptions(opts: CLIOptions): ValidatedOptions {
     }
   }
   if (opts.autonomousGate !== undefined) {
-    const goalPrompt = promptMode && /^\/(goal|ultragoal|ultrawork|uw|ug)(\s|$)/.test(prompt.trim());
+    const goalPrompt = promptMode && /^\/goal(\s|$)/.test(prompt.trim());
     if (!goalPrompt) {
       throw new OptionConflictError(t('cli.runtime.options.autonomousGateNeedsGoal'));
     }

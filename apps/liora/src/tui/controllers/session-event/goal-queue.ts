@@ -20,7 +20,7 @@ import { appearanceAnimationNow } from '../../features/appearance/appearance-eff
 import { feedbackEffectsActive, noteSuccessFeedback } from '../../utils/render/feedback-vfx';
 import { formatErrorMessage } from '../../utils/event-payload';
 import { buildGoalCompletionMessage } from '../../utils/goal-completion';
-import { isMotionTheatreActive, type MotionBeatController } from '../../utils/render/motion-beats';
+import type { MotionBeatController } from '../../utils/render/motion-beats';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { noteGoalCompletionMeteorBurst } from '../../features/stage/stage-letterbox-sky';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
@@ -97,7 +97,6 @@ export class SessionEventGoalQueue {
         seed: 'goal-xp',
         title: 'Goal progress',
         nowMs,
-        theatreActive: isMotionTheatreActive(this.host.state.appState),
       });
     }
     this.host.setAppState(patch);
@@ -131,7 +130,6 @@ export class SessionEventGoalQueue {
         seed: `goal:${event.snapshot.goalId}`,
         title: 'Goal complete',
         nowMs: appearanceAnimationNow(),
-        theatreActive: isMotionTheatreActive(state.appState),
       });
       this.host.appendTranscriptEntry({
         id: nextTranscriptId(),

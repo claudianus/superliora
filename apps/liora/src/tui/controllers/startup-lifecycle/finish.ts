@@ -1,6 +1,5 @@
 import type { Session } from '@superliora/sdk';
 
-import { showMissionAutoStartSessionTipIfNeeded } from '../../utils/mission/mission-autostart-session-tip';
 import { restorePromptInputState } from '../../utils/prompt-input-state';
 import {
   pruneTuiSessionToolOutputViewports,
@@ -99,7 +98,6 @@ export async function showSessionWarnings(
   } catch {
     // Best-effort: startup must not block on warning retrieval.
   }
-  void showMissionAutoStartSessionTipIfNeeded(host, session);
 }
 
 async function resumeGoalFromQueue(host: StartupLifecycleHost): Promise<void> {

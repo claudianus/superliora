@@ -44,19 +44,6 @@ export interface AppState {
   sessionId: string;
   permissionMode: PermissionMode;
   planMode: boolean;
-  /** Local TUI mode: normal prompts are routed into the Mission workflow. */
-  ultraworkMode?: boolean;
-  /**
-   * Snapshot of the session flags an active Mission run took over (plan /
-   * swarm / premium), captured when the run started so the finish handler can
-   * restore them. Cleared on completion. Null/undefined means no run is active.
-   */
-  ultraworkPriorState?: {
-    readonly planMode: boolean;
-    readonly swarmMode: boolean;
-    readonly swarmModeEntry: 'manual' | 'task' | 'ultrawork' | undefined;
-    readonly premiumQualityMode: boolean;
-  } | null;
   /** Visual Quality mode: art direction, anti-slop visuals, skill routing, screenshot proof. */
   premiumQualityMode?: boolean;
   /**
@@ -67,7 +54,6 @@ export interface AppState {
   conductorJobs?: ConductorJobsSnapshot | null;
   /** 'bash' when the editor is in `!` shell-command mode. */
   inputMode: 'prompt' | 'bash';
-  swarmMode: boolean;
   /** Whether thinking is enabled (true when {@link thinkingLevel} is not `'off'`). */
   thinking: boolean;
   /**
@@ -183,8 +169,6 @@ export interface AppState {
   goalSoftAdvisory?: string | null;
   /** Brief fleet worker completion pulse (Dopamine Ops) — ~2s footer `fleet✓` badge. */
   fleetFlourish?: { readonly atMs: number } | null;
-  /** Live Maker≠Checker soft collision warn from AgentSwarm/UltraSwarm result (swarm-maker-checker). */
-  makerCheckerSoftWarn?: string | null;
   /** Brief permission approval pulse (Dopamine Ops) — ~2s footer `perm✓` badge. */
   permissionApproveFlourish?: { readonly atMs: number } | null;
   /** Brief git file-count churn pulse (Dopamine Ops) — ~2s footer `diff↑` badge. */

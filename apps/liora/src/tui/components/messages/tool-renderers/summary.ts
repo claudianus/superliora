@@ -21,7 +21,6 @@ import { strArg } from './types';
 
 import {
   agentGlance,
-  agentSwarmGlance,
   askUserQuestionGlance,
   browserObserveGlance,
   browserStatusGlance,
@@ -48,11 +47,9 @@ import {
   searchExpertGlance,
   searchSkillGlance,
   skillGlance,
-  swarmChannelGlance,
   taskListGlance,
   taskOutputGlance,
   todoListGlance,
-  ultraSwarmGlance,
   ultraworkGraphGlance,
   verifySurfaceGlance,
   visualDiffGlance,
@@ -177,10 +174,7 @@ export const cronListSummary: ResultRenderer = withGlance(cronListGlance);
 export const cronCreateSummary: ResultRenderer = withGlance(cronCreateGlance);
 export const cronDeleteSummary: ResultRenderer = withGlance(null);
 export const ultraworkGraphSummary: ResultRenderer = withGlance(ultraworkGraphGlance);
-export const swarmChannelSummary: ResultRenderer = withGlance(swarmChannelGlance);
 export const agentSummary: ResultRenderer = withGlance(agentGlance);
-export const agentSwarmSummary: ResultRenderer = withGlance(agentSwarmGlance);
-export const ultraSwarmSummary: ResultRenderer = withGlance(ultraSwarmGlance);
 export const runProjectChecksSummary: ResultRenderer = withGlance(runProjectChecksGlance);
 export const verifySurfaceSummary: ResultRenderer = withGlance(verifySurfaceGlance);
 export const visualDiffSummary: ResultRenderer = withGlance(visualDiffGlance);

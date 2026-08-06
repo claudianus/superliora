@@ -40,9 +40,7 @@ export interface StatusReportOptions {
   readonly thinking: boolean;
   readonly permissionMode: PermissionMode;
   readonly planMode: boolean;
-  readonly ultraworkMode?: boolean;
   readonly premiumQualityMode?: boolean;
-  readonly swarmMode?: boolean;
   readonly goalStatus?: StatusGoalStatus;
   readonly contextUsage: number;
   readonly contextTokens: number;
@@ -69,7 +67,6 @@ export interface StatusReportOptions {
   readonly humanWriting?: StatusHumanWritingReadiness;
   readonly recovery?: StatusRecoveryReadiness;
   readonly upstreamBaseline?: string;
-  readonly ultraworkRun?: { readonly stage: string } | null;
   readonly contextOS?: {
     readonly pageCount: number;
     readonly readyPageCount: number;

@@ -18,8 +18,6 @@ export type SettingsSelection =
   | 'keybindings'
   | 'context'
   | 'compaction'
-  | 'mission'
-  | 'fleet'
   | 'media'
   | 'harness'
   | 'tools'
@@ -152,18 +150,6 @@ const SETTINGS_OPTIONS_BASE: readonly (Omit<ChoiceOption, 'keywords'> & {
     section: 'Agent',
     label: 'Compaction',
     description: 'When and how context is compressed.',
-  },
-  {
-    value: 'mission',
-    section: 'Agent',
-    label: 'Mission / Goals',
-    description: 'Mission pipeline and goal auto-start.',
-  },
-  {
-    value: 'fleet',
-    section: 'Agent',
-    label: 'Fleet / Parallel',
-    description: 'Workers, budget, worktree isolation.',
   },
   {
     value: 'never-halt',

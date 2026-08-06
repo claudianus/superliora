@@ -1,13 +1,8 @@
 import type { BackgroundTaskInfo, Event } from '@superliora/sdk';
 
 import { MAIN_AGENT_ID } from '../../constant/liora-tui';
-import type {
-  BackgroundAgentMetadata,
-  ToolResultBlockData,
-} from '../../types';
-import { requestTUILayoutRender } from '../../utils/render/frame-render';
+import type { BackgroundAgentMetadata } from '../../types';
 import type { SessionEventHost } from '../session-event/handler';
-import type { WarRoomExpertView } from '../../utils/war-room-experts';
 import {
   buildBackgroundAgentMetadata,
   buildBackgroundAgentTranscriptEntry,
@@ -19,7 +14,6 @@ import {
   handleForegroundSubagentFailed,
   handleForegroundSubagentSpawned,
   handleForegroundSubagentStarted,
-  handleForegroundSubagentSuspended,
   routeChildAgentToolEvent,
 } from './foreground-lifecycle';
 import {
@@ -27,13 +21,11 @@ import {
   type SubagentLifecycleEvent,
   type SubagentLifecycleEventOf,
 } from './helpers';
-import { SubagentSwarmCoordinator } from './swarm';
 
 export interface SubagentInfo {
   readonly parentToolCallId: string;
   readonly name: string;
   readonly runInBackground: boolean;
-  readonly swarmIndex?: number;
   readonly modelAlias?: string;
 }
 
@@ -48,22 +40,15 @@ export interface SubAgentEventHandlerDependencies {
 export class SubAgentEventHandler {
   readonly subagentInfo: Map<string, SubagentInfo> = new Map();
   backgroundAgentMetadata: Map<string, BackgroundAgentMetadata> = new Map();
-  private readonly swarm: SubagentSwarmCoordinator;
 
   constructor(
     private readonly host: SessionEventHost,
     private readonly deps: SubAgentEventHandlerDependencies,
-  ) {
-    const requestRender = () => {
-      this.requestRender();
-    };
-    this.swarm = new SubagentSwarmCoordinator(this.host, requestRender);
-  }
+  ) {}
 
   resetRuntimeState(): void {
     this.subagentInfo.clear();
     this.backgroundAgentMetadata.clear();
-    this.swarm.reset();
   }
 
   routeChildAgentEvent(event: Event): boolean {
@@ -77,7 +62,7 @@ export class SubAgentEventHandler {
     if (info === undefined || info.parentToolCallId.length === 0) return true;
 
     const { parentToolCallId } = info;
-    return routeChildAgentToolEvent(this.host, this.swarm, childAgentId, parentToolCallId, info, event);
+    return routeChildAgentToolEvent(this.host, childAgentId, parentToolCallId, info, event);
   }
 
   handleLifecycleEvent(event: SubagentLifecycleEvent): void {
@@ -88,9 +73,6 @@ export class SubAgentEventHandler {
       case 'subagent.started':
         this.handleSubagentStarted(event);
         return;
-      case 'subagent.suspended':
-        this.handleSubagentSuspended(event);
-        return;
       case 'subagent.completed':
         this.handleSubagentCompleted(event);
         return;
@@ -100,149 +82,14 @@ export class SubAgentEventHandler {
     }
   }
 
-  handleSubagentTodoUpdated(
-    event: Extract<Event, { type: 'subagent.todo.updated' }>,
-  ): void {
-    // Child todo ratios render on the Mission Control worker row (fed from
-    // the session-event dispatch); the swarm grid keeps its own member view.
-    this.swarm.applyMemberTodos(
-      event.parentToolCallId,
-      event.subagentId,
-      event.todos.map((todo) => ({ title: todo.title, status: todo.status })),
-    );
-    this.requestRender();
-  }
-
-  /**
-   * Live subagent tool feed (Phase 1-A): swarm-orchestrated subagents route
-   * into their swarm lane's ops feed (Phase 1-B). Every subagent — swarm or
-   * not — also flows into the Mission Control ops feed via the session-event
-   * dispatch, so the old transcript activity panel is gone.
-   */
-  handleSubagentToolActivity(
-    event: Extract<Event, { type: 'subagent.tool_call' | 'subagent.tool_result' }>,
-  ): void {
-    const info = this.subagentInfo.get(event.subagentId);
-    if (
-      info !== undefined &&
-      this.shouldUseSwarmProgressUi(info.parentToolCallId, info.runInBackground)
-    ) {
-      this.swarm.routeToolActivity(event, info.parentToolCallId);
-    }
-  }
-
-  clearAgentSwarmProgress(): void {
-    this.swarm.clearProgress();
-  }
-
-  applyCouncilDecisionToSwarmProgress(input: {
-    readonly decision: string;
-    readonly reason?: string;
-  }): void {
-    this.swarm.applyCouncilDecision(input);
-  }
-
-  applySwarmPausedToSwarmProgress(input: {
-    readonly reason: string;
-    readonly phase?: string;
-  }): void {
-    this.swarm.applySwarmPaused(input);
-  }
-
-  hasAgentSwarmProgress(toolCallId: string): boolean {
-    return this.swarm.hasProgress(toolCallId);
-  }
-
-  invokeWarRoomAction(
-    action: 'pause' | 'restaff' | 'raw',
-    options: { readonly reason?: string } = {},
-  ): number {
-    return this.swarm.invokeWarRoomAction(action, options);
-  }
-
-  /**
-   * Experts from the most recent active UltraSwarm / AgentSwarm war room card.
-   * Prefers a still-active tool call; otherwise the last registered progress card.
-   */
-  listWarRoomExperts(): readonly WarRoomExpertView[] {
-    return this.swarm.listWarRoomExperts();
-  }
-
-  hasActiveAgentSwarmToolCall(): boolean {
-    return this.swarm.hasActiveToolCall();
-  }
-
-  syncAgentSwarmActivitySpinner(
-    spinner: { renderGlyph(): string } | undefined,
-  ): void {
-    this.swarm.syncActivitySpinner(spinner);
-  }
-
-  handleAgentSwarmToolCallStarted(
-    toolCallId: string,
-    args: Record<string, unknown>,
-    toolName = 'AgentSwarm',
-  ): void {
-    this.swarm.handleToolCallStarted(toolCallId, args, toolName);
-  }
-
-  handleAgentSwarmToolCallDelta(
-    toolCallId: string,
-    args: Record<string, unknown>,
-    options: { readonly streamingArguments?: string | undefined },
-    toolName = 'AgentSwarm',
-  ): void {
-    this.swarm.handleToolCallDelta(toolCallId, args, options, toolName);
-  }
-
-  handleAgentSwarmToolResult(
-    toolCallId: string,
-    resultData: ToolResultBlockData,
-    isError: boolean,
-  ): void {
-    this.swarm.handleToolResult(toolCallId, resultData, isError);
-  }
-
-  handleUltraworkTeamStaffed(event: Extract<Event, { type: 'ultrawork.team.staffed' }>): void {
-    this.swarm.handleTeamStaffed(event);
-  }
-
-  handleUltraworkCollaborationMessage(
-    event: Extract<Event, { type: 'ultrawork.collaboration.message' }>,
-  ): boolean {
-    return this.swarm.handleCollaborationMessage(event);
-  }
-
-  handleUltraworkCollaborationMention(
-    event: Extract<Event, { type: 'ultrawork.collaboration.mention' }>,
-  ): boolean {
-    return this.swarm.handleCollaborationMention(event);
-  }
-
-  handleUltraworkCollaborationDebate(
-    event: Extract<Event, { type: 'ultrawork.collaboration.debate' }>,
-  ): boolean {
-    return this.swarm.handleCollaborationDebate(event);
-  }
-
-  handleUltraworkCollaborationSteer(
-    event: Extract<Event, { type: 'ultrawork.collaboration.steer' }>,
-  ): boolean {
-    return this.swarm.handleCollaborationSteer(event);
-  }
-
-  markActiveAgentSwarmsCancelled(): void {
-    this.swarm.markActiveCancelled();
-  }
-
   private handleSubagentSpawned(
     event: SubagentLifecycleEventOf<'subagent.spawned'>,
   ): void {
     this.rememberSubagent(event);
     this.maybeSurfaceSubagentModel(event);
 
-    if (this.shouldUseSwarmProgressUi(event.parentToolCallId, event.runInBackground)) {
-      handleForegroundSubagentSpawned(this.host, this.swarm, event);
+    if (!event.runInBackground) {
+      handleForegroundSubagentSpawned(this.host, event);
       return;
     }
 
@@ -287,18 +134,8 @@ export class SubAgentEventHandler {
   ): void {
     const info = this.subagentInfo.get(event.subagentId);
     if (info === undefined) return;
-    if (this.shouldUseSwarmProgressUi(info.parentToolCallId, info.runInBackground)) {
-      handleForegroundSubagentStarted(this.host, this.swarm, event, info);
-    }
-  }
-
-  private handleSubagentSuspended(
-    event: SubagentLifecycleEventOf<'subagent.suspended'>,
-  ): void {
-    const info = this.subagentInfo.get(event.subagentId);
-    if (info === undefined) return;
-    if (this.shouldUseSwarmProgressUi(info.parentToolCallId, info.runInBackground)) {
-      handleForegroundSubagentSuspended(this.swarm, event, info);
+    if (!info.runInBackground) {
+      handleForegroundSubagentStarted(this.host, event, info);
     }
   }
 
@@ -306,12 +143,9 @@ export class SubAgentEventHandler {
     event: SubagentLifecycleEventOf<'subagent.completed'>,
   ): void {
     const info = this.subagentInfo.get(event.subagentId);
-    if (
-      info !== undefined &&
-      this.shouldUseSwarmProgressUi(info.parentToolCallId, info.runInBackground)
-    ) {
+    if (info !== undefined && !info.runInBackground) {
       this.host.setAppState({ fleetFlourish: { atMs: Date.now() } });
-      handleForegroundSubagentCompleted(this.host, this.swarm, event, info);
+      handleForegroundSubagentCompleted(this.host, event, info);
       return;
     }
 
@@ -341,11 +175,8 @@ export class SubAgentEventHandler {
     event: SubagentLifecycleEventOf<'subagent.failed'>,
   ): void {
     const info = this.subagentInfo.get(event.subagentId);
-    if (
-      info !== undefined &&
-      this.shouldUseSwarmProgressUi(info.parentToolCallId, info.runInBackground)
-    ) {
-      handleForegroundSubagentFailed(this.host, this.swarm, event, info);
+    if (info !== undefined && !info.runInBackground) {
+      handleForegroundSubagentFailed(this.host, event, info);
       return;
     }
 
@@ -379,13 +210,6 @@ export class SubAgentEventHandler {
     }
   }
 
-  private shouldUseSwarmProgressUi(
-    parentToolCallId: string,
-    runInBackground: boolean,
-  ): boolean {
-    return !runInBackground || this.swarm.isOrchestrated(parentToolCallId);
-  }
-
   private appendBackgroundAgentEntry(
     phase: 'started' | 'completed' | 'failed',
     meta: BackgroundAgentMetadata,
@@ -408,13 +232,8 @@ export class SubAgentEventHandler {
       parentToolCallId: event.parentToolCallId,
       name: event.subagentName,
       runInBackground: event.runInBackground,
-      swarmIndex: event.swarmIndex,
       modelAlias: event.modelAlias,
     });
-  }
-
-  private requestRender(): void {
-    requestTUILayoutRender(this.host.state);
   }
 }
 

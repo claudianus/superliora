@@ -1,4 +1,3 @@
-import { isSwarmProgressToolName } from '../../components/messages/agent-swarm-progress/index';
 import { appendStreamingArgsPreview, parseStreamingArgs } from '../../utils/event-payload';
 import type { LivePaneState, ToolCallBlockData, ToolResultBlockData } from '../../types';
 import type { ToolCallComponent } from '../../components/messages/tool-call/index';
@@ -33,7 +32,7 @@ export function registerStreamingToolCall(
     existingComponent.updateToolCall(toolCall);
   } else if (existing === undefined) {
     state.finalizeLiveTextBuffers('tool');
-    if (toolCall.name !== 'Agent' && !isSwarmProgressToolName(toolCall.name)) {
+    if (toolCall.name !== 'Agent') {
       state.onToolCallStart(toolCall);
     }
   }

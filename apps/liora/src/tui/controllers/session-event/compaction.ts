@@ -120,14 +120,7 @@ export class SessionEventCompaction {
     event: CompactionCompletedEvent,
     sendQueued: (item: QueuedMessage) => void,
   ): void {
-    const swarmDetail = event.result.summary.includes('swarm_runs:')
-      ? 'Swarm coordination state preserved in structured memory'
-      : undefined;
-    this.host.streamingUI.endCompaction(
-      event.result.tokensBefore,
-      event.result.tokensAfter,
-      swarmDetail,
-    );
+    this.host.streamingUI.endCompaction(event.result.tokensBefore, event.result.tokensAfter);
     this.finish(sendQueued);
   }
 

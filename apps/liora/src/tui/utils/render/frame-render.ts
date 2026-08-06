@@ -27,7 +27,7 @@ function isLiveStreamingContent(state: TUIState): boolean {
 export function invalidateTUIFrame(state: TUIState, intent: FrameInvalidationIntent): void {
   if (shouldSuppressTUIFrameRequests(state)) return;
   // During active transcript scroll, content/layout invalidations fight pure-
-  // scroll paint (streaming tools, swarm, footer). Coalesce to settle refresh.
+  // scroll paint (streaming tools, footer). Coalesce to settle refresh.
   // Content only yields during a real wheel storm; layout keeps the heavy hold.
   // Live streaming content stays exempt so type-on does not pause mid-wheel.
   if (

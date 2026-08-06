@@ -57,25 +57,6 @@ export function verifyBlockedByReadiness(options: StatusReportOptions): boolean 
   );
 }
 
-export function formatUltraworkStatus(options: StatusReportOptions): string {
-  const blocked = verifyBlockedByReadiness(options);
-  if (blocked && options.goalStatus !== 'blocked') return 'needs readiness';
-  if (options.ultraworkMode === true) return 'mode on';
-
-  switch (options.goalStatus) {
-    case 'active':
-      return 'goal active';
-    case 'paused':
-      return 'goal paused';
-    case 'blocked':
-      return 'goal blocked';
-    case 'complete':
-      return 'verified';
-    case undefined:
-      return 'mode off';
-  }
-}
-
 export function formatPremiumQualityStatus(options: StatusReportOptions): string {
   const enabled =
     options.status?.premiumQualityMode ?? options.premiumQualityMode === true;

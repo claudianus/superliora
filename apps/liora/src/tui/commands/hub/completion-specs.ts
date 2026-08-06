@@ -31,16 +31,6 @@ const GOAL_NEXT_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'manage', description: 'Manage upcoming goals' },
 ];
 
-const SWARM_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
-  { value: 'on', description: 'Turn team mode on' },
-  { value: 'off', description: 'Turn team mode off' },
-  { value: 'talk', description: 'Open a War Room expert transcript / message panel' },
-  { value: 'msg', description: 'Send a direct message to a War Room expert' },
-  { value: 'pause', description: 'Pause the active Fleet war room' },
-  { value: 'restaff', description: 'Request restaff on the active Fleet' },
-  { value: 'raw', description: 'Toggle raw vs humanized team feed' },
-];
-
 const THINKING_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'off', description: 'Disable thinking' },
   { value: 'on', description: 'Enable the default effort' },
@@ -111,11 +101,6 @@ const EXTENSIONS_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'claude', description: 'Import from Claude allowlist inventory' },
   { value: 'import-claude', description: 'Import from Claude allowlist inventory' },
   { value: 'import', description: 'Import from Claude allowlist inventory' },
-];
-
-const ULTRAGOAL_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
-  { value: 'replace', description: 'Replace the active CreateGoal objective' },
-  { value: '--loop', description: 'Open self-improvement loop with circuit breaker' },
 ];
 
 const TOGGLE_ON_OFF_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
@@ -200,10 +185,6 @@ const EDITOR_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'nano', description: 'Nano' },
 ];
 
-const ULTRAWORK_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
-  { value: 'replace', description: 'Replace the current Mission objective' },
-];
-
 const HELP_PRIMARY_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'advanced', description: 'Show steering controls' },
 ];
@@ -252,29 +233,6 @@ export function goalArgumentCompletions(argumentPrefix: string): AutocompleteIte
     );
   }
   return completeLeadingArg(GOAL_ARG_COMPLETIONS, argumentPrefix);
-}
-
-/** Argument autocompletion for the `/swarm` command (subcommands). */
-export function swarmArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
-  return completeLeadingArg(SWARM_ARG_COMPLETIONS, argumentPrefix);
-}
-
-/** War Room controls stay usable while a swarm turn is streaming. */
-export function swarmControlAvailability(args: string): SlashCommandAvailability {
-  const head = args.trim().split(/\s+/)[0]?.toLowerCase() ?? '';
-  switch (head) {
-    case 'on':
-    case 'off':
-    case 'talk':
-    case 'msg':
-    case 'message':
-    case 'pause':
-    case 'restaff':
-    case 'raw':
-      return 'always';
-    default:
-      return 'idle-only';
-  }
 }
 
 export function thinkingArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
@@ -362,28 +320,6 @@ export function extensionsArgumentCompletions(
   return completeLeadingArg(EXTENSIONS_ARG_COMPLETIONS, argumentPrefix);
 }
 
-/**
- * Completions for `/ultragoal`.
- * First token: `replace` / `--loop`. Second token after `replace`: `--loop`
- * (handler parses replace first, then --loop). Free-form objectives stay unclobbered.
- */
-export function ultragoalArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
-  const replaceThenLoop = argumentPrefix.match(/^replace\s+(\S*)$/i);
-  if (replaceThenLoop !== null) {
-    const valuePrefix = replaceThenLoop[1] ?? '';
-    return (
-      completeLeadingArg(
-        [{ value: '--loop', description: 'Open self-improvement loop with circuit breaker' }],
-        valuePrefix,
-      )?.map((item) => ({
-        ...item,
-        value: `replace ${item.value}`,
-      })) ?? null
-    );
-  }
-  return completeLeadingArg(ULTRAGOAL_ARG_COMPLETIONS, argumentPrefix);
-}
-
 /** Leading-arg completions for toggle commands that accept `on` / `off`. */
 export function toggleOnOffArgumentCompletions(
   argumentPrefix: string,
@@ -442,10 +378,6 @@ export function preflightArgumentCompletions(
 /** Leading-arg completions for common `/editor` external editors. */
 export function editorArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
   return completeLeadingArg(EDITOR_ARG_COMPLETIONS, argumentPrefix);
-}
-
-export function ultraworkArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
-  return completeLeadingArg(ULTRAWORK_ARG_COMPLETIONS, argumentPrefix);
 }
 
 export function helpArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {

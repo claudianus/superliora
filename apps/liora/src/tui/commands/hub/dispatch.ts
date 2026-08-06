@@ -77,15 +77,8 @@ import {
   handleTitleCommand,
 } from '../session/session';
 import { showSearch } from '../search';
-import { handleSwarmCommand } from '../swarm/swarm';
 
 import { showTerm } from '../term';
-import {
-  handleUltraGoalCommand,
-  handleUltraPlanCommand,
-  handleUltraSwarmCommand,
-} from '../ultrawork/ultra-standalone';
-import { handleUltraworkCommand, handleUltraworkModeToggle } from '../ultrawork/ultrawork';
 import { handleLoopCommand } from '../loop';
 import { handleRewindCommand } from '../session/rewind';
 import { handleTranscriptCommand } from '../session/transcript';
@@ -109,8 +102,6 @@ export { handleModelCommand, showModelPicker } from '../config/model/model';
 export { handleThinkingCommand } from '../config/thinking/thinking';
 export { showExperimentsPanel } from '../config/experiments/experiments';
 export { showSettingsSelector } from '../config/settings';
-export { handleSwarmCommand } from '../swarm/swarm';
-export { handleUltraworkCommand, handleUltraworkModeToggle } from '../ultrawork/ultrawork';
 export { showMcpServers, showQuota, showStatusReport, showUsage } from '../info/info';
 export { handleMemoryCommand } from '../memory/memory';
 export { handlePersonaCommand } from '../persona';
@@ -262,13 +253,8 @@ export function dispatchInput(host: SlashCommandHost, text: string): void {
     host.sendNormalUserInput(text);
     return;
   }
-  if (host.state.appState.ultraworkMode) {
-    void handleUltraworkCommand(host, text, 'auto');
-    return;
-  }
   // No pre-agent routing: natural language goes straight to the main agent,
-  // which decides for itself whether to use Ultrawork/UltraSwarm tools.
-  // Ultrawork runs stay available through explicit /ultrawork activation.
+  // which delegates through the Job ledger on the Conductor lane.
   host.sendNormalUserInput(text);
 }
 
@@ -519,21 +505,6 @@ async function handleBuiltInSlashCommand(
       return;
     case 'plan':
       await handlePlanCommand(host, args);
-      return;
-    case 'swarm':
-      await handleSwarmCommand(host, args);
-      return;
-    case 'mission':
-      await handleUltraworkCommand(host, args);
-      return;
-    case 'ultragoal':
-      await handleUltraGoalCommand(host, args);
-      return;
-    case 'fleet':
-      await handleUltraSwarmCommand(host, args);
-      return;
-    case 'ultraplan':
-      await handleUltraPlanCommand(host, args);
       return;
     case 'compact':
       await handleCompactCommand(host, args);

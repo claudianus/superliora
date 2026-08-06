@@ -516,13 +516,9 @@ export class CommandHubComponent extends Container implements Focusable {
       );
     };
     const plan = this.items.find((i) => i.id === 'modes.plan');
-    const swarm = this.items.find((i) => i.id === 'modes.swarm');
-    const ultra = this.items.find((i) => i.id === 'modes.ultrawork');
     const premium = this.items.find((i) => i.id === 'modes.premium');
     const perm = this.items.find((i) => i.id === 'modes.permission');
     push('Plan', plan?.badge === 'ON', 'modes.plan');
-    push('Swarm', swarm?.badge === 'ON', 'modes.swarm');
-    push('Mission', ultra?.badge === 'ON', 'modes.ultrawork');
     push('Visual', premium?.badge === 'ON', 'modes.premium');
     const permLabel = formatPermissionChip(perm?.badge);
     chips.push(

@@ -53,7 +53,7 @@ export function formatSlotModeLabel(mode: FooterSlot): string {
 /** Ordered Settings rows for the Status bar pane. */
 export const FOOTER_SETTINGS_SLOTS = [
   { key: 'labels', kind: 'labels', label: 'Label style', tip: 'plain words vs compact tokens' },
-  { key: 'modes', kind: 'slot', label: 'Modes', tip: 'YOLO · Mission · Plan · Swarm…' },
+  { key: 'modes', kind: 'slot', label: 'Modes', tip: 'YOLO · Plan…' },
   { key: 'model', kind: 'slot', label: 'Model', tip: 'Active model + thinking level' },
   { key: 'cwd', kind: 'slot', label: 'Working directory', tip: 'Short path' },
   { key: 'git', kind: 'slot', label: 'Git', tip: 'Branch · diff · PR' },

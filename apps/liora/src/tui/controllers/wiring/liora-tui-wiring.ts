@@ -192,13 +192,9 @@ export function wireLioraTUIControllers(
   tui.startupLifecycle.buildLayout();
 }
 
-/** Slash-command plan / ultrawork toggles routed from the coordinator surface. */
+/** Slash-command plan toggles routed from the coordinator surface. */
 export function handlePlanToggleFromHost(tui: LioraTUI, next: boolean, ultra = false): void {
   void slashCommands.handlePlanCommand(tui, next ? (ultra ? 'ultra' : 'on') : 'off');
-}
-
-export function handleUltraworkModeToggleFromHost(tui: LioraTUI, next: boolean): void {
-  void slashCommands.handleUltraworkModeToggle(tui, next);
 }
 
 export function openUndoSelectorFromHost(tui: LioraTUI): void {

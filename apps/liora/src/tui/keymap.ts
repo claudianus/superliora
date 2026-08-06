@@ -110,14 +110,6 @@ export const KEYMAP_IDLE: readonly KeymapBinding[] = [
     surface: 'idle',
     category: 'edit',
   },
-  {
-    id: 'ultrawork',
-    key: 'Shift-Tab',
-    description: 'Toggle Mission mode',
-    surface: 'idle',
-    category: 'agent',
-    relatedSlash: ['/mission'],
-  },
 ];
 
 /** Streaming-only bindings. */
@@ -156,7 +148,6 @@ const FRONT_IDS = new Set([
   'escape',
   'interrupt',
   'steer',
-  'ultrawork',
 ]);
 
 /** Compact beginner strip (Hub empty-state hints). */

@@ -1,19 +1,15 @@
 /**
  * Pure result-body routing for ToolCallComponent's `buildContent` tail.
- * Swarm summaries and AskUserQuestion live in tool-call-result-body; this
- * module handles the remaining result routing and renderer dispatch.
+ * AskUserQuestion lives in tool-call-result-body; this module handles the
+ * remaining result routing and renderer dispatch.
  */
 
 import { Text, type Component } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
 
-import { isSwarmProgressToolName } from '../agent-swarm-progress/index';
 import { interpretExitPlanModeOutcome, isExitPlanModeOutcomeOutput } from './plan';
-import {
-  buildAgentSwarmResultSummaryComponents,
-  buildAskUserQuestionResultComponents,
-} from './result-body';
+import { buildAskUserQuestionResultComponents } from './result-body';
 import { pickResultRenderer } from '../tool-renderers/registry';
 
 export function buildToolCallResultContentComponents(params: {
@@ -23,10 +19,6 @@ export function buildToolCallResultContentComponents(params: {
   readonly isSingleSubagentView: boolean;
 }): Component[] {
   const { toolCall, result, expanded, isSingleSubagentView } = params;
-
-  if (isSwarmProgressToolName(toolCall.name)) {
-    return buildAgentSwarmResultSummaryComponents(result);
-  }
 
   if (!result.output) return [];
 

@@ -3,7 +3,7 @@ import type { CompactionPhase } from '@superliora/sdk';
 import { currentWorkingTip, tipText } from '../../components/chrome/working-tips';
 import { CompactionComponent } from '../../components/dialogs/session/compaction';
 import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
-import { isMotionTheatreActive, type MotionBeatController } from '../../utils/render/motion-beats';
+import type { MotionBeatController } from '../../utils/render/motion-beats';
 import {
   requestTUIContentRender,
   requestTUILayoutRender,
@@ -41,7 +41,6 @@ export function beginCompaction(
     seed: 'compaction',
     title: options?.background === true ? 'Compacting context (bg)' : 'Compacting context',
     nowMs: appearanceAnimationNow(),
-    theatreActive: isMotionTheatreActive(state.appState),
   });
   // Structural: new transcript card → layout.
   requestTUILayoutRender(state);
@@ -67,7 +66,6 @@ export function endCompaction(
     seed: 'compaction',
     title: tokenDelta,
     nowMs: appearanceAnimationNow(),
-    theatreActive: isMotionTheatreActive(state.appState),
   });
   // Terminal state may drop progress/preview lines → layout.
   requestTUILayoutRender(state);

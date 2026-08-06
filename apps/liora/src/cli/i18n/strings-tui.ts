@@ -116,9 +116,6 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.sessionLoading.searching': 'Searching project…',
   'tui.sessionLoading.extensions': 'Loading extensions…',
   'tui.sessionLoading.exporting': 'Exporting session…',
-  'tui.footer.mission': 'Mission: research → interview → goal → swarm → integrate → verify → learn',
-  'tui.ultrawork.autoResume.title': 'Mission auto-resumed',
-  'tui.ultrawork.autoResume.detail': 'Resuming the interrupted Mission run at stage {stage}.',
   'tui.footer.premium': 'Visual Quality ON — motion/density, anti-slop, screenshot proof',
   'tui.footer.exitConfirmCtrlC': 'Press Ctrl+C again to exit',
   'tui.footer.exitConfirmCtrlD': 'Press Ctrl+D again to exit',
@@ -171,14 +168,6 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.feed.noTank': 'No Jewel Tank is visible — open /aquarium or wait for the idle tank.',
   'tui.feed.full': 'The tank is full of food already.',
   'tui.feed.dropped': 'Food dropped — watch the fish go.',
-  'tui.ultrawork.on.title': 'Mission mode: ON',
-  'tui.ultrawork.off.title': 'Mission mode: OFF',
-  'tui.ultrawork.on.detail':
-    'Shift-Tab routes the next task through Plan before any Goal or Fleet work.',
-  'tui.ultrawork.enableFailed': 'Failed to enable Mission mode: {message}',
-  'tui.ultrawork.disableFailed': 'Failed to disable Mission mode: {message}',
-
-  // ── Goal / swarm start prompts ───────────────────────────────────────────
   'tui.goal.start.title.manual': 'Start a goal with approvals on?',
   'tui.goal.start.title.yolo': 'Start a goal in YOLO mode?',
   'tui.goal.start.option.auto': 'Switch to Auto and start',
@@ -204,37 +193,6 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
     'Structured questions are auto-answered; YOLO still asks for delete/destructive or credential/secret access.',
   'tui.goal.start.notice.yolo.3':
     'Switch to Auto for fully unattended work including structured questions.',
-  'tui.swarm.start.title': 'Start a swarm task with approvals on?',
-  'tui.swarm.start.option.auto': 'Switch to Auto and start',
-  'tui.swarm.start.option.auto.desc':
-    'Best for swarm tasks. Tools are approved automatically, and structured questions are auto-answered.',
-  'tui.swarm.start.option.yolo': 'Switch to YOLO and start',
-  'tui.swarm.start.option.yolo.desc':
-    'Tools and plan changes are approved automatically. Structured questions are auto-answered; SuperLiora still asks for delete/destructive or credential/secret access.',
-  'tui.swarm.start.option.manual': 'Start in Manual',
-  'tui.swarm.start.option.manual.desc':
-    'Keep approvals on. SuperLiora may stop and wait for you during the swarm task.',
-  'tui.swarm.start.notice.1':
-    'Manual mode asks you before SuperLiora runs commands, edits files, or takes other risky actions.',
-  'tui.swarm.start.notice.2': 'Manual mode can block swarm work while agents are running.',
-  'tui.swarm.start.notice.3': 'You can go back without losing your command.',
-  'tui.ultrawork.start.title': 'How should Mission interview and approvals run?',
-  'tui.ultrawork.start.option.manual': 'Manual (default)',
-  'tui.ultrawork.start.option.manual.desc':
-    'You answer every AskUserQuestion and approve tools, edits, and high-risk gates. Best when you want full control during the Mission interview.',
-  'tui.ultrawork.start.option.auto': 'Auto',
-  'tui.ultrawork.start.option.auto.desc':
-    'SuperLiora auto-answers AskUserQuestion and auto-approves tools. Same interview questions as Manual; only the responder changes.',
-  'tui.ultrawork.start.option.yolo': 'YOLO',
-  'tui.ultrawork.start.option.yolo.desc':
-    'SuperLiora auto-answers AskUserQuestion and most tools. Humans still gate delete/destructive actions and credential/secret access.',
-  'tui.ultrawork.start.notice.1':
-    'Choose who answers the Mission interview and high-risk gates.',
-  'tui.ultrawork.start.notice.2':
-    'The interview script is the same in every mode — only the responder and tool approvals change.',
-  'tui.ultrawork.start.notice.3': 'This choice is not remembered; Manual is selected by default on every new Mission start.',
-
-  // ── Device code / OAuth box ──────────────────────────────────────────────
   'tui.device.visitUrl': 'Visit the URL below in your browser to authorize:',
   'tui.device.codeLabel': 'Verification code:  ',
 
@@ -500,9 +458,6 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.sessionLoading.searching': '프로젝트 검색 중…',
   'tui.sessionLoading.extensions': '확장 목록 불러오는 중…',
   'tui.sessionLoading.exporting': '세션 내보내는 중…',
-  'tui.footer.mission': '미션: 조사 → 인터뷰 → 목표 → 스웜 → 통합 → 검증 → 학습',
-  'tui.ultrawork.autoResume.title': 'Mission 자동 재개',
-  'tui.ultrawork.autoResume.detail': '중단된 Mission 실행을 stage {stage}에서 이어갑니다.',
   'tui.footer.premium': '시각 품질 ON — 모션/밀도, 안티 슬롭, 스크린샷 증명',
   'tui.footer.exitConfirmCtrlC': '종료하려면 Ctrl+C를 다시 누르세요',
   'tui.footer.exitConfirmCtrlD': '종료하려면 Ctrl+D를 다시 누르세요',
@@ -553,14 +508,6 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.feed.noTank': '보이는 Jewel Tank가 없습니다 — /aquarium을 열거나 대기 화면을 기다리세요.',
   'tui.feed.full': '이미 먹이가 가득합니다.',
   'tui.feed.dropped': '먹이를 넣었습니다 — 물고기를 지켜보세요.',
-  'tui.ultrawork.on.title': 'Mission 모드: ON',
-  'tui.ultrawork.off.title': 'Mission 모드: OFF',
-  'tui.ultrawork.on.detail':
-    'Shift-Tab은 다음 작업을 Goal/Fleet 전에 Plan으로 보냅니다.',
-  'tui.ultrawork.enableFailed': 'Mission 모드 활성화 실패: {message}',
-  'tui.ultrawork.disableFailed': 'Mission 모드 비활성화 실패: {message}',
-
-  // ── Goal / swarm start prompts ───────────────────────────────────────────
   'tui.goal.start.title.manual': '승인 확인을 켠 채로 목표를 시작할까요?',
   'tui.goal.start.title.yolo': 'YOLO 모드로 목표를 시작할까요?',
   'tui.goal.start.option.auto': 'Auto로 전환하고 시작',
@@ -585,37 +532,6 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.goal.start.notice.yolo.2':
     '구조화 질문은 자동 응답; 삭제/파괴적 작업·자격증명/시크릿은 여전히 묻습니다.',
   'tui.goal.start.notice.yolo.3': '구조화 질문까지 완전 무인으로 가려면 Auto로 전환하세요.',
-  'tui.swarm.start.title': '스웜 작업을 승인 확인과 함께 시작할까요?',
-  'tui.swarm.start.option.auto': 'Auto로 전환하고 시작',
-  'tui.swarm.start.option.auto.desc':
-    '스웜에 최적. 도구 자동 승인, 구조화 질문은 자동 응답.',
-  'tui.swarm.start.option.yolo': 'YOLO로 전환하고 시작',
-  'tui.swarm.start.option.yolo.desc':
-    '도구와 플랜 변경 자동 승인. 구조화 질문은 자동 응답; 삭제/파괴적 작업·자격증명/시크릿은 여전히 묻습니다.',
-  'tui.swarm.start.option.manual': 'Manual로 시작',
-  'tui.swarm.start.option.manual.desc':
-    '승인 확인 유지. 스웜 작업 중 SuperLiora가 대기할 수 있습니다.',
-  'tui.swarm.start.notice.1':
-    'Manual 모드는 SuperLiora가 명령 실행·파일 편집 등 위험 작업 전에 확인합니다.',
-  'tui.swarm.start.notice.2': 'Manual 모드는 에이전트 실행 중 스웜 작업을 막을 수 있습니다.',
-  'tui.swarm.start.notice.3': '명령을 잃지 않고 돌아갈 수 있습니다.',
-  'tui.ultrawork.start.title': 'Mission 인터뷰와 승인을 어떻게 진행할까요?',
-  'tui.ultrawork.start.option.manual': 'Manual (기본)',
-  'tui.ultrawork.start.option.manual.desc':
-    '모든 AskUserQuestion에 직접 답하고 도구·편집·고위험 게이트를 승인합니다. Mission 인터뷰를 완전히 제어하고 싶을 때 최적입니다.',
-  'tui.ultrawork.start.option.auto': 'Auto',
-  'tui.ultrawork.start.option.auto.desc':
-    'AskUserQuestion 자동 응답 + 도구 자동 승인. 인터뷰 질문은 Manual과 같고 응답자만 다릅니다.',
-  'tui.ultrawork.start.option.yolo': 'YOLO',
-  'tui.ultrawork.start.option.yolo.desc':
-    'AskUserQuestion과 대부분 도구를 자동 처리합니다. 삭제/파괴적 작업·자격증명/시크릿은 사람이 게이트합니다.',
-  'tui.ultrawork.start.notice.1':
-    'Mission 인터뷰와 고위험 게이트에 누가 답할지 선택하세요.',
-  'tui.ultrawork.start.notice.2':
-    '인터뷰 스크립트는 모든 모드에서 동일합니다 — 응답자와 도구 승인만 바뀝니다.',
-  'tui.ultrawork.start.notice.3': '이 선택은 기억되지 않으며, 새 Mission 시작마다 Manual이 기본 선택됩니다.',
-
-  // ── Device code / OAuth box ──────────────────────────────────────────────
   'tui.device.visitUrl': '아래 URL을 브라우저에서 열어 인증하세요:',
   'tui.device.codeLabel': '인증 코드:  ',
 

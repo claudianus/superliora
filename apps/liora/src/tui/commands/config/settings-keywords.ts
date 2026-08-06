@@ -14,8 +14,6 @@ export const SETTINGS_SEARCH_KEYWORDS = {
   keybindings: ['keyboard', 'shortcuts', 'keymap', 'keys'],
   context: ['working-set', 'workingset', 'memory', 'instruction', 'learning'],
   compaction: ['compact', 'threshold', 'keep-tokens', 'template'],
-  mission: ['goals', 'ultrawork', 'evidence', 'artifact', 'objective', 'autostart', 'auto-start'],
-  fleet: ['parallel', 'workers', 'swarm', 'budget', 'worktree'],
   media: ['text-only', 'vision', 'image', 'fallback'],
   harness: ['hands', 'control-plane'],
   tools: ['inventory', 'profile', 'core', 'waist', 'toolset'],

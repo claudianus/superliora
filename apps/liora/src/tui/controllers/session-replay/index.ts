@@ -2,10 +2,7 @@ import type { Session } from '@superliora/sdk';
 
 import { formatErrorMessage } from '../../utils/event-payload';
 import { flushSuppressedTUIFrame } from '../../utils/render/frame-render';
-import { autoResumeUltraworkFromSession } from '../../commands/ultrawork/ultrawork';
-import type { SlashCommandHost } from '../../commands/hub/dispatch';
 import { appearanceAnimationNow } from '#/tui/features/appearance/appearance-effects';
-import { isMotionTheatreActive } from '#/tui/utils/render/motion-beats';
 import { ttui } from '#/tui/utils/tui-i18n';
 import { SessionReplayHydrator } from './hydrate';
 import { SessionReplayMessageRenderer } from './message-render';
@@ -50,7 +47,6 @@ export class SessionReplayRenderer {
       title: 'Resuming session',
       seed: 'resume',
       nowMs: appearanceAnimationNow(),
-      theatreActive: isMotionTheatreActive(this.host.state.appState),
     });
     try {
       const main = session.getResumeState()?.agents['main'];
@@ -75,7 +71,6 @@ export class SessionReplayRenderer {
         detail: ttui('tui.sessionLoading.phase.finishing'),
       });
       this.host.mergeAllTurnSteps();
-      await this.autoResumeUltraworkIfNeeded(session);
       this.host.reportSessionLoading({
         phase: 'ready',
         progress: 1,
@@ -93,14 +88,6 @@ export class SessionReplayRenderer {
       if (ownsLoading) {
         this.host.endSessionLoading();
       }
-    }
-  }
-
-  private async autoResumeUltraworkIfNeeded(session: Session): Promise<void> {
-    try {
-      await autoResumeUltraworkFromSession(this.host as unknown as SlashCommandHost, session);
-    } catch {
-      // Best-effort auto-resume only.
     }
   }
 }

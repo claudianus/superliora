@@ -19,14 +19,8 @@ export function commandHubActionToSlash(id: CommandHubActionId): string | undefi
       return '/fork';
     case 'modes.plan':
       return '/plan';
-    case 'modes.swarm':
-      return '/swarm';
-    case 'modes.ultrawork':
-      return undefined;
     case 'modes.goals':
       return '/goal next manage';
-    case 'modes.ultraplan':
-      return '/ultraplan';
     case 'modes.premium':
       return '/premium';
     case 'modes.permission':
@@ -48,7 +42,6 @@ export function commandHubActionToSlash(id: CommandHubActionId): string | undefi
     case 'chat.loops':
     case 'workspace.jobOps':
     case 'workspace.cron':
-    case 'fleet.warRoom':
       return undefined;
     case 'workspace.files':
       return '/files';

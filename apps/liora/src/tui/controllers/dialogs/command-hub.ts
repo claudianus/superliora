@@ -10,7 +10,6 @@ import {
 } from '../../components/dialogs/command-hub/index';
 import {
   showHubCronPicker,
-  showHubFleetPicker,
   showHubJobOpsPicker,
   showHubLoopsPicker,
   type HubNestedPickerHost,
@@ -100,8 +99,6 @@ function buildCommandHubItems(host: DialogsHost): CommandHubItem[] {
   return [
     ...buildDefaultCommandHubItems({
       planMode: host.state.appState.planMode,
-      swarmMode: host.state.appState.swarmMode,
-      ultraworkMode: host.state.appState.ultraworkMode,
       premiumQualityMode: host.state.appState.premiumQualityMode,
       permissionMode: host.state.appState.permissionMode,
       model: host.state.appState.model,
@@ -269,18 +266,9 @@ function handleCommandHubAction(
     showHubCronPicker(hubNestedPickerHost(host, slashHost));
     return;
   }
-  if (item.id === 'fleet.warRoom') {
-    showHubFleetPicker(hubNestedPickerHost(host, slashHost));
-    return;
-  }
   if (item.id === 'workspace.search') {
     restoreInputText(host, delegate, '/search ');
     host.state.toast.show('Type a search pattern after /search', 2200);
-    return;
-  }
-  if (item.id === 'modes.ultrawork') {
-    restoreInputText(host, delegate, '/mission ');
-    host.state.toast.show('Type a Mission objective after /mission', 2800);
     return;
   }
   if (item.id === 'chat.btw') {

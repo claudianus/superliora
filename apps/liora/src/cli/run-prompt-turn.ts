@@ -50,8 +50,8 @@ export function runPromptTurn(
         outputWriter.startProgress();
         return;
       }
-      // Surface subagent (UltraSwarm specialist) lifecycle in headless mode.
-      // Without this, a swarm run produces no specialist output in the
+      // Surface subagent lifecycle in headless mode. Without this, a delegated
+      // run produces no worker output in the
       // transcript — only the main-agent integration is visible.
       if (event.type === 'subagent.completed') {
         stderr.write(`[subagent ${event.subagentId}] completed: ${event.resultSummary}\n`);
