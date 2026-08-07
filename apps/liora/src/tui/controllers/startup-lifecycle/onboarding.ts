@@ -1,6 +1,5 @@
 import { setExperimentalFeatures } from '../../commands';
 import * as slashCommands from '../../commands/hub/dispatch';
-import { DEFAULT_ONBOARDING_PREFERENCES } from '../../config';
 import { formatModelRefreshFailureNotice } from '../../utils/session/model-refresh-notice';
 import type { StartupLifecycleHost } from './types';
 
@@ -48,12 +47,6 @@ export async function maybeStartOnboarding(host: StartupLifecycleHost): Promise<
       slashCommands.dispatchInput(host as never, '/login');
       return;
     }
-  }
-
-  const onboarding = host.state.appState.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES;
-  const editorBusy = (host.state.editor.getText?.() ?? '').trim().length > 0;
-  if (!onboarding.hubIntroSeen && !editorBusy) {
-    host.showCommandHub({ intro: true });
   }
 }
 

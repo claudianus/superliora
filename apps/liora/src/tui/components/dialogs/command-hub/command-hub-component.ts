@@ -242,7 +242,6 @@ export class CommandHubComponent extends Container implements Focusable {
       targetWidth,
       Math.max(22, Math.round(minWidth + (targetWidth - minWidth) * entryT)),
     );
-    const padLeft = Math.max(0, Math.floor((regionWidth - boxWidth) / 2));
     const inner = boxWidth - 2;
 
     const filtering = this.query.trim().length > 0;
@@ -308,17 +307,15 @@ export class CommandHubComponent extends Container implements Focusable {
       appearance,
       openedAtMs: this.openedAtMs,
     });
-    const framed =
-      padLeft === 0
-        ? frame.map((row) => truncateToWidth(row, regionWidth))
-        : frame.map((row) => truncateToWidth(' '.repeat(padLeft) + row, regionWidth));
     this.mouseLayout = {
       panelLineCount: frame.length,
       panelWidth: boxWidth,
       itemLineByIndex,
       crumbLines: this.crumbLines,
     };
-    return framed;
+    // Return the box only — center-modal hugs line width so the raised
+    // overlay matches the cyan frame (no side-pad into a wider slab).
+    return frame;
   }
 
   /** Search input row — always visible so the palette teaches itself. */

@@ -369,11 +369,11 @@ describe('CommandHubComponent palette redesign', () => {
     const hub = makeHub();
     const lines = stripAnsi(hub.render(120).join('\n')).split('\n');
     const top = lines.find((line) => line.includes('╭')) ?? '';
-    // HUB_MAX_BOX_WIDTH=92; side pad may add spaces, but the box itself stays ≤92.
-    const box = top.trimStart();
-    expect(box.startsWith('╭')).toBe(true);
-    expect(box.length).toBeLessThanOrEqual(92);
-    expect(box.length).toBeGreaterThan(60);
+    // HUB_MAX_BOX_WIDTH=92; lines are the box only (no side pad into the region).
+    expect(top.startsWith('╭')).toBe(true);
+    expect(top.length).toBeLessThanOrEqual(92);
+    expect(top.length).toBeGreaterThan(60);
+    expect(top.length).toBe(lines.find((line) => line.includes('╰'))?.length);
   });
 
   it('draws section rules to the inner edge', () => {
