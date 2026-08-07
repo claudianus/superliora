@@ -252,7 +252,7 @@ export class EditTool implements BuiltinTool<EditInput> {
       /** Resolved at execution time so the active turn id is current. */
       readonly getTurnId?: (() => string | undefined) | undefined;
       /**
-       * Optional UltraSwarm file-lease identity. When owner/run are present,
+       * Optional file-lease identity. When owner/run are present,
        * claims the path before mutation; conflicts return an error tool result.
        * When absent, Edit behaves as before (no-op lease).
        */

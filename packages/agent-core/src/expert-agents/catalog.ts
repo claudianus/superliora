@@ -10,7 +10,7 @@ export { EXPERT_CATALOG_META, EXPERT_CATALOG_META_BY_ID } from './catalog-meta';
 
 /**
  * Minimal persona when catalog JSON is missing a body for a known meta id.
- * Keeps UltraSwarm spawn usable instead of running with a blank specialist prompt.
+ * Keeps expert spawn usable instead of running with a blank specialist prompt.
  */
 export function fallbackExpertPersonaText(entry: ExpertCatalogEntry): string {
   const tags = entry.tags.length > 0 ? entry.tags.join(', ') : 'general';

@@ -8,15 +8,6 @@ import type { AgentAPI } from '#/rpc';
 import type { PromisableMethods } from '../utils/types';
 import { expandCommandArguments } from '../plugin/commands';
 import type { PluginCommandOrigin } from './context';
-import {
-  detectUltraworkAutoActivationWithLlm,
-  shouldActOnUltraworkAutoActivation,
-} from '#/mission';
-import {
-  detectUltraworkObjectiveProfileWithLlm,
-  fallbackUltraworkObjectiveProfile,
-  resolveUltraworkObjectiveProfile,
-} from '#/mission';
 import { buildSessionOAuthStatus } from '../runtime/session-oauth-status';
 import {
   delegateConductorPlanDesk,
@@ -84,11 +75,9 @@ export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
       return agent.config.modelAlias ?? '';
     },
     enterPlan: async (payload) => {
-      const source = payload.source ?? 'standalone';
       const routed = resolvePlanModeKind({
         ultra: payload.ultra,
         initialContext: payload.initialContext,
-        source,
       });
       const useUltra = routed.kind === 'ultra';
       if (shouldDelegateToPlanDesk(agent, payload.initialContext)) {
@@ -98,32 +87,15 @@ export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
         await delegateConductorPlanDesk(agent, {
           ultra: useUltra,
           initialContext: payload.initialContext,
-          source,
         });
         return;
       }
-      await agent.planMode.enter(
-        undefined,
-        false,
-        true,
-        useUltra,
-        payload.initialContext ?? '',
-        source,
-      );
+      await agent.planMode.enter(undefined, false, true, useUltra, payload.initialContext ?? '');
     },
     cancelPlan: (payload) => {
       agent.planMode.cancel(payload.id);
     },
     clearPlan: () => agent.planMode.clear(),
-    enterSwarm: (payload) => {
-      agent.swarmMode.enter(payload.trigger);
-    },
-    exitSwarm: () => {
-      agent.swarmMode.exit();
-    },
-    getSwarmMode: () => {
-      return agent.swarmMode.isActive;
-    },
     setPremiumQuality: (payload) => {
       agent.premiumQuality.setEnabled(payload.enabled);
     },
@@ -221,73 +193,6 @@ export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
     pauseGoal: () => agent.goal.pauseGoal(),
     resumeGoal: () => agent.goal.resumeGoal(),
     cancelGoal: () => agent.goal.cancelGoal(),
-    createUltraworkRun: (payload) =>
-      agent.ultrawork.create({
-        id: payload.id,
-        objective: payload.objective,
-        activation: {
-          source: payload.source,
-          replaceGoal: payload.replaceGoal,
-          evidenceRoot: payload.evidenceRoot,
-          workDir: payload.workDir,
-        },
-      }),
-    getUltraworkRun: () => agent.ultrawork.getRun(),
-    pauseUltrawork: (payload) => agent.ultrawork.pause(payload),
-    resumeUltrawork: () => agent.ultrawork.resume(),
-    cancelUltrawork: (payload) => agent.ultrawork.cancel(payload.reason),
-    swarmRestaff: (payload) =>
-      agent.swarmRestaff(
-        typeof payload.reason === 'string' && payload.reason.trim().length > 0
-          ? payload.reason
-          : 'User requested restaff',
-      ),
-    classifyUltraworkAutoActivation: async (payload) => {
-      const text = payload.text.trim();
-      if (text.length === 0) {
-        return { activate: false, confidence: 1, reason: 'Empty prompt' };
-      }
-      const provider = agent.config.provider;
-      if (provider === undefined || typeof agent.generate !== 'function') {
-        return {
-          activate: false,
-          confidence: 0,
-          reason: 'LLM provider unavailable for Ultrawork auto-activation',
-        };
-      }
-      const intent = await detectUltraworkAutoActivationWithLlm(
-        { generate: agent.generate, provider },
-        { text, signal: AbortSignal.timeout(8_000) },
-      );
-      const activate = shouldActOnUltraworkAutoActivation(intent);
-      return {
-        activate,
-        confidence: intent?.confidence ?? 0,
-        reason: intent?.reason ?? 'Ultrawork auto-activation declined or unavailable',
-      };
-    },
-    classifyUltraworkObjectiveProfile: async (payload) => {
-      const text = payload.text.trim();
-      if (text.length === 0) {
-        return fallbackUltraworkObjectiveProfile('');
-      }
-      const provider = agent.config.provider;
-      if (provider === undefined || typeof agent.generate !== 'function') {
-        const fallback = fallbackUltraworkObjectiveProfile(
-          text,
-          'LLM provider unavailable for Ultrawork objective profile',
-        );
-        agent.ultraworkObjectiveProfile.set(text, fallback);
-        return fallback;
-      }
-      const detected = await detectUltraworkObjectiveProfileWithLlm(
-        { generate: agent.generate, provider },
-        { text, signal: AbortSignal.timeout(8_000) },
-      );
-      const profile = resolveUltraworkObjectiveProfile(detected, text);
-      agent.ultraworkObjectiveProfile.set(text, profile);
-      return profile;
-    },
     getBackgroundOutput: (payload) => agent.background.readOutput(payload.taskId, payload.tail),
     getContext: () => agent.context.data(),
     getContextComposition: () => agent.context.composition(),

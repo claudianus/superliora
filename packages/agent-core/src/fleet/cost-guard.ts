@@ -3,10 +3,10 @@
  *
  * Emits non-blocking tips when SUPERLIORA_FLEET_BUDGET_USD is set.
  *
- * S3-R6 interim home (moved from swarm-cost-guard.ts). The AgentSwarm tool
+ * S3-R6 interim home (moved from swarm-cost-guard.ts). The fan-out tool
  * consumer retired with S3-R5 (f04ac07c3); remaining consumers are the liora
  * TUI glances. S3-R7 verdict: RETAIN — the body folds into Job pool
- * back-pressure / cost visibility later; retired UltraSwarm branding removed.
+ * back-pressure / cost visibility later; retired swarm branding removed.
  */
 
 import type { TokenUsage } from '@superliora/kosong';

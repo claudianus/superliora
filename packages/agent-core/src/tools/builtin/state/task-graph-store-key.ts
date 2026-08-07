@@ -1,2 +1,2 @@
-/** Store key for TaskGraph / UltraworkGraph — kept free of tool/.md imports for light consumers. */
-export const ULTRAWORK_GRAPH_STORE_KEY = 'ultrawork_graph' as const;
+/** Store key for TaskGraph — kept free of tool/.md imports for light consumers. */
+export const TASK_GRAPH_STORE_KEY = 'task_graph' as const;

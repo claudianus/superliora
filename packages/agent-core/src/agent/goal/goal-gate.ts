@@ -22,7 +22,7 @@ import { createHash } from 'node:crypto';
 import { lstat, readlink } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-import type { CompletionAuditRejection } from '#/mission';
+import type { CompletionAuditRejection } from './completion-audit';
 
 export const GOAL_GATE_TIMEOUT_MS = 120_000;
 /** Bounded output tail returned to the model on gate failure. */

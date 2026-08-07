@@ -1,4 +1,4 @@
-import { formatSeededWorkGraphNotice, seedUltraworkGraphFromApprovedPlan } from '#/agent/plan/work-graph-from-plan';
+import { formatSeededWorkGraphNotice, seedTaskGraphFromApprovedPlan } from '#/agent/plan/work-graph-from-plan';
 import { swarmEngageNextAction } from '#/agent/plan/swarm-decision';
 import {
   combinedDrift,
@@ -16,7 +16,7 @@ export function formatPlanForOutput(
   plan: string,
   path: string | undefined,
   ultraDrift: UltraPlanDriftResult | undefined,
-  seededWorkGraph: ReturnType<typeof seedUltraworkGraphFromApprovedPlan>,
+  seededWorkGraph: ReturnType<typeof seedTaskGraphFromApprovedPlan>,
 ): string {
   const savedTo = path !== undefined ? `Plan saved to: ${path}\n\n` : '';
   let output = `Plan mode deactivated. All tools are now available.\n${savedTo}## Approved Plan:\n${plan}`;
@@ -27,7 +27,7 @@ export function formatPlanForOutput(
     }
     const seededNotice = formatSeededWorkGraphNotice(seededWorkGraph);
     if (seededNotice !== undefined) {
-      output += `\n\n---\n## UltraworkGraph Seed\n${seededNotice}`;
+      output += `\n\n---\n## TaskGraph Seed\n${seededNotice}`;
     }
     const nextAction = swarmEngageNextAction(plan, seededWorkGraph);
     if (nextAction !== undefined) {

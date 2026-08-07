@@ -1,15 +1,12 @@
 /**
- * Pure path allow-list for Mission / Ultra Plan writes during plan mode.
+ * Pure path allow-list for plan-file writes during plan mode.
  * Shared by plan-mode guard (deny) and plan-mode approve (Manual no-ask).
  */
 
 import { normalize } from 'pathe';
 
-import { isUltraworkWorkflowReportWritePath } from '#/mission/workflow-report';
-
 export interface PlanWriteContext {
   readonly planFilePath: string | null | undefined;
-  readonly evidenceRoot?: string | null | undefined;
   readonly workDir: string;
 }
 
@@ -37,10 +34,7 @@ export function normalizePlanPath(path: string, workDir: string): string {
   return normalize(`${workDir.replace(/\/+$/, '')}/${n}`);
 }
 
-/**
- * True when every write path is the active plan file and/or Mission evidence root
- * (workflow report, wiki ledger, research notes under evidence root).
- */
+/** True when every write path is the active plan file. */
 export function isPlanPhaseAllowedWrite(
   writePaths: readonly string[],
   ctx: PlanWriteContext,
@@ -61,19 +55,6 @@ export function isSinglePlanPhaseAllowedWrite(
     pathsEqualForPlanWrite(path, ctx.planFilePath, workDir)
   ) {
     return true;
-  }
-  if (ctx.evidenceRoot !== null && ctx.evidenceRoot !== undefined && ctx.evidenceRoot.length > 0) {
-    if (isUltraworkWorkflowReportWritePath(path, ctx.evidenceRoot, workDir || '.')) {
-      return true;
-    }
-    const absoluteRoot = normalizePlanPath(ctx.evidenceRoot, workDir);
-    const candidate = normalizePlanPath(path, workDir);
-    if (
-      absoluteRoot.length > 0 &&
-      (candidate === absoluteRoot || candidate.startsWith(`${absoluteRoot}/`))
-    ) {
-      return true;
-    }
   }
   return false;
 }

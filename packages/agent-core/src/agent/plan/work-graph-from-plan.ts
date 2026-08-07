@@ -1,4 +1,4 @@
-import type { WorkGraph, WorkGraphNode, UltraworkStage } from '@superliora/protocol';
+import type { WorkGraph, WorkGraphNode, WorkGraphStage } from '@superliora/protocol';
 
 import { withDefaultRequiredEvidence } from '#/fleet';
 
@@ -6,11 +6,11 @@ import type { Agent } from '..';
 import {
   cloneWorkGraph,
   todosFromWorkGraph,
-} from '../../tools/builtin/state/ultrawork-graph-helpers';
-import { ULTRAWORK_GRAPH_STORE_KEY } from '../../tools/builtin/state/ultrawork-graph-store-key';
+} from '../../tools/builtin/state/task-graph-helpers';
+import { TASK_GRAPH_STORE_KEY } from '../../tools/builtin/state/task-graph-store-key';
 import { TODO_STORE_KEY } from '../../tools/builtin/state/todo-list-store-key';
 
-const ULTRAWORK_STAGES = new Set<UltraworkStage>([
+const WORK_GRAPH_STAGES = new Set<WorkGraphStage>([
   'intake',
   'plan',
   'research',
@@ -24,10 +24,10 @@ const ULTRAWORK_STAGES = new Set<UltraworkStage>([
 ]);
 
 /**
- * Stage synonyms seen in plan tables. Normalized to canonical Ultrawork
+ * Stage synonyms seen in plan tables. Normalized to canonical WorkGraph
  * stages so the protocol enum and graph consumers stay unchanged.
  */
-const WORK_GRAPH_STAGE_SYNONYMS: Readonly<Record<string, UltraworkStage>> = {
+const WORK_GRAPH_STAGE_SYNONYMS: Readonly<Record<string, WorkGraphStage>> = {
   implement: 'swarm',
   implementation: 'swarm',
   review: 'swarm',
@@ -52,7 +52,7 @@ export function parseWorkGraphNodesFromPlan(plan: string): WorkGraphNode[] | und
   return bulletNodes.length > 0 ? bulletNodes : undefined;
 }
 
-export function seedUltraworkGraphFromApprovedPlan(
+export function seedTaskGraphFromApprovedPlan(
   agent: Agent,
   plan: string,
   planPath?: string,
@@ -67,7 +67,7 @@ export function seedUltraworkGraphFromApprovedPlan(
     return { seeded: false, nodeIds: [] };
   }
 
-  const runId = agent.ultrawork.getActiveRunId() ?? deriveRunId(planPath);
+  const runId = deriveRunId(planPath);
   const now = new Date().toISOString();
   const graph: WorkGraph = cloneWorkGraph({
     id: `${runId}:work_graph`,
@@ -78,7 +78,7 @@ export function seedUltraworkGraphFromApprovedPlan(
     nodes,
   });
 
-  agent.tools.updateStore(ULTRAWORK_GRAPH_STORE_KEY, graph);
+  agent.tools.updateStore(TASK_GRAPH_STORE_KEY, graph);
   agent.tools.updateStore(TODO_STORE_KEY, todosFromWorkGraph(graph));
 
   return {
@@ -90,12 +90,11 @@ export function seedUltraworkGraphFromApprovedPlan(
 
 export function formatSeededWorkGraphNotice(result: SeedWorkGraphFromPlanResult): string | undefined {
   if (!result.seeded || result.nodeIds.length === 0) return undefined;
-  const runId = result.runId ?? 'ultra-plan';
+  const runId = result.runId ?? 'plan';
   return [
-    'UltraworkGraph was seeded from the approved plan WorkGraph.',
+    'TaskGraph was seeded from the approved plan WorkGraph.',
     `run_id: ${runId}`,
     `work_node_ids: ${result.nodeIds.join(', ')}`,
-    'You can call UltraSwarm with those work_node_ids without calling UltraworkGraph first.',
   ].join('\n');
 }
 
@@ -254,16 +253,16 @@ function cellValue(cells: readonly string[], index: number | undefined): string 
 function parseStage(
   raw: string | undefined,
   context?: { readonly id?: string; readonly description?: string },
-): UltraworkStage | undefined {
+): WorkGraphStage | undefined {
   if (raw === undefined) return undefined;
   const normalized = raw.trim().toLowerCase();
   const synonym = WORK_GRAPH_STAGE_SYNONYMS[normalized];
   if (synonym !== undefined) return synonym;
-  if (ULTRAWORK_STAGES.has(normalized as UltraworkStage)) {
-    return normalized as UltraworkStage;
+  if (WORK_GRAPH_STAGES.has(normalized as WorkGraphStage)) {
+    return normalized as WorkGraphStage;
   }
 
-  // MVP rollout phase numbers (1, 2, 3) are not Ultrawork stage names.
+  // MVP rollout phase numbers (1, 2, 3) are not WorkGraph stage names.
   if (/^\d+$/.test(normalized)) {
     const text = `${context?.description ?? ''} ${context?.id ?? ''}`.toLowerCase();
     if (/검증|verify|validation|screenshot|rubric|lighthouse|performance/i.test(text)) {
@@ -319,7 +318,7 @@ function buildNodeTitle(
   return `WorkGraph node ${id}`;
 }
 
-function kindForStage(stage: UltraworkStage): WorkGraphNode['kind'] {
+function kindForStage(stage: WorkGraphStage): WorkGraphNode['kind'] {
   if (stage === 'research') return 'research';
   if (stage === 'verify') return 'verification';
   if (stage === 'learn') return 'learn';

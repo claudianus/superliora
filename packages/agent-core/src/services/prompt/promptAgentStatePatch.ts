@@ -13,7 +13,6 @@ export function hasAnyAgentStateField(patch: AgentStatePatch): boolean {
     patch.thinking !== undefined ||
     patch.permission_mode !== undefined ||
     patch.plan_mode !== undefined ||
-    patch.swarm_mode !== undefined ||
     patch.goal_objective !== undefined ||
     patch.goal_control !== undefined
   );
@@ -31,7 +30,6 @@ export function pickAgentStatePatch(body: PromptSubmission): AgentStatePatch | u
   if (body.thinking !== undefined) patch.thinking = body.thinking;
   if (body.permission_mode !== undefined) patch.permission_mode = body.permission_mode;
   if (body.plan_mode !== undefined) patch.plan_mode = body.plan_mode;
-  if (body.swarm_mode !== undefined) patch.swarm_mode = body.swarm_mode;
   if (body.goal_objective !== undefined) patch.goal_objective = body.goal_objective;
   if (body.goal_control !== undefined) patch.goal_control = body.goal_control;
   return hasAnyAgentStateField(patch) ? patch : undefined;

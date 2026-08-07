@@ -76,7 +76,6 @@ export class UpdateGoalTool implements BuiltinTool<UpdateGoalToolInput> {
               name: GOAL_COMPLETION_REMINDER_NAME,
             });
             const advisory = evaluateGoalCompletionSoftAdvisory({
-              ultraworkRun: this.agent.ultrawork?.getRun() ?? null,
               completionCriterion: completed.completionCriterion,
               recentVerificationFailures: this.agent.verificationSensorLedger?.failures ?? [],
               mutationVerificationLedger: this.agent.mutationVerificationLedger,
@@ -92,7 +91,7 @@ export class UpdateGoalTool implements BuiltinTool<UpdateGoalToolInput> {
                   );
             return { output, stopTurn: true };
           }
-          // Ultrawork completion audit rejected a false complete — keep the
+          // Completion audit rejected a false complete — keep the
           // loop running (do not stopTurn) so the model continues work.
           const rejection = goal.getLastCompletionRejection();
           if (rejection !== undefined) {

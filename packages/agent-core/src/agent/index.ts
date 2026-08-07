@@ -47,11 +47,6 @@ import { CronManager } from './cron';
 import { ConfigState } from './config';
 import { ContextMemory } from './context';
 import { GoalMode } from './goal';
-import {
-  reconcileUltraworkFromMirror,
-  UltraworkMode,
-  UltraworkObjectiveProfileCache,
-} from '#/mission';
 import { AutoDreamService } from './dream/auto-dream';
 import { AgentRefineService } from './refine/service';
 import { PromptIntelligenceService } from './intelligence/prompt-intelligence';
@@ -74,7 +69,6 @@ import {
 import { ReplayBuilder, type ReplayBuilderOptions } from './replay';
 import { SkillManager } from './skill';
 import type { SkillRegistry } from './skill/types';
-import { SwarmMode } from './swarm';
 import { ToolManager } from './tool/index';
 import { TurnFlow } from './turn';
 import {
@@ -99,8 +93,6 @@ import { attachResearchSearchCircuitBreakers } from '../tools/providers/research
 import { attachLlmProviderCircuitBreakers } from './llm-provider-circuit-breaker';
 import { mapCircuitBreakerRegistrySnapshot } from '../runtime/circuit-breaker-status';
 import { buildAgentStatusUpdatedEvent, durableTraceRecordType } from './agent-status-updated';
-import { maybeEmitFleetUltraworkAliasLive } from '../fleet/event-alias';
-import { maybeEmitMissionUltraworkAliasLive } from '../mission/event-alias';
 import { buildRecordsWriteErrorEvent } from './agent-records-write-error';
 import {
   createVerificationSensorLedger,
@@ -117,7 +109,6 @@ import {
 
 export type { AgentRecord } from './records';
 export type { ModeActivationSource } from './mode-activation';
-export type { SwarmModeTrigger } from './swarm';
 export type { BuiltinTool, ToolInfo, ToolSource, UserToolRegistration } from './tool';
 export * from './goal';
 
@@ -216,8 +207,8 @@ export class Agent {
   readonly permission: PermissionManager;
   readonly planMode: PlanMode;
   /**
-   * Optional swarm file-lease identity for Edit/Write conflict checks.
-   * Set on subagent workers when a swarm run is active; undefined otherwise.
+   * Optional file-lease identity for Edit/Write conflict checks.
+   * Set on subagent workers when a fan-out is active; undefined otherwise.
    */
   swarmFileLease: { ownerId?: string; runId?: string } | undefined;
   /**
@@ -227,21 +218,18 @@ export class Agent {
   fileMutationHook:
     | ((path: string, content: string) => Promise<string | undefined>)
     | undefined = undefined;
-  readonly swarmMode: SwarmMode;
   readonly usage: UsageRecorder;
   readonly skills: SkillManager | null;
   readonly tools: ToolManager;
   readonly background: BackgroundManager;
   readonly cron: CronManager | null;
   readonly goal: GoalMode;
-  readonly ultrawork: UltraworkMode;
   readonly dream: AutoDreamService | null;
   /** Continual-harness refine pipeline; main agents only (subagents don't self-modify the harness). */
   readonly refine: AgentRefineService | null;
   readonly intelligence: PromptIntelligenceService;
   readonly autopilot: AutopilotMode;
   readonly premiumQuality: PremiumQualityMode;
-  readonly ultraworkObjectiveProfile: UltraworkObjectiveProfileCache;
   readonly replayBuilder: ReplayBuilder;
   readonly providerRouteState: InMemoryProviderRouteState;
   /** Never-Halt circuit breakers for search slots / LLM provider channels. */
@@ -328,7 +316,6 @@ export class Agent {
     this.permission = new PermissionManager(this, options.permission);
     this.planMode = new PlanMode(this);
     this.swarmFileLease = undefined;
-    this.swarmMode = new SwarmMode(this);
     this.usage = new UsageRecorder(this);
     this.skills = options.skills ? new SkillManager(this, options.skills) : null;
     this.tools = new ToolManager(this);
@@ -338,14 +325,12 @@ export class Agent {
     );
     this.cron = this.type === 'sub' ? null : new CronManager(this);
     this.goal = new GoalMode(this);
-    this.ultrawork = new UltraworkMode(this);
     this.dream =
       options.dreamStore !== undefined ? new AutoDreamService(this, options.dreamStore) : null;
     this.refine = this.type === 'main' ? new AgentRefineService(this) : null;
     this.intelligence = new PromptIntelligenceService(this);
     this.autopilot = new AutopilotMode(this);
     this.premiumQuality = new PremiumQualityMode(this);
-    this.ultraworkObjectiveProfile = new UltraworkObjectiveProfileCache();
     this.replayBuilder = new ReplayBuilder(this, options.replay);
     this.providerRouteState = new InMemoryProviderRouteState();
     this.circuitBreakerRegistry = new CircuitBreakerRegistry({
@@ -451,8 +436,6 @@ export class Agent {
     try {
       this.replayBuilder.postRestoring = true;
       this.goal.normalizeAfterReplay();
-      this.ultrawork.normalizeAfterReplay();
-      await reconcileUltraworkFromMirror(this);
       await this.background.loadFromDisk();
       await this.background.reconcile();
       await this.cron?.loadFromDisk();
@@ -462,16 +445,6 @@ export class Agent {
       this.replayBuilder.postRestoring = false;
     }
     return result;
-  }
-
-  /**
-   * War-room / /swarm restaff request. UltraSwarm was retired (S3-R4), so no
-   * swarm run can be active and restaff always rejects. The method stays as a
-   * graceful no-op until the war-room RPC/TUI surface is removed, keeping the
-   * `session.swarmRestaff` chain compiling and the steer-fallback path live.
-   */
-  swarmRestaff(_reason = 'User requested restaff'): boolean {
-    return false;
   }
 
   get rpcMethods(): PromisableMethods<AgentAPI> {
@@ -488,12 +461,6 @@ export class Agent {
       });
     }
     void this.rpc?.emitEvent?.(event);
-    maybeEmitMissionUltraworkAliasLive((alias) => {
-      void this.rpc?.emitEvent?.(alias);
-    }, event);
-    maybeEmitFleetUltraworkAliasLive((alias) => {
-      void this.rpc?.emitEvent?.(alias);
-    }, event);
   }
 
   providerRouteStatus(): ProviderRouteStatus | null {

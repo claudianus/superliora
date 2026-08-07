@@ -13,7 +13,6 @@ import type { CompactionPlan } from '../plan/planner';
 import {
   mergeCompactionQualityResults,
   validateRenderedCompactionSummary,
-  validateUltraworkCompactionContinuity,
   type CompactionQualityResult,
 } from '../plan/quality';
 import { CompactionTruncatedError } from '../full/adaptive-concurrency';
@@ -26,7 +25,6 @@ import { buildCompactionSummaryText } from '../micro/handoff';
 import { isAbortError } from '../../../loop/errors';
 import { estimateTokens, estimateTokensForMessages } from '../../../utils/tokens';
 import { renderPrompt } from '../../../utils/render-prompt';
-import { captureUltraworkEnvelopeSnapshot } from '#/mission';
 import compactionInstructionTemplate from '../prompts/compaction-instruction.md?raw';
 
 import { postProcessSummary, renderStructuredV2Summary } from './enrich';
@@ -99,7 +97,6 @@ export async function applyEvidenceSecondChanceRepair(
     archiveGuidance: input.archiveGuidance,
     compactedCount: input.compactedCount,
     priorQuality: quality,
-    ultraworkSnapshot: input.ultraworkSnapshot as ReturnType<typeof captureUltraworkEnvelopeSnapshot>,
   });
   ctx.agent.telemetry.track('compaction_evidence_repair_finished', {
     critical_count: revalidated.quality.critical.length,
@@ -237,7 +234,6 @@ export function revalidateAfterEvidenceRepair(
     readonly archiveGuidance: string;
     readonly compactedCount: number;
     readonly priorQuality: CompactionQualityResult;
-    readonly ultraworkSnapshot: ReturnType<typeof captureUltraworkEnvelopeSnapshot>;
   },
 ): {
   summary: string;
@@ -271,12 +267,6 @@ export function revalidateAfterEvidenceRepair(
       .warningCategories,
     signals: renderedQuality.signals ?? input.priorQuality.signals,
   };
-  if (input.ultraworkSnapshot !== undefined) {
-    quality = mergeCompactionQualityResults(
-      quality,
-      validateUltraworkCompactionContinuity(summary, input.ultraworkSnapshot),
-    );
-  }
   return {
     summary,
     quality,

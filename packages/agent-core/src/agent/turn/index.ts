@@ -25,7 +25,6 @@ import {
 import {
   driveGoalTurnLoop,
   endGoalTurnWithoutModel,
-  markUltraworkInterruptedForTurnEnd,
 } from './goal-loop';
 import { runOneTurnFlow } from './run-one';
 import type { ActiveTurn, TurnEndResult } from './types';
@@ -316,7 +315,6 @@ export class TurnFlow {
           signal,
         );
       }
-      await markUltraworkInterruptedForTurnEnd(this.agent, end);
       return end;
     } finally {
       if (ownsActiveTurn()) {

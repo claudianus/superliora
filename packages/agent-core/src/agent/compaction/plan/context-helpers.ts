@@ -72,24 +72,6 @@ export function factsToDetails(facts: readonly ExtractedFact[]): readonly string
   return facts.map((fact) => fact.detail);
 }
 
-export function extractSwarmRunLines(summary: string): readonly string[] {
-  const lines = summary.split('\n');
-  const result: string[] = [];
-  let inSection = false;
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (/^swarm_runs:/i.test(trimmed)) {
-      inSection = true;
-      continue;
-    }
-    if (inSection && /^[a-z_]+:/i.test(trimmed) && !trimmed.startsWith('-')) break;
-    if (!inSection) continue;
-    const item = trimmed.replace(/^[-*]\s+/, '').trim();
-    if (item.length > 0) result.push(item);
-  }
-  return result;
-}
-
 export function mergeStringLists(
   primary: readonly string[],
   fallback: readonly string[],

@@ -11,24 +11,15 @@ import type {
   CancelPayload,
   CancelPlanPayload,
   CancelShellCommandPayload,
-  CancelUltraworkPayload,
   CreateGoalPayload,
-  CreateUltraworkRunPayload,
-  ClassifyUltraworkAutoActivationPayload,
-  UltraworkAutoActivationDecision,
-  ClassifyUltraworkObjectiveProfilePayload,
-  UltraworkObjectiveProfileDecision,
   DetachBackgroundPayload,
   EmptyPayload,
   DiagnoseContextOSPayload,
   EnterPlanPayload,
-  EnterSwarmPayload,
   GetBackgroundOutputPayload,
   GetBackgroundPayload,
   InlineCompletePayload,
   PromptIntelligenceCallOptions,
-  PauseUltraworkPayload,
-  SwarmRestaffPayload,
   McpServerInfo,
   McpStartupMetrics,
   PromptPayload,
@@ -70,8 +61,6 @@ import {
   promptMetadataTextFromSkill,
 } from './prompt-metadata';
 import {
-  maybeResumeInterruptedWorkInput,
-  maybeResumeInterruptedWorkPrompt,
   maybeTransformNonVisionMedia,
   toConversationLoopStateData,
   updatePromptMetadata,
@@ -181,7 +170,6 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
     if (agentId === 'main') {
       await updatePromptMetadata(this.session, promptMetadataTextFromPayload(payload));
       await updateResponseLanguagePreference(this.session, payload.input);
-      payload = await maybeResumeInterruptedWorkPrompt(this.session, agentId, payload);
     }
     const mediaTransformed = await maybeTransformNonVisionMedia(this.session, agentId, payload.input);
     if (mediaTransformed !== undefined) {
@@ -193,10 +181,6 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
   async steer({ agentId, ...payload }: AgentScopedPayload<SteerPayload>) {
     if (agentId === 'main') {
       await updateResponseLanguagePreference(this.session, payload.input);
-      const transformed = await maybeResumeInterruptedWorkInput(this.session, agentId, payload.input);
-      if (transformed !== undefined) {
-        payload = { ...payload, input: transformed };
-      }
     }
     const mediaTransformed = await maybeTransformNonVisionMedia(this.session, agentId, payload.input);
     if (mediaTransformed !== undefined) {
@@ -247,18 +231,6 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
 
   async clearPlan({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
     return (await this.getAgent(agentId)).clearPlan(payload);
-  }
-
-  async enterSwarm({ agentId, ...payload }: AgentScopedPayload<EnterSwarmPayload>) {
-    return (await this.getAgent(agentId)).enterSwarm(payload);
-  }
-
-  async exitSwarm({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
-    return (await this.getAgent(agentId)).exitSwarm(payload);
-  }
-
-  async getSwarmMode({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
-    return (await this.getAgent(agentId)).getSwarmMode(payload);
   }
 
   async setPremiumQuality({ agentId, ...payload }: AgentScopedPayload<SetPremiumQualityPayload>) {
@@ -352,42 +324,6 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
 
   async cancelGoal({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
     return (await this.getAgent(agentId)).cancelGoal(payload);
-  }
-
-  async createUltraworkRun({ agentId, ...payload }: AgentScopedPayload<CreateUltraworkRunPayload>) {
-    return (await this.getAgent(agentId)).createUltraworkRun(payload);
-  }
-
-  async getUltraworkRun({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
-    return (await this.getAgent(agentId)).getUltraworkRun(payload);
-  }
-
-  async pauseUltrawork({ agentId, ...payload }: AgentScopedPayload<PauseUltraworkPayload>) {
-    return (await this.getAgent(agentId)).pauseUltrawork(payload);
-  }
-
-  async swarmRestaff({ agentId, ...payload }: AgentScopedPayload<SwarmRestaffPayload>) {
-    return (await this.getAgent(agentId)).swarmRestaff(payload);
-  }
-
-  async resumeUltrawork({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
-    return (await this.getAgent(agentId)).resumeUltrawork(payload);
-  }
-
-  async cancelUltrawork({ agentId, ...payload }: AgentScopedPayload<CancelUltraworkPayload>) {
-    return (await this.getAgent(agentId)).cancelUltrawork(payload);
-  }
-  async classifyUltraworkAutoActivation({
-    agentId,
-    ...payload
-  }: AgentScopedPayload<ClassifyUltraworkAutoActivationPayload>): Promise<UltraworkAutoActivationDecision> {
-    return (await this.getAgent(agentId)).classifyUltraworkAutoActivation(payload);
-  }
-  async classifyUltraworkObjectiveProfile({
-    agentId,
-    ...payload
-  }: AgentScopedPayload<ClassifyUltraworkObjectiveProfilePayload>): Promise<UltraworkObjectiveProfileDecision> {
-    return (await this.getAgent(agentId)).classifyUltraworkObjectiveProfile(payload);
   }
 
   async getBackgroundOutput({

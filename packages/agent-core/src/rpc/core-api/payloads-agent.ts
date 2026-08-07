@@ -1,7 +1,6 @@
 import type { ContentPart } from '@superliora/kosong';
 
 import type { PermissionMode } from '#/agent/permission';
-import type { SwarmModeTrigger } from '#/agent/swarm';
 
 export type TextPromptPart = Extract<ContentPart, { type: 'text' }>;
 export type PromptPart = Extract<ContentPart, { type: 'text' | 'image_url' | 'video_url' }>;
@@ -16,7 +15,6 @@ export interface DiagnoseContextOSPayload {
 export interface EnterPlanPayload {
   readonly ultra?: boolean;
   readonly initialContext?: string;
-  readonly source?: 'standalone' | 'ultrawork';
 }
 
 export interface PromptPayload {
@@ -79,9 +77,6 @@ export interface SetModelResult {
 }
 export interface CancelPlanPayload {
   readonly id?: string;
-}
-export interface EnterSwarmPayload {
-  readonly trigger: SwarmModeTrigger;
 }
 export interface BeginCompactionPayload {
   readonly instruction?: string;
@@ -171,7 +166,6 @@ export interface GetBackgroundPayload {
 export interface CreateGoalPayload {
   readonly objective: string;
   readonly replace?: boolean;
-  readonly source?: 'standalone' | 'ultrawork';
   /** Shell command that must pass before the goal may complete. */
   readonly gateCommand?: string;
 }

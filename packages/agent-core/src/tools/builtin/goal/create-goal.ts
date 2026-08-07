@@ -53,14 +53,12 @@ export class CreateGoalTool implements BuiltinTool<CreateGoalToolInput> {
       display: this.resolveGoalStartDisplay(args),
       approvalRule: this.name,
       execute: async () => {
-        const activationSource = this.agent.ultrawork.getRun()?.status === 'running' ? 'ultrawork' as const : 'standalone' as const;
         const snapshot = await goal.createGoal(
           {
             objective: args.objective,
             completionCriterion: args.completionCriterion,
             gateCommand: args.gateCommand,
             replace: args.replace,
-            source: activationSource,
           },
           'model',
         );

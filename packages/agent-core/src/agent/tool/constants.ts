@@ -25,7 +25,6 @@ export const CACHE_GATED_TOOLS = new Set([
   'NextPhase',
   'RecordInterviewFinding',
   'SetGoalBudget',
-  'UltraworkGraph',
   'UpdateGoal',
   'VerifySurface',
   'VisualDiff',

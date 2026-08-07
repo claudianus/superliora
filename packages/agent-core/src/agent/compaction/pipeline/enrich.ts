@@ -1,17 +1,8 @@
-import type { Message } from '@superliora/kosong';
-
-import {
-  buildUltraworkCompactionEnvelope,
-  captureUltraworkEnvelopeSnapshot,
-  extractUltraworkRunLines,
-  renderUltraworkRunsMemorySection,
-} from '#/mission';
 import { renderTodoList, type TodoItem } from '../../../tools/builtin/state/todo-list';
 import { estimateTokens } from '../../../utils/tokens';
 import { extractAnchorDiff, mergeIntoAnchor, renderAnchor } from '../full/anchor';
 import {
   extractNextActions,
-  extractSwarmRunLines,
   factsToDetails,
   formatRawRef,
   formatStringList,
@@ -25,30 +16,18 @@ import {
   parseStructuredCompactionMemory,
 } from '../memory';
 import type { CompactionPlan } from '../plan/planner';
-import {
-  extractSwarmRunsFromMessages,
-  renderSwarmRunsMemorySection,
-} from '../memory/swarm-memory-extract';
 import type { CompactionPipelineContext } from './types';
 
 export function enrichCompactionSummary(
   ctx: CompactionPipelineContext,
   input: {
     readonly summary: string;
-    readonly messagesToCompact: readonly Message[];
     readonly plan: CompactionPlan;
   },
-): {
-  summary: string;
-  ultraworkSnapshot: ReturnType<typeof captureUltraworkEnvelopeSnapshot>;
-} {
+): string {
   let summary = postProcessSummary(ctx, input.summary);
   summary = appendExtractedFactsAndAnchor(ctx, summary);
-  summary = appendSwarmRunsSection(ctx, summary, input.messagesToCompact);
-  const { summary: withUltrawork, ultraworkSnapshot } =
-    appendUltraworkCompactionSections(ctx, summary);
-  summary = renderStructuredV2Summary(ctx, withUltrawork, input.plan);
-  return { summary, ultraworkSnapshot };
+  return renderStructuredV2Summary(ctx, summary, input.plan);
 }
 
 function appendExtractedFactsAndAnchor(ctx: CompactionPipelineContext, summary: string): string {
@@ -70,53 +49,6 @@ function appendExtractedFactsAndAnchor(ctx: CompactionPipelineContext, summary: 
   return next;
 }
 
-function appendSwarmRunsSection(
-  _ctx: CompactionPipelineContext,
-  summary: string,
-  messagesToCompact: readonly Message[],
-): string {
-  const swarmSection = renderSwarmRunsMemorySection(
-    extractSwarmRunsFromMessages(messagesToCompact),
-  );
-  if (swarmSection.length === 0) return summary;
-  return `${summary.trim()}\n\n${swarmSection}`;
-}
-
-function appendUltraworkCompactionSections(
-  ctx: CompactionPipelineContext,
-  summary: string,
-): {
-  summary: string;
-  ultraworkSnapshot: ReturnType<typeof captureUltraworkEnvelopeSnapshot>;
-} {
-  const ultraworkSnapshot = captureUltraworkEnvelopeSnapshot(ctx.agent, {
-    compactionBoundary: true,
-  });
-  const ultraworkEnvelope =
-    ultraworkSnapshot === undefined
-      ? undefined
-      : buildUltraworkCompactionEnvelope(ctx.agent, { compactionBoundary: true });
-  if (ultraworkEnvelope === undefined) {
-    return { summary, ultraworkSnapshot };
-  }
-  let next = `${summary.trim()}\n\n${ultraworkEnvelope}`;
-  const ultraworkRunsSection = renderUltraworkRunsMemorySection(ultraworkSnapshot!);
-  if (ultraworkRunsSection.length > 0) {
-    next = `${next.trim()}\n\n${ultraworkRunsSection}`;
-  }
-  ctx.agent.telemetry.track('compaction.ultrawork_checkpoint', {
-    run_id: ultraworkSnapshot!.run.id,
-    stage: ultraworkSnapshot!.run.stage,
-    effective_stage: ultraworkSnapshot!.effectiveStage ?? ultraworkSnapshot!.run.stage,
-    pending_nodes: String(
-      ultraworkSnapshot!.run.workGraph?.nodes.filter((node) => node.status !== 'done')
-        .length ?? 0,
-    ),
-    deferred_reason: 'none',
-    envelope_token_estimate: String(estimateTokens(ultraworkEnvelope)),
-  });
-  return { summary: next, ultraworkSnapshot };
-}
 
 export function postProcessSummary(ctx: CompactionPipelineContext, summary: string): string {
   const storeData = ctx.agent.tools.storeData();
@@ -146,11 +78,6 @@ export function renderStructuredV2Summary(
   const fileItems = mergeStringLists(structuredMemory.filesTouched, factsToDetails(filesTouched));
   const failureItems = mergeStringLists(structuredMemory.failedAttempts, factsToDetails(failures));
   const rawRefItems = mergeStringLists(structuredMemory.rawRefs, plan.rawRefs.map(formatRawRef));
-  const swarmRunItems = mergeStringLists(structuredMemory.swarmRuns, extractSwarmRunLines(summary));
-  const ultraworkRunItems = mergeStringLists(
-    structuredMemory.ultraworkRuns,
-    extractUltraworkRunLines(summary),
-  );
 
   const openQuestions = structuredMemory.openQuestions;
   return [
@@ -183,10 +110,6 @@ export function renderStructuredV2Summary(
       : []),
     'raw_refs:',
     formatStringList(rawRefItems),
-    'swarm_runs:',
-    formatStringList(swarmRunItems),
-    'ultrawork_runs:',
-    formatStringList(ultraworkRunItems),
     '',
     '## Compacted Narrative',
     summary.trim(),

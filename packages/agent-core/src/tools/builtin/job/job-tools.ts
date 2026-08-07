@@ -109,7 +109,6 @@ const JobCreateInputSchema = z
       .string()
       .optional()
       .describe('Parent job id for subtasks of an existing Job (decomposition chains).'),
-    mission_run_id: z.string().optional(),
     goal_completion_criterion: z
       .string()
       .trim()
@@ -232,7 +231,6 @@ export function renderJobInspect(job: JobRecord): string {
   push('worktree', job.worktreePath);
   push('worker', job.workerAgentId);
   push('parent', job.parentJobId);
-  push('mission', job.missionRunId);
   push('goal', job.goalObjective);
   push('context_paths', job.contextPaths?.join(', '));
   if (job.progress !== undefined) {
@@ -329,7 +327,6 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
             ownershipPaths: a.ownership_paths,
             contextPaths: a.context_paths,
             parentJobId: a.parent_job_id,
-            missionRunId: a.mission_run_id,
             ...(isGoalDriver
               ? {
                   goalObjective: intent.prompt?.trim() || intent.title || a.title,

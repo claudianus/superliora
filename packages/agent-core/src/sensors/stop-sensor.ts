@@ -44,7 +44,7 @@ export interface StopSensorInput {
   readonly verificationLedger?: VerificationSensorLedger;
   readonly mutationLedger?: MutationVerificationLedger;
   readonly nowMs?: number;
-  /** When true, skip (Goal/Ultrawork already enforce hard gates). */
+  /** When true, skip (Goal already enforces hard gates). */
   readonly skip?: boolean;
   readonly env?: NodeJS.ProcessEnv;
   /**

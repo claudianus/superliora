@@ -35,7 +35,7 @@ verified_claims:
 - Anything not re-verified in this session is `needs_revalidation=true`.
 
 raw_refs:
-- Durable ids only: WorkGraph/Ultrawork node ids, AC ids, evidence_ids, archive markers (`liora-archived`), plan paths, goal status. Prefer concrete ids over "see above".
+- Durable ids only: WorkGraph node ids, AC ids, evidence_ids, archive markers (`liora-archived`), plan paths, goal status. Prefer concrete ids over "see above".
 
 After the structured sections, you may add a short first-person narrative (optional, ≤15 lines) for insights that do not fit bullets. Do not put required facts only in the narrative.
 

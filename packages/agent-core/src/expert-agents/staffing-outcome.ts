@@ -286,7 +286,7 @@ export function listStaffingOutcomes(): readonly StaffingOutcomeRecord[] {
 }
 
 /**
- * Map UltraSwarm phase verdicts into staffing priors.
+ * Map phase verdicts into staffing priors.
  * - PASS / PASS_WITH_ADVICE → accepted
  * - FAIL / BLOCKED → rejected + conflict
  * - ABORTED / SKIPPED / failed status → rejected with light waste signal

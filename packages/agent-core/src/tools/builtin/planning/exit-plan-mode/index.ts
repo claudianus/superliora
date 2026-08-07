@@ -7,8 +7,7 @@
  */
 
 import type { Agent } from '#/agent/index';
-import { seedUltraworkGraphFromApprovedPlan } from '#/agent/plan/work-graph-from-plan';
-import { maybeAdvanceUltraworkStage, maybeFinishUltraworkRun } from '#/mission';
+import { seedTaskGraphFromApprovedPlan } from '#/agent/plan/work-graph-from-plan';
 import type { PlanData } from '#/agent/plan';
 import {
   combinedDrift,
@@ -152,29 +151,8 @@ export class ExitPlanModeTool implements BuiltinTool<ExitPlanModeInput> {
     if (failed !== undefined) return failed;
 
     const seededWorkGraph = isUltra
-      ? seedUltraworkGraphFromApprovedPlan(this.agent, resolvedPlan.plan, resolvedPlan.path)
+      ? seedTaskGraphFromApprovedPlan(this.agent, resolvedPlan.plan, resolvedPlan.path)
       : { seeded: false, nodeIds: [] };
-
-    if (isUltra) {
-      maybeAdvanceUltraworkStage(this.agent, 'goal', 'UltraPlan approved');
-      if (seededWorkGraph.seeded) {
-        this.agent.ultrawork.syncWorkGraphFromStore();
-        await maybeFinishUltraworkRun(this.agent);
-      }
-      // Ensure the UltraGoal exists after plan approval so the goal driver
-      // keeps the model running autonomously. Without a goal, the turn ends
-      // after plan approval and the run stalls — the model has no
-      // continuation loop. The /goal path creates the goal upfront; this
-      // mirrors that for the /ultrawork path. The model can still refine the
-      // goal via CreateGoal(replace: true) or UpdateGoal.
-      const existingGoal = this.agent.goal?.getGoal().goal;
-      if (existingGoal === undefined || existingGoal === null) {
-        const runObjective = this.agent.ultrawork.getRun()?.objective;
-        if (runObjective !== undefined && runObjective.length > 0) {
-          await this.agent.goal.createGoal({ objective: runObjective, source: 'ultrawork' }, 'runtime');
-        }
-      }
-    }
 
     this.agent.telemetry.track('plan_resolved', { outcome: 'auto_approved', ultra: isUltra });
 

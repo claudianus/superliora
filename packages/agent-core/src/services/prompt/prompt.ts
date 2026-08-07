@@ -98,7 +98,6 @@ export interface AgentStatePatch {
   thinking?: string;
   permission_mode?: string;
   plan_mode?: boolean;
-  swarm_mode?: boolean;
   goal_objective?: string;
   goal_control?: 'pause' | 'resume' | 'cancel';
 }
@@ -343,7 +342,6 @@ export interface AgentStateSnapshot {
   thinking?: string;
   permissionMode?: string;
   planMode?: boolean;
-  swarmMode?: boolean;
 }
 
 /**

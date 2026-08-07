@@ -71,7 +71,6 @@ function toConfigResponse(config: LioraConfig): ConfigResponse {
     memory: config.memory,
     cache: config.cache,
     research: config.research,
-    mission: config.mission,
     model_catalog: config.modelCatalog,
     browser_use: config.browserUse,
     computer_use: config.computerUse,

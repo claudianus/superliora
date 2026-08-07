@@ -80,7 +80,6 @@ export function emitSubagentSpawned(
     parentToolCallUuid: options.parentToolCallUuid,
     parentAgentId: ownerAgentId,
     description: options.description,
-    swarmIndex: options.swarmIndex,
     runInBackground: options.runInBackground,
     modelAlias,
   });

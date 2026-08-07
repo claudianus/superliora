@@ -8,9 +8,6 @@ import { access } from 'node:fs/promises';
 import { constants as fsConstants } from 'node:fs';
 import { isAbsolute, join, normalize, relative, resolve, sep } from 'node:path';
 
-import type { UltraworkRun } from '@superliora/protocol';
-
-import { auditUltraworkCompletion } from '#/mission';
 import type {
   GoalPredicateEvalResult,
   GoalPredicateFailure,
@@ -20,7 +17,6 @@ import type {
 export interface EvaluateGoalPredicateInput {
   readonly spec: GoalPredicateSpec;
   readonly workspaceRoot: string;
-  readonly ultraworkRun?: UltraworkRun | null;
   /** Total evidenceIds count across graph nodes (caller may precompute). */
   readonly evidenceIdCount?: number;
   /** When false, skip spawning vitest (unit tests inject results). Default true. */
@@ -59,9 +55,7 @@ export async function evaluateGoalPredicate(
 
   const minEvidence = input.spec.minEvidenceIds;
   if (minEvidence !== undefined && minEvidence > 0) {
-    const count =
-      input.evidenceIdCount ??
-      countEvidenceIds(input.ultraworkRun ?? null);
+    const count = input.evidenceIdCount ?? 0;
     if (count < minEvidence) {
       failures.push({
         code: 'min_evidence',
@@ -70,31 +64,6 @@ export async function evaluateGoalPredicate(
     }
   }
 
-  const requireGraph =
-    input.spec.requireUltraworkGraph === true ||
-    (input.spec.requireUltraworkGraph !== false &&
-      input.ultraworkRun !== null &&
-      input.ultraworkRun !== undefined &&
-      input.ultraworkRun.status !== 'done' &&
-      input.ultraworkRun.status !== 'failed');
-
-  if (requireGraph && input.ultraworkRun !== null && input.ultraworkRun !== undefined) {
-    const audit = auditUltraworkCompletion({
-      run: input.ultraworkRun,
-      requireWorkGraph: true,
-    });
-    if (!audit.ok) {
-      failures.push({
-        code: 'ultrawork_audit',
-        message: `Ultrawork completion audit failed (${audit.code}): ${audit.reasons[0] ?? 'unknown'}`,
-      });
-    }
-  } else if (input.spec.requireUltraworkGraph === true && (input.ultraworkRun === null || input.ultraworkRun === undefined)) {
-    failures.push({
-      code: 'ultrawork_audit',
-      message: 'requireUltraworkGraph=true but no live Ultrawork run',
-    });
-  }
 
   if (input.runTests !== false) {
     const runVitest = input.runVitestFile ?? defaultRunVitestFile;
@@ -133,15 +102,6 @@ export async function evaluateGoalPredicate(
   }
 
   return { ok: failures.length === 0, failures };
-}
-
-export function countEvidenceIds(run: UltraworkRun | null): number {
-  if (run === null || run.workGraph === undefined) return 0;
-  let n = 0;
-  for (const node of run.workGraph.nodes) {
-    n += node.evidenceIds?.length ?? 0;
-  }
-  return n;
 }
 
 /** Resolve path under root; null if escapes. */

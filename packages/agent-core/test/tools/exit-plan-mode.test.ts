@@ -11,7 +11,7 @@ import {
   ExitPlanModeTool,
 } from '../../src/tools/builtin/planning/exit-plan-mode';
 import { TODO_STORE_KEY } from '../../src/tools/builtin/state/todo-list';
-import { ULTRAWORK_GRAPH_STORE_KEY } from '#/mission';
+import { TASK_GRAPH_STORE_KEY } from '#/fleet';
 import { executeTool } from './fixtures/execute-tool';
 
 const signal = new AbortController().signal;
@@ -106,12 +106,6 @@ function makeAgent(
           toolStore[key] = value;
         },
       })),
-    },
-    ultrawork: {
-      getActiveRunId: () => undefined,
-      getRun: () => null,
-      syncWorkGraphFromStore: vi.fn(),
-	      completeLearnStage: vi.fn(() => null),
     },
     goal: {
       getGoal: vi.fn(() => ({ goal: null })),
@@ -479,8 +473,8 @@ describe('ExitPlanModeTool', () => {
     expect(result.output).toContain('Swarm ENGAGE approved');
     expect(result.output).toContain('Job workers (JobCreate) before product-file edits');
     expect(result.output).toContain('work_node_ids: ac_1');
-    expect(result.output).toContain('## UltraworkGraph Seed');
-    expect(toolStore[ULTRAWORK_GRAPH_STORE_KEY]).toMatchObject({
+    expect(result.output).toContain('## TaskGraph Seed');
+    expect(toolStore[TASK_GRAPH_STORE_KEY]).toMatchObject({
       runId: 'ultra-plan-kimi-plan',
       nodes: [expect.objectContaining({ id: 'ac_1', acceptanceCriterionId: 'AC-1', stage: 'swarm' })],
     });
@@ -877,16 +871,6 @@ describe('ExitPlanModeTool', () => {
         'Swarm decision: DEFER. Bounded deterministic edit. value: none; owner: main agent.',
         'Swarm DEFER waiver: Single-owner source/test edit with no specialist lane.',
       ].join('\n'),
-    });
-    // Override getRun to return a run with an objective so the goal
-    // auto-creation path triggers.
-    (agent.ultrawork as { getRun: () => unknown }).getRun = () => ({
-      id: 'uw-auto-goal',
-      objective: 'Ship the auto-created UltraGoal',
-      status: 'running',
-      stage: 'goal',
-      createdAt: '2026-07-12T00:00:00.000Z',
-      updatedAt: '2026-07-12T00:00:00.000Z',
     });
 
     const result = await executeTool(new ExitPlanModeTool(agent), {

@@ -54,10 +54,3 @@ export interface ExpertAssignment {
   readonly selectionReason?: string;
 }
 
-export interface UltraSwarmInput {
-  readonly description: string;
-  readonly experts?: readonly string[];
-  readonly autoSelect?: boolean;
-  readonly subagent_type?: string;
-  readonly run_in_background?: boolean;
-}

@@ -20,7 +20,7 @@ import { applyUserPromptHook } from './prompt-hook';
 import { closeAbandonedToolExchangeAtTurnEnd, createTurnLoopDispatch } from './loop-dispatch';
 import { runTurnStepLoop } from './step-loop';
 import type { ActiveTurn, TurnEndResult } from './types';
-import { isUltraworkSwarmSession, recordTurnMemory } from './goal-loop';
+import { recordTurnMemory } from './goal-loop';
 
 export interface TurnRunOneDeps {
   readonly agent: Agent;
@@ -156,9 +156,6 @@ export async function runOneTurnFlow(
   // memory capture) in between lets a racing prompt hit `turn.agent_busy`.
   deps.releaseActiveTurn(ended);
   agent.emitEvent(ended);
-  if (agent.swarmMode.shouldAutoExit && !isUltraworkSwarmSession(agent)) {
-    agent.swarmMode.exit();
-  }
   if (errorEvent !== undefined) {
     agent.emitEvent(errorEvent);
   }

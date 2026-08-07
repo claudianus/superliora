@@ -13,7 +13,6 @@ export interface ResolvePlanModeKindInput {
   /** Explicit tool/RPC flag; wins when set. */
   readonly ultra?: boolean;
   readonly initialContext?: string;
-  readonly source?: 'standalone' | 'ultrawork';
 }
 
 export interface ResolvePlanModeKindResult {
@@ -29,7 +28,7 @@ const ULTRA_SIGNALS: readonly RegExp[] = [
   /\b(architect|multi[- ]?file|refactor(ing)? (the|our)|redesign|migrate)\b/i,
   /\b(unclear|not sure| somehow|maybe|options?|trade-?offs?|which approach)\b/i,
   /\b(requirements?|spec|acceptance|verifiable|seed spec|interview)\b/i,
-  /\b(ultraplan|ultra plan|structured plan|mission)\b/i,
+  /\b(ultraplan|ultra plan|structured plan)\b/i,
 ];
 
 /** Signals that the ask is scoped and already decided → Regular. */
@@ -43,7 +42,6 @@ const REGULAR_SIGNALS: readonly RegExp[] = [
 
 /**
  * Pick regular vs ultra. Explicit `ultra` always wins; otherwise score context.
- * Mission/Ultrawork source always ultra.
  */
 export function resolvePlanModeKind(input: ResolvePlanModeKindInput): ResolvePlanModeKindResult {
   if (input.ultra === true) {
@@ -52,10 +50,6 @@ export function resolvePlanModeKind(input: ResolvePlanModeKindInput): ResolvePla
   if (input.ultra === false) {
     return { kind: 'regular', reason: 'explicit ultra=false' };
   }
-  if (input.source === 'ultrawork') {
-    return { kind: 'ultra', reason: 'Mission/Ultrawork activation source' };
-  }
-
   const ctx = (input.initialContext ?? '').trim();
   if (ctx.length === 0) {
     // No context: prefer regular so Conductor does not always pay interview cost;

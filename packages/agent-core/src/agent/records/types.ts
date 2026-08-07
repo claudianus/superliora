@@ -1,6 +1,5 @@
 import type { ContentPart, TokenUsage } from '@superliora/kosong';
 
-import type { UltraworkRun } from '@superliora/protocol';
 
 import type { LoopRecordedEvent } from '../../loop';
 import type { GoalActor, GoalBudgetLimits, GoalStatus } from '../goal';
@@ -12,7 +11,6 @@ import type { ContextMessage, PromptOrigin } from '../context';
 import type { PermissionApprovalResultRecord, PermissionMode } from '../permission';
 import type { UserToolRegistration } from '../tool';
 import type { UsageRecordScope } from '../usage';
-import type { SwarmModeTrigger } from '../swarm';
 import type { TurnCancelSource } from '../../rpc/core-api';
 
 export interface SerializableAgentEvent {
@@ -67,17 +65,6 @@ export interface AgentRecordEvents {
     id?: string;
   };
 
-  'swarm_mode.enter': {
-    trigger: SwarmModeTrigger;
-  };
-  'swarm_mode.exit': {};
-
-  'swarm.steer': {
-    input: string;
-  };
-  'swarm.restaff': {
-    input: string;
-  };
   'tools.register_user_tool': UserToolRegistration;
   'tools.unregister_user_tool': {
     name: string;
@@ -126,22 +113,6 @@ export interface AgentRecordEvents {
   'subagent.lifecycle': {
     event: SerializableAgentEvent;
   };
-  'ultrawork.event': {
-    event: SerializableAgentEvent;
-  };
-  'ultrawork.run': {
-    run: UltraworkRun;
-    activation?: {
-      source: 'manual' | 'auto' | 'shift-tab' | 'goal' | 'headless';
-      replaceGoal: boolean;
-      evidenceRoot: string;
-      workDir: string;
-    };
-    interruptReason?: string;
-  };
-  'ultrawork.mode': {
-    enabled: boolean;
-  };
   'premium-quality.mode': {
     enabled: boolean;
   };
@@ -175,7 +146,7 @@ export interface AgentRecordPersistence {
   /**
    * Total number of records durably appended to the log so far. This is the
    * append-offset used as the authoritative journal position for checkpoint
-   * precedence (e.g. Ultrawork mirror reconciliation). Pending (not-yet-fsync'd)
+   * precedence. Pending (not-yet-fsync'd)
    * records are excluded so the offset only advances once a record is durable.
    */
   recordCount(): number;

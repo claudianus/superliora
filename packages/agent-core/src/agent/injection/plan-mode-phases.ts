@@ -125,11 +125,6 @@ ${PHASE_INSTRUCTIONS[phase] ?? PHASE_INSTRUCTIONS['interview']}`;
     agent?.planMode.ultraEngine.getPerspectiveDescription() ?? '',
   );
 
-  const ultraworkGate = ultraworkResumeGate(agent, phase, interviewState?.rounds.length ?? 0);
-  if (ultraworkGate !== undefined) {
-    body = `${ultraworkGate}\n\n${body}`;
-  }
-
   if (phase === 'interview' && agent !== undefined) {
     const engine = agent.planMode.ultraEngine;
     const readiness = await engine.interviewReadiness({ rescore: false });
@@ -141,29 +136,6 @@ ${PHASE_INSTRUCTIONS[phase] ?? PHASE_INSTRUCTIONS['interview']}`;
   }
 
   return withPlanFileFooter(body, planFilePath);
-}
-
-function ultraworkResumeGate(
-  agent: Agent | undefined,
-  phase: string,
-  interviewRounds: number,
-): string | undefined {
-  if (agent === undefined) return undefined;
-  const run = agent.ultrawork.getRun();
-  if (run === null || run.status === 'done' || run.status === 'failed') return undefined;
-  const lines = [
-    'Ultrawork resume gate:',
-    `- Active run ${run.id} is at stage ${run.stage}; continue this run instead of starting a new one.`,
-    '- Do not call EnterPlanMode, create a new plan file, or restart UltraPlan from scratch.',
-  ];
-  if (phase === 'interview' && interviewRounds > 0) {
-    lines.push(`- Continue the interview from round ${String(interviewRounds + 1)}.`);
-  } else if (phase === 'design' || phase === 'review' || phase === 'write' || phase === 'exit') {
-    lines.push(
-      `- Resume UltraPlan ${phase} from the checkpoint; do not drop back to interview or redesign from scratch.`,
-    );
-  }
-  return lines.join('\n');
 }
 
 function nextMilestone(milestone: string | undefined): string {

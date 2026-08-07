@@ -99,7 +99,6 @@ export type CompactionQualityWarningCategory =
   | 'missing_file_hints'
   | 'missing_failed_attempts'
   | 'missing_evidence_ids'
-  | 'missing_ultrawork_checkpoint'
   | 'placeholder_only_memory'
   | 'prompt_control_recalled'
   | 'token_growth'
@@ -116,7 +115,6 @@ export interface CompactionQualitySignals {
   readonly failedAttemptRecallScore: number;
   readonly evidenceIdRecallScore: number;
   readonly promptInjectionResistanceScore: number;
-  readonly swarmRecallScore?: number;
   readonly failureSignature?: string;
 }
 

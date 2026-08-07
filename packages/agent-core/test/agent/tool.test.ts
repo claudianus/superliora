@@ -374,16 +374,15 @@ describe('Agent tools', () => {
     expect(ctx.agent.tools.loopTools.some((tool) => tool.name === 'SearchExpert')).toBe(true);
   });
 
-  it('exposes UltraworkGraph as a cache-gated builtin tool always present', () => {
+  it('exposes TaskGraph as a cache-gated builtin tool always present', () => {
     const ctx = testAgent({
       experimentalFlags: new FlagResolver({}, FLAG_DEFINITIONS),
     });
-    ctx.configure({ tools: ['UltraworkGraph'] });
+    ctx.configure({ tools: ['TaskGraph'] });
 
     // CACHE_GATED_TOOLS are never filtered — always present for prefix cache stability.
-    expect(ctx.agent.tools.loopTools.some((tool) => tool.name === 'UltraworkGraph')).toBe(true);
-    vi.spyOn(ctx.agent.ultrawork, 'getRun').mockReturnValue({ objective: 'x' } as never);
-    expect(ctx.agent.tools.loopTools.some((tool) => tool.name === 'UltraworkGraph')).toBe(true);
+    expect(ctx.agent.tools.loopTools.some((tool) => tool.name === 'TaskGraph')).toBe(true);
+    expect(ctx.agent.tools.loopTools.some((tool) => tool.name === 'TaskGraph')).toBe(true);
   });
 
   it('routes registered user tools through tool.call request/response', async () => {

@@ -7,7 +7,6 @@ export * from './job-inbox';
 export * from './job-handles';
 export * from './job-split';
 export * from './job-lanes';
-export * from './job-mission-bind';
 export * from './job-emit';
 export * from './job-merge-trust';
 export * from './job-worker-guards';

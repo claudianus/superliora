@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import type { Agent } from '../../src/agent';
 import { PremiumQualityInjector } from '../../src/agent/injection/premium-quality';
-import { UltraworkObjectiveProfileCache } from '#/mission';
 import {
   PREMIUM_QUALITY_CODE_FULL_GUIDANCE,
   PREMIUM_QUALITY_CODE_SPARSE_GUIDANCE,
@@ -46,7 +45,6 @@ function premiumAgent(
               stage: 'intake',
             },
     },
-    ultraworkObjectiveProfile: new UltraworkObjectiveProfileCache(),
     context: {
       history,
       appendSystemReminder: (content: string) => {
@@ -100,26 +98,6 @@ describe('PremiumQualityInjector', () => {
     expect(text.length).toBeLessThan(PREMIUM_QUALITY_FULL_GUIDANCE.length / 2);
   });
 
-  it('injects full visual guidance for visual Ultrawork objectives', async () => {
-    const agent = premiumAgent(true, {
-      runObjective: 'Redesign the dashboard UI with browser screenshots',
-    });
-    agent.ultraworkObjectiveProfile.set('Redesign the dashboard UI with browser screenshots', {
-      visualSurface: true,
-      benchSurface: false,
-      premiumDensity: 'visual',
-      lanes: [],
-      confidence: 0.9,
-      reason: 'UI redesign with browser screenshots',
-      source: 'llm',
-    });
-    const injector = new PremiumQualityInjector(agent);
-    await injector.inject();
-    const text = lastReminder(agent);
-    expect(text).toContain(PREMIUM_QUALITY_FULL_GUIDANCE.slice(0, 40));
-    expect(text).toContain('on demand (T2-2)');
-    expect(text).not.toContain('godly.website');
-  });
 
   it('injects exit guidance when premium quality turns off', async () => {
     const agent = premiumAgent(true);

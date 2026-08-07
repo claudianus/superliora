@@ -1,4 +1,4 @@
-일반 작업·칸반은 `CreateGoal`·`TodoList` 우선. 공개명은 `TaskGraph`; `UltraworkGraph`는 고급 호환 별칭.
+일반 작업·칸반은 `CreateGoal`·`TodoList` 우선. 구조화된 작업 그래프가 필요할 때 `TaskGraph`.
 
 Maintain the Mission WorkGraph — AC/work ledger backing TodoList during Mission runs.
 

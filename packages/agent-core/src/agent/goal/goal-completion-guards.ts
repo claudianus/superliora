@@ -1,9 +1,8 @@
 import type { Agent } from '..';
 import {
-  auditUltraworkCompletion,
   formatCompletionAuditRejection,
   type CompletionAuditRejection,
-} from '#/mission';
+} from './completion-audit';
 import {
   buildPendingMutationSoftTips,
   type MutationVerificationLedger,
@@ -16,11 +15,7 @@ import {
 import { GOAL_COMPLETE_REJECT_COOLDOWN_TURNS } from './goal-constants';
 import type { GoalModeHost } from './goal-mode-host';
 import { parseGoalPredicateCriterion } from './predicate';
-import {
-  countEvidenceIds,
-  evaluateGoalPredicate,
-  formatPredicateFailures,
-} from './predicate-runner';
+import { evaluateGoalPredicate, formatPredicateFailures } from './predicate-runner';
 import type { GoalActor, GoalState } from './types';
 
 export function checkCompleteRejectCooldown(
@@ -82,7 +77,7 @@ export function recordCompletionRejection(
   }
   host.agent.context.appendSystemReminder(formatCompletionAuditRejection(rejection), {
     kind: 'injection',
-    variant: 'ultrawork_completion_rejected',
+    variant: 'goal_completion_rejected',
   });
   host.agent.log?.warn?.('goal markComplete rejected', {
     code: rejection.code,
@@ -96,26 +91,6 @@ export function recordCompletionRejection(
     open_nodes: rejection.openNodeIds?.length ?? 0,
     reject_streak: host.completionRejectStreak,
   });
-}
-
-/**
- * When the goal was activated by Ultrawork (or an Ultrawork run is live),
- * require a passing completion audit. Plain standalone goals are unrestricted
- * unless a structured GoalPredicate is set (see evaluateStructured…).
- * Runtime actor still requires audit so empty graphs cannot close via finish.
- */
-export function auditUltraworkBoundCompletion(
-  agent: Agent,
-  _actor: GoalActor,
-): CompletionAuditRejection | null {
-  const run = agent.ultrawork?.getRun() ?? null;
-  // No live ultrawork run: plain goal mode may complete freely (predicate still applies).
-  if (run === null) return null;
-  // Already terminal: allow markComplete to clear the goal box.
-  if (run.status === 'done' || run.status === 'failed') return null;
-  const audit = auditUltraworkCompletion({ run, requireWorkGraph: true });
-  if (audit.ok) return null;
-  return audit;
 }
 
 /**
@@ -199,7 +174,6 @@ export async function evaluateStructuredCompletionPredicate(
   const parsed = parseGoalPredicateCriterion(state.completionCriterion);
   if (parsed.kind !== 'structured') return null;
 
-  const run = agent.ultrawork?.getRun() ?? null;
   const workspaceRoot =
     (agent as { config?: { cwd?: string } }).config?.cwd ?? process.cwd();
 
@@ -207,8 +181,6 @@ export async function evaluateStructuredCompletionPredicate(
     const result = await evaluateGoalPredicate({
       spec: parsed.spec,
       workspaceRoot,
-      ultraworkRun: run,
-      evidenceIdCount: countEvidenceIds(run),
     });
     if (result.ok) return null;
     return {
@@ -220,7 +192,6 @@ export async function evaluateStructuredCompletionPredicate(
       ],
       nextActions: [
         'Create missing requiredPaths or fix requiredTestFiles.',
-        'Attach evidenceIds / pass Ultrawork audit when requireUltraworkGraph is set.',
         'Only then call UpdateGoal(complete).',
       ],
     };

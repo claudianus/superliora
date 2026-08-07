@@ -3,7 +3,6 @@ import { dirname, join } from 'pathe';
 
 import type { Agent } from '..';
 import { generateHeroSlug } from '../../utils/hero-slug';
-import { maybeAdvanceUltraworkStage } from '#/mission';
 import type { ModeActivationSource } from '../mode-activation';
 import { DEFAULT_MODE_ACTIVATION_SOURCE } from '../mode-activation';
 import {
@@ -51,7 +50,7 @@ export class PlanMode {
     emitStatus = true,
     ultra = false,
     initialContext = '',
-    source: ModeActivationSource = DEFAULT_MODE_ACTIVATION_SOURCE,
+    _source: ModeActivationSource = DEFAULT_MODE_ACTIVATION_SOURCE,
   ): Promise<void> {
     if (this._isActive) {
       throw new Error('Already in plan mode');
@@ -81,9 +80,6 @@ export class PlanMode {
       if (ultra) {
         this.ultraEngine.startInterview(initialContext);
         await this.writeUltraPlanTemplate(planFilePath);
-        if (source === 'ultrawork') {
-          maybeAdvanceUltraworkStage(this.agent, 'research', 'Mission plan research phase');
-        }
         this.logStateCheckpoint();
       }
     } catch (error) {
@@ -310,8 +306,8 @@ export class PlanMode {
   }
 
   /**
-   * Register plan directory (+ Mission evidence root when live) as additionalDirs
-   * so workspace sandbox allows Write/Edit to plan + evidence without false denials.
+   * Register the plan directory as an additionalDir so the workspace sandbox
+   * allows Write/Edit to the plan file without false denials.
    */
   private ensurePlanWriteSandboxRoots(planFilePath: string): void {
     const getDirs = this.agent.getAdditionalDirs?.bind(this.agent);
@@ -322,22 +318,6 @@ export class PlanMode {
     const roots = new Set(getDirs());
     const planDir = dirname(planFilePath);
     if (planDir.length > 0) roots.add(planDir);
-    const activation = this.agent.ultrawork?.getActivation?.();
-    if (activation !== undefined) {
-      const workDir =
-        activation.workDir.length > 0 ? activation.workDir : this.agent.config.cwd;
-      const evidenceRoot = activation.evidenceRoot;
-      if (evidenceRoot.length > 0) {
-        const absolute =
-          evidenceRoot.startsWith('/') || /^[A-Za-z]:[\\/]/.test(evidenceRoot)
-            ? evidenceRoot
-            : join(workDir, evidenceRoot);
-        roots.add(absolute);
-      }
-      if (workDir.length > 0) {
-        roots.add(join(workDir, '.superliora'));
-      }
-    }
     setDirs([...roots]);
   }
 

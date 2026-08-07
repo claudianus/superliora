@@ -5,7 +5,6 @@ import type {
   CompactionQualitySignals,
   CompactionQualityWarningCategory,
 } from '../types';
-import type { UltraworkRunMirror } from '#/mission';
 import {
   isPlaceholderCompactionMemoryItem,
   isUsefulCompactionMemoryItem,
@@ -14,7 +13,6 @@ import {
 import {
   addSignalWarnings,
   buildFailureSignature,
-  computeSwarmRecallScore,
   containsFailureMarker,
   containsRiskyBarePath,
   containsUnfinishedWork,
@@ -33,7 +31,6 @@ import {
   usefulItems,
   V2_REQUIRED_LABELS,
 } from './quality-helpers';
-import { extractSwarmRunsFromMessages } from '../memory/swarm-memory-extract';
 export { extractEvidenceIdsFromText, injectMissingDurableEvidenceIds } from './quality-helpers';
 export type { CompactionQualityTrend } from './quality-tracker';
 export { CompactionQualityTracker } from './quality-tracker';
@@ -178,42 +175,6 @@ export function validateRenderedCompactionSummary(
   };
 }
 
-export function validateUltraworkCompactionContinuity(
-  summary: string,
-  snapshot: UltraworkRunMirror,
-): CompactionQualityResult {
-  const critical: string[] = [];
-  const warnings: string[] = [];
-  const warningCategories: CompactionQualityWarningCategory[] = [];
-  const trimmed = summary.trim();
-
-  if (!trimmed.includes(snapshot.run.id)) {
-    critical.push(`summary is missing ultrawork run_id ${snapshot.run.id}`);
-  }
-  if (!trimmed.includes(snapshot.run.stage)) {
-    critical.push(`summary is missing ultrawork stage ${snapshot.run.stage}`);
-  }
-  if (!trimmed.includes('ultrawork_runs:') && !trimmed.includes('ultrawork_envelope:')) {
-    critical.push('summary is missing ultrawork checkpoint section');
-  }
-
-  const memory = parseStructuredCompactionMemory(trimmed);
-  if (usefulItems(memory.nextActions).length === 0) {
-    warnings.push('summary did not preserve next_actions for the active Ultrawork run');
-    warningCategories.push('missing_next_actions');
-  }
-  if (usefulItems(memory.ultraworkRuns).length === 0) {
-    warnings.push('summary is missing structured ultrawork_runs entries');
-    warningCategories.push('missing_ultrawork_checkpoint');
-  }
-
-  return {
-    critical: uniqueList(critical),
-    warnings: uniqueList(warnings),
-    warningCategories: uniqueCategories(warningCategories),
-  };
-}
-
 export function evaluateCompactionQualitySignals(input: {
   readonly summary: string;
   readonly compactedMessages: readonly Message[];
@@ -261,10 +222,6 @@ export function evaluateCompactionQualitySignals(input: {
   const nextActionPreservationScore = expectsNextAction ? (usefulNextActions.length > 0 ? 1 : 0) : 1;
   const expectsFailure = containsFailureMarker(sourceText);
   const failedAttemptRecallScore = expectsFailure ? (usefulFailedAttempts.length > 0 ? 1 : 0) : 1;
-  const swarmRuns = extractSwarmRunsFromMessages(input.compactedMessages);
-  const swarmRecallScore = swarmRuns.length === 0
-    ? 1
-    : computeSwarmRecallScore(swarmRuns, input.summary, memory.swarmRuns);
   const promptInjectionResistanceScore = hasPromptControlInStructuredMemory(memory) ? 0 : 1;
   const tokensSavedRatio =
     input.tokensAfter === undefined || input.tokensBefore <= 0
@@ -276,7 +233,6 @@ export function evaluateCompactionQualitySignals(input: {
     failedAttemptRecallScore,
     evidenceIdRecallScore,
     promptInjectionResistanceScore,
-    swarmRecallScore,
   ];
   const recallEvalScore = Number(
     (componentScores.reduce((sum, score) => sum + score, 0) / componentScores.length).toFixed(2),
@@ -305,7 +261,6 @@ export function evaluateCompactionQualitySignals(input: {
     failedAttemptRecallScore,
     evidenceIdRecallScore,
     promptInjectionResistanceScore,
-    swarmRecallScore,
     failureSignature,
   };
 }

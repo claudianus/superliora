@@ -11,7 +11,7 @@ import type { Agent } from '..';
 
 /**
  * Full Premium visual guidance is intentionally heavy after restored hype flood.
- * Non-visual Ultrawork/Goal objectives use code/evidence density instead.
+ * Non-visual Goal objectives use code/evidence density instead.
  * Re-inject full (for the active density) when mode turns on or a real user prompt arrives.
  * Sparse checkpoints keep pressure without re-dumping the entire harness every turn.
  */
@@ -68,14 +68,7 @@ export class PremiumQualityInjector extends DynamicInjector {
   }
 }
 
-/** Prefer active goal objective; fall back to Ultrawork run objective. */
+/** Premium injection density for the active goal objective. */
 export function resolveActivePremiumDensity(agent: Agent): PremiumInjectionDensity {
-  const goalObjective = agent.goal?.getGoal?.()?.goal?.objective;
-  const runObjective = agent.ultrawork?.getRun?.()?.objective;
-  const objective = goalObjective ?? runObjective;
-  const profile =
-    agent.ultraworkObjectiveProfile.get(objective) ??
-    agent.ultraworkObjectiveProfile.get(goalObjective) ??
-    agent.ultraworkObjectiveProfile.get(runObjective);
-  return resolvePremiumInjectionDensity(objective, profile);
+  return resolvePremiumInjectionDensity(agent.goal?.getGoal?.()?.goal?.objective);
 }

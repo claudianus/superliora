@@ -136,10 +136,6 @@ export class FullCompaction implements CompactionPipelineContext {
       }
       return;
     }
-    const ultraworkRun = this.agent.ultrawork?.getRun();
-    if (ultraworkRun?.status === 'running') {
-      this.agent.ultrawork.flushCheckpoint();
-    }
     this.agent.records.logRecord({
       type: 'full_compaction.begin',
       ...data,

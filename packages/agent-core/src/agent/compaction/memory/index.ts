@@ -22,8 +22,6 @@ export interface StructuredCompactionMemory {
   readonly nextActions: readonly string[];
   readonly verifiedClaims: readonly string[];
   readonly rawRefs: readonly string[];
-  readonly swarmRuns: readonly string[];
-  readonly ultraworkRuns: readonly string[];
 }
 
 const MAX_FACTS = 50;
@@ -38,8 +36,7 @@ type StructuredListKey =
   | 'nextActions'
   | 'verifiedClaims'
   | 'rawRefs'
-  | 'swarmRuns'
-  | 'ultraworkRuns';
+  ;
 
 export function parseStructuredCompactionMemory(summary: string): StructuredCompactionMemory {
   let currentGoal: string | undefined;
@@ -52,8 +49,6 @@ export function parseStructuredCompactionMemory(summary: string): StructuredComp
     nextActions: [],
     verifiedClaims: [],
     rawRefs: [],
-    swarmRuns: [],
-    ultraworkRuns: [],
   };
 
   let currentSection: StructuredListKey | null = null;
@@ -107,8 +102,6 @@ export function parseStructuredCompactionMemory(summary: string): StructuredComp
     nextActions: uniqueList(sections.nextActions),
     verifiedClaims: uniqueList(sections.verifiedClaims),
     rawRefs: uniqueList(sections.rawRefs),
-    swarmRuns: uniqueList(sections.swarmRuns),
-    ultraworkRuns: uniqueList(sections.ultraworkRuns),
   };
 }
 
@@ -334,14 +327,6 @@ function sectionKeyForLabel(label: string): 'currentGoal' | StructuredListKey | 
     case 'verification_claims':
     case 'verified':
       return 'verifiedClaims';
-    case 'swarm_runs':
-    case 'swarm_coordination':
-    case 'ultra_swarm':
-      return 'swarmRuns';
-    case 'ultrawork_runs':
-    case 'ultrawork_run':
-    case 'ultrawork_envelope':
-      return 'ultraworkRuns';
     default:
       return null;
   }

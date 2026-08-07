@@ -1,9 +1,9 @@
 /**
- * Claude Agent Teams hook semantics hosted by UltraSwarm / UltraworkGraph.
+ * Claude Agent Teams hook semantics hosted by the TaskGraph.
  *
  * Mapping:
  * - TeammateIdle  → expert about to finish a wave
- * - TaskCreated   → WorkGraph node first created, or UltraSwarm claim/running
+ * - TaskCreated   → WorkGraph node first created, or a worker claim/running
  * - TaskCompleted → node marked needs_integration or done
  *
  * Decision control (Claude-compatible):

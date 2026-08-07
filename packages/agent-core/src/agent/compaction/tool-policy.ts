@@ -24,7 +24,6 @@ const KNOWN_MUTATING_TOOLS = new Set([
   'Skill',
   'TaskStop',
   'TodoList',
-  'UltraworkGraph',
   'UpdateGoal',
   'Write',
 ]);

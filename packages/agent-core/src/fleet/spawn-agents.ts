@@ -5,8 +5,8 @@ import type {
 } from '../session/subagent/subagent-host-types';
 
 /**
- * Unified fan-out primitive (harness reform T4-1). Agent (manual), AgentSwarm
- * (template), and UltraSwarm (expert) all describe work through this spec so
+ * Unified fan-out primitive (harness reform T4-1). Manual, template, and
+ * expert fan-out all describe work through this spec so
  * runtime, events, leases, and the TUI only understand one shape. The three
  * tools stay as thin aliases that map their schemas onto a spec.
  */

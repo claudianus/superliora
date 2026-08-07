@@ -31,7 +31,6 @@ import {
   mergeCompactionQualityResults,
   validateInitialCompactionSummary,
   validateRenderedCompactionSummary,
-  validateUltraworkCompactionContinuity,
   type CompactionQualityResult,
 } from '../plan/quality';
 import { ensureStructuredHandoffScaffold } from '../plan/handoff-scaffold';
@@ -214,13 +213,7 @@ export async function runCompactionRound(
       }
     }
 
-    const enrichment = enrichCompactionSummary(host, {
-      summary,
-      messagesToCompact,
-      plan,
-    });
-    summary = enrichment.summary;
-    const ultraworkSnapshot = enrichment.ultraworkSnapshot;
+    summary = enrichCompactionSummary(host, { summary, plan });
     if (archiveGuidance.length > 0) {
       summary = `${summary.trimEnd()}${archiveGuidance}`;
     }
@@ -236,10 +229,6 @@ export async function runCompactionRound(
       tokensAfter,
     );
     quality = mergeCompactionQualityResults(quality, renderedQuality);
-    if (ultraworkSnapshot !== undefined) {
-      const ultraworkQuality = validateUltraworkCompactionContinuity(summary, ultraworkSnapshot);
-      quality = mergeCompactionQualityResults(quality, ultraworkQuality);
-    }
     const evidenceRepair = await applyEvidenceSecondChanceRepair(host, {
       signal,
       provider,
@@ -251,7 +240,6 @@ export async function runCompactionRound(
       usage,
       archiveGuidance,
       compactedCount,
-      ultraworkSnapshot,
       usedEmergencyBackstop,
       contextSummary,
       summaryTokens,
@@ -293,8 +281,7 @@ export async function runCompactionRound(
           archiveGuidance,
           compactedCount,
           priorQuality: quality,
-          ultraworkSnapshot,
-        });
+            });
         summary = revalidated.summary;
         quality = stripResolvedEvidenceCriticals(
           revalidated.quality,

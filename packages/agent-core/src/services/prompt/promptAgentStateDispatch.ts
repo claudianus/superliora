@@ -28,11 +28,10 @@ export async function ensureAgentStateBootstrapped(
   sid: string,
 ): Promise<void> {
   if (store.agentState.has(sid)) return;
-  const [config, permission, plan, swarmMode] = await Promise.all([
+  const [config, permission, plan] = await Promise.all([
     core.rpc.getConfig({ sessionId: sid, agentId: MAIN_AGENT_ID }),
     core.rpc.getPermission({ sessionId: sid, agentId: MAIN_AGENT_ID }),
     core.rpc.getPlan({ sessionId: sid, agentId: MAIN_AGENT_ID }),
-    core.rpc.getSwarmMode({ sessionId: sid, agentId: MAIN_AGENT_ID }),
   ]);
   const snapshot: AgentStateSnapshot = {};
   if (config.modelAlias !== undefined) snapshot.model = config.modelAlias;
@@ -43,7 +42,6 @@ export async function ensureAgentStateBootstrapped(
   snapshot.thinking = config.thinkingLevel as PromptThinking;
   snapshot.permissionMode = permission.mode;
   snapshot.planMode = plan !== null;
-  snapshot.swarmMode = swarmMode;
   store.agentState.set(sid, snapshot);
 }
 
@@ -114,22 +112,6 @@ export async function applyAgentStateInternal(
       recordDispatch(store, sid, 'cancelPlan', payload, promptId, source);
     }
     shadow.planMode = patch.plan_mode;
-  }
-
-  // Swarm mode toggle. enterSwarm/exitSwarm are idempotent no-throw on
-  // the agent side; we still guard with the shadow to avoid redundant
-  // dispatch-log entries.
-  if (patch.swarm_mode !== undefined && patch.swarm_mode !== shadow.swarmMode) {
-    const payload = { sessionId: sid, agentId };
-    if (patch.swarm_mode) {
-      const enterPayload = { ...payload, trigger: 'manual' as const };
-      await core.rpc.enterSwarm(enterPayload);
-      recordDispatch(store, sid, 'enterSwarm', enterPayload, promptId, source);
-    } else {
-      await core.rpc.exitSwarm(payload);
-      recordDispatch(store, sid, 'exitSwarm', payload, promptId, source);
-    }
-    shadow.swarmMode = patch.swarm_mode;
   }
 
   // Goal creation. createGoal throws LioraError on invalid input

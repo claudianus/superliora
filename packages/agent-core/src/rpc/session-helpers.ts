@@ -64,7 +64,6 @@ export async function resumeSessionResult(
     const context = await api.getContext({ agentId });
     const permission = await api.getPermission({ agentId });
     const plan = await api.getPlan({ agentId });
-    const swarmMode = await api.getSwarmMode({ agentId });
     const usage = await api.getUsage({ agentId });
     const replay = limitReplayRecordsByTurn(
       agent.replayBuilder.buildResult(),
@@ -80,15 +79,10 @@ export async function resumeSessionResult(
       replay,
       permission,
       plan,
-      swarmMode,
       usage,
       tools: await api.getTools({ agentId }),
       toolStore: agent.tools.storeData(),
       background: agent.background.list(false),
-      ultrawork: {
-        modeEnabled: agent.ultrawork.isModeEnabled(),
-        run: agent.ultrawork.getRun(),
-      },
     };
   }
   return withAdditionalDirs(

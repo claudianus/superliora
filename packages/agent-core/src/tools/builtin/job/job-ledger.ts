@@ -57,7 +57,6 @@ export function createJob(
     readonly ownershipPaths?: readonly string[];
     readonly contextPaths?: readonly string[];
     readonly parentJobId?: string;
-    readonly missionRunId?: string;
     /** Goal-driver binding (spec 2026-08-04-goal-driver-jobs). */
     readonly goalObjective?: string;
     readonly goalCompletionCriterion?: string;
@@ -79,7 +78,6 @@ export function createJob(
     ownershipPaths: input.ownershipPaths,
     contextPaths: input.contextPaths,
     parentJobId: input.parentJobId,
-    missionRunId: input.missionRunId,
     goalObjective: input.goalObjective,
     goalCompletionCriterion: input.goalCompletionCriterion,
     goalBudgetLimits: input.goalBudgetLimits,

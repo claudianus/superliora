@@ -1,5 +1,5 @@
 import type { Agent } from '..';
-import type { CompletionAuditRejection } from '#/mission';
+import type { CompletionAuditRejection } from './completion-audit';
 import type { ModeActivationSource } from '../mode-activation';
 import type {
   GoalActor,

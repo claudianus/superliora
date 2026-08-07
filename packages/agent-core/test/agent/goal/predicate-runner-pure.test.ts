@@ -2,46 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { resolve } from 'node:path';
 
 import {
-  countEvidenceIds,
   formatPredicateFailures,
   isAllowedTestFile,
   resolveWithinRoot,
 } from '#/agent/goal/predicate-runner';
-import type { GoalPredicateFailure, UltraworkRun } from '#/agent/goal/predicate-runner';
-
-const makeNode = (over: { id: string; evidenceIds?: string[] } = { id: 'n1' }) => ({
-  id: over.id,
-  evidenceIds: over.evidenceIds,
-});
-
-const makeRun = (nodes: Array<{ id: string; evidenceIds?: string[] }>): UltraworkRun => ({
-  workGraph: { nodes: nodes.map(makeNode) as never },
-} as never);
+import type { GoalPredicateFailure } from '#/agent/goal/predicate-runner';
 
 const makeFailure = (code: string, message: string): GoalPredicateFailure => ({ code, message });
-
-describe('agent/goal/predicate-runner — countEvidenceIds', () => {
-  it('returns 0 for null / undefined workGraph', () => {
-    expect(countEvidenceIds(null)).toBe(0);
-    expect(countEvidenceIds({} as never)).toBe(0);
-  });
-
-  it('sums evidenceIds across all nodes', () => {
-    expect(
-      countEvidenceIds(
-        makeRun([
-          { id: 'a', evidenceIds: ['e1', 'e2'] },
-          { id: 'b', evidenceIds: ['e3'] },
-          { id: 'c' },
-        ]),
-      ),
-    ).toBe(3);
-  });
-
-  it('treats missing evidenceIds as 0', () => {
-    expect(countEvidenceIds(makeRun([{ id: 'a' }, { id: 'b' }]))).toBe(0);
-  });
-});
 
 describe('agent/goal/predicate-runner — resolveWithinRoot', () => {
   const root = resolve('/tmp/root');

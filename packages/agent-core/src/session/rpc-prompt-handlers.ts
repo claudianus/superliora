@@ -1,7 +1,6 @@
 import type { PromptPayload } from '#/rpc';
 import type { ConversationLoopState } from '../agent/conversation-loop';
 import type { ConversationLoopStateData } from '#/rpc';
-import { maybeTransformPromptForInterruptedWorkResume } from '#/mission';
 import { sessionMediaOriginalsDir } from '../tools/support/image-originals';
 import {
   DEFAULT_NON_VISION_FALLBACK,
@@ -93,31 +92,6 @@ export async function updatePromptMetadata(
       lastPrompt,
     },
   });
-}
-
-export async function maybeResumeInterruptedWorkPrompt(
-  session: Session,
-  agentId: string,
-  payload: PromptPayload,
-): Promise<PromptPayload> {
-  const transformed = await maybeResumeInterruptedWorkInput(session, agentId, payload.input);
-  if (transformed === undefined) return payload;
-  return { input: transformed };
-}
-
-export async function maybeResumeInterruptedWorkInput(
-  session: Session,
-  agentId: string,
-  input: PromptPayload['input'],
-): Promise<PromptPayload['input'] | undefined> {
-  const text = promptMetadataTextFromPayload({ input });
-  if (text === undefined) return undefined;
-  const agent = await session.ensureAgentResumed(agentId);
-  const resumed = await maybeTransformPromptForInterruptedWorkResume(agent, text, {
-    signal: AbortSignal.timeout(8_000),
-  });
-  if (resumed === undefined) return undefined;
-  return [{ type: 'text', text: resumed.promptText }];
 }
 
 /**

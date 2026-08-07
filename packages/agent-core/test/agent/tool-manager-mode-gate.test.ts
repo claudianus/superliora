@@ -114,7 +114,6 @@ describe('ToolManager mode-gated schemas (T2-3)', () => {
   it('UltraworkGraph is always present regardless of ultrawork run state', () => {
     const agent = makeAgent();
     expect(loopToolNames(agent)).toContain('UltraworkGraph');
-    vi.spyOn(agent.ultrawork, 'getRun').mockReturnValue({ objective: 'ship it' } as never);
     expect(loopToolNames(agent)).toContain('UltraworkGraph');
   });
 

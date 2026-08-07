@@ -1,7 +1,7 @@
 import {
-  ultraworkStageSchema,
+  workGraphStageSchema,
   workGraphNodeSchema,
-  type UltraworkStage,
+  type WorkGraphStage,
   type WorkGraph,
   type WorkGraphNode,
 } from '@superliora/protocol';
@@ -15,7 +15,6 @@ import {
   applyEvidenceHardGate,
   findEvidenceHardGateViolation,
 } from '#/fleet';
-import { maybeFinishUltraworkRun } from '../../../mission/finish-run';
 import {
   fireTaskCompleted,
   fireTaskCreated,
@@ -30,39 +29,35 @@ import {
   cloneWorkGraph,
   cloneWorkGraphNode,
   todosFromWorkGraph,
-} from './ultrawork-graph-helpers';
-import DESCRIPTION from './ultrawork-graph.md?raw';
+} from './task-graph-helpers';
+import DESCRIPTION from './task-graph.md?raw';
 
 const TASK_GRAPH_DESCRIPTION = DESCRIPTION;
 
-const ULTRAWORK_GRAPH_DESCRIPTION =
-  `Legacy/advanced alias of TaskGraph. Prefer TaskGraph (or CreateGoal + TodoList) for new work. ${DESCRIPTION}`;
-
-export { ULTRAWORK_GRAPH_STORE_KEY } from './ultrawork-graph-store-key';
-import { ULTRAWORK_GRAPH_STORE_KEY } from './ultrawork-graph-store-key';
+export { TASK_GRAPH_STORE_KEY } from './task-graph-store-key';
+import { TASK_GRAPH_STORE_KEY } from './task-graph-store-key';
 
 export const TASK_GRAPH_TOOL_NAME = 'TaskGraph' as const;
-export const ULTRAWORK_GRAPH_TOOL_NAME = 'UltraworkGraph' as const;
 
 /**
  * Stage synonyms agents commonly emit in plan tables. Normalized at the tool
  * boundary so the protocol enum and downstream consumers stay unchanged.
  */
-const ultraworkStageSynonymSchema = z
+const workGraphStageSynonymSchema = z
   .enum(['implement', 'implementation', 'review'])
-  .transform((): UltraworkStage => 'swarm');
+  .transform((): WorkGraphStage => 'swarm');
 
 const workGraphNodeInputSchema = workGraphNodeSchema.extend({
-  stage: z.union([ultraworkStageSchema, ultraworkStageSynonymSchema]),
+  stage: z.union([workGraphStageSchema, workGraphStageSynonymSchema]),
 });
 
 declare module '../../store' {
   interface ToolStoreData {
-    ultrawork_graph: WorkGraph;
+    task_graph: WorkGraph;
   }
 }
 
-export const UltraworkGraphInputSchema = z
+export const TaskGraphInputSchema = z
   .object({
     graph_id: z
       .string()
@@ -75,7 +70,7 @@ export const UltraworkGraphInputSchema = z
       .trim()
       .min(1)
       .optional()
-      .describe('Ultrawork run id. Required when replacing nodes.'),
+      .describe('Run id that owns the graph. Required when replacing nodes.'),
     root_goal: z.string().trim().min(1).optional().describe('Optional root Goal summary.'),
     nodes: z
       .array(workGraphNodeInputSchema)
@@ -88,55 +83,55 @@ export const UltraworkGraphInputSchema = z
   })
   .strict();
 
-export type UltraworkGraphInput = z.infer<typeof UltraworkGraphInputSchema>;
+export type TaskGraphInput = z.infer<typeof TaskGraphInputSchema>;
 
-export class UltraworkGraphTool implements BuiltinTool<UltraworkGraphInput> {
-  readonly name: string = ULTRAWORK_GRAPH_TOOL_NAME;
-  readonly description: string = ULTRAWORK_GRAPH_DESCRIPTION;
-  readonly parameters: Record<string, unknown> = toInputJsonSchema(UltraworkGraphInputSchema);
+export class TaskGraphTool implements BuiltinTool<TaskGraphInput> {
+  readonly name: string = TASK_GRAPH_TOOL_NAME;
+  readonly description: string = TASK_GRAPH_DESCRIPTION;
+  readonly parameters: Record<string, unknown> = toInputJsonSchema(TaskGraphInputSchema);
 
   constructor(
     protected readonly store: ToolStore,
     protected readonly agent: Agent,
   ) {}
 
-  resolveExecution(args: UltraworkGraphInput): ToolExecution {
+  resolveExecution(args: TaskGraphInput): ToolExecution {
     // AJV preflight validates shape only; parsing here applies stage synonym
     // normalization (implement/implementation/review -> swarm) and produces a
     // self-correcting error when malformed args somehow reach execution.
-    const parsed = UltraworkGraphInputSchema.safeParse(args);
+    const parsed = TaskGraphInputSchema.safeParse(args);
     if (!parsed.success) {
       const issues = parsed.error.issues
         .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
         .join('; ');
       return {
         isError: true,
-        output: `Invalid UltraworkGraph args: ${issues}. Omit "nodes" to read the current graph, or pass run_id + nodes to replace it.`,
+        output: `Invalid TaskGraph args: ${issues}. Omit "nodes" to read the current graph, or pass run_id + nodes to replace it.`,
       };
     }
     const validArgs = parsed.data;
     return {
       accesses: validArgs.nodes === undefined ? ToolAccesses.none() : ToolAccesses.all(),
       description:
-        validArgs.nodes === undefined ? 'Reading Ultrawork graph' : 'Updating Ultrawork graph',
+        validArgs.nodes === undefined ? 'Reading task graph' : 'Updating task graph',
       approvalRule: this.name,
       execute: async () => this.execution(validArgs),
     };
   }
 
-  private async execution(args: UltraworkGraphInput): Promise<ExecutableToolResult> {
+  private async execution(args: TaskGraphInput): Promise<ExecutableToolResult> {
     if (args.nodes === undefined) {
       const graph = this.getGraph();
       return {
         isError: false,
-        output: graph === undefined ? 'TaskGraph is empty.' : renderUltraworkGraph(graph),
+        output: graph === undefined ? 'TaskGraph is empty.' : renderTaskGraph(graph),
       };
     }
 
     if (args.run_id === undefined) {
       return {
         isError: true,
-        output: 'UltraworkGraph update requires run_id when nodes are provided.',
+        output: 'TaskGraph update requires run_id when nodes are provided.',
       };
     }
 
@@ -178,17 +173,13 @@ export class UltraworkGraphTool implements BuiltinTool<UltraworkGraphInput> {
       nodes: teamGate.nodes,
     });
 
-    this.store.set(ULTRAWORK_GRAPH_STORE_KEY, graph);
+    this.store.set(TASK_GRAPH_STORE_KEY, graph);
     const syncTodos = args.sync_todos !== false;
     if (syncTodos) {
       this.store.set(TODO_STORE_KEY, todosFromWorkGraph(graph));
     }
-    this.emitChangedNodes(previous, graph);
-    this.agent.ultrawork.syncWorkGraphFromStore();
-    await maybeFinishUltraworkRun(this.agent);
-
     const changedCount = changedNodes(previous, graph).length;
-    this.agent.telemetry.track('ultrawork_graph_update', {
+    this.agent.telemetry.track('task_graph_update', {
       run_id: graph.runId,
       total_nodes: graph.nodes.length,
       changed_nodes: changedCount,
@@ -203,7 +194,7 @@ export class UltraworkGraphTool implements BuiltinTool<UltraworkGraphInput> {
         : '';
     return {
       isError: false,
-      output: `Ultrawork graph updated: ${String(graph.nodes.length)} nodes, ${String(changedCount)} task events.${todoLine}${feedbackLine}`,
+      output: `Task graph updated: ${String(graph.nodes.length)} nodes, ${String(changedCount)} task events.${todoLine}${feedbackLine}`,
     };
   }
 
@@ -288,41 +279,22 @@ export class UltraworkGraphTool implements BuiltinTool<UltraworkGraphInput> {
   }
 
   private getGraph(): WorkGraph | undefined {
-    const graph = this.store.get(ULTRAWORK_GRAPH_STORE_KEY);
+    const graph = this.store.get(TASK_GRAPH_STORE_KEY);
     return graph === undefined ? undefined : cloneWorkGraph(graph);
   }
 
-  private emitChangedNodes(previous: WorkGraph | undefined, graph: WorkGraph): void {
-    for (const node of changedNodes(previous, graph)) {
-      this.agent.emitEvent({
-        type: 'ultrawork.task.assigned',
-        runId: graph.runId,
-        task: node,
-      });
-    }
-  }
-}
-
-/** Sovereign public name — same implementation as {@link UltraworkGraphTool}. */
-export class TaskGraphTool extends UltraworkGraphTool {
-  override readonly name = TASK_GRAPH_TOOL_NAME;
-  override readonly description = TASK_GRAPH_DESCRIPTION;
-}
-
-export function createUltraworkGraphTool(store: ToolStore, agent: Agent): UltraworkGraphTool {
-  return new UltraworkGraphTool(store, agent);
 }
 
 export function createTaskGraphTool(store: ToolStore, agent: Agent): TaskGraphTool {
   return new TaskGraphTool(store, agent);
 }
 
-export function renderUltraworkGraph(graph: WorkGraph): string {
+export function renderTaskGraph(graph: WorkGraph): string {
   if (graph.nodes.length === 0) {
     return `TaskGraph ${graph.id} for ${graph.runId} has no nodes.`;
   }
   const lines = [
-    `Ultrawork graph ${graph.id} for ${graph.runId}:`,
+    `Task graph ${graph.id} for ${graph.runId}:`,
     ...(graph.rootGoal === undefined ? [] : [`Root goal: ${graph.rootGoal}`]),
   ];
   for (const node of graph.nodes) {
@@ -338,7 +310,7 @@ export function renderUltraworkGraph(graph: WorkGraph): string {
   return lines.join('\n');
 }
 
-export { cloneWorkGraph, todosFromWorkGraph } from './ultrawork-graph-helpers';
+export { cloneWorkGraph, todosFromWorkGraph } from './task-graph-helpers';
 
 function validateWorkGraphNodes(nodes: readonly WorkGraphNode[]): string | undefined {
   const ids = new Set<string>();

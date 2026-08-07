@@ -232,9 +232,6 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   enterPlan = delegateContextMethod(sessionAgentMethods.enterPlan);
   cancelPlan = delegateContextMethod(sessionAgentMethods.cancelPlan);
   clearPlan = delegateContextMethod(sessionAgentMethods.clearPlan);
-  enterSwarm = delegateContextMethod(sessionAgentMethods.enterSwarm);
-  exitSwarm = delegateContextMethod(sessionAgentMethods.exitSwarm);
-  getSwarmMode = delegateContextMethod(sessionAgentMethods.getSwarmMode);
   setPremiumQuality = delegateContextMethod(sessionAgentMethods.setPremiumQuality);
   getPremiumQuality = delegateContextMethod(sessionAgentMethods.getPremiumQuality);
   beginCompaction = delegateContextMethod(sessionAgentMethods.beginCompaction);
@@ -293,18 +290,6 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   pauseGoal = delegateContextMethod(sessionAgentMethods.pauseGoal);
   resumeGoal = delegateContextMethod(sessionAgentMethods.resumeGoal);
   cancelGoal = delegateContextMethod(sessionAgentMethods.cancelGoal);
-  createUltraworkRun = delegateContextMethod(sessionAgentMethods.createUltraworkRun);
-  getUltraworkRun = delegateContextMethod(sessionAgentMethods.getUltraworkRun);
-  pauseUltrawork = delegateContextMethod(sessionAgentMethods.pauseUltrawork);
-  swarmRestaff = delegateContextMethod(sessionAgentMethods.swarmRestaff);
-  resumeUltrawork = delegateContextMethod(sessionAgentMethods.resumeUltrawork);
-  cancelUltrawork = delegateContextMethod(sessionAgentMethods.cancelUltrawork);
-  classifyUltraworkAutoActivation = delegateContextMethod(
-    sessionAgentMethods.classifyUltraworkAutoActivation,
-  );
-  classifyUltraworkObjectiveProfile = delegateContextMethod(
-    sessionAgentMethods.classifyUltraworkObjectiveProfile,
-  );
 
   installPlugin = delegateContextMethod(pluginMethods.installPlugin);
   listPlugins = delegateContextMethod(pluginMethods.listPlugins);
