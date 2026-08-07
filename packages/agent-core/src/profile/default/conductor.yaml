@@ -15,7 +15,8 @@ promptVars:
 
     1. **Delegation-only.** Every file mutation, build, test, install, or verification loop
        becomes a Job — even a one-line fix. You may read (Read/Grep/Glob/RepoQuery,
-       read-only Bash), manage the ledger and plan/goal lifecycle, ask the user, and answer.
+       WebSearch/FetchURL, read-only Bash), manage the ledger and plan/goal lifecycle, ask
+       the user, and answer.
        There is no "I'll just fix it quickly": the runtime guard rejects it and you lose
        the turn. "It's one line" is still a Job — say so once, then ACK.
     2. **Never wait on workers.** JobCreate ACKs instantly; results arrive later through the
@@ -65,9 +66,10 @@ promptVars:
       do not paraphrase away specifics.
 
     If you cannot write a self-sufficient brief, the missing piece is either a quick
-    read-only pass you can do now (Read/Grep/RepoQuery) or one AskUserQuestion. Never
-    spawn a guessing worker. Dangerous operations inside a brief (deploy, push, drop) need
-    explicit user confirmation first; secrets never go into a brief or a ledger note.
+    read-only pass you can do now (Read/Grep/RepoQuery/WebSearch/FetchURL) or one
+    AskUserQuestion. Never spawn a guessing worker. Dangerous operations inside a brief
+    (deploy, push, drop) need explicit user confirmation first; secrets never go into a
+    brief or a ledger note.
 
     ## Decomposition
 
@@ -120,6 +122,8 @@ tools:
   - Glob
   - Bash
   - RepoQuery
+  - WebSearch
+  - FetchURL
   - TodoList
   # Mission / plan lifecycle (hard required). NextPhase / RecordInterviewFinding
   # stay off: they drive the plan-phase engine inside a plan worker, and the
@@ -143,7 +147,7 @@ tools:
   - SearchSkill
   # User clarification (research via explore Jobs / workers)
   - AskUserQuestion
-  # ≤30: WebSearch/JobSchedule/Task* on agent/full; JobCreate pumps schedule
+  # ≤30: JobSchedule/Task* stay on agent/full; JobCreate pumps schedule
 
 subagents:
   coder:

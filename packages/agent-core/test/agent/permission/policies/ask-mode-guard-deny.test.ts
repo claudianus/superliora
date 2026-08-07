@@ -52,7 +52,11 @@ describe('agent/permission/policies/ask-mode-guard-deny', () => {
   it('splits Bash by whether the command inspects or changes the workspace', () => {
     const policy = policyWith(true);
     expect(policy.evaluate(ctx('Bash', { command: 'git log --oneline -5' }))).toBeUndefined();
-    expect(policy.evaluate(ctx('Bash', { command: 'pnpm install' }))?.kind).toBe('deny');
+    expect(policy.evaluate(ctx('Bash', { command: 'cat README.md' }))).toBeUndefined();
+    const denied = policy.evaluate(ctx('Bash', { command: 'pnpm install' }));
+    expect(denied?.kind).toBe('deny');
+    expect(denied?.message).toContain('Read');
+    expect(denied?.message).toContain('Grep');
     expect(policy.evaluate(ctx('Bash', {}))?.kind).toBe('deny');
   });
 

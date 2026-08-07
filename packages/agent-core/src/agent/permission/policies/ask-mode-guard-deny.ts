@@ -49,7 +49,14 @@ export class AskModeGuardDenyPermissionPolicy implements PermissionPolicy {
           ? (command as { readonly command?: unknown }).command
           : undefined;
       if (isConductorBashCommandReadOnly(commandText)) return;
-      return { kind: 'deny', message: askModeDeniedMessage(toolName, 'can change the workspace') };
+      return {
+        kind: 'deny',
+        message:
+          'Ask mode is active, so Bash is unavailable for this command. ' +
+          'File contents: use Read or RepoQuery (not cat/pager/jq dumps). ' +
+          'Search: use Grep or Glob. Shell inspection only (git log, ls, rg, and similar). ' +
+          'The user leaves ask mode when they want mutating work done.',
+      };
     }
 
     if (isReadOnlyTool(context)) return;
