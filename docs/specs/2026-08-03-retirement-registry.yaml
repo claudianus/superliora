@@ -48,3 +48,10 @@ items:
     replacement_proof_tests: [packages/agent-core/test/tools/retire-guardrails.test.ts, packages/agent-core/test/collaboration/swarm-cost-guard.test.ts, packages/agent-core/test/collaboration/swarm-maker-checker.test.ts, packages/agent-core/test/collaboration/fleet-event-humanize-retro.test.ts]
     # R3/R6 retro_guard 의무 충족: cost-guard/maker-checker/event-humanize 본체 보강 테스트가 이 스윕에 착지
     grep_zero: ['ultraSwarmRun', 'orchestratorMode', 'FromUltraSwarmResults']
+  - id: R8-mission-swarm-mode
+    status: done
+    characterization_tests: [] # 소급 면제: Mission 스파인 전체와 Swarm Mode 플래그를 삭제 — 대체 경로는 Conductor Job 위임
+    replacement_proof_tests: [packages/agent-core/test/tools/job-ledger.test.ts, packages/agent-core/test/tools/job-desk.test.ts, packages/agent-core/test/tools/conductor-guard.test.ts, packages/agent-core/test/agent/permission/policies/ask-mode-guard-deny.test.ts]
+    # Mission mode(=/ultrawork 워크플로우) 폐기. Mission Control(/agents 도크)는 유지 — 이름만 겹친다.
+    # Shift-Tab은 Mission 토글에서 Build/Ask 모드 사이클로 재배정.
+    grep_zero: ['ultraworkMode', 'swarmMode', 'swarm_mode', 'MissionRunStateMachine', 'CreateUltraGoal', 'UltraworkGraph', 'agent-swarm-progress']

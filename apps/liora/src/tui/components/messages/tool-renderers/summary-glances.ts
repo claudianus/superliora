@@ -351,7 +351,7 @@ export const cronCreateGlance: GlanceFn = (_toolCall, result) => {
   return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
 };
 
-export const ultraworkGraphGlance: GlanceFn = (_toolCall, result) => {
+export const taskGraphGlance: GlanceFn = (_toolCall, result) => {
   if (/Ultrawork graph is empty/i.test(result.output)) return 'empty graph';
   const updated = /Ultrawork graph updated:\s*(\d+)\s+nodes,\s*(\d+)\s+task events/i.exec(result.output);
   if (updated) return `updated · ${updated[1]} nodes · ${updated[2]} events`;

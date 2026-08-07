@@ -55,7 +55,7 @@ import {
   taskStopSummary,
   thinkSummary,
   todoListSummary,
-  ultraworkGraphSummary,
+  taskGraphSummary,
   verifySurfaceSummary,
   visualDiffSummary,
   webSearchSummary,
@@ -161,8 +161,7 @@ export function pickResultRenderer(toolName: string): ResultRenderer {
     case 'CronDelete':
       return cronDeleteSummary;
     case 'TaskGraph':
-    case 'UltraworkGraph':
-      return ultraworkGraphSummary;
+      return taskGraphSummary;
     case 'Agent':
       return agentSummary;
     case 'BrowserStatus':

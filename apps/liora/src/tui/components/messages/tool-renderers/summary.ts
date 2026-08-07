@@ -50,7 +50,7 @@ import {
   taskListGlance,
   taskOutputGlance,
   todoListGlance,
-  ultraworkGraphGlance,
+  taskGraphGlance,
   verifySurfaceGlance,
   visualDiffGlance,
   webSearchGlance,
@@ -173,7 +173,7 @@ export const taskStopSummary: ResultRenderer = withGlance(null);
 export const cronListSummary: ResultRenderer = withGlance(cronListGlance);
 export const cronCreateSummary: ResultRenderer = withGlance(cronCreateGlance);
 export const cronDeleteSummary: ResultRenderer = withGlance(null);
-export const ultraworkGraphSummary: ResultRenderer = withGlance(ultraworkGraphGlance);
+export const taskGraphSummary: ResultRenderer = withGlance(taskGraphGlance);
 export const agentSummary: ResultRenderer = withGlance(agentGlance);
 export const runProjectChecksSummary: ResultRenderer = withGlance(runProjectChecksGlance);
 export const verifySurfaceSummary: ResultRenderer = withGlance(verifySurfaceGlance);

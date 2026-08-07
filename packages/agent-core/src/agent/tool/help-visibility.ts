@@ -3,7 +3,6 @@ import type { ToolHelpVisibility, ToolInfo } from './types';
 /** Legacy Ultra/Liora compat tools still registered; prefer sovereign public names. */
 export const COMPAT_BRANDING_TOOL_HELP = {
   LioraReview: { preferred: 'Review', visibility: 'advanced' },
-  CreateUltraGoal: { preferred: 'CreateGoal', visibility: 'advanced' },
 } as const satisfies Record<
   string,
   { readonly preferred: string; readonly visibility: ToolHelpVisibility }
