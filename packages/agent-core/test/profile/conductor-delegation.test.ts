@@ -39,6 +39,8 @@ const CONDUCTOR_TOOL_SNAPSHOT = [
   'Glob',
   'Bash',
   'RepoQuery',
+  'WebSearch',
+  'FetchURL',
   'TodoList',
   // Plan/goal lifecycle spine
   'EnterPlanMode',
@@ -104,6 +106,8 @@ describe('conductor delegation-only tool surface', () => {
         'Grep',
         'Glob',
         'RepoQuery',
+        'WebSearch',
+        'FetchURL',
         'TodoList',
       ]),
     );
