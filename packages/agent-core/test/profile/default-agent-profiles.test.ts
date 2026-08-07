@@ -149,16 +149,23 @@ describe('default agent profiles', () => {
   it('exposes RepoQuery as the default compact exploration surface on coding profiles', () => {
     expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toContain('RepoQuery');
     expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toContain('ApplyPatch');
-    // Loop19c: DeepResearch is edge (full/explore/coder/plan); default agent keeps WebSearch+FetchURL.
+    // Loop19c: DeepResearch is edge (full/explore/plan); coder trades it for Browser*
+    // under the ≤30 waist. Default agent keeps WebSearch+FetchURL.
     expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toContain('WebSearch');
     expect(DEFAULT_AGENT_PROFILES['agent']?.tools).toContain('FetchURL');
     expect(DEFAULT_AGENT_PROFILES['agent']?.tools).not.toContain('DeepResearch');
-    for (const name of ['coder', 'plan']) {
-      const tools = DEFAULT_AGENT_PROFILES[name]?.tools ?? [];
-      expect(tools).toContain('RepoQuery');
-      expect(tools).toContain('DeepResearch');
-      expect(tools).toContain('ApplyPatch');
-      expect(tools).toEqual(expect.arrayContaining(['Grep', 'Glob']));
+    const coderToolsForExplore = DEFAULT_AGENT_PROFILES['coder']?.tools ?? [];
+    expect(coderToolsForExplore).toContain('RepoQuery');
+    expect(coderToolsForExplore).toContain('BrowserScreenshot');
+    expect(coderToolsForExplore).not.toContain('DeepResearch');
+    expect(coderToolsForExplore).toContain('ApplyPatch');
+    expect(coderToolsForExplore).toEqual(expect.arrayContaining(['Grep', 'Glob']));
+    const planToolsForExplore = DEFAULT_AGENT_PROFILES['plan']?.tools ?? [];
+    expect(planToolsForExplore).toContain('RepoQuery');
+    expect(planToolsForExplore).toContain('DeepResearch');
+    expect(planToolsForExplore).toContain('ApplyPatch');
+    expect(planToolsForExplore).toEqual(expect.arrayContaining(['Grep', 'Glob']));
+    for (const tools of [coderToolsForExplore, planToolsForExplore]) {
       for (const legacy of LEGACY_LIORA_TOOLS) {
         expect(tools).not.toContain(legacy);
       }
@@ -294,7 +301,19 @@ describe('default agent profiles', () => {
     expect(coderTools).toContain('Review');
     expect(coderTools).toContain('VisualDiff');
     expect(coderTools).toContain('VerifySurface');
+    expect(coderTools).toContain('BrowserScreenshot');
+    expect(coderTools).toContain('BrowserAct');
+    expect(coderTools).not.toContain('DeepResearch');
+    expect(coderTools).not.toContain('SkillCreate');
+    expect(coderTools.length).toBeLessThanOrEqual(30);
     expect(coderTools).not.toContain('LioraReview');
+
+    const goalDriverTools = DEFAULT_AGENT_PROFILES['goal-driver']?.tools ?? [];
+    expect(goalDriverTools).toContain('BrowserScreenshot');
+    expect(goalDriverTools).toContain('VerifySurface');
+    expect(goalDriverTools).toContain('GetGoal');
+    expect(goalDriverTools).toContain('UpdateGoal');
+    expect(goalDriverTools.length).toBeLessThanOrEqual(30);
 
     const planTools = DEFAULT_AGENT_PROFILES['plan']?.tools ?? [];
     expect(planTools).toContain('Review');

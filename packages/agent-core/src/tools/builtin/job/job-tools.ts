@@ -247,7 +247,9 @@ export function renderJobInspect(job: JobRecord): string {
     );
   }
   if (v !== undefined) {
-    lines.push(`verification: tests=${v.tests} typecheck=${v.typecheck} lint=${v.lint}`);
+    lines.push(
+      `verification: tests=${v.tests} typecheck=${v.typecheck} lint=${v.lint} visual=${v.visual ?? 'not_run'}`,
+    );
   }
   if (files.length > 0) {
     const shown = files.slice(0, 10).join(', ');
@@ -598,16 +600,24 @@ export class MergeJobTool implements BuiltinTool<z.infer<typeof MergeJobInputSch
         );
 
         if (!trust.ok) {
+          const rejected = trust.mode === 'reject';
           const job = patchJob(this.store, a.job_id, {
             status: 'blocked',
-            notes: [existing.notes, `merge: hold — ${trust.reason}`].filter(Boolean).join('\n'),
+            notes: [
+              existing.notes,
+              rejected ? `merge: reject — ${trust.reason}` : `merge: hold — ${trust.reason}`,
+            ]
+              .filter(Boolean)
+              .join('\n'),
           });
           return {
             isError: true,
             output: ack(
               job!.id,
               job!.status,
-              `Merge held (trust rules): ${trust.reason}. Set force_user_confirm=true after user review for large/risky diffs.`,
+              rejected
+                ? `Merge rejected (visual proof): ${trust.reason}`
+                : `Merge held (trust rules): ${trust.reason}. Set force_user_confirm=true after user review for large/risky diffs.`,
             ),
           };
         }

@@ -1,10 +1,13 @@
 /**
  * MergeJob trust rules (Conductor locked policy).
  * Meta may auto-approve only when small ∧ no conflict ∧ checks green ∧ non-dangerous paths.
- * Green tests alone never suffice.
+ * Green tests alone never suffice. UI-path Jobs also require visual=passed (hard reject).
  */
 
-import { verificationIsGreen } from '../../../session/subagent/subagent-result-contract';
+import {
+  verificationIsGreen,
+  verificationVisualBlocksMerge,
+} from '../../../session/subagent/subagent-result-contract';
 import type { JobRecord } from './job-store-key';
 
 export interface MergeTrustInput {
@@ -20,11 +23,17 @@ export interface MergeTrustInput {
   /** Force user confirmation regardless of heuristics. */
   readonly forceUserConfirm?: boolean;
   readonly smallDiffMaxLines?: number;
+  /**
+   * UI-path Jobs without VerifySurface pass — hard reject (not hold).
+   * `force_user_confirm` cannot bypass this gate.
+   */
+  readonly visualProofMissing?: boolean;
+  readonly visualVerdict?: string;
 }
 
 export type MergeTrustVerdict =
   | { readonly ok: true; readonly mode: 'auto' | 'user_approved'; readonly reason: string }
-  | { readonly ok: false; readonly mode: 'hold'; readonly reason: string };
+  | { readonly ok: false; readonly mode: 'hold' | 'reject'; readonly reason: string };
 
 const DEFAULT_SMALL_DIFF = 200;
 /** A change spanning more files than this is not small, whatever the line claim says. */
@@ -53,6 +62,18 @@ export function pathIsDangerousForMerge(path: string): boolean {
 export function evaluateMergeTrust(input: MergeTrustInput): MergeTrustVerdict {
   if (!input.approve) {
     return { ok: false, mode: 'hold', reason: 'approve=false' };
+  }
+  // Visual proof is a hard reject — force_user_confirm cannot bypass it.
+  if (input.visualProofMissing === true) {
+    const verdict = input.visualVerdict ?? 'not_run';
+    return {
+      ok: false,
+      mode: 'reject',
+      reason:
+        `UI paths changed without VerifySurface pass (visual=${verdict}). ` +
+        'Re-run the worker and call VerifySurface on the real surface; BrowserScreenshot alone does not satisfy visual proof. ' +
+        'force_user_confirm cannot bypass this gate. If browser-use is missing, run `liora browser-use doctor`.',
+    };
   }
   if (input.forceUserConfirm === true) {
     return {
@@ -145,6 +166,10 @@ export function mergeTrustInputFromLedger(input: {
       ...(claim.paths ?? []),
     ]),
   ];
+  const filesChanged = contract?.files_changed ?? [];
+  // Visual proof keys off files actually changed — ownership/claim path unions
+  // must not invent a UI surface the diff never touched.
+  const visualBlocks = verificationVisualBlocksMerge(contract?.verification, filesChanged);
   return {
     approve: claim.approve,
     checksGreen: verificationIsGreen(contract?.verification) && claim.checksGreen !== false,
@@ -153,5 +178,7 @@ export function mergeTrustInputFromLedger(input: {
     ...(claim.diffLines === undefined ? {} : { diffLines: claim.diffLines }),
     hasSummary: Boolean(claim.summary?.trim() ?? '') || Boolean(job.resultSummary?.trim() ?? ''),
     forceUserConfirm: claim.forceUserConfirm === true,
+    visualProofMissing: visualBlocks,
+    visualVerdict: contract?.verification?.visual ?? 'not_run',
   };
 }

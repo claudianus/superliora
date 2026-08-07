@@ -2,10 +2,13 @@
  * VerifySurface — BrowserStatus → observe → screenshot → console errors.
  *
  * Synthetic UI acceptance check. Never reports pass when browser-use is missing.
+ * Vision models get the screenshot attached; text-only models get an optional
+ * vision-analyzer description in `visualDescription`.
  */
 
 import type { BrowserUseRuntime } from '@superliora/gui-use';
 import type { Kaos } from '@superliora/kaos';
+import type { ContentPart } from '@superliora/kosong';
 import { dirname, join } from 'pathe';
 import { z } from 'zod';
 
@@ -49,7 +52,16 @@ export interface VerifySurfaceResult {
   readonly screenshotPath?: string | undefined;
   readonly consoleErrors: readonly string[];
   readonly notes: readonly string[];
+  /** Text description when the chat model cannot consume the screenshot image. */
+  readonly visualDescription?: string | undefined;
 }
+
+export type VerifySurfaceVisionFallback = (input: {
+  readonly mimeType: string;
+  readonly base64: string;
+  readonly screenshotPath?: string | undefined;
+  readonly signal: AbortSignal;
+}) => Promise<string | undefined>;
 
 const MISSING_RUNTIME_MESSAGE =
   'Browser-use runtime is not available. VerifySurface requires a healthy browser-use runtime (CloakBrowser primary, Camoufox secondary, Lightpanda tertiary where supported). Do not treat this as a pass.';
@@ -65,6 +77,10 @@ export class VerifySurfaceTool implements BuiltinTool<VerifySurfaceInput> {
       readonly kaos?: Kaos | undefined;
       readonly workspace?: WorkspaceConfig | undefined;
       readonly cwd?: string | undefined;
+      /** When true, attach the screenshot as an image tool part (vision chat models). */
+      readonly attachScreenshotImage?: boolean | undefined;
+      /** Describe the screenshot for text-only chat models. */
+      readonly visionFallback?: VerifySurfaceVisionFallback | undefined;
     },
   ) {}
 
@@ -178,13 +194,18 @@ export class VerifySurfaceTool implements BuiltinTool<VerifySurfaceInput> {
         notes.push('No console errors detected.');
       }
 
-      return resultPayload({
-        pass,
-        url,
-        screenshotPath,
-        consoleErrors,
-        notes,
-      });
+      const media = await this.resolveScreenshotMedia(screenshot, screenshotPath, signal, notes);
+      return resultPayload(
+        {
+          pass,
+          url,
+          screenshotPath,
+          consoleErrors,
+          notes,
+          visualDescription: media.visualDescription,
+        },
+        media.attachImage ? screenshot : undefined,
+      );
     } catch (error) {
       notes.push(error instanceof Error ? error.message : String(error));
       return resultPayload({
@@ -195,6 +216,39 @@ export class VerifySurfaceTool implements BuiltinTool<VerifySurfaceInput> {
         notes,
       });
     }
+  }
+
+  private async resolveScreenshotMedia(
+    screenshot: { readonly base64: string; readonly mimeType: string },
+    screenshotPath: string | undefined,
+    signal: AbortSignal,
+    notes: string[],
+  ): Promise<{
+    readonly attachImage: boolean;
+    readonly visualDescription?: string | undefined;
+  }> {
+    if (this.options?.attachScreenshotImage === true) {
+      return { attachImage: true };
+    }
+    const fallback = this.options?.visionFallback;
+    if (fallback === undefined) {
+      notes.push(
+        'Screenshot captured; chat model cannot consume images and no vision analyzer is configured.',
+      );
+      return { attachImage: false };
+    }
+    const visualDescription = await fallback({
+      mimeType: screenshot.mimeType,
+      base64: screenshot.base64,
+      screenshotPath,
+      signal,
+    });
+    if (visualDescription === undefined || visualDescription.trim().length === 0) {
+      notes.push('Vision analyzer could not describe the screenshot; inspect the path offline.');
+      return { attachImage: false };
+    }
+    notes.push('Visual description from vision analyzer (chat model is text-only).');
+    return { attachImage: false, visualDescription: visualDescription.trim() };
   }
 
   private async maybeWriteScreenshot(
@@ -236,9 +290,27 @@ function missingRuntimeResult(): ExecutableToolResult {
   return { isError: true, output: JSON.stringify(payload, undefined, 2) };
 }
 
-function resultPayload(payload: VerifySurfaceResult): ExecutableToolResult {
+function resultPayload(
+  payload: VerifySurfaceResult,
+  screenshot?: { readonly mimeType: string; readonly base64: string } | undefined,
+): ExecutableToolResult {
+  const text = JSON.stringify(payload, undefined, 2);
+  if (screenshot === undefined) {
+    return {
+      isError: !payload.pass,
+      output: text,
+    };
+  }
   return {
     isError: !payload.pass,
-    output: JSON.stringify(payload, undefined, 2),
+    output: [
+      { type: 'text', text },
+      {
+        type: 'image_url',
+        imageUrl: {
+          url: `data:${screenshot.mimeType};base64,${screenshot.base64}`,
+        },
+      },
+    ] satisfies ContentPart[],
   };
 }

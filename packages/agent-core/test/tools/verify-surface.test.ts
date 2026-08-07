@@ -139,4 +139,38 @@ describe('VerifySurfaceTool', () => {
     expect(payload.pass).toBe(false);
     expect(payload.consoleErrors.some((line) => line.includes('boom'))).toBe(true);
   });
+
+  it('attaches the screenshot image when attachScreenshotImage is on', async () => {
+    const runtime = fakeBrowserRuntime({
+      console: vi.fn().mockResolvedValue({ ok: true, messages: [] }),
+    });
+    const tool = new VerifySurfaceTool(runtime, { attachScreenshotImage: true });
+    const result = await executeTool(tool, context({}));
+    expect(result.isError).toBeFalsy();
+    expect(Array.isArray(result.output)).toBe(true);
+    const parts = result.output as Array<{ type: string; text?: string; imageUrl?: { url: string } }>;
+    const text = parts.find((part) => part.type === 'text')?.text ?? '';
+    const image = parts.find((part) => part.type === 'image_url');
+    expect(JSON.parse(text).pass).toBe(true);
+    expect(image?.imageUrl?.url).toMatch(/^data:image\/png;base64,/);
+  });
+
+  it('puts vision-analyzer text in visualDescription for text-only models', async () => {
+    const runtime = fakeBrowserRuntime({
+      console: vi.fn().mockResolvedValue({ ok: true, messages: [] }),
+    });
+    const visionFallback = vi.fn().mockResolvedValue('Hero is left-heavy; CTA contrast is weak.');
+    const tool = new VerifySurfaceTool(runtime, { visionFallback });
+    const result = await executeTool(tool, context({}));
+    expect(result.isError).toBeFalsy();
+    const payload = JSON.parse(String(result.output)) as {
+      pass: boolean;
+      visualDescription?: string;
+      notes: string[];
+    };
+    expect(payload.pass).toBe(true);
+    expect(payload.visualDescription).toContain('left-heavy');
+    expect(payload.notes.join(' ')).toMatch(/vision analyzer/i);
+    expect(visionFallback).toHaveBeenCalled();
+  });
 });

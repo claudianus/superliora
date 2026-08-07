@@ -4,3 +4,5 @@ export * from './contract';
 export * from './visual-harness';
 export * from './references';
 export * from './quality-hype';
+export * from './ui-surface';
+export * from './objective-profile-cache';

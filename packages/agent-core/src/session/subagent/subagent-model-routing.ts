@@ -11,7 +11,9 @@ import { sharedCredentialHealthStore } from '@superliora/oauth';
 import type { Agent } from '../../agent';
 import { resolveThinkingEffort, type ThinkingEffort } from '../../agent/config/thinking';
 import type { LioraConfig, ModelAlias } from '../../config';
+import { ProviderManager } from '../provider/provider-manager';
 import { providerHasAnyCredential } from '../provider/provider-manager-capability';
+import { selectVisionModel } from '../vision-analyzer';
 import {
   autoAssignRoleModels,
   classifyModelTier,
@@ -43,13 +45,18 @@ const AUTO_THINKING_BY_ROLE: Partial<Record<ModelRole, ThinkingEffort>> = {
   debugging: 'max',
 };
 
-export type SubagentModelSelectionSource = 'explicit' | 'auto' | 'parent';
+export type SubagentModelSelectionSource = 'explicit' | 'auto' | 'parent' | 'vision';
 
 export interface SubagentModelSelection {
   readonly alias: string | undefined;
   readonly role: ModelRole | undefined;
   readonly thinkingLevel: ThinkingEffort;
   readonly source: SubagentModelSelectionSource;
+}
+
+export interface ResolveSubagentModelOptions {
+  /** When true, override a non-vision role alias with a catalog vision model. */
+  readonly preferVision?: boolean;
 }
 
 /** Use the live ProviderManager config when a session has been reloaded. */
@@ -103,6 +110,17 @@ export function roleForSubagentProfile(
 }
 
 export function resolveSubagentModelSelection(
+  parent: Agent,
+  profileName: string | undefined,
+  profileBaseName?: string,
+  options?: ResolveSubagentModelOptions,
+): SubagentModelSelection {
+  const selection = resolveSubagentModelSelectionCore(parent, profileName, profileBaseName);
+  if (options?.preferVision !== true) return selection;
+  return preferVisionModelSelection(parent, selection);
+}
+
+function resolveSubagentModelSelectionCore(
   parent: Agent,
   profileName: string | undefined,
   profileBaseName?: string,
@@ -161,6 +179,47 @@ export function resolveSubagentModelSelection(
     thinkingLevel: parentThinking,
     source: 'parent',
   };
+}
+
+/**
+ * When the role-selected alias cannot consume images, switch to a credentialed
+ * vision model from the catalog (same-provider preference). No candidate → keep
+ * the original selection; VerifySurface then falls back to analyzer text/path.
+ */
+export function preferVisionModelSelection(
+  parent: Agent,
+  selection: SubagentModelSelection,
+): SubagentModelSelection {
+  if (selectionSupportsVision(parent, selection)) return selection;
+  const providerManager = parent.modelProvider;
+  if (!(providerManager instanceof ProviderManager)) return selection;
+  const vision = selectVisionModel(providerManager, {
+    kind: 'image',
+    currentModelAlias: selection.alias ?? parent.config.modelAlias,
+  });
+  if (vision === undefined) return selection;
+  return {
+    ...selection,
+    alias: vision.modelAlias,
+    source: 'vision',
+  };
+}
+
+function selectionSupportsVision(
+  parent: Agent,
+  selection: SubagentModelSelection,
+): boolean {
+  const providerManager = parent.modelProvider;
+  const alias = selection.alias ?? parent.config.modelAlias;
+  if (alias !== undefined && providerManager instanceof ProviderManager) {
+    try {
+      return providerManager.resolveProviderConfig(alias).modelCapabilities.image_in === true;
+    } catch {
+      /* fall through */
+    }
+  }
+  const capabilities = parent.config.modelCapabilities;
+  return capabilities?.image_in === true;
 }
 
 function configuredRoleAlias(config: LioraConfig, role: ModelRole): string | undefined {

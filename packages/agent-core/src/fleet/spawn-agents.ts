@@ -23,6 +23,10 @@ export interface FanoutTask {
   readonly goal?: SubagentGoalBinding;
   /** Activate plan mode on the worker (Plan Desk mission Jobs). */
   readonly plan?: SubagentPlanBinding;
+  /** Force Premium Quality ON for UI-classified Conductor Jobs. */
+  readonly forcePremiumQuality?: boolean;
+  /** Prefer a vision-capable model for UI-classified Conductor Jobs. */
+  readonly preferVisionModel?: boolean;
   /** Resume an existing agent instead of spawning (manual/template modes). */
   readonly resumeAgentId?: string;
   readonly swarmIndex?: number;
@@ -70,6 +74,8 @@ export function runOptionsForTask(spec: FanoutSpec, task: FanoutTask): RunSubage
     worktreeDir: task.worktreeDir,
     goal: task.goal,
     plan: task.plan,
+    forcePremiumQuality: task.forcePremiumQuality,
+    preferVisionModel: task.preferVisionModel,
   };
 }
 

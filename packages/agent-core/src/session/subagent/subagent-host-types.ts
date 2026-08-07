@@ -68,6 +68,16 @@ export interface RunSubagentOptions {
    * prompt (Plan Desk mission Jobs).
    */
   readonly plan?: SubagentPlanBinding;
+  /**
+   * Force Premium Quality ON for this child (UI-classified Conductor Jobs),
+   * even when the parent toggle is OFF. Parent ON still inherits without this.
+   */
+  readonly forcePremiumQuality?: boolean;
+  /**
+   * Prefer a vision-capable catalog model when the role-selected alias cannot
+   * consume screenshots (UI-classified Conductor Jobs).
+   */
+  readonly preferVisionModel?: boolean;
   readonly onReady?: () => void;
   readonly suppressRateLimitFailureEvent?: boolean;
 }

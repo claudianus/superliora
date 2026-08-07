@@ -233,8 +233,9 @@ describe('default agent profiles', () => {
         'Bash',
         'Memory',
         'WebSearch',
-        'DeepResearch',
         'FetchURL',
+        'BrowserObserve',
+        'VerifySurface',
         'TodoList',
       ]),
     );

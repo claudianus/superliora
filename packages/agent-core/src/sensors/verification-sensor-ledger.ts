@@ -12,9 +12,13 @@ export interface VerificationFailureRecord {
   readonly recordedAtMs: number;
 }
 
+export type VisualSensorVerdict = 'passed' | 'failed' | 'not_run';
+
 export interface VerificationSensorLedger {
   failures: VerificationFailureRecord[];
   lastPassAtMs?: number | undefined;
+  /** Last VerifySurface outcome observed this agent run (not_run until called). */
+  visualVerdict?: VisualSensorVerdict;
 }
 
 export const VERIFICATION_SENSOR_MAX_FAILURES = 8;
@@ -39,7 +43,14 @@ const BASH_CHECK_PATTERN =
   /(?:^|[\s;&|])(?:vitest|jest|mocha|playwright\s+test|pytest|cargo\s+test|go\s+test|make\s+test|bun\s+test|node\s+--test|\btsc\b|oxlint|eslint|turbo\s+run|(?:pnpm|npm|yarn)(?:\s+-C\s+\S+)?(?:\s+exec)?(?:\s+run)?\s+(?:test|typecheck|lint|check|build|smoke)\b|(?:pnpm|npm|yarn)\s+-C\s+\S+\s+exec\s+(?:vitest|tsc|eslint|oxlint)\b)/i;
 
 export function createVerificationSensorLedger(): VerificationSensorLedger {
-  return { failures: [] };
+  return { failures: [], visualVerdict: 'not_run' };
+}
+
+export function recordVisualVerdict(
+  ledger: VerificationSensorLedger,
+  verdict: VisualSensorVerdict,
+): void {
+  ledger.visualVerdict = verdict;
 }
 
 export function isVerificationCheckTool(toolName: string): boolean {
@@ -149,12 +160,78 @@ export function observeVerificationToolResult(
     return;
   }
 
+  if (toolName === 'VerifySurface') {
+    observeVerifySurfaceResult(ledger, result);
+    return;
+  }
+
   if (isVerificationCheckTool(toolName) && result.isError === true) {
     recordVerificationFailure(ledger, {
       toolName,
       summary: toolOutputText(result.output).trim().slice(0, 240) || `${toolName} failed`,
     });
   }
+}
+
+function observeVerifySurfaceResult(
+  ledger: VerificationSensorLedger,
+  result: ExecutableToolResult,
+): void {
+  const output = toolOutputText(result.output);
+  if (result.isError === true) {
+    recordVisualVerdict(ledger, 'failed');
+    recordVerificationFailure(ledger, {
+      toolName: 'VerifySurface',
+      summary: output.trim().slice(0, 240) || 'VerifySurface failed',
+    });
+    return;
+  }
+  const pass = parseVerifySurfacePass(output);
+  if (pass === true) {
+    recordVisualVerdict(ledger, 'passed');
+    // Green visual proof clears sticky VerifySurface failures without wiping
+    // unrelated RunProjectChecks evidence.
+    ledger.failures = ledger.failures.filter((entry) => entry.toolName !== 'VerifySurface');
+    return;
+  }
+  recordVisualVerdict(ledger, 'failed');
+  recordVerificationFailure(ledger, {
+    toolName: 'VerifySurface',
+    summary:
+      pass === false
+        ? summarizeVerifySurfaceFailure(output)
+        : output.trim().slice(0, 240) || 'VerifySurface did not report pass=true',
+  });
+}
+
+function parseVerifySurfacePass(output: string): boolean | undefined {
+  try {
+    const parsed = JSON.parse(output) as { pass?: unknown };
+    if (typeof parsed.pass === 'boolean') return parsed.pass;
+  } catch {
+    /* fall through */
+  }
+  return undefined;
+}
+
+function summarizeVerifySurfaceFailure(output: string): string {
+  try {
+    const parsed = JSON.parse(output) as {
+      notes?: readonly string[];
+      consoleErrors?: readonly string[];
+    };
+    const note = parsed.notes?.find((line) => line.trim().length > 0);
+    if (note !== undefined) return note.slice(0, 240);
+    if ((parsed.consoleErrors?.length ?? 0) > 0) {
+      return `VerifySurface console errors: ${parsed.consoleErrors!.slice(0, 2).join('; ')}`.slice(
+        0,
+        240,
+      );
+    }
+  } catch {
+    /* fall through */
+  }
+  return output.trim().slice(0, 240) || 'VerifySurface pass=false';
 }
 
 export function buildTestFailureSoftTips(
@@ -210,5 +287,15 @@ function extractBashCommand(args: unknown): string {
 function toolOutputText(output: ExecutableToolResult['output']): string {
   if (typeof output === 'string') return output;
   if (output === undefined || output === null) return '';
-  return String(output);
+  if (!Array.isArray(output)) return String(output);
+  return output
+    .filter(
+      (part): part is { type: 'text'; text: string } =>
+        typeof part === 'object' &&
+        part !== null &&
+        (part as { type?: unknown }).type === 'text' &&
+        typeof (part as { text?: unknown }).text === 'string',
+    )
+    .map((part) => part.text)
+    .join('\n');
 }
