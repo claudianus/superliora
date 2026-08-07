@@ -106,7 +106,7 @@ export interface Kaos {
    *
    * This is the crash-safe replacement for `writeText`/`writeBytes` at any path
    * where a torn write would corrupt durable state (user source files, session
-   * state, ultrawork mirrors). It does NOT support append mode — append paths
+   * state, agent mirrors). It does NOT support append mode — append paths
    * use `writeText(path, data, { mode: 'a' })` plus their own durability
    * strategy (e.g. the wire-log append+fsync).
    */
