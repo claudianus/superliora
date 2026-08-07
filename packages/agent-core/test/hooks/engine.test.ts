@@ -241,14 +241,12 @@ describe('HookEngine', () => {
     expect(results).toHaveLength(1);
   });
 
-  it('ignores matchers for TeammateIdle / TaskCreated / TaskCompleted', async () => {
+  it('ignores matchers for TaskCreated / TaskCompleted', async () => {
     const { HookEngine } = await importEngine();
     const engine = new HookEngine([
-      { event: 'TeammateIdle', matcher: 'never-match', command: 'echo idle', timeout: 5 },
       { event: 'TaskCreated', matcher: 'never-match', command: 'echo created', timeout: 5 },
       { event: 'TaskCompleted', matcher: 'never-match', command: 'echo completed', timeout: 5 },
     ]);
-    await expect(engine.trigger('TeammateIdle')).resolves.toHaveLength(1);
     await expect(engine.trigger('TaskCreated')).resolves.toHaveLength(1);
     await expect(engine.trigger('TaskCompleted')).resolves.toHaveLength(1);
   });

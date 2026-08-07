@@ -2,7 +2,6 @@
  * Claude Agent Teams hook semantics hosted by the TaskGraph.
  *
  * Mapping:
- * - TeammateIdle  → expert about to finish a wave
  * - TaskCreated   → WorkGraph node first created, or a worker claim/running
  * - TaskCompleted → node marked needs_integration or done
  *
@@ -15,9 +14,7 @@ import type { Agent } from '../agent';
 import type { HookEngine } from './hooks/engine';
 import type { HookResult } from './hooks/types';
 
-export const MAX_TEAMMATE_IDLE_CONTINUES = 3;
-
-export type TeamHookEvent = 'TeammateIdle' | 'TaskCreated' | 'TaskCompleted';
+export type TeamHookEvent = 'TaskCreated' | 'TaskCompleted';
 
 export type TeamHookDecision =
   | { readonly kind: 'allow'; readonly systemMessage?: string }
@@ -99,25 +96,6 @@ export function publishTeamHookDecision(
     event,
     blocked: true,
   });
-}
-
-export async function fireTeammateIdle(
-  hooks: HookEngine | undefined,
-  input: {
-    readonly teammateName: string;
-    readonly teamName: string;
-    readonly signal?: AbortSignal;
-  },
-): Promise<TeamHookDecision> {
-  if (hooks === undefined) return { kind: 'allow' };
-  const results = await hooks.trigger('TeammateIdle', {
-    inputData: {
-      teammateName: input.teammateName,
-      teamName: input.teamName,
-    },
-    signal: input.signal,
-  });
-  return resolveTeamHookDecision(results);
 }
 
 export async function fireTaskCreated(

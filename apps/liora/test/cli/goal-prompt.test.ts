@@ -220,8 +220,8 @@ describe('runPrompt headless goal mode', () => {
     );
     // No mode setup and no prompt wrapper: the turn runs the bare objective.
     expect(mocks.session.prompt).toHaveBeenCalledWith('Ship feature X');
-    expect(stdout.text()).toContain('\"type\":\"goal.summary\"');
-    expect(stdout.text()).toContain('\"status\":\"complete\"');
+    expect(stdout.text()).toContain('"type":"goal.summary"');
+    expect(stdout.text()).toContain('"status":"complete"');
   });
 
   it('runs a retired /ultrawork prompt as a plain prompt instead of a goal', async () => {

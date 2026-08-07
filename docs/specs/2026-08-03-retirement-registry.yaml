@@ -54,4 +54,5 @@ items:
     replacement_proof_tests: [packages/agent-core/test/tools/job-ledger.test.ts, packages/agent-core/test/tools/job-desk.test.ts, packages/agent-core/test/tools/conductor-guard.test.ts, packages/agent-core/test/agent/permission/policies/ask-mode-guard-deny.test.ts]
     # Mission mode(=/ultrawork 워크플로우) 폐기. Mission Control(/agents 도크)는 유지 — 이름만 겹친다.
     # Shift-Tab은 Mission 토글에서 Build/Ask 모드 사이클로 재배정.
-    grep_zero: ['ultraworkMode', 'swarmMode', 'swarm_mode', 'MissionRunStateMachine', 'CreateUltraGoal', 'UltraworkGraph', 'agent-swarm-progress']
+    # 과거 세션 로그의 `swarm_mode.*` / `ultrawork.*` wire kind는 vis generic fallback으로만 보인다.
+    grep_zero: ['ultraworkMode', 'swarmMode', 'swarm_mode', 'MissionRunStateMachine', 'CreateUltraGoal', 'UltraworkGraph', 'agent-swarm-progress', 'TeammateIdle']

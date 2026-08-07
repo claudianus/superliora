@@ -6,7 +6,7 @@ describe('context route', () => {
   let cleanup: (() => Promise<void>) | null = null;
   afterEach(async () => { if (cleanup) await cleanup(); cleanup = null; });
 
-  it('echoes the new projection fields (contextTokens, goal, swarm)', async () => {
+  it('echoes the new projection fields (contextTokens, goal)', async () => {
     const { home, cleanup: c } = await buildSessionFixture('sample-main');
     cleanup = c;
 
@@ -19,13 +19,12 @@ describe('context route', () => {
     // cherry-pick only messages/usage/config/permission/planMode).
     expect(body).toHaveProperty('contextTokens');
     expect(body).toHaveProperty('goal');
-    expect(body).toHaveProperty('swarm');
+    expect(body).not.toHaveProperty('swarm');
 
     // The sample fixture's only step.end carries usage 10+5 → contextTokens=15,
-    // and has no goal / swarm records.
+    // and has no goal records.
     expect(body['contextTokens']).toBe(15);
     expect(body['goal']).toBeNull();
-    expect(body['swarm']).toEqual({ active: false });
   });
 
   it('still echoes the existing fields', async () => {

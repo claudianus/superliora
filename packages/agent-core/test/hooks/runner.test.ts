@@ -93,11 +93,11 @@ describe('runHook process runner', () => {
   it('parses JSON continue:false into a halt result with stopReason', async () => {
     const runHook = await importRunHook();
     const cmd =
-      "node -e \"process.stdout.write(JSON.stringify({continue:false,stopReason:'stop teammate'}))\"";
-    const result = await runHook(cmd, { hook_event_name: 'TeammateIdle' }, { timeout: 5 });
+      "node -e \"process.stdout.write(JSON.stringify({continue:false,stopReason:'stop worker'}))\"";
+    const result = await runHook(cmd, { hook_event_name: 'TaskCreated' }, { timeout: 5 });
     expect(result.action).toBe('allow');
     expect(result.halt).toBe(true);
-    expect(result.stopReason).toBe('stop teammate');
+    expect(result.stopReason).toBe('stop worker');
   });
 
   it('parses JSON systemMessage on allow', async () => {

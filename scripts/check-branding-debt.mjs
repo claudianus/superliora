@@ -34,30 +34,13 @@ const TOOL_DEBT_NAMES = [
   'LioraCallgraph',
   'LioraExpand',
   'LioraReview',
-  'CreateUltraGoal',
-  'UltraworkGraph',
-  'UltraSwarm',
-  'AgentSwarm',
 ];
 
 /**
- * Profile paths that intentionally keep legacy tool names for backwards compatibility.
- * agent.yaml is sovereign-default; full.yaml keeps a minimal legacy compat slice only.
- *
- * Map: profile rel path → legacy tool names allowed in that file.
- */
-const PROFILE_TOOL_DEBT_ALLOWLIST = new Map([
-  [
-    'packages/agent-core/src/profile/default/full.yaml',
-    new Set(['CreateUltraGoal', 'UltraworkGraph', 'UltraSwarm', 'AgentSwarm']),
-  ],
-]);
-
-/**
  * Legacy tools still registered in builtin-tools.ts for explicit/compat use but
- * trimmed from bundled profiles. Sovereign twins (Review, CreateGoal, TaskGraph,
- * Expand, RepoQuery) cover the LLM surface; legacy names remain for replay,
- * SearchTools discovery, and explicit profile selection.
+ * trimmed from bundled profiles. Sovereign twins (Review, Expand, RepoQuery)
+ * cover the LLM surface; legacy names remain for replay, SearchTools discovery,
+ * and explicit profile selection.
  */
 const REGISTRATION_ONLY_TOOL_DEBT = new Set([
   'LioraRead',
@@ -66,27 +49,7 @@ const REGISTRATION_ONLY_TOOL_DEBT = new Set([
   'LioraCallgraph',
   'LioraExpand',
   'LioraReview',
-  'CreateUltraGoal',
-  'UltraworkGraph',
-  'UltraSwarm',
-  'AgentSwarm',
 ]);
-
-/**
- * Legacy slash primary names → preferred sovereign primaries.
- * Flags when `name:` is still the legacy value.
- *
- * Advanced compat primaries (`ultragoal`, `ultraplan`) stay registered with
- * `hiddenAliases` — not debt. Sovereign primaries (`mission`, `fleet`) are
- * already migrated in command-list-modes.ts.
- */
-const SLASH_DEBT = [
-  { legacy: 'ultrawork', preferred: 'mission' },
-  { legacy: 'ultraswarm', preferred: 'fleet' },
-];
-
-/** Advanced slash commands kept for compat — not primary-name debt. */
-const SLASH_DEBT_EXEMPT_PRIMARIES = new Set(['ultragoal', 'ultraplan']);
 
 function walkYamlFiles(dir, out) {
   let entries;
@@ -142,11 +105,6 @@ function lineNumberAt(text, index) {
   return line;
 }
 
-function isAllowedProfileToolDebt(relPath, toolName) {
-  const allowed = PROFILE_TOOL_DEBT_ALLOWLIST.get(relPath);
-  return allowed?.has(toolName) ?? false;
-}
-
 function isAllowedRegistrationToolDebt(relPath, toolName) {
   return (
     relPath === 'packages/agent-core/src/agent/tool/builtin-tools.ts' &&
@@ -157,7 +115,6 @@ function isAllowedRegistrationToolDebt(relPath, toolName) {
 function scanToolDebt(relPath, text) {
   const hits = [];
   for (const name of TOOL_DEBT_NAMES) {
-    if (isAllowedProfileToolDebt(relPath, name)) continue;
     if (isAllowedRegistrationToolDebt(relPath, name)) continue;
     const re = new RegExp(`\\b${name}\\b`, 'g');
     for (const match of text.matchAll(re)) {
@@ -173,29 +130,8 @@ function scanToolDebt(relPath, text) {
   return hits;
 }
 
-function scanSlashDebt(relPath, text) {
-  const hits = [];
-  for (const { legacy, preferred } of SLASH_DEBT) {
-    const re = new RegExp(`\\bname:\\s*['"]${legacy}['"]`, 'g');
-    for (const match of text.matchAll(re)) {
-      const primary = legacy;
-      if (SLASH_DEBT_EXEMPT_PRIMARIES.has(primary)) continue;
-      hits.push({
-        kind: 'slash',
-        name: legacy,
-        preferred,
-        rel: relPath,
-        line: lineNumberAt(text, match.index ?? 0),
-        excerpt: text.slice(match.index ?? 0, (match.index ?? 0) + 60).split('\n')[0],
-      });
-    }
-  }
-  return hits;
-}
-
 const paths = collectScanPaths();
 const toolHits = [];
-const slashHits = [];
 
 for (const absPath of paths) {
   let text;
@@ -206,12 +142,9 @@ for (const absPath of paths) {
   }
   const relPath = relative(repoRoot, absPath).replaceAll('\\', '/');
   toolHits.push(...scanToolDebt(relPath, text));
-  if (relPath.includes('/commands/hub/command-list')) {
-    slashHits.push(...scanSlashDebt(relPath, text));
-  }
 }
 
-const totalDebt = toolHits.length + slashHits.length;
+const totalDebt = toolHits.length;
 
 console.log('Branding debt scan (legacy Ultra/Liora public surface)');
 console.log(`Scanned ${paths.length} file(s)`);
@@ -225,15 +158,6 @@ if (toolHits.length > 0) {
   console.warn(`\nTOOL NAMES (${toolHits.length}):`);
   for (const hit of toolHits) {
     console.warn(`  ${hit.rel}:${hit.line}\t${hit.name}\t${hit.excerpt.trim()}`);
-  }
-}
-
-if (slashHits.length > 0) {
-  console.warn(`\nSLASH PRIMARY NAMES (${slashHits.length}):`);
-  for (const hit of slashHits) {
-    console.warn(
-      `  ${hit.rel}:${hit.line}\t/${hit.name} → prefer /${hit.preferred}\t${hit.excerpt.trim()}`,
-    );
   }
 }
 

@@ -27,7 +27,6 @@ export const HOOK_EVENT_TYPES = [
   'TaskCompleted',
   'Stop',
   'StopFailure',
-  'TeammateIdle',
   'InstructionsLoaded',
   'ConfigChange',
   'CwdChanged',

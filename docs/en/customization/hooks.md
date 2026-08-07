@@ -91,7 +91,7 @@ You can also return a JSON object via stdout to block:
 ```
 
 ::: info Which events support blocking?
-**Blockable events** are `PreToolUse`, `Stop`, `UserPromptSubmit`, plus Fleet team events `TeammateIdle`, `TaskCreated`, and `TaskCompleted`. Other events are observation-only — they fire and forget.
+**Blockable events** are `PreToolUse`, `Stop`, `UserPromptSubmit`, plus the work-graph events `TaskCreated` and `TaskCompleted`. Other events are observation-only — they fire and forget.
 :::
 
 ## Event Reference
@@ -109,36 +109,26 @@ You can also return a JSON object via stdout to block:
 | `SessionEnd` | `exit` | — | Triggered after a session closes |
 | `SubagentStart` | Sub-agent name | — | Triggered before a sub-agent starts running |
 | `SubagentStop` | Sub-agent name | — | Triggered after a sub-agent completes successfully (observation only) |
-| `TeammateIdle` | (unused) | ✓ | Fleet: expert about to go idle. Exit `2` feeds stderr back and continues the expert; JSON `{"continue": false, "stopReason": "..."}` stops it |
-| `TaskCreated` | (unused) | ✓ | Fleet: work node is being claimed. Exit `2` refuses the claim; `continue: false` halts the fleet |
-| `TaskCompleted` | (unused) | ✓ | Fleet: work node finishing the fleet phase. Exit `2` keeps the node open; `continue: false` halts the fleet |
+| `TaskCreated` | (unused) | ✓ | A work-graph node is created or claimed. Exit `2` refuses the claim; JSON `{"continue": false, "stopReason": "..."}` halts the run |
+| `TaskCompleted` | (unused) | ✓ | A work-graph node reaches `needs_integration` or `done`. Exit `2` keeps the node open; `continue: false` halts the run |
 | `StopFailure` | Error type | — | Triggered after the current turn fails due to an error (observation only) |
 | `Interrupt` | Empty string | — | Triggered when the user interrupts the current turn (e.g. pressing Esc); not fired for timeouts or other programmatic aborts. `Stop` does not fire on interrupts, so this event fires instead. The payload includes a `reason` field (observation only) |
 | `PreCompact` | `manual` or `auto` | — | Triggered before context compaction begins; return values are completely ignored |
 | `PostCompact` | `manual` or `auto` | — | Triggered after context compaction completes (observation only) |
 | `Notification` | Notification type (e.g. `task.completed`) | — | Triggered when a background task status changes (observation only) |
 
-### Fleet team hooks (Claude Agent Teams mapping)
+### Work-graph hooks (Claude Agent Teams mapping)
 
-Fleet and `UltraworkGraph` (TaskGraph-compatible tool name) host Claude-compatible team lifecycle hooks.
+The `TaskGraph` tool hosts the Claude-compatible task lifecycle hooks.
 
 | Event | When SuperLiora fires it |
 | --- | --- |
-| `TaskCreated` | New WorkGraph node added via `UltraworkGraph`, or Fleet claims a node (`running`) |
-| `TaskCompleted` | Node transitions to `needs_integration` or `done` |
-| `TeammateIdle` | Fleet expert about to finish a wave |
+| `TaskCreated` | A new WorkGraph node is added, or a worker claims a node (`running`) |
+| `TaskCompleted` | A node transitions to `needs_integration` or `done` |
 
-Matchers on these three events are ignored (Claude-compatible). Exit `2` feeds stderr back to the model and retries/refuses the action; `{"continue":false,"stopReason":"..."}` stops the teammate/fleet and shows `stopReason` to the user via `hook.result`. Optional `systemMessage` is also shown to the user.
+Matchers on these two events are ignored (Claude-compatible). Exit `2` feeds stderr back to the model and retries/refuses the action; `{"continue":false,"stopReason":"..."}` halts the run and shows `stopReason` to the user via `hook.result`. Optional `systemMessage` is also shown to the user.
 
-Typical payloads:
-
-```json
-{
-  "hook_event_name": "TeammateIdle",
-  "teammate_name": "security-reviewer",
-  "team_name": "<fleet-run-id>"
-}
-```
+A typical payload:
 
 ```json
 {
@@ -146,22 +136,22 @@ Typical payloads:
   "task_id": "ac_1",
   "task_subject": "Add auth middleware",
   "teammate_name": "implementer",
-  "team_name": "<fleet-run-id>"
+  "team_name": "<run-id>"
 }
 ```
 
-Quality-gate example (keep the expert working until `dist/output.js` exists):
+Quality-gate example (refuse the transition until `dist/output.js` exists):
 
 ```bash
 #!/bin/bash
-# TeammateIdle
+# TaskCompleted
 if [ ! -f "./dist/output.js" ]; then
   echo "Build artifact missing" >&2
   exit 2
 fi
 ```
 
-To stop the teammate instead of re-running it:
+To halt the run instead of refusing the transition:
 
 ```bash
 #!/bin/bash

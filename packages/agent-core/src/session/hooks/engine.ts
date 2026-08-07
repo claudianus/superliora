@@ -23,7 +23,7 @@ const TOOL_EVENTS_FOR_IF = new Set([
  * Claude Agent Teams events ignore matchers and always fire.
  * (Keep UserPromptSubmit/Stop matcher filtering — SuperLiora configs rely on it.)
  */
-const MATCHERLESS_EVENTS = new Set(['TeammateIdle', 'TaskCreated', 'TaskCompleted']);
+const MATCHERLESS_EVENTS = new Set(['TaskCreated', 'TaskCompleted']);
 
 export class HookEngine {
   private readonly byEvent = new Map<string, HookDef[]>();

@@ -58,7 +58,6 @@ export interface ContextProjection {
   permission: { mode: PermissionMode | null };
   planMode: { active: boolean; id?: string };
   goal: GoalSnapshot | null;
-  swarm: { active: boolean; trigger?: string };
 }
 
 const ZERO: TokenUsage = { inputOther: 0, output: 0, inputCacheRead: 0, inputCacheCreation: 0 };
@@ -92,7 +91,7 @@ const ZERO: TokenUsage = { inputOther: 0, output: 0, inputCacheRead: 0, inputCac
  *    list, so messages compacted/undone/cleared away stay visible and
  *    micro-compacted tool results keep their original content.
  *
- *  Everything else (append_message, loop events, goal/swarm/permission/
+ *  Everything else (append_message, loop events, goal/permission/
  *  plan/config/usage/contextTokens derived state) is identical in both
  *  modes — `mode` only affects the `messages` array and which markers
  *  appear. */
@@ -111,7 +110,6 @@ export function projectContext(
   let planId: string | undefined;
   let contextTokens = 0;
   let goal: GoalSnapshot | null = null;
-  let swarm: { active: boolean; trigger?: string } = { active: false };
   // Maps step.uuid → the assistant ProjectedMessage that step is filling in.
   // Cleared on context.clear / context.apply_compaction.
   let openSteps = new Map<string, ProjectedMessage>();
@@ -386,12 +384,6 @@ export function projectContext(
       case 'goal.clear':
         goal = null;
         break;
-      case 'swarm_mode.enter':
-        swarm = { active: true, trigger: rec.trigger };
-        break;
-      case 'swarm_mode.exit':
-        swarm = { active: false };
-        break;
       // Kinds that don't affect the projected timeline / derived state:
       case 'metadata':
       case 'forked':
@@ -407,15 +399,8 @@ export function projectContext(
       case 'tools.set_active_tools':
       case 'tools.update_store':
       case 'subagent.lifecycle':
-      // Wire kinds keep legacy ultrawork/swarm names; Liora TUI SSOT labels are Mission/Fleet.
-      case 'ultrawork.event':
-        break;
       case 'plan_mode.state':
       case 'premium-quality.mode':
-      case 'swarm.steer':
-      case 'swarm.restaff':
-      case 'ultrawork.mode':
-      case 'ultrawork.run':
       case 'harness.state':
         break;
       default: {
@@ -435,7 +420,6 @@ export function projectContext(
     permission: { mode: permissionMode },
     planMode: { active: planActive, id: planId },
     goal,
-    swarm,
   };
 }
 
