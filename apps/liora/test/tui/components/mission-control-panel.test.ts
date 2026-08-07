@@ -18,7 +18,7 @@ import {
 // Motion is forced off under the CI-parity runner (NO_COLOR), so renders take
 // the static branch; strip ANSI to assert on plain text.
 function strip(text: string): string {
-  return text.replaceAll(/\[[0-9;]*m/g, '');
+  return text.replaceAll(/\u001b\[[0-9;]*m/g, '');
 }
 
 function plain(lines: string[]): string[] {
@@ -37,14 +37,22 @@ function registryWith(events: Event[]): MissionControlRegistry {
   return registry;
 }
 
-function viewFor(registry: MissionControlRegistry, jobs = emptyConductorJobsSnapshot()): MissionControlView {
-  return { snapshot: registry.snapshot(NOW + 100_000), jobs };
+function viewFor(
+  registry: MissionControlRegistry,
+  jobs = emptyConductorJobsSnapshot(),
+  workDir?: string,
+): MissionControlView {
+  return {
+    snapshot: registry.snapshot(NOW + 100_000),
+    jobs,
+    ...(workDir === undefined ? {} : { workDir }),
+  };
 }
 
 function jobCard(over: Partial<ConductorJobCard>): ConductorJobCard {
   return {
     id: 'job_abcdef123456',
-    title: '정적 사이트 체크',
+    title: '?? ??? ??',
     status: 'running',
     kind: 'task',
     priority: 1,
@@ -61,7 +69,7 @@ describe('MissionControlPanelComponent', () => {
     expect(panel.render(80)).toEqual([]);
   });
 
-  it('renders worker rows with model, tool action, and elapsed', () => {
+  it('renders intent-first worker rows with humanized action', () => {
     const registry = registryWith([
       {
         type: 'subagent.spawned',
@@ -70,6 +78,7 @@ describe('MissionControlPanelComponent', () => {
         parentToolCallId: 'ptc',
         runInBackground: false,
         modelAlias: 'gpt-5',
+        description: 'Map the Mission Control dock',
       } as Event,
       {
         type: 'subagent.progress',
@@ -87,7 +96,7 @@ describe('MissionControlPanelComponent', () => {
         parentToolCallId: 'ptc',
         todos: [
           { title: 'a', status: 'done' },
-          { title: 'b', status: 'in_progress' },
+          { title: 'Ship human-first dock', status: 'in_progress' },
         ],
       } as unknown as Event,
     ]);
@@ -98,16 +107,19 @@ describe('MissionControlPanelComponent', () => {
     const text = lines.join('\n');
     expect(text).toContain('Mission Control');
     expect(text).toContain('1 active');
-    expect(text).toContain('WORKERS');
+    expect(text).toContain('NOW');
     expect(text).toContain('explore-2');
     expect(text).toContain('gpt-5');
-    expect(text).toContain('Read src/tui/panel.ts');
-    expect(text).toContain('todo 1/2');
-    expect(text).toContain('12 tools');
-    expect(text).toContain('8.1k tok');
+    // Intent beats raw tool+path on the name row.
+    expect(text).toContain('Ship human-first dock');
+    expect(text).toContain('\u2192 Read');
+    expect(text).toContain('panel.ts');
+    expect(text).toMatch(/1\/2/);
+    // Absolute-path spam must not dominate.
+    expect(text).not.toContain('/Users/');
   });
 
-  it('renders the ops feed with wall-clock rows and error marks', () => {
+  it('renders MOVES with wall-clock rows and error marks', () => {
     const registry = registryWith([
       {
         type: 'subagent.spawned',
@@ -134,13 +146,64 @@ describe('MissionControlPanelComponent', () => {
     panel.setView(viewFor(registry));
 
     const text = plain(panel.render(60)).join('\n');
-    expect(text).toContain('OPS FEED');
+    expect(text).toContain('MOVES');
     expect(text).toContain(formatMissionClockMs(NOW + 1_000));
-    expect(text).toContain('builder-1');
-    expect(text).toContain('✗ Edit src/a.ts');
+    // Single-worker feed omits the worker name column.
+    expect(text).not.toMatch(/builder-1.*Edit/);
+    expect(text).toContain('\u2717 Edit src/a.ts');
   });
 
-  it('renders condensed job lanes with attention rows first', () => {
+  it('collapses consecutive cd-only bash noise in MOVES', () => {
+    const longCd =
+      'cd /Users/modumaru/.superliora/worktrees/16-4a12d7da/conductor-jmsiq/repo';
+    const registry = registryWith([
+      {
+        type: 'subagent.spawned',
+        subagentId: 'sa-1',
+        subagentName: 'coder',
+        parentToolCallId: 'ptc',
+        runInBackground: false,
+      } as Event,
+      {
+        type: 'subagent.tool_call',
+        subagentId: 'sa-1',
+        toolCallId: 'tc-1',
+        name: 'Bash',
+        detail: { kind: 'bash', command: longCd },
+      } as Event,
+      {
+        type: 'subagent.tool_result',
+        subagentId: 'sa-1',
+        toolCallId: 'tc-1',
+      } as Event,
+      {
+        type: 'subagent.tool_call',
+        subagentId: 'sa-1',
+        toolCallId: 'tc-2',
+        name: 'Bash',
+        detail: { kind: 'bash', command: `${longCd}-b` },
+      } as Event,
+      {
+        type: 'subagent.tool_result',
+        subagentId: 'sa-1',
+        toolCallId: 'tc-2',
+      } as Event,
+    ]);
+    const panel = new MissionControlPanelComponent();
+    panel.setView(viewFor(registry));
+    const text = plain(panel.render(60)).join('\n');
+    expect(text).toContain('MOVES');
+    expect(text).toContain('enter');
+    expect(text).not.toContain('/Users/modumaru/.superliora/worktrees');
+    // Two consecutive cd ops collapse to one visible MOVES row.
+    const movesIdx = text.indexOf('MOVES');
+    const movesSection = movesIdx >= 0 ? text.slice(movesIdx) : '';
+    const boardIdx = movesSection.indexOf('BOARD');
+    const movesOnly = boardIdx >= 0 ? movesSection.slice(0, boardIdx) : movesSection;
+    expect(movesOnly.split('enter').length - 1).toBe(1);
+  });
+
+  it('renders condensed BOARD lanes with attention rows first', () => {
     const registry = registryWith([
       {
         type: 'subagent.spawned',
@@ -157,7 +220,7 @@ describe('MissionControlPanelComponent', () => {
       needsUser: 1,
       jobs: [
         jobCard({ id: 'job_run00000001', status: 'running', workerName: 'builder-1' }),
-        jobCard({ id: 'job_need00000002', status: 'needs_user', title: '승인 필요' }),
+        jobCard({ id: 'job_need00000002', status: 'needs_user', title: '?? ??' }),
         jobCard({ id: 'job_done00000003', status: 'done' }),
       ],
     };
@@ -165,12 +228,12 @@ describe('MissionControlPanelComponent', () => {
     panel.setView(viewFor(registry, jobs));
 
     const text = plain(panel.render(60)).join('\n');
-    expect(text).toContain('JOBS');
+    expect(text).toContain('BOARD');
     expect(text).toContain('needs-you 1');
     expect(text).toContain('running 1');
     // needs_user outranks the running card.
-    const needIdx = text.indexOf('승인 필요');
-    const runIdx = text.indexOf('정적 사이트 체크');
+    const needIdx = text.indexOf('?? ??');
+    const runIdx = text.indexOf('?? ??? ??');
     expect(needIdx).toBeGreaterThanOrEqual(0);
     expect(runIdx).toBeGreaterThanOrEqual(0);
     expect(needIdx).toBeLessThan(runIdx);
@@ -256,7 +319,7 @@ describe('MissionControlPanelComponent', () => {
     const panel = new MissionControlPanelComponent();
     panel.setView(viewFor(registry));
     const text = plain(panel.render(60)).join('\n');
-    expect(text).toContain('⚠ scout-9');
+    expect(text).toContain('\u26a0 scout-9');
     expect(text).toContain('stalled');
   });
 });

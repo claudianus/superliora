@@ -41,9 +41,11 @@ export class MissionControlController {
     const { state } = this.host;
     const panel = state.missionControlPanel;
     const wasEmpty = panel.isEmpty();
+    const workDir = state.appState.workDir || process.cwd();
     panel.setView({
       snapshot: this.registry.snapshot(),
       jobs: state.appState.conductorJobs ?? emptyConductorJobsSnapshot(),
+      workDir,
     });
     if (panel.isEmpty() !== wasEmpty) {
       // Mount/unmount moves chrome regions (and the dock steals stage width) —
