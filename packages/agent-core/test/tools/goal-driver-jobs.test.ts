@@ -92,6 +92,7 @@ describe('goal-driver ledger binding', () => {
       title: 'oversized objective',
       kind: 'goal-driver',
       prompt: 'x'.repeat(4001),
+      goal_completion_criterion: 'pnpm test exits 0',
     });
     expect(exec.isError).toBeFalsy();
     if (exec.isError) return;
@@ -102,6 +103,18 @@ describe('goal-driver ledger binding', () => {
     });
     expect(result.isError).toBe(true);
     expect(String(result.output)).toMatch(/objective exceeds/);
+  });
+
+  it('rejects goal-driver without goal_completion_criterion', () => {
+    const store = memoryStore();
+    const tool = new JobCreateTool(store);
+    const exec = tool.resolveExecution({
+      title: 'Ship metrics dashboard',
+      kind: 'goal-driver',
+      prompt: 'Implement the metrics dashboard end to end.',
+    });
+    expect(exec.isError).toBe(true);
+    expect(String(exec.output)).toMatch(/goal_completion_criterion/);
   });
 
   it('routes goal-driver jobs to the goal-driver profile', () => {

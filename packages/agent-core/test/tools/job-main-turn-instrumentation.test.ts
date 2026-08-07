@@ -171,7 +171,10 @@ describe('V2-6 main-turn instrumentation under 3 concurrent workers', () => {
     // JobCreate exercises the full ACK path (ledger upsert + pump + grace race).
     for (let i = 1; i <= 3; i += 1) {
       const tool = new JobCreateTool(store, agent);
-      const exec = tool.resolveExecution({ title: `v2-6 interactive create ${i}` });
+      const exec = tool.resolveExecution({
+        title: `v2-6 interactive create ${i}`,
+        success_criteria: [`interactive create ${i} lands on the ledger`],
+      });
       if (exec.isError) throw new Error('resolve failed');
       const result = await measure('JobCreate', `create-${i}`, exec);
       expect(result.isError).toBe(false);

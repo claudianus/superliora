@@ -406,12 +406,12 @@ async function startGoal(
   parsed: Extract<ParsedGoalCommand, { kind: 'create' }>,
   options: GoalStartOptions,
 ): Promise<boolean> {
-  // Simple closed loop (Ralph Loop pattern): create goal record for multi-turn
-  // persistence, then send the user's objective verbatim. The model decides its
-  // own approach; the goal continuation driver keeps it running until
-  // UpdateGoal('complete') or budget exhaustion.
+  // Conductor sessions offload to Goal Desk + goal-driver Jobs (execution=goal-desk).
+  // Non-conductor keeps the classic Ralph loop: createGoal on the main agent, then
+  // send the objective so driveGoalTurnLoop can run.
+  let snapshot: Awaited<ReturnType<GoalCommandHost['requireSession']>['createGoal']> | undefined;
   try {
-    await host.requireSession().createGoal({
+    snapshot = await host.requireSession().createGoal({
       objective: parsed.objective,
       replace: parsed.replace,
     });
@@ -430,12 +430,17 @@ async function startGoal(
   }
   host.state.transcriptContainer.addChild(new GoalSetMessageComponent());
   requestTUILayoutRender(host.state);
+
+  const offloaded = snapshot?.execution === 'goal-desk';
+  if (offloaded) {
+    const desk = snapshot.deskJobId ? ` (${snapshot.deskJobId})` : '';
+    host.showStatus(`Goal Desk accepted${desk} — worker chasing the objective; lane stays free.`);
+    return true;
+  }
+
   if (options.sendInput !== undefined) {
     options.sendInput(parsed.objective);
   } else {
-    // Send the user's objective verbatim — no prompt wrapping.
-    // The model decides how to achieve it; the verifier is the model's own
-    // UpdateGoal('complete') judgment (or the completionCriterion if provided).
     host.sendNormalUserInput(parsed.objective);
   }
   return true;

@@ -4,6 +4,7 @@ import { basename } from 'pathe';
 
 import type { Agent } from '..';
 import { makeErrorPayload } from '#/errors/index';
+import { SOVEREIGN_CONDUCTOR_PROFILE_NAME } from '#/profile/main-profile';
 import type { TurnCancelSource } from '../../rpc/core-api';
 import type { TurnEndedEvent } from '../../rpc/events';
 import { abortable, isUserCancellation, userCancellationReason } from '../../utils/abort';
@@ -286,8 +287,13 @@ export class TurnFlow {
       this.activeTurn !== 'resuming' &&
       this.activeTurn.controller.signal === signal;
     try {
+      // Conductor never runs the goal continuation loop on the main lane —
+      // `/goal` is offloaded to Goal Desk + goal-driver Jobs.
+      const conductorMain =
+        this.agent.type === 'main' &&
+        this.agent.config.profileName === SOVEREIGN_CONDUCTOR_PROFILE_NAME;
       const initialGoalStatus = this.agent.goal.getGoal().goal?.status;
-      if (initialGoalStatus === 'active') {
+      if (initialGoalStatus === 'active' && !conductorMain) {
         return await this.driveGoal(firstTurnId, input, origin, signal);
       }
       let end = await this.runOneTurn(firstTurnId, input, origin, signal, true);
@@ -303,6 +309,7 @@ export class TurnFlow {
       }
       const goalBecameActive = this.agent.goal.getGoal().goal?.status === 'active';
       if (
+        !conductorMain &&
         goalBecameActive &&
         end.event.reason !== 'cancelled' &&
         end.event.reason !== 'failed' &&

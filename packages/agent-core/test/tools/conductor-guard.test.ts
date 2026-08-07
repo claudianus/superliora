@@ -421,7 +421,7 @@ describe('ConductorDirectWorkGuard', () => {
       });
       expect(recorded[0]?.draft.title).toContain('Write');
       expect(recorded[0]?.draft.title).toContain('/repo/src/auth.ts');
-      expect(recorded[0]?.draft.ownership).toBe('worker');
+      expect(recorded[0]?.draft.ownership).toBe('/repo/src/auth.ts');
       if (!second.allowed) {
         expect(second.output).toContain(formatConductorJobDraftRecordedAck('job_test_123'));
         // The draft is already queued — re-calling JobCreate would duplicate it.

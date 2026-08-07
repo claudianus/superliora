@@ -4,6 +4,7 @@ import agentYaml from './agent.yaml?raw';
 import coderYaml from './coder.yaml?raw';
 import exploreYaml from './explore.yaml?raw';
 import fullYaml from './full.yaml?raw';
+import goalDeskYaml from './goal-desk.yaml?raw';
 import goalDriverYaml from './goal-driver.yaml?raw';
 import initMd from './init.md?raw';
 import planYaml from './plan.yaml?raw';
@@ -21,6 +22,7 @@ const PROFILE_SOURCES: Record<string, string> = {
   'profile/default/coder.yaml': coderYaml,
   'profile/default/explore.yaml': exploreYaml,
   'profile/default/full.yaml': fullYaml,
+  'profile/default/goal-desk.yaml': goalDeskYaml,
   'profile/default/goal-driver.yaml': goalDriverYaml,
   'profile/default/plan.yaml': planYaml,
   'profile/default/subagent-base.yaml': subagentBaseYaml,
@@ -37,8 +39,18 @@ export const DEFAULT_INIT_PROMPT = initMd;
 export const SOVEREIGN_CORE_WAIST_PROFILE = 'core';
 
 export const DEFAULT_AGENT_PROFILES = loadAgentProfilesFromSources(
-  ['core.yaml', 'conductor.yaml', 'agent.yaml', 'subagent-base.yaml', 'coder.yaml', 'explore.yaml', 'full.yaml', 'goal-driver.yaml', 'plan.yaml', 'ultra-plan.yaml'].map(
-    (file) => `profile/default/${file}`,
-  ),
+  [
+    'core.yaml',
+    'conductor.yaml',
+    'agent.yaml',
+    'subagent-base.yaml',
+    'coder.yaml',
+    'explore.yaml',
+    'full.yaml',
+    'goal-desk.yaml',
+    'goal-driver.yaml',
+    'plan.yaml',
+    'ultra-plan.yaml',
+  ].map((file) => `profile/default/${file}`),
   PROFILE_SOURCES,
 );

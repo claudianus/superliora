@@ -204,7 +204,8 @@ async_compaction = false
 
     expect(session?.experimentalFlags.enabled('async_compaction')).toBe(false);
     expect(mainAgent?.experimentalFlags.enabled('async_compaction')).toBe(false);
-    expect(mainAgent?.tools.data().some((tool) => tool.name === 'CreateGoal')).toBe(true);
+    // Conductor keeps GetGoal for status; CreateGoal is offloaded to Goal Desk.
+    expect(mainAgent?.tools.data().some((tool) => tool.name === 'GetGoal')).toBe(true);
 
     await core.setKimiConfig({
       experimental: {
@@ -214,11 +215,11 @@ async_compaction = false
 
     expect(session?.experimentalFlags.enabled('async_compaction')).toBe(true);
     expect(mainAgent?.experimentalFlags.enabled('async_compaction')).toBe(true);
-    expect(mainAgent?.tools.data().some((tool) => tool.name === 'CreateGoal')).toBe(true);
+    expect(mainAgent?.tools.data().some((tool) => tool.name === 'GetGoal')).toBe(true);
 
     await rpc.reloadSession({ sessionId: created.id });
     const reloadedMainAgent = core.sessions.get(created.id)?.getReadyAgent('main');
-    expect(reloadedMainAgent?.tools.data().some((tool) => tool.name === 'CreateGoal')).toBe(true);
+    expect(reloadedMainAgent?.tools.data().some((tool) => tool.name === 'GetGoal')).toBe(true);
   });
 
   // Regression for https://github.com/MoonshotAI/kimi-code/issues/988: during

@@ -198,8 +198,7 @@ describe('default agent profiles', () => {
     for (const name of [
       'EnterPlanMode',
       'ExitPlanMode',
-      'CreateGoal',
-      'UpdateGoal',
+      'GetGoal',
       'JobCreate',
       'JobList',
       'MergeJob',
@@ -208,6 +207,9 @@ describe('default agent profiles', () => {
     ] as const) {
       expect(tools).toContain(name);
     }
+    // `/goal` is session-API → Goal Desk; keep CreateGoal/UpdateGoal off Conductor.
+    expect(tools).not.toContain('CreateGoal');
+    expect(tools).not.toContain('UpdateGoal');
     // Plan phases run inside a plan worker, never on this lane
     expect(tools).not.toContain('NextPhase');
     expect(tools).not.toContain('RecordInterviewFinding');

@@ -22,6 +22,8 @@ export interface GoalBudgetReport {
   readonly overBudget: boolean;
 }
 
+export type GoalExecutionLane = 'agent' | 'goal-desk';
+
 export interface GoalSnapshot {
   readonly goalId: string;
   readonly objective: string;
@@ -32,6 +34,8 @@ export interface GoalSnapshot {
   readonly wallClockMs: number;
   readonly budget: GoalBudgetReport;
   readonly terminalReason?: string;
+  readonly execution?: GoalExecutionLane;
+  readonly deskJobId?: string;
 }
 
 export interface GoalToolResult {
@@ -83,6 +87,8 @@ export const goalBudgetReportSchema = z.object({
   overBudget: z.boolean(),
 }) satisfies z.ZodType<GoalBudgetReport>;
 
+export const goalExecutionLaneSchema = z.enum(['agent', 'goal-desk']) satisfies z.ZodType<GoalExecutionLane>;
+
 export const goalSnapshotSchema = z.object({
   goalId: z.string(),
   objective: z.string(),
@@ -93,6 +99,8 @@ export const goalSnapshotSchema = z.object({
   wallClockMs: z.number(),
   budget: goalBudgetReportSchema,
   terminalReason: z.string().optional(),
+  execution: goalExecutionLaneSchema.optional(),
+  deskJobId: z.string().optional(),
 }) satisfies z.ZodType<GoalSnapshot>;
 
 export const goalToolResultSchema = z.object({

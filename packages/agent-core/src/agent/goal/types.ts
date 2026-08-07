@@ -116,6 +116,13 @@ export interface GoalBudgetReport {
   readonly overBudget: boolean;
 }
 
+/**
+ * Where the goal loop runs.
+ * - `agent`: main/subagent GoalMode (classic `/goal` on non-conductor).
+ * - `goal-desk`: Conductor offload — Goal Desk Job + goal-driver worker(s).
+ */
+export type GoalExecutionLane = 'agent' | 'goal-desk';
+
 /** Public, computed view of the current goal. */
 export interface GoalSnapshot {
   readonly goalId: string;
@@ -128,6 +135,10 @@ export interface GoalSnapshot {
   readonly wallClockMs: number;
   readonly budget: GoalBudgetReport;
   readonly terminalReason?: string;
+  /** Absent/`agent` = local GoalMode; `goal-desk` = Job offload (Conductor). */
+  readonly execution?: GoalExecutionLane;
+  /** Present when execution is goal-desk — umbrella Job id. */
+  readonly deskJobId?: string;
 }
 
 /** Wrapper returned by goal read operations and tools. */

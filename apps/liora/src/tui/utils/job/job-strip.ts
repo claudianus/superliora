@@ -305,6 +305,7 @@ const JOB_KINDS: readonly JobEventKind[] = [
   'mission',
   'merge',
   'desk',
+  'goal-desk',
   'goal-driver',
 ];
 

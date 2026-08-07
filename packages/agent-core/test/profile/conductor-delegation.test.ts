@@ -42,12 +42,11 @@ const CONDUCTOR_TOOL_SNAPSHOT = [
   'WebSearch',
   'FetchURL',
   'TodoList',
-  // Plan/goal lifecycle spine
+  // Plan/goal lifecycle spine — CreateGoal/UpdateGoal stay off so `/goal`
+  // offloads to Goal Desk Jobs instead of a main-lane loop.
   'EnterPlanMode',
   'ExitPlanMode',
-  'CreateGoal',
   'GetGoal',
-  'UpdateGoal',
   // Job ledger desk — the only delegation means
   'JobCreate',
   'JobList',
@@ -91,12 +90,10 @@ describe('conductor delegation-only tool surface', () => {
         'JobResume',
         'JobInbox',
         'MergeJob',
-        // Plan/goal lifecycle management (§2.1 item 5)
+        // Plan/goal lifecycle management (§2.1 item 5) — status only on this lane
         'EnterPlanMode',
         'ExitPlanMode',
-        'CreateGoal',
         'GetGoal',
-        'UpdateGoal',
         // Clarification + skills (§2.1 items 4, 6)
         'AskUserQuestion',
         'Skill',

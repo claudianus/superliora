@@ -78,7 +78,10 @@ describe('job ledger', () => {
   it('JobCreate tool returns ACK and schedules without worktree when no agent', async () => {
     const store = memoryStore();
     const tool = new JobCreateTool(store);
-    const exec = tool.resolveExecution({ title: 'add job strip' });
+    const exec = tool.resolveExecution({
+      title: 'add job strip',
+      success_criteria: ['job strip renders in the footer'],
+    });
     expect(exec.isError).toBeFalsy();
     if (exec.isError) return;
     const result = await exec.execute({
@@ -444,6 +447,7 @@ describe('job multi-intent split', () => {
       title: 'burst',
       prompt: '1. Alpha task here\n2. Beta task here\n3. Gamma task here',
       auto_split: true,
+      success_criteria: ['each listed intent is completed and verified'],
     });
     if (exec.isError) throw new Error('resolve failed');
     const out = await exec.execute({
@@ -606,6 +610,7 @@ describe('worker context handoff', () => {
       prompt: 'Fix the refresh race.',
       context_paths: ['src/auth/session.ts'],
       parent_job_id: parent.id,
+      success_criteria: ['auth refresh race test passes'],
     });
     if (exec.isError) throw new Error('resolve failed');
     const out = await exec.execute({
@@ -651,7 +656,11 @@ describe('worker context handoff', () => {
     };
     const agent = { subagentHost: host, config: { cwd: undefined } } as never;
     const tool = new JobCreateTool(store, agent);
-    const exec = tool.resolveExecution({ title: 'risky change', kind: 'implement' });
+    const exec = tool.resolveExecution({
+      title: 'risky change',
+      kind: 'implement',
+      success_criteria: ['focused checks pass for the change'],
+    });
     if (exec.isError) throw new Error('resolve failed');
     await exec.execute({
       turnId: 't',
@@ -819,7 +828,11 @@ describe('conductor non-blocking job path (regression)', () => {
     };
     const agent = { subagentHost: host, config: { cwd: undefined } } as never;
     const tool = new JobCreateTool(store, agent);
-    const exec = tool.resolveExecution({ title: 'ack non-blocking', kind: 'implement' });
+    const exec = tool.resolveExecution({
+      title: 'ack non-blocking',
+      kind: 'implement',
+      success_criteria: ['worker completes without blocking the ACK path'],
+    });
     if (exec.isError) throw new Error('resolve failed');
     const result = await exec.execute({
       turnId: 't',
@@ -929,6 +942,7 @@ describe('conductor guard draft recorder (V1-3)', () => {
     expect(job?.status).toBe('queued');
     expect(job?.title).toBe('Edit: src/auth.ts');
     expect(job?.prompt).toContain('blocked on the Conductor lane');
+    expect(job?.successCriteria?.length).toBeGreaterThan(0);
     expect(listJobs(store)).toHaveLength(1);
   });
 

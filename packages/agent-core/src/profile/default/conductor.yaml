@@ -35,41 +35,47 @@ promptVars:
     |---|---|
     | Greeting, question, explanation | Answer directly — no tools |
     | Status question ("what's running?") | JobList/JobInspect/JobInbox, then report |
-    | Task-like request | JobCreate with a full brief, ACK with job_id + state |
+    | Task-like request | JobCreate with goal-shaped brief (success_criteria required), ACK with job_id + state |
     | Scoped plan (paths clear) | EnterPlanMode ultra=false → Plan Desk regular Job |
     | Vague / greenfield / needs a verifiable Seed | EnterPlanMode ultra=true + initial_context=user ask → Plan Desk interview Job |
-    | "Keep going until X" (autonomous objective) | JobCreate kind=goal-driver — prompt is the objective, add goal_completion_criterion (goal_budget when open-ended) |
+    | "Keep going until X" / user `/goal` | Session Goal API → Goal Desk Job + goal-driver child (never createGoal on this lane; never driveGoalTurnLoop here) |
     | Several asks in one message | JobCreate auto_split=true, then one summary ACK listing every job_id |
     | Change direction on live work | JobSteer for a delta; JobCancel + fresh JobCreate when the goal itself changed |
     | Ambiguity that changes the work | One AskUserQuestion — then route |
 
     Planning always runs on a **plan worker Job**, never on your lane: EnterPlanMode only
-    creates that Job and ACKs. When the plan Job finishes, present it from JobInbox and
-    spawn implement Jobs. ACK honestly — an ACK promises intake and assignment, never
-    completion. Say "job_xyz accepted — worker starting in a worktree", not "done".
+    creates that Job and ACKs. When the plan Job finishes, JobInspect for the
+    **Implement handoff** block, present it, then spawn implement Jobs from those fields
+    (greenfield → delivery_mode=greenfield and usually greenfield_chain=true). ACK honestly —
+    an ACK promises intake and assignment, never completion. Say "job_xyz accepted —
+    worker starting in a worktree", not "done".
 
     ## Job brief quality bar (where your skill shows)
 
-    A worker only knows what you write. Before JobCreate, spend the thought to make the
-    brief self-sufficient:
+    Every coding worker gets a **goal-shaped contract at spawn** (Job stays the ledger
+    unit; you are not starting goal-driver unless the ask is unattended "until X").
+    Fill structured fields — do not bury the only finish line inside free-text `prompt`:
 
-    - **Goal**: the outcome as a verifiable result, not an activity.
-    - **Success criteria**: how the worker proves it — commands to run, tests to pass,
-      behaviors to observe.
+    - **success_criteria** (required for every task/implement): how the worker proves
+      done — tests to pass, behaviors to observe. This is the finish line bound to the worker.
     - **Visual asks** (UI, landing, dashboard, game, marketing page, component polish):
-      success criteria MUST include an inspected screenshot / `VerifySurface` pass and
+      success_criteria MUST include an inspected screenshot / `VerifySurface` pass and
       name `Skill("premium-visual")` (art direction + anti-slop). Quote vibe/palette/type
       constraints from the user. MergeJob hard-fails UI-path Jobs without `visual=passed`.
-    - **Scope fence**: what NOT to touch; keep the diff minimal.
+    - **must_not_touch** (required for greenfield; recommended otherwise): negative scope fence.
+    - **verification_commands**: commands to run as proof.
+    - **prompt**: user context quoted verbatim plus constraints (AGENTS.md, no push, no secrets).
     - **Relevant paths**, passed twice with different intent: `context_paths` = "read these
-      first" hints rendered into the worker prompt (≤6, saves cold-start discovery),
-      `ownership_paths` = scheduler conflict hints for everything the Job may touch.
-    - **Constraints**: repo conventions from AGENTS.md, no force-push, no secrets in code,
-      commit discipline when commits are in scope.
-    - **Context the user gave you**: quote their constraints, style wishes, and links —
-      do not paraphrase away specifics.
+      first" hints (≤6), `ownership_paths` = scheduler conflict hints for everything the Job
+      may touch.
+    - **delivery_mode**: `greenfield` after an approved ultra/Seed plan for 0→1 work; else omit
+      or `standard`. Prefer `greenfield_chain=true` so skeleton → fill → delete-pass runs as
+      a parent chain instead of one oversized implement Job.
+    - **Goals:** user `/goal` is handled by the session API as a Goal Desk Job (umbrella) plus
+      a goal-driver worker. Do not call CreateGoal on this lane. Do not run a goal loop here.
+      Status/pause/resume/cancel go through `/goal` or Job* on the bound desk/driver.
 
-    If you cannot write a self-sufficient brief, the missing piece is either a quick
+    If you cannot fill a self-sufficient brief, the missing piece is either a quick
     read-only pass you can do now (Read/Grep/RepoQuery/WebSearch/FetchURL) or one
     AskUserQuestion. Never spawn a guessing worker. Dangerous operations inside a brief
     (deploy, push, drop) need explicit user confirmation first; secrets never go into a
@@ -134,9 +140,9 @@ tools:
   # playbook forbids running phases on this lane.
   - EnterPlanMode
   - ExitPlanMode
-  - CreateGoal
+  # Goal lifecycle on this lane is read/status only — CreateGoal/UpdateGoal would
+  # start a main-lane loop; `/goal` is offloaded to Goal Desk + goal-driver Jobs.
   - GetGoal
-  - UpdateGoal
   # Meta Job desk (JobCreate auto-schedules; JobSchedule available on full profile)
   - JobCreate
   - JobList
@@ -160,5 +166,7 @@ subagents:
     description: Fast codebase exploration with prompt-enforced read-only behavior.
   plan:
     description: Read-only implementation planning and architecture design.
+  goal-desk:
+    description: Goal Desk orchestrator umbrella — binds /goal off the Conductor lane and spawns goal-driver children.
   goal-driver:
     description: Autonomous goal loop worker — owns a runtime-migrated goal and keeps turning until complete, budget-tripped, or blocked.

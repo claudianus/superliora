@@ -302,6 +302,23 @@ describe('handleGoalCommand', () => {
     expect(calls[0]?.text).toBe('Ship feature X');
   });
 
+  it('skips sendNormalUserInput when createGoal offloads to Goal Desk', async () => {
+    session.createGoal.mockResolvedValueOnce({
+      ...fakeSnapshot(),
+      execution: 'goal-desk',
+      deskJobId: 'job_desk1',
+    });
+
+    await handleGoalCommand(host, 'Ship feature X');
+    await confirmGoalStart(host, session, 'auto');
+
+    expect(session.createGoal).toHaveBeenCalled();
+    expect(host.sendNormalUserInput).not.toHaveBeenCalled();
+    expect(host.showStatus).toHaveBeenCalledWith(
+      expect.stringMatching(/Goal Desk accepted/),
+    );
+  });
+
   it('asks before starting a goal in Manual mode', async () => {
     const { host: manualHost, session: s } = makeHost({ permissionMode: 'manual' });
 

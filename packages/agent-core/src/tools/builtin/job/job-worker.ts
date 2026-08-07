@@ -34,6 +34,11 @@ import {
 } from './job-worker-ledger-bridge';
 import { emitJobEvents, inboxToWireEvent, jobRecordToUpdatedEvent } from './job-emit';
 import { inboxKindForStatus, pushJobInboxEvent } from './job-inbox';
+import { syncGoalDeskParentFromDriver } from '../goal/goal-session-binding';
+import {
+  renderDeliveryPhaseContract,
+  renderStructuredBriefSections,
+} from './job-brief';
 import { getJob, listJobs, patchJob, type JobRecord, type JobStatus } from './job-ledger';
 import { profileForJobKind } from './job-runtime';
 import { commitJobWorktreeIfDirty } from './job-worktree-commit';
@@ -89,6 +94,8 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
             'Write only to the plan file, then ExitPlanMode. Do not implement product code.',
           ].join('\n')
       : undefined,
+    renderDeliveryPhaseContract(job.deliveryPhase),
+    renderStructuredBriefSections(job),
     job.prompt?.trim() ? `Brief:\n${job.prompt.trim()}` : undefined,
     job.contextPaths?.length
       ? `Read these first: ${job.contextPaths.join(', ')}`
@@ -228,13 +235,25 @@ async function snapshotWorkerWorktree(
  * lifetime is fire-and-forget (`void handle.completion`) so the meta turn is not blocked.
  */
 export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<LaunchJobWorkerResult> {
-  const host = input.agent.subagentHost;
-  if (host === undefined) {
-    return { ok: false, error: 'subagentHost unavailable' };
-  }
   const job = getJob(input.store, input.job.id) ?? input.job;
   if (job.status !== 'running') {
     return { ok: false, error: `job not running: ${job.status}` };
+  }
+
+  // Goal Desk v1: ledger umbrella only — child goal-driver owns the LLM loop.
+  // No subagentHost required (desk never spawns an LLM worker).
+  if (job.kind === 'goal-desk') {
+    patchJob(input.store, job.id, {
+      notes: [job.notes, 'goal-desk: umbrella (no worker; drivers execute)']
+        .filter(Boolean)
+        .join('\n'),
+    });
+    return { ok: true };
+  }
+
+  const host = input.agent.subagentHost;
+  if (host === undefined) {
+    return { ok: false, error: 'subagentHost unavailable' };
   }
 
   const controller = new AbortController();
@@ -398,6 +417,7 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
         });
         if (updated) {
           notifyInbox(input.store, updated, finalStatus, updated.resultSummary, input.agent);
+          syncGoalDeskParentFromDriver(input.store, updated);
         }
       })
       .catch(async (error: unknown) => {
@@ -418,6 +438,7 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
         });
         if (updated) {
           notifyInbox(input.store, updated, 'failed', updated.resultSummary, input.agent);
+          syncGoalDeskParentFromDriver(input.store, updated);
         }
       })
       .finally(() => {

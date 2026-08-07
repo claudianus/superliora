@@ -27,12 +27,18 @@ import {
   renderJobInboxBrief,
 } from './job-inbox';
 import {
+  parseImplementHandoff,
+  renderImplementHandoffDraft,
+} from '../planning/implement-handoff';
+import { nonEmptyStringList } from './job-brief';
+import {
   createJob,
   getJob,
   listJobs,
   patchJob,
   renderJobLedger,
   renderJobLine,
+  type JobDeliveryMode,
   type JobKind,
   type JobRecord,
   type JobStatus,
@@ -46,6 +52,7 @@ import {
 import { dispatchMergeLand, type LandJobToMainInput } from './job-land';
 import { evaluateMergeTrust, mergeTrustInputFromLedger } from './job-merge-trust';
 import { splitUserMessageIntoJobIntents } from './job-split';
+import { createGreenfieldChainJobs } from './job-greenfield-chain';
 import { cancelJobWorker, resumeJobs, steerJobWorker } from './job-worker';
 
 const JobKindSchema = z.enum([
@@ -55,6 +62,7 @@ const JobKindSchema = z.enum([
   'mission',
   'merge',
   'desk',
+  'goal-desk',
   'goal-driver',
 ]);
 const JobStatusSchema = z.enum([
@@ -67,6 +75,9 @@ const JobStatusSchema = z.enum([
   'cancelled',
   'interrupted',
 ]);
+const JobDeliveryModeSchema = z.enum(['standard', 'greenfield']);
+
+const stringListField = z.array(z.string().trim().min(1)).optional();
 
 const JobCreateInputSchema = z
   .object({
@@ -78,7 +89,7 @@ const JobCreateInputSchema = z
         'Short outcome-shaped title for the ledger and ACK (verb + deliverable, e.g. "Fix auth token refresh race").',
       ),
     kind: JobKindSchema.optional().describe(
-      'Job kind. task/implement = code work (default task), explore = read-only research, mission = Plan Desk / long-running spine (plan profile + structured plan at spawn), merge = landing worker, desk = digest, goal-driver = autonomous goal loop (the runtime migrates a Goal onto the worker, which self-continues toward it; use prompt as the objective and goal_completion_criterion as its finish line). Defaults to task.',
+      'Job kind. task/implement = code work (default task), explore = read-only research, mission = Plan Desk / long-running spine (plan profile + structured plan at spawn), merge = landing worker, desk = inbox digest, goal-desk = Goal Desk orchestrator (spawns goal-driver children; no main-lane goal loop), goal-driver = autonomous goal loop (the runtime migrates a Goal onto the worker; use prompt as the objective and goal_completion_criterion as its finish line). Defaults to task.',
     ),
     priority: z
       .number()
@@ -91,19 +102,31 @@ const JobCreateInputSchema = z
       .string()
       .optional()
       .describe(
-        'Self-sufficient worker brief: goal as a verifiable outcome, success criteria (commands/tests that prove it), scope fence (what NOT to touch), starting paths, repo constraints (AGENTS.md rules, no push, no secrets), and the user context quoted verbatim. The worker sees nothing else.',
+        'Free-text worker context quoted from the user plus constraints. Pair with success_criteria / must_not_touch / verification_commands — those structured fields are the brief contract; do not bury the only success criteria inside this string.',
       ),
-    ownership_paths: z
-      .array(z.string().trim().min(1))
+    ownership_paths: stringListField.describe(
+      'Paths this job intends to touch — the scheduler conflict hint. Overlapping ownership between parallel jobs risks racing; keep siblings disjoint or chain them via parent_job_id.',
+    ),
+    context_paths: stringListField.describe(
+      'Read-first hints for the worker: files/dirs it should inspect before exploring on its own (entry points, failing tests, referenced specs). Saves cold-start discovery turns; keep it short (≤6).',
+    ),
+    success_criteria: stringListField.describe(
+      'Verifiable done-lines (tests to pass, behaviors to observe). Required for every task/implement Job — this is the goal contract bound to the worker at spawn. Not required for explore/mission/desk/goal-desk/merge/goal-driver.',
+    ),
+    must_not_touch: stringListField.describe(
+      'Negative scope fence — paths or concerns the worker must not touch. Required when delivery_mode=greenfield for task/implement; strongly recommended otherwise.',
+    ),
+    verification_commands: stringListField.describe(
+      'Commands the worker should run as proof (e.g. pnpm test path). Prefer these over burying commands only inside prompt.',
+    ),
+    delivery_mode: JobDeliveryModeSchema.optional().describe(
+      'standard (default) or greenfield. All task/implement Jobs need success_criteria; greenfield also needs must_not_touch. Use greenfield_chain to enqueue skeleton→fill→delete-pass.',
+    ),
+    greenfield_chain: z
+      .boolean()
       .optional()
       .describe(
-        'Paths this job intends to touch — the scheduler conflict hint. Overlapping ownership between parallel jobs risks racing; keep siblings disjoint or chain them via parent_job_id.',
-      ),
-    context_paths: z
-      .array(z.string().trim().min(1))
-      .optional()
-      .describe(
-        'Read-first hints for the worker: files/dirs it should inspect before exploring on its own (entry points, failing tests, referenced specs). Saves cold-start discovery turns; keep it short (≤6).',
+        'When true (and delivery_mode=greenfield), create three chained implement Jobs: skeleton → fill → delete-pass. Rejects instead of falling back if the structured brief is incomplete.',
       ),
     parent_job_id: z
       .string()
@@ -114,7 +137,7 @@ const JobCreateInputSchema = z
       .trim()
       .optional()
       .describe(
-        'kind=goal-driver only: the verifiable finish line the driver goal must meet (commands passing, behavior observable). The runtime creates the Goal with it — do not restate it as an instruction to the worker.',
+        'kind=goal-driver: required verifiable finish line the driver goal must meet (commands passing, behavior observable). The runtime creates the Goal with it — do not restate it as an instruction to the worker.',
       ),
     goal_budget: z
       .object({
@@ -138,7 +161,56 @@ const JobCreateInputSchema = z
         'Split a multi-intent prompt into one Job per intent (user asked several independent things at once). Prefer explicit separate JobCreate calls when intents need different kinds/ownership; falls back to a single Job when splitting fails.',
       ),
   })
-  .strict();
+  .strict()
+  .superRefine((val, ctx) => {
+    if (val.kind === 'goal-driver') {
+      if ((val.goal_completion_criterion ?? '').trim().length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'goal-driver requires goal_completion_criterion (verifiable finish line) — draft one before JobCreate.',
+          path: ['goal_completion_criterion'],
+        });
+      }
+    }
+    const mode = val.delivery_mode ?? 'standard';
+    const codingKind =
+      val.kind === undefined || val.kind === 'task' || val.kind === 'implement';
+    // Goal contract on every coding worker: success_criteria is the finish line
+    // bound at spawn (not a full goal-driver loop). explore/mission/desk/merge skip.
+    if (codingKind && nonEmptyStringList(val.success_criteria).length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'task/implement requires non-empty success_criteria — bind a verifiable finish line before spawning the worker.',
+        path: ['success_criteria'],
+      });
+    }
+    if (mode === 'greenfield' && codingKind) {
+      if (nonEmptyStringList(val.must_not_touch).length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'delivery_mode=greenfield requires non-empty must_not_touch — rewrite the brief before spawning.',
+          path: ['must_not_touch'],
+        });
+      }
+    }
+    if (val.greenfield_chain === true && mode !== 'greenfield') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'greenfield_chain requires delivery_mode=greenfield.',
+        path: ['greenfield_chain'],
+      });
+    }
+    if (val.greenfield_chain === true && val.auto_split === true) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'greenfield_chain cannot combine with auto_split.',
+        path: ['greenfield_chain'],
+      });
+    }
+  });
 
 const JobListInputSchema = z
   .object({
@@ -233,6 +305,11 @@ export function renderJobInspect(job: JobRecord): string {
   push('parent', job.parentJobId);
   push('goal', job.goalObjective);
   push('context_paths', job.contextPaths?.join(', '));
+  push('success_criteria', job.successCriteria?.join(' | '));
+  push('must_not_touch', job.mustNotTouch?.join(' | '));
+  push('verification_commands', job.verificationCommands?.join(' | '));
+  push('delivery_mode', job.deliveryMode);
+  push('delivery_phase', job.deliveryPhase);
   if (job.progress !== undefined) {
     push(
       'progress',
@@ -257,6 +334,14 @@ export function renderJobInspect(job: JobRecord): string {
     lines.push(`files_changed: ${shown}${more}`);
   }
   push('result', job.resultSummary);
+  const handoff = parseImplementHandoff(job.resultSummary ?? '');
+  if (handoff !== undefined) {
+    lines.push(renderImplementHandoffDraft(handoff));
+  } else if (job.kind === 'mission' && (job.resultSummary?.trim().length ?? 0) > 0) {
+    lines.push(
+      'implement_handoff: missing — steer the plan worker to append ## Implement handoff before JobCreate.',
+    );
+  }
   push('notes', job.notes === undefined ? undefined : `\n${job.notes}`);
   const brief = job.prompt?.trim();
   if (brief !== undefined && brief.length > 0) {
@@ -270,13 +355,59 @@ export function renderJobInspect(job: JobRecord): string {
 /** The brief is already in the worker's prompt; inspect only needs its shape. */
 const JOB_INSPECT_BRIEF_MAX_CHARS = 800;
 
+async function ackCreatedJobs(input: {
+  readonly store: ToolStore;
+  readonly agent?: Agent;
+  readonly created: readonly JobRecord[];
+  readonly pool: ReturnType<typeof resolveConductorPoolConfig>;
+  readonly batchLabel?: string;
+}): Promise<{ isError: false; output: string }> {
+  // V2-1 ACK deadline (G1): scheduling + worker spawns run on the offload lane.
+  requestJobSchedulePump({ store: input.store, agent: input.agent });
+  if (input.agent?.subagentHost !== undefined) {
+    await Promise.race([
+      getJobWorkerSpawner().settle(),
+      new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, JOB_CREATE_ACK_SPAWN_GRACE_MS);
+        (timer as { unref?: () => void }).unref?.();
+      }),
+    ]);
+  }
+
+  const backpressure =
+    countJobsWithStatus(input.store, ['running']) >= input.pool.maxConcurrentJobs;
+
+  const lines: string[] = [];
+  if (input.created.length > 1) {
+    lines.push(
+      `ACK batch count=${input.created.length}${input.batchLabel ? ` (${input.batchLabel})` : ' (multi-intent split)'}`,
+    );
+  }
+  for (const job of input.created) {
+    const latest = getJob(input.store, job.id) ?? job;
+    lines.push(ack(latest.id, latest.status, renderJobLine(latest)));
+    if (latest.worktreePath) {
+      lines.push(`worktree: ${latest.worktreePath}`);
+    }
+  }
+  lines.push(
+    'schedule: offloaded — background pump promotes queued jobs; transitions land on ledger/inbox.',
+  );
+  lines.push(`pool: maxConcurrent=${input.pool.maxConcurrentJobs}`);
+  if (backpressure) {
+    lines.push('Backpressure active — new jobs remain queued until a slot frees.');
+  }
+  return { isError: false, output: lines.join('\n') };
+}
+
 export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputSchema>> {
   readonly name = 'JobCreate' as const;
   readonly description =
     'Delegate work: create a Conductor Job on the meta ledger and return an immediate ACK (job_id + state). ' +
     'The ONLY path for any file mutation, build, test, install, or verification loop on the Conductor lane — even a one-line fix. ' +
-    'Route every task-like user request here first so nothing is lost while workers run; write a self-sufficient brief (goal, success criteria, scope fence, paths, constraints), pass ownership_paths, and add context_paths for files the worker should read first. ' +
-    'Multi-intent messages: auto_split=true or several calls in one turn, then one summary ACK. Scheduling is offloaded — the ACK never waits for the worker.';
+    'Bind a goal-shaped contract at spawn: success_criteria is required for every task/implement Job (finish line the worker must prove). Also pass must_not_touch / verification_commands / ownership_paths / context_paths when known. ' +
+    'Greenfield: delivery_mode=greenfield (+ usually greenfield_chain). Long unattended loops: kind=goal-driver with goal_completion_criterion. ' +
+    'Multi-intent: auto_split=true or several calls, then one summary ACK. Scheduling is offloaded — the ACK never waits for the worker.';
   readonly parameters: Record<string, unknown> = toInputJsonSchema(JobCreateInputSchema);
 
   constructor(
@@ -300,11 +431,10 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
       approvalRule: this.name,
       execute: async () => {
         const pool = resolveConductorPoolConfig();
-
-        const intents =
-          a.auto_split === true
-            ? splitUserMessageIntoJobIntents(a.prompt?.trim() || a.title)
-            : [{ title: a.title, prompt: a.prompt ?? a.title }];
+        const deliveryMode: JobDeliveryMode = a.delivery_mode ?? 'standard';
+        const successCriteria = nonEmptyStringList(a.success_criteria);
+        const mustNotTouch = nonEmptyStringList(a.must_not_touch);
+        const verificationCommands = nonEmptyStringList(a.verification_commands);
 
         const isGoalDriver = a.kind === 'goal-driver';
         if (isGoalDriver) {
@@ -320,6 +450,33 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
           }
         }
 
+        if (a.greenfield_chain === true) {
+          const created = createGreenfieldChainJobs(this.store, {
+            title: a.title,
+            kind: a.kind as JobKind | undefined,
+            priority: a.priority,
+            prompt: a.prompt,
+            ownershipPaths: a.ownership_paths,
+            contextPaths: a.context_paths,
+            successCriteria,
+            mustNotTouch,
+            verificationCommands,
+            parentJobId: a.parent_job_id,
+          });
+          return ackCreatedJobs({
+            store: this.store,
+            agent: this.agent,
+            created,
+            pool,
+            batchLabel: 'greenfield chain skeleton→fill→delete-pass',
+          });
+        }
+
+        const intents =
+          a.auto_split === true
+            ? splitUserMessageIntoJobIntents(a.prompt?.trim() || a.title)
+            : [{ title: a.title, prompt: a.prompt ?? a.title }];
+
         const created = intents.map((intent, index) =>
           createJob(this.store, {
             title: intent.title || a.title,
@@ -328,6 +485,11 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
             prompt: intent.prompt,
             ownershipPaths: a.ownership_paths,
             contextPaths: a.context_paths,
+            successCriteria: successCriteria.length > 0 ? successCriteria : undefined,
+            mustNotTouch: mustNotTouch.length > 0 ? mustNotTouch : undefined,
+            verificationCommands:
+              verificationCommands.length > 0 ? verificationCommands : undefined,
+            deliveryMode: deliveryMode === 'standard' ? undefined : deliveryMode,
             parentJobId: a.parent_job_id,
             ...(isGoalDriver
               ? {
@@ -346,45 +508,12 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
           }),
         );
 
-        // V2-1 ACK deadline (G1): scheduling + worker spawns run on the
-        // offload lane (deferred pump → serialized WorkerSpawner); failures
-        // land on ledger/inbox, never on this return path. The short grace
-        // race lets a fast handshake enrich the ACK with the worker id while
-        // a slow handshake (incident 2026-08-03: ~125s) can never push the
-        // ACK past the locked 250ms deadline.
-        requestJobSchedulePump({ store: this.store, agent: this.agent });
-        if (this.agent?.subagentHost !== undefined) {
-          await Promise.race([
-            getJobWorkerSpawner().settle(),
-            new Promise<void>((resolve) => {
-              const timer = setTimeout(resolve, JOB_CREATE_ACK_SPAWN_GRACE_MS);
-              (timer as { unref?: () => void }).unref?.();
-            }),
-          ]);
-        }
-
-        const backpressure =
-          countJobsWithStatus(this.store, ['running']) >= pool.maxConcurrentJobs;
-
-        const lines: string[] = [];
-        if (created.length > 1) {
-          lines.push(`ACK batch count=${created.length} (multi-intent split)`);
-        }
-        for (const job of created) {
-          const latest = getJob(this.store, job.id) ?? job;
-          lines.push(ack(latest.id, latest.status, renderJobLine(latest)));
-          if (latest.worktreePath) {
-            lines.push(`worktree: ${latest.worktreePath}`);
-          }
-        }
-        lines.push(
-          'schedule: offloaded — background pump promotes queued jobs; transitions land on ledger/inbox.',
-        );
-        lines.push(`pool: maxConcurrent=${pool.maxConcurrentJobs}`);
-        if (backpressure) {
-          lines.push('Backpressure active — new jobs remain queued until a slot frees.');
-        }
-        return { isError: false, output: lines.join('\n') };
+        return ackCreatedJobs({
+          store: this.store,
+          agent: this.agent,
+          created,
+          pool,
+        });
       },
     };
   }
@@ -833,7 +962,18 @@ export function createConductorJobTools(store: ToolStore, agent?: Agent): Builti
  */
 export function createConductorJobDraftRecorder(store: ToolStore): ConductorJobDraftRecorder {
   return ({ draft }) => {
-    const job = createJob(store, { title: draft.title, prompt: draft.prompt });
+    // Guard escalation bypasses JobCreate schema; still bind a minimal finish line
+    // so the worker prompt is goal-shaped rather than open-ended effort.
+    const ownershipLooksLikePath =
+      draft.ownership.includes('/') || draft.ownership.includes('.');
+    const job = createJob(store, {
+      title: draft.title,
+      prompt: draft.prompt,
+      successCriteria: [
+        'Blocked Conductor work completed in the worktree and verified (tests or observable check).',
+      ],
+      ownershipPaths: ownershipLooksLikePath ? [draft.ownership] : undefined,
+    });
     return { jobId: job.id };
   };
 }

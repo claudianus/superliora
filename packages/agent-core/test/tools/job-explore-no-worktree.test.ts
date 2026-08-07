@@ -66,6 +66,15 @@ describe('explore jobs skip worktree creation', () => {
     expect(created).toEqual([]);
   });
 
+  it('skips the worktree for goal-desk umbrellas', async () => {
+    const created: string[] = [];
+    const { store, jobId } = await scheduleOne('goal-desk', created);
+
+    expect(getJob(store, jobId)?.status).toBe('running');
+    expect(getJob(store, jobId)?.worktreePath).toBeUndefined();
+    expect(created).toEqual([]);
+  });
+
   it('still isolates kinds that can write', async () => {
     for (const kind of ['implement', 'task', 'mission', 'merge'] as const) {
       const created: string[] = [];

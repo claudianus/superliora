@@ -13,6 +13,7 @@ import {
   runDeskDigestCycle,
 } from '#/tools/builtin/job/job-desk';
 import {
+  getJob,
   listJobs,
   readJobLedger,
   renderJobLine,
@@ -23,6 +24,10 @@ import {
   formatJobStripLine,
   summarizeJobStrip,
 } from '#/tools/builtin/job/job-runtime';
+import {
+  parseImplementHandoff,
+  textLooksLikePlanCompletion,
+} from '#/tools/builtin/planning/implement-handoff';
 import { UNVERIFIED_SUMMARY_PREFIX } from '#/session/subagent/subagent-result-contract';
 import type { ToolStore } from '#/tools/store';
 
@@ -76,7 +81,7 @@ export class JobDeskInjector extends DynamicInjector {
       }
       // Throttle strip-only: once per injectedAt cycle is enough via DynamicInjector.
       if (this.injectedAt !== null) return undefined;
-      return renderJobDeskInjection([], strip, { live });
+      return renderJobDeskInjection([], strip, { live, store });
     }
 
     // Contract §4.2 offloading: a burst is digested here (ledger-only, no
@@ -89,13 +94,14 @@ export class JobDeskInjector extends DynamicInjector {
         return renderJobDeskInjection([cycle.escalation], strip, {
           batched: cycle.batched,
           live,
+          store,
         });
       }
     }
 
     const batch = unread.slice(0, JOB_DESK_MAX_EVENTS);
     const strip = summarizeJobStrip(store);
-    const text = renderJobDeskInjection(batch, strip, { live });
+    const text = renderJobDeskInjection(batch, strip, { live, store });
     // Mark delivered so we do not re-inject every step (toast/TUI still have store).
     markJobInboxRead(
       store,
@@ -129,7 +135,7 @@ export function renderConductorJobPostCompactionSnapshot(
     'Jobs:',
     ...jobs.slice(0, JOB_DESK_POST_COMPACTION_MAX_JOBS).map(renderJobLine),
   ];
-  const nextMove = nextMoveGuidance([], strip);
+  const nextMove = nextMoveGuidance([], strip, store);
   if (nextMove !== undefined) lines.push(`Next move: ${nextMove}`);
   lines.push('</conductor_job_post_compaction>');
 
@@ -156,7 +162,11 @@ function liveWorkerLines(store: ToolStore): string[] {
 export function renderJobDeskInjection(
   events: readonly JobInboxEvent[],
   strip: ReturnType<typeof summarizeJobStrip>,
-  opts: { readonly batched?: number; readonly live?: readonly string[] } = {},
+  opts: {
+    readonly batched?: number;
+    readonly live?: readonly string[];
+    readonly store?: ToolStore;
+  } = {},
 ): string {
   const lines = [
     '<conductor_job_desk>',
@@ -181,7 +191,7 @@ export function renderJobDeskInjection(
   } else {
     lines.push('In-flight Jobs present; interactive lane stays free for new instructions.');
   }
-  const nextMove = nextMoveGuidance(events, strip);
+  const nextMove = nextMoveGuidance(events, strip, opts.store);
   if (nextMove !== undefined) lines.push(`Next move: ${nextMove}`);
   lines.push('</conductor_job_desk>');
   let text = lines.join('\n');
@@ -202,6 +212,7 @@ export function renderJobDeskInjection(
 function nextMoveGuidance(
   events: readonly JobInboxEvent[],
   strip: ReturnType<typeof summarizeJobStrip>,
+  store?: ToolStore,
 ): string | undefined {
   if (events.some((e) => e.status === 'needs_user' || e.kind === 'job.needs_user') || strip.needsUser > 0) {
     return 'relay the worker question to the user now, then deliver the answer via JobResume(job_id, answer). This is the one state that interrupts whatever else you were doing.';
@@ -221,6 +232,10 @@ function nextMoveGuidance(
   if (events.some((e) => e.summary?.startsWith(UNVERIFIED_SUMMARY_PREFIX) === true)) {
     return 'a done-claim landed with no checks run — delegate a verify Job before MergeJob; auto-approve holds without a green contract.';
   }
+  const planHandoffMove = planDeskHandoffNextMove(events, store);
+  if (planHandoffMove !== undefined) return planHandoffMove;
+  const goalDeskMove = goalDeskNextMove(events, store);
+  if (goalDeskMove !== undefined) return goalDeskMove;
   if (events.some((e) => e.kind === 'job.completed')) {
     return 'verify done-claims against the brief; report the outcome, and MergeJob-verdict if landing is wanted.';
   }
@@ -229,6 +244,68 @@ function nextMoveGuidance(
   }
   if (strip.running > 0) {
     return 'workers are live: steer only on real new information, never poll, and keep the lane free for the user.';
+  }
+  return undefined;
+}
+
+/** Goal Desk / driver terminal notices — keep Conductor out of the goal loop. */
+function goalDeskNextMove(
+  events: readonly JobInboxEvent[],
+  store: ToolStore | undefined,
+): string | undefined {
+  if (store === undefined) return undefined;
+  for (const e of events) {
+    if (
+      e.kind !== 'job.completed' &&
+      e.kind !== 'job.failed' &&
+      e.kind !== 'job.needs_user' &&
+      e.status !== 'needs_user'
+    ) {
+      continue;
+    }
+    const job = getJob(store, e.jobId);
+    if (job === undefined) continue;
+    if (job.kind !== 'goal-desk' && job.kind !== 'goal-driver') continue;
+    if (e.kind === 'job.needs_user' || e.status === 'needs_user') {
+      return `Goal Job ${job.id} needs the user — relay via AskUserQuestion / JobResume, do not pursue the goal on this lane.`;
+    }
+    if (e.kind === 'job.failed' || job.status === 'failed' || job.status === 'blocked') {
+      return `Goal Job ${job.id} stopped (${job.status}) — JobInspect, then /goal resume or replace; do not run driveGoal on Conductor.`;
+    }
+    if (e.kind === 'job.completed') {
+      return `Goal Job ${job.id} finished — report the outcome from JobInspect; MergeJob only if a landable implement branch exists.`;
+    }
+  }
+  return undefined;
+}
+
+/** Prefer Implement-handoff JobCreate after a Plan Desk mission completes. */
+function planDeskHandoffNextMove(
+  events: readonly JobInboxEvent[],
+  store: ToolStore | undefined,
+): string | undefined {
+  if (store === undefined) return undefined;
+  for (const e of events) {
+    if (e.kind !== 'job.completed' && e.status !== 'done') continue;
+    const job = getJob(store, e.jobId);
+    if (job === undefined || job.kind !== 'mission') continue;
+    const summary = job.resultSummary ?? e.summary ?? '';
+    const handoff = parseImplementHandoff(summary);
+    if (handoff !== undefined) {
+      return (
+        `Plan Desk ${job.id} finished with an Implement handoff — JobInspect for the draft, ` +
+        `present it, then JobCreate from those fields` +
+        (handoff.deliveryMode === 'greenfield'
+          ? ' (delivery_mode=greenfield, greenfield_chain=true).'
+          : '.')
+      );
+    }
+    if (textLooksLikePlanCompletion(summary) || job.planStructured !== false) {
+      return (
+        `Plan Desk ${job.id} finished but the Implement handoff block is missing — ` +
+        'JobSteer the plan worker (or re-run Plan Desk) to add ## Implement handoff before spawning implement Jobs.'
+      );
+    }
   }
   return undefined;
 }
