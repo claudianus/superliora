@@ -74,8 +74,10 @@ describe('FooterComponent', () => {
       },
     });
     const rendered = footer.render(120).join('\n');
+    // Density lives in appearance prefs only — never a status-bar chip.
+    // Avoid bare "minimal" substring checks: footer presets also use that id.
     expect(rendered).not.toContain('tx:');
-    expect(rendered).not.toContain('minimal');
+    expect(rendered).not.toMatch(/transcriptDetail|tx-detail|density:\s*minimal/i);
   });
 
   it('renders the model name in the footer', () => {
