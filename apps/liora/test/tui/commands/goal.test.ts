@@ -1,4 +1,4 @@
-import { ErrorCodes, LioraError } from '@superliora/sdk';
+import { ErrorCodes, LioraError, type GoalSnapshot } from '@superliora/sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -51,11 +51,11 @@ const UP = '\u001B[A';
 const DOWN = '\u001B[B';
 const MODEL_SETUP_MESSAGE = 'Model not set. Run /login to add a provider, then /model to pick one.';
 
-function fakeSnapshot() {
+function fakeSnapshot(overrides: Partial<GoalSnapshot> = {}): GoalSnapshot {
   return {
     goalId: 'g1',
     objective: 'obj',
-    status: 'active' as const,
+    status: 'active',
     turnsUsed: 0,
     tokensUsed: 0,
     wallClockMs: 0,
@@ -71,6 +71,7 @@ function fakeSnapshot() {
       wallClockBudgetReached: false,
       overBudget: false,
     },
+    ...overrides,
   };
 }
 
@@ -303,11 +304,9 @@ describe('handleGoalCommand', () => {
   });
 
   it('skips sendNormalUserInput when createGoal offloads to Goal Desk', async () => {
-    session.createGoal.mockResolvedValueOnce({
-      ...fakeSnapshot(),
-      execution: 'goal-desk',
-      deskJobId: 'job_desk1',
-    });
+    session.createGoal.mockResolvedValueOnce(
+      fakeSnapshot({ execution: 'goal-desk', deskJobId: 'job_desk1' }),
+    );
 
     await handleGoalCommand(host, 'Ship feature X');
     await confirmGoalStart(host, session, 'auto');

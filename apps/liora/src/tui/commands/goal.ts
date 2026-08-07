@@ -1,4 +1,9 @@
-import { ErrorCodes, isKimiError, type PermissionMode } from '@superliora/sdk';
+import {
+  ErrorCodes,
+  isKimiError,
+  type GoalSnapshot,
+  type PermissionMode,
+} from '@superliora/sdk';
 
 import {
   GoalStartPermissionPromptComponent,
@@ -409,7 +414,7 @@ async function startGoal(
   // Conductor sessions offload to Goal Desk + goal-driver Jobs (execution=goal-desk).
   // Non-conductor keeps the classic Ralph loop: createGoal on the main agent, then
   // send the objective so driveGoalTurnLoop can run.
-  let snapshot: Awaited<ReturnType<GoalCommandHost['requireSession']>['createGoal']> | undefined;
+  let snapshot: GoalSnapshot | undefined;
   try {
     snapshot = await host.requireSession().createGoal({
       objective: parsed.objective,
@@ -431,7 +436,7 @@ async function startGoal(
   host.state.transcriptContainer.addChild(new GoalSetMessageComponent());
   requestTUILayoutRender(host.state);
 
-  const offloaded = snapshot?.execution === 'goal-desk';
+  const offloaded = snapshot.execution === 'goal-desk';
   if (offloaded) {
     const desk = snapshot.deskJobId ? ` (${snapshot.deskJobId})` : '';
     host.showStatus(`Goal Desk accepted${desk} — worker chasing the objective; lane stays free.`);
