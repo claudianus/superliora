@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   MISSION_DOCK_MIN_COLUMNS,
   MISSION_DOCK_WIDTH,
+  MISSION_DOCK_Z_INDEX,
   missionDockActive,
   missionFallbackActive,
   missionWorkspaceCenterRect,
@@ -134,9 +135,51 @@ describe('mission control dock geometry', () => {
       width: MISSION_DOCK_WIDTH,
       height,
     });
+    // Letterbox sky is z=4 and the stage frame rim is z=5; without a higher
+    // dock z-index the night-sky gutters bury Mission Control on wide frames.
+    expect(dock?.zIndex).toBe(MISSION_DOCK_Z_INDEX);
+    expect(MISSION_DOCK_Z_INDEX).toBeGreaterThan(5);
+    const letterbox = regions.filter((region) => region.id.startsWith('stageFrameLetterbox:'));
+    expect(letterbox.length).toBeGreaterThan(0);
+    for (const band of letterbox) {
+      expect(band.zIndex ?? 0).toBeLessThan(MISSION_DOCK_Z_INDEX);
+    }
     const transcript = regions.find((region) => region.id === 'transcript');
     expect(transcript?.rect.width).toBe(STAGE_MAX_WIDTH);
     expect(transcript?.rect.x).toBe(Math.floor((width - MISSION_DOCK_WIDTH - STAGE_MAX_WIDTH) / 2));
+  });
+
+  it('keeps the dock above letterbox when the stage is near-fullscreen', () => {
+    const width = 200;
+    const height = 80;
+    const state = createState(width, height);
+    state.missionControlPanel.setView(busyView());
+    // Large enough to feel fullscreen, but leave STAGE_FRAME_MARGIN on every
+    // edge so the letterbox sky still paints — including over the dock band.
+    state.userStageSize = {
+      width: width - MISSION_DOCK_WIDTH - 6,
+      height: height - 6,
+    };
+
+    const center = missionWorkspaceCenterRect(state, width, height);
+    const regions = buildTUIStateNativeFrameRegions(state, width, height, {
+      workspaceCenter: center ?? undefined,
+    });
+    const dock = regions.find((region) => region.id === 'mission-dock');
+    expect(dock?.rect).toEqual({
+      x: width - MISSION_DOCK_WIDTH,
+      y: 0,
+      width: MISSION_DOCK_WIDTH,
+      height,
+    });
+    expect(dock?.zIndex).toBe(MISSION_DOCK_Z_INDEX);
+    const rightLetterbox = regions.find(
+      (region) =>
+        region.id.startsWith('stageFrameLetterbox:') &&
+        region.rect.x + region.rect.width === width,
+    );
+    expect(rightLetterbox).toBeDefined();
+    expect(rightLetterbox!.zIndex ?? 0).toBeLessThan(MISSION_DOCK_Z_INDEX);
   });
 
   it('keeps the dock off narrow frames and mounts the fallback band instead', () => {
