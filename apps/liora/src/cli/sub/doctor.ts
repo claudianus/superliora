@@ -11,7 +11,7 @@ import type { Command } from 'commander';
 import { t } from '#/cli/i18n';
 import { z } from 'zod';
 
-import { getTuiConfigPath, parseTuiConfig } from '#/tui/config';
+import { assertTuiConfigFile, getTuiConfigPath } from '#/tui/config';
 
 interface WritableLike {
   write(chunk: string): boolean;
@@ -186,7 +186,7 @@ function makeTuiSpec(path: string, explicit: boolean): CheckSpec {
     path,
     explicit,
     parse: (text) => {
-      parseTuiConfig(text);
+      assertTuiConfigFile(text);
     },
   };
 }
