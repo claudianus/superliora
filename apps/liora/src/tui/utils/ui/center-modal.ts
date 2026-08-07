@@ -52,9 +52,11 @@ export function createCenterModalOverlayRegion(
   if (top === undefined) return undefined;
   if (viewport.width <= 0 || viewport.height <= 0) return undefined;
 
-  const width = centerModalContentWidth(viewport.width);
+  // Budget is the render ceiling only — omit forced `width` so the overlay
+  // hugs panel line width (Command Hub ≤92) instead of a wider raised slab.
+  const budget = centerModalContentWidth(viewport.width);
   const maxHeight = Math.max(4, viewport.height - CENTER_MODAL_MARGIN * 2);
-  const panelLines = top.panel.render(width);
+  const panelLines = top.panel.render(budget);
   const crumb = centerModalBreadcrumb(stack);
   const lines =
     crumb === undefined
@@ -68,8 +70,7 @@ export function createCenterModalOverlayRegion(
     viewport: { x: 0, y: 0, width: viewport.width, height: viewport.height },
     lines,
     placement: 'center',
-    width,
-    maxWidth: width,
+    maxWidth: budget,
     maxHeight,
     marginX: CENTER_MODAL_MARGIN,
     marginY: CENTER_MODAL_MARGIN,

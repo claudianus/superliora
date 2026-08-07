@@ -259,11 +259,15 @@ shortcuts) use a **center modal**, not the bottom editor-replacement strip.
 - **Placement.** Host mounts via `mountCenterModal` → compositor region
   `liora-center-modal` with `placement: 'center'` (`utils/center-modal.ts`).
   Max content width 120 cols; margin 2 from viewport edges
-  (`CENTER_MODAL_MAX_WIDTH` in `utils/ui/center-modal.ts`).
+  (`CENTER_MODAL_MAX_WIDTH` in `utils/ui/center-modal.ts`). The overlay
+  passes that ceiling as `maxWidth` only — panel line width wins, so a
+  compact panel (Command Hub) does not sit inside a wider `surfaceRaised`
+  slab.
 - **Chrome.** The overlay region uses `border: false`; the panel owns its
   chrome so nothing doubles. List pickers keep the §3 two-line chrome. The
   Command Hub floats in a rounded box drawn by `renderPremiumBoxFrame`
-  (`features/appearance/appearance-effects.ts`): a gradient-breathing perimeter with a
+  (`features/appearance/appearance-effects.ts`), capped at
+  `HUB_MAX_BOX_WIDTH` (92): a gradient-breathing perimeter with a
   clockwise comet chase, jewel-bright corners, the title and the live
   filter/match count embedded in the borders, an entry bloom + scale-in,
   and a staggered row reveal with a pointer slide-in. Reduced motion / SSH
@@ -293,8 +297,9 @@ shortcuts) use a **center modal**, not the bottom editor-replacement strip.
   row carries its section as a dim `Section · ` description prefix instead
   of per-row section headers. Do not add a second searchable omnibox for
   the same catalog. Nested pickers (Settings, model, …) push; Stop
-  interrupts; Recent pins; first-run intro uses `tui.toml` `[onboarding]
-  hub_intro_seen`.
+  interrupts; Recent pins. Opens only on demand (`Ctrl-K` / `Ctrl-Space` /
+  `?` / `/help`); `[onboarding] hub_intro_seen` is legacy and no longer
+  auto-opens the Hub at startup.
 - **Z-order.** Center modal (~8000) sits above stage/toast chrome and below
   diagnostics HUD (~10000).
 - **Do not use center modal for:** approval/question/credential, session

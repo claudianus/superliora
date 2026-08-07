@@ -49,6 +49,30 @@ describe('createCenterModalOverlayRegion', () => {
     expect(Array.isArray(region?.content)).toBe(true);
   });
 
+  it('hugs panel line width instead of forcing the content budget', () => {
+    const budget = centerModalContentWidth(80);
+    const panel = {
+      render: () => ['compact-hub-box'],
+      handleInput: () => {},
+      focused: false,
+    };
+    const stack: CenterModalEntry[] = [
+      {
+        id: 'center-modal:compact',
+        panel: panel as unknown as CenterModalEntry['panel'],
+        disposeInput: () => {},
+      },
+    ];
+    const region = createCenterModalOverlayRegion(stack, {
+      x: 0,
+      y: 0,
+      width: 80,
+      height: 24,
+    });
+    expect(region?.rect.width).toBeLessThan(budget);
+    expect(region?.rect.width).toBeGreaterThanOrEqual('compact-hub-box'.length);
+  });
+
   it('builds Hub › child breadcrumbs from stack labels', () => {
     expect(
       centerModalBreadcrumb([
