@@ -12,7 +12,6 @@ describe('REST config contract', () => {
       memory: { enabled: true },
       cache: { invalidate_epoch: 2 },
       research: { enabled: true },
-      mission: { auto_start: true },
       model_catalog: { refresh_on_start: false },
       browser_use: { enabled: true },
       computer_use: { enabled: false },

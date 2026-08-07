@@ -39,7 +39,6 @@ export interface AgentStatusUpdatedEvent {
   readonly maxContextTokens?: number;
   readonly contextUsage?: number;
   readonly planMode?: boolean;
-  readonly swarmMode?: boolean;
   readonly premiumQualityMode?: boolean;
   readonly permission?: PermissionMode;
   readonly usage?: UsageStatus;
@@ -94,7 +93,6 @@ export const agentStatusUpdatedEventSchema = z.object({
   maxContextTokens: z.number().optional(),
   contextUsage: z.number().optional(),
   planMode: z.boolean().optional(),
-  swarmMode: z.boolean().optional(),
   premiumQualityMode: z.boolean().optional(),
   permission: permissionModeSchema.optional(),
   usage: usageStatusSchema.optional(),
