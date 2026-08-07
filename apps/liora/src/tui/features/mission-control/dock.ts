@@ -1,16 +1,20 @@
 /**
- * Mission Control dock geometry + visibility. The dock is a right-side
- * workspace band painted as a frame region on wide terminals; the stage
- * resolves inside the remaining center band via `workspaceCenter`. Narrow
+ * Mission Control bento geometry + visibility. On wide terminals the dock is
+ * a capped panel that shares the stage's height and sits in a centered
+ * stage+dock cluster (not glued to the terminal's right edge). The stage
+ * resolves inside the cluster's left cell via `workspaceCenter`. Narrow
  * terminals fall back to the in-stack `mission` chrome region instead.
  */
 
 import type { RendererRect } from '#/tui/renderer';
 
+import { resolveStageLayout } from '../../controllers/layout/stage-layout';
 import type { TUIState } from '../../tui-state';
 
-/** Right dock width (cols), frame included. */
+/** Right panel width (cols), frame included. */
 export const MISSION_DOCK_WIDTH = 40;
+/** Gap between the stage and Mission Control in the centered cluster. */
+export const MISSION_DOCK_GAP = 1;
 /**
  * Below this many columns the dock would squeeze the stage reading column —
  * the in-stack fallback band takes over.
@@ -29,6 +33,14 @@ export interface MissionDockStateLike {
     readonly appearance?: { readonly missionControl?: MissionControlMode };
   };
   readonly missionControlPanel: { isEmpty(): boolean };
+  readonly userStageSize?: { readonly width: number; readonly height: number };
+}
+
+export interface MissionBentoCluster {
+  /** Stage cell — passed as `workspaceCenter` so the stage fills this band. */
+  readonly stageBand: RendererRect;
+  /** Mission Control cell — same height as the stage, adjacent to its right. */
+  readonly dock: RendererRect;
 }
 
 export function missionControlModeOf(state: MissionDockStateLike): MissionControlMode {
@@ -51,14 +63,66 @@ export function missionFallbackActive(state: MissionDockStateLike, columns: numb
   return mode === 'pinned' || !state.missionControlPanel.isEmpty();
 }
 
-export function missionDockRect(columns: number, rows: number): RendererRect {
-  const width = Math.min(MISSION_DOCK_WIDTH, Math.max(0, columns));
-  return { x: Math.max(0, columns - width), y: 0, width, height: Math.max(0, rows) };
+/**
+ * Centered stage+dock cluster. Stage size mirrors {@link resolveStageLayout}
+ * after reserving dock+gap; both panels share height and sit as one bundle.
+ */
+export function measureMissionBentoCluster(
+  columns: number,
+  rows: number,
+  userStageSize?: { readonly width: number; readonly height: number },
+): MissionBentoCluster {
+  const cols = Math.max(0, Math.floor(columns));
+  const bandRows = Math.max(0, Math.floor(rows));
+  const dockWidth = Math.min(MISSION_DOCK_WIDTH, cols);
+  const gap = cols > dockWidth ? MISSION_DOCK_GAP : 0;
+  const reserved = dockWidth + gap;
+  // Size the stage inside the space left for it, then re-center stage+dock
+  // together so the pair — not only the stage — is the reading focus.
+  const provisional = resolveStageLayout({
+    width: cols,
+    height: bandRows,
+    workspaceCenter: {
+      x: 0,
+      y: 0,
+      width: Math.max(1, cols - reserved),
+      height: Math.max(1, bandRows),
+    },
+    userStageSize,
+  });
+  const stageWidth = provisional.stage.width;
+  const stageHeight = provisional.stage.height;
+  const clusterWidth = stageWidth + gap + dockWidth;
+  const clusterX = cols > clusterWidth ? Math.floor((cols - clusterWidth) / 2) : 0;
+  const clusterY =
+    bandRows > stageHeight ? Math.floor((bandRows - stageHeight) / 2) : 0;
+  return {
+    stageBand: {
+      x: clusterX,
+      y: clusterY,
+      width: stageWidth,
+      height: stageHeight,
+    },
+    dock: {
+      x: clusterX + stageWidth + gap,
+      y: clusterY,
+      width: dockWidth,
+      height: stageHeight,
+    },
+  };
+}
+
+export function missionDockRect(
+  columns: number,
+  rows: number,
+  userStageSize?: { readonly width: number; readonly height: number },
+): RendererRect {
+  return measureMissionBentoCluster(columns, rows, userStageSize).dock;
 }
 
 /**
- * Center band left for the stage while the dock is visible — the first
- * production consumer of the native frame callback's `workspaceCenter` hook.
+ * Stage cell of the centered cluster — the production consumer of the native
+ * frame callback's `workspaceCenter` hook.
  */
 export function missionWorkspaceCenterRect(
   state: MissionDockStateLike,
@@ -66,7 +130,7 @@ export function missionWorkspaceCenterRect(
   rows: number,
 ): RendererRect | undefined {
   if (!missionDockActive(state, columns)) return undefined;
-  return { x: 0, y: 0, width: Math.max(1, columns - MISSION_DOCK_WIDTH), height: rows };
+  return measureMissionBentoCluster(columns, rows, state.userStageSize).stageBand;
 }
 
 /** Convenience guard used by the frame build before painting the dock region. */
@@ -76,5 +140,5 @@ export function resolveMissionDockRect(
   rows: number,
 ): RendererRect | undefined {
   if (!missionDockActive(state, columns)) return undefined;
-  return missionDockRect(columns, rows);
+  return measureMissionBentoCluster(columns, rows, state.userStageSize).dock;
 }

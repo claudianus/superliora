@@ -40,6 +40,11 @@ export interface MissionWorker {
   readonly toolCount: number;
   /** Aggregate tokens (input+output+cache) from the latest heartbeat. */
   readonly tokens: number;
+  /**
+   * Smoothed tokens/sec from consecutive progress heartbeats. Absent until
+   * two samples land with a positive delta.
+   */
+  readonly tokenRatePerSec?: number;
   /** Wall-clock elapsed, derived at snapshot time. */
   readonly elapsedMs: number;
   readonly budgetMs?: number;
@@ -89,6 +94,9 @@ interface MutableWorker {
   lastTarget?: string;
   toolCount: number;
   tokens: number;
+  /** Wall time of the last token sample used for rate smoothing. */
+  tokensSampleAtMs?: number;
+  tokenRatePerSec?: number;
   budgetMs?: number;
   budgetRemainingMs?: number;
   todoDone?: number;
@@ -187,6 +195,9 @@ export class MissionControlRegistry {
         ...(worker.lastTarget === undefined ? {} : { lastTarget: worker.lastTarget }),
         toolCount: worker.toolCount,
         tokens: worker.tokens,
+        ...(worker.tokenRatePerSec === undefined || worker.tokenRatePerSec < 1
+          ? {}
+          : { tokenRatePerSec: worker.tokenRatePerSec }),
         elapsedMs: this.deriveElapsedMs(worker, nowMs),
         ...(worker.budgetMs === undefined ? {} : { budgetMs: worker.budgetMs }),
         ...(worker.budgetRemainingMs === undefined
@@ -282,15 +293,36 @@ export class MissionControlRegistry {
     worker.lastTool = event.lastTool ?? worker.lastTool;
     worker.lastTarget = event.lastTarget ?? worker.lastTarget;
     worker.toolCount = event.toolCount;
+    const atMs = this.now();
+    this.sampleTokenRate(worker, event.tokens, atMs);
     worker.tokens = event.tokens;
     worker.progressElapsedMs = event.elapsedMs;
-    worker.progressAtMs = this.now();
-    worker.lastActivityAtMs = worker.progressAtMs;
+    worker.progressAtMs = atMs;
+    worker.lastActivityAtMs = atMs;
     worker.budgetMs = event.budgetMs ?? worker.budgetMs;
     worker.budgetRemainingMs = event.budgetRemainingMs ?? worker.budgetRemainingMs;
     worker.stalledSilentMs = undefined;
     worker.status = event.finishing === true ? 'finishing' : 'running';
     return this.bump();
+  }
+
+  /** EMA of tokens/sec from heartbeat deltas (≥250ms apart). */
+  private sampleTokenRate(worker: MutableWorker, nextTokens: number, atMs: number): void {
+    const prevAt = worker.tokensSampleAtMs;
+    const prevTokens = worker.tokens;
+    worker.tokensSampleAtMs = atMs;
+    if (nextTokens < prevTokens) {
+      worker.tokenRatePerSec = undefined;
+      return;
+    }
+    if (prevAt === undefined || atMs <= prevAt) return;
+    const dtSec = (atMs - prevAt) / 1000;
+    if (dtSec < 0.25) return;
+    const instant = (nextTokens - prevTokens) / dtSec;
+    worker.tokenRatePerSec =
+      worker.tokenRatePerSec === undefined
+        ? instant
+        : worker.tokenRatePerSec * 0.55 + instant * 0.45;
   }
 
   private applyStalled(event: Extract<Event, { type: 'subagent.stalled' }>): boolean {
@@ -301,6 +333,7 @@ export class MissionControlRegistry {
     worker.status = 'stalled';
     worker.stalledSilentMs = event.silentMs;
     worker.toolCount = event.toolCount;
+    worker.tokenRatePerSec = undefined;
     worker.lastActivityAtMs = this.now();
     return this.bump();
   }

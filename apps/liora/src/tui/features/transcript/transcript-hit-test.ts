@@ -84,8 +84,8 @@ export function resolveTranscriptLayoutContext(
     visibleRows = state.cachedTranscriptVisibleRows ?? 0;
     stageWidth = state.cachedTranscriptStageWidth ?? frameWidth;
   } else {
-    // Slow path: full layout computation. The Mission Control dock shrinks
-    // the stage via workspaceCenter — hit tests must agree with the paint.
+    // Slow path: full layout computation. Mission Control's centered cluster
+    // sets workspaceCenter to the stage cell — hit tests must agree with paint.
     const plan = planTUINativeStage(state, frameWidth, frameHeight, {
       workspaceCenter: missionWorkspaceCenterRect(state, frameWidth, frameHeight),
       resolveEditorFallbackLines: (contentWidth) => state.editorContainer.render(contentWidth),

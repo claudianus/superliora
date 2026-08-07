@@ -297,9 +297,9 @@ export function buildTUIStateNativeFrame(
       resizeDragging: isStageResizeDragging(),
     }),
   );
-  // Mission Control right dock: z-index above letterbox/frame so the night-sky
-  // gutters cannot bury the panel (the stage already resolved inside the
-  // remaining center band via the workspaceCenter hook).
+  // Mission Control bento panel: same height as the stage, adjacent in the
+  // centered cluster. z-index above letterbox/frame so night-sky gutters
+  // cannot bury it (stage resolves in the cluster's left cell via workspaceCenter).
   const missionDock = resolveMissionDockRect(state, width, height);
   if (missionDock !== undefined && missionDock.width > 0 && missionDock.height > 0) {
     const dockLines = state.missionControlPanel.renderDock(missionDock.width, missionDock.height);
