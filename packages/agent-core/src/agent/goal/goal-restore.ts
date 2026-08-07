@@ -1,3 +1,8 @@
+import {
+  clearGoalSessionBinding,
+  readGoalSessionBinding,
+} from '#/tools/builtin/goal/goal-session-binding';
+
 import { GOAL_FORK_CLEARED_REMINDER } from './goal-constants';
 import type { GoalModeHost } from './goal-mode-host';
 import { appendGoalStatusUpdate, persistGoalState } from './goal-persistence';
@@ -103,7 +108,17 @@ export function restoreGoalClear(host: GoalModeHost, _record: AgentRecordOf<'goa
 export function restoreGoalForked(host: GoalModeHost, _record: AgentRecordOf<'forked'>): void {
   const hadGoal = host.state !== undefined;
   host.state = undefined;
-  if (!hadGoal) return;
+  // Conductor `/goal` lives in the tool-store binding (not GoalMode state).
+  // Drop it on fork the same way classic goals are cleared.
+  const store = host.agent.tools.toolStore;
+  const binding = readGoalSessionBinding(store);
+  const hadDeskBinding =
+    binding !== undefined &&
+    (binding.status === 'active' || binding.status === 'paused' || binding.status === 'blocked');
+  if (hadDeskBinding) {
+    clearGoalSessionBinding(store);
+  }
+  if (!hadGoal && !hadDeskBinding) return;
   host.agent.context.appendSystemReminder(GOAL_FORK_CLEARED_REMINDER, {
     kind: 'system_trigger',
     name: 'goal_fork_cleared',
