@@ -8,6 +8,7 @@ import type { DynamicInjector } from './injector';
 import { ToolWorkflowInjector } from './tool-workflow-injector';
 import { MemoryInjector } from './memory';
 import { PermissionModeInjector } from './permission-mode';
+import { AskModeInjector } from './ask-mode';
 import { PlanModeInjector } from './plan-mode';
 import { PremiumQualityInjector } from './premium-quality';
 import { ResponseLanguageInjector } from './response-language';
@@ -83,6 +84,7 @@ export class InjectionManager {
       new ToolWorkflowInjector(agent),
       new TodoListReminderInjector(agent),
       this.jobDeskInjector,
+      new AskModeInjector(agent),
       new PlanModeInjector(agent),
       new PremiumQualityInjector(agent),
       new PermissionModeInjector(agent),

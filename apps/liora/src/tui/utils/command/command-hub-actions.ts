@@ -19,6 +19,8 @@ export function commandHubActionToSlash(id: CommandHubActionId): string | undefi
       return '/fork';
     case 'modes.plan':
       return '/plan';
+    case 'modes.ask':
+      return '/ask';
     case 'modes.goals':
       return '/goal next manage';
     case 'modes.premium':

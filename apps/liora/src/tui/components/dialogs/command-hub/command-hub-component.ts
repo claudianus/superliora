@@ -518,7 +518,9 @@ export class CommandHubComponent extends Container implements Focusable {
     const plan = this.items.find((i) => i.id === 'modes.plan');
     const premium = this.items.find((i) => i.id === 'modes.premium');
     const perm = this.items.find((i) => i.id === 'modes.permission');
+    const ask = this.items.find((i) => i.id === 'modes.ask');
     push('Plan', plan?.badge === 'ON', 'modes.plan');
+    push('Ask', ask?.badge === 'ON', 'modes.ask');
     push('Visual', premium?.badge === 'ON', 'modes.premium');
     const permLabel = formatPermissionChip(perm?.badge);
     chips.push(

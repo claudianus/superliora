@@ -32,6 +32,7 @@ import { handleLoginCommand, handleLogoutCommand } from '../auth/login';
 import { handleBtwCommand } from '../btw';
 import { handleAutoCommand, handlePermissionCommand, handleYoloCommand, showPermissionPicker } from '../config/permission/permission';
 import { handleAppearanceCommand } from '../config/appearance/appearance';
+import { handleAskCommand } from '../config/plan/ask';
 import { handleCompactCommand, handlePlanCommand } from '../config/plan/plan';
 import { handleRefineCommand } from '../refine';
 import { handleContextCommand } from '../config/context/context';
@@ -96,6 +97,7 @@ export { handleBtwCommand } from '../btw';
 export { handleAddDirCommand } from '../session/add-dir';
 export { handleAutoCommand, handlePermissionCommand, handleYoloCommand, showPermissionPicker } from '../config/permission/permission';
 export { handleAppearanceCommand } from '../config/appearance/appearance';
+export { handleAskCommand, setAskMode } from '../config/plan/ask';
 export { handleCompactCommand, handlePlanCommand } from '../config/plan/plan';
 export { handleEditorCommand, handleThemeCommand } from '../config/appearance/editor-theme';
 export { handleModelCommand, showModelPicker } from '../config/model/model';
@@ -505,6 +507,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'plan':
       await handlePlanCommand(host, args);
+      return;
+    case 'ask':
+      await handleAskCommand(host, args);
       return;
     case 'compact':
       await handleCompactCommand(host, args);

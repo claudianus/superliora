@@ -99,6 +99,7 @@ function buildCommandHubItems(host: DialogsHost): CommandHubItem[] {
   return [
     ...buildDefaultCommandHubItems({
       planMode: host.state.appState.planMode,
+      askMode: host.state.appState.askMode,
       premiumQualityMode: host.state.appState.premiumQualityMode,
       permissionMode: host.state.appState.permissionMode,
       model: host.state.appState.model,

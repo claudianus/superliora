@@ -21,6 +21,10 @@ export function labelModePlan(labels: FooterLabels): string {
   return isPlainLabels(labels) ? 'Plan' : 'plan';
 }
 
+export function labelModeAsk(labels: FooterLabels): string {
+  return isPlainLabels(labels) ? 'Ask' : 'ask';
+}
+
 export function labelModePremium(labels: FooterLabels): string {
   return isPlainLabels(labels) ? 'Premium' : 'premium';
 }

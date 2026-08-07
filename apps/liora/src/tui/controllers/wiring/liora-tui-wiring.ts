@@ -197,6 +197,11 @@ export function handlePlanToggleFromHost(tui: LioraTUI, next: boolean, ultra = f
   void slashCommands.handlePlanCommand(tui, next ? (ultra ? 'ultra' : 'on') : 'off');
 }
 
+/** Shift-Tab Build/Ask cycle routed from the coordinator surface. */
+export function setAskModeFromHost(tui: LioraTUI, enabled: boolean): void {
+  void slashCommands.setAskMode(tui, enabled);
+}
+
 export function openUndoSelectorFromHost(tui: LioraTUI): void {
   void slashCommands.handleUndoCommand(tui, '');
 }

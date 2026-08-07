@@ -147,6 +147,9 @@ export class SessionEventNotices {
     if (event.planMode !== undefined) {
       patch.planMode = event.planMode;
     }
+    if (event.askMode !== undefined) {
+      patch.askMode = event.askMode;
+    }
     if (event.premiumQualityMode !== undefined) {
       patch.premiumQualityMode = event.premiumQualityMode;
     }

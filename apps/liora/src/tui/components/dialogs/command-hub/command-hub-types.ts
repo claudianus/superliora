@@ -8,6 +8,7 @@ export type CommandHubActionId =
   | 'start.export'
   | 'start.fork'
   | 'modes.plan'
+  | 'modes.ask'
   | 'modes.goals'
   | 'modes.premium'
   | 'modes.permission'

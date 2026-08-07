@@ -38,6 +38,7 @@ export function createInitialAppState(input: InitialAppStateInput): AppState {
     sessionId: '',
     permissionMode: startupPermission,
     planMode: input.cliOptions.plan,
+    askMode: false,
     premiumQualityMode: false,
     inputMode: 'prompt',
     thinking: false,

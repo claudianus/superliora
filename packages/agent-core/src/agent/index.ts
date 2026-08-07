@@ -56,6 +56,7 @@ import { PremiumQualityMode } from '../premium-quality';
 import { HookEngine } from '../session/hooks';
 import { InjectionManager } from './injection/manager';
 import { PermissionManager, type PermissionManagerOptions } from './permission';
+import { AskMode } from './ask';
 import { PlanMode } from './plan';
 import {
   AgentRecords,
@@ -206,6 +207,7 @@ export class Agent {
   readonly injection: InjectionManager;
   readonly permission: PermissionManager;
   readonly planMode: PlanMode;
+  readonly askMode: AskMode;
   /**
    * Optional file-lease identity for Edit/Write conflict checks.
    * Set on subagent workers when a fan-out is active; undefined otherwise.
@@ -315,6 +317,7 @@ export class Agent {
     this.injection = new InjectionManager(this);
     this.permission = new PermissionManager(this, options.permission);
     this.planMode = new PlanMode(this);
+    this.askMode = new AskMode(this);
     this.swarmFileLease = undefined;
     this.usage = new UsageRecorder(this);
     this.skills = options.skills ? new SkillManager(this, options.skills) : null;

@@ -280,6 +280,14 @@ export abstract class SessionCore {
     await this.rpc.setPremiumQuality({ sessionId: this.id, enabled });
   }
 
+  async setAskMode(enabled: boolean): Promise<void> {
+    this.ensureOpen();
+    if (typeof enabled !== 'boolean') {
+      throw new LioraError(ErrorCodes.REQUEST_INVALID, 'Session ask mode must be a boolean');
+    }
+    await this.rpc.setAskMode({ sessionId: this.id, enabled });
+  }
+
   async getPlan(): Promise<SessionPlan> {
     this.ensureOpen();
     return this.rpc.getPlan({ sessionId: this.id });

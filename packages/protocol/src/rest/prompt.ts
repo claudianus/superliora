@@ -7,6 +7,7 @@
  *              thinking?: 'off'|'low'|'medium'|'high'|'xhigh'|'max',
  *              permission_mode?: 'manual'|'yolo'|'auto',
  *              plan_mode?: boolean,
+ *              ask_mode?: boolean,
  *            }
  *     Reply: PromptSubmitResult { prompt_id, user_message_id, status, content, created_at }
  *            status='running' when sent immediately, status='queued' when
@@ -52,6 +53,7 @@ export const promptSubmissionSchema = z.object({
   thinking: promptThinkingSchema.optional(),
   permission_mode: promptPermissionModeSchema.optional(),
   plan_mode: z.boolean().optional(),
+  ask_mode: z.boolean().optional(),
   goal_objective: z.string().optional(),
   goal_control: z.enum(['pause', 'resume', 'cancel']).optional(),
 });

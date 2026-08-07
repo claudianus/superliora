@@ -17,7 +17,7 @@ function sameStringArrays(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
-/** Footer mode badge toggles → plan_enter/exit + mode_enter/exit (yolo). */
+/** Footer mode badge toggles → plan_enter/exit + mode_enter/exit (yolo, ask). */
 function collectFooterModeBeats(
   prev: AppState,
   patch: Partial<AppState>,
@@ -31,6 +31,9 @@ function collectFooterModeBeats(
   }> = [];
   if ('planMode' in patch && patch.planMode !== undefined && patch.planMode !== prev.planMode) {
     beats.push({ name: patch.planMode ? 'plan_enter' : 'plan_exit', title: 'plan' });
+  }
+  if ('askMode' in patch && patch.askMode !== undefined && patch.askMode !== prev.askMode) {
+    beats.push({ name: patch.askMode ? 'mode_enter' : 'mode_exit', title: 'ask' });
   }
   if (
     'permissionMode' in patch &&

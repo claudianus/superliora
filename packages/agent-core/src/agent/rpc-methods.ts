@@ -96,6 +96,8 @@ export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
       agent.planMode.cancel(payload.id);
     },
     clearPlan: () => agent.planMode.clear(),
+    setAskMode: (payload) => agent.askMode.set(payload.enabled),
+    getAskMode: () => agent.askMode.isActive,
     setPremiumQuality: (payload) => {
       agent.premiumQuality.setEnabled(payload.enabled);
     },

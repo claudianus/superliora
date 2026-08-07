@@ -55,6 +55,7 @@ import {
   labelConductorJobs,
   labelMenu,
   labelModeAuto,
+  labelModeAsk,
   labelModePlan,
   labelModePremium,
   labelModeYolo,
@@ -118,6 +119,11 @@ export function renderFooterLine1(input: RenderFooterLine1Input): string {
             ? renderPulseText(yoloText, 'footer:yolo', 'warning', appearance)
             : currentTheme.boldFg('warning', yoloText),
         ),
+      );
+    }
+    if (state.askMode) {
+      modes.push(
+        withModeBeat('ask', renderPulseText(labelModeAsk(labels), 'ask', 'primary', appearance)),
       );
     }
     if (state.planMode) {

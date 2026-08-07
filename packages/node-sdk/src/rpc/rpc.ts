@@ -63,6 +63,7 @@ import {
   type SetSessionModelRpcInput,
   type SetSessionModelRpcResult,
   type SetSessionPermissionRpcInput,
+  type SetSessionAskModeRpcInput,
   type SetSessionPlanModeRpcInput,
   type SetSessionPremiumQualityRpcInput,
   type SetSessionThinkingRpcInput,
@@ -89,6 +90,7 @@ export type {
   SetSessionModelRpcResult,
   SetSessionPermissionRpcInput,
   SetSessionPlanModeRpcInput,
+  SetSessionAskModeRpcInput,
   SetSessionPremiumQualityRpcInput,
   SetSessionThinkingRpcInput,
   StartConversationLoopRpcInput,
@@ -251,6 +253,15 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
   async setPremiumQuality(input: SetSessionPremiumQualityRpcInput): Promise<void> {
     const rpc = await this.getRpc();
     return rpc.setPremiumQuality({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+      enabled: input.enabled,
+    });
+  }
+
+  async setAskMode(input: SetSessionAskModeRpcInput): Promise<void> {
+    const rpc = await this.getRpc();
+    return rpc.setAskMode({
       sessionId: input.sessionId,
       agentId: this.interactiveAgentId,
       enabled: input.enabled,
@@ -463,6 +474,7 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
       context,
       permission,
       plan,
+      askMode,
       premiumQualityMode,
       usage,
       providerRouteStatus,
@@ -477,6 +489,7 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
       rpc.getContext(scoped),
       rpc.getPermission(scoped),
       rpc.getPlan(scoped),
+      rpc.getAskMode(scoped).catch(() => undefined),
       rpc.getPremiumQuality(scoped).catch(() => undefined),
       rpc.getUsage(scoped).catch(() => undefined),
       rpc.getProviderRouteStatus(scoped).catch(() => null),
@@ -492,6 +505,7 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
       context,
       permission,
       plan,
+      askMode,
       premiumQualityMode,
       usage,
       providerRouteStatus,

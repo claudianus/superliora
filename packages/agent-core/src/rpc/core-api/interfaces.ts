@@ -95,6 +95,7 @@ import type {
   SetModelPayload,
   SetModelResult,
   SetPermissionPayload,
+  SetAskModePayload,
   SetPremiumQualityPayload,
   SetThinkingPayload,
   ShellCommandResult,
@@ -139,6 +140,8 @@ export interface AgentAPI {
   enterPlan: (payload: EnterPlanPayload) => void;
   cancelPlan: (payload: CancelPlanPayload) => void;
   clearPlan: (payload: EmptyPayload) => void;
+  setAskMode: (payload: SetAskModePayload) => Promise<void>;
+  getAskMode: (payload: EmptyPayload) => boolean;
   setPremiumQuality: (payload: SetPremiumQualityPayload) => void;
   getPremiumQuality: (payload: EmptyPayload) => boolean;
   beginCompaction: (payload: BeginCompactionPayload) => void;

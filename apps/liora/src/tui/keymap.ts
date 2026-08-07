@@ -27,6 +27,13 @@ export const KEYMAP_ALWAYS: readonly KeymapBinding[] = [
     category: 'menu',
   },
   {
+    id: 'ask-mode',
+    key: 'Shift-Tab',
+    description: 'Switch between Build and Ask mode',
+    surface: 'always',
+    category: 'agent',
+  },
+  {
     id: 'escape',
     key: 'Esc',
     description: 'Cancel or close; press twice for session undo',

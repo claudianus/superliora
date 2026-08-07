@@ -3,6 +3,7 @@ import type { CommandHubItem } from './command-hub-types';
 
 export function buildDefaultCommandHubItems(state: {
   readonly planMode?: boolean;
+  readonly askMode?: boolean;
   readonly premiumQualityMode?: boolean;
   readonly permissionMode?: string;
   readonly model?: string;
@@ -58,6 +59,15 @@ export function buildDefaultCommandHubItems(state: {
       label: 'Plan mode',
       description: 'Space flips · Enter flips & close · think first',
       badge: onOff(state.planMode),
+      kind: 'toggle',
+    },
+    {
+      id: 'modes.ask',
+      section: 'Modes',
+      label: 'Ask mode',
+      description: 'Space flips · Enter flips & close · investigate, do not build',
+      keywords: ['ask', 'read', 'research', 'explore'],
+      badge: onOff(state.askMode),
       kind: 'toggle',
     },
     {

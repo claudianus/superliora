@@ -232,6 +232,8 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   enterPlan = delegateContextMethod(sessionAgentMethods.enterPlan);
   cancelPlan = delegateContextMethod(sessionAgentMethods.cancelPlan);
   clearPlan = delegateContextMethod(sessionAgentMethods.clearPlan);
+  setAskMode = delegateContextMethod(sessionAgentMethods.setAskMode);
+  getAskMode = delegateContextMethod(sessionAgentMethods.getAskMode);
   setPremiumQuality = delegateContextMethod(sessionAgentMethods.setPremiumQuality);
   getPremiumQuality = delegateContextMethod(sessionAgentMethods.getPremiumQuality);
   beginCompaction = delegateContextMethod(sessionAgentMethods.beginCompaction);

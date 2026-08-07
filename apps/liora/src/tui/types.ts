@@ -44,6 +44,8 @@ export interface AppState {
   sessionId: string;
   permissionMode: PermissionMode;
   planMode: boolean;
+  /** Ask mode: read/search/web only — edits and worker delegation are blocked. */
+  askMode: boolean;
   /** Visual Quality mode: art direction, anti-slop visuals, skill routing, screenshot proof. */
   premiumQualityMode?: boolean;
   /**

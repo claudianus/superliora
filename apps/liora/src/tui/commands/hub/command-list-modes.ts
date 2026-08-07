@@ -8,6 +8,7 @@ import {
   permissionArgumentCompletions,
   contextArgumentCompletions,
   premiumArgumentCompletions,
+  askArgumentCompletions,
   planArgumentCompletions,
   thinkingArgumentCompletions,
   preflightArgumentCompletions,
@@ -104,5 +105,14 @@ export const BUILTIN_SLASH_COMMANDS_MODES = [
     argumentHint: '[on|off|clear]',
     completeArgs: planArgumentCompletions,
     availability: (args) => (args.trim().toLowerCase() === 'clear' ? 'idle-only' : 'always'),
+  },
+  {
+    name: 'ask',
+    aliases: [],
+    description: 'Ask mode — investigate and answer without editing or delegating (Shift-Tab)',
+    priority: 79,
+    argumentHint: '[on|off]',
+    completeArgs: askArgumentCompletions,
+    availability: () => 'always',
   },
 ] as const satisfies readonly LioraSlashCommand[];

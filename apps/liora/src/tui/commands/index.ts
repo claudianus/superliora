@@ -16,6 +16,7 @@ export {
   redactBenchStatusText,
 } from './bench/bench';
 export { handleBtwCommand } from './btw';
+export { handleAskCommand, setAskMode } from './config/plan/ask';
 export { handleCompactCommand, handlePlanCommand } from './config/plan/plan';
 export { handleAppearanceCommand } from './config/appearance/appearance';
 export { handleContextCommand, showContextWorkingSetPicker } from './config/context/context';

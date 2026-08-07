@@ -201,7 +201,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
     'Shift-Tab toggles Mission and off.\n/status shows media, web/Context7, ZDR, Bench readiness.\nNormal messages stay lightweight unless Mission is on.',
   'tui.help.intro.advanced':
     'Mission is one workflow: Plan, Goal, Research, Fleet decision, Integrate, Verify, Learn.\nShift-Tab toggles Mission/off; /plan steers Plan from Hub or slash.\n/status shows media, web/Context7, ZDR, Bench readiness.',
-  'tui.help.shortcut.shiftTab': 'Toggle Mission / off',
+  'tui.help.shortcut.shiftTab': 'Switch Build / Ask mode',
   'tui.help.shortcut.ctrlG': 'Edit in external editor ($VISUAL / $EDITOR)',
   'tui.help.shortcut.ctrlO': 'Cycle transcript density (minimal → compact → standard → full)',
   'tui.help.shortcut.ctrlB': 'Background a long-running shell task · /tasks',
@@ -290,7 +290,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.tip.sessions': '/sessions to browse and resume earlier sessions',
   'tui.tip.outcome': 'describe the outcome and Liora will keep the work organized',
   'tui.tip.goalNext': '/goal next to queue follow-up work while the current goal keeps running',
-  'tui.tip.shiftTab': 'shift-tab toggles Mission and off',
+  'tui.tip.shiftTab': 'shift-tab switches between Build and Ask mode',
   'tui.tip.mention': '@: mention files',
   'tui.tip.shell': '! to run a shell command',
   'tui.tip.ctrlO': 'Ctrl+O cycles transcript density: minimal → compact → standard → full',
@@ -339,7 +339,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
     'media: footer img/vid badges appear only when OPENAI/GOOGLE keys make GenerateImage/Video ready',
   'tui.tip.backgroundAgent':
     'background Agent only for independent work — never TaskOutput-wait after bg launch',
-  'tui.tip.shiftTabOff': 'shift-tab again turns Mission back off',
+  'tui.tip.shiftTabOff': 'Ask mode investigates only — shift-tab again to build',
   'tui.tip.model': '/model: switch model',
   'tui.tip.loginMedia':
     '/login connects providers; OPENAI_API_KEY or GOOGLE_API_KEY for image/video',
@@ -540,7 +540,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
     'Shift-Tab으로 Mission 켜기/끄기.\n/status로 media, web/Context7, ZDR, Bench 준비 상태 확인.\nMission이 꺼져 있으면 일반 메시지는 가볍게 유지됩니다.',
   'tui.help.intro.advanced':
     'Mission은 하나의 워크플로: Plan, Goal, Research, Fleet decision, Integrate, Verify, Learn.\nShift-Tab으로 Mission 켜기/끄기; /plan은 Hub 또는 슬래시로 Plan 조향.\n/status로 media, web/Context7, ZDR, Bench 준비 상태 확인.',
-  'tui.help.shortcut.shiftTab': 'Mission 켜기/끄기',
+  'tui.help.shortcut.shiftTab': 'Build / Ask 모드 전환',
   'tui.help.shortcut.ctrlG': '외부 에디터에서 편집 ($VISUAL / $EDITOR)',
   'tui.help.shortcut.ctrlO': '트랜스크립트 밀도 순환 (minimal → compact → standard → full)',
   'tui.help.shortcut.ctrlB': '긴 셸 작업을 백그라운드로 · /tasks',
@@ -627,7 +627,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.tip.sessions': '/sessions로 이전 세션을 찾아 이어가세요',
   'tui.tip.outcome': '원하는 결과를 설명하면 Liora가 작업을 정리합니다',
   'tui.tip.goalNext': '/goal next로 현재 목표를 유지한 채 후속 작업을 대기열에 넣습니다',
-  'tui.tip.shiftTab': 'shift-tab으로 Mission 켜기/끄기',
+  'tui.tip.shiftTab': 'shift-tab으로 Build / Ask 모드 전환',
   'tui.tip.mention': '@: 파일 멘션',
   'tui.tip.shell': '!: 셸 명령 실행',
   'tui.tip.ctrlO': 'Ctrl+O로 트랜스크립트 밀도 순환: minimal → compact → standard → full',
@@ -676,7 +676,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
     'media: OPENAI/GOOGLE 키가 GenerateImage/Video를 준비할 때만 footer img/vid 배지',
   'tui.tip.backgroundAgent':
     'background Agent는 독립 작업에만 — bg 실행 후 TaskOutput-wait 금지',
-  'tui.tip.shiftTabOff': 'shift-tab을 다시 누르면 Mission이 꺼집니다',
+  'tui.tip.shiftTabOff': 'Ask 모드는 조사만 합니다 — shift-tab을 다시 누르면 Build로',
   'tui.tip.model': '/model: 모델 전환',
   'tui.tip.loginMedia':
     '/login으로 프로바이더 연결; 이미지/영상은 OPENAI_API_KEY 또는 GOOGLE_API_KEY',

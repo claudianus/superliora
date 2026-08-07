@@ -36,6 +36,7 @@ export interface AgentStatusUpdatedHost {
     };
   };
   readonly planMode: { readonly isActive: boolean };
+  readonly askMode: { readonly isActive: boolean };
   readonly premiumQuality: { isEnabled(): boolean };
   readonly permission: {
     readonly mode: string;
@@ -73,6 +74,7 @@ export function buildAgentStatusUpdatedEvent(host: AgentStatusUpdatedHost): Agen
     maxContextTokens,
     contextUsage,
     planMode: host.planMode.isActive,
+    askMode: host.askMode.isActive,
     premiumQualityMode: host.premiumQuality.isEnabled(),
     permission: host.permission.mode as PermissionMode,
     usage,

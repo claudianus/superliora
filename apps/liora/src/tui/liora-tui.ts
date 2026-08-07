@@ -201,6 +201,7 @@ export interface LioraTUIHost {
   setNativeRendererTrace(command: RendererTraceCommand): void;
   showSessionWarnings(session: Session): Promise<void>;
   handlePlanToggle(next: boolean, ultra?: boolean): void;
+  setAskMode(enabled: boolean): void;
   handleInputModeChange(mode: 'prompt' | 'bash'): void;
   handleUserInput(text: string): void;
   dispatchSlashInput(text: string): void;

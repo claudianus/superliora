@@ -67,6 +67,7 @@ export interface SessionStatusFacets {
   readonly context: Awaited<ReturnType<ResolvedCoreAPI['getContext']>>;
   readonly permission: Awaited<ReturnType<ResolvedCoreAPI['getPermission']>>;
   readonly plan: Awaited<ReturnType<ResolvedCoreAPI['getPlan']>>;
+  readonly askMode: Awaited<ReturnType<ResolvedCoreAPI['getAskMode']>> | undefined;
   readonly premiumQualityMode:
     | Awaited<ReturnType<ResolvedCoreAPI['getPremiumQuality']>>
     | undefined;
@@ -95,6 +96,7 @@ export function buildSessionStatus(facets: SessionStatusFacets): SessionStatus {
     context,
     permission,
     plan,
+    askMode,
     premiumQualityMode,
     usage,
     providerRouteStatus,
@@ -116,6 +118,7 @@ export function buildSessionStatus(facets: SessionStatusFacets): SessionStatus {
     thinkingLevel: config.thinkingLevel,
     permission: permission.mode,
     planMode: plan !== null,
+    askMode: askMode === true,
     premiumQualityMode,
     contextTokens,
     maxContextTokens,

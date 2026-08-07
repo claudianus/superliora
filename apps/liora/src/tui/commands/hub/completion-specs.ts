@@ -54,6 +54,11 @@ const PLAN_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'clear', description: 'Clear current plan' },
 ];
 
+const ASK_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
+  { value: 'on', description: 'Investigate only — no edits, no workers' },
+  { value: 'off', description: 'Back to Build mode' },
+];
+
 const PREMIUM_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'on', description: 'Enable Visual Quality (motion/density)' },
   { value: 'off', description: 'Disable Visual Quality' },
@@ -271,6 +276,10 @@ export function thinkingCompletionSpecsForModel(
     if (item.value === 'on') return true;
     return supported === undefined || supported.has(item.value);
   });
+}
+
+export function askArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
+  return completeLeadingArg(ASK_ARG_COMPLETIONS, argumentPrefix);
 }
 
 export function planArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {

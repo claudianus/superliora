@@ -50,6 +50,7 @@ import type {
   SetModelPayload,
   SetModelResult,
   SetPermissionPayload,
+  SetAskModePayload,
   SetPremiumQualityPayload,
   SetThinkingPayload,
   SkillSearchResult,
@@ -156,6 +157,18 @@ export function clearPlan(
   context: SessionAgentMethodsContext,
   { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
   return context.sessionApi(sessionId).clearPlan(payload);
+}
+
+export function setAskMode(
+  context: SessionAgentMethodsContext,
+  { sessionId, ...payload }: SessionAgentPayload<SetAskModePayload>) {
+  return context.sessionApi(sessionId).setAskMode(payload);
+}
+
+export function getAskMode(
+  context: SessionAgentMethodsContext,
+  { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
+  return context.sessionApi(sessionId).getAskMode(payload);
 }
 
 export function setPremiumQuality(

@@ -65,7 +65,16 @@ export interface EditorKeyboardHost extends PromptInputRuntimeHost {
   setExternalEditorRunning(running: boolean): void;
   scrollTranscriptViewport(action: TranscriptScrollAction): boolean;
   showStatus(msg: string, color?: ColorToken): void;
+  setAskMode(enabled: boolean): void;
   readonly jobBoardController: { openDeck(jobId?: string): void };
+}
+
+/**
+ * Shift-Tab cycles the convenience modes. Build (the default, no mode) and Ask
+ * (investigate only) are the two stops.
+ */
+export function nextShiftTabMode(askMode: boolean): 'build' | 'ask' {
+  return askMode ? 'build' : 'ask';
 }
 
 export class EditorKeyboardController {
@@ -94,6 +103,12 @@ export class EditorKeyboardController {
 
     editor.onNonEscapeInput = () => {
       this.clearPendingUndoEsc();
+    };
+
+    editor.onShiftTab = () => {
+      const next = nextShiftTabMode(host.state.appState.askMode);
+      host.track('shift_tab_mode', { target: next });
+      host.setAskMode(next === 'ask');
     };
 
     editor.onCtrlC = () => {

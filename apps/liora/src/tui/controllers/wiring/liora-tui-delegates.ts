@@ -29,6 +29,7 @@ import type { LioraTUI } from '../../liora-tui';
 import {
   handlePlanToggleFromHost,
   openUndoSelectorFromHost,
+  setAskModeFromHost,
 } from './liora-tui-wiring';
 import type { ApprovalPanelData, QuestionPanelData } from '../../reverse-rpc/types';
 import { openJobDeckViewer } from '../../commands/jobs-deck';
@@ -115,6 +116,9 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
 
   proto.handlePlanToggle = function (next: boolean, ultra = false) {
     handlePlanToggleFromHost(this, next, ultra);
+  };
+  proto.setAskMode = function (enabled: boolean) {
+    setAskModeFromHost(this, enabled);
   };
   proto.handleInputModeChange = function (mode: 'prompt' | 'bash') {
     this.setAppState({ inputMode: mode });

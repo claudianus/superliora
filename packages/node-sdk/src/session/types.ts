@@ -265,6 +265,7 @@ export interface SessionStatus {
   readonly thinkingLevel: string;
   readonly permission: PermissionMode;
   readonly planMode: boolean;
+  readonly askMode: boolean;
   readonly premiumQualityMode?: boolean | undefined;
   readonly contextTokens: number;
   readonly maxContextTokens: number;

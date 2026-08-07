@@ -34,6 +34,7 @@ import type {
   SetActiveToolsPayload,
   SetModelPayload,
   SetPermissionPayload,
+  SetAskModePayload,
   SetPremiumQualityPayload,
   SetThinkingPayload,
   SkillSummary,
@@ -231,6 +232,14 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
 
   async clearPlan({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
     return (await this.getAgent(agentId)).clearPlan(payload);
+  }
+
+  async setAskMode({ agentId, ...payload }: AgentScopedPayload<SetAskModePayload>) {
+    return (await this.getAgent(agentId)).setAskMode(payload);
+  }
+
+  async getAskMode({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
+    return (await this.getAgent(agentId)).getAskMode(payload);
   }
 
   async setPremiumQuality({ agentId, ...payload }: AgentScopedPayload<SetPremiumQualityPayload>) {
