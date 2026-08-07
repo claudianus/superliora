@@ -40,6 +40,7 @@ import {
   COMMAND_HUB_PAGE_SIZE,
   HUB_ENTRY_MIN_RATIO,
   HUB_ENTRY_MS,
+  HUB_MAX_BOX_WIDTH,
   HUB_SLIDE_MS,
   hubClamp01,
   hubEaseOutCubic,
@@ -232,13 +233,14 @@ export class CommandHubComponent extends Container implements Focusable {
     const regionWidth = Math.max(24, width);
 
     const entryT = ambient ? hubEaseOutCubic((now - this.openedAtMs) / HUB_ENTRY_MS) : 1;
+    const targetWidth = Math.min(regionWidth, HUB_MAX_BOX_WIDTH);
     const minWidth = Math.min(
-      regionWidth,
-      Math.max(36, Math.round(regionWidth * HUB_ENTRY_MIN_RATIO)),
+      targetWidth,
+      Math.max(36, Math.round(targetWidth * HUB_ENTRY_MIN_RATIO)),
     );
     const boxWidth = Math.min(
-      regionWidth,
-      Math.max(22, Math.round(minWidth + (regionWidth - minWidth) * entryT)),
+      targetWidth,
+      Math.max(22, Math.round(minWidth + (targetWidth - minWidth) * entryT)),
     );
     const padLeft = Math.max(0, Math.floor((regionWidth - boxWidth) / 2));
     const inner = boxWidth - 2;
@@ -256,13 +258,13 @@ export class CommandHubComponent extends Container implements Focusable {
     if (this.intro) {
       body.push(
         truncateToWidth(
-          ` ${renderPulseText('Your home base — flip a mode, then type', 'hub:intro', 'accent', appearance)}`,
+          ` ${renderPulseText('Pick a mode, or type to search', 'hub:intro', 'accent', appearance)}`,
           inner,
         ),
       );
       body.push(
         truncateToWidth(
-          theme.fg('textMuted', ' Space stays open · Enter applies & closes · Esc dismisses tip'),
+          theme.fg('textMuted', ' Space toggles · Enter runs · Esc dismisses tip'),
           inner,
         ),
       );
@@ -325,7 +327,7 @@ export class CommandHubComponent extends Container implements Focusable {
     const cursor = theme.fg('primary', '▌');
     const left = filtering
       ? ` ${theme.fg('primary', '❯')} ${theme.fg('text', this.query)}${cursor}`
-      : ` ${theme.fg('textMuted', '❯')} ${cursor}${theme.fg('textMuted', ' Search actions, settings, skills…')}`;
+      : ` ${theme.fg('textMuted', '❯')} ${cursor}${theme.fg('textMuted', ' Search anything…')}`;
     const countPlain = filtering
       ? `${String(this.filtered.length)}/${String(this.items.length)}`
       : String(this.items.length);
@@ -384,8 +386,9 @@ export class CommandHubComponent extends Container implements Focusable {
       section === 'Now' || section === 'Recent'
         ? renderPulseText(section, `hub:sec:${section}`, 'accent', appearance)
         : theme.boldFg('accent', section);
-    const fill = inner - visibleWidth(section) - 4;
-    const rule = fill > 2 ? ` ${theme.dimFg('textMuted', '╌'.repeat(fill))}` : '';
+    // ` ${section}` + trailing rule space; fill the rest so the rule meets the border.
+    const fill = Math.max(0, inner - visibleWidth(` ${section}`) - 1);
+    const rule = fill > 0 ? ` ${theme.dimFg('textMuted', '╌'.repeat(fill))}` : '';
     return truncateToWidth(` ${label}${rule}`, inner);
   }
 
