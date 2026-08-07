@@ -141,16 +141,20 @@ density = "compact"
     expect(parseTuiConfig('[appearance]\nneat = false\n').appearance?.neat).toBe(false);
   });
 
-  it('rejects an invalid show_timestamps value like other appearance fields', async () => {
-    writeFileSync(filePath, '[appearance]\nshow_timestamps = "yes"', 'utf-8');
+  it('keeps a saved theme when appearance has an invalid field', async () => {
+    const text = `theme = "superliora-bloodmoon"
 
-    const error = await loadTuiConfig(filePath).then(
-      () => null,
-      (error: unknown) => error,
-    );
+[appearance]
+show_timestamps = "yes"
+density = "compact"
+`;
+    writeFileSync(filePath, text, 'utf-8');
 
-    expect(error).toBeInstanceOf(TuiConfigParseError);
-    expect((error as TuiConfigParseError).fallback).toEqual(DEFAULT_TUI_CONFIG);
+    const config = await loadTuiConfig(filePath);
+
+    expect(config.theme).toBe('superliora-bloodmoon');
+    expect(config.appearance).toEqual(DEFAULT_APPEARANCE_PREFERENCES);
+    expect(readFileSync(filePath, 'utf-8')).toBe(text);
   });
 
   it('normalizes an empty editor command to auto-detect', () => {
@@ -195,6 +199,23 @@ command = "   "
     expect(readFileSync(filePath, 'utf-8')).toBe('[[[');
   });
 
+  it('salvages theme from unparseable TOML so upgrades do not reset to dark', async () => {
+    const broken = '[[[not toml\ntheme = "superliora-bloodmoon"\n';
+    writeFileSync(filePath, broken, 'utf-8');
+
+    const error = await loadTuiConfig(filePath).then(
+      () => null,
+      (error: unknown) => error,
+    );
+
+    expect(error).toBeInstanceOf(TuiConfigParseError);
+    expect((error as TuiConfigParseError).fallback.theme).toBe('superliora-bloodmoon');
+    expect((error as TuiConfigParseError).fallback.appearance).toEqual(
+      DEFAULT_APPEARANCE_PREFERENCES,
+    );
+    expect(readFileSync(filePath, 'utf-8')).toBe(broken);
+  });
+
   it('saves and reloads the normalized config', async () => {
     await saveTuiConfig(
       {
@@ -228,6 +249,19 @@ command = "   "
       footer: DEFAULT_FOOTER_PREFERENCES,
       onboarding: DEFAULT_ONBOARDING_PREFERENCES,
     });
+  });
+
+  it('round-trips a custom theme through atomic save without losing it', async () => {
+    await saveTuiConfig(
+      {
+        ...DEFAULT_TUI_CONFIG,
+        theme: 'superliora-bloodmoon',
+      },
+      filePath,
+    );
+
+    expect((await loadTuiConfig(filePath)).theme).toBe('superliora-bloodmoon');
+    expect(readFileSync(filePath, 'utf-8')).toContain('theme = "superliora-bloodmoon"');
   });
 
   it('escapes special characters in a custom theme name so the TOML round-trips', async () => {

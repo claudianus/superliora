@@ -6,8 +6,8 @@
  */
 
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
 
 import { parse as parseToml } from 'smol-toml';
 import { z } from 'zod';
@@ -130,81 +130,91 @@ export const AppearancePreferencesSchema = z.object({
   syntaxTheme: SyntaxThemeSchema,
 });
 
-const FooterConfigFileSchema = z
+const FooterConfigFileFieldsSchema = z.object({
+  labels: FooterLabelsSchema.optional(),
+  modes: FooterSlotSchema.optional(),
+  model: FooterSlotSchema.optional(),
+  cwd: FooterSlotSchema.optional(),
+  git: FooterSlotSchema.optional(),
+  context: FooterSlotSchema.optional(),
+  goal: FooterSlotSchema.optional(),
+  menu: FooterSlotSchema.optional(),
+  background: FooterSlotSchema.optional(),
+  tips: FooterSlotSchema.optional(),
+  next_action: FooterSlotSchema.optional(),
+  working_set: FooterSlotSchema.optional(),
+  quota: FooterSlotSchema.optional(),
+  media_ready: FooterSlotSchema.optional(),
+  index: FooterSlotSchema.optional(),
+  mcp: FooterSlotSchema.optional(),
+  cache: FooterSlotSchema.optional(),
+  pulse_goal_progress: z.boolean().optional(),
+  pulse_fleet_complete: z.boolean().optional(),
+  pulse_permission: z.boolean().optional(),
+  pulse_git_churn: z.boolean().optional(),
+  pulse_ops_combo: z.boolean().optional(),
+  pulse_extensions_reload: z.boolean().optional(),
+  pulse_runtime_degraded: z.boolean().optional(),
+  pulse_search_cascade: z.boolean().optional(),
+  pulse_model_route: z.boolean().optional(),
+  show_compact: z.boolean().optional(),
+  show_prompt_intelligence: z.boolean().optional(),
+});
+
+const FooterConfigFileSchema = FooterConfigFileFieldsSchema.optional();
+
+const AppearanceConfigFileFieldsSchema = z.object({
+  profile: AppearanceProfileSchema.optional(),
+  density: AppearanceDensitySchema.optional(),
+  particles: AppearanceParticlesSchema.optional(),
+  animation_fps: z.number().int().min(1).max(60).optional(),
+  canvas_background: z.boolean().optional(),
+  terminal_background: TerminalBackgroundSchema.optional(),
+  terminal_palette: z.boolean().optional(),
+  show_timestamps: z.boolean().optional(),
+  transcript_detail: TranscriptDetailSchema.optional(),
+  mission_control: z.enum(['auto', 'pinned', 'hidden']).optional(),
+  neat: z.boolean().optional(),
+  syntax_theme: SyntaxThemeSchema.optional(),
+});
+
+const EditorConfigFileSchema = z
   .object({
-    labels: FooterLabelsSchema.optional(),
-    modes: FooterSlotSchema.optional(),
-    model: FooterSlotSchema.optional(),
-    cwd: FooterSlotSchema.optional(),
-    git: FooterSlotSchema.optional(),
-    context: FooterSlotSchema.optional(),
-    goal: FooterSlotSchema.optional(),
-    menu: FooterSlotSchema.optional(),
-    background: FooterSlotSchema.optional(),
-    tips: FooterSlotSchema.optional(),
-    next_action: FooterSlotSchema.optional(),
-    working_set: FooterSlotSchema.optional(),
-    quota: FooterSlotSchema.optional(),
-    media_ready: FooterSlotSchema.optional(),
-    index: FooterSlotSchema.optional(),
-    mcp: FooterSlotSchema.optional(),
-    cache: FooterSlotSchema.optional(),
-    pulse_goal_progress: z.boolean().optional(),
-    pulse_fleet_complete: z.boolean().optional(),
-    pulse_permission: z.boolean().optional(),
-    pulse_git_churn: z.boolean().optional(),
-    pulse_ops_combo: z.boolean().optional(),
-    pulse_extensions_reload: z.boolean().optional(),
-    pulse_runtime_degraded: z.boolean().optional(),
-    pulse_search_cascade: z.boolean().optional(),
-    pulse_model_route: z.boolean().optional(),
-    show_compact: z.boolean().optional(),
-    show_prompt_intelligence: z.boolean().optional(),
+    command: z.string().optional(),
   })
   .optional();
 
+const NotificationsConfigFileSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    notification_condition: NotificationConditionSchema.optional(),
+  })
+  .optional();
+
+const UpgradeConfigFileSchema = z
+  .object({
+    auto_install: z.boolean().optional(),
+  })
+  .optional();
+
+const OnboardingConfigFileSchema = z
+  .object({
+    hub_intro_seen: z.boolean().optional(),
+  })
+  .optional();
+
+const PermissionModeFileSchema = z.enum(['yolo', 'manual', 'auto']).optional();
+
 export const TuiConfigFileSchema = z.object({
   theme: TuiThemeSchema.optional(),
-  permission_mode: z.enum(['yolo', 'manual', 'auto']).optional(),
+  permission_mode: PermissionModeFileSchema,
   disable_paste_burst: z.boolean().optional(),
-  editor: z
-    .object({
-      command: z.string().optional(),
-    })
-    .optional(),
-  notifications: z
-    .object({
-      enabled: z.boolean().optional(),
-      notification_condition: NotificationConditionSchema.optional(),
-    })
-    .optional(),
-  upgrade: z
-    .object({
-      auto_install: z.boolean().optional(),
-    })
-    .optional(),
-    appearance: z
-    .object({
-      profile: AppearanceProfileSchema.optional(),
-      density: AppearanceDensitySchema.optional(),
-      particles: AppearanceParticlesSchema.optional(),
-      animation_fps: z.number().int().min(1).max(60).optional(),
-      canvas_background: z.boolean().optional(),
-      terminal_background: TerminalBackgroundSchema.optional(),
-      terminal_palette: z.boolean().optional(),
-      show_timestamps: z.boolean().optional(),
-      transcript_detail: TranscriptDetailSchema.optional(),
-      mission_control: z.enum(['auto', 'pinned', 'hidden']).optional(),
-      neat: z.boolean().optional(),
-      syntax_theme: SyntaxThemeSchema.optional(),
-    })
-    .optional(),
+  editor: EditorConfigFileSchema,
+  notifications: NotificationsConfigFileSchema,
+  upgrade: UpgradeConfigFileSchema,
+  appearance: AppearanceConfigFileFieldsSchema.optional(),
   footer: FooterConfigFileSchema,
-  onboarding: z
-    .object({
-      hub_intro_seen: z.boolean().optional(),
-    })
-    .optional(),
+  onboarding: OnboardingConfigFileSchema,
 });
 
 export const OnboardingPreferencesSchema = z.object({
@@ -330,11 +340,11 @@ export async function loadTuiConfig(filePath: string = getTuiConfigPath()): Prom
     return DEFAULT_TUI_CONFIG;
   }
 
+  const text = await readFile(filePath, 'utf-8');
   try {
-    const text = await readFile(filePath, 'utf-8');
     return parseTuiConfig(text);
   } catch {
-    throw new TuiConfigParseError(DEFAULT_TUI_CONFIG);
+    throw new TuiConfigParseError(fallbackTuiConfigFromSalvage(text));
   }
 }
 
@@ -343,8 +353,18 @@ export function parseTuiConfig(tomlText: string): TuiConfig {
     return DEFAULT_TUI_CONFIG;
   }
   const raw = parseToml(tomlText) as Record<string, unknown>;
-  const parsed = TuiConfigFileSchema.parse(raw);
-  return normalizeTuiConfig(parsed);
+  return normalizeTuiConfig(coerceTuiConfigFile(raw));
+}
+
+/**
+ * Strict on-disk shape check for `liora doctor`.
+ * Runtime load uses {@link parseTuiConfig} (section-tolerant); doctor still
+ * surfaces invalid nested fields so operators can fix them.
+ */
+export function assertTuiConfigFile(tomlText: string): void {
+  if (tomlText.trim().length === 0) return;
+  const raw = parseToml(tomlText) as Record<string, unknown>;
+  TuiConfigFileSchema.parse(raw);
 }
 
 export async function saveTuiConfig(
@@ -352,7 +372,69 @@ export async function saveTuiConfig(
   filePath: string = getTuiConfigPath(),
 ): Promise<void> {
   await mkdir(dirname(filePath), { recursive: true });
-  await writeFile(filePath, renderTuiConfig(config), 'utf-8');
+  const tmpPath = join(
+    dirname(filePath),
+    `.${basename(filePath)}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`,
+  );
+  try {
+    await writeFile(tmpPath, renderTuiConfig(config), 'utf-8');
+    await rename(tmpPath, filePath);
+  } catch (error) {
+    await unlink(tmpPath).catch(() => {});
+    throw error;
+  }
+}
+
+/**
+ * Section-tolerant coerce: one invalid nested section falls back to
+ * "missing" so {@link normalizeTuiConfig} fills defaults without discarding
+ * a valid top-level `theme` (or other healthy keys).
+ */
+function coerceTuiConfigFile(raw: Record<string, unknown>): TuiConfigFileShape {
+  return {
+    theme: softParse(TuiThemeSchema.optional(), raw['theme']),
+    permission_mode: softParse(PermissionModeFileSchema, raw['permission_mode']),
+    disable_paste_burst: softParse(z.boolean().optional(), raw['disable_paste_burst']),
+    editor: softParse(EditorConfigFileSchema, raw['editor']),
+    notifications: softParse(NotificationsConfigFileSchema, raw['notifications']),
+    upgrade: softParse(UpgradeConfigFileSchema, raw['upgrade']),
+    appearance: softParse(AppearanceConfigFileFieldsSchema.optional(), raw['appearance']),
+    footer: softParse(FooterConfigFileSchema, raw['footer']),
+    onboarding: softParse(OnboardingConfigFileSchema, raw['onboarding']),
+  };
+}
+
+function softParse<T>(schema: z.ZodType<T>, value: unknown): T | undefined {
+  const result = schema.safeParse(value);
+  return result.success ? result.data : undefined;
+}
+
+/** Best-effort theme recovery when TOML itself is unparseable. */
+function salvageThemePreference(tomlText: string): string | undefined {
+  const doubleQuoted = /^\s*theme\s*=\s*"((?:\\.|[^"\\])*)"/m.exec(tomlText);
+  const singleQuoted = /^\s*theme\s*=\s*'((?:\\.|[^'\\])*)'/m.exec(tomlText);
+  const raw = doubleQuoted?.[1] ?? singleQuoted?.[1];
+  if (raw === undefined) return undefined;
+  const unescaped = unescapeTomlBasicString(raw);
+  const parsed = TuiThemeSchema.safeParse(unescaped);
+  return parsed.success && parsed.data.length > 0 ? parsed.data : undefined;
+}
+
+function fallbackTuiConfigFromSalvage(tomlText: string): TuiConfig {
+  const theme = salvageThemePreference(tomlText);
+  if (theme === undefined) return DEFAULT_TUI_CONFIG;
+  return { ...DEFAULT_TUI_CONFIG, theme };
+}
+
+function unescapeTomlBasicString(value: string): string {
+  return value
+    .replaceAll('\\"', '"')
+    .replaceAll('\\n', '\n')
+    .replaceAll('\\r', '\r')
+    .replaceAll('\\t', '\t')
+    .replaceAll('\\f', '\f')
+    .replaceAll('\\b', '\b')
+    .replaceAll('\\\\', '\\');
 }
 
 export function normalizeTuiConfig(config: TuiConfigFileShape): TuiConfig {
