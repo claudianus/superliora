@@ -17,7 +17,6 @@ import {
   type TUIStateNativeInputRouter,
 } from '../../features/native-layout/native-input-router';
 import { createTUIStateNativeRenderCallback } from '../../features/native-layout/native-layout-frame';
-import { missionWorkspaceCenterRect } from '../../features/mission-control/dock';
 import { installTerminalFocusTracking } from '../../utils/terminal/terminal-focus';
 import { getTUIStateNativeTodoRect } from '../../features/transcript/transcript-hit-test';
 import type { TranscriptScrollAction } from '../../features/transcript/transcript-viewport';
@@ -41,10 +40,6 @@ export function attachStartupNativeRendererCallback(host: StartupLifecycleHost):
       onAuthoritativeFrame: () => {
         host.appearanceController.reapplyTerminalPalette();
       },
-      // Mission Control right dock reserves its band by shrinking the stage's
-      // workspace center (first consumer of the workspace-dock frame hook).
-      workspaceCenter: ({ columns, rows }) =>
-        missionWorkspaceCenterRect(host.state, columns, rows) ?? null,
     }),
   );
   host.state.toast.onChanged = () => {

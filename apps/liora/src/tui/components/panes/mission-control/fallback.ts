@@ -1,8 +1,8 @@
 /**
- * In-stack Mission Control band for narrow terminals: mounts once in the
- * chrome stack and renders the shared panel when the right dock cannot own
- * the surface (below the width threshold) — zero rows otherwise, so the
- * region collapses exactly like the other situational panes.
+ * In-stack Mission Control band: mounts once in the chrome stack (just above
+ * the editor) and renders the shared panel at the stage's full reading width
+ * when {@link missionBandActive} — zero rows otherwise, so the region
+ * collapses exactly like the other situational panes.
  */
 
 import type { Component } from '#/tui/renderer';
@@ -11,7 +11,7 @@ import type { MissionControlPanelComponent } from './panel';
 
 export interface MissionControlFallbackOptions {
   readonly panel: MissionControlPanelComponent;
-  /** `missionFallbackActive` decision for the current terminal width. */
+  /** `missionBandActive` decision for the current view. */
   readonly visible: () => boolean;
 }
 

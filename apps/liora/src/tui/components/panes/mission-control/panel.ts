@@ -1,12 +1,9 @@
 /**
  * MissionControlPanel — the single live-monitoring surface for every
  * background worker (subagents, background agents/processes, swarm members)
- * plus a condensed Conductor job lane summary. Renders two ways:
- *
- * - `renderDock(width, height)` — centered bento panel (wide terminals);
- *   fills the exact dock rect beside the stage.
- * - `render(width)` — in-stack chrome band fallback (narrow terminals),
- *   capped at {@link MISSION_FALLBACK_MAX_ROWS} rows.
+ * plus a condensed Conductor job lane summary. Renders as an in-stage bottom
+ * band at the stage's full reading width (capped at
+ * {@link MISSION_BAND_MAX_ROWS} rows).
  *
  * Presentation only: the controller pushes an immutable
  * {@link MissionControlView} (registry snapshot + conductor jobs). Motion
@@ -58,8 +55,10 @@ import {
   formatMissionTarget,
 } from '#/tui/utils/tools/mission-target';
 
-/** Stack-fallback band never grows past this many rows. */
-export const MISSION_FALLBACK_MAX_ROWS = 14;
+/** In-stage bottom band never grows past this many rows. */
+export const MISSION_BAND_MAX_ROWS = 14;
+/** @deprecated Use {@link MISSION_BAND_MAX_ROWS}. */
+export const MISSION_FALLBACK_MAX_ROWS = MISSION_BAND_MAX_ROWS;
 /** MOVES rows in the full layout (tight/minimal degrade first). */
 const OPS_FEED_FULL_ROWS = 4;
 /** Job rows under the counts line in the full layout. */
@@ -194,17 +193,25 @@ export class MissionControlPanelComponent implements Component {
     this.lastRender = undefined;
   }
 
-  /** In-stack fallback band (narrow terminals). */
+  /** In-stage bottom band (full stage reading width). */
   render(width: number): string[] {
-    return this.renderFitted(width, MISSION_FALLBACK_MAX_ROWS);
+    return this.renderFitted(width, MISSION_BAND_MAX_ROWS);
   }
 
-  /** Right workspace dock: fits exactly `height` rows (slice + pad). */
-  renderDock(width: number, height: number): string[] {
+  /**
+   * Fit into an exact row budget (tests / callers that need a fixed height).
+   * Pads with blank lines when the content is shorter than `height`.
+   */
+  renderFittedBand(width: number, height: number): string[] {
     const lines = this.renderFitted(width, Math.max(0, height));
     const fitted = lines.slice(0, Math.max(0, height));
     while (fitted.length < height) fitted.push(' '.repeat(Math.max(0, width)));
     return fitted;
+  }
+
+  /** @deprecated Use {@link renderFittedBand}. */
+  renderDock(width: number, height: number): string[] {
+    return this.renderFittedBand(width, height);
   }
 
   private renderFitted(width: number, budget: number): string[] {

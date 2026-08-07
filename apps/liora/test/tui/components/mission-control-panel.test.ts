@@ -268,13 +268,13 @@ describe('MissionControlPanelComponent', () => {
     const panel = new MissionControlPanelComponent();
     panel.setView(viewFor(registry));
 
-    const tight = panel.renderDock(48, 8);
+    const tight = panel.renderFittedBand(48, 8);
     expect(tight).toHaveLength(8);
     // Overflow note keeps the hidden worker count visible.
     expect(plain(tight).join('\n')).toContain('more');
   });
 
-  it('pads the dock render to the exact rect height', () => {
+  it('pads a fitted band render to the exact row budget', () => {
     const registry = registryWith([
       {
         type: 'subagent.spawned',
@@ -286,11 +286,11 @@ describe('MissionControlPanelComponent', () => {
     ]);
     const panel = new MissionControlPanelComponent();
     panel.setView(viewFor(registry));
-    const lines = panel.renderDock(40, 30);
+    const lines = panel.renderFittedBand(40, 30);
     expect(lines).toHaveLength(30);
   });
 
-  it('caps the stack-fallback band at the fallback row budget', () => {
+  it('caps the bottom band at the band row budget', () => {
     const events: Event[] = [];
     for (let i = 0; i < 10; i += 1) {
       events.push({

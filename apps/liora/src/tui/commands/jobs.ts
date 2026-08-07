@@ -6,7 +6,7 @@
 import type { SlashCommandHost } from './hub/dispatch';
 
 const JOBS_USAGE =
-  'Usage: /jobs — list Conductor jobs; /jobs deck [id] — open the interactive Job Deck monitor; /agents — toggle the Mission Control dock; /job <id> — inspect; /job resume [id] — resume interrupted; /job answer <id> <text> — answer needs_user card; /job cancel <id>; /job inbox; /job gc — worktree GC hint; /job help';
+  'Usage: /jobs — list Conductor jobs; /jobs deck [id] — open the interactive Job Deck monitor; /agents — toggle the Mission Control band; /job <id> — inspect; /job resume [id] — resume interrupted; /job answer <id> <text> — answer needs_user card; /job cancel <id>; /job inbox; /job gc — worktree GC hint; /job help';
 
 function isBoardArgs(args: string): boolean {
   return args === 'board' || args === 'view' || args === 'open';

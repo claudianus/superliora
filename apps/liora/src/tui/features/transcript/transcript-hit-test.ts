@@ -8,10 +8,7 @@ import {
 import { CHROME_GUTTER } from '../../constant/rendering';
 import type { TUIState } from '../../tui-state';
 import { planTUINativeStage } from '#/tui/features/native-layout/native-stage-plan';
-import {
-  missionFallbackActive,
-  missionWorkspaceCenterRect,
-} from '#/tui/features/mission-control/dock';
+import { missionBandActive } from '#/tui/features/mission-control/dock';
 import {
   plainTextFromRegionLine,
   type TranscriptSelectionPoint,
@@ -51,7 +48,7 @@ export function invalidateTranscriptHitTestCache(state: TUIState): void {
 /** Cheap chrome signature — mission/todo mount + content counts drive region height. */
 export function hitTestChromeSignature(state: TUIState): string {
   const view = state.missionControlPanel.currentView;
-  const missionMounted = missionFallbackActive(state, state.terminal.columns) ? 1 : 0;
+  const missionMounted = missionBandActive(state) ? 1 : 0;
   const missionRows =
     view.snapshot.workers.length + view.snapshot.ops.length + (view.jobs?.jobs.length ?? 0);
   const todoEmpty = state.todoPanel.isEmpty() ? 1 : 0;
@@ -84,10 +81,8 @@ export function resolveTranscriptLayoutContext(
     visibleRows = state.cachedTranscriptVisibleRows ?? 0;
     stageWidth = state.cachedTranscriptStageWidth ?? frameWidth;
   } else {
-    // Slow path: full layout computation. Mission Control's centered cluster
-    // sets workspaceCenter to the stage cell — hit tests must agree with paint.
+    // Slow path: full layout computation. Hit tests must agree with paint.
     const plan = planTUINativeStage(state, frameWidth, frameHeight, {
-      workspaceCenter: missionWorkspaceCenterRect(state, frameWidth, frameHeight),
       resolveEditorFallbackLines: (contentWidth) => state.editorContainer.render(contentWidth),
       resolveEditorRows: ({ editorLineCount: elc, contentHeight, fixedRowsWithoutEditor }) =>
         Math.min(

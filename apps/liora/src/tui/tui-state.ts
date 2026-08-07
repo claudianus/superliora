@@ -15,7 +15,7 @@ import type { MoonLoader, SpinnerStyle } from './components/chrome/moon-loader';
 import { TodoPanelComponent } from './components/chrome/todo/todo-panel';
 import { MissionControlFallbackComponent } from './components/panes/mission-control/fallback';
 import { MissionControlPanelComponent } from './components/panes/mission-control/panel';
-import { missionFallbackActive } from './features/mission-control/dock';
+import { missionBandActive } from './features/mission-control/dock';
 import type { SessionRow } from './components/dialogs/session/session-picker';
 import type { TUIEditor } from './components/editor/editor-contract';
 import { createTUIEditor } from './components/editor/editor-factory';
@@ -194,8 +194,7 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
   missionControlContainer.addChild(
     new MissionControlFallbackComponent({
       panel: missionControlPanel,
-      visible: () =>
-        self !== undefined && missionFallbackActive(self, terminal.columns),
+      visible: () => self !== undefined && missionBandActive(self),
     }),
   );
   const queueContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);

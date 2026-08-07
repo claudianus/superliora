@@ -1,5 +1,5 @@
 /**
- * `/agents` — Mission Control visibility. Cycles (or sets) the dock mode
+ * `/agents` — Mission Control visibility. Cycles (or sets) the band mode
  * and persists it to `tui.toml` `[appearance] mission_control`.
  */
 

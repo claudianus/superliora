@@ -5,7 +5,7 @@
  * {@link handleEvent}; the app-state sync calls {@link pushView} when the
  * `conductorJobs` ledger changes. Render invalidation escalates to a layout
  * render only when the panel crosses empty↔non-empty or the mode changes
- * (dock visibility / fallback band height depend on both).
+ * (the bottom band height depends on both).
  */
 
 import type { Event } from '@superliora/sdk';
@@ -48,8 +48,8 @@ export class MissionControlController {
       workDir,
     });
     if (panel.isEmpty() !== wasEmpty) {
-      // Mount/unmount moves chrome regions (and the dock steals stage width) —
-      // bust the mouse hit-test cache and relayout.
+      // Mount/unmount moves chrome regions — bust the mouse hit-test cache
+      // and relayout.
       invalidateTranscriptHitTestCache(state);
       requestTUILayoutRender(state);
       return;

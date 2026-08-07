@@ -64,7 +64,7 @@ export const SETTINGS_SEARCH_KEYWORDS = {
   network: ['proxy', 'https_proxy', 'no_proxy'],
   storage: ['home', 'retention', 'logs', 'superliora-home'],
   theme: ['dark', 'light', 'palette', 'skin'],
-  appearance: ['motion', 'density', 'background', 'ambient', 'mission-control', 'agents', 'dock'],
+  appearance: ['motion', 'density', 'background', 'ambient', 'mission-control', 'agents', 'band'],
   footer: [
     'status-bar',
     'statusbar',
