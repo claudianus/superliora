@@ -10,6 +10,14 @@ import { expandCommandArguments } from '../plugin/commands';
 import type { PluginCommandOrigin } from './context';
 import { buildSessionOAuthStatus } from '../runtime/session-oauth-status';
 import {
+  conductorCancelGoal,
+  conductorCreateGoal,
+  conductorGetGoal,
+  conductorPauseGoal,
+  conductorResumeGoal,
+} from '../tools/builtin/goal/goal-desk-facade';
+import { shouldDelegateGoalToDesk } from '../tools/builtin/goal/goal-desk';
+import {
   delegateConductorPlanDesk,
   shouldDelegateToPlanDesk,
 } from '../tools/builtin/planning/plan-desk';
@@ -190,11 +198,36 @@ export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
       );
     },
     startBtw: () => agent.subagentHost!.startBtw(),
-    createGoal: (payload) => agent.goal.createGoal(payload),
-    getGoal: () => agent.goal.getGoal(),
-    pauseGoal: () => agent.goal.pauseGoal(),
-    resumeGoal: () => agent.goal.resumeGoal(),
-    cancelGoal: () => agent.goal.cancelGoal(),
+    createGoal: async (payload) => {
+      if (shouldDelegateGoalToDesk(agent)) {
+        return conductorCreateGoal(agent, payload);
+      }
+      return agent.goal.createGoal(payload);
+    },
+    getGoal: () => {
+      if (shouldDelegateGoalToDesk(agent)) {
+        return conductorGetGoal(agent);
+      }
+      return agent.goal.getGoal();
+    },
+    pauseGoal: () => {
+      if (shouldDelegateGoalToDesk(agent)) {
+        return conductorPauseGoal(agent);
+      }
+      return agent.goal.pauseGoal();
+    },
+    resumeGoal: async () => {
+      if (shouldDelegateGoalToDesk(agent)) {
+        return conductorResumeGoal(agent);
+      }
+      return agent.goal.resumeGoal();
+    },
+    cancelGoal: () => {
+      if (shouldDelegateGoalToDesk(agent)) {
+        return conductorCancelGoal(agent);
+      }
+      return agent.goal.cancelGoal();
+    },
     getBackgroundOutput: (payload) => agent.background.readOutput(payload.taskId, payload.tail),
     getContext: () => agent.context.data(),
     getContextComposition: () => agent.context.composition(),

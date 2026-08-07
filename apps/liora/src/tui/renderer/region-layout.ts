@@ -37,9 +37,11 @@ export interface RendererRegionLayout {
 const FIXED_REGION_IDS: readonly RendererFixedRegionId[] = [
   'activity',
   'todo',
-  'mission',
   'queue',
   'btw',
+  // Mission Control sits just above the editor so the band reads as the
+  // bottom of the main stage (full reading width), not a side dock.
+  'mission',
   'editor',
   'footer',
 ];

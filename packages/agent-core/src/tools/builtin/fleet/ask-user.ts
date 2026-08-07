@@ -369,8 +369,8 @@ const DESTRUCTIVE_QUESTION_PATTERNS = [
   /\birreversible\b/i,
   /\bpermanent(?:ly)?\b/i,
   /\bcannot\s+be\s+undone\b/i,
-  /\bmerge[sd]?\b/i,
-  /\bland(?:ing|ed|s)?\b/i,
+  // merge/land are NOT listed: MergeJob trust (+ auto permission waive) is the
+  // land gate. Matching "merge" here forced a human RPC even in auto mode.
   /\bdeploy(?:ing|ment|s)?\b/i,
   /\bpublish(?:ing|es)?\b/i,
   /\brelease[sd]?\b/i,

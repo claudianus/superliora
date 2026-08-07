@@ -25,6 +25,7 @@ export const CONDUCTOR_WAKE_ORIGIN: PromptOrigin = {
 export const CONDUCTOR_WAKE_PROMPT = [
   '[job desk wake] Terminal job notices landed — the <conductor_job_desk> injection this turn lists them.',
   'Do exactly one routing pass per the playbook: relay needs_user (AskUserQuestion), verify done-claims against briefs with ledger reads only, chain follow-ups with JobCreate. Then end the turn.',
+  'If a Plan Desk (mission) job completed, prefer JobInspect → Implement handoff fields for JobCreate (greenfield_chain when delivery_mode=greenfield); do not invent a fresh brief from memory.',
   'Never run builds/tests/verification loops on this lane — delegate them as Jobs.',
 ].join('\n');
 

@@ -7,6 +7,7 @@ import type { QuestionRequest, QuestionResult } from '../../src/rpc';
 import {
   AskUserQuestionInputSchema,
   AskUserQuestionTool,
+  buildAutoInterviewDecisionForTest,
   type AskUserQuestionInput,
 } from '../../src/tools/builtin/fleet/ask-user';
 import { executeTool } from './fixtures/execute-tool';
@@ -254,6 +255,46 @@ describe('AskUserQuestionTool', () => {
       method: 'auto',
       auto_decisions: 1,
     });
+  });
+
+  it('auto-answers merge/land questions in auto mode (MergeJob is the land gate)', () => {
+    const decision = buildAutoInterviewDecisionForTest(
+      {
+        questions: [
+          {
+            question: 'Land job_abc to main?',
+            header: 'Merge',
+            options: [
+              { label: 'Approve (Recommended)', description: 'Merge the worktree branch' },
+              { label: 'Hold', description: 'Keep blocked' },
+            ],
+            multi_select: false,
+          },
+        ],
+      },
+      'auto',
+    );
+    expect(decision?.answers['Land job_abc to main?']).toContain('Approve (Recommended)');
+  });
+
+  it('does not auto-answer delete / force-push questions in auto mode', () => {
+    const decision = buildAutoInterviewDecisionForTest(
+      {
+        questions: [
+          {
+            question: 'Delete the staging branch and force push?',
+            header: 'Danger',
+            options: [
+              { label: 'Yes (Recommended)', description: 'Delete and force push' },
+              { label: 'No', description: 'Keep remote' },
+            ],
+            multi_select: false,
+          },
+        ],
+      },
+      'auto',
+    );
+    expect(decision).toBeUndefined();
   });
 
   it('records auto origin for ultra interview answers under auto mode', async () => {

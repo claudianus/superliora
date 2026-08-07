@@ -35,6 +35,7 @@ export type JobEventKind =
   | 'mission'
   | 'merge'
   | 'desk'
+  | 'goal-desk'
   | 'goal-driver';
 
 /**
@@ -124,6 +125,7 @@ export const jobEventKindSchema = z.enum([
   'mission',
   'merge',
   'desk',
+  'goal-desk',
   'goal-driver',
 ]) satisfies z.ZodType<JobEventKind>;
 

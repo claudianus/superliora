@@ -6,6 +6,7 @@ import {
 } from '../../src/session/subagent/subagent-result-contract';
 import { getJob, listJobs, createJob, patchJob } from '../../src/tools/builtin/job/job-ledger';
 import { MergeJobTool } from '../../src/tools/builtin/job/job-tools';
+import type { Agent } from '../../src/agent';
 import type { ToolStore } from '../../src/tools/store';
 
 /**
@@ -262,5 +263,60 @@ describe('V2-5 merge offloading (verdict/execution split)', () => {
     await until(() => getJob(store, mergeJob!.id)?.status === 'done');
     expect(getJob(store, mergeJob!.id)?.resultSummary).toContain('ledger only');
     expect(getJob(store, source.id)?.status).toBe('done');
+  });
+
+  it('auto permission waives dangerous-path confirm without a human click', async () => {
+    const store = memoryStore();
+    const created = createJob(store, { title: 'auto land dangerous', kind: 'implement' });
+    const source = patchJob(store, created.id, {
+      status: 'done',
+      resultSummary: 'touched env example',
+      resultContract: greenContract(['src/x.ts', '.env']),
+    });
+    if (!source) throw new Error('failed to prepare source job');
+
+    const manual = new MergeJobTool(store, {
+      permission: { mode: 'manual' },
+      kaos: undefined,
+      config: { cwd: '/repo/main' },
+    } as unknown as Agent);
+    const manualExec = manual.resolveExecution({
+      job_id: source.id,
+      approve: true,
+      summary: 'reviewed',
+      diff_lines: 8,
+      checks_green: true,
+      paths: ['src/x.ts', '.env'],
+    });
+    if (manualExec.isError) throw new Error('resolve manual');
+    const manualResult = await manualExec.execute({
+      turnId: 't',
+      toolCallId: 'c_manual',
+      signal: new AbortController().signal,
+    });
+    expect(manualResult.isError).toBe(true);
+    expect(String(manualResult.output)).toMatch(/Dangerous paths/);
+
+    const auto = new MergeJobTool(store, {
+      permission: { mode: 'auto' },
+      kaos: undefined,
+      config: { cwd: '/repo/main' },
+    } as unknown as Agent);
+    const autoExec = auto.resolveExecution({
+      job_id: source.id,
+      approve: true,
+      summary: 'reviewed',
+      diff_lines: 8,
+      checks_green: true,
+      paths: ['src/x.ts', '.env'],
+    });
+    if (autoExec.isError) throw new Error('resolve auto');
+    const autoResult = await autoExec.execute({
+      turnId: 't',
+      toolCallId: 'c_auto',
+      signal: new AbortController().signal,
+    });
+    expect(autoResult.isError).toBe(false);
+    expect(String(autoResult.output)).toContain('Merge approved (auto)');
   });
 });

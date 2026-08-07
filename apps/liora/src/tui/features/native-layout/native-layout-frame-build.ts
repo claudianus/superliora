@@ -38,10 +38,6 @@ import {
   stageFrameBundleRect,
 } from '#/tui/features/stage/stage-frame';
 import {
-  MISSION_DOCK_Z_INDEX,
-  resolveMissionDockRect,
-} from '#/tui/features/mission-control/dock';
-import {
   getStageResizeHoverZone,
   isStageResizeDragging,
 } from '#/tui/features/stage/stage-resize-mouse';
@@ -297,26 +293,6 @@ export function buildTUIStateNativeFrame(
       resizeDragging: isStageResizeDragging(),
     }),
   );
-  // Mission Control bento panel: same height as the stage, adjacent in the
-  // centered cluster. z-index above letterbox/frame so night-sky gutters
-  // cannot bury it (stage resolves in the cluster's left cell via workspaceCenter).
-  const missionDock = resolveMissionDockRect(state, width, height);
-  if (missionDock !== undefined && missionDock.width > 0 && missionDock.height > 0) {
-    const dockLines = state.missionControlPanel.renderDock(missionDock.width, missionDock.height);
-    const projected = projectRendererCursorMarkerLines({
-      lines: dockLines,
-      rect: missionDock,
-      viewport: { x: 0, y: 0, width, height },
-    });
-    regions.push({
-      id: 'mission-dock',
-      rect: missionDock,
-      content: promoteRendererRegionLinesToCells(projected.lines),
-      clear: !ambientDamageOnly,
-      background: canvasBackground,
-      zIndex: MISSION_DOCK_Z_INDEX,
-    });
-  }
   const diagnosticsOverlay = skipDecorative
     ? undefined
     : createTUIStateDiagnosticsOverlayRegion(

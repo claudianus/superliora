@@ -66,7 +66,11 @@ describe('JobCreate ACK vs slow spawn chain (incident 2026-08-03, V7-1)', () => 
     };
     const agent = { subagentHost: host, config: { cwd: undefined } } as never;
     const tool = new JobCreateTool(store, agent);
-    const exec = tool.resolveExecution({ title: 'incident: slow spawn', kind: 'implement' });
+    const exec = tool.resolveExecution({
+      title: 'incident: slow spawn',
+      kind: 'implement',
+      success_criteria: ['spawn ACK stays under the grace deadline'],
+    });
     if (exec.isError) throw new Error('resolve failed');
 
     try {

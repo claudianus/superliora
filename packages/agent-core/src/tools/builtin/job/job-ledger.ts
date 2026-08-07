@@ -4,6 +4,8 @@ import {
   createJobId,
   emptyJobLedger,
   JOB_LEDGER_STORE_KEY,
+  type JobDeliveryMode,
+  type JobDeliveryPhase,
   type JobKind,
   type JobLandReceipt,
   type JobLedger,
@@ -56,6 +58,11 @@ export function createJob(
     readonly prompt?: string;
     readonly ownershipPaths?: readonly string[];
     readonly contextPaths?: readonly string[];
+    readonly successCriteria?: readonly string[];
+    readonly mustNotTouch?: readonly string[];
+    readonly verificationCommands?: readonly string[];
+    readonly deliveryMode?: JobDeliveryMode;
+    readonly deliveryPhase?: JobDeliveryPhase;
     readonly parentJobId?: string;
     /** Goal-driver binding (spec 2026-08-04-goal-driver-jobs). */
     readonly goalObjective?: string;
@@ -77,6 +84,11 @@ export function createJob(
     prompt: input.prompt?.trim() || undefined,
     ownershipPaths: input.ownershipPaths,
     contextPaths: input.contextPaths,
+    successCriteria: input.successCriteria,
+    mustNotTouch: input.mustNotTouch,
+    verificationCommands: input.verificationCommands,
+    deliveryMode: input.deliveryMode,
+    deliveryPhase: input.deliveryPhase,
     parentJobId: input.parentJobId,
     goalObjective: input.goalObjective,
     goalCompletionCriterion: input.goalCompletionCriterion,
@@ -181,5 +193,13 @@ export function renderJobLedger(jobs: readonly JobRecord[]): string {
   return ['Job ledger:', ...jobs.map(renderJobLine)].join('\n');
 }
 
-export type { JobKind, JobLandReceipt, JobLedger, JobRecord, JobStatus };
+export type {
+  JobDeliveryMode,
+  JobDeliveryPhase,
+  JobKind,
+  JobLandReceipt,
+  JobLedger,
+  JobRecord,
+  JobStatus,
+};
 export { JOB_LEDGER_STORE_KEY, createJobId, emptyJobLedger };

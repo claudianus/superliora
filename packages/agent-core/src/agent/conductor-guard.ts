@@ -654,8 +654,13 @@ function suggestJobDraft(toolName: string, args: unknown): ConductorJobDraft {
   const prompt =
     `Perform the work that was blocked on the Conductor lane: use ${toolName}` +
     (target !== undefined ? ` on ${target}` : '') +
-    '. Complete it in a worker worktree, verify the result, and report back.';
-  return { title, prompt, ownership: 'worker' };
+    '. Complete it in a worker worktree, verify the result, and report back. ' +
+    'When calling JobCreate, set success_criteria to a verifiable finish line for this work.';
+  return {
+    title,
+    prompt,
+    ownership: target !== undefined ? target : 'worker',
+  };
 }
 
 function pickStringField(

@@ -23,6 +23,8 @@ export type JobStatus =
 /**
  * `desk` (contract §4.2): inbox/notification digest worker that keeps burst
  * handling off the main conductor turn.
+ * `goal-desk`: Conductor Goal Desk — orchestrates user `/goal` without running
+ * the goal loop on the main lane. Spawns `goal-driver` children; no worktree.
  * `goal-driver` (spec 2026-08-04-goal-driver-jobs): autonomous goal loop —
  * the goal lives on the worker agent, so the worker self-continues in its
  * own worktree while the conductor lane stays free. Multiple goal-drivers
@@ -35,7 +37,17 @@ export type JobKind =
   | 'mission'
   | 'merge'
   | 'desk'
+  | 'goal-desk'
   | 'goal-driver';
+
+/** How the worker should deliver — greenfield forces a tighter brief + optional chain. */
+export type JobDeliveryMode = 'standard' | 'greenfield';
+
+/**
+ * Greenfield chain phase (skeleton → fill → delete_pass). Absent on standard Jobs.
+ * Not a JobKind — keeps the ledger kind set stable.
+ */
+export type JobDeliveryPhase = 'skeleton' | 'fill' | 'delete_pass';
 
 /** Post-merge receipt: command-level proof that main contains the landed branch. */
 export interface JobLandReceipt {
@@ -56,6 +68,16 @@ export interface JobRecord {
   readonly ownershipPaths?: readonly string[];
   /** Read-first hints rendered into the worker prompt (cold-start shortcut). */
   readonly contextPaths?: readonly string[];
+  /** Verifiable done-lines the worker must prove (structured brief). */
+  readonly successCriteria?: readonly string[];
+  /** Negative scope fence — paths/concerns the worker must not touch. */
+  readonly mustNotTouch?: readonly string[];
+  /** Commands the worker should run as proof (structured brief). */
+  readonly verificationCommands?: readonly string[];
+  /** Delivery posture; greenfield requires successCriteria + mustNotTouch on create. */
+  readonly deliveryMode?: JobDeliveryMode;
+  /** Greenfield chain step; drives jobPrompt phase contract. */
+  readonly deliveryPhase?: JobDeliveryPhase;
   readonly worktreePath?: string;
   readonly workerAgentId?: string;
   /** Goal-driver binding (spec 2026-08-04-goal-driver-jobs): the goal the driver worker pursues. */

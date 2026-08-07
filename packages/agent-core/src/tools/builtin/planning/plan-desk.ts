@@ -112,10 +112,16 @@ function buildPlanDeskBrief(
           'Ultra/structured: Socratic interview until UltraGoal is verifiable (ambiguity ≤ 0.2), then write Seed Spec / AC Tree / WorkGraph / Evaluation / Execution to the plan file.',
           'Fast path: when the Goal is verifiable, call NextPhase({ phase: \'write\' }) — skip design/review unless architecture is still open.',
           'Research phase is optional; if already in interview, do not call EnterPlanMode again.',
+          'Before ExitPlanMode, end the plan file AND your result summary with a machine-readable Implement handoff block exactly in this shape (lists may be empty only for ownership/context/verification; success_criteria and must_not_touch must be non-empty for greenfield):',
+          '## Implement handoff\nsuccess_criteria:\n- ...\nmust_not_touch:\n- ...\nverification_commands:\n- ...\nownership_paths:\n- ...\ncontext_paths:\n- ...\ndelivery_mode: greenfield|standard',
         ].join(' ')
-      : 'Regular: investigate with read-only tools, write a concrete step-by-step plan to the plan file, then ExitPlanMode for approval. No NextPhase.',
+      : [
+          'Regular: investigate with read-only tools, write a concrete step-by-step plan to the plan file, then ExitPlanMode for approval. No NextPhase.',
+          'When the plan is ready, include an Implement handoff block in the result summary so Conductor can JobCreate without re-inventing the brief:',
+          '## Implement handoff\nsuccess_criteria:\n- ...\nmust_not_touch:\n- ...\nverification_commands:\n- ...\nownership_paths:\n- ...\ncontext_paths:\n- ...\ndelivery_mode: standard',
+        ].join(' '),
     'Ask clarifying questions with AskUserQuestion when user judgment is required (PATH 2). Prefer RecordInterviewFinding for code/research facts (PATH 1/3).',
-    'Do not implement product code — planning only. Final summary: plan path, goal/AC, open risks.',
+    'Do not implement product code — planning only. Final summary: plan path, goal/AC, open risks, then the Implement handoff block.',
     context.length > 0 ? `Task context:\n${context}` : 'Task context was not provided — infer from the session brief and repo.',
   ];
   return parts.filter(Boolean).join('\n\n');

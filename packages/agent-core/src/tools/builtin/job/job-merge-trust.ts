@@ -29,6 +29,12 @@ export interface MergeTrustInput {
    */
   readonly visualProofMissing?: boolean;
   readonly visualVerdict?: string;
+  /**
+   * Auto permission mode: waive holds that exist only to force a human click
+   * (dangerous paths / large diff / wide file span). Conflict, missing checks,
+   * missing summary, and visual proof still block — autopilot is not a blind merge.
+   */
+  readonly waiveUserConfirmHolds?: boolean;
 }
 
 export type MergeTrustVerdict =
@@ -75,7 +81,10 @@ export function evaluateMergeTrust(input: MergeTrustInput): MergeTrustVerdict {
         'force_user_confirm cannot bypass this gate. If browser-use is missing, run `liora browser-use doctor`.',
     };
   }
-  if (input.forceUserConfirm === true) {
+  // Real human override (manual / yolo click). Auto permission must not launder
+  // AskUserQuestion auto-picks into this short-circuit — callers clear
+  // forceUserConfirm when waiveUserConfirmHolds is set.
+  if (input.forceUserConfirm === true && input.waiveUserConfirmHolds !== true) {
     return {
       ok: true,
       mode: 'user_approved',
@@ -93,8 +102,9 @@ export function evaluateMergeTrust(input: MergeTrustInput): MergeTrustVerdict {
     };
   }
   const paths = input.paths ?? [];
+  const waiveConfirm = input.waiveUserConfirmHolds === true;
   const dangerous = paths.filter(pathIsDangerousForMerge);
-  if (dangerous.length > 0) {
+  if (dangerous.length > 0 && !waiveConfirm) {
     return {
       ok: false,
       mode: 'hold',
@@ -103,7 +113,7 @@ export function evaluateMergeTrust(input: MergeTrustInput): MergeTrustVerdict {
   }
   const max = input.smallDiffMaxLines ?? DEFAULT_SMALL_DIFF;
   const lines = input.diffLines ?? Number.POSITIVE_INFINITY;
-  if (lines > max) {
+  if (lines > max && !waiveConfirm) {
     return {
       ok: false,
       mode: 'hold',
@@ -112,7 +122,7 @@ export function evaluateMergeTrust(input: MergeTrustInput): MergeTrustVerdict {
   }
   // The line count is self-reported; the file list is not. A wide change can
   // never read as small, however few lines the caller claims it touched.
-  if (paths.length > DEFAULT_SMALL_FILES) {
+  if (paths.length > DEFAULT_SMALL_FILES && !waiveConfirm) {
     return {
       ok: false,
       mode: 'hold',
@@ -124,6 +134,14 @@ export function evaluateMergeTrust(input: MergeTrustInput): MergeTrustVerdict {
       ok: false,
       mode: 'hold',
       reason: 'Diff summary required before meta auto-approve.',
+    };
+  }
+  if (waiveConfirm && (dangerous.length > 0 || lines > max || paths.length > DEFAULT_SMALL_FILES)) {
+    return {
+      ok: true,
+      mode: 'auto',
+      reason:
+        'Auto permission waived user-confirm holds (size/danger/span); conflict/checks/summary/visual still enforced.',
     };
   }
   return {
