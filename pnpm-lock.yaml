@@ -58,8 +58,8 @@ importers:
   apps/liora:
     dependencies:
       cloakbrowser:
-        specifier: 0.4.5
-        version: 0.4.5(mmdb-lib@3.0.2)(playwright-core@1.61.1)(puppeteer-core@25.3.0)
+        specifier: 0.5.5
+        version: 0.5.5(mmdb-lib@3.0.2)(playwright-core@1.61.1)(puppeteer-core@25.3.0)
       oxc-parser:
         specifier: ^0.141.0
         version: 0.141.0
@@ -430,8 +430,8 @@ importers:
         specifier: ^0.11.1
         version: 0.11.1(playwright-core@1.61.1)
       cloakbrowser:
-        specifier: 0.4.5
-        version: 0.4.5(mmdb-lib@3.0.2)(playwright-core@1.61.1)(puppeteer-core@25.3.0)
+        specifier: 0.5.5
+        version: 0.5.5(mmdb-lib@3.0.2)(playwright-core@1.61.1)(puppeteer-core@25.3.0)
       playwright-core:
         specifier: ^1.61.1
         version: 1.61.1
@@ -3412,8 +3412,8 @@ packages:
     resolution: {integrity: sha512-k7ndgKhwoQveBL+/1tqGJYNz097I7WOvwbmmU2AR5+magtbjPWQTS1C5vzGkBC8Ym8UWRzfKUzUUqFLypY4Q+w==}
     engines: {node: '>=20'}
 
-  cloakbrowser@0.4.5:
-    resolution: {integrity: sha512-FLEOoznA/d4SbUT1zi8BiMqH+xt/eCoCWeLHnEC7Wn1WBGR31QHSh93PSfS/WcovGaxQxxOQPKtF8+1IkdEp1g==}
+  cloakbrowser@0.5.5:
+    resolution: {integrity: sha512-moaKv8ntZB9wmxAwtWlPxJ1XApivMerp63yY5GIFdjEHqJUbGqMp7VwulFafP7h4kfwm0xDdrrmSN2zzuycXDg==}
     engines: {node: '>=20.0.0'}
     hasBin: true
     peerDependencies:
@@ -8813,7 +8813,7 @@ snapshots:
       wrap-ansi: 9.0.2
     optional: true
 
-  cloakbrowser@0.4.5(mmdb-lib@3.0.2)(playwright-core@1.61.1)(puppeteer-core@25.3.0):
+  cloakbrowser@0.5.5(mmdb-lib@3.0.2)(playwright-core@1.61.1)(puppeteer-core@25.3.0):
     dependencies:
       tar: 7.5.13
     optionalDependencies:

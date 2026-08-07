@@ -161,7 +161,25 @@ describe('MissionControlRegistry', () => {
     expect(registry.snapshot(now()).workers[0]!).toMatchObject({
       todoDone: 2,
       todoTotal: 4,
+      focusTodo: 'c',
     });
+  });
+
+  it('falls back focusTodo to the first pending item', () => {
+    const { registry, now } = createHarness();
+    registry.apply(spawned('sa-1'));
+    registry.apply({
+      type: 'subagent.todo.updated',
+      subagentId: 'sa-1',
+      subagentName: 'sa-1',
+      parentToolCallId: 'ptc-1',
+      todos: [
+        { title: 'done-one', status: 'done' },
+        { title: 'next-up', status: 'pending' },
+        { title: 'later', status: 'pending' },
+      ],
+    } as unknown as Event);
+    expect(registry.snapshot(now()).workers[0]!.focusTodo).toBe('next-up');
   });
 
   it('lingers completed workers briefly, then prunes them; failed persist', () => {

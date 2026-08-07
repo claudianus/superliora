@@ -46,6 +46,8 @@ export interface MissionWorker {
   readonly budgetRemainingMs?: number;
   readonly todoDone?: number;
   readonly todoTotal?: number;
+  /** Current focus: `in_progress` title, else first `pending`. */
+  readonly focusTodo?: string;
   readonly stalledSilentMs?: number;
   readonly error?: string;
   readonly terminalAtMs?: number;
@@ -91,6 +93,7 @@ interface MutableWorker {
   budgetRemainingMs?: number;
   todoDone?: number;
   todoTotal?: number;
+  focusTodo?: string;
   stalledSilentMs?: number;
   error?: string;
   spawnedAtMs: number;
@@ -191,6 +194,7 @@ export class MissionControlRegistry {
           : { budgetRemainingMs: worker.budgetRemainingMs }),
         ...(worker.todoDone === undefined ? {} : { todoDone: worker.todoDone }),
         ...(worker.todoTotal === undefined ? {} : { todoTotal: worker.todoTotal }),
+        ...(worker.focusTodo === undefined ? {} : { focusTodo: worker.focusTodo }),
         ...(worker.stalledSilentMs === undefined
           ? {}
           : { stalledSilentMs: worker.stalledSilentMs }),
@@ -392,6 +396,11 @@ export class MissionControlRegistry {
     worker.name = event.subagentName;
     worker.todoTotal = event.todos.length;
     worker.todoDone = event.todos.filter((todo) => todo.status === 'done').length;
+    const inProgress = event.todos.find((todo) => todo.status === 'in_progress');
+    const pending = event.todos.find((todo) => todo.status === 'pending');
+    const focus = inProgress?.title ?? pending?.title;
+    if (focus !== undefined && focus.length > 0) worker.focusTodo = focus;
+    else delete worker.focusTodo;
     worker.lastActivityAtMs = this.now();
     return this.bump();
   }
