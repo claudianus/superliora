@@ -9,10 +9,8 @@ import { basename, dirname, join, relative, resolve } from 'pathe';
 import type { AutocompleteItem } from '#/tui/renderer';
 
 import { completeLeadingArg, type ArgCompletionSpec } from './complete-args';
-import { improveHarnessArgumentCompletions } from '../improve-harness';
 import { PERSONA_PRESET_DESCRIPTIONS, PERSONA_PRESET_NAMES } from '../persona';
 import { pluginsArgumentCompletions } from '../plugins/plugins';
-import { rendererArgumentCompletions } from '../renderer';
 import { transcriptArgumentCompletions } from '../session/transcript';
 import type { SlashCommandAvailability } from '../types';
 import { modelUsesEmbeddedThinkingEffort } from '#/tui/utils/model/thinking-effort';

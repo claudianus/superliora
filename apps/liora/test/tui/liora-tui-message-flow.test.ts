@@ -2552,7 +2552,7 @@ command = "vim"
     expect(transcript).not.toContain('/export-debug-zip');
   });
 
-  it('appends the /export-debug-zip hint beneath session error messages', async () => {
+  it('appends the /export-md hint beneath session error messages', async () => {
     const { driver } = await makeDriver();
 
     driver.sessionEventHandler.handleEvent(
@@ -2569,9 +2569,10 @@ command = "vim"
 
     const transcript = stripSgr(driver.state.transcriptContainer.render(200).join('\n'));
     expect(transcript).toContain('Error: [compaction.failed]');
-    expect(transcript).toContain('If this persists, run `/export-debug-zip`');
-    expect(transcript).toContain("Please don't share it publicly");
+    expect(transcript).toContain('If this persists, run `/export-md`');
+    expect(transcript).toContain("Please don't share secrets");
     expect(transcript).not.toContain('liora export');
+    expect(transcript).not.toContain('/export-debug-zip');
   });
 
   it('shows concise provider filter text for filtered session errors', async () => {
@@ -2609,7 +2610,7 @@ command = "vim"
     expect(transcript).not.toContain('stream was interrupted');
   });
 
-  it('skips the /export-debug-zip hint when no active session id is set', async () => {
+  it('skips the /export-md hint when no active session id is set', async () => {
     const { driver } = await makeDriver();
     driver.state.appState.sessionId = '';
 
@@ -2627,6 +2628,7 @@ command = "vim"
 
     const transcript = stripSgr(renderTranscript(driver));
     expect(transcript).toContain('Error: [compaction.failed]');
+    expect(transcript).not.toContain('/export-md');
     expect(transcript).not.toContain('/export-debug-zip');
   });
 
@@ -2792,7 +2794,7 @@ command = "vim"
       expect(output).toContain('Model');
       expect(output).toContain('thinking high');
       expect(output).toContain('Permissions     auto');
-      expect(output).toMatch(/Stages\s+Plan on \| Goal ready \| Verify blocked/);
+      expect(output).toMatch(/Stages\s+Plan on \| Goal ready \| Verify queued/);
       expect(output).toContain('Context window');
       expect(output).toContain('25.0%');
     });

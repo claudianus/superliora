@@ -165,7 +165,6 @@ export function buildPremiumSettingsLines(glance: PremiumVisualGlance): readonly
     '  /transcript                 density picker',
     '',
     '── Renderer diagnostics ─────────────────────',
-    '  /renderer diagnostics status   frame budget + quality HUD',
     '  SUPERLIORA_NATIVE_RENDERER_DIAGNOSTICS=1   overlay HUD',
     '',
     '── Motion rules (PREMIUM.md §7) ─────────────',

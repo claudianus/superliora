@@ -61,7 +61,6 @@ export const SETTINGS_SEARCH_KEYWORDS = {
   cache: ['freeze', 'sacred', 'hit-rate', 'prompt-cache', 'streak', 'invalidate', 'cold'],
   'never-halt': ['resilience', 'circuit-breaker', 'oauth-refresh', 'degraded'],
   telemetry: ['analytics', 'local-only', 'tracking'],
-  'bench-diagnostics': ['bench', 'diagnostics', 'trace', 'branding'],
   network: ['proxy', 'https_proxy', 'no_proxy'],
   storage: ['home', 'retention', 'logs', 'superliora-home'],
   theme: ['dark', 'light', 'palette', 'skin'],

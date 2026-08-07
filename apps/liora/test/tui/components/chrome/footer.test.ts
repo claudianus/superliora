@@ -243,7 +243,7 @@ describe('FooterComponent', () => {
       const footer = new FooterComponent(appState);
       const [, line2 = ''] = footer.render(160);
       // Only assert the next-action line — rotating tips may mention media keys.
-      expect(line2).toMatch(/Bench|type normally/i);
+      expect(line2).toMatch(/Shift-Tab switches Build\/Ask|\/plan to plan first/i);
       expect(line2).not.toMatch(/OPENAI_API_KEY or GOOGLE_API_KEY for image\/video/);
     } finally {
       for (const [key, value] of Object.entries(previous)) {

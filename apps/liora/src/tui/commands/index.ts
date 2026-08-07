@@ -9,12 +9,6 @@ export * from './types';
 export { dispatchInput, type SlashCommandHost } from './hub/dispatch';
 export { handleAccountsCommand, openAccountsManager } from './auth/accounts';
 export { handleLoginCommand, handleLogoutCommand } from './auth/login';
-export {
-  buildBenchStatusLines,
-  handleBenchCommand,
-  loadBenchStatus,
-  redactBenchStatusText,
-} from './bench/bench';
 export { handleBtwCommand } from './btw';
 export { handleAskCommand, setAskMode } from './config/plan/ask';
 export { handleCompactCommand, handlePlanCommand } from './config/plan/plan';
@@ -41,11 +35,9 @@ export { handleReloadCommand, handleReloadTuiCommand } from './session/reload';
 export {
   formatRendererDiagnosticsStatusReport,
   formatRendererTraceStatusReport,
-  handleRendererCommand,
-  rendererArgumentCompletions,
   type RendererDiagnosticsOverlayCommand,
   type RendererTraceCommand,
-} from './renderer';
+} from '../controllers/diagnostics/renderer-status';
 export { handleGoalCommand, parseGoalCommand } from './goal';
 export { handleJobCommand, handleJobsCommand } from './jobs';
 export { goalArgumentCompletions } from './hub/registry';
@@ -53,12 +45,6 @@ export { handleForkCommand, handleInitCommand, handleTitleCommand } from './sess
 export { handleUndoCommand } from './session/undo';
 export { handleRewindCommand } from './session/rewind';
 export { handleLoopCommand } from './loop';
-export {
-  IMPROVEMENT_AREAS,
-  handleImproveHarnessCommand,
-  improveHarnessArgumentCompletions,
-  parseImproveHarnessCommand,
-} from './improve-harness';
 export {
   promptApiKey,
   promptApiKeyForCatalogProvider,

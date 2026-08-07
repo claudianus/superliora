@@ -34,7 +34,6 @@ export type SettingsSelection =
   | 'cache'
   | 'never-halt'
   | 'telemetry'
-  | 'bench-diagnostics'
   | 'network'
   | 'storage'
   | 'experiments'
@@ -291,12 +290,6 @@ const SETTINGS_OPTIONS_BASE: readonly (Omit<ChoiceOption, 'keywords'> & {
     section: 'System',
     label: 'Harness',
     description: 'Tools waist, eyes, Visual Quality, experiments hub.',
-  },
-  {
-    value: 'bench-diagnostics',
-    section: 'System',
-    label: 'Bench / Diagnostics',
-    description: '/bench, internal diagnostics.',
   },
 ];
 

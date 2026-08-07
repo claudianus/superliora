@@ -24,9 +24,7 @@ import {
   appearanceArgumentCompletions,
   personaArgumentCompletions,
 } from './completion-specs';
-import { improveHarnessArgumentCompletions } from '../improve-harness';
 import { pluginsArgumentCompletions } from '../plugins/plugins';
-import { rendererArgumentCompletions } from '../renderer';
 import { transcriptArgumentCompletions } from '../session/transcript';
 import { neatArgumentCompletions } from '../session/neat';
 
@@ -52,25 +50,6 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
     aliases: [],
     description: 'Ask a forked side agent a question',
     priority: 90,
-    availability: 'always',
-  },
-  {
-    name: 'bench',
-    aliases: [],
-    description: 'Show local SuperLiora benchmark diagnostics',
-    priority: 80,
-    visibility: 'diagnostic',
-    argumentHint: '[evidence-path]',
-    availability: 'always',
-  },
-  {
-    name: 'renderer',
-    aliases: ['render'],
-    description: 'Inspect and control the native renderer',
-    priority: 80,
-    visibility: 'diagnostic',
-    argumentHint: 'diagnostics [on|off|toggle|status] | trace [status|reset|export]',
-    completeArgs: rendererArgumentCompletions,
     availability: 'always',
   },
   {
@@ -160,14 +139,6 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
     priority: 60,
     argumentHint: 'list | delete <jobId>',
     completeArgs: cronArgumentCompletions,
-    availability: 'always',
-  },
-  {
-    name: 'term',
-    aliases: ['terminal'],
-    description: 'Show detected terminal capabilities',
-    priority: 62,
-    visibility: 'diagnostic',
     availability: 'always',
   },
   {
@@ -280,15 +251,6 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
         ? 'always'
         : 'idle-only';
     },
-  },
-  {
-    name: 'improve-harness',
-    aliases: [],
-    description: 'Analyze and improve the SuperLiora harness codebase (self-improvement mode)',
-    priority: 75,
-    argumentHint: '[area] [--auto]',
-    completeArgs: improveHarnessArgumentCompletions,
-    availability: () => 'idle-only',
   },
   {
     name: 'init',
@@ -515,13 +477,6 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
     aliases: ['export'],
     description: 'Export current session as a Markdown file',
     priority: 40,
-  },
-  {
-    name: 'export-debug-zip',
-    aliases: [],
-    description: 'Export current session as a debug ZIP archive',
-    priority: 40,
-    visibility: 'diagnostic',
   },
   {
     name: 'exit',

@@ -194,7 +194,6 @@ export function securityNavigationLines(): readonly string[] {
     'Settings → MCP — install, toggle, reload servers + tool allowlists',
     'Settings → Network / Proxy — HTTPS_PROXY egress posture',
     'Settings → Telemetry — on/off posture, local-only tips',
-    '/bench — redaction gate evidence',
   ];
 }
 

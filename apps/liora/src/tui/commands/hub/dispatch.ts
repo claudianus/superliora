@@ -45,7 +45,6 @@ import { showSettingsSelector, showHarnessPanel } from '../config/settings';
 import { showHarnessEyesReadiness } from '../config/eyes/eyes-settings';
 import { showToolsInventory } from '../config/harness/harness-tools';
 import { handleGoalCommand } from '../goal';
-import { handleImproveHarnessCommand } from '../improve-harness';
 import { handleCronCommand } from '../cron';
 import { handleAgentsCommand } from '../agents';
 import { handleJobCommand, handleJobsCommand } from '../jobs';
@@ -55,22 +54,19 @@ import { showContextOsReport, showMcpServers, showQuota, showStatusReport, showU
 import { handleAddDirCommand } from '../session/add-dir';
 import { handleAquariumCommand } from '../aquarium';
 import { handleFeedCommand } from '../feed';
-import { handleBenchCommand } from '../bench/bench';
 import { handleMemoryCommand } from '../memory/memory';
 import { handlePersonaCommand } from '../persona';
 import { parseSlashInput } from './parse';
 import { handlePluginsCommand } from '../plugins/plugins';
 import { handlePremiumQualityCommand } from '../premium';
-import {
-  handleRendererCommand,
-  type RendererDiagnosticsOverlayCommand,
-  type RendererTraceCommand,
-} from '../renderer';
+import type {
+  RendererDiagnosticsOverlayCommand,
+  RendererTraceCommand,
+} from '../../controllers/diagnostics/renderer-status';
 import type { BuiltinSlashCommandName } from './registry';
 import { handleReloadCommand, handleReloadTuiCommand } from '../session/reload';
 import { resolveSlashCommandInput, slashBusyMessage } from './resolve';
 import {
-  handleExportDebugZipCommand,
   handleExportMdCommand,
   handleForkCommand,
   handleInitCommand,
@@ -78,7 +74,6 @@ import {
 } from '../session/session';
 import { showSearch } from '../search';
 
-import { showTerm } from '../term';
 import { handleLoopCommand } from '../loop';
 import { handleRewindCommand } from '../session/rewind';
 import { handleTranscriptCommand } from '../session/transcript';
@@ -91,7 +86,6 @@ import { handleUpgradeCommand } from '../info/upgrade';
 // ---------------------------------------------------------------------------
 
 export { handleLoginCommand, handleLogoutCommand } from '../auth/login';
-export { handleBenchCommand } from '../bench/bench';
 export { handleBtwCommand } from '../btw';
 export { handleAddDirCommand } from '../session/add-dir';
 export { handleAutoCommand, handlePermissionCommand, handleYoloCommand, showPermissionPicker } from '../config/permission/permission';
@@ -110,7 +104,6 @@ export { handlePluginsCommand } from '../plugins/plugins';
 export { handleReloadCommand, handleReloadTuiCommand } from '../session/reload';
 export { handleGoalCommand } from '../goal';
 export {
-  handleExportDebugZipCommand,
   handleExportMdCommand,
   handleForkCommand,
   handleInitCommand,
@@ -457,9 +450,6 @@ async function handleBuiltInSlashCommand(
     case 'errors':
       host.showErrors();
       return;
-    case 'term':
-      showTerm(host);
-      return;
     case 'aquarium':
       handleAquariumCommand(host);
       return;
@@ -475,12 +465,6 @@ async function handleBuiltInSlashCommand(
       return;
     case 'btw':
       await handleBtwCommand(host, args);
-      return;
-    case 'bench':
-      await handleBenchCommand(host, args);
-      return;
-    case 'renderer':
-      handleRendererCommand(host, args);
       return;
     case 'transcript':
       await handleTranscriptCommand(host, args);
@@ -515,9 +499,6 @@ async function handleBuiltInSlashCommand(
     case 'goal':
       await handleGoalCommand(host, args);
       return;
-    case 'improve-harness':
-      await handleImproveHarnessCommand(host, args);
-      return;
     case 'init':
       await handleInitCommand(host);
       return;
@@ -526,9 +507,6 @@ async function handleBuiltInSlashCommand(
       return;
     case 'export-md':
       await handleExportMdCommand(host, args);
-      return;
-    case 'export-debug-zip':
-      await handleExportDebugZipCommand(host);
       return;
     case 'login':
       await handleLoginCommand(host);

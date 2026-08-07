@@ -20,7 +20,6 @@ import { showSecuritySettings } from '#/tui/commands/config/security/security-se
 import { showCompactionSettings } from '#/tui/commands/config/context/compaction-settings';
 import { showHooksSettings } from '#/tui/commands/config/hooks/hooks-settings';
 import { showNetworkSettings } from '#/tui/commands/config/network/network-settings';
-import { showBenchDiagnosticsSettings } from '#/tui/commands/config/diagnostics/bench-diagnostics-settings';
 import { showHarnessEyesReadiness } from '#/tui/commands/config/eyes/eyes-settings';
 import { showToolsInventory } from '#/tui/commands/config/harness/harness-tools';
 import { SETTINGS_OPTIONS } from '#/tui/components/dialogs/picker/settings-selector';
@@ -1119,7 +1118,7 @@ describe('harness panel and tools inventory', () => {
     });
   });
 
-  it('lists Hooks, Skills, Bench, Network, and Storage in the settings selector', () => {
+  it('lists Hooks, Skills, Network, and Storage in the settings selector', () => {
     const host = makeHarnessHost();
     showSettingsSelector(host);
     expect(host.mountCenterModal).toHaveBeenCalledOnce();
@@ -1133,7 +1132,7 @@ describe('harness panel and tools inventory', () => {
     }
     expect(combined).toContain('Hooks');
     expect(combined).toContain('Skills');
-    expect(combined).toContain('Bench / Diagnostics');
+    expect(combined).not.toContain('Bench / Diagnostics');
     expect(combined).toContain('Network / Proxy');
     expect(combined).toContain('Storage');
   });
@@ -1166,29 +1165,6 @@ describe('harness panel and tools inventory', () => {
     expect(panel.snapshotBodyLines(1).join('\n')).toContain('PreToolUse');
   });
 
-  it('routes settings bench-diagnostics selection to bench panel', async () => {
-    const host = makeHarnessHost({ session: {} });
-    showSettingsSelector(host);
-    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      { handleInput: (data: string) => void },
-    ];
-    for (let i = 0; i < settingsOptionIndex('bench-diagnostics'); i++) {
-      component.handleInput('\u001B[B');
-    }
-    component.handleInput('\r');
-    expect(host.restoreEditor).toHaveBeenCalled();
-    const benchPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
-      | { opts: { onSelect: (value: string) => void } }
-      | undefined;
-    expect(benchPicker).toBeDefined();
-    benchPicker!.opts.onSelect('status');
-    await vi.waitFor(() => {
-      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
-    });
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
-    expect(panel.snapshotBodyLines(1).join('\n')).toMatch(/Bench \(SSOT\)|\/bench|Bench \/ Diagnostics/);
-  });
-
   it('renders network settings panel with proxy env', () => {
     const prior = process.env['HTTPS_PROXY'];
     process.env['HTTPS_PROXY'] = 'http://127.0.0.1:3128';
@@ -1202,17 +1178,6 @@ describe('harness panel and tools inventory', () => {
     expect(panel.snapshotBodyLines(1).join('\n')).toContain('127.0.0.1:3128');
     if (prior != null) process.env['HTTPS_PROXY'] = prior;
     else delete process.env['HTTPS_PROXY'];
-  });
-
-  it('renders bench diagnostics panel without session', () => {
-    const host = makeHarnessHost({ session: undefined, activeSession: undefined });
-    showBenchDiagnosticsSettings(host);
-    const benchPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
-      | { opts: { onSelect: (value: string) => void } }
-      | undefined;
-    expect(benchPicker).toBeDefined();
-    benchPicker!.opts.onSelect('status');
-    expect(host.state.transcriptContainer.addChild).toHaveBeenCalledOnce();
   });
 
   it('renders hooks panel without session', async () => {

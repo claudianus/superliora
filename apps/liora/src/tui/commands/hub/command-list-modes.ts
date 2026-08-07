@@ -24,9 +24,7 @@ import {
   personaArgumentCompletions,
   profileArgumentCompletions,
 } from './completion-specs';
-import { improveHarnessArgumentCompletions } from '../improve-harness';
 import { pluginsArgumentCompletions } from '../plugins/plugins';
-import { rendererArgumentCompletions } from '../renderer';
 import { transcriptArgumentCompletions } from '../session/transcript';
 
 export const BUILTIN_SLASH_COMMANDS_MODES = [

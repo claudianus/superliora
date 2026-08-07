@@ -64,7 +64,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
 
   // ── Welcome ──────────────────────────────────────────────────────────────
   'tui.welcome.prompt.loggedIn':
-    'Type a task · /status web·office·media·ZDR · /bench · Shift-Tab Ask',
+    'Type a task · /status web·office·media·ZDR · Shift-Tab Ask',
   'tui.welcome.prompt.loggedOut':
     'Run /login or paste an API key — media/web/office ready after that, no MCP.',
   'tui.welcome.modelUnset': 'not set, run /login',
@@ -90,7 +90,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.footer.next.review': 'next: review changes',
   'tui.footer.next.media': 'next: set OPENAI_API_KEY or GOOGLE_API_KEY for image/video, or /status',
   'tui.footer.next.history': 'next: ctrl-o cycles transcript density (minimal→full)',
-  'tui.footer.next.default': 'next: Shift-Tab switches Build/Ask · /bench for Bench',
+  'tui.footer.next.default': 'next: Shift-Tab switches Build/Ask · /plan to plan first',
   'tui.footer.compacting': 'compacting context',
   'tui.footer.compacting.background': 'compacting in background · turn continues',
   'tui.footer.replaying': 'replaying session',
@@ -313,7 +313,6 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.tip.office':
     'office: SearchSkill → docx / pptx / xlsx — Word, slides, sheets with zero MCP setup',
   'tui.tip.websearch': 'WebSearch defaults to 3 hits — sharpen the query before raising limit',
-  'tui.tip.bench': '/bench: Bench score · loop · next rerun',
   'tui.tip.browser': 'browser/computer tools are built-in for screenshot proof — no MCP',
   'tui.tip.firstRun': 'first run: /login then type a task — no complex config needed',
   'tui.tip.footerBadges':
@@ -406,7 +405,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
 
   // ── Welcome ──────────────────────────────────────────────────────────────
   'tui.welcome.prompt.loggedIn':
-    '작업을 입력하세요 · /status web·office·media·ZDR · /bench · Shift-Tab Ask',
+    '작업을 입력하세요 · /status web·office·media·ZDR · Shift-Tab Ask',
   'tui.welcome.prompt.loggedOut':
     '/login 또는 API 키를 붙여넣으세요 — 이후 media/web/office 사용 가능, MCP 불필요.',
   'tui.welcome.modelUnset': '미설정, /login 실행',
@@ -432,7 +431,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.footer.next.review': '다음: 변경사항 검토',
   'tui.footer.next.media': '다음: OPENAI_API_KEY 또는 GOOGLE_API_KEY로 이미지/영상, 또는 /status',
   'tui.footer.next.history': '다음: ctrl-o로 트랜스크립트 밀도 순환 (minimal→full)',
-  'tui.footer.next.default': '다음: Shift-Tab로 Build/Ask 전환 · /bench로 Bench',
+  'tui.footer.next.default': '다음: Shift-Tab로 Build/Ask 전환 · /plan으로 먼저 계획',
   'tui.footer.compacting': '컨텍스트 압축 중',
   'tui.footer.compacting.background': '백그라운드 압축 중 · 턴 계속 진행',
   'tui.footer.replaying': '세션 재생 중',
@@ -650,7 +649,6 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.tip.office':
     'office: SearchSkill → docx / pptx / xlsx — Word, 슬라이드, 시트, MCP 설정 없음',
   'tui.tip.websearch': 'WebSearch 기본 3건 — limit 올리기 전에 쿼리를 구체적으로',
-  'tui.tip.bench': '/bench: Bench 점수 · 루프 · 다음 재실행',
   'tui.tip.browser': 'browser/computer 도구는 스크린샷 증명용 내장 — MCP 불필요',
   'tui.tip.firstRun': '첫 실행: /login 후 작업 입력 — 복잡한 설정 불필요',
   'tui.tip.footerBadges':

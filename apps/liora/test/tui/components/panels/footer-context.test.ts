@@ -144,7 +144,7 @@ describe('FooterComponent — context NaN resilience', () => {
 
       const [, line2] = footer.render(120);
 
-      expect(strip(line2 ?? '')).toContain('next: Shift-Tab switches Build/Ask · /bench for Bench');
+      expect(strip(line2 ?? '')).toContain('next: Shift-Tab switches Build/Ask · /plan to plan first');
       expect(strip(line2 ?? '')).not.toContain('helpers');
       expect(strip(line2 ?? '')).toMatch(/Context.*0\.0%/);
     } finally {

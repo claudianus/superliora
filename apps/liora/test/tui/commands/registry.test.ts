@@ -9,7 +9,6 @@ import {
   editorArgumentCompletions,
   extensionsArgumentCompletions,
   helpArgumentCompletions,
-  improveHarnessArgumentCompletions,
   loopArgumentCompletions,
   memoryArgumentCompletions,
   permissionArgumentCompletions,
@@ -18,7 +17,6 @@ import {
   premiumArgumentCompletions,
   profileArgumentCompletions,
   pluginsArgumentCompletions,
-  rendererArgumentCompletions,
   slashCommandsForHelp,
   sortSlashCommands,
   thinkingArgumentCompletions,
@@ -56,11 +54,14 @@ describe('built-in slash command registry', () => {
     expect(findBuiltInSlashCommand('q')?.name).toBe('exit');
     expect(findBuiltInSlashCommand('clear')?.name).toBe('new');
     expect(findBuiltInSlashCommand('btw')?.name).toBe('btw');
-    expect(findBuiltInSlashCommand('bench')?.name).toBe('bench');
+    expect(findBuiltInSlashCommand('bench')).toBeUndefined();
     expect(findBuiltInSlashCommand('preflight')).toBeUndefined();
     expect(findBuiltInSlashCommand('pf')).toBeUndefined();
-    expect(findBuiltInSlashCommand('renderer')?.name).toBe('renderer');
-    expect(findBuiltInSlashCommand('render')?.name).toBe('renderer');
+    expect(findBuiltInSlashCommand('renderer')).toBeUndefined();
+    expect(findBuiltInSlashCommand('render')).toBeUndefined();
+    expect(findBuiltInSlashCommand('term')).toBeUndefined();
+    expect(findBuiltInSlashCommand('export-debug-zip')).toBeUndefined();
+    expect(findBuiltInSlashCommand('improve-harness')).toBeUndefined();
     expect(findBuiltInSlashCommand('ultraresearch')).toBeUndefined();
     expect(findBuiltInSlashCommand('ur')).toBeUndefined();
     expect(findBuiltInSlashCommand('vibe')).toBeUndefined();
@@ -290,40 +291,6 @@ describe('built-in slash command registry', () => {
     expect(findBuiltInSlashCommand('cron')?.completeArgs).toBe(cronArgumentCompletions);
   });
 
-  it('offers improve-harness area and --auto argument completions', () => {
-    const values = (prefix: string): string[] | null => {
-      const items = improveHarnessArgumentCompletions(prefix);
-      return items === null ? null : items.map((item) => item.value);
-    };
-
-    expect(values('')).toEqual([
-      'tui',
-      'tools',
-      'performance',
-      'reliability',
-      'ux',
-      'docs',
-      'tests',
-      '--auto',
-    ]);
-    expect(values('t')).toEqual(['tui', 'tools', 'tests']);
-    expect(values('p')).toEqual(['performance']);
-    expect(values('-')).toEqual(['--auto']);
-    expect(improveHarnessArgumentCompletions('re')).toEqual([
-      {
-        value: 'reliability',
-        label: 'reliability',
-        description: 'Focus harness improvement on reliability',
-      },
-    ]);
-    expect(values('tui')).toBeNull();
-    expect(values('--auto')).toBeNull();
-    expect(values('unknown')).toBeNull();
-    expect(findBuiltInSlashCommand('improve-harness')?.completeArgs).toBe(
-      improveHarnessArgumentCompletions,
-    );
-  });
-
   it('offers extensions tab and Claude import argument completions', () => {
     const values = (prefix: string): string[] | null => {
       const items = extensionsArgumentCompletions(prefix);
@@ -545,41 +512,16 @@ describe('built-in slash command registry', () => {
     );
     expect(advancedNames).not.toContain('permission');
     expect(advancedNames).not.toContain('settings');
-    expect(diagnosticNames).toEqual(
-      expect.arrayContaining(['bench', 'export-debug-zip', 'renderer', 'term']),
-    );
+    expect(diagnosticNames).not.toContain('bench');
+    expect(diagnosticNames).not.toContain('export-debug-zip');
+    expect(diagnosticNames).not.toContain('renderer');
+    expect(diagnosticNames).not.toContain('term');
+    expect(diagnosticNames).not.toContain('improve-harness');
     const help = findBuiltInSlashCommand('help') as LioraSlashCommand | undefined;
     expect(helpArgumentCompletions('')?.map((item) => item.value)).toEqual(['advanced']);
     expect(helpArgumentCompletions('')?.[0]?.description).toBe('Show steering controls');
     expect(helpArgumentCompletions('d')).toBeNull();
     expect(help?.argumentHint).toBeUndefined();
-  });
-
-  it('offers native renderer diagnostics and trace completions', () => {
-    expect(rendererArgumentCompletions('')?.map((item) => item.value)).toEqual([
-      'diagnostics',
-      'trace',
-    ]);
-    expect(rendererArgumentCompletions('diagnostics ')?.map((item) => item.value)).toEqual([
-      'diagnostics on',
-      'diagnostics off',
-      'diagnostics toggle',
-      'diagnostics status',
-      'diagnostics reset',
-    ]);
-    expect(rendererArgumentCompletions('diagnostics o')?.map((item) => item.value)).toEqual([
-      'diagnostics on',
-      'diagnostics off',
-    ]);
-    expect(rendererArgumentCompletions('diagnostics status')).toBeNull();
-    expect(rendererArgumentCompletions('trace ')?.map((item) => item.value)).toEqual([
-      'trace status',
-      'trace reset',
-      'trace export',
-    ]);
-    expect(rendererArgumentCompletions('trace e')?.map((item) => item.value)).toEqual([
-      'trace export',
-    ]);
   });
 
   it('offers /plugins subcommand and mcp enable|disable completions', () => {
@@ -771,7 +713,13 @@ describe('built-in slash command registry', () => {
 
     expect(new Set(names).size).toBe(names.length);
     expect(names).toContain('web');
-    expect(names).toContain('bench');
+    expect(names).toContain('aquarium');
+    expect(names).toContain('feed');
+    expect(names).not.toContain('bench');
+    expect(names).not.toContain('renderer');
+    expect(names).not.toContain('term');
+    expect(names).not.toContain('export-debug-zip');
+    expect(names).not.toContain('improve-harness');
     expect(names).not.toContain('preflight');
     expect(names).toEqual(
       expect.arrayContaining([
@@ -783,7 +731,7 @@ describe('built-in slash command registry', () => {
         'editor',
         'errors',
         'exit',
-        'export-debug-zip',
+        'feed',
         'fork',
         'help',
         'init',

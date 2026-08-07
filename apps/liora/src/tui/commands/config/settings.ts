@@ -39,7 +39,6 @@ import { showNeverHaltSettings } from './never-halt/never-halt-settings';
 import { showTelemetrySettings } from './telemetry/telemetry-settings';
 import { showHooksSettings } from './hooks/hooks-settings';
 import { showSkillsSettings } from './skills/skills-settings';
-import { showBenchDiagnosticsSettings } from './diagnostics/bench-diagnostics-settings';
 import { showNetworkSettings } from './network/network-settings';
 import { showStorageSettings } from './storage/storage-settings';
 import { showSecuritySettings } from './security/security-settings';
@@ -100,7 +99,6 @@ function handleSettingsSelection(host: SlashCommandHost, value: SettingsSelectio
     case 'cache': showCacheSettings(host); return;
     case 'never-halt': showNeverHaltSettings(host); return;
     case 'telemetry': showTelemetrySettings(host); return;
-    case 'bench-diagnostics': showBenchDiagnosticsSettings(host); return;
     case 'network': showNetworkSettings(host); return;
     case 'storage':  showStorageSettings(host); return;
     case 'theme': showThemeSettings(host); return;

@@ -3,15 +3,15 @@ import { join, relative, resolve, sep } from 'node:path';
 
 import type { LioraHarness } from '@superliora/sdk';
 
+import type { ColorToken } from '../../theme';
+import type { TUIState } from '../../tui-state';
+import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import {
   formatRendererDiagnosticsStatusReport,
   formatRendererTraceStatusReport,
   type RendererDiagnosticsOverlayCommand,
   type RendererTraceCommand,
-} from '../../commands';
-import type { ColorToken } from '../../theme';
-import type { TUIState } from '../../tui-state';
-import { requestTUILayoutRender } from '../../utils/render/frame-render';
+} from './renderer-status';
 
 function truthyEnv(value: string | undefined): boolean {
   if (value === undefined) return false;
