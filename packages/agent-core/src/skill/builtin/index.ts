@@ -12,6 +12,7 @@ import {
 } from './sub-skill';
 import { UPDATE_CONFIG_SKILL } from './update-config';
 import { AVOID_AI_WRITING_SKILL } from './avoid-ai-writing';
+import { PREMIUM_VISUAL_SKILL } from './premium-visual';
 import { WRITE_GOAL_SKILL } from './write-goal';
 import { registerCatalogSkills as loadCatalogSkills } from '../catalog-loader';
 
@@ -25,6 +26,7 @@ export function registerBuiltinSkills(registry: SessionSkillRegistry): void {
   registry.registerBuiltinSkill(AVOID_AI_WRITING_SKILL);
   registry.registerBuiltinSkill(CAVEMAN_SKILL);
   registry.registerBuiltinSkill(I_HAVE_ADHD_SKILL);
+  registry.registerBuiltinSkill(PREMIUM_VISUAL_SKILL);
   registry.registerBuiltinSkill(SUB_SKILL_PARENT);
   registry.registerBuiltinSkill(SUB_SKILL_REVIEW);
   registry.registerBuiltinSkill(SUB_SKILL_CONSOLIDATE);
@@ -41,6 +43,7 @@ export {
   I_HAVE_ADHD_SKILL,
   IMPORT_FROM_CC_CODEX_SKILL,
   MCP_CONFIG_SKILL,
+  PREMIUM_VISUAL_SKILL,
   RECURSIVE_IMPROVE_SKILL,
   SUB_SKILL_CONSOLIDATE,
   SUB_SKILL_PARENT,

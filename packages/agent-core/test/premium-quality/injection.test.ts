@@ -15,11 +15,27 @@ function premiumAgent(
 ): Agent {
   const history: unknown[] = [];
   let isEnabled = enabled;
+  const profiles = new Map<string, { premiumDensity: 'visual' | 'code'; visualSurface: boolean }>();
   return {
     premiumQuality: {
       isEnabled: () => isEnabled,
       setEnabled: (next: boolean) => {
         isEnabled = next;
+      },
+    },
+    objectiveProfile: {
+      get: (objective: string | undefined | null) => {
+        const key = objective?.trim();
+        if (key === undefined || key.length === 0) return undefined;
+        return profiles.get(key);
+      },
+      set: (
+        objective: string | undefined | null,
+        profile: { premiumDensity: 'visual' | 'code'; visualSurface: boolean },
+      ) => {
+        const key = objective?.trim();
+        if (key === undefined || key.length === 0) return;
+        profiles.set(key, profile);
       },
     },
     goal: {
@@ -69,8 +85,9 @@ describe('PremiumQualityInjector', () => {
     expect(text).toContain('Premium Quality mode is ON');
     expect(text).toContain('principal designer');
     expect(text).toContain('ULTRA SUPER PREMIUM KING-GOD-GENERAL');
-    expect(text).toContain('SearchSkill');
+    expect(text).toContain('Skill("premium-visual")');
     expect(text).toContain('on demand (T2-2)');
+    expect(text).toContain('premium-visual');
     expect(text).not.toContain('godly.website');
     expect(text).not.toContain('picsum.photos/seed/');
   });

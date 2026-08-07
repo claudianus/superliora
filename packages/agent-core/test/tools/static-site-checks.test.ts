@@ -115,7 +115,12 @@ describe('runCompletionVerification — static-site contract', () => {
       ['index.html', 'app.js'],
       undefined,
     );
-    expect(verdict).toEqual({ tests: 'passed', typecheck: 'passed', lint: 'passed' });
+    expect(verdict).toEqual({
+      tests: 'passed',
+      typecheck: 'passed',
+      lint: 'passed',
+      visual: 'not_run',
+    });
   });
 
   it('fails the gate when static checks fail', async () => {

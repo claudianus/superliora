@@ -133,7 +133,9 @@ export async function configureSubagentChild(
   profileBaseName?: string,
 ): Promise<void> {
   const cwd = options.worktreeDir ?? parent.config.cwd;
-  const modelSelection = resolveSubagentModelSelection(parent, profile.name, profileBaseName);
+  const modelSelection = resolveSubagentModelSelection(parent, profile.name, profileBaseName, {
+    preferVision: options.preferVisionModel === true,
+  });
   child.config.update({
     cwd,
     modelAlias: modelSelection.alias,
@@ -150,5 +152,9 @@ export async function configureSubagentChild(
   );
   child.useProfile(profile, context);
   child.tools.inheritUserTools(parent.tools);
+  // Premium Quality must reach workers: inherit parent ON, or force for UI Jobs.
+  if (parent.premiumQuality.isEnabled() || options.forcePremiumQuality === true) {
+    child.premiumQuality.setEnabled(true);
+  }
   attachSubagentTodoBridge(parent, child, childId, profile.name, options);
 }

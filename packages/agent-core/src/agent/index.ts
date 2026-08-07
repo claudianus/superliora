@@ -52,7 +52,7 @@ import { AgentRefineService } from './refine/service';
 import { PromptIntelligenceService } from './intelligence/prompt-intelligence';
 import { AutopilotMode } from '../autopilot';
 import { LioraMemoryStore } from '../memory/store';
-import { PremiumQualityMode } from '../premium-quality';
+import { ObjectiveProfileCache, PremiumQualityMode } from '../premium-quality';
 import { HookEngine } from '../session/hooks';
 import { InjectionManager } from './injection/manager';
 import { PermissionManager, type PermissionManagerOptions } from './permission';
@@ -232,6 +232,8 @@ export class Agent {
   readonly intelligence: PromptIntelligenceService;
   readonly autopilot: AutopilotMode;
   readonly premiumQuality: PremiumQualityMode;
+  /** Goal/Job objective → premium density profile (heuristic or classifier). */
+  readonly objectiveProfile: ObjectiveProfileCache;
   readonly replayBuilder: ReplayBuilder;
   readonly providerRouteState: InMemoryProviderRouteState;
   /** Never-Halt circuit breakers for search slots / LLM provider channels. */
@@ -334,6 +336,7 @@ export class Agent {
     this.intelligence = new PromptIntelligenceService(this);
     this.autopilot = new AutopilotMode(this);
     this.premiumQuality = new PremiumQualityMode(this);
+    this.objectiveProfile = new ObjectiveProfileCache();
     this.replayBuilder = new ReplayBuilder(this, options.replay);
     this.providerRouteState = new InMemoryProviderRouteState();
     this.circuitBreakerRegistry = new CircuitBreakerRegistry({

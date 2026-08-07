@@ -11,15 +11,20 @@
 import type { Kaos } from '@superliora/kaos';
 
 import type { Agent } from '../../agent';
+import { pathsLookLikeUi } from '../../premium-quality/ui-surface';
 import { runGit, type GitResult } from '../git-context';
 import { renderFrictionSection, type SubagentFriction } from './subagent-friction';
 
 export type VerificationVerdict = 'passed' | 'failed' | 'not_run';
+/** Visual proof slot — `not_applicable` when the change set is non-UI. */
+export type VisualVerificationVerdict = VerificationVerdict | 'not_applicable';
 
 export interface SubagentVerificationStatus {
   readonly tests: VerificationVerdict;
   readonly typecheck: VerificationVerdict;
   readonly lint: VerificationVerdict;
+  /** Filled at contract build time when omitted. */
+  readonly visual?: VisualVerificationVerdict;
 }
 
 export interface SubagentResultContract {
@@ -37,6 +42,14 @@ export const VERIFICATION_NOT_RUN: SubagentVerificationStatus = {
   tests: 'not_run',
   typecheck: 'not_run',
   lint: 'not_run',
+  visual: 'not_run',
+};
+
+export const VERIFICATION_NOT_APPLICABLE_VISUAL: SubagentVerificationStatus = {
+  tests: 'not_run',
+  typecheck: 'not_run',
+  lint: 'not_run',
+  visual: 'not_applicable',
 };
 
 const MAX_FILES_CHANGED = 100;
@@ -57,16 +70,51 @@ export function verificationIsGreen(
   );
 }
 
+/** UI change sets require visual=passed; non-UI accepts not_applicable. */
+export function verificationVisualIsSatisfied(
+  verification: SubagentVerificationStatus | undefined,
+  filesChanged: readonly string[] | undefined,
+): boolean {
+  if (verification === undefined) return false;
+  if (!pathsLookLikeUi(filesChanged)) {
+    return (
+      verification.visual === 'not_applicable' ||
+      verification.visual === 'passed' ||
+      verification.visual === 'not_run'
+    );
+  }
+  return verification.visual === 'passed';
+}
+
+/** True when UI paths changed and visual proof is missing or failed. */
+export function verificationVisualBlocksMerge(
+  verification: SubagentVerificationStatus | undefined,
+  filesChanged: readonly string[] | undefined,
+): boolean {
+  if (!pathsLookLikeUi(filesChanged)) return false;
+  return verification?.visual !== 'passed';
+}
+
 /** Marks a `done` job whose checks never ran, on the summary the desk/ACK show. */
 export const UNVERIFIED_SUMMARY_PREFIX = 'unverified (checks did not run) — ';
 
-/** Nothing failed, but at least one gate never ran — a `done` without evidence. */
+/**
+ * Nothing failed, but at least one required gate never ran — a `done` without
+ * evidence. When `filesChanged` looks like UI, `visual=not_run` counts too so
+ * the desk warns before MergeJob hard-rejects.
+ */
 export function verificationIsUnverified(
   verification: SubagentVerificationStatus | undefined,
+  filesChanged?: readonly string[] | undefined,
 ): boolean {
   if (verification === undefined) return true;
-  const verdicts = [verification.tests, verification.typecheck, verification.lint];
-  return !verdicts.includes('failed') && verdicts.includes('not_run');
+  const checkVerdicts = [verification.tests, verification.typecheck, verification.lint];
+  if (checkVerdicts.includes('failed') || verification.visual === 'failed') return false;
+  if (checkVerdicts.includes('not_run')) return true;
+  return (
+    pathsLookLikeUi(filesChanged) &&
+    (verification.visual === undefined || verification.visual === 'not_run')
+  );
 }
 
 /** Git state snapshot taken before the child starts working. */
@@ -83,7 +131,11 @@ export function buildSubagentResultContract(options: {
   readonly verification?: SubagentVerificationStatus;
   readonly deviations?: readonly string[];
 }): SubagentResultContract {
-  const verification = options.verification ?? VERIFICATION_NOT_RUN;
+  const base = options.verification ?? VERIFICATION_NOT_RUN;
+  const visual =
+    base.visual ??
+    (pathsLookLikeUi(options.filesChanged) ? 'not_run' : 'not_applicable');
+  const verification: SubagentVerificationStatus = { ...base, visual };
   return {
     agent_id: options.agentId,
     profile: options.profile,
@@ -94,7 +146,8 @@ export function buildSubagentResultContract(options: {
     verification_failed:
       verification.tests === 'failed' ||
       verification.typecheck === 'failed' ||
-      verification.lint === 'failed',
+      verification.lint === 'failed' ||
+      verification.visual === 'failed',
     deviations: [...(options.deviations ?? [])],
   };
 }

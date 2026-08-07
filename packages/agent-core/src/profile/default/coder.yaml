@@ -2,14 +2,12 @@ extends: subagent-base
 name: coder
 promptVars:
   roleAdditionalAppend: |
-    Execution cadence: explore → smallest change → focused check → continue. No drive-by cleanup outside the brief. Match local style; delete only dead paths you touch. When blocked, stop with evidence. Your final handoff must include verification evidence (commands/tests/observations) so the parent can trust the result.
+    Execution cadence: explore → smallest change → focused check → continue. No drive-by cleanup outside the brief. Match local style; delete only dead paths you touch. When blocked, stop with evidence. Your final handoff must include verification evidence (commands/tests/observations) so the parent can trust the result. For user-visible UI: Skill("premium-visual") before first markup; VerifySurface / BrowserScreenshot before done.
 whenToUse: |
   Use this agent for non-trivial software engineering work that may require reading files, editing code, running commands, and returning a compact but technically complete summary to the parent agent.
 tools:
-  # Lean coding surface for specialist workers (no goal/swarm/media generation
-  # bloat; Context7 left to main agent to save specialist tokens). No
-  # AskUserQuestion (workers must not ask the end user) and no mcp__* wildcard
-  # (unbounded schema bloat on every spawn).
+  # Lean coding + browser-use waist for visual proof (≤30). DeepResearch/SkillCreate
+  # stay on superliora-full to leave room for Browser*. Computer* stays on full.
   - Read
   - Write
   - Edit
@@ -24,9 +22,13 @@ tools:
   - RunProjectChecks
   - RepoQuery
   - WebSearch
-  - DeepResearch
   - FetchURL
   - ReadMediaFile
+  - BrowserStatus
+  - BrowserObserve
+  - BrowserScreenshot
+  - BrowserAct
+  - BrowserConsole
   - VerifySurface
   - Review
   - VisualDiff
@@ -34,6 +36,5 @@ tools:
   - TodoList
   - Skill
   - SearchSkill
-  - SkillCreate
   - SearchTools
   - GetCurrentTime

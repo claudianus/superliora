@@ -111,4 +111,54 @@ describe('subagent role model routing', () => {
       source: 'explicit',
     });
   });
+
+  it('preferVision overrides a text-only coding alias with a vision catalog model', () => {
+    const context = testAgent({
+      initialConfig: {
+        providers: { 'test-provider': PROVIDER },
+        models: {
+          'code-text': model('code-text', ['tool_use', 'thinking'], 8),
+          'vision-pro': model('vision-pro', ['tool_use', 'thinking', 'image_in'], 9),
+        },
+        loopControl: {
+          codingModel: 'code-text',
+        },
+      },
+    });
+    context.configure();
+
+    expect(resolveSubagentModelSelection(context.agent, 'coder')).toMatchObject({
+      alias: 'code-text',
+      source: 'explicit',
+    });
+    expect(
+      resolveSubagentModelSelection(context.agent, 'coder', undefined, { preferVision: true }),
+    ).toMatchObject({
+      alias: 'vision-pro',
+      source: 'vision',
+    });
+  });
+
+  it('preferVision keeps an alias that already has image_in', () => {
+    const context = testAgent({
+      initialConfig: {
+        providers: { 'test-provider': PROVIDER },
+        models: {
+          'code-vision': model('code-vision', ['tool_use', 'thinking', 'image_in'], 8),
+          'other-vision': model('other-vision', ['tool_use', 'image_in'], 9),
+        },
+        loopControl: {
+          codingModel: 'code-vision',
+        },
+      },
+    });
+    context.configure();
+
+    expect(
+      resolveSubagentModelSelection(context.agent, 'coder', undefined, { preferVision: true }),
+    ).toMatchObject({
+      alias: 'code-vision',
+      source: 'explicit',
+    });
+  });
 });

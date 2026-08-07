@@ -151,7 +151,9 @@ describe('mission control dock geometry', () => {
     // dock z-index the night-sky gutters bury Mission Control on wide frames.
     expect(dock?.zIndex).toBe(MISSION_DOCK_Z_INDEX);
     expect(MISSION_DOCK_Z_INDEX).toBeGreaterThan(5);
-    const letterbox = regions.filter((region) => region.id.startsWith('stageFrameLetterbox:'));
+    const letterbox = regions.filter(
+      (region) => region.id?.startsWith('stageFrameLetterbox:') === true,
+    );
     expect(letterbox.length).toBeGreaterThan(0);
     for (const band of letterbox) {
       expect(band.zIndex ?? 0).toBeLessThan(MISSION_DOCK_Z_INDEX);
@@ -182,7 +184,9 @@ describe('mission control dock geometry', () => {
     expect(dock?.rect.y).toBe(cluster.stageBand.y);
     expect(dock?.rect.x).toBe(cluster.stageBand.x + cluster.stageBand.width + MISSION_DOCK_GAP);
     expect(dock?.zIndex).toBe(MISSION_DOCK_Z_INDEX);
-    const letterbox = regions.filter((region) => region.id.startsWith('stageFrameLetterbox:'));
+    const letterbox = regions.filter(
+      (region) => region.id?.startsWith('stageFrameLetterbox:') === true,
+    );
     expect(letterbox.length).toBeGreaterThan(0);
     for (const band of letterbox) {
       expect(band.zIndex ?? 0).toBeLessThan(MISSION_DOCK_Z_INDEX);

@@ -7,6 +7,11 @@ import { randomUUID } from 'node:crypto';
 
 import type { Agent } from '../../../agent/index';
 import { type FanoutSpec, type FanoutTask, spawnOneAgent } from '../../../fleet/spawn-agents';
+import {
+  classifyObjectiveProfile,
+  jobLooksLikeUiSurface,
+  uiSpawnQualityFlags,
+} from '../../../premium-quality';
 import { requestConductorWake } from '../../../session/job/conductor-wake';
 import { getJobWorkerSpawner, requestJobSchedulePump } from '../../../session/job/job-offload';
 import { DEFAULT_SUBAGENT_TIMEOUT_MS } from '../../../session/subagent/subagent-host';
@@ -53,6 +58,7 @@ export const JOB_PRIOR_FINDINGS_MAX_CHARS = 2000;
 
 export function jobPrompt(job: JobRecord, store?: ToolStore): string {
   const parentFindings = priorFindingsForJob(job, store);
+  const uiJob = jobLooksLikeUiSurface(job);
   const parts = [
     `You are a Conductor worker for job ${job.id}.`,
     `Title: ${job.title}`,
@@ -99,6 +105,11 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
       '- Trace the brief against the codebase before editing (callers / fail path / success criteria).',
       '- Prefer the smallest diff that meets success criteria; stay inside ownership/context paths when set.',
       '- After each meaningful change, run focused checks when available; cite that evidence in the result summary.',
+      ...(uiJob
+        ? [
+            '- Visual DoD (UI job): write a short Art Direction Brief before first markup; Skill("premium-visual") before shipping a visible slice; call VerifySurface on the real surface before done (BrowserScreenshot alone does not set visual=passed); audit the attached screenshot or visualDescription against the craft rubric; record the screenshot path in the summary. MergeJob hard-fails without visual=passed.',
+          ]
+        : []),
       ...(job.worktreePath !== undefined
         ? [
             '- Commit your work in the job worktree before finishing (`git add -A && git commit`; local commits only, never push). This brief explicitly authorizes those commits — no confirmation loop needed. Land-to-main merges the branch, so uncommitted changes are invisible to it and lost at worktree GC.',
@@ -149,9 +160,9 @@ function contractFactLines(
     lines.push(`Files changed: ${shown}${more}`);
   }
   const v = contract.verification;
-  if (v.tests !== 'not_run' || v.typecheck !== 'not_run' || v.lint !== 'not_run') {
-    lines.push(`Verification: tests=${v.tests}, typecheck=${v.typecheck}, lint=${v.lint}`);
-  }
+  lines.push(
+    `Verification: tests=${v.tests}, typecheck=${v.typecheck}, lint=${v.lint}, visual=${v.visual ?? 'not_run'}`,
+  );
   return lines;
 }
 
@@ -245,12 +256,33 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
   }
 
   const profileName = profileForJobKind(job.kind);
+  const objectiveBlob = [job.title, job.prompt, job.goalObjective].filter(Boolean).join('\n');
+  if (objectiveBlob.trim().length > 0 && input.agent.objectiveProfile !== undefined) {
+    input.agent.objectiveProfile.set(
+      objectiveBlob,
+      classifyObjectiveProfile(objectiveBlob, [
+        ...(job.contextPaths ?? []),
+        ...(job.ownershipPaths ?? []),
+      ]),
+    );
+  }
+  const uiFlags = uiSpawnQualityFlags({
+    title: job.title,
+    prompt: job.prompt,
+    goalObjective: job.goalObjective,
+    contextPaths: job.contextPaths,
+    ownershipPaths: job.ownershipPaths,
+  });
   const task: FanoutTask = {
     prompt: jobPrompt(job, input.store),
     description: job.title.slice(0, 80),
     profileName,
     ownership: job.ownershipPaths ? [...job.ownershipPaths] : undefined,
     worktreeDir: job.worktreePath,
+    // UI Jobs force Premium Quality ON even when the Conductor toggle is OFF.
+    forcePremiumQuality: uiFlags?.forcePremiumQuality,
+    // Text-only coding models cannot audit screenshots; prefer a vision alias.
+    preferVisionModel: uiFlags?.preferVisionModel,
     // Goal-driver (spec 2026-08-04-goal-driver-jobs): the goal migrates onto
     // the worker, whose turn engine then runs the autonomous loop. The brief
     // doubles as the objective; JobCreate validated its length.
@@ -318,7 +350,9 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
         // changes, paths outside the workspace layout, gate timeouts). Such a
         // job is still `done`, but saying so plainly keeps the conductor from
         // reading "no failure" as "verified" when it decides to merge.
-        const unverified = !verificationFailed && verificationIsUnverified(contract?.verification);
+        const unverified =
+          !verificationFailed &&
+          verificationIsUnverified(contract?.verification, contract?.files_changed);
         // Goal-driver terminal mapping (spec 2026-08-04-goal-driver-jobs §3.5):
         // a stopped goal (blocked/paused — budget circuit breaker, stagnation,
         // or a worker-reported blocker) escalates as a resumable `blocked` Job;

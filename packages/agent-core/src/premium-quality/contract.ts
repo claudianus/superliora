@@ -1,5 +1,7 @@
 /** Builtin skill names — discover via SearchSkill; never hardcode locale skills in prompts. */
 export const PREMIUM_VISUAL_SKILL_NAMES = {
+  /** SuperLiora harness craft (rubric/playbook/refs) — load first under PQ visual density. */
+  harness: 'premium-visual',
   frontendDesign: 'frontend-design',
   designTaste: 'design-taste-frontend',
   redesign: 'redesign-existing-projects',
@@ -16,10 +18,10 @@ export type PremiumVisualSkillName =
 export const PREMIUM_VISUAL_SKILL_ROUTING = [
   'Premium Visual skill routing (MANDATORY while Premium Quality is ON):',
   '- Trigger: any web/app UI, landing, dashboard, game, marketing site, component library, or visual refresh — even without "design".',
-  '- Before visual markup/styles or shipping a visible slice: SearchSkill → Skill best match. Reuse loaded skills; do not reload the same skill.',
+  '- Before first visual markup: Skill("premium-visual") (harness rubric/playbook/refs). Then SearchSkill → Skill a secondary taste skill if needed.',
   '- Keywords (3–12 words): "frontend design distinctive anti template"; "premium frontend design taste anti slop"; "redesign visual audit"; "minimalist ui premium"; "stitch design system"; "web game polish playwright"; "workspace imagen ui assets".',
   '- Assets: GenerateImage when OPENAI/GOOGLE/GEMINI keys exist; else SearchSkill → workspace-imagen.',
-  '- Load ≥1 visual skill before the first visual implementation. Games: develop-web-game + a design skill.',
+  '- Games: develop-web-game + premium-visual (and a design skill when art direction is thin).',
   '- Skill text is constraints, not optional inspiration. AGENTS.md and harness contracts override conflicts.',
 ].join('\n');
 
@@ -32,4 +34,4 @@ export const PREMIUM_VISUAL_SKIP_SKILL_WHEN = [
 
 /** Compact reminder injected on sparse premium turns. */
 export const PREMIUM_VISUAL_SPARSE_CHECKPOINT =
-  'Premium Visual still ON — art direction before code; SearchSkill → frontend-design if needed; GenerateImage when keys exist; BrowserScreenshot before done; picsum/dicebear/font stacks/bento OK.';
+  'Premium Visual still ON — art direction before code; Skill("premium-visual") if not loaded; BrowserScreenshot / VerifySurface before done; picsum/dicebear/font stacks OK.';

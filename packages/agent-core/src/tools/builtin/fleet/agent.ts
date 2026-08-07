@@ -30,6 +30,7 @@ import {
   type SubagentHandle,
 } from '../../../session/subagent/subagent-host';
 import { type FanoutSpec, type FanoutTask, spawnOneAgent } from '#/fleet';
+import { uiSpawnQualityFlags } from '../../../premium-quality';
 import { isUserCancellation } from '../../../utils/abort';
 import { AgentBackgroundTask, type BackgroundManager } from '../../../agent/background';
 import { resolvePluginAgentType, type PluginAgentDef } from '../../../plugin';
@@ -240,12 +241,18 @@ export class AgentTool implements BuiltinTool<AgentToolInput> {
       if (!effectiveBackground) {
         signal.addEventListener('abort', abortBeforeRegister, { once: true });
       }
+      const uiFlags = uiSpawnQualityFlags({
+        title: args.description,
+        prompt: args.prompt,
+        ownershipPaths: args.ownership,
+      });
       const task: FanoutTask = {
         prompt: args.prompt,
         description: args.description,
         profileName: resolvedProfileName,
         ownership: args.ownership,
         resumeAgentId: operation === 'resume' ? resumeAgentId : undefined,
+        ...uiFlags,
       };
       const spec: FanoutSpec = {
         mode: 'manual',

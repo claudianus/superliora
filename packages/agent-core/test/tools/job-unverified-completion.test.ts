@@ -102,6 +102,42 @@ describe('verificationIsUnverified', () => {
     );
     expect(verificationIsUnverified(undefined)).toBe(true);
   });
+
+  it('treats UI visual=not_run as unverified even when checks are green', () => {
+    expect(
+      verificationIsUnverified(
+        {
+          tests: 'passed',
+          typecheck: 'passed',
+          lint: 'passed',
+          visual: 'not_run',
+        },
+        ['apps/site/src/app/page.tsx'],
+      ),
+    ).toBe(true);
+    expect(
+      verificationIsUnverified(
+        {
+          tests: 'passed',
+          typecheck: 'passed',
+          lint: 'passed',
+          visual: 'passed',
+        },
+        ['apps/site/src/app/page.tsx'],
+      ),
+    ).toBe(false);
+    expect(
+      verificationIsUnverified(
+        {
+          tests: 'passed',
+          typecheck: 'passed',
+          lint: 'passed',
+          visual: 'not_run',
+        },
+        ['packages/agent-core/src/loop/tool-call.ts'],
+      ),
+    ).toBe(false);
+  });
 });
 
 describe('unverified completions', () => {

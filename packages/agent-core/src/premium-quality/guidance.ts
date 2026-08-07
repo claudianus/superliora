@@ -2,6 +2,7 @@ import {
   PREMIUM_QUALITY_HYPE_BANNER,
   PREMIUM_QUALITY_HYPE_MANTRA,
 } from './quality-hype';
+import { classifyObjectiveProfile } from './ui-surface';
 import { PREMIUM_VISUAL_HARNESS } from './visual-harness';
 
 const PREMIUM_QUALITY_CORE_GUIDANCE = `${PREMIUM_QUALITY_HYPE_BANNER}
@@ -47,8 +48,9 @@ ${PREMIUM_VISUAL_HARNESS}`;
  * quality bar plus a pointer to load the full craft guidance via skill.
  */
 export const PREMIUM_VISUAL_ON_DEMAND_POINTER = [
-  'Premium Visual harness is on demand (T2-2): before first visual markup, SearchSkill → load the best premium frontend/visual skill — art direction, rubric, playbook, and refs live there.',
-  'Do not re-dump the full harness into context; hold the core bar below and verify visible surfaces with a real screenshot.',
+  'Premium Visual harness is on demand (T2-2): before first visual markup, Skill("premium-visual") — SuperLiora art direction, rubric, playbook, banned ship states, and compact refs live there.',
+  'Secondary taste skills (frontend-design, design-taste-frontend, …) load after premium-visual when needed. Do not re-dump the full harness into context.',
+  'Verify visible surfaces with BrowserScreenshot / VerifySurface before claiming done; record the evidence path.',
 ].join('\n');
 
 export const PREMIUM_QUALITY_VISUAL_INJECTION_GUIDANCE = `${PREMIUM_QUALITY_CORE_GUIDANCE}
@@ -57,7 +59,7 @@ ${PREMIUM_VISUAL_ON_DEMAND_POINTER}`;
 
 export const PREMIUM_QUALITY_SPARSE_GUIDANCE = [
   'Premium Quality still ON (visual density) — hold the ultra-premium bar on user-visible surfaces; screenshot-verify before claiming done.',
-  'Full craft guidance is on demand: SearchSkill → premium frontend/visual skill before first markup.',
+  'Full craft guidance is on demand: Skill("premium-visual") before first markup if not already loaded.',
 ].join('\n');
 
 /**
@@ -80,20 +82,19 @@ export const PREMIUM_QUALITY_EXIT_GUIDANCE =
   'Premium Quality mode is OFF. Continue with normal quality expectations unless the user re-requests premium polish.';
 
 export type PremiumInjectionDensity = 'visual' | 'code';
-/** Prefer a precomputed LLM objective profile over any keyword surface guess. */
+/** Prefer a cached/LLM objective profile; fall back to UI heuristics. */
 export function detectPremiumVisualSurface(
   objective: string,
   profile?: { readonly visualSurface?: boolean; readonly premiumDensity?: PremiumInjectionDensity },
 ): boolean {
   if (profile?.premiumDensity === 'visual' || profile?.visualSurface === true) return true;
-  if (profile?.premiumDensity === 'code') return false;
-  // No keyword fallback: unknown objectives stay non-visual unless a profile says otherwise.
-  return objective.trim().length === 0;
+  if (profile?.premiumDensity === 'code' || profile?.visualSurface === false) return false;
+  return classifyObjectiveProfile(objective).visualSurface;
 }
 
 /**
  * Resolve injection density for an active Premium session.
- * Prefer an LLM objective profile when available.
+ * Prefer a cached profile; otherwise classify the objective with UI heuristics.
  */
 export function resolvePremiumInjectionDensity(
   objective: string | undefined | null,
@@ -104,10 +105,7 @@ export function resolvePremiumInjectionDensity(
   }
   if (profile?.visualSurface === true) return 'visual';
   if (profile?.visualSurface === false) return 'code';
-  const text = objective?.trim() ?? '';
-  // Empty objective defaults visual so pure premium mode still ships craft guidance.
-  if (text.length === 0) return 'visual';
-  return 'code';
+  return classifyObjectiveProfile(objective).premiumDensity;
 }
 
 export function selectPremiumFullGuidance(density: PremiumInjectionDensity): string {

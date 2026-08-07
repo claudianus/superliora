@@ -2,7 +2,10 @@ import type { ChatProvider, ContentPart } from '@superliora/kosong';
 
 import type { Agent } from '..';
 import { ProviderManager } from '../../session/provider/provider-manager';
-import { analyzeMediaPart } from '../../session/vision-analyzer';
+import {
+  analyzeMediaPart,
+  modelSupportsMediaKind,
+} from '../../session/vision-analyzer';
 import { extendWorkspaceWithSkillRoots } from '../../skill/scanner';
 import * as b from '../../tools/builtin';
 import { isProviderExtrasEnabled } from '../../tools/providers/extras/index';
@@ -231,6 +234,47 @@ function buildReadMediaVisionFallback(agent: Agent): b.ReadMediaVisionFallback |
   };
 }
 
+function resolveVerifySurfaceMediaOptions(agent: Agent): {
+  readonly attachScreenshotImage?: boolean;
+  readonly visionFallback?: b.VerifySurfaceVisionFallback;
+} {
+  if (modelSupportsMediaKind(agent.config.modelCapabilities, 'image')) {
+    return { attachScreenshotImage: true };
+  }
+  const visionFallback = buildVerifySurfaceVisionFallback(agent);
+  return visionFallback === undefined ? {} : { visionFallback };
+}
+
+function buildVerifySurfaceVisionFallback(
+  agent: Agent,
+): b.VerifySurfaceVisionFallback | undefined {
+  const providerManager = agent.modelProvider;
+  if (!(providerManager instanceof ProviderManager)) return undefined;
+  const policy = agent.kimiConfig?.media?.nonVisionFallback ?? 'analyze';
+  if (policy === 'block') return undefined;
+  return async ({ mimeType, base64, screenshotPath, signal }) => {
+    if (policy !== 'analyze') return undefined;
+    const result = await analyzeMediaPart(
+      {
+        generate: agent.generate,
+        providerManager,
+        currentModelAlias: agent.config.modelAlias,
+        currentCapabilities: agent.config.modelCapabilities,
+        signal,
+      },
+      {
+        type: 'image_url',
+        imageUrl: { url: `data:${mimeType};base64,${base64}` },
+      },
+      {
+        originalPath: screenshotPath,
+        label: 'VerifySurface screenshot',
+      },
+    );
+    return result?.text;
+  };
+}
+
 function resolveMediaProviderEnv(agent: Agent): b.GenerateImageProviderEnv & b.GenerateVideoProviderEnv {
   const services = agent.toolServices;
   const config = agent.kimiConfig;
@@ -370,6 +414,7 @@ function createGuiAndWebTools(
       new b.VerifySurfaceTool(toolServices?.browserUse, {
         kaos: host.agent.kaos,
         cwd: host.agent.config.cwd,
+        ...resolveVerifySurfaceMediaOptions(host.agent),
       }),
     toolServices?.computerUse &&
       shouldCreateBuiltin(host, 'ComputerCapture') &&

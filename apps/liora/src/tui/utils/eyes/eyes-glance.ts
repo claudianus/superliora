@@ -79,5 +79,6 @@ export function buildEyesSettingsLines(glance: EyesSettingsGlance): readonly str
     '· /eyes or Settings → Eyes readiness — same live report',
     '· Settings → Harness also links here for eyes/hands surface',
     '· Missing runtimes do not block text-only agent work',
+    '· UI Jobs: MergeJob hard-rejects without VerifySurface pass (visual=passed)',
   ];
 }

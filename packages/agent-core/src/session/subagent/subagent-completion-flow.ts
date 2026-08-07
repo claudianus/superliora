@@ -377,8 +377,11 @@ export function spawnModelAlias(
   profileName: string,
   profileBaseName: string | undefined,
   parent: Agent,
+  options?: { readonly preferVisionModel?: boolean },
 ): string | undefined {
-  return resolveSubagentModelSelection(parent, profileName, profileBaseName).alias;
+  return resolveSubagentModelSelection(parent, profileName, profileBaseName, {
+    preferVision: options?.preferVisionModel === true,
+  }).alias;
 }
 
 /** Indirection so intra-module callers and tests share one `runPromptTurn` binding. */

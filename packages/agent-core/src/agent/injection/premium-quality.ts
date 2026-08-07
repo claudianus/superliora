@@ -1,4 +1,5 @@
 import {
+  classifyObjectiveProfile,
   PREMIUM_QUALITY_EXIT_GUIDANCE,
   resolvePremiumInjectionDensity,
   selectPremiumFullGuidance,
@@ -70,5 +71,11 @@ export class PremiumQualityInjector extends DynamicInjector {
 
 /** Premium injection density for the active goal objective. */
 export function resolveActivePremiumDensity(agent: Agent): PremiumInjectionDensity {
-  return resolvePremiumInjectionDensity(agent.goal?.getGoal?.()?.goal?.objective);
+  const objective = agent.goal?.getGoal?.()?.goal?.objective;
+  let profile = agent.objectiveProfile?.get?.(objective);
+  if (profile === undefined && objective !== undefined && objective.trim().length > 0) {
+    profile = classifyObjectiveProfile(objective);
+    agent.objectiveProfile?.set?.(objective, profile);
+  }
+  return resolvePremiumInjectionDensity(objective, profile);
 }

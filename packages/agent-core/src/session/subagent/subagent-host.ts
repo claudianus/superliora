@@ -165,6 +165,7 @@ export class SessionSubagentHost {
         profile.name,
         options.profileBaseName,
         parent,
+        { preferVisionModel: options.preferVisionModel },
       );
       emitSubagentSpawned(parent, this.ownerAgentId, id, profile.name, runOptions, modelAlias);
       try {

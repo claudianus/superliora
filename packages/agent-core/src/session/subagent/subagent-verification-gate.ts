@@ -10,6 +10,7 @@
 import type { Kaos } from '@superliora/kaos';
 
 import type { Agent } from '../../agent';
+import { pathsLookLikeUi } from '../../premium-quality/ui-surface';
 import { RunProjectChecksTool } from '../../tools/builtin/ops/run-project-checks';
 import {
   isStaticSiteChangeSet,
@@ -25,7 +26,9 @@ import {
   type ProjectCheckOutcomeLike,
   type SubagentResultContract,
   type SubagentVerificationStatus,
+  type VisualVerificationVerdict,
 } from './subagent-result-contract';
+import { maybeAutoVerifySurface } from './subagent-visual-completion';
 
 /** Per-check timeout for the completion verification gate (T4-4). */
 const COMPLETION_CHECK_TIMEOUT_MS = 180_000;
@@ -52,8 +55,31 @@ export async function buildChildResultContract(
     profile: profileName,
     summary,
     filesChanged,
-    verification,
+    verification: await withVisualVerdict(verification, child, filesChanged, summary, signal),
   });
+}
+
+async function withVisualVerdict(
+  verification: SubagentVerificationStatus,
+  child: Agent,
+  filesChanged: readonly string[],
+  summary: string,
+  signal: AbortSignal | undefined,
+): Promise<SubagentVerificationStatus> {
+  const visual = await resolveVisualVerdict(child, filesChanged, summary, signal);
+  return { ...verification, visual };
+}
+
+async function resolveVisualVerdict(
+  child: Agent,
+  filesChanged: readonly string[],
+  summary: string,
+  signal: AbortSignal | undefined,
+): Promise<VisualVerificationVerdict> {
+  if (!pathsLookLikeUi(filesChanged)) return 'not_applicable';
+  const observed = child.verificationSensorLedger.visualVerdict;
+  if (observed === 'passed' || observed === 'failed') return observed;
+  return maybeAutoVerifySurface(child, filesChanged, summary, signal);
 }
 
 /**
@@ -103,6 +129,7 @@ export async function runCompletionVerification(
       tests: verdictFromCheckOutcomes(checks, 'test'),
       typecheck: verdictFromCheckOutcomes(checks, 'typecheck'),
       lint: verdictFromCheckOutcomes(checks, 'lint'),
+      visual: 'not_run',
     };
   } catch {
     return VERIFICATION_NOT_RUN;
@@ -123,8 +150,8 @@ async function runStaticCompletionVerification(
   try {
     const outcome = await runStaticSiteChecks(kaos, cwd, filesChanged);
     return outcome.ok
-      ? { tests: 'passed', typecheck: 'passed', lint: 'passed' }
-      : { tests: 'failed', typecheck: 'failed', lint: 'failed' };
+      ? { tests: 'passed', typecheck: 'passed', lint: 'passed', visual: 'not_run' }
+      : { tests: 'failed', typecheck: 'failed', lint: 'failed', visual: 'not_run' };
   } catch {
     return VERIFICATION_NOT_RUN;
   }

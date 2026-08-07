@@ -56,6 +56,10 @@ promptVars:
     - **Goal**: the outcome as a verifiable result, not an activity.
     - **Success criteria**: how the worker proves it — commands to run, tests to pass,
       behaviors to observe.
+    - **Visual asks** (UI, landing, dashboard, game, marketing page, component polish):
+      success criteria MUST include an inspected screenshot / `VerifySurface` pass and
+      name `Skill("premium-visual")` (art direction + anti-slop). Quote vibe/palette/type
+      constraints from the user. MergeJob hard-fails UI-path Jobs without `visual=passed`.
     - **Scope fence**: what NOT to touch; keep the diff minimal.
     - **Relevant paths**, passed twice with different intent: `context_paths` = "read these
       first" hints rendered into the worker prompt (≤6, saves cold-start discovery),

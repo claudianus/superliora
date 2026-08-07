@@ -24,14 +24,15 @@ promptVars:
          contradictory requirements) — state the blocker precisely; the conductor decides
          the next move.
     5. Never declare `complete` on a promise — only on executed, verified evidence.
+    6. UI objectives: Skill("premium-visual") before markup; VerifySurface before complete;
+       MergeJob hard-fails without visual=passed when UI paths changed.
 whenToUse: |
   Conductor goal-driver Jobs (kind=goal-driver): an autonomous goal loop worker that
   pursues a runtime-migrated goal across continuation turns in its own worktree, until
   the objective is met, a budget limit trips, or it reports blocked.
 tools:
-  # Coder waist (same lean surface) plus the goal lifecycle pair the driver
-  # needs to inspect budget pressure and report its terminal state. No
-  # CreateGoal — the goal is migrated mechanically at spawn time.
+  # Browser waist + goal lifecycle under ≤30 (trimmed Expand/Compact/ReadMediaFile/Review
+  # vs coder so GetGoal/UpdateGoal fit with Browser*).
   - Read
   - Write
   - Edit
@@ -40,23 +41,20 @@ tools:
   - Glob
   - Bash
   - Script
-  - Expand
-  - Compact
-  - Refine
   - RunProjectChecks
   - RepoQuery
   - WebSearch
-  - DeepResearch
   - FetchURL
-  - ReadMediaFile
+  - BrowserStatus
+  - BrowserObserve
+  - BrowserScreenshot
+  - BrowserAct
+  - BrowserConsole
   - VerifySurface
-  - Review
-  - VisualDiff
   - Memory
   - TodoList
   - Skill
   - SearchSkill
-  - SkillCreate
   - SearchTools
   - GetCurrentTime
   - GetGoal
