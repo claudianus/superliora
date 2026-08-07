@@ -847,10 +847,6 @@ describe('FullCompaction', () => {
       - none
       - user[0-0] tokens=4
       - assistant[1-1] tokens=8
-      swarm_runs:
-      - None captured during compaction.
-      ultrawork_runs:
-      - None captured during compaction.
 
       ## Compacted Narrative
       current_goal:

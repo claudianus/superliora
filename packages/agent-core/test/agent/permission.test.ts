@@ -44,7 +44,7 @@ describe('Agent permission', () => {
 
     expect(await ctx.untilTurnEnd()).toMatchInlineSnapshot(`
       [wire] permission.set_mode         { "mode": "auto", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "auto", "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": false, "askMode": false, "premiumQualityMode": false, "permission": "auto", "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
       [wire] turn.prompt                 { "input": [ { "type": "text", "text": "Run Bash in auto mode" } ], "origin": { "kind": "user" }, "time": "<time>" }
       [emit] turn.started                { "turnId": 0, "origin": { "kind": "user" } }
       [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "Run Bash in auto mode" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
@@ -64,7 +64,7 @@ describe('Agent permission', () => {
       [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-1>", "turnId": "0", "step": 1, "usage": { "inputOther": 274, "output": 25, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }, "time": "<time>" }
       [emit] turn.step.completed         { "turnId": 0, "step": 1, "stepId": "<uuid-1>", "usage": { "inputOther": 274, "output": 25, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }
       [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 274, "output": 25, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 299, "maxContextTokens": 1000000, "contextUsage": 0.000299, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "auto", "usage": { "byModel": { "mock-model": { "inputOther": 274, "output": 25, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 274, "output": 25, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 274, "output": 25, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0, "searchNeverEmpty": { "hardFailCount": 0, "softDegradeCount": 0 } }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 299, "maxContextTokens": 1000000, "contextUsage": 0.000299, "planMode": false, "askMode": false, "premiumQualityMode": false, "permission": "auto", "usage": { "byModel": { "mock-model": { "inputOther": 274, "output": 25, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 274, "output": 25, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 274, "output": 25, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0, "searchNeverEmpty": { "hardFailCount": 0, "softDegradeCount": 0 } }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
       [wire] context.append_loop_event   { "event": { "type": "step.begin", "uuid": "<uuid-3>", "turnId": "0", "step": 2 }, "time": "<time>" }
       [emit] turn.step.started           { "turnId": 0, "step": 2, "stepId": "<uuid-3>" }
       [emit] assistant.delta             { "turnId": 0, "delta": "The command printed auto-output." }
@@ -72,7 +72,7 @@ describe('Agent permission', () => {
       [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-3>", "turnId": "0", "step": 2, "usage": { "inputOther": 303, "output": 11, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }, "time": "<time>" }
       [emit] turn.step.completed         { "turnId": 0, "step": 2, "stepId": "<uuid-3>", "usage": { "inputOther": 303, "output": 11, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }
       [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 303, "output": 11, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 314, "maxContextTokens": 1000000, "contextUsage": 0.000314, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "auto", "usage": { "byModel": { "mock-model": { "inputOther": 577, "output": 36, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 577, "output": 36, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 577, "output": 36, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0, "cacheDiagnostics": { "toolBlockHash": "b559cb5e", "toolBlockChanged": false, "injectionCount": 0, "messageCount": 4, "missReasons": { "schema_change": 1 } }, "searchNeverEmpty": { "hardFailCount": 0, "softDegradeCount": 0 } }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 314, "maxContextTokens": 1000000, "contextUsage": 0.000314, "planMode": false, "askMode": false, "premiumQualityMode": false, "permission": "auto", "usage": { "byModel": { "mock-model": { "inputOther": 577, "output": 36, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 577, "output": 36, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 577, "output": 36, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0, "cacheDiagnostics": { "toolBlockHash": "b559cb5e", "toolBlockChanged": false, "injectionCount": 0, "messageCount": 4, "missReasons": { "schema_change": 1 } }, "searchNeverEmpty": { "hardFailCount": 0, "softDegradeCount": 0 } }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
       [emit] turn.ended                  { "turnId": 0, "reason": "completed" }
     `);
     expect(ctx.llmInputs()).toMatchInlineSnapshot(`
@@ -103,7 +103,7 @@ describe('Agent permission', () => {
 
     expect(await ctx.untilTurnEnd()).toMatchInlineSnapshot(`
       [wire] permission.set_mode         { "mode": "yolo", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "yolo", "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": false, "askMode": false, "premiumQualityMode": false, "permission": "yolo", "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
       [wire] turn.prompt                 { "input": [ { "type": "text", "text": "Run Bash in yolo mode" } ], "origin": { "kind": "user" }, "time": "<time>" }
       [emit] turn.started                { "turnId": 0, "origin": { "kind": "user" } }
       [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "Run Bash in yolo mode" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
@@ -123,7 +123,7 @@ describe('Agent permission', () => {
       [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-1>", "turnId": "0", "step": 1, "usage": { "inputOther": 79, "output": 25, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }, "time": "<time>" }
       [emit] turn.step.completed         { "turnId": 0, "step": 1, "stepId": "<uuid-1>", "usage": { "inputOther": 79, "output": 25, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }
       [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 79, "output": 25, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 104, "maxContextTokens": 1000000, "contextUsage": 0.000104, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "yolo", "usage": { "byModel": { "mock-model": { "inputOther": 79, "output": 25, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 79, "output": 25, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 79, "output": 25, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0, "searchNeverEmpty": { "hardFailCount": 0, "softDegradeCount": 0 } }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 104, "maxContextTokens": 1000000, "contextUsage": 0.000104, "planMode": false, "askMode": false, "premiumQualityMode": false, "permission": "yolo", "usage": { "byModel": { "mock-model": { "inputOther": 79, "output": 25, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 79, "output": 25, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 79, "output": 25, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0, "searchNeverEmpty": { "hardFailCount": 0, "softDegradeCount": 0 } }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
       [wire] context.append_loop_event   { "event": { "type": "step.begin", "uuid": "<uuid-3>", "turnId": "0", "step": 2 }, "time": "<time>" }
       [emit] turn.step.started           { "turnId": 0, "step": 2, "stepId": "<uuid-3>" }
       [emit] assistant.delta             { "turnId": 0, "delta": "The command printed yolo-output." }
@@ -131,7 +131,7 @@ describe('Agent permission', () => {
       [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-3>", "turnId": "0", "step": 2, "usage": { "inputOther": 108, "output": 11, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }, "time": "<time>" }
       [emit] turn.step.completed         { "turnId": 0, "step": 2, "stepId": "<uuid-3>", "usage": { "inputOther": 108, "output": 11, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }
       [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 108, "output": 11, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 119, "maxContextTokens": 1000000, "contextUsage": 0.000119, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "yolo", "usage": { "byModel": { "mock-model": { "inputOther": 187, "output": 36, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 187, "output": 36, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 187, "output": 36, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0, "cacheDiagnostics": { "toolBlockHash": "b559cb5e", "toolBlockChanged": false, "injectionCount": 0, "messageCount": 4 }, "searchNeverEmpty": { "hardFailCount": 0, "softDegradeCount": 0 } }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 119, "maxContextTokens": 1000000, "contextUsage": 0.000119, "planMode": false, "askMode": false, "premiumQualityMode": false, "permission": "yolo", "usage": { "byModel": { "mock-model": { "inputOther": 187, "output": 36, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 187, "output": 36, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 187, "output": 36, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0, "cacheDiagnostics": { "toolBlockHash": "b559cb5e", "toolBlockChanged": false, "injectionCount": 0, "messageCount": 4 }, "searchNeverEmpty": { "hardFailCount": 0, "softDegradeCount": 0 } }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
       [emit] turn.ended                  { "turnId": 0, "reason": "completed" }
     `);
     expect(ctx.llmInputs()).toMatchInlineSnapshot(`
@@ -165,7 +165,7 @@ describe('Agent permission', () => {
 
     expect(await ctx.untilTurnEnd()).toMatchInlineSnapshot(`
       [wire] permission.set_mode         { "mode": "manual", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 279, "maxContextTokens": 1000000, "contextUsage": 0.000279, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "manual", "usage": { "byModel": { "mock-model": { "inputOther": 272, "output": 7, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 272, "output": 7, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0, "cacheDiagnostics": { "toolBlockHash": "811c9dc5", "toolBlockChanged": false, "injectionCount": 0, "messageCount": 3, "missReasons": { "schema_change": 1 } }, "searchNeverEmpty": { "hardFailCount": 0, "softDegradeCount": 0 } }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 279, "maxContextTokens": 1000000, "contextUsage": 0.000279, "planMode": false, "askMode": false, "premiumQualityMode": false, "permission": "manual", "usage": { "byModel": { "mock-model": { "inputOther": 272, "output": 7, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 272, "output": 7, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0, "cacheDiagnostics": { "toolBlockHash": "811c9dc5", "toolBlockChanged": false, "injectionCount": 0, "messageCount": 3, "missReasons": { "schema_change": 1 } }, "searchNeverEmpty": { "hardFailCount": 0, "softDegradeCount": 0 } }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
       [wire] turn.prompt                 { "input": [ { "type": "text", "text": "Back to manual" } ], "origin": { "kind": "user" }, "time": "<time>" }
       [emit] turn.started                { "turnId": 1, "origin": { "kind": "user" } }
       [wire] context.append_message      { "message": { "role": "user", "content": [ { "type": "text", "text": "Back to manual" } ], "toolCalls": [], "origin": { "kind": "user" } }, "time": "<time>" }
@@ -177,7 +177,7 @@ describe('Agent permission', () => {
       [wire] context.append_loop_event   { "event": { "type": "step.end", "uuid": "<uuid-3>", "turnId": "1", "step": 1, "usage": { "inputOther": 403, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }, "time": "<time>" }
       [emit] turn.step.completed         { "turnId": 1, "step": 1, "stepId": "<uuid-3>", "usage": { "inputOther": 403, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }
       [wire] usage.record                { "model": "mock-model", "usage": { "inputOther": 403, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 411, "maxContextTokens": 1000000, "contextUsage": 0.000411, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "manual", "usage": { "byModel": { "mock-model": { "inputOther": 675, "output": 15, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 675, "output": 15, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 403, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0, "cacheDiagnostics": { "toolBlockHash": "811c9dc5", "toolBlockChanged": false, "injectionCount": 0, "messageCount": 3, "missReasons": { "schema_change": 1 } }, "searchNeverEmpty": { "hardFailCount": 0, "softDegradeCount": 0 } }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 411, "maxContextTokens": 1000000, "contextUsage": 0.000411, "planMode": false, "askMode": false, "premiumQualityMode": false, "permission": "manual", "usage": { "byModel": { "mock-model": { "inputOther": 675, "output": 15, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 675, "output": 15, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 403, "output": 8, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0, "cacheDiagnostics": { "toolBlockHash": "811c9dc5", "toolBlockChanged": false, "injectionCount": 0, "messageCount": 3, "missReasons": { "schema_change": 1 } }, "searchNeverEmpty": { "hardFailCount": 0, "softDegradeCount": 0 } }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
       [emit] turn.ended                  { "turnId": 1, "reason": "completed" }
     `);
     expect(ctx.llmInputs()).toMatchInlineSnapshot(`
@@ -223,7 +223,7 @@ describe('Agent permission', () => {
       [emit] assistant.delta             { "turnId": 0, "delta": "I will try Bash." }
       [emit] tool.call.delta             { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "argumentsPart": "{\\"command\\":\\"printf should-not-run\\",\\"timeout\\":60}" }
       [wire] context.append_loop_event   { "event": { "type": "content.part", "uuid": "<uuid-2>", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "part": { "type": "text", "text": "I will try Bash." } }, "time": "<time>" }
-      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "manual", "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null, "pendingInterventions": 1, "oldestInterventionAgeMs": "<age-ms>" }
+      [emit] agent.status.updated        { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": false, "askMode": false, "premiumQualityMode": false, "permission": "manual", "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null, "pendingInterventions": 1, "oldestInterventionAgeMs": "<age-ms>" }
       [emit] requestApproval             { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "Running: printf should-not-run", "display": { "kind": "command", "command": "printf should-not-run", "cwd": "<cwd>", "language": "bash" } }
     `);
     expect(ctx.lastLlmInput()).toMatchInlineSnapshot(`
@@ -236,7 +236,7 @@ describe('Agent permission', () => {
 
     ctx.mockNextResponse({ type: 'text', text: 'I will not run the command.' });
     expect(await ctx.untilTurnEnd()).toMatchInlineSnapshot(`
-      [emit] agent.status.updated                { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "manual", "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
+      [emit] agent.status.updated                { "model": "mock-model", "contextTokens": 0, "maxContextTokens": 1000000, "contextUsage": 0, "planMode": false, "askMode": false, "premiumQualityMode": false, "permission": "manual", "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
       [wire] permission.record_approval_result   { "turnId": 0, "toolCallId": "call_bash", "toolName": "Bash", "action": "Running: printf should-not-run", "result": { "decision": "rejected", "selectedLabel": "reject" }, "time": "<time>" }
       [wire] context.append_loop_event           { "event": { "type": "tool.call", "uuid": "call_bash", "turnId": "0", "step": 1, "stepUuid": "<uuid-1>", "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf should-not-run", "timeout": 60 }, "description": "Running: printf should-not-run", "display": { "kind": "command", "command": "printf should-not-run", "cwd": "<cwd>", "language": "bash" } }, "time": "<time>" }
       [emit] tool.call.started                   { "turnId": 0, "toolCallId": "call_bash", "name": "Bash", "args": { "command": "printf should-not-run", "timeout": 60 }, "description": "Running: printf should-not-run", "display": { "kind": "command", "command": "printf should-not-run", "cwd": "<cwd>", "language": "bash" } }
@@ -245,7 +245,7 @@ describe('Agent permission', () => {
       [wire] context.append_loop_event           { "event": { "type": "step.end", "uuid": "<uuid-1>", "turnId": "0", "step": 1, "usage": { "inputOther": 77, "output": 22, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }, "time": "<time>" }
       [emit] turn.step.completed                 { "turnId": 0, "step": 1, "stepId": "<uuid-1>", "usage": { "inputOther": 77, "output": 22, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "tool_use", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }
       [wire] usage.record                        { "model": "mock-model", "usage": { "inputOther": 77, "output": 22, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
-      [emit] agent.status.updated                { "model": "mock-model", "contextTokens": 99, "maxContextTokens": 1000000, "contextUsage": 0.000099, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "manual", "usage": { "byModel": { "mock-model": { "inputOther": 77, "output": 22, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 77, "output": 22, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 77, "output": 22, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0, "searchNeverEmpty": { "hardFailCount": 0, "softDegradeCount": 0 } }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
+      [emit] agent.status.updated                { "model": "mock-model", "contextTokens": 99, "maxContextTokens": 1000000, "contextUsage": 0.000099, "planMode": false, "askMode": false, "premiumQualityMode": false, "permission": "manual", "usage": { "byModel": { "mock-model": { "inputOther": 77, "output": 22, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 77, "output": 22, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 77, "output": 22, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0, "searchNeverEmpty": { "hardFailCount": 0, "softDegradeCount": 0 } }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
       [wire] context.append_loop_event           { "event": { "type": "step.begin", "uuid": "<uuid-3>", "turnId": "0", "step": 2 }, "time": "<time>" }
       [emit] turn.step.started                   { "turnId": 0, "step": 2, "stepId": "<uuid-3>" }
       [emit] assistant.delta                     { "turnId": 0, "delta": "I will not run the command." }
@@ -253,7 +253,7 @@ describe('Agent permission', () => {
       [wire] context.append_loop_event           { "event": { "type": "step.end", "uuid": "<uuid-3>", "turnId": "0", "step": 2, "usage": { "inputOther": 165, "output": 10, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }, "time": "<time>" }
       [emit] turn.step.completed                 { "turnId": 0, "step": 2, "stepId": "<uuid-3>", "usage": { "inputOther": 165, "output": 10, "inputCacheRead": 0, "inputCacheCreation": 0 }, "finishReason": "end_turn", "providerRouteSelection": { "modelAlias": "mock-model", "providerModel": "mock-model" } }
       [wire] usage.record                        { "model": "mock-model", "usage": { "inputOther": 165, "output": 10, "inputCacheRead": 0, "inputCacheCreation": 0 }, "usageScope": "turn", "time": "<time>" }
-      [emit] agent.status.updated                { "model": "mock-model", "contextTokens": 175, "maxContextTokens": 1000000, "contextUsage": 0.000175, "planMode": false, "swarmMode": false, "premiumQualityMode": false, "permission": "manual", "usage": { "byModel": { "mock-model": { "inputOther": 242, "output": 32, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 242, "output": 32, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 242, "output": 32, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0, "cacheDiagnostics": { "toolBlockHash": "b559cb5e", "toolBlockChanged": false, "injectionCount": 0, "messageCount": 4 }, "searchNeverEmpty": { "hardFailCount": 0, "softDegradeCount": 0 } }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
+      [emit] agent.status.updated                { "model": "mock-model", "contextTokens": 175, "maxContextTokens": 1000000, "contextUsage": 0.000175, "planMode": false, "askMode": false, "premiumQualityMode": false, "permission": "manual", "usage": { "byModel": { "mock-model": { "inputOther": 242, "output": 32, "inputCacheRead": 0, "inputCacheCreation": 0 } }, "total": { "inputOther": 242, "output": 32, "inputCacheRead": 0, "inputCacheCreation": 0 }, "currentTurn": { "inputOther": 242, "output": 32, "inputCacheRead": 0, "inputCacheCreation": 0 }, "cacheHitRate": 0, "cacheDiagnostics": { "toolBlockHash": "b559cb5e", "toolBlockChanged": false, "injectionCount": 0, "messageCount": 4 }, "searchNeverEmpty": { "hardFailCount": 0, "softDegradeCount": 0 } }, "providerRoute": null, "contextOS": null, "microCompaction": null, "autoDream": null }
       [emit] turn.ended                          { "turnId": 0, "reason": "completed" }
     `);
     expect(execWithEnv).not.toHaveBeenCalled();
@@ -729,6 +729,7 @@ describe('Permission policy chain', () => {
     expect(createPermissionDecisionPolicies({} as Agent).map((policy) => policy.name)).toEqual([
       'pre-tool-call-hook',
       'auto-mode-ask-user-question-deny',
+      'ask-mode-guard-deny',
       'plan-mode-guard-deny',
       'user-configured-deny',
       'gui-use-safety',
@@ -3726,7 +3727,7 @@ describe('Permission rule helpers', () => {
         path: '/workspace/a.ts',
       }),
     ).toBe(false);
-    expect(ruleMatches(permissionRule('AgentSwarm(swarm)'), 'AgentSwarm', {})).toBe(false);
+    expect(ruleMatches(permissionRule('Agent(worker)'), 'Agent', {})).toBe(false);
   });
 
   it('treats empty arg patterns as tool-name-only matches', () => {
@@ -3793,7 +3794,7 @@ function makePermissionManager(
     readonly agentType?: Agent['type'];
     readonly hooks?: Agent['hooks'];
     readonly approvalRpc?: boolean;
-    readonly swarmModeActive?: boolean;
+    readonly askModeActive?: boolean;
     readonly ultraPlanMode?: boolean;
     readonly ultraPlanPhase?: string;
   } = {},
@@ -3835,9 +3836,9 @@ function makePermissionManager(
       data: vi.fn(async () => null),
       exit: vi.fn(),
     },
-    swarmMode: {
+    askMode: {
       get isActive() {
-        return options.swarmModeActive ?? false;
+        return options.askModeActive ?? false;
       },
     },
   } as unknown as Agent;
@@ -3893,7 +3894,7 @@ function makePlanPermissionManager(input: {
       }),
       exit,
     },
-    swarmMode: {
+    askMode: {
       get isActive() {
         return false;
       },

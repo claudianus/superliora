@@ -27,7 +27,6 @@ interface TelemetryRecord {
 
 function makeGoalMode(options?: {
   readonly cwd?: string;
-  readonly ultraworkRun?: unknown;
 }) {
   const records: AgentRecord[] = [];
   const replay: AgentReplayRecord[] = [];
@@ -74,12 +73,6 @@ function makeGoalMode(options?: {
         replay.push(record);
       },
     },
-    ultrawork:
-      options?.ultraworkRun === undefined
-        ? undefined
-        : {
-            getRun: () => options.ultraworkRun,
-          },
   } as unknown as Agent;
 
   return {

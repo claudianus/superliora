@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import * as fleetSurface from '#/fleet';
 import {
   applyMakerCheckerHardGate,
   classifyExpertRoleString,
@@ -72,7 +71,7 @@ describe('swarm-maker-checker.ts — expert collisions', () => {
   });
 });
 
-describe('swarm-maker-checker.ts — AgentSwarm homogeneous batch', () => {
+describe('swarm-maker-checker.ts — Fleet homogeneous batch', () => {
   it('detects mixed implement/review intents in one item list', () => {
     expect(
       detectBatchItemRoleCollision([
@@ -181,11 +180,6 @@ describe('swarm-maker-checker.ts — hard gate flag', () => {
 });
 
 describe('swarm-maker-checker.ts — retro guard (S3-R7)', () => {
-  it('fleet surface no longer exposes retired UltraSwarm-named helpers', () => {
-    const retired = Object.keys(fleetSurface).filter((key) => /UltraSwarm/i.test(key));
-    expect(retired).toEqual([]);
-  });
-
   it('classifies expert role strings via the role fallback', () => {
     expect(classifyExpertRoleString('Reviewer')).toBe('checker');
     expect(classifyExpertRoleString('implementer')).toBe('maker');

@@ -147,7 +147,6 @@ describe('Expert persona composition', () => {
     expect(prompt).toContain('<assignment>');
     expect(prompt).toContain('<subagent_contract>');
     expect(prompt).not.toContain('SuperLiora');
-    expect(prompt).not.toContain('UltraSwarm');
   });
 
 

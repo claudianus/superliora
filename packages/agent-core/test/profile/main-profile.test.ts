@@ -19,7 +19,6 @@ describe('resolveMainAgentProfile', () => {
     const tools = resolveMainAgentProfile(DEFAULT_AGENT_PROFILES, undefined, {}).tools;
     expect(tools.length).toBeLessThanOrEqual(30);
     expect(tools).toEqual(expect.arrayContaining(['JobCreate', 'JobInbox', 'EnterPlanMode']));
-    expect(tools).not.toContain('UltraworkGraph');
   });
 
   it('still resolves conductor when SUPERLIORA_SOVEREIGN_CORE=1 and profile unset', () => {
@@ -72,7 +71,6 @@ describe('resolveMainAgentProfile', () => {
     );
     expect(profile.tools).toHaveLength(12);
     expect(profile.tools).toEqual(expect.arrayContaining(['ApplyPatch', 'RepoQuery']));
-    expect(profile.tools).not.toContain('UltraworkGraph');
     for (const legacy of [
       'LioraRead',
       'LioraTree',

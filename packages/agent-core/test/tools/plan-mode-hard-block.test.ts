@@ -20,7 +20,7 @@ async function activePlanAgent(
   options: { ultra?: boolean } = {},
 ): Promise<{ agent: Agent; planMode: PlanMode }> {
   const fixedSeedSpec = {
-    goal: 'implement guarded Ultrawork mode with a verifiable UltraGoal.',
+    goal: 'implement guarded plan mode with a verifiable UltraGoal.',
     taskType: 'code',
     constraints: [],
     acceptanceCriteria: [],
@@ -352,51 +352,6 @@ describe('Plan mode permission policy', () => {
     ).toBeUndefined();
   });
 
-  it('allows workflow-report.md edits during Ultra Plan research when Ultrawork is active', async () => {
-    const { agent } = await activePlanAgent({ ultra: true });
-    const evidenceRoot = '.superliora/evidence/ultrawork-runs/run-1';
-    const reportPath = `${evidenceRoot}/workflow-report.md`;
-
-    Object.assign(agent, {
-      config: { cwd: '/workspace/project', provider: { modelName: 'mock' } },
-      ultrawork: {
-        getRun: () => ({ id: 'run-1' }),
-        getActivation: () => ({
-          source: 'shift-tab',
-          replaceGoal: false,
-          evidenceRoot,
-          workDir: '/workspace/project',
-        }),
-      },
-    });
-
-    expect(
-      evaluatePlanPolicy(agent, 'Edit', {
-        path: reportPath,
-        old_string: 'pending',
-        new_string: 'complete',
-      }),
-    ).toBeUndefined();
-    expect(
-      evaluatePlanPolicy(agent, 'Write', {
-        path: reportPath,
-        content: '# report',
-      }),
-    ).toBeUndefined();
-
-    const deny = expectDeny(
-      evaluatePlanPolicy(agent, 'Edit', {
-        path: '/workspace/project/src/main.ts',
-        old_string: 'a',
-        new_string: 'b',
-      }),
-    );
-    // Product edits still hard-deny via plan-file guard; research no longer
-    // uses a separate phase deny for non-plan writes.
-    expect(deny.message ?? '').toContain('Plan mode is active');
-    expect(deny.message ?? '').toMatch(/plan file|evidence root/i);
-  });
-
   it('advances Ultra Plan from research to interview after evidence collection', async () => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
 
@@ -510,7 +465,7 @@ describe('Plan mode permission policy', () => {
     planMode.ultraEngine.addInterviewRound(
       'Close the UltraPlan seed ledger.',
       [
-        'Goal: implement guarded Ultrawork mode with a verifiable UltraGoal.',
+        'Goal: implement guarded plan mode with a verifiable UltraGoal.',
         'Actors: CLI user, agent, verification owner.',
         'Inputs: user prompt, TUI state, session status, and focused tests.',
         'Outputs: updated TUI mode, prompt contract, and passing tests.',
@@ -541,7 +496,7 @@ describe('Plan mode permission policy', () => {
     expect(result.output).toContain('Design Phase (optional)');
     expect(result.output).toContain("NextPhase({ phase: 'write' })");
     expect(planMode.phase).toBe('design');
-    expect(planMode.ultraEngine.seedSpec?.goal).toContain('implement guarded Ultrawork mode');
+    expect(planMode.ultraEngine.seedSpec?.goal).toContain('implement guarded plan mode');
   });
 
   it('lets ultra interview advance after a single seed-ready answer when ready=true', async () => {
@@ -550,7 +505,7 @@ describe('Plan mode permission policy', () => {
     planMode.ultraEngine.addInterviewRound(
       'Close the UltraPlan seed ledger.',
       [
-        'Goal: implement guarded Ultrawork mode with a verifiable UltraGoal.',
+        'Goal: implement guarded plan mode with a verifiable UltraGoal.',
         'Actors: CLI user, agent, verification owner.',
         'Inputs: user prompt, TUI state, session status, and focused tests.',
         'Outputs: updated TUI mode, prompt contract, and passing tests.',
@@ -907,8 +862,8 @@ describe('Plan mode permission policy', () => {
     'cat package.json',
     "sed -n '1,10p' package.json",
     'rg -n "Review phase" packages/agent-core',
-    'pnpm -C packages/agent-core exec vitest run test/ultrawork/harness-friction-fixes.test.ts',
-    'vitest run packages/agent-core/test/ultrawork/harness-friction-fixes.test.ts',
+    'pnpm -C packages/agent-core exec vitest run test/tools/plan-mode-hard-block.test.ts',
+    'vitest run packages/agent-core/test/tools/plan-mode-hard-block.test.ts',
   ])('allows broader Research phase inspection and focused tests: %s', async (command) => {
     const { agent, planMode } = await activePlanAgent({ ultra: true });
     planMode.setPhase('research');

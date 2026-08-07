@@ -426,7 +426,6 @@ describe('SessionAPIImpl.prompt vision transform (integration)', () => {
       generate: successGenerate('A modal with Cancel and Confirm buttons.'),
       config: { modelAlias: 'text-model', modelCapabilities: capabilities() },
       goal: { getGoal: () => ({ goal: undefined }) },
-      ultrawork: { getRun: () => null, getInterruptReason: () => undefined },
       rpcMethods: { prompt: promptSpy },
     };
     const emitEvent = vi.fn();
@@ -482,7 +481,6 @@ describe('SessionAPIImpl.prompt vision transform (integration)', () => {
       generate: successGenerate('never used'),
       config: { modelAlias: 'vision-current', modelCapabilities: capabilities({ image_in: true }) },
       goal: { getGoal: () => ({ goal: undefined }) },
-      ultrawork: { getRun: () => null, getInterruptReason: () => undefined },
       rpcMethods: { prompt: promptSpy },
     };
     const session = {

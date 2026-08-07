@@ -49,9 +49,6 @@ function planAgent(stub: PlanModeStub): Agent {
       },
       ultraEngine,
     },
-    ultrawork: {
-      getRun: () => null,
-    },
     context: {
       history,
       appendSystemReminder: (content: string) => {

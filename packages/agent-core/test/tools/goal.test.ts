@@ -30,7 +30,6 @@ function fakeAgent(opts: { type?: 'main' | 'sub'; goal?: GoalMode } = {}): Agent
     telemetry: { track: () => {} },
     context: { appendSystemReminder: () => {} },
     permission: { mode: 'manual' },
-    ultrawork: { getRun: () => undefined },
   } as unknown as Agent;
   (agent as { goal: GoalMode }).goal = opts.goal ?? new GoalMode(agent);
   return agent;

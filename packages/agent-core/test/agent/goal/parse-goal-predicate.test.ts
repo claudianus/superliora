@@ -1,17 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
 import { parseGoalPredicateCriterion } from '#/agent/goal/predicate';
-import {
-  GOAL_BLOCKED_REMINDER_NAME,
-  GOAL_COMPLETION_REMINDER_NAME,
-} from '#/agent/turn/reminder-names';
-
-describe('agent/turn/reminder-names — constants', () => {
-  it('exposes the documented reminder names', () => {
-    expect(GOAL_COMPLETION_REMINDER_NAME).toBe('goal_completion');
-    expect(GOAL_BLOCKED_REMINDER_NAME).toBe('goal_blocked');
-  });
-});
 
 describe('agent/goal/predicate — parseGoalPredicateCriterion', () => {
   it('returns empty when the input is undefined', () => {
@@ -24,7 +13,7 @@ describe('agent/goal/predicate — parseGoalPredicateCriterion', () => {
 
   it('parses a fenced goal-predicate block', () => {
     const result = parseGoalPredicateCriterion(
-      '```goal-predicate\n{"version":1,"minEvidenceIds":2,"requireUltraworkGraph":true}\n```',
+      '```goal-predicate\n{"version":1,"minEvidenceIds":2}\n```',
     );
     expect(result).toEqual({
       kind: 'structured',
@@ -33,7 +22,6 @@ describe('agent/goal/predicate — parseGoalPredicateCriterion', () => {
         requiredPaths: undefined,
         requiredTestFiles: undefined,
         minEvidenceIds: 2,
-        requireUltraworkGraph: true,
       },
     });
   });
@@ -49,7 +37,6 @@ describe('agent/goal/predicate — parseGoalPredicateCriterion', () => {
         requiredPaths: ['a', 'b'],
         requiredTestFiles: undefined,
         minEvidenceIds: undefined,
-        requireUltraworkGraph: undefined,
       },
     });
   });
@@ -65,7 +52,6 @@ describe('agent/goal/predicate — parseGoalPredicateCriterion', () => {
         requiredPaths: undefined,
         requiredTestFiles: ['x.test.ts'],
         minEvidenceIds: undefined,
-        requireUltraworkGraph: undefined,
       },
     });
   });
@@ -79,7 +65,6 @@ describe('agent/goal/predicate — parseGoalPredicateCriterion', () => {
         requiredPaths: undefined,
         requiredTestFiles: undefined,
         minEvidenceIds: 5,
-        requireUltraworkGraph: undefined,
       },
     });
   });
@@ -110,7 +95,6 @@ describe('agent/goal/predicate — parseGoalPredicateCriterion', () => {
         requiredPaths: ['ok'],
         requiredTestFiles: undefined,
         minEvidenceIds: 0,
-        requireUltraworkGraph: undefined,
       },
     });
   });

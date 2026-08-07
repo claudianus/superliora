@@ -26,7 +26,6 @@ function makeAgent(mode: PermissionMode): {
       }),
     },
     permission: { mode },
-    ultrawork: { getRun: () => null },
     rpc: { requestApproval },
     telemetry: { track: telemetryTrack },
   } as unknown as Agent;

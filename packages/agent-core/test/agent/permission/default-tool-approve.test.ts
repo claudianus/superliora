@@ -65,10 +65,10 @@ describe('DefaultToolApprovePermissionPolicy', () => {
     expect(policy.evaluate(policyContext('CronDelete', { id: 'job_1' }))).toBeUndefined();
   });
 
-  it('does not approve AgentSwarm', () => {
+  it('does not approve Fleet fan-out', () => {
     expect(
       policy.evaluate(
-        policyContext('AgentSwarm', {
+        policyContext('Fleet', {
           description: 'Check files',
           prompt_template: 'Check {{item}}',
           items: ['a.ts', 'b.ts'],

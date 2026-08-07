@@ -108,15 +108,14 @@ describe('agent/plan/work-graph-from-plan — pure helpers', () => {
         nodeIds: ['ac_1', 'ac_2', 'ac_3'],
       });
       expect(notice).toBeDefined();
-      expect(notice).toContain('UltraworkGraph was seeded');
+      expect(notice).toContain('TaskGraph was seeded');
       expect(notice).toContain('run_id: run-42');
       expect(notice).toContain('work_node_ids: ac_1, ac_2, ac_3');
-      expect(notice).toContain('UltraSwarm');
     });
 
-    it('falls back to "ultra-plan" when runId is missing', () => {
+    it('falls back to "plan" when runId is missing', () => {
       const notice = formatSeededWorkGraphNotice({ seeded: true, nodeIds: ['ac_1'] });
-      expect(notice).toContain('run_id: ultra-plan');
+      expect(notice).toContain('run_id: plan');
     });
   });
 });

@@ -10,7 +10,6 @@ import {
 describe('plan-write-paths', () => {
   const workDir = '/workspace/project';
   const planFile = '/home/user/.superliora/plans/hero-plan.md';
-  const evidenceRoot = '.superliora/evidence/ultrawork-runs/run-1';
 
   it('equates relative and absolute plan paths against workDir', () => {
     expect(
@@ -23,40 +22,23 @@ describe('plan-write-paths', () => {
     expect(pathsEqualForPlanWrite(planFile, planFile, workDir)).toBe(true);
   });
 
-  it('allows plan file and evidence-root workflow/research paths', () => {
+  it('allows the active plan file, in relative or absolute form', () => {
     expect(
-      isPlanPhaseAllowedWrite([planFile], {
-        planFilePath: planFile,
-        evidenceRoot,
-        workDir,
-      }),
+      isPlanPhaseAllowedWrite([planFile], { planFilePath: planFile, workDir }),
     ).toBe(true);
 
     expect(
-      isPlanPhaseAllowedWrite([`${evidenceRoot}/workflow-report.md`], {
-        planFilePath: planFile,
-        evidenceRoot,
+      isPlanPhaseAllowedWrite(['docs/plan.md'], {
+        planFilePath: `${workDir}/docs/plan.md`,
         workDir,
       }),
-    ).toBe(true);
-
-    expect(
-      isPlanPhaseAllowedWrite(
-        [`${workDir}/${evidenceRoot}/research/notes.md`],
-        {
-          planFilePath: planFile,
-          evidenceRoot,
-          workDir,
-        },
-      ),
     ).toBe(true);
   });
 
-  it('denies product-tree paths outside allow-list', () => {
+  it('denies every path that is not the plan file', () => {
     expect(
       isPlanPhaseAllowedWrite(['/workspace/project/src/main.ts'], {
         planFilePath: planFile,
-        evidenceRoot,
         workDir,
       }),
     ).toBe(false);
@@ -64,13 +46,21 @@ describe('plan-write-paths', () => {
     expect(
       isPlanPhaseAllowedWrite(
         [planFile, '/workspace/project/src/main.ts'],
-        {
-          planFilePath: planFile,
-          evidenceRoot,
-          workDir,
-        },
+        { planFilePath: planFile, workDir },
       ),
     ).toBe(false);
+
+    expect(
+      isPlanPhaseAllowedWrite(
+        [`${workDir}/.superliora/evidence/run-1/research/notes.md`],
+        { planFilePath: planFile, workDir },
+      ),
+    ).toBe(false);
+  });
+
+  it('denies an empty write set and a missing plan file', () => {
+    expect(isPlanPhaseAllowedWrite([], { planFilePath: planFile, workDir })).toBe(false);
+    expect(isPlanPhaseAllowedWrite([planFile], { planFilePath: null, workDir })).toBe(false);
   });
 
   it('returns plan file parent for sandbox allow dir', () => {

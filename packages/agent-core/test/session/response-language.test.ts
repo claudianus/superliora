@@ -252,14 +252,10 @@ function fakeSession(input: {
     rpcMethods: {
       steer: input.steer,
     },
-    // The steer path probes interrupted-work-resume context; stub the goal and
-    // ultrawork controllers so it short-circuits without a real agent.
+    // The steer path probes interrupted-work-resume context; stub the goal
+    // controller so it short-circuits without a real agent.
     goal: {
       getGoal: () => ({ goal: null }),
-    },
-    ultrawork: {
-      getRun: () => null,
-      getInterruptReason: () => null,
     },
   };
 

@@ -11,7 +11,7 @@ import {
 
 function premiumAgent(
   enabled: boolean,
-  options: { goalObjective?: string; runObjective?: string } = {},
+  options: { goalObjective?: string } = {},
 ): Agent {
   const history: unknown[] = [];
   let isEnabled = enabled;
@@ -33,17 +33,6 @@ function premiumAgent(
                 status: 'active',
               },
       }),
-    },
-    ultrawork: {
-      getRun: () =>
-        options.runObjective === undefined
-          ? null
-          : {
-              id: 'run-1',
-              objective: options.runObjective,
-              status: 'running',
-              stage: 'intake',
-            },
     },
     context: {
       history,

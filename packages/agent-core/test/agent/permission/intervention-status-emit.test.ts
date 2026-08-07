@@ -21,7 +21,7 @@ describe('PermissionManager intervention status emit', () => {
       rpc: { requestApproval },
       hooks: { fireAndForgetTrigger: vi.fn(), triggerBlock: vi.fn(async () => undefined) },
       planMode: { isActive: false },
-      swarmMode: { isActive: false },
+      askMode: { isActive: false },
     } as unknown as Agent;
     const manager = new PermissionManager(agent);
     Object.assign(agent, { permission: manager });
