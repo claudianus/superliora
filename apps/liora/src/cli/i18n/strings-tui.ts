@@ -302,7 +302,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.tip.feed': '/feed drops food into the visible Jewel Tank (or click it)',
   'tui.tip.auto': '/auto lets Liora handle approvals and keep going unattended',
   'tui.tip.yolo': '/yolo skips most approvals for trusted batch work — only in repos you trust',
-  'tui.tip.menuHub': 'Menu ?: Command Hub (empty prompt) — Space flips modes',
+  'tui.tip.menuHub': 'Menu ?: Command Hub (empty prompt) — Space toggles modes',
   'tui.tip.ctrlK': 'Ctrl-K: open Command Hub — modes, model, sessions',
   'tui.tip.help': 'Ctrl-K or ?: Command Hub (slash commands still work)',
   'tui.tip.compact': '/compact compresses context when it gets long',

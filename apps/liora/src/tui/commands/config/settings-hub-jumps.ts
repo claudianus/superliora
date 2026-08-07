@@ -19,7 +19,7 @@ export function buildSettingsJumpHubItems(): CommandHubItem[] {
     id: 'settings.open',
     section: 'Settings',
     label: 'All settings',
-    description: 'Browse every pane · type to search freeze, DDG, FTS, redaction…',
+    description: 'Browse every settings pane',
     keywords: ['settings', 'preferences', 'config', 'customize'],
   };
   const panes = SETTINGS_OPTIONS.map((option) =>

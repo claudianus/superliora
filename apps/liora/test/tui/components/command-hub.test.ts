@@ -55,7 +55,7 @@ describe('buildDefaultCommandHubItems', () => {
     }
     expect([...ids].some((id) => id.includes('dashboard'))).toBe(false);
     expect(items.find((item) => item.id === 'help.commands')?.description).toContain(
-      'prefer Hub search',
+      'slash command',
     );
     expect(commandHubNestsPicker('workspace.jobOps')).toBe(true);
     expect(commandHubNestsPicker('chat.loops')).toBe(true);
@@ -132,7 +132,7 @@ describe('CommandHubComponent', () => {
     expect(text).toContain('Model');
     while (onSelect.mock.calls.length === 0) {
       const selected = stripAnsi(hub.render(72).join('\n'));
-      if (selected.includes('Switch the LLM')) {
+      if (selected.includes('Choose which model')) {
         hub.handleInput(ENTER);
         break;
       }
@@ -144,20 +144,15 @@ describe('CommandHubComponent', () => {
   });
 
   it('Space activates toggle rows', () => {
+    resetHubRecentsForTests();
     const onSelect = vi.fn();
     const hub = new CommandHubComponent({
       items: buildDefaultCommandHubItems({}),
       onSelect,
       onCancel: vi.fn(),
     });
-    while (onSelect.mock.calls.length === 0) {
-      const selected = stripAnsi(hub.render(72).join('\n'));
-      if (selected.includes('think first') || selected.includes('flips & close · think')) {
-        hub.handleInput(SPACE);
-        break;
-      }
-      hub.handleInput(DOWN);
-    }
+    // Idle list starts on Plan mode after clearing recents.
+    hub.handleInput(SPACE);
     expect(onSelect.mock.calls[0]?.[0]?.id).toBe('modes.plan');
     expect(onSelect.mock.calls[0]?.[1]).toBe('space');
   });
@@ -188,7 +183,7 @@ describe('CommandHubComponent', () => {
     expect(stripAnsi(hub.render(72).join('\n'))).toMatch(/model.*\d+\/\d+/);
     hub.handleInput(ESCAPE);
     expect(onCancel).not.toHaveBeenCalled();
-    expect(stripAnsi(hub.render(72).join('\n'))).toContain('Search actions');
+    expect(stripAnsi(hub.render(72).join('\n'))).toContain('Search anything');
     hub.handleInput(ESCAPE);
     expect(onCancel).toHaveBeenCalledOnce();
   });
@@ -301,7 +296,7 @@ describe('CommandHubComponent', () => {
       onCancel: vi.fn(),
     });
     const idle = stripAnsi(hub.render(72).join('\n'));
-    expect(idle).toContain('Search actions, settings, skills');
+    expect(idle).toContain('Search anything');
     for (const ch of 'model') hub.handleInput(ch);
     const filtered = stripAnsi(hub.render(72).join('\n'));
     expect(filtered).toMatch(/❯ model/);
@@ -369,20 +364,49 @@ describe('CommandHubComponent palette redesign', () => {
     }
   });
 
+  it('caps the floating box below the center-modal ceiling', () => {
+    resetHubRecentsForTests();
+    const hub = makeHub();
+    const lines = stripAnsi(hub.render(120).join('\n')).split('\n');
+    const top = lines.find((line) => line.includes('╭')) ?? '';
+    // HUB_MAX_BOX_WIDTH=92; side pad may add spaces, but the box itself stays ≤92.
+    const box = top.trimStart();
+    expect(box.startsWith('╭')).toBe(true);
+    expect(box.length).toBeLessThanOrEqual(92);
+    expect(box.length).toBeGreaterThan(60);
+  });
+
+  it('draws section rules to the inner edge', () => {
+    resetHubRecentsForTests();
+    vi.stubEnv('TERM', 'dumb');
+    try {
+      const hub = makeHub();
+      const lines = stripAnsi(hub.render(92).join('\n')).split('\n');
+      const modes = lines.find((line) => line.includes('Modes') && line.includes('╌'));
+      expect(modes).toBeDefined();
+      // Inner content is width-2; section row should fill it (no short rule stub).
+      const content = (modes ?? '').replace(/^\s*│/, '').replace(/│\s*$/, '');
+      expect(content.trimEnd().endsWith('╌')).toBe(true);
+      expect(content.length).toBe(90);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('shows inline descriptions on wide renders, selected-only on narrow', () => {
     resetHubRecentsForTests();
     const wide = makeHub();
     for (const ch of 'model') wide.handleInput(ch);
     const wideLines = stripAnsi(wide.render(100).join('\n')).split('\n');
     expect(
-      wideLines.some((line) => line.includes('Model') && line.includes('Switch the LLM')),
+      wideLines.some((line) => line.includes('Model') && line.includes('Choose which model')),
     ).toBe(true);
 
     const narrow = makeHub();
     for (const ch of 'model') narrow.handleInput(ch);
     const narrowLines = stripAnsi(narrow.render(60).join('\n')).split('\n');
     expect(
-      narrowLines.some((line) => line.includes('Model') && line.includes('Switch the LLM')),
+      narrowLines.some((line) => line.includes('Model') && line.includes('Choose which model')),
     ).toBe(false);
   });
 
