@@ -28,7 +28,6 @@ describe('status command recovery readiness', () => {
       status: 'PASS',
       completedAt: '2026-06-30T19:10:26.399Z',
       tuiWorkflowProof: { status: 'PASS' },
-      tuiUltraworkProof: { status: 'PASS' },
       harnessRadarGate: { status: 'PASS' },
     });
 

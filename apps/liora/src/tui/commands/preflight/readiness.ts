@@ -10,7 +10,7 @@ import {
   PREFLIGHT_FRESHNESS_WINDOW_MS,
   PREFLIGHT_RECALL_MEMORY_SUBJECT,
   PREFLIGHT_REFRESH_COMMAND,
-  PREFLIGHT_ULTRAWORK_CONTRACT_PATH,
+  PREFLIGHT_HUMAN_WRITING_CONTRACT_PATH,
   type PreflightFreshness,
   type PreflightFreshnessSignal,
   type PreflightHumanWriting,
@@ -130,7 +130,7 @@ export function defaultPreflightHumanWriting(): PreflightHumanWriting {
     contractReady: true,
     rubricReady: true,
     advisoryOnly: true,
-    contractPath: PREFLIGHT_ULTRAWORK_CONTRACT_PATH,
+    contractPath: PREFLIGHT_HUMAN_WRITING_CONTRACT_PATH,
     rubricPath: CANONICAL_SOTA_CRITERIA_PATH,
     nextAction: 'Human-writing anti-slop contract ready; keep detector signals advisory-only.',
   };

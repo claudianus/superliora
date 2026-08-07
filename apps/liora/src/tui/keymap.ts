@@ -46,7 +46,7 @@ export const KEYMAP_ALWAYS: readonly KeymapBinding[] = [
     description: 'Stop the current turn (or confirm exit when idle)',
     surface: 'always',
     category: 'agent',
-    relatedSlash: ['/mission', '/fleet'],
+    relatedSlash: ['/plan', '/agents'],
   },
   {
     id: 'newline',
@@ -127,7 +127,7 @@ export const KEYMAP_STREAMING: readonly KeymapBinding[] = [
     description: 'Steer while a turn is running',
     surface: 'streaming',
     category: 'agent',
-    relatedSlash: ['/mission', '/fleet'],
+    relatedSlash: ['/plan', '/agents'],
   },
   {
     id: 'background',
@@ -135,7 +135,7 @@ export const KEYMAP_STREAMING: readonly KeymapBinding[] = [
     description: 'Background the current work',
     surface: 'streaming',
     category: 'agent',
-    relatedSlash: ['/fleet'],
+    relatedSlash: ['/jobs', '/agents'],
   },
 ];
 

@@ -137,8 +137,12 @@ const TUI_INPUT_STEP_DELAY_MS = 150;
 const TUI_READY_TIMEOUT_MS = 45_000;
 const TUI_STARTUP_CAPTURE_ATTEMPTS = 5;
 const TUI_STARTUP_CAPTURE_RETRY_DELAY_MS = 1_000;
-const TUI_REAL_WORKFLOW_SOURCE_FILE = 'apps/liora/src/tui/commands/ultrawork/ultrawork-contract.ts';
-const TUI_REAL_WORKFLOW_TEST_FILE = 'apps/liora/test/tui/commands/ultrawork.test.ts';
+// Mission/Ultrawork mode retired — gate still needs on-disk sources for the
+// live-TUI workflow phase; point at the surviving human-writing contract and
+// its preflight coverage until that phase is rewritten for Conductor.
+const TUI_REAL_WORKFLOW_SOURCE_FILE =
+  'apps/liora/src/tui/commands/preflight/human-writing-contract.md';
+const TUI_REAL_WORKFLOW_TEST_FILE = 'apps/liora/test/tui/commands/preflight.test.ts';
 const TUI_REAL_WORKFLOW_VERIFIER_DIR = '.superliora-real-workflow';
 const TUI_REAL_WORKFLOW_VERIFIER = path.posix.join(TUI_REAL_WORKFLOW_VERIFIER_DIR, 'check.mjs');
 const TUI_REAL_WORKFLOW_GUIDANCE = 'SUPERLIORA_REAL_WORKFLOW_EVIDENCE';

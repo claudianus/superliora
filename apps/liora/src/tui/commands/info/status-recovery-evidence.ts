@@ -67,7 +67,6 @@ function isPassingSotaRecoverySummary(summary: Record<string, unknown>): boolean
   return (
     summary['status'] === 'PASS' &&
     statusField(summary['tuiWorkflowProof']) === 'PASS' &&
-    statusField(summary['tuiUltraworkProof']) === 'PASS' &&
     statusField(summary['harnessRadarGate']) === 'PASS'
   );
 }

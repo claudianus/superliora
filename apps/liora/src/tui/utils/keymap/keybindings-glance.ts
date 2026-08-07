@@ -14,7 +14,7 @@ export const KEYBINDINGS_REGISTRY_TIP =
 
 /** Compact /help reference tip — full keyboard shortcut panel in the TUI. */
 export const KEYBINDINGS_HELP_TIP =
-  '/help — full keyboard shortcut reference in the TUI. Mission / Ops / Fleet samples in Settings → Keyboard status mirror live registry bindings.';
+  '/help — full keyboard shortcut reference in the TUI. Plan / Agents / Transcript samples in Settings → Keyboard status mirror live registry bindings.';
 
 /** Compact Command Hub tip — Ctrl-K menu and ? when the prompt is empty. */
 export const KEYBINDINGS_COMMAND_HUB_TIP =
@@ -29,8 +29,8 @@ export interface KeybindingsGlanceInput {
   readonly alwaysCount: number;
   readonly idleCount: number;
   readonly streamingCount: number;
-  readonly missionSamples: readonly string[];
-  readonly fleetSamples: readonly string[];
+  readonly planSamples: readonly string[];
+  readonly agentsSamples: readonly string[];
   readonly transcriptSamples: readonly string[];
 }
 
@@ -49,8 +49,8 @@ export function loadKeybindingsGlance(): KeybindingsGlanceInput {
     alwaysCount: counts.always,
     idleCount: counts.idle,
     streamingCount: counts.streaming,
-    missionSamples: sampleLinesForSlash('/mission'),
-    fleetSamples: sampleLinesForSlash('/fleet'),
+    planSamples: sampleLinesForSlash('/plan'),
+    agentsSamples: sampleLinesForSlash('/agents'),
     transcriptSamples: sampleLinesForSlash('/transcript'),
   };
 }
@@ -65,9 +65,9 @@ export function buildKeybindingsSettingsLines(input: KeybindingsGlanceInput): re
     '· Footer tips, Command Hub cheatsheet, and /help consume this list',
     '· Do not fork shortcut copy elsewhere',
     '',
-    '── Mission / Fleet / Transcript samples ─────',
-    ...input.missionSamples,
-    ...input.fleetSamples,
+    '── Plan / Agents / Transcript samples ───────',
+    ...input.planSamples,
+    ...input.agentsSamples,
     ...input.transcriptSamples,
     '',
     '── Tips ─────────────────────────────────────',

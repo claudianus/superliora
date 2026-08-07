@@ -759,7 +759,7 @@ describe('preflight slash command status surface', () => {
       expect(humanWriting.ready).toBe(true);
       expect(text).toContain('Ready gates  9/9; blocked none');
       expect(text).toContain('Human writing  ready; anti-slop advisory-only');
-      expect(text).toContain('Human writing source  apps/liora/src/tui/commands/ultrawork/ultrawork-contract.ts; .superliora/bench/sota-criteria.json');
+      expect(text).toContain('Human writing source  apps/liora/src/tui/commands/preflight/human-writing-contract.md; .superliora/bench/sota-criteria.json');
       expect(text).toContain('Next  Ready: run the next bounded Mission loop from this preflight.');
     } finally {
       rmSync(workDir, { recursive: true, force: true });
@@ -1159,11 +1159,11 @@ function writeHumanWritingFixture(
   workDir: string,
   fixture: { readonly contract: string; readonly humanWriting: readonly string[] },
 ) {
-  const contractDir = join(workDir, 'apps/liora/src/tui/commands/ultrawork');
+  const contractDir = join(workDir, 'apps/liora/src/tui/commands/preflight');
   const criteriaDir = join(workDir, '.superliora/bench');
   mkdirSync(contractDir, { recursive: true });
   mkdirSync(criteriaDir, { recursive: true });
-  writeFileSync(join(contractDir, 'ultrawork-contract.ts'), fixture.contract, 'utf8');
+  writeFileSync(join(contractDir, 'human-writing-contract.md'), fixture.contract, 'utf8');
   writeFileSync(join(criteriaDir, 'sota-criteria.json'), JSON.stringify({
     loopScoreRubric: {
       humanWriting: fixture.humanWriting,

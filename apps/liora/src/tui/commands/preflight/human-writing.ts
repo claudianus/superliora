@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import {
   HUMAN_WRITING_CONTRACT_PHRASES,
   HUMAN_WRITING_RUBRIC_PHRASES,
-  PREFLIGHT_ULTRAWORK_CONTRACT_PATH,
+  PREFLIGHT_HUMAN_WRITING_CONTRACT_PATH,
   preflightSotaCriteriaPath,
   type PreflightHumanWriting,
 } from './types';
@@ -16,7 +16,7 @@ import {
 } from './utils';
 
 export function loadPreflightHumanWriting(workDir: string): PreflightHumanWriting {
-  const contractPath = join(workDir, PREFLIGHT_ULTRAWORK_CONTRACT_PATH);
+  const contractPath = join(workDir, PREFLIGHT_HUMAN_WRITING_CONTRACT_PATH);
   const rubricPath = join(workDir, preflightSotaCriteriaPath(workDir));
   const contractText = readText(contractPath);
   const rubric = readJsonRecord(rubricPath);
