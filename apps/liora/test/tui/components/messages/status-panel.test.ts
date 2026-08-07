@@ -28,7 +28,6 @@ describe('status panel report lines', () => {
       thinking: true,
       permissionMode: 'manual',
       planMode: false,
-      swarmMode: true,
       goalStatus: 'active',
       contextUsage: 0.005,
       contextTokens: 50,
@@ -56,6 +55,7 @@ describe('status panel report lines', () => {
         thinkingLevel: 'high',
         permission: 'auto',
         planMode: true,
+        askMode: false,
         contextTokens: 1440,
         maxContextTokens: 12000,
         contextUsage: 0.005,
@@ -90,9 +90,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Directory\s+\/tmp\/project/);
     expect(output).toMatch(/Worktree\s+main \[\+12 -3 ↑1\] clean/);
     expect(output).toMatch(/Permissions\s+auto/);
-    expect(output).toMatch(/Mission\s+goal active/);
     expect(output).toMatch(/Visual Quality\s+mode off/);
-    expect(output).not.toMatch(/Planning\s+Ultrawork/);
     expect(output).toMatch(/Session\s+ses-1/);
     expect(output).toMatch(/Title\s+Implement status/);
     expect(output).toContain('Context window');
@@ -101,9 +99,8 @@ describe('status panel report lines', () => {
     expect(output).toContain('Readiness');
     expect(output).toMatch(/State\s+Ready/);
     expect(output).toMatch(/Checks\s+inspect -> test -> change -> verify -> summarize/);
-    expect(output).toMatch(/Workflow\s+research → interview → goal → swarm → integrate → verify → learn/);
-    expect(output).toMatch(/Engine\s+Plan \| Goal \| Research \| Fleet decision \| Integrate \| Verify \| Learn/);
-    expect(output).toMatch(/Auto\s+Shift-Tab toggles Mission\/off; no regex promotion/);
+    expect(output).toMatch(/Workflow\s+research → interview → goal → integrate → verify → learn/);
+    expect(output).toMatch(/Engine\s+Plan \| Goal \| Research \| Integrate \| Verify \| Learn/);
     expect(output).toMatch(/Autonomy\s+bounded now -> headless target/);
     expect(output).toMatch(/Recovery\s+resumable evidence needed -> durable target/);
     expect(output).toMatch(/Tools\s+search first; load tools on demand/);
@@ -115,17 +112,14 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Catalog\s+1 models \/ 1 providers; active managed:kimi-api/);
     expect(output).toMatch(/Memory\s+prefs \| session recall \| reflection/);
     expect(output).toMatch(/Flow\s+███░ 3\/4 verify queued/);
-    expect(output).toMatch(/Stages\s+Plan on \| Goal active \| Swarm armed \| Verify queued/);
+    expect(output).toMatch(/Stages\s+Plan on \| Goal active \| Verify queued/);
     expect(output).toMatch(/Blockers\s+none detected/);
     expect(output).toMatch(/Scope\s+small focused diff; no broad refactor/);
     expect(output).toMatch(/Coverage\s+test public behavior changes/);
     expect(output).toMatch(/Writing\s+human voice lanes; detectors advisory-only/);
     expect(output).toMatch(/Screen check\s+open changed screen before finishing/);
     expect(output).toMatch(/Done gate\s+tests \+ typecheck\/lint\/build \+ clean diff \+ TUI/);
-    expect(output).toMatch(
-      /Next\s+Press Shift-Tab to toggle Mission\/off, or type normally\./,
-    );
-    expect(output).not.toContain('Ultrawork plans, sets goal, swarms, verifies.');
+    expect(output).toMatch(/Next\s+Type your task, or \/plan to plan it first\./);
     expect(output).not.toContain('helpers');
     expect(output).not.toContain('Advanced');
     expect(output).not.toContain('manual workflow commands');
@@ -134,11 +128,8 @@ describe('status panel report lines', () => {
     expect(output).not.toContain('internal QA');
     expect(output).not.toContain('/preflight');
     expect(output).not.toContain('/bench');
-    expect(output).toContain('Mission');
     expect(output).toContain('Plan');
     expect(output).toContain('Goal');
-    expect(output).toContain('Fleet decision');
-    expect(output).not.toContain('/ultraswarm');
     expect(output).toContain('Plan usage');
     expect(output).toContain('8% used');
     expect(output).not.toContain('Account');
@@ -193,9 +184,8 @@ describe('status panel report lines', () => {
     expect(output).toContain('No context window data available.');
     expect(output).toMatch(/State\s+Model needed/);
     expect(output).toMatch(/Checks\s+inspect -> test -> change -> verify -> summarize/);
-    expect(output).toMatch(/Workflow\s+research → interview → goal → swarm → integrate → verify → learn/);
-    expect(output).toMatch(/Engine\s+Plan \| Goal \| Research \| Fleet decision \| Integrate \| Verify \| Learn/);
-    expect(output).toMatch(/Auto\s+Shift-Tab toggles Mission\/off; no regex promotion/);
+    expect(output).toMatch(/Workflow\s+research → interview → goal → integrate → verify → learn/);
+    expect(output).toMatch(/Engine\s+Plan \| Goal \| Research \| Integrate \| Verify \| Learn/);
     expect(output).toMatch(/Autonomy\s+bounded now -> headless target/);
     expect(output).toMatch(/Recovery\s+resumable evidence needed -> durable target/);
     expect(output).toMatch(/Tools\s+search first; load tools on demand/);
@@ -206,7 +196,7 @@ describe('status panel report lines', () => {
     );
     expect(output).toMatch(/Memory\s+prefs \| session recall \| reflection/);
     expect(output).toMatch(/Flow\s+███░ 3\/4 verify blocked/);
-    expect(output).toMatch(/Stages\s+Plan off \| Goal ready \| Swarm off \| Verify blocked/);
+    expect(output).toMatch(/Stages\s+Plan off \| Goal ready \| Verify blocked/);
     expect(output).toMatch(/Blockers\s+model setup/);
     expect(output).toMatch(/Scope\s+small focused diff; no broad refactor/);
     expect(output).toMatch(/Coverage\s+test public behavior changes/);
@@ -214,8 +204,6 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Screen check\s+open changed screen before finishing/);
     expect(output).toMatch(/Done gate\s+tests \+ typecheck\/lint\/build \+ clean diff \+ TUI/);
     expect(output).toMatch(/Next\s+Run \/login to add a provider, then \/model to pick one\./);
-    expect(output).toMatch(/Mission\s+needs readiness/);
-    expect(output).not.toMatch(/Planning\s+Ultrawork/);
   });
 
   it('shows provider route health without exposing secret key values', () => {
@@ -429,7 +417,7 @@ describe('status panel report lines', () => {
     expect(lines.join('\n')).toMatch(/Recovery\s+resumable evidence ready -> durable target/);
   });
 
-  it('keeps ready next action on Ultrawork even before plan mode is enabled', () => {
+  it('keeps ready next action before plan mode is enabled', () => {
     const lines = buildStatusReportLines({
       version: '1.2.3',
       model: 'k2',
@@ -439,7 +427,6 @@ describe('status panel report lines', () => {
       thinking: true,
       permissionMode: 'auto',
       planMode: false,
-      swarmMode: false,
       contextUsage: 0.005,
       contextTokens: 50,
       maxContextTokens: 10000,
@@ -449,14 +436,10 @@ describe('status panel report lines', () => {
     const output = lines.join('\n');
     expect(output).toMatch(/State\s+Ready/);
     expect(output).toMatch(/Flow\s+████ 4\/4 ready to run/);
-    expect(output).toMatch(/Stages\s+Plan off \| Goal ready \| Swarm decision pending \| Verify ready/);
+    expect(output).toMatch(/Stages\s+Plan off \| Goal ready \| Verify ready/);
     expect(output).toMatch(/Blockers\s+none detected/);
-    expect(output).toMatch(
-      /Next\s+Press Shift-Tab to toggle Mission\/off, or type normally\./,
-    );
-    expect(output).not.toContain('Ultrawork plans, sets goal, swarms, verifies.');
+    expect(output).toMatch(/Next\s+Type your task, or \/plan to plan it first\./);
     expect(output).not.toContain('helpers');
-    expect(output).not.toContain('/ultrawork');
   });
 
   it('surfaces context pressure as the next readiness action', () => {
@@ -478,7 +461,7 @@ describe('status panel report lines', () => {
     const output = lines.join('\n');
     expect(output).toMatch(/State\s+Context high/);
     expect(output).toMatch(/Flow\s+███░ 3\/4 verify blocked/);
-    expect(output).toMatch(/Stages\s+Plan off \| Goal ready \| Swarm off \| Verify blocked/);
+    expect(output).toMatch(/Stages\s+Plan off \| Goal ready \| Verify blocked/);
     expect(output).toMatch(/Blockers\s+context high/);
     expect(output).toMatch(/Next\s+Run \/compact before long work\./);
   });
@@ -514,7 +497,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Worktree\s+feature \[±\] dirty/);
     expect(output).toMatch(/State\s+Worktree dirty/);
     expect(output).toMatch(/Flow\s+███░ 3\/4 verify blocked/);
-    expect(output).toMatch(/Stages\s+Plan on \| Goal ready \| Swarm off \| Verify blocked/);
+    expect(output).toMatch(/Stages\s+Plan on \| Goal ready \| Verify blocked/);
     expect(output).toMatch(/Blockers\s+worktree dirty/);
     expect(output).toMatch(/Next\s+Review changed files before finishing\./);
   });
@@ -543,19 +526,17 @@ describe('status panel report lines', () => {
     const output = lines.join('\n');
     expect(output).toMatch(/State\s+Writing guidance blocked/);
     expect(output).toMatch(/Flow\s+███░ 3\/4 verify blocked/);
-    expect(output).toMatch(/Stages\s+Plan off \| Goal ready \| Swarm off \| Verify blocked/);
+    expect(output).toMatch(/Stages\s+Plan off \| Goal ready \| Verify blocked/);
     expect(output).toMatch(/Blockers\s+writing guidance/);
     expect(output).toMatch(/Writing\s+voice-lane guidance blocked; detectors must stay advisory-only/);
     expect(output).toMatch(/Next\s+Restore writing-quality guidance before long autonomous work\./);
     expect(output).not.toContain('/preflight');
     expect(output).not.toContain('/bench');
-    expect(output).not.toContain('/ultrawork');
-    expect(output).not.toContain('/ultraswarm');
     expect(output).not.toContain('harness QA');
     expect(output).not.toContain('internal QA');
   });
 
-  it('surfaces blocked goal state in Ultrawork stages', () => {
+  it('surfaces blocked goal state in the Stages row', () => {
     const lines = buildStatusReportLines({
       version: '1.2.3',
       model: 'k2',
@@ -565,7 +546,6 @@ describe('status panel report lines', () => {
       thinking: true,
       permissionMode: 'manual',
       planMode: true,
-      swarmMode: false,
       goalStatus: 'blocked',
       contextUsage: 0.005,
       contextTokens: 50,
@@ -576,32 +556,12 @@ describe('status panel report lines', () => {
     const output = lines.join('\n');
     expect(output).toMatch(/State\s+Goal blocked/);
     expect(output).toMatch(/Flow\s+███░ 3\/4 verify blocked/);
-    expect(output).toMatch(/Stages\s+Plan on \| Goal blocked \| Swarm off \| Verify blocked/);
+    expect(output).toMatch(/Stages\s+Plan on \| Goal blocked \| Verify blocked/);
     expect(output).toMatch(/Blockers\s+goal blocked/);
     expect(output).toMatch(/Next\s+Resolve or replace the blocked goal before continuing\./);
   });
 
 
-  it('appends Ultrawork stage onto the Stages row when a run is active', () => {
-    const lines = buildStatusReportLines({
-      version: '0.0.0-test',
-      model: 'test-model',
-      workDir: '/tmp/work',
-      sessionId: 'sess-1',
-      sessionTitle: null,
-      thinking: false,
-      permissionMode: 'manual',
-      planMode: false,
-      contextUsage: 0.1,
-      contextTokens: 1000,
-      maxContextTokens: 10_000,
-      availableModels: {},
-      ultraworkMode: true,
-      ultraworkRun: { stage: 'integrate' },
-    });
-    const joined = lines.join('\n');
-    expect(joined).toMatch(/Stages\s+.+Stage: integrate/);
-  });
 
 
   it('surfaces reflection run counts on the Memory gate when available', () => {
@@ -769,6 +729,7 @@ describe('status panel report lines', () => {
         thinking: false,
         permissionMode: 'manual' as const,
         planMode: false,
+        askMode: false,
         contextUsage: 0.1,
         contextTokens: 100,
         maxContextTokens: 1000,
@@ -808,6 +769,7 @@ describe('status panel report lines', () => {
       thinking: false,
       permissionMode: 'manual' as const,
       planMode: false,
+      askMode: false,
       contextUsage: 0.1,
       contextTokens: 100,
       maxContextTokens: 1000,
@@ -818,6 +780,7 @@ describe('status panel report lines', () => {
       thinkingLevel: 'high',
       permission: 'auto' as const,
       planMode: false,
+      askMode: false,
       contextTokens: 100,
       maxContextTokens: 1000,
       contextUsage: 0.1,
@@ -845,6 +808,7 @@ describe('status panel report lines', () => {
       thinking: false,
       permissionMode: 'manual' as const,
       planMode: false,
+      askMode: false,
       contextUsage: 0.1,
       contextTokens: 100,
       maxContextTokens: 1000,
@@ -855,6 +819,7 @@ describe('status panel report lines', () => {
       thinkingLevel: 'high',
       permission: 'auto' as const,
       planMode: false,
+      askMode: false,
       contextTokens: 100,
       maxContextTokens: 1000,
       contextUsage: 0.1,
@@ -889,6 +854,7 @@ describe('status panel report lines', () => {
       thinking: false,
       permissionMode: 'manual' as const,
       planMode: false,
+      askMode: false,
       contextUsage: 0.1,
       contextTokens: 100,
       maxContextTokens: 1000,
@@ -899,6 +865,7 @@ describe('status panel report lines', () => {
       thinkingLevel: 'high',
       permission: 'auto' as const,
       planMode: false,
+      askMode: false,
       contextTokens: 100,
       maxContextTokens: 1000,
       contextUsage: 0.1,
@@ -958,6 +925,7 @@ describe('status panel report lines', () => {
       thinking: false,
       permissionMode: 'manual' as const,
       planMode: false,
+      askMode: false,
       contextUsage: 0.1,
       contextTokens: 100,
       maxContextTokens: 1000,
@@ -968,6 +936,7 @@ describe('status panel report lines', () => {
       thinkingLevel: 'high',
       permission: 'auto' as const,
       planMode: false,
+      askMode: false,
       contextTokens: 100,
       maxContextTokens: 1000,
       contextUsage: 0.1,
@@ -1008,6 +977,7 @@ describe('status panel report lines', () => {
       thinking: false,
       permissionMode: 'manual' as const,
       planMode: false,
+      askMode: false,
       contextUsage: 0.1,
       contextTokens: 100,
       maxContextTokens: 1000,
@@ -1059,6 +1029,7 @@ describe('status panel report lines', () => {
       thinking: false,
       permissionMode: 'manual' as const,
       planMode: false,
+      askMode: false,
       contextUsage: 0.1,
       contextTokens: 100,
       maxContextTokens: 1000,

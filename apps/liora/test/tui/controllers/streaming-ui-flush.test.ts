@@ -29,7 +29,7 @@ function fakeAppState(overrides: Partial<AppState> = {}): AppState {
     theme: 'dark',
     model: 'example-model',
     planMode: false,
-    ultraworkMode: false,
+    askMode: false,
     streamingPhase: 'composing',
     isCompacting: false,
     isBackgroundCompacting: false,

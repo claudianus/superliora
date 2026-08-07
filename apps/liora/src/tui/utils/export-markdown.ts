@@ -295,7 +295,6 @@ function formatTraceMd(trace: SessionTrace): string {
     lines.push(`- **Warnings**: ${trace.completeness.warnings.map(redactExportText).join('; ')}`);
   }
 
-  const ultraworkEvents = trace.events.filter((event) => event.type.startsWith('ultrawork.'));
   const subagentEvents = trace.events.filter((event) => event.type.startsWith('subagent.'));
   lines.push('', '### Run Timeline', '');
   if (trace.events.length === 0) {
@@ -303,15 +302,6 @@ function formatTraceMd(trace: SessionTrace): string {
   } else {
     for (const event of trace.events) {
       lines.push(formatTraceEventMd(event));
-    }
-  }
-
-  lines.push('', '### Mission Events', '');
-  if (ultraworkEvents.length === 0) {
-    lines.push('- (none recorded)');
-  } else {
-    for (const event of ultraworkEvents) {
-      lines.push(formatTraceEventOneLine(event));
     }
   }
 

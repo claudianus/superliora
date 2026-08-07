@@ -18,7 +18,7 @@ function createTestAppState(): AppState {
     workDir: '/tmp/project',
     sessionId: 'ses-1',
     planMode: false,
-    ultraworkMode: false,
+    askMode: false,
     streamingPhase: 'idle',
     isCompacting: false,
     isBackgroundCompacting: false,

@@ -22,13 +22,11 @@ import {
   rendererArgumentCompletions,
   slashCommandsForHelp,
   sortSlashCommands,
-  swarmArgumentCompletions,
   thinkingArgumentCompletions,
   thinkingArgumentCompletionsForModel,
   themeArgumentCompletions,
   appearanceArgumentCompletions,
   toggleOnOffArgumentCompletions,
-  ultragoalArgumentCompletions,
   type LioraSlashCommand,
 } from '#/tui/commands/index';
 import { describe, expect, it } from 'vitest';
@@ -64,18 +62,8 @@ describe('built-in slash command registry', () => {
     expect(findBuiltInSlashCommand('pf')?.name).toBe('preflight');
     expect(findBuiltInSlashCommand('renderer')?.name).toBe('renderer');
     expect(findBuiltInSlashCommand('render')?.name).toBe('renderer');
-    expect(findBuiltInSlashCommand('ultraplan')?.name).toBe('ultraplan');
-    expect(findBuiltInSlashCommand('up')?.name).toBe('ultraplan');
     expect(findBuiltInSlashCommand('ultraresearch')).toBeUndefined();
     expect(findBuiltInSlashCommand('ur')).toBeUndefined();
-    expect(findBuiltInSlashCommand('fleet')?.name).toBe('fleet');
-    expect(findBuiltInSlashCommand('ultraswarm')?.name).toBe('fleet');
-    expect(findBuiltInSlashCommand('us')?.name).toBe('fleet');
-    expect(findBuiltInSlashCommand('mission')?.name).toBe('mission');
-    expect(findBuiltInSlashCommand('ultrawork')?.name).toBe('mission');
-    expect(findBuiltInSlashCommand('uw')?.name).toBe('mission');
-    expect(findBuiltInSlashCommand('ultragoal')?.name).toBe('ultragoal');
-    expect(findBuiltInSlashCommand('ug')?.name).toBe('ultragoal');
     expect(findBuiltInSlashCommand('vibe')).toBeUndefined();
     expect(findBuiltInSlashCommand('code')).toBeUndefined();
     expect(findBuiltInSlashCommand('mcp')?.name).toBe('mcp');
@@ -377,36 +365,6 @@ describe('built-in slash command registry', () => {
     );
   });
 
-  it('offers ultragoal replace/--loop argument completions', () => {
-    const values = (prefix: string): string[] | null => {
-      const items = ultragoalArgumentCompletions(prefix);
-      return items === null ? null : items.map((item) => item.value);
-    };
-
-    expect(values('')).toEqual(['replace', '--loop']);
-    expect(values('r')).toEqual(['replace']);
-    expect(values('-')).toEqual(['--loop']);
-    expect(ultragoalArgumentCompletions('--l')).toEqual([
-      {
-        value: '--loop',
-        label: '--loop',
-        description: 'Open self-improvement loop with circuit breaker',
-      },
-    ]);
-    expect(values('replace')).toBeNull();
-    expect(values('--loop')).toBeNull();
-    // After `replace `, offer `--loop` (handler parses replace then --loop).
-    expect(values('replace ')).toEqual(['replace --loop']);
-    expect(values('replace --')).toEqual(['replace --loop']);
-    expect(values('replace --loop')).toBeNull();
-    // Free-form objectives stay untouched after the first token / finished pair.
-    expect(values('Ship feature')).toBeNull();
-    expect(values('--loop improve harness')).toBeNull();
-    expect(values('replace --loop Ship feature')).toBeNull();
-    expect(findBuiltInSlashCommand('ultragoal')?.completeArgs).toBe(ultragoalArgumentCompletions);
-    expect(findBuiltInSlashCommand('ug')?.completeArgs).toBe(ultragoalArgumentCompletions);
-  });
-
   it('offers yolo/auto on/off argument completions', () => {
     const values = (prefix: string): string[] | null => {
       const items = toggleOnOffArgumentCompletions(prefix);
@@ -575,18 +533,6 @@ describe('built-in slash command registry', () => {
     expect(findBuiltInSlashCommand('editor')?.completeArgs).toBe(editorArgumentCompletions);
   });
 
-  it('keeps swarm task starts idle-only while War Room controls stay available', () => {
-    const swarm = findBuiltInSlashCommand('swarm');
-    expect(swarm).toBeDefined();
-    expect((swarm as LioraSlashCommand).experimentalFlag).toBeUndefined();
-    expect(resolveSlashCommandAvailability(swarm!, 'on')).toBe('always');
-    expect(resolveSlashCommandAvailability(swarm!, 'off')).toBe('always');
-    expect(resolveSlashCommandAvailability(swarm!, 'talk')).toBe('always');
-    expect(resolveSlashCommandAvailability(swarm!, 'msg Alice hi')).toBe('always');
-    expect(resolveSlashCommandAvailability(swarm!, 'pause')).toBe('always');
-    expect(resolveSlashCommandAvailability(swarm!, 'Ship feature X')).toBe('idle-only');
-  });
-
   it('keeps advanced and diagnostics commands out of primary help', () => {
     const primaryNames = slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'primary').map((command) => command.name);
     const advancedNames = slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'advanced').map((command) => command.name);
@@ -596,12 +542,7 @@ describe('built-in slash command registry', () => {
     expect(primaryNames).not.toContain('preflight');
     expect(primaryNames).not.toContain('renderer');
     expect(primaryNames).toContain('plan');
-    expect(primaryNames).toContain('swarm');
-    expect(primaryNames).toContain('mission');
-    expect(primaryNames).toContain('fleet');
     expect(primaryNames).not.toContain('ops');
-    expect(primaryNames).not.toContain('ultrawork');
-    expect(primaryNames).not.toContain('ultraswarm');
     expect(primaryNames).not.toContain('experiments');
     expect(primaryNames).toContain('permission');
     expect(primaryNames).toContain('settings');
@@ -624,21 +565,12 @@ describe('built-in slash command registry', () => {
         'quota',
         'reload',
         'reload-tui',
-        'ultragoal',
-        'ultraplan',
         'usage',
         'yolo',
       ]),
     );
-    expect(advancedNames).not.toContain('ultrawork');
-    expect(advancedNames).not.toContain('ultraswarm');
     expect(advancedNames).not.toContain('permission');
     expect(advancedNames).not.toContain('settings');
-    expect(diagnosticNames).not.toContain('ultraswarm');
-    const mission = slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'primary').find(
-      (command) => command.name === 'mission',
-    );
-    expect((mission)?.hiddenAliases).toEqual(['ultrawork', 'uw']);
     expect(diagnosticNames).toEqual(
       expect.arrayContaining(['bench', 'export-debug-zip', 'preflight', 'renderer', 'term']),
     );
@@ -714,11 +646,8 @@ describe('built-in slash command registry', () => {
     );
 
     // Highest-priority primary commands sort first (then alphabetically).
-    // Mission/Fleet share priority 100 with help/model/… and win alphabetical slots.
-    expect(primaryNames.slice(0, 8)).toEqual([
-      'fleet',
+    expect(primaryNames.slice(0, 6)).toEqual([
       'help',
-      'mission',
       'model',
       'permission',
       'premium',
@@ -771,12 +700,9 @@ describe('built-in slash command registry', () => {
     })).toEqual(['off']);
   });
 
-  it('describes plan, goal, swarm, mission, and fleet controls', () => {
+  it('describes plan and goal controls', () => {
     const plan = findBuiltInSlashCommand('plan');
     const goal = findBuiltInSlashCommand('goal');
-    const swarm = findBuiltInSlashCommand('swarm');
-    const mission = findBuiltInSlashCommand('mission');
-    const fleet = findBuiltInSlashCommand('fleet');
 
     expect(plan?.description).toBe(
       'Plan mode — model writes a plan file, you approve (interview → write)',
@@ -785,36 +711,6 @@ describe('built-in slash command registry', () => {
       'Simple goal loop: set objective, agent iterates until done (Ralph Loop)',
     );
     expect(goal?.description).not.toContain('/goal');
-    expect(swarm?.description).toBe(
-      'Fleet parallel delegation — specialists split the task (prefer /fleet)',
-    );
-    expect(swarm?.description).not.toContain('/swarm');
-    expect(mission?.description).toBe('Mission mode — long-running goal execution');
-    expect(mission?.description).not.toContain('/ultrawork');
-    expect((mission as LioraSlashCommand | undefined)?.hiddenAliases).toEqual(['ultrawork', 'uw']);
-    expect(fleet?.description).toBe('Fleet mode — multi-agent orchestration');
-    expect((fleet as LioraSlashCommand | undefined)?.hiddenAliases).toEqual(['ultraswarm', 'us']);
-  });
-
-  it('offers swarm subcommand argument completions', () => {
-    const values = (prefix: string): string[] | null => {
-      const items = swarmArgumentCompletions(prefix);
-      return items === null ? null : items.map((item) => item.value);
-    };
-
-    expect(values('')).toEqual(['on', 'off', 'talk', 'msg', 'pause', 'restaff', 'raw']);
-    expect(values('O')).toEqual(['on', 'off']);
-    expect(values('t')).toEqual(['talk']);
-    expect(values('p')).toEqual(['pause']);
-    expect(values('re')).toEqual(['restaff']);
-    expect(values('ra')).toEqual(['raw']);
-    expect(swarmArgumentCompletions('of')).toEqual([
-      { value: 'off', label: 'off', description: 'Turn team mode off' },
-    ]);
-    expect(values('on')).toBeNull();
-    expect(values('off')).toBeNull();
-    expect(values('pause')).toBeNull();
-    expect(values('Ship feature X')).toBeNull();
   });
 
   it('offers add-dir list and directory argument completions', () => {

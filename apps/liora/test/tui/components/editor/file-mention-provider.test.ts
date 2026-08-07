@@ -50,10 +50,10 @@ const HELP_FULL_COMMAND = {
   description: 'Show help',
 };
 
-const ULTRAWORK_COMMAND = {
-  name: 'ultrawork',
-  aliases: ['uw'],
-  description: 'Start a guided autonomous coding workflow',
+const ADVANCED_COMMAND = {
+  name: 'deep-work',
+  aliases: ['dw'],
+  description: 'An advanced command hidden from bare slash suggestions',
   visibility: 'advanced' as const,
   getArgumentCompletions: (prefix: string) =>
     prefix.length === 0
@@ -271,14 +271,14 @@ describe('FileMentionProvider', () => {
   });
 
   it('keeps advanced commands out of slash name suggestions but supports exact command arguments', async () => {
-    const provider = new FileMentionProvider([HELP_COMMAND, ULTRAWORK_COMMAND], workDir, NO_FD);
+    const provider = new FileMentionProvider([HELP_COMMAND, ADVANCED_COMMAND], workDir, NO_FD);
 
     const bare = await provider.getSuggestions(['/'], 0, 1, { signal: ctrl() });
-    const prefixed = await provider.getSuggestions(['/ul'], 0, 3, { signal: ctrl() });
-    const exactArgs = await provider.getSuggestions(['/ultrawork '], 0, '/ultrawork '.length, { signal: ctrl() });
+    const prefixed = await provider.getSuggestions(['/de'], 0, 3, { signal: ctrl() });
+    const exactArgs = await provider.getSuggestions(['/deep-work '], 0, '/deep-work '.length, { signal: ctrl() });
 
     expect(bare).not.toBeNull();
-    expect(bare!.items.map((item) => item.value)).not.toContain('ultrawork');
+    expect(bare!.items.map((item) => item.value)).not.toContain('deep-work');
     expect(prefixed).toBeNull();
     expect(exactArgs).not.toBeNull();
     expect(exactArgs!.items.map((item) => item.value)).toEqual(['replace']);

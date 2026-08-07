@@ -31,27 +31,15 @@ describe('tool-help-filter', () => {
       'Review',
       'CreateGoal',
     ]);
-    expect(listHiddenCompatAliases(catalog)).toEqual([
-      'CreateUltraGoal→CreateGoal',
-      'LioraReview→Review',
-    ]);
+    expect(listHiddenCompatAliases(catalog)).toEqual(['CreateUltraGoal', 'LioraReview→Review']);
   });
 
-  it('hides UltraSwarm from primary /tools when Fleet is registered', () => {
+  it('drops an advanced tool with no preferred mapping and lists it unaliased', () => {
+    // Fleet's swarm compat aliases lost their preferred mapping, so they are
+    // hidden from primary /tools and listed without an arrow.
     const catalog: ToolInfo[] = [tool('Fleet'), tool('UltraSwarm', 'advanced')];
     expect(filterToolsForPrimaryHelp(catalog).map((entry) => entry.name)).toEqual(['Fleet']);
-    expect(listHiddenCompatAliases(catalog)).toEqual(['UltraSwarm→Fleet']);
+    expect(listHiddenCompatAliases(catalog)).toEqual(['UltraSwarm']);
   });
 
-  it('hides AgentSwarm from primary /tools when Fleet is registered', () => {
-    const catalog: ToolInfo[] = [tool('Fleet'), tool('AgentSwarm', 'advanced')];
-    expect(filterToolsForPrimaryHelp(catalog).map((entry) => entry.name)).toEqual(['Fleet']);
-    expect(listHiddenCompatAliases(catalog)).toEqual(['AgentSwarm→Fleet']);
-  });
-
-  it('hides UltraworkGraph from primary /tools when TaskGraph is registered', () => {
-    const catalog: ToolInfo[] = [tool('TaskGraph'), tool('UltraworkGraph', 'advanced')];
-    expect(filterToolsForPrimaryHelp(catalog).map((entry) => entry.name)).toEqual(['TaskGraph']);
-    expect(listHiddenCompatAliases(catalog)).toEqual(['UltraworkGraph→TaskGraph']);
-  });
 });

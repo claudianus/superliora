@@ -18,7 +18,7 @@ function baseState(overrides: Partial<AppState> = {}): AppState {
     sessionId: 'sess_1',
     permissionMode: 'yolo',
     planMode: true,
-    ultraworkMode: false,
+    askMode: false,
     premiumQualityMode: false,
     thinking: false,
     contextUsage: 0,
@@ -63,6 +63,7 @@ describe('Footer modes independence', () => {
         promptIntelligencePhase: 'suggest',
         permissionMode: 'yolo',
         planMode: true,
+        askMode: false,
         appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' },
       }),
     );
@@ -92,6 +93,7 @@ describe('Footer modes independence', () => {
         },
         permissionMode: 'manual',
         planMode: false,
+        askMode: false,
       }),
     );
     const line1 = strip(footer.render(160)[0] ?? '');

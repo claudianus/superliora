@@ -191,7 +191,6 @@ describe('session trace dump schema (Loop19b)', () => {
           toolCallCount: 0,
           toolResultCount: 0,
           subagentLifecycleCount: 0,
-          ultraworkEventCount: 0,
           redactedCount: 0,
           warnings: ['none'],
         },

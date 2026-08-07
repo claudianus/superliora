@@ -82,6 +82,7 @@ describe('SessionEventNotices.handleStatusUpdate interventionCount', () => {
     notices.handleStatusUpdate({
       type: 'agent.status.updated',
       planMode: false,
+      askMode: false,
     } as AgentStatusUpdatedEvent);
 
     const patch = host.setAppState.mock.calls[0]?.[0] as { interventionCount?: number } | undefined;

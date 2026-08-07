@@ -36,6 +36,7 @@ function baseState(overrides: Partial<AppState> = {}): AppState {
     sessionId: 'sess_1',
     permissionMode: 'manual',
     planMode: false,
+    askMode: false,
     thinking: false,
     contextUsage: 0,
     contextTokens: 0,
@@ -125,49 +126,6 @@ describe('FooterComponent — context NaN resilience', () => {
     expect(offLine).not.toMatch(/k2 on\b|k2 high\b/);
   });
 
-  it('labels mission mode separately from plain plan mode in the footer', () => {
-    const footer = new FooterComponent(baseState({ planMode: true, ultraworkMode: true }));
-
-    const [line1, line2] = footer.render(120);
-    const out = strip(line1 ?? '');
-
-    expect(out).toMatch(/Mission|mission/);
-    expect(out).not.toContain('ultrawork');
-    expect(out).not.toContain('ultrawork-ready');
-    expect(out).not.toContain('plan-first');
-    expect(out).not.toMatch(/\b[Pp]lan\s+k2/);
-    expect(strip(line2 ?? '')).toContain(
-      'Mission: research → interview → goal → swarm → integrate → verify → learn',
-    );
-    expect(strip(line2 ?? '')).not.toContain('Ultrawork plans, sets goal, swarms, verifies');
-    expect(strip(line2 ?? '')).not.toContain('helpers');
-  });
-
-  it('keeps the mission pipeline visible after plan mode exits', () => {
-    const footer = new FooterComponent(baseState({ planMode: false, ultraworkMode: true }));
-
-    const [line1, line2] = footer.render(120);
-
-    expect(strip(line1 ?? '')).toMatch(/Mission|mission/);
-    expect(strip(line1 ?? '')).not.toContain('ultrawork');
-    expect(strip(line1 ?? '')).not.toMatch(/\b[Pp]lan\b/);
-    expect(strip(line2 ?? '')).toContain(
-      'Mission: research → interview → goal → swarm → integrate → verify → learn',
-    );
-  });
-
-  it('keeps the mission pipeline visible while streaming', () => {
-    const footer = new FooterComponent(
-      baseState({ planMode: false, ultraworkMode: true, streamingPhase: 'thinking' }),
-    );
-
-    const [, line2] = footer.render(120);
-
-    expect(strip(line2 ?? '')).toContain(
-      'Mission: research → interview → goal → swarm → integrate → verify → learn',
-    );
-  });
-
   it('renders transient hints on the context line', () => {
     const footer = new FooterComponent(baseState());
 
@@ -186,8 +144,7 @@ describe('FooterComponent — context NaN resilience', () => {
 
       const [, line2] = footer.render(120);
 
-      expect(strip(line2 ?? '')).toContain('next: Shift-Tab toggles Mission/off · /bench for Bench');
-      expect(strip(line2 ?? '')).not.toContain('Ultrawork plans, sets goal, swarms, verifies');
+      expect(strip(line2 ?? '')).toContain('next: Shift-Tab switches Build/Ask · /bench for Bench');
       expect(strip(line2 ?? '')).not.toContain('helpers');
       expect(strip(line2 ?? '')).toMatch(/Context.*0\.0%/);
     } finally {

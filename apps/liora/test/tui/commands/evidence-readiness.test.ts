@@ -5,13 +5,14 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { loadMemoryReadinessEvidence } from '#/tui/commands/memory/evidence-readiness';
-import { createUltraworkEvidenceSeed } from '#/tui/commands/ultrawork/ultrawork';
+
+import { writeWikiSeedFixture } from '../../helpers/wiki-seed';
 
 describe('evidence readiness evaluator', () => {
-  it('prefers wiki v2 index over legacy llm-wiki evidence paths', async () => {
+  it('prefers wiki v2 index over legacy llm-wiki evidence paths', () => {
     const workDir = mkdtempSync(join(tmpdir(), 'kimi-evidence-readiness-wiki-v2-'));
     try {
-      await createUltraworkEvidenceSeed(workDir, 'Document wiki v2 canonical path', 'manual', false);
+      writeWikiSeedFixture(workDir, 'Document wiki v2 canonical path');
 
       const evidence = loadMemoryReadinessEvidence(workDir);
 

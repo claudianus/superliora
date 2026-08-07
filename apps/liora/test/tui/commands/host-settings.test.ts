@@ -222,14 +222,11 @@ describe('showHostSettings', () => {
       expect(lines).toContain('SUPERLIORA_SOVEREIGN=1');
       expect(lines).toContain('core profile');
       expect(lines).toContain('hide-legacy');
-      expect(lines).toContain('dual-emit');
       expect(lines).toContain('── Session (live) ─');
       expect(lines).toContain('Sovereign umbrella: ON');
       expect(lines).toContain('· core profile: ON');
       expect(lines).toContain('· hide-legacy: ON');
       expect(lines).toContain('· codemap warm: ON');
-      expect(lines).toContain('· mission dual-emit: ON');
-      expect(lines).toContain('· fleet dual-emit: ON');
     } finally {
       if (prev === undefined) delete process.env['SUPERLIORA_SOVEREIGN'];
       else process.env['SUPERLIORA_SOVEREIGN'] = prev;

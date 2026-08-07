@@ -24,18 +24,14 @@ describe('keymap registry', () => {
   });
 
   it('tags Mission / Fleet slash samples', () => {
-    expect(keymapBindingsForSlash('/mission').map((b) => b.id)).toEqual([
-      'interrupt',
-      'ultrawork',
-      'steer',
-    ]);
+    expect(keymapBindingsForSlash('/mission').map((b) => b.id)).toEqual(['interrupt', 'steer']);
     expect(keymapBindingsForSlash('/ops')).toEqual([]);
     expect(keymapBindingsForSlash('/fleet').map((b) => b.id)).toEqual([
       'interrupt',
       'steer',
       'background',
     ]);
-    expect(formatKeymapBindingSample(keymapBindingsForSlash('/mission')[1]!)).toContain('Shift-Tab');
+    expect(formatKeymapBindingSample(keymapBindingsForSlash('/mission')[0]!)).toContain('Ctrl-C');
   });
 });
 
@@ -53,7 +49,7 @@ describe('keybindings-glance', () => {
     expect(lines).toContain('Mission / Fleet / Transcript samples');
     expect(lines).toContain('/help');
     expect(lines).toContain(String(KEYMAP_ALL.length));
-    expect(lines).toContain('Shift-Tab — Toggle Mission mode');
+    expect(lines).toContain('Ctrl-C — Stop the current turn');
     expect(lines).toContain('Ctrl-O — Cycle transcript density');
     expect(lines).toContain('Ctrl-B — Background the current work');
     expect(lines).toContain('No keybinding editor here');

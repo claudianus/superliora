@@ -39,7 +39,6 @@ function fakeGoalSnapshot(objective: string, status: 'active' | 'blocked' | 'pau
 
 function makeHost(options: { createGoalRejects?: boolean } = {}) {
   const session = {
-    setSwarmMode: vi.fn(async () => undefined),
     setPlanMode: vi.fn(async () => undefined),
     setPremiumQuality: vi.fn(async () => undefined),
     createGoal: vi.fn(async () => {
@@ -209,8 +208,7 @@ describe('SessionEventHandler goal queue promotion', () => {
       expect(session.createGoal).toHaveBeenCalledWith({
         objective: 'Ship queued goal',
         replace: false,
-        source: 'standalone',
-      });
+        });
     });
     expect(removeGoalQueueItem).toHaveBeenCalledWith(session, { goalId: 'q1' });
     expect(host.sendQueuedMessage).toHaveBeenCalledWith(session, {
@@ -261,7 +259,6 @@ describe('SessionEventHandler goal queue promotion', () => {
       expect(session.createGoal).toHaveBeenCalledWith({
         objective: 'Ship queued goal',
         replace: false,
-        source: 'standalone',
       });
     });
     expect(host.sendQueuedMessage).toHaveBeenLastCalledWith(session, { text: 'Ship queued goal' });
@@ -324,7 +321,6 @@ describe('SessionEventHandler goal queue promotion', () => {
     expect(session.createGoal).toHaveBeenCalledWith({
       objective: 'Ship queued goal',
       replace: false,
-      source: 'standalone',
     });
     expect(session.cancelGoal).toHaveBeenCalledOnce();
     expect(restoreGoalQueueItem).not.toHaveBeenCalled();

@@ -18,8 +18,6 @@ import { handleThinkingCommand } from '#/tui/commands/config/thinking/thinking';
 import { showHarnessPanel, showSettingsSelector } from '#/tui/commands/config/settings';
 import { showSecuritySettings } from '#/tui/commands/config/security/security-settings';
 import { showCompactionSettings } from '#/tui/commands/config/context/compaction-settings';
-import { showMissionSettings } from '#/tui/commands/config/mission/mission-settings';
-import { showFleetSettings } from '#/tui/commands/config/fleet/fleet-settings';
 import { showHooksSettings } from '#/tui/commands/config/hooks/hooks-settings';
 import { showNetworkSettings } from '#/tui/commands/config/network/network-settings';
 import { showBenchDiagnosticsSettings } from '#/tui/commands/config/diagnostics/bench-diagnostics-settings';
@@ -69,7 +67,6 @@ function makeHost(
       planMode = options.planDeskDelegate === true ? false : enabled;
     }),
     getStatus: vi.fn(async () => ({ planMode })),
-    getUltraworkRun: vi.fn(async () => null),
   };
   const host = {
     session,
@@ -208,7 +205,7 @@ describe('handlePlanCommand', () => {
     expect(host.showNotice).toHaveBeenCalledWith('Plan mode: OFF');
   });
 
-  it('announces UltraPlan mode for the explicit ultra option', async () => {
+  it('announces the structured plan pipeline for the explicit ultra option', async () => {
     const { host, session } = makeHost();
 
     await handlePlanCommand(host, 'ultra');
@@ -1036,7 +1033,7 @@ describe('harness panel and tools inventory', () => {
     });
   });
 
-  it('lists Mission, Fleet, and Compaction in the settings selector', () => {
+  it('lists Compaction in the settings selector', () => {
     const host = makeHarnessHost();
     showSettingsSelector(host);
     expect(host.mountCenterModal).toHaveBeenCalledOnce();
@@ -1049,8 +1046,8 @@ describe('harness panel and tools inventory', () => {
       combined += `\n${component.render(120).join('\n')}`;
     }
     expect(combined).toContain('Compaction');
-    expect(combined).toContain('Mission / Goals');
-    expect(combined).toContain('Fleet / Parallel');
+    expect(combined).not.toContain('Mission / Goals');
+    expect(combined).not.toContain('Fleet / Parallel');
     // Descriptions appear for the highlighted cell — search to surface them.
     for (const ch of 'compact') component.handleInput(ch);
     combined += `\n${component.render(120).join('\n')}`;
@@ -1107,101 +1104,6 @@ describe('harness panel and tools inventory', () => {
     const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('Instruction vs Learning');
     expect(lines).toContain('/context');
-  });
-
-  it('routes settings mission selection to mission panel', async () => {
-    const host = makeHarnessHost({
-      session: { getUltraworkRun: vi.fn(async () => null) },
-    });
-    showSettingsSelector(host);
-    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      { handleInput: (data: string) => void },
-    ];
-    for (let i = 0; i < settingsOptionIndex('mission'); i++) {
-      component.handleInput('\u001B[B');
-    }
-    component.handleInput('\r');
-    expect(host.restoreEditor).toHaveBeenCalled();
-    const missionPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
-      | { opts: { onSelect: (value: string) => void } }
-      | undefined;
-    expect(missionPicker).toBeDefined();
-    missionPicker!.opts.onSelect('status');
-    await vi.waitFor(() => {
-      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
-    });
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
-    const lines = panel.snapshotBodyLines(1).join('\n');
-    expect(lines).toContain('/mission');
-    expect(lines).toContain('MISSION.md');
-    expect(lines).toContain('soft advisory');
-    expect(lines).toContain('RunProjectChecks');
-  });
-
-  it('routes settings fleet selection to fleet panel', async () => {
-    const host = makeHarnessHost({
-      session: {
-        workDir: '/tmp/fleet-ws',
-        getStatus: vi.fn(async () => ({ permission: 'auto' })),
-        listBackgroundTasks: vi.fn(async () => []),
-      },
-    });
-    host.harness.listSessions = vi.fn(async () =>
-      [{ id: 'a' }, { id: 'b' }] as unknown as Awaited<ReturnType<typeof host.harness.listSessions>>,
-    );
-    showSettingsSelector(host);
-    const [component] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
-      { handleInput: (data: string) => void },
-    ];
-    for (let i = 0; i < settingsOptionIndex('fleet'); i++) {
-      component.handleInput('\u001B[B');
-    }
-    component.handleInput('\r');
-    expect(host.restoreEditor).toHaveBeenCalled();
-    const fleetPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] as
-      | { opts: { onSelect: (value: string) => void } }
-      | undefined;
-    expect(fleetPicker).toBeDefined();
-    fleetPicker!.opts.onSelect('status');
-    await vi.waitFor(() => {
-      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
-    });
-    const panel = (host.state.transcriptContainer.addChild as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as UsagePanelComponent;
-    const lines = panel.snapshotBodyLines(1).join('\n');
-    expect(lines).toContain('background.maxRunningTasks');
-    expect(lines).toContain('Independent tool_calls in one turn run in parallel');
-    expect(lines).toContain('Maker≠Checker');
-    expect(lines).toContain('swarm-budget');
-    expect(lines).toContain('/fleet');
-    expect(lines).toContain('worktree');
-    expect(lines).toContain('SUPERLIORA_FLEET_WORKTREE');
-    expect(lines).toContain('Settings → Fleet → Max workers');
-  });
-
-  it('renders mission panel without session', async () => {
-    const host = makeHarnessHost({ session: undefined, activeSession: undefined });
-    showMissionSettings(host);
-    const missionPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
-      | { opts: { onSelect: (value: string) => void } }
-      | undefined;
-    expect(missionPicker).toBeDefined();
-    missionPicker!.opts.onSelect('status');
-    await vi.waitFor(() => {
-      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
-    });
-  });
-
-  it('renders fleet settings panel without session', async () => {
-    const host = makeHarnessHost({ session: undefined, activeSession: undefined });
-    showFleetSettings(host);
-    const fleetPicker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
-      | { opts: { onSelect: (value: string) => void } }
-      | undefined;
-    expect(fleetPicker).toBeDefined();
-    fleetPicker!.opts.onSelect('status');
-    await vi.waitFor(() => {
-      expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
-    });
   });
 
   it('renders compaction settings panel without session', async () => {

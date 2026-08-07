@@ -433,12 +433,12 @@ describe('tool-result registry', () => {
     expect(out).toContain('next ');
     expect(isGenericToolResult('CronCreate')).toBe(false);
   });
-  it('UltraworkGraph glance samples node statuses', () => {
-    const renderer = pickResultRenderer('UltraworkGraph');
+  it('TaskGraph glance samples node statuses', () => {
+    const renderer = pickResultRenderer('TaskGraph');
     const out = strip(
       joinRender(
         renderer(
-          call('UltraworkGraph', {}),
+          call('TaskGraph', {}),
           result('Ultrawork graph g1 for run-1:\n  [running] n1: Scaffold\n  [pending] n2: Tests'),
           ctx,
         ),
@@ -446,25 +446,9 @@ describe('tool-result registry', () => {
     );
     expect(out).toContain('running n1');
     expect(out).toContain('pending n2');
-    expect(isGenericToolResult('UltraworkGraph')).toBe(false);
+    expect(isGenericToolResult('TaskGraph')).toBe(false);
   });
 
-  it('SwarmChannel glance shows posted channel/kind', () => {
-    const renderer = pickResultRenderer('SwarmChannel');
-    const out = strip(
-      joinRender(
-        renderer(
-          call('SwarmChannel', { action: 'post' }),
-          result('Posted to Swarm bus.\nid=m1\nchannel=standup\nkind=status'),
-          ctx,
-        ),
-      ),
-    );
-    expect(out).toContain('posted');
-    expect(out).toContain('standup');
-    expect(out).toContain('status');
-    expect(isGenericToolResult('SwarmChannel')).toBe(false);
-  });
   it('Agent glance shows type status and id', () => {
     const renderer = pickResultRenderer('Agent');
     const out = strip(
@@ -482,23 +466,6 @@ describe('tool-result registry', () => {
     expect(isGenericToolResult('Agent')).toBe(false);
   });
 
-  it('UltraSwarm glance shows strategy and summary', () => {
-    const renderer = pickResultRenderer('UltraSwarm');
-    const out = strip(
-      joinRender(
-        renderer(
-          call('UltraSwarm', {}),
-          result(
-            '<ultra_swarm_result run_id="r1">\n<strategy>auto_select</strategy>\n<summary>completed: 2, failed: 0, aborted: 0</summary>\n</ultra_swarm_result>',
-          ),
-          ctx,
-        ),
-      ),
-    );
-    expect(out).toContain('auto_select');
-    expect(out).toContain('completed: 2');
-    expect(isGenericToolResult('UltraSwarm')).toBe(false);
-  });
   it('BrowserStatus glance shows host and title', () => {
     const renderer = pickResultRenderer('BrowserStatus');
     const out = strip(

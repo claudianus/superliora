@@ -129,12 +129,12 @@ describe('QueuePaneComponent', () => {
       isCompacting: false,
       isStreaming: true,
       canSteerImmediately: true,
-      messages: [{ text: '<ultrawork_flow>secret contract</ultrawork_flow>', displayText: 'Ship feature X' }],
+      messages: [{ text: '<internal_flow>secret contract</internal_flow>', displayText: 'Ship feature X' }],
     });
 
     const output = stripAnsi(component.render(120).join('\n'));
     expect(output).toContain('❯ Ship feature X');
-    expect(output).not.toContain('<ultrawork_flow>');
+    expect(output).not.toContain('<internal_flow>');
     expect(output).not.toContain('secret contract');
   });
 

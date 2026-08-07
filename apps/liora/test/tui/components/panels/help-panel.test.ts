@@ -33,7 +33,7 @@ describe('HelpPanelComponent', () => {
     expect(out).toMatch(/Ctrl-K/);
     expect(out).toMatch(/Open the Command Hub menu/);
     expect(out).toMatch(/Shift-Tab/);
-    expect(out).toMatch(/Toggle Mission mode/);
+    expect(out).toMatch(/Switch Build \/ Ask mode/);
     expect(out).toMatch(/Ctrl-S/);
     expect(out).toMatch(/Ctrl-B/);
     expect(out).toMatch(/Ctrl-X/);
@@ -72,78 +72,51 @@ describe('HelpPanelComponent', () => {
     expect(mcpConfigIdx).toBeLessThan(skillBravoIdx);
   });
 
-  it('renders the advanced Mission help framing when provided', () => {
+  it('floats plan, goal, then jobs to the front of the command list', () => {
     const panel = new HelpPanelComponent({
-      commands: [
-        cmd(
-          'mission',
-          'Run Mission: Plan interview, Goal, Research, Fleet decision, Integrate, Verify, Learn',
-          ['uw'],
-        ),
-      ],
-      intro: ADVANCED_HELP_INTRO,
-      shortcuts: advancedKeyboardShortcuts(),
-      commandSectionTitle: 'Advanced Mission controls',
+      commands: [cmd('zebra', 'Z'), cmd('jobs', 'J'), cmd('goal', 'G'), cmd('plan', 'P')],
+      maxVisible: 200,
       onClose: () => {},
     });
     const out = strip(panel.render(120).join('\n'));
-    expect(out).toMatch(
-      /Mission is one workflow: Plan, Goal, Research, Fleet decision, Integrate, Verify, Learn\./,
-    );
-    expect(out).toMatch(/Shift-Tab toggles Mission\/off/);
+    const planIdx = out.indexOf('/plan');
+    const goalIdx = out.indexOf('/goal');
+    const jobsIdx = out.indexOf('/jobs');
+    const zebraIdx = out.indexOf('/zebra');
+    expect(planIdx).toBeGreaterThan(-1);
+    expect(planIdx).toBeLessThan(goalIdx);
+    expect(goalIdx).toBeLessThan(jobsIdx);
+    expect(jobsIdx).toBeLessThan(zebraIdx);
+  });
+
+  it('renders the advanced intro and section title when provided', () => {
+    const panel = new HelpPanelComponent({
+      commands: [cmd('plan', 'Steer Plan mode')],
+      intro: ADVANCED_HELP_INTRO,
+      shortcuts: advancedKeyboardShortcuts(),
+      commandSectionTitle: 'Advanced controls',
+      maxVisible: 200,
+      onClose: () => {},
+    });
+    const out = strip(panel.render(120).join('\n'));
+    expect(out).toContain(ADVANCED_HELP_INTRO.split('\n')[0]!);
+    expect(out).toMatch(/Advanced controls/);
+    expect(out).toMatch(/\/plan/);
     expect(out).not.toMatch(/Ctrl-Shift-Tab/);
-    expect(out).toMatch(/Advanced Mission controls/);
-    expect(out).toMatch(/\/mission \(\/uw\)/);
   });
 
-  it('keeps default help simple while advanced help exposes Ultra access paths', () => {
-    const primaryPanel = new HelpPanelComponent({
-      commands: slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'primary'),
-      maxVisible: 200,
-      onClose: () => {},
-    });
-    const primaryOut = strip(primaryPanel.render(160).join('\n'));
-
-    expect(primaryOut).toMatch(/Shift-Tab toggles Mission and off\./);
-    expect(primaryOut).toMatch(/\/theme/);
-    expect(primaryOut).toMatch(/\/plan/);
-    expect(primaryOut).toMatch(/\/swarm/);
-    expect(primaryOut).toMatch(/\/mission/);
-    expect(primaryOut).not.toMatch(/\/ultrawork/);
-
+  it('keeps plan and goal reachable in the windowed advanced help panel', () => {
     const advancedPanel = new HelpPanelComponent({
       commands: slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'advanced'),
       intro: ADVANCED_HELP_INTRO,
       shortcuts: advancedKeyboardShortcuts(),
-      commandSectionTitle: 'Advanced Mission controls',
-      maxVisible: 200,
-      onClose: () => {},
-    });
-    const advancedOut = strip(advancedPanel.render(160).join('\n'));
-
-    expect(advancedOut).toMatch(
-      /Mission is one workflow: Plan, Goal, Research, Fleet decision, Integrate, Verify, Learn\./,
-    );
-    expect(advancedOut).toMatch(/Shift-Tab toggles Mission\/off/);
-    expect(advancedOut).toMatch(/Advanced Mission controls/);
-    expect(advancedOut).toMatch(/\/plan/);
-    expect(advancedOut).toMatch(/\/ultragoal/);
-    // Mission is primary (not advanced); legacy /ultrawork is a hidden alias.
-    expect(advancedOut).not.toMatch(/\/ultrawork/);
-  });
-
-  it('keeps Mission steering controls reachable in the windowed advanced help panel', () => {
-    const advancedPanel = new HelpPanelComponent({
-      commands: slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'advanced'),
-      intro: ADVANCED_HELP_INTRO,
-      shortcuts: advancedKeyboardShortcuts(),
-      commandSectionTitle: 'Advanced Mission controls',
+      commandSectionTitle: 'Advanced controls',
       maxVisible: 24,
       onClose: () => {},
     });
     const advancedOut = strip(advancedPanel.render(120).join('\n'));
     expect(advancedOut).toMatch(/\/plan/);
-    expect(advancedOut).toMatch(/Advanced Mission controls/);
+    expect(advancedOut).toMatch(/Advanced controls/);
   });
 
   it('shares the same shortcut rows as KEYMAP_ALL', () => {

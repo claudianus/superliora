@@ -78,7 +78,7 @@ function stripAnsi(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
 }
 
-/** Always-on Ultrawork interview-mode chooser: select Auto (first) and flush create. */
+/** Interview-mode chooser: select Auto (first) and flush create. */
 async function confirmGoalStart(
   host: SlashCommandHost,
   session: { createGoal: ReturnType<typeof vi.fn>; setPermission: ReturnType<typeof vi.fn> },
@@ -107,7 +107,6 @@ function makeHost(
   const session = {
     setPermission: vi.fn(async () => {}),
     setPlanMode: vi.fn(async () => {}),
-    setSwarmMode: vi.fn(async () => {}),
     setPremiumQuality: vi.fn(async () => {}),
     createGoal: vi.fn(async () => fakeSnapshot()),
     getGoal: vi.fn(async (): Promise<{ goal: ReturnType<typeof fakeSnapshot> | null }> => ({
@@ -126,13 +125,11 @@ function makeHost(
         model: overrides.model ?? 'kimi-model',
         permissionMode: overrides.permissionMode ?? 'auto',
         planMode: false,
-        ultraworkMode: false,
-        swarmMode: false,
+        askMode: false,
         streamingPhase: overrides.streaming ? 'streaming' : 'idle',
         isCompacting: false,
         isBackgroundCompacting: false,
       },
-      swarmModeEntry: undefined,
       transcriptContainer,
       ui: { requestRender: vi.fn() },
       renderer: { invalidateFrame: vi.fn() },
@@ -285,7 +282,6 @@ describe('handleGoalCommand', () => {
       expect.objectContaining({
         objective: 'Ship feature X',
         replace: false,
-        source: 'standalone',
       }),
     );
     expectGoalWorkflowPrompt(host, 'Ship feature X');

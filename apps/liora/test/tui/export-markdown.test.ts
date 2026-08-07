@@ -410,7 +410,7 @@ describe('buildExportMarkdown', () => {
     expect(md).not.toContain('## Turn 1');
   });
 
-  it('renders trace lifecycle, ultrawork events, artifacts, and redaction counts', () => {
+  it('renders trace lifecycle, artifacts, and redaction counts', () => {
     const msgs: ContextMessage[] = [
       userMsg('build a game', { kind: 'user' }),
       assistantMsg('working'),
@@ -423,13 +423,12 @@ describe('buildExportMarkdown', () => {
       completeness: {
         source: 'records',
         recordCount: 4,
-        traceEventCount: 2,
+        traceEventCount: 1,
         messageCount: 2,
         filteredInternalMessageCount: 1,
         toolCallCount: 1,
         toolResultCount: 1,
         subagentLifecycleCount: 1,
-        ultraworkEventCount: 1,
         redactedCount: 1,
         warnings: [],
       },
@@ -442,20 +441,12 @@ describe('buildExportMarkdown', () => {
           summary: 'visual reviewer',
           data: { subagentId: 'agent_1', coverageLane: 'visual_qa' },
         },
-        {
-          id: '2',
-          index: 1,
-          type: 'ultrawork.stage.changed',
-          title: 'Ultrawork stage changed',
-          summary: 'verify',
-          data: { runId: 'uw_1', to: 'verify' },
-        },
       ],
       verificationArtifacts: [
         {
           id: 'verify_1',
-          kind: 'ultrawork.verification',
-          title: 'Ultrawork verification',
+          kind: 'goal.verification',
+          title: 'Goal verification',
           status: 'pass',
         },
       ],
@@ -471,10 +462,9 @@ describe('buildExportMarkdown', () => {
     });
 
     expect(md).toContain('## Session Trace');
-    expect(md).toContain('records | 2 events | 1 subagent lifecycle | 1 ultrawork');
+    expect(md).toContain('records | 1 events | 1 subagent lifecycle');
     expect(md).toContain('subagent.spawned');
-    expect(md).toContain('ultrawork.stage.changed');
-    expect(md).toContain('verify_1: Ultrawork verification [pass]');
+    expect(md).toContain('verify_1: Goal verification [pass]');
     expect(md).toContain('Redactions');
   });
 

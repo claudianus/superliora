@@ -75,8 +75,8 @@ function fakeInitialAppState(): AppState {
     sessionId: 'sess-1',
     permissionMode: 'manual',
     planMode: false,
+    askMode: false,
     inputMode: 'prompt',
-    swarmMode: false,
     thinking: false,
     contextUsage: 0,
     contextTokens: 0,
@@ -730,52 +730,6 @@ describe('createTUIState', () => {
           color: state.theme.palette.primary,
         },
       });
-    });
-    setAppearanceRenderQuality('full');
-    setAppearanceRenderHealth('healthy');
-  });
-
-  it('uses a brighter loading-shimmer VFX on the editor border in Ultrawork mode', () => {
-    withMotionEffectsAllowedEnv(() => {
-      const state = createTUIState({
-        initialAppState: {
-          ...fakeInitialAppState(),
-          ultraworkMode: true,
-        },
-        startup: {
-          continueLast: false,
-          yolo: false,
-          auto: false,
-          plan: false,
-        },
-      });
-      state.editor.borderHighlighted = true;
-      state.editorContainer.addChild(state.editor);
-      advanceAppearanceAnimationClock(450);
-      setAppearanceRenderQuality('full');
-      setAppearanceRenderHealth('healthy');
-
-      const regions = buildTUIStateNativeFrameRegions(state, 14, 6);
-      const editor = regions.find((region) => region.id === 'editor');
-
-      expect(editor?.vfx).toMatchObject({
-        effect: {
-          kind: 'shimmer',
-          nowMs: 450,
-          seed: 'native-editor-ultrawork',
-        },
-      });
-      // Perimeter paint should tint at least one border cell away from static border.
-      const lines = Array.isArray(editor?.content) ? editor.content : [];
-      const cells = lines.flatMap((line) => (typeof line === 'string' ? [] : [...line]));
-      const borderCells = cells.filter((cell) => '╭╮╰╯│─'.includes(cell.char));
-      expect(borderCells.length).toBeGreaterThan(0);
-      expect(
-        borderCells.some(
-          (cell) =>
-            (cell.style?.fg ?? '').toLowerCase() !== state.theme.palette.border.toLowerCase(),
-        ),
-      ).toBe(true);
     });
     setAppearanceRenderQuality('full');
     setAppearanceRenderHealth('healthy');

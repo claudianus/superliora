@@ -22,7 +22,7 @@ function makeHost() {
         model: 'kimi-model',
         permissionMode: 'auto',
         planMode: false,
-        ultraworkMode: false,
+        askMode: false,
       },
       queuedMessages: [],
       theme: { palette: getBuiltInPalette('dark') },

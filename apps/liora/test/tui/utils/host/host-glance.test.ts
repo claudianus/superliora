@@ -214,8 +214,6 @@ describe('host-glance', () => {
     expect(HOST_SOVEREIGN_UMBRELLA_TIP).toContain('core profile');
     expect(HOST_SOVEREIGN_UMBRELLA_TIP).toContain('Legacy compat aliases hide by product default');
     expect(HOST_SOVEREIGN_UMBRELLA_TIP).toContain('codemap');
-    expect(HOST_SOVEREIGN_UMBRELLA_TIP).toContain('dual-emit');
-    expect(HOST_SOVEREIGN_UMBRELLA_TIP).toContain('never journal');
   });
 
   it('isSovereignUmbrellaEnabled detects SUPERLIORA_SOVEREIGN=1', () => {
@@ -252,8 +250,6 @@ describe('host-glance', () => {
     expect(active).toContain('· core profile: ON');
     expect(active).toContain('· hide-legacy: ON');
     expect(active).toContain('· codemap warm: ON');
-    expect(active).toContain('· mission dual-emit: ON');
-    expect(active).toContain('· fleet dual-emit: ON');
     const statusIdx = active.indexOf('── Status ─');
     const liveIdx = active.indexOf('── Session (live) ─');
     expect(liveIdx).toBeGreaterThan(-1);

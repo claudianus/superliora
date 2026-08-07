@@ -25,7 +25,7 @@ describe('buildDefaultCommandHubItems', () => {
   it('includes beginner sections and mode badges', () => {
     const items = buildDefaultCommandHubItems({
       planMode: true,
-      swarmMode: false,
+      askMode: false,
       permissionMode: 'auto',
       model: 'demo-model',
     });
@@ -50,15 +50,10 @@ describe('buildDefaultCommandHubItems', () => {
       'start.fork',
       'account.logout',
       'modes.goals',
-      'modes.ultraplan',
     ] as const) {
       expect(ids.has(id)).toBe(true);
     }
     expect([...ids].some((id) => id.includes('dashboard'))).toBe(false);
-    expect(items.find((item) => item.id === 'modes.ultraplan')?.searchOnly).toBe(true);
-    expect(items.find((item) => item.id === 'modes.ultrawork')?.description).toContain(
-      'type objective',
-    );
     expect(items.find((item) => item.id === 'help.commands')?.description).toContain(
       'prefer Hub search',
     );
@@ -67,19 +62,6 @@ describe('buildDefaultCommandHubItems', () => {
     expect(commandHubNestsPicker('workspace.cron')).toBe(true);
     expect(commandHubActionToSlash('chat.rewind')).toBe('/rewind');
     expect(commandHubActionToSlash('modes.goals')).toBe('/goal next manage');
-    expect(commandHubActionToSlash('modes.ultraplan')).toBe('/ultraplan');
-  });
-
-  it('adds Fleet War Room when swarmMode is on, and omits it when off', () => {
-    const off = buildDefaultCommandHubItems({ swarmMode: false });
-    expect(off.some((item) => item.id === 'fleet.warRoom')).toBe(false);
-
-    const on = buildDefaultCommandHubItems({ swarmMode: true });
-    const warRoom = on.find((item) => item.id === 'fleet.warRoom');
-    expect(warRoom?.section).toBe('Fleet');
-    expect(warRoom?.label).toBe('War Room…');
-    expect(commandHubNestsPicker('fleet.warRoom')).toBe(true);
-    expect(commandHubActionToSlash('fleet.warRoom')).toBeUndefined();
   });
 
   it('adds a Now section while streaming and hides Chat undo/compact dupes', () => {
@@ -101,25 +83,9 @@ describe('buildDefaultCommandHubItems', () => {
 describe('commandHubActionToSlash', () => {
   it('maps hub actions to slash commands', () => {
     expect(commandHubActionToSlash('chat.model')).toBe('/model');
-    expect(commandHubActionToSlash('modes.swarm')).toBe('/swarm');
-    expect(commandHubActionToSlash('modes.ultrawork')).toBeUndefined();
     expect(commandHubActionToSlash('extend.extensions')).toBeUndefined();
     expect(commandHubActionToSlash('help.shortcuts')).toBeUndefined();
     expect(commandHubActionToSlash('now.compact')).toBe('/compact');
-    expect(commandHubActionToSlash('fleet.warRoom')).toBeUndefined();
-  });
-});
-
-describe('Mission Hub row', () => {
-  it('starts /mission instead of pretending to toggle like Plan/Swarm', () => {
-    const item = buildDefaultCommandHubItems({ ultraworkMode: true }).find(
-      (candidate) => candidate.id === 'modes.ultrawork',
-    );
-    expect(item?.label).toBe('Start Mission…');
-    expect(item?.kind).not.toBe('toggle');
-    expect(item?.badge).toBe('ON');
-    expect(isCommandHubToggleId('modes.ultrawork')).toBe(false);
-    expect(commandHubActionToSlash('modes.ultrawork')).toBeUndefined();
   });
 });
 
@@ -247,7 +213,7 @@ describe('CommandHubComponent', () => {
     const text = stripAnsi(hub.render(72).join('\n'));
     expect(text).toContain('Command Hub');
     expect(text).toContain('Plan ● on');
-    expect(text).toContain('Swarm ○ off');
+    expect(text).toContain('Visual ○ off');
     expect(text).toContain('Perm YOLO');
   });
 

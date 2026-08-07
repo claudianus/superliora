@@ -9,10 +9,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ApprovalPanelComponent } from '#/tui/components/dialogs/approval/approval-panel';
 import { SUPERLIORA_PLUGIN_MARKETPLACE_URL } from '#/constant/app';
-import {
-  AgentSwarmProgressComponent,
-  agentSwarmGridHeightForTerminalRows,
-} from '#/tui/components/messages/agent-swarm-progress/index';
 import { BtwPanelComponent } from '#/tui/components/panes/btw-panel';
 import { WelcomeComponent } from '#/tui/components/chrome/welcome';
 import { ModelSelectorComponent } from '#/tui/components/dialogs/picker/model-selector';
@@ -123,6 +119,7 @@ function makeSession(overrides: Record<string, unknown> = {}) {
       thinkingLevel: 'off',
       permission: 'manual',
       planMode: false,
+      askMode: false,
       contextTokens: 0,
       maxContextTokens: 100,
       contextUsage: 0,
@@ -135,7 +132,6 @@ function makeSession(overrides: Record<string, unknown> = {}) {
     setThinking: vi.fn(async () => {}),
     setPermission: vi.fn(async () => {}),
     setPlanMode: vi.fn(async () => {}),
-    setSwarmMode: vi.fn(async () => {}),
     onEvent: vi.fn(() => vi.fn()),
     listMcpServers: vi.fn(async () => []),
     listSkills: vi.fn(async () => []),
@@ -156,6 +152,7 @@ function makeSession(overrides: Record<string, unknown> = {}) {
             thinkingLevel: 'off',
             permission: 'manual',
             planMode: false,
+            askMode: false,
             contextTokens: 0,
             maxContextTokens: 100,
             contextUsage: 0,
@@ -290,10 +287,9 @@ async function confirmUndoSelection(driver: MessageDriver): Promise<void> {
 }
 
 /**
- * dispatchInput routes ordinary (non-slash) input through the async
- * Ultrawork auto-activation gate before handing the text to the session.
- * Drain the pending microtasks so tests observe the delivered prompt and
- * streaming-phase transition before continuing.
+ * dispatchInput routes ordinary (non-slash) input through an async gate before
+ * handing the text to the session. Drain the pending microtasks so tests observe
+ * the delivered prompt and streaming-phase transition before continuing.
  */
 async function flushInputDispatch(): Promise<void> {
   await Promise.resolve();
@@ -533,6 +529,7 @@ command = "vim"
         thinkingLevel: 'off',
         permission: 'manual',
         planMode: true,
+        askMode: false,
         contextTokens: 0,
         maxContextTokens: 100,
         contextUsage: 0,
@@ -587,46 +584,6 @@ command = "vim"
     });
     expect(stripSgr(renderTranscript(driver))).not.toContain('hello before /new');
     expect(failedSession.onEvent).toHaveBeenCalledOnce();
-  });
-
-  it('clears ultrawork mode when /new starts a fresh session', async () => {
-    const initialSession = makeSession({ id: 'ses-initial' });
-    const nextSession = makeSession({ id: 'ses-next' });
-    const createSession = vi
-      .fn()
-      .mockResolvedValueOnce(initialSession)
-      .mockResolvedValueOnce(nextSession);
-    const { driver } = await makeDriver(initialSession, { createSession });
-    driver.state.appState.ultraworkMode = true;
-    driver.state.appState.ultraworkPriorState = {
-      planMode: false,
-      swarmMode: false,
-      premiumQualityMode: false,
-      swarmModeEntry: undefined,
-    };
-
-    driver.handleUserInput('/new');
-
-    await vi.waitFor(() => {
-      expect(driver.getCurrentSessionId()).toBe('ses-next');
-      expect(driver.state.appState.ultraworkMode).toBe(false);
-      expect(driver.state.appState.ultraworkPriorState).toBeNull();
-    });
-  });
-
-  it('tracks Shift-Tab Ultrawork mode switches through the editor handler', async () => {
-    const { driver, session, harness } = await makeDriver();
-    harness.track.mockClear();
-    driver.state.appState.planMode = true;
-
-    driver.state.editor.onShiftTab?.();
-
-    await vi.waitFor(() => {
-      expect(session.setPlanMode).toHaveBeenCalledWith(true, true, '');
-      expect(driver.state.appState.ultraworkMode).toBe(true);
-    });
-    expect(harness.track).toHaveBeenCalledWith('shortcut_ultrawork_toggle', { enabled: true });
-    expect(harness.track).toHaveBeenCalledWith('shortcut_mode_switch', { to_mode: 'ultrawork' });
   });
 
   it('routes /yolo through session permission state without app-layer telemetry duplication', async () => {
@@ -951,11 +908,11 @@ command = "vim"
     ).toHaveLength(1);
   });
 
-  it('removes AgentSwarm progress from undone turns', async () => {
+  it('removes tool cards from undone turns', async () => {
     const { driver, session } = await makeDriver();
     const sendQueued = vi.fn();
 
-    driver.handleUserInput('launch swarm');
+    driver.handleUserInput('delegate the review');
     await flushInputDispatch();
     driver.sessionEventHandler.handleEvent(
       {
@@ -963,21 +920,18 @@ command = "vim"
         agentId: 'main',
         sessionId: 'ses-1',
         turnId: 1,
-        toolCallId: 'call_swarm',
-        name: 'AgentSwarm',
-        args: {
-          description: 'Review changed files',
-          prompt_template: 'Review {{item}}',
-          items: ['src/a.ts', 'src/b.ts'],
-        },
+        toolCallId: 'call_bash',
+        name: 'Bash',
+        args: { command: 'pnpm run review-changed-files' },
       } as Event,
       sendQueued,
     );
 
-    let transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).toContain('launch swarm');
-    expect(transcript).toContain('Agent Swarm');
-    expect(transcript).toContain('Review changed files');
+    await vi.waitFor(() => {
+      const shown = stripSgr(renderTranscript(driver));
+      expect(shown).toContain('delegate the review');
+      expect(shown).toContain('review-changed-files');
+    });
 
     driver.state.appState.streamingPhase = 'idle';
     driver.handleUserInput('/undo');
@@ -987,10 +941,9 @@ command = "vim"
       expect(session.undoHistory).toHaveBeenCalledWith(1);
     });
 
-    transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).not.toContain('launch swarm');
-    expect(transcript).not.toContain('Agent Swarm');
-    expect(transcript).not.toContain('Review changed files');
+    const transcript = stripSgr(renderTranscript(driver));
+    expect(transcript).not.toContain('delegate the review');
+    expect(transcript).not.toContain('review-changed-files');
   });
 
   it('removes approval notices from undone turns', async () => {
@@ -1228,7 +1181,7 @@ command = "vim"
 
   it('can hide internal prompt scaffolding from the transcript display', async () => {
     const { driver, session } = await makeDriver();
-    const internalPrompt = '<ultrawork_flow>secret contract</ultrawork_flow>';
+    const internalPrompt = '<internal_flow>secret contract</internal_flow>';
 
     driver.sendNormalUserInput(internalPrompt, { displayText: 'Ship feature X' });
 
@@ -1240,7 +1193,7 @@ command = "vim"
       }),
     ]);
     expect(renderTranscript(driver)).toContain('Ship feature X');
-    expect(renderTranscript(driver)).not.toContain('<ultrawork_flow>');
+    expect(renderTranscript(driver)).not.toContain('<internal_flow>');
     expect(renderTranscript(driver)).not.toContain('secret contract');
   });
 
@@ -1354,7 +1307,7 @@ command = "vim"
   it('uses queued display text while preserving the SDK prompt', async () => {
     const session = makeSession();
     const { driver } = await makeDriver(session);
-    const internalPrompt = '<ultrawork_flow>secret contract</ultrawork_flow>';
+    const internalPrompt = '<internal_flow>secret contract</internal_flow>';
 
     driver.sendQueuedMessage(session, {
       text: internalPrompt,
@@ -1475,7 +1428,7 @@ command = "vim"
     driver.state.appState.streamingPhase = 'waiting';
     driver.state.queuedMessages = [
       {
-        text: '<ultrawork_flow>secret contract</ultrawork_flow>',
+        text: '<internal_flow>secret contract</internal_flow>',
         displayText: 'Ship feature X',
         agentId: 'main',
       },
@@ -1485,7 +1438,7 @@ command = "vim"
 
     expect(handled).toBe(true);
     expect(driver.state.editor.getText()).toBe('Ship feature X');
-    expect(driver.state.editor.getText()).not.toContain('<ultrawork_flow>');
+    expect(driver.state.editor.getText()).not.toContain('<internal_flow>');
     expect(driver.state.queuedMessages).toEqual([]);
   });
 
@@ -2430,45 +2383,6 @@ command = "vim"
     expect(stripSgr(renderTranscript(driver))).not.toContain('LLM not set');
   });
 
-  it('renders swarm mode markers from /swarm commands, not tool-triggered status updates', async () => {
-    const { driver } = await makeDriver();
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'agent.status.updated',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        swarmMode: true,
-      } as Event,
-      vi.fn(),
-    );
-
-    expect(driver.state.appState.swarmMode).toBe(true);
-    expect(stripSgr(renderTranscript(driver))).not.toContain('Swarm activated');
-
-    let transcript = stripSgr(renderTranscript(driver));
-    expect(countOccurrences(transcript, 'Swarm activated')).toBe(0);
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'agent.status.updated',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        swarmMode: false,
-      } as Event,
-      vi.fn(),
-    );
-
-    expect(driver.state.appState.swarmMode).toBe(false);
-    transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).not.toContain('Swarm deactivated');
-    expect(transcript).not.toContain('Swarm ended');
-
-    expect(countOccurrences(transcript, 'Swarm activated')).toBe(0);
-    expect(countOccurrences(transcript, 'Swarm deactivated')).toBe(0);
-    expect(countOccurrences(transcript, 'Swarm ended')).toBe(0);
-  });
-
   it('tracks provider route status from status updates', async () => {
     const { driver } = await makeDriver();
     const providerRoute = {
@@ -2532,6 +2446,7 @@ command = "vim"
         thinkingLevel: 'off',
         permission: 'manual',
         planMode: false,
+        askMode: false,
         contextTokens: 0,
         maxContextTokens: 100,
         contextUsage: 0,
@@ -2541,39 +2456,6 @@ command = "vim"
     const { driver } = await makeDriver(session);
 
     expect(driver.state.appState.providerRouteStatus).toEqual(providerRoute);
-  });
-
-  it('renders an ended marker when a one-shot /swarm task exits', async () => {
-    const { driver, session } = await makeDriver(undefined);
-    driver.state.appState.permissionMode = 'auto';
-
-    driver.handleUserInput('/swarm Ship feature X');
-
-    await vi.waitFor(() => {
-      expect(session.setSwarmMode).toHaveBeenCalledWith(true, 'task');
-    });
-    await vi.waitFor(() => {
-      expect(countOccurrences(stripSgr(renderTranscript(driver)), 'Swarm activated')).toBe(1);
-    });
-    let transcript = stripSgr(renderTranscript(driver));
-    expect(countOccurrences(transcript, 'Swarm activated')).toBe(1);
-    expect(transcript).not.toContain('Swarm ended');
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'agent.status.updated',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        swarmMode: false,
-      } as Event,
-      vi.fn(),
-    );
-
-    expect(driver.state.appState.swarmMode).toBe(false);
-    transcript = stripSgr(renderTranscript(driver));
-    expect(countOccurrences(transcript, 'Swarm activated')).toBe(1);
-    expect(countOccurrences(transcript, 'Swarm ended')).toBe(1);
-    expect(transcript).not.toContain('Swarm deactivated');
   });
 
   it('queues Ctrl-S input instead of steering while /init is running', async () => {
@@ -2806,641 +2688,6 @@ command = "vim"
     });
   });
 
-  it('renders AgentSwarm progress in the transcript instead of the tool-card body', async () => {
-    const { driver } = await makeDriver();
-    const sendQueued = vi.fn();
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'tool.call.started',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        turnId: 1,
-        toolCallId: 'call_swarm',
-        name: 'AgentSwarm',
-        args: {
-          description: 'Review changed files',
-          prompt_template: 'Review {{item}}',
-          items: ['src/a.ts', 'src/b.ts'],
-        },
-      } as Event,
-      sendQueued,
-    );
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'subagent.spawned',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        parentToolCallId: 'call_swarm',
-        subagentId: 'agent-1',
-        subagentName: 'coder',
-        description: 'Review changed files #1 (coder)',
-        swarmIndex: 1,
-        runInBackground: false,
-      } as Event,
-      sendQueued,
-    );
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'subagent.spawned',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        parentToolCallId: 'call_swarm',
-        subagentId: 'agent-2',
-        subagentName: 'coder',
-        description: 'Review changed files #2 (coder)',
-        swarmIndex: 2,
-        runInBackground: false,
-      } as Event,
-      sendQueued,
-    );
-
-    vi.mocked(driver.state.renderer.invalidateFrame).mockClear();
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'tool.call.started',
-        agentId: 'agent-1',
-        sessionId: 'ses-1',
-        turnId: 2,
-        toolCallId: 'call_read',
-        name: 'Read',
-        args: { path: 'src/a.ts' },
-      } as Event,
-      sendQueued,
-    );
-    expect(driver.state.renderer.invalidateFrame).toHaveBeenCalled();
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'assistant.delta',
-        agentId: 'agent-1',
-        sessionId: 'ses-1',
-        turnId: 2,
-        delta: 'Reviewing src/a.ts and checking imports for regressions in detail',
-      } as Event,
-      sendQueued,
-    );
-    let transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).toContain('01 [');
-    expect(transcript).toContain('Reviewing src/a.ts');
-
-    vi.mocked(driver.state.renderer.invalidateFrame).mockClear();
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'subagent.suspended',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        subagentId: 'agent-1',
-        reason: 'Provider rate limit; subagent requeued for retry.',
-      } as Event,
-      sendQueued,
-    );
-    expect(driver.state.renderer.invalidateFrame).toHaveBeenCalled();
-
-    transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).toContain('001 [');
-    expect(transcript).toContain('Queued...');
-    expect(transcript).not.toContain('Provider rate limit');
-    expect(transcript).not.toContain('Failed');
-
-    vi.mocked(driver.state.renderer.invalidateFrame).mockClear();
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'subagent.started',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        subagentId: 'agent-1',
-      } as Event,
-      sendQueued,
-    );
-    expect(driver.state.renderer.invalidateFrame).toHaveBeenCalled();
-
-    transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).toContain('01 [');
-    expect(transcript).not.toContain('Suspended');
-
-    vi.mocked(driver.state.renderer.invalidateFrame).mockClear();
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'turn.ended',
-        agentId: 'agent-1',
-        sessionId: 'ses-1',
-        turnId: 2,
-        reason: 'completed',
-      } as Event,
-      sendQueued,
-    );
-    expect(driver.state.renderer.invalidateFrame).toHaveBeenCalled();
-
-    transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).toContain('Agent Swarm');
-    expect(transcript).toContain('Review changed files');
-    expect(transcript).toContain('001 [');
-    expect(transcript).toContain('Reviewing src/a.ts');
-    expect(transcript).not.toContain('Completed');
-    expect(transcript).toContain('002 Queued...');
-    expect(transcript).not.toContain('002 [');
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'subagent.completed',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        subagentId: 'agent-1',
-        resultSummary: 'Imports are stable',
-      } as Event,
-      sendQueued,
-    );
-
-    transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).toContain('✓ Imports are stable');
-    expect(transcript).not.toContain('Completed');
-  });
-
-  it('marks only core user-cancellation subagent failures as cancelled', async () => {
-    const { driver } = await makeDriver();
-    const sendQueued = vi.fn();
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'tool.call.started',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        turnId: 1,
-        toolCallId: 'call_swarm',
-        name: 'AgentSwarm',
-        args: {
-          description: 'Review changed files',
-          prompt_template: 'Review {{item}}',
-          items: ['src/a.ts', 'src/b.ts'],
-        },
-      } as Event,
-      sendQueued,
-    );
-
-    for (const [index, subagentId] of ['agent-1', 'agent-2'].entries()) {
-      driver.sessionEventHandler.handleEvent(
-        {
-          type: 'subagent.spawned',
-          agentId: 'main',
-          sessionId: 'ses-1',
-          parentToolCallId: 'call_swarm',
-          subagentId,
-          subagentName: 'coder',
-          description: `Review changed files #${String(index + 1)} (coder)`,
-          swarmIndex: index + 1,
-          runInBackground: false,
-        } as Event,
-        sendQueued,
-      );
-    }
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'subagent.failed',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        subagentId: 'agent-1',
-        error: 'Aborted by the user',
-      } as Event,
-      sendQueued,
-    );
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'subagent.failed',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        subagentId: 'agent-2',
-        error: 'The user manually interrupted this subagent x.',
-      } as Event,
-      sendQueued,
-    );
-
-    const transcript = stripSgr(driver.state.transcriptContainer.render(200).join('\n'));
-    expect(transcript).toContain('⊘ Cancelled.');
-    expect(transcript).toContain('✗ The user manually interrupted this subagent x.');
-  });
-
-  it('does not let later transcript entries reduce the AgentSwarm grid height', async () => {
-    const { driver } = await makeDriver();
-    const sendQueued = vi.fn();
-    const terminalColumns = 80;
-    setTerminalColumns(driver, terminalColumns);
-    const outerChildren = driver.state.ui.children;
-    const transcriptIndex = outerChildren.indexOf(driver.state.transcriptContainer);
-    const rowsAfterTranscript = outerChildren
-      .slice(transcriptIndex + 1)
-      .reduce((sum, child) => sum + child.render(terminalColumns).length, 0);
-    const nonGridRows = 20 - (agentSwarmGridHeightForTerminalRows(20) ?? 0);
-    setTerminalRows(driver, rowsAfterTranscript + nonGridRows + 2);
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'tool.call.started',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        turnId: 1,
-        toolCallId: 'call_swarm',
-        name: 'AgentSwarm',
-        args: {
-          description: 'Review changed files',
-          prompt_template: 'Review {{item}}',
-          items: ['src/a.ts', 'src/b.ts', 'src/c.ts', 'src/d.ts'],
-        },
-      } as Event,
-      sendQueued,
-    );
-
-    const swarmProgress = driver.state.transcriptContainer.children.find(
-      (child): child is AgentSwarmProgressComponent => child instanceof AgentSwarmProgressComponent,
-    );
-    if (swarmProgress === undefined) throw new Error('expected AgentSwarm progress');
-
-    const transcriptWidth = Math.max(1, terminalColumns - 2);
-    const renderSwarm = (): string =>
-      stripSgr(swarmProgress.render(transcriptWidth).join('\n'));
-
-    expect(renderSwarm()).toContain('001 Queued...');
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'tool.call.started',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        turnId: 1,
-        toolCallId: 'call_read',
-        name: 'Read',
-        args: { path: 'src/after.ts' },
-      } as Event,
-      sendQueued,
-    );
-
-    const transcriptChildren = driver.state.transcriptContainer.children;
-    const swarmIndex = transcriptChildren.indexOf(
-      swarmProgress as (typeof transcriptChildren)[number],
-    );
-    expect(swarmIndex).toBeGreaterThanOrEqual(0);
-
-    const rowsAfterSwarmInTranscript = transcriptChildren
-      .slice(swarmIndex + 1)
-      .reduce((sum, child) => sum + child.render(transcriptWidth).length, 0);
-    expect(rowsAfterSwarmInTranscript).toBeGreaterThan(0);
-
-    expect(renderSwarm()).toContain('001 Queued...');
-    const transcript = stripSgr(
-      driver.state.transcriptContainer.render(terminalColumns).join('\n'),
-    );
-    expect(transcript).toContain('Using Read (src/after.ts)');
-  });
-
-  it('shows AgentSwarm as completed when only some subagents fail', async () => {
-    const { driver } = await makeDriver();
-    const sendQueued = vi.fn();
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'tool.call.started',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        turnId: 1,
-        toolCallId: 'call_swarm',
-        name: 'AgentSwarm',
-        args: {
-          description: 'Review changed files',
-          prompt_template: 'Review {{item}}',
-          items: ['src/a.ts', 'src/b.ts'],
-        },
-      } as Event,
-      sendQueued,
-    );
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'tool.result',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        turnId: 1,
-        toolCallId: 'call_swarm',
-        output: [
-          '<agent_swarm_result>',
-          '<summary>completed: 1, failed: 1</summary>',
-          '<subagent index="1" agent_id="agent-1" outcome="completed">Imports are stable.</subagent>',
-          '<subagent index="2" agent_id="agent-2" outcome="failed">Agent timed out after 30s.</subagent>',
-          '</agent_swarm_result>',
-        ].join('\n'),
-        isError: undefined,
-      } as Event,
-      sendQueued,
-    );
-
-    const transcript = stripSgr(renderTranscript(driver));
-    const totalStatusLine = transcript.split('\n').find((line) => line.includes('Completed.'));
-    expect(totalStatusLine).toBeDefined();
-    expect(totalStatusLine).not.toContain('Failed.');
-    expect(transcript).toContain('✓ Imports are stable.');
-    expect(transcript).toContain('✗ Agent timed out after 30s.');
-  });
-
-  it('renders UltraSwarm with the dedicated swarm progress panel', async () => {
-    const { driver } = await makeDriver();
-    const sendQueued = vi.fn();
-    setTerminalColumns(driver, 120);
-    setTerminalRows(driver, 40);
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'tool.call.started',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        turnId: 1,
-        toolCallId: 'call_ultra_swarm',
-        name: 'UltraSwarm',
-        args: {
-          description: 'Review Galaga game quality',
-          experts: ['gameplay-engineer', 'visual-qa'],
-          auto_select: false,
-        },
-      } as Event,
-      sendQueued,
-    );
-
-    let transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).toContain('UltraSwarm');
-    expect(transcript).toContain('Review Galaga game quality');
-    expect(transcript).toContain('001 Queued');
-    expect(transcript).not.toContain('UltraSwarm: Review Galaga game quality');
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'ultrawork.team.staffed',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        runId: 'uw_1',
-        toolCallId: 'call_ultra_swarm',
-        team: {
-          id: 'team_1',
-          runId: 'uw_1',
-          intensity: 'premium',
-          maxExperts: 24,
-          experts: [
-            {
-              id: 'gameplay-engineer',
-              name: 'Gameplay Engineer',
-              role: 'gameplay',
-              focus: 'implement',
-              status: 'queued',
-              division: 'game',
-              coverageLane: 'architecture_implementation',
-            },
-            {
-              id: 'visual-qa',
-              name: 'Visual QA',
-              role: 'qa',
-              focus: 'review',
-              status: 'queued',
-              division: 'testing',
-              coverageLane: 'testing_evidence',
-            },
-          ],
-        },
-      } as Event,
-      sendQueued,
-    );
-
-    transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).toContain('001 Gameplay Engineer');
-    expect(transcript).toContain('002 Visual QA');
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'subagent.spawned',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        parentToolCallId: 'call_ultra_swarm',
-        subagentId: 'agent-gameplay',
-        subagentName: 'gameplay-engineer',
-        description: 'Review Galaga game quality #1',
-        swarmIndex: 1,
-        runInBackground: false,
-      } as Event,
-      sendQueued,
-    );
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'subagent.started',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        subagentId: 'agent-gameplay',
-      } as Event,
-      sendQueued,
-    );
-
-    transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).toContain('Working...');
-    expect(transcript).toContain('Gameplay Engineer');
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'tool.result',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        turnId: 1,
-        toolCallId: 'call_ultra_swarm',
-        output: [
-          '<ultra_swarm_result>',
-          '<summary>completed: 1, failed: 0, aborted: 0</summary>',
-          '<expert name="Gameplay Engineer" outcome="completed">play loop passes</expert>',
-          '</ultra_swarm_result>',
-        ].join('\n'),
-        isError: false,
-      } as Event,
-      sendQueued,
-    );
-
-    transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).toContain('✓ play loop passes');
-    expect(transcript).not.toContain('<ultra_swarm_result>');
-  });
-
-  it('keeps UltraSwarm progress unified when expert subagents spawn in background', async () => {
-    const { driver } = await makeDriver();
-    // The Mission Control fallback band takes chrome rows once the background
-    // experts land on the roster; give the war-room card enough height to keep
-    // its title inside the internal viewport.
-    setTerminalRows(driver, 40);
-    const sendQueued = vi.fn();
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'tool.call.started',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        turnId: 1,
-        toolCallId: 'call_ultra_swarm_bg',
-        name: 'UltraSwarm',
-        args: {
-          description: 'Staff experts for launch review',
-          experts: ['gameplay-engineer', 'visual-qa'],
-          auto_select: false,
-        },
-      } as Event,
-      sendQueued,
-    );
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'ultrawork.team.staffed',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        runId: 'uw_bg',
-        toolCallId: 'call_ultra_swarm_bg',
-        team: {
-          id: 'team_bg',
-          runId: 'uw_bg',
-          intensity: 'premium',
-          maxExperts: 24,
-          experts: [
-            {
-              id: 'gameplay-engineer',
-              name: 'Gameplay Engineer',
-              role: 'gameplay',
-              focus: 'implement',
-              status: 'queued',
-              division: 'game',
-              coverageLane: 'architecture_implementation',
-            },
-            {
-              id: 'visual-qa',
-              name: 'Visual QA',
-              role: 'qa',
-              focus: 'review',
-              status: 'queued',
-              division: 'testing',
-              coverageLane: 'testing_evidence',
-            },
-          ],
-        },
-      } as Event,
-      sendQueued,
-    );
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'subagent.spawned',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        parentToolCallId: 'call_ultra_swarm_bg',
-        subagentId: 'agent-gameplay-bg',
-        subagentName: 'gameplay-engineer',
-        description: 'Staff experts for launch review #1',
-        swarmIndex: 1,
-        runInBackground: true,
-      } as Event,
-      sendQueued,
-    );
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'subagent.started',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        subagentId: 'agent-gameplay-bg',
-      } as Event,
-      sendQueued,
-    );
-
-    const transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).toContain('UltraSwarm');
-    expect(transcript).toContain('Working...');
-    expect(transcript).toContain('002');
-    expect(transcript).toContain('001');
-    expect(transcript).not.toContain('gameplay-engineer agent started in background');
-  });
-
-  it('renders AgentSwarm progress while tool args are still streaming', async () => {
-    const { driver } = await makeDriver();
-    const sendQueued = vi.fn();
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'tool.call.delta',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        turnId: 1,
-        toolCallId: 'call_swarm',
-        name: 'AgentSwarm',
-        argumentsPart: '{"description":"Review changed files',
-      } as Event,
-      sendQueued,
-    );
-
-    let transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).toContain('Agent Swarm');
-    expect(transcript).toContain('Orchestrating...');
-    expect(transcript).not.toContain('01');
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'tool.call.delta',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        turnId: 1,
-        toolCallId: 'call_swarm',
-        argumentsPart: '","items":["src/a.ts","src/b',
-      } as Event,
-      sendQueued,
-    );
-
-    transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).toContain('Agent Swarm');
-    expect(transcript).toContain('Review changed files');
-    expect(transcript).toContain('001 src/a.ts');
-    expect(transcript).toContain('002 src/b');
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'subagent.spawned',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        parentToolCallId: 'call_swarm',
-        subagentId: 'agent-1',
-        subagentName: 'coder',
-        description: 'Review changed files #1 (coder)',
-        swarmIndex: 1,
-        runInBackground: false,
-      } as Event,
-      sendQueued,
-    );
-
-    transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).toContain('001 Queued...');
-    expect(transcript).not.toContain('001 [');
-    expect(transcript).toContain('002 src/b');
-
-    driver.sessionEventHandler.handleEvent(
-      {
-        type: 'tool.call.started',
-        agentId: 'main',
-        sessionId: 'ses-1',
-        turnId: 1,
-        toolCallId: 'call_swarm',
-        name: 'AgentSwarm',
-        args: {
-          description: 'Review changed files',
-          prompt_template: 'Review {{item}}',
-          items: ['src/a.ts', 'src/b.ts'],
-        },
-      } as Event,
-      sendQueued,
-    );
-
-    transcript = stripSgr(renderTranscript(driver));
-    expect(transcript).toContain('001 Queued...');
-    expect(transcript).toContain('002 Queued...');
-    expect(transcript).not.toContain('001 [');
-    expect(transcript).not.toContain('002 [');
-  });
-
   it('shows plan review reject on the plan card without an approval notice', async () => {
     const planContent = '# Reject Plan\n\n- keep this plan visible after reject';
     const session = makeSession({
@@ -3524,6 +2771,7 @@ command = "vim"
         thinkingLevel: 'high',
         permission: 'auto',
         planMode: true,
+        askMode: false,
         contextTokens: 25,
         maxContextTokens: 100,
         contextUsage: 0.25,
@@ -3544,9 +2792,7 @@ command = "vim"
       expect(output).toContain('Model');
       expect(output).toContain('thinking high');
       expect(output).toContain('Permissions     auto');
-      expect(output).toMatch(/Mission\s+needs readiness/);
-      expect(output).toMatch(/Stages\s+Plan on \| Goal ready \| Swarm off \| Verify blocked/);
-      expect(output).not.toMatch(/Planning\s+Ultrawork/);
+      expect(output).toMatch(/Stages\s+Plan on \| Goal ready \| Verify blocked/);
       expect(output).toContain('Context window');
       expect(output).toContain('25.0%');
     });

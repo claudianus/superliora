@@ -29,7 +29,7 @@ export const KEYMAP_ALWAYS: readonly KeymapBinding[] = [
   {
     id: 'ask-mode',
     key: 'Shift-Tab',
-    description: 'Switch between Build and Ask mode',
+    description: 'Switch Build / Ask mode',
     surface: 'always',
     category: 'agent',
   },

@@ -64,7 +64,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
 
   // ── Welcome ──────────────────────────────────────────────────────────────
   'tui.welcome.prompt.loggedIn':
-    'Type a task · /status web·office·media·ZDR · /bench · Shift-Tab Mission',
+    'Type a task · /status web·office·media·ZDR · /bench · Shift-Tab Ask',
   'tui.welcome.prompt.loggedOut':
     'Run /login or paste an API key — media/web/office ready after that, no MCP.',
   'tui.welcome.modelUnset': 'not set, run /login',
@@ -90,7 +90,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.footer.next.review': 'next: review changes',
   'tui.footer.next.media': 'next: set OPENAI_API_KEY or GOOGLE_API_KEY for image/video, or /status',
   'tui.footer.next.history': 'next: ctrl-o cycles transcript density (minimal→full)',
-  'tui.footer.next.default': 'next: Shift-Tab toggles Mission/off · /bench for Bench',
+  'tui.footer.next.default': 'next: Shift-Tab switches Build/Ask · /bench for Bench',
   'tui.footer.compacting': 'compacting context',
   'tui.footer.compacting.background': 'compacting in background · turn continues',
   'tui.footer.replaying': 'replaying session',
@@ -150,7 +150,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
     'All actions will be approved automatically. Use with caution.',
   'tui.permission.setFailed': 'Failed to set permission mode: {message}',
 
-  // ── Premium / Mission ────────────────────────────────────────────────────
+  // ── Premium ────────────────────────────────────────────────────
   'tui.premium.alreadyOn': 'Visual Quality mode is already on',
   'tui.premium.alreadyOff': 'Visual Quality mode is already off',
   'tui.premium.on.title': 'Visual Quality mode: ON',
@@ -198,9 +198,9 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
 
   // ── Help ─────────────────────────────────────────────────────────────────
   'tui.help.intro.default':
-    'Shift-Tab toggles Mission and off.\n/status shows media, web/Context7, ZDR, Bench readiness.\nNormal messages stay lightweight unless Mission is on.',
+    'Shift-Tab switches between Build and Ask mode.\nAsk mode reads, searches, and looks things up without editing or delegating.\n/status shows media, web/Context7, ZDR, Bench readiness.',
   'tui.help.intro.advanced':
-    'Mission is one workflow: Plan, Goal, Research, Fleet decision, Integrate, Verify, Learn.\nShift-Tab toggles Mission/off; /plan steers Plan from Hub or slash.\n/status shows media, web/Context7, ZDR, Bench readiness.',
+    'Build runs the work; Ask investigates it first. Shift-Tab or /ask switches.\n/plan writes a plan file, /goal runs an objective, /jobs tracks delegated work.\n/status shows media, web/Context7, ZDR, Bench readiness.',
   'tui.help.shortcut.shiftTab': 'Switch Build / Ask mode',
   'tui.help.shortcut.ctrlG': 'Edit in external editor ($VISUAL / $EDITOR)',
   'tui.help.shortcut.ctrlO': 'Cycle transcript density (minimal → compact → standard → full)',
@@ -406,7 +406,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
 
   // ── Welcome ──────────────────────────────────────────────────────────────
   'tui.welcome.prompt.loggedIn':
-    '작업을 입력하세요 · /status web·office·media·ZDR · /bench · Shift-Tab Mission',
+    '작업을 입력하세요 · /status web·office·media·ZDR · /bench · Shift-Tab Ask',
   'tui.welcome.prompt.loggedOut':
     '/login 또는 API 키를 붙여넣으세요 — 이후 media/web/office 사용 가능, MCP 불필요.',
   'tui.welcome.modelUnset': '미설정, /login 실행',
@@ -432,7 +432,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.footer.next.review': '다음: 변경사항 검토',
   'tui.footer.next.media': '다음: OPENAI_API_KEY 또는 GOOGLE_API_KEY로 이미지/영상, 또는 /status',
   'tui.footer.next.history': '다음: ctrl-o로 트랜스크립트 밀도 순환 (minimal→full)',
-  'tui.footer.next.default': '다음: Shift-Tab로 Mission 켜기/끄기 · /bench로 Bench',
+  'tui.footer.next.default': '다음: Shift-Tab로 Build/Ask 전환 · /bench로 Bench',
   'tui.footer.compacting': '컨텍스트 압축 중',
   'tui.footer.compacting.background': '백그라운드 압축 중 · 턴 계속 진행',
   'tui.footer.replaying': '세션 재생 중',
@@ -490,7 +490,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.permission.replay.yoloOn.detail': '모든 작업이 자동 승인됩니다. 주의해서 사용하세요.',
   'tui.permission.setFailed': '권한 모드 설정 실패: {message}',
 
-  // ── Premium / Mission ────────────────────────────────────────────────────
+  // ── Premium ────────────────────────────────────────────────────
   'tui.premium.alreadyOn': '시각 품질 모드가 이미 켜져 있습니다',
   'tui.premium.alreadyOff': '시각 품질 모드가 이미 꺼져 있습니다',
   'tui.premium.on.title': '시각 품질 모드: ON',
@@ -537,9 +537,9 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
 
   // ── Help ─────────────────────────────────────────────────────────────────
   'tui.help.intro.default':
-    'Shift-Tab으로 Mission 켜기/끄기.\n/status로 media, web/Context7, ZDR, Bench 준비 상태 확인.\nMission이 꺼져 있으면 일반 메시지는 가볍게 유지됩니다.',
+    'Shift-Tab으로 Build / Ask 모드 전환.\nAsk 모드는 편집·위임 없이 읽기·검색·조사만 합니다.\n/status로 media, web/Context7, ZDR, Bench 준비 상태 확인.',
   'tui.help.intro.advanced':
-    'Mission은 하나의 워크플로: Plan, Goal, Research, Fleet decision, Integrate, Verify, Learn.\nShift-Tab으로 Mission 켜기/끄기; /plan은 Hub 또는 슬래시로 Plan 조향.\n/status로 media, web/Context7, ZDR, Bench 준비 상태 확인.',
+    'Build는 작업을 실행하고 Ask는 먼저 조사합니다. Shift-Tab 또는 /ask로 전환.\n/plan은 계획 파일, /goal은 목표 실행, /jobs는 위임된 작업 추적.\n/status로 media, web/Context7, ZDR, Bench 준비 상태 확인.',
   'tui.help.shortcut.shiftTab': 'Build / Ask 모드 전환',
   'tui.help.shortcut.ctrlG': '외부 에디터에서 편집 ($VISUAL / $EDITOR)',
   'tui.help.shortcut.ctrlO': '트랜스크립트 밀도 순환 (minimal → compact → standard → full)',
