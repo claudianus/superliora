@@ -8,14 +8,14 @@
  *
  * S3-R6 interim home (moved from swarm-maker-checker.ts). S3-R7 verdict:
  * RETAIN — the liora TUI glances still consume these heuristics; the R7
- * final sweep deleted the retired UltraSwarm-named wrappers and exports.
+ * final sweep deleted the retired swarm-named wrappers and exports.
  */
 
 export const SWARM_MAKER_CHECKER_SOFT_TIP =
   'Maker≠Checker (soft): same expert/role must not both implement and review — restaff an independent checker (swarm-maker-checker).';
 
 export const SWARM_MAKER_CHECKER_AGENT_SWARM_TIP =
-  'Maker≠Checker (soft): AgentSwarm items mix implement + review/check intents in one homogeneous batch — split maker vs checker runs (swarm-maker-checker).';
+  'Maker≠Checker (soft): batch items mix implement + review/check intents in one homogeneous batch — split maker vs checker runs (swarm-maker-checker).';
 
 /** Env flag: force Maker≠Checker hard reject (default off — soft tips only). */
 export const MAKER_CHECKER_HARD_GATE_ENV = 'SUPERLIORA_MAKER_CHECKER_HARD' as const;
@@ -155,8 +155,8 @@ function roleForAssignment(input: {
   );
 }
 
-/** True when AgentSwarm items mix implement and review/check intents in one batch. */
-export function detectAgentSwarmItemRoleCollision(
+/** True when batch items mix implement and review/check intents in one batch. */
+export function detectBatchItemRoleCollision(
   items: readonly string[],
   promptTemplate?: string,
 ): boolean {
@@ -259,12 +259,12 @@ export function formatMakerCheckerSoftWarn(
   return applyMakerCheckerHardGate(soft, options);
 }
 
-export function makerCheckerSoftWarnFromAgentSwarmItems(
+export function makerCheckerSoftWarnFromBatchItems(
   items: readonly string[],
   promptTemplate?: string,
   options?: { readonly hardGate?: boolean; readonly env?: NodeJS.ProcessEnv },
 ): string | undefined {
-  if (!detectAgentSwarmItemRoleCollision(items, promptTemplate)) return undefined;
+  if (!detectBatchItemRoleCollision(items, promptTemplate)) return undefined;
   return applyMakerCheckerHardGate(SWARM_MAKER_CHECKER_AGENT_SWARM_TIP, options);
 }
 

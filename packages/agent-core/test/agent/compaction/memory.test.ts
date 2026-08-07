@@ -121,8 +121,6 @@ describe('parseStructuredCompactionMemory', () => {
       '- open_questions: pending review',
       '- next_actions: add tests',
       '- raw_refs: HEAD a8a210d4e',
-      '- swarm_runs: run-1',
-      '- ultrawork_runs: ultrawork-1',
     ].join('\n');
     const parsed = parseStructuredCompactionMemory(summary);
     expect(parsed.currentGoal).toBe('ship the auth flow');
@@ -133,8 +131,6 @@ describe('parseStructuredCompactionMemory', () => {
     expect(parsed.openQuestions).toContain('pending review');
     expect(parsed.nextActions).toContain('add tests');
     expect(parsed.rawRefs).toContain('HEAD a8a210d4e');
-    expect(parsed.swarmRuns).toContain('run-1');
-    expect(parsed.ultraworkRuns).toContain('ultrawork-1');
   });
 
   it('dedupes section items', () => {

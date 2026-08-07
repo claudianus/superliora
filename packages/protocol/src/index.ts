@@ -22,7 +22,7 @@ export * from './file';
 export * from './modelCatalog';
 export * from './providerRoute';
 export * from './providerExtras';
-export * from './ultrawork';
+export * from './work-graph';
 export * from './autopilot';
 
 export * from './rest/meta';

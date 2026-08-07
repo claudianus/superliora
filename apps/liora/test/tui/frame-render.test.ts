@@ -14,7 +14,7 @@ function fakeAppState(): AppState {
     theme: 'dark',
     model: 'example-model',
     planMode: false,
-    ultraworkMode: false,
+    askMode: false,
     streamingPhase: 'idle',
     isCompacting: false,
     isBackgroundCompacting: false,

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { DOUBLE_ESC_WINDOW_MS } from '#/tui/constant/liora-tui';
 import {
   EditorKeyboardController,
-  nextShiftTabModeTarget,
+  nextShiftTabMode,
   type EditorKeyboardHost,
 } from '#/tui/controllers/shell/editor-keyboard';
 import { ImageAttachmentStore } from '#/tui/utils/image/image-attachment-store';
@@ -17,7 +17,7 @@ interface Harness {
   readonly openUndoSelector: ReturnType<typeof vi.fn>;
   readonly cancelRunningShellCommand: ReturnType<typeof vi.fn>;
   readonly handlePlanToggle: ReturnType<typeof vi.fn>;
-  readonly handleUltraworkModeToggle: ReturnType<typeof vi.fn>;
+  readonly setAskMode: ReturnType<typeof vi.fn>;
   readonly scrollTranscriptViewport: ReturnType<typeof vi.fn>;
   readonly toastShow: ReturnType<typeof vi.fn>;
   readonly showCommandHub: ReturnType<typeof vi.fn>;
@@ -29,7 +29,7 @@ function createHarness(
     streamingPhase?: string;
     isCompacting?: boolean;
     planMode?: boolean;
-    ultraworkMode?: boolean;
+    askMode?: boolean;
     editorText?: string;
     imageStore?: ImageAttachmentStore;
   } = {},
@@ -49,7 +49,7 @@ function createHarness(
   const openUndoSelector = vi.fn();
   const cancelRunningShellCommand = vi.fn();
   const handlePlanToggle = vi.fn();
-  const handleUltraworkModeToggle = vi.fn();
+  const setAskMode = vi.fn();
   const scrollTranscriptViewport = vi.fn(() => true);
   const session = { cancel: vi.fn(async () => {}) };
 
@@ -62,7 +62,7 @@ function createHarness(
         isCompacting: options.isCompacting ?? false,
         isBackgroundCompacting: false,
         planMode: options.planMode ?? false,
-        ultraworkMode: options.ultraworkMode ?? false,
+        askMode: options.askMode ?? false,
         model: 'test-model',
       },
       footer: { setTransientHint: vi.fn() },
@@ -73,7 +73,7 @@ function createHarness(
     session,
     track: vi.fn(),
     handlePlanToggle,
-    handleUltraworkModeToggle,
+    setAskMode,
     scrollTranscriptViewport,
     btwPanelController: { closeOrCancel: vi.fn(() => false), scroll: vi.fn(() => false) },
     openUndoSelector,
@@ -98,7 +98,7 @@ function createHarness(
     openUndoSelector,
     cancelRunningShellCommand,
     handlePlanToggle,
-    handleUltraworkModeToggle,
+    setAskMode,
     scrollTranscriptViewport,
     toastShow,
     showCommandHub,
@@ -118,46 +118,38 @@ function pressNonEscape(editor: Harness['editor']): void {
   (handler as () => void)();
 }
 
-function pressShiftTab(editor: Harness['editor']): void {
-  const handler = editor['onShiftTab'];
-  if (typeof handler !== 'function') throw new Error('onShiftTab handler not installed');
-  (handler as () => void)();
-}
-
 function pressTranscriptPageUp(editor: Harness['editor']): void {
   const handler = editor['onTranscriptPageUp'];
   if (typeof handler !== 'function') throw new Error('onTranscriptPageUp handler not installed');
   (handler as () => void)();
 }
 
-describe('EditorKeyboardController Ultrawork toggle', () => {
-  it('keeps Shift-Tab focused on the primary off and Ultrawork states', () => {
-    expect(nextShiftTabModeTarget({ ultraworkMode: false })).toBe('ultrawork');
-    expect(nextShiftTabModeTarget({ ultraworkMode: true })).toBe('off');
+function pressShiftTab(editor: Harness['editor']): void {
+  const handler = editor['onShiftTab'];
+  if (typeof handler !== 'function') throw new Error('onShiftTab handler not installed');
+  (handler as () => void)();
+}
+
+describe('Shift-Tab Build/Ask cycle', () => {
+  it('cycles Build → Ask → Build', () => {
+    expect(nextShiftTabMode(false)).toBe('ask');
+    expect(nextShiftTabMode(true)).toBe('build');
   });
 
-  it('turns off all planning modes after Ultrawork', () => {
-    const { editor, handlePlanToggle, handleUltraworkModeToggle } = createHarness({
-      planMode: true,
-      ultraworkMode: true,
-    });
+  it('turns ask mode on from build', () => {
+    const { editor, setAskMode } = createHarness();
 
     pressShiftTab(editor);
 
-    expect(handleUltraworkModeToggle).toHaveBeenCalledWith(false);
-    expect(handlePlanToggle).not.toHaveBeenCalled();
+    expect(setAskMode).toHaveBeenCalledWith(true);
   });
 
-  it('enters Ultrawork directly from the off state', () => {
-    const { editor, handlePlanToggle, handleUltraworkModeToggle } = createHarness({
-      planMode: false,
-      ultraworkMode: false,
-    });
+  it('turns ask mode off again', () => {
+    const { editor, setAskMode } = createHarness({ askMode: true });
 
     pressShiftTab(editor);
 
-    expect(handleUltraworkModeToggle).toHaveBeenCalledWith(true);
-    expect(handlePlanToggle).not.toHaveBeenCalled();
+    expect(setAskMode).toHaveBeenCalledWith(false);
   });
 });
 

@@ -25,12 +25,6 @@ export interface BaseSessionTraceEvent {
   readonly evidenceIds?: readonly string[];
 }
 
-export interface UltraworkTraceEvent extends BaseSessionTraceEvent {
-  readonly type: `ultrawork.${string}`;
-  readonly runId?: string;
-  readonly stage?: string;
-}
-
 export interface SubagentLifecycleTraceEvent extends BaseSessionTraceEvent {
   readonly type: `subagent.${string}`;
   readonly subagentId?: string;
@@ -38,10 +32,7 @@ export interface SubagentLifecycleTraceEvent extends BaseSessionTraceEvent {
   readonly verdict?: 'PASS' | 'BLOCKED' | 'FAIL' | 'UNKNOWN';
 }
 
-export type SessionTraceEvent =
-  | UltraworkTraceEvent
-  | SubagentLifecycleTraceEvent
-  | BaseSessionTraceEvent;
+export type SessionTraceEvent = SubagentLifecycleTraceEvent | BaseSessionTraceEvent;
 
 export interface SessionTraceCompleteness {
   readonly source: SessionTraceSource;
@@ -52,7 +43,6 @@ export interface SessionTraceCompleteness {
   readonly toolCallCount: number;
   readonly toolResultCount: number;
   readonly subagentLifecycleCount: number;
-  readonly ultraworkEventCount: number;
   readonly redactedCount: number;
   readonly warnings: readonly string[];
 }

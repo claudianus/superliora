@@ -30,8 +30,8 @@ const appState: AppState = {
   streamingPhase: 'idle',
   streamingStartTime: 0,
   planMode: false,
+  askMode: false,
   inputMode: 'prompt',
-  swarmMode: false,
   theme: 'dark',
   editorCommand: null,
   notifications: { enabled: true, condition: 'unfocused' },
@@ -230,7 +230,7 @@ describe('FooterComponent', () => {
     }
   });
 
-  it('keeps the default Ultrawork next-action when media keys are already present', () => {
+  it('keeps the default next-action when media keys are already present', () => {
     const previous = {
       OPENAI_API_KEY: process.env['OPENAI_API_KEY'],
       GOOGLE_API_KEY: process.env['GOOGLE_API_KEY'],
@@ -243,7 +243,7 @@ describe('FooterComponent', () => {
       const footer = new FooterComponent(appState);
       const [, line2 = ''] = footer.render(160);
       // Only assert the next-action line — rotating tips may mention media keys.
-      expect(line2).toMatch(/Ultrawork|Bench|type normally/i);
+      expect(line2).toMatch(/Shift-Tab switches Build\/Ask|\/plan to plan first/i);
       expect(line2).not.toMatch(/OPENAI_API_KEY or GOOGLE_API_KEY for image\/video/);
     } finally {
       for (const [key, value] of Object.entries(previous)) {

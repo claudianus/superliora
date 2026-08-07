@@ -29,7 +29,6 @@ export type {
   ContextComposition,
   ContextCompositionSegment,
   ContextMessage,
-  CouncilDecision,
   DeleteConfigFieldPath,
   ExperimentalFeatureState,
   ExperimentalFlagMap,
@@ -46,7 +45,6 @@ export type {
   InlineCompleteResult,
   LioraConfig,
   LioraConfigPatch,
-  KnowledgePromotion,
   LoopControl,
   MemoryCreateInput,
   MemoryExportResult,
@@ -82,9 +80,6 @@ export type {
   ProviderRouteStatus,
   ProviderType,
   QuestionBackgroundTaskInfo,
-  ResearchBackend,
-  ResearchEvidence,
-  ResearchEvidencePack,
   ReloadSummary,
   ResumedAgentState,
   SessionTrace,
@@ -96,15 +91,8 @@ export type {
   SkillSummary,
   HookRegistrySummary,
   SuggestPromptsResult,
-  TeamPlan,
   ThinkingConfig,
   ToolInfo,
-  UltraResearchRun,
-  UltraworkRun,
-  UltraworkRecoveryReport,
-  ResumeUltraworkPayloadResult,
-  UltraworkTraceEvent,
-  VerificationResult,
   VerificationArtifact,
   WorkGraph,
   WorkGraphNode,
@@ -120,54 +108,8 @@ export type PermissionMode = 'yolo' | 'manual' | 'auto';
 export interface CreateGoalInput {
   readonly objective: string;
   readonly replace?: boolean;
-  /** Whether this goal is standalone or part of Ultrawork orchestration. */
-  readonly source?: 'standalone' | 'ultrawork';
   /** Shell command that must exit 0 before the goal may complete (autonomous gate). */
   readonly gateCommand?: string;
-}
-
-export interface CreateUltraworkRunInput {
-  readonly id: string;
-  readonly objective: string;
-  readonly source: 'manual' | 'auto' | 'shift-tab' | 'goal' | 'headless';
-  readonly replaceGoal: boolean;
-  readonly evidenceRoot: string;
-  readonly workDir: string;
-}
-export interface ClassifyUltraworkAutoActivationInput {
-  readonly text: string;
-}
-
-export interface UltraworkAutoActivationDecision {
-  readonly activate: boolean;
-  readonly confidence: number;
-  readonly reason: string;
-}
-export interface ClassifyUltraworkObjectiveProfileInput {
-  readonly text: string;
-}
-
-export interface UltraworkObjectiveProfileDecision {
-  readonly visualSurface: boolean;
-  readonly benchSurface: boolean;
-  readonly premiumDensity: 'visual' | 'code';
-  readonly lanes: readonly string[];
-  readonly confidence: number;
-  readonly reason: string;
-  readonly source: 'llm' | 'fallback';
-}
-
-export interface PauseUltraworkInput {
-  readonly reason?: string;
-}
-
-/** War-room / /swarm restaff: force adaptive restaff without pausing. */
-export interface SwarmRestaffInput {
-  readonly reason?: string;
-}
-
-export interface CancelUltraworkInput {
-  readonly reason?: string;
 }
 
 export type TextPromptPart = Extract<ContentPart, { type: 'text' }>;
@@ -323,7 +265,7 @@ export interface SessionStatus {
   readonly thinkingLevel: string;
   readonly permission: PermissionMode;
   readonly planMode: boolean;
-  readonly swarmMode?: boolean | undefined;
+  readonly askMode: boolean;
   readonly premiumQualityMode?: boolean | undefined;
   readonly contextTokens: number;
   readonly maxContextTokens: number;

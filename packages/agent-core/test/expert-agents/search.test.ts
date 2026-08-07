@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { globalExpertSearchEngine } from '../../src/expert-agents/search';
-import { globalUltraSwarmOrchestrator } from '../../src/expert-agents/orchestrator';
 import { inferExpertTaskProfile } from '../../src/expert-agents/task-profile';
 import { EXPERT_CATALOG_EXTENSIONS } from '../../src/expert-agents/catalog-extensions';
 import {
@@ -118,37 +117,6 @@ describe('inferExpertTaskProfile', () => {
   });
 });
 
-describe('UltraSwarmOrchestrator', () => {
-  it('does not staff sales coaches for TUI engineering swarms', async () => {
-    const plan = await globalUltraSwarmOrchestrator.buildSwarmPlan(
-      'Improve terminal dashboard feed layout and expert search accuracy for terminal UI work',
-      undefined,
-      { intensity: 'premium', maxExperts: 8 },
-    );
-
-    const ids = plan.experts.map((expert) => expert.expertId);
-    expect(ids).not.toContain('sales-coach');
-    expect(ids.some((id) =>
-      id === 'engineering-terminal-ui-engineer' ||
-      id === 'engineering-frontend-developer' ||
-      id === 'design-ui-designer',
-    )).toBe(true);
-  });
-
-  it('maps sales experts away from product_requirements lanes', async () => {
-    const plan = await globalUltraSwarmOrchestrator.buildSwarmPlan(
-      'Ship enterprise CRM expansion playbook with MEDDPICC coaching',
-      undefined,
-      { intensity: 'balanced', maxExperts: 6 },
-    );
-
-    const salesExpert = plan.experts.find((expert) => expert.division === 'sales');
-    if (salesExpert !== undefined) {
-      expect(salesExpert.coverageLane).not.toBe('product_requirements');
-    }
-  });
-});
-
 describe('Expert persona composition', () => {
   it('fills whenToUse for catalog entries that omit it', () => {
     const expert = EXPERT_CATALOG_BY_ID['sales-coach'];
@@ -179,7 +147,6 @@ describe('Expert persona composition', () => {
     expect(prompt).toContain('<assignment>');
     expect(prompt).toContain('<subagent_contract>');
     expect(prompt).not.toContain('SuperLiora');
-    expect(prompt).not.toContain('UltraSwarm');
   });
 
 
@@ -206,31 +173,6 @@ describe('Expert catalog lazy persona hydration', () => {
     const hydrated = hydrateExpertCatalogEntry(meta);
     expect(hydrated?.personaText.length).toBeGreaterThan(100);
     expect(EXPERT_CATALOG_BY_ID['engineering-frontend-developer']?.personaText.length).toBeGreaterThan(100);
-  });
-});
-
-describe('UltraSwarmOrchestrator fail-closed expert ids', () => {
-  it('throws when an explicit expert id is missing from the catalog', async () => {
-    await globalExpertSearchEngine.initialize();
-    await expect(
-      globalUltraSwarmOrchestrator.buildSwarmPlan('Ship a feature', [
-        'engineering-frontend-developer',
-        'not-a-real-expert-id',
-      ]),
-    ).rejects.toThrow(/Unknown expert id\(s\): not-a-real-expert-id/);
-  });
-
-  it('passes totalExperts into assignment prompts for multi-expert selections', async () => {
-    await globalExpertSearchEngine.initialize();
-    // Two known catalog ids so totalExperts > 1 enables multi-expert collaboration copy.
-    const plan = await globalUltraSwarmOrchestrator.buildSwarmPlan(
-      'Ship a feature',
-      ['engineering-frontend-developer', 'engineering-backend-architect'],
-    );
-    expect(plan.experts.length).toBeGreaterThanOrEqual(2);
-    for (const expert of plan.experts) {
-      expect(expert.prompt).toContain('multi-expert assignment');
-    }
   });
 });
 

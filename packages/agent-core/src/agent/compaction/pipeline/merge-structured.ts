@@ -57,8 +57,6 @@ export function tryMergeStructuredBlockSummaries(
     nextActions: mergeLists(memories.map((m) => m.nextActions)),
     verifiedClaims: mergeLists(memories.map((m) => m.verifiedClaims)),
     rawRefs: mergeLists(memories.map((m) => m.rawRefs)),
-    swarmRuns: mergeLists(memories.map((m) => m.swarmRuns)),
-    ultraworkRuns: mergeLists(memories.map((m) => m.ultraworkRuns)),
   };
 
   if (merged.nextActions.length === 0) {
@@ -122,12 +120,6 @@ function renderMergedStructuredSummary(
     'raw_refs:',
     ...bulletSection(memory.rawRefs),
   ];
-  if (memory.swarmRuns.length > 0) {
-    lines.push('swarm_runs:', ...bulletSection(memory.swarmRuns));
-  }
-  if (memory.ultraworkRuns.length > 0) {
-    lines.push('ultrawork_runs:', ...bulletSection(memory.ultraworkRuns));
-  }
   return lines.join('\n');
 }
 

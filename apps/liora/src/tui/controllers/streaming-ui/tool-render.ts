@@ -1,4 +1,3 @@
-import { isSwarmProgressToolName } from '../../components/messages/agent-swarm-progress/index';
 import type { AgentGroupComponent } from '../../components/messages/agent-group';
 import type { ReadGroupComponent } from '../../components/messages/read-group';
 import { ToolCallComponent } from '../../components/messages/tool-call/index';
@@ -7,7 +6,6 @@ import {
   appearanceAnimationNow,
 } from '../../features/appearance/appearance-effects';
 import { parseStreamingArgs } from '../../utils/event-payload';
-import { isMotionTheatreActive } from '../../utils/render/motion-beats';
 import type { LivePaneState, ToolCallBlockData, ToolResultBlockData } from '../../types';
 import { requestTUIContentRender, requestTUILayoutRender } from '#/tui/utils/render/frame-render';
 import {
@@ -71,7 +69,7 @@ export function flushToolCallPreview(ctx: ToolRenderContext, id: string): void {
   const existingComponent = ctx.getPendingToolComponents().get(id);
   if (existingComponent !== undefined) {
     existingComponent.updateToolCall(toolCall);
-  } else if (toolCall.name !== 'Agent' && !isSwarmProgressToolName(toolCall.name)) {
+  } else if (toolCall.name !== 'Agent') {
     ctx.onToolCallStart(toolCall);
   }
 }
@@ -161,7 +159,6 @@ export function onToolCallEnd(
         title: toolName,
         nowMs: appearanceAnimationNow(),
         streamThrottle: true,
-        theatreActive: isMotionTheatreActive(state.appState),
       });
     }
     requestTUIContentRender(state);

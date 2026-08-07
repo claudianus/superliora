@@ -54,7 +54,6 @@ function makeAgent(
       },
     },
     permission: { mode: input.mode ?? 'manual' },
-    ultrawork: { getRun: () => null },
     rpc: { requestApproval },
     telemetry: { track: vi.fn() },
     emit,

@@ -62,7 +62,7 @@ describe('TodoListTool', () => {
     expect(tool.description).toContain('plan file');
     // Query mode triggers on `args.todos === undefined`, not on zero args.
     expect(tool.description).toContain('Omit `todos` to query');
-    // Heavy in plan/ultrawork — keep description under a hard size budget.
+    // Heavy in plan mode — keep description under a hard size budget.
     expect(tool.description.length).toBeLessThan(1650);
     expect(TodoListInputSchema.safeParse({}).success).toBe(true);
     expect(

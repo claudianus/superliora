@@ -15,12 +15,7 @@ import {
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
 import { feedbackBorderGlowHex } from '#/tui/utils/render/feedback-vfx';
-import {
-  appearanceAnimationNow,
-  motionEffectsAllowed,
-  resolveUltraworkBorderGlowHex,
-  resolveUltraworkEditorBorderStyle,
-} from '#/tui/features/appearance/appearance-effects';
+import { appearanceAnimationNow } from '#/tui/features/appearance/appearance-effects';
 
 import type { TUIState } from '../../tui-state';
 
@@ -87,29 +82,20 @@ export function projectNativeEditorRegion(
 
   const palette = currentTheme.palette;
   const isBash = state.editor.inputMode === 'bash';
-  const ultraworkGlow =
-    state.appState.ultraworkMode === true && motionEffectsAllowed();
-  const ultraworkBorderStyle = ultraworkGlow
-    ? resolveUltraworkEditorBorderStyle(appearanceAnimationNow())
-    : undefined;
   const editorStyles = resolveRendererEditorSurfaceStyles({
     commandMode: isBash,
-    focused: state.editor.borderHighlighted || ultraworkGlow,
+    focused: state.editor.borderHighlighted,
     canvasBackground: currentTheme.canvasBackgroundEnabled,
     palette: {
       text: palette.text,
       textMuted: palette.textMuted,
       textStrong: palette.textStrong,
       border: palette.border,
-      // Ultrawork replaces the static focus color with a liquid multi-hue base;
-      // paintUltraworkEditorBorderGlow then adds the perimeter chase on top.
-      borderFocus: ultraworkGlow
-        ? resolveUltraworkBorderGlowHex(appearanceAnimationNow())
-        : feedbackBorderGlowHex(
-            palette.primary,
-            palette.accent,
-            appearanceAnimationNow(),
-          ),
+      borderFocus: feedbackBorderGlowHex(
+        palette.primary,
+        palette.accent,
+        appearanceAnimationNow(),
+      ),
       command: palette.shellMode,
       surfaceSunken: palette.surfaceSunken,
       background: palette.background,
@@ -187,8 +173,8 @@ export function projectNativeEditorRegion(
     overlays: surfaceLayout.overlayLines,
     overlayPlacement,
     scrollbar: {},
-    connectedAbove: state.editor.connectedAbove && !state.editor.borderHighlighted && !ultraworkGlow,
-    borderStyle: ultraworkBorderStyle ?? editorStyles.borderStyle,
+    connectedAbove: state.editor.connectedAbove && !state.editor.borderHighlighted,
+    borderStyle: editorStyles.borderStyle,
     promptStyle: editorStyles.promptStyle,
     surfaceStyle: editorStyles.surfaceStyle,
     scrollbarTrackStyle: editorStyles.scrollbarTrackStyle,

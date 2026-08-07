@@ -272,7 +272,7 @@ describe('NativeInputDecoder', () => {
   });
 
   it('does not emit Escape when a bare ESC is followed by a split SGR wheel sequence', () => {
-    // Root cause of transcript-scroll false Ultrawork interrupt: PTY delivers
+    // Root cause of transcript-scroll false Escape interrupt: PTY delivers
     // `\u001B` then `[<64;…M` across chunks. Emitting Escape on the first byte
     // cancelled the in-flight turn.
     const decoder = new NativeInputDecoder({ escapeResolveMs: -1 });

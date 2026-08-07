@@ -6,7 +6,7 @@ import type { TUIState } from '../../tui-state';
 import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
 import { invalidateTranscriptHitTestCache } from '../../features/transcript/transcript-hit-test';
 import { requestTUIContentRender, requestTUILayoutRender } from '../../utils/render/frame-render';
-import { isMotionTheatreActive, type MotionBeatController } from '../../utils/render/motion-beats';
+import type { MotionBeatController } from '../../utils/render/motion-beats';
 import { hasPatchChanges } from '../../utils/object-patch';
 import type { AppearanceController } from '../appearance/index';
 import type { DialogsController } from '../dialogs/index';
@@ -17,7 +17,7 @@ function sameStringArrays(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
-/** Footer mode badge toggles → plan_enter/exit + mode_enter/exit (ultrawork, swarm, yolo). */
+/** Footer mode badge toggles → plan_enter/exit + mode_enter/exit (yolo, ask). */
 function collectFooterModeBeats(
   prev: AppState,
   patch: Partial<AppState>,
@@ -32,18 +32,8 @@ function collectFooterModeBeats(
   if ('planMode' in patch && patch.planMode !== undefined && patch.planMode !== prev.planMode) {
     beats.push({ name: patch.planMode ? 'plan_enter' : 'plan_exit', title: 'plan' });
   }
-  if (
-    'ultraworkMode' in patch &&
-    patch.ultraworkMode !== undefined &&
-    patch.ultraworkMode !== prev.ultraworkMode
-  ) {
-    beats.push({
-      name: patch.ultraworkMode ? 'mode_enter' : 'mode_exit',
-      title: 'ultrawork',
-    });
-  }
-  if ('swarmMode' in patch && patch.swarmMode !== undefined && patch.swarmMode !== prev.swarmMode) {
-    beats.push({ name: patch.swarmMode ? 'mode_enter' : 'mode_exit', title: 'swarm' });
+  if ('askMode' in patch && patch.askMode !== undefined && patch.askMode !== prev.askMode) {
+    beats.push({ name: patch.askMode ? 'mode_enter' : 'mode_exit', title: 'ask' });
   }
   if (
     'permissionMode' in patch &&
@@ -108,7 +98,7 @@ export class AppStateController {
     const conductorJobsChanged = 'conductorJobs' in patch;
     const modeBeats = collectFooterModeBeats(host.state.appState, patch);
     Object.assign(host.state.appState, mergedPatch);
-    if ('planMode' in patch || 'ultraworkMode' in patch) host.updateEditorBorderHighlight();
+    if ('planMode' in patch) host.updateEditorBorderHighlight();
     if ('appearance' in patch) {
       host.appearanceController.apply();
       // `mission_control` rides the appearance prefs; keep the panel's
@@ -121,8 +111,6 @@ export class AppStateController {
     if (
       host.openCommandHub !== undefined &&
       ('planMode' in patch ||
-        'swarmMode' in patch ||
-        'ultraworkMode' in patch ||
         'premiumQualityMode' in patch ||
         'permissionMode' in patch ||
         'model' in patch ||
@@ -132,7 +120,6 @@ export class AppStateController {
     ) {
       host.dialogs.refreshOpenCommandHub();
     }
-    const theatreActive = isMotionTheatreActive(host.state.appState);
     for (const beat of modeBeats) {
       const planBeat = beat.name === 'plan_enter' || beat.name === 'plan_exit';
       host.motionBeats.play({
@@ -140,7 +127,6 @@ export class AppStateController {
         seed: planBeat ? 'plan' : `mode:${beat.title}`,
         title: beat.title,
         nowMs: appearanceAnimationNow(),
-        theatreActive,
       });
     }
     host.state.footer.setState(host.state.appState);

@@ -107,7 +107,7 @@ function personaMap(): PersonaMap {
   const detail = tried.length > 0 ? ` Tried: ${tried.join(' | ')}` : '';
   const cause = loadError?.message ? ` Last error: ${loadError.message}` : '';
   throw new Error(
-    `Cannot find expert persona catalog (${PERSONA_FILE}). UltraSwarm expert hydration needs this file next to the CLI bundle (apps/liora/dist) or the agent-core expert-agents source tree.${detail}${cause}`,
+    `Cannot find expert persona catalog (${PERSONA_FILE}). Expert hydration needs this file next to the CLI bundle (apps/liora/dist) or the agent-core expert-agents source tree.${detail}${cause}`,
   );
 }
 

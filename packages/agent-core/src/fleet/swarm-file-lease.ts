@@ -1,6 +1,6 @@
 /**
  * Swarm file lease registry — prevent concurrent Edit/Write on the same path
- * across UltraSwarm workers.
+ * across fan-out workers.
  *
  * Pure in-memory claims keyed by normalized path. On conflict, claimants are
  * enqueued (FIFO) so ownership order is explicit; workers must retry claim
@@ -223,7 +223,7 @@ export function createSwarmFileLeaseRegistry(options?: {
   };
 }
 
-/** Process-wide default registry for optional UltraSwarm worker wiring. */
+/** Process-wide default registry for optional worker wiring. */
 let defaultRegistry: SwarmFileLeaseRegistry | undefined;
 
 export function getDefaultSwarmFileLeaseRegistry(): SwarmFileLeaseRegistry {

@@ -11,10 +11,6 @@ import {
   writeJobLedger,
 } from '../../src/tools/builtin/job/job-ledger';
 import {
-  bindMissionToJob,
-  listJobsParallelToMission,
-} from '../../src/tools/builtin/job/job-mission-bind';
-import {
   listUnreadJobInbox,
   pushJobInboxEvent,
   readJobInbox,
@@ -48,10 +44,6 @@ import {
   JOB_PRIOR_FINDINGS_MAX_CHARS,
   resumeJobs,
 } from '../../src/tools/builtin/job/job-worker';
-import {
-  assertMissionLifecycleTools,
-  missingMissionLifecycleTools,
-} from '../../src/mission/lifecycle-tools';
 import type { ToolStore } from '../../src/tools/store';
 
 function memoryStore(): ToolStore {
@@ -330,34 +322,6 @@ describe('job lanes + mission bind', () => {
     expect(isExecutionInFlight('done')).toBe(false);
   });
 
-  it('binds mission run to job ledger without blocking other jobs', async () => {
-    const {
-      bindMissionToJob,
-      listJobsParallelToMission,
-      syncMissionJobStatus,
-      findJobByMissionRunId,
-    } = await import('../../src/tools/builtin/job/job-mission-bind');
-    const store = memoryStore();
-    createJob(store, { title: 'parallel task', kind: 'task' });
-    const missionJob = bindMissionToJob(store, {
-      missionRunId: 'uw_test_1',
-      objective: 'Ship meta orchestrator spine',
-      status: 'running',
-    });
-    expect(missionJob.kind).toBe('mission');
-    expect(missionJob.missionRunId).toBe('uw_test_1');
-    expect(findJobByMissionRunId(store, 'uw_test_1')?.id).toBe(missionJob.id);
-    // Re-bind is idempotent
-    const again = bindMissionToJob(store, {
-      missionRunId: 'uw_test_1',
-      objective: 'Ship meta orchestrator spine',
-    });
-    expect(again.id).toBe(missionJob.id);
-    const parallel = listJobsParallelToMission(store, 'uw_test_1');
-    expect(parallel.some((j) => j.title === 'parallel task')).toBe(true);
-    syncMissionJobStatus(store, 'uw_test_1', 'done', 'complete');
-    expect(findJobByMissionRunId(store, 'uw_test_1')?.status).toBe('done');
-  });
 });
 
 describe('merge trust + worker guards + warm pool', () => {
@@ -729,57 +693,16 @@ describe('worker context handoff', () => {
   });
 });
 
-describe('mission lifecycle tools', () => {
-  it('reports missing tools on core waist', () => {
-    const core = new Set([
-      'Read',
-      'Edit',
-      'ApplyPatch',
-      'Write',
-      'Grep',
-      'Glob',
-      'Bash',
-      'RepoQuery',
-      'TodoList',
-      'AskUserQuestion',
-      'RunProjectChecks',
-      'WebSearch',
-    ]);
-    const missing = missingMissionLifecycleTools(core);
-    expect(missing).toContain('EnterPlanMode');
-    expect(missing).toContain('CreateGoal');
-    expect(() => assertMissionLifecycleTools(core, 'Mission')).toThrow(/EnterPlanMode/);
-  });
-
-  it('passes for the conductor surface, which delegates plan phases to a worker', () => {
-    const conductor = new Set([
-      'EnterPlanMode',
-      'ExitPlanMode',
-      'CreateGoal',
-      'GetGoal',
-      'UpdateGoal',
-      'JobCreate',
-      'JobSchedule',
-    ]);
-    expect(missingMissionLifecycleTools(conductor)).toEqual([]);
-    expect(() => assertMissionLifecycleTools(conductor)).not.toThrow();
-  });
-
-  it('treats empty enabled set as bootstrap all-tools', () => {
-    expect(missingMissionLifecycleTools(new Set())).toEqual([]);
-  });
-});
-
 describe('G2 demo scenario (evidence)', () => {
   it('runs 3 parallel jobs alongside a Mission-profile job while meta stays responsive', async () => {
     const store = memoryStore();
 
-    // Mission-profile job (kind=mission) bound to the ledger and running.
-    const missionJob = bindMissionToJob(store, {
-      missionRunId: 'mission_demo_1',
-      objective: 'refactor harness loop',
-      status: 'running',
+    // Planning job (kind=mission) on the ledger and running.
+    const missionJob = createJob(store, {
+      title: 'refactor harness loop',
+      kind: 'mission',
     });
+    patchJob(store, missionJob.id, { status: 'running' });
 
     // 3 parallel implementation jobs (burst).
     for (let i = 0; i < 3; i += 1) {
@@ -802,7 +725,6 @@ describe('G2 demo scenario (evidence)', () => {
     // Mission stays running and does not block the parallel set.
     const missionNow = getJob(store, missionJob.id);
     expect(missionNow?.status).toBe('running');
-    expect(listJobsParallelToMission(store, missionJob.missionRunId!)).toHaveLength(3);
 
     // Meta stays responsive while workers run: inbox notices + ledger reads still work.
     const firstStarted = result.started[0];

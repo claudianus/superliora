@@ -532,27 +532,6 @@ export const WIRE_RENDERERS: RendererMap = {
     }),
   },
 
-  'swarm_mode.enter': {
-    tone: 'subagent',
-    label: 'swarm↻',
-    headline: (r) => ({
-      main: (
-        <span className="flex items-center gap-2">
-          <Pill tone="subagent" variant="soft">
-            enter
-          </Pill>
-          <Mono>{r.trigger}</Mono>
-        </span>
-      ),
-    }),
-  },
-
-  'swarm_mode.exit': {
-    tone: 'subagent',
-    label: 'swarm✓',
-    headline: () => ({ main: <Dim>swarm mode exited</Dim> }),
-  },
-
   'subagent.lifecycle': {
     tone: 'subagent',
     label: 'subagent',
@@ -565,22 +544,6 @@ export const WIRE_RENDERERS: RendererMap = {
           {typeof r.event['subagentId'] === 'string' ? (
             <Mono>{r.event['subagentId']}</Mono>
           ) : null}
-        </span>
-      ),
-    }),
-    detail: (r) => <JsonViewer value={r.event} defaultOpenDepth={2} />,
-  },
-
-  'ultrawork.event': {
-    tone: 'lifecycle',
-    label: 'ultrawork',
-    headline: (r) => ({
-      main: (
-        <span className="flex items-center gap-2 min-w-0">
-          <Pill tone="lifecycle" variant="soft">
-            {r.event.type}
-          </Pill>
-          {typeof r.event['runId'] === 'string' ? <Mono>{r.event['runId']}</Mono> : null}
         </span>
       ),
     }),
@@ -654,47 +617,6 @@ export const WIRE_RENDERERS: RendererMap = {
       ),
     }),
     detail: (r) => <JsonViewer value={r.ultraPlan} defaultOpenDepth={1} />,
-  },
-
-  'swarm.steer': {
-    tone: 'lifecycle',
-    label: 'steer',
-    headline: (r) => ({
-      main: <span className="truncate text-fg-1">{r.input}</span>,
-    }),
-  },
-
-  'swarm.restaff': {
-    tone: 'lifecycle',
-    label: 'restaff',
-    headline: (r) => ({
-      main: <span className="truncate text-fg-1">{r.input}</span>,
-    }),
-  },
-
-  'ultrawork.run': {
-    tone: 'lifecycle',
-    label: 'uw-run',
-    headline: (r) => ({
-      main: (
-        <span className="flex items-center gap-2 min-w-0">
-          <Pill tone="lifecycle" variant="soft">
-            {r.run.status}
-          </Pill>
-          <Mono>{r.run.id}</Mono>
-          <span className="truncate text-fg-1">{r.run.objective}</span>
-        </span>
-      ),
-    }),
-    detail: (r) => <JsonViewer value={r} defaultOpenDepth={1} />,
-  },
-
-  'ultrawork.mode': {
-    tone: 'lifecycle',
-    label: 'uw-mode',
-    headline: (r) => ({
-      main: <Dim>{r.enabled ? 'ultrawork mode on' : 'ultrawork mode off'}</Dim>,
-    }),
   },
 
   'premium-quality.mode': {

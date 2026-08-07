@@ -6,7 +6,6 @@ import type {
   ToolResultEvent,
 } from '@superliora/sdk';
 
-import { isSwarmProgressToolName } from '../../components/messages/agent-swarm-progress/index';
 import type {
   AppState,
   LivePaneState,
@@ -20,10 +19,7 @@ import {
   serializeToolResultOutput,
 } from '../../utils/event-payload';
 import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
-import {
-  isMotionTheatreActive,
-  type MotionBeatController,
-} from '../../utils/render/motion-beats';
+import type { MotionBeatController } from '../../utils/render/motion-beats';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { searchCascadePatchFromToolResult } from '../../utils/search/search-cascade';
 import { goalSoftAdvisoryPatchFromToolResult } from '../../utils/goal/goal-soft-advisory-glance';
@@ -108,36 +104,8 @@ export interface ToolsEventHost {
   readonly controlTowerDesk?: { applyToolOutput(output: string): boolean };
 }
 
-/**
- * Swarm-progress tool fan-out lives on SubAgentEventHandler. Injected so tool
- * call / delta / result handling stays coordinated without importing the
- * sibling handler graph into this module.
- */
-export interface ToolsEventCoordination {
-  handleAgentSwarmToolCallStarted(
-    toolCallId: string,
-    args: Record<string, unknown>,
-    name: string,
-  ): void;
-  handleAgentSwarmToolCallDelta(
-    toolCallId: string,
-    args: Record<string, unknown>,
-    options: { readonly streamingArguments?: string | undefined },
-    name: string,
-  ): void;
-  hasAgentSwarmProgress(toolCallId: string): boolean;
-  handleAgentSwarmToolResult(
-    toolCallId: string,
-    resultData: ToolResultBlockData,
-    isError: boolean,
-  ): void;
-}
-
 export class SessionEventTools {
-  constructor(
-    private readonly host: ToolsEventHost,
-    private readonly coordination: ToolsEventCoordination,
-  ) {}
+  constructor(private readonly host: ToolsEventHost) {}
 
   handleShellOutput(event: { commandId: string; update: { kind: string; text?: string } }): void {
     this.host.handleShellOutput(event);
@@ -166,13 +134,6 @@ export class SessionEventTools {
       state.todoPanel.bumpActivity();
       requestTUILayoutRender(state);
     }
-    if (isSwarmProgressToolName(event.name)) {
-      this.coordination.handleAgentSwarmToolCallStarted(
-        event.toolCallId,
-        toolCall.args,
-        event.name,
-      );
-    }
     this.host.patchLivePane({
       mode: 'tool',
       pendingApproval: null,
@@ -184,20 +145,6 @@ export class SessionEventTools {
     if (event.toolCallId.length === 0) return;
     const { state, streamingUI } = this.host;
     streamingUI.accumulateToolCallDelta(event.toolCallId, event.name, event.argumentsPart);
-    const preview = streamingUI.getStreamingToolCallPreview(event.toolCallId);
-    if (
-      preview !== undefined &&
-      (isSwarmProgressToolName(preview.name) ||
-        this.coordination.hasAgentSwarmProgress(event.toolCallId))
-    ) {
-      this.coordination.handleAgentSwarmToolCallDelta(
-        event.toolCallId,
-        preview.args,
-        { streamingArguments: preview.argumentsText },
-        preview.name,
-      );
-    }
-
     this.host.patchLivePane({
       mode: 'tool',
       pendingApproval: null,
@@ -234,13 +181,6 @@ export class SessionEventTools {
       display: event.display,
     };
     const matchedCall = streamingUI.completeToolResult(event.toolCallId, resultData);
-    // Push result to activity feed
-
-    this.coordination.handleAgentSwarmToolResult(
-      event.toolCallId,
-      resultData,
-      event.isError === true,
-    );
     if (matchedCall !== undefined) {
       const cascadePatch = searchCascadePatchFromToolResult(matchedCall.name, resultData.output);
       if (cascadePatch !== null) {
@@ -251,7 +191,6 @@ export class SessionEventTools {
           title: 'Research cascade',
           nowMs: appearanceAnimationNow(),
           streamThrottle: true,
-          theatreActive: isMotionTheatreActive(this.host.state.appState),
         });
       }
       const advisoryPatch = goalSoftAdvisoryPatchFromToolResult(
@@ -296,7 +235,6 @@ export class SessionEventTools {
             title: 'Job desk',
             nowMs: appearanceAnimationNow(),
             streamThrottle: true,
-            theatreActive: isMotionTheatreActive(this.host.state.appState),
           });
         }
       }

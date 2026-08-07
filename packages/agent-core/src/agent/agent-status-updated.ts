@@ -36,7 +36,7 @@ export interface AgentStatusUpdatedHost {
     };
   };
   readonly planMode: { readonly isActive: boolean };
-  readonly swarmMode: { readonly isActive: boolean };
+  readonly askMode: { readonly isActive: boolean };
   readonly premiumQuality: { isEnabled(): boolean };
   readonly permission: {
     readonly mode: string;
@@ -74,7 +74,7 @@ export function buildAgentStatusUpdatedEvent(host: AgentStatusUpdatedHost): Agen
     maxContextTokens,
     contextUsage,
     planMode: host.planMode.isActive,
-    swarmMode: host.swarmMode.isActive,
+    askMode: host.askMode.isActive,
     premiumQualityMode: host.premiumQuality.isEnabled(),
     permission: host.permission.mode as PermissionMode,
     usage,
@@ -113,8 +113,6 @@ export function buildAgentStatusUpdatedEvent(host: AgentStatusUpdatedHost): Agen
 
 export function durableTraceRecordType(
   eventType: string,
-): 'subagent.lifecycle' | 'ultrawork.event' | undefined {
-  if (eventType.startsWith('subagent.')) return 'subagent.lifecycle';
-  if (eventType.startsWith('ultrawork.') || eventType.startsWith('mission.')) return 'ultrawork.event';
-  return undefined;
+): 'subagent.lifecycle' | undefined {
+  return eventType.startsWith('subagent.') ? 'subagent.lifecycle' : undefined;
 }

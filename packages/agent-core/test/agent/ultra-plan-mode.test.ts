@@ -194,7 +194,7 @@ describe('UltraPlanModeEngine', () => {
           return ambiguityResponse();
         }),
       );
-      engine.startInterview('Build SuperLiora premium Ultrawork regression protection');
+      engine.startInterview('Build SuperLiora premium plan-mode regression protection');
 
       const initial = await engine.calculateAmbiguityScore();
       expect(initial.milestone).toBe('initial');
@@ -207,11 +207,11 @@ describe('UltraPlanModeEngine', () => {
       );
       engine.addInterviewRound(
         'What constraints and risks must be protected?',
-        'Inputs: current repository files, TUI prompt, tests, and user request. Outputs: patched TUI flow, updated tests, and verification evidence. Constraints: must keep the Ultrawork brand visible, cannot hide advanced commands, and should avoid unrelated refactors. Non-goals: do not redesign unrelated provider setup or rewrite the whole TUI. Failure modes: regression that removes terminal themes, weakens slash command access, or claims Swarm without a decision.',
+        'Inputs: current repository files, TUI prompt, tests, and user request. Outputs: patched TUI flow, updated tests, and verification evidence. Constraints: must keep the Ultra Plan brand visible, cannot hide advanced commands, and should avoid unrelated refactors. Non-goals: do not redesign unrelated provider setup or rewrite the whole TUI. Failure modes: regression that removes terminal themes, weakens slash command access, or claims Swarm without a decision.',
       );
       engine.addInterviewRound(
         'What acceptance criteria should verify success?',
-        'Acceptance Criteria: /help advanced shows Ultra access paths, /theme lists bundled themes, /plan ultra starts UltraPlan, /ultrawork connects the workflow, and tests verify each requirement. Verification Plan: run unit tests and inspect rendered TUI copy. Runtime Context: TypeScript monorepo in a local CLI workspace. Completion Criterion: true when tests pass and the workflow is visibly complete, false otherwise.',
+        'Acceptance Criteria: /help advanced shows Ultra access paths, /theme lists bundled themes, /plan ultra starts UltraPlan, and tests verify each requirement. Verification Plan: run unit tests and inspect rendered TUI copy. Runtime Context: TypeScript monorepo in a local CLI workspace. Completion Criterion: true when tests pass and the workflow is visibly complete, false otherwise.',
       );
 
       const scored = await engine.calculateAmbiguityScore();
@@ -270,7 +270,7 @@ describe('UltraPlanModeEngine', () => {
           }),
         ),
       );
-      engine.startInterview('Implement a guarded Ultrawork mode');
+      engine.startInterview('Implement a guarded ultra plan mode');
       engine.addInterviewRound(
         'What is the goal?',
         'Goal: implement a verifiable UltraGoal.',
@@ -323,11 +323,11 @@ describe('UltraPlanModeEngine', () => {
           }),
         ),
       );
-      engine.startInterview('Implement a guarded Ultrawork mode');
+      engine.startInterview('Implement a guarded ultra plan mode');
 
       engine.addInterviewRound(
         'What is the goal?',
-        'Goal: implement a verifiable UltraGoal that is true when Shift-Tab starts Ultrawork and false otherwise. Acceptance Criteria: status and footer tests pass. Verification Plan: run the focused TUI tests.',
+        'Goal: implement a verifiable UltraGoal that is true when Shift-Tab cycles the agent mode and false otherwise. Acceptance Criteria: status and footer tests pass. Verification Plan: run the focused TUI tests.',
       );
 
       const readiness = await engine.interviewReadiness();
@@ -368,7 +368,7 @@ describe('UltraPlanModeEngine', () => {
 
     it('increments completion streak on a new ready round even when evidence hash collides', async () => {
       const engine = new UltraPlanModeEngine(createMockAgent(ambiguityResponse()));
-      engine.startInterview('Build SuperLiora premium Ultrawork regression protection');
+      engine.startInterview('Build SuperLiora premium plan-mode regression protection');
 
       engine.addInterviewRound(
         'What is the goal and scope?',
@@ -376,11 +376,11 @@ describe('UltraPlanModeEngine', () => {
       );
       engine.addInterviewRound(
         'What constraints and risks must be protected?',
-        'Inputs: current repository files, TUI prompt, tests, and user request. Outputs: patched TUI flow, updated tests, and verification evidence. Constraints: must keep the Ultrawork brand visible, cannot hide advanced commands, and should avoid unrelated refactors. Non-goals: do not redesign unrelated provider setup or rewrite the whole TUI. Failure modes: regression that removes terminal themes, weakens slash command access, or claims Swarm without a decision.',
+        'Inputs: current repository files, TUI prompt, tests, and user request. Outputs: patched TUI flow, updated tests, and verification evidence. Constraints: must keep the Ultra Plan brand visible, cannot hide advanced commands, and should avoid unrelated refactors. Non-goals: do not redesign unrelated provider setup or rewrite the whole TUI. Failure modes: regression that removes terminal themes, weakens slash command access, or claims Swarm without a decision.',
       );
       engine.addInterviewRound(
         'What acceptance criteria should verify success?',
-        'Acceptance Criteria: /help advanced shows Ultra access paths, /theme lists bundled themes, /plan ultra starts UltraPlan, /ultrawork connects the workflow, and tests verify each requirement. Verification Plan: run unit tests and inspect rendered TUI copy. Runtime Context: TypeScript monorepo in a local CLI workspace. Completion Criterion: true when tests pass and the workflow is visibly complete, false otherwise.',
+        'Acceptance Criteria: /help advanced shows Ultra access paths, /theme lists bundled themes, /plan ultra starts UltraPlan, and tests verify each requirement. Verification Plan: run unit tests and inspect rendered TUI copy. Runtime Context: TypeScript monorepo in a local CLI workspace. Completion Criterion: true when tests pass and the workflow is visibly complete, false otherwise.',
       );
       await engine.calculateAmbiguityScore();
       expect(engine.interviewState.completionCandidateStreak).toBe(1);
@@ -404,9 +404,9 @@ describe('UltraPlanModeEngine', () => {
       const engine = new UltraPlanModeEngine(
         mockAgentWithUserPrompt(
           [
-            'Use Ultrawork for this bounded source/test verification task.',
+            'Use ultra plan mode for this bounded source/test verification task.',
             'You are the implementation agent and verification owner.',
-            'Task: edit apps/liora/src/tui/commands/ultrawork/ultrawork-contract.ts and apps/liora/test/tui/commands/ultrawork.test.ts.',
+            'Task: edit apps/liora/src/tui/commands/plan/plan-contract.ts and apps/liora/test/tui/commands/plan.test.ts.',
             'Inputs: the named source file, test file, and prompt.',
             'Outputs: add SUPER_KIMI_REAL_WORKFLOW_EVIDENCE and report concise evidence.',
             'Constraints: do not edit the harness verifier and make no other changes.',
@@ -627,7 +627,7 @@ describe('UltraPlanModeEngine', () => {
           });
         }),
       );
-      engine.startInterview('Implement a guarded Ultrawork mode');
+      engine.startInterview('Implement a guarded ultra plan mode');
       engine.addInterviewRound('What is the goal?', 'Goal: implement a verifiable UltraGoal.');
 
       await engine.interviewReadiness({ rescore: true });

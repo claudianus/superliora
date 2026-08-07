@@ -16,10 +16,8 @@ import { formatUpstreamBaselineSummary } from '#/cli/upstream-baseline';
 import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
 import { formatErrorMessage } from '../../utils/event-payload';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
-import { isMotionTheatreActive } from '../../utils/render/motion-beats';
 import { createGitStatusCache } from '#/utils/git/git-status';
 import { getDataDir } from '#/utils/paths';
-import { loadPreflightHumanWriting } from '../preflight/human-writing';
 import type { SlashCommandHost } from '../hub/dispatch';
 
 import { buildContextOsReportLines, loadPrivacySnapshot } from './context-os-report';
@@ -42,7 +40,6 @@ function playStatusOpenBeat(host: SlashCommandHost, title: string, seed: string)
     seed,
     title,
     nowMs: appearanceAnimationNow(),
-    theatreActive: isMotionTheatreActive(host.state.appState),
   });
 }
 
@@ -162,23 +159,13 @@ export async function showQuota(host: SlashCommandHost): Promise<void> {
 }
 
 export async function showStatusReport(host: SlashCommandHost): Promise<void> {
-  const [runtimeStatus, managedUsage, ultraworkRun, activeToolNames, loopModelRouting] = await Promise.all([
+  const [runtimeStatus, managedUsage, activeToolNames, loopModelRouting] = await Promise.all([
     loadRuntimeStatusReport(host),
     loadManagedUsageReport(host),
-    (async () => {
-      if (!host.session) return null;
-      if (typeof host.session.getUltraworkRun !== 'function') return null;
-      try {
-        return await host.session.getUltraworkRun();
-      } catch {
-        return null;
-      }
-    })(),
     loadActiveToolNames(host),
     loadLoopModelRouting(host),
   ]);
   const appState = host.state.appState;
-  const humanWriting = loadPreflightHumanWriting(appState.workDir);
   const recovery = loadStatusRecoveryReadiness(appState.workDir);
   const privacy = loadPrivacySnapshot(host);
   const fieldMotion = createStatusFieldMotionState();
@@ -198,11 +185,8 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
     thinking: appState.thinking,
     permissionMode: appState.permissionMode,
     planMode: appState.planMode,
-    ultraworkMode: appState.ultraworkMode,
     premiumQualityMode: appState.premiumQualityMode,
-    swarmMode: appState.swarmMode,
     goalStatus: appState.goal?.status,
-    ultraworkRun: ultraworkRun ? { stage: ultraworkRun.stage } : null,
     contextUsage: appState.contextUsage,
     contextTokens: appState.contextTokens,
     maxContextTokens: appState.maxContextTokens,
@@ -217,13 +201,6 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
     autoDream: runtimeStatus.status?.autoDream,
     privacyTelemetryEnabled: privacy.telemetryEnabled,
     gitStatus: createGitStatusCache(appState.workDir).getStatus(),
-    humanWriting: {
-      ready: humanWriting.ready,
-      advisoryOnly: humanWriting.advisoryOnly,
-      nextAction: humanWriting.ready
-        ? 'Describe the task to start.'
-        : 'Restore writing-quality guidance before long autonomous work.',
-    },
     recovery,
     managedUsage: managedUsage?.usage,
     managedUsageError: managedUsage?.error,

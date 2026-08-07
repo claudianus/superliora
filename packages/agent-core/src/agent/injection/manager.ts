@@ -8,18 +8,18 @@ import type { DynamicInjector } from './injector';
 import { ToolWorkflowInjector } from './tool-workflow-injector';
 import { MemoryInjector } from './memory';
 import { PermissionModeInjector } from './permission-mode';
+import { AskModeInjector } from './ask-mode';
 import { PlanModeInjector } from './plan-mode';
 import { PremiumQualityInjector } from './premium-quality';
 import { ResponseLanguageInjector } from './response-language';
 import { TodoListReminderInjector } from './todo-list';
 import { JobDeskInjector } from './job-desk';
-import { ULTRAWORK_GRAPH_STORE_KEY } from '../../tools/builtin/state/ultrawork-graph-store-key';
-import { injectUltraworkPostCompactionContinuation } from '#/mission';
+import { TASK_GRAPH_STORE_KEY } from '../../tools/builtin/state/task-graph-store-key';
 
 const ACTIVE_BACKGROUND_TASK_GUIDANCE =
   'Context compacted; background tasks still run. Do not start duplicates — TaskOutput for results, TaskList, TaskStop to cancel.';
 
-const ULTRAWORK_GRAPH_INJECTION_MAX_CHARS = 3_500;
+const TASK_GRAPH_INJECTION_MAX_CHARS = 3_500;
 
 /**
  * Batched per-step injection budget. The batch message is append-only tail
@@ -84,6 +84,7 @@ export class InjectionManager {
       new ToolWorkflowInjector(agent),
       new TodoListReminderInjector(agent),
       this.jobDeskInjector,
+      new AskModeInjector(agent),
       new PlanModeInjector(agent),
       new PremiumQualityInjector(agent),
       new PermissionModeInjector(agent),
@@ -133,8 +134,7 @@ export class InjectionManager {
   async injectAfterCompaction(): Promise<void> {
     await this.injectGoal();
     this.injectActiveBackgroundTasks();
-    this.injectUltraworkGraphStatus();
-    injectUltraworkPostCompactionContinuation(this.agent);
+    this.injectTaskGraphStatus();
     this.jobDeskInjector.injectPostCompaction();
     await this.inject();
   }
@@ -187,28 +187,17 @@ export class InjectionManager {
     );
   }
 
-  private injectUltraworkGraphStatus(): void {
+  private injectTaskGraphStatus(): void {
     if (this.agent.type !== 'main') return;
-    const graph = this.agent.tools.getStore().get(ULTRAWORK_GRAPH_STORE_KEY);
-    const run = this.agent.ultrawork?.getRun();
-    if (graph === undefined || graph.nodes.length === 0) {
-      if (run === null || run === undefined || run.status !== 'running') return;
-    }
+    const graph = this.agent.tools.getStore().get(TASK_GRAPH_STORE_KEY);
+    if (graph === undefined || graph.nodes.length === 0) return;
 
     const lines = [
-      '<ultrawork_graph_status>',
-      'Post-compaction UltraworkGraph (continue assigned nodes):',
+      '<task_graph_status>',
+      'Post-compaction TaskGraph (continue assigned nodes):',
     ];
 
-    if (run !== null && run !== undefined) {
-      lines.push(`run_id: ${run.id} | stage: ${run.stage} | status: ${run.status}`);
-      const activation = this.agent.ultrawork.getActivation();
-      if (activation !== undefined) {
-        lines.push(`evidence_root: ${activation.evidenceRoot}`);
-      }
-    }
-
-    if (graph !== undefined && graph.nodes.length > 0) {
+    {
       // Prefer non-done nodes; fall back to a short done sample only if nothing pending.
       const pending = graph.nodes.filter((node) => node.status !== 'done');
       const nodes =
@@ -224,16 +213,16 @@ export class InjectionManager {
       }
     }
 
-    lines.push('</ultrawork_graph_status>');
+    lines.push('</task_graph_status>');
 
     let text = lines.join('\n');
-    if (text.length > ULTRAWORK_GRAPH_INJECTION_MAX_CHARS) {
-      text = `${text.slice(0, ULTRAWORK_GRAPH_INJECTION_MAX_CHARS - 24)}\n… [truncated]\n</ultrawork_graph_status>`;
+    if (text.length > TASK_GRAPH_INJECTION_MAX_CHARS) {
+      text = `${text.slice(0, TASK_GRAPH_INJECTION_MAX_CHARS - 24)}\n… [truncated]\n</task_graph_status>`;
     }
 
     this.agent.context.appendSystemReminder(text, {
       kind: 'injection',
-      variant: 'ultrawork_graph_status',
+      variant: 'task_graph_status',
     });
   }
 }

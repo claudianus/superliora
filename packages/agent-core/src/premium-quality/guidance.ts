@@ -61,7 +61,7 @@ export const PREMIUM_QUALITY_SPARSE_GUIDANCE = [
 ].join('\n');
 
 /**
- * Non-visual Premium density: Ultrawork/Goal often force Premium ON for backend/CLI/infra.
+ * Non-visual Premium density: Goal runs often force Premium ON for backend/CLI/infra.
  * Keep code/evidence bar without the full visual harness flood.
  */
 export const PREMIUM_QUALITY_CODE_FULL_GUIDANCE = [

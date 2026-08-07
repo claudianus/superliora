@@ -19,7 +19,6 @@ import {
   type ToolCallRequest,
   type ToolCallResponse,
   type ToolInfo,
-  type SwarmModeTrigger,
   type SessionTrace,
   type RuntimeDegradedEvent,
 } from '@superliora/agent-core';
@@ -64,9 +63,9 @@ import {
   type SetSessionModelRpcInput,
   type SetSessionModelRpcResult,
   type SetSessionPermissionRpcInput,
+  type SetSessionAskModeRpcInput,
   type SetSessionPlanModeRpcInput,
   type SetSessionPremiumQualityRpcInput,
-  type SetSessionSwarmModeRpcInput,
   type SetSessionThinkingRpcInput,
   type StartConversationLoopRpcInput,
   type StopConversationLoopRpcInput,
@@ -91,8 +90,8 @@ export type {
   SetSessionModelRpcResult,
   SetSessionPermissionRpcInput,
   SetSessionPlanModeRpcInput,
+  SetSessionAskModeRpcInput,
   SetSessionPremiumQualityRpcInput,
-  SetSessionSwarmModeRpcInput,
   SetSessionThinkingRpcInput,
   StartConversationLoopRpcInput,
   StopConversationLoopRpcInput,
@@ -260,6 +259,15 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
     });
   }
 
+  async setAskMode(input: SetSessionAskModeRpcInput): Promise<void> {
+    const rpc = await this.getRpc();
+    return rpc.setAskMode({
+      sessionId: input.sessionId,
+      agentId: this.interactiveAgentId,
+      enabled: input.enabled,
+    });
+  }
+
   async setPlanMode(input: SetSessionPlanModeRpcInput): Promise<void> {
     const rpc = await this.getRpc();
     if (!input.enabled) {
@@ -273,45 +281,12 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
       agentId: this.interactiveAgentId,
       ultra: input.ultra ? true : undefined,
       initialContext: input.initialContext,
-      source: input.source,
     });
   }
 
-  async setSwarmMode(input: SetSessionSwarmModeRpcInput): Promise<void> {
-    if (input.enabled) return this.enterSwarmMode(input);
-    return this.exitSwarmMode(input);
-  }
 
-  async swarm(input: SessionPromptRpcInput): Promise<void> {
-    await this.enterSwarmMode({ sessionId: input.sessionId, trigger: 'task' });
-    try {
-       await this.prompt(input);; return;
-    } catch (error) {
-      // Roll back swarm mode so a failed prompt does not leave the session
-      // stuck in swarm state.
-      await this.exitSwarmMode({ sessionId: input.sessionId }).catch(() => {});
-      throw error;
-    }
-  }
 
-  private async enterSwarmMode(
-    input: SessionIdRpcInput & { readonly trigger: SwarmModeTrigger },
-  ): Promise<void> {
-    const rpc = await this.getRpc();
-    return rpc.enterSwarm({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-      trigger: input.trigger,
-    });
-  }
 
-  private async exitSwarmMode(input: SessionIdRpcInput): Promise<void> {
-    const rpc = await this.getRpc();
-    return rpc.exitSwarm({
-      sessionId: input.sessionId,
-      agentId: this.interactiveAgentId,
-    });
-  }
 
   async getPlan(input: SessionIdRpcInput): Promise<SessionPlan> {
     const rpc = await this.getRpc();
@@ -499,7 +474,7 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
       context,
       permission,
       plan,
-      swarmMode,
+      askMode,
       premiumQualityMode,
       usage,
       providerRouteStatus,
@@ -514,7 +489,7 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
       rpc.getContext(scoped),
       rpc.getPermission(scoped),
       rpc.getPlan(scoped),
-      rpc.getSwarmMode(scoped).catch(() => undefined),
+      rpc.getAskMode(scoped).catch(() => undefined),
       rpc.getPremiumQuality(scoped).catch(() => undefined),
       rpc.getUsage(scoped).catch(() => undefined),
       rpc.getProviderRouteStatus(scoped).catch(() => null),
@@ -530,7 +505,7 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
       context,
       permission,
       plan,
-      swarmMode,
+      askMode,
       premiumQualityMode,
       usage,
       providerRouteStatus,

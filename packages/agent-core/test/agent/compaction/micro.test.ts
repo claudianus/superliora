@@ -804,7 +804,7 @@ describe('MicroCompaction', () => {
   });
 
 
-  it('preserves stateful ledger tool results (UltraworkGraph / Memory)', () => {
+  it('preserves stateful ledger tool results (TodoList / Memory)', () => {
     vi.useFakeTimers();
     const ctx = testAgent({
       microCompaction: {
@@ -817,8 +817,8 @@ describe('MicroCompaction', () => {
 
     vi.setSystemTime(0);
     appendMicroToolExchange(ctx, 1, {
-      toolName: 'UltraworkGraph',
-      output: 'graph node status update\n'.repeat(80),
+      toolName: 'TodoList',
+      output: 'todo status update\n'.repeat(80),
     });
     appendMicroToolExchange(ctx, 2, {
       toolName: 'Memory',
@@ -832,7 +832,7 @@ describe('MicroCompaction', () => {
     const toolTexts = compacted
       .filter((message) => message.role === 'tool')
       .map((message) => textOf(message, { raw: true }));
-    expect(toolTexts.some((text) => text.includes('graph node status update'))).toBe(true);
+    expect(toolTexts.some((text) => text.includes('todo status update'))).toBe(true);
     expect(toolTexts.some((text) => text.includes('durable preference stored'))).toBe(true);
     expect(hasMarker(compacted)).toBe(false);
   });

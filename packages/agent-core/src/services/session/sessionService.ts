@@ -283,7 +283,6 @@ export class SessionService extends Disposable implements ISessionService {
       if (ac.thinking !== undefined) patch.thinking = ac.thinking;
       if (ac.permission_mode !== undefined) patch.permission_mode = ac.permission_mode;
       if (ac.plan_mode !== undefined) patch.plan_mode = ac.plan_mode;
-      if (ac.swarm_mode !== undefined) patch.swarm_mode = ac.swarm_mode;
       if (ac.goal_objective !== undefined) patch.goal_objective = ac.goal_objective;
       if (ac.goal_control !== undefined) patch.goal_control = ac.goal_control;
       if (
@@ -291,7 +290,6 @@ export class SessionService extends Disposable implements ISessionService {
         patch.thinking !== undefined ||
         patch.permission_mode !== undefined ||
         patch.plan_mode !== undefined ||
-        patch.swarm_mode !== undefined ||
         patch.goal_objective !== undefined ||
         patch.goal_control !== undefined
       ) {

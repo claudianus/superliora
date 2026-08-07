@@ -104,10 +104,7 @@ interface RpcRecord {
   setPermissionCalls: unknown[];
   enterPlanCalls: unknown[];
   cancelPlanCalls: unknown[];
-  getSwarmModeCalls: number;
   startBtwCalls: unknown[];
-  enterSwarmCalls: unknown[];
-  exitSwarmCalls: unknown[];
   createGoalCalls: unknown[];
   pauseGoalCalls: unknown[];
   resumeGoalCalls: unknown[];
@@ -138,10 +135,7 @@ function makeBridge(
     setPermissionCalls: [],
     enterPlanCalls: [],
     cancelPlanCalls: [],
-    getSwarmModeCalls: 0,
     startBtwCalls: [],
-    enterSwarmCalls: [],
-    exitSwarmCalls: [],
     createGoalCalls: [],
     pauseGoalCalls: [],
     resumeGoalCalls: [],
@@ -208,19 +202,9 @@ function makeBridge(
     cancelPlan: vi.fn().mockImplementation(async (payload) => {
       record.cancelPlanCalls.push(payload);
     }),
-    getSwarmMode: vi.fn().mockImplementation(async () => {
-      record.getSwarmModeCalls += 1;
-      return false;
-    }),
     startBtw: vi.fn().mockImplementation(async (payload) => {
       record.startBtwCalls.push(payload);
       return 'agent_btw';
-    }),
-    enterSwarm: vi.fn().mockImplementation(async (payload) => {
-      record.enterSwarmCalls.push(payload);
-    }),
-    exitSwarm: vi.fn().mockImplementation(async (payload) => {
-      record.exitSwarmCalls.push(payload);
     }),
     createGoal: vi.fn().mockImplementation(async (payload) => {
       record.createGoalCalls.push(payload);
@@ -1062,13 +1046,11 @@ describe('PromptService stateless controls — bootstrap + shadow', () => {
       thinking: 'medium',
       permissionMode: 'yolo',
       planMode: true,
-      swarmMode: false,
     });
     // Getters fired exactly once each.
     expect(record.getConfigCalls).toBe(1);
     expect(record.getPermissionCalls).toBe(1);
     expect(record.getPlanCalls).toBe(1);
-    expect(record.getSwarmModeCalls).toBe(1);
     // No setters fired because body matched the bootstrap snapshot.
     expect(record.setModelCalls).toEqual([]);
     expect(record.setThinkingCalls).toEqual([]);
@@ -1438,88 +1420,8 @@ describe('PromptService stateless controls — dispatch log', () => {
     expect(impl._dispatchLogForTest(SID)).toBeUndefined();
   });
 
-  it('bootstraps swarmMode from getSwarmMode', async () => {
-    const { bridge, record } = makeBridge({
-      config: { modelAlias: 'kimi-code/k2', thinkingLevel: 'off' },
-      permission: { mode: 'manual' },
-      plan: null,
-    });
-    const { bus } = makeBus();
-    const impl = newSvc(bridge, bus);
-    await impl.submit(SID, mkBody({ model: 'kimi-code/k1' }));
-    expect(record.getSwarmModeCalls).toBe(1);
-  });
 
-  it('dispatches enterSwarm/exitSwarm and records them in the log', async () => {
-    const { bridge, record } = makeBridge({
-      config: { modelAlias: 'kimi-code/k2', thinkingLevel: 'off' },
-      permission: { mode: 'manual' },
-      plan: null,
-    });
-    const { bus, triggerSubscribers } = makeBus();
-    const impl = newSvc(bridge, bus);
 
-    await impl.submit(SID, mkBody({ swarm_mode: true }));
-    expect(record.enterSwarmCalls.length).toBe(1);
-    expect(record.enterSwarmCalls[0]).toEqual({
-      sessionId: SID,
-      agentId: 'main',
-      trigger: 'manual',
-    });
-    let log = impl._dispatchLogForTest(SID);
-    expect(log?.some((e) => e.kind === 'enterSwarm')).toBe(true);
-
-    triggerSubscribers({
-      type: 'turn.started',
-      turnId: 1,
-      origin: { kind: 'user' },
-      sessionId: SID,
-      agentId: 'main',
-    } as unknown as Event);
-    triggerSubscribers({
-      type: 'turn.ended',
-      turnId: 1,
-      reason: 'completed',
-      sessionId: SID,
-      agentId: 'main',
-    } as unknown as Event);
-
-    await impl.submit(SID, mkBody({ swarm_mode: false }));
-    expect(record.exitSwarmCalls.length).toBe(1);
-    expect(record.exitSwarmCalls[0]).toEqual({ sessionId: SID, agentId: 'main' });
-    log = impl._dispatchLogForTest(SID);
-    expect(log?.some((e) => e.kind === 'exitSwarm')).toBe(true);
-  });
-
-  it('does not re-dispatch swarm_mode when it matches the shadow', async () => {
-    const { bridge, record } = makeBridge({
-      config: { modelAlias: 'kimi-code/k2', thinkingLevel: 'off' },
-      permission: { mode: 'manual' },
-      plan: null,
-    });
-    const { bus, triggerSubscribers } = makeBus();
-    const impl = newSvc(bridge, bus);
-    await impl.submit(SID, mkBody({ swarm_mode: true }));
-    expect(record.enterSwarmCalls.length).toBe(1);
-
-    triggerSubscribers({
-      type: 'turn.started',
-      turnId: 1,
-      origin: { kind: 'user' },
-      sessionId: SID,
-      agentId: 'main',
-    } as unknown as Event);
-    triggerSubscribers({
-      type: 'turn.ended',
-      turnId: 1,
-      reason: 'completed',
-      sessionId: SID,
-      agentId: 'main',
-    } as unknown as Event);
-
-    await impl.submit(SID, mkBody({ swarm_mode: true }));
-    expect(record.enterSwarmCalls.length).toBe(1);
-  });
 
   it('dispatches createGoal and records it in the log', async () => {
     const { bridge, record } = makeBridge({
@@ -1572,7 +1474,6 @@ describe('PromptService stateful session — content-only path', () => {
     expect(record.getConfigCalls).toBe(0);
     expect(record.getPermissionCalls).toBe(0);
     expect(record.getPlanCalls).toBe(0);
-    expect(record.getSwarmModeCalls).toBe(0);
     // No setters fired either.
     expect(record.setModelCalls).toEqual([]);
     expect(record.setThinkingCalls).toEqual([]);

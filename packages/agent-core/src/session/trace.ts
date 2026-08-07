@@ -57,10 +57,6 @@ export function buildSessionTrace(input: BuildSessionTraceInput): SessionTrace {
       if (event !== undefined) {
         events.push(event);
       }
-      const artifact = verificationArtifactFromRecord(record, redactions);
-      if (artifact !== undefined) {
-        verificationArtifacts.push(artifact);
-      }
     }
   } else {
     for (const message of input.context.history) {
@@ -99,7 +95,6 @@ export function buildSessionTrace(input: BuildSessionTraceInput): SessionTrace {
       toolCallCount,
       toolResultCount,
       subagentLifecycleCount: events.filter((event) => event.type.startsWith('subagent.')).length,
-      ultraworkEventCount: events.filter((event) => event.type.startsWith('ultrawork.')).length,
       redactedCount: redactions.count,
       warnings:
         source === 'context_fallback'
@@ -151,9 +146,6 @@ function traceEventFromRecord(
     case 'plan_mode.exit':
     case 'plan_mode.cancel':
       return event(id, index, record, record.type, planTitle(record.type), undefined, record, redactions);
-    case 'swarm_mode.enter':
-    case 'swarm_mode.exit':
-      return event(id, index, record, record.type, swarmTitle(record.type), undefined, record, redactions);
     case 'goal.create':
     case 'goal.update':
     case 'goal.clear':
@@ -174,8 +166,6 @@ function traceEventFromRecord(
         record.event,
         redactions,
       );
-    case 'ultrawork.event':
-      return ultraworkTraceEvent(id, index, record, redactions);
     case 'tools.register_user_tool':
     case 'tools.unregister_user_tool':
     case 'tools.set_active_tools':
@@ -232,52 +222,6 @@ function traceEventFromContextMessage(
     { message: summarizeMessage(message) },
     redactions,
   );
-}
-
-function ultraworkTraceEvent(
-  id: string,
-  index: number,
-  record: Extract<AgentRecord, { type: 'ultrawork.event' }>,
-  redactions: RedactionState,
-): SessionTraceEvent {
-  const data = asJsonObject(record.event, redactions);
-  const runId = stringFrom(data['runId']);
-  const stage = stringFrom(data['to']) ?? stringFrom(data['stage']);
-  return {
-    id,
-    index,
-    time: record.time,
-    type: record.event.type as `ultrawork.${string}`,
-    title: ultraworkTitle(record.event.type),
-    summary: eventSummary(record.event),
-    data,
-    runId,
-    stage,
-    evidenceIds: evidenceIdsFrom(data),
-  };
-}
-
-function verificationArtifactFromRecord(
-  record: AgentRecord,
-  redactions: RedactionState,
-): VerificationArtifact | undefined {
-  if (record.type !== 'ultrawork.event') return undefined;
-  if (record.event.type !== 'ultrawork.verification.completed') return undefined;
-  const data = asJsonObject(record.event, redactions);
-  const verification = data['verification'];
-  if (verification === null || typeof verification !== 'object' || Array.isArray(verification)) {
-    return undefined;
-  }
-  const result = verification as JsonObject;
-  const id = stringFrom(result['id']) ?? `${stringFrom(data['runId']) ?? 'ultrawork'}:verification`;
-  const status = stringFrom(result['status']);
-  return {
-    id,
-    kind: 'ultrawork.verification',
-    title: 'Ultrawork verification',
-    status: status === 'passed' ? 'pass' : status === 'failed' ? 'fail' : status === 'blocked' ? 'blocked' : 'unknown',
-    metadata: result,
-  };
 }
 
 function event(
@@ -376,10 +320,6 @@ function planTitle(type: string): string {
   return 'Plan mode cancelled';
 }
 
-function swarmTitle(type: string): string {
-  return type === 'swarm_mode.enter' ? 'Swarm mode entered' : 'Swarm mode exited';
-}
-
 function goalTitle(type: string): string {
   if (type === 'goal.create') return 'Goal created';
   if (type === 'goal.update') return 'Goal updated';
@@ -402,18 +342,6 @@ function subagentTitle(type: string): string {
   if (type === 'subagent.completed') return 'Subagent completed';
   if (type === 'subagent.failed') return 'Subagent failed';
   if (type === 'subagent.suspended') return 'Subagent suspended';
-  return type;
-}
-
-function ultraworkTitle(type: string): string {
-  if (type === 'ultrawork.stage.changed') return 'Ultrawork stage changed';
-  if (type === 'ultrawork.team.staffed') return 'Ultrawork team staffed';
-  if (type === 'ultrawork.task.assigned') return 'Ultrawork task assigned';
-  if (type === 'ultrawork.collaboration.message') return 'Ultrawork collaboration message';
-  if (type === 'ultrawork.collaboration.mention') return 'Ultrawork collaboration mention';
-  if (type === 'ultrawork.council.decision') return 'Ultrawork council decision';
-  if (type === 'ultrawork.verification.completed') return 'Ultrawork verification completed';
-  if (type === 'ultrawork.knowledge.promoted') return 'Ultrawork knowledge promoted';
   return type;
 }
 

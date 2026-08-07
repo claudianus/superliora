@@ -9,13 +9,8 @@ export * from './types';
 export { dispatchInput, type SlashCommandHost } from './hub/dispatch';
 export { handleAccountsCommand, openAccountsManager } from './auth/accounts';
 export { handleLoginCommand, handleLogoutCommand } from './auth/login';
-export {
-  buildBenchStatusLines,
-  handleBenchCommand,
-  loadBenchStatus,
-  redactBenchStatusText,
-} from './bench/bench';
 export { handleBtwCommand } from './btw';
+export { handleAskCommand, setAskMode } from './config/plan/ask';
 export { handleCompactCommand, handlePlanCommand } from './config/plan/plan';
 export { handleAppearanceCommand } from './config/appearance/appearance';
 export { handleContextCommand, showContextWorkingSetPicker } from './config/context/context';
@@ -27,10 +22,6 @@ export { showExperimentsPanel } from './config/experiments/experiments';
 export { showSettingsSelector, showHarnessPanel, openSettingsPane } from './config/settings';
 export { showToolsInventory } from './config/harness/harness-tools';
 export { showHarnessEyesReadiness } from './config/eyes/eyes-settings';
-export { handleSwarmCommand } from './swarm/swarm';
-
-export { buildUltraworkPrompt, parseUltraworkCommand } from '#/tui/utils/mission/mission-contract';
-export { handleUltraworkCommand } from './ultrawork/ultrawork';
 export { showMcpServers, showQuota, showStatusReport, showUsage } from './info/info';
 export {
   buildMemoryReadinessLines,
@@ -38,18 +29,15 @@ export {
   loadMemoryReadinessEvidence,
   redactMemoryReadinessText,
 } from './memory/memory';
-export { buildPreflightLines, buildPreflightStatus, handlePreflightCommand, loadPreflightStatus, redactPreflightText } from './preflight/command';
 export { handlePluginsCommand, pluginsArgumentCompletions } from './plugins/plugins';
 export { handlePersonaCommand } from './persona';
 export { handleReloadCommand, handleReloadTuiCommand } from './session/reload';
 export {
   formatRendererDiagnosticsStatusReport,
   formatRendererTraceStatusReport,
-  handleRendererCommand,
-  rendererArgumentCompletions,
   type RendererDiagnosticsOverlayCommand,
   type RendererTraceCommand,
-} from './renderer';
+} from '../controllers/diagnostics/renderer-status';
 export { handleGoalCommand, parseGoalCommand } from './goal';
 export { handleJobCommand, handleJobsCommand } from './jobs';
 export { goalArgumentCompletions } from './hub/registry';
@@ -57,12 +45,6 @@ export { handleForkCommand, handleInitCommand, handleTitleCommand } from './sess
 export { handleUndoCommand } from './session/undo';
 export { handleRewindCommand } from './session/rewind';
 export { handleLoopCommand } from './loop';
-export {
-  IMPROVEMENT_AREAS,
-  handleImproveHarnessCommand,
-  improveHarnessArgumentCompletions,
-  parseImproveHarnessCommand,
-} from './improve-harness';
 export {
   promptApiKey,
   promptApiKeyForCatalogProvider,

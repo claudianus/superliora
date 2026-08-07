@@ -43,7 +43,6 @@ export function contextRoute(home: string = SUPERLIORA_HOME): Hono {
         permission: proj.permission,
         planMode: proj.planMode,
         goal: proj.goal,
-        swarm: proj.swarm,
       });
     } catch (error) {
       const msg = (error as Error).message;

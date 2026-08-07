@@ -69,13 +69,6 @@ describe('SearchToolsTool', () => {
         helpVisibility: 'advanced',
       },
       { name: 'CreateGoal', description: 'Create goal', active: true, source: 'builtin', helpVisibility: 'primary' },
-      {
-        name: 'CreateUltraGoal',
-        description: 'Legacy ultra goal',
-        active: true,
-        source: 'builtin',
-        helpVisibility: 'advanced',
-      },
     ];
     const tool = new SearchToolsTool(agentWithTools(compat));
     const exec = tool.resolveExecution({});
@@ -84,7 +77,6 @@ describe('SearchToolsTool', () => {
     expect(result.output).toContain('Review');
     expect(result.output).toContain('CreateGoal');
     expect(result.output).not.toContain('LioraReview');
-    expect(result.output).not.toContain('CreateUltraGoal');
   });
 
   it('lists ApplyPatch in the primary default catalog when registered', async () => {

@@ -173,7 +173,7 @@ export interface CreateGoalInput {
    */
   readonly gateCommand?: string;
   readonly replace?: boolean;
-  /** Whether this goal was created standalone or as part of Ultrawork orchestration. */
+  /** How this goal was activated. */
   readonly source?: ModeActivationSource;
 }
 

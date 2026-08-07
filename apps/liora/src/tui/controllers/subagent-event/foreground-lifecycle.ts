@@ -7,20 +7,14 @@ import { formatHookResultPlain } from '../../utils/hook-result-format';
 import type { SessionEventHost } from '../session-event/handler';
 import type { SubagentLifecycleEventOf } from './helpers';
 import type { SubagentInfo } from './handler';
-import type { SubagentSwarmCoordinator } from './swarm';
 
 export function routeChildAgentToolEvent(
   host: SessionEventHost,
-  swarm: SubagentSwarmCoordinator,
   childAgentId: string,
   parentToolCallId: string,
   info: SubagentInfo,
   event: Event,
 ): boolean {
-  if (swarm.applyChildAgentEvent(parentToolCallId, event, childAgentId)) {
-    return true;
-  }
-
   const toolCall = host.streamingUI.getToolComponent(parentToolCallId);
   if (toolCall === undefined) return true;
   toolCall.setSubagentMeta(childAgentId, info.name);
@@ -69,13 +63,8 @@ export function routeChildAgentToolEvent(
 
 export function handleForegroundSubagentSpawned(
   host: SessionEventHost,
-  swarm: SubagentSwarmCoordinator,
   event: SubagentLifecycleEventOf<'subagent.spawned'>,
 ): void {
-  if (swarm.registerSubagent(event.parentToolCallId, event)) {
-    return;
-  }
-
   let tc = getOrActivateToolComponent(host, event.parentToolCallId);
   tc ??= createStandaloneSubagentToolCall(host, event);
   if (tc === undefined) return;
@@ -89,14 +78,9 @@ export function handleForegroundSubagentSpawned(
 
 export function handleForegroundSubagentStarted(
   host: SessionEventHost,
-  swarm: SubagentSwarmCoordinator,
   event: SubagentLifecycleEventOf<'subagent.started'>,
   info: SubagentInfo,
 ): void {
-  if (swarm.markStarted(info.parentToolCallId, event.subagentId)) {
-    return;
-  }
-
   const tc = getOrActivateToolComponent(host, info.parentToolCallId);
   if (tc === undefined) return;
   tc.onSubagentStarted({
@@ -106,30 +90,12 @@ export function handleForegroundSubagentStarted(
   });
 }
 
-export function handleForegroundSubagentSuspended(
-  swarm: SubagentSwarmCoordinator,
-  event: SubagentLifecycleEventOf<'subagent.suspended'>,
-  info: SubagentInfo,
-): void {
-  swarm.markSuspended(info.parentToolCallId, {
-    agentId: event.subagentId,
-    reason: event.reason,
-    swarmIndex: info.swarmIndex,
-  });
-}
-
 export function handleForegroundSubagentCompleted(
   host: SessionEventHost,
-  swarm: SubagentSwarmCoordinator,
   event: SubagentLifecycleEventOf<'subagent.completed'>,
   info: SubagentInfo,
 ): void {
   const { parentToolCallId } = info;
-  if (swarm.markCompleted(parentToolCallId, event.subagentId, event.resultSummary)) {
-    host.streamingUI.removeToolComponentIfInactive(parentToolCallId);
-    return;
-  }
-
   const tc = host.streamingUI.getToolComponent(parentToolCallId);
   if (tc === undefined) return;
   tc.onSubagentCompleted({
@@ -148,23 +114,10 @@ export function handleForegroundSubagentCompleted(
 
 export function handleForegroundSubagentFailed(
   host: SessionEventHost,
-  swarm: SubagentSwarmCoordinator,
   event: SubagentLifecycleEventOf<'subagent.failed'>,
   info: SubagentInfo,
 ): void {
   const { parentToolCallId } = info;
-  if (
-    swarm.markFailedOrCancelled(
-      parentToolCallId,
-      event.subagentId,
-      event.error,
-      event,
-    )
-  ) {
-    host.streamingUI.removeToolComponentIfInactive(parentToolCallId);
-    return;
-  }
-
   const tc = host.streamingUI.getToolComponent(parentToolCallId);
   if (tc === undefined) return;
   tc.onSubagentFailed({ error: event.error });

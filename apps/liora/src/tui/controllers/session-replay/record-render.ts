@@ -1,15 +1,9 @@
 import type {
   AgentReplayRecord,
-  Event,
   PermissionMode,
   ResumedAgentState,
 } from '@superliora/sdk';
 
-import {
-  isUltraworkTheatreEvent,
-  UltraworkTheatreComponent,
-  ultraworkTheatreRunId,
-} from '../../components/messages/ultrawork/ultrawork-theatre';
 import {
   createReplayRenderContext,
   limitReplayRecordsByTurn,
@@ -18,7 +12,6 @@ import {
   type ReplayRenderContext,
 } from '../../utils/session/message-replay';
 import { buildGoalCompletionMessage } from '../../utils/goal-completion';
-import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { ttui } from '#/tui/utils/tui-i18n';
 import {
   goalLifecycleReplayContent,
@@ -28,7 +21,6 @@ import {
 } from './helpers';
 import type { SessionReplayMessageRenderer } from './message-render';
 import type {
-  AgentEventReplayRecord,
   ApprovalReplayRecord,
   CompactionReplayRecord,
   GoalReplayLifecycleChange,
@@ -104,32 +96,9 @@ export class SessionReplayRecordRenderer {
         this.renderApprovalResult(context, record.record);
         return;
       case 'agent_event':
-        this.tools.flushAssistant(context);
-        this.renderAgentEvent(record.event);
-        return;
       case 'config_updated':
         return;
     }
-  }
-
-  private renderAgentEvent(event: AgentEventReplayRecord['event']): void {
-    const replayEvent = {
-      ...event,
-      sessionId: this.host.state.appState.sessionId,
-      agentId: 'main',
-    } as Event;
-    if (!isUltraworkTheatreEvent(replayEvent)) return;
-
-    const runId = ultraworkTheatreRunId(replayEvent);
-    const existing = this.host.sessionEventHandler.ultraworkTheatres.get(runId);
-    if (existing === undefined) {
-      const theatre = new UltraworkTheatreComponent(replayEvent);
-      this.host.sessionEventHandler.ultraworkTheatres.set(runId, theatre);
-      this.host.state.transcriptContainer.addChild(theatre);
-    } else {
-      existing.applyEvent(replayEvent);
-    }
-    requestTUILayoutRender(this.host.state);
   }
 
   private renderCompaction(context: ReplayRenderContext, record: CompactionReplayRecord): void {

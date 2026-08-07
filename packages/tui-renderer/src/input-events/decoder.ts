@@ -15,7 +15,7 @@ import { codePointAt, consumeUnknownControlSequence, isPrintable, splitDecodable
  * How long to wait after a lone ESC before treating it as Escape (not the
  * start of a split CSI/SGR/SS3 sequence). Terminals often deliver mouse-wheel
  * SGR as `\u001B` then `[<64;…M` across TCP/PTY chunks; emitting Escape on the
- * first byte cancels in-flight agent turns (Ultrawork false interrupt).
+ * first byte cancels in-flight agent turns (false interrupt).
  */
 export const DEFAULT_ESCAPE_RESOLVE_MS = 35;
 

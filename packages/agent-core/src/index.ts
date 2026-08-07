@@ -1,5 +1,5 @@
 export { Agent } from './agent';
-export type { SwarmModeTrigger, ToolInfo } from './agent';
+export type { ToolInfo } from './agent';
 export {
   ConversationLoopController,
   createConversationLoop,
@@ -215,23 +215,6 @@ export type {
   FlagId,
   FlagSurface,
 } from './flags';
-export { shouldKeepPlanModeForUltraworkRun } from '#/mission';
-export type { UltraworkRecoveryReport } from '#/mission';
-export {
-  MissionRunStateMachine,
-  buildMissionRecoveryPrompt,
-  maybeAdvanceMissionStage,
-  maybeFinishMissionRun,
-  MISSION_STAGE_ORDER,
-} from './mission/aliases';
-export type { CreateMissionStateMachineInput } from './mission/aliases';
-export {
-  dualEmitMissionUltraworkAlias,
-  isMissionDualEmitEnabled,
-  maybeEmitMissionUltraworkAliasLive,
-  missionDualEmitStatusLine,
-  MISSION_DUAL_EMIT_ENV,
-} from './mission/event-alias';
 export { Emitter } from './base/common/event';
 
 export {

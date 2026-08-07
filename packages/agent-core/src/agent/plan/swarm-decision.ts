@@ -1,7 +1,7 @@
 /**
  * Swarm decision parsing and ENGAGE follow-up advice for approved plans.
  *
- * Ultra Plan keeps the "Swarm decision" section. The UltraSwarm tool and its
+ * Ultra Plan keeps the "Swarm decision" section. The retired fan-out tools and their
  * engage gate are retired, so an ENGAGE decision now routes into Job worker
  * fan-out (Job ledger) instead of a specialist swarm tool.
  */
@@ -25,7 +25,7 @@ export function swarmEngageNextAction(
   if (swarmDecisionFromPlan(plan) !== 'ENGAGE') return undefined;
   const workNodeLine = seededWorkGraph.seeded && seededWorkGraph.nodeIds.length > 0
     ? `Approved plan WorkGraph nodes are already seeded; pass work_node_ids: ${seededWorkGraph.nodeIds.join(', ')}.`
-    : 'Pass relevant UltraworkGraph work_node_ids after seeding the graph, or omit work_node_ids until UltraworkGraph exists.';
+    : 'Pass relevant TaskGraph work_node_ids after seeding the graph, or omit work_node_ids until TaskGraph exists.';
   return [
     'Swarm ENGAGE approved.',
     'Recommended next action: create the verifiable UltraGoal with CreateGoal if it does not already exist, then fan the work out to Job workers (JobCreate) before product-file edits or single-agent implementation.',

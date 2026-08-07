@@ -1,6 +1,7 @@
 import type { Agent } from '../..';
 import type { PermissionPolicy } from '../types';
 import { AutoModeApprovePermissionPolicy } from './auto-mode-approve';
+import { AskModeGuardDenyPermissionPolicy } from './ask-mode-guard-deny';
 import { AutoModeAskUserQuestionDenyPermissionPolicy } from './auto-mode-ask-user-question-deny';
 import { DefaultToolApprovePermissionPolicy } from './default-tool-approve';
 import { ExitPlanModeReviewAskPermissionPolicy } from './exit-plan-mode-review-ask';
@@ -32,8 +33,11 @@ export function createPermissionDecisionPolicies(agent: Agent): PermissionPolicy
     new PreToolCallHookPermissionPolicy(agent),
     // auto mode + AskUserQuestion historically denied; now no-op (tool auto-answers).
     new AutoModeAskUserQuestionDenyPermissionPolicy(agent),
-    // plan mode: Write/Edit outside plan file + Mission evidence root → deny.
-    // Mission plan-phase product mutation is hard-denied until ExitPlanMode.
+    // ask mode: anything that mutates or delegates → deny. Runs before the
+    // plan guard so ask mode wins if both somehow end up active.
+    new AskModeGuardDenyPermissionPolicy(agent),
+    // plan mode: Write/Edit outside the plan file → deny. Plan-phase product
+    // mutation is hard-denied until ExitPlanMode.
     new PlanModeGuardDenyPermissionPolicy(agent),
     // User-configured deny rule matches → deny.
     new UserConfiguredDenyPermissionPolicy(agent),

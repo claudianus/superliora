@@ -26,7 +26,6 @@ const mocks = vi.hoisted(() => {
         permission: 'manual',
       }),
     ),
-    tryAutoResumeUltrawork: vi.fn(async () => null),
     onEvent: vi.fn((handler: (event: any) => void) => {
       eventHandlers.add(handler);
       return () => eventHandlers.delete(handler);

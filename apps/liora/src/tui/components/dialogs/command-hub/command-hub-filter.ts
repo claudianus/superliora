@@ -10,7 +10,6 @@ const SECTION_ORDER = [
   'Start',
   'Chat',
   'Workspace',
-  'Fleet',
   'Extend',
   'Appearance',
   'Account',

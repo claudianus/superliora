@@ -1,19 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
-import * as fleetSurface from '#/fleet';
 import {
   applyMakerCheckerHardGate,
   classifyExpertRoleString,
   classifySwarmLaneRole,
   classifySwarmPhaseRole,
-  detectAgentSwarmItemRoleCollision,
+  detectBatchItemRoleCollision,
   detectMakerCheckerCollisions,
   detectMakerCheckerCollisionsFromAssignments,
   detectMakerCheckerCollisionsFromSwarmOutput,
   formatMakerCheckerSoftWarn,
   isMakerCheckerHardGateEnabled,
   isMakerCheckerHardReject,
-  makerCheckerSoftWarnFromAgentSwarmItems,
+  makerCheckerSoftWarnFromBatchItems,
   SWARM_MAKER_CHECKER_HARD_PREFIX,
   SWARM_MAKER_CHECKER_SOFT_TIP,
 } from '#/fleet';
@@ -72,10 +71,10 @@ describe('swarm-maker-checker.ts — expert collisions', () => {
   });
 });
 
-describe('swarm-maker-checker.ts — AgentSwarm homogeneous batch', () => {
+describe('swarm-maker-checker.ts — Fleet homogeneous batch', () => {
   it('detects mixed implement/review intents in one item list', () => {
     expect(
-      detectAgentSwarmItemRoleCollision([
+      detectBatchItemRoleCollision([
         'Implement login route',
         'Review auth middleware for security gaps',
       ]),
@@ -84,7 +83,7 @@ describe('swarm-maker-checker.ts — AgentSwarm homogeneous batch', () => {
 
   it('does not warn when all items share one intent class', () => {
     expect(
-      makerCheckerSoftWarnFromAgentSwarmItems(['Implement login route', 'Patch session store']),
+      makerCheckerSoftWarnFromBatchItems(['Implement login route', 'Patch session store']),
     ).toBeUndefined();
   });
 });
@@ -129,7 +128,7 @@ describe('swarm-maker-checker.ts — hard gate flag', () => {
   });
 
   it('prefixes soft tips when hard gate is on', () => {
-    const soft = makerCheckerSoftWarnFromAgentSwarmItems(
+    const soft = makerCheckerSoftWarnFromBatchItems(
       ['Implement login route', 'Review auth middleware for security gaps'],
       undefined,
       { env: {} },
@@ -137,7 +136,7 @@ describe('swarm-maker-checker.ts — hard gate flag', () => {
     expect(soft).toBeDefined();
     expect(isMakerCheckerHardReject(soft)).toBe(false);
 
-    const hard = makerCheckerSoftWarnFromAgentSwarmItems(
+    const hard = makerCheckerSoftWarnFromBatchItems(
       ['Implement login route', 'Review auth middleware for security gaps'],
       undefined,
       { hardGate: true },
@@ -153,14 +152,14 @@ describe('swarm-maker-checker.ts — hard gate flag', () => {
 
   it('documents pre-spawn contract: hard reject is detectable before queue', () => {
     // Fleet fan-out callers check this before spawn/queue.
-    const hard = makerCheckerSoftWarnFromAgentSwarmItems(
+    const hard = makerCheckerSoftWarnFromBatchItems(
       ['Implement feature X', 'Review feature X for security'],
       undefined,
       { hardGate: true },
     );
     expect(isMakerCheckerHardReject(hard)).toBe(true);
     // Soft path must remain non-reject so default product behaviour is unchanged.
-    const soft = makerCheckerSoftWarnFromAgentSwarmItems(
+    const soft = makerCheckerSoftWarnFromBatchItems(
       ['Implement feature X', 'Review feature X for security'],
       undefined,
       { env: {} },
@@ -181,11 +180,6 @@ describe('swarm-maker-checker.ts — hard gate flag', () => {
 });
 
 describe('swarm-maker-checker.ts — retro guard (S3-R7)', () => {
-  it('fleet surface no longer exposes retired UltraSwarm-named helpers', () => {
-    const retired = Object.keys(fleetSurface).filter((key) => /UltraSwarm/i.test(key));
-    expect(retired).toEqual([]);
-  });
-
   it('classifies expert role strings via the role fallback', () => {
     expect(classifyExpertRoleString('Reviewer')).toBe('checker');
     expect(classifyExpertRoleString('implementer')).toBe('maker');

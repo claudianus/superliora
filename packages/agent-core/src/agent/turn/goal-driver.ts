@@ -37,25 +37,11 @@ export const GOAL_CONTINUATION_PROMPT = [
 
 /**
  * Builds a compact progress signature for the no-progress detector.
- * Combines goal state + ultrawork WorkGraph node status into a single
- * string that changes when material progress is made.
+ * Changes when material goal progress is made.
  */
 export function buildGoalProgressSignature(agent: Agent): string {
   const goal = agent.goal.getGoal().goal;
-  const run = agent.ultrawork?.getRun() ?? null;
-  const parts: string[] = [
-    `goal:${goal?.goalId ?? 'none'}:${goal?.status ?? 'none'}:${goal?.turnsUsed ?? 0}`,
-  ];
-  if (run === null || run.workGraph === undefined) {
-    parts.push('uw:none');
-    return parts.join('|');
-  }
-  const nodes = run.workGraph.nodes;
-  const open = nodes.filter((n) => n.status !== 'done' && n.status !== 'failed').map((n) => n.id);
-  const done = nodes.filter((n) => n.status === 'done').length;
-  const evidence = nodes.reduce((acc, n) => acc + (n.evidenceIds?.length ?? 0), 0);
-  parts.push(`uw:${run.id}:${run.status}:done=${done}:open=${open.slice(0, 12).join(',')}:ev=${evidence}`);
-  return parts.join('|');
+  return `goal:${goal?.goalId ?? 'none'}:${goal?.status ?? 'none'}:${goal?.turnsUsed ?? 0}`;
 }
 
 /** Returns true if the origin is a goal completion/blocked reminder injection. */

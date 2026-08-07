@@ -5,22 +5,14 @@ import type {
   GoalChange,
   Session,
 } from '@superliora/sdk';
-// W5 soft path: mission/fleet event aliases — prefer `@superliora/sdk` (agent-core `#/mission`) over local ultrawork normalization.
-import { normalizeMissionOrFleetUltraworkEventAlias } from '@superliora/sdk';
 import type { QueuedMessage } from '../../types';
 
 import { MoonLoader } from '../../components/chrome/moon-loader';
-import {
-  isUltraworkTheatreEvent,
-} from '../../components/messages/ultrawork/ultrawork-theatre';
 import { McpOAuthAuthorizationUrlOpener } from '../../utils/mcp/mcp-oauth';
 import { openUrl } from '#/utils/open-url';
 import type { ColorToken } from '#/tui/theme';
 import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
-import { requestTUILayoutRender } from '../../utils/render/frame-render';
-import { isMotionTheatreActive } from '../../utils/render/motion-beats';
 import { searchCascadePatchFromDegraded } from '../../utils/search/search-cascade';
-import type { WarRoomExpertView } from '../../utils/war-room-experts';
 import type { ControlTowerJobDesk } from '../../features/control-tower/job-desk-events';
 import type { BtwPanelController } from '../panes/btw-panel';
 import type { StreamingUIController } from '../streaming-ui/index';
@@ -34,7 +26,6 @@ import { SessionEventMcpStatus } from './mcp-status';
 import { SessionEventNotices } from './notices';
 import { SessionEventTools } from './tools';
 import { SessionEventTurn } from './turn';
-import { SessionEventUltrawork } from './ultrawork';
 import { SubAgentEventHandler } from '../subagent-event/handler';
 import { formatRuntimeDegradedNotice } from '../../utils/session/runtime-degraded-notice';
 import { formatSubagentStalledNotice } from '../../utils/tools/subagent-stalled-notice';
@@ -89,7 +80,6 @@ export class SessionEventHandler {
   private readonly goalQueue: SessionEventGoalQueue;
   private readonly tools: SessionEventTools;
   private readonly turn: SessionEventTurn;
-  private readonly ultrawork: SessionEventUltrawork;
   private readonly mcpStatus: SessionEventMcpStatus;
   private readonly backgroundTasksHandler: SessionEventBackgroundTasks;
   private readonly notices: SessionEventNotices;
@@ -120,7 +110,6 @@ export class SessionEventHandler {
         this.backgroundTasksHandler.syncBadge();
       },
     });
-    this.ultrawork = new SessionEventUltrawork(host, this.subAgentEventHandler);
     this.mcpStatus = new SessionEventMcpStatus(host);
     this.notices = new SessionEventNotices(host, {
       setCurrentTurnHasAssistantText: (value) => {
@@ -130,27 +119,8 @@ export class SessionEventHandler {
         this.pendingModelBlockedFallback = value;
       },
     });
-    this.tools = new SessionEventTools(host, {
-      handleAgentSwarmToolCallStarted: (toolCallId, args, name) => {
-        this.subAgentEventHandler.handleAgentSwarmToolCallStarted(toolCallId, args, name);
-      },
-      handleAgentSwarmToolCallDelta: (toolCallId, args, options, name) => {
-        this.subAgentEventHandler.handleAgentSwarmToolCallDelta(toolCallId, args, options, name);
-      },
-      hasAgentSwarmProgress: (toolCallId) => {
-        return this.subAgentEventHandler.hasAgentSwarmProgress(toolCallId);
-      },
-      handleAgentSwarmToolResult: (toolCallId, resultData, isError) => {
-        this.subAgentEventHandler.handleAgentSwarmToolResult(toolCallId, resultData, isError);
-      },
-    });
+    this.tools = new SessionEventTools(host);
     this.turn = new SessionEventTurn(host, {
-      clearAgentSwarmProgress: () => {
-        this.clearAgentSwarmProgress();
-      },
-      markActiveAgentSwarmsCancelled: () => {
-        this.subAgentEventHandler.markActiveAgentSwarmsCancelled();
-      },
       scheduleQueuedGoalPromotion: () => {
         this.goalQueue.scheduleQueuedGoalPromotion();
       },
@@ -187,10 +157,6 @@ export class SessionEventHandler {
     return this.mcpStatus.mcpServerStatusSpinners;
   }
 
-  get ultraworkTheatres() {
-    return this.ultrawork.ultraworkTheatres;
-  }
-
   get mcpServers() {
     return this.mcpStatus.mcpServers;
   }
@@ -202,7 +168,6 @@ export class SessionEventHandler {
   resetRuntimeState(): void {
     this.host.missionControl.reset();
     this.backgroundTasksHandler.resetRuntimeState();
-    this.ultrawork.resetRuntimeState();
     this.subAgentEventHandler.resetRuntimeState();
     this.notices.resetRuntimeState();
     this.mcpStatus.resetRuntimeState();
@@ -211,31 +176,6 @@ export class SessionEventHandler {
     this.pendingModelBlockedFallback = undefined;
     this.turn.resetRuntimeState();
     this.goalQueue.resetRuntimeState();
-  }
-
-  clearAgentSwarmProgress(): void {
-    this.subAgentEventHandler.clearAgentSwarmProgress();
-  }
-
-  hasActiveAgentSwarmToolCall(): boolean {
-    return this.subAgentEventHandler.hasActiveAgentSwarmToolCall();
-  }
-
-  /** Forward War Room dock actions (pause / restaff / raw) to live swarm cards. */
-  invokeWarRoomAction(
-    action: 'pause' | 'restaff' | 'raw',
-    options: { readonly reason?: string } = {},
-  ): number {
-    return this.subAgentEventHandler.invokeWarRoomAction(action, options);
-  }
-
-  /** Snapshot of War Room experts for `/swarm talk` / `/swarm msg`. */
-  listWarRoomExperts(): readonly WarRoomExpertView[] {
-    return this.subAgentEventHandler.listWarRoomExperts();
-  }
-
-  syncAgentSwarmActivitySpinner(spinner: MoonLoader | undefined): void {
-    this.subAgentEventHandler.syncAgentSwarmActivitySpinner(spinner);
   }
 
   startSubscription(): void {
@@ -263,35 +203,10 @@ export class SessionEventHandler {
   }
 
   handleEvent(event: Event, sendQueued: (item: QueuedMessage) => void): void {
-    event = normalizeMissionOrFleetUltraworkEventAlias(event);
-
     if (this.subAgentEventHandler.routeChildAgentEvent(event)) return;
 
     if ('turnId' in event && event.turnId !== undefined) {
       this.host.streamingUI.setTurnId(String(event.turnId));
-    }
-
-    if (event.type === 'ultrawork.swarm.paused') {
-      this.subAgentEventHandler.applySwarmPausedToSwarmProgress({
-        reason: event.reason,
-        phase: event.phase,
-      });
-      requestTUILayoutRender(this.host.state);
-      return;
-    }
-
-    if (event.type === 'ultrawork.council.decision') {
-      this.subAgentEventHandler.applyCouncilDecisionToSwarmProgress({
-        decision: event.decision.decision,
-        reason: event.decision.reason,
-      });
-      requestTUILayoutRender(this.host.state);
-      // fall through so theatre can also record it when applicable
-    }
-
-    if (isUltraworkTheatreEvent(event)) {
-      this.ultrawork.handleEvent(event);
-      return;
     }
 
     switch (event.type) {
@@ -336,7 +251,6 @@ export class SessionEventHandler {
             title: 'Research cascade',
             nowMs: appearanceAnimationNow(),
             streamThrottle: true,
-            theatreActive: isMotionTheatreActive(this.host.state.appState),
           });
         }
         // Loop51a: named notice (footer badge alone was easy to miss mid-turn).
@@ -387,15 +301,10 @@ export class SessionEventHandler {
       }
       case 'subagent.progress':
         this.host.controlTowerDesk.handleSubagentProgress(event); break;
-      case 'subagent.todo.updated':
-        this.subAgentEventHandler.handleSubagentTodoUpdated(event); break;
       case 'subagent.tool_call':
-        this.host.controlTowerDesk.handleSubagentToolCall(event);
-        this.subAgentEventHandler.handleSubagentToolActivity(event);
-        break;
+        this.host.controlTowerDesk.handleSubagentToolCall(event); break;
       case 'subagent.tool_result':
-        this.host.controlTowerDesk.handleSubagentToolResult(event);
-        this.subAgentEventHandler.handleSubagentToolActivity(event); break;
+        this.host.controlTowerDesk.handleSubagentToolResult(event); break;
       case 'tools.update_store':
         this.tools.handleToolsUpdateStore(event); break;
       case 'background.task.started':

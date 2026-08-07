@@ -12,7 +12,6 @@ import {
   type HarnessStatusView,
   type InlineCompleteResult,
   type RefineRunResult,
-  type SwarmModeTrigger,
   type SuggestPromptsResult,
   type TurnCancelSource,
 } from '@superliora/agent-core';
@@ -176,13 +175,6 @@ export abstract class SessionCore {
     });
   }
 
-  async swarm(input: string | PromptInput): Promise<void> {
-    this.ensureOpen();
-    await this.rpc.swarm({
-      sessionId: this.id,
-      input: normalizePromptInput(input),
-    });
-  }
 
   async init(): Promise<void> {
     this.ensureOpen();
@@ -260,7 +252,7 @@ export abstract class SessionCore {
     await this.rpc.setPermission({ sessionId: this.id, mode });
   }
 
-  async setPlanMode(enabled: boolean, ultra = false, initialContext?: string, source?: 'standalone' | 'ultrawork'): Promise<void> {
+  async setPlanMode(enabled: boolean, ultra = false, initialContext?: string): Promise<void> {
     this.ensureOpen();
     if (typeof enabled !== 'boolean') {
       throw new LioraError(
@@ -273,24 +265,9 @@ export abstract class SessionCore {
       enabled,
       ultra: ultra ? true : undefined,
       initialContext,
-      source,
     });
   }
 
-  async setSwarmMode(enabled: boolean, trigger: SwarmModeTrigger): Promise<void> {
-    this.ensureOpen();
-    if (typeof enabled !== 'boolean') {
-      throw new LioraError(
-        ErrorCodes.REQUEST_INVALID,
-        'Session swarm mode must be a boolean',
-      );
-    }
-    if (enabled) {
-      await this.rpc.setSwarmMode({ sessionId: this.id, enabled: true, trigger });
-    } else {
-      await this.rpc.setSwarmMode({ sessionId: this.id, enabled: false });
-    }
-  }
 
   async setPremiumQuality(enabled: boolean): Promise<void> {
     this.ensureOpen();
@@ -301,6 +278,14 @@ export abstract class SessionCore {
       );
     }
     await this.rpc.setPremiumQuality({ sessionId: this.id, enabled });
+  }
+
+  async setAskMode(enabled: boolean): Promise<void> {
+    this.ensureOpen();
+    if (typeof enabled !== 'boolean') {
+      throw new LioraError(ErrorCodes.REQUEST_INVALID, 'Session ask mode must be a boolean');
+    }
+    await this.rpc.setAskMode({ sessionId: this.id, enabled });
   }
 
   async getPlan(): Promise<SessionPlan> {

@@ -9,7 +9,6 @@
  */
 const KNOWN_MUTATING_TOOLS = new Set([
   'Agent',
-  'AgentSwarm',
   'AskUserQuestion',
   'Bash',
   'CreateGoal',
@@ -18,7 +17,6 @@ const KNOWN_MUTATING_TOOLS = new Set([
   'Edit',
   'EnterPlanMode',
   'ExitPlanMode',
-  'Fleet',
   'Memory',
   'NextPhase',
   'RecordInterviewFinding',
@@ -26,8 +24,6 @@ const KNOWN_MUTATING_TOOLS = new Set([
   'Skill',
   'TaskStop',
   'TodoList',
-  'UltraSwarm',
-  'UltraworkGraph',
   'UpdateGoal',
   'Write',
 ]);

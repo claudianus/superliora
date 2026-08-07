@@ -2,7 +2,7 @@ import type { CommandHubActionId } from './command-hub-types';
 
 const TOGGLE_IDS = new Set<CommandHubActionId>([
   'modes.plan',
-  'modes.swarm',
+  'modes.ask',
   'modes.premium',
 ]);
 
@@ -33,7 +33,6 @@ export function commandHubNestsPicker(id: CommandHubActionId): boolean {
     case 'appearance.appearance':
     case 'workspace.jobOps':
     case 'workspace.cron':
-    case 'fleet.warRoom':
     case 'help.shortcuts':
     case 'help.commands':
       return true;

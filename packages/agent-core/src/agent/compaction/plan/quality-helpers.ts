@@ -1,9 +1,5 @@
 import { extractText, type Message } from '@superliora/kosong';
 
-import {
-  extractSwarmRunsFromMessages,
-  extractSwarmRunsFromText,
-} from '../memory/swarm-memory-extract';
 import { persistCompactionSidecar } from '../memory/sidecar';
 import type { CompactionQualityWarningCategory } from '../types';
 import type { CompactionQualitySignals } from '../types';
@@ -26,38 +22,6 @@ export const V2_REQUIRED_LABELS = [
 ] as const;
 
 export const TINY_HISTORY_TOKEN_THRESHOLD = 512;
-
-export function computeSwarmRecallScore(
-  expectedRuns: ReturnType<typeof extractSwarmRunsFromMessages>,
-  summary: string,
-  structuredSwarmRuns: readonly string[],
-): number {
-  const summaryRuns = extractSwarmRunsFromText(summary);
-  const structuredText = structuredSwarmRuns.join('\n');
-  let matched = 0;
-  let total = 0;
-  for (const run of expectedRuns) {
-    total += 1;
-    const runPresent =
-      summary.includes(run.runId) ||
-      structuredText.includes(run.runId) ||
-      summaryRuns.some((entry) => entry.runId === run.runId);
-    if (!runPresent) continue;
-    matched += 1;
-    for (const expert of run.experts) {
-      total += 2;
-      if (summary.includes(expert.expertId) || structuredText.includes(expert.expertId)) matched += 1;
-      if (
-        expert.verdict.length === 0 ||
-        summary.includes(expert.verdict) ||
-        structuredText.includes(expert.verdict)
-      ) {
-        matched += 1;
-      }
-    }
-  }
-  return total === 0 ? 1 : Number((matched / total).toFixed(2));
-}
 
 export function addSignalWarnings(
   warnings: string[],
@@ -179,7 +143,7 @@ export function extractEvidenceIdsFromText(text: string): string[] {
       if (id.length >= 2) ids.add(id);
     }
   }
-  // WorkGraph / Ultrawork node ids in common forms: node_id=..., work_node_ids=...
+  // WorkGraph node ids in common forms: node_id=..., work_node_ids=...
   const nodeAttr = /\b(?:work_?node_ids?|node_id|ac_id|acceptance_criterion_id)\s*[=:]\s*["']?([A-Za-z0-9_.:/-]+(?:\s*,\s*[A-Za-z0-9_.:/-]+)*)/gi;
   while ((match = nodeAttr.exec(text)) !== null) {
     for (const raw of match[1]?.split(/[,\s]+/) ?? []) {

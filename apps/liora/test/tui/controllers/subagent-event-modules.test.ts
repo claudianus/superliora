@@ -9,67 +9,12 @@ import {
   shouldSurfaceSubagentModelNotice,
   subagentModelRouteNoticeText,
 } from '#/tui/controllers/subagent-event/background';
-import {
-  isSubagentLifecycleEvent,
-  isUserCancelledSubagentError,
-  subagentFailureRetryNote,
-  ultraSwarmMembersFromTeam,
-} from '#/tui/controllers/subagent-event/helpers';
+import { isSubagentLifecycleEvent } from '#/tui/controllers/subagent-event/helpers';
 
 describe('subagent-event-helpers', () => {
   it('detects subagent lifecycle events', () => {
     expect(isSubagentLifecycleEvent({ type: 'subagent.spawned' } as any)).toBe(true);
     expect(isSubagentLifecycleEvent({ type: 'assistant.delta', delta: 'x' } as any)).toBe(false);
-  });
-
-  it('recognizes user-cancelled subagent errors', () => {
-    expect(isUserCancelledSubagentError('Aborted by the user')).toBe(true);
-    expect(isUserCancelledSubagentError('timeout')).toBe(false);
-  });
-
-  it('builds retry notes from optional failure extras', () => {
-    const note = subagentFailureRetryNote({
-      type: 'subagent.failed',
-      subagentId: 'a1',
-      parentToolCallId: 'tc1',
-      error: 'boom',
-      retryAttempt: 2,
-      retryLimit: 3,
-      fellBackToModel: 'cheap-model',
-    } as any);
-    expect(note).toBe('retrying (2/3) · fell back to cheap-model');
-  });
-
-  it('maps ultra swarm team experts to member metadata', () => {
-    const members = ultraSwarmMembersFromTeam({
-      experts: [
-        {
-          id: 'e1',
-          name: 'Analyst',
-          division: 'research',
-          emoji: '🔬',
-          role: 'research',
-          coverageLane: 'docs',
-          selectionReason: 'coverage',
-          focus: 'read docs',
-          dependsOn: [],
-          taskIds: ['t1'],
-        },
-      ],
-    } as any);
-    expect(members).toEqual([
-      {
-        expertId: 'e1',
-        name: 'Analyst',
-        division: 'research',
-        emoji: '🔬',
-        coverageLane: 'docs',
-        selectionReason: 'coverage',
-        focus: 'read docs',
-        dependsOn: [],
-        taskIds: ['t1'],
-      },
-    ]);
   });
 });
 

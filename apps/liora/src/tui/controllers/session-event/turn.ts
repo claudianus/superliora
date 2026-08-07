@@ -1,7 +1,6 @@
 import type {
   AssistantDeltaEvent,
   GoalChange,
-  Session,
   ThinkingDeltaEvent,
   TokenUsage,
   TurnEndedEvent,
@@ -32,7 +31,6 @@ import type { StreamingUIController } from '../streaming-ui/index';
 export interface TurnEventHost {
   state: TUIState;
   readonly streamingUI: StreamingUIController;
-  requireSession(): Session;
   setAppState(patch: Partial<AppState>): void;
   patchLivePane(patch: Partial<LivePaneState>): void;
   showError(msg: string): void;
@@ -44,12 +42,10 @@ export interface TurnEventHost {
 
 /**
  * Coordination owned by SessionEventHandler because goal-queue / hook.result
- * also read/write the shared flags, and swarm cancel / goal promotion live on
- * sibling delegates. Injected so turn end promotion stays coordinated.
+ * also read/write the shared flags, and goal promotion lives on a sibling
+ * delegate. Injected so turn end promotion stays coordinated.
  */
 export interface TurnEventCoordination {
-  clearAgentSwarmProgress(): void;
-  markActiveAgentSwarmsCancelled(): void;
   scheduleQueuedGoalPromotion(): void;
   setCurrentTurnHasAssistantText(value: boolean): void;
   setGoalCompletionTurnEnded(value: boolean): void;
@@ -73,7 +69,6 @@ export class SessionEventTurn {
     void _event;
     this.coordination.setCurrentTurnHasAssistantText(false);
     this.currentTurnUsage = undefined;
-    this.coordination.clearAgentSwarmProgress();
     this.host.streamingUI.resetToolUi();
     this.host.streamingUI.setStep(0);
     this.host.patchLivePane({
@@ -89,14 +84,11 @@ export class SessionEventTurn {
 
   handleTurnEnd(event: TurnEndedEvent, sendQueued: (item: QueuedMessage) => void): void {
     this.host.streamingUI.flushNow();
-    if (event.reason === 'cancelled') {
-      this.coordination.markActiveAgentSwarmsCancelled();
-    }
     if (event.reason === 'filtered') {
       // Loop37a: status alone is easy to miss; named notice + goal-pause implication.
       this.host.showNotice(
         'Provider safety filter',
-        'The provider blocked this response (turn reason=filtered). Active Goal/Ultrawork is paused for safety policy — change approach, switch model, or resume after reviewing the prompt.',
+        'The provider blocked this response (turn reason=filtered). The active Goal is paused for safety policy — change approach, switch model, or resume after reviewing the prompt.',
         { coalesceKey: 'provider-filtered' },
       );
       this.host.showStatus(
@@ -203,12 +195,8 @@ export class SessionEventTurn {
     const reason = event.reason;
     if (reason === 'error') return;
     if (reason === 'aborted' || reason === undefined || reason === '') {
-      this.coordination.markActiveAgentSwarmsCancelled();
       const userCancelled = event.cancelledByUser === true;
       const programmaticAbort = event.cancelledByUser === false;
-      void this.notifyUltraworkInterrupted(
-        programmaticAbort ? 'Paused after abort' : 'Paused after interruption',
-      );
       this.host.showStatus(
         userCancelled
           ? 'Interrupted by user'
@@ -396,20 +384,6 @@ export class SessionEventTurn {
     const providerKey = state.appState.availableModels[state.appState.model]?.provider;
     if (providerKey === undefined) return false;
     return state.appState.availableProviders[providerKey]?.type === 'anthropic';
-  }
-
-  private async notifyUltraworkInterrupted(reason: string): Promise<void> {
-    try {
-      const run = await this.host.requireSession().getUltraworkRun();
-      if (run === null || run.status === 'done' || run.status === 'failed') return;
-      this.host.showNotice(
-        'Mission interrupted',
-        `${reason}\nStage: ${run.stage}\nUse /mission resume to continue.`,
-        { coalesceKey: 'ultrawork-interrupted' },
-      );
-    } catch {
-      // Best-effort UI hint only.
-    }
   }
 
   private renderPendingModelBlockedFallback(): void {

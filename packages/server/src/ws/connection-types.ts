@@ -113,7 +113,7 @@ export const DEFAULT_MAX_EVENT_BUFFER = 1000;
  * Soft cap (bytes) on the per-socket OS send buffer. Above this we consider
  * the client a "slow consumer" and start dropping volatile frames so a single
  * lagging subscriber can't balloon server memory on a high-throughput session
- * (e.g. an UltraSwarm run fanning out many deltas). Durable frames are always
+ * (e.g. a wide fan-out run producing many deltas). Durable frames are always
  * sent; the client re-syncs its snapshot if it missed volatiles.
  */
 export const DEFAULT_MAX_BUFFERED_BYTES = 1_048_576;

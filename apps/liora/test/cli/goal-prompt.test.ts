@@ -37,34 +37,29 @@ describe('goalExitCode', () => {
 });
 
 describe('parseHeadlessGoalCreate', () => {
-  it('parses a create command into objective + replace', () => {
-    const result = parseHeadlessGoalCreate('/goal Ship feature X');
-    expect(result).toEqual({
+  it('parses a create command into the bare objective + replace', () => {
+    // agent-core's goal injection re-states the objective and the UpdateGoal
+    // contract each turn, so the parsed create carries no turn-prompt wrapper.
+    expect(parseHeadlessGoalCreate('/goal Ship feature X')).toEqual({
       objective: 'Ship feature X',
       replace: false,
-      prompt: expect.stringContaining('Ship feature X'),
-      ultrawork: true,
     });
-    expect(result?.prompt).toContain('<ultrawork_flow>');
-    expect(result?.prompt).toContain('activation: goal');
-    expect(result?.prompt).toContain('active_goal_already_created: true');
-  });
-
-  it('parses ultragoal aliases into the ultrawork objective contract', () => {
-    const result = parseHeadlessGoalCreate('/ultragoal replace Ship feature X');
-    expect(result).toEqual({
+    expect(parseHeadlessGoalCreate('/goal replace Ship feature X')).toEqual({
       objective: 'Ship feature X',
       replace: true,
-      prompt: expect.stringContaining('Ship feature X'),
-      ultrawork: true,
     });
-    expect(result?.prompt).toContain('<ultrawork_flow>');
   });
 
-  it('returns undefined for non-goal prompts and non-create subcommands', () => {
+  it('returns undefined for non-goal prompts, retired aliases, and non-create subcommands', () => {
     expect(parseHeadlessGoalCreate('say hello')).toBeUndefined();
     expect(parseHeadlessGoalCreate('/goal status')).toBeUndefined();
     expect(parseHeadlessGoalCreate('/goal pause')).toBeUndefined();
+    expect(parseHeadlessGoalCreate('/ultragoal Ship feature X')).toBeUndefined();
+    expect(parseHeadlessGoalCreate('/ug Ship feature X')).toBeUndefined();
+    expect(parseHeadlessGoalCreate('/ultrawork Ship feature X')).toBeUndefined();
+    expect(parseHeadlessGoalCreate('/uw Ship feature X')).toBeUndefined();
+    // The prefix must be the whole command word: /goalkeeper is not /goal.
+    expect(parseHeadlessGoalCreate('/goalkeeper Ship feature X')).toBeUndefined();
   });
 });
 
@@ -101,8 +96,6 @@ const mocks = vi.hoisted(() => {
     id: 'ses_goal',
     setModel: vi.fn(),
     setPermission: vi.fn(),
-    setPlanMode: vi.fn(async () => {}),
-    setSwarmMode: vi.fn(async () => {}),
     setPremiumQuality: vi.fn(async () => {}),
     setApprovalHandler: vi.fn(),
     setQuestionHandler: vi.fn(),
@@ -111,12 +104,11 @@ const mocks = vi.hoisted(() => {
       permission: 'auto',
       model: 'k2',
       planMode: false,
-      swarmMode: false,
+      askMode: false,
       premiumQualityMode: false,
     })),
     createGoal: vi.fn(async () => snapshot({ status: 'active' })),
     getGoal: vi.fn(async () => ({ goal: snapshot({ status: 'complete' }) })),
-    tryAutoResumeUltrawork: vi.fn(async () => null),
     onEvent: vi.fn((handler: (event: any) => void) => {
       eventHandlers.add(handler);
       return () => eventHandlers.delete(handler);
@@ -199,14 +191,12 @@ describe('runPrompt headless goal mode', () => {
     mocks.session.createGoal.mockClear();
     mocks.session.getGoal.mockClear();
     mocks.session.prompt.mockClear();
-    mocks.session.setPlanMode.mockClear();
-    mocks.session.setSwarmMode.mockClear();
     mocks.session.setPremiumQuality.mockClear();
     mocks.session.getStatus.mockResolvedValue({
       permission: 'auto',
       model: 'k2',
       planMode: false,
-      swarmMode: false,
+      askMode: false,
       premiumQualityMode: false,
     } as never);
     mocks.session.getGoal.mockResolvedValue({ goal: snapshot({ status: 'complete' }) } as never);
@@ -216,7 +206,7 @@ describe('runPrompt headless goal mode', () => {
     process.exitCode = savedExitCode;
   });
 
-  it('creates the goal, runs the turn, and emits a JSON summary on completion', async () => {
+  it('creates the goal, runs the turn on the bare objective, and emits a JSON summary', async () => {
     const stdout = writer();
     const stderr = writer();
     await runPrompt(opts({ outputFormat: 'stream-json' }), 'test', {
@@ -226,52 +216,17 @@ describe('runPrompt headless goal mode', () => {
     });
 
     expect(mocks.session.createGoal).toHaveBeenCalledWith(
-      expect.objectContaining({ objective: 'Ship feature X' }),
+      expect.objectContaining({ objective: 'Ship feature X', replace: false }),
     );
-    expect(mocks.session.setPlanMode).toHaveBeenCalledWith(true, true, 'Ship feature X');
-    expect(mocks.session.setSwarmMode).toHaveBeenCalledWith(true, 'task');
-    expect(mocks.session.prompt).toHaveBeenCalledWith(expect.stringContaining('<ultrawork_flow>'));
-    expect(mocks.session.prompt).toHaveBeenCalledWith(
-      expect.stringContaining('active_goal_already_created: true'),
-    );
+    // No mode setup and no prompt wrapper: the turn runs the bare objective.
+    expect(mocks.session.prompt).toHaveBeenCalledWith('Ship feature X');
     expect(stdout.text()).toContain('"type":"goal.summary"');
     expect(stdout.text()).toContain('"status":"complete"');
   });
 
-  it('runs /ultragoal with a plain stored objective and an ultrawork turn prompt', async () => {
+  it('runs a retired /ultrawork prompt as a plain prompt instead of a goal', async () => {
     const stdout = writer();
     const stderr = writer();
-    await runPrompt(
-      opts({ prompt: '/ultragoal replace Ship feature X', outputFormat: 'stream-json' }),
-      'test',
-      {
-        stdout,
-        stderr,
-        process: { once: () => {}, off: () => {}, exit: () => undefined as never },
-      },
-    );
-
-    expect(mocks.session.createGoal).toHaveBeenCalledWith({
-      objective: 'Ship feature X',
-      replace: true,
-    });
-    expect(mocks.session.setPlanMode).toHaveBeenCalledWith(true, true, 'Ship feature X');
-    expect(mocks.session.setSwarmMode).toHaveBeenCalledWith(true, 'task');
-    expect(mocks.session.prompt).toHaveBeenCalledWith(expect.stringContaining('<ultrawork_flow>'));
-    expect(mocks.session.prompt).toHaveBeenCalledWith(expect.stringContaining('Ship feature X'));
-  });
-
-  it('refreshes plan context without re-enabling swarm mode for an already-prepared headless ultrawork session', async () => {
-    mocks.session.getStatus.mockResolvedValueOnce({
-      permission: 'auto',
-      model: 'k2',
-      planMode: true,
-      swarmMode: true,
-      premiumQualityMode: true,
-    } as never);
-    const stdout = writer();
-    const stderr = writer();
-
     await runPrompt(
       opts({ prompt: '/ultrawork Ship feature X', outputFormat: 'stream-json' }),
       'test',
@@ -282,51 +237,8 @@ describe('runPrompt headless goal mode', () => {
       },
     );
 
-    // Swarm and premium are already enabled, so they are not toggled again.
-    // Plan is re-entered with the new objective context so the interview
-    // restarts cleanly (the mock succeeds without throwing, so no toggle-out
-    // is needed).
-    expect(mocks.session.setSwarmMode).not.toHaveBeenCalled();
-    expect(mocks.session.setPremiumQuality).not.toHaveBeenCalled();
-    expect(mocks.session.setPlanMode).toHaveBeenCalledWith(true, true, 'Ship feature X');
-    expect(mocks.session.createGoal).toHaveBeenCalledWith({
-      objective: 'Ship feature X',
-      replace: false,
-    });
-    expect(mocks.session.prompt).toHaveBeenCalledWith(expect.stringContaining('<ultrawork_flow>'));
-    expect(stdout.text()).toContain('"status":"complete"');
-  });
-
-  it('continues headless ultrawork when plan mode state is stale', async () => {
-    mocks.session.getStatus.mockResolvedValueOnce({
-      permission: 'auto',
-      model: 'k2',
-      planMode: false,
-      swarmMode: false,
-      premiumQualityMode: false,
-    } as never);
-    mocks.session.setPlanMode.mockRejectedValueOnce(new Error('Already in plan mode'));
-    const stdout = writer();
-    const stderr = writer();
-
-    await runPrompt(
-      opts({ prompt: '/ultrawork Ship feature X', outputFormat: 'stream-json' }),
-      'test',
-      {
-        stdout,
-        stderr,
-        process: { once: () => {}, off: () => {}, exit: () => undefined as never },
-      },
-    );
-
-    expect(mocks.session.setSwarmMode).toHaveBeenCalledWith(true, 'task');
-    expect(mocks.session.setPlanMode).toHaveBeenCalledWith(true, true, 'Ship feature X');
-    expect(mocks.session.createGoal).toHaveBeenCalledWith({
-      objective: 'Ship feature X',
-      replace: false,
-    });
-    expect(mocks.session.prompt).toHaveBeenCalledWith(expect.stringContaining('<ultrawork_flow>'));
-    expect(stdout.text()).toContain('"status":"complete"');
+    expect(mocks.session.createGoal).not.toHaveBeenCalled();
+    expect(stdout.text()).not.toContain('goal.summary');
   });
 
   it('does not emit a goal summary when headless goal creation fails', async () => {
@@ -398,10 +310,7 @@ describe('runPrompt headless goal mode', () => {
       process: { once: () => {}, off: () => {}, exit: () => undefined as never },
     });
     expect(mocks.session.createGoal).toHaveBeenCalled();
-    expect(mocks.session.prompt).toHaveBeenCalledWith(expect.stringContaining('<ultrawork_flow>'));
-    expect(mocks.session.prompt).toHaveBeenCalledWith(
-      expect.stringContaining('active_goal_already_created: true'),
-    );
+    expect(mocks.session.prompt).toHaveBeenCalledWith('Ship feature X');
   });
 
   it('validates the resumed session model before creating a headless goal', async () => {

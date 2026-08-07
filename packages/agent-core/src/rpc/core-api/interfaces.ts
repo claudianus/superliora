@@ -82,7 +82,6 @@ import type {
   DetachBackgroundPayload,
   DiagnoseContextOSPayload,
   EnterPlanPayload,
-  EnterSwarmPayload,
   GetBackgroundOutputPayload,
   GetBackgroundPayload,
   InlineCompletePayload,
@@ -96,6 +95,7 @@ import type {
   SetModelPayload,
   SetModelResult,
   SetPermissionPayload,
+  SetAskModePayload,
   SetPremiumQualityPayload,
   SetThinkingPayload,
   ShellCommandResult,
@@ -107,16 +107,6 @@ import type {
   SetActiveToolsPayload,
 } from './payloads-agent';
 import type {
-  CancelUltraworkPayload,
-  ClassifyUltraworkAutoActivationPayload,
-  ClassifyUltraworkObjectiveProfilePayload,
-  CreateUltraworkRunPayload,
-  PauseUltraworkPayload,
-  ResumeUltraworkPayloadResult,
-  SwarmRestaffPayload,
-  UltraworkAutoActivationDecision,
-  UltraworkObjectiveProfileDecision,
-  UltraworkRunSnapshot,
 } from './payloads-goal';
 import type {
   ConfigDiagnostics,
@@ -150,9 +140,8 @@ export interface AgentAPI {
   enterPlan: (payload: EnterPlanPayload) => void;
   cancelPlan: (payload: CancelPlanPayload) => void;
   clearPlan: (payload: EmptyPayload) => void;
-  enterSwarm: (payload: EnterSwarmPayload) => void;
-  exitSwarm: (payload: EmptyPayload) => void;
-  getSwarmMode: (payload: EmptyPayload) => boolean;
+  setAskMode: (payload: SetAskModePayload) => Promise<void>;
+  getAskMode: (payload: EmptyPayload) => boolean;
   setPremiumQuality: (payload: SetPremiumQualityPayload) => void;
   getPremiumQuality: (payload: EmptyPayload) => boolean;
   beginCompaction: (payload: BeginCompactionPayload) => void;
@@ -176,19 +165,6 @@ export interface AgentAPI {
   pauseGoal: (payload: EmptyPayload) => GoalSnapshot;
   resumeGoal: (payload: EmptyPayload) => GoalSnapshot;
   cancelGoal: (payload: EmptyPayload) => GoalSnapshot;
-  createUltraworkRun: (payload: CreateUltraworkRunPayload) => UltraworkRunSnapshot;
-  getUltraworkRun: (payload: EmptyPayload) => UltraworkRunSnapshot | null;
-  pauseUltrawork: (payload: PauseUltraworkPayload) => UltraworkRunSnapshot | null;
-  resumeUltrawork: (payload: EmptyPayload) => ResumeUltraworkPayloadResult | null;
-  cancelUltrawork: (payload: CancelUltraworkPayload) => UltraworkRunSnapshot | null;
-  /** Force UltraSwarm restaff wave; returns false when no active run. */
-  swarmRestaff: (payload: SwarmRestaffPayload) => boolean;
-  classifyUltraworkAutoActivation: (
-    payload: ClassifyUltraworkAutoActivationPayload,
-  ) => Promise<UltraworkAutoActivationDecision>;
-  classifyUltraworkObjectiveProfile: (
-    payload: ClassifyUltraworkObjectiveProfilePayload,
-  ) => Promise<UltraworkObjectiveProfileDecision>;
   getBackgroundOutput: (payload: GetBackgroundOutputPayload) => string;
   getContext: (payload: EmptyPayload) => AgentContextData;
   getContextComposition: (payload: EmptyPayload) => ContextComposition;

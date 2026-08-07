@@ -36,16 +36,12 @@ export class GoalInjector extends DynamicInjector {
     //   not work on it unless the user explicitly asks.
     // `complete` never reaches here (it clears the record).
     if (goal.status === 'active') {
-      const ultraworkLive = this.agent.ultrawork?.getRun() !== null
-        && this.agent.ultrawork?.getRun() !== undefined
-        && this.agent.ultrawork?.getRun()?.status !== 'done'
-        && this.agent.ultrawork?.getRun()?.status !== 'failed';
       // An earlier reminder is still visible in the history (`injectedAt`
       // tracks it across compaction/message removal): repeat only the live
       // status/budget data and skip the static execution-pattern prose that
       // would otherwise accumulate verbatim every continuation turn.
       const slim = this.injectedAt !== null;
-      return buildGoalReminder(goal, { ultraworkLive, slim });
+      return buildGoalReminder(goal, { slim });
     }
     if (goal.status === 'blocked') return buildBlockedNote(goal);
     if (goal.status === 'paused') return buildPausedNote(goal);
@@ -104,7 +100,7 @@ function buildPausedNote(goal: GoalSnapshot): string {
 
 function buildGoalReminder(
   goal: GoalSnapshot,
-  opts: { ultraworkLive?: boolean; slim?: boolean } = {},
+  opts: { slim?: boolean } = {},
 ): string {
   const lines: string[] = [
     'You are working under an active goal (goal mode).',
@@ -160,12 +156,6 @@ function buildGoalReminder(
     );
   }
 
-  if (opts.ultraworkLive === true) {
-    lines.push(
-      '',
-      'Harness false-complete guard: UpdateGoal `complete` is rejected while WorkGraph is empty/incomplete or requiredEvidence lacks verificationStatus=passed. Goal stays active — continue implement→verify→evidence; do not wait for a user re-prompt.',
-    );
-  }
   return lines.join('\n');
 }
 

@@ -1,12 +1,12 @@
 import type { Agent } from '../..';
-import { isMissionPlanPhaseAllowedWrite } from '#/mission/plan-write-paths';
+import { isPlanPhaseAllowedWrite } from '#/agent/plan/plan-write-paths';
 import type { PermissionPolicy, PermissionPolicyContext, PermissionPolicyResult } from '../types';
 import { writeFileAccesses } from './file-access-ask';
 
 /**
- * Approves Mission/Ultra plan-phase writes that the guard already allows
- * (plan file + evidence root) so Manual mode does not approval-bomb them.
- * Product-tree mutation still falls through to deny/ask policies.
+ * Approves plan-phase writes that the guard already allows (the plan file) so
+ * Manual mode does not approval-bomb them. Product-tree mutation still falls
+ * through to deny/ask policies.
  */
 export class PlanModeToolApprovePermissionPolicy implements PermissionPolicy {
   readonly name = 'plan-mode-tool-approve';
@@ -32,16 +32,10 @@ export class PlanModeToolApprovePermissionPolicy implements PermissionPolicy {
           : extractWritePathsFromArgs(context);
       if (writePaths.length === 0) return;
 
-      const activation = this.agent.ultrawork?.getActivation();
-      const workDir =
-        activation?.workDir !== undefined && activation.workDir.length > 0
-          ? activation.workDir
-          : this.agent.config.cwd;
       if (
-        isMissionPlanPhaseAllowedWrite(writePaths, {
+        isPlanPhaseAllowedWrite(writePaths, {
           planFilePath: this.agent.planMode.planFilePath,
-          evidenceRoot: activation?.evidenceRoot,
-          workDir,
+          workDir: this.agent.config.cwd,
         })
       ) {
         return {

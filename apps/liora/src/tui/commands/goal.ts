@@ -362,7 +362,7 @@ function showGoalStartPermissionPrompt(
   };
   host.mountEditorReplacement(
     new GoalStartPermissionPromptComponent({
-      // Always present Manual-first Ultrawork-style choice set (not YOLO-keep framing).
+      // Always present the Manual-first choice set (not YOLO-keep framing).
       mode: 'manual',
       onSelect: (choice) => {
         if (choice === 'cancel') {
@@ -414,7 +414,6 @@ async function startGoal(
     await host.requireSession().createGoal({
       objective: parsed.objective,
       replace: parsed.replace,
-      source: 'standalone',
     });
   } catch (error) {
     if (isKimiError(error) && error.code === ErrorCodes.GOAL_ALREADY_EXISTS) {

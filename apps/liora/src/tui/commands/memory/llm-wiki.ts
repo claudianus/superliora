@@ -6,7 +6,8 @@ import {
   resolveLlmWikiPaths,
 } from '#/constant/workspace-data';
 
-import type { MissionActivationSource } from '#/tui/utils/mission/mission-contract';
+/** How the run that owns this wiki entry was started. */
+export type LlmWikiRunSource = 'manual' | 'auto' | 'headless' | 'goal';
 
 export const LLM_WIKI_INDEX_PATH = `${CANONICAL_LLM_WIKI_ROOT}/index.md`;
 export const LLM_WIKI_MANIFEST_PATH = `${CANONICAL_LLM_WIKI_ROOT}/manifest.json`;
@@ -37,7 +38,7 @@ export interface LlmWikiSeedInput {
   readonly runId: string;
   readonly createdAt: string;
   readonly objective: string;
-  readonly source: MissionActivationSource;
+  readonly source: LlmWikiRunSource;
   readonly replaceGoal: boolean;
   readonly coverageMatrix: readonly LlmWikiCoverageLane[];
   readonly evidenceFiles: LlmWikiEvidenceFiles;
@@ -54,7 +55,7 @@ interface LlmWikiManifestRun {
   readonly runId: string;
   readonly createdAt: string;
   readonly objective: string;
-  readonly source: MissionActivationSource;
+  readonly source: LlmWikiRunSource;
   readonly replaceGoal: boolean;
   readonly evidenceState?: LlmWikiEvidenceState;
   readonly path: string;
@@ -196,7 +197,7 @@ export function buildPromoteEvidenceLines(result: PromoteProjectEvidenceResult):
     `Manifest  ${result.manifestPath}`,
     `Run  ${result.wikiRunPath ?? 'none'}`,
     `Knowledge map  ${result.knowledgeMapPromoted ? 'verified' : 'blocked'}; ${result.knowledgeMapPath ?? 'none'}`,
-    `Next  ${result.wikiPromoted && result.knowledgeMapPromoted ? 'Run /memory readiness or /preflight to confirm gates.' : 'Fix warnings, then rerun /memory verify.'}`,
+    `Next  ${result.wikiPromoted && result.knowledgeMapPromoted ? 'Run /memory readiness to confirm gates.' : 'Fix warnings, then rerun /memory verify.'}`,
   ];
   for (const warning of result.warnings) lines.push(`Warning  ${warning}`);
   return lines;

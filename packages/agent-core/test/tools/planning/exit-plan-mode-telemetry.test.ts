@@ -50,7 +50,7 @@ function makeAgent(input: {
       })),
       exit: exitPlanMode,
     },
-    swarmMode: {
+    askMode: {
       get isActive() {
         return false;
       },

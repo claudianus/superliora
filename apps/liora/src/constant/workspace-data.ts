@@ -9,9 +9,6 @@ export const CANONICAL_LLM_WIKI_ROOT = `${WORKSPACE_DATA_DIR}/wiki`;
 /** Canonical evidence root for prompts and new workspaces. */
 export const CANONICAL_EVIDENCE_ROOT = `${WORKSPACE_DATA_DIR}/evidence`;
 
-/** Canonical Ultrawork run evidence root for new workspaces. */
-export const CANONICAL_ULTRAWORK_EVIDENCE_ROOT = `${CANONICAL_EVIDENCE_ROOT}/ultrawork-runs`;
-
 export function resolveWorkspaceDataDir(_workDir: string): string {
   return WORKSPACE_DATA_DIR;
 }
@@ -36,10 +33,6 @@ export function resolveLlmWikiPaths(workDir: string): {
     wikiIndexPath: `${wikiRootPath}/index.md`,
     wikiManifestPath: `${wikiRootPath}/manifest.json`,
   };
-}
-
-export function resolveUltraworkEvidenceRoot(workDir: string): string {
-  return workspaceRelativePath(workDir, 'evidence', 'ultrawork-runs');
 }
 
 export function resolveEvidenceRoot(workDir: string): string {

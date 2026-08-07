@@ -22,7 +22,6 @@ import { createJob, getJob, renderJobLine, type JobRecord } from '../job/job-led
 export interface PlanDeskDelegateInput {
   readonly initialContext?: string;
   readonly ultra?: boolean;
-  readonly source?: 'standalone' | 'ultrawork';
   /** Optional title override (slash commands). */
   readonly title?: string;
 }
@@ -58,7 +57,7 @@ export async function delegateConductorPlanDesk(
 ): Promise<PlanDeskDelegateResult> {
   const context = (input.initialContext ?? '').trim();
   const title = (input.title?.trim() || titleFromContext(context)).slice(0, 120);
-  const prompt = buildPlanDeskBrief(context, input.ultra === true, input.source);
+  const prompt = buildPlanDeskBrief(context, input.ultra === true);
 
   const store = agent.tools.toolStore;
   const structured = input.ultra !== false;
@@ -105,7 +104,6 @@ function titleFromContext(context: string): string {
 function buildPlanDeskBrief(
   context: string,
   structured: boolean,
-  source: PlanDeskDelegateInput['source'],
 ): string {
   const parts = [
     'You are a Plan Desk worker. Plan mode is activated on your agent at spawn.',
@@ -118,7 +116,6 @@ function buildPlanDeskBrief(
       : 'Regular: investigate with read-only tools, write a concrete step-by-step plan to the plan file, then ExitPlanMode for approval. No NextPhase.',
     'Ask clarifying questions with AskUserQuestion when user judgment is required (PATH 2). Prefer RecordInterviewFinding for code/research facts (PATH 1/3).',
     'Do not implement product code — planning only. Final summary: plan path, goal/AC, open risks.',
-    source === 'ultrawork' ? 'Source: Mission / Ultrawork prepare.' : undefined,
     context.length > 0 ? `Task context:\n${context}` : 'Task context was not provided — infer from the session brief and repo.',
   ];
   return parts.filter(Boolean).join('\n\n');

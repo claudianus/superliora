@@ -340,10 +340,10 @@ describe('chip registry', () => {
       ),
     ).toBe('abcd1234');
   });
-  it('UltraworkGraph chip counts nodes', () => {
+  it('TaskGraph chip counts nodes', () => {
     expect(
       chipFor(
-        'UltraworkGraph',
+        'TaskGraph',
         {},
         result('Ultrawork graph g1 for run-1:\n  [running] n1: Scaffold\n  [pending] n2: Tests'),
       ),

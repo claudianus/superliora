@@ -15,9 +15,9 @@ import type {
   ActivateSkillRpcInput,
   SessionIdRpcInput,
 } from './rpc-types';
-import { SDKRpcClientGoalsUltraworkMixin } from './rpc-goals-ultrawork-mixin';
+import { SDKRpcClientGoalsMixin } from './rpc-goals-mixin';
 
-export abstract class SDKRpcClientPluginsMixin extends SDKRpcClientGoalsUltraworkMixin {
+export abstract class SDKRpcClientPluginsMixin extends SDKRpcClientGoalsMixin {
   async listPlugins(): Promise<readonly PluginSummary[]> {
     const rpc = await this.getRpc();
     return rpc.listPlugins({});

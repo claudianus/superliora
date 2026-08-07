@@ -138,7 +138,7 @@ export function buildCompactionSettingsLines(input: {
     'Post-compact: cache breakpoint reinstalled at new prefix end (L3 summary).',
     '',
     '── Expand recover ───────────────────────────',
-    'Micro-compaction archives long tool/swarm bodies as [liora-archived id=…].',
+    'Micro-compaction archives long tool bodies as [liora-archived id=…].',
     'Cleared markers carry archiveId=<12-hex> + recover=<tool> for the id path.',
     'Recover full body: Expand(id=<archiveId>) — session context-archive store.',
     'Family overflow without archive: Read receipt under ~/.superliora/tool-results/.',

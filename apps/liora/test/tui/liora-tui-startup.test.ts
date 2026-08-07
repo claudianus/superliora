@@ -116,6 +116,7 @@ function makeSession(overrides: Record<string, unknown> = {}) {
       thinkingLevel: 'off',
       permission: 'manual',
       planMode: false,
+      askMode: false,
       contextTokens: 10,
       maxContextTokens: 100,
       contextUsage: 0.1,
@@ -182,7 +183,6 @@ function createResumeState(overrides: { permissionMode?: string; planMode?: bool
         replay: [],
         permission: { mode: overrides.permissionMode ?? 'manual', rules: [] },
         plan: overrides.planMode ? { id: 'plan-1', content: '', path: '/tmp/plan.md' } : null,
-        swarmMode: false,
         usage: {},
         tools: [],
         background: [],
@@ -256,6 +256,7 @@ describe('LioraTUI startup', () => {
         thinkingLevel: 'off',
         permission: 'yolo',
         planMode: true,
+        askMode: false,
         contextTokens: 25,
         maxContextTokens: 200,
         contextUsage: 0.125,
@@ -281,6 +282,7 @@ describe('LioraTUI startup', () => {
       model: 'k2',
       permissionMode: 'yolo',
       planMode: true,
+      askMode: false,
       contextTokens: 25,
       maxContextTokens: 200,
       contextUsage: 0.125,
@@ -312,6 +314,7 @@ describe('LioraTUI startup', () => {
         thinkingLevel: 'off',
         permission,
         planMode: false,
+        askMode: false,
         contextTokens: 10,
         maxContextTokens: 100,
         contextUsage: 0.1,
@@ -340,6 +343,7 @@ describe('LioraTUI startup', () => {
         thinkingLevel: 'off',
         permission,
         planMode: false,
+        askMode: false,
         contextTokens: 10,
         maxContextTokens: 100,
         contextUsage: 0.1,
@@ -395,6 +399,7 @@ describe('LioraTUI startup', () => {
         thinkingLevel: 'off',
         permission: 'manual',
         planMode: true,
+        askMode: false,
         contextTokens: 10,
         maxContextTokens: 100,
         contextUsage: 0.1,
@@ -422,6 +427,7 @@ describe('LioraTUI startup', () => {
         thinkingLevel: 'off',
         permission: 'manual',
         planMode: false,
+        askMode: false,
         contextTokens: 10,
         maxContextTokens: 100,
         contextUsage: 0.1,
@@ -447,6 +453,7 @@ describe('LioraTUI startup', () => {
         thinkingLevel: 'off',
         permission: 'manual',
         planMode: false,
+        askMode: false,
         contextTokens: 10,
         maxContextTokens: 100,
         contextUsage: 0.1,
@@ -513,6 +520,7 @@ describe('LioraTUI startup', () => {
         thinkingLevel: 'off',
         permission,
         planMode: false,
+        askMode: false,
         contextTokens: 10,
         maxContextTokens: 100,
         contextUsage: 0.1,
@@ -607,6 +615,7 @@ describe('LioraTUI startup', () => {
         thinkingLevel: 'off',
         permission: 'manual',
         planMode: false,
+        askMode: false,
         contextTokens: 10,
         maxContextTokens: 100,
         contextUsage: 0.1,
@@ -646,6 +655,7 @@ describe('LioraTUI startup', () => {
         thinkingLevel: 'off',
         permission,
         planMode: false,
+        askMode: false,
         contextTokens: 10,
         maxContextTokens: 100,
         contextUsage: 0.1,
@@ -686,6 +696,7 @@ describe('LioraTUI startup', () => {
         thinkingLevel: 'off',
         permission: 'manual',
         planMode: true,
+        askMode: false,
         contextTokens: 10,
         maxContextTokens: 100,
         contextUsage: 0.1,
@@ -1163,6 +1174,7 @@ describe('LioraTUI startup', () => {
         thinkingLevel: 'off',
         permission: 'yolo',
         planMode: true,
+        askMode: false,
         contextTokens: 10,
         maxContextTokens: 100,
         contextUsage: 0.1,
@@ -1191,6 +1203,7 @@ describe('LioraTUI startup', () => {
       model: '',
       permissionMode: 'yolo',
       planMode: true,
+      askMode: false,
     });
 
     vi.mocked(promptProviderCatalog).mockResolvedValue({ kind: 'oauth', providerId: 'managed:kimi-api' });
@@ -1213,6 +1226,7 @@ describe('LioraTUI startup', () => {
       model: 'k2',
       permissionMode: 'yolo',
       planMode: true,
+      askMode: false,
     });
   });
 
@@ -1223,6 +1237,7 @@ describe('LioraTUI startup', () => {
         thinkingLevel: 'off',
         permission: 'auto',
         planMode: false,
+        askMode: false,
         contextTokens: 10,
         maxContextTokens: 100,
         contextUsage: 0.1,
@@ -1760,7 +1775,7 @@ describe('LioraTUI startup', () => {
     expect(driver.state.appState.sessionId).toBe('ses-target');
   });
 
-  it('keeps the ambient animation ticker running after transcript messages and Ultrawork mode toggle', async () => {
+  it('keeps the ambient animation ticker running after transcript messages and a plan mode toggle', async () => {
     vi.useFakeTimers();
     const originalEnv = { ...process.env };
     const stdoutDescriptor = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY');
@@ -1804,7 +1819,7 @@ describe('LioraTUI startup', () => {
       expect(requestRender).toHaveBeenCalled();
 
       const callsBeforeToggle = requestRender.mock.calls.length;
-      tui.handleUltraworkModeToggle(true);
+      tui.handlePlanToggle(true);
       vi.advanceTimersByTime(1_000);
       expect(requestRender.mock.calls.length).toBeGreaterThan(callsBeforeToggle);
     } finally {

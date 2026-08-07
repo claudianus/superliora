@@ -121,39 +121,6 @@ import {
   type TurnStepRetryingEvent,
   type TurnStepStartedEvent,
 } from './turn';
-import { normalizeMissionOrFleetUltraworkEventAlias } from './fleet-alias';
-import {
-  ultraworkCollaborationDebateEventSchema,
-  ultraworkCollaborationMentionEventSchema,
-  ultraworkCollaborationMessageEventSchema,
-  ultraworkCollaborationSteerEventSchema,
-  ultraworkCouncilDecisionEventSchema,
-  ultraworkKnowledgePromotedEventSchema,
-  ultraworkResearchFindingVerifiedEventSchema,
-  ultraworkResearchProviderSelectedEventSchema,
-  ultraworkResearchStartedEventSchema,
-  ultraworkStageChangedEventSchema,
-  ultraworkSwarmPausedEventSchema,
-  ultraworkSwarmResumedEventSchema,
-  ultraworkTaskAssignedEventSchema,
-  ultraworkTeamStaffedEventSchema,
-  ultraworkVerificationCompletedEventSchema,
-  type UltraworkCollaborationDebateEvent,
-  type UltraworkCollaborationMentionEvent,
-  type UltraworkCollaborationMessageEvent,
-  type UltraworkCollaborationSteerEvent,
-  type UltraworkCouncilDecisionEvent,
-  type UltraworkKnowledgePromotedEvent,
-  type UltraworkResearchFindingVerifiedEvent,
-  type UltraworkResearchProviderSelectedEvent,
-  type UltraworkResearchStartedEvent,
-  type UltraworkStageChangedEvent,
-  type UltraworkSwarmPausedEvent,
-  type UltraworkSwarmResumedEvent,
-  type UltraworkTaskAssignedEvent,
-  type UltraworkTeamStaffedEvent,
-  type UltraworkVerificationCompletedEvent,
-} from './ultrawork';
 
 export type AgentEvent =
   | ErrorEvent
@@ -167,21 +134,6 @@ export type AgentEvent =
   | SessionStatusChangedEvent
   | ConfigChangedEvent
   | ModelCatalogChangedEvent
-  | UltraworkStageChangedEvent
-  | UltraworkResearchStartedEvent
-  | UltraworkResearchProviderSelectedEvent
-  | UltraworkResearchFindingVerifiedEvent
-  | UltraworkTeamStaffedEvent
-  | UltraworkTaskAssignedEvent
-  | UltraworkCollaborationMessageEvent
-  | UltraworkCollaborationMentionEvent
-  | UltraworkCollaborationDebateEvent
-  | UltraworkCollaborationSteerEvent
-  | UltraworkCouncilDecisionEvent
-  | UltraworkSwarmPausedEvent
-  | UltraworkSwarmResumedEvent
-  | UltraworkVerificationCompletedEvent
-  | UltraworkKnowledgePromotedEvent
   | GoalUpdatedEvent
   | JobUpdatedEvent
   | JobInboxEvent
@@ -239,21 +191,6 @@ const agentEventDiscriminatedSchema = z.discriminatedUnion('type', [
   workspaceDeletedEventSchema,
   sessionStatusChangedEventSchema,
   modelCatalogChangedEventSchema,
-  ultraworkStageChangedEventSchema,
-  ultraworkResearchStartedEventSchema,
-  ultraworkResearchProviderSelectedEventSchema,
-  ultraworkResearchFindingVerifiedEventSchema,
-  ultraworkTeamStaffedEventSchema,
-  ultraworkTaskAssignedEventSchema,
-  ultraworkCollaborationMessageEventSchema,
-  ultraworkCollaborationMentionEventSchema,
-  ultraworkCollaborationDebateEventSchema,
-  ultraworkCollaborationSteerEventSchema,
-  ultraworkCouncilDecisionEventSchema,
-  ultraworkSwarmPausedEventSchema,
-  ultraworkSwarmResumedEventSchema,
-  ultraworkVerificationCompletedEventSchema,
-  ultraworkKnowledgePromotedEventSchema,
   goalUpdatedEventSchema,
   jobUpdatedEventSchema,
   jobInboxEventSchema,
@@ -299,17 +236,7 @@ const agentEventDiscriminatedSchema = z.discriminatedUnion('type', [
   runtimeDegradedEventSchema,
 ]);
 
-export const agentEventSchema = z.preprocess((value) => {
-  if (
-    value !== null &&
-    typeof value === 'object' &&
-    'type' in value &&
-    typeof (value as { type: unknown }).type === 'string'
-  ) {
-    return normalizeMissionOrFleetUltraworkEventAlias(value as { type: string });
-  }
-  return value;
-}, agentEventDiscriminatedSchema) as z.ZodType<AgentEvent>;
+export const agentEventSchema = agentEventDiscriminatedSchema as z.ZodType<AgentEvent>;
 
 export const eventSchema = agentEventSchema.and(
   z.object({

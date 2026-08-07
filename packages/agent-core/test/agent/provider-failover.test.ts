@@ -200,7 +200,7 @@ describe('provider failover', () => {
     expect(third).toEqual({ type: 'auto_retry' });
     expect(sleepSpy).toHaveBeenCalledTimes(3);
 
-    // After the auto-retry budget, switch without prompting so Ultrawork can continue.
+    // After the auto-retry budget, switch without prompting so the turn can continue.
     const requestQuestion = vi.mocked(agent.rpc!.requestQuestion!);
     const switched = await resolveProviderRecovery(agent, {
       error,

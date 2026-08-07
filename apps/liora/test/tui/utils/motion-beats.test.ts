@@ -10,10 +10,7 @@ import {
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
 } from '#/tui/features/appearance/appearance-effects';
-import {
-  createMotionBeatController,
-  isMotionTheatreActive,
-} from '#/tui/utils/render/motion-beats';
+import { createMotionBeatController } from '#/tui/utils/render/motion-beats';
 
 const premiumAppearance = {
   ...DEFAULT_APPEARANCE_PREFERENCES,
@@ -50,12 +47,6 @@ describe('motion-beats', () => {
     expect(c.active(800)).toBeUndefined();
   });
 
-  it('isMotionTheatreActive matches ultrawork or swarm-armed', () => {
-    expect(isMotionTheatreActive({ ultraworkMode: true, swarmMode: false })).toBe(true);
-    expect(isMotionTheatreActive({ ultraworkMode: false, swarmMode: true })).toBe(true);
-    expect(isMotionTheatreActive({ ultraworkMode: false, swarmMode: false })).toBe(false);
-  });
-
   it('keeps only one transition beat (replace)', () => {
     const c = createMotionBeatController();
     c.play({ name: 'mode_enter', seed: 'a', title: 'A', nowMs: 0 });
@@ -80,19 +71,6 @@ describe('motion-beats', () => {
       ).toBeUndefined();
     }
     expect(c.active(50)?.name).toBe('mode_enter');
-  });
-
-  it('suppresses transitions while theatreActive', () => {
-    const c = createMotionBeatController();
-    expect(
-      c.play({
-        name: 'mode_enter',
-        seed: 'mode:yolo',
-        title: 'yolo',
-        nowMs: 0,
-        theatreActive: true,
-      }),
-    ).toBeUndefined();
   });
 
   it('expires beat after enter duration (premium)', () => {

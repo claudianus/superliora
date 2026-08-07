@@ -17,16 +17,12 @@ export function labelModeAuto(labels: FooterLabels): string {
   return isPlainLabels(labels) ? 'Auto' : 'auto';
 }
 
-export function labelModeMission(labels: FooterLabels): string {
-  return isPlainLabels(labels) ? 'Mission' : 'mission';
-}
-
 export function labelModePlan(labels: FooterLabels): string {
   return isPlainLabels(labels) ? 'Plan' : 'plan';
 }
 
-export function labelModeSwarm(labels: FooterLabels): string {
-  return isPlainLabels(labels) ? 'Swarm' : 'swarm';
+export function labelModeAsk(labels: FooterLabels): string {
+  return isPlainLabels(labels) ? 'Ask' : 'ask';
 }
 
 export function labelModePremium(labels: FooterLabels): string {

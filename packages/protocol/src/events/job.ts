@@ -68,7 +68,6 @@ export interface JobSnapshot {
   readonly priority: number;
   readonly worktreePath?: string;
   readonly workerAgentId?: string;
-  readonly missionRunId?: string;
   readonly resultSummary?: string;
   /** Worker progress (schemaVersion 2; absent on v1 snapshots). */
   readonly progress?: JobProgressSnapshot;
@@ -153,7 +152,6 @@ export const jobSnapshotSchema = z.object({
   priority: z.number(),
   worktreePath: z.string().optional(),
   workerAgentId: z.string().optional(),
-  missionRunId: z.string().optional(),
   resultSummary: z.string().optional(),
   progress: jobProgressSnapshotSchema.optional(),
   createdAt: z.string().optional(),

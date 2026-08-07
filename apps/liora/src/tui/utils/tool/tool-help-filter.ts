@@ -3,10 +3,6 @@ import type { ToolInfo } from '@superliora/sdk';
 /** Mirrors agent-core COMPAT_BRANDING_TOOL_HELP — TUI cannot import agent-core. */
 const COMPAT_PREFERRED: Readonly<Record<string, string>> = {
   LioraReview: 'Review',
-  CreateUltraGoal: 'CreateGoal',
-  UltraworkGraph: 'TaskGraph',
-  AgentSwarm: 'Fleet',
-  UltraSwarm: 'Fleet',
 };
 
 /** Primary /tools inventory — hide advanced compat when the public tool is registered. */

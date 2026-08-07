@@ -1734,7 +1734,6 @@ describe('SessionSubagentHost', () => {
         args: expect.objectContaining({
           subagentId: 'agent-0',
           parentToolCallId: 'call_swarm',
-          swarmIndex: 1,
         }),
       }),
     );

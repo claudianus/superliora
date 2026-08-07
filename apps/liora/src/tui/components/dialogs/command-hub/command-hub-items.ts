@@ -3,8 +3,7 @@ import type { CommandHubItem } from './command-hub-types';
 
 export function buildDefaultCommandHubItems(state: {
   readonly planMode?: boolean;
-  readonly swarmMode?: boolean;
-  readonly ultraworkMode?: boolean;
+  readonly askMode?: boolean;
   readonly premiumQualityMode?: boolean;
   readonly permissionMode?: string;
   readonly model?: string;
@@ -63,20 +62,13 @@ export function buildDefaultCommandHubItems(state: {
       kind: 'toggle',
     },
     {
-      id: 'modes.swarm',
+      id: 'modes.ask',
       section: 'Modes',
-      label: 'Swarm / team mode',
-      description: 'Space flips · Enter flips & close · specialists',
-      badge: onOff(state.swarmMode),
+      label: 'Ask mode',
+      description: 'Space flips · Enter flips & close · investigate, do not build',
+      keywords: ['ask', 'read', 'research', 'explore'],
+      badge: onOff(state.askMode),
       kind: 'toggle',
-    },
-    {
-      id: 'modes.ultrawork',
-      section: 'Modes',
-      label: 'Start Mission…',
-      description: 'Enter → type objective',
-      badge: onOff(state.ultraworkMode),
-      keywords: ['ultrawork', 'uw', 'goal', 'pipeline', 'mission'],
     },
     {
       id: 'modes.goals',
@@ -84,14 +76,6 @@ export function buildDefaultCommandHubItems(state: {
       label: 'Manage goal queue',
       description: 'Upcoming goals · pause / resume / reorder',
       keywords: ['goal', 'queue', 'ralph', 'next'],
-    },
-    {
-      id: 'modes.ultraplan',
-      section: 'Modes',
-      label: 'Ultra Plan',
-      description: 'Structured plan pipeline (research → write)',
-      searchOnly: true,
-      keywords: ['ultraplan', 'up', 'plan', 'pipeline'],
     },
     {
       id: 'modes.premium',
@@ -110,16 +94,6 @@ export function buildDefaultCommandHubItems(state: {
       kind: 'cycle',
     },
   );
-
-  if (state.swarmMode === true) {
-    items.push({
-      id: 'fleet.warRoom',
-      section: 'Fleet',
-      label: 'War Room…',
-      description: 'Talk · message · pause · restaff · raw · fleet status',
-      keywords: ['swarm', 'fleet', 'warroom', 'talk', 'restaff', 'pause'],
-    });
-  }
 
   items.push(
     {

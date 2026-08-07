@@ -41,20 +41,11 @@ function formatVerifyStatus(status: StatusGoalStatus | undefined, planMode: bool
 function formatUltraworkStageStatus(options: StatusReportOptions): string {
   const planMode = options.status?.planMode ?? options.planMode;
   const blocked = verifyBlockedByReadiness(options);
-  const canAutoOrchestrate = options.goalStatus === undefined && !blocked;
-  const plan = planMode ? 'Plan on' : options.ultraworkMode ? 'Plan required' : 'Plan off';
+  const plan = planMode ? 'Plan on' : 'Plan off';
   const goal = `Goal ${formatGoalStatus(options.goalStatus)}`;
-  const swarm = `Swarm ${options.swarmMode === true ? 'armed' : canAutoOrchestrate ? 'decision pending' : 'off'}`;
   const verify = `Verify ${formatVerifyStatus(options.goalStatus, planMode, blocked)}`;
 
-  let stageInfo = '';
-  if (options.ultraworkRun !== undefined && options.ultraworkRun !== null) {
-    const stage = options.ultraworkRun.stage;
-    const stageLabel = stage.replaceAll('_', ' ');
-    stageInfo = ` | Stage: ${stageLabel}`;
-  }
-
-  return `${plan} | ${goal} | ${swarm} | ${verify}${stageInfo}`;
+  return `${plan} | ${goal} | ${verify}`;
 }
 
 function formatUltraworkFlow(options: StatusReportOptions): StatusFieldRow {
@@ -143,9 +134,8 @@ function formatQwenTokenPlanGate(options: StatusReportOptions): string {
 }
 
 const READINESS_CHECKS = 'inspect -> test -> change -> verify -> summarize';
-const WORKFLOW_GATE = 'research → interview → goal → swarm → integrate → verify → learn';
-const ENGINE_GATE = 'Plan | Goal | Research | Fleet decision | Integrate | Verify | Learn';
-const AUTO_GATE = 'Shift-Tab toggles Mission/off; no regex promotion';
+const WORKFLOW_GATE = 'research → interview → goal → integrate → verify → learn';
+const ENGINE_GATE = 'Plan | Goal | Research | Integrate | Verify | Learn';
 const AUTONOMY_GATE = 'bounded now -> headless target';
 const TOOLS_GATE = 'search first; load tools on demand';
 const RESEARCH_GATE = 'WebSearch + FetchURL + Context7 ready (local fallback)';
@@ -273,7 +263,6 @@ function readinessGateRows(options: StatusReportOptions): readonly StatusFieldRo
     { label: 'Checks', value: READINESS_CHECKS },
     { label: 'Workflow', value: WORKFLOW_GATE },
     { label: 'Engine', value: ENGINE_GATE },
-    { label: 'Auto', value: AUTO_GATE },
     { label: 'Autonomy', value: AUTONOMY_GATE },
     { label: 'Recovery', value: formatRecoveryGate(options) },
     { label: 'Tools', value: formatToolsGate(options) },
@@ -345,11 +334,6 @@ export function readinessRows(options: StatusReportOptions): readonly StatusFiel
   return [
     { label: 'State', value: 'Ready' },
     ...gateRows,
-    {
-      label: 'Next',
-      value: options.ultraworkMode === true
-        ? 'Type task; Mission will interview before goal, swarm, and edits.'
-        : 'Press Shift-Tab to toggle Mission/off, or type normally.',
-    },
+    { label: 'Next', value: 'Type your task, or /plan to plan it first.' },
   ];
 }

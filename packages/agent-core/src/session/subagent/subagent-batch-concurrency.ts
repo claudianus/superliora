@@ -6,7 +6,7 @@ import {
 export { DEFAULT_SWARM_MAX_CONCURRENCY };
 
 /**
- * Resolve the AgentSwarm normal-phase concurrency cap from the environment.
+ * Resolve the subagent normal-phase concurrency cap from the environment.
  *
  * Unset/empty/invalid values fall back to {@link DEFAULT_SWARM_MAX_CONCURRENCY}
  * so swarms never run fully uncapped by accident. A present positive integer wins.

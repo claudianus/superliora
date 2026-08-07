@@ -80,18 +80,15 @@ export async function driveGoalTurnLoop(
 
     if (end.event.reason === 'cancelled') {
       await deps.agent.goal.pauseOnInterrupt({ reason: 'Paused after interruption' });
-      await deps.agent.ultrawork.markInterrupted({ reason: 'Paused after interruption' });
       return end;
     }
     if (end.event.reason === 'failed') {
       const reason = goalFailurePauseReason(end.event.error);
       await deps.agent.goal.pauseActiveGoal({ reason });
-      await deps.agent.ultrawork.markInterrupted({ reason });
       return end;
     }
     if (end.event.reason === 'filtered') {
       await deps.agent.goal.pauseActiveGoal({ reason: GOAL_PROVIDER_FILTERED_PAUSE_REASON });
-      await deps.agent.ultrawork.markInterrupted({ reason: GOAL_PROVIDER_FILTERED_PAUSE_REASON });
       return end;
     }
     if (end.blockedByUserPromptHook === true) {
@@ -146,23 +143,6 @@ export async function driveGoalTurnLoop(
   }
 }
 
-export async function markUltraworkInterruptedForTurnEnd(
-  agent: Agent,
-  end: TurnEndResult,
-): Promise<void> {
-  if (end.event.reason === 'cancelled') {
-    await agent.ultrawork.markInterrupted({ reason: 'Paused after interruption' });
-    return;
-  }
-  if (end.event.reason === 'failed') {
-    await agent.ultrawork.markInterrupted({ reason: goalFailurePauseReason(end.event.error) });
-    return;
-  }
-  if (end.event.reason === 'filtered') {
-    await agent.ultrawork.markInterrupted({ reason: GOAL_PROVIDER_FILTERED_PAUSE_REASON });
-  }
-}
-
 export async function endGoalTurnWithoutModel(
   agent: Agent,
   turnId: number,
@@ -203,9 +183,3 @@ export async function recordTurnMemory(
   }
 }
 
-export function isUltraworkSwarmSession(agent: Agent): boolean {
-  const ultrawork = agent.ultrawork;
-  if (ultrawork === undefined) return false;
-  const run = ultrawork.getRun();
-  return ultrawork.isModeEnabled() && run !== null && run.status === 'running';
-}

@@ -44,12 +44,12 @@ describe('swarm-decision — swarmEngageNextAction', () => {
   it('returns the unseeded next-action line when the graph is not seeded', () => {
     const out = swarmEngageNextAction('swarm decision: ENGAGE', { seeded: false, nodeIds: [] });
     expect(out).toContain('Swarm ENGAGE approved');
-    expect(out).toContain('Pass relevant UltraworkGraph work_node_ids after seeding the graph');
+    expect(out).toContain('Pass relevant TaskGraph work_node_ids after seeding the graph');
   });
 
   it('uses the default unseeded shape when the seeded argument is omitted', () => {
     const out = swarmEngageNextAction('swarm decision: ENGAGE');
-    expect(out).toContain('Pass relevant UltraworkGraph work_node_ids after seeding the graph');
+    expect(out).toContain('Pass relevant TaskGraph work_node_ids after seeding the graph');
   });
 
   it('mentions the DEFER waiver escape hatch', () => {

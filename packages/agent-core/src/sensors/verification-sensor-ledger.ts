@@ -168,7 +168,7 @@ export function buildTestFailureSoftTips(
     'Soft sensor: Goal marked complete while recent test/command failure evidence exists.',
     `· Latest: ${latest.toolName} — ${latest.summary}`,
     'Re-run RunProjectChecks or the failing command and confirm green before telling the user you are done.',
-    'Hard gate still applies on live Mission/Ultrawork runs (swarm-evidence-gate).',
+    'Hard gate still applies on live fan-out runs (swarm-evidence-gate).',
   ];
 }
 

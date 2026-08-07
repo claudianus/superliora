@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import {
   extractFileHints,
   extractNextActions,
-  extractSwarmRunLines,
   factsToDetails,
   formatRawRef,
   formatRecallSections,
@@ -109,27 +108,6 @@ describe('context-helpers.ts — pure helpers', () => {
         { category: 'decision' as const, subject: 'd', detail: 'detail-d', importance: 'important' as const },
       ];
       expect(factsToDetails(facts)).toEqual(['detail-a', 'detail-d']);
-    });
-  });
-
-  describe('extractSwarmRunLines', () => {
-    it('captures bullet lines under the swarm_runs: section', () => {
-      const summary = [
-        '## heading',
-        'swarm_runs:',
-        '- run-1: ac-1 → PASS',
-        '- run-2: ac-2 → FAIL',
-        'next_actions:',
-        '- todo',
-      ].join('\n');
-      expect(extractSwarmRunLines(summary)).toEqual([
-        'run-1: ac-1 → PASS',
-        'run-2: ac-2 → FAIL',
-      ]);
-    });
-
-    it('returns an empty list when no swarm_runs: section is present', () => {
-      expect(extractSwarmRunLines('no section here')).toEqual([]);
     });
   });
 

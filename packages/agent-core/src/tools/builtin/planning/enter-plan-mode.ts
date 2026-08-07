@@ -54,12 +54,9 @@ export class EnterPlanModeTool implements BuiltinTool<EnterPlanModeInput> {
         : 'Requesting to enter plan mode',
       approvalRule: this.name,
       execute: async () => {
-        const activationSource =
-          this.agent.ultrawork.getRun()?.status === 'running' ? ('ultrawork' as const) : ('standalone' as const);
         const routed = resolvePlanModeKind({
           ultra: args.ultra,
           initialContext: args.initial_context,
-          source: activationSource,
         });
         const useUltra = routed.kind === 'ultra';
 
@@ -71,7 +68,6 @@ export class EnterPlanModeTool implements BuiltinTool<EnterPlanModeInput> {
           const delegated = await delegateConductorPlanDesk(this.agent, {
             ultra: useUltra,
             initialContext: args.initial_context,
-            source: activationSource,
           });
           this.agent.telemetry.track('plan_enter_resolved', {
             outcome: 'plan_desk_delegated',
@@ -106,7 +102,6 @@ export class EnterPlanModeTool implements BuiltinTool<EnterPlanModeInput> {
             true,
             useUltra,
             args.initial_context ?? '',
-            activationSource,
           );
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Failed to enter plan mode.';

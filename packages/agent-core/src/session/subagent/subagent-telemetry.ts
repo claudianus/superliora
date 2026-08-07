@@ -154,7 +154,7 @@ export function attachToolStreamBridge(
   options: RunSubagentOptions,
 ): () => void {
   const originalEmitEvent = child.emitEvent.bind(child);
-  // UltraSwarm run correlation was retired (S3-R4); child tool streams no
+  // Swarm run correlation was retired; child tool streams no
   // longer carry a swarm run id.
   const runId: string | undefined = undefined;
   const toolNames = new Map<string, string>();

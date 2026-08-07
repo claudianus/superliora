@@ -1,8 +1,5 @@
 import type { Agent } from '../..';
-import {
-  isMissionPlanPhaseAllowedWrite,
-  type MissionPlanWriteContext,
-} from '#/mission/plan-write-paths';
+import { isPlanPhaseAllowedWrite } from '#/agent/plan/plan-write-paths';
 import type { PermissionPolicy, PermissionPolicyContext, PermissionPolicyResult } from '../types';
 import { writeFileAccesses } from './file-access-ask';
 
@@ -37,13 +34,15 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
         };
       }
 
-      const allowCtx = missionWriteContext(this.agent, planFilePath);
-      if (isMissionPlanPhaseAllowedWrite(writePaths, allowCtx)) {
+      if (
+        isPlanPhaseAllowedWrite(writePaths, {
+          planFilePath,
+          workDir: this.agent.config?.cwd ?? '',
+        })
+      ) {
         return;
       }
 
-      // Legacy ultra-interview product-write exception removed: Mission plan phases
-      // only allow plan file + evidence root until ExitPlanMode.
       return {
         kind: 'deny',
         message: planModeWriteDeniedMessage(planFilePath),
@@ -62,22 +61,6 @@ export class PlanModeGuardDenyPermissionPolicy implements PermissionPolicy {
   }
 }
 
-function missionWriteContext(
-  agent: Agent,
-  planFilePath: string | null,
-): MissionPlanWriteContext {
-  const activation = agent.ultrawork?.getActivation();
-  const workDir =
-    activation?.workDir !== undefined && activation.workDir.length > 0
-      ? activation.workDir
-      : (agent.config?.cwd ?? '');
-  return {
-    planFilePath,
-    evidenceRoot: activation?.evidenceRoot,
-    workDir,
-  };
-}
-
 function extractWritePathsFromArgs(context: PermissionPolicyContext): string[] {
   const args = context.toolCall.arguments;
   if (args === null || typeof args !== 'object') return [];
@@ -86,7 +69,7 @@ function extractWritePathsFromArgs(context: PermissionPolicyContext): string[] {
 }
 
 function planModeWriteDeniedMessage(planFilePath: string | null): string {
-  return `Plan mode is active. You may only write to the current plan file or Mission evidence root: ${
+  return `Plan mode is active. You may only write to the current plan file: ${
     planFilePath ?? '(no plan file selected yet)'
   }. Call ExitPlanMode before editing product source.`;
 }

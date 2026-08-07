@@ -2,18 +2,13 @@ import { randomUUID } from 'node:crypto';
 
 import { ErrorCodes, LioraError } from '#/errors/index';
 import type { Agent } from '..';
-import type { CompletionAuditRejection } from '#/mission';
-import {
-  maybeAdvanceUltraworkOnGoalComplete,
-  maybeAdvanceUltraworkStage,
-} from '#/mission';
+import type { CompletionAuditRejection } from './completion-audit';
 import type { ModeActivationSource } from '../mode-activation';
 import { DEFAULT_MODE_ACTIVATION_SOURCE } from '../mode-activation';
 import type { AgentRecordOf } from '../records/types';
 import { budgetTelemetryProperties } from './budget';
 import {
   auditSensorBoundCompletion,
-  auditUltraworkBoundCompletion,
   checkCompleteRejectCooldown,
   evaluateStructuredCompletionPredicate,
   recordCompletionRejection,
@@ -208,9 +203,6 @@ export class GoalMode {
     });
     trackGoalCreated(this.host, actor, input.replace === true);
     this.activationSource = input.source ?? DEFAULT_MODE_ACTIVATION_SOURCE;
-    if (this.activationSource === 'ultrawork') {
-      maybeAdvanceUltraworkStage(this.agent, 'goal', 'UltraGoal created');
-    }
     return this.toSnapshot(state);
   }
 
@@ -346,8 +338,7 @@ export class GoalMode {
    * Guards (keep goal `active` on failure — AC-A2/A3):
    * 1. Reject cooldown N={@link GOAL_COMPLETE_REJECT_COOLDOWN_TURNS} after a
    *    false complete (model actor only — runtime finish may close verified runs).
-   * 2. Ultrawork completion audit when a live run is bound.
-   * 3. Structured GoalPredicate evaluation when present.
+   * 2. Structured GoalPredicate evaluation when present.
    *
    * Caller (UpdateGoal) should surface {@link getLastCompletionRejection}.
    */
@@ -360,7 +351,6 @@ export class GoalMode {
 
     let rejection =
       checkCompleteRejectCooldown(this.host, state, actor) ??
-      auditUltraworkBoundCompletion(this.agent, actor) ??
       auditSensorBoundCompletion(this.agent, actor) ??
       (await evaluateStructuredCompletionPredicate(this.agent, state));
 
@@ -424,16 +414,13 @@ export class GoalMode {
       stats: this.statsOf(state),
       actor,
     });
-    if (this.activationSource === 'ultrawork') {
-      maybeAdvanceUltraworkOnGoalComplete(this.agent);
-    }
     // ...then clear the durable record (emits onGoalUpdated(null) → box clears).
     this.clearInternal(actor);
     return snapshot;
   }
 
   /**
-   * Last rejection from {@link markComplete} (ultrawork / predicate / cooldown).
+   * Last rejection from {@link markComplete} (sensor / predicate / cooldown).
    * Cleared on a successful complete. UpdateGoal reads this for tool output.
    */
   getLastCompletionRejection(): CompletionAuditRejection | undefined {

@@ -12,6 +12,7 @@ describe('agent/permission/policies — createPermissionDecisionPolicies', () =>
     expect(names).toEqual([
       'PreToolCallHookPermissionPolicy',
       'AutoModeAskUserQuestionDenyPermissionPolicy',
+      'AskModeGuardDenyPermissionPolicy',
       'PlanModeGuardDenyPermissionPolicy',
       'UserConfiguredDenyPermissionPolicy',
       'GuiUseSafetyPermissionPolicy',

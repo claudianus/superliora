@@ -158,15 +158,11 @@ export function createTUIStateNativeRegionVfx(
   // motion only pauses for an active transcript selection (frame hold).
   if (!motionEffectsAllowed()) return undefined;
   const appearance = state.appState.appearance ?? getActiveAppearancePreferences();
-  // Ultrawork / premium spectacle pins full quality so the glow does not freeze under load.
-  const premiumPinned =
-    resolveAmbientEffectMode(appearance) === 'premium' || state.appState.ultraworkMode === true;
+  // Premium spectacle pins full quality so the glow does not freeze under load.
+  const premiumPinned = resolveAmbientEffectMode(appearance) === 'premium';
   return createRendererRegionVfx({
     preset,
-    requested:
-      state.appState.ultraworkMode === true
-        ? 'premium'
-        : resolveAmbientEffectMode(appearance),
+    requested: resolveAmbientEffectMode(appearance),
     quality: premiumPinned ? 'full' : getAppearanceRenderQuality(),
     health: premiumPinned ? 'healthy' : getAppearanceRenderHealth(),
     nowMs: appearanceAnimationNow(),

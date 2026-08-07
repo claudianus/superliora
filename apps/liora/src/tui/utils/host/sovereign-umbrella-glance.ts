@@ -3,11 +3,7 @@
  * Gate set + core profile — SSOT via env helpers below.
  */
 
-import {
-  isFleetDualEmitEnabled,
-  isMissionDualEmitEnabled,
-  isRepoIndexWarmEnabled,
-} from '@superliora/sdk';
+import { isRepoIndexWarmEnabled } from '@superliora/sdk';
 
 import { isSovereignCoreDefaultEnabled } from '#/tui/utils/agent/profile-glance';
 import { isHideLegacyToolNamesEnabled } from '#/tui/utils/tool/tools-glance';
@@ -21,8 +17,6 @@ export interface SovereignUmbrellaSoftGates {
   readonly coreProfile: boolean;
   readonly hideLegacy: boolean;
   readonly warm: boolean;
-  readonly dualEmitMission: boolean;
-  readonly dualEmitFleet: boolean;
 }
 
 /** Grade umbrella soft gates from env helpers (no agent-core import in TUI). */
@@ -33,8 +27,6 @@ export function resolveSovereignUmbrellaSoftGates(
     coreProfile: isSovereignCoreDefaultEnabled(env),
     hideLegacy: isHideLegacyToolNamesEnabled(env),
     warm: isRepoIndexWarmEnabled(env),
-    dualEmitMission: isMissionDualEmitEnabled(env),
-    dualEmitFleet: isFleetDualEmitEnabled(env),
   };
 }
 
@@ -62,8 +54,6 @@ export function buildHostSessionLiveLines(
     formatSovereignGateLine('core profile', gates.coreProfile),
     formatSovereignGateLine('hide-legacy', gates.hideLegacy),
     formatSovereignGateLine('codemap warm', gates.warm),
-    formatSovereignGateLine('mission dual-emit', gates.dualEmitMission),
-    formatSovereignGateLine('fleet dual-emit', gates.dualEmitFleet),
     '',
   ];
 }

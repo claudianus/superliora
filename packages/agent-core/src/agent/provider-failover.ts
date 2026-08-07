@@ -13,7 +13,7 @@ import type { QuestionOption, QuestionResult } from '../rpc/sdk-api';
 export const GOAL_PROVIDER_AUTO_RETRIES = 3;
 /**
  * Rate-limit bursts need more patience — providers often recover after a short
- * window, and Ultrawork runs should wait instead of pausing the goal.
+ * window, and long runs should wait instead of pausing the goal.
  * Permanent quota/billing exhaustion is NOT retried here (see
  * {@link isPermanentQuotaOrBillingFailure}).
  */
@@ -139,7 +139,7 @@ export async function resolveProviderRecovery(
   }
 
   const fallbacks = listSwitchableFailoverModels(agent);
-  // Prefer silent model switch after auto-retries so Ultrawork/goal runs keep
+  // Prefer silent model switch after auto-retries so goal runs keep
   // moving without blocking on a human when a fallback is configured.
   if (fallbacks.length > 0) {
     return { type: 'switch', modelAlias: fallbacks[0]!.alias };
@@ -162,7 +162,7 @@ export async function resolveProviderRecovery(
 
 /**
  * Prefer the provider's Retry-After / retryAfterMs, then exponential backoff.
- * Rate-limit failures use a longer default so Ultrawork does not thrash.
+ * Rate-limit failures use a longer default so long runs do not thrash.
  */
 export function resolveProviderRetryDelayMs(
   error: LioraErrorPayload,

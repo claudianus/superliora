@@ -11,8 +11,6 @@ describe('sovereign-umbrella-glance', () => {
     expect(gates.coreProfile).toBe(false);
     expect(gates.hideLegacy).toBe(true);
     expect(gates.warm).toBe(true);
-    expect(gates.dualEmitMission).toBe(false);
-    expect(gates.dualEmitFleet).toBe(false);
   });
 
   it('resolveSovereignUmbrellaSoftGates allows warm opt-out via SUPERLIORA_REPO_INDEX_WARM=0', () => {
@@ -25,8 +23,6 @@ describe('sovereign-umbrella-glance', () => {
     expect(gates.coreProfile).toBe(true);
     expect(gates.hideLegacy).toBe(true);
     expect(gates.warm).toBe(true);
-    expect(gates.dualEmitMission).toBe(true);
-    expect(gates.dualEmitFleet).toBe(true);
   });
 
   it('buildHostSessionLiveLines is empty when umbrella env is unset', () => {
@@ -40,7 +36,5 @@ describe('sovereign-umbrella-glance', () => {
     expect(text).toContain('· core profile: ON');
     expect(text).toContain('· hide-legacy: ON');
     expect(text).toContain('· codemap warm: ON');
-    expect(text).toContain('· mission dual-emit: ON');
-    expect(text).toContain('· fleet dual-emit: ON');
   });
 });

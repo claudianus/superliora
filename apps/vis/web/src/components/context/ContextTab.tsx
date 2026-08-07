@@ -36,7 +36,6 @@ export function ContextTab({ sessionId, initialAgentId = 'main' }: ContextTabPro
   const permissionMode = ctx?.permission.mode ?? null;
   const planActive = ctx?.planMode.active ?? false;
   const goal = ctx?.goal ?? null;
-  const swarmActive = ctx?.swarm.active ?? false;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -114,9 +113,6 @@ export function ContextTab({ sessionId, initialAgentId = 'main' }: ContextTabPro
           ) : null}
           {planActive ? (
             <Pill tone="info" variant="solid">plan mode</Pill>
-          ) : null}
-          {swarmActive ? (
-            <Pill tone="subagent" variant="solid">swarm mode</Pill>
           ) : null}
         </div>
       </div>

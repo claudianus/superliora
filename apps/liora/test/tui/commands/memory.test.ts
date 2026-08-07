@@ -13,7 +13,8 @@ import {
   loadMemoryReadinessEvidence,
   redactMemoryReadinessText,
 } from '#/tui/commands/memory/memory';
-import { createUltraworkEvidenceSeed } from '#/tui/commands/ultrawork/ultrawork';
+
+import { writeWikiSeedFixture } from '../../helpers/wiki-seed';
 
 describe('memory readiness slash command builders', () => {
   it('builds a concise redacted readiness panel from stats, recall, and evidence', () => {
@@ -130,21 +131,17 @@ describe('memory readiness slash command builders', () => {
     }
   });
 
-  it('recognizes Ultrawork startup seed files as local LLM Wiki and knowledge-map evidence', async () => {
-    const workDir = mkdtempSync(join(tmpdir(), 'kimi-memory-readiness-ultrawork-seed-'));
+  it('recognizes startup seed files as local LLM Wiki and knowledge-map evidence', () => {
+    const workDir = mkdtempSync(join(tmpdir(), 'kimi-memory-readiness-wiki-seed-'));
     try {
-      const seed = await createUltraworkEvidenceSeed(
+      const seed = writeWikiSeedFixture(
         workDir,
         '갤러그 형태의 2D 게임이고 아이템도 있습니다. 비주얼 검사까지 해주세요.',
-        'manual',
-        false,
-        undefined,
-        new Date('2026-07-02T00:00:00.000Z'),
       );
 
       const evidence = loadMemoryReadinessEvidence(workDir);
 
-      expect(seed.root).toContain('.superliora/evidence/ultrawork-runs');
+      expect(seed.root).toContain('.superliora/evidence/');
       expect(evidence.llmWiki.ready).toBe(true);
       expect(evidence.knowledgeMap.ready).toBe(true);
       expect(evidence.browserUse.ready).toBe(false);
@@ -160,17 +157,10 @@ describe('memory readiness slash command builders', () => {
     }
   });
 
-  it('recognizes project-local LLM Wiki v2 index and manifest even without run evidence', async () => {
+  it('recognizes project-local LLM Wiki v2 index and manifest even without run evidence', () => {
     const workDir = mkdtempSync(join(tmpdir(), 'kimi-memory-readiness-wiki-v2-'));
     try {
-      const seed = await createUltraworkEvidenceSeed(
-        workDir,
-        'Improve LLM Wiki quality without leaking secrets token=secret-value',
-        'manual',
-        false,
-        undefined,
-        new Date('2026-07-02T00:00:00.000Z'),
-      );
+      const seed = writeWikiSeedFixture(workDir, 'Improve LLM Wiki quality');
       rmSync(join(workDir, '.superliora/evidence'), { recursive: true, force: true });
 
       const evidence = loadMemoryReadinessEvidence(workDir);
@@ -188,14 +178,7 @@ describe('memory readiness slash command builders', () => {
   it('shows project-local LLM Wiki status through /memory wiki', async () => {
     const workDir = mkdtempSync(join(tmpdir(), 'kimi-memory-wiki-command-'));
     try {
-      await createUltraworkEvidenceSeed(
-        workDir,
-        'Document the harness wiki layer',
-        'manual',
-        false,
-        undefined,
-        new Date('2026-07-02T00:00:00.000Z'),
-      );
+      writeWikiSeedFixture(workDir, 'Document the harness wiki layer');
       const host = {
         state: { appState: { workDir } },
         showNotice: vi.fn(),
@@ -272,17 +255,10 @@ describe('memory readiness slash command builders', () => {
     }
   });
 
-  it('promotes Ultrawork seed evidence to verified through /memory verify', async () => {
+  it('promotes seed evidence to verified through /memory verify', async () => {
     const workDir = mkdtempSync(join(tmpdir(), 'kimi-memory-verify-command-'));
     try {
-      await createUltraworkEvidenceSeed(
-        workDir,
-        'Verify harness evidence promotion',
-        'manual',
-        false,
-        undefined,
-        new Date('2026-07-02T00:00:00.000Z'),
-      );
+      writeWikiSeedFixture(workDir, 'Verify harness evidence promotion');
 
       const before = loadMemoryReadinessEvidence(workDir);
       expect(before.llmWiki.tier).toBe('seed');

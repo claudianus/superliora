@@ -22,12 +22,11 @@ export const HOOK_EVENT_TYPES = [
   'MessageDisplay',
   'SubagentStart',
   'SubagentStop',
-  // Claude Agent Teams lifecycle (hosted by UltraSwarm) + Claude Code extras
+  // Claude Agent Teams lifecycle + Claude Code extras
   'TaskCreated',
   'TaskCompleted',
   'Stop',
   'StopFailure',
-  'TeammateIdle',
   'InstructionsLoaded',
   'ConfigChange',
   'CwdChanged',

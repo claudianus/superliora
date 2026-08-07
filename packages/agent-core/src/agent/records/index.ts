@@ -93,19 +93,6 @@ function restoreAgentRecord(agent: Agent, input: AgentRecord): void {
     case 'plan_mode.exit':
       agent.planMode.exit(input.id);
       return;
-    case 'swarm_mode.enter':
-      agent.swarmMode.restoreEnter(input.trigger);
-      return;
-    case 'swarm_mode.exit':
-      agent.swarmMode.exit();
-      return;
-    case 'swarm.steer':
-      // Steering during a swarm run is queued in the swarm checkpoint,
-      // not replayed as a turn-level steer. No per-agent state to restore.
-      return;
-    case 'swarm.restaff':
-      // Restaff is mid-run only; restore does not re-queue restaff waves.
-      return;
     case 'context.append_message':
       agent.context.appendMessage(input.message);
       return;
@@ -157,14 +144,7 @@ function restoreAgentRecord(agent: Agent, input: AgentRecord): void {
       agent.refine?.restoreState(input.state);
       return;
     case 'subagent.lifecycle':
-    case 'ultrawork.event':
       agent.replayBuilder.push({ type: 'agent_event', event: input.event as AgentEvent });
-      return;
-    case 'ultrawork.run':
-      agent.ultrawork.restoreRun(input);
-      return;
-    case 'ultrawork.mode':
-      agent.ultrawork.restoreMode(input);
       return;
     case 'premium-quality.mode':
       agent.premiumQuality.restoreMode(input);

@@ -44,7 +44,7 @@ export const NO_AI_SLOP_SKILL_ROUTING = [
   '- Apply selectively; AGENTS.md and harness contracts override skill text. Detectors are advisory.',
 ].join('\n');
 
-/** Full guidance block for write/review/exit and ultrawork prose gates. */
+/** Full guidance block for write/review/exit prose gates. */
 export const NO_AI_SLOP_PROSE_GATE = [
   NO_AI_SLOP_SKIP_WHEN,
   NO_AI_SLOP_LIGHT_PASS,

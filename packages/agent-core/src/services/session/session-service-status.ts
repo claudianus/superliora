@@ -54,7 +54,6 @@ export async function buildSessionStatusResponse(
     thinking_level: config.thinkingLevel,
     permission: permission.mode,
     plan_mode: plan !== null,
-    swarm_mode: agentState?.swarmMode ?? false,
     context_tokens: contextTokens,
     max_context_tokens: maxContextTokens,
     context_usage: contextUsage,

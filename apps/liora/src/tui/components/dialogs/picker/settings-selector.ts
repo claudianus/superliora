@@ -18,8 +18,6 @@ export type SettingsSelection =
   | 'keybindings'
   | 'context'
   | 'compaction'
-  | 'mission'
-  | 'fleet'
   | 'media'
   | 'harness'
   | 'tools'
@@ -36,7 +34,6 @@ export type SettingsSelection =
   | 'cache'
   | 'never-halt'
   | 'telemetry'
-  | 'bench-diagnostics'
   | 'network'
   | 'storage'
   | 'experiments'
@@ -152,18 +149,6 @@ const SETTINGS_OPTIONS_BASE: readonly (Omit<ChoiceOption, 'keywords'> & {
     section: 'Agent',
     label: 'Compaction',
     description: 'When and how context is compressed.',
-  },
-  {
-    value: 'mission',
-    section: 'Agent',
-    label: 'Mission / Goals',
-    description: 'Mission pipeline and goal auto-start.',
-  },
-  {
-    value: 'fleet',
-    section: 'Agent',
-    label: 'Fleet / Parallel',
-    description: 'Workers, budget, worktree isolation.',
   },
   {
     value: 'never-halt',
@@ -305,12 +290,6 @@ const SETTINGS_OPTIONS_BASE: readonly (Omit<ChoiceOption, 'keywords'> & {
     section: 'System',
     label: 'Harness',
     description: 'Tools waist, eyes, Visual Quality, experiments hub.',
-  },
-  {
-    value: 'bench-diagnostics',
-    section: 'System',
-    label: 'Bench / Diagnostics',
-    description: '/bench, internal diagnostics.',
   },
 ];
 

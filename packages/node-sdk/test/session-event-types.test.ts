@@ -62,36 +62,6 @@ describe('Event public types', () => {
     expectTypeOf<EventByType<'cron.fired'>['origin']['kind']>().toEqualTypeOf<'cron_job'>();
   });
 
-  it('narrows Ultrawork orchestration events by type', () => {
-    expectTypeOf<EventByType<'ultrawork.stage.changed'>['to']>().toEqualTypeOf<
-      | 'intake'
-      | 'plan'
-      | 'research'
-      | 'goal'
-      | 'staff'
-      | 'swarm'
-      | 'integrate'
-      | 'verify'
-      | 'learn'
-      | 'done'
-    >();
-    expectTypeOf<EventByType<'ultrawork.research.provider.selected'>['backend']['kind']>().toEqualTypeOf<
-      | 'local_research_stack'
-      | 'kimi_web_search'
-      | 'openai_web_search'
-      | 'anthropic_web_search'
-      | 'moonshot_service_search'
-      | 'mcp_search'
-    >();
-    expectTypeOf<EventByType<'ultrawork.team.staffed'>['team']['maxExperts']>().toEqualTypeOf<number>();
-    expectTypeOf<EventByType<'ultrawork.team.staffed'>['toolCallId']>().toEqualTypeOf<string | undefined>();
-    expectTypeOf<
-      EventByType<'ultrawork.team.staffed'>['team']['experts'][number]['coverageLane']
-    >().toEqualTypeOf<string | undefined>();
-    expectTypeOf<EventByType<'ultrawork.knowledge.promoted'>['promotion']['target']>().toEqualTypeOf<
-      'liora_recall' | 'llm_wiki'
-    >();
-  });
 
   it('exposes approval and question reverse-RPC requests', () => {
     expectTypeOf<ApprovalRequest['turnId']>().toEqualTypeOf<number | undefined>();
@@ -115,15 +85,6 @@ describe('Event public types', () => {
         case 'event.workspace.deleted':
         case 'event.config.changed':
         case 'event.model_catalog.changed':
-        case 'ultrawork.stage.changed':
-        case 'ultrawork.research.started':
-        case 'ultrawork.research.provider.selected':
-        case 'ultrawork.research.finding.verified':
-        case 'ultrawork.team.staffed':
-        case 'ultrawork.task.assigned':
-        case 'ultrawork.council.decision':
-        case 'ultrawork.verification.completed':
-        case 'ultrawork.knowledge.promoted':
         case 'goal.updated':
         case 'skill.activated':
         case 'plugin_command.activated':
@@ -166,12 +127,6 @@ describe('Event public types', () => {
         case 'prompt.submitted':
         case 'subagent.todo.updated':
         case 'tools.update_store':
-        case 'ultrawork.collaboration.mention':
-        case 'ultrawork.collaboration.message':
-        case 'ultrawork.collaboration.debate':
-        case 'ultrawork.collaboration.steer':
-        case 'ultrawork.swarm.paused':
-        case 'ultrawork.swarm.resumed':
         case 'job.updated':
         case 'job.inbox':
         case 'runtime.degraded':

@@ -72,11 +72,11 @@ describe('tips constants', () => {
     expect(text).not.toContain('easter');
   });
 
-  it('keeps default toolbar tips on Mission wording instead of legacy plan mode wording', () => {
+  it('names the Build/Ask cycle in the Shift-Tab tip', () => {
     setCliLocale('en');
     const text = ALL_TIPS.map((tip) => ttui(tip.key)).join('\n');
 
-    expect(text).toContain('Mission');
-    expect(text).not.toMatch(/\bPlan mode\b/i);
+    expect(text).toContain('shift-tab switches between Build and Ask mode');
+    expect(text).not.toContain('Mission');
   });
 });

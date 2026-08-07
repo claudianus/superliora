@@ -23,19 +23,16 @@ describe('keymap registry', () => {
     expect(counts.streaming).toBe(KEYMAP_STREAMING.length);
   });
 
-  it('tags Mission / Fleet slash samples', () => {
-    expect(keymapBindingsForSlash('/mission').map((b) => b.id)).toEqual([
-      'interrupt',
-      'ultrawork',
-      'steer',
-    ]);
-    expect(keymapBindingsForSlash('/ops')).toEqual([]);
-    expect(keymapBindingsForSlash('/fleet').map((b) => b.id)).toEqual([
+  it('tags Plan / Agents / Jobs slash samples', () => {
+    expect(keymapBindingsForSlash('/plan').map((b) => b.id)).toEqual(['interrupt', 'steer']);
+    expect(keymapBindingsForSlash('/agents').map((b) => b.id)).toEqual([
       'interrupt',
       'steer',
       'background',
     ]);
-    expect(formatKeymapBindingSample(keymapBindingsForSlash('/mission')[1]!)).toContain('Shift-Tab');
+    expect(keymapBindingsForSlash('/jobs').map((b) => b.id)).toEqual(['background']);
+    expect(keymapBindingsForSlash('/mission')).toEqual([]);
+    expect(formatKeymapBindingSample(keymapBindingsForSlash('/plan')[0]!)).toContain('Ctrl-C');
   });
 });
 
@@ -50,10 +47,10 @@ describe('keybindings-glance', () => {
     const lines = buildKeybindingsSettingsLines(glance).join('\n');
     expect(lines).toContain('Keyboard / Keybindings (read-only)');
     expect(lines).toContain('Live registry (keymap.ts)');
-    expect(lines).toContain('Mission / Fleet / Transcript samples');
+    expect(lines).toContain('Plan / Agents / Transcript samples');
     expect(lines).toContain('/help');
     expect(lines).toContain(String(KEYMAP_ALL.length));
-    expect(lines).toContain('Shift-Tab — Toggle Mission mode');
+    expect(lines).toContain('Ctrl-C — Stop the current turn');
     expect(lines).toContain('Ctrl-O — Cycle transcript density');
     expect(lines).toContain('Ctrl-B — Background the current work');
     expect(lines).toContain('No keybinding editor here');

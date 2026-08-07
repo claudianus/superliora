@@ -147,7 +147,6 @@ export class SessionLifecycleController {
     // after setSession / hydrate.
     host.state.queuedMessages = [];
     host.promptStash.clear();
-    host.state.swarmModeEntry = undefined;
     host.streamingUI.resetToolCallState();
     host.streamingUI.resetToolUi();
     host.sessionEventHandler.resetRuntimeState();
@@ -202,9 +201,7 @@ export class SessionLifecycleController {
       thinkingLevel: status.thinkingLevel,
       permissionMode: status.permission,
       planMode: status.planMode,
-      ultraworkMode: host.state.appState.ultraworkMode,
       premiumQualityMode: status.premiumQualityMode ?? false,
-      swarmMode: status.swarmMode ?? false,
       contextTokens: status.contextTokens,
       maxContextTokens: status.maxContextTokens,
       contextUsage: status.contextUsage,
@@ -306,8 +303,6 @@ export class SessionLifecycleController {
         await writeTuiSessionState(host).catch(() => undefined);
         this.resetSessionRuntime();
         host.setAppState({
-          ultraworkMode: false,
-          ultraworkPriorState: null,
           activityTip: null,
           isCompacting: false,
           isBackgroundCompacting: false,
@@ -395,7 +390,6 @@ export class SessionLifecycleController {
     host.reverseRpcPanels.cancelPendingReverseRpc(reason);
     host.session = undefined;
     host.state.toolOutputViewports.clear();
-    host.state.swarmModeEntry = undefined;
     host.harness.setTelemetryContext({ sessionId: null });
     host.setAppState({ goal: null });
     return previous;

@@ -14,9 +14,6 @@ import { createCenterModalOverlayRegion } from '#/tui/utils/ui/center-modal';
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
-  motionEffectsAllowed,
-  paintUltraworkEditorBorderGlow,
-  resolveUltraworkBorderGlowHex,
 } from '#/tui/features/appearance/appearance-effects';
 
 import type { TUIState } from '../../tui-state';
@@ -166,7 +163,7 @@ export function buildTUIStateNativeFrame(
     readonly diagnosticsOverlay?: TUIStateNativeDiagnosticsOverlaySource;
     readonly diagnostics?: RendererDiagnosticsSnapshot;
     readonly reuseChrome?: TUIStateNativeFrameChrome;
-    /** Skip Ultrawork perimeter chase / focus VFX (typing hot path). */
+    /** Skip editor focus VFX (typing hot path). */
     readonly skipDecorativeEditorEffects?: boolean;
     /**
      * Pure ambient ticks: paint stage stack without region clear fills so we
@@ -258,39 +255,19 @@ export function buildTUIStateNativeFrame(
       if (region.id === 'editor' && projected.cursor !== undefined) {
         cursor = projected.cursor;
       }
-      const ultraworkBorder =
-        region.id === 'editor' &&
-        state.appState.ultraworkMode === true &&
-        motionEffectsAllowed() &&
-        !skipDecorative;
-      // Promote ANSI strings to cells before Ultrawork border paint. Approval /
-      // permission dialogs replace the editor and still emit chalk strings —
-      // raw Array.from on those lines used to leak SGR bodies as visible text.
-      const rawContent = region.id === 'transcript'
+      // Promote ANSI strings to cells. Approval / permission dialogs replace
+      // the editor and still emit chalk strings — raw Array.from on those
+      // lines used to leak SGR bodies as visible text.
+      const content = region.id === 'transcript'
         ? promoteTranscriptRegionLinesToCells(projected.lines)
         : promoteRendererRegionLinesToCells(projected.lines);
-      const content =
-        ultraworkBorder && rawContent.length > 0
-          ? paintUltraworkEditorBorderGlow(rawContent, appearanceAnimationNow())
-          : rawContent;
       if (content.length === 0 && region.id !== 'transcript') return [];
       const vfx =
         region.id === 'editor' && state.editor.borderHighlighted && !skipDecorative
-          ? ultraworkBorder
-            ? createTUIStateNativeRegionVfx(state, 'loading-shimmer', {
-                color: resolveUltraworkBorderGlowHex(appearanceAnimationNow()),
-                seed: 'native-editor-ultrawork',
-                // Faster, brighter chase across the frame perimeter feel.
-                premiumIntervalMs: 720,
-                subtleIntervalMs: 980,
-                minIntensity: 0.18,
-                maxIntensity: 0.72,
-                width: 4,
-              })
-            : createTUIStateNativeRegionVfx(state, 'focus-pulse', {
-                color: currentTheme.palette.primary,
-                seed: 'native-editor-focus',
-              })
+          ? createTUIStateNativeRegionVfx(state, 'focus-pulse', {
+              color: currentTheme.palette.primary,
+              seed: 'native-editor-focus',
+            })
           : undefined;
       return [{
         id: region.id,

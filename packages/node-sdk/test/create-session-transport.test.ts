@@ -76,6 +76,7 @@ class StubRpc extends SDKRpcClientBase {
       thinkingLevel: 'off',
       permission: 'manual' as const,
       planMode: this.planMode,
+      askMode: false,
       contextTokens: 0,
       maxContextTokens: 100,
       contextUsage: 0,

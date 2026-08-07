@@ -10,7 +10,6 @@ export interface SubagentSpawnedEvent {
   readonly parentToolCallUuid?: string;
   readonly parentAgentId?: string;
   readonly description?: string;
-  readonly swarmIndex?: number;
   readonly runInBackground: boolean;
   /** Effective model alias for this child (explore cheap route or parent). */
   readonly modelAlias?: string;
@@ -107,7 +106,7 @@ export interface SubagentToolCallEvent {
   readonly subagentName?: string;
   /** Parent tool call that spawned the subagent; correlates panel state. */
   readonly parentToolCallId?: string;
-  /** UltraSwarm run id when the subagent is part of a swarm run. */
+  /** Parent run id when the subagent is part of a fan-out run. */
   readonly runId?: string;
   readonly toolCallId: string;
   readonly name: string;
@@ -175,7 +174,6 @@ export const subagentSpawnedEventSchema = z.object({
   parentToolCallUuid: z.string().optional(),
   parentAgentId: z.string().optional(),
   description: z.string().optional(),
-  swarmIndex: z.number().optional(),
   runInBackground: z.boolean(),
   modelAlias: z.string().optional(),
 }) satisfies z.ZodType<SubagentSpawnedEvent>;

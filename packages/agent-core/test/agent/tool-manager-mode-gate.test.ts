@@ -29,12 +29,10 @@ const GATED_SCHEMA = [
   'ExitPlanMode',
   'NextPhase',
   'RecordInterviewFinding',
-  'UltraworkGraph',
   'GenerateImage',
   'GenerateVideo',
   'VerifySurface',
   'VisualDiff',
-  'UltraSwarm',
   'SearchExpert',
   'CreateGoal',
 ];
@@ -92,7 +90,6 @@ describe('ToolManager mode-gated schemas (T2-3)', () => {
     expect(names).toContain('NextPhase');
     expect(names).toContain('RecordInterviewFinding');
     expect(names).toContain('ExitPlanMode');
-    expect(names).toContain('UltraworkGraph');
     expect(names).toContain('EnterPlanMode');
     expect(names).toContain('CreateGoal');
     expect(names).toContain('VisualDiff');
@@ -109,13 +106,6 @@ describe('ToolManager mode-gated schemas (T2-3)', () => {
     names = loopToolNames(agent);
     expect(names).toContain('NextPhase');
     expect(names).toContain('RecordInterviewFinding');
-  });
-
-  it('UltraworkGraph is always present regardless of ultrawork run state', () => {
-    const agent = makeAgent();
-    expect(loopToolNames(agent)).toContain('UltraworkGraph');
-    vi.spyOn(agent.ultrawork, 'getRun').mockReturnValue({ objective: 'ship it' } as never);
-    expect(loopToolNames(agent)).toContain('UltraworkGraph');
   });
 
   it('visual tools are always present regardless of premium code density', () => {

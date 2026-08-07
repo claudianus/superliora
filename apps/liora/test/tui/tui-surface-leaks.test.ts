@@ -182,7 +182,7 @@ describe('TUI surface leak checks', () => {
       'Coverage      test public behavior changes',
       'Screen check  open changed screen before finishing',
       'Done gate     tests + typecheck/lint/build + clean diff + TUI',
-      'next: Shift-Tab toggles Mission/off · /bench for Bench',
+      'next: Shift-Tab switches Build/Ask · /plan to plan first',
     ].join('\n');
     const setupScreen = [
       'Model: not set',

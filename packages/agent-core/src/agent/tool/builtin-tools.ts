@@ -268,10 +268,6 @@ function createPlanningGoalAndStateTools(
     goalToolsEnabled &&
       shouldCreateBuiltin(host, 'CreateGoal') &&
       new b.CreateGoalTool(host.agent),
-    // Compat alias — CreateGoal is primary in help/SearchTools; keep for legacy prompts.
-    goalToolsEnabled &&
-      shouldRegisterLegacyCompat(host, 'CreateUltraGoal', 'CreateGoal') &&
-      new b.CreateUltraGoalTool(host.agent),
     goalToolsEnabled && shouldCreateBuiltin(host, 'GetGoal') && new b.GetGoalTool(host.agent),
     goalToolsEnabled &&
       shouldCreateBuiltin(host, 'SetGoalBudget') &&
@@ -286,8 +282,6 @@ function createPlanningGoalAndStateTools(
     shouldCreateBuiltin(host, 'TodoList') && new b.TodoListTool(host.toolStore),
     shouldCreateBuiltin(host, 'TaskGraph') &&
       b.createTaskGraphTool(host.toolStore, host.agent),
-    shouldRegisterLegacyCompat(host, 'UltraworkGraph', 'TaskGraph') &&
-      b.createUltraworkGraphTool(host.toolStore, host.agent),
     hasMemoryTool && shouldCreateBuiltin(host, 'Memory') && new b.MemoryTool(host.agent.memory),
     shouldCreateBuiltin(host, 'TaskList') && new b.TaskListTool(background),
     shouldCreateBuiltin(host, 'TaskOutput') && new b.TaskOutputTool(background),

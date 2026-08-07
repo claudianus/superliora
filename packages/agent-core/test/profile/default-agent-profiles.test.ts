@@ -30,14 +30,10 @@ const LEGACY_LIORA_TOOLS = [
 const LEGACY_LEAN_LIORA_TOOLS = [...LEGACY_LIORA_TOOLS] as const;
 
 /** Compat aliases dropped from superliora-full when the preferred tool is already listed. */
-const FULL_PROFILE_COMPAT_ALIASES = [
-  'LioraReview',
-  'CreateUltraGoal',
-  'UltraworkGraph',
-] as const;
+const FULL_PROFILE_COMPAT_ALIASES = ['LioraReview'] as const;
 
 /** Tools that must not appear on Core≤12 or default coding waist surfaces. */
-const WAIST_EXCLUDED_TOOLS = [...LEGACY_LIORA_TOOLS, 'UltraworkGraph', 'CreateUltraGoal'] as const;
+const WAIST_EXCLUDED_TOOLS = [...LEGACY_LIORA_TOOLS] as const;
 
 describe('default agent profiles', () => {
   it('loads the bundled default system prompt from embedded sources', () => {
@@ -82,25 +78,19 @@ describe('default agent profiles', () => {
   it('prefers CreateGoal and compact repo search on the default agent profile', () => {
     const mainTools = DEFAULT_AGENT_PROFILES['agent']?.tools ?? [];
     expect(mainTools).toContain('CreateGoal');
-    expect(mainTools).not.toContain('CreateUltraGoal');
     expect(mainTools).toContain('RepoQuery');
     expect(mainTools).toEqual(expect.arrayContaining(['Grep', 'Glob']));
     for (const legacy of LEGACY_LIORA_TOOLS) {
       expect(mainTools).not.toContain(legacy);
     }
-    expect(mainTools).not.toContain('UltraworkGraph');
     expect(mainTools).toContain('Fleet');
-    expect(mainTools).not.toContain('AgentSwarm');
-    expect(mainTools).not.toContain('UltraSwarm');
   });
 
   it('lists goal tools on the main agent and full profile, not on subagent profiles', () => {
     const fullTools = DEFAULT_AGENT_PROFILES['superliora-full']?.tools ?? [];
     const mainTools = DEFAULT_AGENT_PROFILES['agent']?.tools ?? [];
     expect(fullTools).toEqual(expect.arrayContaining(['CreateGoal', 'GetGoal', 'GetCurrentTime']));
-    expect(fullTools).not.toContain('CreateUltraGoal');
     expect(fullTools).toContain('TaskGraph');
-    expect(fullTools).not.toContain('UltraworkGraph');
     expect(mainTools).toEqual(
       expect.arrayContaining([
         'CreateGoal',
@@ -116,7 +106,6 @@ describe('default agent profiles', () => {
         'Agent',
       ]),
     );
-    expect(mainTools).not.toContain('CreateUltraGoal');
     for (const name of ['coder', 'explore', 'plan']) {
       const tools = DEFAULT_AGENT_PROFILES[name]?.tools ?? [];
       expect(tools).not.toContain('CreateGoal');
@@ -131,9 +120,8 @@ describe('default agent profiles', () => {
     );
   });
 
-  it('exposes Ultrawork orchestration tools on the full profile', () => {
+  it('exposes plan, goal and job orchestration tools on the full profile', () => {
     const fullTools = DEFAULT_AGENT_PROFILES['superliora-full']?.tools ?? [];
-    // V1-1 whitelist: Job* + Goal tools replaced the retired UltraSwarm tool.
     expect(fullTools).toEqual(
       expect.arrayContaining([
         'EnterPlanMode',
@@ -148,7 +136,6 @@ describe('default agent profiles', () => {
         'mcp__*',
       ]),
     );
-    expect(fullTools).not.toContain('UltraSwarm');
   });
 
   it('keeps the full profile skill runtime prompt aligned with exposed tools', () => {
@@ -214,8 +201,6 @@ describe('default agent profiles', () => {
     ] as const) {
       expect(tools).toContain(name);
     }
-    // Worker-only waist tools stay off conductor
-    expect(tools).not.toContain('UltraworkGraph');
     // Plan phases run inside a plan worker, never on this lane
     expect(tools).not.toContain('NextPhase');
     expect(tools).not.toContain('RecordInterviewFinding');
@@ -294,7 +279,7 @@ describe('default agent profiles', () => {
   });
 
   it('keeps Review on coder/full; agent prefers RecordInterviewFinding; VisualDiff/media Extended', () => {
-    // Default agent waist: Mission lifecycle (RecordInterviewFinding) over Review; Review on full/coder.
+    // Default agent waist: RecordInterviewFinding over Review; Review on full/coder.
     const agentTools = DEFAULT_AGENT_PROFILES['agent']?.tools ?? [];
     expect(agentTools).toContain('RecordInterviewFinding');
     expect(agentTools).not.toContain('Review');
@@ -357,7 +342,7 @@ describe('default agent profiles', () => {
     ).toThrow(/Embedded agent profile source missing: profile\/default\/missing\.md/);
   });
 
-  it('includes skill tools for subagent profiles used by UltraSwarm experts', () => {
+  it('includes skill tools for subagent profiles used by delegated experts', () => {
     for (const name of ['coder', 'explore', 'plan']) {
       const tools = DEFAULT_AGENT_PROFILES[name]?.tools ?? [];
       expect(tools).toContain('SearchSkill');

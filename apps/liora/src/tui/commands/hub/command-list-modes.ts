@@ -8,13 +8,9 @@ import {
   permissionArgumentCompletions,
   contextArgumentCompletions,
   premiumArgumentCompletions,
+  askArgumentCompletions,
   planArgumentCompletions,
-  swarmArgumentCompletions,
-  swarmControlAvailability,
-  ultraworkArgumentCompletions,
-  ultragoalArgumentCompletions,
   thinkingArgumentCompletions,
-  preflightArgumentCompletions,
   helpArgumentCompletions,
   extensionsArgumentCompletions,
   cronArgumentCompletions,
@@ -28,9 +24,7 @@ import {
   personaArgumentCompletions,
   profileArgumentCompletions,
 } from './completion-specs';
-import { improveHarnessArgumentCompletions } from '../improve-harness';
 import { pluginsArgumentCompletions } from '../plugins/plugins';
-import { rendererArgumentCompletions } from '../renderer';
 import { transcriptArgumentCompletions } from '../session/transcript';
 
 export const BUILTIN_SLASH_COMMANDS_MODES = [
@@ -110,54 +104,12 @@ export const BUILTIN_SLASH_COMMANDS_MODES = [
     availability: (args) => (args.trim().toLowerCase() === 'clear' ? 'idle-only' : 'always'),
   },
   {
-    name: 'swarm',
+    name: 'ask',
     aliases: [],
-    description: 'Fleet parallel delegation — specialists split the task (prefer /fleet)',
-    priority: 80,
-    argumentHint: '[on|off|pause|restaff|raw] | <task>',
-    completeArgs: swarmArgumentCompletions,
-    availability: swarmControlAvailability,
+    description: 'Ask mode — investigate and answer without editing or delegating (Shift-Tab)',
+    priority: 79,
+    argumentHint: '[on|off]',
+    completeArgs: askArgumentCompletions,
+    availability: () => 'always',
   },
-  {
-    name: 'mission',
-    aliases: [],
-    hiddenAliases: ['ultrawork', 'uw'],
-    description: 'Mission mode — long-running goal execution',
-    priority: 100,
-    argumentHint: '[replace] <objective>',
-    completeArgs: ultraworkArgumentCompletions,
-    availability: 'idle-only',
-  },
-  {
-    name: 'ultragoal',
-    aliases: ['mission-goal'],
-    hiddenAliases: ['ug'],
-    description:
-      'Structured loop goal: closed (AC verification) or open (--loop self-improvement with circuit breaker). Prefer /goal for simple loops.',
-    priority: 100,
-    visibility: 'advanced',
-    argumentHint: '[replace] [--loop] <objective>',
-    completeArgs: ultragoalArgumentCompletions,
-    availability: 'idle-only',
-  },
-  {
-    name: 'fleet',
-    aliases: [],
-    hiddenAliases: ['ultraswarm', 'us'],
-    description: 'Fleet mode — multi-agent orchestration',
-    priority: 100,
-    argumentHint: '[on|off|pause|restaff|raw] | <task>',
-    completeArgs: swarmArgumentCompletions,
-    availability: swarmControlAvailability,
-  },
-  {
-    name: 'ultraplan',
-    aliases: [],
-    hiddenAliases: ['up'],
-    description: 'Structured plan pipeline: research → interview → design → review → write with gap analysis (prefer /plan for everyday)',
-    priority: 100,
-    visibility: 'advanced',
-    argumentHint: '[objective]',
-    availability: 'idle-only',
-  }
 ] as const satisfies readonly LioraSlashCommand[];

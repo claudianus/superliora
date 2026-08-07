@@ -4,8 +4,6 @@ import { pathToFileURL } from 'node:url';
 
 import type { Session, SessionTrace } from '@superliora/sdk';
 
-import { detectInstallSource } from '#/cli/update/source';
-import { detectShellEnvironment } from '#/utils/process/shell-env';
 import { toTerminalHyperlink } from '#/utils/terminal-hyperlink';
 import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
 import { isAbortError } from '../../utils/errors';
@@ -189,45 +187,6 @@ export async function handleExportMdCommand(host: SlashCommandHost, args: string
 
         const linked = toTerminalHyperlink(outputPath, pathToFileURL(outputPath).href);
         host.showNotice(`Exported ${String(context.history.length)} messages`, linked);
-      },
-    );
-  } catch (error) {
-    const msg = formatErrorMessage(error);
-    host.showError(`Failed to export session: ${msg}`);
-  }
-}
-
-export async function handleExportDebugZipCommand(host: SlashCommandHost): Promise<void> {
-  const session = host.session;
-  if (session === undefined) {
-    host.showError(NO_ACTIVE_SESSION_MESSAGE);
-    return;
-  }
-  if (host.isSessionLoadingOverlayActive()) {
-    host.showError(ttui('tui.sessionLoading.busy'));
-    return;
-  }
-
-  try {
-    await host.runWithBusyOverlay(
-      {
-        title: ttui('tui.sessionLoading.exporting'),
-        detail: ttui('tui.sessionLoading.exporting'),
-        phase: 'working',
-        sessionId: session.id,
-      },
-      async () => {
-        const installSource = await detectInstallSource();
-        const shellEnv = detectShellEnvironment();
-        const result = await host.harness.exportSession({
-          id: session.id,
-          version: host.state.appState.version,
-          installSource,
-          shellEnv,
-          includeGlobalLog: true,
-        });
-        const linked = toTerminalHyperlink(result.zipPath, pathToFileURL(result.zipPath).href);
-        host.showNotice('Export complete', linked);
       },
     );
   } catch (error) {

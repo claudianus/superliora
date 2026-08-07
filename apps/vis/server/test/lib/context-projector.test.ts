@@ -560,16 +560,6 @@ describe('context-projector', () => {
     expect(cleared.goal).toBeNull();
   });
 
-  it('tracks swarm mode enter/exit', () => {
-    const enter = projectContext([{ lineNo: 1, data: { type: 'swarm_mode.enter' as const, trigger: 'task' }, raw: {} }] as any);
-    expect(enter.swarm).toEqual({ active: true, trigger: 'task' });
-    const exit = projectContext([
-      { lineNo: 1, data: { type: 'swarm_mode.enter' as const, trigger: 'task' }, raw: {} },
-      { lineNo: 2, data: { type: 'swarm_mode.exit' as const }, raw: {} },
-    ] as any);
-    expect(exit.swarm.active).toBe(false);
-  });
-
   it('uses the latest step.end usage as the absolute context-token snapshot', () => {
     const entries = [
       { lineNo: 1, data: { type: 'context.append_loop_event' as const,

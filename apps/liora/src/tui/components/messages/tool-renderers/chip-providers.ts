@@ -383,7 +383,7 @@ const cronDeleteChip: ChipProvider = (_toolCall, result) => {
   }
   return 'deleted';
 };
-const ultraworkGraphChip: ChipProvider = (_toolCall, result) => {
+const taskGraphChip: ChipProvider = (_toolCall, result) => {
   if (result.is_error) return '';
   if (/Ultrawork graph is empty/i.test(result.output)) return 'empty';
   const updated = /Ultrawork graph updated:\s*(\d+)\s+nodes/i.exec(result.output);
@@ -523,8 +523,7 @@ TaskStop: taskStopChip,
 CronList: cronListChip,
 CronCreate: cronCreateChip,
 CronDelete: cronDeleteChip,
-TaskGraph: ultraworkGraphChip,
-UltraworkGraph: ultraworkGraphChip,
+TaskGraph: taskGraphChip,
 SwarmChannel: swarmChannelChip,
 Agent: agentChip,
 Fleet: agentSwarmChip,

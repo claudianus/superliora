@@ -38,8 +38,9 @@ describe('resolvePlanModeKind', () => {
     ).toBe('regular');
   });
 
-  it('forces ultra for ultrawork source', () => {
-    expect(resolvePlanModeKind({ source: 'ultrawork' }).kind).toBe('ultra');
+  it('defaults to regular when no initial context is given', () => {
+    expect(resolvePlanModeKind({}).kind).toBe('regular');
+    expect(resolvePlanModeKind({ initialContext: '   ' }).kind).toBe('regular');
   });
 });
 

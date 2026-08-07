@@ -64,7 +64,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
 
   // ── Welcome ──────────────────────────────────────────────────────────────
   'tui.welcome.prompt.loggedIn':
-    'Type a task · /status web·office·media·ZDR · /bench · Shift-Tab Mission',
+    'Type a task · /status web·office·media·ZDR · Shift-Tab Ask',
   'tui.welcome.prompt.loggedOut':
     'Run /login or paste an API key — media/web/office ready after that, no MCP.',
   'tui.welcome.modelUnset': 'not set, run /login',
@@ -90,7 +90,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.footer.next.review': 'next: review changes',
   'tui.footer.next.media': 'next: set OPENAI_API_KEY or GOOGLE_API_KEY for image/video, or /status',
   'tui.footer.next.history': 'next: ctrl-o cycles transcript density (minimal→full)',
-  'tui.footer.next.default': 'next: Shift-Tab toggles Mission/off · /bench for Bench',
+  'tui.footer.next.default': 'next: Shift-Tab switches Build/Ask · /plan to plan first',
   'tui.footer.compacting': 'compacting context',
   'tui.footer.compacting.background': 'compacting in background · turn continues',
   'tui.footer.replaying': 'replaying session',
@@ -116,9 +116,6 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.sessionLoading.searching': 'Searching project…',
   'tui.sessionLoading.extensions': 'Loading extensions…',
   'tui.sessionLoading.exporting': 'Exporting session…',
-  'tui.footer.mission': 'Mission: research → interview → goal → swarm → integrate → verify → learn',
-  'tui.ultrawork.autoResume.title': 'Mission auto-resumed',
-  'tui.ultrawork.autoResume.detail': 'Resuming the interrupted Mission run at stage {stage}.',
   'tui.footer.premium': 'Visual Quality ON — motion/density, anti-slop, screenshot proof',
   'tui.footer.exitConfirmCtrlC': 'Press Ctrl+C again to exit',
   'tui.footer.exitConfirmCtrlD': 'Press Ctrl+D again to exit',
@@ -153,7 +150,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
     'All actions will be approved automatically. Use with caution.',
   'tui.permission.setFailed': 'Failed to set permission mode: {message}',
 
-  // ── Premium / Mission ────────────────────────────────────────────────────
+  // ── Premium ────────────────────────────────────────────────────
   'tui.premium.alreadyOn': 'Visual Quality mode is already on',
   'tui.premium.alreadyOff': 'Visual Quality mode is already off',
   'tui.premium.on.title': 'Visual Quality mode: ON',
@@ -171,14 +168,6 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.feed.noTank': 'No Jewel Tank is visible — open /aquarium or wait for the idle tank.',
   'tui.feed.full': 'The tank is full of food already.',
   'tui.feed.dropped': 'Food dropped — watch the fish go.',
-  'tui.ultrawork.on.title': 'Mission mode: ON',
-  'tui.ultrawork.off.title': 'Mission mode: OFF',
-  'tui.ultrawork.on.detail':
-    'Shift-Tab routes the next task through Plan before any Goal or Fleet work.',
-  'tui.ultrawork.enableFailed': 'Failed to enable Mission mode: {message}',
-  'tui.ultrawork.disableFailed': 'Failed to disable Mission mode: {message}',
-
-  // ── Goal / swarm start prompts ───────────────────────────────────────────
   'tui.goal.start.title.manual': 'Start a goal with approvals on?',
   'tui.goal.start.title.yolo': 'Start a goal in YOLO mode?',
   'tui.goal.start.option.auto': 'Switch to Auto and start',
@@ -204,46 +193,15 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
     'Structured questions are auto-answered; YOLO still asks for delete/destructive or credential/secret access.',
   'tui.goal.start.notice.yolo.3':
     'Switch to Auto for fully unattended work including structured questions.',
-  'tui.swarm.start.title': 'Start a swarm task with approvals on?',
-  'tui.swarm.start.option.auto': 'Switch to Auto and start',
-  'tui.swarm.start.option.auto.desc':
-    'Best for swarm tasks. Tools are approved automatically, and structured questions are auto-answered.',
-  'tui.swarm.start.option.yolo': 'Switch to YOLO and start',
-  'tui.swarm.start.option.yolo.desc':
-    'Tools and plan changes are approved automatically. Structured questions are auto-answered; SuperLiora still asks for delete/destructive or credential/secret access.',
-  'tui.swarm.start.option.manual': 'Start in Manual',
-  'tui.swarm.start.option.manual.desc':
-    'Keep approvals on. SuperLiora may stop and wait for you during the swarm task.',
-  'tui.swarm.start.notice.1':
-    'Manual mode asks you before SuperLiora runs commands, edits files, or takes other risky actions.',
-  'tui.swarm.start.notice.2': 'Manual mode can block swarm work while agents are running.',
-  'tui.swarm.start.notice.3': 'You can go back without losing your command.',
-  'tui.ultrawork.start.title': 'How should Mission interview and approvals run?',
-  'tui.ultrawork.start.option.manual': 'Manual (default)',
-  'tui.ultrawork.start.option.manual.desc':
-    'You answer every AskUserQuestion and approve tools, edits, and high-risk gates. Best when you want full control during the Mission interview.',
-  'tui.ultrawork.start.option.auto': 'Auto',
-  'tui.ultrawork.start.option.auto.desc':
-    'SuperLiora auto-answers AskUserQuestion and auto-approves tools. Same interview questions as Manual; only the responder changes.',
-  'tui.ultrawork.start.option.yolo': 'YOLO',
-  'tui.ultrawork.start.option.yolo.desc':
-    'SuperLiora auto-answers AskUserQuestion and most tools. Humans still gate delete/destructive actions and credential/secret access.',
-  'tui.ultrawork.start.notice.1':
-    'Choose who answers the Mission interview and high-risk gates.',
-  'tui.ultrawork.start.notice.2':
-    'The interview script is the same in every mode — only the responder and tool approvals change.',
-  'tui.ultrawork.start.notice.3': 'This choice is not remembered; Manual is selected by default on every new Mission start.',
-
-  // ── Device code / OAuth box ──────────────────────────────────────────────
   'tui.device.visitUrl': 'Visit the URL below in your browser to authorize:',
   'tui.device.codeLabel': 'Verification code:  ',
 
   // ── Help ─────────────────────────────────────────────────────────────────
   'tui.help.intro.default':
-    'Shift-Tab toggles Mission and off.\n/status shows media, web/Context7, ZDR, Bench readiness.\nNormal messages stay lightweight unless Mission is on.',
+    'Shift-Tab switches between Build and Ask mode.\nAsk mode reads, searches, and looks things up without editing or delegating.\n/status shows media, web/Context7, ZDR, Bench readiness.',
   'tui.help.intro.advanced':
-    'Mission is one workflow: Plan, Goal, Research, Fleet decision, Integrate, Verify, Learn.\nShift-Tab toggles Mission/off; /plan steers Plan from Hub or slash.\n/status shows media, web/Context7, ZDR, Bench readiness.',
-  'tui.help.shortcut.shiftTab': 'Toggle Mission / off',
+    'Build runs the work; Ask investigates it first. Shift-Tab or /ask switches.\n/plan writes a plan file, /goal runs an objective, /jobs tracks delegated work.\n/status shows media, web/Context7, ZDR, Bench readiness.',
+  'tui.help.shortcut.shiftTab': 'Switch Build / Ask mode',
   'tui.help.shortcut.ctrlG': 'Edit in external editor ($VISUAL / $EDITOR)',
   'tui.help.shortcut.ctrlO': 'Cycle transcript density (minimal → compact → standard → full)',
   'tui.help.shortcut.ctrlB': 'Background a long-running shell task · /tasks',
@@ -332,7 +290,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.tip.sessions': '/sessions to browse and resume earlier sessions',
   'tui.tip.outcome': 'describe the outcome and Liora will keep the work organized',
   'tui.tip.goalNext': '/goal next to queue follow-up work while the current goal keeps running',
-  'tui.tip.shiftTab': 'shift-tab toggles Mission and off',
+  'tui.tip.shiftTab': 'shift-tab switches between Build and Ask mode',
   'tui.tip.mention': '@: mention files',
   'tui.tip.shell': '! to run a shell command',
   'tui.tip.ctrlO': 'Ctrl+O cycles transcript density: minimal → compact → standard → full',
@@ -355,7 +313,6 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.tip.office':
     'office: SearchSkill → docx / pptx / xlsx — Word, slides, sheets with zero MCP setup',
   'tui.tip.websearch': 'WebSearch defaults to 3 hits — sharpen the query before raising limit',
-  'tui.tip.bench': '/bench: Bench score · loop · next rerun',
   'tui.tip.browser': 'browser/computer tools are built-in for screenshot proof — no MCP',
   'tui.tip.firstRun': 'first run: /login then type a task — no complex config needed',
   'tui.tip.footerBadges':
@@ -381,7 +338,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
     'media: footer img/vid badges appear only when OPENAI/GOOGLE keys make GenerateImage/Video ready',
   'tui.tip.backgroundAgent':
     'background Agent only for independent work — never TaskOutput-wait after bg launch',
-  'tui.tip.shiftTabOff': 'shift-tab again turns Mission back off',
+  'tui.tip.shiftTabOff': 'Ask mode investigates only — shift-tab again to build',
   'tui.tip.model': '/model: switch model',
   'tui.tip.loginMedia':
     '/login connects providers; OPENAI_API_KEY or GOOGLE_API_KEY for image/video',
@@ -448,7 +405,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
 
   // ── Welcome ──────────────────────────────────────────────────────────────
   'tui.welcome.prompt.loggedIn':
-    '작업을 입력하세요 · /status web·office·media·ZDR · /bench · Shift-Tab Mission',
+    '작업을 입력하세요 · /status web·office·media·ZDR · Shift-Tab Ask',
   'tui.welcome.prompt.loggedOut':
     '/login 또는 API 키를 붙여넣으세요 — 이후 media/web/office 사용 가능, MCP 불필요.',
   'tui.welcome.modelUnset': '미설정, /login 실행',
@@ -474,7 +431,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.footer.next.review': '다음: 변경사항 검토',
   'tui.footer.next.media': '다음: OPENAI_API_KEY 또는 GOOGLE_API_KEY로 이미지/영상, 또는 /status',
   'tui.footer.next.history': '다음: ctrl-o로 트랜스크립트 밀도 순환 (minimal→full)',
-  'tui.footer.next.default': '다음: Shift-Tab로 Mission 켜기/끄기 · /bench로 Bench',
+  'tui.footer.next.default': '다음: Shift-Tab로 Build/Ask 전환 · /plan으로 먼저 계획',
   'tui.footer.compacting': '컨텍스트 압축 중',
   'tui.footer.compacting.background': '백그라운드 압축 중 · 턴 계속 진행',
   'tui.footer.replaying': '세션 재생 중',
@@ -500,9 +457,6 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.sessionLoading.searching': '프로젝트 검색 중…',
   'tui.sessionLoading.extensions': '확장 목록 불러오는 중…',
   'tui.sessionLoading.exporting': '세션 내보내는 중…',
-  'tui.footer.mission': '미션: 조사 → 인터뷰 → 목표 → 스웜 → 통합 → 검증 → 학습',
-  'tui.ultrawork.autoResume.title': 'Mission 자동 재개',
-  'tui.ultrawork.autoResume.detail': '중단된 Mission 실행을 stage {stage}에서 이어갑니다.',
   'tui.footer.premium': '시각 품질 ON — 모션/밀도, 안티 슬롭, 스크린샷 증명',
   'tui.footer.exitConfirmCtrlC': '종료하려면 Ctrl+C를 다시 누르세요',
   'tui.footer.exitConfirmCtrlD': '종료하려면 Ctrl+D를 다시 누르세요',
@@ -535,7 +489,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.permission.replay.yoloOn.detail': '모든 작업이 자동 승인됩니다. 주의해서 사용하세요.',
   'tui.permission.setFailed': '권한 모드 설정 실패: {message}',
 
-  // ── Premium / Mission ────────────────────────────────────────────────────
+  // ── Premium ────────────────────────────────────────────────────
   'tui.premium.alreadyOn': '시각 품질 모드가 이미 켜져 있습니다',
   'tui.premium.alreadyOff': '시각 품질 모드가 이미 꺼져 있습니다',
   'tui.premium.on.title': '시각 품질 모드: ON',
@@ -553,14 +507,6 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.feed.noTank': '보이는 Jewel Tank가 없습니다 — /aquarium을 열거나 대기 화면을 기다리세요.',
   'tui.feed.full': '이미 먹이가 가득합니다.',
   'tui.feed.dropped': '먹이를 넣었습니다 — 물고기를 지켜보세요.',
-  'tui.ultrawork.on.title': 'Mission 모드: ON',
-  'tui.ultrawork.off.title': 'Mission 모드: OFF',
-  'tui.ultrawork.on.detail':
-    'Shift-Tab은 다음 작업을 Goal/Fleet 전에 Plan으로 보냅니다.',
-  'tui.ultrawork.enableFailed': 'Mission 모드 활성화 실패: {message}',
-  'tui.ultrawork.disableFailed': 'Mission 모드 비활성화 실패: {message}',
-
-  // ── Goal / swarm start prompts ───────────────────────────────────────────
   'tui.goal.start.title.manual': '승인 확인을 켠 채로 목표를 시작할까요?',
   'tui.goal.start.title.yolo': 'YOLO 모드로 목표를 시작할까요?',
   'tui.goal.start.option.auto': 'Auto로 전환하고 시작',
@@ -585,46 +531,15 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.goal.start.notice.yolo.2':
     '구조화 질문은 자동 응답; 삭제/파괴적 작업·자격증명/시크릿은 여전히 묻습니다.',
   'tui.goal.start.notice.yolo.3': '구조화 질문까지 완전 무인으로 가려면 Auto로 전환하세요.',
-  'tui.swarm.start.title': '스웜 작업을 승인 확인과 함께 시작할까요?',
-  'tui.swarm.start.option.auto': 'Auto로 전환하고 시작',
-  'tui.swarm.start.option.auto.desc':
-    '스웜에 최적. 도구 자동 승인, 구조화 질문은 자동 응답.',
-  'tui.swarm.start.option.yolo': 'YOLO로 전환하고 시작',
-  'tui.swarm.start.option.yolo.desc':
-    '도구와 플랜 변경 자동 승인. 구조화 질문은 자동 응답; 삭제/파괴적 작업·자격증명/시크릿은 여전히 묻습니다.',
-  'tui.swarm.start.option.manual': 'Manual로 시작',
-  'tui.swarm.start.option.manual.desc':
-    '승인 확인 유지. 스웜 작업 중 SuperLiora가 대기할 수 있습니다.',
-  'tui.swarm.start.notice.1':
-    'Manual 모드는 SuperLiora가 명령 실행·파일 편집 등 위험 작업 전에 확인합니다.',
-  'tui.swarm.start.notice.2': 'Manual 모드는 에이전트 실행 중 스웜 작업을 막을 수 있습니다.',
-  'tui.swarm.start.notice.3': '명령을 잃지 않고 돌아갈 수 있습니다.',
-  'tui.ultrawork.start.title': 'Mission 인터뷰와 승인을 어떻게 진행할까요?',
-  'tui.ultrawork.start.option.manual': 'Manual (기본)',
-  'tui.ultrawork.start.option.manual.desc':
-    '모든 AskUserQuestion에 직접 답하고 도구·편집·고위험 게이트를 승인합니다. Mission 인터뷰를 완전히 제어하고 싶을 때 최적입니다.',
-  'tui.ultrawork.start.option.auto': 'Auto',
-  'tui.ultrawork.start.option.auto.desc':
-    'AskUserQuestion 자동 응답 + 도구 자동 승인. 인터뷰 질문은 Manual과 같고 응답자만 다릅니다.',
-  'tui.ultrawork.start.option.yolo': 'YOLO',
-  'tui.ultrawork.start.option.yolo.desc':
-    'AskUserQuestion과 대부분 도구를 자동 처리합니다. 삭제/파괴적 작업·자격증명/시크릿은 사람이 게이트합니다.',
-  'tui.ultrawork.start.notice.1':
-    'Mission 인터뷰와 고위험 게이트에 누가 답할지 선택하세요.',
-  'tui.ultrawork.start.notice.2':
-    '인터뷰 스크립트는 모든 모드에서 동일합니다 — 응답자와 도구 승인만 바뀝니다.',
-  'tui.ultrawork.start.notice.3': '이 선택은 기억되지 않으며, 새 Mission 시작마다 Manual이 기본 선택됩니다.',
-
-  // ── Device code / OAuth box ──────────────────────────────────────────────
   'tui.device.visitUrl': '아래 URL을 브라우저에서 열어 인증하세요:',
   'tui.device.codeLabel': '인증 코드:  ',
 
   // ── Help ─────────────────────────────────────────────────────────────────
   'tui.help.intro.default':
-    'Shift-Tab으로 Mission 켜기/끄기.\n/status로 media, web/Context7, ZDR, Bench 준비 상태 확인.\nMission이 꺼져 있으면 일반 메시지는 가볍게 유지됩니다.',
+    'Shift-Tab으로 Build / Ask 모드 전환.\nAsk 모드는 편집·위임 없이 읽기·검색·조사만 합니다.\n/status로 media, web/Context7, ZDR, Bench 준비 상태 확인.',
   'tui.help.intro.advanced':
-    'Mission은 하나의 워크플로: Plan, Goal, Research, Fleet decision, Integrate, Verify, Learn.\nShift-Tab으로 Mission 켜기/끄기; /plan은 Hub 또는 슬래시로 Plan 조향.\n/status로 media, web/Context7, ZDR, Bench 준비 상태 확인.',
-  'tui.help.shortcut.shiftTab': 'Mission 켜기/끄기',
+    'Build는 작업을 실행하고 Ask는 먼저 조사합니다. Shift-Tab 또는 /ask로 전환.\n/plan은 계획 파일, /goal은 목표 실행, /jobs는 위임된 작업 추적.\n/status로 media, web/Context7, ZDR, Bench 준비 상태 확인.',
+  'tui.help.shortcut.shiftTab': 'Build / Ask 모드 전환',
   'tui.help.shortcut.ctrlG': '외부 에디터에서 편집 ($VISUAL / $EDITOR)',
   'tui.help.shortcut.ctrlO': '트랜스크립트 밀도 순환 (minimal → compact → standard → full)',
   'tui.help.shortcut.ctrlB': '긴 셸 작업을 백그라운드로 · /tasks',
@@ -711,7 +626,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.tip.sessions': '/sessions로 이전 세션을 찾아 이어가세요',
   'tui.tip.outcome': '원하는 결과를 설명하면 Liora가 작업을 정리합니다',
   'tui.tip.goalNext': '/goal next로 현재 목표를 유지한 채 후속 작업을 대기열에 넣습니다',
-  'tui.tip.shiftTab': 'shift-tab으로 Mission 켜기/끄기',
+  'tui.tip.shiftTab': 'shift-tab으로 Build / Ask 모드 전환',
   'tui.tip.mention': '@: 파일 멘션',
   'tui.tip.shell': '!: 셸 명령 실행',
   'tui.tip.ctrlO': 'Ctrl+O로 트랜스크립트 밀도 순환: minimal → compact → standard → full',
@@ -734,7 +649,6 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.tip.office':
     'office: SearchSkill → docx / pptx / xlsx — Word, 슬라이드, 시트, MCP 설정 없음',
   'tui.tip.websearch': 'WebSearch 기본 3건 — limit 올리기 전에 쿼리를 구체적으로',
-  'tui.tip.bench': '/bench: Bench 점수 · 루프 · 다음 재실행',
   'tui.tip.browser': 'browser/computer 도구는 스크린샷 증명용 내장 — MCP 불필요',
   'tui.tip.firstRun': '첫 실행: /login 후 작업 입력 — 복잡한 설정 불필요',
   'tui.tip.footerBadges':
@@ -760,7 +674,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
     'media: OPENAI/GOOGLE 키가 GenerateImage/Video를 준비할 때만 footer img/vid 배지',
   'tui.tip.backgroundAgent':
     'background Agent는 독립 작업에만 — bg 실행 후 TaskOutput-wait 금지',
-  'tui.tip.shiftTabOff': 'shift-tab을 다시 누르면 Mission이 꺼집니다',
+  'tui.tip.shiftTabOff': 'Ask 모드는 조사만 합니다 — shift-tab을 다시 누르면 Build로',
   'tui.tip.model': '/model: 모델 전환',
   'tui.tip.loginMedia':
     '/login으로 프로바이더 연결; 이미지/영상은 OPENAI_API_KEY 또는 GOOGLE_API_KEY',

@@ -10,7 +10,6 @@ import type {
   PermissionMode,
 } from '#/agent/permission';
 import type { PlanData } from '#/agent/plan';
-import type { UltraworkRun } from '@superliora/protocol';
 import type { ToolInfo } from '#/agent/tool';
 import type { SessionSummary } from '#/rpc/core-api';
 import type { AgentEvent, UsageStatus } from '#/rpc/events';
@@ -39,15 +38,10 @@ export interface ResumedAgentState {
   readonly replay: readonly AgentReplayRecord[];
   readonly permission: PermissionData;
   readonly plan: PlanData;
-  readonly swarmMode?: boolean | undefined;
   readonly usage: UsageStatus;
   readonly tools: readonly ToolInfo[];
   readonly toolStore?: Readonly<Record<string, unknown>>;
   readonly background: readonly BackgroundTaskInfo[];
-  readonly ultrawork?: {
-    readonly modeEnabled: boolean;
-    readonly run: UltraworkRun | null;
-  };
 }
 
 export interface ResumeSessionResult extends SessionSummary {

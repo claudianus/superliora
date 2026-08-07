@@ -1,5 +1,4 @@
 import type { BackgroundTaskInfo, Session } from '@superliora/sdk';
-import chalk from 'chalk';
 
 import type { Component } from '../../renderer';
 import { ActivityPaneComponent, type ActivityPaneMode } from '../../components/panes/activity-pane';
@@ -20,12 +19,12 @@ import type { ResolvedTheme, ThemeName } from '../../theme';
 import { refreshShikiPalette } from '../../components/media/shiki-ansi';
 import type { TUIState } from '../../tui-state';
 import type { AppState, TranscriptDetailLevel, TranscriptEntry } from '../../types';
-import { appearanceAnimationNow, resolveUltraworkBorderGlowHex } from '../../features/appearance/appearance-effects';
+import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
 import { isExpandable } from '../../utils/component-capabilities';
 import { formatErrorMessage } from '../../utils/event-payload';
 import { pickForegroundTasks } from '../../utils/foreground-task';
 import { requestTUIContentRender, requestTUILayoutRender } from '../../utils/render/frame-render';
-import { isMotionTheatreActive, type MotionBeatController } from '../../utils/render/motion-beats';
+import type { MotionBeatController } from '../../utils/render/motion-beats';
 import { installTerminalThemeTracking } from '../../utils/terminal/terminal-theme';
 import {
   formatTranscriptDetailCycleLabel,
@@ -122,34 +121,25 @@ export class PanesController {
       }
     }
     this.syncTerminalProgress(this.shouldShowTerminalProgress(effectiveMode));
-    const placeSpinnerInAgentSwarm = this.shouldPlaceActivitySpinnerInAgentSwarm(effectiveMode);
-    const activityModeKey = `${effectiveMode}:${placeSpinnerInAgentSwarm ? 'swarm' : 'pane'}`;
-
     if (
-      activityModeKey === this.lastActivityMode &&
+      effectiveMode === this.lastActivityMode &&
       (effectiveMode === 'waiting' || effectiveMode === 'thinking' || effectiveMode === 'tool')
     ) {
-      if (placeSpinnerInAgentSwarm) {
-        this.syncAgentSwarmActivitySpinner(host.state.activitySpinner?.instance);
-      }
       return;
     }
 
-    this.lastActivityMode = activityModeKey;
+    this.lastActivityMode = effectiveMode;
     host.state.activityContainer.clear();
 
     switch (effectiveMode) {
       case 'hidden':
         this.stopActivitySpinner();
-        this.syncAgentSwarmActivitySpinner(undefined);
         requestTUILayoutRender(host.state);
         return;
       case 'waiting': {
         const spinner = this.ensureActivitySpinner('moon');
         // First-token wait can hang on open/handshake — surface stall after 30s.
         spinner.setStallAfterMs(30_000);
-        this.syncAgentSwarmActivitySpinner(placeSpinnerInAgentSwarm ? spinner : undefined);
-        if (placeSpinnerInAgentSwarm) break;
         host.state.activityContainer.addChild(
           new ActivityPaneComponent({
             mode: 'waiting',
@@ -161,7 +151,6 @@ export class PanesController {
       }
       case 'thinking': {
         this.stopActivitySpinner();
-        this.syncAgentSwarmActivitySpinner(undefined);
         host.state.activityContainer.addChild(
           new ActivityPaneComponent({
             mode: 'thinking',
@@ -172,7 +161,6 @@ export class PanesController {
           seed: 'thinking',
           title: 'Thinking',
           nowMs: appearanceAnimationNow(),
-          theatreActive: isMotionTheatreActive(host.state.appState),
         });
         break;
       }
@@ -182,7 +170,6 @@ export class PanesController {
         );
         // Long healthy composes must not look "stalled".
         spinner.setStallAfterMs(undefined);
-        this.syncAgentSwarmActivitySpinner(undefined);
         host.state.activityContainer.addChild(
           new ActivityPaneComponent({
             mode: 'composing',
@@ -195,8 +182,6 @@ export class PanesController {
       case 'tool': {
         const spinner = this.ensureActivitySpinner('moon');
         spinner.setStallAfterMs(undefined);
-        this.syncAgentSwarmActivitySpinner(placeSpinnerInAgentSwarm ? spinner : undefined);
-        if (placeSpinnerInAgentSwarm) break;
         host.state.activityContainer.addChild(
           new ActivityPaneComponent({
             mode: 'tool',
@@ -209,7 +194,6 @@ export class PanesController {
       case 'idle':
       case 'session': {
         this.stopActivitySpinner();
-        this.syncAgentSwarmActivitySpinner(undefined);
         break;
       }
     }
@@ -505,26 +489,18 @@ export class PanesController {
     const { host } = this;
     const trimmed = (text ?? host.state.editor.getText()).trimStart();
     const isBash = host.state.appState.inputMode === 'bash';
-    const ultrawork = host.state.appState.ultraworkMode === true;
-    const highlighted =
-      host.state.appState.planMode || ultrawork || isBash || trimmed.startsWith('/');
+    const highlighted = host.state.appState.planMode || isBash || trimmed.startsWith('/');
     const prevHighlighted = host.state.editor.borderHighlighted;
     host.state.editor.borderHighlighted = highlighted;
-    // Shell mode: fixed hue. Ultrawork: live multi-hue glow. Plan/slash: primary.
+    // Shell mode: fixed hue. Plan/slash: primary.
     if (isBash) {
       host.state.editor.borderColor = (s: string) => currentTheme.fg('shellMode', s);
-    } else if (ultrawork) {
-      // Native layout resolves the live glow hex on animation frames. Do not
-      // re-bind chalk + force a second full paint on every keystroke.
-      const hex = resolveUltraworkBorderGlowHex(appearanceAnimationNow());
-      host.state.editor.borderColor = (s: string) => chalk.hex(hex).bold(s);
     } else if (highlighted) {
       host.state.editor.borderColor = (s: string) => currentTheme.fg('primary', s);
     } else {
       host.state.editor.borderColor = (s: string) => currentTheme.fg('border', s);
     }
-    // Only repaint when the highlight *state* flips (plan/slash/bash/ultrawork).
-    // Ultrawork chase is driven by the animation scheduler, not onChange.
+    // Only repaint when the highlight *state* flips (plan/slash/bash).
     if (prevHighlighted === highlighted) return;
     requestTUIContentRender(host.state);
   }
@@ -582,19 +558,6 @@ export class PanesController {
       effectiveMode === 'composing' ||
       effectiveMode === 'tool'
     );
-  }
-
-  private shouldPlaceActivitySpinnerInAgentSwarm(
-    effectiveMode: EffectiveActivityPaneMode,
-  ): boolean {
-    return (
-      this.host.sessionEventHandler.hasActiveAgentSwarmToolCall() &&
-      (effectiveMode === 'waiting' || effectiveMode === 'tool')
-    );
-  }
-
-  private syncAgentSwarmActivitySpinner(spinner: MoonLoader | undefined): void {
-    this.host.sessionEventHandler.syncAgentSwarmActivitySpinner(spinner);
   }
 
   private syncTerminalProgress(active: boolean): void {

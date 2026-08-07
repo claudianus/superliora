@@ -8,7 +8,6 @@
 import { Readable, type Writable } from 'node:stream';
 
 import type { Kaos, KaosProcess } from '@superliora/kaos';
-import type { TeamPlan } from '@superliora/protocol';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '../../src/agent';
@@ -42,9 +41,6 @@ import type { WorkspaceConfig } from '../../src/tools/support/workspace';
 import { createFakeKaos } from './fixtures/fake-kaos';
 import { executeTool } from './fixtures/execute-tool';
 import { createBackgroundManager } from '../agent/background/helpers';
-import { SwarmChannelTool } from '../../src/tools/builtin/fleet/swarm-channel';
-import { initSwarmRunBus, renderSwarmBusDigest } from '../../src/tools/builtin/state/swarm-bus';
-import type { ToolStore, ToolStoreData, ToolStoreKey } from '../../src/tools/store';
 
 vi.mock('../../src/tools/support/rg-locator', () => ({
   ensureRgPath: vi.fn(async () => ({ path: '/mock/rg', source: 'system-path' })),
@@ -54,81 +50,6 @@ vi.mock('../../src/tools/support/rg-locator', () => ({
 
 const signal = new AbortController().signal;
 const workspace: WorkspaceConfig = { workspaceDir: '/workspace', additionalDirs: [] };
-
-function mockToolStore(initial: Partial<ToolStoreData> = {}): {
-  readonly store: ToolStore;
-  readonly data: Partial<ToolStoreData>;
-} {
-  const data: Partial<ToolStoreData> = { ...initial };
-  return {
-    data,
-    store: {
-      get<K extends ToolStoreKey>(key: K): ToolStoreData[K] | undefined {
-        return data[key];
-      },
-      set<K extends ToolStoreKey>(key: K, value: ToolStoreData[K]): void {
-        data[key] = value;
-      },
-    },
-  };
-}
-
-function mockSwarmTeam(): TeamPlan {
-  return {
-    id: 'team_1',
-    runId: 'uw_1',
-    intensity: 'premium',
-    maxExperts: 8,
-    experts: [
-      {
-        id: 'impl-engineer',
-        name: 'Impl Engineer',
-        role: 'implementation',
-        focus: 'implement',
-        status: 'queued',
-        division: 'engineering',
-      },
-      {
-        id: 'security-appsec-engineer',
-        name: 'AppSec Engineer',
-        role: 'security',
-        focus: 'review',
-        status: 'queued',
-        division: 'security',
-      },
-    ],
-  };
-}
-
-function mockParentAgent(
-  flags = new FlagResolver({}, FLAG_DEFINITIONS),
-  store?: ToolStore,
-): Agent {
-  return {
-    emitEvent: vi.fn(),
-    fullCompaction: { ensureBelowHandoffThreshold: vi.fn().mockResolvedValue(undefined) },
-    experimentalFlags: flags,
-    telemetry: { track: vi.fn() },
-    ultrawork: {
-      attachTeamPlan: vi.fn(),
-      getRun: vi.fn(() => null),
-      syncWorkGraphFromStore: vi.fn(() => undefined),
-      completeLearnStage: vi.fn(() => null),
-      isModeEnabled: vi.fn(() => true),
-      getInterruptReason: vi.fn(() => undefined),
-    },
-    goal: {
-      getGoal: vi.fn(() => ({ goal: null })),
-      markComplete: vi.fn(async () => null),
-    },
-    planMode: { isActive: false, isUltraMode: false },
-    swarmMode: { isActive: false },
-    records: { recordCount: vi.fn(() => 0), logRecord: vi.fn() },
-    tools: store === undefined ? undefined : { getStore: () => store },
-    turn: { hasActiveTurn: false },
-    context: { appendSystemReminder: vi.fn() },
-  } as unknown as Agent;
-}
 
 const regularFileStat = {
   stMode: 0o100_644,
@@ -423,199 +344,6 @@ describe('current builtin collaboration tools', () => {
     expect(result.output).toContain('child result');
   });
 
-  it('renderSwarmBusDigest prioritizes verdict and blocker messages', () => {
-    const { store } = mockToolStore();
-    initSwarmRunBus(store, {
-      runId: 'uw_1',
-      parentToolCallId: 'call_uw',
-      team: mockSwarmTeam(),
-    });
-    const post = (input: {
-      channel: 'lane' | 'blocker' | 'council';
-      kind: 'status' | 'verdict' | 'artifact_ref';
-      body: string;
-      expertId: string;
-      name: string;
-    }) => {
-      const state = store.get('swarm_bus');
-      if (state === undefined) throw new Error('missing bus');
-      state.messages.push({
-        id: `msg-${input.body}`,
-        runId: 'uw_1',
-        parentToolCallId: 'call_uw',
-        at: new Date().toISOString(),
-        from: {
-          expertId: input.expertId,
-          agentId: `agent-${input.expertId}`,
-          name: input.name,
-        },
-        channel: input.channel,
-        kind: input.kind,
-        body: input.body,
-      });
-    };
-    post({
-      channel: 'lane',
-      kind: 'status',
-      body: 'routine lane update',
-      expertId: 'impl-engineer',
-      name: 'Impl Engineer',
-    });
-    post({
-      channel: 'blocker',
-      kind: 'status',
-      body: 'missing auth tests',
-      expertId: 'security-appsec-engineer',
-      name: 'AppSec Engineer',
-    });
-    post({
-      channel: 'council',
-      kind: 'verdict',
-      body: 'VERDICT: BLOCKED',
-      expertId: 'security-appsec-engineer',
-      name: 'AppSec Engineer',
-    });
-    post({
-      channel: 'lane',
-      kind: 'artifact_ref',
-      body: 'patch-plan-v2',
-      expertId: 'impl-engineer',
-      name: 'Impl Engineer',
-    });
-
-    const digest = renderSwarmBusDigest(store, { limit: 4 });
-    expect(digest.indexOf('VERDICT: BLOCKED')).toBeLessThan(digest.indexOf('missing auth tests'));
-    expect(digest.indexOf('patch-plan-v2')).toBeLessThan(digest.indexOf('routine lane update'));
-  });
-
-  it('SwarmChannel post/list/reply coordinates through the swarm bus store', async () => {
-    const { store } = mockToolStore();
-    const team = mockSwarmTeam();
-    initSwarmRunBus(store, { runId: 'uw_1', parentToolCallId: 'call_uw', team });
-    const parent = mockParentAgent();
-    const run = { runId: 'uw_1', parentToolCallId: 'call_uw', team };
-    const expert = team.experts[0]!;
-    const onMessagePosted = vi.fn();
-    const tool = new SwarmChannelTool({
-      parentAgent: parent,
-      parentStore: store,
-      run,
-      expert,
-      childAgentId: 'child-1',
-      onMessagePosted,
-    });
-
-    const postResult = await executeTool(
-      tool,
-      context({
-        action: 'post',
-        channel: 'direct',
-        kind: 'question',
-        body: 'Need auth review @security-appsec-engineer',
-        to_expert_id: 'security-appsec-engineer',
-      }),
-    );
-    expect(postResult.isError).toBeUndefined();
-    expect(onMessagePosted).toHaveBeenCalledOnce();
-
-    const listResult = await executeTool(tool, context({ action: 'list', channel: 'direct' }));
-    expect(listResult.output).toContain('Impl Engineer');
-    expect(listResult.output).toContain('Need auth review');
-
-    const replyResult = await executeTool(
-      tool,
-      context({
-        action: 'reply',
-        thread_id: 'thread-1',
-        body: 'Will add tests next.',
-      }),
-    );
-    expect(replyResult.isError).toBeUndefined();
-    expect(replyResult.output).toContain('Posted to Swarm bus.');
-  });
-
-  it('SwarmChannel enforces allowlist and rate limits on the swarm bus', async () => {
-    const { store } = mockToolStore();
-    const team = mockSwarmTeam();
-    initSwarmRunBus(store, { runId: 'uw_1', parentToolCallId: 'call_uw', team });
-    const run = { runId: 'uw_1', parentToolCallId: 'call_uw', team };
-    const tool = new SwarmChannelTool({
-      parentAgent: mockParentAgent(),
-      parentStore: store,
-      run,
-      expert: {
-        id: 'unknown-expert',
-        name: 'Unknown',
-        role: 'implementation',
-        focus: 'implement',
-        status: 'queued',
-        division: 'engineering',
-      },
-      childAgentId: 'child-2',
-    });
-
-    const blocked = await executeTool(
-      tool,
-      context({ action: 'post', channel: 'lane', body: 'hello team' }),
-    );
-    expect(blocked.isError).toBe(true);
-    expect(blocked.output).toContain('not on the staffed team');
-
-    const allowedTool = new SwarmChannelTool({
-      parentAgent: mockParentAgent(),
-      parentStore: store,
-      run,
-      expert: team.experts[0]!,
-      childAgentId: 'child-1',
-    });
-    for (let index = 0; index < 12; index += 1) {
-      const result = await executeTool(
-        allowedTool,
-        context({ action: 'post', channel: 'lane', body: `status ${String(index)}` }),
-      );
-      expect(result.isError).toBeUndefined();
-    }
-    const throttled = await executeTool(
-      allowedTool,
-      context({ action: 'post', channel: 'lane', body: 'one too many' }),
-    );
-    expect(throttled.isError).toBe(true);
-    expect(throttled.output).toContain('rate limit');
-  });
-
-  it('SwarmChannel publishes typed artifacts with artifact_ref bus messages', async () => {
-    const { store } = mockToolStore();
-    const team = mockSwarmTeam();
-    initSwarmRunBus(store, { runId: 'uw_1', parentToolCallId: 'call_uw', team });
-    const run = { runId: 'uw_1', parentToolCallId: 'call_uw', team };
-    const onMessagePosted = vi.fn();
-    const tool = new SwarmChannelTool({
-      parentAgent: mockParentAgent(),
-      parentStore: store,
-      run,
-      expert: team.experts[0]!,
-      childAgentId: 'child-1',
-      onMessagePosted,
-    });
-
-    const result = await executeTool(
-      tool,
-      context({
-        action: 'artifact',
-        artifact_kind: 'patch_plan',
-        title: 'Auth middleware patch plan',
-        body: 'Add integration tests for auth middleware hooks.',
-      }),
-    );
-
-    expect(result.isError).toBeUndefined();
-    expect(result.output).toContain('artifact_id=');
-    expect(onMessagePosted).toHaveBeenCalledOnce();
-    const bus = store.get('swarm_bus');
-    expect(Object.keys(bus?.artifacts ?? {})).toHaveLength(1);
-    expect(bus?.messages.at(-1)?.kind).toBe('artifact_ref');
-  });
-
   it('Skill exposes parameters and reports unknown skills as tool errors', async () => {
     const tool = new SkillTool({
       skills: {
@@ -681,7 +409,7 @@ describe('current builtin collaboration tools', () => {
     expect(result.output).toContain('<expert-search-results query="brand guardian design review">');
     expect(result.output).toContain('<expert-candidate');
     expect(result.output).toContain('id="design-brand-guardian"');
-    expect(result.output).toContain('UltraSwarm');
+    expect(result.output).toContain('subagent_type');
   });
 });
 

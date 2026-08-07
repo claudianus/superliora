@@ -132,7 +132,6 @@ export function upsertConductorJobCard(
     priority: job.priority,
     worktreePath: job.worktreePath,
     workerAgentId: job.workerAgentId,
-    missionRunId: job.missionRunId,
     resultSummary: job.resultSummary,
     progress: job.progress,
     updatedAtMs: parseIsoMs(job.updatedAt) ?? nowMs,

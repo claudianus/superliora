@@ -224,7 +224,7 @@ function buildOverview(
   const traceLine =
     trace === undefined
       ? '- **Trace**: context-only export fallback'
-      : `- **Trace**: ${trace.completeness.source} | ${String(trace.completeness.traceEventCount)} events | ${String(trace.completeness.subagentLifecycleCount)} subagent lifecycle | ${String(trace.completeness.ultraworkEventCount)} ultrawork`;
+      : `- **Trace**: ${trace.completeness.source} | ${String(trace.completeness.traceEventCount)} events | ${String(trace.completeness.subagentLifecycleCount)} subagent lifecycle`;
 
   return [
     '## Overview',
@@ -288,7 +288,6 @@ function formatTraceMd(trace: SessionTrace): string {
     `- **Messages**: ${String(trace.completeness.messageCount)} total | ${String(trace.completeness.filteredInternalMessageCount)} internal filtered from conversation view`,
     `- **Tools**: ${String(trace.completeness.toolCallCount)} calls | ${String(trace.completeness.toolResultCount)} results`,
     `- **Subagents**: ${String(trace.completeness.subagentLifecycleCount)} lifecycle events`,
-    `- **Mission**: ${String(trace.completeness.ultraworkEventCount)} events`,
     `- **Redactions**: ${String(trace.completeness.redactedCount)}`,
   ];
 
@@ -296,7 +295,6 @@ function formatTraceMd(trace: SessionTrace): string {
     lines.push(`- **Warnings**: ${trace.completeness.warnings.map(redactExportText).join('; ')}`);
   }
 
-  const ultraworkEvents = trace.events.filter((event) => event.type.startsWith('ultrawork.'));
   const subagentEvents = trace.events.filter((event) => event.type.startsWith('subagent.'));
   lines.push('', '### Run Timeline', '');
   if (trace.events.length === 0) {
@@ -304,15 +302,6 @@ function formatTraceMd(trace: SessionTrace): string {
   } else {
     for (const event of trace.events) {
       lines.push(formatTraceEventMd(event));
-    }
-  }
-
-  lines.push('', '### Mission Events', '');
-  if (ultraworkEvents.length === 0) {
-    lines.push('- (none recorded)');
-  } else {
-    for (const event of ultraworkEvents) {
-      lines.push(formatTraceEventOneLine(event));
     }
   }
 

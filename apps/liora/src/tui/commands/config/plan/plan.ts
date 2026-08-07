@@ -3,10 +3,6 @@ import type { Session } from '@superliora/sdk';
 import { NO_ACTIVE_SESSION_MESSAGE } from '../../../constant/liora-tui';
 import { formatErrorMessage } from '../../../utils/event-payload';
 import type { SlashCommandHost } from '../../hub/dispatch';
-import {
-  isActiveMissionRun,
-  missionModeDisableBlockedMessage,
-} from '#/tui/utils/mission/mission-contract';
 import { resolvePlanActivation } from '#/tui/utils/plan-activation';
 
 export async function handlePlanCommand(host: SlashCommandHost, args: string): Promise<void> {
@@ -29,7 +25,6 @@ export async function handlePlanCommand(host: SlashCommandHost, args: string): P
   else if (subcmd === 'on') enabled = true;
   else if (subcmd === 'off') enabled = false;
   else if (subcmd === 'ultra') {
-    // Internal path for Shift+Tab shortcut; prefer /ultraplan for explicit use.
     enabled = true;
     ultra = true;
   }
@@ -42,17 +37,10 @@ export async function handlePlanCommand(host: SlashCommandHost, args: string): P
 }
 
 async function applyPlanMode(host: SlashCommandHost, session: Session, enabled: boolean, ultra = false): Promise<void> {
-  if (!enabled) {
-    const run = await session.getUltraworkRun();
-    if (isActiveMissionRun(run)) {
-      host.showError(missionModeDisableBlockedMessage(run));
-      return;
-    }
-  }
   try {
     await session.setPlanMode(enabled, ultra);
     if (!enabled) {
-      host.setAppState({ planMode: false, ultraworkMode: false, activityTip: null });
+      host.setAppState({ planMode: false, activityTip: null });
       host.showNotice('Plan mode: OFF');
       return;
     }
@@ -64,7 +52,6 @@ async function applyPlanMode(host: SlashCommandHost, session: Session, enabled: 
       // a stale `false` would make the next bare `/plan` re-enter instead of
       // toggling off.
       planMode: activation !== 'delegated',
-      ultraworkMode: false,
       activityTip:
         activation === 'delegated'
           ? 'Plan Desk: planning Job accepted — watch Job strip / inbox'

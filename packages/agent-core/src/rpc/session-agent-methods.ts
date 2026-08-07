@@ -22,17 +22,12 @@ import type {
   CancelPayload,
   CancelPlanPayload,
   CancelShellCommandPayload,
-  ClassifyUltraworkAutoActivationPayload,
-  ClassifyUltraworkObjectiveProfilePayload,
-  CancelUltraworkPayload,
   CreateGoalPayload,
-  CreateUltraworkRunPayload,
   ConversationLoopStateData,
   DetachBackgroundPayload,
   DiagnoseContextOSPayload,
   EmptyPayload,
   EnterPlanPayload,
-  EnterSwarmPayload,
   GetBackgroundOutputPayload,
   GetBackgroundPayload,
   GoalSnapshot,
@@ -41,13 +36,11 @@ import type {
   PromptIntelligenceCallOptions,
   McpServerInfo,
   McpStartupMetrics,
-  PauseUltraworkPayload,
   PluginCommandDef,
   PromptPayload,
   ReconnectMcpServerPayload,
   RefineHarnessPayload,
   RegisterToolPayload,
-  ResumeUltraworkPayloadResult,
   RollbackHarnessRefinementPayload,
   RewindFilesPayload,
   RewindFilesResult,
@@ -57,6 +50,7 @@ import type {
   SetModelPayload,
   SetModelResult,
   SetPermissionPayload,
+  SetAskModePayload,
   SetPremiumQualityPayload,
   SetThinkingPayload,
   SkillSearchResult,
@@ -65,10 +59,6 @@ import type {
   SteerPayload,
   StopBackgroundPayload,
   StopConversationLoopPayload,
-  SwarmRestaffPayload,
-  UltraworkAutoActivationDecision,
-  UltraworkObjectiveProfileDecision,
-  UltraworkRunSnapshot,
   UndoHistoryPayload,
   UnregisterToolPayload,
   RenameSessionPayload,
@@ -169,22 +159,16 @@ export function clearPlan(
   return context.sessionApi(sessionId).clearPlan(payload);
 }
 
-export function enterSwarm(
+export function setAskMode(
   context: SessionAgentMethodsContext,
-  { sessionId, ...payload }: SessionAgentPayload<EnterSwarmPayload>) {
-  return context.sessionApi(sessionId).enterSwarm(payload);
+  { sessionId, ...payload }: SessionAgentPayload<SetAskModePayload>) {
+  return context.sessionApi(sessionId).setAskMode(payload);
 }
 
-export function exitSwarm(
+export function getAskMode(
   context: SessionAgentMethodsContext,
   { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-  return context.sessionApi(sessionId).exitSwarm(payload);
-}
-
-export function getSwarmMode(
-  context: SessionAgentMethodsContext,
-  { sessionId, ...payload }: SessionAgentPayload<EmptyPayload>) {
-  return context.sessionApi(sessionId).getSwarmMode(payload);
+  return context.sessionApi(sessionId).getAskMode(payload);
 }
 
 export function setPremiumQuality(
@@ -468,12 +452,4 @@ export {
   pauseGoal,
   resumeGoal,
   cancelGoal,
-  createUltraworkRun,
-  getUltraworkRun,
-  pauseUltrawork,
-  swarmRestaff,
-  resumeUltrawork,
-  cancelUltrawork,
-  classifyUltraworkAutoActivation,
-  classifyUltraworkObjectiveProfile,
-} from './session-agent-methods-goal-ultrawork';
+} from './session-agent-methods-goal';

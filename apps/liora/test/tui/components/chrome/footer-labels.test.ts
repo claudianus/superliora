@@ -4,7 +4,6 @@ import {
   labelBackgroundBash,
   labelGoalXp,
   labelMedia,
-  labelModeMission,
   labelWorkingSet,
 } from '#/tui/components/chrome/footer/footer-labels';
 import {
@@ -14,8 +13,6 @@ import {
 
 describe('footer plain labels', () => {
   it('uses words in plain mode and short tokens in compact', () => {
-    expect(labelModeMission('plain')).toBe('Mission');
-    expect(labelModeMission('compact')).toBe('mission');
     expect(labelGoalXp('plain')).toBe('Goal +');
     expect(labelGoalXp('compact')).toBe('xp');
     expect(labelMedia('plain', true, true)).toBe('Media ready');

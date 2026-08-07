@@ -252,12 +252,8 @@ export function extractKeyArgument(
     CronCreate: ['cron', 'prompt'],
     CronDelete: ['id'],
     TaskGraph: ['run_id', 'graph_id'],
-    UltraworkGraph: ['run_id', 'graph_id'],
-    SwarmChannel: ['action', 'channel', 'body'],
     // Prefer short description for Agent so multi-line prompts never spill into chrome.
     Agent: ['description', 'subagent_type', 'resume', 'prompt'],
-    AgentSwarm: ['description', 'tasks'],
-    UltraSwarm: ['description', 'task'],
     BrowserStatus: ['url'],
     BrowserObserve: ['url'],
     BrowserScreenshot: ['url', 'full_page'],

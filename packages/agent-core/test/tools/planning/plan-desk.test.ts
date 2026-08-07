@@ -55,7 +55,6 @@ function makeConductorAgent(store: ToolStore): Agent {
         planActive = false;
       }),
     },
-    ultrawork: { getRun: () => null },
     tools: { toolStore: store },
     subagentHost: undefined,
     telemetry: { track: vi.fn() },

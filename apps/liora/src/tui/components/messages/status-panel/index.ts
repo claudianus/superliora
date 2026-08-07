@@ -30,7 +30,6 @@ import {
   contextOSStatusRows,
   formatModelStatus,
   formatPremiumQualityStatus,
-  formatUltraworkStatus,
   formatWorktreeStatus,
   privacyStatusRows,
 } from './runtime-rows';
@@ -64,7 +63,6 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
     { label: 'Model', value: formatModelStatus(options) },
     { label: 'Directory', value: options.workDir },
     { label: 'Permissions', value: permission },
-    { label: 'Mission', value: formatUltraworkStatus(options) },
     { label: 'Visual Quality', value: formatPremiumQualityStatus(options) },
     ...contextOSStatusRows(options),
     ...privacyStatusRows(options),

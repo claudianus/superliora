@@ -351,13 +351,34 @@ export const cronCreateGlance: GlanceFn = (_toolCall, result) => {
   return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
 };
 
-export {
-  agentGlance,
-  agentSwarmGlance,
-  swarmChannelGlance,
-  ultraSwarmGlance,
-  ultraworkGraphGlance,
-} from './summary-glances-swarm';
+export const taskGraphGlance: GlanceFn = (_toolCall, result) => {
+  if (/Ultrawork graph is empty/i.test(result.output)) return 'empty graph';
+  const updated = /Ultrawork graph updated:\s*(\d+)\s+nodes,\s*(\d+)\s+task events/i.exec(result.output);
+  if (updated) return `updated · ${updated[1]} nodes · ${updated[2]} events`;
+  const samples: string[] = [];
+  for (const line of result.output.split('\n')) {
+    const m = /^\s*\[([^\]]+)\]\s+([^:]+):\s+(.+)$/.exec(line);
+    if (m) {
+      samples.push(`${m[1]} ${m[2]}`);
+      if (samples.length >= GLANCE_SAMPLES) break;
+    }
+  }
+  if (samples.length > 0) return samples.join(' · ');
+  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+};
+
+export const agentGlance: GlanceFn = (_toolCall, result) => {
+  const agentId = /^agent_id:\s*(\S+)/m.exec(result.output)?.[1];
+  const status = /^status:\s*([a-z_]+)/m.exec(result.output)?.[1];
+  const type = /^actual_subagent_type:\s*(\S+)/m.exec(result.output)?.[1];
+  const parts: string[] = [];
+  if (type !== undefined) parts.push(type);
+  if (status !== undefined) parts.push(status);
+  if (agentId !== undefined) parts.push(agentId);
+  if (parts.length > 0) return parts.join(' · ');
+  return result.output.replaceAll(/\s+/g, ' ').trim().slice(0, 72);
+};
+
 export {
   browserObserveGlance,
   browserStatusGlance,

@@ -120,7 +120,6 @@ export interface RepairInput {
   readonly usage: TokenUsage | null;
   readonly archiveGuidance: string;
   readonly compactedCount: number;
-  readonly ultraworkSnapshot: unknown;
   readonly usedEmergencyBackstop: boolean;
   readonly contextSummary: string;
   readonly summaryTokens: number;

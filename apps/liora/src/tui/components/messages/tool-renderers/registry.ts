@@ -14,7 +14,6 @@ import { readMediaSummary } from './media';
 import { goalSummary } from './goal';
 import {
   agentSummary,
-  agentSwarmSummary,
   askUserQuestionSummary,
   browserActSummary,
   browserConsoleSummary,
@@ -51,14 +50,12 @@ import {
   searchExpertSummary,
   searchSkillSummary,
   skillSummary,
-  swarmChannelSummary,
   taskListSummary,
   taskOutputSummary,
   taskStopSummary,
   thinkSummary,
   todoListSummary,
-  ultraSwarmSummary,
-  ultraworkGraphSummary,
+  taskGraphSummary,
   verifySurfaceSummary,
   visualDiffSummary,
   webSearchSummary,
@@ -164,17 +161,9 @@ export function pickResultRenderer(toolName: string): ResultRenderer {
     case 'CronDelete':
       return cronDeleteSummary;
     case 'TaskGraph':
-    case 'UltraworkGraph':
-      return ultraworkGraphSummary;
-    case 'SwarmChannel':
-      return swarmChannelSummary;
+      return taskGraphSummary;
     case 'Agent':
       return agentSummary;
-    case 'Fleet':
-    case 'AgentSwarm':
-      return agentSwarmSummary;
-    case 'UltraSwarm':
-      return ultraSwarmSummary;
     case 'BrowserStatus':
       return browserStatusSummary;
     case 'RunProjectChecks':

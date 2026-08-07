@@ -7,7 +7,7 @@
  *
  * - Stage 1 (name-based, pre-execution): file-mutation tools
  *   (Write/Edit/ApplyPatch) and worker-lifecycle-awaiting tools
- *   (Agent/Fleet/TaskOutput/swarm) are rejected with a fixed routing phrase
+ *   (Agent/TaskOutput) are rejected with a fixed routing phrase
  *   plus a suggested Job draft, so the model flows
  *   "reject → delegate via JobCreate" instead of "reject → retry" (§2.2 b-2).
  * - Stage 2 (access-based, post-resolveExecution): tools outside the known
@@ -179,7 +179,7 @@ export const CONDUCTOR_DIRECT_WORK_TOOLS = ['Write', 'Edit', 'ApplyPatch'] as co
  * conductor lane (contract §2.1 "foregound spawn waiting for subagent
  * results", §3.1; inventory A-4/A-5/A-6/A-7/A-8).
  */
-export const CONDUCTOR_WORKER_WAIT_TOOLS = ['Agent', 'TaskOutput', 'UltraSwarm'] as const;
+export const CONDUCTOR_WORKER_WAIT_TOOLS = ['Agent', 'TaskOutput'] as const;
 
 /**
  * Known-safe builtin surface for the conductor lane (contract §2.1 items 2–6

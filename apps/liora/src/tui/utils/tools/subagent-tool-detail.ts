@@ -1,6 +1,6 @@
 /**
  * Shared formatting helpers for `subagent.tool_call` structured detail
- * (Phase 1-B chips). Used by the Mission Control ops feed and the swarm ops
+ * (Phase 1-B chips). Used by the Mission Control ops feed and the Job ops
  * feed alike so both streams render identical targets/stats.
  */
 
@@ -41,7 +41,7 @@ export function subagentToolDetailParts(detail: SubagentToolDetail | undefined):
 
 /**
  * Compact single-line feed body for surfaces that render plain text (e.g.
- * the UltraSwarm ops feed): `Edit src/a.ts +3 -1`, `Bash pnpm test`. Falls
+ * the Job ops feed): `Edit src/a.ts +3 -1`, `Bash pnpm test`. Falls
  * back to the raw args preview when no structured detail is present.
  */
 export function describeSubagentToolFeedBody(

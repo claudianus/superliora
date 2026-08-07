@@ -23,11 +23,7 @@ import {
   raceWithTimeout,
   type PromptRunIO,
 } from './run-prompt-io';
-import {
-  maybeAutoResumeHeadlessUltrawork,
-  mergeRecoveryPrompt,
-  runHeadlessGoal,
-} from './run-prompt-headless-goal';
+import { runHeadlessGoal } from './run-prompt-headless-goal';
 import { resolvePromptSession } from './run-prompt-session';
 import { runPromptTurn } from './run-prompt-turn';
 import { writeResumeHint } from './run-prompt-writers';
@@ -118,7 +114,7 @@ export async function runPrompt(
     for (const warning of (await harness.getConfigDiagnostics()).warnings) {
       stderr.write(`Warning: ${warning}\n`);
     }
-    const { session, resumed, restorePermission, telemetryModel, goalModel } =
+    const { session, restorePermission, telemetryModel, goalModel } =
       await resolvePromptSession(
         harness,
         opts,
@@ -152,8 +148,6 @@ export async function runPrompt(
       parsedGoal !== undefined && opts.autonomousGate !== undefined
         ? { ...parsedGoal, gateCommand: opts.autonomousGate }
         : parsedGoal;
-    const recoveryPrefix =
-      resumed ? await maybeAutoResumeHeadlessUltrawork(session, stderr) : undefined;
     if (goalCreate !== undefined) {
       await runHeadlessGoal(
         session,
@@ -163,13 +157,11 @@ export async function runPrompt(
         opts.showThinking === true,
         stdout,
         stderr,
-        recoveryPrefix,
       );
     } else {
-      const prompt = mergeRecoveryPrompt(opts.prompt!, recoveryPrefix);
       await runPromptTurn(
         session,
-        prompt,
+        opts.prompt!,
         outputFormat,
         opts.showThinking === true,
         stdout,

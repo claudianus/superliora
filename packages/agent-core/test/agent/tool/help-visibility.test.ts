@@ -40,12 +40,6 @@ describe('tool help visibility', () => {
     expect(publicNames).toContain('ApplyPatch');
   });
 
-  it('marks Liora* compat aliases as advanced', () => {
-    for (const name of LIORA_COMPAT_TOOLS) {
-      expect(resolveToolHelpVisibility(name)).toBe('advanced');
-    }
-  });
-
   it('marks session search tools as primary (not WebSearch compat aliases)', () => {
     for (const name of PRIMARY_SEARCH_TOOLS) {
       expect(resolveToolHelpVisibility(name)).toBe('primary');
@@ -60,13 +54,8 @@ describe('tool help visibility', () => {
     expect(publicNames).toEqual(expect.arrayContaining(['WebSearch', 'DeepResearch']));
   });
 
-  it('marks the five branding-debt compat tools as advanced', () => {
-    expect(Object.keys(COMPAT_BRANDING_TOOL_HELP).toSorted()).toEqual([
-      'CreateUltraGoal',
-      'LioraReview',
-      'UltraSwarm',
-      'UltraworkGraph',
-    ]);
+  it('keeps LioraReview as the only branding-debt compat tool, marked advanced', () => {
+    expect(Object.keys(COMPAT_BRANDING_TOOL_HELP).toSorted()).toEqual([...LIORA_COMPAT_TOOLS]);
     for (const name of Object.keys(COMPAT_BRANDING_TOOL_HELP)) {
       expect(resolveToolHelpVisibility(name)).toBe('advanced');
     }
@@ -78,13 +67,10 @@ describe('tool help visibility', () => {
       tool('Review'),
       tool('LioraReview'),
       tool('CreateGoal'),
-      tool('CreateUltraGoal'),
       tool('RepoQuery'),
       tool('TodoList'),
       tool('TaskGraph'),
-      tool('UltraworkGraph'),
       tool('Fleet'),
-      tool('UltraSwarm'),
       tool('Read'),
     ];
     const publicNames = filterToolsForPublicHelp(catalog).map((entry) => entry.name);
@@ -105,10 +91,6 @@ describe('tool help visibility', () => {
     for (const name of LIORA_COMPAT_TOOLS) {
       expect(publicNames).not.toContain(name);
     }
-    expect(publicNames).not.toContain('LioraReview');
-    expect(publicNames).not.toContain('CreateUltraGoal');
-    expect(publicNames).not.toContain('UltraworkGraph');
-    expect(publicNames).not.toContain('UltraSwarm');
     expect(publicNames).toContain('Fleet');
   });
 
@@ -119,7 +101,6 @@ describe('tool help visibility', () => {
 
   it('surfaces compat hint for SearchTools hits', () => {
     expect(formatCompatToolHelpHint('LioraReview')).toBe('compat alias — prefer Review');
-    expect(formatCompatToolHelpHint('UltraworkGraph')).toBe('compat alias — prefer TaskGraph');
-    expect(formatCompatToolHelpHint('UltraSwarm')).toBe('compat alias — prefer Fleet');
+    expect(formatCompatToolHelpHint('TaskGraph')).toBeUndefined();
   });
 });

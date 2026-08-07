@@ -25,6 +25,7 @@ function baseState(overrides: Partial<AppState> = {}): AppState {
     sessionId: 'sess_1',
     permissionMode: 'manual',
     planMode: false,
+    askMode: false,
     thinking: false,
     contextUsage: 0,
     contextTokens: 0,

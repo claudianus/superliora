@@ -112,7 +112,9 @@ const ROOT_EVIDENCE_SUMMARY_FILES = new Set([
   'tui-real-workflow.json',
   'tui-ultrawork-workflow.json',
 ]);
-const ULTRAWORK_CONTRACT_PATH = 'apps/liora/src/tui/commands/ultrawork/ultrawork-contract.ts';
+const HUMAN_WRITING_CONTRACT_PATH = '.agents/skills/no-ai-slop/SKILL.md';
+/** @deprecated Mission mode retired — alias kept for local call sites in this script. */
+const ULTRAWORK_CONTRACT_PATH = HUMAN_WRITING_CONTRACT_PATH;
 const WEB_UI_SUCCESS_BOUNDARY =
   'Do not use apps/vis or browser UI paths as a success surface';
 const KNOWLEDGE_MAP_CONTRACT_PHRASES = Object.freeze([

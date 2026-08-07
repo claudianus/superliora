@@ -32,10 +32,10 @@ describe('agent/goal/predicate.ts — parseGoalPredicateCriterion', () => {
   });
 
   it('parses the inline `predicate:v1:` prefix', () => {
-    const r = parseGoalPredicateCriterion('predicate:v1:{"version":1,"requireUltraworkGraph":true}');
+    const r = parseGoalPredicateCriterion('predicate:v1:{"version":1,"minEvidenceIds":2}');
     expect(r.kind).toBe('structured');
     if (r.kind === 'structured') {
-      expect(r.spec.requireUltraworkGraph).toBe(true);
+      expect(r.spec.minEvidenceIds).toBe(2);
     }
   });
 
@@ -86,11 +86,4 @@ describe('agent/goal/predicate.ts — parseGoalPredicateCriterion', () => {
     }
   });
 
-  it('preserves requireUltraworkGraph only when it is a real boolean', () => {
-    const r = parseGoalPredicateCriterion('{"version":1,"requireUltraworkGraph":"yes"}');
-    expect(r.kind).toBe('structured');
-    if (r.kind === 'structured') {
-      expect(r.spec.requireUltraworkGraph).toBeUndefined();
-    }
-  });
 });

@@ -1,5 +1,4 @@
-// Hint shown beneath session-level error messages in the TUI to point users
-// at the `/export-debug-zip` workflow so they can share diagnostics with us.
+// Hint shown beneath session-level error messages in the TUI.
 export function errorReportHintLine(): string {
-  return "If this persists, run `/export-debug-zip` and share the file with us for diagnosis. Please don't share it publicly.";
+  return "If this persists, run `/export-md` to save the transcript, or open an issue with the error text. Please don't share secrets.";
 }

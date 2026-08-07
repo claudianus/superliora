@@ -15,7 +15,7 @@ import {
 } from '../events';
 import type { Event } from '../events';
 import type { ToolInputDisplay } from '../display';
-import { workGraphNodeSchema, workGraphSchema } from '../ultrawork';
+import { workGraphNodeSchema, workGraphSchema } from '../work-graph';
 
 type _AssertEventNonNever = Event extends never ? never : true;
 const _assertEvent: _AssertEventNonNever = true;
@@ -233,173 +233,6 @@ describe('events / display re-exports', () => {
     expect((parsed as { promptId: string }).promptId).toBe('prompt_1');
   });
 
-  it('validates Ultrawork stage and research events', () => {
-    const run = {
-      id: 'uw_1',
-      objective: 'Ship the latest-library feature',
-      status: 'running',
-      stage: 'research',
-      createdAt: '2026-07-01T00:00:00.000Z',
-      updatedAt: '2026-07-01T00:00:01.000Z',
-    };
-
-    const stageChanged = eventSchema.parse({
-      type: 'ultrawork.stage.changed',
-      agentId: 'main',
-      sessionId: 'sess_1',
-      run,
-      from: 'plan',
-      to: 'research',
-      reason: 'latest API behavior may affect implementation',
-    });
-
-    expect(stageChanged.type).toBe('ultrawork.stage.changed');
-
-    const researchStarted = eventSchema.parse({
-      type: 'ultrawork.research.started',
-      agentId: 'main',
-      sessionId: 'sess_1',
-      runId: 'uw_1',
-      topic: 'latest-library feature',
-      backends: [
-        {
-          id: 'local',
-          kind: 'local_research_stack',
-          role: 'assist',
-          status: 'selected',
-        },
-        {
-          id: 'kimi',
-          kind: 'kimi_web_search',
-          role: 'primary',
-          status: 'available',
-        },
-      ],
-    });
-
-    expect(researchStarted.type).toBe('ultrawork.research.started');
-  });
-
-  it('validates Ultrawork team, verification, and knowledge events', () => {
-    const staffed = eventSchema.parse({
-      type: 'ultrawork.team.staffed',
-      agentId: 'main',
-      sessionId: 'sess_1',
-      runId: 'uw_1',
-      toolCallId: 'call_ultra_swarm',
-      team: {
-        id: 'team_1',
-        runId: 'uw_1',
-        intensity: 'premium',
-        maxExperts: 24,
-        experts: [
-          {
-            id: 'frontend-architect',
-            name: 'Frontend Architect',
-            role: 'architecture',
-            focus: 'review',
-            status: 'queued',
-            division: 'engineering',
-            emoji: 'A',
-            color: '#0EA5E9',
-            coverageLane: 'architecture_implementation',
-            selectionReason: 'Owns the architecture review lane.',
-            dependsOn: ['product-manager'],
-            agentId: 'agent_architect',
-          },
-        ],
-      },
-    });
-
-    expect(staffed.type).toBe('ultrawork.team.staffed');
-    if (staffed.type !== 'ultrawork.team.staffed') {
-      throw new Error('expected ultrawork.team.staffed');
-    }
-    expect(staffed.toolCallId).toBe('call_ultra_swarm');
-    expect(staffed.team.experts[0]).toMatchObject({
-      coverageLane: 'architecture_implementation',
-      dependsOn: ['product-manager'],
-      agentId: 'agent_architect',
-    });
-
-    const collaboration = eventSchema.parse({
-      type: 'ultrawork.collaboration.message',
-      agentId: 'main',
-      sessionId: 'sess_1',
-      runId: 'uw_1',
-      message: {
-        id: 'swarm-msg-1',
-        runId: 'uw_1',
-        parentToolCallId: 'call_ultra_swarm',
-        at: '2026-07-01T00:00:01.000Z',
-        from: {
-          expertId: 'security-appsec-engineer',
-          agentId: 'agent_sec',
-          name: 'AppSec Engineer',
-        },
-        to: { expertId: 'impl-engineer' },
-        channel: 'blocker',
-        kind: 'mention',
-        body: 'auth middleware missing tests',
-      },
-    });
-
-    expect(collaboration.type).toBe('ultrawork.collaboration.message');
-    if (collaboration.type !== 'ultrawork.collaboration.message') {
-      throw new Error('expected ultrawork.collaboration.message');
-    }
-    expect(collaboration.message.channel).toBe('blocker');
-
-    const mention = eventSchema.parse({
-      type: 'ultrawork.collaboration.mention',
-      agentId: 'main',
-      sessionId: 'sess_1',
-      runId: 'uw_1',
-      message: collaboration.message,
-      mentionExpertIds: ['impl-engineer'],
-    });
-
-    expect(mention.type).toBe('ultrawork.collaboration.mention');
-    if (mention.type !== 'ultrawork.collaboration.mention') {
-      throw new Error('expected ultrawork.collaboration.mention');
-    }
-    expect(mention.mentionExpertIds).toEqual(['impl-engineer']);
-
-    const verified = eventSchema.parse({
-      type: 'ultrawork.verification.completed',
-      agentId: 'main',
-      sessionId: 'sess_1',
-      runId: 'uw_1',
-      verification: {
-        id: 'verify_1',
-        runId: 'uw_1',
-        status: 'passed',
-        checks: [{ name: 'typecheck', status: 'passed', command: 'pnpm typecheck' }],
-        completedAt: '2026-07-01T00:00:02.000Z',
-      },
-    });
-
-    expect(verified.type).toBe('ultrawork.verification.completed');
-
-    const promoted = eventSchema.parse({
-      type: 'ultrawork.knowledge.promoted',
-      agentId: 'main',
-      sessionId: 'sess_1',
-      runId: 'uw_1',
-      promotion: {
-        id: 'learn_1',
-        runId: 'uw_1',
-        target: 'llm_wiki',
-        findingId: 'finding_1',
-        title: 'Official API requirement',
-        promotedAt: '2026-07-01T00:00:03.000Z',
-        sourceEvidenceIds: ['evidence_1'],
-      },
-    });
-
-    expect(promoted.type).toBe('ultrawork.knowledge.promoted');
-  });
-
   it('keeps minimal WorkGraph nodes valid while round-tripping harness metadata', () => {
     expect(
       workGraphNodeSchema.parse({
@@ -584,7 +417,6 @@ describe('agentStatusUpdatedEventSchema', () => {
       maxContextTokens: 1000,
       contextUsage: 0.1,
       planMode: false,
-      swarmMode: false,
       premiumQualityMode: false,
       permission: 'manual',
       providerRoute: null,

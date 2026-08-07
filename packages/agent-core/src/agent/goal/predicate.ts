@@ -13,13 +13,11 @@ export interface GoalPredicateSpec {
   readonly requiredPaths?: readonly string[];
   /**
    * Vitest test file paths (workspace-relative) to run via whitelist runner.
-   * Example: `packages/agent-core/test/ultrawork/completion-audit.test.ts`
+   * Example: `packages/agent-core/test/agent/goal/predicate.test.ts`
    */
   readonly requiredTestFiles?: readonly string[];
   /** Minimum number of evidenceIds across WorkGraph done nodes (optional). */
   readonly minEvidenceIds?: number;
-  /** When true (default if Ultrawork live), require UW completion audit. */
-  readonly requireUltraworkGraph?: boolean;
 }
 
 export type GoalPredicateParseResult =
@@ -73,16 +71,12 @@ function tryParseSpec(raw: string): GoalPredicateSpec | null {
       typeof minEvidenceIdsRaw === 'number' && Number.isFinite(minEvidenceIdsRaw)
         ? Math.max(0, Math.floor(minEvidenceIdsRaw))
         : undefined;
-    const requireUltraworkGraphRaw = obj['requireUltraworkGraph'];
-    const requireUltraworkGraph =
-      typeof requireUltraworkGraphRaw === 'boolean' ? requireUltraworkGraphRaw : undefined;
 
     return {
       version: 1,
       requiredPaths,
       requiredTestFiles,
       minEvidenceIds,
-      requireUltraworkGraph,
     };
   } catch {
     return null;
@@ -102,7 +96,6 @@ export type GoalPredicateFailureCode =
   | 'missing_path'
   | 'test_failed'
   | 'min_evidence'
-  | 'ultrawork_audit'
   | 'runner_error';
 
 export interface GoalPredicateFailure {

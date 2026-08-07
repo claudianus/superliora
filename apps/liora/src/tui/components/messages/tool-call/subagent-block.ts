@@ -1,7 +1,7 @@
 /**
  * Pure component builders for the subagent tail block of a ToolCallComponent
- * card — both the multi-subagent chip/row list (AgentSwarm/UltraSwarm-style
- * parents with several children) and the single-subagent (`Agent` tool)
+ * card — both the multi-subagent chip/row list (parents with several
+ * children) and the single-subagent (`Agent` tool)
  * activity list. Given an explicit state snapshot, these return the
  * `Component[]` to append; the class still owns `addChild` ordering and the
  * shared render cache.
@@ -114,7 +114,7 @@ export interface MultiSubagentBlockState {
 }
 
 /**
- * Builds the AgentSwarm/UltraSwarm-style multi-subagent tail: a chip row
+ * Builds the multi-subagent tail: a chip row
  * plus finished/ongoing sub-call rows, tail text, and result/error lines.
  * Mirrors the previous inline `buildSubagentBlock` body verbatim.
  */

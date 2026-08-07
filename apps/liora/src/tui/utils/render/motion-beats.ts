@@ -21,7 +21,6 @@ export interface MotionBeatPlayOptions {
   readonly seed: string;
   readonly title?: string;
   readonly nowMs: number;
-  readonly theatreActive?: boolean;
   readonly streamThrottle?: boolean;
 }
 
@@ -60,21 +59,12 @@ export interface MotionBeatController {
   clear(): void;
 }
 
-/** Matches footer theatre chrome: ultrawork or swarm-armed (`swarmMode`). */
-export function isMotionTheatreActive(state: {
-  readonly ultraworkMode?: boolean;
-  readonly swarmMode?: boolean;
-}): boolean {
-  return state.ultraworkMode === true || state.swarmMode === true;
-}
-
 export function createMotionBeatController(): MotionBeatController {
   let current: MotionBeatSnapshot | undefined;
   let lastStreamPlayMs = -Infinity;
 
   return {
     play(options) {
-      if (options.theatreActive) return undefined;
       // Ghost beats: keep call sites for telemetry/intent, but never replace the
       // single transition slot consumed by footer mode/plan/resume.
       if (!SLOT_CONSUMER_NAMES.has(options.name)) return undefined;

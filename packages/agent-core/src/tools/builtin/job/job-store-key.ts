@@ -58,7 +58,6 @@ export interface JobRecord {
   readonly contextPaths?: readonly string[];
   readonly worktreePath?: string;
   readonly workerAgentId?: string;
-  readonly missionRunId?: string;
   /** Goal-driver binding (spec 2026-08-04-goal-driver-jobs): the goal the driver worker pursues. */
   readonly goalId?: string;
   readonly goalObjective?: string;
