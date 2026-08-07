@@ -29,7 +29,6 @@ export interface SessionTraceDumpCompletenessLike {
   readonly toolCallCount: number;
   readonly toolResultCount: number;
   readonly subagentLifecycleCount: number;
-  readonly ultraworkEventCount: number;
   readonly redactedCount: number;
   readonly warnings: readonly string[];
 }
@@ -134,7 +133,7 @@ export function buildSessionTraceDumpExportLines(
         ? ` (show last ${String(payload.events.length)})`
         : ''),
     `Records: ${String(c.recordCount)} · messages ${String(c.messageCount)} · tools ${String(c.toolCallCount)}→${String(c.toolResultCount)}`,
-    `Subagent lifecycle: ${String(c.subagentLifecycleCount)} · ultrawork ${String(c.ultraworkEventCount)} · redacted ${String(c.redactedCount)}`,
+    `Subagent lifecycle: ${String(c.subagentLifecycleCount)} · redacted ${String(c.redactedCount)}`,
     `Verification artifacts: ${String(payload.verificationArtifactCount)}`,
   ];
   if (c.warnings.length > 0) {

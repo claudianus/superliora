@@ -74,7 +74,6 @@ async function showBenchDiagnosticsSettingsPanel(host: SlashCommandHost): Promis
             readonly toolCallCount: number;
             readonly toolResultCount: number;
             readonly subagentLifecycleCount: number;
-            readonly ultraworkEventCount: number;
             readonly redactedCount: number;
             readonly warnings: readonly string[];
           };
@@ -112,7 +111,6 @@ async function showBenchDiagnosticsSettingsPanel(host: SlashCommandHost): Promis
             toolCallCount: trace.completeness.toolCallCount,
             toolResultCount: trace.completeness.toolResultCount,
             subagentLifecycleCount: trace.completeness.subagentLifecycleCount,
-            ultraworkEventCount: trace.completeness.ultraworkEventCount,
             redactedCount: trace.completeness.redactedCount,
             warnings: [...trace.completeness.warnings],
           },

@@ -264,7 +264,6 @@ export class MissionControlRegistry {
       runInBackground: event.runInBackground,
       ...(event.modelAlias === undefined ? {} : { modelAlias: event.modelAlias }),
       ...(event.description === undefined ? {} : { description: event.description }),
-      ...(event.swarmIndex === undefined ? {} : { swarmIndex: event.swarmIndex }),
     });
     worker.status = 'running';
     worker.lastActivityAtMs = this.now();

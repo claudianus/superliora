@@ -414,7 +414,6 @@ async function startGoal(
     await host.requireSession().createGoal({
       objective: parsed.objective,
       replace: parsed.replace,
-      source: 'standalone',
     });
   } catch (error) {
     if (isKimiError(error) && error.code === ErrorCodes.GOAL_ALREADY_EXISTS) {
