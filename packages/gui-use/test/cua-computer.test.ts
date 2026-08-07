@@ -5,8 +5,13 @@ import { pathToFileURL } from 'node:url';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { Browser } from 'playwright-core';
+
 import { CamoufoxBrowserRuntime } from '../src/browser/camoufox-browser';
-import { CloakBrowserRuntime } from '../src/browser/cloak-browser';
+import {
+  CloakBrowserRuntime,
+  resetCloakBrowserQuietUpdateForTests,
+} from '../src/browser/cloak-browser';
 import { createBrowserUseRuntime } from '../src/browser/create-browser-use-runtime';
 import { LightpandaBrowserRuntime } from '../src/browser/lightpanda-browser';
 import { TieredBrowserUseRuntime } from '../src/browser/tiered-browser-use';
@@ -26,6 +31,7 @@ const mcpTypesUrl = pathToFileURL(
 ).href;
 
 afterEach(async () => {
+  resetCloakBrowserQuietUpdateForTests();
   for (const dir of tempDirs.splice(0)) {
     await rm(dir, { recursive: true, force: true });
   }
@@ -103,7 +109,7 @@ describe('CloakBrowserRuntime', () => {
     const info = vi
       .fn()
       .mockResolvedValueOnce(setupResult({ ok: false, code: 1, stderr: 'missing\n' }))
-      .mockResolvedValueOnce(setupResult({ stdout: 'cloakbrowser 0.4.5\n' }));
+      .mockResolvedValueOnce(setupResult({ stdout: 'cloakbrowser 0.5.5\n' }));
     const install = vi.fn().mockResolvedValue(setupResult({ stdout: 'installed\n' }));
     const runtime = new CloakBrowserRuntime({ info, install });
 
@@ -114,7 +120,7 @@ describe('CloakBrowserRuntime', () => {
     expect(status).toMatchObject({
       installed: true,
       ready: true,
-      version: 'cloakbrowser 0.4.5',
+      version: 'cloakbrowser 0.5.5',
     });
   });
 
@@ -131,6 +137,63 @@ describe('CloakBrowserRuntime', () => {
       ready: false,
       error: 'missing',
     });
+  });
+
+  it('disables cloakbrowser AUTO_UPDATE and mutes console during launch', async () => {
+    const update = vi.fn().mockResolvedValue(setupResult());
+    let autoUpdateDisabled = false;
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const runtime = new CloakBrowserRuntime({
+      autoInstall: false,
+      update,
+      launch: async () => {
+        autoUpdateDisabled = process.env['CLOAKBROWSER_AUTO_UPDATE'] === 'false';
+        console.warn('[cloakbrowser] Update available: 0.4.5 → 0.5.5');
+        return stopAfterLaunchBrowser();
+      },
+    });
+
+    await expect(runtime.screenshot()).rejects.toThrow('stop-after-launch');
+    expect(autoUpdateDisabled).toBe(true);
+    expect(warn).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+    warn.mockRestore();
+    await runtime.close();
+  });
+
+  it('skips quiet binary update when autoUpdate is false', async () => {
+    const update = vi.fn().mockResolvedValue(setupResult());
+    const runtime = new CloakBrowserRuntime({
+      autoInstall: false,
+      autoUpdate: false,
+      update,
+      launch: async () => stopAfterLaunchBrowser(),
+    });
+
+    await expect(runtime.screenshot()).rejects.toThrow('stop-after-launch');
+    await Promise.resolve();
+    expect(update).not.toHaveBeenCalled();
+    await runtime.close();
+  });
+
+  it('runs quiet binary update at most once per process', async () => {
+    const update = vi.fn().mockResolvedValue(setupResult());
+    const first = new CloakBrowserRuntime({
+      autoInstall: false,
+      update,
+      launch: async () => stopAfterLaunchBrowser(),
+    });
+    const second = new CloakBrowserRuntime({
+      autoInstall: false,
+      update,
+      launch: async () => stopAfterLaunchBrowser(),
+    });
+
+    await expect(first.screenshot()).rejects.toThrow('stop-after-launch');
+    await expect(second.screenshot()).rejects.toThrow('stop-after-launch');
+    await vi.waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+    await first.close();
+    await second.close();
   });
 });
 
@@ -209,6 +272,16 @@ function setupResult(overrides: Partial<SetupCommandResult> = {}): SetupCommandR
     command: ['cmd'],
     ...overrides,
   };
+}
+
+/** Launch succeeds; harness fails on newContext so tests stop after env/mute/update side effects. */
+function stopAfterLaunchBrowser(): Browser {
+  return {
+    newContext: async () => {
+      throw new Error('stop-after-launch');
+    },
+    close: async () => {},
+  } as unknown as Browser;
 }
 
 async function createFakeCuaDriver(): Promise<string> {

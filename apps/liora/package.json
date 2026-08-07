@@ -84,7 +84,7 @@
     "node-pty": "^1.1.0"
   },
   "dependencies": {
-    "cloakbrowser": "0.4.5",
+    "cloakbrowser": "0.5.5",
     "oxc-parser": "^0.141.0",
     "playwright-core": "^1.61.1",
     "shiki": "^3.23.0",

@@ -31,7 +31,7 @@ export interface SetupCommandResult {
 }
 
 const DEFAULT_TIMEOUT_MS = 10 * 60_000;
-const CLOAKBROWSER_NPM_VERSION = '0.4.5';
+const CLOAKBROWSER_NPM_VERSION = '0.5.5';
 
 export async function installLightpanda(
   options: SetupCommandOptions & LightpandaBinaryOptions = {},

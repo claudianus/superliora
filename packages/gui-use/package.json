@@ -49,7 +49,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "camoufox-js": "^0.11.1",
-    "cloakbrowser": "0.4.5",
+    "cloakbrowser": "0.5.5",
     "playwright-core": "^1.61.1"
   },
   "devDependencies": {

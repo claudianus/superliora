@@ -3,6 +3,7 @@ import type { Browser } from 'playwright-core';
 import {
   infoCloakBrowser,
   installCloakBrowser,
+  updateCloakBrowser,
   type SetupCommandResult,
 } from '../install';
 import type {
@@ -42,7 +43,13 @@ export interface CloakBrowserRuntimeOptions {
   readonly installRoot?: string | undefined;
   readonly install?: (() => Promise<SetupCommandResult>) | undefined;
   readonly info?: (() => Promise<SetupCommandResult>) | undefined;
+  readonly update?: (() => Promise<SetupCommandResult>) | undefined;
+  /** Test seam: skip the real `cloakbrowser` import. */
+  readonly launch?: ((options: never) => Promise<Browser | undefined>) | undefined;
 }
+
+/** Process-wide quiet binary refresh; cloakbrowser's own TTY updater stays off. */
+let processQuietUpdate: Promise<void> | undefined;
 
 export class CloakBrowserRuntime implements BrowserUseRuntime {
   private readonly harness: PlaywrightPageHarness;
@@ -113,7 +120,7 @@ export class CloakBrowserRuntime implements BrowserUseRuntime {
   }
 
   private async connectBrowser(signal?: AbortSignal): Promise<Browser> {
-    const { launch } = await import('cloakbrowser');
+    const launch = this.options.launch ?? (await import('cloakbrowser')).launch;
     try {
       return await this.launchWith(launch);
     } catch (firstError) {
@@ -142,17 +149,40 @@ export class CloakBrowserRuntime implements BrowserUseRuntime {
     }
   }
 
-  private async launchWith(launch: typeof import('cloakbrowser')['launch']): Promise<Browser> {
-    return withCloakEnv(this.options, async () => {
-      const browser = await launch({
-        headless: this.options.headless ?? true,
-        humanize: this.options.humanize ?? true,
-      } as never);
-      if (browser === undefined) {
-        throw new Error('CloakBrowser launch did not return a browser.');
-      }
-      return browser;
-    });
+  private async launchWith(
+    launch: (options: never) => Promise<Browser | undefined>,
+  ): Promise<Browser> {
+    return withCloakEnv(this.options, async () =>
+      withMutedConsole(async () => {
+        const browser = await launch({
+          headless: this.options.headless ?? true,
+          humanize: this.options.humanize ?? true,
+        } as never);
+        if (browser === undefined) {
+          throw new Error('CloakBrowser launch did not return a browser.');
+        }
+        this.scheduleQuietUpdate();
+        return browser;
+      }),
+    );
+  }
+
+  private scheduleQuietUpdate(): void {
+    if (this.options.autoUpdate === false) return;
+    if (this.options.binaryPath !== undefined) return;
+    if (process.env['CLOAKBROWSER_BINARY_PATH'] !== undefined) return;
+    processQuietUpdate ??= this.runQuietUpdate();
+  }
+
+  private async runQuietUpdate(): Promise<void> {
+    try {
+      await (this.options.update ?? (() => updateCloakBrowser({
+        quiet: true,
+        packageRoot: this.options.installRoot,
+      })))();
+    } catch {
+      // Best-effort: launch already succeeded; operator can retry via `liora browser-use update`.
+    }
   }
 
   private async infoCloakBrowser(): Promise<SetupCommandResult> {
@@ -181,12 +211,18 @@ export class CloakBrowserRuntime implements BrowserUseRuntime {
   }
 }
 
+/** Reset process-wide quiet-update latch (tests only). */
+export function resetCloakBrowserQuietUpdateForTests(): void {
+  processQuietUpdate = undefined;
+}
+
 async function withCloakEnv<T>(
   options: CloakBrowserRuntimeOptions,
   fn: () => Promise<T>,
 ): Promise<T> {
+  // Always disable cloakbrowser's in-process updater: it console.warns onto the TUI TTY.
   const updates: Record<string, string | undefined> = {
-    CLOAKBROWSER_AUTO_UPDATE: options.autoUpdate === false ? 'false' : undefined,
+    CLOAKBROWSER_AUTO_UPDATE: 'false',
     CLOAKBROWSER_CACHE_DIR: options.cacheDir,
     CLOAKBROWSER_BINARY_PATH: options.binaryPath,
     CLOAKBROWSER_VERSION: options.version,
@@ -200,7 +236,6 @@ async function withCloakEnv<T>(
   for (const [key, value] of Object.entries(updates)) {
     previous[key] = process.env[key];
     if (value === undefined) {
-      if (key === 'CLOAKBROWSER_AUTO_UPDATE' && options.autoUpdate !== false) continue;
       delete process.env[key];
     } else {
       process.env[key] = value;
@@ -216,5 +251,24 @@ async function withCloakEnv<T>(
         process.env[key] = value;
       }
     }
+  }
+}
+
+async function withMutedConsole<T>(fn: () => Promise<T>): Promise<T> {
+  const previous = {
+    log: console.log,
+    warn: console.warn,
+    error: console.error,
+  };
+  const noop = (): void => {};
+  console.log = noop;
+  console.warn = noop;
+  console.error = noop;
+  try {
+    return await fn();
+  } finally {
+    console.log = previous.log;
+    console.warn = previous.warn;
+    console.error = previous.error;
   }
 }
