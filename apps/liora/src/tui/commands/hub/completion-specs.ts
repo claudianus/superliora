@@ -179,10 +179,6 @@ const APPEARANCE_VALUE_COMPLETIONS: Readonly<
   ],
 };
 
-const PREFLIGHT_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
-  { value: '--query=', description: 'Override Liora Memory readiness query' },
-];
-
 const EDITOR_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'code --wait', description: 'VS Code (code --wait)' },
   { value: 'vim', description: 'Vim' },
@@ -371,17 +367,6 @@ export function appearanceArgumentCompletions(
     );
   }
   return completeLeadingArg(APPEARANCE_ARG_COMPLETIONS, argumentPrefix);
-}
-
-/**
- * Leading-arg completions for `/preflight`.
- * Completes the fixed `--query=` flag while the user is still on the first
- * token so free-form evidence paths remain unclobbered.
- */
-export function preflightArgumentCompletions(
-  argumentPrefix: string,
-): AutocompleteItem[] | null {
-  return completeLeadingArg(PREFLIGHT_ARG_COMPLETIONS, argumentPrefix);
 }
 
 /** Leading-arg completions for common `/editor` external editors. */

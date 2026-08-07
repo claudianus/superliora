@@ -132,16 +132,6 @@ describe('resolveSlashCommandInput', () => {
       name: 'btw',
       args: 'what are you doing?',
     });
-    expect(resolve('/preflight')).toMatchObject({
-      kind: 'builtin',
-      name: 'preflight',
-      args: '',
-    });
-    expect(resolve('/pf .super-kimi/evidence/bench')).toMatchObject({
-      kind: 'builtin',
-      name: 'preflight',
-      args: '.super-kimi/evidence/bench',
-    });
     expect(resolve('/experiments')).toMatchObject({
       kind: 'builtin',
       name: 'experiments',
@@ -404,16 +394,6 @@ describe('resolveSlashCommandInput', () => {
       kind: 'builtin',
       name: 'appearance',
       args: 'density compact',
-    });
-    expect(resolve('/preflight --query=harness readiness', { isStreaming: true })).toMatchObject({
-      kind: 'builtin',
-      name: 'preflight',
-      args: '--query=harness readiness',
-    });
-    expect(resolve('/pf', { isCompacting: true })).toMatchObject({
-      kind: 'builtin',
-      name: 'preflight',
-      args: '',
     });
     expect(resolve('/editor vim', { isStreaming: true })).toMatchObject({
       kind: 'builtin',

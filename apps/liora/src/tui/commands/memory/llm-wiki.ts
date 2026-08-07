@@ -197,7 +197,7 @@ export function buildPromoteEvidenceLines(result: PromoteProjectEvidenceResult):
     `Manifest  ${result.manifestPath}`,
     `Run  ${result.wikiRunPath ?? 'none'}`,
     `Knowledge map  ${result.knowledgeMapPromoted ? 'verified' : 'blocked'}; ${result.knowledgeMapPath ?? 'none'}`,
-    `Next  ${result.wikiPromoted && result.knowledgeMapPromoted ? 'Run /memory readiness or /preflight to confirm gates.' : 'Fix warnings, then rerun /memory verify.'}`,
+    `Next  ${result.wikiPromoted && result.knowledgeMapPromoted ? 'Run /memory readiness to confirm gates.' : 'Fix warnings, then rerun /memory verify.'}`,
   ];
   for (const warning of result.warnings) lines.push(`Warning  ${warning}`);
   return lines;

@@ -60,7 +60,6 @@ import { handleMemoryCommand } from '../memory/memory';
 import { handlePersonaCommand } from '../persona';
 import { parseSlashInput } from './parse';
 import { handlePluginsCommand } from '../plugins/plugins';
-import { handlePreflightCommand } from '../preflight/command';
 import { handlePremiumQualityCommand } from '../premium';
 import {
   handleRendererCommand,
@@ -108,7 +107,6 @@ export { showMcpServers, showQuota, showStatusReport, showUsage } from '../info/
 export { handleMemoryCommand } from '../memory/memory';
 export { handlePersonaCommand } from '../persona';
 export { handlePluginsCommand } from '../plugins/plugins';
-export { handlePreflightCommand } from '../preflight/command';
 export { handleReloadCommand, handleReloadTuiCommand } from '../session/reload';
 export { handleGoalCommand } from '../goal';
 export {
@@ -480,9 +478,6 @@ async function handleBuiltInSlashCommand(
       return;
     case 'bench':
       await handleBenchCommand(host, args);
-      return;
-    case 'preflight':
-      await handlePreflightCommand(host, args);
       return;
     case 'renderer':
       handleRendererCommand(host, args);

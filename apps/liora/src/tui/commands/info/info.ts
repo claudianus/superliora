@@ -18,7 +18,6 @@ import { formatErrorMessage } from '../../utils/event-payload';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { createGitStatusCache } from '#/utils/git/git-status';
 import { getDataDir } from '#/utils/paths';
-import { loadPreflightHumanWriting } from '../preflight/human-writing';
 import type { SlashCommandHost } from '../hub/dispatch';
 
 import { buildContextOsReportLines, loadPrivacySnapshot } from './context-os-report';
@@ -167,7 +166,6 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
     loadLoopModelRouting(host),
   ]);
   const appState = host.state.appState;
-  const humanWriting = loadPreflightHumanWriting(appState.workDir);
   const recovery = loadStatusRecoveryReadiness(appState.workDir);
   const privacy = loadPrivacySnapshot(host);
   const fieldMotion = createStatusFieldMotionState();
@@ -203,13 +201,6 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
     autoDream: runtimeStatus.status?.autoDream,
     privacyTelemetryEnabled: privacy.telemetryEnabled,
     gitStatus: createGitStatusCache(appState.workDir).getStatus(),
-    humanWriting: {
-      ready: humanWriting.ready,
-      advisoryOnly: humanWriting.advisoryOnly,
-      nextAction: humanWriting.ready
-        ? 'Describe the task to start.'
-        : 'Restore writing-quality guidance before long autonomous work.',
-    },
     recovery,
     managedUsage: managedUsage?.usage,
     managedUsageError: managedUsage?.error,

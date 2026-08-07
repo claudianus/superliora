@@ -112,8 +112,7 @@ const ROOT_EVIDENCE_SUMMARY_FILES = new Set([
   'tui-real-workflow.json',
   'tui-ultrawork-workflow.json',
 ]);
-const HUMAN_WRITING_CONTRACT_PATH =
-  'apps/liora/src/tui/commands/preflight/human-writing-contract.md';
+const HUMAN_WRITING_CONTRACT_PATH = '.agents/skills/no-ai-slop/SKILL.md';
 /** @deprecated Mission mode retired — alias kept for local call sites in this script. */
 const ULTRAWORK_CONTRACT_PATH = HUMAN_WRITING_CONTRACT_PATH;
 const WEB_UI_SUCCESS_BOUNDARY =

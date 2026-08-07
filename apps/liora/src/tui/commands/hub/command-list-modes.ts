@@ -11,7 +11,6 @@ import {
   askArgumentCompletions,
   planArgumentCompletions,
   thinkingArgumentCompletions,
-  preflightArgumentCompletions,
   helpArgumentCompletions,
   extensionsArgumentCompletions,
   cronArgumentCompletions,

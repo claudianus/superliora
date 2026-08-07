@@ -15,7 +15,6 @@ import {
   permissionArgumentCompletions,
   personaArgumentCompletions,
   planArgumentCompletions,
-  preflightArgumentCompletions,
   premiumArgumentCompletions,
   profileArgumentCompletions,
   pluginsArgumentCompletions,
@@ -58,8 +57,8 @@ describe('built-in slash command registry', () => {
     expect(findBuiltInSlashCommand('clear')?.name).toBe('new');
     expect(findBuiltInSlashCommand('btw')?.name).toBe('btw');
     expect(findBuiltInSlashCommand('bench')?.name).toBe('bench');
-    expect(findBuiltInSlashCommand('preflight')?.name).toBe('preflight');
-    expect(findBuiltInSlashCommand('pf')?.name).toBe('preflight');
+    expect(findBuiltInSlashCommand('preflight')).toBeUndefined();
+    expect(findBuiltInSlashCommand('pf')).toBeUndefined();
     expect(findBuiltInSlashCommand('renderer')?.name).toBe('renderer');
     expect(findBuiltInSlashCommand('render')?.name).toBe('renderer');
     expect(findBuiltInSlashCommand('ultraresearch')).toBeUndefined();
@@ -490,30 +489,6 @@ describe('built-in slash command registry', () => {
     expect(findBuiltInSlashCommand('skin')?.completeArgs).toBe(appearanceArgumentCompletions);
   });
 
-  it('offers preflight --query= argument completions', () => {
-    const values = (prefix: string): string[] | null => {
-      const items = preflightArgumentCompletions(prefix);
-      return items === null ? null : items.map((item) => item.value);
-    };
-
-    expect(values('')).toEqual(['--query=']);
-    expect(values('-')).toEqual(['--query=']);
-    expect(values('--q')).toEqual(['--query=']);
-    expect(preflightArgumentCompletions('--que')).toEqual([
-      {
-        value: '--query=',
-        label: '--query=',
-        description: 'Override Liora Memory readiness query',
-      },
-    ]);
-    expect(values('--query=')).toBeNull();
-    expect(values('evidence')).toBeNull();
-    expect(findBuiltInSlashCommand('preflight')?.completeArgs).toBe(
-      preflightArgumentCompletions,
-    );
-    expect(findBuiltInSlashCommand('pf')?.completeArgs).toBe(preflightArgumentCompletions);
-  });
-
   it('offers editor argument completions', () => {
     const values = (prefix: string): string[] | null => {
       const items = editorArgumentCompletions(prefix);
@@ -539,7 +514,6 @@ describe('built-in slash command registry', () => {
     const diagnosticNames = slashCommandsForHelp(BUILTIN_SLASH_COMMANDS, 'diagnostics').map((command) => command.name);
 
     expect(primaryNames).not.toContain('bench');
-    expect(primaryNames).not.toContain('preflight');
     expect(primaryNames).not.toContain('renderer');
     expect(primaryNames).toContain('plan');
     expect(primaryNames).not.toContain('ops');
@@ -572,7 +546,7 @@ describe('built-in slash command registry', () => {
     expect(advancedNames).not.toContain('permission');
     expect(advancedNames).not.toContain('settings');
     expect(diagnosticNames).toEqual(
-      expect.arrayContaining(['bench', 'export-debug-zip', 'preflight', 'renderer', 'term']),
+      expect.arrayContaining(['bench', 'export-debug-zip', 'renderer', 'term']),
     );
     const help = findBuiltInSlashCommand('help') as LioraSlashCommand | undefined;
     expect(helpArgumentCompletions('')?.map((item) => item.value)).toEqual(['advanced']);
@@ -798,7 +772,7 @@ describe('built-in slash command registry', () => {
     expect(new Set(names).size).toBe(names.length);
     expect(names).toContain('web');
     expect(names).toContain('bench');
-    expect(names).toContain('preflight');
+    expect(names).not.toContain('preflight');
     expect(names).toEqual(
       expect.arrayContaining([
         'add-dir',
@@ -820,7 +794,6 @@ describe('built-in slash command registry', () => {
         'new',
         'permission',
         'plan',
-        'preflight',
         'reload',
         'reload-tui',
         'sessions',

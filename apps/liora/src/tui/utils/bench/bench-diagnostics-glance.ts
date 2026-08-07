@@ -144,7 +144,6 @@ export function buildBenchDiagnosticsSettingsLines(
     '',
     '── Slash commands ───────────────────────────',
     '· /bench — latest evidence score, pass rate, holdout, replay hints',
-    '· /preflight — readiness matrix (bench age, search, eyes, MCP)',
     '',
     '── Visual smoke (soft) ──────────────────────',
     '· pnpm -C apps/liora run smoke:visual — PTY chrome → .superliora/visual-smoke/latest.{ansi,txt}',
