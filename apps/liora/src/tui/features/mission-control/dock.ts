@@ -16,6 +16,11 @@ export const MISSION_DOCK_WIDTH = 40;
  * the in-stack fallback band takes over.
  */
 export const MISSION_DOCK_MIN_COLUMNS = 148;
+/**
+ * Above stage letterbox (4) / frame rim (5) so the night-sky gutters cannot
+ * bury the dock; below toast (9) and fullscreen takeover (1000).
+ */
+export const MISSION_DOCK_Z_INDEX = 6;
 
 export type MissionControlMode = 'auto' | 'pinned' | 'hidden';
 

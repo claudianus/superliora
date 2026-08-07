@@ -37,7 +37,10 @@ import {
   createStageFrameOverlayRegions,
   stageFrameBundleRect,
 } from '#/tui/features/stage/stage-frame';
-import { resolveMissionDockRect } from '#/tui/features/mission-control/dock';
+import {
+  MISSION_DOCK_Z_INDEX,
+  resolveMissionDockRect,
+} from '#/tui/features/mission-control/dock';
 import {
   getStageResizeHoverZone,
   isStageResizeDragging,
@@ -294,9 +297,9 @@ export function buildTUIStateNativeFrame(
       resizeDragging: isStageResizeDragging(),
     }),
   );
-  // Mission Control right dock: painted after the stage frame so the panel
-  // owns its band (the stage already resolved inside the remaining center
-  // band via the workspaceCenter hook).
+  // Mission Control right dock: z-index above letterbox/frame so the night-sky
+  // gutters cannot bury the panel (the stage already resolved inside the
+  // remaining center band via the workspaceCenter hook).
   const missionDock = resolveMissionDockRect(state, width, height);
   if (missionDock !== undefined && missionDock.width > 0 && missionDock.height > 0) {
     const dockLines = state.missionControlPanel.renderDock(missionDock.width, missionDock.height);
@@ -311,6 +314,7 @@ export function buildTUIStateNativeFrame(
       content: promoteRendererRegionLinesToCells(projected.lines),
       clear: !ambientDamageOnly,
       background: canvasBackground,
+      zIndex: MISSION_DOCK_Z_INDEX,
     });
   }
   const diagnosticsOverlay = skipDecorative
