@@ -5,16 +5,28 @@
 
 import { pathToFileURL } from 'node:url';
 
+import type { BrowserUseRuntime } from '@superliora/gui-use';
+import type { Kaos } from '@superliora/kaos';
 import { join } from 'pathe';
 
-import type { Agent } from '../../agent';
-import { observeVerificationToolResult } from '../../sensors/verification-sensor-ledger';
+import {
+  observeVerificationToolResult,
+  type VerificationSensorLedger,
+} from '../../sensors/verification-sensor-ledger';
 import { VerifySurfaceTool } from '../../tools/builtin/gui/verify-surface';
 import type { VisualVerificationVerdict } from './subagent-result-contract';
 
 const AUTO_VERIFY_SURFACE_TIMEOUT_MS = 120_000;
 
 const HTTP_URL_PATTERN = /https?:\/\/[^\s)"'<>]+/i;
+
+/** Narrow host surface — avoids session→agent imports for layering. */
+export interface AutoVerifySurfaceHost {
+  readonly verificationSensorLedger: VerificationSensorLedger;
+  readonly config: { readonly cwd: string };
+  readonly toolServices?: { readonly browserUse?: BrowserUseRuntime | undefined } | undefined;
+  readonly kaos: Kaos;
+}
 
 /**
  * Prefer an http(s) URL mentioned in the summary; else the first changed HTML
@@ -40,7 +52,7 @@ export function resolveVerifySurfaceUrl(input: {
  * Updates the child's verification ledger so resolveVisualVerdict sees it.
  */
 export async function maybeAutoVerifySurface(
-  child: Agent,
+  child: AutoVerifySurfaceHost,
   filesChanged: readonly string[],
   summary: string,
   signal: AbortSignal | undefined,
