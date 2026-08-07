@@ -1,15 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  MISSION_DOCK_GAP,
   MISSION_DOCK_MIN_COLUMNS,
   MISSION_DOCK_WIDTH,
   MISSION_DOCK_Z_INDEX,
+  measureMissionBentoCluster,
   missionDockActive,
   missionFallbackActive,
   missionWorkspaceCenterRect,
 } from '#/tui/features/mission-control/dock';
 import { buildTUIStateNativeFrameRegions } from '#/tui/features/native-layout/native-layout-frame';
-import { STAGE_MAX_WIDTH } from '#/tui/controllers/layout/stage-layout';
+import { STAGE_MAX_HEIGHT, STAGE_MAX_WIDTH } from '#/tui/controllers/layout/stage-layout';
 import { createTUIState, type TUIState } from '#/tui/tui-state';
 import type { MissionControlView } from '#/tui/components/panes/mission-control/panel';
 import { emptyConductorJobsSnapshot } from '#/tui/utils/job/job-strip';
@@ -110,31 +112,41 @@ describe('mission control dock geometry', () => {
     expect(missionFallbackActive(state, 120)).toBe(false);
   });
 
-  it('shrinks the workspace center band by the dock width', () => {
+  it('places stage+dock as a centered capped cluster', () => {
     const state = createState(200, 80);
     state.missionControlPanel.setView(busyView());
+    const cluster = measureMissionBentoCluster(200, 80);
     const center = missionWorkspaceCenterRect(state, 200, 80);
-    expect(center).toEqual({ x: 0, y: 0, width: 200 - MISSION_DOCK_WIDTH, height: 80 });
+    expect(center).toEqual(cluster.stageBand);
+    expect(cluster.stageBand).toEqual({
+      x: Math.floor((200 - (STAGE_MAX_WIDTH + MISSION_DOCK_GAP + MISSION_DOCK_WIDTH)) / 2),
+      y: Math.floor((80 - STAGE_MAX_HEIGHT) / 2),
+      width: STAGE_MAX_WIDTH,
+      height: STAGE_MAX_HEIGHT,
+    });
+    expect(cluster.dock).toEqual({
+      x: cluster.stageBand.x + STAGE_MAX_WIDTH + MISSION_DOCK_GAP,
+      y: cluster.stageBand.y,
+      width: MISSION_DOCK_WIDTH,
+      height: STAGE_MAX_HEIGHT,
+    });
+    // Not edge-pinned.
+    expect(cluster.dock.x + cluster.dock.width).toBeLessThan(200);
     expect(missionWorkspaceCenterRect(state, 120, 80)).toBeUndefined();
   });
 
-  it('paints the dock region at the right band and centers the stage left of it', () => {
+  it('paints the dock adjacent to the stage inside the centered cluster', () => {
     const width = 200;
     const height = 80;
     const state = createState(width, height);
     state.missionControlPanel.setView(busyView());
 
-    const center = missionWorkspaceCenterRect(state, width, height);
+    const cluster = measureMissionBentoCluster(width, height);
     const regions = buildTUIStateNativeFrameRegions(state, width, height, {
-      workspaceCenter: center ?? undefined,
+      workspaceCenter: cluster.stageBand,
     });
     const dock = regions.find((region) => region.id === 'mission-dock');
-    expect(dock?.rect).toEqual({
-      x: width - MISSION_DOCK_WIDTH,
-      y: 0,
-      width: MISSION_DOCK_WIDTH,
-      height,
-    });
+    expect(dock?.rect).toEqual(cluster.dock);
     // Letterbox sky is z=4 and the stage frame rim is z=5; without a higher
     // dock z-index the night-sky gutters bury Mission Control on wide frames.
     expect(dock?.zIndex).toBe(MISSION_DOCK_Z_INDEX);
@@ -146,40 +158,35 @@ describe('mission control dock geometry', () => {
     }
     const transcript = regions.find((region) => region.id === 'transcript');
     expect(transcript?.rect.width).toBe(STAGE_MAX_WIDTH);
-    expect(transcript?.rect.x).toBe(Math.floor((width - MISSION_DOCK_WIDTH - STAGE_MAX_WIDTH) / 2));
+    expect(transcript?.rect.x).toBe(cluster.stageBand.x);
+    expect(transcript?.rect.y).toBeGreaterThanOrEqual(cluster.stageBand.y);
   });
 
-  it('keeps the dock above letterbox when the stage is near-fullscreen', () => {
+  it('keeps the dock height-matched to a near-fullscreen stage', () => {
     const width = 200;
     const height = 80;
     const state = createState(width, height);
     state.missionControlPanel.setView(busyView());
-    // Large enough to feel fullscreen, but leave STAGE_FRAME_MARGIN on every
-    // edge so the letterbox sky still paints — including over the dock band.
     state.userStageSize = {
-      width: width - MISSION_DOCK_WIDTH - 6,
+      width: width - MISSION_DOCK_WIDTH - MISSION_DOCK_GAP - 6,
       height: height - 6,
     };
 
-    const center = missionWorkspaceCenterRect(state, width, height);
+    const cluster = measureMissionBentoCluster(width, height, state.userStageSize);
     const regions = buildTUIStateNativeFrameRegions(state, width, height, {
-      workspaceCenter: center ?? undefined,
+      workspaceCenter: cluster.stageBand,
     });
     const dock = regions.find((region) => region.id === 'mission-dock');
-    expect(dock?.rect).toEqual({
-      x: width - MISSION_DOCK_WIDTH,
-      y: 0,
-      width: MISSION_DOCK_WIDTH,
-      height,
-    });
+    expect(dock?.rect).toEqual(cluster.dock);
+    expect(dock?.rect.height).toBe(cluster.stageBand.height);
+    expect(dock?.rect.y).toBe(cluster.stageBand.y);
+    expect(dock?.rect.x).toBe(cluster.stageBand.x + cluster.stageBand.width + MISSION_DOCK_GAP);
     expect(dock?.zIndex).toBe(MISSION_DOCK_Z_INDEX);
-    const rightLetterbox = regions.find(
-      (region) =>
-        region.id.startsWith('stageFrameLetterbox:') &&
-        region.rect.x + region.rect.width === width,
-    );
-    expect(rightLetterbox).toBeDefined();
-    expect(rightLetterbox!.zIndex ?? 0).toBeLessThan(MISSION_DOCK_Z_INDEX);
+    const letterbox = regions.filter((region) => region.id.startsWith('stageFrameLetterbox:'));
+    expect(letterbox.length).toBeGreaterThan(0);
+    for (const band of letterbox) {
+      expect(band.zIndex ?? 0).toBeLessThan(MISSION_DOCK_Z_INDEX);
+    }
   });
 
   it('keeps the dock off narrow frames and mounts the fallback band instead', () => {

@@ -7,6 +7,7 @@ import {
   MissionControlPanelComponent,
   emptyMissionControlView,
   formatMissionClockMs,
+  formatMissionTokenRate,
   type MissionControlView,
 } from '#/tui/components/panes/mission-control/panel';
 import { MissionControlRegistry } from '#/tui/controllers/mission-control/registry';
@@ -62,6 +63,12 @@ function jobCard(over: Partial<ConductorJobCard>): ConductorJobCard {
 }
 
 describe('MissionControlPanelComponent', () => {
+  it('formats live token rates for the dock chrome', () => {
+    expect(formatMissionTokenRate(0)).toBe('');
+    expect(formatMissionTokenRate(840)).toBe('840/s');
+    expect(formatMissionTokenRate(12_400)).toBe('12.4k/s');
+  });
+
   it('renders nothing while the view is empty', () => {
     const panel = new MissionControlPanelComponent();
     panel.setView(emptyMissionControlView());

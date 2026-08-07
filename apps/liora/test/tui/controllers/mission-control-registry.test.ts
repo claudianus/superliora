@@ -73,6 +73,33 @@ describe('MissionControlRegistry', () => {
     expect(snap.totalTokens).toBe(8_100);
   });
 
+  it('smooths tokenRatePerSec across progress heartbeats', () => {
+    const { registry, advance, now } = createHarness();
+    registry.apply(spawned('sa-1', { subagentName: 'pace-1' }));
+    registry.apply({
+      type: 'subagent.progress',
+      subagentId: 'sa-1',
+      toolCount: 1,
+      elapsedMs: 1_000,
+      tokens: 1_000,
+    } as Event);
+    expect(registry.snapshot(now()).workers[0]!.tokenRatePerSec).toBeUndefined();
+
+    advance(1_000);
+    registry.apply({
+      type: 'subagent.progress',
+      subagentId: 'sa-1',
+      toolCount: 4,
+      elapsedMs: 2_000,
+      tokens: 3_000,
+    } as Event);
+    const rate = registry.snapshot(now()).workers[0]!.tokenRatePerSec;
+    expect(rate).toBeDefined();
+    // 2000 tokens over 1s → ~2000/s on the first delta.
+    expect(rate!).toBeGreaterThan(1500);
+    expect(rate!).toBeLessThan(2500);
+  });
+
   it('marks finishing from the heartbeat and stalled from the stall signal', () => {
     const { registry, advance, now } = createHarness();
     registry.apply(spawned('sa-1'));

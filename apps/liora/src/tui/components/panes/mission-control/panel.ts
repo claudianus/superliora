@@ -3,15 +3,16 @@
  * background worker (subagents, background agents/processes, swarm members)
  * plus a condensed Conductor job lane summary. Renders two ways:
  *
- * - `renderDock(width, height)` — right workspace dock (wide terminals);
- *   fills the exact dock rect.
+ * - `renderDock(width, height)` — centered bento panel (wide terminals);
+ *   fills the exact dock rect beside the stage.
  * - `render(width)` — in-stack chrome band fallback (narrow terminals),
  *   capped at {@link MISSION_FALLBACK_MAX_ROWS} rows.
  *
  * Presentation only: the controller pushes an immutable
  * {@link MissionControlView} (registry snapshot + conductor jobs). Motion
  * flows through the shared appearance clock and degrades to static marks
- * under off / SSH / NO_COLOR / CI per PREMIUM.md §7.
+ * under off / SSH / NO_COLOR / CI per PREMIUM.md §7. Live rates, settle
+ * flashes, and progress-bar shimmer keep the surface feeling real-time.
  *
  * Information hierarchy: intent → action → telemetry (paths never dominate).
  */
@@ -34,6 +35,8 @@ import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
   renderPulseGlyph,
+  renderPulseText,
+  renderShimmerPrefix,
   renderToneSettleFlash,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
@@ -63,6 +66,12 @@ const OPS_FEED_FULL_ROWS = 4;
 const JOB_ROWS_FULL = 2;
 /** Settle-flash window after a worker reaches a terminal state. */
 const TERMINAL_FLASH_MS = 2_000;
+/** Hot window for a just-settled MOVES row (checkmark / error pop). */
+const OPS_SETTLE_FLASH_MS = 1_400;
+/** Action row still "hot" after lastActivity — shimmer the → line. */
+const ACTION_HOT_MS = 900;
+/** Progress-bar shimmer sweep period. */
+const BAR_SHIMMER_PERIOD_MS = 1_100;
 /** Worker name column cap so intent keeps room on narrow docks. */
 const WORKER_NAME_MAX = 16;
 /** Target budget inside a ~40col dock interior. */
@@ -100,6 +109,14 @@ export function formatMissionTokens(count: number): string {
   if (count < 1000) return String(count);
   if (count < 1_000_000) return `${(count / 1000).toFixed(1)}k`;
   return `${(count / 1_000_000).toFixed(1)}M`;
+}
+
+/** Live rate chip (`840` → `840/s`, `12400` → `12.4k/s`). */
+export function formatMissionTokenRate(perSec: number): string {
+  if (!Number.isFinite(perSec) || perSec < 1) return '';
+  if (perSec < 1000) return `${String(Math.round(perSec))}/s`;
+  if (perSec < 1_000_000) return `${(perSec / 1000).toFixed(1)}k/s`;
+  return `${(perSec / 1_000_000).toFixed(1)}M/s`;
 }
 
 type LayoutMode = 'full' | 'tight' | 'minimal';
@@ -273,11 +290,27 @@ export class MissionControlPanelComponent implements Component {
         worker.status === 'suspended' ||
         worker.status === 'finishing',
     );
-    const parts = [` ${String(active.length)} active`];
-    // Tokens demoted: only on full layout.
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance) && active.length > 0;
+    const activeLabel = animated
+      ? renderPulseText(`${String(active.length)} active`, 'mc:title:active', 'primary', appearance)
+      : `${String(active.length)} active`;
+    const parts = [` ${activeLabel}`];
     if (mode === 'full') {
-      const tokens = active.reduce((sum, worker) => sum + worker.tokens, 0);
-      if (tokens > 0) parts.push(`${formatMissionTokens(tokens)} tok`);
+      const rate = active.reduce((sum, worker) => sum + (worker.tokenRatePerSec ?? 0), 0);
+      const rateLabel = formatMissionTokenRate(rate);
+      if (rateLabel.length > 0) {
+        parts.push(
+          animated
+            ? renderPulseText(rateLabel, 'mc:title:rate', 'accent', appearance)
+            : rateLabel,
+        );
+      } else {
+        const tokens = active.reduce((sum, worker) => sum + worker.tokens, 0);
+        if (tokens > 0) parts.push(`${formatMissionTokens(tokens)} tok`);
+      }
+      const elapsed = active.reduce((max, worker) => Math.max(max, worker.elapsedMs), 0);
+      if (elapsed > 0) parts.push(formatJobDuration(elapsed));
     }
     return ` Mission Control ·${parts.join(' · ')} `;
   }
@@ -309,15 +342,23 @@ export class MissionControlPanelComponent implements Component {
     const appearance = getActiveAppearancePreferences();
     const animated = shouldRenderAmbientEffects(appearance);
     const lines: string[] = [];
+    const live =
+      animated &&
+      this.visibleWorkers(now).some(
+        (worker) =>
+          worker.status === 'running' ||
+          worker.status === 'finishing' ||
+          worker.status === 'stalled',
+      );
 
     const workerLines = this.buildWorkerLines(mode, width, budget, animated, now);
     lines.push(...workerLines);
 
     if (mode !== 'minimal') {
       const opsRows = mode === 'full' ? OPS_FEED_FULL_ROWS : 3;
-      const opsLines = this.buildOpsLines(width, opsRows);
+      const opsLines = this.buildOpsLines(width, opsRows, animated, now);
       if (opsLines.length > 0) {
-        lines.push(this.sectionHeader('MOVES'));
+        lines.push(this.sectionHeader('MOVES', live));
         lines.push(...opsLines);
       }
     }
@@ -327,13 +368,17 @@ export class MissionControlPanelComponent implements Component {
         ? this.buildJobCountsLine(width)
         : this.buildJobLines(mode, width, now);
     if (jobLines.length > 0) {
-      lines.push(this.sectionHeader('BOARD'));
+      lines.push(this.sectionHeader('BOARD', live && this.view.jobs.running > 0));
       lines.push(...jobLines);
     }
     return lines;
   }
 
-  private sectionHeader(label: string): string {
+  private sectionHeader(label: string, live = false): string {
+    const appearance = getActiveAppearancePreferences();
+    if (live && shouldRenderAmbientEffects(appearance)) {
+      return `${renderShimmerPrefix(appearance)}${currentTheme.boldFg('textMuted', label)}`;
+    }
     return currentTheme.boldFg('textMuted', label);
   }
 
@@ -367,7 +412,13 @@ export class MissionControlPanelComponent implements Component {
   ): string[] {
     const workers = this.visibleWorkers(now);
     if (workers.length === 0) return [];
-    const lines: string[] = [this.sectionHeader('NOW')];
+    const live = workers.some(
+      (worker) =>
+        worker.status === 'running' ||
+        worker.status === 'finishing' ||
+        worker.status === 'stalled',
+    );
+    const lines: string[] = [this.sectionHeader('NOW', animated && live)];
     const perWorker = mode === 'full' ? 3 : 1;
     const remaining = budget - lines.length;
     let maxWorkers = Math.max(1, Math.floor(remaining / perWorker));
@@ -445,11 +496,20 @@ export class MissionControlPanelComponent implements Component {
 
     const action = this.humanAction(worker);
     if (action !== undefined) {
-      rows.push(
-        truncateToWidth(`  ${currentTheme.fg('textDim', `→ ${action}`)}`, width, '…'),
-      );
+      const hot =
+        animated &&
+        (worker.status === 'running' || worker.status === 'finishing') &&
+        now - worker.lastActivityAtMs < ACTION_HOT_MS;
+      const prefix = hot ? renderShimmerPrefix() : '';
+      const arrow = hot
+        ? renderPulseText('→', `mc-act:${worker.id}`, 'primary')
+        : currentTheme.fg('textDim', '→');
+      const body = hot
+        ? renderPulseText(action, `mc-act-body:${worker.id}`, 'text', getActiveAppearancePreferences(), 'fast')
+        : currentTheme.fg('textDim', action);
+      rows.push(truncateToWidth(`  ${prefix}${arrow} ${body}`, width, '…'));
     }
-    const progress = this.renderProgressLine(worker, showedFocus);
+    const progress = this.renderProgressLine(worker, showedFocus, animated, now);
     if (progress !== undefined) {
       rows.push(truncateToWidth(progress, width, '…'));
     }
@@ -470,35 +530,84 @@ export class MissionControlPanelComponent implements Component {
   private renderProgressLine(
     worker: MissionWorker,
     focusAlreadyShown: boolean,
+    animated: boolean,
+    now: number,
   ): string | undefined {
     if (worker.todoTotal === undefined || worker.todoTotal <= 0) {
       // Telemetry only when there is no todo progress to show.
       const stats: string[] = [];
-      if (worker.toolCount > 0) stats.push(`${String(worker.toolCount)} tools`);
-      if (worker.tokens > 0) stats.push(`${formatMissionTokens(worker.tokens)} tok`);
+      if (worker.toolCount > 0) {
+        stats.push(currentTheme.fg('textMuted', `${String(worker.toolCount)} tools`));
+      }
+      const rate = formatMissionTokenRate(worker.tokenRatePerSec ?? 0);
+      if (rate.length > 0) {
+        stats.push(
+          animated && (worker.status === 'running' || worker.status === 'finishing')
+            ? renderPulseText(rate, `mc-rate:${worker.id}`, 'accent')
+            : currentTheme.fg('textMuted', rate),
+        );
+      } else if (worker.tokens > 0) {
+        stats.push(currentTheme.fg('textMuted', `${formatMissionTokens(worker.tokens)} tok`));
+      }
       if (worker.budgetMs !== undefined && worker.budgetMs > 0) {
         const remaining = Math.max(0, worker.budgetRemainingMs ?? worker.budgetMs);
         const used = Math.round((1 - remaining / worker.budgetMs) * 100);
-        stats.push(`budget ${String(used)}%`);
+        stats.push(currentTheme.fg('textMuted', `budget ${String(used)}%`));
       }
       if (stats.length === 0) return undefined;
-      return `  ${currentTheme.fg('textMuted', stats.join(' · '))}`;
+      return `  ${stats.join(currentTheme.fg('textMuted', ' · '))}`;
     }
     const done = worker.todoDone ?? 0;
-    const bar = renderRendererRatioProgressBar({
-      ratio: worker.todoTotal === 0 ? 0 : done / worker.todoTotal,
-      width: 6,
-      filledChar: '▓',
-      emptyChar: '░',
-      filledStyle: (text) => currentTheme.fg('primary', text),
-      emptyStyle: (text) => currentTheme.fg('textMuted', text),
-    });
+    const ratio = worker.todoTotal === 0 ? 0 : done / worker.todoTotal;
+    const bar =
+      animated && (worker.status === 'running' || worker.status === 'finishing')
+        ? this.renderLiveProgressBar(ratio, 6, now, `mc-bar:${worker.id}`)
+        : renderRendererRatioProgressBar({
+            ratio,
+            width: 6,
+            filledChar: '▓',
+            emptyChar: '░',
+            filledStyle: (text) => currentTheme.fg('primary', text),
+            emptyStyle: (text) => currentTheme.fg('textMuted', text),
+          });
     const focus = worker.focusTodo?.trim();
     const label =
       !focusAlreadyShown && focus !== undefined && focus.length > 0
         ? `next: ${focus}`
         : `${String(done)}/${String(worker.todoTotal)}`;
-    return `  ${bar} ${currentTheme.fg('textMuted', label)}`;
+    const rate = formatMissionTokenRate(worker.tokenRatePerSec ?? 0);
+    const rateChip =
+      rate.length > 0
+        ? ` ${
+            animated
+              ? renderPulseText(rate, `mc-rate:${worker.id}`, 'accent')
+              : currentTheme.fg('textMuted', rate)
+          }`
+        : '';
+    return `  ${bar} ${currentTheme.fg('textMuted', label)}${rateChip}`;
+  }
+
+  /** Clock-driven shimmer sweep over a ratio bar (PREMIUM.md §7). */
+  private renderLiveProgressBar(
+    ratio: number,
+    width: number,
+    now: number,
+    _seed: string,
+  ): string {
+    const filled = Math.min(width, Math.max(0, Math.round(ratio * width)));
+    const shimmerIndex =
+      Math.floor(((now % BAR_SHIMMER_PERIOD_MS) / BAR_SHIMMER_PERIOD_MS) * (width + 2)) - 1;
+    let bar = '';
+    for (let i = 0; i < width; i += 1) {
+      if (i < filled) {
+        bar += currentTheme.fg(i === shimmerIndex ? 'glow' : 'primary', '▓');
+      } else if (i === shimmerIndex) {
+        bar += currentTheme.fg('accent', '░');
+      } else {
+        bar += currentTheme.fg('textMuted', '░');
+      }
+    }
+    return bar;
   }
 
   private renderWorkerNameRow(worker: MissionWorker, animated: boolean, now: number): string {
@@ -507,10 +616,21 @@ export class MissionControlPanelComponent implements Component {
     const namePlain = truncateToWidth(worker.name, WORKER_NAME_MAX, '…');
     const recentlyTerminal =
       terminal && worker.terminalAtMs !== undefined && now - worker.terminalAtMs < TERMINAL_FLASH_MS;
-    const name =
-      worker.status === 'completed' && recentlyTerminal && animated
-        ? renderToneSettleFlash(namePlain, `mc-done:${worker.id}`, worker.terminalAtMs!, 'success')
-        : currentTheme.fg(terminal ? 'textDim' : 'text', namePlain);
+    let name: string;
+    if (worker.status === 'completed' && recentlyTerminal && animated) {
+      name = renderToneSettleFlash(namePlain, `mc-done:${worker.id}`, worker.terminalAtMs!, 'success');
+    } else if (worker.status === 'failed' && recentlyTerminal && animated) {
+      name = renderToneSettleFlash(namePlain, `mc-fail:${worker.id}`, worker.terminalAtMs!, 'error');
+    } else if (
+      animated &&
+      worker.status === 'running' &&
+      worker.elapsedMs < 900
+    ) {
+      // Fresh spawn pop — spectacular for the first beat of a new worker.
+      name = renderPulseText(namePlain, `mc-spawn:${worker.id}`, 'primary');
+    } else {
+      name = currentTheme.fg(terminal ? 'textDim' : 'text', namePlain);
+    }
     const model =
       worker.modelAlias === undefined
         ? ''
@@ -546,7 +666,9 @@ export class MissionControlPanelComponent implements Component {
           ? renderPulseGlyph(PULSE_ACTIVE_FRAMES, `mc:${worker.id}`, '●', 'primary')
           : currentTheme.fg('primary', '●');
       case 'finishing':
-        return currentTheme.fg('info', '◐');
+        return animated
+          ? renderPulseGlyph(PULSE_ACTIVE_FRAMES, `mc-fin:${worker.id}`, '◐', 'info')
+          : currentTheme.fg('info', '◐');
       case 'stalled':
         return animated
           ? renderPulseGlyph(PULSE_BLOCKED_FRAMES, `mc-stall:${worker.id}`, '⚠', 'warning')
@@ -562,28 +684,66 @@ export class MissionControlPanelComponent implements Component {
 
   // ── MOVES ─────────────────────────────────────────────────────────────
 
-  private buildOpsLines(width: number, maxRows: number): string[] {
+  private buildOpsLines(
+    width: number,
+    maxRows: number,
+    animated: boolean,
+    now: number,
+  ): string[] {
     const raw = this.view.snapshot.ops;
     if (raw.length === 0) return [];
     const collapsed = collapseLowSignalOps(raw);
     const multiWorker = new Set(collapsed.map((entry) => entry.workerId)).size > 1;
-    return collapsed.slice(-maxRows).map((entry) => this.renderOpsRow(entry, width, multiWorker));
+    return collapsed
+      .slice(-maxRows)
+      .map((entry) => this.renderOpsRow(entry, width, multiWorker, animated, now));
   }
 
-  private renderOpsRow(entry: MissionOpsEntry, width: number, showWorker: boolean): string {
+  private renderOpsRow(
+    entry: MissionOpsEntry,
+    width: number,
+    showWorker: boolean,
+    animated: boolean,
+    now: number,
+  ): string {
     const clock = currentTheme.fg('textMuted', formatMissionClockMs(entry.atMs));
     const worker = showWorker ? currentTheme.fg('text', ` ${entry.workerName}`) : '';
-    const mark =
-      entry.status === 'error'
-        ? currentTheme.fg('error', ' ✗ ')
-        : entry.status === 'ok'
-          ? currentTheme.fg('success', ' ✓ ')
-          : currentTheme.fg('primary', ' ▸ ');
+    const settledAt = entry.settledAtMs ?? entry.atMs;
+    const freshlySettled =
+      animated &&
+      entry.status !== 'running' &&
+      now - settledAt < OPS_SETTLE_FLASH_MS;
+    let mark: string;
+    if (entry.status === 'running') {
+      mark = animated
+        ? ` ${renderPulseGlyph(PULSE_ACTIVE_FRAMES, `mc-ops:${entry.toolCallId}`, '▸', 'primary')} `
+        : currentTheme.fg('primary', ' ▸ ');
+    } else if (entry.status === 'error') {
+      mark = freshlySettled
+        ? ` ${renderToneSettleFlash('✗', `mc-ops-err:${entry.toolCallId}`, settledAt, 'error')} `
+        : currentTheme.fg('error', ' ✗ ');
+    } else {
+      mark = freshlySettled
+        ? ` ${renderToneSettleFlash('✓', `mc-ops-ok:${entry.toolCallId}`, settledAt, 'success')} `
+        : currentTheme.fg('success', ' ✓ ');
+    }
     const human = formatMissionTarget(entry.name, entry.target, this.view.workDir, TARGET_MAX);
     const bodyPlain = `${entry.name}${human === undefined ? '' : ` ${human}`}${
       entry.chip === undefined ? '' : ` ${entry.chip}`
     }`;
-    const body = currentTheme.fg(entry.status === 'error' ? 'error' : 'textDim', bodyPlain);
+    let body: string;
+    if (entry.status === 'running' && animated) {
+      body = `${renderShimmerPrefix()}${renderPulseText(bodyPlain, `mc-ops-body:${entry.toolCallId}`, 'text')}`;
+    } else if (freshlySettled) {
+      body = renderToneSettleFlash(
+        bodyPlain,
+        `mc-ops-body:${entry.toolCallId}`,
+        settledAt,
+        entry.status === 'error' ? 'error' : 'success',
+      );
+    } else {
+      body = currentTheme.fg(entry.status === 'error' ? 'error' : 'textDim', bodyPlain);
+    }
     return truncateToWidth(`${clock}${worker}${mark}${body}`, width, '…');
   }
 
