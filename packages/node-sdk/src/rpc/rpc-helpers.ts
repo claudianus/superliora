@@ -67,7 +67,6 @@ export interface SessionStatusFacets {
   readonly context: Awaited<ReturnType<ResolvedCoreAPI['getContext']>>;
   readonly permission: Awaited<ReturnType<ResolvedCoreAPI['getPermission']>>;
   readonly plan: Awaited<ReturnType<ResolvedCoreAPI['getPlan']>>;
-  readonly swarmMode: Awaited<ReturnType<ResolvedCoreAPI['getSwarmMode']>> | undefined;
   readonly premiumQualityMode:
     | Awaited<ReturnType<ResolvedCoreAPI['getPremiumQuality']>>
     | undefined;
@@ -96,7 +95,6 @@ export function buildSessionStatus(facets: SessionStatusFacets): SessionStatus {
     context,
     permission,
     plan,
-    swarmMode,
     premiumQualityMode,
     usage,
     providerRouteStatus,
@@ -118,7 +116,6 @@ export function buildSessionStatus(facets: SessionStatusFacets): SessionStatus {
     thinkingLevel: config.thinkingLevel,
     permission: permission.mode,
     planMode: plan !== null,
-    swarmMode,
     premiumQualityMode,
     contextTokens,
     maxContextTokens,

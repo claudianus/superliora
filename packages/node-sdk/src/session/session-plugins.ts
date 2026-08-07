@@ -5,7 +5,7 @@
 import { ErrorCodes } from '@superliora/agent-core';
 
 import { normalizeOptionalString, normalizeRequiredString } from '#/session/session-helpers';
-import { SessionGoalsUltraworkMixin } from '#/session/session-goals-ultrawork';
+import { SessionGoalsMixin } from '#/session/session-goals';
 import type {
   McpServerInfo,
   McpStartupMetrics,
@@ -14,7 +14,7 @@ import type {
   ReloadSummary,
 } from '#/session/types';
 
-export abstract class SessionPluginsMixin extends SessionGoalsUltraworkMixin {
+export abstract class SessionPluginsMixin extends SessionGoalsMixin {
   async listMcpServers(): Promise<readonly McpServerInfo[]> {
     this.ensureOpen();
     return this.rpc.listMcpServers({ sessionId: this.id });

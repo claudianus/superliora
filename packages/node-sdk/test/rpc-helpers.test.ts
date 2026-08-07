@@ -15,7 +15,6 @@ const baseFacets = {
   context: { tokenCount: 100, contextOS: undefined, autoDream: undefined },
   permission: { mode: 'manual' as const },
   plan: null,
-  swarmMode: false,
   premiumQualityMode: false,
   usage: undefined,
   providerRouteStatus: null,

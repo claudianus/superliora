@@ -108,7 +108,7 @@ export class LioraHarness {
 
   /**
    * Emergency synchronous flush of every active in-process session's pending
-   * state to disk (Ultrawork mirrors + wire-log records, fsync'd). For crash
+   * state to disk (agent mirrors + wire-log records, fsync'd). For crash
    * paths only (signal handlers, `uncaughtExceptionMonitor`); never throws.
    * No-op for remote-transport harnesses without an in-process core.
    */

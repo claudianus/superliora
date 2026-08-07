@@ -9,8 +9,6 @@ export {
   type HealthSnapshot,
 } from '#/harness/harness-diagnostics';
 export { Session } from '#/session/session';
-export { tryAutoResumeUltrawork, ensureUltraworkResumeSetup } from '#/session/ultrawork-auto-resume';
-export type { AutoResumeUltraworkResult } from '#/session/ultrawork-auto-resume';
 export { LioraAuthFacade } from '#/auth';
 export {
   createLioraHarness,
@@ -226,7 +224,6 @@ export {
   scanAddedLine,
   scanDiffFile,
   scanDiffFiles,
-  recordOutcomesFromSwarmResults,
 } from '@superliora/agent-core';
 export type {
   HumanizeCollaborationEventInput,
@@ -306,61 +303,7 @@ export {
   type NeverHaltOAuthChaosSequenceResult,
 } from '@superliora/agent-core/runtime/never-halt-chaos';
 
-export {
-  MissionRunStateMachine,
-  buildMissionRecoveryPrompt,
-  maybeAdvanceMissionStage,
-  maybeFinishMissionRun,
-  MISSION_STAGE_ORDER,
-  dualEmitMissionUltraworkAlias,
-  isMissionDualEmitEnabled,
-  maybeEmitMissionUltraworkAliasLive,
-  missionDualEmitStatusLine,
-  MISSION_DUAL_EMIT_ENV,
-} from '#/mission';
-export type { CreateMissionStateMachineInput } from '#/mission';
 
-export {
-  FLEET_DUAL_EMIT_ENV,
-  FLEET_EVENT_PREFIX,
-  FLEET_WORKTREE_ENV,
-  FLEET_WORKTREE_FALLBACK_TIP,
-  applyFleetWorktreeToSpawnTasks,
-  dualEmitFleetUltraworkAlias,
-  fleetDualEmitStatusLine,
-  fleetUltraworkEventAlias,
-  isFleetDualEmitEnabled,
-  isFleetUltraworkEventType,
-  isFleetWorktreeEnvEnabled,
-  isUltraworkOrFleetEventType,
-  maybeEmitFleetUltraworkAliasLive,
-  normalizeFleetUltraworkEventAlias,
-  normalizeMissionOrFleetUltraworkEventAlias,
-  resolveFleetWorkerWorktreeDir,
-  ultraworkFleetEventAlias,
-  SWARM_MAKER_CHECKER_AGENT_SWARM_TIP,
-  SWARM_MAKER_CHECKER_SOFT_TIP,
-  classifyExpertRoleString,
-  classifySwarmLaneRole,
-  classifySwarmPhaseRole,
-  detectAgentSwarmItemRoleCollision,
-  detectMakerCheckerCollisions,
-  detectMakerCheckerCollisionsFromAssignments,
-  detectMakerCheckerCollisionsFromSwarmOutput,
-  formatMakerCheckerSoftWarn,
-  makerCheckerSoftWarnFromAgentSwarmItems,
-  makerCheckerSoftWarnFromSwarmOutput,
-  FLEET_BUDGET_USD_ENV,
-  SWARM_COST_GUARD_SOFT_TIP,
-  evaluateFleetCostGuardSoft,
-  estimateSessionCostUsd,
-  fleetCostGuardSoftTipFromAgent,
-  fleetCostGuardSoftTipFromSwarmOutput,
-  fleetCostGuardSoftTipFromUsage,
-  formatFleetCostGuardSoftTip,
-  loadFleetBudgetGlance,
-} from '#/fleet';
-export type { FleetUltraworkEventSuffix, MakerCheckerCollision, SwarmMakerCheckerRole, SwarmRoleAssignment } from '#/fleet';
 
 // Browser-use runtime for in-app browser
 export {

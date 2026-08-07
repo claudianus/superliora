@@ -5,7 +5,7 @@
  * focus on the RPC delegation methods themselves.
  */
 
-import type { PermissionMode, SwarmModeTrigger, TurnCancelSource } from '@superliora/agent-core';
+import type { PermissionMode, TurnCancelSource } from '@superliora/agent-core';
 
 import type { PromptInput } from '#/session/types';
 
@@ -51,12 +51,7 @@ export interface SetSessionPlanModeRpcInput extends SessionIdRpcInput {
   readonly enabled: boolean;
   readonly ultra?: boolean;
   readonly initialContext?: string;
-  readonly source?: 'standalone' | 'ultrawork';
 }
-
-export type SetSessionSwarmModeRpcInput =
-  | (SessionIdRpcInput & { readonly enabled: true; readonly trigger: SwarmModeTrigger })
-  | (SessionIdRpcInput & { readonly enabled: false });
 
 export interface ActivateSkillRpcInput extends SessionIdRpcInput {
   readonly name: string;
