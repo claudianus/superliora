@@ -713,8 +713,12 @@ export class MergeJobTool implements BuiltinTool<z.infer<typeof MergeJobInputSch
           };
         }
 
-        const trust = evaluateMergeTrust(
-          mergeTrustInputFromLedger({
+        // Auto permission = autopilot for land clicks. Do not AskUserQuestion →
+        // force_user_confirm; waive size/danger holds inside trust instead so
+        // conflict / ungreen / visual still block.
+        const autoPermission = this.agent?.permission?.mode === 'auto';
+        const trust = evaluateMergeTrust({
+          ...mergeTrustInputFromLedger({
             job: existing,
             claim: {
               approve: true,
@@ -723,10 +727,12 @@ export class MergeJobTool implements BuiltinTool<z.infer<typeof MergeJobInputSch
               checksGreen: a.checks_green,
               paths: a.paths,
               summary: a.summary,
-              forceUserConfirm: a.force_user_confirm === true,
+              // Auto must not launder AskUserQuestion auto-picks into a full override.
+              forceUserConfirm: !autoPermission && a.force_user_confirm === true,
             },
           }),
-        );
+          ...(autoPermission ? { waiveUserConfirmHolds: true } : {}),
+        });
 
         if (!trust.ok) {
           const rejected = trust.mode === 'reject';

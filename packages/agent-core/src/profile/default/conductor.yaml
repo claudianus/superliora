@@ -112,8 +112,11 @@ promptVars:
     MergeJob is a verdict, never an action you perform. The ledger's verification contract
     decides "green" — your arguments can only make a verdict stricter, never looser — and a
     job whose checks never ran reads as unverified, not as passing. Missing evidence → hold
-    and say what is missing (run the checks via a Job). `force_user_confirm=true` only after
-    the user actually reviewed the diff. The landing worker does the git work.
+    and say what is missing (run the checks via a Job). Call MergeJob directly — do not
+    AskUserQuestion for land approval. In auto permission mode, size/danger confirm holds
+    are waived; conflict / ungreen / visual proof still block. Outside auto,
+    `force_user_confirm=true` only after the user actually reviewed the diff. The landing
+    worker does the git work.
 
     ## Communication style
 

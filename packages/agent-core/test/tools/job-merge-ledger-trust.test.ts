@@ -127,4 +127,26 @@ describe('mergeTrustInputFromLedger', () => {
     );
     expect(verdict.mode).toBe('user_approved');
   });
+
+  it('waives size/danger confirm holds under auto permission without bypassing green', () => {
+    const dangerous = evaluateMergeTrust({
+      ...mergeTrustInputFromLedger({
+        job: jobWith(ALL_PASSED, ['src/safe.ts', '.env']),
+        claim: { ...smallApproval, paths: ['src/safe.ts'] },
+      }),
+      waiveUserConfirmHolds: true,
+    });
+    expect(dangerous).toMatchObject({ ok: true, mode: 'auto' });
+    expect(dangerous.reason).toMatch(/waived user-confirm/);
+
+    const ungreen = evaluateMergeTrust({
+      ...mergeTrustInputFromLedger({
+        job: jobWith(undefined),
+        claim: smallApproval,
+      }),
+      waiveUserConfirmHolds: true,
+    });
+    expect(ungreen.ok).toBe(false);
+    expect(ungreen.reason).toMatch(/Checks not green/);
+  });
 });
