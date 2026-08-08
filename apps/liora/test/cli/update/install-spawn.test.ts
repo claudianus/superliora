@@ -65,6 +65,7 @@ describe('github-checkout update commands', () => {
     expect(command).toContain('install --frozen-lockfile');
     expect(command).toContain('run build:packages');
     expect(command).toContain('apps/liora run build');
+    expect(command).toContain('retrieval:bootstrap');
     expect(command).toContain('scripts/install-liora.mjs');
   });
 
@@ -77,6 +78,7 @@ describe('github-checkout update commands', () => {
     expect(args[1]).toContain('install --frozen-lockfile');
     expect(args[1]).toContain('run build:packages');
     expect(args[1]).toContain('apps/liora run build');
+    expect(args[1]).toContain('retrieval:bootstrap');
     expect(args[1]).toContain('scripts/install-liora.mjs');
   });
 });

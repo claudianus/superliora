@@ -89,6 +89,8 @@ function buildGitCheckoutUpdateShellLines(repoExpr: string): readonly string[] {
     `corepack pnpm -C ${repoExpr} install --frozen-lockfile`,
     `corepack pnpm -C ${repoExpr} run build:packages`,
     `corepack pnpm -C ${repoExpr}/apps/liora run build`,
+    // Match install.sh: warm Granite-97M + passage indexes (soft-fail).
+    `if [ "\${SUPERLIORA_SKIP_RETRIEVAL:-0}" != "1" ]; then SUPERLIORA_RETRIEVAL_EMBEDDER=transformers corepack pnpm -C ${repoExpr}/packages/agent-core run retrieval:bootstrap || echo "warning: retrieval bootstrap failed (hash fallback until online)"; fi`,
     `echo '__LIORA_UPGRADE_STAGE__=installing'`,
     'liora_path="$(command -v liora 2>/dev/null || true)"',
     'if [ -n "$liora_path" ]; then bin_dir="$(dirname "$liora_path")"; command_name="$(basename "$liora_path")"; else bin_dir="${HOME}/.local/bin"; command_name="liora"; fi',

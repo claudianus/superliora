@@ -1357,6 +1357,7 @@ describe('github-checkout update commands', () => {
     // install.sh-aligned: force-checkout without a dirty pre-check trap
     expect(args[1]).not.toContain('diff --quiet');
     expect(args[1]).toContain('checkout --force -B "$ref" FETCH_HEAD');
+    expect(args[1]).toContain('retrieval:bootstrap');
     expect(args[1]).toContain('fetch --depth 1 origin');
     expect(args[1]).toContain('install --frozen-lockfile');
     expect(args[1]).toContain('run build:packages');

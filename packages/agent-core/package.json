@@ -79,6 +79,7 @@
     "deep-research:never-empty-kpi": "node scripts/deep-research-never-empty-kpi.mjs",
     "prove:claude-plugins": "node scripts/prove-claude-plugins.mjs",
     "retrieval:build": "node --import tsx scripts/retrieval-build.mjs",
+    "retrieval:bootstrap": "node --import tsx scripts/retrieval-bootstrap.mjs",
     "typecheck": "tsc -p tsconfig.src.json --noEmit",
     "typecheck:src": "tsc -p tsconfig.src.json --noEmit",
     "typecheck:tests": "tsc -p tsconfig.json --noEmit",
@@ -86,6 +87,7 @@
   },
   "dependencies": {
     "@antfu/utils": "^9.3.0",
+    "@huggingface/transformers": "^4.2.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@superliora/gui-use": "workspace:^",
     "@superliora/kaos": "workspace:^",
@@ -120,11 +122,7 @@
     "yauzl": "^3.3.0",
     "zod": "^4.3.6"
   },
-  "optionalDependencies": {
-    "@huggingface/transformers": "^4.2.0"
-  },
   "devDependencies": {
-    "@huggingface/transformers": "^4.2.0",
     "@types/js-yaml": "^4.0.9",
     "@types/nunjucks": "^3.2.6",
     "@types/picomatch": "^4.0.3",
