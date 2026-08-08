@@ -149,16 +149,15 @@ function resolveSubagentModelSelectionCore(
 
   const explicitAlias = configuredRoleAlias(config, role);
   if (explicitAlias !== undefined) {
-    // Preserve the parent's effort for an explicit model-only override. The
-    // automatic presets below are the opt-in policy for role-specific effort.
-    if (config.models?.[explicitAlias] === undefined || isAliasAvailable(config, explicitAlias)) {
-      return {
-        alias: explicitAlias,
-        role,
-        thinkingLevel: parentThinking,
-        source: 'explicit',
-      };
-    }
+    // Explicit loopControl.*Model always wins (same as compaction). Provider
+    // health / resolve failures surface on the worker path, not by silently
+    // falling through to auto routing.
+    return {
+      alias: explicitAlias,
+      role,
+      thinkingLevel: parentThinking,
+      source: 'explicit',
+    };
   }
 
   const assignments = autoAssignRoleModels(buildLocalModelMetadata(config));

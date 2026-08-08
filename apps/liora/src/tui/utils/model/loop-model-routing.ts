@@ -1,4 +1,12 @@
-import type { DeleteConfigFieldPath } from '@superliora/sdk';
+import {
+  previewLoopRoleModelRouting,
+  rolePresetFor,
+  type DeleteConfigFieldPath,
+  type LocalRoleCatalogModel,
+  type LoopRoleModelPreview,
+  type ModelAlias,
+  type ModelRole,
+} from '@superliora/sdk';
 
 export const LOOP_MODEL_ROUTING_ROLES = [
   { key: 'compaction', configKey: 'compactionModel', label: 'Compaction' },
@@ -20,15 +28,36 @@ export interface LoopModelRoutingConfig {
 export type LoopModelRoutingRow = LoopModelRoutingRole & {
   readonly model?: string;
   readonly state: string;
+  readonly description: string;
+  readonly resolvedAlias?: string;
+  readonly source: LoopRoleModelPreview['source'];
 };
 
-export function loopModelRoutingRows(config: LoopModelRoutingConfig): readonly LoopModelRoutingRow[] {
+export function loopModelRoutingRows(
+  config: LoopModelRoutingConfig,
+  availableModels?: Readonly<Record<string, ModelAlias>>,
+): readonly LoopModelRoutingRow[] {
+  const overrides = loopControlOverrides(config);
+  const previewByRole = new Map(
+    previewLoopRoleModelRouting(localCatalogFromModels(availableModels), overrides).map((row) => [
+      row.role,
+      row,
+    ]),
+  );
+
   return LOOP_MODEL_ROUTING_ROLES.map((role) => {
+    const preview = previewByRole.get(role.key);
     const model = configuredModel(config.loopControl?.[role.configKey]);
+    const description = preview?.description ?? rolePresetFor(role.key)?.description ?? role.label;
+    const resolvedAlias = preview?.resolvedAlias;
+    const source = preview?.source ?? (model === undefined ? 'none' : 'override');
     return {
       ...role,
       ...(model === undefined ? {} : { model }),
-      state: model === undefined ? 'auto' : `override · ${model}`,
+      ...(resolvedAlias !== undefined ? { resolvedAlias } : {}),
+      description,
+      source,
+      state: formatRoleRoutingState(source, model, resolvedAlias),
     };
   });
 }
@@ -48,6 +77,42 @@ export function loopModelRoutingPatch(
 
 export function loopModelRoutingDeletePath(role: LoopModelRoutingRole): DeleteConfigFieldPath {
   return `loopControl.${role.configKey}`;
+}
+
+export function localCatalogFromModels(
+  availableModels: Readonly<Record<string, ModelAlias>> | undefined,
+): readonly LocalRoleCatalogModel[] {
+  if (availableModels === undefined) return [];
+  return Object.entries(availableModels).map(([alias, model]) => ({
+    alias,
+    model: model.model,
+    provider: model.provider,
+    available: true,
+    ...(model.maxContextSize !== undefined ? { maxContextSize: model.maxContextSize } : {}),
+    ...(model.capabilities !== undefined ? { capabilities: model.capabilities } : {}),
+    ...(model.cost?.input !== undefined ? { inputCostPerM: model.cost.input } : {}),
+  }));
+}
+
+export function loopControlOverrides(
+  config: LoopModelRoutingConfig,
+): Partial<Record<ModelRole, string>> {
+  const overrides: Partial<Record<ModelRole, string>> = {};
+  for (const role of LOOP_MODEL_ROUTING_ROLES) {
+    const model = configuredModel(config.loopControl?.[role.configKey]);
+    if (model !== undefined) overrides[role.key] = model;
+  }
+  return overrides;
+}
+
+function formatRoleRoutingState(
+  source: LoopRoleModelPreview['source'],
+  override: string | undefined,
+  resolvedAlias: string | undefined,
+): string {
+  if (source === 'override' && override !== undefined) return `override · ${override}`;
+  if (source === 'auto' && resolvedAlias !== undefined) return `auto → ${resolvedAlias}`;
+  return 'auto';
 }
 
 function configuredModel(value: unknown): string | undefined {

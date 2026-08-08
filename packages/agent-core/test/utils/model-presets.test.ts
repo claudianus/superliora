@@ -8,7 +8,6 @@ import {
   buildFallbackChain,
   classifyModelTier,
   isAuthOrCreditFailure,
-  isBlockedRoutingModel,
   ROLE_PRESETS,
   scoreFromBenchmarks,
   scoreModelQuality,
@@ -64,13 +63,12 @@ describe('model-presets — autoAssignRoleModels', () => {
     assert.equal(coding.modelId, 'claude-3-opus');
   });
 
-  it('assigns ultra-high model to planning role with fallback to high', () => {
+  it('assigns high-tier model to planning role', () => {
     const assignments = autoAssignRoleModels(availableModels);
     const planning = assignments.planning;
     assert.ok(planning);
-    // No ultra-high model available, so should fallback to high
     assert.equal(planning.modelId, 'claude-3-opus');
-    assert.equal(planning.isFallback, true);
+    assert.equal(planning.isFallback, false);
   });
 
   it('user override takes precedence', () => {
@@ -152,9 +150,11 @@ describe('model-presets — ROLE_PRESETS', () => {
     assert.equal(preset!.preferredTier, 'ultra-cheap');
   });
 
-  it('planning prefers ultra-high', () => {
+  it('planning prefers high', () => {
     const preset = ROLE_PRESETS.find((p) => p.role === 'planning');
-    assert.equal(preset!.preferredTier, 'ultra-high');
+    assert.equal(preset!.preferredTier, 'high');
+    assert.equal(preset!.fallbackTier, 'balanced');
+    assert.equal(preset!.minContextWindow, 128_000);
   });
 });
 
@@ -329,10 +329,15 @@ describe('model-presets — models.dev benchmarks', () => {
     assert.ok(scoreModelValue(80, 1) > scoreModelValue(80, 4));
   });
 
-  it('isBlockedRoutingModel rejects deepseek and opencode go', () => {
-    assert.equal(isBlockedRoutingModel('deepseek-v4-flash'), true);
-    assert.equal(isBlockedRoutingModel('opencode-go'), true);
-    assert.equal(isBlockedRoutingModel('claude-sonnet-4'), false);
+  it('classifyModelTier ignores non-positive subscription cost', () => {
+    assert.equal(classifyModelTier('qwen3.8-max-preview', { inputCostPerM: 0 }), 'high');
+    assert.equal(classifyModelTier('kimi-k2.5', { inputCostPerM: 0 }), 'cheap');
+  });
+
+  it('scoreModelQuality demotes stale kimi-k2.5 below newer kimi', () => {
+    const stale = scoreModelQuality('kimi-k2.5', { supportsTools: true, supportsReasoning: true });
+    const newer = scoreModelQuality('kimi-k2.6', { supportsTools: true, supportsReasoning: true });
+    assert.ok(newer > stale);
   });
 
   it('autoAssign prefers higher benchmark quality within the same tier', () => {
@@ -368,7 +373,7 @@ describe('model-presets — models.dev benchmarks', () => {
     assert.equal(assignments.coding?.modelId, 'cheap-strong');
   });
 
-  it('autoAssign skips deepseek even when cheapest', () => {
+  it('autoAssign may pick deepseek when it is the best value', () => {
     const models: ModelMetadata[] = [
       {
         id: 'deepseek-v4-flash',
@@ -376,9 +381,10 @@ describe('model-presets — models.dev benchmarks', () => {
         tier: 'ultra-cheap',
         available: true,
         inputCostPerM: 0.01,
-        qualityScore: 50,
-        valueScore: 5000,
+        qualityScore: 70,
+        valueScore: 7000,
         supportsTools: true,
+        contextWindow: 128_000,
       },
       {
         id: 'gemini-flash',
@@ -389,9 +395,35 @@ describe('model-presets — models.dev benchmarks', () => {
         qualityScore: 60,
         valueScore: 400,
         supportsTools: true,
+        contextWindow: 128_000,
       },
     ];
     const assignments = autoAssignRoleModels(models);
-    assert.equal(assignments.compaction?.modelId, 'gemini-flash');
+    assert.equal(assignments.compaction?.modelId, 'deepseek-v4-flash');
+  });
+
+  it('autoAssign honors deepseek user override', () => {
+    const models: ModelMetadata[] = [
+      {
+        id: 'deepseek-v4-flash',
+        alias: 'deepseek/flash',
+        provider: 'deepseek',
+        tier: 'ultra-cheap',
+        available: true,
+        supportsTools: true,
+        contextWindow: 128_000,
+      },
+      {
+        id: 'gemini-flash',
+        provider: 'google',
+        tier: 'ultra-cheap',
+        available: true,
+        supportsTools: true,
+        contextWindow: 128_000,
+      },
+    ];
+    const assignments = autoAssignRoleModels(models, { planning: 'deepseek/flash' });
+    assert.equal(assignments.planning?.modelAlias, 'deepseek/flash');
+    assert.equal(assignments.planning?.reason, 'User override');
   });
 });

@@ -115,14 +115,14 @@ export async function showLoopModelRoutingPicker(host: SlashCommandHost): Promis
 }
 
 function mountLoopModelRoutingPicker(host: SlashCommandHost, config: LoopModelRoutingConfig): void {
-  const rows = loopModelRoutingRows(config);
+  const rows = loopModelRoutingRows(config, host.state.appState.availableModels);
   const autoRoutingValue = '__smart_auto__';
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
       title: 'Model routing',
       hint: '↑↓ navigate · Enter select · Esc cancel',
-      notice: 'Unset roles use smart automatic routing; overrides apply to future resolution.',
+      notice: 'Overrides apply on next worker spawn / role resolution. Unset roles use smart auto.',
       noticeTone: 'warning',
       options: [
         {
@@ -133,7 +133,7 @@ function mountLoopModelRoutingPicker(host: SlashCommandHost, config: LoopModelRo
         ...rows.map((row) => ({
           value: row.key,
           label: row.label,
-          description: row.model === undefined ? 'auto' : `override · ${row.model}`,
+          description: `${row.state} — ${row.description}`,
         })),
       ],
       onSelect: (value) => {
@@ -204,7 +204,7 @@ function showLoopRoleModelPicker(host: SlashCommandHost, role: LoopModelRoutingR
       onCancel: () => {
         dismissPickerDialog(host);
       },
-      notice: `${role.label} override · applies to future resolution only.`,
+      notice: `${role.label}: applies on next worker spawn / role resolution.`,
     }),
     { label: `${role.label} model routing` },
   );
@@ -233,7 +233,7 @@ export async function applyLoopModelRoutingChoice(
   }
 
   host.showStatus(
-    `${role.label} routing override set to ${alias}. Future resolution will use it; the current session is unchanged.`,
+    `${role.label} routing override set to ${alias}. Applies on next worker spawn / role resolution.`,
     'success',
   );
   mountLoopModelRoutingPicker(host, config);
@@ -260,7 +260,7 @@ export async function resetLoopModelRoutingChoice(
   }
 
   host.showStatus(
-    `${role.label} routing reset to auto. Future resolution will use auto routing; the current session is unchanged.`,
+    `${role.label} routing reset to auto. Applies on next worker spawn / role resolution.`,
     'success',
   );
   mountLoopModelRoutingPicker(host, config);

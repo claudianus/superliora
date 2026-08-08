@@ -13,8 +13,7 @@ import { annotateModelsWithCredentialHealth, type CredentialHealthStore } from '
  * back to family/capability heuristics. Value = quality / input cost.
  * Coding/planning/debugging enforce a quality floor; compaction/exploration
  * prefer value while still requiring tools + enough context.
- *
- * DeepSeek and OpenCode Go are never auto-routed (subscription/policy).
+ * Auto-routing uses credential health + scores only (no provider denylist).
  */
 
 /** Task roles that can have model assignments. */
@@ -106,13 +105,6 @@ const MODELS_DEV_API_URL = 'https://models.dev/api.json';
 /** Provider-agnostic model metadata including benchmarks[].score. */
 const MODELS_DEV_MODELS_URL = 'https://models.dev/models.json';
 const FETCH_TIMEOUT_MS = 8_000;
-
-/** Never auto-route these providers/families (policy + subscription). */
-const BLOCKED_ROUTING_PATTERNS: readonly RegExp[] = [
-  /deepseek/i,
-  /opencode[-_]?go/i,
-  /\bgo[-_]?model\b/i,
-];
 
 interface ModelsDevBenchmark {
   name?: string;
@@ -407,15 +399,33 @@ const TIER_PATTERNS: readonly { readonly tier: ModelTier; readonly patterns: rea
         /instant/i,
         /turbo/i,
         /air/i,
+        /kimi[-_]?k2\.5\b/i,
       ],
     },
     {
       tier: 'balanced',
-      patterns: [/gpt-4o(?!-mini)/i, /gemini.*pro/i, /mistral[-_]?large/i, /command[-_]?r/i],
+      patterns: [
+        /gpt-4o(?!-mini)/i,
+        /gemini.*pro/i,
+        /mistral[-_]?large/i,
+        /command[-_]?r/i,
+        /qwen3\.7[-_]?plus/i,
+        /glm[-_]?4/i,
+      ],
     },
     {
       tier: 'high',
-      patterns: [/opus/i, /gpt-4\.1(?![-_]?mini|[-_]?nano)/i, /o3(?!-mini)/i, /o1(?!-mini)/i],
+      patterns: [
+        /opus/i,
+        /gpt-4\.1(?![-_]?mini|[-_]?nano)/i,
+        /o3(?!-mini)/i,
+        /o1(?!-mini)/i,
+        /qwen3\.[78][-_]?max/i,
+        /glm[-_]?5/i,
+        /deepseek[-_]?v4[-_]?pro/i,
+        /kimi[-_]?k2\.[67]/i,
+        /kimi[-_]?k3\b/i,
+      ],
     },
     {
       tier: 'ultra-high',
@@ -468,13 +478,22 @@ const FAMILY_QUALITY: readonly { readonly pattern: RegExp; readonly score: numbe
   { pattern: /gemini.*flash/i, score: 64 },
   { pattern: /grok[-_]?3|grok[-_]?4|grok/i, score: 78 },
   { pattern: /mistral[-_]?large|codestral/i, score: 72 },
-  { pattern: /qwen.*coder|qwen.*max/i, score: 70 },
+  { pattern: /qwen3\.8|qwen.*coder|qwen.*max/i, score: 82 },
+  { pattern: /qwen3\.7/i, score: 76 },
+  { pattern: /glm[-_]?5/i, score: 80 },
+  { pattern: /deepseek[-_]?v4[-_]?pro|deepseek[-_]?thinking/i, score: 84 },
+  { pattern: /deepseek[-_]?v4[-_]?flash|deepseek[-_]?flash/i, score: 68 },
+  { pattern: /kimi[-_]?k3\b/i, score: 86 },
+  { pattern: /kimi[-_]?k2\.[67]/i, score: 80 },
+  { pattern: /kimi[-_]?k2\.5\b/i, score: 52 },
   { pattern: /llama[-_]?4|llama[-_]?3\.3/i, score: 68 },
 ];
 
-export function isBlockedRoutingModel(modelIdOrName: string): boolean {
-  return BLOCKED_ROUTING_PATTERNS.some((p) => p.test(modelIdOrName));
-}
+/** Soft demotions for clearly older SKUs — still eligible, just lose quality races. */
+const STALE_MODEL_DEMOTIONS: readonly { readonly pattern: RegExp; readonly penalty: number }[] = [
+  { pattern: /\bkimi[-_]?k2\.5\b/i, penalty: 18 },
+  { pattern: /\bkimi[-_]?k2(?![.\d]|[-_]?k)/i, penalty: 12 },
+];
 
 type QualityInput = ModelsDevModelEntry | Pick<
   ModelMetadata,
@@ -510,7 +529,7 @@ export function scoreModelQuality(modelName: string, data?: QualityInput): numbe
     if (data?.supportsTools === false) score -= 12;
     else if (data?.supportsTools === true) score += 2;
     if (data?.supportsReasoning === true) score += 2;
-    if (isBlockedRoutingModel(modelName)) score = Math.min(score, 20);
+    score -= staleModelPenalty(modelName);
     // Single-bench scores are slightly less trusted.
     if (benchCount === 1) score = Math.round(score * 0.97);
     return Math.max(0, Math.min(100, Math.round(score)));
@@ -554,9 +573,16 @@ export function scoreModelQuality(modelName: string, data?: QualityInput): numbe
 
   // Name demotions for tiny/cheap SKUs that price-only tiering overrates.
   if (/\b(nano|tiny|lite|flash[-_]?lite|8b|7b|3b)\b/i.test(modelName)) score -= 8;
-  if (isBlockedRoutingModel(modelName)) score = Math.min(score, 20);
+  score -= staleModelPenalty(modelName);
 
   return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function staleModelPenalty(modelName: string): number {
+  for (const { pattern, penalty } of STALE_MODEL_DEMOTIONS) {
+    if (pattern.test(modelName)) return penalty;
+  }
+  return 0;
 }
 
 /**
@@ -610,12 +636,12 @@ function adjustTierByBenchmark(
 /**
  * Classify a model into a tier using models.dev cost (primary), name patterns
  * (fallback), and optional benchmark-based promotion/demotion.
+ * Missing or non-positive cost (subscription / $0 catalogs) uses name tiers so
+ * every Token Plan model does not collapse into ultra-cheap.
  */
 export function classifyModelTier(modelName: string, pricingData?: ModelsDevModelEntry): ModelTier {
-  const base =
-    pricingData?.inputCostPerM !== undefined
-      ? priceTier(pricingData.inputCostPerM)
-      : nameTier(modelName);
+  const cost = pricingData?.inputCostPerM;
+  const base = cost !== undefined && cost > 0 ? priceTier(cost) : nameTier(modelName);
   return adjustTierByBenchmark(base, pricingData?.benchmarkScore);
 }
 
@@ -641,8 +667,7 @@ export const ROLE_PRESETS: readonly RolePreset[] = [
     preferredTier: 'ultra-cheap',
     fallbackTier: 'cheap',
     thinkingLevel: 'minimal',
-    description:
-      'Compaction: best value model with tools + enough context to summarize faithfully',
+    description: 'Summarize conversation history only — value-first, tools + ≥32k context',
     minQualityScore: 40,
     preferValue: true,
     requireTools: true,
@@ -653,8 +678,8 @@ export const ROLE_PRESETS: readonly RolePreset[] = [
     preferredTier: 'ultra-cheap',
     fallbackTier: 'cheap',
     thinkingLevel: 'low',
-    description: 'Exploration: value-first model for read-only codebase navigation',
-    minQualityScore: 40,
+    description: 'Explore / desk workers — fast read-only codebase navigation',
+    minQualityScore: 48,
     preferValue: true,
     requireTools: true,
     minContextWindow: 32_000,
@@ -664,7 +689,7 @@ export const ROLE_PRESETS: readonly RolePreset[] = [
     preferredTier: 'balanced',
     fallbackTier: 'cheap',
     thinkingLevel: 'medium',
-    description: 'Completion: balanced quality/value for general tool calls',
+    description: 'General completion / light tool loops — balanced quality per dollar',
     minQualityScore: 55,
     preferValue: true,
     requireTools: true,
@@ -674,7 +699,7 @@ export const ROLE_PRESETS: readonly RolePreset[] = [
     preferredTier: 'high',
     fallbackTier: 'balanced',
     thinkingLevel: 'high',
-    description: 'Coding: high-quality model with strong reasoning for implementation',
+    description: 'Coder / implement / goal-driver workers — strong reasoning for edits',
     minQualityScore: 72,
     preferValue: false,
     requireTools: true,
@@ -682,25 +707,32 @@ export const ROLE_PRESETS: readonly RolePreset[] = [
   },
   {
     role: 'planning',
-    preferredTier: 'ultra-high',
-    fallbackTier: 'high',
+    preferredTier: 'high',
+    fallbackTier: 'balanced',
     thinkingLevel: 'max',
-    description: 'Planning: highest intelligence with max reasoning for architecture and design',
-    minQualityScore: 80,
+    description: 'Plan / mission workers — architecture, interview, and design',
+    minQualityScore: 78,
     preferValue: false,
     requireTools: true,
+    minContextWindow: 128_000,
   },
   {
     role: 'debugging',
-    preferredTier: 'ultra-high',
-    fallbackTier: 'high',
+    preferredTier: 'high',
+    fallbackTier: 'balanced',
     thinkingLevel: 'max',
-    description: 'Debugging: highest intelligence with max reasoning for root-cause analysis',
-    minQualityScore: 80,
+    description: 'Debug workers — root-cause analysis with max reasoning',
+    minQualityScore: 78,
     preferValue: false,
     requireTools: true,
+    minContextWindow: 128_000,
   },
 ];
+
+/** Role preset lookup for Settings / status copy. */
+export function rolePresetFor(role: ModelRole): RolePreset | undefined {
+  return ROLE_PRESETS.find((preset) => preset.role === role);
+}
 
 // ── Auto-assignment ──────────────────────────────────────────────────
 
@@ -763,29 +795,27 @@ export async function enrichModelMetadata(
   }[],
 ): Promise<readonly ModelMetadata[]> {
   const data = await getModelsDevData();
-  return models
-    .filter((model) => !isBlockedRoutingModel(model.id) && !isBlockedRoutingModel(model.alias ?? ''))
-    .map((model) => {
-      const devData =
-        data.models.get(model.id.toLowerCase()) ??
-        data.models.get(model.alias?.toLowerCase() ?? '');
-      return withScores(
-        {
-          ...model,
-          contextWindow: devData?.contextWindow,
-          inputCostPerM: devData?.inputCostPerM,
-          outputCostPerM: devData?.outputCostPerM,
-          supportsReasoning: devData?.supportsReasoning,
-          supportsTools: devData?.supportsTools,
-          supportsVision: devData?.supportsVision,
-          family: devData?.family,
-          knowledgeCutoff: devData?.knowledgeCutoff,
-          benchmarkScore: devData?.benchmarkScore,
-          benchmarkCount: devData?.benchmarkCount,
-        },
-        devData,
-      );
-    });
+  return models.map((model) => {
+    const devData =
+      data.models.get(model.id.toLowerCase()) ??
+      data.models.get(model.alias?.toLowerCase() ?? '');
+    return withScores(
+      {
+        ...model,
+        contextWindow: devData?.contextWindow,
+        inputCostPerM: devData?.inputCostPerM,
+        outputCostPerM: devData?.outputCostPerM,
+        supportsReasoning: devData?.supportsReasoning,
+        supportsTools: devData?.supportsTools,
+        supportsVision: devData?.supportsVision,
+        family: devData?.family,
+        knowledgeCutoff: devData?.knowledgeCutoff,
+        benchmarkScore: devData?.benchmarkScore,
+        benchmarkCount: devData?.benchmarkCount,
+      },
+      devData,
+    );
+  });
 }
 
 /**
@@ -880,13 +910,9 @@ export function autoAssignRoleModels(
   availableModels: readonly ModelMetadata[],
   userOverrides?: Partial<Record<ModelRole, string>>,
 ): Record<ModelRole, RoleModelAssignment | undefined> {
-  const scored = availableModels
-    .filter((m) => !isBlockedRoutingModel(m.id) && !isBlockedRoutingModel(m.alias ?? ''))
-    .map((m) =>
-      m.qualityScore !== undefined && m.valueScore !== undefined
-        ? m
-        : withScores(m),
-    );
+  const scored = availableModels.map((m) =>
+    m.qualityScore !== undefined && m.valueScore !== undefined ? m : withScores(m),
+  );
 
   const byTier = new Map<ModelTier, ModelMetadata[]>();
   for (const model of scored) {
@@ -901,25 +927,21 @@ export function autoAssignRoleModels(
   const result: Partial<Record<ModelRole, RoleModelAssignment>> = {};
 
   for (const preset of ROLE_PRESETS) {
-    // User override takes precedence (still blocks policy denylist).
+    // User override takes precedence when the alias is in the available catalog.
     if (userOverrides && userOverrides[preset.role]) {
       const overrideId = userOverrides[preset.role]!;
-      if (isBlockedRoutingModel(overrideId)) {
-        // Fall through to automatic pick rather than assigning a blocked model.
-      } else {
-        const model = allAvailable.find((m) => m.id === overrideId || m.alias === overrideId);
-        if (model) {
-          result[preset.role] = {
-            role: preset.role,
-            modelId: model.id,
-            modelAlias: model.alias,
-            tier: model.tier,
-            thinkingLevel: resolveThinkingLevel(preset, model),
-            isFallback: false,
-            reason: 'User override',
-          };
-          continue;
-        }
+      const model = allAvailable.find((m) => m.id === overrideId || m.alias === overrideId);
+      if (model) {
+        result[preset.role] = {
+          role: preset.role,
+          modelId: model.id,
+          modelAlias: model.alias,
+          tier: model.tier,
+          thinkingLevel: resolveThinkingLevel(preset, model),
+          isFallback: false,
+          reason: 'User override',
+        };
+        continue;
       }
     }
 
@@ -997,7 +1019,7 @@ export function buildFallbackChain(
   if (!preset) return [];
 
   const scored = availableModels
-    .filter((m) => m.available && !isBlockedRoutingModel(m.id))
+    .filter((m) => m.available)
     .map((m) => (m.qualityScore !== undefined ? m : withScores(m)));
 
   const preferred = scored
@@ -1083,4 +1105,88 @@ export function autoAssignRoleModelsWithHealth(
     }),
   );
   return autoAssignRoleModels(withTiers, options.userOverrides);
+}
+
+/** Local catalog row for Settings /status role-routing previews (no network). */
+export type LocalRoleCatalogModel = {
+  readonly alias: string;
+  readonly model: string;
+  readonly provider: string;
+  readonly available?: boolean;
+  readonly maxContextSize?: number;
+  readonly capabilities?: readonly string[];
+  readonly inputCostPerM?: number;
+};
+
+export type LoopRoleModelPreview = {
+  readonly role: ModelRole;
+  readonly description: string;
+  readonly override?: string;
+  readonly resolvedAlias?: string;
+  readonly source: 'override' | 'auto' | 'none';
+};
+
+/**
+ * Preview per-role routing for Settings and /status: explicit overrides win;
+ * otherwise local auto-assign (credential `available` flags already applied).
+ */
+export function previewLoopRoleModelRouting(
+  models: readonly LocalRoleCatalogModel[],
+  userOverrides?: Partial<Record<ModelRole, string>>,
+): readonly LoopRoleModelPreview[] {
+  const metadata: ModelMetadata[] = models.map((entry) => {
+    const caps = new Set((entry.capabilities ?? []).map((c) => c.trim().toLowerCase()));
+    const declaredCaps = entry.capabilities !== undefined;
+    const pricing =
+      entry.inputCostPerM !== undefined || entry.maxContextSize !== undefined
+        ? {
+            ...(entry.inputCostPerM !== undefined ? { inputCostPerM: entry.inputCostPerM } : {}),
+            ...(entry.maxContextSize !== undefined ? { contextWindow: entry.maxContextSize } : {}),
+          }
+        : undefined;
+    return withScores({
+      id: entry.model,
+      alias: entry.alias,
+      provider: entry.provider,
+      available: entry.available !== false,
+      contextWindow: entry.maxContextSize,
+      inputCostPerM: entry.inputCostPerM,
+      supportsReasoning: declaredCaps
+        ? caps.has('thinking') || caps.has('always_thinking')
+        : undefined,
+      supportsTools: declaredCaps ? caps.has('tool_use') : undefined,
+      supportsVision: declaredCaps ? caps.has('image_in') : undefined,
+      tier: classifyModelTier(entry.model, pricing),
+    });
+  });
+
+  const overrides: Partial<Record<ModelRole, string>> = {};
+  for (const [role, value] of Object.entries(userOverrides ?? {}) as Array<
+    [ModelRole, string | undefined]
+  >) {
+    const trimmed = value?.trim();
+    if (trimmed !== undefined && trimmed.length > 0) overrides[role] = trimmed;
+  }
+
+  const assignments = autoAssignRoleModels(metadata, overrides);
+  return ROLE_PRESETS.map((preset) => {
+    const override = overrides[preset.role];
+    if (override !== undefined) {
+      return {
+        role: preset.role,
+        description: preset.description,
+        override,
+        resolvedAlias: override,
+        source: 'override' as const,
+      };
+    }
+    const assignment = assignments[preset.role];
+    const resolvedAlias = assignment?.modelAlias ?? assignment?.modelId;
+    return {
+      role: preset.role,
+      description: preset.description,
+      ...(resolvedAlias !== undefined ? { resolvedAlias } : {}),
+      source: resolvedAlias !== undefined ? ('auto' as const) : ('none' as const),
+    };
+  });
 }

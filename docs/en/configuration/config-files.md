@@ -153,7 +153,9 @@ You can also switch models temporarily without touching the config file — by s
 
 ## `loop_control`
 
-`loop_control` governs the step count limit, per-step retry count, and the threshold that triggers automatic context compaction in the Agent execution loop.
+`loop_control` governs the step count limit, per-step retry count, the threshold that triggers automatic context compaction, and per-role model overrides for workers and helpers.
+
+Unset role models use smart auto-routing (credential health + quality/value scoring). An explicit override always wins for that role, including DeepSeek and other providers. Configure the same keys from Settings → Model routing.
 
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -164,8 +166,12 @@ You can also switch models temporarily without touching the config file — by s
 | `compaction_block_ratio` | `number` | `0.92` | Fraction of the context window at which compaction becomes mandatory and the turn blocks until it finishes (range `0.5`–`0.99`) |
 | `compaction_trigger_tokens` | `integer` | `200000` | Absolute token threshold that triggers compaction, only honored on large windows (≥ 256K) |
 | `compaction_max_recent_messages` | `integer` | `4` | Maximum number of recent messages preserved verbatim after compaction |
-| `compaction_model` | `string` | — | Model alias used for compaction summarization, set to a cheaper or faster model registered under `[models]` to lower compaction cost; unset uses the main conversation model |
-| `completion_model` | `string` | — | Model alias used for prompt intelligence (inline autocomplete and next-task suggestions), set to a faster or cheaper model registered under `[models]` for low-latency predictions; unset uses the main conversation model |
+| `compaction_model` | `string` | — | Model alias for compaction summarization; unset auto-picks a value-first model |
+| `completion_model` | `string` | — | Model alias for prompt intelligence (inline autocomplete / next-task suggestions); unset auto-picks |
+| `exploration_model` | `string` | — | Model alias for explore / desk workers; unset auto-picks a fast value-first model |
+| `coding_model` | `string` | — | Model alias for coder / implement / goal-driver workers; unset auto-picks a high-quality model |
+| `planning_model` | `string` | — | Model alias for plan / mission workers; unset auto-picks a high-quality long-context model |
+| `debugging_model` | `string` | — | Model alias for debug workers; unset auto-picks like planning |
 
 ## `memory`
 
