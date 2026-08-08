@@ -64,7 +64,6 @@ jobs:
         shell: bash
         run: |
           node apps/liora/scripts/native/produce-manifest.mjs release-assets '${{ inputs.tag }}'
-          cp release-assets/manifest.json release-assets/manifest.json
           cat release-assets/manifest.json
 
       - name: Upload to GitHub Release
