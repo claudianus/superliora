@@ -58,7 +58,7 @@ export class SearchExpertTool implements BuiltinTool<SearchExpertInput> {
     }
 
     await globalExpertSearchEngine.initialize();
-    const results = globalExpertSearchEngine.search({
+    const results = await globalExpertSearchEngine.search({
       query,
       topK: args.top_k,
       division: args.division?.trim(),
@@ -74,8 +74,12 @@ export class SearchExpertTool implements BuiltinTool<SearchExpertInput> {
       };
     }
 
+    const retrievalAttrs = [
+      `model="${escapeXmlAttr(globalExpertSearchEngine.embedModelId)}"`,
+      `degraded="${globalExpertSearchEngine.degraded ? 'true' : 'false'}"`,
+    ].join(' ');
     const lines = [
-      `<expert-search-results query="${escapeXmlAttr(query)}">`,
+      `<expert-search-results query="${escapeXmlAttr(query)}" ${retrievalAttrs}>`,
       ...results.map((result, index) => renderExpertSearchHit(result, index + 1)),
       '</expert-search-results>',
       '',

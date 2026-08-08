@@ -27,13 +27,25 @@ export class TieredBrowserUseRuntime implements BrowserUseRuntime {
   ): Promise<BrowserStatus> {
     const primaryStatus = await this.primary.status(input, signal);
     if (this.fallback === undefined) return primaryStatus;
+    // Primary ready: skip fallback status/install. Fallback is only exercised
+    // on observe/screenshot/act failure (withFallback). Eagerly installing
+    // unused tiers burned up to ~10min each and could hit the 30min agent budget.
+    if (primaryStatus.ready === true) {
+      return {
+        ...primaryStatus,
+        provider: this.primaryProvider,
+        fallbackProvider: this.fallbackProvider,
+        version:
+          formatProviderVersion(this.primaryProvider, primaryStatus) || primaryStatus.version,
+      };
+    }
 
     const fallbackStatus = await this.fallback.status(
       { installIfMissing: input.installIfMissing },
       signal,
     );
-    const ready = primaryStatus.ready === true || fallbackStatus.ready === true;
-    const installed =  primaryStatus.installed ||  fallbackStatus.installed;
+    const ready = fallbackStatus.ready === true;
+    const installed = primaryStatus.installed || fallbackStatus.installed;
     const versionParts = [
       formatProviderVersion(this.primaryProvider, primaryStatus),
       formatProviderVersion(this.fallbackProvider, fallbackStatus),

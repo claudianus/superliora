@@ -25,6 +25,10 @@ export interface SubagentVerificationStatus {
   readonly lint: VerificationVerdict;
   /** Filled at contract build time when omitted. */
   readonly visual?: VisualVerificationVerdict;
+  /** VerifySurface interaction axis (UI change sets). */
+  readonly interaction?: VisualVerificationVerdict;
+  /** VerifySurface craft / banned-ship axis (UI change sets). */
+  readonly craft?: VisualVerificationVerdict;
 }
 
 export interface SubagentResultContract {
@@ -86,13 +90,17 @@ export function verificationVisualIsSatisfied(
   return verification.visual === 'passed';
 }
 
-/** True when UI paths changed and visual proof is missing or failed. */
+/** True when UI paths changed and visual/interaction/craft proof is missing or failed. */
 export function verificationVisualBlocksMerge(
   verification: SubagentVerificationStatus | undefined,
   filesChanged: readonly string[] | undefined,
 ): boolean {
   if (!pathsLookLikeUi(filesChanged)) return false;
-  return verification?.visual !== 'passed';
+  if (verification?.visual !== 'passed') return true;
+  // Legacy contracts without axes still land on visual alone; once axes exist they hard-gate.
+  if (verification.interaction !== undefined && verification.interaction !== 'passed') return true;
+  if (verification.craft !== undefined && verification.craft !== 'passed') return true;
+  return false;
 }
 
 /** Marks a `done` job whose checks never ran, on the summary the desk/ACK show. */

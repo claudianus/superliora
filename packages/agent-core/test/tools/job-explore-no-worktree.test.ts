@@ -76,12 +76,21 @@ describe('explore jobs skip worktree creation', () => {
   });
 
   it('still isolates kinds that can write', async () => {
-    for (const kind of ['implement', 'task', 'mission', 'merge'] as const) {
+    for (const kind of ['implement', 'task', 'mission'] as const) {
       const created: string[] = [];
       const { store, jobId } = await scheduleOne(kind, created);
       expect(getJob(store, jobId)?.worktreePath, kind).toBeDefined();
       expect(created, kind).toHaveLength(1);
     }
+  });
+
+  it('skips the worktree for merge landing jobs (lands the source worktree)', async () => {
+    const created: string[] = [];
+    const { store, jobId } = await scheduleOne('merge', created);
+
+    expect(getJob(store, jobId)?.status).toBe('running');
+    expect(getJob(store, jobId)?.worktreePath).toBeUndefined();
+    expect(created).toEqual([]);
   });
 
   it('does not block an explore job when the repo context is missing', async () => {

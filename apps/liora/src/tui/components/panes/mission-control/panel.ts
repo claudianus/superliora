@@ -8,8 +8,9 @@
  * Presentation only: the controller pushes an immutable
  * {@link MissionControlView} (registry snapshot + conductor jobs). Motion
  * flows through the shared appearance clock and degrades to static marks
- * under off / SSH / NO_COLOR / CI per PREMIUM.md §7. Live rates, settle
- * flashes, and progress-bar shimmer keep the surface feeling real-time.
+ * under off / SSH / NO_COLOR / CI per PREMIUM.md §7. Paint budget:
+ * spectacular / pulse only on narrow signals (glyph, mark, bar, title chips,
+ * short settle flashes) — never on body copy (live text, action, MOVES body).
  *
  * Information hierarchy: intent → action → telemetry (paths never dominate).
  */
@@ -34,7 +35,6 @@ import {
   getActiveAppearancePreferences,
   renderPulseGlyph,
   renderPulseText,
-  renderShimmerPrefix,
   renderToneSettleFlash,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
@@ -528,10 +528,12 @@ export class MissionControlPanelComponent implements Component {
 
   private sectionHeader(label: string, live = false): string {
     const appearance = getActiveAppearancePreferences();
+    const title = currentTheme.boldFg('textMuted', label);
+    // Live cue is a single pulse dot — never shimmer the section label itself.
     if (live && shouldRenderAmbientEffects(appearance)) {
-      return `${renderShimmerPrefix(appearance)}${currentTheme.boldFg('textMuted', label)}`;
+      return `${renderPulseGlyph(PULSE_ACTIVE_FRAMES, `mc:sec:${label}`, '●', 'primary', appearance)} ${title}`;
     }
-    return currentTheme.boldFg('textMuted', label);
+    return title;
   }
 
   private workerIntent(worker: MissionWorker): string | undefined {
@@ -586,24 +588,16 @@ export class MissionControlPanelComponent implements Component {
       revealed !== undefined && revealed.target.length > 0 ? visibleText(revealed) : live.text;
     const plain = truncateToWidth(source, this.liveTextBudget(width), '…');
     const mark = live.kind === 'thinking' ? '◌' : '◆';
-    let body: string;
-    if (animated && shouldRenderAmbientEffects(appearance)) {
-      const tinted =
-        live.kind === 'thinking'
-          ? currentTheme.fg('textDim', plain)
-          : renderPulseText(plain, `mc-live:${worker.id}`, 'text', appearance, 'fast');
-      const prefixed = `${renderShimmerPrefix(appearance)}${currentTheme.fg(
-        live.kind === 'thinking' ? 'textMuted' : 'primary',
-        mark,
-      )} ${tinted}`;
-      const glowKind = live.kind === 'answer' ? 'assistant' : 'thinking';
-      const glowed = applyStreamTailGlow([prefixed], glowKind, appearance, { active: true });
-      body = glowed[0] ?? prefixed;
-    } else {
-      body = `${currentTheme.fg(
-        live.kind === 'thinking' ? 'textMuted' : 'primary',
-        mark,
-      )} ${currentTheme.fg(live.kind === 'thinking' ? 'textDim' : 'text', plain)}`;
+    const markPaint = currentTheme.fg(
+      live.kind === 'thinking' ? 'textMuted' : 'primary',
+      mark,
+    );
+    // Body stays static semantic text; optional tail glow on newest clusters only.
+    const tinted = currentTheme.fg(live.kind === 'thinking' ? 'textDim' : 'text', plain);
+    let body = `${markPaint} ${tinted}`;
+    if (animated && shouldRenderAmbientEffects(appearance) && live.kind === 'answer') {
+      const glowed = applyStreamTailGlow([body], 'assistant', appearance, { active: true });
+      body = glowed[0] ?? body;
     }
     return truncateToWidth(`  ${body}`, width, '…');
   }
@@ -710,14 +704,12 @@ export class MissionControlPanelComponent implements Component {
         animated &&
         (worker.status === 'running' || worker.status === 'finishing') &&
         now - worker.lastActivityAtMs < ACTION_HOT_MS;
-      const prefix = hot ? renderShimmerPrefix() : '';
+      // Arrow is the hot signal; tool+target body stays readable textDim.
       const arrow = hot
         ? renderPulseText('→', `mc-act:${worker.id}`, 'primary')
         : currentTheme.fg('textDim', '→');
-      const body = hot
-        ? renderPulseText(action, `mc-act-body:${worker.id}`, 'text', getActiveAppearancePreferences(), 'fast')
-        : currentTheme.fg('textDim', action);
-      rows.push(truncateToWidth(`  ${prefix}${arrow} ${body}`, width, '…'));
+      const body = currentTheme.fg('textDim', action);
+      rows.push(truncateToWidth(`  ${arrow} ${body}`, width, '…'));
     }
     const progress = this.renderProgressLine(worker, showedFocus, animated, now);
     if (progress !== undefined) {
@@ -963,21 +955,31 @@ export class MissionControlPanelComponent implements Component {
       this.view.workDir,
       this.targetBudget(width),
     );
-    const bodyPlain = `${entry.name}${human === undefined ? '' : ` ${human}`}${
-      entry.chip === undefined ? '' : ` ${entry.chip}`
-    }`;
-    let body: string;
-    if (entry.status === 'running' && animated) {
-      body = `${renderShimmerPrefix()}${renderPulseText(bodyPlain, `mc-ops-body:${entry.toolCallId}`, 'text')}`;
-    } else if (freshlySettled) {
+    // Column grammar: tool (text) · target (dim) · chip (muted) — never pulse the row body.
+    const toolPaint = currentTheme.fg(
+      entry.status === 'error' ? 'error' : entry.status === 'running' ? 'text' : 'textDim',
+      entry.name,
+    );
+    const targetPaint =
+      human === undefined
+        ? ''
+        : ` ${currentTheme.fg(entry.status === 'error' ? 'error' : 'textDim', human)}`;
+    const chipPaint =
+      entry.chip === undefined
+        ? ''
+        : ` ${currentTheme.fg('textMuted', entry.chip)}`;
+    let body = `${toolPaint}${targetPaint}${chipPaint}`;
+    if (freshlySettled) {
+      // Brief tone flash on the whole body, then static columns above take over.
+      const bodyPlain = `${entry.name}${human === undefined ? '' : ` ${human}`}${
+        entry.chip === undefined ? '' : ` ${entry.chip}`
+      }`;
       body = renderToneSettleFlash(
         bodyPlain,
         `mc-ops-body:${entry.toolCallId}`,
         settledAt,
         entry.status === 'error' ? 'error' : 'success',
       );
-    } else {
-      body = currentTheme.fg(entry.status === 'error' ? 'error' : 'textDim', bodyPlain);
     }
     return truncateToWidth(`${clock}${worker}${mark}${body}`, width, '…');
   }

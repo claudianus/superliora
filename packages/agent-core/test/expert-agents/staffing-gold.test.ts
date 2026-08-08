@@ -99,18 +99,49 @@ describe('staffing-gold nDCG', () => {
     const engine = new ExpertSearchEngine();
     await engine.initialize();
     const k = 10;
-    const scored = STAFFING_GOLD_SEED.filter((gold) => gold.relevantIds.length > 0).map((gold) => {
-      const rankedIds = engine
-        .search({ query: gold.query, topK: k, useEmbedding: false })
-        .map((hit) => hit.expert.id);
-      return { rankedIds, gold };
-    });
+    const scored = [];
+    for (const gold of STAFFING_GOLD_SEED.filter((entry) => entry.relevantIds.length > 0)) {
+      const rankedIds = (
+        await engine.search({ query: gold.query, topK: k, useEmbedding: false })
+      ).map((hit) => hit.expert.id);
+      scored.push({ rankedIds, gold });
+    }
     expect(scored.length).toBeGreaterThanOrEqual(28);
     const mean = meanNdcgAtK(scored, k);
     // Offline regression floor: catch ranking/query regressions without flaking on embeddings.
     // Live BM25 gold trims keep mean near 1.0; floor at 0.96 still leaves headroom.
     expect(mean).toBeGreaterThanOrEqual(0.96);
     const zeros = scored.filter((row) => ndcgAtK(row.rankedIds, row.gold.relevantIds, k) <= 0);
+    expect(zeros.map((row) => row.gold.id)).toEqual([]);
+  });
+
+  it('hybrid (hash embedder) nDCG@5 stays near sparse without zeros', async () => {
+    // CI parity uses SUPERLIORA_RETRIEVAL_EMBEDDER=hash — feature-hash is a
+    // degraded stand-in for Granite-97M; allow more slack than sparse-only.
+    const engine = new ExpertSearchEngine();
+    await engine.initialize();
+    const k = 5;
+    const golds = STAFFING_GOLD_SEED.filter((entry) => entry.relevantIds.length > 0);
+    const sparseScored = [];
+    const hybridScored = [];
+    for (const gold of golds) {
+      const sparseIds = (
+        await engine.search({ query: gold.query, topK: k, useEmbedding: false })
+      ).map((hit) => hit.expert.id);
+      const hybridIds = (await engine.search({ query: gold.query, topK: k })).map(
+        (hit) => hit.expert.id,
+      );
+      sparseScored.push({ rankedIds: sparseIds, gold });
+      hybridScored.push({ rankedIds: hybridIds, gold });
+    }
+    const sparseMean = meanNdcgAtK(sparseScored, k);
+    const hybridMean = meanNdcgAtK(hybridScored, k);
+    expect(sparseMean).toBeGreaterThanOrEqual(0.96);
+    expect(hybridMean).toBeGreaterThanOrEqual(0.9);
+    expect(hybridMean).toBeGreaterThanOrEqual(sparseMean - 0.08);
+    const zeros = hybridScored.filter(
+      (row) => ndcgAtK(row.rankedIds, row.gold.relevantIds, k) <= 0,
+    );
     expect(zeros.map((row) => row.gold.id)).toEqual([]);
   });
 });

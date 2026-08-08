@@ -14,6 +14,7 @@
  */
 
 import type { ExecutableToolResult } from '../loop/types';
+import { pathsLookLikeUi } from '../premium-quality/ui-surface';
 import { withAutoCheckDirective } from './auto-check-sensor';
 
 export const FILE_MUTATION_TOOL_NAMES = new Set(['Edit', 'Write', 'ApplyPatch']);
@@ -35,11 +36,18 @@ export interface MutationRecord {
   readonly recordedAtMs: number;
   /** packages/<name> or apps/<name> when all paths in this mutation share one scope. */
   readonly packageDir?: string | undefined;
+  /** Paths from this mutation (for UI-surface stop proof). */
+  readonly paths?: readonly string[] | undefined;
 }
 
 export interface MutationVerificationLedger {
   pending: MutationRecord[];
   lastCheckPassAtMs?: number | undefined;
+  /**
+   * Sticky: UI-looking paths were mutated. Survives RunProjectChecks clear;
+   * cleared only after VerifySurface load+interaction+craft pass.
+   */
+  uiSurfaceProofPending?: boolean | undefined;
 }
 
 export function createMutationVerificationLedger(): MutationVerificationLedger {
@@ -113,15 +121,24 @@ export function recordFileMutation(
   toolName: string,
   recordedAtMs: number = Date.now(),
   packageDir?: string | undefined,
+  paths?: readonly string[] | undefined,
 ): void {
   ledger.pending.push({
     toolName,
     recordedAtMs,
     packageDir,
+    paths,
   });
+  if (pathsLookLikeUi(paths)) {
+    ledger.uiSurfaceProofPending = true;
+  }
   if (ledger.pending.length > MUTATION_SENSOR_MAX_PENDING) {
     ledger.pending.splice(0, ledger.pending.length - MUTATION_SENSOR_MAX_PENDING);
   }
+}
+
+export function clearUiSurfaceProofPending(ledger: MutationVerificationLedger): void {
+  ledger.uiSurfaceProofPending = false;
 }
 
 export function clearPendingMutations(
@@ -157,7 +174,7 @@ export function observeFileMutationToolResult(
   }
   const paths = extractMutationPathsFromToolArgs(toolName, toolArgs);
   const packageDir = deriveMutationPackageDir(paths);
-  recordFileMutation(ledger, toolName, Date.now(), packageDir);
+  recordFileMutation(ledger, toolName, Date.now(), packageDir, paths);
   return appendMutationNudge(result, packageDir);
 }
 
@@ -168,8 +185,11 @@ export function formatMutationVerifyNudge(packageDir?: string | undefined): stri
       : `PostToolUse sensor: source mutated under \`${packageDir}\`. ` +
         `Before claiming done, run RunProjectChecks with packageDir=${packageDir} ` +
         `(or package-scoped test/typecheck/lint).`;
+  const withSurface =
+    `${base} On UI surfaces call VerifySurface (load+interaction+craft); ` +
+    `BrowserScreenshot alone does not set visual=passed.`;
   // Loop16a: SUPERLIORA_AUTO_CHECK=1 upgrades nudge to machine-actionable directive.
-  return withAutoCheckDirective(base, packageDir);
+  return withAutoCheckDirective(withSurface, packageDir);
 }
 
 export function appendMutationNudge(

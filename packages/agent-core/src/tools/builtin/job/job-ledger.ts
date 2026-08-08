@@ -71,6 +71,10 @@ export function createJob(
     readonly goalBudgetLimits?: GoalBudgetLimits;
     /** Plan Desk: ultra structured pipeline vs regular free-form plan. */
     readonly planStructured?: boolean;
+    readonly expertId?: string;
+    readonly expertScore?: number;
+    readonly expertRole?: JobRecord['expertRole'];
+    readonly staffQuery?: string;
   },
 ): JobRecord {
   const now = new Date().toISOString();
@@ -96,6 +100,10 @@ export function createJob(
     goalGateCommand: input.goalGateCommand,
     goalBudgetLimits: input.goalBudgetLimits,
     planStructured: input.planStructured,
+    expertId: input.expertId,
+    expertScore: input.expertScore,
+    expertRole: input.expertRole,
+    staffQuery: input.staffQuery,
   };
   return upsertJob(store, job);
 }
@@ -110,6 +118,7 @@ export function patchJob(
       | 'title'
       | 'priority'
       | 'worktreePath'
+      | 'worktreeBranch'
       | 'workerAgentId'
       | 'resultSummary'
       | 'resultContract'

@@ -28,9 +28,11 @@ import {
   isCheckLikeBashCommand,
   isVerificationCheckTool,
   observeVerificationToolResult,
+  surfaceProofAxesSatisfied,
 } from '../../sensors/verification-sensor-ledger';
 import {
   clearPendingMutations,
+  clearUiSurfaceProofPending,
   extractMutationPathsFromToolArgs,
   deriveMutationPackageDir,
   isFileMutationTool,
@@ -433,6 +435,14 @@ export async function runTurnStepLoop(
                   isCheckLikeBashCommand(toolInputRecord(ctx.args)['command'])))
             ) {
               clearPendingMutations(agent.mutationVerificationLedger);
+            }
+            // UI surface sticky proof clears only on full VerifySurface 3-axis pass.
+            if (
+              ctx.toolCall.name === 'VerifySurface' &&
+              finalResult.isError !== true &&
+              surfaceProofAxesSatisfied(agent.verificationSensorLedger)
+            ) {
+              clearUiSurfaceProofPending(agent.mutationVerificationLedger);
             }
             // Phase B: Edit/Write/ApplyPatch success → verify nudge + pending ledger.
             // Loop13: pass tool args so package-scoped RunProjectChecks tips work.

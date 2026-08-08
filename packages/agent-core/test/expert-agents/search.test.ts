@@ -26,7 +26,7 @@ describe('ExpertSearchEngine', () => {
   it('ranks terminal UI work ahead of sales coaches for technical TUI queries', async () => {
     await globalExpertSearchEngine.initialize();
     const query = 'Improve terminal dashboard renderer TypeScript components';
-    const results = globalExpertSearchEngine.search({ query, topK: 8, taskDescription: query });
+    const results = await globalExpertSearchEngine.search({ query, topK: 8, taskDescription: query });
 
     expect(results.length).toBeGreaterThan(0);
     expect(results.some((result) => result.expert.id === 'engineering-terminal-ui-engineer')).toBe(true);
@@ -37,7 +37,7 @@ describe('ExpertSearchEngine', () => {
   it('preserves division recall for broad technical harness queries', async () => {
     await globalExpertSearchEngine.initialize();
     const query = 'AI agent harness architecture context engineering orchestration tools reliability';
-    const results = globalExpertSearchEngine.search({
+    const results = await globalExpertSearchEngine.search({
       query,
       division: 'Engineering',
       topK: 8,
@@ -55,7 +55,7 @@ describe('ExpertSearchEngine', () => {
   it('applies staffing outcome priors to search ranking scores', async () => {
     await globalExpertSearchEngine.initialize();
     const query = 'Improve terminal dashboard renderer TypeScript components';
-    const baseline = globalExpertSearchEngine.search({ query, topK: 20, taskDescription: query });
+    const baseline = await globalExpertSearchEngine.search({ query, topK: 20, taskDescription: query });
     expect(baseline.length).toBeGreaterThan(1);
 
     const topId = baseline[0]!.expert.id;
@@ -75,7 +75,7 @@ describe('ExpertSearchEngine', () => {
       { expertId: peerId, verdict: 'PASS_WITH_ADVICE' },
     ]);
 
-    const reranked = globalExpertSearchEngine.search({ query, topK: 20, taskDescription: query });
+    const reranked = await globalExpertSearchEngine.search({ query, topK: 20, taskDescription: query });
     const topAfter = reranked.find((result) => result.expert.id === topId);
     const peerAfter = reranked.find((result) => result.expert.id === peerId);
     expect(topAfter).toBeDefined();
@@ -91,7 +91,7 @@ describe('ExpertSearchEngine', () => {
   it('still returns sales coaches for explicit coaching queries', async () => {
     await globalExpertSearchEngine.initialize();
     const query = 'sales coaching pipeline review rep development';
-    const results = globalExpertSearchEngine.search({ query, topK: 5, taskDescription: query });
+    const results = await globalExpertSearchEngine.search({ query, topK: 5, taskDescription: query });
 
     expect(results[0]?.expert.id).toBe('sales-coach');
   });
@@ -183,7 +183,7 @@ describe('ExpertSearchEngine initialize single-flight', () => {
       globalExpertSearchEngine.initialize(),
       globalExpertSearchEngine.initialize(),
     ]);
-    const results = globalExpertSearchEngine.search({
+    const results = await globalExpertSearchEngine.search({
       query: 'TypeScript frontend',
       topK: 3,
     });

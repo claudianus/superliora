@@ -213,6 +213,7 @@ describe('job runtime scheduler', () => {
     const updated = listJobs(store).find((j) => j.id === job.id);
     expect(updated?.status).toBe('running');
     expect(updated?.worktreePath).toContain('/tmp/worktrees/');
+    expect(updated?.worktreeBranch).toBe('liora/x');
   });
 
   it('chains a child job onto the parent worktree instead of a private branch', async () => {
@@ -369,8 +370,14 @@ describe('merge trust + worker guards + warm pool', () => {
     ).toBe(false);
 
     const store = memoryStore();
-    const created = createJob(store, { title: 'merge me', ownershipPaths: ['src/x.ts'] });
+    const created = createJob(store, {
+      title: 'merge me',
+      kind: 'implement',
+      ownershipPaths: ['src/x.ts'],
+      expertId: 'maker-ledger',
+    });
     patchJob(store, created.id, {
+      status: 'done',
       resultContract: buildSubagentResultContract({
         agentId: 'agent_x',
         profile: 'coder',
@@ -379,7 +386,18 @@ describe('merge trust + worker guards + warm pool', () => {
         verification: { tests: 'passed', typecheck: 'passed', lint: 'passed' },
       }),
     });
-    const job = listJobs(store)[0]!;
+    const review = createJob(store, {
+      title: 'Review: merge me',
+      kind: 'task',
+      parentJobId: created.id,
+      expertId: 'checker-ledger',
+      expertRole: 'review',
+    });
+    patchJob(store, review.id, {
+      status: 'done',
+      resultSummary: '{"verdict":"pass","findings":[],"required_fixes":[]}',
+    });
+    const job = getJob(store, created.id)!;
     const tool = new MergeJobTool(store);
     const holdExec = tool.resolveExecution({
       job_id: job.id,
@@ -413,7 +431,7 @@ describe('merge trust + worker guards + warm pool', () => {
       signal: new AbortController().signal,
     });
     expect(ok.isError).toBe(false);
-    expect(listJobs(store)[0]?.status).toBe('done');
+    expect(getJob(store, created.id)?.status).toBe('done');
   });
 
   it('blocks worker git push', async () => {
@@ -861,8 +879,10 @@ describe('conductor non-blocking job path (regression)', () => {
       'unverified (checks did not run) — worker summary',
     );
     const unread = listUnreadJobInbox(store);
-    expect(unread).toHaveLength(1);
-    expect(unread[0]?.kind).toBe('job.completed');
+    // Implement done → review-chain enqueue may add sibling inbox events.
+    expect(
+      unread.filter((entry) => entry.kind === 'job.completed' && entry.jobId === jobId),
+    ).toHaveLength(1);
   });
 
   it('promotes queued jobs concurrently under maxConcurrent (launch handshakes do not serialize)', async () => {

@@ -123,7 +123,7 @@ export function conductorPauseGoal(agent: Agent): GoalSnapshot {
   if (binding === undefined) {
     throw new Error('No active goal.');
   }
-  cancelBoundGoalJobs(store, binding, 'pause');
+  cancelBoundGoalJobs(store, binding, 'pause', agent);
   const next: GoalSessionBinding = {
     ...binding,
     status: 'paused',
@@ -166,7 +166,7 @@ export function conductorCancelGoal(agent: Agent): GoalSnapshot {
   if (binding === undefined) {
     throw new Error('No active goal.');
   }
-  cancelBoundGoalJobs(store, binding, 'cancel');
+  cancelBoundGoalJobs(store, binding, 'cancel', agent);
   const next: GoalSessionBinding = {
     ...binding,
     status: 'cancelled',

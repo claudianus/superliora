@@ -13,10 +13,11 @@ import {
   observeVerificationToolResult,
   type VerificationSensorLedger,
 } from '../../sensors/verification-sensor-ledger';
-import { VerifySurfaceTool } from '../../tools/builtin/gui/verify-surface';
+import {
+  VERIFY_SURFACE_TIMEOUT_MS,
+  VerifySurfaceTool,
+} from '../../tools/builtin/gui/verify-surface';
 import type { VisualVerificationVerdict } from './subagent-result-contract';
-
-const AUTO_VERIFY_SURFACE_TIMEOUT_MS = 120_000;
 
 const HTTP_URL_PATTERN = /https?:\/\/[^\s)"'<>]+/i;
 
@@ -75,10 +76,12 @@ export async function maybeAutoVerifySurface(
   try {
     const execution = tool.resolveExecution(args);
     if (execution.isError === true) return 'not_run';
+    // VerifySurface already applies VERIFY_SURFACE_TIMEOUT_MS; keep a parent
+    // bound so completion-gate cancel still aborts promptly.
     const gateSignal =
       signal === undefined
-        ? AbortSignal.timeout(AUTO_VERIFY_SURFACE_TIMEOUT_MS)
-        : AbortSignal.any([signal, AbortSignal.timeout(AUTO_VERIFY_SURFACE_TIMEOUT_MS)]);
+        ? AbortSignal.timeout(VERIFY_SURFACE_TIMEOUT_MS)
+        : AbortSignal.any([signal, AbortSignal.timeout(VERIFY_SURFACE_TIMEOUT_MS)]);
     const result = await execution.execute({
       turnId: 'subagent-visual-verification',
       toolCallId: 'subagent-visual-verification',

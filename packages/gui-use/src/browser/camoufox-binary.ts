@@ -2,7 +2,11 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import type { SetupCommandOptions, SetupCommandResult } from '../install';
+import {
+  runSetupCommand,
+  type SetupCommandOptions,
+  type SetupCommandResult,
+} from '../setup-command';
 
 const CAMOUFOX_NPM_VERSION = '0.11.1';
 
@@ -89,7 +93,7 @@ async function runCamoufoxCli(
   };
   const command = camoufoxExecCommand();
   if (command.kind === 'workspace') {
-    return runCommand('corepack', [
+    return runSetupCommand('corepack', [
       'pnpm',
       '--filter',
       '@superliora/gui-use',
@@ -98,7 +102,11 @@ async function runCamoufoxCli(
       ...args,
     ], { ...options, env });
   }
-  return runCommand(npxCommand(), ['--yes', `camoufox-js@${CAMOUFOX_NPM_VERSION}`, ...args], { ...options, env });
+  return runSetupCommand(
+    npxCommand(),
+    ['--yes', `camoufox-js@${CAMOUFOX_NPM_VERSION}`, ...args],
+    { ...options, env },
+  );
 }
 
 function camoufoxExecCommand(): { readonly kind: 'workspace' | 'npx' } {
@@ -107,64 +115,4 @@ function camoufoxExecCommand(): { readonly kind: 'workspace' | 'npx' } {
 
 function npxCommand(): string {
   return process.platform === 'win32' ? 'npx.cmd' : 'npx';
-}
-
-function runCommand(
-  command: string,
-  args: readonly string[],
-  options: SetupCommandOptions,
-): Promise<SetupCommandResult> {
-  return new Promise((resolve) => {
-    import('node:child_process').then(({ spawn }) => {
-      const child = spawn(command, [...args], {
-        cwd: options.cwd ?? options.packageRoot,
-        env: options.env ?? process.env,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        shell: false,
-      });
-      const stdout: Buffer[] = [];
-      const stderr: Buffer[] = [];
-      const timeout = setTimeout(() => {
-        child.kill('SIGTERM');
-      }, options.timeoutMs ?? 10 * 60_000);
-      child.stdout.on('data', (chunk: Buffer) => {
-        stdout.push(chunk);
-        if (options.quiet !== true) process.stdout.write(chunk);
-      });
-      child.stderr.on('data', (chunk: Buffer) => {
-        stderr.push(chunk);
-        if (options.quiet !== true) process.stderr.write(chunk);
-      });
-      child.on('error', (error) => {
-        clearTimeout(timeout);
-        resolve({
-          ok: false,
-          code: null,
-          stdout: Buffer.concat(stdout).toString('utf8'),
-          stderr: Buffer.concat(stderr).toString('utf8'),
-          command: [command, ...args],
-          error: error.message,
-        });
-      });
-      child.on('close', (code) => {
-        clearTimeout(timeout);
-        resolve({
-          ok: code === 0,
-          code,
-          stdout: Buffer.concat(stdout).toString('utf8'),
-          stderr: Buffer.concat(stderr).toString('utf8'),
-          command: [command, ...args],
-        });
-      });
-    }).catch((error: unknown) => {
-      resolve({
-        ok: false,
-        code: null,
-        stdout: '',
-        stderr: '',
-        command: [command, ...args],
-        error: error instanceof Error ? error.message : String(error),
-      });
-    });
-  });
 }

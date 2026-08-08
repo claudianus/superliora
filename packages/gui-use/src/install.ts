@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
@@ -12,25 +12,15 @@ import {
   installLightpandaBinary,
   type LightpandaBinaryOptions,
 } from './browser/lightpanda-binary';
+import {
+  runSetupCommand,
+  type SetupCommandOptions,
+  type SetupCommandResult,
+} from './setup-command';
 
-export interface SetupCommandOptions {
-  readonly cwd?: string | undefined;
-  readonly packageRoot?: string | undefined;
-  readonly env?: NodeJS.ProcessEnv | undefined;
-  readonly timeoutMs?: number | undefined;
-  readonly quiet?: boolean | undefined;
-}
+export type { SetupCommandOptions, SetupCommandResult };
+export { runSetupCommand };
 
-export interface SetupCommandResult {
-  readonly ok: boolean;
-  readonly code: number | null;
-  readonly stdout: string;
-  readonly stderr: string;
-  readonly command: readonly string[];
-  readonly error?: string | undefined;
-}
-
-const DEFAULT_TIMEOUT_MS = 10 * 60_000;
 const CLOAKBROWSER_NPM_VERSION = '0.5.5';
 
 export async function installLightpanda(
@@ -145,7 +135,7 @@ export async function installCuaDriver(
       error: 'empty command',
     };
   }
-  return runCommand(cmd, args, options);
+  return runSetupCommand(cmd, args, options);
 }
 
 export async function updateCuaDriver(
@@ -179,7 +169,7 @@ function runPnpmCloak(
 ): Promise<SetupCommandResult> {
   const workspaceRoot = findWorkspaceRoot(resolveInstallCwd(options));
   if (workspaceRoot !== undefined && isGuiUseWorkspace(workspaceRoot)) {
-    return runCommand('corepack', [
+    return runSetupCommand('corepack', [
       'pnpm',
       '--filter',
       '@superliora/gui-use',
@@ -189,7 +179,7 @@ function runPnpmCloak(
     ], { ...options, cwd: workspaceRoot });
   }
 
-  return runCommand(npxCommand(), [
+  return runSetupCommand(npxCommand(), [
     '--yes',
     `cloakbrowser@${CLOAKBROWSER_NPM_VERSION}`,
     ...args,
@@ -268,51 +258,3 @@ function cuaInstallCommand(): readonly string[] | undefined {
   return undefined;
 }
 
-function runCommand(
-  command: string,
-  args: readonly string[],
-  options: SetupCommandOptions,
-): Promise<SetupCommandResult> {
-  return new Promise((resolve) => {
-    const child = spawn(command, [...args], {
-      cwd: options.cwd,
-      env: options.env ?? process.env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      shell: false,
-    });
-    const stdout: Buffer[] = [];
-    const stderr: Buffer[] = [];
-    const timeout = setTimeout(() => {
-      child.kill('SIGTERM');
-    }, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-    child.stdout.on('data', (chunk: Buffer) => {
-      stdout.push(chunk);
-      if (options.quiet !== true) process.stdout.write(chunk);
-    });
-    child.stderr.on('data', (chunk: Buffer) => {
-      stderr.push(chunk);
-      if (options.quiet !== true) process.stderr.write(chunk);
-    });
-    child.on('error', (error) => {
-      clearTimeout(timeout);
-      resolve({
-        ok: false,
-        code: null,
-        stdout: Buffer.concat(stdout).toString('utf8'),
-        stderr: Buffer.concat(stderr).toString('utf8'),
-        command: [command, ...args],
-        error: error.message,
-      });
-    });
-    child.on('close', (code) => {
-      clearTimeout(timeout);
-      resolve({
-        ok: code === 0,
-        code,
-        stdout: Buffer.concat(stdout).toString('utf8'),
-        stderr: Buffer.concat(stderr).toString('utf8'),
-        command: [command, ...args],
-      });
-    });
-  });
-}

@@ -79,6 +79,8 @@ export interface JobRecord {
   /** Greenfield chain step; drives jobPrompt phase contract. */
   readonly deliveryPhase?: JobDeliveryPhase;
   readonly worktreePath?: string;
+  /** Branch created for the job worktree (`liora/…`); land prefers this over HEAD. */
+  readonly worktreeBranch?: string;
   readonly workerAgentId?: string;
   /** Goal-driver binding (spec 2026-08-04-goal-driver-jobs): the goal the driver worker pursues. */
   readonly goalId?: string;
@@ -101,6 +103,14 @@ export interface JobRecord {
   readonly planStructured?: boolean;
   /** Worker progress (phase/recent tools/heartbeat) mirrored to `job.updated` v2. */
   readonly progress?: JobProgressSnapshot;
+  /**
+   * Conductor expert staffing (SearchExpert bind). Absent / generic = plain worker.
+   * `expertRole` is orthogonal to `kind` (schedule/profile vs review posture).
+   */
+  readonly expertId?: string;
+  readonly expertScore?: number;
+  readonly expertRole?: 'implement' | 'review' | 'debug' | 'visual-qa' | 'generic';
+  readonly staffQuery?: string;
 }
 
 export interface JobLedger {

@@ -849,6 +849,7 @@ describe('SessionSubagentHost', () => {
       'Read',
       'ReadMediaFile',
       'RepoQuery',
+      'Script',
       'SearchTools',
       'TodoList',
     ]);
@@ -900,6 +901,7 @@ describe('SessionSubagentHost', () => {
       'Read',
       'ReadMediaFile',
       'RepoQuery',
+      'Script',
       'SearchTools',
       'TodoList',
     ]);
@@ -1014,7 +1016,6 @@ describe('SessionSubagentHost', () => {
       'Compact',
       'Edit',
       'Expand',
-      'GetCurrentTime',
       'Glob',
       'Grep',
       'Read',

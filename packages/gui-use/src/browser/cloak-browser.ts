@@ -197,6 +197,7 @@ export class CloakBrowserRuntime implements BrowserUseRuntime {
     this.installAttempt ??= (this.options.install ?? (() => installCloakBrowser({
       quiet: true,
       packageRoot: this.options.installRoot,
+      signal,
     })))();
     const result = await this.installAttempt;
     if (!result.ok) this.installAttempt = undefined;

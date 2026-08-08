@@ -51,7 +51,9 @@ import {
 } from './job-runtime';
 import { dispatchMergeLand, type LandJobToMainInput } from './job-land';
 import { evaluateMergeTrust, mergeTrustInputFromLedger } from './job-merge-trust';
+import { patchJobAndNotify } from './job-notify';
 import { splitUserMessageIntoJobIntents } from './job-split';
+import { staffJobsFromObjective } from './job-staff';
 import { createGreenfieldChainJobs } from './job-greenfield-chain';
 import { cancelJobWorker, resumeJobs, steerJobWorker } from './job-worker';
 
@@ -166,6 +168,12 @@ const JobCreateInputSchema = z
       .optional()
       .describe(
         'Split a multi-intent prompt into one Job per intent (user asked several independent things at once). Prefer explicit separate JobCreate calls when intents need different kinds/ownership; falls back to a single Job when splitting fails.',
+      ),
+    staff: z
+      .boolean()
+      .optional()
+      .describe(
+        'Run SearchExpert staffing: decompose into slices, bind high-score experts in parallel Jobs, fall back to generic workers when score is low. Defaults true for task/implement/explore; false for merge/desk/goal-desk/mission.',
       ),
   })
   .strict()
@@ -497,45 +505,86 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
           });
         }
 
-        const intents =
-          a.auto_split === true
-            ? splitUserMessageIntoJobIntents(a.prompt?.trim() || a.title)
-            : [{ title: a.title, prompt: a.prompt ?? a.title }];
+        const kind = a.kind as JobKind | undefined;
+        const shouldStaff =
+          a.staff === true ||
+          (a.staff !== false &&
+            (kind === undefined ||
+              kind === 'task' ||
+              kind === 'implement' ||
+              kind === 'explore'));
 
-        const created = intents.map((intent, index) =>
-          createJob(this.store, {
-            title: intent.title || a.title,
-            kind: a.kind as JobKind | undefined,
-            priority: (a.priority ?? 0) + (intents.length - index),
-            prompt: intent.prompt,
-            ownershipPaths: a.ownership_paths,
-            contextPaths: a.context_paths,
+        let created: JobRecord[];
+        if (shouldStaff && !isGoalDriver) {
+          const slices = await staffJobsFromObjective({
+            objective: a.prompt?.trim() || a.title,
+            title: a.title,
+            kind,
             successCriteria: successCriteria.length > 0 ? successCriteria : undefined,
-            mustNotTouch: mustNotTouch.length > 0 ? mustNotTouch : undefined,
-            verificationCommands:
-              verificationCommands.length > 0 ? verificationCommands : undefined,
-            deliveryMode: deliveryMode === 'standard' ? undefined : deliveryMode,
-            parentJobId: a.parent_job_id,
-            ...(isGoalDriver
-              ? {
-                  goalObjective: intent.prompt?.trim() || intent.title || a.title,
-                  goalCompletionCriterion: a.goal_completion_criterion,
-                  goalGateCommand:
-                    a.goal_gate_command?.trim() ||
-                    verificationCommands[0] ||
-                    undefined,
-                  goalBudgetLimits:
-                    a.goal_budget !== undefined
-                      ? {
-                          tokenBudget: a.goal_budget.token_budget,
-                          turnBudget: a.goal_budget.turn_budget,
-                          wallClockBudgetMs: a.goal_budget.wall_clock_budget_ms,
-                        }
-                      : undefined,
-                }
-              : {}),
-          }),
-        );
+            contextPaths: a.context_paths,
+            ownershipPaths: a.ownership_paths,
+          });
+          created = slices.map((slice, index) =>
+            createJob(this.store, {
+              title: slice.title || a.title,
+              kind: slice.kind,
+              priority: (a.priority ?? 0) + (slices.length - index),
+              prompt: slice.prompt,
+              ownershipPaths: slice.ownershipPaths ?? a.ownership_paths,
+              contextPaths: a.context_paths,
+              successCriteria: successCriteria.length > 0 ? successCriteria : undefined,
+              mustNotTouch: mustNotTouch.length > 0 ? mustNotTouch : undefined,
+              verificationCommands:
+                verificationCommands.length > 0 ? verificationCommands : undefined,
+              deliveryMode: deliveryMode === 'standard' ? undefined : deliveryMode,
+              parentJobId: a.parent_job_id,
+              expertId: slice.expertId,
+              expertScore: slice.expertScore,
+              expertRole: slice.expertRole,
+              staffQuery: slice.staffQuery,
+            }),
+          );
+        } else {
+          const intents =
+            a.auto_split === true
+              ? splitUserMessageIntoJobIntents(a.prompt?.trim() || a.title)
+              : [{ title: a.title, prompt: a.prompt ?? a.title }];
+
+          created = intents.map((intent, index) =>
+            createJob(this.store, {
+              title: intent.title || a.title,
+              kind,
+              priority: (a.priority ?? 0) + (intents.length - index),
+              prompt: intent.prompt,
+              ownershipPaths: a.ownership_paths,
+              contextPaths: a.context_paths,
+              successCriteria: successCriteria.length > 0 ? successCriteria : undefined,
+              mustNotTouch: mustNotTouch.length > 0 ? mustNotTouch : undefined,
+              verificationCommands:
+                verificationCommands.length > 0 ? verificationCommands : undefined,
+              deliveryMode: deliveryMode === 'standard' ? undefined : deliveryMode,
+              parentJobId: a.parent_job_id,
+              ...(isGoalDriver
+                ? {
+                    goalObjective: intent.prompt?.trim() || intent.title || a.title,
+                    goalCompletionCriterion: a.goal_completion_criterion,
+                    goalGateCommand:
+                      a.goal_gate_command?.trim() ||
+                      verificationCommands[0] ||
+                      undefined,
+                    goalBudgetLimits:
+                      a.goal_budget !== undefined
+                        ? {
+                            tokenBudget: a.goal_budget.token_budget,
+                            turnBudget: a.goal_budget.turn_budget,
+                            wallClockBudgetMs: a.goal_budget.wall_clock_budget_ms,
+                          }
+                        : undefined,
+                  }
+                : {}),
+            }),
+          );
+        }
 
         return ackCreatedJobs({
           store: this.store,
@@ -732,10 +781,20 @@ export class MergeJobTool implements BuiltinTool<z.infer<typeof MergeJobInputSch
         if (!existing) return { isError: true, output: `Job not found: ${a.job_id}` };
 
         if (!a.approve) {
-          const job = patchJob(this.store, a.job_id, {
-            status: existing.status === 'done' ? 'done' : 'blocked',
-            notes: [existing.notes, `merge: rejected ${a.summary ?? ''}`].filter(Boolean).join('\n'),
-          });
+          const job = patchJobAndNotify(
+            this.store,
+            a.job_id,
+            {
+              status: existing.status === 'done' ? 'done' : 'blocked',
+              notes: [existing.notes, `merge: rejected ${a.summary ?? ''}`]
+                .filter(Boolean)
+                .join('\n'),
+            },
+            {
+              agent: this.agent,
+              summary: `merge: rejected ${a.summary ?? ''}`.trim(),
+            },
+          );
           return {
             isError: false,
             output: ack(job!.id, job!.status, 'Merge rejected/held.'),
@@ -749,6 +808,7 @@ export class MergeJobTool implements BuiltinTool<z.infer<typeof MergeJobInputSch
         const trust = evaluateMergeTrust({
           ...mergeTrustInputFromLedger({
             job: existing,
+            jobs: listJobs(this.store),
             claim: {
               approve: true,
               diffLines: a.diff_lines,
@@ -765,22 +825,30 @@ export class MergeJobTool implements BuiltinTool<z.infer<typeof MergeJobInputSch
 
         if (!trust.ok) {
           const rejected = trust.mode === 'reject';
-          const job = patchJob(this.store, a.job_id, {
-            status: 'blocked',
-            notes: [
-              existing.notes,
-              rejected ? `merge: reject — ${trust.reason}` : `merge: hold — ${trust.reason}`,
-            ]
-              .filter(Boolean)
-              .join('\n'),
-          });
+          const holdNote = rejected
+            ? `merge: reject — ${trust.reason}`
+            : `merge: hold — ${trust.reason}`;
+          const job = patchJobAndNotify(
+            this.store,
+            a.job_id,
+            {
+              status: 'blocked',
+              notes: [existing.notes, holdNote].filter(Boolean).join('\n'),
+            },
+            { agent: this.agent, summary: holdNote },
+          );
+          const rejectLabel = trust.reason.includes('review')
+            ? 'review chain'
+            : trust.reason.includes('VerifySurface') || trust.reason.includes('visual=')
+              ? 'visual proof'
+              : 'trust rules';
           return {
             isError: true,
             output: ack(
               job!.id,
               job!.status,
               rejected
-                ? `Merge rejected (visual proof): ${trust.reason}`
+                ? `Merge rejected (${rejectLabel}): ${trust.reason}`
                 : `Merge held (trust rules): ${trust.reason}. Set force_user_confirm=true after user review for large/risky diffs.`,
             ),
           };
@@ -798,6 +866,7 @@ export class MergeJobTool implements BuiltinTool<z.infer<typeof MergeJobInputSch
           summary: a.summary,
           kaos: this.agent?.kaos,
           repoPath: this.agent?.config.cwd,
+          agent: this.agent,
           runGit: this.options?.runGit,
         });
 

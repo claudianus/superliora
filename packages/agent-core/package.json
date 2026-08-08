@@ -78,6 +78,7 @@
     "search:never-empty-kpi": "node scripts/search-never-empty-kpi.mjs",
     "deep-research:never-empty-kpi": "node scripts/deep-research-never-empty-kpi.mjs",
     "prove:claude-plugins": "node scripts/prove-claude-plugins.mjs",
+    "retrieval:build": "node --import tsx scripts/retrieval-build.mjs",
     "typecheck": "tsc -p tsconfig.src.json --noEmit",
     "typecheck:src": "tsc -p tsconfig.src.json --noEmit",
     "typecheck:tests": "tsc -p tsconfig.json --noEmit",
@@ -118,6 +119,9 @@
     "undici": "^7.27.1",
     "yauzl": "^3.3.0",
     "zod": "^4.3.6"
+  },
+  "optionalDependencies": {
+    "@huggingface/transformers": "^4.2.0"
   },
   "devDependencies": {
     "@huggingface/transformers": "^4.2.0",

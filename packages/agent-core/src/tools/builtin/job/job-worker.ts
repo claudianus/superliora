@@ -12,7 +12,6 @@ import {
   jobLooksLikeUiSurface,
   uiSpawnQualityFlags,
 } from '../../../premium-quality';
-import { requestConductorWake } from '../../../session/job/conductor-wake';
 import { getJobWorkerSpawner, requestJobSchedulePump } from '../../../session/job/job-offload';
 import { DEFAULT_SUBAGENT_TIMEOUT_MS } from '../../../session/subagent/subagent-host';
 import type { SubagentCompletion } from '../../../session/subagent/subagent-host-types';
@@ -34,20 +33,26 @@ import {
   bindJobWorkerLedger,
   unbindJobWorkerLedger,
 } from './job-worker-ledger-bridge';
-import { emitJobEvents, inboxToWireEvent, jobRecordToUpdatedEvent } from './job-emit';
-import { inboxKindForStatus, pushJobInboxEvent } from './job-inbox';
 import { syncGoalDeskParentFromDriver } from '../goal/goal-session-binding';
+import { EXPERT_CATALOG_BY_ID } from '../../../expert-agents/catalog';
+import { buildExpertAssignmentPrompt } from '../../../expert-agents/expert-persona';
+import { globalExpertSearchEngine } from '../../../expert-agents/search';
 import {
   renderDeliveryPhaseContract,
   renderStructuredBriefSections,
 } from './job-brief';
+import { runMergeLandJob, type LandJobToMainInput } from './job-land';
 import { getJob, listJobs, patchJob, type JobRecord, type JobStatus } from './job-ledger';
+import { notifyJobTerminal, patchJobAndNotify } from './job-notify';
+import { onJobTerminalForReviewChain } from './job-review-chain';
 import { profileForJobKind } from './job-runtime';
 import { commitJobWorktreeIfDirty } from './job-worktree-commit';
 
 export interface LaunchJobWorkerInput {
   readonly store: ToolStore;
   readonly agent: Agent;
+  /** Injectable git runner for kind=merge land (tests). */
+  readonly runGit?: LandJobToMainInput['runGit'];
   readonly job: JobRecord;
   readonly signal?: AbortSignal;
   /** Inject spawn for unit tests. */
@@ -66,8 +71,10 @@ export const JOB_PRIOR_FINDINGS_MAX_CHARS = 2000;
 export function jobPrompt(job: JobRecord, store?: ToolStore): string {
   const parentFindings = priorFindingsForJob(job, store);
   const uiJob = jobLooksLikeUiSurface(job);
+  const expertBlock = renderJobExpertBlock(job);
   const parts = [
     `You are a Conductor worker for job ${job.id}.`,
+    expertBlock,
     `Title: ${job.title}`,
     job.goalObjective
       ? [
@@ -117,9 +124,19 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
       '- Trace the brief against the codebase before editing (callers / fail path / success criteria).',
       '- Prefer the smallest diff that meets success criteria; stay inside ownership/context paths when set.',
       '- After each meaningful change, run focused checks when available; cite that evidence in the result summary.',
-      ...(uiJob
+      ...(job.expertRole === 'review' || job.expertRole === 'visual-qa'
         ? [
-            '- Visual DoD (UI job): write a short Art Direction Brief before first markup; Skill("premium-visual") before shipping a visible slice; call VerifySurface on the real surface before done (BrowserScreenshot alone does not set visual=passed); audit the attached screenshot or visualDescription against the craft rubric; record the screenshot path in the summary. MergeJob hard-fails without visual=passed.',
+            '- Review DoD: do not implement product features. Inspect the parent diff/summary; for UI call VerifySurface when a URL/HTML path exists. Final summary MUST include JSON {"verdict":"pass"|"fail","findings":[...],"required_fixes":[...]}.',
+          ]
+        : []),
+      ...(job.expertRole === 'debug'
+        ? [
+            '- Debug DoD: reproduce review findings, apply the smallest fix, re-verify. Do not expand scope or ship unrelated features.',
+          ]
+        : []),
+      ...(uiJob && job.expertRole !== 'review' && job.expertRole !== 'visual-qa'
+        ? [
+            '- Visual DoD (UI job): write a short Art Direction Brief before first markup; Skill("premium-visual") before shipping a visible slice; call VerifySurface once on the real surface before done (≤2 min fail-fast). VerifySurface requires load+interaction+craft axes (default click smoke + banned-ship craft audit); BrowserScreenshot alone does not set visual=passed. If the runtime is not ready, report visual failed — do not BrowserAct-explore or reinstall loops. Record screenshot path in the summary. MergeJob hard-fails without visual=passed.',
           ]
         : []),
       ...(job.worktreePath !== undefined
@@ -132,6 +149,33 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
     ].join('\n'),
   ];
   return parts.filter(Boolean).join('\n\n');
+}
+
+function renderJobExpertBlock(job: JobRecord): string | undefined {
+  const expertId = job.expertId?.trim();
+  if (expertId === undefined || expertId.length === 0) return undefined;
+  const expert =
+    globalExpertSearchEngine.getExpertById(expertId) ?? EXPERT_CATALOG_BY_ID[expertId];
+  if (expert === undefined) {
+    return [
+      `Staffed expert id: ${expertId}`,
+      job.expertRole !== undefined ? `Expert role: ${job.expertRole}` : undefined,
+      job.expertScore !== undefined ? `Staff score: ${String(job.expertScore)}` : undefined,
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+  return [
+    buildExpertAssignmentPrompt(expert, {
+      taskDescription: job.prompt ?? job.title,
+      selectionReason: job.staffQuery,
+      phase: job.expertRole,
+    }),
+    job.expertRole !== undefined ? `Expert role: ${job.expertRole}` : undefined,
+    job.expertScore !== undefined ? `Staff score: ${String(job.expertScore)}` : undefined,
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 /**
@@ -176,26 +220,6 @@ function contractFactLines(
     `Verification: tests=${v.tests}, typecheck=${v.typecheck}, lint=${v.lint}, visual=${v.visual ?? 'not_run'}`,
   );
   return lines;
-}
-
-function notifyInbox(
-  store: ToolStore,
-  job: JobRecord,
-  status: JobStatus,
-  summary?: string,
-  agent?: Agent,
-): void {
-  const kind = inboxKindForStatus(status);
-  if (kind === undefined) return;
-  const event = pushJobInboxEvent(store, {
-    kind,
-    jobId: job.id,
-    status,
-    title: job.title,
-    summary,
-  });
-  emitJobEvents(agent, [inboxToWireEvent(event), jobRecordToUpdatedEvent(job, { reason: kind })]);
-  if (agent !== undefined) requestConductorWake({ agent, store });
 }
 
 function isTerminalOrCancelled(status: JobStatus): boolean {
@@ -253,6 +277,21 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
         .filter(Boolean)
         .join('\n'),
     });
+    return { ok: true };
+  }
+
+  // Merge landing: deterministic git land on the source worktree — never an LLM.
+  if (job.kind === 'merge') {
+    // Ledger owns done/blocked; do not surface land failure as spawn_failed.
+    await runMergeLandJob({
+      store: input.store,
+      mergeJob: job,
+      kaos: input.agent.kaos,
+      repoPath: input.agent.config.cwd,
+      runGit: input.runGit,
+      agent: input.agent,
+    });
+    pumpSchedulerAfterWorker(input.agent, input.store);
     return { ok: true };
   }
 
@@ -433,9 +472,20 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
             .join('\n'),
         });
         if (updated) {
-          notifyInbox(input.store, updated, finalStatus, updated.resultSummary, input.agent);
-          syncGoalDeskParentFromDriver(input.store, updated);
+          notifyJobTerminal({
+            store: input.store,
+            job: updated,
+            status: finalStatus,
+            summary: updated.resultSummary,
+            agent: input.agent,
+          });
+          syncGoalDeskParentFromDriver(input.store, updated, input.agent);
           feedParentHarnessFromJobCompletion(input.agent, completion);
+          try {
+            await onJobTerminalForReviewChain(input.store, updated, input.agent);
+          } catch (error) {
+            input.agent.log.warn('review chain enqueue failed', error);
+          }
         }
       })
       .catch(async (error: unknown) => {
@@ -455,8 +505,14 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
             .join('\n'),
         });
         if (updated) {
-          notifyInbox(input.store, updated, 'failed', updated.resultSummary, input.agent);
-          syncGoalDeskParentFromDriver(input.store, updated);
+          notifyJobTerminal({
+            store: input.store,
+            job: updated,
+            status: 'failed',
+            summary: updated.resultSummary,
+            agent: input.agent,
+          });
+          syncGoalDeskParentFromDriver(input.store, updated, input.agent);
         }
       })
       .finally(() => {
@@ -480,7 +536,15 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
       ...(keepState ? {} : { status: 'failed' as const, resultSummary: detail.slice(0, 2000) }),
       notes: [current?.notes ?? job.notes, `spawn_failed: ${detail}`].filter(Boolean).join('\n'),
     });
-    if (updated && !keepState) notifyInbox(input.store, updated, 'failed', detail, input.agent);
+    if (updated && !keepState) {
+      notifyJobTerminal({
+        store: input.store,
+        job: updated,
+        status: 'failed',
+        summary: detail,
+        agent: input.agent,
+      });
+    }
     return { ok: false, error: detail };
   }
 }
@@ -510,17 +574,21 @@ export async function cancelJobWorker(input: {
   const aborted = abortRegisteredJobWorker(input.jobId, userCancellationReason());
   clearJobWorkerHandle(input.jobId);
 
-  const job = patchJob(input.store, input.jobId, {
-    status: 'cancelled',
-    notes: [
-      existing.notes,
-      input.reason ? `cancel: ${input.reason}` : 'cancel',
-      aborted ? 'worker: aborted' : 'worker: no live handle',
-    ]
-      .filter(Boolean)
-      .join('\n'),
-  });
-  if (job) notifyInbox(input.store, job, 'cancelled', input.reason);
+  const job = patchJobAndNotify(
+    input.store,
+    input.jobId,
+    {
+      status: 'cancelled',
+      notes: [
+        existing.notes,
+        input.reason ? `cancel: ${input.reason}` : 'cancel',
+        aborted ? 'worker: aborted' : 'worker: no live handle',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    },
+    { agent: input.agent, summary: input.reason },
+  );
 
   if (input.agent) {
     pumpSchedulerAfterWorker(input.agent, input.store);
@@ -569,11 +637,16 @@ export function steerJobWorker(input: {
   ]
     .filter(Boolean)
     .join('\n');
-  const job = patchJob(input.store, input.jobId, {
-    notes: note,
-    status: input.status ?? existing.status,
-    prompt: existing.prompt ? `${existing.prompt}\n\n[steer] ${input.message}` : input.message,
-  });
+  const job = patchJobAndNotify(
+    input.store,
+    input.jobId,
+    {
+      notes: note,
+      status: input.status ?? existing.status,
+      prompt: existing.prompt ? `${existing.prompt}\n\n[steer] ${input.message}` : input.message,
+    },
+    { agent: input.agent, summary: input.message },
+  );
   return { ok: true, job, steered };
 }
 
@@ -690,6 +763,7 @@ export async function resumeJobs(input: {
  */
 export function interruptRunningJobs(input: {
   readonly store: ToolStore;
+  readonly agent?: Agent;
   readonly reason?: string;
 }): readonly JobRecord[] {
   const reason = input.reason ?? 'session interrupted';
@@ -698,14 +772,16 @@ export function interruptRunningJobs(input: {
     if (job.status !== 'running') continue;
     abortRegisteredJobWorker(job.id, new Error(reason));
     clearJobWorkerHandle(job.id);
-    const next = patchJob(input.store, job.id, {
-      status: 'interrupted',
-      notes: [job.notes, `interrupt: ${reason}`].filter(Boolean).join('\n'),
-    });
-    if (next) {
-      notifyInbox(input.store, next, 'interrupted', reason);
-      out.push(next);
-    }
+    const next = patchJobAndNotify(
+      input.store,
+      job.id,
+      {
+        status: 'interrupted',
+        notes: [job.notes, `interrupt: ${reason}`].filter(Boolean).join('\n'),
+      },
+      { agent: input.agent, summary: reason },
+    );
+    if (next) out.push(next);
   }
   return out;
 }

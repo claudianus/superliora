@@ -198,7 +198,8 @@ export class LightpandaBrowserRuntime implements BrowserUseRuntime {
 
   private async installLightpanda(signal?: AbortSignal): Promise<SetupCommandResult> {
     throwIfAborted(signal);
-    this.installAttempt ??= (this.options.install ?? (() => installLightpandaBinary(this.options)))();
+    this.installAttempt ??= (this.options.install ?? (() =>
+      installLightpandaBinary({ ...this.options, signal })))();
     const result = await this.installAttempt;
     if (!result.ok) this.installAttempt = undefined;
     return result;

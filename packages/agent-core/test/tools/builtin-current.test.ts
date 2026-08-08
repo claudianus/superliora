@@ -406,7 +406,9 @@ describe('current builtin collaboration tools', () => {
 
     const result = await executeTool(tool, context({ query: 'brand guardian design review' }));
     expect(result.isError).toBeUndefined();
-    expect(result.output).toContain('<expert-search-results query="brand guardian design review">');
+    expect(result.output).toMatch(
+      /<expert-search-results query="brand guardian design review"(?:\s+model="[^"]*")?(?:\s+degraded="(?:true|false)")?>/,
+    );
     expect(result.output).toContain('<expert-candidate');
     expect(result.output).toContain('id="design-brand-guardian"');
     expect(result.output).toContain('subagent_type');
