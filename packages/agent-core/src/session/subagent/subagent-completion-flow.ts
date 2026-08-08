@@ -21,6 +21,7 @@ import {
   readSubagentCheckpoint,
 } from './subagent-checkpoint';
 import { getDefaultSwarmFileLeaseRegistry } from '#/fleet';
+import { extractToolCallEventsFromHistory } from '../../skill/auto-skillify-runtime';
 import { computeSubagentFriction } from './subagent-friction';
 import { snapshotChildWork, type GitWorkSnapshot } from './subagent-result-contract';
 import {
@@ -190,6 +191,7 @@ export async function migrateGoalToWorker(
     {
       objective: binding.objective,
       completionCriterion: binding.completionCriterion,
+      ...(binding.gateCommand !== undefined ? { gateCommand: binding.gateCommand } : {}),
     },
     'system',
   );
@@ -258,9 +260,10 @@ export async function collectChildCompletion(
 ): Promise<SubagentCompletion> {
   await runChildTurnToCompletion(child, options.signal);
 
-  // Friction is computed before the handoff compaction: the walk needs the
-  // tool results that compaction is about to collapse.
+  // Friction + skillify events are computed before the handoff compaction:
+  // the walk needs the tool results that compaction is about to collapse.
   const friction = computeSubagentFriction(child.context.history);
+  const skillifyEvents = extractToolCallEventsFromHistory(child.context.history);
   await child.fullCompaction.ensureBelowHandoffThreshold(options.signal);
 
   let result = lastAssistantText(child);
@@ -308,12 +311,25 @@ export async function collectChildCompletion(
   // Goal-driver terminal state (spec 2026-08-04-goal-driver-jobs §3.5):
   // `complete` clears the durable record, so a null goal on a migrated run
   // means success; anything else is the stopped status the Job maps to blocked.
+  const gateOutcome = child.goal.consumeTerminalGateOutcome();
+  const gateFields =
+    gateOutcome !== undefined ? ({ gateOutcome } as const) : ({} as const);
+  const skillifyFields =
+    skillifyEvents.length > 0 ? ({ skillifyEvents } as const) : ({} as const);
   if (options.goal === undefined) {
-    return { result, usage, contract, friction };
+    return { result, usage, contract, friction, ...gateFields, ...skillifyFields };
   }
   const goalFinal = child.goal.getGoal().goal;
   if (goalFinal === null) {
-    return { result, usage, contract, friction, goalStatus: 'complete' };
+    return {
+      result,
+      usage,
+      contract,
+      friction,
+      goalStatus: 'complete',
+      ...gateFields,
+      ...skillifyFields,
+    };
   }
   return {
     result,
@@ -323,6 +339,8 @@ export async function collectChildCompletion(
     goalStatus: goalFinal.status,
     goalId: goalFinal.goalId,
     goalTerminalReason: goalFinal.terminalReason,
+    ...gateFields,
+    ...skillifyFields,
   };
 }
 

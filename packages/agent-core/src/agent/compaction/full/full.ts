@@ -103,6 +103,22 @@ export class FullCompaction implements CompactionPipelineContext {
     return this.compacting !== null;
   }
 
+  /**
+   * Await the in-flight compaction worker (if any). Used by CompactTool so an
+   * agent-initiated run returns only after apply, not "started in background".
+   * Resolves false when nothing was running.
+   */
+  async waitUntilSettled(): Promise<boolean> {
+    const active = this.compacting;
+    if (active === null) return false;
+    try {
+      await active.promise;
+    } catch {
+      // Worker already logs/emits; callers care that the lock cleared.
+    }
+    return true;
+  }
+
   begin(data: Readonly<CompactionBeginData>): void {
     if (this.compacting) return;
     if (data.source === 'manual') {

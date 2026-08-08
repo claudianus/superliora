@@ -49,6 +49,7 @@ import { ContextMemory } from './context';
 import { GoalMode } from './goal';
 import { AutoDreamService } from './dream/auto-dream';
 import { AgentRefineService } from './refine/service';
+import { AutoSkillifyService } from './skillify/auto-skillify-service';
 import { PromptIntelligenceService } from './intelligence/prompt-intelligence';
 import { AutopilotMode } from '../autopilot';
 import { LioraMemoryStore } from '../memory/store';
@@ -229,6 +230,8 @@ export class Agent {
   readonly dream: AutoDreamService | null;
   /** Continual-harness refine pipeline; main agents only (subagents don't self-modify the harness). */
   readonly refine: AgentRefineService | null;
+  /** Deterministic experience → SKILL.md; main agents only. */
+  readonly skillify: AutoSkillifyService | null;
   readonly intelligence: PromptIntelligenceService;
   readonly autopilot: AutopilotMode;
   readonly premiumQuality: PremiumQualityMode;
@@ -333,6 +336,7 @@ export class Agent {
     this.dream =
       options.dreamStore !== undefined ? new AutoDreamService(this, options.dreamStore) : null;
     this.refine = this.type === 'main' ? new AgentRefineService(this) : null;
+    this.skillify = this.type === 'main' ? new AutoSkillifyService(this) : null;
     this.intelligence = new PromptIntelligenceService(this);
     this.autopilot = new AutopilotMode(this);
     this.premiumQuality = new PremiumQualityMode(this);

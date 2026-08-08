@@ -61,8 +61,16 @@ export const FLAG_DEFINITIONS = [
   {
     id: 'auto_refine',
     title: 'Auto harness refinement',
-    description: 'Every 25 turns (and after compactions), a cheap review-gate model decides whether the recent trajectory holds a reusable lesson; only then does a refine run apply small harness edits (prompt notes, memory, skills, subagent specs) with rollback support. At most one auto attempt per 20 minutes. Manual /refine works regardless. Disable with SUPERLIORA_EXPERIMENTAL_AUTO_REFINE=false.',
+    description: 'Every 10 turns (and after compactions), a cheap review-gate model decides whether the recent trajectory holds a reusable lesson; only then does a refine run apply small harness edits (prompt notes, memory, skills, subagent specs) with rollback support. At most one auto attempt per 5 minutes. Manual /refine works regardless. Disable with SUPERLIORA_EXPERIMENTAL_AUTO_REFINE=false.',
     env: 'SUPERLIORA_EXPERIMENTAL_AUTO_REFINE',
+    default: true,
+    surface: 'core',
+  },
+  {
+    id: 'auto_skillify',
+    title: 'Auto skill from trajectory',
+    description: 'After turns with tool retry/recovery patterns, write reusable SKILL.md files under .agents/skills/auto/ and register them live. Cooldown 5 minutes. Disable with SUPERLIORA_EXPERIMENTAL_AUTO_SKILLIFY=false.',
+    env: 'SUPERLIORA_EXPERIMENTAL_AUTO_SKILLIFY',
     default: true,
     surface: 'core',
   },

@@ -66,6 +66,16 @@ describe('resolveToolWorkflowCapability', () => {
     expect(cap.hasMemory).toBe(true);
   });
 
+  it('maps Script and Compact to PTC / compaction flags', () => {
+    const cap = resolveToolWorkflowCapability(['Script', 'Compact']);
+    expect(cap.hasScript).toBe(true);
+    expect(cap.hasCompact).toBe(true);
+    expect(hasToolWorkflowSurface(cap)).toBe(true);
+    const guidance = buildToolWorkflowGuidance(cap);
+    expect(guidance).toContain('Bulk N');
+    expect(guidance).toContain('Compact');
+  });
+
   it('treats empty tool set as no surface', () => {
     expect(hasToolWorkflowSurface(resolveToolWorkflowCapability([]))).toBe(false);
     expect(hasToolWorkflowSurface(resolveToolWorkflowCapability(['Bash']))).toBe(false);

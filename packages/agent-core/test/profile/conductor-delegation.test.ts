@@ -56,10 +56,14 @@ const CONDUCTOR_TOOL_SNAPSHOT = [
   'MergeJob',
   'JobResume',
   'JobInbox',
-  // Skills + user clarification
+  // Skills + self-improvement + user clarification
   'Skill',
   'SearchSkill',
+  'SkillCreate',
+  'Refine',
   'AskUserQuestion',
+  // Connected MCP / plugin servers (access pattern)
+  'mcp__*',
 ] as const;
 
 describe('conductor delegation-only tool surface', () => {

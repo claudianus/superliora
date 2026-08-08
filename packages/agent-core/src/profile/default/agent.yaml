@@ -9,8 +9,9 @@ promptVars:
 
 tools:
   # Session-coding waist (Loop5 + Loop19c): ApplyPatch + RepoQuery + WebSearch/FetchURL.
-  # DeepResearch / Context7 / media / expert / TaskGraph stay on superliora-full
-  # (or specialist profiles). Opt-in: SUPERLIORA_PROFILE=superliora-full.
+  # DeepResearch / expert / TaskGraph stay on superliora-full (or explore/plan).
+  # Media + Context7 live on Conductor worker profiles (coder/goal-driver/explore/plan).
+  # Opt-in full surface: SUPERLIORA_PROFILE=superliora-full.
   - Read
   - Write
   - Edit
@@ -18,6 +19,8 @@ tools:
   - Grep
   - Glob
   - Bash
+  - Script
+  - Compact
   - RunProjectChecks
   - RepoQuery
   # Progress transparency and long-run autonomy (main agent only).
@@ -30,10 +33,11 @@ tools:
   - GetGoal
   - SetGoalBudget
   - UpdateGoal
-  # Skills + subagents (catalog still loads on demand).
+  # Skills + subagents + continual-harness (main lane).
   - Skill
   - SearchSkill
   - SkillCreate
+  - Refine
   - SearchTools
   - Agent
   - Fleet
@@ -44,9 +48,11 @@ tools:
   - TaskList
   - TaskOutput
   - TaskStop
+  # Connected MCP / plugin servers (access pattern).
+  - mcp__*
   # Edges on superliora-full / explore / coder: DeepResearch, Expand, Memory,
-  # GetCurrentTime, Context7*, ReadMediaFile, SearchExpert, TaskGraph, visual/MCP.
-  # Default agent waist target: ≤29 (headroom under hard 30 cap).
+  # GetCurrentTime, Context7*, ReadMediaFile, SearchExpert, TaskGraph.
+  # Default agent waist: Script/Compact/Refine for Prime-parity harness (+ mcp__*).
 
 subagents:
   coder:

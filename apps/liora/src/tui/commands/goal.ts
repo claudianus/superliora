@@ -77,6 +77,8 @@ export type ParsedGoalCommand =
       readonly kind: 'create';
       readonly objective: string;
       readonly replace: boolean;
+      /** Shell gate for completion (Prime `--autonomous-gate` / CreateGoal.gateCommand). */
+      readonly gateCommand?: string;
     }
   | { readonly kind: 'next-add'; readonly objective: string }
   | { readonly kind: 'next-manage' }
@@ -89,9 +91,10 @@ const CONTROL_SUBCOMMANDS = new Set(['pause', 'resume', 'cancel']);
  * (`pause`/`resume`/`cancel`/`status`/`replace`) are only honored as the first
  * token; use `/goal -- <objective>` to start a goal whose text begins with one
  * of those words. (`cancel` is the single discard action — it removes the
- * current goal.) Stop conditions are expressed in the objective in natural
- * language (e.g. "…or stop after 20 turns"); the model honors them when it
- * self-audits each turn and reports `complete`/`blocked` via UpdateGoal.
+ * current goal.) Optional `--gate <cmd>` (quoted or single token) sets the
+ * completion shell gate. Stop conditions may also be expressed in the objective
+ * in natural language; the model honors them when it self-audits each turn and
+ * reports `complete`/`blocked` via UpdateGoal.
  */
 export function parseGoalCommand(rawArgs: string): ParsedGoalCommand {
   const args = rawArgs.trim();
@@ -106,26 +109,33 @@ export function parseGoalCommand(rawArgs: string): ParsedGoalCommand {
     return { kind: first as 'pause' | 'resume' | 'cancel' };
   }
 
+  const gated = extractGateFromRaw(args);
+  if (gated.error !== undefined) {
+    return { kind: 'error', message: gated.error };
+  }
+
+  const bodyTokens = gated.rest.trim().split(/\s+/).filter((t) => t.length > 0);
   let index = 0;
   let replace = false;
-  if (tokens[index] === 'replace') {
+  if (bodyTokens[index] === 'replace') {
     replace = true;
     index += 1;
   }
   // `--` ends subcommand parsing so an objective can begin with a reserved word
-  // (e.g. `/goal -- pause the rollout`).
-  if (tokens[index] === '--') {
+  // (e.g. `/goal -- pause the rollout`). Bare `--` is not `--gate`.
+  if (bodyTokens[index] === '--') {
     index += 1;
   }
 
-  const objective = tokens.slice(index).join(' ').trim();
+  const objective = bodyTokens.slice(index).join(' ').trim();
   if (objective.length === 0) {
     // A usage hint, not a failure — shown in the same calm style as the other
     // "nothing to act on" messages (no goal to pause/resume/cancel).
     return {
       kind: 'error',
       severity: 'hint',
-      message: 'Provide a goal objective, e.g. `/goal Ship feature X`.',
+      message:
+        'Provide a goal objective, e.g. `/goal Ship feature X` or `/goal --gate "pnpm test" Ship feature X`.',
     };
   }
   if (objective.length > MAX_GOAL_OBJECTIVE_LENGTH) {
@@ -134,7 +144,49 @@ export function parseGoalCommand(rawArgs: string): ParsedGoalCommand {
       message: `Goal objective is too long (max ${MAX_GOAL_OBJECTIVE_LENGTH} characters). Reference long details by file path.`,
     };
   }
-  return { kind: 'create', objective, replace };
+  return {
+    kind: 'create',
+    objective,
+    replace,
+    ...(gated.gateCommand !== undefined ? { gateCommand: gated.gateCommand } : {}),
+  };
+}
+
+/**
+ * Pull one `--gate <cmd>` / `--gate=<cmd>` from the raw args (supports quotes).
+ * Removes the matched span so objective parsing stays whitespace-token based.
+ */
+function extractGateFromRaw(raw: string): {
+  readonly rest: string;
+  readonly gateCommand?: string;
+  readonly error?: string;
+} {
+  const pattern =
+    /(?:^|\s)--gate(?:=|\s+)(?:"([^"]*)"|'([^']*)'|(\S+))/g;
+  let match: RegExpExecArray | null;
+  let gateCommand: string | undefined;
+  let rest = raw;
+  while ((match = pattern.exec(raw)) !== null) {
+    const value = match[1] ?? match[2] ?? match[3] ?? '';
+    if (value.length === 0) {
+      return { rest: raw, error: '`--gate` command cannot be empty.' };
+    }
+    if (gateCommand !== undefined) {
+      return { rest: raw, error: 'Only one `--gate` is allowed.' };
+    }
+    gateCommand = value;
+    const start = match.index;
+    const end = match.index + match[0].length;
+    rest = `${raw.slice(0, start)}${raw.slice(end)}`.replace(/\s+/g, ' ').trim();
+  }
+  // Bare `--gate` with nothing after.
+  if (/(?:^|\s)--gate\s*$/.test(raw) || /(?:^|\s)--gate=\s*$/.test(raw)) {
+    return {
+      rest: raw,
+      error: '`--gate` needs a command, e.g. `/goal --gate "pnpm test" Ship feature X`.',
+    };
+  }
+  return { rest, ...(gateCommand !== undefined ? { gateCommand } : {}) };
 }
 
 export async function handleGoalCommand(host: SlashCommandHost, args: string): Promise<void> {
@@ -419,6 +471,7 @@ async function startGoal(
     snapshot = await host.requireSession().createGoal({
       objective: parsed.objective,
       replace: parsed.replace,
+      ...(parsed.gateCommand !== undefined ? { gateCommand: parsed.gateCommand } : {}),
     });
   } catch (error) {
     if (isKimiError(error) && error.code === ErrorCodes.GOAL_ALREADY_EXISTS) {

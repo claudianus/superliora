@@ -17,10 +17,10 @@ describe('profile-glance', () => {
     const glance = loadProfileLiveGlance({ env: {} });
     expect(glance.effectiveProfile).toBe('conductor');
     expect(glance.sovereignCoreOptIn).toBe(false);
-    expect(glance.expectedToolCount).toBe(27); // conductor
-    expect(formatProfileToolsBadge(glance)).toBe('profile=conductor tools=27');
+    expect(glance.expectedToolCount).toBe(25); // conductor
+    expect(formatProfileToolsBadge(glance)).toBe('profile=conductor tools=25');
     expect(formatProfileLiveStatusLine(glance)).toBe(
-      'Conductor: ON (default) · profile=conductor tools=27',
+      'Conductor: ON (default) · profile=conductor tools=25',
     );
   });
 
@@ -32,7 +32,7 @@ describe('profile-glance', () => {
     expect(glance.sovereignCoreOptIn).toBe(true);
     expect(glance.sovereignCoreTrigger).toBe(SOVEREIGN_CORE_DEFAULT_ENV);
     expect(formatProfileLiveStatusLine(glance)).toBe(
-      'Conductor: ON (default) · profile=conductor tools=27',
+      'Conductor: ON (default) · profile=conductor tools=25',
     );
   });
 
@@ -43,10 +43,10 @@ describe('profile-glance', () => {
     };
     const glance = loadProfileLiveGlance({ env });
     expect(glance.effectiveProfile).toBe('agent');
-    expect(glance.expectedToolCount).toBe(29);
+    expect(glance.expectedToolCount).toBe(34);
     expect(isSovereignCoreDefaultEnabled(env)).toBe(true);
-    expect(formatProfileToolsBadge(glance)).toBe('profile=agent tools=29');
-    expect(formatProfileLiveStatusLine(glance)).toBe('Core waist: OFF · profile=agent tools=29');
+    expect(formatProfileToolsBadge(glance)).toBe('profile=agent tools=34');
+    expect(formatProfileLiveStatusLine(glance)).toBe('Core waist: OFF · profile=agent tools=34');
   });
 
   it('enables sovereign soft flag via umbrella env without forcing core profile', () => {
@@ -55,7 +55,7 @@ describe('profile-glance', () => {
     expect(glance.effectiveProfile).toBe('conductor');
     expect(glance.sovereignCoreTrigger).toBe(SOVEREIGN_UMBRELLA_ENV);
     expect(formatProfileLiveStatusLine(glance)).toBe(
-      'Conductor: ON (default) · profile=conductor tools=27',
+      'Conductor: ON (default) · profile=conductor tools=25',
     );
   });
 
@@ -67,8 +67,8 @@ describe('profile-glance', () => {
 
   it('maps bundled waist sizes for diagnostics', () => {
     expect(expectedToolCountForProfile('core')).toBe(12);
-    expect(expectedToolCountForProfile('agent')).toBe(29);
-    expect(expectedToolCountForProfile('conductor')).toBe(27);
+    expect(expectedToolCountForProfile('agent')).toBe(34);
+    expect(expectedToolCountForProfile('conductor')).toBe(25);
     expect(expectedToolCountForProfile('custom-profile')).toBeUndefined();
   });
 });

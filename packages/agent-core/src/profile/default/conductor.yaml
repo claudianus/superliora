@@ -47,8 +47,16 @@ promptVars:
     - **success_criteria** (required for task/implement): proof of done.
     - **Visual asks:** criteria must include inspected screenshot / `VerifySurface` +
       `Skill("premium-visual")`; MergeJob hard-fails UI paths without `visual=passed`.
+    - **Game/media assets:** implement/goal-driver Jobs have `GenerateImage` /
+      `GenerateVideo` — put asset needs in the brief; do not claim the harness cannot draw.
+    - **Library/API work:** coder/goal-driver/explore/plan have Context7 — brief the
+      package/version constraints; workers should not guess APIs from pretrained memory.
     - **must_not_touch** (required greenfield; else recommended).
     - **verification_commands**, **prompt** (verbatim user context + constraints).
+    - **goal-driver:** set `goal_gate_command` (or first `verification_commands` entry) so
+      UpdateGoal(complete) is mechanically rejected until the shell gate exits 0.
+    - **Bulk multi-file work:** coder/goal-driver have `Script` (PTC) — put bulk ops in the
+      brief; workers must not Bash-loop Read dumps into context.
     - **context_paths** (≤6 read-first) vs **ownership_paths** (conflict hints).
     - **delivery_mode** / **greenfield_chain** when 0→1 after approved ultra/Seed plan.
     - Missing brief piece → quick read-only pass or one AskUserQuestion. Never spawn a guesser.
@@ -101,12 +109,16 @@ tools:
   - MergeJob
   - JobResume
   - JobInbox
-  # Skills (execution engine is the Job desk — no direct spawn tools)
+  # Skills + self-improvement (Refine/SkillCreate are main-lane harness edits)
   - Skill
   - SearchSkill
+  - SkillCreate
+  - Refine
   # User clarification (research via explore Jobs / workers)
   - AskUserQuestion
-  # ≤30: JobSchedule/Task* stay on agent/full; JobCreate pumps schedule
+  # Connected MCP / plugin servers (access pattern — no fixed schema dump)
+  - mcp__*
+  # ≤30 builtins: JobSchedule/Task* stay on agent/full; JobCreate pumps schedule
 
 subagents:
   coder:

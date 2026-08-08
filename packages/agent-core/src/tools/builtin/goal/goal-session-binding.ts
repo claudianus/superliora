@@ -22,6 +22,8 @@ export interface GoalSessionBinding {
   readonly deskJobId: string;
   readonly objective: string;
   readonly completionCriterion: string;
+  /** Shell gate on the goal-driver Job (Prime autonomous-gate). */
+  readonly gateCommand?: string;
   readonly driverJobIds: readonly string[];
   readonly status: GoalSessionBindingStatus;
   readonly updatedAt: string;

@@ -28,6 +28,8 @@ import {
 export interface GoalDeskDelegateInput {
   readonly objective: string;
   readonly completionCriterion?: string;
+  /** Shell gate for the goal-driver worker (Prime autonomous-gate). */
+  readonly gateCommand?: string;
   readonly replace?: boolean;
   readonly title?: string;
 }
@@ -88,6 +90,7 @@ export async function delegateConductorGoalDesk(
     prompt: deskPrompt,
   });
 
+  const gateCommand = input.gateCommand?.trim() || undefined;
   const driver = createJob(store, {
     title: `Goal: ${title}`.slice(0, 120),
     kind: 'goal-driver',
@@ -96,7 +99,9 @@ export async function delegateConductorGoalDesk(
     parentJobId: desk.id,
     goalObjective: objective,
     goalCompletionCriterion: criterion,
+    ...(gateCommand !== undefined ? { goalGateCommand: gateCommand } : {}),
     successCriteria: [criterion],
+    ...(gateCommand !== undefined ? { verificationCommands: [gateCommand] } : {}),
   });
 
   const binding: GoalSessionBinding = {
@@ -105,6 +110,7 @@ export async function delegateConductorGoalDesk(
     deskJobId: desk.id,
     objective,
     completionCriterion: criterion,
+    ...(gateCommand !== undefined ? { gateCommand } : {}),
     driverJobIds: [driver.id],
     status: 'active',
     updatedAt: new Date().toISOString(),

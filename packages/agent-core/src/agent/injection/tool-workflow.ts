@@ -20,6 +20,10 @@ export type ToolWorkflowCapability = {
   readonly hasRunProjectChecks: boolean;
   readonly hasTodoList: boolean;
   readonly hasMemory: boolean;
+  /** Programmatic tool calling (Prime PTC / Script). */
+  readonly hasScript: boolean;
+  /** Agent-initiated compaction mid-turn. */
+  readonly hasCompact: boolean;
 };
 
 const TOOL_CAPABILITY_NAMES = {
@@ -40,6 +44,8 @@ const TOOL_CAPABILITY_NAMES = {
   RunProjectChecks: 'hasRunProjectChecks',
   TodoList: 'hasTodoList',
   Memory: 'hasMemory',
+  Script: 'hasScript',
+  Compact: 'hasCompact',
 } as const satisfies Record<string, keyof ToolWorkflowCapability>;
 
 export function resolveToolWorkflowCapability(
@@ -58,6 +64,8 @@ export function resolveToolWorkflowCapability(
     hasRunProjectChecks: false,
     hasTodoList: false,
     hasMemory: false,
+    hasScript: false,
+    hasCompact: false,
   };
   for (const name of set) {
     const key = TOOL_CAPABILITY_NAMES[name as keyof typeof TOOL_CAPABILITY_NAMES];
@@ -78,7 +86,9 @@ export function hasToolWorkflowSurface(cap: ToolWorkflowCapability): boolean {
     cap.hasLeanRead ||
     cap.hasVerifySurface ||
     cap.hasRunProjectChecks ||
-    cap.hasTodoList
+    cap.hasTodoList ||
+    cap.hasScript ||
+    cap.hasCompact
   );
 }
 
@@ -98,6 +108,18 @@ export function buildToolWorkflowGuidance(cap: ToolWorkflowCapability): string {
   if (cap.hasLeanRead) {
     lines.push(
       '- Codebase: RepoQuery (content/path/symbol/outline) before full Read dumps; expand archived overflow only on failure paths.',
+    );
+  }
+
+  if (cap.hasScript) {
+    lines.push(
+      '- Bulk N≳10 same op (read/transform/aggregate/fan-out): Script(read/write/glob/exec[/agent]); keep raw in store/files; return aggregates only — never Bash-loop or per-item Read dumps into context.',
+    );
+  }
+
+  if (cap.hasCompact) {
+    lines.push(
+      '- Context bloated mid-task: Compact(action=run) before another large read/search wave (waits until apply); Compact(action=status) shows pendingApply.',
     );
   }
 
@@ -147,6 +169,8 @@ export function buildToolWorkflowGuidance(cap: ToolWorkflowCapability): string {
   if (cap.hasContext7) available.push('Context7');
   if (cap.hasLeanRead) available.push('RepoQuery');
   if (cap.hasFetchUrl) available.push('FetchURL');
+  if (cap.hasScript) available.push('Script');
+  if (cap.hasCompact) available.push('Compact');
   if (available.length > 0) {
     lines.push(
       `- Do not skip ${available.join('/')} out of habit when the task needs them; harness power comes from using the full tool surface.`,
@@ -168,6 +192,8 @@ export function buildToolWorkflowSparseGuidance(cap: ToolWorkflowCapability): st
   if (cap.hasWebSearch || cap.hasFetchUrl) bits.push('WebSearch/FetchURL when stale');
   if (cap.hasContext7) bits.push('Context7 for libs');
   if (cap.hasLeanRead) bits.push('RepoQuery before dumps');
+  if (cap.hasScript) bits.push('Script for bulk');
+  if (cap.hasCompact) bits.push('Compact when bloated');
   bits.push('dedicated tools > Bash');
   bits.push('Write≠shell I/O');
   bits.push('no secret shell');

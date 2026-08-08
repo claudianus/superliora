@@ -30,7 +30,7 @@ export const ScriptToolInputSchema = z
       .string()
       .min(1)
       .describe(
-        'JavaScript to run (async). Available: read(path), write(path, text), glob(pattern), exec(command), agent(prompt, profile?), sleep(ms), store (persistent object), console.log. `return` the final summary.',
+        'JavaScript to run (async). Available: read(path), write(path, text), glob(pattern), grep(pattern, glob?), exec(command), agent(prompt, profile?), sleep(ms), store (persistent object), console.log. `return` the final summary. write is omitted when the profile has no Write tool (e.g. explore).',
       ),
     timeout_ms: z
       .number()
@@ -47,6 +47,18 @@ export type ScriptToolInput = z.infer<typeof ScriptToolInputSchema>;
 const OUTPUT_MAX_CHARS = 8_000;
 const EXEC_OUTPUT_MAX_CHARS = 32_000;
 const GLOB_MAX_RESULTS = 1_000;
+const GREP_MAX_HITS = 200;
+/** Cap persisted Script `store` JSON so ToolStore cannot bloat the session. */
+const SCRIPT_STORE_MAX_CHARS = 64_000;
+
+export const SCRIPT_PTC_STORE_KEY = 'script_ptc_store' as const;
+
+declare module '../../store' {
+  interface ToolStoreData {
+    /** JSON-safe Script PTC `store` object, session-scoped across Script calls. */
+    script_ptc_store: Record<string, unknown>;
+  }
+}
 
 export class ScriptTool implements BuiltinTool<ScriptToolInput> {
   readonly name = 'Script' as const;
@@ -125,10 +137,36 @@ export class ScriptTool implements BuiltinTool<ScriptToolInput> {
           abortReject = reject;
         }),
       ]);
+      this.persistStore(context);
       return this.renderOutput(value);
     } finally {
       if (timer !== undefined) clearTimeout(timer);
       ctx.signal.removeEventListener('abort', onAbort);
+    }
+  }
+
+  private loadPersistedStore(): Record<string, unknown> {
+    try {
+      const stored = this.agent.tools?.getStore?.().get(SCRIPT_PTC_STORE_KEY);
+      if (stored !== undefined && typeof stored === 'object' && stored !== null) {
+        return { ...stored };
+      }
+    } catch {
+      /* ToolStore unavailable in unit fixtures */
+    }
+    return {};
+  }
+
+  private persistStore(context: vm.Context): void {
+    try {
+      const store = (context as { store?: unknown }).store;
+      if (store === undefined || typeof store !== 'object' || store === null) return;
+      const json = JSON.stringify(store);
+      if (json === undefined || json.length > SCRIPT_STORE_MAX_CHARS) return;
+      const parsed = JSON.parse(json) as Record<string, unknown>;
+      this.agent.tools?.getStore?.().set(SCRIPT_PTC_STORE_KEY, parsed);
+    } catch {
+      // Non-JSON values in store are dropped; Script still returns its result.
     }
   }
 
@@ -155,8 +193,14 @@ export class ScriptTool implements BuiltinTool<ScriptToolInput> {
           .join(' '),
       );
     };
+    // Explore (and other read-only profiles) lack Write — keep Script honest.
+    // Default allow when tools aren't mounted yet (unit fixtures).
+    const loopTools = this.agent.tools?.loopTools;
+    const canWrite =
+      loopTools === undefined ? true : loopTools.some((tool) => tool.name === 'Write');
     const sandbox: Record<string, unknown> = {
-      store: {},
+      // Session ToolStore-backed so store survives ScriptTool recreate / new vm context.
+      store: this.loadPersistedStore(),
       console: { log: pushLog, info: pushLog, warn: pushLog, error: pushLog },
       sleep: async (ms: number): Promise<void> => {
         await new Promise<void>((resolve) => {
@@ -164,9 +208,6 @@ export class ScriptTool implements BuiltinTool<ScriptToolInput> {
         });
       },
       read: async (path: string): Promise<string> => kaos.readText(resolvePath(path)),
-      write: async (path: string, content: string): Promise<void> => {
-        await kaos.writeText(resolvePath(path), content);
-      },
       glob: async (pattern: string): Promise<string[]> => {
         const out: string[] = [];
         for await (const match of kaos.glob(cwd, pattern)) {
@@ -174,6 +215,12 @@ export class ScriptTool implements BuiltinTool<ScriptToolInput> {
           if (out.length >= GLOB_MAX_RESULTS) break;
         }
         return out;
+      },
+      grep: async (
+        pattern: string,
+        fileGlob?: string,
+      ): Promise<Array<{ path: string; line: number; text: string }>> => {
+        return scriptGrep(kaos, cwd, pattern, fileGlob);
       },
       exec: async (command: string): Promise<{ stdout: string; stderr: string; code: number }> => {
         const proc = await kaos.exec('bash', '-lc', command);
@@ -186,6 +233,11 @@ export class ScriptTool implements BuiltinTool<ScriptToolInput> {
         return { stdout, stderr, code };
       },
     };
+    if (canWrite) {
+      sandbox['write'] = async (path: string, content: string): Promise<void> => {
+        await kaos.writeText(resolvePath(path), content);
+      };
+    }
     const host = this.agent.type === 'main' ? this.agent.subagentHost : undefined;
     if (host != null) {
       sandbox['agent'] = async (prompt: string, profile?: string): Promise<string> => {
@@ -211,4 +263,42 @@ async function collectStream(stream: NodeJS.ReadableStream, cap: number): Promis
     if (text.length < cap) text += String(chunk as Buffer | string);
   }
   return text.length <= cap ? text : `${text.slice(0, cap)}\n…[truncated]`;
+}
+
+/** Bounded content search for Script PTC — prefers `rg`, falls back to empty on miss. */
+async function scriptGrep(
+  kaos: Kaos,
+  cwd: string,
+  pattern: string,
+  fileGlob?: string,
+): Promise<Array<{ path: string; line: number; text: string }>> {
+  const escaped = pattern.replaceAll("'", `'\\''`);
+  const globFlag =
+    fileGlob !== undefined && fileGlob.trim().length > 0
+      ? ` -g '${fileGlob.replaceAll("'", `'\\''`)}'`
+      : '';
+  // --no-heading -n -I: path:line:text; ignore binary; cap via head in shell.
+  const command = `rg -n -I --no-heading --color=never${globFlag} -- '${escaped}' . | head -n ${String(GREP_MAX_HITS)}`;
+  const proc = await kaos.exec('bash', '-lc', command);
+  const [stdout, , code] = await Promise.all([
+    collectStream(proc.stdout, EXEC_OUTPUT_MAX_CHARS),
+    collectStream(proc.stderr, 2_000),
+    proc.wait(),
+  ]);
+  await proc.dispose();
+  // rg exit 1 = no matches; 2 = error — both yield whatever stdout we got.
+  if (code > 1 && stdout.trim().length === 0) return [];
+  const hits: Array<{ path: string; line: number; text: string }> = [];
+  for (const raw of stdout.split('\n')) {
+    if (raw.length === 0) continue;
+    const first = raw.indexOf(':');
+    const second = first >= 0 ? raw.indexOf(':', first + 1) : -1;
+    if (first < 0 || second < 0) continue;
+    const path = raw.slice(0, first);
+    const line = Number(raw.slice(first + 1, second));
+    if (!Number.isFinite(line)) continue;
+    hits.push({ path, line, text: raw.slice(second + 1) });
+    if (hits.length >= GREP_MAX_HITS) break;
+  }
+  return hits;
 }

@@ -139,6 +139,13 @@ const JobCreateInputSchema = z
       .describe(
         'kind=goal-driver: required verifiable finish line the driver goal must meet (commands passing, behavior observable). The runtime creates the Goal with it — do not restate it as an instruction to the worker.',
       ),
+    goal_gate_command: z
+      .string()
+      .trim()
+      .optional()
+      .describe(
+        'kind=goal-driver: shell command that must exit 0 before UpdateGoal(complete) is accepted (Prime autonomous-gate). When omitted, the first verification_commands entry is used if present.',
+      ),
     goal_budget: z
       .object({
         token_budget: z.number().int().positive().optional(),
@@ -513,6 +520,10 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
               ? {
                   goalObjective: intent.prompt?.trim() || intent.title || a.title,
                   goalCompletionCriterion: a.goal_completion_criterion,
+                  goalGateCommand:
+                    a.goal_gate_command?.trim() ||
+                    verificationCommands[0] ||
+                    undefined,
                   goalBudgetLimits:
                     a.goal_budget !== undefined
                       ? {

@@ -30,10 +30,10 @@ export const KNOWN_MAIN_AGENT_PROFILE_NAMES = [
  * Used for /status · /profile · Settings so guides never claim tools the waist lacks.
  */
 export const KNOWN_PROFILE_TOOL_COUNTS: Readonly<Record<string, number>> = {
-  // conductor.yaml: 27 tools (read/inspect waist; JobResume/JobInbox; JobSchedule/WebSearch on full)
-  [SOVEREIGN_CONDUCTOR_PROFILE_NAME]: 27,
+  // conductor.yaml whitelist length (builtins + mcp__* access pattern).
+  [SOVEREIGN_CONDUCTOR_PROFILE_NAME]: 25,
   [SOVEREIGN_CORE_PROFILE_NAME]: 12,
-  [DEFAULT_MAIN_AGENT_PROFILE_NAME]: 29,
+  [DEFAULT_MAIN_AGENT_PROFILE_NAME]: 34,
   // superliora-full grows with visual/MCP globs — approximate floor for diagnostics only.
   'superliora-full': 50,
 };

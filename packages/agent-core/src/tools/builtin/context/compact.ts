@@ -2,9 +2,8 @@
  * CompactTool — lets the model trigger full compaction itself (Prime Agent's
  * `compact.run()` equivalent) or inspect how close the context is to the
  * compaction threshold (`compact.status()` equivalent). Manual RPC compaction
- * rejects mid-turn, so the run action goes through the `agent` source, which
- * runs the worker in background mode alongside the live turn — the same path
- * async background compaction already uses.
+ * rejects mid-turn, so the run action goes through the `agent` source and
+ * awaits apply so the next tool batch sees the reduced context.
  */
 
 import { z } from 'zod';
@@ -21,7 +20,9 @@ export const CompactToolInputSchema = z
     action: z
       .enum(['run', 'status'])
       .default('run')
-      .describe('run: start background compaction. status: report current context usage vs the compaction threshold.'),
+      .describe(
+        'run: compact now and wait until the summary is applied. status: report current context usage vs the compaction threshold (includes pendingApply while a run is in flight).',
+      ),
     instruction: z
       .string()
       .optional()
@@ -46,26 +47,18 @@ export class CompactTool implements BuiltinTool<CompactToolInput> {
       approvalRule: this.name,
       execute: async () => {
         if (args.action === 'status') {
-          const used = this.agent.context.tokenCountWithPending;
-          const max = compaction.getEffectiveMaxContextTokens();
-          const percent = max > 0 ? Math.round((used / max) * 100) : 0;
-          const compactedBefore = this.agent.context.history.some(
-            (message) => message.origin?.kind === 'compaction_summary',
-          );
+          return { output: this.statusOutput() };
+        }
+        if (compaction.isCompacting) {
           return {
             output: [
-              `Context tokens: ${String(used)} / ${String(max)} (${String(percent)}%).`,
-              `Compaction in progress: ${compaction.isCompacting ? 'yes' : 'no'}.`,
-              `Compacted before: ${compactedBefore ? 'yes' : 'no'}.`,
-              compaction.isCompacting
-                ? 'A background compaction is already running; its summary lands at a turn boundary.'
-                : 'Call Compact(action=run) when the current phase no longer needs earlier detail.',
+              'Compaction is already in progress (pendingApply=yes).',
+              'Awaiting the in-flight run…',
+              await this.awaitAndReport(),
             ].join('\n'),
           };
         }
-        if (compaction.isCompacting) {
-          return { output: 'Compaction is already in progress; no new run started.' };
-        }
+        const before = this.agent.context.tokenCountWithPending;
         compaction.begin({ source: 'agent', instruction: args.instruction });
         if (!compaction.isCompacting) {
           return {
@@ -73,11 +66,48 @@ export class CompactTool implements BuiltinTool<CompactToolInput> {
               'Nothing to compact right now — the current history has no compactable prefix. Try again after more turns.',
           };
         }
-        return {
-          output:
-            'Compaction started in the background. Older history will be summarized; recent messages stay intact and archived tool results remain recoverable via Expand. You can keep working.',
-        };
+        return { output: await this.awaitAndReport(before) };
       },
     };
+  }
+
+  private statusOutput(): string {
+    const compaction = this.agent.fullCompaction;
+    const used = this.agent.context.tokenCountWithPending;
+    const max = compaction.getEffectiveMaxContextTokens();
+    const percent = max > 0 ? Math.round((used / max) * 100) : 0;
+    const compactedBefore = this.agent.context.history.some(
+      (message) => message.origin?.kind === 'compaction_summary',
+    );
+    const pendingApply = compaction.isCompacting;
+    return [
+      `Context tokens: ${String(used)} / ${String(max)} (${String(percent)}%).`,
+      `Compaction in progress: ${pendingApply ? 'yes' : 'no'}.`,
+      `pendingApply: ${pendingApply ? 'yes' : 'no'}.`,
+      `Compacted before: ${compactedBefore ? 'yes' : 'no'}.`,
+      pendingApply
+        ? 'A compaction run is applying — wait or call Compact(action=run) again to await it.'
+        : 'Call Compact(action=run) when the current phase no longer needs earlier detail; it waits until the summary is applied.',
+    ].join('\n');
+  }
+
+  private async awaitAndReport(tokensBefore?: number): Promise<string> {
+    const compaction = this.agent.fullCompaction;
+    const before = tokensBefore ?? this.agent.context.tokenCountWithPending;
+    await compaction.waitUntilSettled();
+    const after = this.agent.context.tokenCountWithPending;
+    const max = compaction.getEffectiveMaxContextTokens();
+    const percent = max > 0 ? Math.round((after / max) * 100) : 0;
+    const delta = before - after;
+    const deltaLine =
+      delta > 0
+        ? `Reclaimed ~${String(delta)} tokens (${String(before)} → ${String(after)}).`
+        : `Context now ${String(after)} tokens (no net reclaim — summary may have been large).`;
+    return [
+      'Compaction applied (pendingApply=no).',
+      deltaLine,
+      `Context tokens: ${String(after)} / ${String(max)} (${String(percent)}%).`,
+      'Recent messages stay intact; archived tool results remain recoverable via Expand.',
+    ].join('\n');
   }
 }

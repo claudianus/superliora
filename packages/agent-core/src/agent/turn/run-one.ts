@@ -162,6 +162,7 @@ export async function runOneTurnFlow(
   await recordTurnMemory(agent, turnId, input, ended.reason);
   agent.dream?.maybeSchedule();
   agent.refine?.maybeAutoRefine('turn');
+  agent.skillify?.maybeSchedule();
   if (ended.reason !== 'completed') {
     turnTelemetry.trackTurnInterrupted(turnId, turnTelemetry.currentStepForTurn(turnId));
   }
