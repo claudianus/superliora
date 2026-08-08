@@ -23,6 +23,7 @@ const SRC = join(import.meta.dirname, '..', 'src');
 // templated prompt file is introduced.
 const TEMPLATED = new Set([
   'profile/default/system.md',
+  'profile/default/layer1-static.md',
   'profile/default/layer2-session.md',
   'profile/default/layer3-dynamic.md',
   'agent/compaction/prompts/compaction-instruction.md',
