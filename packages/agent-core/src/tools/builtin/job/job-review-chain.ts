@@ -3,7 +3,7 @@
  * Maker≠Checker: review expertId must differ from the implement parent's.
  */
 
-import type { Agent } from '../../../agent';
+import type { Agent } from '../../../agent/index';
 import { globalExpertSearchEngine } from '../../../expert-agents/search';
 import { jobLooksLikeUiSurface } from '../../../premium-quality/ui-surface';
 import { requestJobSchedulePump } from '../../../session/job/job-offload';

@@ -16,7 +16,9 @@ jobs:
     with:
       upload-artifact-prefix: liora-native
       retention-days: 3
-      sign-macos: true
+      # Unsigned local SEA profile — Apple secrets are not required for CI smoke.
+      # Use Publish Native Release with sign-macos when notarized macOS builds are needed.
+      sign-macos: false
     secrets:
       APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
       APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}

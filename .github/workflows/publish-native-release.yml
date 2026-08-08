@@ -25,13 +25,9 @@ jobs:
     with:
       upload-artifact-prefix: liora-native
       retention-days: 7
-      sign-macos: true
-    secrets:
-      APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
-      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-      APPLE_NOTARIZATION_KEY_P8: ${{ secrets.APPLE_NOTARIZATION_KEY_P8 }}
-      APPLE_NOTARIZATION_KEY_ID: ${{ secrets.APPLE_NOTARIZATION_KEY_ID }}
-      APPLE_NOTARIZATION_ISSUER_ID: ${{ secrets.APPLE_NOTARIZATION_ISSUER_ID }}
+      # Default unsigned so publish works without Apple notarization secrets.
+      # Flip to true (and provide APPLE_* secrets) when shipping notarized macOS SEA.
+      sign-macos: false
 
   publish:
     name: Publish release assets
