@@ -77,6 +77,7 @@ describe('gitCheckoutUpdateScript', () => {
     expect(script).toContain('install --frozen-lockfile');
     expect(script).toContain('run build:packages');
     expect(script).toContain('apps/liora run build');
+    expect(script).toContain('retrieval:bootstrap');
     expect(script).toContain("__LIORA_UPGRADE_STAGE__=installing");
     expect(script).toContain('scripts/install-liora.mjs --bin-dir "$bin_dir" --name "$command_name" --no-shell-rc --force');
     expect(script).toContain("__LIORA_UPGRADE_STAGE__=done");

@@ -19,6 +19,7 @@ NO_BUILD=0
 NO_SHELL_RC=0
 NO_BROWSER_USE=0
 NO_COMPUTER_USE=0
+NO_RETRIEVAL=0
 
 usage() {
   cat <<EOF
@@ -37,13 +38,15 @@ Options:
   --no-build           Skip pnpm install/build after checkout
   --no-browser-use     Skip CloakBrowser binary pre-install
   --no-computer-use    Skip cua-driver computer-use install
+  --no-retrieval       Skip local Granite-97M embedder download + passage indexes
   --no-shell-rc        Do not edit shell startup files
   -h, --help           Show this help
 
 Environment variables:
   SUPERLIORA_REPO_URL, SUPERLIORA_REF, SUPERLIORA_INSTALL_DIR,
   SUPERLIORA_BIN_DIR, SUPERLIORA_COMMAND, SUPERLIORA_NODE_MIN,
-  SUPERLIORA_SKIP_BROWSER_USE, SUPERLIORA_SKIP_COMPUTER_USE
+  SUPERLIORA_SKIP_BROWSER_USE, SUPERLIORA_SKIP_COMPUTER_USE,
+  SUPERLIORA_SKIP_RETRIEVAL
 EOF
 }
 
@@ -168,6 +171,10 @@ while [ "$#" -gt 0 ]; do
       ;;
     --no-computer-use)
       NO_COMPUTER_USE=1
+      shift
+      ;;
+    --no-retrieval)
+      NO_RETRIEVAL=1
       shift
       ;;
     --no-shell-rc)
@@ -311,6 +318,15 @@ if [ "$NO_BUILD" -eq 0 ]; then
         log "warning: cua-driver auto-install is not supported on this platform"
         ;;
     esac
+  fi
+
+  if [ "$NO_RETRIEVAL" -eq 0 ] && [ "${SUPERLIORA_SKIP_RETRIEVAL:-0}" != "1" ]; then
+    log "Pre-installing local SearchExpert embedder (Granite-97M ONNX) + passage indexes"
+    (
+      cd "$INSTALL_DIR"
+      SUPERLIORA_RETRIEVAL_EMBEDDER=transformers COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
+        corepack pnpm -C packages/agent-core run retrieval:bootstrap
+    ) || log "warning: retrieval bootstrap failed; SearchExpert falls back to hash until online — retry with 'pnpm -C packages/agent-core run retrieval:bootstrap'"
   fi
 fi
 
