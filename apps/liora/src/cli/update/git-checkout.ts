@@ -81,7 +81,9 @@ function buildGitCheckoutUpdateShellLines(repoExpr: string): readonly string[] {
     `if [ -z "$upstream" ]; then if git -C ${repoExpr} rev-parse --verify origin/main >/dev/null 2>&1; then upstream='origin/main'; else upstream='origin/master'; fi; fi`,
     'ref="${upstream#origin/}"',
     `git -C ${repoExpr} fetch --depth 1 origin "$ref"`,
-    `git -C ${repoExpr} checkout --force FETCH_HEAD`,
+    // Stay on the tracking branch — bare FETCH_HEAD checkout leaves detached HEAD
+    // and surfaces git's "git branch <new-branch-name>" advice as a false failure.
+    `git -C ${repoExpr} -c advice.detachedHead=false checkout --force -B "$ref" FETCH_HEAD`,
     `git -C ${repoExpr} reset --hard FETCH_HEAD`,
     `echo '__LIORA_UPGRADE_STAGE__=building'`,
     `corepack pnpm -C ${repoExpr} install --frozen-lockfile`,
