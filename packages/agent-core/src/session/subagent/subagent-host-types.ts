@@ -8,6 +8,7 @@
 import type { TokenUsage } from '@superliora/kosong';
 
 import type { GoalBudgetLimits, GoalStatus } from '../../agent/goal/types';
+import type { ToolCallEvent } from '../../skill/auto-skillify';
 import type { SubagentFriction } from './subagent-friction';
 import type { SubagentResultContract } from './subagent-result-contract';
 
@@ -27,6 +28,8 @@ export type {
 export interface SubagentGoalBinding {
   readonly objective: string;
   readonly completionCriterion?: string;
+  /** Shell gate — markComplete rejects until this command exits 0 (Prime autonomous-gate). */
+  readonly gateCommand?: string;
   readonly budgetLimits?: GoalBudgetLimits;
 }
 
@@ -101,6 +104,16 @@ export type SubagentCompletion = {
   readonly goalStatus?: GoalStatus;
   readonly goalId?: string;
   readonly goalTerminalReason?: string;
+  /**
+   * Terminal autonomous-gate verdict from a migrated goal — parent Conductor
+   * refine scores harness entries (child refine is null).
+   */
+  readonly gateOutcome?: 'passed' | 'exhausted';
+  /**
+   * Deterministic tool success/failure events from the worker trajectory for
+   * parent auto-skillify (child skillify is main-only).
+   */
+  readonly skillifyEvents?: readonly ToolCallEvent[];
 };
 
 export type SubagentHandle = {

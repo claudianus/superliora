@@ -36,14 +36,15 @@ import {
   type HarnessState,
 } from './state';
 
-export const AUTO_REFINE_TURN_INTERVAL = 25;
-export const AUTO_REFINE_POST_COMPACT_MIN_TURNS = 3;
+export const AUTO_REFINE_TURN_INTERVAL = 10;
+export const AUTO_REFINE_POST_COMPACT_MIN_TURNS = 2;
 /**
- * Prime parity (cooldownMs 20min): at most one auto attempt per window, and
- * never in the first window after agent construction. The wall-clock floor
- * also keeps the auto path inert in tests, which run 25 turns in seconds.
+ * Auto-refine cooldown: at most one auto attempt per window, and never in the
+ * first window after agent construction. Shorter than the original 20min Prime
+ * parity so real Conductor sessions actually refine; tests that need the old
+ * inertness should stub `now`.
  */
-export const AUTO_REFINE_COOLDOWN_MS = 20 * 60 * 1000;
+export const AUTO_REFINE_COOLDOWN_MS = 5 * 60 * 1000;
 
 export interface RefineRunOptions {
   readonly scope?: HarnessScope;
@@ -284,15 +285,19 @@ export class AgentRefineService {
     throw new Error(`Refinement ${refinementId} not found.`);
   }
 
-  /** Turn-end hook (mirrors AutoDreamService.maybeSchedule). */
-  maybeAutoRefine(reason: 'turn' | 'compaction'): void {
+  /** Turn-end / Job-completion hook (mirrors AutoDreamService.maybeSchedule). */
+  maybeAutoRefine(reason: 'turn' | 'compaction' | 'job'): void {
     if (!this.agent.experimentalFlags.enabled('auto_refine')) return;
     if (this.agent.type !== 'main') return;
     this.turnsSinceRefine += reason === 'turn' ? 1 : 0;
+    // Job completion with friction/gate is high-signal — treat like due now
+    // (still subject to cooldown / in-flight guards below).
     const due =
-      reason === 'compaction'
-        ? this.turnsSinceRefine >= AUTO_REFINE_POST_COMPACT_MIN_TURNS
-        : this.turnsSinceRefine >= AUTO_REFINE_TURN_INTERVAL;
+      reason === 'job'
+        ? true
+        : reason === 'compaction'
+          ? this.turnsSinceRefine >= AUTO_REFINE_POST_COMPACT_MIN_TURNS
+          : this.turnsSinceRefine >= AUTO_REFINE_TURN_INTERVAL;
     if (!due || this.inFlight || this.autoInFlight) return;
     if (this.agent.context.history.length === 0) return;
     const anchor = this.lastAutoAttemptAt ?? this.createdAt;

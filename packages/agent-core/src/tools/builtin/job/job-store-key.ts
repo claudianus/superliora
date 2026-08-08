@@ -84,6 +84,8 @@ export interface JobRecord {
   readonly goalId?: string;
   readonly goalObjective?: string;
   readonly goalCompletionCriterion?: string;
+  /** Shell gate for goal-driver markComplete (Prime `--autonomous-gate`). */
+  readonly goalGateCommand?: string;
   readonly goalBudgetLimits?: GoalBudgetLimits;
   readonly resultSummary?: string;
   /** Machine-readable handoff facts (files changed, verification) from the worker contract. */

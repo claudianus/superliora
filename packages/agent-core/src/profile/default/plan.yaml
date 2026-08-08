@@ -6,8 +6,8 @@ promptVars:
 whenToUse: |
   Use this agent when the parent agent needs a step-by-step implementation plan, key file identification, and architectural trade-off analysis before code changes are made.
 tools:
-  # Lean planning surface: explore + write plan files/lifecycle. No Context7
-  # schema bloat on every plan spawn.
+  # Plan Desk / mission waist: explore + Script PTC + write plan files/lifecycle + library docs.
+  # No Browser*/media-gen/RunProjectChecks — implement Jobs own execution proof.
   - Read
   - Write
   - Edit
@@ -15,10 +15,13 @@ tools:
   - Grep
   - Glob
   - Bash
+  - Script
   - RepoQuery
   - WebSearch
   - DeepResearch
   - FetchURL
+  - Context7Resolve
+  - Context7Docs
   - ReadMediaFile
   - Review
   - TodoList
@@ -31,3 +34,4 @@ tools:
   - NextPhase
   - RecordInterviewFinding
   - AskUserQuestion
+  - mcp__*

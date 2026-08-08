@@ -67,6 +67,7 @@ export function createJob(
     /** Goal-driver binding (spec 2026-08-04-goal-driver-jobs). */
     readonly goalObjective?: string;
     readonly goalCompletionCriterion?: string;
+    readonly goalGateCommand?: string;
     readonly goalBudgetLimits?: GoalBudgetLimits;
     /** Plan Desk: ultra structured pipeline vs regular free-form plan. */
     readonly planStructured?: boolean;
@@ -92,6 +93,7 @@ export function createJob(
     parentJobId: input.parentJobId,
     goalObjective: input.goalObjective,
     goalCompletionCriterion: input.goalCompletionCriterion,
+    goalGateCommand: input.goalGateCommand,
     goalBudgetLimits: input.goalBudgetLimits,
     planStructured: input.planStructured,
   };

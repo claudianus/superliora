@@ -106,6 +106,11 @@ export class GoalMode {
   private lastCompletionRejection: CompletionAuditRejection | undefined;
   /** Last gate run, used to skip re-running a failed gate on an unchanged workspace. */
   private lastGateAttempt: GateAttempt | undefined;
+  /**
+   * Terminal gate verdict for parent refine scoring (goal-driver → Conductor).
+   * Child agents have no refine service; the Job completion path consumes this.
+   */
+  private lastTerminalGateOutcome: 'passed' | 'exhausted' | undefined;
 
   constructor(private readonly agent: Agent) {
   }
@@ -373,6 +378,7 @@ export class GoalMode {
       if (rejection.code === 'gate_retry_exhausted') {
         // Measured refinement: a terminal gate failure scores every active
         // harness entry; entries that correlate with regression roll back.
+        this.lastTerminalGateOutcome = 'exhausted';
         void this.agent.refine?.recordGateOutcome('exhausted').catch((error: unknown) => {
           this.agent.log.warn('refine gate-outcome scoring failed', error);
         });
@@ -397,6 +403,7 @@ export class GoalMode {
 
     if (gateRan) {
       // Measured refinement: a passed gate confirms every active harness entry.
+      this.lastTerminalGateOutcome = 'passed';
       void this.agent.refine?.recordGateOutcome('passed').catch((error: unknown) => {
         this.agent.log.warn('refine gate-outcome scoring failed', error);
       });
@@ -425,6 +432,16 @@ export class GoalMode {
    */
   getLastCompletionRejection(): CompletionAuditRejection | undefined {
     return this.lastCompletionRejection;
+  }
+
+  /**
+   * Consume the terminal gate verdict once (for parent Conductor refine scoring).
+   * Returns undefined when no gate ran to a terminal outcome this lifecycle.
+   */
+  consumeTerminalGateOutcome(): 'passed' | 'exhausted' | undefined {
+    const outcome = this.lastTerminalGateOutcome;
+    this.lastTerminalGateOutcome = undefined;
+    return outcome;
   }
 
   /** Consecutive false-complete rejections since last success (tests / dashboards). */

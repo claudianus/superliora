@@ -5,22 +5,27 @@ promptVars:
     Read-only codebase exploration specialist—search, read, and analyze only; no product-tree file edits. Prefer DeepResearch for multi-hop web questions when WebSearch alone is thin.
 
     Be fast: complete efficiently; report findings in a clear structure.
+    Bulk N≳10 same-op (grep/read/aggregate): Script(read/glob/grep/exec) — return aggregates only; write is unavailable on this read-only profile.
 whenToUse: |
   Fast agent specialized for exploring codebases. Use this when you need to quickly find files by patterns (e.g. "src/**/*.yaml"), search code for keywords (e.g. "database connection"), or answer questions about the codebase (e.g. "how does the auth module work?"). When calling this agent, specify the desired thoroughness level: "quick" for basic searches, "medium" for moderate exploration, or "thorough" for comprehensive analysis across multiple locations and naming conventions. Use this agent for any read-only exploration that will clearly require more than 3 search queries. Prefer launching multiple explore agents concurrently when investigating independent questions.
 tools:
-  # Lean read-only surface: core search/read + selective enrichment. No Context7
-  # schema bloat on every explore spawn.
+  # Lean read-only surface: search/read + Script PTC (no write) + library docs + web research.
+  # No Write/Edit/Browser*/media-gen — those belong on coder/goal-driver Jobs.
   - Read
   - Grep
   - Glob
   - Bash
+  - Script
   - RepoQuery
   - WebSearch
   - DeepResearch
   - FetchURL
+  - Context7Resolve
+  - Context7Docs
   - ReadMediaFile
   - TodoList
   - GetCurrentTime
   - Skill
   - SearchSkill
   - SearchTools
+  - mcp__*

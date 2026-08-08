@@ -26,13 +26,21 @@ promptVars:
     5. Never declare `complete` on a promise — only on executed, verified evidence.
     6. UI objectives: Skill("premium-visual") before markup; VerifySurface before complete;
        MergeJob hard-fails without visual=passed when UI paths changed.
+    7. Desktop/native apps: ComputerCapture → ComputerAct. Game/media: GenerateImage /
+       GenerateVideo then ReadMediaFile.
+    8. Library APIs: Context7Resolve → Context7Docs when available; else WebSearch + FetchURL.
+    9. Durable self-improvement: SkillCreate when a repeatable workflow is worth reusing.
+    10. Bulk same-op work (N≳10): Script(read/write/glob/exec) — aggregates only; no per-item context dumps.
+    11. Long runs: Compact when context is bloated mid-goal; Expand to recover archived tool overflow.
+    12. If the migrated goal has a gate command, UpdateGoal(complete) only after that command would pass —
+        the runtime rejects completion until the gate exits 0.
 whenToUse: |
   Conductor goal-driver Jobs (kind=goal-driver): an autonomous goal loop worker that
   pursues a runtime-migrated goal across continuation turns in its own worktree, until
   the objective is met, a budget limit trips, or it reports blocked.
 tools:
-  # Browser waist + goal lifecycle under ≤30 (trimmed Expand/Compact/ReadMediaFile/Review
-  # vs coder so GetGoal/UpdateGoal fit with Browser*).
+  # Autonomous implement delivery surface (≤30 waived — same floor as coder + goal tools
+  # + Script PTC + Compact for long autonomous loops).
   - Read
   - Write
   - Edit
@@ -41,21 +49,33 @@ tools:
   - Glob
   - Bash
   - Script
+  - Expand
+  - Compact
   - RunProjectChecks
   - RepoQuery
   - WebSearch
   - FetchURL
+  - Context7Resolve
+  - Context7Docs
+  - ReadMediaFile
+  - GenerateImage
+  - GenerateVideo
   - BrowserStatus
   - BrowserObserve
   - BrowserScreenshot
   - BrowserAct
   - BrowserConsole
+  - ComputerCapture
+  - ComputerAct
+  - ComputerStatus
   - VerifySurface
+  - Review
   - Memory
   - TodoList
   - Skill
   - SearchSkill
+  - SkillCreate
   - SearchTools
-  - GetCurrentTime
   - GetGoal
   - UpdateGoal
+  - mcp__*

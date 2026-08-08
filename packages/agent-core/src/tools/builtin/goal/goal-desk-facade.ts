@@ -52,6 +52,7 @@ export function snapshotFromGoalDeskBinding(binding: GoalSessionBinding): GoalSn
     goalId: binding.goalId,
     objective: binding.objective,
     completionCriterion: binding.completionCriterion,
+    ...(binding.gateCommand !== undefined ? { gateCommand: binding.gateCommand } : {}),
     status: bindingStatusToGoalStatus(binding.status),
     turnsUsed: 0,
     tokensUsed: 0,
@@ -65,12 +66,18 @@ export function snapshotFromGoalDeskBinding(binding: GoalSessionBinding): GoalSn
 
 export async function conductorCreateGoal(
   agent: Agent,
-  input: { readonly objective: string; readonly replace?: boolean; readonly completionCriterion?: string },
+  input: {
+    readonly objective: string;
+    readonly replace?: boolean;
+    readonly completionCriterion?: string;
+    readonly gateCommand?: string;
+  },
 ): Promise<GoalSnapshot> {
   const result = await delegateConductorGoalDesk(agent, {
     objective: input.objective,
     replace: input.replace,
     completionCriterion: input.completionCriterion,
+    gateCommand: input.gateCommand,
   });
   return snapshotFromGoalDeskBinding(result.binding);
 }

@@ -15,6 +15,8 @@ import {
 import { requestConductorWake } from '../../../session/job/conductor-wake';
 import { getJobWorkerSpawner, requestJobSchedulePump } from '../../../session/job/job-offload';
 import { DEFAULT_SUBAGENT_TIMEOUT_MS } from '../../../session/subagent/subagent-host';
+import type { SubagentCompletion } from '../../../session/subagent/subagent-host-types';
+import { renderFrictionSection } from '../../../session/subagent/subagent-friction';
 import {
   UNVERIFIED_SUMMARY_PREFIX,
   verificationIsUnverified,
@@ -74,6 +76,9 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
           `Objective: ${job.goalObjective}`,
           job.goalCompletionCriterion
             ? `Completion criterion: ${job.goalCompletionCriterion}`
+            : undefined,
+          job.goalGateCommand
+            ? `Gate command (must exit 0 before complete): \`${job.goalGateCommand}\``
             : undefined,
           'Report the outcome through UpdateGoal: complete when the criterion is met',
           '(with verification evidence), blocked when an external blocker stops you.',
@@ -310,6 +315,9 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
         ? {
             objective: job.goalObjective ?? job.prompt?.trim() ?? job.title,
             completionCriterion: job.goalCompletionCriterion,
+            ...(job.goalGateCommand !== undefined
+              ? { gateCommand: job.goalGateCommand }
+              : {}),
             budgetLimits: job.goalBudgetLimits,
           }
         : undefined,
@@ -386,13 +394,22 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
         const goalReason = completion.goalTerminalReason
           ? ` (${completion.goalTerminalReason})`
           : '';
-        const resultSummary = verificationFailed
+        const baseSummary = verificationFailed
           ? `verification failed — ${summary}`
           : goalStopped
             ? `goal ${completion.goalStatus}${goalReason} — ${summary}`
             : unverified
               ? `${UNVERIFIED_SUMMARY_PREFIX}${summary}`
               : summary;
+        // Feed worker struggle stats into Conductor inbox so auto-refine sees them.
+        const frictionBlock =
+          completion.friction !== undefined
+            ? renderFrictionSection(completion.friction)
+            : undefined;
+        const resultSummary =
+          frictionBlock !== undefined
+            ? `${baseSummary}\n\n${frictionBlock}`.slice(0, 4500)
+            : baseSummary;
         const updated = patchJob(input.store, job.id, {
           // A done with a failed verification gate misled the conductor:
           // surface explicit verification failures as failed so the playbook
@@ -418,6 +435,7 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
         if (updated) {
           notifyInbox(input.store, updated, finalStatus, updated.resultSummary, input.agent);
           syncGoalDeskParentFromDriver(input.store, updated);
+          feedParentHarnessFromJobCompletion(input.agent, completion);
         }
       })
       .catch(async (error: unknown) => {
@@ -693,3 +711,34 @@ export function interruptRunningJobs(input: {
 }
 
 export { abortRegisteredJobWorker as abortJobWorker };
+
+/**
+ * Wire Job worker evidence into the Conductor harness loop: gate scores
+ * (measured refine rollback), auto-refine nudge, and worker tool events for
+ * auto-skillify. Child agents have no refine/skillify services.
+ */
+function feedParentHarnessFromJobCompletion(
+  parent: Agent,
+  completion: SubagentCompletion,
+): void {
+  const refine = parent.refine;
+  if (refine !== null && refine !== undefined) {
+    if (completion.gateOutcome !== undefined) {
+      void refine.recordGateOutcome(completion.gateOutcome).catch((error: unknown) => {
+        parent.log.warn('parent refine gate-outcome scoring failed', error);
+      });
+    }
+    const hasFriction = (completion.friction?.toolErrors ?? 0) > 0;
+    if (hasFriction || completion.gateOutcome !== undefined) {
+      refine.maybeAutoRefine('job');
+    }
+  }
+  if (
+    completion.skillifyEvents !== undefined &&
+    completion.skillifyEvents.length > 0 &&
+    parent.skillify !== null &&
+    parent.skillify !== undefined
+  ) {
+    parent.skillify.ingestWorkerEvents(completion.skillifyEvents);
+  }
+}

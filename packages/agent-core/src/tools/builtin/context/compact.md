@@ -4,6 +4,6 @@ Use when you are about to start a fresh phase of work and the earlier detail is 
 
 Do NOT use when the current phase still depends on earlier details — the summary lossy-compresses them. The full transcript is never deleted from disk either way.
 
-Runs in the background; you can keep working. Pass `instruction` to steer what the summary must preserve (e.g. "keep the failing test names and the fix plan").
+`action: "run"` waits until the summary is applied before returning, so the next tool batch sees the reduced context. Pass `instruction` to steer what the summary must preserve (e.g. "keep the failing test names and the fix plan").
 
-Use `action: "status"` to check current context tokens vs the compaction threshold before deciding whether to compact — compact when the current phase is done and usage is climbing, not on a fixed schedule.
+Use `action: "status"` to check current context tokens vs the compaction threshold (`pendingApply` is yes while a run is in flight). Compact when the current phase is done and usage is climbing, not on a fixed schedule.

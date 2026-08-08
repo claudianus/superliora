@@ -77,6 +77,18 @@ describe('delegateConductorGoalDesk', () => {
     expect(snap.status).toBe('active');
   });
 
+  it('propagates gateCommand onto the goal-driver Job and snapshot', async () => {
+    const store = memoryStore();
+    const agent = fakeConductorAgent(store);
+    const result = await delegateConductorGoalDesk(agent, {
+      objective: 'Keep checks green',
+      gateCommand: 'pnpm test',
+    });
+    expect(result.driver.goalGateCommand).toBe('pnpm test');
+    expect(result.binding.gateCommand).toBe('pnpm test');
+    expect(snapshotFromGoalDeskBinding(result.binding).gateCommand).toBe('pnpm test');
+  });
+
   it('skips LLM spawn for the goal-desk umbrella', async () => {
     const store = memoryStore();
     const agent = fakeConductorAgent(store);

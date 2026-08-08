@@ -39,10 +39,27 @@ function makeKaos(files: Record<string, string> = {}): Kaos {
   } as unknown as Kaos;
 }
 
-function makeAgent(options: { type?: 'main' | 'sub'; spawn?: unknown } = {}): Agent {
+function makeAgent(
+  options: {
+    type?: 'main' | 'sub';
+    spawn?: unknown;
+    toolNames?: readonly string[];
+    store?: Map<string, unknown>;
+  } = {},
+): Agent {
+  const data = options.store ?? new Map<string, unknown>();
   return {
     type: options.type ?? 'main',
     config: { cwd: '/work' },
+    tools: {
+      loopTools: (options.toolNames ?? ['Write']).map((name) => ({ name })),
+      getStore: () => ({
+        get: (key: string) => data.get(key) as never,
+        set: (key: string, value: unknown) => {
+          data.set(key, value);
+        },
+      }),
+    },
     subagentHost:
       options.spawn !== undefined
         ? { spawn: options.spawn }
@@ -81,6 +98,17 @@ describe('ScriptTool', () => {
     expect(second.output).toContain('2');
   });
 
+  it('persists store across ScriptTool instances via ToolStore', async () => {
+    const shared = new Map<string, unknown>();
+    const first = new ScriptTool(makeAgent({ store: shared }), makeKaos());
+    await runScript(first, `store.seen = 7; return store.seen;`);
+
+    const second = new ScriptTool(makeAgent({ store: shared }), makeKaos());
+    const result = await runScript(second, `return store.seen;`);
+
+    expect(result.output).toContain('7');
+  });
+
   it('reads and writes files through kaos with cwd-relative paths', async () => {
     const files = { '/work/a.txt': 'alpha', '/work/b.txt': 'beta' };
     const kaos = makeKaos(files);
@@ -106,6 +134,35 @@ describe('ScriptTool', () => {
     const result = await runScript(tool, `const r = await exec('ls'); return r.stdout.trim();`);
 
     expect(result.output).toContain('hello from exec');
+  });
+
+  it('grep parses rg path:line:text hits', async () => {
+    const kaos = makeKaos();
+    kaos.exec = vi.fn(async () => ({
+      stdout: Readable.from(['src/a.ts:10:foo bar\nsrc/b.ts:3:foo baz\n']),
+      stderr: Readable.from(['']),
+      wait: async () => 0,
+      dispose: async () => {},
+    }));
+    const tool = new ScriptTool(makeAgent(), kaos);
+
+    const result = await runScript(
+      tool,
+      `const hits = await grep('foo', '*.ts'); return hits.map(h => h.path + ':' + h.line);`,
+    );
+
+    expect(result.isError).toBeFalsy();
+    expect(result.output).toContain('src/a.ts:10');
+    expect(result.output).toContain('src/b.ts:3');
+  });
+
+  it('omits write when the profile has no Write tool', async () => {
+    const tool = new ScriptTool(makeAgent({ toolNames: ['Read', 'Grep', 'Script'] }), makeKaos());
+
+    const result = await runScript(tool, `await write('x.txt', 'nope'); return 'ok';`);
+
+    expect(result.isError).toBe(true);
+    expect(result.output).toMatch(/write is not defined/);
   });
 
   it('agent() fans out subagents programmatically and returns their results', async () => {

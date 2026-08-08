@@ -197,13 +197,35 @@ describe('parseGoalCommand', () => {
     });
   });
 
-  it('keeps option-looking tokens as part of the objective (no goal flags)', () => {
-    // Goal command flags are not parsed after `/goal`; stop conditions go in the
-    // objective as natural language, so option-looking text stays objective text.
+  it('keeps unknown option-looking tokens as part of the objective', () => {
+    // Only `--gate` is a create flag; other option-looking text stays objective text.
     expect(parseGoalCommand('--retry-strategy Ship feature X')).toMatchObject({
       kind: 'create',
       objective: '--retry-strategy Ship feature X',
     });
+  });
+
+  it('parses --gate with a quoted command', () => {
+    expect(parseGoalCommand('--gate "pnpm test" Ship feature X')).toMatchObject({
+      kind: 'create',
+      objective: 'Ship feature X',
+      replace: false,
+      gateCommand: 'pnpm test',
+    });
+    expect(parseGoalCommand('Ship feature X --gate=\'pnpm run gate\'')).toMatchObject({
+      kind: 'create',
+      objective: 'Ship feature X',
+      gateCommand: 'pnpm run gate',
+    });
+  });
+
+  it('parses --gate=token and rejects bare --gate', () => {
+    expect(parseGoalCommand('--gate=pnpm-test Ship it')).toMatchObject({
+      kind: 'create',
+      objective: 'Ship it',
+      gateCommand: 'pnpm-test',
+    });
+    expect(parseGoalCommand('--gate')).toMatchObject({ kind: 'error' });
   });
 
   it('treats text after -- as the objective', () => {
@@ -219,6 +241,15 @@ describe('parseGoalCommand', () => {
       kind: 'create',
       objective: 'Ship feature Y',
       replace: true,
+    });
+  });
+
+  it('parses replace with --gate', () => {
+    expect(parseGoalCommand('replace --gate "pnpm test" Ship feature Y')).toMatchObject({
+      kind: 'create',
+      objective: 'Ship feature Y',
+      replace: true,
+      gateCommand: 'pnpm test',
     });
   });
 
@@ -287,6 +318,18 @@ describe('handleGoalCommand', () => {
     );
     expectGoalWorkflowPrompt(host, 'Ship feature X');
     expect(host.sendNormalUserInput).not.toHaveBeenCalledWith('/goal Ship feature X');
+  });
+
+  it('/goal --gate passes gateCommand to createGoal', async () => {
+    await handleGoalCommand(host, '--gate "pnpm test" Ship feature X');
+    await confirmGoalStart(host, session, 'auto');
+    expect(session.createGoal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        objective: 'Ship feature X',
+        replace: false,
+        gateCommand: 'pnpm test',
+      }),
+    );
   });
 
   it('/goal <objective> keeps the sendNormalUserInput host receiver', async () => {

@@ -2,12 +2,15 @@ extends: subagent-base
 name: coder
 promptVars:
   roleAdditionalAppend: |
-    Execution cadence: explore → smallest change → focused check → continue. No drive-by cleanup outside the brief. Match local style; delete only dead paths you touch. When blocked, stop with evidence. Your final handoff must include verification evidence (commands/tests/observations) so the parent can trust the result. For user-visible UI: Skill("premium-visual") before first markup; VerifySurface / BrowserScreenshot before done.
+    Execution cadence: explore → smallest change → focused check → continue. No drive-by cleanup outside the brief. Match local style; delete only dead paths you touch. When blocked, stop with evidence. Your final handoff must include verification evidence (commands/tests/observations) so the parent can trust the result. For user-visible UI: Skill("premium-visual") before first markup; VerifySurface / BrowserScreenshot before done. Desktop/native apps: ComputerCapture → ComputerAct (SOM indexes). Game/media assets: GenerateImage / GenerateVideo (then ReadMediaFile). Library APIs: Context7Resolve → Context7Docs when available.     Durable self-improvement: SkillCreate when you invent a repeatable workflow worth reusing.
+    Bulk same-op work (N≳10 files/items): Script(read/write/glob/exec) — keep raw in store/files; return aggregates only. Do not Bash-loop or Read dump each item into context.
 whenToUse: |
   Use this agent for non-trivial software engineering work that may require reading files, editing code, running commands, and returning a compact but technically complete summary to the parent agent.
 tools:
-  # Lean coding + browser-use waist for visual proof (≤30). DeepResearch/SkillCreate
-  # stay on superliora-full to leave room for Browser*. Computer* stays on full.
+  # Implement/merge Job delivery surface. ≤30 waist waived for Conductor workers —
+  # media, desktop computer-use, SkillCreate, Script (PTC), and mcp__* are product requirements.
+  # Dropped: Refine (main-only dead slot). Compact for mid-Job context fold.
+  # Job*/Agent/Fleet stay off leaf workers. Time via <current_time> injector.
   - Read
   - Write
   - Edit
@@ -18,17 +21,23 @@ tools:
   - Script
   - Expand
   - Compact
-  - Refine
   - RunProjectChecks
   - RepoQuery
   - WebSearch
   - FetchURL
+  - Context7Resolve
+  - Context7Docs
   - ReadMediaFile
+  - GenerateImage
+  - GenerateVideo
   - BrowserStatus
   - BrowserObserve
   - BrowserScreenshot
   - BrowserAct
   - BrowserConsole
+  - ComputerCapture
+  - ComputerAct
+  - ComputerStatus
   - VerifySurface
   - Review
   - VisualDiff
@@ -36,5 +45,6 @@ tools:
   - TodoList
   - Skill
   - SearchSkill
+  - SkillCreate
   - SearchTools
-  - GetCurrentTime
+  - mcp__*

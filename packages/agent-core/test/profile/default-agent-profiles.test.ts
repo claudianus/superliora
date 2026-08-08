@@ -240,13 +240,16 @@ describe('default agent profiles', () => {
     }
   });
 
-  it('keeps default agent waist ≤30 and moves Expand/Context7/media/expert/DeepResearch edges to full', () => {
+  it('keeps default agent waist with Script/Compact/Refine and moves Expand/Context7/media/expert/DeepResearch edges to full', () => {
     const agentTools = DEFAULT_AGENT_PROFILES['agent']?.tools ?? [];
-    expect(agentTools.length).toBeLessThanOrEqual(30);
-    // Conductor reform: RecordInterviewFinding on agent; Review on full — stay ≤30.
-    // SkillCreate (continual-harness skill authoring) fills the last headroom slot.
-    expect(agentTools).toHaveLength(30);
+    const builtinCount = agentTools.filter((name) => !name.startsWith('mcp__')).length;
+    // Prime-parity harness: Script (PTC) + Compact + Refine on the classic main lane.
+    expect(builtinCount).toBe(33);
+    expect(agentTools).toContain('mcp__*');
     expect(agentTools).toContain('RecordInterviewFinding');
+    expect(agentTools).toContain('Script');
+    expect(agentTools).toContain('Compact');
+    expect(agentTools).toContain('Refine');
     for (const edge of [
       'Expand',
       'Memory',
@@ -285,57 +288,147 @@ describe('default agent profiles', () => {
     }
   });
 
-  it('keeps Review on coder/full; agent prefers RecordInterviewFinding; VisualDiff/media Extended', () => {
-    // Default agent waist: RecordInterviewFinding over Review; Review on full/coder.
+  it('keeps Conductor implement-worker delivery floors (media, computer-use, SkillCreate, MCP)', () => {
+    // Leaf workers must carry product-delivery tools; orchestration stays on conductor/desk.
+    // mcp__* is an access pattern — excluded from the soft delivery ceiling.
+    const builtinCount = (tools: readonly string[]) =>
+      tools.filter((name) => !name.startsWith('mcp__')).length;
+
+    const leafForbidden = [
+      'JobCreate',
+      'MergeJob',
+      'Agent',
+      'Fleet',
+      'CreateGoal',
+      'CronCreate',
+      'TaskGraph',
+      'SearchExpert',
+      // Refine registers only on main agents — listing it wastes a worker schema slot.
+      'Refine',
+    ] as const;
+
+    const coderTools = DEFAULT_AGENT_PROFILES['coder']?.tools ?? [];
+    expect(coderTools).toEqual(
+      expect.arrayContaining([
+        'GenerateImage',
+        'GenerateVideo',
+        'ReadMediaFile',
+        'Context7Resolve',
+        'Context7Docs',
+        'ComputerCapture',
+        'ComputerAct',
+        'ComputerStatus',
+        'VerifySurface',
+        'BrowserScreenshot',
+        'BrowserAct',
+        'Review',
+        'VisualDiff',
+        'Expand',
+        'SkillCreate',
+        'SearchTools',
+        'mcp__*',
+      ]),
+    );
+    expect(coderTools).not.toContain('DeepResearch');
+    expect(coderTools).not.toContain('GetCurrentTime');
+    expect(coderTools).toContain('Script');
+    expect(coderTools).toContain('Compact');
+    // Delivery floor > legacy ≤30 waist — computer-use + SkillCreate + Script PTC.
+    expect(builtinCount(coderTools)).toBeLessThanOrEqual(40);
+    for (const name of leafForbidden) {
+      expect(coderTools, name).not.toContain(name);
+    }
+
+    const goalDriverTools = DEFAULT_AGENT_PROFILES['goal-driver']?.tools ?? [];
+    expect(goalDriverTools).toEqual(
+      expect.arrayContaining([
+        'GenerateImage',
+        'GenerateVideo',
+        'ReadMediaFile',
+        'Context7Resolve',
+        'Context7Docs',
+        'ComputerCapture',
+        'ComputerAct',
+        'ComputerStatus',
+        'VerifySurface',
+        'BrowserScreenshot',
+        'Review',
+        'SkillCreate',
+        'Script',
+        'Compact',
+        'Expand',
+        'GetGoal',
+        'UpdateGoal',
+        'mcp__*',
+      ]),
+    );
+    expect(goalDriverTools).not.toContain('AskUserQuestion');
+    expect(goalDriverTools).not.toContain('CreateGoal');
+    expect(goalDriverTools).not.toContain('GetCurrentTime');
+    expect(builtinCount(goalDriverTools)).toBeLessThanOrEqual(45);
+    for (const name of leafForbidden) {
+      expect(goalDriverTools, name).not.toContain(name);
+    }
+
+    const exploreTools = DEFAULT_AGENT_PROFILES['explore']?.tools ?? [];
+    expect(exploreTools).toEqual(
+      expect.arrayContaining([
+        'DeepResearch',
+        'Context7Resolve',
+        'Context7Docs',
+        'ReadMediaFile',
+        'RepoQuery',
+        'Script',
+        'mcp__*',
+      ]),
+    );
+    expect(exploreTools).not.toContain('Write');
+    expect(exploreTools).not.toContain('GenerateImage');
+    expect(exploreTools).not.toContain('Review');
+    expect(exploreTools).not.toContain('VisualDiff');
+    expect(builtinCount(exploreTools)).toBeLessThanOrEqual(30);
+
+    const planTools = DEFAULT_AGENT_PROFILES['plan']?.tools ?? [];
+    expect(planTools).toEqual(
+      expect.arrayContaining([
+        'DeepResearch',
+        'Context7Resolve',
+        'Context7Docs',
+        'Review',
+        'Script',
+        'EnterPlanMode',
+        'ExitPlanMode',
+        'AskUserQuestion',
+        'mcp__*',
+      ]),
+    );
+    expect(planTools).not.toContain('GenerateImage');
+    expect(planTools).not.toContain('VerifySurface');
+    expect(planTools).not.toContain('VisualDiff');
+    expect(builtinCount(planTools)).toBeLessThanOrEqual(30);
+
+    // Main agent / full stay distinct from worker floors.
     const agentTools = DEFAULT_AGENT_PROFILES['agent']?.tools ?? [];
     expect(agentTools).toContain('RecordInterviewFinding');
     expect(agentTools).not.toContain('Review');
-    expect(agentTools).not.toContain('LioraReview');
-    expect(agentTools).not.toContain('VisualDiff');
     expect(agentTools).not.toContain('GenerateImage');
     expect(agentTools).not.toContain('GenerateVideo');
     expect(agentTools).not.toContain('VerifySurface');
-    expect(agentTools).not.toContain('mcp__*');
-
-    const coderTools = DEFAULT_AGENT_PROFILES['coder']?.tools ?? [];
-    expect(coderTools).toContain('Review');
-    expect(coderTools).toContain('VisualDiff');
-    expect(coderTools).toContain('VerifySurface');
-    expect(coderTools).toContain('BrowserScreenshot');
-    expect(coderTools).toContain('BrowserAct');
-    expect(coderTools).not.toContain('DeepResearch');
-    expect(coderTools).not.toContain('SkillCreate');
-    expect(coderTools.length).toBeLessThanOrEqual(30);
-    expect(coderTools).not.toContain('LioraReview');
-
-    const goalDriverTools = DEFAULT_AGENT_PROFILES['goal-driver']?.tools ?? [];
-    expect(goalDriverTools).toContain('BrowserScreenshot');
-    expect(goalDriverTools).toContain('VerifySurface');
-    expect(goalDriverTools).toContain('GetGoal');
-    expect(goalDriverTools).toContain('UpdateGoal');
-    expect(goalDriverTools.length).toBeLessThanOrEqual(30);
-
-    const planTools = DEFAULT_AGENT_PROFILES['plan']?.tools ?? [];
-    expect(planTools).toContain('Review');
-    expect(planTools).not.toContain('VisualDiff');
-    expect(planTools).not.toContain('LioraReview');
 
     const fullTools = DEFAULT_AGENT_PROFILES['superliora-full']?.tools ?? [];
-    expect(fullTools).toContain('Review');
-    expect(fullTools).not.toContain('LioraReview');
-    expect(fullTools).toContain('VisualDiff');
-    expect(fullTools).toContain('GenerateImage');
-    expect(fullTools).toContain('GenerateVideo');
-    expect(fullTools).toContain('VerifySurface');
-    expect(fullTools).toContain('mcp__*');
+    expect(fullTools).toEqual(
+      expect.arrayContaining([
+        'GenerateImage',
+        'GenerateVideo',
+        'Context7Resolve',
+        'Context7Docs',
+        'VerifySurface',
+        'mcp__*',
+      ]),
+    );
     for (const alias of FULL_PROFILE_COMPAT_ALIASES) {
       expect(fullTools).not.toContain(alias);
     }
-    // Read-only explore stays lean — no review/visual surface.
-    const exploreTools = DEFAULT_AGENT_PROFILES['explore']?.tools ?? [];
-    expect(exploreTools).not.toContain('Review');
-    expect(exploreTools).not.toContain('LioraReview');
-    expect(exploreTools).not.toContain('VisualDiff');
   });
 
   it('exposes Liora Memory only to writable coding profiles', () => {

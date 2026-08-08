@@ -19,6 +19,8 @@ const fullCap: ToolWorkflowCapability = {
   hasRunProjectChecks: true,
   hasTodoList: true,
   hasMemory: true,
+  hasScript: true,
+  hasCompact: true,
 };
 
 describe('agent/injection/tool-workflow — hasToolWorkflowSurface', () => {
@@ -40,6 +42,8 @@ describe('agent/injection/tool-workflow — hasToolWorkflowSurface', () => {
       hasRunProjectChecks: false,
       hasTodoList: false,
       hasMemory: false,
+      hasScript: false,
+      hasCompact: false,
     };
     expect(hasToolWorkflowSurface(none)).toBe(false);
   });
@@ -53,6 +57,8 @@ describe('agent/injection/tool-workflow — buildToolWorkflowGuidance', () => {
     expect(result).toContain('Explore before edit');
     expect(result).toContain('one verifiable increment per batch');
     expect(result).toContain('root cause');
+    expect(result).toContain('Script');
+    expect(result).toContain('Compact');
   });
 
   it('omits sections when the corresponding capability is disabled', () => {

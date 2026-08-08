@@ -94,6 +94,47 @@ describe('JobCreate structured brief', () => {
     expect(String(result.output)).toMatch(/placeholder/i);
   });
 
+  it('binds goal_gate_command (or first verification_commands) onto goal-driver Jobs', async () => {
+    const store = memoryStore();
+    const tool = new JobCreateTool(store);
+    const explicit = tool.resolveExecution({
+      title: 'Drive until green',
+      kind: 'goal-driver',
+      prompt: 'Keep going until the suite is green.',
+      goal_completion_criterion: 'pnpm test exits 0',
+      goal_gate_command: 'pnpm test',
+    });
+    expect(explicit.isError).toBeFalsy();
+    if (explicit.isError) return;
+    await explicit.execute({
+      turnId: 't',
+      toolCallId: 'c',
+      signal: new AbortController().signal,
+    });
+    const withGate = store.get('job_ledger')?.jobs.find((j) => j.kind === 'goal-driver');
+    expect(withGate?.goalGateCommand).toBe('pnpm test');
+    expect(jobPrompt(withGate!)).toContain('Gate command');
+
+    const store2 = memoryStore();
+    const tool2 = new JobCreateTool(store2);
+    const inferred = tool2.resolveExecution({
+      title: 'Drive until green',
+      kind: 'goal-driver',
+      prompt: 'Keep going until the suite is green.',
+      goal_completion_criterion: 'suite green',
+      verification_commands: ['pnpm run check', 'pnpm test'],
+    });
+    expect(inferred.isError).toBeFalsy();
+    if (inferred.isError) return;
+    await inferred.execute({
+      turnId: 't',
+      toolCallId: 'c2',
+      signal: new AbortController().signal,
+    });
+    const inferredJob = store2.get('job_ledger')?.jobs.find((j) => j.kind === 'goal-driver');
+    expect(inferredJob?.goalGateCommand).toBe('pnpm run check');
+  });
+
   it('rejects greenfield task/implement without must_not_touch', () => {
     const store = memoryStore();
     const tool = new JobCreateTool(store);
