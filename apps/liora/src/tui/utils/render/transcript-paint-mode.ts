@@ -83,11 +83,14 @@ export function areLiveToolTicksSuppressed(): boolean {
 
 /** True when a transcript-scroll paint ran recently (chrome timer holdoff). */
 export function wasRecentTranscriptScroll(
-  nowMs: number = paintClockNowMs(),
+  nowMs: number | undefined = undefined,
   holdMs: number = TRANSCRIPT_SCROLL_TIMER_HOLD_MS,
 ): boolean {
-  if (isTranscriptScrollStorm(nowMs, holdMs)) return true;
-  return nowMs - lastScrollActivityMs < holdMs && lastScrollActivityMs > 0;
+  // Optional nowMs so callers can omit the clock without passing Date.now()
+  // (epoch) against performance.now() storm stamps.
+  const now = nowMs ?? paintClockNowMs();
+  if (isTranscriptScrollStorm(now, holdMs)) return true;
+  return now - lastScrollActivityMs < holdMs && lastScrollActivityMs > 0;
 }
 
 /**

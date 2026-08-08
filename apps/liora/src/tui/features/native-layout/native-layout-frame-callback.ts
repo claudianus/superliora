@@ -14,6 +14,9 @@ import { shouldAnimate, shouldRenderAmbientAnimationFrame } from '../../controll
 import { tickArmedStreamReveal } from '../../controllers/streaming-ui/reveal';
 import { resolveStageLayout } from '../../controllers/layout/stage-layout';
 import type { TUIState } from '../../tui-state';
+import { recordScrollHangSample } from '../../utils/render/scroll-hang-probe';
+import { isTranscriptScrollSettleArmed } from '../../utils/render/scroll-settle-refresh';
+import { deferredTranscriptFormatQueueSize } from '../../utils/transcript/deferred-format-queue';
 import {
   isLiveGoalChromeActive,
   isPureInputFrame,
@@ -38,6 +41,12 @@ import {
 import { resetStageResizePointerShape } from '#/tui/features/stage/stage-resize-mouse';
 import type { TUINativeStageChrome } from '#/tui/features/native-layout/native-stage-plan';
 
+function paintClockNowMs(): number {
+  return typeof performance !== 'undefined' && typeof performance.now === 'function'
+    ? performance.now()
+    : Date.now();
+}
+
 interface TUIStateNativeChromeCache extends TUINativeStageChrome {
   readonly width: number;
   readonly stageWidth: number;
@@ -61,6 +70,7 @@ export function createTUIStateNativeRenderCallback(
   let transcriptLineCacheWidth: number | undefined;
   let transcriptLineCacheSelectionKey: string | undefined;
   return ({ frame, runtime, size, quality }) => {
+    const callbackStartedAt = paintClockNowMs();
     if (frame.causes.includes('start')) runtime.cancelRegionAnimationFrame();
     if (frame.causes.includes('resize')) {
       // Terminal resize invalidates the grip geometry the Kitty pointer shape
@@ -270,6 +280,28 @@ export function createTUIStateNativeRenderCallback(
         options.postFrameRender?.({ frameRenderer, columns: size.columns, rows: height });
       },
     });
+    // Host-path scroll hang probe: sample after paint so child paint / storm
+    // flags reflect this frame. Always sample scroll causes; also sample when
+    // settle is armed so progressive content frames are visible in the ring.
+    const scrollRelated =
+      pureScrollFrame ||
+      frame.causes.includes('transcript-scroll') ||
+      isTranscriptScrollSettleArmed();
+    if (scrollRelated) {
+      const container = state.transcriptContainer;
+      recordScrollHangSample({
+        causes: frame.causes,
+        pureScroll: pureScrollFrame,
+        storm: container.lastPaintWasScrollStorm === true,
+        childPaints: container.lastFrameChildPaintCalls ?? 0,
+        materializeContinue: container.needsMaterializeContinue === true,
+        renderCbMs: paintClockNowMs() - callbackStartedAt,
+        deferredQueueSize: deferredTranscriptFormatQueueSize(),
+        settleArmed: isTranscriptScrollSettleArmed(),
+        streamingPhase: String(state.appState.streamingPhase ?? 'idle'),
+        workDir: state.appState.workDir,
+      });
+    }
     return result;
   };
 }

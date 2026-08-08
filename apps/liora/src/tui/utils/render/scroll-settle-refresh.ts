@@ -81,6 +81,11 @@ function scheduleProgressiveFill(state: TUIState): void {
   progressiveTimer = timer;
 }
 
+/** True while a settle or progressive-fill timer is armed. */
+export function isTranscriptScrollSettleArmed(): boolean {
+  return settleTimer !== undefined || progressiveTimer !== undefined;
+}
+
 /** Test helper. */
 export function clearTranscriptScrollSettleRefreshForTest(): void {
   if (settleTimer !== undefined) {
