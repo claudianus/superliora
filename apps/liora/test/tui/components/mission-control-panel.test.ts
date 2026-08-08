@@ -6,15 +6,17 @@ import {
   MISSION_FALLBACK_MAX_ROWS,
   MissionControlPanelComponent,
   emptyMissionControlView,
-  formatMissionClockMs,
+  formatMissionAgeMs,
   formatMissionTokenRate,
   type MissionControlView,
 } from '#/tui/components/panes/mission-control/panel';
 import { MissionControlRegistry } from '#/tui/controllers/mission-control/registry';
+import { appearanceAnimationNow } from '#/tui/features/appearance/appearance-effects';
 import {
   emptyConductorJobsSnapshot,
   type ConductorJobCard,
 } from '#/tui/utils/job/job-strip';
+import type { MissionWorker } from '#/tui/controllers/mission-control/registry';
 
 // Motion is forced off under the CI-parity runner (NO_COLOR), so renders take
 // the static branch; strip ANSI to assert on plain text.
@@ -126,35 +128,54 @@ describe('MissionControlPanelComponent', () => {
     expect(text).not.toContain('/Users/');
   });
 
-  it('renders MOVES with wall-clock rows and error marks', () => {
-    const registry = registryWith([
-      {
-        type: 'subagent.spawned',
-        subagentId: 'sa-1',
-        subagentName: 'builder-1',
-        parentToolCallId: 'ptc',
-        runInBackground: false,
-      } as Event,
-      {
-        type: 'subagent.tool_call',
-        subagentId: 'sa-1',
-        toolCallId: 'tc-1',
-        name: 'Edit',
-        detail: { kind: 'edit', path: 'src/a.ts', addedLines: 42, removedLines: 10 },
-      } as Event,
-      {
-        type: 'subagent.tool_result',
-        subagentId: 'sa-1',
-        toolCallId: 'tc-1',
-        isError: true,
-      } as Event,
-    ]);
+  it('formats relative ages for MOVES rows', () => {
+    expect(formatMissionAgeMs(1_000, 1_000)).toBe('now');
+    expect(formatMissionAgeMs(1_000, 4_000)).toBe('3s ago');
+    expect(formatMissionAgeMs(1_000, 61_000)).toBe('1m ago');
+    expect(formatMissionAgeMs(1_000, 3_661_000)).toBe('1h ago');
+  });
+
+  it('renders MOVES with relative age and error marks', () => {
+    const clock = appearanceAnimationNow();
     const panel = new MissionControlPanelComponent();
-    panel.setView(viewFor(registry));
+    panel.setView({
+      snapshot: {
+        version: 1,
+        workers: [
+          {
+            id: 'sa-1',
+            name: 'builder-1',
+            kind: 'subagent',
+            status: 'running',
+            runInBackground: false,
+            toolCount: 1,
+            tokens: 0,
+            elapsedMs: 5_000,
+            lastActivityAtMs: clock,
+          },
+        ],
+        activeCount: 1,
+        totalTokens: 0,
+        ops: [
+          {
+            toolCallId: 'tc-1',
+            workerId: 'sa-1',
+            workerName: 'builder-1',
+            name: 'Edit',
+            target: 'src/a.ts',
+            chip: '+42 -10',
+            status: 'error',
+            atMs: clock - 3_000,
+            settledAtMs: clock - 2_000,
+          },
+        ],
+      },
+      jobs: emptyConductorJobsSnapshot(),
+    });
 
     const text = plain(panel.render(60)).join('\n');
     expect(text).toContain('MOVES');
-    expect(text).toContain(formatMissionClockMs(NOW + 1_000));
+    expect(text).toContain('3s ago');
     // Single-worker feed omits the worker name column.
     expect(text).not.toMatch(/builder-1.*Edit/);
     expect(text).toContain('\u2717 Edit src/a.ts');
@@ -328,5 +349,183 @@ describe('MissionControlPanelComponent', () => {
     const text = plain(panel.render(60)).join('\n');
     expect(text).toContain('\u26a0 scout-9');
     expect(text).toContain('stalled');
+  });
+
+  it('prefers a hot live stream strip over static intent in NOW', () => {
+    const clock = appearanceAnimationNow();
+    const worker: MissionWorker = {
+      id: 'sa-live',
+      name: 'plan',
+      kind: 'subagent',
+      status: 'running',
+      modelAlias: 'kimi-k2.5',
+      description: 'Investigate Metal Slug mechanics',
+      runInBackground: false,
+      toolCount: 2,
+      tokens: 1200,
+      elapsedMs: 4_000,
+      lastActivityAtMs: clock,
+      liveKind: 'thinking',
+      liveText: 'Considering Phaser platformer physics',
+      liveAtMs: clock,
+    };
+    const panel = new MissionControlPanelComponent();
+    panel.setView({
+      snapshot: {
+        version: 1,
+        workers: [worker],
+        activeCount: 1,
+        totalTokens: 1200,
+        ops: [],
+      },
+      jobs: emptyConductorJobsSnapshot(),
+    });
+    const text = plain(panel.render(70)).join('\n');
+    expect(text).toContain('NOW');
+    expect(text).toContain('Considering Phaser platformer physics');
+    expect(text).toContain('\u25cc');
+    // Hot stream replaces the static description/intent row.
+    expect(text).not.toContain('Investigate Metal Slug mechanics');
+  });
+
+  it('switches to densemode KPI/TICKER/GRID when two workers are live', () => {
+    const clock = appearanceAnimationNow();
+    const panel = new MissionControlPanelComponent();
+    panel.setView({
+      snapshot: {
+        version: 1,
+        workers: [
+          {
+            id: 'sa-plan',
+            name: 'plan',
+            kind: 'subagent',
+            status: 'running',
+            modelAlias: 'kimi-k2.5',
+            runInBackground: false,
+            toolCount: 8,
+            tokens: 4200,
+            tokenRatePerSec: 1000,
+            rateSamples: [400, 700, 1000],
+            elapsedMs: 240_000,
+            lastActivityAtMs: clock,
+            liveKind: 'thinking',
+            liveText: 'Phaser Arcade Physics loop',
+            liveAtMs: clock,
+          },
+          {
+            id: 'sa-explore',
+            name: 'explore-2',
+            kind: 'subagent',
+            status: 'running',
+            modelAlias: 'gpt-5-mini',
+            runInBackground: false,
+            toolCount: 14,
+            tokens: 8100,
+            tokenRatePerSec: 640,
+            rateSamples: [200, 500, 640],
+            elapsedMs: 110_000,
+            lastActivityAtMs: clock,
+            lastTool: 'Read',
+            lastTarget: 'panel.ts',
+          },
+        ],
+        activeCount: 2,
+        totalTokens: 12300,
+        ops: [
+          {
+            toolCallId: 'tc-1',
+            workerId: 'sa-plan',
+            workerName: 'plan',
+            name: 'WebSearch',
+            target: 'premium HTML',
+            status: 'ok',
+            atMs: clock - 12_000,
+            settledAtMs: clock - 11_000,
+          },
+          {
+            toolCallId: 'tc-2',
+            workerId: 'sa-explore',
+            workerName: 'explore-2',
+            name: 'Grep',
+            target: 'MISSION_BAND',
+            status: 'running',
+            atMs: clock - 400,
+          },
+        ],
+      },
+      jobs: emptyConductorJobsSnapshot(),
+    });
+    const text = plain(panel.render(100)).join('\n');
+    expect(text).toContain('FLEET');
+    expect(text).toContain('TK');
+    expect(text).toMatch(/WKR/);
+    expect(text).toContain('TAPE');
+    expect(text).toContain('plan');
+    expect(text).toContain('explore');
+    expect(text).toContain('Phaser Arcade Physics loop');
+    // Solo NOW stack headers are skipped in densemode.
+    expect(text).not.toContain('\nNOW\n');
+  });
+
+  it('keeps solo full-block layout for a single worker', () => {
+    const clock = appearanceAnimationNow();
+    const panel = new MissionControlPanelComponent();
+    panel.setView({
+      snapshot: {
+        version: 1,
+        workers: [
+          {
+            id: 'sa-solo',
+            name: 'solo',
+            kind: 'subagent',
+            status: 'running',
+            runInBackground: false,
+            toolCount: 2,
+            tokens: 100,
+            elapsedMs: 5_000,
+            lastActivityAtMs: clock,
+            description: 'Only one worker',
+            liveKind: 'thinking',
+            liveText: 'solo thought stream',
+            liveAtMs: clock,
+          },
+        ],
+        activeCount: 1,
+        totalTokens: 100,
+        ops: [],
+      },
+      jobs: emptyConductorJobsSnapshot(),
+    });
+    const text = plain(panel.render(70)).join('\n');
+    expect(text).toContain('NOW');
+    expect(text).toContain('solo thought stream');
+    expect(text).not.toContain('FLEET');
+    expect(text).not.toContain('TAPE');
+  });
+
+  it('humanizes JSON WebSearch targets in MOVES', () => {
+    const registry = registryWith([
+      {
+        type: 'subagent.spawned',
+        subagentId: 'sa-1',
+        subagentName: 'scout',
+        parentToolCallId: 'ptc',
+        runInBackground: false,
+      } as Event,
+      {
+        type: 'subagent.tool_call',
+        subagentId: 'sa-1',
+        toolCallId: 'tc-1',
+        name: 'WebSearch',
+        argsPreview: '{"query":"premium HTML game engines","limit":5}',
+      } as Event,
+    ]);
+    const panel = new MissionControlPanelComponent();
+    panel.setView(viewFor(registry));
+    const text = plain(panel.render(70)).join('\n');
+    expect(text).toContain('MOVES');
+    expect(text).toContain('WebSearch');
+    expect(text).toContain('premium HTML');
+    expect(text).not.toContain('"query"');
   });
 });

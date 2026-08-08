@@ -17,6 +17,7 @@
 import {
   renderRendererRatioProgressBar,
   truncateToWidth,
+  visibleWidth,
   type Component,
 } from '#/tui/renderer';
 
@@ -50,10 +51,39 @@ import {
   formatJobDuration,
   type ConductorJobsSnapshot,
 } from '#/tui/utils/job/job-strip';
+import { applyStreamTailGlow } from '#/tui/features/transcript/transcript-entrance';
 import {
   collapseLowSignalOps,
   formatMissionTarget,
 } from '#/tui/utils/tools/mission-target';
+import {
+  createStreamingTextRevealState,
+  isRevealCaughtUp,
+  setRevealTarget,
+  snapRevealToTarget,
+  tickReveal,
+  visibleText,
+  type StreamingTextRevealState,
+} from '#/tui/utils/streaming/streaming-text-reveal';
+import {
+  buildDenseContent,
+  shouldUseDensemode,
+} from './densemode';
+import {
+  formatMissionAgeMs,
+  formatMissionClockMs,
+  formatMissionTokenRate,
+  formatMissionTokens,
+  MISSION_LIVE_HOT_MS,
+} from './mission-format';
+
+export {
+  formatMissionAgeMs,
+  formatMissionClockMs,
+  formatMissionTokenRate,
+  formatMissionTokens,
+  MISSION_LIVE_HOT_MS,
+} from './mission-format';
 
 /** In-stage bottom band never grows past this many rows. */
 export const MISSION_BAND_MAX_ROWS = 14;
@@ -75,6 +105,12 @@ const BAR_SHIMMER_PERIOD_MS = 1_100;
 const WORKER_NAME_MAX = 16;
 /** Target budget inside a ~40col dock interior. */
 const TARGET_MAX = 22;
+/** Soft cap so a single stream line does not dominate ultra-wide terminals. */
+const LIVE_TEXT_SOFT_CAP = 96;
+/** Soft cap for tool targets on wide docks. */
+const TARGET_SOFT_CAP = 56;
+/** Display tok/s ease toward target per ambient frame (0–1). */
+const RATE_LERP_ALPHA = 0.28;
 
 export interface MissionControlView {
   readonly snapshot: MissionControlSnapshot;
@@ -96,34 +132,17 @@ export function emptyMissionControlView(): MissionControlView {
   };
 }
 
-/** `HH:MM:SS` wall-clock for MOVES rows (tests derive via this helper). */
-export function formatMissionClockMs(atMs: number): string {
-  const date = new Date(atMs);
-  const pad = (value: number): string => String(value).padStart(2, '0');
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-}
-
-/** Dense token chip (`12482` → `12.5k`). */
-export function formatMissionTokens(count: number): string {
-  if (count < 1000) return String(count);
-  if (count < 1_000_000) return `${(count / 1000).toFixed(1)}k`;
-  return `${(count / 1_000_000).toFixed(1)}M`;
-}
-
-/** Live rate chip (`840` → `840/s`, `12400` → `12.4k/s`). */
-export function formatMissionTokenRate(perSec: number): string {
-  if (!Number.isFinite(perSec) || perSec < 1) return '';
-  if (perSec < 1000) return `${String(Math.round(perSec))}/s`;
-  if (perSec < 1_000_000) return `${(perSec / 1000).toFixed(1)}k/s`;
-  return `${(perSec / 1_000_000).toFixed(1)}M/s`;
-}
-
 type LayoutMode = 'full' | 'tight' | 'minimal';
 
 export class MissionControlPanelComponent implements Component {
   private view: MissionControlView = emptyMissionControlView();
   /** `pinned` mode keeps the panel mounted with an idle placeholder. */
   private pinned = false;
+  /** Per-worker stream reveal (catch-up type-on for liveText). */
+  private readonly revealByWorker = new Map<string, StreamingTextRevealState>();
+  /** Per-worker displayed tok/s after ease toward the registry rate. */
+  private readonly displayRateByWorker = new Map<string, number>();
+  private lastRevealTickMs = 0;
   private lastRender:
     | {
         readonly width: number;
@@ -132,6 +151,7 @@ export class MissionControlPanelComponent implements Component {
         readonly jobs: ConductorJobsSnapshot;
         readonly workDir: string | undefined;
         readonly tick: number;
+        readonly revealPending: boolean;
         readonly lines: string[];
       }
     | undefined;
@@ -229,15 +249,17 @@ export class MissionControlPanelComponent implements Component {
         width: safeWidth,
         borderToken: 'border',
         minBoxWidth: 24,
+        fillWidth: true,
       });
       return placeholder.length <= budget ? placeholder : [];
     }
     const now = appearanceAnimationNow();
+    const revealPending = this.syncRevealAndRates(now);
     const tick = this.tickBucket(now);
     const memo = this.lastRender;
-    // Motion (pulse glyphs, settle flashes) is clock-driven: skip the memo
-    // while animation runs so ambient repaints advance the frames. With
-    // motion off the 1s tick bucket still advances elapsed clocks.
+    // Motion / stream reveal is clock-driven: skip the memo while animation
+    // or catch-up reveal runs so ambient repaints advance frames. With motion
+    // off the 1s tick bucket still advances elapsed clocks.
     if (
       memo !== undefined &&
       memo.width === safeWidth &&
@@ -245,6 +267,8 @@ export class MissionControlPanelComponent implements Component {
       memo.version === this.view.snapshot.version &&
       memo.jobs === this.view.jobs &&
       memo.workDir === this.view.workDir &&
+      memo.revealPending === revealPending &&
+      !revealPending &&
       (ambientAnimationActive() ? false : memo.tick === tick)
     ) {
       return memo.lines;
@@ -257,15 +281,112 @@ export class MissionControlPanelComponent implements Component {
       jobs: this.view.jobs,
       workDir: this.view.workDir,
       tick,
+      revealPending,
       lines,
     };
     return lines;
   }
 
-  /** Frame + progressive density: drop detail until the content fits. */
+  /**
+   * Advance per-worker stream reveal + tok/s lerp. Returns true when any
+   * reveal is still catching up (forces ambient content invalidate).
+   */
+  private syncRevealAndRates(now: number): boolean {
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
+    const workers = this.visibleWorkers(now);
+    const liveIds = new Set(workers.map((worker) => worker.id));
+    for (const id of [...this.revealByWorker.keys()]) {
+      if (!liveIds.has(id)) this.revealByWorker.delete(id);
+    }
+    for (const id of [...this.displayRateByWorker.keys()]) {
+      if (!liveIds.has(id)) this.displayRateByWorker.delete(id);
+    }
+
+    let revealPending = false;
+    const dtMs =
+      this.lastRevealTickMs > 0 ? Math.max(0, now - this.lastRevealTickMs) : 16;
+    this.lastRevealTickMs = now;
+
+    for (const worker of workers) {
+      const targetRate = worker.tokenRatePerSec ?? 0;
+      const prevRate = this.displayRateByWorker.get(worker.id) ?? targetRate;
+      const nextRate =
+        !animated || dtMs <= 0
+          ? targetRate
+          : prevRate + (targetRate - prevRate) * RATE_LERP_ALPHA;
+      this.displayRateByWorker.set(worker.id, nextRate);
+
+      const liveTarget = worker.liveText ?? '';
+      let state = this.revealByWorker.get(worker.id);
+      if (liveTarget.length === 0) {
+        if (state !== undefined) this.revealByWorker.delete(worker.id);
+        continue;
+      }
+      if (state === undefined) {
+        state = createStreamingTextRevealState(now);
+      }
+      state = setRevealTarget(state, liveTarget, now);
+      if (!animated) {
+        state = snapRevealToTarget(state, now);
+      } else if (!isRevealCaughtUp(state)) {
+        state = tickReveal(state, now);
+      }
+      this.revealByWorker.set(worker.id, state);
+      if (!isRevealCaughtUp(state)) revealPending = true;
+    }
+    return revealPending;
+  }
+
+  private revealedLiveMap(now: number): Map<string, string> {
+    const map = new Map<string, string>();
+    for (const worker of this.visibleWorkers(now)) {
+      const state = this.revealByWorker.get(worker.id);
+      if (state !== undefined && state.target.length > 0) {
+        map.set(worker.id, visibleText(state));
+      } else if (worker.liveText !== undefined && worker.liveText.length > 0) {
+        map.set(worker.id, worker.liveText);
+      }
+    }
+    return map;
+  }
+
+  private displayRateMap(): Map<string, number> {
+    return new Map(this.displayRateByWorker);
+  }
+
+  /** Frame + progressive density: densemode for 2+ workers, else solo stack. */
   private buildFramed(width: number, budget: number, now: number): string[] {
     const interior = Math.max(1, width - 4);
     const contentBudget = Math.max(1, budget - 2);
+    const workers = this.visibleWorkers(now);
+    if (shouldUseDensemode(workers)) {
+      const appearance = getActiveAppearancePreferences();
+      const animated = shouldRenderAmbientEffects(appearance);
+      const dense = buildDenseContent({
+        workers,
+        ops: this.view.snapshot.ops,
+        width: interior,
+        budget: contentBudget,
+        now,
+        workDir: this.view.workDir,
+        animated,
+        appearance,
+        revealedLive: this.revealedLiveMap(now),
+        displayRate: this.displayRateMap(),
+        workerGlyph: (worker) => this.workerGlyph(worker, animated),
+      });
+      if (dense.length > 0 && dense.length <= contentBudget) {
+        return renderRoundedPanel({
+          title: this.title('dense', now),
+          content: dense,
+          width,
+          borderToken: this.borderToken(now),
+          minBoxWidth: 24,
+          fillWidth: true,
+        });
+      }
+    }
     for (const mode of ['full', 'tight', 'minimal'] as const) {
       const content = this.buildContent(mode, interior, contentBudget, now);
       if (content.length <= contentBudget) {
@@ -275,6 +396,7 @@ export class MissionControlPanelComponent implements Component {
           width,
           borderToken: this.borderToken(now),
           minBoxWidth: 24,
+          fillWidth: true,
         });
       }
     }
@@ -285,10 +407,11 @@ export class MissionControlPanelComponent implements Component {
       width,
       borderToken: this.borderToken(now),
       minBoxWidth: 24,
+      fillWidth: true,
     });
   }
 
-  private title(mode: LayoutMode, now: number): string {
+  private title(mode: LayoutMode | 'dense', now: number): string {
     const workers = this.visibleWorkers(now);
     const active = workers.filter(
       (worker) =>
@@ -299,12 +422,34 @@ export class MissionControlPanelComponent implements Component {
     );
     const appearance = getActiveAppearancePreferences();
     const animated = shouldRenderAmbientEffects(appearance) && active.length > 0;
+    if (mode === 'dense') {
+      const fleet = animated
+        ? renderPulseText(`FLEET ${String(active.length)}`, 'mc:title:fleet', 'primary', appearance)
+        : `FLEET ${String(active.length)}`;
+      const rate = active.reduce(
+        (sum, worker) => sum + (this.displayRateByWorker.get(worker.id) ?? worker.tokenRatePerSec ?? 0),
+        0,
+      );
+      const rateLabel = formatMissionTokenRate(rate);
+      const parts = [` ${fleet}`];
+      if (rateLabel.length > 0) {
+        parts.push(
+          animated
+            ? renderPulseText(`Σ${rateLabel}`, 'mc:title:rate', 'accent', appearance)
+            : `Σ${rateLabel}`,
+        );
+      }
+      return ` MC ·${parts.join(' · ')} `;
+    }
     const activeLabel = animated
       ? renderPulseText(`${String(active.length)} active`, 'mc:title:active', 'primary', appearance)
       : `${String(active.length)} active`;
     const parts = [` ${activeLabel}`];
     if (mode === 'full') {
-      const rate = active.reduce((sum, worker) => sum + (worker.tokenRatePerSec ?? 0), 0);
+      const rate = active.reduce(
+        (sum, worker) => sum + (this.displayRateByWorker.get(worker.id) ?? worker.tokenRatePerSec ?? 0),
+        0,
+      );
       const rateLabel = formatMissionTokenRate(rate);
       if (rateLabel.length > 0) {
         parts.push(
@@ -397,15 +542,70 @@ export class MissionControlPanelComponent implements Component {
     return undefined;
   }
 
-  private humanAction(worker: MissionWorker): string | undefined {
+  /** Hot child thinking/answer tail for the NOW live strip. */
+  private hotLiveStream(
+    worker: MissionWorker,
+    now: number,
+  ): { kind: 'thinking' | 'answer'; text: string } | undefined {
+    if (worker.liveText === undefined || worker.liveText.length === 0) return undefined;
+    if (worker.liveKind === undefined || worker.liveAtMs === undefined) return undefined;
+    if (now - worker.liveAtMs >= MISSION_LIVE_HOT_MS) return undefined;
+    if (worker.status !== 'running' && worker.status !== 'finishing') return undefined;
+    return { kind: worker.liveKind, text: worker.liveText };
+  }
+
+  private humanAction(worker: MissionWorker, targetBudget: number = TARGET_MAX): string | undefined {
     if (worker.lastTool === undefined) return undefined;
     const target = formatMissionTarget(
       worker.lastTool,
       worker.lastTarget,
       this.view.workDir,
-      TARGET_MAX,
+      targetBudget,
     );
     return target === undefined ? worker.lastTool : `${worker.lastTool} ${target}`;
+  }
+
+  /** Grow live/target budgets with the dock interior; soft-cap on ultra-wide. */
+  private liveTextBudget(width: number): number {
+    return Math.max(TARGET_MAX, Math.min(LIVE_TEXT_SOFT_CAP, width - 6));
+  }
+
+  private targetBudget(width: number): number {
+    return Math.max(TARGET_MAX, Math.min(TARGET_SOFT_CAP, Math.floor(width * 0.45)));
+  }
+
+  private renderLiveStreamRow(
+    worker: MissionWorker,
+    live: { kind: 'thinking' | 'answer'; text: string },
+    animated: boolean,
+    width: number,
+  ): string {
+    const appearance = getActiveAppearancePreferences();
+    const revealed = this.revealByWorker.get(worker.id);
+    const source =
+      revealed !== undefined && revealed.target.length > 0 ? visibleText(revealed) : live.text;
+    const plain = truncateToWidth(source, this.liveTextBudget(width), '…');
+    const mark = live.kind === 'thinking' ? '◌' : '◆';
+    let body: string;
+    if (animated && shouldRenderAmbientEffects(appearance)) {
+      const tinted =
+        live.kind === 'thinking'
+          ? currentTheme.fg('textDim', plain)
+          : renderPulseText(plain, `mc-live:${worker.id}`, 'text', appearance, 'fast');
+      const prefixed = `${renderShimmerPrefix(appearance)}${currentTheme.fg(
+        live.kind === 'thinking' ? 'textMuted' : 'primary',
+        mark,
+      )} ${tinted}`;
+      const glowKind = live.kind === 'answer' ? 'assistant' : 'thinking';
+      const glowed = applyStreamTailGlow([prefixed], glowKind, appearance, { active: true });
+      body = glowed[0] ?? prefixed;
+    } else {
+      body = `${currentTheme.fg(
+        live.kind === 'thinking' ? 'textMuted' : 'primary',
+        mark,
+      )} ${currentTheme.fg(live.kind === 'thinking' ? 'textDim' : 'text', plain)}`;
+    }
+    return truncateToWidth(`  ${body}`, width, '…');
   }
 
   // ── workers (NOW) ─────────────────────────────────────────────────────
@@ -440,7 +640,7 @@ export class MissionControlPanelComponent implements Component {
           lines.push(row);
         }
       } else {
-        lines.push(truncateToWidth(this.renderWorkerTight(worker, animated, now), width, '…'));
+        lines.push(truncateToWidth(this.renderWorkerTight(worker, animated, now, width), width, '…'));
       }
     }
     if (workers.length > visible.length) {
@@ -492,16 +692,19 @@ export class MissionControlPanelComponent implements Component {
       return rows;
     }
 
-    const intent = this.workerIntent(worker);
+    const live = this.hotLiveStream(worker, now);
+    const intent = live === undefined ? this.workerIntent(worker) : undefined;
     const showedFocus =
       intent !== undefined &&
       worker.focusTodo !== undefined &&
       intent === worker.focusTodo.trim();
-    if (intent !== undefined) {
+    if (live !== undefined) {
+      rows.push(this.renderLiveStreamRow(worker, live, animated, width));
+    } else if (intent !== undefined) {
       rows.push(truncateToWidth(`  ${currentTheme.fg('text', intent)}`, width, '…'));
     }
 
-    const action = this.humanAction(worker);
+    const action = this.humanAction(worker, this.targetBudget(width));
     if (action !== undefined) {
       const hot =
         animated &&
@@ -521,7 +724,7 @@ export class MissionControlPanelComponent implements Component {
       rows.push(truncateToWidth(progress, width, '…'));
     }
 
-    // Cap at name + 3 detail rows; drop progress first so intent stays.
+    // Cap at name + 3 detail rows; drop progress first so live/intent stays.
     if (rows.length > 4) {
       return rows.slice(0, 4);
     }
@@ -646,24 +849,42 @@ export class MissionControlPanelComponent implements Component {
     return `${glyph} ${name}${model}${elapsed}`;
   }
 
-  /** Tight/minimal: glyph name — intent (or short action). */
-  private renderWorkerTight(worker: MissionWorker, animated: boolean, now: number): string {
+  /** Tight/minimal: glyph name — live stream / intent / short action. */
+  private renderWorkerTight(
+    worker: MissionWorker,
+    animated: boolean,
+    now: number,
+    width: number = 40,
+  ): string {
     const glyph = this.workerGlyph(worker, animated);
     const namePlain = truncateToWidth(worker.name, WORKER_NAME_MAX, '…');
     const name = currentTheme.fg(
       worker.status === 'completed' || worker.status === 'failed' ? 'textDim' : 'text',
       namePlain,
     );
+    const head = `${glyph} ${name}`;
+    const restBudget = Math.max(12, width - visibleWidth(head) - 1);
+    const live = this.hotLiveStream(worker, now);
+    if (live !== undefined) {
+      const mark = live.kind === 'thinking' ? '◌' : '◆';
+      const revealed = this.revealByWorker.get(worker.id);
+      const source =
+        revealed !== undefined && revealed.target.length > 0 ? visibleText(revealed) : live.text;
+      const tail = truncateToWidth(source, Math.max(12, restBudget - 2), '…');
+      return `${head}${currentTheme.fg('textDim', ` ${mark} ${tail}`)}`;
+    }
     const intent = this.workerIntent(worker);
     if (intent !== undefined) {
-      return `${glyph} ${name}${currentTheme.fg('textDim', ` — ${intent}`)}`;
+      const clipped = truncateToWidth(intent, Math.max(8, restBudget - 3), '…');
+      return `${head}${currentTheme.fg('textDim', ` — ${clipped}`)}`;
     }
-    const action = this.humanAction(worker);
+    const action = this.humanAction(worker, this.targetBudget(width));
     if (action !== undefined) {
-      return `${glyph} ${name}${currentTheme.fg('textDim', ` — ${action}`)}`;
+      const clipped = truncateToWidth(action, Math.max(8, restBudget - 3), '…');
+      return `${head}${currentTheme.fg('textDim', ` — ${clipped}`)}`;
     }
     const elapsed = currentTheme.fg('textDim', ` ${formatJobDuration(worker.elapsedMs)}`);
-    return `${glyph} ${name}${elapsed}`;
+    return `${head}${elapsed}`;
   }
 
   private workerGlyph(worker: MissionWorker, animated: boolean): string {
@@ -713,7 +934,9 @@ export class MissionControlPanelComponent implements Component {
     animated: boolean,
     now: number,
   ): string {
-    const clock = currentTheme.fg('textMuted', formatMissionClockMs(entry.atMs));
+    // Right-pad so the mark/body column stays aligned as ages tick (`3s`→`12s`).
+    const agePlain = formatMissionAgeMs(entry.atMs, now).padStart(7);
+    const clock = currentTheme.fg('textMuted', agePlain);
     const worker = showWorker ? currentTheme.fg('text', ` ${entry.workerName}`) : '';
     const settledAt = entry.settledAtMs ?? entry.atMs;
     const freshlySettled =
@@ -734,7 +957,12 @@ export class MissionControlPanelComponent implements Component {
         ? ` ${renderToneSettleFlash('✓', `mc-ops-ok:${entry.toolCallId}`, settledAt, 'success')} `
         : currentTheme.fg('success', ' ✓ ');
     }
-    const human = formatMissionTarget(entry.name, entry.target, this.view.workDir, TARGET_MAX);
+    const human = formatMissionTarget(
+      entry.name,
+      entry.target,
+      this.view.workDir,
+      this.targetBudget(width),
+    );
     const bodyPlain = `${entry.name}${human === undefined ? '' : ` ${human}`}${
       entry.chip === undefined ? '' : ` ${entry.chip}`
     }`;

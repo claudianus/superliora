@@ -7,6 +7,7 @@
 import type { Event } from '@superliora/sdk';
 
 import { formatEditChip, formatWriteChip } from '#/tui/components/messages/tool-renderers/chip';
+import { humanTargetFromArgsPreview } from '#/tui/utils/tools/mission-target';
 
 type SubagentToolCallEventPayload = Extract<Event, { type: 'subagent.tool_call' }>;
 
@@ -40,19 +41,34 @@ export function subagentToolDetailParts(detail: SubagentToolDetail | undefined):
 }
 
 /**
+ * Resolve a human MOVES/NOW target: structured detail first, else pull
+ * query/path/command out of a JSON `argsPreview` instead of dumping raw JSON.
+ */
+export function resolveSubagentToolTarget(
+  detail: SubagentToolDetail | undefined,
+  argsPreview: string | undefined,
+): { target: string | undefined; chip: string | undefined } {
+  const parts = subagentToolDetailParts(detail);
+  if (parts.target !== undefined && parts.target.length > 0) return parts;
+  return {
+    target: humanTargetFromArgsPreview(argsPreview),
+    chip: parts.chip,
+  };
+}
+
+/**
  * Compact single-line feed body for surfaces that render plain text (e.g.
  * the Job ops feed): `Edit src/a.ts +3 -1`, `Bash pnpm test`. Falls
- * back to the raw args preview when no structured detail is present.
+ * back to a humanized args preview when no structured detail is present.
  */
 export function describeSubagentToolFeedBody(
   name: string,
   detail: SubagentToolDetail | undefined,
   argsPreview: string | undefined,
 ): string {
-  const { target, chip } = subagentToolDetailParts(detail);
-  const suffix = target ?? argsPreview;
+  const { target, chip } = resolveSubagentToolTarget(detail, argsPreview);
   const parts = [name];
-  if (suffix !== undefined && suffix.length > 0) parts.push(suffix);
+  if (target !== undefined && target.length > 0) parts.push(target);
   if (chip !== undefined && chip.length > 0) parts.push(chip);
   return parts.join(' ');
 }

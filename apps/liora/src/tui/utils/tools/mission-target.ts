@@ -88,6 +88,37 @@ export function formatMissionPath(
 }
 
 /**
+ * Pull a human label out of a raw `argsPreview` blob (often JSON) when the
+ * emitter omitted structured `detail`. Prefer query/pattern/url/path/command.
+ */
+export function humanTargetFromArgsPreview(argsPreview: string | undefined): string | undefined {
+  if (argsPreview === undefined) return undefined;
+  const trimmed = argsPreview.trim();
+  if (trimmed.length === 0) return undefined;
+  if (trimmed.startsWith('{')) {
+    try {
+      const parsed: unknown = JSON.parse(trimmed);
+      if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const record = parsed as Record<string, unknown>;
+        for (const key of ['query', 'pattern', 'url', 'path', 'command', 'file_path', 'filePath'] as const) {
+          const value = record[key];
+          if (typeof value === 'string' && value.trim().length > 0) return value.trim();
+        }
+      }
+    } catch {
+      // Fall through to regex / raw.
+    }
+    for (const key of ['query', 'pattern', 'url', 'path', 'command', 'file_path', 'filePath'] as const) {
+      const match = new RegExp(`"${key}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`, 'u').exec(trimmed);
+      if (match?.[1] !== undefined && match[1].length > 0) {
+        return match[1].replace(/\\"/gu, '"').replace(/\\\\/gu, '\\');
+      }
+    }
+  }
+  return trimmed;
+}
+
+/**
  * Humanize a tool target for Mission Control rows / MOVES feed.
  * `toolName` selects Bash vs path vs pattern handling.
  */
