@@ -4,47 +4,102 @@ import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 
+import { ensureBinOnPath } from './install/path.mjs';
+
 const WRAPPER_MARKER = 'Managed by superliora scripts/install-liora.mjs';
-const PATH_MARKER_START = '# >>> liora PATH >>>';
-const PATH_MARKER_END = '# <<< liora PATH <<<';
 const DEFAULT_NODE_VERSION = '24';
 
 const args = parseArgs(process.argv.slice(2));
-const homeDir = process.env['HOME'] ?? homedir();
+const homeDir = process.env['HOME'] ?? process.env['USERPROFILE'] ?? homedir();
 const scriptDir = import.meta.dirname;
 const repoRoot = resolve(scriptDir, '..');
-const appRoot = resolve(repoRoot, 'apps/liora');
-const binDir = resolveHome(args.binDir ?? process.env['LIORA_INSTALL_BIN_DIR'] ?? '~/.local/bin');
+const sourceRoot = process.env['LIORA_INSTALL_SOURCE_ROOT']
+  ? resolve(process.env['LIORA_INSTALL_SOURCE_ROOT'])
+  : repoRoot;
+const appRoot = resolve(sourceRoot, 'apps/liora');
+const binDir = resolveHome(args.binDir ?? process.env['LIORA_INSTALL_BIN_DIR'] ?? defaultBinDir());
 const commandName = args.name ?? process.env['LIORA_INSTALL_NAME'] ?? 'liora';
-const commandPath = resolve(binDir, commandName);
-
-if (process.platform === 'win32') {
-  fail('scripts/install-liora.mjs currently supports POSIX shells only.');
-}
+const seaBinary = args.seaBinary ? resolveHome(args.seaBinary) : null;
+const windows = args.windows || process.platform === 'win32';
 
 await mkdir(binDir, { recursive: true });
-// Shared with install.sh / liora upgrade theatre.
 writeStdout('__LIORA_UPGRADE_STAGE__=installing\n');
-await installWrapper(commandPath);
 
-const shellFiles = ! args.shellRc ? [] : await installShellPath(binDir);
+if (seaBinary) {
+  await installSeaShim(binDir, commandName, seaBinary, windows);
+} else if (windows) {
+  await installWindowsWrappers(appRoot, binDir, commandName);
+} else {
+  const commandPath = resolve(binDir, commandName);
+  await installPosixWrapper(commandPath, appRoot);
+}
 
-writeStdout(`Installed ${commandName} -> ${commandPath}\n`);
-if (shellFiles.length > 0) {
-  writeStdout(`Updated shell PATH files: ${shellFiles.join(', ')}\n`);
-  writeStdout('Open a new shell, or source your shell startup file, then run:\n');
+const pathResult = args.shellRc
+  ? await ensureBinOnPath(binDir, { noShellRc: false })
+  : { updated: [] };
+
+writeStdout(`Installed ${commandName} -> ${binDir}\n`);
+if (pathResult.updated.length > 0) {
+  writeStdout(`Updated PATH: ${pathResult.updated.join(', ')}\n`);
+  writeStdout('Open a new shell, then run:\n');
   writeStdout(`  ${commandName} --version\n`);
 }
 writeStdout('__LIORA_UPGRADE_STAGE__=done\n');
 
-async function installWrapper(filePath) {
+async function installPosixWrapper(filePath, appDir) {
   if (existsSync(filePath) && !(await isManagedWrapper(filePath)) && !args.force) {
     fail(`${filePath} already exists and is not managed by this installer. Re-run with --force to replace it.`);
   }
-
-  const wrapper = renderWrapper(appRoot, args.nodeVersion ?? DEFAULT_NODE_VERSION);
+  const wrapper = renderPosixWrapper(appDir, args.nodeVersion ?? DEFAULT_NODE_VERSION);
   await writeFile(filePath, wrapper, { mode: 0o755 });
   await chmod(filePath, 0o755);
+}
+
+async function installSeaShim(outDir, name, binaryPath, isWin) {
+  if (isWin) {
+    const cmdPath = resolve(outDir, `${name}.cmd`);
+    if (existsSync(cmdPath) && !(await isManagedWrapper(cmdPath)) && !args.force) {
+      fail(`${cmdPath} already exists and is not managed by this installer. Re-run with --force.`);
+    }
+    await writeFile(
+      cmdPath,
+      `@echo off\r\nrem ${WRAPPER_MARKER} (SEA)\r\n"${binaryPath}" %*\r\n`,
+      'utf8',
+    );
+    return;
+  }
+  const shim = resolve(outDir, name);
+  if (existsSync(shim) && !(await isManagedWrapper(shim)) && !args.force) {
+    fail(`${shim} already exists and is not managed by this installer. Re-run with --force.`);
+  }
+  // If binary already lives in binDir, nothing to do; otherwise symlink/copy path exec.
+  if (resolve(binaryPath) === shim) return;
+  const wrapper = `#!/usr/bin/env bash
+# ${WRAPPER_MARKER} (SEA)
+set -euo pipefail
+exec ${quotePosix(binaryPath)} "$@"
+`;
+  await writeFile(shim, wrapper, { mode: 0o755 });
+  await chmod(shim, 0o755);
+}
+
+async function installWindowsWrappers(appDir, outDir, name) {
+  const mainFile = resolve(appDir, 'dist/main.mjs');
+  const cmdPath = resolve(outDir, `${name}.cmd`);
+  const psPath = resolve(outDir, `${name}.ps1`);
+  for (const path of [cmdPath, psPath]) {
+    if (existsSync(path) && !(await isManagedWrapper(path)) && !args.force) {
+      fail(`${path} already exists and is not managed by this installer. Re-run with --force.`);
+    }
+  }
+  const cmd = `@echo off\r\nrem ${WRAPPER_MARKER}\r\nsetlocal\r\nnode "${mainFile}" %*\r\n`;
+  await writeFile(cmdPath, cmd, 'utf8');
+  const escapedMain = mainFile.replaceAll("'", "''");
+  const ps = `# ${WRAPPER_MARKER}
+& node '${escapedMain}' @args
+exit $LASTEXITCODE
+`;
+  await writeFile(psPath, ps, 'utf8');
 }
 
 async function isManagedWrapper(filePath) {
@@ -56,7 +111,7 @@ async function isManagedWrapper(filePath) {
   }
 }
 
-function renderWrapper(appDir, nodeVersion) {
+function renderPosixWrapper(appDir, nodeVersion) {
   return `#!/usr/bin/env bash
 # ${WRAPPER_MARKER}
 set -euo pipefail
@@ -73,8 +128,6 @@ fi
 
 # Auto-update is controlled by tui.toml [upgrade].auto_install (default on).
 # Opt out for a single process with SUPERLIORA_NO_AUTO_UPDATE=1 in the environment.
-# Do NOT default it here — that previously made managed source installs never
-# run preflight even when auto_install=true. Local dev uses apps/liora/scripts/dev.mjs.
 
 if [ -f "$main_file" ]; then
   exec node "$main_file" "$@"
@@ -84,85 +137,12 @@ exec corepack pnpm -C "$app_root" run dev:cli-only -- "$@"
 `;
 }
 
-async function installShellPath(pathDir) {
-  const updated = [];
-  const posixSnippet = renderPosixPathSnippet(pathDir);
-  const fishSnippet = renderFishPathSnippet(pathDir);
-
-  const posixTargets = [
-    resolve(homeDir, '.zshrc'),
-    resolve(homeDir, '.bashrc'),
-    resolve(homeDir, '.profile'),
-  ];
-  for (const target of posixTargets) {
-    if (await upsertMarkedBlock(target, posixSnippet)) updated.push(prettyHome(target));
+function defaultBinDir() {
+  if (process.platform === 'win32') {
+    const base = process.env.LOCALAPPDATA ?? resolve(homeDir, 'AppData/Local');
+    return resolve(base, 'SuperLiora/bin');
   }
-
-  for (const optionalTarget of [
-    resolve(homeDir, '.zprofile'),
-    resolve(homeDir, '.bash_profile'),
-  ]) {
-    if (existsSync(optionalTarget) && await upsertMarkedBlock(optionalTarget, posixSnippet)) {
-      updated.push(prettyHome(optionalTarget));
-    }
-  }
-
-  const fishConfig = resolve(homeDir, '.config/fish/config.fish');
-  if (await upsertMarkedBlock(fishConfig, fishSnippet)) updated.push(prettyHome(fishConfig));
-
-  return updated;
-}
-
-async function upsertMarkedBlock(filePath, block) {
-  await mkdir(dirname(filePath), { recursive: true });
-  let current = '';
-  try {
-    current = await readFile(filePath, 'utf-8');
-  } catch {
-    current = '';
-  }
-
-  const nextBlock = `${PATH_MARKER_START}\n${block.trimEnd()}\n${PATH_MARKER_END}`;
-  const markerPattern = new RegExp(
-    `${escapeRegExp(PATH_MARKER_START)}[\\s\\S]*?${escapeRegExp(PATH_MARKER_END)}`,
-    'm',
-  );
-  const next = markerPattern.test(current)
-    ? current.replace(markerPattern, nextBlock)
-    : `${current}${current.endsWith('\n') || current.length === 0 ? '' : '\n'}${nextBlock}\n`;
-
-  if (next === current) return false;
-  await writeFile(filePath, next, 'utf-8');
-  return true;
-}
-
-function renderPosixPathSnippet(pathDir) {
-  const expr = shellStartupPathExpr(pathDir);
-  return `liora_bin_dir=${quotePosixStartupExpr(expr)}
-case ":$PATH:" in
-  *":$liora_bin_dir:"*) ;;
-  *) export PATH="$liora_bin_dir:$PATH" ;;
-esac
-unset liora_bin_dir
-`;
-}
-
-function renderFishPathSnippet(pathDir) {
-  const expr = shellStartupPathExpr(pathDir);
-  return `set -l liora_bin_dir ${quoteFishStartupExpr(expr)}
-if type -q fish_add_path
-    fish_add_path $liora_bin_dir
-else if not contains -- $liora_bin_dir $PATH
-    set -gx PATH $liora_bin_dir $PATH
-end
-`;
-}
-
-function shellStartupPathExpr(filePath) {
-  const normalizedHome = homeDir.endsWith('/') ? homeDir.slice(0, -1) : homeDir;
-  if (filePath === normalizedHome) return '$HOME';
-  if (filePath.startsWith(`${normalizedHome}/`)) return `$HOME/${filePath.slice(normalizedHome.length + 1)}`;
-  return filePath;
+  return '~/.local/bin';
 }
 
 function resolveHome(value) {
@@ -175,35 +155,6 @@ function quotePosix(value) {
   return `'${value.replaceAll(`'`, `'\\''`)}'`;
 }
 
-function quotePosixStartupExpr(value) {
-  if (value === '$HOME' || value.startsWith('$HOME/')) {
-    return `"${value.replaceAll(/["\\`]/g, '\\$&')}"`;
-  }
-  return quotePosix(value);
-}
-
-function quoteFish(value) {
-  return `'${value.replaceAll('\\', '\\\\').replaceAll(`'`, "\\'")}'`;
-}
-
-function quoteFishStartupExpr(value) {
-  if (value === '$HOME' || value.startsWith('$HOME/')) {
-    return `"${value.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`;
-  }
-  return quoteFish(value);
-}
-
-function escapeRegExp(value) {
-  return value.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function prettyHome(filePath) {
-  const normalizedHome = homeDir.endsWith('/') ? homeDir.slice(0, -1) : homeDir;
-  if (filePath === normalizedHome) return '~';
-  if (filePath.startsWith(`${normalizedHome}/`)) return `~/${filePath.slice(normalizedHome.length + 1)}`;
-  return filePath;
-}
-
 function parseArgs(argv) {
   const parsed = {
     binDir: undefined,
@@ -211,6 +162,8 @@ function parseArgs(argv) {
     name: undefined,
     nodeVersion: undefined,
     shellRc: true,
+    seaBinary: undefined,
+    windows: false,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -219,6 +172,8 @@ function parseArgs(argv) {
       parsed.force = true;
     } else if (arg === '--no-shell-rc') {
       parsed.shellRc = false;
+    } else if (arg === '--windows') {
+      parsed.windows = true;
     } else if (arg === '--bin-dir') {
       parsed.binDir = readValue(argv, i, arg);
       i += 1;
@@ -234,6 +189,11 @@ function parseArgs(argv) {
       i += 1;
     } else if (arg.startsWith('--node-version=')) {
       parsed.nodeVersion = arg.slice('--node-version='.length);
+    } else if (arg === '--sea-binary') {
+      parsed.seaBinary = readValue(argv, i, arg);
+      i += 1;
+    } else if (arg.startsWith('--sea-binary=')) {
+      parsed.seaBinary = arg.slice('--sea-binary='.length);
     } else if (arg === '--help' || arg === '-h') {
       writeStdout(`Usage: node scripts/install-liora.mjs [options]
 
@@ -241,6 +201,8 @@ Options:
   --bin-dir <path>       Install directory. Default: ~/.local/bin
   --name <command>       Command name. Default: liora
   --node-version <major> nvm Node version to request. Default: ${DEFAULT_NODE_VERSION}
+  --sea-binary <path>    Install a shim to a SEA binary instead of source wrapper
+  --windows              Write Windows .cmd/.ps1 wrappers
   --force                Replace an existing unmanaged command file
   --no-shell-rc          Install the wrapper without editing shell startup files
 `);

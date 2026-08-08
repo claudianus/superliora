@@ -1,5 +1,9 @@
 name: Manual Native Bundle
 
+# Builds SEA artifacts only (Actions artifacts, 3-day retention).
+# To publish zip + manifest.json to a GitHub Release for install.sh/ps1,
+# use the "Publish Native Release" workflow instead.
+
 on:
   workflow_dispatch:
 
@@ -12,7 +16,9 @@ jobs:
     with:
       upload-artifact-prefix: liora-native
       retention-days: 3
-      sign-macos: true
+      # Unsigned local SEA profile — Apple secrets are not required for CI smoke.
+      # Use Publish Native Release with sign-macos when notarized macOS builds are needed.
+      sign-macos: false
     secrets:
       APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
       APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}

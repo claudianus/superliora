@@ -14,20 +14,24 @@ export interface UpgradeChecklistRow {
 }
 
 const STAGE_FRACTION: Record<Exclude<UpgradeInstallStage, 'failed'>, number> = {
-  checking: 0.06,
+  checking: 0.04,
+  bootstrapping: 0.1,
   fetching: 0.22,
-  downloading: 0.22,
+  downloading: 0.28,
   building: 0.55,
-  installing: 0.82,
+  installing: 0.75,
+  sidecars: 0.9,
   done: 1,
 };
 
 const STAGE_LABEL: Record<UpgradeInstallStage, string> = {
   checking: 'Checking',
+  bootstrapping: 'Bootstrapping',
   fetching: 'Fetching',
   downloading: 'Downloading',
   building: 'Building',
   installing: 'Installing',
+  sidecars: 'Sidecars',
   done: 'Done',
   failed: 'Failed',
 };
@@ -35,9 +39,11 @@ const STAGE_LABEL: Record<UpgradeInstallStage, string> = {
 /** Pipeline stages shown in the checklist (excludes terminal failed). */
 const GITHUB_PIPELINE: readonly UpgradeInstallStage[] = [
   'checking',
+  'bootstrapping',
   'fetching',
   'building',
   'installing',
+  'sidecars',
   'done',
 ];
 
@@ -45,6 +51,15 @@ const PACKAGE_PIPELINE: readonly UpgradeInstallStage[] = [
   'checking',
   'downloading',
   'installing',
+  'done',
+];
+
+const NATIVE_PIPELINE: readonly UpgradeInstallStage[] = [
+  'checking',
+  'bootstrapping',
+  'downloading',
+  'installing',
+  'sidecars',
   'done',
 ];
 
@@ -65,9 +80,9 @@ export function stageFraction(
 export function orderedStagesForSource(
   source: InstallSource,
 ): readonly UpgradeInstallStage[] {
-  return source === 'github-checkout' || source === 'native'
-    ? GITHUB_PIPELINE
-    : PACKAGE_PIPELINE;
+  if (source === 'native') return NATIVE_PIPELINE;
+  if (source === 'github-checkout') return GITHUB_PIPELINE;
+  return PACKAGE_PIPELINE;
 }
 
 /**
@@ -122,6 +137,14 @@ function pipelineIndex(
   if (active === 'downloading') {
     const fetching = pipeline.indexOf('fetching');
     if (fetching >= 0) return fetching;
+  }
+  if (active === 'bootstrapping') {
+    const checking = pipeline.indexOf('checking');
+    if (checking >= 0) return checking;
+  }
+  if (active === 'sidecars') {
+    const installing = pipeline.indexOf('installing');
+    if (installing >= 0) return installing;
   }
   return 0;
 }

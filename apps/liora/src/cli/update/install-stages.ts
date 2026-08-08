@@ -1,18 +1,22 @@
 export type UpgradeInstallStage =
   | 'checking'
+  | 'bootstrapping'
   | 'fetching'
   | 'downloading'
   | 'building'
   | 'installing'
+  | 'sidecars'
   | 'done'
   | 'failed';
 
 const UPGRADE_INSTALL_STAGES = new Set<UpgradeInstallStage>([
   'checking',
+  'bootstrapping',
   'fetching',
   'downloading',
   'building',
   'installing',
+  'sidecars',
   'done',
   'failed',
 ]);
