@@ -157,7 +157,11 @@ export class AskUserQuestionTool implements BuiltinTool<AskUserQuestionInput> {
     }: Pick<ExecutableToolContext, 'toolCallId' | 'signal' | 'turnId'>,
   ): Promise<ExecutableToolResult> {
     try {
-      const autoAnswer = tryAutoAnswerQuestions(args, this.agent.permission?.mode);
+      // Ask mode exists to collect human judgment — never auto-fill the question
+      // dialog even when permission mode is auto.
+      const autoAnswer = this.agent.askMode?.isActive
+        ? undefined
+        : tryAutoAnswerQuestions(args, this.agent.permission?.mode);
       if (autoAnswer !== undefined) {
         await this.recordUltraInterviewAnswers(args.questions, autoAnswer.answers, 'auto');
         this.agent.telemetry.track('question_answered', {

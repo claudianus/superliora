@@ -48,7 +48,7 @@ const ASK_MODE_REMINDER = [
   '- Codebase: Read, Grep, Glob, RepoQuery. File contents go through Read — do not Bash cat/pager dumps (runtime redirects those to Read).',
   '- Web: WebSearch / FetchURL when those tools are on the profile.',
   '- Bash only for inspection (git log, ls, rg, and similar read-only commands).',
-  '- When a choice changes the recommendation, call AskUserQuestion — do not dump prose menus.',
+  '- When a choice changes the recommendation, call AskUserQuestion — do not dump prose menus. Ask mode always waits for the human answer (auto permission does not auto-fill the dialog).',
   '- Say what you found, what the options are, and what you would recommend.',
   '- When you are unsure, say so and name what would settle it.',
   '',

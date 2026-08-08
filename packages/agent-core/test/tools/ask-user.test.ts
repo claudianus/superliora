@@ -37,6 +37,7 @@ function input(
 function makeTool(
   options: {
     readonly mode?: PermissionMode;
+    readonly askMode?: boolean;
     readonly requestQuestion?: (
       request: QuestionRequest,
       options: { readonly signal?: AbortSignal },
@@ -56,6 +57,7 @@ function makeTool(
   const telemetryTrack = vi.fn();
   const agent = {
     permission: { mode: options.mode ?? 'manual' },
+    askMode: { isActive: options.askMode === true },
     rpc: { requestQuestion },
     telemetry: { track: telemetryTrack },
   } as unknown as Agent;
@@ -220,6 +222,25 @@ describe('AskUserQuestionTool', () => {
     const result = await executeTool(tool, {
       turnId: '0',
       toolCallId: 'call_yolo_question',
+      args: input({
+        options: [
+          { label: 'Postgres (Recommended)', description: 'Relational storage' },
+          { label: 'SQLite', description: 'Embedded storage' },
+        ],
+      }),
+      signal,
+    });
+
+    expect(result.isError).toBe(false);
+    expect(requestQuestion).toHaveBeenCalledOnce();
+  });
+
+  it('asks the human through rpc in ask mode even when permission is auto', async () => {
+    const { tool, requestQuestion } = makeTool({ mode: 'auto', askMode: true });
+
+    const result = await executeTool(tool, {
+      turnId: '0',
+      toolCallId: 'call_ask_mode_auto',
       args: input({
         options: [
           { label: 'Postgres (Recommended)', description: 'Relational storage' },
