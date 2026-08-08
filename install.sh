@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SuperLiora bootstrap — ensure Node, then run scripts/install-superliora.mjs
 set -euo pipefail
 
 DEFAULT_REPO_URL="https://github.com/claudianus/superliora.git"
@@ -7,6 +8,8 @@ DEFAULT_INSTALL_DIR="${HOME}/.superliora/source"
 DEFAULT_BIN_DIR="${HOME}/.local/bin"
 DEFAULT_COMMAND="liora"
 DEFAULT_NODE_MIN="24.15.0"
+DEFAULT_RAW_BASE="https://raw.githubusercontent.com/claudianus/superliora/main"
+DEFAULT_MANIFEST_URL="https://github.com/claudianus/superliora/releases/latest/download/manifest.json"
 
 REPO_URL="${SUPERLIORA_REPO_URL:-$DEFAULT_REPO_URL}"
 REF="${SUPERLIORA_REF:-$DEFAULT_REF}"
@@ -14,77 +17,51 @@ INSTALL_DIR="${SUPERLIORA_INSTALL_DIR:-$DEFAULT_INSTALL_DIR}"
 BIN_DIR="${SUPERLIORA_BIN_DIR:-$DEFAULT_BIN_DIR}"
 COMMAND_NAME="${SUPERLIORA_COMMAND:-$DEFAULT_COMMAND}"
 NODE_MIN="${SUPERLIORA_NODE_MIN:-$DEFAULT_NODE_MIN}"
+RAW_BASE="${SUPERLIORA_RAW_BASE:-$DEFAULT_RAW_BASE}"
+MANIFEST_URL="${SUPERLIORA_MANIFEST_URL:-$DEFAULT_MANIFEST_URL}"
 FORCE=0
 NO_BUILD=0
 NO_SHELL_RC=0
 NO_BROWSER_USE=0
 NO_COMPUTER_USE=0
 NO_RETRIEVAL=0
+PREFER_SOURCE=0
+FORCE_PREBUILT=0
+
+STAGE_MARKER_PREFIX='__LIORA_UPGRADE_STAGE__='
 
 usage() {
   cat <<EOF
 Usage: install.sh [options]
 
-Installs SuperLiora from GitHub source and creates the liora command.
+Installs SuperLiora (prebuilt SEA preferred, source fallback) and creates the liora command.
 
 Options:
   --repo <url>          Git repository URL. Default: ${DEFAULT_REPO_URL}
-  --ref <ref>           Branch, tag, or ref to install. Default: ${DEFAULT_REF}
+  --ref <ref>           Branch, tag, or ref. Default: ${DEFAULT_REF}
   --install-dir <path>  Source checkout directory. Default: ~/.superliora/source
   --bin-dir <path>      Command install directory. Default: ~/.local/bin
   --command <name>      Command name. Default: liora
   --node-min <version>  Minimum Node.js version. Default: ${DEFAULT_NODE_MIN}
-  --force              Replace an existing checkout/wrapper when needed
-  --no-build           Skip pnpm install/build after checkout
-  --no-browser-use     Skip CloakBrowser binary pre-install
-  --no-computer-use    Skip cua-driver computer-use install
-  --no-retrieval       Skip local Granite-97M embedder download + passage indexes
-  --no-shell-rc        Do not edit shell startup files
-  -h, --help           Show this help
+  --manifest <url>      Release manifest.json URL
+  --force               Replace an existing checkout/wrapper when needed
+  --no-build            Skip pnpm install/build after checkout
+  --no-browser-use      Skip browser-use sidecar install
+  --no-computer-use     Skip cua-driver computer-use install
+  --no-retrieval        Skip local Granite-97M embedder + passage indexes
+  --no-shell-rc         Do not edit shell startup files
+  --prefer-source       Skip prebuilt; build from source
+  --force-prebuilt      Fail if prebuilt unavailable
+  -h, --help            Show this help
 
 Environment variables:
   SUPERLIORA_REPO_URL, SUPERLIORA_REF, SUPERLIORA_INSTALL_DIR,
   SUPERLIORA_BIN_DIR, SUPERLIORA_COMMAND, SUPERLIORA_NODE_MIN,
+  SUPERLIORA_MANIFEST_URL, SUPERLIORA_RAW_BASE,
   SUPERLIORA_SKIP_BROWSER_USE, SUPERLIORA_SKIP_COMPUTER_USE,
-  SUPERLIORA_SKIP_RETRIEVAL
+  SUPERLIORA_SKIP_RETRIEVAL, SUPERLIORA_PREFER_SOURCE,
+  SUPERLIORA_FORCE_PREBUILT
 EOF
-}
-
-# Shared with in-app / CLI upgrade theatre — parseable by parseUpgradeStageLine.
-# Stages: fetching | building | installing | done | failed
-STAGE_MARKER_PREFIX='__LIORA_UPGRADE_STAGE__='
-
-use_color() {
-  [ -t 1 ] || return 1
-  case "${NO_COLOR:-}" in
-    ''|0|false|FALSE|off|OFF) ;;
-    *) return 1 ;;
-  esac
-  return 0
-}
-
-log() {
-  printf '%s\n' "$*"
-}
-
-# Emit a machine-readable stage marker (always) and a human step line (TTY).
-emit_stage() {
-  local stage="$1"
-  local label="${2:-$1}"
-  printf '%s%s\n' "$STAGE_MARKER_PREFIX" "$stage"
-  if use_color; then
-    printf '\033[36m●\033[0m \033[1m%s\033[0m\n' "$label"
-  else
-    log "==> $label"
-  fi
-}
-
-step_ok() {
-  if use_color; then
-    printf '  \033[32m✓\033[0m %s\n' "$1"
-  else
-    log "  [ok] $1"
-  fi
 }
 
 die() {
@@ -103,91 +80,30 @@ expand_path() {
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --repo)
-      [ "$#" -ge 2 ] || die "--repo requires a value"
-      REPO_URL="$2"
-      shift 2
-      ;;
-    --repo=*)
-      REPO_URL="${1#--repo=}"
-      shift
-      ;;
-    --ref)
-      [ "$#" -ge 2 ] || die "--ref requires a value"
-      REF="$2"
-      shift 2
-      ;;
-    --ref=*)
-      REF="${1#--ref=}"
-      shift
-      ;;
-    --install-dir)
-      [ "$#" -ge 2 ] || die "--install-dir requires a value"
-      INSTALL_DIR="$2"
-      shift 2
-      ;;
-    --install-dir=*)
-      INSTALL_DIR="${1#--install-dir=}"
-      shift
-      ;;
-    --bin-dir)
-      [ "$#" -ge 2 ] || die "--bin-dir requires a value"
-      BIN_DIR="$2"
-      shift 2
-      ;;
-    --bin-dir=*)
-      BIN_DIR="${1#--bin-dir=}"
-      shift
-      ;;
-    --command)
-      [ "$#" -ge 2 ] || die "--command requires a value"
-      COMMAND_NAME="$2"
-      shift 2
-      ;;
-    --command=*)
-      COMMAND_NAME="${1#--command=}"
-      shift
-      ;;
-    --node-min)
-      [ "$#" -ge 2 ] || die "--node-min requires a value"
-      NODE_MIN="$2"
-      shift 2
-      ;;
-    --node-min=*)
-      NODE_MIN="${1#--node-min=}"
-      shift
-      ;;
-    --force)
-      FORCE=1
-      shift
-      ;;
-    --no-build)
-      NO_BUILD=1
-      shift
-      ;;
-    --no-browser-use)
-      NO_BROWSER_USE=1
-      shift
-      ;;
-    --no-computer-use)
-      NO_COMPUTER_USE=1
-      shift
-      ;;
-    --no-retrieval)
-      NO_RETRIEVAL=1
-      shift
-      ;;
-    --no-shell-rc)
-      NO_SHELL_RC=1
-      shift
-      ;;
-    -h|--help)
-      usage
-      exit 0
-      ;;
-    *)
-      die "unknown option: $1"
-      ;;
+    --repo) REPO_URL="$2"; shift 2 ;;
+    --repo=*) REPO_URL="${1#--repo=}"; shift ;;
+    --ref) REF="$2"; shift 2 ;;
+    --ref=*) REF="${1#--ref=}"; shift ;;
+    --install-dir) INSTALL_DIR="$2"; shift 2 ;;
+    --install-dir=*) INSTALL_DIR="${1#--install-dir=}"; shift ;;
+    --bin-dir) BIN_DIR="$2"; shift 2 ;;
+    --bin-dir=*) BIN_DIR="${1#--bin-dir=}"; shift ;;
+    --command) COMMAND_NAME="$2"; shift 2 ;;
+    --command=*) COMMAND_NAME="${1#--command=}"; shift ;;
+    --node-min) NODE_MIN="$2"; shift 2 ;;
+    --node-min=*) NODE_MIN="${1#--node-min=}"; shift ;;
+    --manifest) MANIFEST_URL="$2"; shift 2 ;;
+    --manifest=*) MANIFEST_URL="${1#--manifest=}"; shift ;;
+    --force) FORCE=1; shift ;;
+    --no-build) NO_BUILD=1; shift ;;
+    --no-browser-use) NO_BROWSER_USE=1; shift ;;
+    --no-computer-use) NO_COMPUTER_USE=1; shift ;;
+    --no-retrieval) NO_RETRIEVAL=1; shift ;;
+    --no-shell-rc) NO_SHELL_RC=1; shift ;;
+    --prefer-source) PREFER_SOURCE=1; shift ;;
+    --force-prebuilt) FORCE_PREBUILT=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) die "unknown option: $1" ;;
   esac
 done
 
@@ -205,155 +121,114 @@ case "$COMMAND_NAME" in
   *[!A-Za-z0-9._-]*|'') die "--command must be a simple command name" ;;
 esac
 
-need_cmd() {
-  command -v "$1" >/dev/null 2>&1 || die "$1 is required"
-}
+printf '%sbootstrapping\n' "$STAGE_MARKER_PREFIX"
 
-need_cmd git
-need_cmd node
-need_cmd corepack
-
-node -e '
-const actual = process.versions.node.split(".").map(Number);
-const required = process.argv[1].split(".").map(Number);
+version_gte() {
+  # $1 actual, $2 required
+  node_bin="$3"
+  "$node_bin" -e '
+const actual = process.argv[1].split(".").map(Number);
+const required = process.argv[2].split(".").map(Number);
 const ok =
   actual[0] > required[0] ||
   (actual[0] === required[0] && (actual[1] > required[1] ||
   (actual[1] === required[1] && actual[2] >= required[2])));
 process.exit(ok ? 0 : 1);
-' "$NODE_MIN" || die "Node.js >= ${NODE_MIN} is required (found $(node -p 'process.versions.node'))"
-
-ensure_pnpm() {
-  if COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm --version >/dev/null 2>&1; then
-    return
-  fi
-  corepack enable pnpm >/dev/null 2>&1 || true
-  COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm --version >/dev/null 2>&1 || \
-    die "pnpm is required; enable Corepack or install pnpm"
+' "$1" "$2"
 }
 
-safe_remove_dir() {
-  local target="$1"
-  [ -n "$target" ] || die "refusing to remove an empty path"
-  [ "$target" != "$HOME" ] || die "refusing to remove HOME"
-  [ "$target" != "/" ] || die "refusing to remove /"
-  rm -rf "$target"
-}
-
-ensure_pnpm
-
-if [ -e "$INSTALL_DIR" ] && [ ! -d "$INSTALL_DIR/.git" ]; then
-  if [ "$FORCE" -eq 1 ]; then
-    log "Removing non-git install directory: $INSTALL_DIR"
-    safe_remove_dir "$INSTALL_DIR"
-  else
-    die "$INSTALL_DIR exists but is not a git checkout; pass --force to replace it"
-  fi
-fi
-
-emit_stage fetching "Fetching SuperLiora source"
-if [ -d "$INSTALL_DIR/.git" ]; then
-  log "Updating SuperLiora source in $INSTALL_DIR"
-  git -C "$INSTALL_DIR" remote set-url origin "$REPO_URL"
-  git -C "$INSTALL_DIR" fetch --depth 1 origin "$REF"
-  # Stay on the tracking branch (bare FETCH_HEAD leaves detached HEAD).
-  git -C "$INSTALL_DIR" -c advice.detachedHead=false checkout --force -B "$REF" FETCH_HEAD
-  git -C "$INSTALL_DIR" reset --hard FETCH_HEAD
-else
-  log "Cloning SuperLiora source into $INSTALL_DIR"
-  mkdir -p "$(dirname "$INSTALL_DIR")"
-  git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"
-  git -C "$INSTALL_DIR" fetch --depth 1 origin "$REF"
-  git -C "$INSTALL_DIR" -c advice.detachedHead=false checkout --force -B "$REF" FETCH_HEAD
-fi
-step_ok "Source at $INSTALL_DIR ($REF)"
-
-if [ "$NO_BUILD" -eq 0 ]; then
-  emit_stage building "Installing dependencies and building CLI"
-  (
-    cd "$INSTALL_DIR"
-    COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm install --frozen-lockfile
-    COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm run build:packages
-    COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm -C apps/liora run build
-  )
-  step_ok "Packages and CLI built"
-
-  if [ "$NO_BROWSER_USE" -eq 0 ] && [ "${SUPERLIORA_SKIP_BROWSER_USE:-0}" != "1" ]; then
-    log "Pre-installing Lightpanda browser-use runtime (primary)"
-  case "$(uname -s)-$(uname -m)" in
-    Darwin-arm64) LIGHTPANDA_ASSET=lightpanda-aarch64-macos ;;
-    Darwin-x86_64) LIGHTPANDA_ASSET=lightpanda-x86_64-macos ;;
-    Linux-x86_64) LIGHTPANDA_ASSET=lightpanda-x86_64-linux ;;
-    Linux-aarch64) LIGHTPANDA_ASSET=lightpanda-aarch64-linux ;;
-    *) LIGHTPANDA_ASSET= ;;
-  esac
-  if [ -n "$LIGHTPANDA_ASSET" ]; then
-    LIGHTPANDA_CACHE="${LIGHTPANDA_CACHE_DIR:-$HOME/.cache/superliora-lightpanda}"
-    mkdir -p "$LIGHTPANDA_CACHE"
-    if ! curl -fsSL "https://github.com/lightpanda-io/browser/releases/download/nightly/$LIGHTPANDA_ASSET" \
-      -o "$LIGHTPANDA_CACHE/lightpanda"; then
-      log "warning: Lightpanda pre-install failed; retry with '$COMMAND_NAME browser-use install'"
-    else
-      chmod +x "$LIGHTPANDA_CACHE/lightpanda"
+find_node() {
+  if command -v node >/dev/null 2>&1; then
+    local ver
+    ver="$(node -p 'process.versions.node' 2>/dev/null || true)"
+    if [ -n "$ver" ] && version_gte "$ver" "$NODE_MIN" node; then
+      command -v node
+      return 0
     fi
-  else
-    log "warning: Lightpanda auto-install is not supported on this platform; CloakBrowser fallback only"
   fi
+  return 1
+}
 
-    log "Pre-installing CloakBrowser fallback cache"
-    (
-      cd "$INSTALL_DIR"
-      COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm --filter @superliora/gui-use exec cloakbrowser install
-    ) || log "warning: CloakBrowser fallback pre-install failed; retry with '$COMMAND_NAME browser-use install'"
+bootstrap_node() {
+  local os arch slug url runtime archive
+  case "$(uname -s)" in
+    Darwin) os=darwin ;;
+    Linux) os=linux ;;
+    *) die "unsupported OS for Node bootstrap: $(uname -s)" ;;
+  esac
+  case "$(uname -m)" in
+    arm64|aarch64) arch=arm64 ;;
+    x86_64|amd64) arch=x64 ;;
+    *) die "unsupported arch for Node bootstrap: $(uname -m)" ;;
+  esac
+  slug="node-v${NODE_MIN}-${os}-${arch}"
+  url="https://nodejs.org/dist/v${NODE_MIN}/${slug}.tar.gz"
+  runtime="${HOME}/.superliora/runtime/node"
+  archive="${runtime}/${slug}.tar.gz"
+  mkdir -p "$runtime"
+  if [ ! -x "${runtime}/${slug}/bin/node" ]; then
+    printf 'Downloading Node.js %s …\n' "$NODE_MIN"
+    curl -fsSL "$url" -o "$archive" || die "failed to download Node from $url"
+    tar -xzf "$archive" -C "$runtime"
+    rm -f "$archive"
   fi
+  export PATH="${runtime}/${slug}/bin:$PATH"
+  command -v node >/dev/null 2>&1 || die "Node bootstrap failed"
+}
 
-  if [ "$NO_COMPUTER_USE" -eq 0 ] && [ "${SUPERLIORA_SKIP_COMPUTER_USE:-0}" != "1" ]; then
-    case "$(uname -s)" in
-      Darwin|Linux)
-        log "Installing cua-driver computer-use runtime"
-        /bin/bash -c 'curl -fsSL https://raw.githubusercontent.com/trycua/cua/main/libs/cua-driver/scripts/install.sh | /bin/bash' || \
-          log "warning: cua-driver install failed; retry with '$COMMAND_NAME computer-use install'"
-        ;;
-      *)
-        log "warning: cua-driver auto-install is not supported on this platform"
-        ;;
-    esac
-  fi
-
-  if [ "$NO_RETRIEVAL" -eq 0 ] && [ "${SUPERLIORA_SKIP_RETRIEVAL:-0}" != "1" ]; then
-    log "Pre-installing local SearchExpert embedder (Granite-97M ONNX) + passage indexes"
-    (
-      cd "$INSTALL_DIR"
-      SUPERLIORA_RETRIEVAL_EMBEDDER=transformers COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
-        corepack pnpm -C packages/agent-core run retrieval:bootstrap
-    ) || log "warning: retrieval bootstrap failed; SearchExpert falls back to hash until online — retry with 'pnpm -C packages/agent-core run retrieval:bootstrap'"
-  fi
-fi
-
-install_args=("--bin-dir" "$BIN_DIR" "--name" "$COMMAND_NAME")
-if [ "$FORCE" -eq 1 ]; then
-  install_args+=("--force")
-fi
-if [ "$NO_SHELL_RC" -eq 1 ]; then
-  install_args+=("--no-shell-rc")
-fi
-
-emit_stage installing "Installing $COMMAND_NAME wrapper"
-node "$INSTALL_DIR/scripts/install-liora.mjs" "${install_args[@]}"
-step_ok "Wrapper at $BIN_DIR/$COMMAND_NAME"
-
-if [ -x "$BIN_DIR/$COMMAND_NAME" ]; then
-  "$BIN_DIR/$COMMAND_NAME" --version >/dev/null 2>&1 || true
-fi
-
-printf '%sdone\n' "$STAGE_MARKER_PREFIX"
-log ""
-if use_color; then
-  printf '\033[32m✓\033[0m \033[1mSuperLiora is installed from GitHub source.\033[0m\n'
+NODE_BIN=""
+if NODE_BIN="$(find_node)"; then
+  :
 else
-  log "SuperLiora is installed from GitHub source."
+  bootstrap_node
+  NODE_BIN="$(command -v node)"
 fi
-log "Command: $COMMAND_NAME"
-log "Source:  $INSTALL_DIR"
-log "Bin dir: $BIN_DIR"
-log "Next:    $COMMAND_NAME   ·  $COMMAND_NAME upgrade"
+
+# Locate orchestrator: local checkout next to this script, else download bundle.
+SCRIPT_DIR=""
+if [ -n "${BASH_SOURCE[0]:-}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+
+ORCH=""
+INSTALL_MOD_DIR=""
+if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/scripts/install-superliora.mjs" ]; then
+  ORCH="$SCRIPT_DIR/scripts/install-superliora.mjs"
+  INSTALL_MOD_DIR="$SCRIPT_DIR/scripts/install"
+else
+  BUNDLE_DIR="${TMPDIR:-/tmp}/superliora-install-$$"
+  mkdir -p "$BUNDLE_DIR/scripts/install"
+  fetch_raw() {
+    local rel="$1" dest="$2"
+    curl -fsSL "${RAW_BASE}/${rel}" -o "$dest" || die "failed to download ${RAW_BASE}/${rel}"
+  }
+  fetch_raw "scripts/install-superliora.mjs" "$BUNDLE_DIR/scripts/install-superliora.mjs"
+  fetch_raw "scripts/install-liora.mjs" "$BUNDLE_DIR/scripts/install-liora.mjs"
+  for f in platform.mjs ensure-node.mjs theatre.mjs download.mjs prebuilt.mjs source.mjs sidecars.mjs path.mjs; do
+    fetch_raw "scripts/install/$f" "$BUNDLE_DIR/scripts/install/$f"
+  done
+  ORCH="$BUNDLE_DIR/scripts/install-superliora.mjs"
+  INSTALL_MOD_DIR="$BUNDLE_DIR/scripts/install"
+  trap 'rm -rf "$BUNDLE_DIR"' EXIT
+fi
+
+orch_args=(
+  --repo "$REPO_URL"
+  --ref "$REF"
+  --install-dir "$INSTALL_DIR"
+  --bin-dir "$BIN_DIR"
+  --command "$COMMAND_NAME"
+  --node-min "$NODE_MIN"
+  --manifest "$MANIFEST_URL"
+)
+[ "$FORCE" -eq 1 ] && orch_args+=(--force)
+[ "$NO_BUILD" -eq 1 ] && orch_args+=(--no-build)
+[ "$NO_SHELL_RC" -eq 1 ] && orch_args+=(--no-shell-rc)
+[ "$NO_BROWSER_USE" -eq 1 ] && orch_args+=(--no-browser-use)
+[ "$NO_COMPUTER_USE" -eq 1 ] && orch_args+=(--no-computer-use)
+[ "$NO_RETRIEVAL" -eq 1 ] && orch_args+=(--no-retrieval)
+[ "$PREFER_SOURCE" -eq 1 ] && orch_args+=(--prefer-source)
+[ "$FORCE_PREBUILT" -eq 1 ] && orch_args+=(--force-prebuilt)
+
+# shellcheck disable=SC2093
+exec "$NODE_BIN" "$ORCH" "${orch_args[@]}"

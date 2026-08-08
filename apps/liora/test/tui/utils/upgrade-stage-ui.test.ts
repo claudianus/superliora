@@ -34,15 +34,31 @@ describe('upgrade-stage-ui', () => {
     const rows = formatStageChecklist('github-checkout', 'building');
     expect(rows.map((r) => r.stage)).toEqual([
       'checking',
+      'bootstrapping',
       'fetching',
       'building',
       'installing',
+      'sidecars',
       'done',
     ]);
     expect(rows.find((r) => r.stage === 'checking')?.marker).toBe('done');
     expect(rows.find((r) => r.stage === 'building')?.marker).toBe('active');
     expect(rows.find((r) => r.stage === 'installing')?.marker).toBe('pending');
   });
+
+  it('builds native checklist around downloading', () => {
+    const rows = formatStageChecklist('native', 'downloading');
+    expect(rows.map((r) => r.stage)).toEqual([
+      'checking',
+      'bootstrapping',
+      'downloading',
+      'installing',
+      'sidecars',
+      'done',
+    ]);
+    expect(rows.find((r) => r.stage === 'downloading')?.marker).toBe('active');
+  });
+
 
   it('marks package pipeline downloading stage', () => {
     const rows = formatStageChecklist('npm-global', 'downloading');

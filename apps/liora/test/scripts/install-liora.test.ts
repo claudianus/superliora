@@ -81,8 +81,12 @@ describe('scripts/install-liora.mjs', () => {
     expect(ps1).toContain('https://github.com/claudianus/superliora.git');
     expect(sh).not.toContain('code.kimi.com/kimi-code');
     expect(ps1).not.toContain('code.kimi.com/kimi-code');
-    expect(sh).toContain('scripts/install-liora.mjs');
-    expect(ps1).toContain('[Environment]::SetEnvironmentVariable');
+    expect(sh).toContain('scripts/install-superliora.mjs');
+    expect(ps1).toContain('scripts/install-superliora.mjs');
+    expect(sh).toContain('manifest.json');
+    expect(ps1).toContain('manifest.json');
+    expect(sh).toContain('--prefer-source');
+    expect(ps1).toContain('PreferSource');
   });
 
   it.skipIf(process.platform === 'win32')('has valid bash syntax for the POSIX source installer', async () => {

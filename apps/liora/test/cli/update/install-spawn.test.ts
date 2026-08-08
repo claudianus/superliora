@@ -32,8 +32,8 @@ describe('canAutoInstall', () => {
     expect(canAutoInstall('homebrew', 'darwin')).toBe(false);
   });
 
-  it('blocks native and github-checkout on Windows', () => {
-    expect(canAutoInstall('native', 'win32')).toBe(false);
+  it('allows native auto-install on Windows via install.ps1', () => {
+    expect(canAutoInstall('native', 'win32')).toBe(true);
     expect(canAutoInstall('github-checkout', 'win32')).toBe(false);
   });
 
@@ -41,7 +41,14 @@ describe('canAutoInstall', () => {
     expect(canAutoInstall('native', 'darwin')).toBe(true);
     expect(canAutoInstall('github-checkout', 'linux')).toBe(true);
   });
+
+  it('spawns powershell for native installs on Windows', () => {
+    const { cmd, args } = spawnForSource('native', '0.5.0', 'win32');
+    expect(cmd).toBe('powershell');
+    expect(args.join(' ')).toContain('install.ps1');
+  });
 });
+
 
 describe('spawnForSource native', () => {
   it.skipIf(process.platform === 'win32')(

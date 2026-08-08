@@ -1,5 +1,9 @@
 name: Manual Native Bundle
 
+# Builds SEA artifacts only (Actions artifacts, 3-day retention).
+# To publish zip + manifest.json to a GitHub Release for install.sh/ps1,
+# use the "Publish Native Release" workflow instead.
+
 on:
   workflow_dispatch:
 

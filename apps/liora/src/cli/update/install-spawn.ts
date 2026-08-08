@@ -51,9 +51,11 @@ export function canAutoInstall(source: InstallSource, platform: NodeJS.Platform)
       // behind the CDN release — prompt the user to run `brew upgrade` manually.
       return false;
     case 'github-checkout':
+      // In-place git checkout update script is POSIX bash today.
       return platform !== 'win32';
     case 'native':
-      return platform !== 'win32';
+      // install.sh / install.ps1 both bootstrap Node and run the orchestrator.
+      return true;
     case 'unsupported':
       return false;
   }
@@ -83,6 +85,19 @@ export function spawnForSource(
     case 'github-checkout':
       return { cmd: 'bash', args: ['-lc', gitCheckoutUpdateScript()] };
     case 'native':
+      if (platform === 'win32') {
+        // Surface irm failures instead of treating an empty pipeline as success.
+        return {
+          cmd: 'powershell',
+          args: [
+            '-NoProfile',
+            '-ExecutionPolicy',
+            'Bypass',
+            '-Command',
+            `$ErrorActionPreference='Stop'; ${NATIVE_INSTALL_COMMAND_WIN}`,
+          ],
+        };
+      }
       // `curl … | bash` reports only the trailing bash's exit status, so a
       // failed download (curl can't connect → empty stdin → bash exits 0)
       // would look like a successful update. `pipefail` makes the pipeline

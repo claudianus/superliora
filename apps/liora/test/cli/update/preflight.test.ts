@@ -566,25 +566,23 @@ describe('runUpdatePreflight', () => {
     }
   });
 
-  it('native on win32: prints manual powershell command, does not spawn', async () => {
+  it('native on win32: auto-installs via powershell install.ps1', async () => {
+    disableAutoInstall();
     mocks.readUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
     mocks.refreshUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
     mocks.detectInstallSource.mockResolvedValue('native');
+    mocks.promptForInstallChoice.mockResolvedValue('install');
+    mockSpawnExit(0);
     const originalPlatform = process.platform;
     Object.defineProperty(process, 'platform', { value: 'win32' });
     try {
-      const { stdout, options } = captureOutput();
-      const result = await runUpdatePreflight('0.4.0', options);
-      expect(result).toEqual(expect.objectContaining({
-        action: 'continue',
-        updateNotice: expect.objectContaining({
-          installCommand: expect.stringContaining(
-            'irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex',
-          ),
-        }),
-      }));
-      expect(promptForInstallChoice).not.toHaveBeenCalled();
-      expect(mocks.spawn).not.toHaveBeenCalled();
+      const { options } = captureOutput();
+      await runUpdatePreflight('0.4.0', options);
+      const call = mocks.spawn.mock.calls[0];
+      expect(call?.[0]).toBe('powershell');
+      const args = call?.[1] as string[];
+      expect(args.join(' ')).toContain('install.ps1');
+      expect(args.join(' ')).toContain('irm');
     } finally {
       Object.defineProperty(process, 'platform', { value: originalPlatform });
     }
