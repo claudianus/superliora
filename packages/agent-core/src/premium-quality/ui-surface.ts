@@ -15,7 +15,7 @@ const UI_OBJECTIVE_PATTERN =
 
 /** Path fragments that imply a user-visible surface change. */
 const UI_PATH_PATTERN =
-  /(?:^|\/)(?:components?|pages?|views?|layouts?|styles?|public|assets|static|app|src\/app|apps\/[^/]+\/(?:src\/)?(?:app|pages|components|styles))\b|\.(?:css|scss|sass|less|html|vue|svelte|astro)$|(?:^|\/)(?:page|layout|template|globals?)\.(?:tsx?|jsx?|css|scss)$/i;
+  /(?:^|\/)(?:components?|pages?|views?|layouts?|styles?|public|assets|static|app|src\/app|apps\/[^/]+\/(?:src\/)?(?:app|pages|components|styles)|game|games|canvas)\b|\.(?:css|scss|sass|less|html|vue|svelte|astro)$|(?:^|\/)(?:page|layout|template|globals?|game)\.(?:tsx?|jsx?|css|scss)$/i;
 
 export function pathsLookLikeUi(paths: readonly string[] | undefined | null): boolean {
   if (paths === undefined || paths === null || paths.length === 0) return false;

@@ -6,6 +6,7 @@
 
 import type { Kaos } from '@superliora/kaos';
 
+import type { Agent } from '../../../agent/index';
 import type { Logger } from '../../../logging/types';
 import {
   createSessionWorktree,
@@ -23,6 +24,7 @@ import {
   type JobRecord,
   type JobStatus,
 } from './job-ledger';
+import { patchJobAndNotify } from './job-notify';
 
 /** Locked product defaults (Conductor plan). */
 export const CONDUCTOR_DEFAULT_MAX_CONCURRENT_JOBS = 6;
@@ -99,6 +101,8 @@ export interface AssignJobWorktreeInput {
    * Unit tests injecting a fake worktree factory can skip it.
    */
   readonly ensureGitRepo?: boolean;
+  /** When set, worktree_failed blocks wake the Conductor. */
+  readonly agent?: Agent;
 }
 
 /**
@@ -135,6 +139,7 @@ export async function assignJobWorktree(
     if (parent?.worktreePath !== undefined && parent.landReceipt === undefined) {
       const job = patchJob(input.store, existing.id, {
         worktreePath: parent.worktreePath,
+        worktreeBranch: parent.worktreeBranch,
         notes: [
           existing.notes,
           `worktree: chained onto parent ${parent.id} branch (${parent.worktreePath})`,
@@ -155,16 +160,21 @@ export async function assignJobWorktree(
       jobId: existing.id,
       error: repo.error,
     });
-    const job = patchJob(input.store, existing.id, {
-      status: 'blocked',
-      notes: [
-        existing.notes,
-        `worktree_failed: ${repo.error}`,
-        'hint: fix the git setup above, then JobResume this job.',
-      ]
-        .filter(Boolean)
-        .join('\n'),
-    });
+    const job = patchJobAndNotify(
+      input.store,
+      existing.id,
+      {
+        status: 'blocked',
+        notes: [
+          existing.notes,
+          `worktree_failed: ${repo.error}`,
+          'hint: fix the git setup above, then JobResume this job.',
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      },
+      { agent: input.agent, summary: `worktree_failed: ${repo.error}` },
+    );
     return { job, error: repo.error };
   }
   if (repo.bootstrapped) {
@@ -182,14 +192,18 @@ export async function assignJobWorktree(
       repoPath: repo.root,
       name: slug,
     });
+    const branch = created.meta?.branch;
     const job = patchJob(input.store, existing.id, {
       worktreePath: created.workDir,
+      ...(branch !== undefined ? { worktreeBranch: branch } : {}),
       notes: [
         existing.notes,
         repo.bootstrapped
           ? `git_bootstrap: initialized ${repo.root}${repo.baselineCommit ? ' + baseline commit' : ''} for worktree isolation`
           : '',
-        `worktree: ${created.workDir}`,
+        branch !== undefined
+          ? `worktree: ${created.workDir} (${branch})`
+          : `worktree: ${created.workDir}`,
       ]
         .filter(Boolean)
         .join('\n'),
@@ -201,10 +215,15 @@ export async function assignJobWorktree(
       jobId: existing.id,
       error: detail,
     });
-    const job = patchJob(input.store, existing.id, {
-      status: 'blocked',
-      notes: [existing.notes, `worktree_failed: ${detail}`].filter(Boolean).join('\n'),
-    });
+    const job = patchJobAndNotify(
+      input.store,
+      existing.id,
+      {
+        status: 'blocked',
+        notes: [existing.notes, `worktree_failed: ${detail}`].filter(Boolean).join('\n'),
+      },
+      { agent: input.agent, summary: `worktree_failed: ${detail}` },
+    );
     return { job, error: detail };
   }
 }
@@ -233,6 +252,8 @@ export interface ScheduleJobsInput {
   readonly env?: Readonly<Record<string, string | undefined>>;
   /** Optional: spawn real worker after job becomes running. */
   readonly launchWorker?: (job: JobRecord) => Promise<void>;
+  /** When set, schedule/worktree/launch failures wake the Conductor. */
+  readonly agent?: Agent;
 }
 
 export interface ScheduleJobsResult {
@@ -252,6 +273,8 @@ export interface ScheduleJobsResult {
  * read-only kind cannot forget to opt in.
  */
 function needsWorktree(kind: JobKind): boolean {
+  // merge: bookkeeping only — land uses the source job's worktree.
+  if (kind === 'merge') return false;
   const profile = profileForJobKind(kind);
   // explore + goal-desk: read-only / orchestration — no worktree.
   return profile !== 'explore' && profile !== 'goal-desk';
@@ -294,12 +317,20 @@ export async function scheduleQueuedJobs(input: ScheduleJobsInput): Promise<Sche
         let job = candidate;
         if (requireWt && needsWorktree(candidate.kind)) {
           if (input.kaos === undefined || input.repoPath === undefined) {
-            const b = patchJob(input.store, candidate.id, {
-              status: 'blocked',
-              notes: [candidate.notes, 'worktree_required: missing kaos/repoPath']
-                .filter(Boolean)
-                .join('\n'),
-            });
+            const b = patchJobAndNotify(
+              input.store,
+              candidate.id,
+              {
+                status: 'blocked',
+                notes: [candidate.notes, 'worktree_required: missing kaos/repoPath']
+                  .filter(Boolean)
+                  .join('\n'),
+              },
+              {
+                agent: input.agent,
+                summary: 'worktree_required: missing kaos/repoPath',
+              },
+            );
             return b ? { blocked: b } : {};
           }
           const assigned = await assignJobWorktree({
@@ -311,6 +342,7 @@ export async function scheduleQueuedJobs(input: ScheduleJobsInput): Promise<Sche
             log: input.log,
             ensureGitRepo: input.ensureGitRepo,
             env: input.env,
+            agent: input.agent,
           });
           if (assigned.error || assigned.job === undefined) {
             return assigned.job ? { blocked: assigned.job } : {};
@@ -334,10 +366,15 @@ export async function scheduleQueuedJobs(input: ScheduleJobsInput): Promise<Sche
             jobId: runningJob.id,
             error: detail,
           });
-          const failed = patchJob(input.store, runningJob.id, {
-            status: 'failed',
-            notes: [runningJob.notes, `launch_failed: ${detail}`].filter(Boolean).join('\n'),
-          });
+          const failed = patchJobAndNotify(
+            input.store,
+            runningJob.id,
+            {
+              status: 'failed',
+              notes: [runningJob.notes, `launch_failed: ${detail}`].filter(Boolean).join('\n'),
+            },
+            { agent: input.agent, summary: `launch_failed: ${detail}` },
+          );
           return failed ? { blocked: failed } : {};
         }
       },

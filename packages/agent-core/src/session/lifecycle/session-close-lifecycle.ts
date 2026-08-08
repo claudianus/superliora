@@ -64,6 +64,7 @@ export class SessionCloseLifecycle {
       try {
         interruptRunningJobs({
           store: agent.tools.getStore(),
+          agent,
           reason: 'session closed',
         });
       } catch (error: unknown) {

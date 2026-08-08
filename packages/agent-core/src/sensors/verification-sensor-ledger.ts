@@ -19,6 +19,10 @@ export interface VerificationSensorLedger {
   lastPassAtMs?: number | undefined;
   /** Last VerifySurface outcome observed this agent run (not_run until called). */
   visualVerdict?: VisualSensorVerdict;
+  /** VerifySurface interaction axis (default scenario / explicit actions). */
+  interactionVerdict?: VisualSensorVerdict;
+  /** VerifySurface craft / banned-ship axis. */
+  craftVerdict?: VisualSensorVerdict;
 }
 
 export const VERIFICATION_SENSOR_MAX_FAILURES = 8;
@@ -51,6 +55,25 @@ export function recordVisualVerdict(
   verdict: VisualSensorVerdict,
 ): void {
   ledger.visualVerdict = verdict;
+}
+
+/**
+ * True until VerifySurface reports a green visual verdict and no failed axis.
+ * Missing axis fields after an overall pass are treated as passed (older outputs).
+ */
+export function surfaceProofAxesSatisfied(ledger: VerificationSensorLedger): boolean {
+  if ((ledger.visualVerdict ?? 'not_run') !== 'passed') return false;
+  if (ledger.interactionVerdict === 'failed' || ledger.interactionVerdict === 'not_run') {
+    return false;
+  }
+  if (ledger.craftVerdict === 'failed' || ledger.craftVerdict === 'not_run') {
+    return false;
+  }
+  return true;
+}
+
+export function surfaceProofAxesIncomplete(ledger: VerificationSensorLedger): boolean {
+  return !surfaceProofAxesSatisfied(ledger);
 }
 
 export function isVerificationCheckTool(toolName: string): boolean {
@@ -180,6 +203,7 @@ function observeVerifySurfaceResult(
   const output = toolOutputText(result.output);
   if (result.isError === true) {
     recordVisualVerdict(ledger, 'failed');
+    recordAxisVerdicts(ledger, output);
     recordVerificationFailure(ledger, {
       toolName: 'VerifySurface',
       summary: output.trim().slice(0, 240) || 'VerifySurface failed',
@@ -187,6 +211,7 @@ function observeVerifySurfaceResult(
     return;
   }
   const pass = parseVerifySurfacePass(output);
+  recordAxisVerdicts(ledger, output);
   if (pass === true) {
     recordVisualVerdict(ledger, 'passed');
     // Green visual proof clears sticky VerifySurface failures without wiping
@@ -204,9 +229,38 @@ function observeVerifySurfaceResult(
   });
 }
 
+function recordAxisVerdicts(ledger: VerificationSensorLedger, output: string): void {
+  try {
+    const parsed = JSON.parse(extractJsonObject(output) ?? output) as {
+      axes?: { load?: string; interaction?: string; craft?: string };
+    };
+    const axes = parsed.axes;
+    if (axes === undefined) return;
+    if (axes.interaction === 'passed' || axes.interaction === 'failed' || axes.interaction === 'not_run') {
+      ledger.interactionVerdict = axes.interaction;
+    }
+    if (axes.craft === 'passed' || axes.craft === 'failed' || axes.craft === 'not_run') {
+      ledger.craftVerdict = axes.craft;
+    }
+    // load maps onto visualVerdict when present (overall pass still authoritative).
+    if (axes.load === 'passed' || axes.load === 'failed') {
+      // keep visualVerdict from pass/fail path; axis is informational
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function extractJsonObject(output: string): string | undefined {
+  const start = output.indexOf('{');
+  const end = output.lastIndexOf('}');
+  if (start < 0 || end <= start) return undefined;
+  return output.slice(start, end + 1);
+}
+
 function parseVerifySurfacePass(output: string): boolean | undefined {
   try {
-    const parsed = JSON.parse(output) as { pass?: unknown };
+    const parsed = JSON.parse(extractJsonObject(output) ?? output) as { pass?: unknown };
     if (typeof parsed.pass === 'boolean') return parsed.pass;
   } catch {
     /* fall through */

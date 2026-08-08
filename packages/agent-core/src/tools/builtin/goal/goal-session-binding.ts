@@ -3,9 +3,11 @@
  * so the main lane never owns driveGoalTurnLoop.
  */
 
+import type { Agent } from '../../../agent/index';
 import type { ToolStore } from '../../store';
-import { getJob, listJobs, patchJob, type JobRecord } from '../job/job-ledger';
 import { abortJobWorker } from '../job/job-handles';
+import { getJob, listJobs, type JobRecord } from '../job/job-ledger';
+import { patchJobAndNotify } from '../job/job-notify';
 
 export const GOAL_SESSION_BINDING_STORE_KEY = 'goal_session_binding' as const;
 
@@ -77,6 +79,7 @@ export function cancelBoundGoalJobs(
   store: ToolStore,
   binding: GoalSessionBinding,
   reason: string,
+  agent?: Agent,
 ): void {
   const ids = [binding.deskJobId, ...binding.driverJobIds];
   for (const id of ids) {
@@ -91,10 +94,16 @@ export function cancelBoundGoalJobs(
       continue;
     }
     abortJobWorker(id);
-    patchJob(store, id, {
-      status: reason === 'pause' ? 'interrupted' : 'cancelled',
-      notes: [job.notes, `goal-desk: ${reason}`].filter(Boolean).join('\n'),
-    });
+    const status = reason === 'pause' ? 'interrupted' : 'cancelled';
+    patchJobAndNotify(
+      store,
+      id,
+      {
+        status,
+        notes: [job.notes, `goal-desk: ${reason}`].filter(Boolean).join('\n'),
+      },
+      { agent, summary: `goal-desk: ${reason}` },
+    );
   }
 }
 
@@ -102,6 +111,7 @@ export function cancelBoundGoalJobs(
 export function syncGoalDeskParentFromDriver(
   store: ToolStore,
   driver: JobRecord,
+  agent?: Agent,
 ): void {
   if (driver.parentJobId === undefined) return;
   const parent = getJob(store, driver.parentJobId);
@@ -131,23 +141,38 @@ export function syncGoalDeskParentFromDriver(
   }
 
   if (driver.status === 'done' || driver.status === 'failed') {
-    patchJob(store, parent.id, {
-      status: driver.status,
-      resultSummary: driver.resultSummary,
-      notes: [parent.notes, `goal-desk: driver ${driver.id} → ${driver.status}`]
-        .filter(Boolean)
-        .join('\n'),
-    });
+    patchJobAndNotify(
+      store,
+      parent.id,
+      {
+        status: driver.status,
+        resultSummary: driver.resultSummary,
+        notes: [parent.notes, `goal-desk: driver ${driver.id} → ${driver.status}`]
+          .filter(Boolean)
+          .join('\n'),
+      },
+      { agent, summary: driver.resultSummary },
+    );
   } else if (driver.status === 'blocked' || driver.status === 'needs_user') {
-    patchJob(store, parent.id, {
-      status: driver.status === 'needs_user' ? 'needs_user' : 'blocked',
-      resultSummary: driver.resultSummary,
-    });
+    patchJobAndNotify(
+      store,
+      parent.id,
+      {
+        status: driver.status === 'needs_user' ? 'needs_user' : 'blocked',
+        resultSummary: driver.resultSummary,
+      },
+      { agent, summary: driver.resultSummary },
+    );
   } else if (driver.status === 'cancelled' || driver.status === 'interrupted') {
-    patchJob(store, parent.id, {
-      status: driver.status,
-      resultSummary: driver.resultSummary,
-    });
+    patchJobAndNotify(
+      store,
+      parent.id,
+      {
+        status: driver.status,
+        resultSummary: driver.resultSummary,
+      },
+      { agent, summary: driver.resultSummary },
+    );
   }
 }
 

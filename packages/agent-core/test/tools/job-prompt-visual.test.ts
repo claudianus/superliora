@@ -28,6 +28,7 @@ describe('jobPrompt visual DoD', () => {
     expect(text).toContain('premium-visual');
     expect(text).toContain('VerifySurface');
     expect(text).toContain('BrowserScreenshot alone does not set visual=passed');
+    expect(text).toContain('do not BrowserAct-explore or reinstall loops');
   });
 
   it('omits visual DoD for non-UI jobs', () => {

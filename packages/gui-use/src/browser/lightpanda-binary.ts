@@ -4,7 +4,11 @@ import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 
-import type { SetupCommandOptions, SetupCommandResult } from '../install';
+import {
+  runSetupCommand,
+  type SetupCommandOptions,
+  type SetupCommandResult,
+} from '../setup-command';
 import { findFreePort } from './browser-support';
 
 const LIGHTPANDA_RELEASE_TAG = 'nightly';
@@ -47,7 +51,10 @@ export async function installLightpandaBinary(
   const command = ['curl', '-fsSL', url, '-o', target] as const;
   try {
     await mkdir(dirname(target), { recursive: true });
-    const response = await fetch(url, { signal: AbortSignal.timeout(options.timeoutMs ?? 10 * 60_000) });
+    const timeout = AbortSignal.timeout(options.timeoutMs ?? 10 * 60_000);
+    const signal =
+      options.signal === undefined ? timeout : AbortSignal.any([timeout, options.signal]);
+    const response = await fetch(url, { signal });
     if (!response.ok || response.body === null) {
       return {
         ok: false,
@@ -188,39 +195,10 @@ async function runBinaryCommand(
   args: readonly string[],
   options: SetupCommandOptions,
 ): Promise<SetupCommandResult> {
-  const { spawn } = await import('node:child_process');
-  return new Promise((resolve) => {
-    const child = spawn(binaryPath, [...args], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    const stdout: Buffer[] = [];
-    const stderr: Buffer[] = [];
-    const timeout = setTimeout(() => {
-      child.kill('SIGTERM');
-    }, options.timeoutMs ?? 10_000);
-    child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
-    child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk));
-    child.on('error', (error) => {
-      clearTimeout(timeout);
-      resolve({
-        ok: false,
-        code: null,
-        stdout: Buffer.concat(stdout).toString('utf8'),
-        stderr: Buffer.concat(stderr).toString('utf8'),
-        command: [binaryPath, ...args],
-        error: error.message,
-      });
-    });
-    child.on('close', (code) => {
-      clearTimeout(timeout);
-      resolve({
-        ok: code === 0,
-        code,
-        stdout: Buffer.concat(stdout).toString('utf8'),
-        stderr: Buffer.concat(stderr).toString('utf8'),
-        command: [binaryPath, ...args],
-      });
-    });
+  return runSetupCommand(binaryPath, args, {
+    ...options,
+    timeoutMs: options.timeoutMs ?? 10_000,
+    quiet: true,
   });
 }
 

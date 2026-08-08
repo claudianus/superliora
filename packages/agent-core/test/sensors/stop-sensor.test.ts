@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  clearPendingMutations,
   createMutationVerificationLedger,
   recordFileMutation,
-  clearPendingMutations,
 } from '../../src/sensors/mutation-verification-sensor';
 import {
   evaluateStopSensor,
@@ -116,5 +116,44 @@ describe('evaluateStopSensor', () => {
     expect(tip.startsWith('STOP_SENSOR:')).toBe(true);
     expect(tip).toContain('unverified work');
     expect(formatStopSensorWireTip('STOP_SENSOR: already')).toBe('STOP_SENSOR: already');
+  });
+
+  it('forces VerifySurface re-entry when UI sticky proof is pending', () => {
+    const mutationLedger = createMutationVerificationLedger();
+    const verificationLedger = createVerificationSensorLedger();
+    const now = 10_000_000;
+    recordFileMutation(mutationLedger, 'Write', now - 50, 'apps/site', [
+      'apps/site/src/app/page.tsx',
+    ]);
+    clearPendingMutations(mutationLedger, now);
+    expect(mutationLedger.uiSurfaceProofPending).toBe(true);
+    const body = evaluateStopSensor({
+      mutationLedger,
+      verificationLedger,
+      nowMs: now,
+      recentAutoCheckSpawnOk: true,
+    });
+    expect(body).not.toBeNull();
+    expect(body).toMatch(/VerifySurface|load\+|3-axis|interaction/i);
+  });
+
+  it('skips UI surface stop once VerifySurface axes are satisfied', () => {
+    const mutationLedger = createMutationVerificationLedger();
+    const verificationLedger = createVerificationSensorLedger();
+    const now = 11_000_000;
+    recordFileMutation(mutationLedger, 'Edit', now - 50, undefined, [
+      'packages/gui-use/src/ui/panel.css',
+    ]);
+    clearPendingMutations(mutationLedger, now);
+    verificationLedger.visualVerdict = 'passed';
+    verificationLedger.interactionVerdict = 'passed';
+    verificationLedger.craftVerdict = 'passed';
+    expect(
+      evaluateStopSensor({
+        mutationLedger,
+        verificationLedger,
+        nowMs: now,
+      }),
+    ).toBeNull();
   });
 });

@@ -1,6 +1,8 @@
 /**
  * Bloomberg-style densemode layout for Mission Control (workers ≥ 2).
  * Pure string builders + light theme paint — panel owns reveal/lerp state.
+ * Paint budget matches the solo panel: pulse/shimmer only on narrow signals
+ * (glyph, mark, KPI chips), never on LIVE/TAPE/ticker body copy.
  */
 
 import { truncateToWidth } from '#/tui/renderer';
@@ -11,7 +13,6 @@ import type { AppearancePreferences } from '#/tui/config';
 import {
   renderPulseGlyph,
   renderPulseText,
-  renderShimmerPrefix,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
 import type { MissionOpsEntry, MissionWorker } from '#/tui/controllers/mission-control/registry';
@@ -210,7 +211,7 @@ export function buildDenseContent(options: BuildDenseContentOptions): string[] {
     const liveTape = animated && workers.some((w) => w.status === 'running');
     lines.push(
       liveTape && shouldRenderAmbientEffects(appearance)
-        ? `${renderShimmerPrefix(appearance)}${currentTheme.boldFg('textMuted', 'TAPE')}`
+        ? `${renderPulseGlyph(PULSE_ACTIVE_FRAMES, 'mc:tape:hdr', '●', 'primary', appearance)} ${currentTheme.boldFg('textMuted', 'TAPE')}`
         : currentTheme.boldFg('textMuted', 'TAPE'),
     );
     const tapeRows = Math.max(0, budget - lines.length);
@@ -308,16 +309,14 @@ function buildTickerLine(
         ? truncateToWidth(entry.chip.replace(/\s+/gu, ''), 6, '')
         : '';
     const plain = `${shortName}${mark}${worker}${chip.length > 0 ? chip : ''}`;
-    if (entry.status === 'running' && animated && shouldRenderAmbientEffects(appearance)) {
-      return `${renderShimmerPrefix(appearance)}${renderPulseText(plain, `mc:tk:${entry.toolCallId}`, 'text', appearance, 'fast')}`;
-    }
+    // Running: mark stays in the chip string; whole chip is static semantic color.
     const token =
       entry.status === 'error' ? 'error' : entry.status === 'running' ? 'primary' : 'textDim';
     return currentTheme.fg(token, plain);
   });
   const prefix =
     animated && shouldRenderAmbientEffects(appearance)
-      ? `${renderShimmerPrefix(appearance)}${currentTheme.boldFg('textMuted', 'TK')}`
+      ? `${renderPulseGlyph(PULSE_ACTIVE_FRAMES, 'mc:tk:hdr', '●', 'primary', appearance)} ${currentTheme.boldFg('textMuted', 'TK')}`
       : currentTheme.boldFg('textMuted', 'TK');
   const body = chips.join(currentTheme.fg('textMuted', ' · '));
   return truncateToWidth(`${prefix}  ${body}`, width, '…');
@@ -374,12 +373,10 @@ function buildWorkerRow(args: {
   const liveMark =
     live.kind === 'thinking' ? '◌' : live.kind === 'answer' ? '◆' : live.kind === 'action' ? '→' : '·';
   const liveBody = truncateToWidth(`${liveMark} ${live.text}`, Math.max(12, width - (narrow ? 28 : 52)), '…');
+  // LIVE body is always static — rate/glyph carry the motion budget.
   let livePaint: string;
   if (live.kind === 'thinking' || live.kind === 'answer') {
-    livePaint =
-      animated && shouldRenderAmbientEffects(appearance) && live.kind === 'answer'
-        ? renderPulseText(liveBody, `mc:dense-live:${worker.id}`, 'text', appearance, 'fast')
-        : currentTheme.fg(live.kind === 'thinking' ? 'textDim' : 'text', liveBody);
+    livePaint = currentTheme.fg(live.kind === 'thinking' ? 'textDim' : 'text', liveBody);
   } else if (live.kind === 'stall') {
     livePaint = currentTheme.fg('warning', liveBody);
   } else {
@@ -443,12 +440,16 @@ function buildTapeRow(
     mark = currentTheme.fg('success', ' ✓ ');
   }
   const human = formatMissionTarget(entry.name, entry.target, workDir, Math.max(16, Math.floor(width * 0.35)));
-  const bodyPlain = `${entry.name}${human === undefined ? '' : ` ${human}`}${
-    entry.chip === undefined ? '' : ` ${entry.chip}`
-  }`;
-  const body =
-    entry.status === 'running' && animated && shouldRenderAmbientEffects(appearance)
-      ? `${renderShimmerPrefix(appearance)}${renderPulseText(bodyPlain, `mc:tape-body:${entry.toolCallId}`, 'text', appearance)}`
-      : currentTheme.fg(entry.status === 'error' ? 'error' : 'textDim', bodyPlain);
+  const toolPaint = currentTheme.fg(
+    entry.status === 'error' ? 'error' : entry.status === 'running' ? 'text' : 'textDim',
+    entry.name,
+  );
+  const targetPaint =
+    human === undefined
+      ? ''
+      : ` ${currentTheme.fg(entry.status === 'error' ? 'error' : 'textDim', human)}`;
+  const chipPaint =
+    entry.chip === undefined ? '' : ` ${currentTheme.fg('textMuted', entry.chip)}`;
+  const body = `${toolPaint}${targetPaint}${chipPaint}`;
   return `${age}${worker}${mark}${body}`;
 }

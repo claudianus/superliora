@@ -2,6 +2,7 @@ import type { BrowserUseRuntime } from '@superliora/gui-use';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  VERIFY_SURFACE_TIMEOUT_MS,
   VerifySurfaceInputSchema,
   VerifySurfaceTool,
 } from '../../src/tools/builtin/gui/verify-surface';
@@ -34,7 +35,15 @@ function fakeBrowserRuntime(overrides: Partial<BrowserUseRuntime> = {}): Browser
       base64: Buffer.from('png').toString('base64'),
       mimeType: 'image/png',
     }),
-    act: vi.fn().mockResolvedValue({ ok: true, actions: [] }),
+    act: vi.fn().mockImplementation(async (input: { actions?: readonly unknown[] }) => ({
+      ok: true,
+      actions: (input.actions ?? []).map((action) => ({
+        ok: true,
+        action: typeof action === 'object' && action !== null && 'type' in action
+          ? String((action as { type: string }).type)
+          : 'act',
+      })),
+    })),
     console: vi.fn().mockResolvedValue({
       ok: true,
       messages: [
@@ -123,9 +132,46 @@ describe('VerifySurfaceTool', () => {
     expect(runtime.status).toHaveBeenCalled();
     expect(runtime.observe).toHaveBeenCalledWith(
       expect.objectContaining({ url: 'https://example.test' }),
-      signal,
+      expect.any(AbortSignal),
     );
   });
+
+  it('fail-fasts when the pipeline exceeds the wall-clock budget', async () => {
+    const originalTimeout = AbortSignal.timeout.bind(AbortSignal);
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms: number) => {
+      // Shrink only the VerifySurface budget so the test stays under vitest's 30s.
+      return originalTimeout(ms === VERIFY_SURFACE_TIMEOUT_MS ? 20 : ms);
+    });
+    const runtime = fakeBrowserRuntime({
+      status: vi.fn().mockImplementation((_input, gate?: AbortSignal) => {
+        return new Promise((_resolve, reject) => {
+          const onAbort = (): void => {
+            reject(Object.assign(new Error('The operation was aborted'), { name: 'AbortError' }));
+          };
+          if (gate?.aborted) {
+            onAbort();
+            return;
+          }
+          gate?.addEventListener('abort', onAbort, { once: true });
+        });
+      }),
+    });
+    try {
+      const tool = new VerifySurfaceTool(runtime);
+      const result = await tool.resolveExecution({}).execute({
+        turnId: '0',
+        toolCallId: 'call_vs_timeout',
+        signal: new AbortController().signal,
+      });
+      expect(result.isError).toBe(true);
+      const payload = JSON.parse(String(result.output)) as { pass: boolean; notes: string[] };
+      expect(payload.pass).toBe(false);
+      expect(payload.notes.join(' ')).toMatch(/timed out after 120s|fail-fast/i);
+    } finally {
+      timeoutSpy.mockRestore();
+    }
+  });
+
 
   it('fails when console errors are present', async () => {
     const runtime = fakeBrowserRuntime();

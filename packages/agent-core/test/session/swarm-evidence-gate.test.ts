@@ -52,6 +52,12 @@ describe('swarm-evidence-gate.ts — withDefaultRequiredEvidence', () => {
     expect(out.requiredEvidence).toEqual(['test']);
   });
 
+  it('seeds VerifySurface for UI-shaped AC nodes', () => {
+    const n = node({ id: 'ac_ui_hero', kind: 'acceptance_criterion' });
+    const out = withDefaultRequiredEvidence(n);
+    expect(out.requiredEvidence).toEqual(['VerifySurface', 'test']);
+  });
+
   it('returns the input unchanged when requiredEvidence already has any non-empty token', () => {
     // The seeder must not mutate the input — the trim pass is only used
     // to decide whether to inject the default token.

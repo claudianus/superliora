@@ -67,7 +67,24 @@ async function withVisualVerdict(
   signal: AbortSignal | undefined,
 ): Promise<SubagentVerificationStatus> {
   const visual = await resolveVisualVerdict(child, filesChanged, summary, signal);
-  return { ...verification, visual };
+  const ledger = child.verificationSensorLedger;
+  const interaction =
+    !pathsLookLikeUi(filesChanged)
+      ? 'not_applicable'
+      : ledger.interactionVerdict === 'passed' || ledger.interactionVerdict === 'failed'
+        ? ledger.interactionVerdict
+        : visual === 'not_applicable'
+          ? 'not_applicable'
+          : 'not_run';
+  const craft =
+    !pathsLookLikeUi(filesChanged)
+      ? 'not_applicable'
+      : ledger.craftVerdict === 'passed' || ledger.craftVerdict === 'failed'
+        ? ledger.craftVerdict
+        : visual === 'not_applicable'
+          ? 'not_applicable'
+          : 'not_run';
+  return { ...verification, visual, interaction, craft };
 }
 
 async function resolveVisualVerdict(

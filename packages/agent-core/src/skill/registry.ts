@@ -204,7 +204,7 @@ export class SessionSkillRegistry implements AgentSkillRegistry {
     await this.ensureCatalogLoaded();
     const limit = clampSearchLimit(topK ?? this.defaultSearchLimit, this.maxSearchLimit);
     const engine = this.getSearchEngine();
-    const first = engine.search({
+    const first = await engine.search({
       query: trimmed,
       topK: limit,
       filter: isModelSearchableSkill,

@@ -8,6 +8,7 @@ import {
   verificationIsGreen,
   verificationVisualBlocksMerge,
 } from '../../../session/subagent/subagent-result-contract';
+import { evaluateReviewChainForMerge } from './job-review-chain';
 import type { JobRecord } from './job-store-key';
 
 export interface MergeTrustInput {
@@ -29,6 +30,12 @@ export interface MergeTrustInput {
    */
   readonly visualProofMissing?: boolean;
   readonly visualVerdict?: string;
+  /**
+   * Implement/task jobs without a passed independent review child — hard reject.
+   * `force_user_confirm` cannot bypass (Maker≠Checker / review chain).
+   */
+  readonly reviewChainBlocked?: boolean;
+  readonly reviewChainReason?: string;
   /**
    * Auto permission mode: waive holds that exist only to force a human click
    * (dangerous paths / large diff / wide file span). Conflict, missing checks,
@@ -77,8 +84,18 @@ export function evaluateMergeTrust(input: MergeTrustInput): MergeTrustVerdict {
       mode: 'reject',
       reason:
         `UI paths changed without VerifySurface pass (visual=${verdict}). ` +
-        'Re-run the worker and call VerifySurface on the real surface; BrowserScreenshot alone does not satisfy visual proof. ' +
+        'Re-run the worker and call VerifySurface on the real surface (load+interaction+craft axes); BrowserScreenshot alone does not satisfy visual proof. ' +
         'force_user_confirm cannot bypass this gate. If browser-use is missing, run `liora browser-use doctor`.',
+    };
+  }
+  // Review chain / Maker≠Checker — hard reject; force_user_confirm cannot bypass.
+  if (input.reviewChainBlocked === true) {
+    return {
+      ok: false,
+      mode: 'reject',
+      reason:
+        input.reviewChainReason ??
+        'Review chain incomplete — wait for an independent review Job with verdict=pass before MergeJob.',
     };
   }
   // Real human override (manual / yolo click). Auto permission must not launder
@@ -172,8 +189,9 @@ export interface MergeTrustClaim {
  * count from the contract caps "small" independently.
  */
 export function mergeTrustInputFromLedger(input: {
-  readonly job: Pick<JobRecord, 'ownershipPaths' | 'resultContract' | 'resultSummary'>;
+  readonly job: JobRecord;
   readonly claim: MergeTrustClaim;
+  readonly jobs?: readonly JobRecord[];
 }): MergeTrustInput {
   const { job, claim } = input;
   const contract = job.resultContract;
@@ -188,6 +206,10 @@ export function mergeTrustInputFromLedger(input: {
   // Visual proof keys off files actually changed — ownership/claim path unions
   // must not invent a UI surface the diff never touched.
   const visualBlocks = verificationVisualBlocksMerge(contract?.verification, filesChanged);
+  const reviewGate =
+    input.jobs === undefined
+      ? { ok: true as const }
+      : evaluateReviewChainForMerge({ job, jobs: input.jobs });
   return {
     approve: claim.approve,
     checksGreen: verificationIsGreen(contract?.verification) && claim.checksGreen !== false,
@@ -198,5 +220,7 @@ export function mergeTrustInputFromLedger(input: {
     forceUserConfirm: claim.forceUserConfirm === true,
     visualProofMissing: visualBlocks,
     visualVerdict: contract?.verification?.visual ?? 'not_run',
+    reviewChainBlocked: reviewGate.ok === false,
+    ...(reviewGate.ok === false ? { reviewChainReason: reviewGate.reason } : {}),
   };
 }

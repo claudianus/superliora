@@ -19,6 +19,7 @@ import {
 } from './mutation-verification-sensor';
 import {
   buildTestFailureSoftTips,
+  surfaceProofAxesIncomplete,
   type VerificationSensorLedger,
 } from './verification-sensor-ledger';
 
@@ -76,18 +77,31 @@ export function evaluateStopSensor(input: StopSensorInput): string | null {
       ? buildPendingMutationSoftTips(input.mutationLedger, nowMs)
       : [];
 
-  if (failureTips.length === 0 && mutationTips.length === 0) return null;
+  // UI sticky proof survives RunProjectChecks / auto-spawn — force VerifySurface.
+  const surfaceTips = buildUiSurfaceProofStopTips(
+    input.mutationLedger,
+    input.verificationLedger,
+  );
 
+  if (failureTips.length === 0 && mutationTips.length === 0 && surfaceTips.length === 0) {
+    return null;
+  }
+
+  const needsSurface = surfaceTips.length > 0;
   const lines = [
     'Stop sensor: turn ended with unverified work still sticky. Do not claim done yet.',
     ...failureTips.slice(0, 3),
     ...mutationTips.slice(0, 3),
-    'Run RunProjectChecks or a green check-like Bash (test/typecheck/lint/tsc), then finish the user-facing summary.',
+    ...surfaceTips.slice(0, 2),
+    needsSurface
+      ? 'Call VerifySurface on the real surface (load+interaction+craft must pass); BrowserScreenshot alone is not enough. Then finish the user-facing summary.'
+      : 'Run RunProjectChecks or a green check-like Bash (test/typecheck/lint/tsc), then finish the user-facing summary.',
   ];
 
   // Loop16a: when SUPERLIORA_AUTO_CHECK=1, force a machine-actionable directive.
   // Loop20b: skip directive when spawn already ran green this turn.
-  if (isAutoCheckEnabled(env) && !suppressMutationTips) {
+  // Surface-proof gaps still need VerifySurface — keep AUTO_CHECK optional then.
+  if (isAutoCheckEnabled(env) && !suppressMutationTips && !needsSurface) {
     const packageDir =
       input.mutationLedger !== undefined
         ? resolveAutoCheckPackageDir(
@@ -101,4 +115,20 @@ export function evaluateStopSensor(input: StopSensorInput): string | null {
   }
 
   return lines.join('\n');
+}
+
+function buildUiSurfaceProofStopTips(
+  mutationLedger: MutationVerificationLedger | undefined,
+  verificationLedger: VerificationSensorLedger | undefined,
+): readonly string[] {
+  if (mutationLedger?.uiSurfaceProofPending !== true) return [];
+  if (verificationLedger !== undefined && !surfaceProofAxesIncomplete(verificationLedger)) {
+    return [];
+  }
+  const load = verificationLedger?.visualVerdict ?? 'not_run';
+  const interaction = verificationLedger?.interactionVerdict ?? 'not_run';
+  const craft = verificationLedger?.craftVerdict ?? 'not_run';
+  return [
+    `Soft sensor: UI paths mutated without VerifySurface 3-axis proof (load=${load}, interaction=${interaction}, craft=${craft}).`,
+  ];
 }

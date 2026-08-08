@@ -100,10 +100,22 @@ export function withDefaultRequiredEvidence<T extends EvidenceGateNode>(node: T)
   if (required.length > 0) {
     return node;
   }
+  const tokens = looksLikeUiEvidenceNode(node)
+    ? (['VerifySurface', DEFAULT_REQUIRED_EVIDENCE_TOKEN] as const)
+    : ([DEFAULT_REQUIRED_EVIDENCE_TOKEN] as const);
   return {
     ...node,
-    requiredEvidence: [DEFAULT_REQUIRED_EVIDENCE_TOKEN],
+    requiredEvidence: [...tokens],
   };
+}
+
+/** Heuristic: UI/visual AC nodes also require VerifySurface evidence by default. */
+export function looksLikeUiEvidenceNode(node: EvidenceGateNode): boolean {
+  const blob = [node.id, node.kind, node.stage ?? '', ...(node.requiredEvidence ?? [])].join(' ');
+  // Underscore ids like `ac_ui_hero` do not match `\bui\b` — allow `_ui_` / `ui_` forms.
+  return /(?:^|[_\W])ui(?:[_\W]|$)|ux|visual|frontend|css|html|screenshot|canvas|game|VerifySurface/i.test(
+    blob,
+  );
 }
 
 /**

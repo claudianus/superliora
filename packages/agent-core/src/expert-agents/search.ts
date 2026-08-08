@@ -1,14 +1,25 @@
 import MiniSearch from 'minisearch';
-import type { ExpertCatalogEntry, ExpertSearchResult } from './types';
-import { EXPERT_CATALOG_META } from './catalog-meta';
+
+import {
+  expertPassageText,
+  hashPassageCorpus,
+  HybridRetriever,
+  loadPassageIndex,
+  resolveEmbeddingProvider,
+  resolvePassageIndexPath,
+  type EmbeddingProvider,
+  type LoadedPassageIndex,
+} from '../retrieval';
 import { EXPERT_CATALOG_EXTENSIONS } from './catalog-extensions';
+import { EXPERT_CATALOG_META } from './catalog-meta';
 import { enrichExpertForCatalog } from './expert-persona';
-import { inferExpertTaskProfile, type ExpertTaskProfile } from './task-profile';
 import {
   applyStaffingDiversity,
   rewriteExpertSearchQuery,
 } from './staffing-diversity';
 import { scoreBoost as staffingOutcomeScoreBoost } from './staffing-outcome';
+import { inferExpertTaskProfile, type ExpertTaskProfile } from './task-profile';
+import type { ExpertCatalogEntry, ExpertSearchResult } from './types';
 
 const ALL_EXPERTS: readonly ExpertCatalogEntry[] = [...EXPERT_CATALOG_META, ...EXPERT_CATALOG_EXTENSIONS];
 
@@ -17,19 +28,26 @@ export interface ExpertSearchOptions {
   readonly topK?: number;
   readonly division?: string;
   readonly filter?: (expert: ExpertCatalogEntry) => boolean;
-  readonly useEmbedding?: boolean; // default true if available
+  /** When false, skip dense hybrid (sparse MiniSearch only). Default true. */
+  readonly useEmbedding?: boolean;
   readonly preferredDivisions?: readonly string[];
   readonly excludedDivisions?: readonly string[];
   readonly taskDescription?: string;
   readonly minScore?: number;
+  readonly signal?: AbortSignal;
 }
 
 export class ExpertSearchEngine {
   private readonly index: MiniSearch<ExpertCatalogEntry>;
   private readonly expertById: Map<string, ExpertCatalogEntry>;
+  private readonly passages = new Map<string, string>();
   private initialized = false;
   private initPromise?: Promise<void>;
-  private embeddingCache?: Map<string, readonly number[]>;
+  private embedder?: EmbeddingProvider;
+  private retriever?: HybridRetriever;
+  private vectorIndex?: LoadedPassageIndex;
+  private lastDegraded = false;
+  private lastModelId = 'none';
 
   constructor() {
     this.index = new MiniSearch({
@@ -44,6 +62,15 @@ export class ExpertSearchEngine {
     this.expertById = new Map();
   }
 
+  /** Whether the last search used a degraded (non-neural) embedder or sparse-only. */
+  get degraded(): boolean {
+    return this.lastDegraded;
+  }
+
+  get embedModelId(): string {
+    return this.lastModelId;
+  }
+
   async initialize(): Promise<void> {
     if (this.initialized) return;
     if (this.initPromise !== undefined) return this.initPromise;
@@ -51,8 +78,6 @@ export class ExpertSearchEngine {
     try {
       await this.initPromise;
     } finally {
-      // Keep the resolved promise so late awaiters still share completion; clear
-      // only on failure so a later call can retry.
       if (!this.initialized) {
         this.initPromise = undefined;
       }
@@ -69,60 +94,98 @@ export class ExpertSearchEngine {
       };
     });
     this.index.addAll(docs as unknown as ExpertCatalogEntry[]);
+    this.passages.clear();
     for (const expert of ALL_EXPERTS) {
+      const enriched = enrichExpertForCatalog(expert);
       this.expertById.set(expert.id, expert);
+      this.passages.set(
+        expert.id,
+        expertPassageText({
+          name: enriched.name,
+          description: enriched.description,
+          whenToUse: enriched.whenToUse,
+          tags: enriched.tags,
+          capabilities: enriched.capabilities,
+          vibe: enriched.vibe,
+        }),
+      );
     }
-    // Cache embeddings for fast cosine similarity
-    this.embeddingCache = new Map();
-    for (const expert of ALL_EXPERTS) {
-      if (expert.embedding !== undefined && expert.embedding.length > 0) {
-        this.embeddingCache.set(expert.id, expert.embedding);
-      }
+
+    this.embedder = await resolveEmbeddingProvider();
+    this.retriever = new HybridRetriever(this.embedder);
+    this.lastModelId = this.embedder.modelId;
+    this.lastDegraded = this.embedder.degraded === true;
+
+    const indexPath = resolvePassageIndexPath('expert');
+    const loaded = loadPassageIndex(indexPath);
+    const contentHash = hashPassageCorpus(this.passages);
+    if (
+      loaded !== undefined &&
+      loaded.modelId === this.embedder.modelId &&
+      loaded.contentHash === contentHash
+    ) {
+      this.vectorIndex = loaded;
+    } else {
+      this.vectorIndex = undefined;
     }
+
     this.initialized = true;
   }
 
-  search(options: ExpertSearchOptions): ExpertSearchResult[] {
+  async search(options: ExpertSearchOptions): Promise<ExpertSearchResult[]> {
     if (!this.initialized) {
       throw new Error('ExpertSearchEngine not initialized. Call initialize() first.');
     }
     const topK = options.topK ?? 5;
     const minScore = options.minScore ?? 0.04;
     const taskProfile = resolveTaskProfile(options);
-    const useEmbedding = options.useEmbedding !== false && this.embeddingCache !== undefined && this.embeddingCache.size > 0;
-    // Staffing 2.0: rewrite Hangul/noise queries into English technical tokens.
     const query = rewriteExpertSearchQuery(options.query);
     const normalizedDivision = options.division?.trim().toLowerCase();
     const matchesExplicitFilters = (expert: ExpertCatalogEntry): boolean =>
-      (normalizedDivision === undefined || expert.division.toLowerCase() === normalizedDivision)
-      && (options.filter === undefined || options.filter(expert));
+      (normalizedDivision === undefined || expert.division.toLowerCase() === normalizedDivision) &&
+      (options.filter === undefined || options.filter(expert));
 
-    // 1. Sparse search (MiniSearch). Apply explicit filters before reciprocal-rank
-    // truncation so a requested division cannot disappear behind higher-ranked
-    // candidates from other divisions.
-    const miniResults = this.index.search(query, {
-      fuzzy: query.trim().length <= 3 ? 0.05 : 0.2,
-    }).map((r) => {
-      const expert = this.expertById.get(r.id);
-      if (expert === undefined) return undefined;
-      return { expert, score: r.score };
-    }).filter((r): r is ExpertSearchResult => r !== undefined)
+    const miniResults = this.index
+      .search(query, {
+        fuzzy: query.trim().length <= 3 ? 0.05 : 0.2,
+      })
+      .map((r) => {
+        const expert = this.expertById.get(r.id);
+        if (expert === undefined) return undefined;
+        return { expert, score: r.score };
+      })
+      .filter((r): r is ExpertSearchResult => r !== undefined)
       .filter(({ expert }) => matchesExplicitFilters(expert));
 
-    // 2. Optional secondary lexical pass over experts that have real embedding
-    // vectors cached. Catalog currently ships zero embeddings, so this path is
-    // inactive unless embeddings are added later — not a cosine hybrid ranker.
-    let denseResults: ExpertSearchResult[] = [];
-    if (useEmbedding) {
-      denseResults = this.secondaryLexicalSearch(query, topK * 2, taskProfile)
-        .filter(({ expert }) => matchesExplicitFilters(expert));
+    const useDense = options.useEmbedding !== false && this.retriever !== undefined;
+    let ranked: ExpertSearchResult[];
+
+    if (!useDense) {
+      this.lastDegraded = true;
+      ranked = miniResults;
+    } else {
+      const hybrid = await this.retriever!.search({
+        query,
+        sparseHits: miniResults.map((r) => ({ id: r.expert.id, score: r.score })),
+        passages: this.passages,
+        vectors: this.vectorIndex?.vectors,
+        topK: topK * 3,
+        signal: options.signal,
+      });
+      this.lastDegraded = hybrid.degraded;
+      this.lastModelId = hybrid.modelId;
+      ranked = hybrid.hits
+        .map((hit) => {
+          const expert = this.expertById.get(hit.id);
+          if (expert === undefined || !matchesExplicitFilters(expert)) return undefined;
+          return { expert, score: hit.score };
+        })
+        .filter((r): r is ExpertSearchResult => r !== undefined);
+      // If hybrid returned nothing useful, fall back to sparse.
+      if (ranked.length === 0) ranked = miniResults;
     }
 
-    // 3. RRF fusion (dense half is empty when no embeddings)
-    const fused = this.rrfFusion(miniResults, denseResults, topK * 3);
-
-    // 4. Apply filters and task-aware reranking
-    let results = fused
+    let results = ranked
       .map((result) => ({
         ...result,
         score: applyTaskProfileScore(result, taskProfile, options, normalizedDivision),
@@ -134,86 +197,8 @@ export class ExpertSearchEngine {
       results = results.filter((r) => !taskProfile.excludedDivisions.includes(r.expert.division));
     }
 
-    // 5. Diversity: cap near-identical id prefixes / same division before topK.
-    // Pull a wider pool so diversity has room to drop near-duplicates.
     const pool = results.slice(0, Math.max(topK * 3, topK));
     return applyStaffingDiversity(pool, topK);
-  }
-
-  /**
-   * Secondary term-overlap ranking restricted to experts that have embedding
-   * vectors. Not cosine similarity — kept only for future embedding-backed
-   * catalogs so RRF wiring stays stable.
-   */
-  private secondaryLexicalSearch(
-    query: string,
-    topK: number,
-    taskProfile: ExpertTaskProfile,
-  ): ExpertSearchResult[] {
-    if (!this.embeddingCache || this.embeddingCache.size === 0) return [];
-
-    const queryTerms = query.toLowerCase().split(/\s+/).filter((term) => term.length > 2);
-    if (queryTerms.length === 0) return [];
-
-    const scores = new Map<string, number>();
-    for (const id of this.embeddingCache.keys()) {
-      const expert = this.expertById.get(id);
-      if (expert === undefined) continue;
-      if (taskProfile.excludedDivisions.includes(expert.division)) continue;
-      const text =
-        `${expert.name} ${expert.description} ${expert.vibe} ${expert.tags.join(' ')} ${expert.capabilities.join(' ')}`.toLowerCase();
-      const matches = queryTerms.filter((term) => text.includes(term)).length;
-      if (matches > 0) {
-        scores.set(id, matches / queryTerms.length);
-      }
-    }
-
-    const sorted = Array.from(scores.entries())
-      .toSorted((a, b) => b[1] - a[1])
-      .slice(0, topK);
-
-    return sorted.map(([id, score]) => {
-      const expert = this.expertById.get(id)!;
-      return { expert, score };
-    });
-  }
-
-  private rrfFusion(
-    sparse: ExpertSearchResult[],
-    dense: ExpertSearchResult[],
-    topK: number,
-    k: number = 60,
-  ): ExpertSearchResult[] {
-    const rrfScores = new Map<string, number>();
-    const expertMap = new Map<string, ExpertCatalogEntry>();
-
-    // Normalize MiniSearch scores to [0, 1]
-    const maxSparseScore = sparse.length > 0 ? sparse[0]!.score : 1;
-
-    for (let i = 0; i < sparse.length; i++) {
-      const id = sparse[i]!.expert.id;
-      expertMap.set(id, sparse[i]!.expert);
-      const rankScore = 1.0 / (k + i + 1);
-      const normScore = sparse[i]!.score / maxSparseScore;
-      rrfScores.set(id, (rrfScores.get(id) ?? 0) + rankScore * 0.6 + normScore * 0.4);
-    }
-
-    for (let i = 0; i < dense.length; i++) {
-      const id = dense[i]!.expert.id;
-      expertMap.set(id, dense[i]!.expert);
-      const rankScore = 1.0 / (k + i + 1);
-      rrfScores.set(id, (rrfScores.get(id) ?? 0) + rankScore * 0.5);
-    }
-
-    const sorted = Array.from(rrfScores.entries())
-      .toSorted((a, b) => b[1] - a[1])
-      .slice(0, topK);
-
-    return sorted.map(([id, score]) => {
-      const expert = expertMap.get(id);
-      if (!expert) return undefined;
-      return { expert, score };
-    }).filter((r): r is ExpertSearchResult => r !== undefined);
   }
 
   addExpert(expert: ExpertCatalogEntry): void {
@@ -221,9 +206,18 @@ export class ExpertSearchEngine {
       throw new Error('ExpertSearchEngine not initialized. Call initialize() first.');
     }
     this.expertById.set(expert.id, expert);
-    if (expert.embedding !== undefined && expert.embedding.length > 0 && this.embeddingCache !== undefined) {
-      this.embeddingCache.set(expert.id, expert.embedding);
-    }
+    const enriched = enrichExpertForCatalog(expert);
+    this.passages.set(
+      expert.id,
+      expertPassageText({
+        name: enriched.name,
+        description: enriched.description,
+        whenToUse: enriched.whenToUse,
+        tags: enriched.tags,
+        capabilities: enriched.capabilities,
+        vibe: enriched.vibe,
+      }),
+    );
     this.index.add({
       ...expert,
       tags: expert.tags.join(' '),
@@ -234,7 +228,7 @@ export class ExpertSearchEngine {
   removeExpert(id: string): boolean {
     if (!this.initialized) return false;
     this.expertById.delete(id);
-    this.embeddingCache?.delete(id);
+    this.passages.delete(id);
     this.index.remove({ id } as unknown as ExpertCatalogEntry);
     return true;
   }
@@ -277,7 +271,6 @@ function applyTaskProfileScore(
   if (taskProfile.preferredDivisions.includes(division)) score *= 1.35;
   if (taskProfile.excludedDivisions.includes(division)) score *= 0.12;
   if (normalizedDivision !== undefined && division.toLowerCase() === normalizedDivision) score *= 1.2;
-  // Staffing outcome prior (MVP): light multiplicative boost from hire history.
   score *= staffingOutcomeScoreBoost(result.expert.id);
   return score;
 }

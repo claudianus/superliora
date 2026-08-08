@@ -65,7 +65,7 @@ export async function delegateConductorGoalDesk(
       existing !== undefined &&
       (existing.status === 'active' || existing.status === 'paused' || existing.status === 'blocked')
     ) {
-      cancelBoundGoalJobs(store, existing, 'replaced');
+      cancelBoundGoalJobs(store, existing, 'replaced', agent);
     }
   } else {
     const existing = readGoalSessionBinding(store);

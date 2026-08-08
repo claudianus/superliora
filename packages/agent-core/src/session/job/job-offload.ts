@@ -20,10 +20,9 @@
  */
 
 import type { Agent } from '../../agent';
-import { requestConductorWake } from './conductor-wake';
 import { emitJobEvents, jobRecordToUpdatedEvent } from '../../tools/builtin/job/job-emit';
-import { pushJobInboxEvent } from '../../tools/builtin/job/job-inbox';
-import { getJob, patchJob, type JobRecord } from '../../tools/builtin/job/job-ledger';
+import { getJob, type JobRecord } from '../../tools/builtin/job/job-ledger';
+import { patchJobAndNotify } from '../../tools/builtin/job/job-notify';
 import {
   resolveConductorPoolConfig,
   scheduleQueuedJobs,
@@ -97,28 +96,23 @@ export function enqueueJobWorkerSpawn(input: {
     },
     onTimeout: () => {
       const current = getJob(store, job.id);
-      const updated = patchJob(store, job.id, {
-        status: 'blocked',
-        notes: [
-          current?.notes ?? job.notes,
-          `spawn_budget_exceeded: >${JOB_WORKER_SPAWN_BUDGET_MS}ms; held for resume`,
-        ]
-          .filter(Boolean)
-          .join('\n'),
-      });
-      if (updated) {
-        pushJobInboxEvent(store, {
-          kind: 'job.blocked',
-          jobId: updated.id,
+      patchJobAndNotify(
+        store,
+        job.id,
+        {
           status: 'blocked',
-          title: updated.title,
+          notes: [
+            current?.notes ?? job.notes,
+            `spawn_budget_exceeded: >${JOB_WORKER_SPAWN_BUDGET_MS}ms; held for resume`,
+          ]
+            .filter(Boolean)
+            .join('\n'),
+        },
+        {
+          agent,
           summary: `spawn budget exceeded (${JOB_WORKER_SPAWN_BUDGET_MS}ms)`,
-        });
-        emitJobEvents(agent, [
-          jobRecordToUpdatedEvent(updated, { reason: 'spawn_budget_exceeded' }),
-        ]);
-        requestConductorWake({ agent, store });
-      }
+        },
+      );
     },
   });
 }
@@ -135,6 +129,7 @@ async function runSchedule(request: JobSchedulePumpRequest): Promise<void> {
     maxConcurrent: pool.maxConcurrentJobs,
     requireWorktree: kaos !== undefined && repoPath !== undefined,
     log: agent?.log,
+    agent,
     launchWorker:
       agent !== undefined && agent.subagentHost !== undefined
         ? async (job) => {

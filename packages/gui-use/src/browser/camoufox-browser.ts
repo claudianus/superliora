@@ -148,7 +148,8 @@ export class CamoufoxBrowserRuntime implements BrowserUseRuntime {
 
   private async installCamoufox(signal?: AbortSignal): Promise<SetupCommandResult> {
     throwIfAborted(signal);
-    this.installAttempt ??= (this.options.install ?? (() => installCamoufoxBinary(this.options)))();
+    this.installAttempt ??= (this.options.install ?? (() =>
+      installCamoufoxBinary({ ...this.options, signal })))();
     const result = await this.installAttempt;
     if (!result.ok) this.installAttempt = undefined;
     return result;

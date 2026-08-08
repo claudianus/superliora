@@ -57,7 +57,7 @@ function greenContract(filesChanged: readonly string[]): SubagentResultContract 
 }
 
 function finishedJobWithWorktree(store: ToolStore, title: string) {
-  const job = createJob(store, { title, kind: 'implement' });
+  const job = createJob(store, { title, kind: 'implement', expertId: 'maker-test' });
   const done = patchJob(store, job.id, {
     status: 'done',
     worktreePath: `/tmp/v2-5/${job.id}`,
@@ -65,6 +65,18 @@ function finishedJobWithWorktree(store: ToolStore, title: string) {
     resultContract: greenContract(['src/example.ts']),
   });
   if (!done) throw new Error('failed to prepare source job');
+  // Maker≠Checker: MergeJob requires a passed independent review child.
+  const review = createJob(store, {
+    title: `Review: ${title}`,
+    kind: 'task',
+    parentJobId: done.id,
+    expertId: 'checker-test',
+    expertRole: 'review',
+  });
+  patchJob(store, review.id, {
+    status: 'done',
+    resultSummary: '{"verdict":"pass","findings":[],"required_fixes":[]}',
+  });
   return done;
 }
 
@@ -232,13 +244,28 @@ describe('V2-5 merge offloading (verdict/execution split)', () => {
 
   it('approve without worktree lands ledger-only via the landing job', async () => {
     const store = memoryStore();
-    const created = createJob(store, { title: 'v2-5 ledger-only', kind: 'implement' });
+    const created = createJob(store, {
+      title: 'v2-5 ledger-only',
+      kind: 'implement',
+      expertId: 'maker-ledger-only',
+    });
     const source = patchJob(store, created.id, {
       status: 'done',
       resultSummary: 'no worktree work',
       resultContract: greenContract(['docs/example.md']),
     });
     if (!source) throw new Error('failed to prepare source job');
+    const review = createJob(store, {
+      title: 'Review: v2-5 ledger-only',
+      kind: 'task',
+      parentJobId: source.id,
+      expertId: 'checker-ledger-only',
+      expertRole: 'review',
+    });
+    patchJob(store, review.id, {
+      status: 'done',
+      resultSummary: '{"verdict":"pass","findings":[],"required_fixes":[]}',
+    });
 
     const agent = { kaos: undefined, config: { cwd: '/repo/main' } } as never;
     const tool = new MergeJobTool(store, agent);
@@ -267,13 +294,28 @@ describe('V2-5 merge offloading (verdict/execution split)', () => {
 
   it('auto permission waives dangerous-path confirm without a human click', async () => {
     const store = memoryStore();
-    const created = createJob(store, { title: 'auto land dangerous', kind: 'implement' });
+    const created = createJob(store, {
+      title: 'auto land dangerous',
+      kind: 'implement',
+      expertId: 'maker-danger',
+    });
     const source = patchJob(store, created.id, {
       status: 'done',
       resultSummary: 'touched env example',
       resultContract: greenContract(['src/x.ts', '.env']),
     });
     if (!source) throw new Error('failed to prepare source job');
+    const review = createJob(store, {
+      title: 'Review: auto land dangerous',
+      kind: 'task',
+      parentJobId: source.id,
+      expertId: 'checker-danger',
+      expertRole: 'review',
+    });
+    patchJob(store, review.id, {
+      status: 'done',
+      resultSummary: '{"verdict":"pass","findings":[],"required_fixes":[]}',
+    });
 
     const manual = new MergeJobTool(store, {
       permission: { mode: 'manual' },
