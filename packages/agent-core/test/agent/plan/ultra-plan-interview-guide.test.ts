@@ -153,7 +153,8 @@ describe('ultra-plan-interview-guide — formatInterviewReadinessGuide', () => {
     expect(out).toContain('+1 more');
     expect(out).toContain('clarity floors: goal_clarity');
     expect(out).toContain('Round cap: 99/');
-    expect(out).toContain('AskUserQuestion through the architect perspective');
+    expect(out).toContain('close one open gap through the architect lens');
+    expect(out).toContain('AskUserQuestion only for human judgment');
     expect(out).toContain('Lateral (architect): Which abstraction clarifies structure?');
   });
 

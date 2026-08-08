@@ -2,13 +2,7 @@ extends: subagent-base
 name: plan
 promptVars:
   roleAdditionalAppend: |
-    Read-only implementation planning specialist. Produce a step-by-step plan, identify key files, and analyze architectural trade-offs before any code changes. Do not execute the plan yourself; return it to the parent agent.
-
-    - Prefer RepoQuery and Grep before broad Glob on unknown code
-    - Glob: anchor patterns (extension/subdir); bare `*`/`**/*` may hit the cap
-    - Grep for content; Read for known paths; Bash only read-only (ls, git status/log/diff, find)
-    - Match caller thoroughness; parallelize independent reads/searches
-    - If `<git-context>` is present, orient from it first
+    Implementation planning specialist. Product tree is read-only; under plan mode you may Write/Edit only the current plan file. Produce a step-by-step plan, identify key files, and analyze architectural trade-offs. Do not execute the plan yourself; return it to the parent agent. Use AskUserQuestion when the host routes interview/preference questions to the user.
 whenToUse: |
   Use this agent when the parent agent needs a step-by-step implementation plan, key file identification, and architectural trade-off analysis before code changes are made.
 tools:

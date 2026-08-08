@@ -4,10 +4,9 @@
  * boundary and stops (`complete` / `blocked` / `paused`) or keeps going
  * (`active`).
  *
- * The argument is intentionally just a status enum — no reason or evidence. The
- * model explains itself in its own reply; the status is the machine-readable
- * signal. The tool is only offered to the model while a goal exists (see the
- * `loopTools` filter in the tool manager).
+ * `blocked` requires a concrete external-blocker `reason` (capacity harness).
+ * Other statuses stay status-only; the model explains itself in its reply.
+ * The tool is only offered while a goal exists (see `loopTools` in the tool manager).
  */
 
 import type { Agent } from '#/agent/index';
@@ -30,6 +29,12 @@ import {
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ToolExecution } from '../../../loop/types';
+import {
+  CAPACITY_ESCAPE_BLOCKED_MESSAGE,
+  CAPACITY_ESCAPE_BLOCKED_MISSING_REASON,
+  CAPACITY_ESCAPE_PAUSED_MESSAGE,
+  isCapacityEscapeBlockedReason,
+} from '../../support/capacity-escape-blocked-reason';
 import { toInputJsonSchema } from '../../support/input-schema';
 import DESCRIPTION from './update-goal.md?raw';
 
@@ -38,6 +43,12 @@ export const UpdateGoalToolInputSchema = z
     status: z
       .enum(['active', 'complete', 'paused', 'blocked'])
       .describe('The lifecycle status to set for the current goal.'),
+    reason: z
+      .string()
+      .optional()
+      .describe(
+        'Required for `blocked` (concrete external blocker). Optional for `paused` (honest yield). Never use for hard/slow/uncertain work, calendar size, or scope cuts.',
+      ),
   })
   .strict();
 
@@ -113,7 +124,20 @@ export class UpdateGoalTool implements BuiltinTool<UpdateGoalToolInput> {
           };
         }
         if (args.status === 'blocked') {
-          const blocked = await goal.markBlocked({}, 'model');
+          const reason = args.reason?.trim() ?? '';
+          if (reason.length === 0) {
+            return {
+              output: CAPACITY_ESCAPE_BLOCKED_MISSING_REASON,
+              isError: true,
+            };
+          }
+          if (isCapacityEscapeBlockedReason(reason)) {
+            return {
+              output: CAPACITY_ESCAPE_BLOCKED_MESSAGE,
+              isError: true,
+            };
+          }
+          const blocked = await goal.markBlocked({ reason }, 'model');
           if (blocked !== null) {
             this.agent.context.appendSystemReminder(buildGoalBlockedReasonPrompt(blocked), {
               kind: 'system_trigger',
@@ -122,7 +146,17 @@ export class UpdateGoalTool implements BuiltinTool<UpdateGoalToolInput> {
           }
           return { output: 'Goal marked blocked.', stopTurn: true };
         }
-        await goal.pauseGoal({}, 'model');
+        const pauseReason = args.reason?.trim() ?? '';
+        if (pauseReason.length > 0 && isCapacityEscapeBlockedReason(pauseReason)) {
+          return {
+            output: CAPACITY_ESCAPE_PAUSED_MESSAGE,
+            isError: true,
+          };
+        }
+        await goal.pauseGoal(
+          pauseReason.length > 0 ? { reason: pauseReason } : {},
+          'model',
+        );
         return { output: 'Goal paused.', stopTurn: true };
       },
     };

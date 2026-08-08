@@ -30,7 +30,7 @@ import {
   parseImplementHandoff,
   renderImplementHandoffDraft,
 } from '../planning/implement-handoff';
-import { nonEmptyStringList } from './job-brief';
+import { findPlaceholderBriefLine, isPlaceholderBriefLine, nonEmptyStringList } from './job-brief';
 import {
   createJob,
   getJob,
@@ -111,7 +111,7 @@ const JobCreateInputSchema = z
       'Read-first hints for the worker: files/dirs it should inspect before exploring on its own (entry points, failing tests, referenced specs). Saves cold-start discovery turns; keep it short (≤6).',
     ),
     success_criteria: stringListField.describe(
-      'Verifiable done-lines (tests to pass, behaviors to observe). Required for every task/implement Job — this is the goal contract bound to the worker at spawn. Not required for explore/mission/desk/goal-desk/merge/goal-driver.',
+      'Verifiable done-lines (tests to pass, behaviors to observe). Required for every task/implement Job — this is the goal contract bound to the worker at spawn. Rejects placeholders (TBD/TODO/later/coming soon). Not required for explore/mission/desk/goal-desk/merge/goal-driver.',
     ),
     must_not_touch: stringListField.describe(
       'Negative scope fence — paths or concerns the worker must not touch. Required when delivery_mode=greenfield for task/implement; strongly recommended otherwise.',
@@ -164,11 +164,19 @@ const JobCreateInputSchema = z
   .strict()
   .superRefine((val, ctx) => {
     if (val.kind === 'goal-driver') {
-      if ((val.goal_completion_criterion ?? '').trim().length === 0) {
+      const criterion = (val.goal_completion_criterion ?? '').trim();
+      if (criterion.length === 0) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message:
             'goal-driver requires goal_completion_criterion (verifiable finish line) — draft one before JobCreate.',
+          path: ['goal_completion_criterion'],
+        });
+      } else if (isPlaceholderBriefLine(criterion)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'goal_completion_criterion looks like a placeholder (TBD/TODO/later) — write a verifiable finish line before spawning the driver.',
           path: ['goal_completion_criterion'],
         });
       }
@@ -185,6 +193,16 @@ const JobCreateInputSchema = z
           'task/implement requires non-empty success_criteria — bind a verifiable finish line before spawning the worker.',
         path: ['success_criteria'],
       });
+    }
+    if (codingKind) {
+      const placeholder = findPlaceholderBriefLine(val.success_criteria);
+      if (placeholder !== undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `success_criteria contains a non-verifiable placeholder (${JSON.stringify(placeholder)}) — replace TBD/TODO/later with a concrete proof line.`,
+          path: ['success_criteria'],
+        });
+      }
     }
     if (mode === 'greenfield' && codingKind) {
       if (nonEmptyStringList(val.must_not_touch).length === 0) {

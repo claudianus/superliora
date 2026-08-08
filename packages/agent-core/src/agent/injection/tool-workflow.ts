@@ -87,19 +87,12 @@ export function hasToolWorkflowSurface(cap: ToolWorkflowCapability): boolean {
  * without WebSearch/Skill are not told to call missing tools.
  */
 export function buildToolWorkflowGuidance(cap: ToolWorkflowCapability): string {
+  // Keep this denser than system.md: runtime-blocked Bash I/O + capability gates.
+  // Do not restate the full Accuracy / Execution Loop — those live in the system prompt.
   const lines: string[] = [
     'Tool / Skill / Research Workflow (MANDATORY — soft prompts are not enough):',
-    '- Default to tools for any workspace, code, research, or multi-step task. Text-only only for pure chat with no file/system/internet need.',
-    '- Prefer dedicated tools over raw Bash when they fit (Read/Write/Edit/Grep/Glob/list). Shell is for real process semantics, not file I/O.',
-    '- File content: use Write/Edit — do not cat/echo/printf redirect, heredoc, tee, dd if=/of=, install src dest, empty redirects (`: > file`), or python/node/bun/deno/ruby/php/perl/lua -c/-e/-r/-p writeFile/open-write one-liners through Bash (runtime-blocked).',
-    '- File reads: use Read — do not python/node/bun/deno/ruby/php/perl/lua -c/-e/-r/-p open/readFile one-liners, macOS `md5`/`plutil`/`PlistBuddy -c Print`/`xmllint` single-file dumps, perl/ruby -ne/-pe line loops, or bat/tac/rev/paste/sed -n/awk/base64/fmt/pr/fold dumps, for file contents (runtime-blocked).',
-    '- Secrets: never cat/source/base64 .env, SSH keys, or cloud credentials via Bash (hard-blocked, no force escape).',
-    '- Parallelize independent reads/searches in one turn. Serial only when a later call needs earlier output.',
-    '- Small verifiable steps: change → check → continue. Leave clean artifacts (tests green, notes, evidence) for the next turn/session.',
-    '- Explore before edit: locate the fail path / callers with dedicated search tools before writing code.',
-    '- One increment per batch: do not stack unrelated edits; after a meaningful change, run a focused check when available.',
-    '- On failure: fix the root cause from evidence. Never claim done without verification (or an explicit blocker with what you tried).',
-    '- Truth: claims need receipts (check + result). Never fabricate paths, URLs, command output, or test results. Verify library/API signatures against the installed version (workspace types/source, Context7, official docs) before writing calls.',
+    '- Default to tools for workspace/code/research/multi-step work. Prefer dedicated tools over Bash for file I/O (Write/Edit/Read — shell redirects and interpreter one-liner dumps are runtime-blocked). Secrets never via Bash.',
+    '- Parallelize independent reads/searches. Explore before edit; one verifiable increment per batch; fix root causes; no "done" without receipts.',
   ];
 
   if (cap.hasLeanRead) {

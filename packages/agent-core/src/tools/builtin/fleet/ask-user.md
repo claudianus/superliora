@@ -1,6 +1,6 @@
 Ask the user questions with structured options — preferences, ambiguous requirements, or approach choices.
 
-**Do not use when:** you can infer the answer, or the decision is trivial. Overuse breaks flow.
+**Do not use when:** you can infer the answer, the decision is trivial, or you are renegotiating magnitude ("do you really want this?", "reduce scope?", "too large?"). Goal/auto modes reject those scope-escape questions — keep executing. Overuse breaks flow.
 
 **Usage:**
 - Users always have "Other" for free text — do not invent that option

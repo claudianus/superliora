@@ -84,7 +84,8 @@ describe('PremiumQualityInjector', () => {
     const text = lastReminder(agent);
     expect(text).toContain('Premium Quality mode is ON');
     expect(text).toContain('principal designer');
-    expect(text).toContain('ULTRA SUPER PREMIUM KING-GOD-GENERAL');
+    expect(text).toContain('Premium Quality is ON');
+    expect(text).toContain('do not expand scope for spectacle');
     expect(text).toContain('Skill("premium-visual")');
     expect(text).toContain('on demand (T2-2)');
     expect(text).toContain('premium-visual');

@@ -24,9 +24,12 @@ function buildGoalCompletionPromptMessage(goal: GoalSnapshot): string {
 }
 
 function buildGoalBlockedMessage(goal: GoalSnapshot): string {
+  const head = goal.terminalReason
+    ? `Goal blocked: ${goal.terminalReason}.`
+    : 'Goal blocked.';
   const turns = `${goal.turnsUsed} turn${goal.turnsUsed === 1 ? '' : 's'}`;
   const stats = `Worked ${turns} over ${formatElapsed(goal.wallClockMs)}, using ${formatTokens(goal.tokensUsed)} tokens.`;
-  return `Goal blocked.\n${stats}`;
+  return `${head}\n${stats}`;
 }
 
 function formatElapsed(ms: number): string {

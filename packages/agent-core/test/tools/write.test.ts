@@ -81,6 +81,23 @@ describe('WriteTool', () => {
     });
   });
 
+  it('rejects fabricated deferral attributions before writing', async () => {
+    const writeAtomic = vi.fn();
+    const tool = new WriteTool(createFakeKaos({ writeAtomic, stat: DIR_STAT }), PERMISSIVE_WORKSPACE);
+
+    const result = await executeTool(
+      tool,
+      context({
+        path: '/tmp/QUEUE.md',
+        content: '- [ ] polish UI — DEFERRED to daylight\n',
+      }),
+    );
+
+    expect(result).toMatchObject({ isError: true });
+    expect(result.output).toContain('invented time bucket');
+    expect(writeAtomic).not.toHaveBeenCalled();
+  });
+
   it('matches permission args with negated glob path semantics', () => {
     const tool = new WriteTool(createFakeKaos(), {
       workspaceDir: '/workspace',

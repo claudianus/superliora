@@ -154,18 +154,13 @@ describe('ToolWorkflowInjector', () => {
     expect(history(agent)).toHaveLength(0);
   });
 
-  it('mentions Write/Edit over shell redirects and secret-file hard blocks', () => {
+  it('mentions Write/Edit over shell I/O and secret-file hard blocks', () => {
     const cap = resolveToolWorkflowCapability(['Read', 'Write', 'Bash', 'SearchTools']);
     const text = buildToolWorkflowGuidance(cap);
     expect(text).toMatch(/Write\/Edit/);
-    expect(text).toMatch(/heredoc|redirect/i);
-    expect(text).toMatch(/python\/node/);
-    expect(text).toMatch(/use Read/i);
-    expect(text).toMatch(/Secrets:|\.env|SSH/i);
-    // Newer shell-dedicated-bypass surface stays in sync.
-    expect(text).toMatch(/bun|deno/);
-    expect(text).toMatch(/plutil|PlistBuddy/);
-    expect(text).toMatch(/md5/);
+    expect(text).toMatch(/shell redirects|runtime-blocked/i);
+    expect(text).toMatch(/Read/);
+    expect(text).toMatch(/Secrets never via Bash/i);
     const sparse = buildToolWorkflowSparseGuidance(cap);
     expect(sparse).toContain('Write≠shell I/O');
     expect(sparse).toContain('no secret shell');

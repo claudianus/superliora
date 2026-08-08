@@ -18,6 +18,7 @@ const fullCap: ToolWorkflowCapability = {
   hasVerifySurface: true,
   hasRunProjectChecks: true,
   hasTodoList: true,
+  hasMemory: true,
 };
 
 describe('agent/injection/tool-workflow — hasToolWorkflowSurface', () => {
@@ -38,6 +39,7 @@ describe('agent/injection/tool-workflow — hasToolWorkflowSurface', () => {
       hasVerifySurface: false,
       hasRunProjectChecks: false,
       hasTodoList: false,
+      hasMemory: false,
     };
     expect(hasToolWorkflowSurface(none)).toBe(false);
   });
@@ -49,7 +51,7 @@ describe('agent/injection/tool-workflow — buildToolWorkflowGuidance', () => {
     expect(result.length).toBeGreaterThan(0);
     expect(result).toContain('Tool / Skill / Research Workflow');
     expect(result).toContain('Explore before edit');
-    expect(result).toContain('One increment per batch');
+    expect(result).toContain('one verifiable increment per batch');
     expect(result).toContain('root cause');
   });
 
@@ -60,6 +62,7 @@ describe('agent/injection/tool-workflow — buildToolWorkflowGuidance', () => {
       hasSkill: false,
       hasContext7: false,
       hasRunProjectChecks: false,
+      hasMemory: false,
     };
     const result = buildToolWorkflowGuidance(sparse);
     expect(result.length).toBeGreaterThan(0);

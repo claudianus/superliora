@@ -339,7 +339,10 @@ describe('goal session end-to-end', () => {
       type: 'function',
       id: 'blocked',
       name: 'UpdateGoal',
-      arguments: JSON.stringify({ status: 'blocked' }),
+      arguments: JSON.stringify({
+        status: 'blocked',
+        reason: 'credentials are required before I can continue',
+      }),
     });
     scripted.mockNextResponse({
       type: 'text',
@@ -351,7 +354,7 @@ describe('goal session end-to-end', () => {
 
     expect(scripted.calls).toHaveLength(2);
     const reasonHistory = JSON.stringify(scripted.calls[1]?.history ?? []);
-    expect(reasonHistory).toContain('Goal blocked.');
+    expect(reasonHistory).toContain('Goal blocked: credentials are required');
     expect(reasonHistory).toContain('State that the goal is blocked');
     const lastContextMessage = agent.context.history.at(-1);
     expect(lastContextMessage?.role).toBe('assistant');
@@ -360,7 +363,7 @@ describe('goal session end-to-end', () => {
     );
     const goal = (await api.getGoal({ agentId: 'main' })).goal;
     expect(goal?.status).toBe('blocked');
-    expect(goal?.terminalReason).toBeUndefined();
+    expect(goal?.terminalReason).toBe('credentials are required before I can continue');
   });
 
   it('does not force a goal outcome summary after maxStepsPerTurn is exhausted', async () => {

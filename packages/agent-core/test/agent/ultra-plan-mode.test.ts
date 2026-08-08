@@ -458,7 +458,7 @@ describe('UltraPlanModeEngine', () => {
       expect(guide).toContain('Completion Criterion');
       expect(guide).toContain('Write or Edit the plan file');
       expect(guide).toContain('perspective=researcher');
-      expect(guide).toContain('through the researcher perspective');
+      expect(guide).toContain('through the researcher lens');
       expect(pickNextInterviewFocus(readiness, 'researcher')).toContain('Researcher lens');
       expect(pickNextInterviewFocus(readiness, 'architect')).toContain('Architect lens');
     });
@@ -794,7 +794,7 @@ describe('UltraPlanModeEngine', () => {
       const engine = new UltraPlanModeEngine(mockAgent);
       const lenses: Array<{ perspective: string; fragment: string }> = [
         { perspective: 'researcher', fragment: 'benchmarks' },
-        { perspective: 'simplifier', fragment: 'MVP vs premium' },
+        { perspective: 'simplifier', fragment: 'Baseline vs Upgrade' },
         { perspective: 'architect', fragment: 'maintainability' },
         { perspective: 'breadth-keeper', fragment: 'stretch goals' },
         { perspective: 'seed-closer', fragment: 'measurable acceptance criteria' },

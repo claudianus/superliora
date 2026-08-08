@@ -29,6 +29,11 @@ import type {
 } from '../../../rpc/sdk-api';
 import type { TelemetryPropertyValue } from '../../../telemetry';
 import { toInputJsonSchema } from '../../support/input-schema';
+import {
+  questionsIncludeScopeEscape,
+  SCOPE_ESCAPE_QUESTION_BLOCKED_MESSAGE,
+  shouldBlockScopeEscapeQuestion,
+} from '../../support/scope-escape-question';
 import { raiseJobNeedsUserForWorker } from '../job/job-worker-ledger-bridge';
 import DESCRIPTION from './ask-user.md?raw';
 
@@ -157,6 +162,16 @@ export class AskUserQuestionTool implements BuiltinTool<AskUserQuestionInput> {
     }: Pick<ExecutableToolContext, 'toolCallId' | 'signal' | 'turnId'>,
   ): Promise<ExecutableToolResult> {
     try {
+      if (this.shouldRejectScopeEscape(args)) {
+        this.agent.telemetry.track('question_scope_escape_blocked', {
+          questions: args.questions.length,
+        });
+        return {
+          isError: true,
+          output: SCOPE_ESCAPE_QUESTION_BLOCKED_MESSAGE,
+        };
+      }
+
       // Ask mode exists to collect human judgment — never auto-fill the question
       // dialog even when permission mode is auto.
       const autoAnswer = this.agent.askMode?.isActive
@@ -293,6 +308,19 @@ export class AskUserQuestionTool implements BuiltinTool<AskUserQuestionInput> {
       // Recording interview context must not turn a valid user answer into a dismissal.
     }
   }
+
+  private shouldRejectScopeEscape(args: NormalizedAskUserQuestionInput): boolean {
+    if (!questionsIncludeScopeEscape(args.questions)) return false;
+    const planMode = (this.agent as Partial<Pick<Agent, 'planMode'>>).planMode;
+    const goalStatus = this.agent.goal?.getGoal()?.goal?.status ?? null;
+    return shouldBlockScopeEscapeQuestion({
+      askModeActive: this.agent.askMode?.isActive === true,
+      permissionMode: this.agent.permission?.mode,
+      goalStatus,
+      ultraPlanInterview:
+        planMode?.isUltraMode === true && planMode.phase === 'interview',
+    });
+  }
 }
 
 function normalizeAskUserQuestionInput(args: AskUserQuestionInput): NormalizedAskUserQuestionInput {
@@ -347,7 +375,7 @@ function normalizeQuestionResult(
 }
 
 const AUTO_ANSWER_ASSUMPTION =
-  'Assumption: proceed with baseline/minimal scope; refine if blocked.';
+  'Assumption: proceed with the stated goal; refine if blocked.';
 
 /**
  * Destructive / irreversible question signals: auto mode must never silently
@@ -432,14 +460,14 @@ function tryAutoAnswerQuestions(
     if (question.options.length === 0) {
       const chosen = AUTO_ANSWER_ASSUMPTION;
       answers[key] = formatAutoDecisionAnswer(chosen, {
-        reason: 'Open question under auto mode — recorded conservative baseline assumption',
+        reason: 'Open question under auto mode — proceed with stated goal; refine if blocked',
         confidence: 0.55,
         source: 'open_assumption',
       });
       decisions.push({
         question: key,
         chosen,
-        reason: 'Open question under auto mode — recorded conservative baseline assumption',
+        reason: 'Open question under auto mode — proceed with stated goal; refine if blocked',
         confidence: 0.55,
         source: 'open_assumption',
         options: [],

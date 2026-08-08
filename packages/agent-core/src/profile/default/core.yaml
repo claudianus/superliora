@@ -5,6 +5,7 @@ description: Sovereign Reform Core waist — exactly 12 universal tools (Core≤
 
 systemPromptPath: ./system.md
 promptVars:
+  INCLUDE_WORKER_LOOP: '1'
   roleAdditional: ''
 
 tools:

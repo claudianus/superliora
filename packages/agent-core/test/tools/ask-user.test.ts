@@ -38,6 +38,8 @@ function makeTool(
   options: {
     readonly mode?: PermissionMode;
     readonly askMode?: boolean;
+    readonly goalStatus?: string | null;
+    readonly ultraPlanInterview?: boolean;
     readonly requestQuestion?: (
       request: QuestionRequest,
       options: { readonly signal?: AbortSignal },
@@ -58,6 +60,21 @@ function makeTool(
   const agent = {
     permission: { mode: options.mode ?? 'manual' },
     askMode: { isActive: options.askMode === true },
+    goal:
+      options.goalStatus === undefined
+        ? undefined
+        : {
+            getGoal: () => ({
+              goal:
+                options.goalStatus === null
+                  ? null
+                  : { status: options.goalStatus },
+            }),
+          },
+    planMode:
+      options.ultraPlanInterview === true
+        ? { isUltraMode: true, phase: 'interview' }
+        : undefined,
     rpc: { requestQuestion },
     telemetry: { track: telemetryTrack },
   } as unknown as Agent;
@@ -254,7 +271,7 @@ describe('AskUserQuestionTool', () => {
     expect(requestQuestion).toHaveBeenCalledOnce();
   });
 
-  it('auto-answers open-ended questions with a conservative assumption under auto', async () => {
+  it('auto-answers open-ended questions by proceeding with the stated goal under auto', async () => {
     const { tool, requestQuestion, telemetryTrack } = makeTool({ mode: 'auto' });
 
     const result = await executeTool(tool, {
@@ -270,7 +287,9 @@ describe('AskUserQuestionTool', () => {
     expect(requestQuestion).not.toHaveBeenCalled();
     const output = typeof result.output === 'string' ? JSON.parse(result.output) : result.output;
     expect(output.method).toBe('auto');
-    expect(output.answers['What features define full version?']).toContain('Assumption:');
+    expect(output.answers['What features define full version?']).toContain(
+      'Assumption: proceed with the stated goal; refine if blocked.',
+    );
     expect(telemetryTrack).toHaveBeenCalledWith('question_answered', {
       answered: 1,
       method: 'auto',
@@ -612,5 +631,86 @@ describe('AskUserQuestionTool', () => {
     expect(result.output).toContain('does not support interactive questions');
     expect(result.output).toContain('Do NOT call this tool again');
     expect(result.output).toContain('Ask the user directly in your text response instead');
+  });
+
+  it('blocks scope-escape questions while a goal is active', async () => {
+    const { tool, requestQuestion, telemetryTrack } = makeTool({
+      mode: 'manual',
+      goalStatus: 'active',
+    });
+
+    const result = await executeTool(tool, {
+      turnId: '0',
+      toolCallId: 'call_scope_escape',
+      args: {
+        questions: [
+          {
+            question: 'Given the magnitude, do you really want to complete this goal?',
+            options: [
+              { label: 'Yes, continue' },
+              { label: 'Reduce scope' },
+            ],
+          },
+        ],
+      },
+      signal,
+    });
+
+    expect(result).toMatchObject({ isError: true });
+    expect(result.output).toContain('scope-escape');
+    expect(requestQuestion).not.toHaveBeenCalled();
+    expect(telemetryTrack).toHaveBeenCalledWith('question_scope_escape_blocked', {
+      questions: 1,
+    });
+  });
+
+  it('allows scope-escape phrasing during Ultra Plan interview', async () => {
+    const { tool, requestQuestion } = makeTool({
+      mode: 'manual',
+      goalStatus: 'active',
+      ultraPlanInterview: true,
+      requestQuestion: async () => ({
+        'Given the magnitude, do you really want to complete this goal?': 'Yes, continue',
+      }),
+    });
+
+    const result = await executeTool(tool, {
+      turnId: '0',
+      toolCallId: 'call_interview_ok',
+      args: {
+        questions: [
+          {
+            question: 'Given the magnitude, do you really want to complete this goal?',
+            options: [{ label: 'Yes, continue' }, { label: 'Reduce scope' }],
+          },
+        ],
+      },
+      signal,
+    });
+
+    expect(result.isError).toBe(false);
+    expect(requestQuestion).toHaveBeenCalled();
+  });
+
+  it('blocks scope-escape questions in auto mode even without an active goal', async () => {
+    const { tool, requestQuestion } = makeTool({ mode: 'auto' });
+
+    const result = await executeTool(tool, {
+      turnId: '0',
+      toolCallId: 'call_auto_scope_escape',
+      args: {
+        questions: [
+          {
+            question: 'Is this too large to finish tonight?',
+            options: [{ label: 'Yes' }, { label: 'No' }],
+          },
+        ],
+      },
+      signal,
+    });
+
+    expect(result).toMatchObject({ isError: true });
+    expect(result.output).toContain('scope-escape');
+    expect(requestQuestion).not.toHaveBeenCalled();
   });
 });

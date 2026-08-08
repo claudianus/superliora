@@ -196,13 +196,15 @@ describe('GoalInjector content', () => {
     expect(text).toContain('not after only a plan/summary/first pass/partial result');
   });
 
-  it('tells the model to decide simple or impossible goals in the same turn', async () => {
+  it('tells the model to settle already-satisfied or blocked goals in the same turn', async () => {
     const store = makeStore();
     await store.createGoal({ objective: 'prove 1+1=3' });
     const text = (await injectOnce(store))!;
     expect(text).toContain('Keep the self-audit brief');
     expect(text).toContain('Goal mode is iterative');
-    expect(text).toContain('If simple, already answered, impossible, unsafe, or contradictory');
+    expect(text).toContain(
+      'If already satisfied, unsafe, contradictory, or externally blocked after inspection',
+    );
     expect(text).toContain('UpdateGoal `complete` or `blocked` in the same turn');
   });
 
@@ -227,6 +229,7 @@ describe('GoalInjector content', () => {
     const first = reminders[0]!;
     const second = reminders[1]!;
     expect(first).toContain('## Autonomous execution pattern');
+    expect(first).toContain('renegotiate magnitude');
     // The static pattern prose is not repeated verbatim every boundary —
     // the earlier copy is still in the history.
     expect(second).not.toContain('## Autonomous execution pattern');
