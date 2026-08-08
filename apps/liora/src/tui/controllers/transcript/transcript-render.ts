@@ -20,6 +20,7 @@ import {
   GoalSetMessageComponent,
 } from '../../components/messages/goal/goal-panel';
 import { PluginCommandComponent } from '../../components/messages/plugin-command';
+import { PlanBoxComponent } from '../../components/messages/plan-box';
 import { SkillActivationComponent } from '../../components/messages/skill-activation';
 import { StepSummaryComponent } from '../../components/messages/step-summary';
 import {
@@ -37,11 +38,13 @@ import type { SessionEventHandler } from '../session-event/handler';
 import type { StreamingUIController } from '../streaming-ui/index';
 import { currentTheme } from '../../theme';
 import type { ColorToken } from '../../theme';
+import { createMarkdownTheme } from '../../theme/pi-tui-theme';
 import type { TUIState } from '../../tui-state';
 import type { ImageAttachment, ImageAttachmentStore } from '../../utils/image/image-attachment-store';
 import { resolveImageProtocol } from '../../utils/image/image-protocol-detect';
 import type {
   LoginProgressSpinnerHandle,
+  PlanTranscriptData,
   TranscriptEntry,
 } from '../../types';
 import { resolveStageLayout } from '../layout/stage-layout';
@@ -81,6 +84,9 @@ export interface TranscriptRenderHost {
  * LioraTUI keeps thin public delegates so call sites stay stable.
  */
 export class TranscriptRenderController {
+  /** tool_call_ids already mirrored as plan_review PlanBox entries this session. */
+  private readonly mirroredPlanReviewIds = new Set<string>();
+
   constructor(private readonly host: TranscriptRenderHost) {}
 
   private createTranscriptComponent(entry: TranscriptEntry): Component | null {
@@ -97,6 +103,16 @@ export class TranscriptRenderController {
     }
 
     switch (entry.kind) {
+      case 'plan': {
+        const plan = entry.planData?.content ?? entry.content;
+        if (plan.trim().length === 0) return null;
+        return new PlanBoxComponent(
+          plan,
+          createMarkdownTheme(),
+          currentTheme.color('success'),
+          entry.planData?.path,
+        );
+      }
       case 'user': {
         const images = entry.imageAttachmentIds
           ?.map((id) => host.imageStore.get(id))
@@ -194,6 +210,35 @@ export class TranscriptRenderController {
     if (component || trimmed || merged) {
       requestTUIContentRender(host.state);
     }
+  }
+
+  /**
+   * Mirror a plan_review body into the main transcript as a PlanBox so operators
+   * (including Conductor plan-worker reviews) can read the full plan outside the
+   * compact approval card. Idempotent per tool_call_id.
+   */
+  appendPlanReviewTranscript(
+    toolCallId: string,
+    plan: PlanTranscriptData,
+  ): boolean {
+    if (toolCallId.length > 0 && this.mirroredPlanReviewIds.has(toolCallId)) {
+      return false;
+    }
+    const content = plan.content.trim();
+    if (content.length === 0) return false;
+    if (toolCallId.length > 0) this.mirroredPlanReviewIds.add(toolCallId);
+    this.appendTranscriptEntry({
+      id: nextTranscriptId(),
+      kind: 'plan',
+      renderMode: 'markdown',
+      content,
+      planData: {
+        content,
+        path: plan.path,
+        toolCallId: toolCallId.length > 0 ? toolCallId : undefined,
+      },
+    });
+    return true;
   }
 
   appendApprovalTranscriptEntry(request: ApprovalRequest, response: ApprovalResponse): void {
@@ -351,6 +396,7 @@ export class TranscriptRenderController {
     const { host } = this;
     host.streamingUI.discardPending();
     host.state.transcriptEntries = [];
+    this.mirroredPlanReviewIds.clear();
     host.streamingUI.disposeActiveCompactionBlock();
     host.streamingUI.resetLiveText();
     host.streamingUI.resetToolUi();

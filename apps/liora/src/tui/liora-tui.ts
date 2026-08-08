@@ -68,6 +68,7 @@ import type {
   LioraTUIOptions,
   LioraTUIStartupInput,
   LoginProgressSpinnerHandle,
+  PlanTranscriptData,
   QueuedMessage,
   TranscriptDetailLevel,
   TranscriptEntry,
@@ -256,6 +257,7 @@ export interface LioraTUIHost {
   createNewSession(): Promise<void>;
   renderWelcome(): void;
   appendTranscriptEntry(entry: TranscriptEntry): void;
+  appendPlanReviewTranscript(toolCallId: string, plan: PlanTranscriptData): boolean;
   clearTranscriptAndRedraw(): void;
   mergeCurrentTurnSteps(): boolean;
   mergeAllTurnSteps(): void;

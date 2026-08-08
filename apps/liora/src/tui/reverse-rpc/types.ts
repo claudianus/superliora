@@ -110,6 +110,12 @@ export interface ApprovalPanelChoice {
 
 // ── Approval / Question view payloads ────────────────────────────────
 
+export interface ApprovalPlanReview {
+  /** Raw plan markdown (1-based lines match ctrl+e preview gutter). */
+  content: string;
+  path?: string | undefined;
+}
+
 export interface ApprovalPanelData {
   id: string;
   tool_call_id: string;
@@ -118,6 +124,8 @@ export interface ApprovalPanelData {
   description: string;
   display: DisplayBlock[];
   choices: ApprovalPanelChoice[];
+  /** Set for ExitPlanMode / plan_review — raw plan for line comments + transcript mirror. */
+  planReview?: ApprovalPlanReview | undefined;
 }
 
 export interface QuestionPanelItem {

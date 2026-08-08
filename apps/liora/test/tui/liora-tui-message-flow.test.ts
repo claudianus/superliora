@@ -2632,7 +2632,7 @@ command = "vim"
     expect(transcript).not.toContain('/export-debug-zip');
   });
 
-  it('shows ExitPlanMode plan in the current-plan card and the review approval dialog', async () => {
+  it('mirrors ExitPlanMode plan into the transcript and keeps the approval card compact', async () => {
     const planContent = '# No Duplicate Plan\n\n- Do the non-duplicated plan work';
     const session = makeSession({
       getPlan: vi.fn(async () => ({
@@ -2659,7 +2659,8 @@ command = "vim"
     await vi.waitFor(() => {
       const transcript = stripSgr(renderTranscript(driver));
       expect(transcript).toContain('Current plan');
-      expect(countOccurrences(transcript, 'non-duplicated plan work')).toBe(1);
+      // In-flight ExitPlanMode does not mount PlanBox; reading waits for plan_review.
+      expect(transcript).not.toContain('non-duplicated plan work');
     });
 
     const approvalHandler = vi.mocked(session.setApprovalHandler).mock.calls[0]?.[0] as
@@ -2681,12 +2682,13 @@ command = "vim"
     await vi.waitFor(() => {
       const approval = stripSgr(driver.state.editorContainer.render(120).join('\n'));
       expect(approval).toContain('Ready to build with this plan?');
-      // The review dialog intentionally re-renders the numbered plan with its
-      // path so operators can leave "L12: …" line comments (AC6); before the
-      // dialog opens, the transcript keeps a single current-plan card.
       expect(approval).toContain('경로: /tmp/no-duplicate-plan.md');
-      expect(approval).toContain('non-duplicated plan work');
+      expect(approval).toContain('ctrl+e preview');
       expect(approval).toContain('라인 코멘트: L12');
+      // Compact file_content summary still shows early lines; full book is transcript.
+      expect(approval).toContain('non-duplicated plan work');
+      const transcript = stripSgr(renderTranscript(driver));
+      expect(countOccurrences(transcript, 'non-duplicated plan work')).toBe(1);
     });
   });
 
@@ -2716,8 +2718,8 @@ command = "vim"
 
     await vi.waitFor(() => {
       const transcript = stripSgr(renderTranscript(driver));
-      expect(transcript).toContain('Reject Plan');
-      expect(countOccurrences(transcript, 'keep this plan visible after reject')).toBe(1);
+      expect(transcript).toContain('Current plan');
+      expect(transcript).not.toContain('keep this plan visible after reject');
     });
 
     const approvalHandler = vi.mocked(session.setApprovalHandler).mock.calls[0]?.[0] as
@@ -2738,6 +2740,8 @@ command = "vim"
 
     await vi.waitFor(() => {
       expect(driver.state.editorContainer.children[0]).toBeInstanceOf(ApprovalPanelComponent);
+      const transcript = stripSgr(renderTranscript(driver));
+      expect(countOccurrences(transcript, 'keep this plan visible after reject')).toBe(1);
     });
     (driver.state.editorContainer.children[0] as ApprovalPanelComponent).handleInput('2');
     await expect(response).resolves.toMatchObject({ decision: 'rejected' });
@@ -2759,7 +2763,8 @@ command = "vim"
       const transcript = stripSgr(renderTranscript(driver));
       expect(transcript).toContain('plan: reject-plan.md · Rejected');
       expect(transcript).toContain('Reject Plan');
-      expect(countOccurrences(transcript, 'keep this plan visible after reject')).toBe(1);
+      // Transcript mirror (plan_review) + settled tool PlanBox with Rejected status.
+      expect(countOccurrences(transcript, 'keep this plan visible after reject')).toBe(2);
       expect(transcript).not.toContain('Rejected: Review plan');
       expect(transcript).not.toContain('Plan rejected by user.');
       expect(transcript).not.toContain('Plan mode remains active.');

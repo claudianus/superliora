@@ -343,7 +343,16 @@ export type TranscriptEntryKind =
   | 'skill_activation'
   | 'plugin_command'
   | 'cron'
-  | 'goal';
+  | 'goal'
+  | 'plan';
+
+/** Full plan markdown mirrored into the main transcript for plan_review. */
+export interface PlanTranscriptData {
+  readonly content: string;
+  readonly path?: string | undefined;
+  /** Approval tool_call_id — used to dedupe mirrors for the same review. */
+  readonly toolCallId?: string | undefined;
+}
 
 export type SkillActivationTrigger = 'user-slash' | 'model-tool' | 'nested-skill';
 export type PluginCommandTrigger = 'user-slash';
@@ -365,6 +374,7 @@ export interface TranscriptEntry {
   compactionData?: CompactionTranscriptData;
   cronData?: CronTranscriptData;
   goalData?: GoalTranscriptData;
+  planData?: PlanTranscriptData;
   imageAttachmentIds?: readonly number[];
   skillActivationId?: string;
   skillName?: string;
