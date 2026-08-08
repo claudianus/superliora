@@ -249,14 +249,15 @@ if [ -d "$INSTALL_DIR/.git" ]; then
   log "Updating SuperLiora source in $INSTALL_DIR"
   git -C "$INSTALL_DIR" remote set-url origin "$REPO_URL"
   git -C "$INSTALL_DIR" fetch --depth 1 origin "$REF"
-  git -C "$INSTALL_DIR" checkout --force FETCH_HEAD
+  # Stay on the tracking branch (bare FETCH_HEAD leaves detached HEAD).
+  git -C "$INSTALL_DIR" -c advice.detachedHead=false checkout --force -B "$REF" FETCH_HEAD
   git -C "$INSTALL_DIR" reset --hard FETCH_HEAD
 else
   log "Cloning SuperLiora source into $INSTALL_DIR"
   mkdir -p "$(dirname "$INSTALL_DIR")"
   git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"
   git -C "$INSTALL_DIR" fetch --depth 1 origin "$REF"
-  git -C "$INSTALL_DIR" checkout --force FETCH_HEAD
+  git -C "$INSTALL_DIR" -c advice.detachedHead=false checkout --force -B "$REF" FETCH_HEAD
 fi
 step_ok "Source at $INSTALL_DIR ($REF)"
 

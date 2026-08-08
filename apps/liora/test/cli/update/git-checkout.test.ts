@@ -70,8 +70,9 @@ describe('gitCheckoutUpdateScript', () => {
     expect(script).toContain('fetch --depth 1 origin "$ref"');
     // Align with install.sh: force-checkout, no dirty pre-check that traps upgrades.
     expect(script).not.toContain('diff --quiet');
-    expect(script).toContain('checkout --force FETCH_HEAD');
+    expect(script).toContain('checkout --force -B "$ref" FETCH_HEAD');
     expect(script).toContain('reset --hard FETCH_HEAD');
+    expect(script).not.toContain('checkout --force FETCH_HEAD\n');
     expect(script).toContain("__LIORA_UPGRADE_STAGE__=building");
     expect(script).toContain('install --frozen-lockfile');
     expect(script).toContain('run build:packages');
