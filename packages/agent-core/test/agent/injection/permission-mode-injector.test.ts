@@ -28,6 +28,7 @@ describe('agent/injection/permission-mode — getInjection', () => {
     const entered = injector.getInjection();
     expect(entered).toContain('Auto permission mode is active');
     expect(entered).toContain('AskUserQuestion auto-answers');
+    expect(entered).toContain('Ask mode also disables auto-answer');
     expect(result).toBeUndefined();
   });
 

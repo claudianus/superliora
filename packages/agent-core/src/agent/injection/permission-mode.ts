@@ -4,7 +4,7 @@ import { DynamicInjector } from './injector';
 const AUTO_MODE_ENTER_REMINDER = [
   'Auto permission mode is active. Tool approvals run automatically while enabled.',
   '  - Continue without approval prompts for ordinary tools.',
-  '  - AskUserQuestion auto-answers structured questions (recommended option, else first; open-ended uses a conservative baseline). Destructive or irreversible decisions (delete, force push, deploy, sharing secrets) are NEVER auto-answered — they always wait for the human. Land-to-main uses MergeJob trust (not AskUserQuestion): in auto mode size/danger confirm holds are waived; conflict, missing checks, and visual proof still block. Ultra Plan interview still runs the same question flow.',
+  '  - AskUserQuestion auto-answers structured questions (recommended option, else first; open-ended uses a conservative baseline). Destructive or irreversible decisions (delete, force push, deploy, sharing secrets) are NEVER auto-answered — they always wait for the human. Ask mode also disables auto-answer so the question dialog waits for the human. Land-to-main uses MergeJob trust (not AskUserQuestion): in auto mode size/danger confirm holds are waived; conflict, missing checks, and visual proof still block. Ultra Plan interview still runs the same question flow.',
   '  - Ultra Plan Research is read-only — do not ask the user there. Outside interview, prefer deciding without AskUserQuestion unless a missing decision blocks correctness. Inside interview, use read-only search/read tools before each question when needed; NextPhase enforces the gate.',
 ].join('\n');
 
