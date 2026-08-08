@@ -296,10 +296,10 @@ export class MissionControlPanelComponent implements Component {
     const animated = shouldRenderAmbientEffects(appearance);
     const workers = this.visibleWorkers(now);
     const liveIds = new Set(workers.map((worker) => worker.id));
-    for (const id of [...this.revealByWorker.keys()]) {
+    for (const id of this.revealByWorker.keys()) {
       if (!liveIds.has(id)) this.revealByWorker.delete(id);
     }
-    for (const id of [...this.displayRateByWorker.keys()]) {
+    for (const id of this.displayRateByWorker.keys()) {
       if (!liveIds.has(id)) this.displayRateByWorker.delete(id);
     }
 
