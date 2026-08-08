@@ -67,6 +67,8 @@ for (const line of executableLines()) {
     const specifier = match[1];
     if (specifier.startsWith('.') || specifier.startsWith('/')) {
       if (optionalRelativeRuntimeRequires.has(specifier)) continue;
+      // Bundler may emit hashed optional native stubs (e.g. fsevents on non-darwin).
+      if (/^\.\/assets\/fsevents-[^/]+\.node$/.test(specifier)) continue;
       errors.push(`relative require remains: ${specifier}`);
       continue;
     }
