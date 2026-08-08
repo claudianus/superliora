@@ -16,7 +16,15 @@ const builtins = new Set([
   ...builtinModules,
   ...builtinModules.map((name) => `node:${name}`),
 ]);
-const optionalNativeDependencies = new Set(['cpu-features']);
+const optionalNativeDependencies = new Set([
+  'cpu-features',
+  // Lazy try/catch fallbacks / optional native probes — must stay external.
+  'better-sqlite3',
+  '@aws-sdk/signature-v4a',
+  '@img/sharp-libvips-dev/include',
+  '@img/sharp-libvips-dev/cplusplus',
+  '@img/sharp-wasm32/versions',
+]);
 
 function shouldAlwaysBundle(id: string): boolean {
   if (builtins.has(id) || id.startsWith('node:')) return false;

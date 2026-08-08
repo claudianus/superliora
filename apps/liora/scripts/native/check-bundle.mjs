@@ -15,7 +15,14 @@ const builtins = new Set([
 const optionalRuntimeRequires = new Set([
   'ajv-formats/dist/formats',
   'ajv/dist/runtime/validation_error',
+  '@aws-sdk/signature-v4a',
+  // sharp optional native probes (left external by the bundler; unused on SEA happy path)
+  '@img/sharp-libvips-dev/include',
+  '@img/sharp-libvips-dev/cplusplus',
+  '@img/sharp-wasm32/versions',
   '@playwright/test',
+  // Prefer node:sqlite; better-sqlite3 is a try/catch fallback only.
+  'better-sqlite3',
   'bufferutil',
   'canvas',
   'chromium-bidi/lib/cjs/bidiMapper/BidiMapper',
@@ -60,6 +67,8 @@ for (const line of executableLines()) {
     const specifier = match[1];
     if (specifier.startsWith('.') || specifier.startsWith('/')) {
       if (optionalRelativeRuntimeRequires.has(specifier)) continue;
+      // Bundler may emit hashed optional native stubs (e.g. fsevents on non-darwin).
+      if (/^\.\/assets\/fsevents-[^/]+\.node$/.test(specifier)) continue;
       errors.push(`relative require remains: ${specifier}`);
       continue;
     }
