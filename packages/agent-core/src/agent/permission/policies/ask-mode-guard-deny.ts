@@ -39,6 +39,11 @@ export class AskModeGuardDenyPermissionPolicy implements PermissionPolicy {
       return { kind: 'deny', message: askModeDeniedMessage(toolName, 'delegates or commits work') };
     }
 
+    // Clarifying questions are the point of ask mode — AskUserQuestion mutates
+    // nothing in the workspace (accesses: all() is only for concurrency), so
+    // let it through before the read-only gate.
+    if (toolName === 'AskUserQuestion') return;
+
     // Bash is read-only only for inspection commands; reuse the conductor
     // classifier so `rg` / `git log` / `ls` still work but installs and
     // redirection do not.

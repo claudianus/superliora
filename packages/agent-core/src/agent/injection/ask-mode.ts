@@ -48,10 +48,11 @@ const ASK_MODE_REMINDER = [
   '- Codebase: Read, Grep, Glob, RepoQuery. File contents go through Read — do not Bash cat/pager dumps (runtime redirects those to Read).',
   '- Web: WebSearch / FetchURL when those tools are on the profile.',
   '- Bash only for inspection (git log, ls, rg, and similar read-only commands).',
+  '- When a choice changes the recommendation, call AskUserQuestion — do not dump prose menus.',
   '- Say what you found, what the options are, and what you would recommend.',
   '- When you are unsure, say so and name what would settle it.',
   '',
-  'You cannot edit files, run commands that change anything, delegate to workers or subagents, queue jobs, or create goals — those calls are denied. Do not plan around the denial or ask for permission; answer with what reading and searching can establish. The user leaves ask mode when they want the work done.',
+  'You cannot edit files, run commands that change anything, delegate to workers or subagents, queue jobs, or create goals — those calls are denied. Do not plan around the denial or ask for permission; answer with what reading, searching, and AskUserQuestion can establish. The user leaves ask mode when they want the work done.',
 ].join('\n');
 
 const EXIT_REMINDER =

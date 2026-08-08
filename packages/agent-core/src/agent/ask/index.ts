@@ -1,8 +1,8 @@
 import type { Agent } from '..';
 
 /**
- * Ask mode — exploration without execution. Reads, searches, and web lookups
- * stay available; mutations and worker delegation are denied by
+ * Ask mode — exploration without execution. Reads, searches, web lookups, and
+ * AskUserQuestion stay available; mutations and worker delegation are denied by
  * `AskModeGuardDenyPermissionPolicy`.
  *
  * Ask mode and plan mode are mutually exclusive: plan mode produces a plan

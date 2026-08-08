@@ -28,11 +28,23 @@ describe('agent/permission/policies/ask-mode-guard-deny', () => {
     expect(policy.evaluate(ctx('Bash', { command: 'rm -rf build' }))).toBeUndefined();
   });
 
-  it('allows reading, searching, and web lookups', () => {
+  it('allows reading, searching, web lookups, and clarifying questions', () => {
     const policy = policyWith(true);
-    for (const name of ['Read', 'Grep', 'Glob', 'WebSearch', 'FetchURL', 'SearchSkill']) {
+    for (const name of [
+      'Read',
+      'Grep',
+      'Glob',
+      'WebSearch',
+      'FetchURL',
+      'SearchSkill',
+      'AskUserQuestion',
+    ]) {
       expect(policy.evaluate(ctx(name)), name).toBeUndefined();
     }
+    // AskUserQuestion declares accesses: all() for concurrency — still allowed.
+    expect(
+      policy.evaluate(ctx('AskUserQuestion', { questions: [] }, { accesses: [{ kind: 'all' }] })),
+    ).toBeUndefined();
   });
 
   it('denies edits and other mutating tools', () => {
