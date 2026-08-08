@@ -54,3 +54,33 @@ export function nonEmptyStringList(items: readonly string[] | undefined): string
   if (items === undefined) return [];
   return items.map((s) => s.trim()).filter((s) => s.length > 0);
 }
+
+/**
+ * Stall phrases that satisfy "non-empty" without a verifiable finish line.
+ * ponytail: lexical only — false positives are tool errors (model rewrites).
+ */
+const PLACEHOLDER_BRIEF_LINE = [
+  /^(?:tbd|todo|n\/?a|none|unknown|pending|later|wip|asap|\.{2,}|-+)$/i,
+  /\bto be (?:determined|defined|decided|filled(?:\s+in)?)\b/i,
+  /\bfill(?:ed)?\s+in\s+later\b/i,
+  /\bcoming soon\b/i,
+  /\b(?:success\s+)?criteria?\s*(?:tbd|todo|later)\b/i,
+  /\bdefer(?:red)?\s+to\s+later\b/i,
+] as const;
+
+/** True when a brief line is a non-verifiable placeholder. */
+export function isPlaceholderBriefLine(line: string): boolean {
+  const text = line.trim();
+  if (text.length === 0) return false;
+  return PLACEHOLDER_BRIEF_LINE.some((pattern) => pattern.test(text));
+}
+
+/** First placeholder among non-empty lines, if any. */
+export function findPlaceholderBriefLine(
+  items: readonly string[] | undefined,
+): string | undefined {
+  for (const line of nonEmptyStringList(items)) {
+    if (isPlaceholderBriefLine(line)) return line;
+  }
+  return undefined;
+}

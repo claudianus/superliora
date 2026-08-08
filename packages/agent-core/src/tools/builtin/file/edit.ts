@@ -20,6 +20,10 @@ import {
   policyForSandboxProfile,
   resolvePathAccessPath,
 } from '../../policies/path-access';
+import {
+  FABRICATED_DEFER_BLOCKED_MESSAGE,
+  hasFabricatedDeferral,
+} from '../../support/fabricated-defer';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { literalRulePattern, matchesPathRuleSubject } from '../../support/rule-match';
 import type { WorkspaceConfig } from '../../support/workspace';
@@ -303,6 +307,10 @@ export class EditTool implements BuiltinTool<EditInput> {
         isError: true,
         output: 'No changes to make: old_string and new_string are exactly the same.',
       };
+    }
+
+    if (hasFabricatedDeferral(args.new_string)) {
+      return { isError: true, output: FABRICATED_DEFER_BLOCKED_MESSAGE };
     }
 
     const lease = this.options?.getSwarmLease?.();

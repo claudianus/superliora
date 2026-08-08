@@ -250,12 +250,12 @@ describe('SetGoalBudgetTool', () => {
 });
 
 describe('UpdateGoalTool', () => {
-  it('guards against premature blocked status', () => {
+  it('documents blocked as external-impasse-only with required reason', () => {
     const description = new UpdateGoalTool(fakeAgent()).description.toLowerCase();
-    // codex spec.rs:80 wording (without the 3-turn machinery kimi lacks).
     expect(description).toContain('hard/slow');
-    // UpdateGoal also injects the completion/blocked outcome prompt, so it does
-    // more than "only record the status".
+    expect(description).toContain('requires `reason`');
+    expect(description).toContain('too large');
+    expect(description).toContain('honest yield');
     expect(description).not.toContain('only records the status');
   });
 
@@ -277,11 +277,13 @@ describe('UpdateGoalTool', () => {
     } as unknown as Agent;
   }
 
-  it('accepts only active / complete / paused / blocked', () => {
+  it('accepts only active / complete / paused / blocked (reason optional at schema)', () => {
     for (const status of ['active', 'complete', 'paused', 'blocked']) {
       expect(UpdateGoalToolInputSchema.safeParse({ status }).success).toBe(true);
     }
-    expect(UpdateGoalToolInputSchema.safeParse({ status: 'blocked', reason: 'x' }).success).toBe(false);
+    expect(UpdateGoalToolInputSchema.safeParse({ status: 'blocked', reason: 'missing key' }).success).toBe(
+      true,
+    );
     for (const status of ['impossible', 'cancelled', '']) {
       expect(UpdateGoalToolInputSchema.safeParse({ status }).success).toBe(false);
     }
@@ -306,20 +308,46 @@ describe('UpdateGoalTool', () => {
     expect(String(result.output)).toContain('RunProjectChecks');
   });
 
-  it('`blocked` marks the goal blocked (resumable) and asks for a blocker reason', async () => {
+  it('`blocked` without reason is rejected and keeps the goal active', async () => {
+    const store = makeStore();
+    await store.createGoal({ objective: 'work' });
+    const result = await executeTool(
+      new UpdateGoalTool(agentWithContext(store)),
+      ctx({ status: 'blocked' }),
+    );
+    expect(result.isError).toBe(true);
+    expect(result.stopTurn).toBeFalsy();
+    expect(String(result.output)).toContain('requires `reason`');
+    expect(store.getGoal().goal?.status).toBe('active');
+  });
+
+  it('`blocked` with a capacity-escape reason is rejected and keeps the goal active', async () => {
+    const store = makeStore();
+    await store.createGoal({ objective: 'work' });
+    const result = await executeTool(
+      new UpdateGoalTool(agentWithContext(store)),
+      ctx({ status: 'blocked', reason: 'too large / would take weeks' }),
+    );
+    expect(result.isError).toBe(true);
+    expect(result.stopTurn).toBeFalsy();
+    expect(String(result.output)).toContain('magnitude/calendar/scope escape');
+    expect(store.getGoal().goal?.status).toBe('active');
+  });
+
+  it('`blocked` with a concrete external reason marks the goal blocked (resumable)', async () => {
     const store = makeStore();
     const reminders: Array<{ readonly content: string; readonly origin: unknown }> = [];
     await store.createGoal({ objective: 'work' });
     const result = await executeTool(
       new UpdateGoalTool(agentWithContext(store, reminders)),
-      ctx({ status: 'blocked' }),
+      ctx({ status: 'blocked', reason: 'missing OPENAI_API_KEY in the environment' }),
     );
     expect(result.stopTurn).toBe(true);
     expect(store.getGoal().goal?.status).toBe('blocked');
-    expect(store.getGoal().goal?.terminalReason).toBeUndefined();
+    expect(store.getGoal().goal?.terminalReason).toBe('missing OPENAI_API_KEY in the environment');
     expect(reminders).toHaveLength(1);
     expect(reminders[0]?.origin).toEqual({ kind: 'system_trigger', name: 'goal_blocked' });
-    expect(reminders[0]?.content).toContain('Goal blocked.');
+    expect(reminders[0]?.content).toContain('Goal blocked: missing OPENAI_API_KEY');
     expect(reminders[0]?.content).toContain('concrete blocker');
   });
 
@@ -332,6 +360,32 @@ describe('UpdateGoalTool', () => {
     );
     expect(result.stopTurn).toBe(true);
     expect(store.getGoal().goal?.status).toBe('paused');
+  });
+
+  it('`paused` with a capacity-escape reason is rejected and keeps the goal active', async () => {
+    const store = makeStore();
+    await store.createGoal({ objective: 'work' });
+    const result = await executeTool(
+      new UpdateGoalTool(agentWithContext(store)),
+      ctx({ status: 'paused', reason: 'too large — cut scope first' }),
+    );
+    expect(result.isError).toBe(true);
+    expect(result.stopTurn).toBeFalsy();
+    expect(String(result.output)).toContain('magnitude/calendar/scope escape');
+    expect(store.getGoal().goal?.status).toBe('active');
+  });
+
+  it('`paused` with an honest yield reason records terminalReason', async () => {
+    const store = makeStore();
+    await store.createGoal({ objective: 'work' });
+    const result = await executeTool(
+      new UpdateGoalTool(agentWithContext(store)),
+      ctx({ status: 'paused', reason: 'user asked to stop for tonight' }),
+    );
+    expect(result.isError).toBeFalsy();
+    expect(result.stopTurn).toBe(true);
+    expect(store.getGoal().goal?.status).toBe('paused');
+    expect(store.getGoal().goal?.terminalReason).toBe('user asked to stop for tonight');
   });
 
   it('`active` resumes a paused goal', async () => {

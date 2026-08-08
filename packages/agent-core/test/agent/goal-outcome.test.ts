@@ -28,9 +28,18 @@ describe('goal outcome prompts', () => {
   });
 
   it('uses stronger wording in the blocked prompt sent to the model', () => {
-    const text = buildGoalBlockedReasonPrompt(snapshot({ status: 'blocked' }));
+    const text = buildGoalBlockedReasonPrompt(
+      snapshot({ status: 'blocked', terminalReason: undefined }),
+    );
     expect(text).toContain('Goal blocked.');
     expect(text).toContain('State that the goal is blocked');
     expect(text).toContain('concrete blocker');
+  });
+
+  it('includes the terminal reason in the blocked prompt when present', () => {
+    const text = buildGoalBlockedReasonPrompt(
+      snapshot({ status: 'blocked', terminalReason: 'missing OPENAI_API_KEY' }),
+    );
+    expect(text).toContain('Goal blocked: missing OPENAI_API_KEY.');
   });
 });

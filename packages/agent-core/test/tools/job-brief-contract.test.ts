@@ -60,6 +60,40 @@ describe('JobCreate structured brief', () => {
     expect(String(missingCriteria.output)).toMatch(/success_criteria/);
   });
 
+  it('rejects task/implement success_criteria that are TBD/later placeholders', () => {
+    const store = memoryStore();
+    const tool = new JobCreateTool(store);
+    const placeholder = tool.resolveExecution({
+      title: 'Fix flicker',
+      kind: 'implement',
+      success_criteria: ['TBD'],
+    });
+    expect(placeholder.isError).toBe(true);
+    expect(String(placeholder.output)).toMatch(/placeholder/i);
+
+    const mixed = tool.resolveExecution({
+      title: 'Fix flicker',
+      kind: 'implement',
+      success_criteria: ['focused smoke exits 0', 'fill in later'],
+    });
+    expect(mixed.isError).toBe(true);
+    expect(String(mixed.output)).toMatch(/fill in later/i);
+  });
+
+  it('rejects goal-driver completion criteria that are placeholders', () => {
+    const store = memoryStore();
+    const tool = new JobCreateTool(store);
+    const result = tool.resolveExecution({
+      title: 'Drive until green',
+      kind: 'goal-driver',
+      prompt: 'Keep going until the suite is green.',
+      goal_completion_criterion: 'to be determined',
+    });
+    expect(result.isError).toBe(true);
+    expect(String(result.output)).toMatch(/goal_completion_criterion/);
+    expect(String(result.output)).toMatch(/placeholder/i);
+  });
+
   it('rejects greenfield task/implement without must_not_touch', () => {
     const store = memoryStore();
     const tool = new JobCreateTool(store);

@@ -19,6 +19,10 @@ import {
   policyForSandboxProfile,
   resolvePathAccessPath,
 } from '../../policies/path-access';
+import {
+  FABRICATED_DEFER_BLOCKED_MESSAGE,
+  hasFabricatedDeferral,
+} from '../../support/fabricated-defer';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { literalRulePattern, matchesPathRuleSubject } from '../../support/rule-match';
 import type { WorkspaceConfig } from '../../support/workspace';
@@ -110,6 +114,10 @@ export class WriteTool implements BuiltinTool<WriteInput> {
   }
 
   private async execution(args: WriteInput, safePath: string): Promise<ExecutableToolResult> {
+    if (hasFabricatedDeferral(args.content)) {
+      return { isError: true, output: FABRICATED_DEFER_BLOCKED_MESSAGE };
+    }
+
     const lease = this.options?.getSwarmLease?.();
     const leaseError = checkSwarmFileLease(safePath, lease?.ownerId, lease?.runId);
     if (leaseError !== undefined) {
