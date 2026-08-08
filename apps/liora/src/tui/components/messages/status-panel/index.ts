@@ -166,38 +166,14 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
     );
   }
 
-  const roleModels = options.status?.roleModels;
-  if (roleModels !== undefined) {
+  const roleModelRows = buildRoleModelStatusRows(options);
+  if (roleModelRows !== undefined) {
     lines.push('');
     lines.push(accent('Role models'));
-    addStatusFieldRows(
-      lines,
-      [
-        { label: 'Compaction', value: roleModels.compaction ?? 'auto' },
-        { label: 'Completion', value: roleModels.completion ?? 'auto' },
-        { label: 'Exploration', value: roleModels.exploration ?? 'auto' },
-        { label: 'Coding', value: roleModels.coding ?? 'auto' },
-        { label: 'Planning', value: roleModels.planning ?? 'auto' },
-        { label: 'Debugging', value: roleModels.debugging ?? 'auto' },
-      ],
-      muted,
-      value,
-      errorStyle,
-      warningStyle,
-      options.fieldMotion,
-    );
-  }
-
-  if (options.loopModelRouting !== undefined || options.loopModelRoutingError !== undefined) {
-    lines.push('');
-    lines.push(accent('Loop model routing'));
-    if (options.loopModelRouting !== undefined) {
+    if (options.loopModelRoutingError !== undefined && options.loopModelRouting === undefined) {
       addStatusFieldRows(
         lines,
-        loopModelRoutingRows(options.loopModelRouting).map((role) => ({
-          label: role.label,
-          value: role.state,
-        })),
+        [{ label: 'Overrides', value: options.loopModelRoutingError, severity: 'error' }],
         muted,
         value,
         errorStyle,
@@ -207,7 +183,7 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
     } else {
       addStatusFieldRows(
         lines,
-        [{ label: 'Overrides', value: options.loopModelRoutingError!, severity: 'error' }],
+        roleModelRows,
         muted,
         value,
         errorStyle,
@@ -292,4 +268,36 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
   }
 
   return lines;
+}
+
+function buildRoleModelStatusRows(
+  options: StatusReportOptions,
+): readonly StatusFieldRow[] | undefined {
+  if (options.loopModelRouting !== undefined) {
+    return loopModelRoutingRows(options.loopModelRouting, options.availableModels).map((role) => ({
+      label: role.label,
+      value: role.state,
+    }));
+  }
+
+  const roleModels = options.status?.roleModels;
+  if (roleModels === undefined && options.loopModelRoutingError === undefined) return undefined;
+
+  // Fall back to session status overrides when harness config is unavailable.
+  return loopModelRoutingRows(
+    {
+      loopControl: {
+        compactionModel: roleModels?.compaction,
+        completionModel: roleModels?.completion,
+        explorationModel: roleModels?.exploration,
+        codingModel: roleModels?.coding,
+        planningModel: roleModels?.planning,
+        debuggingModel: roleModels?.debugging,
+      },
+    },
+    options.availableModels,
+  ).map((role) => ({
+    label: role.label,
+    value: role.state,
+  }));
 }

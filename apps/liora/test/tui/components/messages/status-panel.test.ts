@@ -952,12 +952,13 @@ describe('status panel report lines', () => {
     }).map(strip);
     const configuredOutput = configured.join('\n');
     expect(configuredOutput).toContain('Role models');
+    expect(configuredOutput).not.toContain('Loop model routing');
     const compactionRow = configured.find((line) => line.includes('Compaction'));
-    expect(compactionRow).toContain('kimi-turbo');
+    expect(compactionRow).toContain('override · kimi-turbo');
     const completionRow = configured.find((line) => line.includes('Completion'));
     expect(completionRow).toContain('auto');
     const explorationRow = configured.find((line) => line.includes('Exploration'));
-    expect(explorationRow).toContain('kimi-research');
+    expect(explorationRow).toContain('override · kimi-research');
     expect(configured.find((line) => line.includes('Coding'))).toContain('auto');
     expect(configured.find((line) => line.includes('Planning'))).toContain('auto');
     expect(configured.find((line) => line.includes('Debugging'))).toContain('auto');
@@ -1087,7 +1088,8 @@ describe('status panel report lines', () => {
     }).map(strip);
     const output = lines.join('\n');
 
-    expect(output).toContain('Loop model routing');
+    expect(output).toContain('Role models');
+    expect(output).not.toContain('Loop model routing');
     expect(lines.find((line) => line.includes('Coding'))).toContain('override · code-pro');
     expect(lines.find((line) => line.includes('Debugging'))).toContain('override · debug-pro');
     expect(lines.find((line) => line.includes('Completion'))).toContain('auto');

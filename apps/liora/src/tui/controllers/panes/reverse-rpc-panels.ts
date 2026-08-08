@@ -14,7 +14,7 @@ import type { ApprovalController } from '../../reverse-rpc/approval/controller';
 import type { QuestionController } from '../../reverse-rpc/question/controller';
 import type { ApprovalPanelData, QuestionPanelData } from '../../reverse-rpc/types';
 import type { TUIState } from '../../tui-state';
-import type { AppState, LivePaneState } from '../../types';
+import type { AppState, LivePaneState, PlanTranscriptData } from '../../types';
 import { shouldPermissionApproveFlourish } from '../../utils/never-halt/permission-approve-flourish';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { notifyUserAttentionOnce } from '../../utils/terminal/terminal-notification';
@@ -33,6 +33,7 @@ export interface ReverseRpcPanelsHost {
   mountEditorReplacement(panel: Component & Focusable): void;
   restoreEditor(): void;
   toggleToolOutputExpansion(): void;
+  appendPlanReviewTranscript(toolCallId: string, plan: PlanTranscriptData): boolean;
 }
 
 /**
@@ -71,6 +72,13 @@ export class ReverseRpcPanelsController {
       this.host.deferredApproval = payload;
       return;
     }
+    if (payload.planReview !== undefined) {
+      this.host.appendPlanReviewTranscript(payload.tool_call_id, {
+        content: payload.planReview.content,
+        path: payload.planReview.path,
+        toolCallId: payload.tool_call_id,
+      });
+    }
     this.host.patchLivePane({ pendingApproval: { data: payload } });
     notifyUserAttentionOnce(this.host.state, `approval:${payload.id}`, {
       title: 'SuperLiora approval required',
@@ -79,16 +87,12 @@ export class ReverseRpcPanelsController {
     const panel = new ApprovalPanelComponent(
       { data: payload },
       (response: ApprovalPanelResponse) => {
-        const planFromDisplay = payload.display
-          .filter((block): block is { type: 'brief'; text: string } => block.type === 'brief')
-          .map((block) => block.text)
-          .join('\n');
         if (shouldPermissionApproveFlourish(response)) {
           this.host.setAppState({ permissionApproveFlourish: { atMs: Date.now() } });
         }
         this.host.approvalController.respond(
           adaptPanelResponse(response, {
-            plan: planFromDisplay.length > 0 ? planFromDisplay : undefined,
+            plan: payload.planReview?.content,
           }),
         );
       },

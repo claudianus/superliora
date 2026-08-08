@@ -427,6 +427,7 @@ function isUndoContextEntry(entry: TranscriptEntry): boolean {
     case 'skill_activation':
     case 'plugin_command':
     case 'cron':
+    case 'plan':
       return true;
     case 'status':
     case 'goal':

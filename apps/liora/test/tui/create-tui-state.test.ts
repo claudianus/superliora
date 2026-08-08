@@ -1214,7 +1214,9 @@ describe('createTUIState', () => {
 
     const frame = renderTUIStateNativeFrame(state, {
       width: 44,
-      height: 8,
+      // Overlay body grew past height 8 (truncated as "+N more"); keep room for
+      // the frame-budget line the assertion below targets.
+      height: 12,
       diagnosticsOverlay: {
         diagnostics,
         width: 36,
@@ -1225,13 +1227,16 @@ describe('createTUIState', () => {
       },
     });
 
-    expect(rowText(frame.renderer.frame, 0)).toContain('Renderer');
-    expect(rowText(frame.renderer.frame, 1)).toContain('renderer degraded');
-    expect(rowText(frame.renderer.frame, 2)).toContain('frames');
-    expect(rowText(frame.renderer.frame, 3)).toContain('output full');
-    expect(rowText(frame.renderer.frame, 4)).toContain('phase top');
-    expect(rowText(frame.renderer.frame, 5)).toContain('cache rows');
-    expect(rowText(frame.renderer.frame, 6)).toContain('frame-budget');
+    const overlay = Array.from({ length: frame.renderer.frame.height }, (_, row) =>
+      rowText(frame.renderer.frame, row),
+    ).join('\n');
+    expect(overlay).toContain('Renderer');
+    expect(overlay).toContain('renderer degraded');
+    expect(overlay).toContain('frames');
+    expect(overlay).toContain('output full');
+    expect(overlay).toContain('phase top');
+    expect(overlay).toContain('cache rows');
+    expect(overlay).toContain('frame-budget');
   });
 
   it('attaches adaptive renderer VFX to non-healthy diagnostics overlays', () => {

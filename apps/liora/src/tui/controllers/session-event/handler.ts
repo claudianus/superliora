@@ -203,7 +203,12 @@ export class SessionEventHandler {
   }
 
   handleEvent(event: Event, sendQueued: (item: QueuedMessage) => void): void {
-    if (this.subAgentEventHandler.routeChildAgentEvent(event)) return;
+    if (this.subAgentEventHandler.routeChildAgentEvent(event)) {
+      // Child deltas / nested tools are consumed by the transcript Agent card,
+      // but Mission Control still needs the same events for the NOW live strip.
+      this.host.missionControl.handleEvent(event);
+      return;
+    }
 
     if ('turnId' in event && event.turnId !== undefined) {
       this.host.streamingUI.setTurnId(String(event.turnId));

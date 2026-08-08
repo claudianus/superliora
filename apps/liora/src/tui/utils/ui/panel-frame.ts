@@ -20,6 +20,12 @@ export interface RenderRoundedPanelOptions {
   readonly leftMargin?: number;
   readonly sidePadding?: number;
   readonly minBoxWidth?: number;
+  /**
+   * Stretch the frame to the full available width instead of shrink-wrapping
+   * to the longest content/title line. Mission Control (stage band) uses this
+   * so the dock reads at the stage's full reading width.
+   */
+  readonly fillWidth?: boolean;
 }
 
 function boxOverhead(leftMargin: number, sidePadding: number): number {
@@ -51,10 +57,12 @@ export function renderRoundedPanel(options: RenderRoundedPanelOptions): string[]
   }
 
   const longestLine = content.reduce((max, line) => Math.max(max, visibleWidth(line)), 0);
-  const contentWidth = Math.max(
-    1,
-    Math.min(availableInterior, Math.max(longestLine, visibleWidth(options.title))),
-  );
+  const contentWidth = options.fillWidth
+    ? Math.max(1, availableInterior)
+    : Math.max(
+        1,
+        Math.min(availableInterior, Math.max(longestLine, visibleWidth(options.title))),
+      );
   const horzLen = contentWidth + 2 * sidePadding;
   const title = fitRendererFrameTitle(options.title, horzLen, '…');
   const frame = renderRendererFrameRows({

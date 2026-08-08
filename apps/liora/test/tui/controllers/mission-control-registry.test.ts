@@ -100,6 +100,31 @@ describe('MissionControlRegistry', () => {
     expect(rate!).toBeLessThan(2500);
   });
 
+  it('keeps a rateSamples ring for densemode sparklines', () => {
+    const { registry, advance, now } = createHarness();
+    registry.apply(spawned('sa-1', { subagentName: 'spark' }));
+    let tokens = 0;
+    for (let i = 0; i < 10; i += 1) {
+      advance(1_000);
+      tokens += 1_500 + i * 100;
+      registry.apply({
+        type: 'subagent.progress',
+        subagentId: 'sa-1',
+        toolCount: i + 1,
+        elapsedMs: (i + 1) * 1_000,
+        tokens,
+      } as Event);
+    }
+    const samples = registry.snapshot(now()).workers[0]!.rateSamples;
+    expect(samples).toBeDefined();
+    expect(samples!.length).toBeLessThanOrEqual(8);
+    expect(samples!.length).toBeGreaterThan(0);
+    // Ring is oldest → newest; last sample should be the latest EMA.
+    expect(samples![samples!.length - 1]).toBe(
+      registry.snapshot(now()).workers[0]!.tokenRatePerSec,
+    );
+  });
+
   it('marks finishing from the heartbeat and stalled from the stall signal', () => {
     const { registry, advance, now } = createHarness();
     registry.apply(spawned('sa-1'));
@@ -339,5 +364,107 @@ describe('MissionControlRegistry', () => {
     registry.reset();
     expect(registry.snapshot(now()).version).toBeGreaterThan(v1);
     expect(registry.snapshot(now()).workers).toHaveLength(0);
+  });
+
+  it('tracks child thinking/answer deltas as a live stream tail', () => {
+    const { registry, advance, now } = createHarness();
+    registry.apply(spawned('sa-1', { subagentName: 'plan' }));
+    expect(
+      registry.apply({
+        type: 'thinking.delta',
+        agentId: 'sa-1',
+        sessionId: 's1',
+        delta: 'First thought\n',
+      } as Event),
+    ).toBe(true);
+    expect(registry.snapshot(now()).workers[0]).toMatchObject({
+      liveKind: 'thinking',
+      liveText: 'First thought',
+    });
+
+    advance(10);
+    registry.apply({
+      type: 'thinking.delta',
+      agentId: 'sa-1',
+      sessionId: 's1',
+      delta: 'Second line about Phaser',
+    } as Event);
+    expect(registry.snapshot(now()).workers[0]!.liveText).toBe('Second line about Phaser');
+
+    advance(10);
+    registry.apply({
+      type: 'assistant.delta',
+      agentId: 'sa-1',
+      sessionId: 's1',
+      delta: 'Metal Slug uses run-and-gun loops',
+    } as Event);
+    expect(registry.snapshot(now()).workers[0]).toMatchObject({
+      liveKind: 'answer',
+      liveText: 'Metal Slug uses run-and-gun loops',
+    });
+
+    // Unknown agent ids are ignored.
+    expect(
+      registry.apply({
+        type: 'assistant.delta',
+        agentId: 'ghost',
+        sessionId: 's1',
+        delta: 'nope',
+      } as Event),
+    ).toBe(false);
+  });
+
+  it('clears the live stream when a tool call starts and humanizes JSON args', () => {
+    const { registry, now } = createHarness();
+    registry.apply(spawned('sa-1', { subagentName: 'scout' }));
+    registry.apply({
+      type: 'thinking.delta',
+      agentId: 'sa-1',
+      sessionId: 's1',
+      delta: 'stale thought',
+    } as Event);
+    expect(registry.snapshot(now()).workers[0]!.liveText).toBe('stale thought');
+
+    registry.apply({
+      type: 'subagent.tool_call',
+      subagentId: 'sa-1',
+      toolCallId: 'tc-web',
+      name: 'WebSearch',
+      argsPreview: '{"query":"Phaser 3 platformer","limit":5}',
+    } as Event);
+    const snap = registry.snapshot(now());
+    expect(snap.workers[0]!.liveText).toBeUndefined();
+    expect(snap.workers[0]!.liveKind).toBeUndefined();
+    expect(snap.workers[0]).toMatchObject({
+      lastTool: 'WebSearch',
+      lastTarget: 'Phaser 3 platformer',
+    });
+    expect(snap.ops[0]).toMatchObject({
+      name: 'WebSearch',
+      target: 'Phaser 3 platformer',
+      status: 'running',
+    });
+  });
+
+  it('attaches a compact result chip on settled ops without an existing chip', () => {
+    const { registry, now } = createHarness();
+    registry.apply(spawned('sa-1'));
+    registry.apply({
+      type: 'subagent.tool_call',
+      subagentId: 'sa-1',
+      toolCallId: 'tc-1',
+      name: 'WebSearch',
+      argsPreview: '{"query":"metal slug"}',
+    } as Event);
+    registry.apply({
+      type: 'subagent.tool_result',
+      subagentId: 'sa-1',
+      toolCallId: 'tc-1',
+      resultPreview: '5 results about Metal Slug wiki pages',
+    } as Event);
+    expect(registry.snapshot(now()).ops[0]).toMatchObject({
+      status: 'ok',
+      chip: '5 results about Metal Slug…',
+    });
   });
 });

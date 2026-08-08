@@ -1,20 +1,28 @@
 /**
  * MissionControlRegistry — pure data layer behind the Mission Control dock.
- * Merges the five worker event streams (`subagent.*` lifecycle + progress +
- * tool telemetry, `subagent.todo.updated`, `background.task.*`) into one
- * roster projection. No TUIState / component dependencies; the panel
- * component renders {@link MissionControlSnapshot} and the session-event
- * handler feeds events via {@link MissionControlRegistry.apply}.
+ * Merges worker lifecycle / progress / tool telemetry, todo updates,
+ * background tasks, and child `thinking`/`assistant` deltas into one roster
+ * projection. No TUIState / component dependencies; the panel component
+ * renders {@link MissionControlSnapshot} and the session-event handler feeds
+ * events via {@link MissionControlRegistry.apply}.
  */
 
 import type { Event } from '@superliora/sdk';
 
-import { subagentToolDetailParts } from '../../utils/tools/subagent-tool-detail';
+import { resolveSubagentToolTarget } from '../../utils/tools/subagent-tool-detail';
 
 /** Completed workers linger this long so the operator sees the outcome. */
 export const MISSION_COMPLETED_LINGER_MS = 12_000;
 /** Ops-feed ring buffer cap (interleaved across all workers). */
 export const MISSION_OPS_FEED_CAP = 40;
+/** Keep only the rolling tail of live inference / NL text. */
+export const MISSION_LIVE_TEXT_CAP = 160;
+/** tok/s sparkline ring per worker (progress heartbeats). */
+export const MISSION_RATE_SAMPLES_CAP = 8;
+/** Compact result chip on settled MOVES rows. */
+const MISSION_RESULT_CHIP_MAX = 28;
+
+export type MissionLiveKind = 'thinking' | 'answer';
 
 export type MissionWorkerStatus =
   | 'running'
@@ -45,6 +53,8 @@ export interface MissionWorker {
    * two samples land with a positive delta.
    */
   readonly tokenRatePerSec?: number;
+  /** Recent tok/s samples for densemode sparklines (oldest → newest). */
+  readonly rateSamples?: readonly number[];
   /** Wall-clock elapsed, derived at snapshot time. */
   readonly elapsedMs: number;
   readonly budgetMs?: number;
@@ -57,6 +67,12 @@ export interface MissionWorker {
   readonly error?: string;
   readonly terminalAtMs?: number;
   readonly lastActivityAtMs: number;
+  /** Latest child thinking/answer stream kind (NOW live strip). */
+  readonly liveKind?: MissionLiveKind;
+  /** Rolling tail of the live stream (last non-empty line / capped chars). */
+  readonly liveText?: string;
+  /** Wall time of the last live-stream delta. */
+  readonly liveAtMs?: number;
 }
 
 export interface MissionOpsEntry {
@@ -97,6 +113,7 @@ interface MutableWorker {
   /** Wall time of the last token sample used for rate smoothing. */
   tokensSampleAtMs?: number;
   tokenRatePerSec?: number;
+  rateSamples?: number[];
   budgetMs?: number;
   budgetRemainingMs?: number;
   todoDone?: number;
@@ -111,6 +128,9 @@ interface MutableWorker {
   lastActivityAtMs: number;
   /** Background task id once `background.task.started` correlates. */
   taskId?: string;
+  liveKind?: MissionLiveKind;
+  liveBuffer?: string;
+  liveAtMs?: number;
 }
 
 const ACTIVE_STATUSES: ReadonlySet<MissionWorkerStatus> = new Set([
@@ -160,6 +180,10 @@ export class MissionControlRegistry {
         return this.applyBackgroundStarted(event.info);
       case 'background.task.terminated':
         return this.applyBackgroundTerminated(event.info);
+      case 'thinking.delta':
+        return this.applyLiveDelta(event.agentId, 'thinking', event.delta);
+      case 'assistant.delta':
+        return this.applyLiveDelta(event.agentId, 'answer', event.delta);
       default:
         return false;
     }
@@ -198,6 +222,9 @@ export class MissionControlRegistry {
         ...(worker.tokenRatePerSec === undefined || worker.tokenRatePerSec < 1
           ? {}
           : { tokenRatePerSec: worker.tokenRatePerSec }),
+        ...(worker.rateSamples === undefined || worker.rateSamples.length === 0
+          ? {}
+          : { rateSamples: [...worker.rateSamples] }),
         elapsedMs: this.deriveElapsedMs(worker, nowMs),
         ...(worker.budgetMs === undefined ? {} : { budgetMs: worker.budgetMs }),
         ...(worker.budgetRemainingMs === undefined
@@ -212,6 +239,11 @@ export class MissionControlRegistry {
         ...(worker.error === undefined ? {} : { error: worker.error }),
         ...(worker.terminalAtMs === undefined ? {} : { terminalAtMs: worker.terminalAtMs }),
         lastActivityAtMs: worker.lastActivityAtMs,
+        ...(worker.liveKind === undefined ? {} : { liveKind: worker.liveKind }),
+        ...(worker.liveBuffer === undefined || worker.liveBuffer.length === 0
+          ? {}
+          : { liveText: liveTextTail(worker.liveBuffer) }),
+        ...(worker.liveAtMs === undefined ? {} : { liveAtMs: worker.liveAtMs }),
       });
     }
     workers.sort((a, b) => {
@@ -323,6 +355,14 @@ export class MissionControlRegistry {
       worker.tokenRatePerSec === undefined
         ? instant
         : worker.tokenRatePerSec * 0.55 + instant * 0.45;
+    if (worker.tokenRatePerSec !== undefined && worker.tokenRatePerSec >= 1) {
+      const samples = worker.rateSamples ?? [];
+      samples.push(worker.tokenRatePerSec);
+      if (samples.length > MISSION_RATE_SAMPLES_CAP) {
+        samples.splice(0, samples.length - MISSION_RATE_SAMPLES_CAP);
+      }
+      worker.rateSamples = samples;
+    }
   }
 
   private applyStalled(event: Extract<Event, { type: 'subagent.stalled' }>): boolean {
@@ -377,10 +417,12 @@ export class MissionControlRegistry {
       name: event.subagentName ?? event.subagentId,
     });
     if (event.subagentName !== undefined) worker.name = event.subagentName;
-    const { target, chip } = subagentToolDetailParts(event.detail);
-    const targetText = target ?? event.argsPreview;
+    const { target, chip } = resolveSubagentToolTarget(event.detail, event.argsPreview);
+    const targetText = target;
     worker.lastTool = event.name;
     if (targetText !== undefined && targetText.length > 0) worker.lastTarget = targetText;
+    // Tool phase: drop stale inference so NOW shows the action, not old thoughts.
+    clearLiveStream(worker);
     worker.lastActivityAtMs = this.now();
     this.pushOps({
       toolCallId: event.toolCallId,
@@ -398,12 +440,14 @@ export class MissionControlRegistry {
   private applyToolResult(event: Extract<Event, { type: 'subagent.tool_result' }>): boolean {
     const atMs = this.now();
     const status = event.isError === true ? 'error' : 'ok';
+    const resultChip = compactResultChip(event.resultPreview);
     const entry = this.ops.find((candidate) => candidate.toolCallId === event.toolCallId);
     if (entry !== undefined) {
       const index = this.ops.indexOf(entry);
       this.ops[index] = {
         ...entry,
         ...(event.name !== undefined && event.name.length > 0 ? { name: event.name } : {}),
+        ...(resultChip === undefined || entry.chip !== undefined ? {} : { chip: resultChip }),
         status,
         settledAtMs: atMs,
       };
@@ -414,6 +458,7 @@ export class MissionControlRegistry {
         workerId: event.subagentId,
         workerName: worker?.name ?? event.subagentId,
         name: event.name ?? 'tool',
+        ...(resultChip === undefined ? {} : { chip: resultChip }),
         status,
         atMs,
         settledAtMs: atMs,
@@ -421,6 +466,31 @@ export class MissionControlRegistry {
     }
     const worker = this.workers.get(event.subagentId);
     if (worker !== undefined) worker.lastActivityAtMs = atMs;
+    return this.bump();
+  }
+
+  /**
+   * Child-agent inference / NL deltas (routed by `agentId`). Unknown agents
+   * are ignored — only workers already on the roster get a live strip.
+   */
+  private applyLiveDelta(
+    agentId: string,
+    kind: MissionLiveKind,
+    delta: string,
+  ): boolean {
+    if (delta.length === 0) return false;
+    const worker = this.workers.get(agentId);
+    if (worker === undefined) return false;
+    if (worker.liveKind !== kind) {
+      worker.liveKind = kind;
+      worker.liveBuffer = '';
+    }
+    worker.liveBuffer = appendLiveBuffer(worker.liveBuffer ?? '', delta);
+    const atMs = this.now();
+    worker.liveAtMs = atMs;
+    worker.lastActivityAtMs = atMs;
+    if (worker.status === 'stalled') worker.status = 'running';
+    worker.stalledSilentMs = undefined;
     return this.bump();
   }
 
@@ -511,4 +581,42 @@ export class MissionControlRegistry {
       }
     }
   }
+}
+
+function clearLiveStream(worker: MutableWorker): void {
+  delete worker.liveKind;
+  delete worker.liveBuffer;
+  delete worker.liveAtMs;
+}
+
+function appendLiveBuffer(prev: string, delta: string): string {
+  const next = `${prev}${delta}`;
+  if (next.length <= MISSION_LIVE_TEXT_CAP * 2) return next;
+  // Keep extra headroom so line-tail extraction still sees a full last line.
+  return next.slice(next.length - MISSION_LIVE_TEXT_CAP * 2);
+}
+
+/** Last non-empty line, then char-cap — what NOW paints. */
+export function liveTextTail(buffer: string, maxChars: number = MISSION_LIVE_TEXT_CAP): string {
+  const normalized = buffer.replace(/\r\n/gu, '\n').replace(/\r/gu, '\n');
+  const lines = normalized.split('\n');
+  let last = '';
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = lines[i]!.trimEnd();
+    if (line.trim().length > 0) {
+      last = line.trim();
+      break;
+    }
+  }
+  if (last.length === 0) return '';
+  if (last.length <= maxChars) return last;
+  return `…${last.slice(last.length - (maxChars - 1))}`;
+}
+
+function compactResultChip(preview: string | undefined): string | undefined {
+  if (preview === undefined) return undefined;
+  const flat = preview.replace(/\s+/gu, ' ').trim();
+  if (flat.length === 0) return undefined;
+  if (flat.length <= MISSION_RESULT_CHIP_MAX) return flat;
+  return `${flat.slice(0, MISSION_RESULT_CHIP_MAX - 1).trimEnd()}…`;
 }

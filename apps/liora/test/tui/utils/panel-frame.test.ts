@@ -43,4 +43,25 @@ describe('renderRoundedPanel', () => {
 
     expect(lines[0]?.startsWith('  ')).toBe(true);
   });
+
+  it('fillWidth stretches the frame to the requested width', () => {
+    const width = 72;
+    const shrink = renderRoundedPanel({
+      title: ' Mission Control · 2 active ',
+      content: ['● plan ◌ short'],
+      width,
+    });
+    const filled = renderRoundedPanel({
+      title: ' Mission Control · 2 active ',
+      content: ['● plan ◌ short'],
+      width,
+      fillWidth: true,
+    });
+    const shrinkTop = stripAnsi(shrink[0] ?? '');
+    const filledTop = stripAnsi(filled[0] ?? '');
+    expect(filledTop.length).toBe(width);
+    expect(filledTop.length).toBeGreaterThan(shrinkTop.length);
+    expect(filledTop.startsWith('╭')).toBe(true);
+    expect(filledTop.endsWith('╮')).toBe(true);
+  });
 });

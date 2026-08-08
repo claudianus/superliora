@@ -286,6 +286,9 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
   proto.appendTranscriptEntry = function (entry: TranscriptEntry) {
     this.transcriptRender.appendTranscriptEntry(entry);
   };
+  proto.appendPlanReviewTranscript = function (toolCallId, plan) {
+    return this.transcriptRender.appendPlanReviewTranscript(toolCallId, plan);
+  };
   proto.clearTranscriptAndRedraw = function () {
     this.transcriptRender.clearTranscriptAndRedraw();
   };

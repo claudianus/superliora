@@ -241,6 +241,17 @@ export type {
 } from '@superliora/agent-core';
 
 export { installGlobalProxyDispatcher } from '@superliora/agent-core';
+export {
+  ROLE_PRESETS,
+  autoAssignRoleModels,
+  previewLoopRoleModelRouting,
+  rolePresetFor,
+  type LocalRoleCatalogModel,
+  type LoopRoleModelPreview,
+  type ModelRole,
+  type RoleModelAssignment,
+  type RolePreset,
+} from '@superliora/agent-core';
 
 export type {
   ExperimentalFeatureState,

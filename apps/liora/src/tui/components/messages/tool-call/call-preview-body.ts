@@ -88,6 +88,9 @@ export function buildPlanCallPreviewComponents(params: {
   readonly markdownTheme: MarkdownTheme;
 }): Component[] {
   const { toolCall, result, currentPlan, planPath, markdownTheme } = params;
+  // In-flight ExitPlanMode: plan_review mirrors the full plan into the main
+  // transcript PlanBox. Avoid a second copy on the tool card until settled.
+  if (result === undefined) return [];
   const plan = resolvePlanForPreview(str(toolCall.args['plan']), result, currentPlan);
   if (plan.length === 0) return [];
   const path = resolvePlanPath(result, planPath);

@@ -432,7 +432,7 @@ describe('ToolCallComponent', () => {
     expect(out).not.toContain('Plan saved to: /tmp/plan.md');
   });
 
-  it('setPlanInfo injects plan body when args.plan is empty (plan-file mode)', () => {
+  it('setPlanInfo keeps plan for settle without mounting PlanBox while in-flight', () => {
     const component = new ToolCallComponent(
       {
         id: 'call_exit_async',
@@ -450,6 +450,16 @@ describe('ToolCallComponent', () => {
 
     component.setPlanInfo({ plan: '# Refactor session\n\n- step', path: '/tmp/refactor.md' });
 
+    // In-flight: plan_review mirrors the book into the transcript; tool card stays lean.
+    const inflight = strip(component.render(100).join('\n'));
+    expect(inflight).toContain('Current plan');
+    expect(inflight).not.toContain('Refactor session');
+
+    component.setResult({
+      tool_call_id: 'call_exit_async',
+      output: 'Plan rejected by user. Plan mode remains active.',
+      is_error: true,
+    });
     const after = strip(component.render(100).join('\n'));
     expect(after).toContain('Refactor session');
     expect(after).toContain('plan:');
@@ -458,7 +468,7 @@ describe('ToolCallComponent', () => {
     expect(after).not.toContain('/tmp/refactor.md');
   });
 
-  it('renders the full plan preview', () => {
+  it('renders the full plan preview after ExitPlanMode settles', () => {
     const longPlan = `# Refactor session\n\n${Array.from({ length: 40 }, (_, i) => `- step ${String(i + 1)}`).join('\n')}`;
     const component = new ToolCallComponent(
       {
@@ -466,7 +476,13 @@ describe('ToolCallComponent', () => {
         name: 'ExitPlanMode',
         args: { plan: longPlan },
       },
-      undefined,
+      {
+        tool_call_id: 'call_exit_long',
+        output:
+          'Exited plan mode. Plan mode deactivated. All tools are now available.\n' +
+          `## Approved Plan:\n${longPlan}`,
+        is_error: false,
+      },
       stubTui(24),
     );
 
@@ -502,7 +518,11 @@ describe('ToolCallComponent', () => {
         name: 'ExitPlanMode',
         args: { plan: longPlan },
       },
-      undefined,
+      {
+        tool_call_id: 'call_exit_isolation',
+        output: `## Approved Plan:\n${longPlan}`,
+        is_error: false,
+      },
       stubTui(24),
     );
     component.setExpanded(true);

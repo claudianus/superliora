@@ -134,4 +134,29 @@ describe('SessionEventHandler Mission Control feed', () => {
 
     expect(host.missionControl.reset).toHaveBeenCalledTimes(1);
   });
+
+  it('feeds child thinking/assistant deltas into Mission Control after transcript routing', () => {
+    const host = makeHost();
+    const handler = new SessionEventHandler(host);
+    // Child agentId ≠ main → routeChildAgentEvent consumes the event for the
+    // transcript path; Mission Control must still see it (wiring under test).
+
+    const thinking = {
+      agentId: 'sub-1',
+      sessionId: 's1',
+      type: 'thinking.delta',
+      delta: 'checking Phaser docs',
+    } as Event;
+    handler.handleEvent(thinking, vi.fn());
+    expect(host.missionControl.handleEvent).toHaveBeenCalledWith(thinking);
+
+    const answer = {
+      agentId: 'sub-1',
+      sessionId: 's1',
+      type: 'assistant.delta',
+      delta: 'Metal slug uses run-and-gun',
+    } as Event;
+    handler.handleEvent(answer, vi.fn());
+    expect(host.missionControl.handleEvent).toHaveBeenCalledWith(answer);
+  });
 });

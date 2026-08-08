@@ -6,7 +6,7 @@ import type { ApprovalPanelChoice, ApprovalPanelData, DisplayBlock } from '#/tui
 import { decodeMcpToolName } from '#/tui/utils/mcp/mcp-tool-name';
 import {
   enrichReviseFeedbackWithLineComment,
-  formatNumberedPlanPreview,
+  numberPlanLines,
 } from '#/tui/utils/plan-line-comments';
 
 const DEFAULT_APPROVAL_CHOICES: ApprovalPanelChoice[] = [
@@ -38,12 +38,14 @@ export function adaptApprovalRequest(event: ApprovalRequest): ApprovalPanelData 
     description: resolved.description,
     display: resolved.blocks,
     choices: adaptChoices(event.toolName, event.display),
+    planReview: resolved.planReview,
   };
 }
 
 interface ResolvedDisplay {
   blocks: DisplayBlock[];
   description: string;
+  planReview?: { content: string; path?: string | undefined };
 }
 
 function resolveDisplay(
@@ -57,8 +59,19 @@ function resolveDisplay(
   }
   const mcpDisplay = resolveMcpDisplay(toolName, display);
   if (mcpDisplay !== null) return mcpDisplay;
+  const blocks = adaptDisplay(display);
+  if (display.kind === 'plan_review') {
+    const content = typeof display.plan === 'string' ? display.plan : '';
+    const path =
+      typeof display.path === 'string' && display.path.length > 0 ? display.path : undefined;
+    return {
+      blocks,
+      description: describeApproval(display, action),
+      planReview: { content, path },
+    };
+  }
   return {
-    blocks: adaptDisplay(display),
+    blocks,
     description: describeApproval(display, action),
   };
 }
@@ -407,10 +420,12 @@ function adaptDisplay(display: ToolInputDisplay): DisplayBlock[] {
         },
       ];
     case 'plan_review': {
-      // Numbered plan so operators can leave "L12: …" line comments (AC6).
-      // Content is operator-authored plan markdown, not shell env secrets.
+      // Compact decide card: summary + file_content (10-line panel, ctrl+e full).
+      // Raw plan stays on ApprovalPanelData.planReview for line comments / transcript.
       const plan = typeof display.plan === 'string' ? display.plan : '';
-      const preview = formatNumberedPlanPreview(plan);
+      const path =
+        typeof display.path === 'string' && display.path.length > 0 ? display.path : 'plan';
+      const lineCount = numberPlanLines(plan).length;
       const pathLine =
         typeof display.path === 'string' && display.path.length > 0
           ? `경로: ${display.path}\n`
@@ -418,7 +433,13 @@ function adaptDisplay(display: ToolInputDisplay): DisplayBlock[] {
       return [
         {
           type: 'brief',
-          text: `${pathLine}${preview}\n\n라인 코멘트: L12: 수정 요청 형식`,
+          text: `${pathLine}${String(lineCount)} lines · ctrl+e preview\n라인 코멘트: L12: 수정 요청 형식`,
+        },
+        {
+          type: 'file_content',
+          path,
+          content: plan,
+          language: 'markdown',
         },
       ];
     }

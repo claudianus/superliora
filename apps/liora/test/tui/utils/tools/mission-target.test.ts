@@ -5,6 +5,7 @@ import {
   formatMissionBash,
   formatMissionPath,
   formatMissionTarget,
+  humanTargetFromArgsPreview,
   isLowSignalBash,
   pathLeaf,
   stripLeadingCd,
@@ -54,6 +55,18 @@ describe('mission-target', () => {
         undefined,
       ),
     ).toMatch(/panel\.ts$/);
+  });
+
+  it('extracts query/url/path from JSON args previews', () => {
+    expect(humanTargetFromArgsPreview('{"query":"premium HTML","limit":5}')).toBe(
+      'premium HTML',
+    );
+    expect(humanTargetFromArgsPreview('{"url":"https://example.com/wiki"}')).toBe(
+      'https://example.com/wiki',
+    );
+    expect(humanTargetFromArgsPreview('{"path":"src/a.ts"}')).toBe('src/a.ts');
+    expect(humanTargetFromArgsPreview('plain command')).toBe('plain command');
+    expect(humanTargetFromArgsPreview('')).toBeUndefined();
   });
 
   it('collapses consecutive low-signal bash ops for the same worker', () => {

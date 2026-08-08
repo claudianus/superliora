@@ -256,6 +256,17 @@ export {
 } from './logging/logger';
 export { resolveLoggingConfig } from './logging/resolve-config';
 export { installGlobalProxyDispatcher } from './utils/proxy';
+export {
+  ROLE_PRESETS,
+  autoAssignRoleModels,
+  previewLoopRoleModelRouting,
+  rolePresetFor,
+  type LocalRoleCatalogModel,
+  type LoopRoleModelPreview,
+  type ModelRole,
+  type RoleModelAssignment,
+  type RolePreset,
+} from './utils/model-presets';
 export type {
   LogContext,
   LogLevel,

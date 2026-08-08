@@ -44,10 +44,17 @@ describe('describeSubagentToolFeedBody', () => {
     ).toBe('Grep foo.*');
   });
 
-  it('falls back to the args preview and bare name', () => {
+  it('falls back to a humanized args preview and bare name', () => {
     expect(describeSubagentToolFeedBody('FetchURL', undefined, '{"url":"x"}')).toBe(
-      'FetchURL {"url":"x"}',
+      'FetchURL x',
     );
+    expect(
+      describeSubagentToolFeedBody(
+        'WebSearch',
+        undefined,
+        '{"query":"premium HTML","limit":5}',
+      ),
+    ).toBe('WebSearch premium HTML');
     expect(describeSubagentToolFeedBody('Tool', undefined, undefined)).toBe('Tool');
   });
 });

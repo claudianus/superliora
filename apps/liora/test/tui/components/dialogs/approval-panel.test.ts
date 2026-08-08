@@ -362,6 +362,51 @@ describe('ApprovalPanelComponent', () => {
     expect(out).not.toContain('Investigate');
   });
 
+  it('keeps a long plan_review file_content compact and opens preview on ctrl+e', () => {
+    const planLines = Array.from({ length: 40 }, (_, i) => `line-${String(i + 1)}`);
+    const planBlock: FileContentDisplayBlock = {
+      type: 'file_content',
+      path: '/tmp/long-plan.md',
+      content: planLines.join('\n'),
+      language: 'markdown',
+    };
+    const pending: PendingApproval = {
+      data: {
+        id: 'approval_long_plan',
+        tool_call_id: 'tool_long_plan',
+        tool_name: 'ExitPlanMode',
+        action: 'review plan',
+        description: '',
+        display: [
+          {
+            type: 'brief',
+            text: '경로: /tmp/long-plan.md\n40 lines · ctrl+e preview\n라인 코멘트: L12: 수정 요청 형식',
+          },
+          planBlock,
+        ],
+        choices: [{ label: 'Approve', response: 'approved' }],
+        planReview: { content: planBlock.content, path: planBlock.path },
+      },
+    };
+    const previewCalls: Array<DiffDisplayBlock | FileContentDisplayBlock> = [];
+    const dialog = new ApprovalPanelComponent(
+      pending,
+      () => {},
+      undefined,
+      (block) => previewCalls.push(block),
+    );
+
+    const out = strip(dialog.render(100).join('\n'));
+    expect(out).toContain('Ready to build with this plan?');
+    expect(out).toContain('line-1');
+    expect(out).toContain('more line');
+    expect(out).not.toContain('line-40');
+    expect(out).toContain('ctrl+e preview');
+
+    dialog.handleInput('\u0005'); // Ctrl+E
+    expect(previewCalls).toEqual([planBlock]);
+  });
+
   // Inline expand-in-place used to inflate the panel past the viewport on
   // any non-trivial Edit, which then collided with pi-tui's inline scroll
   // and made the terminal flicker / refuse to scroll. The panel now always

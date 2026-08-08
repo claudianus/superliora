@@ -37,6 +37,7 @@ describe('loop model routing', () => {
     expect(rows.find((row) => row.key === 'compaction')).toMatchObject({
       model: 'compact-fast',
       state: 'override · compact-fast',
+      source: 'override',
     });
     expect(rows.find((row) => row.key === 'completion')).toMatchObject({
       state: 'auto',
@@ -44,6 +45,37 @@ describe('loop model routing', () => {
     expect(rows.find((row) => row.key === 'coding')).toMatchObject({
       model: 'code-pro',
       state: 'override · code-pro',
+    });
+    expect(rows.find((row) => row.key === 'planning')?.description).toMatch(/Plan \/ mission/i);
+  });
+
+  it('previews auto picks from the local catalog when a role is unset', () => {
+    const rows = loopModelRoutingRows(
+      { loopControl: {} },
+      {
+        'qwen-token-plan/qwen3.8-max-preview': {
+          provider: 'qwen-token-plan',
+          model: 'qwen3.8-max-preview',
+          maxContextSize: 1_000_000,
+          capabilities: ['thinking', 'tool_use'],
+        },
+        'qwen-token-plan/qwen3.6-flash': {
+          provider: 'qwen-token-plan',
+          model: 'qwen3.6-flash',
+          maxContextSize: 1_000_000,
+          capabilities: ['thinking', 'tool_use'],
+        },
+      },
+    );
+
+    expect(rows.find((row) => row.key === 'planning')).toMatchObject({
+      source: 'auto',
+      resolvedAlias: 'qwen-token-plan/qwen3.8-max-preview',
+      state: 'auto → qwen-token-plan/qwen3.8-max-preview',
+    });
+    expect(rows.find((row) => row.key === 'exploration')).toMatchObject({
+      source: 'auto',
+      resolvedAlias: 'qwen-token-plan/qwen3.6-flash',
     });
   });
 

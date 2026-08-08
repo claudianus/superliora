@@ -214,25 +214,34 @@ describe('approval adapter', () => {
     expect(String(adapted.feedback).toLowerCase()).not.toContain('approve');
   });
 
-  it('shows numbered plan preview and line-comment choice for plan review (AC6)', () => {
+  it('shows compact plan summary + file_content and line-comment choice for plan review (AC6)', () => {
+    const plan = '# Plan\n\n- Inspect\n- Change\n- Verify';
     const adapted = adaptApprovalRequest({
       toolCallId: 'tc-plan',
       toolName: 'ExitPlanMode',
       action: 'Review plan',
       display: {
         kind: 'plan_review',
-        plan: '# Plan\n\n- Inspect\n- Change\n- Verify',
+        plan,
         path: '/tmp/kimi-plan.md',
       },
     });
 
-    expect(adapted.display).toHaveLength(1);
+    expect(adapted.planReview).toEqual({ content: plan, path: '/tmp/kimi-plan.md' });
+    expect(adapted.display).toHaveLength(2);
     expect(adapted.display[0]).toMatchObject({ type: 'brief' });
     if (adapted.display[0]?.type === 'brief') {
-      expect(adapted.display[0].text).toContain('1│');
-      expect(adapted.display[0].text).toContain('# Plan');
+      expect(adapted.display[0].text).toContain('경로: /tmp/kimi-plan.md');
+      expect(adapted.display[0].text).toContain('lines · ctrl+e preview');
       expect(adapted.display[0].text).toContain('라인 코멘트');
+      expect(adapted.display[0].text).not.toContain('1│');
     }
+    expect(adapted.display[1]).toEqual({
+      type: 'file_content',
+      path: '/tmp/kimi-plan.md',
+      content: plan,
+      language: 'markdown',
+    });
     expect(adapted.choices).toEqual([
       { label: 'Approve', response: 'approved', selected_label: 'Approve' },
       { label: 'Reject', response: 'rejected', selected_label: 'Reject' },
