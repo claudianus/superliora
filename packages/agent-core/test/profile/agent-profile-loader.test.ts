@@ -285,7 +285,8 @@ describe('default agent profiles', () => {
       expect(render(name)).toContain('create a live TodoList within your first 2 tool calls');
     }
     expect(render('explore')).toContain('Read-only codebase exploration specialist');
-    expect(render('plan')).toContain('Read-only implementation planning specialist');
+    expect(render('plan')).toContain('Implementation planning specialist');
+    expect(render('plan')).toContain('Product tree is read-only');
     expect(render('coder')).toContain('Execution cadence');
 
     // ultra-plan sets roleAdditional directly — replace semantics, no base leak.
@@ -386,6 +387,23 @@ describe('default agent profiles', () => {
     // keeps the principles the desk cannot restate every turn.
     expect(prompt).toContain('Never wait on workers');
     expect(prompt).toContain('Job brief quality bar');
+    // Worker coding loop is gated off — Conductor must not eat Execution Loop / Coding.
+    expect(prompt).not.toContain('# Coding');
+    expect(prompt).not.toContain('# Execution Loop');
+    expect(prompt).not.toContain('# Practical Engineering Principles');
+    expect(prompt).not.toContain('Writable profiles change the world');
+    const layered = DEFAULT_AGENT_PROFILES['conductor']?.layeredSystemPrompt?.(promptContext);
+    expect(layered?.layer1Static).not.toContain('# Coding');
+    expect(layered?.layer1Static).not.toContain('# Execution Loop');
+  });
+
+  it('keeps the worker coding loop on agent and subagent profiles', () => {
+    for (const name of ['agent', 'coder', 'explore', 'plan'] as const) {
+      const prompt = DEFAULT_AGENT_PROFILES[name]?.systemPrompt(promptContext) ?? '';
+      expect(prompt, name).toContain('# Coding');
+      expect(prompt, name).toContain('# Execution Loop');
+      expect(prompt, name).toContain('Writable profiles change the world');
+    }
   });
 
   it('layers runtime persona role text over the profile playbook instead of replacing it', () => {

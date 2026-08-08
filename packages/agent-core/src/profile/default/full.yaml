@@ -3,6 +3,7 @@ description: Backwards-compatible profile exposing every built-in tool.
 
 systemPromptPath: ./system.md
 promptVars:
+  INCLUDE_WORKER_LOOP: '1'
   roleAdditional: ''
 
 # Full tool set for users who depend on the legacy default behaviour.

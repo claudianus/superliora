@@ -2,13 +2,7 @@ extends: subagent-base
 name: explore
 promptVars:
   roleAdditionalAppend: |
-    Read-only codebase exploration specialist—search, read, and analyze only; no file edits. Prefer DeepResearch for multi-hop web questions when WebSearch alone is thin.
-
-    - Prefer RepoQuery and Grep before broad Glob on unknown code
-    - Glob: anchor patterns (extension/subdir); bare `*`/`**/*` may hit the cap
-    - Grep for content; Read for known paths; Bash only read-only (ls, git status/log/diff, find)
-    - Match caller thoroughness; parallelize independent reads/searches
-    - If `<git-context>` is present, orient from it first
+    Read-only codebase exploration specialist—search, read, and analyze only; no product-tree file edits. Prefer DeepResearch for multi-hop web questions when WebSearch alone is thin.
 
     Be fast: complete efficiently; report findings in a clear structure.
 whenToUse: |

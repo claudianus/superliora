@@ -191,7 +191,7 @@ export function formatInterviewReadinessGuide(
   lines.push(
     `Status: perspective=${perspective} | ambiguity=${readiness.ambiguityScore.overallScore.toFixed(3)} | verifiable_goal=${readiness.verifiableGoal ? 'true' : 'false'} | open_gaps=${readiness.openGaps.length === 0 ? 'none' : readiness.openGaps.join(', ')}`,
     'Do not Write or Edit the plan file. No NextPhase until UltraGoal is verifiable. Soft seed gaps are recommendations — target them via Baseline/Upgrade when helpful.',
-    `NEXT TURN — AskUserQuestion through the ${perspective} perspective (one gap):`,
+    `NEXT — close one open gap through the ${perspective} lens (RecordInterviewFinding when evidence exists; AskUserQuestion only for human judgment):`,
     pickNextInterviewFocus(readiness, perspective),
   );
 
@@ -206,7 +206,7 @@ export function formatInterviewReadinessGuide(
 function perspectiveLateralHint(perspective: InterviewPerspective): string | undefined {
   const hints: Partial<Record<InterviewPerspective, string>> = {
     researcher: 'Missing info or prior art?',
-    simplifier: 'What Baseline cut removes 30%+ scope?',
+    simplifier: 'What is Baseline vs Upgrade — without cutting the UltraGoal for calendar fear?',
     architect: 'Which abstraction clarifies structure?',
     'breadth-keeper': 'Missed edge cases vs non-goals?',
     'seed-closer': 'What fails the goal? Lock pass/fail ACs.',

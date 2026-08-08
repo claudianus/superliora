@@ -88,6 +88,7 @@ describe('PlanModeInjector content', () => {
     expect(text).toContain('Edit');
     expect(text).toContain('ExitPlanMode');
     expect(text).toContain('TodoList is the live board during planning');
+    expect(text).toContain('not every turn');
     expect(text).toContain('Plan file: /tmp/plan.md');
     // CronCreate/CronDelete are hard-denied in plan mode
     // (plan-mode-guard-deny.ts); the reminder must name them. TaskStop is not
@@ -180,7 +181,7 @@ describe('PlanModeInjector content', () => {
 
     const text = lastReminder(agent);
     expect(text).toContain('Ouroboros-aligned Socratic');
-    expect(text).toContain('ONLY an interviewer');
+    expect(text).toContain('Interview this phase only');
     expect(text).toContain('ambiguity ≤ 0.2');
     expect(text).toContain('Baseline + 1–3 Upgrades');
     expect(text).toContain('Ontological');
@@ -189,7 +190,8 @@ describe('PlanModeInjector content', () => {
     expect(text).toContain('WebSearch/FetchURL');
     expect(text).toContain('Perspective: researcher');
     expect(text).not.toContain('{{perspective}}');
-    expect(text).toContain('Your turn MUST end with AskUserQuestion, RecordInterviewFinding, or NextPhase');
+    expect(text).toContain('AskUserQuestion only for PATH 2 human judgment');
+    expect(text).toContain('not every turn');
     expect(text).toContain('Do not call EnterPlanMode again');
     expect(text).toContain('Interview readiness:');
   });

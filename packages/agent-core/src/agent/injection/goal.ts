@@ -150,8 +150,9 @@ function buildGoalReminder(
       '',
       '## Autonomous execution pattern',
       '',
-      'Goal mode is iterative. Keep the self-audit brief. If simple, already answered, impossible, unsafe, or contradictory: explain if useful, then UpdateGoal `complete` or `blocked` in the same turn. Otherwise do one coherent slice — not after only a plan/summary/first pass/partial result.',
+      'Goal mode is iterative. Keep the self-audit brief. If already satisfied, unsafe, contradictory, or externally blocked after inspection: explain if useful, then UpdateGoal `complete` or `blocked` in the same turn. Otherwise do one coherent slice — not after only a plan/summary/first pass/partial result.',
       'When pursuing this goal: decompose via TodoList; finish each item with verify (tests/build); on failure fix root cause (≥2 attempts); only UpdateGoal `complete` when all required work is done with proof. UpdateGoal `blocked` only for real external blockers.',
+      'Do not AskUserQuestion to renegotiate magnitude ("really want this?", "shrink scope?", "too large?"). That stalls the run — continue the next slice. Ask only when a missing preference changes correctness.',
       'If objective/latest request states an explicit hard budget not recorded, call SetGoalBudget first. Do not invent budgets. If a requested budget is not reasonable, do not set it; tell the user.',
     );
   }

@@ -148,7 +148,7 @@ const PLAN_READ_ONLY_NO_FILE = `Plan mode is active. MUST NOT edit or change the
 
 const PLAN_WORKFLOW = `Workflow:
   1. Understand — Glob, Grep, Read; Context7Resolve/Docs for library docs; WebSearch/FetchURL for external evidence.
-  2. Design — one best approach; trade-offs only when they matter.
+  2. Design — one best approach; trade-offs only when they matter. Size as agent tool-turn slices and dependencies — not human calendar (hours/days/weeks/sprints). Do not cut scope because a human would take weeks.
   3. Review — re-read key files.
   4. Write Plan — Write or Edit the plan file (Write if missing). ${NO_AI_SLOP_SKILL_MANDATE_COMPACT}
   5. Exit — ExitPlanMode for approval.
@@ -161,7 +161,7 @@ Multiple approaches in the plan → pass \`options\` to ExitPlanMode for user ch
 NEVER write multiple approaches and call ExitPlanMode without \`options\`.
 
 AskUserQuestion: missing requirements/preferences only — never plan approval.
-End every turn with AskUserQuestion (clarify) or ExitPlanMode (approve).`;
+End the turn with AskUserQuestion when blocked on a preference, or ExitPlanMode when ready for approval — not every turn.`;
 
 function fullReminder(planFilePath: PlanFilePath): string {
   if (planFilePath === null || planFilePath.length === 0) {

@@ -8,7 +8,7 @@ export const INTERVIEW_PERSPECTIVE_DESCRIPTIONS: Record<InterviewPerspective, st
   researcher:
     'Explore industry and technical context. Surface benchmarks, best practices, and opportunities the user may not know exist.',
   simplifier:
-    'Contrast MVP vs premium scope. Show what to cut vs what unlocks disproportionate value with modest extra effort.',
+    'Contrast Baseline vs Upgrade payoff. Sequence agent slices; do not shrink the UltraGoal because a human calendar would look long.',
   architect:
     'Propose structural and pattern improvements. Focus on interfaces, maintainability, and long-term design quality.',
   'breadth-keeper':

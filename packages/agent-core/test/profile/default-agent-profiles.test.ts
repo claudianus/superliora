@@ -67,12 +67,10 @@ describe('default agent profiles', () => {
   it('keeps static instructions before dynamic prompt context', () => {
     const prompt = DEFAULT_AGENT_PROFILES['agent']?.systemPrompt(promptContext) ?? '';
 
-    expect(prompt.indexOf('Before any tool call, emit a short preamble')).toBeLessThan(
+    expect(prompt.indexOf('For multi-step or user-visible work, emit a short preamble')).toBeLessThan(
       prompt.indexOf('LISTING_SNAPSHOT'),
     );
-    expect(prompt.indexOf('In subdirectories, check for local `AGENTS.md`')).toBeLessThan(
-      prompt.indexOf('AGENTS_MD_BODY'),
-    );
+    expect(prompt.indexOf('Check nested `AGENTS.md`')).toBeLessThan(prompt.indexOf('AGENTS_MD_BODY'));
   });
 
   it('prefers CreateGoal and compact repo search on the default agent profile', () => {
@@ -390,13 +388,12 @@ describe('default agent profiles', () => {
     for (const name of ['agent', 'coder', 'explore', 'plan']) {
       const prompt = DEFAULT_AGENT_PROFILES[name]?.systemPrompt(promptContext) ?? '';
       expect(prompt).toContain('# Practical Engineering Principles');
-      expect(prompt).toContain('what problem actually needs solving');
-      expect(prompt).toContain('Delete or simplify before optimizing');
-      expect(prompt).toContain('Automate only after the workflow is understood and stable');
-      expect(prompt).toContain('Minimize dependencies, indirection, and configuration');
-      expect(prompt).toContain('does this actually improve the outcome');
+      expect(prompt).toContain('real problem, what to delete, shortest correct path');
+      expect(prompt).toContain('delete/simplify before optimizing');
+      expect(prompt).toContain('minimize dependencies and speculative abstraction');
       expect(prompt).toContain('# Execution Loop');
       expect(prompt).toContain('One verifiable increment per batch');
+      expect(prompt).toContain('try an alternate strategy before UpdateGoal');
     }
   });
 
@@ -442,8 +439,9 @@ describe('default agent profiles', () => {
       expect(prompt).toContain('Local, reversible work your role permits');
       // Concrete one-line examples anchoring high-frequency abstract rules.
       expect(prompt).toContain('locate the method in the code'); // ambiguous instruction -> edit code, not echo text
-      expect(prompt).toContain('patch the failing path'); // preamble phrasing example
+      expect(prompt).toContain('For multi-step or user-visible work, emit a short preamble');
       expect(prompt).toContain('premature abstraction'); // MINIMAL-changes counterexample
+      expect(prompt).toContain('Unless auto permission mode or explicit autonomous authorization');
     }
   });
 });

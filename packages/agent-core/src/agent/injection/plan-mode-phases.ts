@@ -37,7 +37,7 @@ Distill an evidence pack; do not ask the user.
 Your turn MUST end with a short evidence-pack summary, then call NextPhase({ phase: 'interview' }).`,
 
   interview: `## Interview Phase (Ouroboros-aligned Socratic)
-You are ONLY an interviewer/requirements engineer — never promise to implement. Crystallize vague asks into a Seed; stop when ambiguity ≤ 0.2 and UltraGoal is true/false-verifiable.
+Interview this phase only — crystallize a Seed; do not implement yet. Stop when ambiguity ≤ 0.2 and UltraGoal is true/false-verifiable. Prefer NextPhase once the goal is verifiable; do not reopen soft wording.
 
 Allowed: ${ULTRA_PLAN_READ_TOOLS}, AskUserQuestion, RecordInterviewFinding, NextPhase, product Write/Edit for investigation prototypes.
 ${ULTRA_PLAN_INTERVIEW_GUARDS}
@@ -60,7 +60,7 @@ Hard gate for NextPhase: verifiable UltraGoal (complete/incomplete or pass/fail)
 
 Round {{round}} | Perspective: {{perspective}} — {{perspectiveDescription}} | ambiguity {{ambiguityScore}} | milestone {{milestone}} | next {{nextMilestone}}
 
-Your turn MUST end with AskUserQuestion, RecordInterviewFinding, or NextPhase.`,
+End with RecordInterviewFinding or NextPhase when evidence closed the gap; AskUserQuestion only for PATH 2 human judgment (or rhythm after 3 non-user findings) — not every turn.`,
 
   design: `## Design Phase (optional)
 Allowed: ${ULTRA_PLAN_READ_TOOLS}. Product Write/Edit BLOCKED by plan mode (plan-file Write/Edit allowed, but converge first); CronCreate/CronDelete BLOCKED.
@@ -77,6 +77,7 @@ Before writing user-visible plan prose: ${NO_AI_SLOP_SKILL_MANDATE_COMPACT}
 No-AI-Slop skill routing: SearchSkill with response language + surface keywords → Skill only if the light pass fails.
 
 Write sections: Seed Spec, AC Tree, Swarm Decision, WorkGraph, Evaluation Plan, Execution Plan.
+WorkGraph / Execution Plan: order by dependencies and verifiable agent slices — not human calendar phases (Week 1, sprint, "takes N days"). Do not shrink the UltraGoal because a human would need weeks.
 Include: \`Swarm decision: ENGAGE|ADAPTIVE|DEFER - <reason>; Swarm intensity: light|standard|heavy; value: <specialist value or none>; owner: <verification owner>\`
 Prefer ENGAGE for multi-lane/review-heavy work; ADAPTIVE for moderate single-domain; DEFER needs \`Swarm DEFER waiver:\` for deterministic single-owner tasks.
 ExitPlanMode only after a complete Seed Spec.`,
@@ -142,7 +143,7 @@ function nextMilestone(milestone: string | undefined): string {
   if (milestone === 'initial') return 'progress';
   if (milestone === 'progress') return 'refined';
   if (milestone === 'refined') return 'ready';
-  return 'keep asking questions';
+  return 'lock verifiable UltraGoal or NextPhase';
 }
 
 export function phaseSparseReminder(

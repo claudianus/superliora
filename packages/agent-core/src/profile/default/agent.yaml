@@ -3,6 +3,8 @@ description: Default SuperLiora agent
 
 systemPromptPath: ./system.md
 promptVars:
+  # Gates Coding / Execution Loop / Practical Engineering in system.md (Conductor omits).
+  INCLUDE_WORKER_LOOP: '1'
   roleAdditional: ''
 
 tools:
