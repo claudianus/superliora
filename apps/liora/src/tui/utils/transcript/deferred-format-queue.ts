@@ -41,7 +41,14 @@ export function setDeferredFormatHoldPredicateForTest(
 
 function shouldHoldForScroll(): boolean {
   if (holdPredicate !== undefined) return holdPredicate();
-  return wasRecentTranscriptScroll(Date.now(), DEFERRED_FORMAT_SCROLL_HOLD_MS);
+  // Must use the paint clock (performance.now). Passing Date.now() mixed epoch
+  // with relative storm stamps and made hold always false mid-wheel.
+  return wasRecentTranscriptScroll(/* nowMs */ undefined, DEFERRED_FORMAT_SCROLL_HOLD_MS);
+}
+
+/** Production hold gate (scroll storm / recent pure-scroll paint). */
+export function isDeferredFormatHeldForScroll(): boolean {
+  return shouldHoldForScroll();
 }
 
 function defaultSchedule(run: () => void): void {
@@ -116,9 +123,14 @@ export function clearDeferredTranscriptFormatQueueForTest(): void {
   drainScheduled = false;
 }
 
+/** Pending deferred-format job count (HUD / hang probe). */
+export function deferredTranscriptFormatQueueSize(): number {
+  return queue.length;
+}
+
 /** Test helper — pending job count. */
 export function deferredTranscriptFormatQueueSizeForTest(): number {
-  return queue.length;
+  return deferredTranscriptFormatQueueSize();
 }
 
 /** Test helper — run one drain synchronously (ignores scheduler). */

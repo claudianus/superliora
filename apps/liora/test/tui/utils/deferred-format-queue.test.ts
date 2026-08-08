@@ -1,9 +1,14 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+  resetTranscriptScrollActivityForTest,
+  withTranscriptPaintMode,
+} from '#/tui/utils/render/transcript-paint-mode';
+import {
   clearDeferredTranscriptFormatQueueForTest,
   deferredTranscriptFormatQueueSizeForTest,
   flushDeferredTranscriptFormatQueueForTest,
+  isDeferredFormatHeldForScroll,
   scheduleDeferredTranscriptFormat,
   setDeferredFormatHoldPredicateForTest,
   setDeferredFormatSchedulerForTest,
@@ -14,6 +19,7 @@ describe('deferred transcript format queue', () => {
     clearDeferredTranscriptFormatQueueForTest();
     setDeferredFormatSchedulerForTest(undefined);
     setDeferredFormatHoldPredicateForTest(undefined);
+    resetTranscriptScrollActivityForTest();
   });
 
   it('drains jobs through the scheduler with a per-turn cap', () => {
@@ -65,6 +71,26 @@ describe('deferred transcript format queue', () => {
     scheduled[1]!();
     expect(ran).toEqual([1]);
     expect(deferredTranscriptFormatQueueSizeForTest()).toBe(0);
+  });
+
+  it('holds drain via real wasRecentTranscriptScroll paint clock (no mock predicate)', () => {
+    // Regression: Date.now() vs performance.now() made hold always false.
+    withTranscriptPaintMode({ suppressLiveToolTicks: true }, () => {
+      /* stamp */
+    });
+    expect(isDeferredFormatHeldForScroll()).toBe(true);
+
+    const ran: number[] = [];
+    const scheduled: Array<() => void> = [];
+    setDeferredFormatSchedulerForTest((run) => {
+      scheduled.push(run);
+    });
+    scheduleDeferredTranscriptFormat(() => {
+      ran.push(1);
+    });
+    scheduled[0]!();
+    expect(ran).toEqual([]);
+    expect(deferredTranscriptFormatQueueSizeForTest()).toBe(1);
   });
 
   it('swallows job errors so one bad body cannot stall the queue', () => {

@@ -1,6 +1,7 @@
 import {
-  createRendererDiagnosticsOverlayRegion,
+  createRendererOverlayPanelRegion,
   createRendererRegionVfx,
+  formatRendererDiagnosticsLines,
   visibleWidth,
   type RendererCellStyle,
   type RendererDiagnosticsSnapshot,
@@ -21,6 +22,7 @@ import {
 } from '#/tui/features/appearance/appearance-effects';
 
 import type { TUIState } from '../../tui-state';
+import { formatScrollHangHudLine } from '../../utils/render/scroll-hang-probe';
 
 export type TUIStateNativeDiagnosticsOverlayInput =
   | boolean
@@ -66,21 +68,28 @@ export function createTUIStateDiagnosticsOverlayRegion(
     : diagnostics.severity === 'watch'
       ? palette.warning
       : palette.success;
-  const region = createRendererDiagnosticsOverlayRegion(diagnostics, {
+  const lines = [
+    ...formatRendererDiagnosticsLines(diagnostics, {
+      maxIssues: options.maxIssues ?? 2,
+      includeIssues: options.includeIssues,
+    }),
+    formatScrollHangHudLine(),
+  ];
+  const region = createRendererOverlayPanelRegion({
     id: 'kimi-native-renderer-diagnostics',
     viewport: { x: 0, y: 0, width, height },
+    lines,
     width: options.width,
     minWidth: options.minWidth,
     maxWidth: options.maxWidth ?? Math.min(72, Math.max(12, width - 2)),
-    maxHeight: options.maxHeight ?? 8,
+    // +1 row for the scroll hang counters line.
+    maxHeight: options.maxHeight ?? 9,
     placement: options.placement ?? 'top-right',
     marginX: options.marginX ?? 1,
     marginY: options.marginY ?? 1,
     zIndex: options.zIndex,
     title: options.title ?? 'Renderer',
     border: options.border,
-    maxIssues: options.maxIssues ?? 2,
-    includeIssues: options.includeIssues,
     style: {
       container: { fg: palette.text, bg: panelBg },
       border: { fg: severityColor, bg: panelBg },
@@ -194,6 +203,9 @@ function createTUIStateDiagnosticsOverlayLineStyle(
     const palette = currentTheme.palette;
     if (line.startsWith('degraded:')) return { fg: palette.error, bg: background, bold: true };
     if (line.startsWith('watch:')) return { fg: palette.warning, bg: background, bold: true };
+    if (line.startsWith('scroll storm')) {
+      return { fg: palette.warning, bg: background };
+    }
     return undefined;
   };
 }
