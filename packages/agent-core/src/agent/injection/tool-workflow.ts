@@ -16,6 +16,7 @@ export type ToolWorkflowCapability = {
   readonly hasFetchUrl: boolean;
   readonly hasContext7: boolean;
   readonly hasLeanRead: boolean;
+  readonly hasBrowserUse: boolean;
   readonly hasVerifySurface: boolean;
   readonly hasRunProjectChecks: boolean;
   readonly hasTodoList: boolean;
@@ -40,6 +41,11 @@ const TOOL_CAPABILITY_NAMES = {
   LioraTree: 'hasLeanRead',
   LioraCallgraph: 'hasLeanRead',
   Expand: 'hasLeanRead',
+  BrowserStatus: 'hasBrowserUse',
+  BrowserObserve: 'hasBrowserUse',
+  BrowserAct: 'hasBrowserUse',
+  BrowserScreenshot: 'hasBrowserUse',
+  BrowserConsole: 'hasBrowserUse',
   VerifySurface: 'hasVerifySurface',
   RunProjectChecks: 'hasRunProjectChecks',
   TodoList: 'hasTodoList',
@@ -60,6 +66,7 @@ export function resolveToolWorkflowCapability(
     hasFetchUrl: false,
     hasContext7: false,
     hasLeanRead: false,
+    hasBrowserUse: false,
     hasVerifySurface: false,
     hasRunProjectChecks: false,
     hasTodoList: false,
@@ -84,6 +91,7 @@ export function hasToolWorkflowSurface(cap: ToolWorkflowCapability): boolean {
     cap.hasFetchUrl ||
     cap.hasContext7 ||
     cap.hasLeanRead ||
+    cap.hasBrowserUse ||
     cap.hasVerifySurface ||
     cap.hasRunProjectChecks ||
     cap.hasTodoList ||
@@ -135,6 +143,12 @@ export function buildToolWorkflowGuidance(cap: ToolWorkflowCapability): string {
     );
   }
 
+  if (cap.hasBrowserUse) {
+    lines.push(
+      '- Browser / UI: BrowserStatus → BrowserObserve → BrowserAct(click_ref) → VerifySurface. Skill("browser-use") for the playbook. Never npm/npx install Playwright/Puppeteer or handwritten Chromium scripts while these tools exist. Re-Observe after DOM changes; Act ok:false is failure — do not invent success.',
+    );
+  }
+
   if (cap.hasWebSearch || cap.hasFetchUrl || cap.hasContext7) {
     const parts: string[] = [];
     if (cap.hasContext7) parts.push('Context7Resolve → Context7Docs for library APIs');
@@ -149,10 +163,14 @@ export function buildToolWorkflowGuidance(cap: ToolWorkflowCapability): string {
     );
   }
 
-  if (cap.hasRunProjectChecks || cap.hasVerifySurface) {
+  if (cap.hasRunProjectChecks || cap.hasVerifySurface || cap.hasBrowserUse) {
     const verify: string[] = [];
     if (cap.hasRunProjectChecks) verify.push('RunProjectChecks / package test|typecheck|build');
-    if (cap.hasVerifySurface) verify.push('VerifySurface for real UI when browser runtime is healthy');
+    if (cap.hasVerifySurface) {
+      verify.push('VerifySurface for real UI (BrowserScreenshot alone is not visual proof)');
+    } else if (cap.hasBrowserUse) {
+      verify.push('BrowserObserve/Act evidence when VerifySurface is unavailable');
+    }
     lines.push(`- Before claiming done: ${verify.join('; ')}. No "done" without evidence.`);
   }
 
@@ -189,6 +207,7 @@ export function buildToolWorkflowSparseGuidance(cap: ToolWorkflowCapability): st
   const bits: string[] = ['Tool workflow still ON:'];
   if (cap.hasSearchTools) bits.push('SearchTools');
   if (cap.hasSearchSkill) bits.push('SearchSkill→Skill');
+  if (cap.hasBrowserUse) bits.push('Browser* not Playwright install');
   if (cap.hasWebSearch || cap.hasFetchUrl) bits.push('WebSearch/FetchURL when stale');
   if (cap.hasContext7) bits.push('Context7 for libs');
   if (cap.hasLeanRead) bits.push('RepoQuery before dumps');

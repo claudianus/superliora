@@ -227,7 +227,14 @@ export class BrowserActTool implements BuiltinTool<BrowserActInput> {
           const result = await this.runtime.act(toRuntimeActInput(args), ctx.signal);
           const builder = new ToolResultBuilder();
           builder.write(JSON.stringify(result, undefined, 2));
-          return builder.ok();
+          // Surface action failures as tool errors so models re-Observe instead of
+          // inventing success and falling back to Playwright installs.
+          return result.ok
+            ? builder.ok()
+            : builder.error(
+                result.actions.find((action) => !action.ok)?.message ??
+                  'BrowserAct failed. Call BrowserObserve for fresh refs; do not install Playwright.',
+              );
         } catch (error) {
           return { isError: true, output: describeError(error) };
         }
