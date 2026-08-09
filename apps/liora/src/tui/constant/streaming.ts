@@ -27,22 +27,22 @@ export const STREAMING_UI_FLUSH_BURST_DELTAS = 8;
 // ---------------------------------------------------------------------------
 
 /** Minimum catch-up speed while the display lags the server draft (code points/sec). */
-export const STREAM_REVEAL_BASE_CPS = 48;
+export const STREAM_REVEAL_BASE_CPS = 72;
 
 /** Hard ceiling on catch-up speed so huge backlogs do not paint every frame. */
-export const STREAM_REVEAL_MAX_CPS = 320;
+export const STREAM_REVEAL_MAX_CPS = 480;
 
 /**
  * Extra code points/sec added per backlog code point before easing toward MAX.
  * Higher gain keeps mid bursts catching up without a hard dump.
  */
-export const STREAM_REVEAL_BACKLOG_GAIN = 1.55;
+export const STREAM_REVEAL_BACKLOG_GAIN = 2.2;
 
 /**
  * If estimated time-to-catch-up at current speed exceeds this, jump farther
  * in a single tick so the display never lags more than ~this long.
  */
-export const STREAM_REVEAL_MAX_LAG_MS = 320;
+export const STREAM_REVEAL_MAX_LAG_MS = 240;
 
 /** Reveal timer cadence (~60fps). Independent of ambient animationFps. */
 export const STREAM_REVEAL_TICK_MS = 16;

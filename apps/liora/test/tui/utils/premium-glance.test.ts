@@ -132,8 +132,8 @@ describe('premium visual glance', () => {
       'Render quality: balanced · frame health: watch',
     );
     expect(formatMotionBudgetLine(glance)).toContain('premium ambient');
-    // watch health soft-degrades premium 33ms cadence to 66ms.
-    expect(formatMotionBudgetLine(glance)).toContain('66ms');
+    // watch health keeps the 30fps premium cadence (33ms); soft-degrade needs harder load.
+    expect(formatMotionBudgetLine(glance)).toContain('33ms');
   });
 
   it('includes native frame budget ratio when diagnostics are wired', () => {

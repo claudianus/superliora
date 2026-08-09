@@ -100,7 +100,8 @@ export function rendererAmbientShouldSoftDegrade(options: {
   // adaptive quality to balanced, and treating that as soft-degrade pinned
   // premium motion at subtle cadence (~10fps).
   if (quality === 'minimal') return true;
-  if (health === 'watch' || health === 'degraded') return true;
+  // `watch` alone stays at premium cadence; only hard degraded health softens.
+  if (health === 'degraded') return true;
   return false;
 }
 
@@ -109,9 +110,9 @@ export function rendererAmbientIntervalMs(options: RendererAmbientIntervalOption
   const premiumMs = normalizeAmbientMs(options.premiumMs, RENDERER_AMBIENT_PREMIUM_MS);
   const subtleMs = normalizeAmbientMs(options.subtleMs, RENDERER_AMBIENT_SUBTLE_MS);
   if (options.requested === 'subtle') return subtleMs;
-  // premium — soft-degrade to ~2× premium (floor 33ms), not a jump to subtleMs.
+  // premium — soft-degrade to ~2× premium (floor 24ms), not a jump to subtleMs.
   if (rendererAmbientShouldSoftDegrade(options)) {
-    return Math.min(subtleMs, Math.max(premiumMs * 2, 33));
+    return Math.min(subtleMs, Math.max(premiumMs * 2, 24));
   }
   return premiumMs;
 }

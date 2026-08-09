@@ -213,11 +213,18 @@ describe('AppearanceController', () => {
         backpressure: false,
       }),
     ).toBe(33);
-    // animationFps 30 → premium 33ms; soft-degrade is 2× (66ms), not subtle 100ms.
+    // watch alone keeps premium cadence; hard load soft-degrades to 2× (66ms).
     expect(
       options?.resolveIntervalMs({
         quality: 'full',
         health: 'watch',
+        backpressure: false,
+      }),
+    ).toBe(33);
+    expect(
+      options?.resolveIntervalMs({
+        quality: 'full',
+        health: 'degraded',
         backpressure: false,
       }),
     ).toBe(66);

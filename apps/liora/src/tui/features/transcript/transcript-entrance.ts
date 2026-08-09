@@ -29,9 +29,13 @@ export const TRANSCRIPT_ENTRANCE_MS_PREMIUM = 480;
 /** Subtle profile stretches the same ease so it still finishes cleanly. */
 export const TRANSCRIPT_ENTRANCE_MS_SUBTLE = 620;
 /** Live stream tail glow width in visual clusters (wider = silkier ink trail). */
-export const STREAM_TAIL_GLOW_CLUSTERS = 28;
+export const STREAM_TAIL_GLOW_CLUSTERS = 36;
 /** How long a "fresh" tail glow lingers after the last paint. */
 export const STREAM_TAIL_GLOW_MS = 420;
+/** Streaming entrance wash tail lines under premium (subtle stays shorter). */
+export const STREAMING_ENTRANCE_WASH_LINES_PREMIUM = 8;
+/** Streaming entrance wash tail lines under subtle. */
+export const STREAMING_ENTRANCE_WASH_LINES_SUBTLE = 4;
 
 export type TranscriptEntranceKind =
   | 'assistant'
@@ -369,7 +373,7 @@ export function applyTranscriptEntrance(
  * hard bold flicker across the whole span.
  */
 /** Quantize breath so identical tip lines skip ANSI re-parse between phases. */
-const STREAM_TAIL_GLOW_BREATH_QUANT_MS = 80;
+const STREAM_TAIL_GLOW_BREATH_QUANT_MS = 40;
 
 let streamTailGlowCache:
   | {
@@ -425,7 +429,8 @@ export function applyStreamTailGlow(
   const spark = currentTheme.color('glow');
   const start = Math.max(0, cells.length - glowClusters);
   const trailLen = Math.max(1, cells.length - start);
-  const breath = 0.5 + 0.5 * Math.sin((nowMs / 1600) * Math.PI * 2);
+  // Slightly faster breath than 1.6s so the tip reads alive at ~premium cadence.
+  const breath = 0.5 + 0.5 * Math.sin((nowMs / 1400) * Math.PI * 2);
 
   const nextCells = cells.map((cell, index) => {
     if (index < start) return cell;
@@ -433,11 +438,11 @@ export function applyStreamTailGlow(
     const local = (index - start + 1) / trailLen;
     // Smoothstep trail: soft heel, bright tip — no linear dump of intensity.
     const trail = smoothstep(local);
-    const tipBoost = local > 0.82 ? 0.28 * breath : local > 0.6 ? 0.1 : 0;
-    const intensity = clamp01(0.16 + 0.74 * trail + tipBoost);
+    const tipBoost = local > 0.82 ? 0.34 * breath : local > 0.6 ? 0.14 : 0;
+    const intensity = clamp01(0.18 + 0.78 * trail + tipBoost);
     const baseFg = cell.style?.fg ?? currentTheme.color('text');
     const toward =
-      local > 0.72 ? mixHexColor(glow, spark, 0.45 + 0.2 * breath) : mixHexColor(baseFg, glow, 0.55);
+      local > 0.72 ? mixHexColor(glow, spark, 0.5 + 0.22 * breath) : mixHexColor(baseFg, glow, 0.6);
     return {
       ...cell,
       style: {
@@ -515,7 +520,10 @@ function applyStreamingEntranceWash(
   nowMs: number,
 ): string[] {
   if (lines.length === 0) return lines as string[];
-  const tailCount = Math.min(lines.length, 4);
+  const mode = resolveQualityAdjustedAmbientEffectMode(appearance);
+  const washLines =
+    mode === 'premium' ? STREAMING_ENTRANCE_WASH_LINES_PREMIUM : STREAMING_ENTRANCE_WASH_LINES_SUBTLE;
+  const tailCount = Math.min(lines.length, washLines);
   const head = lines.slice(0, lines.length - tailCount);
   const tail = lines.slice(lines.length - tailCount);
   const washed = applyTranscriptEntrance(tail, startedAtMs, kind, appearance, nowMs);
