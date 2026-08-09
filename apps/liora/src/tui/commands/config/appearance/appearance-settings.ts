@@ -39,7 +39,7 @@ import { ttui } from '../../../utils/tui-i18n';
 export { APPEARANCE_BACKGROUND_TIP, APPEARANCE_CHANGE_TIP, APPEARANCE_MOTION_TIP, APPEARANCE_THEME_TIP };
 
 const TRANSCRIPT_LEVEL_HINTS: Record<TranscriptDetailLevel, string> = {
-  minimal: 'Chain-only tools · thinking/tools/answer groups',
+  minimal: 'Chain-only tools · full answers · thinking groups',
   compact: 'Tool headers only · phase tints; click to expand',
   standard: 'Default detail (preview cards · phase tints)',
   full: 'Every tool card expanded',

@@ -45,7 +45,6 @@ import {
   applyPhaseTintLine,
   phaseGutter,
 } from '#/tui/features/transcript/transcript-phase-tint';
-import { getActiveTranscriptDetail } from '#/tui/features/transcript/transcript-density';
 
 type AssistantMarkdownOptions = {
   transient?: boolean;
@@ -257,17 +256,11 @@ export class AssistantMessageComponent implements Component {
             ? [tintedBody[0]!, phaseTag, ...tintedBody.slice(1)]
             : [phaseTag, ...tintedBody];
 
-        // minimal density: short answer preview unless expanded via full density.
-        const detail = getActiveTranscriptDetail();
-        const previewLines =
-          detail === 'minimal' && !this.lastTransient && !hostExpandedAnswer()
-            ? collapseAnswerPreview(tinted, 4)
-            : tinted;
+        // Answer body always renders in full at every transcript density.
+        // minimal/compact only collapse thinking + tool/chain chrome — never answers.
         // Trailing breath — answer never sticks to the next user/work block.
         const withBreathing =
-          previewLines.length > 0 && previewLines[previewLines.length - 1] === ''
-            ? previewLines
-            : [...previewLines, ''];
+          tinted.length > 0 && tinted[tinted.length - 1] === '' ? tinted : [...tinted, ''];
 
         if (scrollPaint) return withBreathing;
 
@@ -318,37 +311,4 @@ function lastVisibleLineIndex(lines: readonly string[]): number {
     if (lines[i]!.trim().length > 0) return i;
   }
   return -1;
-}
-
-/** full density (or legacy expand) shows entire answer bodies. */
-function hostExpandedAnswer(): boolean {
-  return getActiveTranscriptDetail() === 'full';
-}
-
-/** Keep a short scannable answer head in minimal density. */
-function collapseAnswerPreview(lines: readonly string[], keep: number): string[] {
-  const nonEmpty = lines.filter((l) => l.trim().length > 0);
-  if (nonEmpty.length <= keep) return [...lines];
-  const out: string[] = [];
-  let kept = 0;
-  for (const line of lines) {
-    if (line.trim().length === 0) {
-      if (kept === 0) out.push(line);
-      continue;
-    }
-    if (kept < keep) {
-      out.push(line);
-      kept++;
-    }
-  }
-  const hidden = nonEmpty.length - keep;
-  if (hidden > 0) {
-    out.push(
-      currentTheme.fg(
-        'textMuted',
-        `${MESSAGE_INDENT}… (${String(hidden)} more lines · Ctrl+O full)`,
-      ),
-    );
-  }
-  return out;
 }
