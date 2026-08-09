@@ -234,6 +234,26 @@ describe('ConductorDirectWorkGuard', () => {
         ).toBe(true);
       }
     });
+
+    it('allows conductor harness self-improvement tools (SkillCreate / Refine)', () => {
+      const guard = new ConductorDirectWorkGuard();
+      expect(
+        guard.authorizeExecution({
+          toolName: 'SkillCreate',
+          execution: {
+            accesses: ToolAccesses.writeFile('/repo/.agents/skills/auto/foo/SKILL.md'),
+            readOnly: false,
+          },
+        }).allowed,
+      ).toBe(true);
+      expect(
+        guard.authorizeExecution({
+          toolName: 'Refine',
+          execution: { accesses: ToolAccesses.all(), readOnly: false },
+        }).allowed,
+      ).toBe(true);
+      expect(guard.events()).toHaveLength(0);
+    });
   });
 
   describe('violation escalation', () => {
