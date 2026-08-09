@@ -21,12 +21,6 @@ export interface StatusHumanWritingReadiness {
   readonly nextAction: string;
 }
 
-export interface StatusRecoveryReadiness {
-  readonly ready: boolean;
-  readonly nextAction: string;
-  readonly evidencePath?: string;
-}
-
 export interface StatusReportOptions {
   readonly version: string;
   readonly model: string;
@@ -65,7 +59,6 @@ export interface StatusReportOptions {
   readonly managedUsageError?: string;
   readonly gitStatus?: GitStatus | null;
   readonly humanWriting?: StatusHumanWritingReadiness;
-  readonly recovery?: StatusRecoveryReadiness;
   readonly upstreamBaseline?: string;
   readonly contextOS?: {
     readonly pageCount: number;

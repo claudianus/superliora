@@ -213,9 +213,9 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
 
   // ── Help ─────────────────────────────────────────────────────────────────
   'tui.help.intro.default':
-    'Shift-Tab switches between Build and Ask mode.\nAsk mode reads, searches, and looks things up without editing or delegating.\n/status shows media, web/Context7, ZDR, Bench readiness.',
+    'Shift-Tab switches between Build and Ask mode.\nAsk mode reads, searches, and looks things up without editing or delegating.\n/status shows media, web/Context7, ZDR, and office readiness.',
   'tui.help.intro.advanced':
-    'Build runs the work; Ask investigates it first. Shift-Tab or /ask switches.\n/plan writes a plan file, /goal runs an objective, /jobs tracks delegated work.\n/status shows media, web/Context7, ZDR, Bench readiness.',
+    'Build runs the work; Ask investigates it first. Shift-Tab or /ask switches.\n/plan writes a plan file, /goal runs an objective, /jobs tracks delegated work.\n/status shows media, web/Context7, ZDR, and office readiness.',
   'tui.help.shortcut.hub': 'Open the Command Hub menu',
   'tui.help.shortcut.hubQuestion': 'Open Command Hub (empty prompt)',
   'tui.help.shortcut.shiftTab': 'Switch Build / Ask mode',
@@ -368,7 +368,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.tip.ctrlK': 'Ctrl-K: open Command Hub — modes, model, sessions',
   'tui.tip.help': 'Ctrl-K or ?: Command Hub (slash commands still work)',
   'tui.tip.compact': '/compact compresses context when it gets long',
-  'tui.tip.status': '/status: context · ZDR · web/Context7 · media · office · Bench',
+  'tui.tip.status': '/status: context · ZDR · web/Context7 · media · office',
   'tui.tip.context': '/context: memory continuity + privacy (ZDR)',
   'tui.tip.mediaKeys': 'media: OPENAI/GOOGLE key → GenerateImage/Video — no MCP',
   'tui.tip.research': 'research: Context7 + WebSearch/FetchURL — no MCP',
@@ -607,9 +607,9 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
 
   // ── Help ─────────────────────────────────────────────────────────────────
   'tui.help.intro.default':
-    'Shift-Tab으로 Build / Ask 모드 전환.\nAsk 모드는 편집·위임 없이 읽기·검색·조사만 합니다.\n/status로 media, web/Context7, ZDR, Bench 준비 상태 확인.',
+    'Shift-Tab으로 Build / Ask 모드 전환.\nAsk 모드는 편집·위임 없이 읽기·검색·조사만 합니다.\n/status로 media, web/Context7, ZDR, office 준비 상태 확인.',
   'tui.help.intro.advanced':
-    'Build는 작업을 실행하고 Ask는 먼저 조사합니다. Shift-Tab 또는 /ask로 전환.\n/plan은 계획 파일, /goal은 목표 실행, /jobs는 위임된 작업 추적.\n/status로 media, web/Context7, ZDR, Bench 준비 상태 확인.',
+    'Build는 작업을 실행하고 Ask는 먼저 조사합니다. Shift-Tab 또는 /ask로 전환.\n/plan은 계획 파일, /goal은 목표 실행, /jobs는 위임된 작업 추적.\n/status로 media, web/Context7, ZDR, office 준비 상태 확인.',
   'tui.help.shortcut.hub': 'Command Hub 메뉴 열기',
   'tui.help.shortcut.hubQuestion': 'Command Hub 열기 (빈 프롬프트)',
   'tui.help.shortcut.shiftTab': 'Build / Ask 모드 전환',
@@ -760,7 +760,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.tip.ctrlK': 'Ctrl-K: Command Hub — 모드, 모델, 세션',
   'tui.tip.help': 'Ctrl-K 또는 ?: Command Hub (슬래시도 그대로 동작)',
   'tui.tip.compact': '/compact로 길어지면 컨텍스트 압축',
-  'tui.tip.status': "/status: 컨텍스트 · ZDR · web/Context7 · media · office · Bench",
+  'tui.tip.status': '/status: 컨텍스트 · ZDR · web/Context7 · media · office',
   'tui.tip.context': '/context: 메모리 연속성 + 프라이버시 (ZDR)',
   'tui.tip.mediaKeys': 'media: OPENAI/GOOGLE 키 → GenerateImage/Video — MCP 불필요',
   'tui.tip.research': 'research: Context7 + WebSearch/FetchURL — MCP 불필요',

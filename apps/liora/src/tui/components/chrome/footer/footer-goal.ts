@@ -8,7 +8,7 @@ import {
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
 
-const SOTA_GOAL_OBJECTIVE_PATTERN = /\b(?:ultrawork|sota|harness|tui|liorabench|zdr)\b|super\s+kimi/i;
+const SOTA_GOAL_OBJECTIVE_PATTERN = /\b(?:ultrawork|sota|harness|tui|zdr)\b|super\s+kimi/i;
 
 function formatBadgeElapsed(ms: number): string {
   const totalSeconds = Math.round(ms / 1000);
