@@ -188,6 +188,57 @@ export const darkColors: ColorPalette = {
   syntaxMeta: '#7FDBCA',
 };
 
+/**
+ * Product default UI palette (Neon Noir). Kept as a full `ColorPalette` next to
+ * the built-ins so module-load / pre-boot paint can start here without pulling
+ * the custom-theme loader or `BUNDLED_THEMES` (avoids import cycles).
+ * Token values match `bundled-themes.ts` `superliora-neon-noir`; unspecified
+ * tokens fall through from `darkColors` (ghostText / info / gradientMid).
+ */
+export const neonNoirColors: ColorPalette = {
+  ...darkColors,
+  primary: '#00D5FF',
+  accent: '#A78BFA',
+  text: '#E6EDF3',
+  textStrong: '#FFFFFF',
+  textDim: '#9AA7B2',
+  textMuted: '#6F7A86',
+  background: '#0D1422',
+  surface: '#162033',
+  surfaceRaised: '#1E2C42',
+  surfaceSunken: '#060A12',
+  border: '#334155',
+  borderFocus: '#00D5FF',
+  selectionBg: '#123B5A',
+  selectionText: '#FFFFFF',
+  cursor: '#E6EDF3',
+  success: '#36D399',
+  warning: '#F5C542',
+  error: '#FF5C7A',
+  diffAdded: '#36D399',
+  diffRemoved: '#FF5C7A',
+  diffAddedStrong: '#7AF0B4',
+  diffRemovedStrong: '#FF91A6',
+  diffGutter: '#738091',
+  diffMeta: '#9AA7B2',
+  roleUser: '#FDE68A',
+  shellMode: '#E879F9',
+  glow: '#22D3EE',
+  particle: '#C4B5FD',
+  gradientStart: '#06B6D4',
+  gradientEnd: '#A78BFA',
+  syntaxText: '#E6EDF3',
+  syntaxKeyword: '#B784FF',
+  syntaxFunction: '#00D5FF',
+  syntaxType: '#FFE082',
+  syntaxString: '#36D399',
+  syntaxNumber: '#FF91A6',
+  syntaxComment: '#738091',
+  syntaxOperator: '#8BE9FD',
+  syntaxTag: '#FF5C7A',
+  syntaxMeta: '#9AA7B2',
+};
+
 export const lightColors: ColorPalette = {
   primary: '#1565C0',
   accent: '#0F766E',
