@@ -36,7 +36,7 @@ import type {
 } from '../../utils/job/job-strip';
 import { InputAckLatencyTracker } from './input-ack-latency';
 import type { JobBoardStore } from './job-board-store';
-import { maybeAnnounceStaleWorktrees } from './job-hygiene';
+import { maybeApplyStaleWorktrees } from './job-hygiene';
 
 export interface JobDeskEventsHost {
   readonly state: {
@@ -112,7 +112,7 @@ export class ControlTowerJobDesk {
       if (!/held/i.test(land.title)) {
         // F15: short success cue via status flash (appearance-effects clock).
         this.host.showStatus('Land complete', 'success');
-        void maybeAnnounceStaleWorktrees(this.host);
+        void maybeApplyStaleWorktrees(this.host);
       }
       this.maybeAutoOpenMergePreview(event, card);
       this.host.maybeDefaultConductorTimeline?.();

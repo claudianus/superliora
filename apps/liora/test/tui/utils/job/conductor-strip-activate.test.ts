@@ -33,7 +33,7 @@ describe('conductor-strip-activate', () => {
 });
 
 describe('hygiene notice', () => {
-  it('mentions /job gc when stale count > 0', () => {
+  it('mentions /job gc when stale count > 0 (dry-run CTA helper)', () => {
     expect(formatHygieneGcNotice(0)).toBeUndefined();
     const notice = formatHygieneGcNotice(3);
     expect(notice?.title).toContain('3 stale');

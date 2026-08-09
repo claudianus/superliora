@@ -1,5 +1,5 @@
 import type { CreateSessionOptions, LioraHarness, Session } from '@superliora/sdk';
-import { maybeWarmCodemapAtSessionStart } from '@superliora/sdk';
+import { gcSessionWorktreesAuto, maybeWarmCodemapAtSessionStart } from '@superliora/sdk';
 import { resolve } from 'pathe';
 
 import type { Component, Focusable } from '#/tui/renderer';
@@ -187,6 +187,8 @@ export class SessionLifecycleController {
     this.registerSessionHandlers(session);
     this.syncAdditionalDirs(session);
     maybeWarmCodemapAtSessionStart(session.workDir);
+    // Opportunistic age-GC for ~/.superliora/worktrees (missing + >14d idle).
+    void gcSessionWorktreesAuto({ maxAgeDays: 14 }).catch(() => undefined);
   }
 
   async syncRuntimeState(session: Session = this.requireSession()): Promise<void> {
@@ -234,10 +236,10 @@ export class SessionLifecycleController {
     await writeTuiSessionState(this.host).catch(() => undefined);
     // F10: stale worktree CTA before the session handle is dropped.
     try {
-      const { maybeAnnounceStaleWorktrees } = await import(
+      const { maybeApplyStaleWorktrees } = await import(
         '../../features/control-tower/job-hygiene'
       );
-      await maybeAnnounceStaleWorktrees(this.host);
+      await maybeApplyStaleWorktrees(this.host);
     } catch {
       /* best-effort */
     }
