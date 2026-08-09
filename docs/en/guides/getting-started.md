@@ -36,20 +36,26 @@ irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | i
 
 > On Windows, install [Git for Windows](https://gitforwindows.org/) before first launch if you use shell tools that need Bash. SuperLiora uses the bundled Git Bash as its shell environment; if Git Bash is installed in a custom location, set `LIORA_SHELL_PATH` to the absolute path of `bash.exe`.
 
-The script does **not** require a pre-installed Node.js. When Node is missing or older than 24.15.0, it downloads an official Node build into `~/.superliora/runtime/node` (user-local, no admin). It prefers a GitHub Release prebuilt SEA (`manifest.json` + `liora-<platform>.zip`), verifies the checksum, and puts `liora` on your `PATH`. If no matching prebuilt is available, it falls back to a source checkout under `~/.superliora/source`, builds the CLI, and installs a wrapper. Browser-use, computer-use, and local retrieval sidecars are installed best-effort afterward.
+The script does **not** require a pre-installed Node.js. When Node is missing or older than 24.15.0, it downloads an official Node build into `~/.superliora/runtime/node` (user-local, no admin). By default it installs the latest **published** GitHub Release prebuilt SEA (`manifest.json` + `liora-<platform>.zip`), verifies the checksum, and puts `liora` on your `PATH`. It does **not** fall back to an unreleased git tip unless you opt in. Browser-use, computer-use, and local retrieval sidecars are installed best-effort afterward.
 
 ### Install details
 
 Environment overrides for automation:
 
 ```sh
-SUPERLIORA_REF=main SUPERLIORA_COMMAND=liora \
+SUPERLIORA_COMMAND=liora \
   curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.sh | bash
 ```
 
-Useful flags (same on `install.ps1`): `--prefer-source`, `--force-prebuilt`, `--no-browser-use`, `--no-computer-use`, `--no-retrieval`, `--no-shell-rc`.
+Tip of `origin/main` (ignore published releases):
 
-Default source checkout: `~/.superliora/source`. Default bin dir: `~/.local/bin` (Unix) or `%LOCALAPPDATA%\SuperLiora\bin` (Windows).
+```sh
+curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.sh | bash -s -- --main
+```
+
+Useful flags (same on `install.ps1`): `--main`, `--prefer-source`, `--force-prebuilt`, `--no-browser-use`, `--no-computer-use`, `--no-retrieval`, `--no-shell-rc`.
+
+Default source checkout (when using `--main` / `--prefer-source`): `~/.superliora/source`. Default bin dir: `~/.local/bin` (Unix) or `%LOCALAPPDATA%\SuperLiora\bin` (Windows).
 
 ## Upgrade and uninstall
 
@@ -59,7 +65,7 @@ After installation, verify that the executable is ready:
 liora --version
 ```
 
-**Upgrade**: run `liora upgrade`, or re-run the install script (prebuilt-first, same as first install).
+**Upgrade**: run `liora upgrade` (published release), or `/upgrade` in the TUI. For tip of `origin/main`, use `liora upgrade --main`, `/upgrade --main`, or re-run the install script with `--main`.
 
 **Uninstall**: delete the `liora` executable (and `~/.superliora` if you want a clean slate).
 

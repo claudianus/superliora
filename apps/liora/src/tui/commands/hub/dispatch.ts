@@ -79,7 +79,7 @@ import { handleRewindCommand } from '../session/rewind';
 import { handleTranscriptCommand } from '../session/transcript';
 import { handleNeatCommand } from '../session/neat';
 import { handleUndoCommand } from '../session/undo';
-import { handleUpgradeCommand } from '../info/upgrade';
+import { handleUpgradeCommand, parseUpgradeSlashArgs } from '../info/upgrade';
 
 // ---------------------------------------------------------------------------
 // Re-exports — keep existing consumers working
@@ -464,7 +464,8 @@ async function handleBuiltInSlashCommand(
       return;
     case 'upgrade':
       // Canonical name is `upgrade`; `/update` resolves here via aliases.
-      await handleUpgradeCommand(host);
+      // `/upgrade --main` (or `main`) skips published releases for tip of origin/main.
+      await handleUpgradeCommand(host, {}, parseUpgradeSlashArgs(args));
       return;
     case 'context-os':
       void showContextOsReport(host, args);

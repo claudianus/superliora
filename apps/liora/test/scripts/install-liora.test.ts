@@ -86,7 +86,9 @@ describe('scripts/install-liora.mjs', () => {
     expect(sh).toContain('manifest.json');
     expect(ps1).toContain('manifest.json');
     expect(sh).toContain('--prefer-source');
+    expect(sh).toContain('--main');
     expect(ps1).toContain('PreferSource');
+    expect(ps1).toContain('$Main');
   });
 
   it.skipIf(process.platform === 'win32')('has valid bash syntax for the POSIX source installer', async () => {

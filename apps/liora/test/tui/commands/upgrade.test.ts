@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { SUPERLIORA_CHANGELOG_URL, type UpgradePlan } from '#/cli/update/plan';
 import type { UpgradeInstallStage } from '#/cli/update/install-stages';
-import { handleUpgradeCommand } from '#/tui/commands/info/upgrade';
+import {
+  handleUpgradeCommand,
+  parseUpgradeSlashArgs,
+} from '#/tui/commands/info/upgrade';
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
 import { findBuiltInSlashCommand } from '#/tui/commands/hub/registry';
 import { UpgradeStudioComponent } from '#/tui/components/dialogs/upgrade/upgrade-studio';
@@ -19,6 +22,7 @@ function plan(overrides: Partial<UpgradePlan> = {}): UpgradePlan {
     dirty: false,
     canAutoInstall: true,
     reason: 'update-available',
+    fromMain: false,
     ...overrides,
   };
 }
@@ -57,33 +61,105 @@ describe('upgrade slash command', () => {
     expect(viaUpdate?.name).toBe('upgrade');
     expect(viaUpdate).toBe(viaUpgrade);
     expect(viaUpgrade?.aliases).toContain('update');
+    expect(viaUpgrade?.argumentHint).toBe('[--main]');
+  });
+
+  it('parses --main / main slash args', () => {
+    expect(parseUpgradeSlashArgs('--main')).toEqual({ fromMain: true });
+    expect(parseUpgradeSlashArgs('main')).toEqual({ fromMain: true });
+    expect(parseUpgradeSlashArgs('')).toEqual({ fromMain: false });
   });
 
   it('mounts Upgrade Studio and resolves into plan mode', async () => {
     const mountCenterModal = vi.fn();
     const host = createHost({ mountCenterModal });
     const resolved = plan();
+    const resolveUpgradePlan = vi.fn().mockResolvedValue(resolved);
 
     const pending = handleUpgradeCommand(host, {
-      resolveUpgradePlan: async () => resolved,
+      resolveUpgradePlan,
       getCurrentVersion: () => '0.4.0',
     });
 
     const studio = await waitForStudio(host);
     expect(host.track).toHaveBeenCalledWith(
       'upgrade_studio_opened',
-      expect.objectContaining({ current_version: '0.4.0' }),
+      expect.objectContaining({ current_version: '0.4.0', from_main: false }),
     );
 
     await vi.waitFor(() => {
       expect(studio.currentMode).toBe('plan');
     });
+    expect(resolveUpgradePlan).toHaveBeenCalledWith('0.4.0', {}, { fromMain: false });
     expect(host.track).toHaveBeenCalledWith('upgrade_command_tui_checked', {
       reason: 'update-available',
       source: 'npm-global',
+      from_main: false,
     });
     expect(mountCenterModal).toHaveBeenCalledTimes(1);
 
+    studio.handleInput(ESC);
+    await pending;
+  });
+
+  it('resolves tip-of-main when opened with fromMain', async () => {
+    const host = createHost();
+    const resolveUpgradePlan = vi.fn().mockResolvedValue(
+      plan({
+        fromMain: true,
+        source: 'native',
+        target: { version: 'origin/main', upstream: 'origin/main' },
+      }),
+    );
+
+    const pending = handleUpgradeCommand(
+      host,
+      { resolveUpgradePlan, getCurrentVersion: () => '0.4.0' },
+      { fromMain: true },
+    );
+
+    const studio = await waitForStudio(host);
+    await vi.waitFor(() => {
+      expect(studio.currentMode).toBe('plan');
+    });
+    expect(resolveUpgradePlan).toHaveBeenCalledWith('0.4.0', {}, { fromMain: true });
+    studio.handleInput(ESC);
+    await pending;
+  });
+
+  it('re-plans tip of main when Install tip of main is selected', async () => {
+    const host = createHost();
+    const releasePlan = plan({ reason: 'up-to-date', target: null, canAutoInstall: false });
+    const mainPlan = plan({
+      fromMain: true,
+      source: 'native',
+      target: { version: 'origin/main', upstream: 'origin/main' },
+      canAutoInstall: true,
+    });
+    const resolveUpgradePlan = vi
+      .fn()
+      .mockResolvedValueOnce(releasePlan)
+      .mockResolvedValueOnce(mainPlan);
+
+    const pending = handleUpgradeCommand(host, {
+      resolveUpgradePlan,
+      getCurrentVersion: () => '0.4.0',
+    });
+
+    const studio = await waitForStudio(host);
+    await vi.waitFor(() => {
+      expect(studio.currentMode).toBe('plan');
+    });
+
+    // Up-to-date actions: Install tip of main (index 0)
+    studio.handleInput('\r');
+    await vi.waitFor(() => {
+      expect(resolveUpgradePlan).toHaveBeenCalledTimes(2);
+    });
+    expect(resolveUpgradePlan).toHaveBeenLastCalledWith('0.4.0', {}, { fromMain: true });
+    await vi.waitFor(() => {
+      expect(studio.currentPlan?.fromMain).toBe(true);
+    });
     studio.handleInput(ESC);
     await pending;
   });

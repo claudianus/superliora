@@ -16,7 +16,13 @@ import { registerWorktreeCommand } from './sub/worktree';
 
 export type MainCommandHandler = (opts: CLIOptions) => void;
 export type PluginNodeRunnerHandler = (entry: string, args: readonly string[]) => void;
-export type UpgradeCommandHandler = () => void | Promise<void>;
+export interface UpgradeCommandOptions {
+  readonly fromMain?: boolean;
+}
+
+export type UpgradeCommandHandler = (
+  opts: UpgradeCommandOptions,
+) => void | Promise<void>;
 
 export function createProgram(
   version: string,
@@ -129,16 +135,18 @@ export function createProgram(
   registerWorktreeCommand(program);
   // First-class peers: `liora update` and `liora upgrade` share one handler
   // (Upgrade Studio / install theatre). Keep both names discoverable in help.
-  const runUpgrade = async (): Promise<void> => {
-    await onUpgrade();
+  const runUpgrade = async (opts: { main?: boolean }): Promise<void> => {
+    await onUpgrade({ fromMain: opts.main === true });
   };
   program
     .command('upgrade')
     .description(t('cli.sub.upgrade.description'))
+    .option('--main', t('cli.sub.upgrade.option.main'), false)
     .action(runUpgrade);
   program
     .command('update')
     .description(t('cli.sub.upgrade.description'))
+    .option('--main', t('cli.sub.upgrade.option.main'), false)
     .action(runUpgrade);
 
   program

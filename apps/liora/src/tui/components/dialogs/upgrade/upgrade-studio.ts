@@ -44,6 +44,7 @@ export type UpgradeStudioMode =
 
 export type UpgradeStudioChoice =
   | 'install'
+  | 'install-main'
   | 'later'
   | 'preferences'
   | 'copy-command'
@@ -543,23 +544,41 @@ function actionsForMode(
     return [{ value: 'dismiss', label: 'Dismiss' }];
   }
   if (plan.reason === 'update-available' && plan.canAutoInstall) {
-    return [
+    const actions: StudioAction[] = [
       { value: 'install', label: `Install ${plan.target?.version ?? ''}`.trimEnd() },
+    ];
+    if (!plan.fromMain) {
+      actions.push({ value: 'install-main', label: 'Install tip of main' });
+    }
+    actions.push(
       { value: 'preferences', label: 'Auto-update preferences' },
       { value: 'later', label: 'Later' },
-    ];
+    );
+    return actions;
   }
   if (plan.reason === 'update-available') {
-    return [
+    const actions: StudioAction[] = [
       { value: 'copy-command', label: 'Show install command' },
+    ];
+    if (!plan.fromMain) {
+      actions.push({ value: 'install-main', label: 'Install tip of main' });
+    }
+    actions.push(
       { value: 'preferences', label: 'Auto-update preferences' },
       { value: 'later', label: 'Later' },
-    ];
+    );
+    return actions;
   }
-  return [
+  // Up-to-date / other: still allow opt-in tip-of-main (skips published releases).
+  const actions: StudioAction[] = [];
+  if (!plan.fromMain) {
+    actions.push({ value: 'install-main', label: 'Install tip of main' });
+  }
+  actions.push(
     { value: 'preferences', label: 'Auto-update preferences' },
     { value: 'dismiss', label: 'Dismiss' },
-  ];
+  );
+  return actions;
 }
 
 function shouldShowManualCommand(plan: UpgradePlan): boolean {
@@ -586,9 +605,17 @@ function statusLines(
         },
       ];
     case 'update-available':
+      if (plan.fromMain) {
+        return [
+          {
+            text: 'Tip of origin/main (not a published release).',
+            tone: 'warning',
+          },
+        ];
+      }
       return plan.canAutoInstall
-        ? [{ text: 'A newer version is available.', tone: 'text' }]
-        : [{ text: 'A newer version is available. Use the command below if needed.', tone: 'text' }];
+        ? [{ text: 'A newer published release is available.', tone: 'text' }]
+        : [{ text: 'A newer published release is available. Use the command below if needed.', tone: 'text' }];
     case 'diverged':
       return [{ text: 'Git checkout has diverged from upstream.', tone: 'error' }];
     case 'check-failed':

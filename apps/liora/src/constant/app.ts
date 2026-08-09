@@ -61,3 +61,6 @@ export const SUPERLIORA_INSTALL_PS1_URL = `${GITHUB_RAW_BASE}/install.ps1`;
 // Native install commands, split by platform. Use these for prompt copy and spawn calls only; do not assemble the strings elsewhere.
 export const NATIVE_INSTALL_COMMAND_UNIX = `curl -fsSL ${SUPERLIORA_INSTALL_SH_URL} | bash`;
 export const NATIVE_INSTALL_COMMAND_WIN = `irm ${SUPERLIORA_INSTALL_PS1_URL} | iex`;
+/** Skip GitHub Releases / prebuilt SEA; build tip of `main` from source. */
+export const NATIVE_INSTALL_FROM_MAIN_UNIX = `curl -fsSL ${SUPERLIORA_INSTALL_SH_URL} | bash -s -- --main`;
+export const NATIVE_INSTALL_FROM_MAIN_WIN = `$env:SUPERLIORA_FROM_MAIN='1'; ${NATIVE_INSTALL_COMMAND_WIN}`;

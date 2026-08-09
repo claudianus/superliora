@@ -20,17 +20,36 @@ export interface UpgradeCommandDeps {
   readonly getCurrentVersion: () => string;
 }
 
+export interface UpgradeCommandOptions {
+  /** Skip published releases; plan tip of origin/main (same as `liora upgrade --main`). */
+  readonly fromMain?: boolean;
+}
+
+/** Parse `/upgrade` · `/update` args (`--main` or bare `main`). */
+export function parseUpgradeSlashArgs(args: string): UpgradeCommandOptions {
+  const tokens = args.trim().split(/\s+/).filter((token) => token.length > 0);
+  return {
+    fromMain: tokens.some((token) => token === '--main' || token === 'main'),
+  };
+}
+
 /**
  * `/upgrade` — open the premium Upgrade Studio (center modal):
  * check → plan → observed install theatre → success/fail.
+ * Default plan uses published releases; `--main` / Install tip of main uses origin/main.
  */
 export async function handleUpgradeCommand(
   host: SlashCommandHost,
   deps: Partial<UpgradeCommandDeps> = {},
+  options: UpgradeCommandOptions = {},
 ): Promise<void> {
   const currentVersion =
     deps.getCurrentVersion?.() ?? host.state.appState.version ?? getVersion();
-  host.track('upgrade_studio_opened', { current_version: currentVersion });
+  const resolvePlan = deps.resolveUpgradePlan ?? resolveUpgradePlan;
+  host.track('upgrade_studio_opened', {
+    current_version: currentVersion,
+    from_main: options.fromMain === true,
+  });
 
   await new Promise<void>((resolve) => {
     let settled = false;
@@ -67,29 +86,26 @@ export async function handleUpgradeCommand(
     mountPickerDialog(host, studio, { label: 'Upgrade', mode: 'replace' });
     refresh();
 
-    const handleChoice = async (choice: UpgradeStudioChoice): Promise<void> => {
-      if (choice === 'later' || choice === 'dismiss') {
-        finish();
-        return;
-      }
-      if (choice === 'preferences') {
-        // Keep studio under the stack; preferences push on top.
-        showUpdatePreferencePicker(host);
-        return;
-      }
-      if (choice === 'copy-command') {
-        if (plan !== null) {
-          host.showStatus(`Install: ${plan.installCommand}`, 'info');
-        }
-        return;
-      }
-      if (choice === 'install' || choice === 'retry') {
-        if (plan === null || plan.target === null || !plan.canAutoInstall) {
-          finish();
-          return;
-        }
-        await runInstall(plan);
-      }
+    const showPlan = (next: UpgradePlan): void => {
+      plan = next;
+      host.track('upgrade_command_tui_checked', {
+        reason: next.reason,
+        source: next.source,
+        from_main: next.fromMain,
+      });
+      studio.update({ mode: 'plan', plan: next, stage: 'checking' });
+      refresh();
+    };
+
+    const showCheckFailed = (reason: string): void => {
+      studio.update({
+        mode: 'failed',
+        plan: null,
+        stage: 'failed',
+        detail: reason,
+      });
+      refresh();
+      host.showStatus(`Upgrade check failed: ${reason}`, 'error');
     };
 
     const runInstall = async (activePlan: UpgradePlan): Promise<void> => {
@@ -100,6 +116,7 @@ export async function handleUpgradeCommand(
       host.track('upgrade_studio_install_started', {
         target_version: activePlan.target.version,
         source: activePlan.source,
+        from_main: activePlan.fromMain,
       });
 
       const started = await (deps.startObservedUpgradeInstall ?? startObservedUpgradeInstall)({
@@ -107,6 +124,8 @@ export async function handleUpgradeCommand(
         targetVersion: activePlan.target.version,
         source: activePlan.source,
         platform: process.platform,
+        fromMain: activePlan.fromMain,
+        checkoutRoot: activePlan.checkoutRoot,
         onStage: (stage, detail) => {
           if ((stage === 'done' || stage === 'failed') && stage === lastTerminalStage) {
             return;
@@ -125,6 +144,7 @@ export async function handleUpgradeCommand(
             host.track('upgrade_studio_succeeded', {
               target_version: activePlan.target!.version,
               source: activePlan.source,
+              from_main: activePlan.fromMain,
             });
             return;
           }
@@ -141,6 +161,7 @@ export async function handleUpgradeCommand(
               target_version: activePlan.target!.version,
               source: activePlan.source,
               reason,
+              from_main: activePlan.fromMain,
             });
             return;
           }
@@ -165,25 +186,60 @@ export async function handleUpgradeCommand(
       }
     };
 
+    const planFromMain = async (): Promise<void> => {
+      studio.update({ mode: 'checking', plan: null, stage: 'checking', detail: '' });
+      refresh();
+      try {
+        const next = await resolvePlan(currentVersion, {}, { fromMain: true });
+        showPlan(next);
+        if (next.reason === 'update-available' && next.canAutoInstall && next.target !== null) {
+          // Opt-in tip-of-main: jump straight into confirm-ready plan; user still picks Install.
+          return;
+        }
+      } catch (error) {
+        showCheckFailed(error instanceof Error ? error.message : String(error));
+      }
+    };
+
+    const handleChoice = async (choice: UpgradeStudioChoice): Promise<void> => {
+      if (choice === 'later' || choice === 'dismiss') {
+        finish();
+        return;
+      }
+      if (choice === 'preferences') {
+        // Keep studio under the stack; preferences push on top.
+        showUpdatePreferencePicker(host);
+        return;
+      }
+      if (choice === 'copy-command') {
+        if (plan !== null) {
+          host.showStatus(`Install: ${plan.installCommand}`, 'info');
+        }
+        return;
+      }
+      if (choice === 'install-main') {
+        await planFromMain();
+        return;
+      }
+      if (choice === 'install' || choice === 'retry') {
+        if (plan === null || plan.target === null || !plan.canAutoInstall) {
+          finish();
+          return;
+        }
+        await runInstall(plan);
+      }
+    };
+
     void (async () => {
       try {
-        plan = await (deps.resolveUpgradePlan ?? resolveUpgradePlan)(currentVersion);
-        host.track('upgrade_command_tui_checked', {
-          reason: plan.reason,
-          source: plan.source,
-        });
-        studio.update({ mode: 'plan', plan, stage: 'checking' });
-        refresh();
+        const next = await resolvePlan(
+          currentVersion,
+          {},
+          { fromMain: options.fromMain === true },
+        );
+        showPlan(next);
       } catch (error) {
-        const reason = error instanceof Error ? error.message : String(error);
-        studio.update({
-          mode: 'failed',
-          plan: null,
-          stage: 'failed',
-          detail: reason,
-        });
-        refresh();
-        host.showStatus(`Upgrade check failed: ${reason}`, 'error');
+        showCheckFailed(error instanceof Error ? error.message : String(error));
       }
     })();
   });

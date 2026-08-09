@@ -100,7 +100,10 @@ export async function handleMainCommand(
   return { headlessCompleted: false };
 }
 
-export async function handleUpgradeCommand(version: string): Promise<void> {
+export async function handleUpgradeCommand(
+  version: string,
+  options: { readonly fromMain?: boolean } = {},
+): Promise<void> {
   const telemetryBootstrap = createCliTelemetryBootstrap();
   const telemetryClient: TelemetryClient = {
     track,
@@ -123,7 +126,11 @@ export async function handleUpgradeCommand(version: string): Promise<void> {
       version,
       uiMode: CLI_UI_MODE,
     });
-    exitCode = await handleUpgrade(version, { track, logger: log });
+    exitCode = await handleUpgrade(version, {
+      track,
+      logger: log,
+      fromMain: options.fromMain === true,
+    });
   } finally {
     await shutdownTelemetry({ timeoutMs: CLI_SHUTDOWN_TIMEOUT_MS }).catch(() => {});
     await harness.close().catch(() => {});
@@ -191,8 +198,8 @@ export function main(): void {
         process.exit(1);
       });
     },
-    () => {
-      void handleUpgradeCommand(version).catch(async (error: unknown) => {
+    (opts) => {
+      void handleUpgradeCommand(version, opts).catch(async (error: unknown) => {
         await logStartupFailure('upgrade', error);
         process.stderr.write(formatStartupError(error, { operation: 'upgrade' }));
         process.stderr.write(

@@ -1,10 +1,19 @@
 import {
   NATIVE_INSTALL_COMMAND_UNIX,
   NATIVE_INSTALL_COMMAND_WIN,
+  NATIVE_INSTALL_FROM_MAIN_UNIX,
+  NATIVE_INSTALL_FROM_MAIN_WIN,
 } from '#/constant/app';
 
 import { gitCheckoutUpdateCommand, gitCheckoutUpdateScript } from './git-checkout';
 import { NPM_PACKAGE_NAME, type InstallSource } from './types';
+
+export interface InstallSpawnOptions {
+  /** Skip releases; install tip of `main` from source. */
+  readonly fromMain?: boolean;
+  /** Explicit git checkout root (defaults to host package's SuperLiora repo). */
+  readonly checkoutRoot?: string;
+}
 
 function withCmdSuffix(base: string, platform: NodeJS.Platform): string {
   return platform === 'win32' ? `${base}.cmd` : base;
@@ -14,11 +23,20 @@ function bunCommand(platform: NodeJS.Platform): string {
   return platform === 'win32' ? 'bun.exe' : 'bun';
 }
 
+function nativeInstallCommand(platform: NodeJS.Platform, fromMain: boolean): string {
+  if (fromMain) {
+    return platform === 'win32' ? NATIVE_INSTALL_FROM_MAIN_WIN : NATIVE_INSTALL_FROM_MAIN_UNIX;
+  }
+  return platform === 'win32' ? NATIVE_INSTALL_COMMAND_WIN : NATIVE_INSTALL_COMMAND_UNIX;
+}
+
 export function installCommandFor(
   source: InstallSource,
   version: string,
   platform: NodeJS.Platform,
+  options: InstallSpawnOptions = {},
 ): string {
+  const fromMain = options.fromMain === true;
   switch (source) {
     case 'npm-global':
       return `npm install -g ${NPM_PACKAGE_NAME}@${version}`;
@@ -31,11 +49,16 @@ export function installCommandFor(
     case 'homebrew':
       return 'brew upgrade kimi-code';
     case 'github-checkout':
-      return gitCheckoutUpdateCommand();
+      return gitCheckoutUpdateCommand(
+        options.checkoutRoot,
+        fromMain ? { preferredUpstream: 'origin/main' } : {},
+      );
     case 'native':
-      return platform === 'win32' ? NATIVE_INSTALL_COMMAND_WIN : NATIVE_INSTALL_COMMAND_UNIX;
+      return nativeInstallCommand(platform, fromMain);
     case 'unsupported':
-      return `npm install -g ${NPM_PACKAGE_NAME}@${version}`;
+      return fromMain
+        ? nativeInstallCommand(platform, true)
+        : `npm install -g ${NPM_PACKAGE_NAME}@${version}`;
   }
 }
 
@@ -70,7 +93,9 @@ export function spawnForSource(
   source: InstallSource,
   version: string,
   platform: NodeJS.Platform,
+  options: InstallSpawnOptions = {},
 ): SpawnCommand {
+  const fromMain = options.fromMain === true;
   switch (source) {
     case 'npm-global':
       return { cmd: withCmdSuffix('npm', platform), args: ['install', '-g', `${NPM_PACKAGE_NAME}@${version}`] };
@@ -83,7 +108,16 @@ export function spawnForSource(
     case 'homebrew':
       return { cmd: 'brew', args: ['upgrade', 'kimi-code'] };
     case 'github-checkout':
-      return { cmd: 'bash', args: ['-lc', gitCheckoutUpdateScript()] };
+      return {
+        cmd: 'bash',
+        args: [
+          '-lc',
+          gitCheckoutUpdateScript(
+            options.checkoutRoot,
+            fromMain ? { preferredUpstream: 'origin/main' } : {},
+          ),
+        ],
+      };
     case 'native':
       if (platform === 'win32') {
         // Surface irm failures instead of treating an empty pipeline as success.
@@ -94,7 +128,7 @@ export function spawnForSource(
             '-ExecutionPolicy',
             'Bypass',
             '-Command',
-            `$ErrorActionPreference='Stop'; ${NATIVE_INSTALL_COMMAND_WIN}`,
+            `$ErrorActionPreference='Stop'; ${nativeInstallCommand('win32', fromMain)}`,
           ],
         };
       }
@@ -103,8 +137,14 @@ export function spawnForSource(
       // would look like a successful update. `pipefail` makes the pipeline
       // surface curl's non-zero status so installUpdate() rejects and we warn
       // instead of printing "Updated …".
-      return { cmd: 'bash', args: ['-c', `set -o pipefail; ${NATIVE_INSTALL_COMMAND_UNIX}`] };
+      return {
+        cmd: 'bash',
+        args: ['-c', `set -o pipefail; ${nativeInstallCommand('darwin', fromMain)}`],
+      };
     case 'unsupported':
+      if (fromMain) {
+        return spawnForSource('native', version, platform, { fromMain: true });
+      }
       throw new Error('unsupported install source cannot be auto-installed');
   }
 }
