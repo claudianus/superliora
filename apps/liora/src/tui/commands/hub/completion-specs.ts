@@ -404,6 +404,17 @@ export function themeArgumentCompletions(argumentPrefix: string): AutocompleteIt
   return completeI18n(THEME_ARG_COMPLETIONS, argumentPrefix);
 }
 
+const LOCALE_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
+  arg('auto', 'tui.locale.option.autoDesc'),
+  arg('en', 'tui.locale.option.enDesc'),
+  arg('ko', 'tui.locale.option.koDesc'),
+];
+
+/** Leading-arg completions for `/locale` (`auto` / `en` / `ko`). */
+export function localeArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
+  return completeI18n(LOCALE_ARG_COMPLETIONS, argumentPrefix);
+}
+
 /**
  * Completions for `/appearance`.
  * First token: preference keys. Second token: fixed values for that key
