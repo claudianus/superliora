@@ -117,7 +117,7 @@ export interface Translation {
 }
 
 export const defaultLang: Lang = 'ko';
-export const PRODUCT_VERSION = '0.20.1';
+export const PRODUCT_VERSION = '0.3.1';
 
 const INSTALL_SH =
   'curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.sh | bash';

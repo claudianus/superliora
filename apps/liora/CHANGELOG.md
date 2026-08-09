@@ -1,5 +1,13 @@
 # @superliora/liora
 
+## 0.3.1
+
+### Patch Changes
+
+- Skip Smart Auto picks when a provider has no usable API key or OAuth token, and fall back from unhealthy role overrides.
+- Fix the native SEA build by exporting `/locale` argument completions.
+- Push jobs infer `gh-pages` from Pages deploy briefs and enable GitHub Pages after a successful push when possible.
+
 ## 0.3.0
 
 ### Minor Changes
