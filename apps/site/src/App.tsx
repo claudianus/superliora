@@ -2,13 +2,11 @@ import { useEffect, useState } from 'react';
 import { I18nProvider, useI18n } from './i18n';
 import { useTheme } from './hooks/useTheme';
 import { Sections } from './components/Sections';
-import { SunIcon, MoonIcon, GithubIcon } from './components/Icons';
 
 type Lang = 'ko' | 'en';
 
 function getInitialLang(): Lang {
-  const htmlLang = document.documentElement.lang;
-  return htmlLang === 'en' ? 'en' : 'ko';
+  return document.documentElement.lang === 'en' ? 'en' : 'ko';
 }
 
 function SkipLink() {
@@ -16,7 +14,7 @@ function SkipLink() {
   return (
     <a
       href="#main"
-      className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-cyan focus:px-4 focus:py-2 focus:text-bg focus:outline-none"
+      className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-bg-1"
     >
       {t.skip}
     </a>
@@ -31,18 +29,18 @@ function ThemeToggle() {
       onClick={toggle}
       aria-pressed={theme === 'dark'}
       aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-      className="rounded-full border border-line bg-bg-2 p-2 text-soft transition hover:border-cyan hover:text-cyan focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+      className="rounded-md border border-line bg-bg-2 px-2.5 py-1.5 text-xs font-medium text-soft transition hover:border-primary hover:text-primary"
     >
-      {theme === 'dark' ? <SunIcon className="h-5 w-5" /> : <MoonIcon className="h-5 w-5" />}
+      {theme === 'dark' ? 'Light' : 'Dark'}
     </button>
   );
 }
 
 function BrandMark() {
   return (
-    <span className="relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border border-cyan/30 bg-bg-2">
-      <span className="absolute inset-0 bg-gradient-to-br from-cyan/25 to-transparent" />
-      <span className="relative font-mono text-sm font-bold tracking-tight text-cyan">S</span>
+    <span className="relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-md border border-primary/40 bg-bg-2">
+      <span className="absolute inset-0 bg-gradient-to-br from-primary/30 via-transparent to-accent/20" />
+      <span className="relative font-mono text-sm font-bold text-primary">S</span>
     </span>
   );
 }
@@ -52,21 +50,26 @@ function Navbar() {
   const base = import.meta.env.BASE_URL ?? '/';
   const koHref = `${base}`;
   const enHref = `${base}en/`;
+  const docsHref =
+    lang === 'en' ? `${base}en/docs/getting-started.html` : `${base}docs/getting-started.html`;
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const onScroll = () =>{  setScrolled(window.scrollY > 12); };
+    const onScroll = () => {
+      setScrolled(window.scrollY > 12);
+    };
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
-    return () =>{  window.removeEventListener('scroll', onScroll); };
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+    };
   }, []);
 
   const links = [
-    { href: '#mission', label: t.nav.workflow },
-    { href: '#harness', label: t.nav.harness },
-    { href: '#memory', label: t.nav.memory },
-    { href: '#capabilities', label: t.nav.capabilities },
+    { href: '#how', label: t.nav.how },
+    { href: '#tower', label: t.nav.tower },
     { href: '#install', label: t.nav.install },
+    { href: docsHref, label: t.nav.docs },
   ];
 
   return (
@@ -74,52 +77,39 @@ function Navbar() {
       className={`nav-shell fixed left-0 right-0 top-0 z-40 border-b border-transparent backdrop-blur-xl ${scrolled ? 'scrolled' : 'bg-bg/40'}`}
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
-        <a
-          href={base}
-          className="flex items-center gap-2.5 font-sans text-lg font-bold tracking-tight text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
-        >
+        <a href={base} className="flex items-center gap-2.5 font-sans text-lg font-bold tracking-tight text-text">
           <BrandMark />
           <span>SuperLiora</span>
         </a>
-
         <nav aria-label="Main" className="hidden items-center gap-1 text-sm font-medium text-soft lg:flex">
           {links.map((link) => (
             <a
               key={link.href}
               href={link.href}
-              className="rounded-full px-3 py-1.5 transition hover:bg-bg-2 hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
+              className="rounded-md px-3 py-1.5 transition hover:bg-bg-2 hover:text-text"
             >
               {link.label}
             </a>
           ))}
         </nav>
-
-        <div className="flex items-center gap-2 sm:gap-3">
-          <div className="flex items-center gap-1 rounded-full border border-line bg-bg-2 p-1 text-xs font-medium">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 rounded-md border border-line bg-bg-2 p-1 text-xs font-medium">
             <a
               href={koHref}
               aria-current={lang === 'ko' ? 'page' : undefined}
-              className={`rounded-full px-2.5 py-1 transition ${lang === 'ko' ? 'bg-cyan text-bg' : 'text-soft hover:text-cyan'}`}
+              className={`rounded px-2.5 py-1 transition ${lang === 'ko' ? 'bg-primary text-bg-1' : 'text-soft hover:text-primary'}`}
             >
               KR
             </a>
             <a
               href={enHref}
               aria-current={lang === 'en' ? 'page' : undefined}
-              className={`rounded-full px-2.5 py-1 transition ${lang === 'en' ? 'bg-cyan text-bg' : 'text-soft hover:text-cyan'}`}
+              className={`rounded px-2.5 py-1 transition ${lang === 'en' ? 'bg-primary text-bg-1' : 'text-soft hover:text-primary'}`}
             >
               EN
             </a>
           </div>
           <ThemeToggle />
-          <a
-            href="https://github.com/claudianus/superliora"
-            className="hidden items-center gap-1.5 rounded-full border border-line bg-bg-2 px-3 py-1.5 text-xs font-semibold text-soft transition hover:border-cyan hover:text-cyan sm:inline-flex"
-            aria-label="GitHub"
-          >
-            <GithubIcon className="h-3.5 w-3.5" />
-            <span>GitHub</span>
-          </a>
         </div>
       </div>
     </header>
@@ -137,31 +127,28 @@ function Footer() {
             <BrandMark />
             <div>
               <div className="font-sans text-sm font-semibold text-text">SuperLiora</div>
-              <div className="text-xs text-muted">Blood Moon terminal harness</div>
+              <div className="text-xs text-muted">{t.footer.tagline}</div>
             </div>
           </div>
           <nav aria-label="Footer" className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted">
-            <a href="https://github.com/claudianus/superliora" className="transition hover:text-cyan">
+            <a href="https://github.com/claudianus/superliora" className="transition hover:text-primary">
               {t.footer.github}
             </a>
-            <a
-              href={lang === 'ko' ? `${base}en/` : base}
-              className="transition hover:text-cyan"
-            >
+            <a href={lang === 'ko' ? `${base}en/` : base} className="transition hover:text-primary">
               {lang === 'ko' ? t.footer.english : t.footer.korean}
             </a>
             <a
-              href="https://github.com/claudianus/superliora/tree/main/docs"
-              className="transition hover:text-cyan"
+              href={lang === 'en' ? `${base}en/docs/getting-started.html` : `${base}docs/getting-started.html`}
+              className="transition hover:text-primary"
             >
               {t.footer.docs}
             </a>
-            <a href="https://github.com/claudianus/superliora/issues" className="transition hover:text-cyan">
+            <a href="https://github.com/claudianus/superliora/issues" className="transition hover:text-primary">
               {t.footer.issues}
             </a>
             <a
               href="https://github.com/claudianus/superliora/blob/main/SECURITY.md"
-              className="transition hover:text-cyan"
+              className="transition hover:text-primary"
             >
               {t.footer.security}
             </a>
@@ -169,7 +156,7 @@ function Footer() {
         </div>
         <div className="flex flex-col justify-between gap-2 border-t border-line/70 pt-6 text-xs text-muted sm:flex-row">
           <div>{t.footer.copyright}</div>
-          <div className="font-mono">v0.3.0 · #E63946</div>
+          <div className="font-mono">Neon Noir · #00D5FF</div>
         </div>
       </div>
     </footer>

@@ -17,6 +17,7 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
     "preview": "vite preview",
+    "check:copy": "node ./scripts/check-banned-copy.mjs",
     "clean": "rm -rf dist"
   },
   "dependencies": {
