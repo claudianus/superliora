@@ -18,7 +18,11 @@ export type {
 export { tokenFromWire, tokenToWire } from './types';
 
 export type { TokenStorage } from './storage';
-export { FileTokenStorage } from './storage';
+export {
+  FileTokenStorage,
+  defaultOAuthCredentialsDir,
+  hasCachedOAuthTokenSync,
+} from './storage';
 
 export type { DevicePollResult, RefreshOptions } from './flow/oauth';
 export { pollDeviceToken, refreshAccessToken, requestDeviceAuthorization } from './flow/oauth';

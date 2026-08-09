@@ -1,16 +1,23 @@
 /**
  * Turn-level smart model router: role scorer + fallback chain + intensity.
  *
- * Explicit `loopControl.*Model` always wins. Unset roles use
- * `buildFallbackChain` (same truth as Settings preview) and return a hop
- * chain for auth/credit failover.
+ * Explicit `loopControl.*Model` wins when healthy; unhealthy overrides degrade
+ * to fallback chain / auto. Unset roles use `buildFallbackChain` (same truth
+ * as Settings preview) and return a hop chain for auth/credit failover.
  */
 
-import { sharedCredentialHealthStore } from '@superliora/oauth';
+import {
+  SUPERLIORA_PROVIDER_NAME,
+  hasCachedOAuthTokenSync,
+  resolveKimiTokenStorageName,
+  sharedCredentialHealthStore,
+} from '@superliora/oauth';
 
 import type { ThinkingEffort } from '../config/thinking';
 import { resolveThinkingEffort } from '../config/thinking';
 import type { LioraConfig, ModelAlias, ProviderConfig } from '../../config';
+import { hasConfiguredApiKeySource } from '../../session/provider/provider-manager-api-key';
+import { providerOAuthRefs } from '../../session/provider/provider-manager-oauth';
 import {
   autoAssignRoleModels,
   buildFallbackChain,
@@ -100,23 +107,30 @@ export function configuredRoleAlias(
 export function isConfigAliasHealthy(config: LioraConfig, alias: string): boolean {
   const model = config.models?.[alias];
   if (model === undefined) return false;
-  const provider = config.providers?.[model.provider];
-  if (provider !== undefined && !providerHasCredential(provider)) return false;
-  return sharedCredentialHealthStore.isAvailable(model.provider);
+  const providerName = model.provider;
+  const provider = config.providers?.[providerName];
+  if (provider === undefined) return false;
+  if (!providerHasUsableCredential(providerName, provider)) return false;
+  return sharedCredentialHealthStore.isAvailable(providerName);
 }
 
-function providerHasCredential(provider: ProviderConfig): boolean {
-  if (typeof provider.apiKey === 'string' && provider.apiKey.trim().length > 0) return true;
-  if (
-    Array.isArray(provider.apiKeys) &&
-    provider.apiKeys.some((k) => typeof k === 'string' && k.trim().length > 0)
-  ) {
-    return true;
+function providerHasUsableCredential(providerName: string, provider: ProviderConfig): boolean {
+  if (hasConfiguredApiKeySource(provider)) return true;
+  const refs = providerOAuthRefs(provider);
+  if (refs.length === 0) return false;
+  return refs.some((ref) => hasCachedOAuthTokenSync(oauthStorageName(providerName, ref.key)));
+}
+
+function oauthStorageName(providerName: string, oauthKey: string): string {
+  if (providerName === SUPERLIORA_PROVIDER_NAME) {
+    try {
+      return resolveKimiTokenStorageName({ providerName, oauthKey });
+    } catch {
+      return '';
+    }
   }
-  if (Array.isArray(provider.credentials) && provider.credentials.length > 0) return true;
-  if (provider.oauth !== undefined) return true;
-  if (Array.isArray(provider.oauths) && provider.oauths.length > 0) return true;
-  return false;
+  const key = oauthKey.trim();
+  return key.length > 0 ? key : providerName;
 }
 
 export function buildLocalModelMetadata(config: LioraConfig): readonly ModelMetadata[] {
@@ -205,15 +219,30 @@ export function resolveSmartRoute(input: ResolveSmartRouteInput): SmartRoute | u
   const explicit = configuredRoleAlias(config, role);
   if (explicit !== undefined) {
     const chain = buildExplicitChain(config, explicit, healthy);
-    return {
-      role,
-      intensity,
-      alias: explicit,
-      chain,
-      thinkingLevel: thinkingForRole(role, config.models?.[explicit]),
-      source: 'explicit',
-      reason: `User override · ${role}/${intensity}`,
-    };
+    if (healthy(explicit)) {
+      return {
+        role,
+        intensity,
+        alias: explicit,
+        chain,
+        thinkingLevel: thinkingForRole(role, config.models?.[explicit]),
+        source: 'explicit',
+        reason: `User override · ${role}/${intensity}`,
+      };
+    }
+    const degraded = chain[0];
+    if (degraded !== undefined) {
+      return {
+        role,
+        intensity,
+        alias: degraded,
+        chain,
+        thinkingLevel: thinkingForRole(role, config.models?.[degraded]),
+        source: 'explicit',
+        reason: `User override degraded · ${explicit} → ${degraded} · ${role}/${intensity}`,
+      };
+    }
+    // Unhealthy override with empty healthy chain → fall through to auto.
   }
 
   let metadata = [...buildLocalModelMetadata(config)];
@@ -262,7 +291,7 @@ export function resolveSmartRoute(input: ResolveSmartRouteInput): SmartRoute | u
   }
 
   const parent = input.parentAlias?.trim();
-  if (parent !== undefined && parent.length > 0) {
+  if (parent !== undefined && parent.length > 0 && healthy(parent)) {
     return {
       role,
       intensity,

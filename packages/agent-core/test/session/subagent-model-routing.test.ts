@@ -162,12 +162,12 @@ describe('subagent role model routing', () => {
     });
   });
 
-  it('honors deepseek planning override even when the alias is unhealthy', () => {
+  it('degrades unhealthy planning override to a healthy auto pick', () => {
     const context = testAgent({
       initialConfig: {
         providers: {
           'test-provider': PROVIDER,
-          // No apiKey → providerHasAnyCredential is false → was previously skipped.
+          // No apiKey / OAuth token → unavailable for smart routing.
           deepseek: { type: 'openai', baseUrl: 'https://api.deepseek.example/v1' },
         },
         models: {
@@ -188,9 +188,9 @@ describe('subagent role model routing', () => {
     context.configure();
 
     expect(resolveSubagentModelSelection(context.agent, 'plan')).toMatchObject({
-      alias: 'deepseek/flash',
+      alias: 'opus',
       role: 'planning',
-      source: 'explicit',
+      source: 'auto',
     });
   });
 });

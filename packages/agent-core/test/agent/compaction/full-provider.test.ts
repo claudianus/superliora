@@ -47,9 +47,17 @@ function makeProvider(): ChatProvider {
 function makeHost(overrides: {
   readonly compactionModel?: string;
   readonly models?: Record<string, { provider: string; model: string }>;
+  readonly providers?: Record<string, { type: 'kimi'; apiKey?: string }>;
   readonly resolveProviderConfig?: (alias: string) => unknown;
 } = {}): FullCompactionProviderHost {
   const provider = makeProvider();
+  const models = overrides.models ?? {
+    'main-model': { provider: 'p', model: 'kimi-k2' },
+    'cheap-model': { provider: 'p', model: 'claude-3-5-haiku' },
+  };
+  const providers = overrides.providers ?? {
+    p: { type: 'kimi' as const, apiKey: 'test-key' },
+  };
   const host: FullCompactionProviderHost = {
     compactionModelAlias: undefined,
     agent: {
@@ -63,7 +71,8 @@ function makeHost(overrides: {
         loopControl: overrides.compactionModel === undefined
           ? undefined
           : { compactionModel: overrides.compactionModel },
-        models: overrides.models,
+        models,
+        providers,
       },
       modelProvider: overrides.resolveProviderConfig === undefined
         ? undefined
@@ -89,7 +98,11 @@ describe('full-provider.ts — compaction summarizer provider', () => {
   });
 
   it('sets compactionModelAlias to the main model when no cheap alias is configured', () => {
-    const host = makeHost();
+    const host = makeHost({
+      models: {
+        'main-model': { provider: 'p', model: 'kimi-k2' },
+      },
+    });
     createCompactionProvider(host, 0);
     expect(host.compactionModelAlias).toBe('main-model');
   });
@@ -97,6 +110,10 @@ describe('full-provider.ts — compaction summarizer provider', () => {
   it('uses an explicit loopControl.compactionModel alias when configured', () => {
     const host = makeHost({
       compactionModel: 'cheap-model',
+      models: {
+        'main-model': { provider: 'p', model: 'kimi-k2' },
+        'cheap-model': { provider: 'p', model: 'claude-3-5-haiku' },
+      },
       resolveProviderConfig: () => ({
         provider: { type: 'kimi', apiKey: 'test-key', model: 'cheap-model' },
         modelCapabilities: CAPABILITY,
@@ -120,6 +137,7 @@ describe('full-provider.ts — compaction summarizer provider', () => {
         };
       },
     });
+    // Auto picks cheap-fast for compaction; resolve throws → warn + main model.
     createCompactionProvider(host, 2_000);
     expect(host.compactionModelAlias).toBe('main-model');
     expect(host.agent.log.warn).toHaveBeenCalled();

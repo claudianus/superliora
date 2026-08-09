@@ -1127,8 +1127,8 @@ export type LoopRoleModelPreview = {
 };
 
 /**
- * Preview per-role routing for Settings and /status: explicit overrides win;
- * otherwise local auto-assign (credential `available` flags already applied).
+ * Preview per-role routing for Settings and /status: healthy explicit overrides
+ * win; unavailable overrides degrade to auto (same gate as smart-router).
  */
 export function previewLoopRoleModelRouting(
   models: readonly LocalRoleCatalogModel[],
@@ -1160,6 +1160,10 @@ export function previewLoopRoleModelRouting(
     });
   });
 
+  const availableByAlias = new Map(
+    metadata.map((entry) => [entry.alias ?? entry.id, entry.available !== false] as const),
+  );
+
   const overrides: Partial<Record<ModelRole, string>> = {};
   for (const [role, value] of Object.entries(userOverrides ?? {}) as Array<
     [ModelRole, string | undefined]
@@ -1168,15 +1172,31 @@ export function previewLoopRoleModelRouting(
     if (trimmed !== undefined && trimmed.length > 0) overrides[role] = trimmed;
   }
 
-  const assignments = autoAssignRoleModels(metadata, overrides);
+  const healthyOverrides: Partial<Record<ModelRole, string>> = {};
+  for (const [role, alias] of Object.entries(overrides) as Array<[ModelRole, string]>) {
+    if (availableByAlias.get(alias) === true) healthyOverrides[role] = alias;
+  }
+
+  const assignments = autoAssignRoleModels(metadata, healthyOverrides);
   return ROLE_PRESETS.map((preset) => {
     const override = overrides[preset.role];
     if (override !== undefined) {
+      if (availableByAlias.get(override) === true) {
+        return {
+          role: preset.role,
+          description: preset.description,
+          override,
+          resolvedAlias: override,
+          source: 'override' as const,
+        };
+      }
+      const assignment = assignments[preset.role];
+      const resolvedAlias = assignment?.modelAlias ?? assignment?.modelId;
       return {
         role: preset.role,
         description: preset.description,
         override,
-        resolvedAlias: override,
+        ...(resolvedAlias !== undefined ? { resolvedAlias } : {}),
         source: 'override' as const,
       };
     }
