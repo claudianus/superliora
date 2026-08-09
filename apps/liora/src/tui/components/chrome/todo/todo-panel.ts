@@ -28,7 +28,12 @@ import { resolveResponsiveLayout } from '#/tui/controllers/layout/responsive-lay
 import {
   appearanceAnimationNow,
 } from '#/tui/features/appearance/appearance-effects';
-import { renderRoundedPanel } from '#/tui/utils/ui/panel-frame';
+import {
+  CHROME_BAND_LEFT_MARGIN,
+  CHROME_BAND_SIDE_PADDING,
+  chromeBandInteriorWidth,
+  renderRoundedPanel,
+} from '#/tui/utils/ui/panel-frame';
 
 import {
   MAX_VISIBLE,
@@ -336,8 +341,10 @@ export class TodoPanelComponent implements Component {
       content: lines,
       width,
       borderToken,
-      leftMargin: 2,
+      leftMargin: CHROME_BAND_LEFT_MARGIN,
+      sidePadding: CHROME_BAND_SIDE_PADDING,
       minBoxWidth: profile === 'compact' ? 60 : BOARD_MIN_WIDTH,
+      fillWidth: true,
     });
     // See the tiny path: animating frames stay out of the memo so expired
     // cues settle to resting bytes on the very next render.
@@ -440,9 +447,7 @@ export class TodoPanelComponent implements Component {
     profile: ReturnType<typeof resolveResponsiveLayout>,
   ): number {
     if (profile === 'tiny') return width;
-    const leftMargin = 2;
-    const sidePadding = 1;
-    return Math.max(1, width - leftMargin - 2 - 2 * sidePadding);
+    return chromeBandInteriorWidth(width);
   }
 
   private currentChangeSummary(): TodoPanelChangeSummary | undefined {

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { renderRoundedPanel } from '#/tui/utils/ui/panel-frame';
+import {
+  CHROME_BAND_LEFT_MARGIN,
+  chromeBandInteriorWidth,
+  renderRoundedPanel,
+} from '#/tui/utils/ui/panel-frame';
 
 import { stripAnsi } from './frame-stability-helpers';
 
@@ -63,5 +67,32 @@ describe('renderRoundedPanel', () => {
     expect(filledTop.length).toBeGreaterThan(shrinkTop.length);
     expect(filledTop.startsWith('╭')).toBe(true);
     expect(filledTop.endsWith('╮')).toBe(true);
+  });
+
+  it('aligns chrome-band frames on the same left and right columns', () => {
+    const width = 80;
+    const todo = renderRoundedPanel({
+      title: ' Todo Board · 1/3 done ',
+      content: ['meta', 'doing | next | done'],
+      width,
+      leftMargin: CHROME_BAND_LEFT_MARGIN,
+      fillWidth: true,
+    });
+    const dock = renderRoundedPanel({
+      title: ' Worker Dock · 1 worker ',
+      content: ['FLEET 1', 'BOARD'],
+      width,
+      leftMargin: CHROME_BAND_LEFT_MARGIN,
+      fillWidth: true,
+    });
+    const todoTop = stripAnsi(todo[0] ?? '');
+    const dockTop = stripAnsi(dock[0] ?? '');
+    expect(todoTop.length).toBe(width);
+    expect(dockTop.length).toBe(width);
+    expect(todoTop.indexOf('╭')).toBe(CHROME_BAND_LEFT_MARGIN);
+    expect(dockTop.indexOf('╭')).toBe(CHROME_BAND_LEFT_MARGIN);
+    expect(todoTop.endsWith('╮')).toBe(true);
+    expect(dockTop.endsWith('╮')).toBe(true);
+    expect(chromeBandInteriorWidth(width)).toBe(width - CHROME_BAND_LEFT_MARGIN - 4);
   });
 });

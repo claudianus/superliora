@@ -112,16 +112,17 @@ describe('MissionControlPanelComponent', () => {
     const panel = new MissionControlPanelComponent();
     panel.setView(viewFor(registry));
 
-    const lines = plain(panel.render(60));
+    const lines = plain(panel.render(100));
     const text = lines.join('\n');
     expect(text).toContain('Worker Dock');
-    expect(text).toContain('1 active');
-    expect(text).toContain('NOW');
-    expect(text).toContain('explore-2');
+    expect(text).toMatch(/1 worker/);
+    expect(text).toContain('FLEET');
+    expect(text).toMatch(/WKR/);
+    expect(text).toContain('explore');
     expect(text).toContain('gpt-5');
-    // Intent beats raw tool+path on the name row.
+    // Focus todo lands in the LIVE cell when stream is cold.
     expect(text).toContain('Ship human-first dock');
-    expect(text).toContain('\u2192 Read');
+    expect(text).toContain('Read');
     expect(text).toContain('panel.ts');
     expect(text).toMatch(/1\/2/);
     // Absolute-path spam must not dominate.
@@ -174,8 +175,8 @@ describe('MissionControlPanelComponent', () => {
       jobs: emptyConductorJobsSnapshot(),
     });
 
-    const text = plain(panel.render(60)).join('\n');
-    expect(text).toContain('MOVES');
+    const text = plain(panel.render(100)).join('\n');
+    expect(text).toContain('TAPE');
     expect(text).toContain('3s ago');
     // Single-worker feed omits the worker name column.
     expect(text).not.toMatch(/builder-1.*Edit/);
@@ -220,16 +221,16 @@ describe('MissionControlPanelComponent', () => {
     ]);
     const panel = new MissionControlPanelComponent();
     panel.setView(viewFor(registry));
-    const text = plain(panel.render(60)).join('\n');
-    expect(text).toContain('MOVES');
+    const text = plain(panel.render(100)).join('\n');
+    expect(text).toContain('TAPE');
     expect(text).toContain('enter');
     expect(text).not.toContain('/Users/modumaru/.superliora/worktrees');
-    // Two consecutive cd ops collapse to one visible MOVES row.
-    const movesIdx = text.indexOf('MOVES');
-    const movesSection = movesIdx >= 0 ? text.slice(movesIdx) : '';
-    const boardIdx = movesSection.indexOf('BOARD');
-    const movesOnly = boardIdx >= 0 ? movesSection.slice(0, boardIdx) : movesSection;
-    expect(movesOnly.split('enter').length - 1).toBe(1);
+    // Two consecutive cd ops collapse to one visible TAPE row.
+    const tapeIdx = text.indexOf('TAPE');
+    const tapeSection = tapeIdx >= 0 ? text.slice(tapeIdx) : '';
+    const boardIdx = tapeSection.indexOf('BOARD');
+    const tapeOnly = boardIdx >= 0 ? tapeSection.slice(0, boardIdx) : tapeSection;
+    expect(tapeOnly.split('enter').length - 1).toBe(1);
   });
 
   it('renders condensed BOARD lanes with attention rows first', () => {
@@ -244,28 +245,88 @@ describe('MissionControlPanelComponent', () => {
     ]);
     const jobs = {
       ...emptyConductorJobsSnapshot(),
-      total: 3,
+      total: 4,
       running: 1,
       needsUser: 1,
+      interrupted: 1,
+      failed: 1,
       jobs: [
-        jobCard({ id: 'job_run00000001', status: 'running', workerName: 'builder-1' }),
-        jobCard({ id: 'job_need00000002', status: 'needs_user', title: '?? ??' }),
-        jobCard({ id: 'job_done00000003', status: 'done' }),
+        jobCard({
+          id: 'job_run00000001',
+          status: 'running',
+          title: 'Running card',
+          workerName: 'builder-1',
+          updatedAtMs: NOW,
+        }),
+        jobCard({
+          id: 'job_need00000002',
+          status: 'needs_user',
+          title: 'Need answer',
+          updatedAtMs: NOW + 1,
+        }),
+        jobCard({
+          id: 'job_int00000003',
+          status: 'interrupted',
+          title: 'Paused deploy',
+          updatedAtMs: NOW + 2,
+        }),
+        jobCard({
+          id: 'job_fail0000004',
+          status: 'failed',
+          title: 'Land failed',
+          updatedAtMs: NOW + 3,
+        }),
       ],
     };
     const panel = new MissionControlPanelComponent();
     panel.setView(viewFor(registry, jobs));
 
-    const text = plain(panel.render(60)).join('\n');
+    const text = plain(panel.render(100)).join('\n');
     expect(text).toContain('BOARD');
     expect(text).toContain('needs-you 1');
     expect(text).toContain('running 1');
-    // needs_user outranks the running card.
-    const needIdx = text.indexOf('?? ??');
-    const runIdx = text.indexOf('?? ??? ??');
-    expect(needIdx).toBeGreaterThanOrEqual(0);
-    expect(runIdx).toBeGreaterThanOrEqual(0);
-    expect(needIdx).toBeLessThan(runIdx);
+    expect(text).toContain('interrupted 1');
+    expect(text).toContain('failed 1');
+    // Densemode paints one attention card; needs_user outranks the rest.
+    expect(text).toContain('Need answer');
+    expect(text).not.toContain('Land failed');
+  });
+
+  it('skips BOARD attention cards with empty titles', () => {
+    const clock = appearanceAnimationNow();
+    const panel = new MissionControlPanelComponent();
+    panel.setView({
+      snapshot: {
+        version: 1,
+        workers: [
+          {
+            id: 'sa-1',
+            name: 'coder',
+            kind: 'subagent',
+            status: 'running',
+            runInBackground: false,
+            toolCount: 1,
+            tokens: 10,
+            elapsedMs: 1_000,
+            spawnedAtMs: clock,
+            lastActivityAtMs: clock,
+          },
+        ],
+        activeCount: 1,
+        totalTokens: 10,
+        ops: [],
+      },
+      jobs: {
+        ...emptyConductorJobsSnapshot(),
+        total: 1,
+        running: 1,
+        jobs: [jobCard({ id: 'job_empty000001', status: 'running', title: '   ' })],
+      },
+    });
+    const text = plain(panel.render(80)).join('\n');
+    expect(text).toContain('BOARD');
+    expect(text).toContain('running 1');
+    expect(text).not.toMatch(/❯\s*$/m);
   });
 
   it('degrades density to fit a small row budget', () => {
@@ -347,12 +408,12 @@ describe('MissionControlPanelComponent', () => {
     ]);
     const panel = new MissionControlPanelComponent();
     panel.setView(viewFor(registry));
-    const text = plain(panel.render(60)).join('\n');
-    expect(text).toContain('\u26a0 scout-9');
-    expect(text).toContain('stalled');
+    const text = plain(panel.render(100)).join('\n');
+    expect(text).toContain('scout-9');
+    expect(text).toContain('stall');
   });
 
-  it('prefers a hot live stream strip over static intent in NOW', () => {
+  it('prefers a hot live stream strip over static intent in LIVE', () => {
     const clock = appearanceAnimationNow();
     const worker: MissionWorker = {
       id: 'sa-live',
@@ -382,11 +443,11 @@ describe('MissionControlPanelComponent', () => {
       },
       jobs: emptyConductorJobsSnapshot(),
     });
-    const text = plain(panel.render(70)).join('\n');
-    expect(text).toContain('NOW');
+    const text = plain(panel.render(100)).join('\n');
+    expect(text).toContain('FLEET');
     expect(text).toContain('Considering Phaser platformer physics');
     expect(text).toContain('\u25cc');
-    // Hot stream replaces the static description/intent row.
+    // Hot stream replaces the static description/intent in LIVE.
     expect(text).not.toContain('Investigate Metal Slug mechanics');
   });
 
@@ -460,6 +521,7 @@ describe('MissionControlPanelComponent', () => {
       jobs: emptyConductorJobsSnapshot(),
     });
     const text = plain(panel.render(100)).join('\n');
+    expect(text).toContain('Worker Dock');
     expect(text).toMatch(/\d+ workers?/);
     expect(text).toContain('TK');
     expect(text).toMatch(/WKR/);
@@ -471,7 +533,7 @@ describe('MissionControlPanelComponent', () => {
     expect(text).not.toContain('\nNOW\n');
   });
 
-  it('keeps solo full-block layout for a single worker', () => {
+  it('uses densemode KPI/GRID for a single worker', () => {
     const clock = appearanceAnimationNow();
     const panel = new MissionControlPanelComponent();
     panel.setView({
@@ -493,6 +555,8 @@ describe('MissionControlPanelComponent', () => {
             liveKind: 'thinking',
             liveText: 'solo thought stream',
             liveAtMs: clock,
+            lastTool: 'Bash',
+            lastTarget: 'build.sh',
           },
         ],
         activeCount: 1,
@@ -501,14 +565,18 @@ describe('MissionControlPanelComponent', () => {
       },
       jobs: emptyConductorJobsSnapshot(),
     });
-    const text = plain(panel.render(70)).join('\n');
-    expect(text).toContain('NOW');
+    const text = plain(panel.render(100)).join('\n');
+    expect(text).toContain('Worker Dock');
+    expect(text).toMatch(/1 worker/);
+    expect(text).toContain('FLEET');
+    expect(text).toMatch(/WKR/);
     expect(text).toContain('solo thought stream');
-    expect(text).not.toMatch(/\d+ workers/);
-    expect(text).not.toContain('TAPE');
+    expect(text).toContain('TAPE');
+    expect(text).toContain('Bash');
+    expect(text).not.toContain('\nNOW\n');
   });
 
-  it('humanizes JSON WebSearch targets in MOVES', () => {
+  it('humanizes JSON WebSearch targets in TAPE', () => {
     const registry = registryWith([
       {
         type: 'subagent.spawned',
@@ -527,8 +595,8 @@ describe('MissionControlPanelComponent', () => {
     ]);
     const panel = new MissionControlPanelComponent();
     panel.setView(viewFor(registry));
-    const text = plain(panel.render(70)).join('\n');
-    expect(text).toContain('MOVES');
+    const text = plain(panel.render(100)).join('\n');
+    expect(text).toContain('TAPE');
     expect(text).toContain('WebSearch');
     expect(text).toContain('premium HTML');
     expect(text).not.toContain('"query"');
