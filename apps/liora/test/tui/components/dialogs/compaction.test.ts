@@ -342,6 +342,41 @@ describe('CompactionComponent', () => {
     }
   });
 
+  it('keeps stable in-flight row count across progress ticks (no thrash-resize)', () => {
+    // Content-only invalidation is only safe when the card height does not
+    // grow 0→N as the first delta / phase arrives.
+    const component = new CompactionComponent();
+    try {
+      const baseline = component.render(120).map(strip);
+      const baselineRows = baseline.length;
+
+      component.setPhase('summarizing');
+      expect(component.render(120).map(strip).length).toBe(baselineRows);
+
+      component.setStreamMeta({
+        streamKind: 'block',
+        blockCount: 4,
+        blocksCompleted: 1,
+        fraction: 0.35,
+      });
+      expect(component.render(120).map(strip).length).toBe(baselineRows);
+
+      component.appendSummaryDelta('alpha\n');
+      expect(component.render(120).map(strip).length).toBe(baselineRows);
+
+      component.appendSummaryDelta('beta\ngamma\ndelta\nepsilon\nzeta\n');
+      const filled = component.render(120).map(strip);
+      expect(filled.length).toBe(baselineRows);
+      expect(filled.join('\n')).toContain('zeta');
+
+      // Terminal settle may drop reserved progress + preview slots.
+      component.markDone(1000, 500);
+      expect(component.render(120).map(strip).length).toBeLessThan(baselineRows);
+    } finally {
+      component.dispose();
+    }
+  });
+
   it('shows stream kind, block index, and char count in the progress label', () => {
     const component = new CompactionComponent();
 
