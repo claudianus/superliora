@@ -18,11 +18,13 @@ import type { ConductorJobsSnapshot } from './utils/job/job-strip';
 
 import type {
   AppearancePreferences,
+  ConductorPreferences,
   FooterPreferences,
   NotificationsConfig,
   OnboardingPreferences,
   UpgradePreferences,
 } from './config';
+import type { ConductorProjectMode } from './utils/job/intent-brief';
 import type { PendingApproval, PendingQuestion } from './reverse-rpc/types';
 import type { ColorToken, ThemeName } from './theme';
 
@@ -54,6 +56,12 @@ export interface AppState {
    * optional until first job event. `jobs` / `inbox` feed the Job board view.
    */
   conductorJobs?: ConductorJobsSnapshot | null;
+  /** Conductor UX v2 project mode (pool + Intent Composer defaults). */
+  conductorProjectMode?: ConductorProjectMode;
+  /** Transcript region: chat transcript vs Conductor Timeline. */
+  transcriptRegionMode?: 'chat' | 'timeline';
+  /** Persisted conductor prefs mirror (timeline defaulted flag, …). */
+  conductor?: ConductorPreferences;
   /** 'bash' when the editor is in `!` shell-command mode. */
   inputMode: 'prompt' | 'bash';
   /** Whether thinking is enabled (true when {@link thinkingLevel} is not `'off'`). */

@@ -72,3 +72,22 @@ Status: P0–P4 landed (Conductor default, Job ledger/pool/warm pre-spawn, Missi
 - Demo evidence pack (G2): AC matrix + verification log → `docs/specs/2026-08-03-conductor-evidence.md`
 
 See plan: `docs/specs/2026-08-03-meta-orchestrator-conductor-goal-plan.md`
+
+## UX v2 (2026-08-09)
+
+Kill-switch: `conductor_ux_v2` / `SUPERLIORA_EXPERIMENTAL_CONDUCTOR_UX_V2` (default ON).
+
+| Surface | Behavior when ON |
+|---|---|
+| Job RPC | SDK `Session.job*` (list/create/steer/cancel/resume/inbox/merge/previewSplit/gc/setProjectMode) — TUI hotpath skips LLM injection |
+| Protocol | `job.*` schemaVersion **3**: `briefPreview`, `gateChecklist`, `landReceipt`, inbox `actionHints` |
+| Naming | Mission Control → **Worker Dock**; `/workers` alias for `/agents` |
+| Inbox | Alt+I drawer for needs_user / notices; resume-all + stall hints |
+| Composer | Alt+B Intent Composer brief slots; project modes balanced/greenfield/hotfix/review |
+| Merge | Merge Preview panel (`M`); land copy states local-only (no remote push) |
+| Timeline | chat \| timeline region; default timeline when conductor + jobs ≥ 1 |
+| Coach | Welcome 3-line Conductor coach; Hub “How Conductor works” |
+| Split confirm | JobCreate `auto_split` with ≥3 intents → AskUserQuestion keep/merge/cancel (interactive + flag ON) |
+| Greenfield brief | Incomplete greenfield JobCreate → interactive brief fill or AskUserQuestion template; Intent Composer greenfield routes the same |
+
+When OFF: legacy Mission Control copy + `sendNormalUserInput` Job tool prompts.

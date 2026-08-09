@@ -132,6 +132,19 @@ describe('JobDeckViewerComponent', () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
+  it('renders an empty-state coach when the ledger has no jobs', () => {
+    const viewer = new JobDeckViewerComponent({
+      getSnapshot: () => snapshotOf([]),
+      loadWorker: async () => ({ lines: [] }),
+      onAction: vi.fn(),
+      onCancel: vi.fn(),
+    });
+    const joined = viewer.render(100).map(stripAnsi).join('\n');
+    expect(joined).toContain('No jobs yet');
+    expect(joined).toContain('Type a task in the chat to create your first Job');
+    expect(joined).toContain('Alt+J');
+  });
+
   it('keeps a full transcript buffer with top, tail, and Home/End navigation', async () => {
     const snap = snapshotOf([
       card('job_a1b2c3d4', 'long worker', 'running', {

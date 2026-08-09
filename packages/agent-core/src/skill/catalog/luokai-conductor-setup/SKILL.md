@@ -13,6 +13,8 @@ catalogId: luokai-conductor-setup
 
 Set up this Rails project for Conductor, the Mac app for parallel coding agents.
 
+> Note: This is the Mac Conductor app skill — unrelated to SuperLiora’s Conductor profile / Job desk.
+
 # What to Create
 
 ## 1. conductor.json (project root)

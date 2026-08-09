@@ -5,6 +5,7 @@ import {
   buildPluginSlashCommands,
   buildSkillSlashCommands,
   isExperimentalFlagEnabled,
+  jobArgumentCompletions,
   slashCommandsForHelp,
   sortSlashCommands,
   thinkingArgumentCompletionsForModel,
@@ -12,6 +13,7 @@ import {
   type SlashCommandHelpMode,
   type SkillListSession,
 } from '../../commands';
+import { shortJobId } from '../../components/job-board/job-board-helpers';
 import {
   FileMentionProvider,
   type SlashAutocompleteCommand,
@@ -57,12 +59,22 @@ export class AutocompleteController {
       ...primaryCommands,
       ...advancedCommands,
     ].map((cmd) => {
-      const completer = cmd.name === 'thinking'
-        ? (prefix: string) => thinkingArgumentCompletionsForModel(
-            prefix,
-            host.state.appState.availableModels[host.state.appState.model],
-          )
-        : cmd.completeArgs;
+      const completer =
+        cmd.name === 'thinking'
+          ? (prefix: string) =>
+              thinkingArgumentCompletionsForModel(
+                prefix,
+                host.state.appState.availableModels[host.state.appState.model],
+              )
+          : cmd.name === 'job'
+            ? (prefix: string) =>
+                jobArgumentCompletions(
+                  prefix,
+                  (host.state.appState.conductorJobs?.jobs ?? [])
+                    .filter((job) => job.status === 'needs_user')
+                    .map((job) => shortJobId(job.id)),
+                )
+            : cmd.completeArgs;
       return {
         name: cmd.name,
         aliases: cmd.aliases,

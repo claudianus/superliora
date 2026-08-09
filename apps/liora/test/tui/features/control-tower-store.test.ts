@@ -14,6 +14,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { JobInboxEvent, JobUpdatedEvent } from '@superliora/protocol';
 
+import { setExperimentalFeatures } from '#/tui/commands/experimental-flags';
 import { ControlTowerJobDesk } from '#/tui/features/control-tower/job-desk-events';
 import { JobBoardStore } from '#/tui/features/control-tower/job-board-store';
 import type { AppState } from '#/tui/types';
@@ -218,25 +219,56 @@ describe('ControlTowerJobDesk — single sink side effects', () => {
   }
 
   it('publishes the store snapshot into appState on job events', () => {
+    setExperimentalFeatures([{ id: 'conductor_ux_v2', enabled: true }]);
     const host = fakeDeskHost();
     const store = new JobBoardStore();
     const desk = new ControlTowerJobDesk(host, store);
 
     desk.handleUpdated(jobUpdated('job_a', 'running'));
-    expect(host.setAppState).toHaveBeenCalledTimes(1);
-    expect(host.appStatePatch[0]?.conductorJobs).toBe(store.snapshot());
-    expect(host.appStatePatch[0]?.conductorJobs?.running).toBe(1);
+    // publish + persist job_deck_hint_seen onboarding patch
+    expect(host.setAppState).toHaveBeenCalledTimes(2);
+    const jobsPatch = host.appStatePatch.find((p) => p.conductorJobs !== undefined);
+    expect(jobsPatch?.conductorJobs).toBe(store.snapshot());
+    expect(jobsPatch?.conductorJobs?.running).toBe(1);
 
     desk.handleInbox(jobInbox('evt_1', 'job_a'));
-    expect(host.appStatePatch[1]?.conductorJobs?.unreadInbox).toBe(1);
+    const inboxPatch = host.appStatePatch.find((p) => p.conductorJobs?.unreadInbox === 1);
+    expect(inboxPatch?.conductorJobs?.unreadInbox).toBe(1);
     expect(host.showNotice).toHaveBeenCalledWith(
       'Job completed: completion evt_1',
       'done',
       { coalesceKey: 'job-inbox:evt_1' },
     );
+    setExperimentalFeatures([]);
+  });
+
+  it('notices stalled workers and clears unread via markInboxRead', () => {
+    setExperimentalFeatures([{ id: 'conductor_ux_v2', enabled: true }]);
+    const host = fakeDeskHost();
+    const store = new JobBoardStore();
+    const desk = new ControlTowerJobDesk(host, store);
+    desk.handleUpdated({
+      ...jobUpdated('job_stall', 'running'),
+      change: { reason: 'stalled' },
+      job: {
+        ...jobUpdated('job_stall', 'running').job,
+        progress: { phase: 'stalled — no tool activity for 3m' },
+      },
+    });
+    expect(host.showNotice).toHaveBeenCalledWith(
+      'Worker may be stuck — Steer or Cancel',
+      expect.stringContaining('stall'),
+      { coalesceKey: 'job-stall:job_stall' },
+    );
+    desk.handleInbox(jobInbox('evt_stall', 'job_stall'));
+    expect(store.snapshot().unreadInbox).toBe(1);
+    desk.markInboxRead();
+    expect(store.snapshot().unreadInbox).toBe(0);
+    setExperimentalFeatures([]);
   });
 
   it('publishes immediate worker tool activity without waiting for a heartbeat', () => {
+    setExperimentalFeatures([{ id: 'conductor_ux_v2', enabled: false }]);
     const host = fakeDeskHost();
     const store = new JobBoardStore();
     const desk = new ControlTowerJobDesk(host, store);
@@ -273,15 +305,36 @@ describe('ControlTowerJobDesk — single sink side effects', () => {
     card = store.snapshot().jobs.find((entry) => entry.id === 'job_worker');
     expect(card?.liveActivity?.status).toBe('ok');
     expect(host.setAppState).toHaveBeenCalledTimes(3);
+    setExperimentalFeatures([]);
   });
 
   it('shows the board hint once while a job runs and the board is closed', () => {
+    setExperimentalFeatures([{ id: 'conductor_ux_v2', enabled: true }]);
     const host = fakeDeskHost();
     const desk = new ControlTowerJobDesk(host, new JobBoardStore());
     desk.handleUpdated(jobUpdated('job_a', 'running'));
     desk.handleUpdated(jobUpdated('job_b', 'running'));
+    expect(host.showNotice).toHaveBeenCalledWith(
+      'Job running — open the Deck',
+      'Alt+J watches workers live · Hub → Job Deck',
+      { coalesceKey: 'job-deck-hint' },
+    );
+    // One-shot: second running job does not re-issue the hint notice.
+    const hintCalls = host.showNotice.mock.calls.filter(
+      (c) => c[2]?.coalesceKey === 'job-deck-hint',
+    );
+    expect(hintCalls).toHaveLength(1);
+    setExperimentalFeatures([]);
+  });
+
+  it('shows legacy Job Desk status hint when conductor_ux_v2 is off', () => {
+    setExperimentalFeatures([{ id: 'conductor_ux_v2', enabled: false }]);
+    const host = fakeDeskHost();
+    const desk = new ControlTowerJobDesk(host, new JobBoardStore());
+    desk.handleUpdated(jobUpdated('job_a', 'running'));
     expect(host.showStatus).toHaveBeenCalledTimes(1);
     expect(host.showStatus.mock.calls[0]?.[0]).toContain('/jobs deck');
+    setExperimentalFeatures([]);
   });
 
   it('tool-output backfill republishes only when the store changed', () => {

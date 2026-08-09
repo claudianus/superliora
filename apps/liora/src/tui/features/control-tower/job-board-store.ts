@@ -5,7 +5,7 @@
  * so they can never drift from the card list.
  */
 
-import type { JobInboxEvent, JobUpdatedEvent } from '@superliora/protocol';
+import type { JobInboxEvent, JobSnapshot, JobUpdatedEvent } from '@superliora/protocol';
 
 import {
   appendJobInboxEntry,
@@ -46,6 +46,33 @@ export class JobBoardStore {
     this.publish(this.deriveFromCards(jobs, prev.unreadInbox, prev.inbox, prev.maxConcurrent));
   }
 
+  /**
+   * Bulk resync from Session.jobList() snapshots (F18).
+   * Preserves inbox / unread; replaces the card set from authoritative snapshots.
+   */
+  applySnapshots(jobs: readonly JobSnapshot[]): void {
+    const prev = this.current;
+    const nowMs = Date.now();
+    let cards: readonly ConductorJobCard[] = [];
+    for (const job of jobs) {
+      cards = upsertConductorJobCard(cards, job, undefined, nowMs);
+    }
+    // Preserve liveActivity / usage from previous cards when ids match.
+    const prevById = new Map(prev.jobs.map((card) => [card.id, card]));
+    cards = cards.map((card) => {
+      const older = prevById.get(card.id);
+      if (older === undefined) return card;
+      return {
+        ...card,
+        ...(older.liveActivity === undefined ? {} : { liveActivity: older.liveActivity }),
+        ...(older.workerName === undefined ? {} : { workerName: older.workerName }),
+        ...(older.liveTokens === undefined ? {} : { liveTokens: older.liveTokens }),
+        ...(card.usage === undefined && older.usage !== undefined ? { usage: older.usage } : {}),
+      };
+    });
+    this.publish(this.deriveFromCards(cards, prev.unreadInbox, prev.inbox, prev.maxConcurrent));
+  }
+
   /** One `job.inbox` event: append the notice and bump unread. */
   applyJobInbox(event: JobInboxEvent): void {
     const prev = this.current;
@@ -56,6 +83,15 @@ export class JobBoardStore {
         appendJobInboxEntry(prev.inbox, event, Date.now()),
         prev.maxConcurrent,
       ),
+    );
+  }
+
+  /** Host opened Inbox / JobInbox markRead — clear the unread badge. */
+  markInboxRead(): void {
+    const prev = this.current;
+    if (prev.unreadInbox === 0) return;
+    this.publish(
+      this.deriveFromCards(prev.jobs, 0, prev.inbox, prev.maxConcurrent),
     );
   }
 

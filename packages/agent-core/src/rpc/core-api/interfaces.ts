@@ -109,6 +109,29 @@ import type {
 import type {
 } from './payloads-goal';
 import type {
+  JobActionResult,
+  JobCancelPayload,
+  JobCreateBatchPayload,
+  JobCreatePayload,
+  JobCreateResult,
+  JobGcWorktreesPayload,
+  JobGcWorktreesResult,
+  JobInboxPayload,
+  JobInboxResult,
+  JobIdPayload,
+  JobInspectResult,
+  JobMergePayload,
+  JobMergeResult,
+  JobPreviewSplitPayload,
+  JobResumePayload,
+  JobResumeResult,
+  JobSetProjectModePayload,
+  JobSetProjectModeResult,
+  JobSnapshot,
+  JobSteerPayload,
+  SplitJobIntent,
+} from './payloads-job';
+import type {
   ConfigDiagnostics,
   DeleteConfigFieldsPayload,
   GetKimiConfigPayload,
@@ -165,6 +188,18 @@ export interface AgentAPI {
   pauseGoal: (payload: EmptyPayload) => GoalSnapshot;
   resumeGoal: (payload: EmptyPayload) => GoalSnapshot;
   cancelGoal: (payload: EmptyPayload) => GoalSnapshot;
+  jobList: (payload: EmptyPayload) => readonly JobSnapshot[];
+  jobInspect: (payload: JobIdPayload) => JobInspectResult | undefined;
+  jobInbox: (payload: JobInboxPayload) => JobInboxResult;
+  jobSteer: (payload: JobSteerPayload) => Promise<JobActionResult>;
+  jobCancel: (payload: JobCancelPayload) => Promise<JobActionResult>;
+  jobResume: (payload: JobResumePayload) => Promise<JobResumeResult>;
+  jobCreate: (payload: JobCreatePayload) => Promise<JobCreateResult>;
+  jobCreateBatch: (payload: JobCreateBatchPayload) => Promise<JobCreateResult>;
+  jobMerge: (payload: JobMergePayload) => Promise<JobMergeResult>;
+  jobPreviewSplit: (payload: JobPreviewSplitPayload) => readonly SplitJobIntent[];
+  jobGcWorktrees: (payload: JobGcWorktreesPayload) => Promise<JobGcWorktreesResult>;
+  jobSetProjectMode: (payload: JobSetProjectModePayload) => JobSetProjectModeResult;
   getBackgroundOutput: (payload: GetBackgroundOutputPayload) => string;
   getContext: (payload: EmptyPayload) => AgentContextData;
   getContextComposition: (payload: EmptyPayload) => ContextComposition;

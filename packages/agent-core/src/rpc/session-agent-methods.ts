@@ -453,3 +453,17 @@ export {
   resumeGoal,
   cancelGoal,
 } from './session-agent-methods-goal';
+export {
+  jobList,
+  jobInspect,
+  jobInbox,
+  jobSteer,
+  jobCancel,
+  jobResume,
+  jobCreate,
+  jobCreateBatch,
+  jobMerge,
+  jobPreviewSplit,
+  jobGcWorktrees,
+  jobSetProjectMode,
+} from './session-agent-methods-job';

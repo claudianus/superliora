@@ -6,8 +6,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { SlashCommandHost } from '#/tui/commands/hub/dispatch';
+import { setExperimentalFeatures } from '#/tui/commands/experimental-flags';
 import { handleJobCommand, handleJobsCommand } from '#/tui/commands/jobs';
-import { formatJobDeckTraceLines } from '#/tui/commands/jobs-deck';
+import { formatJobDeckTraceLines, openJobDeckViewer } from '#/tui/commands/jobs-deck';
+import { emptyConductorJobsSnapshot } from '#/tui/utils/job/job-strip';
 
 function createHost() {
   return {
@@ -59,6 +61,51 @@ describe('/jobs deck routing', () => {
     const host = createHost();
     handleJobCommand(host, 'deck job_0000ffff');
     expect(host.jobBoardController.openDeck).toHaveBeenCalledWith('job_0000ffff');
+  });
+});
+
+describe('openJobDeckViewer empty ledger', () => {
+  it('opens the empty deck when conductor_ux_v2 is on', () => {
+    setExperimentalFeatures([{ id: 'conductor_ux_v2', enabled: true }]);
+    const mountEditorReplacement = vi.fn();
+    const showStatus = vi.fn();
+    const host = {
+      session: {},
+      showStatus,
+      showError: vi.fn(),
+      mountEditorReplacement,
+      restoreEditor: vi.fn(),
+      state: {
+        appState: { conductorJobs: emptyConductorJobsSnapshot() },
+        renderer: { requestRender: vi.fn() },
+      },
+    } as unknown as SlashCommandHost;
+    openJobDeckViewer(host);
+    expect(mountEditorReplacement).toHaveBeenCalledTimes(1);
+    expect(showStatus).not.toHaveBeenCalled();
+  });
+
+  it('keeps the mute status when conductor_ux_v2 is off', () => {
+    setExperimentalFeatures([{ id: 'conductor_ux_v2', enabled: false }]);
+    const mountEditorReplacement = vi.fn();
+    const showStatus = vi.fn();
+    const host = {
+      session: {},
+      showStatus,
+      showError: vi.fn(),
+      mountEditorReplacement,
+      restoreEditor: vi.fn(),
+      state: {
+        appState: { conductorJobs: emptyConductorJobsSnapshot() },
+        renderer: { requestRender: vi.fn() },
+      },
+    } as unknown as SlashCommandHost;
+    openJobDeckViewer(host);
+    expect(mountEditorReplacement).not.toHaveBeenCalled();
+    expect(showStatus).toHaveBeenCalledWith(
+      expect.stringContaining('No Conductor jobs yet'),
+      'textMuted',
+    );
   });
 });
 

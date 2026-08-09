@@ -32,6 +32,7 @@ import {
   unregisterStartupSignalHandlers,
 } from './signals';
 import type { StartupLifecycleHost } from './types';
+import { mountIntentComposer } from '../../features/control-tower/conductor-ux';
 
 export type { StartupLifecycleHost } from './types';
 
@@ -179,6 +180,12 @@ export class StartupLifecycleController {
     host.state.editorContainer.clear();
     host.state.editorContainer.addChild(host.state.editor);
     host.state.ui.setFocus(host.state.editor);
+    mountIntentComposer({
+      state: host.state,
+      session: host.session,
+      showStatus: (msg, color) => host.showStatus(msg, color),
+      jobBoardController: host.jobBoardController,
+    });
     this.ensureNativeInputRouter();
     this.attachNativeRendererCallback();
     void maybeStartOnboarding(host).catch(() => {});

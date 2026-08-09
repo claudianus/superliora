@@ -10,6 +10,7 @@ import {
   renderShimmerPrefix,
   renderSpectacularText,
   renderStatusFlashLine,
+  renderToneSettleFlash,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
 import { syncAmbientAnimatedText } from '#/tui/utils/render/render-cache';
@@ -112,7 +113,11 @@ export class NoticeMessageComponent extends Container {
     this.title = title;
     this.detail = detail;
     this.addChild(new Spacer(1));
-    this.titleText = new Text(`  ${renderNoticeTitle(title)}`, 0, 0);
+    this.titleText = new Text(
+      `  ${renderNoticeTitle(title, this.entranceStartedAtMs, coalesceKey)}`,
+      0,
+      0,
+    );
     this.addChild(this.titleText);
     if (detail !== undefined && detail.length > 0) {
       this.detailText = new Text(`  ${renderNoticeDetail(detail)}`, 0, 0);
@@ -122,7 +127,9 @@ export class NoticeMessageComponent extends Container {
 
   override invalidate(): void {
     this.ambientAnimationEpoch = -1;
-    this.titleText.setText(`  ${renderNoticeTitle(this.title)}`);
+    this.titleText.setText(
+      `  ${renderNoticeTitle(this.title, this.entranceStartedAtMs, this.coalesceKey)}`,
+    );
     if (this.detailText !== undefined && this.detail !== undefined) {
       this.detailText.setText(`  ${renderNoticeDetail(this.detail)}`);
     }
@@ -130,7 +137,11 @@ export class NoticeMessageComponent extends Container {
   }
 
   override render(width: number): string[] {
-    syncAmbientAnimatedText(this.titleText, () => `  ${renderNoticeTitle(this.title)}`, this);
+    syncAmbientAnimatedText(
+      this.titleText,
+      () => `  ${renderNoticeTitle(this.title, this.entranceStartedAtMs, this.coalesceKey)}`,
+      this,
+    );
     if (this.detailText !== undefined && this.detail !== undefined) {
       syncAmbientAnimatedText(
         this.detailText,
@@ -148,7 +159,19 @@ export class NoticeMessageComponent extends Container {
   }
 }
 
-function renderNoticeTitle(title: string): string {
+function renderNoticeTitle(
+  title: string,
+  startedAtMs: number,
+  coalesceKey?: string,
+): string {
+  // F15: short success settle on land/complete notices (motion helpers only).
+  if (
+    coalesceKey !== undefined &&
+    coalesceKey.startsWith('job-land:') &&
+    !/held/i.test(title)
+  ) {
+    return renderToneSettleFlash(title, `notice-land:${title}`, startedAtMs, 'success');
+  }
   return renderPremiumHeadline(title, `notice:${title}`);
 }
 

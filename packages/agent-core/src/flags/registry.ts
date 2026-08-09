@@ -90,6 +90,15 @@ export const FLAG_DEFINITIONS = [
     default: true,
     surface: 'both',
   },
+  {
+    id: 'conductor_ux_v2',
+    title: 'Conductor UX v2 control tower',
+    description:
+      'Job RPC hotpath, Inbox drawer, Timeline, Intent Composer, Merge Preview, Worker Dock naming. Disable with SUPERLIORA_EXPERIMENTAL_CONDUCTOR_UX_V2=false.',
+    env: 'SUPERLIORA_EXPERIMENTAL_CONDUCTOR_UX_V2',
+    default: true,
+    surface: 'both',
+  },
 ] as const satisfies readonly FlagDefinitionInput[];
 
 /** Literal union of registered flag ids. */

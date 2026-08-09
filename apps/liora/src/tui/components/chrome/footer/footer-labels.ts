@@ -190,11 +190,24 @@ export function labelConductorJobs(
     readonly interrupted: number;
     readonly failed: number;
     readonly unreadInbox: number;
+    readonly maxConcurrent?: number;
+  },
+  extras?: {
+    readonly projectMode?: string;
+    /** Optional session token glance when running jobs expose usage. */
+    readonly tokenGlance?: string;
   },
 ): string {
   const parts: string[] = [];
+  const mode = extras?.projectMode;
+  const pool =
+    snap.maxConcurrent !== undefined ? `pool=${String(snap.maxConcurrent)}` : undefined;
+  const tok = extras?.tokenGlance;
   if (isPlainLabels(labels)) {
+    if (mode !== undefined) parts.push(`mode=${mode}`);
+    if (pool !== undefined) parts.push(pool);
     if (snap.running > 0) parts.push(`${String(snap.running)} running`);
+    if (tok !== undefined) parts.push(tok);
     if (snap.queued > 0) parts.push(`${String(snap.queued)} queued`);
     if (snap.blocked > 0) parts.push(`${String(snap.blocked)} blocked`);
     if (snap.needsUser > 0) parts.push(`${String(snap.needsUser)} need you`);
@@ -204,7 +217,10 @@ export function labelConductorJobs(
     if (parts.length === 0) return 'Jobs idle';
     return `Jobs · ${parts.join(' · ')}`;
   }
+  if (mode !== undefined) parts.push(`m=${mode}`);
+  if (pool !== undefined) parts.push(pool);
   if (snap.running > 0) parts.push(`${String(snap.running)}▸`);
+  if (tok !== undefined) parts.push(tok.replace(/\s/g, ''));
   if (snap.queued > 0) parts.push(`${String(snap.queued)}…`);
   if (snap.blocked > 0) parts.push(`${String(snap.blocked)}⛔`);
   if (snap.needsUser > 0) parts.push(`${String(snap.needsUser)}?`);

@@ -33,6 +33,14 @@ import {
 } from './liora-tui-wiring';
 import type { ApprovalPanelData, QuestionPanelData } from '../../reverse-rpc/types';
 import { openJobDeckViewer } from '../../commands/jobs-deck';
+import { openInbox } from '../../features/control-tower/inbox-controller';
+import { isConductorUxV2Enabled } from '../../commands/job-hotpath';
+import { maybeDefaultTimelineOnce } from '../../features/control-tower/conductor-ux';
+import { openMergePreview } from '../../features/control-tower/merge-preview-controller';
+import {
+  emptyConductorJobsSnapshot,
+  resolveConductorJobCard,
+} from '../../utils/job/job-strip';
 
 type LioraTUIConstructor = new (...args: never[]) => LioraTUI;
 
@@ -470,6 +478,31 @@ export function installLioraTUIDelegates(Ctor: LioraTUIConstructor): void {
   };
   proto.openJobDeck = function (jobId?: string) {
     openJobDeckViewer(this, jobId);
+  };
+  proto.openJobInbox = function () {
+    if (!isConductorUxV2Enabled()) {
+      this.showStatus(
+        'Job Inbox drawer needs conductor_ux_v2 — use /job inbox (agent path) or enable the flag.',
+        'textMuted',
+      );
+      return;
+    }
+    openInbox(this);
+  };
+  proto.openMergePreviewForJob = function (jobId: string) {
+    const snap = this.state.appState.conductorJobs ?? emptyConductorJobsSnapshot();
+    const card = resolveConductorJobCard(snap.jobs, jobId);
+    if (card === undefined) return;
+    openMergePreview(this, card);
+  };
+  proto.maybeDefaultConductorTimeline = function () {
+    maybeDefaultTimelineOnce({
+      state: this.state,
+      session: this.session,
+      setAppState: (patch) => this.setAppState(patch),
+      showStatus: (msg, color) => this.showStatus(msg, color),
+      jobBoardController: this.jobBoardController,
+    });
   };
   proto.showApprovalPanel = function (payload: ApprovalPanelData) {
     this.reverseRpcPanels.showApprovalPanel(payload);

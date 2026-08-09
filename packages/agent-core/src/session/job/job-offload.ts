@@ -119,7 +119,7 @@ export function enqueueJobWorkerSpawn(input: {
 
 async function runSchedule(request: JobSchedulePumpRequest): Promise<void> {
   const { store, agent } = request;
-  const pool = resolveConductorPoolConfig();
+  const pool = resolveConductorPoolConfig(process.env, { store });
   const kaos = agent?.kaos;
   const repoPath = agent?.config.cwd;
   const result = await scheduleQueuedJobs({

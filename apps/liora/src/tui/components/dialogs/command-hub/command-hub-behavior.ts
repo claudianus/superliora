@@ -11,7 +11,11 @@ export function isCommandHubToggleId(id: CommandHubActionId): boolean {
 }
 
 export function isCommandHubCycleId(id: CommandHubActionId): boolean {
-  return id === 'modes.permission';
+  return (
+    id === 'modes.permission' ||
+    id === 'modes.conductorProject' ||
+    id === 'modes.transcriptRegion'
+  );
 }
 
 /** Keep Hub open for toggles/cycles; nest or navigate for the rest. */
@@ -35,6 +39,7 @@ export function commandHubNestsPicker(id: CommandHubActionId): boolean {
     case 'workspace.cron':
     case 'help.shortcuts':
     case 'help.commands':
+    case 'start.conductorHowto':
       return true;
     default:
       return false;
@@ -54,4 +59,10 @@ export function cyclePermissionMode(
     default:
       return 'auto';
   }
+}
+
+export function cycleTranscriptRegionMode(
+  current: string | undefined,
+): 'chat' | 'timeline' {
+  return current === 'timeline' ? 'chat' : 'timeline';
 }

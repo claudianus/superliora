@@ -22,6 +22,7 @@ import {
   shouldDelegateToPlanDesk,
 } from '../tools/builtin/planning/plan-desk';
 import { resolvePlanModeKind } from '../tools/builtin/planning/resolve-plan-mode-kind';
+import * as jobRpc from '../tools/builtin/job/job-rpc-api';
 import type { Agent } from './index';
 
 export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
@@ -228,6 +229,41 @@ export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
       }
       return agent.goal.cancelGoal();
     },
+    jobList: () => jobRpc.jobList(agent.tools.getStore()),
+    jobInspect: (payload) => jobRpc.jobInspect(agent.tools.getStore(), payload.jobId),
+    jobInbox: (payload) =>
+      jobRpc.jobInbox(agent.tools.getStore(), {
+        markRead: payload.markRead,
+        limit: payload.limit,
+      }),
+    jobSteer: (payload) =>
+      jobRpc.jobSteer(agent.tools.getStore(), {
+        jobId: payload.jobId,
+        message: payload.message,
+        status: payload.status,
+        agent,
+      }),
+    jobCancel: (payload) =>
+      jobRpc.jobCancel(agent.tools.getStore(), {
+        jobId: payload.jobId,
+        reason: payload.reason,
+        agent,
+      }),
+    jobResume: (payload) =>
+      jobRpc.jobResume(agent.tools.getStore(), {
+        jobId: payload.jobId,
+        answer: payload.answer,
+        agent,
+      }),
+    jobCreate: (payload) => jobRpc.jobCreate(agent.tools.getStore(), payload, agent),
+    jobCreateBatch: (payload) =>
+      jobRpc.jobCreateBatch(agent.tools.getStore(), payload.jobs, agent),
+    jobMerge: (payload) => jobRpc.jobMerge(agent.tools.getStore(), payload, agent),
+    jobPreviewSplit: (payload) => jobRpc.jobPreviewSplit(payload.text),
+    jobGcWorktrees: (payload) =>
+      jobRpc.jobGcWorktrees(agent.tools.getStore(), { agent, dryRun: payload.dryRun }),
+    jobSetProjectMode: (payload) =>
+      jobRpc.jobSetProjectMode(agent.tools.getStore(), payload.mode),
     getBackgroundOutput: (payload) => agent.background.readOutput(payload.taskId, payload.tail),
     getContext: () => agent.context.data(),
     getContextComposition: () => agent.context.composition(),

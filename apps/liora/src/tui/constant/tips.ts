@@ -34,6 +34,8 @@ export const WORKING_TIPS: readonly ToolbarTip[] = [
   { key: 'tui.tip.shell', priority: 2 },
   { key: 'tui.tip.ctrlO', priority: 2 },
   { key: 'tui.tip.ctrlB', priority: 2 },
+  { key: 'tui.tip.conductorJobs', priority: 3, solo: true },
+  { key: 'tui.tip.altJ', priority: 3, solo: true },
 ];
 
 export const ALL_TIPS: readonly ToolbarTip[] = [

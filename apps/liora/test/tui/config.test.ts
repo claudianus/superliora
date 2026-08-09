@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   DEFAULT_APPEARANCE_PREFERENCES,
   DEFAULT_FOOTER_PREFERENCES,
+  DEFAULT_CONDUCTOR_PREFERENCES,
   DEFAULT_ONBOARDING_PREFERENCES,
   DEFAULT_TUI_THEME,
   DEFAULT_TUI_CONFIG,
@@ -105,6 +106,7 @@ terminal_palette = true
       },
       footer: DEFAULT_FOOTER_PREFERENCES,
       onboarding: DEFAULT_ONBOARDING_PREFERENCES,
+      conductor: DEFAULT_CONDUCTOR_PREFERENCES,
     });
   });
 
@@ -114,6 +116,14 @@ terminal_palette = true
 hub_intro_seen = true
 `);
     expect(config.onboarding?.hubIntroSeen).toBe(true);
+  });
+
+  it('parses onboarding.job_deck_hint_seen', () => {
+    const config = parseTuiConfig(`
+[onboarding]
+job_deck_hint_seen = true
+`);
+    expect(config.onboarding?.jobDeckHintSeen).toBe(true);
   });
 
   it('honors an explicit show_timestamps = false', () => {
@@ -173,6 +183,7 @@ command = "   "
       appearance: DEFAULT_APPEARANCE_PREFERENCES,
       footer: DEFAULT_FOOTER_PREFERENCES,
       onboarding: DEFAULT_ONBOARDING_PREFERENCES,
+      conductor: DEFAULT_CONDUCTOR_PREFERENCES,
     });
   });
 
@@ -248,6 +259,7 @@ command = "   "
       },
       footer: DEFAULT_FOOTER_PREFERENCES,
       onboarding: DEFAULT_ONBOARDING_PREFERENCES,
+      conductor: DEFAULT_CONDUCTOR_PREFERENCES,
     });
   });
 

@@ -30,7 +30,10 @@ describe('keymap registry', () => {
       'steer',
       'background',
     ]);
-    expect(keymapBindingsForSlash('/jobs').map((b) => b.id)).toEqual(['background']);
+    expect(keymapBindingsForSlash('/jobs').map((b) => b.id)).toEqual([
+      'job-deck',
+      'background',
+    ]);
     expect(keymapBindingsForSlash('/mission')).toEqual([]);
     expect(formatKeymapBindingSample(keymapBindingsForSlash('/plan')[0]!)).toContain('Ctrl-C');
   });

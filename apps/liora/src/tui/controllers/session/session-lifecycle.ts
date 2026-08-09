@@ -31,6 +31,7 @@ import {
 } from '../../utils/tui-session-state';
 import type { PromptStash } from '../../utils/prompt-stash';
 import { formatConfigDiagnosticsNotice } from '../../utils/session/config-diagnostics-notice';
+import { maybeAnnounceInterruptedJobs } from '../../features/control-tower/interrupted-banner';
 import { formatSessionResumeWarningNotice } from '../../utils/session/session-resume-warning-notice';
 import { ttui } from '../../utils/tui-i18n';
 import type { BtwPanelController } from '../panes/btw-panel';
@@ -70,6 +71,7 @@ export interface SessionLifecycleHost extends PromptInputRuntimeHost {
   readonly questionController: QuestionController;
   readonly transcriptRender: TranscriptRenderController;
   readonly reverseRpcPanels: { clearReverseRpcPanels(): void; cancelPendingReverseRpc(reason: string): void };
+  readonly controlTowerDesk?: import('../../features/control-tower/job-desk-events').ControlTowerJobDesk;
 
   setAppState(patch: Partial<AppState>): void;
   updateTerminalTitle(): void;
@@ -230,6 +232,15 @@ export class SessionLifecycleController {
 
   async closeSession(reason: string): Promise<void> {
     await writeTuiSessionState(this.host).catch(() => undefined);
+    // F10: stale worktree CTA before the session handle is dropped.
+    try {
+      const { maybeAnnounceStaleWorktrees } = await import(
+        '../../features/control-tower/job-hygiene'
+      );
+      await maybeAnnounceStaleWorktrees(this.host);
+    } catch {
+      /* best-effort */
+    }
     const previous = this.unloadCurrentSession(reason);
     await previous?.close();
   }
@@ -273,6 +284,7 @@ export class SessionLifecycleController {
     }
     host.showStatus(statusMessage);
     void host.showSessionWarnings(session);
+    void maybeAnnounceInterruptedJobs(host, session);
   }
 
   async createNewSession(): Promise<void> {

@@ -1,6 +1,7 @@
 import type { LioraHarness, PromptPart, Session } from '@superliora/sdk';
 
 import { LLM_NOT_SET_MESSAGE, MAIN_AGENT_ID } from '../../constant/liora-tui';
+import { isConductorUxV2Enabled } from '../../commands/job-hotpath';
 import type { ColorToken } from '../../theme';
 import type { AppState, QueuedMessage, TranscriptEntry } from '../../types';
 import type { TUIState } from '../../tui-state';
@@ -13,6 +14,11 @@ import { requestTUIContentRender, requestTUILayoutRender } from '../../utils/ren
 import type { ImageAttachmentStore } from '../../utils/image/image-attachment-store';
 import { extractMediaAttachments } from '../../utils/image/image-placeholder';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
+import {
+  askUserQuestionTemplateForIncompleteBrief,
+  attachStructuredBrief,
+  intentBriefIncompleteForGreenfield,
+} from '../../utils/job/intent-brief';
 import { ttui } from '../../utils/tui-i18n';
 import type { PromptStash } from '../../utils/prompt-stash';
 import type { BtwPanelController } from '../panes/btw-panel';
@@ -165,6 +171,15 @@ export class MessageDispatchController {
       host.showError(LLM_NOT_SET_MESSAGE);
       return;
     }
+
+    // Conductor UX v2: Intent Composer brief → hotfix jobCreate or structured prefix.
+    const briefSend = this.maybeSendWithIntentBrief(session, text, options?.displayText);
+    if (briefSend) {
+      host.updateQueueDisplay();
+      requestTUIContentRender(host.state);
+      return;
+    }
+
     if (extraction.hasMedia) {
       this.sendMessage(session, text, {
         displayText: options?.displayText,
@@ -177,6 +192,81 @@ export class MessageDispatchController {
     }
     host.updateQueueDisplay();
     requestTUIContentRender(host.state);
+  }
+
+  /**
+   * When Intent Composer has fields and conductor_ux_v2 is on:
+   * - hotfix → session.jobCreate with structured brief (skip Conductor prompt)
+   * - otherwise → attach structured brief prefix to the prompt
+   * Returns true when the send was fully handled here.
+   */
+  private maybeSendWithIntentBrief(
+    session: Session,
+    text: string,
+    displayText: string | undefined,
+  ): boolean {
+    if (!isConductorUxV2Enabled()) return false;
+    const composer = this.host.state.intentComposer;
+    if (composer === undefined || !composer.hasFields()) return false;
+    const fields = composer.getFields();
+    const mode = this.host.state.appState.conductorProjectMode ?? 'balanced';
+    const shown = displayText ?? text;
+
+    if (mode === 'greenfield' && intentBriefIncompleteForGreenfield(fields)) {
+      const template = askUserQuestionTemplateForIncompleteBrief(fields);
+      const prompt = [
+        template,
+        '',
+        'User idea:',
+        text,
+        '',
+        'Use AskUserQuestion to collect the missing brief fields, then JobCreate with delivery_mode=greenfield (and greenfield_chain when appropriate). Do not spawn a guesser.',
+      ].join('\n');
+      this.sendMessage(session, prompt, { displayText: shown });
+      return true;
+    }
+
+    if (mode === 'hotfix') {
+      const title = text.trim().split('\n')[0]?.slice(0, 120) || 'Hotfix';
+      void session
+        .jobCreate({
+          title,
+          kind: 'implement',
+          prompt: text,
+          successCriteria: fields.successCriteria,
+          mustNotTouch: fields.mustNotTouch,
+          verificationCommands: fields.verificationCommands,
+          contextPaths: fields.contextPaths,
+        })
+        .then((result) => {
+          this.host.showStatus(
+            result.jobs.length > 0
+              ? `Hotfix job created (${String(result.jobs.length)})`
+              : result.text,
+            'info',
+          );
+          this.host.controlTowerDesk.markInputSubmitted();
+        })
+        .catch((error: unknown) => {
+          this.host.showError(formatErrorMessage(error));
+        });
+      // Echo the user line without prompting the main agent.
+      this.host.appendTranscriptEntry({
+        id: nextTranscriptId(),
+        kind: 'user',
+        turnId: undefined,
+        renderMode: 'plain',
+        content: shown,
+        timestamp: Date.now(),
+      });
+      composer.clearFields();
+      return true;
+    }
+
+    const withBrief = attachStructuredBrief(text, fields);
+    this.sendMessage(session, withBrief, { displayText: shown });
+    composer.clearFields();
+    return true;
   }
 
   sendQueuedMessage(session: Session, item: QueuedMessage): void {

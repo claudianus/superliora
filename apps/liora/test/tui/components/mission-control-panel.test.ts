@@ -114,7 +114,7 @@ describe('MissionControlPanelComponent', () => {
 
     const lines = plain(panel.render(60));
     const text = lines.join('\n');
-    expect(text).toContain('Mission Control');
+    expect(text).toContain('Worker Dock');
     expect(text).toContain('1 active');
     expect(text).toContain('NOW');
     expect(text).toContain('explore-2');
@@ -456,7 +456,7 @@ describe('MissionControlPanelComponent', () => {
       jobs: emptyConductorJobsSnapshot(),
     });
     const text = plain(panel.render(100)).join('\n');
-    expect(text).toContain('FLEET');
+    expect(text).toMatch(/\d+ workers?/);
     expect(text).toContain('TK');
     expect(text).toMatch(/WKR/);
     expect(text).toContain('TAPE');
@@ -499,7 +499,7 @@ describe('MissionControlPanelComponent', () => {
     const text = plain(panel.render(70)).join('\n');
     expect(text).toContain('NOW');
     expect(text).toContain('solo thought stream');
-    expect(text).not.toContain('FLEET');
+    expect(text).not.toMatch(/\d+ workers/);
     expect(text).not.toContain('TAPE');
   });
 

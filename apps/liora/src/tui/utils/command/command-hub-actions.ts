@@ -17,6 +17,8 @@ export function commandHubActionToSlash(id: CommandHubActionId): string | undefi
       return '/export-md';
     case 'start.fork':
       return '/fork';
+    case 'start.conductorHowto':
+      return undefined;
     case 'modes.plan':
       return '/plan';
     case 'modes.ask':
@@ -27,6 +29,10 @@ export function commandHubActionToSlash(id: CommandHubActionId): string | undefi
       return '/premium';
     case 'modes.permission':
       return '/permission';
+    case 'modes.conductorProject':
+    case 'modes.reduceParallelism':
+    case 'modes.transcriptRegion':
+      return undefined;
     case 'chat.model':
       return '/model';
     case 'chat.thinking':
@@ -56,9 +62,11 @@ export function commandHubActionToSlash(id: CommandHubActionId): string | undefi
     case 'workspace.tasks':
       return '/tasks';
     case 'workspace.missionControl':
-      return '/agents';
+      return '/workers';
     case 'workspace.jobDeck':
       return '/jobs deck';
+    case 'workspace.jobInbox':
+      return '/job inbox';
     case 'workspace.status':
       return '/status';
     case 'extend.extensions':

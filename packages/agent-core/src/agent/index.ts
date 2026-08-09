@@ -33,6 +33,7 @@ import type { SessionSubagentHost } from '../session/subagent/subagent-host';
 import { noopTelemetryClient, type TelemetryClient } from '../telemetry';
 import type { SandboxProfile } from '../tools/policies/path-access';
 import type { PromisableMethods } from '../utils/types';
+import { reconcileStaleRunningJobs } from '../tools/builtin/job/job-worker';
 import { BackgroundManager, BackgroundTaskPersistence } from './background';
 import { CacheFreezeGuard } from './cache';
 import { ToolParallelStatus } from '../loop/tool-parallel-status';
@@ -448,6 +449,17 @@ export class Agent {
       this.goal.normalizeAfterReplay();
       await this.background.loadFromDisk();
       await this.background.reconcile();
+      // Hard kills skip session.close interrupt; ledger can still say running.
+      if (this.type === 'main') {
+        try {
+          reconcileStaleRunningJobs({
+            store: this.tools.getStore(),
+            agent: this,
+          });
+        } catch {
+          // Best-effort — resume must not fail on ledger reconcile.
+        }
+      }
       await this.cron?.loadFromDisk();
       this.context.finishResume();
       this.turn.finishResume();

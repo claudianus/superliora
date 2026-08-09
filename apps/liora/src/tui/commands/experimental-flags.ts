@@ -12,6 +12,7 @@ let snapshot: ExperimentalFlagMap = {};
  */
 const KNOWN_FLAG_DEFAULTS: Readonly<Record<string, boolean>> = {
   prompt_intelligence: true,
+  conductor_ux_v2: true,
 };
 
 function parseEnvFlagValue(raw: string | undefined): boolean | undefined {

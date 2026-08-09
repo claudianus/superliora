@@ -1,11 +1,12 @@
 /**
- * `/agents` — Mission Control visibility. Cycles (or sets) the band mode
- * and persists it to `tui.toml` `[appearance] mission_control`.
+ * `/agents` — Worker Dock / Mission Control visibility. Cycles (or sets) the
+ * band mode and persists it to `tui.toml` `[appearance] mission_control`.
  */
 
 import { saveTuiConfig } from '../config';
 import { formatErrorMessage } from '../utils/event-payload';
 import type { MissionControlMode } from '../features/mission-control/dock';
+import { missionBandProductName } from '../features/mission-control/labels';
 import { currentAppearance, tuiConfigFromHost } from './config/appearance/tui-persist';
 import type { SlashCommandHost } from './hub/dispatch';
 
@@ -36,11 +37,12 @@ export async function handleAgentsCommand(host: SlashCommandHost, rawArgs: strin
 
 async function setMissionControlMode(host: SlashCommandHost, mode: MissionControlMode): Promise<void> {
   host.missionControl.setMode(mode);
+  const band = missionBandProductName();
   try {
     await saveTuiConfig(tuiConfigFromHost(host, { appearance: currentAppearance(host) }));
   } catch (error) {
-    host.showStatus(`Mission Control ${mode} (save failed: ${formatErrorMessage(error)})`, 'warning');
+    host.showStatus(`${band} ${mode} (save failed: ${formatErrorMessage(error)})`, 'warning');
     return;
   }
-  host.showStatus(`Mission Control: ${MODE_LABEL[mode]}`, 'success');
+  host.showStatus(`${band}: ${MODE_LABEL[mode]}`, 'success');
 }

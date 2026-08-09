@@ -38,6 +38,7 @@ import {
   renderToneSettleFlash,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
+import { missionBandProductName } from '#/tui/features/mission-control/labels';
 import { shortJobId } from '#/tui/components/job-board/job-board-helpers';
 import {
   MISSION_COMPLETED_LINGER_MS,
@@ -240,7 +241,7 @@ export class MissionControlPanelComponent implements Component {
     if (this.isEmpty()) {
       if (!this.pinned) return [];
       const placeholder = renderRoundedPanel({
-        title: ' Mission Control ',
+        title: ` ${missionBandProductName()} `,
         content: [
           currentTheme.fg('textDim', 'No active workers —'),
           currentTheme.fg('textDim', 'subagents and background'),
@@ -423,9 +424,11 @@ export class MissionControlPanelComponent implements Component {
     const appearance = getActiveAppearancePreferences();
     const animated = shouldRenderAmbientEffects(appearance) && active.length > 0;
     if (mode === 'dense') {
+      const workerCount = workers.length;
+      const workersLabel = `${String(workerCount)} worker${workerCount === 1 ? '' : 's'}`;
       const fleet = animated
-        ? renderPulseText(`FLEET ${String(active.length)}`, 'mc:title:fleet', 'primary', appearance)
-        : `FLEET ${String(active.length)}`;
+        ? renderPulseText(workersLabel, 'mc:title:fleet', 'primary', appearance)
+        : workersLabel;
       const rate = active.reduce(
         (sum, worker) => sum + (this.displayRateByWorker.get(worker.id) ?? worker.tokenRatePerSec ?? 0),
         0,
@@ -464,7 +467,7 @@ export class MissionControlPanelComponent implements Component {
       const elapsed = active.reduce((max, worker) => Math.max(max, worker.elapsedMs), 0);
       if (elapsed > 0) parts.push(formatJobDuration(elapsed));
     }
-    return ` Mission Control ·${parts.join(' · ')} `;
+    return ` ${missionBandProductName()} ·${parts.join(' · ')} `;
   }
 
   private borderToken(now: number): ColorToken {
@@ -1018,6 +1021,13 @@ export class MissionControlPanelComponent implements Component {
         card.progress?.phase !== undefined && card.progress.phase.length > 0
           ? currentTheme.fg('textDim', ` ${truncateToWidth(card.progress.phase, 12, '…')}`)
           : '';
+      const tools =
+        card.progress?.recentTools !== undefined && card.progress.recentTools.length > 0
+          ? currentTheme.fg(
+              'textDim',
+              ` ${truncateToWidth(card.progress.recentTools.slice(-2).join('→'), 16, '…')}`,
+            )
+          : '';
       const steps =
         card.progress?.stepsTotal !== undefined && card.progress.stepsTotal > 0
           ? currentTheme.fg(
@@ -1032,7 +1042,7 @@ export class MissionControlPanelComponent implements Component {
           `${currentTheme.fg(token, `${SELECT_POINTER} ${shortJobId(card.id)}`)} ${currentTheme.fg(
             token,
             title,
-          )}${phase}${worker}${steps}${this.jobFreshness(card, now)}`,
+          )}${phase}${tools}${worker}${steps}${this.jobFreshness(card, now)}`,
           width,
           '…',
         ),

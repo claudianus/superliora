@@ -68,6 +68,10 @@ export interface TUIEditor
   onCommandHub?: () => void;
   /** Opens the Conductor Job Deck monitor (Alt+J). */
   onOpenJobDeck?: () => void;
+  /** Opens the Conductor Inbox drawer (Alt+I) when conductor_ux_v2 is on. */
+  onOpenJobInbox?: () => void;
+  /** Focus Intent Composer brief slots (Alt+B) when conductor_ux_v2 is on. */
+  onOpenIntentComposer?: () => void;
   /** Opens the transcript search overlay (Ctrl-F). */
   onTranscriptSearch?: () => void;
   /** Stashes the current draft, or restores the latest stash when the editor is empty (Ctrl-X). */

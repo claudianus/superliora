@@ -12,7 +12,7 @@ import type {
 import { MAX_GOAL_OBJECTIVE_LENGTH } from '../../../agent/goal/types';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
-import type { ToolExecution } from '../../../loop/types';
+import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import {
   JOB_CREATE_ACK_SPAWN_GRACE_MS,
   getJobWorkerSpawner,
@@ -55,6 +55,13 @@ import { patchJobAndNotify } from './job-notify';
 import { splitUserMessageIntoJobIntents } from './job-split';
 import { staffJobsFromObjective } from './job-staff';
 import { createGreenfieldChainJobs } from './job-greenfield-chain';
+import {
+  confirmAutoSplitIntents,
+  confirmGreenfieldBrief,
+  greenfieldBriefAskTemplate,
+  greenfieldBriefMissing,
+  mergeSplitIntents,
+} from './job-interactive-confirm';
 import { cancelJobWorker, resumeJobs, steerJobWorker } from './job-worker';
 
 const JobKindSchema = z.enum([
@@ -388,7 +395,7 @@ export function renderJobInspect(job: JobRecord): string {
 /** The brief is already in the worker's prompt; inspect only needs its shape. */
 const JOB_INSPECT_BRIEF_MAX_CHARS = 800;
 
-async function ackCreatedJobs(input: {
+export async function ackCreatedJobs(input: {
   readonly store: ToolStore;
   readonly agent?: Agent;
   readonly created: readonly JobRecord[];
@@ -422,6 +429,21 @@ async function ackCreatedJobs(input: {
     if (latest.worktreePath) {
       lines.push(`worktree: ${latest.worktreePath}`);
     }
+    if (latest.successCriteria !== undefined && latest.successCriteria.length > 0) {
+      lines.push(`brief.success_criteria: ${latest.successCriteria.join(' | ')}`);
+    }
+    if (latest.mustNotTouch !== undefined && latest.mustNotTouch.length > 0) {
+      lines.push(`brief.must_not_touch: ${latest.mustNotTouch.join(' | ')}`);
+    }
+    if (latest.verificationCommands !== undefined && latest.verificationCommands.length > 0) {
+      lines.push(`brief.verification_commands: ${latest.verificationCommands.join(' | ')}`);
+    }
+    const gate = latest.resultContract?.verification;
+    if (gate !== undefined) {
+      lines.push(
+        `gate: tests=${gate.tests} typecheck=${gate.typecheck} visual=${gate.visual ?? 'not_run'}`,
+      );
+    }
   }
   lines.push(
     'schedule: offloaded — background pump promotes queued jobs; transitions land on ledger/inbox.',
@@ -451,9 +473,21 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
   resolveExecution(args: z.infer<typeof JobCreateInputSchema>): ToolExecution {
     const parsed = JobCreateInputSchema.safeParse(args);
     if (!parsed.success) {
+      if (this.canRecoverGreenfieldBriefInteractively(args, parsed.error)) {
+        return {
+          accesses: ToolAccesses.all(),
+          description: `Create job (brief confirm): ${String((args as { title?: string }).title ?? 'job')}`,
+          readOnly: false,
+          approvalRule: this.name,
+          execute: async () => this.executeAfterGreenfieldBriefConfirm(args),
+        };
+      }
+      const hint = greenfieldBriefHintFromZod(parsed.error);
       return {
         isError: true,
-        output: `Invalid JobCreate args: ${parsed.error.message}`,
+        output: hint !== undefined
+          ? `${hint}\nInvalid JobCreate args: ${parsed.error.message}`
+          : `Invalid JobCreate args: ${parsed.error.message}`,
       };
     }
     const a = parsed.data;
@@ -463,7 +497,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
       readOnly: false,
       approvalRule: this.name,
       execute: async () => {
-        const pool = resolveConductorPoolConfig();
+        const pool = resolveConductorPoolConfig(process.env, { store: this.store });
         const deliveryMode: JobDeliveryMode = a.delivery_mode ?? 'standard';
         const successCriteria = nonEmptyStringList(a.success_criteria);
         const mustNotTouch = nonEmptyStringList(a.must_not_touch);
@@ -545,10 +579,24 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
             }),
           );
         } else {
-          const intents =
+          let intents =
             a.auto_split === true
-              ? splitUserMessageIntoJobIntents(a.prompt?.trim() || a.title)
+              ? [...splitUserMessageIntoJobIntents(a.prompt?.trim() || a.title)]
               : [{ title: a.title, prompt: a.prompt ?? a.title }];
+
+          if (a.auto_split === true && intents.length >= 3) {
+            const decision = await confirmAutoSplitIntents(this.agent, intents);
+            if (decision === 'cancel') {
+              return {
+                isError: true,
+                output:
+                  'JobCreate cancelled — user rejected the multi-intent split. Ask how to regroup, then retry.',
+              };
+            }
+            if (decision === 'merge') {
+              intents = [mergeSplitIntents(intents, a.title)];
+            }
+          }
 
           created = intents.map((intent, index) =>
             createJob(this.store, {
@@ -595,6 +643,93 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
       },
     };
   }
+
+  private canRecoverGreenfieldBriefInteractively(
+    args: unknown,
+    error: z.ZodError,
+  ): boolean {
+    if (this.agent?.experimentalFlags?.enabled('conductor_ux_v2') !== true) {
+      return false;
+    }
+    if (typeof this.agent.rpc?.requestQuestion !== 'function') return false;
+    const raw = args as {
+      delivery_mode?: string;
+      greenfield_chain?: boolean;
+      kind?: string;
+    };
+    const mode = raw.delivery_mode ?? 'standard';
+    if (mode !== 'greenfield' && raw.greenfield_chain !== true) return false;
+    const coding =
+      raw.kind === undefined || raw.kind === 'task' || raw.kind === 'implement';
+    if (!coding) return false;
+    return error.issues.every(
+      (issue) =>
+        issue.path[0] === 'success_criteria' || issue.path[0] === 'must_not_touch',
+    );
+  }
+
+  private async executeAfterGreenfieldBriefConfirm(
+    args: unknown,
+  ): Promise<ExecutableToolResult> {
+    const raw = args as {
+      title?: string;
+      success_criteria?: string[];
+      must_not_touch?: string[];
+      verification_commands?: string[];
+    };
+    const current = {
+      successCriteria: nonEmptyStringList(raw.success_criteria),
+      mustNotTouch: nonEmptyStringList(raw.must_not_touch),
+      verificationCommands: nonEmptyStringList(raw.verification_commands),
+    };
+    const filled = await confirmGreenfieldBrief(this.agent, current);
+    if (filled === undefined) {
+      return {
+        isError: true,
+        output:
+          `${greenfieldBriefAskTemplate(current)}\n` +
+          'Call AskUserQuestion for the missing fields, then retry JobCreate with delivery_mode=greenfield.',
+      };
+    }
+    const retried = this.resolveExecution({
+      ...(args as Record<string, unknown>),
+      success_criteria: [...filled.successCriteria],
+      must_not_touch: [...filled.mustNotTouch],
+      verification_commands: [...filled.verificationCommands],
+    } as z.infer<typeof JobCreateInputSchema>);
+    if (retried.isError === true) {
+      return {
+        isError: true,
+        output:
+          typeof retried.output === 'string'
+            ? retried.output
+            : 'JobCreate failed after brief confirm.',
+      };
+    }
+    if (retried.execute === undefined) {
+      return { isError: true, output: 'JobCreate failed after brief confirm.' };
+    }
+    return retried.execute({
+      turnId: 'brief-confirm',
+      toolCallId: 'brief-confirm',
+      signal: new AbortController().signal,
+    });
+  }
+}
+
+function greenfieldBriefHintFromZod(error: z.ZodError): string | undefined {
+  const paths = new Set(error.issues.map((i) => String(i.path[0] ?? '')));
+  const briefOnly =
+    paths.size > 0 &&
+    [...paths].every((p) => p === 'success_criteria' || p === 'must_not_touch');
+  if (!briefOnly) return undefined;
+  const fields = {
+    successCriteria: paths.has('success_criteria') ? [] : ['ok'],
+    mustNotTouch: paths.has('must_not_touch') ? [] : ['ok'],
+    verificationCommands: [] as string[],
+  };
+  if (greenfieldBriefMissing(fields).length === 0) return undefined;
+  return greenfieldBriefAskTemplate(fields);
 }
 
 export class JobListTool implements BuiltinTool<z.infer<typeof JobListInputSchema>> {
@@ -907,7 +1042,7 @@ export class JobScheduleTool implements BuiltinTool<Record<string, never>> {
       readOnly: false,
       approvalRule: this.name,
       execute: async () => {
-        const pool = resolveConductorPoolConfig();
+        const pool = resolveConductorPoolConfig(process.env, { store: this.store });
         const queued = countJobsWithStatus(this.store, ['queued']);
         const running = countJobsWithStatus(this.store, ['running']);
         // V2-1 ACK deadline (G1): worktree attach + worker spawn run on the

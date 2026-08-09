@@ -14,6 +14,17 @@ import type {
   CreateGoalPayload,
   DetachBackgroundPayload,
   EmptyPayload,
+  JobCancelPayload,
+  JobCreateBatchPayload,
+  JobCreatePayload,
+  JobGcWorktreesPayload,
+  JobInboxPayload,
+  JobIdPayload,
+  JobMergePayload,
+  JobPreviewSplitPayload,
+  JobResumePayload,
+  JobSetProjectModePayload,
+  JobSteerPayload,
   DiagnoseContextOSPayload,
   EnterPlanPayload,
   GetBackgroundOutputPayload,
@@ -333,6 +344,54 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
 
   async cancelGoal({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
     return (await this.getAgent(agentId)).cancelGoal(payload);
+  }
+
+  async jobList({ agentId, ...payload }: AgentScopedPayload<EmptyPayload>) {
+    return (await this.getAgent(agentId)).jobList(payload);
+  }
+
+  async jobInspect({ agentId, ...payload }: AgentScopedPayload<JobIdPayload>) {
+    return (await this.getAgent(agentId)).jobInspect(payload);
+  }
+
+  async jobInbox({ agentId, ...payload }: AgentScopedPayload<JobInboxPayload>) {
+    return (await this.getAgent(agentId)).jobInbox(payload);
+  }
+
+  async jobSteer({ agentId, ...payload }: AgentScopedPayload<JobSteerPayload>) {
+    return (await this.getAgent(agentId)).jobSteer(payload);
+  }
+
+  async jobCancel({ agentId, ...payload }: AgentScopedPayload<JobCancelPayload>) {
+    return (await this.getAgent(agentId)).jobCancel(payload);
+  }
+
+  async jobResume({ agentId, ...payload }: AgentScopedPayload<JobResumePayload>) {
+    return (await this.getAgent(agentId)).jobResume(payload);
+  }
+
+  async jobCreate({ agentId, ...payload }: AgentScopedPayload<JobCreatePayload>) {
+    return (await this.getAgent(agentId)).jobCreate(payload);
+  }
+
+  async jobCreateBatch({ agentId, ...payload }: AgentScopedPayload<JobCreateBatchPayload>) {
+    return (await this.getAgent(agentId)).jobCreateBatch(payload);
+  }
+
+  async jobMerge({ agentId, ...payload }: AgentScopedPayload<JobMergePayload>) {
+    return (await this.getAgent(agentId)).jobMerge(payload);
+  }
+
+  async jobPreviewSplit({ agentId, ...payload }: AgentScopedPayload<JobPreviewSplitPayload>) {
+    return (await this.getAgent(agentId)).jobPreviewSplit(payload);
+  }
+
+  async jobGcWorktrees({ agentId, ...payload }: AgentScopedPayload<JobGcWorktreesPayload>) {
+    return (await this.getAgent(agentId)).jobGcWorktrees(payload);
+  }
+
+  async jobSetProjectMode({ agentId, ...payload }: AgentScopedPayload<JobSetProjectModePayload>) {
+    return (await this.getAgent(agentId)).jobSetProjectMode(payload);
   }
 
   async getBackgroundOutput({

@@ -25,6 +25,11 @@ import {
   type JobStatus,
 } from './job-ledger';
 import { patchJobAndNotify } from './job-notify';
+import {
+  CONDUCTOR_PROJECT_MODE_MAX_CONCURRENT,
+  type ConductorProjectMode,
+  resolveConductorProjectMode,
+} from './job-project-mode';
 
 /** Locked product defaults (Conductor plan). */
 export const CONDUCTOR_DEFAULT_MAX_CONCURRENT_JOBS = 6;
@@ -36,14 +41,26 @@ export interface ConductorPoolConfig {
   readonly failTtlDays: number;
 }
 
+export interface ResolveConductorPoolOptions {
+  /** Session project-mode default; SUPERLIORA_CONDUCTOR_MAX_CONCURRENT still wins when set. */
+  readonly projectMode?: ConductorProjectMode;
+  /** When set (and projectMode omitted), read mode from the ToolStore session override. */
+  readonly store?: ToolStore;
+}
+
 export function resolveConductorPoolConfig(
   env: Readonly<Record<string, string | undefined>> = process.env,
+  options?: ResolveConductorPoolOptions,
 ): ConductorPoolConfig {
+  const mode =
+    options?.projectMode ??
+    (options?.store !== undefined ? resolveConductorProjectMode(options.store) : undefined);
+  const modeDefault =
+    mode !== undefined
+      ? CONDUCTOR_PROJECT_MODE_MAX_CONCURRENT[mode]
+      : CONDUCTOR_DEFAULT_MAX_CONCURRENT_JOBS;
   return {
-    maxConcurrentJobs: readPositiveInt(
-      env['SUPERLIORA_CONDUCTOR_MAX_CONCURRENT'],
-      CONDUCTOR_DEFAULT_MAX_CONCURRENT_JOBS,
-    ),
+    maxConcurrentJobs: readPositiveInt(env['SUPERLIORA_CONDUCTOR_MAX_CONCURRENT'], modeDefault),
     failTtlDays: readPositiveInt(
       env['SUPERLIORA_CONDUCTOR_WORKTREE_TTL_DAYS'],
       CONDUCTOR_WORKTREE_FAIL_TTL_DAYS,

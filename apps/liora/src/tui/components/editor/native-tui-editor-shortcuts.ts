@@ -19,6 +19,8 @@ export interface NativeTUIEditorShortcutHost {
   onHistorySearch?: () => void;
   onCommandHub?: () => void;
   onOpenJobDeck?: () => void;
+  onOpenJobInbox?: () => void;
+  onOpenIntentComposer?: () => void;
   onTranscriptSearch?: () => void;
   onStashToggle?: () => void;
   onTranscriptPageUp?: () => boolean;
@@ -103,6 +105,16 @@ export function handleNativeTUIEditorAppShortcut(
   // Alt+J: Conductor Job Deck (Kitty CSI-u + legacy ESC+j via matchesKey).
   if (matchesKey(data, Key.alt('j'))) {
     host.onOpenJobDeck?.();
+    return true;
+  }
+  // Alt+I: Conductor Inbox drawer (gated inside the host callback).
+  if (matchesKey(data, Key.alt('i'))) {
+    host.onOpenJobInbox?.();
+    return true;
+  }
+  // Alt+B: Intent Composer brief slots (gated inside the host callback).
+  if (matchesKey(data, Key.alt('b'))) {
+    host.onOpenIntentComposer?.();
     return true;
   }
   // "?": open Command Hub when the editor is empty (native pre-handler path).

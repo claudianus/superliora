@@ -4,6 +4,9 @@
  * git failures keep stderr in the error.
  */
 
+import { Readable } from 'node:stream';
+
+import type { Kaos } from '@superliora/kaos';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '../../src/agent';
@@ -167,6 +170,64 @@ describe('landJobToMain branch resolve', () => {
     expect(result.ok).toBe(true);
     expect(calls.some((a) => a[0] === 'rev-parse' && a[1] === '--abbrev-ref')).toBe(false);
     expect(calls.some((a) => a[0] === 'merge' && a.includes('liora/conductor-jtest'))).toBe(true);
+  });
+
+  it('lands via kaos.exec when no injectable runGit is provided', async () => {
+    const store = memoryStore();
+    const job = createJob(store, { title: 'kaos exec land', kind: 'implement' });
+    patchJob(store, job.id, {
+      status: 'done',
+      worktreePath: '/tmp/wt/kaos-exec',
+      worktreeBranch: 'liora/conductor-kaos',
+      resultSummary: 'done',
+    });
+
+    const execCalls: string[][] = [];
+    const kaos = {
+      exec: async (...args: string[]) => {
+        execCalls.push([...args]);
+        // autopilot/git: kaos.exec('git', '-C', cwd, ...gitArgs)
+        const gitArgs = args[0] === 'git' && args[1] === '-C' ? args.slice(3) : args;
+        let stdout = '';
+        let code = 0;
+        if (gitArgs[0] === 'status') stdout = '';
+        else if (gitArgs[0] === 'merge') stdout = 'Fast-forward';
+        else if (gitArgs[0] === 'rev-parse' && gitArgs[1] === 'HEAD') {
+          stdout = 'cafebabe01234567\n';
+        } else if (gitArgs[0] === 'merge-base') stdout = '';
+        else if (gitArgs[0] === 'config') {
+          stdout = gitArgs[1] === 'user.name' ? 'Test\n' : 'test@example.com\n';
+        } else {
+          code = 0;
+          stdout = '';
+        }
+        return {
+          stdin: { end: () => {} },
+          stdout: Readable.from([stdout]),
+          stderr: Readable.from(['']),
+          pid: 1,
+          exitCode: null,
+          wait: async () => code,
+          kill: async () => {},
+          dispose: () => {},
+        };
+      },
+    } as unknown as Kaos;
+
+    const result = await landJobToMain({
+      store,
+      job: getJob(store, job.id)!,
+      repoPath: '/repo/main',
+      kaos,
+      gcOnSuccess: false,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.merged).toBe(true);
+    expect(result.error).toBeUndefined();
+    expect(String(result.error ?? '')).not.toContain('no git runner on kaos');
+    expect(execCalls.some((a) => a[0] === 'git' && a.includes('merge'))).toBe(true);
+    expect(getJob(store, job.id)?.landReceipt?.branch).toBe('liora/conductor-kaos');
   });
 });
 

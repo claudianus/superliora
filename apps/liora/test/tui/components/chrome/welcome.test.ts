@@ -3,6 +3,7 @@ import { visibleWidth } from '#/tui/renderer';
 import chalk from 'chalk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { setExperimentalFeatures } from '#/tui/commands/experimental-flags';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { WelcomeComponent } from '#/tui/components/chrome/welcome';
 import type { AppState } from '#/tui/types';
@@ -107,6 +108,23 @@ describe('WelcomeComponent', () => {
     expect(output).not.toContain('helpers');
     expect(output).not.toContain('Kimi checks readiness and verification.');
     expect(output).not.toContain('Send /help for help information.');
+  });
+
+  it('shows Conductor coach lines when conductor_ux_v2 is on and logged in', () => {
+    setCliLocale('en');
+    setExperimentalFeatures([{ id: 'conductor_ux_v2', enabled: true }]);
+    const output = strip(new WelcomeComponent(appState).render(80).join('\n'));
+    expect(output).toContain('Describe a task — Conductor takes intake only');
+    expect(output).toContain('Jobs run workers in the background');
+    expect(output).toContain('Alt+J watches the Job Deck');
+  });
+
+  it('hides Conductor coach lines when conductor_ux_v2 is off', () => {
+    setCliLocale('en');
+    setExperimentalFeatures([{ id: 'conductor_ux_v2', enabled: false }]);
+    const output = strip(new WelcomeComponent(appState).render(80).join('\n'));
+    expect(output).not.toContain('Describe a task — Conductor takes intake only');
+    expect(output).not.toContain('Alt+J watches the Job Deck');
   });
 
   it('shows the model name with the current thinking effort', () => {

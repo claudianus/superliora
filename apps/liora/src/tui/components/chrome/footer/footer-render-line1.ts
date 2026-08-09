@@ -60,6 +60,10 @@ import {
   labelModePremium,
   labelModeYolo,
 } from '#/tui/components/chrome/footer/footer-labels';
+import {
+  formatSessionTokenGlance,
+  sumRunningJobTokens,
+} from '#/tui/utils/job/session-token-glance';
 
 export interface FooterLine1TipState {
   tipDisplay: string;
@@ -140,7 +144,7 @@ export function renderFooterLine1(input: RenderFooterLine1Input): string {
       );
     }
     const jobs = state.conductorJobs;
-    if (
+    const showJobs =
       jobs !== undefined &&
       jobs !== null &&
       (jobs.total > 0 ||
@@ -148,14 +152,31 @@ export function renderFooterLine1(input: RenderFooterLine1Input): string {
         jobs.queued > 0 ||
         jobs.unreadInbox > 0 ||
         jobs.interrupted > 0 ||
-        jobs.needsUser > 0)
-    ) {
-      const jobLabel = labelConductorJobs(labels, jobs);
+        jobs.needsUser > 0);
+    if (showJobs && jobs !== undefined && jobs !== null) {
+      const tokenGlance = formatSessionTokenGlance(sumRunningJobTokens(jobs.jobs));
+      const jobLabel = labelConductorJobs(labels, jobs, {
+        projectMode: state.conductorProjectMode,
+        ...(tokenGlance === undefined ? {} : { tokenGlance }),
+      });
       if (jobLabel.length > 0) {
-        modes.push(
-          renderPulseText(jobLabel, 'footer:conductor-jobs', 'accent', appearance),
-        );
+        // F15: stronger attention pulse when needs_user / unread (quality-aware).
+        const attention = jobs.needsUser > 0 || jobs.unreadInbox > 0;
+        const tone = jobs.needsUser > 0 ? 'warning' : jobs.unreadInbox > 0 ? 'glow' : 'accent';
+        const seed = attention
+          ? jobs.needsUser > 0
+            ? 'footer:conductor-jobs:needs-user'
+            : 'footer:conductor-jobs:inbox'
+          : 'footer:conductor-jobs';
+        modes.push(renderPulseText(jobLabel, seed, tone, appearance, attention ? 'fast' : 'slow'));
       }
+    } else if (state.conductorProjectMode !== undefined) {
+      const pool = jobs?.maxConcurrent;
+      const modeBadge =
+        pool === undefined
+          ? `mode=${state.conductorProjectMode}`
+          : `mode=${state.conductorProjectMode} pool=${String(pool)}`;
+      modes.push(renderPulseText(modeBadge, 'footer:conductor-mode', 'accent', appearance));
     }
   }
   // Compaction already owns a full transcript card — do not paint status-bar compact.

@@ -88,11 +88,14 @@ const JOB_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'deck', description: 'Open the interactive Job Deck monitor' },
   { value: 'monitor', description: 'Alias for deck — worker transcripts + tokens' },
   { value: 'inbox', description: 'Show Job inbox notices' },
+  { value: 'answer', description: 'Answer a needs_user job by id' },
   { value: 'resume', description: 'Resume interrupted jobs' },
   { value: 'cancel', description: 'Cancel a job by id' },
   { value: 'inspect', description: 'Inspect a job by id' },
   { value: 'schedule', description: 'Pump the job scheduler' },
   { value: 'gc', description: 'Worktree GC for finished jobs' },
+  { value: 'mode', description: 'Set Conductor project mode' },
+  { value: 'split-preview', description: 'Confirm multi-intent Job create' },
   { value: 'help', description: 'Show /job usage' },
 ];
 
@@ -299,9 +302,46 @@ export function cronArgumentCompletions(argumentPrefix: string): AutocompleteIte
   return completeLeadingArg(CRON_ARG_COMPLETIONS, argumentPrefix);
 }
 
-/** Argument autocompletion for `/job` subcommands. */
-export function jobArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
-  return completeLeadingArg(JOB_ARG_COMPLETIONS, argumentPrefix);
+/**
+ * Argument autocompletion for `/job` subcommands.
+ * When prefix is `answer <partial>`, optionally complete recent needs_user ids.
+ */
+export function jobArgumentCompletions(
+  argumentPrefix: string,
+  needsUserJobIds: readonly string[] = [],
+): AutocompleteItem[] | null {
+  const space = argumentPrefix.indexOf(' ');
+  if (space === -1) {
+    return completeLeadingArg(JOB_ARG_COMPLETIONS, argumentPrefix);
+  }
+  const sub = argumentPrefix.slice(0, space).toLowerCase();
+  const rest = argumentPrefix.slice(space + 1);
+  if (sub === 'mode') {
+    if (rest.includes(' ')) return null;
+    return completeLeadingArg(
+      [
+        { value: 'balanced', description: 'Default pool (6)' },
+        { value: 'greenfield', description: 'Scaffold brief + smaller pool' },
+        { value: 'hotfix', description: 'Reduce parallelism (pool=2)' },
+        { value: 'review', description: 'Review-first pool' },
+      ],
+      rest,
+    );
+  }
+  if (sub !== 'answer' || rest.includes(' ') || needsUserJobIds.length === 0) {
+    return null;
+  }
+  const lower = rest.toLowerCase();
+  const items = needsUserJobIds
+    .filter((id) => id.toLowerCase().startsWith(lower))
+    .slice(0, 12)
+    .map((id) => ({
+      value: id,
+      label: id,
+      description: 'needs_user — /job answer',
+    }));
+  if (items.length === 1 && items[0]!.value.toLowerCase() === lower) return null;
+  return items.length > 0 ? items : null;
 }
 
 const JOBS_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [

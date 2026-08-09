@@ -4,6 +4,7 @@
 
 import { saveTuiConfig, type AppearancePreferences } from '../../../config';
 import { formatErrorMessage } from '../../../utils/event-payload';
+import { isExperimentalFlagEnabled } from '#/tui/commands/experimental-flags';
 import { ttui } from '#/tui/utils/tui-i18n';
 import { isTranscriptDetailLevel } from '#/tui/features/transcript/transcript-density';
 import { isSyntaxThemeId } from '#/tui/theme/syntax-theme';
@@ -21,6 +22,7 @@ const APPEARANCE_KEYS = [
   'terminal-palette',
   'transcript-detail',
   'mission-control',
+  'worker-dock',
   'neat',
   'syntax-theme',
 ] as const;
@@ -84,7 +86,7 @@ function formatAppearanceStatus(appearance: AppearancePreferences): string {
     `terminal-background: ${appearance.terminalBackground}`,
     `terminal-palette: ${appearance.terminalPalette ? 'on' : 'off'}`,
     `transcript-detail: ${appearance.transcriptDetail}`,
-    `mission-control: ${appearance.missionControl}`,
+    `${isExperimentalFlagEnabled('conductor_ux_v2') ? 'worker-dock' : 'mission-control'}: ${appearance.missionControl}`,
     `neat: ${appearance.neat ? 'on' : 'off'}`,
     `syntax-theme: ${appearance.syntaxTheme}`,
   ].join('\n');
@@ -152,6 +154,7 @@ function parseAppearancePatch(
       next.transcriptDetail = value;
       return next;
     case 'mission-control':
+    case 'worker-dock':
       if (!isOneOf(value, ['auto', 'pinned', 'hidden'])) return null;
       next.missionControl = value;
       return next;

@@ -137,6 +137,24 @@ describe('app shortcut pre-handler (native path)', () => {
     expect(openDeck).toHaveBeenCalledOnce();
   });
 
+  it('opens Job Inbox on Alt+I via tryHandleAppShortcut (Kitty ESC+i)', () => {
+    const state = createState();
+    const openInbox = vi.fn();
+    state.editor.onOpenJobInbox = openInbox;
+    const legacy = encodeNativeInputAsLegacySequence({
+      type: 'key',
+      key: 'character',
+      raw: '\u001bi',
+      text: 'i',
+      ctrl: false,
+      alt: true,
+      shift: false,
+    });
+    expect(legacy).toBeDefined();
+    expect(state.editor.tryHandleAppShortcut?.(legacy!)).toBe(true);
+    expect(openInbox).toHaveBeenCalledOnce();
+  });
+
   it('does not treat Ctrl-Y as an app retry shortcut', () => {
     const state = createState();
     const legacy = encodeNativeInputAsLegacySequence({

@@ -1,5 +1,7 @@
 import type { Session } from '@superliora/sdk';
 
+import { maybeAnnounceCwdBelowGitRoot } from '../../features/control-tower/cwd-git-root-banner';
+import { maybeAnnounceInterruptedJobs } from '../../features/control-tower/interrupted-banner';
 import { restorePromptInputState } from '../../utils/prompt-input-state';
 import {
   pruneTuiSessionToolOutputViewports,
@@ -22,6 +24,7 @@ export async function finishStartupSession(
     host.startupNotice = undefined;
   }
   surfaceUpdateLifecycle(host);
+  maybeAnnounceCwdBelowGitRoot(host);
   void showTmuxKeyboardWarningIfNeeded(host);
   if (host.state.startupState === 'picker') {
     void host.sessionBrowser.bootstrapFromPicker();
@@ -65,6 +68,7 @@ export async function finishStartupSession(
   if (host.session !== undefined) {
     host.sessionEventHandler.startSubscription();
     void showSessionWarnings(host, host.session);
+    void maybeAnnounceInterruptedJobs(host, host.session);
     // Restore prompt queue / Ctrl-X stash / editor draft after history hydrate.
     await restorePromptInputState(host).catch(() => undefined);
     await writeTuiSessionState(host).catch(() => undefined);

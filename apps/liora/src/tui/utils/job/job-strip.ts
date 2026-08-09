@@ -4,9 +4,12 @@
  */
 
 import type {
+  JobBriefPreview,
   JobEventKind,
   JobEventStatus,
+  JobGateChecklist,
   JobInboxEvent,
+  JobLandReceiptSnapshot,
   JobProgressSnapshot,
   JobSnapshot,
 } from '@superliora/protocol';
@@ -41,6 +44,14 @@ export interface ConductorJobCard {
    * drill-down fetch). Survives plain `job.updated` refreshes.
    */
   readonly usage?: ConductorJobUsage;
+  /** Greenfield chain phase (schemaVersion 3). */
+  readonly deliveryPhase?: JobSnapshot['deliveryPhase'];
+  /** Structured brief excerpt (schemaVersion 3). */
+  readonly briefPreview?: JobBriefPreview;
+  /** Verification gate strip (schemaVersion 3). */
+  readonly gateChecklist?: JobGateChecklist;
+  /** Post-merge land receipt (schemaVersion 3). */
+  readonly landReceipt?: JobLandReceiptSnapshot;
 }
 
 /** Dense token strip for Job Desk cards / Job Deck usage rows. */
@@ -67,6 +78,8 @@ export interface ConductorJobInboxEntry {
   readonly title: string;
   readonly summary?: string;
   readonly atMs: number;
+  /** Suggested host actions (schemaVersion 3). */
+  readonly actionHints?: readonly string[];
 }
 
 /** Card cap for the board — terminal cards trim first. */
@@ -124,6 +137,10 @@ export function upsertConductorJobCard(
   const createdAtMs = parseIsoMs(job.createdAt) ?? existing?.createdAtMs;
   const statusChanged = existing !== undefined && existing.status !== job.status;
   const usage = usageFromProgress(job.progress) ?? existing?.usage;
+  const briefPreview = job.briefPreview ?? existing?.briefPreview;
+  const gateChecklist = job.gateChecklist ?? existing?.gateChecklist;
+  const landReceipt = job.landReceipt ?? existing?.landReceipt;
+  const deliveryPhase = job.deliveryPhase ?? existing?.deliveryPhase;
   const card: ConductorJobCard = {
     id: job.id,
     title: job.title,
@@ -143,6 +160,10 @@ export function upsertConductorJobCard(
     ...(existing?.workerName === undefined ? {} : { workerName: existing.workerName }),
     ...(existing?.liveTokens === undefined ? {} : { liveTokens: existing.liveTokens }),
     ...(usage === undefined ? {} : { usage }),
+    ...(deliveryPhase === undefined ? {} : { deliveryPhase }),
+    ...(briefPreview === undefined ? {} : { briefPreview }),
+    ...(gateChecklist === undefined ? {} : { gateChecklist }),
+    ...(landReceipt === undefined ? {} : { landReceipt }),
   };
   const next = cards.filter((entry) => entry.id !== job.id);
   next.push(card);
@@ -176,6 +197,9 @@ export function appendJobInboxEntry(
       title: event.title,
       summary: event.summary,
       atMs: nowMs,
+      ...(event.actionHints === undefined || event.actionHints.length === 0
+        ? {}
+        : { actionHints: event.actionHints }),
     },
   ];
   return next.length > JOB_BOARD_MAX_INBOX ? next.slice(next.length - JOB_BOARD_MAX_INBOX) : next;
