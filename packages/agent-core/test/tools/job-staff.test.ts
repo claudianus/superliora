@@ -29,7 +29,7 @@ describe('staffJobsFromObjective', () => {
     expect(slices[0]?.ownershipPaths).toEqual(['packages/a', 'packages/b']);
   });
 
-  it('does not intent-split bullets by default (staffing is expert bind only)', async () => {
+  it('always keeps one slice for bullet/numbered prompts (staff = expert bind only)', async () => {
     const slices = await staffJobsFromObjective({
       objective: '1. Fix login\n2. Add tests\n3. Update docs',
       title: 'Multi',
@@ -38,28 +38,15 @@ describe('staffJobsFromObjective', () => {
     expect(slices.length).toBe(1);
     expect(slices[0]?.title).toBe('Multi');
     expect(slices[0]?.ownershipPaths).toBeUndefined();
+    expect(slices[0]?.prompt).toContain('1. Fix login');
   });
 
-  it('intent-splits bullets only when allowIntentSplit is true and ownership is empty', async () => {
+  it('returns empty for blank objective', async () => {
     const slices = await staffJobsFromObjective({
-      objective: '1. Fix login\n2. Add tests\n3. Update docs',
-      title: 'Multi',
+      objective: '   ',
+      title: 'Empty',
       kind: 'task',
-      allowIntentSplit: true,
     });
-    expect(slices.length).toBe(3);
-    expect(slices[0]?.title).toBe('Multi (1)');
-    expect(slices[0]?.ownershipPaths).toBeUndefined();
-  });
-
-  it('collapses near-identical opt-in slices to one job', async () => {
-    const slices = await staffJobsFromObjective({
-      objective:
-        '1. Explore JobCreate multi-intent auto-split root cause\n2. Explore JobCreate multi-intent auto-split root cause\n3. Explore JobCreate multi-intent auto-split root cause',
-      title: 'Explore',
-      kind: 'explore',
-      allowIntentSplit: true,
-    });
-    expect(slices.length).toBe(1);
+    expect(slices).toEqual([]);
   });
 });
