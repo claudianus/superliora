@@ -1129,6 +1129,11 @@ export type LoopRoleModelPreview = {
 /**
  * Preview per-role routing for Settings and /status: healthy explicit overrides
  * win; unavailable overrides degrade to auto (same gate as smart-router).
+ *
+ * Ranking never considers models where `available === false` (credential missing,
+ * auth rejected, or quota-exhausted via sharedCredentialHealthStore /
+ * isConfigAliasHealthy). Unknown/undefined available is treated as healthy only
+ * when callers did not run a health gate — prefer buildLocalModelMetadata.
  */
 export function previewLoopRoleModelRouting(
   models: readonly LocalRoleCatalogModel[],
@@ -1144,11 +1149,14 @@ export function previewLoopRoleModelRouting(
             ...(entry.maxContextSize !== undefined ? { contextWindow: entry.maxContextSize } : {}),
           }
         : undefined;
+    // Strict: only true when available is not false (false → excluded from rank).
+    const healthy = entry.available !== false;
     return withScores({
       id: entry.model,
       alias: entry.alias,
       provider: entry.provider,
-      available: entry.available !== false,
+      available: healthy,
+      ...(healthy ? {} : { failureReason: 'credential_or_quota_unhealthy' }),
       contextWindow: entry.maxContextSize,
       inputCostPerM: entry.inputCostPerM,
       supportsReasoning: declaredCaps
@@ -1161,7 +1169,7 @@ export function previewLoopRoleModelRouting(
   });
 
   const availableByAlias = new Map(
-    metadata.map((entry) => [entry.alias ?? entry.id, entry.available !== false] as const),
+    metadata.map((entry) => [entry.alias ?? entry.id, entry.available === true] as const),
   );
 
   const overrides: Partial<Record<ModelRole, string>> = {};

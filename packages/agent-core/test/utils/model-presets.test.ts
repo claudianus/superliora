@@ -8,6 +8,7 @@ import {
   buildFallbackChain,
   classifyModelTier,
   isAuthOrCreditFailure,
+  previewLoopRoleModelRouting,
   ROLE_PRESETS,
   scoreFromBenchmarks,
   scoreModelQuality,
@@ -425,5 +426,66 @@ describe('model-presets — models.dev benchmarks', () => {
     const assignments = autoAssignRoleModels(models, { planning: 'deepseek/flash' });
     assert.equal(assignments.planning?.modelAlias, 'deepseek/flash');
     assert.equal(assignments.planning?.reason, 'User override');
+  });
+});
+
+describe('model-presets — previewLoopRoleModelRouting health gate', () => {
+  it('excludes available===false aliases from auto picks when healthy alternatives exist', () => {
+    const previews = previewLoopRoleModelRouting([
+      {
+        alias: 'qwen-token-plan/qwen3.8-max-preview',
+        model: 'qwen3.8-max-preview',
+        provider: 'qwen-token-plan',
+        available: false,
+        maxContextSize: 1_000_000,
+        capabilities: ['thinking', 'tool_use'],
+        inputCostPerM: 0.5,
+      },
+      {
+        alias: 'xai-grok/grok-4',
+        model: 'grok-4',
+        provider: 'xai-grok',
+        available: true,
+        maxContextSize: 256_000,
+        capabilities: ['thinking', 'tool_use'],
+        inputCostPerM: 3,
+      },
+      {
+        alias: 'xai-grok/grok-fast',
+        model: 'grok-fast',
+        provider: 'xai-grok',
+        available: true,
+        maxContextSize: 128_000,
+        capabilities: ['tool_use'],
+        inputCostPerM: 0.2,
+      },
+    ]);
+
+    for (const row of previews) {
+      if (row.resolvedAlias !== undefined) {
+        assert.notEqual(row.resolvedAlias.startsWith('qwen-token-plan/'), true);
+        assert.equal(row.resolvedAlias.startsWith('xai-grok/'), true);
+      }
+    }
+    const coding = previews.find((p) => p.role === 'coding');
+    assert.ok(coding?.resolvedAlias);
+    assert.equal(coding?.source, 'auto');
+  });
+
+  it('returns source none when every catalog entry is unavailable', () => {
+    const previews = previewLoopRoleModelRouting([
+      {
+        alias: 'qwen-token-plan/qwen3.6-flash',
+        model: 'qwen3.6-flash',
+        provider: 'qwen-token-plan',
+        available: false,
+        maxContextSize: 1_000_000,
+        capabilities: ['tool_use'],
+      },
+    ]);
+    for (const row of previews) {
+      assert.equal(row.resolvedAlias, undefined);
+      assert.equal(row.source, 'none');
+    }
   });
 });

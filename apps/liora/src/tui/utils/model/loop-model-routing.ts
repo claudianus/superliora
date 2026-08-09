@@ -140,6 +140,92 @@ function formatRoleRoutingState(
   return `auto (${role}/${intensity})`;
 }
 
+export type SmartLoopRolePin = {
+  readonly role: LoopModelRoutingRoleKey;
+  readonly configKey: LoopModelRoutingConfigKey;
+  readonly label: string;
+  readonly alias: string;
+};
+
+export type SmartLoopRoleSkip = {
+  readonly role: LoopModelRoutingRoleKey;
+  readonly configKey: LoopModelRoutingConfigKey;
+  readonly label: string;
+  readonly reason: string;
+};
+
+export type ApplySmartLoopRoleRoutingResult = {
+  /** Healthy auto picks to pin into loopControl.*Model. */
+  readonly pins: readonly SmartLoopRolePin[];
+  /** Roles with no healthy candidate (toast these; do not pin exhausted aliases). */
+  readonly skipped: readonly SmartLoopRoleSkip[];
+  /** setConfig patch containing only healthy pins. */
+  readonly patch: {
+    readonly loopControl: Partial<Record<LoopModelRoutingConfigKey, string>>;
+  };
+  /** Delete paths for every role key so stale/unhealthy overrides are cleared first. */
+  readonly clearPaths: readonly DeleteConfigFieldPath[];
+};
+
+/**
+ * Compute Smart auto role pins from the local catalog + credential health.
+ *
+ * - Uses {@link localCatalogFromModels} (buildLocalModelMetadata / isConfigAliasHealthy)
+ *   so quota-exhausted and credential-unhealthy providers are `available: false`.
+ * - Ignores existing loopControl overrides and re-ranks pure auto picks.
+ * - Never includes an alias whose catalog row is missing or available===false.
+ */
+export function applySmartLoopRoleRouting(
+  config: LoopModelRoutingConfig,
+  availableModels?: Readonly<Record<string, ModelAlias>>,
+  availableProviders?: Readonly<Record<string, ProviderConfig>>,
+): ApplySmartLoopRoleRoutingResult {
+  const providers = availableProviders ?? config.providers;
+  const catalog = localCatalogFromModels(availableModels, providers);
+  const healthyByAlias = new Map(
+    catalog
+      .filter((entry) => entry.available !== false)
+      .map((entry) => [entry.alias, entry] as const),
+  );
+  // Empty overrides → pure auto ranking over the catalog (already health-gated).
+  const previews = previewLoopRoleModelRouting(catalog, {});
+
+  const pins: SmartLoopRolePin[] = [];
+  const skipped: SmartLoopRoleSkip[] = [];
+  const loopControl: Partial<Record<LoopModelRoutingConfigKey, string>> = {};
+
+  for (const role of LOOP_MODEL_ROUTING_ROLES) {
+    const preview = previews.find((row) => row.role === role.key);
+    const alias = preview?.resolvedAlias?.trim();
+    if (alias !== undefined && alias.length > 0 && healthyByAlias.has(alias)) {
+      pins.push({
+        role: role.key,
+        configKey: role.configKey,
+        label: role.label,
+        alias,
+      });
+      loopControl[role.configKey] = alias;
+      continue;
+    }
+    skipped.push({
+      role: role.key,
+      configKey: role.configKey,
+      label: role.label,
+      reason:
+        alias !== undefined && alias.length > 0
+          ? `unhealthy candidate: ${alias}`
+          : 'no healthy candidate',
+    });
+  }
+
+  return {
+    pins,
+    skipped,
+    patch: { loopControl },
+    clearPaths: LOOP_MODEL_ROUTING_ROLES.map((role) => loopModelRoutingDeletePath(role)),
+  };
+}
+
 function configuredModel(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
   const model = value.trim();
