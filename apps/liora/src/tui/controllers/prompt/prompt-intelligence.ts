@@ -1,4 +1,4 @@
-import type { Session } from '@superliora/sdk';
+import { log, type Session } from '@superliora/sdk';
 
 import { isExperimentalFlagEnabled } from '#/tui/commands/experimental-flags';
 
@@ -223,10 +223,10 @@ export class PromptIntelligenceController {
       this.maybeSurfaceCompletionModel(result.modelAlias, 'inline');
     } catch (error) {
       // AbortError is expected when a newer keystroke cancels the in-flight
-      // request — do not surface it.  Genuine failures go to stderr so they
-      // stay out of the TUI render surface.
+      // request — do not surface it. Genuine failures go to the file logger
+      // (never process.stderr — that paints onto the raw-mode TUI).
       if (!(error instanceof DOMException && error.name === 'AbortError')) {
-        process.stderr.write(`[prompt-intelligence] inline completion failed: ${String(error)}\n`);
+        log.warn('prompt-intelligence inline completion failed', error);
         if (editor.getGhostText?.() === INLINE_PENDING_GHOST) {
           editor.setGhostText(undefined, 'inline');
         }
@@ -280,7 +280,7 @@ export class PromptIntelligenceController {
       this.maybeSurfaceCompletionModel(result.modelAlias, 'suggest');
     } catch (error) {
       if (!(error instanceof DOMException && error.name === 'AbortError')) {
-        process.stderr.write(`[prompt-intelligence] suggestion request failed: ${String(error)}\n`);
+        log.warn('prompt-intelligence suggestion request failed', error);
       }
     } finally {
       if (this.abortController === ac) this.abortController = undefined;

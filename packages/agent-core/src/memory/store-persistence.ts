@@ -24,6 +24,7 @@ import {
 } from 'node:fs';
 import { dirname, join } from 'pathe';
 
+import { log } from '../logging/logger';
 import {
   memoryRecordFileStem,
   readMarkdownRecord,
@@ -158,11 +159,11 @@ export class MemoryPersistence {
         // Leave it in place; the next open attempt surfaces it again.
       }
     }
-    // eslint-disable-next-line no-console
-    console.warn(
-      `[liora-memory] memory database at ${this.dbPath} was corrupt (${reason}); ` +
-        `moved it aside as *.corrupt-${stamp} and rebuilding from the records/ mirror`,
-    );
+    log.warn('liora-memory database corrupt; quarantined and rebuilding from mirror', {
+      dbPath: this.dbPath,
+      reason,
+      stamp,
+    });
   }
 
   private migrate(): void {
@@ -674,11 +675,11 @@ export class MemoryPersistence {
       const dbCount = this.countDatabaseRecords();
       const mirrorFileCount = this.countMirrorFiles();
       if (dbCount === mirrorFileCount) return;
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[liora-memory] memory database at ${this.dbPath} has ${dbCount} records but the ` +
-          `records/ mirror has ${mirrorFileCount} markdown files; retrying mirror restore`,
-      );
+      log.warn('liora-memory database/mirror count mismatch; retrying mirror restore', {
+        dbPath: this.dbPath,
+        dbCount,
+        mirrorFileCount,
+      });
       this.restoreMarkdownRecords();
     } catch {
       // Integrity checks must never break open; checkIntegrity() surfaces details on demand.

@@ -144,12 +144,17 @@ describe('LioraMemoryStore — integrity checking', () => {
     // mismatch survives the constructor's restore pass.
     writeFileSync(join(recordsDir(), 'stray.md'), 'not a memory record\n', 'utf8');
 
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const reopened = new LioraMemoryStore({ homeDir });
-    assert.equal((await reopened.list()).length, 1, 'open must succeed and keep the data');
-    assert.ok(
-      warn.mock.calls.some((args) => String(args[0]).includes('records/ mirror has 2 markdown files')),
-      'expected a count mismatch warning from the on-open check',
-    );
+    const { log } = await import('../../src/logging/logger');
+    const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
+    try {
+      const reopened = new LioraMemoryStore({ homeDir });
+      assert.equal((await reopened.list()).length, 1, 'open must succeed and keep the data');
+      assert.ok(
+        warn.mock.calls.some((args) => String(args[0]).includes('count mismatch')),
+        'expected a count mismatch warning from the on-open check',
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

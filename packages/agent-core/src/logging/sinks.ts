@@ -5,7 +5,6 @@ import { dirname } from 'pathe';
 import { syncDir } from '#/utils/fs';
 
 export const PENDING_MAX = 1000;
-const STDERR_NOTICE_INTERVAL_MS = 30_000;
 
 class AsyncSerialQueue {
   private tail: Promise<unknown> = Promise.resolve();
@@ -35,7 +34,6 @@ export class RotatingFileSink implements Sink {
   private pending: string[] = [];
   private dropped = 0;
   private closed = false;
-  private lastStderrNotice = 0;
   private currentBytes = -1;
   private directorySynced = false;
 
@@ -211,13 +209,8 @@ export class RotatingFileSink implements Sink {
     return line;
   }
 
-  private noteFailure(error: unknown): void {
-    const now = Date.now();
-    if (now - this.lastStderrNotice < STDERR_NOTICE_INTERVAL_MS) return;
-    this.lastStderrNotice = now;
-    const code = (error as NodeJS.ErrnoException)?.code ?? 'UNKNOWN';
-    try {
-      process.stderr.write(`[logger] write failed: ${code}\n`);
-    } catch {}
+  private noteFailure(_error: unknown): void {
+    // Swallow: the file sink is already failing, and writing to stderr
+    // would corrupt a raw-mode TUI.
   }
 }

@@ -101,13 +101,15 @@ export function runSetupCommand(
       stopChild(`Timed out after ${String(options.timeoutMs ?? DEFAULT_TIMEOUT_MS)}ms`);
     }, options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
 
+    // Default quiet: live echo onto process.stdio corrupts a raw-mode TUI.
+    // Opt in with `quiet: false` only for dedicated CLI progress surfaces.
     child.stdout.on('data', (chunk: Buffer) => {
       stdout.push(chunk);
-      if (options.quiet !== true) process.stdout.write(chunk);
+      if (options.quiet === false) process.stdout.write(chunk);
     });
     child.stderr.on('data', (chunk: Buffer) => {
       stderr.push(chunk);
-      if (options.quiet !== true) process.stderr.write(chunk);
+      if (options.quiet === false) process.stderr.write(chunk);
     });
     child.on('error', (error) => {
       finish({
