@@ -488,12 +488,16 @@ export async function jobPush(
     agent,
   });
   const latest = getJob(store, input.jobId) ?? existing;
+  const remoteHint =
+    dispatch.pushJob?.title.includes('gh-pages') === true
+      ? ' Target remoteRef=gh-pages (Pages); Pages enable runs after push when possible.'
+      : '';
   return {
     ok: true,
     job: snapshot(latest),
     pushJob: dispatch.pushJob ? snapshot(dispatch.pushJob) : undefined,
     text: [
-      `Push approved. ${trust.reason}`,
+      `Push approved. ${trust.reason}${remoteHint}`,
       dispatch.pushJob
         ? `Execution offloaded to push worker ${dispatch.pushJob.id}`
         : 'Dispatch failed — push held for manual resolve.',

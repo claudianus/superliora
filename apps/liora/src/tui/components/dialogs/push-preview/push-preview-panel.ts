@@ -104,6 +104,14 @@ export class PushPreviewPanelComponent extends Container implements Focusable {
         '…',
       ),
     );
+    if (remoteRef === 'gh-pages') {
+      body.push(
+        theme.fg(
+          'textDim',
+          '  Pages deploy — after approve, push worker targets gh-pages and enables Pages when possible.',
+        ),
+      );
+    }
     if (job.worktreePath !== undefined && job.worktreePath.length > 0) {
       body.push(
         truncateToWidth(

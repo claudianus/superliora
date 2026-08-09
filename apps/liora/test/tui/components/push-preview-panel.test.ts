@@ -44,6 +44,7 @@ describe('PushPreviewPanelComponent', () => {
     const lines = panel.render(80).join('\n');
     expect(lines).toContain('Deploy Pages');
     expect(lines).toContain('gh-pages → origin/gh-pages');
+    expect(lines).toContain('Pages deploy');
     expect(lines).toContain('Push ≠ land');
 
     panel.handleInput('y');
