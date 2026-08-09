@@ -44,6 +44,11 @@ import {
 import { runMergeLandJob, type LandJobToMainInput } from './job-land';
 import { getJob, listJobs, patchJob, type JobRecord, type JobStatus } from './job-ledger';
 import { notifyJobTerminal, patchJobAndNotify } from './job-notify';
+import {
+  holderJobIdFromOwnershipError,
+  isOwnershipConflictError,
+  ownershipDeferredNote,
+} from './job-ownership';
 import { onJobTerminalForReviewChain } from './job-review-chain';
 import { profileForJobKind } from './job-runtime';
 import { commitJobWorktreeIfDirty } from './job-worktree-commit';
@@ -340,7 +345,14 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
     prompt: jobPrompt(job, input.store),
     description: job.title.slice(0, 80),
     profileName,
-    ownership: job.ownershipPaths ? [...job.ownershipPaths] : undefined,
+    // review / visual-qa never take exclusive write leases (belt + suspenders
+    // for manually created review Jobs that still set ownershipPaths).
+    ownership:
+      job.expertRole === 'review' || job.expertRole === 'visual-qa'
+        ? undefined
+        : job.ownershipPaths
+          ? [...job.ownershipPaths]
+          : undefined,
     worktreeDir: job.worktreePath,
     // UI Jobs force Premium Quality ON even when the Conductor toggle is OFF.
     forcePremiumQuality: uiFlags?.forcePremiumQuality,
@@ -532,6 +544,31 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
     const keepState =
       current !== undefined &&
       (current.status === 'blocked' || isTerminalOrCancelled(current.status));
+
+    // Ownership race residual: re-queue instead of failing so the scheduler
+    // can start the job after the holder releases (Job path only).
+    if (!keepState && current !== undefined && isOwnershipConflictError(detail)) {
+      const holderId = holderJobIdFromOwnershipError(detail) ?? 'unknown';
+      const pathMatch = /Ownership conflict on ([^:]+):/.exec(detail);
+      const path = pathMatch?.[1]?.trim() || 'unknown';
+      const deferred = ownershipDeferredNote(holderId, path);
+      const prior = (current.notes ?? job.notes ?? '')
+        .split('\n')
+        .filter(
+          (row) =>
+            !row.startsWith('ownership_deferred:') &&
+            !row.startsWith('spawn_failed:'),
+        )
+        .join('\n');
+      patchJob(input.store, job.id, {
+        status: 'queued',
+        resultSummary: undefined,
+        notes: [prior, deferred].filter(Boolean).join('\n'),
+      });
+      requestJobSchedulePump({ store: input.store, agent: input.agent });
+      return { ok: false, error: detail };
+    }
+
     const updated = patchJob(input.store, job.id, {
       ...(keepState ? {} : { status: 'failed' as const, resultSummary: detail.slice(0, 2000) }),
       notes: [current?.notes ?? job.notes, `spawn_failed: ${detail}`].filter(Boolean).join('\n'),

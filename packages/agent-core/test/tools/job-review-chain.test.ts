@@ -130,6 +130,9 @@ describe('job-review-chain', () => {
     expect(review?.parentJobId).toBe(parent.id);
     expect(review?.expertRole === 'review' || review?.expertRole === 'visual-qa').toBe(true);
     expect(review?.expertId).not.toBe('frontend-engineer');
+    // Soft reader: no exclusive write lease — paths stay on context only.
+    expect(review?.ownershipPaths).toBeUndefined();
+    expect(review?.contextPaths).toContain('apps/site/src/components/Footer.tsx');
     // Idempotent — second enqueue is a no-op.
     expect(await enqueueReviewJobForParent(store, done)).toBeUndefined();
     expect(listJobs(store).filter((j) => j.parentJobId === parent.id)).toHaveLength(1);
@@ -142,6 +145,7 @@ describe('job-review-chain', () => {
       kind: 'implement',
       expertId: 'maker-x',
       expertRole: 'implement',
+      ownershipPaths: ['src/Button.js'],
     });
     patchJob(store, parent.id, { status: 'done' });
     await onJobTerminalForReviewChain(store, {
@@ -152,6 +156,7 @@ describe('job-review-chain', () => {
       (j) => j.expertRole === 'review' || j.expertRole === 'visual-qa',
     );
     expect(review).toBeDefined();
+    expect(review?.ownershipPaths).toBeUndefined();
     patchJob(store, review!.id, {
       status: 'done',
       resultSummary: '{"verdict":"fail","findings":["click noop"],"required_fixes":["wire handler"]}',
@@ -160,7 +165,10 @@ describe('job-review-chain', () => {
     });
     const reviewDone = listJobs(store).find((j) => j.id === review!.id)!;
     await onJobTerminalForReviewChain(store, reviewDone);
-    expect(listJobs(store).some((j) => j.expertRole === 'debug')).toBe(true);
+    const debug = listJobs(store).find((j) => j.expertRole === 'debug');
+    expect(debug).toBeDefined();
+    // Debug fixer still claims write ownership on the parent paths.
+    expect(debug?.ownershipPaths).toEqual(['src/Button.js']);
     // Idempotent debug enqueue.
     expect(await enqueueDebugJobForReview(store, parent, reviewDone)).toBeUndefined();
   });
