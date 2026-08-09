@@ -153,17 +153,24 @@ describe('UsagePanelComponent', () => {
   it('rebuilds its body from the active palette on invalidate', () => {
     // Emit the resolved palette value as visible text so the assertion holds
     // regardless of chalk's colour level in the test environment.
-    const component = new UsagePanelComponent(() => [`text=${currentTheme.color('text')}`], 'primary');
-    const bodyOf = (): string => {
-      const line = component.render(80).map(stripAnsi).find((l) => l.includes('text='));
-      if (line === undefined) throw new Error('body line not found');
-      return line;
-    };
+    // Pin built-in dark first — module boot defaults to Neon Noir, not darkColors.
+    const previous = currentTheme.palette;
+    currentTheme.setPalette(darkColors);
+    try {
+      const component = new UsagePanelComponent(() => [`text=${currentTheme.color('text')}`], 'primary');
+      const bodyOf = (): string => {
+        const line = component.render(80).map(stripAnsi).find((l) => l.includes('text='));
+        if (line === undefined) throw new Error('body line not found');
+        return line;
+      };
 
-    expect(bodyOf()).toContain(darkColors.text);
-    currentTheme.setPalette(lightColors);
-    component.invalidate();
-    expect(bodyOf()).toContain(lightColors.text);
+      expect(bodyOf()).toContain(darkColors.text);
+      currentTheme.setPalette(lightColors);
+      component.invalidate();
+      expect(bodyOf()).toContain(lightColors.text);
+    } finally {
+      currentTheme.setPalette(previous);
+    }
   });
 
   it('renders multi-account plan usage with labels and primary badge', () => {
