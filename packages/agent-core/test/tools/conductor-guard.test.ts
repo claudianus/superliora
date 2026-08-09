@@ -3,7 +3,11 @@ import { describe, expect, it } from 'vitest';
 import {
   CONDUCTOR_BUDGET_TRIP_TURN_STOP,
   CONDUCTOR_DIRECT_WORK_REJECTION_PHRASE,
+  CONDUCTOR_EXPLORE_HARD_REJECTION_PHRASE,
+  CONDUCTOR_EXPLORE_SOFT_REJECTION_PHRASE,
   CONDUCTOR_GUARD_CODES,
+  CONDUCTOR_INTERACTIVE_EXPLORE_HARD,
+  CONDUCTOR_INTERACTIVE_EXPLORE_SOFT,
   CONDUCTOR_TURN_STOP_PHRASE,
   CONDUCTOR_TURN_STOP_VIOLATIONS,
   CONDUCTOR_WORKER_WAIT_REJECTION_PHRASE,
@@ -64,16 +68,12 @@ describe('ConductorDirectWorkGuard', () => {
 
     it('allows the read-only and delegation surface', () => {
       const guard = new ConductorDirectWorkGuard();
-      for (const toolName of [
-        'Read',
-        'Grep',
-        'Glob',
-        'RepoQuery',
-        'JobCreate',
-        'JobInbox',
-        'MergeJob',
-        'PushJob',
-      ]) {
+      // Within soft triage budget: a couple of exploration tools still pass.
+      for (const toolName of ['Read', 'Grep']) {
+        expect(guard.evaluateToolCall({ toolName, turnId: 'turn-1' }).allowed, toolName).toBe(true);
+      }
+      // Job desk is never capped by the explore budget.
+      for (const toolName of ['JobCreate', 'JobInbox', 'MergeJob', 'PushJob']) {
         expect(guard.evaluateToolCall({ toolName, turnId: 'turn-1' }).allowed, toolName).toBe(true);
       }
       // Bash passes only with a read-only command (V1-5 classification).
@@ -176,6 +176,178 @@ describe('ConductorDirectWorkGuard', () => {
       expect(third.allowed).toBe(false);
       if (third.allowed) return;
       expect(third.stopTurn).toBe(true);
+    });
+  });
+
+  describe('interactive exploration soft/hard cap', () => {
+    it('allows up to the soft triage budget of exploration tools', () => {
+      const guard = new ConductorDirectWorkGuard();
+      for (let index = 0; index < CONDUCTOR_INTERACTIVE_EXPLORE_SOFT; index += 1) {
+        const toolName = (['RepoQuery', 'Grep', 'Read'] as const)[index % 3]!;
+        const verdict = guard.evaluateToolCall({
+          toolName,
+          args: { pattern: 'auth', path: '/repo' },
+          turnId: 'turn-explore',
+        });
+        expect(verdict.allowed, `${toolName} #${String(index + 1)}`).toBe(true);
+      }
+      expect(guard.exploreCallsInTurn('turn-explore')).toBe(CONDUCTOR_INTERACTIVE_EXPLORE_SOFT);
+      expect(guard.events()).toHaveLength(0);
+      expect(guard.violationsInTurn('turn-explore')).toBe(0);
+    });
+
+    it('soft-rejects the next exploration call with an explore Job draft', () => {
+      const guard = new ConductorDirectWorkGuard();
+      for (let index = 0; index < CONDUCTOR_INTERACTIVE_EXPLORE_SOFT; index += 1) {
+        expect(
+          guard.evaluateToolCall({
+            toolName: 'Grep',
+            args: { pattern: 'x' },
+            turnId: 'turn-soft',
+          }).allowed,
+        ).toBe(true);
+      }
+
+      const soft = guard.evaluateToolCall({
+        toolName: 'RepoQuery',
+        args: { query: 'conductor guard', mode: 'content' },
+        turnId: 'turn-soft',
+        stepNumber: 4,
+      });
+      expect(soft.allowed).toBe(false);
+      if (soft.allowed) return;
+      expect(soft.code).toBe(CONDUCTOR_GUARD_CODES.exploreSoft);
+      expect(soft.output).toContain(CONDUCTOR_EXPLORE_SOFT_REJECTION_PHRASE);
+      expect(soft.output).toContain('JobCreate(kind=explore)');
+      expect(soft.output).toContain('kind: explore');
+      expect(soft.jobDraft?.title).toMatch(/Explore:/i);
+      expect(soft.stopTurn).toBeUndefined();
+      // Explore soft rejects must not escalate the direct-work violation counter.
+      expect(guard.violationsInTurn('turn-soft')).toBe(0);
+      expect(guard.events()[0]?.code).toBe(CONDUCTOR_GUARD_CODES.exploreSoft);
+    });
+
+    it('hard-rejects once the hard exploration budget is reached', () => {
+      const guard = new ConductorDirectWorkGuard();
+      // Burn soft allowance + soft-reject slots until HARD-1, then assert hard.
+      for (let index = 0; index < CONDUCTOR_INTERACTIVE_EXPLORE_HARD - 1; index += 1) {
+        guard.evaluateToolCall({
+          toolName: 'Read',
+          args: { path: `/repo/file-${String(index)}.ts` },
+          turnId: 'turn-hard',
+        });
+      }
+      expect(guard.exploreCallsInTurn('turn-hard')).toBe(CONDUCTOR_INTERACTIVE_EXPLORE_HARD - 1);
+
+      const hard = guard.evaluateToolCall({
+        toolName: 'Glob',
+        args: { pattern: '**/*.ts' },
+        turnId: 'turn-hard',
+      });
+      expect(hard.allowed).toBe(false);
+      if (hard.allowed) return;
+      expect(hard.code).toBe(CONDUCTOR_GUARD_CODES.exploreHard);
+      expect(hard.output).toContain(CONDUCTOR_EXPLORE_HARD_REJECTION_PHRASE);
+      expect(hard.output).toContain('JobCreate(kind=explore)');
+      expect(hard.output).toContain('EnterPlanMode');
+      expect(hard.jobDraft?.prompt).toContain('kind=explore');
+      expect(guard.exploreCallsInTurn('turn-hard')).toBe(CONDUCTOR_INTERACTIVE_EXPLORE_HARD);
+      expect(guard.violationsInTurn('turn-hard')).toBe(0);
+    });
+
+    it('keeps Job desk and plan tools unrestricted under the explore cap', () => {
+      const guard = new ConductorDirectWorkGuard();
+      // Trip the hard explore cap first.
+      for (let index = 0; index < CONDUCTOR_INTERACTIVE_EXPLORE_HARD + 1; index += 1) {
+        guard.evaluateToolCall({
+          toolName: 'Grep',
+          args: { pattern: 'spam' },
+          turnId: 'turn-desk',
+        });
+      }
+      expect(
+        guard.evaluateToolCall({
+          toolName: 'Grep',
+          args: { pattern: 'more' },
+          turnId: 'turn-desk',
+        }).allowed,
+      ).toBe(false);
+
+      for (const toolName of [
+        'JobCreate',
+        'JobInspect',
+        'JobList',
+        'JobInbox',
+        'EnterPlanMode',
+        'AskUserQuestion',
+      ]) {
+        expect(
+          guard.evaluateToolCall({ toolName, turnId: 'turn-desk' }).allowed,
+          toolName,
+        ).toBe(true);
+      }
+    });
+
+    it('counts search-shaped Bash toward the explore cap but not plain status Bash', () => {
+      const guard = new ConductorDirectWorkGuard();
+      for (let index = 0; index < CONDUCTOR_INTERACTIVE_EXPLORE_SOFT; index += 1) {
+        expect(
+          guard.evaluateToolCall({
+            toolName: 'Bash',
+            args: { command: 'rg "auth" packages' },
+            turnId: 'turn-bash',
+          }).allowed,
+        ).toBe(true);
+      }
+      const soft = guard.evaluateToolCall({
+        toolName: 'Bash',
+        args: { command: 'git grep conductor-guard' },
+        turnId: 'turn-bash',
+      });
+      expect(soft.allowed).toBe(false);
+      if (!soft.allowed) {
+        expect(soft.code).toBe(CONDUCTOR_GUARD_CODES.exploreSoft);
+      }
+
+      // Non-search read-only Bash is not an exploration tool.
+      const status = guard.evaluateToolCall({
+        toolName: 'Bash',
+        args: { command: 'git status' },
+        turnId: 'turn-bash',
+      });
+      expect(status.allowed).toBe(true);
+    });
+
+    it('tracks explore calls per turn and clears them on resetTurnState', () => {
+      const guard = new ConductorDirectWorkGuard();
+      guard.evaluateToolCall({ toolName: 'Read', args: { path: '/a' }, turnId: 't1' });
+      guard.evaluateToolCall({ toolName: 'Read', args: { path: '/b' }, turnId: 't2' });
+      expect(guard.exploreCallsInTurn('t1')).toBe(1);
+      expect(guard.exploreCallsInTurn('t2')).toBe(1);
+      guard.resetTurnState();
+      expect(guard.exploreCallsInTurn('t1')).toBe(0);
+      expect(guard.exploreCallsInTurn('t2')).toBe(0);
+    });
+
+    it('does not weaken write delegation-only under explore pressure', () => {
+      const guard = new ConductorDirectWorkGuard();
+      for (let index = 0; index < CONDUCTOR_INTERACTIVE_EXPLORE_HARD; index += 1) {
+        guard.evaluateToolCall({
+          toolName: 'Grep',
+          args: { pattern: 'x' },
+          turnId: 'turn-write',
+        });
+      }
+      const write = guard.evaluateToolCall({
+        toolName: 'Write',
+        args: { file_path: '/repo/x.ts' },
+        turnId: 'turn-write',
+      });
+      expect(write.allowed).toBe(false);
+      if (write.allowed) return;
+      expect(write.code).toBe(CONDUCTOR_GUARD_CODES.directWorkBlocked);
+      expect(write.output).toContain(CONDUCTOR_DIRECT_WORK_REJECTION_PHRASE);
+      expect(guard.violationsInTurn('turn-write')).toBe(1);
     });
   });
 
