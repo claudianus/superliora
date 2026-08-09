@@ -237,10 +237,11 @@ function builtinHit(skill: SkillDefinition, domain: HarnessRoutingDomain): Skill
     description: skill.description,
     path: skill.path,
     source: skill.source,
-    type: typeof skill.metadata.type === 'string' ? skill.metadata.type : undefined,
+    type: typeof skill.metadata['type'] === 'string' ? skill.metadata['type'] : undefined,
     score: 100,
     matchReason: `builtin ${domain.preferBuiltin} preferred for ${domain.id}`,
-    category: typeof skill.metadata.category === 'string' ? skill.metadata.category : undefined,
+    category:
+      typeof skill.metadata['category'] === 'string' ? skill.metadata['category'] : undefined,
   };
 }
 
