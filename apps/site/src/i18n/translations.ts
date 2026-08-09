@@ -23,9 +23,17 @@ export interface TowerItem {
   body: string;
 }
 
-export interface WhyItem {
+export interface FeatureItem {
+  id: string;
   title: string;
   body: string;
+}
+
+export interface ClusterItem {
+  id: string;
+  title: string;
+  lead: string;
+  features: FeatureItem[];
 }
 
 export interface DocPage {
@@ -45,7 +53,7 @@ export interface Translation {
   };
   skip: string;
   nav: {
-    why: string;
+    features: string;
     how: string;
     install: string;
     docs: string;
@@ -58,11 +66,11 @@ export interface Translation {
     github: string;
     docs: string;
   };
-  why: {
+  clusters: {
     kicker: string;
     title: string;
     body: string;
-    items: WhyItem[];
+    items: ClusterItem[];
   };
   how: {
     kicker: string;
@@ -132,6 +140,116 @@ const docsNavEn: Translation['docsNav'] = [
   { slug: 'reference', label: 'Commands' },
 ];
 
+const clustersKo: ClusterItem[] = [
+  {
+    id: 'keep-going',
+    title: '끊겨도 일이 이어집니다',
+    lead: '모델·계정이 흔들려도 작업은 멈추지 않게 잡았습니다.',
+    features: [
+      { id: 'smart-auto', title: 'Smart Auto', body: '지금 살아서 응답하는 모델을 골라 이 턴을 이어 갑니다.' },
+      { id: 'fallback', title: '모델 폴백', body: '하나가 죽으면 다음 후보로 바로 넘깁니다.' },
+      { id: 'role-routing', title: '역할별 라우팅', body: '탐색·코딩·계획에 맞는 모델을 나눠 씁니다.' },
+      { id: 'login', title: '로그인', body: '/login으로 계정을 붙이면 바로 쓸 수 있습니다.' },
+      { id: 'oauth-pools', title: 'OAuth 풀', body: '계정 여러 개를 돌려 가며 한도·장애를 피합니다.' },
+      { id: 'api-key-pools', title: 'API 키 풀', body: '키를 묶어두면 하나가 막혀도 다음 키로 갑니다.' },
+      { id: 'never-halt', title: 'Never-Halt', body: '재시도·교체로 작업이 중간에 죽지 않게 붙잡습니다.' },
+      { id: 'custom-endpoint', title: '커스텀 엔드포인트', body: 'OpenAI 호환 URL을 그대로 붙일 수 있습니다.' },
+    ],
+  },
+  {
+    id: 'see-fleet',
+    title: '돌아가는 일이 한눈에',
+    lead: '실TUI 크롬이 주인공입니다. Dock·보드·브랜치가 같이 움직입니다.',
+    features: [
+      { id: 'worker-dock', title: 'Worker Dock', body: '누가 어떤 도구를 도는지 옆 밴드에서 실시간으로 봅니다.' },
+      { id: 'todo-board', title: 'Todo Board', body: '하는 중·다음·완료를 보드로 읽습니다.' },
+      { id: 'worktree', title: '작업별 브랜치', body: '작업마다 분리된 브랜치라 병렬로 맡겨도 트리가 안 섞입니다.' },
+      { id: 'job-deck', title: 'Job Deck', body: 'Alt+J로 diff·테스트·진행을 엽니다.' },
+      { id: 'inbox', title: 'Inbox', body: '질문이 뜨면 Alt+I에서 한 줄로 답하고 이어서 돌립니다.' },
+      { id: 'land', title: 'Land', body: '통과한 것만 로컬에 합칩니다. push는 원할 때.' },
+    ],
+  },
+  {
+    id: 'stay-control',
+    title: '맡기되, 핸들은 당신 것',
+    lead: '언제 실행하고 언제 묻기만 할지 당신이 정합니다.',
+    features: [
+      { id: 'ask-mode', title: 'Ask', body: 'Shift-Tab으로 질문만 하는 모드. 새 작업은 안 뜹니다.' },
+      { id: 'goal', title: 'Goal', body: '목표를 남기면 끝날 때까지 밀어 봅니다. 채팅은 열려 있습니다.' },
+      { id: 'permissions', title: '권한 모드', body: '도구·쓰기를 얼마나 허용할지 세션에서 고릅니다.' },
+    ],
+  },
+  {
+    id: 'studio',
+    title: '터미널이 IDE처럼',
+    lead: '찾기·diff·연구·확장이 같은 화면 안에 있습니다.',
+    features: [
+      { id: 'in-tui-diff', title: '화면 안 diff', body: '파일·검색·변경을 터미널을 떠나지 않고 봅니다.' },
+      { id: 'command-hub', title: 'Command Hub', body: 'Ctrl+K로 설정·명령·모드를 한곳에서 찾습니다.' },
+      { id: 'visual-quality', title: 'Visual Quality', body: '모션·밀도·글로우를 Neon Noir에 맞춰 조정합니다.' },
+      { id: 'deep-research', title: 'Deep research', body: '긴 조사는 작업으로 돌려 두고 결과만 받습니다.' },
+      { id: 'extensions', title: 'Extensions', body: '스킬·MCP·훅을 허브에서 붙입니다.' },
+      { id: 'locale', title: '한국어 / English', body: 'UI 언어를 바꿔도 흐름은 같습니다.' },
+      { id: 'media', title: '미디어', body: '이미지 등 미디어 생성을 같은 세션에서 다룹니다.' },
+    ],
+  },
+];
+
+const clustersEn: ClusterItem[] = [
+  {
+    id: 'keep-going',
+    title: 'Work keeps going',
+    lead: 'When a model or account blips, the job does not die with it.',
+    features: [
+      { id: 'smart-auto', title: 'Smart Auto', body: 'Picks a model that is alive for this turn.' },
+      { id: 'fallback', title: 'Model fallback', body: 'If one dies, the next candidate takes over.' },
+      { id: 'role-routing', title: 'Role routing', body: 'Explore, code, and plan can use different models.' },
+      { id: 'login', title: 'Login', body: '/login connects an account and you are ready.' },
+      { id: 'oauth-pools', title: 'OAuth pools', body: 'Rotate accounts to ride out limits and outages.' },
+      { id: 'api-key-pools', title: 'API key pools', body: 'Bundle keys so a blocked one is not the end.' },
+      { id: 'never-halt', title: 'Never-Halt', body: 'Retry and swap so a job stays alive mid-flight.' },
+      { id: 'custom-endpoint', title: 'Custom endpoint', body: 'Point at your OpenAI-compatible URL.' },
+    ],
+  },
+  {
+    id: 'see-fleet',
+    title: 'See the fleet',
+    lead: 'Real TUI chrome is the hero — Dock, board, and branches move together.',
+    features: [
+      { id: 'worker-dock', title: 'Worker Dock', body: 'Watch who is running which tool in the side band.' },
+      { id: 'todo-board', title: 'Todo Board', body: 'Read doing / next / done as a board, not a wall of logs.' },
+      { id: 'worktree', title: 'Per-job branches', body: 'Each job gets its own branch so parallel work does not collide.' },
+      { id: 'job-deck', title: 'Job Deck', body: 'Alt+J opens diffs, tests, and progress.' },
+      { id: 'inbox', title: 'Inbox', body: 'When it asks, answer in Alt+I and it continues.' },
+      { id: 'land', title: 'Land', body: 'Merge what passed locally. Push when you want.' },
+    ],
+  },
+  {
+    id: 'stay-control',
+    title: 'Stay in control',
+    lead: 'You decide when it runs and when it only answers.',
+    features: [
+      { id: 'ask-mode', title: 'Ask', body: 'Shift-Tab for answers only — no new jobs.' },
+      { id: 'goal', title: 'Goal', body: 'Leave an objective and it pushes until done. Chat stays open.' },
+      { id: 'permissions', title: 'Permission modes', body: 'Choose how much tool and write access the session gets.' },
+    ],
+  },
+  {
+    id: 'studio',
+    title: 'Studio in the terminal',
+    lead: 'Search, diffs, research, and extensions live on the same stage.',
+    features: [
+      { id: 'in-tui-diff', title: 'In-TUI diff', body: 'Files, search, and changes without leaving the terminal.' },
+      { id: 'command-hub', title: 'Command Hub', body: 'Ctrl+K finds settings, commands, and modes.' },
+      { id: 'visual-quality', title: 'Visual Quality', body: 'Tune motion, density, and glow for Neon Noir.' },
+      { id: 'deep-research', title: 'Deep research', body: 'Long investigations run as jobs; you get the result.' },
+      { id: 'extensions', title: 'Extensions', body: 'Skills, MCP, and hooks from one hub.' },
+      { id: 'locale', title: '한국어 / English', body: 'Same flow in either UI language.' },
+      { id: 'media', title: 'Media', body: 'Handle image and media generation in-session.' },
+    ],
+  },
+];
+
 export const translations: Record<Lang, Translation> = {
   ko: {
     lang: 'ko',
@@ -144,7 +262,7 @@ export const translations: Record<Lang, Translation> = {
     },
     skip: '본문으로 건너뛰기',
     nav: {
-      why: '왜 SuperLiora',
+      features: '특장점',
       how: '흐름',
       install: '설치',
       docs: '가이드',
@@ -157,28 +275,11 @@ export const translations: Record<Lang, Translation> = {
       github: 'GitHub',
       docs: '가이드',
     },
-    why: {
+    clusters: {
       kicker: '왜 SuperLiora인가',
-      title: '채팅만 하는 에이전트가 아닙니다.',
-      body: '오래 걸리는 일을 맡기고도, 무엇이 도는지 놓치지 않게 만들었습니다.',
-      items: [
-        {
-          title: '맡기면 바로 시작',
-          body: '한 줄 적으면 작업이 접수됩니다. 끝날 때까지 화면을 붙잡고 기다리지 않아도 됩니다.',
-        },
-        {
-          title: '진행이 보입니다',
-          body: '누가 파일을 고치는지, 테스트가 도는지 Deck과 Dock에서 실시간으로 봅니다.',
-        },
-        {
-          title: '서로 안 섞입니다',
-          body: '작업마다 분리된 브랜치에서 돌아가서, 병렬로 맡겨도 워킹 트리가 뒤섞이지 않습니다.',
-        },
-        {
-          title: '합치기는 당신이 결정',
-          body: '검사가 통과하면 로컬로 합칩니다. 원격에 올리는 건 원할 때 따로 합니다.',
-        },
-      ],
+      title: '맡기고도 놓치지 않게.',
+      body: '모델이 흔들려도, 워커가 많아도, 권한이 달라도 — 같은 터미널 안에서 이어집니다.',
+      items: clustersKo,
     },
     how: {
       kicker: '한 바퀴',
@@ -205,7 +306,7 @@ export const translations: Record<Lang, Translation> = {
     },
     tower: {
       kicker: '손에 익는 키',
-      title: '자주 쓰는 네 가지.',
+      title: '자주 쓰는 다섯 가지.',
       body: '처음엔 이것만으로 충분합니다.',
       items: [
         {
@@ -228,6 +329,11 @@ export const translations: Record<Lang, Translation> = {
           title: '전체 검색',
           body: '설정·명령·모드를 한곳에서 찾습니다.',
         },
+        {
+          keys: 'Shift-Tab',
+          title: 'Ask / Build',
+          body: '질문만 할지, 실행할지 바꿉니다.',
+        },
       ],
     },
     install: {
@@ -246,16 +352,14 @@ export const translations: Record<Lang, Translation> = {
       pause: '일시정지',
       chapter: '장면',
       beats: [
-        { id: 'welcome', label: '시작', caption: '결과를 적으면 됩니다.' },
-        { id: 'ack', label: '접수', caption: '작업이 바로 시작됩니다.' },
-        { id: 'strip', label: '상태줄', caption: '아래줄에서 진행을 읽습니다.' },
-        { id: 'dock', label: '워커', caption: '누가 무엇을 하는지 보입니다.' },
-        { id: 'deck', label: 'Deck', caption: '변경과 테스트를 엽니다.' },
-        { id: 'inbox', label: '질문', caption: '필요할 때만 끼어듭니다.' },
-        { id: 'brief', label: '빠른 요청', caption: '급한 수정도 짧게.' },
-        { id: 'timeline', label: '타임라인', caption: '흐름을 한눈에.' },
-        { id: 'merge', label: '합치기 전', caption: '통과한 것만 합칩니다.' },
-        { id: 'land', label: '완료', caption: '로컬에 반영. push는 선택.' },
+        { id: 'idle-welcome', label: '시작', caption: '결과를 적으면 됩니다.' },
+        { id: 'chrome-bands', label: '크롬', caption: 'Todo Board와 Worker Dock이 같이 움직입니다.' },
+        { id: 'job-deck', label: 'Deck', caption: '변경과 테스트를 엽니다.' },
+        { id: 'command-hub', label: 'Hub', caption: 'Ctrl+K로 한곳에서 찾습니다.' },
+        { id: 'model-picker', label: '모델', caption: 'Smart Auto 또는 직접 고르기.' },
+        { id: 'status-route', label: '라우트', caption: '폴백·풀·엔드포인트가 보입니다.' },
+        { id: 'ask-mode', label: 'Ask', caption: '실행 없이 답만.' },
+        { id: 'inbox', label: 'Inbox', caption: '필요할 때만 끼어듭니다.' },
       ],
     },
     footer: {
@@ -396,7 +500,7 @@ export const translations: Record<Lang, Translation> = {
     },
     skip: 'Skip to content',
     nav: {
-      why: 'Why',
+      features: 'Features',
       how: 'Flow',
       install: 'Install',
       docs: 'Guide',
@@ -409,28 +513,11 @@ export const translations: Record<Lang, Translation> = {
       github: 'GitHub',
       docs: 'Guide',
     },
-    why: {
+    clusters: {
       kicker: 'Why SuperLiora',
-      title: 'Not just another chat box.',
-      body: 'Built for work that takes a while — without losing sight of what is running.',
-      items: [
-        {
-          title: 'Hand off, keep moving',
-          body: 'One sentence starts a job. You do not sit and wait for it to finish.',
-        },
-        {
-          title: 'See the work live',
-          body: 'Watch edits, tests, and workers in the Deck and Dock as they happen.',
-        },
-        {
-          title: 'Parallel without collisions',
-          body: 'Each job gets its own branch, so parallel work does not mash your tree.',
-        },
-        {
-          title: 'You choose when to land',
-          body: 'When checks pass, merge locally. Push to remote only when you want.',
-        },
-      ],
+      title: 'Hand it off without losing the thread.',
+      body: 'Models blip, workers multiply, permissions change — the same terminal keeps the story.',
+      items: clustersEn,
     },
     how: {
       kicker: 'The loop',
@@ -457,7 +544,7 @@ export const translations: Record<Lang, Translation> = {
     },
     tower: {
       kicker: 'Keys that stick',
-      title: 'Four shortcuts.',
+      title: 'Five shortcuts.',
       body: 'Enough for the first week.',
       items: [
         {
@@ -480,6 +567,11 @@ export const translations: Record<Lang, Translation> = {
           title: 'Command Hub',
           body: 'Find settings and commands in one place.',
         },
+        {
+          keys: 'Shift-Tab',
+          title: 'Ask / Build',
+          body: 'Answers only, or run jobs.',
+        },
       ],
     },
     install: {
@@ -498,16 +590,14 @@ export const translations: Record<Lang, Translation> = {
       pause: 'Pause',
       chapter: 'Scene',
       beats: [
-        { id: 'welcome', label: 'Start', caption: 'Describe the outcome.' },
-        { id: 'ack', label: 'Accepted', caption: 'Work starts right away.' },
-        { id: 'strip', label: 'Status', caption: 'Read progress in the strip.' },
-        { id: 'dock', label: 'Workers', caption: 'See who is doing what.' },
-        { id: 'deck', label: 'Deck', caption: 'Open diffs and tests.' },
-        { id: 'inbox', label: 'Ask', caption: 'Step in only when needed.' },
-        { id: 'brief', label: 'Brief', caption: 'Hotfixes stay short.' },
-        { id: 'timeline', label: 'Timeline', caption: 'The path at a glance.' },
-        { id: 'merge', label: 'Review', caption: 'Land only what passed.' },
-        { id: 'land', label: 'Done', caption: 'Local merge. Push is optional.' },
+        { id: 'idle-welcome', label: 'Start', caption: 'Describe the outcome.' },
+        { id: 'chrome-bands', label: 'Chrome', caption: 'Todo Board and Worker Dock move together.' },
+        { id: 'job-deck', label: 'Deck', caption: 'Open diffs and tests.' },
+        { id: 'command-hub', label: 'Hub', caption: 'Find everything with Ctrl+K.' },
+        { id: 'model-picker', label: 'Model', caption: 'Smart Auto or pick yourself.' },
+        { id: 'status-route', label: 'Route', caption: 'See fallback, pools, endpoints.' },
+        { id: 'ask-mode', label: 'Ask', caption: 'Answers only — no new jobs.' },
+        { id: 'inbox', label: 'Inbox', caption: 'Step in only when needed.' },
       ],
     },
     footer: {

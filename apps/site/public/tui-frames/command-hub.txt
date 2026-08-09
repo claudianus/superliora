@@ -1,0 +1,10 @@
+╭ Command Hub · Ctrl+K ───────────────────────────────────────────────────────────────────────╮
+│ ❯ model                                                                                      │
+│                                                                                              │
+│ ▸ /model              picks Smart Auto or a model                                            │
+│   /status               route · fallback · pools                                             │
+│   /jobs                 list background jobs                                                 │
+│   /theme                Neon Noir and friends                                                │
+│   Visual Quality        motion · phosphor · density                                          │
+│   Extensions            skills · MCP · hooks                                                 │
+╰──────────────────────────────────────────────────────────────────────────────────────────────╯

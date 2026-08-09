@@ -1,7 +1,7 @@
 import { useI18n } from '../i18n';
 import { CopyButton } from './CopyButton';
 import { Reveal } from './Reveal';
-import { TheatrePlayer } from '../theatre/Player';
+import { ScrollLinkedStage } from '../theatre/Player';
 
 export function Sections() {
   const { t, lang } = useI18n();
@@ -11,21 +11,24 @@ export function Sections() {
 
   return (
     <main id="main">
-      <section className="relative overflow-hidden px-4 pb-16 pt-28 sm:px-6 lg:px-8 lg:pb-24 lg:pt-32">
-        <div className="pointer-events-none absolute inset-0 -z-10 opacity-70">
-          <div className="absolute -left-24 top-10 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
-          <div className="absolute right-0 top-40 h-80 w-80 rounded-full bg-accent/10 blur-3xl" />
+      <div className="museum-pin">
+        <div className="museum-pin__stage">
+          <ScrollLinkedStage />
         </div>
-        <div className="mx-auto grid max-w-7xl items-start gap-12 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:gap-14">
-          <Reveal className="lg:sticky lg:top-28 lg:self-start">
+
+        <section data-stage-hero className="museum-hero relative min-h-[100dvh]">
+          <div className="museum-hero__veil" aria-hidden="true" />
+          <div className="museum-hero__copy">
             <p className="font-sans text-sm font-semibold tracking-[0.18em] text-primary uppercase">
               {t.hero.brand}
             </p>
-            <h1 className="mt-4 max-w-[14ch] font-sans text-[2.5rem] font-bold leading-[1.05] tracking-tight text-text sm:text-5xl lg:text-[3.4rem] text-balance">
+            <h1 className="mt-3 max-w-[16ch] font-sans text-[2.35rem] font-bold leading-[1.05] tracking-tight text-text sm:text-5xl lg:text-[3.2rem] text-balance">
               {t.hero.h1}
             </h1>
-            <p className="mt-5 max-w-[36ch] text-lg leading-relaxed text-soft md:text-xl">{t.hero.lead}</p>
-            <div className="mt-8 flex flex-wrap gap-3">
+            <p className="mt-4 max-w-[38ch] text-base leading-relaxed text-soft sm:text-lg">
+              {t.hero.lead}
+            </p>
+            <div className="mt-7 flex flex-wrap gap-3">
               <a href="#install" className="btn btn-primary inline-flex items-center rounded-lg px-6 py-3">
                 {t.hero.install}
               </a>
@@ -39,35 +42,54 @@ export function Sections() {
                 {t.hero.docs}
               </a>
             </div>
-          </Reveal>
-          <Reveal stagger={2} className="min-w-0">
-            <TheatrePlayer />
-          </Reveal>
-        </div>
-      </section>
-
-      <section id="why" className="section-pad border-t border-line">
-        <div className="mx-auto max-w-7xl">
-          <Reveal className="max-w-2xl">
-            <p className="text-sm font-semibold tracking-wide text-primary">{t.why.kicker}</p>
-            <h2 className="mt-3 font-sans text-3xl font-bold tracking-tight md:text-4xl text-balance">
-              {t.why.title}
-            </h2>
-            <p className="mt-4 text-lg text-soft">{t.why.body}</p>
-          </Reveal>
-          <div className="mt-12 grid gap-x-10 gap-y-12 sm:grid-cols-2">
-            {t.why.items.map((item, i) => (
-              <Reveal key={item.title} stagger={((i % 3) + 1) as 1 | 2 | 3}>
-                <div className="font-mono text-xs text-primary/80">{String(i + 1).padStart(2, '0')}</div>
-                <h3 className="mt-2 font-sans text-xl font-semibold text-text">{item.title}</h3>
-                <p className="mt-2 max-w-[40ch] leading-relaxed text-soft">{item.body}</p>
-              </Reveal>
-            ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section id="how" className="section-pad border-t border-line">
+        <section id="features" className="museum-features relative z-10 border-t border-line/60">
+          <div className="museum-features__panel section-pad">
+            <div className="mx-auto max-w-7xl">
+              <Reveal className="max-w-2xl">
+                <p className="text-sm font-semibold tracking-wide text-primary">{t.clusters.kicker}</p>
+                <h2 className="mt-3 font-sans text-3xl font-bold tracking-tight md:text-4xl text-balance">
+                  {t.clusters.title}
+                </h2>
+                <p className="mt-4 text-lg text-soft">{t.clusters.body}</p>
+              </Reveal>
+
+              <div className="mt-14 space-y-24 lg:space-y-32">
+                {t.clusters.items.map((cluster, i) => (
+                  <article
+                    key={cluster.id}
+                    id={cluster.id}
+                    data-cluster={cluster.id}
+                    className="cluster-reel min-h-[55vh]"
+                  >
+                    <Reveal stagger={((i % 3) + 1) as 1 | 2 | 3}>
+                      <div className="font-mono text-xs text-primary/80">
+                        {String(i + 1).padStart(2, '0')}
+                      </div>
+                      <h3 className="mt-2 max-w-[22ch] font-sans text-2xl font-semibold tracking-tight text-text md:text-3xl">
+                        {cluster.title}
+                      </h3>
+                      <p className="mt-3 max-w-[48ch] text-soft">{cluster.lead}</p>
+                    </Reveal>
+                    <div className="feature-rail mt-8" role="list">
+                      {cluster.features.map((feature) => (
+                        <div key={feature.id} className="feature-ribbon" role="listitem">
+                          <div className="font-sans text-sm font-semibold text-text">{feature.title}</div>
+                          <p className="mt-1 text-sm leading-relaxed text-soft">{feature.body}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section id="how" className="section-pad border-t border-line bg-bg">
         <div className="mx-auto max-w-7xl">
           <Reveal className="max-w-2xl">
             <p className="text-sm font-semibold tracking-wide text-primary">{t.how.kicker}</p>
@@ -90,7 +112,7 @@ export function Sections() {
         </div>
       </section>
 
-      <section id="tower" className="section-pad border-t border-line">
+      <section id="tower" className="section-pad border-t border-line bg-bg">
         <div className="mx-auto max-w-7xl">
           <Reveal className="max-w-2xl">
             <p className="text-sm font-semibold tracking-wide text-primary">{t.tower.kicker}</p>
@@ -99,13 +121,13 @@ export function Sections() {
             </h2>
             <p className="mt-4 text-lg text-soft">{t.tower.body}</p>
           </Reveal>
-          <div className="mt-12 divide-y divide-line border-y border-line">
+          <div className="keys-strip mt-12">
             {t.tower.items.map((item) => (
-              <Reveal key={item.keys} className="grid gap-2 py-6 sm:grid-cols-[8rem_1fr] sm:items-baseline sm:gap-8">
-                <kbd className="w-fit text-primary">{item.keys}</kbd>
+              <Reveal key={item.keys} className="keys-strip__item">
+                <kbd>{item.keys}</kbd>
                 <div>
-                  <h3 className="font-sans text-lg font-semibold text-text">{item.title}</h3>
-                  <p className="mt-1 text-soft">{item.body}</p>
+                  <h3 className="font-sans text-base font-semibold text-text">{item.title}</h3>
+                  <p className="mt-1 text-sm text-soft">{item.body}</p>
                 </div>
               </Reveal>
             ))}
@@ -113,7 +135,7 @@ export function Sections() {
         </div>
       </section>
 
-      <section id="install" className="section-pad border-t border-line">
+      <section id="install" className="section-pad border-t border-line bg-bg">
         <div className="mx-auto max-w-3xl">
           <Reveal>
             <p className="text-sm font-semibold tracking-wide text-primary">{t.install.kicker}</p>

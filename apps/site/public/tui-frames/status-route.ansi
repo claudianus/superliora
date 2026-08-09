@@ -1,0 +1,9 @@
+╭ /status · route ────────────────────────────────────────────────────────────────────────────╮
+│ [38;2;0;213;255mmodel[0m     Smart Auto  [38;2;54;211;153mlive[0m                                                                   │
+│ [38;2;154;167;178mfallback[0m  qwen3-coder → claude-sonnet                                                        │
+│ [38;2;154;167;178moauth[0m     anthropic pool  [38;2;54;211;153m2 ready[0m                                                            │
+│ [38;2;154;167;178mapi keys[0m  openrouter pool [38;2;54;211;153m3 ready[0m                                                            │
+│ [38;2;154;167;178mendpoint[0m  custom https://llm.example.test/v1                                                 │
+│                                                                                              │
+│ [38;2;167;139;250mNever-Halt[0m  on  [38;2;154;167;178mretry · swap · keep the job alive[0m                                            │
+╰──────────────────────────────────────────────────────────────────────────────────────────────╯
