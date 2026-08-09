@@ -16,6 +16,12 @@ export async function handlePremiumQualityCommand(
   const subcmd = args.trim().toLowerCase();
   const current = host.state.appState.premiumQualityMode === true;
 
+  // bare `/premium` toggles like `/plan` and `/ask` (Command Hub modes.premium → '/premium')
+  if (subcmd.length === 0) {
+    await applyPremiumQuality(host, !current);
+    return;
+  }
+
   if (subcmd === 'on') {
     if (current) {
       host.showNotice(ttui('tui.premium.alreadyOn'));
@@ -34,7 +40,7 @@ export async function handlePremiumQualityCommand(
     return;
   }
 
-  if (subcmd === 'status' || subcmd.length === 0) {
+  if (subcmd === 'status') {
     host.showNotice(
       current ? ttui('tui.premium.on.title') : ttui('tui.premium.off.title'),
       current ? ttui('tui.premium.on.detail') : undefined,

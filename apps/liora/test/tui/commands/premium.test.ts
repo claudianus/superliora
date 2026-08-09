@@ -38,11 +38,28 @@ describe('handlePremiumQualityCommand', () => {
     expect(host.showError).toHaveBeenCalled();
   });
 
-  it('shows status when args are empty', async () => {
+  it('toggles premium on when bare args and currently off', async () => {
     const host = makePremiumHost({ premiumQualityMode: false });
     await handlePremiumQualityCommand(host, '');
+    expect(host.session?.setPremiumQuality).toHaveBeenCalledWith(true);
+    expect(host.setAppState).toHaveBeenCalledWith({ premiumQualityMode: true });
+    expect(host.showNotice).toHaveBeenCalled();
+  });
+
+  it('toggles premium off when bare args and currently on', async () => {
+    const host = makePremiumHost({ premiumQualityMode: true });
+    await handlePremiumQualityCommand(host, '');
+    expect(host.session?.setPremiumQuality).toHaveBeenCalledWith(false);
+    expect(host.setAppState).toHaveBeenCalledWith({ premiumQualityMode: false });
+    expect(host.showNotice).toHaveBeenCalled();
+  });
+
+  it('shows status only for explicit status subcommand', async () => {
+    const host = makePremiumHost({ premiumQualityMode: false });
+    await handlePremiumQualityCommand(host, 'status');
     expect(host.showNotice).toHaveBeenCalled();
     expect(host.session?.setPremiumQuality).not.toHaveBeenCalled();
+    expect(host.setAppState).not.toHaveBeenCalled();
   });
 
   it('enables premium with on', async () => {
