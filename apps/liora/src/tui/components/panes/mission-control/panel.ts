@@ -24,11 +24,7 @@ import {
   type Component,
 } from '#/tui/renderer';
 
-import {
-  PULSE_ACTIVE_FRAMES,
-  PULSE_BLOCKED_FRAMES,
-  SELECT_POINTER,
-} from '#/tui/constant/symbols';
+import { PULSE_ACTIVE_FRAMES, PULSE_BLOCKED_FRAMES } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import type { ColorToken } from '#/tui/theme';
 import {
@@ -41,24 +37,25 @@ import {
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
 import { missionBandProductName } from '#/tui/features/mission-control/labels';
-import { shortJobId } from '#/tui/components/job-board/job-board-helpers';
 import {
   MISSION_COMPLETED_LINGER_MS,
   type MissionControlSnapshot,
   type MissionOpsEntry,
   type MissionWorker,
 } from '#/tui/controllers/mission-control/registry';
-import { renderRoundedPanel } from '#/tui/utils/ui/panel-frame';
+import {
+  CHROME_BAND_LEFT_MARGIN,
+  CHROME_BAND_SIDE_PADDING,
+  chromeBandInteriorWidth,
+  renderRoundedPanel,
+} from '#/tui/utils/ui/panel-frame';
 import {
   emptyConductorJobsSnapshot,
   formatJobDuration,
   type ConductorJobsSnapshot,
 } from '#/tui/utils/job/job-strip';
 import { applyStreamTailGlow } from '#/tui/features/transcript/transcript-entrance';
-import {
-  collapseLowSignalOps,
-  formatMissionTarget,
-} from '#/tui/utils/tools/mission-target';
+import { formatMissionTarget } from '#/tui/utils/tools/mission-target';
 import {
   createStreamingTextRevealState,
   isRevealCaughtUp,
@@ -73,6 +70,11 @@ import {
   buildDenseContent,
   clampWorkerScrollOffset,
   DENSE_WORKER_CAP,
+  formatAttentionJobRow,
+  formatMissionJobCounts,
+  formatRateSparkline,
+  resolveDenseOps,
+  selectAttentionJobs,
   shouldUseDensemode,
 } from './densemode';
 
@@ -335,6 +337,8 @@ export class MissionControlPanelComponent implements Component {
         ],
         width: safeWidth,
         borderToken: 'border',
+        leftMargin: CHROME_BAND_LEFT_MARGIN,
+        sidePadding: CHROME_BAND_SIDE_PADDING,
         minBoxWidth: 24,
         fillWidth: true,
       });
@@ -444,11 +448,18 @@ export class MissionControlPanelComponent implements Component {
     return new Map(this.displayRateByWorker);
   }
 
-  /** Frame + progressive density: densemode for 2+ workers, else solo stack. */
+  /** Frame + progressive density: densemode for any worker, else stack fallback. */
   private buildFramed(width: number, budget: number, now: number): string[] {
-    const interior = Math.max(1, width - 4);
+    const interior = chromeBandInteriorWidth(width);
     const contentBudget = Math.max(1, budget - 2);
     const workers = this.visibleWorkers(now);
+    const frameOpts = {
+      width,
+      leftMargin: CHROME_BAND_LEFT_MARGIN,
+      sidePadding: CHROME_BAND_SIDE_PADDING,
+      minBoxWidth: 24,
+      fillWidth: true as const,
+    };
     if (shouldUseDensemode(workers)) {
       const appearance = getActiveAppearancePreferences();
       const animated = shouldRenderAmbientEffects(appearance);
@@ -465,17 +476,16 @@ export class MissionControlPanelComponent implements Component {
         displayRate: this.displayRateMap(),
         workerGlyph: (worker) => this.workerGlyph(worker, animated),
         scrollOffset: this.workerScrollOffset,
+        jobs: this.view.jobs,
       });
       this.workerScrollOffset = dense.scrollOffset;
       if (dense.workerSlots > 0) this.lastWorkerSlots = dense.workerSlots;
       if (dense.lines.length > 0 && dense.lines.length <= contentBudget) {
         return renderRoundedPanel({
+          ...frameOpts,
           title: this.title('dense', now),
           content: dense.lines,
-          width,
           borderToken: this.borderToken(now),
-          minBoxWidth: 24,
-          fillWidth: true,
         });
       }
     }
@@ -483,23 +493,19 @@ export class MissionControlPanelComponent implements Component {
       const content = this.buildContent(mode, interior, contentBudget, now);
       if (content.length <= contentBudget) {
         return renderRoundedPanel({
+          ...frameOpts,
           title: this.title(mode, now),
           content,
-          width,
           borderToken: this.borderToken(now),
-          minBoxWidth: 24,
-          fillWidth: true,
         });
       }
     }
     const content = this.buildContent('minimal', interior, contentBudget, now).slice(0, contentBudget);
     return renderRoundedPanel({
+      ...frameOpts,
       title: this.title('minimal', now),
       content,
-      width,
       borderToken: this.borderToken(now),
-      minBoxWidth: 24,
-      fillWidth: true,
     });
   }
 
@@ -532,8 +538,13 @@ export class MissionControlPanelComponent implements Component {
             ? renderPulseText(`Σ${rateLabel}`, 'mc:title:rate', 'accent', appearance)
             : `Σ${rateLabel}`,
         );
+      } else {
+        const tokens = active.reduce((sum, worker) => sum + worker.tokens, 0);
+        if (tokens > 0) parts.push(`${formatMissionTokens(tokens)} tok`);
       }
-      return ` MC ·${parts.join(' · ')} `;
+      const elapsed = active.reduce((max, worker) => Math.max(max, worker.elapsedMs), 0);
+      if (elapsed > 0) parts.push(formatJobDuration(elapsed));
+      return ` ${missionBandProductName()} ·${parts.join(' · ')} `;
     }
     const activeLabel = animated
       ? renderPulseText(`${String(active.length)} active`, 'mc:title:active', 'primary', appearance)
@@ -853,6 +864,10 @@ export class MissionControlPanelComponent implements Component {
       } else if (worker.tokens > 0) {
         stats.push(currentTheme.fg('textMuted', `${formatMissionTokens(worker.tokens)} tok`));
       }
+      const spark = formatRateSparkline(worker.rateSamples, 3);
+      if (spark !== '···') {
+        stats.push(currentTheme.fg('textMuted', spark));
+      }
       if (worker.budgetMs !== undefined && worker.budgetMs > 0) {
         const remaining = Math.max(0, worker.budgetRemainingMs ?? worker.budgetMs);
         const used = Math.round((1 - remaining / worker.budgetMs) * 100);
@@ -1012,11 +1027,10 @@ export class MissionControlPanelComponent implements Component {
     animated: boolean,
     now: number,
   ): string[] {
-    const raw = this.view.snapshot.ops;
-    if (raw.length === 0) return [];
-    const collapsed = collapseLowSignalOps(raw);
-    const multiWorker = new Set(collapsed.map((entry) => entry.workerId)).size > 1;
-    return collapsed
+    const feed = resolveDenseOps(this.view.snapshot.ops, this.visibleWorkers(now));
+    if (feed.length === 0) return [];
+    const multiWorker = new Set(feed.map((entry) => entry.workerId)).size > 1;
+    return feed
       .slice(-maxRows)
       .map((entry) => this.renderOpsRow(entry, width, multiWorker, animated, now));
   }
@@ -1091,7 +1105,7 @@ export class MissionControlPanelComponent implements Component {
   private buildJobCountsLine(width: number): string[] {
     const jobs = this.view.jobs;
     if (jobs.total === 0) return [];
-    return [truncateToWidth(this.jobCountsText(), width, '…')];
+    return [truncateToWidth(formatMissionJobCounts(jobs), width, '…')];
   }
 
   private buildJobLines(mode: LayoutMode, width: number, now: number): string[] {
@@ -1099,79 +1113,10 @@ export class MissionControlPanelComponent implements Component {
     if (jobs.total === 0) return [];
     const lines = this.buildJobCountsLine(width);
     if (mode !== 'full') return lines;
-    const attention = jobs.jobs
-      .filter(
-        (card) =>
-          card.status === 'needs_user' ||
-          card.status === 'blocked' ||
-          card.status === 'running',
-      )
-      .toSorted((a, b) => {
-        const rank = (status: string): number =>
-          status === 'needs_user' ? 0 : status === 'blocked' ? 1 : 2;
-        return rank(a.status) - rank(b.status) || b.updatedAtMs - a.updatedAtMs;
-      })
-      .slice(0, JOB_ROWS_FULL);
-    for (const card of attention) {
-      const token: ColorToken =
-        card.status === 'needs_user' || card.status === 'blocked' ? 'warning' : 'text';
-      const title = truncateToWidth(card.title, Math.max(6, width - 24), '…');
-      const phase =
-        card.progress?.phase !== undefined && card.progress.phase.length > 0
-          ? currentTheme.fg('textDim', ` ${truncateToWidth(card.progress.phase, 12, '…')}`)
-          : '';
-      const tools =
-        card.progress?.recentTools !== undefined && card.progress.recentTools.length > 0
-          ? currentTheme.fg(
-              'textDim',
-              ` ${truncateToWidth(card.progress.recentTools.slice(-2).join('→'), 16, '…')}`,
-            )
-          : '';
-      const steps =
-        card.progress?.stepsTotal !== undefined && card.progress.stepsTotal > 0
-          ? currentTheme.fg(
-              'textMuted',
-              ` ${String(card.progress.stepsCompleted ?? 0)}/${String(card.progress.stepsTotal)}`,
-            )
-          : '';
-      const worker =
-        card.workerName === undefined ? '' : currentTheme.fg('textDim', ` ${card.workerName}`);
-      lines.push(
-        truncateToWidth(
-          `${currentTheme.fg(token, `${SELECT_POINTER} ${shortJobId(card.id)}`)} ${currentTheme.fg(
-            token,
-            title,
-          )}${phase}${tools}${worker}${steps}${this.jobFreshness(card, now)}`,
-          width,
-          '…',
-        ),
-      );
+    for (const card of selectAttentionJobs(jobs, JOB_ROWS_FULL)) {
+      const row = formatAttentionJobRow(card, width, now);
+      if (row !== undefined) lines.push(row);
     }
     return lines;
-  }
-
-  private jobCountsText(): string {
-    const jobs = this.view.jobs;
-    const done = Math.max(
-      0,
-      jobs.total - jobs.running - jobs.queued - jobs.blocked - jobs.needsUser - jobs.interrupted - jobs.failed,
-    );
-    const parts = [
-      jobs.needsUser + jobs.blocked > 0
-        ? currentTheme.fg('warning', `needs-you ${String(jobs.needsUser + jobs.blocked)}`)
-        : undefined,
-      jobs.running > 0 ? currentTheme.fg('primary', `running ${String(jobs.running)}`) : undefined,
-      jobs.queued > 0 ? currentTheme.fg('info', `queued ${String(jobs.queued)}`) : undefined,
-      jobs.failed > 0 ? currentTheme.fg('error', `failed ${String(jobs.failed)}`) : undefined,
-      currentTheme.fg('textDim', `done ${String(done)}`),
-    ].filter((part): part is string => part !== undefined);
-    return parts.join(currentTheme.fg('textMuted', ' · '));
-  }
-
-  private jobFreshness(card: ConductorJobsSnapshot['jobs'][number], now: number): string {
-    if (card.statusChangedAtMs === undefined) return '';
-    const age = now - card.statusChangedAtMs;
-    if (age > 60_000) return '';
-    return currentTheme.fg('textMuted', ` ${formatJobDuration(age)} ago`);
   }
 }

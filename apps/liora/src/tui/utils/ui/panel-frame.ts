@@ -12,6 +12,13 @@ const DEFAULT_LEFT_MARGIN = 0;
 const DEFAULT_SIDE_PADDING = 1;
 const DEFAULT_MIN_BOX_WIDTH = 24;
 
+/**
+ * Shared inset for stacked stage chrome bands (Todo Board, Worker Dock) so
+ * their left/right edges paint on the same columns.
+ */
+export const CHROME_BAND_LEFT_MARGIN = 2;
+export const CHROME_BAND_SIDE_PADDING = DEFAULT_SIDE_PADDING;
+
 export interface RenderRoundedPanelOptions {
   readonly title: string;
   readonly content: readonly string[];
@@ -22,14 +29,23 @@ export interface RenderRoundedPanelOptions {
   readonly minBoxWidth?: number;
   /**
    * Stretch the frame to the full available width instead of shrink-wrapping
-   * to the longest content/title line. Mission Control (stage band) uses this
-   * so the dock reads at the stage's full reading width.
+   * to the longest content/title line. Stage chrome bands (Todo Board,
+   * Worker Dock) use this so stacked panels share a right edge.
    */
   readonly fillWidth?: boolean;
 }
 
 function boxOverhead(leftMargin: number, sidePadding: number): number {
   return leftMargin + 2 + 2 * sidePadding;
+}
+
+/** Interior content width for a chrome band framed with {@link renderRoundedPanel}. */
+export function chromeBandInteriorWidth(
+  width: number,
+  leftMargin: number = CHROME_BAND_LEFT_MARGIN,
+  sidePadding: number = CHROME_BAND_SIDE_PADDING,
+): number {
+  return Math.max(1, width - boxOverhead(leftMargin, sidePadding));
 }
 
 export function renderRoundedPanel(options: RenderRoundedPanelOptions): string[] {

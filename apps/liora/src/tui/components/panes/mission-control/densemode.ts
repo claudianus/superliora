@@ -1,5 +1,5 @@
 /**
- * Bloomberg-style densemode layout for Mission Control (workers ≥ 2).
+ * Bloomberg-style densemode layout for Mission Control (any visible worker).
  * Pure string builders + light theme paint — panel owns reveal/lerp state.
  * Paint budget matches the solo panel: pulse/shimmer only on narrow signals
  * (glyph, mark, KPI chips), never on LIVE/TAPE/ticker body copy.
@@ -7,8 +7,9 @@
 
 import { truncateToWidth } from '#/tui/renderer';
 
-import { PULSE_ACTIVE_FRAMES } from '#/tui/constant/symbols';
+import { PULSE_ACTIVE_FRAMES, SELECT_POINTER } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
+import type { ColorToken } from '#/tui/theme';
 import type { AppearancePreferences } from '#/tui/config';
 import {
   renderPulseGlyph,
@@ -16,7 +17,12 @@ import {
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
 import type { MissionOpsEntry, MissionWorker } from '#/tui/controllers/mission-control/registry';
-import { formatJobDuration } from '#/tui/utils/job/job-strip';
+import { shortJobId } from '#/tui/components/job-board/job-board-helpers';
+import {
+  formatJobDuration,
+  type ConductorJobCard,
+  type ConductorJobsSnapshot,
+} from '#/tui/utils/job/job-strip';
 import {
   collapseLowSignalOps,
   formatMissionTarget,
@@ -34,17 +40,23 @@ export const DENSE_WORKER_CAP = 5;
 const DENSE_TAPE_MIN = 2;
 const DENSE_TICKER_MAX = 8;
 const NARROW_WIDTH = 80;
+/** BOARD header + counts reserved when jobs exist; attention fills leftover. */
+const DENSE_BOARD_MIN = 2;
+/** Attention cards under BOARD counts in densemode. */
+const DENSE_BOARD_ATTENTION = 1;
 
 /** How many densemode worker rows fit in the remaining paint budget. */
 export function denseWorkerSlots(
   workerCount: number,
   remainingAfterHdr: number,
   hasTape: boolean,
+  hasBoard = false,
 ): number {
-  const tapeReserve = hasTape ? 1 + DENSE_TAPE_MIN : 0;
+  const tapeReserve = hasTape ? 1 + Math.min(DENSE_TAPE_MIN, 2) : 0;
+  const boardReserve = hasBoard ? DENSE_BOARD_MIN : 0;
   return Math.max(
     1,
-    Math.min(DENSE_WORKER_CAP, workerCount, remainingAfterHdr - tapeReserve),
+    Math.min(DENSE_WORKER_CAP, workerCount, remainingAfterHdr - tapeReserve - boardReserve),
   );
 }
 
@@ -57,8 +69,9 @@ export function clampWorkerScrollOffset(
   return Math.min(maxOffset, Math.max(0, offset));
 }
 
+/** Densemode whenever at least one worker is visible (solo included). */
 export function shouldUseDensemode(workers: readonly MissionWorker[]): boolean {
-  return workers.length >= 2;
+  return workers.length >= 1;
 }
 
 /** Map rate samples onto a fixed-width block sparkline. */
@@ -129,14 +142,158 @@ export function denseLiveCell(
       text: revealedLive,
     };
   }
-  if (actionText !== undefined && actionText.length > 0) {
-    return { kind: 'action', text: actionText };
-  }
+  // Intent beats action (paths never dominate the LIVE cell).
   const focus = worker.focusTodo?.trim();
   if (focus !== undefined && focus.length > 0) {
     return { kind: 'idle', text: focus };
   }
+  const description = worker.description?.trim();
+  if (description !== undefined && description.length > 0) {
+    return { kind: 'idle', text: description };
+  }
+  if (actionText !== undefined && actionText.length > 0) {
+    return { kind: 'action', text: actionText };
+  }
   return { kind: 'idle', text: '—' };
+}
+
+/**
+ * Prefer real ops; when the ring is empty, synthesize a row from each worker's
+ * lastTool so TAPE/TK stay useful during progress-only heartbeats.
+ */
+export function resolveDenseOps(
+  ops: readonly MissionOpsEntry[],
+  workers: readonly MissionWorker[],
+): MissionOpsEntry[] {
+  const collapsed = collapseLowSignalOps(ops);
+  if (collapsed.length > 0) return [...collapsed];
+  const synthetic: MissionOpsEntry[] = [];
+  for (const worker of workers) {
+    if (worker.lastTool === undefined || worker.lastTool.length === 0) continue;
+    synthetic.push({
+      toolCallId: `synth:${worker.id}`,
+      workerId: worker.id,
+      workerName: worker.name,
+      name: worker.lastTool,
+      ...(worker.lastTarget === undefined ? {} : { target: worker.lastTarget }),
+      status: worker.status === 'failed' ? 'error' : 'running',
+      atMs: worker.lastActivityAtMs,
+    });
+  }
+  return synthetic;
+}
+
+/** Job-lane counts line shared by solo BOARD and densemode BOARD strip. */
+export function formatMissionJobCounts(jobs: ConductorJobsSnapshot): string {
+  const done = Math.max(
+    0,
+    jobs.total -
+      jobs.running -
+      jobs.queued -
+      jobs.blocked -
+      jobs.needsUser -
+      jobs.interrupted -
+      jobs.failed,
+  );
+  const parts = [
+    jobs.needsUser + jobs.blocked > 0
+      ? currentTheme.fg('warning', `needs-you ${String(jobs.needsUser + jobs.blocked)}`)
+      : undefined,
+    jobs.running > 0 ? currentTheme.fg('primary', `running ${String(jobs.running)}`) : undefined,
+    jobs.queued > 0 ? currentTheme.fg('info', `queued ${String(jobs.queued)}`) : undefined,
+    jobs.interrupted > 0
+      ? currentTheme.fg('warning', `interrupted ${String(jobs.interrupted)}`)
+      : undefined,
+    jobs.failed > 0 ? currentTheme.fg('error', `failed ${String(jobs.failed)}`) : undefined,
+    currentTheme.fg('textDim', `done ${String(done)}`),
+  ].filter((part): part is string => part !== undefined);
+  return parts.join(currentTheme.fg('textMuted', ' · '));
+}
+
+/**
+ * Attention cards: needs_user/blocked → interrupted → running → recent failed.
+ * Skips cards with empty title+id so we never paint a lone pointer.
+ */
+export function selectAttentionJobs(
+  jobs: ConductorJobsSnapshot,
+  max: number,
+): ConductorJobCard[] {
+  if (max <= 0 || jobs.jobs.length === 0) return [];
+  const rank = (status: string): number => {
+    if (status === 'needs_user' || status === 'blocked') return 0;
+    if (status === 'interrupted') return 1;
+    if (status === 'running') return 2;
+    if (status === 'failed') return 3;
+    return 9;
+  };
+  return jobs.jobs
+    .filter((card) => {
+      const statusOk =
+        card.status === 'needs_user' ||
+        card.status === 'blocked' ||
+        card.status === 'interrupted' ||
+        card.status === 'running' ||
+        card.status === 'failed';
+      if (!statusOk) return false;
+      // Require a real title — id-only rows paint as a lone pointer.
+      return card.title.trim().length > 0 && card.id.trim().length > 0;
+    })
+    .toSorted((a, b) => rank(a.status) - rank(b.status) || b.updatedAtMs - a.updatedAtMs)
+    .slice(0, max);
+}
+
+export function formatAttentionJobRow(
+  card: ConductorJobCard,
+  width: number,
+  now: number,
+): string | undefined {
+  const titlePlain = card.title.trim();
+  const idPlain = card.id.trim();
+  if (titlePlain.length === 0 && idPlain.length === 0) return undefined;
+  const token: ColorToken =
+    card.status === 'needs_user' || card.status === 'blocked' || card.status === 'interrupted'
+      ? 'warning'
+      : card.status === 'failed'
+        ? 'error'
+        : 'text';
+  const label = titlePlain.length > 0 ? titlePlain : shortJobId(idPlain);
+  const title = truncateToWidth(label, Math.max(6, width - 24), '…');
+  const phase =
+    card.progress?.phase !== undefined && card.progress.phase.length > 0
+      ? currentTheme.fg('textDim', ` ${truncateToWidth(card.progress.phase, 12, '…')}`)
+      : '';
+  const tools =
+    card.progress?.recentTools !== undefined && card.progress.recentTools.length > 0
+      ? currentTheme.fg(
+          'textDim',
+          ` ${truncateToWidth(card.progress.recentTools.slice(-2).join('→'), 16, '…')}`,
+        )
+      : '';
+  const steps =
+    card.progress?.stepsTotal !== undefined && card.progress.stepsTotal > 0
+      ? currentTheme.fg(
+          'textMuted',
+          ` ${String(card.progress.stepsCompleted ?? 0)}/${String(card.progress.stepsTotal)}`,
+        )
+      : '';
+  const worker =
+    card.workerName === undefined ? '' : currentTheme.fg('textDim', ` ${card.workerName}`);
+  const freshness =
+    card.statusChangedAtMs === undefined
+      ? ''
+      : (() => {
+          const age = now - card.statusChangedAtMs;
+          if (age > 60_000) return '';
+          return currentTheme.fg('textMuted', ` ${formatJobDuration(age)} ago`);
+        })();
+  return truncateToWidth(
+    `${currentTheme.fg(token, `${SELECT_POINTER} ${shortJobId(card.id)}`)} ${currentTheme.fg(
+      token,
+      title,
+    )}${phase}${tools}${worker}${steps}${freshness}`,
+    width,
+    '…',
+  );
 }
 
 export interface BuildDenseContentOptions {
@@ -155,6 +312,8 @@ export interface BuildDenseContentOptions {
   readonly workerGlyph: (worker: MissionWorker) => string;
   /** Window start into the sorted worker roster (clamped). */
   readonly scrollOffset?: number;
+  /** Conductor job ledger for KPI chips + BOARD strip. */
+  readonly jobs?: ConductorJobsSnapshot;
 }
 
 export interface DenseContentResult {
@@ -181,15 +340,19 @@ export function buildDenseContent(options: BuildDenseContentOptions): DenseConte
     return { lines: [], workerSlots: 0, scrollOffset: 0 };
   }
 
+  const jobs = options.jobs;
   const narrow = width < NARROW_WIDTH;
   const lines: string[] = [];
+  const feed = resolveDenseOps(ops, workers);
 
-  lines.push(truncateToWidth(buildKpiLine(workers, now, animated, appearance), width, '…'));
+  lines.push(
+    truncateToWidth(buildKpiLine(workers, now, animated, appearance, jobs), width, '…'),
+  );
   if (lines.length >= budget) {
     return { lines, workerSlots: 0, scrollOffset: 0 };
   }
 
-  const ticker = buildTickerLine(ops, width, animated, appearance);
+  const ticker = buildTickerLine(feed, width, animated, appearance);
   if (ticker !== undefined) {
     lines.push(truncateToWidth(ticker, width, '…'));
     if (lines.length >= budget) {
@@ -203,10 +366,14 @@ export function buildDenseContent(options: BuildDenseContentOptions): DenseConte
   }
 
   const remainingAfterHdr = budget - lines.length;
-  // Reserve tape header + at least DENSE_TAPE_MIN when ops exist.
-  const collapsed = collapseLowSignalOps(ops);
-  const wantTape = collapsed.length > 0;
-  const workerSlots = denseWorkerSlots(workers.length, remainingAfterHdr, wantTape);
+  const wantTape = feed.length > 0;
+  const wantBoard = jobs !== undefined && jobs.total > 0;
+  const workerSlots = denseWorkerSlots(
+    workers.length,
+    remainingAfterHdr,
+    wantTape,
+    wantBoard,
+  );
   const scrollOffset = clampWorkerScrollOffset(
     options.scrollOffset ?? 0,
     workers.length,
@@ -240,9 +407,7 @@ export function buildDenseContent(options: BuildDenseContentOptions): DenseConte
   }
   if (workers.length > visibleWorkers.length && lines.length < budget) {
     const hidden = workers.length - visibleWorkers.length;
-    lines.push(
-      currentTheme.fg('textDim', `… +${String(hidden)} more (↑↓)`),
-    );
+    lines.push(currentTheme.fg('textDim', `… +${String(hidden)} more (↑↓)`));
   }
 
   if (wantTape && lines.length < budget) {
@@ -252,12 +417,37 @@ export function buildDenseContent(options: BuildDenseContentOptions): DenseConte
         ? `${renderPulseGlyph(PULSE_ACTIVE_FRAMES, 'mc:tape:hdr', '●', 'primary', appearance)} ${currentTheme.boldFg('textMuted', 'TAPE')}`
         : currentTheme.boldFg('textMuted', 'TAPE'),
     );
-    const tapeRows = Math.max(0, budget - lines.length);
-    const multi = new Set(collapsed.map((entry) => entry.workerId)).size > 1;
-    for (const entry of collapsed.slice(-tapeRows)) {
+    // Leave room for BOARD strip when jobs are present.
+    const boardReserve = wantBoard ? DENSE_BOARD_MIN : 0;
+    const tapeRows = Math.max(0, budget - lines.length - boardReserve);
+    const multi = new Set(feed.map((entry) => entry.workerId)).size > 1;
+    for (const entry of feed.slice(-tapeRows)) {
+      if (lines.length >= budget - boardReserve) break;
       lines.push(
-        truncateToWidth(buildTapeRow(entry, width, multi, now, workDir, animated, appearance), width, '…'),
+        truncateToWidth(
+          buildTapeRow(entry, width, multi, now, workDir, animated, appearance),
+          width,
+          '…',
+        ),
       );
+    }
+  }
+
+  if (wantBoard && jobs !== undefined && lines.length < budget) {
+    const liveBoard = animated && jobs.running > 0;
+    lines.push(
+      liveBoard && shouldRenderAmbientEffects(appearance)
+        ? `${renderPulseGlyph(PULSE_ACTIVE_FRAMES, 'mc:board:hdr', '●', 'primary', appearance)} ${currentTheme.boldFg('textMuted', 'BOARD')}`
+        : currentTheme.boldFg('textMuted', 'BOARD'),
+    );
+    if (lines.length < budget) {
+      lines.push(truncateToWidth(formatMissionJobCounts(jobs), width, '…'));
+    }
+    const attentionBudget = Math.min(DENSE_BOARD_ATTENTION, budget - lines.length);
+    for (const card of selectAttentionJobs(jobs, attentionBudget)) {
+      if (lines.length >= budget) break;
+      const row = formatAttentionJobRow(card, width, now);
+      if (row !== undefined) lines.push(row);
     }
   }
 
@@ -273,6 +463,7 @@ function buildKpiLine(
   now: number,
   animated: boolean,
   appearance: AppearancePreferences,
+  jobs: ConductorJobsSnapshot | undefined,
 ): string {
   const active = workers.filter(
     (w) =>
@@ -282,7 +473,7 @@ function buildKpiLine(
       w.status === 'finishing',
   );
   const stalled = workers.filter((w) => w.status === 'stalled').length;
-  const failed = workers.filter((w) => w.status === 'failed').length;
+  const failedWorkers = workers.filter((w) => w.status === 'failed').length;
   const finishing = workers.filter((w) => w.status === 'finishing').length;
   const sumRate = active.reduce((sum, w) => sum + (w.tokenRatePerSec ?? 0), 0);
   const sumTok = active.reduce((sum, w) => sum + w.tokens, 0);
@@ -314,8 +505,21 @@ function buildKpiLine(
   if (sumTok > 0) parts.push(currentTheme.fg('textMuted', `Σ${formatMissionTokens(sumTok)}`));
   if (wall > 0) parts.push(currentTheme.fg('textDim', `wall ${formatJobDuration(wall)}`));
   if (stalled > 0) parts.push(currentTheme.fg('warning', `stall${String(stalled)}`));
-  if (failed > 0) parts.push(currentTheme.fg('error', `err${String(failed)}`));
+  if (failedWorkers > 0) parts.push(currentTheme.fg('error', `err${String(failedWorkers)}`));
   if (finishing > 0) parts.push(currentTheme.fg('info', `fin${String(finishing)}`));
+  if (jobs !== undefined) {
+    if (jobs.needsUser + jobs.blocked > 0) {
+      parts.push(
+        currentTheme.fg('warning', `needs-you ${String(jobs.needsUser + jobs.blocked)}`),
+      );
+    }
+    if (jobs.failed > 0) {
+      parts.push(currentTheme.fg('error', `job-fail ${String(jobs.failed)}`));
+    }
+    if (jobs.interrupted > 0) {
+      parts.push(currentTheme.fg('warning', `⏸${String(jobs.interrupted)}`));
+    }
+  }
   if (budgetRatio !== undefined) {
     parts.push(currentTheme.fg('textMuted', renderBudgetBar(budgetRatio, 8)));
   }
@@ -340,7 +544,7 @@ function buildTickerLine(
   appearance: AppearancePreferences,
 ): string | undefined {
   if (ops.length === 0) return undefined;
-  const recent = collapseLowSignalOps(ops).slice(-DENSE_TICKER_MAX);
+  const recent = ops.slice(-DENSE_TICKER_MAX);
   const chips = recent.map((entry) => {
     const mark =
       entry.status === 'running' ? '▸' : entry.status === 'error' ? '✗' : '✓';
@@ -351,7 +555,6 @@ function buildTickerLine(
         ? truncateToWidth(entry.chip.replace(/\s+/gu, ''), 6, '')
         : '';
     const plain = `${shortName}${mark}${worker}${chip.length > 0 ? chip : ''}`;
-    // Running: mark stays in the chip string; whole chip is static semantic color.
     const token =
       entry.status === 'error' ? 'error' : entry.status === 'running' ? 'primary' : 'textDim';
     return currentTheme.fg(token, plain);
@@ -414,8 +617,11 @@ function buildWorkerRow(args: {
   const live = denseLiveCell(worker, now, revealed, action);
   const liveMark =
     live.kind === 'thinking' ? '◌' : live.kind === 'answer' ? '◆' : live.kind === 'action' ? '→' : '·';
-  const liveBody = truncateToWidth(`${liveMark} ${live.text}`, Math.max(12, width - (narrow ? 28 : 52)), '…');
-  // LIVE body is always static — rate/glyph carry the motion budget.
+  const liveBody = truncateToWidth(
+    `${liveMark} ${live.text}`,
+    Math.max(12, width - (narrow ? 28 : 52)),
+    '…',
+  );
   let livePaint: string;
   if (live.kind === 'thinking' || live.kind === 'answer') {
     livePaint = currentTheme.fg(live.kind === 'thinking' ? 'textDim' : 'text', liveBody);
@@ -469,7 +675,9 @@ function buildTapeRow(
   appearance: AppearancePreferences,
 ): string {
   const age = currentTheme.fg('textMuted', formatMissionAgeMs(entry.atMs, now).padStart(7));
-  const worker = showWorker ? currentTheme.fg('text', ` ${truncateToWidth(entry.workerName, 8, '…')}`) : '';
+  const worker = showWorker
+    ? currentTheme.fg('text', ` ${truncateToWidth(entry.workerName, 8, '…')}`)
+    : '';
   let mark: string;
   if (entry.status === 'running') {
     mark =
@@ -481,7 +689,12 @@ function buildTapeRow(
   } else {
     mark = currentTheme.fg('success', ' ✓ ');
   }
-  const human = formatMissionTarget(entry.name, entry.target, workDir, Math.max(16, Math.floor(width * 0.35)));
+  const human = formatMissionTarget(
+    entry.name,
+    entry.target,
+    workDir,
+    Math.max(16, Math.floor(width * 0.35)),
+  );
   const toolPaint = currentTheme.fg(
     entry.status === 'error' ? 'error' : entry.status === 'running' ? 'text' : 'textDim',
     entry.name,
