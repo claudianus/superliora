@@ -2,25 +2,18 @@
  * Bloomberg-style densemode layout for Mission Control (any visible worker).
  * Pure string builders + light theme paint — panel owns reveal/lerp state.
  * Paint budget matches the solo panel: pulse/shimmer only on narrow signals
- * (glyph, mark, KPI chips), never on LIVE/TAPE/ticker body copy.
+ * (glyph, mark, KPI chips), never on LIVE body copy. Workers-only layout —
+ * TAPE/BOARD live on Control Tower / job strip, not inside Worker Dock.
  */
 
 import { truncateToWidth } from '#/tui/renderer';
 
-import { PULSE_ACTIVE_FRAMES, SELECT_POINTER } from '#/tui/constant/symbols';
+import { SELECT_POINTER } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import type { ColorToken } from '#/tui/theme';
 import type { AppearancePreferences } from '#/tui/config';
-import {
-  renderPulseGlyph,
-  renderPulseText,
-  renderToneSettleFlash,
-  shouldRenderAmbientEffects,
-} from '#/tui/features/appearance/appearance-effects';
-import {
-  renderLiveSectionHeader,
-  renderPulseCountChip,
-} from '#/tui/components/chrome/chrome-band-motion';
+import { renderPulseText } from '#/tui/features/appearance/appearance-effects';
+import { renderPulseCountChip } from '#/tui/components/chrome/chrome-band-motion';
 import type { MissionOpsEntry, MissionWorker } from '#/tui/controllers/mission-control/registry';
 import { shortJobId } from '#/tui/components/job-board/job-board-helpers';
 import {
@@ -33,7 +26,6 @@ import {
   formatMissionTarget,
 } from '#/tui/utils/tools/mission-target';
 import {
-  formatMissionAgeMs,
   formatMissionTokenRate,
   formatMissionTokens,
   MISSION_LIVE_HOT_MS,
@@ -41,27 +33,17 @@ import {
 
 const SPARK_CHARS = '▁▂▃▄▅▆▇█';
 /** Max worker rows painted in densemode (windowed when the roster is longer). */
-export const DENSE_WORKER_CAP = 5;
-const DENSE_TAPE_MIN = 2;
-const DENSE_TICKER_MAX = 8;
+export const DENSE_WORKER_CAP = 8;
 const NARROW_WIDTH = 80;
-/** BOARD header + counts reserved when jobs exist; attention fills leftover. */
-const DENSE_BOARD_MIN = 2;
-/** Attention cards under BOARD counts in densemode. */
-const DENSE_BOARD_ATTENTION = 1;
 
 /** How many densemode worker rows fit in the remaining paint budget. */
 export function denseWorkerSlots(
   workerCount: number,
   remainingAfterHdr: number,
-  hasTape: boolean,
-  hasBoard = false,
 ): number {
-  const tapeReserve = hasTape ? 1 + Math.min(DENSE_TAPE_MIN, 2) : 0;
-  const boardReserve = hasBoard ? DENSE_BOARD_MIN : 0;
   return Math.max(
     1,
-    Math.min(DENSE_WORKER_CAP, workerCount, remainingAfterHdr - tapeReserve - boardReserve),
+    Math.min(DENSE_WORKER_CAP, workerCount, remainingAfterHdr),
   );
 }
 
@@ -164,7 +146,7 @@ export function denseLiveCell(
 
 /**
  * Prefer real ops; when the ring is empty, synthesize a row from each worker's
- * lastTool so TAPE/TK stay useful during progress-only heartbeats.
+ * lastTool (helpers / tests; densemode paint is workers-only).
  */
 export function resolveDenseOps(
   ops: readonly MissionOpsEntry[],
@@ -209,7 +191,7 @@ export function formatMissionJobCounts(jobs: ConductorJobsSnapshot): string {
     jobs.interrupted > 0
       ? currentTheme.fg('warning', `interrupted ${String(jobs.interrupted)}`)
       : undefined,
-    jobs.failed > 0 ? currentTheme.fg('error', `failed ${String(jobs.failed)}`) : undefined,
+    jobs.failed > 0 ? currentTheme.fg('textDim', `failed ${String(jobs.failed)}`) : undefined,
     currentTheme.fg('textDim', `done ${String(done)}`),
   ].filter((part): part is string => part !== undefined);
   return parts.join(currentTheme.fg('textMuted', ' · '));
@@ -259,7 +241,7 @@ export function formatAttentionJobRow(
     card.status === 'needs_user' || card.status === 'blocked' || card.status === 'interrupted'
       ? 'warning'
       : card.status === 'failed'
-        ? 'error'
+        ? 'textDim'
         : 'text';
   const label = titlePlain.length > 0 ? titlePlain : shortJobId(idPlain);
   const title = truncateToWidth(label, Math.max(6, width - 24), '…');
@@ -303,7 +285,8 @@ export function formatAttentionJobRow(
 
 export interface BuildDenseContentOptions {
   readonly workers: readonly MissionWorker[];
-  readonly ops: readonly MissionOpsEntry[];
+  /** @deprecated Densemode is workers-only; ops are ignored. */
+  readonly ops?: readonly MissionOpsEntry[];
   readonly width: number;
   readonly budget: number;
   readonly now: number;
@@ -317,7 +300,7 @@ export interface BuildDenseContentOptions {
   readonly workerGlyph: (worker: MissionWorker) => string;
   /** Window start into the sorted worker roster (clamped). */
   readonly scrollOffset?: number;
-  /** Conductor job ledger for KPI chips + BOARD strip. */
+  /** Conductor job ledger for subtle KPI chips only (no BOARD strip). */
   readonly jobs?: ConductorJobsSnapshot;
 }
 
@@ -330,7 +313,6 @@ export interface DenseContentResult {
 export function buildDenseContent(options: BuildDenseContentOptions): DenseContentResult {
   const {
     workers,
-    ops,
     width,
     budget,
     now,
@@ -348,7 +330,6 @@ export function buildDenseContent(options: BuildDenseContentOptions): DenseConte
   const jobs = options.jobs;
   const narrow = width < NARROW_WIDTH;
   const lines: string[] = [];
-  const feed = resolveDenseOps(ops, workers);
 
   lines.push(
     truncateToWidth(buildKpiLine(workers, now, animated, appearance, jobs), width, '…'),
@@ -357,28 +338,17 @@ export function buildDenseContent(options: BuildDenseContentOptions): DenseConte
     return { lines, workerSlots: 0, scrollOffset: 0 };
   }
 
-  const ticker = buildTickerLine(feed, width, animated, appearance);
-  if (ticker !== undefined) {
-    lines.push(truncateToWidth(ticker, width, '…'));
-    if (lines.length >= budget) {
-      return { lines, workerSlots: 0, scrollOffset: 0 };
-    }
-  }
-
   lines.push(truncateToWidth(buildHeaderLine(narrow), width, '…'));
   if (lines.length >= budget) {
     return { lines, workerSlots: 0, scrollOffset: 0 };
   }
 
   const remainingAfterHdr = budget - lines.length;
-  const wantTape = feed.length > 0;
-  const wantBoard = jobs !== undefined && jobs.total > 0;
-  const workerSlots = denseWorkerSlots(
-    workers.length,
-    remainingAfterHdr,
-    wantTape,
-    wantBoard,
-  );
+  // Workers-only densemode: former TAPE/BOARD vertical budget goes to roster rows.
+  // Reserve one row for `+N more` when the roster cannot fully fit.
+  const maxFit = Math.min(DENSE_WORKER_CAP, remainingAfterHdr);
+  const overflowReserve = workers.length > maxFit && remainingAfterHdr > 1 ? 1 : 0;
+  const workerSlots = denseWorkerSlots(workers.length, remainingAfterHdr - overflowReserve);
   const scrollOffset = clampWorkerScrollOffset(
     options.scrollOffset ?? 0,
     workers.length,
@@ -413,39 +383,6 @@ export function buildDenseContent(options: BuildDenseContentOptions): DenseConte
   if (workers.length > visibleWorkers.length && lines.length < budget) {
     const hidden = workers.length - visibleWorkers.length;
     lines.push(currentTheme.fg('textDim', `… +${String(hidden)} more (↑↓)`));
-  }
-
-  if (wantTape && lines.length < budget) {
-    const liveTape = animated && workers.some((w) => w.status === 'running');
-    lines.push(renderLiveSectionHeader('TAPE', liveTape, 'mc:sec', appearance));
-    // Leave room for BOARD strip when jobs are present.
-    const boardReserve = wantBoard ? DENSE_BOARD_MIN : 0;
-    const tapeRows = Math.max(0, budget - lines.length - boardReserve);
-    const multi = new Set(feed.map((entry) => entry.workerId)).size > 1;
-    for (const entry of feed.slice(-tapeRows)) {
-      if (lines.length >= budget - boardReserve) break;
-      lines.push(
-        truncateToWidth(
-          buildTapeRow(entry, width, multi, now, workDir, animated, appearance),
-          width,
-          '…',
-        ),
-      );
-    }
-  }
-
-  if (wantBoard && jobs !== undefined && lines.length < budget) {
-    const liveBoard = animated && jobs.running > 0;
-    lines.push(renderLiveSectionHeader('BOARD', liveBoard, 'mc:sec', appearance));
-    if (lines.length < budget) {
-      lines.push(truncateToWidth(formatMissionJobCounts(jobs), width, '…'));
-    }
-    const attentionBudget = Math.min(DENSE_BOARD_ATTENTION, budget - lines.length);
-    for (const card of selectAttentionJobs(jobs, attentionBudget)) {
-      if (lines.length >= budget) break;
-      const row = formatAttentionJobRow(card, width, now);
-      if (row !== undefined) lines.push(row);
-    }
   }
 
   return {
@@ -497,7 +434,8 @@ function buildKpiLine(
   if (sumTok > 0) parts.push(currentTheme.fg('textMuted', `Σ${formatMissionTokens(sumTok)}`));
   if (wall > 0) parts.push(currentTheme.fg('textDim', `wall ${formatJobDuration(wall)}`));
   if (stalled > 0) parts.push(currentTheme.fg('warning', `stall${String(stalled)}`));
-  if (failedWorkers > 0) parts.push(currentTheme.fg('error', `err${String(failedWorkers)}`));
+  // Failed is calm dim — never paint dock KPI chrome as error solely for fails.
+  if (failedWorkers > 0) parts.push(currentTheme.fg('textDim', `err${String(failedWorkers)}`));
   if (finishing > 0) parts.push(currentTheme.fg('info', `fin${String(finishing)}`));
   if (jobs !== undefined) {
     if (jobs.needsUser + jobs.blocked > 0) {
@@ -506,7 +444,7 @@ function buildKpiLine(
       );
     }
     if (jobs.failed > 0) {
-      parts.push(currentTheme.fg('error', `job-fail ${String(jobs.failed)}`));
+      parts.push(currentTheme.fg('textDim', `job-fail ${String(jobs.failed)}`));
     }
     if (jobs.interrupted > 0) {
       parts.push(currentTheme.fg('warning', `⏸${String(jobs.interrupted)}`));
@@ -527,34 +465,6 @@ function renderBudgetBar(ratio: number, width: number): string {
     bar += i < filled ? '█' : '░';
   }
   return bar;
-}
-
-function buildTickerLine(
-  ops: readonly MissionOpsEntry[],
-  width: number,
-  animated: boolean,
-  appearance: AppearancePreferences,
-): string | undefined {
-  if (ops.length === 0) return undefined;
-  const recent = ops.slice(-DENSE_TICKER_MAX);
-  const chips = recent.map((entry) => {
-    const mark =
-      entry.status === 'running' ? '▸' : entry.status === 'error' ? '✗' : '✓';
-    const shortName = truncateToWidth(entry.name, 10, '…');
-    const worker = truncateToWidth(entry.workerName, 8, '…');
-    const chip =
-      entry.chip !== undefined && entry.chip.length > 0
-        ? truncateToWidth(entry.chip.replace(/\s+/gu, ''), 6, '')
-        : '';
-    const plain = `${shortName}${mark}${worker}${chip.length > 0 ? chip : ''}`;
-    const token =
-      entry.status === 'error' ? 'error' : entry.status === 'running' ? 'primary' : 'textDim';
-    return currentTheme.fg(token, plain);
-  });
-  const liveTk = animated && ops.some((entry) => entry.status === 'running');
-  const prefix = renderLiveSectionHeader('TK', liveTk, 'mc:sec', appearance);
-  const body = chips.join(currentTheme.fg('textMuted', ' · '));
-  return truncateToWidth(`${prefix}  ${body}`, width, '…');
 }
 
 function buildHeaderLine(narrow: boolean): string {
@@ -583,13 +493,11 @@ function buildWorkerRow(args: {
     args;
   const name = truncateToWidth(worker.name, 8, '…').padEnd(8);
   const namePaint = currentTheme.fg(
-    worker.status === 'failed'
-      ? 'error'
+    worker.status === 'failed' || worker.status === 'completed'
+      ? 'textDim'
       : worker.status === 'stalled'
         ? 'warning'
-        : worker.status === 'completed'
-          ? 'textDim'
-          : 'text',
+        : 'text',
     name,
   );
   const action =
@@ -653,58 +561,4 @@ function buildWorkerRow(args: {
         )
       : currentTheme.fg('textMuted', '    —');
   return `${glyph} ${namePaint} ${model} ${elapsed} ${tools} ${tok} ${ratePaint} ${spark} ${todo} ${livePaint}`;
-}
-
-function buildTapeRow(
-  entry: MissionOpsEntry,
-  width: number,
-  showWorker: boolean,
-  now: number,
-  workDir: string | undefined,
-  animated: boolean,
-  appearance: AppearancePreferences,
-): string {
-  const age = currentTheme.fg('textMuted', formatMissionAgeMs(entry.atMs, now).padStart(7));
-  const worker = showWorker
-    ? currentTheme.fg('text', ` ${truncateToWidth(entry.workerName, 8, '…')}`)
-    : '';
-  const settledAt = entry.settledAtMs ?? entry.atMs;
-  const freshlySettled =
-    animated &&
-    entry.status !== 'running' &&
-    now - settledAt < 1_400 &&
-    shouldRenderAmbientEffects(appearance);
-  let mark: string;
-  if (entry.status === 'running') {
-    mark =
-      animated && shouldRenderAmbientEffects(appearance)
-        ? ` ${renderPulseGlyph(PULSE_ACTIVE_FRAMES, `mc:tape:${entry.toolCallId}`, '▸', 'primary')} `
-        : currentTheme.fg('primary', ' ▸ ');
-  } else if (entry.status === 'error') {
-    mark = freshlySettled
-      ? ` ${renderToneSettleFlash('✗', `mc:tape-err:${entry.toolCallId}`, settledAt, 'error')} `
-      : currentTheme.fg('error', ' ✗ ');
-  } else {
-    mark = freshlySettled
-      ? ` ${renderToneSettleFlash('✓', `mc:tape-ok:${entry.toolCallId}`, settledAt, 'success')} `
-      : currentTheme.fg('success', ' ✓ ');
-  }
-  const human = formatMissionTarget(
-    entry.name,
-    entry.target,
-    workDir,
-    Math.max(16, Math.floor(width * 0.35)),
-  );
-  const toolPaint = currentTheme.fg(
-    entry.status === 'error' ? 'error' : entry.status === 'running' ? 'text' : 'textDim',
-    entry.name,
-  );
-  const targetPaint =
-    human === undefined
-      ? ''
-      : ` ${currentTheme.fg(entry.status === 'error' ? 'error' : 'textDim', human)}`;
-  const chipPaint =
-    entry.chip === undefined ? '' : ` ${currentTheme.fg('textMuted', entry.chip)}`;
-  const body = `${toolPaint}${targetPaint}${chipPaint}`;
-  return `${age}${worker}${mark}${body}`;
 }

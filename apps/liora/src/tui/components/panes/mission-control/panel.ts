@@ -37,7 +37,7 @@ import {
 } from '#/tui/features/appearance/appearance-effects';
 import { missionBandProductName } from '#/tui/features/mission-control/labels';
 import {
-  MISSION_COMPLETED_LINGER_MS,
+  isMissionWorkerPastLinger,
   type MissionControlSnapshot,
   type MissionOpsEntry,
   type MissionWorker,
@@ -126,8 +126,8 @@ const TARGET_MAX = 22;
 const LIVE_TEXT_SOFT_CAP = 96;
 /** Soft cap for tool targets on wide docks. */
 const TARGET_SOFT_CAP = 56;
-/** Display tok/s ease toward target per ambient frame (0–1). */
-const RATE_LERP_ALPHA = 0.28;
+/** Display tok/s ease toward target per ambient frame (0–1). Higher = snappier. */
+const RATE_LERP_ALPHA = 0.55;
 
 export interface MissionControlView {
   readonly snapshot: MissionControlSnapshot;
@@ -147,6 +147,35 @@ export function emptyMissionControlView(): MissionControlView {
     },
     jobs: emptyConductorJobsSnapshot(),
   };
+}
+
+/**
+ * Dock chrome border. Failed workers never paint the whole band as error —
+ * only needs_user / blocked / stalled escalate to warning; active work stays
+ * primary; idle/terminal-only stays the default border.
+ */
+export function missionDockBorderToken(
+  workers: readonly MissionWorker[],
+  jobs: Pick<ConductorJobsSnapshot, 'needsUser' | 'blocked'>,
+): ColorToken {
+  if (
+    workers.some((worker) => worker.status === 'stalled') ||
+    jobs.needsUser > 0 ||
+    jobs.blocked > 0
+  ) {
+    return 'warning';
+  }
+  if (
+    workers.some(
+      (worker) =>
+        worker.status === 'running' ||
+        worker.status === 'suspended' ||
+        worker.status === 'finishing',
+    )
+  ) {
+    return 'primary';
+  }
+  return 'border';
 }
 
 type LayoutMode = 'full' | 'tight' | 'minimal';
@@ -202,24 +231,19 @@ export class MissionControlPanelComponent implements Component {
   }
 
   /**
-   * Mount gate. Time-aware: completed workers past the linger window count
-   * as gone so the dock/fallback collapses on the next ambient frame even
-   * when no further event arrives.
+   * Mount gate. Time-aware: terminal workers (completed + failed) past the
+   * linger window count as gone so the dock/fallback collapses on the next
+   * ambient frame even when no further event arrives.
    */
   isEmpty(now: number = appearanceAnimationNow()): boolean {
     return this.visibleWorkers(now).length === 0 && this.view.jobs.total === 0;
   }
 
-  /** Workers minus completed ones whose linger window has elapsed. */
+  /** Workers minus terminal ones whose linger window has elapsed. */
   private visibleWorkers(now: number): readonly MissionWorker[] {
     const workers = this.view.snapshot.workers;
     if (workers.length === 0) return workers;
-    return workers.filter(
-      (worker) =>
-        worker.status !== 'completed' ||
-        worker.terminalAtMs === undefined ||
-        now - worker.terminalAtMs <= MISSION_COMPLETED_LINGER_MS,
-    );
+    return workers.filter((worker) => !isMissionWorkerPastLinger(worker, now));
   }
 
   /**
@@ -574,26 +598,7 @@ export class MissionControlPanelComponent implements Component {
   }
 
   private borderToken(now: number): ColorToken {
-    const workers = this.visibleWorkers(now);
-    if (workers.some((worker) => worker.status === 'failed')) return 'error';
-    if (
-      workers.some((worker) => worker.status === 'stalled') ||
-      this.view.jobs.needsUser > 0 ||
-      this.view.jobs.blocked > 0
-    ) {
-      return 'warning';
-    }
-    if (
-      workers.some(
-        (worker) =>
-          worker.status === 'running' ||
-          worker.status === 'suspended' ||
-          worker.status === 'finishing',
-      )
-    ) {
-      return 'primary';
-    }
-    return 'border';
+    return missionDockBorderToken(this.visibleWorkers(now), this.view.jobs);
   }
 
   private buildContent(mode: LayoutMode, width: number, budget: number, now: number): string[] {
@@ -766,7 +771,11 @@ export class MissionControlPanelComponent implements Component {
     if (worker.status === 'failed') {
       const reason = worker.error ?? 'failed';
       rows.push(
-        truncateToWidth(`  ${currentTheme.fg('error', truncateToWidth(reason, 60, '…'))}`, width, '…'),
+        truncateToWidth(
+          `  ${currentTheme.fg('textDim', truncateToWidth(reason, 60, '…'))}`,
+          width,
+          '…',
+        ),
       );
       return rows;
     }
@@ -905,7 +914,8 @@ export class MissionControlPanelComponent implements Component {
     if (worker.status === 'completed' && recentlyTerminal && animated) {
       name = renderToneSettleFlash(namePlain, `mc-done:${worker.id}`, worker.terminalAtMs!, 'success');
     } else if (worker.status === 'failed' && recentlyTerminal && animated) {
-      name = renderToneSettleFlash(namePlain, `mc-fail:${worker.id}`, worker.terminalAtMs!, 'error');
+      // Brief dim settle only — never keep error chrome on the name after flash.
+      name = renderToneSettleFlash(namePlain, `mc-fail:${worker.id}`, worker.terminalAtMs!, 'textDim');
     } else if (
       animated &&
       worker.status === 'running' &&
@@ -981,7 +991,8 @@ export class MissionControlPanelComponent implements Component {
       case 'completed':
         return currentTheme.fg('success', '✓');
       case 'failed':
-        return currentTheme.fg('error', '✗');
+        // Calm terminal mark — dock chrome never goes error for failed workers.
+        return currentTheme.fg('textDim', '✗');
     }
   }
 

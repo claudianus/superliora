@@ -11,14 +11,40 @@ import type { Event } from '@superliora/sdk';
 
 import { resolveSubagentToolTarget } from '../../utils/tools/subagent-tool-detail';
 
-/** Completed workers linger this long so the operator sees the outcome. */
+/**
+ * Terminal workers (completed + failed) linger this long so the operator sees
+ * the outcome, then drop from the dock. Same window for both — failed must not
+ * permanently occupy Worker Dock.
+ */
 export const MISSION_COMPLETED_LINGER_MS = 12_000;
+
+/** True when a terminal worker is past the dock linger window and should hide. */
+export function isMissionWorkerPastLinger(
+  worker: { readonly status: MissionWorkerStatus; readonly terminalAtMs?: number },
+  nowMs: number,
+  lingerMs: number = MISSION_COMPLETED_LINGER_MS,
+): boolean {
+  if (worker.status !== 'completed' && worker.status !== 'failed') return false;
+  if (worker.terminalAtMs === undefined) return false;
+  return nowMs - worker.terminalAtMs > lingerMs;
+}
+
 /** Ops-feed ring buffer cap (interleaved across all workers). */
 export const MISSION_OPS_FEED_CAP = 40;
 /** Keep only the rolling tail of live inference / NL text. */
 export const MISSION_LIVE_TEXT_CAP = 160;
 /** tok/s sparkline ring per worker (progress heartbeats). */
 export const MISSION_RATE_SAMPLES_CAP = 8;
+/**
+ * Min gap between progress samples that contribute to tok/s. Below this the
+ * delta is held for the next beat (avoids divide-by-tiny-dt spikes) without
+ * feeling sticky — 100ms tracks live streams; the old 250ms floor lagged.
+ */
+export const MISSION_RATE_MIN_SAMPLE_MS = 100;
+/** EMA blend: prior rate weight (lighter = snappier chase of bursts). */
+export const MISSION_RATE_EMA_PREV = 0.35;
+/** EMA blend: instant sample weight. */
+export const MISSION_RATE_EMA_INSTANT = 0.65;
 /** Compact result chip on settled MOVES rows. */
 const MISSION_RESULT_CHIP_MAX = 28;
 
@@ -112,8 +138,10 @@ interface MutableWorker {
   lastTarget?: string;
   toolCount: number;
   tokens: number;
-  /** Wall time of the last token sample used for rate smoothing. */
+  /** Wall time of the last accepted token sample used for rate smoothing. */
   tokensSampleAtMs?: number;
+  /** Token total at {@link tokensSampleAtMs} (held across sub-min-gap beats). */
+  tokensSampleTokens?: number;
   tokenRatePerSec?: number;
   rateSamples?: number[];
   budgetMs?: number;
@@ -196,11 +224,7 @@ export class MissionControlRegistry {
     let activeCount = 0;
     let totalTokens = 0;
     for (const worker of this.workers.values()) {
-      if (
-        worker.status === 'completed' &&
-        worker.terminalAtMs !== undefined &&
-        nowMs - worker.terminalAtMs > MISSION_COMPLETED_LINGER_MS
-      ) {
+      if (isMissionWorkerPastLinger(worker, nowMs)) {
         continue;
       }
       const active = ACTIVE_STATUSES.has(worker.status);
@@ -347,23 +371,35 @@ export class MissionControlRegistry {
     return this.bump();
   }
 
-  /** EMA of tokens/sec from heartbeat deltas (≥250ms apart). */
+  /** EMA of tokens/sec from heartbeat deltas (≥{@link MISSION_RATE_MIN_SAMPLE_MS}). */
   private sampleTokenRate(worker: MutableWorker, nextTokens: number, atMs: number): void {
     const prevAt = worker.tokensSampleAtMs;
-    const prevTokens = worker.tokens;
-    worker.tokensSampleAtMs = atMs;
+    const prevTokens = worker.tokensSampleTokens ?? worker.tokens;
     if (nextTokens < prevTokens) {
+      worker.tokensSampleAtMs = atMs;
+      worker.tokensSampleTokens = nextTokens;
       worker.tokenRatePerSec = undefined;
       return;
     }
-    if (prevAt === undefined || atMs <= prevAt) return;
-    const dtSec = (atMs - prevAt) / 1000;
-    if (dtSec < 0.25) return;
+    if (prevAt === undefined || atMs <= prevAt) {
+      worker.tokensSampleAtMs = atMs;
+      worker.tokensSampleTokens = nextTokens;
+      return;
+    }
+    const dtMs = atMs - prevAt;
+    if (dtMs < MISSION_RATE_MIN_SAMPLE_MS) {
+      // Hold sample clock + token baseline so short bursts accumulate into the
+      // next eligible window instead of resetting the rate floor every tick.
+      return;
+    }
+    worker.tokensSampleAtMs = atMs;
+    worker.tokensSampleTokens = nextTokens;
+    const dtSec = dtMs / 1000;
     const instant = (nextTokens - prevTokens) / dtSec;
     worker.tokenRatePerSec =
       worker.tokenRatePerSec === undefined
         ? instant
-        : worker.tokenRatePerSec * 0.55 + instant * 0.45;
+        : worker.tokenRatePerSec * MISSION_RATE_EMA_PREV + instant * MISSION_RATE_EMA_INSTANT;
     if (worker.tokenRatePerSec !== undefined && worker.tokenRatePerSec >= 1) {
       const samples = worker.rateSamples ?? [];
       samples.push(worker.tokenRatePerSec);
@@ -577,15 +613,11 @@ export class MissionControlRegistry {
     }
   }
 
-  /** Drop completed workers past the linger window (failed persist). */
+  /** Drop terminal workers (completed + failed) past the shared linger window. */
   private pruneLingered(): void {
     const nowMs = this.now();
     for (const [id, worker] of this.workers) {
-      if (
-        worker.status === 'completed' &&
-        worker.terminalAtMs !== undefined &&
-        nowMs - worker.terminalAtMs > MISSION_COMPLETED_LINGER_MS
-      ) {
+      if (isMissionWorkerPastLinger(worker, nowMs)) {
         this.workers.delete(id);
       }
     }
