@@ -16,16 +16,16 @@ export function Sections() {
           <ScrollLinkedStage />
         </div>
 
-        <section data-stage-hero className="museum-hero relative min-h-[100dvh]">
+        <section data-stage-hero className="museum-hero">
           <div className="museum-hero__veil" aria-hidden="true" />
           <div className="museum-hero__copy">
             <p className="font-sans text-sm font-semibold tracking-[0.18em] text-primary uppercase">
               {t.hero.brand}
             </p>
-            <h1 className="mt-3 max-w-[16ch] font-sans text-[2.35rem] font-bold leading-[1.05] tracking-tight text-text sm:text-5xl lg:text-[3.2rem] text-balance">
+            <h1 className="mt-3 max-w-[16ch] font-sans text-[2.2rem] font-bold leading-[1.05] tracking-tight text-text sm:text-5xl lg:text-[3rem] text-balance">
               {t.hero.h1}
             </h1>
-            <p className="mt-4 max-w-[38ch] text-base leading-relaxed text-soft sm:text-lg">
+            <p className="mt-4 max-w-[36ch] text-base leading-relaxed text-soft sm:text-lg">
               {t.hero.lead}
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
@@ -45,45 +45,43 @@ export function Sections() {
           </div>
         </section>
 
-        <section id="features" className="museum-features relative z-10 border-t border-line/60">
+        <section id="features" className="museum-features relative z-10">
           <div className="museum-features__panel section-pad">
-            <div className="mx-auto max-w-7xl">
-              <Reveal className="max-w-2xl">
-                <p className="text-sm font-semibold tracking-wide text-primary">{t.clusters.kicker}</p>
-                <h2 className="mt-3 font-sans text-3xl font-bold tracking-tight md:text-4xl text-balance">
-                  {t.clusters.title}
-                </h2>
-                <p className="mt-4 text-lg text-soft">{t.clusters.body}</p>
-              </Reveal>
+            <Reveal className="max-w-xl">
+              <p className="text-sm font-semibold tracking-wide text-primary">{t.clusters.kicker}</p>
+              <h2 className="mt-3 font-sans text-3xl font-bold tracking-tight md:text-[2rem] text-balance">
+                {t.clusters.title}
+              </h2>
+              <p className="mt-4 text-base text-soft md:text-lg">{t.clusters.body}</p>
+            </Reveal>
 
-              <div className="mt-14 space-y-24 lg:space-y-32">
-                {t.clusters.items.map((cluster, i) => (
-                  <article
-                    key={cluster.id}
-                    id={cluster.id}
-                    data-cluster={cluster.id}
-                    className="cluster-reel min-h-[55vh]"
-                  >
-                    <Reveal stagger={((i % 3) + 1) as 1 | 2 | 3}>
-                      <div className="font-mono text-xs text-primary/80">
-                        {String(i + 1).padStart(2, '0')}
-                      </div>
-                      <h3 className="mt-2 max-w-[22ch] font-sans text-2xl font-semibold tracking-tight text-text md:text-3xl">
-                        {cluster.title}
-                      </h3>
-                      <p className="mt-3 max-w-[48ch] text-soft">{cluster.lead}</p>
-                    </Reveal>
-                    <div className="feature-rail mt-8" role="list">
-                      {cluster.features.map((feature) => (
-                        <div key={feature.id} className="feature-ribbon" role="listitem">
-                          <div className="font-sans text-sm font-semibold text-text">{feature.title}</div>
-                          <p className="mt-1 text-sm leading-relaxed text-soft">{feature.body}</p>
-                        </div>
-                      ))}
+            <div className="mt-12 space-y-16 lg:space-y-20">
+              {t.clusters.items.map((cluster, i) => (
+                <article
+                  key={cluster.id}
+                  id={cluster.id}
+                  data-cluster={cluster.id}
+                  className="cluster-reel"
+                >
+                  <Reveal stagger={((i % 3) + 1) as 1 | 2 | 3}>
+                    <div className="font-mono text-xs text-primary/80">
+                      {String(i + 1).padStart(2, '0')}
                     </div>
-                  </article>
-                ))}
-              </div>
+                    <h3 className="mt-2 max-w-[20ch] font-sans text-xl font-semibold tracking-tight text-text md:text-2xl">
+                      {cluster.title}
+                    </h3>
+                    <p className="mt-3 max-w-[42ch] text-sm text-soft md:text-base">{cluster.lead}</p>
+                  </Reveal>
+                  <div className="feature-rail mt-6" role="list">
+                    {cluster.features.map((feature) => (
+                      <div key={feature.id} className="feature-ribbon" role="listitem">
+                        <div className="font-sans text-sm font-semibold text-text">{feature.title}</div>
+                        <p className="mt-1 text-sm leading-relaxed text-soft">{feature.body}</p>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+              ))}
             </div>
           </div>
         </section>

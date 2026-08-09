@@ -1,13 +1,15 @@
 
-  [38;2;0;213;255mSuperLiora[0m  [38;2;111;122;134mNeon Noir · conductor[0m
-  [38;2;230;237;243mFinish the work. Watch the workers.[0m
-
-  [38;2;167;139;250mTip[0m  [38;2;154;167;178mDescribe the outcome — not the steps.[0m
-       [38;2;154;167;178mJobs run in the background while you stay here.[0m
-
-  [38;2;111;122;134m/login[0m   connect a model
-  [38;2;111;122;134m/model[0m   Smart Auto or pick a model
-  [38;2;111;122;134mAlt+J[0m    open Job Deck
-  [38;2;111;122;134mCtrl+K[0m   Command Hub
-
-  [38;2;0;213;255m❯[0m 
+  [38;2;0;213;255m╭ SuperLiora · Neon Noir · conductor ──────────────────────────────────────────────╮[0m
+  [38;2;230;237;243m│ Finish the work. Watch the workers.                                              │[0m
+  [38;2;154;167;178m│                                                                                  │[0m
+  [38;2;167;139;250m│ Tip[0m[38;2;154;167;178m  Describe the outcome — not the steps.                                     │[0m
+  [38;2;154;167;178m│      Jobs run in the background while you stay here.                             │[0m
+  [38;2;154;167;178m│                                                                                  │[0m
+  [38;2;111;122;134m│ /login[0m   connect a model                                                       [38;2;154;167;178m│[0m
+  [38;2;111;122;134m│ /model[0m   Smart Auto or pick a model                                            [38;2;154;167;178m│[0m
+  [38;2;111;122;134m│ Alt+J[0m    open Job Deck                                                         [38;2;154;167;178m│[0m
+  [38;2;111;122;134m│ Ctrl+K[0m   Command Hub                                                           [38;2;154;167;178m│[0m
+  [38;2;154;167;178m│                                                                                  │[0m
+  [38;2;0;213;255m│ ❯[0m [38;2;154;167;178m_                                                                               │[0m
+  [38;2;0;213;255m╰──────────────────────────────────────────────────────────────────────────────────╯[0m
+  [38;2;154;167;178m  ready · ctx idle · Neon Noir[0m
