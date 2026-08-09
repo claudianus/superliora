@@ -20,15 +20,20 @@ import {
 import { createTUIStateNativeRenderCallback } from '../../features/native-layout/native-layout-frame';
 import { handleFooterJobsStripMouse } from '../../features/control-tower/footer-jobs-mouse';
 import { focusIntentComposer } from '../../features/control-tower/conductor-ux';
+import { handleWorkerDockMouse } from '../../features/mission-control/worker-dock-mouse';
 import { installTerminalFocusTracking } from '../../utils/terminal/terminal-focus';
 import {
   getTUIStateNativeMissionRect,
   getTUIStateNativeTodoRect,
 } from '../../features/transcript/transcript-hit-test';
 import type { TranscriptScrollAction } from '../../features/transcript/transcript-viewport';
+import { openWorkerTranscript } from '../../commands/worker-transcript';
 import { ClipboardImageHintController } from '../clipboard/clipboard-image-hint';
 import type { StartupLifecycleHost } from './types';
 import { ttui } from '../../utils/tui-i18n';
+import type { SlashCommandHost } from '../../commands/hub/dispatch';
+import { missionBandActive } from '../../features/mission-control/dock';
+import { requestTUIContentRender as requestContentRender } from '../../utils/render/frame-render';
 
 export interface StartupNativeRendererCallbacks {
   scrollTranscriptViewport(action: TranscriptScrollAction): boolean;
@@ -66,7 +71,9 @@ export function ensureStartupNativeInputRouter(
     handlePreEditorInput: (event) => {
       if (event.type !== 'key' || event.eventType === 'release') return false;
       if (event.alt && scrollStartupTodoPanelByKey(host, event.key)) return true;
+      // Alt+↑/↓ still window-scrolls the dock; bare ↑/↓ select when a row is focused.
       if (event.alt && scrollStartupMissionPanelByKey(host, event.key)) return true;
+      if (handleMissionDockSelectionKey(host, event.key)) return true;
       // Native Alt+J / Alt+I (Kitty CSI-u / ESC+letter). Also mirrored via
       // tryHandleAppShortcut → editor.onOpenJobDeck / onOpenJobInbox.
       if (
@@ -104,6 +111,18 @@ export function ensureStartupNativeInputRouter(
           openJobInbox: () => {
             host.openJobInbox?.();
           },
+        },
+        event,
+      ),
+  });
+  // Worker Dock: hover highlight + click-to-open transcript.
+  host.nativeInputRouter.router.registerGlobalHandler({
+    id: 'mission-worker-dock',
+    onInput: (event) =>
+      handleWorkerDockMouse(
+        {
+          state: host.state,
+          openWorkerTranscript: (workerId) => openWorkerTranscriptFromDock(host, workerId),
         },
         event,
       ),
@@ -314,6 +333,73 @@ function scrollStartupMissionPanelByKey(
   if (!host.state.missionControlPanel.scrollWorkers(action)) return false;
   requestTUILayoutRender(host.state);
   return true;
+}
+
+/**
+ * Bare ↑/↓/Enter/Esc when the Worker Dock is active:
+ * - with a selection (or workers present): ↑↓ move selection, Enter opens, Esc clears
+ * - without workers: fall through to editor
+ */
+function handleMissionDockSelectionKey(
+  host: StartupLifecycleHost,
+  key: NativeInputKey,
+): boolean {
+  if (!missionBandActive(host.state)) return false;
+  const panel = host.state.missionControlPanel;
+  if (panel.isEmpty()) return false;
+
+  const mapKey =
+    key === 'up' ||
+    key === 'down' ||
+    key === 'enter' ||
+    key === 'escape' ||
+    key === 'pageup' ||
+    key === 'pagedown' ||
+    key === 'home' ||
+    key === 'end'
+      ? key
+      : undefined;
+  if (mapKey === undefined) return false;
+
+  // Esc / Enter only when a selection exists (or Enter can create one).
+  if (mapKey === 'escape' && panel.selectedWorker === undefined) return false;
+  if (
+    (mapKey === 'up' || mapKey === 'down') &&
+    panel.selectedWorker === undefined &&
+    panel.currentView.snapshot.workers.length === 0
+  ) {
+    return false;
+  }
+  // Without an existing selection, only consume ↑/↓ when Alt is not held
+  // and the operator has already focused the dock via mouse hover/click —
+  // otherwise bare arrows stay with the editor. Once selected, arrows stay
+  // on the dock until Esc.
+  if (
+    (mapKey === 'up' || mapKey === 'down') &&
+    panel.selectedWorker === undefined
+  ) {
+    // First arrow focuses the dock roster without stealing when empty.
+    const result = panel.handleSelectionKey(mapKey);
+    if (!result.handled) return false;
+    requestContentRender(host.state);
+    return true;
+  }
+
+  const result = panel.handleSelectionKey(mapKey);
+  if (!result.handled) return false;
+  if (result.openWorkerId !== undefined) {
+    openWorkerTranscriptFromDock(host, result.openWorkerId);
+  }
+  requestContentRender(host.state);
+  return true;
+}
+
+function openWorkerTranscriptFromDock(
+  host: StartupLifecycleHost,
+  workerId: string,
+): void {
+  // LioraTUI implements SlashCommandHost; cast through the host surface.
+  openWorkerTranscript(host as unknown as SlashCommandHost, workerId);
 }
 
 export type { TUIStateNativeInputRouter };

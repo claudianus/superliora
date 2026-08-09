@@ -302,12 +302,20 @@ export interface BuildDenseContentOptions {
   readonly scrollOffset?: number;
   /** Conductor job ledger for subtle KPI chips only (no BOARD strip). */
   readonly jobs?: ConductorJobsSnapshot;
+  /** Keyboard / click selection (worker id). */
+  readonly selectedWorkerId?: string;
+  /** Leading chrome for a worker row (selection / hover pointer). */
+  readonly paintRowChrome?: (worker: MissionWorker) => string;
 }
 
 export interface DenseContentResult {
   readonly lines: string[];
   readonly workerSlots: number;
   readonly scrollOffset: number;
+  /** Content-local row index → worker id for mouse hit-testing. */
+  readonly workerRowMap: ReadonlyMap<number, string>;
+  /** Content-local row of the WKR column header (hover target). */
+  readonly headerRow: number | undefined;
 }
 
 export function buildDenseContent(options: BuildDenseContentOptions): DenseContentResult {
@@ -323,24 +331,28 @@ export function buildDenseContent(options: BuildDenseContentOptions): DenseConte
     displayRate,
     workerGlyph,
   } = options;
+  const emptyMap = new Map<number, string>();
   if (budget <= 0 || width <= 0) {
-    return { lines: [], workerSlots: 0, scrollOffset: 0 };
+    return { lines: [], workerSlots: 0, scrollOffset: 0, workerRowMap: emptyMap, headerRow: undefined };
   }
 
   const jobs = options.jobs;
   const narrow = width < NARROW_WIDTH;
   const lines: string[] = [];
+  const workerRowMap = new Map<number, string>();
+  let headerRow: number | undefined;
 
   lines.push(
     truncateToWidth(buildKpiLine(workers, now, animated, appearance, jobs), width, '…'),
   );
   if (lines.length >= budget) {
-    return { lines, workerSlots: 0, scrollOffset: 0 };
+    return { lines, workerSlots: 0, scrollOffset: 0, workerRowMap, headerRow };
   }
 
+  headerRow = lines.length;
   lines.push(truncateToWidth(buildHeaderLine(narrow), width, '…'));
   if (lines.length >= budget) {
-    return { lines, workerSlots: 0, scrollOffset: 0 };
+    return { lines, workerSlots: 0, scrollOffset: 0, workerRowMap, headerRow };
   }
 
   const remainingAfterHdr = budget - lines.length;
@@ -357,11 +369,19 @@ export function buildDenseContent(options: BuildDenseContentOptions): DenseConte
   const visibleWorkers = workers.slice(scrollOffset, scrollOffset + workerSlots);
   for (const worker of visibleWorkers) {
     if (lines.length >= budget) break;
+    const rowIndex = lines.length;
+    workerRowMap.set(rowIndex, worker.id);
+    const rawChrome = options.paintRowChrome?.(worker);
+    // Fixed 2-col gutter whenever chrome is wired so WKR/MODEL columns do not
+    // walk when selection or hover appears (idle → two spaces).
+    const chrome =
+      rawChrome === undefined ? '' : rawChrome.length === 0 ? '  ' : rawChrome;
+    const chromeCols = rawChrome === undefined ? 0 : 2;
     lines.push(
       truncateToWidth(
-        buildWorkerRow({
+        `${chrome}${buildWorkerRow({
           worker,
-          width,
+          width: Math.max(1, width - chromeCols),
           narrow,
           now,
           workDir,
@@ -374,7 +394,8 @@ export function buildDenseContent(options: BuildDenseContentOptions): DenseConte
               : undefined),
           rate: displayRate.get(worker.id) ?? worker.tokenRatePerSec ?? 0,
           glyph: workerGlyph(worker),
-        }),
+          selected: worker.id === options.selectedWorkerId,
+        })}`,
         width,
         '…',
       ),
@@ -389,6 +410,8 @@ export function buildDenseContent(options: BuildDenseContentOptions): DenseConte
     lines: lines.slice(0, budget),
     workerSlots,
     scrollOffset,
+    workerRowMap,
+    headerRow,
   };
 }
 
@@ -488,18 +511,23 @@ function buildWorkerRow(args: {
   readonly revealed: string | undefined;
   readonly rate: number;
   readonly glyph: string;
+  readonly selected?: boolean;
 }): string {
   const { worker, width, narrow, now, workDir, animated, appearance, revealed, rate, glyph } =
     args;
   const name = truncateToWidth(worker.name, 8, '…').padEnd(8);
-  const namePaint = currentTheme.fg(
+  // Keep main's calm failed/completed dim tokens; dual-pointer adds selected primary/bold.
+  const nameToken: ColorToken =
     worker.status === 'failed' || worker.status === 'completed'
       ? 'textDim'
       : worker.status === 'stalled'
         ? 'warning'
-        : 'text',
-    name,
-  );
+        : args.selected
+          ? 'primary'
+          : 'text';
+  const namePaint = args.selected
+    ? currentTheme.boldFg(nameToken, name)
+    : currentTheme.fg(nameToken, name);
   const action =
     worker.lastTool === undefined
       ? undefined

@@ -36,6 +36,11 @@ import {
 } from '#/tui/utils/ui/list-dialog-mouse';
 import { pageView } from '#/tui/utils/ui/paging';
 import { ttui } from '#/tui/utils/tui-i18n';
+import {
+  hubRowHoverId,
+  isHoverRegion,
+  setHoverRegion,
+} from '#/tui/features/mission-control/worker-hover';
 
 import {
   COMMAND_HUB_PAGE_SIZE,
@@ -146,7 +151,10 @@ export class CommandHubComponent extends Container implements Focusable {
       return true;
     }
     if (action.type === 'highlight') {
-      this.moveSelection(action.index + this.windowStart);
+      const absolute = action.index + this.windowStart;
+      // Hover: update shared hover region for settle flash; selection follows.
+      setHoverRegion(hubRowHoverId(absolute), appearanceAnimationNow());
+      this.moveSelection(absolute);
       return true;
     }
     if (action.type === 'activate') {
@@ -406,9 +414,14 @@ export class CommandHubComponent extends Container implements Focusable {
     const theme = currentTheme;
     const resolved = resolveHubItem(item);
     const selected = index === this.selectedIndex;
+    const hovering = isHoverRegion(hubRowHoverId(index)) && !selected;
     const flashing = this.flashId === item.id;
     const reveal = ambient ? hubClamp01((now - this.openedAtMs - 60 - index * 24) / 200) : 1;
-    const pointer = selected ? renderSelectPointer('command-hub') : ' ';
+    const pointer = selected
+      ? renderSelectPointer('command-hub')
+      : hovering
+        ? renderSelectPointer('command-hub-hover')
+        : ' ';
     const slidePad =
       selected && ambient && this.selectionMovedAtMs > 0 && now - this.selectionMovedAtMs < HUB_SLIDE_MS
         ? ' '
@@ -417,9 +430,11 @@ export class CommandHubComponent extends Container implements Focusable {
     const baseLabel = (text: string): string =>
       selected
         ? theme.boldFg('primary', text)
-        : reveal < 1
-          ? theme.fg('textMuted', text)
-          : theme.fg('text', text);
+        : hovering
+          ? theme.fg('primary', text)
+          : reveal < 1
+            ? theme.fg('textMuted', text)
+            : theme.fg('text', text);
     const labelStyled = flashing
       ? renderSettleFlash(resolved.label, `hub:flash:${item.id}`, this.flashAtMs, appearance)
       : filtering

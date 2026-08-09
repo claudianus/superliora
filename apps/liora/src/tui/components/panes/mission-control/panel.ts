@@ -80,6 +80,12 @@ import {
   selectAttentionJobs,
   shouldUseDensemode,
 } from './densemode';
+import { getHoverRegionId } from '#/tui/features/mission-control/worker-hover';
+import {
+  paintWorkerRowChrome,
+  workerHoverPaintPending,
+} from '#/tui/features/mission-control/worker-row-paint';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 export type MissionWorkerScrollAction =
   | 'line-up'
@@ -88,6 +94,13 @@ export type MissionWorkerScrollAction =
   | 'page-down'
   | 'top'
   | 'bottom';
+
+/** Hit-test result for a painted mission-band content row (0 = first content line). */
+export type MissionWorkerHit =
+  | { readonly kind: 'worker'; readonly workerId: string; readonly index: number }
+  | { readonly kind: 'header' }
+  | { readonly kind: 'other' };
+
 import {
   formatMissionAgeMs,
   formatMissionClockMs,
@@ -188,6 +201,15 @@ export class MissionControlPanelComponent implements Component {
   private workerScrollOffset = 0;
   /** Last painted worker-row viewport size (for scroll clamp before next paint). */
   private lastWorkerSlots = DENSE_WORKER_CAP;
+  /** Keyboard / click selection into the visible roster (worker id). */
+  private selectedWorkerId: string | undefined;
+  /**
+   * Last paint: content-local row index → worker id (densemode worker rows).
+   * Index 0 is the first interior content line (below the top border).
+   */
+  private lastWorkerRowMap: ReadonlyMap<number, string> = new Map();
+  /** Content-local row of the band header / KPI line (hover glow). */
+  private lastHeaderRow: number | undefined;
   /** Per-worker stream reveal (catch-up type-on for liveText). */
   private readonly revealByWorker = new Map<string, StreamingTextRevealState>();
   /** Per-worker displayed tok/s after ease toward the registry rate. */
@@ -203,6 +225,8 @@ export class MissionControlPanelComponent implements Component {
         readonly tick: number;
         readonly revealPending: boolean;
         readonly scrollOffset: number;
+        readonly selectedWorkerId: string | undefined;
+        readonly hoverRegionId: string | undefined;
         readonly lines: string[];
       }
     | undefined;
@@ -210,6 +234,11 @@ export class MissionControlPanelComponent implements Component {
   /** Current view — read by the hit-test chrome signature (cheap counts only). */
   get currentView(): MissionControlView {
     return this.view;
+  }
+
+  /** Selected worker id (keyboard / click), if still on the roster. */
+  get selectedWorker(): string | undefined {
+    return this.selectedWorkerId;
   }
 
   setView(view: MissionControlView): void {
@@ -221,6 +250,7 @@ export class MissionControlPanelComponent implements Component {
       return;
     }
     this.view = view;
+    this.pruneSelection();
     this.lastRender = undefined;
   }
 
@@ -228,6 +258,89 @@ export class MissionControlPanelComponent implements Component {
     if (pinned === this.pinned) return;
     this.pinned = pinned;
     this.lastRender = undefined;
+  }
+
+  /** Select a worker by id (no-op when missing). Returns true when changed. */
+  selectWorker(workerId: string | undefined): boolean {
+    if (workerId === this.selectedWorkerId) return false;
+    if (workerId !== undefined) {
+      const now = appearanceAnimationNow();
+      const exists = this.visibleWorkers(now).some((worker) => worker.id === workerId);
+      if (!exists) return false;
+    }
+    this.selectedWorkerId = workerId;
+    this.lastRender = undefined;
+    return true;
+  }
+
+  /**
+   * Move selection within the visible roster. When nothing is selected yet,
+   * arrow-down picks the first worker and arrow-up the last.
+   * Returns true when selection or scroll window changed.
+   */
+  moveSelection(delta: number): boolean {
+    const workers = this.visibleWorkers(appearanceAnimationNow());
+    if (workers.length === 0) return false;
+    const ids = workers.map((worker) => worker.id);
+    let index = this.selectedWorkerId === undefined ? -1 : ids.indexOf(this.selectedWorkerId);
+    if (index < 0) {
+      index = delta >= 0 ? 0 : ids.length - 1;
+    } else {
+      index = Math.max(0, Math.min(ids.length - 1, index + delta));
+    }
+    const nextId = ids[index]!;
+    let changed = this.selectWorker(nextId);
+    // Keep the selected row inside the densemode window.
+    const slots = Math.max(1, Math.min(this.lastWorkerSlots, workers.length));
+    if (workers.length > slots) {
+      if (index < this.workerScrollOffset) {
+        changed = this.scrollWorkers('line-up') || changed;
+        // Jump window so selection is first visible.
+        const target = clampWorkerScrollOffset(index, workers.length, slots);
+        if (target !== this.workerScrollOffset) {
+          this.workerScrollOffset = target;
+          this.lastRender = undefined;
+          changed = true;
+        }
+      } else if (index >= this.workerScrollOffset + slots) {
+        const target = clampWorkerScrollOffset(index - slots + 1, workers.length, slots);
+        if (target !== this.workerScrollOffset) {
+          this.workerScrollOffset = target;
+          this.lastRender = undefined;
+          changed = true;
+        }
+      }
+    }
+    return changed;
+  }
+
+  /**
+   * Map a band-local screen row (0 = top of mission rect, including border)
+   * to a worker / header hit. Uses the last paint's content row map.
+   */
+  hitTestWorkerRow(bandLocalY: number, bandHeight: number): MissionWorkerHit | undefined {
+    if (bandHeight <= 0) return undefined;
+    // Rounded panel: top border is row 0; content starts at 1; bottom border last.
+    const contentRow = bandLocalY - 1;
+    if (contentRow < 0) return { kind: 'header' };
+    if (this.lastHeaderRow !== undefined && contentRow === this.lastHeaderRow) {
+      return { kind: 'header' };
+    }
+    const workerId = this.lastWorkerRowMap.get(contentRow);
+    if (workerId !== undefined) {
+      const workers = this.visibleWorkers(appearanceAnimationNow());
+      const index = workers.findIndex((worker) => worker.id === workerId);
+      return { kind: 'worker', workerId, index: Math.max(0, index) };
+    }
+    if (contentRow === 0) return { kind: 'header' };
+    return { kind: 'other' };
+  }
+
+  private pruneSelection(): void {
+    if (this.selectedWorkerId === undefined) return;
+    const now = appearanceAnimationNow();
+    const still = this.visibleWorkers(now).some((worker) => worker.id === this.selectedWorkerId);
+    if (!still) this.selectedWorkerId = undefined;
   }
 
   /**
@@ -300,13 +413,24 @@ export class MissionControlPanelComponent implements Component {
     return true;
   }
 
-  /** ↑↓ / j k — only consumes when the roster has overflow to window. */
+  /**
+   * ↑↓ move selection (and window when needed); j/k still scroll the window;
+   * Enter is handled by the host (open transcript). Page/Home/End scroll.
+   */
   handleInput(data: string): void {
-    if (matchesKey(data, Key.up) || printableChar(data) === 'k') {
+    if (matchesKey(data, Key.up)) {
+      this.moveSelection(-1);
+      return;
+    }
+    if (matchesKey(data, Key.down)) {
+      this.moveSelection(1);
+      return;
+    }
+    if (printableChar(data) === 'k') {
       this.scrollWorkers('line-up');
       return;
     }
-    if (matchesKey(data, Key.down) || printableChar(data) === 'j') {
+    if (printableChar(data) === 'j') {
       this.scrollWorkers('line-down');
       return;
     }
@@ -324,6 +448,47 @@ export class MissionControlPanelComponent implements Component {
     }
     if (matchesKey(data, Key.end)) {
       this.scrollWorkers('bottom');
+    }
+  }
+
+  /**
+   * Host keyboard path: ↑↓ select, Enter opens (caller), Esc clears selection.
+   * Returns true when the panel consumed the key.
+   */
+  handleSelectionKey(
+    key: 'up' | 'down' | 'enter' | 'escape' | 'pageup' | 'pagedown' | 'home' | 'end',
+  ): { readonly handled: boolean; readonly openWorkerId?: string; readonly clearSelection?: boolean } {
+    switch (key) {
+      case 'up':
+        return { handled: this.moveSelection(-1) || this.visibleWorkers(appearanceAnimationNow()).length > 0 };
+      case 'down':
+        return { handled: this.moveSelection(1) || this.visibleWorkers(appearanceAnimationNow()).length > 0 };
+      case 'pageup':
+        return { handled: this.scrollWorkers('page-up') };
+      case 'pagedown':
+        return { handled: this.scrollWorkers('page-down') };
+      case 'home':
+        return { handled: this.scrollWorkers('top') };
+      case 'end':
+        return { handled: this.scrollWorkers('bottom') };
+      case 'enter': {
+        const id = this.selectedWorkerId;
+        if (id === undefined) {
+          // First Enter with no selection focuses the first worker.
+          if (!this.moveSelection(1) && !this.moveSelection(-1)) {
+            return { handled: false };
+          }
+          return { handled: true, openWorkerId: this.selectedWorkerId };
+        }
+        return { handled: true, openWorkerId: id };
+      }
+      case 'escape': {
+        if (this.selectedWorkerId === undefined) return { handled: false };
+        this.selectWorker(undefined);
+        return { handled: true, clearSelection: true };
+      }
+      default:
+        return { handled: false };
     }
   }
 
@@ -371,8 +536,17 @@ export class MissionControlPanelComponent implements Component {
     }
     const now = appearanceAnimationNow();
     const revealPending = this.syncRevealAndRates(now);
+    const hoverPending = workerHoverPaintPending(this.selectedWorkerId, getActiveAppearancePreferences(), now)
+      || workerHoverPaintPending(
+        getHoverRegionId()?.startsWith('mc:worker:')
+          ? getHoverRegionId()!.slice('mc:worker:'.length)
+          : undefined,
+        getActiveAppearancePreferences(),
+        now,
+      );
     const tick = this.tickBucket(now);
     const memo = this.lastRender;
+    const hoverId = getHoverRegionId();
     // Motion / stream reveal is clock-driven: skip the memo while animation
     // or catch-up reveal runs so ambient repaints advance frames. With motion
     // off the 1s tick bucket still advances elapsed clocks.
@@ -384,8 +558,11 @@ export class MissionControlPanelComponent implements Component {
       memo.jobs === this.view.jobs &&
       memo.workDir === this.view.workDir &&
       memo.scrollOffset === this.workerScrollOffset &&
+      memo.selectedWorkerId === this.selectedWorkerId &&
+      memo.hoverRegionId === hoverId &&
       memo.revealPending === revealPending &&
       !revealPending &&
+      !hoverPending &&
       (ambientAnimationActive() ? false : memo.tick === tick)
     ) {
       return memo.lines;
@@ -398,8 +575,10 @@ export class MissionControlPanelComponent implements Component {
       jobs: this.view.jobs,
       workDir: this.view.workDir,
       tick,
-      revealPending,
+      revealPending: revealPending || hoverPending,
       scrollOffset: this.workerScrollOffset,
+      selectedWorkerId: this.selectedWorkerId,
+      hoverRegionId: hoverId,
       lines,
     };
     return lines;
@@ -502,14 +681,31 @@ export class MissionControlPanelComponent implements Component {
         workerGlyph: (worker) => this.workerGlyph(worker, animated),
         scrollOffset: this.workerScrollOffset,
         jobs: this.view.jobs,
+        selectedWorkerId: this.selectedWorkerId,
+        paintRowChrome: (worker) =>
+          paintWorkerRowChrome({
+            workerId: worker.id,
+            selected: worker.id === this.selectedWorkerId,
+            appearance,
+            animated,
+          }),
       });
       this.workerScrollOffset = dense.scrollOffset;
       if (dense.workerSlots > 0) this.lastWorkerSlots = dense.workerSlots;
-      if (dense.lines.length > 0 && dense.lines.length <= contentBudget) {
+      // Record content-local hit map for mouse (KPI=0, optional ticker, header, then workers).
+      this.lastWorkerRowMap = dense.workerRowMap;
+      this.lastHeaderRow = dense.headerRow;
+      const content = [...dense.lines];
+      if (workers.length > 0 && content.length < contentBudget) {
+        content.push(
+          currentTheme.fg('textMuted', ` ${ttui('tui.missionControl.dockHint')}`),
+        );
+      }
+      if (content.length > 0 && content.length <= contentBudget) {
         return renderRoundedPanel({
           ...frameOpts,
           title: this.title('dense', now),
-          content: dense.lines,
+          content,
           borderToken: this.borderToken(now),
         });
       }
