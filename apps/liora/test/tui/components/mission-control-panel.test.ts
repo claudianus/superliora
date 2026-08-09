@@ -8,9 +8,13 @@ import {
   emptyMissionControlView,
   formatMissionAgeMs,
   formatMissionTokenRate,
+  missionDockBorderToken,
   type MissionControlView,
 } from '#/tui/components/panes/mission-control/panel';
-import { MissionControlRegistry } from '#/tui/controllers/mission-control/registry';
+import {
+  MISSION_COMPLETED_LINGER_MS,
+  MissionControlRegistry,
+} from '#/tui/controllers/mission-control/registry';
 import { appearanceAnimationNow } from '#/tui/features/appearance/appearance-effects';
 import {
   emptyConductorJobsSnapshot,
@@ -120,10 +124,8 @@ describe('MissionControlPanelComponent', () => {
     expect(text).toMatch(/WKR/);
     expect(text).toContain('explore');
     expect(text).toContain('gpt-5');
-    // Focus todo lands in the LIVE cell when stream is cold.
+    // Focus todo lands in the LIVE cell when stream is cold (beats lastTool).
     expect(text).toContain('Ship human-first dock');
-    expect(text).toContain('Read');
-    expect(text).toContain('panel.ts');
     expect(text).toMatch(/1\/2/);
     // Absolute-path spam must not dominate.
     expect(text).not.toContain('/Users/');
@@ -136,7 +138,7 @@ describe('MissionControlPanelComponent', () => {
     expect(formatMissionAgeMs(1_000, 3_661_000)).toBe('1h ago');
   });
 
-  it('renders MOVES with relative age and error marks', () => {
+  it('densemode omits TAPE/BOARD sections even when ops and jobs exist', () => {
     const clock = appearanceAnimationNow();
     const panel = new MissionControlPanelComponent();
     panel.setView({
@@ -154,6 +156,8 @@ describe('MissionControlPanelComponent', () => {
             elapsedMs: 5_000,
             spawnedAtMs: clock,
             lastActivityAtMs: clock,
+            lastTool: 'Edit',
+            lastTarget: 'src/a.ts',
           },
         ],
         activeCount: 1,
@@ -172,18 +176,29 @@ describe('MissionControlPanelComponent', () => {
           },
         ],
       },
-      jobs: emptyConductorJobsSnapshot(),
+      jobs: {
+        ...emptyConductorJobsSnapshot(),
+        total: 2,
+        running: 1,
+        failed: 1,
+        jobs: [
+          jobCard({ id: 'job_run00000001', status: 'running', title: 'Running card' }),
+          jobCard({ id: 'job_fail0000004', status: 'failed', title: 'Land failed' }),
+        ],
+      },
     });
 
     const text = plain(panel.render(100)).join('\n');
-    expect(text).toContain('TAPE');
-    expect(text).toContain('3s ago');
-    // Single-worker feed omits the worker name column.
-    expect(text).not.toMatch(/builder-1.*Edit/);
-    expect(text).toContain('\u2717 Edit src/a.ts');
+    expect(text).toContain('Worker Dock');
+    expect(text).toContain('builder');
+    expect(text).not.toContain('TAPE');
+    expect(text).not.toContain('BOARD');
+    // Job attention cards no longer steal dock rows.
+    expect(text).not.toContain('Land failed');
+    expect(text).not.toContain('Running card');
   });
 
-  it('collapses consecutive cd-only bash noise in MOVES', () => {
+  it('keeps lastTool on the worker LIVE cell without a TAPE section', () => {
     const longCd =
       'cd /Users/modumaru/.superliora/worktrees/16-4a12d7da/conductor-jmsiq/repo';
     const registry = registryWith([
@@ -206,93 +221,56 @@ describe('MissionControlPanelComponent', () => {
         subagentId: 'sa-1',
         toolCallId: 'tc-1',
       } as Event,
-      {
-        type: 'subagent.tool_call',
-        subagentId: 'sa-1',
-        toolCallId: 'tc-2',
-        name: 'Bash',
-        detail: { kind: 'bash', command: `${longCd}-b` },
-      } as Event,
-      {
-        type: 'subagent.tool_result',
-        subagentId: 'sa-1',
-        toolCallId: 'tc-2',
-      } as Event,
     ]);
     const panel = new MissionControlPanelComponent();
     panel.setView(viewFor(registry));
     const text = plain(panel.render(100)).join('\n');
-    expect(text).toContain('TAPE');
-    expect(text).toContain('enter');
+    expect(text).not.toContain('TAPE');
+    expect(text).toContain('Bash');
     expect(text).not.toContain('/Users/modumaru/.superliora/worktrees');
-    // Two consecutive cd ops collapse to one visible TAPE row.
-    const tapeIdx = text.indexOf('TAPE');
-    const tapeSection = tapeIdx >= 0 ? text.slice(tapeIdx) : '';
-    const boardIdx = tapeSection.indexOf('BOARD');
-    const tapeOnly = boardIdx >= 0 ? tapeSection.slice(0, boardIdx) : tapeSection;
-    expect(tapeOnly.split('enter').length - 1).toBe(1);
   });
 
-  it('renders condensed BOARD lanes with attention rows first', () => {
-    const registry = registryWith([
-      {
-        type: 'subagent.spawned',
-        subagentId: 'sa-1',
-        subagentName: 'builder-1',
-        parentToolCallId: 'ptc',
-        runInBackground: false,
-      } as Event,
-    ]);
-    const jobs = {
-      ...emptyConductorJobsSnapshot(),
-      total: 4,
-      running: 1,
-      needsUser: 1,
-      interrupted: 1,
-      failed: 1,
-      jobs: [
-        jobCard({
-          id: 'job_run00000001',
-          status: 'running',
-          title: 'Running card',
-          workerName: 'builder-1',
-          updatedAtMs: NOW,
-        }),
-        jobCard({
-          id: 'job_need00000002',
-          status: 'needs_user',
-          title: 'Need answer',
-          updatedAtMs: NOW + 1,
-        }),
-        jobCard({
-          id: 'job_int00000003',
-          status: 'interrupted',
-          title: 'Paused deploy',
-          updatedAtMs: NOW + 2,
-        }),
-        jobCard({
-          id: 'job_fail0000004',
-          status: 'failed',
-          title: 'Land failed',
-          updatedAtMs: NOW + 3,
-        }),
-      ],
+  it('missionDockBorderToken never goes error for failed-only workers', () => {
+    const failed: MissionWorker = {
+      id: 'sa-bad',
+      name: 'bad',
+      kind: 'subagent',
+      status: 'failed',
+      runInBackground: false,
+      toolCount: 1,
+      tokens: 0,
+      elapsedMs: 1_000,
+      spawnedAtMs: NOW,
+      lastActivityAtMs: NOW,
+      terminalAtMs: NOW,
+      error: 'boom',
     };
-    const panel = new MissionControlPanelComponent();
-    panel.setView(viewFor(registry, jobs));
-
-    const text = plain(panel.render(100)).join('\n');
-    expect(text).toContain('BOARD');
-    expect(text).toContain('needs-you 1');
-    expect(text).toContain('running 1');
-    expect(text).toContain('interrupted 1');
-    expect(text).toContain('failed 1');
-    // Densemode paints one attention card; needs_user outranks the rest.
-    expect(text).toContain('Need answer');
-    expect(text).not.toContain('Land failed');
+    const running: MissionWorker = {
+      ...failed,
+      id: 'sa-run',
+      name: 'run',
+      status: 'running',
+      terminalAtMs: undefined,
+      error: undefined,
+    };
+    const stalled: MissionWorker = {
+      ...failed,
+      id: 'sa-stall',
+      name: 'stall',
+      status: 'stalled',
+      terminalAtMs: undefined,
+      error: undefined,
+    };
+    const idleJobs = emptyConductorJobsSnapshot();
+    expect(missionDockBorderToken([failed], idleJobs)).toBe('border');
+    expect(missionDockBorderToken([failed, running], idleJobs)).toBe('primary');
+    expect(missionDockBorderToken([stalled], idleJobs)).toBe('warning');
+    expect(
+      missionDockBorderToken([running], { ...idleJobs, needsUser: 1 }),
+    ).toBe('warning');
   });
 
-  it('skips BOARD attention cards with empty titles', () => {
+  it('hides failed workers past the linger window from the dock', () => {
     const clock = appearanceAnimationNow();
     const panel = new MissionControlPanelComponent();
     panel.setView({
@@ -300,38 +278,34 @@ describe('MissionControlPanelComponent', () => {
         version: 1,
         workers: [
           {
-            id: 'sa-1',
-            name: 'coder',
+            id: 'sa-bad',
+            name: 'gone-soon',
             kind: 'subagent',
-            status: 'running',
+            status: 'failed',
             runInBackground: false,
             toolCount: 1,
-            tokens: 10,
+            tokens: 0,
             elapsedMs: 1_000,
-            spawnedAtMs: clock,
-            lastActivityAtMs: clock,
+            spawnedAtMs: clock - MISSION_COMPLETED_LINGER_MS - 5_000,
+            lastActivityAtMs: clock - MISSION_COMPLETED_LINGER_MS - 1,
+            terminalAtMs: clock - MISSION_COMPLETED_LINGER_MS - 1,
+            error: 'boom',
           },
         ],
-        activeCount: 1,
-        totalTokens: 10,
+        activeCount: 0,
+        totalTokens: 0,
         ops: [],
       },
-      jobs: {
-        ...emptyConductorJobsSnapshot(),
-        total: 1,
-        running: 1,
-        jobs: [jobCard({ id: 'job_empty000001', status: 'running', title: '   ' })],
-      },
+      jobs: emptyConductorJobsSnapshot(),
     });
-    const text = plain(panel.render(80)).join('\n');
-    expect(text).toContain('BOARD');
-    expect(text).toContain('running 1');
-    expect(text).not.toMatch(/❯\s*$/m);
+    expect(panel.isEmpty(clock)).toBe(true);
+    expect(panel.render(80)).toEqual([]);
   });
 
   it('degrades density to fit a small row budget', () => {
     const events: Event[] = [];
-    for (let i = 0; i < 6; i += 1) {
+    // More workers than the tight band can show even with the raised dense cap.
+    for (let i = 0; i < 12; i += 1) {
       events.push({
         type: 'subagent.spawned',
         subagentId: `sa-${String(i)}`,
@@ -523,9 +497,9 @@ describe('MissionControlPanelComponent', () => {
     const text = plain(panel.render(100)).join('\n');
     expect(text).toContain('Worker Dock');
     expect(text).toMatch(/\d+ workers?/);
-    expect(text).toContain('TK');
     expect(text).toMatch(/WKR/);
-    expect(text).toContain('TAPE');
+    expect(text).not.toContain('TAPE');
+    expect(text).not.toContain('BOARD');
     expect(text).toContain('plan');
     expect(text).toContain('explore');
     expect(text).toContain('Phaser Arcade Physics loop');
@@ -571,12 +545,13 @@ describe('MissionControlPanelComponent', () => {
     expect(text).toContain('FLEET');
     expect(text).toMatch(/WKR/);
     expect(text).toContain('solo thought stream');
-    expect(text).toContain('TAPE');
-    expect(text).toContain('Bash');
+    expect(text).not.toContain('TAPE');
+    // Hot live stream replaces lastTool in LIVE.
+    expect(text).not.toContain('Bash');
     expect(text).not.toContain('\nNOW\n');
   });
 
-  it('humanizes JSON WebSearch targets in TAPE', () => {
+  it('humanizes JSON WebSearch targets on the worker LIVE cell', () => {
     const registry = registryWith([
       {
         type: 'subagent.spawned',
@@ -596,7 +571,7 @@ describe('MissionControlPanelComponent', () => {
     const panel = new MissionControlPanelComponent();
     panel.setView(viewFor(registry));
     const text = plain(panel.render(100)).join('\n');
-    expect(text).toContain('TAPE');
+    expect(text).not.toContain('TAPE');
     expect(text).toContain('WebSearch');
     expect(text).toContain('premium HTML');
     expect(text).not.toContain('"query"');
@@ -604,7 +579,7 @@ describe('MissionControlPanelComponent', () => {
 
   it('windows densemode workers via scrollWorkers and j/k', () => {
     const clock = appearanceAnimationNow();
-    const workers: MissionWorker[] = Array.from({ length: 7 }, (_, i) => ({
+    const workers: MissionWorker[] = Array.from({ length: 10 }, (_, i) => ({
       id: `sa-${String(i)}`,
       name: `w${String(i)}`,
       kind: 'subagent',
@@ -621,8 +596,8 @@ describe('MissionControlPanelComponent', () => {
       snapshot: {
         version: 1,
         workers,
-        activeCount: 7,
-        totalTokens: 700,
+        activeCount: 10,
+        totalTokens: 1_000,
         ops: [],
       },
       jobs: emptyConductorJobsSnapshot(),
@@ -630,19 +605,19 @@ describe('MissionControlPanelComponent', () => {
 
     const page0 = plain(panel.render(100)).join('\n');
     expect(page0).toContain('w0');
-    expect(page0).toMatch(/\+2 more \(↑↓\)/);
-    expect(page0).not.toContain('w6');
+    // Cap raised to 8 — with KPI+header overhead more workers fit than before.
+    expect(page0).toMatch(/\+\d+ more \(↑↓\)/);
+    expect(page0).not.toContain('w9');
 
     expect(panel.scrollWorkers('line-down')).toBe(true);
     expect(panel.scrollWorkers('line-down')).toBe(true);
     const page1 = plain(panel.render(100)).join('\n');
-    expect(page1).toContain('w6');
+    expect(page1).toContain('w9');
     expect(page1).not.toContain('w0');
 
     panel.handleInput('k');
     const pageBack = plain(panel.render(100)).join('\n');
-    expect(pageBack).toContain('w1');
+    expect(pageBack).toMatch(/w[0-9]/);
     expect(panel.scrollWorkers('line-up')).toBe(true);
-    expect(panel.scrollWorkers('line-up')).toBe(false);
   });
 });

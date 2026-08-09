@@ -4,6 +4,9 @@ import type { Event } from '@superliora/sdk';
 
 import {
   MISSION_COMPLETED_LINGER_MS,
+  MISSION_RATE_EMA_INSTANT,
+  MISSION_RATE_EMA_PREV,
+  MISSION_RATE_MIN_SAMPLE_MS,
   MissionControlRegistry,
 } from '#/tui/controllers/mission-control/registry';
 
@@ -234,7 +237,7 @@ describe('MissionControlRegistry', () => {
     expect(registry.snapshot(now()).workers[0]!.focusTodo).toBe('next-up');
   });
 
-  it('lingers completed workers briefly, then prunes them; failed persist', () => {
+  it('lingers completed and failed workers briefly, then prunes both', () => {
     const { registry, advance, now } = createHarness();
     registry.apply(spawned('sa-ok'));
     registry.apply(spawned('sa-bad'));
@@ -256,9 +259,70 @@ describe('MissionControlRegistry', () => {
     expect(snap.workers[0]).toMatchObject({ status: 'failed', error: 'boom' });
     expect(snap.workers[1]!.tokens).toBe(160);
 
-    advance(MISSION_COMPLETED_LINGER_MS + 1);
+    // Still within linger — both terminal workers remain.
+    advance(MISSION_COMPLETED_LINGER_MS - 1);
     snap = registry.snapshot(now());
-    expect(snap.workers.map((w) => w.id)).toEqual(['sa-bad']);
+    expect(snap.workers.map((w) => w.id).sort()).toEqual(['sa-bad', 'sa-ok']);
+
+    advance(2);
+    snap = registry.snapshot(now());
+    expect(snap.workers).toHaveLength(0);
+  });
+
+  it('updates tok/s on progress samples ≥ min gap and EMA tracks bursts', () => {
+    const { registry, advance, now } = createHarness();
+    registry.apply(spawned('sa-1', { subagentName: 'pace' }));
+    registry.apply({
+      type: 'subagent.progress',
+      subagentId: 'sa-1',
+      toolCount: 1,
+      elapsedMs: 100,
+      tokens: 1_000,
+    } as Event);
+    expect(registry.snapshot(now()).workers[0]!.tokenRatePerSec).toBeUndefined();
+
+    // Below the min sample gap — still no rate; baseline clock is held.
+    advance(MISSION_RATE_MIN_SAMPLE_MS - 20);
+    registry.apply({
+      type: 'subagent.progress',
+      subagentId: 'sa-1',
+      toolCount: 2,
+      elapsedMs: 180,
+      tokens: 1_200,
+    } as Event);
+    expect(registry.snapshot(now()).workers[0]!.tokenRatePerSec).toBeUndefined();
+
+    // Eligible beat pairs against the held baseline (includes the short-gap tokens).
+    // 400 tokens over (min-20 + min) ms ≈ 400 / 0.18s when min=100.
+    advance(MISSION_RATE_MIN_SAMPLE_MS);
+    registry.apply({
+      type: 'subagent.progress',
+      subagentId: 'sa-1',
+      toolCount: 3,
+      elapsedMs: 280,
+      tokens: 1_400,
+    } as Event);
+    const first = registry.snapshot(now()).workers[0]!.tokenRatePerSec;
+    expect(first).toBeDefined();
+    const heldWindowSec = (MISSION_RATE_MIN_SAMPLE_MS - 20 + MISSION_RATE_MIN_SAMPLE_MS) / 1000;
+    expect(first!).toBeCloseTo(400 / heldWindowSec, 5);
+
+    // Clean step after an eligible sample — EMA chases the new instant.
+    advance(MISSION_RATE_MIN_SAMPLE_MS);
+    registry.apply({
+      type: 'subagent.progress',
+      subagentId: 'sa-1',
+      toolCount: 4,
+      elapsedMs: 380,
+      tokens: 1_900,
+    } as Event);
+    const second = registry.snapshot(now()).workers[0]!.tokenRatePerSec!;
+    const instant = 5_000; // 500 tokens / 0.1s
+    const expected = first! * MISSION_RATE_EMA_PREV + instant * MISSION_RATE_EMA_INSTANT;
+    expect(second).toBeCloseTo(expected, 5);
+    // Snappier than legacy 0.55/0.45 would have been on the same step.
+    const legacy = first! * 0.55 + instant * 0.45;
+    expect(Math.abs(second - instant)).toBeLessThan(Math.abs(legacy - instant));
   });
 
   it('dedups background agent tasks onto their subagent worker', () => {

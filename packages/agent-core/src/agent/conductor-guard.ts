@@ -18,6 +18,13 @@
  * - Bash stays on the lane for read-only inspection only (V1-5): stage 1
  *   classifies the command via `conductor-bash-policy` and hard-denies
  *   anything that can mutate files, packages, or git state.
+ * - Interactive exploration cap (per turn): RepoQuery/Grep/Glob/Read (and
+ *   search-shaped Bash) are limited so Conductor cannot burn the lane on a
+ *   discovery marathon. Soft reject after
+ *   {@link CONDUCTOR_INTERACTIVE_EXPLORE_SOFT} calls steers to
+ *   `JobCreate(kind=explore)` / EnterPlanMode; hard reject after
+ *   {@link CONDUCTOR_INTERACTIVE_EXPLORE_HARD}. Job desk / plan / ask tools
+ *   stay unrestricted. This is separate from the direct-work violation counter.
  * - Tripwire recorder: every block attempt and wall-clock budget overrun is
  *   recorded as a {@link ConductorGuardEvent} (§3.2 G3-lite). Hard-budget
  *   overruns also abort the running call through the per-call budget signal
@@ -46,6 +53,16 @@ export const CONDUCTOR_GUARD_CODES = {
   accessBlocked: 'CONDUCTOR_ACCESS_BLOCKED',
   /** Bash write command rejected on the conductor lane (§2.1 item 3, V1-5). */
   bashWriteBlocked: 'CONDUCTOR_BASH_WRITE_BLOCKED',
+  /**
+   * Soft interactive-exploration cap exceeded — steer to explore Job / Plan Desk
+   * without escalating the direct-work violation counter.
+   */
+  exploreSoft: 'CONDUCTOR_INTERACTIVE_EXPLORE_SOFT',
+  /**
+   * Hard interactive-exploration cap exceeded — reject further discovery tools
+   * on this turn and require JobCreate(kind=explore) / EnterPlanMode.
+   */
+  exploreHard: 'CONDUCTOR_INTERACTIVE_EXPLORE_HARD',
   /** Tool wall-clock exceeded the soft budget (§3.2 G3 soft 5s). */
   toolBudgetSoft: 'CONDUCTOR_TOOL_BUDGET_SOFT',
   /** Tool wall-clock exceeded the hard budget (§3.2 G3 hard 15s). */
@@ -158,6 +175,36 @@ export const CONDUCTOR_TURN_STOP_PHRASE =
   'Repeated direct-work attempts blocked (3 in this turn) — ending the turn. Route the work through JobCreate.';
 
 /**
+ * Soft cap for exploration-class tools on the Conductor interactive lane per
+ * turn (RepoQuery/Grep/Glob/Read + search-shaped Bash). First N calls are
+ * allowed for brief triage; further calls get a soft steer to explore Job /
+ * EnterPlanMode. Tuned so 1–3 targeted lookups still work.
+ */
+export const CONDUCTOR_INTERACTIVE_EXPLORE_SOFT = 3;
+
+/**
+ * Hard cap for exploration-class tools on the Conductor interactive lane per
+ * turn. After this many attempts (allowed + rejected), further discovery tools
+ * are hard-rejected with a JobCreate(kind=explore) draft. Job desk / plan /
+ * ask tools are never counted here.
+ */
+export const CONDUCTOR_INTERACTIVE_EXPLORE_HARD = 6;
+
+/** Soft explore-cap routing phrase — stop deep interactive search. */
+export const CONDUCTOR_EXPLORE_SOFT_REJECTION_PHRASE =
+  'Interactive exploration budget soft-limit reached on the Conductor lane. Stop multi-step RepoQuery/Grep/Read here — spawn JobCreate(kind=explore) with success_criteria + context_paths, or EnterPlanMode for multi-approach work.';
+
+/** Hard explore-cap routing phrase — discovery must leave this lane. */
+export const CONDUCTOR_EXPLORE_HARD_REJECTION_PHRASE =
+  'Interactive exploration budget hard-limit reached on the Conductor lane. Further discovery tools are blocked this turn. Call JobCreate(kind=explore) or EnterPlanMode; do not continue searching on the interactive lane.';
+
+/**
+ * Exploration-class tools counted toward the interactive cap. Job desk, plan
+ * lifecycle, ask, and non-search Bash are intentionally excluded.
+ */
+export const CONDUCTOR_EXPLORATION_TOOLS = ['RepoQuery', 'Grep', 'Glob', 'Read'] as const;
+
+/**
  * Ledger ACK attached when the second violation escalates to a direct ledger
  * record (V1-3). The draft is already queued — calling JobCreate again for it
  * would duplicate the job, so the ACK replaces the "call JobCreate" hint.
@@ -239,6 +286,11 @@ export const CONDUCTOR_INTERACTIVE_WAIT_TOOLS = ['AskUserQuestion'] as const;
 const DIRECT_WORK_TOOL_SET: ReadonlySet<string> = new Set(CONDUCTOR_DIRECT_WORK_TOOLS);
 const WORKER_WAIT_TOOL_SET: ReadonlySet<string> = new Set(CONDUCTOR_WORKER_WAIT_TOOLS);
 const INTERACTIVE_WAIT_TOOL_SET: ReadonlySet<string> = new Set(CONDUCTOR_INTERACTIVE_WAIT_TOOLS);
+const EXPLORATION_TOOL_SET: ReadonlySet<string> = new Set(CONDUCTOR_EXPLORATION_TOOLS);
+
+/** Bash commands that look like code search — count toward the explore cap. */
+const BASH_SEARCH_PATTERN =
+  /\b(?:rg|grep|ag|ack|find|fd|git\s+grep|git\s+log|git\s+blame|git\s+show|RepoQuery)\b/i;
 
 /** Cap for the in-memory tripwire buffer (bounded memory for long sessions). */
 const MAX_TRIPWIRE_EVENTS = 500;
@@ -276,6 +328,8 @@ export class ConductorDirectWorkGuard {
 
   private readonly tripwireEvents: ConductorGuardEvent[] = [];
   private readonly violationsByTurn = new Map<string, number>();
+  /** Exploration-class tool attempts per turn (soft/hard interactive cap). */
+  private readonly exploreCallsByTurn = new Map<string, number>();
   private readonly budgets = new Map<string, ToolBudgetEntry>();
   /** Consecutive hard-budget trips per turn key (V1-4 turn-stop streak). */
   private readonly hardTripStreakByTurn = new Map<string, number>();
@@ -303,7 +357,8 @@ export class ConductorDirectWorkGuard {
   /**
    * Stage 1 — name-based verdict, run before `resolveExecution` (loop
    * `prepareToolExecution` hook). Rejects the static direct-work and
-   * worker-wait sets; everything else proceeds to stage 2.
+   * worker-wait sets; enforces the interactive exploration soft/hard cap;
+   * everything else proceeds to stage 2.
    */
   evaluateToolCall(ctx: ConductorGuardCallContext): ConductorGuardVerdict {
     if (DIRECT_WORK_TOOL_SET.has(ctx.toolName)) {
@@ -329,6 +384,14 @@ export class ConductorDirectWorkGuard {
         });
       }
     }
+
+    // Interactive exploration cap: allow brief triage (≤ soft), soft-steer
+    // after soft, hard-reject after hard. Job desk / plan / ask never enter here.
+    if (this.isExplorationToolCall(ctx)) {
+      const exploreVerdict = this.evaluateExplorationCap(ctx);
+      if (!exploreVerdict.allowed) return exploreVerdict;
+    }
+
     return { allowed: true };
   }
 
@@ -471,6 +534,11 @@ export class ConductorDirectWorkGuard {
     return this.violationsByTurn.get(turnId) ?? 0;
   }
 
+  /** Exploration-class tool attempts recorded for one turn (soft/hard cap). */
+  exploreCallsInTurn(turnId: string): number {
+    return this.exploreCallsByTurn.get(turnId) ?? 0;
+  }
+
   /**
    * Consume a pending hard-budget turn-stop request for one turn (V1-4).
    * Returns the diagnostic report text exactly once, or `undefined` when the
@@ -492,12 +560,79 @@ export class ConductorDirectWorkGuard {
   /** Reset per-turn state (violation counts, trip streaks, pending budgets). */
   resetTurnState(): void {
     this.violationsByTurn.clear();
+    this.exploreCallsByTurn.clear();
     this.hardTripStreakByTurn.clear();
     this.pendingBudgetTurnStop.clear();
     for (const entry of this.budgets.values()) {
       if (entry.hardTimer !== undefined) clearTimeout(entry.hardTimer);
     }
     this.budgets.clear();
+  }
+
+  /**
+   * Count exploration tools and apply soft/hard interactive caps.
+   * Soft: allow the call that crosses SOFT but emit a reject-style steer? No —
+   * soft means the (SOFT+1)th attempt is rejected with a soft code so the model
+   * must delegate; hard keeps rejecting through HARD and beyond.
+   *
+   * Count semantics: every exploration attempt (including rejected ones after
+   * the soft limit) increments the counter so parallel spam cannot dodge the
+   * hard cap by racing allowed calls.
+   */
+  private evaluateExplorationCap(ctx: ConductorGuardCallContext): ConductorGuardVerdict {
+    const turnKey = ctx.turnId ?? 'unknown';
+    const next = (this.exploreCallsByTurn.get(turnKey) ?? 0) + 1;
+    this.exploreCallsByTurn.set(turnKey, next);
+
+    if (next <= CONDUCTOR_INTERACTIVE_EXPLORE_SOFT) {
+      return { allowed: true };
+    }
+
+    // Soft rejects between soft+1 and hard-1; hard reject from HARD onward.
+    const hard = next >= CONDUCTOR_INTERACTIVE_EXPLORE_HARD;
+    const code = hard ? CONDUCTOR_GUARD_CODES.exploreHard : CONDUCTOR_GUARD_CODES.exploreSoft;
+    const phrase = hard
+      ? CONDUCTOR_EXPLORE_HARD_REJECTION_PHRASE
+      : CONDUCTOR_EXPLORE_SOFT_REJECTION_PHRASE;
+    const draft = suggestExploreJobDraft(ctx.toolName, ctx.args);
+
+    this.record({
+      code,
+      toolName: ctx.toolName,
+      ...(ctx.turnId !== undefined ? { turnId: ctx.turnId } : {}),
+      ...(ctx.stepNumber !== undefined ? { stepNumber: ctx.stepNumber } : {}),
+      detail: `interactive exploration attempt ${String(next)}/${String(CONDUCTOR_INTERACTIVE_EXPLORE_HARD)} for "${ctx.toolName}"`,
+    });
+    this.log?.warn('conductor guard capped interactive exploration', {
+      code,
+      toolName: ctx.toolName,
+      turnId: ctx.turnId,
+      stepNumber: ctx.stepNumber,
+      exploreCount: next,
+      softLimit: CONDUCTOR_INTERACTIVE_EXPLORE_SOFT,
+      hardLimit: CONDUCTOR_INTERACTIVE_EXPLORE_HARD,
+    });
+
+    return {
+      allowed: false,
+      code,
+      output: [
+        phrase,
+        `Suggested explore Job draft:\n  title: ${draft.title}\n  prompt: ${draft.prompt}\n  ownership: ${draft.ownership}\n  kind: explore`,
+        hard
+          ? `Call JobCreate(kind=explore) or EnterPlanMode instead of retrying "${ctx.toolName}" on the Conductor lane.`
+          : `Soft cap (${String(CONDUCTOR_INTERACTIVE_EXPLORE_SOFT)} explore tools) reached — spawn JobCreate(kind=explore) or EnterPlanMode. Hard reject after ${String(CONDUCTOR_INTERACTIVE_EXPLORE_HARD)} attempts this turn.`,
+      ].join('\n\n'),
+      jobDraft: draft,
+    };
+  }
+
+  private isExplorationToolCall(ctx: ConductorGuardCallContext): boolean {
+    if (EXPLORATION_TOOL_SET.has(ctx.toolName)) return true;
+    if (ctx.toolName !== 'Bash') return false;
+    const command = pickStringField(ctx.args, ['command']);
+    if (command === undefined) return false;
+    return BASH_SEARCH_PATTERN.test(command);
   }
 
   private noteHardTrip(turnId?: string): number {
@@ -667,6 +802,33 @@ function suggestJobDraft(toolName: string, args: unknown): ConductorJobDraft {
     title,
     prompt,
     ownership: target !== undefined ? target : 'worker',
+  };
+}
+
+/**
+ * Explore-cap Job draft: steers the model to JobCreate(kind=explore) rather
+ * than an implement worker, with success_criteria + context_paths guidance.
+ */
+function suggestExploreJobDraft(toolName: string, args: unknown): ConductorJobDraft {
+  const target = pickStringField(args, [
+    'file_path',
+    'path',
+    'pattern',
+    'query',
+    'glob',
+    'directory',
+    'command',
+  ]);
+  const focus = target !== undefined ? truncateMiddle(target, 80) : 'unknown code location';
+  return {
+    title: `Explore: ${focus}`,
+    prompt:
+      `Read-only codebase exploration blocked on the Conductor interactive lane ` +
+      `(tool "${toolName}" hit the explore cap). Investigate ${focus}: locate the ` +
+      'relevant files, summarize findings with path:line citations, and return a ' +
+      'structured handoff for implement Jobs. When calling JobCreate set kind=explore, ' +
+      'success_criteria to a verifiable research finish line, and context_paths (≤6).',
+    ownership: target !== undefined ? target : 'explore',
   };
 }
 

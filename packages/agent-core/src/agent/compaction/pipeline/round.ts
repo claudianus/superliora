@@ -59,6 +59,60 @@ export class StaleCompactionContextError extends Error {
   }
 }
 
+/**
+ * Cheap per-message fingerprint. Snapshotted at round start so later in-place
+ * mutation of the same object (content.part / tool.call) is still visible —
+ * a shallow history copy shares those message refs.
+ */
+export function fingerprintCompactionMessage(message: Message): number {
+  let hash = message.role.length;
+  hash = Math.trunc((hash * 33) ^ message.content.length);
+  hash = Math.trunc((hash * 33) ^ message.toolCalls.length);
+  for (const part of message.content) {
+    hash = Math.trunc((hash * 33) ^ part.type.length);
+    if (part.type === 'text') {
+      hash = Math.trunc((hash * 33) ^ part.text.length);
+    }
+  }
+  for (const call of message.toolCalls) {
+    hash = Math.trunc((hash * 33) ^ call.id.length);
+    hash = Math.trunc((hash * 33) ^ (call.arguments?.length ?? 0));
+  }
+  return hash;
+}
+
+/**
+ * Whether {@link applyCompaction} can safely keep `history.slice(compactedCount)`.
+ * Append-only growth and retained-suffix / micro-cutoff churn are allowed;
+ * prefix identity or content changes are not.
+ */
+export function isCompactionPrefixIntact(
+  originalHistory: readonly Message[],
+  newHistory: readonly Message[],
+  compactedCount: number,
+  originalMessageFingerprints: readonly number[],
+): boolean {
+  if (
+    compactedCount < 0 ||
+    newHistory.length < compactedCount ||
+    originalHistory.length < compactedCount ||
+    originalMessageFingerprints.length < compactedCount
+  ) {
+    return false;
+  }
+  for (let i = 0; i < compactedCount; i++) {
+    const original = originalHistory[i];
+    const current = newHistory[i];
+    if (original === undefined || current === undefined || current !== original) {
+      return false;
+    }
+    if (fingerprintCompactionMessage(current) !== originalMessageFingerprints[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export async function runCompactionRound(
   host: FullCompactionRoundHost,
   round: number,
@@ -68,7 +122,11 @@ export async function runCompactionRound(
 ): Promise<CompactionResult | undefined> {
   const startedAt = Date.now();
   const originalHistory = [...host.agent.context.history];
-  const originalHistoryRevision = host.agent.context.historyRevision;
+  // Snapshot fingerprints before summarize awaits; overflow may shrink
+  // compactedCount later, so keep one entry per initial prefix slot.
+  const originalMessageFingerprints = originalHistory
+    .slice(0, initialCompactedCount)
+    .map((message) => fingerprintCompactionMessage(message));
   const tokensBefore = estimateTokensForMessages(originalHistory);
   const retryCount = { value: 0 };
   try {
@@ -197,20 +255,20 @@ export async function runCompactionRound(
     }
 
     const newHistory = host.agent.context.history;
+    // applyCompaction keeps history.slice(compactedCount), so append-only
+    // tails and retained-suffix streaming are safe. Only a mutated compacted
+    // prefix (undo / splice / in-place edit of summarized messages) is stale.
+    // A global length/revision equality check was too strict: Conductor
+    // inject/steer and micro cutoff bumps aborted async compaction as cancel.
     if (
-      newHistory.length !== originalHistory.length ||
-      host.agent.context.historyRevision !== originalHistoryRevision
+      !isCompactionPrefixIntact(
+        originalHistory,
+        newHistory,
+        compactedCount,
+        originalMessageFingerprints,
+      )
     ) {
-      // Context changed during compaction. A revision catches in-place updates
-      // that preserve message identity; the length check catches an appended
-      // tail even if a caller bypasses the revision hook.
       throw new StaleCompactionContextError();
-    }
-    for (let i = 0; i < originalHistory.length; i++) {
-      if (newHistory[i] !== originalHistory[i]) {
-        // History changed during compaction, likely due to undo.
-        throw new StaleCompactionContextError();
-      }
     }
 
     summary = enrichCompactionSummary(host, { summary, plan });

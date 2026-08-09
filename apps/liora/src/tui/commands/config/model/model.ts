@@ -25,6 +25,7 @@ import {
   resolveThinkingLevelForApply,
 } from '#/tui/utils/model/thinking-effort';
 import {
+  applySmartLoopRoleRouting,
   loopModelRoutingDeletePath,
   loopModelRoutingPatch,
   loopModelRoutingRows,
@@ -149,7 +150,7 @@ function mountLoopModelRoutingPicker(host: SlashCommandHost, config: LoopModelRo
       onSelect: (value) => {
         if (value === autoRoutingValue) {
           dismissPickerDialog(host);
-          void resetAllLoopModelRouting(host, rows);
+          void resetAllLoopModelRouting(host);
           return;
         }
         const row = rows.find((candidate) => candidate.key === value);
@@ -165,22 +166,52 @@ function mountLoopModelRoutingPicker(host: SlashCommandHost, config: LoopModelRo
   );
 }
 
-async function resetAllLoopModelRouting(
-  host: SlashCommandHost,
-  rows: readonly (LoopModelRoutingRole & { readonly model?: string })[],
-): Promise<void> {
-  const paths = rows
-    .filter((row) => row.model !== undefined)
-    .map((row) => loopModelRoutingDeletePath(row));
-  if (paths.length === 0) {
-    host.showStatus(ttui('tui.model.routingAllAuto'));
-    void showLoopModelRoutingPicker(host);
+async function resetAllLoopModelRouting(host: SlashCommandHost): Promise<void> {
+  // Smart auto: clear stale overrides, then pin only healthy auto picks.
+  // Quota-exhausted / credential-unhealthy aliases are never written.
+  let baseConfig: LoopModelRoutingConfig;
+  try {
+    baseConfig = (await host.harness.getConfig({ reload: true })) as LoopModelRoutingConfig;
+  } catch (error) {
+    host.showError(ttui('tui.model.smartAutoFailed', { message: formatErrorMessage(error) }));
     return;
   }
 
+  const plan = applySmartLoopRoleRouting(
+    baseConfig,
+    host.state.appState.availableModels,
+    host.state.appState.availableProviders,
+  );
+
   try {
-    const config = (await host.harness.deleteConfigFields(paths)) as LoopModelRoutingConfig;
-    host.showStatus(ttui('tui.model.routingCleared'), 'success');
+    // Always clear every role key first so exhausted prior pins cannot linger.
+    if (plan.clearPaths.length > 0) {
+      await host.harness.deleteConfigFields([...plan.clearPaths]);
+    }
+    let config: LoopModelRoutingConfig = baseConfig;
+    if (Object.keys(plan.patch.loopControl).length > 0) {
+      config = (await host.harness.setConfig(plan.patch)) as LoopModelRoutingConfig;
+    } else {
+      config = (await host.harness.getConfig({ reload: true })) as LoopModelRoutingConfig;
+    }
+
+    if (plan.pins.length === 0) {
+      host.showStatus(ttui('tui.model.smartAutoNoHealthy'), 'warning');
+    } else if (plan.skipped.length > 0) {
+      const skippedLabels = plan.skipped.map((s) => s.label).join(', ');
+      host.showStatus(
+        ttui('tui.model.smartAutoPartial', {
+          pinned: String(plan.pins.length),
+          skipped: skippedLabels,
+        }),
+        'warning',
+      );
+    } else {
+      host.showStatus(
+        ttui('tui.model.smartAutoPinned', { count: String(plan.pins.length) }),
+        'success',
+      );
+    }
     mountLoopModelRoutingPicker(host, config);
   } catch (error) {
     host.showError(ttui('tui.model.smartAutoFailed', { message: formatErrorMessage(error) }));
