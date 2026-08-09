@@ -15,6 +15,7 @@ function makeProvidersHost(options?: {
     getStatus: () => Promise<{ model?: string; providerRouteStatus?: unknown }>;
     getTools?: () => Promise<Array<{ name: string; active: boolean }>>;
   };
+  readonly providers?: Record<string, unknown>;
 }) {
   return {
     state: {
@@ -33,6 +34,15 @@ function makeProvidersHost(options?: {
         },
         availableProviders: { moonshot: {} },
       },
+    },
+    harness: {
+      getConfig: vi.fn(async () => ({
+        providers: options?.providers ?? {},
+      })),
+      setConfig: vi.fn(async () => undefined),
+    },
+    authFlow: {
+      refreshConfigAfterLogin: vi.fn(async () => undefined),
     },
     requireSession: () => {
       if (options?.session === undefined) {
@@ -74,9 +84,12 @@ describe('providers settings tips', () => {
 });
 
 describe('showProvidersApiSettings', () => {
-  it('mounts ChoicePicker with status and read-only tip actions — tip-free', () => {
+  it('mounts ChoicePicker with status and read-only tip actions — tip-free', async () => {
     const host = makeProvidersHost();
     showProvidersApiSettings(host);
+    await vi.waitFor(() => {
+      expect(host.mountCenterModal).toHaveBeenCalled();
+    });
     const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
       | ChoicePickerComponent
       | undefined;
@@ -92,9 +105,40 @@ describe('showProvidersApiSettings', () => {
     expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
+  it('adds xAI route switch when xai-grok is configured', async () => {
+    const host = makeProvidersHost({
+      providers: {
+        'xai-grok': {
+          type: 'openai',
+          baseUrl: 'https://cli-chat-proxy.grok.com/v1',
+          oauth: { storage: 'file', key: 'xai-grok' },
+        },
+      },
+    });
+    showProvidersApiSettings(host);
+    await vi.waitFor(() => {
+      expect(host.mountCenterModal).toHaveBeenCalled();
+    });
+    const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+      | ChoicePickerComponent
+      | undefined;
+    const options = (picker as unknown as { opts: { options: readonly { value: string }[] } }).opts
+      .options;
+    expect(options.map((o) => o.value)).toEqual([
+      'status',
+      'login',
+      'xai-route',
+      'model',
+      'search',
+    ]);
+  });
+
   it('mounts read-only providers panel when status is selected', async () => {
     const host = makeProvidersHost();
     showProvidersApiSettings(host);
+    await vi.waitFor(() => {
+      expect(host.mountCenterModal).toHaveBeenCalled();
+    });
     selectProvidersAction(host, 'status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
@@ -118,6 +162,9 @@ describe('showProvidersApiSettings', () => {
       },
     });
     showProvidersApiSettings(host);
+    await vi.waitFor(() => {
+      expect(host.mountCenterModal).toHaveBeenCalled();
+    });
     selectProvidersAction(host, 'status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
@@ -137,6 +184,9 @@ describe('showProvidersApiSettings', () => {
 
     const host = makeProvidersHost();
     showProvidersApiSettings(host);
+    await vi.waitFor(() => {
+      expect(host.mountCenterModal).toHaveBeenCalled();
+    });
     selectProvidersAction(host, 'status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();

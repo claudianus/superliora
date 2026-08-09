@@ -215,6 +215,27 @@ The provider uses the OpenAI-compatible endpoint `https://token-plan.ap-southeas
 
 Credits and plan windows are visible in the Qwen Cloud console; the CLI surfaces rate-limit headers on a best-effort basis. See the [Token Plan overview](https://docs.qwencloud.com/token-plan/overview).
 
+## xAI Grok
+
+`/login` → **xAI Grok (account login)** signs in with an xAI account. After authorization, the TUI asks which billing route to use:
+
+- **Grok Build (subscription)** — `https://cli-chat-proxy.grok.com/v1` (default; same quota as the official `grok` CLI)
+- **Grok API (credits)** — `https://api.x.ai/v1` (prepaid / API usage metering)
+
+The same OAuth token works for both; only the request host (and Build CLI headers) change. Switch later without signing in again from **Settings → Providers & API → Switch xAI Grok route**.
+
+Or set a prepaid API key for extras (web search / image / video) and optional chat:
+
+```sh
+export XAI_API_KEY=YOUR_API_KEY
+# optional: override the chat base (Build proxy vs public API)
+export XAI_BASE_URL=https://api.x.ai/v1
+# optional: override the Build client version advertised to the chat proxy
+export SUPERLIORA_XAI_GROK_CLIENT_VERSION=1.0.0
+```
+
+Fallback model presets (used when the live models.dev catalog is unavailable): `grok-4.5`, `grok-4.3`, `grok-build-0.1`.
+
 ## Provider extras
 
 Some plans ship API surface beyond text chat. When a matching key or OAuth mount is detected — from a configured provider entry, an environment variable, or `/login` — the CLI routes the extra into the corresponding built-in tool automatically; no further setup is needed.
