@@ -67,6 +67,12 @@ import { tryMergeStructuredBlockSummaries } from './merge-structured';
 /** Parallelize earlier so medium sessions avoid one huge sequential summarize. */
 const DEFAULT_PARALLEL_BLOCK_THRESHOLD = 8_000;
 const DEFAULT_PARALLEL_BLOCK_TARGET = 5_000;
+/**
+ * Cap parallel block fan-out. A 5k-token target on a ~500k prefix yields 100+
+ * blocks; that cannot finish inside the worker deadline and restart-loops as
+ * cancel. Grow the target until we stay within this budget.
+ */
+export const MAX_PARALLEL_SUMMARY_BLOCKS = 24;
 // Concurrent block LLM default lives in adaptive-concurrency (DEFAULT_PARALLEL_BLOCK_CONCURRENCY=3).
 const PARALLEL_BLOCK_RATE_LIMIT_RETRIES = 4;
 const MAX_COMPACTION_RETRY_ATTEMPTS = 5;
@@ -90,12 +96,24 @@ function resolveParallelBlockConcurrency(
   return Math.max(1, Math.min(MAX_PARALLEL_BLOCK_CONCURRENCY, scaled, blockCount));
 }
 
-function splitIntoBlocks(
+export function splitIntoBlocks(
   ctx: CompactionPipelineContext,
   messages: readonly Message[],
 ): readonly (readonly Message[])[] {
-  const target = ctx.strategy.parallelBlockTarget ?? DEFAULT_PARALLEL_BLOCK_TARGET;
-  return splitMessagesIntoTokenBlocks(messages, target);
+  const configuredTarget = ctx.strategy.parallelBlockTarget ?? DEFAULT_PARALLEL_BLOCK_TARGET;
+  let target = Math.max(1, configuredTarget);
+  let blocks = splitMessagesIntoTokenBlocks(messages, target);
+  if (blocks.length <= MAX_PARALLEL_SUMMARY_BLOCKS) return blocks;
+
+  const totalTokens = Math.max(1, estimateTokensForMessages(messages));
+  // Aim for at most MAX blocks; keep doubling until the split fits or the
+  // target covers the whole prefix (single-block → sequential path).
+  while (blocks.length > MAX_PARALLEL_SUMMARY_BLOCKS && target < totalTokens) {
+    const fitted = Math.ceil(totalTokens / MAX_PARALLEL_SUMMARY_BLOCKS);
+    target = Math.max(target * 2, fitted);
+    blocks = splitMessagesIntoTokenBlocks(messages, target);
+  }
+  return blocks;
 }
 
 // ---------------------------------------------------------------------------

@@ -20,6 +20,8 @@ export const COMPACTION_GENERATE_TIMEOUT_ENV = 'SUPERLIORA_COMPACTION_GENERATE_T
 
 /** Whole-worker budget so multi-round / multi-block runs cannot hang forever. */
 export const DEFAULT_COMPACTION_WORKER_TIMEOUT_MS = 600_000;
+/** Hard ceiling even after token-based scaling (30 minutes). */
+export const MAX_COMPACTION_WORKER_TIMEOUT_MS = 1_800_000;
 export const COMPACTION_WORKER_TIMEOUT_ENV = 'SUPERLIORA_COMPACTION_WORKER_TIMEOUT_MS';
 
 /**
@@ -66,6 +68,25 @@ export function resolveCompactionWorkerTimeoutMs(
     return DEFAULT_COMPACTION_WORKER_TIMEOUT_MS;
   }
   return Math.floor(parsed);
+}
+
+/**
+ * Grow the worker wall-clock budget with compacted prefix size so large
+ * parallel summarize jobs (tens of blocks) are not killed at the 10-minute
+ * default and then restart-looped as `compaction.cancelled`.
+ *
+ * Extra: 30s per 10k tokens above the first 50k, capped at
+ * {@link MAX_COMPACTION_WORKER_TIMEOUT_MS}. Env/explicit bases still apply.
+ */
+export function scaleCompactionWorkerTimeoutMs(input: {
+  readonly baseMs: number;
+  readonly compactedTokens: number;
+}): number {
+  const base = Math.max(1, Math.floor(input.baseMs));
+  const compactedTokens = Math.max(0, Math.floor(input.compactedTokens));
+  const extraTokens = Math.max(0, compactedTokens - 50_000);
+  const extraMs = Math.ceil(extraTokens / 10_000) * 30_000;
+  return Math.min(MAX_COMPACTION_WORKER_TIMEOUT_MS, base + extraMs);
 }
 
 export function compactionGenerateOptions(
