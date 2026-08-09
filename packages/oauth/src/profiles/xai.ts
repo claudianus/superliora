@@ -42,7 +42,7 @@ export const XAI_GROK_BUILD_TOKEN_AUTH = 'xai-grok-cli';
  * Keep this aligned with a recent stable official `grok` CLI release.
  * Override with SUPERLIORA_XAI_GROK_CLIENT_VERSION when needed.
  */
-export const XAI_GROK_BUILD_CLIENT_VERSION_DEFAULT = '0.2.101';
+export const XAI_GROK_BUILD_CLIENT_VERSION_DEFAULT = '1.0.0';
 
 /** Client surface the Build proxy associates with Grok Build quota. */
 export const XAI_GROK_BUILD_CLIENT_SURFACE = 'grok-build';
@@ -145,11 +145,27 @@ export function xaiGrokRouteConfig(route: XaiGrokRoute = 'build'): XaiGrokRouteC
   };
 }
 
+/**
+ * Provider fields to persist for a Grok billing route. Always returns
+ * `customHeaders` (empty for API) so merges clear leftover Build headers.
+ */
+export function xaiGrokProviderRouteFields(route: XaiGrokRoute = 'build'): {
+  readonly baseUrl: string;
+  readonly customHeaders: Record<string, string>;
+} {
+  const config = xaiGrokRouteConfig(route);
+  return {
+    baseUrl: config.baseUrl,
+    customHeaders:
+      config.customHeaders !== undefined ? { ...config.customHeaders } : {},
+  };
+}
+
 export const XAI_PROFILE: ProviderProfile = {
   id: 'xai-grok',
   displayName: 'xAI Grok (account login)',
   description:
-    'Sign in with your xAI account to use Grok via the Grok Build proxy (subscription quota). Set base_url to https://api.x.ai/v1 for Grok API usage metering.',
+    'Sign in with your xAI account. After login, choose Grok Build (subscription quota) or Grok API (credits).',
   authType: 'oauth',
   flow: {
     name: 'xai-grok',
@@ -179,15 +195,15 @@ export const XAI_PROFILE: ProviderProfile = {
       capabilities: ['thinking', 'tool_use'],
     },
     {
-      id: 'grok-4',
-      displayName: 'Grok 4',
-      maxContextSize: 256000,
+      id: 'grok-4.3',
+      displayName: 'Grok 4.3',
+      maxContextSize: 1000000,
       capabilities: ['thinking', 'tool_use'],
     },
     {
-      id: 'grok-4-fast',
-      displayName: 'Grok 4 Fast',
-      maxContextSize: 2000000,
+      id: 'grok-build-0.1',
+      displayName: 'Grok Build 0.1',
+      maxContextSize: 256000,
       capabilities: ['thinking', 'tool_use'],
     },
   ],

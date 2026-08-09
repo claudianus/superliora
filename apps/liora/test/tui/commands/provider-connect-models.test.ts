@@ -23,7 +23,8 @@ const { resolveOAuthProviderModels } = await import('#/tui/commands/provider-con
 
 const XAI_PRESETS = [
   { id: 'grok-4.5', displayName: 'Grok 4.5', maxContextSize: 500000, capabilities: ['thinking', 'tool_use'] },
-  { id: 'grok-4', displayName: 'Grok 4', maxContextSize: 256000, capabilities: ['thinking', 'tool_use'] },
+  { id: 'grok-4.3', displayName: 'Grok 4.3', maxContextSize: 1000000, capabilities: ['thinking', 'tool_use'] },
+  { id: 'grok-build-0.1', displayName: 'Grok Build 0.1', maxContextSize: 256000, capabilities: ['thinking', 'tool_use'] },
 ];
 
 describe('resolveOAuthProviderModels', () => {
@@ -62,7 +63,7 @@ describe('resolveOAuthProviderModels', () => {
     const result = await resolveOAuthProviderModels('xai-grok', XAI_PRESETS);
 
     expect(result).toBeDefined();
-    expect(result!.map((m) => m.model)).toEqual(['grok-4.5', 'grok-4']);
+    expect(result!.map((m) => m.model)).toEqual(['grok-4.5', 'grok-4.3', 'grok-build-0.1']);
     expect(result![0]?.provider).toBe('xai-grok');
   });
 
@@ -72,7 +73,7 @@ describe('resolveOAuthProviderModels', () => {
     const result = await resolveOAuthProviderModels('xai-grok', XAI_PRESETS);
 
     expect(result).toBeDefined();
-    expect(result!.map((m) => m.model)).toEqual(['grok-4.5', 'grok-4']);
+    expect(result!.map((m) => m.model)).toEqual(['grok-4.5', 'grok-4.3', 'grok-build-0.1']);
   });
 
   it('returns undefined when neither catalog nor preset yields models', async () => {

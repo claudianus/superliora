@@ -17,6 +17,7 @@ import {
   mergeProviderOAuthLogin,
   OAuthProviderManager,
   SUPERLIORA_PROVIDER_NAME,
+  xaiGrokProviderRouteFields,
   type ProviderModelPreset,
 } from '@superliora/oauth';
 
@@ -31,6 +32,11 @@ import { oauthProviderCatalogId } from '#/tui/utils/oauth-catalog-id';
 import { promptOAuthCallback } from '../auth/prompts';
 import type { SlashCommandHost } from '../hub/dispatch';
 import { openModelPickerForProvider } from './model-picker';
+import {
+  promptXaiGrokRoute,
+  readXaiGrokRouteFromProvider,
+  xaiGrokRouteStatusLabel,
+} from './xai-grok-route';
 
 export async function connectKimiManaged(host: SlashCommandHost): Promise<void> {
   // Inline the managed Kimi OAuth login flow so this module owns every connect
@@ -251,16 +257,30 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
       storage: 'file' as const,
       key: storageKey,
     };
+    let routeBaseUrl = profile.apiBaseUrl;
+    let routeCustomHeaders =
+      profile.customHeaders !== undefined ? { ...profile.customHeaders } : undefined;
+    let xaiRouteLabel: string | undefined;
+    if (providerId === 'xai-grok') {
+      const previous = readXaiGrokRouteFromProvider(
+        freshConfig.providers[providerId] as Record<string, unknown> | undefined,
+      );
+      // Cancel keeps the previous route (Build on first login) so a completed
+      // OAuth is not abandoned with no provider mount.
+      const route = (await promptXaiGrokRoute(host, previous)) ?? previous;
+      const fields = xaiGrokProviderRouteFields(route);
+      routeBaseUrl = fields.baseUrl;
+      routeCustomHeaders = fields.customHeaders;
+      xaiRouteLabel = xaiGrokRouteStatusLabel(route);
+    }
     const mergedProvider = mergeProviderOAuthLogin(
       freshConfig.providers[providerId] as Record<string, unknown> | undefined,
       loginRef,
       {
         addAccount,
         type: profile.wire,
-        baseUrl: profile.apiBaseUrl,
-        ...(profile.customHeaders !== undefined
-          ? { customHeaders: { ...profile.customHeaders } }
-          : {}),
+        baseUrl: routeBaseUrl,
+        ...(routeCustomHeaders !== undefined ? { customHeaders: routeCustomHeaders } : {}),
       },
     );
     freshConfig.providers[providerId] = mergedProvider as (typeof freshConfig.providers)[string];
@@ -321,6 +341,9 @@ export async function connectOAuthProvider(host: SlashCommandHost, providerId: s
       host.showStatus(ttui('tui.provider.alreadyLoggedIn'));
     } else {
       host.showStatus(ttui('tui.provider.connected', { name: profile.displayName }));
+    }
+    if (xaiRouteLabel !== undefined) {
+      host.showStatus(ttui('tui.provider.xaiRouteSelected', { route: xaiRouteLabel }));
     }
     host.showNotice(ttui('tui.provider.mediaHint'));
 

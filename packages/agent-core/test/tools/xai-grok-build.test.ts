@@ -133,6 +133,43 @@ describe('XaiGrokBuildClient', () => {
     expect(video.bytes.equals(Buffer.from('video-bytes'))).toBe(true);
     expect(video.mimeType).toBe('video/mp4');
     expect(calls[0]).toContain('/videos/generations');
+    const startBody = JSON.parse(String((fetchImpl.mock.calls[0] as FetchArgs)?.[1]?.body));
+    expect(startBody.model).toBe('grok-imagine-video');
+  });
+
+  it('uses grok-imagine-video-1.5 when quality is requested', async () => {
+    const fetchImpl = mockFetch(async (url) => {
+      if (url.endsWith('/videos/generations')) {
+        return Response.json({ request_id: 'req_q' });
+      }
+      if (url.includes('/videos/req_q')) {
+        return Response.json({
+          status: 'done',
+          video: { url: 'https://cdn.example.com/q.mp4' },
+        });
+      }
+      if (url === 'https://cdn.example.com/q.mp4') {
+        return new Response(Buffer.from('q-bytes'), {
+          headers: { 'content-type': 'video/mp4' },
+        });
+      }
+      throw new Error(`unexpected url ${url}`);
+    });
+
+    const client = new XaiGrokBuildClient({
+      baseUrl: 'https://api.x.ai/v1',
+      apiKey: 'test-token',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    vi.spyOn(globalThis, 'setTimeout').mockImplementation(((fn: () => void) => {
+      fn();
+      return 0 as unknown as ReturnType<typeof setTimeout>;
+    }) as typeof setTimeout);
+
+    await client.generateVideo({ prompt: 'quality pass', quality: true });
+    const startBody = JSON.parse(String((fetchImpl.mock.calls[0] as FetchArgs)?.[1]?.body));
+    expect(startBody.model).toBe('grok-imagine-video-1.5');
   });
 });
 

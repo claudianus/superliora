@@ -26,6 +26,7 @@ import {
   isXaiGrokBuildBaseUrl,
   resolveXaiGrokRoute,
   xaiGrokBuildRequestHeaders,
+  xaiGrokProviderRouteFields,
   xaiGrokRouteConfig,
 } from '../src/profiles';
 import {
@@ -119,7 +120,7 @@ describe('provider profile registry', () => {
     expect(XAI_PROFILE.apiBaseUrl).toBe(XAI_GROK_BUILD_BASE_URL);
     expect(XAI_PROFILE.customHeaders).toMatchObject({
       'X-XAI-Token-Auth': 'xai-grok-cli',
-      'x-grok-client-version': '0.2.101',
+      'x-grok-client-version': '1.0.0',
       'x-grok-client-surface': 'grok-build',
       'x-grok-client-identifier': 'grok-shell',
     });
@@ -134,15 +135,23 @@ describe('provider profile registry', () => {
     expect(xaiGrokRouteConfig('api')).toEqual({ route: 'api', baseUrl: XAI_GROK_API_BASE_URL });
     expect(xaiGrokRouteConfig('build').customHeaders).toMatchObject({
       'X-XAI-Token-Auth': 'xai-grok-cli',
-      'x-grok-client-version': '0.2.101',
+      'x-grok-client-version': '1.0.0',
     });
     expect(xaiGrokBuildRequestHeaders('grok-4.5')).toMatchObject({
       'X-XAI-Token-Auth': 'xai-grok-cli',
-      'x-grok-client-version': '0.2.101',
+      'x-grok-client-version': '1.0.0',
       'x-grok-client-surface': 'grok-build',
       'x-grok-client-identifier': 'grok-shell',
       'x-grok-model-override': 'grok-4.5',
     });
+    expect(xaiGrokProviderRouteFields('api')).toEqual({
+      baseUrl: XAI_GROK_API_BASE_URL,
+      customHeaders: {},
+    });
+    expect(xaiGrokProviderRouteFields('build').baseUrl).toBe(XAI_GROK_BUILD_BASE_URL);
+    expect(xaiGrokProviderRouteFields('build').customHeaders['X-XAI-Token-Auth']).toBe(
+      'xai-grok-cli',
+    );
   });
 
   it('ships model presets for OpenAI Codex', () => {
@@ -157,7 +166,11 @@ describe('provider profile registry', () => {
     expect(XAI_PROFILE.models!.every((m) => m.id.length > 0 && m.maxContextSize > 0)).toBe(true);
     // The latest flagship model must be present as a fallback even before the
     // models.dev catalog is fetched.
-    expect(XAI_PROFILE.models!.some((m) => m.id === 'grok-4.5')).toBe(true);
+    expect(XAI_PROFILE.models!.map((m) => m.id)).toEqual([
+      'grok-4.5',
+      'grok-4.3',
+      'grok-build-0.1',
+    ]);
   });
 
   it('keeps the Anthropic profile out of the always-on list and in the experimental list', () => {

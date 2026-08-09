@@ -13,10 +13,17 @@ import {
   resolveProvidersApiSessionGlance,
 } from '../../../utils/provider/providers-api-glance';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
+import { ttui } from '#/tui/utils/tui-i18n';
 import { handleLoginCommand } from '../../auth/login';
 import { handleModelCommand } from '../model/model';
 import { showSearchSettings } from '../search/search-settings';
 import { SEARCH_PREFER_XAI_TIP } from '../search/search-status';
+import {
+  applyXaiGrokRouteToProvider,
+  promptXaiGrokRoute,
+  readXaiGrokRouteFromProvider,
+  xaiGrokRouteStatusLabel,
+} from '../../provider-connect/xai-grok-route';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 
@@ -72,36 +79,65 @@ async function loadProvidersSessionSnapshot(
 }
 
 export function showProvidersApiSettings(host: SlashCommandHost): void {
+  void openProvidersApiSettings(host);
+}
+
+async function openProvidersApiSettings(host: SlashCommandHost): Promise<void> {
+  let xaiConfigured = false;
+  let xaiRouteLabel = ttui('tui.provider.xaiRouteBuild');
+  try {
+    const config = await host.harness.getConfig();
+    const provider = config.providers['xai-grok'] as Record<string, unknown> | undefined;
+    if (provider !== undefined) {
+      xaiConfigured = true;
+      xaiRouteLabel = xaiGrokRouteStatusLabel(readXaiGrokRouteFromProvider(provider));
+    }
+  } catch {
+    // Menu still works without config; route switch hides itself.
+  }
+
+  const options: Array<{
+    readonly value: string;
+    readonly label: string;
+    readonly description: string;
+  }> = [
+    {
+      value: 'status',
+      label: 'Providers status',
+      description:
+        'Credential posture · live session model/provider · API key env detection · catalog size.',
+    },
+    {
+      value: 'login',
+      label: 'Login / connect provider…',
+      description: 'OAuth · catalog/custom provider · --add fallback slots.',
+    },
+    {
+      value: 'model',
+      label: 'Change model…',
+      description: 'Open the model picker for the active session.',
+    },
+    {
+      value: 'search',
+      label: 'Search channels…',
+      description: 'Prefer xAI · browser · free fallback · strategy pickers.',
+    },
+  ];
+  if (xaiConfigured) {
+    options.splice(2, 0, {
+      value: 'xai-route',
+      label: ttui('tui.provider.xaiRouteSwitchTitle'),
+      description: `${ttui('tui.provider.xaiRouteSwitchDesc')} Now: ${xaiRouteLabel}.`,
+    });
+  }
+
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
       title: 'Providers & API',
       hint: '↑↓ · Enter · Esc',
       searchable: true,
-      options: [
-        {
-          value: 'status',
-          label: 'Providers status',
-          description:
-            'Credential posture · live session model/provider · API key env detection · catalog size.',
-        },
-        {
-          value: 'login',
-          label: 'Login / connect provider…',
-          description: 'OAuth · catalog/custom provider · --add fallback slots.',
-        },
-        {
-          value: 'model',
-          label: 'Change model…',
-          description: 'Open the model picker for the active session.',
-        },
-        {
-          value: 'search',
-          label: 'Search channels…',
-          description: 'Prefer xAI · browser · free fallback · strategy pickers.',
-        },
-
-      ],
+      options,
       onSelect: (value) => {
         dismissPickerDialog(host);
         if (value === 'status') {
@@ -112,6 +148,10 @@ export function showProvidersApiSettings(host: SlashCommandHost): void {
           void handleLoginCommand(host);
           return;
         }
+        if (value === 'xai-route') {
+          void switchXaiGrokRoute(host);
+          return;
+        }
         if (value === 'model') {
           void handleModelCommand(host, '');
           return;
@@ -120,13 +160,32 @@ export function showProvidersApiSettings(host: SlashCommandHost): void {
           showSearchSettings(host);
           return;
         }
-
       },
       onCancel: () => {
         dismissPickerDialog(host);
       },
     }),
     { label: 'Providers & API' },
+  );
+}
+
+async function switchXaiGrokRoute(host: SlashCommandHost): Promise<void> {
+  const config = await host.harness.getConfig();
+  const existing = config.providers['xai-grok'] as Record<string, unknown> | undefined;
+  if (existing === undefined) {
+    host.showStatus(ttui('tui.provider.xaiRouteNotConfigured'));
+    return;
+  }
+  const current = readXaiGrokRouteFromProvider(existing);
+  const picked = await promptXaiGrokRoute(host, current);
+  if (picked === undefined || picked === current) return;
+
+  config.providers['xai-grok'] = applyXaiGrokRouteToProvider(existing, picked) as
+    (typeof config.providers)[string];
+  await host.harness.setConfig({ providers: config.providers });
+  await host.authFlow.refreshConfigAfterLogin();
+  host.showStatus(
+    ttui('tui.provider.xaiRouteSelected', { route: xaiGrokRouteStatusLabel(picked) }),
   );
 }
 

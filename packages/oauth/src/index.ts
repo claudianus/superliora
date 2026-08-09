@@ -298,6 +298,7 @@ export {
   XAI_PROFILE,
   xaiGrokBuildAuthHeaders,
   xaiGrokBuildRequestHeaders,
+  xaiGrokProviderRouteFields,
   xaiGrokRouteConfig,
 } from './profiles';
 export type {

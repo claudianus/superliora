@@ -597,7 +597,7 @@ describe('resolveRuntimeProvider customHeaders propagation', () => {
       baseUrl: 'https://cli-chat-proxy.grok.com/v1',
       defaultHeaders: {
         'X-XAI-Token-Auth': 'xai-grok-cli',
-        'x-grok-client-version': '0.2.101',
+        'x-grok-client-version': '1.0.0',
         'x-grok-client-surface': 'grok-build',
         'x-grok-client-identifier': 'grok-shell',
         'x-grok-model-override': 'grok-4.5',

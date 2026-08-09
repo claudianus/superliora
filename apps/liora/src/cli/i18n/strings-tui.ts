@@ -267,6 +267,17 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.provider.loginCancelled': 'Login cancelled.',
   'tui.provider.refreshFailed':
     'Authentication successful, but failed to refresh config: {message}',
+  'tui.provider.xaiRouteTitle': 'xAI Grok billing route',
+  'tui.provider.xaiRouteBuild': 'Grok Build (subscription)',
+  'tui.provider.xaiRouteBuildDesc':
+    'cli-chat-proxy — same quota as the official grok CLI.',
+  'tui.provider.xaiRouteApi': 'Grok API (credits)',
+  'tui.provider.xaiRouteApiDesc': 'api.x.ai — prepaid / API usage metering.',
+  'tui.provider.xaiRouteSelected': 'xAI route: {route}',
+  'tui.provider.xaiRouteSwitchTitle': 'Switch xAI Grok route',
+  'tui.provider.xaiRouteSwitchDesc':
+    'Toggle Build subscription vs API credits without signing in again.',
+  'tui.provider.xaiRouteNotConfigured': 'Connect xAI Grok first (/login → xAI Grok).',
 
   // ── Sessions ─────────────────────────────────────────────────────────────
   'tui.sessions.fetchFailed': 'Failed to load sessions. Check the server connection.',
@@ -608,6 +619,17 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.provider.loginFailedLabel': '로그인 실패.',
   'tui.provider.loginCancelled': '로그인 취소됨.',
   'tui.provider.refreshFailed': '인증은 성공했으나 설정 새로고침 실패: {message}',
+  'tui.provider.xaiRouteTitle': 'xAI Grok 과금 경로',
+  'tui.provider.xaiRouteBuild': 'Grok Build (구독)',
+  'tui.provider.xaiRouteBuildDesc':
+    'cli-chat-proxy — 공식 grok CLI와 같은 구독 쿼터.',
+  'tui.provider.xaiRouteApi': 'Grok API (크레딧)',
+  'tui.provider.xaiRouteApiDesc': 'api.x.ai — prepaid / API 사용량 과금.',
+  'tui.provider.xaiRouteSelected': 'xAI 경로: {route}',
+  'tui.provider.xaiRouteSwitchTitle': 'xAI Grok 경로 전환',
+  'tui.provider.xaiRouteSwitchDesc':
+    '재로그인 없이 Build 구독과 API 크레딧을 전환합니다.',
+  'tui.provider.xaiRouteNotConfigured': '먼저 xAI Grok을 연결하세요 (/login → xAI Grok).',
 
   // ── Sessions ─────────────────────────────────────────────────────────────
   'tui.sessions.fetchFailed': '세션 로드 실패. 서버 연결을 확인하세요.',
