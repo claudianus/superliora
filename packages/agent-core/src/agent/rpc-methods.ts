@@ -23,6 +23,7 @@ import {
 } from '../tools/builtin/planning/plan-desk';
 import { resolvePlanModeKind } from '../tools/builtin/planning/resolve-plan-mode-kind';
 import * as jobRpc from '../tools/builtin/job/job-rpc-api';
+import { resolveSessionSmartRoute } from './routing';
 import type { Agent } from './index';
 
 export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
@@ -67,9 +68,30 @@ export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
       }
     },
     setModel: (payload) => {
-      // Validate the alias resolves before recording it so resume / runtime
-      // callers fail fast on missing aliases instead of deferring to the
-      // next prompt.
+      // Virtual smart-auto pin — resolved per turn; do not require catalog resolve.
+      const isSmartAuto = payload.model.trim().toLowerCase() === 'auto';
+      if (isSmartAuto) {
+        if (agent.config.modelAlias !== payload.model) {
+          agent.config.update({ modelAlias: payload.model });
+          agent.telemetry.track('model_switch', { model: payload.model });
+        }
+        const runtime = agent.runtimeConfig ?? agent.kimiConfig;
+        if (runtime !== undefined) {
+          const route = resolveSessionSmartRoute({ config: runtime });
+          if (route !== undefined) {
+            agent.config.setSmartRouteAlias(route.alias);
+          }
+        }
+        const effective = agent.config.effectiveModelAlias;
+        const resolved =
+          effective !== undefined && effective !== 'auto'
+            ? agent.modelProvider?.resolveProviderConfig(effective)
+            : undefined;
+        return {
+          model: payload.model,
+          providerName: resolved?.providerName,
+        };
+      }
       const resolved = agent.modelProvider?.resolveProviderConfig(payload.model);
       if (agent.config.modelAlias !== payload.model) {
         agent.config.update({ modelAlias: payload.model });

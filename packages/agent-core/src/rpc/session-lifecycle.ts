@@ -30,6 +30,7 @@ import { buildWorktreeMetadata, createSessionWorktree } from '../session/worktre
 import type { ProviderManager } from '../session/provider/provider-manager';
 import { SessionAPIImpl } from '../session/rpc';
 import type { SessionStore } from '../session/store/index';
+import { resolveSessionSmartRoute } from '../agent/routing';
 import {
   withTelemetryContext,
   withTelemetryProperties,
@@ -228,10 +229,17 @@ export async function createSessionWithOverrides(
       }
     }
     const mainAgent = await session.createMain();
+    const sessionModelAlias = options.model ?? config.defaultModel;
     mainAgent.config.update({
-      modelAlias: options.model ?? config.defaultModel,
+      modelAlias: sessionModelAlias,
       thinkingLevel,
     });
+    if (sessionModelAlias?.trim().toLowerCase() === 'auto') {
+      const route = resolveSessionSmartRoute({ config });
+      if (route !== undefined) {
+        mainAgent.config.setSmartRouteAlias(route.alias);
+      }
+    }
     if (permissionMode !== undefined) {
       mainAgent.permission.setMode(permissionMode);
     }

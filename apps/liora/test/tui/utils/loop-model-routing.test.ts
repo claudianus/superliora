@@ -40,7 +40,7 @@ describe('loop model routing', () => {
       source: 'override',
     });
     expect(rows.find((row) => row.key === 'completion')).toMatchObject({
-      state: 'auto',
+      state: 'auto (completion/balanced)',
     });
     expect(rows.find((row) => row.key === 'coding')).toMatchObject({
       model: 'code-pro',
@@ -71,7 +71,7 @@ describe('loop model routing', () => {
     expect(rows.find((row) => row.key === 'planning')).toMatchObject({
       source: 'auto',
       resolvedAlias: 'qwen-token-plan/qwen3.8-max-preview',
-      state: 'auto → qwen-token-plan/qwen3.8-max-preview',
+      state: 'auto → qwen-token-plan/qwen3.8-max-preview (planning/max)',
     });
     expect(rows.find((row) => row.key === 'exploration')).toMatchObject({
       source: 'auto',

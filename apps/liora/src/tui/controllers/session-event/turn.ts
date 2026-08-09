@@ -333,11 +333,14 @@ export class SessionEventTurn {
         providerName: selection.providerName,
         credentialLabel: selection.credentialLabel,
         providerModel: selection.providerModel,
-        reason: isFailover
-          ? 'provider-failover'
-          : decision.credentialChanged
-            ? 'provider-credential'
-            : 'provider-route',
+        reason:
+          sessionModel.trim().toLowerCase() === 'auto'
+            ? 'smart-auto'
+            : isFailover
+              ? 'provider-failover'
+              : decision.credentialChanged
+                ? 'provider-credential'
+                : 'provider-route',
         atMs: Date.now(),
       };
     }

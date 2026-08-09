@@ -2,48 +2,20 @@
  * Role-aware model selection for subagent workers.
  *
  * Explicit loop-control aliases remain user-owned settings. When a role is
- * unset, select from the configured local aliases using the shared role
- * scorer, then fall back to the parent's model if no usable candidate exists.
+ * unset, the shared smart router picks from local aliases (+ failover chain).
  */
 
-import { sharedCredentialHealthStore } from '@superliora/oauth';
-
 import type { Agent } from '../../agent';
-import { resolveThinkingEffort, type ThinkingEffort } from '../../agent/config/thinking';
-import type { LioraConfig, ModelAlias } from '../../config';
-import { ProviderManager } from '../provider/provider-manager';
-import { providerHasAnyCredential } from '../provider/provider-manager-capability';
-import { selectVisionModel } from '../vision-analyzer';
+import type { ThinkingEffort } from '../../agent/config/thinking';
 import {
-  autoAssignRoleModels,
-  classifyModelTier,
-  type ModelMetadata,
-  type ModelRole,
-} from '../../utils/model-presets';
-
-type RoleModelConfigKey =
-  | 'compactionModel'
-  | 'completionModel'
-  | 'explorationModel'
-  | 'codingModel'
-  | 'planningModel'
-  | 'debuggingModel';
-
-const ROLE_CONFIG_KEYS: Record<ModelRole, RoleModelConfigKey> = {
-  compaction: 'compactionModel',
-  completion: 'completionModel',
-  exploration: 'explorationModel',
-  coding: 'codingModel',
-  planning: 'planningModel',
-  debugging: 'debuggingModel',
-};
-
-const AUTO_THINKING_BY_ROLE: Partial<Record<ModelRole, ThinkingEffort>> = {
-  exploration: 'low',
-  coding: 'high',
-  planning: 'max',
-  debugging: 'max',
-};
+  resolveSmartRoute,
+  type SmartRoute,
+  type TurnSignals,
+} from '../../agent/routing';
+import type { LioraConfig } from '../../config';
+import { ProviderManager } from '../provider/provider-manager';
+import { selectVisionModel } from '../vision-analyzer';
+import type { ModelRole } from '../../utils/model-presets';
 
 export type SubagentModelSelectionSource = 'explicit' | 'auto' | 'parent' | 'vision';
 
@@ -52,11 +24,14 @@ export interface SubagentModelSelection {
   readonly role: ModelRole | undefined;
   readonly thinkingLevel: ThinkingEffort;
   readonly source: SubagentModelSelectionSource;
+  readonly route?: SmartRoute;
 }
 
 export interface ResolveSubagentModelOptions {
   /** When true, override a non-vision role alias with a catalog vision model. */
   readonly preferVision?: boolean;
+  readonly signals?: TurnSignals;
+  readonly sessionSpendUsd?: number;
 }
 
 /** Use the live ProviderManager config when a session has been reloaded. */
@@ -115,7 +90,12 @@ export function resolveSubagentModelSelection(
   profileBaseName?: string,
   options?: ResolveSubagentModelOptions,
 ): SubagentModelSelection {
-  const selection = resolveSubagentModelSelectionCore(parent, profileName, profileBaseName);
+  const selection = resolveSubagentModelSelectionCore(
+    parent,
+    profileName,
+    profileBaseName,
+    options,
+  );
   if (options?.preferVision !== true) return selection;
   return preferVisionModelSelection(parent, selection);
 }
@@ -124,13 +104,27 @@ function resolveSubagentModelSelectionCore(
   parent: Agent,
   profileName: string | undefined,
   profileBaseName?: string,
+  options?: ResolveSubagentModelOptions,
 ): SubagentModelSelection {
-  const parentAlias = parent.config.modelAlias;
-  const parentThinking = parent.config.thinkingLevel;
-  const role = roleForSubagentProfile(profileName, profileBaseName);
-  if (parentAlias === undefined || role === undefined) {
+  const parentConfig = parent.config;
+  if (parentConfig === undefined) {
     return {
-      alias: parentAlias,
+      alias: undefined,
+      role: roleForSubagentProfile(profileName, profileBaseName),
+      thinkingLevel: 'off',
+      source: 'parent',
+    };
+  }
+  const pinnedAlias = parentConfig.modelAlias;
+  const parentAlias =
+    pinnedAlias?.trim().toLowerCase() === 'auto'
+      ? parentConfig.effectiveModelAlias
+      : pinnedAlias;
+  const parentThinking = parentConfig.thinkingLevel;
+  const role = roleForSubagentProfile(profileName, profileBaseName);
+  if (role === undefined) {
+    return {
+      alias: parentAlias ?? pinnedAlias,
       role,
       thinkingLevel: parentThinking,
       source: 'parent',
@@ -140,43 +134,43 @@ function resolveSubagentModelSelectionCore(
   const config = currentAgentConfig(parent);
   if (config === undefined) {
     return {
-      alias: parentAlias,
+      alias: parentAlias ?? pinnedAlias,
       role,
       thinkingLevel: parentThinking,
       source: 'parent',
     };
   }
 
-  const explicitAlias = configuredRoleAlias(config, role);
-  if (explicitAlias !== undefined) {
-    // Explicit loopControl.*Model always wins (same as compaction). Provider
-    // health / resolve failures surface on the worker path, not by silently
-    // falling through to auto routing.
+  const route = resolveSmartRoute({
+    role,
+    config,
+    ...(parentAlias !== undefined && parentAlias.trim().toLowerCase() !== 'auto'
+      ? { parentAlias }
+      : {}),
+    signals: {
+      profileName,
+      profileBaseName,
+      ...options?.signals,
+      prompt: options?.signals?.prompt,
+    },
+    sessionSpendUsd: options?.sessionSpendUsd,
+  });
+
+  if (route === undefined) {
     return {
-      alias: explicitAlias,
+      alias: parentAlias ?? pinnedAlias,
       role,
       thinkingLevel: parentThinking,
-      source: 'explicit',
-    };
-  }
-
-  const assignments = autoAssignRoleModels(buildLocalModelMetadata(config));
-  const assignment = assignments[role];
-  const autoAlias = assignment?.modelAlias;
-  if (autoAlias !== undefined && isAliasAvailable(config, autoAlias)) {
-    return {
-      alias: autoAlias,
-      role,
-      thinkingLevel: autoThinkingLevel(role, config.models?.[autoAlias]),
-      source: 'auto',
+      source: 'parent',
     };
   }
 
   return {
-    alias: parentAlias,
-    role,
-    thinkingLevel: parentThinking,
-    source: 'parent',
+    alias: route.alias,
+    role: route.role,
+    thinkingLevel: route.source === 'explicit' ? parentThinking : route.thinkingLevel,
+    source: route.source,
+    route,
   };
 }
 
@@ -219,89 +213,4 @@ function selectionSupportsVision(
   }
   const capabilities = parent.config.modelCapabilities;
   return capabilities?.image_in === true;
-}
-
-function configuredRoleAlias(config: LioraConfig, role: ModelRole): string | undefined {
-  const raw = config.loopControl?.[ROLE_CONFIG_KEYS[role]];
-  if (typeof raw !== 'string') return undefined;
-  const alias = raw.trim();
-  return alias.length > 0 ? alias : undefined;
-}
-
-function isAliasAvailable(config: LioraConfig, alias: string): boolean {
-  const model = config.models?.[alias];
-  if (model === undefined) return false;
-  const provider = config.providers[model.provider];
-  if (provider !== undefined && !providerHasAnyCredential(provider)) return false;
-  return sharedCredentialHealthStore.isAvailable(model.provider);
-}
-
-function buildLocalModelMetadata(config: LioraConfig): readonly ModelMetadata[] {
-  return Object.entries(config.models ?? {}).map(([alias, model]) =>
-    localModelMetadata(alias, model, config),
-  );
-}
-
-function localModelMetadata(
-  alias: string,
-  model: ModelAlias,
-  config: LioraConfig,
-): ModelMetadata {
-  const capabilities = new Set(
-    (model.capabilities ?? []).map((capability) => capability.trim().toLowerCase()),
-  );
-  const declaredCapabilities = model.capabilities !== undefined;
-  const hasReasoningMetadata =
-    declaredCapabilities || model.supportEfforts !== undefined || model.adaptiveThinking === true;
-  const supportsReasoning = hasReasoningMetadata
-    ? capabilities.has('thinking') ||
-      capabilities.has('always_thinking') ||
-      model.adaptiveThinking === true ||
-      (model.supportEfforts?.length ?? 0) > 0
-    : undefined;
-  const supportsTools = declaredCapabilities ? capabilities.has('tool_use') : undefined;
-  const supportsVision = declaredCapabilities ? capabilities.has('image_in') : undefined;
-  const pricingData = {
-    inputCostPerM: model.cost?.input,
-    outputCostPerM: model.cost?.output,
-    contextWindow: model.maxContextSize,
-    supportsReasoning,
-    supportsTools,
-    supportsVision,
-  };
-
-  return {
-    id: model.model,
-    alias,
-    provider: model.provider,
-    tier: classifyModelTier(model.model, pricingData),
-    contextWindow: model.maxContextSize,
-    available: isAliasAvailable(config, alias),
-    inputCostPerM: model.cost?.input,
-    outputCostPerM: model.cost?.output,
-    supportsReasoning: pricingData.supportsReasoning,
-    supportsTools: pricingData.supportsTools,
-    supportsVision: pricingData.supportsVision,
-  };
-}
-
-function autoThinkingLevel(role: ModelRole, model: ModelAlias | undefined): ThinkingEffort {
-  const requested = AUTO_THINKING_BY_ROLE[role];
-  if (requested === undefined) return 'off';
-
-  const capabilities = new Set(
-    (model?.capabilities ?? []).map((capability) => capability.trim().toLowerCase()),
-  );
-  if (
-    model !== undefined &&
-    model.capabilities !== undefined &&
-    !capabilities.has('thinking') &&
-    !capabilities.has('always_thinking') &&
-    (model.supportEfforts?.length ?? 0) === 0 &&
-    model.adaptiveThinking !== true
-  ) {
-    return 'off';
-  }
-
-  return resolveThinkingEffort(requested, undefined, model);
 }

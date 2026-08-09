@@ -4,6 +4,7 @@ function displayAliasName(
   alias: string,
   models: Record<string, ModelAlias>,
 ): string {
+  if (alias.trim().toLowerCase() === 'auto') return 'Smart Auto';
   const entry = models[alias];
   return entry?.displayName ?? entry?.model ?? alias;
 }
@@ -42,8 +43,12 @@ export function noticeKindLabel(kind: 'failover' | 'switch' | 'selection'): stri
 function formatRouteReason(reason: string): string {
   if (reason === 'completion:inline') return 'ghost complete';
   if (reason === 'completion:suggest') return 'suggest';
+  if (reason === 'smart-auto' || reason === 'smart-auto pin') return 'smart auto';
   if (reason.startsWith('completion:')) return `completion · ${reason.slice('completion:'.length)}`;
   if (reason.startsWith('compaction')) return reason.replace(/^compaction[:]?/, 'compact').trim() || 'compact';
+  // Prefer the trailing `role/intensity` token from smart-router reasons.
+  const intensity = reason.match(/\b(compaction|completion|exploration|coding|planning|debugging)\/(value|balanced|max)\b/);
+  if (intensity !== null) return intensity[0];
   return reason;
 }
 

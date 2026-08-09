@@ -243,14 +243,27 @@ export type {
 export { installGlobalProxyDispatcher } from '@superliora/agent-core';
 export {
   ROLE_PRESETS,
+  SMART_AUTO_SESSION_ALIAS,
   autoAssignRoleModels,
+  buildFallbackChain,
+  classifySessionRole,
+  classifyTurnRouting,
+  defaultIntensityForRole,
+  isAuthOrCreditFailure,
+  isSmartAutoSessionAlias,
+  mergeRouteFallbackAliases,
   previewLoopRoleModelRouting,
+  resolveSessionSmartRoute,
+  resolveSmartRoute,
   rolePresetFor,
   type LocalRoleCatalogModel,
   type LoopRoleModelPreview,
   type ModelRole,
   type RoleModelAssignment,
   type RolePreset,
+  type RouteIntensity,
+  type SmartRoute,
+  type TurnSignals,
 } from '@superliora/agent-core';
 
 export type {

@@ -161,13 +161,24 @@ export class SessionSubagentHost {
     );
     claimChildOwnership(agent, id, options);
     const completion = this.runWithActiveChild(id, options, async (runOptions) => {
-      const modelAlias = subagentCompletionFlow.spawnModelAlias(
+      const modelSelection = subagentCompletionFlow.spawnModelSelection(
         profile.name,
         options.profileBaseName,
         parent,
-        { preferVisionModel: options.preferVisionModel },
+        {
+          preferVisionModel: options.preferVisionModel,
+          prompt: options.prompt,
+        },
       );
-      emitSubagentSpawned(parent, this.ownerAgentId, id, profile.name, runOptions, modelAlias);
+      emitSubagentSpawned(
+        parent,
+        this.ownerAgentId,
+        id,
+        profile.name,
+        runOptions,
+        modelSelection.alias,
+        modelSelection.route?.reason,
+      );
       try {
         await configureSubagentChild(
           this.session,
@@ -182,7 +193,7 @@ export class SessionSubagentHost {
         emitSubagentFailed(parent, id, runOptions, error);
         throw error;
       }
-      return  subagentCompletionFlow.runPromptTurnWithModelFallback(
+      return subagentCompletionFlow.runPromptTurnWithModelFallback(
         parent,
         id,
         agent,
@@ -217,6 +228,7 @@ export class SessionSubagentHost {
         profileName,
         runOptions,
         modelSelection.alias,
+        modelSelection.route?.reason,
       );
       try {
         child.config.update({

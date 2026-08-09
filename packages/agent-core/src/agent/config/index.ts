@@ -29,6 +29,11 @@ export { resolveThinkingEffort, type ThinkingEffort } from './thinking';
 export class ConfigState {
   private _cwd: string;
   private _modelAlias: string | undefined;
+  /**
+   * When `_modelAlias` is the virtual `auto` pin, this holds the concrete
+   * alias resolved for the current turn / last resolve.
+   */
+  private _smartRouteAlias: string | undefined;
   private _profileName: string | undefined;
   private _thinkingLevel: ThinkingEffort = 'off';
   private _systemPrompt: string = '';
@@ -59,6 +64,8 @@ export class ConfigState {
     }
     if (changed.modelAlias) {
       this._modelAlias = changed.modelAlias;
+      this._smartRouteAlias = undefined;
+      this.providerCache = null;
     }
     if (changed.profileName) {
       this._profileName = changed.profileName;
@@ -144,8 +151,9 @@ export class ConfigState {
   }
 
   get providerRoute(): ResolvedRuntimeProviderRoute | undefined {
-    if (this._modelAlias === undefined) return undefined;
-    return this.agent.modelProvider?.resolveProviderRoute?.(this._modelAlias);
+    const alias = this.effectiveModelAlias;
+    if (alias === undefined || alias.trim().toLowerCase() === 'auto') return undefined;
+    return this.agent.modelProvider?.resolveProviderRoute?.(alias);
   }
 
   createRuntimeProvider(resolved: ResolvedRuntimeProvider | undefined): ChatProvider {
@@ -168,6 +176,24 @@ export class ConfigState {
     return this._modelAlias;
   }
 
+  /**
+   * Concrete alias used for provider resolution. Equals `modelAlias` unless
+   * the session is pinned to virtual smart-auto `auto`.
+   */
+  get effectiveModelAlias(): string | undefined {
+    if (this._modelAlias?.trim().toLowerCase() === 'auto') {
+      return this._smartRouteAlias ?? this._modelAlias;
+    }
+    return this._modelAlias;
+  }
+
+  /** Pin the concrete alias for a smart-auto session turn. */
+  setSmartRouteAlias(alias: string | undefined): void {
+    if (this._smartRouteAlias === alias) return;
+    this._smartRouteAlias = alias;
+    this.providerCache = null;
+  }
+
   get thinkingLevel(): ThinkingEffort {
     // Always-thinking models cannot run with thinking disabled. Clamping in
     // the getter (rather than in update()) keeps the request builder, status
@@ -188,8 +214,9 @@ export class ConfigState {
   }
 
   private get currentThinkingDefaults(): ThinkingModelDefaults | undefined {
-    if (this._modelAlias === undefined) return undefined;
-    const configured = this.agent.runtimeConfig?.models?.[this._modelAlias];
+    const alias = this.effectiveModelAlias;
+    if (alias === undefined || alias.trim().toLowerCase() === 'auto') return undefined;
+    const configured = this.agent.runtimeConfig?.models?.[alias];
     if (configured !== undefined) return configured;
     const resolved = this.tryResolvedProviderConfig();
     if (resolved === undefined) return undefined;
@@ -228,8 +255,9 @@ export class ConfigState {
   }
 
   private get resolvedProviderConfig(): ResolvedRuntimeProvider | undefined {
-    if (this._modelAlias === undefined) return undefined;
-    return this.agent.modelProvider?.resolveProviderConfig(this._modelAlias);
+    const alias = this.effectiveModelAlias;
+    if (alias === undefined || alias.trim().toLowerCase() === 'auto') return undefined;
+    return this.agent.modelProvider?.resolveProviderConfig(alias);
   }
 
   private tryResolvedProviderConfig(): ResolvedRuntimeProvider | undefined {

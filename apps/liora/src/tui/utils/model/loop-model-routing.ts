@@ -1,4 +1,5 @@
 import {
+  defaultIntensityForRole,
   previewLoopRoleModelRouting,
   rolePresetFor,
   type DeleteConfigFieldPath,
@@ -57,7 +58,7 @@ export function loopModelRoutingRows(
       ...(resolvedAlias !== undefined ? { resolvedAlias } : {}),
       description,
       source,
-      state: formatRoleRoutingState(source, model, resolvedAlias),
+      state: formatRoleRoutingState(source, model, resolvedAlias, role.key),
     };
   });
 }
@@ -109,10 +110,16 @@ function formatRoleRoutingState(
   source: LoopRoleModelPreview['source'],
   override: string | undefined,
   resolvedAlias: string | undefined,
+  role: ModelRole,
 ): string {
-  if (source === 'override' && override !== undefined) return `override · ${override}`;
-  if (source === 'auto' && resolvedAlias !== undefined) return `auto → ${resolvedAlias}`;
-  return 'auto';
+  const intensity = defaultIntensityForRole(role);
+  if (source === 'override' && override !== undefined) {
+    return `override · ${override}`;
+  }
+  if (source === 'auto' && resolvedAlias !== undefined) {
+    return `auto → ${resolvedAlias} (${role}/${intensity})`;
+  }
+  return `auto (${role}/${intensity})`;
 }
 
 function configuredModel(value: unknown): string | undefined {

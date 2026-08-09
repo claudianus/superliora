@@ -9,6 +9,7 @@ import {
 import { labelModelRoute } from '#/tui/components/chrome/footer/footer-labels';
 
 export function modelDisplayName(state: AppState): string {
+  if (state.model.trim().toLowerCase() === 'auto') return 'Smart Auto';
   const model = state.availableModels[state.model];
   return model?.displayName ?? model?.model ?? state.model;
 }
@@ -40,6 +41,10 @@ export function formatModelRouteBadge(
   // Keep the badge fresh for ~45s so operators can still read it after a switch.
   if (Date.now() - notice.atMs > 45_000) return undefined;
   const toLabel = modelRouteDisplayName(notice.toAlias, state.availableModels);
+  const reasonSuffix =
+    notice.reason !== undefined && notice.reason.length > 0 && notice.reason.includes('/')
+      ? ` (${notice.reason.split('·').at(-1)?.trim() ?? notice.reason})`
+      : '';
   // Only surface true failovers here. Other routes already paint on cards/headers.
   if (notice.kind === 'failover' && notice.fromAlias !== undefined) {
     // Defensive: never badge a same-effective-model rename as failover.
@@ -56,7 +61,20 @@ export function formatModelRouteBadge(
     }
     const fromLabel = modelRouteDisplayName(notice.fromAlias, state.availableModels);
     if (fromLabel === toLabel) return undefined;
-    return labelModelRoute(labels, 'failover', fromLabel, toLabel);
+    return `${labelModelRoute(labels, 'failover', fromLabel, toLabel)}${reasonSuffix}`;
+  }
+  // Smart-auto / selection notices: show when reason carries role/intensity.
+  if (notice.kind === 'selection' && reasonSuffix.length > 0) {
+    const fromLabel =
+      notice.fromAlias !== undefined
+        ? modelRouteDisplayName(notice.fromAlias, state.availableModels)
+        : state.model === 'auto'
+          ? 'Smart Auto'
+          : undefined;
+    if (fromLabel !== undefined && fromLabel !== toLabel) {
+      return `${fromLabel} → ${toLabel}${reasonSuffix}`;
+    }
+    return `${toLabel}${reasonSuffix}`;
   }
   return undefined;
 }
