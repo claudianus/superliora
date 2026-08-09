@@ -113,8 +113,10 @@ export function updateCompactionProgress(
   if (delta !== undefined && delta.length > 0) {
     activeBlock.appendSummaryDelta(delta);
   }
-  // Progress ticks stream many times per second. Layout invalidation rebuilds
-  // transcript geometry every token and flickers the stage; content is enough
-  // because the card already owns fixed slots for bar + preview lines.
+  // Progress ticks stream many times per second. Never layout-invalidate here:
+  // a layout wipe remeasures the whole transcript and thrash-resizes the stage.
+  // CompactionComponent keeps fixed in-flight slots (1 progress + N preview
+  // rows), so a content-only frame is enough. Profile off still takes this path
+  // (no extra motion — motion is gated inside the component render).
   requestTUIContentRender(host.state);
 }

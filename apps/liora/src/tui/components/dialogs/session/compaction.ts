@@ -75,6 +75,12 @@ const BAR_EMPTY_CHAR = '░';
 const SUMMARY_PREVIEW_LINES = 5;
 const SUMMARY_PREVIEW_MAX_WIDTH = 96;
 const SUMMARY_BUFFER_MAX_CHARS = 12_000;
+/**
+ * Reserved in-flight geometry cell. Must survive `Text` empty-line collapse
+ * (`text.trim() === ''` → 0 rows). Braille blank is non-trimming and paints as
+ * an empty-looking cell in typical terminals.
+ */
+const RESERVED_ROW = '\u2800';
 
 type CompactionStreamMeta = {
   readonly streamKind?: 'summary' | 'block' | 'merge' | 'repair';
@@ -126,13 +132,15 @@ export class CompactionComponent extends Container {
     this.addChild(new Spacer(1));
     this.headerText = new Text(this.buildHeader(), 0, 0);
     this.addChild(this.headerText);
-    // Phase-driven progress bar. Empty text renders zero lines, so the bar
-    // disappears entirely once the block settles (done/cancelled).
-    this.progressText = new Text('', 0, 0);
+    // Phase-driven progress bar. While in-flight we always hold a single
+    // reserved row so transcript geometry does not jump when the first
+    // progress paint lands. Empty text renders zero lines once settled.
+    this.progressText = new Text(this.reservedProgressPlaceholder(), 0, 0);
     this.addChild(this.progressText);
-    // Live tail preview of the streamed summary. Empty text renders zero
-    // lines, so the preview disappears once the block settles.
-    this.summaryPreviewText = new Text('', 0, 0);
+    // Live tail preview of the streamed summary. Reserve a fixed row budget
+    // for the whole in-flight window so token deltas only repaint content
+    // (no 0→N line thrash-resize of the transcript card).
+    this.summaryPreviewText = new Text(this.reservedSummaryPreviewText(), 0, 0);
     this.addChild(this.summaryPreviewText);
     this.addInstructionChild();
   }
@@ -156,7 +164,11 @@ export class CompactionComponent extends Container {
       this.addInstructionChild();
     }
     // Repaint the streamed summary preview with fresh theme colours.
-    if (this.summaryBuffer.length > 0) {
+    // In-flight always keeps the reserved row budget even when the buffer
+    // is still empty (stable geometry for content-only invalidation).
+    if (!this.done && !this.canceled) {
+      this.summaryPreviewText.setText(this.buildSummaryPreviewLines().join('\n'));
+    } else if (this.summaryBuffer.length > 0) {
       this.summaryPreviewText.setText(this.buildSummaryPreviewLines().join('\n'));
     }
     super.invalidate();
@@ -213,8 +225,10 @@ export class CompactionComponent extends Container {
     // See PREMIUM.md §7.1 (single animation clock).
     this.headerText.setText(this.buildHeader());
     this.progressText.setText(this.done || this.canceled ? '' : this.buildProgressLine(width));
-    // Keep the streamed preview in the container path (not only beat compose).
-    if (!this.done && !this.canceled && this.summaryBuffer.length > 0) {
+    // Keep the reserved preview slot filled for the whole in-flight window
+    // (not only when the buffer has content) so content ticks never change
+    // transcript row count.
+    if (!this.done && !this.canceled) {
       this.summaryPreviewText.setText(this.buildSummaryPreviewLines().join('\n'));
     }
     return super.render(width);
@@ -234,6 +248,8 @@ export class CompactionComponent extends Container {
       this.addChild(new Text(currentTheme.dim(`  ${detail}`), 0, 0));
     }
     this.headerText.setText(this.buildHeader());
+    // Terminal geometry change (drop reserved progress/preview slots). Host
+    // controller issues layout invalidate; this is a safety paint only.
     this.ui?.requestRender();
   }
 
@@ -260,7 +276,8 @@ export class CompactionComponent extends Container {
     this.phase = phase;
     this.phaseEnteredAt = appearanceAnimationNow();
     this.progressFloor = Math.max(this.progressFloor, phaseProgress(phase).base);
-    this.ui?.requestRender();
+    // No requestRender here — progress ticks are high-frequency. The streaming
+    // host scopes a content-only invalidate after applying phase/meta/delta.
   }
 
   /** Live stream source (summary / block N / merge / repair) for progress label. */
@@ -309,7 +326,7 @@ export class CompactionComponent extends Container {
       return;
     }
     this.streamMeta = next;
-    this.ui?.requestRender();
+    // Host scopes content invalidate after the whole progress tick.
   }
 
   /** Append streamed summarizer output and show a dimmed tail preview. */
@@ -320,8 +337,9 @@ export class CompactionComponent extends Container {
     if (this.summaryBuffer.length > SUMMARY_BUFFER_MAX_CHARS) {
       this.summaryBuffer = this.summaryBuffer.slice(-SUMMARY_BUFFER_MAX_CHARS);
     }
+    // Update the reserved preview slot only. Height is fixed for the in-flight
+    // window; host issues a content-only frame (not layout/transcript rebuild).
     this.summaryPreviewText.setText(this.buildSummaryPreviewLines().join('\n'));
-    this.ui?.requestRender();
   }
 
   dispose(): void {}
@@ -329,6 +347,8 @@ export class CompactionComponent extends Container {
   private composeBeatRender(beatLines: readonly string[], width: number): string[] {
     const lines: string[] = ['', ...beatLines];
     if (!this.done && !this.canceled) {
+      // Match the reserved in-flight geometry of the container path so the
+      // enter/exit beat does not thrash-resize vs the live progress card.
       lines.push(this.buildProgressLine(width));
       lines.push(...this.buildSummaryPreviewLines());
     }
@@ -339,6 +359,18 @@ export class CompactionComponent extends Container {
       lines.push(currentTheme.dim(`  ${this.detail}`));
     }
     return lines;
+  }
+
+  /** One non-empty row so Text measures height 1 before the first paint. */
+  private reservedProgressPlaceholder(): string {
+    return `  ${RESERVED_ROW}`;
+  }
+
+  /** Fixed SUMMARY_PREVIEW_LINES rows of non-empty placeholders. */
+  private reservedSummaryPreviewText(): string {
+    return Array.from({ length: SUMMARY_PREVIEW_LINES }, () => `  ${RESERVED_ROW}`).join(
+      '\n',
+    );
   }
 
   private currentFraction(now: number, animated: boolean): number {
@@ -441,7 +473,7 @@ export class CompactionComponent extends Container {
   }
 
   private buildSummaryPreviewLines(): string[] {
-    const lines = this.summaryBuffer
+    const content = this.summaryBuffer
       .split('\n')
       .map((line) => line.trimEnd())
       .filter((line) => line.trim().length > 0)
@@ -453,18 +485,33 @@ export class CompactionComponent extends Container {
             : line;
         return currentTheme.dim(`  ${clipped}`);
       });
-    if (lines.length === 0) return lines;
-    // Live cursor on the last preview line while summarizing / repairing.
+    // While in-flight always emit a fixed row budget. Empty slots use a
+    // non-empty spacer so Text measures the same height as filled slots
+    // (empty Text renders zero lines and thrash-resizes the transcript).
+    if (this.done || this.canceled) {
+      return content;
+    }
+    const lines = content.slice();
+    while (lines.length < SUMMARY_PREVIEW_LINES) {
+      // Non-trimming spacer — plain spaces collapse to 0 Text rows.
+      lines.push(`  ${RESERVED_ROW}`);
+    }
+    // Live cursor on the last real content line while summarizing / repairing.
     // Under ambient motion the cursor blinks on the shared animation clock
     // (same cadence as the header bullet); with motion off it stays solidly
-    // on so quality-gated renders remain byte-stable.
-    if (!this.done && !this.canceled && (this.phase === 'summarizing' || this.phase === 'repairing')) {
+    // on so quality-gated renders remain byte-stable. Profile off → no motion
+    // extras (cursor stays solid, no shimmer elsewhere).
+    if (
+      content.length > 0 &&
+      (this.phase === 'summarizing' || this.phase === 'repairing')
+    ) {
       const blinkOn = shouldRenderAmbientEffects(getActiveAppearancePreferences())
         ? Math.floor(appearanceAnimationNow() / BLINK_INTERVAL) % 2 === 0
         : true;
       if (blinkOn) {
-        const last = lines.at(-1) ?? '';
-        lines[lines.length - 1] = `${last}${currentTheme.fg('accent', '▌')}`;
+        const cursorAt = content.length - 1;
+        const last = lines[cursorAt] ?? '';
+        lines[cursorAt] = `${last}${currentTheme.fg('accent', '▌')}`;
       }
     }
     return lines;
