@@ -237,7 +237,7 @@ export class MissionControlPanelComponent implements Component {
    * so wheel / key handlers can fall through at the edges.
    */
   scrollWorkers(action: MissionWorkerScrollAction): boolean {
-    const workers = this.visibleWorkers();
+    const workers = this.visibleWorkers(Date.now());
     const slots = Math.max(1, Math.min(this.lastWorkerSlots, workers.length));
     if (workers.length <= slots) {
       if (this.workerScrollOffset === 0) return false;
