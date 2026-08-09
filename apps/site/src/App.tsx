@@ -53,6 +53,7 @@ function Navbar() {
   const docsHref =
     lang === 'en' ? `${base}en/docs/getting-started.html` : `${base}docs/getting-started.html`;
   const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const onScroll = () => {
@@ -65,6 +66,20 @@ function Navbar() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
+
   const links = [
     { href: '#features', label: t.nav.features },
     { href: '#how', label: t.nav.how },
@@ -72,14 +87,18 @@ function Navbar() {
     { href: docsHref, label: t.nav.docs },
   ];
 
+  const closeMenu = () => {
+    setMenuOpen(false);
+  };
+
   return (
     <header
-      className={`nav-shell fixed left-0 right-0 top-0 z-40 border-b border-transparent backdrop-blur-xl ${scrolled ? 'scrolled' : 'bg-bg/40'}`}
+      className={`nav-shell fixed left-0 right-0 top-0 z-40 border-b border-transparent backdrop-blur-xl ${scrolled || menuOpen ? 'scrolled' : 'bg-bg/40'}`}
     >
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
-        <a href={base} className="flex items-center gap-2.5 font-sans text-lg font-bold tracking-tight text-text">
+      <div className="nav-bar mx-auto flex max-w-[90rem] items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
+        <a href={base} className="flex min-w-0 items-center gap-2.5 font-sans text-lg font-bold tracking-tight text-text">
           <BrandMark />
-          <span>SuperLiora</span>
+          <span className="truncate">SuperLiora</span>
         </a>
         <nav aria-label="Main" className="hidden items-center gap-1 text-sm font-medium text-soft lg:flex">
           {links.map((link) => (
@@ -110,7 +129,43 @@ function Navbar() {
             </a>
           </div>
           <ThemeToggle />
+          <button
+            type="button"
+            className="nav-burger lg:hidden"
+            data-nav-toggle
+            aria-controls="mobile-nav"
+            aria-expanded={menuOpen}
+            aria-label={menuOpen ? t.nav.menuClose : t.nav.menuOpen}
+            onClick={() => {
+              setMenuOpen((open) => !open);
+            }}
+          >
+            <span className="nav-burger__lines" data-open={menuOpen ? 'true' : 'false'} aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
+          </button>
         </div>
+      </div>
+      <div
+        id="mobile-nav"
+        className={`nav-drawer lg:hidden ${menuOpen ? 'nav-drawer--open' : ''}`}
+        aria-hidden={!menuOpen}
+      >
+        <nav aria-label="Mobile" className="nav-drawer__panel" inert={!menuOpen ? true : undefined}>
+          {links.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              className="nav-drawer__link"
+              tabIndex={menuOpen ? 0 : -1}
+              onClick={closeMenu}
+            >
+              {link.label}
+            </a>
+          ))}
+        </nav>
       </div>
     </header>
   );

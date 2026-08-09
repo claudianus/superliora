@@ -57,6 +57,8 @@ export interface Translation {
     how: string;
     install: string;
     docs: string;
+    menuOpen: string;
+    menuClose: string;
   };
   hero: {
     brand: string;
@@ -266,6 +268,8 @@ export const translations: Record<Lang, Translation> = {
       how: '흐름',
       install: '설치',
       docs: '가이드',
+      menuOpen: '메뉴 열기',
+      menuClose: '메뉴 닫기',
     },
     hero: {
       brand: 'SuperLiora',
@@ -504,6 +508,8 @@ export const translations: Record<Lang, Translation> = {
       how: 'Flow',
       install: 'Install',
       docs: 'Guide',
+      menuOpen: 'Open menu',
+      menuClose: 'Close menu',
     },
     hero: {
       brand: 'SuperLiora',

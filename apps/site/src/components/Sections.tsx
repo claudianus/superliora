@@ -19,26 +19,26 @@ export function Sections() {
         <section data-stage-hero className="museum-hero">
           <div className="museum-hero__veil" aria-hidden="true" />
           <div className="museum-hero__copy">
-            <p className="font-sans text-sm font-semibold tracking-[0.18em] text-primary uppercase">
+            <p className="hero-kicker font-sans font-semibold tracking-[0.18em] text-primary uppercase">
               {t.hero.brand}
             </p>
-            <h1 className="mt-3 max-w-[16ch] font-sans text-[2.2rem] font-bold leading-[1.05] tracking-tight text-text sm:text-5xl lg:text-[3rem] text-balance">
+            <h1 className="hero-title mt-3 max-w-[16ch] font-sans font-bold tracking-tight text-text text-balance">
               {t.hero.h1}
             </h1>
-            <p className="mt-4 max-w-[36ch] text-base leading-relaxed text-soft sm:text-lg">
+            <p className="hero-lead mt-4 max-w-[36ch] leading-relaxed text-soft">
               {t.hero.lead}
             </p>
-            <div className="mt-7 flex flex-wrap gap-3">
-              <a href="#install" className="btn btn-primary inline-flex items-center rounded-lg px-6 py-3">
+            <div className="hero-cta mt-6 flex flex-wrap gap-3 sm:mt-7">
+              <a href="#install" className="btn btn-primary inline-flex min-h-11 items-center rounded-lg px-5 py-2.5 sm:px-6 sm:py-3">
                 {t.hero.install}
               </a>
               <a
                 href="https://github.com/claudianus/superliora"
-                className="btn btn-secondary inline-flex items-center rounded-lg px-6 py-3"
+                className="btn btn-secondary inline-flex min-h-11 items-center rounded-lg px-5 py-2.5 sm:px-6 sm:py-3"
               >
                 {t.hero.github}
               </a>
-              <a href={docsHref} className="btn btn-secondary inline-flex items-center rounded-lg px-6 py-3">
+              <a href={docsHref} className="btn btn-secondary inline-flex min-h-11 items-center rounded-lg px-5 py-2.5 sm:px-6 sm:py-3">
                 {t.hero.docs}
               </a>
             </div>
@@ -48,14 +48,14 @@ export function Sections() {
         <section id="features" className="museum-features relative z-10">
           <div className="museum-features__panel section-pad">
             <Reveal className="max-w-xl">
-              <p className="text-sm font-semibold tracking-wide text-primary">{t.clusters.kicker}</p>
-              <h2 className="mt-3 font-sans text-3xl font-bold tracking-tight md:text-[2rem] text-balance">
+              <p className="section-kicker text-sm font-semibold tracking-wide text-primary">{t.clusters.kicker}</p>
+              <h2 className="section-title mt-3 font-sans font-bold tracking-tight text-balance">
                 {t.clusters.title}
               </h2>
-              <p className="mt-4 text-base text-soft md:text-lg">{t.clusters.body}</p>
+              <p className="section-body mt-4 text-soft">{t.clusters.body}</p>
             </Reveal>
 
-            <div className="mt-12 space-y-16 lg:space-y-20">
+            <div className="cluster-stack mt-10 space-y-14 sm:mt-12 lg:space-y-20">
               {t.clusters.items.map((cluster, i) => (
                 <article
                   key={cluster.id}
@@ -67,10 +67,10 @@ export function Sections() {
                     <div className="font-mono text-xs text-primary/80">
                       {String(i + 1).padStart(2, '0')}
                     </div>
-                    <h3 className="mt-2 max-w-[20ch] font-sans text-xl font-semibold tracking-tight text-text md:text-2xl">
+                    <h3 className="cluster-title mt-2 max-w-[20ch] font-sans font-semibold tracking-tight text-text">
                       {cluster.title}
                     </h3>
-                    <p className="mt-3 max-w-[42ch] text-sm text-soft md:text-base">{cluster.lead}</p>
+                    <p className="cluster-lead mt-3 max-w-[42ch] text-soft">{cluster.lead}</p>
                   </Reveal>
                   <div className="feature-rail mt-6" role="list">
                     {cluster.features.map((feature) => (
@@ -90,19 +90,19 @@ export function Sections() {
       <section id="how" className="section-pad border-t border-line bg-bg">
         <div className="mx-auto max-w-7xl">
           <Reveal className="max-w-2xl">
-            <p className="text-sm font-semibold tracking-wide text-primary">{t.how.kicker}</p>
-            <h2 className="mt-3 font-sans text-3xl font-bold tracking-tight md:text-4xl text-balance">
+            <p className="section-kicker text-sm font-semibold tracking-wide text-primary">{t.how.kicker}</p>
+            <h2 className="section-title mt-3 font-sans font-bold tracking-tight text-balance">
               {t.how.title}
             </h2>
-            <p className="mt-4 text-lg text-soft">{t.how.body}</p>
+            <p className="section-body mt-4 text-soft">{t.how.body}</p>
           </Reveal>
-          <div className="mt-12 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-10 grid gap-6 sm:mt-12 md:grid-cols-2 xl:grid-cols-4">
             {t.how.steps.map((step, i) => (
               <Reveal key={step.title} stagger={((i % 3) + 1) as 1 | 2 | 3}>
                 <div className="h-full border-t border-primary/40 pt-5">
                   <div className="font-mono text-xs text-muted">{String(i + 1).padStart(2, '0')}</div>
-                  <h3 className="mt-3 font-sans text-lg font-semibold text-text">{step.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-soft">{step.body}</p>
+                  <h3 className="mt-3 font-sans text-lg font-semibold text-text md:text-xl">{step.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-soft md:text-base">{step.body}</p>
                 </div>
               </Reveal>
             ))}
@@ -136,11 +136,11 @@ export function Sections() {
       <section id="install" className="section-pad border-t border-line bg-bg">
         <div className="mx-auto max-w-3xl">
           <Reveal>
-            <p className="text-sm font-semibold tracking-wide text-primary">{t.install.kicker}</p>
-            <h2 className="mt-3 font-sans text-3xl font-bold tracking-tight md:text-4xl text-balance">
+            <p className="section-kicker text-sm font-semibold tracking-wide text-primary">{t.install.kicker}</p>
+            <h2 className="section-title mt-3 font-sans font-bold tracking-tight text-balance">
               {t.install.title}
             </h2>
-            <p className="mt-4 text-lg text-soft">{t.install.body}</p>
+            <p className="section-body mt-4 text-soft">{t.install.body}</p>
             <p className="mt-2 font-mono text-xs text-muted">{t.install.requirements}</p>
           </Reveal>
           <div className="mt-10 space-y-4">

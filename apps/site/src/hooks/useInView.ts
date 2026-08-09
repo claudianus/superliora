@@ -43,7 +43,9 @@ export function useInView<T extends HTMLElement>({
       { threshold, rootMargin },
     );
     observer.observe(el);
-    return () =>{  observer.disconnect(); };
+    return () => {
+      observer.disconnect();
+    };
   }, [threshold, rootMargin, once]);
 
   return { ref, inView };
