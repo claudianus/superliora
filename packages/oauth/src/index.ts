@@ -327,11 +327,17 @@ export type {
 
 export {
   CredentialHealthStore,
+  DEFAULT_QUOTA_COOLDOWN_MS,
+  QUOTA_EXHAUSTED_FAILURE_REASON,
   annotateModelsWithCredentialHealth,
+  applyUsageSnapshotsToCredentialHealth,
+  canClearQuotaExhaustionFromUsage,
   credentialHealthCacheKey,
+  isProviderUsageQuotaExhausted,
   sharedCredentialHealthStore,
 } from './credential-health';
 export type {
+  ApplyUsageSnapshotsToCredentialHealthResult,
   CredentialHealthKey,
   CredentialHealthRecord,
   CredentialHealthStatus,
