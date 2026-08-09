@@ -1,4 +1,4 @@
-import type { Component } from '#/tui/renderer';
+import { Spacer, type Component } from '#/tui/renderer';
 
 import { RESULT_PREVIEW_LINES } from '#/tui/constant/rendering';
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
@@ -58,13 +58,17 @@ export function rebuildToolCallContent(host: ToolCallBodyRebuildHost): void {
   appendLiveOutputBlock(host);
   appendResultContent(host);
   buildSubagentBlock(host);
+  // Trailing tinted blank separates consecutive Used-units without breaking
+  // the continuous work-block band (see PREMIUM.md §7.9).
+  appendTrailingUsedUnitSpacer(host);
 }
 
 export function rebuildToolCallBody(host: ToolCallBodyRebuildHost): void {
   host.renderCache.clear();
   host.outputViewport.reset();
   host.liveOutputShell = undefined;
-  // children[0] is the header Text — no leading spacer in the work block.
+  // children[0] is the header Text — no leading spacer in the work block
+  // (density mouse treats localRow 0 as the header).
   while (host.children.length > 1) {
     host.children.pop();
   }
@@ -80,6 +84,7 @@ export function rebuildToolCallBody(host: ToolCallBodyRebuildHost): void {
   appendLiveOutputBlock(host);
   appendResultContent(host);
   buildSubagentBlock(host);
+  appendTrailingUsedUnitSpacer(host);
 }
 
 export function rebuildToolCallSubagentBlock(host: ToolCallBodyRebuildHost): void {
@@ -88,6 +93,9 @@ export function rebuildToolCallSubagentBlock(host: ToolCallBodyRebuildHost): voi
     host.children.pop();
   }
   buildSubagentBlock(host);
+  if (!host.isOneLineCollapsed) {
+    appendTrailingUsedUnitSpacer(host);
+  }
 }
 
 function appendCompactErrorLine(host: ToolCallBodyRebuildHost): void {
@@ -183,4 +191,15 @@ function appendResultContent(host: ToolCallBodyRebuildHost): void {
     isSingleSubagentView: host.isSingleSubagentView(),
   });
   host.outputViewport.mount(components);
+}
+
+/**
+ * One trailing blank row inside the card so consecutive Used-units separate in
+ * standard/full density while `applyWorkBlockTintLine` still paints the band.
+ * Never leading — header must stay localRow 0 for density mouse hits.
+ * Skipped for compact/minimal one-line collapse (caller guards).
+ */
+function appendTrailingUsedUnitSpacer(host: ToolCallBodyRebuildHost): void {
+  // Spacer yields one real blank row; Text('') collapses to zero lines.
+  host.addChild(new Spacer(1));
 }
