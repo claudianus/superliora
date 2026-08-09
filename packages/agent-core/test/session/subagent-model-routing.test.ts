@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { sharedCredentialHealthStore } from '@superliora/oauth';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import { resolveSubagentModelSelection } from '../../src/session/subagent/subagent-model-routing';
 import { testAgent } from '../agent/harness/agent';
@@ -29,6 +30,10 @@ function model(
 }
 
 describe('subagent role model routing', () => {
+  afterEach(() => {
+    sharedCredentialHealthStore.clear();
+  });
+
   it('applies explicit coding and planning overrides', () => {
     const context = testAgent({
       initialConfig: {
@@ -187,6 +192,45 @@ describe('subagent role model routing', () => {
     });
     context.configure();
 
+    expect(resolveSubagentModelSelection(context.agent, 'plan')).toMatchObject({
+      alias: 'opus',
+      role: 'planning',
+      source: 'auto',
+    });
+  });
+
+  it('skips exhausted qwen-token-plan workers and picks a healthy alias', () => {
+    sharedCredentialHealthStore.markQuotaExhausted('qwen-token-plan');
+
+    const context = testAgent({
+      initialConfig: {
+        providers: {
+          'test-provider': PROVIDER,
+          'qwen-token-plan': {
+            type: 'openai',
+            apiKey: 'qwen-key',
+            baseUrl: 'https://token-plan.example/v1',
+          },
+        },
+        models: {
+          'qwen3.8-max': {
+            provider: 'qwen-token-plan',
+            model: 'qwen3.8-max',
+            maxContextSize: 128_000,
+            capabilities: ['tool_use', 'thinking'],
+            cost: { input: 0.4 },
+          },
+          opus: model('opus', ['tool_use', 'thinking'], 10),
+        },
+      },
+    });
+    context.configure();
+
+    expect(resolveSubagentModelSelection(context.agent, 'coder')).toMatchObject({
+      alias: 'opus',
+      role: 'coding',
+      source: 'auto',
+    });
     expect(resolveSubagentModelSelection(context.agent, 'plan')).toMatchObject({
       alias: 'opus',
       role: 'planning',
