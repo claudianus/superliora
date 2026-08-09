@@ -1,10 +1,10 @@
 /**
- * Stale worktree hygiene notices after land / session end (F10).
+ * Stale worktree hygiene after land / session end (F10).
+ * Applies conductor job GC (done leftovers + fail TTL); does not only announce.
  */
 
-import { isExperimentalFlagEnabled } from '../../commands/experimental-flags';
 import type { ColorToken } from '../../theme';
-import { formatHygieneGcNotice } from '../../utils/job/job-hygiene-notice';
+import { formatHygieneGcAppliedNotice } from '../../utils/job/job-hygiene-notice';
 
 export interface JobHygieneHost {
   readonly session?: {
@@ -16,18 +16,25 @@ export interface JobHygieneHost {
   showStatus?(msg: string, color?: ColorToken): void;
 }
 
-/** Dry-run GC; when removable > 0, notice `/job gc`. */
-export async function maybeAnnounceStaleWorktrees(host: JobHygieneHost): Promise<void> {
-  if (!isExperimentalFlagEnabled('conductor_ux_v2')) return;
+/**
+ * Apply job worktree GC. When anything was removed, show a short notice.
+ * Disk cleanup is not gated on conductor_ux_v2.
+ */
+export async function maybeApplyStaleWorktrees(host: JobHygieneHost): Promise<void> {
   const session = host.session;
-  if (session === undefined || host.showNotice === undefined) return;
+  if (session === undefined) return;
   try {
-    const result = await session.jobGcWorktrees({ dryRun: true });
-    const notice = formatHygieneGcNotice(result.removed);
+    const result = await session.jobGcWorktrees({ dryRun: false });
+    const notice = formatHygieneGcAppliedNotice(result.removed);
     if (notice === undefined) return;
-    host.showNotice(notice.title, notice.detail, { coalesceKey: 'job-hygiene-gc' });
-    host.showStatus?.(notice.detail, 'info');
+    host.showNotice?.(notice.title, notice.detail, { coalesceKey: 'job-hygiene-gc' });
+    host.showStatus?.(notice.title, 'info');
   } catch {
     /* best-effort */
   }
+}
+
+/** @deprecated Prefer {@link maybeApplyStaleWorktrees}; kept for call-site migration. */
+export async function maybeAnnounceStaleWorktrees(host: JobHygieneHost): Promise<void> {
+  return maybeApplyStaleWorktrees(host);
 }

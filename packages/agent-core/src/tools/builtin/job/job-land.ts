@@ -13,6 +13,7 @@ import type { ToolStore } from '../../store';
 import type { JobRecord, JobStatus } from './job-ledger';
 import { createJob, getJob, patchJob } from './job-ledger';
 import { patchJobAndNotify } from './job-notify';
+import { gcConductorJobWorktrees } from './job-runtime';
 import { commitJobWorktreeIfDirty } from './job-worktree-commit';
 
 export interface LandJobToMainInput {
@@ -293,7 +294,13 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
     }
   }
 
-  const message = `Merged ${branch} into ${repoPath} at ${mergeSha.slice(0, 12)}${gcRemoved ? ' (worktree removed)' : ''}.`;
+  const retainHint =
+    !gcRemoved && input.gcOnSuccess !== false
+      ? ' (worktree retained — run /job gc)'
+      : gcRemoved
+        ? ' (worktree removed)'
+        : '';
+  let message = `Merged ${branch} into ${repoPath} at ${mergeSha.slice(0, 12)}${retainHint}.`;
   const next = patchJobAndNotify(
     store,
     job.id,
@@ -306,13 +313,42 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
         job.notes,
         snapshotNote,
         `land: merged ${branch} into main workspace (receipt ${mergeSha.slice(0, 12)})`,
-        gcRemoved ? 'land: worktree GC removed' : 'land: worktree retained',
+        gcRemoved
+          ? 'land: worktree GC removed'
+          : input.gcOnSuccess !== false
+            ? 'land: worktree retained — run /job gc'
+            : 'land: worktree retained',
       ]
         .filter(Boolean)
         .join('\n'),
     },
     { agent: input.agent, summary: message },
   );
+
+  // Sweep other done leftovers + TTL-expired registry entries (spec GC policy).
+  // Skip when tests opt out with gcOnSuccess: false.
+  const swept = await maybeSweepAfterLand(input);
+  if (swept > 0) {
+    message = `${message} Swept ${String(swept)} leftover worktree(s).`;
+    const landed = next ?? job;
+    const sweptJob = patchJobAndNotify(
+      store,
+      landed.id,
+      {
+        notes: [landed.notes, `land: swept ${String(swept)} leftover worktree(s)`]
+          .filter(Boolean)
+          .join('\n'),
+      },
+      { agent: input.agent, summary: message },
+    );
+    return {
+      ok: true,
+      job: sweptJob ?? landed,
+      merged: true,
+      gcRemoved,
+      message,
+    };
+  }
 
   return {
     ok: true,
@@ -321,6 +357,20 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
     gcRemoved,
     message,
   };
+}
+
+/** Best-effort conductor worktree sweep after a verified land. */
+async function maybeSweepAfterLand(input: LandJobToMainInput): Promise<number> {
+  if (input.kaos === undefined || input.gcOnSuccess === false) return 0;
+  try {
+    const result = await gcConductorJobWorktrees({
+      kaos: input.kaos,
+      store: input.store,
+    });
+    return result.removedJobIds.length + result.gc.removed;
+  } catch {
+    return 0;
+  }
 }
 
 export interface DispatchMergeLandInput {

@@ -1,5 +1,5 @@
 /**
- * Stale worktree hygiene CTA after land / session end (F10).
+ * Stale worktree hygiene notices after land / session end (F10).
  */
 
 export interface HygieneNotice {
@@ -14,5 +14,15 @@ export function formatHygieneGcNotice(staleCount: number): HygieneNotice | undef
   return {
     title: `${n} stale job worktree${staleCount === 1 ? '' : 's'}`,
     detail: 'Run /job gc to clean up landed worktrees.',
+  };
+}
+
+/** After applying GC, confirm how many worktrees were removed. */
+export function formatHygieneGcAppliedNotice(removedCount: number): HygieneNotice | undefined {
+  if (removedCount <= 0) return undefined;
+  const n = String(removedCount);
+  return {
+    title: `Removed ${n} stale job worktree${removedCount === 1 ? '' : 's'}`,
+    detail: 'Landed and expired job worktrees were cleaned up.',
   };
 }
