@@ -118,12 +118,16 @@ export class SubAgentEventHandler {
     }
     // Tool-call header already shows `· modelAlias` while the subagent runs.
     const modelAlias = event.modelAlias!;
+    const routeBit =
+      event.routeReason !== undefined && event.routeReason.length > 0
+        ? event.routeReason
+        : `subagent:${event.subagentName}`;
     this.host.setAppState({
       lastModelRouteNotice: {
         kind: 'selection',
         fromAlias: appState.model,
         toAlias: modelAlias,
-        reason: `subagent:${event.subagentName}`,
+        reason: routeBit,
         atMs: Date.now(),
       },
     });

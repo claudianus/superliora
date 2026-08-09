@@ -14,7 +14,7 @@ import {
   estimateTokensForMessages,
   estimateTokensForTools,
 } from '../../../utils/tokens';
-import { resolveCompactionModelAlias } from '../../../utils/cheap-model';
+import { resolveSmartRoute } from '../../routing';
 import type {
   CompactionBeginData,
   CompactionResult,
@@ -159,12 +159,14 @@ export class FullCompaction implements CompactionPipelineContext {
     // Resolve effective summarizer early so the TUI can show which model is
     // about to write the compaction summary (cheap auto / explicit / main).
     const runtimeConfig = this.agent.runtimeConfig ?? this.agent.kimiConfig;
-    const configuredCompactionModel = runtimeConfig?.loopControl?.compactionModel;
     const resolvedCompactionModel =
-      resolveCompactionModelAlias({
-        explicit: configuredCompactionModel,
-        models: runtimeConfig?.models,
-      }) ?? this.agent.config.modelAlias;
+      (runtimeConfig !== undefined
+        ? resolveSmartRoute({
+            role: 'compaction',
+            config: runtimeConfig,
+            parentAlias: this.agent.config.modelAlias,
+          })?.alias
+        : undefined) ?? this.agent.config.modelAlias;
     this.agent.emitEvent({
       type: 'compaction.started',
       trigger: data.source,

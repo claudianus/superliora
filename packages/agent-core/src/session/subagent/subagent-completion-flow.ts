@@ -12,6 +12,13 @@ import { isPermanentAuthError } from '@superliora/kosong';
 import { listSwitchableFailoverModels } from '../../agent/provider-failover';
 import type { PromptOrigin } from '../../agent/context';
 import type { Agent } from '../../agent';
+import {
+  escalateSmartRoute,
+  mergeRouteFallbackAliases,
+  recordRouteOutcome,
+  type SmartRoute,
+} from '../../agent/routing';
+import { isAuthOrCreditFailure } from '../../utils/model-presets';
 import { updateSwarmOrchestrationTodoStatus } from '../../tools/builtin/state/todo-list';
 import { collectGitContext } from '../git-context';
 import { maybeRunRollingCheck, recordChildCompletion } from '../rolling-integration';
@@ -80,23 +87,28 @@ export function lastAssistantText(agent: Agent): string {
 }
 
 /**
- * Failover hop candidates for a subagent turn: the child's configured
- * `fallbackModels`, minus aliases whose provider credential is already
- * marked unhealthy. Non-explore workers inherit the parent model; a hop
- * must never route them into a provider known to be dead (e.g. exhausted
- * credits) only to fail permanently one request later.
+ * Failover hop candidates: role smart chain first, then config `fallbackModels`,
+ * minus unhealthy aliases. Never hop into a known-dead provider.
  */
 export function subagentFallbackAliases(
   child: Agent,
   isAliasHealthy?: (alias: string) => boolean,
+  route?: SmartRoute,
 ): readonly string[] {
-  const models = currentAgentConfig(child)?.models;
+  const config = currentAgentConfig(child);
+  const models = config?.models;
   const healthy =
     isAliasHealthy ??
     ((alias: string) => isModelAliasHealthy(alias, models));
-  return listSwitchableFailoverModels(child)
-    .map((option) => option.alias)
-    .filter((alias) => healthy(alias));
+  const configFallbacks = listSwitchableFailoverModels(child).map((option) => option.alias);
+  return mergeRouteFallbackAliases(route, configFallbacks, child.config.modelAlias, healthy);
+}
+
+function shouldHopSubagentModel(error: unknown): boolean {
+  if (isRetryableSubagentProviderFailure(error)) return true;
+  if (isPermanentAuthError(error)) return true;
+  const message = error instanceof Error ? error.message : String(error);
+  return isAuthOrCreditFailure(message);
 }
 
 export async function runPromptTurnWithModelFallback(
@@ -106,24 +118,78 @@ export async function runPromptTurnWithModelFallback(
   profileName: string,
   options: RunSubagentOptions,
 ): Promise<SubagentCompletion> {
-  const fallbackAliases = subagentFallbackAliases(child);
-  const maxFallbackHops = Math.min(SUBAGENT_MODEL_FALLBACK_HOPS, fallbackAliases.length);
+  // Prefer a route from the live parent config; fallback tests may pass a
+  // stub parent without `config`, so never throw before the turn runs.
+  let route: SmartRoute | undefined;
+  try {
+    if (parent.config !== undefined) {
+      route = resolveSubagentModelSelection(parent, profileName, undefined, {
+        signals: { prompt: options.prompt, profileName },
+      }).route;
+    }
+  } catch {
+    route = undefined;
+  }
+  const fallbackAliases = subagentFallbackAliases(child, undefined, route);
+  const maxFallbackHops = Math.min(
+    Math.max(SUBAGENT_MODEL_FALLBACK_HOPS, 4),
+    fallbackAliases.length,
+  );
   let lastAttemptedAlias = child.config.modelAlias;
+  let softEscalateUsed = false;
 
   for (let hop = 0; ; hop += 1) {
     try {
-      return await completionFlowApi.runPromptTurn(parent, childId, child, profileName, options);
+      const result = await completionFlowApi.runPromptTurn(
+        parent,
+        childId,
+        child,
+        profileName,
+        options,
+      );
+      if (route !== undefined && lastAttemptedAlias !== undefined) {
+        recordRouteOutcome({ role: route.role, alias: lastAttemptedAlias, ok: true });
+      }
+      return result;
     } catch (error) {
-      const nextAlias =
-        hop < maxFallbackHops && isRetryableSubagentProviderFailure(error)
+      if (route !== undefined && lastAttemptedAlias !== undefined) {
+        recordRouteOutcome({ role: route.role, alias: lastAttemptedAlias, ok: false });
+      }
+
+      let nextAlias =
+        hop < maxFallbackHops && shouldHopSubagentModel(error)
           ? fallbackAliases[hop]
           : undefined;
+
+      // Soft quality escalate once: rebuild chain at higher intensity (auto only).
+      if (
+        nextAlias === undefined &&
+        !softEscalateUsed &&
+        route !== undefined &&
+        route.source === 'auto' &&
+        isSoftQualityFailure(error)
+      ) {
+        const config = currentAgentConfig(parent);
+        if (config !== undefined) {
+          const escalated = escalateSmartRoute(
+            {
+              role: route.role,
+              config,
+              parentAlias: parent.config.modelAlias,
+              signals: { prompt: options.prompt, profileName, softEscalate: true },
+            },
+            route,
+          );
+          if (escalated !== undefined && escalated.alias !== lastAttemptedAlias) {
+            softEscalateUsed = true;
+            route = escalated;
+            nextAlias = escalated.alias;
+          }
+        }
+      }
+
       if (nextAlias === undefined) {
-        // V7-2: a permanent auth refusal (401/403) from the attempted alias's
-        // provider must poison that credential in the shared health store so
-        // later spawn/resume/retry resolution never routes back into the
-        // rejected exploration model and earns another guaranteed 403.
-        if (isPermanentAuthError(error)) {
+        if (isPermanentAuthError(error) || isAuthOrCreditFailure(errorMessage(error))) {
           markModelAliasAuthRejected(lastAttemptedAlias, currentAgentConfig(child)?.models, error);
         }
         const failure = enrichPermanentProviderFailure(error, child);
@@ -134,12 +200,26 @@ export async function runPromptTurnWithModelFallback(
       }
       emitSubagentFailed(parent, childId, options, error, {
         retryAttempt: hop + 1,
-        retryLimit: maxFallbackHops,
+        retryLimit: Math.max(maxFallbackHops, 1),
       });
       child.config.update({ modelAlias: nextAlias });
       lastAttemptedAlias = nextAlias;
     }
   }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isSoftQualityFailure(error: unknown): boolean {
+  const message = errorMessage(error).toLowerCase();
+  return (
+    message.includes('empty') ||
+    message.includes('no tool') ||
+    message.includes('invalid tool') ||
+    message.includes('quality')
+  );
 }
 
 export async function runPromptTurn(
@@ -391,15 +471,32 @@ export function resolveResumeModelSelection(
   return resolveSubagentModelSelection(parent, profileName);
 }
 
+export function spawnModelSelection(
+  profileName: string,
+  profileBaseName: string | undefined,
+  parent: Agent,
+  options?: {
+    readonly preferVisionModel?: boolean;
+    readonly prompt?: string;
+  },
+): SubagentModelSelection {
+  return resolveSubagentModelSelection(parent, profileName, profileBaseName, {
+    preferVision: options?.preferVisionModel === true,
+    signals: {
+      prompt: options?.prompt,
+      profileName,
+      profileBaseName,
+    },
+  });
+}
+
 export function spawnModelAlias(
   profileName: string,
   profileBaseName: string | undefined,
   parent: Agent,
-  options?: { readonly preferVisionModel?: boolean },
+  options?: { readonly preferVisionModel?: boolean; readonly prompt?: string },
 ): string | undefined {
-  return resolveSubagentModelSelection(parent, profileName, profileBaseName, {
-    preferVision: options?.preferVisionModel === true,
-  }).alias;
+  return spawnModelSelection(profileName, profileBaseName, parent, options).alias;
 }
 
 /** Indirection so intra-module callers and tests share one `runPromptTurn` binding. */

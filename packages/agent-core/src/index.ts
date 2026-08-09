@@ -259,6 +259,8 @@ export { installGlobalProxyDispatcher } from './utils/proxy';
 export {
   ROLE_PRESETS,
   autoAssignRoleModels,
+  buildFallbackChain,
+  isAuthOrCreditFailure,
   previewLoopRoleModelRouting,
   rolePresetFor,
   type LocalRoleCatalogModel,
@@ -267,6 +269,20 @@ export {
   type RoleModelAssignment,
   type RolePreset,
 } from './utils/model-presets';
+export {
+  SMART_AUTO_SESSION_ALIAS,
+  classifySessionRole,
+  classifyTurnRouting,
+  defaultIntensityForRole,
+  isSmartAutoSessionAlias,
+  mergeRouteFallbackAliases,
+  resetRouteOutcomeStoreForTests,
+  resolveSessionSmartRoute,
+  resolveSmartRoute,
+  type RouteIntensity,
+  type SmartRoute,
+  type TurnSignals,
+} from './agent/routing';
 export type {
   LogContext,
   LogLevel,

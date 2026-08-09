@@ -13,6 +13,8 @@ export interface SubagentSpawnedEvent {
   readonly runInBackground: boolean;
   /** Effective model alias for this child (explore cheap route or parent). */
   readonly modelAlias?: string;
+  /** Smart-router reason when auto-assigned (e.g. `coding/max`). */
+  readonly routeReason?: string;
 }
 
 export interface SubagentStartedEvent {
@@ -176,6 +178,7 @@ export const subagentSpawnedEventSchema = z.object({
   description: z.string().optional(),
   runInBackground: z.boolean(),
   modelAlias: z.string().optional(),
+  routeReason: z.string().optional(),
 }) satisfies z.ZodType<SubagentSpawnedEvent>;
 
 export const subagentStartedEventSchema = z.object({
