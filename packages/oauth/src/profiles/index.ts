@@ -42,6 +42,7 @@ import {
   XAI_PROFILE,
   xaiGrokBuildAuthHeaders,
   xaiGrokBuildRequestHeaders,
+  xaiGrokProviderRouteFields,
   xaiGrokRouteConfig,
 } from './xai';
 
@@ -119,6 +120,7 @@ export {
   resolveXaiGrokRoute,
   xaiGrokBuildAuthHeaders,
   xaiGrokBuildRequestHeaders,
+  xaiGrokProviderRouteFields,
   xaiGrokRouteConfig,
 };
 export type { CursorDiscoveredModel, FetchCursorAvailableModelsOptions } from './cursor-available-models';

@@ -1,3 +1,8 @@
+import {
+  resolveXaiGrokRoute,
+  XAI_GROK_BUILD_BASE_URL,
+  xaiGrokBuildAuthHeaders,
+} from '../profiles/xai';
 import { providerDisplayName } from './provider-usage-display';
 import { headerNum, headerResetHint } from './provider-usage-parse';
 import type { ProviderUsageRow, ProviderUsageSnapshot } from './provider-usage-types';
@@ -10,16 +15,20 @@ export async function fetchXaiGrokUsage(
 ): Promise<ProviderUsageSnapshot> {
   // xAI returns x-ratelimit-* headers on every successful API response.
   // A lightweight GET /models call captures the current rate-limit state.
-  const base = (baseUrl ?? 'https://cli-chat-proxy.grok.com/v1').replace(/\/+$/, '');
+  const base = (baseUrl ?? XAI_GROK_BUILD_BASE_URL).replace(/\/+$/, '');
   const controller = new AbortController();
   const timer = setTimeout(() =>{  controller.abort(); }, opts.timeoutMs ?? 8000);
   try {
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: 'application/json',
+    };
+    // Build proxy rejects CLI session tokens without the full surface headers.
+    if (resolveXaiGrokRoute(baseUrl) === 'build') {
+      Object.assign(headers, xaiGrokBuildAuthHeaders());
+    }
     const res = await fetch(`${base}/models`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/json',
-        'X-XAI-Token-Auth': 'xai-grok-cli',
-      },
+      headers,
       signal: controller.signal,
     });
     if (!res.ok) {
