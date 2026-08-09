@@ -152,6 +152,11 @@ export interface TUIState {
    */
   cachedTodoRect?: RendererRect;
   /**
+   * Cached Mission Control band rect (same stage plan as todo/transcript).
+   * Wheel over the band windows the worker roster instead of the transcript.
+   */
+  cachedMissionRect?: RendererRect;
+  /**
    * User-chosen stage size from a corner/edge drag-resize. When set, the stage
    * holds this size (clamped to the terminal) instead of the responsive reading
    * cap. `undefined` = follow the default cap.

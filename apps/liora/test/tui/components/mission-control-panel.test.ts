@@ -151,6 +151,7 @@ describe('MissionControlPanelComponent', () => {
             toolCount: 1,
             tokens: 0,
             elapsedMs: 5_000,
+            spawnedAtMs: clock,
             lastActivityAtMs: clock,
           },
         ],
@@ -364,6 +365,7 @@ describe('MissionControlPanelComponent', () => {
       toolCount: 2,
       tokens: 1200,
       elapsedMs: 4_000,
+      spawnedAtMs: clock,
       lastActivityAtMs: clock,
       liveKind: 'thinking',
       liveText: 'Considering Phaser platformer physics',
@@ -407,6 +409,7 @@ describe('MissionControlPanelComponent', () => {
             tokenRatePerSec: 1000,
             rateSamples: [400, 700, 1000],
             elapsedMs: 240_000,
+            spawnedAtMs: clock,
             lastActivityAtMs: clock,
             liveKind: 'thinking',
             liveText: 'Phaser Arcade Physics loop',
@@ -424,6 +427,7 @@ describe('MissionControlPanelComponent', () => {
             tokenRatePerSec: 640,
             rateSamples: [200, 500, 640],
             elapsedMs: 110_000,
+            spawnedAtMs: clock + 1,
             lastActivityAtMs: clock,
             lastTool: 'Read',
             lastTarget: 'panel.ts',
@@ -483,6 +487,7 @@ describe('MissionControlPanelComponent', () => {
             toolCount: 2,
             tokens: 100,
             elapsedMs: 5_000,
+            spawnedAtMs: clock,
             lastActivityAtMs: clock,
             description: 'Only one worker',
             liveKind: 'thinking',
@@ -527,5 +532,49 @@ describe('MissionControlPanelComponent', () => {
     expect(text).toContain('WebSearch');
     expect(text).toContain('premium HTML');
     expect(text).not.toContain('"query"');
+  });
+
+  it('windows densemode workers via scrollWorkers and j/k', () => {
+    const clock = appearanceAnimationNow();
+    const workers: MissionWorker[] = Array.from({ length: 7 }, (_, i) => ({
+      id: `sa-${String(i)}`,
+      name: `w${String(i)}`,
+      kind: 'subagent',
+      status: 'running',
+      runInBackground: false,
+      toolCount: 1,
+      tokens: 100,
+      elapsedMs: 1_000,
+      spawnedAtMs: clock + i,
+      lastActivityAtMs: clock,
+    }));
+    const panel = new MissionControlPanelComponent();
+    panel.setView({
+      snapshot: {
+        version: 1,
+        workers,
+        activeCount: 7,
+        totalTokens: 700,
+        ops: [],
+      },
+      jobs: emptyConductorJobsSnapshot(),
+    });
+
+    const page0 = plain(panel.render(100)).join('\n');
+    expect(page0).toContain('w0');
+    expect(page0).toMatch(/\+2 more \(↑↓\)/);
+    expect(page0).not.toContain('w6');
+
+    expect(panel.scrollWorkers('line-down')).toBe(true);
+    expect(panel.scrollWorkers('line-down')).toBe(true);
+    const page1 = plain(panel.render(100)).join('\n');
+    expect(page1).toContain('w6');
+    expect(page1).not.toContain('w0');
+
+    panel.handleInput('k');
+    const pageBack = plain(panel.render(100)).join('\n');
+    expect(pageBack).toContain('w1');
+    expect(panel.scrollWorkers('line-up')).toBe(true);
+    expect(panel.scrollWorkers('line-up')).toBe(false);
   });
 });

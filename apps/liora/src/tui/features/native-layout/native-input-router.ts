@@ -33,6 +33,7 @@ const TUI_NATIVE_TOOL_OUTPUT_HANDLER_ID = 'tool-output';
 const TUI_NATIVE_TRANSCRIPT_DENSITY_HANDLER_ID = 'transcript-density';
 const TUI_NATIVE_TRANSCRIPT_SELECTION_HANDLER_ID = 'transcript-selection';
 const TUI_NATIVE_TODO_SCROLL_HANDLER_ID = 'todo-scroll';
+const TUI_NATIVE_MISSION_SCROLL_HANDLER_ID = 'mission-scroll';
 const TUI_NATIVE_TRANSCRIPT_SCROLL_HANDLER_ID = 'transcript-scroll';
 
 export interface NativeLegacyInputTarget {
@@ -65,6 +66,11 @@ export interface TUIStateNativeInputRouterOptions {
    * handler owns its own render request.
    */
   readonly scrollTodoPanel?: (event: NativeInputEvent) => boolean;
+  /**
+   * Offered wheel events before the transcript viewport (and after todo).
+   * Hit-tests the Mission Control band and windows its worker roster.
+   */
+  readonly scrollMissionPanel?: (event: NativeInputEvent) => boolean;
 }
 
 export class TUIStateNativeInputRouter {
@@ -165,6 +171,17 @@ export class TUIStateNativeInputRouter {
           onInput: (event) => {
             if (event.type !== 'mouse' || event.action !== 'wheel') return false;
             return options.scrollTodoPanel?.(event) === true;
+          },
+        }),
+      );
+    }
+    if (options.scrollMissionPanel !== undefined) {
+      this.disposers.push(
+        this.router.registerGlobalHandler({
+          id: TUI_NATIVE_MISSION_SCROLL_HANDLER_ID,
+          onInput: (event) => {
+            if (event.type !== 'mouse' || event.action !== 'wheel') return false;
+            return options.scrollMissionPanel?.(event) === true;
           },
         }),
       );

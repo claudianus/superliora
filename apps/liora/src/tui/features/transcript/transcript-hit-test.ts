@@ -43,6 +43,7 @@ export function invalidateTranscriptHitTestCache(state: TUIState): void {
   state.cachedTranscriptLineCount = undefined;
   state.cachedHitTestChromeSig = undefined;
   state.cachedTodoRect = undefined;
+  state.cachedMissionRect = undefined;
 }
 
 /** Cheap chrome signature — mission/todo mount + content counts drive region height. */
@@ -102,6 +103,7 @@ export function resolveTranscriptLayoutContext(
     state.cachedTranscriptLineCount = editorLineCount;
     state.cachedHitTestChromeSig = chromeSig;
     state.cachedTodoRect = plan.layout.regions.find((region) => region.id === 'todo')?.rect;
+    state.cachedMissionRect = plan.layout.regions.find((region) => region.id === 'mission')?.rect;
   }
   if (rect === undefined) return undefined;
 
@@ -154,6 +156,19 @@ export function getTUIStateNativeTodoRect(
 ): RendererRect | undefined {
   resolveTranscriptHitTestContext(state, width, height);
   return state.cachedTodoRect;
+}
+
+/**
+ * Rect of the Mission Control band, reused from the transcript hit-test cache.
+ * Wheel events inside it window the worker roster instead of the transcript.
+ */
+export function getTUIStateNativeMissionRect(
+  state: TUIState,
+  width = state.terminal.columns,
+  height = state.terminal.rows,
+): RendererRect | undefined {
+  resolveTranscriptHitTestContext(state, width, height);
+  return state.cachedMissionRect;
 }
 
 export function transcriptPointForMouse(

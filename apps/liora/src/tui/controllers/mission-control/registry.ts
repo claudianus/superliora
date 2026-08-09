@@ -66,6 +66,8 @@ export interface MissionWorker {
   readonly stalledSilentMs?: number;
   readonly error?: string;
   readonly terminalAtMs?: number;
+  /** Wall time when the worker first entered the roster (stable sort key). */
+  readonly spawnedAtMs: number;
   readonly lastActivityAtMs: number;
   /** Latest child thinking/answer stream kind (NOW live strip). */
   readonly liveKind?: MissionLiveKind;
@@ -238,6 +240,7 @@ export class MissionControlRegistry {
           : { stalledSilentMs: worker.stalledSilentMs }),
         ...(worker.error === undefined ? {} : { error: worker.error }),
         ...(worker.terminalAtMs === undefined ? {} : { terminalAtMs: worker.terminalAtMs }),
+        spawnedAtMs: worker.spawnedAtMs,
         lastActivityAtMs: worker.lastActivityAtMs,
         ...(worker.liveKind === undefined ? {} : { liveKind: worker.liveKind }),
         ...(worker.liveBuffer === undefined || worker.liveBuffer.length === 0
@@ -246,10 +249,16 @@ export class MissionControlRegistry {
         ...(worker.liveAtMs === undefined ? {} : { liveAtMs: worker.liveAtMs }),
       });
     }
+    // Status buckets first; within a bucket keep spawn order so heartbeats
+    // (lastActivityAtMs) cannot reshuffle rows every progress tick.
     workers.sort((a, b) => {
       const rank = (w: MissionWorker): number =>
         ACTIVE_STATUSES.has(w.status) ? 0 : w.status === 'failed' ? 1 : 2;
-      return rank(a) - rank(b) || b.lastActivityAtMs - a.lastActivityAtMs;
+      return (
+        rank(a) - rank(b) ||
+        a.spawnedAtMs - b.spawnedAtMs ||
+        (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+      );
     });
     return {
       version: this.version,

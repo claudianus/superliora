@@ -7,6 +7,7 @@ import {
 import { ensureFdPath } from '#/utils/process/fd-detect';
 
 import type { TodoBoardScrollAction } from '../../components/chrome/todo/todo-panel';
+import type { MissionWorkerScrollAction } from '../../components/panes/mission-control/panel';
 import { setKittyGraphicsChannel } from '../../media/kitty-graphics-channel';
 import {
   requestTUIContentRender,
@@ -20,7 +21,10 @@ import { createTUIStateNativeRenderCallback } from '../../features/native-layout
 import { handleFooterJobsStripMouse } from '../../features/control-tower/footer-jobs-mouse';
 import { focusIntentComposer } from '../../features/control-tower/conductor-ux';
 import { installTerminalFocusTracking } from '../../utils/terminal/terminal-focus';
-import { getTUIStateNativeTodoRect } from '../../features/transcript/transcript-hit-test';
+import {
+  getTUIStateNativeMissionRect,
+  getTUIStateNativeTodoRect,
+} from '../../features/transcript/transcript-hit-test';
 import type { TranscriptScrollAction } from '../../features/transcript/transcript-viewport';
 import { ClipboardImageHintController } from '../clipboard/clipboard-image-hint';
 import type { StartupLifecycleHost } from './types';
@@ -57,9 +61,11 @@ export function ensureStartupNativeInputRouter(
   host.nativeInputRouter = createTUIStateNativeInputRouter(host.state, {
     scrollTranscriptViewport: (action) => callbacks.scrollTranscriptViewport(action),
     scrollTodoPanel: (event) => scrollStartupTodoPanelAtMouse(host, event),
+    scrollMissionPanel: (event) => scrollStartupMissionPanelAtMouse(host, event),
     handlePreEditorInput: (event) => {
       if (event.type !== 'key' || event.eventType === 'release') return false;
       if (event.alt && scrollStartupTodoPanelByKey(host, event.key)) return true;
+      if (event.alt && scrollStartupMissionPanelByKey(host, event.key)) return true;
       // Native Alt+J / Alt+I (Kitty CSI-u / ESC+letter). Also mirrored via
       // tryHandleAppShortcut → editor.onOpenJobDeck / onOpenJobInbox.
       if (
@@ -246,6 +252,65 @@ function scrollStartupTodoPanelByKey(host: StartupLifecycleHost, key: NativeInpu
       return false;
   }
   if (!host.state.todoPanel.scrollBoard(action)) return false;
+  requestTUILayoutRender(host.state);
+  return true;
+}
+
+function scrollStartupMissionPanelAtMouse(
+  host: StartupLifecycleHost,
+  event: NativeInputEvent,
+): boolean {
+  if (event.type !== 'mouse') return false;
+  const rect = getTUIStateNativeMissionRect(host.state);
+  if (rect === undefined) return false;
+  if (
+    event.x < rect.x ||
+    event.x >= rect.x + rect.width ||
+    event.y < rect.y ||
+    event.y >= rect.y + rect.height
+  ) {
+    return false;
+  }
+  const action: MissionWorkerScrollAction | undefined =
+    event.button === 'wheel-up'
+      ? 'line-up'
+      : event.button === 'wheel-down'
+        ? 'line-down'
+        : undefined;
+  if (action === undefined) return false;
+  if (!host.state.missionControlPanel.scrollWorkers(action)) return false;
+  requestTUILayoutRender(host.state);
+  return true;
+}
+
+function scrollStartupMissionPanelByKey(
+  host: StartupLifecycleHost,
+  key: NativeInputKey,
+): boolean {
+  let action: MissionWorkerScrollAction | undefined;
+  switch (key) {
+    case 'up':
+      action = 'line-up';
+      break;
+    case 'down':
+      action = 'line-down';
+      break;
+    case 'pageup':
+      action = 'page-up';
+      break;
+    case 'pagedown':
+      action = 'page-down';
+      break;
+    case 'home':
+      action = 'top';
+      break;
+    case 'end':
+      action = 'bottom';
+      break;
+    default:
+      return false;
+  }
+  if (!host.state.missionControlPanel.scrollWorkers(action)) return false;
   requestTUILayoutRender(host.state);
   return true;
 }

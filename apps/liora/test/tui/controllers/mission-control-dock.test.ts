@@ -66,6 +66,7 @@ function busyView(): MissionControlView {
           toolCount: 3,
           tokens: 100,
           elapsedMs: 5_000,
+          spawnedAtMs: 1_000,
           lastActivityAtMs: 1_000,
         },
       ],
