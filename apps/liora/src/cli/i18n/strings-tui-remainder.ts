@@ -692,7 +692,7 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
   'tui.dialog.mergePreview.resultSummary': 'Result summary',
   'tui.dialog.mergePreview.noSummary': '(no result summary yet)',
   'tui.dialog.mergePreview.landNote':
-    'Land ≠ push — approve lands the worktree merge; remote push stays separate.',
+    'Land ≠ push — approve lands the worktree merge; open Push Preview for remote publish.',
   'tui.dialog.mergePreview.summaryLabel': 'Summary for land:',
   'tui.dialog.mergePreview.approve': '[ Approve ]',
   'tui.dialog.mergePreview.approveIdle': '  Approve  ',
@@ -706,7 +706,7 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
   'tui.dialog.search.heading': 'Search',
 
   'tui.dialog.inbox.title': ' Inbox',
-  'tui.dialog.inbox.hint': '↑↓/jk · Enter act · M merge · Esc close',
+  'tui.dialog.inbox.hint': '↑↓/jk · Enter act · M merge · P push · Esc close',
   'tui.dialog.inbox.empty': '  Inbox is empty.',
   'tui.dialog.inbox.badge.approval': '[approval]',
   'tui.dialog.inbox.badge.question': '[question]',
@@ -1400,7 +1400,7 @@ export const STRINGS_TUI_REMAINDER_KO: Readonly<Record<string, string>> = {
   'tui.dialog.mergePreview.resultSummary': '결과 요약',
   'tui.dialog.mergePreview.noSummary': '(아직 결과 요약 없음)',
   'tui.dialog.mergePreview.landNote':
-    'Land ≠ push — 승인하면 worktree 병합만 수행합니다. 원격 push는 별도입니다.',
+    'Land ≠ push — 승인하면 worktree 병합만 수행합니다. 원격 게시는 Push Preview를 여세요.',
   'tui.dialog.mergePreview.summaryLabel': 'Land용 요약:',
   'tui.dialog.mergePreview.approve': '[ 승인 ]',
   'tui.dialog.mergePreview.approveIdle': '  승인  ',
@@ -1414,7 +1414,7 @@ export const STRINGS_TUI_REMAINDER_KO: Readonly<Record<string, string>> = {
   'tui.dialog.search.heading': '검색',
 
   'tui.dialog.inbox.title': ' 받은편지함',
-  'tui.dialog.inbox.hint': '↑↓/jk · Enter 실행 · M merge · Esc 닫기',
+  'tui.dialog.inbox.hint': '↑↓/jk · Enter 실행 · M merge · P push · Esc 닫기',
   'tui.dialog.inbox.empty': '  받은편지함이 비어 있습니다.',
   'tui.dialog.inbox.badge.approval': '[승인]',
   'tui.dialog.inbox.badge.question': '[질문]',

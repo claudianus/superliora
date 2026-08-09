@@ -14,6 +14,8 @@ import type {
   JobInspectResult,
   JobMergeInput,
   JobMergeResult,
+  JobPushInput,
+  JobPushResult,
   JobResumeResult,
   JobSetProjectModeResult,
 } from '#/tools/builtin/job/job-rpc-api';
@@ -30,6 +32,8 @@ export type {
   JobInspectResult,
   JobMergeInput,
   JobMergeResult,
+  JobPushInput,
+  JobPushResult,
   JobResumeResult,
   JobSetProjectModeResult,
   JobSnapshot,
@@ -68,6 +72,8 @@ export interface JobResumePayload {
 }
 
 export type JobMergePayload = JobMergeInput;
+
+export type JobPushPayload = JobPushInput;
 
 export interface JobPreviewSplitPayload {
   readonly text: string;

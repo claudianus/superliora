@@ -15,5 +15,6 @@ export * from './job-rpc-api';
 export * from './job-merge-trust';
 export * from './job-worker-guards';
 export * from './job-land';
+export * from './job-push';
 export * from './job-desk';
 export * from './job-worker-ledger-bridge';

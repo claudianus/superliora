@@ -82,13 +82,15 @@ function formatLandActionHints(hints: readonly string[] | undefined): string {
     const mapped = hints.map(hintLabel).filter((h) => h.length > 0);
     if (mapped.length > 0) return `Next: ${mapped.join(' · ')}`;
   }
-  return 'Next: review Diff · push when ready';
+  return 'Next: review Diff · Open Push Preview';
 }
 
 function hintLabel(hint: string): string {
   switch (hint) {
     case 'jobMerge':
       return 'Merge';
+    case 'jobPush':
+      return 'Open Push Preview';
     case 'jobInspect':
       return 'Inspect';
     case 'jobResume':

@@ -12,6 +12,8 @@ import type {
   JobInspectResult,
   JobMergeInput,
   JobMergeResult,
+  JobPushInput,
+  JobPushResult,
   JobResumeResult,
   JobSetProjectModeResult,
   JobSnapshot,
@@ -113,6 +115,16 @@ export abstract class SDKRpcClientJobsMixin extends SDKRpcClientGoalsMixin {
     const rpc = await this.getRpc();
     const { sessionId, ...payload } = input;
     return rpc.jobMerge({
+      sessionId,
+      agentId: this.interactiveAgentId,
+      ...payload,
+    });
+  }
+
+  async jobPush(input: SessionIdRpcInput & JobPushInput): Promise<JobPushResult> {
+    const rpc = await this.getRpc();
+    const { sessionId, ...payload } = input;
+    return rpc.jobPush({
       sessionId,
       agentId: this.interactiveAgentId,
       ...payload,

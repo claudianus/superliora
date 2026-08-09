@@ -24,6 +24,7 @@ import {
 } from '../../utils/job/needs-user-preview';
 import { resyncJobBoardFromSession } from './job-resync';
 import { canOpenMergePreview, openMergePreview } from './merge-preview-controller';
+import { canOpenPushPreview, openPushPreview } from './push-preview-controller';
 import { ttui } from '../../utils/tui-i18n';
 
 export function openInbox(host: SlashCommandHost): void {
@@ -51,6 +52,16 @@ export function openInbox(host: SlashCommandHost): void {
         return;
       }
       openMergePreview(host, card);
+    },
+    onPushPreview: (item) => {
+      if (item.jobId === undefined) return;
+      const snap = host.state.appState.conductorJobs ?? emptyConductorJobsSnapshot();
+      const card = resolveConductorJobCard(snap.jobs, item.jobId);
+      if (card === undefined || !canOpenPushPreview(card)) {
+        host.showStatus('Push Preview needs a done or blocked job.', 'textMuted');
+        return;
+      }
+      openPushPreview(host, card);
     },
     onCancel: () => {
       host.restoreEditor();

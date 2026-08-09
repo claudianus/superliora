@@ -13,6 +13,8 @@ import type {
   JobInspectResult,
   JobMergeInput,
   JobMergeResult,
+  JobPushInput,
+  JobPushResult,
   JobResumeResult,
   JobSetProjectModeResult,
   JobSnapshot,
@@ -68,6 +70,11 @@ export abstract class SessionJobsMixin extends SessionGoalsMixin {
   async jobMerge(input: JobMergeInput): Promise<JobMergeResult> {
     this.ensureOpen();
     return this.rpc.jobMerge({ sessionId: this.id, ...input });
+  }
+
+  async jobPush(input: JobPushInput): Promise<JobPushResult> {
+    this.ensureOpen();
+    return this.rpc.jobPush({ sessionId: this.id, ...input });
   }
 
   async jobPreviewSplit(text: string): Promise<readonly SplitJobIntent[]> {

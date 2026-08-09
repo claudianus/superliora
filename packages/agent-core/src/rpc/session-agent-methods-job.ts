@@ -13,6 +13,8 @@ import type {
   JobInspectResult,
   JobMergePayload,
   JobMergeResult,
+  JobPushPayload,
+  JobPushResult,
   JobPreviewSplitPayload,
   JobResumePayload,
   JobResumeResult,
@@ -90,6 +92,13 @@ export function jobMerge(
   { sessionId, ...payload }: SessionAgentPayload<JobMergePayload>,
 ): Promise<JobMergeResult> {
   return context.sessionApi(sessionId).jobMerge(payload);
+}
+
+export function jobPush(
+  context: SessionAgentMethodsContext,
+  { sessionId, ...payload }: SessionAgentPayload<JobPushPayload>,
+): Promise<JobPushResult> {
+  return context.sessionApi(sessionId).jobPush(payload);
 }
 
 export function jobPreviewSplit(

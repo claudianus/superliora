@@ -30,6 +30,7 @@ import {
 } from './job-hotpath';
 import { resyncJobBoardFromSession } from '../features/control-tower/job-resync';
 import { openMergePreview } from '../features/control-tower/merge-preview-controller';
+import { openPushPreview } from '../features/control-tower/push-preview-controller';
 import { ttui } from '../utils/tui-i18n';
 
 export function openJobDeckViewer(host: SlashCommandHost, jobId?: string): void {
@@ -115,12 +116,16 @@ async function loadJobDeckWorker(
 /** Exported for hotpath unit tests; Job Deck viewer wires this via onAction. */
 export function routeJobDeckAction(
   host: SlashCommandHost,
-  action: 'steer' | 'answer' | 'resume' | 'cancel' | 'mergePreview' | 'retry',
+  action: 'steer' | 'answer' | 'resume' | 'cancel' | 'mergePreview' | 'pushPreview' | 'retry',
   card: ConductorJobCard,
   text?: string,
 ): void {
   if (action === 'mergePreview') {
     openMergePreview(host, card);
+    return;
+  }
+  if (action === 'pushPreview') {
+    openPushPreview(host, card);
     return;
   }
   host.restoreEditor();

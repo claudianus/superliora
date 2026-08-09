@@ -341,6 +341,7 @@ function createPlanningGoalAndStateTools(
     shouldCreateBuiltin(host, 'JobSteer') && new b.JobSteerTool(host.toolStore, host.agent),
     shouldCreateBuiltin(host, 'JobCancel') && new b.JobCancelTool(host.toolStore, host.agent),
     shouldCreateBuiltin(host, 'MergeJob') && new b.MergeJobTool(host.toolStore, host.agent),
+    shouldCreateBuiltin(host, 'PushJob') && new b.PushJobTool(host.toolStore, host.agent),
     shouldCreateBuiltin(host, 'JobSchedule') && new b.JobScheduleTool(host.toolStore, host.agent),
     shouldCreateBuiltin(host, 'JobResume') && new b.JobResumeTool(host.toolStore, host.agent),
     shouldCreateBuiltin(host, 'JobInbox') && new b.JobInboxTool(host.toolStore),

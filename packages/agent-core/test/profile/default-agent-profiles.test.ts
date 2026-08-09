@@ -200,6 +200,7 @@ describe('default agent profiles', () => {
       'JobCreate',
       'JobList',
       'MergeJob',
+      'PushJob',
       'JobResume',
       'JobInbox',
     ] as const) {
@@ -297,6 +298,7 @@ describe('default agent profiles', () => {
     const leafForbidden = [
       'JobCreate',
       'MergeJob',
+      'PushJob',
       'Agent',
       'Fleet',
       'CreateGoal',

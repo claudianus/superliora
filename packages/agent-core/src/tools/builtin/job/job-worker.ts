@@ -49,6 +49,7 @@ import {
   isOwnershipConflictError,
   ownershipDeferredNote,
 } from './job-ownership';
+import { runPushRemoteJob } from './job-push';
 import { onJobTerminalForReviewChain } from './job-review-chain';
 import { profileForJobKind } from './job-runtime';
 import { commitJobWorktreeIfDirty } from './job-worktree-commit';
@@ -56,7 +57,7 @@ import { commitJobWorktreeIfDirty } from './job-worktree-commit';
 export interface LaunchJobWorkerInput {
   readonly store: ToolStore;
   readonly agent: Agent;
-  /** Injectable git runner for kind=merge land (tests). */
+  /** Injectable git runner for kind=merge land / kind=push (tests). */
   readonly runGit?: LandJobToMainInput['runGit'];
   readonly job: JobRecord;
   readonly signal?: AbortSignal;
@@ -122,7 +123,7 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
       ? `Preferred paths: ${job.ownershipPaths.join(', ')}`
       : undefined,
     job.worktreePath
-      ? `You are running in an isolated worktree: ${job.worktreePath}. Do not push to remotes.`
+      ? `You are running in an isolated worktree: ${job.worktreePath}. Do not push to remotes — finish with a publishable summary (branch/sha/remote_ref) so Conductor can call PushJob / open Push Preview.`
       : undefined,
     [
       'Worker contract:',
@@ -146,11 +147,11 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
         : []),
       ...(job.worktreePath !== undefined
         ? [
-            '- Commit your work in the job worktree before finishing (`git add -A && git commit`; local commits only, never push). This brief explicitly authorizes those commits — no confirmation loop needed. Land-to-main merges the branch, so uncommitted changes are invisible to it and lost at worktree GC.',
+            '- Commit your work in the job worktree before finishing (`git add -A && git commit`; local commits only, never push). This brief explicitly authorizes those commits — no confirmation loop needed. Land-to-main / PushJob use the branch tip, so uncommitted changes are invisible and lost at worktree GC.',
           ]
         : []),
       '- If blocked (env, missing info, contradiction), stop with a concrete blocker and what you tried — do not invent.',
-      '- Final summary: what changed, how verified, what remains.',
+      '- Final summary: what changed, how verified, what remains. If remote publish is needed, include branch name and suggested remote_ref (e.g. gh-pages) for PushJob.',
     ].join('\n'),
   ];
   return parts.filter(Boolean).join('\n\n');
@@ -295,6 +296,26 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
       repoPath: input.agent.config.cwd,
       runGit: input.runGit,
       agent: input.agent,
+    });
+    pumpSchedulerAfterWorker(input.agent, input.store);
+    return { ok: true };
+  }
+
+  // Remote push: deterministic git push on the source worktree — never an LLM.
+  if (job.kind === 'push') {
+    const remoteMatch = /\bremote:\s*(\S+)/i.exec(job.prompt ?? '');
+    const localMatch = /\blocalRef:\s*(\S+)/i.exec(job.prompt ?? '');
+    const remoteRefMatch = /\bremoteRef:\s*(\S+)/i.exec(job.prompt ?? '');
+    await runPushRemoteJob({
+      store: input.store,
+      pushJob: job,
+      kaos: input.agent.kaos,
+      repoPath: input.agent.config.cwd,
+      runGit: input.runGit,
+      agent: input.agent,
+      remote: remoteMatch?.[1] ?? 'origin',
+      localRef: localMatch?.[1],
+      remoteRef: remoteRefMatch?.[1],
     });
     pumpSchedulerAfterWorker(input.agent, input.store);
     return { ok: true };

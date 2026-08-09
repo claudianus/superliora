@@ -72,7 +72,7 @@ export interface JobDeckViewerOptions {
   readonly loadWorker: (card: ConductorJobCard) => Promise<JobDeckWorkerLoad>;
   /** Route an operator action through the conductor Job* tools. */
   readonly onAction: (
-    action: 'steer' | 'answer' | 'resume' | 'cancel' | 'mergePreview' | 'retry',
+    action: 'steer' | 'answer' | 'resume' | 'cancel' | 'mergePreview' | 'pushPreview' | 'retry',
     card: ConductorJobCard,
     text?: string,
   ) => void;
@@ -257,6 +257,15 @@ export class JobDeckViewerComponent extends Container implements Focusable {
       }
       return;
     }
+    if (ch === 'p' || ch === 'P') {
+      const card = this.list.selected();
+      if (card !== undefined && (card.status === 'done' || card.status === 'blocked')) {
+        this.onAction('pushPreview', card);
+      } else {
+        this.setStatus('Push Preview needs a done or blocked row (P).');
+      }
+      return;
+    }
     if (ch === 'c' || ch === 'C') {
       const card = this.list.selected();
       if (card === undefined) return;
@@ -297,7 +306,7 @@ export class JobDeckViewerComponent extends Container implements Focusable {
       ` ${title}${suffix}`,
       theme.fg(
         'textMuted',
-        ' ↑↓ · Enter transcript · S steer · A answer · R resume/retry · M merge · C copy id · X cancel · Esc',
+        ' ↑↓ · Enter transcript · S steer · A answer · R resume/retry · M merge · P push · C copy id · X cancel · Esc',
       ),
       this.renderMissionStrip(width),
       ` ${renderParticleRail(Math.max(8, width - 4), getActiveAppearancePreferences(), 'job-deck:rail')}`,

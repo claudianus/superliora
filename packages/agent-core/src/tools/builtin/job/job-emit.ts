@@ -104,7 +104,7 @@ export function actionHintsForInboxKind(kind: JobInboxEventKind): readonly strin
     case 'job.cancelled':
       return ['jobInspect'];
     case 'job.completed':
-      return ['jobMerge', 'jobInspect'];
+      return ['jobMerge', 'jobPush', 'jobInspect'];
   }
 }
 

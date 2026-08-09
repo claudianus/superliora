@@ -31,7 +31,7 @@ export function guardWorkerShellCommand(
     return {
       allowed: false,
       reason:
-        'Conductor workers must not push (or force-push) to remotes. Local commits in the job worktree are OK; land-to-main is MergeJob / main-session gated.',
+        'Conductor workers must not push (or force-push) to remotes. Local commits in the job worktree are OK; remote publish is PushJob / Push Preview (user-gated offload).',
     };
   }
   return { allowed: true };

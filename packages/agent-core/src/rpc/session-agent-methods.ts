@@ -463,6 +463,7 @@ export {
   jobCreate,
   jobCreateBatch,
   jobMerge,
+  jobPush,
   jobPreviewSplit,
   jobGcWorktrees,
   jobSetProjectMode,
