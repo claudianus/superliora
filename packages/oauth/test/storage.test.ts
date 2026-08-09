@@ -11,7 +11,10 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { FileTokenStorage } from '../src/storage';
+import {
+  FileTokenStorage,
+  hasCachedOAuthTokenSync,
+} from '../src/storage';
 import type { TokenInfo } from '../src/types';
 
 function makeTmpDir(): string {
@@ -187,6 +190,23 @@ describe('FileTokenStorage', () => {
     const loaded = await storage.load('kimi-code');
     expect(loaded?.expiresAt).toBe(1_800_000_000);
     expect(loaded?.expiresIn).toBe(7200);
+  });
+
+  it('hasTokenSync / hasCachedOAuthTokenSync detect usable tokens without throwing', async () => {
+    expect(storage.hasTokenSync('missing')).toBe(false);
+    expect(storage.hasTokenSync('../etc/passwd')).toBe(false);
+    expect(hasCachedOAuthTokenSync('missing', { credentialsDir: dir })).toBe(false);
+
+    await storage.save('kimi-code', sampleToken());
+    expect(storage.hasTokenSync('kimi-code')).toBe(true);
+    expect(hasCachedOAuthTokenSync('kimi-code', { credentialsDir: dir })).toBe(true);
+
+    writeFileSync(
+      join(dir, 'empty.json'),
+      JSON.stringify({ access_token: '  ', refresh_token: 'r' }),
+      'utf-8',
+    );
+    expect(storage.hasTokenSync('empty')).toBe(false);
   });
 
   it('load() of a wire payload missing scope/token_type uses safe defaults', async () => {

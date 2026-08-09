@@ -1,7 +1,7 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
   advanceSmartRoute,
@@ -9,6 +9,7 @@ import {
   classifyTurnRouting,
   defaultIntensityForRole,
   escalateIntensity,
+  isConfigAliasHealthy,
   mergeRouteFallbackAliases,
   resolveSmartRoute,
   type SmartRoute,
@@ -169,4 +170,111 @@ describe('smart-router', () => {
     });
     expect(route?.intensity).toBe('balanced');
   });
+
+  it('treats missing provider as unhealthy', () => {
+    const cfg = {
+      models: {
+        orphan: {
+          provider: 'ghost',
+          model: 'ghost-model',
+          maxContextSize: 128_000,
+          capabilities: ['tool_use'],
+        },
+      },
+      providers: {},
+    } as LioraConfig;
+    expect(isConfigAliasHealthy(cfg, 'orphan')).toBe(false);
+    expect(resolveSmartRoute({ role: 'coding', config: cfg })).toBeUndefined();
+  });
+
+  it('excludes oauth-only providers without a cached token', () => {
+    const home = mkdtempSync(join(tmpdir(), 'sr-oauth-'));
+    const prevHome = process.env['SUPERLIORA_HOME'];
+    process.env['SUPERLIORA_HOME'] = home;
+    try {
+      const cfg = {
+        models: {
+          'oauth-model': {
+            provider: 'cursor-oauth',
+            model: 'gpt-5',
+            maxContextSize: 128_000,
+            capabilities: ['tool_use', 'thinking'],
+            cost: { input: 5 },
+          },
+          'cheap-haiku': model('cheap-haiku', 0.1),
+        },
+        providers: {
+          'cursor-oauth': {
+            type: 'cursor' as const,
+            oauth: { storage: 'file' as const, key: 'cursor-oauth' },
+          },
+          'test-provider': PROVIDER,
+        },
+      } as LioraConfig;
+      expect(isConfigAliasHealthy(cfg, 'oauth-model')).toBe(false);
+      expect(resolveSmartRoute({ role: 'coding', config: cfg })?.alias).toBe('cheap-haiku');
+    } finally {
+      if (prevHome === undefined) delete process.env['SUPERLIORA_HOME'];
+      else process.env['SUPERLIORA_HOME'] = prevHome;
+    }
+  });
+
+  it('degrades unhealthy explicit override to healthy fallback', () => {
+    const cfg = config({
+      models: {
+        pinned: {
+          ...model('pinned-model', 5),
+          provider: 'broken',
+          fallbackModels: ['cheap-haiku'],
+        },
+        'cheap-haiku': model('cheap-haiku', 0.1),
+      },
+      providers: {
+        'test-provider': PROVIDER,
+        broken: { type: 'kimi' as const },
+      },
+      loopControl: { codingModel: 'pinned' },
+    });
+    const route = resolveSmartRoute({ role: 'coding', config: cfg });
+    expect(route).toMatchObject({
+      alias: 'cheap-haiku',
+      source: 'explicit',
+      chain: ['cheap-haiku'],
+    });
+    expect(route?.reason).toMatch(/degraded/);
+  });
+
+  it('falls through to auto when explicit override chain is empty', () => {
+    const cfg = config({
+      models: {
+        pinned: {
+          ...model('pinned-model', 5),
+          provider: 'broken',
+        },
+        opus: model('opus', 10),
+      },
+      providers: {
+        'test-provider': PROVIDER,
+        broken: { type: 'kimi' as const },
+      },
+      loopControl: { codingModel: 'pinned' },
+    });
+    const route = resolveSmartRoute({ role: 'coding', config: cfg });
+    expect(route).toMatchObject({ alias: 'opus', source: 'auto' });
+  });
+
+  it('rejects unhealthy parent fallback', () => {
+    const cfg = {
+      models: {},
+      providers: {},
+    } as LioraConfig;
+    expect(
+      resolveSmartRoute({
+        role: 'coding',
+        config: cfg,
+        parentAlias: 'missing-parent',
+      }),
+    ).toBeUndefined();
+  });
 });
+

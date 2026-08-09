@@ -1,6 +1,6 @@
 # Hardcoded showStatus/showError/showNotice literals still pending ttui() migration.
 # Format: relative/path.ts:line:exact literal
 src/tui/features/control-tower/inbox-controller.ts:61:Push Preview needs a done or blocked job.
-src/tui/features/control-tower/push-preview-controller.ts:25:Push Preview needs conductor_ux_v2.
-src/tui/features/control-tower/push-preview-controller.ts:29:Push Preview needs a done or blocked job.
-src/tui/features/control-tower/push-preview-controller.ts:34:No active session — Push Preview needs a live session.
+src/tui/features/control-tower/push-preview-controller.ts:26:Push Preview needs conductor_ux_v2.
+src/tui/features/control-tower/push-preview-controller.ts:30:Push Preview needs a done or blocked job.
+src/tui/features/control-tower/push-preview-controller.ts:35:No active session — Push Preview needs a live session.

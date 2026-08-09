@@ -271,7 +271,11 @@ function buildRoleModelStatusRows(
   options: StatusReportOptions,
 ): readonly StatusFieldRow[] | undefined {
   if (options.loopModelRouting !== undefined) {
-    return loopModelRoutingRows(options.loopModelRouting, options.availableModels).map((role) => ({
+    return loopModelRoutingRows(
+      options.loopModelRouting,
+      options.availableModels,
+      options.availableProviders,
+    ).map((role) => ({
       label: role.label,
       value: role.state,
     }));
@@ -293,6 +297,7 @@ function buildRoleModelStatusRows(
       },
     },
     options.availableModels,
+    options.availableProviders,
   ).map((role) => ({
     label: role.label,
     value: role.state,

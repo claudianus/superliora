@@ -271,9 +271,11 @@ export {
 } from './utils/model-presets';
 export {
   SMART_AUTO_SESSION_ALIAS,
+  buildLocalModelMetadata,
   classifySessionRole,
   classifyTurnRouting,
   defaultIntensityForRole,
+  isConfigAliasHealthy,
   isSmartAutoSessionAlias,
   mergeRouteFallbackAliases,
   resetRouteOutcomeStoreForTests,

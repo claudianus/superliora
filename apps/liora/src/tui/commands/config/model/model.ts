@@ -121,7 +121,11 @@ export async function showLoopModelRoutingPicker(host: SlashCommandHost): Promis
 }
 
 function mountLoopModelRoutingPicker(host: SlashCommandHost, config: LoopModelRoutingConfig): void {
-  const rows = loopModelRoutingRows(config, host.state.appState.availableModels);
+  const rows = loopModelRoutingRows(
+    config,
+    host.state.appState.availableModels,
+    host.state.appState.availableProviders,
+  );
   const autoRoutingValue = '__smart_auto__';
   mountPickerDialog(
     host,

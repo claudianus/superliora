@@ -1,12 +1,15 @@
 import {
+  buildLocalModelMetadata,
   defaultIntensityForRole,
   previewLoopRoleModelRouting,
   rolePresetFor,
   type DeleteConfigFieldPath,
+  type LioraConfig,
   type LocalRoleCatalogModel,
   type LoopRoleModelPreview,
   type ModelAlias,
   type ModelRole,
+  type ProviderConfig,
 } from '@superliora/sdk';
 
 export const LOOP_MODEL_ROUTING_ROLES = [
@@ -24,6 +27,7 @@ export type LoopModelRoutingConfigKey = LoopModelRoutingRole['configKey'];
 
 export interface LoopModelRoutingConfig {
   readonly loopControl?: Partial<Record<LoopModelRoutingConfigKey, unknown>>;
+  readonly providers?: Readonly<Record<string, ProviderConfig>>;
 }
 
 export type LoopModelRoutingRow = LoopModelRoutingRole & {
@@ -37,13 +41,15 @@ export type LoopModelRoutingRow = LoopModelRoutingRole & {
 export function loopModelRoutingRows(
   config: LoopModelRoutingConfig,
   availableModels?: Readonly<Record<string, ModelAlias>>,
+  availableProviders?: Readonly<Record<string, ProviderConfig>>,
 ): readonly LoopModelRoutingRow[] {
   const overrides = loopControlOverrides(config);
+  const providers = availableProviders ?? config.providers;
   const previewByRole = new Map(
-    previewLoopRoleModelRouting(localCatalogFromModels(availableModels), overrides).map((row) => [
-      row.role,
-      row,
-    ]),
+    previewLoopRoleModelRouting(
+      localCatalogFromModels(availableModels, providers),
+      overrides,
+    ).map((row) => [row.role, row]),
   );
 
   return LOOP_MODEL_ROUTING_ROLES.map((role) => {
@@ -82,17 +88,26 @@ export function loopModelRoutingDeletePath(role: LoopModelRoutingRole): DeleteCo
 
 export function localCatalogFromModels(
   availableModels: Readonly<Record<string, ModelAlias>> | undefined,
+  availableProviders?: Readonly<Record<string, ProviderConfig>>,
 ): readonly LocalRoleCatalogModel[] {
   if (availableModels === undefined) return [];
-  return Object.entries(availableModels).map(([alias, model]) => ({
-    alias,
-    model: model.model,
-    provider: model.provider,
-    available: true,
-    ...(model.maxContextSize !== undefined ? { maxContextSize: model.maxContextSize } : {}),
-    ...(model.capabilities !== undefined ? { capabilities: model.capabilities } : {}),
-    ...(model.cost?.input !== undefined ? { inputCostPerM: model.cost.input } : {}),
-  }));
+  const config = {
+    models: availableModels,
+    providers: availableProviders ?? {},
+  } as LioraConfig;
+  return buildLocalModelMetadata(config).map((meta) => {
+    const alias = meta.alias ?? meta.id;
+    const model = availableModels[alias];
+    return {
+      alias,
+      model: meta.id,
+      provider: meta.provider,
+      available: meta.available,
+      ...(model?.maxContextSize !== undefined ? { maxContextSize: model.maxContextSize } : {}),
+      ...(model?.capabilities !== undefined ? { capabilities: model.capabilities } : {}),
+      ...(model?.cost?.input !== undefined ? { inputCostPerM: model.cost.input } : {}),
+    };
+  });
 }
 
 export function loopControlOverrides(
@@ -114,6 +129,9 @@ function formatRoleRoutingState(
 ): string {
   const intensity = defaultIntensityForRole(role);
   if (source === 'override' && override !== undefined) {
+    if (resolvedAlias !== undefined && resolvedAlias !== override) {
+      return `override · ${override} → ${resolvedAlias}`;
+    }
     return `override · ${override}`;
   }
   if (source === 'auto' && resolvedAlias !== undefined) {

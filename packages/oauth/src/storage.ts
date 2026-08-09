@@ -25,6 +25,7 @@ import {
   unlinkSync,
   writeSync,
 } from 'node:fs';
+import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 
 import type { TokenInfo, TokenInfoWire } from './types';
@@ -36,6 +37,28 @@ export interface TokenStorage {
   save(name: string, token: TokenInfo): Promise<void>;
   remove(name: string): Promise<void>;
   list(): Promise<string[]>;
+}
+
+/** Default `~/.superliora/credentials` (honors `SUPERLIORA_HOME`). */
+export function defaultOAuthCredentialsDir(): string {
+  const override = process.env['SUPERLIORA_HOME'];
+  const home =
+    override !== undefined && override.trim().length > 0
+      ? override.trim()
+      : join(homedir(), '.superliora');
+  return join(home, 'credentials');
+}
+
+/**
+ * Sync peek: whether a usable access token is on disk for `storageName`.
+ * Invalid names / missing / corrupt / empty access token → false (never throws).
+ */
+export function hasCachedOAuthTokenSync(
+  storageName: string,
+  options?: { readonly credentialsDir?: string },
+): boolean {
+  const dir = options?.credentialsDir ?? defaultOAuthCredentialsDir();
+  return new FileTokenStorage(dir).hasTokenSync(storageName);
 }
 
 export class FileTokenStorage implements TokenStorage {
@@ -69,8 +92,23 @@ export class FileTokenStorage implements TokenStorage {
     return join(this.dir, `${safe}.json`);
   }
 
+  /** Sync presence check used by smart-router availability gates (no refresh). */
+  hasTokenSync(name: string): boolean {
+    let file: string;
+    try {
+      file = this.pathFor(name);
+    } catch {
+      return false;
+    }
+    const token = this.readTokenFile(file);
+    return typeof token?.accessToken === 'string' && token.accessToken.trim().length > 0;
+  }
+
   async load(name: string): Promise<TokenInfo | undefined> {
-    const file = this.pathFor(name);
+    return this.readTokenFile(this.pathFor(name));
+  }
+
+  private readTokenFile(file: string): TokenInfo | undefined {
     let raw: string;
     try {
       raw = readFileSync(file, 'utf-8');
