@@ -169,7 +169,7 @@ function Footer() {
         </div>
         <div className="flex flex-col justify-between gap-2 border-t border-line/70 pt-6 text-xs text-muted sm:flex-row">
           <div>{t.footer.copyright}</div>
-          <div className="font-mono">v0.20.1 · #E63946</div>
+          <div className="font-mono">v0.3.0 · #E63946</div>
         </div>
       </div>
     </footer>
