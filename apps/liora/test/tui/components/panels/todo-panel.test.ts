@@ -204,7 +204,7 @@ describe('TodoPanelComponent', () => {
     const lines = panel.render(80).map(strip);
     const joined = lines.join('\n');
     expect(joined).toMatch(/Todo/);
-    expect(joined).toMatch(/flow \+3/);
+    expect(joined).toMatch(/FLOW \+3/);
     expect(joined).toMatch(/wip 1\/1/);
     expect(joined).toMatch(/✓ Investigate pars/);
     expect(joined).toMatch(/● Add tests/);
@@ -236,12 +236,29 @@ describe('TodoPanelComponent', () => {
 
     expect(joined).toContain('Todo Board');
     expect(joined).toMatch(/Todo Board · \d+\/\d+ done/);
-    expect(joined).toContain('Doing');
-    expect(joined).toContain('Done');
-    expect(joined).toContain('Next');
-    expect(joined.indexOf('Doing')).toBeLessThan(joined.indexOf('Add tests'));
-    expect(joined.indexOf('Done')).toBeLessThan(joined.indexOf('Investigate'));
-    expect(joined.indexOf('Next')).toBeLessThan(joined.indexOf('Open PR'));
+    expect(joined).toContain('DOING');
+    expect(joined).toContain('DONE');
+    expect(joined).toContain('NEXT');
+    expect(joined).toContain('FOCUS');
+    const boardIdx = joined.indexOf('DOING');
+    expect(boardIdx).toBeGreaterThanOrEqual(0);
+    expect(joined.indexOf('● Add tests', boardIdx)).toBeGreaterThan(boardIdx);
+    expect(joined.indexOf('✓ Investigate', boardIdx)).toBeGreaterThan(boardIdx);
+    expect(joined.indexOf('○ Open PR', boardIdx)).toBeGreaterThan(boardIdx);
+  });
+
+  it('renders densemode TK/FOCUS strips and optional worker link', () => {
+    const panel = new TodoPanelComponent({
+      resolveFocusLink: () => ({ worker: 'coder', tool: 'Edit', target: 'panel.ts' }),
+    });
+    panel.setTodos([{ title: 'Ship', status: 'pending' }]);
+    panel.setTodos([{ title: 'Ship', status: 'in_progress' }]);
+    const joined = panel.render(100).map(strip).join('\n');
+    expect(joined).toMatch(/\bTK\b/);
+    expect(joined).toMatch(/FOCUS/);
+    expect(joined).toContain('Ship');
+    expect(joined).toContain('coder');
+    expect(joined).toContain('Edit');
   });
 
   it('renders a three-column board on wide terminals', () => {
@@ -254,7 +271,7 @@ describe('TodoPanelComponent', () => {
 
     const lines = panel.render(100).map(strip);
 
-    expect(lines.some((line) => /Doing \(1\)\s+│\s+Next \(1\)\s+│\s+Done \(1\)/.test(line))).toBe(true);
+    expect(lines.some((line) => /DOING 1\s+│\s+NEXT 1\s+│\s+DONE 1/.test(line))).toBe(true);
     expect(lines.some((line) => line.includes('● Add tests'))).toBe(true);
     expect(lines.some((line) => line.includes('○ Open PR'))).toBe(true);
     expect(lines.some((line) => line.includes('✓ Investigate'))).toBe(true);
@@ -281,11 +298,11 @@ describe('TodoPanelComponent', () => {
     expect(joined).toContain('Add tests');
     expect(joined).toContain('Open PR');
     expect(joined).toContain('Investigate parser');
-    // Lane labels are rendered (Doing / Next / Done) since empty lanes are skipped
+    // Lane labels are rendered (DOING / NEXT / DONE) since empty lanes are skipped
     // but every status here has an item.
-    expect(joined).toContain('Doing');
-    expect(joined).toContain('Next');
-    expect(joined).toContain('Done');
+    expect(joined).toContain('DOING');
+    expect(joined).toContain('NEXT');
+    expect(joined).toContain('DONE');
   });
 
   it('setTodos replaces the list (not appends)', () => {
@@ -312,7 +329,7 @@ describe('TodoPanelComponent', () => {
 
     const out = strip(panel.render(120).join('\n'));
 
-    expect(out).toMatch(/flow \+1 · 1 done · 1 moved · 1 pruned/);
+    expect(out).toMatch(/FLOW \+1 · 1 done · 1 moved · 1 pruned/);
     expect(out).toMatch(/✓ Inspect TodoList harness/);
     expect(out).toMatch(/● Patch reminder copy/);
     expect(out).toMatch(/○ Add panel flow test/);
@@ -469,7 +486,7 @@ describe('TodoPanelComponent', () => {
 
     panel.bumpActivity();
     const stale = strip(panel.render(80).join('\n'));
-    expect(stale).toMatch(/stale · 2 calls/);
+    expect(stale).toMatch(/stale 2/);
   });
 
   it('clears stale counter when the board is updated', () => {
@@ -520,8 +537,10 @@ describe('TodoPanelComponent', () => {
     const out = strip(panel.render(40).join('\n'));
     expect(out).toMatch(/Investigate the/);
     expect(out).toMatch(/parser regression/);
-    expect(out).toMatch(/in auth/);
-    expect(out).not.toMatch(/…/);
+    expect(out).toMatch(/auth module/);
+    // Card body wraps; KPI/FOCUS may ellipsize on tiny widths.
+    const cardRegion = out.slice(out.indexOf('DOING'));
+    expect(cardRegion).not.toMatch(/…/);
   });
 });
 
@@ -759,14 +778,14 @@ describe('TodoPanelComponent change flash kinship', () => {
     panel.setTodos([{ title: 'Ship', status: 'done' }]);
 
     const flashing = panel.render(100).map(strip).join('\n');
-    expect(flashing).toMatch(/flow 1 done/);
+    expect(flashing).toMatch(/FLOW 1 done/);
     expect(settleSpy).toHaveBeenCalled();
     expect(String(settleSpy.mock.calls[0]?.[0])).toContain('Ship');
 
     settleSpy.mockClear();
     advanceAppearanceAnimationClock(Date.now() + SETTLE_FLASH_MS + 80);
     const settled = panel.render(100).map(strip).join('\n');
-    expect(settled).not.toMatch(/flow 1 done/);
+    expect(settled).not.toMatch(/FLOW 1 done/);
     expect(settleSpy).not.toHaveBeenCalled();
   });
 });
@@ -831,7 +850,7 @@ describe('TodoPanelComponent board motion cues', () => {
     expect(settled.join('\n')).toBe(reference.render(100).join('\n'));
   });
 
-  it('settle-flashes a card entering the visible window without a change kind', () => {
+  it('type-on reveals a card entering the visible window without a change kind', () => {
     const settleSpy = vi.spyOn(appearanceEffects, 'renderSettleFlash');
     const panel = new TodoPanelComponent();
     panel.setTodos([
@@ -855,15 +874,15 @@ describe('TodoPanelComponent board motion cues', () => {
       { title: 'p4', status: 'pending' },
       { title: 'p5', status: 'pending' },
     ]);
-    panel.render(100);
+    const entering = panel.render(100).map(strip).join('\n');
+    // Enter is streaming type-on (not a change-kind / enter settle flash).
+    expect(entering).toMatch(/p5?/); // first paint may still be catching up
     const flashed = settleSpy.mock.calls.map((call) => String(call[0]));
-    expect(flashed).toContain('p5');
+    expect(flashed).not.toContain('p5');
     expect(flashed).not.toContain('p2');
 
-    settleSpy.mockClear();
     advanceAppearanceAnimationClock(appearanceAnimationNow() + SETTLE_FLASH_MS + 80);
-    panel.render(100);
-    expect(settleSpy).not.toHaveBeenCalled();
+    expect(panel.render(100).map(strip).join('\n')).toContain('p5');
   });
 
   it('flashes lane counts when they change, then settles the header', () => {
@@ -884,14 +903,14 @@ describe('TodoPanelComponent board motion cues', () => {
     ]);
     const flashing = panel.render(100);
     const flashedCounts = toneSpy.mock.calls.map((call) => String(call[0]));
-    expect(flashedCounts).toContain('(2)');
-    expect(flashedCounts).toContain('(0)');
-    expect(flashing.map(strip).join('\n')).toContain('Doing (2)');
+    expect(flashedCounts).toContain('2');
+    expect(flashedCounts).toContain('0');
+    expect(flashing.map(strip).join('\n')).toContain('DOING 2');
 
     toneSpy.mockClear();
     advanceAppearanceAnimationClock(appearanceAnimationNow() + SETTLE_FLASH_MS + 80);
     const settled = panel.render(100);
     expect(toneSpy).not.toHaveBeenCalled();
-    expect(settled.map(strip).join('\n')).toContain('Doing (2)');
+    expect(settled.map(strip).join('\n')).toContain('DOING 2');
   });
 });

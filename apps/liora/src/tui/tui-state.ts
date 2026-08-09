@@ -199,9 +199,25 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
   );
   const activityContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const todoPanelContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
-  const todoPanel = new TodoPanelComponent({ terminalRows: () => terminal.rows });
   const missionControlContainer = new GutterContainer(CHROME_GUTTER, CHROME_GUTTER);
   const missionControlPanel = new MissionControlPanelComponent();
+  const todoPanel = new TodoPanelComponent({
+    terminalRows: () => terminal.rows,
+    resolveFocusLink: () => {
+      const worker = missionControlPanel.currentView.snapshot.workers.find(
+        (entry) =>
+          entry.status === 'running' ||
+          entry.status === 'finishing' ||
+          entry.status === 'stalled',
+      );
+      if (worker === undefined) return undefined;
+      return {
+        worker: worker.name,
+        ...(worker.lastTool === undefined ? {} : { tool: worker.lastTool }),
+        ...(worker.lastTarget === undefined ? {} : { target: worker.lastTarget }),
+      };
+    },
+  });
   missionControlContainer.addChild(
     new MissionControlFallbackComponent({
       panel: missionControlPanel,

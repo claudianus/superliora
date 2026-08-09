@@ -213,6 +213,7 @@ reveals, and quality-gated ambient that still reads under SSH/`off`.
 | Progress bars | `renderRendererSegmentedProgressBar` / `renderRendererRatioProgressBar` |
 | Gradient text | `features/appearance/appearance-gradient.ts` / `renderRendererGradientTextAnsi` |
 | Ambient effects | `features/appearance/appearance-effects.ts` → `renderPulseText` / `renderShimmerPrefix` / `renderParticleRail` |
+| Chrome-band live signals (Todo Board + Worker Dock) | `components/chrome/chrome-band-motion.ts` → `renderLiveSectionHeader` / `renderLiveRatioBar` / `renderPulseCountChip` |
 | Settle flashes (change → rest on a final tone) | `features/appearance/appearance-effects.ts` → `renderSettleFlash` / `renderToneSettleFlash` / `renderStatusFlashLine` |
 | Entrance highlights (tool headers, turn boundaries) | `features/transcript/transcript-entrance.ts` → `applyToolHeaderEntrance` / `applyTurnBoundaryCue` |
 | Soft fade-in wash (assistant/user/status/markers) | `polishTranscriptLines` / `applyTranscriptEntrance` — quint ease, cascade + ink lead |

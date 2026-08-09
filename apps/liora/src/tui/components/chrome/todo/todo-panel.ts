@@ -27,6 +27,9 @@ import { currentTheme } from '#/tui/theme/theme';
 import { resolveResponsiveLayout } from '#/tui/controllers/layout/responsive-layout';
 import {
   appearanceAnimationNow,
+  getActiveAppearancePreferences,
+  isToneSettleFlashActive,
+  shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
 import {
   CHROME_BAND_LEFT_MARGIN,
@@ -34,6 +37,16 @@ import {
   chromeBandInteriorWidth,
   renderRoundedPanel,
 } from '#/tui/utils/ui/panel-frame';
+import { formatJobDuration } from '#/tui/utils/job/job-strip';
+import {
+  createStreamingTextRevealState,
+  isRevealCaughtUp,
+  setRevealTarget,
+  snapRevealToTarget,
+  tickReveal,
+  visibleText,
+  type StreamingTextRevealState,
+} from '#/tui/utils/streaming/streaming-text-reveal';
 
 import {
   MAX_VISIBLE,
@@ -52,7 +65,11 @@ import {
   renderBoardMeta,
   renderBoardScrollIndicator,
   boardNeedsMarquee,
+  renderTodoDenseFooter,
+  renderTodoFocus,
+  renderTodoTicker,
   renderTodos,
+  type CardMotionCue,
 } from './todo-panel-render';
 import {
   clampScrollOffset,
@@ -78,6 +95,7 @@ export { formatSwarmMemberTodoLines } from './todo-panel-render';
 export type {
   TodoBoardScrollAction,
   TodoBoardScrollSnapshot,
+  TodoFocusLink,
   TodoItem,
   TodoPanelOptions,
   TodoStatus,
@@ -125,6 +143,12 @@ export class TodoPanelComponent implements Component {
    * moved viewport never serves stale bytes.
    */
   private scrollOffset = 0;
+  /** WIP title currently tracked for focus age. */
+  private focusTitle: string | undefined;
+  private focusStartedAtMs: number | undefined;
+  /** Enter-cue type-on reveal per card title. */
+  private readonly revealByTitle = new Map<string, StreamingTextRevealState>();
+  private lastRevealTickMs = 0;
 
   constructor(options: TodoPanelOptions = {}) {
     this.options = options;
@@ -138,10 +162,23 @@ export class TodoPanelComponent implements Component {
     this.changeSummary = diff.summary;
     this.callsSinceUpdate = 0;
     this.motion.updateLaneCountFlashes(next);
+    this.syncFocusTracking(next);
     if (next.length === 0) {
       // An empty board has no layout; the next batch enters fresh.
       this.motion.reset();
+      this.revealByTitle.clear();
+      this.focusTitle = undefined;
+      this.focusStartedAtMs = undefined;
     }
+  }
+
+  private syncFocusTracking(todos: readonly TodoItem[]): void {
+    const wip = todos.find((todo) => todo.status === 'in_progress');
+    const title = wip?.title;
+    if (title === this.focusTitle) return;
+    this.focusTitle = title;
+    this.focusStartedAtMs =
+      title === undefined ? undefined : appearanceAnimationNow();
   }
 
   /**
@@ -265,10 +302,19 @@ export class TodoPanelComponent implements Component {
     // While the change flash is active the frame is time-driven; otherwise
     // unchanged state must yield byte-identical lines so the renderer's line
     // diff can skip this panel during ambient ticks.
+    // Catch up enter reveals before the memo gate so a large clock jump (or
+    // the frame after the settle window) can memoize resting bytes.
+    this.catchUpEnterReveals();
     const contentWidthForMarquee = this.interiorWidth(width, resolveResponsiveLayout({ width }));
+    const ambient = shouldRenderAmbientEffects(getActiveAppearancePreferences());
+    const revealPending = [...this.revealByTitle.values()].some(
+      (state) => !isRevealCaughtUp(state),
+    );
     const animating =
       this.currentChangeSummary() !== undefined ||
-      boardNeedsMarquee(this.todos, contentWidthForMarquee);
+      boardNeedsMarquee(this.todos, contentWidthForMarquee) ||
+      revealPending ||
+      (ambient && this.todos.some((todo) => todo.status === 'in_progress'));
     // The goal wall-clock label advances once per second; bucketing keeps the
     // memo valid within that second.
     const secondBucket = Math.floor(appearanceAnimationNow() / 1000);
@@ -327,14 +373,23 @@ export class TodoPanelComponent implements Component {
     }
 
     const counts = countTodos(this.todos);
+    const focusAge = this.focusAgeMs();
+    const focusChip =
+      focusAge !== undefined && focusAge > 0
+        ? ` · focus ${formatJobDuration(focusAge)}`
+        : '';
     const title =
       liveGoal !== null
         ? this.todos.length > 0
           ? ` Goal · ${liveGoal.status} · ${String(counts.done)}/${String(this.todos.length)} done `
           : goalMonitorTitle(liveGoal, profile)
-        : ` Todo Board · ${String(counts.done)}/${String(this.todos.length)} done `;
+        : ` Todo Board · ${String(counts.done)}/${String(this.todos.length)} done${focusChip} `;
     const borderToken =
-      liveGoal !== null ? goalMonitorBorderToken(liveGoal.status) : 'border';
+      liveGoal !== null
+        ? goalMonitorBorderToken(liveGoal.status)
+        : counts.in_progress > 0
+          ? 'primary'
+          : 'border';
 
     const panelLines = renderRoundedPanel({
       title,
@@ -351,6 +406,11 @@ export class TodoPanelComponent implements Component {
     return animating ? panelLines : this.memoizeRender(width, secondBucket, budget, panelLines);
   }
 
+  private focusAgeMs(): number | undefined {
+    if (this.focusStartedAtMs === undefined) return undefined;
+    return Math.max(0, appearanceAnimationNow() - this.focusStartedAtMs);
+  }
+
   private goalWallClockMs(goal: GoalSnapshot): number {
     if (goal.status !== 'active') return goal.wallClockMs;
     return goal.wallClockMs + Math.max(0, Date.now() - this.goalObservedAtMs);
@@ -361,16 +421,30 @@ export class TodoPanelComponent implements Component {
     profile: ReturnType<typeof resolveResponsiveLayout>,
   ): string[] {
     const contentWidth = this.interiorWidth(width, profile);
-    const lines: string[] = [
-      renderBoardMeta(this.todos, this.currentChangeSummary(), this.callsSinceUpdate),
-    ];
-
+    const summary = this.currentChangeSummary();
     const highlights = this.currentHighlights();
-    const changedAtMs = this.currentChangeSummary()?.changedAtMs;
+    const live = shouldRenderAmbientEffects(getActiveAppearancePreferences());
+    const lines: string[] = [
+      renderBoardMeta(this.todos, summary, this.callsSinceUpdate),
+    ];
+    const ticker = renderTodoTicker(highlights, live && highlights.size > 0, summary);
+    if (ticker !== undefined) lines.push(ticker);
+    const focus = renderTodoFocus(
+      this.todos,
+      this.focusAgeMs(),
+      this.options.resolveFocusLink?.(),
+    );
+    if (focus !== undefined) lines.push(focus);
+
+    const changedAtMs = summary?.changedAtMs;
     const stabilizeRows = (rows: number): number => this.stabilizeBoardRows(rows);
     const laneFlashes = this.motion.currentLaneFlashes();
+    let hasScroll = false;
+    let renderedForReveal: readonly TodoItem[] = this.todos;
     if (this.expanded) {
       this.motion.refreshMotionCues(this.todos, this.expanded, this.todos, changedAtMs);
+      const motions = this.motion.currentMotionCues();
+      const revealed = this.syncEnterReveals(motions);
       lines.push(
         ...renderTodos(
           this.todos,
@@ -379,8 +453,10 @@ export class TodoPanelComponent implements Component {
           changedAtMs,
           profile,
           stabilizeRows,
-          this.motion.currentMotionCues(),
+          motions,
           laneFlashes,
+          revealed,
+          this.focusAgeMs(),
         ),
       );
       if (this.todos.length > MAX_VISIBLE) {
@@ -392,13 +468,13 @@ export class TodoPanelComponent implements Component {
       const laneRows = this.laneMaxRows();
       const viewport = this.viewportBoardRows(laneRows);
       if (viewport !== undefined) {
-        // Windowed board: the full list stays in state; only the visible
-        // row range renders. Boards that fit the budget paint every card
-        // with no indicator — byte-identical to the unwindowed render.
         const offset = clampScrollOffset(this.scrollOffset, laneRows, viewport);
         this.scrollOffset = offset;
         const rows = windowTodos(this.todos, offset, viewport);
+        renderedForReveal = rows;
         this.motion.refreshMotionCues(this.todos, this.expanded, rows, changedAtMs);
+        const motions = this.motion.currentMotionCues();
+        const revealed = this.syncEnterReveals(motions);
         lines.push(
           ...renderTodos(
             rows,
@@ -407,16 +483,22 @@ export class TodoPanelComponent implements Component {
             changedAtMs,
             profile,
             stabilizeRows,
-            this.motion.currentMotionCues(),
+            motions,
             laneFlashes,
+            revealed,
+            this.focusAgeMs(),
           ),
         );
         if (viewport < laneRows) {
+          hasScroll = true;
           lines.push(renderBoardScrollIndicator(this.todos, offset, viewport));
         }
       } else {
         const { rows, hidden, hiddenCounts } = selectVisibleTodos(this.todos);
+        renderedForReveal = rows;
         this.motion.refreshMotionCues(this.todos, this.expanded, rows, changedAtMs);
+        const motions = this.motion.currentMotionCues();
+        const revealed = this.syncEnterReveals(motions);
         lines.push(
           ...renderTodos(
             rows,
@@ -425,11 +507,14 @@ export class TodoPanelComponent implements Component {
             changedAtMs,
             profile,
             stabilizeRows,
-            this.motion.currentMotionCues(),
+            motions,
             laneFlashes,
+            revealed,
+            this.focusAgeMs(),
           ),
         );
         if (hidden > 0) {
+          hasScroll = true;
           const distribution = formatHiddenCounts(hiddenCounts);
           const suffix = distribution.length > 0 ? ` (${distribution})` : '';
           lines.push(
@@ -438,8 +523,64 @@ export class TodoPanelComponent implements Component {
         }
       }
     }
-
+    void renderedForReveal;
+    lines.push(
+      renderTodoDenseFooter(this.callsSinceUpdate, summary, this.expanded, hasScroll),
+    );
     return lines;
+  }
+
+  /** Advance in-flight enter reveals against the animation clock. */
+  private catchUpEnterReveals(): void {
+    if (this.revealByTitle.size === 0) return;
+    const now = appearanceAnimationNow();
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
+    for (const [title, prev] of this.revealByTitle) {
+      let state = prev;
+      if (!animated) {
+        state = snapRevealToTarget(state, now);
+      } else if (!isRevealCaughtUp(state)) {
+        state = tickReveal(state, now);
+      }
+      this.revealByTitle.set(title, state);
+    }
+    this.lastRevealTickMs = now;
+  }
+
+  /** Type-on reveal for enter-cued cards; returns visible partial titles. */
+  private syncEnterReveals(
+    motions: ReadonlyMap<string, CardMotionCue>,
+  ): ReadonlyMap<string, string> {
+    const now = appearanceAnimationNow();
+    const appearance = getActiveAppearancePreferences();
+    const animated = shouldRenderAmbientEffects(appearance);
+    const visible = new Map<string, string>();
+    const liveTitles = new Set<string>();
+    for (const [title, cue] of motions) {
+      if (cue.kind !== 'enter') continue;
+      liveTitles.add(title);
+      let state = this.revealByTitle.get(title);
+      if (state === undefined) {
+        state = createStreamingTextRevealState(now);
+      }
+      state = setRevealTarget(state, title, now);
+      // Past the enter window: snap full title. Motion-off snaps immediately.
+      // Always tick new/incomplete state here — lastRevealTickMs may already
+      // equal `now` from an earlier empty-board paint in the same clock ms.
+      if (!animated || !isToneSettleFlashActive(cue.startedAtMs, appearance)) {
+        state = snapRevealToTarget(state, now);
+      } else if (!isRevealCaughtUp(state)) {
+        state = tickReveal(state, now);
+      }
+      this.revealByTitle.set(title, state);
+      visible.set(title, visibleText(state));
+    }
+    for (const title of this.revealByTitle.keys()) {
+      if (!liveTitles.has(title)) this.revealByTitle.delete(title);
+    }
+    if (liveTitles.size > 0) this.lastRevealTickMs = now;
+    return visible;
   }
 
   private interiorWidth(
