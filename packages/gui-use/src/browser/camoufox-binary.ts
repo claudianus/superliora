@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
+import { resolveGuiUseWorkspaceRoot } from '../gui-use-workspace';
 import {
   runSetupCommand,
   type SetupCommandOptions,
@@ -82,6 +83,15 @@ export async function infoCamoufoxBinary(
   }
 }
 
+/** Exposed for tests: how we invoke camoufox-js (workspace filter vs npx). */
+export function resolveCamoufoxCliPlan(
+  options: SetupCommandOptions = {},
+): { readonly kind: 'workspace'; readonly cwd: string } | { readonly kind: 'npx' } {
+  const workspaceRoot = resolveGuiUseWorkspaceRoot(options);
+  if (workspaceRoot !== undefined) return { kind: 'workspace', cwd: workspaceRoot };
+  return { kind: 'npx' };
+}
+
 async function runCamoufoxCli(
   args: readonly string[],
   options: SetupCommandOptions & CamoufoxBinaryOptions,
@@ -91,8 +101,8 @@ async function runCamoufoxCli(
     ...options.env,
     CAMOUFOX_INSTALL_DIR: resolveCamoufoxInstallDir(options),
   };
-  const command = camoufoxExecCommand();
-  if (command.kind === 'workspace') {
+  const plan = resolveCamoufoxCliPlan(options);
+  if (plan.kind === 'workspace') {
     return runSetupCommand('corepack', [
       'pnpm',
       '--filter',
@@ -100,17 +110,13 @@ async function runCamoufoxCli(
       'exec',
       'camoufox-js',
       ...args,
-    ], { ...options, env });
+    ], { ...options, cwd: plan.cwd, env });
   }
   return runSetupCommand(
     npxCommand(),
     ['--yes', `camoufox-js@${CAMOUFOX_NPM_VERSION}`, ...args],
     { ...options, env },
   );
-}
-
-function camoufoxExecCommand(): { readonly kind: 'workspace' | 'npx' } {
-  return { kind: 'workspace' };
 }
 
 function npxCommand(): string {

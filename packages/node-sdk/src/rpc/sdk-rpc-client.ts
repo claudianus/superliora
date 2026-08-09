@@ -3,10 +3,12 @@ import {
   ensureConfigFile,
   getRootLogger,
   LioraCore,
+  log,
   noopTelemetryClient,
   resolveConfigPath,
   resolveLioraHome,
   resolveLoggingConfig,
+  setUnexpectedErrorHandler,
   type CoreAPI,
   type OAuthTokenProviderResolver,
   type RPCMethods,
@@ -81,6 +83,11 @@ export class SDKRpcClient extends SDKRpcClientBase {
     });
 
     void getRootLogger().configure(resolveLoggingConfig({ homeDir: this.homeDir }));
+    // Route Emitter/DI listener failures to the file logger — default
+    // console.error paints onto the raw-mode TUI TTY.
+    setUnexpectedErrorHandler((err) => {
+      log.error('unexpected', err);
+    });
 
     const [coreRpc, sdkRpc] = createRPC<CoreAPI, SDKAPI>();
     this.core = new LioraCore(coreRpc, {

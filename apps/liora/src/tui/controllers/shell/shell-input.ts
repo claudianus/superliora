@@ -1,4 +1,4 @@
-import type { Session } from '@superliora/sdk';
+import { log, type Session } from '@superliora/sdk';
 
 import {
   appendGlobalInputHistory,
@@ -151,7 +151,7 @@ export class ShellInputController {
       }
       host.lastHistoryContent = entries.at(-1)?.content;
     } catch (error) {
-      console.warn('Failed to load input history:', error);
+      log.warn('Failed to load input history', error);
     }
   }
 
@@ -166,7 +166,7 @@ export class ShellInputController {
       const written = await appendInputHistory(file, trimmed, host.lastHistoryContent);
       if (written) host.lastHistoryContent = trimmed;
     } catch (error) {
-      console.warn('Failed to persist input history:', error);
+      log.warn('Failed to persist input history', error);
       host.lastHistoryContent = trimmed;
     }
     try {

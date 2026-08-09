@@ -94,7 +94,7 @@ describe('RotatingFileSink', () => {
     expect(text).toContain(`line${over - 1}\n`);
   });
 
-  it('does not throw when fs write fails; emits stderr notice', async () => {
+  it('does not throw when fs write fails; stays off stderr', async () => {
     const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     // Force failure by passing an invalid path char on POSIX
     const badSink = new RotatingFileSink({
@@ -106,29 +106,24 @@ describe('RotatingFileSink', () => {
     expect(await badSink.flush()).toBe(false);
     expect(
       stderrSpy.mock.calls.some((c) => String(c[0]).includes('[logger] write failed')),
-    ).toBe(true);
+    ).toBe(false);
     stderrSpy.mockRestore();
   });
 
   it('keeps restored pending bounded after repeated write failures', async () => {
-    const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const badSink = new RotatingFileSink({
       path: '\0/invalid/path',
       maxBytes: 1024,
       files: 2,
     });
-    try {
-      for (let round = 0; round < 3; round++) {
-        for (let i = 0; i < PENDING_MAX + 25; i++) {
-          badSink.enqueue(`round${round}-line${i}\n`);
-        }
-        expect(await badSink.flush()).toBe(false);
+    for (let round = 0; round < 3; round++) {
+      for (let i = 0; i < PENDING_MAX + 25; i++) {
+        badSink.enqueue(`round${round}-line${i}\n`);
       }
-      const pending = (badSink as unknown as { pending: readonly string[] }).pending;
-      expect(pending.length).toBeLessThanOrEqual(PENDING_MAX);
-    } finally {
-      stderrSpy.mockRestore();
+      expect(await badSink.flush()).toBe(false);
     }
+    const pending = (badSink as unknown as { pending: readonly string[] }).pending;
+    expect(pending.length).toBeLessThanOrEqual(PENDING_MAX);
   });
 
   it('returns true when flush writes successfully', async () => {

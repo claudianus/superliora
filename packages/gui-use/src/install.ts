@@ -1,6 +1,4 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
 
 import {
   infoCamoufoxBinary,
@@ -12,6 +10,7 @@ import {
   installLightpandaBinary,
   type LightpandaBinaryOptions,
 } from './browser/lightpanda-binary';
+import { resolveGuiUseWorkspaceRoot } from './gui-use-workspace';
 import {
   runSetupCommand,
   type SetupCommandOptions,
@@ -167,8 +166,8 @@ function runPnpmCloak(
   args: readonly string[],
   options: SetupCommandOptions,
 ): Promise<SetupCommandResult> {
-  const workspaceRoot = findWorkspaceRoot(resolveInstallCwd(options));
-  if (workspaceRoot !== undefined && isGuiUseWorkspace(workspaceRoot)) {
+  const workspaceRoot = resolveGuiUseWorkspaceRoot(options);
+  if (workspaceRoot !== undefined) {
     return runSetupCommand('corepack', [
       'pnpm',
       '--filter',
@@ -215,26 +214,8 @@ function firstSetupError(results: readonly SetupCommandResult[]): string | undef
   return 'browser-use runtimes are not ready';
 }
 
-function resolveInstallCwd(options: SetupCommandOptions): string {
-  return options.packageRoot ?? options.cwd ?? process.cwd();
-}
-
-function isGuiUseWorkspace(workspaceRoot: string): boolean {
-  return existsSync(resolve(workspaceRoot, 'packages/gui-use/package.json'));
-}
-
 function npxCommand(): string {
   return process.platform === 'win32' ? 'npx.cmd' : 'npx';
-}
-
-function findWorkspaceRoot(start: string): string | undefined {
-  let dir = resolve(start);
-  for (;;) {
-    if (existsSync(resolve(dir, 'pnpm-workspace.yaml'))) return dir;
-    const parent = dirname(dir);
-    if (parent === dir) return undefined;
-    dir = parent;
-  }
 }
 
 function cuaInstallCommand(): readonly string[] | undefined {

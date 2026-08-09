@@ -148,8 +148,9 @@ export class CamoufoxBrowserRuntime implements BrowserUseRuntime {
 
   private async installCamoufox(signal?: AbortSignal): Promise<SetupCommandResult> {
     throwIfAborted(signal);
+    // Quiet: never echo pnpm/npx onto the TUI TTY (same latch as Cloak).
     this.installAttempt ??= (this.options.install ?? (() =>
-      installCamoufoxBinary({ ...this.options, signal })))();
+      installCamoufoxBinary({ ...this.options, signal, quiet: true })))();
     const result = await this.installAttempt;
     if (!result.ok) this.installAttempt = undefined;
     return result;

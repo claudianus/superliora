@@ -242,12 +242,8 @@ export async function fetchCustomRegistry(
     const entry = toProviderEntry(raw);
     if (entry === undefined) {
       // Skip invalid/unknown provider entries instead of aborting the whole
-      // fetch, mirroring `toModelEntry`'s skip-on-invalid behavior. This keeps
-      // existing providers working when kokub adds a new provider type that
-      // this client doesn't yet recognize.
-      console.warn(
-        `[custom-registry] Skipping invalid entry "${key}" at ${source.url}: missing required fields or unsupported type (id, name, api, type, models).`,
-      );
+      // fetch, mirroring `toModelEntry`'s skip-on-invalid behavior. Stay
+      // silent — console output would paint onto the interactive TUI TTY.
       continue;
     }
     out[key] = entry;
