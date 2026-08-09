@@ -136,6 +136,15 @@ const CORE_HARNESS_TOOLS: readonly string[] = [
 /** Text generation models available on Token Plan. */
 export const QWEN_TOKEN_PLAN_TEXT_MODELS: readonly QwenTokenPlanModelDef[] = [
   {
+    id: 'qwen3.8-max',
+    displayName: 'Qwen 3.8 Max',
+    maxContextSize: 1_000_000,
+    maxOutputSize: 131_072,
+    capabilities: ['thinking', 'tool_use', 'image_in'],
+    harnessTools: ALL_HARNESS_TOOLS,
+  },
+  {
+    // Legacy id; Token Plan still accepts it and routes to qwen3.8-max.
     id: 'qwen3.8-max-preview',
     displayName: 'Qwen 3.8 Max Preview',
     maxContextSize: 1_000_000,
@@ -183,14 +192,20 @@ export const QWEN_TOKEN_PLAN_TEXT_MODELS: readonly QwenTokenPlanModelDef[] = [
     capabilities: ['thinking', 'tool_use'],
     harnessTools: [],
   },
+  {
+    id: 'deepseek-v4-flash-0731',
+    displayName: 'DeepSeek V4 Flash',
+    maxContextSize: 1_000_000,
+    maxOutputSize: 65_536,
+    capabilities: ['thinking', 'tool_use'],
+    harnessTools: [],
+  },
 ];
 
 /** Image generation models available on Token Plan (Personal plan). */
 export const QWEN_TOKEN_PLAN_IMAGE_MODELS = [
   'wan2.7-image',
   'wan2.7-image-pro',
-  'qwen-image-2.0',
-  'qwen-image-2.0-pro',
 ] as const;
 
 /** Video generation models available on Token Plan. */
@@ -347,8 +362,8 @@ export interface ApplyQwenTokenPlanResult {
 
 /** Preferred default models, in priority order. */
 const TOKEN_PLAN_DEFAULT_MODEL_PRIORITY: readonly string[] = [
-  'qwen3.8-max-preview',
   'qwen3.8-max',
+  'qwen3.8-max-preview',
 ];
 
 /**

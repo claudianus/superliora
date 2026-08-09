@@ -20,10 +20,11 @@ import { openModelPickerForProvider } from './model-picker';
 
 /**
  * Connects Alibaba Token Plan (Qwen Cloud) — a first-class multimodal
- * subscription supporting text generation, image generation (wan2.7-image,
- * qwen-image-2.0), video generation (happyhorse-1.1), server-side harness
- * tools (web_search, code_interpreter, …), and visual understanding. The
- * user only needs to provide their dedicated API key (sk-sp-xxxxx format).
+ * subscription supporting text generation, image generation (wan2.7-image),
+ * video generation (happyhorse-1.1), server-side harness tools
+ * (web_search via enable_search on Chat Completions, …), and visual
+ * understanding. The user only needs to provide their dedicated API key
+ * (sk-sp-xxxxx format).
  *
  * Model names and metadata resolve live from the models.dev catalog
  * (`alibaba-token-plan` / `alibaba-token-plan-cn`); the built-in presets are

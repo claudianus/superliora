@@ -22,6 +22,7 @@ import { toInputJsonSchema } from '../../support/input-schema';
 import { literalRulePattern, matchesPathRuleSubject } from '../../support/rule-match';
 import type { WorkspaceConfig } from '../../support/workspace';
 import DESCRIPTION from './generate-video.md?raw';
+import { tokenPlanTaskApiUrl, tokenPlanVideoApiUrl } from './token-plan-endpoints';
 
 const S_IFMT = 0o170000;
 const S_IFDIR = 0o040000;
@@ -75,6 +76,8 @@ export type GenerateVideoInput = z.infer<typeof GenerateVideoInputSchema>;
 export interface GenerateVideoProviderEnv {
   readonly googleApiKey?: string;
   readonly qwenTokenPlanApiKey?: string;
+  /** Chat base URL used to derive the regional video / task API host. */
+  readonly qwenTokenPlanBaseUrl?: string;
   readonly xaiApiKey?: string;
   readonly xaiGrokBuild?: import('../../providers/xai-grok-build').XaiGrokBuildClient;
   /** Extras services switched off in Settings — their env-key fallbacks are skipped. */
@@ -228,10 +231,6 @@ interface GeneratedVideo {
 
 // ── Qwen Cloud Token Plan video generation (async task) ────────────────
 
-const QWEN_VIDEO_API_URL =
-  'https://token-plan.ap-southeast-1.maas.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis';
-const QWEN_TASK_URL =
-  'https://token-plan.ap-southeast-1.maas.aliyuncs.com/api/v1/tasks';
 const QWEN_VIDEO_POLL_INTERVAL_MS = 15_000;
 const QWEN_VIDEO_MAX_POLL_ATTEMPTS = 40; // 10 minutes max
 
@@ -318,6 +317,8 @@ async function generateWithQwenVideo(
     throw new Error('QWEN_TOKEN_PLAN_API_KEY / ALIBABA_TOKEN_PLAN_API_KEY is not set.');
   }
   const fetchImpl = env.fetchImpl ?? globalThis.fetch.bind(globalThis);
+  const videoApiUrl = tokenPlanVideoApiUrl(env.qwenTokenPlanBaseUrl);
+  const taskApiUrl = tokenPlanTaskApiUrl(env.qwenTokenPlanBaseUrl);
 
   // Select mode: reference images → r2v, first frame → i2v, otherwise t2v.
   const hasReferenceImages =
@@ -371,7 +372,7 @@ async function generateWithQwenVideo(
   }
 
   // Submit async task.
-  const submitResponse = await fetchImpl(QWEN_VIDEO_API_URL, {
+  const submitResponse = await fetchImpl(videoApiUrl, {
     method: 'POST',
     headers: {
       'X-DashScope-Async': 'enable',
@@ -403,7 +404,7 @@ async function generateWithQwenVideo(
   let videoUrl: string | undefined;
   for (let attempt = 0; attempt < QWEN_VIDEO_MAX_POLL_ATTEMPTS; attempt++) {
     await sleep(QWEN_VIDEO_POLL_INTERVAL_MS);
-    const pollResponse = await fetchImpl(`${QWEN_TASK_URL}/${taskId}`, {
+    const pollResponse = await fetchImpl(`${taskApiUrl}/${taskId}`, {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
     if (!pollResponse.ok) {

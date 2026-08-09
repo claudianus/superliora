@@ -1788,7 +1788,7 @@ describe('OpenAILegacyChatProvider — non-indexed streaming tool_calls', () => 
       });
     }
 
-    it.each(['qwen3.8-max-preview', 'qwen3.7-plus', 'qwen3.7-max'])(
+    it.each(['qwen3.8-max', 'qwen3.8-max-preview', 'qwen3.7-plus', 'qwen3.7-max'])(
       'injects enable_search for harness-capable model %s',
       async (model) => {
         const body = await captureRequestBody(

@@ -107,7 +107,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Research\s+WebSearch \+ FetchURL \+ Context7 ready \(local fallback\)/);
     expect(output).toMatch(/Bench\s+Bench seed\/holdout · web\/media\/office\/ZDR · a1\/m2\/sw800\/s8/);
     expect(output).toMatch(
-      /Media\s+set OPENAI_API_KEY or GOOGLE\/GEMINI_API_KEY for GenerateImage\/GenerateVideo \(no MCP\)/,
+      /Media\s+set QWEN_TOKEN_PLAN_API_KEY, OPENAI_API_KEY, or GOOGLE\/GEMINI_API_KEY for GenerateImage\/GenerateVideo \(no MCP\)/,
     );
     expect(output).toMatch(/Catalog\s+1 models \/ 1 providers; active managed:kimi-api/);
     expect(output).toMatch(/Memory\s+prefs \| session recall \| reflection/);
@@ -192,7 +192,7 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Research\s+WebSearch \+ FetchURL \+ Context7 ready \(local fallback\)/);
     expect(output).toMatch(/Bench\s+Bench seed\/holdout · web\/media\/office\/ZDR · a1\/m2\/sw800\/s8/);
     expect(output).toMatch(
-      /Media\s+set OPENAI_API_KEY or GOOGLE\/GEMINI_API_KEY for GenerateImage\/GenerateVideo \(no MCP\)/,
+      /Media\s+set QWEN_TOKEN_PLAN_API_KEY, OPENAI_API_KEY, or GOOGLE\/GEMINI_API_KEY for GenerateImage\/GenerateVideo \(no MCP\)/,
     );
     expect(output).toMatch(/Memory\s+prefs \| session recall \| reflection/);
     expect(output).toMatch(/Flow\s+███░ 3\/4 verify blocked/);

@@ -6,9 +6,9 @@
  * skill catalog required.
  *
  * Qwen Cloud Token Plan support: uses the multimodal-generation API with
- * wan2.7-image (default), wan2.7-image-pro, or qwen-image-2.0/-pro models.
- * Keys are read from QWEN_TOKEN_PLAN_API_KEY or ALIBABA_TOKEN_PLAN_API_KEY
- * (the same service, see models.dev `alibaba-token-plan`).
+ * wan2.7-image (default) or wan2.7-image-pro. Keys are read from
+ * QWEN_TOKEN_PLAN_API_KEY or ALIBABA_TOKEN_PLAN_API_KEY (the same service,
+ * see models.dev `alibaba-token-plan`).
  */
 
 import type { Kaos } from '@superliora/kaos';
@@ -23,6 +23,7 @@ import { toInputJsonSchema } from '../../support/input-schema';
 import { literalRulePattern, matchesPathRuleSubject } from '../../support/rule-match';
 import type { WorkspaceConfig } from '../../support/workspace';
 import DESCRIPTION from './generate-image.md?raw';
+import { tokenPlanImageApiUrl } from './token-plan-endpoints';
 
 const S_IFMT = 0o170000;
 const S_IFDIR = 0o040000;
@@ -49,7 +50,7 @@ export const GenerateImageInputSchema = z.object({
       'Force a provider. Default auto picks the first available (xai Grok Build → qwen → codex → openai → google).',
     ),
   model: z
-    .enum(['wan2.7-image', 'wan2.7-image-pro', 'qwen-image-2.0', 'qwen-image-2.0-pro'])
+    .enum(['wan2.7-image', 'wan2.7-image-pro'])
     .optional()
     .describe('Qwen image model (qwen provider only). Defaults to wan2.7-image.'),
   aspect_ratio: z
@@ -64,6 +65,8 @@ export interface GenerateImageProviderEnv {
   readonly openaiApiKey?: string;
   readonly googleApiKey?: string;
   readonly qwenTokenPlanApiKey?: string;
+  /** Chat base URL used to derive the regional multimodal API host. */
+  readonly qwenTokenPlanBaseUrl?: string;
   readonly xaiApiKey?: string;
   readonly xaiGrokBuild?: import('../../providers/xai-grok-build').XaiGrokBuildClient;
   /** OpenAI Codex (ChatGPT subscription) extras credentials. */
@@ -231,9 +234,6 @@ interface GeneratedImage {
 
 // ── Qwen Cloud Token Plan image generation ─────────────────────────────
 
-const QWEN_IMAGE_API_URL =
-  'https://token-plan.ap-southeast-1.maas.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation';
-
 /** Maps the tool's size enum to Qwen's `size` parameter format (WxH → W*H). */
 function toQwenImageSize(size: string | undefined): string {
   switch (size) {
@@ -294,8 +294,9 @@ async function generateWithQwen(
   const fetchImpl = env.fetchImpl ?? globalThis.fetch.bind(globalThis);
   const model = args.model ?? 'wan2.7-image';
   const size = toQwenImageSize(args.size);
+  const imageApiUrl = tokenPlanImageApiUrl(env.qwenTokenPlanBaseUrl);
 
-  const response = await fetchImpl(QWEN_IMAGE_API_URL, {
+  const response = await fetchImpl(imageApiUrl, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,

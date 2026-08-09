@@ -89,14 +89,15 @@ describe('Qwen Token Plan utilities', () => {
       expect(typedConfig.defaultThinking).toBe(true);
 
       // Check that image_in capability is set for vision models.
-      const maxPreviewKey = `${QWEN_TOKEN_PLAN_PROVIDER_ID}/qwen3.8-max-preview`;
-      expect(typedConfig.models[maxPreviewKey]?.capabilities).toContain('image_in');
+      const maxKey = `${QWEN_TOKEN_PLAN_PROVIDER_ID}/qwen3.8-max`;
+      expect(typedConfig.models[maxKey]?.capabilities).toContain('image_in');
+      expect(typedConfig.defaultModel).toBe(maxKey);
     });
   });
 
   describe('getQwenHarnessToolsForModel', () => {
-    it('returns all tools for qwen3.8-max-preview', () => {
-      const tools = getQwenHarnessToolsForModel('qwen3.8-max-preview');
+    it('returns all tools for qwen3.8-max', () => {
+      const tools = getQwenHarnessToolsForModel('qwen3.8-max');
       expect(tools).toContain('web_search');
       expect(tools).toContain('code_interpreter');
       expect(tools).toContain('web_extractor');
@@ -124,12 +125,14 @@ describe('Qwen Token Plan utilities', () => {
   describe('model catalogs', () => {
     it('lists every Personal plan text model', () => {
       expect(QWEN_TOKEN_PLAN_TEXT_MODELS.map((m) => m.id)).toEqual([
+        'qwen3.8-max',
         'qwen3.8-max-preview',
         'qwen3.7-max',
         'qwen3.7-plus',
         'qwen3.6-flash',
         'glm-5.2',
         'deepseek-v4-pro',
+        'deepseek-v4-flash-0731',
       ]);
     });
 
@@ -137,8 +140,6 @@ describe('Qwen Token Plan utilities', () => {
       expect([...QWEN_TOKEN_PLAN_IMAGE_MODELS]).toEqual([
         'wan2.7-image',
         'wan2.7-image-pro',
-        'qwen-image-2.0',
-        'qwen-image-2.0-pro',
       ]);
     });
   });

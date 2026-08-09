@@ -290,6 +290,8 @@ function resolveMediaProviderEnv(agent: Agent): b.GenerateImageProviderEnv & b.G
       (qwenOn
         ? nonEmptyEnv('QWEN_TOKEN_PLAN_API_KEY') ?? nonEmptyEnv('ALIBABA_TOKEN_PLAN_API_KEY')
         : undefined),
+    qwenTokenPlanBaseUrl:
+      services?.qwenTokenPlanBaseUrl ?? (qwenOn ? nonEmptyEnv('QWEN_TOKEN_PLAN_BASE_URL') : undefined),
     codex: services?.codex,
     extrasDisabled: config?.extras?.disabledProviders ?? [],
   };
