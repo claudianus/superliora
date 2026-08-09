@@ -1,0 +1,10 @@
+╭ Command Hub · Ctrl+K ───────────────────────────────────────────────────────────────────────╮
+│ [38;2;0;213;255m❯[0m model                                                                                      │
+│                                                                                              │
+│ [38;2;54;211;153m▸ /model[0m              [38;2;154;167;178mpicks Smart Auto or a model[0m                                            │
+│   /status               [38;2;154;167;178mroute · fallback · pools[0m                                             │
+│   /jobs                 [38;2;154;167;178mlist background jobs[0m                                                 │
+│   /theme                [38;2;154;167;178mNeon Noir and friends[0m                                                │
+│   Visual Quality        [38;2;154;167;178mmotion · phosphor · density[0m                                          │
+│   Extensions            [38;2;154;167;178mskills · MCP · hooks[0m                                                 │
+╰──────────────────────────────────────────────────────────────────────────────────────────────╯

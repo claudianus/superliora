@@ -1,0 +1,9 @@
+╭ /status · route ────────────────────────────────────────────────────────────────────────────╮
+│ model     Smart Auto  live                                                                   │
+│ fallback  qwen3-coder → claude-sonnet                                                        │
+│ oauth     anthropic pool  2 ready                                                            │
+│ api keys  openrouter pool 3 ready                                                            │
+│ endpoint  custom https://llm.example.test/v1                                                 │
+│                                                                                              │
+│ Never-Halt  on  retry · swap · keep the job alive                                            │
+╰──────────────────────────────────────────────────────────────────────────────────────────────╯

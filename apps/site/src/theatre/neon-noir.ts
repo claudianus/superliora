@@ -1,0 +1,40 @@
+/** Neon Noir SSOT — apps/liora/src/tui/theme/bundled-themes.ts */
+export const NEON_NOIR = {
+  primary: '#00D5FF',
+  accent: '#A78BFA',
+  text: '#E6EDF3',
+  textStrong: '#FFFFFF',
+  textDim: '#9AA7B2',
+  textMuted: '#6F7A86',
+  background: '#0D1422',
+  surface: '#162033',
+  surfaceRaised: '#1E2C42',
+  surfaceSunken: '#060A12',
+  border: '#334155',
+  success: '#36D399',
+  warning: '#F5C542',
+  error: '#FF5C7A',
+  roleUser: '#FDE68A',
+  glow: '#22D3EE',
+  shellMode: '#E879F9',
+} as const;
+
+/** xterm / ANSI 16 → Neon Noir */
+export const ANSI16_FG: Record<number, string> = {
+  30: '#334155',
+  31: NEON_NOIR.error,
+  32: NEON_NOIR.success,
+  33: NEON_NOIR.warning,
+  34: NEON_NOIR.primary,
+  35: NEON_NOIR.accent,
+  36: NEON_NOIR.glow,
+  37: NEON_NOIR.text,
+  90: NEON_NOIR.textMuted,
+  91: '#FF91A6',
+  92: '#7AF0B4',
+  93: '#FFE082',
+  94: NEON_NOIR.primary,
+  95: NEON_NOIR.shellMode,
+  96: NEON_NOIR.glow,
+  97: NEON_NOIR.textStrong,
+};

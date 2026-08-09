@@ -1,0 +1,9 @@
+╭ /model · Neon Noir ─────────────────────────────────────────────────────────────────────────╮
+│ ● Smart Auto          picks a live model for this turn                                       │
+│   qwen3-coder           fast · tools                                                         │
+│   claude-sonnet         deep · long context                                                  │
+│   custom-endpoint       your OpenAI-compatible URL                                           │
+│                                                                                              │
+│ fallback  qwen3-coder → claude-sonnet                                                        │
+│ roles     explore · coder · plan                                                             │
+╰──────────────────────────────────────────────────────────────────────────────────────────────╯

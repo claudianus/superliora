@@ -1,0 +1,8 @@
+╭ Inbox · Alt+I · needs_user ─────────────────────────────────────────────────────────────────╮
+│ ● job_a1b2  Which redirect wins after login?                                                 │
+│   /app (product) · /dashboard (legacy)                                                       │
+│                                                                                              │
+│ ❯ /app                                                                                       │
+│                                                                                              │
+│ answered  job resumes in its own worktree                                                    │
+╰──────────────────────────────────────────────────────────────────────────────────────────────╯
