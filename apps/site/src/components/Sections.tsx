@@ -3,15 +3,6 @@ import { CopyButton } from './CopyButton';
 import { Reveal } from './Reveal';
 import { TheatrePlayer } from '../theatre/Player';
 
-function Eyebrow({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="eyebrow mb-4">
-      <span className="h-1.5 w-1.5 rounded-full bg-primary pulse-dot" aria-hidden="true" />
-      {children}
-    </div>
-  );
-}
-
 export function Sections() {
   const { t, lang } = useI18n();
   const base = import.meta.env.BASE_URL ?? '/';
@@ -20,75 +11,102 @@ export function Sections() {
 
   return (
     <main id="main">
-      <section className="relative min-h-[100dvh] px-0 pb-16 pt-24 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl">
-          <Reveal className="px-4 sm:px-0">
-            <p className="font-sans text-sm font-semibold tracking-[0.2em] text-primary uppercase">
+      <section className="relative overflow-hidden px-4 pb-16 pt-28 sm:px-6 lg:px-8 lg:pb-24 lg:pt-32">
+        <div className="pointer-events-none absolute inset-0 -z-10 opacity-70">
+          <div className="absolute -left-24 top-10 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
+          <div className="absolute right-0 top-40 h-80 w-80 rounded-full bg-accent/10 blur-3xl" />
+        </div>
+        <div className="mx-auto grid max-w-7xl items-start gap-12 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:gap-14">
+          <Reveal className="lg:sticky lg:top-28 lg:self-start">
+            <p className="font-sans text-sm font-semibold tracking-[0.18em] text-primary uppercase">
               {t.hero.brand}
             </p>
-            <h1 className="mt-3 max-w-[18ch] font-sans text-4xl font-bold leading-[1.05] tracking-tight text-text sm:text-5xl lg:text-6xl text-balance">
+            <h1 className="mt-4 max-w-[14ch] font-sans text-[2.5rem] font-bold leading-[1.05] tracking-tight text-text sm:text-5xl lg:text-[3.4rem] text-balance">
               {t.hero.h1}
             </h1>
-            <p className="mt-5 max-w-[58ch] text-lg leading-relaxed text-soft md:text-xl">{t.hero.lead}</p>
+            <p className="mt-5 max-w-[36ch] text-lg leading-relaxed text-soft md:text-xl">{t.hero.lead}</p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <a href="#install" className="btn btn-primary inline-flex items-center rounded-md px-6 py-3">
+              <a href="#install" className="btn btn-primary inline-flex items-center rounded-lg px-6 py-3">
                 {t.hero.install}
               </a>
               <a
                 href="https://github.com/claudianus/superliora"
-                className="btn btn-secondary inline-flex items-center rounded-md px-6 py-3"
+                className="btn btn-secondary inline-flex items-center rounded-lg px-6 py-3"
               >
                 {t.hero.github}
               </a>
-              <a href={docsHref} className="btn btn-secondary inline-flex items-center rounded-md px-6 py-3">
+              <a href={docsHref} className="btn btn-secondary inline-flex items-center rounded-lg px-6 py-3">
                 {t.hero.docs}
               </a>
             </div>
           </Reveal>
-          <Reveal stagger={2} className="mt-10 w-full sm:mt-12">
+          <Reveal stagger={2} className="min-w-0">
             <TheatrePlayer />
           </Reveal>
         </div>
       </section>
 
-      <section id="how" className="section-pad border-t border-line">
+      <section id="why" className="section-pad border-t border-line">
         <div className="mx-auto max-w-7xl">
-          <Reveal>
-            <Eyebrow>{t.how.kicker}</Eyebrow>
-            <h2 className="max-w-3xl font-sans text-3xl font-bold tracking-tight md:text-4xl text-balance">
-              {t.how.title}
+          <Reveal className="max-w-2xl">
+            <p className="text-sm font-semibold tracking-wide text-primary">{t.why.kicker}</p>
+            <h2 className="mt-3 font-sans text-3xl font-bold tracking-tight md:text-4xl text-balance">
+              {t.why.title}
             </h2>
-            <p className="mt-4 max-w-[65ch] text-lg text-soft">{t.how.body}</p>
+            <p className="mt-4 text-lg text-soft">{t.why.body}</p>
           </Reveal>
-          <ol className="mt-12 space-y-0 border-l border-line pl-6">
-            {t.how.steps.map((step, i) => (
-              <Reveal key={step.title} stagger={((i % 3) + 1) as 1 | 2 | 3} className="relative pb-10 last:pb-0">
-                <span className="absolute -left-[1.6rem] top-1 flex h-5 w-5 -translate-x-1/2 items-center justify-center rounded-full border border-primary/40 bg-bg-2 font-mono text-[10px] text-primary">
-                  {i + 1}
-                </span>
-                <h3 className="font-sans text-xl font-semibold text-text">{step.title}</h3>
-                <p className="mt-2 max-w-[60ch] text-soft">{step.body}</p>
+          <div className="mt-12 grid gap-x-10 gap-y-12 sm:grid-cols-2">
+            {t.why.items.map((item, i) => (
+              <Reveal key={item.title} stagger={((i % 3) + 1) as 1 | 2 | 3}>
+                <div className="font-mono text-xs text-primary/80">{String(i + 1).padStart(2, '0')}</div>
+                <h3 className="mt-2 font-sans text-xl font-semibold text-text">{item.title}</h3>
+                <p className="mt-2 max-w-[40ch] leading-relaxed text-soft">{item.body}</p>
               </Reveal>
             ))}
-          </ol>
+          </div>
+        </div>
+      </section>
+
+      <section id="how" className="section-pad border-t border-line">
+        <div className="mx-auto max-w-7xl">
+          <Reveal className="max-w-2xl">
+            <p className="text-sm font-semibold tracking-wide text-primary">{t.how.kicker}</p>
+            <h2 className="mt-3 font-sans text-3xl font-bold tracking-tight md:text-4xl text-balance">
+              {t.how.title}
+            </h2>
+            <p className="mt-4 text-lg text-soft">{t.how.body}</p>
+          </Reveal>
+          <div className="mt-12 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+            {t.how.steps.map((step, i) => (
+              <Reveal key={step.title} stagger={((i % 3) + 1) as 1 | 2 | 3}>
+                <div className="h-full border-t border-primary/40 pt-5">
+                  <div className="font-mono text-xs text-muted">{String(i + 1).padStart(2, '0')}</div>
+                  <h3 className="mt-3 font-sans text-lg font-semibold text-text">{step.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-soft">{step.body}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
         </div>
       </section>
 
       <section id="tower" className="section-pad border-t border-line">
         <div className="mx-auto max-w-7xl">
-          <Reveal>
-            <Eyebrow>{t.tower.kicker}</Eyebrow>
-            <h2 className="max-w-3xl font-sans text-3xl font-bold tracking-tight md:text-4xl text-balance">
+          <Reveal className="max-w-2xl">
+            <p className="text-sm font-semibold tracking-wide text-primary">{t.tower.kicker}</p>
+            <h2 className="mt-3 font-sans text-3xl font-bold tracking-tight md:text-4xl text-balance">
               {t.tower.title}
             </h2>
-            <p className="mt-4 max-w-[65ch] text-lg text-soft">{t.tower.body}</p>
+            <p className="mt-4 text-lg text-soft">{t.tower.body}</p>
           </Reveal>
-          <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-            {t.tower.items.map((item, i) => (
-              <Reveal key={item.keys} stagger={((i % 3) + 1) as 1 | 2 | 3}>
-                <kbd className="text-primary">{item.keys}</kbd>
-                <h3 className="mt-3 font-sans text-lg font-semibold">{item.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-soft">{item.body}</p>
+          <div className="mt-12 divide-y divide-line border-y border-line">
+            {t.tower.items.map((item) => (
+              <Reveal key={item.keys} className="grid gap-2 py-6 sm:grid-cols-[8rem_1fr] sm:items-baseline sm:gap-8">
+                <kbd className="w-fit text-primary">{item.keys}</kbd>
+                <div>
+                  <h3 className="font-sans text-lg font-semibold text-text">{item.title}</h3>
+                  <p className="mt-1 text-soft">{item.body}</p>
+                </div>
               </Reveal>
             ))}
           </div>
@@ -96,20 +114,20 @@ export function Sections() {
       </section>
 
       <section id="install" className="section-pad border-t border-line">
-        <div className="mx-auto max-w-7xl">
+        <div className="mx-auto max-w-3xl">
           <Reveal>
-            <Eyebrow>{t.install.kicker}</Eyebrow>
-            <h2 className="max-w-3xl font-sans text-3xl font-bold tracking-tight md:text-4xl text-balance">
+            <p className="text-sm font-semibold tracking-wide text-primary">{t.install.kicker}</p>
+            <h2 className="mt-3 font-sans text-3xl font-bold tracking-tight md:text-4xl text-balance">
               {t.install.title}
             </h2>
-            <p className="mt-4 max-w-[65ch] text-lg text-soft">{t.install.body}</p>
+            <p className="mt-4 text-lg text-soft">{t.install.body}</p>
             <p className="mt-2 font-mono text-xs text-muted">{t.install.requirements}</p>
           </Reveal>
           <div className="mt-10 space-y-4">
             {t.install.commands.map((cmd) => (
               <Reveal key={cmd.label}>
-                <div className="text-sm font-medium text-soft">{cmd.label}</div>
-                <div className="relative mt-2 overflow-x-auto rounded-md border border-line bg-bg-1 px-4 py-3 pr-20 font-mono text-sm text-text">
+                <div className="text-sm text-soft">{cmd.label}</div>
+                <div className="relative mt-2 overflow-x-auto rounded-lg border border-line bg-bg-1 px-4 py-3.5 pr-20 font-mono text-sm text-text">
                   <code>{cmd.cmd}</code>
                   <CopyButton text={cmd.cmd} />
                 </div>
@@ -117,7 +135,7 @@ export function Sections() {
             ))}
           </div>
           <Reveal className="mt-8">
-            <a href={docsHref} className="btn btn-secondary inline-flex rounded-md px-5 py-2.5 text-sm font-semibold">
+            <a href={docsHref} className="btn btn-secondary inline-flex rounded-lg px-5 py-2.5 text-sm font-semibold">
               {t.install.next}
             </a>
           </Reveal>

@@ -66,8 +66,8 @@ function Navbar() {
   }, []);
 
   const links = [
+    { href: '#why', label: t.nav.why },
     { href: '#how', label: t.nav.how },
-    { href: '#tower', label: t.nav.tower },
     { href: '#install', label: t.nav.install },
     { href: docsHref, label: t.nav.docs },
   ];

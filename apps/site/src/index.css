@@ -33,6 +33,7 @@
   --color-emerald: #36d399;
   --color-rose: #ff5c7a;
   --color-selection: #123b5a;
+  --color-role-user: #fde68a;
 
   --radius-sm: 0.5rem;
   --radius-lg: 1rem;
@@ -239,21 +240,9 @@ html[data-theme="light"] .nav-shell.scrolled {
   box-shadow: 0 10px 40px rgba(15, 23, 42, 0.08);
 }
 
-.eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-primary);
-}
-
 .theatre-shell {
-  border: 1px solid var(--color-line);
   background: var(--color-bg-1);
-  box-shadow: var(--shadow-card), var(--shadow-glow);
+  box-shadow: var(--shadow-card), 0 0 80px -24px rgba(0, 213, 255, 0.35);
 }
 
 .theatre-line {
