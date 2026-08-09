@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Agent } from '../../src/agent';
 import type { SkillActivationOrigin } from '../../src/agent/context';
 import type { SkillRegistry as AgentSkillRegistry } from '../../src/agent/skill';
-import { SessionSkillRegistry, type SkillDefinition } from '../../src/skill';
+import { SessionSkillRegistry, type SkillDefinition, type SkillSource } from '../../src/skill';
 import {
   MAX_SKILL_QUERY_DEPTH,
   NestedSkillTooDeepError,
@@ -22,6 +22,7 @@ function skill(
   name: string,
   metadata: SkillDefinition['metadata'] = {},
   content = `body of ${name}`,
+  source: SkillSource = 'user',
 ): SkillDefinition {
   return {
     name,
@@ -30,7 +31,7 @@ function skill(
     dir: `/skills/${name}`,
     content,
     metadata,
-    source: 'user',
+    source,
   };
 }
 
@@ -226,6 +227,16 @@ describe('SkillTool execution', () => {
 
     expect(result).toMatchObject({ isError: true });
     expect(result.output).toContain('can only be triggered by the user');
+  });
+
+  it('rejects catalog skills whose names collide with harness tools', async () => {
+    const tool = skillTool(registry([skill('context7', {}, 'bun docs', 'extra')]));
+
+    const result = await execute(tool, { skill: 'context7' });
+
+    expect(result).toMatchObject({ isError: true });
+    expect(result.output).toContain('collides with harness tools');
+    expect(result.output).toContain('Context7Resolve');
   });
 
   it('loads slash-qualified sub-skill names through their dotted registry name', async () => {

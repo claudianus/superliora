@@ -1,7 +1,10 @@
 import { expandSkillParameters, skillArgumentNames } from './parser';
 import { discoverSkills, type DiscoverSkillsOptions } from './scanner';
 import { SkillSearchEngine } from './expert-search';
-import { rerankSkillHitsForBrowserRouting } from './browser-skill-routing';
+import {
+  isBlockedSkillRisk,
+  rerankSkillHitsForHarnessRouting,
+} from './harness-skill-routing';
 import { composeSkillInstructions, enrichSkillForSearch } from './skill-composition';
 import { registerCatalogSkills } from './catalog-loader';
 import type { SkillDefinition, SkillRoot, SkillSearchHit, SkillSource, SkippedSkill } from './types';
@@ -18,7 +21,9 @@ const MODEL_SKILL_RUNTIME_PROMPT = [
   'Skills load via SearchSkill → Skill, not a full catalog listing.',
   'SearchSkill: 3–12 concise English task keywords. Translate non-English user requests into English keywords before searching. top_k 5; retry once with broader English task keywords or top_k 12 if weak.',
   'Load a skill only when it likely adds task-specific workflow or quality guidance.',
-  'Browser / screenshot / UI automation: prefer Builtin BrowserStatus→BrowserObserve→BrowserAct→VerifySurface and Skill("browser-use"). Do not install Playwright/Puppeteer from catalog skills while those tools exist.',
+  'Browser / screenshot / UI: Builtin Browser* + Skill("browser-use") — not Playwright/Puppeteer catalog installs.',
+  'Research / docs: WebSearch / FetchURL / Context7* + Skill("research-use") — not catalog tavily/serpapi/web-search/context7 scripts.',
+  'Desktop GUI: Computer* + Skill("computer-use"). Commits: AGENTS.md + Skill("git-safe") — not catalog smart-git. Workers: Agent/Job* + Skill("agent-job"). Checks: RunProjectChecks + Skill("project-checks").',
   'No-AI-Slop (when prose quality matters): light pass by default; SearchSkill → Skill with response language + surface keywords before shipping docs, PR/changelog, TUI copy, or long user-facing prose. Load the best match; locale skills are discovered, not hardcoded. Reuse loaded skill content instead of reloading.',
   'SearchSkill metadata is enough to decide skip; load a skill only when its workflow would improve quality.',
   'After load: apply skill content selectively — keep steps that clearly help quality; skip mismatched, redundant, or unsafe parts.',
@@ -228,7 +233,19 @@ export class SessionSkillRegistry implements AgentSkillRegistry {
     query: string,
     hits: readonly SkillSearchHit[],
   ): readonly SkillSearchHit[] {
-    return rerankSkillHitsForBrowserRouting(query, hits, this.getSkill('browser-use'));
+    const builtins = new Map<string, SkillDefinition>();
+    for (const name of [
+      'browser-use',
+      'research-use',
+      'computer-use',
+      'git-safe',
+      'agent-job',
+      'project-checks',
+    ] as const) {
+      const skill = this.getSkill(name);
+      if (skill !== undefined) builtins.set(name, skill);
+    }
+    return rerankSkillHitsForHarnessRouting(query, hits, builtins);
   }
 
   private async loadSkillContent(skill: SkillDefinition): Promise<string> {
@@ -313,5 +330,6 @@ function isModelSearchableSkill(skill: SkillDefinition): boolean {
   if (skill.metadata.disableModelInvocation === true) return false;
   if (!isInlineSkillType(skill.metadata.type)) return false;
   if (skill.metadata.isSubSkill === true) return false;
-  return skillRisk(skill)?.toLowerCase() !== 'high';
+  // Catalog uses critical/offensive; `high` alone matched zero skills.
+  return !isBlockedSkillRisk(skillRisk(skill));
 }
