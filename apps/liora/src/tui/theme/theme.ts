@@ -11,9 +11,18 @@
 import chalk from 'chalk';
 
 import type { ColorPalette } from './colors';
-import { darkColors } from './colors';
+import { neonNoirColors } from './colors';
 
 export type ColorToken = keyof ColorPalette;
+
+/**
+ * Factory default palette — Neon Noir (product default).
+ * Uses the cycle-free `neonNoirColors` constant so module init never touches
+ * the custom-theme loader / bundled catalog.
+ */
+export function resolveDefaultThemePalette(): ColorPalette {
+  return neonNoirColors;
+}
 
 export class Theme {
   private _palette: ColorPalette;
@@ -110,5 +119,9 @@ export class Theme {
   }
 }
 
-/** Global singleton.  Initialise with dark palette; switch via `setPalette`. */
-export const currentTheme = new Theme(darkColors);
+/**
+ * Global singleton. Starts on the product default (Neon Noir) so module-load /
+ * pre-boot paint never flashes built-in dark when the preference is still
+ * loading; switch via `setPalette` after `loadTuiConfig`.
+ */
+export const currentTheme = new Theme(neonNoirColors);

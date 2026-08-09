@@ -279,6 +279,29 @@ command = "   "
     expect(readFileSync(filePath, 'utf-8')).toContain('theme = "superliora-bloodmoon"');
   });
 
+  it('defaults missing theme key to Neon Noir, not built-in dark', () => {
+    expect(DEFAULT_TUI_THEME).toBe('superliora-neon-noir');
+    expect(DEFAULT_TUI_CONFIG.theme).toBe('superliora-neon-noir');
+    expect(parseTuiConfig('permission_mode = "yolo"\n').theme).toBe('superliora-neon-noir');
+    expect(parseTuiConfig('').theme).toBe('superliora-neon-noir');
+  });
+
+  it('preserves an explicit dark choice through save/load (not forced off dark)', async () => {
+    await saveTuiConfig({ ...DEFAULT_TUI_CONFIG, theme: 'dark' }, filePath);
+    expect((await loadTuiConfig(filePath)).theme).toBe('dark');
+    expect(readFileSync(filePath, 'utf-8')).toContain('theme = "dark"');
+  });
+
+  it('does not rewrite a saved non-default theme when reloading defaults merge', async () => {
+    const text = `theme = "superliora-ash"\n\n[upgrade]\nauto_install = false\n`;
+    writeFileSync(filePath, text, 'utf-8');
+    const loaded = await loadTuiConfig(filePath);
+    expect(loaded.theme).toBe('superliora-ash');
+    expect(loaded.upgrade.autoInstall).toBe(false);
+    // On-disk preference must stay until an explicit save rewrites it.
+    expect(readFileSync(filePath, 'utf-8')).toBe(text);
+  });
+
   it('escapes special characters in a custom theme name so the TOML round-trips', async () => {
     const theme = 'weird"name\\with-quote';
     await saveTuiConfig(
