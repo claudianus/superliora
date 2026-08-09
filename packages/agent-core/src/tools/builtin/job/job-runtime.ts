@@ -16,6 +16,7 @@ import {
 } from '../../../session/worktree';
 import type { ToolStore } from '../../store';
 import { ensureGitRepoForWorktrees } from './job-git-bootstrap';
+import { isExecutionInFlight } from './job-lanes';
 import {
   getJob,
   listJobs,
@@ -93,10 +94,28 @@ export function nextQueuedJobs(
   store: ToolStore,
   limit: number,
 ): JobRecord[] {
-  return [...listJobs(store)]
+  const jobs = listJobs(store);
+  const byId = new Map(jobs.map((job) => [job.id, job]));
+  return [...jobs]
     .filter((j) => j.status === 'queued')
+    .filter((j) => parentAllowsSchedule(byId, j))
     .sort((a, b) => b.priority - a.priority || a.createdAt.localeCompare(b.createdAt))
     .slice(0, Math.max(0, limit));
+}
+
+/**
+ * Chain rule: keep parent→child sequential. Greenfield / review children are
+ * enqueued while the parent is still live; starting them early races file
+ * leases and shared worktrees (ownership conflict → instant fail).
+ */
+function parentAllowsSchedule(
+  byId: ReadonlyMap<string, JobRecord>,
+  job: JobRecord,
+): boolean {
+  if (job.parentJobId === undefined) return true;
+  const parent = byId.get(job.parentJobId);
+  if (parent === undefined) return true;
+  return !isExecutionInFlight(parent.status);
 }
 
 export type WorktreeFactory = (
@@ -148,9 +167,9 @@ export async function assignJobWorktree(
   // failure mode. Reuse only while the parent holds an unmerged worktree;
   // once the parent landed (landReceipt set) or its worktree was GC'd, the
   // child falls through to its own worktree.
-  // ponytail: chains are sequential by design (child queued after the parent
-  // completes); concurrent parent+child writers on one worktree are not
-  // guarded.
+  // Scheduling already defers children while the parent is in-flight
+  // (`nextQueuedJobs`); this path runs after the parent left the execution
+  // lane (done/failed/…) but before land GC clears the worktree.
   if (existing.parentJobId !== undefined) {
     const parent = getJob(input.store, existing.parentJobId);
     if (parent?.worktreePath !== undefined && parent.landReceipt === undefined) {

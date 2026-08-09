@@ -1,6 +1,10 @@
 /**
- * Conductor expert staffing: decompose an objective into ownership-safe slices,
- * SearchExpert each slice, bind high-score experts (else generic fallback).
+ * Conductor expert staffing: optionally intent-split an objective, then
+ * SearchExpert each slice and bind high-score experts (else generic fallback).
+ *
+ * `ownership_paths` is a claim set for one Job — never a fan-out signal.
+ * Splitting one coherent brief into N near-copies (one path each) races the
+ * parent lease and burns tokens/worktrees.
  */
 
 import { globalExpertSearchEngine } from '../../../expert-agents/search';
@@ -24,7 +28,6 @@ export interface StaffJobsInput {
   readonly title?: string;
   readonly kind?: JobKind;
   readonly successCriteria?: readonly string[];
-  readonly contextPaths?: readonly string[];
   readonly ownershipPaths?: readonly string[];
   readonly maxSlices?: number;
   /** Minimum SearchExpert score to bind an expert (else generic). */
@@ -69,7 +72,8 @@ export async function staffJobsFromObjective(
       title: slice.title,
       prompt: withCriteria(slice.prompt, input.successCriteria),
       kind,
-      ownershipPaths: slice.ownershipPaths ?? input.contextPaths,
+      // Never promote context_paths into ownership — context is read-first hint only.
+      ownershipPaths: slice.ownershipPaths ?? input.ownershipPaths,
       expertId: bindExpert ? best.expert.id : undefined,
       expertScore: best?.score,
       expertRole: bindExpert ? 'implement' : 'generic',
@@ -90,14 +94,17 @@ function decomposeObjective(
   ownershipPaths: readonly string[] | undefined,
   maxSlices: number,
 ): Array<{ title: string; prompt: string; ownershipPaths?: readonly string[] }> {
-  // Ownership-partitioned fanout when caller already split paths.
-  if (ownershipPaths !== undefined && ownershipPaths.length > 1) {
-    const paths = ownershipPaths.slice(0, maxSlices);
-    return paths.map((path) => ({
-      title: `${title ?? 'Task'}: ${path}`,
-      prompt: `${objective}\n\nFocus ownership path: ${path}`,
-      ownershipPaths: [path],
-    }));
+  // Claimed work stays one Job. Multi-path ownership means "touches these",
+  // not "spawn one worker per path". Parallel packages need separate JobCreates
+  // with disjoint ownership — auto-fanout here duplicate-runs the same brief.
+  if (ownershipPaths !== undefined && ownershipPaths.length > 0) {
+    return [
+      {
+        title: title?.trim() || truncateTitle(objective),
+        prompt: objective,
+        ownershipPaths,
+      },
+    ];
   }
 
   // Lightweight intent split on numbered / bullet lines; else single slice.
@@ -112,7 +119,6 @@ function decomposeObjective(
       return {
         title: `${title ?? 'Task'} (${String(index + 1)})`,
         prompt: cleaned,
-        ownershipPaths,
       };
     });
   }
