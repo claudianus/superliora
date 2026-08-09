@@ -499,6 +499,68 @@ describe('job multi-intent split', () => {
     expect(String(out.output)).toMatch(/ACK batch count=3/);
     expect(listJobs(store)).toHaveLength(3);
   });
+
+  it('default staff path keeps a single explore brief as one job (no false 5-way split)', async () => {
+    const store = memoryStore();
+    const tool = new JobCreateTool(store);
+    const exec = tool.resolveExecution({
+      title: 'Explore: JobCreate multi-intent',
+      kind: 'explore',
+      // Mimic a coherent single-intent brief whose body contains success_criteria-style
+      // numbered lines — the pre-fix staff fan-out treated these as 5 sibling jobs.
+      prompt: [
+        'Depends on explore sibling finding JobCreate multi-intent auto-split root cause.',
+        '',
+        '## User bug',
+        'Single-intent JobCreate spawns 5 identical workers titled "(1)…(5)".',
+        '',
+        '## Fix goals',
+        '1. Single clear intent MUST create exactly 1 job.',
+        '2. auto_split only when prompt has truly independent multi-intents.',
+        '3. Prefer: if ownership_paths empty + single goal sentence, never fanout.',
+        '4. Do not break intentional multi-intent when user packs 3 independent asks.',
+        '5. Add focused tests that reproduce false 5-way split.',
+      ].join('\n'),
+      success_criteria: [
+        'Single-intent JobCreate no longer creates 5 sibling jobs in regression test',
+        'Intentional multi-intent + auto_split still can create multiple when clearly multi',
+        'Focused agent-core tests PASS via test-local',
+        'Root cause documented in job result with file:line',
+      ],
+      // staff defaults true for explore — do not pass staff:false
+    });
+    if (exec.isError) throw new Error(`resolve failed: ${exec.output}`);
+    const out = await exec.execute({
+      turnId: 't',
+      toolCallId: 'c-false-split',
+      signal: new AbortController().signal,
+    });
+    expect(out.isError).toBe(false);
+    expect(String(out.output)).not.toMatch(/ACK batch count=/);
+    expect(listJobs(store)).toHaveLength(1);
+    expect(listJobs(store)[0]?.title).toBe('Explore: JobCreate multi-intent');
+  });
+
+  it('auto_split still creates multiple jobs for independent numbered intents with default staff', async () => {
+    const store = memoryStore();
+    const tool = new JobCreateTool(store);
+    const exec = tool.resolveExecution({
+      title: 'Independent asks',
+      kind: 'implement',
+      prompt: '1. Fix login rate limit\n2. Add password reset email\n3. Write auth e2e tests',
+      auto_split: true,
+      success_criteria: ['each independent intent is completed and verified'],
+    });
+    if (exec.isError) throw new Error(`resolve failed: ${exec.output}`);
+    const out = await exec.execute({
+      turnId: 't',
+      toolCallId: 'c-true-split',
+      signal: new AbortController().signal,
+    });
+    expect(out.isError).toBe(false);
+    expect(String(out.output)).toMatch(/ACK batch count=3 \(multi-intent split\)/);
+    expect(listJobs(store)).toHaveLength(3);
+  });
 });
 
 describe('job inbox + resume + strip', () => {
