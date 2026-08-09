@@ -32,7 +32,15 @@ export type ProviderRecoveryOutcome =
 
 export interface ProviderRecoveryState {
   autoRetryCount: number;
+  /** True only after an interactive failover question or explicit user_retry. */
   userPrompted: boolean;
+  /**
+   * Snapshot of the original primary's `fallbackModels` at first recovery entry.
+   * Silent hops walk this list — not the switched alias's own fallbacks.
+   */
+  fallbackQueue: string[];
+  /** Aliases already switched to during this recovery. */
+  triedFallbackAliases: string[];
 }
 
 export interface FailoverModelOption {
@@ -45,6 +53,20 @@ export interface FailoverModelOption {
 const FAILOVER_QUESTION =
   'The model provider returned a temporary error. How should we continue?';
 
+export function createEmptyProviderRecoveryState(): ProviderRecoveryState {
+  return {
+    autoRetryCount: 0,
+    userPrompted: false,
+    fallbackQueue: [],
+    triedFallbackAliases: [],
+  };
+}
+
+/** Snapshot the current model's fallbackModels before any silent switch. */
+export function createProviderRecoveryState(agent: Agent): ProviderRecoveryState {
+  return ensureFallbackQueue(agent, createEmptyProviderRecoveryState());
+}
+
 /**
  * Permanent plan/credit/payment exhaustion. Auto-retrying these only keeps the
  * spinner spinning until the user tops up — fail fast and surface the error.
@@ -55,6 +77,14 @@ export function isPermanentQuotaOrBillingFailure(
   if (error === undefined) return false;
   if (error.details?.['permanentQuota'] === true) return true;
   return isPermanentQuotaOrBillingMessage(error.message);
+}
+
+export function isProviderAuthFailure(error: LioraErrorPayload | undefined): boolean {
+  if (error === undefined) return false;
+  return (
+    error.code === ErrorCodes.PROVIDER_AUTH_ERROR ||
+    error.code === ErrorCodes.AUTH_LOGIN_REQUIRED
+  );
 }
 
 export function isRetryableProviderFailure(error: LioraErrorPayload | undefined): boolean {
@@ -82,6 +112,54 @@ export function isRateLimitOrQuotaFailure(error: LioraErrorPayload | undefined):
   return isTransientRateLimitMessage(error.message);
 }
 
+export function nextUnusedFallbackAlias(state: ProviderRecoveryState): string | undefined {
+  const tried = new Set(state.triedFallbackAliases);
+  return state.fallbackQueue.find((alias) => !tried.has(alias));
+}
+
+/** Snapshot primary fallbacks once; later hops keep walking the same queue. */
+export function ensureFallbackQueue(
+  agent: Agent,
+  state: ProviderRecoveryState,
+): ProviderRecoveryState {
+  if (state.fallbackQueue.length > 0 || state.triedFallbackAliases.length > 0) {
+    return state;
+  }
+  return {
+    ...state,
+    fallbackQueue: listSwitchableFailoverModels(agent).map((option) => option.alias),
+  };
+}
+
+/**
+ * Whether the recovery loop may continue for this failure + state.
+ * Permanent quota / auth never sleep-retry, but may still silent-switch.
+ */
+export function canAttemptProviderRecovery(
+  error: LioraErrorPayload | undefined,
+  state: ProviderRecoveryState,
+): boolean {
+  if (error === undefined) return false;
+  if (isRetryableProviderFailure(error)) return true;
+  if (isPermanentQuotaOrBillingFailure(error) || isProviderAuthFailure(error)) {
+    return nextUnusedFallbackAlias(state) !== undefined;
+  }
+  return false;
+}
+
+/** Whether the turn worker should enter {@link recoverFromProviderFailure}. */
+export function shouldEnterProviderRecovery(
+  agent: Agent,
+  error: LioraErrorPayload | undefined,
+): boolean {
+  if (error === undefined) return false;
+  if (isRetryableProviderFailure(error)) return true;
+  if (isPermanentQuotaOrBillingFailure(error) || isProviderAuthFailure(error)) {
+    return listSwitchableFailoverModels(agent).length > 0;
+  }
+  return false;
+}
+
 export function listSwitchableFailoverModels(agent: Agent): readonly FailoverModelOption[] {
   const currentAlias = agent.config.modelAlias;
   if (currentAlias === undefined) return [];
@@ -107,6 +185,26 @@ export function listSwitchableFailoverModels(agent: Agent): readonly FailoverMod
   return options;
 }
 
+function resolveFailoverOptionsFromQueue(
+  agent: Agent,
+  aliases: readonly string[],
+): readonly FailoverModelOption[] {
+  const config = agent.runtimeConfig ?? agent.kimiConfig;
+  if (config?.models === undefined) return [];
+  const options: FailoverModelOption[] = [];
+  for (const alias of aliases) {
+    const modelConfig = config.models[alias];
+    if (modelConfig === undefined) continue;
+    options.push({
+      alias,
+      providerName: modelConfig.provider,
+      modelId: modelConfig.model,
+      displayName: modelConfig.displayName,
+    });
+  }
+  return options;
+}
+
 export async function resolveProviderRecovery(
   agent: Agent,
   input: {
@@ -116,10 +214,14 @@ export async function resolveProviderRecovery(
     readonly state: ProviderRecoveryState;
   },
 ): Promise<ProviderRecoveryOutcome> {
-  // Belt-and-suspenders: callers should filter permanent quota first, but if
-  // one slips through, never sleep/retry — fail immediately so Esc/Ctrl+C are
-  // not needed to unstick a dead billing account.
-  if (isPermanentQuotaOrBillingFailure(input.error)) {
+  const state = ensureFallbackQueue(agent, input.state);
+  const nextAlias = nextUnusedFallbackAlias(state);
+
+  // Permanent quota / auth: never sleep — only cross-model switch when queued.
+  if (isPermanentQuotaOrBillingFailure(input.error) || isProviderAuthFailure(input.error)) {
+    if (nextAlias !== undefined) {
+      return { type: 'switch', modelAlias: nextAlias };
+    }
     return { type: 'pause' };
   }
 
@@ -128,22 +230,25 @@ export async function resolveProviderRecovery(
     ? GOAL_PROVIDER_RATE_LIMIT_AUTO_RETRIES
     : GOAL_PROVIDER_AUTO_RETRIES;
 
-  if (input.state.autoRetryCount < maxAutoRetries) {
-    const delayMs = resolveProviderRetryDelayMs(input.error, input.state.autoRetryCount, rateLimited);
+  if (state.autoRetryCount < maxAutoRetries) {
+    const delayMs = resolveProviderRetryDelayMs(input.error, state.autoRetryCount, rateLimited);
     await sleepForRetry(delayMs, input.signal);
     return { type: 'auto_retry' };
   }
 
-  if (input.state.userPrompted) {
+  if (state.userPrompted) {
     return { type: 'pause' };
   }
 
-  const fallbacks = listSwitchableFailoverModels(agent);
   // Prefer silent model switch after auto-retries so goal runs keep
   // moving without blocking on a human when a fallback is configured.
-  if (fallbacks.length > 0) {
-    return { type: 'switch', modelAlias: fallbacks[0]!.alias };
+  if (nextAlias !== undefined) {
+    return { type: 'switch', modelAlias: nextAlias };
   }
+
+  const remainingOptions = resolveFailoverOptionsFromQueue(agent, state.fallbackQueue).filter(
+    (option) => !state.triedFallbackAliases.includes(option.alias),
+  );
 
   if (agent.rpc?.requestQuestion === undefined) {
     // No interactive prompt available. Keep retrying rate-limits a bit longer;
@@ -156,7 +261,7 @@ export async function resolveProviderRecovery(
     turnId: input.turnId,
     signal: input.signal,
     currentAlias: agent.config.modelAlias ?? 'current',
-    fallbacks,
+    fallbacks: remainingOptions,
   });
 }
 

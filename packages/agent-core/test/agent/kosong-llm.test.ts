@@ -656,6 +656,7 @@ describe('KosongLLM provider routing', () => {
       expect(state.unavailable(route)).toMatchObject({
         retryAt: now + 60_000,
         retryAfterMs: 60_000,
+        dominantFailureKind: 'rate_limit',
       });
 
       vi.setSystemTime(now + 60_001);
@@ -1629,11 +1630,14 @@ describe('KosongLLM provider routing', () => {
           signal: new AbortController().signal,
         }),
       ).rejects.toMatchObject({
-        code: ErrorCodes.PROVIDER_RATE_LIMIT,
+        code: ErrorCodes.PROVIDER_API_ERROR,
         details: {
           route: 'primary',
           retryAfterMs: 5_000,
           retryAt: now + 5_000,
+          routeUnavailable: true,
+          dominantFailureKind: 'quota',
+          permanentQuota: true,
         },
       });
       expect(generate).not.toHaveBeenCalled();
@@ -1705,6 +1709,8 @@ describe('KosongLLM provider routing', () => {
           route: 'primary',
           retryAfterMs: 60_000,
           retryAt: now + 60_000,
+          routeUnavailable: true,
+          dominantFailureKind: 'rate_limit',
         },
       });
       expect(generate).not.toHaveBeenCalled();
@@ -1718,37 +1724,100 @@ describe('KosongLLM provider routing', () => {
     const backupProvider = makeProvider('backup', 'backup-model');
     const attempts: string[] = [];
     const deltas: string[] = [];
+    const state = new InMemoryProviderRouteState();
+    const now = Date.UTC(2026, 0, 1);
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
     const generate: GenerateFn = async (nextProvider, _systemPrompt, _tools, _history, callbacks) => {
       attempts.push(nextProvider.modelName);
       await callbacks?.onMessagePart?.({ type: 'text', text: 'partial' });
       throw new APIProviderRateLimitError('rate limited after partial output', 'req-429');
     };
+    const route = {
+      key: 'primary',
+      strategy: 'fallback' as const,
+      candidates: [
+        { modelAlias: 'primary', providerName: 'primary', provider: primaryProvider },
+        { modelAlias: 'backup', providerName: 'backup', provider: backupProvider },
+      ],
+    };
     const llm = new KosongLLM({
       provider: primaryProvider,
       systemPrompt: 'system',
       generate,
-      route: {
-        key: 'primary',
-        strategy: 'fallback',
-        candidates: [
-          { modelAlias: 'primary', providerName: 'primary', provider: primaryProvider },
-          { modelAlias: 'backup', providerName: 'backup', provider: backupProvider },
-        ],
-      },
-      routeState: new InMemoryProviderRouteState(),
+      route,
+      routeState: state,
     });
 
-    await expect(
-      llm.chat({
-        messages: [],
-        tools: [],
-        signal: new AbortController().signal,
-        onTextDelta: (delta) => deltas.push(delta),
-      }),
-    ).rejects.toThrow('rate limited after partial output');
+    try {
+      await expect(
+        llm.chat({
+          messages: [],
+          tools: [],
+          signal: new AbortController().signal,
+          onTextDelta: (delta) => deltas.push(delta),
+        }),
+      ).rejects.toThrow('rate limited after partial output');
 
-    expect(attempts).toEqual(['primary-model']);
-    expect(deltas).toEqual(['partial']);
+      expect(attempts).toEqual(['primary-model']);
+      expect(deltas).toEqual(['partial']);
+      // Mid-stream still cools the failed candidate so the next outer attempt
+      // can skip it — without hopping in-route after stream output started.
+      expect(state.snapshot(route).candidates[0]).toMatchObject({
+        modelAlias: 'primary',
+        lastFailureKind: 'rate_limit',
+        cooldownUntil: now + 60_000,
+      });
+      expect(state.snapshot(route).candidates[1]?.cooldownUntil).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('maps all-unavailable auth cooldowns to PROVIDER_AUTH_ERROR', async () => {
+    const primaryProvider = makeProvider('primary', 'primary-model');
+    const backupProvider = makeProvider('backup', 'backup-model');
+    const state = new InMemoryProviderRouteState();
+    const now = Date.UTC(2026, 0, 1);
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    const generate = vi.fn<GenerateFn>();
+    const route = {
+      key: 'primary',
+      strategy: 'fallback' as const,
+      candidates: [
+        { modelAlias: 'primary', providerName: 'primary', provider: primaryProvider },
+        { modelAlias: 'backup', providerName: 'backup', provider: backupProvider },
+      ],
+    };
+    state.recordFailure(route, route.candidates[0]!, { kind: 'auth', cooldownMs: 5_000 });
+    state.recordFailure(route, route.candidates[1]!, { kind: 'rate_limit', cooldownMs: 10_000 });
+    const llm = new KosongLLM({
+      provider: primaryProvider,
+      systemPrompt: 'system',
+      generate,
+      route,
+      routeState: state,
+    });
+
+    try {
+      await expect(
+        llm.chat({
+          messages: [],
+          tools: [],
+          signal: new AbortController().signal,
+        }),
+      ).rejects.toMatchObject({
+        code: ErrorCodes.PROVIDER_AUTH_ERROR,
+        details: {
+          routeUnavailable: true,
+          dominantFailureKind: 'auth',
+        },
+      });
+      expect(generate).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

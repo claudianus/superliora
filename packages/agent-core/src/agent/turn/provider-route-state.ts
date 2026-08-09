@@ -20,6 +20,7 @@ import type {
   KosongLLMRoute,
   KosongLLMRouteCandidate,
   ProviderRouteFailure,
+  ProviderRouteFailureKind,
   ProviderRouteState,
   ProviderRouteSuccessMetrics,
   ProviderRouteUnavailable,
@@ -43,6 +44,32 @@ import {
 export { providerBaseUrl } from './provider-route-helpers';
 
 const LOCAL_LIMIT_WINDOW_MS = 60_000;
+
+/** Severity order for all-candidates-unavailable (higher index = more severe). */
+const FAILURE_KIND_SEVERITY: readonly ProviderRouteFailureKind[] = [
+  'empty',
+  'timeout',
+  'connection',
+  'server',
+  'rate_limit',
+  'quota',
+  'auth',
+];
+
+export function dominantProviderRouteFailureKind(
+  kinds: readonly ProviderRouteFailureKind[],
+): ProviderRouteFailureKind {
+  let best: ProviderRouteFailureKind = 'rate_limit';
+  let bestRank = -1;
+  for (const kind of kinds) {
+    const rank = FAILURE_KIND_SEVERITY.indexOf(kind);
+    if (rank > bestRank) {
+      best = kind;
+      bestRank = rank;
+    }
+  }
+  return best;
+}
 
 export class InMemoryProviderRouteState implements ProviderRouteState {
   private readonly failureByCandidate = new Map<string, ProviderRouteFailureRecord>();
@@ -110,7 +137,12 @@ export class InMemoryProviderRouteState implements ProviderRouteState {
     if (retryAts.some((retryAt) => retryAt === undefined)) return undefined;
     const retryAt = Math.min(...retryAts.map((value) => value ?? Number.POSITIVE_INFINITY));
     if (!Number.isFinite(retryAt)) return undefined;
-    return { retryAt, retryAfterMs: Math.max(0, retryAt - Date.now()) };
+    const kinds = route.candidates.map((candidate) => this.candidateUnavailableKind(candidate));
+    return {
+      retryAt,
+      retryAfterMs: Math.max(0, retryAt - Date.now()),
+      dominantFailureKind: dominantProviderRouteFailureKind(kinds),
+    };
   }
 
   reset(route: KosongLLMRoute): boolean {
@@ -282,6 +314,13 @@ export class InMemoryProviderRouteState implements ProviderRouteState {
     const activeFailure = this.activeFailure(candidate);
     if (activeFailure !== undefined) return activeFailure.cooldownUntil;
     return this.localLimitUnavailableUntil(candidate);
+  }
+
+  private candidateUnavailableKind(candidate: KosongLLMRouteCandidate): ProviderRouteFailureKind {
+    const activeFailure = this.activeFailure(candidate);
+    if (activeFailure !== undefined) return activeFailure.kind;
+    // Local RPM/TPM exhaustion is treated as rate_limit for dominant-kind ranking.
+    return 'rate_limit';
   }
 
   private requestCount(candidate: KosongLLMRouteCandidate): number {

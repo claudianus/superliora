@@ -3,12 +3,17 @@ import { describe, expect, it } from 'vitest';
 import {
   GOAL_PROVIDER_AUTO_RETRIES,
   GOAL_PROVIDER_RATE_LIMIT_AUTO_RETRIES,
+  canAttemptProviderRecovery,
+  createEmptyProviderRecoveryState,
   extractRetryAfterMs,
   isPermanentQuotaOrBillingFailure,
+  isProviderAuthFailure,
   isRateLimitOrQuotaFailure,
   isRetryableProviderFailure,
+  nextUnusedFallbackAlias,
   resolveProviderRetryDelayMs,
 } from '#/agent/provider-failover';
+import { dominantProviderRouteFailureKind } from '#/agent/turn/provider-route-state';
 import { ErrorCodes, type LioraErrorPayload } from '#/errors/index';
 
 const err = (over: Partial<LioraErrorPayload> = {}): LioraErrorPayload => ({
@@ -181,5 +186,63 @@ describe('agent/provider-failover — exported constants', () => {
   it('pins the auto-retry budgets', () => {
     expect(GOAL_PROVIDER_AUTO_RETRIES).toBe(3);
     expect(GOAL_PROVIDER_RATE_LIMIT_AUTO_RETRIES).toBe(5);
+  });
+});
+
+describe('agent/provider-failover — canAttemptProviderRecovery', () => {
+  it('allows permanent quota only when unused fallbacks remain', () => {
+    const quota = err({
+      code: ErrorCodes.PROVIDER_API_ERROR,
+      retryable: false,
+      details: { permanentQuota: true },
+    });
+    const empty = createEmptyProviderRecoveryState();
+    expect(canAttemptProviderRecovery(quota, empty)).toBe(false);
+    expect(
+      canAttemptProviderRecovery(quota, {
+        ...empty,
+        fallbackQueue: ['backup'],
+      }),
+    ).toBe(true);
+    expect(
+      canAttemptProviderRecovery(quota, {
+        ...empty,
+        fallbackQueue: ['backup'],
+        triedFallbackAliases: ['backup'],
+      }),
+    ).toBe(false);
+  });
+
+  it('allows auth failures only when unused fallbacks remain', () => {
+    const auth = err({
+      code: ErrorCodes.PROVIDER_AUTH_ERROR,
+      message: 'unauthorized',
+      retryable: false,
+    });
+    expect(isProviderAuthFailure(auth)).toBe(true);
+    expect(canAttemptProviderRecovery(auth, createEmptyProviderRecoveryState())).toBe(false);
+    expect(
+      canAttemptProviderRecovery(auth, {
+        ...createEmptyProviderRecoveryState(),
+        fallbackQueue: ['backup'],
+      }),
+    ).toBe(true);
+  });
+
+  it('walks nextUnusedFallbackAlias past tried aliases', () => {
+    const state = {
+      ...createEmptyProviderRecoveryState(),
+      fallbackQueue: ['a', 'b', 'c'],
+      triedFallbackAliases: ['a'],
+    };
+    expect(nextUnusedFallbackAlias(state)).toBe('b');
+  });
+});
+
+describe('dominantProviderRouteFailureKind', () => {
+  it('prefers auth over quota over rate_limit', () => {
+    expect(dominantProviderRouteFailureKind(['rate_limit', 'quota'])).toBe('quota');
+    expect(dominantProviderRouteFailureKind(['quota', 'auth', 'rate_limit'])).toBe('auth');
+    expect(dominantProviderRouteFailureKind([])).toBe('rate_limit');
   });
 });

@@ -9,7 +9,6 @@ import { isUserCancellation } from '../../utils/abort';
 import type { StreamingThinkScrubber } from '../../utils/think-scrubber';
 import { buildTurnPrefixMaterial } from '../cache';
 import type { PromptOrigin } from '../context';
-import { isRetryableProviderFailure } from '../provider-failover';
 import {
   TurnTelemetry,
   classifyApiError,

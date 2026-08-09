@@ -18,9 +18,9 @@ import { isUserCancellation } from '../../utils/abort';
 import type { PromptOrigin } from '../context';
 import type { TurnEndResult } from './types';
 import {
-  isRetryableProviderFailure,
+  canAttemptProviderRecovery,
+  createProviderRecoveryState,
   resolveProviderRecovery,
-  type ProviderRecoveryState,
 } from '../provider-failover';
 import {
   recordLlmTurnProviderFailure,
@@ -163,9 +163,10 @@ export async function recoverFromProviderFailure(
   initialEnd: TurnEndResult,
 ): Promise<TurnEndResult> {
   let end = initialEnd;
-  let recoveryState: ProviderRecoveryState = { autoRetryCount: 0, userPrompted: false };
+  // Snapshot primary fallbackModels before any silent switch mutates modelAlias.
+  let recoveryState = createProviderRecoveryState(ctx.agent);
 
-  while (end.event.reason === 'failed' && isRetryableProviderFailure(end.event.error)) {
+  while (end.event.reason === 'failed' && canAttemptProviderRecovery(end.event.error, recoveryState)) {
     if (signal.aborted) {
       return cancelledTurnEndResult(turnId, signal);
     }
@@ -197,7 +198,10 @@ export async function recoverFromProviderFailure(
 
     if (outcome.type === 'switch') {
       ctx.agent.config.update({ modelAlias: outcome.modelAlias });
-      recoveryState = { ...recoveryState, userPrompted: true };
+      recoveryState = {
+        ...recoveryState,
+        triedFallbackAliases: [...recoveryState.triedFallbackAliases, outcome.modelAlias],
+      };
     } else if (outcome.type === 'auto_retry') {
       recoveryState = {
         ...recoveryState,
@@ -213,11 +217,8 @@ export async function recoverFromProviderFailure(
       recordLlmTurnProviderSuccess(ctx.agent);
     }
 
-    if (
-      recoveryState.userPrompted &&
-      end.event.reason === 'failed' &&
-      isRetryableProviderFailure(end.event.error)
-    ) {
+    // Stop after a real human choice; silent hops keep walking the queue.
+    if (recoveryState.userPrompted && end.event.reason === 'failed') {
       return end;
     }
   }

@@ -6,7 +6,7 @@ import type { LoopTurnStopReason } from '../../loop/index';
 import type { AgentEvent, TurnEndedEvent, TurnEndReason } from '../../rpc/events';
 import type { TelemetryPropertyValue } from '../../telemetry';
 import { isUserCancellation } from '../../utils/abort';
-import { isRetryableProviderFailure } from '../provider-failover';
+import { shouldEnterProviderRecovery } from '../provider-failover';
 import {
   GOAL_NO_PROGRESS_SENSOR_ORIGIN,
   GOAL_NO_PROGRESS_STREAK_K,
@@ -67,7 +67,7 @@ export async function driveGoalTurnLoop(
 
     await deps.agent.goal.incrementTurn();
     let end = await deps.runOneTurn(turnId, turnInput, turnOrigin, signal, false);
-    if (end.event.reason === 'failed' && isRetryableProviderFailure(end.event.error)) {
+    if (end.event.reason === 'failed' && shouldEnterProviderRecovery(deps.agent, end.event.error)) {
       end = await recoverFromProviderFailure(
         { agent: deps.agent, runOneTurn: (...args) => deps.runOneTurn(...args) },
         turnId,

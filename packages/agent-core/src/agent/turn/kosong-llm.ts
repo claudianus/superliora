@@ -59,6 +59,7 @@ import type {
   KosongLLMRoute,
   KosongLLMRouteCandidate,
   ProviderRouteState,
+  ProviderRouteUnavailable,
 } from './provider-route-types';
 
 export type { Message };
@@ -134,20 +135,9 @@ export class KosongLLM implements LLM {
         route: route.key,
         retryAfterMs: unavailable.retryAfterMs,
         retryAt: unavailable.retryAt,
+        dominantFailureKind: unavailable.dominantFailureKind,
       });
-      throw new LioraError(
-        ErrorCodes.PROVIDER_RATE_LIMIT,
-        `All provider route candidates for "${route.key}" are cooling down or locally rate-limited. Try again in ${Math.ceil(
-          unavailable.retryAfterMs / 1000,
-        )}s.`,
-        {
-          details: {
-            route: route.key,
-            retryAfterMs: unavailable.retryAfterMs,
-            retryAt: unavailable.retryAt,
-          },
-        },
-      );
+      throw routeUnavailableError(route.key, unavailable);
     }
 
     const orderedCandidates = this.routeState?.orderCandidates(route) ?? route.candidates;
@@ -181,25 +171,30 @@ export class KosongLLM implements LLM {
       } catch (error) {
         lastError = error;
         const failure = classifyProviderRouteFailure(error, route.cooldownMs);
+        // Always cool down classified failures — including mid-stream — so the
+        // next outer retry skips this candidate. In-route hop stays disabled
+        // once stream output was already pushed to the UI.
+        if (failure !== undefined) {
+          if (this.routeState?.recordFailure(route, candidate, failure) === true) {
+            this.onRouteStatusChanged?.();
+          }
+          this.circuitObserver?.onFailure({ route, candidate, failure, error });
+          if (failure.kind === 'auth') {
+            sharedCredentialHealthStore.markAuthRejected(candidate.providerName, {
+              credentialKey: candidate.credentialLabel,
+              failureReason:
+                error instanceof Error ? error.message : 'provider auth failure',
+              cooldownMs: failure.cooldownMs,
+            });
+          }
+        }
         if (failure === undefined || attempt.sawStreamOutput) {
           throw error;
         }
-        if (this.routeState?.recordFailure(route, candidate, failure) === true) {
-          this.onRouteStatusChanged?.();
-        }
-        this.circuitObserver?.onFailure({ route, candidate, failure, error });
         if (index === orderedCandidates.length - 1) {
           throw error;
         }
-                const next = orderedCandidates[index + 1]!;
-        if (failure.kind === 'auth') {
-          sharedCredentialHealthStore.markAuthRejected(candidate.providerName, {
-            credentialKey: candidate.credentialLabel,
-            failureReason:
-              error instanceof Error ? error.message : 'provider auth failure',
-            cooldownMs: failure.cooldownMs,
-          });
-        }
+        const next = orderedCandidates[index + 1]!;
         this.log?.warn('provider_route_switch', {
           event: 'provider_route_switch',
           route: route.key,
@@ -352,6 +347,44 @@ export class KosongLLM implements LLM {
   isRetryableError(error: unknown): boolean {
     return isRetryableGenerateError(error);
   }
+}
+
+function routeUnavailableError(routeKey: string, unavailable: ProviderRouteUnavailable): LioraError {
+  const seconds = Math.ceil(unavailable.retryAfterMs / 1000);
+  const details = {
+    route: routeKey,
+    retryAfterMs: unavailable.retryAfterMs,
+    retryAt: unavailable.retryAt,
+    routeUnavailable: true,
+    dominantFailureKind: unavailable.dominantFailureKind,
+  };
+
+  if (unavailable.dominantFailureKind === 'auth') {
+    return new LioraError(
+      ErrorCodes.PROVIDER_AUTH_ERROR,
+      `All provider route candidates for "${routeKey}" failed authentication and are cooling down. Try again in ${seconds}s or switch accounts.`,
+      { details },
+    );
+  }
+
+  if (unavailable.dominantFailureKind === 'quota') {
+    return new LioraError(
+      ErrorCodes.PROVIDER_API_ERROR,
+      `All provider route candidates for "${routeKey}" are unavailable due to quota or billing limits. Try again in ${seconds}s or switch models.`,
+      {
+        details: {
+          ...details,
+          permanentQuota: true,
+        },
+      },
+    );
+  }
+
+  return new LioraError(
+    ErrorCodes.PROVIDER_RATE_LIMIT,
+    `All provider route candidates for "${routeKey}" are cooling down or locally rate-limited. Try again in ${seconds}s.`,
+    { details },
+  );
 }
 
 function buildStreamTiming(

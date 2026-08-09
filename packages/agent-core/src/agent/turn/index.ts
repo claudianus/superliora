@@ -10,7 +10,7 @@ import type { TurnEndedEvent } from '../../rpc/events';
 import { abortable, isUserCancellation, userCancellationReason } from '../../utils/abort';
 import { StreamingThinkScrubber } from '../../utils/think-scrubber';
 import { USER_PROMPT_ORIGIN, type PromptOrigin } from '../context';
-import { isRetryableProviderFailure } from '../provider-failover';
+import { shouldEnterProviderRecovery } from '../provider-failover';
 import {
   TurnTelemetry,
 } from './telemetry';
@@ -235,7 +235,7 @@ export class TurnFlow {
     if (!standalone) return;
     if (this.currentId !== turnId) return;
     if (this.agent.goal.getGoal().goal?.status === 'active') return;
-    if (ended.reason === 'failed' && isRetryableProviderFailure(ended.error)) return;
+    if (ended.reason === 'failed' && shouldEnterProviderRecovery(this.agent, ended.error)) return;
     this.releaseActiveTurnIfOwner(signal);
   }
 
@@ -297,7 +297,7 @@ export class TurnFlow {
         return await this.driveGoal(firstTurnId, input, origin, signal);
       }
       let end = await this.runOneTurn(firstTurnId, input, origin, signal, true);
-      if (end.event.reason === 'failed' && isRetryableProviderFailure(end.event.error)) {
+      if (end.event.reason === 'failed' && shouldEnterProviderRecovery(this.agent, end.event.error)) {
         end = await recoverFromProviderFailure(
           { agent: this.agent, runOneTurn: (tid, inp, org, sig, sa) => this.runOneTurn(tid, inp, org, sig, sa) },
           firstTurnId,
@@ -380,7 +380,10 @@ export class TurnFlow {
       standalone &&
       this.currentId === turnId &&
       this.agent.goal.getGoal().goal?.status !== 'active' &&
-      !(result.event.reason === 'failed' && isRetryableProviderFailure(result.event.error))
+      !(
+        result.event.reason === 'failed' &&
+        shouldEnterProviderRecovery(this.agent, result.event.error)
+      )
     ) {
       this.activeTurn = null;
     }

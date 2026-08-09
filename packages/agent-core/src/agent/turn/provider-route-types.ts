@@ -86,6 +86,8 @@ export interface ProviderRouteFailure {
 export interface ProviderRouteUnavailable {
   readonly retryAfterMs: number;
   readonly retryAt: number;
+  /** Highest-severity active cooldown kind across candidates (auth > quota > …). */
+  readonly dominantFailureKind: ProviderRouteFailureKind;
 }
 
 export interface ProviderRouteSuccessMetrics {
