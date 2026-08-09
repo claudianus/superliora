@@ -180,7 +180,7 @@ const JobCreateInputSchema = z
       .boolean()
       .optional()
       .describe(
-        'Run SearchExpert staffing: decompose into slices, bind high-score experts in parallel Jobs, fall back to generic workers when score is low. Defaults true for task/implement/explore; false for merge/desk/goal-desk/mission.',
+        'Run SearchExpert staffing: bind a high-score expert (else generic). May intent-split bullet lists when ownership_paths is empty — ownership_paths never auto-fanout (that is a claim set for one Job). Defaults true for task/implement/explore; false for merge/desk/goal-desk/mission.',
       ),
   })
   .strict()
@@ -555,7 +555,6 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
             title: a.title,
             kind,
             successCriteria: successCriteria.length > 0 ? successCriteria : undefined,
-            contextPaths: a.context_paths,
             ownershipPaths: a.ownership_paths,
           });
           created = slices.map((slice, index) =>

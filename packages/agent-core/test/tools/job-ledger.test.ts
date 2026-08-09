@@ -217,11 +217,33 @@ describe('job runtime scheduler', () => {
     expect(updated?.worktreeBranch).toBe('liora/x');
   });
 
-  it('chains a child job onto the parent worktree instead of a private branch', async () => {
+  it('defers a child job while its parent is still in flight', async () => {
     const store = memoryStore();
     const parent = createJob(store, { title: 'parent', priority: 5 });
     patchJob(store, parent.id, {
       status: 'running',
+      worktreePath: '/tmp/worktrees/conductor-parent',
+    });
+    const child = createJob(store, { title: 'child fix', priority: 9, parentJobId: parent.id });
+
+    const result = await scheduleQueuedJobs({
+      store,
+      maxConcurrent: 3,
+      requireWorktree: false,
+    });
+
+    expect(result.started).toHaveLength(0);
+    expect(getJob(store, child.id)?.status).toBe('queued');
+    expect(nextQueuedJobs(store, 10)).toHaveLength(0);
+  });
+
+  it('chains a child job onto the parent worktree instead of a private branch', async () => {
+    const store = memoryStore();
+    const parent = createJob(store, { title: 'parent', priority: 5 });
+    // Parent left the execution lane but has not landed yet — child reuses the
+    // unmerged worktree (schedule defers while parent is still in-flight).
+    patchJob(store, parent.id, {
+      status: 'done',
       worktreePath: '/tmp/worktrees/conductor-parent',
     });
     const child = createJob(store, { title: 'child fix', priority: 5, parentJobId: parent.id });

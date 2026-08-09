@@ -18,15 +18,24 @@ describe('staffJobsFromObjective', () => {
     }
   });
 
-  it('splits ownership paths into parallel slices', async () => {
+  it('keeps multi-path ownership on one slice (claim set, not fan-out)', async () => {
     const slices = await staffJobsFromObjective({
       objective: 'Wire feature across packages',
       title: 'Fanout',
       ownershipPaths: ['packages/a', 'packages/b'],
       kind: 'task',
     });
-    expect(slices.length).toBe(2);
-    expect(slices[0]?.ownershipPaths).toEqual(['packages/a']);
-    expect(slices[1]?.ownershipPaths).toEqual(['packages/b']);
+    expect(slices.length).toBe(1);
+    expect(slices[0]?.ownershipPaths).toEqual(['packages/a', 'packages/b']);
+  });
+
+  it('intent-splits bullets only when ownership is empty', async () => {
+    const slices = await staffJobsFromObjective({
+      objective: '1. Fix login\n2. Add tests\n3. Update docs',
+      title: 'Multi',
+      kind: 'task',
+    });
+    expect(slices.length).toBe(3);
+    expect(slices[0]?.ownershipPaths).toBeUndefined();
   });
 });
