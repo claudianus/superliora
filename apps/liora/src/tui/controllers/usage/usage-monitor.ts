@@ -12,6 +12,7 @@
  *   - Skipped while the TUI is idle with no providers configured.
  */
 
+import { applyUsageSnapshotsToCredentialHealth } from '@superliora/oauth';
 import type { AllProvidersUsageSnapshot, LioraHarness } from '@superliora/sdk';
 
 export interface UsageMonitorOptions {
@@ -91,6 +92,15 @@ export class UsageMonitorController {
       const snapshot = await this.harness.auth.getAllProvidersUsage();
       if (this.disposed) return;
       this.lastSnapshot = snapshot;
+      // Bridge quota → credential health so worker routing skips exhausted
+      // token-plan providers without waiting for a failed API call. SDK path
+      // already applies this; keep a second apply for harness stubs / older
+      // facades that only return the snapshot.
+      try {
+        applyUsageSnapshotsToCredentialHealth(snapshot);
+      } catch {
+        /* ignore */
+      }
       this.setAppState({ providerQuota: snapshot });
       this.requestRender();
     } catch {

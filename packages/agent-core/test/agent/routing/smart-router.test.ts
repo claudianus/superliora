@@ -1,7 +1,8 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { sharedCredentialHealthStore } from '@superliora/oauth';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   advanceSmartRoute,
@@ -275,6 +276,41 @@ describe('smart-router', () => {
         parentAlias: 'missing-parent',
       }),
     ).toBeUndefined();
+  });
+
+  describe('quota-exhausted provider health', () => {
+    afterEach(() => {
+      sharedCredentialHealthStore.clear();
+    });
+
+    it('skips qwen-token-plan aliases when shared health is quota-exhausted', () => {
+      sharedCredentialHealthStore.markQuotaExhausted('qwen-token-plan');
+
+      const cfg = {
+        models: {
+          'qwen3.8-max': {
+            provider: 'qwen-token-plan',
+            model: 'qwen3.8-max',
+            maxContextSize: 128_000,
+            capabilities: ['tool_use', 'thinking'],
+            cost: { input: 0.5 },
+          },
+          'cheap-haiku': model('cheap-haiku', 0.1),
+        },
+        providers: {
+          'qwen-token-plan': {
+            type: 'openai' as const,
+            apiKey: 'qwen-key',
+            baseUrl: 'https://token-plan.example/v1',
+          },
+          'test-provider': PROVIDER,
+        },
+      } as LioraConfig;
+
+      expect(isConfigAliasHealthy(cfg, 'qwen3.8-max')).toBe(false);
+      expect(isConfigAliasHealthy(cfg, 'cheap-haiku')).toBe(true);
+      expect(resolveSmartRoute({ role: 'coding', config: cfg })?.alias).toBe('cheap-haiku');
+    });
   });
 });
 

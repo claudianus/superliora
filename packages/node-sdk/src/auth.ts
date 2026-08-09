@@ -9,6 +9,7 @@ import {
 import {
   applyManagedKimiCodeConfig,
   applyManagedKimiCodeLogoutConfig,
+  applyUsageSnapshotsToCredentialHealth,
   SUPERLIORA_PROVIDER_NAME,
   isOAuthProviderId,
   KimiOAuthToolkit,
@@ -290,6 +291,10 @@ export class LioraAuthFacade {
    * Fetch usage / quota for every configured OAuth provider in parallel.
    * Returns a unified snapshot the TUI can render as a quota dashboard.
    * Providers without a usage API degrade to `{ available: false }`.
+   *
+   * Also bridges token-plan quota exhaustion into
+   * {@link applyUsageSnapshotsToCredentialHealth} so smart routing / subagent
+   * model selection skips exhausted Qwen plans without waiting for a failed call.
    */
   async getAllProvidersUsage(): Promise<AllProvidersUsageSnapshot> {
     const config = loadRuntimeConfigSafe(this.options.configPath).config;
@@ -330,7 +335,14 @@ export class LioraAuthFacade {
       }),
     );
 
-    return buildAllProvidersUsageSnapshot(snapshots);
+    const aggregate = buildAllProvidersUsageSnapshot(snapshots);
+    // Best-effort: never fail the TUI quota path if health bridge throws.
+    try {
+      applyUsageSnapshotsToCredentialHealth(aggregate);
+    } catch {
+      /* ignore */
+    }
+    return aggregate;
   }
 
   /**
