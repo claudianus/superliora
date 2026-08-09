@@ -6,9 +6,10 @@ import type {
   TurnEndedEvent,
 } from '@superliora/sdk';
 
-import { NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
+import {  NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
 import { BtwPanelComponent } from '../../components/panes/btw-panel';
 import { formatErrorMessage } from '../../utils/event-payload';
+import { ttui } from '../../utils/tui-i18n';
 import { formatHookResultPlain } from '../../utils/hook-result-format';
 import { createMarkdownTheme } from '../../theme/pi-tui-theme';
 import type { TUIState } from '../../tui-state';
@@ -169,7 +170,7 @@ export class BtwPanelController {
   private promptAgent(agentId: string, prompt: string, panel: BtwPanelComponent): void {
     const session = this.host.session;
     if (session === undefined) {
-      panel.markFailed(NO_ACTIVE_SESSION_MESSAGE);
+      panel.markFailed(NO_ACTIVE_SESSION_MESSAGE());
       requestTUILayoutRender(this.host.state);
       return;
     }
@@ -183,7 +184,7 @@ export class BtwPanelController {
     const session = this.host.session;
     if (session === undefined) return;
     await this.withInteractiveAgent(agentId, () => session.cancel({ source: 'btw-panel' })).catch((error: unknown) => {
-      this.host.showError(`Failed to cancel /btw: ${formatErrorMessage(error)}`);
+      this.host.showError(ttui('tui.btw.cancelFailed', { message: formatErrorMessage(error) }));
     });
   }
 

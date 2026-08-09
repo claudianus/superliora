@@ -2,34 +2,24 @@ import { fuzzyFilter } from '#/tui/renderer';
 import { hubRecencyScore, listRecentHubActionIds } from '#/tui/utils/command/hub-recents';
 
 import type { CommandHubActionId, CommandHubItem } from './command-hub-types';
+import { HUB_SECTION_ORDER_KEYS, resolveHubItem } from './resolve-hub-item';
 
-const SECTION_ORDER = [
-  'Now',
-  'Recent',
-  'Modes',
-  'Start',
-  'Chat',
-  'Workspace',
-  'Extend',
-  'Appearance',
-  'Account',
-  'Settings',
-  'Commands',
-  'Skills',
-  'Help',
-] as const;
-
-function sectionRank(section: string): number {
-  const exact = SECTION_ORDER.indexOf(section as (typeof SECTION_ORDER)[number]);
-  if (exact !== -1) return exact;
+function hubSectionRank(item: CommandHubItem): number {
+  if (item.sectionKey !== undefined) {
+    const idx = HUB_SECTION_ORDER_KEYS.indexOf(
+      item.sectionKey as (typeof HUB_SECTION_ORDER_KEYS)[number],
+    );
+    if (idx !== -1) return idx;
+  }
   return 99;
 }
 
 function hubItemSearchText(item: CommandHubItem): string {
+  const resolved = resolveHubItem(item);
   return [
-    item.label,
-    item.description,
-    item.section,
+    resolved.label,
+    resolved.description,
+    resolved.section,
     item.id,
     ...(item.keywords ?? []),
   ].join(' ');
@@ -63,14 +53,21 @@ export function filterHubItems(items: readonly CommandHubItem[], query: string):
     if (src === undefined) continue;
     // Skip mode toggles in Recent — they already live in the status strip / Modes.
     if (src.kind === 'toggle' || src.kind === 'cycle') continue;
-    recent.push({ ...src, section: 'Recent' });
+    recent.push({
+      ...src,
+      sectionKey: 'tui.hub.section.recent',
+      section: resolveHubItem({
+        ...src,
+        sectionKey: 'tui.hub.section.recent',
+      }).section,
+    });
   }
   const recentIds = new Set(recent.map((item) => item.id));
   const rest = items
     .filter((item) => !recentIds.has(item.id) && item.searchOnly !== true)
     .toSorted((a, b) => {
-      const oa = sectionRank(a.section);
-      const ob = sectionRank(b.section);
+      const oa = hubSectionRank(a);
+      const ob = hubSectionRank(b);
       if (oa !== ob) return oa - ob;
       return (authoredIndex.get(a.id) ?? 0) - (authoredIndex.get(b.id) ?? 0);
     });

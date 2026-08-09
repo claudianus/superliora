@@ -5,6 +5,7 @@ import {
   type UsageCacheMissLike,
 } from '#/tui/utils/cache/cache-diagnostics';
 import { resolveThinkingDisplay } from '#/tui/utils/model/thinking-effort';
+import { ttui } from '#/tui/utils/tui-i18n';
 import { formatGitBadgeBase, type GitStatus } from '#/utils/git/git-status';
 import { safeUsageRatio } from '#/utils/usage/usage-format';
 
@@ -19,7 +20,7 @@ function displayModelName(alias: string, models: Record<string, ModelAlias>): st
 
 export function formatModelStatus(options: StatusReportOptions): string {
   const model = options.status?.model ?? options.model;
-  if (model.trim().length === 0) return 'not set';
+  if (model.trim().length === 0) return ttui('tui.statusPanel.notSet');
 
   const thinkingRaw = options.status?.thinkingLevel ?? (options.thinking ? 'on' : 'off');
   const alias = options.availableModels[model];
@@ -60,7 +61,7 @@ export function verifyBlockedByReadiness(options: StatusReportOptions): boolean 
 export function formatPremiumQualityStatus(options: StatusReportOptions): string {
   const enabled =
     options.status?.premiumQualityMode ?? options.premiumQualityMode === true;
-  return enabled ? 'mode on' : 'mode off';
+  return enabled ? ttui('tui.statusPanel.modeOn') : ttui('tui.statusPanel.modeOff');
 }
 
 function formatContextOSStatus(options: StatusReportOptions): string | undefined {
@@ -78,16 +79,16 @@ export function privacyStatusRows(options: StatusReportOptions): readonly Status
   if (options.privacyTelemetryEnabled) {
     return [
       {
-        label: 'Privacy',
-        value: 'Telemetry ON (opt-in) · omit/false for ZDR-friendly local',
+        label: ttui('tui.statusPanel.privacy'),
+        value: ttui('tui.statusPanel.privacyTelemetryOn'),
         severity: 'warning',
       },
     ];
   }
   return [
     {
-      label: 'Privacy',
-      value: 'Telemetry OFF (default) · ZDR-friendly local',
+      label: ttui('tui.statusPanel.privacy'),
+      value: ttui('tui.statusPanel.privacyTelemetryOff'),
     },
   ];
 }
@@ -102,7 +103,7 @@ export function contextOSStatusRows(options: StatusReportOptions): readonly Stat
       : health !== undefined && health.latestContinuityStatus !== 'ready'
         ? 'warning'
         : undefined;
-  return [{ label: 'Context OS', value, severity }];
+  return [{ label: ttui('tui.statusPanel.contextOs'), value, severity }];
 }
 
 
@@ -118,7 +119,7 @@ export function cacheMissReasonStatusRows(options: StatusReportOptions): readonl
     : glance.line;
   return [
     {
-      label: 'Miss reasons',
+      label: ttui('tui.statusPanel.missReasons'),
       value,
       severity: glance.warn ? 'warning' : undefined,
     },

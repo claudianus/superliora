@@ -47,6 +47,8 @@ import { showSettingsInventory } from './diagnostics/settings-inventory';
 import { showProvidersApiSettings } from './providers/providers-api-settings';
 import { showKeybindingsSettings } from './keybindings/keybindings-settings';
 import { showMemorySettings } from './memory/memory-settings';
+import { ttui } from '#/tui/utils/tui-i18n';
+import { showLocaleSettings } from './locale/locale';
 
 export function showSettingsSelector(host: SlashCommandHost): void {
   mountPickerDialog(
@@ -59,7 +61,7 @@ export function showSettingsSelector(host: SlashCommandHost): void {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Settings' },
+    { label: ttui('tui.settings.title') },
   );
 }
 
@@ -110,6 +112,7 @@ function handleSettingsSelection(host: SlashCommandHost, value: SettingsSelectio
     case 'persona': showPersonaSettings(host); return;
     case 'usage':  showUsageSettings(host); return;
     case 'memory': showMemorySettings(host); return;
+    case 'locale': showLocaleSettings(host); return;
   }
 }
 

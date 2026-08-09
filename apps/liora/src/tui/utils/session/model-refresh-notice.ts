@@ -1,9 +1,8 @@
 /**
  * Loop54a — surface provider model-catalog refresh failures as named notices.
- *
- * Startup/background and /model refresh previously only flashed
- * `Skipped refreshing …` on the status line.
  */
+
+import { ttui } from '#/tui/utils/tui-i18n';
 
 export type ModelRefreshFailure = {
   readonly provider: string;
@@ -25,9 +24,9 @@ export function formatModelRefreshFailureNotice(
   const reason =
     failure.reason.trim().length > 0 ? failure.reason.trim() : 'unknown error';
   return {
-    title: 'Model catalog refresh skipped',
-    detail: `Could not refresh models for ${provider}: ${reason}. Existing catalog entries stay available. Check auth/network for that provider, then retry /model or restart.`,
-    status: `Skipped refreshing ${provider}: ${reason}`,
+    title: ttui('tui.notice.modelRefreshSkipped.title'),
+    detail: ttui('tui.notice.modelRefreshSkipped.detail', { provider, reason }),
+    status: ttui('tui.notice.modelRefreshSkipped.status', { provider, reason }),
     coalesceKey: `model-refresh-failed-${provider}`,
   };
 }
@@ -35,9 +34,9 @@ export function formatModelRefreshFailureNotice(
 export function formatModelRefreshErrorNotice(message: string): ModelRefreshNotice {
   const text = message.trim().length > 0 ? message.trim() : 'unknown error';
   return {
-    title: 'Model catalog refresh failed',
-    detail: `Refreshing provider models failed: ${text}. Existing models remain available. Fix auth/network and retry /model.`,
-    status: `Skipped refreshing models: ${text}`,
+    title: ttui('tui.notice.modelRefreshFailed.title'),
+    detail: ttui('tui.notice.modelRefreshFailed.detail', { message: text }),
+    status: ttui('tui.notice.modelRefreshFailed.status', { message: text }),
     coalesceKey: 'model-refresh-failed',
   };
 }

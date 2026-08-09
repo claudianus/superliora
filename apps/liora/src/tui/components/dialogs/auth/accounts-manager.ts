@@ -21,6 +21,7 @@ import {
   type Focusable,
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 import { ChoicePickerComponent, type ChoiceOption } from '../picker/choice-picker';
 import { Input } from '../shared/input';
@@ -51,7 +52,7 @@ export function formatOAuthAccountDisplayLabel(
   const labeled = ref.label?.trim();
   if (labeled !== undefined && labeled.length > 0) return labeled;
   const fp = fingerprint ?? fingerprintProviderOAuthRef(ref);
-  return `account ${fp.slice(0, 6)}`;
+  return ttui('tui.accounts.accountFallback', { fp: fp.slice(0, 6) });
 }
 
 /** One-line PREMIUM row body: label · role · fingerprint (CURRENT_MARK applied by picker). */
@@ -99,19 +100,36 @@ export interface AccountsProviderPickerOptions {
   readonly onCancel: () => void;
 }
 
+function providerAccountDescription(
+  accountCount: number,
+  primaryLabel: string | undefined,
+): string {
+  if (primaryLabel === undefined) {
+    return accountCount === 1
+      ? ttui('tui.accounts.providerAccount', { count: String(accountCount) })
+      : ttui('tui.accounts.providerAccounts', { count: String(accountCount) });
+  }
+  return accountCount === 1
+    ? ttui('tui.accounts.providerPrimaryOne', {
+        count: String(accountCount),
+        label: primaryLabel,
+      })
+    : ttui('tui.accounts.providerPrimary', {
+        count: String(accountCount),
+        label: primaryLabel,
+      });
+}
+
 export class AccountsProviderPickerComponent extends ChoicePickerComponent {
   constructor(opts: AccountsProviderPickerOptions) {
     super({
-      title: 'OAuth accounts',
+      title: ttui('tui.accounts.oauthTitle'),
       searchable: opts.providers.length > 8,
       currentValue: opts.currentProviderId,
       options: opts.providers.map((provider) => ({
         value: provider.id,
         label: provider.id,
-        description:
-          provider.primaryLabel === undefined
-            ? `${String(provider.accountCount)} account${provider.accountCount === 1 ? '' : 's'}`
-            : `${String(provider.accountCount)} account${provider.accountCount === 1 ? '' : 's'} · primary ${provider.primaryLabel}`,
+        description: providerAccountDescription(provider.accountCount, provider.primaryLabel),
       })),
       onSelect: opts.onSelect,
       onCancel: opts.onCancel,
@@ -132,10 +150,10 @@ export class AccountsListPickerComponent extends ChoicePickerComponent {
   constructor(opts: AccountsListPickerOptions) {
     const primaryValue = opts.rows[0] === undefined ? undefined : String(opts.rows[0].index);
     super({
-      title: `Accounts · ${opts.providerId}`,
+      title: ttui('tui.accounts.listTitle', { provider: opts.providerId }),
       notice: ACCOUNTS_POOL_RESILIENCE_HINT,
       noticeTone: 'success',
-      hint: '↑↓ navigate · Enter select · Esc cancel',
+      hint: ttui('tui.accounts.hintPicker'),
       searchable: opts.rows.length > 8,
       currentValue: primaryValue,
       options: accountPoolChoiceOptions(opts.rows),
@@ -162,36 +180,39 @@ export class AccountActionPickerComponent extends ChoicePickerComponent {
     const options: ChoiceOption[] = [
       {
         value: 'promote',
-        label: 'Promote to primary',
+        label: ttui('tui.accounts.promote'),
         description:
           row.role === 'primary'
-            ? 'Already the primary account for this provider.'
-            : 'Move this account to the front of the OAuth pool.',
+            ? ttui('tui.accounts.promoteAlreadyPrimary')
+            : ttui('tui.accounts.promoteDesc'),
       },
       {
         value: 'label',
-        label: row.ref.label === undefined ? 'Set label' : 'Change label',
-        description: 'Attach a short display label (letters, digits, _ . -).',
+        label:
+          row.ref.label === undefined
+            ? ttui('tui.accounts.label')
+            : ttui('tui.accounts.changeLabel'),
+        description: ttui('tui.accounts.labelDesc'),
       },
     ];
     if (row.ref.label !== undefined) {
       options.push({
         value: 'unlabel',
-        label: 'Clear label',
-        description: `Remove label “${row.ref.label}”.`,
+        label: ttui('tui.accounts.clearLabel'),
+        description: ttui('tui.accounts.clearLabelDesc', { label: row.ref.label }),
       });
     }
     options.push(
       {
         value: 'remove',
-        label: 'Remove from pool',
+        label: ttui('tui.accounts.removeFromPool'),
         tone: 'danger',
-        description: 'Drop this OAuth ref from config (token file is kept).',
+        description: ttui('tui.accounts.removeFromPoolDesc'),
       },
       {
         value: 'back',
-        label: 'Back',
-        description: 'Return to the account list.',
+        label: ttui('tui.accounts.back'),
+        description: ttui('tui.accounts.backDesc'),
       },
     );
 
@@ -228,23 +249,23 @@ export interface AccountRemoveConfirmOptions {
 export class AccountRemoveConfirmComponent extends ChoicePickerComponent {
   constructor(opts: AccountRemoveConfirmOptions) {
     super({
-      title: `Remove ${opts.row.displayLabel}?`,
-      hint: '↑↓ navigate · Enter select · Esc cancel',
+      title: ttui('tui.accounts.removeTitle', { label: opts.row.displayLabel }),
+      hint: ttui('tui.accounts.hintPicker'),
       notice: opts.isLast
-        ? `Last OAuth account for ${opts.providerId}. Pool becomes empty.`
-        : `Remove from ${opts.providerId} OAuth pool. Token file is kept.`,
+        ? ttui('tui.accounts.removeLastNotice', { provider: opts.providerId })
+        : ttui('tui.accounts.removeNotice', { provider: opts.providerId }),
       noticeTone: 'warning',
       options: [
         {
           value: 'cancel',
-          label: 'Cancel',
-          description: 'Keep this account in the pool.',
+          label: ttui('tui.accounts.cancel'),
+          description: ttui('tui.accounts.cancelKeep'),
         },
         {
           value: 'confirm',
-          label: 'Remove account',
+          label: ttui('tui.accounts.removeConfirmAction'),
           tone: 'danger',
-          description: 'Drop the OAuth ref from config only.',
+          description: ttui('tui.accounts.removeConfirmDesc'),
         },
       ],
       onSelect: (value) => {
@@ -317,17 +338,20 @@ export class AccountLabelInputComponent extends Container implements Focusable {
     const border = (s: string): string => currentTheme.fg('primary', s);
     const title = currentTheme.boldFg(
       'textStrong',
-      `Label · ${this.opts.row.displayLabel} (${this.opts.providerId})`,
+      ttui('tui.accounts.labelTitle', {
+        label: this.opts.row.displayLabel,
+        provider: this.opts.providerId,
+      }),
     );
     const subtitleSource =
       this.error === undefined
         ? [
-            'Letters, digits, _ . -  ·  1–64 chars',
+            ttui('tui.accounts.labelRules'),
             `${this.opts.row.role} · ${this.opts.row.fingerprint}`,
           ]
         : [
             this.error,
-            'Letters, digits, _ . -  ·  1–64 chars',
+            ttui('tui.accounts.labelRules'),
             `${this.opts.row.role} · ${this.opts.row.fingerprint}`,
           ];
     const subtitleLines = subtitleSource.map((line, index) =>
@@ -337,7 +361,7 @@ export class AccountLabelInputComponent extends Container implements Focusable {
         '…',
       ),
     );
-    const footer = currentTheme.fg('textDim', 'Enter submit  ·  Esc cancel');
+    const footer = currentTheme.fg('textDim', ttui('tui.accounts.labelFooter'));
     const contentLines = [
       truncateToWidth(title, innerWidth, '…'),
       '',
@@ -369,7 +393,7 @@ export class AccountLabelInputComponent extends Container implements Focusable {
   private submit(value: string): void {
     const trimmed = value.trim();
     if (trimmed.length === 0) {
-      this.error = 'Label cannot be empty. Esc to cancel.';
+      this.error = ttui('tui.accounts.labelEmpty');
       return;
     }
     this.finish({ kind: 'ok', value: trimmed });

@@ -1,21 +1,22 @@
 import type { Session } from '@superliora/sdk';
 
-import { NO_ACTIVE_SESSION_MESSAGE } from '../../../constant/liora-tui';
+import {  NO_ACTIVE_SESSION_MESSAGE } from '../../../constant/liora-tui';
 import { formatErrorMessage } from '../../../utils/event-payload';
 import type { SlashCommandHost } from '../../hub/dispatch';
 import { resolvePlanActivation } from '#/tui/utils/plan-activation';
+import { ttui } from '../../../utils/tui-i18n';
 
 export async function handlePlanCommand(host: SlashCommandHost, args: string): Promise<void> {
   const session = host.session;
   if (session === undefined) {
-    host.showError(NO_ACTIVE_SESSION_MESSAGE);
+    host.showError(NO_ACTIVE_SESSION_MESSAGE());
     return;
   }
 
   const subcmd = args.trim().toLowerCase();
   if (subcmd === 'clear') {
     await session.clearPlan();
-    host.showNotice('Plan cleared');
+    host.showNotice(ttui('tui.plan.cleared'));
     return;
   }
 
@@ -29,7 +30,7 @@ export async function handlePlanCommand(host: SlashCommandHost, args: string): P
     ultra = true;
   }
   else {
-    host.showError(`Unknown plan subcommand: ${subcmd}. Use on, off, or clear.`);
+    host.showError(ttui('tui.plan.unknownSub', { subcmd }));
     return;
   }
 
@@ -41,7 +42,7 @@ async function applyPlanMode(host: SlashCommandHost, session: Session, enabled: 
     await session.setPlanMode(enabled, ultra);
     if (!enabled) {
       host.setAppState({ planMode: false, activityTip: null });
-      host.showNotice('Plan mode: OFF');
+      host.showNotice(ttui('tui.plan.off'));
       return;
     }
     // Conductor Plan Desk: enterPlan with task context delegates to a mission
@@ -78,14 +79,14 @@ async function applyPlanMode(host: SlashCommandHost, session: Session, enabled: 
     );
   } catch (error) {
     const msg = formatErrorMessage(error);
-    host.showError(`Failed to set plan mode: ${msg}`);
+    host.showError(ttui('tui.plan.setFailed', { message: msg }));
   }
 }
 
 export async function handleCompactCommand(host: SlashCommandHost, args: string): Promise<void> {
   const session = host.session;
   if (session === undefined) {
-    host.showError(NO_ACTIVE_SESSION_MESSAGE);
+    host.showError(NO_ACTIVE_SESSION_MESSAGE());
     return;
   }
   const customInstruction = args.trim() || undefined;

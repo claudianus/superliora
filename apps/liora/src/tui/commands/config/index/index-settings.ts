@@ -16,6 +16,7 @@ import {
 } from '../../../utils/index/index-glance';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 
 export { INDEX_ENGINE_TIP, INDEX_FTS_TIP, INDEX_WARM_TIP };
 
@@ -23,7 +24,7 @@ export function showIndexSettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Repo index',
+      title: ttui('tui.settings.pane.index.title'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
@@ -104,7 +105,7 @@ async function showIndexSettingsPanel(
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => [...lines],
     borderToken: 'primary',
-    title: ' Index ',
+    title: ttui('tui.settings.pane.index.panelTitle'),
     enterBeatSeed: 'index',
     requestRender: () => {
       requestTUILayoutRender(host.state);
@@ -118,10 +119,10 @@ async function showIndexRebuildPanel(host: SlashCommandHost): Promise<void> {
   const workDir = resolveIndexWorkDir(host);
   const rebuildResult = rebuildRepoIndex(workDir);
   if (rebuildResult.ok) {
-    host.showStatus('Repo index rebuild finished.', 'success');
+    host.showStatus(ttui('tui.index.rebuildDone'), 'success');
   } else {
     host.showStatus(
-      rebuildResult.note ?? 'Repo index rebuild failed.',
+      rebuildResult.note ?? ttui('tui.index.rebuildFailed'),
       'warning',
     );
   }

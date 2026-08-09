@@ -8,7 +8,7 @@ import type { SearchResults } from '#/utils/fs/project-search';
 import type { GitDiffReport } from '#/utils/git/git-diff';
 import type { GitLogReport } from '#/utils/git/git-log';
 
-import { LLM_NOT_SET_MESSAGE } from '../../constant/liora-tui';
+import {  LLM_NOT_SET_MESSAGE } from '../../constant/liora-tui';
 import type { AuthFlowController } from '../../controllers/auth/auth-flow';
 import type { BtwPanelController } from '../../controllers/panes/btw-panel';
 import type { StreamingUIController } from '../../controllers/streaming-ui/index';
@@ -27,11 +27,13 @@ import type {
   TranscriptEntry,
 } from '../../types';
 import { formatErrorMessage } from '../../utils/event-payload';
+import { ttui } from '../../utils/tui-i18n';
 import { handleAccountsCommand } from '../auth/accounts';
 import { handleLoginCommand, handleLogoutCommand } from '../auth/login';
 import { handleBtwCommand } from '../btw';
 import { handleAutoCommand, handlePermissionCommand, handleYoloCommand, showPermissionPicker } from '../config/permission/permission';
 import { handleAppearanceCommand } from '../config/appearance/appearance';
+import { handleLocaleCommand } from '../config/locale/locale';
 import { handleAskCommand } from '../config/plan/ask';
 import { handleCompactCommand, handlePlanCommand } from '../config/plan/plan';
 import { handleRefineCommand } from '../refine';
@@ -279,12 +281,12 @@ async function executeSlashCommand(host: SlashCommandHost, input: string): Promi
         reason: intent.reason,
         command: intent.commandName,
       });
-      host.showError(`Invalid slash command: /${intent.commandName}`);
+      host.showError(ttui('tui.hub.invalidSlash', { name: intent.commandName }));
       return;
     case 'skill': {
       const session = host.session;
       if (host.state.appState.model.trim().length === 0 || session === undefined) {
-        host.showError(LLM_NOT_SET_MESSAGE);
+        host.showError(LLM_NOT_SET_MESSAGE());
         return;
       }
       host.track('input_command', {
@@ -297,7 +299,7 @@ async function executeSlashCommand(host: SlashCommandHost, input: string): Promi
     case 'plugin-command': {
       const session = host.session;
       if (host.state.appState.model.trim().length === 0 || session === undefined) {
-        host.showError(LLM_NOT_SET_MESSAGE);
+        host.showError(LLM_NOT_SET_MESSAGE());
         return;
       }
       host.track('input_command', { command: `${intent.pluginId}:${intent.commandName}` });
@@ -346,7 +348,7 @@ async function handleBuiltInSlashCommand(
       host.showBlame(args);
       return;
     case 'version':
-      host.showStatus(`${PRODUCT_NAME} v${host.state.appState.version}`);
+      host.showStatus(ttui('tui.hub.version', { product: PRODUCT_NAME, version: host.state.appState.version }));
       return;
     case 'new':
       await host.createNewSession();
@@ -414,6 +416,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'appearance':
       await handleAppearanceCommand(host, args);
+      return;
+    case 'locale':
+      await handleLocaleCommand(host, args);
       return;
     case 'persona':
       await handlePersonaCommand(host, args);
@@ -537,7 +542,7 @@ async function handleBuiltInSlashCommand(
       await host.retryLastTurn();
       return;
     default:
-      host.showError(`Unknown slash command: /${String(name)}`);
+      host.showError(ttui('tui.hub.unknownSlash', { name: String(name) }));
       return;
   }
 }

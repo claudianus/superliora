@@ -17,6 +17,7 @@ import { requestTUIContentRender } from '../../utils/render/frame-render';
 import { formatBashOutputForDisplay } from '../../utils/shell-output';
 import { markTranscriptComponent } from '../../features/transcript/transcript-component-metadata';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
+import { ttui } from '../../utils/tui-i18n';
 
 /** Host surface required by shell command and input-history orchestration. */
 export interface ShellInputHost {
@@ -47,7 +48,7 @@ export class ShellInputController {
     const { host } = this;
     const session = host.session;
     if (session === undefined) {
-      host.showError('No active session for shell command.');
+      host.showError(ttui('tui.shell.noSession'));
       return;
     }
     host.appendTranscriptEntry({
@@ -84,7 +85,7 @@ export class ShellInputController {
       (error: unknown) => {
         const message = formatErrorMessage(error);
         this.finishShellOutput(commandId, '', message, true);
-        host.showError(`Shell command failed: ${message}`);
+        host.showError(ttui('tui.shell.commandFailed', { message }));
       },
     );
   }
@@ -109,7 +110,7 @@ export class ShellInputController {
     if (session === undefined) return;
     for (const commandId of host.shellOutputStreams.keys()) {
       void session.cancelShellCommand(commandId).catch((error: unknown) => {
-        host.showError(`Failed to cancel shell command: ${formatErrorMessage(error)}`);
+        host.showError(ttui('tui.shell.cancelFailed', { message: formatErrorMessage(error) }));
       });
     }
   }

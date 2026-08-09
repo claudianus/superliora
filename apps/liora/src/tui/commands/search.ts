@@ -11,7 +11,7 @@ import type { SlashCommandHost } from './hub/dispatch';
 export function showSearch(host: SlashCommandHost, args?: string): void {
   const pattern = (args ?? '').trim();
   if (pattern.length === 0) {
-    host.showError('Usage: /search <pattern>');
+    host.showError(ttui('tui.search.usage'));
     return;
   }
   if (host.isSessionLoadingOverlayActive()) {

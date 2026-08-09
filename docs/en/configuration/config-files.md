@@ -291,6 +291,7 @@ Alongside `config.toml`, the CLI keeps terminal-UI and client preferences in a c
 
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
+| `locale` | `string` | `auto` | UI language: `auto` (follow `SUPERLIORA_LOCALE` / `LANG`), `en`, or `ko` |
 | `theme` | `string` | `auto` | Color theme: `auto` (follow the terminal), `dark`, `light`, or the name of a [custom theme](../customization/themes) |
 | `[editor].command` | `string` | `""` | External editor command for composing long input; empty falls back to `$VISUAL` / `$EDITOR` |
 | `[notifications].enabled` | `boolean` | `true` | Whether desktop notifications are sent |
@@ -300,6 +301,7 @@ Alongside `config.toml`, the CLI keeps terminal-UI and client preferences in a c
 ```toml
 # ~/.superliora/tui.toml
 theme = "auto" # "auto" | "dark" | "light" | custom theme name
+locale = "auto" # "auto" | "en" | "ko" — auto follows SUPERLIORA_LOCALE / LANG
 
 [editor]
 command = "" # empty uses $VISUAL / $EDITOR

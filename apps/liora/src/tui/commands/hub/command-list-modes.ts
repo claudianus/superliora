@@ -3,6 +3,7 @@
  */
 
 import type { LioraSlashCommand } from '../types';
+import { ttui } from '#/tui/utils/tui-i18n';
 import {
   toggleOnOffArgumentCompletions,
   permissionArgumentCompletions,
@@ -27,12 +28,17 @@ import {
 import { pluginsArgumentCompletions } from '../plugins/plugins';
 import { transcriptArgumentCompletions } from '../session/transcript';
 
-export const BUILTIN_SLASH_COMMANDS_MODES = [
+function slashDesc(name: string): string {
+  return ttui(`tui.slash.${name}`);
+}
+
+export function getBuiltinSlashCommandsModes(): readonly LioraSlashCommand[] {
+  return [
 
   {
     name: 'yolo',
     aliases: ['yes'],
-    description: 'Toggle auto-approve mode (prefer Menu → Permission / Settings → Permission)',
+    description: slashDesc('yolo'),
     priority: 50,
     argumentHint: '[on|off]',
     completeArgs: toggleOnOffArgumentCompletions,
@@ -42,7 +48,7 @@ export const BUILTIN_SLASH_COMMANDS_MODES = [
   {
     name: 'auto',
     aliases: [],
-    description: 'Toggle auto permission mode (prefer Menu → Permission / Settings → Permission)',
+    description: slashDesc('auto'),
     priority: 50,
     argumentHint: '[on|off]',
     completeArgs: toggleOnOffArgumentCompletions,
@@ -52,7 +58,7 @@ export const BUILTIN_SLASH_COMMANDS_MODES = [
   {
     name: 'permission',
     aliases: [],
-    description: 'Select permission mode',
+    description: slashDesc('permission'),
     priority: 100,
     argumentHint: '[manual|auto|yolo]',
     completeArgs: permissionArgumentCompletions,
@@ -61,7 +67,7 @@ export const BUILTIN_SLASH_COMMANDS_MODES = [
   {
     name: 'profile',
     aliases: [],
-    description: 'Agent tool profile — Core waist (≤12): /profile core, /new · Mission/Fleet',
+    description: slashDesc('profile'),
     priority: 95,
     argumentHint: '[status|core|agent|superliora-full]',
     completeArgs: profileArgumentCompletions,
@@ -71,14 +77,14 @@ export const BUILTIN_SLASH_COMMANDS_MODES = [
   {
     name: 'settings',
     aliases: ['config'],
-    description: 'Open TUI settings (also: ? / Ctrl-K → menu)',
+    description: slashDesc('settings'),
     priority: 100,
     availability: 'always',
   },
   {
     name: 'context',
     aliases: ['working-set', 'workingset'],
-    description: 'Set context working-set size (when auto-compaction fires on large windows)',
+    description: slashDesc('context'),
     priority: 90,
     argumentHint: '[economy|balanced|deep|full|status]',
     completeArgs: contextArgumentCompletions,
@@ -88,7 +94,7 @@ export const BUILTIN_SLASH_COMMANDS_MODES = [
   {
     name: 'premium',
     aliases: ['pq'],
-    description: 'Toggle Visual Quality (motion/density; not task quality)',
+    description: slashDesc('premium'),
     priority: 100,
     argumentHint: '[on|off|status]',
     completeArgs: premiumArgumentCompletions,
@@ -97,7 +103,7 @@ export const BUILTIN_SLASH_COMMANDS_MODES = [
   {
     name: 'plan',
     aliases: [],
-    description: 'Plan mode — model writes a plan file, you approve (interview → write)',
+    description: slashDesc('plan'),
     priority: 80,
     argumentHint: '[on|off|clear]',
     completeArgs: planArgumentCompletions,
@@ -106,10 +112,11 @@ export const BUILTIN_SLASH_COMMANDS_MODES = [
   {
     name: 'ask',
     aliases: [],
-    description: 'Ask mode — investigate and answer without editing or delegating (Shift-Tab)',
+    description: slashDesc('ask'),
     priority: 79,
     argumentHint: '[on|off]',
     completeArgs: askArgumentCompletions,
     availability: () => 'always',
   },
 ] as const satisfies readonly LioraSlashCommand[];
+}

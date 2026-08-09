@@ -34,6 +34,7 @@ import {
   renderShimmerPrefix,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 const BLINK_INTERVAL = 500;
 
@@ -50,12 +51,18 @@ interface PhaseProgress {
  * creeps asymptotically toward SUMMARY_CREEP_CEILING while the long LLM call
  * is in flight so the bar stays alive without ever claiming completion.
  */
-const PHASE_PROGRESS: Record<CompactionUiPhase, PhaseProgress> = {
-  preparing: { base: 0.12, label: 'Preparing' },
-  summarizing: { base: 0.3, label: 'Summarizing conversation' },
-  repairing: { base: 0.78, label: 'Verifying summary' },
-  finalizing: { base: 0.92, label: 'Rebuilding context' },
-};
+function phaseProgress(phase: CompactionUiPhase): PhaseProgress {
+  switch (phase) {
+    case 'preparing':
+      return { base: 0.12, label: ttui('tui.dialog.compaction.phase.preparing') };
+    case 'summarizing':
+      return { base: 0.3, label: ttui('tui.dialog.compaction.phase.summarizing') };
+    case 'repairing':
+      return { base: 0.78, label: ttui('tui.dialog.compaction.phase.repairing') };
+    case 'finalizing':
+      return { base: 0.92, label: ttui('tui.dialog.compaction.phase.finalizing') };
+  }
+}
 
 const SUMMARY_CREEP_CEILING = 0.7;
 const SUMMARY_CREEP_TAU_MS = 6000;
@@ -169,7 +176,9 @@ export class CompactionComponent extends Container {
       animated &&
       now - this.startedAtMs < enterBeatDurationMs(appearance)
     ) {
-      const title = this.background ? 'Compacting context (bg)' : 'Compacting context';
+      const title = this.background
+        ? ttui('tui.dialog.compaction.titleActiveBg')
+        : ttui('tui.dialog.compaction.titleActive');
       // Pin to a single title line so geometry stays stable while the beat
       // paints (renderEnterBeat otherwise toggles 1↔2 lines).
       const beatHead = renderEnterBeat(title, width, 'compaction', this.startedAtMs, appearance);
@@ -250,7 +259,7 @@ export class CompactionComponent extends Container {
     if (this.done || this.canceled || this.phase === phase) return;
     this.phase = phase;
     this.phaseEnteredAt = appearanceAnimationNow();
-    this.progressFloor = Math.max(this.progressFloor, PHASE_PROGRESS[phase].base);
+    this.progressFloor = Math.max(this.progressFloor, phaseProgress(phase).base);
     this.ui?.requestRender();
   }
 
@@ -285,8 +294,8 @@ export class CompactionComponent extends Container {
     ) {
       // Block completion alone: map into the summarizing band (0.30 → 0.70).
       const blockFrac =
-        PHASE_PROGRESS.summarizing.base +
-        (SUMMARY_CREEP_CEILING - PHASE_PROGRESS.summarizing.base) *
+        phaseProgress('summarizing').base +
+        (SUMMARY_CREEP_CEILING - phaseProgress('summarizing').base) *
           Math.min(1, Math.max(0, next.blocksCompleted / next.blockCount));
       this.progressFloor = Math.max(this.progressFloor, blockFrac);
     }
@@ -348,12 +357,12 @@ export class CompactionComponent extends Container {
       count > 0
     ) {
       const blockFrac =
-        PHASE_PROGRESS.summarizing.base +
-        (SUMMARY_CREEP_CEILING - PHASE_PROGRESS.summarizing.base) *
+        phaseProgress('summarizing').base +
+        (SUMMARY_CREEP_CEILING - phaseProgress('summarizing').base) *
           Math.min(1, Math.max(0, completed / count));
       return Math.min(0.99, Math.max(blockFrac, this.progressFloor));
     }
-    const cfg = PHASE_PROGRESS[this.phase];
+    const cfg = phaseProgress(this.phase);
     let fraction = cfg.base;
     if (animated && this.phase === 'summarizing') {
       const elapsed = Math.max(0, now - this.phaseEnteredAt);
@@ -405,7 +414,7 @@ export class CompactionComponent extends Container {
     const animated = shouldRenderAmbientEffects(appearance);
     const now = appearanceAnimationNow();
     const fraction = this.currentFraction(now, animated);
-    const { label } = PHASE_PROGRESS[this.phase];
+    const { label } = phaseProgress(this.phase);
     const status = `${label}${this.streamStatusSuffix()}`;
     const barWidth = Math.max(BAR_MIN_WIDTH, Math.min(BAR_MAX_WIDTH, width - 18));
     const filled = Math.min(barWidth, Math.round(fraction * barWidth));
@@ -466,7 +475,7 @@ export class CompactionComponent extends Container {
       this.tokensBefore !== undefined && this.tokensAfter !== undefined
         ? ` (${String(this.tokensBefore)} → ${String(this.tokensAfter)} tokens)`
         : '';
-    return `Compaction complete${detail}`;
+    return `${ttui('tui.dialog.compaction.complete')}${detail}`;
   }
 
   private buildHeader(): string {
@@ -475,8 +484,8 @@ export class CompactionComponent extends Container {
     if (this.done) {
       const bullet = currentTheme.fg('success', STATUS_BULLET);
       const label = animated
-        ? renderPremiumHeadline('Compaction complete', 'compaction:done', appearance)
-        : currentTheme.boldFg('success', 'Compaction complete');
+        ? renderPremiumHeadline(ttui('tui.dialog.compaction.complete'), 'compaction:done', appearance)
+        : currentTheme.boldFg('success', ttui('tui.dialog.compaction.complete'));
       const detail =
         this.tokensBefore !== undefined && this.tokensAfter !== undefined
           ? currentTheme.dim(` (${String(this.tokensBefore)} → ${String(this.tokensAfter)} tokens)`)
@@ -486,16 +495,16 @@ export class CompactionComponent extends Container {
     if (this.canceled) {
       const bullet = currentTheme.fg('warning', STATUS_BULLET);
       const label = animated
-        ? renderPremiumHeadline('Compaction cancelled', 'compaction:cancel', appearance)
-        : currentTheme.boldFg('warning', 'Compaction cancelled');
+        ? renderPremiumHeadline(ttui('tui.dialog.compaction.cancelled'), 'compaction:cancel', appearance)
+        : currentTheme.boldFg('warning', ttui('tui.dialog.compaction.cancelled'));
       return `${bullet}${label}`;
     }
     // Derive the blink phase from the animation clock — no private timer.
     const blinkOn = Math.floor(appearanceAnimationNow() / BLINK_INTERVAL) % 2 === 0;
     const bullet = blinkOn ? currentTheme.fg('text', STATUS_BULLET) : '  ';
     const activeLabel = this.background
-      ? 'Compacting in background...'
-      : 'Compacting context...';
+      ? ttui('tui.dialog.compaction.titleProgressBg')
+      : ttui('tui.dialog.compaction.titleProgress');
     const label = animated
       ? renderPremiumHeadline(
           activeLabel,

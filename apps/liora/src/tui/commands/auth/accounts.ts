@@ -26,6 +26,7 @@ import {
   type AccountPoolRow,
 } from '../../components/dialogs/auth/accounts-manager';
 import type { SlashCommandHost } from '../hub/dispatch';
+import { ttui } from '../../utils/tui-i18n';
 
 interface OAuthProviderPool {
   readonly providerId: string;
@@ -81,7 +82,7 @@ function currentModelProviderId(host: SlashCommandHost): string | undefined {
 export async function handleAccountsCommand(host: SlashCommandHost): Promise<void> {
   const pools = await loadOAuthProviderPools(host);
   if (pools.length === 0) {
-    host.showStatus('No OAuth accounts configured. Use /login to connect a provider.');
+    host.showStatus(ttui('tui.accounts.none'));
     return;
   }
 
@@ -118,7 +119,7 @@ function showAccountsList(host: SlashCommandHost, providerId: string): void {
     const pools = await loadOAuthProviderPools(host);
     const pool = pools.find((entry) => entry.providerId === providerId);
     if (pool === undefined || pool.refs.length === 0) {
-      host.showStatus(`No OAuth accounts for ${providerId}. Use /login to add one.`);
+      host.showStatus(ttui('tui.accounts.noOAuth', { provider: providerId }));
       return;
     }
 
@@ -200,19 +201,19 @@ async function promoteAccount(
   if (!result.ok) {
     host.showStatus(
       result.reason === 'empty'
-        ? `No OAuth accounts for ${providerId}.`
-        : `Account index out of range for ${providerId}.`,
+        ? ttui('tui.accounts.noOAuth', { provider: providerId })
+        : ttui('tui.accounts.indexOutOfRange', { provider: providerId }),
     );
     showAccountsList(host, providerId);
     return;
   }
   if (result.alreadyPrimary) {
-    host.showStatus(`${row.displayLabel} is already primary for ${providerId}.`);
+    host.showStatus(ttui('tui.accounts.alreadyPrimary', { label: row.displayLabel, provider: providerId }));
     showAccountsList(host, providerId);
     return;
   }
   await persistProvider(host, providerId, result.provider);
-  host.showStatus(`Promoted ${row.displayLabel} to primary for ${providerId}.`, 'success');
+  host.showStatus(ttui('tui.accounts.promoted', { label: row.displayLabel, provider: providerId }), 'success');
   showAccountsList(host, providerId);
 }
 
@@ -225,12 +226,12 @@ async function unlabelAccount(
   const provider = config.providers[providerId] as Record<string, unknown> | undefined;
   const result = labelProviderOAuthRef(provider, row.index, undefined);
   if (!result.ok) {
-    host.showStatus(`Could not clear label on ${row.displayLabel}.`);
+    host.showStatus(ttui('tui.accounts.labelClearFailed', { label: row.displayLabel }));
     showAccountsList(host, providerId);
     return;
   }
   await persistProvider(host, providerId, result.provider);
-  host.showStatus(`Cleared label on account for ${providerId}.`, 'success');
+  host.showStatus(ttui('tui.accounts.labelCleared', { provider: providerId }), 'success');
   showAccountsList(host, providerId);
 }
 
@@ -259,7 +260,7 @@ async function applyLabel(
   label: string,
 ): Promise<void> {
   if (!isValidProviderOAuthCredentialLabel(label)) {
-    host.showError('Invalid label. Use letters, digits, _ . - (1–64 chars).');
+    host.showError(ttui('tui.accounts.invalidLabel'));
     promptLabel(host, providerId, row);
     return;
   }
@@ -269,16 +270,16 @@ async function applyLabel(
   if (!result.ok) {
     const message =
       result.reason === 'duplicate_label'
-        ? `Label “${label}” is already used on this provider.`
+        ? ttui('tui.accounts.duplicateLabel', { label })
         : result.reason === 'invalid_label'
-          ? 'Invalid label. Use letters, digits, _ . - (1–64 chars).'
-          : `Could not label account for ${providerId}.`;
+          ? ttui('tui.accounts.invalidLabel')
+          : ttui('tui.accounts.labelFailed', { provider: providerId });
     host.showError(message);
     showAccountsList(host, providerId);
     return;
   }
   await persistProvider(host, providerId, result.provider);
-  host.showStatus(`Labeled account as “${label}” on ${providerId}.`, 'success');
+  host.showStatus(ttui('tui.accounts.labeled', { label, provider: providerId }), 'success');
   showAccountsList(host, providerId);
 }
 
@@ -314,16 +315,16 @@ async function removeAccount(
   const provider = config.providers[providerId] as Record<string, unknown> | undefined;
   const result = removeProviderOAuthRef(provider, row.index);
   if (!result.ok) {
-    host.showStatus(`Could not remove account for ${providerId}.`);
+    host.showStatus(ttui('tui.accounts.removeFailed', { provider: providerId }));
     showAccountsList(host, providerId);
     return;
   }
   await persistProvider(host, providerId, result.provider);
   if (result.remaining === 0) {
-    host.showStatus(`Removed last OAuth account for ${providerId}. Pool is empty.`, 'warning');
+    host.showStatus(ttui('tui.accounts.removedLast', { provider: providerId }), 'warning');
     return;
   }
-  host.showStatus(`Removed ${row.displayLabel} from ${providerId}.`, 'success');
+  host.showStatus(ttui('tui.accounts.removed', { label: row.displayLabel, provider: providerId }), 'success');
   showAccountsList(host, providerId);
 }
 

@@ -12,14 +12,15 @@ import type { LioraSlashCommand, SlashCommandAvailability, SlashCommandVisibilit
 export * from './completion-specs';
 export {
   BUILTIN_SLASH_COMMANDS,
+  getBuiltinSlashCommands,
   type BuiltinSlashCommand,
   type BuiltinSlashCommandName,
 } from './command-list';
 
-import { BUILTIN_SLASH_COMMANDS, type BuiltinSlashCommand } from './command-list';
+import { BUILTIN_SLASH_COMMANDS, type BuiltinSlashCommand, getBuiltinSlashCommands } from './command-list';
 
 export function findBuiltInSlashCommand(commandName: string): BuiltinSlashCommand | undefined {
-  const commands = BUILTIN_SLASH_COMMANDS as readonly BuiltinSlashCommand[];
+  const commands = getBuiltinSlashCommands() as readonly BuiltinSlashCommand[];
   return commands.find(
     (command) =>
       command.name === commandName ||

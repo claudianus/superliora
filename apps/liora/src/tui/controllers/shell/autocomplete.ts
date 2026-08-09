@@ -1,7 +1,7 @@
 import type { Session } from '@superliora/sdk';
 
 import {
-  BUILTIN_SLASH_COMMANDS,
+  getBuiltinSlashCommands,
   buildPluginSlashCommands,
   buildSkillSlashCommands,
   isExperimentalFlagEnabled,
@@ -40,7 +40,7 @@ export class AutocompleteController {
   constructor(private readonly host: AutocompleteHost) {}
 
   getSlashCommands(mode: SlashCommandHelpMode = 'primary'): readonly LioraSlashCommand[] {
-    const builtins = sortSlashCommands(BUILTIN_SLASH_COMMANDS).filter((command) =>
+    const builtins = sortSlashCommands(getBuiltinSlashCommands()).filter((command) =>
       isExperimentalFlagEnabled(command.experimentalFlag),
     );
     const visibleBuiltins = slashCommandsForHelp(builtins, mode);

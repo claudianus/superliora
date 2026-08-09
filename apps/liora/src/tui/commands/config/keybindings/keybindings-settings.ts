@@ -16,6 +16,7 @@ import {
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 
 export {
   KEYBINDINGS_COMMAND_HUB_TIP,
@@ -28,7 +29,7 @@ export function showKeybindingsSettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Keyboard',
+      title: ttui('tui.settings.pane.keybindings.title'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
@@ -81,7 +82,7 @@ function showKeybindingsSettingsPanel(host: SlashCommandHost): void {
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => [...lines],
     borderToken: 'primary',
-    title: ' Keybindings ',
+    title: ttui('tui.settings.pane.keybindings.panelTitle'),
     enterBeatSeed: 'keybindings',
     requestRender: () => {
       requestTUILayoutRender(host.state);

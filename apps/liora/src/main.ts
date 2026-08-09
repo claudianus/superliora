@@ -23,7 +23,8 @@ import {
 } from '@superliora/telemetry';
 
 import { createProgram } from './cli/commands';
-import { detectCliLocale, setCliLocale, tln } from './cli/i18n';
+import { resolveCliLocale, setCliLocale, tln } from './cli/i18n';
+import { loadTuiConfig, TuiConfigParseError } from './tui/config';
 import { finalizeHeadlessRun } from './cli/headless-exit';
 import type { CLIOptions } from './cli/options';
 import { OptionConflictError, validateOptions } from './cli/options';
@@ -157,12 +158,29 @@ export function main(): void {
     }
   });
 
+  void bootstrapCli(process.argv);
+}
+
+async function bootstrapCli(argv: readonly string[]): Promise<void> {
   const version = getVersion();
 
-  // Apply the user's CLI locale before building the program so commander help
-  // text, option descriptions, and subcommand summaries render in the user's
-  // language. Defaults to English; switches to Korean for ko* locales.
-  setCliLocale(detectCliLocale(process.env));
+  let localePreference: import('./tui/config').LocalePreference | undefined;
+  try {
+    const tuiConfig = await loadTuiConfig();
+    localePreference = tuiConfig?.locale;
+  } catch (error) {
+    if (!(error instanceof TuiConfigParseError)) throw error;
+    localePreference = error.fallback?.locale;
+  }
+
+  // Apply locale before building the program so commander help text and TUI
+  // catalogs render in the user's language.
+  setCliLocale(
+    resolveCliLocale({
+      preference: localePreference,
+      env: process.env,
+    }),
+  );
 
   const program = createProgram(
     version,
@@ -210,7 +228,7 @@ export function main(): void {
     },
   );
 
-  program.parse(process.argv);
+  program.parse(argv);
 }
 
 main();

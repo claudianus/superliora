@@ -6,6 +6,8 @@
  * soft vs hard (kept previous config) recovery copy.
  */
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 export type ConfigDiagnosticsNotice = {
   readonly title: string;
   readonly detail: string;
@@ -27,13 +29,15 @@ export function formatConfigDiagnosticsNotice(
   const keptPrevious = warnings.some(isConfigKeptPreviousWarning);
   const body = warnings.map((w) => `- ${w}`).join('\n');
   return {
-    title: keptPrevious ? 'Config reload degraded' : 'Config diagnostics',
+    title: keptPrevious
+      ? ttui('tui.notice.configDegraded.title')
+      : ttui('tui.notice.configDiagnostics.title'),
     detail: keptPrevious
-      ? `config.toml has errors; previous configuration was kept.\n${body}\nFix config.toml, then reload or restart.`
-      : `Runtime config warnings:\n${body}`,
+      ? ttui('tui.notice.configDegraded.detail', { body })
+      : ttui('tui.notice.configDiagnostics.detail', { body }),
     status: keptPrevious
-      ? 'Config degraded — kept previous config.toml'
-      : `Config diagnostics (${String(warnings.length)})`,
+      ? ttui('tui.notice.configDegraded.status')
+      : ttui('tui.notice.configDiagnostics.status', { count: String(warnings.length) }),
     coalesceKey: 'config-diagnostics',
     keptPrevious,
   };

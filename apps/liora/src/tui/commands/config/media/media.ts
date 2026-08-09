@@ -2,6 +2,7 @@ import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice
 import { formatErrorMessage } from '../../../utils/event-payload';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 
 /**
  * Settings → Media fallback: policy for attached images/videos when the
@@ -9,7 +10,7 @@ import type { SlashCommandHost } from '../../hub/dispatch';
  */
 export function handleMediaCommand(host: SlashCommandHost, args: string): void {
   if (args.trim().length > 0) {
-    host.showError('Usage: /media');
+    host.showError(ttui('tui.media.usage'));
     return;
   }
   showMediaFallbackPicker(host);
@@ -61,8 +62,8 @@ async function applyMediaFallbackPolicy(
   try {
     await host.harness.setConfig({ media: { nonVisionFallback: policy } });
     host.setAppState({ nonVisionFallbackPolicy: policy });
-    host.showStatus(`Media fallback set to '${policy}'.`, 'success');
+    host.showStatus(ttui('tui.media.fallbackSet', { policy }), 'success');
   } catch (error) {
-    host.showError(`Failed to update media fallback: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.media.fallbackUpdateFailed', { message: formatErrorMessage(error) }));
   }
 }

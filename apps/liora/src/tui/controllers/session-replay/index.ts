@@ -51,7 +51,7 @@ export class SessionReplayRenderer {
     try {
       const main = session.getResumeState()?.agents['main'];
       if (main === undefined) {
-        this.host.showError('Session history is unavailable for this session.');
+        this.host.showError(ttui('tui.session.historyUnavailable'));
         return false;
       }
 
@@ -79,7 +79,7 @@ export class SessionReplayRenderer {
       return true;
     } catch (error) {
       const message = formatErrorMessage(error);
-      this.host.showError(`Failed to replay session history: ${message}`);
+      this.host.showError(ttui('tui.session.replayFailed', { message }));
       return false;
     } finally {
       this.host.state.transcriptContainer.endBatchMount();

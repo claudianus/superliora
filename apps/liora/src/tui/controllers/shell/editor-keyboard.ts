@@ -9,12 +9,12 @@ import { parseImageMeta } from '#/utils/image/image-mime';
 import { editInExternalEditor, resolveEditorCommand } from '#/utils/process/external-editor';
 
 import {
-  CTRL_C_HINT,
-  CTRL_D_HINT,
+   CTRL_C_HINT,
+   CTRL_D_HINT,
   DOUBLE_ESC_WINDOW_MS,
   EXIT_CONFIRM_WINDOW_MS,
-  LLM_NOT_SET_MESSAGE,
-  NO_ACTIVE_SESSION_MESSAGE,
+   LLM_NOT_SET_MESSAGE,
+   NO_ACTIVE_SESSION_MESSAGE,
 } from '../../constant/liora-tui';
 import { formatErrorMessage } from '../../utils/event-payload';
 import {
@@ -23,6 +23,7 @@ import {
   type PromptInputRuntimeHost,
 } from '../../utils/prompt-input-state';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
+import { ttui } from '../../utils/tui-i18n';
 import type { ImageAttachmentStore } from '../../utils/image/image-attachment-store';
 import { parseDroppedFilePaths } from '../../utils/media/media-drop';
 import { copyTranscriptSelectionToClipboard } from '../../features/transcript/transcript-selection';
@@ -165,7 +166,7 @@ export class EditorKeyboardController {
       if (editor.getText().length > 0) {
         editor.setText('');
       }
-      this.armPendingExit('ctrl-c', CTRL_C_HINT);
+      this.armPendingExit('ctrl-c', CTRL_C_HINT());
     };
 
     editor.onCtrlD = () => {
@@ -174,7 +175,7 @@ export class EditorKeyboardController {
         void host.stop();
         return;
       }
-      this.armPendingExit('ctrl-d', CTRL_D_HINT);
+      this.armPendingExit('ctrl-d', CTRL_D_HINT());
     };
 
     editor.onEscape = () => {
@@ -274,7 +275,7 @@ export class EditorKeyboardController {
       if (!editorIsBash) editor.setText('');
       const session = host.session;
       if (host.state.appState.model.trim().length === 0 || session === undefined) {
-        host.showError(LLM_NOT_SET_MESSAGE);
+        host.showError(LLM_NOT_SET_MESSAGE());
       } else {
         host.steerMessage(session, parts);
       }
@@ -394,7 +395,7 @@ export class EditorKeyboardController {
     editor.onOpenJobDeck = () => {
       const jobs = host.state.appState.conductorJobs?.jobs ?? [];
       if (jobs.length === 0) {
-        host.showStatus('No Conductor jobs yet — Job Deck opens once jobs exist.', 'textMuted');
+        host.showStatus(ttui('tui.session.noJobsYet'), 'textMuted');
         return;
       }
       host.jobBoardController.openDeck();
@@ -475,7 +476,7 @@ export class EditorKeyboardController {
     if (session === undefined) return;
     void session.cancelCompaction().catch((error: unknown) => {
       const message = formatErrorMessage(error);
-      this.host.showError(`Failed to cancel compaction: ${message}`);
+      this.host.showError(ttui('tui.editor.cancelCompactionFailed', { message }));
     });
   }
 
@@ -569,7 +570,7 @@ export class EditorKeyboardController {
     if (state.externalEditorRunning) return;
     const cmd = resolveEditorCommand(state.appState.editorCommand);
     if (cmd === undefined) {
-      this.host.showError('No editor configured. Set $VISUAL / $EDITOR, or run /editor <command>.');
+      this.host.showError(ttui('tui.status.noEditor'));
       return;
     }
     this.host.setExternalEditorRunning(true);
@@ -585,7 +586,7 @@ export class EditorKeyboardController {
       }
     } catch (error) {
       const msg = formatErrorMessage(error);
-      this.host.showError(`External editor failed: ${msg}`);
+      this.host.showError(ttui('tui.editor.externalFailed', { message: msg }));
     } finally {
       if (typeof process.stdin.pause === 'function') {
         process.stdin.pause();

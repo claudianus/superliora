@@ -21,6 +21,7 @@ import { showEditorPicker } from '../appearance/editor-theme';
 import { tuiConfigFromHost } from '../appearance/tui-persist';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 
 export { EDITOR_BASH_TIP, EDITOR_EXTERNAL_TIP, EDITOR_PERSIST_TIP };
 
@@ -33,7 +34,7 @@ export function showEditorSettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Editor',
+      title: ttui('tui.settings.pane.editor.title'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
@@ -54,7 +55,7 @@ export function showEditorSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
         if (value === 'presets') {
           showSettingPresetsPicker(host, {
-            title: 'Editor / notifications presets',
+            title: ttui('tui.settings.pane.editor.presets'),
             catalog: EDITOR_PRESETS,
             onApply: async (preset) => {
               try {
@@ -70,9 +71,9 @@ export function showEditorSettings(host: SlashCommandHost): void {
                     );
                   }
                 }
-                host.showStatus(`Editor preset "${preset.label}" applied.`, 'success');
+                host.showStatus(ttui('tui.editor.presetApplied', { label: preset.label }), 'success');
               } catch (error) {
-                host.showError(`Failed to save editor preset: ${formatErrorMessage(error)}`);
+                host.showError(ttui('tui.editor.presetSaveFailed', { message: formatErrorMessage(error) }));
               }
             },
           });
@@ -92,7 +93,7 @@ export function showEditorSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Editor' },
+    { label: ttui('tui.settings.pane.editor.title') },
   );
 }
 
@@ -106,7 +107,7 @@ function showEditorSettingsPanel(host: SlashCommandHost): void {
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => [...lines],
     borderToken: 'primary',
-    title: ' Editor ',
+    title: ttui('tui.settings.pane.editor.panelTitle'),
     enterBeatSeed: 'editor-settings',
     requestRender: () => {
       requestTUILayoutRender(host.state);

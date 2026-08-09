@@ -1,17 +1,10 @@
 /**
  * `/loop` — start or stop an in-conversation periodic prompt loop.
- *
- * Usage:
- *   /loop [interval] <prompt>
- *   /loop stop [loopId]
- *   /loop list
- *
- * Interval may be seconds (`30s`), minutes (`2m`), or a bare number of minutes
- * (legacy). Minimum interval is enforced server-side (60s).
  */
 
 import { formatErrorMessage } from '../utils/event-payload';
 import { NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
+import { ttui } from '../utils/tui-i18n';
 import type { SlashCommandHost } from './hub/dispatch';
 
 const MIN_INTERVAL_MS = 60_000;
@@ -22,13 +15,13 @@ export async function handleLoopCommand(
 ): Promise<void> {
   const session = host.session;
   if (session === undefined) {
-    host.showError(NO_ACTIVE_SESSION_MESSAGE);
+    host.showError(NO_ACTIVE_SESSION_MESSAGE());
     return;
   }
 
   const trimmed = args.trim();
   if (trimmed.length === 0) {
-    host.showError('사용법: /loop [interval] <prompt> | /loop stop [id] | /loop list');
+    host.showError(ttui('tui.loop.usage'));
     return;
   }
 
@@ -37,7 +30,7 @@ export async function handleLoopCommand(
     try {
       const loops = await session.listConversationLoops();
       if (loops.length === 0) {
-        host.showStatus('활성 대화 루프가 없습니다.');
+        host.showStatus(ttui('tui.loop.empty'));
         return;
       }
       const lines = loops.map((loop) => {
@@ -46,7 +39,7 @@ export async function handleLoopCommand(
       });
       host.showStatus(lines.join('\n'));
     } catch (error) {
-      host.showError(`루프 목록 조회 실패: ${formatErrorMessage(error)}`);
+      host.showError(ttui('tui.loop.listFailed', { message: formatErrorMessage(error) }));
     }
     return;
   }
@@ -57,19 +50,19 @@ export async function handleLoopCommand(
     try {
       const stopped = await session.stopConversationLoop(loopId);
       if (stopped === undefined) {
-        host.showStatus('중지할 대화 루프가 없습니다.');
+        host.showStatus(ttui('tui.loop.stopEmpty'));
         return;
       }
-      host.showStatus(`루프 ${stopped.id}를 중지했습니다.`);
+      host.showStatus(ttui('tui.loop.stopped', { id: stopped.id }));
     } catch (error) {
-      host.showError(`루프 중지 실패: ${formatErrorMessage(error)}`);
+      host.showError(ttui('tui.loop.stopFailed', { message: formatErrorMessage(error) }));
     }
     return;
   }
 
   const parsed = parseLoopArgs(trimmed);
   if (parsed === undefined) {
-    host.showError('사용법: /loop [interval] <prompt>  (예: /loop 2m 상태 점검)');
+    host.showError(ttui('tui.loop.usageExample'));
     return;
   }
 
@@ -80,10 +73,15 @@ export async function handleLoopCommand(
     });
     const intervalSec = Math.round(state.intervalMs / 1000);
     host.showStatus(
-      `루프 ${state.id} 시작 · 간격 ${String(intervalSec)}s · 최대 ${String(state.maxIterations)}회 · 프롬프트: ${state.prompt.slice(0, 80)}`,
+      ttui('tui.loop.started', {
+        id: state.id,
+        interval: String(intervalSec),
+        max: String(state.maxIterations),
+        prompt: state.prompt.slice(0, 80),
+      }),
     );
   } catch (error) {
-    host.showError(`루프 시작 실패: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.loop.startFailed', { message: formatErrorMessage(error) }));
   }
 }
 

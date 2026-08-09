@@ -17,6 +17,7 @@ import { currentTheme } from '#/tui/theme';
 import { renderPremiumHeadline } from '#/tui/features/appearance/appearance-effects';
 import { printableChar } from '#/tui/utils/printable-key';
 import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
+import { ttui } from '#/tui/utils/tui-i18n';
 import { inboxKindLabel } from '../../job-board/job-board-helpers';
 
 export type InboxDrawerRowKind = 'notice' | 'approval' | 'question' | 'needs_user';
@@ -89,10 +90,10 @@ export class InboxDrawerComponent extends Container implements Focusable {
   }
 
   override render(width: number): string[] {
-    const hint = '↑↓/jk · Enter act · M merge · Esc close';
+    const hint = ttui('tui.dialog.inbox.hint');
     const body: string[] = [];
     if (this.items.length === 0) {
-      body.push(currentTheme.fg('textMuted', '  Inbox is empty.'));
+      body.push(currentTheme.fg('textMuted', ttui('tui.dialog.inbox.empty')));
     } else {
       for (let i = 0; i < this.items.length; i++) {
         const item = this.items[i]!;
@@ -110,7 +111,7 @@ export class InboxDrawerComponent extends Container implements Focusable {
     }
     return renderRendererPanelChromeRows({
       width,
-      title: ' Inbox',
+      title: ttui('tui.dialog.inbox.title'),
       hint: ` ${hint}`,
       body,
       dividerStyle: (text) => currentTheme.fg('primary', text),
@@ -141,11 +142,11 @@ export class InboxDrawerComponent extends Container implements Focusable {
 function rowBadge(item: InboxDrawerItem): string {
   switch (item.kind) {
     case 'approval':
-      return '[approval]';
+      return ttui('tui.dialog.inbox.badge.approval');
     case 'question':
-      return '[question]';
+      return ttui('tui.dialog.inbox.badge.question');
     case 'needs_user':
-      return '[needs user]';
+      return ttui('tui.dialog.inbox.badge.needsUser');
     case 'notice':
       return `[${inboxKindLabel(item.eventKind ?? 'notice')}]`;
   }

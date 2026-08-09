@@ -15,7 +15,7 @@ import {
   withTelemetryContext,
 } from '@superliora/telemetry';
 
-import { tln } from '#/cli/i18n';
+import { tln, resolveCliLocale, setCliLocale } from '#/cli/i18n';
 import { CLI_SHUTDOWN_TIMEOUT_MS, CLI_UI_MODE } from '#/constant/app';
 import { refreshShikiPalette } from '#/tui/components/media/shiki-ansi';
 import type { TuiConfig } from '#/tui/config';
@@ -56,6 +56,8 @@ export async function runShell(
     tuiConfig = error.fallback;
     configWarning = error.message;
   }
+
+  setCliLocale(resolveCliLocale({ preference: tuiConfig.locale, env: process.env }));
 
   // Probe runtime kitty graphics support in the same pre-raw-mode window —
   // once the TUI owns stdin the probe reply would be eaten by the input loop.

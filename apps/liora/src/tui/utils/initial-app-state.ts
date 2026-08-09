@@ -57,6 +57,7 @@ export function createInitialAppState(input: InitialAppStateInput): AppState {
     promptIntelligencePhase: 'idle',
     activityTip: null,
     theme: input.tuiConfig.theme,
+    locale: input.tuiConfig.locale,
     disablePasteBurst: input.tuiConfig.disablePasteBurst,
     version: input.version,
     editorCommand: input.tuiConfig.editorCommand,

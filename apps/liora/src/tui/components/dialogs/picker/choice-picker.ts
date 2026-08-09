@@ -222,10 +222,11 @@ export class ChoicePickerComponent extends Container implements Focusable {
     const appearance = getActiveAppearancePreferences();
     const animated = shouldRenderAmbientEffects(appearance);
 
-    const navParts = columns > 1 ? ['↑↓←→ navigate'] : ['↑↓ navigate'];
-    if (view.page.pageCount > 1) navParts.push('PgUp/PgDn page');
-    navParts.push('Enter select', 'wheel scroll', 'click select', 'Esc cancel');
-    const hint = this.opts.hint ?? navParts.join(' · ');
+    const navHint =
+      columns > 1 ? ttui('tui.common.hint.grid') : ttui('tui.common.hint.list');
+    const hintParts = [navHint];
+    if (view.page.pageCount > 1) hintParts.push(ttui('tui.common.hint.page'));
+    const hint = this.opts.hint ?? hintParts.join(' · ');
 
     const titleSuffix =
       searchable && view.query.length === 0
@@ -257,7 +258,10 @@ export class ChoicePickerComponent extends Container implements Focusable {
     }
     lines.push('');
     if (searchable && view.query.length > 0) {
-      lines.push(currentTheme.fg('primary', ` Search: `) + currentTheme.fg('text', view.query));
+      lines.push(
+        currentTheme.fg('primary', ttui('tui.common.searchLabel')) +
+          currentTheme.fg('text', view.query),
+      );
     }
 
     const itemLineByIndex: number[] = Array.from({ length: options.length }, () => -1);

@@ -6,6 +6,8 @@
  * operator only sees a green tool card and may miss auto-check OK/FAILED.
  */
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 export const AUTO_CHECK_SPAWN_PREFIX = 'AUTO_CHECK_SPAWN:';
 
 export type AutoCheckSpawnNotice = {
@@ -65,23 +67,27 @@ export function formatAutoCheckSpawnNotice(
     packageDir !== undefined && packageDir.length > 0 ? ` (${packageDir})` : '';
   if (failed) {
     return {
-      title: 'Auto-check failed',
-      detail: `After ${tool}, SUPERLIORA_AUTO_CHECK_SPAWN ran RunProjectChecks and it failed${scope}. Fix failures before claiming done (code=${AUTO_CHECK_SPAWN_PREFIX.trimEnd()}).`,
+      title: ttui('tui.notice.autoCheckFailed.title'),
+      detail: ttui('tui.notice.autoCheckFailed.detail', {
+        tool,
+        scope,
+        code: AUTO_CHECK_SPAWN_PREFIX.trimEnd(),
+      }),
       status:
         packageDir !== undefined && packageDir.length > 0
-          ? `Auto-check FAILED (${packageDir})`
-          : `Auto-check FAILED after ${tool}`,
+          ? ttui('tui.notice.autoCheckFailed.statusWithDir', { packageDir })
+          : ttui('tui.notice.autoCheckFailed.statusAfterTool', { tool }),
       coalesceKey: 'auto-check-spawn',
       failed: true,
     };
   }
   return {
-    title: 'Auto-check passed',
-    detail: `After ${tool}, SUPERLIORA_AUTO_CHECK_SPAWN ran RunProjectChecks successfully${scope}. Mutation ledger cleared when green.`,
+    title: ttui('tui.notice.autoCheckPassed.title'),
+    detail: ttui('tui.notice.autoCheckPassed.detail', { tool, scope }),
     status:
       packageDir !== undefined && packageDir.length > 0
-        ? `Auto-check OK (${packageDir})`
-        : `Auto-check OK after ${tool}`,
+        ? ttui('tui.notice.autoCheckPassed.statusWithDir', { packageDir })
+        : ttui('tui.notice.autoCheckPassed.statusAfterTool', { tool }),
     coalesceKey: 'auto-check-spawn',
     failed: false,
   };

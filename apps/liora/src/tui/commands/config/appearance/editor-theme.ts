@@ -8,6 +8,7 @@ import { formatErrorMessage } from '../../../utils/event-payload';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 import type { SlashCommandHost } from '../../hub/dispatch';
 import { tuiConfigFromHost } from './tui-persist';
+import { ttui } from '../../../utils/tui-i18n';
 
 export async function handleEditorCommand(host: SlashCommandHost, args: string): Promise<void> {
   const command = args.trim();
@@ -28,21 +29,21 @@ export async function handleThemeCommand(host: SlashCommandHost, args: string): 
   if (theme.startsWith(importPrefix)) {
     const source = theme.slice(importPrefix.length).trim();
     if (source.length === 0) {
-      host.showError('Usage: /theme import <path|url|github:owner/repo/path>');
+      host.showError(ttui('tui.theme.importUsage'));
       return;
     }
     try {
       const result = await importThemeSource(source);
-      host.showStatus(`Imported theme "${result.themeName}" from ${result.sourceKind}.`, 'success');
+      host.showStatus(ttui('tui.theme.imported', { name: result.themeName, source: result.sourceKind }), 'success');
     } catch (error) {
-      host.showError(`Failed to import theme: ${formatErrorMessage(error)}`);
+      host.showError(ttui('tui.theme.importFailed', { message: formatErrorMessage(error) }));
     }
     return;
   }
   if (!isBuiltInTheme(theme)) {
     const custom = await loadCustomThemeMerged(theme);
     if (custom === null) {
-      host.showError(`Unknown theme: ${theme}`);
+      host.showError(ttui('tui.theme.unknown', { theme }));
       return;
     }
   }
@@ -68,7 +69,7 @@ export function showEditorPicker(host: SlashCommandHost): void {
 async function applyEditorChoice(host: SlashCommandHost, value: string): Promise<void> {
   const previous = host.state.appState.editorCommand ?? '';
   if (value === previous && value.length > 0) {
-    host.showStatus(`Editor unchanged: ${value.length > 0 ? value : 'auto-detect'}`);
+    host.showStatus(ttui('tui.theme.editorUnchanged', { value: value.length > 0 ? value : 'auto-detect' }));
     return;
   }
 
@@ -111,7 +112,7 @@ export function showThemePicker(host: SlashCommandHost): void {
 async function applyThemeChoice(host: SlashCommandHost, theme: ThemeName): Promise<void> {
   if (theme === host.state.appState.theme) {
     if (theme === 'auto') host.refreshTerminalThemeTracking();
-    host.showStatus(`Theme unchanged: "${theme}".`);
+    host.showStatus(ttui('tui.theme.unchanged', { theme }));
     return;
   }
 
@@ -121,7 +122,7 @@ async function applyThemeChoice(host: SlashCommandHost, theme: ThemeName): Promi
   if (!isBuiltInTheme(theme)) {
     const palette = await loadCustomThemeMerged(theme);
     if (palette === null) {
-      host.showStatus(`Theme "${theme}" could not be loaded.`, 'error');
+      host.showStatus(ttui('tui.theme.loadFailed', { theme }), 'error');
       return;
     }
   }
@@ -143,5 +144,5 @@ async function applyThemeChoice(host: SlashCommandHost, theme: ThemeName): Promi
   host.refreshTerminalThemeTracking();
   host.track('theme_switch', { theme });
   const detail = theme === 'auto' ? ` (tracking terminal; current: ${resolved})` : '';
-  host.showStatus(`Theme set to "${theme}"${detail}.`);
+  host.showStatus(ttui('tui.theme.set', { theme, detail }));
 }

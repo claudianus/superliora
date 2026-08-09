@@ -8,6 +8,7 @@ import { formatErrorMessage } from '../utils/event-payload';
 import type { MissionControlMode } from '../features/mission-control/dock';
 import { missionBandProductName } from '../features/mission-control/labels';
 import { currentAppearance, tuiConfigFromHost } from './config/appearance/tui-persist';
+import { ttui } from '../utils/tui-i18n';
 import type { SlashCommandHost } from './hub/dispatch';
 
 const MODE_LABEL: Record<MissionControlMode, string> = {
@@ -23,7 +24,7 @@ export async function handleAgentsCommand(host: SlashCommandHost, rawArgs: strin
     return;
   }
   if (args.length > 0) {
-    host.showStatus('Usage: /agents [auto|pinned|hidden] — no args cycles the mode.', 'textMuted');
+    host.showStatus(ttui('tui.agents.usage'), 'textMuted');
     return;
   }
   const next =
@@ -41,8 +42,8 @@ async function setMissionControlMode(host: SlashCommandHost, mode: MissionContro
   try {
     await saveTuiConfig(tuiConfigFromHost(host, { appearance: currentAppearance(host) }));
   } catch (error) {
-    host.showStatus(`${band} ${mode} (save failed: ${formatErrorMessage(error)})`, 'warning');
+    host.showStatus(ttui('tui.agents.modeSaveFailed', { band, mode, message: formatErrorMessage(error) }), 'warning');
     return;
   }
-  host.showStatus(`${band}: ${MODE_LABEL[mode]}`, 'success');
+  host.showStatus(ttui('tui.agents.modeSet', { band, mode: MODE_LABEL[mode] }), 'success');
 }

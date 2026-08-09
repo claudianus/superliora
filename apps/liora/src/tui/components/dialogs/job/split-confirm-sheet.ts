@@ -17,6 +17,7 @@ import { currentTheme } from '#/tui/theme';
 import { printableChar } from '#/tui/utils/printable-key';
 import { renderPremiumHeadline } from '#/tui/features/appearance/appearance-effects';
 import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 export interface JobSplitIntent {
   readonly title: string;
@@ -34,23 +35,23 @@ export interface SplitConfirmSheetOptions {
 
 const CHOICES: readonly {
   readonly value: SplitConfirmChoice;
-  readonly label: string;
-  readonly description: string;
+  readonly labelKey: string;
+  readonly descriptionKey: string;
 }[] = [
   {
     value: 'keep',
-    label: 'Keep all intents',
-    description: 'Create one Conductor job per listed intent.',
+    labelKey: 'tui.dialog.jobSplit.keepAll',
+    descriptionKey: 'tui.dialog.jobSplit.keepAllDesc',
   },
   {
     value: 'merge',
-    label: 'Merge into one job',
-    description: 'Combine every intent into a single job prompt.',
+    labelKey: 'tui.dialog.jobSplit.merge',
+    descriptionKey: 'tui.dialog.jobSplit.mergeDesc',
   },
   {
     value: 'cancel',
-    label: 'Cancel',
-    description: 'Do not create jobs.',
+    labelKey: 'tui.dialog.jobSplit.cancel',
+    descriptionKey: 'tui.dialog.jobSplit.cancelDesc',
   },
 ];
 
@@ -97,7 +98,7 @@ export class SplitConfirmSheetComponent extends Container implements Focusable {
 
     for (const [i, intent] of intents.entries()) {
       if (i >= 6) {
-        body.push(theme.fg('textDim', `  … +${String(intents.length - 6)} more`));
+        body.push(theme.fg('textDim', ttui('tui.dialog.jobSplit.more', { count: String(intents.length - 6) })));
         break;
       }
       body.push(
@@ -114,19 +115,20 @@ export class SplitConfirmSheetComponent extends Container implements Focusable {
       const pointer = selected
         ? renderSelectPointer('job-split:pointer')
         : ' '.repeat(visibleWidth(SELECT_POINTER));
-      const label = selected
-        ? theme.boldFg('primary', choice.label)
-        : theme.fg('text', choice.label);
-      body.push(`  ${pointer} ${label}`);
+      const label = ttui(choice.labelKey);
+      const labelStyled = selected
+        ? theme.boldFg('primary', label)
+        : theme.fg('text', label);
+      body.push(`  ${pointer} ${labelStyled}`);
       if (selected) {
-        body.push(theme.fg('textMuted', `     ${choice.description}`));
+        body.push(theme.fg('textMuted', `     ${ttui(choice.descriptionKey)}`));
       }
     }
 
     return renderRendererPanelChromeRows({
       width,
-      title: ` Split into ${String(intents.length)} jobs?`,
-      hint: ' ↑↓/jk · Enter · 1–3 · Esc',
+      title: ttui('tui.dialog.jobSplit.title', { count: String(intents.length) }),
+      hint: ttui('tui.dialog.jobSplit.hint'),
       body,
       dividerStyle: (text) => theme.fg('primary', text),
       titleStyle: (text) => renderPremiumHeadline(text.trim(), 'job-split:title'),
@@ -146,7 +148,7 @@ export function resolveSplitConfirmChoice(
   const prompt = intents.map((intent) => intent.prompt).join('\n\n');
   const title =
     intents.length === 0
-      ? 'Combined job'
+      ? ttui('tui.dialog.jobSplit.combinedTitle')
       : intents.length === 1
         ? intents[0]!.title
         : `${intents[0]!.title} (+${String(intents.length - 1)})`;

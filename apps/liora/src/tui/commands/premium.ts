@@ -1,4 +1,4 @@
-import { NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
+import {  NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
 import { formatErrorMessage } from '../utils/event-payload';
 import type { SlashCommandHost } from './hub/dispatch';
 import { ttui } from '#/tui/utils/tui-i18n';
@@ -9,7 +9,7 @@ export async function handlePremiumQualityCommand(
 ): Promise<void> {
   const session = host.session;
   if (session === undefined) {
-    host.showError(NO_ACTIVE_SESSION_MESSAGE);
+    host.showError(NO_ACTIVE_SESSION_MESSAGE());
     return;
   }
 
@@ -51,7 +51,7 @@ export async function applyPremiumQuality(
 ): Promise<void> {
   const session = host.session;
   if (session === undefined) {
-    host.showError(NO_ACTIVE_SESSION_MESSAGE);
+    host.showError(NO_ACTIVE_SESSION_MESSAGE());
     return;
   }
   try {

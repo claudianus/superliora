@@ -1,5 +1,6 @@
 import { setExperimentalFeatures } from '../../commands';
 import * as slashCommands from '../../commands/hub/dispatch';
+import { ttui } from '../../utils/tui-i18n';
 import { formatModelRefreshFailureNotice } from '../../utils/session/model-refresh-notice';
 import type { StartupLifecycleHost } from './types';
 
@@ -57,7 +58,7 @@ export async function refreshProviderModelsInBackground(
     const result = await host.authFlow.refreshProviderModels();
     for (const c of result.changed) {
       if (c.added <= 0) continue;
-      host.showStatus(`${c.providerName} · +${String(c.added)} model${c.added > 1 ? 's' : ''}.`);
+      host.showStatus(ttui('tui.onboarding.modelsAdded', { provider: c.providerName, count: String(c.added), plural: c.added > 1 ? 's' : '' }));
     }
     for (const f of result.failed) {
       // Loop54a: named notice — status alone was easy to miss under splash.

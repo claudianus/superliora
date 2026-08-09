@@ -10,6 +10,8 @@
  * Falls back silently on terminals that don't support OSC 99.
  */
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 let notificationCounter = 0;
 
 export interface DesktopNotification {
@@ -52,8 +54,8 @@ export function sendDesktopNotification(notification: DesktopNotification): void
 export function notifyTurnComplete(summary?: string): void {
   ringBell();
   sendDesktopNotification({
-    title: 'SuperLiora — 작업 완료',
-    body: summary ?? '에이전트 응답이 완료됐어요.',
+    title: ttui('tui.notification.turnComplete.title'),
+    body: summary ?? ttui('tui.notification.turnComplete.body'),
     urgency: 'normal',
   });
 }
@@ -64,7 +66,7 @@ export function notifyTurnComplete(summary?: string): void {
 export function notifyError(message: string): void {
   ringBell();
   sendDesktopNotification({
-    title: 'SuperLiora — 오류',
+    title: ttui('tui.notification.error.title'),
     body: message.slice(0, 200),
     urgency: 'critical',
   });
@@ -75,7 +77,7 @@ export function notifyError(message: string): void {
  */
 export function notifyNeedsAttention(context: string): void {
   sendDesktopNotification({
-    title: 'SuperLiora — 확인 필요',
+    title: ttui('tui.notification.attention.title'),
     body: context.slice(0, 200),
     urgency: 'normal',
   });

@@ -6,6 +6,8 @@
  * / read-only recovery paths.
  */
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 export type PathSecurityCode =
   | 'PATH_OUTSIDE_WORKSPACE'
   | 'PATH_SENSITIVE'
@@ -71,41 +73,41 @@ export function formatPathSecurityNotice(
   switch (code) {
     case 'PATH_SENSITIVE':
       return {
-        title: 'Sensitive path blocked',
-        detail: `${tool} was blocked for a sensitive path (env / credential / SSH key; code=PATH_SENSITIVE). Secrets cannot be read or written through tools.`,
-        status: `${tool} blocked: PATH_SENSITIVE`,
+        title: ttui('tui.notice.sensitivePath.title'),
+        detail: ttui('tui.notice.sensitivePath.detail', { tool }),
+        status: ttui('tui.notice.sensitivePath.status', { tool }),
         coalesceKey: 'path-security',
         code,
       };
     case 'PATH_OUTSIDE_WORKSPACE':
       return {
-        title: 'Outside workspace',
-        detail: `${tool} was blocked for a path outside workspace roots (code=PATH_OUTSIDE_WORKSPACE). Use an in-workspace path, absolute path when profile allows, or /add-dir for extra roots.`,
-        status: `${tool} blocked: PATH_OUTSIDE_WORKSPACE`,
+        title: ttui('tui.notice.outsideWorkspace.title'),
+        detail: ttui('tui.notice.outsideWorkspace.detail', { tool }),
+        status: ttui('tui.notice.outsideWorkspace.status', { tool }),
         coalesceKey: 'path-security',
         code,
       };
     case 'PATH_READ_ONLY':
       return {
-        title: 'Sandbox read-only',
-        detail: `${tool} write/edit was blocked by the read-only sandbox profile (code=PATH_READ_ONLY). Switch sandbox profile or use read-only tools.`,
-        status: `${tool} blocked: PATH_READ_ONLY`,
+        title: ttui('tui.notice.sandboxReadonly.title'),
+        detail: ttui('tui.notice.sandboxReadonly.detail', { tool }),
+        status: ttui('tui.notice.sandboxReadonly.status', { tool }),
         coalesceKey: 'path-security',
         code,
       };
     case 'PATH_INVALID':
       return {
-        title: 'Invalid path',
-        detail: `${tool} received an invalid path (code=PATH_INVALID). Provide a non-empty, well-formed path.`,
-        status: `${tool} blocked: PATH_INVALID`,
+        title: ttui('tui.notice.invalidPath.title'),
+        detail: ttui('tui.notice.invalidPath.detail', { tool }),
+        status: ttui('tui.notice.invalidPath.status', { tool }),
         coalesceKey: 'path-security',
         code,
       };
     default:
       return {
-        title: 'Path security blocked',
-        detail: `${tool} was blocked by path security. Check workspace roots, sandbox profile, and sensitive-file rules.`,
-        status: `${tool} blocked: path security`,
+        title: ttui('tui.notice.pathSecurity.title'),
+        detail: ttui('tui.notice.pathSecurity.detail', { tool }),
+        status: ttui('tui.notice.pathSecurity.status', { tool }),
         coalesceKey: 'path-security',
         code: 'PATH_SECURITY',
       };

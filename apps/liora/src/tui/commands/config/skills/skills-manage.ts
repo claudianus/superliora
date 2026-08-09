@@ -16,6 +16,7 @@ import {
 import { extensionsReloadAppStatePatch } from '#/tui/components/chrome/footer/footer-badges';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 
 export async function showSkillsManagePanel(host: SlashCommandHost): Promise<void> {
   mountPickerDialog(
@@ -56,13 +57,13 @@ async function showToggleList(host: SlashCommandHost): Promise<void> {
       description: s.description,
     }));
   } catch (error) {
-    host.showError(`Failed to list skills: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.skills.listFailed', { message: formatErrorMessage(error) }));
     return;
   }
 
   const state = await loadSkillsState();
   if (summaries.length === 0) {
-    host.showStatus('No skills discovered. Use Install from path or add ~/.superliora/skills.');
+    host.showStatus(ttui('tui.skills.none'));
     return;
   }
 
@@ -86,7 +87,7 @@ async function showToggleList(host: SlashCommandHost): Promise<void> {
           const current = await loadSkillsState();
           const nextDisabled = !isSkillDisabled(current, name);
           await setSkillDisabled(name, nextDisabled);
-          host.showStatus(`${nextDisabled ? 'Disabled' : 'Enabled'} skill ${name}.`);
+          host.showStatus(ttui('tui.skills.toggled', { action: nextDisabled ? ttui('tui.skills.disabledWord') : ttui('tui.skills.enabledWord'), name }));
           if (typeof host.refreshDynamicSlashCommands === 'function') {
             await host.refreshDynamicSlashCommands(host.requireSession());
           } else if (typeof host.refreshSkillCommands === 'function') {
@@ -119,7 +120,7 @@ function promptInstall(host: SlashCommandHost): void {
 async function runInstall(host: SlashCommandHost, path: string): Promise<void> {
   try {
     const { name, dest } = await installSkillFromPath(path);
-    host.showStatus(`Installed skill ${name} → ${dest}. Reloading skill map…`);
+    host.showStatus(ttui('tui.skills.installed', { name, dest }));
     try {
       await host.requireSession().reloadSession({ forcePluginSessionStartReminder: true });
       host.setAppState(extensionsReloadAppStatePatch());
@@ -130,6 +131,6 @@ async function runInstall(host: SlashCommandHost, path: string): Promise<void> {
       await host.refreshDynamicSlashCommands(host.requireSession());
     }
   } catch (error) {
-    host.showError(`Skill install failed: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.skills.installFailed', { message: formatErrorMessage(error) }));
   }
 }

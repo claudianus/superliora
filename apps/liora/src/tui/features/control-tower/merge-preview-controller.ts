@@ -7,6 +7,7 @@ import { isConductorUxV2Enabled } from '../../commands/job-hotpath';
 import type { SlashCommandHost } from '../../commands/hub/dispatch';
 import type { ConductorJobCard } from '../../utils/job/job-strip';
 import { shortJobId } from '../../components/job-board/job-board-helpers';
+import { ttui } from '../../utils/tui-i18n';
 
 export function canOpenMergePreview(card: ConductorJobCard): boolean {
   return card.status === 'done' || card.status === 'blocked';
@@ -14,16 +15,16 @@ export function canOpenMergePreview(card: ConductorJobCard): boolean {
 
 export function openMergePreview(host: SlashCommandHost, card: ConductorJobCard): void {
   if (!isConductorUxV2Enabled()) {
-    host.showStatus('Merge Preview needs conductor_ux_v2.', 'textMuted');
+    host.showStatus(ttui('tui.conductor.mergeNeedsUx'), 'textMuted');
     return;
   }
   if (!canOpenMergePreview(card)) {
-    host.showStatus('Merge Preview needs a done or blocked job.', 'textMuted');
+    host.showStatus(ttui('tui.conductor.mergeNeedsJob'), 'textMuted');
     return;
   }
   const session = host.session;
   if (session === undefined) {
-    host.showError('No active session — Merge Preview needs a live session.');
+    host.showError(ttui('tui.conductor.mergeNoSession'));
     return;
   }
 
@@ -64,7 +65,7 @@ export function openMergePreview(host: SlashCommandHost, card: ConductorJobCard)
           summary: summary.length > 0 ? summary : 'rejected from Merge Preview',
         })
         .then(() => {
-          host.showStatus(`Merge rejected for ${shortJobId(card.id)}`, 'info');
+          host.showStatus(ttui('tui.conductor.mergeRejected', { jobId: shortJobId(card.id) }), 'info');
         })
         .catch((error: unknown) => {
           host.showError(error instanceof Error ? error.message : String(error));

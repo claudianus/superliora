@@ -6,7 +6,7 @@
 import type { CommandHubItem } from '../../components/dialogs/command-hub/command-hub-types';
 import {
   HUB_PINNED_SETTINGS,
-  SETTINGS_OPTIONS,
+  SETTINGS_OPTIONS_BASE,
   type SettingsSelection,
 } from '../../components/dialogs/picker/settings-selector';
 
@@ -17,13 +17,16 @@ const PINNED = new Set<string>(HUB_PINNED_SETTINGS);
 export function buildSettingsJumpHubItems(): CommandHubItem[] {
   const browse: CommandHubItem = {
     id: 'settings.open',
-    section: 'Settings',
-    label: 'All settings',
-    description: 'Browse every settings pane',
+    sectionKey: 'tui.hub.section.settings',
+    labelKey: 'tui.hub.settings.all.label',
+    descriptionKey: 'tui.hub.settings.all.desc',
+    section: '',
+    label: '',
+    description: '',
     keywords: ['settings', 'preferences', 'config', 'customize'],
   };
-  const panes = SETTINGS_OPTIONS.map((option) =>
-    settingsJumpHubItem(option.value as SettingsSelection, option),
+  const panes = SETTINGS_OPTIONS_BASE.map((option) =>
+    settingsJumpHubItem(option.value, option),
   );
   const pinned = panes.filter((item) => !item.searchOnly);
   const rest = panes.filter((item) => item.searchOnly === true);
@@ -33,24 +36,25 @@ export function buildSettingsJumpHubItems(): CommandHubItem[] {
 function settingsJumpHubItem(
   selection: SettingsSelection,
   option: {
-    readonly label: string;
-    readonly description?: string;
-    readonly section?: string;
+    readonly labelKey: string;
+    readonly descriptionKey: string;
+    readonly sectionKey: string;
   },
 ): CommandHubItem {
   const pinned = PINNED.has(selection);
-  const group = option.section ?? 'More';
+  const groupKey = option.sectionKey;
   return {
     id: `settings.${selection}`,
-    // One flat Settings section in the idle list — the group stays searchable
-    // via keywords without fragmenting the section headers.
-    section: 'Settings',
-    label: option.label,
-    description: option.description ?? '',
+    sectionKey: 'tui.hub.section.settings',
+    labelKey: option.labelKey,
+    descriptionKey: option.descriptionKey,
+    section: '',
+    label: '',
+    description: '',
     searchOnly: !pinned,
     keywords: [
       ...(SETTINGS_SEARCH_KEYWORDS[selection] ?? []),
-      group,
+      groupKey,
       'settings',
     ],
   };

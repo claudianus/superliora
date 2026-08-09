@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { setCliLocale } from '#/cli/i18n';
 import {
   buildClaudeImportPlan,
   formatClaudeImportSummary,
@@ -40,6 +41,7 @@ describe('validateClaudeImportPath', () => {
   });
 
   it('rejects path escape outside allowlist', () => {
+    setCliLocale('ko');
     const result = validateClaudeImportPath(`${WORK}/.claude/../secrets.env`, WORK);
     expect(result.ok).toBe(false);
     if (!result.ok) {
@@ -57,6 +59,7 @@ describe('validateClaudeImportPath', () => {
 
 describe('buildClaudeImportPlan + summary', () => {
   it('keeps allowlisted entries and rejects outsiders', () => {
+    setCliLocale('ko');
     const plan = buildClaudeImportPlan(WORK, [
       {
         absolutePath: `${WORK}/.claude/skills/foo/SKILL.md`,

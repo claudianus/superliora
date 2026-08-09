@@ -35,6 +35,7 @@ import {
   type CenterListMouseLayout,
 } from '#/tui/utils/ui/list-dialog-mouse';
 import { pageView } from '#/tui/utils/ui/paging';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 import {
   COMMAND_HUB_PAGE_SIZE,
@@ -53,6 +54,7 @@ import type {
   CommandHubOptions,
   CommandHubSelectMode,
 } from './command-hub-types';
+import { resolveHubItem } from './resolve-hub-item';
 
 /** Fixed label column; descriptions and badges align to its right edge. */
 const HUB_LABEL_COL_WIDTH = 24;
@@ -94,7 +96,7 @@ export class CommandHubComponent extends Container implements Focusable {
     this.onSelect = opts.onSelect;
     this.onCancel = opts.onCancel;
     this.onIntroDismiss = opts.onIntroDismiss;
-    this.title = opts.title ?? 'Command Hub';
+    this.title = opts.title ?? ttui('tui.hub.chrome.title');
     this.query = opts.initialQuery ?? '';
     this.intro = opts.intro === true;
     this.terminalRows = opts.terminalRows ?? (() => process.stdout.rows || 24);
@@ -257,13 +259,13 @@ export class CommandHubComponent extends Container implements Focusable {
     if (this.intro) {
       body.push(
         truncateToWidth(
-          ` ${renderPulseText('Pick a mode, or type to search', 'hub:intro', 'accent', appearance)}`,
+          ` ${renderPulseText(ttui('tui.hub.chrome.intro'), 'hub:intro', 'accent', appearance)}`,
           inner,
         ),
       );
       body.push(
         truncateToWidth(
-          theme.fg('textMuted', ' Space toggles · Enter runs · Esc dismisses tip'),
+          theme.fg('textMuted', ttui('tui.hub.chrome.introDismiss')),
           inner,
         ),
       );
@@ -274,11 +276,11 @@ export class CommandHubComponent extends Container implements Focusable {
     if (this.filtered.length === 0) {
       body.push(
         truncateToWidth(
-          ` ${renderPulseText(`No matches for '${this.query.trim()}'`, 'hub:empty', 'accent', appearance)}`,
+          ` ${renderPulseText(ttui('tui.hub.chrome.noMatches', { query: this.query.trim() }), 'hub:empty', 'accent', appearance)}`,
           inner,
         ),
       );
-      body.push(truncateToWidth(theme.fg('textMuted', ' Esc clears the filter'), inner));
+      body.push(truncateToWidth(theme.fg('textMuted', ttui('tui.hub.chrome.clearFilter')), inner));
     } else {
       this.renderWindow(body, itemLineByIndex, inner, filtering, appearance, ambient, now);
     }
@@ -287,13 +289,14 @@ export class CommandHubComponent extends Container implements Focusable {
       renderPulseText('•', 'hub:orn:l', 'accent', appearance) +
       ` ${renderPremiumHeadline(this.title, 'command-hub:title', appearance)} ` +
       renderPulseText('•', 'hub:orn:r', 'accent', appearance);
-    const selected = this.filtered[this.selectedIndex];
-    const flip = !filtering && isFlipTarget(selected);
+    const selectedRaw = this.filtered[this.selectedIndex];
+    const selected = selectedRaw === undefined ? undefined : resolveHubItem(selectedRaw);
+    const flip = !filtering && isFlipTarget(selectedRaw);
     const hintPlain = filtering
-      ? '↑↓ navigate · Enter run · Esc clear'
+      ? ttui('tui.hub.chrome.footer.filtering')
       : flip
-        ? '↑↓ navigate · Enter run · Space flip · Esc close'
-        : '↑↓ navigate · Enter run · Esc close';
+        ? ttui('tui.hub.chrome.footer.flip')
+        : ttui('tui.hub.chrome.footer.default');
     const sectionPlain = selected?.section;
     const frame = renderPremiumBoxFrame(body, {
       width: boxWidth,
@@ -324,7 +327,7 @@ export class CommandHubComponent extends Container implements Focusable {
     const cursor = theme.fg('primary', '▌');
     const left = filtering
       ? ` ${theme.fg('primary', '❯')} ${theme.fg('text', this.query)}${cursor}`
-      : ` ${theme.fg('textMuted', '❯')} ${cursor}${theme.fg('textMuted', ' Search anything…')}`;
+      : ` ${theme.fg('textMuted', '❯')} ${cursor}${theme.fg('textMuted', ` ${ttui('tui.hub.chrome.searchPlaceholder')}`)}`;
     const countPlain = filtering
       ? `${String(this.filtered.length)}/${String(this.items.length)}`
       : String(this.items.length);
@@ -354,11 +357,10 @@ export class CommandHubComponent extends Container implements Focusable {
     let lastSection = '';
     for (let i = page.start; i < page.end; i += 1) {
       const item = this.filtered[i]!;
-      // Filtered results arrive in score order — section headers would
-      // flicker per row, so rows carry their section as a dim prefix instead.
-      if (!filtering && item.section !== lastSection) {
-        lastSection = item.section;
-        body.push(this.renderSectionHeader(item.section, inner, appearance));
+      const resolved = resolveHubItem(item);
+      if (!filtering && resolved.section !== lastSection) {
+        lastSection = resolved.section;
+        body.push(this.renderSectionHeader(item, resolved.section, inner, appearance));
       }
       itemLineByIndex.push(body.length);
       body.push(...this.renderItemRow(item, i, inner, filtering, appearance, ambient, now));
@@ -374,15 +376,18 @@ export class CommandHubComponent extends Container implements Focusable {
   }
 
   private renderSectionHeader(
+    item: CommandHubItem,
     section: string,
     inner: number,
     appearance: ReturnType<typeof getActiveAppearancePreferences>,
   ): string {
     const theme = currentTheme;
-    const label =
-      section === 'Now' || section === 'Recent'
-        ? renderPulseText(section, `hub:sec:${section}`, 'accent', appearance)
-        : theme.boldFg('accent', section);
+    const pulseSection =
+      item.sectionKey === 'tui.hub.section.now' ||
+      item.sectionKey === 'tui.hub.section.recent';
+    const label = pulseSection
+      ? renderPulseText(section, `hub:sec:${item.sectionKey ?? section}`, 'accent', appearance)
+      : theme.boldFg('accent', section);
     // ` ${section}` + trailing rule space; fill the rest so the rule meets the border.
     const fill = Math.max(0, inner - visibleWidth(` ${section}`) - 1);
     const rule = fill > 0 ? ` ${theme.dimFg('textMuted', '╌'.repeat(fill))}` : '';
@@ -399,6 +404,7 @@ export class CommandHubComponent extends Container implements Focusable {
     now: number,
   ): string[] {
     const theme = currentTheme;
+    const resolved = resolveHubItem(item);
     const selected = index === this.selectedIndex;
     const flashing = this.flashId === item.id;
     const reveal = ambient ? hubClamp01((now - this.openedAtMs - 60 - index * 24) / 200) : 1;
@@ -415,12 +421,12 @@ export class CommandHubComponent extends Container implements Focusable {
           ? theme.fg('textMuted', text)
           : theme.fg('text', text);
     const labelStyled = flashing
-      ? renderSettleFlash(item.label, `hub:flash:${item.id}`, this.flashAtMs, appearance)
+      ? renderSettleFlash(resolved.label, `hub:flash:${item.id}`, this.flashAtMs, appearance)
       : filtering
-        ? hubHighlightSegments(item.label, this.query)
+        ? hubHighlightSegments(resolved.label, this.query)
             .map((seg) => (seg.matched ? theme.boldFg('accent', seg.text) : baseLabel(seg.text)))
             .join('')
-        : baseLabel(item.label);
+        : baseLabel(resolved.label);
 
     const badge = this.renderBadge(item, appearance, selected);
     const badgeWidth = visibleWidth(badge);
@@ -428,21 +434,22 @@ export class CommandHubComponent extends Container implements Focusable {
     const maxContent = inner - (badgeWidth > 0 ? badgeWidth + 2 : 1);
     const wide = inner >= HUB_WIDE_MIN_INNER;
     const description = filtering
-      ? `${item.section} · ${item.description}`
-      : item.description;
+      ? `${resolved.section} · ${resolved.description}`
+      : resolved.description;
 
     let leftPart: string;
     let descStyled = '';
     if (wide) {
       const labelCell =
         truncateToWidth(labelStyled, HUB_LABEL_COL_WIDTH) +
-        ' '.repeat(Math.max(0, HUB_LABEL_COL_WIDTH - visibleWidth(item.label)));
+        ' '.repeat(Math.max(0, HUB_LABEL_COL_WIDTH - visibleWidth(resolved.label)));
       leftPart = `${slidePad} ${pointer} ${labelCell} `;
       const descRoom = maxContent - visibleWidth(leftPart);
       if (descRoom > 6 && description.length > 0) {
         descStyled = filtering
           ? truncateToWidth(
-              theme.fg('textDim', `${item.section} · `) + theme.fg('textMuted', item.description),
+              theme.fg('textDim', `${resolved.section} · `) +
+                theme.fg('textMuted', resolved.description),
               descRoom,
             )
           : truncateToWidth(theme.fg('textMuted', description), descRoom);
@@ -532,26 +539,31 @@ export class CommandHubComponent extends Container implements Focusable {
     return truncateToWidth(chips.join('  '), Math.max(8, width));
   }
 
+  private hubSectionId(item: CommandHubItem | undefined): string {
+    if (item === undefined) return '';
+    return item.sectionKey ?? resolveHubItem(item).section;
+  }
+
   private sectionJumpIndex(dir: -1 | 1): number {
     const items = this.filtered;
     if (items.length === 0) return 0;
     const cur = Math.max(0, Math.min(items.length - 1, this.selectedIndex));
-    const curSection = items[cur]?.section ?? '';
+    const curSection = this.hubSectionId(items[cur]);
     if (dir > 0) {
       for (let i = cur + 1; i < items.length; i++) {
-        if ((items[i]?.section ?? '') !== curSection) return i;
+        if (this.hubSectionId(items[i]) !== curSection) return i;
       }
       return items.length - 1;
     }
     let sectionStart = cur;
-    while (sectionStart > 0 && (items[sectionStart - 1]?.section ?? '') === curSection) {
+    while (sectionStart > 0 && this.hubSectionId(items[sectionStart - 1]) === curSection) {
       sectionStart--;
     }
     if (sectionStart < cur) return sectionStart;
     if (sectionStart === 0) return 0;
-    const prevSection = items[sectionStart - 1]?.section ?? '';
+    const prevSection = this.hubSectionId(items[sectionStart - 1]);
     let prevStart = sectionStart - 1;
-    while (prevStart > 0 && (items[prevStart - 1]?.section ?? '') === prevSection) {
+    while (prevStart > 0 && this.hubSectionId(items[prevStart - 1]) === prevSection) {
       prevStart--;
     }
     return prevStart;

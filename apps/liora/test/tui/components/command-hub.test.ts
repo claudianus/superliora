@@ -7,6 +7,7 @@ import {
   cyclePermissionMode,
   isCommandHubToggleId,
 } from '#/tui/components/dialogs/command-hub/index';
+import { resolveHubItem } from '#/tui/components/dialogs/command-hub/resolve-hub-item';
 import { commandHubActionToSlash } from '#/tui/utils/command/command-hub-actions';
 import { noteHubActionUse, resetHubRecentsForTests } from '#/tui/utils/command/hub-recents';
 
@@ -21,14 +22,20 @@ function stripAnsi(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
 }
 
+function resolveItems(items: ReturnType<typeof buildDefaultCommandHubItems>) {
+  return items.map(resolveHubItem);
+}
+
 describe('buildDefaultCommandHubItems', () => {
   it('includes beginner sections and mode badges', () => {
-    const items = buildDefaultCommandHubItems({
+    const items = resolveItems(
+      buildDefaultCommandHubItems({
       planMode: true,
       askMode: false,
       permissionMode: 'auto',
       model: 'demo-model',
-    });
+    }),
+    );
     expect(items.some((item) => item.id === 'modes.plan' && item.badge === 'ON')).toBe(true);
     expect(items.some((item) => item.id === 'chat.model' && item.badge === 'demo-model')).toBe(
       true,
@@ -39,7 +46,7 @@ describe('buildDefaultCommandHubItems', () => {
   });
 
   it('includes Phase 1 operator Hub rows', () => {
-    const items = buildDefaultCommandHubItems({});
+    const items = resolveItems(buildDefaultCommandHubItems({}));
     const ids = new Set(items.map((item) => item.id));
     for (const id of [
       'workspace.errors',
@@ -67,7 +74,9 @@ describe('buildDefaultCommandHubItems', () => {
   });
 
   it('adds a Now section while streaming and hides Chat undo/compact dupes', () => {
-    const items = buildDefaultCommandHubItems({ streamingPhase: 'composing' });
+    const items = resolveItems(
+      buildDefaultCommandHubItems({ streamingPhase: 'composing' }),
+    );
     expect(items.some((item) => item.id === 'now.steer' && item.section === 'Now')).toBe(true);
     expect(items.some((item) => item.id === 'chat.undo')).toBe(false);
     expect(items.some((item) => item.id === 'chat.rewind')).toBe(false);
@@ -75,7 +84,7 @@ describe('buildDefaultCommandHubItems', () => {
   });
 
   it('relabels login when already signed in', () => {
-    const items = buildDefaultCommandHubItems({ signedIn: true });
+    const items = resolveItems(buildDefaultCommandHubItems({ signedIn: true }));
     const login = items.find((item) => item.id === 'account.login');
     expect(login?.label).toBe('Add provider');
     expect(login?.badge).toBe('ready');
@@ -93,7 +102,7 @@ describe('commandHubActionToSlash', () => {
 
 describe('Extend Extensions Hub row', () => {
   it('nests into Settings Extensions instead of /extensions slash', () => {
-    const item = buildDefaultCommandHubItems({}).find(
+    const item = resolveItems(buildDefaultCommandHubItems({})).find(
       (candidate) => candidate.id === 'extend.extensions',
     );
     expect(item?.label).toBe('Extensions');
@@ -112,7 +121,7 @@ describe('cyclePermissionMode', () => {
 
 describe('help.searchTip removed', () => {
   it('no longer ships a tip-only Hub row (search is the empty filter + type)', () => {
-    const items = buildDefaultCommandHubItems({});
+    const items = resolveItems(buildDefaultCommandHubItems({}));
     // The id is gone from the union, so compare as strings — the guard has to
     // outlive the type it used to check.
     expect(items.map((item) => item.id as string)).not.toContain('help.searchTip');

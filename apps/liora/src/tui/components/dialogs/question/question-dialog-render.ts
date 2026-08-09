@@ -6,6 +6,7 @@ import {
 
 import { currentTheme } from '#/tui/theme';
 import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 import type { Input } from '../shared/input';
 import {
@@ -192,7 +193,7 @@ function renderQuestionTab(host: QuestionDialogRenderHost, width: number): strin
 
   return renderRendererPanelChromeRows({
     width: renderWidth,
-    title: ' question',
+    title: ttui('tui.dialog.question.title'),
     body,
     footer: [buildQuestionHint(host, dim, questionIdx)],
     dividerStyle: accent,
@@ -249,7 +250,7 @@ function renderSubmitTab(host: QuestionDialogRenderHost, width: number): string[
 
   return renderRendererPanelChromeRows({
     width: renderWidth,
-    title: ' question',
+    title: ttui('tui.dialog.question.title'),
     body,
     footer: [buildSubmitHint(host, dim)],
     dividerStyle: accent,

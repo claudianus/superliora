@@ -1,5 +1,6 @@
 import { renderRendererRatioProgressBar } from '#/tui/renderer';
 import { CORE_WAIST_STATUS_HINT } from '#/tui/commands/config/harness/agent-profile';
+import { ttui } from '#/tui/utils/tui-i18n';
 import { safeUsageRatio } from '#/utils/usage/usage-format';
 
 import { contextValues } from './context';
@@ -54,25 +55,25 @@ function formatUltraworkFlow(options: StatusReportOptions): StatusFieldRow {
   const verify = formatVerifyStatus(options.goalStatus, planMode, blocked);
   if (verify === 'passed') {
     return {
-      label: 'Flow',
+      label: ttui('tui.statusPanel.flow'),
       value: `${renderRendererRatioProgressBar({ ratio: 1, width: 4 })} 4/4 verified`,
     };
   }
   if (verify === 'blocked') {
     return {
-      label: 'Flow',
+      label: ttui('tui.statusPanel.flow'),
       value: `${renderRendererRatioProgressBar({ ratio: 0.75, width: 4 })} 3/4 verify blocked`,
       severity: 'error',
     };
   }
   if (verify === 'queued') {
     return {
-      label: 'Flow',
+      label: ttui('tui.statusPanel.flow'),
       value: `${renderRendererRatioProgressBar({ ratio: 0.75, width: 4 })} 3/4 verify queued`,
     };
   }
   return {
-    label: 'Flow',
+    label: ttui('tui.statusPanel.flow'),
     value: `${renderRendererRatioProgressBar({ ratio: 1, width: 4 })} 4/4 ready to run`,
   };
 }
@@ -269,30 +270,30 @@ function formatMediaGate(options: StatusReportOptions): string {
 function readinessGateRows(options: StatusReportOptions): readonly StatusFieldRow[] {
   const writingBlocked = humanWritingBlocked(options);
   const writingRow: StatusFieldRow = writingBlocked
-    ? { label: 'Writing', value: WRITING_BLOCKED_GATE, severity: 'error' }
-    : { label: 'Writing', value: WRITING_GATE };
+    ? { label: ttui('tui.statusPanel.writing'), value: WRITING_BLOCKED_GATE, severity: 'error' }
+    : { label: ttui('tui.statusPanel.writing'), value: WRITING_GATE };
   return [
-    { label: 'Checks', value: READINESS_CHECKS },
-    { label: 'Workflow', value: WORKFLOW_GATE },
-    { label: 'Engine', value: ENGINE_GATE },
-    { label: 'Autonomy', value: AUTONOMY_GATE },
-    { label: 'Recovery', value: formatRecoveryGate(options) },
-    { label: 'Tools', value: formatToolsGate(options) },
-    { label: 'Research', value: formatResearchGate(options) },
-    { label: 'Bench', value: BENCH_GATE },
-    { label: 'Media', value: formatMediaGate(options) },
-    { label: 'Office', value: OFFICE_GATE },
-    { label: 'Catalog', value: formatModelCatalogGate(options) },
-    { label: 'Token Plan', value: formatQwenTokenPlanGate(options) },
-    { label: 'Memory', value: formatMemoryGate(options) },
+    { label: ttui('tui.statusPanel.checks'), value: READINESS_CHECKS },
+    { label: ttui('tui.statusPanel.workflow'), value: WORKFLOW_GATE },
+    { label: ttui('tui.statusPanel.engine'), value: ENGINE_GATE },
+    { label: ttui('tui.statusPanel.autonomy'), value: AUTONOMY_GATE },
+    { label: ttui('tui.statusPanel.recovery'), value: formatRecoveryGate(options) },
+    { label: ttui('tui.statusPanel.tools'), value: formatToolsGate(options) },
+    { label: ttui('tui.statusPanel.research'), value: formatResearchGate(options) },
+    { label: ttui('tui.statusPanel.bench'), value: BENCH_GATE },
+    { label: ttui('tui.statusPanel.media'), value: formatMediaGate(options) },
+    { label: ttui('tui.statusPanel.office'), value: OFFICE_GATE },
+    { label: ttui('tui.statusPanel.catalog'), value: formatModelCatalogGate(options) },
+    { label: ttui('tui.statusPanel.tokenPlan'), value: formatQwenTokenPlanGate(options) },
+    { label: ttui('tui.statusPanel.memory'), value: formatMemoryGate(options) },
     formatUltraworkFlow(options),
-    { label: 'Stages', value: formatUltraworkStageStatus(options) },
-    { label: 'Blockers', value: formatReadinessBlockers(options) },
-    { label: 'Scope', value: SCOPE_GATE },
-    { label: 'Coverage', value: COVERAGE_GATE },
+    { label: ttui('tui.statusPanel.stages'), value: formatUltraworkStageStatus(options) },
+    { label: ttui('tui.statusPanel.blockers'), value: formatReadinessBlockers(options) },
+    { label: ttui('tui.statusPanel.scope'), value: SCOPE_GATE },
+    { label: ttui('tui.statusPanel.coverage'), value: COVERAGE_GATE },
     writingRow,
-    { label: 'Screen check', value: SCREEN_CHECK_GATE },
-    { label: 'Done gate', value: DONE_GATE },
+    { label: ttui('tui.statusPanel.screenCheck'), value: SCREEN_CHECK_GATE },
+    { label: ttui('tui.statusPanel.doneGate'), value: DONE_GATE },
   ];
 }
 
@@ -301,35 +302,35 @@ export function readinessRows(options: StatusReportOptions): readonly StatusFiel
   const model = (options.status?.model ?? options.model).trim();
   if (model.length === 0) {
     return [
-      { label: 'State', value: 'Model needed', severity: 'error' },
+      { label: ttui('tui.statusPanel.state'), value: 'Model needed', severity: 'error' },
       ...gateRows,
-      { label: 'Next', value: 'Run /login to add a provider, then /model to pick one.' },
+      { label: ttui('tui.statusPanel.next'), value: 'Run /login to add a provider, then /model to pick one.' },
     ];
   }
 
   const { ratio, maxTokens } = contextValues(options);
   if (maxTokens > 0 && safeUsageRatio(ratio) >= 0.70) {
     return [
-      { label: 'State', value: 'Context high' },
+      { label: ttui('tui.statusPanel.state'), value: 'Context high' },
       ...gateRows,
-      { label: 'Next', value: 'Run /compact before long work.' },
+      { label: ttui('tui.statusPanel.next'), value: 'Run /compact before long work.' },
     ];
   }
 
   if (options.gitStatus?.dirty === true) {
     return [
-      { label: 'State', value: 'Worktree dirty' },
+      { label: ttui('tui.statusPanel.state'), value: 'Worktree dirty' },
       ...gateRows,
-      { label: 'Next', value: 'Review changed files before finishing.' },
+      { label: ttui('tui.statusPanel.next'), value: 'Review changed files before finishing.' },
     ];
   }
 
   if (humanWritingBlocked(options)) {
     return [
-      { label: 'State', value: 'Writing guidance blocked', severity: 'error' },
+      { label: ttui('tui.statusPanel.state'), value: 'Writing guidance blocked', severity: 'error' },
       ...gateRows,
       {
-        label: 'Next',
+        label: ttui('tui.statusPanel.next'),
         value: options.humanWriting?.nextAction ?? 'Restore writing-quality guidance before long autonomous work.',
       },
     ];
@@ -337,15 +338,15 @@ export function readinessRows(options: StatusReportOptions): readonly StatusFiel
 
   if (options.goalStatus === 'blocked') {
     return [
-      { label: 'State', value: 'Goal blocked', severity: 'error' },
+      { label: ttui('tui.statusPanel.state'), value: 'Goal blocked', severity: 'error' },
       ...gateRows,
-      { label: 'Next', value: 'Resolve or replace the blocked goal before continuing.' },
+      { label: ttui('tui.statusPanel.next'), value: 'Resolve or replace the blocked goal before continuing.' },
     ];
   }
 
   return [
-    { label: 'State', value: 'Ready' },
+    { label: ttui('tui.statusPanel.state'), value: 'Ready' },
     ...gateRows,
-    { label: 'Next', value: 'Type your task, or /plan to plan it first.' },
+    { label: ttui('tui.statusPanel.next'), value: 'Type your task, or /plan to plan it first.' },
   ];
 }

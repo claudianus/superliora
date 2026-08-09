@@ -24,14 +24,15 @@ import {
 } from '../../utils/job/needs-user-preview';
 import { resyncJobBoardFromSession } from './job-resync';
 import { canOpenMergePreview, openMergePreview } from './merge-preview-controller';
+import { ttui } from '../../utils/tui-i18n';
 
 export function openInbox(host: SlashCommandHost): void {
   if (!isConductorUxV2Enabled()) {
-    host.showStatus('Inbox drawer needs conductor_ux_v2 (experimental).', 'textMuted');
+    host.showStatus(ttui('tui.conductor.inboxNeedsUx'), 'textMuted');
     return;
   }
   if (host.session === undefined) {
-    host.showError('No active session — Inbox needs a live session.');
+    host.showError(ttui('tui.conductor.inboxNoSession'));
     return;
   }
 
@@ -46,7 +47,7 @@ export function openInbox(host: SlashCommandHost): void {
       const snap = host.state.appState.conductorJobs ?? emptyConductorJobsSnapshot();
       const card = resolveConductorJobCard(snap.jobs, item.jobId);
       if (card === undefined || !canOpenMergePreview(card)) {
-        host.showStatus('Merge Preview needs a done or blocked job.', 'textMuted');
+        host.showStatus(ttui('tui.conductor.mergeNeedsJob'), 'textMuted');
         return;
       }
       openMergePreview(host, card);
@@ -81,8 +82,8 @@ export function buildInboxItems(host: SlashCommandHost): readonly InboxDrawerIte
     rows.push({
       id: 'glance:approval',
       kind: 'approval',
-      title: pendingApproval.data.tool_name || 'Pending approval',
-      detail: 'Focus the approval panel',
+      title: pendingApproval.data.tool_name || ttui('tui.conductor.pendingApproval'),
+      detail: ttui('tui.conductor.focusApprovalPanel'),
     });
   }
 
@@ -91,8 +92,8 @@ export function buildInboxItems(host: SlashCommandHost): readonly InboxDrawerIte
     rows.push({
       id: 'glance:question',
       kind: 'question',
-      title: 'Pending question',
-      detail: 'Answer in the question dialog',
+      title: ttui('tui.conductor.pendingQuestion'),
+      detail: ttui('tui.conductor.answerInDialog'),
     });
   }
 
@@ -145,7 +146,7 @@ async function actOnInboxItem(host: SlashCommandHost, item: InboxDrawerItem): Pr
   }
   if (item.kind === 'question') {
     host.restoreEditor();
-    host.showStatus('Answer the pending question in the question panel.', 'info');
+    host.showStatus(ttui('tui.conductor.answerInPanel'), 'info');
     return;
   }
 

@@ -5,6 +5,8 @@
  * Generic showError dumps the raw message; operators need a recovery path.
  */
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 export type NamedErrorNotice = {
   readonly title: string;
   readonly detail: string;
@@ -18,23 +20,23 @@ export function formatNamedSessionErrorNotice(
 ): NamedErrorNotice | undefined {
   if (code === 'context.overflow') {
     return {
-      title: 'Context overflow',
+      title: ttui('tui.notice.contextOverflow.title'),
       detail:
         message !== undefined && message.length > 0
           ? message
-          : 'Context window exhausted and auto-compaction could not free enough space. Start a new session, drop large attachments, or raise the model window.',
-      status: 'Turn failed: context.overflow',
+          : ttui('tui.notice.contextOverflow.detail'),
+      status: ttui('tui.notice.contextOverflow.status'),
       coalesceKey: 'context-overflow-terminal',
     };
   }
   if (code === 'compaction.unable') {
     return {
-      title: 'Compaction unable',
+      title: ttui('tui.notice.compactionUnable.title'),
       detail:
         message !== undefined && message.length > 0
           ? message
-          : 'No compactable prefix — context is already at the retention floor. Summarize externally or start a fresh session.',
-      status: 'Compaction unable',
+          : ttui('tui.notice.compactionUnable.detail'),
+      status: ttui('tui.notice.compactionUnable.status'),
       coalesceKey: 'compaction-unable',
     };
   }

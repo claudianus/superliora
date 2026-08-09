@@ -6,10 +6,12 @@ import {
   DEFAULT_APPEARANCE_PREFERENCES,
   DEFAULT_CONDUCTOR_PREFERENCES,
   DEFAULT_FOOTER_PREFERENCES,
+  DEFAULT_LOCALE_PREFERENCE,
   DEFAULT_ONBOARDING_PREFERENCES,
   type AppearancePreferences,
   type ConductorPreferences,
   type FooterPreferences,
+  type LocalePreference,
   type OnboardingPreferences,
   type TuiConfig,
 } from '../../../config';
@@ -38,7 +40,7 @@ export function tuiConfigFromHost(
     readonly state: {
       readonly appState: Pick<
         SlashCommandHost['state']['appState'],
-        'theme' | 'editorCommand' | 'notifications' | 'upgrade' | 'disablePasteBurst' | 'permissionMode'
+        'theme' | 'editorCommand' | 'notifications' | 'upgrade' | 'disablePasteBurst' | 'permissionMode' | 'locale'
       > & {
         readonly appearance?: AppearancePreferences;
         readonly footer?: FooterPreferences;
@@ -60,6 +62,7 @@ export function tuiConfigFromHost(
     footer: currentFooter(host),
     onboarding: host.state.appState.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES,
     conductor: currentConductor(host),
+    locale: host.state.appState.locale ?? DEFAULT_LOCALE_PREFERENCE,
     ...patch,
   };
 }

@@ -16,6 +16,8 @@ import {
   cycleFooterLabels,
   cycleFooterSlot,
   FOOTER_SETTINGS_SLOTS,
+  footerPrefLabel,
+  footerPrefTip,
   formatSlotModeLabel,
   type FooterSettingsKey,
 } from '../../../components/chrome/footer/footer-preferences';
@@ -23,9 +25,11 @@ import type { SlashCommandHost } from '../../hub/dispatch';
 import { currentFooter, tuiConfigFromHost } from '../appearance/tui-persist';
 import { FOOTER_PRESETS } from '#/tui/utils/settings/footer-presets';
 import { SETTINGS_PRESETS_ROW, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
+import { ttui } from '../../../utils/tui-i18n';
 
-export const FOOTER_STATUS_TIP =
-  'Status bar: Settings → Status bar · tui.toml [footer] · labels plain|compact · slots auto|always|off.';
+export function footerStatusTip(): string {
+  return ttui('tui.footer.statusTip');
+}
 
 export function showFooterSettings(host: SlashCommandHost): void {
   openFooterSettingsPicker(host);
@@ -37,7 +41,7 @@ function openFooterSettingsPicker(host: SlashCommandHost): void {
     SETTINGS_PRESETS_ROW,
     {
       value: 'status',
-      label: 'Status bar overview',
+      label: ttui('tui.footer.overview'),
       description: buildFooterOverview(footer),
     },
     ...FOOTER_SETTINGS_SLOTS.map((row) => {
@@ -48,30 +52,30 @@ function openFooterSettingsPicker(host: SlashCommandHost): void {
           : row.kind === 'slot'
             ? formatSlotModeLabel(value as FooterSlot)
             : value
-              ? 'On'
-              : 'Off';
+              ? ttui('tui.footer.pref.on')
+              : ttui('tui.footer.pref.slot.off');
       return {
         value: row.key,
-        label: `${row.label}  ·  ${status}`,
-        description: row.tip,
+        label: `${footerPrefLabel(row)}  ·  ${status}`,
+        description: footerPrefTip(row),
       };
     }),
     {
       value: 'reset',
-      label: 'Reset to layered defaults',
+      label: ttui('tui.footer.resetLabel'),
       description: 'Plain labels · essentials auto · index off · pulses on.',
     },
     {
       value: 'tip',
-      label: 'Status bar tip',
-      description: FOOTER_STATUS_TIP,
+      label: ttui('tui.footer.tipLabel'),
+      description: footerStatusTip(),
     },
   ];
 
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Status bar',
+      title: ttui('tui.settings.pane.footer.title'),
       hint: '↑↓ · Enter cycle · Esc',
       searchable: true,
       options,
@@ -79,10 +83,10 @@ function openFooterSettingsPicker(host: SlashCommandHost): void {
         dismissPickerDialog(host);
         if (value === 'presets') {
           showSettingPresetsPicker(host, {
-            title: 'Status bar presets',
+            title: ttui('tui.settings.pane.footer.presets'),
             catalog: FOOTER_PRESETS,
             onApply: async (preset) => {
-              await persistFooter(host, { ...preset.patch }, `Status bar preset "${preset.label}" applied.`);
+              await persistFooter(host, { ...preset.patch }, ttui('tui.footer.presetApplied', { label: preset.label }));
             },
           });
           return;
@@ -92,11 +96,11 @@ function openFooterSettingsPicker(host: SlashCommandHost): void {
           return;
         }
         if (value === 'tip') {
-          host.showStatus(FOOTER_STATUS_TIP, 'info');
+          host.showStatus(footerStatusTip(), 'info');
           return;
         }
         if (value === 'reset') {
-          void persistFooter(host, { ...DEFAULT_FOOTER_PREFERENCES }, 'Reset status bar to defaults.');
+          void persistFooter(host, { ...DEFAULT_FOOTER_PREFERENCES }, ttui('tui.footer.resetDefaults'));
           return;
         }
         void cycleFooterKey(host, value as FooterSettingsKey);
@@ -105,7 +109,7 @@ function openFooterSettingsPicker(host: SlashCommandHost): void {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Status bar' },
+    { label: ttui('tui.settings.pane.footer.title') },
   );
 }
 
@@ -136,9 +140,9 @@ async function cycleFooterKey(host: SlashCommandHost, key: FooterSettingsKey): P
       : row.kind === 'slot'
         ? formatSlotModeLabel(value as FooterSlot)
         : value
-          ? 'On'
-          : 'Off';
-  await persistFooter(host, next, `${row.label} → ${status}`);
+          ? ttui('tui.footer.pref.on')
+          : ttui('tui.footer.pref.slot.off');
+  await persistFooter(host, next, `${footerPrefLabel(row)} → ${status}`);
   // Re-open picker so operators can keep cycling without re-entering Settings.
   openFooterSettingsPicker(host);
 }
@@ -151,7 +155,7 @@ async function persistFooter(
   try {
     await saveTuiConfig(tuiConfigFromHost(host, { footer }));
   } catch (error) {
-    host.showStatus(`Failed to save status bar: ${formatErrorMessage(error)}`, 'error');
+    host.showStatus(ttui('tui.footer.saveFailed', { message: formatErrorMessage(error) }), 'error');
     return;
   }
   host.setAppState({ footer });

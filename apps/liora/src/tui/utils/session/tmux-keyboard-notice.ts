@@ -5,6 +5,8 @@
  * which is easy to miss under splash/loading chrome.
  */
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 import {
   TMUX_EXTENDED_KEYS_FORMAT_XTERM_WARNING,
   TMUX_EXTENDED_KEYS_OFF_WARNING,
@@ -19,21 +21,21 @@ export type TmuxKeyboardNotice = {
 
 export function formatTmuxKeyboardNotice(warning: string): TmuxKeyboardNotice {
   const text = warning.trim();
-  let status = 'tmux keyboard setup needs attention';
+  let status = ttui('tui.notice.tmuxKeyboard.statusDefault');
   if (text === TMUX_EXTENDED_KEYS_OFF_WARNING || text.includes('extended-keys is off')) {
-    status = 'tmux: enable extended-keys for Shift-Enter';
+    status = ttui('tui.notice.tmuxKeyboard.statusExtendedOff');
   } else if (
     text === TMUX_EXTENDED_KEYS_FORMAT_XTERM_WARNING ||
     text.includes('extended-keys-format is set to xterm')
   ) {
-    status = 'tmux: set extended-keys-format to csi-u';
+    status = ttui('tui.notice.tmuxKeyboard.statusCsiU');
   }
   return {
-    title: 'tmux keyboard setup',
+    title: ttui('tui.notice.tmuxKeyboard.title'),
     detail:
       text.length > 0
         ? text
-        : 'tmux keyboard options may block Shift-Enter / modified keys. Check extended-keys and extended-keys-format.',
+        : ttui('tui.notice.tmuxKeyboard.detailFallback'),
     status,
     coalesceKey: 'tmux-keyboard',
   };

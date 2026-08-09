@@ -34,6 +34,7 @@ import { currentAppearance, tuiConfigFromHost } from './tui-persist';
 import { showThemeSettings } from './theme-settings';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 
 export { APPEARANCE_BACKGROUND_TIP, APPEARANCE_CHANGE_TIP, APPEARANCE_MOTION_TIP, APPEARANCE_THEME_TIP };
 
@@ -54,7 +55,7 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Appearance',
+      title: ttui('tui.settings.pane.appearance.title'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
@@ -141,7 +142,7 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
             return;
           case 'profile':
             showAppearanceEnumPicker(host, {
-              title: 'Motion profile',
+              title: ttui('tui.settings.pane.appearance.motionProfile'),
               key: 'profile',
               current: appearance.profile,
               choices: PROFILE_OPTIONS.map((option) => ({
@@ -160,7 +161,7 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
             return;
           case 'density':
             showAppearanceEnumPicker(host, {
-              title: 'Layout density',
+              title: ttui('tui.settings.pane.appearance.layoutDensity'),
               key: 'density',
               current: appearance.density,
               choices: DENSITY_OPTIONS.map((option) => ({
@@ -185,7 +186,7 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
             return;
           case 'particles':
             showAppearanceEnumPicker(host, {
-              title: 'Particles',
+              title: ttui('tui.settings.pane.appearance.particles'),
               key: 'particles',
               current: appearance.particles,
               choices: PARTICLE_OPTIONS.map((option) => ({
@@ -196,7 +197,7 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
             return;
           case 'animation-fps':
             showAppearanceEnumPicker(host, {
-              title: 'Animation FPS',
+              title: ttui('tui.settings.pane.appearance.animationFps'),
               key: 'animation-fps',
               current: String(appearance.animationFps),
               choices: FPS_OPTIONS.map((option) => ({
@@ -207,7 +208,7 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
             return;
           case 'timestamps':
             showAppearanceEnumPicker(host, {
-              title: 'Timestamps',
+              title: ttui('tui.settings.pane.appearance.timestamps'),
               key: 'timestamps',
               current: appearance.showTimestamps ? 'on' : 'off',
               choices: [
@@ -218,7 +219,7 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
             return;
           case 'neat':
             showAppearanceEnumPicker(host, {
-              title: 'Neat cards',
+              title: ttui('tui.settings.pane.appearance.neatCards'),
               key: 'neat',
               current: appearance.neat ? 'on' : 'off',
               choices: [
@@ -229,7 +230,7 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
             return;
           case 'canvas-background':
             showAppearanceEnumPicker(host, {
-              title: 'Canvas background',
+              title: ttui('tui.settings.pane.appearance.canvasBg'),
               key: 'canvas-background',
               current: appearance.canvasBackground ? 'on' : 'off',
               choices: [
@@ -240,7 +241,7 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
             return;
           case 'terminal-background':
             showAppearanceEnumPicker(host, {
-              title: 'Terminal background',
+              title: ttui('tui.settings.pane.appearance.terminalBg'),
               key: 'terminal-background',
               current: appearance.terminalBackground,
               choices: [
@@ -255,7 +256,7 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
             return;
           case 'terminal-palette':
             showAppearanceEnumPicker(host, {
-              title: 'Terminal palette',
+              title: ttui('tui.settings.pane.appearance.terminalPalette'),
               key: 'terminal-palette',
               current: appearance.terminalPalette ? 'on' : 'off',
               choices: [
@@ -272,7 +273,7 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Appearance' },
+    { label: ttui('tui.settings.pane.appearance.title') },
   );
 }
 
@@ -282,7 +283,7 @@ export function showSyntaxThemePicker(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Syntax theme',
+      title: ttui('tui.settings.pane.appearance.syntaxTheme'),
       hint: '↑↓ · Enter · Esc · coding colors only',
       searchable: true,
       layout: 'grid',
@@ -300,7 +301,7 @@ export function showSyntaxThemePicker(host: SlashCommandHost): void {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Syntax theme' },
+    { label: ttui('tui.settings.pane.appearance.syntaxTheme') },
   );
 }
 
@@ -310,7 +311,7 @@ export function showTranscriptDetailPicker(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Transcript detail',
+      title: ttui('tui.settings.pane.appearance.transcriptDetail'),
       hint: '↑↓ · Enter · Esc · live tool-card density',
       searchable: true,
       currentValue: current,
@@ -327,7 +328,7 @@ export function showTranscriptDetailPicker(host: SlashCommandHost): void {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Transcript detail' },
+    { label: ttui('tui.settings.pane.appearance.transcriptDetail') },
   );
 }
 
@@ -372,7 +373,7 @@ function showAppearanceSettingsPanel(host: SlashCommandHost): void {
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => [...lines],
     borderToken: 'primary',
-    title: ' Appearance ',
+    title: ttui('tui.settings.pane.appearance.panelTitle'),
     enterBeatSeed: 'appearance-settings',
     requestRender: () => {
       requestTUILayoutRender(host.state);
@@ -385,7 +386,7 @@ function showAppearanceSettingsPanel(host: SlashCommandHost): void {
 function showAppearancePresets(host: SlashCommandHost): void {
   const current = currentAppearance(host);
   showSettingPresetsPicker(host, {
-    title: 'Appearance presets',
+    title: ttui('tui.settings.pane.appearance.presets'),
     catalog: APPEARANCE_PRESETS,
     currentId: matchAppearancePresetId(current),
     onApply: async (preset) => {
@@ -393,13 +394,13 @@ function showAppearancePresets(host: SlashCommandHost): void {
       try {
         await saveTuiConfig(tuiConfigFromHost(host, { appearance: next }));
       } catch (error) {
-        host.showStatus(`Failed to save appearance: ${formatErrorMessage(error)}`, 'error');
+        host.showStatus(ttui('tui.appearance.saveFailed', { message: formatErrorMessage(error) }), 'error');
         return;
       }
       host.setAppState({ appearance: next });
       host.setTranscriptDetail(next.transcriptDetail);
       host.setNeatMode(next.neat);
-      host.showStatus(`Appearance preset "${preset.label}" applied.`, 'success');
+      host.showStatus(ttui('tui.appearance.presetApplied', { label: preset.label }), 'success');
     },
   });
 }

@@ -8,12 +8,15 @@ const LOCALE_ENV_NAMES = [
   'LANG',
 ] as const;
 
+/** Persisted UI language preference (`tui.toml` `locale`). */
+export type LocalePreference = 'auto' | CliLocale;
+
 /**
  * Active CLI locale. Defaults to `'en'` so importing the module (e.g. in
  * tests that call `createProgram` directly, without going through the runtime
  * entry in `main.ts`) always renders the English catalog and keeps existing
  * English-text assertions green. The runtime applies the user's locale via
- * `setCliLocale(detectCliLocale(process.env))` before building the program.
+ * `setCliLocale(resolveCliLocale(...))` before building the program.
  */
 let activeLocale: CliLocale = 'en';
 
@@ -44,6 +47,19 @@ export function detectCliLocale(
     }
   }
   return 'en';
+}
+
+/**
+ * Resolves the active locale from a persisted preference plus the environment.
+ * Fixed `en` / `ko` win; `auto` (default) uses {@link detectCliLocale}.
+ */
+export function resolveCliLocale(options: {
+  readonly preference?: LocalePreference | null;
+  readonly env?: Record<string, string | undefined>;
+}): CliLocale {
+  const preference = options.preference ?? 'auto';
+  if (preference === 'en' || preference === 'ko') return preference;
+  return detectCliLocale(options.env ?? {});
 }
 
 export function getCliLocale(): CliLocale {

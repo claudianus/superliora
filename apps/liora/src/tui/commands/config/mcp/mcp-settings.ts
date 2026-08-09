@@ -20,6 +20,7 @@ import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 import { showMcpManagePanel } from './mcp-manage';
+import { ttui } from '../../../utils/tui-i18n';
 
 export { MCP_ALLOWLIST_TIP, MCP_CONFIG_SCOPES_TIP, MCP_OAUTH_TIP };
 
@@ -70,7 +71,7 @@ export function showMcpSettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'MCP servers',
+      title: ttui('tui.settings.pane.mcp.title'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
@@ -115,7 +116,7 @@ async function showMcpStatusPanel(host: SlashCommandHost): Promise<void> {
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => [...lines],
     borderToken: 'primary',
-    title: ' MCP ',
+    title: ttui('tui.settings.pane.mcp.panelTitle'),
     enterBeatSeed: 'mcp-settings',
     requestRender: () => {
       requestTUILayoutRender(host.state);

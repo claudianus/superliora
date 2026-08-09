@@ -56,6 +56,10 @@ export type CommandHubItemKind = 'toggle' | 'cycle' | 'open';
 
 export interface CommandHubItem {
   readonly id: CommandHubActionId;
+  /** i18n key; resolved at render/search time so locale switches apply. */
+  readonly sectionKey?: string;
+  readonly labelKey?: string;
+  readonly descriptionKey?: string;
   readonly section: string;
   readonly label: string;
   readonly description: string;

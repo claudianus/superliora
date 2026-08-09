@@ -7,6 +7,7 @@ import type { TUIState } from '../../tui-state';
 import type { ColorToken } from '#/tui/theme';
 import { currentTheme } from '#/tui/theme';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
+import { ttui } from '../../utils/tui-i18n';
 import {
   formatMcpStartupStatusSummary,
   mcpServerStatusKey,
@@ -51,7 +52,7 @@ export class SessionEventMcpStatus {
     } catch (error) {
       if (host.session !== session || host.aborted) return;
       const message = error instanceof Error ? error.message : String(error);
-      host.showError(`Failed to sync MCP server status: ${message}`);
+      host.showError(ttui('tui.mcp.syncFailed', { message }));
       return;
     }
     if (host.session !== session || host.state.appState.sessionId !== session.id) return;

@@ -3,6 +3,7 @@ import type { BackgroundTaskInfo, GoalSnapshot } from '@superliora/sdk';
 import type { TUIState } from '#/tui/tui-state';
 
 import { formatBackgroundTaskTranscript } from '#/tui/utils/background/background-task-status';
+import { ttui } from '#/tui/utils/tui-i18n';
 import { notifyUserAttentionOnce, type UserAttentionOptions } from '#/tui/utils/terminal/terminal-notification';
 
 export function notifyGoalCompletedAttention(
@@ -14,7 +15,7 @@ export function notifyGoalCompletedAttention(
     state,
     `goal-complete:${goal.goalId}`,
     {
-      title: 'SuperLiora goal complete',
+      title: ttui('tui.notice.attention.goalComplete'),
       body: goal.objective,
     },
     options,
@@ -31,7 +32,7 @@ export function notifyGoalBlockedAttention(
     state,
     `goal-blocked:${goal.goalId}`,
     {
-      title: 'SuperLiora goal blocked',
+      title: ttui('tui.notice.attention.goalBlocked'),
       body: reason ?? goal.terminalReason ?? goal.objective,
     },
     options,
@@ -48,7 +49,7 @@ export function notifyBackgroundTaskAttention(
     state,
     `background-task:${info.taskId}:${info.status}`,
     {
-      title: 'SuperLiora background task finished',
+      title: ttui('tui.notice.attention.backgroundTask'),
       body: status.detail !== undefined ? `${status.headline} — ${status.detail}` : status.headline,
     },
     options,
@@ -66,7 +67,10 @@ export function notifySubagentAttention(
     state,
     `subagent:${subagentId}:${outcome}`,
     {
-      title: outcome === 'completed' ? 'SuperLiora subagent finished' : 'SuperLiora subagent failed',
+      title:
+        outcome === 'completed'
+          ? ttui('tui.notice.attention.subagentFinished')
+          : ttui('tui.notice.attention.subagentFailed'),
       body: detail,
     },
     options,

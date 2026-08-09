@@ -7,6 +7,8 @@
  * on a successful probe. Without notices the operator only sees a red/green card.
  */
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 export const CIRCUIT_BREAKER_OPEN_CODE = 'CIRCUIT_BREAKER_OPEN';
 export const CIRCUIT_BREAKER_RECOVERED_CODE = 'CIRCUIT_BREAKER_RECOVERED';
 
@@ -56,9 +58,9 @@ export function isCircuitBreakerRecoveredOutput(output: unknown): boolean {
 export function formatCircuitBreakerOpenNotice(toolName?: string): CircuitBreakerOpenNotice {
   const tool = toolName !== undefined && toolName.length > 0 ? toolName : 'tool';
   return {
-    title: 'Circuit breaker open',
-    detail: `${tool} is short-circuited after repeated failures (code=${CIRCUIT_BREAKER_OPEN_CODE}). Use another tool or wait for cooldown — do not retry the same call.`,
-    status: `Tool blocked: circuit breaker open on ${tool}`,
+    title: ttui('tui.notice.circuitOpen.title'),
+    detail: ttui('tui.notice.circuitOpen.detail', { tool, code: CIRCUIT_BREAKER_OPEN_CODE }),
+    status: ttui('tui.notice.circuitOpen.status', { tool }),
     coalesceKey: 'circuit-breaker-open',
   };
 }
@@ -68,9 +70,12 @@ export function formatCircuitBreakerRecoveredNotice(
 ): CircuitBreakerRecoveredNotice {
   const tool = toolName !== undefined && toolName.length > 0 ? toolName : 'tool';
   return {
-    title: 'Circuit breaker recovered',
-    detail: `${tool} probe succeeded after cooldown (code=${CIRCUIT_BREAKER_RECOVERED_CODE}). Circuit closed — the tool is available again.`,
-    status: `Tool recovered: circuit closed on ${tool}`,
+    title: ttui('tui.notice.circuitRecovered.title'),
+    detail: ttui('tui.notice.circuitRecovered.detail', {
+      tool,
+      code: CIRCUIT_BREAKER_RECOVERED_CODE,
+    }),
+    status: ttui('tui.notice.circuitRecovered.status', { tool }),
     coalesceKey: 'circuit-breaker-recovered',
   };
 }

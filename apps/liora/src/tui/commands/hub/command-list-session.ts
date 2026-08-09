@@ -3,6 +3,7 @@
  */
 
 import type { LioraSlashCommand } from '../types';
+import { ttui } from '#/tui/utils/tui-i18n';
 import {
   toggleOnOffArgumentCompletions,
   permissionArgumentCompletions,
@@ -23,23 +24,29 @@ import {
   themeArgumentCompletions,
   appearanceArgumentCompletions,
   personaArgumentCompletions,
+  localeArgumentCompletions,
 } from './completion-specs';
 import { pluginsArgumentCompletions } from '../plugins/plugins';
 import { transcriptArgumentCompletions } from '../session/transcript';
 import { neatArgumentCompletions } from '../session/neat';
 
-export const BUILTIN_SLASH_COMMANDS_SESSION = [
+function slashDesc(name: string): string {
+  return ttui(`tui.slash.${name}`);
+}
+
+export function getBuiltinSlashCommandsSession(): readonly LioraSlashCommand[] {
+  return [
 {
     name: 'model',
     aliases: [],
-    description: 'Switch LLM model',
+    description: slashDesc('model'),
     priority: 100,
     availability: 'always',
   },
   {
     name: 'thinking',
     aliases: ['think', 'reasoning', 'effort', 'depth'],
-    description: 'Set thinking effort for the current session',
+    description: slashDesc('thinking'),
     priority: 100,
     argumentHint: '[off|on|low|medium|high|xhigh|max]',
     completeArgs: thinkingArgumentCompletions,
@@ -48,14 +55,14 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'btw',
     aliases: [],
-    description: 'Ask a forked side agent a question',
+    description: slashDesc('btw'),
     priority: 90,
     availability: 'always',
   },
   {
     name: 'transcript',
     aliases: [],
-    description: 'Set transcript detail density (minimal, compact, standard, full)',
+    description: slashDesc('transcript'),
     priority: 80,
     argumentHint: '[minimal|compact|standard|full]',
     completeArgs: transcriptArgumentCompletions,
@@ -64,7 +71,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'neat',
     aliases: [],
-    description: 'Toggle structured tool result cards instead of raw output',
+    description: slashDesc('neat'),
     priority: 80,
     argumentHint: '[on|off|toggle|status]',
     completeArgs: neatArgumentCompletions,
@@ -73,7 +80,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'help',
     aliases: ['h'],
-    description: 'Open the Command Hub menu (? / Ctrl-K)',
+    description: slashDesc('help'),
     priority: 100,
     completeArgs: helpArgumentCompletions,
     availability: 'always',
@@ -81,19 +88,19 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'new',
     aliases: ['clear'],
-    description: 'Start a fresh session in the current workspace',
+    description: slashDesc('new'),
     priority: 80,
   },
   {
     name: 'sessions',
     aliases: ['resume'],
-    description: 'Browse and resume sessions',
+    description: slashDesc('sessions'),
     priority: 80,
   },
   {
     name: 'extensions',
     aliases: ['ext', 'import-claude'],
-    description: '확장 기능 — 플러그인/훅/스킬/MCP · Claude 가져오기',
+    description: slashDesc('extensions'),
     priority: 70,
     availability: 'always',
     argumentHint: '[plugins|hooks|skills|mcp|claude]',
@@ -102,15 +109,14 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'tasks',
     aliases: ['task'],
-    description: 'Browse background tasks',
+    description: slashDesc('tasks'),
     priority: 80,
     availability: 'always',
   },
   {
     name: 'agents',
     aliases: ['workers', 'mission-control'],
-    description:
-      'Worker Dock — cycle the worker monitor band (auto/pinned/hidden)',
+    description: slashDesc('agents'),
     priority: 88,
     argumentHint: '[auto|pinned|hidden]',
     availability: 'always',
@@ -118,7 +124,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'jobs',
     aliases: [],
-    description: 'Conductor Job desk — list, board, or deck monitor',
+    description: slashDesc('jobs'),
     priority: 88,
     argumentHint: '[board|deck [job_id]|job_id]',
     completeArgs: jobsArgumentCompletions,
@@ -127,7 +133,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'job',
     aliases: [],
-    description: 'Conductor Job — desk board, deck monitor, inspect / resume / cancel',
+    description: slashDesc('job'),
     priority: 88,
     argumentHint: 'board | deck [id] | list | inbox | resume [id] | cancel <id> | inspect <id>',
     completeArgs: jobArgumentCompletions,
@@ -136,7 +142,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'cron',
     aliases: [],
-    description: 'Manage scheduled jobs (list / delete)',
+    description: slashDesc('cron'),
     priority: 60,
     argumentHint: 'list | delete <jobId>',
     completeArgs: cronArgumentCompletions,
@@ -145,35 +151,35 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'mcp',
     aliases: [],
-    description: 'Manage MCP servers (install, toggle, remove, status)',
+    description: slashDesc('mcp'),
     priority: 60,
     availability: 'always',
   },
   {
     name: 'tools',
     aliases: ['tool'],
-    description: 'List active agent tools (SearchTools inventory)',
+    description: slashDesc('tools'),
     priority: 70,
     availability: 'always',
   },
   {
     name: 'eyes',
     aliases: ['eye'],
-    description: 'Show browser-use / computer-use eyes readiness',
+    description: slashDesc('eyes'),
     priority: 70,
     availability: 'always',
   },
   {
     name: 'harness',
     aliases: [],
-    description: 'Open harness controls (tools, eyes, premium, MCP, experiments)',
+    description: slashDesc('harness'),
     priority: 70,
     availability: 'always',
   },
   {
     name: 'plugins',
     aliases: [],
-    description: 'Manage plugins (prefer Extensions Hub)',
+    description: slashDesc('plugins'),
     priority: 60,
     visibility: 'advanced',
     availability: 'always',
@@ -183,7 +189,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'memory',
     aliases: [],
-    description: 'Manage Liora Memory',
+    description: slashDesc('memory'),
     priority: 60,
     availability: 'always',
     argumentHint: '[remember|recall|reflect|forget|inspect]',
@@ -192,7 +198,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'add-dir',
     aliases: [],
-    description: 'Add or list an additional workspace directory',
+    description: slashDesc('add-dir'),
     priority: 60,
     availability: 'idle-only',
     argumentHint: '[list] | <path>',
@@ -201,7 +207,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'experiments',
     aliases: ['experimental'],
-    description: 'Manage experimental features',
+    description: slashDesc('experiments'),
     priority: 60,
     visibility: 'advanced',
     availability: 'idle-only',
@@ -209,7 +215,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'reload',
     aliases: [],
-    description: 'Reload session and apply config.toml settings plus tui.toml UI preferences',
+    description: slashDesc('reload'),
     priority: 60,
     visibility: 'advanced',
     availability: 'idle-only',
@@ -217,7 +223,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'reload-tui',
     aliases: [],
-    description: 'Reload only tui.toml UI preferences',
+    description: slashDesc('reload-tui'),
     priority: 60,
     visibility: 'advanced',
     availability: 'always',
@@ -225,21 +231,21 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'compact',
     aliases: [],
-    description: 'Compact the conversation context',
+    description: slashDesc('compact'),
     priority: 80,
     argumentHint: '<instruction>',
   },
   {
     name: 'refine',
     aliases: [],
-    description: 'Refine the harness from the trajectory (prompt notes, memory, skills, subagent specs)',
+    description: slashDesc('refine'),
     priority: 80,
     argumentHint: '[--global] [status|rollback <id>] | [instructions]',
   },
   {
     name: 'goal',
     aliases: [],
-    description: 'Simple goal loop: set objective, agent iterates until done (Ralph Loop)',
+    description: slashDesc('goal'),
     priority: 80,
     argumentHint: '[status|pause|resume|cancel|replace|next] | <objective>',
     completeArgs: goalArgumentCompletions,
@@ -256,18 +262,18 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'init',
     aliases: [],
-    description: 'Analyze the codebase and generate AGENTS.md',
+    description: slashDesc('init'),
   },
   {
     name: 'fork',
     aliases: [],
-    description: 'Fork the current session (`/fork --worktree [name]` for git isolation)',
+    description: slashDesc('fork'),
     priority: 80,
   },
   {
     name: 'title',
     aliases: ['rename'],
-    description: 'Set or show session title',
+    description: slashDesc('title'),
     priority: 60,
     argumentHint: '<title>',
     availability: 'always',
@@ -275,7 +281,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'usage',
     aliases: [],
-    description: 'Show session tokens + context window + plan quotas',
+    description: slashDesc('usage'),
     priority: 80,
     visibility: 'advanced',
     availability: 'always',
@@ -283,7 +289,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'quota',
     aliases: [],
-    description: 'Show live provider subscription quotas and API credits',
+    description: slashDesc('quota'),
     priority: 80,
     visibility: 'advanced',
     availability: 'always',
@@ -291,14 +297,14 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'status',
     aliases: [],
-    description: 'Show current session and runtime status',
+    description: slashDesc('status'),
     priority: 100,
     availability: 'always',
   },
   {
     name: 'diff',
     aliases: [],
-    description: 'Show working-tree changes as a review panel',
+    description: slashDesc('diff'),
     priority: 85,
     argumentHint: '[path]',
     availability: 'always',
@@ -306,7 +312,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'log',
     aliases: ['git'],
-    description: 'Browse recent commits',
+    description: slashDesc('log'),
     priority: 82,
     argumentHint: '[filter]',
     availability: 'always',
@@ -314,21 +320,21 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'errors',
     aliases: ['problems'],
-    description: 'Browse errors from the current session transcript',
+    description: slashDesc('errors'),
     priority: 81,
     availability: 'always',
   },
   {
     name: 'files',
     aliases: ['tree', 'explorer'],
-    description: 'Browse project files (git-aware)',
+    description: slashDesc('files'),
     priority: 84,
     availability: 'always',
   },
   {
     name: 'search',
     aliases: ['grep'],
-    description: 'Search project file contents',
+    description: slashDesc('search'),
     priority: 83,
     argumentHint: '<pattern>',
     availability: 'always',
@@ -336,7 +342,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'web',
     aliases: ['fetch'],
-    description: 'Fetch a URL and view its readable content',
+    description: slashDesc('web'),
     priority: 80,
     argumentHint: '<url>',
     availability: 'always',
@@ -344,7 +350,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'blame',
     aliases: [],
-    description: 'Show git blame for a file',
+    description: slashDesc('blame'),
     priority: 79,
     argumentHint: '<path>',
     availability: 'always',
@@ -352,7 +358,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'aquarium',
     aliases: ['tank'],
-    description: 'Overlay a Welcome-sized Jewel Tank (covers chat until the next message)',
+    description: slashDesc('aquarium'),
     priority: 70,
     visibility: 'advanced',
     availability: 'always',
@@ -360,7 +366,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'feed',
     aliases: ['food'],
-    description: 'Drop food into the visible Jewel Tank',
+    description: slashDesc('feed'),
     priority: 70,
     visibility: 'advanced',
     availability: 'always',
@@ -368,8 +374,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'upgrade',
     aliases: ['update'],
-    description:
-      'Open Upgrade Studio — published releases by default; --main for tip of origin/main',
+    description: slashDesc('upgrade'),
     argumentHint: '[--main]',
     priority: 90,
     availability: 'always',
@@ -377,7 +382,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'context-os',
     aliases: ['ctx'],
-    description: 'Diagnose Context OS continuity/evidence + privacy (ZDR) posture',
+    description: slashDesc('context-os'),
     priority: 85,
     argumentHint: '[query]',
     availability: 'always',
@@ -385,14 +390,14 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'undo',
     aliases: [],
-    description: 'Withdraw the last prompt from the transcript',
+    description: slashDesc('undo'),
     priority: 80,
     availability: 'idle-only',
   },
   {
     name: 'rewind',
     aliases: [],
-    description: 'Restore files from the last agent write/edit turn snapshot',
+    description: slashDesc('rewind'),
     priority: 80,
     argumentHint: '[turnId]',
     availability: 'idle-only',
@@ -400,7 +405,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'loop',
     aliases: [],
-    description: 'Repeat a prompt on an interval inside this conversation',
+    description: slashDesc('loop'),
     priority: 75,
     argumentHint: '[interval] <prompt> | stop [id] | list',
     completeArgs: loopArgumentCompletions,
@@ -409,14 +414,14 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'retry',
     aliases: [],
-    description: 'Resend your last message (also: Hub → Chat → Retry)',
+    description: slashDesc('retry'),
     priority: 80,
     availability: 'idle-only',
   },
   {
     name: 'editor',
     aliases: [],
-    description: 'Set the external editor for Ctrl-G',
+    description: slashDesc('editor'),
     priority: 60,
     argumentHint: '[code --wait|vim|nvim|nano]',
     completeArgs: editorArgumentCompletions,
@@ -425,7 +430,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'theme',
     aliases: [],
-    description: 'Set the terminal UI theme',
+    description: slashDesc('theme'),
     priority: 60,
     argumentHint: '[auto|dark|light|import <source>]',
     completeArgs: themeArgumentCompletions,
@@ -434,14 +439,23 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'media',
     aliases: [],
-    description: 'Set media fallback when the chat model is text-only',
+    description: slashDesc('media'),
     priority: 55,
+    availability: 'always',
+  },
+  {
+    name: 'locale',
+    aliases: [],
+    description: slashDesc('locale'),
+    priority: 60,
+    argumentHint: '[auto|en|ko]',
+    completeArgs: localeArgumentCompletions,
     availability: 'always',
   },
   {
     name: 'appearance',
     aliases: ['skin'],
-    description: 'Tune TUI motion, density, and background',
+    description: slashDesc('appearance'),
     priority: 60,
     argumentHint: '[profile|density|timestamps|particles|…]',
     completeArgs: appearanceArgumentCompletions,
@@ -450,7 +464,7 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'persona',
     aliases: ['character'],
-    description: 'Customize agent personality, tone, and response style',
+    description: slashDesc('persona'),
     priority: 60,
     argumentHint: '[list|set|name|tone|personality|instructions|clear|help]',
     completeArgs: personaArgumentCompletions,
@@ -459,39 +473,40 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'logout',
     aliases: ['disconnect'],
-    description: 'Log out of a configured provider',
+    description: slashDesc('logout'),
     priority: 40,
   },
   {
     name: 'login',
     aliases: [],
-    description: 'Select a platform and authenticate',
+    description: slashDesc('login'),
     priority: 40,
   },
   {
     name: 'accounts',
     aliases: [],
-    description: 'Manage OAuth account pools (promote, label, remove)',
+    description: slashDesc('accounts'),
     priority: 40,
     availability: 'always',
   },
   {
     name: 'export-md',
     aliases: ['export'],
-    description: 'Export current session as a Markdown file',
+    description: slashDesc('export-md'),
     priority: 40,
   },
   {
     name: 'exit',
     aliases: ['quit', 'q'],
-    description: 'Exit the application',
+    description: slashDesc('exit'),
     priority: 20,
   },
   {
     name: 'version',
     aliases: [],
-    description: 'Show version information',
+    description: slashDesc('version'),
     priority: 20,
     availability: 'always',
   }
 ] as const satisfies readonly LioraSlashCommand[];
+}

@@ -1,7 +1,7 @@
 import type { PermissionMode } from '@superliora/sdk';
 
 import { saveTuiConfig } from '../../../config';
-import { NO_ACTIVE_SESSION_MESSAGE } from '../../../constant/liora-tui';
+import {  NO_ACTIVE_SESSION_MESSAGE } from '../../../constant/liora-tui';
 import { formatErrorMessage } from '../../../utils/event-payload';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 import { PermissionSelectorComponent } from '../../../components/dialogs/picker/permission-selector';
@@ -14,14 +14,14 @@ async function persistPermissionMode(host: SlashCommandHost): Promise<void> {
   try {
     await saveTuiConfig(tuiConfigFromHost(host));
   } catch (error) {
-    host.showError(`Failed to save permission mode: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.permission.saveFailed', { message: formatErrorMessage(error) }));
   }
 }
 
 export async function handleYoloCommand(host: SlashCommandHost, args: string): Promise<void> {
   const session = host.session;
   if (session === undefined) {
-    host.showError(NO_ACTIVE_SESSION_MESSAGE);
+    host.showError(NO_ACTIVE_SESSION_MESSAGE());
     return;
   }
 
@@ -69,7 +69,7 @@ export async function handleYoloCommand(host: SlashCommandHost, args: string): P
 export async function handleAutoCommand(host: SlashCommandHost, args: string): Promise<void> {
   const session = host.session;
   if (session === undefined) {
-    host.showError(NO_ACTIVE_SESSION_MESSAGE);
+    host.showError(NO_ACTIVE_SESSION_MESSAGE());
     return;
   }
 
@@ -167,7 +167,7 @@ async function applyPermissionChoice(host: SlashCommandHost, mode: PermissionMod
     await host.requireSession().setPermission(mode);
   } catch (error) {
     const msg = formatErrorMessage(error);
-    host.showError(`Failed to set permission mode: ${msg}`);
+    host.showError(ttui('tui.permission.setFailed', { message: msg }));
     return;
   }
 

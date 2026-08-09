@@ -24,7 +24,7 @@ export function showDiff(host: SlashCommandHost, args?: string): void {
       await new Promise<void>((resolve) => setImmediate(resolve));
       const report = collectGitDiff(host.state.appState.workDir);
       if (report === null) {
-        host.showError('Not a git repository — /diff needs a working tree.');
+        host.showError(ttui('tui.diff.notGit'));
         return;
       }
 
@@ -38,7 +38,7 @@ export function showDiff(host: SlashCommandHost, args?: string): void {
             );
 
       if (filter.length > 0 && files.length === 0) {
-        host.showStatus(`No working-tree changes match "${filter}".`);
+        host.showStatus(ttui('tui.diff.noMatch', { filter }));
         return;
       }
 

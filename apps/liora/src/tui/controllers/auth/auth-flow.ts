@@ -1,7 +1,7 @@
 import type { CreateSessionOptions, LioraHarness, Session } from '@superliora/sdk';
 import type { SkillListSession } from '../../commands';
 
-import { OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE } from '../../constant/liora-tui';
+import {  OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE } from '../../constant/liora-tui';
 import { contextWorkingSetSnapshotFromLoopControl } from '../../utils/agent/context-working-set';
 import { resolveThinkingLevelForApply } from '../../utils/model/thinking-effort';
 import {
@@ -60,7 +60,7 @@ export class AuthFlowController {
       contextUsage: 0,
       sessionTitle: null,
     });
-    this.host.appendStartupNotice(OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE);
+    this.host.appendStartupNotice(OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE());
     this.host.setStartupReady();
   }
 

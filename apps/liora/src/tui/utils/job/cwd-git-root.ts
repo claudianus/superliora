@@ -5,6 +5,8 @@
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 export interface CwdBelowGitRoot {
   readonly cwd: string;
   readonly gitRoot: string;
@@ -15,7 +17,7 @@ export function formatCwdBelowGitRootNotice(info: CwdBelowGitRoot): {
   readonly detail: string;
 } {
   return {
-    title: 'Opened below git root — open root?',
+    title: ttui('tui.notice.cwdBelowGitRoot.title'),
     detail: info.gitRoot,
   };
 }

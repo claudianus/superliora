@@ -6,12 +6,13 @@
  */
 
 import { collectGitLog } from '#/utils/git/git-log';
+import { ttui } from '../utils/tui-i18n';
 import type { SlashCommandHost } from './hub/dispatch';
 
 export function showLog(host: SlashCommandHost, args?: string): void {
   const report = collectGitLog(host.state.appState.workDir);
   if (report === null) {
-    host.showError('Not a git repository — /log needs a working tree.');
+    host.showError(ttui('tui.log.notGit'));
     return;
   }
 
@@ -29,7 +30,7 @@ export function showLog(host: SlashCommandHost, args?: string): void {
         });
 
   if (filter.length > 0 && commits.length === 0) {
-    host.showStatus(`No commits match "${filter}".`);
+    host.showStatus(ttui('tui.log.noMatch', { filter }));
     return;
   }
 

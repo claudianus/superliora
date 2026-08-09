@@ -7,6 +7,7 @@
 
 import { ContextWorkingSetSelectorComponent } from '../../../components/dialogs/picker/context-working-set-selector';
 import { formatErrorMessage } from '../../../utils/event-payload';
+import { ttui } from '../../../utils/tui-i18n';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 import {
   contextWorkingSetPresetById,
@@ -57,7 +58,7 @@ export async function showContextWorkingSetPicker(host: SlashCommandHost): Promi
     });
     maxContextTokens = resolveActiveMaxContextTokens(host);
   } catch (error) {
-    host.showError(`Failed to load context settings: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.context.loadFailed', { message: formatErrorMessage(error) }));
     return;
   }
 
@@ -104,7 +105,7 @@ async function showContextWorkingSetStatus(host: SlashCommandHost): Promise<void
     }
     host.showStatus(lines.join('\n'));
   } catch (error) {
-    host.showError(`Failed to read context settings: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.context.readFailed', { message: formatErrorMessage(error) }));
   }
 }
 
@@ -114,7 +115,7 @@ async function applyContextWorkingSetPreset(
 ): Promise<void> {
   const preset = contextWorkingSetPresetById(presetId);
   if (preset === undefined) {
-    host.showError(`Unknown context preset: ${presetId}`);
+    host.showError(ttui('tui.context.unknownPreset', { presetId }));
     return;
   }
 
@@ -144,7 +145,7 @@ async function applyContextWorkingSetPreset(
       'success',
     );
   } catch (error) {
-    host.showError(`Failed to update context settings: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.context.updateFailed', { message: formatErrorMessage(error) }));
   }
 }
 

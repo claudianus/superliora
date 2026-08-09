@@ -8,6 +8,7 @@
 import { PRODUCT_NAME } from '#/constant/app';
 import { renderRendererRatioProgressBar } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
+import { ttui } from '#/tui/utils/tui-i18n';
 import { loopModelRoutingRows } from '#/tui/utils/model/loop-model-routing';
 import {
   formatTokenCount,
@@ -60,47 +61,47 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
   const permission = options.status?.permission ?? options.permissionMode;
   const sessionId = options.sessionId.trim().length > 0 ? options.sessionId : 'none';
   const rows: StatusFieldRow[] = [
-    { label: 'Model', value: formatModelStatus(options) },
-    { label: 'Directory', value: options.workDir },
-    { label: 'Permissions', value: permission },
-    { label: 'Visual Quality', value: formatPremiumQualityStatus(options) },
+    { label: ttui('tui.statusPanel.model'), value: formatModelStatus(options) },
+    { label: ttui('tui.statusPanel.directory'), value: options.workDir },
+    { label: ttui('tui.statusPanel.permissions'), value: permission },
+    { label: ttui('tui.statusPanel.visualQuality'), value: formatPremiumQualityStatus(options) },
     ...contextOSStatusRows(options),
     ...privacyStatusRows(options),
-    { label: 'Session', value: sessionId },
+    { label: ttui('tui.statusPanel.session'), value: sessionId },
   ];
   if (options.sessionLogPath !== undefined && options.sessionLogPath.length > 0) {
-    rows.push({ label: 'Session log', value: options.sessionLogPath });
+    rows.push({ label: ttui('tui.statusPanel.sessionLog'), value: options.sessionLogPath });
   }
   if (options.globalLogPath !== undefined && options.globalLogPath.length > 0) {
-    rows.push({ label: 'Global log', value: options.globalLogPath });
+    rows.push({ label: ttui('tui.statusPanel.globalLog'), value: options.globalLogPath });
   }
   if (options.providerRouteStatus !== undefined && options.providerRouteStatus !== null) {
     rows.splice(1, 0, {
-      label: 'Route',
+      label: ttui('tui.statusPanel.route'),
       value: formatProviderRouteSummary(options.providerRouteStatus),
     });
   }
   if (options.gitStatus !== undefined && options.gitStatus !== null) {
-    rows.splice(2, 0, { label: 'Worktree', value: formatWorktreeStatus(options.gitStatus) });
+    rows.splice(2, 0, { label: ttui('tui.statusPanel.worktree'), value: formatWorktreeStatus(options.gitStatus) });
   }
   const title = options.sessionTitle?.trim();
-  if (title !== undefined && title.length > 0) rows.push({ label: 'Title', value: title });
+  if (title !== undefined && title.length > 0) rows.push({ label: ttui('tui.statusPanel.title'), value: title });
   if (options.statusError !== undefined) {
-    rows.push({ label: 'Warning', value: options.statusError, severity: 'error' });
+    rows.push({ label: ttui('tui.statusPanel.warning'), value: options.statusError, severity: 'error' });
   }
 
   const lines: string[] = [
     `${accent(`>_ ${PRODUCT_NAME}`)} ${muted(`(v${options.version})`)}`,
   ];
   if (options.upstreamBaseline !== undefined && options.upstreamBaseline.length > 0) {
-    lines.push(`${muted('Upstream')}  ${value(options.upstreamBaseline)}`);
+    lines.push(`${muted(ttui('tui.statusPanel.upstream'))}  ${value(options.upstreamBaseline)}`);
   }
   lines.push('');
   addStatusFieldRows(lines, rows, muted, value, errorStyle, warningStyle, options.fieldMotion);
 
   const { ratio, tokens, maxTokens } = contextValues(options);
   lines.push('');
-  lines.push(accent('Context window'));
+  lines.push(accent(ttui('tui.statusPanel.contextWindow')));
   if (maxTokens > 0) {
     const safeRatio = safeUsageRatio(ratio);
     const barColor = severityToken(ratioSeverity(safeRatio));
@@ -115,7 +116,7 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
         muted(`(${formatTokenCount(tokens)} / ${formatTokenCount(maxTokens)})`),
     );
   } else {
-    lines.push(`  ${muted('No context window data available.')}`);
+    lines.push(`  ${muted(ttui('tui.statusPanel.noContextData'))}`);
   }
 
   const cacheHitRate = options.status?.cacheHitRate;
@@ -125,7 +126,7 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
       streak !== undefined && streak > 0 ? ` · streak×${String(streak)}` : '';
     addStatusFieldRows(
       lines,
-      [{ label: 'Cache hit', value: `${(cacheHitRate * 100).toFixed(0)}%${streakSuffix}` }],
+      [{ label: ttui('tui.statusPanel.cacheHit'), value: `${(cacheHitRate * 100).toFixed(0)}%${streakSuffix}` }],
       muted,
       value,
       errorStyle,
@@ -140,7 +141,7 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
       lines,
       [
         {
-          label: 'Cache freeze',
+          label: ttui('tui.statusPanel.cacheFreeze'),
           value: cacheFrozen ? 'active (mid-turn)' : 'idle',
           severity: cacheFrozen ? 'warning' : undefined,
         },
@@ -169,11 +170,11 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
   const roleModelRows = buildRoleModelStatusRows(options);
   if (roleModelRows !== undefined) {
     lines.push('');
-    lines.push(accent('Role models'));
+    lines.push(accent(ttui('tui.statusPanel.roleModels')));
     if (options.loopModelRoutingError !== undefined && options.loopModelRouting === undefined) {
       addStatusFieldRows(
         lines,
-        [{ label: 'Overrides', value: options.loopModelRoutingError, severity: 'error' }],
+        [{ label: ttui('tui.statusPanel.overrides'), value: options.loopModelRoutingError, severity: 'error' }],
         muted,
         value,
         errorStyle,
@@ -195,7 +196,7 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
 
   if (options.providerRouteStatus !== undefined && options.providerRouteStatus !== null) {
     lines.push('');
-    lines.push(accent('Provider route'));
+    lines.push(accent(ttui('tui.statusPanel.providerRoute')));
     addStatusFieldRows(
       lines,
       providerRouteRows(options.providerRouteStatus),
@@ -210,7 +211,7 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
   const extras = options.status?.extras;
   if (extras !== undefined && extras.providers.length > 0) {
     lines.push('');
-    lines.push(accent('Extras'));
+    lines.push(accent(ttui('tui.statusPanel.extras')));
     addStatusFieldRows(
       lines,
       extrasStatusRows(extras),
@@ -229,11 +230,11 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
     (lastNotice !== undefined && lastNotice !== null)
   ) {
     lines.push('');
-    lines.push(accent('Last model route'));
+    lines.push(accent(ttui('tui.statusPanel.lastModelRoute')));
     const routeRows: StatusFieldRow[] = [];
     if (lastSelection !== undefined && lastSelection !== null) {
       routeRows.push({
-        label: 'Effective',
+        label: ttui('tui.statusPanel.effective'),
         value: formatLastRouteSelection(lastSelection, options.availableModels),
       });
     }
@@ -247,7 +248,7 @@ export function buildStatusReportLines(options: StatusReportOptions): string[] {
   }
 
   lines.push('');
-  lines.push(accent('Readiness'));
+  lines.push(accent(ttui('tui.statusPanel.readiness')));
   addStatusFieldRows(
     lines,
     readinessRows(options),

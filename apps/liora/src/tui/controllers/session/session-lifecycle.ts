@@ -6,7 +6,7 @@ import type { Component, Focusable } from '#/tui/renderer';
 
 import type { LioraSlashCommand } from '../../commands';
 import type { SessionLoadingPhase } from '../../components/dialogs/session/session-loading-overlay';
-import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
+import {  LLM_NOT_SET_MESSAGE,  NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
 import { createContext7CredentialHandler } from '../../reverse-rpc/credential/handler';
 import type { ApprovalController } from '../../reverse-rpc/approval/controller';
 import { createApprovalRequestHandler } from '../../reverse-rpc/approval/handler';
@@ -116,7 +116,7 @@ export class SessionLifecycleController {
 
   requireSession(): Session {
     if (this.host.session === undefined) {
-      throw new Error(NO_ACTIVE_SESSION_MESSAGE);
+      throw new Error(NO_ACTIVE_SESSION_MESSAGE());
     }
     return this.host.session;
   }
@@ -268,7 +268,7 @@ export class SessionLifecycleController {
       await host.sessionReplay.hydrateFromReplay(session);
     } catch (error) {
       const msg = formatErrorMessage(error);
-      host.showError(`Failed to replay session history: ${msg}`);
+      host.showError(ttui('tui.session.replayFailed', { message: msg }));
     } finally {
       pruneTuiSessionToolOutputViewports(host);
       host.sessionEventHandler.startSubscription();
@@ -308,7 +308,7 @@ export class SessionLifecycleController {
           session = await this.createSessionFromCurrentState();
         } catch (error) {
           const msg = formatErrorMessage(error);
-          host.showError(`Failed to start a new session: ${msg}`);
+          host.showError(ttui('tui.session.newFailed', { message: msg }));
           return;
         }
 
@@ -340,7 +340,7 @@ export class SessionLifecycleController {
         } catch (error) {
           host.sessionEventHandler.startSubscription();
           const msg = formatErrorMessage(error);
-          host.showError(`Post-create setup failed: ${msg}`);
+          host.showError(ttui('tui.session.postCreateFailed', { message: msg }));
           return;
         }
         try {
@@ -349,7 +349,7 @@ export class SessionLifecycleController {
           /* keep the new session usable even if dynamic skills fail */
         }
         host.sessionEventHandler.startSubscription();
-        host.showStatus(`Started a new session (${session.id}).`);
+        host.showStatus(ttui('tui.session.newStarted', { id: session.id }));
         void host.showSessionWarnings(session);
         void this.showConfigWarningsIfAny();
       },
@@ -366,7 +366,7 @@ export class SessionLifecycleController {
     const { host } = this;
     const model = host.state.appState.model.trim();
     if (model.length === 0) {
-      throw new Error(LLM_NOT_SET_MESSAGE);
+      throw new Error(LLM_NOT_SET_MESSAGE());
     }
     const options: MutableCreateSessionOptions = {
       workDir: host.state.appState.workDir,

@@ -1,5 +1,10 @@
 import { ChoicePickerComponent, type ChoiceOption } from './choice-picker';
 import { SETTINGS_SEARCH_KEYWORDS } from '../../../commands/config/settings-keywords';
+import {
+  resolveSettingsOption,
+  type SettingsOptionDef,
+} from '../../../utils/settings/resolve-settings-option';
+import { ttui } from '../../../utils/tui-i18n';
 
 export type SettingsSelection =
   | 'model'
@@ -39,272 +44,266 @@ export type SettingsSelection =
   | 'experiments'
   | 'upgrade'
   | 'usage'
-  | 'memory';
-
-/** Practical group order — everyday settings first, power tools later. */
-type SettingsSection =
-  | 'Models'
-  | 'Safety'
-  | 'Look & feel'
-  | 'Agent'
-  | 'Integrations'
-  | 'Account'
-  | 'System';
+  | 'memory'
+  | 'locale';
 
 /** Exported for Settings → Harness → Settings inventory (SSOT §9 audit). */
-const SETTINGS_OPTIONS_BASE: readonly (Omit<ChoiceOption, 'keywords'> & {
+export const SETTINGS_OPTIONS_BASE: readonly (SettingsOptionDef & {
   readonly value: SettingsSelection;
-  readonly section: SettingsSection;
 })[] = [
-  // ── Models ──────────────────────────────────────────────────────────────
   {
     value: 'model',
-    section: 'Models',
-    label: 'Model',
-    description: 'Active model and thinking effort.',
+    sectionKey: 'tui.settings.section.models',
+    labelKey: 'tui.settings.model.label',
+    descriptionKey: 'tui.settings.model.desc',
   },
   {
     value: 'model-routing',
-    section: 'Models',
-    label: 'Model routing',
-    description: 'Per-role model overrides for the agent loop.',
+    sectionKey: 'tui.settings.section.models',
+    labelKey: 'tui.settings.modelRouting.label',
+    descriptionKey: 'tui.settings.modelRouting.desc',
   },
   {
     value: 'model-fallback',
-    section: 'Models',
-    label: 'Model fallback',
-    description: 'Automatic failover when a provider errors.',
+    sectionKey: 'tui.settings.section.models',
+    labelKey: 'tui.settings.modelFallback.label',
+    descriptionKey: 'tui.settings.modelFallback.desc',
   },
   {
     value: 'model-reset',
-    section: 'Models',
-    label: 'Reset model settings',
-    description: 'Restore model defaults, role routing, thinking, and fallback chains.',
+    sectionKey: 'tui.settings.section.models',
+    labelKey: 'tui.settings.modelReset.label',
+    descriptionKey: 'tui.settings.modelReset.desc',
   },
-  // ── Safety ──────────────────────────────────────────────────────────────
   {
     value: 'permission',
-    section: 'Safety',
-    label: 'Permission',
-    description: 'How tool actions are approved (manual · auto · YOLO).',
+    sectionKey: 'tui.settings.section.safety',
+    labelKey: 'tui.settings.permission.label',
+    descriptionKey: 'tui.settings.permission.desc',
   },
   {
     value: 'security',
-    section: 'Safety',
-    label: 'Security',
-    description: 'Sandbox, secret redaction, MCP allowlist.',
+    sectionKey: 'tui.settings.section.safety',
+    labelKey: 'tui.settings.security.label',
+    descriptionKey: 'tui.settings.security.desc',
   },
-  // ── Look & feel ─────────────────────────────────────────────────────────
   {
     value: 'theme',
-    section: 'Look & feel',
-    label: 'Theme',
-    description: 'Color theme — dark, light, or custom.',
+    sectionKey: 'tui.settings.section.lookAndFeel',
+    labelKey: 'tui.settings.theme.label',
+    descriptionKey: 'tui.settings.theme.desc',
   },
   {
     value: 'appearance',
-    section: 'Look & feel',
-    label: 'Appearance',
-    description: 'Motion, density, particles, background.',
+    sectionKey: 'tui.settings.section.lookAndFeel',
+    labelKey: 'tui.settings.appearance.label',
+    descriptionKey: 'tui.settings.appearance.desc',
   },
   {
     value: 'footer',
-    section: 'Look & feel',
-    label: 'Status bar',
-    description: 'Footer badges, tips, pulses — full customization.',
+    sectionKey: 'tui.settings.section.lookAndFeel',
+    labelKey: 'tui.settings.footer.label',
+    descriptionKey: 'tui.settings.footer.desc',
   },
   {
     value: 'premium',
-    section: 'Look & feel',
-    label: 'Visual Quality',
-    description: 'Premium motion and denser visual feedback.',
+    sectionKey: 'tui.settings.section.lookAndFeel',
+    labelKey: 'tui.settings.premium.label',
+    descriptionKey: 'tui.settings.premium.desc',
   },
   {
     value: 'persona',
-    section: 'Look & feel',
-    label: 'Persona',
-    description: 'Preset tone packs + skill bundles · Advanced overrides.',
+    sectionKey: 'tui.settings.section.lookAndFeel',
+    labelKey: 'tui.settings.persona.label',
+    descriptionKey: 'tui.settings.persona.desc',
   },
   {
     value: 'editor',
-    section: 'Look & feel',
-    label: 'Editor',
-    description: 'External editor command (Ctrl-G).',
+    sectionKey: 'tui.settings.section.lookAndFeel',
+    labelKey: 'tui.settings.editor.label',
+    descriptionKey: 'tui.settings.editor.desc',
   },
   {
     value: 'keybindings',
-    section: 'Look & feel',
-    label: 'Keyboard',
-    description: 'Shortcut reference and binding tips.',
+    sectionKey: 'tui.settings.section.lookAndFeel',
+    labelKey: 'tui.settings.keybindings.label',
+    descriptionKey: 'tui.settings.keybindings.desc',
   },
-  // ── Agent ───────────────────────────────────────────────────────────────
+  {
+    value: 'locale',
+    sectionKey: 'tui.settings.section.lookAndFeel',
+    labelKey: 'tui.settings.locale.label',
+    descriptionKey: 'tui.settings.locale.desc',
+  },
   {
     value: 'context',
-    section: 'Agent',
-    label: 'Context',
-    description: 'Working-set size and memory continuity.',
+    sectionKey: 'tui.settings.section.agent',
+    labelKey: 'tui.settings.context.label',
+    descriptionKey: 'tui.settings.context.desc',
   },
   {
     value: 'compaction',
-    section: 'Agent',
-    label: 'Compaction',
-    description: 'When and how context is compressed.',
+    sectionKey: 'tui.settings.section.agent',
+    labelKey: 'tui.settings.compaction.label',
+    descriptionKey: 'tui.settings.compaction.desc',
   },
   {
     value: 'never-halt',
-    section: 'Agent',
-    label: 'Never-Halt',
-    description: 'Resilience: fallbacks, OAuth refresh, breakers.',
+    sectionKey: 'tui.settings.section.agent',
+    labelKey: 'tui.settings.neverHalt.label',
+    descriptionKey: 'tui.settings.neverHalt.desc',
   },
-  // ── Integrations (extensions + tools + research surfaces) ───────────────
   {
     value: 'extensions',
-    section: 'Integrations',
-    label: 'Extensions',
-    description: 'Plugins, skills, MCP, Claude import.',
+    sectionKey: 'tui.settings.section.integrations',
+    labelKey: 'tui.settings.extensions.label',
+    descriptionKey: 'tui.settings.extensions.desc',
   },
   {
     value: 'mcp',
-    section: 'Integrations',
-    label: 'MCP servers',
-    description: 'Connected MCP servers and health.',
+    sectionKey: 'tui.settings.section.integrations',
+    labelKey: 'tui.settings.mcp.label',
+    descriptionKey: 'tui.settings.mcp.desc',
   },
   {
     value: 'skills',
-    section: 'Integrations',
-    label: 'Skills',
-    description: 'Skill catalog and SearchSkill.',
+    sectionKey: 'tui.settings.section.integrations',
+    labelKey: 'tui.settings.skills.label',
+    descriptionKey: 'tui.settings.skills.desc',
   },
   {
     value: 'hooks',
-    section: 'Integrations',
-    label: 'Hooks',
-    description: 'Pre/Post/Stop lifecycle hooks.',
+    sectionKey: 'tui.settings.section.integrations',
+    labelKey: 'tui.settings.hooks.label',
+    descriptionKey: 'tui.settings.hooks.desc',
   },
   {
     value: 'tools',
-    section: 'Integrations',
-    label: 'Tools inventory',
-    description: 'Active tool waist and profiles.',
+    sectionKey: 'tui.settings.section.integrations',
+    labelKey: 'tui.settings.tools.label',
+    descriptionKey: 'tui.settings.tools.desc',
   },
   {
     value: 'media',
-    section: 'Integrations',
-    label: 'Media',
-    description: 'Image/video fallback when the chat model is text-only.',
+    sectionKey: 'tui.settings.section.integrations',
+    labelKey: 'tui.settings.media.label',
+    descriptionKey: 'tui.settings.media.desc',
   },
   {
     value: 'search',
-    section: 'Integrations',
-    label: 'Search',
-    description: 'Deep research channels and free fallback.',
+    sectionKey: 'tui.settings.section.integrations',
+    labelKey: 'tui.settings.search.label',
+    descriptionKey: 'tui.settings.search.desc',
   },
   {
     value: 'provider-extras',
-    section: 'Integrations',
-    label: 'Provider extras',
-    description: 'Auto-detected plan extras (search, image/video, MCP) — per-service off.',
+    sectionKey: 'tui.settings.section.integrations',
+    labelKey: 'tui.settings.providerExtras.label',
+    descriptionKey: 'tui.settings.providerExtras.desc',
   },
   {
     value: 'index',
-    section: 'Integrations',
-    label: 'Index',
-    description: 'Repo index, codemap, FTS status.',
+    sectionKey: 'tui.settings.section.integrations',
+    labelKey: 'tui.settings.index.label',
+    descriptionKey: 'tui.settings.index.desc',
   },
   {
     value: 'cache',
-    section: 'Integrations',
-    label: 'Cache',
-    description: 'Prompt-cache hit rate and sacred freeze.',
+    sectionKey: 'tui.settings.section.integrations',
+    labelKey: 'tui.settings.cache.label',
+    descriptionKey: 'tui.settings.cache.desc',
   },
   {
     value: 'eyes',
-    section: 'Integrations',
-    label: 'Eyes readiness',
-    description: 'Browser-use / computer-use status.',
+    sectionKey: 'tui.settings.section.integrations',
+    labelKey: 'tui.settings.eyes.label',
+    descriptionKey: 'tui.settings.eyes.desc',
   },
   {
     value: 'memory',
-    section: 'Integrations',
-    label: 'Memory',
-    description: 'Liora Memory — inspect, recall, remember, reflect.',
+    sectionKey: 'tui.settings.section.integrations',
+    labelKey: 'tui.settings.memory.label',
+    descriptionKey: 'tui.settings.memory.desc',
   },
-  // ── Account ─────────────────────────────────────────────────────────────
   {
     value: 'providers-api',
-    section: 'Account',
-    label: 'Providers & API',
-    description: 'Login, API keys, provider connect.',
+    sectionKey: 'tui.settings.section.account',
+    labelKey: 'tui.settings.providersApi.label',
+    descriptionKey: 'tui.settings.providersApi.desc',
   },
   {
     value: 'accounts',
-    section: 'Account',
-    label: 'Accounts',
-    description: 'OAuth pools — promote, label, remove.',
+    sectionKey: 'tui.settings.section.account',
+    labelKey: 'tui.settings.accounts.label',
+    descriptionKey: 'tui.settings.accounts.desc',
   },
   {
     value: 'usage',
-    section: 'Account',
-    label: 'Usage',
-    description: 'Tokens, cost, quota, context window.',
+    sectionKey: 'tui.settings.section.account',
+    labelKey: 'tui.settings.usage.label',
+    descriptionKey: 'tui.settings.usage.desc',
   },
   {
     value: 'upgrade',
-    section: 'Account',
-    label: 'Updates',
-    description: 'Automatic CLI updates on or off.',
+    sectionKey: 'tui.settings.section.account',
+    labelKey: 'tui.settings.upgrade.label',
+    descriptionKey: 'tui.settings.upgrade.desc',
   },
-  // ── System ──────────────────────────────────────────────────────────────
   {
     value: 'host',
-    section: 'System',
-    label: 'Host',
-    description: 'Runtime transport and latency.',
+    sectionKey: 'tui.settings.section.system',
+    labelKey: 'tui.settings.host.label',
+    descriptionKey: 'tui.settings.host.desc',
   },
   {
     value: 'network',
-    section: 'System',
-    label: 'Network / Proxy',
-    description: 'HTTPS_PROXY / NO_PROXY posture.',
+    sectionKey: 'tui.settings.section.system',
+    labelKey: 'tui.settings.network.label',
+    descriptionKey: 'tui.settings.network.desc',
   },
   {
     value: 'storage',
-    section: 'System',
-    label: 'Storage',
-    description: 'Home layout, retention, logs.',
+    sectionKey: 'tui.settings.section.system',
+    labelKey: 'tui.settings.storage.label',
+    descriptionKey: 'tui.settings.storage.desc',
   },
   {
     value: 'telemetry',
-    section: 'System',
-    label: 'Telemetry',
-    description: 'Analytics on/off · local-only.',
+    sectionKey: 'tui.settings.section.system',
+    labelKey: 'tui.settings.telemetry.label',
+    descriptionKey: 'tui.settings.telemetry.desc',
   },
   {
     value: 'experiments',
-    section: 'System',
-    label: 'Experiments',
-    description: 'Feature flags (micro compaction, codegraph, …).',
+    sectionKey: 'tui.settings.section.system',
+    labelKey: 'tui.settings.experiments.label',
+    descriptionKey: 'tui.settings.experiments.desc',
   },
   {
     value: 'harness',
-    section: 'System',
-    label: 'Harness',
-    description: 'Tools waist, eyes, Visual Quality, experiments hub.',
+    sectionKey: 'tui.settings.section.system',
+    labelKey: 'tui.settings.harness.label',
+    descriptionKey: 'tui.settings.harness.desc',
   },
 ];
 
 function withSettingsKeywords(
-  option: Omit<ChoiceOption, 'keywords'> & { readonly value: SettingsSelection },
+  option: SettingsOptionDef & { readonly value: SettingsSelection },
 ): ChoiceOption {
   const keywords = SETTINGS_SEARCH_KEYWORDS[option.value];
-  return {
+  return resolveSettingsOption({
     ...option,
     keywords: keywords !== undefined ? [...keywords] : [],
-  };
+  });
 }
 
-export const SETTINGS_OPTIONS: readonly ChoiceOption[] =
-  SETTINGS_OPTIONS_BASE.map(withSettingsKeywords);
+/** Resolved at call time so locale switches apply when reopening Settings. */
+export function getSettingsOptions(): readonly ChoiceOption[] {
+  return SETTINGS_OPTIONS_BASE.map(withSettingsKeywords);
+}
+
+/** @deprecated Use {@link getSettingsOptions} for locale-aware resolution. */
+export const SETTINGS_OPTIONS: readonly ChoiceOption[] = getSettingsOptions();
 
 const SETTINGS_SELECTION_SET = new Set<string>(
   SETTINGS_OPTIONS_BASE.map((option) => option.value),
@@ -322,6 +321,7 @@ export const HUB_PINNED_SETTINGS: readonly SettingsSelection[] = [
   'appearance',
   'footer',
   'persona',
+  'locale',
   'context',
   'extensions',
   'search',
@@ -340,12 +340,11 @@ export interface SettingsSelectorOptions {
 export class SettingsSelectorComponent extends ChoicePickerComponent {
   constructor(opts: SettingsSelectorOptions) {
     super({
-      title: 'Settings',
+      title: ttui('tui.settings.title'),
       searchable: true,
-      // Grid packs 2–3 columns; higher page size fills the modal with cells.
       pageSize: 30,
       layout: 'grid',
-      options: [...SETTINGS_OPTIONS],
+      options: [...getSettingsOptions()],
       onSelect: (value) => {
         if (isSettingsSelection(value)) opts.onSelect(value);
       },

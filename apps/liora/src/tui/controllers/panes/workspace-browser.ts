@@ -136,7 +136,7 @@ export class WorkspaceBrowserController {
           this.hideCommitBrowser();
           const files = collectCommitDiff(this.host.state.appState.workDir, commit.hash);
           if (files === null || files.length === 0) {
-            this.host.showStatus(`No diff for ${commit.hash.slice(0, 7)}.`, 'warning');
+            this.host.showStatus(ttui('tui.workspace.noDiff', { hash: commit.hash.slice(0, 7) }), 'warning');
             return;
           }
           const totalAdded = files.reduce((sum, file) => sum + file.added, 0);
@@ -322,15 +322,15 @@ export class WorkspaceBrowserController {
         return;
       }
       case 'binary':
-        this.host.showStatus(`${relativePath} is binary — preview unavailable.`, 'warning');
+        this.host.showStatus(ttui('tui.workspace.binaryPreview', { path: relativePath }), 'warning');
         return;
       case 'too-large': {
         const mb = (result.bytes / 1024 / 1024).toFixed(1);
-        this.host.showStatus(`${relativePath} is ${mb} MB — too large to preview.`, 'warning');
+        this.host.showStatus(ttui('tui.workspace.tooLarge', { path: relativePath, mb }), 'warning');
         return;
       }
       case 'error':
-        this.host.showStatus(`${relativePath}: ${result.message}`, 'error');
+        this.host.showStatus(ttui('tui.workspace.previewError', { path: relativePath, message: result.message }), 'error');
         return;
     }
   }

@@ -1,5 +1,7 @@
 import type { ModelAlias, ProviderRouteSelection } from '@superliora/sdk';
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 function displayAliasName(
   alias: string,
   models: Record<string, ModelAlias>,
@@ -32,11 +34,11 @@ export function formatLastRouteSelection(
 export function noticeKindLabel(kind: 'failover' | 'switch' | 'selection'): string {
   switch (kind) {
     case 'failover':
-      return 'Failover';
+      return ttui('tui.statusPanel.failover');
     case 'switch':
-      return 'Switch';
+      return ttui('tui.statusPanel.switch');
     case 'selection':
-      return 'Selection';
+      return ttui('tui.statusPanel.selection');
   }
 }
 

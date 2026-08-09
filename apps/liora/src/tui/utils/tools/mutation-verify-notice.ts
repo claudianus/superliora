@@ -6,6 +6,8 @@
  * only sees a green tool card and may miss that verification is still pending.
  */
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 export const MUTATION_VERIFY_MARKER = 'PostToolUse sensor: source mutated';
 
 export type MutationVerifyNotice = {
@@ -51,12 +53,12 @@ export function formatMutationVerifyNotice(toolName?: string, packageDir?: strin
       ? ` under ${packageDir}`
       : '';
   return {
-    title: 'Mutation needs verification',
-    detail: `${tool} mutated source${scope}. Run project checks (or package-scoped test/typecheck/lint) before claiming done.`,
+    title: ttui('tui.notice.mutationVerify.title'),
+    detail: ttui('tui.notice.mutationVerify.detail', { tool, scope }),
     status:
       packageDir !== undefined && packageDir.length > 0
-        ? `Verify mutation (${packageDir})`
-        : `Verify mutation after ${tool}`,
+        ? ttui('tui.notice.mutationVerify.statusWithDir', { packageDir })
+        : ttui('tui.notice.mutationVerify.statusAfterTool', { tool }),
     coalesceKey: 'mutation-verify-nudge',
   };
 }

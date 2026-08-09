@@ -7,6 +7,8 @@
  * recovery path (use dedicated tool, or LIORA_FORCE_BASH=1).
  */
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 export const SHELL_DEDICATED_BYPASS_CODE = 'SHELL_DEDICATED_BYPASS';
 
 export type ShellDedicatedBypassNotice = {
@@ -54,14 +56,20 @@ export function formatShellDedicatedBypassNotice(
   const tool = toolName !== undefined && toolName.length > 0 ? toolName : 'Bash';
   const prefer = extractShellDedicatedPreferTool(output);
   const preferLabel =
-    prefer !== undefined && prefer.length > 0 ? prefer : 'a dedicated tool';
+    prefer !== undefined && prefer.length > 0
+      ? prefer
+      : ttui('tui.notice.dedicatedTool.preferFallback');
   return {
-    title: 'Use dedicated tool',
-    detail: `${tool} was blocked because this looks like a job for ${preferLabel} (code=${SHELL_DEDICATED_BYPASS_CODE}). Call ${preferLabel} instead, or prefix with LIORA_FORCE_BASH=1 only when shell I/O is truly required.`,
+    title: ttui('tui.notice.dedicatedTool.title'),
+    detail: ttui('tui.notice.dedicatedTool.detail', {
+      tool,
+      prefer: preferLabel,
+      code: SHELL_DEDICATED_BYPASS_CODE,
+    }),
     status:
       prefer !== undefined && prefer.length > 0
-        ? `${tool} blocked → use ${prefer}`
-        : `${tool} blocked → use dedicated tool`,
+        ? ttui('tui.notice.dedicatedTool.statusWithPrefer', { tool, prefer })
+        : ttui('tui.notice.dedicatedTool.statusGeneric', { tool }),
     coalesceKey: 'shell-dedicated-bypass',
     ...(prefer !== undefined ? { prefer } : {}),
   };

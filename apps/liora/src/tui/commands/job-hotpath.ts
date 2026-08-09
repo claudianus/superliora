@@ -6,6 +6,7 @@ import { formatErrorMessage } from '../utils/event-payload';
 import { shortJobId } from '../components/job-board/job-board-helpers';
 import { isExperimentalFlagEnabled } from './experimental-flags';
 import type { SlashCommandHost } from './hub/dispatch';
+import { ttui } from '../utils/tui-i18n';
 
 export function isConductorUxV2Enabled(): boolean {
   return isExperimentalFlagEnabled('conductor_ux_v2');
@@ -13,11 +14,11 @@ export function isConductorUxV2Enabled(): boolean {
 
 function ackStatus(host: SlashCommandHost, display: string, text: string): void {
   const line = text.trim().length > 0 ? text.trim() : 'ok';
-  host.showStatus(`${display} — ${line}`, 'success');
+  host.showStatus(ttui('tui.job.hotpathOk', { display, line }), 'success');
 }
 
 function failStatus(host: SlashCommandHost, display: string, error: unknown): void {
-  host.showError(`${display} failed: ${formatErrorMessage(error)}`);
+  host.showError(ttui('tui.job.hotpathFailed', { display, message: formatErrorMessage(error) }));
 }
 
 export async function hotpathJobSteer(
@@ -92,7 +93,7 @@ export async function hotpathJobList(host: SlashCommandHost): Promise<void> {
   try {
     const jobs = await host.requireSession().jobList();
     if (jobs.length === 0) {
-      host.showStatus('No Conductor jobs.', 'textMuted');
+      host.showStatus(ttui('tui.jobs.noJobs'), 'textMuted');
       return;
     }
     const lines = jobs.slice(0, 24).map((job) => {
@@ -100,10 +101,10 @@ export async function hotpathJobList(host: SlashCommandHost): Promise<void> {
       return `${id}  ${job.status.padEnd(12)}  ${job.kind.padEnd(10)}  p${String(job.priority)}  ${job.title}`;
     });
     const more = jobs.length > lines.length ? `\n… +${String(jobs.length - lines.length)} more` : '';
-    host.showNotice(`Conductor jobs (${String(jobs.length)})`, `${lines.join('\n')}${more}`, {
+    host.showNotice(ttui('tui.job.conductorList', { count: String(jobs.length) }), `${lines.join('\n')}${more}`, {
       coalesceKey: 'job-list',
     });
-    host.showStatus(`${String(jobs.length)} Conductor jobs — /jobs deck or Inbox (Alt+I)`, 'info');
+    host.showStatus(ttui('tui.job.conductorHint', { count: String(jobs.length) }), 'info');
   } catch (error) {
     failStatus(host, '/job list', error);
   }
@@ -114,13 +115,13 @@ export async function hotpathJobInspect(host: SlashCommandHost, jobId: string): 
   try {
     const result = await host.requireSession().jobInspect(jobId);
     if (result === undefined) {
-      host.showError(`No Conductor job matches ${jobId}.`);
+      host.showError(ttui('tui.job.noMatch', { jobId }));
       return;
     }
     host.showNotice(result.job.title, result.text.slice(0, 1200), {
       coalesceKey: `job-inspect:${result.job.id}`,
     });
-    host.showStatus(`${display} — ${result.job.status}`, 'info');
+    host.showStatus(ttui('tui.job.statusInfo', { display, status: result.job.status }), 'info');
   } catch (error) {
     failStatus(host, display, error);
   }

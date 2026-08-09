@@ -12,8 +12,20 @@
  * same key set 1:1; any missing key still falls back to English inside `t()`.
  */
 
+import { STRINGS_TUI_APPROVAL_EN, STRINGS_TUI_APPROVAL_KO } from './strings-tui-approval';
+import { STRINGS_TUI_HANDLERS_EN, STRINGS_TUI_HANDLERS_KO } from './strings-tui-handlers';
+import { STRINGS_TUI_HUB_EN, STRINGS_TUI_HUB_KO } from './strings-tui-hub';
+import { STRINGS_TUI_NOTICES_EN, STRINGS_TUI_NOTICES_KO } from './strings-tui-notices';
+import { STRINGS_TUI_UI_EN, STRINGS_TUI_UI_KO } from './strings-tui-ui';
+import { STRINGS_TUI_REMAINDER_EN, STRINGS_TUI_REMAINDER_KO } from './strings-tui-remainder';
+
 export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
-  // ── Generic dialog vocabulary ────────────────────────────────────────────
+  ...STRINGS_TUI_HUB_EN,
+  ...STRINGS_TUI_HANDLERS_EN,
+  ...STRINGS_TUI_NOTICES_EN,
+  ...STRINGS_TUI_APPROVAL_EN,
+  ...STRINGS_TUI_UI_EN,
+  ...STRINGS_TUI_REMAINDER_EN,
   'tui.common.cancel': 'Esc cancel',
   'tui.common.cancelCtrlC': 'Ctrl-C cancel',
   'tui.common.select': 'Enter select',
@@ -204,21 +216,30 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
     'Shift-Tab switches between Build and Ask mode.\nAsk mode reads, searches, and looks things up without editing or delegating.\n/status shows media, web/Context7, ZDR, Bench readiness.',
   'tui.help.intro.advanced':
     'Build runs the work; Ask investigates it first. Shift-Tab or /ask switches.\n/plan writes a plan file, /goal runs an objective, /jobs tracks delegated work.\n/status shows media, web/Context7, ZDR, Bench readiness.',
+  'tui.help.shortcut.hub': 'Open the Command Hub menu',
+  'tui.help.shortcut.hubQuestion': 'Open Command Hub (empty prompt)',
   'tui.help.shortcut.shiftTab': 'Switch Build / Ask mode',
-  'tui.help.shortcut.ctrlG': 'Edit in external editor ($VISUAL / $EDITOR)',
+  'tui.help.shortcut.ctrlG': 'Open the external editor',
   'tui.help.shortcut.ctrlO': 'Cycle transcript density (minimal → compact → standard → full)',
-  'tui.help.shortcut.ctrlB': 'Background a long-running shell task · /tasks',
-  'tui.help.shortcut.ctrlT': 'Expand / collapse the todo list (when truncated)',
-  'tui.help.shortcut.ctrlS': 'Steer — inject a follow-up during streaming',
-  'tui.help.shortcut.ctrlX': 'Stash or restore prompt draft',
-  'tui.help.shortcut.newline': 'Insert newline',
-  'tui.help.shortcut.ctrlC': 'Interrupt stream / clear input',
+  'tui.help.shortcut.ctrlB': 'Background the current work',
+  'tui.help.shortcut.ctrlT': 'Expand or collapse the todo list',
+  'tui.help.shortcut.ctrlS': 'Steer while a turn is running',
+  'tui.help.shortcut.ctrlX': 'Stash or restore the draft prompt',
+  'tui.help.shortcut.newline': 'Insert a newline (Ctrl-J also works)',
+  'tui.help.shortcut.ctrlC': 'Stop the current turn (or confirm exit when idle)',
   'tui.help.shortcut.ctrlD': 'Exit (on empty input)',
-  'tui.help.shortcut.esc': 'Close dialogs / interrupt streaming',
+  'tui.help.shortcut.esc': 'Cancel or close; press twice for session undo',
   'tui.help.shortcut.escEsc': 'Open undo selector (idle prompt)',
-  'tui.help.shortcut.history': 'Browse input history',
-  'tui.help.shortcut.enter': 'Submit',
+  'tui.help.shortcut.history': 'Search input history (empty prompt)',
+  'tui.help.shortcut.transcriptSearch': 'Search the transcript',
+  'tui.help.shortcut.enter': 'Send the prompt',
+  'tui.help.shortcut.jobDeck': 'Open the Conductor Job Deck monitor',
+  'tui.help.shortcut.jobInbox': 'Open the Conductor Job Inbox drawer',
+  'tui.help.shortcut.intentComposer': 'Edit Conductor Intent brief slots',
   'tui.help.shortcut.ctrlShiftTab': 'Steer Plan',
+  'tui.help.section.shortcuts': 'Keyboard shortcuts',
+  'tui.help.section.slash': 'Slash commands',
+  'tui.help.footer': 'Esc / Enter / Q cancel · ↑↓ scroll',
 
   // ── Provider / login flows ───────────────────────────────────────────────
   'tui.provider.catalogLoading': 'Loading provider catalog',
@@ -292,6 +313,31 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.status.compactCancelFailed': 'Failed to cancel compaction: {message}',
   'tui.status.externalEditorFailed': 'External editor failed: {message}',
   'tui.status.startupFailed': 'Startup session was not initialized.',
+  'tui.status.llmNotSet':
+    'Model not set. Run /login to add a provider, then /model to pick one.',
+  'tui.status.noActiveSession': 'No active session. Send /login to login.',
+  'tui.status.oauthLoginRequired': 'OAuth login expired. Send /login to login.',
+
+  // ── Language / locale ────────────────────────────────────────────────────
+  'tui.locale.title': 'Language',
+  'tui.locale.hint': '↑↓ navigate · Enter select · Esc cancel',
+  'tui.locale.usage': 'Usage: /locale [auto|en|ko]',
+  'tui.locale.unchanged': 'Language already set to {value}.',
+  'tui.locale.applied': 'Language set to {value}.',
+  'tui.locale.saveFailed': 'Failed to save language: {message}',
+  'tui.locale.option.auto': 'Auto',
+  'tui.locale.option.autoDesc': 'Follow SUPERLIORA_LOCALE / LANG (Korean when ko*).',
+  'tui.locale.option.en': 'English',
+  'tui.locale.option.enDesc': 'Always use English UI copy.',
+  'tui.locale.option.ko': '한국어',
+  'tui.locale.option.koDesc': 'Always use Korean UI copy.',
+
+  // ── ChoicePicker default chrome ──────────────────────────────────────────
+  'tui.common.hint.list': '↑↓ navigate · Enter select · wheel scroll · click select · Esc cancel',
+  'tui.common.hint.grid':
+    '↑↓←→ navigate · Enter select · wheel scroll · click select · Esc cancel',
+  'tui.common.hint.page': 'PgUp/PgDn page',
+  'tui.common.searchLabel': 'Search: ',
 
   // ── Tips (footer / working spinner) ──────────────────────────────────────
   'tui.tip.ctrlS': 'ctrl-s adds guidance without waiting for the turn to finish',
@@ -362,6 +408,7 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.tip.recall':
     'Liora Memory injects ≤6 memories · 480 chars each; Bash soft-caps 4k; Expand pages 120 lines',
 
+
   // ── Appearance settings ─────────────────────────────────────────────────
   'tui.appearance.timestamps': 'Timestamps',
 };
@@ -370,7 +417,12 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
  * Korean TUI strings. Keys absent here fall back to English inside `t()`.
  */
 export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
-  // ── Generic dialog vocabulary ────────────────────────────────────────────
+  ...STRINGS_TUI_HUB_KO,
+  ...STRINGS_TUI_HANDLERS_KO,
+  ...STRINGS_TUI_NOTICES_KO,
+  ...STRINGS_TUI_APPROVAL_KO,
+  ...STRINGS_TUI_UI_KO,
+  ...STRINGS_TUI_REMAINDER_KO,
   'tui.common.cancel': 'Esc 취소',
   'tui.common.cancelCtrlC': 'Ctrl-C 취소',
   'tui.common.select': 'Enter 선택',
@@ -496,10 +548,10 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.permission.mode.set': '권한 모드: {mode}',
   'tui.permission.mode.unchanged': '권한 모드 변경 없음: {mode}.',
   'tui.permission.selector.title': '권한 모드 선택',
-  'tui.permission.manual.label': 'Manual',
+  'tui.permission.manual.label': "수동",
   'tui.permission.manual.desc':
     '명령·편집·위험 작업 전에 묻습니다. 읽기/검색 도구는 바로 실행되며 세션 승인 규칙을 따릅니다.',
-  'tui.permission.auto.label': 'Auto',
+  'tui.permission.auto.label': "자동",
   'tui.permission.auto.desc':
     '완전 비대화형. 도구 승인·구조화 질문 응답을 자동으로 처리해 스스로 진행합니다.',
   'tui.permission.yolo.label': 'YOLO',
@@ -558,21 +610,30 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
     'Shift-Tab으로 Build / Ask 모드 전환.\nAsk 모드는 편집·위임 없이 읽기·검색·조사만 합니다.\n/status로 media, web/Context7, ZDR, Bench 준비 상태 확인.',
   'tui.help.intro.advanced':
     'Build는 작업을 실행하고 Ask는 먼저 조사합니다. Shift-Tab 또는 /ask로 전환.\n/plan은 계획 파일, /goal은 목표 실행, /jobs는 위임된 작업 추적.\n/status로 media, web/Context7, ZDR, Bench 준비 상태 확인.',
+  'tui.help.shortcut.hub': 'Command Hub 메뉴 열기',
+  'tui.help.shortcut.hubQuestion': 'Command Hub 열기 (빈 프롬프트)',
   'tui.help.shortcut.shiftTab': 'Build / Ask 모드 전환',
-  'tui.help.shortcut.ctrlG': '외부 에디터에서 편집 ($VISUAL / $EDITOR)',
+  'tui.help.shortcut.ctrlG': '외부 에디터 열기',
   'tui.help.shortcut.ctrlO': '트랜스크립트 밀도 순환 (minimal → compact → standard → full)',
-  'tui.help.shortcut.ctrlB': '긴 셸 작업을 백그라운드로 · /tasks',
-  'tui.help.shortcut.ctrlT': '할 일 목록 펼치기/접기 (잘린 경우)',
-  'tui.help.shortcut.ctrlS': '스티어 — 스트리밍 중 후속 지시 주입',
+  'tui.help.shortcut.ctrlB': '현재 작업을 백그라운드로',
+  'tui.help.shortcut.ctrlT': '할 일 목록 펼치기/접기',
+  'tui.help.shortcut.ctrlS': '턴 실행 중 스티어',
   'tui.help.shortcut.ctrlX': '프롬프트 초안 보관 또는 복원',
-  'tui.help.shortcut.newline': '줄바꿈 삽입',
-  'tui.help.shortcut.ctrlC': '스트림 중단 / 입력 지우기',
+  'tui.help.shortcut.newline': '줄바꿈 삽입 (Ctrl-J도 가능)',
+  'tui.help.shortcut.ctrlC': '현재 턴 중단 (유휴 시 종료 확인)',
   'tui.help.shortcut.ctrlD': '종료 (입력이 비어 있을 때)',
-  'tui.help.shortcut.esc': '대화상자 닫기 / 스트리밍 중단',
+  'tui.help.shortcut.esc': '취소/닫기 · 두 번 누르면 세션 실행 취소',
   'tui.help.shortcut.escEsc': '실행 취소 선택기 열기 (유휴 프롬프트)',
-  'tui.help.shortcut.history': '입력 히스토리 탐색',
-  'tui.help.shortcut.enter': '제출',
+  'tui.help.shortcut.history': '입력 히스토리 검색 (빈 프롬프트)',
+  'tui.help.shortcut.transcriptSearch': '트랜스크립트 검색',
+  'tui.help.shortcut.enter': '프롬프트 전송',
+  'tui.help.shortcut.jobDeck': 'Conductor Job Deck 모니터 열기',
+  'tui.help.shortcut.jobInbox': 'Conductor Job Inbox 서랍 열기',
+  'tui.help.shortcut.intentComposer': 'Conductor Intent brief 슬롯 편집',
   'tui.help.shortcut.ctrlShiftTab': 'Plan 조향',
+  'tui.help.section.shortcuts': '키보드 단축키',
+  'tui.help.section.slash': '슬래시 명령',
+  'tui.help.footer': 'Esc / Enter / Q 취소 · ↑↓ 스크롤',
 
   // ── Provider / login flows ───────────────────────────────────────────────
   'tui.provider.catalogLoading': '프로바이더 카탈로그 로드 중',
@@ -644,6 +705,31 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.status.compactCancelFailed': '압축 취소 실패: {message}',
   'tui.status.externalEditorFailed': '외부 에디터 실패: {message}',
   'tui.status.startupFailed': '시작 세션을 초기화하지 못했습니다.',
+  'tui.status.llmNotSet':
+    '모델이 설정되지 않았습니다. /login으로 프로바이더를 추가한 뒤 /model로 선택하세요.',
+  'tui.status.noActiveSession': '활성 세션이 없습니다. /login으로 로그인하세요.',
+  'tui.status.oauthLoginRequired': 'OAuth 로그인이 만료되었습니다. /login으로 다시 로그인하세요.',
+
+  // ── Language / locale ────────────────────────────────────────────────────
+  'tui.locale.title': '언어',
+  'tui.locale.hint': '↑↓ 이동 · Enter 선택 · Esc 취소',
+  'tui.locale.usage': '사용법: /locale [auto|en|ko]',
+  'tui.locale.unchanged': '언어가 이미 {value}입니다.',
+  'tui.locale.applied': '언어를 {value}(으)로 설정했습니다.',
+  'tui.locale.saveFailed': '언어 저장 실패: {message}',
+  'tui.locale.option.auto': '자동',
+  'tui.locale.option.autoDesc': 'SUPERLIORA_LOCALE / LANG을 따릅니다 (ko*면 한국어).',
+  'tui.locale.option.en': 'English',
+  'tui.locale.option.enDesc': '항상 영어 UI를 사용합니다.',
+  'tui.locale.option.ko': '한국어',
+  'tui.locale.option.koDesc': '항상 한국어 UI를 사용합니다.',
+
+  // ── ChoicePicker default chrome ──────────────────────────────────────────
+  'tui.common.hint.list': '↑↓ 이동 · Enter 선택 · 휠 스크롤 · 클릭 선택 · Esc 취소',
+  'tui.common.hint.grid':
+    '↑↓←→ 이동 · Enter 선택 · 휠 스크롤 · 클릭 선택 · Esc 취소',
+  'tui.common.hint.page': 'PgUp/PgDn 페이지',
+  'tui.common.searchLabel': '검색: ',
 
   // ── Tips ─────────────────────────────────────────────────────────────────
   'tui.tip.ctrlS': 'ctrl-s로 턴이 끝나기 전에 추가 지시를 넣을 수 있습니다',
@@ -674,7 +760,7 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.tip.ctrlK': 'Ctrl-K: Command Hub — 모드, 모델, 세션',
   'tui.tip.help': 'Ctrl-K 또는 ?: Command Hub (슬래시도 그대로 동작)',
   'tui.tip.compact': '/compact로 길어지면 컨텍스트 압축',
-  'tui.tip.status': '/status: context · ZDR · web/Context7 · media · office · Bench',
+  'tui.tip.status': "/status: 컨텍스트 · ZDR · web/Context7 · media · office · Bench",
   'tui.tip.context': '/context: 메모리 연속성 + 프라이버시 (ZDR)',
   'tui.tip.mediaKeys': 'media: OPENAI/GOOGLE 키 → GenerateImage/Video — MCP 불필요',
   'tui.tip.research': 'research: Context7 + WebSearch/FetchURL — MCP 불필요',

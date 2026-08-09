@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { ttui } from '#/tui/utils/tui-i18n';
 import { adaptApprovalRequest, adaptPanelResponse } from '#/tui/reverse-rpc/approval/adapter';
 
 describe('approval adapter', () => {
@@ -209,7 +210,7 @@ describe('approval adapter', () => {
       { plan },
     );
     expect(adapted.decision).toBe('rejected');
-    expect(adapted.feedback).toContain('라인 2');
+    expect(adapted.feedback).toContain('Line 2');
     expect(adapted.feedback).toContain('keep inspect first');
     expect(String(adapted.feedback).toLowerCase()).not.toContain('approve');
   });
@@ -231,9 +232,9 @@ describe('approval adapter', () => {
     expect(adapted.display).toHaveLength(2);
     expect(adapted.display[0]).toMatchObject({ type: 'brief' });
     if (adapted.display[0]?.type === 'brief') {
-      expect(adapted.display[0].text).toContain('경로: /tmp/kimi-plan.md');
+      expect(adapted.display[0].text).toContain(ttui('tui.approval.planReview.path', { path: '/tmp/kimi-plan.md' }).trim());
       expect(adapted.display[0].text).toContain('lines · ctrl+e preview');
-      expect(adapted.display[0].text).toContain('라인 코멘트');
+      expect(adapted.display[0].text).toContain(ttui('tui.approval.planReview.lineCommentHint'));
       expect(adapted.display[0].text).not.toContain('1│');
     }
     expect(adapted.display[1]).toEqual({
@@ -246,11 +247,11 @@ describe('approval adapter', () => {
       { label: 'Approve', response: 'approved', selected_label: 'Approve' },
       { label: 'Reject', response: 'rejected', selected_label: 'Reject' },
       {
-        label: '라인 코멘트',
+        label: ttui('tui.approval.lineComment'),
         response: 'rejected',
         selected_label: 'line_comment',
         requires_feedback: true,
-        description: '계획 특정 줄에 대한 수정 요청을 남깁니다',
+        description: ttui('tui.approval.lineCommentDesc'),
       },
       {
         label: 'Revise',
@@ -282,11 +283,11 @@ describe('approval adapter', () => {
       { label: 'Approach B', response: 'approved', selected_label: 'Approach B' },
       { label: 'Reject', response: 'rejected', selected_label: 'Reject' },
       {
-        label: '라인 코멘트',
+        label: ttui('tui.approval.lineComment'),
         response: 'rejected',
         selected_label: 'line_comment',
         requires_feedback: true,
-        description: '계획 특정 줄에 대한 수정 요청을 남깁니다',
+        description: ttui('tui.approval.lineCommentDesc'),
       },
       {
         label: 'Revise',

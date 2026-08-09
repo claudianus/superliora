@@ -13,6 +13,7 @@ import {
 import { applyPersonaSkillBundle } from '../utils/persona/apply-skill-bundle';
 import { formatErrorMessage } from '../utils/event-payload';
 import { isPersonaOptedOut } from '../utils/persona/persona-glance';
+import { ttui } from '../utils/tui-i18n';
 import type { SlashCommandHost } from './hub/dispatch';
 
 /** Selectable preset ids (excludes `none`). */
@@ -42,7 +43,7 @@ export async function handlePersonaCommand(host: SlashCommandHost, args: string)
     case 'set':
     case 'preset': {
       if (value.length === 0) {
-        host.showError('Usage: /persona set <preset>. Run /persona list to see options.');
+        host.showError(ttui('tui.persona.usageSet'));
         return;
       }
       await applyPreset(host, value.toLowerCase());
@@ -51,42 +52,42 @@ export async function handlePersonaCommand(host: SlashCommandHost, args: string)
 
     case 'name': {
       if (value.length === 0) {
-        host.showError('Usage: /persona name <display name>');
+        host.showError(ttui('tui.persona.usageName'));
         return;
       }
       await patchPersona(host, { name: value });
-      host.showStatus(`Persona name set to "${value}".`, 'success');
+      host.showStatus(ttui('tui.persona.nameSet', { value }), 'success');
       return;
     }
 
     case 'tone': {
       if (value.length === 0) {
-        host.showError('Usage: /persona tone <description> (e.g. "warm and casual")');
+        host.showError(ttui('tui.persona.usageTone'));
         return;
       }
       await patchPersona(host, { tone: value });
-      host.showStatus(`Persona tone set to "${value}".`, 'success');
+      host.showStatus(ttui('tui.persona.toneSet', { value }), 'success');
       return;
     }
 
     case 'personality': {
       if (value.length === 0) {
-        host.showError('Usage: /persona personality <description>');
+        host.showError(ttui('tui.persona.usagePersonality'));
         return;
       }
       await patchPersona(host, { personality: value });
-      host.showStatus(`Persona personality updated.`, 'success');
+      host.showStatus(ttui('tui.persona.personalityUpdated'), 'success');
       return;
     }
 
     case 'instructions':
     case 'say': {
       if (value.length === 0) {
-        host.showError('Usage: /persona instructions <free-form text>');
+        host.showError(ttui('tui.persona.usageInstructions'));
         return;
       }
       await patchPersona(host, { instructions: value });
-      host.showStatus(`Persona custom instructions updated.`, 'success');
+      host.showStatus(ttui('tui.persona.instructionsUpdated'), 'success');
       return;
     }
 
@@ -154,7 +155,7 @@ async function showPersonaStatus(host: SlashCommandHost): Promise<void> {
     lines.push(`Instructions: ${persona.instructions}`);
   }
 
-  host.showNotice('Persona', lines.join('\n'));
+  host.showNotice(ttui('tui.persona.title'), lines.join('\n'));
 }
 
 function showPresetList(host: SlashCommandHost): void {
@@ -222,7 +223,7 @@ export async function applyPreset(host: SlashCommandHost, presetName: string): P
       'success',
     );
   } catch (error) {
-    host.showError(`Failed to apply persona: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.persona.applyFailed', { message: formatErrorMessage(error) }));
   }
 }
 
@@ -239,7 +240,7 @@ async function clearPersona(host: SlashCommandHost): Promise<void> {
       'success',
     );
   } catch (error) {
-    host.showError(`Failed to clear persona: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.persona.clearFailed', { message: formatErrorMessage(error) }));
   }
 }
 
@@ -255,6 +256,6 @@ export async function patchPersona(
       await host.reloadCurrentSessionView(session, 'Persona applied.');
     }
   } catch (error) {
-    host.showError(`Failed to update persona: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.persona.updateFailed', { message: formatErrorMessage(error) }));
   }
 }

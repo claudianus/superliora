@@ -17,6 +17,7 @@ import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-
 import { showQuota } from '../../info/info';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 
 export { USAGE_CONTEXT_TIP, USAGE_QUOTA_TIP, USAGE_TOKEN_TIP };
 
@@ -24,7 +25,7 @@ export function showUsageSettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Usage',
+      title: ttui('tui.settings.pane.usage.title'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
@@ -54,7 +55,7 @@ export function showUsageSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Usage' },
+    { label: ttui('tui.settings.pane.usage.title') },
   );
 }
 
@@ -89,7 +90,7 @@ async function showUsageSettingsPanel(host: SlashCommandHost): Promise<void> {
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => [...lines],
     borderToken: 'primary',
-    title: ' Usage ',
+    title: ttui('tui.settings.pane.usage.panelTitle'),
     enterBeatSeed: 'usage-settings',
     requestRender: () => {
       requestTUILayoutRender(host.state);

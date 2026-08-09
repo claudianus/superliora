@@ -6,6 +6,8 @@
  * sees a red tool card and may miss that secrets cannot be shell-exfiltrated.
  */
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 export const SHELL_SENSITIVE_PATH_CODE = 'SHELL_SENSITIVE_PATH';
 
 export type ShellSensitivePathNotice = {
@@ -53,14 +55,20 @@ export function formatShellSensitivePathNotice(
   const tool = toolName !== undefined && toolName.length > 0 ? toolName : 'Bash';
   const path = extractShellSensitivePath(output);
   const pathLabel =
-    path !== undefined && path.length > 0 ? path : 'a sensitive file';
+    path !== undefined && path.length > 0
+      ? path
+      : ttui('tui.notice.shellSensitivePath.pathFallback');
   return {
-    title: 'Sensitive path blocked',
-    detail: `${tool} was hard-blocked for ${pathLabel} (code=${SHELL_SENSITIVE_PATH_CODE}). Env, credentials, and SSH keys cannot be read or written through the shell — no force-prefix escape hatch.`,
+    title: ttui('tui.notice.sensitivePath.title'),
+    detail: ttui('tui.notice.shellSensitivePath.detail', {
+      tool,
+      path: pathLabel,
+      code: SHELL_SENSITIVE_PATH_CODE,
+    }),
     status:
       path !== undefined && path.length > 0
-        ? `${tool} blocked: sensitive path (${path})`
-        : `${tool} blocked: sensitive path`,
+        ? ttui('tui.notice.shellSensitivePath.status', { tool, path })
+        : ttui('tui.notice.shellSensitivePath.statusGeneric', { tool }),
     coalesceKey: 'shell-sensitive-path',
     ...(path !== undefined ? { path } : {}),
   };

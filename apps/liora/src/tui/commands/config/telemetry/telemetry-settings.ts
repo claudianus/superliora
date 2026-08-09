@@ -20,6 +20,7 @@ import { TELEMETRY_PRESETS } from '#/tui/utils/settings/telemetry-presets';
 import { SETTINGS_PRESETS_ROW, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 
 export { TELEMETRY_LOCAL_ONLY_TIP, TELEMETRY_OPT_OUT_TIP };
 
@@ -47,7 +48,7 @@ export function showTelemetrySettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Telemetry',
+      title: ttui('tui.settings.pane.telemetry.title'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
@@ -73,7 +74,7 @@ export function showTelemetrySettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
         if (value === 'presets') {
           showSettingPresetsPicker(host, {
-            title: 'Telemetry presets',
+            title: ttui('tui.settings.pane.telemetry.presets'),
             catalog: TELEMETRY_PRESETS,
             onApply: async (preset) => {
               try {
@@ -109,7 +110,7 @@ export function showTelemetrySettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Telemetry' },
+    { label: ttui('tui.settings.pane.telemetry.title') },
   );
 }
 
@@ -147,7 +148,7 @@ async function showTelemetrySettingsPanel(host: SlashCommandHost): Promise<void>
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => [...lines],
     borderToken: 'primary',
-    title: ' Telemetry ',
+    title: ttui('tui.settings.pane.telemetry.panelTitle'),
     enterBeatSeed: 'telemetry',
     requestRender: () => {
       requestTUILayoutRender(host.state);

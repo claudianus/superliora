@@ -29,6 +29,7 @@ import {
 } from '../../persona';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 
 export { PERSONA_CUSTOMIZE_TIP, PERSONA_PERSIST_TIP, PERSONA_PRESET_TIP };
 
@@ -52,7 +53,7 @@ export function showPersonaSettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Persona',
+      title: ttui('tui.settings.pane.persona.title'),
       hint: '↑↓←→ · Enter · Esc',
       searchable: true,
       layout: 'grid',
@@ -116,7 +117,7 @@ export function showPersonaSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Persona' },
+    { label: ttui('tui.settings.pane.persona.title') },
   );
 }
 
@@ -136,7 +137,7 @@ async function showPersonaPresetPicker(host: SlashCommandHost): Promise<void> {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Persona presets',
+      title: ttui('tui.settings.pane.persona.presets'),
       hint: '↑↓←→ · Enter · Esc',
       searchable: true,
       layout: 'grid',
@@ -158,7 +159,7 @@ async function showPersonaPresetPicker(host: SlashCommandHost): Promise<void> {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Persona presets' },
+    { label: ttui('tui.settings.pane.persona.presets') },
   );
 }
 
@@ -175,28 +176,29 @@ async function showPersonaFieldEditor(
     /* empty initial */
   }
 
-  const titles: Record<typeof field, string> = {
-    name: 'Persona display name',
-    tone: 'Tone override',
-    personality: 'Personality override',
-    instructions: 'Custom instructions',
+  const titleKeys: Record<typeof field, string> = {
+    name: 'tui.settings.pane.persona.displayName',
+    tone: 'tui.settings.pane.persona.toneOverride',
+    personality: 'tui.settings.pane.persona.personalityOverride',
+    instructions: 'tui.settings.pane.persona.customInstructions',
   };
+  const title = ttui(titleKeys[field]);
 
   mountPickerDialog(
     host,
     new PlainTextInputDialogComponent({
-      title: titles[field],
+      title,
       prefill: initial,
       allowEmpty: true,
       onDone: (result) => {
         dismissPickerDialog(host);
         if (result.kind !== 'ok') return;
         void patchPersona(host, { [field]: result.value }).then(() => {
-          host.showStatus(`Persona ${field} updated.`, 'success');
+          host.showStatus(ttui('tui.persona.fieldUpdated', { field }), 'success');
         });
       },
     }),
-    { label: titles[field] },
+    { label: title },
   );
 }
 
@@ -207,7 +209,7 @@ async function showPersonaSettingsPanel(host: SlashCommandHost): Promise<void> {
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => [...lines],
     borderToken: 'primary',
-    title: ' Persona ',
+    title: ttui('tui.settings.pane.persona.panelTitle'),
     enterBeatSeed: 'persona-settings',
     requestRender: () => {
       requestTUILayoutRender(host.state);

@@ -1,7 +1,10 @@
 /**
  * Single source of truth for TUI keyboard shortcuts.
  * Footer tips, Hub cheatsheet, and /help consume this list — do not fork key copy elsewhere.
+ * Descriptions resolve via `ttui(descriptionKey)` at render time.
  */
+
+import { ttui } from '#/tui/utils/tui-i18n';
 
 export type KeymapSurface = 'always' | 'idle' | 'streaming' | 'cheatsheet';
 
@@ -9,7 +12,8 @@ export interface KeymapBinding {
   readonly id: string;
   /** Display label, e.g. "Ctrl-K", "?" */
   readonly key: string;
-  readonly description: string;
+  /** i18n key under `tui.help.shortcut.*` (or any catalog key). */
+  readonly descriptionKey: string;
   /** When the binding applies / where it is listed. */
   readonly surface: KeymapSurface;
   readonly category: 'menu' | 'edit' | 'session' | 'navigate' | 'agent';
@@ -17,33 +21,49 @@ export interface KeymapBinding {
   readonly relatedSlash?: readonly string[];
 }
 
+/** Resolved binding with localized description for display. */
+export interface ResolvedKeymapBinding extends Omit<KeymapBinding, 'descriptionKey'> {
+  readonly description: string;
+}
+
+export function resolveKeymapBinding(binding: KeymapBinding): ResolvedKeymapBinding {
+  return {
+    id: binding.id,
+    key: binding.key,
+    description: ttui(binding.descriptionKey),
+    surface: binding.surface,
+    category: binding.category,
+    relatedSlash: binding.relatedSlash,
+  };
+}
+
 /** Always-on bindings (any prompt state). */
 export const KEYMAP_ALWAYS: readonly KeymapBinding[] = [
   {
     id: 'hub',
     key: 'Ctrl-K',
-    description: 'Open the Command Hub menu',
+    descriptionKey: 'tui.help.shortcut.hub',
     surface: 'always',
     category: 'menu',
   },
   {
     id: 'ask-mode',
     key: 'Shift-Tab',
-    description: 'Switch Build / Ask mode',
+    descriptionKey: 'tui.help.shortcut.shiftTab',
     surface: 'always',
     category: 'agent',
   },
   {
     id: 'escape',
     key: 'Esc',
-    description: 'Cancel or close; press twice for session undo',
+    descriptionKey: 'tui.help.shortcut.esc',
     surface: 'always',
     category: 'edit',
   },
   {
     id: 'interrupt',
     key: 'Ctrl-C',
-    description: 'Stop the current turn (or confirm exit when idle)',
+    descriptionKey: 'tui.help.shortcut.ctrlC',
     surface: 'always',
     category: 'agent',
     relatedSlash: ['/plan', '/agents'],
@@ -51,21 +71,21 @@ export const KEYMAP_ALWAYS: readonly KeymapBinding[] = [
   {
     id: 'newline',
     key: 'Shift-Enter',
-    description: 'Insert a newline (Ctrl-J also works)',
+    descriptionKey: 'tui.help.shortcut.newline',
     surface: 'always',
     category: 'edit',
   },
   {
     id: 'submit',
     key: 'Enter',
-    description: 'Send the prompt',
+    descriptionKey: 'tui.help.shortcut.enter',
     surface: 'always',
     category: 'edit',
   },
   {
     id: 'expand-tool-output',
     key: 'Ctrl-O',
-    description: 'Cycle transcript density (minimal → compact → standard → full)',
+    descriptionKey: 'tui.help.shortcut.ctrlO',
     surface: 'always',
     category: 'navigate',
     relatedSlash: ['/transcript'],
@@ -73,7 +93,7 @@ export const KEYMAP_ALWAYS: readonly KeymapBinding[] = [
   {
     id: 'expand-todo',
     key: 'Ctrl-T',
-    description: 'Expand or collapse the todo list',
+    descriptionKey: 'tui.help.shortcut.ctrlT',
     surface: 'always',
     category: 'navigate',
     relatedSlash: [],
@@ -85,42 +105,42 @@ export const KEYMAP_IDLE: readonly KeymapBinding[] = [
   {
     id: 'hub-question',
     key: '?',
-    description: 'Open Command Hub (empty prompt)',
+    descriptionKey: 'tui.help.shortcut.hubQuestion',
     surface: 'idle',
     category: 'menu',
   },
   {
     id: 'history',
     key: 'Ctrl-R',
-    description: 'Search input history (empty prompt)',
+    descriptionKey: 'tui.help.shortcut.history',
     surface: 'idle',
     category: 'edit',
   },
   {
     id: 'transcript-search',
     key: 'Ctrl-F',
-    description: 'Search the transcript',
+    descriptionKey: 'tui.help.shortcut.transcriptSearch',
     surface: 'idle',
     category: 'navigate',
   },
   {
     id: 'stash',
     key: 'Ctrl-X',
-    description: 'Stash or restore the draft prompt',
+    descriptionKey: 'tui.help.shortcut.ctrlX',
     surface: 'idle',
     category: 'edit',
   },
   {
     id: 'external-editor',
     key: 'Ctrl-G',
-    description: 'Open the external editor',
+    descriptionKey: 'tui.help.shortcut.ctrlG',
     surface: 'idle',
     category: 'edit',
   },
   {
     id: 'job-deck',
     key: 'Alt+J',
-    description: 'Open the Conductor Job Deck monitor',
+    descriptionKey: 'tui.help.shortcut.jobDeck',
     surface: 'idle',
     category: 'navigate',
     relatedSlash: ['/jobs'],
@@ -128,7 +148,7 @@ export const KEYMAP_IDLE: readonly KeymapBinding[] = [
   {
     id: 'job-inbox',
     key: 'Alt+I',
-    description: 'Open the Conductor Job Inbox drawer',
+    descriptionKey: 'tui.help.shortcut.jobInbox',
     surface: 'idle',
     category: 'navigate',
     relatedSlash: ['/job'],
@@ -136,7 +156,7 @@ export const KEYMAP_IDLE: readonly KeymapBinding[] = [
   {
     id: 'intent-composer',
     key: 'Alt+B',
-    description: 'Edit Conductor Intent brief slots',
+    descriptionKey: 'tui.help.shortcut.intentComposer',
     surface: 'idle',
     category: 'edit',
   },
@@ -147,7 +167,7 @@ export const KEYMAP_STREAMING: readonly KeymapBinding[] = [
   {
     id: 'steer',
     key: 'Ctrl-S',
-    description: 'Steer while a turn is running',
+    descriptionKey: 'tui.help.shortcut.ctrlS',
     surface: 'streaming',
     category: 'agent',
     relatedSlash: ['/plan', '/agents'],
@@ -155,7 +175,7 @@ export const KEYMAP_STREAMING: readonly KeymapBinding[] = [
   {
     id: 'background',
     key: 'Ctrl-B',
-    description: 'Background the current work',
+    descriptionKey: 'tui.help.shortcut.ctrlB',
     surface: 'streaming',
     category: 'agent',
     relatedSlash: ['/jobs', '/agents'],
@@ -187,10 +207,13 @@ export const KEYMAP_FRONT: readonly KeymapBinding[] = KEYMAP_ALL.filter((binding
 
 /** Convert keymap bindings into help-panel rows. */
 export function keymapAsHelpShortcuts(): readonly { readonly keys: string; readonly description: string }[] {
-  return KEYMAP_ALL.map((binding) => ({
-    keys: binding.key,
-    description: binding.description,
-  }));
+  return KEYMAP_ALL.map((binding) => {
+    const resolved = resolveKeymapBinding(binding);
+    return {
+      keys: resolved.key,
+      description: resolved.description,
+    };
+  });
 }
 
 export function keymapFrontTips(): readonly {
@@ -228,5 +251,6 @@ export function keymapBindingsForSlash(slash: string): readonly KeymapBinding[] 
 
 /** One-line sample for Settings / diagnostics panels. */
 export function formatKeymapBindingSample(binding: KeymapBinding): string {
-  return `${binding.key} — ${binding.description} (${binding.surface})`;
+  const resolved = resolveKeymapBinding(binding);
+  return `${resolved.key} — ${resolved.description} (${resolved.surface})`;
 }

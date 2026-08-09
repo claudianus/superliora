@@ -58,6 +58,7 @@ describe('update preference commands', () => {
       footer: DEFAULT_FOOTER_PREFERENCES,
       onboarding: DEFAULT_ONBOARDING_PREFERENCES,
       conductor: DEFAULT_CONDUCTOR_PREFERENCES,
+      locale: 'auto',
     });
     expect(setAppState).toHaveBeenCalledWith({ upgrade: { autoInstall: false } });
     expect(track).toHaveBeenCalledWith('upgrade_preference_changed', { auto_install: false });

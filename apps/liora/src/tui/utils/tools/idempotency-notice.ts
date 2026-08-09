@@ -6,6 +6,8 @@
  * only sees a successful tool card and may miss that a second write was skipped.
  */
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 export const IDEMPOTENCY_REPLAY_CODE = 'IDEMPOTENCY_REPLAY';
 
 export type IdempotencyReplayNotice = {
@@ -38,9 +40,12 @@ export function formatIdempotencyReplayNotice(
 ): IdempotencyReplayNotice {
   const tool = toolName !== undefined && toolName.length > 0 ? toolName : 'tool';
   return {
-    title: 'Idempotent write replayed',
-    detail: `Identical ${tool} args already applied this turn (code=${IDEMPOTENCY_REPLAY_CODE}). Prior result was replayed — no second write. Change args if you need a new mutation.`,
-    status: `Idempotent replay on ${tool} (no second write)`,
+    title: ttui('tui.notice.idempotentWrite.title'),
+    detail: ttui('tui.notice.idempotentWrite.detail', {
+      tool,
+      code: IDEMPOTENCY_REPLAY_CODE,
+    }),
+    status: ttui('tui.notice.idempotentWrite.status', { tool }),
     coalesceKey: 'idempotency-replay',
   };
 }

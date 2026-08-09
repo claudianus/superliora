@@ -20,6 +20,7 @@ import { readMcpJsonFile, resolveMcpJsonPaths, type McpServerFileConfig } from '
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 
 export { SECURITY_MCP_ALLOWLIST_TIP, SECURITY_REDACTION_TIP, SECURITY_SANDBOX_TIP };
 
@@ -127,7 +128,7 @@ export function showSecuritySettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Security',
+      title: ttui('tui.settings.pane.security.title'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
@@ -151,7 +152,7 @@ export function showSecuritySettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Security' },
+    { label: ttui('tui.settings.pane.security.title') },
   );
 }
 
@@ -161,7 +162,7 @@ async function showSecuritySettingsPanel(host: SlashCommandHost): Promise<void> 
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => [...lines],
     borderToken: 'primary',
-    title: ' Security ',
+    title: ttui('tui.settings.pane.security.panelTitle'),
     enterBeatSeed: 'security',
     requestRender: () => {
       requestTUILayoutRender(host.state);

@@ -38,6 +38,7 @@ import {
   type ModelFallbackConfig,
 } from '#/tui/utils/model/model-fallback';
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 
 const MODEL_PICKER_REFRESH_TIMEOUT_MS = 2_000;
 
@@ -64,7 +65,7 @@ export async function handleModelCommand(host: SlashCommandHost, args: string): 
   }
   const isSmartAuto = alias.trim().toLowerCase() === SMART_AUTO_SESSION_ALIAS;
   if (!isSmartAuto && host.state.appState.availableModels[alias] === undefined) {
-    host.showError(`Unknown model alias: ${alias}`);
+    host.showError(ttui('tui.model.unknownAlias', { alias }));
     return;
   }
   showModelPicker(host, alias);
@@ -115,7 +116,7 @@ export async function showLoopModelRoutingPicker(host: SlashCommandHost): Promis
     const config = await host.harness.getConfig({ reload: true });
     mountLoopModelRoutingPicker(host, config as LoopModelRoutingConfig);
   } catch (error) {
-    host.showError(`Failed to load model routing: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.model.routingLoadFailed', { message: formatErrorMessage(error) }));
   }
 }
 
@@ -168,17 +169,17 @@ async function resetAllLoopModelRouting(
     .filter((row) => row.model !== undefined)
     .map((row) => loopModelRoutingDeletePath(row));
   if (paths.length === 0) {
-    host.showStatus('All role routing is already set to auto.');
+    host.showStatus(ttui('tui.model.routingAllAuto'));
     void showLoopModelRoutingPicker(host);
     return;
   }
 
   try {
     const config = (await host.harness.deleteConfigFields(paths)) as LoopModelRoutingConfig;
-    host.showStatus('All role routing overrides cleared. Smart auto routing is active.', 'success');
+    host.showStatus(ttui('tui.model.routingCleared'), 'success');
     mountLoopModelRoutingPicker(host, config);
   } catch (error) {
-    host.showError(`Failed to enable smart auto routing: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.model.smartAutoFailed', { message: formatErrorMessage(error) }));
   }
 }
 
@@ -223,7 +224,7 @@ export async function applyLoopModelRoutingChoice(
   try {
     await host.harness.setConfig(loopModelRoutingPatch(role, alias));
   } catch (error) {
-    host.showError(`Failed to set ${role.label} routing override: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.model.roleRoutingFailed', { role: role.label, message: formatErrorMessage(error) }));
     return;
   }
 
@@ -232,13 +233,13 @@ export async function applyLoopModelRoutingChoice(
     config = (await host.harness.getConfig({ reload: true })) as LoopModelRoutingConfig;
   } catch (error) {
     host.showError(
-      `Saved ${role.label} routing override, but failed to reload it: ${formatErrorMessage(error)}`,
+      ttui('tui.model.routingReloadFailed', { role: role.label, message: formatErrorMessage(error) }),
     );
     return;
   }
 
   host.showStatus(
-    `${role.label} routing override set to ${alias}. Applies on next worker spawn / role resolution.`,
+    ttui('tui.model.routingSet', { role: role.label, alias }),
     'success',
   );
   mountLoopModelRoutingPicker(host, config);
@@ -249,7 +250,7 @@ export async function resetLoopModelRoutingChoice(
   role: LoopModelRoutingRole & { readonly model?: string },
 ): Promise<void> {
   if (role.model === undefined) {
-    host.showStatus(`${role.label} routing already uses auto routing.`);
+    host.showStatus(ttui('tui.model.roleRoutingAuto', { role: role.label }));
     void showLoopModelRoutingPicker(host);
     return;
   }
@@ -260,12 +261,12 @@ export async function resetLoopModelRoutingChoice(
       loopModelRoutingDeletePath(role),
     ])) as LoopModelRoutingConfig;
   } catch (error) {
-    host.showError(`Failed to reset ${role.label} routing override: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.model.roleResetFailed', { role: role.label, message: formatErrorMessage(error) }));
     return;
   }
 
   host.showStatus(
-    `${role.label} routing reset to auto. Applies on next worker spawn / role resolution.`,
+    ttui('tui.model.routingReset', { role: role.label }),
     'success',
   );
   mountLoopModelRoutingPicker(host, config);
@@ -319,12 +320,12 @@ async function resetModelSettings(host: SlashCommandHost): Promise<void> {
     }
     await host.harness.deleteConfigFields(MODEL_SETTINGS_RESET_PATHS);
   } catch (error) {
-    host.showError(`Failed to reset model settings: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.model.resetFailed', { message: formatErrorMessage(error) }));
     return;
   }
 
   host.showStatus(
-    'Model settings reset to defaults. The current session is unchanged; future resolution uses auto routing.',
+    ttui('tui.model.settingsReset'),
     'success',
   );
 }
@@ -332,13 +333,13 @@ async function resetModelSettings(host: SlashCommandHost): Promise<void> {
 export async function showModelFallbackPicker(host: SlashCommandHost): Promise<void> {
   const primaryAlias = host.state.appState.model;
   if (!primaryAlias) {
-    host.showNotice('No model selected', 'Select a model first with /model.');
+    host.showNotice(ttui('tui.model.noSelected'), ttui('tui.model.noSelectedDetail'));
     return;
   }
 
   const primaryModel = host.state.appState.availableModels[primaryAlias];
   if (!primaryModel) {
-    host.showError(`Model "${primaryAlias}" not found.`);
+    host.showError(ttui('tui.model.notFound', { alias: primaryAlias }));
     return;
   }
 
@@ -356,7 +357,7 @@ export async function showModelFallbackPicker(host: SlashCommandHost): Promise<v
 
     mountFallbackEditor(host, primaryAlias, primaryModel.displayName ?? primaryAlias, fallbackItems);
   } catch (error) {
-    host.showError(`Failed to load fallback config: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.model.fallbackLoadFailed', { message: formatErrorMessage(error) }));
   }
 }
 
@@ -459,7 +460,7 @@ function showFallbackModelPicker(
     }, {});
 
   if (Object.keys(availableModels).length === 0) {
-    host.showNotice('No models available', 'All models are already in the fallback list or selected as primary.');
+    host.showNotice(ttui('tui.model.noneAvailable'), ttui('tui.model.noneAvailableDetail'));
     return;
   }
 
@@ -510,12 +511,12 @@ async function saveFallbacksAndRefresh(
 
     host.showStatus(
       fallbacks.length > 0
-        ? `Fallback list updated (${fallbacks.length} model${fallbacks.length > 1 ? 's' : ''}).`
-        : 'Fallback list cleared.',
+        ? ttui('tui.model.fallbackUpdated', { count: String(fallbacks.length) })
+        : ttui('tui.model.fallbackCleared'),
       'success',
     );
   } catch (error) {
-    host.showError(`Failed to save fallback config: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.model.fallbackSaveFailed', { message: formatErrorMessage(error) }));
   }
 }
 
@@ -575,14 +576,14 @@ async function performModelSwitch(
   effort?: string,
 ): Promise<void> {
   if (host.state.appState.streamingPhase !== 'idle') {
-    host.showError('Cannot switch models while streaming — press Esc or Ctrl-C first.');
+    host.showError(ttui('tui.model.cannotSwitchStreaming'));
     return;
   }
 
   const isSmartAuto = alias.trim().toLowerCase() === SMART_AUTO_SESSION_ALIAS;
   const model = isSmartAuto ? undefined : host.state.appState.availableModels[alias];
   if (!isSmartAuto && model === undefined) {
-    host.showError(`Unknown model alias: ${alias}`);
+    host.showError(ttui('tui.model.unknownAlias', { alias }));
     return;
   }
   const level = resolveThinkingLevelForApply(thinking, effort, model);
@@ -610,7 +611,7 @@ async function performModelSwitch(
     }
   } catch (error) {
     const msg = formatErrorMessage(error);
-    host.showError(`Failed to switch model: ${msg}`);
+    host.showError(ttui('tui.model.switchFailed', { message: msg }));
     return;
   }
 
@@ -644,7 +645,7 @@ async function performModelSwitch(
       persisted = await persistModelSelection(host, alias, thinking, effort);
     } catch (error) {
       const msg = formatErrorMessage(error);
-      host.showError(`Switched to ${alias}, but failed to save default: ${msg}`);
+      host.showError(ttui('tui.model.switchedSaveFailed', { alias, message: msg }));
       return;
     }
   }
@@ -658,12 +659,12 @@ async function performModelSwitch(
   let status: string;
   if (runtimeChanged) {
     status = persist
-      ? `Switched to ${alias} with thinking ${levelLabel}.`
-      : `Switched to ${alias} with thinking ${levelLabel} for this session only.`;
+      ? ttui('tui.model.switched', { alias, level: levelLabel })
+      : ttui('tui.model.switchedSessionOnly', { alias, level: levelLabel });
   } else if (persist && persisted) {
-    status = `Saved ${alias} with thinking ${levelLabel} as default.`;
+    status = ttui('tui.model.savedDefault', { alias, level: levelLabel });
   } else {
-    status = `Already using ${alias} with thinking ${levelLabel}.`;
+    status = ttui('tui.model.alreadyUsing', { alias, level: levelLabel });
   }
   host.showStatus(status, 'success');
 }

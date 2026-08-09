@@ -17,6 +17,7 @@ import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-
 import type { SlashCommandHost } from '../../hub/dispatch';
 import { handleUpgradeCommand } from '../../info/upgrade';
 import { showUpdatePreferencePicker } from './update-preference';
+import { ttui } from '../../../utils/tui-i18n';
 
 export { UPGRADE_AUTO_INSTALL_TIP, UPGRADE_ENV_TIP, UPGRADE_MANUAL_TIP };
 
@@ -25,7 +26,7 @@ export function showUpgradeSettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Automatic updates',
+      title: ttui('tui.settings.pane.upgrade.title'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
@@ -81,7 +82,7 @@ function showUpgradeSettingsPanel(host: SlashCommandHost): void {
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => [...lines],
     borderToken: 'primary',
-    title: ' Automatic updates ',
+    title: ttui('tui.settings.pane.upgrade.panelTitle'),
     enterBeatSeed: 'upgrade-settings',
     requestRender: () => {
       requestTUILayoutRender(host.state);

@@ -20,6 +20,7 @@ import { getDataDir, getLogDir } from '#/utils/paths';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 
 export { STORAGE_HOME_TIP, STORAGE_LOGS_TIP, STORAGE_RETENTION_TIP };
 
@@ -58,7 +59,7 @@ export function showStorageSettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Storage',
+      title: ttui('tui.settings.pane.storage.title'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
@@ -82,7 +83,7 @@ export function showStorageSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Storage' },
+    { label: ttui('tui.settings.pane.storage.title') },
   );
 }
 
@@ -93,7 +94,7 @@ async function showStorageSettingsPanel(host: SlashCommandHost): Promise<void> {
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => [...lines],
     borderToken: 'primary',
-    title: ' Storage ',
+    title: ttui('tui.settings.pane.storage.panelTitle'),
     enterBeatSeed: 'storage',
     requestRender: () => {
       requestTUILayoutRender(host.state);

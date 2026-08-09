@@ -6,6 +6,8 @@
  * the operator only sees two green cards and may miss the skip.
  */
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 export const SAME_STEP_DEDUP_PREFIX = 'SAME_STEP_DEDUP:';
 
 export type SameStepDedupNotice = {
@@ -36,9 +38,12 @@ export function isSameStepDedupOutput(output: unknown): boolean {
 export function formatSameStepDedupNotice(toolName?: string): SameStepDedupNotice {
   const tool = toolName !== undefined && toolName.length > 0 ? toolName : 'tool';
   return {
-    title: 'Same-step tool dedup',
-    detail: `Identical ${tool} args already ran in this step (${SAME_STEP_DEDUP_PREFIX} attached). Prior result was reused — no second execution. Change args if you need a fresh call.`,
-    status: `Same-step dedup on ${tool} (reused prior result)`,
+    title: ttui('tui.notice.sameStepDedup.title'),
+    detail: ttui('tui.notice.sameStepDedup.detail', {
+      tool,
+      prefix: SAME_STEP_DEDUP_PREFIX,
+    }),
+    status: ttui('tui.notice.sameStepDedup.status', { tool }),
     coalesceKey: 'same-step-dedup',
   };
 }

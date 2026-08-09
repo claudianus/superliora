@@ -224,8 +224,13 @@ const ConductorConfigFileSchema = z
   })
   .optional();
 
+/** UI language: `auto` follows env (`SUPERLIORA_LOCALE` / `LANG`); `en`/`ko` pin. */
+export const LocalePreferenceSchema = z.enum(['auto', 'en', 'ko']);
+export type LocalePreference = z.infer<typeof LocalePreferenceSchema>;
+
 export const TuiConfigFileSchema = z.object({
   theme: TuiThemeSchema.optional(),
+  locale: LocalePreferenceSchema.optional(),
   permission_mode: PermissionModeFileSchema,
   disable_paste_burst: z.boolean().optional(),
   editor: EditorConfigFileSchema,
@@ -256,6 +261,7 @@ export const ConductorPreferencesSchema = z.object({
 
 export const TuiConfigSchema = z.object({
   theme: TuiThemeSchema,
+  locale: LocalePreferenceSchema,
   permissionMode: z.enum(['yolo', 'manual', 'auto']),
   disablePasteBurst: z.boolean(),
   editorCommand: z.string().nullable(),
@@ -349,8 +355,11 @@ export const DEFAULT_FOOTER_PREFERENCES: FooterPreferences = {
   showPromptIntelligence: true,
 };
 
+export const DEFAULT_LOCALE_PREFERENCE: LocalePreference = 'auto';
+
 export const DEFAULT_TUI_CONFIG: TuiConfig = TuiConfigSchema.parse({
   theme: DEFAULT_TUI_THEME,
+  locale: DEFAULT_LOCALE_PREFERENCE,
   permissionMode: 'yolo',
   disablePasteBurst: false,
   editorCommand: null,
@@ -440,6 +449,7 @@ export async function saveTuiConfig(
 function coerceTuiConfigFile(raw: Record<string, unknown>): TuiConfigFileShape {
   return {
     theme: softParse(TuiThemeSchema.optional(), raw['theme']),
+    locale: softParse(LocalePreferenceSchema.optional(), raw['locale']),
     permission_mode: softParse(PermissionModeFileSchema, raw['permission_mode']),
     disable_paste_burst: softParse(z.boolean().optional(), raw['disable_paste_burst']),
     editor: softParse(EditorConfigFileSchema, raw['editor']),
@@ -448,6 +458,7 @@ function coerceTuiConfigFile(raw: Record<string, unknown>): TuiConfigFileShape {
     appearance: softParse(AppearanceConfigFileFieldsSchema.optional(), raw['appearance']),
     footer: softParse(FooterConfigFileSchema, raw['footer']),
     onboarding: softParse(OnboardingConfigFileSchema, raw['onboarding']),
+    conductor: softParse(ConductorConfigFileSchema, raw['conductor']),
   };
 }
 
@@ -488,6 +499,7 @@ export function normalizeTuiConfig(config: TuiConfigFileShape): TuiConfig {
   const command = config.editor?.command?.trim();
   return TuiConfigSchema.parse({
     theme: config.theme ?? DEFAULT_TUI_CONFIG.theme,
+    locale: config.locale ?? DEFAULT_TUI_CONFIG.locale,
     permissionMode: config.permission_mode ?? DEFAULT_TUI_CONFIG.permissionMode,
     disablePasteBurst: config.disable_paste_burst ?? DEFAULT_TUI_CONFIG.disablePasteBurst,
     editorCommand: command === undefined || command.length === 0 ? null : command,
@@ -595,6 +607,7 @@ export function renderTuiConfig(config: TuiConfig): string {
 # Agent/runtime settings stay in ~/.superliora/config.toml.
 
 theme = "${escapeTomlBasicString(config.theme)}" # "auto" | "dark" | "light" | custom theme name
+locale = "${config.locale}" # "auto" | "en" | "ko" — auto follows SUPERLIORA_LOCALE / LANG
 permission_mode = "${config.permissionMode}" # "yolo" | "manual" | "auto"
 disable_paste_burst = ${String(config.disablePasteBurst)} # true disables non-bracketed paste-burst fallback
 
