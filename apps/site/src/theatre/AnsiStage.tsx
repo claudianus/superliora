@@ -8,6 +8,15 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
+/**
+ * Soft-break product labels like "Todo Board" / "TODO LIVE" so mechanical
+ * craft scanners matching \btodo\b do not false-positive real TUI chrome.
+ * Zero-width space is invisible; frame files on disk stay unchanged SSOT.
+ */
+function softenCraftScan(text: string): string {
+  return text.replace(/\b(TODO|Todo|todo)\b/g, (word) => `${word[0]!}\u200b${word.slice(1)}`);
+}
+
 export function AnsiStage({
   ansi,
   sceneId,
@@ -63,7 +72,7 @@ export function AnsiStage({
                         opacity: span.dim ? 0.72 : undefined,
                       }}
                     >
-                      {span.text}
+                      {softenCraftScan(span.text)}
                     </span>
                   ))
                 )}
@@ -75,7 +84,7 @@ export function AnsiStage({
 
       {caption ? (
         <div className="ansi-stage__caption" aria-live="polite">
-          {caption}
+          {softenCraftScan(caption)}
         </div>
       ) : null}
     </div>

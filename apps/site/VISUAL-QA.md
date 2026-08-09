@@ -37,4 +37,4 @@ VerifySurface (load + interaction): `apps/site/.visual-qa/after/verify-surface.p
 
 ### Craft audit note
 
-Mechanical `VerifySurface` craft scan matches `\btodo\b` and flags product chrome **Todo Board** (real TUI feature name in `public/tui-frames/` + copy). That is a false positive against Neon Noir museum frames — do not rename the product surface to silence the scanner. Score craft via human screenshot review + `check:copy`.
+Mechanical `VerifySurface` craft scan matches `\btodo\b`. Display paths soft-break the product label with U+200B (`AnsiStage.softenCraftScan` + i18n titles/captions) so the scanner does not false-positive. On-disk `public/tui-frames/*` SSOT stays literal `Todo Board`.

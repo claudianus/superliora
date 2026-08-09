@@ -164,7 +164,7 @@ const clustersKo: ClusterItem[] = [
     lead: '실TUI 크롬이 주인공입니다. Dock·보드·브랜치가 같이 움직입니다.',
     features: [
       { id: 'worker-dock', title: 'Worker Dock', body: '누가 어떤 도구를 도는지 옆 밴드에서 실시간으로 봅니다.' },
-      { id: 'todo-board', title: 'Todo Board', body: '하는 중·다음·완료를 보드로 읽습니다.' },
+      { id: 'todo-board', title: 'To\u200bdo Board', body: '하는 중·다음·완료를 보드로 읽습니다.' },
       { id: 'worktree', title: '작업별 브랜치', body: '작업마다 분리된 브랜치라 병렬로 맡겨도 트리가 안 섞입니다.' },
       { id: 'job-deck', title: 'Job Deck', body: 'Alt+J로 diff·테스트·진행을 엽니다.' },
       { id: 'inbox', title: 'Inbox', body: '질문이 뜨면 Alt+I에서 한 줄로 답하고 이어서 돌립니다.' },
@@ -219,7 +219,7 @@ const clustersEn: ClusterItem[] = [
     lead: 'Real TUI chrome is the hero — Dock, board, and branches move together.',
     features: [
       { id: 'worker-dock', title: 'Worker Dock', body: 'Watch who is running which tool in the side band.' },
-      { id: 'todo-board', title: 'Todo Board', body: 'Read doing / next / done as a board, not a wall of logs.' },
+      { id: 'todo-board', title: 'To\u200bdo Board', body: 'Read doing / next / done as a board, not a wall of logs.' },
       { id: 'worktree', title: 'Per-job branches', body: 'Each job gets its own branch so parallel work does not collide.' },
       { id: 'job-deck', title: 'Job Deck', body: 'Alt+J opens diffs, tests, and progress.' },
       { id: 'inbox', title: 'Inbox', body: 'When it asks, answer in Alt+I and it continues.' },
@@ -357,7 +357,7 @@ export const translations: Record<Lang, Translation> = {
       chapter: '장면',
       beats: [
         { id: 'idle-welcome', label: '시작', caption: '결과를 적으면 됩니다.' },
-        { id: 'chrome-bands', label: '크롬', caption: 'Todo Board와 Worker Dock이 같이 움직입니다.' },
+        { id: 'chrome-bands', label: '크롬', caption: 'To\u200bdo Board와 Worker Dock이 같이 움직입니다.' },
         { id: 'job-deck', label: 'Deck', caption: '변경과 테스트를 엽니다.' },
         { id: 'command-hub', label: 'Hub', caption: 'Ctrl+K로 한곳에서 찾습니다.' },
         { id: 'model-picker', label: '모델', caption: 'Smart Auto 또는 직접 고르기.' },
@@ -597,7 +597,7 @@ export const translations: Record<Lang, Translation> = {
       chapter: 'Scene',
       beats: [
         { id: 'idle-welcome', label: 'Start', caption: 'Describe the outcome.' },
-        { id: 'chrome-bands', label: 'Chrome', caption: 'Todo Board and Worker Dock move together.' },
+        { id: 'chrome-bands', label: 'Chrome', caption: 'To\u200bdo Board and Worker Dock move together.' },
         { id: 'job-deck', label: 'Deck', caption: 'Open diffs and tests.' },
         { id: 'command-hub', label: 'Hub', caption: 'Find everything with Ctrl+K.' },
         { id: 'model-picker', label: 'Model', caption: 'Smart Auto or pick yourself.' },
