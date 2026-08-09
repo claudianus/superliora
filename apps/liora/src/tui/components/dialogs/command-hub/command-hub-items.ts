@@ -1,3 +1,4 @@
+import { isExperimentalFlagEnabled } from '../../../commands/experimental-flags';
 import { buildSettingsJumpHubItems } from '../../../commands/config/settings-hub-jumps';
 import type { CommandHubItem } from './command-hub-types';
 
@@ -12,11 +13,14 @@ export function buildDefaultCommandHubItems(state: {
   readonly isCompacting?: boolean;
   /** True when a provider/model is already connected. */
   readonly signedIn?: boolean;
+  readonly conductorProjectMode?: string;
+  readonly transcriptRegionMode?: string;
 }): CommandHubItem[] {
   const onOff = (on: boolean | undefined): string => (on === true ? 'ON' : 'off');
   const streaming =
     (state.streamingPhase !== undefined && state.streamingPhase !== 'idle') ||
     state.isCompacting === true;
+  const conductorUx = isExperimentalFlagEnabled('conductor_ux_v2');
   const items: CommandHubItem[] = [];
 
   if (streaming) {
@@ -93,6 +97,36 @@ export function buildDefaultCommandHubItems(state: {
       badge: state.permissionMode,
       kind: 'cycle',
     },
+    ...(conductorUx
+      ? [
+          {
+            id: 'modes.conductorProject' as const,
+            section: 'Modes',
+            label: 'Project mode',
+            description: 'Conductor pool: balanced · greenfield · hotfix · review',
+            badge: state.conductorProjectMode ?? 'balanced',
+            kind: 'cycle' as const,
+            keywords: ['conductor', 'pool', 'hotfix', 'greenfield'],
+          },
+          {
+            id: 'modes.reduceParallelism' as const,
+            section: 'Modes',
+            label: 'Reduce parallelism',
+            description: 'Set project mode to hotfix (pool=2) — fewer concurrent workers',
+            badge: state.conductorProjectMode === 'hotfix' ? 'hotfix' : undefined,
+            keywords: ['conductor', 'hotfix', 'pool', 'parallel', 'cost', 'throttle'],
+          },
+          {
+            id: 'modes.transcriptRegion' as const,
+            section: 'Modes',
+            label: 'Chat / Timeline',
+            description: 'Toggle transcript region between chat and Conductor Timeline',
+            badge: state.transcriptRegionMode ?? 'chat',
+            kind: 'cycle' as const,
+            keywords: ['timeline', 'conductor', 'region'],
+          },
+        ]
+      : []),
   );
 
   items.push(
@@ -121,6 +155,17 @@ export function buildDefaultCommandHubItems(state: {
       description: 'Branch this chat into a new session',
       keywords: ['fork', 'worktree', 'branch'],
     },
+    ...(conductorUx
+      ? [
+          {
+            id: 'start.conductorHowto' as const,
+            section: 'Start',
+            label: 'How Conductor works',
+            description: 'Short tour — Jobs, Worker Dock, Alt+J',
+            keywords: ['conductor', 'jobs', 'howto', 'tour', 'onboarding'],
+          } satisfies CommandHubItem,
+        ]
+      : []),
     {
       id: 'chat.model',
       section: 'Chat',
@@ -224,8 +269,10 @@ export function buildDefaultCommandHubItems(state: {
     {
       id: 'workspace.missionControl',
       section: 'Workspace',
-      label: 'Mission Control',
-      description: 'Show, pin, or hide the subagent dock',
+      label: conductorUx ? 'Worker Dock' : 'Mission Control',
+      description: conductorUx
+        ? 'Show, pin, or hide the worker monitor band'
+        : 'Show, pin, or hide the subagent dock',
       keywords: ['agents', 'subagent', 'monitor', 'dock', 'workers', 'mission'],
     },
     {
@@ -234,6 +281,13 @@ export function buildDefaultCommandHubItems(state: {
       label: 'Job Deck monitor',
       description: 'Watch Conductor workers live',
       keywords: ['conductor', 'deck', 'monitor', 'worker', 'transcript'],
+    },
+    {
+      id: 'workspace.jobInbox',
+      section: 'Workspace',
+      label: 'Job Inbox',
+      description: 'Unread notices, needs_user, Alt+I',
+      keywords: ['inbox', 'conductor', 'needs_user', 'interrupted', 'unread'],
     },
     {
       id: 'workspace.jobOps',

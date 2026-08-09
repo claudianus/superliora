@@ -22,6 +22,14 @@ import {
 import { formatErrorMessage } from '../utils/event-payload';
 import { formatTranscriptOutput } from '../utils/transcript/transcript-output-format';
 import { shortJobId } from '../components/job-board/job-board-helpers';
+import {
+  hotpathJobCancel,
+  hotpathJobResume,
+  hotpathJobSteer,
+  isConductorUxV2Enabled,
+} from './job-hotpath';
+import { resyncJobBoardFromSession } from '../features/control-tower/job-resync';
+import { openMergePreview } from '../features/control-tower/merge-preview-controller';
 
 export function openJobDeckViewer(host: SlashCommandHost, jobId?: string): void {
   if (host.session === undefined) {
@@ -29,7 +37,7 @@ export function openJobDeckViewer(host: SlashCommandHost, jobId?: string): void 
     return;
   }
   const snapshot = host.state.appState.conductorJobs ?? emptyConductorJobsSnapshot();
-  if (snapshot.jobs.length === 0) {
+  if (snapshot.jobs.length === 0 && !isConductorUxV2Enabled()) {
     host.showStatus(
       'No Conductor jobs yet — the Job Deck opens once jobs exist.',
       'textMuted',
@@ -60,6 +68,13 @@ export function openJobDeckViewer(host: SlashCommandHost, jobId?: string): void 
     },
   });
   host.mountEditorReplacement(panel);
+
+  // F18: pull authoritative jobList into the store while the deck is open.
+  if (isConductorUxV2Enabled()) {
+    void resyncJobBoardFromSession(host).then((ok) => {
+      if (ok) host.state.renderer.requestRender('manual');
+    });
+  }
 }
 
 async function loadJobDeckWorker(
@@ -96,14 +111,38 @@ async function loadJobDeckWorker(
   }
 }
 
-function routeJobDeckAction(
+/** Exported for hotpath unit tests; Job Deck viewer wires this via onAction. */
+export function routeJobDeckAction(
   host: SlashCommandHost,
-  action: 'steer' | 'answer' | 'resume' | 'cancel',
+  action: 'steer' | 'answer' | 'resume' | 'cancel' | 'mergePreview' | 'retry',
   card: ConductorJobCard,
   text?: string,
 ): void {
+  if (action === 'mergePreview') {
+    openMergePreview(host, card);
+    return;
+  }
   host.restoreEditor();
   const id = card.id;
+  if (isConductorUxV2Enabled()) {
+    switch (action) {
+      case 'steer':
+        void hotpathJobSteer(host, id, text ?? '');
+        return;
+      case 'answer':
+        void hotpathJobResume(host, { jobId: id, answer: text ?? '' });
+        return;
+      case 'resume':
+        void hotpathJobResume(host, { jobId: id });
+        return;
+      case 'cancel':
+        void hotpathJobCancel(host, id);
+        return;
+      case 'retry':
+        void retryFailedJob(host, card);
+        return;
+    }
+  }
   switch (action) {
     case 'steer':
       host.sendNormalUserInput(
@@ -129,6 +168,37 @@ function routeJobDeckAction(
         { displayText: `/job cancel ${shortJobId(id)}` },
       );
       return;
+    case 'retry':
+      host.sendNormalUserInput(
+        `Use JobCreate with title=${JSON.stringify(card.title)} and prompt=${JSON.stringify(retryPromptHint(card))} to retry the failed Conductor job. Report the new job id.`,
+        { displayText: `/job retry ${shortJobId(id)}` },
+      );
+      return;
+  }
+}
+
+function retryPromptHint(card: ConductorJobCard): string {
+  const summary = card.resultSummary?.trim();
+  if (summary !== undefined && summary.length > 0) {
+    return `Retry failed job ${shortJobId(card.id)}: ${summary}`;
+  }
+  return `Retry failed job ${shortJobId(card.id)}: ${card.title}`;
+}
+
+async function retryFailedJob(host: SlashCommandHost, card: ConductorJobCard): Promise<void> {
+  const display = `/job retry ${shortJobId(card.id)}`;
+  try {
+    const result = await host.requireSession().jobCreate({
+      title: card.title,
+      kind: card.kind,
+      prompt: retryPromptHint(card),
+    });
+    const created = result.jobs[0];
+    const idPart =
+      created === undefined ? result.text.trim() : shortJobId(created.id);
+    host.showStatus(`${display} — created ${idPart}`, 'success');
+  } catch (error) {
+    host.showError(`${display} failed: ${formatErrorMessage(error)}`);
   }
 }
 

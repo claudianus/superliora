@@ -26,6 +26,12 @@ export class TranscriptViewportComponent extends RendererTranscriptViewportCompo
   /** Prior transcript children while `/aquarium` Welcome-sized overlay is shown. */
   private aquariumOverlaySnapshot: Component[] | undefined;
   /**
+   * When true, {@link addChild} does not auto-dismiss the aquarium/region
+   * overlay — used by Conductor Timeline so chat keeps accumulating under
+   * the overlay until the operator switches back.
+   */
+  private regionOverlayLocked = false;
+  /**
    * When true, {@link addChild} skips per-child {@link invalidate}. Session
    * hydrate mounts hundreds of steps; invalidating on every add forces
    * O(n²) line-count remeasure. Callers must {@link endBatchMount} (or
@@ -109,8 +115,18 @@ export class TranscriptViewportComponent extends RendererTranscriptViewportCompo
     this.invalidate();
   }
 
+  /**
+   * Conductor Timeline (and similar): lock the overlay so streaming transcript
+   * children accumulate into the hidden snapshot instead of dismissing it.
+   */
+  showLockedRegionOverlay(mountChrome: (addChrome: (component: Component) => void) => void): void {
+    this.regionOverlayLocked = true;
+    this.showAquariumOverlay(mountChrome);
+  }
+
   /** Restore transcript children hid by {@link showAquariumOverlay}. */
   exitAquariumOverlay(): void {
+    this.regionOverlayLocked = false;
     const snapshot = this.aquariumOverlaySnapshot;
     if (snapshot === undefined) {
       this.dismissIdleStage();
@@ -156,6 +172,14 @@ export class TranscriptViewportComponent extends RendererTranscriptViewportCompo
     // scene never competes with user/assistant/tool output.
     if (!isEmptyTranscriptChrome(component)) {
       if (this.aquariumOverlaySnapshot !== undefined) {
+        if (this.regionOverlayLocked) {
+          // Accumulate under the locked overlay (Timeline) without dismissing.
+          this.aquariumOverlaySnapshot.push(component);
+          if (this.batchMountDepth === 0) {
+            this.invalidatePaint();
+          }
+          return;
+        }
         this.exitAquariumOverlay();
       } else {
         this.dismissIdleStage();

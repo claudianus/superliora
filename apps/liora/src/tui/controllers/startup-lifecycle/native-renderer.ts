@@ -17,6 +17,8 @@ import {
   type TUIStateNativeInputRouter,
 } from '../../features/native-layout/native-input-router';
 import { createTUIStateNativeRenderCallback } from '../../features/native-layout/native-layout-frame';
+import { handleFooterJobsStripMouse } from '../../features/control-tower/footer-jobs-mouse';
+import { focusIntentComposer } from '../../features/control-tower/conductor-ux';
 import { installTerminalFocusTracking } from '../../utils/terminal/terminal-focus';
 import { getTUIStateNativeTodoRect } from '../../features/transcript/transcript-hit-test';
 import type { TranscriptScrollAction } from '../../features/transcript/transcript-viewport';
@@ -51,26 +53,53 @@ export function ensureStartupNativeInputRouter(
   host: StartupLifecycleHost,
   callbacks: StartupNativeRendererCallbacks,
 ): void {
-  host.nativeInputRouter ??= createTUIStateNativeInputRouter(host.state, {
+  if (host.nativeInputRouter !== undefined) return;
+  host.nativeInputRouter = createTUIStateNativeInputRouter(host.state, {
     scrollTranscriptViewport: (action) => callbacks.scrollTranscriptViewport(action),
     scrollTodoPanel: (event) => scrollStartupTodoPanelAtMouse(host, event),
     handlePreEditorInput: (event) => {
       if (event.type !== 'key' || event.eventType === 'release') return false;
       if (event.alt && scrollStartupTodoPanelByKey(host, event.key)) return true;
-      // Native Alt+J (Kitty CSI-u / ESC+j). Also mirrored via tryHandleAppShortcut
-      // → editor.onOpenJobDeck so legacy sequences stay in sync with Ctrl-K etc.
+      // Native Alt+J / Alt+I (Kitty CSI-u / ESC+letter). Also mirrored via
+      // tryHandleAppShortcut → editor.onOpenJobDeck / onOpenJobInbox.
       if (
         event.alt &&
         event.key === 'character' &&
-        event.text !== undefined &&
-        event.text.toLowerCase() === 'j'
+        event.text !== undefined
       ) {
-        return openJobDeckFromShortcut(host);
+        const letter = event.text.toLowerCase();
+        if (letter === 'j') return openJobDeckFromShortcut(host);
+        if (letter === 'i') return openJobInboxFromShortcut(host);
+        if (letter === 'b') {
+          return focusIntentComposer({
+            state: host.state,
+            session: host.session,
+            showStatus: (msg, color) => host.showStatus(msg, color),
+            jobBoardController: host.jobBoardController,
+          });
+        }
       }
       const legacy = encodeNativeInputAsLegacySequence(event);
       if (legacy === undefined) return false;
       return host.state.editor.tryHandleAppShortcut?.(legacy) === true;
     },
+  });
+  // F07: footer Conductor jobs strip click → Inbox (unread) or Job Deck.
+  host.nativeInputRouter.router.registerGlobalHandler({
+    id: 'footer-conductor-jobs',
+    onInput: (event) =>
+      handleFooterJobsStripMouse(
+        {
+          state: host.state,
+          openJobDeck: () => {
+            host.jobBoardController.openDeck();
+          },
+          openJobInbox: () => {
+            host.openJobInbox?.();
+          },
+        },
+        event,
+      ),
   });
 }
 
@@ -82,6 +111,12 @@ export function openJobDeckFromShortcut(host: StartupLifecycleHost): boolean {
     return true;
   }
   host.jobBoardController.openDeck();
+  return true;
+}
+
+/** Shared by native Alt+I and the editor app-shortcut path (matchesKey). */
+export function openJobInboxFromShortcut(host: StartupLifecycleHost): boolean {
+  host.openJobInbox?.();
   return true;
 }
 

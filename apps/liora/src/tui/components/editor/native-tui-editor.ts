@@ -99,6 +99,8 @@ export class NativeTUIEditor implements TUIEditor {
   onHistorySearch?: () => void;
   onCommandHub?: () => void;
   onOpenJobDeck?: () => void;
+  onOpenJobInbox?: () => void;
+  onOpenIntentComposer?: () => void;
   onTranscriptSearch?: () => void;
   onStashToggle?: () => void;
   onAcceptGhost?: () => void;

@@ -227,6 +227,12 @@ export interface SlashCommandHost {
   readonly btwPanelController: BtwPanelController;
   readonly tasksBrowserController: TasksBrowserController;
   readonly jobBoardController: JobBoardController;
+  readonly controlTowerDesk?: {
+    markInboxRead(): void;
+    maybeShowInterruptedBanner(force?: boolean): void;
+    applySnapshots(jobs: readonly import('@superliora/protocol').JobSnapshot[]): void;
+    publishFromStore(): void;
+  };
   readonly missionControl: MissionControlController;
   readonly authFlow: AuthFlowController;
   /** Transition beat queue (status open, plan enter/exit, …). */

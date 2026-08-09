@@ -4,10 +4,17 @@ import {
   CommandHubComponent,
   commandHubNestsPicker,
   cyclePermissionMode,
+  cycleTranscriptRegionMode,
   isCommandHubCycleId,
   type CommandHubItem,
   type CommandHubSelectMode,
 } from '../../components/dialogs/command-hub/index';
+import {
+  applyConductorProjectMode,
+  cycleAndApplyProjectMode,
+  setTranscriptRegionMode,
+} from '../../features/control-tower/conductor-ux';
+import { ConductorHowtoPanelComponent } from '../../components/dialogs/command-hub/conductor-howto-panel';
 import {
   showHubCronPicker,
   showHubJobOpsPicker,
@@ -107,6 +114,8 @@ function buildCommandHubItems(host: DialogsHost): CommandHubItem[] {
       streamingPhase: host.state.appState.streamingPhase,
       isCompacting: host.state.appState.isCompacting,
       signedIn,
+      conductorProjectMode: host.state.appState.conductorProjectMode,
+      transcriptRegionMode: host.state.appState.transcriptRegionMode,
     }),
     ...buildSlashJumpHubItems(host.getSlashCommands('advanced'), skillNames),
   ];
@@ -132,6 +141,18 @@ async function markHubIntroSeen(host: DialogsHost): Promise<void> {
   }
 }
 
+async function markConductorHowtoSeen(host: DialogsHost): Promise<void> {
+  const previous = host.state.appState.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES;
+  if (previous.conductorHowtoSeen) return;
+  const onboarding = { ...previous, conductorHowtoSeen: true };
+  host.setAppState({ onboarding });
+  try {
+    await saveTuiConfig(tuiConfigFromHost(host, { onboarding }));
+  } catch (error) {
+    host.showStatus(`Failed to save Conductor preferences: ${formatErrorMessage(error)}`, 'error');
+  }
+}
+
 function handleCommandHubSelect(
   host: DialogsHost,
   delegate: CommandHubDelegate,
@@ -147,8 +168,38 @@ function handleCommandHubSelect(
     return;
   }
 
-  // Permission: Space cycles in place; Enter opens the picker (nested).
+  // Cycles: Space advances in place; Enter opens picker when one exists.
   if (isCommandHubCycleId(item.id)) {
+    if (item.id === 'modes.conductorProject') {
+      const next = cycleAndApplyProjectMode({
+        state: host.state,
+        session: host.session,
+        setAppState: (patch) => host.setAppState(patch),
+        showStatus: (msg, color) => host.showStatus(msg, color),
+      });
+      host.openCommandHub?.noteToggleFlash(item.id);
+      noteSuccessFeedback();
+      host.state.toast.show(`Project mode → ${next}`, 1600);
+      if (mode === 'enter') closeCenterModal(host, delegate);
+      return;
+    }
+    if (item.id === 'modes.transcriptRegion') {
+      const next = cycleTranscriptRegionMode(host.state.appState.transcriptRegionMode);
+      setTranscriptRegionMode(
+        {
+          state: host.state,
+          session: host.session,
+          setAppState: (patch) => host.setAppState(patch),
+          showStatus: (msg, color) => host.showStatus(msg, color),
+        },
+        next,
+      );
+      host.openCommandHub?.noteToggleFlash(item.id);
+      noteSuccessFeedback();
+      host.state.toast.show(`Region → ${next}`, 1600);
+      if (mode === 'enter') closeCenterModal(host, delegate);
+      return;
+    }
     if (mode === 'space') {
       const next = cyclePermissionMode(host.state.appState.permissionMode);
       host.dispatchSlash(`/permission ${next}`);
@@ -158,6 +209,22 @@ function handleCommandHubSelect(
       return;
     }
     host.dispatchSlash('/permission');
+    return;
+  }
+
+  if (item.id === 'modes.reduceParallelism') {
+    applyConductorProjectMode(
+      {
+        state: host.state,
+        session: host.session,
+        setAppState: (patch) => host.setAppState(patch),
+        showStatus: (msg, color) => host.showStatus(msg, color),
+      },
+      'hotfix',
+    );
+    noteSuccessFeedback();
+    host.state.toast.show('Parallelism → hotfix (pool=2)', 1600);
+    closeCenterModal(host, delegate);
     return;
   }
 
@@ -222,6 +289,25 @@ function handleCommandHubAction(
   }
   if (isSettingsHubActionId(item.id)) {
     openSettingsPane(slashHost, settingsSelectionFromHubId(item.id));
+    return;
+  }
+  if (item.id === 'start.conductorHowto') {
+    const previous = host.state.appState.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES;
+    mountCenterModal(
+      host,
+      delegate,
+      new ConductorHowtoPanelComponent({
+        alreadySeen: previous.conductorHowtoSeen,
+        onClose: () => {
+          closeCenterModal(host, delegate);
+        },
+        onSkipForever: () => {
+          void markConductorHowtoSeen(host);
+          closeCenterModal(host, delegate);
+        },
+      }),
+      { mode: options.nest ? 'push' : 'replace', label: 'Conductor' },
+    );
     return;
   }
   if (item.id === 'help.shortcuts') {

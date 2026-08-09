@@ -47,6 +47,13 @@ import {
   longestActiveJobElapsedMs,
   resolveConductorJobCard,
 } from '#/tui/utils/job/job-strip';
+import { formatGateChecklistLine } from '#/tui/utils/job/gate-preview';
+import { shortJobIdForCopy } from '#/tui/utils/job/job-id-copy';
+import {
+  formatNeedsUserQuestionPreview,
+  resolveNeedsUserQuestionText,
+} from '#/tui/utils/job/needs-user-preview';
+import { copyTextToClipboard } from '#/utils/clipboard/clipboard-text';
 
 /** Worker transcript + usage payload for the drill-down surface. */
 export interface JobDeckWorkerLoad {
@@ -65,7 +72,7 @@ export interface JobDeckViewerOptions {
   readonly loadWorker: (card: ConductorJobCard) => Promise<JobDeckWorkerLoad>;
   /** Route an operator action through the conductor Job* tools. */
   readonly onAction: (
-    action: 'steer' | 'answer' | 'resume' | 'cancel',
+    action: 'steer' | 'answer' | 'resume' | 'cancel' | 'mergePreview' | 'retry',
     card: ConductorJobCard,
     text?: string,
   ) => void;
@@ -233,9 +240,34 @@ export class JobDeckViewerComponent extends Container implements Focusable {
       if (card !== undefined && card.status === 'interrupted') {
         this.onAction('resume', card);
         this.setStatus(`Resume requested for ${shortJobId(card.id)}.`);
+      } else if (card !== undefined && card.status === 'failed') {
+        this.onAction('retry', card);
+        this.setStatus(`Retry requested for ${shortJobId(card.id)}.`);
       } else {
-        this.setStatus('Resume needs a ⏸ interrupted row.');
+        this.setStatus('R = resume ⏸ interrupted, or retry ✗ failed.');
       }
+      return;
+    }
+    if (ch === 'm' || ch === 'M') {
+      const card = this.list.selected();
+      if (card !== undefined && (card.status === 'done' || card.status === 'blocked')) {
+        this.onAction('mergePreview', card);
+      } else {
+        this.setStatus('Merge Preview needs a done or blocked row (M).');
+      }
+      return;
+    }
+    if (ch === 'c' || ch === 'C') {
+      const card = this.list.selected();
+      if (card === undefined) return;
+      const id = shortJobIdForCopy(card.id);
+      void copyTextToClipboard(id)
+        .then(() => {
+          this.setStatus(`Copied ${id}`);
+        })
+        .catch(() => {
+          this.setStatus(`Copy failed — ${id}`);
+        });
       return;
     }
     if (ch === 'x' || ch === 'X') {
@@ -265,7 +297,7 @@ export class JobDeckViewerComponent extends Container implements Focusable {
       ` ${title}${suffix}`,
       theme.fg(
         'textMuted',
-        ' ↑↓ navigate · Enter transcript · S steer · A answer · R resume · X cancel · Esc cancel',
+        ' ↑↓ · Enter transcript · S steer · A answer · R resume/retry · M merge · C copy id · X cancel · Esc',
       ),
       this.renderMissionStrip(width),
       ` ${renderParticleRail(Math.max(8, width - 4), getActiveAppearancePreferences(), 'job-deck:rail')}`,
@@ -275,13 +307,26 @@ export class JobDeckViewerComponent extends Container implements Focusable {
       lines.push(theme.fg('text', ` Search: ${view.query}`));
     }
     if (view.items.length === 0) {
-      lines.push(theme.fg('textMuted', ' No Conductor jobs on the ledger yet.'));
+      if (this.snapshot.jobs.length === 0) {
+        lines.push(theme.fg('text', ' No jobs yet — Conductor is ready.'));
+        lines.push(theme.fg('textDim', ' 1. Type a task in the chat to create your first Job'));
+        lines.push(theme.fg('textDim', ' 2. Workers appear here and in the Worker Dock (/agents)'));
+        lines.push(theme.fg('textDim', ' 3. Alt+J reopens this deck anytime'));
+        lines.push(theme.fg('textMuted', ' Esc closes · describe an outcome to get started'));
+      } else {
+        lines.push(theme.fg('textMuted', ' No jobs match this search.'));
+      }
     }
     const now = Date.now();
     const pageItems = view.items.slice(view.page.start, view.page.end);
     for (const [index, card] of pageItems.entries()) {
       const selected = view.page.start + index === view.selectedIndex;
       lines.push(this.renderJobRow(card, selected, width, now));
+      if (card.status === 'needs_user') {
+        for (const preview of this.needsUserPreviewLines(card, width)) {
+          lines.push(preview);
+        }
+      }
     }
     if (view.page.pageCount > 1 && view.page.end < view.items.length) {
       lines.push(
@@ -363,6 +408,13 @@ export class JobDeckViewerComponent extends Container implements Focusable {
     ) {
       rightParts.push(`${String(card.progress.stepsCompleted ?? 0)}/${String(card.progress.stepsTotal)} steps`);
     }
+    const recent = card.progress?.recentTools;
+    if (recent !== undefined && recent.length > 0) {
+      rightParts.push(recent.slice(-2).join('→'));
+    }
+    if (card.gateChecklist !== undefined) {
+      rightParts.push(formatGateChecklistLine(card.gateChecklist));
+    }
     if (card.usage !== undefined) {
       rightParts.push(
         `${formatTokenCount(card.usage.input + card.usage.output)}tok`,
@@ -386,6 +438,23 @@ export class JobDeckViewerComponent extends Container implements Focusable {
     const left = `${prefix}${title}`;
     const gap = Math.max(2, width - visibleWidth(left) - visibleWidth(right));
     return ` ${left}${' '.repeat(gap)}${right}`;
+  }
+
+  private needsUserPreviewLines(card: ConductorJobCard, width: number): readonly string[] {
+    const inboxSummary = this.snapshot.inbox.find(
+      (entry) => entry.jobId === card.id && entry.kind === 'job.needs_user',
+    )?.summary;
+    const text = resolveNeedsUserQuestionText({
+      resultSummary: card.resultSummary,
+      inboxSummary,
+    });
+    const preview = formatNeedsUserQuestionPreview(text, 2);
+    if (preview.length === 0) return [];
+    const theme = currentTheme;
+    const pad = ' '.repeat(visibleWidth(SELECT_POINTER) + 3);
+    return preview.map((line) =>
+      truncateToWidth(`${pad}${theme.fg('warning', line)}`, Math.max(1, width), '…'),
+    );
   }
 
   // ── transcript drill-down ─────────────────────────────────────────────
@@ -598,6 +667,9 @@ export class JobDeckViewerComponent extends Container implements Focusable {
           `tokens ${formatTokenCount(state.usage.input)} in · ${formatTokenCount(state.usage.output)} out · ${formatTokenCount(state.usage.cacheRead)} cache`,
         ),
       );
+    }
+    if (state.card.gateChecklist !== undefined) {
+      parts.push(theme.fg('info', formatGateChecklistLine(state.card.gateChecklist)));
     }
     if (state.card.progress?.phase !== undefined && state.card.progress.phase.length > 0) {
       parts.push(theme.fg('textMuted', `phase ${state.card.progress.phase}`));

@@ -4,6 +4,7 @@ import type { CLIOptions } from '#/cli/options';
 
 import {
   DEFAULT_APPEARANCE_PREFERENCES,
+  DEFAULT_CONDUCTOR_PREFERENCES,
   DEFAULT_FOOTER_PREFERENCES,
   DEFAULT_ONBOARDING_PREFERENCES,
   type TuiConfig,
@@ -64,6 +65,11 @@ export function createInitialAppState(input: InitialAppStateInput): AppState {
     appearance: input.tuiConfig.appearance ?? DEFAULT_APPEARANCE_PREFERENCES,
     footer: input.tuiConfig.footer ?? DEFAULT_FOOTER_PREFERENCES,
     onboarding: input.tuiConfig.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES,
+    conductor: input.tuiConfig.conductor ?? DEFAULT_CONDUCTOR_PREFERENCES,
+    conductorProjectMode:
+      (input.tuiConfig.conductor ?? DEFAULT_CONDUCTOR_PREFERENCES).projectMode,
+    transcriptRegionMode:
+      (input.tuiConfig.conductor ?? DEFAULT_CONDUCTOR_PREFERENCES).transcriptRegionMode,
     availableModels: {},
     availableProviders: {},
     nonVisionFallbackPolicy: 'analyze',

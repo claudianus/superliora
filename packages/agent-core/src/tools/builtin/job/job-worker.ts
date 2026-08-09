@@ -786,6 +786,23 @@ export function interruptRunningJobs(input: {
   return out;
 }
 
+/**
+ * After hard process death, the ledger can still say `running` with no live
+ * worker. Same transition as {@link interruptRunningJobs}; abort is a no-op
+ * when nothing is registered. Call on Agent.resume so `/job resume` can restore.
+ */
+export function reconcileStaleRunningJobs(input: {
+  readonly store: ToolStore;
+  readonly agent?: Agent;
+  readonly reason?: string;
+}): readonly JobRecord[] {
+  return interruptRunningJobs({
+    store: input.store,
+    agent: input.agent,
+    reason: input.reason ?? 'process restarted',
+  });
+}
+
 export { abortRegisteredJobWorker as abortJobWorker };
 
 /**

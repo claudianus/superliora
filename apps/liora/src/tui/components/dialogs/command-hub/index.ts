@@ -9,6 +9,7 @@ export {
   commandHubKeepsOpen,
   commandHubNestsPicker,
   cyclePermissionMode,
+  cycleTranscriptRegionMode,
   isCommandHubCycleId,
   isCommandHubToggleId,
 } from './command-hub-behavior';

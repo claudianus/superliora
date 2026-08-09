@@ -44,6 +44,7 @@ describe('buildDefaultCommandHubItems', () => {
     for (const id of [
       'workspace.errors',
       'workspace.jobOps',
+      'workspace.jobInbox',
       'workspace.cron',
       'chat.rewind',
       'chat.loops',
@@ -53,6 +54,7 @@ describe('buildDefaultCommandHubItems', () => {
     ] as const) {
       expect(ids.has(id)).toBe(true);
     }
+    expect(commandHubActionToSlash('workspace.jobInbox')).toBe('/job inbox');
     expect([...ids].some((id) => id.includes('dashboard'))).toBe(false);
     expect(items.find((item) => item.id === 'help.commands')?.description).toContain(
       'slash command',

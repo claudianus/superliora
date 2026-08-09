@@ -108,8 +108,9 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   },
   {
     name: 'agents',
-    aliases: ['mission-control'],
-    description: 'Mission Control — cycle the subagent monitor band (auto/pinned/hidden)',
+    aliases: ['workers', 'mission-control'],
+    description:
+      'Worker Dock — cycle the worker monitor band (auto/pinned/hidden)',
     priority: 88,
     argumentHint: '[auto|pinned|hidden]',
     availability: 'always',

@@ -74,6 +74,9 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.welcome.label.version': 'Version:   ',
   'tui.welcome.label.mcp': 'MCP:       ',
   'tui.welcome.modelPrefix': 'Model: ',
+  'tui.welcome.conductorCoach.line1': 'Describe a task — Conductor takes intake only',
+  'tui.welcome.conductorCoach.line2': 'Jobs run workers in the background',
+  'tui.welcome.conductorCoach.line3': 'Alt+J watches the Job Deck',
 
   // ── Empty-transcript idle stage ──────────────────────────────────────────
   'tui.idle.title': 'jewel tank',
@@ -295,6 +298,8 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.tip.shell': '! to run a shell command',
   'tui.tip.ctrlO': 'Ctrl+O cycles transcript density: minimal → compact → standard → full',
   'tui.tip.ctrlB': 'ctrl-b backgrounds a long shell task; /tasks shows progress',
+  'tui.tip.conductorJobs': '/jobs lists Conductor jobs · /jobs deck watches workers',
+  'tui.tip.altJ': 'Alt+J opens the Conductor Job Deck',
   'tui.tip.shiftEnter': 'shift+enter: newline',
   'tui.tip.ctrlC': 'ctrl+c: cancel',
   'tui.tip.theme': '/theme to switch the terminal UI theme',
@@ -415,6 +420,9 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.welcome.label.version': '버전:     ',
   'tui.welcome.label.mcp': 'MCP:      ',
   'tui.welcome.modelPrefix': '모델: ',
+  'tui.welcome.conductorCoach.line1': '작업만 적으면 됩니다 — Conductor가 접수합니다',
+  'tui.welcome.conductorCoach.line2': 'Job이 백그라운드에서 워커를 실행합니다',
+  'tui.welcome.conductorCoach.line3': 'Alt+J로 Job Deck를 감시합니다',
 
   // ── Empty-transcript idle stage ──────────────────────────────────────────
   'tui.idle.title': '보석 수조',
@@ -631,6 +639,8 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.tip.shell': '!: 셸 명령 실행',
   'tui.tip.ctrlO': 'Ctrl+O로 트랜스크립트 밀도 순환: minimal → compact → standard → full',
   'tui.tip.ctrlB': 'ctrl-b로 긴 셸 작업을 백그라운드; /tasks로 진행 확인',
+  'tui.tip.conductorJobs': '/jobs로 Conductor Job 목록 · /jobs deck으로 워커 감시',
+  'tui.tip.altJ': 'Alt+J로 Conductor Job Deck 열기',
   'tui.tip.shiftEnter': 'shift+enter: 줄바꿈',
   'tui.tip.ctrlC': 'ctrl+c: 취소',
   'tui.tip.theme': '/theme으로 터미널 UI 테마 전환',

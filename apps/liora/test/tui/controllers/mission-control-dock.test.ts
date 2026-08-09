@@ -102,7 +102,7 @@ describe('mission control bottom band', () => {
     expect(missionBandActive(state)).toBe(false);
   });
 
-  it('paints Mission Control in the stage stack, never as a side dock', () => {
+  it('paints Worker Dock in the stage stack, never as a side dock', () => {
     const width = 200;
     const height = 80;
     const state = createState(width, height);
@@ -133,6 +133,6 @@ describe('mission control bottom band', () => {
     state.missionControlPanel.setView(busyView());
     const band = state.missionControlContainer.render(100);
     expect(band.length).toBeGreaterThan(0);
-    expect(band.join('\n')).toContain('Mission Control');
+    expect(band.join('\n')).toContain('Worker Dock');
   });
 });

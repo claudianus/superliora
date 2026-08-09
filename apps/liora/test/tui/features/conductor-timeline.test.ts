@@ -1,0 +1,76 @@
+/**
+ * Conductor Timeline projection + panel smoke.
+ */
+
+import { afterEach, describe, expect, it } from 'vitest';
+
+import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
+import { ConductorTimelinePanelComponent } from '#/tui/components/panes/conductor-timeline/timeline-panel';
+import { setActiveAppearancePreferences } from '#/tui/features/appearance/appearance-effects';
+import {
+  buildConductorTimeline,
+  stageForJob,
+} from '#/tui/features/control-tower/timeline';
+import {
+  emptyConductorJobsSnapshot,
+  type ConductorJobCard,
+  type ConductorJobsSnapshot,
+} from '#/tui/utils/job/job-strip';
+import { cycleConductorProjectMode } from '#/tui/utils/job/intent-brief';
+
+function card(
+  partial: Pick<ConductorJobCard, 'id' | 'title' | 'status'> &
+    Partial<ConductorJobCard>,
+): ConductorJobCard {
+  return {
+    kind: 'task',
+    priority: 0,
+    updatedAtMs: Date.now(),
+    ...partial,
+  };
+}
+
+describe('conductor timeline', () => {
+  afterEach(() => {
+    setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+  });
+
+  it('maps job statuses to stages and orders intake→land', () => {
+    expect(stageForJob(card({ id: 'a', title: 'q', status: 'queued' }))).toBe('intake');
+    expect(stageForJob(card({ id: 'b', title: 'r', status: 'running' }))).toBe('running');
+    expect(stageForJob(card({ id: 'c', title: 'n', status: 'needs_user' }))).toBe(
+      'needs_user',
+    );
+    expect(stageForJob(card({ id: 'd', title: 'd', status: 'done' }))).toBe('land');
+
+    const snap: ConductorJobsSnapshot = {
+      ...emptyConductorJobsSnapshot(),
+      jobs: [
+        card({ id: 'job_done', title: 'Landed', status: 'done', updatedAtMs: 3 }),
+        card({ id: 'job_run', title: 'Working', status: 'running', updatedAtMs: 2 }),
+        card({ id: 'job_q', title: 'Waiting', status: 'queued', updatedAtMs: 1 }),
+      ],
+    };
+    const entries = buildConductorTimeline(snap);
+    expect(entries.map((e) => e.stage)).toEqual(['intake', 'running', 'land']);
+  });
+
+  it('renders timeline panel with stage headers (profile off)', () => {
+    setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
+    const snap: ConductorJobsSnapshot = {
+      ...emptyConductorJobsSnapshot(),
+      jobs: [card({ id: 'job_1', title: 'Build UI', status: 'running' })],
+    };
+    const panel = new ConductorTimelinePanelComponent({
+      getSnapshot: () => snap,
+    });
+    const text = panel.render(80).join('\n');
+    expect(text).toContain('Conductor Timeline');
+    expect(text).toContain('Running');
+    expect(text).toContain('Build UI');
+  });
+
+  it('cycles project mode for Hub wiring', () => {
+    expect(cycleConductorProjectMode('hotfix')).toBe('review');
+  });
+});

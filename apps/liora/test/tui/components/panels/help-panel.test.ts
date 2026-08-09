@@ -25,6 +25,7 @@ describe('HelpPanelComponent', () => {
   it('renders keyboard shortcuts from keymap + slash commands', () => {
     const panel = new HelpPanelComponent({
       commands: [cmd('exit', 'Exit', ['quit', 'q'])],
+      maxVisible: 200,
       onClose: () => {},
     });
     const out = strip(panel.render(120).join('\n'));
@@ -44,6 +45,9 @@ describe('HelpPanelComponent', () => {
     expect(out).toMatch(/Cycle transcript density/);
     expect(out).toMatch(/Ctrl-T/);
     expect(out).not.toMatch(/Ctrl-Y/);
+    expect(out).toMatch(/Alt\+J/);
+    expect(out).toMatch(/Alt\+I/);
+    expect(out).toMatch(/Alt\+B/);
     expect(out).toMatch(/Slash commands/);
     expect(out).toMatch(/\/exit \(\/quit, \/q\)/);
     expect(out).toMatch(/Exit/);
@@ -111,7 +115,9 @@ describe('HelpPanelComponent', () => {
       intro: ADVANCED_HELP_INTRO,
       shortcuts: advancedKeyboardShortcuts(),
       commandSectionTitle: 'Advanced controls',
-      maxVisible: 24,
+      // Extra keymap rows (Alt+J/I/B) push the command section down; keep a
+      // tall window so Advanced controls stays on the first page in tests.
+      maxVisible: 40,
       onClose: () => {},
     });
     const advancedOut = strip(advancedPanel.render(120).join('\n'));

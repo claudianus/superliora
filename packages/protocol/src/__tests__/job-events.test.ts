@@ -147,4 +147,69 @@ describe('job.* protocol events', () => {
     expect('unknownTopLevel' in parsed).toBe(false);
     expect(agentEventSchema.parse(event).type).toBe('job.updated');
   });
+
+  it('v3: parses briefPreview, gateChecklist, landReceipt, actionHints', () => {
+    const updated = {
+      type: 'job.updated' as const,
+      schemaVersion: JOB_EVENT_SCHEMA_VERSION,
+      job: {
+        id: 'job_v3',
+        title: 'Land auth',
+        status: 'done' as const,
+        kind: 'implement' as const,
+        priority: 1,
+        deliveryPhase: 'fill' as const,
+        briefPreview: {
+          successCriteria: ['tests green'],
+          mustNotTouch: ['apps/liora'],
+          verificationCommands: ['pnpm test'],
+        },
+        gateChecklist: {
+          visual: 'na' as const,
+          review: 'pass' as const,
+          tests: 'pass' as const,
+          typecheck: 'pending' as const,
+        },
+        landReceipt: {
+          mergeSha: 'abc123',
+          branch: 'liora/job',
+          merged: true,
+          gcRemoved: false,
+        },
+      },
+    };
+    const parsed = jobUpdatedEventSchema.parse(updated);
+    expect(parsed.schemaVersion).toBe(3);
+    expect(parsed.job.briefPreview?.successCriteria).toEqual(['tests green']);
+    expect(parsed.job.gateChecklist?.tests).toBe('pass');
+    expect(parsed.job.landReceipt?.merged).toBe(true);
+
+    const inbox = {
+      type: 'job.inbox' as const,
+      schemaVersion: JOB_EVENT_SCHEMA_VERSION,
+      eventId: 'jinbox_v3',
+      kind: 'job.needs_user' as const,
+      jobId: 'job_v3',
+      status: 'needs_user' as const,
+      title: 'Need answer',
+      actionHints: ['jobResume', 'jobSteer'],
+    };
+    expect(jobInboxEventSchema.parse(inbox).actionHints).toEqual(['jobResume', 'jobSteer']);
+  });
+
+  it('dual-read: v2 journal events still parse under schemaVersion 3 readers', () => {
+    const v2Updated = {
+      type: 'job.updated' as const,
+      schemaVersion: 2 as const,
+      job: {
+        id: 'job_v2',
+        title: 'Legacy v2',
+        status: 'running' as const,
+        kind: 'task' as const,
+        priority: 0,
+        progress: { phase: 'working' },
+      },
+    };
+    expect(jobUpdatedEventSchema.parse(v2Updated).schemaVersion).toBe(2);
+  });
 });

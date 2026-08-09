@@ -38,7 +38,11 @@ export function showHubJobOpsPicker(host: HubNestedPickerHost): void {
       searchable: true,
       options: [
         { value: '/job list', label: 'Job list', description: 'Conductor job ledger table' },
-        { value: '/job inbox', label: 'Inbox', description: 'Unread job notices' },
+        {
+          value: '/job inbox',
+          label: 'Inbox',
+          description: 'Unread notices drawer (Alt+I)',
+        },
         {
           value: '/job resume',
           label: 'Resume…',
@@ -56,6 +60,21 @@ export function showHubJobOpsPicker(host: HubNestedPickerHost): void {
         },
         { value: '/job schedule', label: 'Schedule…', description: 'Promote queued jobs' },
         { value: '/job gc', label: 'GC', description: 'Worktree GC hint for done jobs' },
+        {
+          value: '/job split-preview',
+          label: 'Split preview…',
+          description: 'Confirm multi-intent Job create before staffing',
+        },
+        {
+          value: '/job mode hotfix',
+          label: 'Mode → hotfix',
+          description: 'Reduce parallelism (pool=2)',
+        },
+        {
+          value: '/jobs deck',
+          label: 'Job Deck',
+          description: 'Live worker monitor (Alt+J)',
+        },
       ],
       onSelect: (value) => {
         runSlashAndCloseHub(host, value);

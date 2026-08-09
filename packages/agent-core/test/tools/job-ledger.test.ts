@@ -42,6 +42,7 @@ import {
   interruptRunningJobs,
   jobPrompt,
   JOB_PRIOR_FINDINGS_MAX_CHARS,
+  reconcileStaleRunningJobs,
   resumeJobs,
 } from '../../src/tools/builtin/job/job-worker';
 import type { ToolStore } from '../../src/tools/store';
@@ -543,6 +544,22 @@ describe('job inbox + resume + strip', () => {
     expect(strip.queued).toBe(1);
     expect(formatJobStripLine(strip, 2)).toMatch(/Jobs:/);
     expect(formatJobStripLine(strip, 2)).toMatch(/inbox 2/);
+  });
+
+  it('reconciles stale running jobs so resume can re-queue them', async () => {
+    const store = memoryStore();
+    const job = createJob(store, { title: 'orphaned after crash' });
+    patchJob(store, job.id, { status: 'running' });
+
+    const reconciled = reconcileStaleRunningJobs({ store });
+    expect(reconciled).toHaveLength(1);
+    expect(reconciled[0]?.status).toBe('interrupted');
+    expect(getJob(store, job.id)?.notes).toContain('process restarted');
+
+    const before = await resumeJobs({ store, jobId: job.id });
+    expect(before.ok).toBe(true);
+    expect(before.resumed).toHaveLength(1);
+    expect(getJob(store, job.id)?.status).toBe('queued');
   });
 });
 

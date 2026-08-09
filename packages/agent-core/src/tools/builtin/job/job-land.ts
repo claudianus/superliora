@@ -5,6 +5,8 @@
 
 import type { Kaos } from '@superliora/kaos';
 
+import { runGit as kaosRunGit } from '#/autopilot/git';
+
 import type { Agent } from '../../../agent/index';
 import { removeSessionWorktree } from '../../../session/worktree';
 import type { ToolStore } from '../../store';
@@ -53,40 +55,14 @@ async function defaultRunGit(
   if (kaos === undefined) {
     return { code: 1, stdout: '', stderr: 'kaos unavailable for git land' };
   }
-  // Prefer kaos shell API shapes used elsewhere; fall back gracefully.
-  const shell = (
-    kaos as Kaos & {
-      shell?: {
-        run?: (req: {
-          command: string;
-          cwd?: string;
-        }) => Promise<{ exitCode?: number; code?: number; stdout?: string; stderr?: string }>;
-      };
-      exec?: (
-        command: string,
-        opts?: { cwd?: string },
-      ) => Promise<{ code?: number; exitCode?: number; stdout?: string; stderr?: string }>;
-    }
-  ).shell;
-  const command = ['git', ...args].map(shellQuote).join(' ');
-  if (shell?.run) {
-    const res = await shell.run({ command, cwd });
-    return {
-      code: res.exitCode ?? res.code ?? 1,
-      stdout: res.stdout ?? '',
-      stderr: res.stderr ?? '',
-    };
-  }
-  return { code: 1, stdout: '', stderr: 'no git runner on kaos' };
+  // Same kaos.exec path as worktree snapshot / git-bootstrap — Kaos has no shell.run.
+  const res = await kaosRunGit(kaos, cwd, args);
+  return {
+    code: res.ok ? 0 : (res.exitCode ?? 1),
+    stdout: res.stdout,
+    stderr: res.stderr,
+  };
 }
-
-function shellQuote(s: string): string {
-  if (/^[a-zA-Z0-9_./:@%+=,-]+$/.test(s)) return s;
-  return `'${s.replace(/'/g, `'\\''`)}'`;
-}
-
-// Silence unused import hints for consumers
-void removeSessionWorktree;
 
 export interface ResolveJobWorktreeMergeRefResult {
   readonly ref?: string;

@@ -31,6 +31,7 @@ import type { PendingExit, QueuedMessage } from '../../types';
 import type { TranscriptScrollAction } from '../../features/transcript/transcript-viewport';
 import type { TUIState } from '../../tui-state';
 import type { PromptStash } from '../../utils/prompt-stash';
+import { focusIntentComposer } from '../../features/control-tower/conductor-ux';
 import type { BtwPanelController } from '../panes/btw-panel';
 
 export interface EditorKeyboardHost extends PromptInputRuntimeHost {
@@ -67,6 +68,7 @@ export interface EditorKeyboardHost extends PromptInputRuntimeHost {
   showStatus(msg: string, color?: ColorToken): void;
   setAskMode(enabled: boolean): void;
   readonly jobBoardController: { openDeck(jobId?: string): void };
+  openJobInbox?(): void;
 }
 
 /**
@@ -396,6 +398,17 @@ export class EditorKeyboardController {
         return;
       }
       host.jobBoardController.openDeck();
+    };
+    editor.onOpenJobInbox = () => {
+      host.openJobInbox?.();
+    };
+    editor.onOpenIntentComposer = () => {
+      focusIntentComposer({
+        state: host.state,
+        session: host.session,
+        showStatus: (msg, color) => host.showStatus(msg, color),
+        jobBoardController: host.jobBoardController,
+      });
     };
     editor.onTranscriptSearch = () => {
       host.showTranscriptSearch();

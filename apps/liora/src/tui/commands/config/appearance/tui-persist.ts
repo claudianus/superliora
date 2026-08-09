@@ -4,9 +4,11 @@
 
 import {
   DEFAULT_APPEARANCE_PREFERENCES,
+  DEFAULT_CONDUCTOR_PREFERENCES,
   DEFAULT_FOOTER_PREFERENCES,
   DEFAULT_ONBOARDING_PREFERENCES,
   type AppearancePreferences,
+  type ConductorPreferences,
   type FooterPreferences,
   type OnboardingPreferences,
   type TuiConfig,
@@ -25,6 +27,12 @@ export function currentFooter(host: {
   return host.state.appState.footer ?? DEFAULT_FOOTER_PREFERENCES;
 }
 
+export function currentConductor(host: {
+  readonly state: { readonly appState: { readonly conductor?: ConductorPreferences } };
+}): ConductorPreferences {
+  return host.state.appState.conductor ?? DEFAULT_CONDUCTOR_PREFERENCES;
+}
+
 export function tuiConfigFromHost(
   host: {
     readonly state: {
@@ -35,6 +43,7 @@ export function tuiConfigFromHost(
         readonly appearance?: AppearancePreferences;
         readonly footer?: FooterPreferences;
         readonly onboarding?: OnboardingPreferences;
+        readonly conductor?: ConductorPreferences;
       };
     };
   },
@@ -50,6 +59,7 @@ export function tuiConfigFromHost(
     appearance: currentAppearance(host),
     footer: currentFooter(host),
     onboarding: host.state.appState.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES,
+    conductor: currentConductor(host),
     ...patch,
   };
 }

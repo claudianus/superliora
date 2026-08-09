@@ -4,6 +4,7 @@ export * from './payloads-session';
 export * from './payloads-agent';
 export * from './payloads-plugins';
 export * from './payloads-goal';
+export * from './payloads-job';
 export * from './payloads-config';
 export * from './payloads-memory';
 export * from './interfaces';

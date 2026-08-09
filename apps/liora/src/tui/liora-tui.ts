@@ -327,6 +327,9 @@ export interface LioraTUIHost {
   hideSessionPicker(): void;
   openUndoSelector(): void;
   openJobDeck(jobId?: string): void;
+  openJobInbox(): void;
+  openMergePreviewForJob(jobId: string): void;
+  maybeDefaultConductorTimeline(): void;
   showApprovalPanel(payload: ApprovalPanelData): void;
   focusPendingApprovalPanel(): boolean;
   showQuestionDialog(payload: QuestionPanelData): void;

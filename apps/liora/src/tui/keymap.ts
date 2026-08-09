@@ -117,6 +117,29 @@ export const KEYMAP_IDLE: readonly KeymapBinding[] = [
     surface: 'idle',
     category: 'edit',
   },
+  {
+    id: 'job-deck',
+    key: 'Alt+J',
+    description: 'Open the Conductor Job Deck monitor',
+    surface: 'idle',
+    category: 'navigate',
+    relatedSlash: ['/jobs'],
+  },
+  {
+    id: 'job-inbox',
+    key: 'Alt+I',
+    description: 'Open the Conductor Job Inbox drawer',
+    surface: 'idle',
+    category: 'navigate',
+    relatedSlash: ['/job'],
+  },
+  {
+    id: 'intent-composer',
+    key: 'Alt+B',
+    description: 'Edit Conductor Intent brief slots',
+    surface: 'idle',
+    category: 'edit',
+  },
 ];
 
 /** Streaming-only bindings. */
