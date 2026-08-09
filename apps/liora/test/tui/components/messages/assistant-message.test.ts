@@ -14,6 +14,7 @@ import {
   setAppearanceRenderQuality,
 } from '#/tui/features/appearance/appearance-effects';
 import { TURN_BOUNDARY_CUE_MS } from '#/tui/features/transcript/transcript-entrance';
+import { setActiveTranscriptDetail } from '#/tui/features/transcript/transcript-density';
 
 import { captureProcessWrite } from '../../../helpers/process';
 
@@ -199,6 +200,73 @@ describe('AssistantMessageComponent', () => {
       const lastContent = lines.filter((line) => line.trim().length > 0).at(-1) ?? '';
       expect(lastContent).not.toContain('▍');
     } finally {
+      for (const [key, value] of Object.entries(previousEnv)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
+
+  it('renders the full multi-line answer body at minimal density (no 4-line collapse)', () => {
+    setActiveTranscriptDetail('minimal');
+    try {
+      const component = new AssistantMessageComponent();
+      // Separate paragraphs so Markdown keeps each marker on its own block
+      // (single newlines soft-wrap into one paragraph).
+      const body = [
+        'ANSWER_MARK_ONE unique opener for the full answer body',
+        'ANSWER_MARK_TWO second paragraph of the answer body',
+        'ANSWER_MARK_THREE third paragraph of the answer body',
+        'ANSWER_MARK_FOUR fourth paragraph of the answer body',
+        'ANSWER_MARK_FIVE fifth paragraph of the answer body',
+        'ANSWER_MARK_SIX sixth paragraph of the answer body',
+        'ANSWER_MARK_SEVEN seventh paragraph of the answer body',
+      ].join('\n\n');
+      component.updateContent(body, { transient: false });
+      const out = strip(component.render(80).join('\n'));
+      expect(out).toContain('ANSWER_MARK_ONE');
+      expect(out).toContain('ANSWER_MARK_SEVEN');
+      expect(out).not.toMatch(/more lines/i);
+      expect(out).not.toMatch(/Ctrl\+O full/i);
+      // Collapse used to keep ~4 non-empty chrome/content lines; full body is longer.
+      const contentLines = out.split('\n').filter((line) => line.trim().length > 0);
+      expect(contentLines.length).toBeGreaterThan(5);
+    } finally {
+      setActiveTranscriptDetail('standard');
+    }
+  });
+
+  it('keeps the full streaming answer body at minimal density', () => {
+    const previousEnv = {
+      TERM: process.env['TERM'],
+      CI: process.env['CI'],
+      NO_COLOR: process.env['NO_COLOR'],
+    };
+    process.env['TERM'] = 'xterm-256color';
+    delete process.env['CI'];
+    delete process.env['NO_COLOR'];
+
+    setActiveTranscriptDetail('minimal');
+    try {
+      const component = new AssistantMessageComponent();
+      const body = [
+        'STREAM_MARK_ONE unique streaming opener paragraph',
+        'STREAM_MARK_TWO second streaming paragraph body',
+        'STREAM_MARK_THREE third streaming paragraph body',
+        'STREAM_MARK_FOUR fourth streaming paragraph body',
+        'STREAM_MARK_FIVE fifth streaming paragraph body',
+        'STREAM_MARK_SIX sixth streaming paragraph body',
+      ].join('\n\n');
+      component.updateContent(body, { transient: true });
+      const out = strip(component.render(80).join('\n'));
+      expect(out).toContain('STREAM_MARK_ONE');
+      expect(out).toContain('STREAM_MARK_SIX');
+      expect(out).not.toMatch(/more lines/i);
+      expect(out).not.toMatch(/Ctrl\+O full/i);
+      const contentLines = out.split('\n').filter((line) => line.trim().length > 0);
+      expect(contentLines.length).toBeGreaterThan(5);
+    } finally {
+      setActiveTranscriptDetail('standard');
       for (const [key, value] of Object.entries(previousEnv)) {
         if (value === undefined) delete process.env[key];
         else process.env[key] = value;
