@@ -548,7 +548,7 @@ describe('ToolCallComponent', () => {
       },
     );
 
-    const header = strip(component.render(100).join('\n')).split('\n')[1] ?? '';
+    const header = strip(component.render(100).join('\n')).split('\n')[0] ?? '';
     expect(header).toMatch(/Current plan · Approved/);
   });
 
@@ -571,7 +571,7 @@ describe('ToolCallComponent', () => {
       },
     );
 
-    const header = strip(component.render(100).join('\n')).split('\n')[1] ?? '';
+    const header = strip(component.render(100).join('\n')).split('\n')[0] ?? '';
     expect(header).toContain('Current plan · Approved: Pragmatic refactor');
   });
 

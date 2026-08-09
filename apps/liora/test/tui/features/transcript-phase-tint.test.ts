@@ -4,9 +4,12 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { darkColors } from '#/tui/theme/colors';
 import {
   applyPhaseTintLine,
+  applyWorkBlockTintLine,
   formatPhaseHeaderLine,
+  isWorkBlockPhase,
   phaseGutter,
   phaseHeaderLabel,
+  phaseTintHex,
 } from '#/tui/features/transcript/transcript-phase-tint';
 
 describe('transcript phase tint', () => {
@@ -19,6 +22,20 @@ describe('transcript phase tint', () => {
     expect(phaseHeaderLabel('thinking')).toBe('thinking');
     expect(phaseHeaderLabel('tools')).toBe('tools');
     expect(phaseHeaderLabel('answer')).toBe('answer');
+  });
+
+  it('shares one work-block tint for thinking and tools', () => {
+    expect(isWorkBlockPhase('thinking')).toBe(true);
+    expect(isWorkBlockPhase('tools')).toBe(true);
+    expect(isWorkBlockPhase('answer')).toBe(false);
+    expect(phaseTintHex('thinking', darkColors)).toBe(phaseTintHex('tools', darkColors));
+    expect(phaseTintHex('thinking', darkColors)).not.toBe(phaseTintHex('answer', darkColors));
+  });
+
+  it('paints blank work-block rows with the same fill', () => {
+    chalk.level = 3;
+    const blank = applyWorkBlockTintLine('', 8, 'tools', darkColors);
+    expect(blank).toContain('\u001B[48;2');
   });
 
   it('paints gutter and soft background on headers', () => {

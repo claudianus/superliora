@@ -9,7 +9,6 @@ import {
   Container,
   notifyTranscriptChildGeometryDirty,
   RendererChildrenRenderCache,
-  Spacer,
   Text,
 } from '#/tui/renderer';
 import type { Component, RendererRootUI } from '#/tui/renderer';
@@ -21,7 +20,7 @@ import {
   isOneLineToolLevel,
 } from '#/tui/features/transcript/transcript-density';
 import {
-  applyPhaseTintLine,
+  applyWorkBlockTintLine,
   phaseGutter,
 } from '#/tui/features/transcript/transcript-phase-tint';
 import {
@@ -157,7 +156,7 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
       hasResult: () => this.result !== undefined,
     });
 
-    this.addChild(new Spacer(1));
+    // No leading spacer — tools sit tight under thinking in the work block.
     this.headerText = new Text(buildToolCallHeaderText(this.internalsHost()), 0, 0);
     this.addChild(this.headerText);
     rebuildToolCallComponentBody(this.internalsHost());
@@ -230,11 +229,13 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
       isCacheEnabled: isRenderCacheEnabled,
     });
     const tinted = lines.map((line) => {
-      if (line.trim().length === 0) return line;
-      // Soft tools-phase tint + gutter on every non-blank row (incl. compact headers).
+      // Blank rows keep the work-block fill so the band stays continuous.
+      if (line.trim().length === 0) {
+        return applyWorkBlockTintLine('', width, 'tools');
+      }
       const withGutter =
         phaseGutter('tools') + (line.startsWith(' ') ? line.slice(1) : line);
-      return applyPhaseTintLine(withGutter, width, 'tools');
+      return applyWorkBlockTintLine(withGutter, width, 'tools');
     });
     if (!isTranscriptEntranceActive(this.entranceStartedAtMs) && this.result !== undefined) {
       return tinted;

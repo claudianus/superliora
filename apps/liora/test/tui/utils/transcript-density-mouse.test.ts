@@ -111,9 +111,9 @@ function mouse(
   return { type: 'mouse', raw: '', button, action, x, y, ctrl: false, alt: false, shift: false };
 }
 
-/** Row 1 of the first mounted component = its header (row 0 is the spacer). */
+/** Row 0 of the first mounted tool = its header (no leading spacer). */
 function headerClick(): NativeInputMouseEvent {
-  return mouse('press', RECT_X + 2, RECT_Y + 1);
+  return mouse('press', RECT_X + 2, RECT_Y + 0);
 }
 
 function strip(text: string): string {
@@ -155,8 +155,8 @@ describe('handleTranscriptDensityMouse', () => {
     handleTranscriptDensityMouse(currentState, headerClick());
     expect(component.isOneLineCollapsed).toBe(false);
 
-    // Row 3 lands inside the rendered body, not the header row.
-    const bodyClick = mouse('press', RECT_X + 4, RECT_Y + 3);
+    // Row 2 lands inside the rendered body, not the header row.
+    const bodyClick = mouse('press', RECT_X + 4, RECT_Y + 2);
     expect(handleTranscriptDensityMouse(currentState, bodyClick)).toBe(false);
     expect(component.isOneLineCollapsed).toBe(false);
   });

@@ -40,6 +40,7 @@ import {
 import { formatThinkingText } from '#/tui/utils/transcript/transcript-output-format';
 import {
   applyPhaseTintLine,
+  applyWorkBlockTintLine,
   phaseGutter,
 } from '#/tui/features/transcript/transcript-phase-tint';
 import { getActiveTranscriptDetail } from '#/tui/features/transcript/transcript-density';
@@ -207,20 +208,21 @@ export class ThinkingComponent implements Component {
             `thinking...${elapsed}${stall}${density}`,
           );
           const phaseTag = applyPhaseTintLine(
-            `${phaseGutter('thinking')} ${currentTheme.boldFg('syntaxMeta', 'thinking')}`,
+            `${phaseGutter('thinking')} ${currentTheme.boldFg('primary', 'thinking')}`,
             width,
             'thinking',
           );
+          // Leading untinted blank = breath after user; body rows share tools tint.
           const liveLines = [
             '',
             phaseTag,
             spinner + thinkingLabel,
             ...visibleLines.map((line) => MESSAGE_INDENT + line),
           ].map((line, i) => {
-            if (line.length === 0 || i <= 1) return line;
+            if (i === 0 || i === 1) return line;
             const guttered =
               phaseGutter('thinking') + (line.startsWith(' ') ? line.slice(1) : line);
-            return applyPhaseTintLine(guttered, width, 'thinking');
+            return applyWorkBlockTintLine(guttered, width, 'thinking');
           });
           return polishTranscriptLines(liveLines, {
             startedAtMs: this.entranceStartedAtMs,
@@ -236,12 +238,13 @@ export class ThinkingComponent implements Component {
           lines.push(p + contentLines[i]);
         }
 
+        // Settled paths are `['', summary, …]` — index 0 stays untinted breath.
         const tint = (raw: string[]): string[] =>
           raw.map((line, i) => {
-            if (line.length === 0) return line;
+            if (i === 0 && line.length === 0) return line;
             const guttered =
-              i <= 1 ? line : phaseGutter('thinking') + (line.startsWith(' ') ? line.slice(1) : line);
-            return applyPhaseTintLine(guttered, width, 'thinking');
+              phaseGutter('thinking') + (line.startsWith(' ') ? line.slice(1) : line);
+            return applyWorkBlockTintLine(guttered, width, 'thinking');
           });
 
         if (this.expanded || getActiveTranscriptDetail() === 'full') {

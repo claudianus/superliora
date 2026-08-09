@@ -2,6 +2,9 @@
  * Soft full-width background tints for transcript work-unit phases.
  * Derived from existing palette tokens via mixHex so custom themes inherit
  * without new ColorPalette fields (v1). Tint strength stays mild (~10–14%).
+ *
+ * thinking + tools share one work-block tint so they read as a single dense
+ * unit; answer / user keep distinct tints with breathing-room blanks.
  */
 
 import chalk from 'chalk';
@@ -13,7 +16,8 @@ export type TranscriptPhaseKind = 'thinking' | 'tools' | 'answer' | 'user';
 
 /** Mix ratio: higher = closer to canvas (subtler tint). */
 const TINT_MIX: Record<TranscriptPhaseKind, number> = {
-  thinking: 0.9,
+  // Same mix + accent as tools — one continuous work block.
+  thinking: 0.88,
   tools: 0.88,
   answer: 0.92,
   user: 0.9,
@@ -22,14 +26,19 @@ const TINT_MIX: Record<TranscriptPhaseKind, number> = {
 function phaseAccent(kind: TranscriptPhaseKind, palette: ColorPalette): string {
   switch (kind) {
     case 'thinking':
-      return palette.syntaxMeta;
     case 'tools':
+      // Shared work-block fill; gutter glyphs still differ via labels.
       return palette.primary;
     case 'answer':
       return palette.surfaceRaised;
     case 'user':
       return palette.roleUser;
   }
+}
+
+/** True when the phase belongs to the tight thinking→tools work block. */
+export function isWorkBlockPhase(kind: TranscriptPhaseKind): boolean {
+  return kind === 'thinking' || kind === 'tools';
 }
 
 export function phaseTintHex(
@@ -60,6 +69,22 @@ export function applyPhaseTintLine(
   const pad = Math.max(0, safeWidth - visible);
   const padded = pad > 0 ? clipped + ' '.repeat(pad) : clipped;
   return chalk.bgHex(bg)(padded);
+}
+
+/**
+ * Tint a row inside a work block. Blank rows keep the same fill so thinking→tools
+ * stays one solid band (untinted blanks are only for answer / user breathing room).
+ */
+export function applyWorkBlockTintLine(
+  line: string,
+  width: number,
+  kind: 'thinking' | 'tools',
+  palette?: ColorPalette,
+): string {
+  if (line.trim().length === 0) {
+    return applyPhaseTintLine('', width, kind, palette);
+  }
+  return applyPhaseTintLine(line, width, kind, palette);
 }
 
 /** Left gutter bar for stronger separation without loud fills. */

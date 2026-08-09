@@ -59,8 +59,9 @@ export class ToolChainSummaryComponent extends Container {
     if (isChainOnlyToolLevel(getActiveTranscriptDetail()) && this.stats.toolCount > 0) {
       detail = `${detail} · click expand`;
     }
+    // No leading blank — chain bar continues the thinking→tools work block.
     const header = formatPhaseHeaderLine('tools', detail, width);
-    const lines = ['', header];
+    const lines = [header];
     if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) {
       return lines;
     }

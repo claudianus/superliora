@@ -437,9 +437,10 @@ Levels:
 Coding syntax colors are controlled separately via
 `appearance.syntax_theme` (default `auto` → GitHub Dark Dimmed / GitHub Light).
 
-Work-unit phase tints (soft full-width bg + left gutter) separate
-**thinking · tools · answer** so mixed transcript streams stay scannable.
-See `features/transcript/transcript-phase-tint.ts`.
+Work-unit phase tints: **thinking + tools** share one tint and sit with no
+inter-row spacer (one dense work block). **answer** keeps a distinct tint and
+exactly one untinted blank line above and below so natural-language replies
+pop. See `features/transcript/transcript-phase-tint.ts`.
 
 Phase headers: user / thinking / answer components paint their own tags;
 tools use the **chain phase bar** at minimal/compact/standard. At **full**

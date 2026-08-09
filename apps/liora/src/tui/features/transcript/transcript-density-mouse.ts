@@ -50,9 +50,8 @@ export function handleTranscriptDensityMouse(
   if (!isOneLineToolLevel(range.child.getDetail())) return false;
 
   // Collapsed: the whole one-liner is the toggle target. Locally expanded
-  // (clicked open): only the header row closes it — row 1 sits under the
-  // component's 1-row spacer.
-  if (!range.child.isOneLineCollapsed && range.localRow !== 1) return false;
+  // (clicked open): only the header row (localRow 0 — no leading spacer) closes it.
+  if (!range.child.isOneLineCollapsed && range.localRow !== 0) return false;
 
   range.child.toggleDetailOverride();
   requestTUIContentRender(state);
