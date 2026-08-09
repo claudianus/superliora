@@ -17,6 +17,9 @@ export type ToolWorkflowCapability = {
   readonly hasContext7: boolean;
   readonly hasLeanRead: boolean;
   readonly hasBrowserUse: boolean;
+  readonly hasComputerUse: boolean;
+  readonly hasAgent: boolean;
+  readonly hasJob: boolean;
   readonly hasVerifySurface: boolean;
   readonly hasRunProjectChecks: boolean;
   readonly hasTodoList: boolean;
@@ -46,6 +49,13 @@ const TOOL_CAPABILITY_NAMES = {
   BrowserAct: 'hasBrowserUse',
   BrowserScreenshot: 'hasBrowserUse',
   BrowserConsole: 'hasBrowserUse',
+  ComputerStatus: 'hasComputerUse',
+  ComputerCapture: 'hasComputerUse',
+  ComputerAct: 'hasComputerUse',
+  Agent: 'hasAgent',
+  JobCreate: 'hasJob',
+  JobSteer: 'hasJob',
+  JobInbox: 'hasJob',
   VerifySurface: 'hasVerifySurface',
   RunProjectChecks: 'hasRunProjectChecks',
   TodoList: 'hasTodoList',
@@ -67,6 +77,9 @@ export function resolveToolWorkflowCapability(
     hasContext7: false,
     hasLeanRead: false,
     hasBrowserUse: false,
+    hasComputerUse: false,
+    hasAgent: false,
+    hasJob: false,
     hasVerifySurface: false,
     hasRunProjectChecks: false,
     hasTodoList: false,
@@ -92,9 +105,13 @@ export function hasToolWorkflowSurface(cap: ToolWorkflowCapability): boolean {
     cap.hasContext7 ||
     cap.hasLeanRead ||
     cap.hasBrowserUse ||
+    cap.hasComputerUse ||
+    cap.hasAgent ||
+    cap.hasJob ||
     cap.hasVerifySurface ||
     cap.hasRunProjectChecks ||
     cap.hasTodoList ||
+    cap.hasMemory ||
     cap.hasScript ||
     cap.hasCompact
   );
@@ -139,7 +156,7 @@ export function buildToolWorkflowGuidance(cap: ToolWorkflowCapability): string {
 
   if (cap.hasSearchSkill || cap.hasSkill) {
     lines.push(
-      '- Skills (progressive disclosure): SearchSkill with 3–12 concise English task keywords first; then Skill(exact name). Never invent skill names or call Skill with "search". Reuse already-loaded <liora-skill-loaded> content. Apply selectively — AGENTS.md and repo facts win.',
+      '- Skills (progressive disclosure): SearchSkill with 3–12 concise English task keywords first; then Skill(exact name). Never invent skill names or call Skill with "search". Reuse already-loaded <liora-skill-loaded> content. Apply selectively — AGENTS.md and repo facts win. Prefer builtin harness playbooks (browser-use / research-use / computer-use / git-safe / agent-job / project-checks) over catalog install scripts.',
     );
   }
 
@@ -149,12 +166,29 @@ export function buildToolWorkflowGuidance(cap: ToolWorkflowCapability): string {
     );
   }
 
+  if (cap.hasComputerUse) {
+    lines.push(
+      '- Desktop GUI: ComputerStatus → ComputerCapture(som) → ComputerAct(element indexes). Skill("computer-use"). Never install pyautogui / external CUA / Playwright for desktop while these tools exist.',
+    );
+  }
+
   if (cap.hasWebSearch || cap.hasFetchUrl || cap.hasContext7) {
     const parts: string[] = [];
     if (cap.hasContext7) parts.push('Context7Resolve → Context7Docs for library APIs');
     if (cap.hasWebSearch) parts.push('WebSearch for CVEs/releases/papers/news (year from GetCurrentTime / <current_time>)');
     if (cap.hasFetchUrl) parts.push('FetchURL on primary URLs before trusting snippets');
-    lines.push(`- Research when pretrained knowledge may be stale: ${parts.join('; ')}. Re-search when uncertainty returns. Cite URLs that drive recommendations.`);
+    lines.push(
+      `- Research when pretrained knowledge may be stale: ${parts.join('; ')}. Skill("research-use"). Never run catalog web-search/tavily/serpapi/context7 shell scripts while these tools exist. Re-search when uncertainty returns. Cite URLs that drive recommendations.`,
+    );
+  }
+
+  if (cap.hasAgent || cap.hasJob) {
+    const bits: string[] = [];
+    if (cap.hasAgent) bits.push('Agent');
+    if (cap.hasJob) bits.push('JobCreate/JobSteer/JobInbox');
+    lines.push(
+      `- Workers: ${bits.join(' + ')}. Skill("agent-job"). Do not install catalog swarm/subagent frameworks for ordinary harness delegation.`,
+    );
   }
 
   if (cap.hasTodoList) {
@@ -165,7 +199,9 @@ export function buildToolWorkflowGuidance(cap: ToolWorkflowCapability): string {
 
   if (cap.hasRunProjectChecks || cap.hasVerifySurface || cap.hasBrowserUse) {
     const verify: string[] = [];
-    if (cap.hasRunProjectChecks) verify.push('RunProjectChecks / package test|typecheck|build');
+    if (cap.hasRunProjectChecks) {
+      verify.push('RunProjectChecks / package test|typecheck|build (Skill("project-checks"))');
+    }
     if (cap.hasVerifySurface) {
       verify.push('VerifySurface for real UI (BrowserScreenshot alone is not visual proof)');
     } else if (cap.hasBrowserUse) {
@@ -176,7 +212,7 @@ export function buildToolWorkflowGuidance(cap: ToolWorkflowCapability): string {
 
   if (cap.hasMemory) {
     lines.push(
-      '- Memory: durable decisions/preferences only — not raw transcripts or archived tool dumps.',
+      '- Memory: durable decisions/preferences only — not raw transcripts or archived tool dumps. Prefer the Memory tool over catalog agent-memory installs.',
     );
   }
 
@@ -187,6 +223,8 @@ export function buildToolWorkflowGuidance(cap: ToolWorkflowCapability): string {
   if (cap.hasContext7) available.push('Context7');
   if (cap.hasLeanRead) available.push('RepoQuery');
   if (cap.hasFetchUrl) available.push('FetchURL');
+  if (cap.hasBrowserUse) available.push('Browser*');
+  if (cap.hasComputerUse) available.push('Computer*');
   if (cap.hasScript) available.push('Script');
   if (cap.hasCompact) available.push('Compact');
   if (available.length > 0) {
@@ -208,11 +246,14 @@ export function buildToolWorkflowSparseGuidance(cap: ToolWorkflowCapability): st
   if (cap.hasSearchTools) bits.push('SearchTools');
   if (cap.hasSearchSkill) bits.push('SearchSkill→Skill');
   if (cap.hasBrowserUse) bits.push('Browser* not Playwright install');
+  if (cap.hasComputerUse) bits.push('Computer* not pyautogui');
   if (cap.hasWebSearch || cap.hasFetchUrl) bits.push('WebSearch/FetchURL when stale');
   if (cap.hasContext7) bits.push('Context7 for libs');
   if (cap.hasLeanRead) bits.push('RepoQuery before dumps');
+  if (cap.hasAgent || cap.hasJob) bits.push('Agent/Job* not catalog swarm');
   if (cap.hasScript) bits.push('Script for bulk');
   if (cap.hasCompact) bits.push('Compact when bloated');
+  if (cap.hasMemory) bits.push('Memory tool');
   bits.push('dedicated tools > Bash');
   bits.push('Write≠shell I/O');
   bits.push('no secret shell');

@@ -148,7 +148,12 @@ export class ComputerActTool implements BuiltinTool<ComputerActInput> {
           const result = await this.runtime.act(toRuntimeActInput(args), ctx.signal);
           const builder = new ToolResultBuilder();
           builder.write(JSON.stringify(result, undefined, 2));
-          return builder.ok();
+          return result.ok
+            ? builder.ok()
+            : builder.error(
+                result.actions.find((action) => !action.ok)?.message ??
+                  'ComputerAct failed. Call ComputerCapture for fresh SOM indexes; do not install pyautogui or Playwright.',
+              );
         } catch (error) {
           return { isError: true, output: describeError(error) };
         }

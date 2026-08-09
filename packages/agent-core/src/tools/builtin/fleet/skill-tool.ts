@@ -21,7 +21,7 @@ import { renderModelToolSkillPrompt } from '../../../agent/skill/prompt';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
-import { isInlineSkillType, type SkillDefinition } from '../../../skill';
+import { harnessCollisionHint, isInlineSkillType, type SkillDefinition } from '../../../skill';
 import { renderPrompt } from '../../../utils/render-prompt';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { matchesGlobRuleSubject } from '../../support/rule-match';
@@ -131,6 +131,21 @@ export class SkillTool implements BuiltinTool<SkillToolInput> {
       // contract audits and integration tests stay deterministic.
       return errorResult(
         `Skill "${args.skill}" can only be triggered by the user (model invocation is disabled).`,
+      );
+    }
+
+    // Catalog names that collide with harness tools (web-search, context7, …).
+    // Builtin / project / user skills keep those names when intentional.
+    const collisionHint = harnessCollisionHint(skill.name);
+    if (
+      collisionHint !== undefined &&
+      skill.source !== 'builtin' &&
+      skill.source !== 'project' &&
+      skill.source !== 'user'
+    ) {
+      return errorResult(
+        `Skill "${skill.name}" collides with harness tools (${collisionHint}). ` +
+          `Use those tools (or Skill("research-use") / Skill("browser-use")) instead of this catalog skill.`,
       );
     }
 

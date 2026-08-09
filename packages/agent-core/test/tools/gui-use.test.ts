@@ -228,6 +228,22 @@ describe('computer-use builtin tools', () => {
     }, signal);
   });
 
+  it('marks ComputerAct as a tool error when actions fail', async () => {
+    const act = vi.fn().mockResolvedValue({
+      ok: false,
+      actions: [{ ok: false, action: 'click_element', message: 'Unknown element index 9' }],
+    });
+    const runtime = fakeComputerRuntime({ act });
+    const tool = new ComputerActTool(runtime);
+
+    const result = await executeTool(tool, context({
+      actions: [{ type: 'click_element', index: 9 }],
+    }));
+
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.output)).toContain('Unknown element index 9');
+  });
+
   it('returns computer runtime status as JSON text', async () => {
     const runtime = fakeComputerRuntime({
       status: vi.fn().mockResolvedValue({ installed: true, ready: true, version: 'cua-driver 1.0.0' }),

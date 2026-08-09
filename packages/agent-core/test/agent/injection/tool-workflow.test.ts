@@ -89,6 +89,36 @@ describe('resolveToolWorkflowCapability', () => {
     expect(sparse).toContain('Browser* not Playwright install');
   });
 
+  it('routes computer/research/memory/job surfaces', () => {
+    const cap = resolveToolWorkflowCapability([
+      'ComputerCapture',
+      'ComputerAct',
+      'WebSearch',
+      'Context7Resolve',
+      'Memory',
+      'Agent',
+      'JobCreate',
+    ]);
+    expect(cap.hasComputerUse).toBe(true);
+    expect(cap.hasMemory).toBe(true);
+    expect(cap.hasAgent).toBe(true);
+    expect(cap.hasJob).toBe(true);
+    expect(hasToolWorkflowSurface(cap)).toBe(true);
+    const guidance = buildToolWorkflowGuidance(cap);
+    expect(guidance).toContain('ComputerStatus');
+    expect(guidance).toContain('Skill("computer-use")');
+    expect(guidance).toContain('Skill("research-use")');
+    expect(guidance).toContain('Skill("agent-job")');
+    expect(guidance).toMatch(/Memory tool/);
+    const sparse = buildToolWorkflowSparseGuidance(cap);
+    expect(sparse).toContain('Computer* not pyautogui');
+    expect(sparse).toContain('Memory tool');
+  });
+
+  it('arms the injector for Memory-only profiles', () => {
+    expect(hasToolWorkflowSurface(resolveToolWorkflowCapability(['Memory']))).toBe(true);
+  });
+
   it('treats empty tool set as no surface', () => {
     expect(hasToolWorkflowSurface(resolveToolWorkflowCapability([]))).toBe(false);
     expect(hasToolWorkflowSurface(resolveToolWorkflowCapability(['Bash']))).toBe(false);

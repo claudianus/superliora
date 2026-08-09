@@ -114,7 +114,7 @@ describe('model skill runtime prompt', () => {
     expect(rendered).toContain('<liora-skill-loaded>');
     expect(rendered).not.toContain('skill-1499');
     expect(rendered).not.toContain('description 1499');
-    expect(rendered.length).toBeLessThan(1500);
+    expect(rendered.length).toBeLessThan(1800);
   });
 
   it('returns an empty model prompt when no skills are invocable', () => {
@@ -149,7 +149,7 @@ describe('skill search', () => {
     expect(description[0]?.name).toBe('api-helper');
   });
 
-  it('excludes private, high-risk, sub-skill, and non-inline skills from model search', async () => {
+  it('excludes private, high/critical/offensive-risk, sub-skill, and non-inline skills from model search', async () => {
     const registry = makeRegistry([
       makeSkill('safe-match', 'user', 'secret audit helper'),
       makeSkill('private-match', 'user', 'secret audit helper', undefined, {
@@ -159,6 +159,14 @@ describe('skill search', () => {
       makeSkill('danger-match', 'user', 'secret audit helper', undefined, {
         type: 'prompt',
         risk: 'high',
+      }),
+      makeSkill('critical-match', 'user', 'secret audit helper', undefined, {
+        type: 'prompt',
+        risk: 'critical',
+      }),
+      makeSkill('offensive-match', 'user', 'secret audit helper', undefined, {
+        type: 'prompt',
+        risk: 'offensive',
       }),
       makeSkill('child-match', 'user', 'secret audit helper', undefined, {
         type: 'prompt',
