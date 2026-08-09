@@ -135,7 +135,8 @@ export async function enqueueReviewJobForParent(
     kind: 'task',
     priority: (parent.priority ?? 0) + 1,
     prompt,
-    ownershipPaths: parent.ownershipPaths,
+    // Review is Maker≠Checker read/audit — do not pre-claim exclusive write
+    // leases on parent paths (blocks sibling Jobs at fan-out).
     contextPaths: parent.contextPaths ?? files,
     parentJobId: parent.id,
     expertId: pick?.expert.id,

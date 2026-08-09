@@ -27,6 +27,11 @@ import {
 } from './job-ledger';
 import { patchJobAndNotify } from './job-notify';
 import {
+  findOwnershipHolder,
+  listRunningOwnershipHolders,
+  noteOwnershipDeferred,
+} from './job-ownership';
+import {
   CONDUCTOR_PROJECT_MODE_MAX_CONCURRENT,
   type ConductorProjectMode,
   resolveConductorProjectMode,
@@ -90,23 +95,47 @@ export function canStartMoreJobs(
   return countJobsWithStatus(store, ['running']) < maxConcurrent;
 }
 
+/**
+ * Highest-priority queued Jobs ready to start, with parent-chain + ownership
+ * gates. Ownership: stay `queued` when a running (or same-batch) Job already
+ * claims an overlapping path — never promote into a spawn-time lease fail.
+ * Batch selection is greedy so Promise.all sibling races cannot claim the
+ * same path in one schedule tick.
+ */
 export function nextQueuedJobs(
   store: ToolStore,
   limit: number,
 ): JobRecord[] {
   const jobs = listJobs(store);
   const byId = new Map(jobs.map((job) => [job.id, job]));
-  return [...jobs]
+  const sorted = [...jobs]
     .filter((j) => j.status === 'queued')
     .filter((j) => parentAllowsSchedule(byId, j))
-    .sort((a, b) => b.priority - a.priority || a.createdAt.localeCompare(b.createdAt))
-    .slice(0, Math.max(0, limit));
+    .sort((a, b) => b.priority - a.priority || a.createdAt.localeCompare(b.createdAt));
+
+  const selected: JobRecord[] = [];
+  const reserved: JobRecord[] = listRunningOwnershipHolders(store);
+  const max = Math.max(0, limit);
+
+  for (const job of sorted) {
+    if (selected.length >= max) break;
+    const conflict = findOwnershipHolder(reserved, job);
+    if (conflict !== undefined) {
+      noteOwnershipDeferred(store, job, conflict.holder.id, conflict.path);
+      continue;
+    }
+    selected.push(job);
+    if (job.ownershipPaths !== undefined && job.ownershipPaths.length > 0) {
+      reserved.push(job);
+    }
+  }
+  return selected;
 }
 
 /**
  * Chain rule: keep parent→child sequential. Greenfield / review children are
  * enqueued while the parent is still live; starting them early races file
- * leases and shared worktrees (ownership conflict → instant fail).
+ * leases and shared worktrees.
  */
 function parentAllowsSchedule(
   byId: ReadonlyMap<string, JobRecord>,
