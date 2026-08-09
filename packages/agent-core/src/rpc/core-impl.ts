@@ -301,6 +301,7 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   jobCreate = delegateContextMethod(sessionAgentMethods.jobCreate);
   jobCreateBatch = delegateContextMethod(sessionAgentMethods.jobCreateBatch);
   jobMerge = delegateContextMethod(sessionAgentMethods.jobMerge);
+  jobPush = delegateContextMethod(sessionAgentMethods.jobPush);
   jobPreviewSplit = delegateContextMethod(sessionAgentMethods.jobPreviewSplit);
   jobGcWorktrees = delegateContextMethod(sessionAgentMethods.jobGcWorktrees);
   jobSetProjectMode = delegateContextMethod(sessionAgentMethods.jobSetProjectMode);

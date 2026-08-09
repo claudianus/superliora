@@ -52,6 +52,7 @@ import {
 import { dispatchMergeLand, type LandJobToMainInput } from './job-land';
 import { evaluateMergeTrust, mergeTrustInputFromLedger } from './job-merge-trust';
 import { patchJobAndNotify } from './job-notify';
+import { dispatchPushRemote, evaluatePushTrust } from './job-push';
 import { splitUserMessageIntoJobIntents } from './job-split';
 import { staffJobsFromObjective } from './job-staff';
 import { createGreenfieldChainJobs } from './job-greenfield-chain';
@@ -70,6 +71,7 @@ const JobKindSchema = z.enum([
   'implement',
   'mission',
   'merge',
+  'push',
   'desk',
   'goal-desk',
   'goal-driver',
@@ -98,7 +100,7 @@ const JobCreateInputSchema = z
         'Short outcome-shaped title for the ledger and ACK (verb + deliverable, e.g. "Fix auth token refresh race").',
       ),
     kind: JobKindSchema.optional().describe(
-      'Job kind. task/implement = code work (default task), explore = read-only research, mission = Plan Desk / long-running spine (plan profile + structured plan at spawn), merge = landing worker, desk = inbox digest, goal-desk = Goal Desk orchestrator (spawns goal-driver children; no main-lane goal loop), goal-driver = autonomous goal loop (the runtime migrates a Goal onto the worker; use prompt as the objective and goal_completion_criterion as its finish line). Defaults to task.',
+      'Job kind. task/implement = code work (default task), explore = read-only research, mission = Plan Desk / long-running spine (plan profile + structured plan at spawn), merge = landing worker, push = remote publish worker, desk = inbox digest, goal-desk = Goal Desk orchestrator (spawns goal-driver children; no main-lane goal loop), goal-driver = autonomous goal loop (the runtime migrates a Goal onto the worker; use prompt as the objective and goal_completion_criterion as its finish line). Defaults to task.',
     ),
     priority: z
       .number()
@@ -315,6 +317,40 @@ const MergeJobInputSchema = z
       .optional()
       .describe(
         'Extra paths to weigh; unioned with the files the worker changed. Dangerous paths block meta auto.',
+      ),
+  })
+  .strict();
+
+const PushJobInputSchema = z
+  .object({
+    job_id: z.string().trim().min(1),
+    approve: z
+      .boolean()
+      .describe('true to approve remote push under user gate; false to reject/hold.'),
+    summary: z.string().optional().describe('Publish summary recorded on the job.'),
+    remote: z
+      .string()
+      .trim()
+      .min(1)
+      .optional()
+      .describe('Git remote name (default origin). Force/option tokens rejected.'),
+    ref: z
+      .string()
+      .trim()
+      .min(1)
+      .optional()
+      .describe('Local ref to push (default: job worktree branch / HEAD).'),
+    remote_ref: z
+      .string()
+      .trim()
+      .min(1)
+      .optional()
+      .describe('Remote ref name (default: same as local ref). Use gh-pages for Pages deploys.'),
+    force_user_confirm: z
+      .boolean()
+      .optional()
+      .describe(
+        'Required true for approve — explicit user confirmation (Push Preview). Auto/yolo never waives.',
       ),
   })
   .strict();
@@ -1023,6 +1059,121 @@ export class MergeJobTool implements BuiltinTool<z.infer<typeof MergeJobInputSch
   }
 }
 
+export interface PushJobToolOptions {
+  readonly runGit?: LandJobToMainInput['runGit'];
+}
+
+export class PushJobTool implements BuiltinTool<z.infer<typeof PushJobInputSchema>> {
+  readonly name = 'PushJob' as const;
+  readonly description =
+    'Publish or hold a Job ref to a git remote under an explicit user gate. Workers and Conductor Bash cannot push; this tool records the verdict and offloads `git push` to a kind=push worker (no force-push). Requires force_user_confirm=true (Push Preview). Auto/yolo never waives.';
+  readonly parameters: Record<string, unknown> = toInputJsonSchema(PushJobInputSchema);
+
+  constructor(
+    private readonly store: ToolStore,
+    private readonly agent?: Agent,
+    private readonly options?: PushJobToolOptions,
+  ) {}
+
+  resolveExecution(args: z.infer<typeof PushJobInputSchema>): ToolExecution {
+    const parsed = PushJobInputSchema.safeParse(args);
+    if (!parsed.success) {
+      return { isError: true, output: `Invalid PushJob args: ${parsed.error.message}` };
+    }
+    const a = parsed.data;
+    return {
+      accesses: ToolAccesses.all(),
+      description: `PushJob ${a.job_id}`,
+      readOnly: false,
+      approvalRule: this.name,
+      execute: async () => {
+        const existing = getJob(this.store, a.job_id);
+        if (!existing) return { isError: true, output: `Job not found: ${a.job_id}` };
+
+        if (!a.approve) {
+          const job = patchJobAndNotify(
+            this.store,
+            a.job_id,
+            {
+              status: existing.status === 'done' ? 'done' : 'blocked',
+              notes: [existing.notes, `push: rejected ${a.summary ?? ''}`]
+                .filter(Boolean)
+                .join('\n'),
+            },
+            {
+              agent: this.agent,
+              summary: `push: rejected ${a.summary ?? ''}`.trim(),
+            },
+          );
+          return {
+            isError: false,
+            output: ack(job!.id, job!.status, 'Push rejected/held.'),
+          };
+        }
+
+        // Never launder auto permission into remote push approval.
+        const trust = evaluatePushTrust({
+          approve: true,
+          forceUserConfirm: a.force_user_confirm === true,
+          remote: a.remote ?? 'origin',
+          localRef: a.ref,
+          remoteRef: a.remote_ref,
+        });
+
+        if (!trust.ok) {
+          const holdNote = `push: hold — ${trust.reason}`;
+          const job = patchJobAndNotify(
+            this.store,
+            a.job_id,
+            {
+              status: 'blocked',
+              notes: [existing.notes, holdNote].filter(Boolean).join('\n'),
+            },
+            { agent: this.agent, summary: holdNote },
+          );
+          return {
+            isError: true,
+            output: ack(
+              job!.id,
+              job!.status,
+              `Push held: ${trust.reason}. Open Push Preview (or set force_user_confirm=true after explicit user approval).`,
+            ),
+          };
+        }
+
+        const dispatch = dispatchPushRemote({
+          store: this.store,
+          sourceJob: existing,
+          trustReason: trust.reason,
+          remote: a.remote ?? 'origin',
+          localRef: a.ref,
+          remoteRef: a.remote_ref,
+          summary: a.summary,
+          kaos: this.agent?.kaos,
+          repoPath: this.agent?.config.cwd,
+          agent: this.agent,
+          runGit: this.options?.runGit,
+        });
+
+        const latest = getJob(this.store, a.job_id) ?? existing;
+        return {
+          isError: false,
+          output: ack(
+            latest.id,
+            latest.status,
+            [
+              `Push approved. ${trust.reason}`,
+              dispatch.pushJob
+                ? `Execution offloaded to push worker ${dispatch.pushJob.id} (kind=push); result lands on ledger/inbox. Main turn ran no git push.`
+                : 'Dispatch failed — push held for manual resolve.',
+            ].join('\n'),
+          ),
+        };
+      },
+    };
+  }
+}
+
 export class JobScheduleTool implements BuiltinTool<Record<string, never>> {
   readonly name = 'JobSchedule' as const;
   readonly description =
@@ -1187,6 +1338,7 @@ export function createConductorJobTools(store: ToolStore, agent?: Agent): Builti
     new JobSteerTool(store, agent),
     new JobCancelTool(store, agent),
     new MergeJobTool(store, agent),
+    new PushJobTool(store, agent),
     new JobScheduleTool(store, agent),
     new JobResumeTool(store, agent),
     new JobInboxTool(store),

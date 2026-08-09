@@ -281,6 +281,7 @@ export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
     jobCreateBatch: (payload) =>
       jobRpc.jobCreateBatch(agent.tools.getStore(), payload.jobs, agent),
     jobMerge: (payload) => jobRpc.jobMerge(agent.tools.getStore(), payload, agent),
+    jobPush: (payload) => jobRpc.jobPush(agent.tools.getStore(), payload, agent),
     jobPreviewSplit: (payload) => jobRpc.jobPreviewSplit(payload.text),
     jobGcWorktrees: (payload) =>
       jobRpc.jobGcWorktrees(agent.tools.getStore(), { agent, dryRun: payload.dryRun }),

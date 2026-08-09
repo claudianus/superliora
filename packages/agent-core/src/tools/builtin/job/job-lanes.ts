@@ -32,6 +32,7 @@ export function classifyConductorLane(input: {
     input.kind === 'mission' ||
     input.kind === 'implement' ||
     input.kind === 'merge' ||
+    input.kind === 'push' ||
     input.kind === 'goal-driver'
   ) {
     return {

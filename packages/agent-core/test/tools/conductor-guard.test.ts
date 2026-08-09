@@ -64,7 +64,16 @@ describe('ConductorDirectWorkGuard', () => {
 
     it('allows the read-only and delegation surface', () => {
       const guard = new ConductorDirectWorkGuard();
-      for (const toolName of ['Read', 'Grep', 'Glob', 'RepoQuery', 'JobCreate', 'JobInbox']) {
+      for (const toolName of [
+        'Read',
+        'Grep',
+        'Glob',
+        'RepoQuery',
+        'JobCreate',
+        'JobInbox',
+        'MergeJob',
+        'PushJob',
+      ]) {
         expect(guard.evaluateToolCall({ toolName, turnId: 'turn-1' }).allowed, toolName).toBe(true);
       }
       // Bash passes only with a read-only command (V1-5 classification).

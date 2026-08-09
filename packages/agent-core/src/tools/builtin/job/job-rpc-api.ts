@@ -27,6 +27,7 @@ import {
 import { dispatchMergeLand } from './job-land';
 import { evaluateMergeTrust, mergeTrustInputFromLedger } from './job-merge-trust';
 import { patchJobAndNotify } from './job-notify';
+import { dispatchPushRemote, evaluatePushTrust } from './job-push';
 import {
   CONDUCTOR_PROJECT_MODE_MAX_CONCURRENT,
   resolveConductorProjectMode,
@@ -105,6 +106,24 @@ export interface JobMergeResult {
   readonly ok: boolean;
   readonly job?: JobSnapshot;
   readonly mergeJob?: JobSnapshot;
+  readonly text: string;
+  readonly error?: string;
+}
+
+export interface JobPushInput {
+  readonly jobId: string;
+  readonly approve: boolean;
+  readonly summary?: string;
+  readonly remote?: string;
+  readonly ref?: string;
+  readonly remoteRef?: string;
+  readonly forceUserConfirm?: boolean;
+}
+
+export interface JobPushResult {
+  readonly ok: boolean;
+  readonly job?: JobSnapshot;
+  readonly pushJob?: JobSnapshot;
   readonly text: string;
   readonly error?: string;
 }
@@ -395,6 +414,89 @@ export async function jobMerge(
       dispatch.mergeJob
         ? `Execution offloaded to landing worker ${dispatch.mergeJob.id}`
         : 'Dispatch failed — merge held for manual resolve.',
+    ].join('\n'),
+  };
+}
+
+export async function jobPush(
+  store: ToolStore,
+  input: JobPushInput,
+  agent?: Agent,
+): Promise<JobPushResult> {
+  const existing = getJob(store, input.jobId);
+  if (existing === undefined) {
+    return { ok: false, text: `Job not found: ${input.jobId}`, error: `Job not found: ${input.jobId}` };
+  }
+
+  if (!input.approve) {
+    const job = patchJobAndNotify(
+      store,
+      input.jobId,
+      {
+        status: existing.status === 'done' ? 'done' : 'blocked',
+        notes: [existing.notes, `push: rejected ${input.summary ?? ''}`].filter(Boolean).join('\n'),
+      },
+      {
+        agent,
+        summary: `push: rejected ${input.summary ?? ''}`.trim(),
+      },
+    );
+    return {
+      ok: true,
+      job: job ? snapshot(job) : undefined,
+      text: `ACK ${job!.id} state=${job!.status}\nPush rejected/held.`,
+    };
+  }
+
+  const trust = evaluatePushTrust({
+    approve: true,
+    forceUserConfirm: input.forceUserConfirm === true,
+    remote: input.remote ?? 'origin',
+    localRef: input.ref,
+    remoteRef: input.remoteRef,
+  });
+
+  if (!trust.ok) {
+    const holdNote = `push: hold — ${trust.reason}`;
+    const job = patchJobAndNotify(
+      store,
+      input.jobId,
+      {
+        status: 'blocked',
+        notes: [existing.notes, holdNote].filter(Boolean).join('\n'),
+      },
+      { agent, summary: holdNote },
+    );
+    return {
+      ok: false,
+      job: job ? snapshot(job) : undefined,
+      text: `Push held: ${trust.reason}`,
+      error: trust.reason,
+    };
+  }
+
+  const dispatch = dispatchPushRemote({
+    store,
+    sourceJob: existing,
+    trustReason: trust.reason,
+    remote: input.remote ?? 'origin',
+    localRef: input.ref,
+    remoteRef: input.remoteRef,
+    summary: input.summary,
+    kaos: agent?.kaos,
+    repoPath: agent?.config.cwd,
+    agent,
+  });
+  const latest = getJob(store, input.jobId) ?? existing;
+  return {
+    ok: true,
+    job: snapshot(latest),
+    pushJob: dispatch.pushJob ? snapshot(dispatch.pushJob) : undefined,
+    text: [
+      `Push approved. ${trust.reason}`,
+      dispatch.pushJob
+        ? `Execution offloaded to push worker ${dispatch.pushJob.id}`
+        : 'Dispatch failed — push held for manual resolve.',
     ].join('\n'),
   };
 }

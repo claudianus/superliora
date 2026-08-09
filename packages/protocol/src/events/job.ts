@@ -40,6 +40,7 @@ export type JobEventKind =
   | 'implement'
   | 'mission'
   | 'merge'
+  | 'push'
   | 'desk'
   | 'goal-desk'
   | 'goal-driver';
@@ -163,6 +164,7 @@ export const jobEventKindSchema = z.enum([
   'implement',
   'mission',
   'merge',
+  'push',
   'desk',
   'goal-desk',
   'goal-driver',

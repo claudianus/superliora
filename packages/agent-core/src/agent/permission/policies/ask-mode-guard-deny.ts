@@ -19,6 +19,7 @@ const ASK_MODE_BLOCKED_TOOLS = new Set<string>([
   'JobResume',
   'JobSchedule',
   'MergeJob',
+  'PushJob',
   'CreateGoal',
   'UpdateGoal',
   'SetGoalBudget',

@@ -237,7 +237,7 @@ function nextMoveGuidance(
   const goalDeskMove = goalDeskNextMove(events, store);
   if (goalDeskMove !== undefined) return goalDeskMove;
   if (events.some((e) => e.kind === 'job.completed')) {
-    return 'verify done-claims against the brief; report the outcome, and MergeJob-verdict if landing is wanted.';
+    return 'verify done-claims against the brief; report the outcome; MergeJob if landing is wanted; PushJob / Push Preview for remote publish (never ask the user to paste git push).';
   }
   if (strip.queued > 0) {
     return 'queued work is waiting on a pool slot — report the order honestly (running, then queued) and raise priority instead of creating a duplicate.';

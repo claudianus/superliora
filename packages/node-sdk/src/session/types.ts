@@ -51,6 +51,8 @@ export type {
   JobKind,
   JobMergeInput,
   JobMergeResult,
+  JobPushInput,
+  JobPushResult,
   JobResumeResult,
   JobSetProjectModeResult,
   JobSnapshot,

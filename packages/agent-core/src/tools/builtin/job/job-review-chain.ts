@@ -18,7 +18,14 @@ const REVIEW_ROLES = new Set(['review', 'debug', 'visual-qa']);
 /** Implement/task workers that should receive an automatic review child. */
 export function shouldEnqueueReviewAfterDone(job: JobRecord): boolean {
   if (job.status !== 'done') return false;
-  if (job.kind === 'merge' || job.kind === 'desk' || job.kind === 'goal-desk') return false;
+  if (
+    job.kind === 'merge' ||
+    job.kind === 'push' ||
+    job.kind === 'desk' ||
+    job.kind === 'goal-desk'
+  ) {
+    return false;
+  }
   if (job.kind === 'explore' || job.kind === 'mission') return false;
   const role = job.expertRole ?? 'implement';
   if (REVIEW_ROLES.has(role)) return false;
@@ -272,7 +279,12 @@ export function evaluateReviewChainForMerge(input: {
   if (REVIEW_ROLES.has(role)) {
     return { ok: true }; // merging a review job itself is unusual; trust path handles elsewhere
   }
-  if (input.job.kind === 'merge' || input.job.kind === 'desk' || input.job.kind === 'explore') {
+  if (
+    input.job.kind === 'merge' ||
+    input.job.kind === 'push' ||
+    input.job.kind === 'desk' ||
+    input.job.kind === 'explore'
+  ) {
     return { ok: true };
   }
   // Only gate coding deliveries.

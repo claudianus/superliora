@@ -23,17 +23,18 @@ describe('land-result-card', () => {
     expect(looksLikeLandInbox({ kind: 'job.failed', summary: 'Merged' })).toBe(false);
   });
 
-  it('formats success copy with short sha and Diff/push hints', () => {
+  it('formats success copy with short sha and Push Preview hints', () => {
     const notice = formatLandResultNotice({
       kind: 'job.completed',
       title: 'Land merge',
       landReceipt: { mergeSha: 'abcdef0123456789', merged: true },
-      actionHints: ['jobInspect'],
+      actionHints: ['jobPush', 'jobInspect'],
     });
     expect(notice?.title).toBe('Land merge');
     expect(notice?.detail).toContain('Landed on local main — not pushed to remote');
     expect(notice?.detail).toContain(shortMergeSha('abcdef0123456789'));
-    expect(notice?.detail).toMatch(/Diff|Inspect|push/i);
+    expect(notice?.detail).toMatch(/Open Push Preview/i);
+    expect(notice?.detail).toMatch(/Inspect/i);
   });
 
   it('appends GC line when landReceipt.gcRemoved', () => {

@@ -39,6 +39,8 @@ export interface InboxDrawerOptions {
   readonly onAct: (item: InboxDrawerItem) => void;
   /** Open Merge Preview for done/blocked jobs (M). */
   readonly onMergePreview?: (item: InboxDrawerItem) => void;
+  /** Open Push Preview for done/blocked jobs (P). */
+  readonly onPushPreview?: (item: InboxDrawerItem) => void;
   readonly onCancel: () => void;
   readonly requestRender?: () => void;
 }
@@ -78,6 +80,11 @@ export class InboxDrawerComponent extends Container implements Focusable {
     if (ch === 'm' || ch === 'M') {
       const item = this.items[this.selectedIndex];
       if (item !== undefined) this.opts.onMergePreview?.(item);
+      return;
+    }
+    if (ch === 'p' || ch === 'P') {
+      const item = this.items[this.selectedIndex];
+      if (item !== undefined) this.opts.onPushPreview?.(item);
       return;
     }
     if (matchesKey(data, Key.up) || ch === 'k') {

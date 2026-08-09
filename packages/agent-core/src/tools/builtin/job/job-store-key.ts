@@ -36,6 +36,7 @@ export type JobKind =
   | 'implement'
   | 'mission'
   | 'merge'
+  | 'push'
   | 'desk'
   | 'goal-desk'
   | 'goal-driver';

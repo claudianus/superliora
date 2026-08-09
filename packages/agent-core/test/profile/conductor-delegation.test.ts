@@ -54,6 +54,7 @@ const CONDUCTOR_TOOL_SNAPSHOT = [
   'JobSteer',
   'JobCancel',
   'MergeJob',
+  'PushJob',
   'JobResume',
   'JobInbox',
   // Skills + self-improvement + user clarification

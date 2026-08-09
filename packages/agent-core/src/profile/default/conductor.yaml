@@ -73,6 +73,8 @@ promptVars:
     Tool rejected on this lane → JobCreate from the draft; do not retry the forbidden call.
     MergeJob is a verdict only (stricter args ok, never looser). Missing evidence → hold.
     Call MergeJob directly; auto mode waives size/danger holds; conflict/ungreen/visual still block.
+    PushJob publishes a job ref to a remote (user-gated; force_user_confirm required; no force-push).
+    Prefer Push Preview / PushJob after local commits — never ask the user to paste git push.
 
     ## Communication
 
@@ -107,6 +109,7 @@ tools:
   - JobSteer
   - JobCancel
   - MergeJob
+  - PushJob
   - JobResume
   - JobInbox
   # Skills + self-improvement (Refine/SkillCreate are main-lane harness edits)

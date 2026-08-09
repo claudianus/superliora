@@ -1,57 +1,50 @@
 /**
- * Merge Preview Stage — approve/reject callbacks.
+ * Push Preview Stage — approve/reject callbacks.
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
-import { MergePreviewPanelComponent } from '#/tui/components/dialogs/merge-preview/merge-preview-panel';
+import { PushPreviewPanelComponent } from '#/tui/components/dialogs/push-preview/push-preview-panel';
 import { setActiveAppearancePreferences } from '#/tui/features/appearance/appearance-effects';
 import type { ConductorJobCard } from '#/tui/utils/job/job-strip';
-
-const ENTER = '\r';
 
 function sampleJob(overrides: Partial<ConductorJobCard> = {}): ConductorJobCard {
   return {
     id: 'job_abc123',
-    title: 'Ship hotfix',
+    title: 'Deploy Pages',
     status: 'done',
     kind: 'implement',
     priority: 0,
     updatedAtMs: Date.now(),
-    resultSummary: 'Fixed the race',
-    gateChecklist: {
-      visual: 'na',
-      review: 'pass',
-      tests: 'pass',
-      typecheck: 'pass',
-    },
+    resultSummary: 'Built dist/ for gh-pages',
+    worktreePath: '/tmp/job-wt',
     ...overrides,
   };
 }
 
-describe('MergePreviewPanelComponent', () => {
+describe('PushPreviewPanelComponent', () => {
   afterEach(() => {
     setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
   });
 
-  it('renders gates, land≠push note, and approves with Y', () => {
+  it('renders refspec and approves with Y', () => {
     setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
     const onApprove = vi.fn();
     const onReject = vi.fn();
-    const panel = new MergePreviewPanelComponent({
+    const panel = new PushPreviewPanelComponent({
       job: sampleJob(),
-      trustReason: 'Checks not green',
+      remote: 'origin',
+      localRef: 'gh-pages',
+      remoteRef: 'gh-pages',
       onApprove,
       onReject,
       onCancel: vi.fn(),
     });
     const lines = panel.render(80).join('\n');
-    expect(lines).toContain('Ship hotfix');
-    expect(lines).toContain('tests=pass');
-    expect(lines).toContain('Land ≠ push');
-    expect(lines).toMatch(/Push Preview/i);
-    expect(lines).toContain('Checks are not green yet');
+    expect(lines).toContain('Deploy Pages');
+    expect(lines).toContain('gh-pages → origin/gh-pages');
+    expect(lines).toContain('Push ≠ land');
 
     panel.handleInput('y');
     expect(onApprove).toHaveBeenCalledOnce();
@@ -62,7 +55,7 @@ describe('MergePreviewPanelComponent', () => {
     setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
     const onApprove = vi.fn();
     const onReject = vi.fn();
-    const panel = new MergePreviewPanelComponent({
+    const panel = new PushPreviewPanelComponent({
       job: sampleJob({ status: 'blocked' }),
       onApprove,
       onReject,
@@ -71,14 +64,5 @@ describe('MergePreviewPanelComponent', () => {
     panel.handleInput('n');
     expect(onReject).toHaveBeenCalledOnce();
     expect(onApprove).not.toHaveBeenCalled();
-    // Keep ENTER imported for smoke — approve path via Enter on default selection.
-    const panel2 = new MergePreviewPanelComponent({
-      job: sampleJob(),
-      onApprove,
-      onReject: vi.fn(),
-      onCancel: vi.fn(),
-    });
-    panel2.handleInput(ENTER);
-    expect(onApprove).toHaveBeenCalledOnce();
   });
 });

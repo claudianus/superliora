@@ -21,6 +21,7 @@ import type {
   JobInboxPayload,
   JobIdPayload,
   JobMergePayload,
+  JobPushPayload,
   JobPreviewSplitPayload,
   JobResumePayload,
   JobSetProjectModePayload,
@@ -380,6 +381,10 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
 
   async jobMerge({ agentId, ...payload }: AgentScopedPayload<JobMergePayload>) {
     return (await this.getAgent(agentId)).jobMerge(payload);
+  }
+
+  async jobPush({ agentId, ...payload }: AgentScopedPayload<JobPushPayload>) {
+    return (await this.getAgent(agentId)).jobPush(payload);
   }
 
   async jobPreviewSplit({ agentId, ...payload }: AgentScopedPayload<JobPreviewSplitPayload>) {

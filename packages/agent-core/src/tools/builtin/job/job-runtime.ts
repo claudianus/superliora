@@ -338,8 +338,8 @@ export interface ScheduleJobsResult {
  * read-only kind cannot forget to opt in.
  */
 function needsWorktree(kind: JobKind): boolean {
-  // merge: bookkeeping only — land uses the source job's worktree.
-  if (kind === 'merge') return false;
+  // merge/push: bookkeeping only — land/push use the source job's worktree.
+  if (kind === 'merge' || kind === 'push') return false;
   const profile = profileForJobKind(kind);
   // explore + goal-desk: read-only / orchestration — no worktree.
   return profile !== 'explore' && profile !== 'goal-desk';
@@ -534,6 +534,7 @@ export function profileForJobKind(kind: JobKind): string {
     case 'implement':
     case 'task':
     case 'merge':
+    case 'push':
     default:
       return 'coder';
   }

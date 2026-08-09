@@ -200,6 +200,7 @@ const CONDUCTOR_DELEGATION_SAFE_TOOLS: ReadonlySet<string> = new Set([
   'JobInbox',
   'JobSchedule',
   'MergeJob',
+  'PushJob',
   // Plan/goal lifecycle management (§2.1 item 5)
   'EnterPlanMode',
   'NextPhase',

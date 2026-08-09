@@ -122,6 +122,8 @@ import type {
   JobInspectResult,
   JobMergePayload,
   JobMergeResult,
+  JobPushPayload,
+  JobPushResult,
   JobPreviewSplitPayload,
   JobResumePayload,
   JobResumeResult,
@@ -197,6 +199,7 @@ export interface AgentAPI {
   jobCreate: (payload: JobCreatePayload) => Promise<JobCreateResult>;
   jobCreateBatch: (payload: JobCreateBatchPayload) => Promise<JobCreateResult>;
   jobMerge: (payload: JobMergePayload) => Promise<JobMergeResult>;
+  jobPush: (payload: JobPushPayload) => Promise<JobPushResult>;
   jobPreviewSplit: (payload: JobPreviewSplitPayload) => readonly SplitJobIntent[];
   jobGcWorktrees: (payload: JobGcWorktreesPayload) => Promise<JobGcWorktreesResult>;
   jobSetProjectMode: (payload: JobSetProjectModePayload) => JobSetProjectModeResult;
