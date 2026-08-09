@@ -102,10 +102,8 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Workflow\s+research → interview → goal → integrate → verify → learn/);
     expect(output).toMatch(/Engine\s+Plan \| Goal \| Research \| Integrate \| Verify \| Learn/);
     expect(output).toMatch(/Autonomy\s+bounded now -> headless target/);
-    expect(output).toMatch(/Recovery\s+resumable evidence needed -> durable target/);
     expect(output).toMatch(/Tools\s+search first; load tools on demand/);
     expect(output).toMatch(/Research\s+WebSearch \+ FetchURL \+ Context7 ready \(local fallback\)/);
-    expect(output).toMatch(/Bench\s+Bench seed\/holdout · web\/media\/office\/ZDR · a1\/m2\/sw800\/s8/);
     expect(output).toMatch(
       /Media\s+set QWEN_TOKEN_PLAN_API_KEY, OPENAI_API_KEY, or GOOGLE\/GEMINI_API_KEY for GenerateImage\/GenerateVideo \(no MCP\)/,
     );
@@ -128,6 +126,8 @@ describe('status panel report lines', () => {
     expect(output).not.toContain('internal QA');
     expect(output).not.toContain('/preflight');
     expect(output).not.toContain('/bench');
+    expect(output).not.toContain('Recovery');
+    expect(output).not.toMatch(/\bBench\b/);
     expect(output).toContain('Plan');
     expect(output).toContain('Goal');
     expect(output).toContain('Plan usage');
@@ -187,10 +187,8 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Workflow\s+research → interview → goal → integrate → verify → learn/);
     expect(output).toMatch(/Engine\s+Plan \| Goal \| Research \| Integrate \| Verify \| Learn/);
     expect(output).toMatch(/Autonomy\s+bounded now -> headless target/);
-    expect(output).toMatch(/Recovery\s+resumable evidence needed -> durable target/);
     expect(output).toMatch(/Tools\s+search first; load tools on demand/);
     expect(output).toMatch(/Research\s+WebSearch \+ FetchURL \+ Context7 ready \(local fallback\)/);
-    expect(output).toMatch(/Bench\s+Bench seed\/holdout · web\/media\/office\/ZDR · a1\/m2\/sw800\/s8/);
     expect(output).toMatch(
       /Media\s+set QWEN_TOKEN_PLAN_API_KEY, OPENAI_API_KEY, or GOOGLE\/GEMINI_API_KEY for GenerateImage\/GenerateVideo \(no MCP\)/,
     );
@@ -198,6 +196,8 @@ describe('status panel report lines', () => {
     expect(output).toMatch(/Flow\s+███░ 3\/4 verify blocked/);
     expect(output).toMatch(/Stages\s+Plan off \| Goal ready \| Verify blocked/);
     expect(output).toMatch(/Blockers\s+model setup/);
+    expect(output).not.toContain('Recovery');
+    expect(output).not.toMatch(/\bBench\b/);
     expect(output).toMatch(/Scope\s+small focused diff; no broad refactor/);
     expect(output).toMatch(/Coverage\s+test public behavior changes/);
     expect(output).toMatch(/Writing\s+human voice lanes; detectors advisory-only/);
@@ -306,10 +306,8 @@ describe('status panel report lines', () => {
       'Engine',
       'Auto',
       'Autonomy',
-      'Recovery',
       'Tools',
       'Research',
-      'Bench',
       'Catalog',
       'Memory',
       'Flow',
@@ -392,30 +390,6 @@ describe('status panel report lines', () => {
     expect(toolsRow ?? '').toContain('Conductor · worker core');
   });
 
-
-  it('surfaces ready recovery evidence in the harness radar row', () => {
-    const lines = buildStatusReportLines({
-      version: '1.2.3',
-      model: 'k2',
-      workDir: '/tmp/project',
-      sessionId: 'ses-1',
-      sessionTitle: null,
-      thinking: true,
-      permissionMode: 'auto',
-      planMode: false,
-      contextUsage: 0.005,
-      contextTokens: 50,
-      maxContextTokens: 10000,
-      availableModels: {},
-      recovery: {
-        ready: true,
-        nextAction: 'Recovery evidence ready.',
-        evidencePath: '.superliora/evidence/sota/sota-gate-summary.json',
-      },
-    }).map(strip);
-
-    expect(lines.join('\n')).toMatch(/Recovery\s+resumable evidence ready -> durable target/);
-  });
 
   it('keeps ready next action before plan mode is enabled', () => {
     const lines = buildStatusReportLines({

@@ -36,7 +36,6 @@ const SSOT_REQUIRED = [
   { node: 'Hooks', value: 'hooks', panel: 'hooks-settings.ts' },
   { node: 'Skills', value: 'skills', panel: 'skills-settings.ts' },
   { node: 'Compaction', value: 'compaction', panel: 'compaction-settings.ts' },
-  { node: 'Bench / Diagnostics', value: 'bench-diagnostics', panel: 'bench-diagnostics-settings.ts' },
   { node: 'Network / Proxy', value: 'network', panel: 'network-settings.ts' },
   { node: 'Storage', value: 'storage', panel: 'storage-settings.ts' },
 ];

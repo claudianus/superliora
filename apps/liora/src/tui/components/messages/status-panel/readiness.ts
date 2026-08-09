@@ -90,12 +90,6 @@ function formatReadinessBlockers(options: StatusReportOptions): string {
   return blockers.length === 0 ? 'none detected' : blockers.join(', ');
 }
 
-function formatRecoveryGate(options: StatusReportOptions): string {
-  return options.recovery?.ready === true
-    ? 'resumable evidence ready -> durable target'
-    : 'resumable evidence needed -> durable target';
-}
-
 function compactCatalogValue(value: string): string {
   const maxLength = 28;
   if (value.length <= maxLength) return value;
@@ -150,7 +144,6 @@ const ENGINE_GATE = 'Plan | Goal | Research | Integrate | Verify | Learn';
 const AUTONOMY_GATE = 'bounded now -> headless target';
 const TOOLS_GATE = 'search first; load tools on demand';
 const RESEARCH_GATE = 'WebSearch + FetchURL + Context7 ready (local fallback)';
-const BENCH_GATE = 'Bench seed/holdout · web/media/office/ZDR · a1/m2/sw800/s8';
 const MEDIA_GATE =
   'set QWEN_TOKEN_PLAN_API_KEY, OPENAI_API_KEY, or GOOGLE/GEMINI_API_KEY for GenerateImage/GenerateVideo (no MCP)';
 const OFFICE_GATE =
@@ -277,10 +270,8 @@ function readinessGateRows(options: StatusReportOptions): readonly StatusFieldRo
     { label: ttui('tui.statusPanel.workflow'), value: WORKFLOW_GATE },
     { label: ttui('tui.statusPanel.engine'), value: ENGINE_GATE },
     { label: ttui('tui.statusPanel.autonomy'), value: AUTONOMY_GATE },
-    { label: ttui('tui.statusPanel.recovery'), value: formatRecoveryGate(options) },
     { label: ttui('tui.statusPanel.tools'), value: formatToolsGate(options) },
     { label: ttui('tui.statusPanel.research'), value: formatResearchGate(options) },
-    { label: ttui('tui.statusPanel.bench'), value: BENCH_GATE },
     { label: ttui('tui.statusPanel.media'), value: formatMediaGate(options) },
     { label: ttui('tui.statusPanel.office'), value: OFFICE_GATE },
     { label: ttui('tui.statusPanel.catalog'), value: formatModelCatalogGate(options) },

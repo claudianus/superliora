@@ -30,10 +30,7 @@ import {
   loadRuntimeStatusReport,
   loadSessionUsageReport,
 } from './info-loaders';
-import { loadStatusRecoveryReadiness } from './status-recovery-evidence';
-
 export { buildContextOsReportLines } from './context-os-report';
-export { loadStatusRecoveryReadiness } from './status-recovery-evidence';
 
 function playStatusOpenBeat(host: SlashCommandHost, title: string, seed: string): void {
   host.motionBeats.play({
@@ -167,7 +164,6 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
     loadLoopModelRouting(host),
   ]);
   const appState = host.state.appState;
-  const recovery = loadStatusRecoveryReadiness(appState.workDir);
   const privacy = loadPrivacySnapshot(host);
   const fieldMotion = createStatusFieldMotionState();
   const homeDir = host.harness.homeDir ?? getDataDir();
@@ -202,7 +198,6 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
     autoDream: runtimeStatus.status?.autoDream,
     privacyTelemetryEnabled: privacy.telemetryEnabled,
     gitStatus: createGitStatusCache(appState.workDir).getStatus(),
-    recovery,
     managedUsage: managedUsage?.usage,
     managedUsageError: managedUsage?.error,
     loopModelRouting: loopModelRouting.config,

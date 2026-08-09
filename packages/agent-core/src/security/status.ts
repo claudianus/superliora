@@ -22,7 +22,7 @@ export function isRedteamSoftSuitePresent(): boolean {
   return existsSync(redteamSoftSuiteAbsolutePath());
 }
 
-/** Bench / Diagnostics live line — Settings → Bench and Security both reuse SSOT path. */
+/** Security glance line — Settings → Security reuses this SSOT path. */
 export function formatRedteamSoftSuitePresentLine(): string {
   const label = isRedteamSoftSuitePresent() ? 'present' : 'missing';
   return `W6 redteam suite: ${label} — ${REDTEAM_SOFT_SUITE_REL_PATH}`;

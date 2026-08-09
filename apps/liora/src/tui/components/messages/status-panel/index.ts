@@ -39,15 +39,11 @@ import {
   formatLastRouteSelection,
   noticeKindLabel,
 } from './route-notice';
-import type {
-  StatusHumanWritingReadiness,
-  StatusRecoveryReadiness,
-  StatusReportOptions,
-} from './types';
+import type { StatusHumanWritingReadiness, StatusReportOptions } from './types';
 
 export type { StatusFieldMotionState } from './field-motion';
 export { createStatusFieldMotionState };
-export type { StatusHumanWritingReadiness, StatusRecoveryReadiness, StatusReportOptions };
+export type { StatusHumanWritingReadiness, StatusReportOptions };
 
 export function buildStatusReportLines(options: StatusReportOptions): string[] {
   const accent = (text: string) => currentTheme.boldFg('primary', text);

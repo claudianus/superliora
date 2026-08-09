@@ -288,7 +288,6 @@ export function buildHostSettingsLines(input: HostGlanceInput): readonly string[
     `· ${HOST_SOVEREIGN_UMBRELLA_TIP}`,
     `· ${HOST_FUTURE_TIP}`,
     ...(ttftLine === null && ttftP50Line === null ? [`· ${HOST_TTFT_TIP}`] : []),
-    '· Bench / Diagnostics will export cache miss dump + trace',
     '',
     'No host switch action here until W8 In-process Host + Latency lands.',
   ];

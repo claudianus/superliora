@@ -155,11 +155,11 @@ describe('FooterComponent — goal badge', () => {
     expect(out).not.toContain('1 turns');
   });
 
-  it('surfaces the SuperLiora SOTA pulse for LioraBench/ZDR goals', () => {
+  it('surfaces the SuperLiora SOTA pulse for ZDR goals', () => {
     const footer = new FooterComponent(
       baseState({
         goal: {
-          objective: 'Improve LioraBench ZDR proof loops',
+          objective: 'Improve ZDR proof loops',
           status: 'active',
           turnsUsed: 1,
           tokensUsed: 0,

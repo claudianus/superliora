@@ -1,6 +1,6 @@
 import { join } from 'pathe';
 
-/** Workspace-local SuperLiora data directory (evidence, wiki, bench artifacts). */
+/** Workspace-local SuperLiora data directory (evidence, wiki, and similar artifacts). */
 export const WORKSPACE_DATA_DIR = '.superliora';
 
 /** Canonical LLM Wiki root for prompts and new workspaces. */

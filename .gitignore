@@ -37,6 +37,7 @@ apps/site/axe-*.json
 # Workspace-local data dirs (`.superliora/` canonical, `.super-kimi/` legacy).
 # The `**/` prefix also matches nested package/app directories (e.g. `apps/liora/.superliora/`).
 **/.superliora/evidence/
+**/.superliora/bench/
 **/.superliora/index/
 **/.superliora/wiki/
 **/.superliora/boulder.json
