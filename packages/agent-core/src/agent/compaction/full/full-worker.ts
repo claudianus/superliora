@@ -7,6 +7,7 @@ import { toKimiErrorPayload } from '#/errors/index';
 
 import { isAbortError } from '../../../loop/errors';
 import { createDeadlineAbortSignal } from '../../../utils/abort';
+import { estimateTokensForMessages } from '../../../utils/tokens';
 import type {
   CompactionBeginData,
   CompactionResult,
@@ -16,12 +17,16 @@ import type {
 import {
   injectResumeRecheckReminder,
 } from '../pipeline/assemble';
-import { resolveCompactionWorkerTimeoutMs } from '../pipeline/generate-guard';
+import {
+  resolveCompactionWorkerTimeoutMs,
+  scaleCompactionWorkerTimeoutMs,
+} from '../pipeline/generate-guard';
 import type { FullCompactionWorkerHost } from '../pipeline/types';
 import {
   runCompactionRound,
   StaleCompactionContextError,
 } from '../pipeline/round';
+import { applyTimeoutEmergencyCompaction } from './timeout-fallback';
 
 /** Hard cap on multi-round compaction so a pathological history cannot loop forever. */
 const MAX_COMPACTION_ROUNDS = 8;
@@ -42,7 +47,15 @@ export async function runCompactionWorker(
   // Whole-worker wall-clock budget: even if individual generate calls hang past
   // their own deadlines (or a post-generate stage never settles), this always
   // aborts the compaction lock so the session cannot freeze permanently.
-  const workerTimeoutMs = resolveCompactionWorkerTimeoutMs();
+  // Scale with prefix size — a fixed 10m budget kills 100-block parallel runs
+  // mid-flight and the turn immediately restarts the same doomed job.
+  const compactedTokens = estimateTokensForMessages(
+    host.agent.context.history.slice(0, compactedCount),
+  );
+  const workerTimeoutMs = scaleCompactionWorkerTimeoutMs({
+    baseMs: resolveCompactionWorkerTimeoutMs(),
+    compactedTokens,
+  });
   const deadline = createDeadlineAbortSignal(signal, workerTimeoutMs);
   try {
     const finalActions: CompactionResultAction[] = [];
@@ -175,19 +188,37 @@ export async function runCompactionWorker(
     host.agent.emitEvent({ type: 'compaction.completed', result: finalResult });
     host.agent.turn.onCompactionFinished();
   } catch (error) {
-    // Worker wall-clock timeout: surface as APITimeoutError so blocked turns
-    // get a real failure instead of a silent cancel-shaped abort.
+    // Worker wall-clock timeout: reclaim via extractive backstop when possible
+    // so Conductor sessions do not cancel→retry the same oversized job forever.
     const timedOut = deadline.timedOut();
+    if (timedOut) {
+      host.agent.telemetry.track('compaction_worker_timeout', {
+        timeout_ms: workerTimeoutMs,
+        compacted_tokens: compactedTokens,
+      });
+      const recovered = applyTimeoutEmergencyCompaction(host, data, compactedCount);
+      if (recovered !== undefined) {
+        host.agent.telemetry.track('compaction_worker_timeout_backstop', {
+          timeout_ms: workerTimeoutMs,
+          tokens_before: recovered.tokensBefore,
+          tokens_after: recovered.tokensAfter,
+          compacted_count: recovered.compactedCount,
+        });
+        await host.agent.injection.injectAfterCompaction();
+        injectResumeRecheckReminder(host, recovered.summary);
+        host.syncCompactionBaseline();
+        host.triggerPostCompactHook(data, recovered);
+        host.markCompleted();
+        host.agent.emitEvent({ type: 'compaction.completed', result: recovered });
+        host.agent.turn.onCompactionFinished();
+        return;
+      }
+    }
     const effectiveError = timedOut
       ? new APITimeoutError(
           `Compaction worker timed out after ${String(workerTimeoutMs)}ms.`,
         )
       : error;
-    if (timedOut) {
-      host.agent.telemetry.track('compaction_worker_timeout', {
-        timeout_ms: workerTimeoutMs,
-      });
-    }
     // Caller abort (not worker timeout) is settled by the `finally` below,
     // which releases the lock if this worker still owns it.
     if (!timedOut && isAbortError(error)) return;
