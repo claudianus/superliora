@@ -71,7 +71,7 @@ curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.
 # Windows PowerShell
 irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex
 
-liora --version   # SuperLiora 0.20.1
+liora --version   # SuperLiora 0.3.0
 ```
 
 ### 빠른 시작

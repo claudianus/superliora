@@ -137,7 +137,7 @@ export interface Translation {
   };
 }
 
-export const PRODUCT_VERSION = '0.20.1';
+export const PRODUCT_VERSION = '0.3.0';
 
 export const translations: Record<Lang, Translation> = {
   ko: {
@@ -158,7 +158,7 @@ export const translations: Record<Lang, Translation> = {
       install: 'Install',
     },
     hero: {
-      eyebrow: 'Blood Moon · terminal harness v0.20.1',
+      eyebrow: 'Blood Moon · terminal harness v0.3.0',
       h1: '긴 개발 작업을 터미널에서 끝까지 이어 붙입니다',
       lead:
         'SuperLiora는 계획, 조사, 목표, 병렬 실행, 검증, 기억, 문서화, 브라우저·컴퓨터 사용을 하나의 Mission 흐름으로 묶습니다. Blood Moon 팔레트 위에서 근거와 완료 기준을 잃지 않게 합니다.',
@@ -166,7 +166,7 @@ export const translations: Record<Lang, Translation> = {
       github: 'GitHub',
       secondary: '라이브 데모',
       stats: [
-        { value: '0.20.1', label: 'liora release' },
+        { value: '0.3.0', label: 'liora release' },
         { value: '128', label: 'max specialists' },
         { value: '7', label: 'Mission stages' },
         { value: 'MIT', label: 'open license' },
@@ -220,7 +220,7 @@ export const translations: Record<Lang, Translation> = {
       note: 'Shift + Tab · /mission · liora --plan',
     },
     terminal: [
-      { cmd: 'liora --version', output: 'SuperLiora 0.20.1' },
+      { cmd: 'liora --version', output: 'SuperLiora 0.3.0' },
       { cmd: 'liora', output: 'Interactive session ready · Blood Moon TUI' },
       { cmd: 'liora --plan', output: 'Plan steering on · Plan interview armed' },
       {
@@ -433,7 +433,7 @@ export const translations: Record<Lang, Translation> = {
       install: 'Install',
     },
     hero: {
-      eyebrow: 'Blood Moon · terminal harness v0.20.1',
+      eyebrow: 'Blood Moon · terminal harness v0.3.0',
       h1: 'Carry long development work to the finish in your terminal',
       lead:
         'SuperLiora binds planning, research, goals, parallel execution, verification, memory, documentation, browser-use, and computer-use into one Mission flow. The Blood Moon palette keeps dense status readable without losing evidence.',
@@ -441,7 +441,7 @@ export const translations: Record<Lang, Translation> = {
       github: 'GitHub',
       secondary: 'Live demo',
       stats: [
-        { value: '0.20.1', label: 'liora release' },
+        { value: '0.3.0', label: 'liora release' },
         { value: '128', label: 'max specialists' },
         { value: '7', label: 'Mission stages' },
         { value: 'MIT', label: 'open license' },
@@ -495,7 +495,7 @@ export const translations: Record<Lang, Translation> = {
       note: 'Shift + Tab · /mission · liora --plan',
     },
     terminal: [
-      { cmd: 'liora --version', output: 'SuperLiora 0.20.1' },
+      { cmd: 'liora --version', output: 'SuperLiora 0.3.0' },
       { cmd: 'liora', output: 'Interactive session ready · Blood Moon TUI' },
       { cmd: 'liora --plan', output: 'Plan steering on · Plan interview armed' },
       {

@@ -56,7 +56,7 @@ export function HeroCommandCenter() {
           <div className="font-mono text-[11px] leading-relaxed text-soft sm:text-xs">
             <span className="text-cyan">$</span> liora --version
             <br />
-            <span className="text-muted">›</span> SuperLiora 0.20.1
+            <span className="text-muted">›</span> SuperLiora 0.3.0
             <br />
             <span className="text-cyan">$</span> liora --plan
             <br />
@@ -152,7 +152,7 @@ export function HeroCommandCenter() {
       <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-white/10 bg-bg/80 px-3 py-1 text-xs font-medium text-text backdrop-blur">
         <span className="flex items-center gap-1.5">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald pulse-dot" />
-          SuperLiora 0.20.1
+          SuperLiora 0.3.0
         </span>
       </div>
     </div>

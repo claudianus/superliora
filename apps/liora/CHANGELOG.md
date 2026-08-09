@@ -1,5 +1,21 @@
 # @superliora/liora
 
+## 0.3.0
+
+### Minor Changes
+
+- Restore richer premium transcript streaming motion: faster type-on catch-up, stronger live ink glow/caret, steadier ambient cadence under light load, and more concurrent tool-card live rebuilds. Set Visual Quality to Premium to feel it.
+- Unify Todo Board and Worker Dock chrome-band live motion.
+- Add `--main` / `/upgrade --main` to install tip of `main` past published releases.
+- Add turn-level Smart Auto model routing and PushJob remote publish gating.
+- Localize the interactive TUI (EN/KO) via Settings language.
+
+### Breaking Changes
+
+- Remove Mission mode and Swarm mode surfaces (`/mission`, `/swarm`, `/fleet`, related settings). Use `/plan`, `/goal`, the agent dock, and the job strip instead.
+- Remove beginner-hostile diagnostic slash commands (`/bench`, `/renderer`, `/term`, `/export-debug-zip`, `/improve-harness`, `/preflight`) and `/feedback`.
+- Drop remaining Kimi-era CLI migration / cache compatibility paths; use `liora` and `.superliora` only.
+
 ## 0.20.1
 
 ### Patch Changes
