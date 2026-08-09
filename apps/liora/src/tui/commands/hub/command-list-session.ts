@@ -368,7 +368,9 @@ export const BUILTIN_SLASH_COMMANDS_SESSION = [
   {
     name: 'upgrade',
     aliases: ['update'],
-    description: 'Open Upgrade Studio — check and install updates (/update same)',
+    description:
+      'Open Upgrade Studio — published releases by default; --main for tip of origin/main',
+    argumentHint: '[--main]',
     priority: 90,
     availability: 'always',
   },

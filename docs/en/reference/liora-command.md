@@ -269,7 +269,14 @@ liora export 01HZ...XYZ -o ./bug-report.zip --no-include-global-log
 ```sh
 liora update
 liora upgrade
+liora upgrade --main
 ```
+
+In the TUI, `/upgrade` and `/update` open Upgrade Studio (published releases by default). Use `/upgrade --main` or pick **Install tip of main** to skip releases.
+
+| Option | Description |
+| --- | --- |
+| `--main` | Ignore published GitHub Releases / CDN latest; install the tip of `origin/main` from source (`install.sh --main`, or an in-place git checkout when one exists) |
 
 For global npm, pnpm, yarn, bun, GitHub source installs, and macOS / Linux native installations, the command can install automatically when you confirm. When the current installation method cannot be upgraded automatically (e.g., Windows native installation), the manual update command is printed instead.
 

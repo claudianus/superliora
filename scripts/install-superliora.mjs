@@ -28,8 +28,12 @@ const here = dirname(fileURLToPath(import.meta.url));
 
 const args = parseArgs(process.argv.slice(2));
 
+const fromMain = args.fromMain === true;
+const preferSource = fromMain || args.preferSource === true;
+const sourceRef = fromMain ? 'main' : args.ref;
+
 const theatre = createTheatre({
-  mode: args.preferSource ? 'source' : 'prebuilt',
+  mode: preferSource ? 'source' : 'prebuilt',
   title: 'Installing SuperLiora',
 });
 
@@ -53,25 +57,10 @@ try {
   let mode = 'prebuilt';
   let sourceTree = null;
 
-  if (args.preferSource) {
+  if (preferSource) {
     mode = 'source';
-  } else if (!args.forcePrebuilt) {
-    theatre.setMode('prebuilt');
-    theatre.setStage('downloading', 'Fetching release manifest');
-    const pre = await tryInstallPrebuilt({
-      manifestUrl: args.manifestUrl,
-      binDir,
-      commandName,
-    });
-    if (pre.ok) {
-      theatre.setDetail(`Placed SEA ${pre.result.version || ''} (${pre.result.target})`);
-      await ensureBinOnPath(binDir, { noShellRc: args.noShellRc });
-      theatre.setStage('installing', `Installed ${commandName} binary`);
-    } else {
-      theatre.note(`Prebuilt unavailable (${pre.error}); falling back to source`);
-      mode = 'source';
-    }
   } else {
+    // Default: published GitHub Release prebuilt only — no silent main tip fallback.
     theatre.setMode('prebuilt');
     theatre.setStage('downloading', 'Fetching release manifest');
     const pre = await tryInstallPrebuilt({
@@ -79,7 +68,13 @@ try {
       binDir,
       commandName,
     });
-    if (!pre.ok) throw new Error(`Prebuilt required (--force-prebuilt): ${pre.error}`);
+    if (!pre.ok) {
+      throw new Error(
+        `Prebuilt release unavailable (${pre.error}). ` +
+          'Pass --main to build the tip of origin/main from source, ' +
+          'or --prefer-source --ref <ref> for another checkout.',
+      );
+    }
     theatre.setDetail(`Placed SEA ${pre.result.version || ''} (${pre.result.target})`);
     await ensureBinOnPath(binDir, { noShellRc: args.noShellRc });
     theatre.setStage('installing', `Installed ${commandName} binary`);
@@ -87,10 +82,10 @@ try {
 
   if (mode === 'source') {
     theatre.setMode('source');
-    theatre.setStage('fetching', 'Fetching SuperLiora source');
+    theatre.setStage('fetching', fromMain ? 'Fetching tip of main' : 'Fetching SuperLiora source');
     const fetched = await fetchSource({
       repoUrl: args.repoUrl,
-      ref: args.ref,
+      ref: sourceRef,
       installDir,
       force: args.force,
     });
@@ -190,6 +185,7 @@ function parseArgs(argv) {
     noComputerUse: process.env.SUPERLIORA_SKIP_COMPUTER_USE === '1',
     noRetrieval: process.env.SUPERLIORA_SKIP_RETRIEVAL === '1',
     preferSource: process.env.SUPERLIORA_PREFER_SOURCE === '1',
+    fromMain: process.env.SUPERLIORA_FROM_MAIN === '1',
     forcePrebuilt: process.env.SUPERLIORA_FORCE_PREBUILT === '1',
   };
 
@@ -244,6 +240,9 @@ function parseArgs(argv) {
       case '--prefer-source':
         out.preferSource = true;
         break;
+      case '--main':
+        out.fromMain = true;
+        break;
       case '--force-prebuilt':
         out.forcePrebuilt = true;
         break;
@@ -273,11 +272,12 @@ function parseArgs(argv) {
 function printHelp() {
   process.stdout.write(`Usage: node scripts/install-superliora.mjs [options]
 
-Prebuilt SEA from GitHub Releases first; source build on failure.
+Default: install the latest published GitHub Release prebuilt (SEA).
+Use --main to build the tip of origin/main from source instead.
 
 Options:
   --repo <url>          Git repository URL
-  --ref <ref>           Branch or tag
+  --ref <ref>           Branch or tag (source mode; ignored with --main)
   --install-dir <path>  Source checkout directory
   --bin-dir <path>      Command install directory
   --command <name>      Command name (default: liora)
@@ -289,7 +289,8 @@ Options:
   --no-computer-use     Skip cua-driver
   --no-retrieval        Skip Granite embedder bootstrap
   --no-shell-rc         Do not edit shell PATH / User PATH
-  --prefer-source       Skip prebuilt; build from source
-  --force-prebuilt      Fail if prebuilt unavailable
+  --main                Ignore releases; build tip of origin/main from source
+  --prefer-source       Skip prebuilt; build from source (--ref, default main)
+  --force-prebuilt      Fail if prebuilt unavailable (same as default without --main)
 `);
 }

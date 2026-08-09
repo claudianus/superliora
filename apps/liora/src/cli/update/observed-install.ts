@@ -19,6 +19,8 @@ export interface StartObservedUpgradeInstallOptions {
   readonly targetVersion: string;
   readonly source: InstallSource;
   readonly platform: NodeJS.Platform;
+  readonly fromMain?: boolean;
+  readonly checkoutRoot?: string;
   readonly onStage?: (stage: UpgradeInstallStage, detail?: string) => void;
 }
 
@@ -107,7 +109,10 @@ export async function startObservedUpgradeInstall(
     emitStage(onStage, 'checking');
     emitStage(onStage, initialObservedStage(source));
 
-    const { cmd, args } = spawnForSource(source, target.version, platform);
+    const { cmd, args } = spawnForSource(source, target.version, platform, {
+      fromMain: options.fromMain,
+      checkoutRoot: options.checkoutRoot,
+    });
     let settled = false;
     let installingEmitted = source === 'github-checkout';
     let installingTimer: ReturnType<typeof setTimeout> | undefined;

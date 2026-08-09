@@ -23,6 +23,7 @@ function plan(overrides: Partial<UpgradePlan> = {}): UpgradePlan {
     dirty: false,
     canAutoInstall: true,
     reason: 'update-available',
+    fromMain: false,
     ...overrides,
   };
 }
@@ -77,7 +78,22 @@ describe('UpgradeStudioComponent', () => {
     expect(out).toContain('0.4.0');
     expect(out).toContain('0.5.0');
     expect(out).toMatch(/Install 0\.5\.0|Install/);
+    expect(out).toContain('Install tip of main');
     expect(out).toContain('Later');
+  });
+
+  it('offers Install tip of main when already on a published release', () => {
+    const onSelect = vi.fn();
+    const studio = new UpgradeStudioComponent({
+      mode: 'plan',
+      plan: plan({ reason: 'up-to-date', target: null, canAutoInstall: false }),
+      onSelect,
+      onCancel: vi.fn(),
+    });
+    const out = text(studio);
+    expect(out).toContain('Install tip of main');
+    studio.handleInput('\r');
+    expect(onSelect).toHaveBeenCalledWith('install-main');
   });
 
   it('warns dirty trees but still offers Install when canAutoInstall', () => {

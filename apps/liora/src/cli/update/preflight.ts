@@ -134,8 +134,9 @@ export async function installUpdate(
   source: InstallSource,
   version: string,
   platform: NodeJS.Platform,
+  options: { readonly fromMain?: boolean; readonly checkoutRoot?: string } = {},
 ): Promise<void> {
-  const { cmd, args } = spawnForSource(source, version, platform);
+  const { cmd, args } = spawnForSource(source, version, platform, options);
   await new Promise<void>((resolve, reject) => {
     const child = spawn(cmd, [...args], {
       stdio: 'inherit',

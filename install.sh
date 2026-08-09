@@ -26,6 +26,7 @@ NO_BROWSER_USE=0
 NO_COMPUTER_USE=0
 NO_RETRIEVAL=0
 PREFER_SOURCE=0
+FROM_MAIN=0
 FORCE_PREBUILT=0
 
 STAGE_MARKER_PREFIX='__LIORA_UPGRADE_STAGE__='
@@ -34,11 +35,12 @@ usage() {
   cat <<EOF
 Usage: install.sh [options]
 
-Installs SuperLiora (prebuilt SEA preferred, source fallback) and creates the liora command.
+Installs SuperLiora from the latest published GitHub Release (prebuilt SEA)
+and creates the liora command. Pass --main to build tip of origin/main instead.
 
 Options:
   --repo <url>          Git repository URL. Default: ${DEFAULT_REPO_URL}
-  --ref <ref>           Branch, tag, or ref. Default: ${DEFAULT_REF}
+  --ref <ref>           Branch, tag, or ref (source mode; ignored with --main). Default: ${DEFAULT_REF}
   --install-dir <path>  Source checkout directory. Default: ~/.superliora/source
   --bin-dir <path>      Command install directory. Default: ~/.local/bin
   --command <name>      Command name. Default: liora
@@ -50,8 +52,9 @@ Options:
   --no-computer-use     Skip cua-driver computer-use install
   --no-retrieval        Skip local Granite-97M embedder + passage indexes
   --no-shell-rc         Do not edit shell startup files
-  --prefer-source       Skip prebuilt; build from source
-  --force-prebuilt      Fail if prebuilt unavailable
+  --main                Ignore releases; build tip of origin/main from source
+  --prefer-source       Skip prebuilt; build from source (--ref)
+  --force-prebuilt      Fail if prebuilt unavailable (default without --main/--prefer-source)
   -h, --help            Show this help
 
 Environment variables:
@@ -60,7 +63,7 @@ Environment variables:
   SUPERLIORA_MANIFEST_URL, SUPERLIORA_RAW_BASE,
   SUPERLIORA_SKIP_BROWSER_USE, SUPERLIORA_SKIP_COMPUTER_USE,
   SUPERLIORA_SKIP_RETRIEVAL, SUPERLIORA_PREFER_SOURCE,
-  SUPERLIORA_FORCE_PREBUILT
+  SUPERLIORA_FROM_MAIN, SUPERLIORA_FORCE_PREBUILT
 EOF
 }
 
@@ -101,11 +104,16 @@ while [ "$#" -gt 0 ]; do
     --no-retrieval) NO_RETRIEVAL=1; shift ;;
     --no-shell-rc) NO_SHELL_RC=1; shift ;;
     --prefer-source) PREFER_SOURCE=1; shift ;;
+    --main) FROM_MAIN=1; shift ;;
     --force-prebuilt) FORCE_PREBUILT=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown option: $1" ;;
   esac
 done
+
+if [ "${SUPERLIORA_FROM_MAIN:-0}" = "1" ]; then
+  FROM_MAIN=1
+fi
 
 INSTALL_DIR="$(expand_path "$INSTALL_DIR")"
 BIN_DIR="$(expand_path "$BIN_DIR")"
@@ -228,6 +236,7 @@ orch_args=(
 [ "$NO_COMPUTER_USE" -eq 1 ] && orch_args+=(--no-computer-use)
 [ "$NO_RETRIEVAL" -eq 1 ] && orch_args+=(--no-retrieval)
 [ "$PREFER_SOURCE" -eq 1 ] && orch_args+=(--prefer-source)
+[ "$FROM_MAIN" -eq 1 ] && orch_args+=(--main)
 [ "$FORCE_PREBUILT" -eq 1 ] && orch_args+=(--force-prebuilt)
 
 # shellcheck disable=SC2093

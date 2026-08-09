@@ -35,11 +35,15 @@ type UpgradeTrack = (event: string, properties?: TelemetryProperties) => void;
 type UpgradeLogger = Pick<Logger, 'info' | 'warn'>;
 
 export interface UpgradeDeps {
-  readonly resolveUpgradePlan: (currentVersion: string) => Promise<UpgradePlan>;
+  readonly resolveUpgradePlan: (
+    currentVersion: string,
+    options?: { readonly fromMain?: boolean },
+  ) => Promise<UpgradePlan>;
   readonly installUpdate: (
     source: InstallSource,
     version: string,
     platform: NodeJS.Platform,
+    options?: { readonly fromMain?: boolean; readonly checkoutRoot?: string },
   ) => Promise<void>;
   readonly promptForInstallChoice: (
     options: InstallPromptOptions,
@@ -51,6 +55,7 @@ export interface UpgradeDeps {
   readonly track: UpgradeTrack;
   readonly logger: UpgradeLogger;
   readonly updateGuiUseAfterUpgrade: () => Promise<void>;
+  readonly fromMain: boolean;
 }
 
 export async function handleUpgrade(
@@ -58,7 +63,7 @@ export async function handleUpgrade(
   overrides: Partial<UpgradeDeps> = {},
 ): Promise<number> {
   const deps = createDefaultUpgradeDeps(overrides);
-  const plan = await deps.resolveUpgradePlan(currentVersion);
+  const plan = await deps.resolveUpgradePlan(currentVersion, { fromMain: deps.fromMain });
 
   if (plan.reason === 'check-failed') {
     trackUpgradeEvent(deps.track, 'upgrade_command_failed', {
@@ -207,15 +212,25 @@ export async function handleUpgrade(
       source: plan.source,
     });
     const useTheatre = deps.isInteractive && deps.stdout.isTTY === true;
+    const installOptions = {
+      fromMain: plan.fromMain,
+      checkoutRoot: plan.checkoutRoot,
+    };
     if (useTheatre) {
       await installWithCliTheatre(
         deps,
         currentVersion,
         plan.source,
         plan.target.version,
+        installOptions,
       );
     } else {
-      await deps.installUpdate(plan.source, plan.target.version, deps.platform);
+      await deps.installUpdate(
+        plan.source,
+        plan.target.version,
+        deps.platform,
+        installOptions,
+      );
     }
     await deps.updateGuiUseAfterUpgrade();
     trackUpgradeEvent(deps.track, 'upgrade_command_succeeded', {
@@ -273,6 +288,7 @@ async function installWithCliTheatre(
   currentVersion: string,
   source: InstallSource,
   targetVersion: string,
+  installOptions: { readonly fromMain?: boolean; readonly checkoutRoot?: string } = {},
 ): Promise<void> {
   const progress = new CliUpgradeProgressWriter(deps.stdout);
   progress.start();
@@ -298,6 +314,8 @@ async function installWithCliTheatre(
       targetVersion,
       source,
       platform: deps.platform,
+      fromMain: installOptions.fromMain,
+      checkoutRoot: installOptions.checkoutRoot,
       onStage: (stage, detail) => {
         if (stage === 'done') {
           progress.update({ source, stage: 'done', targetVersion });
@@ -341,10 +359,12 @@ function createDefaultUpgradeDeps(overrides: Partial<UpgradeDeps>): UpgradeDeps 
   const stdout = overrides.stdout ?? process.stdout;
   const stderr = overrides.stderr ?? process.stderr;
   const platform = overrides.platform ?? process.platform;
+  const fromMain = overrides.fromMain === true;
   return {
     resolveUpgradePlan:
       overrides.resolveUpgradePlan ??
-      ((currentVersion) => resolveUpgradePlan(currentVersion, { platform })),
+      ((currentVersion, options) =>
+        resolveUpgradePlan(currentVersion, { platform }, { fromMain: options?.fromMain ?? fromMain })),
     installUpdate: overrides.installUpdate ?? installUpdateForeground,
     promptForInstallChoice: overrides.promptForInstallChoice ?? promptForInstallChoice,
     platform,
@@ -355,6 +375,7 @@ function createDefaultUpgradeDeps(overrides: Partial<UpgradeDeps>): UpgradeDeps 
     logger: overrides.logger ?? log,
     updateGuiUseAfterUpgrade:
       overrides.updateGuiUseAfterUpgrade ?? (() => updateGuiUseAfterUpgrade({ stdout, stderr })),
+    fromMain,
   };
 }
 

@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { resolveUpgradePlan, SUPERLIORA_CHANGELOG_URL } from '#/cli/update/plan';
+import {
+  MAIN_TIP_UPSTREAM,
+  resolveUpgradePlan,
+  SUPERLIORA_CHANGELOG_URL,
+} from '#/cli/update/plan';
 
 describe('resolveUpgradePlan', () => {
   it('force-refreshes CDN and returns update-available for npm-global', async () => {
@@ -20,7 +24,68 @@ describe('resolveUpgradePlan', () => {
     expect(plan.reason).toBe('update-available');
     expect(plan.target).toEqual({ version: '0.5.0' });
     expect(plan.canAutoInstall).toBe(true);
+    expect(plan.fromMain).toBe(false);
     expect(plan.changelogUrl).toBe(SUPERLIORA_CHANGELOG_URL);
+  });
+
+  it('--main skips CDN and plans a native source install when no checkout exists', async () => {
+    const refreshUpdateCache = vi.fn();
+    const refreshGitCheckoutUpdateTarget = vi.fn();
+    const plan = await resolveUpgradePlan(
+      '0.20.1',
+      {
+        detectInstallSource: async () => 'npm-global',
+        refreshUpdateCache,
+        refreshGitCheckoutUpdateTarget,
+        detectGithubCheckout: async () => null,
+        readUpdateInstallState: async () => ({ active: null, lastFailure: null, lastSuccess: null }),
+        platform: 'darwin',
+      },
+      { fromMain: true },
+    );
+    expect(refreshUpdateCache).not.toHaveBeenCalled();
+    expect(refreshGitCheckoutUpdateTarget).not.toHaveBeenCalled();
+    expect(plan.reason).toBe('update-available');
+    expect(plan.source).toBe('native');
+    expect(plan.fromMain).toBe(true);
+    expect(plan.target).toEqual({ version: MAIN_TIP_UPSTREAM, upstream: MAIN_TIP_UPSTREAM });
+    expect(plan.installCommand).toContain('--main');
+    expect(plan.canAutoInstall).toBe(true);
+  });
+
+  it('--main prefers an existing SuperLiora checkout over native reinstall', async () => {
+    const refreshUpdateCache = vi.fn();
+    const refreshGitCheckoutUpdateTarget = vi.fn().mockResolvedValue({
+      status: 'update',
+      dirty: false,
+      target: {
+        repoRoot: '/tmp/.superliora/source',
+        upstream: 'origin/main',
+        version: 'origin/main@abcdef123456',
+      },
+    });
+    const plan = await resolveUpgradePlan(
+      '0.20.1',
+      {
+        detectInstallSource: async () => 'npm-global',
+        refreshUpdateCache,
+        refreshGitCheckoutUpdateTarget,
+        detectGithubCheckout: async (start) =>
+          start === '/tmp/.superliora/source' ? '/tmp/.superliora/source' : null,
+        defaultSourceInstallDir: () => '/tmp/.superliora/source',
+        readUpdateInstallState: async () => ({ active: null, lastFailure: null, lastSuccess: null }),
+        platform: 'darwin',
+      },
+      { fromMain: true },
+    );
+    expect(refreshUpdateCache).not.toHaveBeenCalled();
+    expect(refreshGitCheckoutUpdateTarget).toHaveBeenCalledWith('/tmp/.superliora/source', {
+      preferredUpstream: 'origin/main',
+    });
+    expect(plan.source).toBe('github-checkout');
+    expect(plan.fromMain).toBe(true);
+    expect(plan.checkoutRoot).toBe('/tmp/.superliora/source');
+    expect(plan.target?.version).toBe('origin/main@abcdef123456');
   });
 
   it('maps github update + dirty to auto-install with dirty flag for warning', async () => {

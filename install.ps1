@@ -14,6 +14,7 @@ param(
   [switch]$NoRetrieval,
   [switch]$NoPath,
   [switch]$PreferSource,
+  [switch]$Main,
   [switch]$ForcePrebuilt
 )
 
@@ -154,6 +155,7 @@ if ($NoBrowserUse -or $env:SUPERLIORA_SKIP_BROWSER_USE -eq '1') { $orchArgs += '
 if ($NoComputerUse -or $env:SUPERLIORA_SKIP_COMPUTER_USE -eq '1') { $orchArgs += '--no-computer-use' }
 if ($NoRetrieval -or $env:SUPERLIORA_SKIP_RETRIEVAL -eq '1') { $orchArgs += '--no-retrieval' }
 if ($PreferSource -or $env:SUPERLIORA_PREFER_SOURCE -eq '1') { $orchArgs += '--prefer-source' }
+if ($Main -or $env:SUPERLIORA_FROM_MAIN -eq '1') { $orchArgs += '--main' }
 if ($ForcePrebuilt -or $env:SUPERLIORA_FORCE_PREBUILT -eq '1') { $orchArgs += '--force-prebuilt' }
 
 try {

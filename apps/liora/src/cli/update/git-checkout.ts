@@ -70,15 +70,30 @@ export async function isGitCheckoutDirty(repoRoot: string): Promise<boolean> {
   return execGit(repoRoot, ['diff', '--cached', '--quiet']).then(() => false).catch(() => true);
 }
 
-function buildGitCheckoutUpdateShellLines(repoExpr: string): readonly string[] {
+export interface GitCheckoutUpdateOptions {
+  /** Pin remote tip (e.g. `origin/main`) instead of the local tracking branch. */
+  readonly preferredUpstream?: string;
+}
+
+function buildGitCheckoutUpdateShellLines(
+  repoExpr: string,
+  options: GitCheckoutUpdateOptions = {},
+): readonly string[] {
   // Match install.sh: force-checkout discards local dirt intentionally.
   // Do not pre-fail on a dirty tree — that trapped source installs that had
   // incidental lockfile noise and made both auto and manual upgrade impossible.
+  const preferred = options.preferredUpstream?.trim();
+  const resolveUpstream =
+    preferred !== undefined && preferred.length > 0
+      ? [`upstream=${shellQuote(preferred)}`]
+      : [
+          `upstream="$(git -C ${repoExpr} rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"`,
+          `if [ -z "$upstream" ]; then upstream="$(git -C ${repoExpr} symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"; fi`,
+          `if [ -z "$upstream" ]; then if git -C ${repoExpr} rev-parse --verify origin/main >/dev/null 2>&1; then upstream='origin/main'; else upstream='origin/master'; fi; fi`,
+        ];
   return [
     `echo '__LIORA_UPGRADE_STAGE__=fetching'`,
-    `upstream="$(git -C ${repoExpr} rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"`,
-    `if [ -z "$upstream" ]; then upstream="$(git -C ${repoExpr} symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"; fi`,
-    `if [ -z "$upstream" ]; then if git -C ${repoExpr} rev-parse --verify origin/main >/dev/null 2>&1; then upstream='origin/main'; else upstream='origin/master'; fi; fi`,
+    ...resolveUpstream,
     'ref="${upstream#origin/}"',
     `git -C ${repoExpr} fetch --depth 1 origin "$ref"`,
     // Stay on the tracking branch — bare FETCH_HEAD checkout leaves detached HEAD
@@ -99,28 +114,39 @@ function buildGitCheckoutUpdateShellLines(repoExpr: string): readonly string[] {
   ];
 }
 
-export function gitCheckoutUpdateCommand(repoRoot: string = findGitCheckoutRoot() ?? '.'): string {
-  return `bash -lc ${shellQuote(gitCheckoutUpdateScript(repoRoot))}`;
+export function gitCheckoutUpdateCommand(
+  repoRoot: string | undefined = undefined,
+  options: GitCheckoutUpdateOptions = {},
+): string {
+  return `bash -lc ${shellQuote(gitCheckoutUpdateScript(repoRoot, options))}`;
 }
 
-export function gitCheckoutUpdateScript(repoRoot: string = findGitCheckoutRoot() ?? '.'): string {
-  const quotedRoot = shellQuote(repoRoot);
+export function gitCheckoutUpdateScript(
+  repoRoot: string | undefined = undefined,
+  options: GitCheckoutUpdateOptions = {},
+): string {
+  const quotedRoot = shellQuote(repoRoot ?? findGitCheckoutRoot() ?? '.');
   return [
     'set -e',
     'export COREPACK_ENABLE_DOWNLOAD_PROMPT=0',
     `repo=${quotedRoot}`,
-    ...buildGitCheckoutUpdateShellLines('"$repo"'),
+    ...buildGitCheckoutUpdateShellLines('"$repo"', options),
   ].join('\n');
 }
 
 export async function refreshGitCheckoutUpdateTarget(
   repoRoot: string = findGitCheckoutRoot() ?? '',
+  options: GitCheckoutUpdateOptions = {},
 ): Promise<GitCheckoutRefreshResult> {
   if (repoRoot.length === 0) {
     throw new Error('Git checkout root not found');
   }
   const dirty = await isGitCheckoutDirty(repoRoot);
-  const upstream = await resolveGitCheckoutUpstream(repoRoot);
+  const preferred = options.preferredUpstream?.trim();
+  const upstream =
+    preferred !== undefined && preferred.length > 0
+      ? preferred
+      : await resolveGitCheckoutUpstream(repoRoot);
   const ref = upstream.startsWith('origin/') ? upstream.slice('origin/'.length) : upstream;
   // Prefer an explicit fetch of the tracking ref so shallow clones deepen correctly.
   await execGit(repoRoot, ['fetch', '--quiet', '--prune', 'origin', ref]).catch(async () => {

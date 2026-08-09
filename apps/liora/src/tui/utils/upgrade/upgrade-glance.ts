@@ -13,7 +13,7 @@ export const UPGRADE_AUTO_INSTALL_TIP =
   'tui.toml [upgrade] auto_install = true|false · /reload tui after a manual edit.';
 
 export const UPGRADE_MANUAL_TIP =
-  'Manual update: /update or /upgrade opens Upgrade Studio · header badge when preflight finds one.';
+  'Manual update: /update or /upgrade opens Upgrade Studio (published releases; --main for tip of origin/main).';
 
 export const UPGRADE_ENV_TIP =
   `${AUTO_UPDATE_DISABLE_ENV}=1 fully disables preflight (check + auto-install + prompt). Unset it so tui.toml [upgrade].auto_install can work.`;
@@ -130,8 +130,8 @@ export function buildUpgradeSettingsLines(glance: UpgradeGlanceInput): readonly 
     '  /reload tui                    apply after manual edit',
     '',
     '── Manual update ────────────────────────────',
-    '  /update · /upgrade             Upgrade Studio (check + live install)',
-    '  liora update · liora upgrade   Same flow from the CLI',
+    '  /update · /upgrade [--main]    Upgrade Studio (release default; --main = tip of main)',
+    '  liora update · liora upgrade   Same flow from the CLI (--main supported)',
     '  Settings → Updates             Open Upgrade Studio',
     '  Header badge                   pending update when preflight finds one',
     '',

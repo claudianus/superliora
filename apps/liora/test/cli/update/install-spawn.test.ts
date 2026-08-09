@@ -90,6 +90,29 @@ describe('github-checkout update commands', () => {
   });
 });
 
+describe('fromMain native install', () => {
+  it('passes --main on Unix', () => {
+    const command = installCommandFor('native', 'origin/main', 'darwin', { fromMain: true });
+    expect(command).toContain('--main');
+    const { args } = spawnForSource('native', 'origin/main', 'darwin', { fromMain: true });
+    expect(args.join(' ')).toContain('--main');
+  });
+
+  it('sets SUPERLIORA_FROM_MAIN on Windows', () => {
+    const command = installCommandFor('native', 'origin/main', 'win32', { fromMain: true });
+    expect(command).toContain("SUPERLIORA_FROM_MAIN='1'");
+  });
+
+  it('pins github-checkout scripts to origin/main', () => {
+    const { args } = spawnForSource('github-checkout', 'origin/main@abcdef', 'darwin', {
+      fromMain: true,
+      checkoutRoot: '/tmp/superliora',
+    });
+    expect(args[1]).toContain("upstream='origin/main'");
+    expect(args[1]).toContain('/tmp/superliora');
+  });
+});
+
 describe('spawnForSource package managers', () => {
   it('uses .cmd suffix on Windows', () => {
     const { cmd, args } = spawnForSource('npm-global', '0.5.0', 'win32');

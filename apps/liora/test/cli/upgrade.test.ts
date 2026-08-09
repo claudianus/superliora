@@ -35,6 +35,7 @@ function basePlan(overrides: Partial<UpgradePlan> & Pick<UpgradePlan, 'reason' |
     changelogUrl: CHANGELOG_URL,
     dirty: false,
     canAutoInstall: false,
+    fromMain: false,
     ...overrides,
   };
 }
@@ -88,14 +89,17 @@ describe('handleUpgrade', () => {
 
     await expect(handleUpgrade('0.4.0', { ...deps, ...writable })).resolves.toBe(0);
 
-    expect(deps.resolveUpgradePlan).toHaveBeenCalledWith('0.4.0');
+    expect(deps.resolveUpgradePlan).toHaveBeenCalledWith('0.4.0', { fromMain: false });
     expect(deps.promptForInstallChoice).toHaveBeenCalledWith({
       currentVersion: '0.4.0',
       target: { version: '0.5.0' },
       installCommand: 'npm install -g @superliora/liora@0.5.0',
       installSource: 'npm-global',
     });
-    expect(deps.installUpdate).toHaveBeenCalledWith('npm-global', '0.5.0', 'darwin');
+    expect(deps.installUpdate).toHaveBeenCalledWith('npm-global', '0.5.0', 'darwin', {
+      fromMain: false,
+      checkoutRoot: undefined,
+    });
     expect(deps.updateGuiUseAfterUpgrade).toHaveBeenCalledTimes(1);
     expect(deps.track).toHaveBeenCalledWith('upgrade_command_prompted', expect.objectContaining({
       current_version: '0.4.0',
@@ -147,7 +151,7 @@ describe('handleUpgrade', () => {
 
     await expect(handleUpgrade('0.4.0', { ...deps, ...writable })).resolves.toBe(0);
 
-    expect(deps.resolveUpgradePlan).toHaveBeenCalledWith('0.4.0');
+    expect(deps.resolveUpgradePlan).toHaveBeenCalledWith('0.4.0', { fromMain: false });
     expect(deps.installUpdate).not.toHaveBeenCalled();
     expect(deps.updateGuiUseAfterUpgrade).not.toHaveBeenCalled();
     expect(deps.track).toHaveBeenCalledWith('upgrade_command_no_update', expect.objectContaining({
@@ -210,7 +214,7 @@ describe('handleUpgrade', () => {
 
     await expect(handleUpgrade('0.4.0', { ...deps, ...writable })).resolves.toBe(0);
 
-    expect(deps.resolveUpgradePlan).toHaveBeenCalledWith('0.4.0');
+    expect(deps.resolveUpgradePlan).toHaveBeenCalledWith('0.4.0', { fromMain: false });
     expect(deps.promptForInstallChoice).toHaveBeenCalledWith(expect.objectContaining({
       installCommand: expect.stringContaining('bash -lc'),
       installSource: 'github-checkout',
@@ -220,6 +224,7 @@ describe('handleUpgrade', () => {
       'github-checkout',
       'origin/main@abcdef123456',
       'darwin',
+      { fromMain: false, checkoutRoot: undefined },
     );
     expect(deps.updateGuiUseAfterUpgrade).toHaveBeenCalledTimes(1);
     expect(stdout.join('')).toContain('Updated SuperLiora from GitHub');
@@ -237,7 +242,7 @@ describe('handleUpgrade', () => {
 
     await expect(handleUpgrade('0.4.0', { ...deps, ...writable })).resolves.toBe(0);
 
-    expect(deps.resolveUpgradePlan).toHaveBeenCalledWith('0.4.0');
+    expect(deps.resolveUpgradePlan).toHaveBeenCalledWith('0.4.0', { fromMain: false });
     expect(deps.installUpdate).not.toHaveBeenCalled();
     expect(deps.updateGuiUseAfterUpgrade).not.toHaveBeenCalled();
     expect(stdout.join('')).toContain('SuperLiora GitHub checkout is already up to date.');
@@ -299,7 +304,7 @@ describe('handleUpgrade', () => {
 
     await expect(handleUpgrade('0.4.0', { ...deps, ...writable })).resolves.toBe(1);
 
-    expect(deps.resolveUpgradePlan).toHaveBeenCalledWith('0.4.0');
+    expect(deps.resolveUpgradePlan).toHaveBeenCalledWith('0.4.0', { fromMain: false });
     expect(deps.installUpdate).not.toHaveBeenCalled();
     expect(deps.track).toHaveBeenCalledWith('upgrade_command_failed', expect.objectContaining({
       current_version: '0.4.0',
@@ -322,7 +327,7 @@ describe('handleUpgrade', () => {
 
     await expect(handleUpgrade('0.4.0', { ...deps, ...writable })).resolves.toBe(1);
 
-    expect(deps.resolveUpgradePlan).toHaveBeenCalledWith('0.4.0');
+    expect(deps.resolveUpgradePlan).toHaveBeenCalledWith('0.4.0', { fromMain: false });
     expect(deps.installUpdate).not.toHaveBeenCalled();
     expect(deps.promptForInstallChoice).not.toHaveBeenCalled();
     expect(deps.track).toHaveBeenCalledWith('upgrade_command_failed', expect.objectContaining({
@@ -352,9 +357,34 @@ describe('handleUpgrade', () => {
 
     await expect(handleUpgrade('0.4.0', { ...deps, ...writable })).resolves.toBe(0);
 
-    expect(deps.installUpdate).toHaveBeenCalledWith('npm-global', '0.5.0', 'darwin');
+    expect(deps.installUpdate).toHaveBeenCalledWith('npm-global', '0.5.0', 'darwin', {
+      fromMain: false,
+      checkoutRoot: undefined,
+    });
     expect(deps.updateGuiUseAfterUpgrade).toHaveBeenCalledTimes(1);
     expect(stdout.join('')).toContain('Updated @superliora/liora to 0.5.0');
+  });
+
+  it('passes --main through to the upgrade plan and install spawn', async () => {
+    const { writable } = captureOutput();
+    const deps = createDeps({
+      plan: basePlan({
+        reason: 'update-available',
+        source: 'native',
+        target: { version: 'origin/main', upstream: 'origin/main' },
+        canAutoInstall: true,
+        fromMain: true,
+        installCommand: 'curl -fsSL https://example.test/install.sh | bash -s -- --main',
+      }),
+    });
+
+    await expect(handleUpgrade('0.4.0', { ...deps, ...writable, fromMain: true })).resolves.toBe(0);
+
+    expect(deps.resolveUpgradePlan).toHaveBeenCalledWith('0.4.0', { fromMain: true });
+    expect(deps.installUpdate).toHaveBeenCalledWith('native', 'origin/main', 'darwin', {
+      fromMain: true,
+      checkoutRoot: undefined,
+    });
   });
 
   it('reports when an install is already in progress', async () => {
