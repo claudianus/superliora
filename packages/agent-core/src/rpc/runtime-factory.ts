@@ -160,6 +160,7 @@ export async function createRuntimeConfig(input: {
     input.resolveOAuthTokenProvider,
   );
   const qwenTokenPlanApiKey = resolveTokenPlanApiKey(input.config);
+  const qwenTokenPlanBaseUrl = resolveTokenPlanBaseUrl(input.config);
   const xaiWebSearcher =
     xaiGrokBuild === undefined ? undefined : new XaiGrokWebSearchProvider(xaiGrokBuild);
   const fallbackSearcher = researchSearcher ?? localSearcher;
@@ -187,6 +188,7 @@ export async function createRuntimeConfig(input: {
     researchSearch: researchSearcher,
     xaiGrokBuild,
     qwenTokenPlanApiKey,
+    qwenTokenPlanBaseUrl,
     codex,
     browserUse,
     computerUse:
@@ -302,6 +304,20 @@ function resolveTokenPlanApiKey(config: LioraConfig): string | undefined {
   for (const providerId of declaration.providerIds) {
     const apiKey = nonEmptyString(config.providers[providerId]?.apiKey);
     if (apiKey !== undefined) return apiKey;
+  }
+  return undefined;
+}
+
+/** Chat base URL for Token Plan media host derivation (env override wins). */
+function resolveTokenPlanBaseUrl(config: LioraConfig): string | undefined {
+  if (!isProviderExtrasEnabled(config, 'qwen-token-plan')) return undefined;
+  const envOverride = nonEmptyString(process.env['QWEN_TOKEN_PLAN_BASE_URL']);
+  if (envOverride !== undefined) return envOverride;
+  const declaration = getProviderExtrasDeclaration('qwen-token-plan');
+  if (declaration === undefined) return undefined;
+  for (const providerId of declaration.providerIds) {
+    const baseUrl = nonEmptyString(config.providers[providerId]?.baseUrl);
+    if (baseUrl !== undefined) return baseUrl;
   }
   return undefined;
 }

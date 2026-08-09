@@ -35,7 +35,7 @@ const QWEN_CORE_HARNESS_TOOLS: readonly string[] = [
 
 export function qwenHarnessToolsForModel(model: string): readonly string[] {
   const normalized = model.toLowerCase();
-  // qwen3.8-max-preview and qwen3.7-plus support all harness tools.
+  // qwen3.8* and qwen3.7-plus support all harness tools.
   if (normalized.includes('qwen3.8') || normalized.includes('qwen3.7-plus')) {
     return QWEN_ALL_HARNESS_TOOLS;
   }

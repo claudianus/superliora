@@ -14,6 +14,10 @@
  *   - **Anthropic** (`anthropic-oauth`): rate-limit headers
  *     (anthropic-ratelimit-*-limit/remaining/reset) captured from the
  *     lightweight /v1/messages/count_tokens endpoint.
+ *   - **Qwen / Alibaba Token Plan** (`qwen-token-plan`, `alibaba-token-plan`,
+ *     `alibaba-token-plan-cn`): rate-limit headers from GET /models
+ *     (best-effort; Credits live in the Qwen Cloud console).
+ *   - **Z.AI** (`zai`, `zai-coding-plan`): Coding Plan quota JSON endpoint.
  *
  * The unified {@link ProviderUsageSnapshot} shape lets the TUI render a
  * consistent quota dashboard regardless of which providers are configured.

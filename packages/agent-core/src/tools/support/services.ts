@@ -23,6 +23,11 @@ export interface ToolServices {
    */
   readonly qwenTokenPlanApiKey?: string;
   /**
+   * Token Plan chat base URL from the configured provider (or env override).
+   * Media tools derive the regional multimodal / video host from this.
+   */
+  readonly qwenTokenPlanBaseUrl?: string;
+  /**
    * OpenAI Codex (ChatGPT subscription) extras credentials: powers the
    * engine's codex search slot and the GenerateImage codex backend with
    * the OAuth session token — no extra API key required.

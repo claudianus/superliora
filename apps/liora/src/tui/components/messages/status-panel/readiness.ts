@@ -119,6 +119,13 @@ function formatModelCatalogGate(options: StatusReportOptions): string {
 
 const QWEN_TOKEN_PLAN_PROVIDER_ID = 'qwen-token-plan';
 
+function tokenPlanEnvKeyReady(): boolean {
+  return (
+    nonEmptyEnv(process.env['QWEN_TOKEN_PLAN_API_KEY']) !== undefined ||
+    nonEmptyEnv(process.env['ALIBABA_TOKEN_PLAN_API_KEY']) !== undefined
+  );
+}
+
 function formatQwenTokenPlanGate(options: StatusReportOptions): string {
   const providers = options.availableProviders ?? {};
   // Any Token Plan identity counts: the canonical first-class id plus the
@@ -127,10 +134,13 @@ function formatQwenTokenPlanGate(options: StatusReportOptions): string {
     providers[QWEN_TOKEN_PLAN_PROVIDER_ID] ??
     providers['alibaba-token-plan'] ??
     providers['alibaba-token-plan-cn'];
-  if (tokenPlanProvider === undefined) return 'not connected';
-  const hasKey = tokenPlanProvider.apiKey !== undefined && tokenPlanProvider.apiKey.length > 0;
-  if (!hasKey) return 'configured (no key)';
-  return 'connected · text/image/video/harness';
+  const hasConfigKey =
+    tokenPlanProvider?.apiKey !== undefined && tokenPlanProvider.apiKey.length > 0;
+  if (hasConfigKey || tokenPlanEnvKeyReady()) {
+    return 'connected · text/image/video/harness';
+  }
+  if (tokenPlanProvider !== undefined) return 'configured (no key)';
+  return 'not connected';
 }
 
 const READINESS_CHECKS = 'inspect -> test -> change -> verify -> summarize';
@@ -141,7 +151,7 @@ const TOOLS_GATE = 'search first; load tools on demand';
 const RESEARCH_GATE = 'WebSearch + FetchURL + Context7 ready (local fallback)';
 const BENCH_GATE = 'Bench seed/holdout · web/media/office/ZDR · a1/m2/sw800/s8';
 const MEDIA_GATE =
-  'set OPENAI_API_KEY or GOOGLE/GEMINI_API_KEY for GenerateImage/GenerateVideo (no MCP)';
+  'set QWEN_TOKEN_PLAN_API_KEY, OPENAI_API_KEY, or GOOGLE/GEMINI_API_KEY for GenerateImage/GenerateVideo (no MCP)';
 const OFFICE_GATE =
   'SearchSkill → docx / pptx / xlsx for Word, slides, and sheets (zero MCP)';
 const SCOPE_GATE = 'small focused diff; no broad refactor';
@@ -192,6 +202,8 @@ function nonEmptyEnv(value: string | undefined): string | undefined {
 
 function imageProviderKeyReady(): boolean {
   return (
+    tokenPlanEnvKeyReady() ||
+    nonEmptyEnv(process.env['XAI_API_KEY']) !== undefined ||
     nonEmptyEnv(process.env['OPENAI_API_KEY']) !== undefined ||
     nonEmptyEnv(process.env['GOOGLE_API_KEY']) !== undefined ||
     nonEmptyEnv(process.env['GEMINI_API_KEY']) !== undefined

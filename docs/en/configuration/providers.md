@@ -198,7 +198,7 @@ Run `liora provider doctor` after editing config or importing providers. It vali
 
 ## Qwen Cloud Token Plan
 
-Qwen Cloud Token Plan is a subscription with a dedicated API key (`sk-sp-` prefix) that covers text chat, image generation, video generation, and visual understanding under one quota.
+Qwen Cloud Token Plan is a subscription with a dedicated API key (`sk-sp-` prefix) that covers text chat, image generation, video generation, and visual understanding under one Credits quota.
 
 Set the dedicated key, then connect from the TUI (`/login` → Qwen Cloud (Token Plan)) or let it auto-configure on startup:
 
@@ -206,14 +206,14 @@ Set the dedicated key, then connect from the TUI (`/login` → Qwen Cloud (Token
 export QWEN_TOKEN_PLAN_API_KEY=sk-sp-xxxxxxxxxxxx
 ```
 
-The provider uses the OpenAI-compatible endpoint `https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1`.
+The provider uses the OpenAI-compatible endpoint `https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1` (Singapore / Global; the official Personal Edition region). A China catalog entry (`alibaba-token-plan-cn`) remains available for models.dev compatibility.
 
-- **Text models** — `qwen3.8-max-preview`, `qwen3.7-max`, `qwen3.7-plus`, `qwen3.6-flash`, `glm-5.2`, `deepseek-v4-pro`.
-- **Harness tools** — `web_search`, `code_interpreter`, `web_extractor`, `i2i_search`, `t2i_search` run server-side and are invoked automatically by qwen3.7/3.8 models; no client configuration is needed. Web search on Chat Completions requests is enabled via `enable_search`.
-- **Image generation** — the `generate_image` tool targets `wan2.7-image` by default; `wan2.7-image-pro` and `qwen-image-2.0` are available through the `model` argument.
+- **Text models** — `qwen3.8-max` (default; `qwen3.8-max-preview` still works and routes to production), `qwen3.7-max`, `qwen3.7-plus`, `qwen3.6-flash`, `glm-5.2`, `deepseek-v4-pro`, `deepseek-v4-flash-0731`.
+- **Harness tools** — On Chat Completions, web search is enabled via `enable_search` for qwen3.7/3.8 harness models. Other server tools (`code_interpreter`, `web_extractor`, image search) require the Responses API and are mutually exclusive with client function calling, so the CLI does not inject them into the agent tool loop.
+- **Image generation** — the `generate_image` tool targets `wan2.7-image` by default; `wan2.7-image-pro` is available through the `model` argument. Media API hosts follow the configured Token Plan chat base URL.
 - **Video generation** — the `generate_video` tool uses `happyhorse-1.1` (720P/1080P, 3–15 s, 24 fps MP4): text-to-video by default, `image_path` for image-to-video (first frame), `reference_image_paths` (1–9) for reference-to-video.
 
-Credit usage is visible in the Qwen Cloud console; the CLI surfaces rate-limit headers on a best-effort basis. See the [Token Plan overview](https://docs.qwencloud.com/token-plan/overview).
+Credits and plan windows are visible in the Qwen Cloud console; the CLI surfaces rate-limit headers on a best-effort basis. See the [Token Plan overview](https://docs.qwencloud.com/token-plan/overview).
 
 ## Provider extras
 
