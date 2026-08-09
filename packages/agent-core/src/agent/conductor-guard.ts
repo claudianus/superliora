@@ -214,6 +214,12 @@ const CONDUCTOR_DELEGATION_SAFE_TOOLS: ReadonlySet<string> = new Set([
   'Skill',
   'SearchSkill',
   'SearchTools',
+  // Main-lane harness edits (conductor.yaml) — not product-code work.
+  // SkillCreate writes `.agents/skills/auto/`; Refine mutates harness notes.
+  // Both declare write/all accesses, so they need an explicit safe-list bypass
+  // or stage 2 treats them as direct work.
+  'SkillCreate',
+  'Refine',
   // Read-only status/query waist (§2.1 item 3)
   'Read',
   'Grep',
