@@ -5,6 +5,7 @@
 import type { ContentPart } from '@superliora/kosong';
 
 import type { Agent } from '..';
+import { ensureSmartRouteProbed } from './live-probe';
 import {
   isSmartAutoSessionAlias,
   resolveSessionSmartRoute,
@@ -23,13 +24,13 @@ function promptTextFromParts(input: readonly ContentPart[]): string {
 
 /**
  * When the session model pin is virtual `auto`, resolve a concrete alias for
- * this turn and store it on ConfigState for provider resolution.
+ * this turn, live-probe it (or the next chain hop), and store it on ConfigState.
  */
-export function applySessionSmartAutoForTurn(
+export async function applySessionSmartAutoForTurn(
   agent: Agent,
   input: readonly ContentPart[],
   sessionSpendUsd?: number,
-): SmartRoute | undefined {
+): Promise<SmartRoute | undefined> {
   if (!isSmartAutoSessionAlias(agent.config.modelAlias)) return undefined;
   const config = agent.runtimeConfig ?? agent.kimiConfig;
   if (config === undefined) return undefined;
@@ -41,7 +42,13 @@ export function applySessionSmartAutoForTurn(
   });
   if (route === undefined) return undefined;
 
+  const probed = await ensureSmartRouteProbed(agent, route);
+  if (probed === undefined) {
+    agent.config.setSmartRouteAlias(undefined);
+    return undefined;
+  }
+
   // Keep the user's thinking pin; only the concrete model alias is turn-scoped.
-  agent.config.setSmartRouteAlias(route.alias);
-  return route;
+  agent.config.setSmartRouteAlias(probed.alias);
+  return probed;
 }

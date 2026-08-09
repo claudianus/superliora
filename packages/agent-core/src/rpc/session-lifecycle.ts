@@ -30,7 +30,7 @@ import { buildWorktreeMetadata, createSessionWorktree } from '../session/worktre
 import type { ProviderManager } from '../session/provider/provider-manager';
 import { SessionAPIImpl } from '../session/rpc';
 import type { SessionStore } from '../session/store/index';
-import { resolveSessionSmartRoute } from '../agent/routing';
+import { resolveSessionSmartRoute, scheduleSmartAutoLiveProbe } from '../agent/routing';
 import {
   withTelemetryContext,
   withTelemetryProperties,
@@ -238,6 +238,7 @@ export async function createSessionWithOverrides(
       const route = resolveSessionSmartRoute({ config });
       if (route !== undefined) {
         mainAgent.config.setSmartRouteAlias(route.alias);
+        scheduleSmartAutoLiveProbe(mainAgent);
       }
     }
     if (permissionMode !== undefined) {
@@ -387,6 +388,13 @@ export async function resumeSessionWithOverrides(
     const mainAgent = session.getReadyAgent('main');
     if (mainAgent !== undefined) {
       await pluginWiring.wirePluginSessionHosts(wiringContext, session, mainAgent);
+      if (mainAgent.config.modelAlias?.trim().toLowerCase() === 'auto') {
+        const route = resolveSessionSmartRoute({ config });
+        if (route !== undefined) {
+          mainAgent.config.setSmartRouteAlias(route.alias);
+          scheduleSmartAutoLiveProbe(mainAgent);
+        }
+      }
     }
   } catch (error) {
     await session.close().catch(() => {});
