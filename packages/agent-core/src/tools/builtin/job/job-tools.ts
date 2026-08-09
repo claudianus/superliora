@@ -617,8 +617,6 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
               kind,
               successCriteria: successCriteria.length > 0 ? successCriteria : undefined,
               ownershipPaths: a.ownership_paths,
-              // Never re-fanout inside staffing — auto_split already produced intents.
-              allowIntentSplit: false,
             });
             staffedSlices.push(...slices);
           }
