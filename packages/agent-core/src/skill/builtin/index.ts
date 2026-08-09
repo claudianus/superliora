@@ -12,6 +12,7 @@ import {
 } from './sub-skill';
 import { UPDATE_CONFIG_SKILL } from './update-config';
 import { AVOID_AI_WRITING_SKILL } from './avoid-ai-writing';
+import { BROWSER_USE_SKILL } from './browser-use';
 import { PREMIUM_VISUAL_SKILL } from './premium-visual';
 import { WRITE_GOAL_SKILL } from './write-goal';
 import { registerCatalogSkills as loadCatalogSkills } from '../catalog-loader';
@@ -27,6 +28,7 @@ export function registerBuiltinSkills(registry: SessionSkillRegistry): void {
   registry.registerBuiltinSkill(CAVEMAN_SKILL);
   registry.registerBuiltinSkill(I_HAVE_ADHD_SKILL);
   registry.registerBuiltinSkill(PREMIUM_VISUAL_SKILL);
+  registry.registerBuiltinSkill(BROWSER_USE_SKILL);
   registry.registerBuiltinSkill(SUB_SKILL_PARENT);
   registry.registerBuiltinSkill(SUB_SKILL_REVIEW);
   registry.registerBuiltinSkill(SUB_SKILL_CONSOLIDATE);
@@ -38,6 +40,7 @@ export async function registerCatalogSkills(registry: SessionSkillRegistry): Pro
 
 export {
   AVOID_AI_WRITING_SKILL,
+  BROWSER_USE_SKILL,
   CAVEMAN_SKILL,
   CUSTOM_THEME_SKILL,
   I_HAVE_ADHD_SKILL,

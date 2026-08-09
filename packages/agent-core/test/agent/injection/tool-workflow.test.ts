@@ -76,6 +76,19 @@ describe('resolveToolWorkflowCapability', () => {
     expect(guidance).toContain('Compact');
   });
 
+  it('routes browser tools away from Playwright installs', () => {
+    const cap = resolveToolWorkflowCapability(['BrowserObserve', 'BrowserAct', 'VerifySurface']);
+    expect(cap.hasBrowserUse).toBe(true);
+    expect(cap.hasVerifySurface).toBe(true);
+    const guidance = buildToolWorkflowGuidance(cap);
+    expect(guidance).toContain('BrowserStatus');
+    expect(guidance).toContain('Skill("browser-use")');
+    expect(guidance).toMatch(/Playwright\/Puppeteer/);
+    expect(guidance).toContain('BrowserScreenshot alone is not visual proof');
+    const sparse = buildToolWorkflowSparseGuidance(cap);
+    expect(sparse).toContain('Browser* not Playwright install');
+  });
+
   it('treats empty tool set as no surface', () => {
     expect(hasToolWorkflowSurface(resolveToolWorkflowCapability([]))).toBe(false);
     expect(hasToolWorkflowSurface(resolveToolWorkflowCapability(['Bash']))).toBe(false);

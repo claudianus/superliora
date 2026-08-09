@@ -1,6 +1,7 @@
 import { expandSkillParameters, skillArgumentNames } from './parser';
 import { discoverSkills, type DiscoverSkillsOptions } from './scanner';
 import { SkillSearchEngine } from './expert-search';
+import { rerankSkillHitsForBrowserRouting } from './browser-skill-routing';
 import { composeSkillInstructions, enrichSkillForSearch } from './skill-composition';
 import { registerCatalogSkills } from './catalog-loader';
 import type { SkillDefinition, SkillRoot, SkillSearchHit, SkillSource, SkippedSkill } from './types';
@@ -17,6 +18,7 @@ const MODEL_SKILL_RUNTIME_PROMPT = [
   'Skills load via SearchSkill → Skill, not a full catalog listing.',
   'SearchSkill: 3–12 concise English task keywords. Translate non-English user requests into English keywords before searching. top_k 5; retry once with broader English task keywords or top_k 12 if weak.',
   'Load a skill only when it likely adds task-specific workflow or quality guidance.',
+  'Browser / screenshot / UI automation: prefer Builtin BrowserStatus→BrowserObserve→BrowserAct→VerifySurface and Skill("browser-use"). Do not install Playwright/Puppeteer from catalog skills while those tools exist.',
   'No-AI-Slop (when prose quality matters): light pass by default; SearchSkill → Skill with response language + surface keywords before shipping docs, PR/changelog, TUI copy, or long user-facing prose. Load the best match; locale skills are discovered, not hardcoded. Reuse loaded skill content instead of reloading.',
   'SearchSkill metadata is enough to decide skip; load a skill only when its workflow would improve quality.',
   'After load: apply skill content selectively — keep steps that clearly help quality; skip mismatched, redundant, or unsafe parts.',
@@ -209,14 +211,24 @@ export class SessionSkillRegistry implements AgentSkillRegistry {
       topK: limit,
       filter: isModelSearchableSkill,
     });
-    if (limit > this.defaultSearchLimit) return first;
+    if (limit > this.defaultSearchLimit) {
+      return this.applyBrowserSkillRouting(trimmed, first);
+    }
     const shouldExpand = first.length === 0 || (first[0]?.score ?? 0) < WEAK_SEARCH_SCORE;
-    if (!shouldExpand) return first;
-    return engine.search({
+    if (!shouldExpand) return this.applyBrowserSkillRouting(trimmed, first);
+    const expanded = await engine.search({
       query: trimmed,
       topK: Math.min(SKILL_SEARCH_EXPANDED_LIMIT, this.maxSearchLimit),
       filter: isModelSearchableSkill,
     });
+    return this.applyBrowserSkillRouting(trimmed, expanded);
+  }
+
+  private applyBrowserSkillRouting(
+    query: string,
+    hits: readonly SkillSearchHit[],
+  ): readonly SkillSearchHit[] {
+    return rerankSkillHitsForBrowserRouting(query, hits, this.getSkill('browser-use'));
   }
 
   private async loadSkillContent(skill: SkillDefinition): Promise<string> {

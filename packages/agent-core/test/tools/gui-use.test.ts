@@ -135,6 +135,22 @@ describe('browser-use builtin tools', () => {
     expect(result.isError).toBeFalsy();
   });
 
+  it('marks BrowserAct as a tool error when actions fail', async () => {
+    const act = vi.fn().mockResolvedValue({
+      ok: false,
+      actions: [{ ok: false, action: 'click_ref', message: 'Unknown browser ref @e9' }],
+    });
+    const runtime = fakeBrowserRuntime({ act });
+    const tool = new BrowserActTool(runtime);
+
+    const result = await executeTool(tool, context({
+      actions: [{ type: 'click_ref', ref: '@e9' }],
+    }));
+
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.output)).toContain('Unknown browser ref @e9');
+  });
+
   it('returns screenshot content parts with a short label', async () => {
     const screenshot = vi.fn().mockResolvedValue({ mimeType: 'image/png', base64: 'iVBORw0KGgo=' });
     const runtime = fakeBrowserRuntime({ screenshot });
