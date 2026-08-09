@@ -2,19 +2,33 @@ import { APIStatusError } from '@superliora/kosong';
 import { describe, expect, it, vi } from 'vitest';
 
 import { Agent } from '../../src/agent';
+import { USER_PROMPT_ORIGIN } from '../../src/agent/context';
 import {
   GOAL_PROVIDER_AUTO_RETRIES,
   GOAL_PROVIDER_RATE_LIMIT_AUTO_RETRIES,
+  canAttemptProviderRecovery,
+  createEmptyProviderRecoveryState,
+  createProviderRecoveryState,
   extractRetryAfterMs,
   isRateLimitOrQuotaFailure,
   isRetryableProviderFailure,
   listSwitchableFailoverModels,
   resolveProviderRecovery,
   resolveProviderRetryDelayMs,
+  shouldEnterProviderRecovery,
+  type ProviderRecoveryState,
 } from '../../src/agent/provider-failover';
+import { recoverFromProviderFailure } from '../../src/agent/turn/error-recovery';
 import { ErrorCodes, toKimiErrorPayload } from '../../src/errors';
 import * as retry from '../../src/loop/retry';
 import { testKaos } from '../fixtures/test-kaos';
+
+function recoveryState(partial: Partial<ProviderRecoveryState> = {}): ProviderRecoveryState {
+  return {
+    ...createEmptyProviderRecoveryState(),
+    ...partial,
+  };
+}
 
 describe('provider failover', () => {
   it('detects retryable provider failures', () => {
@@ -49,7 +63,7 @@ describe('provider failover', () => {
     expect(isRetryableProviderFailure(quota)).toBe(false);
   });
 
-  it('does not auto-retry permanent quota / payment exhaustion', async () => {
+  it('does not auto-retry permanent quota / payment exhaustion without fallbacks', async () => {
     const sleepSpy = vi.spyOn(retry, 'sleepForRetry').mockResolvedValue(undefined);
     const agent = new Agent({
       kaos: testKaos,
@@ -72,14 +86,95 @@ describe('provider failover', () => {
       new APIStatusError(402, 'No payment method. Add a payment method here: https://example.com/billing', 'req-pay'),
     );
     expect(isRetryableProviderFailure(payment)).toBe(false);
+    expect(shouldEnterProviderRecovery(agent, payment)).toBe(false);
 
     const outcome = await resolveProviderRecovery(agent, {
       error: payment,
       turnId: 1,
       signal: new AbortController().signal,
-      state: { autoRetryCount: 0, userPrompted: false },
+      state: recoveryState(),
     });
     expect(outcome).toEqual({ type: 'pause' });
+    expect(sleepSpy).not.toHaveBeenCalled();
+    sleepSpy.mockRestore();
+  });
+
+  it('silently switches on permanent quota when unused fallbacks remain', async () => {
+    const sleepSpy = vi.spyOn(retry, 'sleepForRetry').mockResolvedValue(undefined);
+    const agent = new Agent({
+      kaos: testKaos,
+      config: {
+        providers: {
+          primary: { type: 'openai', apiKey: 'key', defaultModel: 'gpt-test' },
+          backup: { type: 'openai', apiKey: 'key', defaultModel: 'gpt-backup' },
+        },
+        models: {
+          primary: {
+            provider: 'primary',
+            model: 'gpt-test',
+            maxContextSize: 128_000,
+            fallbackModels: ['backup'],
+          },
+          backup: {
+            provider: 'backup',
+            model: 'gpt-backup',
+            maxContextSize: 128_000,
+          },
+        },
+      },
+    });
+    agent.config.update({ modelAlias: 'primary' });
+
+    const payment = toKimiErrorPayload(
+      new APIStatusError(402, 'No payment method. Add a payment method here: https://example.com/billing', 'req-pay'),
+    );
+    expect(shouldEnterProviderRecovery(agent, payment)).toBe(true);
+
+    const outcome = await resolveProviderRecovery(agent, {
+      error: payment,
+      turnId: 1,
+      signal: new AbortController().signal,
+      state: createProviderRecoveryState(agent),
+    });
+    expect(outcome).toEqual({ type: 'switch', modelAlias: 'backup' });
+    expect(sleepSpy).not.toHaveBeenCalled();
+    sleepSpy.mockRestore();
+  });
+
+  it('silently switches on auth failures when unused fallbacks remain', async () => {
+    const sleepSpy = vi.spyOn(retry, 'sleepForRetry').mockResolvedValue(undefined);
+    const agent = new Agent({
+      kaos: testKaos,
+      config: {
+        providers: {
+          primary: { type: 'openai', apiKey: 'key', defaultModel: 'gpt-test' },
+          backup: { type: 'openai', apiKey: 'key', defaultModel: 'gpt-backup' },
+        },
+        models: {
+          primary: {
+            provider: 'primary',
+            model: 'gpt-test',
+            maxContextSize: 128_000,
+            fallbackModels: ['backup'],
+          },
+          backup: {
+            provider: 'backup',
+            model: 'gpt-backup',
+            maxContextSize: 128_000,
+          },
+        },
+      },
+    });
+    agent.config.update({ modelAlias: 'primary' });
+
+    const auth = toKimiErrorPayload(new APIStatusError(401, 'unauthorized', 'req-401'));
+    const outcome = await resolveProviderRecovery(agent, {
+      error: auth,
+      turnId: 1,
+      signal: new AbortController().signal,
+      state: createProviderRecoveryState(agent),
+    });
+    expect(outcome).toEqual({ type: 'switch', modelAlias: 'backup' });
     expect(sleepSpy).not.toHaveBeenCalled();
     sleepSpy.mockRestore();
   });
@@ -173,12 +268,13 @@ describe('provider failover', () => {
 
     const error = toKimiErrorPayload(new APIStatusError(500, 'server error', 'req-500'));
     const signal = new AbortController().signal;
+    const state = createProviderRecoveryState(agent);
 
     const first = await resolveProviderRecovery(agent, {
       error,
       turnId: 1,
       signal,
-      state: { autoRetryCount: 0, userPrompted: false },
+      state: { ...state, autoRetryCount: 0 },
     });
     expect(first).toEqual({ type: 'auto_retry' });
     expect(sleepSpy).toHaveBeenCalledTimes(1);
@@ -187,7 +283,7 @@ describe('provider failover', () => {
       error,
       turnId: 1,
       signal,
-      state: { autoRetryCount: 1, userPrompted: false },
+      state: { ...state, autoRetryCount: 1 },
     });
     expect(second).toEqual({ type: 'auto_retry' });
 
@@ -195,7 +291,7 @@ describe('provider failover', () => {
       error,
       turnId: 1,
       signal,
-      state: { autoRetryCount: 2, userPrompted: false },
+      state: { ...state, autoRetryCount: 2 },
     });
     expect(third).toEqual({ type: 'auto_retry' });
     expect(sleepSpy).toHaveBeenCalledTimes(3);
@@ -206,7 +302,7 @@ describe('provider failover', () => {
       error,
       turnId: 1,
       signal,
-      state: { autoRetryCount: GOAL_PROVIDER_AUTO_RETRIES, userPrompted: false },
+      state: { ...state, autoRetryCount: GOAL_PROVIDER_AUTO_RETRIES },
     });
     expect(switched).toEqual({ type: 'switch', modelAlias: 'backup' });
     expect(requestQuestion).not.toHaveBeenCalled();
@@ -241,13 +337,14 @@ describe('provider failover', () => {
     agent.config.update({ modelAlias: 'primary' });
 
     const error = toKimiErrorPayload(new APIStatusError(429, 'rate limit exceeded', 'req-429'));
+    const state = createProviderRecoveryState(agent);
 
     for (let count = 0; count < GOAL_PROVIDER_RATE_LIMIT_AUTO_RETRIES; count += 1) {
       const outcome = await resolveProviderRecovery(agent, {
         error,
         turnId: 1,
         signal: new AbortController().signal,
-        state: { autoRetryCount: count, userPrompted: false },
+        state: { ...state, autoRetryCount: count },
       });
       expect(outcome).toEqual({ type: 'auto_retry' });
     }
@@ -256,12 +353,103 @@ describe('provider failover', () => {
       error,
       turnId: 1,
       signal: new AbortController().signal,
-      state: { autoRetryCount: GOAL_PROVIDER_RATE_LIMIT_AUTO_RETRIES, userPrompted: false },
+      state: { ...state, autoRetryCount: GOAL_PROVIDER_RATE_LIMIT_AUTO_RETRIES },
     });
     expect(switched).toEqual({ type: 'switch', modelAlias: 'backup' });
     expect(sleepSpy).toHaveBeenCalledTimes(GOAL_PROVIDER_RATE_LIMIT_AUTO_RETRIES);
 
     sleepSpy.mockRestore();
+  });
+
+  it('walks the primary fallbackModels queue across silent switches', async () => {
+    vi.spyOn(retry, 'sleepForRetry').mockResolvedValue(undefined);
+    const agent = new Agent({
+      kaos: testKaos,
+      config: {
+        providers: {
+          primary: { type: 'openai', apiKey: 'key', defaultModel: 'gpt-test' },
+          backup: { type: 'openai', apiKey: 'key', defaultModel: 'gpt-backup' },
+          last: { type: 'openai', apiKey: 'key', defaultModel: 'gpt-last' },
+        },
+        models: {
+          primary: {
+            provider: 'primary',
+            model: 'gpt-test',
+            maxContextSize: 128_000,
+            fallbackModels: ['backup', 'last'],
+          },
+          backup: {
+            provider: 'backup',
+            model: 'gpt-backup',
+            maxContextSize: 128_000,
+            // Intentionally empty — recovery must keep using primary's queue.
+            fallbackModels: [],
+          },
+          last: {
+            provider: 'last',
+            model: 'gpt-last',
+            maxContextSize: 128_000,
+          },
+        },
+      },
+    });
+    agent.config.update({ modelAlias: 'primary' });
+
+    const error = toKimiErrorPayload(new APIStatusError(500, 'server error', 'req-500'));
+    const aliases: string[] = [];
+    const runOneTurn = vi.fn(async () => {
+      aliases.push(agent.config.modelAlias ?? 'unset');
+      return {
+        event: {
+          type: 'turn.ended' as const,
+          turnId: 1,
+          reason: 'failed' as const,
+          durationMs: 1,
+          error,
+        },
+      };
+    });
+
+    const end = await recoverFromProviderFailure(
+      { agent, runOneTurn },
+      1,
+      [],
+      USER_PROMPT_ORIGIN,
+      new AbortController().signal,
+      {
+        event: {
+          type: 'turn.ended',
+          turnId: 1,
+          reason: 'failed',
+          durationMs: 0,
+          error,
+        },
+      },
+    );
+
+    expect(end.event.reason).toBe('failed');
+    // auto-retries (same model) then silent hops: backup, then last.
+    expect(aliases.filter((alias) => alias === 'backup').length).toBeGreaterThanOrEqual(1);
+    expect(aliases).toContain('last');
+    expect(agent.config.modelAlias).toBe('last');
+    vi.restoreAllMocks();
+  });
+
+  it('keeps canAttemptProviderRecovery true for switch-only while queue remains', () => {
+    const quota = toKimiErrorPayload(
+      new APIStatusError(402, 'No payment method', 'req-pay'),
+    );
+    const state = recoveryState({
+      fallbackQueue: ['backup', 'last'],
+      triedFallbackAliases: ['backup'],
+    });
+    expect(canAttemptProviderRecovery(quota, state)).toBe(true);
+    expect(
+      canAttemptProviderRecovery(quota, {
+        ...state,
+        triedFallbackAliases: ['backup', 'last'],
+      }),
+    ).toBe(false);
   });
 
   it('pauses when no fallback exists and the user dismisses the failover question', async () => {
@@ -289,7 +477,7 @@ describe('provider failover', () => {
       error: toKimiErrorPayload(new APIStatusError(500, 'server error', 'req-500')),
       turnId: 2,
       signal: new AbortController().signal,
-      state: { autoRetryCount: GOAL_PROVIDER_AUTO_RETRIES, userPrompted: false },
+      state: recoveryState({ autoRetryCount: GOAL_PROVIDER_AUTO_RETRIES }),
     });
 
     expect(outcome).toEqual({ type: 'pause' });
