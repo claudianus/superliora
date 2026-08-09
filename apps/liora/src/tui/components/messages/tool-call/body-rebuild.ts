@@ -64,7 +64,8 @@ export function rebuildToolCallBody(host: ToolCallBodyRebuildHost): void {
   host.renderCache.clear();
   host.outputViewport.reset();
   host.liveOutputShell = undefined;
-  while (host.children.length > 2) {
+  // children[0] is the header Text — no leading spacer in the work block.
+  while (host.children.length > 1) {
     host.children.pop();
   }
   if (host.isOneLineCollapsed) {

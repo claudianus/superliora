@@ -41,6 +41,15 @@ describe('AssistantMessageComponent', () => {
     expect(visibleWidth(content!)).toBeLessThanOrEqual(8);
   });
 
+  it('keeps one untinted blank above and below the answer body', () => {
+    const component = new AssistantMessageComponent();
+    component.updateContent('hello breath');
+    const lines = component.render(40).map(strip);
+    expect(lines[0]).toBe('');
+    expect(lines[lines.length - 1]).toBe('');
+    expect(lines.some((line) => line.includes('hello breath'))).toBe(true);
+  });
+
   it('keeps assistant lines within very narrow widths', () => {
     const component = new AssistantMessageComponent();
     component.updateContent('abcdef');

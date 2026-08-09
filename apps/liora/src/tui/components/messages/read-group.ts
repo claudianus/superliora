@@ -21,7 +21,7 @@
  */
 
 import type { RendererRootUI } from '#/tui/renderer';
-import { Container, Spacer, Text } from '#/tui/renderer';
+import { Container, Text } from '#/tui/renderer';
 
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
@@ -57,7 +57,7 @@ export class ReadGroupComponent extends Container {
 
   constructor(private readonly ui: RendererRootUI | undefined) {
     super();
-    this.addChild(new Spacer(1));
+    // No leading spacer — stays in the tight thinking→tools work block.
     this.headerText = new Text('', 0, 0);
     this.addChild(this.headerText);
     this.bodyContainer = new Container();

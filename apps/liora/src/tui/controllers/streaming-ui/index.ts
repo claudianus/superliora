@@ -445,6 +445,7 @@ export class StreamingUIController {
         resetPhaseBoundaryState(this._phaseBoundary);
       },
       sendQueued,
+      chainSummary: this._chainSummary,
     });
   }
 

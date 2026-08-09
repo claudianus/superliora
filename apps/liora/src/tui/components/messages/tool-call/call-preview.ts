@@ -77,7 +77,8 @@ export class ToolCallCallPreview {
     host.clearRenderCache();
     const children = host.children as Component[];
     const tail = children.splice(this.callPreviewEndIndex);
-    while (children.length > 2) {
+    // Keep header Text only (work-block tools have no leading spacer).
+    while (children.length > 1) {
       children.pop();
     }
     this.build(host);

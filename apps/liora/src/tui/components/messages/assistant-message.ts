@@ -236,19 +236,20 @@ export class AssistantMessageComponent implements Component {
           truncateMark: '…',
         });
 
-        // Soft answer-phase tint so thinking / tools / answer read as work-units.
+        // Answer is visually separate from the thinking→tools work block:
+        // untinted blank above + below; tinted body in between.
         const phaseTag = applyPhaseTintLine(
           `${phaseGutter('answer')} ${currentTheme.boldFg('primary', 'answer')}`,
           safeWidth,
           'answer',
         );
         const tintedBody = blocked.map((line, i) => {
+          // Keep leading breath untinted so the work block ends cleanly.
           if (line.length === 0) return line;
           const guttered =
             i <= 1 ? line : phaseGutter('answer') + (line.startsWith(' ') ? line.slice(1) : line);
           return applyPhaseTintLine(guttered, safeWidth, 'answer');
         });
-        // Insert phase chrome after the leading blank (if any).
         const tinted =
           tintedBody.length > 0 && tintedBody[0] === ''
             ? [tintedBody[0]!, phaseTag, ...tintedBody.slice(1)]
@@ -260,11 +261,16 @@ export class AssistantMessageComponent implements Component {
           detail === 'minimal' && !this.lastTransient && !hostExpandedAnswer()
             ? collapseAnswerPreview(tinted, 4)
             : tinted;
+        // Trailing breath — answer never sticks to the next user/work block.
+        const withBreathing =
+          previewLines.length > 0 && previewLines[previewLines.length - 1] === ''
+            ? previewLines
+            : [...previewLines, ''];
 
-        if (scrollPaint) return previewLines;
+        if (scrollPaint) return withBreathing;
 
         return this.applyTurnBoundaryCues(
-          polishTranscriptLines(previewLines, {
+          polishTranscriptLines(withBreathing, {
             startedAtMs: this.entranceStartedAtMs,
             kind: 'assistant',
             streaming: this.lastTransient,

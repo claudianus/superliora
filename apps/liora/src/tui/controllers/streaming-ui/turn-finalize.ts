@@ -14,6 +14,7 @@ import {
 } from './compaction';
 import type { StreamingUIHost } from './host-types';
 import type { AssistantMessageComponent } from '../../components/messages/assistant-message';
+import { settleActiveChainSummary, type ChainSummaryState } from './chain-summary';
 
 export function finalizeStreamingTurn(args: {
   host: StreamingUIHost;
@@ -23,6 +24,8 @@ export function finalizeStreamingTurn(args: {
   resetToolCallState: () => void;
   setCurrentTurnId: (turnId: string | undefined) => void;
   sendQueued: (item: QueuedMessage) => void;
+  /** Tools-only turns never hit answer-start settle — close the chain bar here. */
+  chainSummary?: ChainSummaryState;
 }): void {
   const { state } = args.host;
   if (state.appState.streamingPhase === 'idle') return;
@@ -33,6 +36,9 @@ export function finalizeStreamingTurn(args: {
   args.finalizeLiveTextBuffers();
   if (closingAssistantBlock !== undefined) {
     closingAssistantBlock.markTurnEndCue(appearanceAnimationNow());
+  }
+  if (args.chainSummary !== undefined) {
+    settleActiveChainSummary(args.chainSummary);
   }
   args.resetToolCallState();
   args.setCurrentTurnId(undefined);
