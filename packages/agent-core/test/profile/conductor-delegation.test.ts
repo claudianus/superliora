@@ -1,10 +1,25 @@
 import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_AGENT_PROFILES } from '../../src/profile';
+import { DEFAULT_AGENT_PROFILES, type SystemPromptContext } from '../../src/profile';
 import {
   resolveMainAgentProfileName,
   SOVEREIGN_CONDUCTOR_PROFILE_NAME,
 } from '../../src/profile/main-profile';
+
+const promptContext: SystemPromptContext = {
+  osEnv: {
+    osKind: 'macOS',
+    osArch: 'arm64',
+    osVersion: '0',
+    shellName: 'bash',
+    shellPath: '/bin/bash',
+  },
+  cwd: '/workspace',
+  now: '2026-05-09T00:00:00.000Z',
+  cwdListing: 'README.md',
+  agentsMd: 'Project instructions.',
+  skills: 'Available test skills.',
+};
 
 /**
  * Conductor delegation-only tool-surface snapshot (meta-orchestrator v2
@@ -121,5 +136,22 @@ describe('conductor delegation-only tool surface', () => {
     expect(tools).not.toContain('Write');
     expect(tools).not.toContain('Edit');
     expect(tools).not.toContain('ApplyPatch');
+  });
+
+  it('routes multi-file discovery to explore Jobs and multi-approach work to EnterPlanMode', () => {
+    const prompt = DEFAULT_AGENT_PROFILES['conductor']?.systemPrompt(promptContext);
+    expect(prompt).toBeTruthy();
+    expect(prompt).toContain('JobCreate(kind=explore)');
+    expect(prompt).toContain('multi-file discovery');
+    expect(prompt).toContain('EnterPlanMode');
+    expect(prompt).toContain('do **not** open a multi-step RepoQuery/Grep/Read marathon');
+    expect(prompt).toContain('Anti-pattern');
+    expect(prompt).toContain('parallelizing 5+ RepoQuery/Grep/Read');
+    expect(prompt).toContain('≤3 quick facts');
+    // Desk wake prefers explore for research-shaped tasks.
+    expect(prompt).toContain('Research-shaped user tasks');
+    // Core delegation contract remains.
+    expect(prompt).toContain('Never wait on workers');
+    expect(prompt).toContain('Prefer `explore` → implement chain');
   });
 });
