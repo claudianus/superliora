@@ -84,6 +84,7 @@ Debt rule: a test that only asserts an export exists, a constant equals its own 
 - User-visible prose (PR body, changeset, docs): light no-slop pass; skill at `.agents/skills/no-ai-slop/SKILL.md` when needed.
 - Before opening a PR: run `.agents/skills/gen-changesets/SKILL.md` and add `.changeset/` as required. `pnpm run check:changeset` enforces presence against `origin/main` (product code without a changeset fails).
   - **Never write `major` without explicit user approval.** Default `minor`, else `patch` if impact is unclear.
+- **Release reminder (MANDATORY after land):** `commit` → `push` → PR `merge` to `main` does **not** publish a user-facing build. There is **no** auto-release on merge (no `changesets/action` version/publish job). `liora upgrade` tracks the GitHub Release / published `@superliora/liora` version, not arbitrary `main` commits. After merging product work that carries a `@superliora/liora` changeset (or otherwise should ship to CLI users), **remind the operator that a release cut is still required** before `liora upgrade` / install scripts pick it up. Do **not** cut or publish a release unless the user explicitly asks.
 
 ## Source-install gate
 
@@ -111,6 +112,7 @@ Two independent lines:
 - Upstream-port PRs update `meta/upstream.lock.yaml`, refresh via `pnpm -C apps/liora run prebuild` (or `build`), and mention baseline in the changeset when user-visible.
 - SuperLiora-only work leaves `meta/upstream.lock.yaml` alone.
 - Internal package versions stay internal; only `@superliora/liora` is the release number. `/status` may show the baseline; `--version` stays short.
+- Changesets on `main` are inventory until someone versions/tags/publishes (native assets via `publish-native-release.yml` / related manual workflows). Pending `.changeset/` files ≠ a new `liora --version`.
 
 ## Nested guides
 
