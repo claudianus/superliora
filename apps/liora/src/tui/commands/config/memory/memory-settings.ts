@@ -8,12 +8,13 @@ import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-
 import { handleMemoryCommand } from '../../memory/memory';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 
 export function showMemorySettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Liora Memory',
+      title: ttui('tui.settings.pane.memory.title'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
@@ -51,7 +52,7 @@ export function showMemorySettings(host: SlashCommandHost): void {
         }
         if (value === 'recall') {
           promptMemoryArgs(host, {
-            title: 'Memory recall query',
+            title: ttui('tui.settings.pane.memory.recallQuery'),
             prefill: '',
             onDone: (query) => {
               void handleMemoryCommand(host, `recall ${query}`);
@@ -61,7 +62,7 @@ export function showMemorySettings(host: SlashCommandHost): void {
         }
         if (value === 'remember') {
           promptMemoryArgs(host, {
-            title: 'Remember (subject :: content)',
+            title: ttui('tui.settings.pane.memory.remember'),
             prefill: '',
             onDone: (args) => {
               void handleMemoryCommand(host, `remember ${args}`);
@@ -71,7 +72,7 @@ export function showMemorySettings(host: SlashCommandHost): void {
         }
         if (value === 'forget') {
           promptMemoryArgs(host, {
-            title: 'Forget memory id',
+            title: ttui('tui.settings.pane.memory.forget'),
             prefill: '',
             onDone: (id) => {
               void handleMemoryCommand(host, `forget ${id}`);

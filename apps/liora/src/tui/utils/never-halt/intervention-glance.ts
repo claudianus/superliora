@@ -3,10 +3,12 @@
  */
 
 import { formatDurationShort } from '#/tui/features/transcript/transcript-density';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 /** Soft status tip when a non-blocking approval enters the queue. */
-export const INTERVENTION_NEVER_HALT_TIP =
-  'Never-Halt: approval queued — Goal/Mission/Fleet continue while you decide';
+export function getInterventionNeverHaltTip(): string {
+  return ttui('tui.notice.neverHalt.tip');
+}
 
 /** Settings/Ops — ask-mode keeps Fleet and independent tools running during one wait. */
 export const INTERVENTION_ASK_MODE_FLEET_TIP =

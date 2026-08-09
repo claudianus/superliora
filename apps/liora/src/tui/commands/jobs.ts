@@ -20,13 +20,11 @@ import {
   isConductorUxV2Enabled,
 } from './job-hotpath';
 import type { SlashCommandHost } from './hub/dispatch';
+import { ttui } from '../utils/tui-i18n';
 
 function isConductorProjectMode(value: string): value is ConductorProjectMode {
   return (CONDUCTOR_PROJECT_MODES as readonly string[]).includes(value);
 }
-
-const JOBS_USAGE =
-  'Usage: /jobs — list Conductor jobs; /jobs deck [id] — open the interactive Job Deck monitor; /agents — toggle the Worker Dock band; /job <id> — inspect; /job resume [id] — resume interrupted; /job answer <id> <text> — answer needs_user card; /job cancel <id>; /job inbox; /job split-preview <text> — confirm multi-intent create; /job gc — worktree GC; /job help';
 
 function isBoardArgs(args: string): boolean {
   return args === 'board' || args === 'view' || args === 'open';
@@ -82,7 +80,7 @@ export function handleJobCommand(host: SlashCommandHost, rawArgs: string): void 
     case '':
     case 'help':
     case '?':
-      host.showStatus(JOBS_USAGE);
+      host.showStatus(ttui('tui.jobs.usage'));
       return;
 
     case 'board':
@@ -149,7 +147,7 @@ export function handleJobCommand(host: SlashCommandHost, rawArgs: string): void 
       const answer = tokens.slice(2).join(' ').trim();
       if (jobId.length === 0 || answer.length === 0) {
         host.showStatus(
-          'Provide a job id and your answer: /job answer <job_id> <your input> — re-queues the needs_user card so the worker resumes with your input.',
+          ttui('tui.jobs.answerUsage'),
         );
         return;
       }
@@ -168,7 +166,7 @@ export function handleJobCommand(host: SlashCommandHost, rawArgs: string): void 
     case 'stop': {
       const jobId = tokens.slice(1).join(' ').trim();
       if (jobId.length === 0) {
-        host.showStatus('Provide a job id: /job cancel <job_id>. Use /jobs to list.');
+        host.showStatus(ttui('tui.jobs.cancelUsage'));
         return;
       }
       if (uxV2) {
@@ -187,7 +185,7 @@ export function handleJobCommand(host: SlashCommandHost, rawArgs: string): void 
     case 'get': {
       const jobId = tokens.slice(1).join(' ').trim();
       if (jobId.length === 0) {
-        host.showStatus('Provide a job id: /job inspect <job_id>.');
+        host.showStatus(ttui('tui.jobs.inspectUsage'));
         return;
       }
       if (uxV2) {
@@ -214,13 +212,13 @@ export function handleJobCommand(host: SlashCommandHost, rawArgs: string): void 
 
     case 'mode': {
       if (!uxV2) {
-        host.showStatus('Project mode needs conductor_ux_v2 (experimental).', 'textMuted');
+        host.showStatus(ttui('tui.jobs.modeNeedsUx'), 'textMuted');
         return;
       }
       const modeArg = (tokens[1] ?? '').toLowerCase();
       if (!isConductorProjectMode(modeArg)) {
         host.showStatus(
-          'Usage: /job mode <balanced|greenfield|hotfix|review>',
+          ttui('tui.jobs.modeUsage'),
           'textMuted',
         );
         return;
@@ -241,12 +239,12 @@ export function handleJobCommand(host: SlashCommandHost, rawArgs: string): void 
     case 'split': {
       const text = tokens.slice(1).join(' ').trim();
       if (!uxV2) {
-        host.showStatus('split-preview needs conductor_ux_v2 (experimental).', 'textMuted');
+        host.showStatus(ttui('tui.jobs.splitNeedsUx'), 'textMuted');
         return;
       }
       if (text.length === 0) {
         host.showStatus(
-          'Provide text to split: /job split-preview 1. Fix login 2. Add tests 3. Update docs',
+          ttui('tui.jobs.splitUsage'),
         );
         return;
       }
@@ -286,7 +284,7 @@ export function handleJobCommand(host: SlashCommandHost, rawArgs: string): void 
         );
         return;
       }
-      host.showStatus(JOBS_USAGE);
+      host.showStatus(ttui('tui.jobs.usage'));
       return;
     }
   }

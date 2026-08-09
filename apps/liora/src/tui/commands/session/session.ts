@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 import type { Session, SessionTrace } from '@superliora/sdk';
 
 import { toTerminalHyperlink } from '#/utils/terminal-hyperlink';
-import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
+import {  LLM_NOT_SET_MESSAGE,  NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
 import { isAbortError } from '../../utils/errors';
 import { formatErrorMessage } from '../../utils/event-payload';
 import { buildExportMarkdown } from '../../utils/export-markdown';
@@ -30,7 +30,7 @@ export async function handleTitleCommand(host: SlashCommandHost, args: string): 
 
   const session = host.session;
   if (session === undefined) {
-    host.showError(NO_ACTIVE_SESSION_MESSAGE);
+    host.showError(NO_ACTIVE_SESSION_MESSAGE());
     return;
   }
 
@@ -39,16 +39,16 @@ export async function handleTitleCommand(host: SlashCommandHost, args: string): 
     await host.harness.renameSession({ id: session.id, title: newTitle });
   } catch (error) {
     const msg = formatErrorMessage(error);
-    host.showError(`Failed to set title: ${msg}`);
+    host.showError(ttui('tui.session.titleFailed', { message: msg }));
     return;
   }
-  host.showStatus(`Session title set to: ${newTitle}`);
+  host.showStatus(ttui('tui.session.titleSet', { title: newTitle }));
 }
 
 export async function handleForkCommand(host: SlashCommandHost, args: string): Promise<void> {
   const session = host.session;
   if (session === undefined) {
-    host.showError(NO_ACTIVE_SESSION_MESSAGE);
+    host.showError(NO_ACTIVE_SESSION_MESSAGE());
     return;
   }
   if (host.isSessionLoadingOverlayActive()) {
@@ -90,7 +90,7 @@ export async function handleForkCommand(host: SlashCommandHost, args: string): P
     );
   } catch (error) {
     const msg = formatErrorMessage(error);
-    host.showError(`Failed to fork session: ${msg}`);
+    host.showError(ttui('tui.session.forkFailed', { message: msg }));
   }
 }
 
@@ -134,7 +134,7 @@ function forkSourceTitle(host: SlashCommandHost, session: Session): string {
 export async function handleExportMdCommand(host: SlashCommandHost, args: string): Promise<void> {
   const session = host.session;
   if (session === undefined) {
-    host.showError(NO_ACTIVE_SESSION_MESSAGE);
+    host.showError(NO_ACTIVE_SESSION_MESSAGE());
     return;
   }
   if (host.isSessionLoadingOverlayActive()) {
@@ -159,7 +159,7 @@ export async function handleExportMdCommand(host: SlashCommandHost, args: string
         }
         const context = trace?.context ?? await session.getContext();
         if (context.history.length === 0) {
-          host.showError('No messages to export.');
+          host.showError(ttui('tui.export.noMessages'));
           return;
         }
 
@@ -186,19 +186,19 @@ export async function handleExportMdCommand(host: SlashCommandHost, args: string
         await writeFile(outputPath, md, 'utf-8');
 
         const linked = toTerminalHyperlink(outputPath, pathToFileURL(outputPath).href);
-        host.showNotice(`Exported ${String(context.history.length)} messages`, linked);
+        host.showNotice(ttui('tui.session.exported', { count: String(context.history.length) }), linked);
       },
     );
   } catch (error) {
     const msg = formatErrorMessage(error);
-    host.showError(`Failed to export session: ${msg}`);
+    host.showError(ttui('tui.session.exportFailed', { message: msg }));
   }
 }
 
 export async function handleInitCommand(host: SlashCommandHost): Promise<void> {
   const session = host.session;
   if (host.state.appState.model.trim().length === 0 || session === undefined) {
-    host.showError(LLM_NOT_SET_MESSAGE);
+    host.showError(LLM_NOT_SET_MESSAGE());
     return;
   }
 

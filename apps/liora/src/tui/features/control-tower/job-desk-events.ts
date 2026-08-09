@@ -35,6 +35,7 @@ import type {
   ConductorJobUsage,
 } from '../../utils/job/job-strip';
 import { InputAckLatencyTracker } from './input-ack-latency';
+import { ttui } from '../../utils/tui-i18n';
 import type { JobBoardStore } from './job-board-store';
 import { maybeApplyStaleWorktrees } from './job-hygiene';
 
@@ -111,7 +112,7 @@ export class ControlTowerJobDesk {
       });
       if (!/held/i.test(land.title)) {
         // F15: short success cue via status flash (appearance-effects clock).
-        this.host.showStatus('Land complete', 'success');
+        this.host.showStatus(ttui('tui.land.complete'), 'success');
         void maybeApplyStaleWorktrees(this.host);
       }
       this.maybeAutoOpenMergePreview(event, card);
@@ -120,7 +121,7 @@ export class ControlTowerJobDesk {
     }
     const kindLabel = event.kind.replace(/^job\./, '');
     const detail = event.summary ? event.summary.slice(0, 120) : event.jobId;
-    this.host.showNotice(`Job ${kindLabel}: ${event.title}`, detail, {
+    this.host.showNotice(ttui('tui.job.noticeTitle', { kind: kindLabel, title: event.title }), detail, {
       coalesceKey: `job-inbox:${event.eventId}`,
     });
     // Keep notice stream; unread already bumped in the store publish above.
@@ -238,7 +239,7 @@ export class ControlTowerJobDesk {
       ...(brief === undefined ? {} : { briefPreview: brief }),
     });
     if (detail === undefined) return;
-    this.host.showNotice(`Job ACK: ${event.job.title}`, detail, {
+    this.host.showNotice(ttui('tui.job.ackTitle', { title: event.job.title }), detail, {
       coalesceKey: `job-gate-ack:${event.job.id}`,
     });
   }

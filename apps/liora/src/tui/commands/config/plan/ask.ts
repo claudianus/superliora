@@ -1,5 +1,6 @@
-import { NO_ACTIVE_SESSION_MESSAGE } from '../../../constant/liora-tui';
+import {  NO_ACTIVE_SESSION_MESSAGE } from '../../../constant/liora-tui';
 import { formatErrorMessage } from '../../../utils/event-payload';
+import { ttui } from '../../../utils/tui-i18n';
 import type { SlashCommandHost } from '../../hub/dispatch';
 
 export async function handleAskCommand(host: SlashCommandHost, args: string): Promise<void> {
@@ -9,7 +10,7 @@ export async function handleAskCommand(host: SlashCommandHost, args: string): Pr
   else if (subcmd === 'on') enabled = true;
   else if (subcmd === 'off') enabled = false;
   else {
-    host.showError(`Unknown ask subcommand: ${subcmd}. Use on or off.`);
+    host.showError(ttui('tui.ask.unknownSub', { subcmd }));
     return;
   }
   await setAskMode(host, enabled);
@@ -19,13 +20,13 @@ export async function handleAskCommand(host: SlashCommandHost, args: string): Pr
 export async function setAskMode(host: SlashCommandHost, enabled: boolean): Promise<void> {
   const session = host.session;
   if (session === undefined) {
-    host.showError(NO_ACTIVE_SESSION_MESSAGE);
+    host.showError(NO_ACTIVE_SESSION_MESSAGE());
     return;
   }
   try {
     await session.setAskMode(enabled);
   } catch (error) {
-    host.showError(`Failed to set ask mode: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.ask.setFailed', { message: formatErrorMessage(error) }));
     return;
   }
   // Ask mode cancels plan mode on the agent side; mirror that here so the

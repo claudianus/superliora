@@ -1,3 +1,5 @@
+import { ttui } from '#/tui/utils/tui-i18n';
+
 /**
  * Plan line comments — number plan markdown and attach operator feedback
  * against a specific line without elevating permissions.
@@ -42,7 +44,7 @@ export function formatNumberedPlanPreview(
 ): string {
   const maxLines = options.maxLines ?? MAX_PLAN_PREVIEW_LINES;
   const lines = numberPlanLines(plan);
-  if (lines.length === 0) return '(빈 계획)';
+  if (lines.length === 0) return ttui('tui.plan.empty');
 
   const visible = lines.slice(0, maxLines);
   const width = String(visible.length === 0 ? 1 : visible.at(-1)!.number).length;
@@ -51,7 +53,7 @@ export function formatNumberedPlanPreview(
     .join('\n');
 
   if (lines.length > maxLines) {
-    return `${body}\n… (+${String(lines.length - maxLines)}줄)`;
+    return `${body}\n${ttui('tui.plan.moreLines', { count: String(lines.length - maxLines) })}`;
   }
   return body;
 }
@@ -88,7 +90,11 @@ export function formatPlanLineCommentFeedback(
     planLineText === undefined || planLineText.trim().length === 0
       ? ''
       : ` 「${planLineText.trim().slice(0, 80)}」`;
-  return `라인 ${String(comment.line)} 코멘트${snippet}: ${comment.comment}`;
+  return ttui('tui.plan.lineCommentFeedback', {
+    line: String(comment.line),
+    snippet,
+    comment: comment.comment,
+  });
 }
 
 /**

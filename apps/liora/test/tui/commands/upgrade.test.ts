@@ -59,7 +59,7 @@ describe('upgrade slash command', () => {
     const viaUpdate = findBuiltInSlashCommand('update');
     expect(viaUpgrade?.name).toBe('upgrade');
     expect(viaUpdate?.name).toBe('upgrade');
-    expect(viaUpdate).toBe(viaUpgrade);
+    expect(viaUpdate).toStrictEqual(viaUpgrade);
     expect(viaUpgrade?.aliases).toContain('update');
     expect(viaUpgrade?.argumentHint).toBe('[--main]');
   });

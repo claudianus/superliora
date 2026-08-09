@@ -5,6 +5,8 @@
  * and session-browser resume paths — easy to miss when history is replaying.
  */
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 export type SessionResumeWarningNotice = {
   readonly title: string;
   readonly detail: string;
@@ -16,13 +18,14 @@ export function formatSessionResumeWarningNotice(
   warning: string,
 ): SessionResumeWarningNotice {
   const text = warning.trim();
+  const preview = `${text.slice(0, 80)}${text.length > 80 ? '…' : ''}`;
   return {
-    title: 'Session resume warning',
+    title: ttui('tui.notice.sessionResume.title'),
     detail:
       text.length > 0
         ? text
-        : 'Session resumed with a warning. Review history and state before continuing.',
-    status: `Resume warning: ${text.slice(0, 80)}${text.length > 80 ? '…' : ''}`,
+        : ttui('tui.notice.sessionResume.detailFallback'),
+    status: ttui('tui.notice.sessionResume.status', { preview }),
     coalesceKey: 'session-resume-warning',
   };
 }

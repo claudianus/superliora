@@ -1,7 +1,5 @@
 import type { SlashCommandHost } from './hub/dispatch';
-
-const CRON_USAGE =
-  'Usage: /cron list — show scheduled jobs (id, schedule, prompt, status); /cron delete <jobId> — remove a job. Jobs persist across sessions; the agent manages them with the Cron tools.';
+import { ttui } from '../utils/tui-i18n';
 
 export function handleCronCommand(host: SlashCommandHost, rawArgs: string): void {
   const args = rawArgs.trim();
@@ -11,7 +9,7 @@ export function handleCronCommand(host: SlashCommandHost, rawArgs: string): void
   switch (sub) {
     case '':
     case 'help':
-      host.showStatus(CRON_USAGE);
+      host.showStatus(ttui('tui.cron.usage'));
       return;
     case 'list':
     case 'ls':
@@ -24,7 +22,7 @@ export function handleCronCommand(host: SlashCommandHost, rawArgs: string): void
     case 'remove': {
       const jobId = tokens.slice(1).join(' ').trim();
       if (jobId.length === 0) {
-        host.showStatus('Provide a job id: /cron delete <jobId>. Use /cron list to find ids.');
+        host.showStatus(ttui('tui.cron.deleteUsage'));
         return;
       }
       host.sendNormalUserInput(
@@ -34,7 +32,7 @@ export function handleCronCommand(host: SlashCommandHost, rawArgs: string): void
       return;
     }
     default:
-      host.showStatus(CRON_USAGE);
+      host.showStatus(ttui('tui.cron.usage'));
       return;
   }
 }

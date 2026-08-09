@@ -9,13 +9,14 @@ import {
 
 import { currentTheme } from '#/tui/theme';
 import { sanitizeApiKeyValue } from '#/tui/utils/sanitize-api-key';
+import { ttui } from '#/tui/utils/tui-i18n';
 import { Input } from '../shared/input';
 
 export type ApiKeyInputResult =
   | { readonly kind: 'ok'; readonly value: string }
   | { readonly kind: 'cancel' };
 
-const FOOTER = 'Enter to submit  ·  Esc to cancel';
+const footerHint = (): string => ttui('tui.auth.apiKeyFooter');
 
 function maskInputLine(raw: string): string {
   const prefix = '> ';
@@ -65,7 +66,7 @@ export class ApiKeyInputDialogComponent extends Container implements Focusable {
   ) {
     super();
     this.onDone = onDone;
-    this.title = `Enter API key for ${platformName}`;
+    this.title = ttui('tui.auth.apiKeyTitle', { platform: platformName });
     this.subtitleLines = subtitleLines;
     if (options.prefill !== undefined && options.prefill.length > 0) {
       this.input.setValue(options.prefill);
@@ -105,11 +106,11 @@ export class ApiKeyInputDialogComponent extends Container implements Focusable {
 
     const border = (s: string): string => currentTheme.fg('primary', s);
     const titleStyled = currentTheme.boldFg('textStrong', this.title);
-    const subtitleSource = this.emptyHinted ? ['API key cannot be empty.'] : this.subtitleLines;
+    const subtitleSource = this.emptyHinted ? [ttui('tui.auth.apiKeyEmpty')] : this.subtitleLines;
     const subtitleLines = subtitleSource.map((line) =>
       truncateToWidth(currentTheme.fg('textDim', line), innerWidth, '…'),
     );
-    const footerStyled = currentTheme.fg('textDim', FOOTER);
+    const footerStyled = currentTheme.fg('textDim', footerHint());
 
     const titleLine = truncateToWidth(titleStyled, innerWidth, '…');
     const footerLine = truncateToWidth(footerStyled, innerWidth, '…');

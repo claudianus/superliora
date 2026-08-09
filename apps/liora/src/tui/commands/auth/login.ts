@@ -3,6 +3,7 @@ import { DEFAULT_OAUTH_PROVIDER_NAME, PRODUCT_NAME } from '../../constant/liora-
 import { loadCatalogWithSpinner } from '../provider-connect/catalog';
 import { runUnifiedProviderConnect } from '../provider-connect/run';
 import { promptLogoutProviderSelection } from './prompts';
+import { ttui } from '../../utils/tui-i18n';
 import type { SlashCommandHost } from '../hub/dispatch';
 
 // ---------------------------------------------------------------------------
@@ -51,7 +52,7 @@ export async function handleLogoutCommand(host: SlashCommandHost): Promise<void>
   }
 
   if (options.length === 0) {
-    host.showStatus('Nothing to logout.');
+    host.showStatus(ttui('tui.logout.nothing'));
     return;
   }
 
@@ -80,5 +81,5 @@ export async function handleLogoutCommand(host: SlashCommandHost): Promise<void>
 
   host.track('logout', { provider: target });
   const label = target === DEFAULT_OAUTH_PROVIDER_NAME ? PRODUCT_NAME : target;
-  host.showStatus(`Logged out from ${label}.`);
+  host.showStatus(ttui('tui.logout.from', { label }));
 }

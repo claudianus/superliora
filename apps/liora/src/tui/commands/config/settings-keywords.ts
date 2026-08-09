@@ -77,6 +77,7 @@ export const SETTINGS_SEARCH_KEYWORDS = {
   ],
   persona: ['personality', 'tone', 'character'],
   editor: ['vim', 'external-editor', 'nano'],
+  locale: ['locale', 'language', 'i18n', 'korean', 'english', '한국어', '언어'],
   experiments: ['flags', 'feature-flags', 'codegraph', 'micro-compaction'],
   upgrade: ['updates', 'auto-update', 'version'],
   usage: ['tokens', 'quota', 'context-window', 'plan'],

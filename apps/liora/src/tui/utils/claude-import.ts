@@ -10,6 +10,8 @@
 import { homedir } from 'node:os';
 import { isAbsolute, join, normalize, relative, resolve, sep } from 'node:path';
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 export type ClaudeImportRootKind = 'project' | 'global';
 
 export interface ClaudeImportRoot {
@@ -67,12 +69,12 @@ export function resolveClaudeImportRoots(workDir: string): readonly ClaudeImport
     {
       kind: 'project',
       path: projectRoot,
-      label: `${PROJECT_CLAUDE_DIR}/ (프로젝트)`,
+      label: ttui('tui.claudeImport.root.project', { dir: PROJECT_CLAUDE_DIR }),
     },
     {
       kind: 'global',
       path: globalRoot,
-      label: `~/${GLOBAL_CLAUDE_DIR}/ (전역)`,
+      label: ttui('tui.claudeImport.root.global', { dir: GLOBAL_CLAUDE_DIR }),
     },
   ];
 }
@@ -90,12 +92,12 @@ export function validateClaudeImportPath(
 } {
   const trimmed = inputPath.trim();
   if (trimmed.length === 0) {
-    return { ok: false, reason: '경로가 비어 있습니다.' };
+    return { ok: false, reason: ttui('tui.claudeImport.error.emptyPath') };
   }
 
   // Reject null bytes and obvious escapes before normalize.
   if (trimmed.includes('\0')) {
-    return { ok: false, reason: '잘못된 경로입니다.' };
+    return { ok: false, reason: ttui('tui.claudeImport.error.invalidPath') };
   }
 
   const expanded = expandHome(trimmed);
@@ -111,8 +113,7 @@ export function validateClaudeImportPath(
 
   return {
     ok: false,
-    reason:
-      '허용된 Claude 경로만 가져올 수 있습니다. 프로젝트 .claude/ 또는 ~/.claude/ 아래만 허용됩니다.',
+    reason: ttui('tui.claudeImport.error.outsideAllowlist'),
   };
 }
 
@@ -163,31 +164,28 @@ export function buildClaudeImportPlan(
  */
 export function formatClaudeImportSummary(plan: ClaudeImportPlan): string {
   if (plan.candidates.length === 0 && plan.rejected.length === 0) {
-    return '가져올 Claude 설정을 찾지 못했습니다. 프로젝트 .claude/ 또는 ~/.claude/ 를 확인하세요.';
+    return ttui('tui.claudeImport.summary.none');
   }
 
   const byKind = new Map<string, number>();
   for (const c of plan.candidates) {
     byKind.set(c.kind, (byKind.get(c.kind) ?? 0) + 1);
   }
-  const parts = [...byKind.entries()].map(([kind, n]) => `${kind} ${String(n)}`);
+  const parts = [...byKind.entries()].map(([kind, n]) =>
+    `${claudeImportKindLabel(kind as ClaudeImportCandidate['kind'])} ${String(n)}`,
+  );
   const lines = [
-    `Claude 가져오기 계획: ${String(plan.candidates.length)}개 항목`,
+    ttui('tui.claudeImport.summary.plan', { count: String(plan.candidates.length) }),
     parts.length > 0 ? `  · ${parts.join(' · ')}` : '',
     plan.rejected.length > 0
-      ? `  · 거부 ${String(plan.rejected.length)} (허용 루트 밖)`
+      ? ttui('tui.claudeImport.summary.rejected', { count: String(plan.rejected.length) })
       : '',
-    '참고: 가져오기는 인벤토리만 추가하며 권한 deny 체인을 우회하지 않습니다.',
+    ttui('tui.claudeImport.summary.note'),
   ].filter((line) => line.length > 0);
   return lines.join('\n');
 }
 
-/** Kind labels for Extensions / import UI (Korean). */
-export const CLAUDE_IMPORT_KIND_LABELS_KO: Readonly<Record<ClaudeImportCandidate['kind'], string>> = {
-  settings: '설정',
-  skills: '스킬',
-  commands: '명령',
-  hooks: '훅',
-  mcp: 'MCP',
-  other: '기타',
-};
+/** Kind labels for Extensions / import UI. */
+export function claudeImportKindLabel(kind: ClaudeImportCandidate['kind']): string {
+  return ttui(`tui.claudeImport.kind.${kind}`);
+}

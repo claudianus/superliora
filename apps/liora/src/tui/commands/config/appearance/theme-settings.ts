@@ -17,6 +17,7 @@ import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 import { showThemePicker } from './editor-theme';
+import { ttui } from '../../../utils/tui-i18n';
 
 export { THEME_APPEARANCE_TIP, THEME_CUSTOM_TIP, THEME_IMPORT_TIP };
 
@@ -24,7 +25,7 @@ export function showThemeSettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Theme',
+      title: ttui('tui.settings.pane.theme.title'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
@@ -57,7 +58,7 @@ export function showThemeSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Theme' },
+    { label: ttui('tui.settings.pane.theme.title') },
   );
 }
 
@@ -72,7 +73,7 @@ function showThemeSettingsPanel(host: SlashCommandHost): void {
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => [...lines],
     borderToken: 'primary',
-    title: ' Theme ',
+    title: ttui('tui.settings.pane.theme.panelTitle'),
     enterBeatSeed: 'theme-settings',
     requestRender: () => {
       requestTUILayoutRender(host.state);

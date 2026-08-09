@@ -6,6 +6,8 @@
  * tool card while the model may still claim "done".
  */
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 export const GOAL_SOFT_ADVISORY_PREFIX = 'GOAL_SOFT_ADVISORY:';
 export const GOAL_FALSE_COMPLETE_CODE = 'GOAL_FALSE_COMPLETE';
 
@@ -46,10 +48,9 @@ export function isGoalFalseCompleteOutput(output: unknown): boolean {
 
 export function formatGoalSoftAdvisoryNotice(): GoalCompletionNotice {
   return {
-    title: 'Goal complete — soft advisory',
-    detail:
-      'UpdateGoal(complete) accepted without a live WorkGraph evidence hard gate (or with sticky check failures). Confirm RunProjectChecks / proof before treating the goal as fully done.',
-    status: 'Goal complete with soft advisory — verify evidence',
+    title: ttui('tui.notice.goalCompleteSoft.title'),
+    detail: ttui('tui.notice.goalCompleteSoft.detail'),
+    status: ttui('tui.notice.goalCompleteSoft.status'),
     coalesceKey: 'goal-soft-advisory',
     severity: 'info',
   };
@@ -57,10 +58,9 @@ export function formatGoalSoftAdvisoryNotice(): GoalCompletionNotice {
 
 export function formatGoalFalseCompleteNotice(): GoalCompletionNotice {
   return {
-    title: 'Goal complete rejected',
-    detail:
-      'False-complete guard rejected UpdateGoal(complete) (missing WorkGraph evidence). Keep implementing and verifying — do not claim done yet.',
-    status: 'Goal complete rejected — continue work',
+    title: ttui('tui.notice.goalCompleteRejected.title'),
+    detail: ttui('tui.notice.goalCompleteRejected.detail'),
+    status: ttui('tui.notice.goalCompleteRejected.status'),
     coalesceKey: 'goal-false-complete',
     severity: 'warning',
   };

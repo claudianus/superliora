@@ -23,6 +23,7 @@ import { formatErrorMessage } from '#/tui/utils/event-payload';
 import type { SlashCommandHost } from '../../hub/dispatch';
 
 import { showExtensionsHub } from '../extensions/extensions-hub';
+import { ttui } from '../../../utils/tui-i18n';
 
 export { SKILLS_MANAGE_TIP, SKILLS_RISK_FILTER_TIP, SKILLS_SEARCH_SKILL_TIP, SKILLS_TRACE_SKILL_TIP };
 
@@ -55,7 +56,7 @@ export function showSkillsSettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Skills',
+      title: ttui('tui.settings.pane.skills.title'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
@@ -77,7 +78,7 @@ export function showSkillsSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
         if (value === 'presets') {
           showSettingPresetsPicker(host, {
-            title: 'Skills presets',
+            title: ttui('tui.settings.pane.skills.presets'),
             catalog: SKILLS_PRESETS,
             onApply: async (preset) => {
               try {
@@ -87,9 +88,9 @@ export function showSkillsSettings(host: SlashCommandHost): void {
                 for (const name of preset.patch.disable) next.add(name);
                 await saveSkillsState({ disabled: [...next] });
                 await host.refreshDynamicSlashCommands?.(host.session);
-                host.showStatus(`Skills preset "${preset.label}" applied.`, 'success');
+                host.showStatus(ttui('tui.skills.presetApplied', { label: preset.label }), 'success');
               } catch (error) {
-                host.showError(`Failed to apply skills preset: ${formatErrorMessage(error)}`);
+                host.showError(ttui('tui.skills.presetFailed', { message: formatErrorMessage(error) }));
               }
             },
           });
@@ -109,7 +110,7 @@ export function showSkillsSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Skills' },
+    { label: ttui('tui.settings.pane.skills.title') },
   );
 }
 
@@ -120,7 +121,7 @@ async function showSkillsSettingsPanel(host: SlashCommandHost): Promise<void> {
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => [...lines],
     borderToken: 'primary',
-    title: ' Skills ',
+    title: ttui('tui.settings.pane.skills.panelTitle'),
     enterBeatSeed: 'skills-settings',
     requestRender: () => {
       requestTUILayoutRender(host.state);

@@ -5,16 +5,22 @@
 
 import type { McpServerInfo, PluginSummary, SkillSummary } from '@superliora/sdk';
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 export type ExtensionsTabId = 'plugins' | 'hooks' | 'skills' | 'mcp';
 
 export const EXTENSIONS_TAB_ORDER = ['plugins', 'hooks', 'skills', 'mcp'] as const satisfies readonly ExtensionsTabId[];
 
-export const EXTENSIONS_TAB_LABELS_KO: Readonly<Record<ExtensionsTabId, string>> = {
-  plugins: '플러그인',
-  hooks: '훅',
-  skills: '스킬',
-  mcp: 'MCP',
+const EXTENSIONS_TAB_LABEL_KEYS: Readonly<Record<ExtensionsTabId, string>> = {
+  plugins: 'tui.extensions.tab.plugins',
+  hooks: 'tui.extensions.tab.hooks',
+  skills: 'tui.extensions.tab.skills',
+  mcp: 'tui.extensions.tab.mcp',
 };
+
+export function extensionsTabLabel(tab: ExtensionsTabId): string {
+  return ttui(EXTENSIONS_TAB_LABEL_KEYS[tab]);
+}
 
 export interface ExtensionsRow {
   readonly id: string;
@@ -30,8 +36,10 @@ export interface ExtensionsSnapshot {
 }
 
 function pluginStatus(plugin: PluginSummary): string {
-  if (plugin.hasErrors) return '오류';
-  return plugin.enabled ? '활성' : '비활성';
+  if (plugin.hasErrors) return ttui('tui.extensions.status.error');
+  return plugin.enabled
+    ? ttui('tui.extensions.status.active')
+    : ttui('tui.extensions.status.inactive');
 }
 
 export function buildPluginRows(plugins: readonly PluginSummary[]): readonly ExtensionsRow[] {
@@ -41,37 +49,38 @@ export function buildPluginRows(plugins: readonly PluginSummary[]): readonly Ext
     status: pluginStatus(plugin),
     detail: [
       plugin.version !== undefined && plugin.version.length > 0 ? `v${plugin.version}` : undefined,
-      `스킬 ${String(plugin.skillCount)}`,
-      `MCP ${String(plugin.enabledMcpServerCount)}/${String(plugin.mcpServerCount)}`,
-      `훅 ${String(plugin.hookCount)}`,
-      `명령 ${String(plugin.commandCount)}`,
+      ttui('tui.extensions.plugin.skills', { count: String(plugin.skillCount) }),
+      ttui('tui.extensions.plugin.mcp', {
+        enabled: String(plugin.enabledMcpServerCount),
+        total: String(plugin.mcpServerCount),
+      }),
+      ttui('tui.extensions.plugin.hooks', { count: String(plugin.hookCount) }),
+      ttui('tui.extensions.plugin.commands', { count: String(plugin.commandCount) }),
     ]
       .filter((part): part is string => part !== undefined)
       .join(' · '),
   }));
 }
 
-/**
- * Hooks are not a separate RPC list today — surface plugin-owned hook counts
- * so operators can audit from one modal without a second command.
- */
 export function buildHookRows(plugins: readonly PluginSummary[]): readonly ExtensionsRow[] {
   const withHooks = plugins.filter((plugin) => plugin.hookCount > 0);
   if (withHooks.length === 0) {
     return [
       {
         id: 'hooks:empty',
-        title: '등록된 훅 없음',
+        title: ttui('tui.extensions.hooks.emptyTitle'),
         status: '—',
-        detail: '플러그인 훅은 설치 후 여기에 집계됩니다. 권한 deny는 항상 우선합니다.',
+        detail: ttui('tui.extensions.hooks.emptyDetail'),
       },
     ];
   }
   return withHooks.map((plugin) => ({
     id: `hooks:${plugin.id}`,
     title: plugin.displayName || plugin.id,
-    status: plugin.enabled ? '활성' : '비활성',
-    detail: `훅 ${String(plugin.hookCount)}개 · 플러그인 소속 (always-approve 승격 없음)`,
+    status: plugin.enabled
+      ? ttui('tui.extensions.status.active')
+      : ttui('tui.extensions.status.inactive'),
+    detail: ttui('tui.extensions.hooks.rowDetail', { count: String(plugin.hookCount) }),
   }));
 }
 
@@ -80,9 +89,9 @@ export function buildSkillRows(skills: readonly SkillSummary[]): readonly Extens
     return [
       {
         id: 'skills:empty',
-        title: '스킬 없음',
+        title: ttui('tui.extensions.skills.emptyTitle'),
         status: '—',
-        detail: 'builtin / user / project 스킬이 여기에 표시됩니다.',
+        detail: ttui('tui.extensions.skills.emptyDetail'),
       },
     ];
   }
@@ -94,18 +103,18 @@ export function buildSkillRows(skills: readonly SkillSummary[]): readonly Extens
   }));
 }
 
-function mcpStatusKo(status: McpServerInfo['status']): string {
+function mcpStatusLabel(status: McpServerInfo['status']): string {
   switch (status) {
     case 'connected':
-      return '연결됨';
+      return ttui('tui.extensions.mcp.connected');
     case 'pending':
-      return '대기';
+      return ttui('tui.extensions.mcp.pending');
     case 'failed':
-      return '실패';
+      return ttui('tui.extensions.mcp.failed');
     case 'disabled':
-      return '비활성';
+      return ttui('tui.extensions.status.inactive');
     case 'needs-auth':
-      return '인증 필요';
+      return ttui('tui.extensions.mcp.needsAuth');
     default:
       return status;
   }
@@ -116,20 +125,22 @@ export function buildMcpRows(servers: readonly McpServerInfo[]): readonly Extens
     return [
       {
         id: 'mcp:empty',
-        title: 'MCP 서버 없음',
+        title: ttui('tui.extensions.mcp.emptyTitle'),
         status: '—',
-        detail: '/mcp 또는 플러그인 MCP로 서버를 추가하세요.',
+        detail: ttui('tui.extensions.mcp.emptyDetail'),
       },
     ];
   }
   return servers.map((server) => ({
     id: `mcp:${server.name}`,
     title: server.name,
-    status: mcpStatusKo(server.status),
+    status: mcpStatusLabel(server.status),
     detail: [
       server.transport,
-      `도구 ${String(server.toolCount)}`,
-      server.error !== undefined && server.error.length > 0 ? '오류 있음' : undefined,
+      ttui('tui.extensions.mcp.tools', { count: String(server.toolCount) }),
+      server.error !== undefined && server.error.length > 0
+        ? ttui('tui.extensions.mcp.hasError')
+        : undefined,
     ]
       .filter((part): part is string => part !== undefined)
       .join(' · '),
@@ -154,7 +165,12 @@ export function rowsForExtensionsTab(
 
 export function extensionsTabSummary(snapshot: ExtensionsSnapshot): string {
   const hooks = snapshot.plugins.reduce((sum, p) => sum + p.hookCount, 0);
-  return `플러그인 ${String(snapshot.plugins.length)} · 훅 ${String(hooks)} · 스킬 ${String(snapshot.skills.length)} · MCP ${String(snapshot.mcpServers.length)}`;
+  return ttui('tui.extensions.summary', {
+    plugins: String(snapshot.plugins.length),
+    hooks: String(hooks),
+    skills: String(snapshot.skills.length),
+    mcp: String(snapshot.mcpServers.length),
+  });
 }
 
 export function resolveExtensionsTab(arg: string | undefined): ExtensionsTabId {

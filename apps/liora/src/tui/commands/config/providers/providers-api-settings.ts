@@ -134,7 +134,7 @@ async function openProvidersApiSettings(host: SlashCommandHost): Promise<void> {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Providers & API',
+      title: ttui('tui.settings.pane.providersApi.title'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options,
@@ -165,7 +165,7 @@ async function openProvidersApiSettings(host: SlashCommandHost): Promise<void> {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Providers & API' },
+    { label: ttui('tui.settings.pane.providersApi.title') },
   );
 }
 
@@ -202,7 +202,7 @@ async function showProvidersApiSettingsPanel(host: SlashCommandHost): Promise<vo
         }),
       ],
     borderToken: 'primary',
-    title: ' Providers ',
+    title: ttui('tui.settings.pane.providersApi.panelTitle'),
     enterBeatSeed: 'providers-api',
     requestRender: () => {
       requestTUILayoutRender(host.state);

@@ -18,6 +18,7 @@ import { currentTheme } from '../../../theme/theme';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 
 function applyCacheTone(line: CacheStyledLine): string {
   switch (line.tone) {
@@ -72,7 +73,7 @@ export async function invalidatePromptCache(host: SlashCommandHost): Promise<voi
     await host.harness.setConfig({ cache: { invalidateEpoch: epoch } });
     host.showStatus(cacheInvalidateStatusMessage(epoch), 'warning');
   } catch (error) {
-    host.showError(`Failed to invalidate prompt cache: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.cache.invalidateFailed', { message: formatErrorMessage(error) }));
   }
 }
 
@@ -80,7 +81,7 @@ export function showCacheSettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Cache',
+      title: ttui('tui.settings.pane.cache.title'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
@@ -109,7 +110,7 @@ export function showCacheSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Cache' },
+    { label: ttui('tui.settings.pane.cache.title') },
   );
 }
 
@@ -152,7 +153,7 @@ async function showCacheSettingsPanel(host: SlashCommandHost): Promise<void> {
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => lines,
     borderToken: 'primary',
-    title: ' Cache ',
+    title: ttui('tui.settings.pane.cache.panelTitle'),
     enterBeatSeed: 'cache',
     requestRender: () => {
       requestTUILayoutRender(host.state);

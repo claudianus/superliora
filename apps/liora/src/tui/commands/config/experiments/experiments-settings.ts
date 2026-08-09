@@ -15,6 +15,7 @@ import {
 } from '#/tui/utils/experiments/experiments-glance';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 
 export {
   EXPERIMENTS_CODEGRAPH_TIP,
@@ -35,7 +36,7 @@ export function showExperimentsSettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Experiments',
+      title: ttui('tui.settings.pane.experiments.title'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
@@ -59,7 +60,7 @@ export function showExperimentsSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Experiments' },
+    { label: ttui('tui.settings.pane.experiments.title') },
   );
 }
 
@@ -70,7 +71,7 @@ async function showExperimentsSettingsPanel(host: SlashCommandHost): Promise<voi
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => [...lines],
     borderToken: 'primary',
-    title: ' Experiments ',
+    title: ttui('tui.settings.pane.experiments.panelTitle'),
     enterBeatSeed: 'experiments-settings',
     requestRender: () => {
       requestTUILayoutRender(host.state);

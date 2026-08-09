@@ -16,6 +16,7 @@ import {
 import { extensionsReloadAppStatePatch } from '#/tui/components/chrome/footer/footer-badges';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 
 type ImportMode = 'all' | 'skills' | 'mcp' | 'guidance';
 
@@ -24,7 +25,7 @@ export async function showClaudeImportPanel(host: SlashCommandHost): Promise<voi
   try {
     plan = await discoverClaudeImportApplyPlan(host.requireSession().workDir);
   } catch (error) {
-    host.showError(`Claude scan failed: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.claude.scanFailed', { message: formatErrorMessage(error) }));
     return;
   }
 
@@ -103,7 +104,7 @@ async function handleImportMode(
 
   if (mode === 'all' || mode === 'skills') {
     if (plan.skillSources.length === 0) {
-      host.showStatus('No Claude skills found under .claude/skills.');
+      host.showStatus(ttui('tui.claude.noSkills'));
     } else {
       try {
         const result = await applyClaudeSkillsImport(plan.skillSources, plan.existingSkillNames);
@@ -111,10 +112,10 @@ async function handleImportMode(
           parts.push(`skills: ${result.copied.join(', ')}`);
         }
         for (const skip of result.skipped) {
-          host.showStatus(`Skipped skill ${skip.name}: ${skip.reason}`, 'textMuted');
+          host.showStatus(ttui('tui.claude.skippedSkill', { name: skip.name, reason: skip.reason }), 'textMuted');
         }
       } catch (error) {
-        host.showError(`Skills import failed: ${formatErrorMessage(error)}`);
+        host.showError(ttui('tui.claude.skillsImportFailed', { message: formatErrorMessage(error) }));
         return;
       }
     }
@@ -122,7 +123,7 @@ async function handleImportMode(
 
   if (mode === 'all' || mode === 'mcp') {
     if (plan.mcpSource === null || Object.keys(plan.mcpSource.servers).length === 0) {
-      host.showStatus('No Claude MCP config found (~/.claude.json or ~/.claude/mcp.json).');
+      host.showStatus(ttui('tui.claude.noMcp'));
     } else {
       try {
         const result = await applyClaudeMcpImport(workDir, plan.mcpSource.servers);
@@ -130,24 +131,24 @@ async function handleImportMode(
           parts.push(`MCP: ${result.added.join(', ')} → ${result.destPath}`);
         }
         for (const skip of result.skipped) {
-          host.showStatus(`Skipped MCP ${skip.name}: ${skip.reason}`, 'textMuted');
+          host.showStatus(ttui('tui.claude.skippedMcp', { name: skip.name, reason: skip.reason }), 'textMuted');
         }
       } catch (error) {
-        host.showError(`MCP import failed: ${formatErrorMessage(error)}`);
+        host.showError(ttui('tui.claude.mcpImportFailed', { message: formatErrorMessage(error) }));
         return;
       }
     }
   }
 
   if (parts.length === 0) {
-    host.showStatus('Nothing new to import (all skipped or empty).');
+    host.showStatus(ttui('tui.claude.nothingNew'));
     return;
   }
 
   try {
     await host.requireSession().reloadSession({ forcePluginSessionStartReminder: true });
     host.setAppState(extensionsReloadAppStatePatch());
-    host.showStatus(`Claude import applied · ${parts.join(' · ')} · session reloaded.`);
+    host.showStatus(ttui('tui.claude.importApplied', { parts: parts.join(' · ') }));
     if (typeof host.refreshDynamicSlashCommands === 'function') {
       await host.refreshDynamicSlashCommands(host.requireSession());
     } else if (typeof host.refreshSkillCommands === 'function') {

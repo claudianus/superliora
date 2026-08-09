@@ -5,6 +5,8 @@
  * coalesceable notice so operators see which scope degraded and why.
  */
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 export type RuntimeDegradedNotice = {
   readonly title: string;
   readonly detail: string;
@@ -12,15 +14,21 @@ export type RuntimeDegradedNotice = {
   readonly coalesceKey: string;
 };
 
-const SCOPE_LABEL: Record<string, string> = {
-  search: 'Search',
-  oauth: 'OAuth',
-  llm: 'LLM',
-  mcp: 'MCP',
-  permission: 'Permission',
-  network: 'Network',
-  other: 'Runtime',
+const SCOPE_LABEL_KEY: Record<string, string> = {
+  search: 'tui.notice.runtimeDegraded.scope.search',
+  oauth: 'tui.notice.runtimeDegraded.scope.oauth',
+  llm: 'tui.notice.runtimeDegraded.scope.llm',
+  mcp: 'tui.notice.runtimeDegraded.scope.mcp',
+  permission: 'tui.notice.runtimeDegraded.scope.permission',
+  network: 'tui.notice.runtimeDegraded.scope.network',
+  other: 'tui.notice.runtimeDegraded.scope.other',
 };
+
+function scopeLabel(scopeKey: string): string {
+  const key = SCOPE_LABEL_KEY[scopeKey];
+  if (key === undefined) return scopeKey;
+  return ttui(key);
+}
 
 export function formatRuntimeDegradedNotice(input: {
   readonly scope: string;
@@ -28,16 +36,16 @@ export function formatRuntimeDegradedNotice(input: {
   readonly hint?: string;
 }): RuntimeDegradedNotice {
   const scopeKey = input.scope.length > 0 ? input.scope : 'other';
-  const label = SCOPE_LABEL[scopeKey] ?? scopeKey;
+  const label = scopeLabel(scopeKey);
   const reason = input.reason.trim().length > 0 ? input.reason.trim() : 'unknown';
   const extra =
     input.hint !== undefined && input.hint.trim().length > 0
       ? `\n${input.hint.trim()}`
       : '';
   return {
-    title: `${label} degraded`,
-    detail: `${label} entered a degraded state (reason=${reason}).${extra}\nOps may continue in a reduced mode — check footer badge, network/auth, and subsystem health.`,
-    status: `Runtime degraded · ${scopeKey}: ${reason}`,
+    title: ttui('tui.notice.runtimeDegraded.title', { label }),
+    detail: ttui('tui.notice.runtimeDegraded.detail', { label, reason, extra }),
+    status: ttui('tui.notice.runtimeDegraded.status', { scopeKey, reason }),
     coalesceKey: `runtime-degraded-${scopeKey}`,
   };
 }

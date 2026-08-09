@@ -8,6 +8,8 @@ import {printableChar} from '#/tui/utils/printable-key';
 import {renderTabStrip} from '#/tui/utils/ui/tab-strip';
 import {computeUpdateStatus, type PluginMarketplaceEntry} from '#/utils/plugin-marketplace';
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 import {Input} from '../shared/input';
 import {
   ELLIPSIS,
@@ -54,12 +56,14 @@ type MarketState =
   | { readonly status: 'error'; readonly message: string }
   | { readonly status: 'loaded'; readonly entries: readonly PluginMarketplaceEntry[]; readonly source: string };
 
-const PLUGINS_PANEL_TABS: readonly { id: PluginsPanelTabId; label: string }[] = [
-  { id: 'installed', label: 'Installed' },
-  { id: 'official', label: 'Official' },
-  { id: 'third-party', label: 'Third-party' },
-  { id: 'custom', label: 'Custom' },
-];
+function pluginsPanelTabs(): readonly { id: PluginsPanelTabId; label: string }[] {
+  return [
+    { id: 'installed', label: ttui('tui.dialog.plugins.tab.installed') },
+    { id: 'official', label: ttui('tui.dialog.plugins.tab.official') },
+    { id: 'third-party', label: ttui('tui.dialog.plugins.tab.thirdParty') },
+    { id: 'custom', label: ttui('tui.dialog.plugins.tab.custom') },
+  ];
+}
 
 export class PluginsPanelComponent extends Container implements Focusable {
   focused = false;
@@ -76,7 +80,7 @@ export class PluginsPanelComponent extends Container implements Focusable {
     this.opts = opts;
     this.activeTabIndex = Math.max(
       0,
-      PLUGINS_PANEL_TABS.findIndex((tab) => tab.id === (opts.initialTab ?? 'installed')),
+      pluginsPanelTabs().findIndex((tab) => tab.id === (opts.initialTab ?? 'installed')),
     );
     if (opts.selectedId !== undefined && this.activeTab.id === 'installed') {
       const idx = opts.installed.findIndex((p) => p.id === opts.selectedId);
@@ -114,8 +118,8 @@ export class PluginsPanelComponent extends Container implements Focusable {
     this.invalidate();
   }
 
-  private get activeTab(): (typeof PLUGINS_PANEL_TABS)[number] {
-    return PLUGINS_PANEL_TABS[this.activeTabIndex]!;
+  private get activeTab(): { readonly id: PluginsPanelTabId; readonly label: string } {
+    return pluginsPanelTabs()[this.activeTabIndex]!;
   }
 
   private get marketplaceEntries(): readonly PluginMarketplaceEntry[] {
@@ -156,14 +160,14 @@ export class PluginsPanelComponent extends Container implements Focusable {
       return;
     }
     if (matchesKey(data, Key.tab)) {
-      this.activeTabIndex = (this.activeTabIndex + 1) % PLUGINS_PANEL_TABS.length;
+      this.activeTabIndex = (this.activeTabIndex + 1) % pluginsPanelTabs().length;
       this.selectedIndex = 0;
       this.requestMarketplaceIfNeeded();
       return;
     }
     if (matchesKey(data, Key.shift('tab'))) {
       this.activeTabIndex =
-        (this.activeTabIndex - 1 + PLUGINS_PANEL_TABS.length) % PLUGINS_PANEL_TABS.length;
+        (this.activeTabIndex - 1 + pluginsPanelTabs().length) % pluginsPanelTabs().length;
       this.selectedIndex = 0;
       this.requestMarketplaceIfNeeded();
       return;
@@ -268,7 +272,7 @@ export class PluginsPanelComponent extends Container implements Focusable {
           : ' Tab switch · ↑↓ navigate · Enter open/install · Esc cancel';
     const body = [
       renderTabStrip({
-        labels: PLUGINS_PANEL_TABS.map((t) => t.label),
+        labels: pluginsPanelTabs().map((t) => t.label),
         activeIndex: this.activeTabIndex,
         width,
         colors,
@@ -283,7 +287,7 @@ export class PluginsPanelComponent extends Container implements Focusable {
 
     return renderRendererPanelChromeRows({
       width,
-      title: ' Plugins',
+      title: ttui('tui.dialog.plugins.title'),
       hint,
       body,
       footerTopGap: false,
@@ -422,7 +426,7 @@ export class PluginsPanelComponent extends Container implements Focusable {
     const colors = currentTheme.palette;
     return renderRendererPanelChromeRows({
       width,
-      title: ' Plugins',
+      title: ttui('tui.dialog.plugins.title'),
       body: [chalk.hex(colors.textMuted)(`  Installing ${this.installing} from marketplace…`)],
       dividerStyle: (text) => chalk.hex(colors.primary)(text),
       titleStyle: (text) => chalk.hex(colors.primary).bold(text),

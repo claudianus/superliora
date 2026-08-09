@@ -1,4 +1,5 @@
 import type { AutocompleteItem } from '#/tui/renderer';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 import { handleAppearanceCommand } from '../config/appearance/appearance';
 import { currentAppearance } from '../config/appearance/tui-persist';
@@ -47,7 +48,7 @@ export async function handleNeatCommand(host: SlashCommandHost, args: string): P
   // No args and `toggle` both flip — the common case is a quick escape hatch.
   const next = raw.length === 0 || raw === 'toggle' ? !enabled : raw === 'on' ? true : raw === 'off' ? false : undefined;
   if (next === undefined) {
-    host.showError(`Unknown neat argument: ${raw} (expected on|off|toggle|status)`);
+    host.showError(ttui('tui.neat.unknownArg', { raw }));
     return;
   }
   await handleAppearanceCommand(host, `neat ${next ? 'on' : 'off'}`);

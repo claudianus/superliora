@@ -5,6 +5,8 @@
  * activity chrome and never told the operator why a child looked frozen.
  */
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 export type SubagentStalledNotice = {
   readonly title: string;
   readonly detail: string;
@@ -37,9 +39,13 @@ export function formatSubagentStalledNotice(input: {
   const silent = formatSilentDuration(input.silentMs);
   const tools = Number.isFinite(input.toolCount) ? Math.max(0, Math.floor(input.toolCount)) : 0;
   return {
-    title: 'Subagent stalled',
-    detail: `Subagent ${name} has been silent for ${silent} (${String(tools)} tools so far). It is still running — wait, cancel the child, or inspect its last tool activity.`,
-    status: `Subagent stalled: ${name} (${silent})`,
+    title: ttui('tui.notice.subagentStalled.title'),
+    detail: ttui('tui.notice.subagentStalled.detail', {
+      name,
+      silent,
+      tools: String(tools),
+    }),
+    status: ttui('tui.notice.subagentStalled.status', { name, silent }),
     coalesceKey: `subagent-stalled-${input.subagentId}`,
   };
 }

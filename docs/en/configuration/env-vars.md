@@ -24,6 +24,16 @@ export SUPERLIORA_HOME="/path/to/custom/kimi-code"
 
 For the complete data directory structure, see [Data locations](./data-locations.md).
 
+### `SUPERLIORA_LOCALE`
+
+Overrides the UI language for the CLI and TUI when `tui.toml` `locale` is `auto` (the default). Accepts `en` or `ko`, or any Korean/English POSIX locale prefix (`ko_KR`, `en_US`, …). Checked before `LANGUAGE`, `LC_ALL`, `LC_MESSAGES`, and `LANG`:
+
+```sh
+export SUPERLIORA_LOCALE=ko
+```
+
+When `locale` is fixed to `en` or `ko` in `tui.toml`, that preference wins over this variable.
+
 ### `KIMI_DISABLE_TELEMETRY`
 
 Set to `1` to turn off anonymous telemetry reporting (also accepts `true`, `yes`, `y`, case-insensitive):

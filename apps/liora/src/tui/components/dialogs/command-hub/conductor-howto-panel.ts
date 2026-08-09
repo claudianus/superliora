@@ -12,6 +12,7 @@ import {
 import { currentTheme } from '#/tui/theme';
 import { renderPremiumHeadline } from '#/tui/features/appearance/appearance-effects';
 import { printableChar } from '#/tui/utils/printable-key';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 export interface ConductorHowtoPanelOptions {
   readonly onClose: () => void;
@@ -20,15 +21,15 @@ export interface ConductorHowtoPanelOptions {
   readonly alreadySeen?: boolean;
 }
 
-const HOWTO_LINES = [
-  '1. Type a task in chat — Conductor creates a Job.',
-  '2. Workers run in the background (Worker Dock /agents).',
-  '3. Alt+J opens the Job Deck to watch progress live.',
-  '4. Answer needs_user cards when a Job asks you.',
-  '5. Land/merge when trust checks pass.',
-  '6. /jobs lists jobs · /agents cycles the dock.',
-  '7. Tip: describe the outcome; Conductor staffs the rest.',
-  '8. Fork session = new chat branch; Job worktree = isolated git tree for that Job.',
+const HOWTO_LINE_KEYS = [
+  'tui.dialog.conductorHowto.line1',
+  'tui.dialog.conductorHowto.line2',
+  'tui.dialog.conductorHowto.line3',
+  'tui.dialog.conductorHowto.line4',
+  'tui.dialog.conductorHowto.line5',
+  'tui.dialog.conductorHowto.line6',
+  'tui.dialog.conductorHowto.line7',
+  'tui.dialog.conductorHowto.line8',
 ] as const;
 
 export class ConductorHowtoPanelComponent extends Container implements Focusable {
@@ -62,17 +63,19 @@ export class ConductorHowtoPanelComponent extends Container implements Focusable
 
   override render(width: number): string[] {
     const theme = currentTheme;
-    const body = HOWTO_LINES.map((line) => theme.fg('text', `  ${line}`));
+    const body = HOWTO_LINE_KEYS.map((key) => theme.fg('text', `  ${ttui(key)}`));
     body.push('');
     if (this.alreadySeen) {
-      body.push(theme.fg('textMuted', '  Esc / Enter close'));
+      body.push(theme.fg('textMuted', ttui('tui.dialog.conductorHowto.closeSeen')));
     } else {
-      body.push(theme.fg('textMuted', '  [s] Don\'t show again · Esc / Enter close'));
+      body.push(theme.fg('textMuted', ttui('tui.dialog.conductorHowto.closeNew')));
     }
     return renderRendererPanelChromeRows({
       width,
-      title: ' How Conductor works',
-      hint: this.alreadySeen ? ' Esc / Enter close' : ' [s] skip forever · Esc / Enter close',
+      title: ttui('tui.dialog.conductorHowto.title'),
+      hint: this.alreadySeen
+        ? ttui('tui.dialog.conductorHowto.hint.seen')
+        : ttui('tui.dialog.conductorHowto.hint.new'),
       body,
       dividerStyle: (text) => theme.fg('primary', text),
       titleStyle: (text) => renderPremiumHeadline(text.trim(), 'conductor-howto:title'),

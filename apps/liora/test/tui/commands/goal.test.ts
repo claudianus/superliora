@@ -1,6 +1,9 @@
 import { ErrorCodes, LioraError, type GoalSnapshot } from '@superliora/sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { setCliLocale } from '#/cli/i18n';
+import { STRINGS_TUI_EN } from '#/cli/i18n/strings-tui';
+
 import {
   dispatchInput,
   goalArgumentCompletions,
@@ -784,7 +787,7 @@ describe('handleGoalCommand', () => {
     expect(s.createGoal).not.toHaveBeenCalled();
   });
 
-  it('creation without an active session shows LLM_NOT_SET_MESSAGE', async () => {
+  it('creation without an active session shows LLM_NOT_SET_MESSAGE()', async () => {
     const { host: noSessionHost, session: s } = makeHost({ hasSession: false });
     await handleGoalCommand(noSessionHost, 'Ship feature X');
     expect(noSessionHost.showError).toHaveBeenCalled();
@@ -814,6 +817,10 @@ describe('dispatchInput /goal integration', () => {
 });
 
 describe('goalArgumentCompletions', () => {
+  beforeEach(() => {
+    setCliLocale('en');
+  });
+
   function values(prefix: string): string[] | null {
     const items = goalArgumentCompletions(prefix);
     return items === null ? null : items.map((i) => i.value);
@@ -836,7 +843,7 @@ describe('goalArgumentCompletions', () => {
   it('returns items whose value/label are the token itself', () => {
     const items = goalArgumentCompletions('paus');
     expect(items).toEqual([
-      { value: 'pause', label: 'pause', description: 'Pause the active goal' },
+      { value: 'pause', label: 'pause', description: STRINGS_TUI_EN['tui.slash.arg.goal.pause'] },
     ]);
   });
 

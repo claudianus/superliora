@@ -15,6 +15,7 @@ import {
   type CustomRegistryImportResult,
 } from '../../components/dialogs/provider/custom-registry-import';
 import { formatErrorMessage } from '../../utils/event-payload';
+import { ttui } from '../../utils/tui-i18n';
 import { loadCatalog } from '#/utils/catalog-cache';
 import { applyCustomEndpointProvider, lookupModelCapability, probeModelsEndpoint } from '#/utils/custom-provider';
 import type { SlashCommandHost } from '../hub/dispatch';
@@ -28,7 +29,7 @@ export async function connectCustomEndpoint(host: SlashCommandHost): Promise<boo
     const config = await host.harness.getConfig();
     const existingProvider = config.providers[value.providerId];
     if (existingProvider?.oauth !== undefined) {
-      host.showError(`Provider "${value.providerId}" uses OAuth; choose a different provider id.`);
+      host.showError(ttui('tui.provider.oauthProvider', { id: value.providerId }));
       return false;
     }
     const applied = applyCustomEndpointProvider(config, {
@@ -48,10 +49,10 @@ export async function connectCustomEndpoint(host: SlashCommandHost): Promise<boo
     });
     await host.authFlow.refreshConfigAfterLogin();
     host.track('connect', { provider: applied.providerId, method: 'custom_endpoint' });
-    host.showStatus(`Custom endpoint added: ${applied.modelAlias}`, 'success');
+    host.showStatus(ttui('tui.provider.customAdded', { alias: applied.modelAlias }), 'success');
     return true;
   } catch (error) {
-    host.showError(`Failed to add custom endpoint: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.provider.customAddFailed', { message: formatErrorMessage(error) }));
     return false;
   }
 }
@@ -71,7 +72,7 @@ export async function connectCustomRegistry(host: SlashCommandHost): Promise<boo
   try {
     entries = await fetchCustomRegistry(source);
   } catch (error) {
-    host.showError(`Failed to import registry: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.provider.registryImportFailed', { message: formatErrorMessage(error) }));
     return false;
   }
 
@@ -85,13 +86,13 @@ export async function connectCustomRegistry(host: SlashCommandHost): Promise<boo
     });
     await host.authFlow.refreshConfigAfterLogin();
   } catch (error) {
-    host.showError(`Failed to apply registry: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.provider.registryApplyFailed', { message: formatErrorMessage(error) }));
     return false;
   }
 
   const count = addedProviderIds.length;
   if (count === 0) {
-    host.showStatus('Registry contained no providers.');
+    host.showStatus(ttui('tui.registry.noProviders'));
     return false;
   }
   host.showStatus(

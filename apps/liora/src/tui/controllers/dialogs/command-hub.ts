@@ -49,6 +49,7 @@ import { noteSuccessFeedback } from '../../utils/render/feedback-vfx';
 import { requestTUIContentRender } from '../../utils/render/frame-render';
 import { noteHubActionUse } from '../../utils/command/hub-recents';
 import { formatErrorMessage } from '../../utils/event-payload';
+import { ttui } from '../../utils/tui-i18n';
 import type { ModalShellDelegate } from './modal-shell';
 import {
   closeAllCenterModals,
@@ -137,7 +138,7 @@ async function markHubIntroSeen(host: DialogsHost): Promise<void> {
   try {
     await saveTuiConfig(tuiConfigFromHost(host, { onboarding }));
   } catch (error) {
-    host.showStatus(`Failed to save Command Hub preferences: ${formatErrorMessage(error)}`, 'error');
+    host.showStatus(ttui('tui.hub.saveFailed', { message: formatErrorMessage(error) }), 'error');
   }
 }
 
@@ -149,7 +150,7 @@ async function markConductorHowtoSeen(host: DialogsHost): Promise<void> {
   try {
     await saveTuiConfig(tuiConfigFromHost(host, { onboarding }));
   } catch (error) {
-    host.showStatus(`Failed to save Conductor preferences: ${formatErrorMessage(error)}`, 'error');
+    host.showStatus(ttui('tui.hub.conductorSaveFailed', { message: formatErrorMessage(error) }), 'error');
   }
 }
 

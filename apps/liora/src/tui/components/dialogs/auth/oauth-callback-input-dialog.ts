@@ -9,13 +9,14 @@ import {
 
 import { currentTheme } from '#/tui/theme';
 import { sanitizeApiKeyValue } from '#/tui/utils/sanitize-api-key';
+import { ttui } from '#/tui/utils/tui-i18n';
 import { Input } from '../shared/input';
 
 export type OAuthCallbackInputResult =
   | { readonly kind: 'ok'; readonly value: string }
   | { readonly kind: 'cancel' };
 
-const FOOTER = 'Enter to submit  ·  Esc to cancel';
+const footerHint = (): string => ttui('tui.auth.apiKeyFooter');
 
 export interface OAuthCallbackInputDialogOptions {
   readonly title?: string;
@@ -45,13 +46,10 @@ export class OAuthCallbackInputDialogComponent extends Container implements Focu
   ) {
     super();
     this.onDone = onDone;
-    this.title = options.title ?? 'Paste OAuth callback';
+    this.title = options.title ?? ttui('tui.auth.oauthCallbackTitle');
     this.subtitleLines =
       options.subtitleLines ??
-      [
-        'If the browser could not redirect back automatically, paste the',
-        'callback URL or authorization code shown after sign-in.',
-      ];
+      [ttui('tui.auth.oauthCallbackHint1'), ttui('tui.auth.oauthCallbackHint2')];
     this.errorHint = options.errorHint;
     this.input.onSubmit = (value) => {
       this.submit(value);
@@ -93,7 +91,7 @@ export class OAuthCallbackInputDialogComponent extends Container implements Focu
       this.errorHint !== undefined
         ? [this.errorHint]
         : this.emptyHinted
-          ? ['Callback value cannot be empty.']
+          ? [ttui('tui.auth.oauthEmpty')]
           : this.subtitleLines;
     const subtitleLines = subtitleSource.map((line) =>
       truncateToWidth(
@@ -102,7 +100,7 @@ export class OAuthCallbackInputDialogComponent extends Container implements Focu
         '…',
       ),
     );
-    const footerStyled = currentTheme.fg('textDim', FOOTER);
+    const footerStyled = currentTheme.fg('textDim', footerHint());
 
     const titleLine = truncateToWidth(titleStyled, innerWidth, '…');
     const footerLine = truncateToWidth(footerStyled, innerWidth, '…');

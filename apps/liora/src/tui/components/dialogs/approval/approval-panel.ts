@@ -26,6 +26,7 @@ import type {
 } from '#/tui/reverse-rpc/types';
 import { decodeMcpToolName } from '#/tui/utils/mcp/mcp-tool-name';
 import { printableChar } from '#/tui/utils/printable-key';
+import { ttui } from '#/tui/utils/tui-i18n';
 import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 import {
   appearanceAnimationNow,
@@ -98,7 +99,7 @@ function renderShellDisplayBlock(
     lines.push(s.dim(`cwd: ${block.cwd}`));
   }
   if (block.danger !== undefined) {
-    lines.push(s.errorBold(`Dangerous: ${block.danger}`));
+    lines.push(s.errorBold(ttui('tui.approval.dangerous', { label: block.danger })));
   }
   const breatheDanger = block.danger !== undefined;
   const cmdLines = block.command.length > 0 ? block.command.split('\n') : [''];

@@ -4,8 +4,9 @@
 
 import type { ModelAlias } from '@superliora/sdk';
 
-import { LLM_NOT_SET_MESSAGE, NO_ACTIVE_SESSION_MESSAGE } from '../../../constant/liora-tui';
+import {  LLM_NOT_SET_MESSAGE,  NO_ACTIVE_SESSION_MESSAGE } from '../../../constant/liora-tui';
 import { formatErrorMessage } from '../../../utils/event-payload';
+import { ttui } from '../../../utils/tui-i18n';
 import {
   modelUsesEmbeddedThinkingEffort,
   resolveThinkingDisplay,
@@ -33,7 +34,7 @@ export async function handleThinkingCommand(host: SlashCommandHost, args: string
 
   const modelAlias = host.state.appState.model.trim();
   if (modelAlias.length === 0) {
-    host.showError(LLM_NOT_SET_MESSAGE);
+    host.showError(LLM_NOT_SET_MESSAGE());
     return;
   }
 
@@ -46,7 +47,7 @@ export async function handleThinkingCommand(host: SlashCommandHost, args: string
 
   const session = host.session;
   if (session === undefined) {
-    host.showError(NO_ACTIVE_SESSION_MESSAGE);
+    host.showError(NO_ACTIVE_SESSION_MESSAGE());
     return;
   }
 
@@ -59,7 +60,7 @@ export async function handleThinkingCommand(host: SlashCommandHost, args: string
   try {
     await session.setThinking(applied);
   } catch (error) {
-    host.showError(`Failed to set thinking: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.thinking.setFailed', { message: formatErrorMessage(error) }));
     return;
   }
 
@@ -77,7 +78,7 @@ export async function handleThinkingCommand(host: SlashCommandHost, args: string
       },
     });
   } catch (error) {
-    host.showError(`Thinking changed, but failed to save the default: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.thinking.saveFailed', { message: formatErrorMessage(error) }));
   }
   const statusLabel =
     display.label === 'off'
@@ -85,7 +86,7 @@ export async function handleThinkingCommand(host: SlashCommandHost, args: string
       : display.requested === display.effective
         ? display.requested
         : `${display.requested} (wire ${display.effective})`;
-  host.showStatus(`Thinking set to ${statusLabel}.`, 'success');
+  host.showStatus(ttui('tui.thinking.set', { level: statusLabel }), 'success');
 }
 
 function normalizeThinkingLevel(args: string): ThinkingLevel | undefined {

@@ -28,6 +28,7 @@ import type { AutocompleteItem } from '#/tui/renderer';
 
 import type { SlashCommandHost } from '../hub/dispatch';
 import { completeLeadingArg, type ArgCompletionSpec } from '../hub/complete-args';
+import { ttui } from '../../utils/tui-i18n';
 
 const PLUGINS_ARG_COMPLETIONS: readonly ArgCompletionSpec[] = [
   { value: 'list', description: 'List installed plugins' },
@@ -102,11 +103,11 @@ export async function handlePluginsCommand(host: SlashCommandHost, rawArgs: stri
     if (sub === 'install') {
       const source = rest.join(' ').trim();
       if (source.length === 0) {
-        host.showError('Usage: /plugins install <local-path-or-zip-url>');
+        host.showError(ttui('tui.plugins.usageInstall'));
         return;
       }
       if (!(await confirmInstallTrust(host, source, isOfficialPluginSource(source)))) {
-        host.showStatus('Install cancelled.');
+        host.showStatus(ttui('tui.plugins.installCancelled'));
         return;
       }
       const spinner = host.showProgressSpinner(`Installing plugin from ${truncateForStatus(source)}…`);
@@ -145,12 +146,12 @@ export async function handlePluginsCommand(host: SlashCommandHost, rawArgs: stri
       const id = rest[1];
       const server = rest[2];
       if ((action !== 'enable' && action !== 'disable') || id === undefined || server === undefined) {
-        host.showError('Usage: /plugins mcp enable|disable <id> <server>');
+        host.showError(ttui('tui.plugins.usageMcp'));
         return;
       }
       await session.setPluginMcpServerEnabled(id, server, action === 'enable');
       host.showStatus(
-        `${action === 'enable' ? 'Enabled' : 'Disabled'} MCP server ${server} for ${id}. Run /reload or /new to apply.`,
+        ttui('tui.plugins.mcpToggled', { action: action === 'enable' ? ttui('tui.plugins.enabled') : ttui('tui.plugins.disabled'), server, id }),
       );
       return;
     }
@@ -166,11 +167,11 @@ export async function handlePluginsCommand(host: SlashCommandHost, rawArgs: stri
     if (sub === 'remove') {
       const id = rest[0];
       if (id === undefined) {
-        host.showError('Usage: /plugins remove <id>');
+        host.showError(ttui('tui.plugins.usageRemove'));
         return;
       }
       if (!(await confirmRemovePlugin(host, id))) {
-        host.showStatus(`Remove cancelled: ${id}.`);
+        host.showStatus(ttui('tui.plugins.removeCancelled', { id }));
         return;
       }
       await removePlugin(host, id);
@@ -185,9 +186,9 @@ export async function handlePluginsCommand(host: SlashCommandHost, rawArgs: stri
       await renderPluginInfo(host, sub);
       return;
     }
-    host.showError(`Unknown /plugins action: ${sub}. Run /plugins to choose interactively.`);
+    host.showError(ttui('tui.plugins.unknownAction', { sub }));
   } catch (error) {
-    host.showError(`/plugins ${sub ?? ''} failed: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.plugins.actionFailed', { sub: sub ?? '', message: formatErrorMessage(error) }));
   }
 }
 
@@ -199,7 +200,7 @@ async function showPluginsPicker(
   try {
     plugins = await host.requireSession().listPlugins();
   } catch (error) {
-    host.showError(`Failed to load plugins: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.plugins.loadFailed', { message: formatErrorMessage(error) }));
     return;
   }
 
@@ -214,7 +215,7 @@ async function showPluginsPicker(
       // editor itself, so do not pre-restore here — that would flash the editor
       // for in-place actions like toggling a plugin.
       void handlePluginsPanelSelection(host, panel, selection).catch((error: unknown) => {
-        host.showError(`/plugins failed: ${formatErrorMessage(error)}`);
+        host.showError(ttui('tui.plugins.failed', { message: formatErrorMessage(error) }));
       });
     },
     onCancel: () => {
@@ -266,7 +267,7 @@ async function showPluginMcpPicker(
   try {
     info = await host.requireSession().getPluginInfo(id);
   } catch (error) {
-    host.showError(`Failed to load plugin MCP servers: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.plugins.mcpLoadFailed', { message: formatErrorMessage(error) }));
     return;
   }
 
@@ -279,7 +280,7 @@ async function showPluginMcpPicker(
         // Every MCP action re-mounts a picker, so let the handler do the
         // mounting — pre-restoring the editor here would flash on toggle.
         void handlePluginMcpSelection(host, selection).catch((error: unknown) => {
-          host.showError(`/plugins mcp failed: ${formatErrorMessage(error)}`);
+          host.showError(ttui('tui.plugins.mcpFailed', { message: formatErrorMessage(error) }));
         });
       },
       onCancel: () => {
@@ -341,7 +342,7 @@ async function installFromPanel(
   official: boolean,
 ): Promise<void> {
   if (!(await confirmInstallTrust(host, label, official))) {
-    host.showStatus(`Install cancelled: ${label}.`);
+    host.showStatus(ttui('tui.plugins.installCancelledLabel', { label }));
     host.restoreEditor();
     return;
   }
@@ -351,7 +352,7 @@ async function installFromPanel(
   if (official) {
     panel.setInstalling(truncateForStatus(label));
   } else {
-    host.showStatus(`Installing or updating ${label} from marketplace...`);
+    host.showStatus(ttui('tui.plugins.installing', { label }));
   }
   requestTUILayoutRender(host.state);
   try {
@@ -365,7 +366,7 @@ async function installFromPanel(
       // instead of being dropped back at the editor.
       host.mountEditorReplacement(panel);
     }
-    host.showError(`Failed to install ${label}: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.plugins.installFailed', { label, message: formatErrorMessage(error) }));
     return;
   }
   // Close the panel after installing so the result status and the
@@ -393,7 +394,7 @@ async function applyPluginEnabled(
       ? ` Some MCP servers are disabled; re-enable with /plugins mcp enable ${id} <server>.`
       : '';
   if (showStatus) {
-    host.showStatus(`${enabled ? 'Enabled' : 'Disabled'} ${id}. Run /reload or /new to apply.${mcpHint}`);
+    host.showStatus(ttui('tui.plugins.toggled', { enabled: enabled ? ttui('tui.plugins.enabled') : ttui('tui.plugins.disabled'), id, hint: mcpHint }));
   }
   const inlineMcpHint = mcpHint.length > 0 ? ' · MCP servers disabled' : '';
   return `${pluginInlineChangeHint()}${inlineMcpHint}`;
@@ -416,7 +417,7 @@ async function handlePluginsPanelSelection(
     }
     case 'remove':
       if (!(await confirmRemovePlugin(host, selection.id))) {
-        host.showStatus(`Remove cancelled: ${selection.id}.`);
+        host.showStatus(ttui('tui.plugins.removeCancelled', { id: selection.id }));
         await showPluginsPicker(host, { initialTab: 'installed', selectedId: selection.id });
         return;
       }
@@ -483,8 +484,8 @@ async function handlePluginMcpSelection(
 async function removePlugin(host: SlashCommandHost, id: string): Promise<void> {
   await host.requireSession().removePlugin(id);
   await refreshHostPluginThemes(host);
-  host.showStatus(`Removed ${id}.`);
-  host.showStatus(PLUGIN_RELOAD_HINT, 'warning');
+  host.showStatus(ttui('tui.plugins.removed', { id }));
+  host.showStatus(ttui('tui.plugins.reloadHint'), 'warning');
 }
 
 async function renderPluginsList(
@@ -526,8 +527,6 @@ async function installPluginFromSource(
   showPluginInstallResult(host, beforeList, summary);
 }
 
-const PLUGIN_RELOAD_HINT = 'Run /new or /reload to apply plugin changes.';
-
 function showPluginInstallResult(
   host: SlashCommandHost,
   beforeList: readonly PluginSummary[],
@@ -540,8 +539,8 @@ function showPluginInstallResult(
       ? ` Declares ${summary.mcpServerCount} MCP ${serverWord}; enabled by default and configurable from /plugins.`
       : '';
   const action = describeInstallAction(previous, summary);
-  host.showStatus(`${action} (${summary.id}).${mcpHint}`);
-  host.showStatus(PLUGIN_RELOAD_HINT, 'warning');
+  host.showStatus(ttui('tui.plugins.actionDone', { action, id: summary.id, hint: mcpHint }));
+  host.showStatus(ttui('tui.plugins.reloadHint'), 'warning');
 }
 
 function describeInstallAction(

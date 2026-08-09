@@ -2682,9 +2682,9 @@ command = "vim"
     await vi.waitFor(() => {
       const approval = stripSgr(driver.state.editorContainer.render(120).join('\n'));
       expect(approval).toContain('Ready to build with this plan?');
-      expect(approval).toContain('경로: /tmp/no-duplicate-plan.md');
+      expect(approval).toContain('Path: /tmp/no-duplicate-plan.md');
       expect(approval).toContain('ctrl+e preview');
-      expect(approval).toContain('라인 코멘트: L12');
+      expect(approval).toContain('Line comment: L12');
       // Compact file_content summary still shows early lines; full book is transcript.
       expect(approval).toContain('non-duplicated plan work');
       const transcript = stripSgr(renderTranscript(driver));

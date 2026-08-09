@@ -1,6 +1,7 @@
 import { UpdatePreferenceSelectorComponent } from '../../../components/dialogs/picker/update-preference-selector';
 import { saveTuiConfig } from '../../../config';
 import { formatErrorMessage } from '../../../utils/event-payload';
+import { ttui } from '../../../utils/tui-i18n';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 import type { SlashCommandHost } from '../../hub/dispatch';
 import { tuiConfigFromHost } from '../appearance/tui-persist';
@@ -37,7 +38,7 @@ export async function applyUpdatePreferenceChoice(
   autoInstall: boolean,
 ): Promise<void> {
   if (autoInstall === host.state.appState.upgrade.autoInstall) {
-    host.showStatus(`Automatic updates already ${autoInstall ? 'enabled' : 'disabled'}.`);
+    host.showStatus(ttui('tui.upgrade.already', { state: autoInstall ? ttui('tui.upgrade.enabled') : ttui('tui.upgrade.disabled') }));
     return;
   }
 
@@ -54,5 +55,5 @@ export async function applyUpdatePreferenceChoice(
 
   host.setAppState({ upgrade });
   host.track('upgrade_preference_changed', { auto_install: autoInstall });
-  host.showStatus(`Automatic updates ${autoInstall ? 'enabled' : 'disabled'}.`);
+  host.showStatus(ttui('tui.upgrade.set', { state: autoInstall ? ttui('tui.upgrade.enabled') : ttui('tui.upgrade.disabled') }));
 }

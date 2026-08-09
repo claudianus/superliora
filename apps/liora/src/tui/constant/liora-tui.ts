@@ -1,13 +1,30 @@
 import { DEFAULT_OAUTH_PROVIDER_NAME } from '#/constant/app';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 export { DEFAULT_OAUTH_PROVIDER_NAME, OAUTH_LOGIN_REQUIRED_CODE, PRODUCT_NAME } from '#/constant/app';
 
-export const LLM_NOT_SET_MESSAGE = 'Model not set. Run /login to add a provider, then /model to pick one.';
-export const NO_ACTIVE_SESSION_MESSAGE = 'No active session. Send /login to login.';
-export const CTRL_D_HINT = 'Press Ctrl+D again to exit';
-export const CTRL_C_HINT = 'Press Ctrl+C again to exit';
+/** Localized at call time so locale switches apply without restart. */
+export function LLM_NOT_SET_MESSAGE(): string {
+  return ttui('tui.status.llmNotSet');
+}
+
+export function NO_ACTIVE_SESSION_MESSAGE(): string {
+  return ttui('tui.status.noActiveSession');
+}
+
+export function CTRL_D_HINT(): string {
+  return ttui('tui.footer.exitConfirmCtrlD');
+}
+
+export function CTRL_C_HINT(): string {
+  return ttui('tui.footer.exitConfirmCtrlC');
+}
+
+export function OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE(): string {
+  return ttui('tui.status.oauthLoginRequired');
+}
+
 export const MAIN_AGENT_ID = 'main';
-export const OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE = 'OAuth login expired. Send /login to login.';
 export const EXIT_CONFIRM_WINDOW_MS = 1500;
 export const DOUBLE_ESC_WINDOW_MS = 600;
 

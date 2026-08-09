@@ -27,6 +27,7 @@ import {
 import { currentAppearance } from '../appearance/tui-persist';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 
 export { PREMIUM_DENSITY_TIP, PREMIUM_MOTION_TIP, PREMIUM_PQ_TIP };
 
@@ -36,7 +37,7 @@ export function showPremiumSettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Visual Quality',
+      title: ttui('tui.settings.pane.premium.title'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
@@ -73,7 +74,7 @@ export function showPremiumSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
         if (value === 'presets') {
           showSettingPresetsPicker(host, {
-            title: 'Visual Quality presets',
+            title: ttui('tui.settings.pane.premium.presets'),
             catalog: PREMIUM_PRESETS,
             currentId: pqOn ? 'on' : 'off',
             onApply: async (preset) => {
@@ -108,7 +109,7 @@ export function showPremiumSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Visual Quality' },
+    { label: ttui('tui.settings.pane.premium.title') },
   );
 }
 
@@ -136,7 +137,7 @@ async function showPremiumSettingsPanel(host: SlashCommandHost): Promise<void> {
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => [...lines],
     borderToken: 'primary',
-    title: ' Visual Quality ',
+    title: ttui('tui.settings.pane.premium.panelTitle'),
     enterBeatSeed: 'premium-settings',
     requestRender: () => {
       requestTUILayoutRender(host.state);

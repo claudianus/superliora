@@ -11,6 +11,7 @@ import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice
 import { formatExtrasCapabilities } from '../../../components/messages/status-panel/extras';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 
 interface ExtrasRow {
   readonly id: string;
@@ -79,7 +80,7 @@ async function openProviderExtrasPicker(host: SlashCommandHost): Promise<void> {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Provider extras (auto-detected)',
+      title: ttui('tui.settings.pane.extras.title'),
       hint: '↑↓ · Enter toggles · Esc',
       searchable: true,
       options: rows.map((row) => ({

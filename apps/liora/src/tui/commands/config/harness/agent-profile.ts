@@ -14,8 +14,9 @@ import {
   formatProfileToolsBadge,
   loadProfileLiveGlance,
 } from '#/tui/utils/agent/profile-glance';
-import { NO_ACTIVE_SESSION_MESSAGE } from '../../../constant/liora-tui';
+import {  NO_ACTIVE_SESSION_MESSAGE } from '../../../constant/liora-tui';
 import { formatErrorMessage } from '../../../utils/event-payload';
+import { ttui } from '../../../utils/tui-i18n';
 import { completeLeadingArg, type ArgCompletionSpec } from '../../hub/complete-args';
 import type { SlashCommandHost } from '../../hub/dispatch';
 
@@ -106,7 +107,7 @@ export async function handleProfileCommand(host: SlashCommandHost, args: string)
           : ''),
     );
   } catch (error) {
-    host.showError(`Failed to set agent profile: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.harness.profileSetFailed', { message: formatErrorMessage(error) }));
   }
 }
 
@@ -185,11 +186,11 @@ async function showProfileStatus(host: SlashCommandHost): Promise<void> {
         lines.push('', 'This session: tools inventory unavailable.');
       }
     } else if (session === undefined) {
-      lines.push('', `This session: ${NO_ACTIVE_SESSION_MESSAGE}`);
+      lines.push('', `This session: ${NO_ACTIVE_SESSION_MESSAGE()}`);
     }
 
     host.showNotice(lines.join('\n'));
   } catch (error) {
-    host.showError(`Failed to read agent profile: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.harness.profileReadFailed', { message: formatErrorMessage(error) }));
   }
 }

@@ -8,13 +8,14 @@ import { formatErrorMessage } from '../../../utils/event-payload';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 import { setExperimentalFeatures } from '../../experimental-flags';
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 
 export async function showExperimentsPanel(host: SlashCommandHost): Promise<void> {
   let features: readonly ExperimentalFeatureState[];
   try {
     features = await host.harness.getExperimentalFeatures();
   } catch (error) {
-    host.showError(`Failed to load experimental features: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.experiments.loadFailed', { message: formatErrorMessage(error) }));
     return;
   }
   mountExperimentsPanel(host, features);
@@ -50,11 +51,11 @@ export async function applyExperimentalFeatureChanges(
         'Experimental features updated. Session reloaded.',
       );
     } else {
-      host.showStatus('Experimental features updated.', 'success');
+      host.showStatus(ttui('tui.experiments.updated'), 'success');
     }
     host.track('experimental_features_apply', { changed: changes.length });
   } catch (error) {
-    host.showError(`Failed to update experimental features: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.experiments.updateFailed', { message: formatErrorMessage(error) }));
   }
 }
 

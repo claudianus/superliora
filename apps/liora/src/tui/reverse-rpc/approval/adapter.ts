@@ -3,30 +3,44 @@ import type { ApprovalRequest, ApprovalResponse, ToolInputDisplay } from '@super
 import type { ApprovalPanelResponse } from '#/tui/components/dialogs/approval/approval-panel';
 import { goalStartOptions } from '#/tui/components/dialogs/goal/goal-start-permission-prompt';
 import type { ApprovalPanelChoice, ApprovalPanelData, DisplayBlock } from '#/tui/reverse-rpc/types';
+import { ttui } from '#/tui/utils/tui-i18n';
 import { decodeMcpToolName } from '#/tui/utils/mcp/mcp-tool-name';
 import {
   enrichReviseFeedbackWithLineComment,
   numberPlanLines,
 } from '#/tui/utils/plan-line-comments';
 
-const DEFAULT_APPROVAL_CHOICES: ApprovalPanelChoice[] = [
-  { label: 'Approve once', response: 'approved' },
-  { label: 'Approve for this session', response: 'approved_for_session' },
-  { label: 'Reject', response: 'rejected' },
-  { label: 'Reject with feedback', response: 'rejected', requires_feedback: true },
-];
+function defaultApprovalChoices(): ApprovalPanelChoice[] {
+  return [
+    { label: ttui('tui.approval.approveOnce'), response: 'approved' },
+    { label: ttui('tui.approval.approveSession'), response: 'approved_for_session' },
+    { label: ttui('tui.approval.reject'), response: 'rejected' },
+    {
+      label: ttui('tui.approval.rejectFeedback'),
+      response: 'rejected',
+      requires_feedback: true,
+    },
+  ];
+}
 
-const PLAN_REJECT_CHOICES: ApprovalPanelChoice[] = [
-  { label: 'Reject', response: 'rejected', selected_label: 'Reject' },
-  {
-    label: '라인 코멘트',
-    response: 'rejected',
-    selected_label: 'line_comment',
-    requires_feedback: true,
-    description: '계획 특정 줄에 대한 수정 요청을 남깁니다',
-  },
-  { label: 'Revise', response: 'rejected', selected_label: 'Revise', requires_feedback: true },
-];
+function planRejectChoices(): ApprovalPanelChoice[] {
+  return [
+    { label: ttui('tui.approval.reject'), response: 'rejected', selected_label: 'Reject' },
+    {
+      label: ttui('tui.approval.lineComment'),
+      response: 'rejected',
+      selected_label: 'line_comment',
+      requires_feedback: true,
+      description: ttui('tui.approval.lineCommentDesc'),
+    },
+    {
+      label: ttui('tui.approval.revise'),
+      response: 'rejected',
+      selected_label: 'Revise',
+      requires_feedback: true,
+    },
+  ];
+}
 
 export function adaptApprovalRequest(event: ApprovalRequest): ApprovalPanelData {
   const resolved = resolveDisplay(event.toolName, event.display, event.action);
@@ -276,7 +290,7 @@ function describeApproval(display: ToolInputDisplay, action: string): string {
     case 'plan_review':
       return '';
     case 'goal_start':
-      return 'Start a goal?';
+      return ttui('tui.approval.startGoal');
     case 'generic':
       if (typeof display.detail === 'string' && display.detail.length > 0) {
         return display.detail;
@@ -309,20 +323,20 @@ function describeApproval(display: ToolInputDisplay, action: string): string {
   }
 }
 
-const DANGER_PATTERNS: Array<{ pattern: RegExp; label: string }> = [
-  { pattern: /\brm\s+(-[a-zA-Z]*[rRfF][a-zA-Z]*|--recursive|--force)/i, label: 'recursive delete' },
-  { pattern: /\bsudo\b/i, label: 'sudo' },
-  { pattern: /\b(curl|wget)\b[^|]*\|\s*(sh|bash|zsh)\b/i, label: 'pipe to shell' },
-  { pattern: /\bdd\b[^|]*\bof=/i, label: 'dd write' },
-  { pattern: /\bmkfs\b/i, label: 'mkfs' },
-  { pattern: />\s*\/dev\/(sd|nvme|disk|hd)/i, label: 'write to raw device' },
-  { pattern: /\bchmod\s+-R?\s*777\b/i, label: 'chmod 777' },
-  { pattern: /:\(\)\s*\{\s*:\|:&\s*\}/i, label: 'fork bomb' },
+const DANGER_PATTERNS: Array<{ pattern: RegExp; labelKey: string }> = [
+  { pattern: /\brm\s+(-[a-zA-Z]*[rRfF][a-zA-Z]*|--recursive|--force)/i, labelKey: 'tui.approval.danger.recursiveDelete' },
+  { pattern: /\bsudo\b/i, labelKey: 'tui.approval.danger.sudo' },
+  { pattern: /\b(curl|wget)\b[^|]*\|\s*(sh|bash|zsh)\b/i, labelKey: 'tui.approval.danger.pipeShell' },
+  { pattern: /\bdd\b[^|]*\bof=/i, labelKey: 'tui.approval.danger.ddWrite' },
+  { pattern: /\bmkfs\b/i, labelKey: 'tui.approval.danger.mkfs' },
+  { pattern: />\s*\/dev\/(sd|nvme|disk|hd)/i, labelKey: 'tui.approval.danger.rawDevice' },
+  { pattern: /\bchmod\s+-R?\s*777\b/i, labelKey: 'tui.approval.danger.chmod777' },
+  { pattern: /:\(\)\s*\{\s*:\|:&\s*\}/i, labelKey: 'tui.approval.danger.forkBomb' },
 ];
 
 function detectDanger(command: string): string | undefined {
-  for (const { pattern, label } of DANGER_PATTERNS) {
-    if (pattern.test(command)) return label;
+  for (const { pattern, labelKey } of DANGER_PATTERNS) {
+    if (pattern.test(command)) return ttui(labelKey);
   }
   return undefined;
 }
@@ -428,12 +442,12 @@ function adaptDisplay(display: ToolInputDisplay): DisplayBlock[] {
       const lineCount = numberPlanLines(plan).length;
       const pathLine =
         typeof display.path === 'string' && display.path.length > 0
-          ? `경로: ${display.path}\n`
+          ? `${ttui('tui.approval.planReview.path', { path: display.path })}\n`
           : '';
       return [
         {
           type: 'brief',
-          text: `${pathLine}${String(lineCount)} lines · ctrl+e preview\n라인 코멘트: L12: 수정 요청 형식`,
+          text: `${pathLine}${String(lineCount)} lines · ctrl+e preview\n${ttui('tui.approval.planReview.lineCommentHint')}`,
         },
         {
           type: 'file_content',
@@ -469,7 +483,7 @@ function adaptChoices(toolName: string, display: ToolInputDisplay): ApprovalPane
     return adaptGoalStartChoices(display);
   }
 
-  return DEFAULT_APPROVAL_CHOICES.map((choice) => cloneChoice(choice));
+  return defaultApprovalChoices().map((choice) => cloneChoice(choice));
 }
 
 function adaptGoalStartChoices(
@@ -503,8 +517,8 @@ function adaptPlanReviewChoices(display: ToolInputDisplay): ApprovalPanelChoice[
           response: 'approved' as const,
           selected_label: option.label,
         }))
-      : [{ label: 'Approve', response: 'approved' as const, selected_label: 'Approve' }];
-  return [...optionChoices, ...PLAN_REJECT_CHOICES].map((choice) => cloneChoice(choice));
+      : [{ label: ttui('tui.approval.approve'), response: 'approved' as const, selected_label: 'Approve' }];
+  return [...optionChoices, ...planRejectChoices()].map((choice) => cloneChoice(choice));
 }
 
 function cloneChoice(choice: ApprovalPanelChoice): ApprovalPanelChoice {

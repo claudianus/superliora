@@ -21,6 +21,7 @@ import { showMediaFallbackPicker } from './media';
 import { handleModelCommand } from '../model/model';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 
 export { MEDIA_ANALYZE_TIP, MEDIA_BLOCK_TIP, MEDIA_PATH_TIP };
 
@@ -29,7 +30,7 @@ export function showMediaSettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Media fallback',
+      title: ttui('tui.settings.pane.media.title'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
@@ -56,7 +57,7 @@ export function showMediaSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
         if (value === 'presets') {
           showSettingPresetsPicker(host, {
-            title: 'Media presets',
+            title: ttui('tui.settings.pane.media.presets'),
             catalog: MEDIA_PRESETS,
             currentId: policy,
             onApply: async (preset) => {
@@ -67,7 +68,7 @@ export function showMediaSettings(host: SlashCommandHost): void {
                 host.setAppState({
                   nonVisionFallbackPolicy: preset.patch.nonVisionFallback,
                 });
-                host.showStatus(`Media preset "${preset.label}" applied.`, 'success');
+                host.showStatus(ttui('tui.media.presetApplied', { label: preset.label }), 'success');
               } catch (error) {
                 host.showError(
                   `Failed to apply media preset: ${error instanceof Error ? error.message : String(error)}`,
@@ -95,7 +96,7 @@ export function showMediaSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Media fallback' },
+    { label: ttui('tui.settings.pane.media.title') },
   );
 }
 
@@ -127,7 +128,7 @@ async function showMediaSettingsPanel(host: SlashCommandHost): Promise<void> {
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => [...lines],
     borderToken: 'primary',
-    title: ' Media fallback ',
+    title: ttui('tui.settings.pane.media.panelTitle'),
     enterBeatSeed: 'media-settings',
     requestRender: () => {
       requestTUILayoutRender(host.state);

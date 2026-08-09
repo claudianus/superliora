@@ -35,12 +35,13 @@ import {
 
 import { SEARCH_PRESETS } from '#/tui/utils/settings/search-presets';
 import { SETTINGS_PRESETS_ROW, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
+import { ttui } from '../../../utils/tui-i18n';
 
 export function showSearchSettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Search / Deep Research',
+      title: ttui('tui.settings.pane.search.title'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
@@ -111,7 +112,7 @@ export function showSearchSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
         if (value === 'presets') {
           showSettingPresetsPicker(host, {
-            title: 'Search presets',
+            title: ttui('tui.settings.pane.search.presets'),
             catalog: SEARCH_PRESETS,
             onApply: async (preset) => {
               try {
@@ -129,7 +130,7 @@ export function showSearchSettings(host: SlashCommandHost): void {
                     buildSearchBrowserEscalateConfigPatch(preset.patch.browserEscalate),
                   );
                 }
-                host.showStatus(`Search preset "${preset.label}" applied.`, 'success');
+                host.showStatus(ttui('tui.search.presetApplied', { label: preset.label }), 'success');
               } catch (error) {
                 host.showError(
                   `Failed to apply search preset: ${error instanceof Error ? error.message : String(error)}`,
@@ -198,7 +199,7 @@ function showSearchStrategyPicker(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Search routing strategy',
+      title: ttui('tui.settings.pane.search.routingStrategy'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: SEARCH_ROUTING_STRATEGY_OPTIONS.map((option) => ({
@@ -224,7 +225,7 @@ async function setSearchStrategy(
 ): Promise<void> {
   try {
     await host.harness.setConfig(buildSearchStrategyConfigPatch(strategy));
-    host.showStatus(`Search strategy → ${strategy}.`, 'success');
+    host.showStatus(ttui('tui.search.strategySet', { strategy }), 'success');
   } catch (error) {
     host.showStatus(
       `Failed to update search strategy: ${error instanceof Error ? error.message : String(error)}`,
@@ -254,7 +255,7 @@ function promptSearxngUrl(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new PlainTextInputDialogComponent({
-      title: 'SearXNG URL (Ch2)',
+      title: ttui('tui.settings.pane.search.searxngUrl'),
       subtitleLines: [
         'Self-hosted SearXNG base URL (JSON format).',
         'Example: https://searx.example.com',
@@ -264,7 +265,7 @@ function promptSearxngUrl(host: SlashCommandHost): void {
         if (result.kind !== 'ok') return;
         const url = result.value.trim();
         if (!isValidSearxngUrl(url)) {
-          host.showStatus('SearXNG URL must be http:// or https://', 'error');
+          host.showStatus(ttui('tui.search.searxngUrl'), 'error');
           return;
         }
         void setSearxngUrl(host, url);
@@ -277,7 +278,7 @@ function promptSearxngUrl(host: SlashCommandHost): void {
 async function setSearxngUrl(host: SlashCommandHost, url: string): Promise<void> {
   try {
     await host.harness.setConfig(buildSearchSearxngUrlConfigPatch(url));
-    host.showStatus(`SearXNG URL saved → ${url}`, 'success');
+    host.showStatus(ttui('tui.search.searxngSaved', { url }), 'success');
   } catch (error) {
     host.showStatus(
       `Failed to save SearXNG URL: ${error instanceof Error ? error.message : String(error)}`,
@@ -378,7 +379,7 @@ async function showSearchStatusPanel(host: SlashCommandHost): Promise<void> {
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => lines,
     borderToken: 'primary',
-    title: ' Search ',
+    title: ttui('tui.settings.pane.search.panelTitle'),
     enterBeatSeed: 'search',
     requestRender: () => {
       requestTUILayoutRender(host.state);

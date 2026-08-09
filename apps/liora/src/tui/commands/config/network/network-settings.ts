@@ -15,6 +15,7 @@ import {
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 
 export { NETWORK_NO_PROXY_TIP, NETWORK_PROXY_TIP, NETWORK_SOCKS_TIP };
 
@@ -22,7 +23,7 @@ export function showNetworkSettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Network',
+      title: ttui('tui.settings.pane.network.title'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
@@ -55,7 +56,7 @@ function showNetworkSettingsPanel(host: SlashCommandHost): void {
     buildLines: (_fillProgress: number) =>
       [...buildNetworkSettingsLines(loadNetworkGlance(process.env))],
     borderToken: 'primary',
-    title: ' Network ',
+    title: ttui('tui.settings.pane.network.panelTitle'),
     enterBeatSeed: 'network',
     requestRender: () => {
       requestTUILayoutRender(host.state);

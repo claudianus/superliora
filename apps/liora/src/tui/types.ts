@@ -129,6 +129,8 @@ export interface AppState {
   promptIntelligencePhase?: 'idle' | 'inline' | 'suggest';
   activityTip?: string | null;
   theme: ThemeName;
+  /** Persisted UI language preference (`tui.toml` `locale`). */
+  locale?: import('./config').LocalePreference;
   disablePasteBurst?: boolean;
   version: string;
   editorCommand: string | null;

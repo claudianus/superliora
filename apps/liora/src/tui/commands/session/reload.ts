@@ -9,13 +9,15 @@ import {
 } from '../../config';
 import type { SlashCommandHost } from '../hub/dispatch';
 import { setExperimentalFeatures } from '../experimental-flags';
+import { resolveCliLocale, setCliLocale } from '#/cli/i18n';
 import { formatErrorMessage } from '#/tui/utils/event-payload';
 import { restoreTuiSessionState } from '#/tui/utils/tui-session-state';
+import { ttui } from '../../utils/tui-i18n';
 
 export async function handleReloadTuiCommand(host: SlashCommandHost): Promise<void> {
   const tuiConfig = await loadTuiConfig();
   await applyReloadedTuiConfig(host, tuiConfig);
-  host.showStatus('TUI config reloaded.', 'success');
+  host.showStatus(ttui('tui.session.tuiReloaded'), 'success');
 }
 
 export async function handleReloadCommand(host: SlashCommandHost): Promise<void> {
@@ -54,7 +56,7 @@ export async function applyReloadedTuiConfig(
     try {
       await host.session.setPermission(config.permissionMode);
     } catch (error) {
-      host.showError(`Failed to apply permission mode: ${formatErrorMessage(error)}`);
+      host.showError(ttui('tui.session.reloadPermissionFailed', { message: formatErrorMessage(error) }));
     }
   }
   const appearance = config.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
@@ -66,7 +68,9 @@ export async function applyReloadedTuiConfig(
     upgrade: config.upgrade,
     appearance,
     footer: config.footer ?? DEFAULT_FOOTER_PREFERENCES,
+    locale: config.locale,
   });
+  setCliLocale(resolveCliLocale({ preference: config.locale, env: process.env }));
   host.setTranscriptDetail(appearance.transcriptDetail);
   host.setNeatMode(appearance.neat);
   if ('setDisablePasteBurst' in host.state.editor) {

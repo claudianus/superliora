@@ -4,6 +4,7 @@ import type { Component, RendererRootUI, RendererTerminalHost } from '#/tui/rend
 import { TaskOutputViewer } from '../../components/dialogs/tasks/task-output-viewer';
 import { TasksBrowserApp, type TasksFilter } from '../../components/dialogs/tasks/tasks-browser';
 import type { Theme } from '#/tui/theme';
+import { ttui } from '../../utils/tui-i18n';
 import type { TUIEditor } from '../../components/editor/editor-contract';
 
 export interface TasksBrowserHost {
@@ -52,7 +53,7 @@ export class TasksBrowserController {
 
     const session = this.host.session;
     if (session === undefined) {
-      this.host.showError('No active session.');
+      this.host.showError(ttui('tui.tasks.noSession'));
       return;
     }
 

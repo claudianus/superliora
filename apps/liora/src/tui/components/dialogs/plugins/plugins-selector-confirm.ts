@@ -1,3 +1,5 @@
+import { ttui } from '#/tui/utils/tui-i18n';
+
 import {ChoicePickerComponent} from '../picker/choice-picker';
 import {mutedHintLine} from './plugins-selector-shared';
 
@@ -19,20 +21,23 @@ export interface PluginRemoveConfirmOptions {
 export class PluginRemoveConfirmComponent extends ChoicePickerComponent {
   constructor(opts: PluginRemoveConfirmOptions) {
     super({
-      title: `Remove ${opts.displayName} (${opts.id})?`,
-      hint: '↑↓ navigate · Enter/Space select · ←/Esc cancel',
+      title: ttui('tui.dialog.plugins.remove.title', {
+        displayName: opts.displayName,
+        id: opts.id,
+      }),
+      hint: ttui('tui.dialog.plugins.remove.hint'),
       formatHint: mutedHintLine,
       options: [
         {
           value: REMOVE_CONFIRM_CANCEL,
-          label: 'Cancel',
-          description: 'Keep this plugin installed.',
+          label: ttui('tui.dialog.plugins.remove.cancel'),
+          description: ttui('tui.dialog.plugins.remove.cancelDesc'),
         },
         {
           value: REMOVE_CONFIRM_REMOVE,
-          label: 'Remove plugin',
+          label: ttui('tui.dialog.plugins.remove.confirm'),
           tone: 'danger',
-          description: 'Remove only the install record; plugin files are left in place.',
+          description: ttui('tui.dialog.plugins.remove.confirmDesc'),
         },
       ],
       onSelect: (value) => {
@@ -63,25 +68,22 @@ export interface PluginInstallTrustConfirmOptions {
 export class PluginInstallTrustConfirmComponent extends ChoicePickerComponent {
   constructor(opts: PluginInstallTrustConfirmOptions) {
     super({
-      title: `Install third-party plugin ${opts.label}?`,
-      hint: '↑↓ navigate · Enter/Space select · ←/Esc cancel',
+      title: ttui('tui.dialog.plugins.trust.title', { label: opts.label }),
+      hint: ttui('tui.dialog.plugins.trust.hint'),
       formatHint: mutedHintLine,
-      notice:
-        '⚠️ This is a third-party plugin that SuperLiora has not reviewed. It can bundle MCP servers, ' +
-        'skills, or files that run code and access your workspace. Install it only if you ' +
-        'trust the source.',
+      notice: ttui('tui.dialog.plugins.trust.notice'),
       noticeTone: 'warning',
       options: [
         {
           value: INSTALL_TRUST_EXIT,
-          label: 'Exit',
-          description: 'Cancel the installation.',
+          label: ttui('tui.dialog.plugins.trust.exit'),
+          description: ttui('tui.dialog.plugins.trust.exitDesc'),
         },
         {
           value: INSTALL_TRUST_TRUST,
-          label: 'Trust and install',
+          label: ttui('tui.dialog.plugins.trust.confirm'),
           tone: 'danger',
-          description: 'Install this third-party plugin anyway.',
+          description: ttui('tui.dialog.plugins.trust.confirmDesc'),
         },
       ],
       onSelect: (value) => {

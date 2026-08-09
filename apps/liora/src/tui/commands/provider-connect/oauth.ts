@@ -145,7 +145,7 @@ export async function connectKimiManaged(host: SlashCommandHost): Promise<void> 
 export async function connectOAuthProvider(host: SlashCommandHost, providerId: string): Promise<void> {
   const profile = getProviderProfile(providerId);
   if (profile === undefined) {
-    host.showError(`No OAuth profile for provider "${providerId}".`);
+    host.showError(ttui('tui.provider.noOAuth', { id: providerId }));
     return;
   }
 

@@ -20,7 +20,7 @@ import {
   GoalStatusMessageComponent,
   UpcomingGoalAddedMessageComponent,
 } from '../components/messages/goal/goal-panel';
-import { LLM_NOT_SET_MESSAGE } from '../constant/liora-tui';
+import {  LLM_NOT_SET_MESSAGE } from '../constant/liora-tui';
 import { requestTUILayoutRender } from '../utils/render/frame-render';
 import {
   appendGoalQueueItem,
@@ -32,6 +32,7 @@ import {
 } from '../goal-queue-store';
 import { formatErrorMessage } from '../utils/event-payload';
 import type { SlashCommandHost } from './hub/dispatch';
+import { ttui } from '../utils/tui-i18n';
 
 const MAX_GOAL_OBJECTIVE_LENGTH = 4000;
 const RESUME_GOAL_INPUT =
@@ -252,7 +253,7 @@ async function queueNextGoal(
     const { goal } = await session.getGoal();
     hasCurrentGoal = goal !== null;
   } catch (error) {
-    host.showError(`Failed to inspect current goal: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.goal.inspectFailed', { message: formatErrorMessage(error) }));
     return;
   }
 
@@ -288,7 +289,7 @@ async function showGoalQueueManager(
   try {
     snapshot = await readGoalQueue(host.requireSession());
   } catch (error) {
-    host.showError(`Failed to load upcoming goals: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.goal.loadUpcomingFailed', { message: formatErrorMessage(error) }));
     return;
   }
 
@@ -301,7 +302,7 @@ async function showGoalQueueManager(
         try {
           return await handleGoalQueueManagerAction(host, action);
         } catch (error) {
-          host.showError(`Failed to update upcoming goals: ${formatErrorMessage(error)}`);
+          host.showError(ttui('tui.goal.updateUpcomingFailed', { message: formatErrorMessage(error) }));
           return undefined;
         }
       },
@@ -345,13 +346,13 @@ async function showGoalQueueEditDialog(
   try {
     snapshot = await readGoalQueue(host.requireSession());
   } catch (error) {
-    host.showError(`Failed to load upcoming goals: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.goal.loadUpcomingFailed', { message: formatErrorMessage(error) }));
     return;
   }
 
   const goal = snapshot.goals.find((item) => item.id === goalId);
   if (goal === undefined) {
-    host.showStatus('Queued goal no longer exists.');
+    host.showStatus(ttui('tui.goal.queuedGone'));
     await showGoalQueueManager(host);
     return;
   }
@@ -361,7 +362,7 @@ async function showGoalQueueEditDialog(
       goal,
       onDone: (result) => {
         void handleGoalQueueEditResult(host, result).catch((error: unknown) => {
-          host.showError(`Failed to update upcoming goal: ${formatErrorMessage(error)}`);
+          host.showError(ttui('tui.goal.updateGoalFailed', { message: formatErrorMessage(error) }));
         });
       },
     }),
@@ -393,7 +394,7 @@ export async function createGoal(
 ): Promise<boolean> {
   // A goal must be able to start a model turn; refuse to create one otherwise.
   if (host.state.appState.model.trim().length === 0 || host.session === undefined) {
-    host.showError(LLM_NOT_SET_MESSAGE);
+    host.showError(LLM_NOT_SET_MESSAGE());
     return false;
   }
 
@@ -415,7 +416,7 @@ function showGoalStartPermissionPrompt(
   const commandText = `/goal ${rawArgs.trim()}`;
   const cancelStart = (): void => {
     host.restoreInputText(commandText);
-    host.showStatus('Goal not started.');
+    host.showStatus(ttui('tui.goal.notStarted'));
   };
   host.mountEditorReplacement(
     new GoalStartPermissionPromptComponent({
@@ -451,7 +452,7 @@ async function setPermissionForGoal(host: GoalCommandHost, mode: PermissionMode)
   try {
     await host.requireSession().setPermission(mode);
   } catch (error) {
-    host.showError(`Failed to set permission mode: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.goal.permissionFailed', { message: formatErrorMessage(error) }));
     return false;
   }
   host.setAppState({ permissionMode: mode });
@@ -476,7 +477,7 @@ async function startGoal(
   } catch (error) {
     if (isKimiError(error) && error.code === ErrorCodes.GOAL_ALREADY_EXISTS) {
       host.showError(
-        'A goal is already active. Use `/goal replace <objective>` to replace it, or `/goal status` to inspect it.',
+        ttui('tui.goal.alreadyActive'),
       );
       return false;
     }
@@ -492,7 +493,7 @@ async function startGoal(
   const offloaded = snapshot.execution === 'goal-desk';
   if (offloaded) {
     const desk = snapshot.deskJobId ? ` (${snapshot.deskJobId})` : '';
-    host.showStatus(`Goal Desk accepted${desk} — worker chasing the objective; lane stays free.`);
+    host.showStatus(ttui('tui.goal.deskAccepted', { desk }));
     return true;
   }
 
@@ -511,19 +512,19 @@ async function pauseGoal(host: SlashCommandHost): Promise<void> {
     if (isStreaming(host)) await session.cancel({ source: 'goal-command' });
   } catch (error) {
     if (isKimiError(error) && error.code === ErrorCodes.GOAL_NOT_FOUND) {
-      host.showStatus('No goal to pause.');
+      host.showStatus(ttui('tui.goal.noPause'));
       return;
     }
     host.showError(formatErrorMessage(error));
     return;
   }
   host.track('goal_pause');
-  host.showStatus('Goal paused. Use `/goal resume` to continue.');
+  host.showStatus(ttui('tui.goal.paused'));
 }
 
 async function resumeGoal(host: SlashCommandHost): Promise<void> {
   if (host.state.appState.model.trim().length === 0 || host.session === undefined) {
-    host.showError(LLM_NOT_SET_MESSAGE);
+    host.showError(LLM_NOT_SET_MESSAGE());
     return;
   }
 
@@ -531,7 +532,7 @@ async function resumeGoal(host: SlashCommandHost): Promise<void> {
     await host.requireSession().resumeGoal();
   } catch (error) {
     if (isKimiError(error) && error.code === ErrorCodes.GOAL_NOT_FOUND) {
-      host.showStatus('No goal to resume.');
+      host.showStatus(ttui('tui.goal.noResume'));
       return;
     }
     host.showError(formatErrorMessage(error));
@@ -548,21 +549,21 @@ async function cancelGoal(host: SlashCommandHost): Promise<void> {
     if (isStreaming(host)) await session.cancel({ source: 'goal-command' });
   } catch (error) {
     if (isKimiError(error) && error.code === ErrorCodes.GOAL_NOT_FOUND) {
-      host.showStatus('No goal to cancel.');
+      host.showStatus(ttui('tui.goal.noCancel'));
       return;
     }
     host.showError(formatErrorMessage(error));
     return;
   }
   host.track('goal_cancel');
-  host.showNotice('Goal cancelled.');
+  host.showNotice(ttui('tui.goal.cancelled'));
 }
 
 async function showGoalStatus(host: SlashCommandHost): Promise<void> {
   const { goal } = await host.requireSession().getGoal();
   host.track('goal_status', { status: goal?.status ?? 'none' });
   if (goal === null) {
-    host.showStatus('No goal set. Start one with `/goal <objective>`.');
+    host.showStatus(ttui('tui.goal.noGoal'));
     return;
   }
   host.state.transcriptContainer.addChild(

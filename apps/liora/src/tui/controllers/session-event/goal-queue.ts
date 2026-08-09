@@ -25,6 +25,7 @@ import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { noteGoalCompletionMeteorBurst } from '../../features/stage/stage-letterbox-sky';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import { shouldGoalXpPulse } from '../../utils/goal/goal-xp-pulse';
+import { ttui } from '../../utils/tui-i18n';
 
 /** Host surface required by goal-updated / queued-goal promotion handling. */
 export interface GoalQueueEventHost {
@@ -230,7 +231,7 @@ export class SessionEventGoalQueue {
     try {
       queue = await readGoalQueue(session);
     } catch (error) {
-      host.showError(`Failed to read upcoming goals: ${formatErrorMessage(error)}`);
+      host.showError(ttui('tui.goal.readUpcomingFailed', { message: formatErrorMessage(error) }));
       return false;
     }
     if (host.session !== session || host.aborted) return true;
@@ -281,7 +282,7 @@ export class SessionEventGoalQueue {
     try {
       await restoreGoalQueueItem(session, goal);
     } catch (error) {
-      this.host.showError(`Queued goal could not be restored: ${formatErrorMessage(error)}`);
+      this.host.showError(ttui('tui.goal.restoreQueuedFailed', { message: formatErrorMessage(error) }));
     }
     await this.cancelStartedQueuedGoal(session);
   }
@@ -290,7 +291,7 @@ export class SessionEventGoalQueue {
     try {
       await session.cancelGoal();
     } catch (error) {
-      this.host.showError(`Queued goal could not be cancelled: ${formatErrorMessage(error)}`);
+      this.host.showError(ttui('tui.goal.cancelQueuedFailed', { message: formatErrorMessage(error) }));
     }
   }
 
@@ -330,7 +331,7 @@ export class SessionEventGoalQueue {
           : 'A configured goal budget was reached. Raise the budget or UpdateGoal with a smaller scope.',
         { coalesceKey: 'goal-blocked-budget' },
       );
-      this.host.showStatus('Goal blocked — budget reached', 'warning');
+      this.host.showStatus(ttui('tui.goal.blockedBudget'), 'warning');
       return;
     }
     if (lower.includes('userpromptsubmit') || lower.includes('hook')) {
@@ -341,7 +342,7 @@ export class SessionEventGoalQueue {
           : 'Blocked by UserPromptSubmit hook. Adjust hooks or the prompt, then resume.',
         { coalesceKey: 'goal-blocked-hook' },
       );
-      this.host.showStatus('Goal blocked — UserPromptSubmit hook', 'warning');
+      this.host.showStatus(ttui('tui.goal.blockedHook'), 'warning');
       return;
     }
     this.host.showNotice(

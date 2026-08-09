@@ -20,6 +20,7 @@ import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 import { detectSearchProviderEnvKeys } from '../search/search-status';
+import { ttui } from '../../../utils/tui-i18n';
 
 export {
   NEVER_HALT_BREAKER_TIP,
@@ -32,7 +33,7 @@ export function showNeverHaltSettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Never-Halt',
+      title: ttui('tui.settings.pane.neverHalt.title'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
@@ -56,7 +57,7 @@ export function showNeverHaltSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Never-Halt' },
+    { label: ttui('tui.settings.pane.neverHalt.title') },
   );
 }
 
@@ -117,7 +118,7 @@ async function showNeverHaltSettingsPanel(host: SlashCommandHost): Promise<void>
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => [...lines],
     borderToken: 'primary',
-    title: ' Never-Halt ',
+    title: ttui('tui.settings.pane.neverHalt.panelTitle'),
     enterBeatSeed: 'never-halt',
     requestRender: () => {
       requestTUILayoutRender(host.state);

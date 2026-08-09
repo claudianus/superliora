@@ -28,6 +28,7 @@ import { handleCompactCommand } from '../plan/plan';
 import { showContextWorkingSetPicker } from './context';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 
 export { COMPACTION_KEEP_TOKENS_TIP, COMPACTION_THRESHOLD_TIP };
 
@@ -38,7 +39,7 @@ export function showCompactionSettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Compaction',
+      title: ttui('tui.settings.pane.compaction.title'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
@@ -65,7 +66,7 @@ export function showCompactionSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
         if (value === 'presets') {
           showSettingPresetsPicker(host, {
-            title: 'Compaction presets',
+            title: ttui('tui.settings.pane.compaction.presets'),
             catalog: COMPACTION_PRESETS,
             onApply: async (preset) => {
               try {
@@ -76,9 +77,9 @@ export function showCompactionSettings(host: SlashCommandHost): void {
                 if (session !== undefined) {
                   await session.reloadSession();
                 }
-                host.showStatus(`Compaction preset "${preset.label}" applied.`, 'success');
+                host.showStatus(ttui('tui.compaction.presetApplied', { label: preset.label }), 'success');
               } catch (error) {
-                host.showError(`Failed to apply compaction preset: ${formatErrorMessage(error)}`);
+                host.showError(ttui('tui.compaction.presetFailed', { message: formatErrorMessage(error) }));
               }
             },
           });
@@ -102,7 +103,7 @@ export function showCompactionSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Compaction' },
+    { label: ttui('tui.settings.pane.compaction.title') },
   );
 }
 
@@ -187,7 +188,7 @@ async function showCompactionSettingsPanel(host: SlashCommandHost): Promise<void
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => [...lines],
     borderToken: 'primary',
-    title: ' Compaction ',
+    title: ttui('tui.settings.pane.compaction.panelTitle'),
     enterBeatSeed: 'compaction-settings',
     requestRender: () => {
       requestTUILayoutRender(host.state);

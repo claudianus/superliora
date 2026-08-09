@@ -1,6 +1,6 @@
 import type { LioraHarness, PromptPart, Session } from '@superliora/sdk';
 
-import { LLM_NOT_SET_MESSAGE, MAIN_AGENT_ID } from '../../constant/liora-tui';
+import {  LLM_NOT_SET_MESSAGE, MAIN_AGENT_ID } from '../../constant/liora-tui';
 import { isConductorUxV2Enabled } from '../../commands/job-hotpath';
 import type { ColorToken } from '../../theme';
 import type { AppState, QueuedMessage, TranscriptEntry } from '../../types';
@@ -161,14 +161,14 @@ export class MessageDispatchController {
     const { host } = this;
     if (host.btwPanelController.sendUserInput(text)) return;
     if (host.state.appState.model.trim().length === 0) {
-      host.showError(LLM_NOT_SET_MESSAGE);
+      host.showError(LLM_NOT_SET_MESSAGE());
       return;
     }
     const extraction = extractMediaAttachments(text, host.imageStore);
     if (!this.validateMediaCapabilities(extraction)) return;
     const session = host.session;
     if (session === undefined) {
-      host.showError(LLM_NOT_SET_MESSAGE);
+      host.showError(LLM_NOT_SET_MESSAGE());
       return;
     }
 
@@ -321,7 +321,7 @@ export class MessageDispatchController {
 
     void session.steer(input.join('\n\n')).catch((error: unknown) => {
       const message = formatErrorMessage(error);
-      host.showError(`Failed to steer: ${message}`);
+      host.showError(ttui('tui.transcript.steerFailed', { message }));
     });
   }
 
@@ -423,7 +423,7 @@ export class MessageDispatchController {
       const analyzer = this.findVisionAnalyzerModel(videoUnsupported && !imageUnsupported);
       if (analyzer !== undefined) {
         host.showStatus(
-          `현재 모델은 텍스트 전용입니다 — 첨부 미디어를 ${analyzer}로 분석해 전송합니다.`,
+          ttui('tui.media.textOnlyAnalyze', { analyzer }),
           'success',
         );
       }

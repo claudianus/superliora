@@ -22,14 +22,15 @@ import { printableChar } from '#/tui/utils/printable-key';
 import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 import { renderTabStrip } from '#/tui/utils/ui/tab-strip';
 import {
-  EXTENSIONS_TAB_LABELS_KO,
   EXTENSIONS_TAB_ORDER,
+  extensionsTabLabel,
   extensionsTabSummary,
   rowsForExtensionsTab,
   type ExtensionsRow,
   type ExtensionsSnapshot,
   type ExtensionsTabId,
 } from '#/tui/utils/agent/extensions-rows';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 const ELLIPSIS = '…';
 
@@ -160,10 +161,10 @@ export class ExtensionsModalComponent extends Container implements Focusable {
   }
 
   private renderLines(width: number): string[] {
-    const title = '확장 기능';
+    const title = ttui('tui.extensions.modal.title');
     const summary = extensionsTabSummary(this.snapshot);
     const colors = currentTheme.palette;
-    const tabLabels = EXTENSIONS_TAB_ORDER.map((id) => EXTENSIONS_TAB_LABELS_KO[id]);
+    const tabLabels = EXTENSIONS_TAB_ORDER.map((id) => extensionsTabLabel(id));
     const strip = renderTabStrip({
       labels: tabLabels,
       activeIndex: this.activeTabIndex,
@@ -175,8 +176,8 @@ export class ExtensionsModalComponent extends Container implements Focusable {
       return this.renderChrome(width, {
         title,
         titleSuffix: currentTheme.fg('textMuted', `  ${summary}`),
-        hint: '불러오는 중…',
-        body: [strip, '', currentTheme.fg('textMuted', '확장 목록을 불러오는 중…')],
+        hint: ttui('tui.extensions.modal.loadingHint'),
+        body: [strip, '', currentTheme.fg('textMuted', ttui('tui.extensions.modal.loadingBody'))],
       });
     }
 
@@ -185,13 +186,13 @@ export class ExtensionsModalComponent extends Container implements Focusable {
     body.push(
       currentTheme.fg(
         'textDim',
-        `${EXTENSIONS_TAB_LABELS_KO[this.activeTab]} · 설치/활성 상태를 한 화면에서 감사`,
+        `${extensionsTabLabel(this.activeTab)} · ${ttui('tui.extensions.modal.auditSubtitle')}`,
       ),
     );
     body.push('');
 
     if (rows.length === 0) {
-      body.push(currentTheme.fg('textMuted', '표시할 항목이 없습니다.'));
+      body.push(currentTheme.fg('textMuted', ttui('tui.extensions.modal.empty')));
     } else {
       const maxVisible = 10;
       const start = Math.max(
@@ -207,10 +208,14 @@ export class ExtensionsModalComponent extends Container implements Focusable {
         const titleStyle = selected
           ? (t: string) => currentTheme.boldFg('primary', t)
           : (t: string) => currentTheme.fg('text', t);
+        const activeLabel = ttui('tui.extensions.status.active');
+        const connectedLabel = ttui('tui.extensions.mcp.connected');
+        const errorLabel = ttui('tui.extensions.status.error');
+        const failedLabel = ttui('tui.extensions.mcp.failed');
         const statusColor =
-          row.status === '활성' || row.status === '연결됨'
+          row.status === activeLabel || row.status === connectedLabel
             ? 'success'
-            : row.status === '실패' || row.status === '오류'
+            : row.status === failedLabel || row.status === errorLabel
               ? 'error'
               : 'textMuted';
         body.push(
@@ -224,16 +229,13 @@ export class ExtensionsModalComponent extends Container implements Focusable {
 
     body.push('');
     body.push(
-      currentTheme.fg(
-        'textMuted',
-        'Tab 탭 · ↑↓ 이동 · Enter 열기 · i Claude 가져오기 · Esc 닫기',
-      ),
+      currentTheme.fg('textMuted', ttui('tui.extensions.modal.footer')),
     );
 
     return this.renderChrome(width, {
       title,
       titleSuffix: currentTheme.fg('textMuted', `  ${summary}`),
-      hint: '플러그인 · 훅 · 스킬 · MCP',
+      hint: ttui('tui.extensions.modal.tabsHint'),
       body,
     });
   }

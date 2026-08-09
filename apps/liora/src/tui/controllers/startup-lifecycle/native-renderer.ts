@@ -28,6 +28,7 @@ import {
 import type { TranscriptScrollAction } from '../../features/transcript/transcript-viewport';
 import { ClipboardImageHintController } from '../clipboard/clipboard-image-hint';
 import type { StartupLifecycleHost } from './types';
+import { ttui } from '../../utils/tui-i18n';
 
 export interface StartupNativeRendererCallbacks {
   scrollTranscriptViewport(action: TranscriptScrollAction): boolean;
@@ -113,7 +114,7 @@ export function ensureStartupNativeInputRouter(
 export function openJobDeckFromShortcut(host: StartupLifecycleHost): boolean {
   const jobs = host.state.appState.conductorJobs?.jobs ?? [];
   if (jobs.length === 0) {
-    host.showStatus('No Conductor jobs yet — Job Deck opens once jobs exist.', 'textMuted');
+    host.showStatus(ttui('tui.session.noJobsYet'), 'textMuted');
     return true;
   }
   host.jobBoardController.openDeck();

@@ -33,6 +33,7 @@ const mocks = vi.hoisted(() => {
     initializeCliTelemetry: vi.fn(),
     handleUpgrade: vi.fn(),
     finalizeHeadlessRun: vi.fn(),
+    loadTuiConfig: vi.fn(),
     log: {
       info: vi.fn(),
       warn: vi.fn(),
@@ -132,6 +133,16 @@ vi.mock('../../src/cli/headless-exit', () => ({
   finalizeHeadlessRun: mocks.finalizeHeadlessRun,
 }));
 
+vi.mock('../../src/tui/config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/tui/config')>(
+    '../../src/tui/config',
+  );
+  return {
+    ...actual,
+    loadTuiConfig: mocks.loadTuiConfig,
+  };
+});
+
 class ExitCalled extends Error {
   constructor(readonly code: number) {
     super(`exit(${code})`);
@@ -217,6 +228,7 @@ describe('main entry command handling', () => {
     mocks.harness.close.mockResolvedValue(undefined);
     mocks.shutdownTelemetry.mockResolvedValue(undefined);
     mocks.handleUpgrade.mockResolvedValue(0);
+    mocks.loadTuiConfig.mockResolvedValue({ locale: 'auto' });
   });
 
   it('runs update preflight before starting the shell', async () => {
@@ -294,6 +306,9 @@ describe('main entry command handling', () => {
     mocks.finalizeHeadlessRun.mockResolvedValue(void 0);
 
     main();
+    await waitForAssertion(() => {
+      expect(mocks.createProgram).toHaveBeenCalled();
+    });
     const programArgs = mocks.createProgram.mock.calls[0] as unknown as unknown[];
     const mainAction = programArgs[1] as (opts: CLIOptions) => void;
     mainAction(opts);
@@ -322,8 +337,11 @@ describe('main entry command handling', () => {
     expect(runShell).toHaveBeenCalledWith(opts, '0.0.1-alpha.2', undefined, undefined);
   });
 
-  it('installs crash handlers before parsing CLI arguments', () => {
+  it('installs crash handlers before parsing CLI arguments', async () => {
     main();
+    await waitForAssertion(() => {
+      expect(mocks.createProgram).toHaveBeenCalled();
+    });
 
     expect(mocks.installCrashHandlers).toHaveBeenCalledTimes(1);
     expect(mocks.installCrashHandlers.mock.invocationCallOrder[0]).toBeLessThan(
@@ -387,6 +405,7 @@ describe('main entry command handling', () => {
       uiMode: 'shell',
     }));
     expect(mocks.handleUpgrade).toHaveBeenCalledWith('0.0.1-alpha.2', {
+      fromMain: false,
       track: mocks.track,
       logger: mocks.log,
     });

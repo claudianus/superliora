@@ -19,6 +19,7 @@ import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { createGitStatusCache } from '#/utils/git/git-status';
 import { getDataDir } from '#/utils/paths';
 import type { SlashCommandHost } from '../hub/dispatch';
+import { ttui } from '../../utils/tui-i18n';
 
 import { buildContextOsReportLines, loadPrivacySnapshot } from './context-os-report';
 import {
@@ -227,7 +228,7 @@ export async function showMcpServers(host: SlashCommandHost): Promise<void> {
   try {
     servers = await host.requireSession().listMcpServers();
   } catch (error) {
-    host.showError(`Failed to load MCP servers: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.info.mcpLoadFailed', { message: formatErrorMessage(error) }));
     return;
   }
 
@@ -250,12 +251,12 @@ export async function showContextOsReport(host: SlashCommandHost, rawArgs = ''):
   try {
     const session = host.requireSession();
     if (typeof session.diagnoseContextOS !== 'function') {
-      host.showError('Context OS diagnose is unavailable in this session.');
+      host.showError(ttui('tui.info.contextOsUnavailable'));
       return;
     }
     diagnostics = await session.diagnoseContextOS(query.length > 0 ? query : 'current work');
   } catch (error) {
-    host.showError(`Failed to diagnose Context OS: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.info.contextOsFailed', { message: formatErrorMessage(error) }));
     return;
   }
 

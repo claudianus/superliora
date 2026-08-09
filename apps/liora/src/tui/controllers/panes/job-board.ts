@@ -9,6 +9,7 @@
 
 import type { ColorToken } from '../../theme';
 import type { ConductorJobUsage } from '../../utils/job/job-strip';
+import { ttui } from '../../utils/tui-i18n';
 
 export interface JobBoardHost {
   showStatus(msg: string, color?: ColorToken): void;
@@ -35,7 +36,7 @@ export class JobBoardController {
       this.host.openJobDeck(jobId);
       return;
     }
-    this.host.showStatus('Job Deck is unavailable in this host.', 'textMuted');
+    this.host.showStatus(ttui('tui.conductor.jobDeckUnavailable'), 'textMuted');
   }
 
   /** Persist Job Deck–fetched token usage onto the desk ledger. */

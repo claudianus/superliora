@@ -9,6 +9,7 @@ import {
   type UpgradeStudioChoice,
 } from '#/tui/components/dialogs/upgrade/upgrade-studio';
 import { requestTUILayoutRender } from '#/tui/utils/render/frame-render';
+import { ttui } from '#/tui/utils/tui-i18n';
 import { dismissPickerDialog, mountPickerDialog } from '#/tui/utils/ui/mount-picker';
 import { showUpdatePreferencePicker } from '#/tui/commands/config/upgrade/update-preference';
 
@@ -105,7 +106,7 @@ export async function handleUpgradeCommand(
         detail: reason,
       });
       refresh();
-      host.showStatus(`Upgrade check failed: ${reason}`, 'error');
+      host.showStatus(ttui('tui.upgrade.checkFailed', { reason }), 'error');
     };
 
     const runInstall = async (activePlan: UpgradePlan): Promise<void> => {
@@ -213,7 +214,7 @@ export async function handleUpgradeCommand(
       }
       if (choice === 'copy-command') {
         if (plan !== null) {
-          host.showStatus(`Install: ${plan.installCommand}`, 'info');
+          host.showStatus(ttui('tui.upgrade.installCmd', { command: plan.installCommand }), 'info');
         }
         return;
       }

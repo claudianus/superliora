@@ -23,6 +23,7 @@ import {
 import { currentTheme } from '#/tui/theme';
 import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 import { printableChar } from '#/tui/utils/printable-key';
+import { ttui } from '#/tui/utils/tui-i18n';
 import type { GitLogCommit, GitLogReport } from '#/utils/git/git-log';
 
 const ELLIPSIS = '…';
@@ -154,7 +155,7 @@ export class CommitBrowserComponent extends Container implements Focusable {
       const lines: string[] = [message];
       while (lines.length < innerHeight) lines.push('');
       return renderRendererFrameRows({
-        title: ' Log ',
+        title: ttui('tui.dialog.commitBrowser.title'),
         content: lines,
         width,
         height,
@@ -171,7 +172,7 @@ export class CommitBrowserComponent extends Container implements Focusable {
     while (lines.length < innerHeight) lines.push('');
 
     return renderRendererFrameRows({
-      title: ' Log ',
+      title: ttui('tui.dialog.commitBrowser.title'),
       content: lines,
       width,
       height,

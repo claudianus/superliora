@@ -30,7 +30,7 @@ const APPEARANCE_KEYS = [
 export async function handleAppearanceCommand(host: SlashCommandHost, args: string): Promise<void> {
   const raw = args.trim();
   if (raw.length === 0) {
-    host.showNotice('Appearance', formatAppearanceStatus(currentAppearance(host)));
+    host.showNotice(ttui('tui.appearance.title'), formatAppearanceStatus(currentAppearance(host)));
     return;
   }
 
@@ -39,7 +39,7 @@ export async function handleAppearanceCommand(host: SlashCommandHost, args: stri
   const value = rest.join(' ').trim().toLowerCase();
   if (key === 'help' || key === undefined || value.length === 0) {
     host.showNotice(
-      'Appearance',
+      ttui('tui.appearance.title'),
       `Usage: /appearance <${APPEARANCE_KEYS.join('|')}> <value>`,
     );
     return;
@@ -48,18 +48,18 @@ export async function handleAppearanceCommand(host: SlashCommandHost, args: stri
   const previous = currentAppearance(host);
   const next = parseAppearancePatch(previous, key, value);
   if (next === null) {
-    host.showError(`Unknown appearance option or value: ${raw}`);
+    host.showError(ttui('tui.appearance.unknownOption', { raw }));
     return;
   }
   if (JSON.stringify(next) === JSON.stringify(previous)) {
-    host.showStatus('Appearance unchanged.');
+    host.showStatus(ttui('tui.appearance.unchanged'));
     return;
   }
 
   try {
     await saveTuiConfig(tuiConfigFromHost(host, { appearance: next }));
   } catch (error) {
-    host.showStatus(`Failed to save appearance: ${formatErrorMessage(error)}`, 'error');
+    host.showStatus(ttui('tui.appearance.saveFailed', { message: formatErrorMessage(error) }), 'error');
     return;
   }
 
@@ -72,7 +72,7 @@ export async function handleAppearanceCommand(host: SlashCommandHost, args: stri
     host.setNeatMode(next.neat);
   }
   host.track('appearance_changed', { key, value });
-  host.showStatus(`Appearance ${key} set to ${value}.`, 'success');
+  host.showStatus(ttui('tui.appearance.set', { key, value }), 'success');
 }
 
 function formatAppearanceStatus(appearance: AppearancePreferences): string {

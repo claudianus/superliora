@@ -1,5 +1,6 @@
 import { TabbedModelSelectorComponent } from '../../components/dialogs/picker/tabbed-model-selector';
 import { formatErrorMessage } from '../../utils/event-payload';
+import { ttui } from '../../utils/tui-i18n';
 import {
   resolveThinkingDisplay,
   resolveThinkingLevelForApply,
@@ -28,7 +29,7 @@ export async function openModelPickerForProvider(
     onSelect: ({ alias, thinking, effort }) => {
       host.restoreEditor();
       void setDefaultModel(host, alias, thinking, effort).catch((error: unknown) => {
-        host.showError(`Set default model failed: ${formatErrorMessage(error)}`);
+        host.showError(ttui('tui.provider.modelSetFailed', { message: formatErrorMessage(error) }));
       });
     },
     onCancel: () => {
@@ -77,5 +78,5 @@ async function setDefaultModel(
       : display.requested === display.effective
         ? display.requested
         : `${display.requested}→${display.effective}`;
-  host.showStatus(`Default model set to ${alias} with thinking ${levelLabel}.`);
+  host.showStatus(ttui('tui.provider.defaultModelSet', { alias, level: levelLabel }));
 }

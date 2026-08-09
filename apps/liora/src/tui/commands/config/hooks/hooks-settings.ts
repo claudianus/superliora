@@ -18,6 +18,7 @@ import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-
 import { showExtensionsHub } from '../extensions/extensions-hub';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 
 export { HOOKS_ENABLE_TIP, HOOKS_POST_TOOL_USE_TIP, HOOKS_PRE_TOOL_USE_TIP, HOOKS_STOP_TIP };
 
@@ -62,7 +63,7 @@ export function showHooksSettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Hooks',
+      title: ttui('tui.settings.pane.hooks.title'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
@@ -95,7 +96,7 @@ export function showHooksSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Hooks' },
+    { label: ttui('tui.settings.pane.hooks.title') },
   );
 }
 
@@ -106,7 +107,7 @@ async function showHooksSettingsPanel(host: SlashCommandHost): Promise<void> {
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => [...lines],
     borderToken: 'primary',
-    title: ' Hooks ',
+    title: ttui('tui.settings.pane.hooks.panelTitle'),
     enterBeatSeed: 'hooks',
     requestRender: () => {
       requestTUILayoutRender(host.state);

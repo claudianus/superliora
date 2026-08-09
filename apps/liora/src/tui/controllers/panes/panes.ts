@@ -11,7 +11,7 @@ import { MoonLoader, type SpinnerStyle } from '../../components/chrome/moon-load
 import { pickRandomWorkingTip, tipText } from '../../components/chrome/working-tips';
 import { ShellRunComponent } from '../../components/messages/shell/shell-run';
 import { ToolCallComponent } from '../../components/messages/tool-call/index';
-import { NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
+import {  NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
 import type { AppearanceController } from '../appearance/index';
 import type { SessionEventHandler } from '../session-event/handler';
 import { currentTheme, getBuiltInPalette, getColorPalette, isBuiltInTheme } from '../../theme';
@@ -395,7 +395,7 @@ export class PanesController {
         return;
       }
     } catch (error) {
-      host.showError(`Failed to move to background: ${formatErrorMessage(error)}`);
+      host.showError(ttui('tui.panes.moveBgFailed', { message: formatErrorMessage(error) }));
       return;
     }
     // Finalize the card as backgrounded and drop the stream so the eventual
@@ -420,7 +420,7 @@ export class PanesController {
 
     const session = host.session;
     if (session === undefined) {
-      host.showError(NO_ACTIVE_SESSION_MESSAGE);
+      host.showError(NO_ACTIVE_SESSION_MESSAGE());
       return;
     }
 
@@ -430,7 +430,7 @@ export class PanesController {
       // and therefore included. We filter to `detached === false` ourselves.
       tasks = await session.listBackgroundTasks();
     } catch (error) {
-      host.showError(`Failed to list tasks: ${formatErrorMessage(error)}`);
+      host.showError(ttui('tui.panes.listTasksFailed', { message: formatErrorMessage(error) }));
       return;
     }
 
@@ -448,7 +448,7 @@ export class PanesController {
         if (info === undefined) alreadyFinished++;
         else detached++;
       } catch (error) {
-        host.showError(`Failed to detach ${target.taskId}: ${formatErrorMessage(error)}`);
+        host.showError(ttui('tui.panes.detachFailed', { taskId: target.taskId, message: formatErrorMessage(error) }));
       }
     }
 

@@ -4,7 +4,7 @@ import type { AgentStatusUpdatedEvent } from '@superliora/sdk';
 
 import { SessionEventNotices } from '#/tui/controllers/session-event/notices';
 import type { AppState } from '#/tui/types';
-import { INTERVENTION_NEVER_HALT_TIP } from '#/tui/utils/never-halt/intervention-glance';
+import { getInterventionNeverHaltTip } from '#/tui/utils/never-halt/intervention-glance';
 import { RUNTIME_DEGRADED_BADGE_TTL_MS } from '#/tui/utils/never-halt/runtime-degraded';
 import { SEARCH_CASCADE_BADGE_TTL_MS } from '#/tui/utils/search/search-cascade';
 
@@ -98,7 +98,7 @@ describe('SessionEventNotices.handleStatusUpdate interventionCount', () => {
       pendingInterventions: 2,
     } as AgentStatusUpdatedEvent);
 
-    expect(host.showStatus).toHaveBeenCalledWith(INTERVENTION_NEVER_HALT_TIP, 'textMuted');
+    expect(host.showStatus).toHaveBeenCalledWith(getInterventionNeverHaltTip(), 'textMuted');
   });
 
   it('tracks staleInterventionCount from status snapshots', () => {

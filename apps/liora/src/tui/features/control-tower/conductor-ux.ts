@@ -28,6 +28,7 @@ import {
   SOVEREIGN_CONDUCTOR_PROFILE_NAME,
 } from '../../utils/agent/profile-glance';
 import { requestTUIContentRender, requestTUILayoutRender } from '../../utils/render/frame-render';
+import { ttui } from '../../utils/tui-i18n';
 
 /** Minimal host surface for Conductor UX v2 chrome wiring. */
 export interface ConductorUxHost {
@@ -68,7 +69,7 @@ export function focusIntentComposer(host: ConductorUxHost): boolean {
   if (live === undefined) return false;
   live.setExpanded(true);
   host.state.ui.setFocus(live);
-  host.showStatus('Intent brief — edit slots, Esc returns to prompt', 'info');
+  host.showStatus(ttui('tui.conductor.intentBrief'), 'info');
   return true;
 }
 
@@ -92,7 +93,7 @@ export function applyConductorProjectMode(
     /* session-local pref still applied */
   });
   void saveTuiConfig(tuiConfigFromHost(host, { conductor })).catch(() => {});
-  host.showStatus(`Project mode → ${mode} (pool=${String(pool)})`, 'info');
+  host.showStatus(ttui('tui.conductor.projectMode', { mode, pool: String(pool) }), 'info');
   requestTUIContentRender(host.state);
 }
 
@@ -120,7 +121,10 @@ export function toggleTranscriptRegion(host: ConductorUxHost): 'chat' | 'timelin
   const current = host.state.appState.transcriptRegionMode ?? 'chat';
   const next = current === 'chat' ? 'timeline' : 'chat';
   setTranscriptRegionMode(host, next);
-  host.showStatus(next === 'timeline' ? 'Region → Timeline' : 'Region → Chat', 'info');
+  host.showStatus(
+    next === 'timeline' ? ttui('tui.conductor.regionTimeline') : ttui('tui.conductor.regionChat'),
+    'info',
+  );
   return next;
 }
 
@@ -181,5 +185,5 @@ export function maybeDefaultTimelineOnce(host: ConductorUxHost): void {
   });
   syncTranscriptRegion(host);
   void saveTuiConfig(tuiConfigFromHost(host, { conductor })).catch(() => {});
-  host.showStatus('Timeline view (default once with Conductor jobs)', 'info');
+  host.showStatus(ttui('tui.conductor.timeline'), 'info');
 }

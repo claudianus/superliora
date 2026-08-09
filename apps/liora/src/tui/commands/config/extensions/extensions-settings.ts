@@ -18,6 +18,7 @@ import { loadSkillsState } from '#/utils/skills/skills-state';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 import { showExtensionsHub } from './extensions-hub';
+import { ttui } from '../../../utils/tui-i18n';
 
 export { EXTENSIONS_AUDIT_TIP, EXTENSIONS_HOT_RELOAD_TIP, EXTENSIONS_MANAGE_TIP };
 
@@ -51,7 +52,7 @@ export function showExtensionsSettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Extensions',
+      title: ttui('tui.settings.pane.extensions.title'),
       hint: '↑↓ · Enter · Esc · install/toggle hot-reloads session',
       searchable: true,
       options: [
@@ -84,7 +85,7 @@ export function showExtensionsSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Extensions' },
+    { label: ttui('tui.settings.pane.extensions.title') },
   );
 }
 
@@ -95,7 +96,7 @@ async function showExtensionsStatusPanel(host: SlashCommandHost): Promise<void> 
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => [...lines],
     borderToken: 'primary',
-    title: ' Extensions ',
+    title: ttui('tui.settings.pane.extensions.panelTitle'),
     enterBeatSeed: 'extensions-settings',
     requestRender: () => {
       requestTUILayoutRender(host.state);

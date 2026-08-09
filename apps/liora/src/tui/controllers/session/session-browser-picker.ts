@@ -110,7 +110,7 @@ export function mountSessionPickerFlow(
       pageSize: 50,
       onSelect: (session: SessionRow) => {
         void handleSessionPickerSelect(session, options.applyStartupModes === true).catch((error) => {
-          host.showError(`Failed to apply startup flags: ${formatErrorMessage(error)}`);
+          host.showError(ttui('tui.session.startupFlagsFailed', { message: formatErrorMessage(error) }));
         });
       },
       onCancel: options.onCancel,

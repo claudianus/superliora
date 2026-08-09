@@ -8,20 +8,21 @@ import {
   isHideLegacyToolNamesEnabled,
   resolveHideLegacyToolsGlance,
 } from '#/tui/utils/tool/tools-glance';
-import { NO_ACTIVE_SESSION_MESSAGE } from '../../../constant/liora-tui';
+import {  NO_ACTIVE_SESSION_MESSAGE } from '../../../constant/liora-tui';
 import { formatErrorMessage } from '../../../utils/event-payload';
 import type { SlashCommandHost } from '../../hub/dispatch';
 import { SEARCHTOOLS_SCHEMA_TIP, TOOLS_WAIST_TIP } from './agent-profile';
+import { ttui } from '../../../utils/tui-i18n';
 
 /** List active tools for the current session (TUI eyes for the tool surface). */
 export async function showToolsInventory(host: SlashCommandHost): Promise<void> {
   const session = host.session;
   if (session === undefined) {
-    host.showError(NO_ACTIVE_SESSION_MESSAGE);
+    host.showError(NO_ACTIVE_SESSION_MESSAGE());
     return;
   }
   if (typeof session.getTools !== 'function') {
-    host.showError('Tools inventory is not available on this session.');
+    host.showError(ttui('tui.harness.toolsUnavailable'));
     return;
   }
   try {
@@ -93,6 +94,6 @@ export async function showToolsInventory(host: SlashCommandHost): Promise<void> 
     lines.push('', `Tip: ${tipParts.join(' ')}`);
     host.showNotice(lines.join('\n'));
   } catch (error) {
-    host.showError(`Failed to load tools: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.harness.toolsLoadFailed', { message: formatErrorMessage(error) }));
   }
 }

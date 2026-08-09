@@ -10,7 +10,8 @@ import {
   truncateToWidth,
   type Focusable,
 } from '#/tui/renderer';
-import { KEYMAP_ALL, type KeymapBinding } from '#/tui/keymap';
+import { KEYMAP_ALL, resolveKeymapBinding, type KeymapBinding } from '#/tui/keymap';
+import { ttui } from '#/tui/utils/tui-i18n';
 import { currentTheme } from '#/tui/theme';
 import { renderPremiumHeadline } from '#/tui/features/appearance/appearance-effects';
 
@@ -62,13 +63,14 @@ export class ShortcutsPanelComponent extends Container implements Focusable {
         lastCategory = binding.category;
         body.push(theme.boldFg('accent', `  ${binding.category}`));
       }
-      const key = theme.boldFg('primary', binding.key.padEnd(18));
-      body.push(truncateToWidth(`  ${key}${theme.fg('text', binding.description)}`, width));
+      const resolved = resolveKeymapBinding(binding);
+      const key = theme.boldFg('primary', resolved.key.padEnd(18));
+      body.push(truncateToWidth(`  ${key}${theme.fg('text', resolved.description)}`, width));
     }
     return renderRendererPanelChromeRows({
       width,
-      title: ' Shortcuts',
-      hint: ' Esc / Enter close · ↑↓ scroll',
+      title: ` ${ttui('tui.shortcuts.title')}`,
+      hint: ` ${ttui('tui.shortcuts.hint')}`,
       body,
       dividerStyle: (text) => theme.fg('primary', text),
       titleStyle: (text) => renderPremiumHeadline(text.trim(), 'shortcuts-panel:title'),

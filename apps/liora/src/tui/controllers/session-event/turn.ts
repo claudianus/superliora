@@ -26,6 +26,7 @@ import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import { notifyTurnComplete } from '../../utils/notification/desktop-notification';
 import { appendHostTtftMsSample } from '../../utils/host/host-glance';
 import type { StreamingUIController } from '../streaming-ui/index';
+import { ttui } from '../../utils/tui-i18n';
 
 /** Host surface required by turn / step / assistant / thinking event handling. */
 export interface TurnEventHost {
@@ -215,7 +216,7 @@ export class SessionEventTurn {
       this.host.showStatus(notice.status, 'warning');
       return;
     }
-    this.host.showError(`step interrupted (${reason})`);
+    this.host.showError(ttui('tui.step.interrupted', { reason }));
   }
 
   handleThinkingDelta(event: ThinkingDeltaEvent): void {
@@ -322,7 +323,7 @@ export class SessionEventTurn {
       const isFailover = decision.kind === 'failover';
       // Failover is the only route change worth a transcript notice.
       if (isFailover) {
-        this.host.showNotice('Model failover', detailParts.join(' · '), {
+        this.host.showNotice(ttui('tui.notice.modelFailover.title'), detailParts.join(' · '), {
           coalesceKey: 'model-route:step',
         });
       }
@@ -409,10 +410,9 @@ export function formatMaxStepsExhaustedNotice(): {
   readonly status: string;
 } {
   return {
-    title: 'Step budget exhausted',
-    detail:
-      'This turn hit max_steps (named terminal: exhausted). Summarize progress, tighten the next action, or raise maxStepsPerTurn in loop_control. Soft STEP_BUDGET tips fire when ≤3 steps remain.',
-    status: 'Turn stopped: per-turn step budget exhausted (max_steps)',
+    title: ttui('tui.notice.stepBudgetExhausted.title'),
+    detail: ttui('tui.notice.stepBudgetExhausted.detail'),
+    status: ttui('tui.notice.stepBudgetExhausted.status'),
   };
 }
 

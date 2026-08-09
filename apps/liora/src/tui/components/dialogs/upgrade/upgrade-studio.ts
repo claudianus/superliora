@@ -34,6 +34,7 @@ import {
 } from '#/tui/features/appearance/appearance-effects';
 import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 import { renderUpgradeProgressBlock } from './upgrade-install-progress';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 export type UpgradeStudioMode =
   | 'checking'
@@ -65,7 +66,9 @@ type StudioAction = {
   readonly label: string;
 };
 
-const TITLE = `Upgrade ${PRODUCT_NAME}`;
+function upgradeStudioTitle(): string {
+  return ttui('tui.dialog.upgradeStudio.title', { product: PRODUCT_NAME });
+}
 const LABEL_COL = 10;
 const ORBIT = ['✦', '·', '✧', '·', '⋆', '·', '✧', '·'] as const;
 const JEWEL = ['◆', '◇', '◈', '❖'] as const;
@@ -152,7 +155,7 @@ export class UpgradeStudioComponent extends Container implements Focusable {
 
     const shimmer = ambient ? renderShimmerPrefix(appearance) : '';
     const headline = renderPremiumHeadline(
-      `${shimmer}${TITLE}`.trimStart(),
+      `${shimmer}${upgradeStudioTitle()}`.trimStart(),
       'upgrade-studio:title',
       appearance,
     );
@@ -180,7 +183,7 @@ export class UpgradeStudioComponent extends Container implements Focusable {
     const frame = renderPremiumBoxFrame(body, {
       width: outer,
       title: headline,
-      titlePlain: TITLE,
+      titlePlain: upgradeStudioTitle(),
       footerLeft,
       footerLeftPlain: modeChip,
       footerRight,
@@ -391,16 +394,16 @@ export class UpgradeStudioComponent extends Container implements Focusable {
     switch (this.mode) {
       case 'checking':
       case 'installing':
-        return 'Please wait…';
+        return ttui('tui.dialog.upgradeStudio.hint.wait');
       case 'plan':
         return this.actions.length > 1
-          ? '↑↓ navigate · Enter select · Esc cancel'
-          : 'Enter dismiss · Esc cancel';
+          ? ttui('tui.dialog.upgradeStudio.hint.navigate')
+          : ttui('tui.dialog.upgradeStudio.hint.dismiss');
       case 'success':
       case 'failed':
         return this.actions.length > 1
-          ? '↑↓ navigate · Enter select · Esc cancel'
-          : 'Enter dismiss · Esc cancel';
+          ? ttui('tui.dialog.upgradeStudio.hint.navigate')
+          : ttui('tui.dialog.upgradeStudio.hint.dismiss');
     }
   }
 
@@ -530,53 +533,58 @@ function actionsForMode(
 ): readonly StudioAction[] {
   if (mode === 'checking' || mode === 'installing') return [];
   if (mode === 'success') {
-    return [{ value: 'dismiss', label: 'Done' }];
+    return [{ value: 'dismiss', label: ttui('tui.dialog.upgradeStudio.action.done') }];
   }
   if (mode === 'failed') {
     const actions: StudioAction[] = [];
     if (plan?.canAutoInstall === true && plan.target !== null) {
-      actions.push({ value: 'retry', label: 'Retry install' });
+      actions.push({ value: 'retry', label: ttui('tui.dialog.upgradeStudio.action.retry') });
     }
-    actions.push({ value: 'dismiss', label: 'Dismiss' });
+    actions.push({ value: 'dismiss', label: ttui('tui.dialog.upgradeStudio.action.dismiss') });
     return actions;
   }
   if (plan === null) {
-    return [{ value: 'dismiss', label: 'Dismiss' }];
+    return [{ value: 'dismiss', label: ttui('tui.dialog.upgradeStudio.action.dismiss') }];
   }
   if (plan.reason === 'update-available' && plan.canAutoInstall) {
     const actions: StudioAction[] = [
-      { value: 'install', label: `Install ${plan.target?.version ?? ''}`.trimEnd() },
+      {
+        value: 'install',
+        label: ttui('tui.dialog.upgradeStudio.action.install', {
+          version: plan.target?.version ?? '',
+        }).trimEnd(),
+      },
     ];
     if (!plan.fromMain) {
-      actions.push({ value: 'install-main', label: 'Install tip of main' });
+      actions.push({ value: 'install-main', label: ttui('tui.dialog.upgradeStudio.action.installMain') });
     }
     actions.push(
-      { value: 'preferences', label: 'Auto-update preferences' },
-      { value: 'later', label: 'Later' },
+      { value: 'preferences', label: ttui('tui.dialog.upgradeStudio.action.preferences') },
+      { value: 'later', label: ttui('tui.dialog.upgradeStudio.action.later') },
     );
     return actions;
   }
   if (plan.reason === 'update-available') {
     const actions: StudioAction[] = [
-      { value: 'copy-command', label: 'Show install command' },
+      { value: 'copy-command', label: ttui('tui.dialog.upgradeStudio.action.copyCommand') },
     ];
     if (!plan.fromMain) {
-      actions.push({ value: 'install-main', label: 'Install tip of main' });
+      actions.push({ value: 'install-main', label: ttui('tui.dialog.upgradeStudio.action.installMain') });
     }
     actions.push(
-      { value: 'preferences', label: 'Auto-update preferences' },
-      { value: 'later', label: 'Later' },
+      { value: 'preferences', label: ttui('tui.dialog.upgradeStudio.action.preferences') },
+      { value: 'later', label: ttui('tui.dialog.upgradeStudio.action.later') },
     );
     return actions;
   }
   // Up-to-date / other: still allow opt-in tip-of-main (skips published releases).
   const actions: StudioAction[] = [];
   if (!plan.fromMain) {
-    actions.push({ value: 'install-main', label: 'Install tip of main' });
+    actions.push({ value: 'install-main', label: ttui('tui.dialog.upgradeStudio.action.installMain') });
   }
   actions.push(
-    { value: 'preferences', label: 'Auto-update preferences' },
-    { value: 'dismiss', label: 'Dismiss' },
+    { value: 'preferences', label: ttui('tui.dialog.upgradeStudio.action.preferences') },
+    { value: 'dismiss', label: ttui('tui.dialog.upgradeStudio.action.dismiss') },
   );
   return actions;
 }

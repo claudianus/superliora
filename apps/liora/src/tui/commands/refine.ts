@@ -14,12 +14,13 @@ import { formatErrorMessage } from '../utils/event-payload';
 import { requestTUILayoutRender } from '../utils/render/frame-render';
 import type { SlashCommandHost } from './hub/dispatch';
 
-const NO_ACTIVE_SESSION_MESSAGE = 'No active session.';
+import { NO_ACTIVE_SESSION_MESSAGE } from '../constant/liora-tui';
+import { ttui } from '../utils/tui-i18n';
 
 export async function handleRefineCommand(host: SlashCommandHost, args: string): Promise<void> {
   const session = host.session;
   if (session === undefined) {
-    host.showError(NO_ACTIVE_SESSION_MESSAGE);
+    host.showError(NO_ACTIVE_SESSION_MESSAGE());
     return;
   }
   const trimmed = args.trim();
@@ -34,24 +35,24 @@ export async function handleRefineCommand(host: SlashCommandHost, args: string):
     if (subcommand === 'rollback') {
       const refinementId = rest.join(' ').trim();
       if (refinementId.length === 0) {
-        host.showError('Usage: /refine rollback <refinementId> (see /refine status)');
+        host.showError(ttui('tui.refine.usageRollback'));
         return;
       }
       const event = await session.rollbackRefinement(refinementId);
-      host.showStatus(`Rolled back ${event.id}: ${event.kind} ${event.targetId}.`);
+      host.showStatus(ttui('tui.refine.rolledBack', { id: event.id, kind: event.kind, targetId: event.targetId }));
       return;
     }
 
     const global = subcommand === '--global';
     const instructions = (global ? rest.join(' ') : trimmed).trim();
-    host.showStatus('Refining the harness…');
+    host.showStatus(ttui('tui.refine.working'));
     const result = await session.refine({
       scope: global ? 'global' : 'local',
       ...(instructions.length > 0 ? { instructions } : {}),
     });
     showPanel(host, ' Refine ', renderRunLines(result));
   } catch (error) {
-    host.showError(`Refine failed: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.refine.failed', { message: formatErrorMessage(error) }));
   }
 }
 

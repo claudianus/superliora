@@ -24,6 +24,7 @@ import { extensionsReloadAppStatePatch } from '#/tui/components/chrome/footer/fo
 
 import type { SlashCommandHost } from '../../hub/dispatch';
 import { showMcpServers } from '../../info/info';
+import { ttui } from '../../../utils/tui-i18n';
 
 type ManageAction =
   | 'status'
@@ -134,11 +135,11 @@ async function showServerPicker(host: SlashCommandHost, mode: 'toggle' | 'remove
   try {
     servers = await host.requireSession().listMcpServers();
   } catch (error) {
-    host.showError(`Failed to load MCP servers: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.mcp.loadFailed', { message: formatErrorMessage(error) }));
     return;
   }
   if (servers.length === 0) {
-    host.showStatus('No MCP servers configured. Use Install to add one.');
+    host.showStatus(ttui('tui.mcp.none'));
     return;
   }
 
@@ -182,7 +183,7 @@ async function toggleServer(host: SlashCommandHost, name: string): Promise<void>
     }
     const result = await setMcpServerEnabled(cwd, scope, name, enable, homeDir);
     if (!result.found) {
-      host.showError(`Could not update ${name} in ${scope}.`);
+      host.showError(ttui('tui.mcp.updateFailed', { name, scope }));
       return;
     }
     await reloadSessionQuiet(
@@ -190,7 +191,7 @@ async function toggleServer(host: SlashCommandHost, name: string): Promise<void>
       `${enable ? 'Enabled' : 'Disabled'} ${name} (${scope}) · session reloaded.`,
     );
   } catch (error) {
-    host.showError(`MCP toggle failed: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.mcp.toggleFailed', { message: formatErrorMessage(error) }));
   }
 }
 
@@ -221,17 +222,17 @@ async function removeServer(host: SlashCommandHost, name: string): Promise<void>
   try {
     const scope = await findMcpServerScope(cwd, name, homeDir);
     if (scope === undefined) {
-      host.showError(`Server "${name}" not found in mcp.json scopes.`);
+      host.showError(ttui('tui.mcp.serverNotFound', { name }));
       return;
     }
     const result = await removeMcpServer(cwd, scope, name, homeDir);
     if (!result.found) {
-      host.showError(`Could not remove ${name}.`);
+      host.showError(ttui('tui.mcp.removeFailed', { name }));
       return;
     }
     await reloadSessionQuiet(host, `Removed ${name} from ${scope} · session reloaded.`);
   } catch (error) {
-    host.showError(`MCP remove failed: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.mcp.removeActionFailed', { message: formatErrorMessage(error) }));
   }
 }
 
@@ -239,7 +240,7 @@ async function installStdio(host: SlashCommandHost, name: string, commandLine: s
   const parts = commandLine.trim().split(/\s+/).filter((p) => p.length > 0);
   const command = parts[0];
   if (command === undefined) {
-    host.showError('Command is required.');
+    host.showError(ttui('tui.mcp.commandRequired'));
     return;
   }
   await installConfig(host, name, stdioConfig(command, parts.slice(1)), 'user');
@@ -250,11 +251,11 @@ async function installHttp(host: SlashCommandHost, name: string, url: string): P
   try {
     parsed = new URL(url.trim());
   } catch {
-    host.showError('Invalid URL.');
+    host.showError(ttui('tui.mcp.invalidUrl'));
     return;
   }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    host.showError('URL must be http(s).');
+    host.showError(ttui('tui.mcp.urlMustBeHttp'));
     return;
   }
   await installConfig(host, name, httpConfig(parsed.toString()), 'user');
@@ -271,7 +272,7 @@ async function installConfig(
     const path = await upsertMcpServer(session.workDir, scope, name, config, getDataDir());
     await reloadSessionQuiet(host, `Installed ${name} → ${path} · session reloaded.`);
   } catch (error) {
-    host.showError(`MCP install failed: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.mcp.installFailed', { message: formatErrorMessage(error) }));
   }
 }
 
@@ -281,7 +282,7 @@ async function reloadSessionQuiet(host: SlashCommandHost, okMessage: string): Pr
     host.setAppState(extensionsReloadAppStatePatch());
     host.showStatus(okMessage);
   } catch (error) {
-    host.showError(`Reload failed (config saved): ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.mcp.reloadFailed', { message: formatErrorMessage(error) }));
   }
 }
 

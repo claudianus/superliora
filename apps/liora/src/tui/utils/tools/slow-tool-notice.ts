@@ -5,6 +5,8 @@
  * the operator only sees a long spinner then a normal card.
  */
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 export const SLOW_TOOL_WARN_PREFIX = 'SLOW_TOOL_WARN:';
 
 export type SlowToolNotice = {
@@ -35,9 +37,9 @@ export function isSlowToolWarnOutput(output: unknown): boolean {
 export function formatSlowToolWarnNotice(toolName?: string): SlowToolNotice {
   const tool = toolName !== undefined && toolName.length > 0 ? toolName : 'tool';
   return {
-    title: 'Slow tool',
-    detail: `${tool} exceeded the slow-tool threshold (${SLOW_TOOL_WARN_PREFIX}). Prefer smaller scopes or parallelize independent work.`,
-    status: `Slow tool: ${tool}`,
+    title: ttui('tui.notice.slowTool.title'),
+    detail: ttui('tui.notice.slowTool.detail', { tool, prefix: SLOW_TOOL_WARN_PREFIX }),
+    status: ttui('tui.notice.slowTool.status', { tool }),
     coalesceKey: 'slow-tool-warn',
   };
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { setCliLocale } from '#/cli/i18n';
 import type { McpServerInfo, PluginSummary, SkillSummary } from '@superliora/sdk';
 
 import {
@@ -46,6 +47,7 @@ describe('extensions tab contract', () => {
 
 describe('row builders', () => {
   it('surfaces plugin enablement for audit', () => {
+    setCliLocale('ko');
     const rows = buildPluginRows([
       plugin({ id: 'a', displayName: 'Alpha', enabled: true, skillCount: 2, hookCount: 1 }),
       plugin({ id: 'b', enabled: false, hasErrors: true }),
@@ -56,6 +58,7 @@ describe('row builders', () => {
   });
 
   it('aggregates hooks from plugins without always-approve language', () => {
+    setCliLocale('ko');
     const rows = buildHookRows([plugin({ id: 'h', hookCount: 3, enabled: true })]);
     expect(rows).toHaveLength(1);
     expect(rows[0]!.detail).toContain('훅 3');
@@ -63,6 +66,7 @@ describe('row builders', () => {
   });
 
   it('builds skill and mcp rows', () => {
+    setCliLocale('ko');
     const skills: SkillSummary[] = [
       {
         name: 'commit',

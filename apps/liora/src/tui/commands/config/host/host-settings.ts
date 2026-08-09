@@ -19,6 +19,7 @@ import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-
 import { handleAddDirCommand } from '../../session/add-dir';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 
 export { HOST_FUTURE_TIP, HOST_SOVEREIGN_UMBRELLA_TIP, HOST_TTFT_TIP };
 
@@ -26,7 +27,7 @@ export function showHostSettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Host',
+      title: ttui('tui.settings.pane.host.title'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
@@ -66,7 +67,7 @@ export function showHostSettings(host: SlashCommandHost): void {
           mountPickerDialog(
             host,
             new PlainTextInputDialogComponent({
-              title: 'Add workspace directory',
+              title: ttui('tui.settings.pane.host.addDir'),
               prefill: '',
               allowEmpty: false,
               onDone: (result) => {
@@ -87,7 +88,7 @@ export function showHostSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Host' },
+    { label: ttui('tui.settings.pane.host.title') },
   );
 }
 
@@ -97,13 +98,13 @@ function showRemoveWorkspaceDirPicker(host: SlashCommandHost): void {
     host.state.appState.additionalDirs ??
     [];
   if (dirs.length === 0) {
-    host.showStatus('No additional directories configured.');
+    host.showStatus(ttui('tui.session.noAdditionalDirs'));
     return;
   }
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Remove workspace directory',
+      title: ttui('tui.settings.pane.host.removeDir'),
       hint: 'Session drop only · persisted roots need local.toml edit · Esc cancel',
       options: dirs.map((dir) => ({
         value: dir,
@@ -125,7 +126,7 @@ function showRemoveWorkspaceDirPicker(host: SlashCommandHost): void {
 async function removeWorkspaceDir(host: SlashCommandHost, dir: string): Promise<void> {
   const session = host.session;
   if (session === undefined) {
-    host.showStatus('No active session — edit .superliora/local.toml to drop remembered dirs.');
+    host.showStatus(ttui('tui.session.noActiveDropDirs'));
     return;
   }
   // ponytail: SDK exposes addAdditionalDir only; session.setAdditionalDirs is agent-core-side.
@@ -141,7 +142,7 @@ async function removeWorkspaceDir(host: SlashCommandHost, dir: string): Promise<
       await mutable.setAdditionalDirs(next);
       host.setAppState({ additionalDirs: [...next] });
       host.refreshSlashCommandAutocomplete();
-      host.showStatus(`Removed workspace directory for this session:\n  ${dir}`, 'success');
+      host.showStatus(ttui('tui.host.dirRemoved', { dir }), 'success');
       return;
     } catch (error) {
       host.showError(error instanceof Error ? error.message : String(error));
@@ -183,7 +184,7 @@ async function showHostSettingsPanel(host: SlashCommandHost): Promise<void> {
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => [...lines],
     borderToken: 'primary',
-    title: ' Host ',
+    title: ttui('tui.settings.pane.host.panelTitle'),
     enterBeatSeed: 'host',
     requestRender: () => {
       requestTUILayoutRender(host.state);

@@ -12,7 +12,7 @@ import type {
 
 import {
   OAUTH_LOGIN_REQUIRED_CODE,
-  OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE,
+   OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE,
 } from '../../constant/liora-tui';
 import { errorReportHintLine } from '../../constant/feedback';
 import type { AppState, LivePaneState, TranscriptEntry } from '../../types';
@@ -29,7 +29,7 @@ import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { ttui } from '../../utils/tui-i18n';
 import { nextTranscriptId } from '../../features/transcript/transcript-id';
 import { notifyError } from '../../utils/notification/desktop-notification';
-import { INTERVENTION_NEVER_HALT_TIP } from '../../utils/never-halt/intervention-glance';
+import { getInterventionNeverHaltTip } from '../../utils/never-halt/intervention-glance';
 import { staleRuntimeDegradedClearPatch } from '../../utils/never-halt/runtime-degraded';
 import { staleSearchCascadeClearPatch } from '../../utils/search/search-cascade';
 
@@ -162,7 +162,7 @@ export class SessionEventNotices {
       const prev = this.host.state.appState.interventionCount ?? 0;
       patch.interventionCount = event.pendingInterventions;
       if (event.pendingInterventions > prev) {
-        this.host.showStatus(INTERVENTION_NEVER_HALT_TIP, 'textMuted');
+        this.host.showStatus(getInterventionNeverHaltTip(), 'textMuted');
       }
     } else if (
       'pendingInterventions' in event ||
@@ -213,12 +213,12 @@ export class SessionEventNotices {
     this.host.streamingUI.resetToolUi();
     this.host.streamingUI.finalizeLiveTextBuffers('idle');
     // Desktop notification on error
-    notifyError(event.message ?? '세션 오류 발생');
+    notifyError(event.message ?? ttui('tui.notices.sessionError'));
     // Mark the last turn as failed so the user can re-send it with Hub Retry
     // or `/retry`.
     this.host.setLastTurnFailed(true);
     if (event.code === OAUTH_LOGIN_REQUIRED_CODE) {
-      this.host.showError(OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE);
+      this.host.showError(OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE());
       return;
     }
     // Loop28a: named recovery for terminal context/compaction failures.
@@ -255,16 +255,16 @@ export class SessionEventNotices {
         typeof analyzerModel === 'string' && analyzerModel.length > 0
           ? analyzerModel
           : undefined;
-      const noun =
+      const nounKey =
         kind === 'video'
-          ? '비디오를'
+          ? 'tui.notices.mediaAnalyzed.video'
           : kind === 'image'
-            ? '이미지를'
-            : '첨부 미디어를';
+            ? 'tui.notices.mediaAnalyzed.image'
+            : 'tui.notices.mediaAnalyzed.generic';
       this.host.showStatus(
         model !== undefined
-          ? `${noun} ${model}로 분석했습니다.`
-          : '첨부 미디어를 비전 모델로 분석했습니다.',
+          ? ttui('tui.notices.mediaAnalyzed.withModel', { noun: ttui(nounKey), model })
+          : ttui('tui.notices.mediaAnalyzed.fallback'),
         'success',
       );
       return;
@@ -272,11 +272,11 @@ export class SessionEventNotices {
     // Loop28b: step-budget soft tip is a named notice, not a generic "Warning:".
     if (event.code === 'step-budget-sensor' || event.message.startsWith('STEP_BUDGET:')) {
       if (this.host.showNotice !== undefined) {
-        this.host.showNotice('Step budget low', event.message, {
+        this.host.showNotice(ttui('tui.notice.stepBudgetLow.title'), event.message, {
           coalesceKey: 'step-budget-soft-warn',
         });
       }
-      this.host.showStatus('Step budget low — finish user-visible progress', 'warning');
+      this.host.showStatus(ttui('tui.notice.stepBudgetLow.status'), 'warning');
       return;
     }
     // Loop31a: goal no-progress (named terminal: stalled) — injection alone is model-only.
@@ -285,11 +285,11 @@ export class SessionEventNotices {
       event.message.startsWith('GOAL_NO_PROGRESS:')
     ) {
       if (this.host.showNotice !== undefined) {
-        this.host.showNotice('Goal stalled (no progress)', event.message, {
+        this.host.showNotice(ttui('tui.notice.goalStalled.title'), event.message, {
           coalesceKey: 'goal-no-progress',
         });
       }
-      this.host.showStatus('Goal stalled — change approach or UpdateGoal(blocked)', 'warning');
+      this.host.showStatus(ttui('tui.notice.goalStalled.status'), 'warning');
       return;
     }
     // Loop32a: mid-turn CacheFreezeGuard tool-list drift (prompt-cache prefix risk).
@@ -298,21 +298,21 @@ export class SessionEventNotices {
       event.message.startsWith('CACHE_FREEZE_DRIFT:')
     ) {
       if (this.host.showNotice !== undefined) {
-        this.host.showNotice('Cache freeze drift', event.message, {
+        this.host.showNotice(ttui('tui.notice.cacheFreeze.title'), event.message, {
           coalesceKey: 'cache-freeze-drift',
         });
       }
-      this.host.showStatus('Cache freeze: mid-turn tool list drifted', 'warning');
+      this.host.showStatus(ttui('tui.notice.cacheFreeze.status'), 'warning');
       return;
     }
     // Loop34a: built-in Stop sensor forced one repair continuation (false-done guard).
     if (event.code === 'stop-sensor' || event.message.startsWith('STOP_SENSOR:')) {
       if (this.host.showNotice !== undefined) {
-        this.host.showNotice('Stop sensor: verify before done', event.message, {
+        this.host.showNotice(ttui('tui.notice.stopSensor.title'), event.message, {
           coalesceKey: 'stop-sensor',
         });
       }
-      this.host.showStatus('Stop sensor — one repair continuation', 'warning');
+      this.host.showStatus(ttui('tui.notice.stopSensor.status'), 'warning');
       return;
     }
     // Loop35a: unresolved tool exchanges closed at turn end (cancel/fail/max_steps).
@@ -321,11 +321,11 @@ export class SessionEventNotices {
       event.message.startsWith('ABANDONED_TOOL:')
     ) {
       if (this.host.showNotice !== undefined) {
-        this.host.showNotice('Unresolved tool calls closed', event.message, {
+        this.host.showNotice(ttui('tui.notice.unresolvedTools.title'), event.message, {
           coalesceKey: 'abandoned-tool',
         });
       }
-      this.host.showStatus('Unresolved tools closed — do not assume success', 'warning');
+      this.host.showStatus(ttui('tui.notice.unresolvedTools.status'), 'warning');
       return;
     }
     // Loop40a: SUPERLIORA_AUTO_CHECK_SPAWN threw or RunProjectChecks missing.
@@ -334,11 +334,11 @@ export class SessionEventNotices {
       event.message.startsWith('AUTO_CHECK_SPAWN: ERROR:')
     ) {
       if (this.host.showNotice !== undefined) {
-        this.host.showNotice('Auto-check spawn error', event.message, {
+        this.host.showNotice(ttui('tui.notice.autoCheckSpawn.title'), event.message, {
           coalesceKey: 'auto-check-spawn-error',
         });
       }
-      this.host.showStatus('Auto-check spawn failed — run checks manually', 'warning');
+      this.host.showStatus(ttui('tui.notice.autoCheckSpawn.status'), 'warning');
       return;
     }
     // Loop41a: UserPromptSubmit hook blocked the turn before the agent loop.
@@ -347,11 +347,11 @@ export class SessionEventNotices {
       event.message.startsWith('USER_PROMPT_SUBMIT_BLOCK:')
     ) {
       if (this.host.showNotice !== undefined) {
-        this.host.showNotice('Prompt blocked by hook', event.message, {
+        this.host.showNotice(ttui('tui.notice.promptBlocked.title'), event.message, {
           coalesceKey: 'user-prompt-submit-block',
         });
       }
-      this.host.showStatus('Turn blocked — UserPromptSubmit hook', 'warning');
+      this.host.showStatus(ttui('tui.notice.promptBlocked.status'), 'warning');
       return;
     }
     // Loop46a: oversized AGENTS.md soft/hard budget — was generic "Warning:" only.
@@ -362,7 +362,7 @@ export class SessionEventNotices {
           event.message.includes('hard injection cap')))
     ) {
       if (this.host.showNotice !== undefined) {
-        this.host.showNotice('AGENTS.md oversized', event.message, {
+        this.host.showNotice(ttui('tui.notice.agentsMd.title'), event.message, {
           coalesceKey: 'agents-md-oversized',
         });
       }
@@ -374,7 +374,7 @@ export class SessionEventNotices {
       );
       return;
     }
-    this.host.showStatus(`Warning: ${event.message}`, 'warning');
+    this.host.showStatus(ttui('tui.notice.warningPrefix', { message: event.message }), 'warning');
   }
 
   handleSkillActivated(event: SkillActivatedEvent): void {

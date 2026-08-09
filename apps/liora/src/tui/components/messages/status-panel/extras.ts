@@ -1,5 +1,7 @@
 import type { ProviderExtrasStatus } from '@superliora/sdk';
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 import type { StatusFieldRow } from './provider-route';
 
 const MAX_PROVIDER_ROWS = 6;
@@ -40,7 +42,7 @@ function extrasProviderRows(extras: ProviderExtrasStatus): StatusFieldRow[] {
     });
   }
   const hidden = extras.providers.length - visible.length;
-  if (hidden > 0) rows.push({ label: 'More', value: `${String(hidden)} more detected` });
+  if (hidden > 0) rows.push({ label: ttui('tui.statusPanel.more'), value: `${String(hidden)} more detected` });
   return rows;
 }
 
@@ -52,7 +54,7 @@ function extrasSearchCascadeRow(extras: ProviderExtrasStatus): StatusFieldRow | 
     .map((slot) => `${slot.label}${slot.ready ? '' : formatCooldownSuffix(slot.cooldownUntil, now) || ' (not ready)'}`);
   const hidden = extras.searchCascade.length - MAX_CASCADE_LABELS;
   if (hidden > 0) labels.push(`+${String(hidden)}`);
-  return { label: 'Search cascade', value: labels.join(' → ') };
+  return { label: ttui('tui.statusPanel.searchCascade'), value: labels.join(' → ') };
 }
 
 function extrasMediaRow(extras: ProviderExtrasStatus): StatusFieldRow {
@@ -60,7 +62,7 @@ function extrasMediaRow(extras: ProviderExtrasStatus): StatusFieldRow {
   if (extras.media.image.length > 0) parts.push(`image: ${extras.media.image.join(' → ')}`);
   if (extras.media.video.length > 0) parts.push(`video: ${extras.media.video.join(' → ')}`);
   return {
-    label: 'Media auto',
+    label: ttui('tui.statusPanel.mediaAuto'),
     value: parts.length > 0 ? parts.join(' · ') : 'no backend detected',
     severity: parts.length === 0 ? 'warning' : undefined,
   };
@@ -72,7 +74,7 @@ export function extrasStatusRows(extras: ProviderExtrasStatus): readonly StatusF
   if (cascade !== undefined) rows.push(cascade);
   rows.push(extrasMediaRow(extras));
   if (extras.autoMcpServers.length > 0) {
-    rows.push({ label: 'MCP auto', value: extras.autoMcpServers.join(', ') });
+    rows.push({ label: ttui('tui.statusPanel.mcpAuto'), value: extras.autoMcpServers.join(', ') });
   }
   return rows;
 }

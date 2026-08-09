@@ -17,6 +17,7 @@ import { printableChar } from '#/tui/utils/printable-key';
 import { formatMissingGateEvidence } from '#/tui/utils/job/gate-preview';
 import { formatTrustReasonForUser } from '#/tui/utils/job/trust-copy';
 import { shortJobId } from '#/tui/components/job-board/job-board-helpers';
+import { ttui } from '#/tui/utils/tui-i18n';
 import type { ConductorJobCard } from '#/tui/utils/job/job-strip';
 import type { JobGateChecklist } from '@superliora/protocol';
 
@@ -95,11 +96,11 @@ export class MergePreviewPanelComponent extends Container implements Focusable {
     body.push(theme.fg('textStrong', job.title));
     body.push(theme.fg('textMuted', `${shortJobId(job.id)} · ${job.kind} · ${job.status}`));
     body.push('');
-    body.push(theme.fg('textMuted', 'Gates'));
+    body.push(theme.fg('textMuted', ttui('tui.dialog.mergePreview.gates')));
     body.push(...renderGateLines(job.gateChecklist, width));
     const missing = formatMissingGateEvidence(job.gateChecklist);
     if (missing.length > 0) {
-      body.push(theme.fg('warning', 'Missing evidence'));
+      body.push(theme.fg('warning', ttui('tui.dialog.mergePreview.missingEvidence')));
       for (const line of missing) {
         body.push(theme.fg('textDim', `  · ${line}`));
       }
@@ -115,20 +116,20 @@ export class MergePreviewPanelComponent extends Container implements Focusable {
       }
       body.push('');
     }
-    body.push(theme.fg('textMuted', 'Result summary'));
+    body.push(theme.fg('textMuted', ttui('tui.dialog.mergePreview.resultSummary')));
     const summary =
       job.resultSummary?.trim().length
         ? job.resultSummary.trim()
-        : '(no result summary yet)';
+        : ttui('tui.dialog.mergePreview.noSummary');
     for (const line of wrapTextWithAnsi(summary, Math.max(1, width - 2)).slice(0, 8)) {
       body.push(theme.fg('text', `  ${line}`));
     }
     body.push('');
-    body.push(theme.fg('textDim', 'Land ≠ push — approve lands the worktree merge; remote push stays separate.'));
+    body.push(theme.fg('textDim', ttui('tui.dialog.mergePreview.landNote')));
     body.push('');
     body.push(
       truncateToWidth(
-        `${theme.fg('textMuted', 'Summary for land:')} ${theme.fg('text', this.summaryDraft)}█`,
+        `${theme.fg('textMuted', ttui('tui.dialog.mergePreview.summaryLabel'))} ${theme.fg('text', this.summaryDraft)}█`,
         Math.max(1, width),
         '…',
       ),
@@ -136,18 +137,18 @@ export class MergePreviewPanelComponent extends Container implements Focusable {
     body.push('');
     const approve =
       this.selected === 0
-        ? theme.boldFg('success', '[ Approve ]')
-        : theme.fg('textMuted', '  Approve  ');
+        ? theme.boldFg('success', ttui('tui.dialog.mergePreview.approve'))
+        : theme.fg('textMuted', ttui('tui.dialog.mergePreview.approveIdle'));
     const reject =
       this.selected === 1
-        ? theme.boldFg('error', '[ Reject ]')
-        : theme.fg('textMuted', '  Reject  ');
+        ? theme.boldFg('error', ttui('tui.dialog.mergePreview.reject'))
+        : theme.fg('textMuted', ttui('tui.dialog.mergePreview.rejectIdle'));
     body.push(`  ${approve}   ${reject}`);
 
     return renderRendererPanelChromeRows({
       width,
-      title: ' Merge Preview',
-      hint: ' ←→ · Y approve · N reject · Esc',
+      title: ttui('tui.dialog.mergePreview.title'),
+      hint: ttui('tui.dialog.mergePreview.hint'),
       body,
       dividerStyle: (text) => theme.fg('primary', text),
       titleStyle: (text) => renderPremiumHeadline(text.trim(), 'merge-preview:title'),
@@ -163,7 +164,7 @@ function renderGateLines(
 ): string[] {
   const theme = currentTheme;
   if (gates === undefined) {
-    return [theme.fg('textDim', '  (no gate checklist on this job yet)')];
+    return [theme.fg('textDim', ttui('tui.dialog.mergePreview.noGates'))];
   }
   const parts = [
     `tests=${gates.tests}`,

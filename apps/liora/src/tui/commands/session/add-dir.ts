@@ -1,6 +1,7 @@
-import { NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
+import {  NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
 import { ChoicePickerComponent } from '../../components/dialogs/picker/choice-picker';
 import type { SlashCommandHost } from '../hub/dispatch';
+import { ttui } from '../../utils/tui-i18n';
 
 type AddDirChoice = 'session' | 'remember' | 'cancel';
 
@@ -11,7 +12,7 @@ export async function handleAddDirCommand(host: SlashCommandHost, args: string):
   if (input.length === 0 || input.toLowerCase() === 'list') {
     const additionalDirs = session?.summary?.additionalDirs ?? [];
     if (additionalDirs.length === 0) {
-      host.showStatus('No additional directories configured.');
+      host.showStatus(ttui('tui.session.noAdditionalDirs'));
       return;
     }
     host.showStatus(formatAdditionalDirsStatus(additionalDirs));
@@ -19,7 +20,7 @@ export async function handleAddDirCommand(host: SlashCommandHost, args: string):
   }
 
   if (session === undefined) {
-    host.showError(NO_ACTIVE_SESSION_MESSAGE);
+    host.showError(NO_ACTIVE_SESSION_MESSAGE());
     return;
   }
 
@@ -46,7 +47,7 @@ export async function handleAddDirCommand(host: SlashCommandHost, args: string):
       },
       onCancel: () => {
         host.restoreEditor();
-        host.showStatus(`Did not add ${input} as a working directory.`);
+        host.showStatus(ttui('tui.addDir.notAdded', { path: input }));
       },
     }),
   );
@@ -65,13 +66,13 @@ async function handleAddDirChoice(
   host.restoreEditor();
 
   if (choice === 'cancel') {
-    host.showStatus(`Did not add ${path} as a working directory.`);
+    host.showStatus(ttui('tui.addDir.notAdded', { path }));
     return;
   }
 
   const session = host.session;
   if (session === undefined || session.id !== sessionId) {
-    host.showError(NO_ACTIVE_SESSION_MESSAGE);
+    host.showError(NO_ACTIVE_SESSION_MESSAGE());
     return;
   }
 

@@ -85,6 +85,7 @@ terminal_palette = true
 
     expect(config).toEqual({
       theme: 'light',
+      locale: 'auto',
       permissionMode: 'yolo',
       disablePasteBurst: false,
       editorCommand: 'code --wait',
@@ -175,6 +176,7 @@ command = "   "
 
     expect(config).toEqual({
       theme: DEFAULT_TUI_THEME,
+      locale: 'auto',
       permissionMode: 'yolo',
       disablePasteBurst: false,
       editorCommand: null,
@@ -247,6 +249,7 @@ command = "   "
 
     expect(await loadTuiConfig(filePath)).toEqual({
       theme: 'light',
+      locale: 'auto',
       permissionMode: 'yolo',
       disablePasteBurst: false,
       editorCommand: 'vim',

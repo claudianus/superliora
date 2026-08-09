@@ -19,6 +19,7 @@ import { requestTUILayoutRender } from '../../../utils/render/frame-render';
 import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-picker';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 
 export { EYES_DOCTOR_TIP, EYES_SLASH_TIP, EYES_TEXT_ONLY_TIP, EYES_TOOLS_TIP };
 
@@ -26,7 +27,7 @@ export function showEyesSettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Eyes readiness',
+      title: ttui('tui.settings.pane.eyes.title'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
@@ -81,7 +82,7 @@ export function showEyesSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Eyes readiness' },
+    { label: ttui('tui.settings.pane.eyes.title') },
   );
 }
 
@@ -98,7 +99,7 @@ async function showEyesSettingsPanel(host: SlashCommandHost): Promise<void> {
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => [...lines],
     borderToken: 'primary',
-    title: ' Eyes readiness ',
+    title: ttui('tui.settings.pane.eyes.panelTitle'),
     enterBeatSeed: 'eyes-settings',
     requestRender: () => {
       requestTUILayoutRender(host.state);

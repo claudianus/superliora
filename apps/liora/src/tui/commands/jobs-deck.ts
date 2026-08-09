@@ -30,10 +30,11 @@ import {
 } from './job-hotpath';
 import { resyncJobBoardFromSession } from '../features/control-tower/job-resync';
 import { openMergePreview } from '../features/control-tower/merge-preview-controller';
+import { ttui } from '../utils/tui-i18n';
 
 export function openJobDeckViewer(host: SlashCommandHost, jobId?: string): void {
   if (host.session === undefined) {
-    host.showError('No active session — the Job Deck needs a live session.');
+    host.showError(ttui('tui.jobs.deckNoSession'));
     return;
   }
   const snapshot = host.state.appState.conductorJobs ?? emptyConductorJobsSnapshot();
@@ -196,9 +197,9 @@ async function retryFailedJob(host: SlashCommandHost, card: ConductorJobCard): P
     const created = result.jobs[0];
     const idPart =
       created === undefined ? result.text.trim() : shortJobId(created.id);
-    host.showStatus(`${display} — created ${idPart}`, 'success');
+    host.showStatus(ttui('tui.job.created', { display, id: idPart }), 'success');
   } catch (error) {
-    host.showError(`${display} failed: ${formatErrorMessage(error)}`);
+    host.showError(ttui('tui.job.hotpathFailed', { display, message: formatErrorMessage(error) }));
   }
 }
 

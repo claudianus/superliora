@@ -3,6 +3,8 @@ import type {
   ProviderRouteStatus,
 } from '@superliora/sdk';
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 export interface StatusFieldRow {
   readonly label: string;
   readonly value: string;
@@ -25,7 +27,7 @@ export function formatProviderRouteSummary(route: ProviderRouteStatus): string {
 
 export function providerRouteRows(route: ProviderRouteStatus): readonly StatusFieldRow[] {
   const rows: StatusFieldRow[] = [
-    { label: 'Strategy', value: formatProviderRouteSummary(route) },
+    { label: ttui('tui.statusPanel.strategy'), value: formatProviderRouteSummary(route) },
   ];
   const visibleCandidates = route.candidates.slice(0, 6);
   for (let index = 0; index < visibleCandidates.length; index += 1) {
@@ -38,7 +40,7 @@ export function providerRouteRows(route: ProviderRouteStatus): readonly StatusFi
     });
   }
   const hidden = route.candidates.length - visibleCandidates.length;
-  if (hidden > 0) rows.push({ label: 'More', value: `${String(hidden)} more candidates` });
+  if (hidden > 0) rows.push({ label: ttui('tui.statusPanel.more'), value: `${String(hidden)} more candidates` });
   return rows;
 }
 

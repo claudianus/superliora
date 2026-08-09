@@ -9,6 +9,7 @@ import {
   type FooterSlot,
 } from '#/tui/config';
 import type { AppState } from '#/tui/types';
+import { ttui } from '#/tui/utils/tui-i18n';
 
 export type { FooterLabels, FooterPreferences, FooterSlot };
 
@@ -45,46 +46,54 @@ export function cycleFooterLabels(labels: FooterLabels): FooterLabels {
 }
 
 export function formatSlotModeLabel(mode: FooterSlot): string {
-  if (mode === 'auto') return 'Auto';
-  if (mode === 'always') return 'Always';
-  return 'Off';
+  if (mode === 'auto') return ttui('tui.footer.pref.slot.auto');
+  if (mode === 'always') return ttui('tui.footer.pref.slot.always');
+  return ttui('tui.footer.pref.slot.off');
 }
 
 /** Ordered Settings rows for the Status bar pane. */
 export const FOOTER_SETTINGS_SLOTS = [
-  { key: 'labels', kind: 'labels', label: 'Label style', tip: 'plain words vs compact tokens' },
-  { key: 'modes', kind: 'slot', label: 'Modes', tip: 'YOLO · Plan…' },
-  { key: 'model', kind: 'slot', label: 'Model', tip: 'Active model + thinking level' },
-  { key: 'cwd', kind: 'slot', label: 'Working directory', tip: 'Short path' },
-  { key: 'git', kind: 'slot', label: 'Git', tip: 'Branch · diff · PR' },
-  { key: 'context', kind: 'slot', label: 'Context bar', tip: 'Usage bar + percent' },
-  { key: 'goal', kind: 'slot', label: 'Goal', tip: 'When a goal is live' },
-  { key: 'menu', kind: 'slot', label: 'Menu ?', tip: 'Command Hub hint' },
-  { key: 'background', kind: 'slot', label: 'Background jobs', tip: 'Shell jobs + agents' },
-  { key: 'tips', kind: 'slot', label: 'Rotating tips', tip: 'Auto = idle only' },
-  { key: 'nextAction', kind: 'slot', label: 'Next-action coaching', tip: 'Auto = smart tips' },
-  { key: 'workingSet', kind: 'slot', label: 'Working set', tip: 'Auto = under pressure' },
-  { key: 'quota', kind: 'slot', label: 'Provider quota', tip: 'Auto = ≥70%' },
-  { key: 'mediaReady', kind: 'slot', label: 'Media ready', tip: 'When image/video keys present' },
-  { key: 'index', kind: 'slot', label: 'Repo index', tip: 'Default off · opt-in' },
-  { key: 'mcp', kind: 'slot', label: 'MCP health', tip: 'Auto = errors/login only' },
-  { key: 'cache', kind: 'slot', label: 'Prompt cache', tip: 'Warm / low hit rate' },
-  { key: 'pulseGoalProgress', kind: 'pulse', label: 'Pulse: Goal +', tip: 'Brief after progress' },
-  { key: 'pulseFleetComplete', kind: 'pulse', label: 'Pulse: Agent done', tip: 'Fleet worker finished' },
-  { key: 'pulsePermission', kind: 'pulse', label: 'Pulse: Approved', tip: 'After permission approve' },
-  { key: 'pulseGitChurn', kind: 'pulse', label: 'Pulse: Files changed', tip: 'Git dirty churn' },
-  { key: 'pulseOpsCombo', kind: 'pulse', label: 'Pulse: On a roll', tip: 'Triple ops alignment' },
-  { key: 'pulseExtensionsReload', kind: 'pulse', label: 'Pulse: Extensions reloaded', tip: '~45s after reload' },
-  { key: 'pulseRuntimeDegraded', kind: 'pulse', label: 'Pulse: Runtime issues', tip: 'Search/auth/model degraded' },
-  { key: 'pulseSearchCascade', kind: 'pulse', label: 'Pulse: Research active', tip: 'Search channel cascade' },
-  { key: 'pulseModelRoute', kind: 'pulse', label: 'Pulse: Model route', tip: 'Failover / route switch' },
-  { key: 'showCompact', kind: 'pulse', label: 'Compacting status', tip: 'Legacy pref — status bar no longer paints compact' },
-  { key: 'showPromptIntelligence', kind: 'pulse', label: 'Prompt intelligence', tip: 'Suggesting / completing' },
+  { key: 'labels', kind: 'labels', labelKey: 'tui.footer.pref.labels.label', tipKey: 'tui.footer.pref.labels.tip' },
+  { key: 'modes', kind: 'slot', labelKey: 'tui.footer.pref.modes.label', tipKey: 'tui.footer.pref.modes.tip' },
+  { key: 'model', kind: 'slot', labelKey: 'tui.footer.pref.model.label', tipKey: 'tui.footer.pref.model.tip' },
+  { key: 'cwd', kind: 'slot', labelKey: 'tui.footer.pref.cwd.label', tipKey: 'tui.footer.pref.cwd.tip' },
+  { key: 'git', kind: 'slot', labelKey: 'tui.footer.pref.git.label', tipKey: 'tui.footer.pref.git.tip' },
+  { key: 'context', kind: 'slot', labelKey: 'tui.footer.pref.context.label', tipKey: 'tui.footer.pref.context.tip' },
+  { key: 'goal', kind: 'slot', labelKey: 'tui.footer.pref.goal.label', tipKey: 'tui.footer.pref.goal.tip' },
+  { key: 'menu', kind: 'slot', labelKey: 'tui.footer.pref.menu.label', tipKey: 'tui.footer.pref.menu.tip' },
+  { key: 'background', kind: 'slot', labelKey: 'tui.footer.pref.background.label', tipKey: 'tui.footer.pref.background.tip' },
+  { key: 'tips', kind: 'slot', labelKey: 'tui.footer.pref.tips.label', tipKey: 'tui.footer.pref.tips.tip' },
+  { key: 'nextAction', kind: 'slot', labelKey: 'tui.footer.pref.nextAction.label', tipKey: 'tui.footer.pref.nextAction.tip' },
+  { key: 'workingSet', kind: 'slot', labelKey: 'tui.footer.pref.workingSet.label', tipKey: 'tui.footer.pref.workingSet.tip' },
+  { key: 'quota', kind: 'slot', labelKey: 'tui.footer.pref.quota.label', tipKey: 'tui.footer.pref.quota.tip' },
+  { key: 'mediaReady', kind: 'slot', labelKey: 'tui.footer.pref.mediaReady.label', tipKey: 'tui.footer.pref.mediaReady.tip' },
+  { key: 'index', kind: 'slot', labelKey: 'tui.footer.pref.index.label', tipKey: 'tui.footer.pref.index.tip' },
+  { key: 'mcp', kind: 'slot', labelKey: 'tui.footer.pref.mcp.label', tipKey: 'tui.footer.pref.mcp.tip' },
+  { key: 'cache', kind: 'slot', labelKey: 'tui.footer.pref.cache.label', tipKey: 'tui.footer.pref.cache.tip' },
+  { key: 'pulseGoalProgress', kind: 'pulse', labelKey: 'tui.footer.pref.pulseGoalProgress.label', tipKey: 'tui.footer.pref.pulseGoalProgress.tip' },
+  { key: 'pulseFleetComplete', kind: 'pulse', labelKey: 'tui.footer.pref.pulseFleetComplete.label', tipKey: 'tui.footer.pref.pulseFleetComplete.tip' },
+  { key: 'pulsePermission', kind: 'pulse', labelKey: 'tui.footer.pref.pulsePermission.label', tipKey: 'tui.footer.pref.pulsePermission.tip' },
+  { key: 'pulseGitChurn', kind: 'pulse', labelKey: 'tui.footer.pref.pulseGitChurn.label', tipKey: 'tui.footer.pref.pulseGitChurn.tip' },
+  { key: 'pulseOpsCombo', kind: 'pulse', labelKey: 'tui.footer.pref.pulseOpsCombo.label', tipKey: 'tui.footer.pref.pulseOpsCombo.tip' },
+  { key: 'pulseExtensionsReload', kind: 'pulse', labelKey: 'tui.footer.pref.pulseExtensionsReload.label', tipKey: 'tui.footer.pref.pulseExtensionsReload.tip' },
+  { key: 'pulseRuntimeDegraded', kind: 'pulse', labelKey: 'tui.footer.pref.pulseRuntimeDegraded.label', tipKey: 'tui.footer.pref.pulseRuntimeDegraded.tip' },
+  { key: 'pulseSearchCascade', kind: 'pulse', labelKey: 'tui.footer.pref.pulseSearchCascade.label', tipKey: 'tui.footer.pref.pulseSearchCascade.tip' },
+  { key: 'pulseModelRoute', kind: 'pulse', labelKey: 'tui.footer.pref.pulseModelRoute.label', tipKey: 'tui.footer.pref.pulseModelRoute.tip' },
+  { key: 'showCompact', kind: 'pulse', labelKey: 'tui.footer.pref.showCompact.label', tipKey: 'tui.footer.pref.showCompact.tip' },
+  { key: 'showPromptIntelligence', kind: 'pulse', labelKey: 'tui.footer.pref.showPromptIntelligence.label', tipKey: 'tui.footer.pref.showPromptIntelligence.tip' },
 ] as const satisfies readonly {
   readonly key: keyof FooterPreferences;
   readonly kind: 'labels' | 'slot' | 'pulse';
-  readonly label: string;
-  readonly tip: string;
+  readonly labelKey: string;
+  readonly tipKey: string;
 }[];
 
 export type FooterSettingsKey = (typeof FOOTER_SETTINGS_SLOTS)[number]['key'];
+
+export function footerPrefLabel(row: (typeof FOOTER_SETTINGS_SLOTS)[number]): string {
+  return ttui(row.labelKey);
+}
+
+export function footerPrefTip(row: (typeof FOOTER_SETTINGS_SLOTS)[number]): string {
+  return ttui(row.tipKey);
+}

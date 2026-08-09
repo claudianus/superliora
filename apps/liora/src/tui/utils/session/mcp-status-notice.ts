@@ -5,6 +5,8 @@
  * Successful connects stay quiet (no notice spam).
  */
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 export type McpStatusNotice = {
   readonly title: string;
   readonly detail: string;
@@ -21,9 +23,9 @@ export function formatMcpStatusNotice(input: {
   const name = input.name.length > 0 ? input.name : 'server';
   if (input.status === 'needs-auth') {
     return {
-      title: 'MCP needs auth',
-      detail: `MCP server "${name}" requires authentication before tools are available. Complete OAuth/login for this server, then reconnect or restart the session.`,
-      status: `MCP needs auth: ${name}`,
+      title: ttui('tui.notice.mcpAuth.title'),
+      detail: ttui('tui.notice.mcpAuth.detail', { name }),
+      status: ttui('tui.notice.mcpAuth.status', { name }),
       coalesceKey: `mcp-status-needs-auth-${name}`,
       color: 'warning',
     };
@@ -34,9 +36,9 @@ export function formatMcpStatusNotice(input: {
         ? input.error.trim()
         : 'unknown error';
     return {
-      title: 'MCP connect failed',
-      detail: `MCP server "${name}" failed to connect: ${err}. Check server config, network, and credentials; retry or remove the server if it is optional.`,
-      status: `MCP failed: ${name}`,
+      title: ttui('tui.notice.mcpConnectFailed.title'),
+      detail: ttui('tui.notice.mcpConnectFailed.detail', { name, error: err }),
+      status: ttui('tui.notice.mcpConnectFailed.status', { name }),
       coalesceKey: `mcp-status-failed-${name}`,
       color: 'error',
     };

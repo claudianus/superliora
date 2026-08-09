@@ -224,7 +224,9 @@ export class SessionBrowserController implements SessionPickerControllerState {
         },
       );
     } catch (error) {
-      this.host.showError(`확장 목록 불러오기 실패: ${formatErrorMessage(error)}`);
+      this.host.showError(
+        ttui('tui.extensions.loadFailed', { message: formatErrorMessage(error) }),
+      );
       // Still open empty modal so operators can reach Claude import (i).
     }
 
@@ -234,7 +236,9 @@ export class SessionBrowserController implements SessionPickerControllerState {
         initialTab,
         onAction: (action) => {
           void this.handleExtensionsAction(action).catch((error) => {
-            this.host.showError(`확장 동작 실패: ${formatErrorMessage(error)}`);
+            this.host.showError(
+              ttui('tui.extensions.actionFailed', { message: formatErrorMessage(error) }),
+            );
           });
         },
         onCancel: () => {
@@ -268,9 +272,9 @@ export class SessionBrowserController implements SessionPickerControllerState {
     const message = `Current session is in a different working directory.\n  To resume, run: ${command}`;
     try {
       await copyTextToClipboard(command);
-      this.host.showStatus(`${message}\n  Command copied to clipboard`, 'warning');
+      this.host.showStatus(ttui('tui.session.clipboardCopied', { message }), 'warning');
     } catch {
-      this.host.showStatus(`${message}\n  Failed to copy command to clipboard`, 'warning');
+      this.host.showStatus(ttui('tui.session.clipboardCopyFailed', { message }), 'warning');
     }
   }
 
@@ -281,14 +285,14 @@ export class SessionBrowserController implements SessionPickerControllerState {
     ) {
       try {
         await this.host.session.getStatus();
-        this.host.showStatus('Already on this session.');
+        this.host.showStatus(ttui('tui.session.alreadyOn'));
         return true;
       } catch {
         // Session was closed — fall through and re-acquire it.
       }
     }
     if (this.host.state.appState.streamingPhase !== 'idle') {
-      this.host.showError('Cannot switch sessions while streaming — press Esc or Ctrl-C first.');
+      this.host.showError(ttui('tui.session.cannotSwitchStreaming'));
       return false;
     }
     if (this.host.state.appState.isReplaying || this.host.isSessionLoadingOverlayActive()) {
@@ -309,7 +313,7 @@ export class SessionBrowserController implements SessionPickerControllerState {
     } catch (error) {
       this.host.endSessionLoading();
       const msg = formatErrorMessage(error);
-      this.host.showError(`Failed to resume session ${targetSessionId}: ${msg}`);
+      this.host.showError(ttui('tui.session.resumeFailed', { id: targetSessionId, message: msg }));
       return false;
     }
 
@@ -423,7 +427,7 @@ export class SessionBrowserController implements SessionPickerControllerState {
     try {
       await this.host.harness.renameSession({ id: session.id, title });
     } catch (error) {
-      this.host.showError(`Failed to rename session: ${formatErrorMessage(error)}`);
+      this.host.showError(ttui('tui.session.renameFailed', { message: formatErrorMessage(error) }));
       throw error;
     }
     const index = this.host.state.sessions.findIndex((row) => row.id === session.id);
@@ -437,6 +441,6 @@ export class SessionBrowserController implements SessionPickerControllerState {
       this.host.setAppState({ sessionTitle: title });
       this.updateTerminalTitle();
     }
-    this.host.showStatus(`Session renamed to: ${title}`);
+    this.host.showStatus(ttui('tui.session.renamed', { title }));
   }
 }

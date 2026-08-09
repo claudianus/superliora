@@ -6,6 +6,7 @@ import type { LioraHarness } from '@superliora/sdk';
 import type { ColorToken } from '../../theme';
 import type { TUIState } from '../../tui-state';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
+import { ttui } from '../../utils/tui-i18n';
 import {
   formatRendererDiagnosticsStatusReport,
   formatRendererTraceStatusReport,
@@ -59,7 +60,7 @@ export class NativeRendererDiagnosticsController {
         );
         return;
       }
-      host.showStatus('Native renderer diagnostics reset.');
+      host.showStatus(ttui('tui.native.diagReset'));
       return;
     }
 
@@ -70,7 +71,7 @@ export class NativeRendererDiagnosticsController {
     host.track('native_renderer_diagnostics_hud', { enabled, command });
 
     requestTUILayoutRender(host.state);
-    host.showStatus(`Native renderer diagnostics HUD: ${enabled ? 'ON' : 'OFF'}.`);
+    host.showStatus(ttui('tui.native.diagHud', { state: enabled ? ttui('tui.native.stateOn') : ttui('tui.native.stateOff') }));
   }
 
   setNativeRendererTrace(command: RendererTraceCommand): void {
@@ -87,21 +88,21 @@ export class NativeRendererDiagnosticsController {
     if (command.action === 'reset') {
       host.track('native_renderer_trace_reset');
       if (!this.resetNativeRendererTrace()) {
-        host.showStatus('Native renderer trace reset skipped: native renderer is not active.', 'warning');
+        host.showStatus(ttui('tui.native.traceResetSkipped'), 'warning');
         return;
       }
-      host.showStatus('Native renderer trace reset.');
+      host.showStatus(ttui('tui.native.traceReset'));
       return;
     }
 
     if (command.action === 'export') {
       const outputPath = this.exportNativeRendererTrace(command.path);
       if (outputPath === undefined) {
-        host.showStatus('Native renderer trace export skipped: native renderer is not active.', 'warning');
+        host.showStatus(ttui('tui.native.traceExportSkipped'), 'warning');
         return;
       }
       host.track('native_renderer_trace_export');
-      host.showStatus(`Native renderer trace exported: ${outputPath}`);
+      host.showStatus(ttui('tui.native.traceExported', { outputPath }));
     }
   }
 
@@ -139,7 +140,7 @@ export class NativeRendererDiagnosticsController {
       : resolve(workDir, path);
     const rel = relative(workDir, outputPath);
     if (rel === '' || rel.startsWith('..') || rel.includes(`..${sep}`)) {
-      host.showStatus('Trace export path must be inside the workspace.', 'error');
+      host.showStatus(ttui('tui.native.tracePathOutside'), 'error');
       return undefined;
     }
     writeFileSync(

@@ -6,6 +6,7 @@ import type { Component, Focusable } from '#/tui/renderer';
 import type { ColorToken } from '#/tui/theme';
 
 import { confirmJobSplit } from './confirm-job-split';
+import { ttui } from '../tui-i18n';
 import type { JobSplitIntent } from '../../components/dialogs/job/split-confirm-sheet';
 
 export interface JobCreateBatchHost {
@@ -31,12 +32,12 @@ export async function jobCreateBatchWithSplitConfirm(
 ): Promise<number | null> {
   const intents = await host.requireSession().jobPreviewSplit(text);
   if (intents.length === 0) {
-    host.showStatus('No job intents found in that text.', 'textMuted');
+    host.showStatus(ttui('tui.conductor.noIntents'), 'textMuted');
     return 0;
   }
   const confirmed = await confirmJobSplit(host, intents);
   if (confirmed === null) {
-    host.showStatus('Split cancelled — no jobs created.', 'textMuted');
+    host.showStatus(ttui('tui.conductor.splitCancelled'), 'textMuted');
     return null;
   }
   const result = await host.requireSession().jobCreateBatch(

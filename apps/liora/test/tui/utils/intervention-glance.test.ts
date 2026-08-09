@@ -6,8 +6,8 @@ import {
   formatInterventionAutoExpireOpsHint,
   formatInterventionQueueOpsLine,
   formatInterventionQueueSettingsLine,
+  getInterventionNeverHaltTip,
   INTERVENTION_ASK_MODE_FLEET_TIP,
-  INTERVENTION_NEVER_HALT_TIP,
   INTERVENTION_PARALLEL_TOOLS_NOTE,
   interventionAutoExpireRemainingMs,
   parsePermissionAutoExpireMs,
@@ -21,7 +21,7 @@ describe('intervention-glance', () => {
     process.env = { ...envSnapshot };
   });
   it('exports the Never-Halt queued tip', () => {
-    expect(INTERVENTION_NEVER_HALT_TIP).toContain('Goal/Mission/Fleet continue');
+    expect(getInterventionNeverHaltTip()).toContain('Goal/Mission/Fleet continue');
   });
 
   it('documents ask-mode Fleet continue during one approval wait', () => {

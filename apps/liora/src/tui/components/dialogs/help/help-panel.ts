@@ -119,13 +119,14 @@ export class HelpPanelComponent extends Container implements Focusable {
     });
     const cmdWidth = Math.max(12, ...cmdLabels.map((l) => l.length));
     const introLines = (this.opts.intro ?? defaultHelpIntro()).split('\n');
-    const commandSectionTitle = this.opts.commandSectionTitle ?? 'Slash commands';
+    const commandSectionTitle =
+      this.opts.commandSectionTitle ?? ttui('tui.help.section.slash');
     const body: string[] = [
       // Greeting
       ...introLines.map((line) => `  ${dim(line)}`),
       '',
       // Section: keyboard shortcuts
-      `  ${currentTheme.bold('Keyboard shortcuts')}`,
+      `  ${currentTheme.bold(ttui('tui.help.section.shortcuts'))}`,
       ...shortcuts.map((s) => `    ${kbdColor(s.keys.padEnd(kbdWidth))}  ${dim(s.description)}`),
       '',
       // Section: slash commands
@@ -140,8 +141,8 @@ export class HelpPanelComponent extends Container implements Focusable {
     const maxVisible = Math.max(5, this.opts.maxVisible ?? 24);
     const projection = renderRendererScrollablePanelChromeRows({
       width,
-      title: ' help ',
-      hint: ' Esc / Enter / Q cancel · ↑↓ scroll',
+      title: ttui('tui.dialog.help.title'),
+      hint: ` ${ttui('tui.help.footer')}`,
       body,
       viewportRows: maxVisible,
       scrollTop: this.scrollTop,

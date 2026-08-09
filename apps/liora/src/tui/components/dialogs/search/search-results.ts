@@ -23,6 +23,7 @@ import {
 import { currentTheme } from '#/tui/theme';
 import { renderSelectPointer } from '#/tui/utils/ui/select-pointer';
 import { printableChar } from '#/tui/utils/printable-key';
+import { ttui } from '#/tui/utils/tui-i18n';
 import type { SearchMatch, SearchResults } from '#/utils/fs/project-search';
 
 const ELLIPSIS = '…';
@@ -162,7 +163,7 @@ export class SearchResultsComponent extends Container implements Focusable {
     const { pattern, matches, fileCount, truncated, engine } = this.opts.results;
     const sep = t.dimFg('textMuted', '·');
     let header =
-      t.boldFg('primary', 'Search') +
+      t.boldFg('primary', ttui('tui.dialog.search.heading')) +
       ` ${t.fg('text', `"${pattern}"`)}` +
       ` ${sep} ${t.fg('textMuted', `${String(matches.length)} match${matches.length === 1 ? '' : 'es'} in ${String(fileCount)} file${fileCount === 1 ? '' : 's'}`)}` +
       ` ${sep} ${t.fg('textDim', engine)}`;
@@ -190,7 +191,7 @@ export class SearchResultsComponent extends Container implements Focusable {
       const lines: string[] = [empty];
       while (lines.length < innerHeight) lines.push('');
       return renderRendererFrameRows({
-        title: ' Search ',
+        title: ttui('tui.dialog.search.title'),
         content: lines,
         width,
         height,
@@ -207,7 +208,7 @@ export class SearchResultsComponent extends Container implements Focusable {
     while (lines.length < innerHeight) lines.push('');
 
     return renderRendererFrameRows({
-      title: ' Search ',
+      title: ttui('tui.dialog.search.title'),
       content: lines,
       width,
       height,

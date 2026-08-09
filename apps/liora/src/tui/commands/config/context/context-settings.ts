@@ -27,6 +27,7 @@ import { showContextWorkingSetPicker } from './context';
 import { showCompactionSettings } from './compaction-settings';
 
 import type { SlashCommandHost } from '../../hub/dispatch';
+import { ttui } from '../../../utils/tui-i18n';
 
 export { CONTEXT_INSTRUCTION_SOFT_TIP, CONTEXT_LEARNING_SOFT_TIP, CONTEXT_WORKING_SET_TIP };
 
@@ -34,7 +35,7 @@ export function showContextSettings(host: SlashCommandHost): void {
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
-      title: 'Context',
+      title: ttui('tui.settings.pane.context.title'),
       hint: '↑↓ · Enter · Esc',
       searchable: true,
       options: [
@@ -76,7 +77,7 @@ export function showContextSettings(host: SlashCommandHost): void {
         dismissPickerDialog(host);
       },
     }),
-    { label: 'Context' },
+    { label: ttui('tui.settings.pane.context.title') },
   );
 }
 
@@ -126,7 +127,7 @@ async function showContextSettingsPanel(host: SlashCommandHost): Promise<void> {
   const panel = new UsagePanelComponent({
     buildLines: (_fillProgress: number) => [...lines],
     borderToken: 'primary',
-    title: ' Context ',
+    title: ttui('tui.settings.pane.context.panelTitle'),
     enterBeatSeed: 'context-settings',
     requestRender: () => {
       requestTUILayoutRender(host.state);

@@ -19,7 +19,7 @@ import { SkillActivationComponent } from '../../components/messages/skill-activa
 import { ThinkingComponent } from '../../components/messages/thinking';
 import { ToolCallComponent } from '../../components/messages/tool-call/index';
 import { UserMessageComponent } from '../../components/messages/user-message';
-import { NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
+import {  NO_ACTIVE_SESSION_MESSAGE } from '../../constant/liora-tui';
 import type { TranscriptEntry } from '../../types';
 import { formatErrorMessage } from '../../utils/event-payload';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
@@ -48,7 +48,7 @@ export async function handleUndoCommand(
   args: string = '',
 ): Promise<void> {
   if (host.state.appState.streamingPhase !== 'idle') {
-    host.showError('Cannot undo while streaming — press Esc or Ctrl-C first.');
+    host.showError(ttui('tui.undo.streaming'));
     return;
   }
 
@@ -60,13 +60,13 @@ export async function handleUndoCommand(
 
   const count = parseUndoCount(trimmed);
   if (count === undefined) {
-    host.showError('Usage: /undo [count], where count is a positive integer.');
+    host.showError(ttui('tui.undo.usage'));
     return;
   }
 
   const session = host.session;
   if (session === undefined) {
-    host.showError(NO_ACTIVE_SESSION_MESSAGE);
+    host.showError(NO_ACTIVE_SESSION_MESSAGE());
     return;
   }
 
@@ -82,7 +82,7 @@ export async function handleUndoCommand(
 async function undoByCount(host: SlashCommandHost, count: number): Promise<boolean> {
   const session = host.session;
   if (session === undefined) {
-    host.showError(NO_ACTIVE_SESSION_MESSAGE);
+    host.showError(NO_ACTIVE_SESSION_MESSAGE());
     return false;
   }
 
@@ -102,7 +102,7 @@ async function undoByCount(host: SlashCommandHost, count: number): Promise<boole
       return false;
     }
     const message = formatErrorMessage(error);
-    host.showError(`Failed to undo: ${message}`);
+    host.showError(ttui('tui.undo.failed', { message }));
     return false;
   }
 
@@ -134,7 +134,7 @@ async function undoByCount(host: SlashCommandHost, count: number): Promise<boole
 
 async function showUndoSelector(host: SlashCommandHost): Promise<void> {
   if (host.session === undefined) {
-    host.showError(NO_ACTIVE_SESSION_MESSAGE);
+    host.showError(NO_ACTIVE_SESSION_MESSAGE());
     return;
   }
 

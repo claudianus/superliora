@@ -6,6 +6,7 @@ import {
 } from '#/constant/workspace-data';
 
 import type { SlashCommandHost } from '../hub/dispatch';
+import { ttui } from '../../utils/tui-i18n';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import {
   buildLlmWikiStatusLines,
@@ -59,14 +60,14 @@ export async function handleMemoryCommand(host: SlashCommandHost, rawArgs: strin
       await reflectMemories(host);
       return;
     default:
-      host.showError('Usage: /memory [remember|recall|reflect|forget|inspect]');
+      host.showError(ttui('tui.memory.usage'));
   }
 }
 
 async function inspectMemory(host: SlashCommandHost, id: string): Promise<void> {
   if (id.length > 0) {
     const memory = await host.harness.memory.get(id);
-    host.showNotice('Liora Memory inspect', memory === undefined ? `No memory found: ${id}` : renderMemory(memory));
+    host.showNotice(ttui('tui.memory.inspectTitle'), memory === undefined ? `No memory found: ${id}` : renderMemory(memory));
     return;
   }
   const inspection = await host.harness.memory.inspect();
@@ -78,13 +79,13 @@ async function inspectMemory(host: SlashCommandHost, id: string): Promise<void> 
 
 async function recallMemories(host: SlashCommandHost, query: string): Promise<void> {
   if (query.length === 0) {
-    host.showError('Usage: /memory recall <query>');
+    host.showError(ttui('tui.memory.recallUsage'));
     return;
   }
   const results = host.session === undefined
     ? await host.harness.memory.recall({ query, limit: 8 })
     : await host.session.recall(query, { limit: 8 });
-  host.showNotice('Liora Memory recall', renderSearchResults(results));
+  host.showNotice(ttui('tui.memory.recallTitle'), renderSearchResults(results));
 }
 
 async function showMemoryReadiness(host: SlashCommandHost, query: string): Promise<void> {
@@ -153,7 +154,7 @@ async function loadMemoryReadinessSearch(
 async function rememberMemory(host: SlashCommandHost, args: string): Promise<void> {
   const parsed = parseRememberArgs(args);
   if (parsed === undefined) {
-    host.showError('Usage: /memory remember <subject> :: <content>');
+    host.showError(ttui('tui.memory.rememberUsage'));
     return;
   }
   const memory = host.session === undefined
@@ -175,12 +176,12 @@ async function rememberMemory(host: SlashCommandHost, args: string): Promise<voi
       importance: 0.8,
       confidence: 0.95,
     });
-  host.showStatus(`Liora Memory remembered ${memory.id}`);
+  host.showStatus(ttui('tui.memory.remembered', { id: memory.id }));
 }
 
 async function forgetMemory(host: SlashCommandHost, id: string): Promise<void> {
   if (id.length === 0) {
-    host.showError('Usage: /memory forget <memory-id>');
+    host.showError(ttui('tui.memory.forgetUsage'));
     return;
   }
   const forgotten = await host.harness.memory.forget(id);
@@ -189,7 +190,7 @@ async function forgetMemory(host: SlashCommandHost, id: string): Promise<void> {
 
 async function reflectMemories(host: SlashCommandHost): Promise<void> {
   const result = await host.harness.memory.reflect();
-  host.showStatus(`Liora Memory reflected ${result.promoted} candidates; merged ${result.merged}`);
+  host.showStatus(ttui('tui.memory.reflected', { promoted: result.promoted, merged: result.merged }));
 }
 
 function parseRememberArgs(args: string): { readonly subject: string; readonly content: string } | undefined {

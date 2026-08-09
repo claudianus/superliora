@@ -10,6 +10,7 @@ import type {
 import {currentTheme} from '#/tui/theme';
 import {renderPremiumHeadline} from '#/tui/features/appearance/appearance-effects';
 import {printableChar} from '#/tui/utils/printable-key';
+import { ttui } from '#/tui/utils/tui-i18n';
 import { MultilineGoalInput } from './goal-queue-edit-input';
 import {SearchableList} from '#/tui/utils/ui/searchable-list';
 
@@ -107,7 +108,7 @@ export class GoalQueueManagerComponent extends Container implements Focusable {
     const footer: string[] = [];
 
     if (this.goals.length === 0) {
-      body.push(currentTheme.fg('textMuted', '  No upcoming goals.'));
+      body.push(currentTheme.fg('textMuted', ttui('tui.dialog.goalQueue.empty')));
     } else {
       for (let i = view.page.start; i < view.page.end; i++) {
         const goal = view.items[i];
@@ -124,7 +125,7 @@ export class GoalQueueManagerComponent extends Container implements Focusable {
 
     return renderRendererPanelChromeRows({
       width,
-      title: ' Upcoming goals',
+      title: ttui('tui.dialog.goalQueue.title'),
       hint: ` ${hint}`,
       body,
       dividerStyle: (text) => currentTheme.fg('primary', text),

@@ -3,6 +3,8 @@
  * named TUI notices (same recovery surface as mid-session wire warnings).
  */
 
+import { ttui } from '#/tui/utils/tui-i18n';
+
 export type SessionWarningLike = {
   readonly code?: string;
   readonly message: string;
@@ -32,11 +34,11 @@ export function formatSessionWarningNotice(
         message.includes('hard injection cap')))
   ) {
     return {
-      title: 'AGENTS.md oversized',
+      title: ttui('tui.notice.agentsMd.title'),
       detail: message,
       status: message.includes('hard injection cap')
-        ? 'AGENTS.md hard-capped — trim project instructions'
-        : 'AGENTS.md oversized — consider trimming',
+        ? ttui('tui.notice.agentsMd.statusHardCap')
+        : ttui('tui.notice.agentsMd.statusTrim'),
       coalesceKey: 'agents-md-oversized',
       statusColor,
     };
@@ -44,12 +46,13 @@ export function formatSessionWarningNotice(
 
   const title =
     code.length > 0
-      ? `Session warning (${code})`
-      : 'Session warning';
+      ? ttui('tui.notice.sessionWarning.titleWithCode', { code })
+      : ttui('tui.notice.sessionWarning.title');
+  const preview = `${message.slice(0, 80)}${message.length > 80 ? '…' : ''}`;
   return {
     title,
     detail: message,
-    status: `Session warning: ${message.slice(0, 80)}${message.length > 80 ? '…' : ''}`,
+    status: ttui('tui.notice.sessionWarning.status', { preview }),
     coalesceKey: code.length > 0 ? `session-warning-${code}` : 'session-warning',
     statusColor,
   };

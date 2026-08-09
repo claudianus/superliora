@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { setCliLocale } from '#/cli/i18n';
+import { STRINGS_TUI_EN } from '#/cli/i18n/strings-tui';
+
 import {
   AccountActionPickerComponent,
   AccountRemoveConfirmComponent,
@@ -48,6 +51,7 @@ function pageThrough(
 
 describe('accounts-manager dialogs', () => {
   it('builds PREMIUM rows with label · role · fingerprint', () => {
+    setCliLocale('en');
     const rows = buildOAuthAccountPoolRows(SAMPLE_REFS);
     expect(rows).toHaveLength(2);
     expect(oauthAccountRole(0)).toBe('primary');
@@ -96,8 +100,8 @@ describe('accounts-manager dialogs', () => {
       onCancel: vi.fn(),
     });
     const actionOut = actions.render(120).map(strip);
-    expect(actionOut.some((line) => line.includes('Promote to primary'))).toBe(true);
-    expect(actionOut.some((line) => line.includes('Remove from pool'))).toBe(true);
+    expect(actionOut.some((line) => line.includes(STRINGS_TUI_EN['tui.accounts.promote']!))).toBe(true);
+    expect(actionOut.some((line) => line.includes(STRINGS_TUI_EN['tui.accounts.removeFromPool']!))).toBe(true);
 
     const confirm = new AccountRemoveConfirmComponent({
       providerId: 'xai-grok',
@@ -106,8 +110,8 @@ describe('accounts-manager dialogs', () => {
       onDone: vi.fn(),
     });
     const confirmOut = confirm.render(120).map(strip);
-    expect(confirmOut.some((line) => line.includes('Remove account'))).toBe(true);
-    expect(confirmOut.some((line) => line.includes('Cancel'))).toBe(true);
+    expect(confirmOut.some((line) => line.includes(STRINGS_TUI_EN['tui.accounts.removeConfirmAction']!))).toBe(true);
+    expect(confirmOut.some((line) => line.includes(STRINGS_TUI_EN['tui.accounts.cancel']!))).toBe(true);
   });
 
   it('exposes Accounts in Settings options', () => {

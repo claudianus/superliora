@@ -113,17 +113,17 @@ async function resumeGoalFromQueue(host: StartupLifecycleHost): Promise<void> {
     const queue = await readGoalQueue(session);
     const firstGoal = queue.goals[0];
     if (firstGoal === undefined) {
-      host.showStatus('No goals in queue to resume.', 'textMuted');
+      host.showStatus(ttui('tui.session.noGoalsResume'), 'textMuted');
       return;
     }
 
     await removeGoalQueueItem(session, { goalId: firstGoal.id });
-    host.showStatus(`🎯 Resuming goal: ${firstGoal.objective.slice(0, 100)}...`, 'textMuted');
+    host.showStatus(ttui('tui.finish.resumeGoal', { objective: firstGoal.objective.slice(0, 100) }), 'textMuted');
     host.sendNormalUserInput(`/goal ${firstGoal.objective}`, {
       displayText: `🎯 ${firstGoal.objective.slice(0, 50)}...`,
     });
   } catch (error) {
-    host.showStatus(`Failed to resume goal from queue: ${String(error)}`, 'error');
+    host.showStatus(ttui('tui.finish.resumeGoalFailed', { string: String(error) }), 'error');
   }
 }
 
