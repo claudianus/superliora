@@ -66,17 +66,17 @@ export class StaleCompactionContextError extends Error {
  */
 export function fingerprintCompactionMessage(message: Message): number {
   let hash = message.role.length;
-  hash = ((hash * 33) ^ message.content.length) | 0;
-  hash = ((hash * 33) ^ message.toolCalls.length) | 0;
+  hash = Math.trunc((hash * 33) ^ message.content.length);
+  hash = Math.trunc((hash * 33) ^ message.toolCalls.length);
   for (const part of message.content) {
-    hash = ((hash * 33) ^ part.type.length) | 0;
+    hash = Math.trunc((hash * 33) ^ part.type.length);
     if (part.type === 'text') {
-      hash = ((hash * 33) ^ part.text.length) | 0;
+      hash = Math.trunc((hash * 33) ^ part.text.length);
     }
   }
   for (const call of message.toolCalls) {
-    hash = ((hash * 33) ^ call.id.length) | 0;
-    hash = ((hash * 33) ^ (call.arguments?.length ?? 0)) | 0;
+    hash = Math.trunc((hash * 33) ^ call.id.length);
+    hash = Math.trunc((hash * 33) ^ (call.arguments?.length ?? 0));
   }
   return hash;
 }
