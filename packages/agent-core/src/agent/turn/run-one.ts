@@ -51,7 +51,7 @@ export async function runOneTurnFlow(
   agent.fullCompaction.resetForTurn();
   agent.cacheFreezeGuard.freeze(buildTurnPrefixMaterial(agent.tools.enabledTools));
   agent.usage.beginTurn();
-  applySessionSmartAutoForTurn(agent, input);
+  await applySessionSmartAutoForTurn(agent, input);
   agent.emitEvent({ type: 'turn.started', turnId, origin });
   agent.context.appendUserMessage(input, origin);
 

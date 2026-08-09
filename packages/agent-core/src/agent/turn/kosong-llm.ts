@@ -45,6 +45,10 @@ import {
   type CompletionBudgetConfig,
 } from '../../utils/completion-budget';
 import type { GenerateOptionsWithRequestLogFields } from '../llm-request-logger';
+import {
+  invalidateLiveProbeSuccess,
+  invalidateLiveProbeSuccessForProvider,
+} from '../routing/live-probe';
 import { unslopText } from '../../utils/unslop';
 import {
   classifyProviderRouteFailure,
@@ -179,11 +183,26 @@ export class KosongLLM implements LLM {
             this.onRouteStatusChanged?.();
           }
           this.circuitObserver?.onFailure({ route, candidate, failure, error });
+          invalidateLiveProbeSuccess(candidate.modelAlias);
+          invalidateLiveProbeSuccessForProvider(candidate.providerName);
           if (failure.kind === 'auth') {
             sharedCredentialHealthStore.markAuthRejected(candidate.providerName, {
               credentialKey: candidate.credentialLabel,
               failureReason:
                 error instanceof Error ? error.message : 'provider auth failure',
+              cooldownMs: failure.cooldownMs,
+            });
+          } else if (
+            failure.kind === 'quota' ||
+            failure.kind === 'rate_limit' ||
+            failure.kind === 'server' ||
+            failure.kind === 'connection' ||
+            failure.kind === 'timeout'
+          ) {
+            sharedCredentialHealthStore.markRateLimited(candidate.providerName, {
+              credentialKey: candidate.credentialLabel,
+              failureReason:
+                error instanceof Error ? error.message : `provider ${failure.kind} failure`,
               cooldownMs: failure.cooldownMs,
             });
           }

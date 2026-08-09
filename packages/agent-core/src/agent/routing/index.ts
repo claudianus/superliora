@@ -29,3 +29,17 @@ export {
   routeOutcomeEma,
 } from './route-outcome';
 export { applySessionSmartAutoForTurn } from './session-auto';
+export {
+  LIVE_PROBE_SUCCESS_TTL_MS,
+  LIVE_PROBE_TIMEOUT_MS,
+  ensureSmartRouteProbed,
+  invalidateLiveProbeSuccess,
+  invalidateLiveProbeSuccessForProvider,
+  isLiveProbeSuccessFresh,
+  probeModelAlias,
+  resetLiveProbeCacheForTests,
+  scheduleSmartAutoLiveProbe,
+  setLiveProbeRunnerForTests,
+  type LiveProbeAliasResult,
+  type LiveProbeRunner,
+} from './live-probe';
