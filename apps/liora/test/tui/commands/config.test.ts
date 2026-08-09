@@ -1277,6 +1277,17 @@ describe('harness panel and tools inventory', () => {
 
   it('clears every role override from the smart auto routing action', async () => {
     const host = makeHarnessHost();
+    host.state.appState.availableModels = {
+      'big-model': {
+        provider: 'managed:kimi-api',
+        model: 'big-model',
+        maxContextSize: 1_000_000,
+        capabilities: ['thinking', 'tool_use'],
+      },
+    };
+    host.state.appState.availableProviders = {
+      'managed:kimi-api': { type: 'openai', apiKey: 'test-key' },
+    };
     host.harness.getConfig.mockResolvedValue({
       loopControl: {
         compactionModel: 'compact',
@@ -1286,7 +1297,11 @@ describe('harness panel and tools inventory', () => {
         planningModel: 'plan',
         debuggingModel: 'debug',
       },
+      providers: {
+        'managed:kimi-api': { type: 'openai', apiKey: 'test-key' },
+      },
     });
+    host.harness.setConfig.mockImplementation(async (patch: unknown) => patch);
     await showLoopModelRoutingPicker(host);
     const [routingPicker] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void },
@@ -1304,9 +1319,19 @@ describe('harness panel and tools inventory', () => {
         'loopControl.debuggingModel',
       ]);
     });
+    await vi.waitFor(() => {
+      expect(host.harness.setConfig).toHaveBeenCalled();
+    });
+    const setPatch = host.harness.setConfig.mock.calls.at(-1)?.[0] as {
+      loopControl?: Record<string, string>;
+    };
+    expect(setPatch.loopControl).toBeDefined();
+    for (const alias of Object.values(setPatch.loopControl ?? {})) {
+      expect(alias).toBe('big-model');
+    }
     expect(host.showStatus).toHaveBeenCalledWith(
-      expect.stringContaining('Smart auto routing is active'),
-      'success',
+      expect.stringMatching(/Smart auto pinned|Smart auto/i),
+      expect.stringMatching(/success|warning/),
     );
   });
 

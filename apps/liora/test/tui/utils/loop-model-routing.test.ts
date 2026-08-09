@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { sharedCredentialHealthStore } from '@superliora/oauth';
 
 import {
   LOOP_MODEL_ROUTING_ROLES,
+  applySmartLoopRoleRouting,
   localCatalogFromModels,
   loopModelRoutingDeletePath,
   loopModelRoutingPatch,
@@ -25,6 +27,29 @@ const QWEN_MODELS = {
 
 const QWEN_PROVIDERS = {
   'qwen-token-plan': { type: 'openai' as const, apiKey: 'test-key' },
+};
+
+const MIXED_MODELS = {
+  ...QWEN_MODELS,
+  'xai-grok/grok-4': {
+    provider: 'xai-grok',
+    model: 'grok-4',
+    maxContextSize: 256_000,
+    capabilities: ['thinking', 'tool_use'] as string[],
+    cost: { input: 3 },
+  },
+  'xai-grok/grok-fast': {
+    provider: 'xai-grok',
+    model: 'grok-fast',
+    maxContextSize: 128_000,
+    capabilities: ['tool_use'] as string[],
+    cost: { input: 0.2 },
+  },
+};
+
+const MIXED_PROVIDERS = {
+  ...QWEN_PROVIDERS,
+  'xai-grok': { type: 'openai' as const, apiKey: 'grok-key' },
 };
 
 describe('loop model routing', () => {
@@ -107,5 +132,68 @@ describe('loop model routing', () => {
       loopControl: { codingModel: 'code-pro' },
     });
     expect(loopModelRoutingDeletePath(coding)).toBe('loopControl.codingModel');
+  });
+});
+
+describe('applySmartLoopRoleRouting', () => {
+  afterEach(() => {
+    sharedCredentialHealthStore.clear();
+  });
+
+  it('pins healthy auto picks and never writes exhausted providers when alternatives exist', () => {
+    sharedCredentialHealthStore.markQuotaExhausted('qwen-token-plan');
+
+    const result = applySmartLoopRoleRouting(
+      {
+        loopControl: {
+          // Stale pin on exhausted provider must not reappear.
+          codingModel: 'qwen-token-plan/qwen3.8-max-preview',
+        },
+      },
+      MIXED_MODELS,
+      MIXED_PROVIDERS,
+    );
+
+    expect(result.clearPaths).toEqual([
+      'loopControl.compactionModel',
+      'loopControl.completionModel',
+      'loopControl.explorationModel',
+      'loopControl.codingModel',
+      'loopControl.planningModel',
+      'loopControl.debuggingModel',
+    ]);
+    expect(result.pins.length).toBeGreaterThan(0);
+    expect(result.skipped).toEqual([]);
+    for (const pin of result.pins) {
+      expect(pin.alias.startsWith('qwen-token-plan/')).toBe(false);
+      expect(pin.alias.startsWith('xai-grok/')).toBe(true);
+    }
+    for (const alias of Object.values(result.patch.loopControl)) {
+      expect(alias).not.toMatch(/^qwen-token-plan\//);
+    }
+  });
+
+  it('skips roles when every candidate is quota-exhausted', () => {
+    sharedCredentialHealthStore.markQuotaExhausted('qwen-token-plan');
+
+    const result = applySmartLoopRoleRouting(
+      { loopControl: {} },
+      QWEN_MODELS,
+      QWEN_PROVIDERS,
+    );
+
+    expect(result.pins).toEqual([]);
+    expect(result.patch.loopControl).toEqual({});
+    expect(result.skipped).toHaveLength(6);
+    expect(result.skipped.every((s) => s.reason.includes('no healthy') || s.reason.includes('unhealthy'))).toBe(
+      true,
+    );
+  });
+
+  it('pins healthy qwen aliases when credential health is clear', () => {
+    const result = applySmartLoopRoleRouting({ loopControl: {} }, QWEN_MODELS, QWEN_PROVIDERS);
+    expect(result.pins.length).toBe(6);
+    expect(result.skipped).toEqual([]);
+    expect(result.patch.loopControl.planningModel).toBe('qwen-token-plan/qwen3.8-max-preview');
   });
 });
