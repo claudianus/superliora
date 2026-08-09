@@ -246,12 +246,18 @@ html[data-theme="light"] .nav-shell.scrolled {
   font-variant-ligatures: none;
 }
 
+.museum-pin {
+  position: relative;
+}
+
 .museum-pin__stage {
   position: sticky;
   top: 0;
   z-index: 0;
   height: 100dvh;
+  padding-top: 3.5rem; /* clear fixed nav so chrome is visible */
   pointer-events: none;
+  box-sizing: border-box;
 }
 
 .museum-pin__stage .museum-stage {
@@ -274,9 +280,9 @@ html[data-theme="light"] .nav-shell.scrolled {
   inset: 0;
   background: linear-gradient(
     to top,
-    rgba(6, 10, 18, 0.92) 0%,
-    rgba(6, 10, 18, 0.55) 42%,
-    rgba(6, 10, 18, 0.12) 72%,
+    rgba(6, 10, 18, 0.94) 0%,
+    rgba(6, 10, 18, 0.62) 38%,
+    rgba(6, 10, 18, 0.18) 62%,
     transparent 100%
   );
 }
@@ -288,26 +294,52 @@ html[data-theme="light"] .nav-shell.scrolled {
   width: 100%;
   max-width: 80rem;
   margin-inline: auto;
-  padding: 2rem 1rem 3.5rem;
+  padding: 2rem 1rem 2.75rem;
 }
 
 @media (min-width: 640px) {
   .museum-hero__copy {
     padding-inline: 1.5rem;
-    padding-bottom: 4.5rem;
+    padding-bottom: 3.5rem;
   }
 }
 
 @media (min-width: 1024px) {
   .museum-hero__copy {
     padding-inline: 2rem;
-    padding-bottom: 5rem;
+    padding-bottom: 4rem;
+    max-width: 42rem;
+    margin-inline: 0 auto 0 0;
+    margin-left: 2rem;
+  }
+
+  /* Keep Stage visible while cluster reels scrub scenes. */
+  .museum-features__panel {
+    margin-left: 54%;
+    width: 46%;
+    min-height: 100vh;
+    border-left: 1px solid rgba(51, 65, 85, 0.9);
+    background: rgba(13, 20, 34, 0.94);
+    backdrop-filter: blur(14px);
+    box-shadow: -24px 0 60px rgba(0, 0, 0, 0.35);
   }
 }
 
-.museum-features__panel {
-  background: linear-gradient(180deg, rgba(13, 20, 34, 0.82) 0%, var(--color-bg) 18%);
-  backdrop-filter: blur(10px);
+@media (max-width: 1023px) {
+  .museum-pin__stage {
+    height: 48dvh;
+    top: 0;
+  }
+
+  .museum-hero {
+    margin-top: -48dvh;
+    min-height: 48dvh;
+  }
+
+  .museum-features__panel {
+    background: var(--color-bg);
+    border-top: 1px solid var(--color-line);
+  }
 }
 
 .museum-stage {
@@ -319,7 +351,7 @@ html[data-theme="light"] .nav-shell.scrolled {
 
 .museum-stage__scrub {
   position: absolute;
-  right: 1rem;
+  right: 0.75rem;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
@@ -355,13 +387,14 @@ html[data-theme="light"] .nav-shell.scrolled {
 }
 
 .ansi-stage__chrome {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
   border-bottom: 1px solid var(--color-line);
-  background: var(--color-bg-2);
-  padding: 0.65rem 0.85rem;
+  background: linear-gradient(180deg, #1e2c42 0%, #162033 100%);
+  padding: 0.7rem 1rem;
 }
 
 .ansi-stage__viewport {
@@ -369,7 +402,11 @@ html[data-theme="light"] .nav-shell.scrolled {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(0, 213, 255, 0.08), transparent 55%),
+  display: flex;
+  align-items: center;
+  background:
+    radial-gradient(ellipse 70% 50% at 20% 10%, rgba(0, 213, 255, 0.1), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 90% 80%, rgba(167, 139, 250, 0.07), transparent 50%),
     var(--color-bg-1);
 }
 
@@ -383,25 +420,21 @@ html[data-theme="light"] .nav-shell.scrolled {
 }
 
 .ansi-stage__pre {
+  position: relative;
+  z-index: 1;
   margin: 0;
-  padding: 1.1rem 1rem 2.5rem;
+  padding: 1.25rem 1.25rem 2rem;
   font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.45;
+  font-size: clamp(12px, 1.05vw, 15px);
+  line-height: 1.5;
   min-width: max-content;
-}
-
-@media (min-width: 640px) {
-  .ansi-stage__pre {
-    font-size: 12px;
-    line-height: 1.5;
-    padding: 1.35rem 1.25rem 3rem;
-  }
+  width: 100%;
 }
 
 .ansi-stage__caption {
+  flex: 0 0 auto;
   border-top: 1px solid rgba(51, 65, 85, 0.85);
-  background: rgba(6, 10, 18, 0.72);
+  background: rgba(6, 10, 18, 0.82);
   padding: 0.65rem 1rem;
   font-size: 0.8rem;
   color: var(--color-soft);

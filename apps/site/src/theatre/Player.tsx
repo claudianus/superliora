@@ -3,7 +3,8 @@ import { useI18n } from '../i18n';
 import { AnsiStage } from './AnsiStage';
 import { CLUSTER_SCENE, loadSceneAnsi, type SceneId } from './scenes';
 
-const HERO_PLAYLIST: SceneId[] = ['idle-welcome', 'chrome-bands', 'job-deck', 'command-hub'];
+/** Dense real chrome first — sparse idle looks empty on a museum Stage. */
+const HERO_PLAYLIST: SceneId[] = ['chrome-bands', 'job-deck', 'command-hub', 'status-route'];
 const BEAT_MS = 4200;
 
 function prefersReducedMotion(): boolean {
@@ -14,7 +15,7 @@ function prefersReducedMotion(): boolean {
 /** Sticky museum Stage — scene follows the active cluster section via IntersectionObserver. */
 export function ScrollLinkedStage() {
   const { t } = useI18n();
-  const [sceneId, setSceneId] = useState<SceneId>('idle-welcome');
+  const [sceneId, setSceneId] = useState<SceneId>('chrome-bands');
   const [ansi, setAnsi] = useState('');
   const [chapter, setChapter] = useState(0);
   const [inHero, setInHero] = useState(true);
@@ -56,7 +57,7 @@ export function ScrollLinkedStage() {
         if (top.target === hero) {
           setInHero(true);
           setChapter(0);
-          setSceneId(HERO_PLAYLIST[heroIndexRef.current] ?? 'idle-welcome');
+          setSceneId(HERO_PLAYLIST[heroIndexRef.current] ?? 'chrome-bands');
           return;
         }
         const cluster = (top.target as HTMLElement).dataset.cluster;
