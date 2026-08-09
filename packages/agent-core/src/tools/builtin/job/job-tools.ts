@@ -182,7 +182,7 @@ const JobCreateInputSchema = z
       .boolean()
       .optional()
       .describe(
-        'Run SearchExpert staffing: bind a high-score expert (else generic). May intent-split bullet lists when ownership_paths is empty — ownership_paths never auto-fanout (that is a claim set for one Job). Defaults true for task/implement/explore; false for merge/desk/goal-desk/mission.',
+        'Run SearchExpert staffing: bind a high-score expert (else generic) to this Job. Does not fan out into multiple Jobs — use auto_split=true only for truly independent multi-intents. ownership_paths is a claim set for one Job and never auto-fanout. Defaults true for task/implement/explore; false for merge/desk/goal-desk/mission.',
       ),
   })
   .strict()
@@ -458,7 +458,7 @@ export async function ackCreatedJobs(input: {
   const lines: string[] = [];
   if (input.created.length > 1) {
     lines.push(
-      `ACK batch count=${input.created.length}${input.batchLabel ? ` (${input.batchLabel})` : ' (multi-intent split)'}`,
+      `ACK batch count=${input.created.length}${input.batchLabel ? ` (${input.batchLabel})` : ' (batch)'}`,
     );
   }
   for (const job of input.created) {
@@ -586,20 +586,47 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
               kind === 'implement' ||
               kind === 'explore'));
 
+        // Intent fan-out is opt-in via auto_split only. Default staffing binds an
+        // expert to ONE Job — bullet success_criteria must not spawn Task (1)…(5).
+        let intents =
+          a.auto_split === true
+            ? [...splitUserMessageIntoJobIntents(a.prompt?.trim() || a.title)]
+            : [{ title: a.title, prompt: a.prompt ?? a.title }];
+
+        if (a.auto_split === true && intents.length >= 3) {
+          const decision = await confirmAutoSplitIntents(this.agent, intents);
+          if (decision === 'cancel') {
+            return {
+              isError: true,
+              output:
+                'JobCreate cancelled — user rejected the multi-intent split. Ask how to regroup, then retry.',
+            };
+          }
+          if (decision === 'merge') {
+            intents = [mergeSplitIntents(intents, a.title)];
+          }
+        }
+
         let created: JobRecord[];
         if (shouldStaff && !isGoalDriver) {
-          const slices = await staffJobsFromObjective({
-            objective: a.prompt?.trim() || a.title,
-            title: a.title,
-            kind,
-            successCriteria: successCriteria.length > 0 ? successCriteria : undefined,
-            ownershipPaths: a.ownership_paths,
-          });
-          created = slices.map((slice, index) =>
+          const staffedSlices = [];
+          for (const intent of intents) {
+            const slices = await staffJobsFromObjective({
+              objective: intent.prompt,
+              title: intent.title || a.title,
+              kind,
+              successCriteria: successCriteria.length > 0 ? successCriteria : undefined,
+              ownershipPaths: a.ownership_paths,
+              // Never re-fanout inside staffing — auto_split already produced intents.
+              allowIntentSplit: false,
+            });
+            staffedSlices.push(...slices);
+          }
+          created = staffedSlices.map((slice, index) =>
             createJob(this.store, {
               title: slice.title || a.title,
               kind: slice.kind,
-              priority: (a.priority ?? 0) + (slices.length - index),
+              priority: (a.priority ?? 0) + (staffedSlices.length - index),
               prompt: slice.prompt,
               ownershipPaths: slice.ownershipPaths ?? a.ownership_paths,
               contextPaths: a.context_paths,
@@ -616,25 +643,6 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
             }),
           );
         } else {
-          let intents =
-            a.auto_split === true
-              ? [...splitUserMessageIntoJobIntents(a.prompt?.trim() || a.title)]
-              : [{ title: a.title, prompt: a.prompt ?? a.title }];
-
-          if (a.auto_split === true && intents.length >= 3) {
-            const decision = await confirmAutoSplitIntents(this.agent, intents);
-            if (decision === 'cancel') {
-              return {
-                isError: true,
-                output:
-                  'JobCreate cancelled — user rejected the multi-intent split. Ask how to regroup, then retry.',
-              };
-            }
-            if (decision === 'merge') {
-              intents = [mergeSplitIntents(intents, a.title)];
-            }
-          }
-
           created = intents.map((intent, index) =>
             createJob(this.store, {
               title: intent.title || a.title,
@@ -676,6 +684,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
           agent: this.agent,
           created,
           pool,
+          batchLabel: created.length > 1 && a.auto_split === true ? 'multi-intent split' : undefined,
         });
       },
     };
