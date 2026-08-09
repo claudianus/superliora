@@ -3,7 +3,7 @@ import { useI18n } from '../i18n';
 import { theatreFrames } from './script';
 import { TerminalFrame } from './TerminalFrame';
 
-const BEAT_MS = 3200;
+const BEAT_MS = 3800;
 
 function prefersReducedMotion(): boolean {
   if (typeof window === 'undefined') return false;
@@ -37,41 +37,42 @@ export function TheatrePlayer() {
   return (
     <div className="w-full">
       <TerminalFrame frame={frame} />
-      <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="min-h-[1.5rem] font-mono text-sm text-soft" aria-live="polite">
-          <span className="text-primary">{beat.label}</span>
-          <span className="text-muted"> — </span>
+      <div className="mt-4 flex flex-col gap-3">
+        <p className="min-h-[1.25rem] text-sm text-soft" aria-live="polite">
+          <span className="font-medium text-text">{beat.label}</span>
+          <span className="text-muted"> · </span>
           {beat.caption}
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            className="btn btn-secondary rounded-md px-3 py-1.5 text-xs font-semibold"
+            className="btn btn-secondary rounded-lg px-3 py-1.5 text-xs font-semibold"
             onClick={() => {
               setPlaying((p) => !p);
             }}
           >
             {playing ? t.theatre.pause : t.theatre.play}
           </button>
-          <div className="flex max-w-full gap-1 overflow-x-auto no-scrollbar" role="tablist" aria-label={t.theatre.chapter}>
+          <div
+            className="flex max-w-full flex-1 gap-1 overflow-x-auto no-scrollbar"
+            role="tablist"
+            aria-label={t.theatre.chapter}
+          >
             {t.theatre.beats.map((b, i) => (
               <button
                 key={b.id}
                 type="button"
                 role="tab"
                 aria-selected={i === index}
-                className={`shrink-0 rounded-md px-2 py-1 font-mono text-[10px] transition ${
-                  i === index
-                    ? 'bg-primary text-bg-1'
-                    : 'border border-line bg-bg-2 text-muted hover:text-text'
+                title={b.label}
+                className={`h-1.5 min-w-[1.75rem] flex-1 rounded-full transition ${
+                  i === index ? 'bg-primary' : 'bg-line hover:bg-line-strong'
                 }`}
                 onClick={() => {
                   setIndex(i);
                   setPlaying(false);
                 }}
-              >
-                {String(i + 1)}
-              </button>
+              />
             ))}
           </div>
         </div>

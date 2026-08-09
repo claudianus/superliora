@@ -23,6 +23,11 @@ export interface TowerItem {
   body: string;
 }
 
+export interface WhyItem {
+  title: string;
+  body: string;
+}
+
 export interface DocPage {
   slug: DocSlug;
   title: string;
@@ -40,8 +45,8 @@ export interface Translation {
   };
   skip: string;
   nav: {
+    why: string;
     how: string;
-    tower: string;
     install: string;
     docs: string;
   };
@@ -52,6 +57,12 @@ export interface Translation {
     install: string;
     github: string;
     docs: string;
+  };
+  why: {
+    kicker: string;
+    title: string;
+    body: string;
+    items: WhyItem[];
   };
   how: {
     kicker: string;
@@ -107,18 +118,18 @@ const INSTALL_PS =
 
 const docsNavKo: Translation['docsNav'] = [
   { slug: 'getting-started', label: '시작하기' },
-  { slug: 'how-conductor-works', label: 'Conductor' },
-  { slug: 'jobs', label: 'Jobs' },
-  { slug: 'control-tower', label: 'Control tower' },
-  { slug: 'reference', label: '레퍼런스' },
+  { slug: 'how-conductor-works', label: '어떻게 일하나요' },
+  { slug: 'jobs', label: '작업 다루기' },
+  { slug: 'control-tower', label: '단축키' },
+  { slug: 'reference', label: '명령 모음' },
 ];
 
 const docsNavEn: Translation['docsNav'] = [
   { slug: 'getting-started', label: 'Getting started' },
-  { slug: 'how-conductor-works', label: 'Conductor' },
+  { slug: 'how-conductor-works', label: 'How it works' },
   { slug: 'jobs', label: 'Jobs' },
-  { slug: 'control-tower', label: 'Control tower' },
-  { slug: 'reference', label: 'Reference' },
+  { slug: 'control-tower', label: 'Shortcuts' },
+  { slug: 'reference', label: 'Commands' },
 ];
 
 export const translations: Record<Lang, Translation> = {
@@ -126,106 +137,125 @@ export const translations: Record<Lang, Translation> = {
     lang: 'ko',
     dir: 'ltr',
     meta: {
-      title: 'SuperLiora — Conductor harness',
+      title: 'SuperLiora — 터미널에서 끝까지 맡기는 AI 코딩',
       description:
-        'SuperLiora는 Conductor 하네스입니다. 채팅은 컨트롤 플레인이고, 구현은 격리 Job(worktree)에서 돌아갑니다. Job Deck·Worker Dock·Inbox로 진행을 보고, 신뢰 검사 후 로컬 land합니다.',
+        'SuperLiora는 터미널 AI 코딩 에이전트입니다. 원하는 결과를 적으면 백그라운드에서 작업이 돌아가고, 진행을 보면서 필요할 때만 답하면 됩니다.',
       ogLocale: 'ko_KR',
     },
     skip: '본문으로 건너뛰기',
     nav: {
-      how: '작동 방식',
-      tower: '조종석',
+      why: '왜 SuperLiora',
+      how: '흐름',
       install: '설치',
-      docs: '문서',
+      docs: '가이드',
     },
     hero: {
       brand: 'SuperLiora',
-      h1: '말해 주세요. Conductor가 Job으로 돌립니다.',
-      lead: '컨트롤 플레인에서 결과를 적으면, 워커가 격리 worktree에서 구현합니다. 기다리지 말고 Deck과 Inbox로 운영하세요.',
+      h1: '긴 코딩 작업, 터미널에서 끝까지.',
+      lead: '원하는 결과를 적으세요. 작업은 따로 돌아가고, 당신은 진행을 보며 필요할 때만 끼어듭니다.',
       install: '설치하기',
       github: 'GitHub',
-      docs: '문서',
+      docs: '가이드',
+    },
+    why: {
+      kicker: '왜 SuperLiora인가',
+      title: '채팅만 하는 에이전트가 아닙니다.',
+      body: '오래 걸리는 일을 맡기고도, 무엇이 도는지 놓치지 않게 만들었습니다.',
+      items: [
+        {
+          title: '맡기면 바로 시작',
+          body: '한 줄 적으면 작업이 접수됩니다. 끝날 때까지 화면을 붙잡고 기다리지 않아도 됩니다.',
+        },
+        {
+          title: '진행이 보입니다',
+          body: '누가 파일을 고치는지, 테스트가 도는지 Deck과 Dock에서 실시간으로 봅니다.',
+        },
+        {
+          title: '서로 안 섞입니다',
+          body: '작업마다 분리된 브랜치에서 돌아가서, 병렬로 맡겨도 워킹 트리가 뒤섞이지 않습니다.',
+        },
+        {
+          title: '합치기는 당신이 결정',
+          body: '검사가 통과하면 로컬로 합칩니다. 원격에 올리는 건 원할 때 따로 합니다.',
+        },
+      ],
     },
     how: {
-      kicker: 'How Conductor works',
-      title: '채팅은 위임. 구현은 Job.',
-      body: '제품이 가르치는 계약과 같습니다 — 결과를 적고, ACK를 받고, 백그라운드를 보고, 필요할 때 답하고, 검사가 통과하면 land합니다.',
+      kicker: '한 바퀴',
+      title: '적고, 보고, 답하고, 합치기.',
+      body: '복잡한 파이프라인을 외울 필요 없습니다. 아래 네 가지만 기억하세요.',
       steps: [
         {
-          title: '작업 입력',
-          body: '채팅에 결과를 적으면 Conductor가 Job을 만듭니다.',
+          title: '결과를 적기',
+          body: '“로그인 후 /app으로 가게 해줘”처럼 끝난 모습을 적습니다.',
         },
         {
-          title: '즉시 ACK',
-          body: 'job_id와 상태가 바로 돌아옵니다. 워커 완료를 기다리지 않습니다.',
+          title: '백그라운드에서 진행',
+          body: '작업이 접수되면 바로 돌아가기 시작합니다. 채팅은 비어 있습니다.',
         },
         {
-          title: 'Dock / Deck',
-          body: 'Worker Dock과 Alt+J Job Deck으로 진행을 실시간으로 봅니다.',
+          title: '막히면 짧게 답하기',
+          body: '질문이 뜨면 Inbox에서 한 줄로 답하고, 이어서 돌립니다.',
         },
         {
-          title: 'needs_user',
-          body: 'Job이 물으면 Inbox(Alt+I)에서 답하고 재개합니다.',
-        },
-        {
-          title: 'Land',
-          body: '신뢰 검사를 통과하면 로컬로 merge합니다. Land는 push가 아닙니다.',
+          title: '준비되면 합치기',
+          body: '테스트와 충돌을 확인한 뒤 로컬 main에 합칩니다.',
         },
       ],
     },
     tower: {
-      kicker: 'Control tower',
-      title: '키보드로 함대를 읽습니다.',
-      body: 'Conductor UX의 핫키 — 한 줄로 기억하세요.',
+      kicker: '손에 익는 키',
+      title: '자주 쓰는 네 가지.',
+      body: '처음엔 이것만으로 충분합니다.',
       items: [
         {
           keys: 'Alt+J',
-          title: 'Job Deck',
-          body: '카드와 워커 트랜스크립트를 실시간으로 봅니다.',
+          title: '진행 보기',
+          body: '지금 돌아가는 작업과 코드 변경을 엽니다.',
         },
         {
           keys: 'Alt+I',
-          title: 'Inbox',
-          body: 'needs_user·완료·실패 알림에 답합니다.',
+          title: '질문함',
+          body: '에이전트가 물은 내용에 답합니다.',
         },
         {
           keys: 'Alt+B',
-          title: 'Intent Composer',
-          body: 'success_criteria 등 brief 슬롯을 채웁니다.',
+          title: '빠른 요청서',
+          body: '급한 수정용으로 짧은 조건을 채웁니다.',
         },
         {
-          keys: 'Timeline',
-          title: 'Timeline',
-          body: 'Intake → Running → Needs you → Land 흐름을 봅니다.',
+          keys: 'Ctrl+K',
+          title: '전체 검색',
+          body: '설정·명령·모드를 한곳에서 찾습니다.',
         },
       ],
     },
     install: {
-      kicker: 'Install',
-      title: '설치하고 liora를 실행하세요.',
-      body: 'Node.js ≥24.15.0이 필요합니다. 설치 후 /login과 /model로 프로바이더를 연결하세요.',
-      requirements: 'Node.js ≥24.15.0 · pnpm via Corepack(소스 설치 시)',
+      kicker: '시작',
+      title: '설치하고 바로 열어보세요.',
+      body: 'Node.js 24 이상이 있으면 됩니다. 켠 뒤 /login과 /model로 모델만 연결하세요.',
+      requirements: 'Node.js ≥ 24.15.0',
       commands: [
         { label: 'macOS / Linux', cmd: INSTALL_SH },
         { label: 'Windows PowerShell', cmd: INSTALL_PS },
       ],
-      next: '문서로 이어가기',
+      next: '짧은 가이드 보기',
     },
     theatre: {
       play: '재생',
       pause: '일시정지',
-      chapter: '챕터',
+      chapter: '장면',
       beats: [
-        { id: 'welcome', label: 'Welcome', caption: 'Conductor 코치 — 채팅에 작업을 적으세요.' },
-        { id: 'ack', label: 'Job ACK', caption: '한 줄 입력 → 즉시 job_id ACK.' },
-        { id: 'strip', label: 'Job strip', caption: '푸터 strip이 보드를 따라갑니다.' },
-        { id: 'dock', label: 'Worker Dock', caption: '백그라운드 워커가 Dock에 살아 있습니다.' },
-        { id: 'deck', label: 'Job Deck', caption: 'Alt+J — 카드와 워커 trace.' },
-        { id: 'inbox', label: 'Inbox', caption: 'Alt+I — needs_user에 답하고 재개.' },
-        { id: 'brief', label: 'Composer', caption: 'Alt+B — hotfix brief → JobCreate.' },
-        { id: 'timeline', label: 'Timeline', caption: 'Intake → Running → Needs you → Land.' },
-        { id: 'merge', label: 'Merge Preview', caption: '게이트 체크리스트 — 증거 없으면 hold.' },
-        { id: 'land', label: 'Land', caption: '로컬 land 완료. Land ≠ push.' },
+        { id: 'welcome', label: '시작', caption: '결과를 적으면 됩니다.' },
+        { id: 'ack', label: '접수', caption: '작업이 바로 시작됩니다.' },
+        { id: 'strip', label: '상태줄', caption: '아래줄에서 진행을 읽습니다.' },
+        { id: 'dock', label: '워커', caption: '누가 무엇을 하는지 보입니다.' },
+        { id: 'deck', label: 'Deck', caption: '변경과 테스트를 엽니다.' },
+        { id: 'inbox', label: '질문', caption: '필요할 때만 끼어듭니다.' },
+        { id: 'brief', label: '빠른 요청', caption: '급한 수정도 짧게.' },
+        { id: 'timeline', label: '타임라인', caption: '흐름을 한눈에.' },
+        { id: 'merge', label: '합치기 전', caption: '통과한 것만 합칩니다.' },
+        { id: 'land', label: '완료', caption: '로컬에 반영. push는 선택.' },
       ],
     },
     footer: {
@@ -233,127 +263,123 @@ export const translations: Record<Lang, Translation> = {
       github: 'GitHub',
       english: 'English',
       korean: '한국어',
-      docs: '문서',
+      docs: '가이드',
       issues: 'Issues',
       security: 'Security',
-      tagline: 'Conductor harness',
+      tagline: '터미널 AI 코딩 에이전트',
     },
     docsNav: docsNavKo,
-    docsShell: { home: '홈', onThisSite: '이 사이트에서' },
+    docsShell: { home: '홈', onThisSite: '가이드' },
     docs: {
       'getting-started': {
         slug: 'getting-started',
         title: '시작하기',
-        lead: '설치하고 첫 Job까지.',
+        lead: '설치부터 첫 작업까지.',
         sections: [
           {
             heading: '설치',
-            body: 'macOS/Linux 또는 Windows에서 설치 스크립트를 실행합니다.',
+            body: '터미널에서 한 줄로 설치합니다.',
             code: INSTALL_SH,
           },
           {
-            heading: '첫 세션',
-            body: '프로젝트 루트에서 liora를 실행한 뒤 /login과 /model로 프로바이더와 모델을 고릅니다. 채팅에 원하는 결과를 적으면 Conductor가 Job을 만듭니다.',
+            heading: '첫 실행',
+            body: '프로젝트 폴더에서 liora를 켠 뒤, /login과 /model로 모델을 연결하세요. 그리고 원하는 결과를 적으면 됩니다.',
             code: 'liora\n/login\n/model',
           },
           {
-            heading: '이어하기',
-            body: '같은 디렉터리의 최근 세션은 --continue로 재개합니다. 중단된 Job은 /job resume로 살립니다.',
+            heading: '이어서 하기',
+            body: '같은 폴더의 최근 세션은 이렇게 다시 엽니다.',
             code: 'liora --continue',
           },
         ],
       },
       'how-conductor-works': {
         slug: 'how-conductor-works',
-        title: 'How Conductor works',
-        lead: 'Conductor는 워커가 아니라 컨트롤 플레인입니다.',
+        title: '어떻게 일하나요',
+        lead: '당신은 방향을 주고, 실행은 백그라운드 작업이 맡습니다.',
         sections: [
           {
-            heading: '위임만',
-            body: '파일 변경·빌드·테스트는 Job입니다. Conductor 레인은 읽기·조회·ledger·질문만 합니다. 직접 Write는 거부되고 Job 초안이 나옵니다.',
+            heading: '역할 나누기',
+            body: '채팅 쪽은 읽고 정리하고 작업을 맡깁니다. 파일 수정·빌드·테스트는 분리된 작업에서 돌아갑니다.',
           },
           {
-            heading: '기다리지 않음',
-            body: 'JobCreate는 즉시 ACK합니다. 결과는 Inbox로 옵니다. 폴링하지 마세요.',
+            heading: '기다리지 않기',
+            body: '작업을 맡기면 바로 접수됩니다. 결과는 나중에 알림으로 옵니다.',
           },
           {
-            heading: '두 종류의 worktree',
-            body: 'Job worktree는 Job별 격리 git 트리입니다. liora --worktree는 세션 cwd 격리입니다. 둘을 섞어 말하지 마세요.',
+            heading: '브랜치가 나뉨',
+            body: '작업마다 따로 떨어진 브랜치에서 돌아갑니다. 세션 전체를 옮기는 --worktree와는 다릅니다.',
           },
           {
-            heading: 'Ask vs Build',
-            body: 'Shift-Tab은 Build와 Ask를 바꿉니다. Ask에서는 JobCreate도 거부됩니다. 위임하려면 Build로 돌아오세요.',
+            heading: 'Ask / Build',
+            body: 'Shift-Tab으로 질문만 하는 모드와 실행 모드를 바꿉니다. 질문 모드에서는 새 작업이 시작되지 않습니다.',
           },
         ],
       },
       jobs: {
         slug: 'jobs',
-        title: 'Jobs',
-        lead: 'ledger · Deck · Inbox · merge.',
+        title: '작업 다루기',
+        lead: '목록, 진행 보기, 답변, 합치기.',
         sections: [
           {
-            heading: '목록과 Deck',
-            body: '/jobs로 목록을 보고, /jobs deck 또는 Alt+J로 모니터를 엽니다.',
+            heading: '보기',
+            body: '/jobs로 목록을 보고, Alt+J로 진행 화면을 엽니다.',
             code: '/jobs\n/jobs deck',
           },
           {
             heading: '조향',
-            body: '/job inspect · answer · resume · cancel · steer로 실행 중 작업을 다룹니다. 많은 경로는 LLM 없이 RPC hotpath입니다.',
+            body: '답변·재개·취소로 실행 중 작업을 다룹니다.',
             code: '/job inbox\n/job answer <id> <text>\n/job resume\n/job cancel <id>',
           },
           {
-            heading: 'Merge와 Land',
-            body: 'Merge Preview에서 게이트를 확인한 뒤 승인하면 로컬 main으로 land합니다. 원격 배포는 Push Preview가 따로 있습니다.',
+            heading: '합치기',
+            body: '검사가 통과하면 로컬로 합칩니다. 원격 배포는 별도 단계입니다.',
           },
           {
             heading: '정리',
-            body: '/job gc로 끝난 worktree를 정리합니다.',
+            body: '끝난 작업 폴더를 치웁니다.',
             code: '/job gc',
           },
         ],
       },
       'control-tower': {
         slug: 'control-tower',
-        title: 'Control tower',
-        lead: '단축키와 프로젝트 모드.',
+        title: '단축키',
+        lead: '손에 익히면 편해지는 키.',
         sections: [
           {
-            heading: '단축키',
-            body: 'Alt+J Job Deck · Alt+I Inbox · Alt+B Intent Composer · Ctrl-K Command Hub.',
+            heading: '기본',
+            body: 'Alt+J 진행 · Alt+I 질문함 · Alt+B 빠른 요청서 · Ctrl+K 전체 검색.',
           },
           {
-            heading: 'Project modes',
-            body: 'balanced · greenfield · hotfix · review. 모드에 따라 병렬 풀과 brief 요구가 달라집니다. /job mode로 바꿉니다.',
+            heading: '작업 분위기',
+            body: 'balanced / greenfield / hotfix / review. 급한 수정은 hotfix가 가볍습니다.',
             code: '/job mode hotfix',
           },
           {
-            heading: 'Intent Composer',
-            body: 'success_criteria 등 슬롯을 채운 뒤 Job을 만듭니다. hotfix는 brief에서 바로 생성할 수 있습니다.',
-          },
-          {
-            heading: 'Plan / Goal',
-            body: '/plan은 Plan Desk Job으로 계획을 오프로드합니다. /goal은 Goal Desk로 목표 루프를 넘깁니다. Conductor 채팅은 계속 열려 있습니다.',
+            heading: '계획·목표',
+            body: '큰 설계는 /plan, 끝까지 밀어볼 목표는 /goal로 넘깁니다. 채팅은 계속 열려 있습니다.',
             code: 'liora --plan\n/goal <objective>',
           },
         ],
       },
       reference: {
         slug: 'reference',
-        title: '레퍼런스',
-        lead: '자주 쓰는 CLI와 slash.',
+        title: '명령 모음',
+        lead: '자주 쓰는 것만.',
         sections: [
           {
-            heading: 'CLI',
-            body: '인터랙티브와 세션 플래그.',
-            code: 'liora\nliora --continue\nliora --plan\nliora --worktree [name]\nliora -m <alias>',
+            heading: '실행',
+            body: '세션을 여는 방법.',
+            code: 'liora\nliora --continue\nliora --plan\nliora --worktree [name]',
           },
           {
-            heading: '핵심 slash',
+            heading: '슬래시',
             body: '/login · /model · /jobs · /job · /agents · /plan · /ask · /goal · /status · /help',
           },
           {
-            heading: 'Ask mode',
-            body: '/ask 또는 Shift-Tab. 읽기 전용. Job 위임이 필요하면 Build로 전환하세요.',
+            heading: 'Ask 모드',
+            body: '읽기만 할 때. 작업을 맡기려면 Build로 돌아오세요.',
           },
         ],
       },
@@ -363,106 +389,125 @@ export const translations: Record<Lang, Translation> = {
     lang: 'en',
     dir: 'ltr',
     meta: {
-      title: 'SuperLiora — Conductor harness',
+      title: 'SuperLiora — Finish long coding work in the terminal',
       description:
-        'SuperLiora is a Conductor harness. Chat is the control plane; implementation runs on isolated Jobs in git worktrees. Watch progress in the Job Deck and Worker Dock, answer Inbox prompts, then land locally when trust checks pass.',
+        'SuperLiora is a terminal AI coding agent. Describe the outcome, let work run in the background, watch progress, and step in only when asked.',
       ogLocale: 'en_US',
     },
     skip: 'Skip to content',
     nav: {
-      how: 'How it works',
-      tower: 'Control tower',
+      why: 'Why',
+      how: 'Flow',
       install: 'Install',
-      docs: 'Docs',
+      docs: 'Guide',
     },
     hero: {
       brand: 'SuperLiora',
-      h1: 'You talk. Conductor runs Jobs.',
-      lead: 'Describe the outcome on the control plane. Workers implement in isolated worktrees. Operate with the Deck and Inbox — do not wait on the worker.',
+      h1: 'Finish long coding work in the terminal.',
+      lead: 'Describe the outcome. Work runs in the background. You watch progress and step in only when asked.',
       install: 'Install',
       github: 'GitHub',
-      docs: 'Docs',
+      docs: 'Guide',
+    },
+    why: {
+      kicker: 'Why SuperLiora',
+      title: 'Not just another chat box.',
+      body: 'Built for work that takes a while — without losing sight of what is running.',
+      items: [
+        {
+          title: 'Hand off, keep moving',
+          body: 'One sentence starts a job. You do not sit and wait for it to finish.',
+        },
+        {
+          title: 'See the work live',
+          body: 'Watch edits, tests, and workers in the Deck and Dock as they happen.',
+        },
+        {
+          title: 'Parallel without collisions',
+          body: 'Each job gets its own branch, so parallel work does not mash your tree.',
+        },
+        {
+          title: 'You choose when to land',
+          body: 'When checks pass, merge locally. Push to remote only when you want.',
+        },
+      ],
     },
     how: {
-      kicker: 'How Conductor works',
-      title: 'Chat delegates. Jobs implement.',
-      body: 'Same contract the product teaches — type an outcome, take the ACK, watch the background, answer when asked, land when checks pass.',
+      kicker: 'The loop',
+      title: 'Write, watch, answer, land.',
+      body: 'No pipeline to memorize. Keep these four moves.',
       steps: [
         {
-          title: 'Type a task',
-          body: 'Describe the outcome in chat; Conductor creates a Job.',
+          title: 'Say the outcome',
+          body: '“After OAuth, land on /app.” Describe done, not the steps.',
         },
         {
-          title: 'Instant ACK',
-          body: 'You get job_id and state immediately. Never block on worker finish.',
+          title: 'Work runs underneath',
+          body: 'Jobs start immediately. Your chat stays free.',
         },
         {
-          title: 'Dock / Deck',
-          body: 'Watch live progress in the Worker Dock and Alt+J Job Deck.',
+          title: 'Answer when stuck',
+          body: 'When something needs you, reply in Inbox and it continues.',
         },
         {
-          title: 'needs_user',
-          body: 'When a Job asks, answer from Inbox (Alt+I) and resume.',
-        },
-        {
-          title: 'Land',
-          body: 'When trust checks pass, merge locally. Land is not push.',
+          title: 'Land when ready',
+          body: 'Review checks, then merge into local main.',
         },
       ],
     },
     tower: {
-      kicker: 'Control tower',
-      title: 'Read the fleet from the keyboard.',
-      body: 'Conductor UX hotkeys — keep these four.',
+      kicker: 'Keys that stick',
+      title: 'Four shortcuts.',
+      body: 'Enough for the first week.',
       items: [
         {
           keys: 'Alt+J',
-          title: 'Job Deck',
-          body: 'Live cards and worker transcripts.',
+          title: 'See progress',
+          body: 'Open live jobs and code changes.',
         },
         {
           keys: 'Alt+I',
           title: 'Inbox',
-          body: 'Answer needs_user, done, and failure notices.',
+          body: 'Answer questions from running work.',
         },
         {
           keys: 'Alt+B',
-          title: 'Intent Composer',
-          body: 'Fill brief slots such as success_criteria.',
+          title: 'Quick brief',
+          body: 'Fill a short form for hotfixes.',
         },
         {
-          keys: 'Timeline',
-          title: 'Timeline',
-          body: 'Intake → Running → Needs you → Land.',
+          keys: 'Ctrl+K',
+          title: 'Command Hub',
+          body: 'Find settings and commands in one place.',
         },
       ],
     },
     install: {
-      kicker: 'Install',
-      title: 'Install, then run liora.',
-      body: 'Requires Node.js ≥24.15.0. After install, connect a provider with /login and /model.',
-      requirements: 'Node.js ≥24.15.0 · pnpm via Corepack for source installs',
+      kicker: 'Start',
+      title: 'Install, then open liora.',
+      body: 'Needs Node.js 24+. After install, connect a model with /login and /model.',
+      requirements: 'Node.js ≥ 24.15.0',
       commands: [
         { label: 'macOS / Linux', cmd: INSTALL_SH },
         { label: 'Windows PowerShell', cmd: INSTALL_PS },
       ],
-      next: 'Continue in docs',
+      next: 'Open the short guide',
     },
     theatre: {
       play: 'Play',
       pause: 'Pause',
-      chapter: 'Chapter',
+      chapter: 'Scene',
       beats: [
-        { id: 'welcome', label: 'Welcome', caption: 'Conductor coach — type a task in chat.' },
-        { id: 'ack', label: 'Job ACK', caption: 'One line in → instant job_id ACK.' },
-        { id: 'strip', label: 'Job strip', caption: 'Footer strip tracks the board.' },
-        { id: 'dock', label: 'Worker Dock', caption: 'Background workers stay visible.' },
-        { id: 'deck', label: 'Job Deck', caption: 'Alt+J — cards and worker trace.' },
-        { id: 'inbox', label: 'Inbox', caption: 'Alt+I — answer needs_user, resume.' },
-        { id: 'brief', label: 'Composer', caption: 'Alt+B — hotfix brief → JobCreate.' },
-        { id: 'timeline', label: 'Timeline', caption: 'Intake → Running → Needs you → Land.' },
-        { id: 'merge', label: 'Merge Preview', caption: 'Gate checklist — hold without evidence.' },
-        { id: 'land', label: 'Land', caption: 'Local land complete. Land ≠ push.' },
+        { id: 'welcome', label: 'Start', caption: 'Describe the outcome.' },
+        { id: 'ack', label: 'Accepted', caption: 'Work starts right away.' },
+        { id: 'strip', label: 'Status', caption: 'Read progress in the strip.' },
+        { id: 'dock', label: 'Workers', caption: 'See who is doing what.' },
+        { id: 'deck', label: 'Deck', caption: 'Open diffs and tests.' },
+        { id: 'inbox', label: 'Ask', caption: 'Step in only when needed.' },
+        { id: 'brief', label: 'Brief', caption: 'Hotfixes stay short.' },
+        { id: 'timeline', label: 'Timeline', caption: 'The path at a glance.' },
+        { id: 'merge', label: 'Review', caption: 'Land only what passed.' },
+        { id: 'land', label: 'Done', caption: 'Local merge. Push is optional.' },
       ],
     },
     footer: {
@@ -470,127 +515,123 @@ export const translations: Record<Lang, Translation> = {
       github: 'GitHub',
       english: 'English',
       korean: '한국어',
-      docs: 'Docs',
+      docs: 'Guide',
       issues: 'Issues',
       security: 'Security',
-      tagline: 'Conductor harness',
+      tagline: 'Terminal AI coding agent',
     },
     docsNav: docsNavEn,
-    docsShell: { home: 'Home', onThisSite: 'On this site' },
+    docsShell: { home: 'Home', onThisSite: 'Guide' },
     docs: {
       'getting-started': {
         slug: 'getting-started',
         title: 'Getting started',
-        lead: 'Install through your first Job.',
+        lead: 'From install to your first job.',
         sections: [
           {
             heading: 'Install',
-            body: 'Run the install script on macOS/Linux or Windows.',
+            body: 'One line in the terminal.',
             code: INSTALL_SH,
           },
           {
-            heading: 'First session',
-            body: 'From a project root, run liora, then /login and /model. Type the outcome you want; Conductor creates a Job.',
+            heading: 'First run',
+            body: 'From a project folder, run liora, then /login and /model. Describe the outcome you want.',
             code: 'liora\n/login\n/model',
           },
           {
             heading: 'Resume',
-            body: 'Resume the latest session in this directory with --continue. Interrupted Jobs come back with /job resume.',
+            body: 'Reopen the latest session in this folder.',
             code: 'liora --continue',
           },
         ],
       },
       'how-conductor-works': {
         slug: 'how-conductor-works',
-        title: 'How Conductor works',
-        lead: 'Conductor is the control plane, not a coding worker.',
+        title: 'How it works',
+        lead: 'You set direction. Background jobs do the grinding.',
         sections: [
           {
-            heading: 'Delegation only',
-            body: 'File mutations, builds, and tests are Jobs. The Conductor lane reads, inspects, manages the ledger, and asks questions. Direct Write is rejected with a Job draft.',
+            heading: 'Split roles',
+            body: 'Chat reads, plans, and delegates. File edits, builds, and tests run in isolated jobs.',
           },
           {
-            heading: 'Never wait',
-            body: 'JobCreate ACKs immediately. Results arrive in Inbox. Do not poll.',
+            heading: 'Do not wait',
+            body: 'Jobs are accepted immediately. Results come back as notices.',
           },
           {
-            heading: 'Two worktrees',
-            body: 'A Job worktree is an isolated git tree per Job. liora --worktree isolates the session cwd. Do not conflate them.',
+            heading: 'Separate branches',
+            body: 'Each job runs on its own branch. That is different from liora --worktree, which moves the whole session.',
           },
           {
-            heading: 'Ask vs Build',
-            body: 'Shift-Tab cycles Build and Ask. Ask denies JobCreate. Switch back to Build to delegate.',
+            heading: 'Ask / Build',
+            body: 'Shift-Tab switches ask-only and build. Ask mode will not start new jobs.',
           },
         ],
       },
       jobs: {
         slug: 'jobs',
         title: 'Jobs',
-        lead: 'Ledger, Deck, Inbox, merge.',
+        lead: 'List, watch, answer, land.',
         sections: [
           {
-            heading: 'List and Deck',
-            body: 'List with /jobs. Open the monitor with /jobs deck or Alt+J.',
+            heading: 'Watch',
+            body: 'List with /jobs. Open the live view with Alt+J.',
             code: '/jobs\n/jobs deck',
           },
           {
             heading: 'Steer',
-            body: 'inspect · answer · resume · cancel · steer. Many paths are RPC hotpaths without an LLM turn.',
+            body: 'Answer, resume, or cancel running work.',
             code: '/job inbox\n/job answer <id> <text>\n/job resume\n/job cancel <id>',
           },
           {
-            heading: 'Merge and Land',
-            body: 'Approve Merge Preview after gates pass to land into local main. Remote publish is a separate Push Preview.',
+            heading: 'Land',
+            body: 'When checks pass, merge locally. Remote publish is a separate step.',
           },
           {
-            heading: 'GC',
-            body: 'Clean finished worktrees with /job gc.',
+            heading: 'Clean up',
+            body: 'Remove finished job folders.',
             code: '/job gc',
           },
         ],
       },
       'control-tower': {
         slug: 'control-tower',
-        title: 'Control tower',
-        lead: 'Shortcuts and project modes.',
+        title: 'Shortcuts',
+        lead: 'Keys that pay off quickly.',
         sections: [
           {
-            heading: 'Shortcuts',
-            body: 'Alt+J Job Deck · Alt+I Inbox · Alt+B Intent Composer · Ctrl-K Command Hub.',
+            heading: 'Basics',
+            body: 'Alt+J progress · Alt+I inbox · Alt+B quick brief · Ctrl+K hub.',
           },
           {
-            heading: 'Project modes',
-            body: 'balanced · greenfield · hotfix · review. Pool size and brief rules change with mode. Set with /job mode.',
+            heading: 'Modes',
+            body: 'balanced / greenfield / hotfix / review. Hotfix stays light for urgent fixes.',
             code: '/job mode hotfix',
           },
           {
-            heading: 'Intent Composer',
-            body: 'Fill slots such as success_criteria, then create a Job. Hotfix can create straight from the brief.',
-          },
-          {
-            heading: 'Plan / Goal',
-            body: '/plan offloads planning to a Plan Desk Job. /goal sends the objective loop to Goal Desk. Conductor chat stays free.',
+            heading: 'Plan and goals',
+            body: 'Use /plan for big design, /goal to push until done. Chat stays open.',
             code: 'liora --plan\n/goal <objective>',
           },
         ],
       },
       reference: {
         slug: 'reference',
-        title: 'Reference',
-        lead: 'CLI flags and slash commands you will actually use.',
+        title: 'Commands',
+        lead: 'The ones you will actually use.',
         sections: [
           {
             heading: 'CLI',
-            body: 'Interactive session flags.',
-            code: 'liora\nliora --continue\nliora --plan\nliora --worktree [name]\nliora -m <alias>',
+            body: 'Open a session.',
+            code: 'liora\nliora --continue\nliora --plan\nliora --worktree [name]',
           },
           {
-            heading: 'Core slash',
+            heading: 'Slash',
             body: '/login · /model · /jobs · /job · /agents · /plan · /ask · /goal · /status · /help',
           },
           {
             heading: 'Ask mode',
-            body: '/ask or Shift-Tab. Read-only. Switch to Build when you need Job delegation.',
+            body: 'Read-only. Switch back to Build to delegate work.',
           },
         ],
       },
