@@ -5,6 +5,14 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
   // ── Mission Control / Worker Dock ────────────────────────────────────────
   'tui.missionControl.workerDock': 'Worker Dock',
   'tui.missionControl.missionControl': 'Mission Control',
+  'tui.missionControl.dockHint': 'Enter open · Esc back · click select',
+  'tui.missionControl.transcriptHint':
+    '↑↓ scroll · PgUp/PgDn · Home/End · G/F top/tail · R refresh · Esc back',
+  'tui.missionControl.transcriptLoading': 'Loading worker transcript…',
+  'tui.missionControl.transcriptEmpty': 'No transcript messages yet for this worker.',
+  'tui.missionControl.transcriptLoadFailed': 'Could not load the worker transcript.',
+  'tui.missionControl.transcriptWorkerGone': 'Worker left the roster — showing last snapshot.',
+  'tui.missionControl.workerNotFound': 'That worker is no longer on the dock.',
 
   // ── Settings pane titles ─────────────────────────────────────────────────
   'tui.settings.pane.theme.title': 'Theme',
@@ -717,6 +725,14 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
 export const STRINGS_TUI_REMAINDER_KO: Readonly<Record<string, string>> = {
   'tui.missionControl.workerDock': 'Worker Dock',
   'tui.missionControl.missionControl': 'Mission Control',
+  'tui.missionControl.dockHint': 'Enter 열기 · Esc 뒤로 · 클릭 선택',
+  'tui.missionControl.transcriptHint':
+    '↑↓ 스크롤 · PgUp/PgDn · Home/End · G/F 맨위/끝 · R 새로고침 · Esc 뒤로',
+  'tui.missionControl.transcriptLoading': '워커 트랜스크립트 불러오는 중…',
+  'tui.missionControl.transcriptEmpty': '이 워커의 트랜스크립트 메시지가 아직 없습니다.',
+  'tui.missionControl.transcriptLoadFailed': '워커 트랜스크립트를 불러오지 못했습니다.',
+  'tui.missionControl.transcriptWorkerGone': '워커가 독에서 사라졌습니다 — 마지막 스냅샷을 표시합니다.',
+  'tui.missionControl.workerNotFound': '해당 워커가 독에 없습니다.',
 
   'tui.settings.pane.theme.title': '테마',
   'tui.settings.pane.theme.panelTitle': ' 테마 ',

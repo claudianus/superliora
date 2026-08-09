@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import type { Event } from '@superliora/sdk';
 
@@ -12,6 +12,13 @@ import {
 } from '#/tui/components/panes/mission-control/panel';
 import { MissionControlRegistry } from '#/tui/controllers/mission-control/registry';
 import { appearanceAnimationNow } from '#/tui/features/appearance/appearance-effects';
+import {
+  clearHoverRegion,
+  missionWorkerHoverId,
+  setHoverRegion,
+} from '#/tui/features/mission-control/worker-hover';
+import { HOVER_ROW_PAD } from '#/tui/features/mission-control/worker-row-paint';
+import { SELECT_POINTER } from '#/tui/constant/symbols';
 import {
   emptyConductorJobsSnapshot,
   type ConductorJobCard,
@@ -65,6 +72,10 @@ function jobCard(over: Partial<ConductorJobCard>): ConductorJobCard {
 }
 
 describe('MissionControlPanelComponent', () => {
+  afterEach(() => {
+    clearHoverRegion();
+  });
+
   it('formats live token rates for the dock chrome', () => {
     expect(formatMissionTokenRate(0)).toBe('');
     expect(formatMissionTokenRate(840)).toBe('840/s');
@@ -445,7 +456,8 @@ describe('MissionControlPanelComponent', () => {
     });
     const text = plain(panel.render(100)).join('\n');
     expect(text).toContain('FLEET');
-    expect(text).toContain('Considering Phaser platformer physics');
+    // LIVE column is truncated under densemode width + fixed chrome gutter.
+    expect(text).toMatch(/Considering Phaser platformer physi/);
     expect(text).toContain('\u25cc');
     // Hot stream replaces the static description/intent in LIVE.
     expect(text).not.toContain('Investigate Metal Slug mechanics');
@@ -644,5 +656,167 @@ describe('MissionControlPanelComponent', () => {
     expect(pageBack).toContain('w1');
     expect(panel.scrollWorkers('line-up')).toBe(true);
     expect(panel.scrollWorkers('line-up')).toBe(false);
+  });
+
+  it('selects workers with ↑↓ and opens via Enter; Esc clears selection', () => {
+    const clock = appearanceAnimationNow();
+    const workers: MissionWorker[] = [
+      {
+        id: 'sa-a',
+        name: 'coder-a',
+        kind: 'subagent',
+        status: 'running',
+        runInBackground: false,
+        toolCount: 2,
+        tokens: 100,
+        elapsedMs: 2_000,
+        spawnedAtMs: clock,
+        lastActivityAtMs: clock,
+      },
+      {
+        id: 'sa-b',
+        name: 'coder-b',
+        kind: 'subagent',
+        status: 'running',
+        runInBackground: false,
+        toolCount: 1,
+        tokens: 50,
+        elapsedMs: 1_000,
+        spawnedAtMs: clock + 1,
+        lastActivityAtMs: clock,
+      },
+    ];
+    const panel = new MissionControlPanelComponent();
+    panel.setView({
+      snapshot: {
+        version: 1,
+        workers,
+        activeCount: 2,
+        totalTokens: 150,
+        ops: [],
+      },
+      jobs: emptyConductorJobsSnapshot(),
+    });
+
+    expect(panel.selectedWorker).toBeUndefined();
+    const down = panel.handleSelectionKey('down');
+    expect(down.handled).toBe(true);
+    expect(panel.selectedWorker).toBe('sa-a');
+
+    const down2 = panel.handleSelectionKey('down');
+    expect(down2.handled).toBe(true);
+    expect(panel.selectedWorker).toBe('sa-b');
+
+    const enter = panel.handleSelectionKey('enter');
+    expect(enter.handled).toBe(true);
+    expect(enter.openWorkerId).toBe('sa-b');
+
+    const esc = panel.handleSelectionKey('escape');
+    expect(esc.handled).toBe(true);
+    expect(esc.clearSelection).toBe(true);
+    expect(panel.selectedWorker).toBeUndefined();
+
+    // Footer hint when workers exist
+    const text = plain(panel.render(100)).join('\n');
+    expect(text).toMatch(/Enter open|Enter 열기/i);
+  });
+
+  it('hit-tests densemode worker rows after paint', () => {
+    const clock = appearanceAnimationNow();
+    const workers: MissionWorker[] = [
+      {
+        id: 'sa-hit',
+        name: 'hit-me',
+        kind: 'subagent',
+        status: 'running',
+        runInBackground: false,
+        toolCount: 1,
+        tokens: 10,
+        elapsedMs: 500,
+        spawnedAtMs: clock,
+        lastActivityAtMs: clock,
+      },
+    ];
+    const panel = new MissionControlPanelComponent();
+    panel.setView({
+      snapshot: {
+        version: 1,
+        workers,
+        activeCount: 1,
+        totalTokens: 10,
+        ops: [],
+      },
+      jobs: emptyConductorJobsSnapshot(),
+    });
+    // Paint to populate lastWorkerRowMap.
+    panel.render(100);
+    // bandLocalY: 0 = top border; 1 = first content (KPI); worker rows after header.
+    const hits: string[] = [];
+    for (let y = 0; y < 12; y += 1) {
+      const hit = panel.hitTestWorkerRow(y, 12);
+      if (hit?.kind === 'worker') hits.push(hit.workerId);
+    }
+    expect(hits).toContain('sa-hit');
+    expect(panel.selectWorker('sa-hit')).toBe(true);
+    expect(panel.selectedWorker).toBe('sa-hit');
+  });
+
+  it('same-frame render: selected ❯ on one worker, hover pad on another', () => {
+    const clock = appearanceAnimationNow();
+    // Densemode WKR column truncates names to 8 cols — keep short unique labels.
+    const workers: MissionWorker[] = [
+      {
+        id: 'sa-sel',
+        name: 'sel-a',
+        kind: 'subagent',
+        status: 'running',
+        runInBackground: false,
+        toolCount: 2,
+        tokens: 100,
+        elapsedMs: 2_000,
+        spawnedAtMs: clock,
+        lastActivityAtMs: clock,
+      },
+      {
+        id: 'sa-hov',
+        name: 'hov-b',
+        kind: 'subagent',
+        status: 'running',
+        runInBackground: false,
+        toolCount: 1,
+        tokens: 50,
+        elapsedMs: 1_000,
+        spawnedAtMs: clock + 1,
+        lastActivityAtMs: clock,
+      },
+    ];
+    const panel = new MissionControlPanelComponent();
+    panel.setView({
+      snapshot: {
+        version: 1,
+        workers,
+        activeCount: 2,
+        totalTokens: 150,
+        ops: [],
+      },
+      jobs: emptyConductorJobsSnapshot(),
+    });
+
+    expect(panel.selectWorker('sa-sel')).toBe(true);
+    setHoverRegion(missionWorkerHoverId('sa-hov'), clock);
+
+    const text = plain(panel.render(100)).join('\n');
+    const pointerCount = (text.match(new RegExp(SELECT_POINTER, 'g')) ?? []).length;
+    expect(pointerCount).toBe(1);
+    // Panel box prefix (`│`) sits before chrome — match gutter after the border.
+    const selLine = text.split('\n').find((line) => line.includes('sel-a'));
+    const hovLine = text.split('\n').find((line) => line.includes('hov-b'));
+    expect(selLine).toBeDefined();
+    expect(hovLine).toBeDefined();
+    expect(selLine!).toMatch(new RegExp(`[│ ]${SELECT_POINTER} `));
+    expect(hovLine!.includes(SELECT_POINTER)).toBe(false);
+    // Hover pad is immediately after the box border / gutter (SPARK · is later).
+    expect(hovLine!).toMatch(new RegExp(`[│ ]${HOVER_ROW_PAD} `));
+    expect(hovLine!.indexOf(HOVER_ROW_PAD)).toBeLessThan(hovLine!.indexOf('hov-b'));
   });
 });
