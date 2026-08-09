@@ -2503,4 +2503,88 @@ describe('ToolCallComponent motion cues', () => {
       expect(strip(component.render(100).join('\n'))).not.toContain('density-output-token');
     });
   });
+
+  describe('Used-unit trailing spacer (standard/full density)', () => {
+    function finishedTool(id: string, name = 'Bash'): ToolCallComponent {
+      return new ToolCallComponent(
+        {
+          id,
+          name,
+          args: { command: `echo ${id}` },
+        },
+        {
+          tool_call_id: id,
+          output: `${id}-body-line`,
+          is_error: false,
+        },
+      );
+    }
+
+    function plainLines(component: ToolCallComponent): string[] {
+      return component.render(100).map((line) => strip(line));
+    }
+
+    it('standard cards end with a blank tinted row so consecutive Used-units separate', () => {
+      const previousLevel = chalk.level;
+      chalk.level = 3;
+      try {
+        const first = finishedTool('unit_a');
+        const second = finishedTool('unit_b');
+        first.setDetail('standard');
+        second.setDetail('standard');
+
+        const firstLines = plainLines(first);
+        expect(firstLines.some((line) => line.includes('Used'))).toBe(true);
+        // Trailing blank is last row of the card (tinted by render, strip leaves '').
+        expect(firstLines.at(-1)?.trim()).toBe('');
+
+        // Sibling stream: blank between the end of unit A and the next Used header.
+        const joined = [...first.render(100), ...second.render(100)].map((line) => strip(line));
+        const firstUsed = joined.findIndex((line) => line.includes('Used') && line.includes('Bash'));
+        const secondUsed = joined.findIndex(
+          (line, i) => i > firstUsed && line.includes('Used') && line.includes('Bash'),
+        );
+        expect(firstUsed).toBeGreaterThanOrEqual(0);
+        expect(secondUsed).toBeGreaterThan(firstUsed + 1);
+        const between = joined.slice(firstUsed + 1, secondUsed);
+        expect(between.some((line) => line.trim() === '')).toBe(true);
+
+        // Blank row still carries work-block background (not an untinted sibling gap).
+        // Entrance polish may fold bg into a compound SGR (`…;48;2;r;g;bm`), so
+        // match the bg channel rather than a bare `\x1b[48;2` prefix.
+        const tintedBlank = first.render(100).at(-1) ?? '';
+        expect(tintedBlank).toMatch(/48;2/);
+        expect(strip(tintedBlank).trim()).toBe('');
+      } finally {
+        chalk.level = previousLevel;
+      }
+    });
+
+    it('full density also keeps one trailing blank per Used-unit', () => {
+      const component = finishedTool('unit_full');
+      component.setDetail('full');
+      const lines = plainLines(component);
+      expect(lines.at(-1)?.trim()).toBe('');
+      expect(lines.some((line) => line.includes('Used'))).toBe(true);
+    });
+
+    it('compact one-line cards stay dense without bulk trailing blank', () => {
+      const component = finishedTool('unit_compact');
+      component.setDetail('compact');
+      const lines = plainLines(component);
+      expect(component.isOneLineCollapsed).toBe(true);
+      // Header-only (plus optional error punch-through) — no body spacer row.
+      expect(lines.length).toBe(1);
+      expect(lines[0]).toContain('Used');
+      expect(lines[0]?.trim()).not.toBe('');
+    });
+
+    it('header remains localRow 0 (no leading blank) for density mouse', () => {
+      const component = finishedTool('unit_header_row');
+      component.setDetail('standard');
+      const lines = plainLines(component);
+      expect(lines[0]).toContain('Used');
+      expect(lines[0]?.trim().length).toBeGreaterThan(0);
+    });
+  });
 });
