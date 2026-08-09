@@ -184,11 +184,10 @@ describe('compaction — guard tests', () => {
 
 describe('compaction — probe tests (high-risk scenarios)', () => {
   // PROBE #1 / CMP-02 — messages appended while the summarizer request is in
-  // flight (a live step racing a manual/SDK compaction). The summary only covers
-  // the pre-compaction snapshot, and the all-user rebuild would drop the appended
-  // assistant/tool tail — so compaction detects the changed history and cancels,
-  // leaving the appended turn intact for a later clean-boundary compaction.
-  it('cancels when an assistant turn is appended while the summarizer call is in flight', async () => {
+  // flight (async / live-step race). applyCompaction keeps
+  // history.slice(compactedCount), so an append-only tail must complete and
+  // retain the raced messages — cancelling would thrash Conductor wakes.
+  it('completes and keeps an assistant turn appended while the summarizer call is in flight', async () => {
     let ctx!: TestAgentContext;
     const appendDuringGenerate: GenerateFn = async () => {
       // Simulate the turn loop completing a step while compaction awaits.
@@ -220,12 +219,14 @@ describe('compaction — probe tests (high-risk scenarios)', () => {
     ctx.appendExchange(1, 'user one', 'assistant one', 40);
 
     await ctx.rpc.beginCompaction({});
-    await ctx.once('compaction.cancelled');
+    await ctx.once('compaction.completed');
 
     expect(historyTexts(ctx).join('\n')).toContain('RACE-ASSISTANT-OUTPUT');
   });
 
-  it('cancels when an assistant message is mutated in place during summarization', async () => {
+  // Manual compaction includes a trailing open assistant in the compacted
+  // prefix; in-place streaming into that message must cancel (summary is stale).
+  it('cancels when a compacted-prefix assistant is mutated in place during summarization', async () => {
     let ctx!: TestAgentContext;
     const appendDuringGenerate: GenerateFn = async () => {
       ctx.agent.context.appendLoopEvent({
@@ -254,12 +255,9 @@ describe('compaction — probe tests (high-risk scenarios)', () => {
     expect(historyTexts(ctx).join('\n')).toContain('RACE-IN-PLACE-OUTPUT');
   });
 
-  // PROBE #1b — a user-ROLE message that compaction would drop (background-task
-  // notification, hook/cron reminder, shell output) appended mid-summary. It is
-  // neither summarized (added after the snapshot) nor kept (applyCompaction keeps
-  // only real user input), so it would silently vanish; the race guard must cancel
-  // on any tail compaction would drop, not just non-user roles.
-  it('cancels compaction when a droppable user-role tail is appended mid-summary', async () => {
+  // PROBE #1b — background-task (and other non-real-user) tails appended
+  // mid-summary stay in retainedSuffix; completing must not drop them.
+  it('completes and keeps a droppable user-role tail appended mid-summary', async () => {
     let ctx!: TestAgentContext;
     const appendDuringGenerate: GenerateFn = async () => {
       ctx.agent.context.appendUserMessage([{ type: 'text', text: 'BG-NOTIFY-OUTPUT' }], {
@@ -275,9 +273,8 @@ describe('compaction — probe tests (high-risk scenarios)', () => {
     ctx.appendExchange(1, 'user one', 'assistant one', 40);
 
     await ctx.rpc.beginCompaction({});
-    await Promise.race([ctx.once('compaction.completed'), ctx.once('compaction.cancelled')]);
+    await ctx.once('compaction.completed');
 
-    // Cancelled, so the notification survives in history rather than being dropped.
     expect(historyTexts(ctx).join('\n')).toContain('BG-NOTIFY-OUTPUT');
   });
 

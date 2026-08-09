@@ -172,6 +172,12 @@ export async function runTurnStepLoop(
                 });
               }
             }
+            // Settle in-flight (async) compaction before history-mutating hooks.
+            // Otherwise flushSteer / micro cutoff / budget tips race the worker
+            // and used to surface as spurious compaction.cancelled.
+            if (agent.fullCompaction.isCompacting) {
+              await agent.fullCompaction.beforeStep(stepSignal);
+            }
             // Loop22a: soft step-budget early warning (one-shot per turn).
             const maxSteps = loopControl?.maxStepsPerTurn;
             if (typeof maxSteps === 'number' && maxSteps > 0) {

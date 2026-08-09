@@ -7,10 +7,12 @@ import {
   DEFAULT_COMPACTION_GENERATE_TIMEOUT_MS,
   DEFAULT_COMPACTION_STREAM_IDLE_MS,
   DEFAULT_COMPACTION_WORKER_TIMEOUT_MS,
+  MAX_COMPACTION_WORKER_TIMEOUT_MS,
   compactionGenerateOptions,
   resolveCompactionGenerateTimeoutMs,
   resolveCompactionWorkerTimeoutMs,
   runCompactionGenerate,
+  scaleCompactionWorkerTimeoutMs,
 } from '../../../src/agent/compaction/pipeline/generate-guard';
 import type { CompactionPipelineContext } from '../../../src/agent/compaction/pipeline/types';
 
@@ -37,6 +39,30 @@ describe('compaction generate-guard timeouts', () => {
     expect(resolveCompactionWorkerTimeoutMs()).toBe(DEFAULT_COMPACTION_WORKER_TIMEOUT_MS);
 
     expect(resolveCompactionGenerateTimeoutMs(12_345)).toBe(12_345);
+  });
+
+  it('scales the worker budget with compacted prefix size and caps at 30 minutes', () => {
+    expect(
+      scaleCompactionWorkerTimeoutMs({
+        baseMs: DEFAULT_COMPACTION_WORKER_TIMEOUT_MS,
+        compactedTokens: 40_000,
+      }),
+    ).toBe(DEFAULT_COMPACTION_WORKER_TIMEOUT_MS);
+
+    // 250k tokens → 200k above the 50k floor → 20 * 30s = 600s extra.
+    expect(
+      scaleCompactionWorkerTimeoutMs({
+        baseMs: DEFAULT_COMPACTION_WORKER_TIMEOUT_MS,
+        compactedTokens: 250_000,
+      }),
+    ).toBe(DEFAULT_COMPACTION_WORKER_TIMEOUT_MS + 600_000);
+
+    expect(
+      scaleCompactionWorkerTimeoutMs({
+        baseMs: DEFAULT_COMPACTION_WORKER_TIMEOUT_MS,
+        compactedTokens: 5_000_000,
+      }),
+    ).toBe(MAX_COMPACTION_WORKER_TIMEOUT_MS);
   });
 
   it('attaches a tighter stream idle budget on generate options', () => {
