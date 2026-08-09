@@ -18,7 +18,6 @@
 import {
   Key,
   matchesKey,
-  renderRendererRatioProgressBar,
   truncateToWidth,
   visibleWidth,
   type Component,
@@ -49,6 +48,10 @@ import {
   chromeBandInteriorWidth,
   renderRoundedPanel,
 } from '#/tui/utils/ui/panel-frame';
+import {
+  renderLiveRatioBar,
+  renderLiveSectionHeader,
+} from '#/tui/components/chrome/chrome-band-motion';
 import {
   emptyConductorJobsSnapshot,
   formatJobDuration,
@@ -115,8 +118,6 @@ const TERMINAL_FLASH_MS = 2_000;
 const OPS_SETTLE_FLASH_MS = 1_400;
 /** Action row still "hot" after lastActivity — shimmer the → line. */
 const ACTION_HOT_MS = 900;
-/** Progress-bar shimmer sweep period. */
-const BAR_SHIMMER_PERIOD_MS = 1_100;
 /** Worker name column cap so intent keeps room on narrow docks. */
 const WORKER_NAME_MAX = 16;
 /** Target budget inside a ~40col dock interior. */
@@ -632,13 +633,7 @@ export class MissionControlPanelComponent implements Component {
   }
 
   private sectionHeader(label: string, live = false): string {
-    const appearance = getActiveAppearancePreferences();
-    const title = currentTheme.boldFg('textMuted', label);
-    // Live cue is a single pulse dot — never shimmer the section label itself.
-    if (live && shouldRenderAmbientEffects(appearance)) {
-      return `${renderPulseGlyph(PULSE_ACTIVE_FRAMES, `mc:sec:${label}`, '●', 'primary', appearance)} ${title}`;
-    }
-    return title;
+    return renderLiveSectionHeader(label, live, 'mc:sec');
   }
 
   private workerIntent(worker: MissionWorker): string | undefined {
@@ -878,17 +873,11 @@ export class MissionControlPanelComponent implements Component {
     }
     const done = worker.todoDone ?? 0;
     const ratio = worker.todoTotal === 0 ? 0 : done / worker.todoTotal;
-    const bar =
-      animated && (worker.status === 'running' || worker.status === 'finishing')
-        ? this.renderLiveProgressBar(ratio, 6, now, `mc-bar:${worker.id}`)
-        : renderRendererRatioProgressBar({
-            ratio,
-            width: 6,
-            filledChar: '▓',
-            emptyChar: '░',
-            filledStyle: (text) => currentTheme.fg('primary', text),
-            emptyStyle: (text) => currentTheme.fg('textMuted', text),
-          });
+    const bar = renderLiveRatioBar(ratio, 6, {
+      now,
+      seed: `mc-bar:${worker.id}`,
+      animated: animated && (worker.status === 'running' || worker.status === 'finishing'),
+    });
     const focus = worker.focusTodo?.trim();
     const label =
       !focusAlreadyShown && focus !== undefined && focus.length > 0
@@ -904,29 +893,6 @@ export class MissionControlPanelComponent implements Component {
           }`
         : '';
     return `  ${bar} ${currentTheme.fg('textMuted', label)}${rateChip}`;
-  }
-
-  /** Clock-driven shimmer sweep over a ratio bar (PREMIUM.md §7). */
-  private renderLiveProgressBar(
-    ratio: number,
-    width: number,
-    now: number,
-    _seed: string,
-  ): string {
-    const filled = Math.min(width, Math.max(0, Math.round(ratio * width)));
-    const shimmerIndex =
-      Math.floor(((now % BAR_SHIMMER_PERIOD_MS) / BAR_SHIMMER_PERIOD_MS) * (width + 2)) - 1;
-    let bar = '';
-    for (let i = 0; i < width; i += 1) {
-      if (i < filled) {
-        bar += currentTheme.fg(i === shimmerIndex ? 'glow' : 'primary', '▓');
-      } else if (i === shimmerIndex) {
-        bar += currentTheme.fg('accent', '░');
-      } else {
-        bar += currentTheme.fg('textMuted', '░');
-      }
-    }
-    return bar;
   }
 
   private renderWorkerNameRow(worker: MissionWorker, animated: boolean, now: number): string {

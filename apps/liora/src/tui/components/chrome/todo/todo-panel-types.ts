@@ -27,11 +27,20 @@ export interface TodoBoardScrollSnapshot {
   readonly total: number;
 }
 
+/** Optional Worker Dock link for the FOCUS strip. */
+export interface TodoFocusLink {
+  readonly worker: string;
+  readonly tool?: string;
+  readonly target?: string;
+}
+
 /**
  * Host environment for the board's virtual scroll. `terminalRows` lends the
  * panel a height budget; without it (tests, headless callers) the collapsed
  * board keeps the legacy MAX_VISIBLE selection byte-for-byte.
+ * `resolveFocusLink` injects the live worker/tool for the FOCUS row.
  */
 export interface TodoPanelOptions {
   readonly terminalRows?: () => number;
+  readonly resolveFocusLink?: () => TodoFocusLink | undefined;
 }

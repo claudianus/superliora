@@ -14,8 +14,13 @@ import type { AppearancePreferences } from '#/tui/config';
 import {
   renderPulseGlyph,
   renderPulseText,
+  renderToneSettleFlash,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
+import {
+  renderLiveSectionHeader,
+  renderPulseCountChip,
+} from '#/tui/components/chrome/chrome-band-motion';
 import type { MissionOpsEntry, MissionWorker } from '#/tui/controllers/mission-control/registry';
 import { shortJobId } from '#/tui/components/job-board/job-board-helpers';
 import {
@@ -412,11 +417,7 @@ export function buildDenseContent(options: BuildDenseContentOptions): DenseConte
 
   if (wantTape && lines.length < budget) {
     const liveTape = animated && workers.some((w) => w.status === 'running');
-    lines.push(
-      liveTape && shouldRenderAmbientEffects(appearance)
-        ? `${renderPulseGlyph(PULSE_ACTIVE_FRAMES, 'mc:tape:hdr', '●', 'primary', appearance)} ${currentTheme.boldFg('textMuted', 'TAPE')}`
-        : currentTheme.boldFg('textMuted', 'TAPE'),
-    );
+    lines.push(renderLiveSectionHeader('TAPE', liveTape, 'mc:sec', appearance));
     // Leave room for BOARD strip when jobs are present.
     const boardReserve = wantBoard ? DENSE_BOARD_MIN : 0;
     const tapeRows = Math.max(0, budget - lines.length - boardReserve);
@@ -435,11 +436,7 @@ export function buildDenseContent(options: BuildDenseContentOptions): DenseConte
 
   if (wantBoard && jobs !== undefined && lines.length < budget) {
     const liveBoard = animated && jobs.running > 0;
-    lines.push(
-      liveBoard && shouldRenderAmbientEffects(appearance)
-        ? `${renderPulseGlyph(PULSE_ACTIVE_FRAMES, 'mc:board:hdr', '●', 'primary', appearance)} ${currentTheme.boldFg('textMuted', 'BOARD')}`
-        : currentTheme.boldFg('textMuted', 'BOARD'),
-    );
+    lines.push(renderLiveSectionHeader('BOARD', liveBoard, 'mc:sec', appearance));
     if (lines.length < budget) {
       lines.push(truncateToWidth(formatMissionJobCounts(jobs), width, '…'));
     }
@@ -490,17 +487,12 @@ function buildKpiLine(
       ? undefined
       : budgetParts.reduce((a, b) => a + b, 0) / budgetParts.length;
 
-  const fleet = animated
-    ? renderPulseText(`FLEET ${String(active.length)}`, 'mc:kpi:fleet', 'primary', appearance)
-    : currentTheme.fg('primary', `FLEET ${String(active.length)}`);
-  const parts = [fleet];
+  const parts = [
+    renderPulseCountChip(`FLEET ${String(active.length)}`, 'mc:kpi:fleet', 'primary', appearance),
+  ];
   const rateLabel = formatMissionTokenRate(sumRate);
   if (rateLabel.length > 0) {
-    parts.push(
-      animated
-        ? renderPulseText(`Σ${rateLabel}`, 'mc:kpi:rate', 'accent', appearance)
-        : currentTheme.fg('accent', `Σ${rateLabel}`),
-    );
+    parts.push(renderPulseCountChip(`Σ${rateLabel}`, 'mc:kpi:rate', 'accent', appearance));
   }
   if (sumTok > 0) parts.push(currentTheme.fg('textMuted', `Σ${formatMissionTokens(sumTok)}`));
   if (wall > 0) parts.push(currentTheme.fg('textDim', `wall ${formatJobDuration(wall)}`));
@@ -559,10 +551,8 @@ function buildTickerLine(
       entry.status === 'error' ? 'error' : entry.status === 'running' ? 'primary' : 'textDim';
     return currentTheme.fg(token, plain);
   });
-  const prefix =
-    animated && shouldRenderAmbientEffects(appearance)
-      ? `${renderPulseGlyph(PULSE_ACTIVE_FRAMES, 'mc:tk:hdr', '●', 'primary', appearance)} ${currentTheme.boldFg('textMuted', 'TK')}`
-      : currentTheme.boldFg('textMuted', 'TK');
+  const liveTk = animated && ops.some((entry) => entry.status === 'running');
+  const prefix = renderLiveSectionHeader('TK', liveTk, 'mc:sec', appearance);
   const body = chips.join(currentTheme.fg('textMuted', ' · '));
   return truncateToWidth(`${prefix}  ${body}`, width, '…');
 }
@@ -678,6 +668,12 @@ function buildTapeRow(
   const worker = showWorker
     ? currentTheme.fg('text', ` ${truncateToWidth(entry.workerName, 8, '…')}`)
     : '';
+  const settledAt = entry.settledAtMs ?? entry.atMs;
+  const freshlySettled =
+    animated &&
+    entry.status !== 'running' &&
+    now - settledAt < 1_400 &&
+    shouldRenderAmbientEffects(appearance);
   let mark: string;
   if (entry.status === 'running') {
     mark =
@@ -685,9 +681,13 @@ function buildTapeRow(
         ? ` ${renderPulseGlyph(PULSE_ACTIVE_FRAMES, `mc:tape:${entry.toolCallId}`, '▸', 'primary')} `
         : currentTheme.fg('primary', ' ▸ ');
   } else if (entry.status === 'error') {
-    mark = currentTheme.fg('error', ' ✗ ');
+    mark = freshlySettled
+      ? ` ${renderToneSettleFlash('✗', `mc:tape-err:${entry.toolCallId}`, settledAt, 'error')} `
+      : currentTheme.fg('error', ' ✗ ');
   } else {
-    mark = currentTheme.fg('success', ' ✓ ');
+    mark = freshlySettled
+      ? ` ${renderToneSettleFlash('✓', `mc:tape-ok:${entry.toolCallId}`, settledAt, 'success')} `
+      : currentTheme.fg('success', ' ✓ ');
   }
   const human = formatMissionTarget(
     entry.name,

@@ -7,7 +7,6 @@
  */
 import {
   renderRendererDividerRow,
-  renderRendererRatioProgressBar,
   truncateToWidth,
   visibleWidth,
   wrapTextWithAnsi,
@@ -17,26 +16,31 @@ import {
   GOAL_DOT,
   PENDING_GLYPH,
   PULSE_ACTIVE_FRAMES,
-  TODO_ADDED,
   TODO_COMPLETED,
   TODO_MOVED,
   TODO_REOPENED,
 } from '#/tui/constant/symbols';
-import { currentTheme } from '#/tui/theme/theme';
+import { currentTheme, type ColorToken } from '#/tui/theme/theme';
 import type { ColorPalette } from '#/tui/theme/colors';
 import type { resolveResponsiveLayout } from '#/tui/controllers/layout/responsive-layout';
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
   isToneSettleFlashActive,
+  motionProgress,
   renderPulseGlyph,
   renderSettleFlash,
-  renderShimmerPrefix,
   renderToneSettleFlash,
   resolveQualityAdjustedAmbientEffectMode,
   SETTLE_FLASH_MS,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
+import {
+  renderLiveRatioBar,
+  renderLiveSectionHeader,
+  renderPulseCountChip,
+} from '#/tui/components/chrome/chrome-band-motion';
+import { formatJobDuration } from '#/tui/utils/job/job-strip';
 
 import {
   countTodos,
@@ -45,7 +49,7 @@ import {
   selectVisibleTodos,
 } from './todo-panel-model';
 import type { TodoChangeKind, TodoPanelChangeSummary } from './todo-panel-model';
-import type { TodoItem, TodoStatus } from './todo-panel-types';
+import type { TodoFocusLink, TodoItem, TodoStatus } from './todo-panel-types';
 
 export const BOARD_MIN_WIDTH = 72;
 const BOARD_COLUMN_MIN_WIDTH = 16;
@@ -74,9 +78,9 @@ const MOVE_GLYPH_UP = '▴';
 const MOVE_GLYPH_DOWN = '▾';
 
 const TODO_LANES: readonly { status: TodoStatus; label: string }[] = [
-  { status: 'in_progress', label: 'Doing' },
-  { status: 'pending', label: 'Next' },
-  { status: 'done', label: 'Done' },
+  { status: 'in_progress', label: 'DOING' },
+  { status: 'pending', label: 'NEXT' },
+  { status: 'done', label: 'DONE' },
 ];
 
 export function changeFlashMs(): number {
@@ -91,8 +95,7 @@ function moveCueMs(): number {
 
 /** Clock-driven 0→1 decay; shared by the slide, glyph, and title-fade stages. */
 function cueProgress(startedAtMs: number, durationMs: number): number {
-  if (durationMs <= 0) return 1;
-  return Math.min(1, Math.max(0, (appearanceAnimationNow() - startedAtMs) / durationMs));
+  return motionProgress(startedAtMs, durationMs);
 }
 
 export interface CardMotionCue {
@@ -104,6 +107,7 @@ export interface CardMotionCue {
 
 export const EMPTY_MOTIONS: ReadonlyMap<string, CardMotionCue> = new Map();
 export const EMPTY_LANE_FLASHES: Readonly<Partial<Record<TodoStatus, number>>> = {};
+export const EMPTY_REVEALS: ReadonlyMap<string, string> = new Map();
 
 export function renderTodos(
   todos: readonly TodoItem[],
@@ -114,13 +118,25 @@ export function renderTodos(
   stabilizeRows?: (rows: number) => number,
   motions: ReadonlyMap<string, CardMotionCue> = EMPTY_MOTIONS,
   laneFlashes: Readonly<Partial<Record<TodoStatus, number>>> = EMPTY_LANE_FLASHES,
+  revealedTitles: ReadonlyMap<string, string> = EMPTY_REVEALS,
+  focusAgeMs?: number,
 ): string[] {
   if (profile === 'tiny') {
-    return renderLanes(todos, width, highlights, changedAtMs, motions);
+    return renderLanes(todos, width, highlights, changedAtMs, motions, revealedTitles, focusAgeMs);
   }
   return width >= BOARD_MIN_WIDTH
-    ? renderBoard(todos, width, highlights, changedAtMs, stabilizeRows, motions, laneFlashes)
-    : renderLanes(todos, width, highlights, changedAtMs, motions);
+    ? renderBoard(
+        todos,
+        width,
+        highlights,
+        changedAtMs,
+        stabilizeRows,
+        motions,
+        laneFlashes,
+        revealedTitles,
+        focusAgeMs,
+      )
+    : renderLanes(todos, width, highlights, changedAtMs, motions, revealedTitles, focusAgeMs);
 }
 
 function renderBoard(
@@ -131,6 +147,8 @@ function renderBoard(
   stabilizeRows?: (rows: number) => number,
   motions: ReadonlyMap<string, CardMotionCue> = EMPTY_MOTIONS,
   laneFlashes: Readonly<Partial<Record<TodoStatus, number>>> = EMPTY_LANE_FLASHES,
+  revealedTitles: ReadonlyMap<string, string> = EMPTY_REVEALS,
+  focusAgeMs?: number,
 ): string[] {
   const availableWidth = Math.max(1, width - visibleWidth(BOARD_INDENT));
   const columnWidth = Math.floor(
@@ -180,7 +198,14 @@ function renderBoard(
           }
           const cue = motions.get(todo.title);
           const indent = motionSlideIndent(cue);
-          const cell = renderCell(todo, highlights.get(todo.title), changedAtMs, cue);
+          const cell = renderCell(
+            todo,
+            highlights.get(todo.title),
+            changedAtMs,
+            cue,
+            revealedTitles.get(todo.title),
+            todo.status === 'in_progress' ? focusAgeMs : undefined,
+          );
           // The slide indent borrows from the cell's own right padding, so
           // neighbouring columns never shift. Overflow titles silk-scroll
           // inside the remaining width instead of hard-clipping.
@@ -201,6 +226,8 @@ function renderLanes(
   highlights: ReadonlyMap<string, TodoChangeKind>,
   changedAtMs: number | undefined,
   motions: ReadonlyMap<string, CardMotionCue> = EMPTY_MOTIONS,
+  revealedTitles: ReadonlyMap<string, string> = EMPTY_REVEALS,
+  focusAgeMs?: number,
 ): string[] {
   const lines: string[] = [];
   for (const lane of TODO_LANES) {
@@ -209,51 +236,160 @@ function renderLanes(
     lines.push(currentTheme.fg('textDim', `  ${lane.label}`));
     for (const todo of laneTodos) {
       lines.push(
-        ...renderWrappedCell(todo, highlights.get(todo.title), changedAtMs, width, motions.get(todo.title)),
+        ...renderWrappedCell(
+          todo,
+          highlights.get(todo.title),
+          changedAtMs,
+          width,
+          motions.get(todo.title),
+          revealedTitles.get(todo.title),
+          todo.status === 'in_progress' ? focusAgeMs : undefined,
+        ),
       );
     }
   }
   return lines;
 }
 
+/** KPI strip: FLOW · shimmer bar · wip/next/done · stale · Δ. */
 export function renderBoardMeta(
   todos: readonly TodoItem[],
   summary: TodoPanelChangeSummary | undefined,
   callsSinceUpdate: number,
 ): string {
+  const appearance = getActiveAppearancePreferences();
   const counts = countTodos(todos);
   const total = todos.length;
   const ratio = total > 0 ? counts.done / total : 0;
-  const wipText = `wip ${String(counts.in_progress)}/1`;
-  const wip =
-    counts.in_progress > 1
-      ? currentTheme.boldFg('warning', wipText)
-      : currentTheme.fg('textDim', wipText);
-  const progress =
-    total > 0
-      ? `${renderRendererRatioProgressBar({
-          ratio,
-          width: 8,
-          filledStyle: (text) => currentTheme.fg('success', text),
-          emptyStyle: (text) => currentTheme.fg('textMuted', text),
-        })}${currentTheme.fg('textDim', ` ${String(Math.round(ratio * 100))}%`)}`
-      : undefined;
-  const parts = [
-    ...(progress !== undefined ? [progress] : []),
-    wip,
-    currentTheme.fg('textDim', `next ${String(counts.pending)}`),
-    currentTheme.fg('textDim', `done ${String(counts.done)}`),
-  ];
+  const parts: string[] = [];
   const flow = summary === undefined ? undefined : formatChangeSummary(summary);
   if (flow !== undefined) {
-    parts.unshift(currentTheme.fg('primary', `${renderShimmerPrefix()}flow ${flow}`));
+    parts.push(renderPulseCountChip(`FLOW ${flow}`, 'todo:kpi:flow', 'primary', appearance));
   }
-  if (callsSinceUpdate >= STALE_TOOL_CALLS) {
+  if (total > 0) {
+    // Shimmer only while WIP is live — idle boards stay byte-stable for memo.
+    const bar = renderLiveRatioBar(ratio, 8, {
+      seed: 'todo:kpi:bar',
+      filledToken: 'success',
+      appearance,
+      animated:
+        shouldRenderAmbientEffects(appearance) && counts.in_progress > 0,
+    });
+    parts.push(`${bar}${currentTheme.fg('textDim', ` ${String(Math.round(ratio * 100))}%`)}`);
+  }
+  const wipText = `wip ${String(counts.in_progress)}/1`;
+  if (counts.in_progress > 0) {
     parts.push(
-      currentTheme.boldFg('warning', `stale · ${String(callsSinceUpdate)} calls since update`),
+      renderPulseCountChip(
+        wipText,
+        'todo:kpi:wip',
+        counts.in_progress > 1 ? 'warning' : 'primary',
+        appearance,
+      ),
     );
+  } else {
+    parts.push(currentTheme.fg('textDim', wipText));
+  }
+  parts.push(currentTheme.fg('textDim', `next ${String(counts.pending)}`));
+  parts.push(currentTheme.fg('textDim', `done ${String(counts.done)}`));
+  if (callsSinceUpdate >= STALE_TOOL_CALLS) {
+    parts.push(currentTheme.boldFg('warning', `stale ${String(callsSinceUpdate)}`));
   }
   return `  ${parts.join(currentTheme.fg('textMuted', ' · '))}`;
+}
+
+/**
+ * Recent mutation chips — Dock TK grammar. Prefer compact summary chips when
+ * many titles changed at once so the tape does not echo every card id.
+ */
+export function renderTodoTicker(
+  highlights: ReadonlyMap<string, TodoChangeKind>,
+  live: boolean,
+  summary?: TodoPanelChangeSummary,
+): string | undefined {
+  if (highlights.size === 0 && summary === undefined) return undefined;
+  const chips: string[] = [];
+  const useCompact =
+    summary !== undefined && (highlights.size > 4 || highlights.size === 0);
+  if (useCompact && summary !== undefined) {
+    if (summary.added > 0) {
+      chips.push(currentTheme.fg('accent', `+${String(summary.added)}`));
+    }
+    if (summary.completed > 0) {
+      chips.push(currentTheme.fg('success', `✓${String(summary.completed)}`));
+    }
+    if (summary.moved > 0) {
+      chips.push(currentTheme.fg('primary', `→${String(summary.moved)}`));
+    }
+    if (summary.reopened > 0) {
+      chips.push(currentTheme.fg('warning', `↺${String(summary.reopened)}`));
+    }
+    if (summary.removed > 0) {
+      chips.push(currentTheme.fg('textDim', `-${String(summary.removed)}`));
+    }
+  } else {
+    for (const [title, kind] of highlights) {
+      if (chips.length >= 4) break;
+      const mark =
+        kind === 'added' ? '+' : kind === 'completed' ? '✓' : kind === 'moved' ? '→' : '↺';
+      const token: ColorToken =
+        kind === 'completed' ? 'success' : kind === 'reopened' ? 'warning' : 'primary';
+      chips.push(currentTheme.fg(token, `${mark}${truncateToWidth(title, 14, '…')}`));
+    }
+  }
+  if (chips.length === 0) return undefined;
+  const hdr = renderLiveSectionHeader('TK', live, 'todo:sec');
+  return `  ${hdr}  ${chips.join(currentTheme.fg('textMuted', ' · '))}`;
+}
+
+/** Current WIP focus line with optional Worker Dock link. */
+export function renderTodoFocus(
+  todos: readonly TodoItem[],
+  focusAgeMs: number | undefined,
+  link: TodoFocusLink | undefined,
+): string | undefined {
+  const wip = todos.find((todo) => todo.status === 'in_progress');
+  if (wip === undefined) return undefined;
+  const appearance = getActiveAppearancePreferences();
+  const live = shouldRenderAmbientEffects(appearance);
+  const hdr = renderLiveSectionHeader('FOCUS', live, 'todo:sec', appearance);
+  const title = truncateToWidth(wip.title, 42, '…');
+  const titlePaint = live
+    ? renderPulseCountChip(title, 'todo:focus:title', 'primary', appearance)
+    : currentTheme.fg('text', title);
+  const parts = [titlePaint];
+  if (focusAgeMs !== undefined && focusAgeMs > 0) {
+    parts.push(currentTheme.fg('textDim', formatJobDuration(focusAgeMs)));
+  }
+  if (link !== undefined) {
+    parts.push(currentTheme.fg('textMuted', link.worker));
+    if (link.tool !== undefined && link.tool.length > 0) {
+      const target =
+        link.target === undefined || link.target.length === 0
+          ? ''
+          : ` ${truncateToWidth(link.target, 18, '…')}`;
+      parts.push(currentTheme.fg('textDim', `→ ${link.tool}${target}`));
+    }
+  }
+  return `  ${hdr}  ◆ ${parts.join(currentTheme.fg('textMuted', ' · '))}`;
+}
+
+/** Footer under the board: staleness/expand (scroll cues stay on the indicator). */
+export function renderTodoDenseFooter(
+  callsSinceUpdate: number,
+  summary: TodoPanelChangeSummary | undefined,
+  expanded: boolean,
+  _hasScroll: boolean,
+): string {
+  const parts: string[] = [];
+  if (callsSinceUpdate >= STALE_TOOL_CALLS) {
+    parts.push(`last Δ ${String(callsSinceUpdate)} calls ago`);
+  } else if (summary !== undefined) {
+    const age = appearanceAnimationNow() - summary.changedAtMs;
+    if (age < 60_000) parts.push(`Δ ${formatJobDuration(age)} ago`);
+  }
+  parts.push(expanded ? 'ctrl+t to collapse' : 'ctrl+t to expand');
+  return currentTheme.fg('textDim', `  ${parts.join(' · ')}`);
 }
 
 function renderLaneHeader(
@@ -263,17 +399,22 @@ function renderLaneHeader(
   countFlashStartedAtMs: number | undefined,
 ): string {
   const token = laneHeaderToken(status);
-  const text = `${label} (${String(count)})`;
   const appearance = getActiveAppearancePreferences();
-  // Count micro-feedback: a changed lane count briefly re-settles in its own
-  // header tone. Resting bytes stay a single bold run when nothing flashes.
+  const liveDoing =
+    status === 'in_progress' &&
+    count > 0 &&
+    shouldRenderAmbientEffects(appearance);
+  const labelPaint = liveDoing
+    ? renderLiveSectionHeader(label, true, 'todo:lane', appearance)
+    : currentTheme.boldFg(token, label);
+  // Count micro-feedback: a changed lane count briefly re-settles.
   if (
     countFlashStartedAtMs !== undefined &&
     shouldRenderAmbientEffects(appearance) &&
     isToneSettleFlashActive(countFlashStartedAtMs, appearance)
   ) {
-    const countText = `(${String(count)})`;
-    return `${currentTheme.boldFg(token, label)} ${renderToneSettleFlash(
+    const countText = String(count);
+    return `${labelPaint} ${renderToneSettleFlash(
       countText,
       `todo:lane-count:${status}`,
       countFlashStartedAtMs,
@@ -281,7 +422,7 @@ function renderLaneHeader(
       appearance,
     )}`;
   }
-  return currentTheme.boldFg(token, text);
+  return `${labelPaint} ${currentTheme.boldFg(token, String(count))}`;
 }
 
 function laneHeaderToken(status: TodoStatus): 'primary' | 'success' | 'textStrong' {
@@ -300,11 +441,18 @@ function renderCell(
   change: TodoChangeKind | undefined,
   changedAtMs: number | undefined,
   cue: CardMotionCue | undefined,
+  revealedTitle?: string,
+  focusAgeMs?: number,
 ): string {
   const badge = changeBadge(change, cue);
   const marker = statusMarker(todo.status);
-  const titleStyled = styleTitle(todo.title, todo.status, change, changedAtMs, cue);
-  return `${badge}${marker} ${titleStyled}`;
+  const displayTitle = revealedTitle ?? todo.title;
+  const titleStyled = styleTitle(displayTitle, todo.status, change, changedAtMs, cue);
+  const age =
+    todo.status === 'in_progress' && focusAgeMs !== undefined && focusAgeMs > 0
+      ? currentTheme.fg('textDim', ` ${formatJobDuration(focusAgeMs)}`)
+      : '';
+  return `${badge}${marker} ${titleStyled}${age}`;
 }
 
 function renderWrappedCell(
@@ -313,10 +461,17 @@ function renderWrappedCell(
   changedAtMs: number | undefined,
   width: number,
   cue: CardMotionCue | undefined,
+  revealedTitle?: string,
+  focusAgeMs?: number,
 ): string[] {
   const badge = changeBadge(change, cue);
   const marker = statusMarker(todo.status);
-  const titleStyled = styleTitle(todo.title, todo.status, change, changedAtMs, cue);
+  const displayTitle = revealedTitle ?? todo.title;
+  const titleStyled = styleTitle(displayTitle, todo.status, change, changedAtMs, cue);
+  const age =
+    todo.status === 'in_progress' && focusAgeMs !== undefined && focusAgeMs > 0
+      ? currentTheme.fg('textDim', ` ${formatJobDuration(focusAgeMs)}`)
+      : '';
   const firstPrefix = `${badge}${marker} `;
   const prefixWidth = visibleWidth(firstPrefix);
   const indent = motionSlideIndent(cue);
@@ -331,7 +486,8 @@ function renderWrappedCell(
   const slide = indent === 0 ? '' : ' '.repeat(indent);
   return titleLines.map((line, index) => {
     const prefix = index === 0 ? firstPrefix : ' '.repeat(prefixWidth);
-    return `${BOARD_INDENT}${slide}${prefix}${line}`;
+    const suffix = index === 0 ? age : '';
+    return `${BOARD_INDENT}${slide}${prefix}${line}${suffix}`;
   });
 }
 
@@ -465,18 +621,12 @@ function styleTitle(
   ) {
     return renderSettleFlash(title, `todo:${change}:${title}`, changedAtMs, appearance);
   }
-  if (cue !== undefined && animatable) {
-    // Entrance settle for cards that surfaced without a change kind (e.g. an
-    // overflow window shift); the change flash above already covers 'added'.
-    if (cue.kind === 'enter' && isToneSettleFlashActive(cue.startedAtMs, appearance)) {
-      return renderSettleFlash(title, `todo:enter:${title}`, cue.startedAtMs, appearance);
-    }
+  if (cue !== undefined && animatable && cue.kind === 'move') {
     // Move transition: brand-color fade that decays into the resting style.
-    if (cue.kind === 'move') {
-      const p = cueProgress(cue.startedAtMs, moveCueMs());
-      if (p < 0.35) return currentTheme.boldFg('primary', title);
-      if (p < 0.7) return currentTheme.fg('primary', title);
-    }
+    // Enter cues use streaming type-on in the panel (not a second settle flash).
+    const p = cueProgress(cue.startedAtMs, moveCueMs());
+    if (p < 0.35) return currentTheme.boldFg('primary', title);
+    if (p < 0.7) return currentTheme.fg('primary', title);
   }
   switch (status) {
     case 'in_progress':
@@ -490,13 +640,12 @@ function styleTitle(
 
 function changeBadge(change: TodoChangeKind | undefined, cue: CardMotionCue | undefined): string {
   const motion = motionBadge(cue);
-  // A live directional badge subsumes the static moved arrow and is the only
-  // badge for pure reorders (no change kind); semantic badges keep priority.
-  if (motion !== '' && (change === undefined || change === 'moved')) return motion;
-  if (change === undefined) return '';
+  // Leading "+" chrome moved to TK chips; keep directional move / settle badges.
+  if (motion !== '' && (change === undefined || change === 'moved' || change === 'added')) {
+    return motion;
+  }
+  if (change === undefined || change === 'added') return '';
   switch (change) {
-    case 'added':
-      return `${renderPulseGlyph([TODO_ADDED, '+'], 'todo:added', '+', 'accent')} `;
     case 'completed':
       return `${currentTheme.fg('success', TODO_COMPLETED)} `;
     case 'moved':
