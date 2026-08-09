@@ -4,6 +4,8 @@ import {
   buildDenseContent,
   clampWorkerScrollOffset,
   compactElapsed,
+  DENSE_WORKER_CAP,
+  denseWorkerSlots,
   formatRateSparkline,
   resolveDenseOps,
   selectAttentionJobs,
@@ -54,7 +56,7 @@ describe('mission-control densemode helpers', () => {
     expect(shouldUseDensemode([worker('a'), worker('b')])).toBe(true);
   });
 
-  it('synthesizes TAPE ops from lastTool when the ring is empty', () => {
+  it('synthesizes ops from lastTool when the ring is empty', () => {
     const synth = resolveDenseOps([], [
       worker('coder', 0, { lastTool: 'Bash', lastTarget: 'deploy.sh', lastActivityAtMs: 500 }),
     ]);
@@ -91,10 +93,20 @@ describe('mission-control densemode helpers', () => {
     ]);
   });
 
-  it('appends BOARD strip in densemode when jobs exist', () => {
+  it('paints workers-only densemode without TAPE/BOARD even when jobs and ops exist', () => {
     const result = buildDenseContent({
       workers: [worker('solo', 0, { lastTool: 'Read', lastTarget: 'a.ts', toolCount: 3 })],
-      ops: [],
+      ops: [
+        {
+          toolCallId: 'tc-1',
+          workerId: 'solo',
+          workerName: 'solo',
+          name: 'Read',
+          target: 'a.ts',
+          status: 'ok',
+          atMs: 900,
+        },
+      ],
       width: 100,
       budget: 14,
       now: 1_000,
@@ -117,11 +129,17 @@ describe('mission-control densemode helpers', () => {
     });
     const text = result.lines.join('\n');
     expect(text).toContain('FLEET');
-    expect(text).toContain('BOARD');
-    expect(text).toContain('failed 1');
-    expect(text).toContain('Deploy pages');
-    expect(text).toContain('TAPE');
-    expect(text).toContain('Read');
+    expect(text).toContain('solo');
+    expect(text).not.toContain('BOARD');
+    expect(text).not.toContain('TAPE');
+    expect(text).not.toContain('Deploy pages');
+    expect(text).not.toContain('Old attempt');
+  });
+
+  it('gives freed tape/board budget to worker slots up to the cap', () => {
+    expect(denseWorkerSlots(12, 12)).toBe(DENSE_WORKER_CAP);
+    expect(DENSE_WORKER_CAP).toBeGreaterThanOrEqual(8);
+    expect(denseWorkerSlots(3, 12)).toBe(3);
   });
 
   it('renders a sparkline from rate samples', () => {
@@ -138,7 +156,7 @@ describe('mission-control densemode helpers', () => {
   });
 
   it('windows the worker roster and reports overflow with a scroll hint', () => {
-    const workers = Array.from({ length: 7 }, (_, i) => worker(`w${String(i)}`, i));
+    const workers = Array.from({ length: 12 }, (_, i) => worker(`w${String(i)}`, i));
     const base = {
       workers,
       ops: [],
@@ -155,18 +173,17 @@ describe('mission-control densemode helpers', () => {
     const page0 = buildDenseContent({ ...base, scrollOffset: 0 });
     const joined0 = page0.lines.join('\n');
     expect(joined0).toContain('w0');
-    expect(joined0).toContain('w4');
-    expect(joined0).not.toContain('w5');
-    expect(joined0).toMatch(/\+2 more \(↑↓\)/);
-    expect(page0.workerSlots).toBe(5);
+    expect(page0.workerSlots).toBe(DENSE_WORKER_CAP);
+    expect(joined0).toMatch(new RegExp(`\\+${String(12 - DENSE_WORKER_CAP)} more \\(↑↓\\)`));
+    expect(joined0).not.toContain(`w${String(DENSE_WORKER_CAP)}`);
     expect(page0.scrollOffset).toBe(0);
 
     const page1 = buildDenseContent({ ...base, scrollOffset: 2 });
     const joined1 = page1.lines.join('\n');
     expect(joined1).toContain('w2');
-    expect(joined1).toContain('w6');
+    expect(joined1).toContain(`w${String(DENSE_WORKER_CAP + 1)}`);
     expect(joined1).not.toContain('w0');
     expect(page1.scrollOffset).toBe(2);
-    expect(clampWorkerScrollOffset(99, 7, 5)).toBe(2);
+    expect(clampWorkerScrollOffset(99, 12, DENSE_WORKER_CAP)).toBe(12 - DENSE_WORKER_CAP);
   });
 });
