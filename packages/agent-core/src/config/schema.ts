@@ -187,6 +187,12 @@ export const LoopControlSchema = z.object({
   codingModel: z.string().min(1).optional(),
   planningModel: z.string().min(1).optional(),
   debuggingModel: z.string().min(1).optional(),
+  /**
+   * Soft session spend ceiling (USD) for smart auto intensity. When estimated
+   * session spend reaches this value, intensity steps down one level
+   * (max→balanced→value). Explicit role overrides are unchanged.
+   */
+  smartRouterBudgetUsd: z.number().positive().optional(),
 });
 
 export type LoopControl = z.infer<typeof LoopControlSchema>;

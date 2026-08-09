@@ -17,7 +17,7 @@ import {
   computeCompletionBudgetCap,
   resolveCompletionBudget,
 } from '../../../utils/completion-budget';
-import { resolveCompactionModelAlias } from '../../../utils/cheap-model';
+import { resolveSmartRoute } from '../../routing';
 
 const DEFAULT_COMPACTION_MAX_COMPLETION_TOKENS = 128 * 1024;
 export const COMPACTION_MIN_OUTPUT_TOKENS = 8_192;
@@ -36,17 +36,19 @@ export function createCompactionProvider(
   usedContextTokens: number,
 ): ChatProvider {
   const runtimeConfig = host.agent.runtimeConfig ?? host.agent.kimiConfig;
-  // When a dedicated compaction model is configured, summarize with it
-  // instead of the (usually more expensive) main model. Without an explicit
-  // alias, pick the lowest local models.*.cost (then name-heuristic cheap
-  // tier) so routine compaction does not spend main-model tokens. The alias
-  // is resolved through the same ModelProvider so auth/routing stays consistent.
+  // Dedicated compactionModel wins; otherwise smart auto (same scorer as
+  // Settings → Model routing). Resolve through ModelProvider so auth stays consistent.
   const configuredCompactionModel = runtimeConfig?.loopControl?.compactionModel;
-  const compactionModelAlias = resolveCompactionModelAlias({
-    explicit: configuredCompactionModel,
-    models: runtimeConfig?.models,
-    minContextTokens: usedContextTokens > 0 ? usedContextTokens : undefined,
-  });
+  const route =
+    runtimeConfig !== undefined
+      ? resolveSmartRoute({
+          role: 'compaction',
+          config: runtimeConfig,
+          parentAlias: host.agent.config.modelAlias,
+          minContextTokens: usedContextTokens > 0 ? usedContextTokens : undefined,
+        })
+      : undefined;
+  const compactionModelAlias = route?.alias;
   host.compactionModelAlias =
     compactionModelAlias !== undefined && compactionModelAlias.length > 0
       ? compactionModelAlias

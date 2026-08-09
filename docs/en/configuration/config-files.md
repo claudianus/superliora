@@ -155,7 +155,7 @@ You can also switch models temporarily without touching the config file — by s
 
 `loop_control` governs the step count limit, per-step retry count, the threshold that triggers automatic context compaction, and per-role model overrides for workers and helpers.
 
-Unset role models use smart auto-routing (credential health + quality/value scoring). An explicit override always wins for that role, including DeepSeek and other providers. Configure the same keys from Settings → Model routing.
+Unset role models use smart auto-routing (credential health + quality/value scoring, with a role fallback chain on auth/credit failures). An explicit override always wins for that role. Configure the same keys from Settings → Model routing. For the main session, pick model alias `auto` (Smart Auto) in `/model` to resolve a concrete model each turn from the prompt.
 
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -172,6 +172,9 @@ Unset role models use smart auto-routing (credential health + quality/value scor
 | `coding_model` | `string` | — | Model alias for coder / implement / goal-driver workers; unset auto-picks a high-quality model |
 | `planning_model` | `string` | — | Model alias for plan / mission workers; unset auto-picks a high-quality long-context model |
 | `debugging_model` | `string` | — | Model alias for debug workers; unset auto-picks like planning |
+| `smart_router_budget_usd` | `number` | — | Soft session spend ceiling (USD); when estimated spend reaches it, smart-auto intensity steps down one level (explicit role overrides unchanged) |
+
+Cross-session route outcome learning is process-local by default. Set `SUPERLIORA_SMART_ROUTER_OUTCOMES=1` (or a file path) to persist alias×role success EMA under `~/.superliora/smart-router-outcomes.json`.
 
 ## `memory`
 

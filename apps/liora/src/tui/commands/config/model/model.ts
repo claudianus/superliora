@@ -5,7 +5,11 @@
  * and the tabbed model picker with thinking-level selection.
  */
 
-import type { DeleteConfigFieldPath, ModelAlias } from '@superliora/sdk';
+import {
+  SMART_AUTO_SESSION_ALIAS,
+  type DeleteConfigFieldPath,
+  type ModelAlias,
+} from '@superliora/sdk';
 
 import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
 import { ModelFallbackSelectorComponent, type ModelFallbackAction, type ModelFallbackItem } from '../../../components/dialogs/picker/model-fallback-selector';
@@ -58,7 +62,8 @@ export async function handleModelCommand(host: SlashCommandHost, args: string): 
     showModelPicker(host);
     return;
   }
-  if (host.state.appState.availableModels[alias] === undefined) {
+  const isSmartAuto = alias.trim().toLowerCase() === SMART_AUTO_SESSION_ALIAS;
+  if (!isSmartAuto && host.state.appState.availableModels[alias] === undefined) {
     host.showError(`Unknown model alias: ${alias}`);
     return;
   }
@@ -523,6 +528,15 @@ export function showModelPicker(host: SlashCommandHost, selectedValue: string = 
     );
     return;
   }
+  const modelsWithSmartAuto: Record<string, ModelAlias> = {
+    [SMART_AUTO_SESSION_ALIAS]: {
+      model: SMART_AUTO_SESSION_ALIAS,
+      provider: 'smart-auto',
+      displayName: 'Smart Auto',
+      maxContextSize: 1_000_000,
+    },
+    ...host.state.appState.availableModels,
+  };
   const currentEffort =
     host.state.appState.thinkingLevel !== undefined &&
     host.state.appState.thinkingLevel !== 'off' &&
@@ -532,7 +546,7 @@ export function showModelPicker(host: SlashCommandHost, selectedValue: string = 
   mountPickerDialog(
     host,
     new TabbedModelSelectorComponent({
-      models: host.state.appState.availableModels,
+      models: modelsWithSmartAuto,
       currentValue: host.state.appState.model,
       selectedValue,
       currentThinking: host.state.appState.thinking,
@@ -565,7 +579,12 @@ async function performModelSwitch(
     return;
   }
 
-  const model = host.state.appState.availableModels[alias];
+  const isSmartAuto = alias.trim().toLowerCase() === SMART_AUTO_SESSION_ALIAS;
+  const model = isSmartAuto ? undefined : host.state.appState.availableModels[alias];
+  if (!isSmartAuto && model === undefined) {
+    host.showError(`Unknown model alias: ${alias}`);
+    return;
+  }
   const level = resolveThinkingLevelForApply(thinking, effort, model);
   const display = resolveThinkingDisplay(level, { thinking, model });
   const prevModel = host.state.appState.model;
@@ -595,7 +614,21 @@ async function performModelSwitch(
     return;
   }
 
-  host.setAppState({ model: alias, thinking, thinkingLevel: display.requested });
+  host.setAppState({
+    model: alias,
+    thinking,
+    thinkingLevel: display.requested,
+    ...(isSmartAuto
+      ? {
+          lastModelRouteNotice: {
+            kind: 'selection' as const,
+            toAlias: SMART_AUTO_SESSION_ALIAS,
+            reason: 'smart-auto pin',
+            atMs: Date.now(),
+          },
+        }
+      : {}),
+  });
   if (session === undefined && runtimeChanged) {
     if (alias !== prevModel) {
       host.track('model_switch', { model: alias });

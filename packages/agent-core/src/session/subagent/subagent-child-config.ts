@@ -135,6 +135,11 @@ export async function configureSubagentChild(
   const cwd = options.worktreeDir ?? parent.config.cwd;
   const modelSelection = resolveSubagentModelSelection(parent, profile.name, profileBaseName, {
     preferVision: options.preferVisionModel === true,
+    signals: {
+      prompt: options.prompt,
+      profileName: profile.name,
+      profileBaseName,
+    },
   });
   child.config.update({
     cwd,

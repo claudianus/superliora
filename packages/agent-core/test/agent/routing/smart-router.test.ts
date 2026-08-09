@@ -1,0 +1,172 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { describe, expect, it, beforeEach } from 'vitest';
+
+import {
+  advanceSmartRoute,
+  classifySessionRole,
+  classifyTurnRouting,
+  defaultIntensityForRole,
+  escalateIntensity,
+  mergeRouteFallbackAliases,
+  resolveSmartRoute,
+  type SmartRoute,
+} from '../../../src/agent/routing';
+import {
+  recordRouteOutcome,
+  resetRouteOutcomeStoreForTests,
+} from '../../../src/agent/routing/route-outcome';
+import type { LioraConfig } from '../../../src/config';
+
+const PROVIDER = {
+  type: 'kimi' as const,
+  apiKey: 'test-key',
+};
+
+function model(
+  name: string,
+  inputCost: number,
+  maxContextSize = 128_000,
+): {
+  provider: string;
+  model: string;
+  maxContextSize: number;
+  capabilities: readonly string[];
+  cost: { input: number };
+  fallbackModels?: string[];
+} {
+  return {
+    provider: 'test-provider',
+    model: name,
+    maxContextSize,
+    capabilities: ['tool_use', 'thinking'],
+    cost: { input: inputCost },
+  };
+}
+
+function config(partial: Partial<LioraConfig> & { models: LioraConfig['models'] }): LioraConfig {
+  return {
+    providers: { 'test-provider': PROVIDER },
+    ...partial,
+  } as LioraConfig;
+}
+
+describe('smart-router', () => {
+  beforeEach(() => {
+    resetRouteOutcomeStoreForTests(join(mkdtempSync(join(tmpdir(), 'sr-')), 'outcomes.json'));
+  });
+
+  it('honors explicit loopControl override and builds fallbackModels chain', () => {
+    const cfg = config({
+      models: {
+        pinned: { ...model('pinned-model', 5), fallbackModels: ['cheap-haiku'] },
+        'cheap-haiku': model('cheap-haiku', 0.1),
+        opus: model('opus', 10),
+      },
+      loopControl: { codingModel: 'pinned' },
+    });
+
+    const route = resolveSmartRoute({ role: 'coding', config: cfg });
+    expect(route).toMatchObject({
+      alias: 'pinned',
+      source: 'explicit',
+      intensity: 'balanced',
+    });
+    expect(route?.chain).toEqual(['pinned', 'cheap-haiku']);
+  });
+
+  it('auto-picks exploration value-first and coding quality-first', () => {
+    const cfg = config({
+      models: {
+        'cheap-haiku': model('cheap-haiku', 0.1),
+        opus: model('opus', 10),
+      },
+    });
+
+    expect(resolveSmartRoute({ role: 'exploration', config: cfg })?.alias).toBe('cheap-haiku');
+    expect(resolveSmartRoute({ role: 'coding', config: cfg })?.alias).toBe('opus');
+  });
+
+  it('advanceSmartRoute walks the chain', () => {
+    const route: SmartRoute = {
+      role: 'coding',
+      intensity: 'balanced',
+      alias: 'a',
+      chain: ['a', 'b', 'c'],
+      thinkingLevel: 'high',
+      source: 'auto',
+      reason: 'test',
+    };
+    expect(advanceSmartRoute(route, 'a')).toBe('b');
+    expect(advanceSmartRoute(route, 'c')).toBeUndefined();
+  });
+
+  it('mergeRouteFallbackAliases puts smart chain ahead of config fallbacks', () => {
+    const route: SmartRoute = {
+      role: 'coding',
+      intensity: 'max',
+      alias: 'primary',
+      chain: ['primary', 'mid'],
+      thinkingLevel: 'high',
+      source: 'auto',
+      reason: 'test',
+    };
+    expect(
+      mergeRouteFallbackAliases(route, ['config-fb', 'mid'], 'primary', () => true),
+    ).toEqual(['mid', 'config-fb']);
+  });
+
+  it('classifies debug prompts to debugging/max and explore to exploration/value', () => {
+    expect(
+      classifyTurnRouting({
+        roleHint: 'coding',
+        signals: { prompt: 'fix this TypeError stack trace' },
+        defaultIntensity: 'balanced',
+      }),
+    ).toMatchObject({ role: 'debugging', intensity: 'max' });
+
+    expect(
+      classifyTurnRouting({
+        roleHint: 'coding',
+        signals: { prompt: 'find where auth is configured', readOnly: true },
+        defaultIntensity: 'balanced',
+      }),
+    ).toMatchObject({ role: 'exploration', intensity: 'value' });
+
+    expect(classifySessionRole('implement multi-file patch')).toBe('coding');
+    expect(defaultIntensityForRole('planning')).toBe('max');
+    expect(escalateIntensity('value')).toBe('balanced');
+  });
+
+  it('outcome EMA can promote a head candidate over catalog pick', () => {
+    const cfg = config({
+      models: {
+        'cheap-haiku': model('cheap-haiku', 0.1),
+        'cheap-flash': model('cheap-flash', 0.12),
+      },
+    });
+    for (let i = 0; i < 8; i += 1) {
+      recordRouteOutcome({ role: 'exploration', alias: 'cheap-flash', ok: true });
+      recordRouteOutcome({ role: 'exploration', alias: 'cheap-haiku', ok: false });
+    }
+    const route = resolveSmartRoute({ role: 'exploration', config: cfg });
+    expect(route?.alias).toBe('cheap-flash');
+  });
+
+  it('budget overage steps intensity down', () => {
+    const cfg = config({
+      models: {
+        'cheap-haiku': model('cheap-haiku', 0.1),
+        opus: model('opus', 10),
+      },
+      loopControl: { smartRouterBudgetUsd: 1 },
+    });
+    const route = resolveSmartRoute({
+      role: 'debugging',
+      config: cfg,
+      sessionSpendUsd: 2,
+    });
+    expect(route?.intensity).toBe('balanced');
+  });
+});

@@ -9,7 +9,7 @@ import { isUserCancellation } from '../../utils/abort';
 import type { StreamingThinkScrubber } from '../../utils/think-scrubber';
 import { buildTurnPrefixMaterial } from '../cache';
 import type { PromptOrigin } from '../context';
-import { isRetryableProviderFailure } from '../provider-failover';
+import { applySessionSmartAutoForTurn } from '../routing';
 import {
   TurnTelemetry,
   classifyApiError,
@@ -51,6 +51,7 @@ export async function runOneTurnFlow(
   agent.fullCompaction.resetForTurn();
   agent.cacheFreezeGuard.freeze(buildTurnPrefixMaterial(agent.tools.enabledTools));
   agent.usage.beginTurn();
+  applySessionSmartAutoForTurn(agent, input);
   agent.emitEvent({ type: 'turn.started', turnId, origin });
   agent.context.appendUserMessage(input, origin);
 

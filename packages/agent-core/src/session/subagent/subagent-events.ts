@@ -71,6 +71,7 @@ export function emitSubagentSpawned(
   profileName: string,
   options: RunSubagentOptions,
   modelAlias?: string,
+  routeReason?: string,
 ): void {
   parent.emitEvent({
     type: 'subagent.spawned',
@@ -82,6 +83,7 @@ export function emitSubagentSpawned(
     description: options.description,
     runInBackground: options.runInBackground,
     modelAlias,
+    ...(routeReason !== undefined && routeReason.length > 0 ? { routeReason } : {}),
   });
   parent.telemetry.track('subagent_created', {
     subagent_name: profileName,
