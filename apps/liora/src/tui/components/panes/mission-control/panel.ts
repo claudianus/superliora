@@ -16,6 +16,8 @@
  */
 
 import {
+  Key,
+  matchesKey,
   renderRendererRatioProgressBar,
   truncateToWidth,
   visibleWidth,
@@ -66,10 +68,21 @@ import {
   visibleText,
   type StreamingTextRevealState,
 } from '#/tui/utils/streaming/streaming-text-reveal';
+import { printableChar } from '#/tui/utils/printable-key';
 import {
   buildDenseContent,
+  clampWorkerScrollOffset,
+  DENSE_WORKER_CAP,
   shouldUseDensemode,
 } from './densemode';
+
+export type MissionWorkerScrollAction =
+  | 'line-up'
+  | 'line-down'
+  | 'page-up'
+  | 'page-down'
+  | 'top'
+  | 'bottom';
 import {
   formatMissionAgeMs,
   formatMissionClockMs,
@@ -139,6 +152,10 @@ export class MissionControlPanelComponent implements Component {
   private view: MissionControlView = emptyMissionControlView();
   /** `pinned` mode keeps the panel mounted with an idle placeholder. */
   private pinned = false;
+  /** Window start into the sorted worker roster (densemode / NOW). */
+  private workerScrollOffset = 0;
+  /** Last painted worker-row viewport size (for scroll clamp before next paint). */
+  private lastWorkerSlots = DENSE_WORKER_CAP;
   /** Per-worker stream reveal (catch-up type-on for liveText). */
   private readonly revealByWorker = new Map<string, StreamingTextRevealState>();
   /** Per-worker displayed tok/s after ease toward the registry rate. */
@@ -153,6 +170,7 @@ export class MissionControlPanelComponent implements Component {
         readonly workDir: string | undefined;
         readonly tick: number;
         readonly revealPending: boolean;
+        readonly scrollOffset: number;
         readonly lines: string[];
       }
     | undefined;
@@ -214,6 +232,74 @@ export class MissionControlPanelComponent implements Component {
     this.lastRender = undefined;
   }
 
+  /**
+   * Move the worker-list window. Returns true only when the offset shifted
+   * so wheel / key handlers can fall through at the edges.
+   */
+  scrollWorkers(action: MissionWorkerScrollAction): boolean {
+    const workers = this.visibleWorkers();
+    const slots = Math.max(1, Math.min(this.lastWorkerSlots, workers.length));
+    if (workers.length <= slots) {
+      if (this.workerScrollOffset === 0) return false;
+      this.workerScrollOffset = 0;
+      this.lastRender = undefined;
+      return true;
+    }
+    let next = this.workerScrollOffset;
+    switch (action) {
+      case 'line-up':
+        next -= 1;
+        break;
+      case 'line-down':
+        next += 1;
+        break;
+      case 'page-up':
+        next -= Math.max(1, slots - 1);
+        break;
+      case 'page-down':
+        next += Math.max(1, slots - 1);
+        break;
+      case 'top':
+        next = 0;
+        break;
+      case 'bottom':
+        next = Number.MAX_SAFE_INTEGER;
+        break;
+    }
+    const clamped = clampWorkerScrollOffset(next, workers.length, slots);
+    if (clamped === this.workerScrollOffset) return false;
+    this.workerScrollOffset = clamped;
+    this.lastRender = undefined;
+    return true;
+  }
+
+  /** ↑↓ / j k — only consumes when the roster has overflow to window. */
+  handleInput(data: string): void {
+    if (matchesKey(data, Key.up) || printableChar(data) === 'k') {
+      this.scrollWorkers('line-up');
+      return;
+    }
+    if (matchesKey(data, Key.down) || printableChar(data) === 'j') {
+      this.scrollWorkers('line-down');
+      return;
+    }
+    if (matchesKey(data, Key.pageUp)) {
+      this.scrollWorkers('page-up');
+      return;
+    }
+    if (matchesKey(data, Key.pageDown)) {
+      this.scrollWorkers('page-down');
+      return;
+    }
+    if (matchesKey(data, Key.home)) {
+      this.scrollWorkers('top');
+      return;
+    }
+    if (matchesKey(data, Key.end)) {
+      this.scrollWorkers('bottom');
+    }
+  }
+
   /** In-stage bottom band (full stage reading width). */
   render(width: number): string[] {
     return this.renderFitted(width, MISSION_BAND_MAX_ROWS);
@@ -268,6 +354,7 @@ export class MissionControlPanelComponent implements Component {
       memo.version === this.view.snapshot.version &&
       memo.jobs === this.view.jobs &&
       memo.workDir === this.view.workDir &&
+      memo.scrollOffset === this.workerScrollOffset &&
       memo.revealPending === revealPending &&
       !revealPending &&
       (ambientAnimationActive() ? false : memo.tick === tick)
@@ -283,6 +370,7 @@ export class MissionControlPanelComponent implements Component {
       workDir: this.view.workDir,
       tick,
       revealPending,
+      scrollOffset: this.workerScrollOffset,
       lines,
     };
     return lines;
@@ -376,11 +464,14 @@ export class MissionControlPanelComponent implements Component {
         revealedLive: this.revealedLiveMap(now),
         displayRate: this.displayRateMap(),
         workerGlyph: (worker) => this.workerGlyph(worker, animated),
+        scrollOffset: this.workerScrollOffset,
       });
-      if (dense.length > 0 && dense.length <= contentBudget) {
+      this.workerScrollOffset = dense.scrollOffset;
+      if (dense.workerSlots > 0) this.lastWorkerSlots = dense.workerSlots;
+      if (dense.lines.length > 0 && dense.lines.length <= contentBudget) {
         return renderRoundedPanel({
           title: this.title('dense', now),
-          content: dense,
+          content: dense.lines,
           width,
           borderToken: this.borderToken(now),
           minBoxWidth: 24,
@@ -630,7 +721,14 @@ export class MissionControlPanelComponent implements Component {
       // Reserve a row for the `+N more` overflow note.
       maxWorkers = Math.max(1, maxWorkers - 1);
     }
-    const visible = workers.slice(0, maxWorkers);
+    this.lastWorkerSlots = maxWorkers;
+    const offset = clampWorkerScrollOffset(
+      this.workerScrollOffset,
+      workers.length,
+      maxWorkers,
+    );
+    this.workerScrollOffset = offset;
+    const visible = workers.slice(offset, offset + maxWorkers);
     for (const worker of visible) {
       if (mode === 'full') {
         for (const row of this.renderWorkerBlock(worker, animated, now, width)) {
@@ -641,8 +739,9 @@ export class MissionControlPanelComponent implements Component {
       }
     }
     if (workers.length > visible.length) {
+      const hidden = workers.length - visible.length;
       lines.push(
-        currentTheme.fg('textDim', `… +${String(workers.length - visible.length)} more`),
+        currentTheme.fg('textDim', `… +${String(hidden)} more (↑↓)`),
       );
     }
     return lines;

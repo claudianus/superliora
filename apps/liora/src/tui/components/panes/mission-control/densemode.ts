@@ -29,10 +29,33 @@ import {
 } from './mission-format';
 
 const SPARK_CHARS = '▁▂▃▄▅▆▇█';
-const DENSE_WORKER_CAP = 5;
+/** Max worker rows painted in densemode (windowed when the roster is longer). */
+export const DENSE_WORKER_CAP = 5;
 const DENSE_TAPE_MIN = 2;
 const DENSE_TICKER_MAX = 8;
 const NARROW_WIDTH = 80;
+
+/** How many densemode worker rows fit in the remaining paint budget. */
+export function denseWorkerSlots(
+  workerCount: number,
+  remainingAfterHdr: number,
+  hasTape: boolean,
+): number {
+  const tapeReserve = hasTape ? 1 + DENSE_TAPE_MIN : 0;
+  return Math.max(
+    1,
+    Math.min(DENSE_WORKER_CAP, workerCount, remainingAfterHdr - tapeReserve),
+  );
+}
+
+export function clampWorkerScrollOffset(
+  offset: number,
+  workerCount: number,
+  slots: number,
+): number {
+  const maxOffset = Math.max(0, workerCount - Math.max(1, slots));
+  return Math.min(maxOffset, Math.max(0, offset));
+}
 
 export function shouldUseDensemode(workers: readonly MissionWorker[]): boolean {
   return workers.length >= 2;
@@ -130,9 +153,17 @@ export interface BuildDenseContentOptions {
   /** Per-worker display tok/s after lerp. */
   readonly displayRate: ReadonlyMap<string, number>;
   readonly workerGlyph: (worker: MissionWorker) => string;
+  /** Window start into the sorted worker roster (clamped). */
+  readonly scrollOffset?: number;
 }
 
-export function buildDenseContent(options: BuildDenseContentOptions): string[] {
+export interface DenseContentResult {
+  readonly lines: string[];
+  readonly workerSlots: number;
+  readonly scrollOffset: number;
+}
+
+export function buildDenseContent(options: BuildDenseContentOptions): DenseContentResult {
   const {
     workers,
     ops,
@@ -146,33 +177,42 @@ export function buildDenseContent(options: BuildDenseContentOptions): string[] {
     displayRate,
     workerGlyph,
   } = options;
-  if (budget <= 0 || width <= 0) return [];
+  if (budget <= 0 || width <= 0) {
+    return { lines: [], workerSlots: 0, scrollOffset: 0 };
+  }
 
   const narrow = width < NARROW_WIDTH;
   const lines: string[] = [];
 
   lines.push(truncateToWidth(buildKpiLine(workers, now, animated, appearance), width, '…'));
-  if (lines.length >= budget) return lines;
+  if (lines.length >= budget) {
+    return { lines, workerSlots: 0, scrollOffset: 0 };
+  }
 
   const ticker = buildTickerLine(ops, width, animated, appearance);
   if (ticker !== undefined) {
     lines.push(truncateToWidth(ticker, width, '…'));
-    if (lines.length >= budget) return lines;
+    if (lines.length >= budget) {
+      return { lines, workerSlots: 0, scrollOffset: 0 };
+    }
   }
 
   lines.push(truncateToWidth(buildHeaderLine(narrow), width, '…'));
-  if (lines.length >= budget) return lines;
+  if (lines.length >= budget) {
+    return { lines, workerSlots: 0, scrollOffset: 0 };
+  }
 
   const remainingAfterHdr = budget - lines.length;
   // Reserve tape header + at least DENSE_TAPE_MIN when ops exist.
   const collapsed = collapseLowSignalOps(ops);
   const wantTape = collapsed.length > 0;
-  const tapeReserve = wantTape ? 1 + DENSE_TAPE_MIN : 0;
-  const workerSlots = Math.max(
-    1,
-    Math.min(DENSE_WORKER_CAP, workers.length, remainingAfterHdr - tapeReserve),
+  const workerSlots = denseWorkerSlots(workers.length, remainingAfterHdr, wantTape);
+  const scrollOffset = clampWorkerScrollOffset(
+    options.scrollOffset ?? 0,
+    workers.length,
+    workerSlots,
   );
-  const visibleWorkers = workers.slice(0, workerSlots);
+  const visibleWorkers = workers.slice(scrollOffset, scrollOffset + workerSlots);
   for (const worker of visibleWorkers) {
     if (lines.length >= budget) break;
     lines.push(
@@ -199,11 +239,9 @@ export function buildDenseContent(options: BuildDenseContentOptions): string[] {
     );
   }
   if (workers.length > visibleWorkers.length && lines.length < budget) {
+    const hidden = workers.length - visibleWorkers.length;
     lines.push(
-      currentTheme.fg(
-        'textDim',
-        `… +${String(workers.length - visibleWorkers.length)} more`,
-      ),
+      currentTheme.fg('textDim', `… +${String(hidden)} more (↑↓)`),
     );
   }
 
@@ -223,7 +261,11 @@ export function buildDenseContent(options: BuildDenseContentOptions): string[] {
     }
   }
 
-  return lines.slice(0, budget);
+  return {
+    lines: lines.slice(0, budget),
+    workerSlots,
+    scrollOffset,
+  };
 }
 
 function buildKpiLine(

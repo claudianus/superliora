@@ -467,4 +467,32 @@ describe('MissionControlRegistry', () => {
       chip: '5 results about Metal Slug…',
     });
   });
+
+  it('keeps active workers in spawn order when later heartbeats race', () => {
+    const { registry, advance, now } = createHarness();
+    registry.apply(spawned('sa-early', { subagentName: 'early' }));
+    advance(100);
+    registry.apply(spawned('sa-late', { subagentName: 'late' }));
+    expect(registry.snapshot(now()).workers.map((w) => w.id)).toEqual(['sa-early', 'sa-late']);
+
+    advance(500);
+    registry.apply({
+      type: 'subagent.progress',
+      subagentId: 'sa-late',
+      toolCount: 3,
+      elapsedMs: 500,
+      tokens: 4_000,
+    } as Event);
+    advance(500);
+    registry.apply({
+      type: 'subagent.progress',
+      subagentId: 'sa-early',
+      toolCount: 1,
+      elapsedMs: 1_100,
+      tokens: 900,
+    } as Event);
+    const snap = registry.snapshot(now());
+    expect(snap.workers.map((w) => w.id)).toEqual(['sa-early', 'sa-late']);
+    expect(snap.workers[0]!.spawnedAtMs).toBeLessThan(snap.workers[1]!.spawnedAtMs);
+  });
 });
