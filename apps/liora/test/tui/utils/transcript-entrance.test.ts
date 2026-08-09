@@ -88,23 +88,22 @@ describe('transcript-entrance', () => {
     expect(polished[0]).not.toBe(line);
   });
 
-  it('streaming polish only recolors the tail of tall drafts', () => {
-    const head = currentTheme.fg('text', 'stable head line that should keep identity');
-    const mid = currentTheme.fg('text', 'stable mid line that should keep identity');
-    const mid2 = currentTheme.fg('text', 'stable mid2 line that should keep identity');
-    const mid3 = currentTheme.fg('text', 'stable mid3 line that should keep identity');
-    const tail = currentTheme.fg('text', 'live growing tail line with more text');
-    const polished = polishTranscriptLines([head, mid, mid2, mid3, tail], {
+  it('streaming polish only recolors the premium wash tail of tall drafts', () => {
+    const lines = Array.from({ length: 10 }, (_, i) =>
+      currentTheme.fg('text', i === 9 ? 'live growing tail line with more text' : `stable line ${String(i)}`),
+    );
+    const polished = polishTranscriptLines(lines, {
       startedAtMs: 1000,
       kind: 'assistant',
       streaming: true,
       nowMs: 1060,
     });
-    // First line is outside the 4-line streaming wash window — identity preserved.
-    expect(polished[0]).toBe(head);
-    expect(visibleTranscriptPayload(polished[4]!)).toContain('live growing tail line');
+    // Premium wash covers the last 8 lines — the first two keep identity.
+    expect(polished[0]).toBe(lines[0]);
+    expect(polished[1]).toBe(lines[1]);
+    expect(visibleTranscriptPayload(polished[9]!)).toContain('live growing tail line');
     // Tail always gets stream glow while streaming.
-    expect(polished[4]).not.toBe(tail);
+    expect(polished[9]).not.toBe(lines[9]);
   });
 
   it('snaps to original when motion is off', () => {

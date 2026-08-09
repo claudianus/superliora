@@ -111,7 +111,7 @@ export class AppearanceController {
         const appearance = this.getAppearance();
         const premiumMs = premiumAmbientIntervalMs(appearance.animationFps);
         // Splash forces the ambient schedule — keep premium cadence so the
-        // cinematic does not soft-degrade to 33–100ms stutter.
+        // cinematic does not soft-degrade to 24–100ms stutter.
         if (this.forceAmbientSchedule?.() === true && shouldAnimate(appearance)) {
           return premiumMs;
         }
@@ -125,7 +125,8 @@ export class AppearanceController {
         return rendererAmbientIntervalMs({
           requested: resolveAmbientEffectMode(appearance),
           quality: ctx.quality === 'minimal' ? 'balanced' : ctx.quality,
-          health: ctx.health === 'degraded' ? 'watch' : ctx.health,
+          // Pass real health: soft-degrade keys off degraded/minimal/backpressure.
+          health: ctx.health,
           backpressure: ctx.backpressure,
           premiumMs,
           subtleMs: 100,

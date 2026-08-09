@@ -27,12 +27,14 @@ import { areLiveToolTicksSuppressed } from '#/tui/utils/render/transcript-paint-
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
-  motionEffectsAllowed,
   renderPulseText,
   renderSpectacularText,
-  resolveQualityAdjustedAmbientEffectMode,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
+import {
+  appendStreamingCaret,
+  streamingCaretActive,
+} from '#/tui/features/transcript/streaming-caret';
 import {
   applyTurnBoundaryCue,
   isTranscriptEntranceActive,
@@ -170,7 +172,7 @@ export class AssistantMessageComponent implements Component {
 
     // While streaming (transient) or still washing in, repaint every ambient tick.
     // When finalized and entrance is done, drop the epoch for O(1) cached renders.
-    const streaming = !scrollPaint && this.lastTransient && caretActive();
+    const streaming = !scrollPaint && this.lastTransient && streamingCaretActive();
     const entranceActive = !scrollPaint && isTranscriptEntranceActive(this.entranceStartedAtMs);
     const cueActive =
       !scrollPaint &&
@@ -318,12 +320,6 @@ function lastVisibleLineIndex(lines: readonly string[]): number {
   return -1;
 }
 
-/** Whether the streaming caret should render in the current environment. */
-function caretActive(): boolean {
-  if (!motionEffectsAllowed()) return false;
-  return resolveQualityAdjustedAmbientEffectMode(getActiveAppearancePreferences()) !== 'off';
-}
-
 /** full density (or legacy expand) shows entire answer bodies. */
 function hostExpandedAnswer(): boolean {
   return getActiveTranscriptDetail() === 'full';
@@ -355,39 +351,4 @@ function collapseAnswerPreview(lines: readonly string[], keep: number): string[]
     );
   }
   return out;
-}
-
-/** Kinetic caret — block + dual spark trail so catch-up is impossible to miss. */
-const STREAMING_CARET = '▌';
-/** Soft sine period — shorter than 280ms so the tip breathes at ~premium cadence. */
-const CARET_PULSE_INTERVAL_MS = 220;
-const CARET_TRAIL = ['·', '˙', '˚', '•'] as const;
-const CARET_TRAIL_OUTER = ['˙', '·', '˚'] as const;
-
-/**
- * Append a pulsing caret (+ dual micro trail) to the last non-empty content line.
- * Smooth sine breath on the shared animation clock — no hard on/off threshold.
- */
-function appendStreamingCaret(lines: readonly string[], _contentWidth: number): readonly string[] {
-  if (lines.length === 0) return lines;
-  let lastIndex = lines.length - 1;
-  while (lastIndex > 0 && lines[lastIndex]!.trim().length === 0) {
-    lastIndex--;
-  }
-  const now = appearanceAnimationNow();
-  // Continuous breath 0→1→0; avoid a hard threshold that flickered bold/regular.
-  const phase = (Math.sin((now / CARET_PULSE_INTERVAL_MS) * Math.PI * 2) + 1) / 2;
-  const hot = phase > 0.55;
-  const warm = phase > 0.28;
-  const caret = currentTheme.boldFg(
-    hot ? 'glow' : warm ? 'gradientStart' : 'primary',
-    STREAMING_CARET,
-  );
-  const trailGlyph = CARET_TRAIL[Math.floor(now / 55) % CARET_TRAIL.length] ?? '·';
-  const outerGlyph = CARET_TRAIL_OUTER[Math.floor(now / 80) % CARET_TRAIL_OUTER.length] ?? '˙';
-  const trail = currentTheme.fg(hot ? 'primary' : warm ? 'particle' : 'textDim', trailGlyph);
-  const outer = currentTheme.fg(hot ? 'glow' : warm ? 'primary' : 'particle', outerGlyph);
-  const next = [...lines];
-  next[lastIndex] = `${lines[lastIndex]}${outer}${trail}${caret}`;
-  return next;
 }

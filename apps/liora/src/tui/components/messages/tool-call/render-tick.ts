@@ -1,5 +1,10 @@
 import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
-import { appearanceAnimationNow, isToneSettleFlashActive } from '#/tui/features/appearance/appearance-effects';
+import {
+  appearanceAnimationNow,
+  getAppearanceRenderHealth,
+  getAppearanceRenderQuality,
+  isToneSettleFlashActive,
+} from '#/tui/features/appearance/appearance-effects';
 import { computeStagedLineReveal } from '#/tui/utils/streaming/streaming-text-reveal';
 import {
   isTranscriptEntranceActive,
@@ -15,16 +20,30 @@ import {
 import { SUBAGENT_ELAPSED_INTERVAL_MS, type SubagentPhase } from './subagent';
 
 const STREAMING_PROGRESS_INTERVAL_MS = 1000;
-/** Max full body rebuilds per shared animation clock tick (all tool cards). */
+/** Baseline rebuild cap when quality/health is not at the premium live ceiling. */
 const MAX_BODY_REBUILDS_PER_TICK = 2;
+/** Healthy full/high quality: allow more concurrent Write/Task cards to refresh. */
+const MAX_BODY_REBUILDS_PER_TICK_HEALTHY = 4;
 
 let rebuildBudgetNow = Number.NaN;
 let rebuildBudgetLeft = 0;
 
+function bodyRebuildBudgetForTick(): number {
+  const quality = getAppearanceRenderQuality();
+  const health = getAppearanceRenderHealth();
+  if (
+    (quality === 'full' || quality === 'high') &&
+    (health === 'healthy' || health === 'idle')
+  ) {
+    return MAX_BODY_REBUILDS_PER_TICK_HEALTHY;
+  }
+  return MAX_BODY_REBUILDS_PER_TICK;
+}
+
 function takeBodyRebuildBudget(nowMs: number): boolean {
   if (nowMs !== rebuildBudgetNow) {
     rebuildBudgetNow = nowMs;
-    rebuildBudgetLeft = MAX_BODY_REBUILDS_PER_TICK;
+    rebuildBudgetLeft = bodyRebuildBudgetForTick();
   }
   if (rebuildBudgetLeft <= 0) return false;
   rebuildBudgetLeft -= 1;

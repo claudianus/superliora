@@ -28,22 +28,32 @@ describe('rendererAmbientIntervalMs', () => {
     ).toBe(16);
   });
 
-  it('soft-degrades premium mildly under watch/backpressure/minimal', () => {
-    // Default premium 16ms → soft floor max(32, 33) = 33, not a jump to subtle 100ms.
+  it('keeps premium cadence under watch health (soft-degrade only on hard load)', () => {
     expect(
       rendererAmbientIntervalMs({
         requested: 'premium',
         quality: 'full',
         health: 'watch',
       }),
-    ).toBe(33);
+    ).toBe(16);
+  });
+
+  it('soft-degrades premium mildly under backpressure/minimal/degraded', () => {
+    // Default premium 16ms → soft floor max(32, 24) = 32, not a jump to subtle 100ms.
     expect(
       rendererAmbientIntervalMs({
         requested: 'premium',
         quality: 'minimal',
         health: 'healthy',
       }),
-    ).toBe(33);
+    ).toBe(32);
+    expect(
+      rendererAmbientIntervalMs({
+        requested: 'premium',
+        quality: 'full',
+        health: 'degraded',
+      }),
+    ).toBe(32);
     expect(
       rendererAmbientIntervalMs({
         requested: 'premium',
@@ -51,7 +61,7 @@ describe('rendererAmbientIntervalMs', () => {
         health: 'healthy',
         backpressure: true,
       }),
-    ).toBe(33);
+    ).toBe(32);
   });
 
   it('returns Infinity for off without forcing callers to special-case', () => {

@@ -34,6 +34,10 @@ import { formatElapsedTime } from '#/tui/utils/elapsed-time';
 import { isRenderCacheEnabled, renderCacheEpoch } from '#/tui/utils/render/render-cache';
 import { areLiveToolTicksSuppressed } from '#/tui/utils/render/transcript-paint-mode';
 import {
+  appendStreamingCaret,
+  streamingCaretActive,
+} from '#/tui/features/transcript/streaming-caret';
+import {
   isTranscriptEntranceActive,
   polishTranscriptLines,
 } from '#/tui/features/transcript/transcript-entrance';
@@ -188,6 +192,11 @@ export class ThinkingComponent implements Component {
                     maxLines: maxPreview,
                     tail: true,
                   }).lines;
+          const caretOn =
+            !scrollPaint && streamingCaretActive() && visibleLines.length > 0;
+          const streamedBody = caretOn
+            ? appendStreamingCaret(visibleLines.map((line) => MESSAGE_INDENT + line))
+            : visibleLines.map((line) => MESSAGE_INDENT + line);
           const spinnerFrame =
             Math.floor(appearanceAnimationNow() / BRAILLE_SPINNER_INTERVAL_MS) %
             BRAILLE_SPINNER_FRAMES.length;
@@ -213,17 +222,14 @@ export class ThinkingComponent implements Component {
             'thinking',
           );
           // Leading untinted blank = breath after user; body rows share tools tint.
-          const liveLines = [
-            '',
-            phaseTag,
-            spinner + thinkingLabel,
-            ...visibleLines.map((line) => MESSAGE_INDENT + line),
-          ].map((line, i) => {
-            if (i === 0 || i === 1) return line;
-            const guttered =
-              phaseGutter('thinking') + (line.startsWith(' ') ? line.slice(1) : line);
-            return applyWorkBlockTintLine(guttered, width, 'thinking');
-          });
+          const liveLines = ['', phaseTag, spinner + thinkingLabel, ...streamedBody].map(
+            (line, i) => {
+              if (i === 0 || i === 1) return line;
+              const guttered =
+                phaseGutter('thinking') + (line.startsWith(' ') ? line.slice(1) : line);
+              return applyWorkBlockTintLine(guttered, width, 'thinking');
+            },
+          );
           return polishTranscriptLines(liveLines, {
             startedAtMs: this.entranceStartedAtMs,
             kind: 'thinking',

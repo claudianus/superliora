@@ -104,7 +104,10 @@ export function appearanceAnimationFrameIntervalMs(
   return rendererAmbientIntervalMs({
     requested: resolveAmbientEffectMode(appearance),
     quality: quality === 'minimal' ? 'balanced' : quality,
-    health: health === 'degraded' ? 'watch' : health,
+    // Pass real health through: soft-degrade keys off `degraded` / minimal /
+    // backpressure only. Mapping degraded→watch here used to keep cadence soft
+    // when watch itself soft-degraded; watch alone now stays at premium ms.
+    health,
     // backpressure is injected by AmbientSchedule ctx at the renderer; this
     // helper remains quality/health oriented for unit tests / cache ticks.
     premiumMs: premiumAmbientIntervalMs(appearance.animationFps),

@@ -68,7 +68,7 @@ describe('tool-call rebuild budget (ambient storm guard)', () => {
     advanceAppearanceAnimationClock(5_000);
   });
 
-  it('allows at most two full body rebuilds per animation clock tick', () => {
+  it('allows four full body rebuilds per tick under healthy full/high quality', () => {
     const rebuildBody = vi.fn();
     const requestRender = vi.fn();
     const callbacks = {
@@ -84,13 +84,13 @@ describe('tool-call rebuild budget (ambient storm guard)', () => {
       getSubagentSpinnerFrame: () => 0,
     };
 
-    for (const id of ['a', 'b', 'c']) {
+    for (const id of ['a', 'b', 'c', 'd', 'e']) {
       tickToolCallRenderClock(streamingEditInput(id), callbacks);
     }
 
-    // Budget = 2 rebuilds; remaining cards still request follow-up frames.
-    expect(rebuildBody).toHaveBeenCalledTimes(2);
-    expect(requestRender.mock.calls.length).toBeGreaterThanOrEqual(3);
+    // Healthy full/high budget = 4; remaining cards still request follow-up frames.
+    expect(rebuildBody).toHaveBeenCalledTimes(4);
+    expect(requestRender.mock.calls.length).toBeGreaterThanOrEqual(5);
   });
 
   it('shares the rebuild budget with subagent block rebuilds', () => {
@@ -110,13 +110,13 @@ describe('tool-call rebuild budget (ambient storm guard)', () => {
       getSubagentSpinnerFrame: () => 0,
     };
 
-    for (const id of ['a', 'b', 'c']) {
+    for (const id of ['a', 'b', 'c', 'd', 'e']) {
       tickToolCallRenderClock(runningSubagentInput(id), callbacks);
     }
 
-    // Shared budget = 2; third card only refreshes header + requestRender.
-    expect(rebuildSubagentBlock).toHaveBeenCalledTimes(2);
+    // Shared healthy budget = 4; fifth card only refreshes header + requestRender.
+    expect(rebuildSubagentBlock).toHaveBeenCalledTimes(4);
     expect(rebuildBody).toHaveBeenCalledTimes(0);
-    expect(requestRender.mock.calls.length).toBeGreaterThanOrEqual(3);
+    expect(requestRender.mock.calls.length).toBeGreaterThanOrEqual(5);
   });
 });
