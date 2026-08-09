@@ -4,6 +4,8 @@ import { createJob, getJob, listJobs, patchJob } from '../../src/tools/builtin/j
 import {
   dispatchPushRemote,
   evaluatePushTrust,
+  inferPublishRemoteRef,
+  parseGithubOwnerRepo,
   pushJobToRemote,
   validatePushRefToken,
 } from '../../src/tools/builtin/job/job-push';
@@ -52,6 +54,22 @@ describe('job-push trust + refs', () => {
       false,
     );
   });
+
+  it('infers gh-pages from Pages deploy briefs but never main', () => {
+    expect(
+      inferPublishRemoteRef('Push: origin/main + gh-pages 배포 및 Pages 활성화'),
+    ).toBe('gh-pages');
+    expect(inferPublishRemoteRef('remoteRef: docs-site')).toBe('docs-site');
+    expect(inferPublishRemoteRef('ship to origin/main only')).toBeUndefined();
+    expect(parseGithubOwnerRepo('https://github.com/claudianus/metalslug1.git')).toEqual({
+      owner: 'claudianus',
+      repo: 'metalslug1',
+    });
+    expect(parseGithubOwnerRepo('git@github.com:acme/widgets.git')).toEqual({
+      owner: 'acme',
+      repo: 'widgets',
+    });
+  });
 });
 
 describe('pushJobToRemote', () => {
@@ -86,6 +104,7 @@ describe('pushJobToRemote', () => {
       localRef: 'gh-pages',
       remoteRef: 'gh-pages',
       runGit,
+      enablePages: false,
     });
 
     expect(result.ok).toBe(true);
@@ -95,6 +114,63 @@ describe('pushJobToRemote', () => {
       calls.some((c) => c[0] === 'push' && c[1] === 'origin' && c[2] === 'gh-pages:gh-pages'),
     ).toBe(true);
     expect(getJob(store, job.id)?.resultSummary).toMatch(/Pushed/);
+  });
+
+  it('infers remoteRef=gh-pages from title and enables Pages after push', async () => {
+    const store = memoryStore();
+    const job = createJob(store, {
+      title: 'Push: origin/main + gh-pages 배포 및 Pages 활성화',
+      kind: 'implement',
+    });
+    patchJob(store, job.id, {
+      status: 'done',
+      worktreePath: '/tmp/wt',
+      worktreeBranch: 'liora/conductor-jmsl8pcld1vb3s8',
+    });
+
+    const gitCalls: string[][] = [];
+    const ghCalls: string[][] = [];
+    const runGit = vi.fn(async (_cwd: string, args: readonly string[]) => {
+      gitCalls.push([...args]);
+      if (args[0] === 'rev-parse') {
+        return { code: 0, stdout: '6557a3dabcdef0123456789\n', stderr: '' };
+      }
+      if (args[0] === 'remote' && args[1] === 'get-url') {
+        return { code: 0, stdout: 'https://github.com/claudianus/metalslug1.git\n', stderr: '' };
+      }
+      if (args[0] === 'push') {
+        return { code: 0, stdout: 'ok\n', stderr: '' };
+      }
+      return { code: 0, stdout: '', stderr: '' };
+    });
+    const runGh = vi.fn(async (args: readonly string[]) => {
+      ghCalls.push([...args]);
+      return { code: 0, stdout: '{"status":"built"}\n', stderr: '' };
+    });
+
+    const result = await pushJobToRemote({
+      store,
+      job: getJob(store, job.id)!,
+      remote: 'origin',
+      localRef: 'liora/conductor-jmsl8pcld1vb3s8',
+      // remoteRef omitted — must infer gh-pages from title
+      runGit,
+      runGh,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.receipt?.remoteRef).toBe('gh-pages');
+    expect(result.receipt?.pagesEnabled).toBe(true);
+    expect(
+      gitCalls.some(
+        (c) =>
+          c[0] === 'push' &&
+          c[1] === 'origin' &&
+          c[2] === 'liora/conductor-jmsl8pcld1vb3s8:gh-pages',
+      ),
+    ).toBe(true);
+    expect(ghCalls.some((c) => c.includes('/repos/claudianus/metalslug1/pages'))).toBe(true);
+    expect(result.message).toMatch(/pages: enabled/i);
   });
 });
 

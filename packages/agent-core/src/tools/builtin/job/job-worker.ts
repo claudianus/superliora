@@ -302,6 +302,8 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
   }
 
   // Remote push: deterministic git push on the source worktree — never an LLM.
+  // remoteRef may be omitted in the prompt; runPushRemoteJob infers gh-pages
+  // (etc.) from push/source job titles and briefs.
   if (job.kind === 'push') {
     const remoteMatch = /\bremote:\s*(\S+)/i.exec(job.prompt ?? '');
     const localMatch = /\blocalRef:\s*(\S+)/i.exec(job.prompt ?? '');

@@ -345,7 +345,9 @@ const PushJobInputSchema = z
       .trim()
       .min(1)
       .optional()
-      .describe('Remote ref name (default: same as local ref). Use gh-pages for Pages deploys.'),
+      .describe(
+        'Remote ref name. When omitted, inferred from job title/brief (gh-pages / GitHub Pages → gh-pages); else same as local ref. Never auto-infers main.',
+      ),
     force_user_confirm: z
       .boolean()
       .optional()
@@ -1066,7 +1068,7 @@ export interface PushJobToolOptions {
 export class PushJobTool implements BuiltinTool<z.infer<typeof PushJobInputSchema>> {
   readonly name = 'PushJob' as const;
   readonly description =
-    'Publish or hold a Job ref to a git remote under an explicit user gate. Workers and Conductor Bash cannot push; this tool records the verdict and offloads `git push` to a kind=push worker (no force-push). Requires force_user_confirm=true (Push Preview). Auto/yolo never waives.';
+    'Publish or hold a Job ref to a git remote under an explicit user gate. Workers and Conductor Bash cannot push; this tool records the verdict and offloads `git push` to a kind=push worker (no force-push). When remote_ref is omitted, infers gh-pages from Pages deploy briefs and enables GitHub Pages after a successful gh-pages push (best-effort via gh). Requires force_user_confirm=true (Push Preview). Auto/yolo never waives.';
   readonly parameters: Record<string, unknown> = toInputJsonSchema(PushJobInputSchema);
 
   constructor(

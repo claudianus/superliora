@@ -6,6 +6,7 @@ import { PushPreviewPanelComponent } from '../../components/dialogs/push-preview
 import { isConductorUxV2Enabled } from '../../commands/job-hotpath';
 import type { SlashCommandHost } from '../../commands/hub/dispatch';
 import type { ConductorJobCard } from '../../utils/job/job-strip';
+import { inferPublishRemoteRefFromJobCard } from '../../utils/job/push-publish-target';
 import { shortJobId } from '../../components/job-board/job-board-helpers';
 
 export function canOpenPushPreview(card: ConductorJobCard): boolean {
@@ -37,7 +38,7 @@ export function openPushPreview(
 
   const remote = opts?.remote ?? 'origin';
   const localRef = opts?.localRef;
-  const remoteRef = opts?.remoteRef;
+  const remoteRef = opts?.remoteRef ?? inferPublishRemoteRefFromJobCard(card);
 
   const panel = new PushPreviewPanelComponent({
     job: card,

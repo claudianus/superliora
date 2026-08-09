@@ -2,11 +2,15 @@
  * Push a finished Job worktree (or main checkout) ref to a remote.
  * Deterministic offload lane — never runs on worker Bash / Conductor Bash.
  * Force-push is always denied; interactive approve + force_user_confirm required.
+ *
+ * Publish targeting: when remoteRef is omitted, infer from job brief/title
+ * (e.g. `gh-pages` for Pages deploys) so conductor worktree branches push
+ * as `liora/…:gh-pages` instead of a same-name remote branch.
  */
 
 import type { Kaos } from '@superliora/kaos';
 
-import { runGit as kaosRunGit } from '#/autopilot/git';
+import { runGh as kaosRunGh, runGit as kaosRunGit } from '#/autopilot/git';
 
 import type { Agent } from '../../../agent/index';
 import type { ToolStore } from '../../store';
@@ -21,7 +25,19 @@ export interface JobPushReceipt {
   readonly remoteRef: string;
   readonly sha: string;
   readonly pushedAt: string;
+  /** Set when GitHub Pages was enabled/updated after a gh-pages push. */
+  readonly pagesEnabled?: boolean;
+  readonly pagesNote?: string;
 }
+
+export type RunGitFn = (
+  cwd: string,
+  args: readonly string[],
+) => Promise<{ readonly code: number; readonly stdout: string; readonly stderr: string }>;
+
+export type RunGhFn = (
+  args: readonly string[],
+) => Promise<{ readonly code: number; readonly stdout: string; readonly stderr: string }>;
 
 export interface PushJobToRemoteInput {
   readonly store: ToolStore;
@@ -32,10 +48,10 @@ export interface PushJobToRemoteInput {
   readonly kaos?: Kaos;
   readonly repoPath?: string;
   readonly agent?: Agent;
-  readonly runGit?: (
-    cwd: string,
-    args: readonly string[],
-  ) => Promise<{ readonly code: number; readonly stdout: string; readonly stderr: string }>;
+  readonly runGit?: RunGitFn;
+  readonly runGh?: RunGhFn;
+  /** Override Pages enable (default: true when remoteRef resolves to gh-pages). */
+  readonly enablePages?: boolean;
 }
 
 export interface PushJobToRemoteResult {
@@ -63,6 +79,21 @@ async function defaultRunGit(
   };
 }
 
+async function defaultRunGh(
+  kaos: Kaos | undefined,
+  args: readonly string[],
+): Promise<{ code: number; stdout: string; stderr: string }> {
+  if (kaos === undefined) {
+    return { code: 1, stdout: '', stderr: 'kaos unavailable for gh' };
+  }
+  const res = await kaosRunGh(kaos, args);
+  return {
+    code: res.ok ? 0 : (res.exitCode ?? 1),
+    stdout: res.stdout,
+    stderr: res.stderr,
+  };
+}
+
 /** Reject force-push / option smuggling in remote or ref names. */
 export function validatePushRefToken(value: string, label: string): string | undefined {
   const t = value.trim();
@@ -78,6 +109,143 @@ export function validatePushRefToken(value: string, label: string): string | und
     return `${label} is not a safe git ref/remote token`;
   }
   return undefined;
+}
+
+/**
+ * Infer a publish remote ref from job brief / title / summary text.
+ * Never auto-infers main/master — those need an explicit remote_ref.
+ */
+export function inferPublishRemoteRef(text: string): string | undefined {
+  const blob = text.trim();
+  if (blob.length === 0) return undefined;
+
+  const structured =
+    /\bremote[_ ]?ref\s*[:=]\s*([A-Za-z0-9][A-Za-z0-9._/@-]*)/i.exec(blob) ??
+    /\bremoteRef\s*[:=]\s*([A-Za-z0-9][A-Za-z0-9._/@-]*)/i.exec(blob);
+  if (structured?.[1] !== undefined) {
+    const token = structured[1];
+    if (validatePushRefToken(token, 'remoteRef') === undefined) return token;
+  }
+
+  // Pages deploy target (EN + common brief phrasing).
+  if (/\bgh-pages\b/i.test(blob) || /\bgithub\s*pages\b/i.test(blob)) {
+    return 'gh-pages';
+  }
+  return undefined;
+}
+
+/** Join job fields that commonly carry publish intent. */
+export function collectJobPublishHints(job: JobRecord): string {
+  return [job.title, job.prompt, job.resultSummary, job.notes, job.worktreeBranch]
+    .filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+    .join('\n');
+}
+
+/**
+ * Resolve remoteRef: explicit arg wins, else infer from job publish hints.
+ */
+export function resolvePushRemoteRef(input: {
+  readonly explicit?: string;
+  readonly job: JobRecord;
+}): string | undefined {
+  const explicit = input.explicit?.trim();
+  if (explicit !== undefined && explicit.length > 0) return explicit;
+  return inferPublishRemoteRef(collectJobPublishHints(input.job));
+}
+
+/** `owner/repo` from a github.com remote URL (https or ssh). */
+export function parseGithubOwnerRepo(remoteUrl: string): { owner: string; repo: string } | undefined {
+  const trimmed = remoteUrl.trim();
+  const scp = /^[^@\s]+@github\.com:([^/]+)\/([^/]+?)(?:\.git)?$/i.exec(trimmed);
+  if (scp?.[1] !== undefined && scp[2] !== undefined) {
+    return { owner: scp[1], repo: scp[2].replace(/\.git$/i, '') };
+  }
+  try {
+    const u = new URL(trimmed.replace(/^git\+/, ''));
+    if (!/^(www\.)?github\.com$/i.test(u.hostname)) return undefined;
+    const parts = u.pathname.replace(/^\/+/, '').replace(/\.git$/i, '').split('/');
+    if (parts.length >= 2 && parts[0] && parts[1]) {
+      return { owner: parts[0], repo: parts[1] };
+    }
+  } catch {
+    /* not a URL */
+  }
+  return undefined;
+}
+
+/**
+ * Best-effort: create or update GitHub Pages source to `branch` (usually gh-pages).
+ * Push success is never rolled back if this fails.
+ */
+export async function enableGitHubPages(input: {
+  readonly cwd: string;
+  readonly remote: string;
+  readonly branch: string;
+  readonly runGit: RunGitFn;
+  readonly runGh: RunGhFn;
+}): Promise<{ readonly ok: boolean; readonly note: string }> {
+  const urlRes = await input.runGit(input.cwd, ['remote', 'get-url', input.remote]);
+  if (urlRes.code !== 0) {
+    return { ok: false, note: `pages: skip — could not read remote URL (${input.remote})` };
+  }
+  const parsed = parseGithubOwnerRepo(urlRes.stdout.trim());
+  if (parsed === undefined) {
+    return { ok: false, note: 'pages: skip — remote is not github.com' };
+  }
+  const path = `/repos/${parsed.owner}/${parsed.repo}/pages`;
+  // Create (POST). 409 / already-exists → update with PUT.
+  const post = await input.runGh([
+    'api',
+    '-X',
+    'POST',
+    path,
+    '-f',
+    'build_type=legacy',
+    '-f',
+    `source[branch]=${input.branch}`,
+    '-f',
+    'source[path]=/',
+  ]);
+  if (post.code === 0) {
+    return {
+      ok: true,
+      note: `pages: enabled source=${input.branch}/ → https://${parsed.owner}.github.io/${parsed.repo}/`,
+    };
+  }
+  const detail = `${post.stderr} ${post.stdout}`.toLowerCase();
+  const already =
+    detail.includes('409') ||
+    detail.includes('already exists') ||
+    detail.includes('pages site already exists');
+  if (!already) {
+    return {
+      ok: false,
+      note: `pages: enable failed — ${(post.stderr || post.stdout || 'gh api error').slice(0, 240)}`,
+    };
+  }
+
+  const put = await input.runGh([
+    'api',
+    '-X',
+    'PUT',
+    path,
+    '-f',
+    'build_type=legacy',
+    '-f',
+    `source[branch]=${input.branch}`,
+    '-f',
+    'source[path]=/',
+  ]);
+  if (put.code === 0) {
+    return {
+      ok: true,
+      note: `pages: updated source=${input.branch}/ → https://${parsed.owner}.github.io/${parsed.repo}/`,
+    };
+  }
+  return {
+    ok: false,
+    note: `pages: update failed — ${(put.stderr || put.stdout || 'gh api error').slice(0, 240)}`,
+  };
 }
 
 export function evaluatePushTrust(input: {
@@ -166,7 +334,8 @@ export async function pushJobToRemote(input: PushJobToRemoteInput): Promise<Push
     }
   }
 
-  const remoteRef = (input.remoteRef?.trim() || localRef).trim();
+  const inferredRemote = resolvePushRemoteRef({ explicit: input.remoteRef, job });
+  const remoteRef = (inferredRemote ?? localRef).trim();
   const remoteRefErr = validatePushRefToken(remoteRef, 'remoteRef');
   if (remoteRefErr !== undefined) {
     return { ok: false, job, pushed: false, message: '', error: remoteRefErr };
@@ -218,14 +387,40 @@ export async function pushJobToRemote(input: PushJobToRemoteInput): Promise<Push
     };
   }
 
+  let pagesEnabled: boolean | undefined;
+  let pagesNote: string | undefined;
+  const wantPages =
+    input.enablePages === true ||
+    (input.enablePages !== false && remoteRef === 'gh-pages');
+  if (wantPages) {
+    const runGh =
+      input.runGh ?? ((args: readonly string[]) => defaultRunGh(input.kaos, args));
+    const pages = await enableGitHubPages({
+      cwd,
+      remote,
+      branch: remoteRef,
+      runGit,
+      runGh,
+    });
+    pagesEnabled = pages.ok;
+    pagesNote = pages.note;
+  }
+
   const receipt: JobPushReceipt = {
     remote,
     localRef,
     remoteRef,
     sha,
     pushedAt: new Date().toISOString(),
+    ...(pagesEnabled !== undefined ? { pagesEnabled } : {}),
+    ...(pagesNote !== undefined ? { pagesNote } : {}),
   };
-  const message = `Pushed ${localRef} → ${remote}/${remoteRef} (${sha.slice(0, 7)})`;
+  const message = [
+    `Pushed ${localRef} → ${remote}/${remoteRef} (${sha.slice(0, 7)})`,
+    pagesNote,
+  ]
+    .filter(Boolean)
+    .join('\n');
   const next = patchJobAndNotify(
     store,
     job.id,
@@ -235,6 +430,7 @@ export async function pushJobToRemote(input: PushJobToRemoteInput): Promise<Push
       notes: [
         job.notes,
         `push: ok remote=${remote} ${refspec} sha=${sha}`,
+        pagesNote,
       ]
         .filter(Boolean)
         .join('\n'),
@@ -263,6 +459,8 @@ export interface DispatchPushRemoteInput {
   readonly kaos?: Kaos;
   readonly agent?: Agent;
   readonly runGit?: PushJobToRemoteInput['runGit'];
+  readonly runGh?: PushJobToRemoteInput['runGh'];
+  readonly enablePages?: boolean;
 }
 
 export interface DispatchPushRemoteResult {
@@ -278,15 +476,33 @@ export interface DispatchPushRemoteResult {
 export function dispatchPushRemote(input: DispatchPushRemoteInput): DispatchPushRemoteResult {
   const { store, sourceJob, trustReason } = input;
   const remote = input.remote.trim() || 'origin';
+  const remoteRef = resolvePushRemoteRef({
+    explicit: input.remoteRef,
+    job: {
+      ...sourceJob,
+      // Summary about to be written may carry gh-pages intent.
+      resultSummary: input.summary ?? sourceJob.resultSummary,
+    },
+  });
 
-  const verdictNote = `push: approved — ${trustReason}`;
+  const verdictNote = [
+    `push: approved — ${trustReason}`,
+    remoteRef !== undefined ? `remoteRef=${remoteRef}` : undefined,
+  ]
+    .filter(Boolean)
+    .join(' · ');
   const source = patchJob(store, sourceJob.id, {
     resultSummary: input.summary ?? sourceJob.resultSummary,
     notes: [sourceJob.notes, verdictNote].filter(Boolean).join('\n'),
   });
 
+  const pushTitle =
+    remoteRef === 'gh-pages'
+      ? `Push ${sourceJob.id} → ${remote}/gh-pages (Pages)`
+      : `Push ${sourceJob.id} to ${remote}`;
+
   const pushJob = createJob(store, {
-    title: `Push ${sourceJob.id} to ${remote}`,
+    title: pushTitle,
     kind: 'push',
     priority: 10,
     prompt: [
@@ -295,9 +511,12 @@ export function dispatchPushRemote(input: DispatchPushRemoteInput): DispatchPush
       `trust: ${trustReason}`,
       sourceJob.worktreePath ? `worktree: ${sourceJob.worktreePath}` : 'main checkout',
       input.localRef ? `localRef: ${input.localRef}` : undefined,
-      input.remoteRef ? `remoteRef: ${input.remoteRef}` : undefined,
+      remoteRef ? `remoteRef: ${remoteRef}` : undefined,
       input.repoPath ? `repo: ${input.repoPath}` : undefined,
       'Executor: pushJobToRemote on the offload lane (no force-push).',
+      remoteRef === 'gh-pages'
+        ? 'After push: best-effort GitHub Pages enable (source=gh-pages/).'
+        : undefined,
     ]
       .filter(Boolean)
       .join('\n'),
@@ -315,11 +534,13 @@ export function dispatchPushRemote(input: DispatchPushRemoteInput): DispatchPush
       kaos: input.kaos,
       repoPath: input.repoPath,
       runGit: input.runGit,
+      runGh: input.runGh,
       agent: input.agent,
       sourceJob: source ?? sourceJob,
       remote,
       localRef: input.localRef,
-      remoteRef: input.remoteRef,
+      remoteRef,
+      enablePages: input.enablePages,
     });
   });
 
@@ -336,11 +557,13 @@ export interface RunPushRemoteJobInput {
   readonly kaos?: Kaos;
   readonly repoPath?: string;
   readonly runGit?: PushJobToRemoteInput['runGit'];
+  readonly runGh?: PushJobToRemoteInput['runGh'];
   readonly sourceJob?: JobRecord;
   readonly agent?: Agent;
   readonly remote: string;
   readonly localRef?: string;
   readonly remoteRef?: string;
+  readonly enablePages?: boolean;
 }
 
 /** Deterministic push executor for kind=push jobs — never spawns an LLM worker. */
@@ -374,6 +597,12 @@ export async function runPushRemoteJob(input: RunPushRemoteJobInput): Promise<Pu
     };
   }
 
+  // Prefer explicit / prompt-parsed ref; else infer from push job + source hints
+  // (CreateJob kind=push titles like "… gh-pages … Pages …" land here).
+  const remoteRef =
+    resolvePushRemoteRef({ explicit: input.remoteRef, job: pushJob }) ??
+    resolvePushRemoteRef({ job: source });
+
   let result: PushJobToRemoteResult;
   try {
     result = await pushJobToRemote({
@@ -381,10 +610,12 @@ export async function runPushRemoteJob(input: RunPushRemoteJobInput): Promise<Pu
       job: source,
       remote: input.remote,
       localRef: input.localRef,
-      remoteRef: input.remoteRef,
+      remoteRef,
       kaos: input.kaos,
       repoPath: input.repoPath,
       runGit: input.runGit,
+      runGh: input.runGh,
+      enablePages: input.enablePages,
       agent: input.agent,
     });
   } catch (error) {
