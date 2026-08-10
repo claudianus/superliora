@@ -18,6 +18,11 @@ import type { Agent } from '../../agent';
 import {
   isRetryableProviderFailure,
 } from '../../agent/provider-failover';
+import {
+  DEFAULT_MODEL_UNAVAILABLE_COOLDOWN_MS,
+  sharedModelRouteHealthStore,
+} from '../../agent/routing/model-route-health';
+import { classifyProviderRouteFailure } from '../../agent/turn/provider-route-classify';
 import { ErrorCodes, toKimiErrorPayload, type LioraErrorPayload } from '../../errors';
 import { isAbortError } from '../../loop/errors';
 import { renderExpertSystemPrompt, resolveExpertWhenToUse } from '../../expert-agents/expert-persona';
@@ -50,6 +55,7 @@ export function isModelAliasHealthy(
   models: Record<string, { provider?: string }> | undefined,
 ): boolean {
   if (alias === undefined || models === undefined) return true;
+  if (!sharedModelRouteHealthStore.isAvailable(alias)) return false;
   const entry = models[alias];
   if (entry === undefined) return true;
   const provider = entry.provider;
@@ -76,11 +82,36 @@ export function markModelAliasAuthRejected(
   if (alias === undefined || models === undefined) return false;
   const provider = models[alias]?.provider;
   if (provider === undefined || provider.length === 0) return false;
-  sharedCredentialHealthStore.markAuthRejected(provider, {
-    failureReason:
-      error instanceof Error && error.message.length > 0
-        ? error.message
-        : 'provider rejected credentials (HTTP 401/403)',
+  const failureReason =
+    error instanceof Error && error.message.length > 0
+      ? error.message
+      : 'provider rejected credentials (HTTP 401/403)';
+  sharedCredentialHealthStore.markAuthRejected(provider, { failureReason });
+  sharedModelRouteHealthStore.markUnavailable(alias, {
+    kind: 'route_fail',
+    failureReason,
+  });
+  return true;
+}
+
+/**
+ * Mark a single model alias unavailable (retired ID / 404) without poisoning
+ * the whole provider credential. Sibling aliases on the same provider stay eligible.
+ */
+export function markModelAliasUnavailable(
+  alias: string | undefined,
+  error?: unknown,
+): boolean {
+  if (alias === undefined || alias.trim().length === 0) return false;
+  const failure = classifyProviderRouteFailure(error, undefined);
+  const failureReason =
+    error instanceof Error && error.message.length > 0
+      ? error.message
+      : 'model unavailable';
+  sharedModelRouteHealthStore.markUnavailable(alias, {
+    kind: 'model_unavailable',
+    failureReason,
+    cooldownMs: failure?.cooldownMs ?? DEFAULT_MODEL_UNAVAILABLE_COOLDOWN_MS,
   });
   return true;
 }

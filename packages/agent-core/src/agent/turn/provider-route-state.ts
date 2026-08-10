@@ -52,6 +52,7 @@ const FAILURE_KIND_SEVERITY: readonly ProviderRouteFailureKind[] = [
   'connection',
   'server',
   'rate_limit',
+  'model_unavailable',
   'quota',
   'auth',
 ];

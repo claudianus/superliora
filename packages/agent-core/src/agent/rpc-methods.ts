@@ -23,7 +23,7 @@ import {
 } from '../tools/builtin/planning/plan-desk';
 import { resolvePlanModeKind } from '../tools/builtin/planning/resolve-plan-mode-kind';
 import * as jobRpc from '../tools/builtin/job/job-rpc-api';
-import { ensureSmartRouteProbed, resolveSessionSmartRoute } from './routing';
+import { ensureSmartRouteProbed, resolveSessionSmartRouteAsync } from './routing';
 import type { Agent } from './index';
 
 export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
@@ -77,7 +77,7 @@ export function createRpcMethods(agent: Agent): PromisableMethods<AgentAPI> {
         }
         const runtime = agent.runtimeConfig ?? agent.kimiConfig;
         if (runtime !== undefined) {
-          const route = resolveSessionSmartRoute({ config: runtime });
+          const route = await resolveSessionSmartRouteAsync({ config: runtime });
           if (route !== undefined) {
             const probed = await ensureSmartRouteProbed(agent, route);
             agent.config.setSmartRouteAlias(probed?.alias);

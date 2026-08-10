@@ -19,13 +19,17 @@ import type { LioraConfig, ModelAlias, ProviderConfig } from '../../config';
 import { hasConfiguredApiKeySource } from '../../session/provider/provider-manager-api-key';
 import { providerOAuthRefs } from '../../session/provider/provider-manager-oauth';
 import {
+  applyModelScores,
   autoAssignRoleModels,
   buildFallbackChain,
   classifyModelTier,
+  getModelsDevData,
+  peekModelsDevData,
   rolePresetFor,
   type ModelMetadata,
   type ModelRole,
 } from '../../utils/model-presets';
+import { sharedModelRouteHealthStore } from './model-route-health';
 import { routeOutcomeEma } from './route-outcome';
 import {
   classifySessionRole,
@@ -107,6 +111,8 @@ export function configuredRoleAlias(
 export function isConfigAliasHealthy(config: LioraConfig, alias: string): boolean {
   const model = config.models?.[alias];
   if (model === undefined) return false;
+  // Alias marks (404 / probe fail) are model-local; credential health stays provider-scoped.
+  if (!sharedModelRouteHealthStore.isAvailable(alias)) return false;
   const providerName = model.provider;
   const provider = config.providers?.[providerName];
   if (provider === undefined) return false;
@@ -150,36 +156,38 @@ function localModelMetadata(
   const declaredCapabilities = model.capabilities !== undefined;
   const hasReasoningMetadata =
     declaredCapabilities || model.supportEfforts !== undefined || model.adaptiveThinking === true;
-  const supportsReasoning = hasReasoningMetadata
+  const localReasoning = hasReasoningMetadata
     ? capabilities.has('thinking') ||
       capabilities.has('always_thinking') ||
       model.adaptiveThinking === true ||
       (model.supportEfforts?.length ?? 0) > 0
     : undefined;
-  const supportsTools = declaredCapabilities ? capabilities.has('tool_use') : undefined;
-  const supportsVision = declaredCapabilities ? capabilities.has('image_in') : undefined;
-  const pricingData = {
-    inputCostPerM: model.cost?.input,
-    outputCostPerM: model.cost?.output,
-    contextWindow: model.maxContextSize,
-    supportsReasoning,
-    supportsTools,
-    supportsVision,
-  };
+  const localTools = declaredCapabilities ? capabilities.has('tool_use') : undefined;
+  const localVision = declaredCapabilities ? capabilities.has('image_in') : undefined;
 
-  return {
-    id: model.model,
-    alias,
-    provider: model.provider,
-    tier: classifyModelTier(model.model, pricingData),
-    contextWindow: model.maxContextSize,
-    available: isConfigAliasHealthy(config, alias),
-    inputCostPerM: model.cost?.input,
-    outputCostPerM: model.cost?.output,
-    supportsReasoning: pricingData.supportsReasoning,
-    supportsTools: pricingData.supportsTools,
-    supportsVision: pricingData.supportsVision,
-  };
+  const peek = peekModelsDevData();
+  const devData =
+    peek?.models.get(model.model.toLowerCase()) ?? peek?.models.get(alias.toLowerCase());
+
+  return applyModelScores(
+    {
+      id: model.model,
+      alias,
+      provider: model.provider,
+      available: isConfigAliasHealthy(config, alias),
+      contextWindow: model.maxContextSize ?? devData?.contextWindow,
+      inputCostPerM: model.cost?.input ?? devData?.inputCostPerM,
+      outputCostPerM: model.cost?.output ?? devData?.outputCostPerM,
+      supportsReasoning: localReasoning ?? devData?.supportsReasoning,
+      supportsTools: localTools ?? devData?.supportsTools,
+      supportsVision: localVision ?? devData?.supportsVision,
+      family: devData?.family,
+      knowledgeCutoff: devData?.knowledgeCutoff,
+      benchmarkScore: devData?.benchmarkScore,
+      benchmarkCount: devData?.benchmarkCount,
+    },
+    devData,
+  );
 }
 
 export type ResolveSmartRouteInput = {
@@ -503,4 +511,24 @@ export function resolveSessionSmartRoute(input: {
     signals: { prompt: input.prompt },
     sessionSpendUsd: input.sessionSpendUsd,
   });
+}
+
+/**
+ * Await models.dev enrichment then resolve (main auto + subagent spawn).
+ * Sync {@link resolveSmartRoute} still works from a warm peek cache.
+ */
+export async function resolveSmartRouteAsync(
+  input: ResolveSmartRouteInput,
+): Promise<SmartRoute | undefined> {
+  await getModelsDevData();
+  return resolveSmartRoute(input);
+}
+
+export async function resolveSessionSmartRouteAsync(input: {
+  readonly config: LioraConfig;
+  readonly prompt?: string;
+  readonly sessionSpendUsd?: number;
+}): Promise<SmartRoute | undefined> {
+  await getModelsDevData();
+  return resolveSessionSmartRoute(input);
 }

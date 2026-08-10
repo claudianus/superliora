@@ -153,8 +153,9 @@ interface ModelsDevResponse {
 }
 
 let modelsDevCache: Promise<ModelsDevApiData> | undefined;
+let modelsDevResolved: ModelsDevApiData | undefined;
 
-interface ModelsDevApiData {
+export interface ModelsDevApiData {
   /** model-id (lowercase) → full pricing+capability+bench record */
   readonly models: ReadonlyMap<string, ModelsDevModelEntry>;
 }
@@ -368,13 +369,33 @@ function parseModelsDevModel(model: ModelsDevModel): ModelsDevModelEntry {
  * Get models.dev data (cached, lazy). Merges api.json + models.json.
  */
 export function getModelsDevData(): Promise<ModelsDevApiData> {
-  modelsDevCache ??= fetchModelsDevData();
+  modelsDevCache ??= fetchModelsDevData().then((data) => {
+    modelsDevResolved = data;
+    return data;
+  });
   return modelsDevCache;
+}
+
+/** Sync peek of a warm models.dev cache (undefined until first fetch resolves). */
+export function peekModelsDevData(): ModelsDevApiData | undefined {
+  return modelsDevResolved;
+}
+
+/** Fire-and-forget / awaitable warm of the models.dev cache. */
+export async function warmModelsDevData(): Promise<void> {
+  await getModelsDevData();
 }
 
 /** @internal test helper — clear models.dev cache between tests. */
 export function clearModelsDevCacheForTests(): void {
   modelsDevCache = undefined;
+  modelsDevResolved = undefined;
+}
+
+/** @internal test helper — seed resolved peek without network. */
+export function setModelsDevDataForTests(data: ModelsDevApiData): void {
+  modelsDevResolved = data;
+  modelsDevCache = Promise.resolve(data);
 }
 
 // ── Tier classification ──────────────────────────────────────────────
@@ -392,7 +413,6 @@ const TIER_PATTERNS: readonly { readonly tier: ModelTier; readonly patterns: rea
     {
       tier: 'cheap',
       patterns: [
-        /sonnet/i,
         /4o-mini/i,
         /gpt-4[._-]mini/i,
         /mini[-.]pro/i,
@@ -405,6 +425,7 @@ const TIER_PATTERNS: readonly { readonly tier: ModelTier; readonly patterns: rea
     {
       tier: 'balanced',
       patterns: [
+        /sonnet/i,
         /gpt-4o(?!-mini)/i,
         /gemini.*pro/i,
         /mistral[-_]?large/i,
@@ -466,9 +487,10 @@ const TIER_BY_RANK: readonly ModelTier[] = [
  * Higher = better coding/planning proxy.
  */
 const FAMILY_QUALITY: readonly { readonly pattern: RegExp; readonly score: number }[] = [
-  { pattern: /claude[-_]?opus|opus[-_]?4/i, score: 96 },
-  { pattern: /claude[-_]?sonnet|sonnet/i, score: 88 },
-  { pattern: /claude[-_]?haiku|haiku/i, score: 62 },
+  // Allow claude-3-opus / claude-opus-4 / bare "opus" test ids.
+  { pattern: /claude[-_\d.]*opus|\bopus[-_]?4\b|\bopus\b/i, score: 96 },
+  { pattern: /claude[-_\d.]*sonnet|\bsonnet\b/i, score: 88 },
+  { pattern: /claude[-_\d.]*haiku|\bhaiku\b/i, score: 62 },
   { pattern: /gpt[-_]?5|o3[-_]?pro/i, score: 95 },
   { pattern: /\bo3\b|o1[-_]?pro/i, score: 92 },
   { pattern: /gpt[-_]?4\.1(?![-_]?mini|[-_]?nano)/i, score: 86 },
@@ -491,9 +513,40 @@ const FAMILY_QUALITY: readonly { readonly pattern: RegExp; readonly score: numbe
 
 /** Soft demotions for clearly older SKUs — still eligible, just lose quality races. */
 const STALE_MODEL_DEMOTIONS: readonly { readonly pattern: RegExp; readonly penalty: number }[] = [
-  { pattern: /\bkimi[-_]?k2\.5\b/i, penalty: 18 },
-  { pattern: /\bkimi[-_]?k2(?![.\d]|[-_]?k)/i, penalty: 12 },
+  { pattern: /\bkimi[-_]?k2\.5\b/i, penalty: 22 },
+  { pattern: /\bkimi[-_]?k2(?![.\d]|[-_]?k)/i, penalty: 16 },
+  { pattern: /\bgpt-4o(?![-_]?mini)\b/i, penalty: 10 },
+  { pattern: /\bclaude-3\b/i, penalty: 14 },
+  { pattern: /\b(turbo|instant)\b/i, penalty: 12 },
 ];
+
+/** Hard-excluded from coding/planning/debugging preferred pools (value roles may still use). */
+const HARD_EXCLUDE_QUALITY_ROLES: readonly RegExp[] = [
+  /\bkimi[-_]?k2\.5\b/i,
+  /\bkimi[-_]?k2(?![.\d]|[-_]?k)/i,
+];
+
+function isQualityStrictRole(role: ModelRole): boolean {
+  return role === 'coding' || role === 'planning' || role === 'debugging';
+}
+
+export function isHardExcludedForRole(role: ModelRole, modelId: string): boolean {
+  if (!isQualityStrictRole(role)) return false;
+  return HARD_EXCLUDE_QUALITY_ROLES.some((pattern) => pattern.test(modelId));
+}
+
+function catalogHasNewerPeer(modelId: string, catalogIds: readonly string[]): boolean {
+  if (/\bkimi[-_]?k2\.5\b/i.test(modelId) || /\bkimi[-_]?k2(?![.\d]|[-_]?k)/i.test(modelId)) {
+    return catalogIds.some((id) => /\bkimi[-_]?k2\.[6-9]\b|\bkimi[-_]?k3\b/i.test(id));
+  }
+  if (/\bgpt-4o(?![-_]?mini)\b/i.test(modelId)) {
+    return catalogIds.some((id) => /\bgpt-4\.1\b|\bgpt-5\b/i.test(id));
+  }
+  if (/\bclaude-3\b/i.test(modelId)) {
+    return catalogIds.some((id) => /\bclaude[-_]?4\b|\bsonnet[-_]?4\b|\bopus[-_]?4\b/i.test(id));
+  }
+  return false;
+}
 
 type QualityInput = ModelsDevModelEntry | Pick<
   ModelMetadata,
@@ -566,8 +619,8 @@ export function scoreModelQuality(modelName: string, data?: QualityInput): numbe
     if (Number.isFinite(year)) {
       if (year >= 2026) score += 5;
       else if (year >= 2025) score += 3;
-      else if (year >= 2024) score += 1;
-      else if (year < 2023) score -= 4;
+      else if (year >= 2024) score -= 4;
+      else if (year < 2024) score -= 12;
     }
   }
 
@@ -736,6 +789,16 @@ export function rolePresetFor(role: ModelRole): RolePreset | undefined {
 
 // ── Auto-assignment ──────────────────────────────────────────────────
 
+/** Apply quality/value/tier scoring, optionally merging a models.dev entry. */
+export function applyModelScores(
+  model: Omit<ModelMetadata, 'qualityScore' | 'valueScore' | 'tier'> & {
+    readonly tier?: ModelTier;
+  },
+  devData?: ModelsDevModelEntry,
+): ModelMetadata {
+  return withScores(model, devData);
+}
+
 function withScores(
   model: Omit<ModelMetadata, 'qualityScore' | 'valueScore' | 'tier'> & {
     readonly tier?: ModelTier;
@@ -856,29 +919,52 @@ function meetsQualityFloor(preset: RolePreset, model: ModelMetadata, anyScored: 
   return q >= preset.minQualityScore;
 }
 
-function rankScore(preset: RolePreset, model: ModelMetadata): number {
+function rankScore(
+  preset: RolePreset,
+  model: ModelMetadata,
+  catalogIds: readonly string[] = [],
+): number {
   const quality = model.qualityScore ?? scoreModelQuality(model.id, model);
   const value = model.valueScore ?? scoreModelValue(quality, model.inputCostPerM);
-  if (preset.preferValue === true) {
-    // Value first, quality as a mild tie-break so two equal-value models
-    // still pick the smarter one.
-    return value * 10 + quality * 0.05;
+  let score =
+    preset.preferValue === true
+      ? value * 10 + quality * 0.05
+      : quality * 10 + value * 0.1;
+  if (catalogIds.length > 0 && catalogHasNewerPeer(model.id, catalogIds)) {
+    score -= isQualityStrictRole(preset.role) ? 80 : 25;
   }
-  // Quality first for coding/planning/debugging; light value tie-break.
-  return quality * 10 + value * 0.1;
+  if (isQualityStrictRole(preset.role)) {
+    const knowledge = model.knowledgeCutoff;
+    if (knowledge !== undefined && knowledge.length >= 4) {
+      const year = Number(knowledge.slice(0, 4));
+      if (Number.isFinite(year) && year < 2025) score -= 40;
+    }
+  }
+  return score;
 }
 
 function pickBestForRole(
   preset: RolePreset,
   candidates: readonly ModelMetadata[],
+  catalogIds: readonly string[] = [],
 ): ModelMetadata | undefined {
   if (candidates.length === 0) return undefined;
-  const anyScored = candidates.some((m) => m.qualityScore !== undefined);
-  const capable = candidates.filter((m) => meetsCapabilityFloor(preset, m));
-  const pool = capable.length > 0 ? capable : candidates;
+  const eligible = candidates.filter((m) => !isHardExcludedForRole(preset.role, m.id));
+  if (eligible.length === 0) return undefined;
+  const anyScored = eligible.some((m) => m.qualityScore !== undefined);
+  const capable = eligible.filter((m) => meetsCapabilityFloor(preset, m));
+  const pool = capable.length > 0 ? capable : eligible;
   const qualityOk = pool.filter((m) => meetsQualityFloor(preset, m, anyScored));
-  const finalPool = qualityOk.length > 0 ? qualityOk : pool;
-  const sorted = [...finalPool].sort((a, b) => rankScore(preset, b) - rankScore(preset, a));
+  // coding/planning/debugging never soft-fall back below the quality floor.
+  const finalPool = isQualityStrictRole(preset.role)
+    ? qualityOk
+    : qualityOk.length > 0
+      ? qualityOk
+      : pool;
+  if (finalPool.length === 0) return undefined;
+  const sorted = [...finalPool].sort(
+    (a, b) => rankScore(preset, b, catalogIds) - rankScore(preset, a, catalogIds),
+  );
   return sorted[0];
 }
 
@@ -924,6 +1010,7 @@ export function autoAssignRoleModels(
   }
 
   const allAvailable = scored.filter((m) => m.available);
+  const catalogIds = allAvailable.map((m) => m.id);
   const result: Partial<Record<ModelRole, RoleModelAssignment>> = {};
 
   for (const preset of ROLE_PRESETS) {
@@ -945,7 +1032,11 @@ export function autoAssignRoleModels(
       }
     }
 
-    const preferred = pickBestForRole(preset, byTier.get(preset.preferredTier) ?? []);
+    const preferred = pickBestForRole(
+      preset,
+      byTier.get(preset.preferredTier) ?? [],
+      catalogIds,
+    );
     if (preferred) {
       result[preset.role] = {
         role: preset.role,
@@ -959,7 +1050,11 @@ export function autoAssignRoleModels(
       continue;
     }
 
-    const fallback = pickBestForRole(preset, byTier.get(preset.fallbackTier) ?? []);
+    const fallback = pickBestForRole(
+      preset,
+      byTier.get(preset.fallbackTier) ?? [],
+      catalogIds,
+    );
     if (fallback) {
       result[preset.role] = {
         role: preset.role,
@@ -973,7 +1068,7 @@ export function autoAssignRoleModels(
       continue;
     }
 
-    const any = pickBestForRole(preset, allAvailable);
+    const any = pickBestForRole(preset, allAvailable, catalogIds);
     if (any) {
       result[preset.role] = {
         role: preset.role,
@@ -1019,22 +1114,33 @@ export function buildFallbackChain(
   if (!preset) return [];
 
   const scored = availableModels
-    .filter((m) => m.available)
+    .filter((m) => m.available && !isHardExcludedForRole(role, m.id))
     .map((m) => (m.qualityScore !== undefined ? m : withScores(m)));
+  const catalogIds = scored.map((m) => m.id);
+  const anyScored = scored.some((m) => m.qualityScore !== undefined);
+  const floorOk = (m: ModelMetadata): boolean =>
+    !isQualityStrictRole(role) || meetsQualityFloor(preset, m, anyScored);
 
   const preferred = scored
-    .filter((m) => (m.tier || classifyModelTier(m.id)) === preset.preferredTier)
-    .sort((a, b) => rankScore(preset, b) - rankScore(preset, a));
+    .filter(
+      (m) =>
+        floorOk(m) && (m.tier || classifyModelTier(m.id)) === preset.preferredTier,
+    )
+    .sort((a, b) => rankScore(preset, b, catalogIds) - rankScore(preset, a, catalogIds));
   const fallback = scored
-    .filter((m) => (m.tier || classifyModelTier(m.id)) === preset.fallbackTier)
-    .sort((a, b) => rankScore(preset, b) - rankScore(preset, a));
+    .filter(
+      (m) =>
+        floorOk(m) && (m.tier || classifyModelTier(m.id)) === preset.fallbackTier,
+    )
+    .sort((a, b) => rankScore(preset, b, catalogIds) - rankScore(preset, a, catalogIds));
   const others = scored
     .filter(
       (m) =>
+        floorOk(m) &&
         (m.tier || classifyModelTier(m.id)) !== preset.preferredTier &&
         (m.tier || classifyModelTier(m.id)) !== preset.fallbackTier,
     )
-    .sort((a, b) => rankScore(preset, b) - rankScore(preset, a));
+    .sort((a, b) => rankScore(preset, b, catalogIds) - rankScore(preset, a, catalogIds));
 
   return [...preferred, ...fallback, ...others];
 }

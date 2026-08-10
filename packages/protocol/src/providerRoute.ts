@@ -4,6 +4,7 @@ export type ProviderRouteFailureKind =
   | 'auth'
   | 'quota'
   | 'rate_limit'
+  | 'model_unavailable'
   | 'server'
   | 'connection'
   | 'timeout'
@@ -67,6 +68,7 @@ export const providerRouteFailureKindSchema = z.enum([
   'auth',
   'quota',
   'rate_limit',
+  'model_unavailable',
   'server',
   'connection',
   'timeout',

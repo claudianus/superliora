@@ -18,6 +18,7 @@ import {
   recordRouteOutcome,
   type SmartRoute,
 } from '../../agent/routing';
+import { classifyProviderRouteFailure } from '../../agent/turn/provider-route-classify';
 import { isAuthOrCreditFailure } from '../../utils/model-presets';
 import { updateSwarmOrchestrationTodoStatus } from '../../tools/builtin/state/todo-list';
 import { collectGitContext } from '../git-context';
@@ -39,6 +40,7 @@ import {
   isModelAliasHealthy,
   isRetryableSubagentProviderFailure,
   markModelAliasAuthRejected,
+  markModelAliasUnavailable,
   runChildTurnToCompletion,
 } from './subagent-run-lifecycle';
 import {
@@ -107,6 +109,8 @@ export function subagentFallbackAliases(
 function shouldHopSubagentModel(error: unknown): boolean {
   if (isRetryableSubagentProviderFailure(error)) return true;
   if (isPermanentAuthError(error)) return true;
+  const failure = classifyProviderRouteFailure(error, undefined);
+  if (failure?.kind === 'model_unavailable') return true;
   const message = error instanceof Error ? error.message : String(error);
   return isAuthOrCreditFailure(message);
 }
@@ -188,8 +192,16 @@ export async function runPromptTurnWithModelFallback(
         }
       }
 
+      const classified = classifyProviderRouteFailure(error, undefined);
+      if (classified?.kind === 'model_unavailable') {
+        markModelAliasUnavailable(lastAttemptedAlias, error);
+      }
+
       if (nextAlias === undefined) {
-        if (isPermanentAuthError(error) || isAuthOrCreditFailure(errorMessage(error))) {
+        if (
+          classified?.kind !== 'model_unavailable' &&
+          (isPermanentAuthError(error) || isAuthOrCreditFailure(errorMessage(error)))
+        ) {
           markModelAliasAuthRejected(lastAttemptedAlias, currentAgentConfig(child)?.models, error);
         }
         const failure = enrichPermanentProviderFailure(error, child);

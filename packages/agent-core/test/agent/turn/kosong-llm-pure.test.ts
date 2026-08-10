@@ -69,4 +69,24 @@ describe('agent/turn/kosong-llm — classifyProviderRouteFailure', () => {
     expect(classifyProviderRouteFailure('plain string', 1000)).toBeUndefined();
     expect(classifyProviderRouteFailure(undefined, 1000)).toBeUndefined();
   });
+
+  it('classifies 404 as model_unavailable', () => {
+    const result = classifyProviderRouteFailure(new APIStatusError(404, 'Not Found'), 1000);
+    expect(result?.kind).toBe('model_unavailable');
+    expect(result?.cooldownMs).toBeGreaterThan(0);
+  });
+
+  it('classifies model_not_found 400 as model_unavailable', () => {
+    const result = classifyProviderRouteFailure(
+      new APIStatusError(400, 'model_not_found: The model does not exist'),
+      1000,
+    );
+    expect(result?.kind).toBe('model_unavailable');
+  });
+
+  it('does not treat invalid request body 400 as model_unavailable', () => {
+    expect(
+      classifyProviderRouteFailure(new APIStatusError(400, 'Invalid request body'), 1000),
+    ).toBeUndefined();
+  });
 });

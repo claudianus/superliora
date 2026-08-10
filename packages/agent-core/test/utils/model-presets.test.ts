@@ -8,6 +8,7 @@ import {
   buildFallbackChain,
   classifyModelTier,
   isAuthOrCreditFailure,
+  isHardExcludedForRole,
   previewLoopRoleModelRouting,
   ROLE_PRESETS,
   scoreFromBenchmarks,
@@ -24,8 +25,9 @@ describe('model-presets — classifyModelTier', () => {
     assert.equal(classifyModelTier('claude-3-haiku'), 'ultra-cheap');
   });
 
-  it('classifies sonnet as cheap', () => {
-    assert.equal(classifyModelTier('claude-3-sonnet'), 'cheap');
+  it('classifies sonnet as balanced (not cheap)', () => {
+    assert.equal(classifyModelTier('claude-sonnet-4'), 'balanced');
+    assert.equal(classifyModelTier('claude-3-sonnet'), 'balanced');
   });
 
   it('classifies gpt-4o as balanced', () => {
@@ -44,7 +46,7 @@ describe('model-presets — classifyModelTier', () => {
 describe('model-presets — autoAssignRoleModels', () => {
   const availableModels: ModelMetadata[] = [
     { id: 'claude-3-haiku', provider: 'anthropic', tier: 'ultra-cheap', available: true },
-    { id: 'claude-3-sonnet', provider: 'anthropic', tier: 'cheap', available: true },
+    { id: 'claude-3-sonnet', provider: 'anthropic', tier: 'balanced', available: true },
     { id: 'gpt-4o', provider: 'openai', tier: 'balanced', available: true },
     { id: 'claude-3-opus', provider: 'anthropic', tier: 'high', available: true },
   ];
@@ -487,5 +489,97 @@ describe('model-presets — previewLoopRoleModelRouting health gate', () => {
       assert.equal(row.resolvedAlias, undefined);
       assert.equal(row.source, 'none');
     }
+  });
+});
+
+describe('model-presets — hard exclude + quality floor', () => {
+  it('hard-excludes kimi-k2.5 from coding/planning/debugging', () => {
+    assert.equal(isHardExcludedForRole('coding', 'kimi-k2.5'), true);
+    assert.equal(isHardExcludedForRole('planning', 'kimi-k2'), true);
+    assert.equal(isHardExcludedForRole('exploration', 'kimi-k2.5'), false);
+  });
+
+  it('does not assign kimi-k2.5 to coding when a stronger peer exists', () => {
+    const models: ModelMetadata[] = [
+      {
+        id: 'kimi-k2.5',
+        provider: 'kimi',
+        tier: 'cheap',
+        available: true,
+        qualityScore: 70,
+        valueScore: 140,
+        supportsTools: true,
+        contextWindow: 128_000,
+      },
+      {
+        id: 'kimi-k2.6',
+        provider: 'kimi',
+        tier: 'high',
+        available: true,
+        qualityScore: 85,
+        valueScore: 40,
+        supportsTools: true,
+        contextWindow: 256_000,
+      },
+    ];
+    const assignments = autoAssignRoleModels(models);
+    assert.equal(assignments.coding?.modelId, 'kimi-k2.6');
+    assert.notEqual(assignments.coding?.modelId, 'kimi-k2.5');
+  });
+
+  it('coding quality floor does not soft-fall back to weak pool', () => {
+    const models: ModelMetadata[] = [
+      {
+        id: 'weak-flash',
+        provider: 'p',
+        tier: 'high',
+        available: true,
+        qualityScore: 40,
+        valueScore: 400,
+        supportsTools: true,
+        contextWindow: 128_000,
+      },
+      {
+        id: 'ok-balanced',
+        provider: 'p',
+        tier: 'balanced',
+        available: true,
+        qualityScore: 80,
+        valueScore: 20,
+        supportsTools: true,
+        contextWindow: 128_000,
+      },
+    ];
+    const assignments = autoAssignRoleModels(models);
+    // preferred high tier fails floor → fallback balanced that passes
+    assert.equal(assignments.coding?.modelId, 'ok-balanced');
+  });
+
+  it('coding returns undefined when every candidate fails quality floor', () => {
+    const models: ModelMetadata[] = [
+      {
+        id: 'weak-a',
+        provider: 'p',
+        tier: 'high',
+        available: true,
+        qualityScore: 30,
+        valueScore: 300,
+        supportsTools: true,
+        contextWindow: 128_000,
+      },
+      {
+        id: 'weak-b',
+        provider: 'p',
+        tier: 'balanced',
+        available: true,
+        qualityScore: 40,
+        valueScore: 200,
+        supportsTools: true,
+        contextWindow: 128_000,
+      },
+    ];
+    const assignments = autoAssignRoleModels(models);
+    assert.equal(assignments.coding, undefined);
+    assert.equal(assignments.planning, undefined);
   });
 });

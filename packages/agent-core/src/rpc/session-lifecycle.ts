@@ -30,7 +30,11 @@ import { buildWorktreeMetadata, createSessionWorktree } from '../session/worktre
 import type { ProviderManager } from '../session/provider/provider-manager';
 import { SessionAPIImpl } from '../session/rpc';
 import type { SessionStore } from '../session/store/index';
-import { resolveSessionSmartRoute, scheduleSmartAutoLiveProbe } from '../agent/routing';
+import {
+  resolveSessionSmartRoute,
+  scheduleSmartAutoLiveProbe,
+} from '../agent/routing';
+import { warmModelsDevData } from '../utils/model-presets';
 import {
   withTelemetryContext,
   withTelemetryProperties,
@@ -235,6 +239,7 @@ export async function createSessionWithOverrides(
       thinkingLevel,
     });
     if (sessionModelAlias?.trim().toLowerCase() === 'auto') {
+      void warmModelsDevData().catch(() => {});
       const route = resolveSessionSmartRoute({ config });
       if (route !== undefined) {
         mainAgent.config.setSmartRouteAlias(route.alias);
@@ -389,6 +394,7 @@ export async function resumeSessionWithOverrides(
     if (mainAgent !== undefined) {
       await pluginWiring.wirePluginSessionHosts(wiringContext, session, mainAgent);
       if (mainAgent.config.modelAlias?.trim().toLowerCase() === 'auto') {
+        void warmModelsDevData().catch(() => {});
         const route = resolveSessionSmartRoute({ config });
         if (route !== undefined) {
           mainAgent.config.setSmartRouteAlias(route.alias);

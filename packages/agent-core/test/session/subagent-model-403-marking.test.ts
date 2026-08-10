@@ -9,10 +9,15 @@
  * call site) reads.
  */
 
+import { APIStatusError } from '@superliora/kosong';
 import { sharedCredentialHealthStore } from '@superliora/oauth';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { Agent } from '../../src/agent';
+import {
+  resetModelRouteHealthStoreForTests,
+  sharedModelRouteHealthStore,
+} from '../../src/agent/routing';
 import {
   completionFlowApi,
   runPromptTurnWithModelFallback,
@@ -20,6 +25,7 @@ import {
 import {
   isModelAliasHealthy,
   markModelAliasAuthRejected,
+  markModelAliasUnavailable,
 } from '../../src/session/subagent/subagent-run-lifecycle';
 import { resolveSubagentModelAlias } from '../../src/utils/cheap-model';
 
@@ -128,6 +134,7 @@ describe('V7-2 (b): exploration model 403 marks the alias unhealthy', () => {
 describe('markModelAliasAuthRejected', () => {
   afterEach(() => {
     sharedCredentialHealthStore.clear();
+    resetModelRouteHealthStoreForTests();
   });
 
   it('marks the alias provider auth_rejected and reports true', () => {
@@ -148,5 +155,25 @@ describe('markModelAliasAuthRejected', () => {
       false,
     );
     expect(sharedCredentialHealthStore.snapshot()).toHaveLength(0);
+  });
+});
+
+describe('markModelAliasUnavailable', () => {
+  afterEach(() => {
+    sharedCredentialHealthStore.clear();
+    resetModelRouteHealthStoreForTests();
+  });
+
+  it('poisons only the alias, not the provider credential', () => {
+    expect(
+      markModelAliasUnavailable(
+        'opencode/explore',
+        new APIStatusError(404, 'model_not_found', 'req'),
+      ),
+    ).toBe(true);
+    expect(sharedModelRouteHealthStore.isAvailable('opencode/explore')).toBe(false);
+    expect(isModelAliasHealthy('opencode/explore', models)).toBe(false);
+    expect(isModelAliasHealthy('primary', models)).toBe(true);
+    expect(sharedCredentialHealthStore.isAvailable('opencode')).toBe(true);
   });
 });

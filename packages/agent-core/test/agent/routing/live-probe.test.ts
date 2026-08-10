@@ -6,10 +6,14 @@ import type { Agent } from '../../../src/agent';
 import {
   ensureSmartRouteProbed,
   invalidateLiveProbeSuccess,
+  isConfigAliasHealthy,
+  isLiveProbeFailureFresh,
   isLiveProbeSuccessFresh,
   probeModelAlias,
   resetLiveProbeCacheForTests,
+  resetModelRouteHealthStoreForTests,
   setLiveProbeRunnerForTests,
+  sharedModelRouteHealthStore,
   type SmartRoute,
 } from '../../../src/agent/routing';
 import type { LioraConfig } from '../../../src/config';
@@ -73,6 +77,7 @@ function route(alias: string, chain: readonly string[]): SmartRoute {
 describe('live-probe', () => {
   beforeEach(() => {
     resetLiveProbeCacheForTests();
+    resetModelRouteHealthStoreForTests();
     sharedCredentialHealthStore.clear();
   });
 
@@ -162,5 +167,27 @@ describe('live-probe', () => {
     const agent = makeAgent(makeConfig());
     const probed = await ensureSmartRouteProbed(agent, route('primary', ['primary', 'secondary']));
     expect(probed).toBeUndefined();
+  });
+
+  it('marks alias unavailable on model_not_found without poisoning sibling provider models', async () => {
+    setLiveProbeRunnerForTests(async (_agent, alias) => {
+      if (alias === 'primary') {
+        throw new APIStatusError(404, 'model_not_found: primary-model', 'req-404');
+      }
+    });
+    const config = makeConfig();
+    // Both aliases on provider-a so we can prove sibling stays healthy.
+    config.models = {
+      primary: model('provider-a', 'primary-model', 5),
+      secondary: model('provider-a', 'secondary-model', 1),
+    };
+    const agent = makeAgent(config);
+    const probed = await ensureSmartRouteProbed(agent, route('primary', ['primary', 'secondary']));
+    expect(probed?.alias).toBe('secondary');
+    expect(sharedModelRouteHealthStore.isAvailable('primary')).toBe(false);
+    expect(isLiveProbeFailureFresh('primary')).toBe(true);
+    expect(isConfigAliasHealthy(config, 'primary')).toBe(false);
+    expect(isConfigAliasHealthy(config, 'secondary')).toBe(true);
+    expect(sharedCredentialHealthStore.isAvailable('provider-a')).toBe(true);
   });
 });

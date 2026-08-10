@@ -8,7 +8,7 @@ import type { Agent } from '..';
 import { ensureSmartRouteProbed } from './live-probe';
 import {
   isSmartAutoSessionAlias,
-  resolveSessionSmartRoute,
+  resolveSessionSmartRouteAsync,
   type SmartRoute,
 } from './smart-router';
 
@@ -35,7 +35,7 @@ export async function applySessionSmartAutoForTurn(
   const config = agent.runtimeConfig ?? agent.kimiConfig;
   if (config === undefined) return undefined;
 
-  const route = resolveSessionSmartRoute({
+  const route = await resolveSessionSmartRouteAsync({
     config,
     prompt: promptTextFromParts(input),
     sessionSpendUsd,

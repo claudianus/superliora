@@ -73,6 +73,7 @@ export type ProviderRouteFailureKind =
   | 'auth'
   | 'quota'
   | 'rate_limit'
+  | 'model_unavailable'
   | 'server'
   | 'connection'
   | 'timeout'

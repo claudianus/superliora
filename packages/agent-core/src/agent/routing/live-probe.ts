@@ -2,8 +2,8 @@
  * Minimal live LLM probe for Smart Auto: verify the chosen alias with a tiny
  * generate call, then walk the route chain on failure.
  *
- * Success cache TTL 10m; failures feed CredentialHealthStore cooldowns.
- * No per-turn ping when the success cache is fresh.
+ * Success cache TTL 10m; failures feed alias ModelRouteHealthStore (+ provider
+ * credential health for auth/quota). No per-turn ping when success cache is fresh.
  */
 
 import {
@@ -21,6 +21,10 @@ import type {
   ProviderRouteFailure,
   ProviderRouteFailureKind,
 } from '../turn/provider-route-types';
+import {
+  DEFAULT_PROBE_FAIL_COOLDOWN_MS,
+  sharedModelRouteHealthStore,
+} from './model-route-health';
 import { isConfigAliasHealthy, type SmartRoute } from './smart-router';
 
 export const LIVE_PROBE_SUCCESS_TTL_MS = 10 * 60_000;
@@ -67,6 +71,13 @@ export function resetLiveProbeCacheForTests(): void {
 export function isLiveProbeSuccessFresh(alias: string, now = Date.now()): boolean {
   const entry = successCache.get(alias);
   if (entry === undefined || entry.status !== 'ok') return false;
+  return entry.expiresAt > now;
+}
+
+/** True when a recent probe failure is still cached (mirrors alias health TTL). */
+export function isLiveProbeFailureFresh(alias: string, now = Date.now()): boolean {
+  const entry = successCache.get(alias);
+  if (entry === undefined || entry.status !== 'fail') return false;
   return entry.expiresAt > now;
 }
 
@@ -179,6 +190,7 @@ async function runProbeModelAlias(
       status: 'ok',
       expiresAt: now + LIVE_PROBE_SUCCESS_TTL_MS,
     });
+    sharedModelRouteHealthStore.markHealthy(alias);
     if (providerName.length > 0) {
       sharedCredentialHealthStore.markHealthy(providerName);
     }
@@ -186,8 +198,9 @@ async function runProbeModelAlias(
   } catch (error) {
     if (outerSignal?.aborted) throw error;
     const failure = classifyProviderRouteFailure(error, undefined);
+    const failureReason = error instanceof Error ? error.message : 'live probe failed';
     if (failure !== undefined) {
-      applyFailureToHealth(providerName, failure, error);
+      applyFailureToHealth(alias, providerName, failure, failureReason, now);
       successCache.set(alias, {
         alias,
         provider: providerName,
@@ -197,6 +210,18 @@ async function runProbeModelAlias(
       });
       return { ok: false, alias, provider: providerName, failureKind: failure.kind };
     }
+    sharedModelRouteHealthStore.markUnavailable(alias, {
+      kind: 'probe_fail',
+      failureReason,
+      cooldownMs: DEFAULT_PROBE_FAIL_COOLDOWN_MS,
+      now,
+    });
+    successCache.set(alias, {
+      alias,
+      provider: providerName,
+      status: 'fail',
+      expiresAt: now + DEFAULT_PROBE_FAIL_COOLDOWN_MS,
+    });
     return { ok: false, alias, provider: providerName };
   }
 }
@@ -230,12 +255,30 @@ async function defaultProbeRunner(
 }
 
 function applyFailureToHealth(
+  alias: string,
   providerName: string,
   failure: ProviderRouteFailure,
-  error: unknown,
+  failureReason: string,
+  now: number,
 ): void {
+  if (failure.kind === 'model_unavailable') {
+    sharedModelRouteHealthStore.markUnavailable(alias, {
+      kind: 'model_unavailable',
+      failureReason,
+      cooldownMs: failure.cooldownMs,
+      now,
+    });
+    return;
+  }
+
+  sharedModelRouteHealthStore.markUnavailable(alias, {
+    kind: failure.kind === 'auth' ? 'route_fail' : 'probe_fail',
+    failureReason,
+    cooldownMs: failure.cooldownMs,
+    now,
+  });
+
   if (providerName.length === 0) return;
-  const failureReason = error instanceof Error ? error.message : 'live probe failed';
   if (failure.kind === 'auth') {
     sharedCredentialHealthStore.markAuthRejected(providerName, {
       failureReason,
@@ -243,10 +286,18 @@ function applyFailureToHealth(
     });
     return;
   }
-  sharedCredentialHealthStore.markRateLimited(providerName, {
-    failureReason,
-    cooldownMs: failure.cooldownMs,
-  });
+  if (
+    failure.kind === 'quota' ||
+    failure.kind === 'rate_limit' ||
+    failure.kind === 'server' ||
+    failure.kind === 'connection' ||
+    failure.kind === 'timeout'
+  ) {
+    sharedCredentialHealthStore.markRateLimited(providerName, {
+      failureReason,
+      cooldownMs: failure.cooldownMs,
+    });
+  }
 }
 
 function uniqueFrom(head: string, chain: readonly string[]): readonly string[] {
