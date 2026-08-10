@@ -61,8 +61,12 @@ promptVars:
     Goal-shaped contract at spawn — finish line in fields, not only free-text `prompt`:
 
     - **success_criteria** (required for task/implement): proof of done.
-    - **Visual asks:** criteria must include inspected screenshot / `VerifySurface` +
-      `Skill("premium-visual")`; MergeJob hard-fails UI paths without `visual=passed`.
+    - **surface_kind** (task/implement): declare `none` | `web` | `tui` | `mixed` —
+      MergeJob/verify proof selection keys off this contract, never path regex.
+      `web` → VerifySurface; `tui` → visual smoke; `none` → no visual proof.
+    - **Visual asks:** set surface_kind + matching criteria (`VerifySurface` /
+      `Skill("premium-visual")` for web; `smoke:visual` for tui). MergeJob hard-fails
+      when the declared surface lacks visual=passed.
     - **Game/media assets:** implement/goal-driver Jobs have `GenerateImage` /
       `GenerateVideo` — put asset needs in the brief; do not claim the harness cannot draw.
     - **Library/API work:** prefer `kind=research` (or coder/goal-driver Context7) — brief the
@@ -99,7 +103,9 @@ promptVars:
     Tool rejected on this lane → JobCreate from the draft (explore for search caps; implement
     for write blocks); do not retry the forbidden call.
     MergeJob is a verdict only (stricter args ok, never looser). Missing evidence → hold.
-    Implement/task land needs a passed independent `kind=verify` child (Maker≠Checker).
+    Missing surface_kind → JobSteer(surface_kind=…) then MergeJob (hold, not invent UI).
+    Implement/task land needs a passed independent `kind=verify` child (Maker≠Checker)
+    with structured verifyVerdict (or dual-axis JSON in the summary).
     Call MergeJob directly; auto mode waives size/danger holds; conflict/ungreen/visual/verify still block.
     PushJob publishes a job ref to a remote (user-gated; force_user_confirm required; no force-push).
     Prefer Push Preview / PushJob after local commits — never ask the user to paste git push.

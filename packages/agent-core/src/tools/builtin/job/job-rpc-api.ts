@@ -74,6 +74,7 @@ export interface JobCreateInput {
   readonly deliveryMode?: JobDeliveryMode;
   readonly parentJobId?: string;
   readonly autoSplit?: boolean;
+  readonly surfaceKind?: JobRecord['surfaceKind'];
 }
 
 export interface JobCreateResult {
@@ -285,6 +286,7 @@ export async function jobCreate(
       blockedByJobIds: input.blockedByJobIds,
       deliveryMode: input.deliveryMode === 'standard' ? undefined : input.deliveryMode,
       parentJobId: input.parentJobId,
+      surfaceKind: input.surfaceKind,
     }),
   );
 
@@ -322,6 +324,7 @@ export async function jobCreateBatch(
         blockedByJobIds: input.blockedByJobIds,
         deliveryMode: input.deliveryMode === 'standard' ? undefined : input.deliveryMode,
         parentJobId: input.parentJobId,
+        surfaceKind: input.surfaceKind,
       }),
     );
   }

@@ -1,13 +1,11 @@
 /**
- * Completion-gate visual proof: when the worker forgot VerifySurface on a UI
- * change set, try once with a resolvable URL (summary http(s) or local HTML).
+ * Completion-gate visual proof: when the worker forgot VerifySurface but left
+ * an explicit http(s) URL in the summary, try once. Do not invent file:// from
+ * changed HTML — docs/static HTML ≠ product web surface (surfaceKind=web|mixed).
  */
-
-import { pathToFileURL } from 'node:url';
 
 import type { BrowserUseRuntime } from '@superliora/gui-use';
 import type { Kaos } from '@superliora/kaos';
-import { join } from 'pathe';
 
 import {
   observeVerificationToolResult,
@@ -30,22 +28,20 @@ export interface AutoVerifySurfaceHost {
 }
 
 /**
- * Prefer an http(s) URL mentioned in the summary; else the first changed HTML
- * file as a file:// URL. Returns undefined when neither is available — the
- * contract stays `visual=not_run` (unverified), not a fake pass.
+ * Prefer an explicit http(s) URL from the summary. Path-invented file:// HTML
+ * auto-verify removed — Conductor Jobs with surfaceKind=web|mixed call
+ * VerifySurface themselves. No candidate → visual stays `not_run`.
  */
 export function resolveVerifySurfaceUrl(input: {
   readonly summary?: string | undefined;
   readonly filesChanged: readonly string[];
   readonly cwd: string;
 }): string | undefined {
+  void input.filesChanged;
+  void input.cwd;
   const fromSummary = input.summary?.match(HTTP_URL_PATTERN)?.[0]?.replace(/[.,;:]+$/, '');
   if (fromSummary !== undefined && fromSummary.length > 0) return fromSummary;
-
-  const html = input.filesChanged.find((file) => /\.html?$/i.test(file.replace(/\\/g, '/')));
-  if (html === undefined) return undefined;
-  const absolute = html.startsWith('/') || /^[A-Za-z]:[\\/]/.test(html) ? html : join(input.cwd, html);
-  return pathToFileURL(absolute).href;
+  return undefined;
 }
 
 /**

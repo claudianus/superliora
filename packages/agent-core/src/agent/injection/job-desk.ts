@@ -236,6 +236,8 @@ function nextMoveGuidance(
   if (events.some((e) => e.summary?.startsWith(UNVERIFIED_SUMMARY_PREFIX) === true)) {
     return 'a done-claim landed with no checks run — delegate a verify Job before MergeJob; auto-approve holds without a green contract.';
   }
+  const surfaceMove = surfaceContractNextMove(events, store);
+  if (surfaceMove !== undefined) return surfaceMove;
   const planHandoffMove = planDeskHandoffNextMove(events, store);
   if (planHandoffMove !== undefined) return planHandoffMove;
   const goalDeskMove = goalDeskNextMove(events, store);
@@ -293,6 +295,55 @@ function modelFailedNextMove(
       }
       return (
         `Job ${job.id} model failed (${parsed.alias}) — pick another catalog alias or omit model_alias.`
+      );
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Surface/verify contract gaps — route Conductor to JobSteer / requeue, not
+ * path-regex inventing a VerifySurface requirement.
+ */
+function surfaceContractNextMove(
+  events: readonly JobInboxEvent[],
+  store: ToolStore | undefined,
+): string | undefined {
+  if (store === undefined) return undefined;
+  for (const e of events) {
+    if (e.kind !== 'job.completed' && e.status !== 'done') continue;
+    const job = getJob(store, e.jobId);
+    if (job === undefined) continue;
+    if (job.kind !== 'task' && job.kind !== 'implement') continue;
+    if (job.surfaceKind === undefined) {
+      return (
+        `Job ${job.id} is done without surface_kind — JobSteer(surface_kind=none|web|tui|mixed) before MergeJob; ` +
+        'do not invent a web VerifySurface gate from path regex.'
+      );
+    }
+    if (
+      (job.surfaceKind === 'web' || job.surfaceKind === 'tui' || job.surfaceKind === 'mixed') &&
+      job.resultContract?.verification.visual !== 'passed'
+    ) {
+      const proof =
+        job.surfaceKind === 'tui'
+          ? 'TUI smoke (`pnpm -C apps/liora run smoke:visual`)'
+          : 'VerifySurface (web) / matching surface proof';
+      return (
+        `Job ${job.id} surface_kind=${job.surfaceKind} lacks visual=passed — requeue/steer for ${proof}; ` +
+        'force_user_confirm cannot bypass visual proof.'
+      );
+    }
+  }
+  // verify child done without structured verdict
+  for (const e of events) {
+    if (e.kind !== 'job.completed' && e.status !== 'done' && e.kind !== 'job.failed') continue;
+    const job = getJob(store, e.jobId);
+    if (job === undefined || job.kind !== 'verify') continue;
+    if (job.verifyVerdict === undefined) {
+      return (
+        `Verify Job ${job.id} finished without structured verifyVerdict — JobInspect the summary; ` +
+        'requeue verify to emit dual-axis JSON so MergeJob does not see verdict=missing.'
       );
     }
   }

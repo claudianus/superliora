@@ -8,6 +8,7 @@ import type { Agent } from '../../src/agent';
 import { runCompletionVerification } from '../../src/session/subagent/subagent-verification-gate';
 import { VERIFICATION_NOT_RUN } from '../../src/session/subagent/subagent-result-contract';
 import {
+  isRenderableStaticSiteChangeSet,
   isStaticSiteChangeSet,
   runStaticSiteChecks,
 } from '../../src/tools/builtin/ops/static-site-checks';
@@ -66,6 +67,16 @@ describe('isStaticSiteChangeSet', () => {
     expect(isStaticSiteChangeSet(['index.html', 'src/main.ts'])).toBe(false);
     expect(isStaticSiteChangeSet(['package.json5'])).toBe(false);
     expect(isStaticSiteChangeSet(['Makefile'])).toBe(false);
+  });
+});
+
+describe('isRenderableStaticSiteChangeSet', () => {
+  it('requires at least one html/css/js asset', () => {
+    expect(
+      isRenderableStaticSiteChangeSet(['index.html', 'style.css', 'app.js', 'assets/logo.svg']),
+    ).toBe(true);
+    expect(isRenderableStaticSiteChangeSet(['README.md', 'data.json'])).toBe(false);
+    expect(isRenderableStaticSiteChangeSet(['docs/note.md', 'icon.png'])).toBe(false);
   });
 });
 
@@ -138,6 +149,16 @@ describe('runCompletionVerification — static-site contract', () => {
       fakeChild(staticSiteKaos({})),
       'coder',
       ['src/main.ts', 'README.md'],
+      undefined,
+    );
+    expect(verdict).toEqual(VERIFICATION_NOT_RUN);
+  });
+
+  it('does not stamp all-green for docs/json-only static sets', async () => {
+    const verdict = await runCompletionVerification(
+      fakeChild(staticSiteKaos({})),
+      'coder',
+      ['README.md', 'data.json'],
       undefined,
     );
     expect(verdict).toEqual(VERIFICATION_NOT_RUN);

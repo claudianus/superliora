@@ -89,6 +89,10 @@ export function requiresNonEmptyRequiredEvidence(node: EvidenceGateNode): boolea
 /**
  * Ensure AC-like nodes have at least one requiredEvidence token (seed helper).
  * Pure: returns a new node object when injection is needed.
+ *
+ * Always seeds `test` only — never invent VerifySurface from id/keyword regex.
+ * Callers that need visual proof must set requiredEvidence explicitly
+ * (e.g. `['VerifySurface', 'test']` or TUI smoke tokens).
  */
 export function withDefaultRequiredEvidence<T extends EvidenceGateNode>(node: T): T {
   if (!requiresNonEmptyRequiredEvidence(node)) {
@@ -100,19 +104,19 @@ export function withDefaultRequiredEvidence<T extends EvidenceGateNode>(node: T)
   if (required.length > 0) {
     return node;
   }
-  const tokens = looksLikeUiEvidenceNode(node)
-    ? (['VerifySurface', DEFAULT_REQUIRED_EVIDENCE_TOKEN] as const)
-    : ([DEFAULT_REQUIRED_EVIDENCE_TOKEN] as const);
   return {
     ...node,
-    requiredEvidence: [...tokens],
+    requiredEvidence: [DEFAULT_REQUIRED_EVIDENCE_TOKEN],
   };
 }
 
-/** Heuristic: UI/visual AC nodes also require VerifySurface evidence by default. */
+/**
+ * @deprecated Keyword UI detection — do not use for evidence seeding.
+ * Kept for callers/tests migrating off path/id heuristics; always prefer
+ * explicit requiredEvidence on the plan node.
+ */
 export function looksLikeUiEvidenceNode(node: EvidenceGateNode): boolean {
   const blob = [node.id, node.kind, node.stage ?? '', ...(node.requiredEvidence ?? [])].join(' ');
-  // Underscore ids like `ac_ui_hero` do not match `\bui\b` — allow `_ui_` / `ui_` forms.
   return /(?:^|[_\W])ui(?:[_\W]|$)|ux|visual|frontend|css|html|screenshot|canvas|game|VerifySurface/i.test(
     blob,
   );

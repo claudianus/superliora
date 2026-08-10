@@ -129,6 +129,6 @@ function buildUiSurfaceProofStopTips(
   const interaction = verificationLedger?.interactionVerdict ?? 'not_run';
   const craft = verificationLedger?.craftVerdict ?? 'not_run';
   return [
-    `Soft sensor: UI paths mutated without VerifySurface 3-axis proof (load=${load}, interaction=${interaction}, craft=${craft}).`,
+    `Soft sensor: web surface proof pending without VerifySurface 3-axis (load=${load}, interaction=${interaction}, craft=${craft}).`,
   ];
 }

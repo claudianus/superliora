@@ -398,6 +398,7 @@ describe('merge trust + worker guards + warm pool', () => {
       kind: 'implement',
       ownershipPaths: ['src/x.ts'],
       expertId: 'maker-ledger',
+      surfaceKind: 'none',
     });
     patchJob(store, created.id, {
       status: 'done',
@@ -414,10 +415,12 @@ describe('merge trust + worker guards + warm pool', () => {
       kind: 'verify',
       parentJobId: created.id,
       expertId: 'checker-ledger',
+      surfaceKind: 'none',
     });
     patchJob(store, verify.id, {
       status: 'done',
       resultSummary: '{"verdict":"pass","findings":[],"required_fixes":[]}',
+      verifyVerdict: 'passed',
     });
     const job = getJob(store, created.id)!;
     const tool = new MergeJobTool(store);

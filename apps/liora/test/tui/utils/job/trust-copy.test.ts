@@ -25,6 +25,18 @@ describe('formatTrustReasonForUser', () => {
     expect(out.fix).toMatch(/VerifySurface/i);
   });
 
+  it('maps missing surface_kind and TUI smoke holds', () => {
+    expect(formatTrustReasonForUser('surface_kind missing — declare none/web/tui/mixed').fix).toMatch(
+      /surface_kind/i,
+    );
+    const tui = formatTrustReasonForUser(
+      'TUI surface needs smoke:visual (visual=not_run); VerifySurface is N/A.',
+    );
+    expect(tui.headline).toMatch(/TUI|ANSI smoke/i);
+    expect(tui.fix).toMatch(/smoke:visual/i);
+    expect(tui.fix).not.toMatch(/VerifySurface on the live UI/i);
+  });
+
   it('maps conflict and ungreen checks', () => {
     expect(formatTrustReasonForUser('Conflict present — user must resolve and re-approve.').fix)
       .toMatch(/resolve the conflict/i);

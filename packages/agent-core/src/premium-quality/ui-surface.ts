@@ -1,6 +1,7 @@
 /**
- * UI / visual-surface classification for Premium density, Job PQ force-ON,
- * and MergeJob visual proof gates.
+ * Soft UI / visual-surface heuristics for Premium density and PQ spawn hints.
+ * MergeJob / verify-chain proof gates MUST NOT use these — they key off
+ * Job.surfaceKind (Conductor contract). Path regex here is advisory only.
  */
 
 import type { PremiumInjectionDensity } from './guidance';
@@ -22,7 +23,7 @@ export function pathsLookLikeUi(paths: readonly string[] | undefined | null): bo
   return paths.some((path) => UI_PATH_PATTERN.test(path.replace(/\\/g, '/')));
 }
 
-/** Heuristic objective → profile (no LLM). */
+/** Heuristic objective → PQ profile (soft spawn hint only; not a merge gate). */
 export function classifyObjectiveProfile(
   objective: string | undefined | null,
   paths?: readonly string[] | undefined | null,
@@ -31,6 +32,8 @@ export function classifyObjectiveProfile(
   if (pathsLookLikeUi(paths) || (text.length > 0 && UI_OBJECTIVE_PATTERN.test(text))) {
     return { premiumDensity: 'visual', visualSurface: true };
   }
+  // Empty objective: visual PQ density when Premium is ON with no brief yet.
+  // MergeJob ignores this — it keys off Job.surfaceKind only.
   if (text.length === 0) {
     return { premiumDensity: 'visual', visualSurface: true };
   }

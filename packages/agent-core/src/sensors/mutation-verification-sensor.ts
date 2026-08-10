@@ -14,7 +14,6 @@
  */
 
 import type { ExecutableToolResult } from '../loop/types';
-import { pathsLookLikeUi } from '../premium-quality/ui-surface';
 import { withAutoCheckDirective } from './auto-check-sensor';
 
 export const FILE_MUTATION_TOOL_NAMES = new Set(['Edit', 'Write', 'ApplyPatch']);
@@ -129,9 +128,10 @@ export function recordFileMutation(
     packageDir,
     paths,
   });
-  if (pathsLookLikeUi(paths)) {
-    ledger.uiSurfaceProofPending = true;
-  }
+  // Do not invent uiSurfaceProofPending from path regex (/components/ ≠ web UI).
+  // Conductor Jobs declare surfaceKind; workers call VerifySurface / TUI smoke
+  // explicitly. Callers may still set uiSurfaceProofPending when a web surface
+  // contract is known.
   if (ledger.pending.length > MUTATION_SENSOR_MAX_PENDING) {
     ledger.pending.splice(0, ledger.pending.length - MUTATION_SENSOR_MAX_PENDING);
   }
@@ -185,11 +185,9 @@ export function formatMutationVerifyNudge(packageDir?: string | undefined): stri
       : `PostToolUse sensor: source mutated under \`${packageDir}\`. ` +
         `Before claiming done, run RunProjectChecks with packageDir=${packageDir} ` +
         `(or package-scoped test/typecheck/lint).`;
-  const withSurface =
-    `${base} On UI surfaces call VerifySurface (load+interaction+craft); ` +
-    `BrowserScreenshot alone does not set visual=passed.`;
+  // Surface proof is Job.surfaceKind / explicit requiredEvidence — not path regex.
   // Loop16a: SUPERLIORA_AUTO_CHECK=1 upgrades nudge to machine-actionable directive.
-  return withAutoCheckDirective(withSurface, packageDir);
+  return withAutoCheckDirective(base, packageDir);
 }
 
 export function appendMutationNudge(
