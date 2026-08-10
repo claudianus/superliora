@@ -1,4 +1,5 @@
-import { useInView } from '../hooks/useInView';
+import { motion } from 'motion/react';
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
 
 interface RevealProps {
   children: React.ReactNode;
@@ -7,16 +8,18 @@ interface RevealProps {
 }
 
 export function Reveal({ children, className = '', stagger }: RevealProps) {
-  const { ref, inView } = useInView<HTMLDivElement>({
-    threshold: 0.04,
-    rootMargin: '0px 0px 18% 0px',
-  });
-  const staggerClass = stagger ? `stagger-${stagger}` : '';
-  const classes = `reveal ${inView ? 'visible' : ''} ${staggerClass} ${className}`.trim();
+  const reduce = usePrefersReducedMotion();
+  const delay = stagger ? (stagger - 1) * 0.07 : 0;
 
   return (
-    <div ref={ref} className={classes}>
+    <motion.div
+      className={className}
+      initial={reduce ? false : { opacity: 0, y: 28, filter: 'blur(6px)' }}
+      whileInView={reduce ? undefined : { opacity: 1, y: 0, filter: 'blur(0px)' }}
+      viewport={{ once: true, margin: '-10% 0px', amount: 0.15 }}
+      transition={{ duration: reduce ? 0 : 0.65, delay: reduce ? 0 : delay, ease: [0.22, 1, 0.36, 1] }}
+    >
       {children}
-    </div>
+    </motion.div>
   );
 }

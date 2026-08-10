@@ -21,7 +21,7 @@ function StatusRoutePanel() {
   const v = t.visuals.statusRoute;
   return (
     <TuiChrome title={v.chrome} badge={v.badge}>
-      <div className="panel-status">
+      <div className="panel-status panel-status--demo">
         <div className="panel-status__strategy">
           <span className="panel-status__label">{v.strategyLabel}</span>
           <span className="panel-status__value">{v.strategy}</span>
@@ -29,7 +29,7 @@ function StatusRoutePanel() {
         </div>
         <ul className="panel-status__list">
           {v.candidates.map((c) => (
-            <li key={c.rank} className={`panel-status__row panel-status__row--${c.tone}`}>
+            <li key={c.rank} className={`panel-status__row panel-status__row--${c.tone}`} data-tone={c.tone}>
               <span className="panel-status__rank">{c.rank}</span>
               <span className="panel-status__name">{c.name}</span>
               <span className="panel-status__state">{c.state}</span>
@@ -56,14 +56,14 @@ function JobDeckPanel() {
   const v = t.visuals.jobDeck;
   return (
     <TuiChrome title={v.chrome} badge={v.badge}>
-      <div className="panel-deck">
+      <div className="panel-deck panel-deck--demo">
         <div className="panel-deck__meta">
           <span>{v.subtitle}</span>
           <span className="panel-deck__inbox">{v.inbox}</span>
         </div>
         <ul className="panel-deck__list">
           {v.jobs.map((job) => (
-            <li key={job.id} className={`panel-deck__job panel-deck__job--${job.tone}`}>
+            <li key={job.id} className={`panel-deck__job panel-deck__job--${job.tone}`} data-tone={job.tone}>
               <span className={`panel-deck__pill panel-deck__pill--${job.tone}`}>{job.status}</span>
               <div className="panel-deck__main">
                 <div className="panel-deck__id">{job.id}</div>
