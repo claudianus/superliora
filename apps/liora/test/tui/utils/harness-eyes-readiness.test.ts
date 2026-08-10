@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  asideEyeFromSidecarStatus,
   browserEyeFromSetupResult,
   computerEyeFromCuaStatus,
   formatHarnessEyesReadiness,
@@ -41,6 +42,30 @@ describe('harness-eyes-readiness', () => {
     expect(missing.hint).toContain('computer-use install');
   });
 
+  it('maps optional Aside sidecar without treating it as required', () => {
+    const ready = asideEyeFromSidecarStatus({
+      cliPath: '/opt/aside',
+      mcpRegistered: true,
+      mcpEnabled: true,
+      mcpCommand: '/opt/aside',
+      mcpJsonPath: '/tmp/mcp.json',
+      ready: true,
+    });
+    expect(ready.ok).toBe(true);
+    expect(ready.id).toBe('aside-sidecar');
+
+    const missingCli = asideEyeFromSidecarStatus({
+      cliPath: undefined,
+      mcpRegistered: false,
+      mcpEnabled: false,
+      mcpCommand: undefined,
+      mcpJsonPath: '/tmp/mcp.json',
+      ready: false,
+    });
+    expect(missingCli.ok).toBe(false);
+    expect(missingCli.hint).toContain('aside enable');
+  });
+
   it('formats a multi-line readiness report', () => {
     const text = formatHarnessEyesReadiness({
       generatedAt: '2026-07-26T00:00:00.000Z',
@@ -53,11 +78,21 @@ describe('harness-eyes-readiness', () => {
           command: [],
         }),
         computerEyeFromCuaStatus({ installed: false, error: 'missing' }),
+        asideEyeFromSidecarStatus({
+          cliPath: undefined,
+          mcpRegistered: false,
+          mcpEnabled: false,
+          mcpCommand: undefined,
+          mcpJsonPath: '/tmp/mcp.json',
+          ready: false,
+        }),
       ],
     });
     expect(text).toContain('Harness eyes readiness');
     expect(text).toContain('Browser-use: OK');
     expect(text).toContain('Computer-use: MISSING');
+    expect(text).toContain('Aside MCP sidecar: MISSING');
+    expect(text).toContain('liora browser-use aside enable');
     expect(text).toContain('liora browser-use doctor');
   });
 });

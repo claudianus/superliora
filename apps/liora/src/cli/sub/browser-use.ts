@@ -9,6 +9,14 @@ import type { Command } from 'commander';
 import { t, tln } from '#/cli/i18n';
 
 import { getHostPackageRoot } from '#/cli/version';
+import {
+  AsideCliMissingError,
+  disableAsideSidecar,
+  enableAsideSidecar,
+  formatAsideSidecarStatus,
+  loadAsideSidecarStatus,
+  type AsideSidecarContext,
+} from '#/utils/aside/aside-sidecar';
 
 interface WritableLike {
   write(chunk: string): boolean;
@@ -24,6 +32,9 @@ export interface BrowserUseCommandDeps {
   readonly install: SetupRunner;
   readonly update: SetupRunner;
   readonly info: SetupRunner;
+  readonly cwd?: () => string;
+  /** Test seam for Aside CLI/mcp.json resolution. */
+  readonly asideContext?: () => AsideSidecarContext;
 }
 
 export function registerBrowserUseCommand(
@@ -61,6 +72,37 @@ export function registerBrowserUseCommand(
     .action(async () => {
       await runBrowserUseCommand(deps, 'doctor');
     });
+
+  const aside = command
+    .command('aside')
+    .description(t('cli.sub.browserUse.cmd.aside.desc'));
+
+  aside
+    .command('status')
+    .description(t('cli.sub.browserUse.cmd.aside.status.desc'))
+    .action(async () => {
+      const resolved = resolveDeps(deps);
+      const code = await handleAsideCommand('status', resolved);
+      if (code !== 0) resolved.exit(code);
+    });
+
+  aside
+    .command('enable')
+    .description(t('cli.sub.browserUse.cmd.aside.enable.desc'))
+    .action(async () => {
+      const resolved = resolveDeps(deps);
+      const code = await handleAsideCommand('enable', resolved);
+      if (code !== 0) resolved.exit(code);
+    });
+
+  aside
+    .command('disable')
+    .description(t('cli.sub.browserUse.cmd.aside.disable.desc'))
+    .action(async () => {
+      const resolved = resolveDeps(deps);
+      const code = await handleAsideCommand('disable', resolved);
+      if (code !== 0) resolved.exit(code);
+    });
 }
 
 export async function handleBrowserUseCommand(
@@ -79,6 +121,10 @@ export async function handleBrowserUseCommand(
   });
   writeResultOutput(resolved, result);
 
+  if (action === 'status' || action === 'doctor') {
+    await writeAsideSidecarBlock(resolved);
+  }
+
   if (result.ok) {
     if (action === 'doctor') {
       resolved.stdout.write(tln('cli.runtime.browserUse.doctorPassed'));
@@ -91,6 +137,53 @@ export async function handleBrowserUseCommand(
     tln('cli.runtime.browserUse.actionFailed', { action, command }),
   );
   return 1;
+}
+
+export async function handleAsideCommand(
+  action: 'status' | 'enable' | 'disable',
+  deps: Partial<BrowserUseCommandDeps> = {},
+): Promise<number> {
+  const resolved = resolveDeps(deps);
+  const ctx = resolveAsideContext(resolved);
+
+  if (action === 'status') {
+    const status = await loadAsideSidecarStatus(ctx);
+    resolved.stdout.write(formatAsideSidecarStatus(status));
+    return 0;
+  }
+
+  if (action === 'enable') {
+    try {
+      const { path, command } = await enableAsideSidecar(ctx);
+      resolved.stdout.write(
+        tln('cli.runtime.browserUse.aside.enabled', { command, path }),
+      );
+      return 0;
+    } catch (error: unknown) {
+      if (error instanceof AsideCliMissingError) {
+        resolved.stderr.write(`${error.message}\n`);
+        return 1;
+      }
+      throw error;
+    }
+  }
+
+  const { path, found } = await disableAsideSidecar(ctx);
+  if (!found) {
+    resolved.stdout.write(tln('cli.runtime.browserUse.aside.notRegistered', { path }));
+    return 0;
+  }
+  resolved.stdout.write(tln('cli.runtime.browserUse.aside.disabled', { path }));
+  return 0;
+}
+
+async function writeAsideSidecarBlock(deps: BrowserUseCommandDeps): Promise<void> {
+  const status = await loadAsideSidecarStatus(resolveAsideContext(deps));
+  deps.stdout.write(`\n${formatAsideSidecarStatus(status)}`);
+}
+
+function resolveAsideContext(deps: BrowserUseCommandDeps): AsideSidecarContext {
+  return deps.asideContext?.() ?? { cwd: deps.cwd() };
 }
 
 async function runBrowserUseCommand(
@@ -111,6 +204,8 @@ function resolveDeps(deps: Partial<BrowserUseCommandDeps> | undefined): BrowserU
     install: deps?.install ?? installBrowserUseRuntimes,
     update: deps?.update ?? updateBrowserUseRuntimes,
     info: deps?.info ?? infoBrowserUseRuntimes,
+    cwd: deps?.cwd ?? (() => process.cwd()),
+    asideContext: deps?.asideContext,
   };
 }
 

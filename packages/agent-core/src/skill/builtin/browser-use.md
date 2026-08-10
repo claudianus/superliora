@@ -37,8 +37,25 @@ installs are wrong for this harness — ignore them.
 - Launch/setup failure → `BrowserStatus`, then doctor — never shell-install Chromium.
 - Auth / CAPTCHA wall → stop and ask the user; do not type secrets from screenshots.
 
+## Aside MCP sidecar (optional)
+
+Aside is a separate AI browser with its own agent. It is **not** a BrowserUse
+provider and does not replace Cloak/Camoufox/Lightpanda.
+
+- Ordinary UI / SPA / VerifySurface → keep using **Browser\*** tools.
+- Logged-in private pages, CI/dashboard evidence, or work that needs the user's
+  Aside session → use session **`mcp__aside__*`** tools only when the `aside`
+  MCP server is connected.
+- If Aside MCP is missing: tell the user to install the Aside CLI
+  (`curl -fsSL https://releases.aside.com/install.sh | bash`) and run
+  `liora browser-use aside enable`. Do **not** install Playwright/CDP as a
+  substitute.
+- Payments, posts, and other sensitive actions stay behind Aside's human
+  approval — do not bypass that gate.
+
 ## Do not
 
 - Install or invoke Playwright / Puppeteer / browser-harness / cloud Browser Use for ordinary UI work.
 - Launch the user's Chrome via CDP for tasks the Builtin runtime can do.
 - Treat catalog "BrowserAct API" / "oc-browser-use" skills as these tools — different products.
+- Treat Aside as a drop-in Cloak replacement or launch Aside via remote debugging.

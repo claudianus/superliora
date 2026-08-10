@@ -43,6 +43,10 @@ export const SUBCOMMAND_STRINGS_EN: Readonly<Record<string, string>> = {
   'cli.sub.browserUse.cmd.update.desc': 'Update CloakBrowser, Camoufox, and Lightpanda browser-use runtimes.',
   'cli.sub.browserUse.cmd.status.desc': 'Print CloakBrowser, Camoufox, and Lightpanda runtime status.',
   'cli.sub.browserUse.cmd.doctor.desc': 'Diagnose the tiered browser-use runtime.',
+  'cli.sub.browserUse.cmd.aside.desc': 'Opt-in Aside MCP sidecar (private browser evidence; not a BrowserUse provider).',
+  'cli.sub.browserUse.cmd.aside.status.desc': 'Show Aside CLI detection and user mcp.json registration.',
+  'cli.sub.browserUse.cmd.aside.enable.desc': 'Register aside mcp in ~/.superliora/mcp.json when the Aside CLI is installed.',
+  'cli.sub.browserUse.cmd.aside.disable.desc': 'Remove the aside entry from ~/.superliora/mcp.json.',
 
   // computer-use
   'cli.sub.computerUse.cmd.install.desc': 'Install cua-driver using the upstream installer.',
@@ -302,6 +306,10 @@ export const SUBCOMMAND_STRINGS_KO: Readonly<Record<string, string>> = {
   'cli.sub.browserUse.cmd.update.desc': 'CloakBrowser, Camoufox, Lightpanda browser-use 런타임을 업데이트합니다.',
   'cli.sub.browserUse.cmd.status.desc': 'CloakBrowser, Camoufox, Lightpanda 런타임 상태를 출력합니다.',
   'cli.sub.browserUse.cmd.doctor.desc': '계층형 browser-use 런타임을 진단합니다.',
+  'cli.sub.browserUse.cmd.aside.desc': 'Aside MCP 사이드카를 선택적으로 연결합니다(사설 브라우저 증거용; BrowserUse provider 아님).',
+  'cli.sub.browserUse.cmd.aside.status.desc': 'Aside CLI 탐지와 user mcp.json 등록 상태를 표시합니다.',
+  'cli.sub.browserUse.cmd.aside.enable.desc': 'Aside CLI가 있으면 ~/.superliora/mcp.json에 aside mcp를 등록합니다.',
+  'cli.sub.browserUse.cmd.aside.disable.desc': '~/.superliora/mcp.json에서 aside 항목을 제거합니다.',
 
   // computer-use
   'cli.sub.computerUse.cmd.install.desc': '업스트림 설치 프로그램으로 cua-driver를 설치합니다.',
