@@ -387,6 +387,8 @@ describe('default agent profiles', () => {
     // keeps the principles the desk cannot restate every turn.
     expect(prompt).toContain('Never wait on workers');
     expect(prompt).toContain('Job brief quality bar');
+    expect(prompt).toContain('Game/media assets');
+    expect(prompt).toContain('media_readiness');
     // Worker coding loop is gated off — Conductor must not eat Execution Loop / Coding.
     expect(prompt).not.toContain('# Coding');
     expect(prompt).not.toContain('# Execution Loop');

@@ -66,3 +66,35 @@ describe('jobPrompt visual DoD', () => {
     expect(text).not.toContain('Visual DoD');
   });
 });
+
+describe('jobPrompt media DoD', () => {
+  it('adds Media DoD for task/implement workers', () => {
+    for (const kind of ['task', 'implement'] as const) {
+      const text = jobPrompt(
+        job({
+          kind,
+          title: 'Ship hero sprite',
+          prompt: 'Add a player sprite',
+          surfaceKind: 'none',
+        }),
+      );
+      expect(text, kind).toContain('Media DoD');
+      expect(text, kind).toContain('GenerateImage/GenerateVideo');
+      expect(text, kind).toContain('ReadMediaFile');
+      expect(text, kind).toContain('style seed');
+    }
+  });
+
+  it('omits Media DoD for explore/verify/research', () => {
+    for (const kind of ['explore', 'verify', 'research'] as const) {
+      const text = jobPrompt(
+        job({
+          kind,
+          title: 'Find sprite loader',
+          prompt: 'Locate asset pipeline',
+        }),
+      );
+      expect(text, kind).not.toContain('Media DoD');
+    }
+  });
+});

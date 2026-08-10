@@ -8,15 +8,14 @@ import {
 } from '../../session/vision-analyzer';
 import { extendWorkspaceWithSkillRoots } from '../../skill/scanner';
 import * as b from '../../tools/builtin';
-import { isProviderExtrasEnabled } from '../../tools/providers/extras/index';
 import { createVisualDiffTool } from '../../tools/visual-diff-tool';
 import type { ToolStore } from '../../tools/store';
+import { resolveMediaProviderEnv } from '../../tools/builtin/media/provider-env';
 import { DEFAULT_AGENT_PROFILES } from '../../profile';
 import {
   HIDE_LEGACY_TOOL_NAMES_ENV,
   isHideLegacyToolNamesEnabled,
 } from '../../profile/sovereign-soft-gates';
-import { nonEmptyEnv } from './env';
 import type { BuiltinTool } from './types';
 
 export { HIDE_LEGACY_TOOL_NAMES_ENV, isHideLegacyToolNamesEnabled };
@@ -192,11 +191,11 @@ function createFileAndContextTools(
         readMediaVisionFallback,
       ),
     shouldCreateBuiltin(host, 'GenerateImage') &&
-      b.isGenerateImageAvailable(resolveMediaProviderEnv(host.agent)) &&
-      new b.GenerateImageTool(kaos, workspace, resolveMediaProviderEnv(host.agent)),
+      b.isGenerateImageAvailable(resolveMediaProviderEnvForAgent(host.agent)) &&
+      new b.GenerateImageTool(kaos, workspace, resolveMediaProviderEnvForAgent(host.agent)),
     shouldCreateBuiltin(host, 'GenerateVideo') &&
-      b.isGenerateVideoAvailable(resolveMediaProviderEnv(host.agent)) &&
-      new b.GenerateVideoTool(kaos, workspace, resolveMediaProviderEnv(host.agent)),
+      b.isGenerateVideoAvailable(resolveMediaProviderEnvForAgent(host.agent)) &&
+      new b.GenerateVideoTool(kaos, workspace, resolveMediaProviderEnvForAgent(host.agent)),
     shouldRegisterLegacyCompat(host, 'LioraReview', 'Review') &&
       b.createLioraReviewTool(kaos, host.agent),
     shouldCreateBuiltin(host, 'Review') && b.createReviewTool(kaos, host.agent),
@@ -275,26 +274,11 @@ function buildVerifySurfaceVisionFallback(
   };
 }
 
-function resolveMediaProviderEnv(agent: Agent): b.GenerateImageProviderEnv & b.GenerateVideoProviderEnv {
-  const services = agent.toolServices;
-  const config = agent.kimiConfig;
-  const xaiOn = isProviderExtrasEnabled(config, 'xai-grok');
-  const qwenOn = isProviderExtrasEnabled(config, 'qwen-token-plan');
-  return {
-    xaiGrokBuild: services?.xaiGrokBuild,
-    xaiApiKey: xaiOn ? nonEmptyEnv('XAI_API_KEY') : undefined,
-    openaiApiKey: nonEmptyEnv('OPENAI_API_KEY'),
-    googleApiKey: nonEmptyEnv('GOOGLE_API_KEY') ?? nonEmptyEnv('GEMINI_API_KEY'),
-    qwenTokenPlanApiKey:
-      services?.qwenTokenPlanApiKey ??
-      (qwenOn
-        ? nonEmptyEnv('QWEN_TOKEN_PLAN_API_KEY') ?? nonEmptyEnv('ALIBABA_TOKEN_PLAN_API_KEY')
-        : undefined),
-    qwenTokenPlanBaseUrl:
-      services?.qwenTokenPlanBaseUrl ?? (qwenOn ? nonEmptyEnv('QWEN_TOKEN_PLAN_BASE_URL') : undefined),
-    codex: services?.codex,
-    extrasDisabled: config?.extras?.disabledProviders ?? [],
-  };
+function resolveMediaProviderEnvForAgent(agent: Agent): b.GenerateImageProviderEnv & b.GenerateVideoProviderEnv {
+  return resolveMediaProviderEnv({
+    toolServices: agent.toolServices,
+    kimiConfig: agent.kimiConfig,
+  });
 }
 
 function createPlanningGoalAndStateTools(
