@@ -32,7 +32,10 @@ import { ClipboardImageHintController } from '../clipboard/clipboard-image-hint'
 import type { StartupLifecycleHost } from './types';
 import { ttui } from '../../utils/tui-i18n';
 import type { SlashCommandHost } from '../../commands/hub/dispatch';
-import { missionBandActive } from '../../features/mission-control/dock';
+import {
+  missionBandActive,
+  shouldMissionDockConsumeEnter,
+} from '../../features/mission-control/dock';
 import { requestTUIContentRender as requestContentRender } from '../../utils/render/frame-render';
 
 export interface StartupNativeRendererCallbacks {
@@ -337,7 +340,9 @@ function scrollStartupMissionPanelByKey(
 
 /**
  * Bare ↑/↓/Enter/Esc when the Worker Dock is active:
- * - with a selection (or workers present): ↑↓ move selection, Enter opens, Esc clears
+ * - with a selection: ↑↓ move, Enter opens, Esc clears
+ * - Enter with editor draft / no selection: fall through so `/exit` and
+ *   prompts still submit (dock must not steal Enter before the editor)
  * - without workers: fall through to editor
  */
 function handleMissionDockSelectionKey(
@@ -361,8 +366,19 @@ function handleMissionDockSelectionKey(
       : undefined;
   if (mapKey === undefined) return false;
 
-  // Esc / Enter only when a selection exists (or Enter can create one).
+  // Esc only when a selection exists.
   if (mapKey === 'escape' && panel.selectedWorker === undefined) return false;
+  // Enter opens only with an explicit dock selection and an empty editor.
+  // Otherwise the pre-editor router must not swallow submit (`/exit`, prompts).
+  if (
+    mapKey === 'enter' &&
+    !shouldMissionDockConsumeEnter({
+      editorText: host.state.editor.getText(),
+      selectedWorkerId: panel.selectedWorker,
+    })
+  ) {
+    return false;
+  }
   if (
     (mapKey === 'up' || mapKey === 'down') &&
     panel.selectedWorker === undefined &&

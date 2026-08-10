@@ -26,3 +26,16 @@ export function missionBandActive(state: MissionBandStateLike): boolean {
   if (mode === 'hidden') return false;
   return mode === 'pinned' || !state.missionControlPanel.isEmpty();
 }
+
+/**
+ * Whether bare Enter should open a Worker Dock transcript instead of
+ * submitting the editor. Draft text always wins (`/exit`, prompts); Enter
+ * only opens when the dock already has an explicit selection.
+ */
+export function shouldMissionDockConsumeEnter(input: {
+  readonly editorText: string;
+  readonly selectedWorkerId: string | undefined;
+}): boolean {
+  if (input.editorText.trim().length > 0) return false;
+  return input.selectedWorkerId !== undefined;
+}

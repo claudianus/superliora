@@ -250,7 +250,8 @@ export class MissionControlRegistry {
       });
       changed = true;
     }
-    for (const id of [...this.workers.keys()]) {
+    // Snapshot keys before delete — iterating Map.keys() live would skip entries.
+    for (const id of Array.from(this.workers.keys())) {
       if (!id.startsWith('job-ghost:') || wanted.has(id)) continue;
       this.workers.delete(id);
       changed = true;

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { missionBandActive } from '#/tui/features/mission-control/dock';
+import {
+  missionBandActive,
+  shouldMissionDockConsumeEnter,
+} from '#/tui/features/mission-control/dock';
 import { buildTUIStateNativeFrameRegions } from '#/tui/features/native-layout/native-layout-frame';
 import { createTUIState, type TUIState } from '#/tui/tui-state';
 import type { MissionControlView } from '#/tui/components/panes/mission-control/panel';
@@ -74,6 +77,35 @@ function busyView(): MissionControlView {
     jobs: emptyConductorJobsSnapshot(),
   };
 }
+
+describe('shouldMissionDockConsumeEnter', () => {
+  it('lets editor submit when the prompt has draft text', () => {
+    expect(
+      shouldMissionDockConsumeEnter({
+        editorText: '/exit',
+        selectedWorkerId: 'agent-6',
+      }),
+    ).toBe(false);
+  });
+
+  it('lets editor submit when the dock has no selection', () => {
+    expect(
+      shouldMissionDockConsumeEnter({
+        editorText: '',
+        selectedWorkerId: undefined,
+      }),
+    ).toBe(false);
+  });
+
+  it('opens a selected worker only on an empty prompt', () => {
+    expect(
+      shouldMissionDockConsumeEnter({
+        editorText: '   ',
+        selectedWorkerId: 'agent-6',
+      }),
+    ).toBe(true);
+  });
+});
 
 describe('mission control bottom band', () => {
   it('activates with content in auto mode on any width', () => {
