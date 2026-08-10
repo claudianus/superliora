@@ -341,7 +341,8 @@ function needsWorktree(kind: JobKind): boolean {
   // merge/push: bookkeeping only — land/push use the source job's worktree.
   if (kind === 'merge' || kind === 'push') return false;
   const profile = profileForJobKind(kind);
-  // explore + goal-desk: read-only / orchestration — no worktree.
+  // explore/research (+ desk via explore profile) + goal-desk: read-only /
+  // orchestration — no worktree. verify keeps a worktree (usually parent chain).
   return profile !== 'explore' && profile !== 'goal-desk';
 }
 
@@ -517,7 +518,11 @@ export async function gcConductorJobWorktrees(
 export function profileForJobKind(kind: JobKind): string {
   switch (kind) {
     case 'explore':
+    case 'research':
+      // research reuses the explore waist (web/docs tools, no worktree).
       return 'explore';
+    case 'verify':
+      return 'verify';
     case 'mission':
       return 'plan';
     case 'desk':

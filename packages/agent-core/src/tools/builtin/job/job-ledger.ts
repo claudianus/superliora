@@ -73,7 +73,6 @@ export function createJob(
     readonly planStructured?: boolean;
     readonly expertId?: string;
     readonly expertScore?: number;
-    readonly expertRole?: JobRecord['expertRole'];
     readonly staffQuery?: string;
   },
 ): JobRecord {
@@ -102,7 +101,6 @@ export function createJob(
     planStructured: input.planStructured,
     expertId: input.expertId,
     expertScore: input.expertScore,
-    expertRole: input.expertRole,
     staffQuery: input.staffQuery,
   };
   return upsertJob(store, job);

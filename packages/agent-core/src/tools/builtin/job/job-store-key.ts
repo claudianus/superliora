@@ -33,7 +33,9 @@ export type JobStatus =
 export type JobKind =
   | 'task'
   | 'explore'
+  | 'research'
   | 'implement'
+  | 'verify'
   | 'mission'
   | 'merge'
   | 'push'
@@ -105,12 +107,11 @@ export interface JobRecord {
   /** Worker progress (phase/recent tools/heartbeat) mirrored to `job.updated` v2. */
   readonly progress?: JobProgressSnapshot;
   /**
-   * Conductor expert staffing (SearchExpert bind). Absent / generic = plain worker.
-   * `expertRole` is orthogonal to `kind` (schedule/profile vs review posture).
+   * Conductor expert staffing (SearchExpert bind). Absent = plain worker.
+   * Posture (implement / verify / research) lives on `kind`, not a role field.
    */
   readonly expertId?: string;
   readonly expertScore?: number;
-  readonly expertRole?: 'implement' | 'review' | 'debug' | 'visual-qa' | 'generic';
   readonly staffQuery?: string;
 }
 

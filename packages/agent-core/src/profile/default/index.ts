@@ -11,6 +11,7 @@ import planYaml from './plan.yaml?raw';
 import subagentBaseYaml from './subagent-base.yaml?raw';
 import systemMd from './system.md?raw';
 import ultraPlanYaml from './ultra-plan.yaml?raw';
+import verifyYaml from './verify.yaml?raw';
 import { loadAgentProfilesFromSources } from '../load';
 
 // Keyed by the source path the profile loader expects: profile YAML files
@@ -27,6 +28,7 @@ const PROFILE_SOURCES: Record<string, string> = {
   'profile/default/plan.yaml': planYaml,
   'profile/default/subagent-base.yaml': subagentBaseYaml,
   'profile/default/ultra-plan.yaml': ultraPlanYaml,
+  'profile/default/verify.yaml': verifyYaml,
   'profile/default/system.md': systemMd,
 };
 
@@ -46,6 +48,7 @@ export const DEFAULT_AGENT_PROFILES = loadAgentProfilesFromSources(
     'subagent-base.yaml',
     'coder.yaml',
     'explore.yaml',
+    'verify.yaml',
     'full.yaml',
     'goal-desk.yaml',
     'goal-driver.yaml',

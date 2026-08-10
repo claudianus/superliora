@@ -409,14 +409,13 @@ describe('merge trust + worker guards + warm pool', () => {
         verification: { tests: 'passed', typecheck: 'passed', lint: 'passed' },
       }),
     });
-    const review = createJob(store, {
-      title: 'Review: merge me',
-      kind: 'task',
+    const verify = createJob(store, {
+      title: 'Verify: merge me',
+      kind: 'verify',
       parentJobId: created.id,
       expertId: 'checker-ledger',
-      expertRole: 'review',
     });
-    patchJob(store, review.id, {
+    patchJob(store, verify.id, {
       status: 'done',
       resultSummary: '{"verdict":"pass","findings":[],"required_fixes":[]}',
     });

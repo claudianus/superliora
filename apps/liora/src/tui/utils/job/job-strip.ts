@@ -325,9 +325,12 @@ const JOB_STATUSES: readonly JobEventStatus[] = [
 const JOB_KINDS: readonly JobEventKind[] = [
   'task',
   'explore',
+  'research',
   'implement',
+  'verify',
   'mission',
   'merge',
+  'push',
   'desk',
   'goal-desk',
   'goal-driver',

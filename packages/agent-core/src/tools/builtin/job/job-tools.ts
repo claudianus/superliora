@@ -68,7 +68,9 @@ import { cancelJobWorker, resumeJobs, steerJobWorker } from './job-worker';
 const JobKindSchema = z.enum([
   'task',
   'explore',
+  'research',
   'implement',
+  'verify',
   'mission',
   'merge',
   'push',
@@ -100,7 +102,7 @@ const JobCreateInputSchema = z
         'Short outcome-shaped title for the ledger and ACK (verb + deliverable, e.g. "Fix auth token refresh race").',
       ),
     kind: JobKindSchema.optional().describe(
-      'Job kind. task/implement = code work (default task), explore = read-only research, mission = Plan Desk / long-running spine (plan profile + structured plan at spawn), merge = landing worker, push = remote publish worker, desk = inbox digest, goal-desk = Goal Desk orchestrator (spawns goal-driver children; no main-lane goal loop), goal-driver = autonomous goal loop (the runtime migrates a Goal onto the worker; use prompt as the objective and goal_completion_criterion as its finish line). Defaults to task.',
+      'Job kind. task/implement = code work (default task), explore = read-only codebase discovery, research = web/API/docs investigation (DeepResearch/Context7), verify = Maker≠Checker checker (no product writes; auto-enqueued after implement), mission = Plan Desk / long-running spine (plan profile + structured plan at spawn), merge = landing worker, push = remote publish worker, desk = inbox digest, goal-desk = Goal Desk orchestrator (spawns goal-driver children; no main-lane goal loop), goal-driver = autonomous goal loop (the runtime migrates a Goal onto the worker; use prompt as the objective and goal_completion_criterion as its finish line). Defaults to task.',
     ),
     priority: z
       .number()
@@ -182,7 +184,7 @@ const JobCreateInputSchema = z
       .boolean()
       .optional()
       .describe(
-        'Run SearchExpert staffing: bind a high-score expert (else generic) to this Job. Does not fan out into multiple Jobs — use auto_split=true only for truly independent multi-intents. ownership_paths is a claim set for one Job and never auto-fanout. Defaults true for task/implement/explore; false for merge/desk/goal-desk/mission.',
+        'Run SearchExpert staffing: bind a high-score expert (else generic) to this Job. Does not fan out into multiple Jobs — use auto_split=true only for truly independent multi-intents. ownership_paths is a claim set for one Job and never auto-fanout. Defaults true for task/implement/explore/research/verify; false for merge/desk/goal-desk/mission.',
       ),
   })
   .strict()
@@ -584,7 +586,9 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
             (kind === undefined ||
               kind === 'task' ||
               kind === 'implement' ||
-              kind === 'explore'));
+              kind === 'explore' ||
+              kind === 'research' ||
+              kind === 'verify'));
 
         // Intent fan-out is opt-in via auto_split only. Default staffing binds an
         // expert to ONE Job — bullet success_criteria must not spawn Task (1)…(5).
@@ -636,7 +640,6 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
               parentJobId: a.parent_job_id,
               expertId: slice.expertId,
               expertScore: slice.expertScore,
-              expertRole: slice.expertRole,
               staffQuery: slice.staffQuery,
             }),
           );
@@ -1016,11 +1019,12 @@ export class MergeJobTool implements BuiltinTool<z.infer<typeof MergeJobInputSch
             },
             { agent: this.agent, summary: holdNote },
           );
-          const rejectLabel = trust.reason.includes('review')
-            ? 'review chain'
-            : trust.reason.includes('VerifySurface') || trust.reason.includes('visual=')
-              ? 'visual proof'
-              : 'trust rules';
+          const rejectLabel =
+            trust.reason.includes('verify') || trust.reason.includes('Maker≠Checker')
+              ? 'verify chain'
+              : trust.reason.includes('VerifySurface') || trust.reason.includes('visual=')
+                ? 'visual proof'
+                : 'trust rules';
           return {
             isError: true,
             output: ack(

@@ -7,12 +7,11 @@
  * that one Job.
  *
  * `ownership_paths` is a claim set for one Job — never a fan-out signal.
+ * Worker posture is `JobKind` (implement / verify / research / …), not a role.
  */
 
 import { globalExpertSearchEngine } from '../../../expert-agents/search';
 import type { JobKind } from './job-store-key';
-
-export type JobExpertRole = 'implement' | 'review' | 'debug' | 'visual-qa' | 'generic';
 
 export interface StaffedJobSlice {
   readonly title: string;
@@ -21,7 +20,6 @@ export interface StaffedJobSlice {
   readonly ownershipPaths?: readonly string[];
   readonly expertId?: string;
   readonly expertScore?: number;
-  readonly expertRole: JobExpertRole;
   readonly staffQuery: string;
 }
 
@@ -77,7 +75,6 @@ export async function staffJobsFromObjective(
       ownershipPaths: input.ownershipPaths,
       expertId: bindExpert ? best.expert.id : undefined,
       expertScore: best?.score,
-      expertRole: bindExpert ? 'implement' : 'generic',
       staffQuery: query.slice(0, 500),
     },
   ];

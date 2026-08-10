@@ -37,7 +37,9 @@ export type JobEventStatus =
 export type JobEventKind =
   | 'task'
   | 'explore'
+  | 'research'
   | 'implement'
+  | 'verify'
   | 'mission'
   | 'merge'
   | 'push'
@@ -161,7 +163,9 @@ export const jobEventStatusSchema = z.enum([
 export const jobEventKindSchema = z.enum([
   'task',
   'explore',
+  'research',
   'implement',
+  'verify',
   'mission',
   'merge',
   'push',

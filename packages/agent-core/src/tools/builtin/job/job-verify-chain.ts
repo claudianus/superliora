@@ -1,6 +1,7 @@
 /**
- * Implement → review → (optional) debug Job chain.
- * Maker≠Checker: review expertId must differ from the implement parent's.
+ * Implement → verify → (optional) debug Job chain.
+ * Maker≠Checker: verify expertId must differ from the implement parent's.
+ * Posture is JobKind (`verify` / `implement`), not an UltraSwarm expertRole.
  */
 
 import type { Agent } from '../../../agent/index';
@@ -11,54 +12,58 @@ import type { ToolStore } from '../../store';
 import { createJob, getJob, listJobs, patchJob, type JobRecord } from './job-ledger';
 import { STAFF_MIN_EXPERT_SCORE } from './job-staff';
 
-export type JobReviewVerdict = 'passed' | 'failed' | 'not_run' | 'not_applicable';
+export type JobVerifyVerdict = 'passed' | 'failed' | 'not_run' | 'not_applicable';
 
-const REVIEW_ROLES = new Set(['review', 'debug', 'visual-qa']);
-
-/** Implement/task workers that should receive an automatic review child. */
-export function shouldEnqueueReviewAfterDone(job: JobRecord): boolean {
+/** Implement/task workers that should receive an automatic verify child. */
+export function shouldEnqueueVerifyAfterDone(job: JobRecord): boolean {
   if (job.status !== 'done') return false;
   if (
     job.kind === 'merge' ||
     job.kind === 'push' ||
     job.kind === 'desk' ||
-    job.kind === 'goal-desk'
+    job.kind === 'goal-desk' ||
+    job.kind === 'explore' ||
+    job.kind === 'research' ||
+    job.kind === 'mission' ||
+    job.kind === 'verify'
   ) {
     return false;
   }
-  if (job.kind === 'explore' || job.kind === 'mission') return false;
-  const role = job.expertRole ?? 'implement';
-  if (REVIEW_ROLES.has(role)) return false;
+  // Debug fixer children must not re-trigger another verify fan-out.
+  if (job.kind === 'implement' && job.title.startsWith('Debug:') && job.parentJobId !== undefined) {
+    return false;
+  }
   return job.kind === 'task' || job.kind === 'implement';
 }
 
-export function hasReviewChild(store: ToolStore, parentJobId: string): boolean {
-  return findReviewChild(parentJobId, listJobs(store)) !== undefined;
+export function hasVerifyChild(store: ToolStore, parentJobId: string): boolean {
+  return findVerifyChild(parentJobId, listJobs(store)) !== undefined;
 }
 
-export function findReviewChild(
+export function findVerifyChild(
   parentJobId: string,
   jobs: readonly JobRecord[],
 ): JobRecord | undefined {
-  return jobs.find(
-    (job) =>
-      job.parentJobId === parentJobId &&
-      (job.expertRole === 'review' || job.expertRole === 'visual-qa'),
-  );
+  return jobs.find((job) => job.parentJobId === parentJobId && job.kind === 'verify');
 }
 
 export function findDebugChild(
   parentJobId: string,
   jobs: readonly JobRecord[],
 ): JobRecord | undefined {
-  return jobs.find((job) => job.parentJobId === parentJobId && job.expertRole === 'debug');
+  return jobs.find(
+    (job) =>
+      job.parentJobId === parentJobId &&
+      job.kind === 'implement' &&
+      job.title.startsWith('Debug:'),
+  );
 }
 
 /**
- * Parse structured review verdict from worker summary.
+ * Parse structured verify verdict from worker summary.
  * Accepts a JSON object anywhere in the text, or a leading `verdict: pass|fail` line.
  */
-export function parseReviewVerdict(summary: string | undefined): JobReviewVerdict | undefined {
+export function parseVerifyVerdict(summary: string | undefined): JobVerifyVerdict | undefined {
   if (summary === undefined || summary.trim().length === 0) return undefined;
   const text = summary.trim();
   const jsonMatch = text.match(/\{[\s\S]*"verdict"\s*:\s*"(pass|fail|passed|failed)"[\s\S]*\}/i);
@@ -79,7 +84,7 @@ export function parseReviewVerdict(summary: string | undefined): JobReviewVerdic
   return undefined;
 }
 
-function normalizeVerdict(raw: string | undefined): JobReviewVerdict | undefined {
+function normalizeVerdict(raw: string | undefined): JobVerifyVerdict | undefined {
   if (raw === undefined) return undefined;
   const v = raw.trim().toLowerCase();
   if (v === 'pass' || v === 'passed') return 'passed';
@@ -89,22 +94,22 @@ function normalizeVerdict(raw: string | undefined): JobReviewVerdict | undefined
 
 export function makerCheckerCollision(
   implementExpertId: string | undefined,
-  reviewExpertId: string | undefined,
+  verifyExpertId: string | undefined,
 ): boolean {
   const a = implementExpertId?.trim();
-  const b = reviewExpertId?.trim();
+  const b = verifyExpertId?.trim();
   if (a === undefined || a.length === 0 || b === undefined || b.length === 0) return false;
   return a === b;
 }
 
-/** Staff + create a review child for a completed implement job. */
-export async function enqueueReviewJobForParent(
+/** Staff + create a verify child for a completed implement job. */
+export async function enqueueVerifyJobForParent(
   store: ToolStore,
   parent: JobRecord,
   agent?: Agent,
 ): Promise<JobRecord | undefined> {
-  if (hasReviewChild(store, parent.id)) return undefined;
-  if (!shouldEnqueueReviewAfterDone({ ...parent, status: 'done' })) return undefined;
+  if (hasVerifyChild(store, parent.id)) return undefined;
+  if (!shouldEnqueueVerifyAfterDone({ ...parent, status: 'done' })) return undefined;
 
   const ui = jobLooksLikeUiSurface(parent);
   const query = ui
@@ -125,51 +130,54 @@ export async function enqueueReviewJobForParent(
 
   const files = parent.resultContract?.files_changed?.slice(0, 20) ?? parent.ownershipPaths;
   const prompt = [
-    'You are an independent review checker (Maker≠Checker). Do not implement product features.',
+    'You are an independent verify checker (Maker≠Checker). Do not implement product features.',
     `Parent job: ${parent.id} — ${parent.title}`,
     parent.resultSummary !== undefined ? `Parent summary:\n${parent.resultSummary.slice(0, 2500)}` : undefined,
     files !== undefined && files.length > 0 ? `Changed paths: ${files.join(', ')}` : undefined,
+    parent.verificationCommands !== undefined && parent.verificationCommands.length > 0
+      ? `Run these verification commands and cite exit codes:\n${parent.verificationCommands.map((c) => `- ${c}`).join('\n')}`
+      : undefined,
     ui
       ? 'Re-run VerifySurface on the real surface when a URL/HTML path is available; inspect load+interaction+craft axes.'
-      : 'Review the diff for correctness, regressions, and missing tests.',
+      : 'Review the diff for correctness, regressions, and missing tests; run focused checks when available.',
     'Final output MUST include a JSON object: {"verdict":"pass"|"fail","findings":[...],"required_fixes":[...]}',
   ]
     .filter(Boolean)
     .join('\n\n');
 
-  const review = createJob(store, {
-    title: `Review: ${parent.title}`.slice(0, 120),
-    kind: 'task',
+  const verify = createJob(store, {
+    title: `Verify: ${parent.title}`.slice(0, 120),
+    kind: 'verify',
     priority: (parent.priority ?? 0) + 1,
     prompt,
-    // Review is Maker≠Checker read/audit — do not pre-claim exclusive write
+    // Verify is Maker≠Checker read/audit — do not pre-claim exclusive write
     // leases on parent paths (blocks sibling Jobs at fan-out).
     contextPaths: parent.contextPaths ?? files,
     parentJobId: parent.id,
     expertId: pick?.expert.id,
     expertScore: pick?.score,
-    expertRole: ui ? 'visual-qa' : 'review',
     staffQuery: query,
     successCriteria: [
       'Emit JSON verdict pass|fail with findings',
       ui ? 'VerifySurface axes considered' : 'Diff reviewed against success criteria',
     ],
+    verificationCommands: parent.verificationCommands,
   });
 
   patchJob(store, parent.id, {
-    notes: [parent.notes, `review_chain: enqueued ${review.id}`].filter(Boolean).join('\n'),
+    notes: [parent.notes, `verify_chain: enqueued ${verify.id}`].filter(Boolean).join('\n'),
   });
   if (agent !== undefined) {
     requestJobSchedulePump({ store, agent });
   }
-  return review;
+  return verify;
 }
 
-/** After a failing review, enqueue a debug fixer (different expert when possible). */
-export async function enqueueDebugJobForReview(
+/** After a failing verify, enqueue a debug fixer (different expert when possible). */
+export async function enqueueDebugJobForVerify(
   store: ToolStore,
   parent: JobRecord,
-  review: JobRecord,
+  verify: JobRecord,
   agent?: Agent,
 ): Promise<JobRecord | undefined> {
   if (findDebugChild(parent.id, listJobs(store)) !== undefined) return undefined;
@@ -182,7 +190,7 @@ export async function enqueueDebugJobForReview(
     taskDescription: query,
   });
   const blocked = new Set(
-    [parent.expertId, review.expertId].filter((id): id is string => id !== undefined && id.length > 0),
+    [parent.expertId, verify.expertId].filter((id): id is string => id !== undefined && id.length > 0),
   );
   const pick = hits.find(
     (hit) => hit.score >= STAFF_MIN_EXPERT_SCORE && !blocked.has(hit.expert.id),
@@ -193,11 +201,11 @@ export async function enqueueDebugJobForReview(
     kind: 'implement',
     priority: (parent.priority ?? 0) + 2,
     prompt: [
-      'You are a debug fixer. Reproduce review findings with the smallest fix. Do not expand scope.',
+      'You are a debug fixer. Reproduce verify findings with the smallest fix. Do not expand scope.',
       `Parent job: ${parent.id}`,
-      `Review job: ${review.id}`,
-      review.resultSummary !== undefined
-        ? `Review findings:\n${review.resultSummary.slice(0, 3000)}`
+      `Verify job: ${verify.id}`,
+      verify.resultSummary !== undefined
+        ? `Verify findings:\n${verify.resultSummary.slice(0, 3000)}`
         : undefined,
       'After fixes, re-run focused checks / VerifySurface as applicable.',
     ]
@@ -208,13 +216,12 @@ export async function enqueueDebugJobForReview(
     parentJobId: parent.id,
     expertId: pick?.expert.id,
     expertScore: pick?.score,
-    expertRole: 'debug',
     staffQuery: query,
-    successCriteria: ['Address review required_fixes', 'Re-verify with checks or VerifySurface'],
+    successCriteria: ['Address verify required_fixes', 'Re-verify with checks or VerifySurface'],
   });
 
   patchJob(store, parent.id, {
-    notes: [getJob(store, parent.id)?.notes, `review_chain: debug enqueued ${debug.id}`]
+    notes: [getJob(store, parent.id)?.notes, `verify_chain: debug enqueued ${debug.id}`]
       .filter(Boolean)
       .join('\n'),
   });
@@ -226,64 +233,60 @@ export async function enqueueDebugJobForReview(
 
 /**
  * Handle terminal completion for chain bookkeeping.
- * - implement done → enqueue review
- * - review done → parse verdict; on fail enqueue debug; stamp parent notes
+ * - implement done → enqueue verify
+ * - verify done → parse verdict; on fail enqueue debug; stamp parent notes
  */
-export async function onJobTerminalForReviewChain(
+export async function onJobTerminalForVerifyChain(
   store: ToolStore,
   job: JobRecord,
   agent?: Agent,
 ): Promise<void> {
-  const role = job.expertRole ?? 'implement';
-
   if (
-    (role === 'review' || role === 'visual-qa') &&
+    job.kind === 'verify' &&
     (job.status === 'done' || job.status === 'failed') &&
     job.parentJobId !== undefined
   ) {
     const parent = getJob(store, job.parentJobId);
     if (parent === undefined) return;
     const verdict =
-      parseReviewVerdict(job.resultSummary) ??
+      parseVerifyVerdict(job.resultSummary) ??
       (job.status === 'failed' ? 'failed' : undefined) ??
       'failed';
     patchJob(store, parent.id, {
       notes: [
         parent.notes,
-        `review_chain: ${job.id} verdict=${verdict}`,
+        `verify_chain: ${job.id} verdict=${verdict}`,
         makerCheckerCollision(parent.expertId, job.expertId)
-          ? 'review_chain: MAKER_CHECKER_COLLISION same expertId on implement+review'
+          ? 'verify_chain: MAKER_CHECKER_COLLISION same expertId on implement+verify'
           : undefined,
       ]
         .filter(Boolean)
         .join('\n'),
     });
     if (verdict === 'failed') {
-      await enqueueDebugJobForReview(store, parent, job, agent);
+      await enqueueDebugJobForVerify(store, parent, job, agent);
     }
     return;
   }
 
-  if (job.status === 'done' && shouldEnqueueReviewAfterDone(job)) {
-    if (hasReviewChild(store, job.id)) return;
-    await enqueueReviewJobForParent(store, job, agent);
+  if (job.status === 'done' && shouldEnqueueVerifyAfterDone(job)) {
+    if (hasVerifyChild(store, job.id)) return;
+    await enqueueVerifyJobForParent(store, job, agent);
   }
 }
 
-/** Merge gate: UI/implement land needs a passed review child (and no maker=checker). */
-export function evaluateReviewChainForMerge(input: {
+/** Merge gate: UI/implement land needs a passed verify child (and no maker=checker). */
+export function evaluateVerifyChainForMerge(input: {
   readonly job: JobRecord;
   readonly jobs: readonly JobRecord[];
 }): { readonly ok: true } | { readonly ok: false; readonly reason: string } {
-  const role = input.job.expertRole ?? 'implement';
-  if (REVIEW_ROLES.has(role)) {
-    return { ok: true }; // merging a review job itself is unusual; trust path handles elsewhere
-  }
   if (
     input.job.kind === 'merge' ||
     input.job.kind === 'push' ||
     input.job.kind === 'desk' ||
-    input.job.kind === 'explore'
+    input.job.kind === 'explore' ||
+    input.job.kind === 'research' ||
+    input.job.kind === 'verify'
   ) {
     return { ok: true };
   }
@@ -292,31 +295,31 @@ export function evaluateReviewChainForMerge(input: {
     return { ok: true };
   }
 
-  const review = findReviewChild(input.job.id, input.jobs);
-  if (review === undefined) {
+  const verify = findVerifyChild(input.job.id, input.jobs);
+  if (verify === undefined) {
     return {
       ok: false,
       reason:
-        'No review child Job yet — wait for the automatic review chain (Maker≠Checker) before MergeJob.',
+        'No verify child Job yet — wait for the automatic verify chain (Maker≠Checker) before MergeJob.',
     };
   }
-  if (makerCheckerCollision(input.job.expertId, review.expertId)) {
+  if (makerCheckerCollision(input.job.expertId, verify.expertId)) {
     return {
       ok: false,
-      reason: `Maker≠Checker hard reject: implement and review share expertId=${input.job.expertId ?? ''}.`,
+      reason: `Maker≠Checker hard reject: implement and verify share expertId=${input.job.expertId ?? ''}.`,
     };
   }
-  if (review.status !== 'done' && review.status !== 'failed') {
+  if (verify.status !== 'done' && verify.status !== 'failed') {
     return {
       ok: false,
-      reason: `Review job ${review.id} is still ${review.status} — wait for verdict before merge.`,
+      reason: `Verify job ${verify.id} is still ${verify.status} — wait for verdict before merge.`,
     };
   }
-  const verdict = parseReviewVerdict(review.resultSummary);
+  const verdict = parseVerifyVerdict(verify.resultSummary);
   if (verdict !== 'passed') {
     return {
       ok: false,
-      reason: `Review job ${review.id} verdict=${verdict ?? 'missing'} — fix via debug/implement requeue before merge.`,
+      reason: `Verify job ${verify.id} verdict=${verdict ?? 'missing'} — fix via debug/implement requeue before merge.`,
     };
   }
   return { ok: true };

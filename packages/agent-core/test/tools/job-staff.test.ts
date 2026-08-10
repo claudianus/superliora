@@ -10,9 +10,8 @@ describe('staffJobsFromObjective', () => {
       kind: 'implement',
     });
     expect(slices.length).toBe(1);
-    expect(slices[0]?.expertRole === 'implement' || slices[0]?.expertRole === 'generic').toBe(
-      true,
-    );
+    expect(slices[0]?.kind).toBe('implement');
+    expect(slices[0]?.staffQuery?.length).toBeGreaterThan(0);
     if (slices[0]?.expertId !== undefined) {
       expect(slices[0]!.expertScore).toBeGreaterThan(0);
     }

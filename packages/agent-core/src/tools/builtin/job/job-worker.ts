@@ -50,7 +50,7 @@ import {
   ownershipDeferredNote,
 } from './job-ownership';
 import { runPushRemoteJob } from './job-push';
-import { onJobTerminalForReviewChain } from './job-review-chain';
+import { onJobTerminalForVerifyChain } from './job-verify-chain';
 import { profileForJobKind } from './job-runtime';
 import { commitJobWorktreeIfDirty } from './job-worktree-commit';
 
@@ -127,25 +127,37 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
       : undefined,
     [
       'Worker contract:',
-      '- Trace the brief against the codebase before editing (callers / fail path / success criteria).',
-      '- Prefer the smallest diff that meets success criteria; stay inside ownership/context paths when set.',
-      '- After each meaningful change, run focused checks when available; cite that evidence in the result summary.',
-      ...(job.expertRole === 'review' || job.expertRole === 'visual-qa'
+      ...(job.kind === 'verify'
         ? [
-            '- Review DoD: do not implement product features. Inspect the parent diff/summary; for UI call VerifySurface when a URL/HTML path exists. Final summary MUST include JSON {"verdict":"pass"|"fail","findings":[...],"required_fixes":[...]}.',
+            '- Verify DoD: do not implement product features. Inspect the parent diff/summary; run verification_commands when set; for UI call VerifySurface when a URL/HTML path exists. Final summary MUST include JSON {"verdict":"pass"|"fail","findings":[...],"required_fixes":[...]}.',
+          ]
+        : job.kind === 'research'
+          ? [
+              '- Research DoD: prefer DeepResearch / WebSearch / FetchURL / Context7 over multi-file code marathons. Cite sources. Do not edit the product tree.',
+            ]
+          : job.kind === 'explore'
+            ? [
+                '- Explore DoD: read-only codebase discovery. Prefer RepoQuery/Grep/Read; report findings structured. Do not edit the product tree.',
+              ]
+            : [
+                '- Trace the brief against the codebase before editing (callers / fail path / success criteria).',
+                '- Prefer the smallest diff that meets success criteria; stay inside ownership/context paths when set.',
+                '- After each meaningful change, run focused checks when available; cite that evidence in the result summary.',
+              ]),
+      ...(job.kind === 'implement' && job.title.startsWith('Debug:')
+        ? [
+            '- Debug DoD: reproduce verify findings, apply the smallest fix, re-verify. Do not expand scope or ship unrelated features.',
           ]
         : []),
-      ...(job.expertRole === 'debug'
-        ? [
-            '- Debug DoD: reproduce review findings, apply the smallest fix, re-verify. Do not expand scope or ship unrelated features.',
-          ]
-        : []),
-      ...(uiJob && job.expertRole !== 'review' && job.expertRole !== 'visual-qa'
+      ...(uiJob && job.kind !== 'verify' && job.kind !== 'explore' && job.kind !== 'research'
         ? [
             '- Visual DoD (UI job): write a short Art Direction Brief before first markup; Skill("premium-visual") before shipping a visible slice; call VerifySurface once on the real surface before done (≤2 min fail-fast). VerifySurface requires load+interaction+craft axes (default click smoke + banned-ship craft audit); BrowserScreenshot alone does not set visual=passed. If the runtime is not ready, report visual failed — do not BrowserAct-explore or reinstall loops. Record screenshot path in the summary. MergeJob hard-fails without visual=passed.',
           ]
         : []),
-      ...(job.worktreePath !== undefined
+      ...(job.worktreePath !== undefined &&
+      job.kind !== 'verify' &&
+      job.kind !== 'explore' &&
+      job.kind !== 'research'
         ? [
             '- Commit your work in the job worktree before finishing (`git add -A && git commit`; local commits only, never push). This brief explicitly authorizes those commits — no confirmation loop needed. Land-to-main / PushJob use the branch tip, so uncommitted changes are invisible and lost at worktree GC.',
           ]
@@ -165,7 +177,7 @@ function renderJobExpertBlock(job: JobRecord): string | undefined {
   if (expert === undefined) {
     return [
       `Staffed expert id: ${expertId}`,
-      job.expertRole !== undefined ? `Expert role: ${job.expertRole}` : undefined,
+      `Job kind: ${job.kind}`,
       job.expertScore !== undefined ? `Staff score: ${String(job.expertScore)}` : undefined,
     ]
       .filter(Boolean)
@@ -175,9 +187,9 @@ function renderJobExpertBlock(job: JobRecord): string | undefined {
     buildExpertAssignmentPrompt(expert, {
       taskDescription: job.prompt ?? job.title,
       selectionReason: job.staffQuery,
-      phase: job.expertRole,
+      phase: job.kind,
     }),
-    job.expertRole !== undefined ? `Expert role: ${job.expertRole}` : undefined,
+    `Job kind: ${job.kind}`,
     job.expertScore !== undefined ? `Staff score: ${String(job.expertScore)}` : undefined,
   ]
     .filter(Boolean)
@@ -368,10 +380,10 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
     prompt: jobPrompt(job, input.store),
     description: job.title.slice(0, 80),
     profileName,
-    // review / visual-qa never take exclusive write leases (belt + suspenders
-    // for manually created review Jobs that still set ownershipPaths).
+    // verify / explore / research never take exclusive write leases (belt +
+    // suspenders for manually created Jobs that still set ownershipPaths).
     ownership:
-      job.expertRole === 'review' || job.expertRole === 'visual-qa'
+      job.kind === 'verify' || job.kind === 'explore' || job.kind === 'research'
         ? undefined
         : job.ownershipPaths
           ? [...job.ownershipPaths]
@@ -517,9 +529,9 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
           syncGoalDeskParentFromDriver(input.store, updated, input.agent);
           feedParentHarnessFromJobCompletion(input.agent, completion);
           try {
-            await onJobTerminalForReviewChain(input.store, updated, input.agent);
+            await onJobTerminalForVerifyChain(input.store, updated, input.agent);
           } catch (error) {
-            input.agent.log.warn('review chain enqueue failed', error);
+            input.agent.log.warn('verify chain enqueue failed', error);
           }
         }
       })

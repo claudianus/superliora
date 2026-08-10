@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  enqueueDebugJobForReview,
-  enqueueReviewJobForParent,
-  evaluateReviewChainForMerge,
+  enqueueDebugJobForVerify,
+  enqueueVerifyJobForParent,
+  evaluateVerifyChainForMerge,
   makerCheckerCollision,
-  onJobTerminalForReviewChain,
-  parseReviewVerdict,
-  shouldEnqueueReviewAfterDone,
-} from '../../src/tools/builtin/job/job-review-chain';
+  onJobTerminalForVerifyChain,
+  parseVerifyVerdict,
+  shouldEnqueueVerifyAfterDone,
+} from '../../src/tools/builtin/job/job-verify-chain';
 import { createJob, listJobs, patchJob } from '../../src/tools/builtin/job/job-ledger';
 import type { JobRecord } from '../../src/tools/builtin/job/job-store-key';
 import type { ToolStore } from '../../src/tools/store';
@@ -36,11 +36,11 @@ function job(partial: Partial<JobRecord> & Pick<JobRecord, 'id' | 'title' | 'kin
   };
 }
 
-describe('job-review-chain', () => {
+describe('job-verify-chain', () => {
   it('parses JSON and line verdicts', () => {
-    expect(parseReviewVerdict('{"verdict":"pass","findings":[]}')).toBe('passed');
-    expect(parseReviewVerdict('notes\nverdict: fail\n')).toBe('failed');
-    expect(parseReviewVerdict('no verdict here')).toBeUndefined();
+    expect(parseVerifyVerdict('{"verdict":"pass","findings":[]}')).toBe('passed');
+    expect(parseVerifyVerdict('notes\nverdict: fail\n')).toBe('failed');
+    expect(parseVerifyVerdict('no verdict here')).toBeUndefined();
   });
 
   it('detects maker=checker collision', () => {
@@ -49,71 +49,74 @@ describe('job-review-chain', () => {
     expect(makerCheckerCollision(undefined, 'eng-b')).toBe(false);
   });
 
-  it('enqueues review only for implement/task done roles', () => {
+  it('enqueues verify only for implement/task done kinds', () => {
     expect(
-      shouldEnqueueReviewAfterDone(job({ id: 'job_1', title: 't', kind: 'implement' })),
+      shouldEnqueueVerifyAfterDone(job({ id: 'job_1', title: 't', kind: 'implement' })),
     ).toBe(true);
     expect(
-      shouldEnqueueReviewAfterDone(
-        job({ id: 'job_2', title: 't', kind: 'implement', expertRole: 'review' }),
-      ),
+      shouldEnqueueVerifyAfterDone(job({ id: 'job_2', title: 't', kind: 'verify' })),
     ).toBe(false);
-    expect(shouldEnqueueReviewAfterDone(job({ id: 'job_3', title: 't', kind: 'explore' }))).toBe(
+    expect(shouldEnqueueVerifyAfterDone(job({ id: 'job_3', title: 't', kind: 'explore' }))).toBe(
       false,
     );
+    expect(shouldEnqueueVerifyAfterDone(job({ id: 'job_4', title: 't', kind: 'research' }))).toBe(
+      false,
+    );
+    expect(
+      shouldEnqueueVerifyAfterDone(
+        job({ id: 'job_5', title: 'Debug: t', kind: 'implement', parentJobId: 'job_1' }),
+      ),
+    ).toBe(false);
   });
 
-  it('blocks merge until independent review passes', () => {
+  it('blocks merge until independent verify passes', () => {
     const implement = job({
       id: 'job_impl',
       title: 'Feature',
       kind: 'implement',
       expertId: 'maker-1',
-      expertRole: 'implement',
     });
-    expect(evaluateReviewChainForMerge({ job: implement, jobs: [implement] }).ok).toBe(false);
+    expect(evaluateVerifyChainForMerge({ job: implement, jobs: [implement] }).ok).toBe(false);
 
-    const reviewRunning = job({
-      id: 'job_rev',
-      title: 'Review',
-      kind: 'task',
+    const verifyRunning = job({
+      id: 'job_ver',
+      title: 'Verify',
+      kind: 'verify',
       parentJobId: 'job_impl',
       expertId: 'checker-1',
-      expertRole: 'review',
       status: 'running',
     });
     expect(
-      evaluateReviewChainForMerge({ job: implement, jobs: [implement, reviewRunning] }).ok,
+      evaluateVerifyChainForMerge({ job: implement, jobs: [implement, verifyRunning] }).ok,
     ).toBe(false);
 
-    const reviewPass = job({
-      id: 'job_rev2',
-      title: 'Review',
-      kind: 'task',
+    const verifyPass = job({
+      id: 'job_ver2',
+      title: 'Verify',
+      kind: 'verify',
       parentJobId: 'job_impl',
       expertId: 'checker-1',
-      expertRole: 'review',
       status: 'done',
       resultSummary: '{"verdict":"pass","findings":[],"required_fixes":[]}',
     });
-    expect(evaluateReviewChainForMerge({ job: implement, jobs: [implement, reviewPass] })).toEqual({
+    expect(evaluateVerifyChainForMerge({ job: implement, jobs: [implement, verifyPass] })).toEqual({
       ok: true,
     });
 
-    const reviewSameExpert = {
-      ...reviewPass,
-      id: 'job_rev3',
+    const verifySameExpert = {
+      ...verifyPass,
+      id: 'job_ver3',
       expertId: 'maker-1',
     };
-    const collision = evaluateReviewChainForMerge({
+    const collision = evaluateVerifyChainForMerge({
       job: implement,
-      jobs: [implement, reviewSameExpert],
+      jobs: [implement, verifySameExpert],
     });
     expect(collision.ok).toBe(false);
     if (!collision.ok) expect(collision.reason).toMatch(/Maker≠Checker|expertId/i);
   });
 
-  it('enqueues a review child on implement done (fake store)', async () => {
+  it('enqueues a verify child on implement done (fake store)', async () => {
     const store = memoryStore();
     const parent = createJob(store, {
       title: 'Ship footer',
@@ -121,55 +124,52 @@ describe('job-review-chain', () => {
       prompt: 'Implement the footer component',
       ownershipPaths: ['apps/site/src/components/Footer.tsx'],
       expertId: 'frontend-engineer',
-      expertRole: 'implement',
     });
     patchJob(store, parent.id, { status: 'done', resultSummary: 'footer shipped' });
     const done = { ...parent, status: 'done' as const, resultSummary: 'footer shipped' };
-    const review = await enqueueReviewJobForParent(store, done);
-    expect(review).toBeDefined();
-    expect(review?.parentJobId).toBe(parent.id);
-    expect(review?.expertRole === 'review' || review?.expertRole === 'visual-qa').toBe(true);
-    expect(review?.expertId).not.toBe('frontend-engineer');
+    const verify = await enqueueVerifyJobForParent(store, done);
+    expect(verify).toBeDefined();
+    expect(verify?.parentJobId).toBe(parent.id);
+    expect(verify?.kind).toBe('verify');
+    expect(verify?.expertId).not.toBe('frontend-engineer');
     // Soft reader: no exclusive write lease — paths stay on context only.
-    expect(review?.ownershipPaths).toBeUndefined();
-    expect(review?.contextPaths).toContain('apps/site/src/components/Footer.tsx');
+    expect(verify?.ownershipPaths).toBeUndefined();
+    expect(verify?.contextPaths).toContain('apps/site/src/components/Footer.tsx');
     // Idempotent — second enqueue is a no-op.
-    expect(await enqueueReviewJobForParent(store, done)).toBeUndefined();
+    expect(await enqueueVerifyJobForParent(store, done)).toBeUndefined();
     expect(listJobs(store).filter((j) => j.parentJobId === parent.id)).toHaveLength(1);
   });
 
-  it('onJobTerminal enqueues debug after failing review verdict', async () => {
+  it('onJobTerminal enqueues debug after failing verify verdict', async () => {
     const store = memoryStore();
     const parent = createJob(store, {
       title: 'Broken button',
       kind: 'implement',
       expertId: 'maker-x',
-      expertRole: 'implement',
       ownershipPaths: ['src/Button.js'],
     });
     patchJob(store, parent.id, { status: 'done' });
-    await onJobTerminalForReviewChain(store, {
+    await onJobTerminalForVerifyChain(store, {
       ...parent,
       status: 'done',
     });
-    const review = listJobs(store).find(
-      (j) => j.expertRole === 'review' || j.expertRole === 'visual-qa',
-    );
-    expect(review).toBeDefined();
-    expect(review?.ownershipPaths).toBeUndefined();
-    patchJob(store, review!.id, {
+    const verify = listJobs(store).find((j) => j.kind === 'verify');
+    expect(verify).toBeDefined();
+    expect(verify?.ownershipPaths).toBeUndefined();
+    patchJob(store, verify!.id, {
       status: 'done',
       resultSummary: '{"verdict":"fail","findings":["click noop"],"required_fixes":["wire handler"]}',
       expertId: 'checker-y',
-      expertRole: review!.expertRole,
     });
-    const reviewDone = listJobs(store).find((j) => j.id === review!.id)!;
-    await onJobTerminalForReviewChain(store, reviewDone);
-    const debug = listJobs(store).find((j) => j.expertRole === 'debug');
+    const verifyDone = listJobs(store).find((j) => j.id === verify!.id)!;
+    await onJobTerminalForVerifyChain(store, verifyDone);
+    const debug = listJobs(store).find(
+      (j) => j.kind === 'implement' && j.title.startsWith('Debug:'),
+    );
     expect(debug).toBeDefined();
     // Debug fixer still claims write ownership on the parent paths.
     expect(debug?.ownershipPaths).toEqual(['src/Button.js']);
     // Idempotent debug enqueue.
-    expect(await enqueueDebugJobForReview(store, parent, reviewDone)).toBeUndefined();
+    expect(await enqueueDebugJobForVerify(store, parent, verifyDone)).toBeUndefined();
   });
 });
