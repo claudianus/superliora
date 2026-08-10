@@ -37,7 +37,9 @@ export type JobEventStatus =
 export type JobEventKind =
   | 'task'
   | 'explore'
+  | 'research'
   | 'implement'
+  | 'verify'
   | 'mission'
   | 'merge'
   | 'push'
@@ -75,6 +77,9 @@ export interface JobBriefPreview {
   readonly successCriteria?: readonly string[];
   readonly mustNotTouch?: readonly string[];
   readonly verificationCommands?: readonly string[];
+  readonly testSeams?: readonly string[];
+  readonly tddMode?: 'required' | 'preferred' | 'off';
+  readonly reproCommand?: string;
 }
 
 export interface JobGateChecklist {
@@ -161,7 +166,9 @@ export const jobEventStatusSchema = z.enum([
 export const jobEventKindSchema = z.enum([
   'task',
   'explore',
+  'research',
   'implement',
+  'verify',
   'mission',
   'merge',
   'push',

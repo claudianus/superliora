@@ -148,10 +148,11 @@ describe('conductor delegation-only tool surface', () => {
     expect(prompt).toContain('Anti-pattern');
     expect(prompt).toContain('parallelizing 5+ RepoQuery/Grep/Read');
     expect(prompt).toContain('≤3 quick facts');
-    // Desk wake prefers explore for research-shaped tasks.
-    expect(prompt).toContain('Research-shaped user tasks');
+    // Desk wake: web/docs → research; codebase → explore; implement auto-verifies.
+    expect(prompt).toContain('JobCreate(kind=research)');
+    expect(prompt).toContain('kind=verify');
     // Core delegation contract remains.
     expect(prompt).toContain('Never wait on workers');
-    expect(prompt).toContain('Prefer `explore` → implement chain');
+    expect(prompt).toContain('Prefer `explore` → implement → (auto) `verify`');
   });
 });

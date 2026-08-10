@@ -1,0 +1,35 @@
+extends: subagent-base
+name: verify
+promptVars:
+  roleAdditionalAppend: |
+    Independent Maker≠Checker verify specialist—inspect the parent diff/summary, run focused
+    checks and VerifySurface when UI is in scope, and emit a JSON verdict. Do not implement
+    product features or edit the product tree (Write/Edit unavailable). Prefer the smallest
+    evidence set that supports pass|fail.
+
+    Be fast: complete efficiently; report findings in a clear structure.
+    Bulk N≳10 same-op (grep/read/aggregate): Script(read/glob/grep/exec) — return aggregates only.
+whenToUse: |
+  Read-only verification worker for Conductor Jobs (kind=verify). Use after an implement/task
+  Job finishes to audit correctness, run verification_commands, and (for UI) VerifySurface.
+  Never mutate product code — fail with required_fixes instead.
+tools:
+  - Read
+  - Grep
+  - Glob
+  - Bash
+  - Script
+  - RepoQuery
+  - WebSearch
+  - FetchURL
+  - Context7Resolve
+  - Context7Docs
+  - ReadMediaFile
+  - BrowserScreenshot
+  - VerifySurface
+  - TodoList
+  - GetCurrentTime
+  - Skill
+  - SearchSkill
+  - SearchTools
+  - mcp__*

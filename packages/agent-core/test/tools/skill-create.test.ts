@@ -33,7 +33,14 @@ const INPUT = {
   name: 'retry-flaky-e2e',
   description: 'Retry pattern for flaky e2e runs',
   whenToUse: 'When e2e tests fail intermittently',
-  body: '# Retry flaky e2e\n\nRun the suite three times before failing.',
+  body: [
+    '# Retry flaky e2e',
+    '',
+    '1. Run the suite.',
+    '2. On flake, retry up to three times.',
+    '',
+    'Done when the suite exits 0 or three attempts are exhausted with the log path cited.',
+  ].join('\n'),
 };
 
 describe('SkillCreateTool', () => {
@@ -63,12 +70,33 @@ describe('SkillCreateTool', () => {
     const tool = new SkillCreateTool(makeAgent({ register: vi.fn() }));
     await tool.resolveExecution(INPUT).execute();
     const updated = await tool
-      .resolveExecution({ ...INPUT, body: '# v2\n\nBetter steps.' })
+      .resolveExecution({
+        ...INPUT,
+        body: [
+          '# v2',
+          '',
+          '1. Better steps.',
+          '',
+          'Done when the focused e2e command exits 0.',
+        ].join('\n'),
+      })
       .execute();
 
     expect(updated.output).toContain('Updated skill "retry-flaky-e2e"');
     const skillMd = path.join(workDir, '.agents', 'skills', 'auto', 'retry-flaky-e2e', 'SKILL.md');
     expect(await fs.readFile(skillMd, 'utf-8')).toContain('# v2');
+  });
+
+  it('rejects bodies without a completion criterion', async () => {
+    const tool = new SkillCreateTool(makeAgent({ register: vi.fn() }));
+    const result = await tool
+      .resolveExecution({
+        ...INPUT,
+        body: 'Just retry things somehow without saying when you are finished.',
+      })
+      .execute();
+    expect(result.isError).toBe(true);
+    expect(String(result.output)).toMatch(/writing-for-agents|completion criterion/i);
   });
 
   it('is idempotent when content is unchanged', async () => {

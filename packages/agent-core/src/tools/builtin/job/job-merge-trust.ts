@@ -8,7 +8,7 @@ import {
   verificationIsGreen,
   verificationVisualBlocksMerge,
 } from '../../../session/subagent/subagent-result-contract';
-import { evaluateReviewChainForMerge } from './job-review-chain';
+import { evaluateVerifyChainForMerge } from './job-verify-chain';
 import type { JobRecord } from './job-store-key';
 
 export interface MergeTrustInput {
@@ -31,8 +31,8 @@ export interface MergeTrustInput {
   readonly visualProofMissing?: boolean;
   readonly visualVerdict?: string;
   /**
-   * Implement/task jobs without a passed independent review child — hard reject.
-   * `force_user_confirm` cannot bypass (Maker≠Checker / review chain).
+   * Implement/task jobs without a passed independent verify child — hard reject.
+   * `force_user_confirm` cannot bypass (Maker≠Checker / verify chain).
    */
   readonly reviewChainBlocked?: boolean;
   readonly reviewChainReason?: string;
@@ -206,10 +206,10 @@ export function mergeTrustInputFromLedger(input: {
   // Visual proof keys off files actually changed — ownership/claim path unions
   // must not invent a UI surface the diff never touched.
   const visualBlocks = verificationVisualBlocksMerge(contract?.verification, filesChanged);
-  const reviewGate =
+  const verifyGate =
     input.jobs === undefined
       ? { ok: true as const }
-      : evaluateReviewChainForMerge({ job, jobs: input.jobs });
+      : evaluateVerifyChainForMerge({ job, jobs: input.jobs });
   return {
     approve: claim.approve,
     checksGreen: verificationIsGreen(contract?.verification) && claim.checksGreen !== false,
@@ -220,7 +220,7 @@ export function mergeTrustInputFromLedger(input: {
     forceUserConfirm: claim.forceUserConfirm === true,
     visualProofMissing: visualBlocks,
     visualVerdict: contract?.verification?.visual ?? 'not_run',
-    reviewChainBlocked: reviewGate.ok === false,
-    ...(reviewGate.ok === false ? { reviewChainReason: reviewGate.reason } : {}),
+    reviewChainBlocked: verifyGate.ok === false,
+    ...(verifyGate.ok === false ? { reviewChainReason: verifyGate.reason } : {}),
   };
 }

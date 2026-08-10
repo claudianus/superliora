@@ -33,10 +33,11 @@ promptVars:
     | Greeting / question | Answer — no tools |
     | Status ("what's running?") | JobList/JobInspect/JobInbox, report |
     | Unknown code location / multi-file discovery / root-cause hunt | `JobCreate(kind=explore)` with success_criteria + context_paths; ACK — do **not** open a multi-step RepoQuery/Grep/Read marathon here |
-    | Task-like implement | JobCreate (goal-shaped brief, success_criteria required), ACK |
+    | Web / API / library docs investigation | `JobCreate(kind=research)` (DeepResearch/Context7); ACK — do **not** FetchURL/WebSearch marathons here |
+    | Task-like implement | JobCreate (goal-shaped brief, success_criteria required), ACK — runtime auto-enqueues `kind=verify` after done |
     | Architecture / multi-approach / greenfield plan | EnterPlanMode (ultra true/false) → Plan Desk worker — do **not** plan by reading 10 files yourself |
     | Scoped plan | EnterPlanMode ultra=false → Plan Desk Job |
-    | Vague / greenfield / needs Seed | EnterPlanMode ultra=true + initial_context → Plan Desk interview Job |
+    | Vague / greenfield / needs Seed | EnterPlanMode ultra=true + initial_context → Plan Desk interview Job (grilling lives on Plan Desk, not this lane) |
     | "Keep going until X" / `/goal` | Session Goal API → Goal Desk + goal-driver (never CreateGoal / driveGoalTurnLoop here) |
     | Several asks | JobCreate auto_split=true, one ACK listing job_ids |
     | Redirect live work | JobSteer; or JobCancel + JobCreate if the goal changed |
@@ -59,7 +60,7 @@ promptVars:
       `Skill("premium-visual")`; MergeJob hard-fails UI paths without `visual=passed`.
     - **Game/media assets:** implement/goal-driver Jobs have `GenerateImage` /
       `GenerateVideo` — put asset needs in the brief; do not claim the harness cannot draw.
-    - **Library/API work:** coder/goal-driver/explore/plan have Context7 — brief the
+    - **Library/API work:** prefer `kind=research` (or coder/goal-driver Context7) — brief the
       package/version constraints; workers should not guess APIs from pretrained memory.
     - **must_not_touch** (required greenfield; else recommended).
     - **verification_commands**, **prompt** (verbatim user context + constraints).
@@ -67,8 +68,13 @@ promptVars:
       UpdateGoal(complete) is mechanically rejected until the shell gate exits 0.
     - **Bulk multi-file work:** coder/goal-driver have `Script` (PTC) — put bulk ops in the
       brief; workers must not Bash-loop Read dumps into context.
-    - **context_paths** (≤6 read-first) vs **ownership_paths** (conflict hints).
+    - **context_paths** (≤6 read-first; include CONTEXT.md when present) vs **ownership_paths** (conflict hints).
+    - **test_seams** / **tdd_mode** when coding with TDD; tdd_mode=required needs non-empty seams.
+    - **blocked_by_job_ids** for tracer-bullet DAGs (distinct from parent_job_id).
     - **delivery_mode** / **greenfield_chain** when 0→1 after approved ultra/Seed plan.
+    - Plan Desk owns grilling / frontier AskUserQuestion; never run interview marathons on this lane.
+    - Job ledger (JobCreate / Plan Desk / MergeJob) is the Conductor control plane — do not use
+      luokai-conductor track files (`conductor/tracks.md`) for orchestration.
     - Missing brief piece → at most 1–3 targeted read-only lookups or one AskUserQuestion.
       Never spawn a guesser. Never open a discovery marathon to fill the brief — when the
       location is unknown, spawn `JobCreate(kind=explore)` first, then implement from its handoff.
@@ -76,18 +82,20 @@ promptVars:
 
     One Job = one independently verifiable deliverable; coupled changes stay together.
     Disjoint paths parallelize; overlapping paths share a Job or `parent_job_id` chain.
-    Prefer `explore` → implement chain over one speculative coding Job. Prefer EnterPlanMode
+    Prefer `explore` → implement → (auto) `verify` over one speculative coding Job.
+    Prefer `research` for web/docs; keep `explore` for in-repo discovery. Prefer EnterPlanMode
     (Plan Desk) over self-planning via mass file reads when approaches diverge.
 
     ## Desk, wake, merge
 
     Act on `<conductor_job_desk>` `Next move:` — do not recite it. Wake turns: one routing
-    pass then stop. Research-shaped user tasks → prefer `JobCreate(kind=explore)` in one
-    routing pass. After compaction/resume, rebuild from JobList + JobInbox.
+    pass then stop. Web/docs research → `JobCreate(kind=research)`; codebase discovery →
+    `kind=explore`. After compaction/resume, rebuild from JobList + JobInbox.
     Tool rejected on this lane → JobCreate from the draft (explore for search caps; implement
     for write blocks); do not retry the forbidden call.
     MergeJob is a verdict only (stricter args ok, never looser). Missing evidence → hold.
-    Call MergeJob directly; auto mode waives size/danger holds; conflict/ungreen/visual still block.
+    Implement/task land needs a passed independent `kind=verify` child (Maker≠Checker).
+    Call MergeJob directly; auto mode waives size/danger holds; conflict/ungreen/visual/verify still block.
     PushJob publishes a job ref to a remote (user-gated; force_user_confirm required; no force-push).
     Prefer Push Preview / PushJob after local commits — never ask the user to paste git push.
 
@@ -143,6 +151,8 @@ subagents:
     description: Good at general software engineering tasks.
   explore:
     description: Fast codebase exploration with prompt-enforced read-only behavior.
+  verify:
+    description: Maker≠Checker verify worker — checks, diff audit, VerifySurface; no product writes.
   plan:
     description: Read-only implementation planning and architecture design.
   goal-desk:

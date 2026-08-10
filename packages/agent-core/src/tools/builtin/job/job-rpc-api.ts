@@ -67,6 +67,10 @@ export interface JobCreateInput {
   readonly successCriteria?: readonly string[];
   readonly mustNotTouch?: readonly string[];
   readonly verificationCommands?: readonly string[];
+  readonly testSeams?: readonly string[];
+  readonly tddMode?: JobRecord['tddMode'];
+  readonly reproCommand?: string;
+  readonly blockedByJobIds?: readonly string[];
   readonly deliveryMode?: JobDeliveryMode;
   readonly parentJobId?: string;
   readonly autoSplit?: boolean;
@@ -262,6 +266,8 @@ export async function jobCreate(
       ? splitUserMessageIntoJobIntents(input.prompt?.trim() || input.title)
       : [{ title: input.title, prompt: input.prompt ?? input.title }];
 
+  const codingKind =
+    input.kind === undefined || input.kind === 'task' || input.kind === 'implement';
   const created = intents.map((intent, index) =>
     createJob(store, {
       title: intent.title || input.title,
@@ -273,6 +279,10 @@ export async function jobCreate(
       successCriteria: input.successCriteria,
       mustNotTouch: input.mustNotTouch,
       verificationCommands: input.verificationCommands,
+      testSeams: input.testSeams,
+      tddMode: input.tddMode ?? (codingKind ? 'preferred' : undefined),
+      reproCommand: input.reproCommand,
+      blockedByJobIds: input.blockedByJobIds,
       deliveryMode: input.deliveryMode === 'standard' ? undefined : input.deliveryMode,
       parentJobId: input.parentJobId,
     }),
@@ -293,6 +303,8 @@ export async function jobCreateBatch(
   const pool = resolveConductorPoolConfig(process.env, { store });
   const created: JobRecord[] = [];
   for (const input of inputs) {
+    const codingKind =
+      input.kind === undefined || input.kind === 'task' || input.kind === 'implement';
     created.push(
       createJob(store, {
         title: input.title,
@@ -304,6 +316,10 @@ export async function jobCreateBatch(
         successCriteria: input.successCriteria,
         mustNotTouch: input.mustNotTouch,
         verificationCommands: input.verificationCommands,
+        testSeams: input.testSeams,
+        tddMode: input.tddMode ?? (codingKind ? 'preferred' : undefined),
+        reproCommand: input.reproCommand,
+        blockedByJobIds: input.blockedByJobIds,
         deliveryMode: input.deliveryMode === 'standard' ? undefined : input.deliveryMode,
         parentJobId: input.parentJobId,
       }),

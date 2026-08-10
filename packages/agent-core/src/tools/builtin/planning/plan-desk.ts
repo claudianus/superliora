@@ -101,26 +101,32 @@ function titleFromContext(context: string): string {
   return `Plan: ${one.slice(0, 64)}...`;
 }
 
-function buildPlanDeskBrief(
-  context: string,
-  structured: boolean,
-): string {
+const HANDOFF_SHAPE =
+  '## Implement handoff\nsuccess_criteria:\n- ...\nmust_not_touch:\n- ...\nverification_commands:\n- ...\nownership_paths:\n- ...\ncontext_paths:\n- ...\ntest_seams:\n- ...\ntdd_mode: preferred|required|off\ndelivery_mode: greenfield|standard';
+
+/** Exported for tests — Plan Desk worker brief contract. */
+export function buildPlanDeskBrief(context: string, structured: boolean): string {
   const parts = [
     'You are a Plan Desk worker. Plan mode is activated on your agent at spawn.',
     structured
       ? [
-          'Ultra/structured: Socratic interview until UltraGoal is verifiable (ambiguity ≤ 0.2), then write Seed Spec / AC Tree / WorkGraph / Evaluation / Execution to the plan file.',
+          'Ultra/structured: grill the design tree until UltraGoal is verifiable (ambiguity ≤ 0.2), then write Seed Spec / AC Tree / WorkGraph / Evaluation / Execution to the plan file.',
+          'Grilling (this lane owns it — Conductor does not interview): map decisions as a design tree; each round ask the whole frontier via one AskUserQuestion card (number questions, include your recommended answer per question); wait for answers before the next round.',
+          'Facts are your job: explore the codebase / RecordInterviewFinding for PATH 1/3 — never ask the user what you can look up. Decisions stay with the user.',
+          'Sharpen fuzzy domain terms as they settle; put canonical names into the plan and into Implement handoff context_paths (include CONTEXT.md when it exists).',
           'Fast path: when the Goal is verifiable, call NextPhase({ phase: \'write\' }) — skip design/review unless architecture is still open.',
           'Research phase is optional; if already in interview, do not call EnterPlanMode again.',
-          'Before ExitPlanMode, end the plan file AND your result summary with a machine-readable Implement handoff block exactly in this shape (lists may be empty only for ownership/context/verification; success_criteria and must_not_touch must be non-empty for greenfield):',
-          '## Implement handoff\nsuccess_criteria:\n- ...\nmust_not_touch:\n- ...\nverification_commands:\n- ...\nownership_paths:\n- ...\ncontext_paths:\n- ...\ndelivery_mode: greenfield|standard',
+          'Before ExitPlanMode, end the plan file AND your result summary with a machine-readable Implement handoff block exactly in this shape (lists may be empty only for ownership/context/verification/test_seams; success_criteria and must_not_touch must be non-empty for greenfield):',
+          HANDOFF_SHAPE,
+          'Also append wayfinder-lite sections when the effort is larger than one session: ## Destination, ## Decisions so far, ## Not yet specified (fog), ## Out of scope. Do not spawn implement Jobs while Not yet specified still blocks the finish line.',
         ].join(' ')
       : [
           'Regular: investigate with read-only tools, write a concrete step-by-step plan to the plan file, then ExitPlanMode for approval. No NextPhase.',
           'When the plan is ready, include an Implement handoff block in the result summary so Conductor can JobCreate without re-inventing the brief:',
-          '## Implement handoff\nsuccess_criteria:\n- ...\nmust_not_touch:\n- ...\nverification_commands:\n- ...\nownership_paths:\n- ...\ncontext_paths:\n- ...\ndelivery_mode: standard',
+          HANDOFF_SHAPE.replace('greenfield|standard', 'standard'),
         ].join(' '),
     'Ask clarifying questions with AskUserQuestion when user judgment is required (PATH 2). Prefer RecordInterviewFinding for code/research facts (PATH 1/3).',
+    'If CONTEXT.md exists at the repo root (or under a relevant package), read it first and use its glossary in the plan and handoff.',
     'Do not implement product code — planning only. Final summary: plan path, goal/AC, open risks, then the Implement handoff block.',
     context.length > 0 ? `Task context:\n${context}` : 'Task context was not provided — infer from the session brief and repo.',
   ];

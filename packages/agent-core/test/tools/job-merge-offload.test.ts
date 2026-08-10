@@ -65,15 +65,14 @@ function finishedJobWithWorktree(store: ToolStore, title: string) {
     resultContract: greenContract(['src/example.ts']),
   });
   if (!done) throw new Error('failed to prepare source job');
-  // Maker≠Checker: MergeJob requires a passed independent review child.
-  const review = createJob(store, {
-    title: `Review: ${title}`,
-    kind: 'task',
+  // Maker≠Checker: MergeJob requires a passed independent verify child.
+  const verify = createJob(store, {
+    title: `Verify: ${title}`,
+    kind: 'verify',
     parentJobId: done.id,
     expertId: 'checker-test',
-    expertRole: 'review',
   });
-  patchJob(store, review.id, {
+  patchJob(store, verify.id, {
     status: 'done',
     resultSummary: '{"verdict":"pass","findings":[],"required_fixes":[]}',
   });
@@ -255,14 +254,13 @@ describe('V2-5 merge offloading (verdict/execution split)', () => {
       resultContract: greenContract(['docs/example.md']),
     });
     if (!source) throw new Error('failed to prepare source job');
-    const review = createJob(store, {
-      title: 'Review: v2-5 ledger-only',
-      kind: 'task',
+    const verify = createJob(store, {
+      title: 'Verify: v2-5 ledger-only',
+      kind: 'verify',
       parentJobId: source.id,
       expertId: 'checker-ledger-only',
-      expertRole: 'review',
     });
-    patchJob(store, review.id, {
+    patchJob(store, verify.id, {
       status: 'done',
       resultSummary: '{"verdict":"pass","findings":[],"required_fixes":[]}',
     });
@@ -305,14 +303,13 @@ describe('V2-5 merge offloading (verdict/execution split)', () => {
       resultContract: greenContract(['src/x.ts', '.env']),
     });
     if (!source) throw new Error('failed to prepare source job');
-    const review = createJob(store, {
-      title: 'Review: auto land dangerous',
-      kind: 'task',
+    const verify = createJob(store, {
+      title: 'Verify: auto land dangerous',
+      kind: 'verify',
       parentJobId: source.id,
       expertId: 'checker-danger',
-      expertRole: 'review',
     });
-    patchJob(store, review.id, {
+    patchJob(store, verify.id, {
       status: 'done',
       resultSummary: '{"verdict":"pass","findings":[],"required_fixes":[]}',
     });

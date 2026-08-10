@@ -111,6 +111,7 @@ export function nextQueuedJobs(
   const sorted = [...jobs]
     .filter((j) => j.status === 'queued')
     .filter((j) => parentAllowsSchedule(byId, j))
+    .filter((j) => blockersAllowSchedule(byId, j))
     .sort((a, b) => b.priority - a.priority || a.createdAt.localeCompare(b.createdAt));
 
   const selected: JobRecord[] = [];
@@ -145,6 +146,21 @@ function parentAllowsSchedule(
   const parent = byId.get(job.parentJobId);
   if (parent === undefined) return true;
   return !isExecutionInFlight(parent.status);
+}
+
+/** Tracer-bullet DAG: every listed blocker must be `done` before this Job starts. */
+export function blockersAllowSchedule(
+  byId: ReadonlyMap<string, JobRecord>,
+  job: JobRecord,
+): boolean {
+  const blockers = job.blockedByJobIds;
+  if (blockers === undefined || blockers.length === 0) return true;
+  for (const id of blockers) {
+    const blocker = byId.get(id);
+    if (blocker === undefined) return false;
+    if (blocker.status !== 'done') return false;
+  }
+  return true;
 }
 
 export type WorktreeFactory = (
@@ -341,7 +357,8 @@ function needsWorktree(kind: JobKind): boolean {
   // merge/push: bookkeeping only — land/push use the source job's worktree.
   if (kind === 'merge' || kind === 'push') return false;
   const profile = profileForJobKind(kind);
-  // explore + goal-desk: read-only / orchestration — no worktree.
+  // explore/research (+ desk via explore profile) + goal-desk: read-only /
+  // orchestration — no worktree. verify keeps a worktree (usually parent chain).
   return profile !== 'explore' && profile !== 'goal-desk';
 }
 
@@ -517,7 +534,11 @@ export async function gcConductorJobWorktrees(
 export function profileForJobKind(kind: JobKind): string {
   switch (kind) {
     case 'explore':
+    case 'research':
+      // research reuses the explore waist (web/docs tools, no worktree).
       return 'explore';
+    case 'verify':
+      return 'verify';
     case 'mission':
       return 'plan';
     case 'desk':

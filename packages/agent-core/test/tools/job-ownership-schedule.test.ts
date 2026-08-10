@@ -157,13 +157,12 @@ describe('job ownership schedule gate', () => {
     expect(after?.notes).not.toMatch(/spawn_failed:/);
   });
 
-  it('review/visual-qa workers do not pass ownership to spawn', async () => {
+  it('verify workers do not pass ownership to spawn', async () => {
     const store = memoryStore();
     const job = createJob(store, {
-      title: 'Review: footer',
-      kind: 'task',
+      title: 'Verify: footer',
+      kind: 'verify',
       ownershipPaths: ['Footer.tsx'],
-      expertRole: 'review',
     });
     const running = patchJob(store, job.id, {
       status: 'running',
@@ -175,8 +174,8 @@ describe('job ownership schedule gate', () => {
     const spawnOne = vi.fn(async (_host: unknown, _spec: unknown, task: { ownership?: string[] }) => {
       sawOwnership = task.ownership;
       return {
-        agentId: 'agent_review',
-        profileName: 'coder',
+        agentId: 'agent_verify',
+        profileName: 'verify',
         resumed: false,
         completion: Promise.resolve({ result: 'ok' }),
       };

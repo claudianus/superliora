@@ -68,7 +68,9 @@ import { cancelJobWorker, resumeJobs, steerJobWorker } from './job-worker';
 const JobKindSchema = z.enum([
   'task',
   'explore',
+  'research',
   'implement',
+  'verify',
   'mission',
   'merge',
   'push',
@@ -87,6 +89,7 @@ const JobStatusSchema = z.enum([
   'interrupted',
 ]);
 const JobDeliveryModeSchema = z.enum(['standard', 'greenfield']);
+const JobTddModeSchema = z.enum(['required', 'preferred', 'off']);
 
 const stringListField = z.array(z.string().trim().min(1)).optional();
 
@@ -100,7 +103,7 @@ const JobCreateInputSchema = z
         'Short outcome-shaped title for the ledger and ACK (verb + deliverable, e.g. "Fix auth token refresh race").',
       ),
     kind: JobKindSchema.optional().describe(
-      'Job kind. task/implement = code work (default task), explore = read-only research, mission = Plan Desk / long-running spine (plan profile + structured plan at spawn), merge = landing worker, push = remote publish worker, desk = inbox digest, goal-desk = Goal Desk orchestrator (spawns goal-driver children; no main-lane goal loop), goal-driver = autonomous goal loop (the runtime migrates a Goal onto the worker; use prompt as the objective and goal_completion_criterion as its finish line). Defaults to task.',
+      'Job kind. task/implement = code work (default task), explore = read-only codebase discovery, research = web/API/docs investigation (DeepResearch/Context7), verify = Maker≠Checker checker (no product writes; auto-enqueued after implement), mission = Plan Desk / long-running spine (plan profile + structured plan at spawn), merge = landing worker, push = remote publish worker, desk = inbox digest, goal-desk = Goal Desk orchestrator (spawns goal-driver children; no main-lane goal loop), goal-driver = autonomous goal loop (the runtime migrates a Goal onto the worker; use prompt as the objective and goal_completion_criterion as its finish line). Defaults to task.',
     ),
     priority: z
       .number()
@@ -129,6 +132,22 @@ const JobCreateInputSchema = z
     ),
     verification_commands: stringListField.describe(
       'Commands the worker should run as proof (e.g. pnpm test path). Prefer these over burying commands only inside prompt.',
+    ),
+    test_seams: stringListField.describe(
+      'Pre-agreed public interfaces (seams) where red→green tests must live. Required when tdd_mode=required. Prefer highest existing seams; avoid testing internals.',
+    ),
+    tdd_mode: JobTddModeSchema.optional().describe(
+      'TDD posture for task/implement: required (seams mandatory, red before green), preferred (default), or off. Explore/mission/desk skip.',
+    ),
+    repro_command: z
+      .string()
+      .trim()
+      .optional()
+      .describe(
+        'One agent-runnable command that goes red on this bug (debug Jobs). When omitted the worker must still establish a tight repro before hypothesising.',
+      ),
+    blocked_by_job_ids: stringListField.describe(
+      'Job ids that must finish successfully before this Job may schedule (tracer-bullet DAG). Distinct from parent_job_id (decomposition / review chain).',
     ),
     delivery_mode: JobDeliveryModeSchema.optional().describe(
       'standard (default) or greenfield. All task/implement Jobs need success_criteria; greenfield also needs must_not_touch. Use greenfield_chain to enqueue skeleton→fill→delete-pass.',
@@ -182,7 +201,7 @@ const JobCreateInputSchema = z
       .boolean()
       .optional()
       .describe(
-        'Run SearchExpert staffing: bind a high-score expert (else generic) to this Job. Does not fan out into multiple Jobs — use auto_split=true only for truly independent multi-intents. ownership_paths is a claim set for one Job and never auto-fanout. Defaults true for task/implement/explore; false for merge/desk/goal-desk/mission.',
+        'Run SearchExpert staffing: bind a high-score expert (else generic) to this Job. Does not fan out into multiple Jobs — use auto_split=true only for truly independent multi-intents. ownership_paths is a claim set for one Job and never auto-fanout. Defaults true for task/implement/explore/research/verify; false for merge/desk/goal-desk/mission.',
       ),
   })
   .strict()
@@ -251,6 +270,25 @@ const JobCreateInputSchema = z
         message: 'greenfield_chain cannot combine with auto_split.',
         path: ['greenfield_chain'],
       });
+    }
+    if (codingKind) {
+      const tddMode = val.tdd_mode ?? 'preferred';
+      if (tddMode === 'required' && nonEmptyStringList(val.test_seams).length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'tdd_mode=required requires non-empty test_seams — name the public seams under test before spawning.',
+          path: ['test_seams'],
+        });
+      }
+      const seamPlaceholder = findPlaceholderBriefLine(val.test_seams);
+      if (seamPlaceholder !== undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `test_seams contains a non-verifiable placeholder (${JSON.stringify(seamPlaceholder)}) — name a concrete public seam.`,
+          path: ['test_seams'],
+        });
+      }
     }
   });
 
@@ -386,6 +424,10 @@ export function renderJobInspect(job: JobRecord): string {
   push('success_criteria', job.successCriteria?.join(' | '));
   push('must_not_touch', job.mustNotTouch?.join(' | '));
   push('verification_commands', job.verificationCommands?.join(' | '));
+  push('test_seams', job.testSeams?.join(' | '));
+  push('tdd_mode', job.tddMode);
+  push('repro_command', job.reproCommand);
+  push('blocked_by', job.blockedByJobIds?.join(', '));
   push('delivery_mode', job.deliveryMode);
   push('delivery_phase', job.deliveryPhase);
   if (job.progress !== undefined) {
@@ -476,6 +518,15 @@ export async function ackCreatedJobs(input: {
     if (latest.verificationCommands !== undefined && latest.verificationCommands.length > 0) {
       lines.push(`brief.verification_commands: ${latest.verificationCommands.join(' | ')}`);
     }
+    if (latest.testSeams !== undefined && latest.testSeams.length > 0) {
+      lines.push(`brief.test_seams: ${latest.testSeams.join(' | ')}`);
+    }
+    if (latest.tddMode !== undefined) {
+      lines.push(`brief.tdd_mode: ${latest.tddMode}`);
+    }
+    if (latest.blockedByJobIds !== undefined && latest.blockedByJobIds.length > 0) {
+      lines.push(`brief.blocked_by_job_ids: ${latest.blockedByJobIds.join(', ')}`);
+    }
     const gate = latest.resultContract?.verification;
     if (gate !== undefined) {
       lines.push(
@@ -498,7 +549,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
   readonly description =
     'Delegate work: create a Conductor Job on the meta ledger and return an immediate ACK (job_id + state). ' +
     'The ONLY path for any file mutation, build, test, install, or verification loop on the Conductor lane — even a one-line fix. ' +
-    'Bind a goal-shaped contract at spawn: success_criteria is required for every task/implement Job (finish line the worker must prove). Also pass must_not_touch / verification_commands / ownership_paths / context_paths when known. ' +
+    'Bind a goal-shaped contract at spawn: success_criteria is required for every task/implement Job (finish line the worker must prove). Also pass must_not_touch / verification_commands / test_seams / tdd_mode / ownership_paths / context_paths when known. ' +
     'Greenfield: delivery_mode=greenfield (+ usually greenfield_chain). Long unattended loops: kind=goal-driver with goal_completion_criterion. ' +
     'Multi-intent: auto_split=true or several calls, then one summary ACK. Scheduling is offloaded — the ACK never waits for the worker.';
   readonly parameters: Record<string, unknown> = toInputJsonSchema(JobCreateInputSchema);
@@ -540,6 +591,12 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
         const successCriteria = nonEmptyStringList(a.success_criteria);
         const mustNotTouch = nonEmptyStringList(a.must_not_touch);
         const verificationCommands = nonEmptyStringList(a.verification_commands);
+        const testSeams = nonEmptyStringList(a.test_seams);
+        const blockedByJobIds = nonEmptyStringList(a.blocked_by_job_ids);
+        const codingKind =
+          a.kind === undefined || a.kind === 'task' || a.kind === 'implement';
+        const tddMode = a.tdd_mode ?? (codingKind ? 'preferred' : undefined);
+        const reproCommand = a.repro_command?.trim() || undefined;
 
         const isGoalDriver = a.kind === 'goal-driver';
         if (isGoalDriver) {
@@ -566,6 +623,9 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
             successCriteria,
             mustNotTouch,
             verificationCommands,
+            testSeams: testSeams.length > 0 ? testSeams : undefined,
+            tddMode,
+            blockedByJobIds: blockedByJobIds.length > 0 ? blockedByJobIds : undefined,
             parentJobId: a.parent_job_id,
           });
           return ackCreatedJobs({
@@ -584,7 +644,9 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
             (kind === undefined ||
               kind === 'task' ||
               kind === 'implement' ||
-              kind === 'explore'));
+              kind === 'explore' ||
+              kind === 'research' ||
+              kind === 'verify'));
 
         // Intent fan-out is opt-in via auto_split only. Default staffing binds an
         // expert to ONE Job — bullet success_criteria must not spawn Task (1)…(5).
@@ -632,11 +694,14 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
               mustNotTouch: mustNotTouch.length > 0 ? mustNotTouch : undefined,
               verificationCommands:
                 verificationCommands.length > 0 ? verificationCommands : undefined,
+              testSeams: testSeams.length > 0 ? testSeams : undefined,
+              tddMode,
+              reproCommand,
+              blockedByJobIds: blockedByJobIds.length > 0 ? blockedByJobIds : undefined,
               deliveryMode: deliveryMode === 'standard' ? undefined : deliveryMode,
               parentJobId: a.parent_job_id,
               expertId: slice.expertId,
               expertScore: slice.expertScore,
-              expertRole: slice.expertRole,
               staffQuery: slice.staffQuery,
             }),
           );
@@ -653,6 +718,10 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
               mustNotTouch: mustNotTouch.length > 0 ? mustNotTouch : undefined,
               verificationCommands:
                 verificationCommands.length > 0 ? verificationCommands : undefined,
+              testSeams: testSeams.length > 0 ? testSeams : undefined,
+              tddMode,
+              reproCommand,
+              blockedByJobIds: blockedByJobIds.length > 0 ? blockedByJobIds : undefined,
               deliveryMode: deliveryMode === 'standard' ? undefined : deliveryMode,
               parentJobId: a.parent_job_id,
               ...(isGoalDriver
@@ -1016,11 +1085,12 @@ export class MergeJobTool implements BuiltinTool<z.infer<typeof MergeJobInputSch
             },
             { agent: this.agent, summary: holdNote },
           );
-          const rejectLabel = trust.reason.includes('review')
-            ? 'review chain'
-            : trust.reason.includes('VerifySurface') || trust.reason.includes('visual=')
-              ? 'visual proof'
-              : 'trust rules';
+          const rejectLabel =
+            trust.reason.includes('verify') || trust.reason.includes('Maker≠Checker')
+              ? 'verify chain'
+              : trust.reason.includes('VerifySurface') || trust.reason.includes('visual=')
+                ? 'visual proof'
+                : 'trust rules';
           return {
             isError: true,
             output: ack(
