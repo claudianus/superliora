@@ -41,7 +41,7 @@ describe('GenerateImage Qwen provider', () => {
     ).toBe('openai');
   });
 
-  it('honors forced qwen provider only when key exists', () => {
+  it('honors forced qwen when ready; otherwise falls back to auto', () => {
     expect(
       resolveImageGenerationProvider('qwen', {
         qwenTokenPlanApiKey: 'sk-sp-test',
@@ -51,7 +51,7 @@ describe('GenerateImage Qwen provider', () => {
       resolveImageGenerationProvider('qwen', {
         openaiApiKey: 'sk-test',
       }),
-    ).toBeUndefined();
+    ).toBe('openai');
   });
 
   it('reports availability from Qwen key', () => {

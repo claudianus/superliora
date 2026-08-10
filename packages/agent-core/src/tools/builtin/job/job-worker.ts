@@ -104,7 +104,7 @@ function visualDodLines(job: JobRecord): readonly string[] {
 function mediaDodLines(job: JobRecord): readonly string[] {
   if (job.kind !== 'task' && job.kind !== 'implement' && job.kind !== 'goal-driver') return [];
   return [
-    '- Media DoD (when the brief asks for assets): GenerateImage/GenerateVideo → ReadMediaFile → place real paths under the workspace; keep one style seed across related assets. If those tools are absent from your tool list, stop blocked with key evidence — do not fake assets as done.',
+    '- Media DoD (when the brief asks for assets): GenerateImage/GenerateVideo with provider=auto (or only a ready id from media_readiness) → ReadMediaFile → place real paths under the workspace; keep one style seed across related assets. Do not force qwen/openai/google without that backend. If those tools are absent from your tool list, stop blocked with key evidence — do not fake assets as done.',
   ];
 }
 

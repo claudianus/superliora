@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   isGenerateImageAvailable,
+  listReadyImageGenerationProviders,
   resolveImageGenerationProvider,
+  selectImageGenerationProvider,
 } from '../../src/tools/builtin/media/generate-image';
 import { XaiGrokBuildClient } from '../../src/tools/providers/xai-grok-build';
 
@@ -58,23 +60,29 @@ describe('GenerateImage provider selection', () => {
       'qwen',
     );
     expect(resolveImageGenerationProvider('codex', { codex })).toBe('codex');
-    expect(
-      resolveImageGenerationProvider('codex', { openaiApiKey: 'sk-test' }),
-    ).toBeUndefined();
+    // Forced codex with only OpenAI key → fall back to openai (auto).
+    expect(resolveImageGenerationProvider('codex', { openaiApiKey: 'sk-test' })).toBe('openai');
   });
 
-  it('honors forced provider only when that key exists', () => {
+  it('honors forced provider when ready; otherwise falls back to auto', () => {
     expect(
       resolveImageGenerationProvider('google', {
         openaiApiKey: 'sk-test',
         googleApiKey: 'google-test',
       }),
     ).toBe('google');
+    // Metalslug regression: workers forced qwen without a Qwen key while xAI/OpenAI was ready.
+    expect(
+      selectImageGenerationProvider('qwen', {
+        xaiApiKey: 'xai-test',
+        openaiApiKey: 'sk-test',
+      }),
+    ).toEqual({ provider: 'xai', fellBackFrom: 'qwen' });
     expect(
       resolveImageGenerationProvider('openai', {
         googleApiKey: 'google-test',
       }),
-    ).toBeUndefined();
+    ).toBe('google');
     expect(
       resolveImageGenerationProvider('qwen', {
         qwenTokenPlanApiKey: 'sk-sp-test',
@@ -84,12 +92,19 @@ describe('GenerateImage provider selection', () => {
       resolveImageGenerationProvider('qwen', {
         openaiApiKey: 'sk-test',
       }),
-    ).toBeUndefined();
+    ).toBe('openai');
     expect(
       resolveImageGenerationProvider('xai', {
         xaiApiKey: 'xai-test',
       }),
     ).toBe('xai');
+    expect(listReadyImageGenerationProviders({ xaiApiKey: 'xai-test', openaiApiKey: 'sk' })).toEqual(
+      ['xai', 'openai'],
+    );
+    expect(selectImageGenerationProvider('qwen', {})).toEqual({
+      provider: undefined,
+      fellBackFrom: 'qwen',
+    });
   });
 
   it('reports availability from any key', () => {
@@ -141,9 +156,8 @@ describe('GenerateImage provider selection', () => {
 
       // Disabled xai-grok: its env key no longer makes xai ready.
       expect(resolveImageGenerationProvider('auto', { extrasDisabled: ['xai-grok'] })).toBe('qwen');
-      expect(
-        resolveImageGenerationProvider('xai', { extrasDisabled: ['xai-grok'] }),
-      ).toBeUndefined();
+      // Forced xai while disabled → fall back to qwen.
+      expect(resolveImageGenerationProvider('xai', { extrasDisabled: ['xai-grok'] })).toBe('qwen');
       // Both off: nothing left from env keys.
       expect(
         resolveImageGenerationProvider('auto', {

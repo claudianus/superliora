@@ -47,7 +47,7 @@ export const GenerateImageInputSchema = z.object({
     .enum(['auto', 'xai', 'openai', 'google', 'qwen', 'codex'])
     .optional()
     .describe(
-      'Force a provider. Default auto picks the first available (xai Grok Build → qwen → codex → openai → google).',
+      'Prefer auto. Force only a ready backend (xai → qwen → codex → openai → google). Unavailable force falls back to auto — do not guess qwen/openai.',
     ),
   model: z
     .enum(['wan2.7-image', 'wan2.7-image-pro'])
@@ -82,40 +82,75 @@ function extrasAllows(env: GenerateImageProviderEnv, id: string): boolean {
   return !(env.extrasDisabled ?? []).includes(id);
 }
 
+/** Ready backends in auto-route priority (xai → qwen → codex → openai → google). */
+export function listReadyImageGenerationProviders(
+  env: GenerateImageProviderEnv = {},
+): ImageGenerationProvider[] {
+  const ready: ImageGenerationProvider[] = [];
+  const xaiEnv = extrasAllows(env, 'xai-grok') ? process.env['XAI_API_KEY'] : undefined;
+  if (env.xaiGrokBuild !== undefined || nonEmpty(env.xaiApiKey ?? xaiEnv) !== undefined) {
+    ready.push('xai');
+  }
+  if (
+    nonEmpty(
+      env.qwenTokenPlanApiKey ??
+        (extrasAllows(env, 'qwen-token-plan')
+          ? process.env['QWEN_TOKEN_PLAN_API_KEY'] ?? process.env['ALIBABA_TOKEN_PLAN_API_KEY']
+          : undefined),
+    ) !== undefined
+  ) {
+    ready.push('qwen');
+  }
+  if (env.codex !== undefined) ready.push('codex');
+  if (nonEmpty(env.openaiApiKey ?? process.env['OPENAI_API_KEY']) !== undefined) {
+    ready.push('openai');
+  }
+  if (
+    nonEmpty(env.googleApiKey ?? process.env['GOOGLE_API_KEY'] ?? process.env['GEMINI_API_KEY']) !==
+    undefined
+  ) {
+    ready.push('google');
+  }
+  return ready;
+}
+
+export interface ImageProviderSelection {
+  readonly provider: ImageGenerationProvider | undefined;
+  /** Set when a forced provider was missing and auto-route picked another. */
+  readonly fellBackFrom?: ImageGenerationProvider;
+}
+
+/**
+ * Pick a backend. Forced ids that are not ready fall back to auto so workers
+ * that guess `qwen`/`openai` still draw when Grok (or another key) is present.
+ */
+export function selectImageGenerationProvider(
+  preferred: 'auto' | ImageGenerationProvider | undefined,
+  env: GenerateImageProviderEnv = {},
+): ImageProviderSelection {
+  const ready = listReadyImageGenerationProviders(env);
+  if (ready.length === 0) {
+    return {
+      provider: undefined,
+      ...(preferred !== undefined && preferred !== 'auto' ? { fellBackFrom: preferred } : {}),
+    };
+  }
+  if (preferred === undefined || preferred === 'auto') {
+    return { provider: ready[0] };
+  }
+  if (ready.includes(preferred)) return { provider: preferred };
+  return { provider: ready[0], fellBackFrom: preferred };
+}
+
 export function resolveImageGenerationProvider(
   preferred: 'auto' | ImageGenerationProvider | undefined,
   env: GenerateImageProviderEnv = {},
 ): ImageGenerationProvider | undefined {
-  const xaiEnv = extrasAllows(env, 'xai-grok') ? process.env['XAI_API_KEY'] : undefined;
-  const xaiReady =
-    env.xaiGrokBuild !== undefined || nonEmpty(env.xaiApiKey ?? xaiEnv) !== undefined;
-  const qwen = nonEmpty(
-    env.qwenTokenPlanApiKey ??
-      (extrasAllows(env, 'qwen-token-plan')
-        ? process.env['QWEN_TOKEN_PLAN_API_KEY'] ?? process.env['ALIBABA_TOKEN_PLAN_API_KEY']
-        : undefined),
-  );
-  const codex = env.codex;
-  const openai = nonEmpty(env.openaiApiKey ?? process.env['OPENAI_API_KEY']);
-  const google = nonEmpty(
-    env.googleApiKey ?? process.env['GOOGLE_API_KEY'] ?? process.env['GEMINI_API_KEY'],
-  );
-  if (preferred === 'xai') return xaiReady ? 'xai' : undefined;
-  if (preferred === 'qwen') return qwen !== undefined ? 'qwen' : undefined;
-  if (preferred === 'codex') return codex !== undefined ? 'codex' : undefined;
-  if (preferred === 'openai') return openai !== undefined ? 'openai' : undefined;
-  if (preferred === 'google') return google !== undefined ? 'google' : undefined;
-  // Auto priority: xAI Grok Build subscription → qwen → codex → openai → google
-  if (xaiReady) return 'xai';
-  if (qwen !== undefined) return 'qwen';
-  if (codex !== undefined) return 'codex';
-  if (openai !== undefined) return 'openai';
-  if (google !== undefined) return 'google';
-  return undefined;
+  return selectImageGenerationProvider(preferred, env).provider;
 }
 
 export function isGenerateImageAvailable(env: GenerateImageProviderEnv = {}): boolean {
-  return resolveImageGenerationProvider('auto', env) !== undefined;
+  return listReadyImageGenerationProviders(env).length > 0;
 }
 
 export class GenerateImageTool implements BuiltinTool<GenerateImageInput> {
@@ -158,12 +193,17 @@ export class GenerateImageTool implements BuiltinTool<GenerateImageInput> {
     safePath: string,
     displayPath: string,
   ): Promise<ExecutableToolResult> {
-    const provider = resolveImageGenerationProvider(args.provider ?? 'auto', this.env);
+    const selection = selectImageGenerationProvider(args.provider ?? 'auto', this.env);
+    const provider = selection.provider;
     if (provider === undefined) {
+      const requested =
+        selection.fellBackFrom !== undefined
+          ? ` Requested provider=${selection.fellBackFrom} is not ready.`
+          : '';
       return {
         isError: true,
         output:
-          'No image-generation provider found. Sign in with xAI Grok or OpenAI Codex (/login), or set XAI_API_KEY / QWEN_TOKEN_PLAN_API_KEY / OPENAI_API_KEY / GOOGLE_API_KEY, then retry. Check readiness with /status.',
+          `No image-generation provider found.${requested} Sign in with xAI Grok or OpenAI Codex (/login), or set XAI_API_KEY / QWEN_TOKEN_PLAN_API_KEY / OPENAI_API_KEY / GOOGLE_API_KEY, then retry. Check readiness with /status.`,
       };
     }
 
@@ -187,6 +227,9 @@ export class GenerateImageTool implements BuiltinTool<GenerateImageInput> {
       return {
         output: [
           `Generated image with ${provider}.`,
+          selection.fellBackFrom !== undefined
+            ? `Note: provider=${selection.fellBackFrom} was not ready; fell back to auto → ${provider}. Prefer provider=auto next time.`
+            : undefined,
           `Path: ${displayPath}`,
           `Bytes: ${String(generated.bytes.byteLength)}`,
           `MIME: ${generated.mimeType}`,

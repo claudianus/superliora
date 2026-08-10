@@ -1,5 +1,5 @@
 Generate a short video from a text prompt (optional first-frame image or reference images).
 
-Product demos, motion mockups, UI/animation previews when a provider key is set.
+Product demos, motion mockups, UI/animation previews when a provider is ready.
 
-Provider (first match): `QWEN_TOKEN_PLAN_API_KEY`/`ALIBABA_TOKEN_PLAN_API_KEY` → Qwen Cloud Token Plan (happyhorse-1.1-t2v/i2v/r2v, async task); else `GOOGLE_API_KEY`/`GEMINI_API_KEY` → Gemini. Default `.superliora/generated/videos/<timestamp>.mp4`. Report path; use ReadMediaFile when video input is available.
+Provider: default `auto` (first ready: xAI Grok Build/OAuth → Qwen Cloud Token Plan → Gemini). Force only a ready id; unavailable force falls back to auto. Default `.superliora/generated/videos/<timestamp>.mp4`. Report path; use ReadMediaFile when video input is available.
