@@ -1,9 +1,0 @@
-╭ /model · Neon Noir ─────────────────────────────────────────────────────────────────────────╮
-│ [38;2;0;213;255m● Smart Auto[0m          [38;2;154;167;178mpicks a live model for this turn[0m                                       │
-│   qwen3-coder           [38;2;111;122;134mfast · tools[0m                                                         │
-│   claude-sonnet         [38;2;111;122;134mdeep · long context[0m                                                  │
-│   custom-endpoint       [38;2;111;122;134myour OpenAI-compatible URL[0m                                           │
-│                                                                                              │
-│ [38;2;154;167;178mfallback[0m  qwen3-coder → claude-sonnet                                                        │
-│ [38;2;154;167;178mroles[0m     explore · coder · plan                                                             │
-╰──────────────────────────────────────────────────────────────────────────────────────────────╯

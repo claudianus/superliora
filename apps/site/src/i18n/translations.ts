@@ -67,6 +67,22 @@ export interface Translation {
     install: string;
     github: string;
     docs: string;
+    frame: {
+      jobLabel: string;
+      jobName: string;
+      jobStatus: string;
+      boardTitle: string;
+      progress: string;
+      doingLabel: string;
+      nextLabel: string;
+      doneLabel: string;
+      doing: string;
+      next: string;
+      done: string;
+      workerName: string;
+      workerModel: string;
+      workerRate: string;
+    };
   };
   clusters: {
     kicker: string;
@@ -93,12 +109,6 @@ export interface Translation {
     requirements: string;
     commands: InstallCommand[];
     next: string;
-  };
-  theatre: {
-    play: string;
-    pause: string;
-    chapter: string;
-    beats: { id: string; label: string; caption: string }[];
   };
   footer: {
     copyright: string;
@@ -290,6 +300,22 @@ export const translations: Record<Lang, Translation> = {
       install: '설치하기',
       github: 'GitHub',
       docs: '가이드',
+      frame: {
+        jobLabel: 'Job',
+        jobName: 'Auth redirect',
+        jobStatus: 'running',
+        boardTitle: 'Board',
+        progress: '1 / 3',
+        doingLabel: 'Doing',
+        nextLabel: 'Next',
+        doneLabel: 'Done',
+        doing: '로그인 후 /app으로',
+        next: '세션 만료 처리',
+        done: '라우트 가드',
+        workerName: 'coder',
+        workerModel: 'smart-auto',
+        workerRate: '820 /s',
+      },
     },
     clusters: {
       kicker: '왜 SuperLiora인가',
@@ -362,21 +388,6 @@ export const translations: Record<Lang, Translation> = {
         { label: 'Windows PowerShell', cmd: INSTALL_PS },
       ],
       next: '짧은 가이드 보기',
-    },
-    theatre: {
-      play: '재생',
-      pause: '일시정지',
-      chapter: '장면',
-      beats: [
-        { id: 'idle-welcome', label: '시작', caption: '결과를 적으면 됩니다.' },
-        { id: 'chrome-bands', label: '크롬', caption: 'To\u200bdo Board와 Worker Dock이 같이 움직입니다.' },
-        { id: 'job-deck', label: 'Deck', caption: '변경과 테스트를 엽니다.' },
-        { id: 'command-hub', label: 'Hub', caption: 'Ctrl+K로 한곳에서 찾습니다.' },
-        { id: 'model-picker', label: '모델', caption: 'Smart Auto 또는 직접 고르기.' },
-        { id: 'status-route', label: '라우트', caption: '폴백·풀·엔드포인트가 보입니다.' },
-        { id: 'ask-mode', label: 'Ask', caption: '실행 없이 답만.' },
-        { id: 'inbox', label: 'Inbox', caption: '필요할 때만 끼어듭니다.' },
-      ],
     },
     footer: {
       copyright: '© SuperLiora Contributors',
@@ -542,6 +553,22 @@ export const translations: Record<Lang, Translation> = {
       install: 'Install',
       github: 'GitHub',
       docs: 'Guide',
+      frame: {
+        jobLabel: 'Job',
+        jobName: 'Auth redirect',
+        jobStatus: 'running',
+        boardTitle: 'Board',
+        progress: '1 / 3',
+        doingLabel: 'Doing',
+        nextLabel: 'Next',
+        doneLabel: 'Done',
+        doing: 'Send /app after login',
+        next: 'Handle session expiry',
+        done: 'Route guard',
+        workerName: 'coder',
+        workerModel: 'smart-auto',
+        workerRate: '820 /s',
+      },
     },
     clusters: {
       kicker: 'Why SuperLiora',
@@ -614,21 +641,6 @@ export const translations: Record<Lang, Translation> = {
         { label: 'Windows PowerShell', cmd: INSTALL_PS },
       ],
       next: 'Open the short guide',
-    },
-    theatre: {
-      play: 'Play',
-      pause: 'Pause',
-      chapter: 'Scene',
-      beats: [
-        { id: 'idle-welcome', label: 'Start', caption: 'Describe the outcome.' },
-        { id: 'chrome-bands', label: 'Chrome', caption: 'To\u200bdo Board and Worker Dock move together.' },
-        { id: 'job-deck', label: 'Deck', caption: 'Open diffs and tests.' },
-        { id: 'command-hub', label: 'Hub', caption: 'Find everything with Ctrl+K.' },
-        { id: 'model-picker', label: 'Model', caption: 'Smart Auto or pick yourself.' },
-        { id: 'status-route', label: 'Route', caption: 'See fallback, pools, endpoints.' },
-        { id: 'ask-mode', label: 'Ask', caption: 'Answers only — no new jobs.' },
-        { id: 'inbox', label: 'Inbox', caption: 'Step in only when needed.' },
-      ],
     },
     footer: {
       copyright: '© SuperLiora Contributors',

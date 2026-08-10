@@ -1,7 +1,7 @@
 import { useI18n } from '../i18n';
 import { CopyButton } from './CopyButton';
+import { ProductFrame } from './ProductFrame';
 import { Reveal } from './Reveal';
-import { ScrollLinkedStage } from '../theatre/Player';
 
 export function Sections() {
   const { t, lang } = useI18n();
@@ -11,25 +11,21 @@ export function Sections() {
 
   return (
     <main id="main">
-      <div className="museum-pin">
-        <div className="museum-pin__stage">
-          <ScrollLinkedStage />
-        </div>
-
-        <section data-stage-hero className="museum-hero">
-          <div className="museum-hero__veil" aria-hidden="true" />
-          <div className="museum-hero__copy">
+      <section className="hero-band">
+        <div className="hero-layout">
+          <div className="hero-copy">
             <p className="hero-kicker font-sans font-semibold tracking-[0.18em] text-primary uppercase">
               {t.hero.brand}
             </p>
-            <h1 className="hero-title mt-3 max-w-[16ch] font-sans font-bold tracking-tight text-text text-balance">
+            <h1 className="hero-title mt-4 max-w-[14ch] font-sans font-bold tracking-tight text-text text-balance">
               {t.hero.h1}
             </h1>
-            <p className="hero-lead mt-4 max-w-[36ch] leading-relaxed text-soft">
-              {t.hero.lead}
-            </p>
-            <div className="hero-cta mt-6 flex flex-wrap items-center gap-3 sm:mt-7">
-              <a href="#install" className="btn btn-primary inline-flex min-h-11 items-center rounded-lg px-5 py-2.5 sm:px-6 sm:py-3">
+            <p className="hero-lead mt-5 max-w-[34ch] leading-relaxed text-soft">{t.hero.lead}</p>
+            <div className="hero-cta mt-8 flex flex-wrap items-center gap-3">
+              <a
+                href="#install"
+                className="btn btn-primary inline-flex min-h-11 items-center rounded-lg px-5 py-2.5 sm:px-6 sm:py-3"
+              >
                 {t.hero.install}
               </a>
               <a
@@ -43,49 +39,45 @@ export function Sections() {
               </a>
             </div>
           </div>
-        </section>
-
-        <section id="features" className="museum-features relative z-10">
-          <div className="museum-features__panel section-pad">
-            <Reveal className="max-w-xl">
-              <p className="section-kicker text-sm font-semibold tracking-wide text-primary">{t.clusters.kicker}</p>
-              <h2 className="section-title mt-3 font-sans font-bold tracking-tight text-balance">
-                {t.clusters.title}
-              </h2>
-              <p className="section-body mt-4 text-soft">{t.clusters.body}</p>
-            </Reveal>
-
-            <div className="cluster-stack mt-10 space-y-14 sm:mt-12 lg:space-y-20">
-              {t.clusters.items.map((cluster, i) => (
-                <article
-                  key={cluster.id}
-                  id={cluster.id}
-                  data-cluster={cluster.id}
-                  className="cluster-reel"
-                >
-                  <Reveal stagger={((i % 3) + 1) as 1 | 2 | 3}>
-                    <div className="font-mono text-xs text-primary/80">
-                      {String(i + 1).padStart(2, '0')}
-                    </div>
-                    <h3 className="cluster-title mt-2 max-w-[20ch] font-sans font-semibold tracking-tight text-text">
-                      {cluster.title}
-                    </h3>
-                    <p className="cluster-lead mt-3 max-w-[42ch] text-soft">{cluster.lead}</p>
-                  </Reveal>
-                  <div className="feature-rail mt-6" role="list">
-                    {cluster.features.map((feature) => (
-                      <div key={feature.id} className="feature-ribbon" role="listitem">
-                        <div className="font-sans text-sm font-semibold text-text">{feature.title}</div>
-                        <p className="mt-1 text-sm leading-relaxed text-soft">{feature.body}</p>
-                      </div>
-                    ))}
-                  </div>
-                </article>
-              ))}
-            </div>
+          <div className="hero-visual">
+            <ProductFrame />
           </div>
-        </section>
-      </div>
+        </div>
+      </section>
+
+      <section id="features" className="section-pad border-t border-line bg-bg">
+        <div className="mx-auto max-w-7xl">
+          <Reveal className="max-w-2xl">
+            <p className="section-kicker text-sm font-semibold tracking-wide text-primary">{t.clusters.kicker}</p>
+            <h2 className="section-title mt-3 font-sans font-bold tracking-tight text-balance">
+              {t.clusters.title}
+            </h2>
+            <p className="section-body mt-4 text-soft">{t.clusters.body}</p>
+          </Reveal>
+
+          <div className="cluster-stack mt-12 space-y-16 sm:mt-14 lg:space-y-20">
+            {t.clusters.items.map((cluster, i) => (
+              <article key={cluster.id} id={cluster.id} className="cluster-reel">
+                <Reveal stagger={((i % 3) + 1) as 1 | 2 | 3}>
+                  <div className="font-mono text-xs text-primary/80">{String(i + 1).padStart(2, '0')}</div>
+                  <h3 className="cluster-title mt-2 max-w-[20ch] font-sans font-semibold tracking-tight text-text">
+                    {cluster.title}
+                  </h3>
+                  <p className="cluster-lead mt-3 max-w-[42ch] text-soft">{cluster.lead}</p>
+                </Reveal>
+                <div className="feature-rail mt-6" role="list">
+                  {cluster.features.map((feature) => (
+                    <div key={feature.id} className="feature-ribbon" role="listitem">
+                      <div className="font-sans text-sm font-semibold text-text">{feature.title}</div>
+                      <p className="mt-1 text-sm leading-relaxed text-soft">{feature.body}</p>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
 
       <section id="how" className="section-pad border-t border-line bg-bg">
         <div className="mx-auto max-w-7xl">
