@@ -50,9 +50,11 @@ function DocsBody() {
             <button
               type="button"
               onClick={toggle}
+              aria-pressed={theme === 'dark'}
+              aria-label={theme === 'dark' ? t.theme.toLight : t.theme.toDark}
               className="rounded-md border border-line bg-bg-2 px-2 py-1 text-xs text-soft"
             >
-              {theme === 'dark' ? 'Light' : 'Dark'}
+              {theme === 'dark' ? t.theme.light : t.theme.dark}
             </button>
           </div>
         </div>

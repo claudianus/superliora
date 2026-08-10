@@ -110,6 +110,18 @@ export interface Translation {
     security: string;
     tagline: string;
   };
+  theme: {
+    light: string;
+    dark: string;
+    toLight: string;
+    toDark: string;
+  };
+  copy: {
+    idle: string;
+    done: string;
+    label: string;
+    doneLabel: string;
+  };
   docsNav: { slug: DocSlug; label: string }[];
   docs: Record<DocSlug, DocPage>;
   docsShell: {
@@ -376,6 +388,18 @@ export const translations: Record<Lang, Translation> = {
       security: 'Security',
       tagline: '터미널 AI 코딩 에이전트',
     },
+    theme: {
+      light: '라이트',
+      dark: '다크',
+      toLight: '라이트 테마로 전환',
+      toDark: '다크 테마로 전환',
+    },
+    copy: {
+      idle: '복사',
+      done: '완료',
+      label: '명령 복사',
+      doneLabel: '복사됨',
+    },
     docsNav: docsNavKo,
     docsShell: { home: '홈', onThisSite: '가이드' },
     docs: {
@@ -615,6 +639,18 @@ export const translations: Record<Lang, Translation> = {
       issues: 'Issues',
       security: 'Security',
       tagline: 'Terminal AI coding agent',
+    },
+    theme: {
+      light: 'Light',
+      dark: 'Dark',
+      toLight: 'Switch to light theme',
+      toDark: 'Switch to dark theme',
+    },
+    copy: {
+      idle: 'Copy',
+      done: 'OK',
+      label: 'Copy command',
+      doneLabel: 'Copied',
     },
     docsNav: docsNavEn,
     docsShell: { home: 'Home', onThisSite: 'Guide' },
