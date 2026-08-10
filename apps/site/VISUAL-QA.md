@@ -16,6 +16,8 @@ Palette SSOT: bg `#0D1422`, primary `#00D5FF`. Type: Syne + JetBrains Mono + Pre
 - [ ] Mobile hamburger opens drawer with Features / Flow / Install / Docs (Escape closes)
 - [ ] Desktop ≥1024: main nav links visible; burger hidden
 - [ ] Features / How / Tower / Install are normal vertical sections (no right-rail museum)
+- [ ] Each of 4 clusters shows a curated TUI HTML mock (Status Route, Job Deck+Worker Dock, Command Hub, Diff Studio)
+- [ ] How and Tower sections include a visual panel beside copy
 - [ ] Fluid type: hero/section titles scale toward 4K (`clamp`)
 - [ ] KO `/` and EN `/en/` copy parity (same sections / 4 clusters)
 - [ ] Banned copy smoke: `pnpm -C apps/site run check:copy` passes

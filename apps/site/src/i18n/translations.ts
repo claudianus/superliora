@@ -29,6 +29,56 @@ export interface FeatureItem {
   body: string;
 }
 
+export interface SiteVisuals {
+  statusRoute: {
+    chrome: string;
+    badge: string;
+    strategyLabel: string;
+    strategy: string;
+    ready: string;
+    candidates: { rank: string; name: string; state: string; tone: 'ready' | 'cool' | 'idle' }[];
+    roles: { role: string; model: string }[];
+    footer: string;
+  };
+  jobDeck: {
+    chrome: string;
+    badge: string;
+    subtitle: string;
+    inbox: string;
+    jobs: { id: string; title: string; status: string; phase: string; age: string; tone: 'run' | 'ask' | 'done' }[];
+    actions: string[];
+  };
+  workerDock: {
+    chrome: string;
+    badge: string;
+    subtitle: string;
+    summary: string;
+    workers: { name: string; action: string; rate: string; tone: 'live' | 'idle' }[];
+    lane: { count: string; label: string }[];
+  };
+  commandHub: {
+    chrome: string;
+    badge: string;
+    query: string;
+    modes: { label: string; active?: boolean }[];
+    rows: { label: string; desc: string; keys: string; selected?: boolean }[];
+  };
+  diffStudio: {
+    chrome: string;
+    badge: string;
+    tabs: { label: string; active?: boolean }[];
+    file: string;
+    lines: { kind: 'ctx' | 'add' | 'del'; mark: string; text: string }[];
+    stats: string;
+    hint: string;
+  };
+  howFlow: {
+    chrome: string;
+    badge: string;
+    steps: { title: string; body: string }[];
+  };
+}
+
 export interface ClusterItem {
   id: string;
   title: string;
@@ -132,6 +182,7 @@ export interface Translation {
     label: string;
     doneLabel: string;
   };
+  visuals: SiteVisuals;
   docsNav: { slug: DocSlug; label: string }[];
   docs: Record<DocSlug, DocPage>;
   docsShell: {
@@ -147,6 +198,190 @@ const INSTALL_SH =
   'curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.sh | bash';
 const INSTALL_PS =
   'irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex';
+
+const visualsKo: SiteVisuals = {
+  statusRoute: {
+    chrome: 'Status · Route',
+    badge: 'Smart Auto',
+    strategyLabel: 'Strategy',
+    strategy: 'Smart Auto',
+    ready: '2 / 3 ready',
+    candidates: [
+      { rank: '#1', name: 'claude · opus', state: 'ready', tone: 'ready' },
+      { rank: '#2', name: 'qwen · coder', state: 'cooling → failover', tone: 'cool' },
+      { rank: '#3', name: 'gpt · mini', state: 'standby', tone: 'idle' },
+    ],
+    roles: [
+      { role: 'Explore', model: 'fast' },
+      { role: 'Coding', model: 'opus' },
+      { role: 'Plan', model: 'sonnet' },
+    ],
+    footer: 'A → B failover · never-halt on',
+  },
+  jobDeck: {
+    chrome: 'Job Deck',
+    badge: 'Alt+J',
+    subtitle: 'Mission monitor',
+    inbox: 'Inbox 1',
+    jobs: [
+      { id: 'job_a1', title: 'Auth redirect', status: 'running', phase: 'tests 2/3', age: '12s', tone: 'run' },
+      { id: 'job_b4', title: 'Session expiry', status: 'needs you', phase: 'waiting', age: '41s', tone: 'ask' },
+      { id: 'job_c2', title: 'Route guard', status: 'done', phase: 'landed', age: '3m', tone: 'done' },
+    ],
+    actions: ['Answer', 'Resume', 'Cancel'],
+  },
+  workerDock: {
+    chrome: 'Worker Dock',
+    badge: 'live',
+    subtitle: '1 worker · fleet',
+    summary: 'Σ 820/s',
+    workers: [
+      { name: 'coder', action: 'Edit src/auth/redirect.ts', rate: '820/s', tone: 'live' },
+      { name: 'scout', action: 'idle · waiting', rate: '—', tone: 'idle' },
+    ],
+    lane: [
+      { count: '1', label: 'running' },
+      { count: '1', label: 'needs you' },
+      { count: '1', label: 'done' },
+    ],
+  },
+  commandHub: {
+    chrome: 'Command Hub',
+    badge: 'Ctrl+K',
+    query: 'ask mode',
+    modes: [
+      { label: 'Ask', active: true },
+      { label: 'Build' },
+      { label: 'Goal' },
+    ],
+    rows: [
+      { label: 'Ask / Build', desc: '실행 없이 답만', keys: 'Shift-Tab', selected: true },
+      { label: 'Job Deck', desc: '진행·diff·테스트', keys: 'Alt+J' },
+      { label: 'Inbox', desc: '질문에 한 줄로 답', keys: 'Alt+I' },
+      { label: 'Permissions', desc: '도구·쓰기 허용 범위', keys: 'Ctrl+K' },
+    ],
+  },
+  diffStudio: {
+    chrome: 'Diff · Studio',
+    badge: 'in-TUI',
+    tabs: [
+      { label: 'Diff', active: true },
+      { label: 'Search' },
+      { label: 'Files' },
+    ],
+    file: 'src/auth/redirect.ts',
+    lines: [
+      { kind: 'ctx', mark: ' ', text: 'export function afterLogin(user) {' },
+      { kind: 'del', mark: '-', text: '  return "/home"' },
+      { kind: 'add', mark: '+', text: '  return "/app"' },
+      { kind: 'ctx', mark: ' ', text: '}' },
+    ],
+    stats: '+1  −1',
+    hint: '터미널을 떠나지 않음',
+  },
+  howFlow: {
+    chrome: 'Flow',
+    badge: 'one lap',
+    steps: [
+      { title: '결과 적기', body: '끝난 모습을 한 줄로' },
+      { title: '백그라운드', body: '채팅은 비워 두고 진행' },
+      { title: '짧게 답하기', body: 'Inbox에서 끼어들기' },
+      { title: '합치기', body: '통과분만 Land' },
+    ],
+  },
+};
+
+const visualsEn: SiteVisuals = {
+  statusRoute: {
+    chrome: 'Status · Route',
+    badge: 'Smart Auto',
+    strategyLabel: 'Strategy',
+    strategy: 'Smart Auto',
+    ready: '2 / 3 ready',
+    candidates: [
+      { rank: '#1', name: 'claude · opus', state: 'ready', tone: 'ready' },
+      { rank: '#2', name: 'qwen · coder', state: 'cooling → failover', tone: 'cool' },
+      { rank: '#3', name: 'gpt · mini', state: 'standby', tone: 'idle' },
+    ],
+    roles: [
+      { role: 'Explore', model: 'fast' },
+      { role: 'Coding', model: 'opus' },
+      { role: 'Plan', model: 'sonnet' },
+    ],
+    footer: 'A → B failover · never-halt on',
+  },
+  jobDeck: {
+    chrome: 'Job Deck',
+    badge: 'Alt+J',
+    subtitle: 'Mission monitor',
+    inbox: 'Inbox 1',
+    jobs: [
+      { id: 'job_a1', title: 'Auth redirect', status: 'running', phase: 'tests 2/3', age: '12s', tone: 'run' },
+      { id: 'job_b4', title: 'Session expiry', status: 'needs you', phase: 'waiting', age: '41s', tone: 'ask' },
+      { id: 'job_c2', title: 'Route guard', status: 'done', phase: 'landed', age: '3m', tone: 'done' },
+    ],
+    actions: ['Answer', 'Resume', 'Cancel'],
+  },
+  workerDock: {
+    chrome: 'Worker Dock',
+    badge: 'live',
+    subtitle: '1 worker · fleet',
+    summary: 'Σ 820/s',
+    workers: [
+      { name: 'coder', action: 'Edit src/auth/redirect.ts', rate: '820/s', tone: 'live' },
+      { name: 'scout', action: 'idle · waiting', rate: '—', tone: 'idle' },
+    ],
+    lane: [
+      { count: '1', label: 'running' },
+      { count: '1', label: 'needs you' },
+      { count: '1', label: 'done' },
+    ],
+  },
+  commandHub: {
+    chrome: 'Command Hub',
+    badge: 'Ctrl+K',
+    query: 'ask mode',
+    modes: [
+      { label: 'Ask', active: true },
+      { label: 'Build' },
+      { label: 'Goal' },
+    ],
+    rows: [
+      { label: 'Ask / Build', desc: 'Answers only — no new jobs', keys: 'Shift-Tab', selected: true },
+      { label: 'Job Deck', desc: 'Progress, diffs, tests', keys: 'Alt+J' },
+      { label: 'Inbox', desc: 'Answer in one line', keys: 'Alt+I' },
+      { label: 'Permissions', desc: 'Tool and write scope', keys: 'Ctrl+K' },
+    ],
+  },
+  diffStudio: {
+    chrome: 'Diff · Studio',
+    badge: 'in-TUI',
+    tabs: [
+      { label: 'Diff', active: true },
+      { label: 'Search' },
+      { label: 'Files' },
+    ],
+    file: 'src/auth/redirect.ts',
+    lines: [
+      { kind: 'ctx', mark: ' ', text: 'export function afterLogin(user) {' },
+      { kind: 'del', mark: '-', text: '  return "/home"' },
+      { kind: 'add', mark: '+', text: '  return "/app"' },
+      { kind: 'ctx', mark: ' ', text: '}' },
+    ],
+    stats: '+1  −1',
+    hint: 'Stay in the terminal',
+  },
+  howFlow: {
+    chrome: 'Flow',
+    badge: 'one lap',
+    steps: [
+      { title: 'Describe', body: 'Write the finished state' },
+      { title: 'Background', body: 'Chat stays clear' },
+      { title: 'Answer', body: 'Step in via Inbox' },
+      { title: 'Land', body: 'Merge what passed' },
+    ],
+  },
+};
 
 const docsNavKo: Translation['docsNav'] = [
   { slug: 'getting-started', label: '시작하기' },
@@ -183,7 +418,7 @@ const clustersKo: ClusterItem[] = [
   {
     id: 'see-fleet',
     title: '돌아가는 일이 한눈에',
-    lead: '실TUI 크롬이 주인공입니다. Dock·보드·브랜치가 같이 움직입니다.',
+    lead: 'Job Deck·Worker Dock·보드가 같은 화면에서 같이 움직입니다.',
     features: [
       { id: 'worker-dock', title: 'Worker Dock', body: '누가 어떤 도구를 도는지 옆 밴드에서 실시간으로 봅니다.' },
       { id: 'todo-board', title: 'To\u200bdo Board', body: '하는 중·다음·완료를 보드로 읽습니다.' },
@@ -411,6 +646,7 @@ export const translations: Record<Lang, Translation> = {
       label: '명령 복사',
       doneLabel: '복사됨',
     },
+    visuals: visualsKo,
     docsNav: docsNavKo,
     docsShell: { home: '홈', onThisSite: '가이드' },
     docs: {
@@ -664,6 +900,7 @@ export const translations: Record<Lang, Translation> = {
       label: 'Copy command',
       doneLabel: 'Copied',
     },
+    visuals: visualsEn,
     docsNav: docsNavEn,
     docsShell: { home: 'Home', onThisSite: 'Guide' },
     docs: {

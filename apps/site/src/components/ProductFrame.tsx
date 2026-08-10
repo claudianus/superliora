@@ -1,21 +1,13 @@
 import { useI18n } from '../i18n';
+import { TuiChrome } from './tui/TuiChrome';
 
-/** Curated HTML product showcase — not a live ANSI dump. */
+/** Hero showcase — curated board + worker strip. */
 export function ProductFrame() {
   const { t } = useI18n();
   const f = t.hero.frame;
 
   return (
-    <div className="product-frame" aria-hidden="true">
-      <div className="product-frame__chrome">
-        <div className="product-frame__dots">
-          <span className="product-frame__dot product-frame__dot--rose" />
-          <span className="product-frame__dot product-frame__dot--amber" />
-          <span className="product-frame__dot product-frame__dot--emerald" />
-        </div>
-        <span className="product-frame__title">SuperLiora</span>
-      </div>
-
+    <TuiChrome title="SuperLiora" badge="live">
       <div className="product-frame__body">
         <div className="product-frame__job">
           <span className="product-frame__live" />
@@ -66,6 +58,6 @@ export function ProductFrame() {
           <span className="product-frame__worker-rate">{f.workerRate}</span>
         </div>
       </div>
-    </div>
+    </TuiChrome>
   );
 }
