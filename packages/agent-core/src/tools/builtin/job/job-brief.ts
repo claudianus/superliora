@@ -16,6 +16,11 @@ export function renderStructuredBriefSections(job: JobRecord): string | undefine
     bulletBlock('Success criteria', job.successCriteria),
     bulletBlock('Must not touch', job.mustNotTouch),
     bulletBlock('Verification commands', job.verificationCommands),
+    bulletBlock('Test seams', job.testSeams),
+    job.tddMode !== undefined ? `TDD mode: ${job.tddMode}` : undefined,
+    job.reproCommand !== undefined && job.reproCommand.trim().length > 0
+      ? `Repro command: ${job.reproCommand.trim()}`
+      : undefined,
     job.deliveryMode !== undefined ? `Delivery mode: ${job.deliveryMode}` : undefined,
   ].filter(Boolean);
   return parts.length > 0 ? parts.join('\n\n') : undefined;

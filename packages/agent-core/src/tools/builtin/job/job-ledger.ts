@@ -61,6 +61,10 @@ export function createJob(
     readonly successCriteria?: readonly string[];
     readonly mustNotTouch?: readonly string[];
     readonly verificationCommands?: readonly string[];
+    readonly testSeams?: readonly string[];
+    readonly tddMode?: JobRecord['tddMode'];
+    readonly reproCommand?: string;
+    readonly blockedByJobIds?: readonly string[];
     readonly deliveryMode?: JobDeliveryMode;
     readonly deliveryPhase?: JobDeliveryPhase;
     readonly parentJobId?: string;
@@ -75,6 +79,7 @@ export function createJob(
     readonly expertScore?: number;
     readonly expertRole?: JobRecord['expertRole'];
     readonly staffQuery?: string;
+    readonly reviewAxis?: JobRecord['reviewAxis'];
   },
 ): JobRecord {
   const now = new Date().toISOString();
@@ -92,6 +97,10 @@ export function createJob(
     successCriteria: input.successCriteria,
     mustNotTouch: input.mustNotTouch,
     verificationCommands: input.verificationCommands,
+    testSeams: input.testSeams,
+    tddMode: input.tddMode,
+    reproCommand: input.reproCommand?.trim() || undefined,
+    blockedByJobIds: input.blockedByJobIds,
     deliveryMode: input.deliveryMode,
     deliveryPhase: input.deliveryPhase,
     parentJobId: input.parentJobId,
@@ -104,6 +113,7 @@ export function createJob(
     expertScore: input.expertScore,
     expertRole: input.expertRole,
     staffQuery: input.staffQuery,
+    reviewAxis: input.reviewAxis,
   };
   return upsertJob(store, job);
 }

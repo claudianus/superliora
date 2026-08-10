@@ -41,6 +41,12 @@ describe('job-review-chain', () => {
     expect(parseReviewVerdict('{"verdict":"pass","findings":[]}')).toBe('passed');
     expect(parseReviewVerdict('notes\nverdict: fail\n')).toBe('failed');
     expect(parseReviewVerdict('no verdict here')).toBeUndefined();
+    expect(
+      parseReviewVerdict(
+        '{"verdict":"pass","standards":{"verdict":"pass","findings":[]},"spec":{"verdict":"fail","findings":["missing AC"]}}',
+      ),
+    ).toBe('failed');
+    expect(parseReviewVerdict('{"standards":{"verdict":"pass","findings":[]}}')).toBe('passed');
   });
 
   it('detects maker=checker collision', () => {
@@ -113,7 +119,7 @@ describe('job-review-chain', () => {
     if (!collision.ok) expect(collision.reason).toMatch(/Maker≠Checker|expertId/i);
   });
 
-  it('enqueues a review child on implement done (fake store)', async () => {
+  it('enqueues a visual-qa review child on UI implement done', async () => {
     const store = memoryStore();
     const parent = createJob(store, {
       title: 'Ship footer',
@@ -138,7 +144,27 @@ describe('job-review-chain', () => {
     expect(listJobs(store).filter((j) => j.parentJobId === parent.id)).toHaveLength(1);
   });
 
-  it('onJobTerminal enqueues debug after failing review verdict', async () => {
+  it('enqueues parallel Standards∥Spec review children for non-UI implement', async () => {
+    const store = memoryStore();
+    const parent = createJob(store, {
+      title: 'Fix scheduler',
+      kind: 'implement',
+      prompt: 'Fix job scheduler ordering',
+      ownershipPaths: ['packages/agent-core/src/tools/builtin/job/job-runtime.ts'],
+      successCriteria: ['nextQueuedJobs respects blocked_by'],
+      testSeams: ['nextQueuedJobs'],
+      expertId: 'maker-x',
+      expertRole: 'implement',
+    });
+    const done = { ...parent, status: 'done' as const, resultSummary: 'fixed' };
+    await enqueueReviewJobForParent(store, done);
+    const reviews = listJobs(store).filter((j) => j.parentJobId === parent.id);
+    expect(reviews).toHaveLength(2);
+    expect(reviews.map((r) => r.reviewAxis).sort()).toEqual(['spec', 'standards']);
+    expect(reviews[0]?.prompt).toMatch(/success criteria|Agreed test seams/i);
+  });
+
+  it('onJobTerminal enqueues debug after both axis reviews fail aggregate', async () => {
     const store = memoryStore();
     const parent = createJob(store, {
       title: 'Broken button',
@@ -152,24 +178,29 @@ describe('job-review-chain', () => {
       ...parent,
       status: 'done',
     });
-    const review = listJobs(store).find(
+    const reviews = listJobs(store).filter(
       (j) => j.expertRole === 'review' || j.expertRole === 'visual-qa',
     );
-    expect(review).toBeDefined();
-    expect(review?.ownershipPaths).toBeUndefined();
-    patchJob(store, review!.id, {
-      status: 'done',
-      resultSummary: '{"verdict":"fail","findings":["click noop"],"required_fixes":["wire handler"]}',
-      expertId: 'checker-y',
-      expertRole: review!.expertRole,
-    });
-    const reviewDone = listJobs(store).find((j) => j.id === review!.id)!;
-    await onJobTerminalForReviewChain(store, reviewDone);
+    expect(reviews.length).toBeGreaterThanOrEqual(1);
+    for (const review of reviews) {
+      expect(review.ownershipPaths).toBeUndefined();
+      patchJob(store, review.id, {
+        status: 'done',
+        resultSummary:
+          review.reviewAxis === 'standards'
+            ? '{"standards":{"verdict":"pass","findings":[]},"verdict":"pass"}'
+            : '{"verdict":"fail","findings":["click noop"],"required_fixes":["wire handler"]}',
+        expertId: `checker-${review.reviewAxis ?? 'ui'}`,
+        expertRole: review.expertRole,
+      });
+      await onJobTerminalForReviewChain(store, listJobs(store).find((j) => j.id === review.id)!);
+    }
     const debug = listJobs(store).find((j) => j.expertRole === 'debug');
     expect(debug).toBeDefined();
     // Debug fixer still claims write ownership on the parent paths.
     expect(debug?.ownershipPaths).toEqual(['src/Button.js']);
     // Idempotent debug enqueue.
-    expect(await enqueueDebugJobForReview(store, parent, reviewDone)).toBeUndefined();
+    const failedReview = reviews.find((r) => r.reviewAxis === 'spec') ?? reviews[0]!;
+    expect(await enqueueDebugJobForReview(store, parent, failedReview)).toBeUndefined();
   });
 });

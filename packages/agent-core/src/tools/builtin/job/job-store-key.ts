@@ -45,6 +45,12 @@ export type JobKind =
 export type JobDeliveryMode = 'standard' | 'greenfield';
 
 /**
+ * TDD posture for coding Jobs. `required` demands non-empty `testSeams`.
+ * Default for task/implement when unset at create time is `preferred`.
+ */
+export type JobTddMode = 'required' | 'preferred' | 'off';
+
+/**
  * Greenfield chain phase (skeleton → fill → delete_pass). Absent on standard Jobs.
  * Not a JobKind — keeps the ledger kind set stable.
  */
@@ -75,6 +81,20 @@ export interface JobRecord {
   readonly mustNotTouch?: readonly string[];
   /** Commands the worker should run as proof (structured brief). */
   readonly verificationCommands?: readonly string[];
+  /** Pre-agreed public seams for red→green tests (structured brief). */
+  readonly testSeams?: readonly string[];
+  /** TDD posture; coding Jobs default to preferred when unset at create. */
+  readonly tddMode?: JobTddMode;
+  /**
+   * One agent-runnable command that goes red on this bug (debug Jobs).
+   * When absent, the worker must still establish Phase-1 repro before hypothesising.
+   */
+  readonly reproCommand?: string;
+  /**
+   * Job ids that must reach a terminal success state before this Job may schedule.
+   * Orthogonal to `parentJobId` (decomposition / review chain link).
+   */
+  readonly blockedByJobIds?: readonly string[];
   /** Delivery posture; greenfield requires successCriteria + mustNotTouch on create. */
   readonly deliveryMode?: JobDeliveryMode;
   /** Greenfield chain step; drives jobPrompt phase contract. */
@@ -112,6 +132,11 @@ export interface JobRecord {
   readonly expertScore?: number;
   readonly expertRole?: 'implement' | 'review' | 'debug' | 'visual-qa' | 'generic';
   readonly staffQuery?: string;
+  /**
+   * Dual-axis review child marker. Absent on combined/visual-qa reviews.
+   * Parallel Standards∥Spec children each carry one axis.
+   */
+  readonly reviewAxis?: 'standards' | 'spec';
 }
 
 export interface JobLedger {

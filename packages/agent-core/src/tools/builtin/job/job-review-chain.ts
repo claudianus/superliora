@@ -32,19 +32,34 @@ export function shouldEnqueueReviewAfterDone(job: JobRecord): boolean {
   return job.kind === 'task' || job.kind === 'implement';
 }
 
-export function hasReviewChild(store: ToolStore, parentJobId: string): boolean {
-  return findReviewChild(parentJobId, listJobs(store)) !== undefined;
-}
-
-export function findReviewChild(
+export function findReviewChildren(
   parentJobId: string,
   jobs: readonly JobRecord[],
-): JobRecord | undefined {
-  return jobs.find(
+): readonly JobRecord[] {
+  return jobs.filter(
     (job) =>
       job.parentJobId === parentJobId &&
       (job.expertRole === 'review' || job.expertRole === 'visual-qa'),
   );
+}
+
+/** True when the required review set for this parent is already enqueued. */
+export function hasReviewChild(store: ToolStore, parentJobId: string): boolean {
+  const children = findReviewChildren(parentJobId, listJobs(store));
+  if (children.length === 0) return false;
+  // Parallel dual-axis: both standards + spec present.
+  const axes = new Set(children.map((c) => c.reviewAxis).filter(Boolean));
+  if (axes.has('standards') && axes.has('spec')) return true;
+  // Legacy / visual-qa: any single review child counts.
+  return children.some((c) => c.reviewAxis === undefined);
+}
+
+/** First review child (compat); prefer findReviewChildren for dual-axis. */
+export function findReviewChild(
+  parentJobId: string,
+  jobs: readonly JobRecord[],
+): JobRecord | undefined {
+  return findReviewChildren(parentJobId, jobs)[0];
 }
 
 export function findDebugChild(
@@ -54,25 +69,39 @@ export function findDebugChild(
   return jobs.find((job) => job.parentJobId === parentJobId && job.expertRole === 'debug');
 }
 
+type AxisVerdictBlob = { readonly verdict?: string };
+
 /**
  * Parse structured review verdict from worker summary.
- * Accepts a JSON object anywhere in the text, or a leading `verdict: pass|fail` line.
+ * Prefer dual-axis JSON (standards + spec); overall pass only when both axes pass.
+ * Falls back to a single top-level verdict or a `verdict: pass|fail` line.
  */
 export function parseReviewVerdict(summary: string | undefined): JobReviewVerdict | undefined {
   if (summary === undefined || summary.trim().length === 0) return undefined;
   const text = summary.trim();
-  const jsonMatch = text.match(/\{[\s\S]*"verdict"\s*:\s*"(pass|fail|passed|failed)"[\s\S]*\}/i);
-  if (jsonMatch !== null) {
-    try {
-      const start = text.indexOf('{');
-      const end = text.lastIndexOf('}');
-      if (start >= 0 && end > start) {
-        const parsed = JSON.parse(text.slice(start, end + 1)) as { verdict?: string };
-        return normalizeVerdict(parsed.verdict);
+  try {
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      const parsed = JSON.parse(text.slice(start, end + 1)) as {
+        verdict?: string;
+        standards?: AxisVerdictBlob;
+        spec?: AxisVerdictBlob;
+      };
+      const standards = normalizeVerdict(parsed.standards?.verdict);
+      const spec = normalizeVerdict(parsed.spec?.verdict);
+      if (standards !== undefined && spec !== undefined) {
+        if (standards === 'passed' && spec === 'passed') return 'passed';
+        return 'failed';
       }
-    } catch {
-      // fall through
+      // Parallel axis Jobs emit only their axis blob.
+      if (standards !== undefined && spec === undefined) return standards;
+      if (spec !== undefined && standards === undefined) return spec;
+      const top = normalizeVerdict(parsed.verdict);
+      if (top !== undefined) return top;
     }
+  } catch {
+    // fall through
   }
   const line = text.match(/\bverdict\s*[:=]\s*(pass|fail|passed|failed)\b/i);
   if (line?.[1] !== undefined) return normalizeVerdict(line[1]);
@@ -97,7 +126,51 @@ export function makerCheckerCollision(
   return a === b;
 }
 
-/** Staff + create a review child for a completed implement job. */
+async function pickReviewExpert(
+  query: string,
+  parentExpert: string | undefined,
+  blockedExpertIds: ReadonlySet<string> = new Set(),
+): Promise<{ readonly id?: string; readonly score?: number }> {
+  await globalExpertSearchEngine.initialize();
+  const hits = await globalExpertSearchEngine.search({
+    query,
+    topK: 8,
+    taskDescription: query,
+  });
+  const pick = hits.find(
+    (hit) =>
+      hit.score >= STAFF_MIN_EXPERT_SCORE &&
+      (parentExpert === undefined || hit.expert.id !== parentExpert) &&
+      !blockedExpertIds.has(hit.expert.id),
+  );
+  return { id: pick?.expert.id, score: pick?.score };
+}
+
+function sharedReviewContext(parent: JobRecord): {
+  readonly files: readonly string[] | undefined;
+  readonly header: string;
+} {
+  const files = parent.resultContract?.files_changed?.slice(0, 20) ?? parent.ownershipPaths;
+  const header = [
+    'You are an independent review checker (Maker≠Checker). Do not implement product features.',
+    `Parent job: ${parent.id} — ${parent.title}`,
+    parent.resultSummary !== undefined
+      ? `Parent summary:\n${parent.resultSummary.slice(0, 2500)}`
+      : undefined,
+    parent.successCriteria !== undefined && parent.successCriteria.length > 0
+      ? `Spec / success criteria:\n${parent.successCriteria.map((c) => `- ${c}`).join('\n')}`
+      : undefined,
+    parent.testSeams !== undefined && parent.testSeams.length > 0
+      ? `Agreed test seams:\n${parent.testSeams.map((s) => `- ${s}`).join('\n')}`
+      : undefined,
+    files !== undefined && files.length > 0 ? `Changed paths: ${files.join(', ')}` : undefined,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+  return { files, header };
+}
+
+/** Staff + create review child(ren) for a completed implement job. */
 export async function enqueueReviewJobForParent(
   store: ToolStore,
   parent: JobRecord,
@@ -107,62 +180,106 @@ export async function enqueueReviewJobForParent(
   if (!shouldEnqueueReviewAfterDone({ ...parent, status: 'done' })) return undefined;
 
   const ui = jobLooksLikeUiSurface(parent);
-  const query = ui
-    ? 'visual QA UI craft review accessibility interaction screenshot'
-    : 'code review correctness security edge cases regression';
-  await globalExpertSearchEngine.initialize();
-  const hits = await globalExpertSearchEngine.search({
-    query,
-    topK: 8,
-    taskDescription: query,
-  });
+  const { files, header } = sharedReviewContext(parent);
   const parentExpert = parent.expertId?.trim();
-  const pick = hits.find(
-    (hit) =>
-      hit.score >= STAFF_MIN_EXPERT_SCORE &&
-      (parentExpert === undefined || hit.expert.id !== parentExpert),
-  );
+  const created: JobRecord[] = [];
 
-  const files = parent.resultContract?.files_changed?.slice(0, 20) ?? parent.ownershipPaths;
-  const prompt = [
-    'You are an independent review checker (Maker≠Checker). Do not implement product features.',
-    `Parent job: ${parent.id} — ${parent.title}`,
-    parent.resultSummary !== undefined ? `Parent summary:\n${parent.resultSummary.slice(0, 2500)}` : undefined,
-    files !== undefined && files.length > 0 ? `Changed paths: ${files.join(', ')}` : undefined,
-    ui
-      ? 'Re-run VerifySurface on the real surface when a URL/HTML path is available; inspect load+interaction+craft axes.'
-      : 'Review the diff for correctness, regressions, and missing tests.',
-    'Final output MUST include a JSON object: {"verdict":"pass"|"fail","findings":[...],"required_fixes":[...]}',
-  ]
-    .filter(Boolean)
-    .join('\n\n');
+  if (ui) {
+    const query = 'visual QA UI craft review accessibility interaction screenshot';
+    const pick = await pickReviewExpert(query, parentExpert);
+    const prompt = [
+      header,
+      'Review on TWO axes without mixing them (single Job, dual-axis JSON):',
+      '- Standards: craft / accessibility / banned-ship smells; repo docs override.',
+      '- Spec: success criteria + VerifySurface load+interaction+craft when a URL/HTML path exists.',
+      'Final output MUST include dual-axis JSON: {"verdict":"pass"|"fail","standards":{"verdict":"pass"|"fail","findings":[]},"spec":{"verdict":"pass"|"fail","findings":[]},"findings":[],"required_fixes":[]}. Overall pass only when both axes pass.',
+    ].join('\n\n');
+    created.push(
+      createJob(store, {
+        title: `Review: ${parent.title}`.slice(0, 120),
+        kind: 'task',
+        priority: (parent.priority ?? 0) + 1,
+        prompt,
+        contextPaths: parent.contextPaths ?? files,
+        parentJobId: parent.id,
+        expertId: pick.id,
+        expertScore: pick.score,
+        expertRole: 'visual-qa',
+        staffQuery: query,
+        successCriteria: [
+          'Emit dual-axis JSON (standards + spec) with overall verdict',
+          'VerifySurface axes considered',
+        ],
+      }),
+    );
+  } else {
+    // Parallel Standards ∥ Spec so neither axis pollutes the other.
+    const standardsPick = await pickReviewExpert(
+      'code review standards smells conventions AGENTS.md',
+      parentExpert,
+    );
+    const blocked = new Set(
+      [standardsPick.id].filter((id): id is string => id !== undefined && id.length > 0),
+    );
+    const specPick = await pickReviewExpert(
+      'code review correctness spec acceptance criteria regressions',
+      parentExpert,
+      blocked,
+    );
 
-  const review = createJob(store, {
-    title: `Review: ${parent.title}`.slice(0, 120),
-    kind: 'task',
-    priority: (parent.priority ?? 0) + 1,
-    prompt,
-    // Review is Maker≠Checker read/audit — do not pre-claim exclusive write
-    // leases on parent paths (blocks sibling Jobs at fan-out).
-    contextPaths: parent.contextPaths ?? files,
-    parentJobId: parent.id,
-    expertId: pick?.expert.id,
-    expertScore: pick?.score,
-    expertRole: ui ? 'visual-qa' : 'review',
-    staffQuery: query,
-    successCriteria: [
-      'Emit JSON verdict pass|fail with findings',
-      ui ? 'VerifySurface axes considered' : 'Diff reviewed against success criteria',
-    ],
-  });
+    const standardsPrompt = [
+      header,
+      'AXIS: Standards only. Do not judge spec completeness here.',
+      'Check repo AGENTS.md / coding standards; flag judgement-call smells (Mysterious Name, Duplicated Code, Feature Envy, Speculative Generality, Shotgun Surgery). Repo docs override smells; skip what tooling already enforces.',
+      'Final output MUST include JSON: {"verdict":"pass"|"fail","standards":{"verdict":"pass"|"fail","findings":[]},"findings":[],"required_fixes":[]}',
+    ].join('\n\n');
+    const specPrompt = [
+      header,
+      'AXIS: Spec only. Do not re-litigate style/smell standards here.',
+      'Did the diff faithfully implement the success criteria / seams? Note missing, wrong, or scope-creep behaviour. Check tests at agreed seams.',
+      'Final output MUST include JSON: {"verdict":"pass"|"fail","spec":{"verdict":"pass"|"fail","findings":[]},"findings":[],"required_fixes":[]}',
+    ].join('\n\n');
 
+    created.push(
+      createJob(store, {
+        title: `Review standards: ${parent.title}`.slice(0, 120),
+        kind: 'task',
+        priority: (parent.priority ?? 0) + 1,
+        prompt: standardsPrompt,
+        contextPaths: parent.contextPaths ?? files,
+        parentJobId: parent.id,
+        expertId: standardsPick.id,
+        expertScore: standardsPick.score,
+        expertRole: 'review',
+        reviewAxis: 'standards',
+        staffQuery: 'code review standards smells conventions',
+        successCriteria: ['Emit Standards-axis JSON verdict'],
+      }),
+      createJob(store, {
+        title: `Review spec: ${parent.title}`.slice(0, 120),
+        kind: 'task',
+        priority: (parent.priority ?? 0) + 1,
+        prompt: specPrompt,
+        contextPaths: parent.contextPaths ?? files,
+        parentJobId: parent.id,
+        expertId: specPick.id ?? standardsPick.id,
+        expertScore: specPick.score ?? standardsPick.score,
+        expertRole: 'review',
+        reviewAxis: 'spec',
+        staffQuery: 'code review correctness spec acceptance',
+        successCriteria: ['Emit Spec-axis JSON verdict'],
+      }),
+    );
+  }
+
+  const ids = created.map((j) => j.id).join(', ');
   patchJob(store, parent.id, {
-    notes: [parent.notes, `review_chain: enqueued ${review.id}`].filter(Boolean).join('\n'),
+    notes: [parent.notes, `review_chain: enqueued ${ids}`].filter(Boolean).join('\n'),
   });
   if (agent !== undefined) {
     requestJobSchedulePump({ store, agent });
   }
-  return review;
+  return created[0];
 }
 
 /** After a failing review, enqueue a debug fixer (different expert when possible). */
@@ -193,24 +310,33 @@ export async function enqueueDebugJobForReview(
     kind: 'implement',
     priority: (parent.priority ?? 0) + 2,
     prompt: [
-      'You are a debug fixer. Reproduce review findings with the smallest fix. Do not expand scope.',
+      'You are a debug fixer. Establish a tight red-capable repro before hypothesising; then apply the smallest fix. Do not expand scope.',
       `Parent job: ${parent.id}`,
       `Review job: ${review.id}`,
       review.resultSummary !== undefined
         ? `Review findings:\n${review.resultSummary.slice(0, 3000)}`
         : undefined,
-      'After fixes, re-run focused checks / VerifySurface as applicable.',
+      parent.testSeams !== undefined && parent.testSeams.length > 0
+        ? `Prefer regression tests at these seams: ${parent.testSeams.join('; ')}`
+        : undefined,
+      'After fixes, re-run focused checks / VerifySurface as applicable. Record repro_command + repro_output in the summary.',
     ]
       .filter(Boolean)
       .join('\n\n'),
     ownershipPaths: parent.ownershipPaths,
     contextPaths: parent.contextPaths,
+    testSeams: parent.testSeams,
+    tddMode: parent.tddMode ?? 'preferred',
     parentJobId: parent.id,
     expertId: pick?.expert.id,
     expertScore: pick?.score,
     expertRole: 'debug',
     staffQuery: query,
-    successCriteria: ['Address review required_fixes', 'Re-verify with checks or VerifySurface'],
+    successCriteria: [
+      'Tight repro goes red then green after the fix',
+      'Address review required_fixes',
+      'Re-verify with checks or VerifySurface',
+    ],
   });
 
   patchJob(store, parent.id, {
@@ -222,6 +348,23 @@ export async function enqueueDebugJobForReview(
     requestJobSchedulePump({ store, agent });
   }
   return debug;
+}
+
+function reviewChildrenReady(children: readonly JobRecord[]): boolean {
+  if (children.length === 0) return false;
+  return children.every((c) => c.status === 'done' || c.status === 'failed');
+}
+
+function aggregateReviewVerdict(children: readonly JobRecord[]): JobReviewVerdict {
+  let anyFailed = false;
+  for (const child of children) {
+    const v =
+      parseReviewVerdict(child.resultSummary) ??
+      (child.status === 'failed' ? 'failed' : undefined) ??
+      'failed';
+    if (v !== 'passed') anyFailed = true;
+  }
+  return anyFailed ? 'failed' : 'passed';
 }
 
 /**
@@ -243,14 +386,14 @@ export async function onJobTerminalForReviewChain(
   ) {
     const parent = getJob(store, job.parentJobId);
     if (parent === undefined) return;
-    const verdict =
-      parseReviewVerdict(job.resultSummary) ??
-      (job.status === 'failed' ? 'failed' : undefined) ??
-      'failed';
+    const children = findReviewChildren(parent.id, listJobs(store));
+    const axisNote = `review_chain: ${job.id}${job.reviewAxis !== undefined ? ` axis=${job.reviewAxis}` : ''} verdict=${
+      parseReviewVerdict(job.resultSummary) ?? (job.status === 'failed' ? 'failed' : 'missing')
+    }`;
     patchJob(store, parent.id, {
       notes: [
         parent.notes,
-        `review_chain: ${job.id} verdict=${verdict}`,
+        axisNote,
         makerCheckerCollision(parent.expertId, job.expertId)
           ? 'review_chain: MAKER_CHECKER_COLLISION same expertId on implement+review'
           : undefined,
@@ -258,8 +401,18 @@ export async function onJobTerminalForReviewChain(
         .filter(Boolean)
         .join('\n'),
     });
+    if (!reviewChildrenReady(children)) return;
+    const verdict = aggregateReviewVerdict(children);
+    const latestParent = getJob(store, parent.id) ?? parent;
+    patchJob(store, parent.id, {
+      notes: [latestParent.notes, `review_chain: aggregate verdict=${verdict}`]
+        .filter(Boolean)
+        .join('\n'),
+    });
     if (verdict === 'failed') {
-      await enqueueDebugJobForReview(store, parent, job, agent);
+      const failedChild =
+        children.find((c) => parseReviewVerdict(c.resultSummary) !== 'passed') ?? children[0]!;
+      await enqueueDebugJobForReview(store, latestParent, failedChild, agent);
     }
     return;
   }
@@ -292,31 +445,45 @@ export function evaluateReviewChainForMerge(input: {
     return { ok: true };
   }
 
-  const review = findReviewChild(input.job.id, input.jobs);
-  if (review === undefined) {
+  const children = findReviewChildren(input.job.id, input.jobs);
+  if (children.length === 0) {
     return {
       ok: false,
       reason:
         'No review child Job yet — wait for the automatic review chain (Maker≠Checker) before MergeJob.',
     };
   }
-  if (makerCheckerCollision(input.job.expertId, review.expertId)) {
+  for (const review of children) {
+    if (makerCheckerCollision(input.job.expertId, review.expertId)) {
+      return {
+        ok: false,
+        reason: `Maker≠Checker hard reject: implement and review share expertId=${input.job.expertId ?? ''}.`,
+      };
+    }
+  }
+  if (!reviewChildrenReady(children)) {
+    const pending = children.find((c) => c.status !== 'done' && c.status !== 'failed');
     return {
       ok: false,
-      reason: `Maker≠Checker hard reject: implement and review share expertId=${input.job.expertId ?? ''}.`,
+      reason: `Review job ${pending?.id ?? children[0]!.id} is still ${pending?.status ?? 'pending'} — wait for verdict before merge.`,
     };
   }
-  if (review.status !== 'done' && review.status !== 'failed') {
+  // Dual-axis: require both standards + spec when those axes were enqueued.
+  const axes = new Set(children.map((c) => c.reviewAxis).filter(Boolean));
+  if (axes.has('standards') !== axes.has('spec') && axes.size > 0) {
     return {
       ok: false,
-      reason: `Review job ${review.id} is still ${review.status} — wait for verdict before merge.`,
+      reason: 'Review chain incomplete — both Standards and Spec axis Jobs are required.',
     };
   }
-  const verdict = parseReviewVerdict(review.resultSummary);
+  const verdict = aggregateReviewVerdict(children);
   if (verdict !== 'passed') {
+    const failed = children.find((c) => parseReviewVerdict(c.resultSummary) !== 'passed');
     return {
       ok: false,
-      reason: `Review job ${review.id} verdict=${verdict ?? 'missing'} — fix via debug/implement requeue before merge.`,
+      reason: `Review job ${failed?.id ?? children[0]!.id} verdict=${
+        parseReviewVerdict(failed?.resultSummary) ?? 'missing'
+      } — fix via debug/implement requeue before merge.`,
     };
   }
   return { ok: true };

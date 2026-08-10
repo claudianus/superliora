@@ -112,12 +112,21 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
             'Write only to the plan file, then ExitPlanMode. Do not implement product code.',
           ].join('\n')
       : undefined,
+    job.kind === 'explore' && /\bprototype\b/i.test(`${job.title}\n${job.prompt ?? ''}`)
+      ? [
+          'Prototype explore: build throwaway code that answers ONE design question.',
+          'Mark it clearly as prototype; keep it trivial to run; no persistence by default; skip polish/tests.',
+          'Capture the verdict + question settled in the summary; leave a context pointer (branch/path). Do not merge prototype code to main as product.',
+          'Skill("prototype") for LOGIC vs UI branch details.',
+        ].join('\n')
+      : undefined,
     renderDeliveryPhaseContract(job.deliveryPhase),
     renderStructuredBriefSections(job),
     job.prompt?.trim() ? `Brief:\n${job.prompt.trim()}` : undefined,
     job.contextPaths?.length
       ? `Read these first: ${job.contextPaths.join(', ')}`
       : undefined,
+    'Domain glossary: if CONTEXT.md exists at the repo root (or under a touched package), read it before naming things — use its terms; do not invent synonyms.',
     parentFindings,
     job.ownershipPaths?.length
       ? `Preferred paths: ${job.ownershipPaths.join(', ')}`
@@ -130,16 +139,13 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
       '- Trace the brief against the codebase before editing (callers / fail path / success criteria).',
       '- Prefer the smallest diff that meets success criteria; stay inside ownership/context paths when set.',
       '- After each meaningful change, run focused checks when available; cite that evidence in the result summary.',
+      ...tddContractLines(job),
       ...(job.expertRole === 'review' || job.expertRole === 'visual-qa'
         ? [
-            '- Review DoD: do not implement product features. Inspect the parent diff/summary; for UI call VerifySurface when a URL/HTML path exists. Final summary MUST include JSON {"verdict":"pass"|"fail","findings":[...],"required_fixes":[...]}.',
+            '- Review DoD: do not implement product features. Inspect the parent diff/summary against success criteria and test seams; for UI call VerifySurface when a URL/HTML path exists. Final summary MUST include dual-axis JSON: {"verdict":"pass"|"fail","standards":{"verdict":"pass"|"fail","findings":[]},"spec":{"verdict":"pass"|"fail","findings":[]},"findings":[],"required_fixes":[]}. Overall pass only when both axes pass.',
           ]
         : []),
-      ...(job.expertRole === 'debug'
-        ? [
-            '- Debug DoD: reproduce review findings, apply the smallest fix, re-verify. Do not expand scope or ship unrelated features.',
-          ]
-        : []),
+      ...(job.expertRole === 'debug' ? debugContractLines(job) : []),
       ...(uiJob && job.expertRole !== 'review' && job.expertRole !== 'visual-qa'
         ? [
             '- Visual DoD (UI job): write a short Art Direction Brief before first markup; Skill("premium-visual") before shipping a visible slice; call VerifySurface once on the real surface before done (≤2 min fail-fast). VerifySurface requires load+interaction+craft axes (default click smoke + banned-ship craft audit); BrowserScreenshot alone does not set visual=passed. If the runtime is not ready, report visual failed — do not BrowserAct-explore or reinstall loops. Record screenshot path in the summary. MergeJob hard-fails without visual=passed.',
@@ -155,6 +161,38 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
     ].join('\n'),
   ];
   return parts.filter(Boolean).join('\n\n');
+}
+
+function tddContractLines(job: JobRecord): readonly string[] {
+  const role = job.expertRole ?? 'implement';
+  if (role === 'review' || role === 'visual-qa' || role === 'debug') return [];
+  if (job.kind !== 'task' && job.kind !== 'implement') return [];
+  const mode = job.tddMode ?? 'preferred';
+  if (mode === 'off') return [];
+  const seams =
+    job.testSeams !== undefined && job.testSeams.length > 0
+      ? job.testSeams.join('; ')
+      : undefined;
+  const lines = [
+    mode === 'required'
+      ? '- TDD DoD (required): write a failing test at a pre-agreed seam before implementation; no green without red. Skill("tdd") for seam/anti-pattern reference only.'
+      : '- TDD DoD (preferred): prefer red→green at public seams; avoid tautological or implementation-coupled tests. Skill("tdd") for seam/anti-pattern reference only.',
+  ];
+  if (seams !== undefined) {
+    lines.push(`- Test only at these seams: ${seams}. Do not invent unconfirmed seams.`);
+  }
+  return lines;
+}
+
+function debugContractLines(job: JobRecord): readonly string[] {
+  const repro = job.reproCommand?.trim();
+  return [
+    '- Debug DoD (diagnosing Phase 1 first): build a tight red-capable feedback loop for the user symptom before hypothesising. Skill("diagnosing-bugs") for the full loop only.',
+    repro !== undefined && repro.length > 0
+      ? `- Known repro command: \`${repro}\` — run it, show redacted output, then minimise before fixing.`
+      : '- No repro_command yet — invent/run one agent-runnable command that goes red on this bug; record repro_command + repro_output in the summary before any fix.',
+    '- After a red loop exists: minimise → falsifiable hypotheses → smallest fix → re-verify. Do not expand scope or ship unrelated features.',
+  ];
 }
 
 function renderJobExpertBlock(job: JobRecord): string | undefined {

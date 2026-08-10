@@ -228,12 +228,41 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
   if (merge.code !== 0) {
     const detail = (merge.stderr || merge.stdout || 'merge failed').slice(0, 500);
     const err = `git merge failed: ${detail}`;
+    const conflict =
+      /\bCONFLICT\b/i.test(detail) ||
+      /\bmerge conflict\b/i.test(detail) ||
+      /\bAutomatic merge failed\b/i.test(detail);
+    let resolveNote: string | undefined;
+    if (conflict) {
+      const resolveJob = createJob(store, {
+        title: `Resolve merge conflicts: ${job.title}`.slice(0, 120),
+        kind: 'implement',
+        priority: (job.priority ?? 0) + 3,
+        prompt: [
+          'Merge into main hit conflicts. Resolve intent-traced hunks; never git merge --abort.',
+          'Skill("resolving-merge-conflicts") for the hunk-by-hunk playbook.',
+          `Source job: ${job.id}`,
+          `Branch: ${branch}`,
+          `Conflict detail:\n${detail}`,
+          'After resolving: stage, commit the merge, leave main green. Do not push.',
+        ].join('\n\n'),
+        ownershipPaths: job.ownershipPaths,
+        contextPaths: job.contextPaths,
+        parentJobId: job.id,
+        successCriteria: [
+          'Merge conflicts resolved with intent traced to each side',
+          'Working tree clean on main with merge committed locally',
+        ],
+        tddMode: 'off',
+      });
+      resolveNote = `land: conflict — enqueued resolve Job ${resolveJob.id}`;
+    }
     const next = patchJobAndNotify(
       store,
       job.id,
       {
         status: 'blocked',
-        notes: [job.notes, snapshotNote, `land: merge failed — ${detail}`]
+        notes: [job.notes, snapshotNote, `land: merge failed — ${detail}`, resolveNote]
           .filter(Boolean)
           .join('\n'),
       },

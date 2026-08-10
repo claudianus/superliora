@@ -4,6 +4,7 @@ import { renderJobDeskInjection } from '../../src/agent/injection/job-desk';
 import { createJob, patchJob } from '../../src/tools/builtin/job/job-ledger';
 import { summarizeJobStrip } from '../../src/tools/builtin/job/job-runtime';
 import {
+  missionHasBlockingFog,
   parseImplementHandoff,
   renderImplementHandoffDraft,
 } from '../../src/tools/builtin/planning/implement-handoff';
@@ -37,6 +38,9 @@ ownership_paths:
 - apps/site
 context_paths:
 - apps/site/src/main.ts
+test_seams:
+- apps/site public route loader
+tdd_mode: preferred
 delivery_mode: greenfield
 
 ## Notes
@@ -52,6 +56,8 @@ describe('parseImplementHandoff', () => {
       verificationCommands: ['pnpm test'],
       ownershipPaths: ['apps/site'],
       contextPaths: ['apps/site/src/main.ts'],
+      testSeams: ['apps/site public route loader'],
+      tddMode: 'preferred',
       deliveryMode: 'greenfield',
     });
   });
@@ -73,6 +79,25 @@ delivery_mode: greenfield`),
     const draft = renderImplementHandoffDraft(parseImplementHandoff(SAMPLE)!);
     expect(draft).toContain('greenfield_chain: true');
     expect(draft).toContain('"landing loads in under 2s"');
+    expect(draft).toContain('test_seams');
+    expect(draft).toContain('tdd_mode: preferred');
+  });
+
+  it('detects wayfinder fog that should block implement spawn', () => {
+    expect(
+      missionHasBlockingFog(`## Destination
+Ship auth
+
+## Not yet specified
+- Which session store?
+
+## Out of scope
+Billing`),
+    ).toBe(true);
+    expect(
+      missionHasBlockingFog(`## Not yet specified
+none`),
+    ).toBe(false);
   });
 });
 

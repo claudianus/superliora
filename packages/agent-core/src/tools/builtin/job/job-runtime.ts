@@ -111,6 +111,7 @@ export function nextQueuedJobs(
   const sorted = [...jobs]
     .filter((j) => j.status === 'queued')
     .filter((j) => parentAllowsSchedule(byId, j))
+    .filter((j) => blockersAllowSchedule(byId, j))
     .sort((a, b) => b.priority - a.priority || a.createdAt.localeCompare(b.createdAt));
 
   const selected: JobRecord[] = [];
@@ -145,6 +146,21 @@ function parentAllowsSchedule(
   const parent = byId.get(job.parentJobId);
   if (parent === undefined) return true;
   return !isExecutionInFlight(parent.status);
+}
+
+/** Tracer-bullet DAG: every listed blocker must be `done` before this Job starts. */
+export function blockersAllowSchedule(
+  byId: ReadonlyMap<string, JobRecord>,
+  job: JobRecord,
+): boolean {
+  const blockers = job.blockedByJobIds;
+  if (blockers === undefined || blockers.length === 0) return true;
+  for (const id of blockers) {
+    const blocker = byId.get(id);
+    if (blocker === undefined) return false;
+    if (blocker.status !== 'done') return false;
+  }
+  return true;
 }
 
 export type WorktreeFactory = (

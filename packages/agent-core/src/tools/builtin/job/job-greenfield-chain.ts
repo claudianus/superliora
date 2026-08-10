@@ -16,6 +16,9 @@ export interface GreenfieldChainInput {
   readonly successCriteria?: readonly string[];
   readonly mustNotTouch?: readonly string[];
   readonly verificationCommands?: readonly string[];
+  readonly testSeams?: readonly string[];
+  readonly tddMode?: JobRecord['tddMode'];
+  readonly blockedByJobIds?: readonly string[];
   readonly parentJobId?: string;
 }
 
@@ -69,6 +72,10 @@ export function createGreenfieldChainJobs(
       successCriteria: input.successCriteria,
       mustNotTouch: input.mustNotTouch,
       verificationCommands: input.verificationCommands,
+      testSeams: input.testSeams,
+      tddMode: input.tddMode,
+      // Only the first phase waits on external blockers; later phases chain via parent.
+      blockedByJobIds: i === 0 ? input.blockedByJobIds : undefined,
       deliveryMode: 'greenfield',
       deliveryPhase: step.phase,
       parentJobId: parentId,

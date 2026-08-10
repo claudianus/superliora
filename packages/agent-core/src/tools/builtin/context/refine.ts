@@ -27,7 +27,9 @@ export const RefineToolInputSchema = z
     instructions: z
       .string()
       .optional()
-      .describe('What to focus the refinement on (e.g. "capture the flaky-test retry pattern").'),
+      .describe(
+        'What to focus the refinement on (e.g. "capture the flaky-test retry pattern"). When writing skills, require a checkable completion criterion and prefer positive target behaviour over negation lists (writing-for-agents).',
+      ),
     refinementId: z
       .string()
       .optional()

@@ -21,6 +21,10 @@ import type { ToolExecution } from '../../../loop/types';
 import { parseSkillMetadataFromFile } from '../../../skill/parser';
 import { toInputJsonSchema } from '../../support/input-schema';
 import DESCRIPTION from './skill-create.md?raw';
+import {
+  assessSkillWritingQuality,
+  formatSkillWritingQualityFailure,
+} from './skill-writing-quality';
 
 const SKILL_NAME_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
@@ -62,6 +66,14 @@ export class SkillCreateTool implements BuiltinTool<SkillCreateToolInput> {
       description: `Creating skill ${args.name}`,
       approvalRule: this.name,
       execute: async () => {
+        const qualityIssues = assessSkillWritingQuality(args.body);
+        if (qualityIssues.length > 0) {
+          return {
+            isError: true,
+            output: formatSkillWritingQualityFailure(qualityIssues),
+          };
+        }
+
         const content = renderSkillMd(args);
         const existing = await readIfExists(skillMdPath);
         if (existing === content) {
