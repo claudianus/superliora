@@ -1,5 +1,16 @@
 # @superliora/liora
 
+## 0.6.0
+
+### Minor Changes
+
+- Conductor Jobs declare `surface_kind` (none/web/tui/mixed) and stamp `verifyVerdict` for merge proof. Path regex no longer invents VerifySurface gates. Set `surface_kind` on JobCreate; JobSteer can patch it when MergeJob holds.
+- Smart Auto on the Conductor lane picks a coding-class orchestrator from models.dev scores. Conductor can set JobCreate.model_alias from the fleet catalog when role models are auto. Use `/model auto` with the Conductor profile.
+
+### Patch Changes
+
+- Replace the GitHub Pages ANSI museum hero with a brand-first landing and curated HTML product frame; add feature-cluster TUI visuals and a bento motion grid.
+
 ## 0.5.1
 
 ### Patch Changes
