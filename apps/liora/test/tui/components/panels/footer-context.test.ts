@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, it, expect } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import chalk from 'chalk';
 
 import {
@@ -12,13 +12,22 @@ import {
   formatContextOSFooterBadge,
   buildWeightedTips,
 } from '#/tui/components/chrome/footer/footer';
-import { darkColors } from '#/tui/theme/colors';
+import { currentTheme } from '#/tui/theme';
+import { darkColors, neonNoirColors } from '#/tui/theme/colors';
 import type { AppState } from '#/tui/types';
 
 const ANSI_SGR = /\u001B\[[0-9;]*m/g;
 function strip(text: string): string {
   return text.replaceAll(ANSI_SGR, '');
 }
+
+beforeEach(() => {
+  currentTheme.setPalette(darkColors);
+});
+
+afterEach(() => {
+  currentTheme.setPalette(neonNoirColors);
+});
 
 function hexToSgr(hex: string): string {
   const value = hex.replace(/^#/, '');

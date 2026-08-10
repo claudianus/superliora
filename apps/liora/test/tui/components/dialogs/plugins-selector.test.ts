@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import chalk from 'chalk';
 
 // Force CI mode to disable ambient effects for deterministic rendering.
@@ -15,10 +15,18 @@ import {
   type PluginsPanelSelection,
 } from '#/tui/components/dialogs/plugins/index';
 import { currentTheme } from '#/tui/theme';
-import { darkColors, lightColors } from '#/tui/theme/colors';
+import { darkColors, lightColors, neonNoirColors } from '#/tui/theme/colors';
 import { isOfficialPluginSource, pluginTrustLabel } from '#/tui/utils/plugin-source-label';
 
 const ANSI_SGR = /\u001B\[[0-9;]*m/g;
+
+beforeEach(() => {
+  currentTheme.setPalette(darkColors);
+});
+
+afterEach(() => {
+  currentTheme.setPalette(neonNoirColors);
+});
 
 function strip(text: string): string {
   return text.replaceAll(ANSI_SGR, '').replaceAll('\u276F', '?');

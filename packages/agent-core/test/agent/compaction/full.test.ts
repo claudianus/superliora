@@ -1223,9 +1223,6 @@ describe('FullCompaction', () => {
         return textResult('Placeholder compacted summary.');
       }
       if (callCount === 3) {
-        return textResult('Placeholder compacted summary.');
-      }
-      if (callCount === 4) {
         await callbacks?.onMessagePart?.({
           type: 'text',
           text: 'Recovered after ignoring the placeholder.',
@@ -1252,7 +1249,7 @@ describe('FullCompaction', () => {
     await ctx.rpc.prompt({ input: [{ type: 'text', text: promptThatFitsWithoutPlaceholder }] });
     const events = await ctx.untilTurnEnd();
 
-    expect(callCount).toBe(4);
+    expect(callCount).toBe(3);
     expect(events).toContainEqual(
       expect.objectContaining({
         event: 'compaction.started',

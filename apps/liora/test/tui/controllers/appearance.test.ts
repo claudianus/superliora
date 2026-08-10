@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { AppearanceController, shouldAnimate, shouldRenderAmbientAnimationFrame, terminalMutationAllowed } from '#/tui/controllers/appearance/index';
 import { currentTheme } from '#/tui/theme';
+import { darkColors, neonNoirColors } from '#/tui/theme/colors';
 import {
   advanceAppearanceAnimationClock,
   getAppearanceRenderHealth,
@@ -48,6 +49,7 @@ describe('AppearanceController', () => {
     for (const key of ENV_KEYS) delete process.env[key];
     process.env['TERM'] = 'xterm-256color';
     setStdoutTty(true);
+    currentTheme.setPalette(darkColors);
     currentTheme.setCanvasBackgroundEnabled(true);
     advanceAppearanceAnimationClock();
     setAppearanceRenderQuality('full');
@@ -63,6 +65,7 @@ describe('AppearanceController', () => {
     } else {
       Object.defineProperty(process.stdout, 'isTTY', stdoutDescriptor);
     }
+    currentTheme.setPalette(neonNoirColors);
     currentTheme.setCanvasBackgroundEnabled(true);
     setAppearanceRenderQuality('full');
   });

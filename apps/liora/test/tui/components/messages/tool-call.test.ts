@@ -7,7 +7,7 @@ import { STAGED_LINE_REVEAL_MS_PREMIUM } from '#/tui/constant/streaming';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { currentTheme } from '#/tui/theme';
-import { darkColors } from '#/tui/theme/colors';
+import { darkColors, neonNoirColors } from '#/tui/theme/colors';
 import {
   advanceAppearanceAnimationClock,
   setActiveAppearancePreferences,
@@ -35,8 +35,13 @@ function stubTui(rows: number): RendererRootUI {
 }
 
 describe('ToolCallComponent', () => {
+  beforeEach(() => {
+    currentTheme.setPalette(darkColors);
+  });
+
   afterEach(() => {
     vi.useRealTimers();
+    currentTheme.setPalette(neonNoirColors);
   });
 
   it('uses the shared non-emoji tool status bullet', () => {
