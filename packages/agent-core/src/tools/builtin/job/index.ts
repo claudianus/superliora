@@ -18,3 +18,5 @@ export * from './job-land';
 export * from './job-push';
 export * from './job-desk';
 export * from './job-worker-ledger-bridge';
+export * from './job-crash-mirror';
+export * from './job-recovery';

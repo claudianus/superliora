@@ -1,0 +1,11 @@
+Conductor crash auto-recovery visual smoke checklist
+====================================================
+
+1. Start Conductor, JobCreate an implement job, wait until Worker Dock shows a live worker.
+2. Force-quit the TUI (kill / close) mid-run.
+3. Reopen the same session.
+4. Expect:
+   - Status/notice: "Resuming N jobs" (merge/push held separately).
+   - Worker Dock shows ghost row "Interrupted — resuming…" / "Resuming…" then live worker.
+   - densemode KPI may show ⏸ / needs-you; one attention row for held/interrupted.
+5. Opt-out check: `/job autoresume off`, repeat 1–3 → banner asks for `/job resume`.

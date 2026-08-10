@@ -35,6 +35,7 @@ import { FlagResolver } from '../flags';
 import { SessionMetadataPersistence } from './metadata-persistence';
 import { ConversationLoopManager } from './conversation-loops';
 import { SessionCloseLifecycle } from './lifecycle/session-close-lifecycle';
+import { flushAgentJobLedgerCrashMirrorSync } from '../tools/builtin/job/job-crash-mirror';
 import {
   appendPluginSessionStartReminder as applyPluginSessionStartReminder,
   runGenerateAgentsMd,
@@ -456,6 +457,11 @@ export class Session {
     for (const agent of this.readyAgents()) {
       try {
         agent.records.flushSync();
+      } catch {
+        // Swallow — the process is dying anyway.
+      }
+      try {
+        flushAgentJobLedgerCrashMirrorSync(agent);
       } catch {
         // Swallow — the process is dying anyway.
       }

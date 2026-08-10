@@ -183,6 +183,81 @@ export class MissionControlRegistry {
     this.version += 1;
   }
 
+  /**
+   * Seed suspended/finishing ghost rows from the Job ledger so Worker Dock
+   * is not empty after crash/resume before live subagent events arrive.
+   * Ghost ids are `job-ghost:<jobId>`; dropped when a live workerAgentId is present.
+   */
+  hydrateJobGhosts(
+    jobs: readonly {
+      readonly id: string;
+      readonly title: string;
+      readonly status: string;
+      readonly workerAgentId?: string;
+      readonly progress?: { readonly phase?: string };
+    }[],
+  ): boolean {
+    let changed = false;
+    const wanted = new Set<string>();
+    const nowMs = this.now();
+    for (const job of jobs) {
+      if (
+        job.status !== 'interrupted' &&
+        job.status !== 'queued' &&
+        job.status !== 'running'
+      ) {
+        continue;
+      }
+      const ghostId = `job-ghost:${job.id}`;
+      if (
+        job.workerAgentId !== undefined &&
+        job.workerAgentId.length > 0 &&
+        this.workers.has(job.workerAgentId)
+      ) {
+        if (this.workers.delete(ghostId)) changed = true;
+        continue;
+      }
+      wanted.add(ghostId);
+      const status: MissionWorkerStatus =
+        job.status === 'running' ? 'finishing' : 'suspended';
+      const description =
+        job.status === 'running'
+          ? 'Resuming…'
+          : job.status === 'queued'
+            ? 'Queued after resume…'
+            : 'Interrupted — resuming…';
+      const phase = job.progress?.phase?.trim();
+      const existing = this.workers.get(ghostId);
+      if (existing !== undefined) {
+        existing.status = status;
+        existing.name = job.title.slice(0, 80);
+        existing.description = phase && phase.length > 0 ? phase : description;
+        existing.lastActivityAtMs = nowMs;
+        changed = true;
+        continue;
+      }
+      this.workers.set(ghostId, {
+        id: ghostId,
+        name: job.title.slice(0, 80),
+        kind: 'subagent',
+        status,
+        description: phase && phase.length > 0 ? phase : description,
+        runInBackground: true,
+        toolCount: 0,
+        tokens: 0,
+        spawnedAtMs: nowMs,
+        lastActivityAtMs: nowMs,
+      });
+      changed = true;
+    }
+    for (const id of [...this.workers.keys()]) {
+      if (!id.startsWith('job-ghost:') || wanted.has(id)) continue;
+      this.workers.delete(id);
+      changed = true;
+    }
+    return changed ? this.bump() : false;
+  }
+
   /** Feed one session event; returns true when the roster projection changed. */
   apply(event: Event): boolean {
     switch (event.type) {

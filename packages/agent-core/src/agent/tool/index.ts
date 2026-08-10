@@ -25,6 +25,7 @@ import type {
   UserToolRegistration,
 } from './types';
 import { resolveToolHelpVisibility } from './help-visibility';
+import { scheduleJobLedgerCrashMirror } from '../../tools/builtin/job/job-crash-mirror';
 
 export * from './types';
 export {
@@ -104,6 +105,9 @@ export class ToolManager {
         key,
         value,
       });
+    }
+    if (key === 'job_ledger' && !this.agent.records.restoring) {
+      scheduleJobLedgerCrashMirror(this.toolStore);
     }
   }
 

@@ -221,6 +221,8 @@ const ConductorConfigFileSchema = z
     project_mode: ConductorProjectModeSchema.optional(),
     transcript_region_mode: TranscriptRegionModeSchema.optional(),
     timeline_defaulted: z.boolean().optional(),
+    /** When true (default), resume auto-relaunches safe interrupted jobs. */
+    auto_resume_fleet: z.boolean().optional(),
   })
   .optional();
 
@@ -257,6 +259,11 @@ export const ConductorPreferencesSchema = z.object({
   transcriptRegionMode: TranscriptRegionModeSchema,
   /** One-shot: auto-switched to timeline when jobs appeared under conductor. */
   timelineDefaulted: z.boolean(),
+  /**
+   * After crash/resume, auto-requeue safe interrupted jobs (implement/explore/…).
+   * Merge/push/needs_user/blocked stay held. Opt out with false.
+   */
+  autoResumeFleet: z.boolean(),
 });
 
 export const TuiConfigSchema = z.object({
@@ -302,7 +309,19 @@ export const DEFAULT_CONDUCTOR_PREFERENCES: ConductorPreferences = {
   projectMode: 'balanced',
   transcriptRegionMode: 'chat',
   timelineDefaulted: false,
+  autoResumeFleet: true,
 };
+
+/** Env read by agent-core `recoverJobsAfterResume` / `isAutoResumeFleetEnabled`. */
+export const SUPERLIORA_CONDUCTOR_AUTO_RESUME_FLEET_ENV =
+  'SUPERLIORA_CONDUCTOR_AUTO_RESUME_FLEET';
+
+/** Mirror the TUI pref into process env before session resume. */
+export function applyAutoResumeFleetEnv(prefs: ConductorPreferences): void {
+  process.env[SUPERLIORA_CONDUCTOR_AUTO_RESUME_FLEET_ENV] = prefs.autoResumeFleet
+    ? '1'
+    : '0';
+}
 
 export const DEFAULT_UPGRADE_PREFERENCES: UpgradePreferences = {
   autoInstall: true,
@@ -556,6 +575,9 @@ export function normalizeTuiConfig(config: TuiConfigFileShape): TuiConfig {
       timelineDefaulted:
         config.conductor?.timeline_defaulted ??
         DEFAULT_CONDUCTOR_PREFERENCES.timelineDefaulted,
+      autoResumeFleet:
+        config.conductor?.auto_resume_fleet ??
+        DEFAULT_CONDUCTOR_PREFERENCES.autoResumeFleet,
     },
   });
 }
@@ -676,6 +698,7 @@ job_deck_hint_seen = ${String(onboarding.jobDeckHintSeen)} # true skips first-ru
 project_mode = "${conductor.projectMode}" # "balanced" | "greenfield" | "hotfix" | "review"
 transcript_region_mode = "${conductor.transcriptRegionMode}" # "chat" | "timeline"
 timeline_defaulted = ${String(conductor.timelineDefaulted)} # true after one-shot timeline default
+auto_resume_fleet = ${String(conductor.autoResumeFleet)} # true auto-relaunches safe jobs after crash/resume
 `;
 }
 

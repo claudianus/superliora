@@ -134,6 +134,8 @@ export function patchJob(
       | 'worktreePath'
       | 'worktreeBranch'
       | 'workerAgentId'
+      | 'workerResumeAgentId'
+      | 'workerCheckpointAt'
       | 'resultSummary'
       | 'resultContract'
       | 'landReceipt'

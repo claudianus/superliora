@@ -125,10 +125,14 @@ function inboxStatus(entry: ConductorJobInboxEntry): ConductorJobCard['status'] 
     case 'job.completed':
       return 'done';
     case 'job.interrupted':
+    case 'recovery.held':
+    case 'recovery.reattach_failed':
       return 'interrupted';
     case 'job.failed':
       return 'failed';
     case 'job.cancelled':
       return 'cancelled';
+    case 'recovery.auto_resumed':
+      return 'queued';
   }
 }

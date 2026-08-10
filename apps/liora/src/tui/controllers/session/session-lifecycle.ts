@@ -72,6 +72,7 @@ export interface SessionLifecycleHost extends PromptInputRuntimeHost {
   readonly transcriptRender: TranscriptRenderController;
   readonly reverseRpcPanels: { clearReverseRpcPanels(): void; cancelPendingReverseRpc(reason: string): void };
   readonly controlTowerDesk?: import('../../features/control-tower/job-desk-events').ControlTowerJobDesk;
+  readonly missionControl?: import('../mission-control/controller').MissionControlController;
 
   setAppState(patch: Partial<AppState>): void;
   updateTerminalTitle(): void;

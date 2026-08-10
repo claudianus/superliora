@@ -36,15 +36,39 @@ export class MissionControlController {
     this.pushView();
   }
 
+  /**
+   * After resume, seed ghost workers from the job ledger so the Dock shows
+   * Resuming… rows before live subagent events arrive.
+   */
+  hydrateGhostsFromJobs(
+    jobs: ReturnType<typeof emptyConductorJobsSnapshot> | {
+      readonly jobs: readonly {
+        readonly id: string;
+        readonly title: string;
+        readonly status: string;
+        readonly workerAgentId?: string;
+        readonly progress?: { readonly phase?: string };
+      }[];
+    },
+  ): void {
+    if (this.registry.hydrateJobGhosts(jobs.jobs)) {
+      this.pushView();
+      return;
+    }
+    this.pushView();
+  }
+
   /** Compose the latest view into the panel and invalidate the frame. */
   pushView(): void {
     const { state } = this.host;
     const panel = state.missionControlPanel;
     const wasEmpty = panel.isEmpty();
     const workDir = state.appState.workDir || process.cwd();
+    const jobs = state.appState.conductorJobs ?? emptyConductorJobsSnapshot();
+    this.registry.hydrateJobGhosts(jobs.jobs);
     panel.setView({
       snapshot: this.registry.snapshot(),
-      jobs: state.appState.conductorJobs ?? emptyConductorJobsSnapshot(),
+      jobs,
       workDir,
     });
     if (panel.isEmpty() !== wasEmpty) {

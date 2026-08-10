@@ -4,6 +4,7 @@
  */
 
 import {
+  applyAutoResumeFleetEnv,
   DEFAULT_CONDUCTOR_PREFERENCES,
   saveTuiConfig,
   type ConductorPreferences,
@@ -186,4 +187,22 @@ export function maybeDefaultTimelineOnce(host: ConductorUxHost): void {
   syncTranscriptRegion(host);
   void saveTuiConfig(tuiConfigFromHost(host, { conductor })).catch(() => {});
   host.showStatus(ttui('tui.conductor.timeline'), 'info');
+}
+
+/** Persist + env-sync fleet autopilot after crash/resume. */
+export function setAutoResumeFleet(host: ConductorUxHost, enabled: boolean): void {
+  const previous = host.state.appState.conductor ?? DEFAULT_CONDUCTOR_PREFERENCES;
+  const conductor: ConductorPreferences = {
+    ...previous,
+    autoResumeFleet: enabled,
+  };
+  applyAutoResumeFleetEnv(conductor);
+  host.setAppState?.({ conductor });
+  void saveTuiConfig(tuiConfigFromHost(host, { conductor })).catch(() => {});
+  host.showStatus(
+    enabled
+      ? 'Fleet auto-resume ON — safe jobs relaunch after crash'
+      : 'Fleet auto-resume OFF — use /job resume after crash',
+    'info',
+  );
 }

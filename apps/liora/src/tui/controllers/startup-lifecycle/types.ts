@@ -62,6 +62,7 @@ export interface StartupLifecycleHost extends PromptInputRuntimeHost {
   readonly tasksBrowserController: TasksBrowserController;
   readonly jobBoardController: { openDeck(jobId?: string): void };
   readonly controlTowerDesk?: import('../../features/control-tower/job-desk-events').ControlTowerJobDesk;
+  readonly missionControl?: import('../mission-control/controller').MissionControlController;
   openJobInbox?(): void;
   readonly promptIntelligence: PromptIntelligenceController;
   readonly dialogs: DialogsController;

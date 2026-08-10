@@ -33,7 +33,8 @@ import type { SessionSubagentHost } from '../session/subagent/subagent-host';
 import { noopTelemetryClient, type TelemetryClient } from '../telemetry';
 import type { SandboxProfile } from '../tools/policies/path-access';
 import type { PromisableMethods } from '../utils/types';
-import { reconcileStaleRunningJobs } from '../tools/builtin/job/job-worker';
+import { bindJobLedgerCrashMirror } from '../tools/builtin/job/job-crash-mirror';
+import { recoverJobsAfterResume } from '../tools/builtin/job/job-recovery';
 import { BackgroundManager, BackgroundTaskPersistence } from './background';
 import { CacheFreezeGuard } from './cache';
 import { ToolParallelStatus } from '../loop/tool-parallel-status';
@@ -328,6 +329,9 @@ export class Agent {
     this.usage = new UsageRecorder(this);
     this.skills = options.skills ? new SkillManager(this, options.skills) : null;
     this.tools = new ToolManager(this);
+    if (this.type === 'main' && this.homedir !== undefined) {
+      bindJobLedgerCrashMirror(this.tools.getStore(), this.homedir);
+    }
     this.background = new BackgroundManager(
       this,
       this.homedir === undefined ? undefined : new BackgroundTaskPersistence(this.homedir),
@@ -450,14 +454,15 @@ export class Agent {
       await this.background.loadFromDisk();
       await this.background.reconcile();
       // Hard kills skip session.close interrupt; ledger can still say running.
+      // Crash-mirror merge + safe-kind fleet autopilot live in recoverJobsAfterResume.
       if (this.type === 'main') {
         try {
-          reconcileStaleRunningJobs({
+          await recoverJobsAfterResume({
             store: this.tools.getStore(),
             agent: this,
           });
         } catch {
-          // Best-effort — resume must not fail on ledger reconcile.
+          // Best-effort — resume must not fail on ledger recovery.
         }
       }
       await this.cron?.loadFromDisk();

@@ -124,6 +124,12 @@ export function actionHintsForInboxKind(kind: JobInboxEventKind): readonly strin
       return ['jobInspect'];
     case 'job.completed':
       return ['jobMerge', 'jobPush', 'jobInspect'];
+    case 'recovery.auto_resumed':
+      return ['jobInspect'];
+    case 'recovery.held':
+      return ['jobInspect', 'jobResume', 'jobCancel'];
+    case 'recovery.reattach_failed':
+      return ['jobInspect', 'jobResume'];
   }
 }
 

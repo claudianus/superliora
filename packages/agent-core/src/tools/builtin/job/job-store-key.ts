@@ -114,6 +114,14 @@ export interface JobRecord {
   /** Branch created for the job worktree (`liora/…`); land prefers this over HEAD. */
   readonly worktreeBranch?: string;
   readonly workerAgentId?: string;
+  /**
+   * Last worker agent id kept across interrupt so crash recovery can try
+   * `host.resume` before cold spawn. Distinct from live `workerAgentId` only
+   * when a relaunch overwrites the live id after a failed reattach.
+   */
+  readonly workerResumeAgentId?: string;
+  /** ISO timestamp when `workerResumeAgentId` was last bound to a live worker. */
+  readonly workerCheckpointAt?: string;
   /** Goal-driver binding (spec 2026-08-04-goal-driver-jobs): the goal the driver worker pursues. */
   readonly goalId?: string;
   readonly goalObjective?: string;
