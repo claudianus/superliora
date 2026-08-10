@@ -591,6 +591,31 @@ describe('LioraTUI startup', () => {
     expect(driver.state.appState.goal).toBeNull();
   });
 
+  it('skips worktree GC on interactive shutdown close', async () => {
+    const jobGcWorktrees = vi.fn(async () => ({ removed: 1, kept: 0 }));
+    const session = makeSession({ jobGcWorktrees });
+    const harness = makeHarness(session);
+    const driver = makeDriver(harness, makeStartupInput()) as unknown as RuntimeStateDriver;
+
+    await expect(driver.init()).resolves.toBe(false);
+    await driver.closeSession('shutting down');
+
+    expect(jobGcWorktrees).not.toHaveBeenCalled();
+    expect(session.close).toHaveBeenCalledOnce();
+  });
+
+  it('applies worktree GC when closing a session outside shutdown', async () => {
+    const jobGcWorktrees = vi.fn(async () => ({ removed: 1, kept: 0 }));
+    const session = makeSession({ jobGcWorktrees });
+    const harness = makeHarness(session);
+    const driver = makeDriver(harness, makeStartupInput()) as unknown as RuntimeStateDriver;
+
+    await expect(driver.init()).resolves.toBe(false);
+    await driver.closeSession('switch session');
+
+    expect(jobGcWorktrees).toHaveBeenCalledWith({ dryRun: false });
+  });
+
   it('passes the CLI model override when creating a fresh startup session', async () => {
     const harness = makeHarness();
     const driver = makeDriver(harness, makeStartupInput({ model: 'kimi-code/k2.5' }));

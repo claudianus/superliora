@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { TUI_CLEANUP_TIMEOUT_MS } from '#/constant/app';
 import { LioraTUI, type LioraTUIStartupInput, type TUIState } from '#/tui/liora-tui';
 
 interface SignalDriver {
@@ -324,6 +325,36 @@ describe('LioraTUI signal handlers', () => {
     expect(uiStop).toHaveBeenCalledOnce();
     expect(tui.onExit).toHaveBeenCalledOnce();
     expect(events).toEqual(['drain', 'ui.stop', 'exit']);
+  });
+
+  it('stop() returns the terminal before a hung closeSession completes', async () => {
+    vi.useFakeTimers();
+    try {
+      const { driver, tui } = makeDriver();
+      const events: string[] = [];
+      vi.spyOn(driver.state.terminal, 'drainInput').mockImplementation(async () => {
+        events.push('drain');
+      });
+      vi.spyOn(driver.state.ui, 'stop').mockImplementation(() => {
+        events.push('ui.stop');
+      });
+      vi.spyOn(tui, 'closeSession').mockImplementation(() => new Promise(() => {}));
+      tui.onExit = vi.fn(async () => {
+        events.push('exit');
+      });
+
+      const stopPromise = tui.stop();
+      await vi.advanceTimersByTimeAsync(50);
+      expect(events).toEqual(['drain', 'ui.stop']);
+
+      await vi.advanceTimersByTimeAsync(TUI_CLEANUP_TIMEOUT_MS);
+      await stopPromise;
+
+      expect(events).toEqual(['drain', 'ui.stop', 'exit']);
+      expect(tui.onExit).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('start() unregisters signal handlers when initialization throws', async () => {

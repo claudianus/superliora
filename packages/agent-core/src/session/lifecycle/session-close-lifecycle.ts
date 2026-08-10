@@ -13,6 +13,8 @@ import { abortError } from '../../utils/abort';
 
 const BACKGROUND_KEEP_ALIVE_ON_EXIT_ENV = 'SUPERLIORA_BACKGROUND_KEEP_ALIVE_ON_EXIT';
 export const ACTIVE_TURN_CLOSE_TIMEOUT_MS = 8_000;
+/** Bound waiting for background task terminals during session close. Abort still runs. */
+export const BACKGROUND_STOP_ON_EXIT_TIMEOUT_MS = 2_000;
 
 type AgentEntry = Agent | Promise<{ readonly agent: Agent; readonly warning?: string }>;
 
@@ -114,18 +116,26 @@ export class SessionCloseLifecycle {
         }
       }),
     );
-    await Promise.all(
-      resolved.map(async (agent) => {
-        if (agent === undefined) return;
-        const activeTasks = agent.background.list(true);
-        await Promise.all(
-          activeTasks.map((task) =>
-            agent.background.suppressTerminalNotification(task.taskId),
-          ),
-        );
-        await agent.background.stopAll('Session closed');
-      }),
+    const stopped = await waitForSettlementOrTimeout(
+      Promise.all(
+        resolved.map(async (agent) => {
+          if (agent === undefined) return;
+          const activeTasks = agent.background.list(true);
+          await Promise.all(
+            activeTasks.map((task) =>
+              agent.background.suppressTerminalNotification(task.taskId),
+            ),
+          );
+          await agent.background.stopAll('Session closed');
+        }),
+      ),
+      BACKGROUND_STOP_ON_EXIT_TIMEOUT_MS,
     );
+    if (!stopped) {
+      this.opts.log.warn('timed out waiting for background tasks to stop during session close', {
+        timeoutMs: BACKGROUND_STOP_ON_EXIT_TIMEOUT_MS,
+      });
+    }
   }
 
   private activeBackgroundAgentIds(): Set<string> {
