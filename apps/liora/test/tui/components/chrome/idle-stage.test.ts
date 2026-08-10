@@ -513,8 +513,8 @@ describe('IdleStageComponent', () => {
       });
       expect(lines.length).toBe(20);
       const joined = strip(lines.join('\n'));
-      // Premium title may shimmer spaces into particle glyphs (jewel◦tank).
-      expect(joined).toMatch(/jewel[\s◦·∙•*]tank/i);
+      // Title is now a neutral aquarium label (no poetic shimmer).
+      expect(joined).toMatch(/aquarium/i);
       expect(joined).toMatch(/tip · /i);
       // Story scene: fish / bubbles / plants / water glyphs.
       expect(joined).toMatch(/[·∙•◦*⋆˚+.✧~≈<>°oO)(|/\\]/);
@@ -661,7 +661,7 @@ describe('IdleStageComponent', () => {
         preferredRows: 20,
       });
       const plain = lines.map(strip);
-      const titleIdx = plain.findIndex((line) => /jewel[\s◦·∙•*]tank/i.test(line));
+      const titleIdx = plain.findIndex((line) => /aquarium/i.test(line));
       expect(titleIdx).toBeGreaterThanOrEqual(0);
       // Title is first chrome line (no drift rail above it), or only blank/story above.
       if (titleIdx > 0) {
