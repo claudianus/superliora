@@ -529,7 +529,7 @@ describe('job multi-intent split', () => {
       ],
       // staff defaults true for explore — do not pass staff:false
     });
-    if (exec.isError) throw new Error(`resolve failed: ${exec.output}`);
+    if (exec.isError) throw new Error(`resolve failed: ${String(exec.output)}`);
     const out = await exec.execute({
       turnId: 't',
       toolCallId: 'c-false-split',
@@ -551,7 +551,7 @@ describe('job multi-intent split', () => {
       auto_split: true,
       success_criteria: ['each independent intent is completed and verified'],
     });
-    if (exec.isError) throw new Error(`resolve failed: ${exec.output}`);
+    if (exec.isError) throw new Error(`resolve failed: ${String(exec.output)}`);
     const out = await exec.execute({
       turnId: 't',
       toolCallId: 'c-true-split',

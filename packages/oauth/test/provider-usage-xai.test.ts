@@ -45,7 +45,7 @@ describe('fetchXaiGrokUsage', () => {
     const [url, init] = spy.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe(`${XAI_GROK_API_BASE_URL}/models`);
     const headers = init.headers as Record<string, string>;
-    expect(headers.Authorization).toBe('Bearer test-token');
+    expect(headers['Authorization']).toBe('Bearer test-token');
     expect(headers['X-XAI-Token-Auth']).toBeUndefined();
     expect(headers['x-grok-client-version']).toBeUndefined();
   });

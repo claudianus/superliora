@@ -1301,7 +1301,7 @@ describe('harness panel and tools inventory', () => {
         'managed:kimi-api': { type: 'openai', apiKey: 'test-key' },
       },
     });
-    host.harness.setConfig.mockImplementation(async (patch: unknown) => patch);
+    host.harness.setConfig.mockResolvedValue(undefined);
     await showLoopModelRoutingPicker(host);
     const [routingPicker] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void },
