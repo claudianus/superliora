@@ -1,5 +1,19 @@
 # @superliora/liora
 
+## 0.4.0
+
+### Minor Changes
+
+- Smart Auto skips retired or probe-failed model aliases, fails over on model-not-found errors, and ranks fresher models using models.dev data. Pin the session model to `auto` to use it.
+- Worker Dock: open transcripts with hover chrome that uses a distinct pad (·) so selection keeps a single ❯ cursor; densemode reserves a fixed gutter so columns stay aligned.
+
+### Patch Changes
+
+- Skip exhausted Qwen/Alibaba token-plan providers in worker model routing and when pinning Smart Auto loop roles.
+- Stop interactive `/exit` from hanging when MCP or background cleanup stalls.
+- Start the TUI on Neon Noir at module load so upgrades no longer flash or stick on bare dark before preferences apply.
+- Stop background compaction from cancelling on Conductor inject/steer append-only churn; scale the worker deadline with context size; stop compaction progress from resizing the transcript on every stream tick.
+
 ## 0.3.1
 
 ### Patch Changes
