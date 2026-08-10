@@ -183,7 +183,8 @@ async function writeAsideSidecarBlock(deps: BrowserUseCommandDeps): Promise<void
 }
 
 function resolveAsideContext(deps: BrowserUseCommandDeps): AsideSidecarContext {
-  return deps.asideContext?.() ?? { cwd: deps.cwd() };
+  if (deps.asideContext) return deps.asideContext();
+  return { cwd: deps.cwd?.() ?? process.cwd() };
 }
 
 async function runBrowserUseCommand(
