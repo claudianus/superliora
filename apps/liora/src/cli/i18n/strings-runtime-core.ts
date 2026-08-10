@@ -91,6 +91,11 @@ export const STRINGS_RUNTIME_CORE_EN: Readonly<Record<string, string>> = {
   'cli.runtime.browserUse.doctorPassed': 'Browser-use doctor passed.',
   'cli.runtime.browserUse.actionFailed':
     'Browser-use {action} failed. Retry with `{command}`.',
+  'cli.runtime.browserUse.aside.enabled':
+    'Aside MCP registered: {command} mcp → {path}. Reload the session or /mcp to connect.',
+  'cli.runtime.browserUse.aside.disabled': 'Aside MCP removed from {path}.',
+  'cli.runtime.browserUse.aside.notRegistered':
+    'Aside MCP was not registered in {path}.',
 
   // computer-use
   'cli.runtime.computerUse.autoInstallFailed':
@@ -316,6 +321,11 @@ export const STRINGS_RUNTIME_CORE_KO: Readonly<Record<string, string>> = {
   'cli.runtime.browserUse.doctorPassed': 'Browser-use doctor 통과.',
   'cli.runtime.browserUse.actionFailed':
     'Browser-use {action} 실패. `{command}`(으)로 다시 시도하세요.',
+  'cli.runtime.browserUse.aside.enabled':
+    'Aside MCP 등록됨: {command} mcp → {path}. 세션을 다시 열거나 /mcp로 연결하세요.',
+  'cli.runtime.browserUse.aside.disabled': '{path}에서 Aside MCP를 제거했습니다.',
+  'cli.runtime.browserUse.aside.notRegistered':
+    '{path}에 Aside MCP가 등록되어 있지 않습니다.',
 
   'cli.runtime.computerUse.autoInstallFailed':
     'Computer-use 자동 설치 실패. `liora computer-use install`로 다시 시도하세요.',

@@ -1,7 +1,7 @@
 /**
  * Pure helpers + thin loaders for Harness "eyes" readiness
- * (browser-use / computer-use runtimes). Formatting is pure for tests;
- * loaders call @superliora/gui-use setup/status APIs.
+ * (browser-use / computer-use runtimes + optional Aside MCP sidecar).
+ * Formatting is pure for tests; loaders call setup/status APIs.
  */
 
 import {
@@ -10,8 +10,14 @@ import {
   type SetupCommandResult,
 } from '@superliora/gui-use';
 
+import {
+  ASIDE_INSTALL_HINT,
+  loadAsideSidecarStatus,
+  type AsideSidecarStatus,
+} from '#/utils/aside/aside-sidecar';
+
 export type HarnessEyeLine = {
-  readonly id: 'browser-use' | 'computer-use';
+  readonly id: 'browser-use' | 'computer-use' | 'aside-sidecar';
   readonly ok: boolean;
   readonly title: string;
   readonly detail: string;
@@ -41,6 +47,7 @@ export function formatHarnessEyesReadiness(
     ...body,
     '',
     'Agent tools: BrowserStatus / ComputerStatus when runtimes are wired into the session.',
+    'Optional: Aside MCP for logged-in / private browser evidence (`liora browser-use aside enable`).',
     'CLI: `liora browser-use doctor` · `liora computer-use doctor`',
   ].join('\n');
 }
@@ -83,17 +90,66 @@ export function computerEyeFromCuaStatus(status: {
   };
 }
 
+/** Optional sidecar — MISSING does not fail harness eyes overall. */
+export function asideEyeFromSidecarStatus(status: AsideSidecarStatus): HarnessEyeLine {
+  if (status.ready) {
+    return {
+      id: 'aside-sidecar',
+      ok: true,
+      title: 'Aside MCP sidecar',
+      detail: truncate(`CLI ${status.cliPath ?? '?'} · mcp.json enabled`, 200),
+      hint: 'Use mcp__aside__* for logged-in / private page evidence when the session MCP is connected.',
+    };
+  }
+
+  if (status.cliPath === undefined) {
+    return {
+      id: 'aside-sidecar',
+      ok: false,
+      title: 'Aside MCP sidecar',
+      detail: 'Aside CLI not found (optional).',
+      hint: `Install Aside CLI (${ASIDE_INSTALL_HINT}), then run \`liora browser-use aside enable\`.`,
+    };
+  }
+
+  if (!status.mcpEnabled) {
+    return {
+      id: 'aside-sidecar',
+      ok: false,
+      title: 'Aside MCP sidecar',
+      detail: truncate(`CLI found (${status.cliPath}); MCP not enabled in user mcp.json`, 200),
+      hint: 'Run `liora browser-use aside enable`, then reload the session or /mcp.',
+    };
+  }
+
+  return {
+    id: 'aside-sidecar',
+    ok: false,
+    title: 'Aside MCP sidecar',
+    detail: 'Aside sidecar not ready (optional).',
+    hint: 'Run `liora browser-use aside enable`.',
+  };
+}
+
 export async function loadHarnessEyesReadiness(options: {
   readonly packageRoot: string;
+  readonly cwd?: string | undefined;
 }): Promise<HarnessEyesReadinessReport> {
   const browser = await infoBrowserUseRuntimes({
     packageRoot: options.packageRoot,
     quiet: true,
   });
   const computer = statusCuaDriver();
+  const aside = await loadAsideSidecarStatus({
+    cwd: options.cwd ?? process.cwd(),
+  });
   return {
     generatedAt: new Date().toISOString(),
-    lines: [browserEyeFromSetupResult(browser), computerEyeFromCuaStatus(computer)],
+    lines: [
+      browserEyeFromSetupResult(browser),
+      computerEyeFromCuaStatus(computer),
+      asideEyeFromSidecarStatus(aside),
+    ],
   };
 }
 
