@@ -567,7 +567,7 @@ describe('IdleStageComponent', () => {
         preferredRows: 16,
       }).join('\n'),
     );
-    expect(joined).toContain('보석 수조');
+    expect(joined).toContain('aquarium');
   });
 
   it('treats welcome as empty chrome, not real content', () => {
