@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { isGenerateVideoAvailable } from '../../src/tools/builtin/media/generate-video';
+import {
+  isGenerateVideoAvailable,
+  selectVideoGenerationProvider,
+} from '../../src/tools/builtin/media/generate-video';
 
 describe('GenerateVideo availability', () => {
   it('is available when QWEN_TOKEN_PLAN_API_KEY is set', () => {
@@ -13,6 +16,19 @@ describe('GenerateVideo availability', () => {
 
   it('is not available without any key', () => {
     expect(isGenerateVideoAvailable({})).toBe(false);
+  });
+
+  it('falls back to auto when a forced provider is missing', () => {
+    expect(
+      selectVideoGenerationProvider('qwen', {
+        xaiApiKey: 'xai-test',
+        googleApiKey: 'google-test',
+      }),
+    ).toEqual({ provider: 'xai', fellBackFrom: 'qwen' });
+    expect(selectVideoGenerationProvider('google', { xaiApiKey: 'xai-test' })).toEqual({
+      provider: 'xai',
+      fellBackFrom: 'google',
+    });
   });
 
   it('skips env fallbacks for extras services switched off in Settings', () => {

@@ -67,7 +67,7 @@ export const GenerateVideoInputSchema = z.object({
     .enum(['auto', 'xai', 'google', 'qwen'])
     .optional()
     .describe(
-      'Force a provider. Default auto picks the first available (xai Grok Build → qwen → google).',
+      'Prefer auto. Force only a ready backend (xai → qwen → google). Unavailable force falls back to auto — do not guess qwen/google.',
     ),
 });
 
@@ -91,34 +91,60 @@ function extrasAllows(env: GenerateVideoProviderEnv, id: string): boolean {
   return !(env.extrasDisabled ?? []).includes(id);
 }
 
-export function isGenerateVideoAvailable(env: GenerateVideoProviderEnv = {}): boolean {
-  return resolveVideoProvider('auto', env) !== undefined;
+/** Ready backends in auto-route priority (xai → qwen → google). */
+export function listReadyVideoGenerationProviders(
+  env: GenerateVideoProviderEnv = {},
+): VideoGenerationProvider[] {
+  const ready: VideoGenerationProvider[] = [];
+  const xaiEnv = extrasAllows(env, 'xai-grok') ? process.env['XAI_API_KEY'] : undefined;
+  if (env.xaiGrokBuild !== undefined || nonEmpty(env.xaiApiKey ?? xaiEnv) !== undefined) {
+    ready.push('xai');
+  }
+  if (
+    nonEmpty(
+      env.qwenTokenPlanApiKey ??
+        (extrasAllows(env, 'qwen-token-plan')
+          ? process.env['QWEN_TOKEN_PLAN_API_KEY'] ?? process.env['ALIBABA_TOKEN_PLAN_API_KEY']
+          : undefined),
+    ) !== undefined
+  ) {
+    ready.push('qwen');
+  }
+  if (
+    nonEmpty(env.googleApiKey ?? process.env['GOOGLE_API_KEY'] ?? process.env['GEMINI_API_KEY']) !==
+    undefined
+  ) {
+    ready.push('google');
+  }
+  return ready;
 }
 
-function resolveVideoProvider(
+export interface VideoProviderSelection {
+  readonly provider: VideoGenerationProvider | undefined;
+  readonly fellBackFrom?: VideoGenerationProvider;
+}
+
+/** Forced ids that are not ready fall back to auto (same contract as GenerateImage). */
+export function selectVideoGenerationProvider(
   preferred: 'auto' | VideoGenerationProvider | undefined,
   env: GenerateVideoProviderEnv = {},
-): VideoGenerationProvider | undefined {
-  const xaiEnv = extrasAllows(env, 'xai-grok') ? process.env['XAI_API_KEY'] : undefined;
-  const xaiReady =
-    env.xaiGrokBuild !== undefined || nonEmpty(env.xaiApiKey ?? xaiEnv) !== undefined;
-  const qwen = nonEmpty(
-    env.qwenTokenPlanApiKey ??
-      (extrasAllows(env, 'qwen-token-plan')
-        ? process.env['QWEN_TOKEN_PLAN_API_KEY'] ?? process.env['ALIBABA_TOKEN_PLAN_API_KEY']
-        : undefined),
-  );
-  const google = nonEmpty(
-    env.googleApiKey ?? process.env['GOOGLE_API_KEY'] ?? process.env['GEMINI_API_KEY'],
-  );
-  if (preferred === 'xai') return xaiReady ? 'xai' : undefined;
-  if (preferred === 'qwen') return qwen !== undefined ? 'qwen' : undefined;
-  if (preferred === 'google') return google !== undefined ? 'google' : undefined;
-  // Auto priority: xAI Grok Build subscription → qwen → google
-  if (xaiReady) return 'xai';
-  if (qwen !== undefined) return 'qwen';
-  if (google !== undefined) return 'google';
-  return undefined;
+): VideoProviderSelection {
+  const ready = listReadyVideoGenerationProviders(env);
+  if (ready.length === 0) {
+    return {
+      provider: undefined,
+      ...(preferred !== undefined && preferred !== 'auto' ? { fellBackFrom: preferred } : {}),
+    };
+  }
+  if (preferred === undefined || preferred === 'auto') {
+    return { provider: ready[0] };
+  }
+  if (ready.includes(preferred)) return { provider: preferred };
+  return { provider: ready[0], fellBackFrom: preferred };
+}
+
+export function isGenerateVideoAvailable(env: GenerateVideoProviderEnv = {}): boolean {
+  return listReadyVideoGenerationProviders(env).length > 0;
 }
 
 export class GenerateVideoTool implements BuiltinTool<GenerateVideoInput> {
@@ -159,12 +185,17 @@ export class GenerateVideoTool implements BuiltinTool<GenerateVideoInput> {
     safePath: string,
     displayPath: string,
   ): Promise<ExecutableToolResult> {
-    const provider = resolveVideoProvider(args.provider ?? 'auto', this.env);
+    const selection = selectVideoGenerationProvider(args.provider ?? 'auto', this.env);
+    const provider = selection.provider;
     if (provider === undefined) {
+      const requested =
+        selection.fellBackFrom !== undefined
+          ? ` Requested provider=${selection.fellBackFrom} is not ready.`
+          : '';
       return {
         isError: true,
         output:
-          'No video-generation provider found. Sign in with xAI Grok (/login), or set XAI_API_KEY / QWEN_TOKEN_PLAN_API_KEY / GOOGLE_API_KEY, then retry. Check readiness with /status.',
+          `No video-generation provider found.${requested} Sign in with xAI Grok (/login), or set XAI_API_KEY / QWEN_TOKEN_PLAN_API_KEY / GOOGLE_API_KEY, then retry. Check readiness with /status.`,
       };
     }
 
@@ -181,9 +212,18 @@ export class GenerateVideoTool implements BuiltinTool<GenerateVideoInput> {
             ? await generateWithQwenVideo(args, this.kaos, this.workspace, this.env)
             : await generateWithGeminiOmni(args, this.kaos, this.workspace, this.env);
       await this.kaos.writeBytes(safePath, generated.bytes);
+      const label =
+        provider === 'xai'
+          ? 'xai'
+          : provider === 'qwen'
+            ? 'qwen (happyhorse)'
+            : 'google (gemini-omni-flash-preview)';
       return {
         output: [
-          `Generated video with ${provider === 'qwen' ? 'qwen (happyhorse)' : 'google (gemini-omni-flash-preview)'}.`,
+          `Generated video with ${label}.`,
+          selection.fellBackFrom !== undefined
+            ? `Note: provider=${selection.fellBackFrom} was not ready; fell back to auto → ${provider}. Prefer provider=auto next time.`
+            : undefined,
           `Path: ${displayPath}`,
           `Bytes: ${String(generated.bytes.byteLength)}`,
           `MIME: ${generated.mimeType}`,
