@@ -35,6 +35,7 @@ import type {
   GetConfigOptions,
   LioraConfig,
   LioraConfigPatch,
+  SmartLoopRoleRoutingPlan,
   ProviderRouteStatus,
   CompactOptions,
   RefineOptions,
@@ -141,6 +142,12 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
   async deleteConfigFields(paths: readonly DeleteConfigFieldPath[]): Promise<LioraConfig> {
     const rpc = await this.getRpc();
     return rpc.deleteConfigFields({ paths });
+  }
+
+  /** Settings Smart auto — live-probe role chains; does not write config. */
+  async planSmartLoopRoleRouting(): Promise<SmartLoopRoleRoutingPlan> {
+    const rpc = await this.getRpc();
+    return rpc.planSmartLoopRoleRouting({});
   }
 
   async removeProvider(providerId: string): Promise<LioraConfig> {

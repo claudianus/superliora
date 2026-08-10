@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { ROLE_PRESETS } from '@superliora/sdk';
 import { sharedCredentialHealthStore } from '@superliora/oauth';
 
 import {
@@ -53,6 +54,13 @@ const MIXED_PROVIDERS = {
 };
 
 describe('loop model routing', () => {
+  it('covers every ROLE_PRESETS role exactly once', () => {
+    const presetRoles = ROLE_PRESETS.map((preset) => preset.role).toSorted();
+    const uiRoles = LOOP_MODEL_ROUTING_ROLES.map((role) => role.key).toSorted();
+    expect(uiRoles).toEqual(presetRoles);
+    expect(new Set(uiRoles).size).toBe(uiRoles.length);
+  });
+
   it('maps exactly six loop roles to their explicit override state', () => {
     const rows = loopModelRoutingRows({
       loopControl: {

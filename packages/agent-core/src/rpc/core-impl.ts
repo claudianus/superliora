@@ -27,7 +27,12 @@ import {
   type TelemetryClient,
 } from '../telemetry';
 import type { CoreRPCClient } from './client';
-import type { CoreAPI, CoreInfo } from './core-api';
+import type {
+  CoreAPI,
+  CoreInfo,
+  EmptyPayload,
+  PlanSmartLoopRoleRoutingResult,
+} from './core-api';
 import type { SDKRPC } from './sdk-api';
 import type { Kaos } from '@superliora/kaos';
 import type { SessionMcpConfig } from '../mcp';
@@ -218,6 +223,22 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   setKimiConfig = delegateContextMethod(configMethods.setKimiConfig);
   deleteConfigFields = delegateContextMethod(configMethods.deleteConfigFields);
   removeKimiProvider = delegateContextMethod(configMethods.removeKimiProvider);
+
+  /** Settings Smart auto — needs private OAuth resolver; do not delegateContextMethod. */
+  planSmartLoopRoleRouting = (
+    input?: EmptyPayload,
+  ): Promise<PlanSmartLoopRoleRoutingResult> =>
+    configMethods.planSmartLoopRoleRouting(
+      {
+        configPath: this.configPath,
+        config: this.config,
+        configWarnings: this.configWarnings,
+        experimentalFlags: this.experimentalFlags,
+        kimiRequestHeaders: this.kimiRequestHeaders,
+        resolveOAuthTokenProvider: this.resolveOAuthTokenProvider,
+      },
+      input,
+    );
 
   prompt = delegateContextMethod(sessionAgentMethods.prompt);
   runShellCommand = delegateContextMethod(sessionAgentMethods.runShellCommand);

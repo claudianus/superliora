@@ -25,7 +25,6 @@ import {
   resolveThinkingLevelForApply,
 } from '#/tui/utils/model/thinking-effort';
 import {
-  applySmartLoopRoleRouting,
   loopModelRoutingDeletePath,
   loopModelRoutingPatch,
   loopModelRoutingRows,
@@ -139,7 +138,8 @@ function mountLoopModelRoutingPicker(host: SlashCommandHost, config: LoopModelRo
         {
           value: autoRoutingValue,
           label: 'Smart auto routing',
-          description: 'Clear all role overrides and select each worker model by role and health.',
+          description:
+            'Clear role overrides, live-probe each role chain, and pin only models that respond.',
         },
         ...rows.map((row) => ({
           value: row.key,
@@ -167,28 +167,23 @@ function mountLoopModelRoutingPicker(host: SlashCommandHost, config: LoopModelRo
 }
 
 async function resetAllLoopModelRouting(host: SlashCommandHost): Promise<void> {
-  // Smart auto: clear stale overrides, then pin only healthy auto picks.
-  // Quota-exhausted / credential-unhealthy aliases are never written.
-  let baseConfig: LoopModelRoutingConfig;
+  // Smart auto: live-probe each role chain, clear stale overrides, pin survivors only.
+  host.showStatus(ttui('tui.model.smartAutoProbing'), 'warning');
+
+  let plan: Awaited<ReturnType<typeof host.harness.planSmartLoopRoleRouting>>;
   try {
-    baseConfig = (await host.harness.getConfig({ reload: true })) as LoopModelRoutingConfig;
+    plan = await host.harness.planSmartLoopRoleRouting();
   } catch (error) {
     host.showError(ttui('tui.model.smartAutoFailed', { message: formatErrorMessage(error) }));
     return;
   }
-
-  const plan = applySmartLoopRoleRouting(
-    baseConfig,
-    host.state.appState.availableModels,
-    host.state.appState.availableProviders,
-  );
 
   try {
     // Always clear every role key first so exhausted prior pins cannot linger.
     if (plan.clearPaths.length > 0) {
       await host.harness.deleteConfigFields([...plan.clearPaths]);
     }
-    let config: LoopModelRoutingConfig = baseConfig;
+    let config: LoopModelRoutingConfig;
     if (Object.keys(plan.patch.loopControl).length > 0) {
       config = (await host.harness.setConfig(plan.patch)) as LoopModelRoutingConfig;
     } else {

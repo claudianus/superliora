@@ -39,6 +39,7 @@ import type {
   ResumeSessionInput,
   ReloadSessionInput,
   SessionSummary,
+  SmartLoopRoleRoutingPlan,
   TelemetryClient,
   TelemetryContextPatch,
   TelemetryProperties,
@@ -296,6 +297,11 @@ export class LioraHarness {
 
   async deleteConfigFields(paths: readonly DeleteConfigFieldPath[]): Promise<LioraConfig> {
     return this.rpc.deleteConfigFields(paths);
+  }
+
+  /** Settings Smart auto — live-probe each role chain; caller applies pins. */
+  async planSmartLoopRoleRouting(): Promise<SmartLoopRoleRoutingPlan> {
+    return this.rpc.planSmartLoopRoleRouting();
   }
 
   async removeProvider(providerId: string): Promise<LioraConfig> {

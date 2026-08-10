@@ -4,11 +4,13 @@ import { sharedCredentialHealthStore } from '@superliora/oauth';
 
 import type { Agent } from '../../../src/agent';
 import {
+  assertLoopRolesMatchPresets,
   ensureSmartRouteProbed,
   invalidateLiveProbeSuccess,
   isConfigAliasHealthy,
   isLiveProbeFailureFresh,
   isLiveProbeSuccessFresh,
+  planSmartLoopRoleRoutingLive,
   probeModelAlias,
   resetLiveProbeCacheForTests,
   resetModelRouteHealthStoreForTests,
@@ -189,5 +191,54 @@ describe('live-probe', () => {
     expect(isConfigAliasHealthy(config, 'primary')).toBe(false);
     expect(isConfigAliasHealthy(config, 'secondary')).toBe(true);
     expect(sharedCredentialHealthStore.isAvailable('provider-a')).toBe(true);
+  });
+});
+
+describe('planSmartLoopRoleRoutingLive', () => {
+  beforeEach(() => {
+    resetLiveProbeCacheForTests();
+    resetModelRouteHealthStoreForTests();
+    sharedCredentialHealthStore.clear();
+  });
+
+  it('matches ROLE_PRESETS role set', () => {
+    expect(() => assertLoopRolesMatchPresets()).not.toThrow();
+  });
+
+  it('pins secondary when primary live probe fails', async () => {
+    setLiveProbeRunnerForTests(async (_agent, alias) => {
+      if (alias === 'primary') {
+        throw new APIStatusError(401, 'unauthorized', 'req-401');
+      }
+    });
+    const config = makeConfig();
+    config.loopControl = { codingModel: 'stale-pin' };
+    const agent = makeAgent(config);
+    const plan = await planSmartLoopRoleRoutingLive(agent, config);
+    expect(plan.clearPaths).toHaveLength(6);
+    expect(plan.pins.length).toBeGreaterThan(0);
+    for (const pin of plan.pins) {
+      expect(pin.alias).toBe('secondary');
+    }
+    // Stale override must not be re-pinned (overrides are stripped before rank/probe).
+    expect(Object.values(plan.patch.loopControl)).not.toContain('stale-pin');
+    expect(Object.values(plan.patch.loopControl)).not.toContain('primary');
+  });
+
+  it('skips every role when the whole catalog fails live probe', async () => {
+    setLiveProbeRunnerForTests(async () => {
+      throw new APIStatusError(500, 'server error', 'req-500');
+    });
+    const config = makeConfig();
+    const agent = makeAgent(config);
+    const plan = await planSmartLoopRoleRoutingLive(agent, config);
+    expect(plan.pins).toEqual([]);
+    expect(plan.patch.loopControl).toEqual({});
+    expect(plan.skipped).toHaveLength(6);
+    expect(
+      plan.skipped.every(
+        (s) => s.reason.includes('live probe failed') || s.reason.includes('no healthy'),
+      ),
+    ).toBe(true);
   });
 });

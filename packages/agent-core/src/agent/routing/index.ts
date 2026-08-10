@@ -55,3 +55,14 @@ export {
   type LiveProbeAliasResult,
   type LiveProbeRunner,
 } from './live-probe';
+export {
+  assertLoopRolesMatchPresets,
+  configWithoutRoleModelOverrides,
+  loopRoleRoutingEntries,
+  planSmartLoopRoleRoutingLive,
+  type LoopRoleModelConfigKey,
+  type LoopRoleRoutingClearPath,
+  type SmartLoopRolePinPlan,
+  type SmartLoopRoleRoutingPlan,
+  type SmartLoopRoleSkipPlan,
+} from './plan-smart-loop-routing';

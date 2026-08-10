@@ -1,4 +1,5 @@
 import type { LioraConfigPatch } from '#/config';
+import type { SmartLoopRoleRoutingPlan } from '../../agent/routing';
 
 export interface GetKimiConfigPayload {
   readonly reload?: boolean;
@@ -26,3 +27,6 @@ export type DeleteConfigFieldPath =
 export interface DeleteConfigFieldsPayload {
   readonly paths: readonly DeleteConfigFieldPath[];
 }
+
+/** Settings Smart auto routing — live-probed role pins. */
+export type PlanSmartLoopRoleRoutingResult = SmartLoopRoleRoutingPlan;
