@@ -3,6 +3,7 @@ import type { PermissionMode } from '@superliora/sdk';
 import type { CLIOptions } from '#/cli/options';
 
 import {
+  applyAutoResumeFleetEnv,
   DEFAULT_APPEARANCE_PREFERENCES,
   DEFAULT_CONDUCTOR_PREFERENCES,
   DEFAULT_FOOTER_PREFERENCES,
@@ -32,6 +33,9 @@ export function createInitialAppState(input: InitialAppStateInput): AppState {
   const startupPermission: PermissionMode = input.cliOptions.auto
     ? 'auto'
     : input.tuiConfig.permissionMode;
+  const conductor = input.tuiConfig.conductor ?? DEFAULT_CONDUCTOR_PREFERENCES;
+  // Must land before harness.resumeSession so Agent.resume autopilot sees it.
+  applyAutoResumeFleetEnv(conductor);
   return {
     model: '',
     workDir: input.workDir,
@@ -66,11 +70,9 @@ export function createInitialAppState(input: InitialAppStateInput): AppState {
     appearance: input.tuiConfig.appearance ?? DEFAULT_APPEARANCE_PREFERENCES,
     footer: input.tuiConfig.footer ?? DEFAULT_FOOTER_PREFERENCES,
     onboarding: input.tuiConfig.onboarding ?? DEFAULT_ONBOARDING_PREFERENCES,
-    conductor: input.tuiConfig.conductor ?? DEFAULT_CONDUCTOR_PREFERENCES,
-    conductorProjectMode:
-      (input.tuiConfig.conductor ?? DEFAULT_CONDUCTOR_PREFERENCES).projectMode,
-    transcriptRegionMode:
-      (input.tuiConfig.conductor ?? DEFAULT_CONDUCTOR_PREFERENCES).transcriptRegionMode,
+    conductor,
+    conductorProjectMode: conductor.projectMode,
+    transcriptRegionMode: conductor.transcriptRegionMode,
     availableModels: {},
     availableProviders: {},
     nonVisionFallbackPolicy: 'analyze',

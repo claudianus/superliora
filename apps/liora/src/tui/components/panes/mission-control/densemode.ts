@@ -349,6 +349,21 @@ export function buildDenseContent(options: BuildDenseContentOptions): DenseConte
     return { lines, workerSlots: 0, scrollOffset: 0, workerRowMap, headerRow };
   }
 
+  // Recovery: keep one BOARD attention row in densemode so interrupted/held
+  // jobs stay visible while ghost/live workers occupy the roster.
+  const recoveryAttention =
+    jobs !== undefined &&
+    (jobs.interrupted > 0 || jobs.needsUser > 0 || jobs.blocked > 0)
+      ? selectAttentionJobs(jobs, 1)[0]
+      : undefined;
+  if (recoveryAttention !== undefined && lines.length < budget) {
+    const row = formatAttentionJobRow(recoveryAttention, width, now);
+    if (row !== undefined) lines.push(row);
+  }
+  if (lines.length >= budget) {
+    return { lines, workerSlots: 0, scrollOffset: 0, workerRowMap, headerRow };
+  }
+
   headerRow = lines.length;
   lines.push(truncateToWidth(buildHeaderLine(narrow), width, '…'));
   if (lines.length >= budget) {

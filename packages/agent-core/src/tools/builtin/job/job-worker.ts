@@ -3,10 +3,13 @@
  * Spawns a background subagent in the job worktree and patches the ledger on completion.
  */
 
+import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 
 import type { Agent } from '../../../agent/index';
 import { type FanoutSpec, type FanoutTask, spawnOneAgent } from '../../../fleet/spawn-agents';
+import { pushJobInboxEvent } from './job-inbox';
+import { emitJobEvents, inboxToWireEvent } from './job-emit';
 import {
   classifyObjectiveProfile,
   uiSpawnQualityFlags,
@@ -156,6 +159,7 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
     job.worktreePath
       ? `You are running in an isolated worktree: ${job.worktreePath}. Do not push to remotes — finish with a publishable summary (branch/sha/remote_ref) so Conductor can call PushJob / open Push Preview.`
       : undefined,
+    renderRecoveryBriefAppendix(job),
     [
       'Worker contract:',
       ...(job.kind === 'verify'
@@ -193,6 +197,75 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
     ].join('\n'),
   ];
   return parts.filter(Boolean).join('\n\n');
+}
+
+/**
+ * Soft continuity for crash/resume cold relaunch: last progress, interrupt
+ * reason, worktree HEAD/status, and a no-rewrite guard. Shown when notes
+ * mention interrupt/resume or a checkpoint id is retained.
+ */
+export function renderRecoveryBriefAppendix(job: JobRecord): string | undefined {
+  const notes = job.notes ?? '';
+  const isRecovery =
+    /\binterrupt:/i.test(notes) ||
+    /\bresume:/i.test(notes) ||
+    job.workerResumeAgentId !== undefined;
+  if (!isRecovery) return undefined;
+
+  const interruptLine = notes
+    .split('\n')
+    .reverse()
+    .find((line) => /\binterrupt:/i.test(line) || /\bresume:/i.test(line));
+  const progress = job.progress;
+  const progressBits: string[] = [];
+  if (progress?.phase) progressBits.push(`phase=${progress.phase}`);
+  if (progress?.recentTools && progress.recentTools.length > 0) {
+    progressBits.push(`recentTools=${progress.recentTools.slice(0, 5).join(',')}`);
+  }
+  if (progress?.lastHeartbeatAt) progressBits.push(`heartbeat=${progress.lastHeartbeatAt}`);
+
+  const parts = [
+    '## Crash / resume continuity',
+    'Continue from the worktree as-is. Do not rewrite changes already present; finish the brief.',
+    interruptLine !== undefined ? `Last interrupt/resume note: ${interruptLine.trim()}` : undefined,
+    progressBits.length > 0 ? `Last progress: ${progressBits.join(' · ')}` : undefined,
+    job.workerResumeAgentId !== undefined
+      ? `Prior worker id (checkpoint): ${job.workerResumeAgentId}${job.workerCheckpointAt ? ` @ ${job.workerCheckpointAt}` : ''}`
+      : undefined,
+    job.resultSummary?.trim()
+      ? `Prior result summary (may be partial):\n${job.resultSummary.trim().slice(0, 1200)}`
+      : undefined,
+    snapshotWorktreeForRecovery(job.worktreePath),
+  ];
+  return parts.filter(Boolean).join('\n');
+}
+
+function snapshotWorktreeForRecovery(worktreePath: string | undefined): string | undefined {
+  if (worktreePath === undefined || worktreePath.trim().length === 0) return undefined;
+  try {
+    const sha = execFileSync('git', ['rev-parse', '--short', 'HEAD'], {
+      cwd: worktreePath,
+      encoding: 'utf8',
+      timeout: 3_000,
+    }).trim();
+    const status = execFileSync('git', ['status', '--porcelain'], {
+      cwd: worktreePath,
+      encoding: 'utf8',
+      timeout: 3_000,
+      maxBuffer: 64_000,
+    }).trim();
+    const dirty = status
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .slice(0, 20);
+    return [
+      `Worktree HEAD: ${sha}`,
+      dirty.length > 0 ? `Dirty paths:\n${dirty.join('\n')}` : 'Worktree clean.',
+    ].join('\n');
+  } catch {
+    return `Worktree path retained: ${worktreePath} (git status unavailable).`;
+  }
 }
 
 function tddContractLines(job: JobRecord): readonly string[] {
@@ -440,7 +513,7 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
             contextPaths: job.contextPaths,
             ownershipPaths: job.ownershipPaths,
           });
-  const task: FanoutTask = {
+  const baseTaskFields = {
     prompt: jobPrompt(job, input.store),
     description: job.title.slice(0, 80),
     profileName,
@@ -482,6 +555,11 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
             planId: `job-${job.id}`,
           }
         : undefined,
+  } as const;
+  const resumeAgentId = job.workerResumeAgentId?.trim() || undefined;
+  const task: FanoutTask = {
+    ...baseTaskFields,
+    ...(resumeAgentId !== undefined ? { resumeAgentId } : {}),
   };
   const parentToolCallId = `job:${job.id}:${randomUUID().slice(0, 8)}`;
   const spec: FanoutSpec = {
@@ -496,12 +574,43 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
   const spawn = input.spawnOne ?? spawnOneAgent;
 
   try {
-    const handle = await spawn(host, spec, task);
+    let handle;
+    let reattached = false;
+    try {
+      handle = await spawn(host, spec, task);
+      reattached = resumeAgentId !== undefined && handle.resumed === true;
+    } catch (resumeError: unknown) {
+      if (resumeAgentId === undefined) throw resumeError;
+      // Checkpoint reattach failed — cold spawn with soft-continuity brief.
+      const failSummary =
+        resumeError instanceof Error ? resumeError.message : String(resumeError);
+      const inboxEvent = pushJobInboxEvent(input.store, {
+        kind: 'recovery.reattach_failed',
+        jobId: job.id,
+        status: job.status,
+        title: job.title,
+        summary: `reattach ${resumeAgentId} failed: ${failSummary.slice(0, 240)}; cold spawn`,
+      });
+      emitJobEvents(input.agent, [inboxToWireEvent(inboxEvent)]);
+      const coldTask: FanoutTask = { ...baseTaskFields };
+      handle = await spawn(host, { ...spec, tasks: [coldTask] }, coldTask);
+      reattached = false;
+    }
     setJobWorkerAgentId(job.id, handle.agentId);
     bindJobWorkerLedger(handle.agentId, input.store, job.id, input.agent);
+    const nowIso = new Date().toISOString();
     patchJob(input.store, job.id, {
       workerAgentId: handle.agentId,
-      notes: [job.notes, `worker: ${handle.agentId} (${profileName})`].filter(Boolean).join('\n'),
+      workerResumeAgentId: handle.agentId,
+      workerCheckpointAt: nowIso,
+      notes: [
+        job.notes,
+        reattached
+          ? `worker-reattach: ${handle.agentId} (${profileName})`
+          : `worker: ${handle.agentId} (${profileName})`,
+      ]
+        .filter(Boolean)
+        .join('\n'),
     });
 
     // Fire-and-forget: interactive lane must not await worker completion.

@@ -14,7 +14,10 @@ export type JobInboxEventKind =
   | 'job.cancelled'
   | 'job.blocked'
   | 'job.needs_user'
-  | 'job.interrupted';
+  | 'job.interrupted'
+  | 'recovery.auto_resumed'
+  | 'recovery.held'
+  | 'recovery.reattach_failed';
 
 export interface JobInboxEvent {
   readonly id: string;

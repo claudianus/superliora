@@ -230,6 +230,12 @@ function nextMoveGuidance(
   if (events.some((e) => e.kind === 'job.blocked' || e.status === 'blocked') || strip.blocked > 0) {
     return 'blocked notes carry the cause (JobInspect): worktree/git setup, merge trust gap, spawn budget. Fix the cause, then JobResume — never resume blindly twice on the same one.';
   }
+  if (events.some((e) => e.kind === 'recovery.held')) {
+    return 'fleet auto-resumed safe jobs; held merge/push/needs_user until you confirm — JobInspect then JobResume.';
+  }
+  if (events.some((e) => e.kind === 'recovery.auto_resumed')) {
+    return 'fleet auto-resumed after crash; ACK board deltas and wait for worker inbox — do not re-spawn duplicates.';
+  }
   if (events.some((e) => e.kind === 'job.interrupted') || strip.interrupted > 0) {
     return 'interrupted jobs restore safely with JobResume; worktrees survived.';
   }

@@ -380,6 +380,11 @@ describe('job desk next-move guidance', () => {
     expect(text).toContain('Next move: interrupted jobs restore safely with JobResume');
   });
 
+  it('routes recovery.held to confirm merge/push/needs_user', () => {
+    const text = renderJobDeskInjection([event('recovery.held', 'interrupted')], idleStrip);
+    expect(text).toContain('Next move: fleet auto-resumed safe jobs; held merge/push/needs_user');
+  });
+
   it('suggests verification and merge verdict for completions', () => {
     const text = renderJobDeskInjection([event('job.completed', 'done')], idleStrip);
     expect(text).toContain('Next move: verify done-claims against the brief');

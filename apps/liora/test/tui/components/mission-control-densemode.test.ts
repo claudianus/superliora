@@ -93,6 +93,38 @@ describe('mission-control densemode helpers', () => {
     ]);
   });
 
+  it('keeps one interrupted attention row in densemode during recovery', () => {
+    const result = buildDenseContent({
+      workers: [worker('solo', 0, { lastTool: 'Read', lastTarget: 'a.ts', toolCount: 3 })],
+      width: 100,
+      budget: 14,
+      now: 1_000,
+      workDir: undefined,
+      animated: false,
+      appearance: OFF_APPEARANCE,
+      revealedLive: new Map(),
+      displayRate: new Map(),
+      workerGlyph: () => '◆',
+      jobs: {
+        ...emptyConductorJobsSnapshot(),
+        total: 1,
+        interrupted: 1,
+        jobs: [
+          jobCard({
+            id: 'job_int00000002',
+            status: 'interrupted',
+            title: 'Paused deploy',
+            updatedAtMs: 20,
+          }),
+        ],
+      },
+    });
+    const text = result.lines.join('\n');
+    expect(text).toContain('FLEET');
+    expect(text).toContain('Paused deploy');
+    expect(text).not.toContain('BOARD');
+  });
+
   it('paints workers-only densemode without TAPE/BOARD even when jobs and ops exist', () => {
     const result = buildDenseContent({
       workers: [worker('solo', 0, { lastTool: 'Read', lastTarget: 'a.ts', toolCount: 3 })],

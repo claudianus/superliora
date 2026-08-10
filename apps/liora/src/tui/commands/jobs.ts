@@ -4,7 +4,13 @@
  * When off: natural-language tool prompts via sendNormalUserInput.
  */
 
-import { applyConductorProjectMode } from '../features/control-tower/conductor-ux';
+import {
+  applyConductorProjectMode,
+  setAutoResumeFleet,
+} from '../features/control-tower/conductor-ux';
+import {
+  DEFAULT_CONDUCTOR_PREFERENCES,
+} from '../config';
 import { openInbox } from '../features/control-tower/inbox-controller';
 import { jobCreateBatchWithSplitConfirm } from '../utils/job/job-create-batch';
 import {
@@ -119,6 +125,27 @@ export function handleJobCommand(host: SlashCommandHost, rawArgs: string): void 
         { displayText: '/job inbox' },
       );
       return;
+
+    case 'autoresume':
+    case 'auto-resume': {
+      const flag = (tokens[1] ?? '').toLowerCase();
+      if (flag === 'on' || flag === '1' || flag === 'true') {
+        setAutoResumeFleet(host, true);
+        return;
+      }
+      if (flag === 'off' || flag === '0' || flag === 'false') {
+        setAutoResumeFleet(host, false);
+        return;
+      }
+      const current =
+        host.state.appState.conductor?.autoResumeFleet ??
+        DEFAULT_CONDUCTOR_PREFERENCES.autoResumeFleet;
+      host.showStatus(
+        `Fleet auto-resume: ${current ? 'ON' : 'OFF'} — /job autoresume on|off`,
+        'info',
+      );
+      return;
+    }
 
     case 'resume': {
       const jobId = tokens.slice(1).join(' ').trim();
