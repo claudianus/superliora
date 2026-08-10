@@ -168,6 +168,7 @@ export class SessionSubagentHost {
         {
           preferVisionModel: options.preferVisionModel,
           prompt: options.prompt,
+          modelAlias: options.modelAlias,
         },
       );
       emitSubagentSpawned(

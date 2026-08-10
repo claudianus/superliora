@@ -63,7 +63,13 @@ import type {
   SubagentPlanBinding,
 } from './subagent-host-types';
 import { buildChildResultContract } from './subagent-verification-gate';
+import { formatModelFailedNote } from './subagent-model-failed-note';
 import SUMMARY_CONTINUATION_PROMPT from '../summary-continuation.md?raw';
+
+export {
+  formatModelFailedNote,
+  parseModelFailedNote,
+} from './subagent-model-failed-note';
 
 const SUBAGENT_MODEL_FALLBACK_HOPS = 2;
 
@@ -88,14 +94,27 @@ export function lastAssistantText(agent: Agent): string {
   return '';
 }
 
+export type SubagentFallbackAliasOptions = {
+  /**
+   * When true (Conductor JobCreate.model_alias pin), prefer the pin's
+   * `fallbackModels` ahead of the role smart chain so hops stay on the
+   * chosen family's failover path.
+   */
+  readonly pinFallbacksFirst?: boolean;
+};
+
 /**
- * Failover hop candidates: role smart chain first, then config `fallbackModels`,
+ * Failover hop candidates: role smart chain + config `fallbackModels`,
  * minus unhealthy aliases. Never hop into a known-dead provider.
+ *
+ * Default order is route-chain then pin `fallbackModels` (legacy).
+ * Conductor pins flip the order via {@link SubagentFallbackAliasOptions.pinFallbacksFirst}.
  */
 export function subagentFallbackAliases(
   child: Agent,
   isAliasHealthy?: (alias: string) => boolean,
   route?: SmartRoute,
+  options?: SubagentFallbackAliasOptions,
 ): readonly string[] {
   const config = currentAgentConfig(child);
   const models = config?.models;
@@ -103,7 +122,26 @@ export function subagentFallbackAliases(
     isAliasHealthy ??
     ((alias: string) => isModelAliasHealthy(alias, models));
   const configFallbacks = listSwitchableFailoverModels(child).map((option) => option.alias);
-  return mergeRouteFallbackAliases(route, configFallbacks, child.config.modelAlias, healthy);
+  if (options?.pinFallbacksFirst !== true) {
+    return mergeRouteFallbackAliases(route, configFallbacks, child.config.modelAlias, healthy);
+  }
+
+  // Pin-first: configured fallbacks of the current (pinned) alias, then role chain.
+  const merged: string[] = [];
+  const seen = new Set<string>();
+  const current = child.config.modelAlias;
+  if (current !== undefined) seen.add(current);
+  const push = (alias: string | undefined): void => {
+    if (alias === undefined || alias.length === 0 || seen.has(alias)) return;
+    if (!healthy(alias)) return;
+    seen.add(alias);
+    merged.push(alias);
+  };
+  for (const alias of configFallbacks) push(alias);
+  if (route !== undefined) {
+    for (const alias of route.chain) push(alias);
+  }
+  return merged;
 }
 
 function shouldHopSubagentModel(error: unknown): boolean {
@@ -122,27 +160,40 @@ export async function runPromptTurnWithModelFallback(
   profileName: string,
   options: RunSubagentOptions,
 ): Promise<SubagentCompletion> {
+  const conductorPin = options.modelAlias?.trim();
+  const pinFallbacksFirst =
+    conductorPin !== undefined && conductorPin.length > 0;
+
   // Prefer a route from the live parent config; fallback tests may pass a
   // stub parent without `config`, so never throw before the turn runs.
+  // When Conductor pinned model_alias, resolve with that pin so the chain
+  // matches the worker that actually runs.
   let route: SmartRoute | undefined;
   try {
     if (parent.config !== undefined) {
       route = resolveSubagentModelSelection(parent, profileName, undefined, {
+        forcedAlias: conductorPin,
         signals: { prompt: options.prompt, profileName },
       }).route;
     }
   } catch {
     route = undefined;
   }
-  const fallbackAliases = subagentFallbackAliases(child, undefined, route);
+  const fallbackAliases = subagentFallbackAliases(child, undefined, route, {
+    pinFallbacksFirst,
+  });
   const maxFallbackHops = Math.min(
     Math.max(SUBAGENT_MODEL_FALLBACK_HOPS, 4),
     fallbackAliases.length,
   );
   let lastAttemptedAlias = child.config.modelAlias;
   let softEscalateUsed = false;
+  const triedAliases: string[] = [];
 
   for (let hop = 0; ; hop += 1) {
+    if (lastAttemptedAlias !== undefined && !triedAliases.includes(lastAttemptedAlias)) {
+      triedAliases.push(lastAttemptedAlias);
+    }
     try {
       const result = await completionFlowApi.runPromptTurn(
         parent,
@@ -205,10 +256,20 @@ export async function runPromptTurnWithModelFallback(
           markModelAliasAuthRejected(lastAttemptedAlias, currentAgentConfig(child)?.models, error);
         }
         const failure = enrichPermanentProviderFailure(error, child);
+        const nextHint = fallbackAliases.find((alias) => !triedAliases.includes(alias));
+        const kind =
+          classified?.kind ??
+          (isAuthOrCreditFailure(errorMessage(error)) ? 'auth_or_credit' : 'route_fail');
+        const note = formatModelFailedNote({
+          alias: lastAttemptedAlias,
+          kind,
+          tried: triedAliases,
+          nextHint,
+        });
         emitSubagentFailed(parent, childId, options, failure, (hop > 0 && lastAttemptedAlias !== undefined
             ? { fellBackToModel: lastAttemptedAlias }
             : {}));
-        throw failure;
+        throw appendModelFailedNote(failure, note);
       }
       emitSubagentFailed(parent, childId, options, error, {
         retryAttempt: hop + 1,
@@ -218,6 +279,15 @@ export async function runPromptTurnWithModelFallback(
       lastAttemptedAlias = nextAlias;
     }
   }
+}
+
+function appendModelFailedNote(error: unknown, note: string): Error {
+  if (error instanceof Error) {
+    if (error.message.includes('model_failed:')) return error;
+    error.message = `${error.message}\n${note}`;
+    return error;
+  }
+  return new Error(`${String(error)}\n${note}`);
 }
 
 function errorMessage(error: unknown): string {
@@ -490,10 +560,12 @@ export function spawnModelSelection(
   options?: {
     readonly preferVisionModel?: boolean;
     readonly prompt?: string;
+    readonly modelAlias?: string;
   },
 ): SubagentModelSelection {
   return resolveSubagentModelSelection(parent, profileName, profileBaseName, {
     preferVision: options?.preferVisionModel === true,
+    forcedAlias: options?.modelAlias,
     signals: {
       prompt: options?.prompt,
       profileName,
@@ -506,7 +578,11 @@ export function spawnModelAlias(
   profileName: string,
   profileBaseName: string | undefined,
   parent: Agent,
-  options?: { readonly preferVisionModel?: boolean; readonly prompt?: string },
+  options?: {
+    readonly preferVisionModel?: boolean;
+    readonly prompt?: string;
+    readonly modelAlias?: string;
+  },
 ): string | undefined {
   return spawnModelSelection(profileName, profileBaseName, parent, options).alias;
 }

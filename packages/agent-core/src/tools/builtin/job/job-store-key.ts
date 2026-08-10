@@ -134,6 +134,11 @@ export interface JobRecord {
   readonly expertScore?: number;
   readonly staffQuery?: string;
   /**
+   * Conductor-chosen worker model alias (from fleet catalog when role models
+   * are auto). Absent → spawn falls back to profile/role smart route.
+   */
+  readonly modelAlias?: string;
+  /**
    * Dual-axis review child marker. Absent on combined/visual-qa reviews.
    * Parallel Standards∥Spec children each carry one axis.
    */

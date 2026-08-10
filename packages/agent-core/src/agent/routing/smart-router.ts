@@ -16,6 +16,7 @@ import {
 import type { ThinkingEffort } from '../config/thinking';
 import { resolveThinkingEffort } from '../config/thinking';
 import type { LioraConfig, ModelAlias, ProviderConfig } from '../../config';
+import { SOVEREIGN_CONDUCTOR_PROFILE_NAME } from '../../profile/main-profile';
 import { hasConfiguredApiKeySource } from '../../session/provider/provider-manager-api-key';
 import { providerOAuthRefs } from '../../session/provider/provider-manager-oauth';
 import {
@@ -497,12 +498,32 @@ export function mergeRouteFallbackAliases(
 /**
  * Resolve the real alias for a main session pinned to virtual `auto`.
  * Returns undefined when the pin is not smart-auto or no candidate exists.
+ *
+ * Conductor main lane is an orchestrator picker: models.dev coding-class
+ * ranking + live health only. User-prompt role regex must not demote the
+ * control plane to completion/exploration models.
  */
 export function resolveSessionSmartRoute(input: {
   readonly config: LioraConfig;
   readonly prompt?: string;
   readonly sessionSpendUsd?: number;
+  /** When `conductor`, skip prompt-role classification (orchestrator picker). */
+  readonly profileName?: string;
 }): SmartRoute | undefined {
+  if (input.profileName === SOVEREIGN_CONDUCTOR_PROFILE_NAME) {
+    const route = resolveSmartRoute({
+      role: 'coding',
+      config: input.config,
+      intensity: 'balanced',
+      sessionSpendUsd: input.sessionSpendUsd,
+      // Omit signals.prompt — classifyTurnRouting must not re-bucket the orch lane.
+    });
+    if (route === undefined) return undefined;
+    return {
+      ...route,
+      reason: `${route.reason} · conductor-orch`,
+    };
+  }
   const role = classifySessionRole(input.prompt);
   return resolveSmartRoute({
     role,
@@ -528,6 +549,7 @@ export async function resolveSessionSmartRouteAsync(input: {
   readonly config: LioraConfig;
   readonly prompt?: string;
   readonly sessionSpendUsd?: number;
+  readonly profileName?: string;
 }): Promise<SmartRoute | undefined> {
   await getModelsDevData();
   return resolveSessionSmartRoute(input);

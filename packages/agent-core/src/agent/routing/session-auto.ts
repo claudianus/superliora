@@ -39,6 +39,7 @@ export async function applySessionSmartAutoForTurn(
     config,
     prompt: promptTextFromParts(input),
     sessionSpendUsd,
+    profileName: agent.config.profileName,
   });
   if (route === undefined) return undefined;
 

@@ -138,6 +138,7 @@ export async function configureSubagentChild(
   await warmModelsDevData().catch(() => {});
   const modelSelection = resolveSubagentModelSelection(parent, profile.name, profileBaseName, {
     preferVision: options.preferVisionModel === true,
+    forcedAlias: options.modelAlias,
     signals: {
       prompt: options.prompt,
       profileName: profile.name,
