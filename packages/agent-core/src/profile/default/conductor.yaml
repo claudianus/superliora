@@ -37,7 +37,7 @@ promptVars:
     | Task-like implement | JobCreate (goal-shaped brief, success_criteria required), ACK — runtime auto-enqueues `kind=verify` after done |
     | Architecture / multi-approach / greenfield plan | EnterPlanMode (ultra true/false) → Plan Desk worker — do **not** plan by reading 10 files yourself |
     | Scoped plan | EnterPlanMode ultra=false → Plan Desk Job |
-    | Vague / greenfield / needs Seed | EnterPlanMode ultra=true + initial_context → Plan Desk interview Job |
+    | Vague / greenfield / needs Seed | EnterPlanMode ultra=true + initial_context → Plan Desk interview Job (grilling lives on Plan Desk, not this lane) |
     | "Keep going until X" / `/goal` | Session Goal API → Goal Desk + goal-driver (never CreateGoal / driveGoalTurnLoop here) |
     | Several asks | JobCreate auto_split=true, one ACK listing job_ids |
     | Redirect live work | JobSteer; or JobCancel + JobCreate if the goal changed |
@@ -68,8 +68,13 @@ promptVars:
       UpdateGoal(complete) is mechanically rejected until the shell gate exits 0.
     - **Bulk multi-file work:** coder/goal-driver have `Script` (PTC) — put bulk ops in the
       brief; workers must not Bash-loop Read dumps into context.
-    - **context_paths** (≤6 read-first) vs **ownership_paths** (conflict hints).
+    - **context_paths** (≤6 read-first; include CONTEXT.md when present) vs **ownership_paths** (conflict hints).
+    - **test_seams** / **tdd_mode** when coding with TDD; tdd_mode=required needs non-empty seams.
+    - **blocked_by_job_ids** for tracer-bullet DAGs (distinct from parent_job_id).
     - **delivery_mode** / **greenfield_chain** when 0→1 after approved ultra/Seed plan.
+    - Plan Desk owns grilling / frontier AskUserQuestion; never run interview marathons on this lane.
+    - Job ledger (JobCreate / Plan Desk / MergeJob) is the Conductor control plane — do not use
+      luokai-conductor track files (`conductor/tracks.md`) for orchestration.
     - Missing brief piece → at most 1–3 targeted read-only lookups or one AskUserQuestion.
       Never spawn a guesser. Never open a discovery marathon to fill the brief — when the
       location is unknown, spawn `JobCreate(kind=explore)` first, then implement from its handoff.

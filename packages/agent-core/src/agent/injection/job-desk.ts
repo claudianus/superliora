@@ -25,6 +25,7 @@ import {
   summarizeJobStrip,
 } from '#/tools/builtin/job/job-runtime';
 import {
+  missionHasBlockingFog,
   parseImplementHandoff,
   textLooksLikePlanCompletion,
 } from '#/tools/builtin/planning/implement-handoff';
@@ -290,14 +291,25 @@ function planDeskHandoffNextMove(
     const job = getJob(store, e.jobId);
     if (job === undefined || job.kind !== 'mission') continue;
     const summary = job.resultSummary ?? e.summary ?? '';
+    if (missionHasBlockingFog(summary)) {
+      return (
+        `Plan Desk ${job.id} still has wayfinder fog (## Not yet specified) — ` +
+        'do not JobCreate(implement); EnterPlanMode / explore to clear decisions first.'
+      );
+    }
     const handoff = parseImplementHandoff(summary);
     if (handoff !== undefined) {
+      const seamHint =
+        handoff.testSeams.length > 0 || handoff.tddMode !== undefined
+          ? ' Copy test_seams / tdd_mode from the draft.'
+          : '';
       return (
         `Plan Desk ${job.id} finished with an Implement handoff — JobInspect for the draft, ` +
         `present it, then JobCreate from those fields` +
         (handoff.deliveryMode === 'greenfield'
           ? ' (delivery_mode=greenfield, greenfield_chain=true).'
-          : '.')
+          : '.') +
+        seamHint
       );
     }
     if (textLooksLikePlanCompletion(summary) || job.planStructured !== false) {

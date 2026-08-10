@@ -36,15 +36,30 @@ export function shouldEnqueueVerifyAfterDone(job: JobRecord): boolean {
   return job.kind === 'task' || job.kind === 'implement';
 }
 
-export function hasVerifyChild(store: ToolStore, parentJobId: string): boolean {
-  return findVerifyChild(parentJobId, listJobs(store)) !== undefined;
+export function findVerifyChildren(
+  parentJobId: string,
+  jobs: readonly JobRecord[],
+): readonly JobRecord[] {
+  return jobs.filter((job) => job.parentJobId === parentJobId && job.kind === 'verify');
 }
 
+/** True when the required verify set for this parent is already enqueued. */
+export function hasVerifyChild(store: ToolStore, parentJobId: string): boolean {
+  const children = findVerifyChildren(parentJobId, listJobs(store));
+  if (children.length === 0) return false;
+  // Parallel dual-axis: both standards + spec present.
+  const axes = new Set(children.map((c) => c.reviewAxis).filter(Boolean));
+  if (axes.has('standards') && axes.has('spec')) return true;
+  // Combined / UI verify: any single verify child counts.
+  return children.some((c) => c.reviewAxis === undefined);
+}
+
+/** First verify child (compat); prefer findVerifyChildren for dual-axis. */
 export function findVerifyChild(
   parentJobId: string,
   jobs: readonly JobRecord[],
 ): JobRecord | undefined {
-  return jobs.find((job) => job.parentJobId === parentJobId && job.kind === 'verify');
+  return findVerifyChildren(parentJobId, jobs)[0];
 }
 
 export function findDebugChild(
@@ -59,25 +74,39 @@ export function findDebugChild(
   );
 }
 
+type AxisVerdictBlob = { readonly verdict?: string };
+
 /**
  * Parse structured verify verdict from worker summary.
- * Accepts a JSON object anywhere in the text, or a leading `verdict: pass|fail` line.
+ * Prefer dual-axis JSON (standards + spec); overall pass only when both axes pass.
+ * Falls back to a single top-level verdict or a `verdict: pass|fail` line.
  */
 export function parseVerifyVerdict(summary: string | undefined): JobVerifyVerdict | undefined {
   if (summary === undefined || summary.trim().length === 0) return undefined;
   const text = summary.trim();
-  const jsonMatch = text.match(/\{[\s\S]*"verdict"\s*:\s*"(pass|fail|passed|failed)"[\s\S]*\}/i);
-  if (jsonMatch !== null) {
-    try {
-      const start = text.indexOf('{');
-      const end = text.lastIndexOf('}');
-      if (start >= 0 && end > start) {
-        const parsed = JSON.parse(text.slice(start, end + 1)) as { verdict?: string };
-        return normalizeVerdict(parsed.verdict);
+  try {
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      const parsed = JSON.parse(text.slice(start, end + 1)) as {
+        verdict?: string;
+        standards?: AxisVerdictBlob;
+        spec?: AxisVerdictBlob;
+      };
+      const standards = normalizeVerdict(parsed.standards?.verdict);
+      const spec = normalizeVerdict(parsed.spec?.verdict);
+      if (standards !== undefined && spec !== undefined) {
+        if (standards === 'passed' && spec === 'passed') return 'passed';
+        return 'failed';
       }
-    } catch {
-      // fall through
+      // Parallel axis Jobs emit only their axis blob.
+      if (standards !== undefined && spec === undefined) return standards;
+      if (spec !== undefined && standards === undefined) return spec;
+      const top = normalizeVerdict(parsed.verdict);
+      if (top !== undefined) return top;
     }
+  } catch {
+    // fall through
   }
   const line = text.match(/\bverdict\s*[:=]\s*(pass|fail|passed|failed)\b/i);
   if (line?.[1] !== undefined) return normalizeVerdict(line[1]);
@@ -102,7 +131,54 @@ export function makerCheckerCollision(
   return a === b;
 }
 
-/** Staff + create a verify child for a completed implement job. */
+async function pickVerifyExpert(
+  query: string,
+  parentExpert: string | undefined,
+  blockedExpertIds: ReadonlySet<string> = new Set(),
+): Promise<{ readonly id?: string; readonly score?: number }> {
+  await globalExpertSearchEngine.initialize();
+  const hits = await globalExpertSearchEngine.search({
+    query,
+    topK: 8,
+    taskDescription: query,
+  });
+  const pick = hits.find(
+    (hit) =>
+      hit.score >= STAFF_MIN_EXPERT_SCORE &&
+      (parentExpert === undefined || hit.expert.id !== parentExpert) &&
+      !blockedExpertIds.has(hit.expert.id),
+  );
+  return { id: pick?.expert.id, score: pick?.score };
+}
+
+function sharedVerifyContext(parent: JobRecord): {
+  readonly files: readonly string[] | undefined;
+  readonly header: string;
+} {
+  const files = parent.resultContract?.files_changed?.slice(0, 20) ?? parent.ownershipPaths;
+  const header = [
+    'You are an independent verify checker (Maker≠Checker). Do not implement product features.',
+    `Parent job: ${parent.id} — ${parent.title}`,
+    parent.resultSummary !== undefined
+      ? `Parent summary:\n${parent.resultSummary.slice(0, 2500)}`
+      : undefined,
+    parent.successCriteria !== undefined && parent.successCriteria.length > 0
+      ? `Spec / success criteria:\n${parent.successCriteria.map((c) => `- ${c}`).join('\n')}`
+      : undefined,
+    parent.testSeams !== undefined && parent.testSeams.length > 0
+      ? `Agreed test seams:\n${parent.testSeams.map((s) => `- ${s}`).join('\n')}`
+      : undefined,
+    parent.verificationCommands !== undefined && parent.verificationCommands.length > 0
+      ? `Run these verification commands and cite exit codes:\n${parent.verificationCommands.map((c) => `- ${c}`).join('\n')}`
+      : undefined,
+    files !== undefined && files.length > 0 ? `Changed paths: ${files.join(', ')}` : undefined,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+  return { files, header };
+}
+
+/** Staff + create verify child(ren) for a completed implement job. */
 export async function enqueueVerifyJobForParent(
   store: ToolStore,
   parent: JobRecord,
@@ -112,65 +188,106 @@ export async function enqueueVerifyJobForParent(
   if (!shouldEnqueueVerifyAfterDone({ ...parent, status: 'done' })) return undefined;
 
   const ui = jobLooksLikeUiSurface(parent);
-  const query = ui
-    ? 'visual QA UI craft review accessibility interaction screenshot'
-    : 'code review correctness security edge cases regression';
-  await globalExpertSearchEngine.initialize();
-  const hits = await globalExpertSearchEngine.search({
-    query,
-    topK: 8,
-    taskDescription: query,
-  });
+  const { files, header } = sharedVerifyContext(parent);
   const parentExpert = parent.expertId?.trim();
-  const pick = hits.find(
-    (hit) =>
-      hit.score >= STAFF_MIN_EXPERT_SCORE &&
-      (parentExpert === undefined || hit.expert.id !== parentExpert),
-  );
+  const created: JobRecord[] = [];
 
-  const files = parent.resultContract?.files_changed?.slice(0, 20) ?? parent.ownershipPaths;
-  const prompt = [
-    'You are an independent verify checker (Maker≠Checker). Do not implement product features.',
-    `Parent job: ${parent.id} — ${parent.title}`,
-    parent.resultSummary !== undefined ? `Parent summary:\n${parent.resultSummary.slice(0, 2500)}` : undefined,
-    files !== undefined && files.length > 0 ? `Changed paths: ${files.join(', ')}` : undefined,
-    parent.verificationCommands !== undefined && parent.verificationCommands.length > 0
-      ? `Run these verification commands and cite exit codes:\n${parent.verificationCommands.map((c) => `- ${c}`).join('\n')}`
-      : undefined,
-    ui
-      ? 'Re-run VerifySurface on the real surface when a URL/HTML path is available; inspect load+interaction+craft axes.'
-      : 'Review the diff for correctness, regressions, and missing tests; run focused checks when available.',
-    'Final output MUST include a JSON object: {"verdict":"pass"|"fail","findings":[...],"required_fixes":[...]}',
-  ]
-    .filter(Boolean)
-    .join('\n\n');
+  if (ui) {
+    const query = 'visual QA UI craft review accessibility interaction screenshot';
+    const pick = await pickVerifyExpert(query, parentExpert);
+    const prompt = [
+      header,
+      'Verify on TWO axes without mixing them (single Job, dual-axis JSON):',
+      '- Standards: craft / accessibility / banned-ship smells; repo docs override.',
+      '- Spec: success criteria + VerifySurface load+interaction+craft when a URL/HTML path exists.',
+      'Final output MUST include dual-axis JSON: {"verdict":"pass"|"fail","standards":{"verdict":"pass"|"fail","findings":[]},"spec":{"verdict":"pass"|"fail","findings":[]},"findings":[],"required_fixes":[]}. Overall pass only when both axes pass.',
+    ].join('\n\n');
+    created.push(
+      createJob(store, {
+        title: `Verify: ${parent.title}`.slice(0, 120),
+        kind: 'verify',
+        priority: (parent.priority ?? 0) + 1,
+        prompt,
+        contextPaths: parent.contextPaths ?? files,
+        parentJobId: parent.id,
+        expertId: pick.id,
+        expertScore: pick.score,
+        staffQuery: query,
+        successCriteria: [
+          'Emit dual-axis JSON (standards + spec) with overall verdict',
+          'VerifySurface axes considered',
+        ],
+        verificationCommands: parent.verificationCommands,
+      }),
+    );
+  } else {
+    // Parallel Standards ∥ Spec so neither axis pollutes the other.
+    const standardsPick = await pickVerifyExpert(
+      'code review standards smells conventions AGENTS.md',
+      parentExpert,
+    );
+    const blocked = new Set(
+      [standardsPick.id].filter((id): id is string => id !== undefined && id.length > 0),
+    );
+    const specPick = await pickVerifyExpert(
+      'code review correctness spec acceptance criteria regressions',
+      parentExpert,
+      blocked,
+    );
 
-  const verify = createJob(store, {
-    title: `Verify: ${parent.title}`.slice(0, 120),
-    kind: 'verify',
-    priority: (parent.priority ?? 0) + 1,
-    prompt,
-    // Verify is Maker≠Checker read/audit — do not pre-claim exclusive write
-    // leases on parent paths (blocks sibling Jobs at fan-out).
-    contextPaths: parent.contextPaths ?? files,
-    parentJobId: parent.id,
-    expertId: pick?.expert.id,
-    expertScore: pick?.score,
-    staffQuery: query,
-    successCriteria: [
-      'Emit JSON verdict pass|fail with findings',
-      ui ? 'VerifySurface axes considered' : 'Diff reviewed against success criteria',
-    ],
-    verificationCommands: parent.verificationCommands,
-  });
+    const standardsPrompt = [
+      header,
+      'AXIS: Standards only. Do not judge spec completeness here.',
+      'Check repo AGENTS.md / coding standards; flag judgement-call smells (Mysterious Name, Duplicated Code, Feature Envy, Speculative Generality, Shotgun Surgery). Repo docs override smells; skip what tooling already enforces.',
+      'Final output MUST include JSON: {"verdict":"pass"|"fail","standards":{"verdict":"pass"|"fail","findings":[]},"findings":[],"required_fixes":[]}',
+    ].join('\n\n');
+    const specPrompt = [
+      header,
+      'AXIS: Spec only. Do not re-litigate style/smell standards here.',
+      'Did the diff faithfully implement the success criteria / seams? Note missing, wrong, or scope-creep behaviour. Check tests at agreed seams.',
+      'Final output MUST include JSON: {"verdict":"pass"|"fail","spec":{"verdict":"pass"|"fail","findings":[]},"findings":[],"required_fixes":[]}',
+    ].join('\n\n');
 
+    created.push(
+      createJob(store, {
+        title: `Verify standards: ${parent.title}`.slice(0, 120),
+        kind: 'verify',
+        priority: (parent.priority ?? 0) + 1,
+        prompt: standardsPrompt,
+        contextPaths: parent.contextPaths ?? files,
+        parentJobId: parent.id,
+        expertId: standardsPick.id,
+        expertScore: standardsPick.score,
+        reviewAxis: 'standards',
+        staffQuery: 'code review standards smells conventions',
+        successCriteria: ['Emit Standards-axis JSON verdict'],
+        verificationCommands: parent.verificationCommands,
+      }),
+      createJob(store, {
+        title: `Verify spec: ${parent.title}`.slice(0, 120),
+        kind: 'verify',
+        priority: (parent.priority ?? 0) + 1,
+        prompt: specPrompt,
+        contextPaths: parent.contextPaths ?? files,
+        parentJobId: parent.id,
+        expertId: specPick.id ?? standardsPick.id,
+        expertScore: specPick.score ?? standardsPick.score,
+        reviewAxis: 'spec',
+        staffQuery: 'code review correctness spec acceptance',
+        successCriteria: ['Emit Spec-axis JSON verdict'],
+        verificationCommands: parent.verificationCommands,
+      }),
+    );
+  }
+
+  const ids = created.map((j) => j.id).join(', ');
   patchJob(store, parent.id, {
-    notes: [parent.notes, `verify_chain: enqueued ${verify.id}`].filter(Boolean).join('\n'),
+    notes: [parent.notes, `verify_chain: enqueued ${ids}`].filter(Boolean).join('\n'),
   });
   if (agent !== undefined) {
     requestJobSchedulePump({ store, agent });
   }
-  return verify;
+  return created[0];
 }
 
 /** After a failing verify, enqueue a debug fixer (different expert when possible). */
@@ -201,23 +318,33 @@ export async function enqueueDebugJobForVerify(
     kind: 'implement',
     priority: (parent.priority ?? 0) + 2,
     prompt: [
-      'You are a debug fixer. Reproduce verify findings with the smallest fix. Do not expand scope.',
+      'You are a debug fixer. Establish a tight red-capable repro before hypothesising; then apply the smallest fix. Do not expand scope.',
       `Parent job: ${parent.id}`,
       `Verify job: ${verify.id}`,
       verify.resultSummary !== undefined
         ? `Verify findings:\n${verify.resultSummary.slice(0, 3000)}`
         : undefined,
-      'After fixes, re-run focused checks / VerifySurface as applicable.',
+      parent.testSeams !== undefined && parent.testSeams.length > 0
+        ? `Prefer regression tests at these seams: ${parent.testSeams.join('; ')}`
+        : undefined,
+      'After fixes, re-run focused checks / VerifySurface as applicable. Record repro_command + repro_output in the summary.',
     ]
       .filter(Boolean)
       .join('\n\n'),
     ownershipPaths: parent.ownershipPaths,
     contextPaths: parent.contextPaths,
+    testSeams: parent.testSeams,
+    tddMode: parent.tddMode ?? 'preferred',
+    reproCommand: parent.reproCommand,
     parentJobId: parent.id,
     expertId: pick?.expert.id,
     expertScore: pick?.score,
     staffQuery: query,
-    successCriteria: ['Address verify required_fixes', 'Re-verify with checks or VerifySurface'],
+    successCriteria: [
+      'Tight repro goes red then green after the fix',
+      'Address verify required_fixes',
+      'Re-verify with checks or VerifySurface',
+    ],
   });
 
   patchJob(store, parent.id, {
@@ -229,6 +356,23 @@ export async function enqueueDebugJobForVerify(
     requestJobSchedulePump({ store, agent });
   }
   return debug;
+}
+
+function verifyChildrenReady(children: readonly JobRecord[]): boolean {
+  if (children.length === 0) return false;
+  return children.every((c) => c.status === 'done' || c.status === 'failed');
+}
+
+function aggregateVerifyVerdict(children: readonly JobRecord[]): JobVerifyVerdict {
+  let anyFailed = false;
+  for (const child of children) {
+    const v =
+      parseVerifyVerdict(child.resultSummary) ??
+      (child.status === 'failed' ? 'failed' : undefined) ??
+      'failed';
+    if (v !== 'passed') anyFailed = true;
+  }
+  return anyFailed ? 'failed' : 'passed';
 }
 
 /**
@@ -248,14 +392,14 @@ export async function onJobTerminalForVerifyChain(
   ) {
     const parent = getJob(store, job.parentJobId);
     if (parent === undefined) return;
-    const verdict =
-      parseVerifyVerdict(job.resultSummary) ??
-      (job.status === 'failed' ? 'failed' : undefined) ??
-      'failed';
+    const children = findVerifyChildren(parent.id, listJobs(store));
+    const axisNote = `verify_chain: ${job.id}${job.reviewAxis !== undefined ? ` axis=${job.reviewAxis}` : ''} verdict=${
+      parseVerifyVerdict(job.resultSummary) ?? (job.status === 'failed' ? 'failed' : 'missing')
+    }`;
     patchJob(store, parent.id, {
       notes: [
         parent.notes,
-        `verify_chain: ${job.id} verdict=${verdict}`,
+        axisNote,
         makerCheckerCollision(parent.expertId, job.expertId)
           ? 'verify_chain: MAKER_CHECKER_COLLISION same expertId on implement+verify'
           : undefined,
@@ -263,8 +407,18 @@ export async function onJobTerminalForVerifyChain(
         .filter(Boolean)
         .join('\n'),
     });
+    if (!verifyChildrenReady(children)) return;
+    const verdict = aggregateVerifyVerdict(children);
+    const latestParent = getJob(store, parent.id) ?? parent;
+    patchJob(store, parent.id, {
+      notes: [latestParent.notes, `verify_chain: aggregate verdict=${verdict}`]
+        .filter(Boolean)
+        .join('\n'),
+    });
     if (verdict === 'failed') {
-      await enqueueDebugJobForVerify(store, parent, job, agent);
+      const failedChild =
+        children.find((c) => parseVerifyVerdict(c.resultSummary) !== 'passed') ?? children[0]!;
+      await enqueueDebugJobForVerify(store, latestParent, failedChild, agent);
     }
     return;
   }
@@ -295,31 +449,45 @@ export function evaluateVerifyChainForMerge(input: {
     return { ok: true };
   }
 
-  const verify = findVerifyChild(input.job.id, input.jobs);
-  if (verify === undefined) {
+  const children = findVerifyChildren(input.job.id, input.jobs);
+  if (children.length === 0) {
     return {
       ok: false,
       reason:
         'No verify child Job yet — wait for the automatic verify chain (Maker≠Checker) before MergeJob.',
     };
   }
-  if (makerCheckerCollision(input.job.expertId, verify.expertId)) {
+  for (const verify of children) {
+    if (makerCheckerCollision(input.job.expertId, verify.expertId)) {
+      return {
+        ok: false,
+        reason: `Maker≠Checker hard reject: implement and verify share expertId=${input.job.expertId ?? ''}.`,
+      };
+    }
+  }
+  if (!verifyChildrenReady(children)) {
+    const pending = children.find((c) => c.status !== 'done' && c.status !== 'failed');
     return {
       ok: false,
-      reason: `Maker≠Checker hard reject: implement and verify share expertId=${input.job.expertId ?? ''}.`,
+      reason: `Verify job ${pending?.id ?? children[0]!.id} is still ${pending?.status ?? 'pending'} — wait for verdict before merge.`,
     };
   }
-  if (verify.status !== 'done' && verify.status !== 'failed') {
+  // Dual-axis: require both standards + spec when those axes were enqueued.
+  const axes = new Set(children.map((c) => c.reviewAxis).filter(Boolean));
+  if (axes.has('standards') !== axes.has('spec') && axes.size > 0) {
     return {
       ok: false,
-      reason: `Verify job ${verify.id} is still ${verify.status} — wait for verdict before merge.`,
+      reason: 'Verify chain incomplete — both Standards and Spec axis Jobs are required.',
     };
   }
-  const verdict = parseVerifyVerdict(verify.resultSummary);
+  const verdict = aggregateVerifyVerdict(children);
   if (verdict !== 'passed') {
+    const failed = children.find((c) => parseVerifyVerdict(c.resultSummary) !== 'passed');
     return {
       ok: false,
-      reason: `Verify job ${verify.id} verdict=${verdict ?? 'missing'} — fix via debug/implement requeue before merge.`,
+      reason: `Verify job ${failed?.id ?? children[0]!.id} verdict=${
+        parseVerifyVerdict(failed?.resultSummary) ?? 'missing'
+      } — fix via debug/implement requeue before merge.`,
     };
   }
   return { ok: true };

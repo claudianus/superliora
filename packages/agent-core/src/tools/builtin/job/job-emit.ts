@@ -37,7 +37,10 @@ function briefPreviewFromJob(job: JobRecord): JobSnapshot['briefPreview'] {
   if (
     job.successCriteria === undefined &&
     job.mustNotTouch === undefined &&
-    job.verificationCommands === undefined
+    job.verificationCommands === undefined &&
+    job.testSeams === undefined &&
+    job.tddMode === undefined &&
+    (job.reproCommand === undefined || job.reproCommand.trim().length === 0)
   ) {
     return undefined;
   }
@@ -45,18 +48,34 @@ function briefPreviewFromJob(job: JobRecord): JobSnapshot['briefPreview'] {
     successCriteria: job.successCriteria,
     mustNotTouch: job.mustNotTouch,
     verificationCommands: job.verificationCommands,
+    testSeams: job.testSeams,
+    tddMode: job.tddMode,
+    reproCommand: job.reproCommand,
   };
+}
+
+function reviewGateFromJob(job: JobRecord): JobGateChecklistStatus {
+  const notes = job.notes ?? '';
+  if (/\bverify_chain:\s*aggregate verdict=passed\b/i.test(notes)) return 'pass';
+  if (/\bverify_chain:\s*aggregate verdict=failed\b/i.test(notes)) return 'fail';
+  if (/\bverify_chain:\s*\S+\s+verdict=passed\b/i.test(notes)) return 'pass';
+  if (/\bverify_chain:\s*\S+\s+verdict=failed\b/i.test(notes)) return 'fail';
+  if (/\bverify_chain:\s*enqueued\b/i.test(notes)) return 'pending';
+  if (job.kind === 'verify') return 'na';
+  if (job.kind === 'implement' && job.title.startsWith('Debug:')) return 'na';
+  if (job.kind === 'task' || job.kind === 'implement') return 'pending';
+  return 'na';
 }
 
 function gateChecklistFromJob(job: JobRecord): JobGateChecklist | undefined {
   const v = job.resultContract?.verification;
-  if (v === undefined) return undefined;
+  const review = reviewGateFromJob(job);
+  if (v === undefined && review === 'na') return undefined;
   return {
-    visual: mapGateVerdict(v.visual),
-    // Review chain is not on the worker verification contract; expose as n/a until wired.
-    review: 'na',
-    tests: mapGateVerdict(v.tests),
-    typecheck: mapGateVerdict(v.typecheck),
+    visual: mapGateVerdict(v?.visual),
+    review,
+    tests: mapGateVerdict(v?.tests),
+    typecheck: mapGateVerdict(v?.typecheck),
   };
 }
 

@@ -77,6 +77,9 @@ export interface JobBriefPreview {
   readonly successCriteria?: readonly string[];
   readonly mustNotTouch?: readonly string[];
   readonly verificationCommands?: readonly string[];
+  readonly testSeams?: readonly string[];
+  readonly tddMode?: 'required' | 'preferred' | 'off';
+  readonly reproCommand?: string;
 }
 
 export interface JobGateChecklist {

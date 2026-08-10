@@ -41,6 +41,12 @@ describe('job-verify-chain', () => {
     expect(parseVerifyVerdict('{"verdict":"pass","findings":[]}')).toBe('passed');
     expect(parseVerifyVerdict('notes\nverdict: fail\n')).toBe('failed');
     expect(parseVerifyVerdict('no verdict here')).toBeUndefined();
+    expect(
+      parseVerifyVerdict(
+        '{"verdict":"pass","standards":{"verdict":"pass","findings":[]},"spec":{"verdict":"fail","findings":["missing AC"]}}',
+      ),
+    ).toBe('failed');
+    expect(parseVerifyVerdict('{"standards":{"verdict":"pass","findings":[]}}')).toBe('passed');
   });
 
   it('detects maker=checker collision', () => {
@@ -116,7 +122,7 @@ describe('job-verify-chain', () => {
     if (!collision.ok) expect(collision.reason).toMatch(/Maker≠Checker|expertId/i);
   });
 
-  it('enqueues a verify child on implement done (fake store)', async () => {
+  it('enqueues a verify child on UI implement done', async () => {
     const store = memoryStore();
     const parent = createJob(store, {
       title: 'Ship footer',
@@ -140,7 +146,26 @@ describe('job-verify-chain', () => {
     expect(listJobs(store).filter((j) => j.parentJobId === parent.id)).toHaveLength(1);
   });
 
-  it('onJobTerminal enqueues debug after failing verify verdict', async () => {
+  it('enqueues parallel Standards∥Spec verify children for non-UI implement', async () => {
+    const store = memoryStore();
+    const parent = createJob(store, {
+      title: 'Fix scheduler',
+      kind: 'implement',
+      prompt: 'Fix job scheduler ordering',
+      ownershipPaths: ['packages/agent-core/src/tools/builtin/job/job-runtime.ts'],
+      successCriteria: ['nextQueuedJobs respects blocked_by'],
+      testSeams: ['nextQueuedJobs'],
+      expertId: 'maker-x',
+    });
+    const done = { ...parent, status: 'done' as const, resultSummary: 'fixed' };
+    await enqueueVerifyJobForParent(store, done);
+    const verifies = listJobs(store).filter((j) => j.parentJobId === parent.id);
+    expect(verifies).toHaveLength(2);
+    expect(verifies.map((r) => r.reviewAxis).sort()).toEqual(['spec', 'standards']);
+    expect(verifies[0]?.prompt).toMatch(/success criteria|Agreed test seams/i);
+  });
+
+  it('onJobTerminal enqueues debug after both axis verifies fail aggregate', async () => {
     const store = memoryStore();
     const parent = createJob(store, {
       title: 'Broken button',
@@ -153,16 +178,20 @@ describe('job-verify-chain', () => {
       ...parent,
       status: 'done',
     });
-    const verify = listJobs(store).find((j) => j.kind === 'verify');
-    expect(verify).toBeDefined();
-    expect(verify?.ownershipPaths).toBeUndefined();
-    patchJob(store, verify!.id, {
-      status: 'done',
-      resultSummary: '{"verdict":"fail","findings":["click noop"],"required_fixes":["wire handler"]}',
-      expertId: 'checker-y',
-    });
-    const verifyDone = listJobs(store).find((j) => j.id === verify!.id)!;
-    await onJobTerminalForVerifyChain(store, verifyDone);
+    const verifies = listJobs(store).filter((j) => j.kind === 'verify');
+    expect(verifies.length).toBeGreaterThanOrEqual(1);
+    for (const verify of verifies) {
+      expect(verify.ownershipPaths).toBeUndefined();
+      patchJob(store, verify.id, {
+        status: 'done',
+        resultSummary:
+          verify.reviewAxis === 'standards'
+            ? '{"standards":{"verdict":"pass","findings":[]},"verdict":"pass"}'
+            : '{"verdict":"fail","findings":["click noop"],"required_fixes":["wire handler"]}',
+        expertId: `checker-${verify.reviewAxis ?? 'ui'}`,
+      });
+      await onJobTerminalForVerifyChain(store, listJobs(store).find((j) => j.id === verify.id)!);
+    }
     const debug = listJobs(store).find(
       (j) => j.kind === 'implement' && j.title.startsWith('Debug:'),
     );
@@ -170,6 +199,7 @@ describe('job-verify-chain', () => {
     // Debug fixer still claims write ownership on the parent paths.
     expect(debug?.ownershipPaths).toEqual(['src/Button.js']);
     // Idempotent debug enqueue.
-    expect(await enqueueDebugJobForVerify(store, parent, verifyDone)).toBeUndefined();
+    const failedVerify = verifies.find((r) => r.reviewAxis === 'spec') ?? verifies[0]!;
+    expect(await enqueueDebugJobForVerify(store, parent, failedVerify)).toBeUndefined();
   });
 });
