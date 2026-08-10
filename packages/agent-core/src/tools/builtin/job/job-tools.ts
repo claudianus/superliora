@@ -64,7 +64,10 @@ import {
   greenfieldBriefMissing,
   mergeSplitIntents,
 } from './job-interactive-confirm';
-import { cancelJobWorker, resumeJobs, steerJobWorker } from './job-worker';
+import { cancelJobWorker, resumeJobs } from './job-worker';
+import { JobSteerTool } from './job-steer-tool';
+
+export { JobSteerTool } from './job-steer-tool';
 
 const JobKindSchema = z.enum([
   'task',
@@ -91,8 +94,6 @@ const JobStatusSchema = z.enum([
 ]);
 const JobDeliveryModeSchema = z.enum(['standard', 'greenfield']);
 const JobTddModeSchema = z.enum(['required', 'preferred', 'off']);
-const JobSurfaceKindSchema = z.enum(['none', 'web', 'tui', 'mixed']);
-
 const stringListField = z.array(z.string().trim().min(1)).optional();
 
 const JobCreateInputSchema = z
@@ -213,9 +214,12 @@ const JobCreateInputSchema = z
       .describe(
         'Worker model alias from <fleet_model_catalog> when role models are auto. Pick by Job kind/risk/cost (explore→value, implement→quality, verify→different family when possible). Omit to let the harness pick by profile/role. Must be a healthy catalog alias — unknown names are rejected.',
       ),
-    surface_kind: JobSurfaceKindSchema.optional().describe(
-      'Conductor-declared surface contract for merge/verify proof: none (no visual gate), web (VerifySurface), tui (ANSI/visual-smoke), mixed (both). Required before MergeJob for task/implement — do not rely on path heuristics. JobSteer can patch if missing.',
-    ),
+    surface_kind: z
+      .enum(['none', 'web', 'tui', 'mixed'])
+      .optional()
+      .describe(
+        'Merge/verify surface: none|web|tui|mixed. Required before MergeJob for task/implement; JobSteer can patch if missing.',
+      ),
   })
   .strict()
   .superRefine((val, ctx) => {
@@ -315,23 +319,6 @@ const JobListInputSchema = z
 const JobIdInputSchema = z
   .object({
     job_id: z.string().trim().min(1).describe('Job id (job_<shortulid>).'),
-  })
-  .strict();
-
-const JobSteerInputSchema = z
-  .object({
-    job_id: z.string().trim().min(1),
-    message: z
-      .string()
-      .trim()
-      .min(1)
-      .describe(
-        'Steering instruction for the worker / meta notes. State the delta precisely (what changed, what stays); quote the user when relevant.',
-      ),
-    status: JobStatusSchema.optional().describe('Optional status update while steering.'),
-    surface_kind: JobSurfaceKindSchema.optional().describe(
-      'Patch the Job surface contract (none|web|tui|mixed) when MergeJob holds for a missing surface_kind.',
-    ),
   })
   .strict();
 
@@ -663,7 +650,6 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
           }
         }
 
-        const surfaceKind = a.surface_kind;
         if (a.greenfield_chain === true) {
           const created = createGreenfieldChainJobs(this.store, {
             title: a.title,
@@ -680,7 +666,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
             blockedByJobIds: blockedByJobIds.length > 0 ? blockedByJobIds : undefined,
             parentJobId: a.parent_job_id,
             modelAlias,
-            surfaceKind,
+            surfaceKind: a.surface_kind,
           });
           return ackCreatedJobs({
             store: this.store,
@@ -758,7 +744,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
               expertScore: slice.expertScore,
               staffQuery: slice.staffQuery,
               modelAlias,
-              surfaceKind,
+              surfaceKind: a.surface_kind,
             }),
           );
         } else {
@@ -781,7 +767,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
               deliveryMode: deliveryMode === 'standard' ? undefined : deliveryMode,
               parentJobId: a.parent_job_id,
               modelAlias,
-              surfaceKind,
+              surfaceKind: a.surface_kind,
               ...(isGoalDriver
                 ? {
                     goalObjective: intent.prompt?.trim() || intent.title || a.title,
@@ -956,55 +942,6 @@ export class JobInspectTool implements BuiltinTool<z.infer<typeof JobIdInputSche
         const job = getJob(this.store, parsed.data.job_id);
         if (!job) return { isError: true, output: `Job not found: ${parsed.data.job_id}` };
         return { isError: false, output: renderJobInspect(job) };
-      },
-    };
-  }
-}
-
-export class JobSteerTool implements BuiltinTool<z.infer<typeof JobSteerInputSchema>> {
-  readonly name = 'JobSteer' as const;
-  readonly description =
-    'Redirect a live Job without restarting it: append notes and deliver to the running worker when possible. ' +
-    'Use when the goal stands but details changed (scope delta, extra constraint, user preference). ' +
-    'If the goal itself changed, JobCancel + fresh JobCreate instead — never let two versions of one goal race.';
-  readonly parameters: Record<string, unknown> = toInputJsonSchema(JobSteerInputSchema);
-
-  constructor(
-    private readonly store: ToolStore,
-    private readonly agent?: Agent,
-  ) {}
-
-  resolveExecution(args: z.infer<typeof JobSteerInputSchema>): ToolExecution {
-    const parsed = JobSteerInputSchema.safeParse(args);
-    if (!parsed.success) {
-      return { isError: true, output: `Invalid JobSteer args: ${parsed.error.message}` };
-    }
-    const a = parsed.data;
-    return {
-      accesses: ToolAccesses.all(),
-      description: `Steer ${a.job_id}`,
-      readOnly: false,
-      approvalRule: this.name,
-      execute: async () => {
-        const result = steerJobWorker({
-          store: this.store,
-          agent: this.agent,
-          jobId: a.job_id,
-          message: a.message,
-          status: a.status,
-          surfaceKind: a.surface_kind,
-        });
-        if (!result.ok || !result.job) {
-          return { isError: true, output: result.error ?? `Job not found: ${a.job_id}` };
-        }
-        return {
-          isError: false,
-          output: ack(
-            result.job.id,
-            result.job.status,
-            `${renderJobLine(result.job)}\nsteered=${result.steered}`,
-          ),
-        };
       },
     };
   }
