@@ -135,14 +135,21 @@ export async function probeModelAlias(
 export async function ensureSmartRouteProbed(
   agent: Agent,
   route: SmartRoute,
-  options?: { readonly signal?: AbortSignal; readonly now?: number },
+  options?: {
+    readonly signal?: AbortSignal;
+    readonly now?: number;
+    readonly onAliasProgress?: (alias: string, chainIndex: number, chainTotal: number) => void;
+  },
 ): Promise<SmartRoute | undefined> {
   const config = agent.runtimeConfig ?? agent.kimiConfig;
   if (config === undefined) return undefined;
 
   const chain = route.chain.length > 0 ? route.chain : [route.alias];
-  for (const alias of chain) {
+  const chainTotal = chain.length;
+  for (let i = 0; i < chain.length; i += 1) {
+    const alias = chain[i]!;
     if (!isConfigAliasHealthy(config, alias)) continue;
+    options?.onAliasProgress?.(alias, i + 1, chainTotal);
     const result = await probeModelAlias(agent, alias, options);
     if (!result.ok) continue;
     if (alias === route.alias) return route;

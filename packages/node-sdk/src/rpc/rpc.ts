@@ -21,6 +21,7 @@ import {
   type ToolInfo,
   type SessionTrace,
   type RuntimeDegradedEvent,
+  type SmartLoopProbeProgress,
 } from '@superliora/agent-core';
 
 import type { ApprovalHandler, CredentialHandler, QuestionHandler } from '#/session/events';
@@ -144,8 +145,14 @@ export abstract class SDKRpcClientBase extends SDKRpcClientBackgroundMixin {
     return rpc.deleteConfigFields({ paths });
   }
 
-  /** Settings Smart auto — live-probe role chains; does not write config. */
-  async planSmartLoopRoleRouting(): Promise<SmartLoopRoleRoutingPlan> {
+  /**
+   * Settings Smart auto — live-probe role chains; does not write config.
+   * `onProgress` is honored by in-process {@link SDKRpcClient}; remote RPC ignores it.
+   */
+  async planSmartLoopRoleRouting(options?: {
+    readonly onProgress?: (progress: SmartLoopProbeProgress) => void;
+  }): Promise<SmartLoopRoleRoutingPlan> {
+    void options?.onProgress;
     const rpc = await this.getRpc();
     return rpc.planSmartLoopRoleRouting({});
   }

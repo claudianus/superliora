@@ -647,6 +647,10 @@ describe('harness panel and tools inventory', () => {
       showError: vi.fn(),
       showNotice: vi.fn(),
       showStatus: vi.fn(),
+      showProgressSpinner: vi.fn(() => ({
+        setLabel: vi.fn(),
+        stop: vi.fn(),
+      })),
       showExtensionsModal: vi.fn(),
       showExperimentsModal: vi.fn(),
       track: vi.fn(),
@@ -658,6 +662,7 @@ describe('harness panel and tools inventory', () => {
       showError: ReturnType<typeof vi.fn>;
       showNotice: ReturnType<typeof vi.fn>;
       showStatus: ReturnType<typeof vi.fn>;
+      showProgressSpinner: ReturnType<typeof vi.fn>;
       setAppState: ReturnType<typeof vi.fn>;
       requireSession: ReturnType<typeof vi.fn>;
       motionBeats: { play: ReturnType<typeof vi.fn> };
@@ -1378,13 +1383,17 @@ describe('harness panel and tools inventory', () => {
     for (const alias of Object.values(setPatch.loopControl ?? {})) {
       expect(alias).toBe('big-model');
     }
-    expect(host.showStatus).toHaveBeenCalledWith(
+    expect(host.showProgressSpinner).toHaveBeenCalledWith(
       expect.stringMatching(/live-probing|live probe/i),
-      'warning',
     );
-    expect(host.showStatus).toHaveBeenCalledWith(
-      expect.stringMatching(/Smart auto pinned|live-probed/i),
-      expect.stringMatching(/success|warning/),
+    const spinner = host.showProgressSpinner.mock.results[0]?.value as {
+      stop: ReturnType<typeof vi.fn>;
+    };
+    expect(spinner.stop).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ok: true,
+        label: expect.stringMatching(/Smart auto pinned|live-probed/i),
+      }),
     );
   });
 

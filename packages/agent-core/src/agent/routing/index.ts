@@ -62,6 +62,7 @@ export {
   planSmartLoopRoleRoutingLive,
   type LoopRoleModelConfigKey,
   type LoopRoleRoutingClearPath,
+  type SmartLoopProbeProgress,
   type SmartLoopRolePinPlan,
   type SmartLoopRoleRoutingPlan,
   type SmartLoopRoleSkipPlan,

@@ -14,6 +14,8 @@ import {
   type RPCMethods,
   type RuntimeDegradedEvent,
   type SDKAPI,
+  type SmartLoopProbeProgress,
+  type SmartLoopRoleRoutingPlan,
   type TelemetryClient,
 } from '@superliora/agent-core';
 import type { Kaos } from '@superliora/kaos';
@@ -167,6 +169,15 @@ export class SDKRpcClient extends SDKRpcClientBase {
 
   override broadcastRuntimeDegraded(event: RuntimeDegradedEvent): void {
     this.core.broadcastRuntimeDegraded(event);
+  }
+
+  /**
+   * Bypass RPC serialize so Settings can stream live probe progress into the TUI.
+   */
+  override async planSmartLoopRoleRouting(options?: {
+    readonly onProgress?: (progress: SmartLoopProbeProgress) => void;
+  }): Promise<SmartLoopRoleRoutingPlan> {
+    return this.core.planSmartLoopRoleRoutingWithOptions({}, options);
   }
 
   private createKimiRequestHeaders(): Record<string, string> | undefined {
