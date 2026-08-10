@@ -28,7 +28,7 @@ export function Sections() {
             <p className="hero-lead mt-4 max-w-[36ch] leading-relaxed text-soft">
               {t.hero.lead}
             </p>
-            <div className="hero-cta mt-6 flex flex-wrap gap-3 sm:mt-7">
+            <div className="hero-cta mt-6 flex flex-wrap items-center gap-3 sm:mt-7">
               <a href="#install" className="btn btn-primary inline-flex min-h-11 items-center rounded-lg px-5 py-2.5 sm:px-6 sm:py-3">
                 {t.hero.install}
               </a>
@@ -38,7 +38,7 @@ export function Sections() {
               >
                 {t.hero.github}
               </a>
-              <a href={docsHref} className="btn btn-secondary inline-flex min-h-11 items-center rounded-lg px-5 py-2.5 sm:px-6 sm:py-3">
+              <a href={docsHref} className="hero-cta__docs">
                 {t.hero.docs}
               </a>
             </div>
@@ -113,11 +113,11 @@ export function Sections() {
       <section id="tower" className="section-pad border-t border-line bg-bg">
         <div className="mx-auto max-w-7xl">
           <Reveal className="max-w-2xl">
-            <p className="text-sm font-semibold tracking-wide text-primary">{t.tower.kicker}</p>
-            <h2 className="mt-3 font-sans text-3xl font-bold tracking-tight md:text-4xl text-balance">
+            <p className="section-kicker text-sm font-semibold tracking-wide text-primary">{t.tower.kicker}</p>
+            <h2 className="section-title mt-3 font-sans font-bold tracking-tight text-balance">
               {t.tower.title}
             </h2>
-            <p className="mt-4 text-lg text-soft">{t.tower.body}</p>
+            <p className="section-body mt-4 text-soft">{t.tower.body}</p>
           </Reveal>
           <div className="keys-strip mt-12">
             {t.tower.items.map((item) => (
@@ -149,7 +149,13 @@ export function Sections() {
                 <div className="text-sm text-soft">{cmd.label}</div>
                 <div className="relative mt-2 overflow-x-auto rounded-lg border border-line bg-bg-1 px-4 py-3.5 pr-20 font-mono text-sm text-text">
                   <code>{cmd.cmd}</code>
-                  <CopyButton text={cmd.cmd} />
+                  <CopyButton
+                    text={cmd.cmd}
+                    copyLabel={t.copy.label}
+                    copiedLabel={t.copy.doneLabel}
+                    idleText={t.copy.idle}
+                    doneText={t.copy.done}
+                  />
                 </div>
               </Reveal>
             ))}

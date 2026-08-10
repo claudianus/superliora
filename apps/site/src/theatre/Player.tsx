@@ -83,7 +83,7 @@ export function ScrollLinkedStage() {
       : t.clusters.items[chapter - 1]?.lead;
 
   return (
-    <div className="museum-stage">
+    <div className={`museum-stage${inHero ? ' museum-stage--hero' : ''}`}>
       <AnsiStage ansi={ansi} sceneId={sceneId} caption={caption} />
       <div className="museum-stage__scrub" aria-hidden="true">
         {[0, ...t.clusters.items.map((_, i) => i + 1)].map((n) => (

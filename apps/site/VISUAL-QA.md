@@ -7,20 +7,24 @@ Palette SSOT: bg `#0D1422`, primary `#00D5FF`. Type: Syne + JetBrains Mono + Pre
 
 ## Checklist
 
-- [ ] Neon Noir palette: bg `#0D1422`, primary `#00D5FF` (no Blood Moon red brand)
-- [ ] Hero first viewport: AnsiStage chrome visible below nav (traffic lights not buried)
-- [ ] Hero Stage starts on dense frame (`chrome-bands`); not a sparse empty void
-- [ ] Desktop ≥1024: cluster panel is right rail (~46–50%); Stage stays visible and crossfades on scroll
-- [ ] Mobile/tablet: Stage ~52–58dvh sticky; features stack below without covering Stage forever
-- [ ] Mobile/tablet: hamburger opens drawer with Features / Flow / Install / Docs (Escape closes)
-- [ ] Desktop ≥1024: main nav links visible; burger hidden
-- [ ] Fluid type: hero/section titles scale toward 4K (`clamp`); section-pad grows with viewport
-- [ ] Stage frames from committed `public/tui-frames/*.txt` (chrome-bands matches capture)
-- [ ] Scrub dots track chapter; `prefers-reduced-motion` pauses autoplay
-- [ ] Feature ribbons are a horizontal rail (not a card grid)
-- [ ] Control keys strip includes Alt+J/I/B, Ctrl+K, Shift-Tab
-- [ ] KO `/` and EN `/en/` copy parity (same sections / 4 clusters)
-- [ ] Banned copy smoke: `pnpm -C apps/site run check:copy` passes
+- [x] Neon Noir palette: bg `#0D1422`, primary `#00D5FF` (no Blood Moon red brand)
+- [x] Hero first viewport: AnsiStage chrome visible below nav (traffic lights not buried)
+- [x] Hero Stage starts on dense frame (`chrome-bands`); not a sparse empty void
+- [x] Desktop ≥1024: cluster panel is right rail (~46–50%); Stage stays visible and crossfades on scroll
+- [x] Desktop ≥1024: hero veil is copy-column scoped (Stage caption / right museum stay readable)
+- [x] Mobile/tablet: Stage ~52–58dvh sticky; features stack below without covering Stage forever
+- [x] Mobile/tablet: hero fold hides Stage caption (`museum-stage--hero`); chrome scene id remains
+- [x] Mobile/tablet: hamburger opens drawer with Features / Flow / Install / Docs (Escape closes)
+- [x] Desktop ≥1024: main nav links visible; burger hidden
+- [x] Hero CTA hierarchy: Install + GitHub buttons; Guide as text link
+- [x] Theme toggle i18n (KO 라이트/다크, EN Light/Dark) on landing + docs
+- [x] Fluid type: hero/section titles scale toward 4K (`clamp`); section-pad grows with viewport
+- [x] Stage frames from committed `public/tui-frames/*.txt` (chrome-bands matches capture)
+- [x] Scrub dots track chapter; `prefers-reduced-motion` pauses autoplay
+- [x] Feature ribbons are a horizontal rail (not a card grid)
+- [x] Control keys strip includes Alt+J/I/B, Ctrl+K, Shift-Tab
+- [x] KO `/` and EN `/en/` copy parity (same sections / 4 clusters)
+- [x] Banned copy smoke: `pnpm -C apps/site run check:copy` passes
 
 ## Viewports (screenshot proof)
 
@@ -32,8 +36,11 @@ Capture after preview (`BASE` = `/superliora/`):
 | Tablet | 768×1024 | `apps/site/.visual-qa/after/tablet-768.png` |
 | Desktop | 1440×900 | `apps/site/.visual-qa/after/desktop-1440.png` |
 | Wide / 4K | ≥2560×1440 | `apps/site/.visual-qa/after/wide-2560.png` |
+| EN desktop | 1440×900 | `apps/site/.visual-qa/after/en-desktop-1440.png` |
 
 VerifySurface (load + interaction): `apps/site/.visual-qa/after/verify-surface.png`
+
+Recapture: `BASE_URL=http://127.0.0.1:<port>/superliora/ node apps/site/scripts/capture-visual-qa.mjs` (needs Playwright).
 
 ### Craft audit note
 

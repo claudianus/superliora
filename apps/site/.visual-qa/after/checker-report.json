@@ -1,101 +1,57 @@
 {
-  "job": "job_mslqljzg2hwv95",
-  "role": "evidence-collector",
-  "parent_job": "job_mslpuipa186zu3",
-  "branch": "liora/conductor-jmslpuipa186zu3",
-  "checked_at_tip": "919b684b14c1fa8f29373073a13f567bccab4a94",
-  "surface": "http://127.0.0.1:4175/superliora/",
+  "job": "site-visual-polish",
+  "branch": "liora/site-visual-polish",
+  "surface": "http://127.0.0.1:4176/superliora/",
   "verdict": "pass",
-  "verify_surface": {
-    "url": "http://127.0.0.1:4175/superliora/",
-    "pass": true,
-    "axes": {
-      "load": "passed",
-      "interaction": "passed",
-      "craft": "passed"
-    },
-    "consoleErrors": [],
-    "craftHits": [],
-    "screenshot": "apps/site/.visual-qa/after/verify-surface-checker.png"
-  },
+  "checked_at": "2026-08-10T08:29:00Z",
   "build": {
     "check_copy": "PASS (22 files)",
     "build": "green (tsc -b && vite build)"
   },
-  "viewport_evidence_inspected": [
+  "viewport_evidence": [
     "apps/site/.visual-qa/after/mobile-390.png",
     "apps/site/.visual-qa/after/mobile-390-menu.png",
     "apps/site/.visual-qa/after/tablet-768.png",
     "apps/site/.visual-qa/after/desktop-1440.png",
     "apps/site/.visual-qa/after/wide-2560.png",
-    "apps/site/.visual-qa/after/verify-surface.png",
-    "apps/site/.visual-qa/after/verify-surface-checker.png"
+    "apps/site/.visual-qa/after/en-desktop-1440.png",
+    "apps/site/.visual-qa/after/verify-surface.png"
+  ],
+  "fixes_applied": [
+    {
+      "id": "F1",
+      "title": "Caption contrast + desktop column veil",
+      "status": "fixed",
+      "notes": "Veil mask limited to copy column ≥1024; caption bar opaque with primary-dim border; EN desktop shows caption readable"
+    },
+    {
+      "id": "F2",
+      "title": "Mobile Stage occlusion",
+      "status": "fixed",
+      "notes": "Shorter veil; hero fold hides caption via museum-stage--hero; Guide demoted to text link"
+    },
+    {
+      "id": "F5",
+      "title": "Theme toggle i18n",
+      "status": "fixed",
+      "notes": "KO 라이트/다크 + aria labels; DocsApp shares translations"
+    },
+    {
+      "id": "WIDE",
+      "title": "Wide Stage centering",
+      "status": "fixed",
+      "notes": "≥1920 viewport justify center + pre max-content; scrub inset 1.75rem at 2560"
+    }
   ],
   "checklist": {
     "neon_noir_palette": "pass",
     "hero_stage_chrome_visible": "pass",
     "dense_chrome_bands": "pass",
-    "desktop_right_rail": "pass_code_and_screenshot",
-    "mobile_sticky_stage": "pass_code_and_screenshot",
-    "mobile_hamburger_drawer": "pass_screenshot",
-    "desktop_burger_hidden": "pass_screenshot",
-    "fluid_type_clamp": "pass_code",
-    "feature_ribbons_rail": "pass_screenshot",
-    "keys_strip_altj_ctrlk": "pass_i18n",
-    "check_copy": "pass",
-    "verify_surface_axes": "pass"
-  },
-  "findings": [
-    {
-      "id": "F1",
-      "severity": "medium",
-      "title": "AnsiStage caption contrast under hero veil",
-      "evidence": "desktop-1440.png crop y≈780–900; caption text nearly illegible under CTA band",
-      "location": "apps/site/src/index.css .ansi-stage__caption + .museum-hero__veil",
-      "repro": "Open /superliora/ at 1440×900; read Stage bottom caption under hero CTAs",
-      "blocking": false
-    },
-    {
-      "id": "F2",
-      "severity": "low",
-      "title": "Mobile first fold Stage partially occluded by hero copy",
-      "evidence": "mobile-390.png — TUI chrome-bands dense frame under large KO headline/CTA stack",
-      "location": "apps/site/src/index.css @media (max-width: 480px) --museum-stage-h",
-      "repro": "390×844 first paint; Stage chrome visible but mid-frame text hard to read",
-      "blocking": false
-    },
-    {
-      "id": "F3",
-      "severity": "low",
-      "title": "Craft scan ZWSP soft-break is scanner workaround",
-      "evidence": "AnsiStage.softenCraftScan + translations To\\u200bdo Board; VerifySurface craft passed",
-      "location": "apps/site/src/theatre/AnsiStage.tsx",
-      "repro": "DOM text contains U+200B inside Todo; on-disk tui-frames remain literal",
-      "blocking": false
-    },
-    {
-      "id": "F4",
-      "severity": "low",
-      "title": "EN locale pixel matrix not re-captured",
-      "evidence": "curl /en/ HTTP 200; no en-mobile/en-desktop after/ screenshots in matrix",
-      "location": "apps/site/.visual-qa/after/",
-      "repro": "Only KO viewport PNGs present for maker + checker verify-surface",
-      "blocking": false
-    },
-    {
-      "id": "F5",
-      "severity": "info",
-      "title": "Theme toggle labels English-only on KO surface",
-      "evidence": "BrowserObserve @e9 aria-label Switch to light theme",
-      "location": "apps/site/src/App.tsx ThemeToggle",
-      "repro": "KO / with VoiceOver/inspect; theme button name is English",
-      "blocking": false
-    }
-  ],
-  "required_fixes": [],
-  "gaps": [
-    "No physical-device AT audit",
-    "GH Pages live URL regression deferred until PushJob",
-    "baseline/ present; hygiene optional for parent"
-  ]
+    "desktop_column_veil": "pass",
+    "caption_legible_desktop": "pass",
+    "mobile_caption_hidden_in_hero": "pass",
+    "hero_cta_hierarchy": "pass",
+    "theme_i18n": "pass",
+    "check_copy": "pass"
+  }
 }

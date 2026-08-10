@@ -23,15 +23,16 @@ function SkipLink() {
 
 function ThemeToggle() {
   const { theme, toggle } = useTheme();
+  const { t } = useI18n();
   return (
     <button
       type="button"
       onClick={toggle}
       aria-pressed={theme === 'dark'}
-      aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+      aria-label={theme === 'dark' ? t.theme.toLight : t.theme.toDark}
       className="rounded-md border border-line bg-bg-2 px-2.5 py-1.5 text-xs font-medium text-soft transition hover:border-primary hover:text-primary"
     >
-      {theme === 'dark' ? 'Light' : 'Dark'}
+      {theme === 'dark' ? t.theme.light : t.theme.dark}
     </button>
   );
 }
@@ -100,12 +101,12 @@ function Navbar() {
           <BrandMark />
           <span className="truncate">SuperLiora</span>
         </a>
-        <nav aria-label="Main" className="hidden items-center gap-1 text-sm font-medium text-soft lg:flex">
+        <nav aria-label="Main" className="hidden items-center gap-1 text-sm font-medium lg:flex">
           {links.map((link) => (
             <a
               key={link.href}
               href={link.href}
-              className="rounded-md px-3 py-1.5 transition hover:bg-bg-2 hover:text-text"
+              className="rounded-md px-3 py-1.5 text-text/80 transition hover:bg-bg-2 hover:text-text"
             >
               {link.label}
             </a>
