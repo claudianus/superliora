@@ -16,6 +16,9 @@ export const CLI_SHUTDOWN_TIMEOUT_MS = 3000;
 export const PROMPT_CLEANUP_TIMEOUT_MS = 8000;
 export const HEADLESS_FORCE_EXIT_GRACE_MS = 2000;
 export const HEADLESS_STDIO_DRAIN_TIMEOUT_MS = 10000;
+// Interactive /exit: return the terminal first, then bound session/harness cleanup.
+export const TUI_CLEANUP_TIMEOUT_MS = 2500;
+export const TUI_FORCE_EXIT_GRACE_MS = 2000;
 
 // Published npm package name; this can differ from the executable command.
 export const NPM_PACKAGE_NAME = '@superliora/liora';

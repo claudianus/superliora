@@ -37,6 +37,8 @@ interface InternalEntry {
 export type McpStatusListener = (entry: McpServerEntry) => void;
 
 const DEFAULT_STARTUP_TIMEOUT_MS = 30_000;
+/** Bound MCP client.close() so a stuck stdio/SSE transport cannot hang session exit. */
+export const MCP_CLOSE_TIMEOUT_MS = 2_000;
 /**
  * Default per-tool-call timeout when `toolTimeoutMs` is not set in the MCP
  * server config. Without a bound, a stuck MCP server can freeze a turn
@@ -434,10 +436,11 @@ export class McpConnectionManager {
 
   private async closeRuntimeClient(client: RuntimeMcpClient): Promise<void> {
     try {
-      await client.close();
+      await withTimeout(client.close(), MCP_CLOSE_TIMEOUT_MS);
     } catch {
-      // Suppress close errors — the server is going away regardless and we
-      // don't want them masking the original startup failure.
+      // Suppress close errors and timeouts — the server is going away
+      // regardless and we don't want them masking the original startup failure
+      // or hanging interactive exit.
     }
   }
 

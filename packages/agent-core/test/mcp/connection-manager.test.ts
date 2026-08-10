@@ -23,7 +23,11 @@ import { z } from 'zod';
 
 import { LioraError } from '../../src/errors';
 import { ProviderManager } from '../../src/session/provider/provider-manager';
-import { McpConnectionManager, type McpServerEntry } from '../../src/mcp/connection-manager';
+import {
+  MCP_CLOSE_TIMEOUT_MS,
+  McpConnectionManager,
+  type McpServerEntry,
+} from '../../src/mcp/connection-manager';
 import { JsonFileStore, McpOAuthService } from '../../src/mcp/oauth';
 import type { AgentEvent, SDKSessionRPC } from '../../src/rpc';
 import { Session } from '../../src/session';
@@ -279,6 +283,26 @@ describe('McpConnectionManager', () => {
     // Second call must not throw.
     await cm.shutdown();
   }, 15000);
+
+  it('shutdown does not hang when client.close never resolves', async () => {
+    const cm = new McpConnectionManager();
+    await cm.connectAll({ alpha: stdioConfig() });
+    const entries = (
+      cm as unknown as {
+        entries: Map<string, { client?: { close(): Promise<void> } }>;
+      }
+    ).entries;
+    const entry = entries.get('alpha');
+    expect(entry?.client).toBeDefined();
+    entry!.client!.close = () => new Promise(() => {});
+
+    const result = await Promise.race([
+      cm.shutdown().then(() => 'ok' as const),
+      sleep(MCP_CLOSE_TIMEOUT_MS + 500).then(() => 'slow' as const),
+    ]);
+    expect(result).toBe('ok');
+    expect(cm.list()).toEqual([]);
+  }, 10_000);
 
   it('shutdown cancels in-flight startup without late status updates', async () => {
     const cm = new McpConnectionManager();

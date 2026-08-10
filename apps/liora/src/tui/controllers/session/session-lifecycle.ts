@@ -234,14 +234,18 @@ export class SessionLifecycleController {
 
   async closeSession(reason: string): Promise<void> {
     await writeTuiSessionState(this.host).catch(() => undefined);
-    // F10: stale worktree CTA before the session handle is dropped.
-    try {
-      const { maybeApplyStaleWorktrees } = await import(
-        '../../features/control-tower/job-hygiene'
-      );
-      await maybeApplyStaleWorktrees(this.host);
-    } catch {
-      /* best-effort */
+    // F10: stale worktree GC before the session handle is dropped. Skip on
+    // interactive shutdown — disk GC is not worth blocking /exit (job-desk /
+    // land paths already apply hygiene).
+    if (reason !== 'shutting down') {
+      try {
+        const { maybeApplyStaleWorktrees } = await import(
+          '../../features/control-tower/job-hygiene'
+        );
+        await maybeApplyStaleWorktrees(this.host);
+      } catch {
+        /* best-effort */
+      }
     }
     const previous = this.unloadCurrentSession(reason);
     await previous?.close();

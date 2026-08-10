@@ -1,5 +1,8 @@
 import type { Session } from '@superliora/sdk';
 
+import { scheduleHeadlessForceExit } from '#/cli/headless-exit';
+import { raceWithTimeout } from '#/cli/run-prompt-io';
+import { TUI_CLEANUP_TIMEOUT_MS, TUI_FORCE_EXIT_GRACE_MS } from '#/constant/app';
 import {
   requestTUIScrollRender,
 } from '../../utils/render/frame-render';
@@ -113,17 +116,35 @@ export class StartupLifecycleController {
     host.appearanceController.dispose();
     host.state.footer.dispose();
     host.state.header.dispose();
-    await host.closeSession('shutting down');
-    await host.harness.close();
-    host.sessionEventHandler.resetRuntimeState();
-    host.tasksBrowserController.close();
-    host.usageMonitor.dispose();
-    host.promptIntelligence.dispose();
-    host.disposables.disposeAll();
+    // Return the terminal before awaiting session/harness cleanup. Otherwise a
+    // stuck MCP/background/hook close keeps alternate-screen/raw mode up and
+    // /exit feels frozen.
     await host.state.renderer.drainInput();
     host.state.ui.stop();
-    if (host.onExit) {
-      await host.onExit(exitCode);
+
+    const forceExitTimer = scheduleHeadlessForceExit(
+      process,
+      () => exitCode ?? 0,
+      TUI_CLEANUP_TIMEOUT_MS + TUI_FORCE_EXIT_GRACE_MS,
+    );
+    try {
+      await raceWithTimeout(
+        (async () => {
+          await host.closeSession('shutting down');
+          await host.harness.close();
+        })(),
+        TUI_CLEANUP_TIMEOUT_MS,
+      );
+      host.sessionEventHandler.resetRuntimeState();
+      host.tasksBrowserController.close();
+      host.usageMonitor.dispose();
+      host.promptIntelligence.dispose();
+      host.disposables.disposeAll();
+      if (host.onExit) {
+        await host.onExit(exitCode);
+      }
+    } finally {
+      clearTimeout(forceExitTimer);
     }
   }
 
