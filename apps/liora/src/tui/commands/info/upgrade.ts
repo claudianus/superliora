@@ -1,4 +1,5 @@
 import { getVersion } from '#/cli/version';
+import { refreshGuiUseAfterUpgrade } from '#/cli/update/gui-use-refresh';
 import {
   startObservedUpgradeInstall,
   type UpgradeInstallStage,
@@ -12,6 +13,7 @@ import { requestTUILayoutRender } from '#/tui/utils/render/frame-render';
 import { ttui } from '#/tui/utils/tui-i18n';
 import { dismissPickerDialog, mountPickerDialog } from '#/tui/utils/ui/mount-picker';
 import { showUpdatePreferencePicker } from '#/tui/commands/config/upgrade/update-preference';
+import { copyTextToClipboard } from '#/utils/clipboard/clipboard-text';
 
 import type { SlashCommandHost } from '../hub/dispatch';
 
@@ -19,6 +21,8 @@ export interface UpgradeCommandDeps {
   readonly resolveUpgradePlan: typeof resolveUpgradePlan;
   readonly startObservedUpgradeInstall: typeof startObservedUpgradeInstall;
   readonly getCurrentVersion: () => string;
+  readonly refreshGuiUseAfterUpgrade: typeof refreshGuiUseAfterUpgrade;
+  readonly copyTextToClipboard: typeof copyTextToClipboard;
 }
 
 export interface UpgradeCommandOptions {
@@ -47,6 +51,8 @@ export async function handleUpgradeCommand(
   const currentVersion =
     deps.getCurrentVersion?.() ?? host.state.appState.version ?? getVersion();
   const resolvePlan = deps.resolveUpgradePlan ?? resolveUpgradePlan;
+  const refreshGuiUse = deps.refreshGuiUseAfterUpgrade ?? refreshGuiUseAfterUpgrade;
+  const copyCommand = deps.copyTextToClipboard ?? copyTextToClipboard;
   host.track('upgrade_studio_opened', {
     current_version: currentVersion,
     from_main: options.fromMain === true,
@@ -94,6 +100,18 @@ export async function handleUpgradeCommand(
         source: next.source,
         from_main: next.fromMain,
       });
+      if (next.reason === 'check-failed') {
+        const reason = next.errorMessage?.trim() || 'Could not check for updates.';
+        studio.update({
+          mode: 'failed',
+          plan: next,
+          stage: 'failed',
+          detail: reason,
+        });
+        refresh();
+        host.showStatus(ttui('tui.upgrade.checkFailed', { reason }), 'error');
+        return;
+      }
       studio.update({ mode: 'plan', plan: next, stage: 'checking' });
       refresh();
     };
@@ -146,6 +164,11 @@ export async function handleUpgradeCommand(
               target_version: activePlan.target!.version,
               source: activePlan.source,
               from_main: activePlan.fromMain,
+            });
+            void refreshGuiUse().then((result) => {
+              for (const warning of result.warnings) {
+                host.showStatus(warning, 'warning');
+              }
             });
             return;
           }
@@ -214,7 +237,18 @@ export async function handleUpgradeCommand(
       }
       if (choice === 'copy-command') {
         if (plan !== null) {
-          host.showStatus(ttui('tui.upgrade.installCmd', { command: plan.installCommand }), 'info');
+          try {
+            await copyCommand(plan.installCommand);
+            host.showStatus(
+              ttui('tui.upgrade.installCmd', { command: plan.installCommand }),
+              'success',
+            );
+          } catch {
+            host.showStatus(
+              ttui('tui.upgrade.installCmd', { command: plan.installCommand }),
+              'info',
+            );
+          }
         }
         return;
       }

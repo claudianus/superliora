@@ -105,8 +105,24 @@ describe('UpgradeStudioComponent', () => {
     });
     const out = text(studio);
     expect(out.toLowerCase()).toContain('dirty');
-    expect(out.toLowerCase()).toMatch(/discard|force checkout/);
+    expect(out.toLowerCase()).toMatch(/discard|force-?reset|force checkout/);
     expect(out).toMatch(/Install/);
+  });
+
+  it('resets selection when action list changes across modes', () => {
+    const onSelect = vi.fn();
+    const studio = new UpgradeStudioComponent({
+      mode: 'plan',
+      plan: plan(),
+      onSelect,
+      onCancel: vi.fn(),
+    });
+    studio.handleInput('\u001B[B'); // down → Install tip of main
+    studio.handleInput('\u001B[B'); // down → preferences
+    studio.update({ mode: 'failed', detail: 'boom' });
+    studio.handleInput(ENTER);
+    // Failed actions start at Retry (index 0), not a stale preferences slot.
+    expect(onSelect).toHaveBeenCalledWith('retry');
   });
 
   it('installing mode swallows Esc and shows stage checklist', () => {

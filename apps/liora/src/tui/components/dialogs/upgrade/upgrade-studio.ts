@@ -283,7 +283,7 @@ export class UpgradeStudioComponent extends Container implements Focusable {
     if (plan.dirty && plan.reason === 'update-available') {
       lines.push('');
       const warn = plan.canAutoInstall
-        ? 'Dirty tree — install force-checkouts and discards local changes.'
+        ? 'Dirty tree — Install force-resets HEAD and discards uncommitted local changes.'
         : 'Dirty tree — commit, stash, or re-run install.sh to recover.';
       lines.push(padLine(currentTheme.fg('warning', ` ⚠ ${warn}`), inner));
     }
@@ -408,8 +408,15 @@ export class UpgradeStudioComponent extends Container implements Focusable {
   }
 
   private rebuildActions(): void {
-    this.actions = actionsForMode(this.mode, this.plan);
-    this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, this.actions.length - 1));
+    const next = actionsForMode(this.mode, this.plan);
+    const changed =
+      next.length !== this.actions.length
+      || next.some((action, index) => action.value !== this.actions[index]?.value);
+    this.actions = next;
+    // Mode/action-list changes must not keep a stale highlight from a prior list.
+    this.selectedIndex = changed
+      ? 0
+      : Math.min(this.selectedIndex, Math.max(0, this.actions.length - 1));
   }
 }
 

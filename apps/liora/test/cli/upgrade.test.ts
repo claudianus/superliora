@@ -95,6 +95,7 @@ describe('handleUpgrade', () => {
       target: { version: '0.5.0' },
       installCommand: 'npm install -g @superliora/liora@0.5.0',
       installSource: 'npm-global',
+      dirty: false,
     });
     expect(deps.installUpdate).toHaveBeenCalledWith('npm-global', '0.5.0', 'darwin', {
       fromMain: false,

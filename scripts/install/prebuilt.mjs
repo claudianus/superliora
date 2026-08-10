@@ -3,7 +3,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { chmod, copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, rename, rm, unlink, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -11,23 +11,38 @@ import { downloadToFile, fetchJson } from './download.mjs';
 import {
   DEFAULT_MANIFEST_URL,
   defaultHome,
+  manifestUrlForVersion,
   releaseTarget,
 } from './platform.mjs';
 
 /**
- * @returns {Promise<{ version: string, binaryPath: string, target: string }>}
+ * @returns {Promise<{ version: string, binaryPath: string, target: string, binDir: string }>}
  */
 export async function installPrebuilt(options) {
-  const manifestUrl = options.manifestUrl ?? DEFAULT_MANIFEST_URL;
+  const expectedVersion =
+    typeof options.expectedVersion === 'string' && options.expectedVersion.trim().length > 0
+      ? options.expectedVersion.trim().replace(/^v/, '')
+      : null;
+  const manifestUrl =
+    options.manifestUrl ??
+    (expectedVersion !== null ? manifestUrlForVersion(expectedVersion) : DEFAULT_MANIFEST_URL);
   const target = options.target ?? releaseTarget();
   const binDir = options.binDir;
   const commandName = options.commandName ?? 'liora';
   const cacheDir = options.cacheDir ?? join(defaultHome(), '.superliora', 'cache', 'releases');
+  const skipVerify = options.skipVerify === true;
 
   const manifest = await fetchJson(manifestUrl);
   const entry = manifest?.platforms?.[target];
   if (!entry?.filename || !entry?.checksum) {
     throw new Error(`No prebuilt asset for target ${target} in ${manifestUrl}`);
+  }
+
+  const installedVersion = String(manifest.version ?? '').replace(/^v/, '');
+  if (expectedVersion !== null && installedVersion && installedVersion !== expectedVersion) {
+    throw new Error(
+      `Release manifest version ${installedVersion} does not match requested ${expectedVersion}`,
+    );
   }
 
   const baseUrl = manifestUrl.replace(/\/manifest\.json$/i, '');
@@ -50,8 +65,8 @@ export async function installPrebuilt(options) {
   await mkdir(binDir, { recursive: true });
   const destName = process.platform === 'win32' ? `${commandName}.exe` : commandName;
   const destPath = join(binDir, destName);
-  await copyFile(extractedBinary, destPath);
-  if (process.platform !== 'win32') await chmod(destPath, 0o755);
+
+  await installBinaryAtomically(extractedBinary, destPath);
 
   // Personas beside binary (SEA hydrate).
   const personasSrc = join(extractDir, 'catalog-personas.json');
@@ -69,12 +84,91 @@ export async function installPrebuilt(options) {
     );
   }
 
+  const verifyPath =
+    process.platform === 'win32' ? join(binDir, `${commandName}.cmd`) : destPath;
+  if (!skipVerify) {
+    const verifyAgainst = expectedVersion ?? (installedVersion.length > 0 ? installedVersion : null);
+    try {
+      await verifyInstalledVersion(verifyPath, verifyAgainst);
+    } catch (error) {
+      await restoreBinaryBackup(destPath).catch(() => {});
+      throw error;
+    }
+  }
+
+  await unlink(`${destPath}.bak`).catch(() => {});
+
   return {
-    version: String(manifest.version ?? ''),
+    version: installedVersion || String(manifest.version ?? ''),
     binaryPath: destPath,
     target,
     binDir,
   };
+}
+
+/**
+ * Copy → tmp, park existing at .bak, rename tmp into place.
+ * On Linux this avoids ETXTBSY from writing over a running SEA binary.
+ */
+export async function installBinaryAtomically(sourcePath, destPath) {
+  const tmpPath = `${destPath}.tmp`;
+  const bakPath = `${destPath}.bak`;
+  await rm(tmpPath, { force: true }).catch(() => {});
+  await copyFile(sourcePath, tmpPath);
+  if (process.platform !== 'win32') await chmod(tmpPath, 0o755);
+
+  if (existsSync(destPath)) {
+    await rm(bakPath, { force: true }).catch(() => {});
+    try {
+      await rename(destPath, bakPath);
+    } catch {
+      // Windows may refuse rename of a locked exe — copy then overwrite via rename of tmp.
+      await copyFile(destPath, bakPath);
+      await unlink(destPath).catch(() => {});
+    }
+  }
+
+  try {
+    await rename(tmpPath, destPath);
+  } catch (error) {
+    await restoreBinaryBackup(destPath).catch(() => {});
+    await rm(tmpPath, { force: true }).catch(() => {});
+    throw error;
+  }
+  if (process.platform !== 'win32') await chmod(destPath, 0o755);
+}
+
+export async function restoreBinaryBackup(destPath) {
+  const bakPath = `${destPath}.bak`;
+  if (!existsSync(bakPath)) return false;
+  await rm(destPath, { force: true }).catch(() => {});
+  await rename(bakPath, destPath);
+  return true;
+}
+
+async function verifyInstalledVersion(binaryPath, expectedVersion) {
+  if (!expectedVersion) return;
+  const result = spawnSync(binaryPath, ['--version'], {
+    encoding: 'utf8',
+    timeout: 15_000,
+  });
+  if (result.error) {
+    throw new Error(`Post-install version check failed to run: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    throw new Error(
+      `Post-install version check exited ${String(result.status)}: ${
+        result.stderr || result.stdout || ''
+      }`.trim(),
+    );
+  }
+  const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
+  const want = expectedVersion.replace(/^v/, '');
+  if (!output.includes(want)) {
+    throw new Error(
+      `Installed binary version mismatch (want ${want}, got ${JSON.stringify(output.trim())})`,
+    );
+  }
 }
 
 function extractArchive(zipPath, destDir) {

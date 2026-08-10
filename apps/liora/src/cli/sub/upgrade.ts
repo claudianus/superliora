@@ -1,8 +1,6 @@
 import { log, type Logger } from '@superliora/sdk';
 import { track as trackTelemetry, type TelemetryProperties } from '@superliora/telemetry';
-import { updateBrowserUseRuntimes, updateCuaDriver } from '@superliora/gui-use';
 
-import { getHostPackageRoot } from '#/cli/version';
 import { tln } from '#/cli/i18n';
 import { PRODUCT_NAME } from '#/constant/app';
 import {
@@ -12,6 +10,7 @@ import {
   startObservedUpgradeInstall,
 } from '#/cli/update/preflight';
 import { CliUpgradeProgressWriter } from '#/cli/update/cli-progress';
+import { refreshGuiUseAfterUpgrade } from '#/cli/update/gui-use-refresh';
 import {
   resolveUpgradePlan,
   type UpgradePlan,
@@ -190,6 +189,7 @@ export async function handleUpgrade(
     target: plan.target,
     installCommand: plan.installCommand,
     installSource: plan.source,
+    dirty: plan.dirty,
   });
   if (choice === 'skip') {
     trackUpgradeEvent(deps.track, 'upgrade_command_skipped', {
@@ -383,62 +383,28 @@ async function updateGuiUseAfterUpgrade(deps: {
   readonly stdout: WritableLike;
   readonly stderr: WritableLike;
 }): Promise<void> {
-  await Promise.all([
-    updateBrowserUseAfterUpgrade(deps),
-    updateComputerUseAfterUpgrade(deps),
-  ]);
-}
-
-async function updateBrowserUseAfterUpgrade(deps: {
-  readonly stdout: WritableLike;
-  readonly stderr: WritableLike;
-}): Promise<void> {
-  try {
-    const result = await updateBrowserUseRuntimes({ packageRoot: getHostPackageRoot(), quiet: true });
-    if (result.ok) {
-      deps.stdout.write(tln('cli.runtime.upgrade.browserUseUpToDate'));
-      return;
-    }
-    const detail = result.error ?? firstNonEmpty(result.stderr, result.stdout);
-    deps.stderr.write(tln('cli.runtime.upgrade.browserUseUpdateFailed'));
-    if (detail.length > 0) deps.stderr.write(`${detail}\n`);
-  } catch (error) {
-    deps.stderr.write(
-      tln('cli.runtime.upgrade.browserUseUpdateFailedDetail', {
-        reason: formatErrorMessage(error),
-      }),
-    );
+  const result = await refreshGuiUseAfterUpgrade();
+  if (result.browserOk) {
+    deps.stdout.write(tln('cli.runtime.upgrade.browserUseUpToDate'));
   }
-}
-
-async function updateComputerUseAfterUpgrade(deps: {
-  readonly stdout: WritableLike;
-  readonly stderr: WritableLike;
-}): Promise<void> {
-  try {
-    const result = await updateCuaDriver({ cwd: getHostPackageRoot(), quiet: true });
-    if (result.ok) {
-      deps.stdout.write(tln('cli.runtime.upgrade.cuaUpToDate'));
-      return;
+  if (result.computerOk) {
+    deps.stdout.write(tln('cli.runtime.upgrade.cuaUpToDate'));
+  }
+  for (const warning of result.warnings) {
+    if (warning.startsWith('browser-use')) {
+      deps.stderr.write(tln('cli.runtime.upgrade.browserUseUpdateFailed'));
+      deps.stderr.write(`${warning}\n`);
+    } else if (warning.startsWith('CUA')) {
+      deps.stderr.write(tln('cli.runtime.upgrade.cuaUpdateFailed'));
+      deps.stderr.write(`${warning}\n`);
+    } else {
+      deps.stderr.write(`${warning}\n`);
     }
-    const detail = result.error ?? firstNonEmpty(result.stderr, result.stdout);
-    deps.stderr.write(tln('cli.runtime.upgrade.cuaUpdateFailed'));
-    if (detail.length > 0) deps.stderr.write(`${detail}\n`);
-  } catch (error) {
-    deps.stderr.write(
-      tln('cli.runtime.upgrade.cuaUpdateFailedDetail', {
-        reason: formatErrorMessage(error),
-      }),
-    );
   }
 }
 
 function formatDisplayVersion(version: string): string {
   return version.startsWith('v') ? version : `v${version}`;
-}
-
-function firstNonEmpty(...values: readonly string[]): string {
-  return values.map((value) => value.trim()).find((value) => value.length > 0) ?? '';
 }
 
 function formatErrorMessage(error: unknown): string {

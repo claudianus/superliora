@@ -12,6 +12,10 @@ import {
 import { emptyUpdateInstallState, readUpdateInstallState } from './install-state';
 import { canAutoInstall, installCommandFor } from './preflight';
 import { refreshUpdateCache } from './refresh';
+import {
+  fetchLatestReleaseManifest,
+  type FetchReleaseManifestResult,
+} from './release-manifest';
 import { selectUpdateTarget } from './select';
 import { detectInstallSource } from './source';
 import {
@@ -61,6 +65,8 @@ export interface ResolveUpgradePlanDeps {
     options?: GitCheckoutUpdateOptions,
   ) => Promise<GitCheckoutRefreshResult>;
   readonly refreshUpdateCache: () => Promise<UpdateCache>;
+  /** Native / SEA authority — GitHub Release manifest (not CDN tip). */
+  readonly fetchReleaseManifest: () => Promise<FetchReleaseManifestResult>;
   readonly readUpdateInstallState: () => Promise<UpdateInstallState>;
   readonly detectGithubCheckout: (startPath?: string) => Promise<string | null>;
   readonly defaultSourceInstallDir: () => string;
@@ -89,6 +95,8 @@ function resolveDeps(overrides: Partial<ResolveUpgradePlanDeps>): ResolveUpgrade
       ((repoRoot, options) =>
         refreshGitCheckoutUpdateTarget(repoRoot ?? findGitCheckoutRoot() ?? '', options)),
     refreshUpdateCache: overrides.refreshUpdateCache ?? (() => refreshUpdateCache()),
+    fetchReleaseManifest:
+      overrides.fetchReleaseManifest ?? (() => fetchLatestReleaseManifest()),
     readUpdateInstallState: overrides.readUpdateInstallState ?? (() => readUpdateInstallState()),
     detectGithubCheckout:
       overrides.detectGithubCheckout ?? ((startPath) => detectSuperLioraGithubCheckout(startPath)),
@@ -270,8 +278,13 @@ export async function resolveUpgradePlan(
   }
 
   try {
-    const cache = await deps.refreshUpdateCache();
-    const target = selectUpdateTarget(currentVersion, cache.latest);
+    // SEA/native: GitHub Release manifest is authority so advertise == install.
+    // Package managers still use CDN tip (+ rollout manifest).
+    const latest =
+      source === 'native'
+        ? (await deps.fetchReleaseManifest()).version
+        : (await deps.refreshUpdateCache()).latest;
+    const target = selectUpdateTarget(currentVersion, latest);
     if (target === null) {
       return basePlan({
         source,

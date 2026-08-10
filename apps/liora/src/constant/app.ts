@@ -60,6 +60,16 @@ export const SUPERLIORA_PLUGIN_MARKETPLACE_URL_ENV = 'SUPERLIORA_PLUGIN_MARKETPL
 
 export const SUPERLIORA_INSTALL_SH_URL = `${GITHUB_RAW_BASE}/install.sh`;
 export const SUPERLIORA_INSTALL_PS1_URL = `${GITHUB_RAW_BASE}/install.ps1`;
+export const SUPERLIORA_GITHUB_RELEASES_BASE =
+  'https://github.com/claudianus/superliora/releases';
+/** SEA / native authority — GitHub Release latest manifest (not CDN tip files). */
+export const SUPERLIORA_RELEASE_MANIFEST_LATEST_URL = `${SUPERLIORA_GITHUB_RELEASES_BASE}/latest/download/manifest.json`;
+
+export function superlioraReleaseManifestUrl(version: string): string {
+  const trimmed = version.trim();
+  const tag = trimmed.startsWith('v') ? trimmed : `v${trimmed}`;
+  return `${SUPERLIORA_GITHUB_RELEASES_BASE}/download/${tag}/manifest.json`;
+}
 
 // Native install commands, split by platform. Use these for prompt copy and spawn calls only; do not assemble the strings elsewhere.
 export const NATIVE_INSTALL_COMMAND_UNIX = `curl -fsSL ${SUPERLIORA_INSTALL_SH_URL} | bash`;
@@ -67,3 +77,12 @@ export const NATIVE_INSTALL_COMMAND_WIN = `irm ${SUPERLIORA_INSTALL_PS1_URL} | i
 /** Skip GitHub Releases / prebuilt SEA; build tip of `main` from source. */
 export const NATIVE_INSTALL_FROM_MAIN_UNIX = `curl -fsSL ${SUPERLIORA_INSTALL_SH_URL} | bash -s -- --main`;
 export const NATIVE_INSTALL_FROM_MAIN_WIN = `$env:SUPERLIORA_FROM_MAIN='1'; ${NATIVE_INSTALL_COMMAND_WIN}`;
+
+/** Pin native install to a published release tag. */
+export function nativeInstallCommandPinned(platform: NodeJS.Platform, version: string): string {
+  const semver = version.trim().replace(/^v/i, '');
+  if (platform === 'win32') {
+    return `$env:SUPERLIORA_VERSION='${semver}'; ${NATIVE_INSTALL_COMMAND_WIN}`;
+  }
+  return `curl -fsSL ${SUPERLIORA_INSTALL_SH_URL} | bash -s -- --version ${semver}`;
+}

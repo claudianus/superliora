@@ -2,10 +2,19 @@ import { describe, expect, it } from 'vitest';
 
 import {
   githubArchiveUrl,
+  manifestUrlForVersion,
   nodeDistUrl,
+  releaseTagForVersion,
   releaseTarget,
   versionGte,
 } from '../../../../scripts/install/platform.mjs';
+import {
+  installBinaryAtomically,
+  restoreBinaryBackup,
+} from '../../../../scripts/install/prebuilt.mjs';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { parseUpgradeStageLine } from '#/cli/update/install-stages';
 import { renderLines } from '../../../../scripts/install/theatre.mjs';
 
@@ -31,6 +40,32 @@ describe('scripts/install/platform', () => {
     expect(githubArchiveUrl('https://github.com/claudianus/superliora.git', 'main')).toBe(
       'https://github.com/claudianus/superliora/archive/refs/heads/main.tar.gz',
     );
+  });
+
+  it('pins release manifest URLs to a tag', () => {
+    expect(releaseTagForVersion('0.5.0')).toBe('v0.5.0');
+    expect(releaseTagForVersion('v0.5.0')).toBe('v0.5.0');
+    expect(manifestUrlForVersion('0.5.0')).toBe(
+      'https://github.com/claudianus/superliora/releases/download/v0.5.0/manifest.json',
+    );
+  });
+});
+
+describe('scripts/install/prebuilt atomic replace', () => {
+  it('parks the previous binary at .bak and can restore it', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'liora-prebuilt-'));
+    const dest = join(dir, 'liora');
+    const next = join(dir, 'liora-next');
+    await writeFile(dest, 'old-binary\n', { mode: 0o755 });
+    await writeFile(next, 'new-binary\n', { mode: 0o755 });
+
+    await installBinaryAtomically(next, dest);
+    expect(await readFile(dest, 'utf8')).toBe('new-binary\n');
+    expect(await readFile(`${dest}.bak`, 'utf8')).toBe('old-binary\n');
+
+    await writeFile(dest, 'broken\n', { mode: 0o755 });
+    expect(await restoreBinaryBackup(dest)).toBe(true);
+    expect(await readFile(dest, 'utf8')).toBe('old-binary\n');
   });
 });
 

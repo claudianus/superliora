@@ -3,6 +3,7 @@ import {
   NATIVE_INSTALL_COMMAND_WIN,
   NATIVE_INSTALL_FROM_MAIN_UNIX,
   NATIVE_INSTALL_FROM_MAIN_WIN,
+  nativeInstallCommandPinned,
 } from '#/constant/app';
 
 import { gitCheckoutUpdateCommand, gitCheckoutUpdateScript } from './git-checkout';
@@ -23,9 +24,18 @@ function bunCommand(platform: NodeJS.Platform): string {
   return platform === 'win32' ? 'bun.exe' : 'bun';
 }
 
-function nativeInstallCommand(platform: NodeJS.Platform, fromMain: boolean): string {
+function nativeInstallCommand(
+  platform: NodeJS.Platform,
+  fromMain: boolean,
+  version: string,
+): string {
   if (fromMain) {
     return platform === 'win32' ? NATIVE_INSTALL_FROM_MAIN_WIN : NATIVE_INSTALL_FROM_MAIN_UNIX;
+  }
+  const trimmed = version.trim().replace(/^v/i, '');
+  // Pin when we have a concrete semver so advertise == install.
+  if (/^\d+\.\d+\.\d+/.test(trimmed)) {
+    return nativeInstallCommandPinned(platform, trimmed);
   }
   return platform === 'win32' ? NATIVE_INSTALL_COMMAND_WIN : NATIVE_INSTALL_COMMAND_UNIX;
 }
@@ -47,17 +57,18 @@ export function installCommandFor(
     case 'bun-global':
       return `bun add -g ${NPM_PACKAGE_NAME}@${version}`;
     case 'homebrew':
-      return 'brew upgrade kimi-code';
+      // No official Homebrew formula yet — point at the supported installer.
+      return nativeInstallCommand(platform, false, version);
     case 'github-checkout':
       return gitCheckoutUpdateCommand(
         options.checkoutRoot,
         fromMain ? { preferredUpstream: 'origin/main' } : {},
       );
     case 'native':
-      return nativeInstallCommand(platform, fromMain);
+      return nativeInstallCommand(platform, fromMain, version);
     case 'unsupported':
       return fromMain
-        ? nativeInstallCommand(platform, true)
+        ? nativeInstallCommand(platform, true, version)
         : `npm install -g ${NPM_PACKAGE_NAME}@${version}`;
   }
 }
@@ -70,8 +81,7 @@ export function canAutoInstall(source: InstallSource, platform: NodeJS.Platform)
     case 'bun-global':
       return true;
     case 'homebrew':
-      // Homebrew upgrade may mutate other dependents and the formula can lag
-      // behind the CDN release — prompt the user to run `brew upgrade` manually.
+      // No brew formula; manual reinstall via install script.
       return false;
     case 'github-checkout':
       // In-place git checkout update script is POSIX bash today.
@@ -106,7 +116,7 @@ export function spawnForSource(
     case 'bun-global':
       return { cmd: bunCommand(platform), args: ['add', '-g', `${NPM_PACKAGE_NAME}@${version}`] };
     case 'homebrew':
-      return { cmd: 'brew', args: ['upgrade', 'kimi-code'] };
+      throw new Error('homebrew installs cannot be auto-installed; reinstall via install.sh');
     case 'github-checkout':
       return {
         cmd: 'bash',
@@ -128,7 +138,7 @@ export function spawnForSource(
             '-ExecutionPolicy',
             'Bypass',
             '-Command',
-            `$ErrorActionPreference='Stop'; ${nativeInstallCommand('win32', fromMain)}`,
+            `$ErrorActionPreference='Stop'; ${nativeInstallCommand('win32', fromMain, version)}`,
           ],
         };
       }
@@ -139,7 +149,7 @@ export function spawnForSource(
       // instead of printing "Updated …".
       return {
         cmd: 'bash',
-        args: ['-c', `set -o pipefail; ${nativeInstallCommand('darwin', fromMain)}`],
+        args: ['-c', `set -o pipefail; ${nativeInstallCommand('darwin', fromMain, version)}`],
       };
     case 'unsupported':
       if (fromMain) {

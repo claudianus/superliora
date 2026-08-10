@@ -29,6 +29,7 @@
     "check:slop": "node scripts/check-ai-slop.mjs",
     "check:test-baseline": "node scripts/check-test-baseline.mjs",
     "check:changeset": "node scripts/check-changeset.mjs",
+    "check:cdn-latest": "node scripts/check-cdn-latest.mjs",
     "check:await-scan": "node scripts/check-await-scan.mjs",
     "check:retire-guardrails": "node scripts/check-retire-guardrails.mjs",
     "dev:server": "corepack pnpm -C apps/liora run dev:server",
