@@ -30,6 +30,7 @@ import {
   textLooksLikePlanCompletion,
 } from '#/tools/builtin/planning/implement-handoff';
 import { UNVERIFIED_SUMMARY_PREFIX } from '#/session/subagent/subagent-result-contract';
+import { parseModelFailedNote } from '#/session/subagent/subagent-model-failed-note';
 import type { ToolStore } from '#/tools/store';
 
 import { DynamicInjector } from './injector';
@@ -221,6 +222,8 @@ function nextMoveGuidance(
   if (strip.failed > 1) {
     return 'repeated failures: stop retrying, diagnose from the ledger (JobInspect), then reframe with a smaller scope or escalate to the user with the evidence.';
   }
+  const modelFailMove = modelFailedNextMove(events, store);
+  if (modelFailMove !== undefined) return modelFailMove;
   if (events.some((e) => e.kind === 'job.failed') || strip.failed > 0) {
     return 'read each failure cause once (JobInspect), then retry once with a corrected brief or reframe — never blind-retry twice.';
   }
@@ -245,6 +248,53 @@ function nextMoveGuidance(
   }
   if (strip.running > 0) {
     return 'workers are live: steer only on real new information, never poll, and keep the lane free for the user.';
+  }
+  return undefined;
+}
+
+/** Model-route failure: steer Conductor to a different model_alias, not a blind retry. */
+function modelFailedNextMove(
+  events: readonly JobInboxEvent[],
+  store: ToolStore | undefined,
+): string | undefined {
+  if (store === undefined) return undefined;
+  for (const e of events) {
+    if (e.kind !== 'job.failed' && e.status !== 'failed') continue;
+    const job = getJob(store, e.jobId);
+    if (job === undefined) continue;
+    const parsed =
+      parseModelFailedNote(job.notes) ??
+      parseModelFailedNote(job.resultSummary) ??
+      parseModelFailedNote(e.summary);
+    if (parsed === undefined) continue;
+    if (parsed.nextHint !== undefined) {
+      return (
+        `Job ${job.id} model failed (${parsed.alias}) — retry once with ` +
+        `JobCreate/JobResume model_alias=${parsed.nextHint} (or omit for harness pick); ` +
+        `do not blind-retry ${parsed.alias}.`
+      );
+    }
+    return (
+      `Job ${job.id} model failed (${parsed.alias}) tried=[${parsed.tried.join(',')}] — ` +
+      'pick a different <fleet_model_catalog> alias or omit model_alias; do not blind-retry the same model.'
+    );
+  }
+  // Board has failures but inbox events may already be marked read — scan ledger.
+  if (store !== undefined) {
+    for (const job of listJobs(store)) {
+      if (job.status !== 'failed') continue;
+      const parsed = parseModelFailedNote(job.notes) ?? parseModelFailedNote(job.resultSummary);
+      if (parsed === undefined) continue;
+      if (parsed.nextHint !== undefined) {
+        return (
+          `Job ${job.id} model failed (${parsed.alias}) — retry once with ` +
+          `model_alias=${parsed.nextHint} (or omit); do not blind-retry ${parsed.alias}.`
+        );
+      }
+      return (
+        `Job ${job.id} model failed (${parsed.alias}) — pick another catalog alias or omit model_alias.`
+      );
+    }
   }
   return undefined;
 }

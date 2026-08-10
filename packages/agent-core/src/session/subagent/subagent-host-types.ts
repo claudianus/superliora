@@ -81,6 +81,8 @@ export interface RunSubagentOptions {
    * consume screenshots (UI-classified Conductor Jobs).
    */
   readonly preferVisionModel?: boolean;
+  /** Conductor-chosen worker model alias; skips profile/role auto when healthy. */
+  readonly modelAlias?: string;
   readonly onReady?: () => void;
   readonly suppressRateLimitFailureEvent?: boolean;
 }

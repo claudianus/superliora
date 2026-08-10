@@ -10,6 +10,7 @@ import type {
   ConductorJobDraftRecorder,
 } from '../../../agent/conductor-guard';
 import { MAX_GOAL_OBJECTIVE_LENGTH } from '../../../agent/goal/types';
+import { isConfigAliasHealthy } from '../../../agent/routing';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
@@ -202,6 +203,14 @@ const JobCreateInputSchema = z
       .optional()
       .describe(
         'Run SearchExpert staffing: bind a high-score expert (else generic) to this Job. Does not fan out into multiple Jobs — use auto_split=true only for truly independent multi-intents. ownership_paths is a claim set for one Job and never auto-fanout. Defaults true for task/implement/explore/research/verify; false for merge/desk/goal-desk/mission.',
+      ),
+    model_alias: z
+      .string()
+      .trim()
+      .min(1)
+      .optional()
+      .describe(
+        'Worker model alias from <fleet_model_catalog> when role models are auto. Pick by Job kind/risk/cost (explore→value, implement→quality, verify→different family when possible). Omit to let the harness pick by profile/role. Must be a healthy catalog alias — unknown names are rejected.',
       ),
   })
   .strict()
@@ -400,6 +409,31 @@ function ack(jobId: string, status: JobStatus, extra?: string): string {
   return extra ? `${line}\n${extra}` : line;
 }
 
+/** Reject JobCreate.model_alias when it is not a healthy configured alias. */
+function rejectUnhealthyJobModelAlias(
+  agent: Agent | undefined,
+  modelAlias: string,
+): { isError: true; output: string } | undefined {
+  const config = agent?.runtimeConfig ?? agent?.kimiConfig;
+  if (config === undefined) {
+    return {
+      isError: true,
+      output:
+        `model_alias ${JSON.stringify(modelAlias)} cannot be validated (no session config) — ` +
+        'omit model_alias or retry after models are loaded.',
+    };
+  }
+  if (!isConfigAliasHealthy(config, modelAlias)) {
+    return {
+      isError: true,
+      output:
+        `model_alias ${JSON.stringify(modelAlias)} is unknown or unhealthy — ` +
+        'pick a healthy alias from <fleet_model_catalog>, or omit model_alias for harness role pick.',
+    };
+  }
+  return undefined;
+}
+
 /**
  * Diagnosis view for one job. A full `JSON.stringify` of the record spent most
  * of its tokens on the brief and the raw contract, which is not what a blocked
@@ -418,6 +452,7 @@ export function renderJobInspect(job: JobRecord): string {
   };
   push('worktree', job.worktreePath);
   push('worker', job.workerAgentId);
+  push('model', job.modelAlias);
   push('parent', job.parentJobId);
   push('goal', job.goalObjective);
   push('context_paths', job.contextPaths?.join(', '));
@@ -509,6 +544,9 @@ export async function ackCreatedJobs(input: {
     if (latest.worktreePath) {
       lines.push(`worktree: ${latest.worktreePath}`);
     }
+    if (latest.modelAlias !== undefined && latest.modelAlias.length > 0) {
+      lines.push(`model: ${latest.modelAlias}`);
+    }
     if (latest.successCriteria !== undefined && latest.successCriteria.length > 0) {
       lines.push(`brief.success_criteria: ${latest.successCriteria.join(' | ')}`);
     }
@@ -550,6 +588,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
     'Delegate work: create a Conductor Job on the meta ledger and return an immediate ACK (job_id + state). ' +
     'The ONLY path for any file mutation, build, test, install, or verification loop on the Conductor lane — even a one-line fix. ' +
     'Bind a goal-shaped contract at spawn: success_criteria is required for every task/implement Job (finish line the worker must prove). Also pass must_not_touch / verification_commands / test_seams / tdd_mode / ownership_paths / context_paths when known. ' +
+    'When role models are auto, set model_alias from <fleet_model_catalog> for this Job (omit → harness role pick). ' +
     'Greenfield: delivery_mode=greenfield (+ usually greenfield_chain). Long unattended loops: kind=goal-driver with goal_completion_criterion. ' +
     'Multi-intent: auto_split=true or several calls, then one summary ACK. Scheduling is offloaded — the ACK never waits for the worker.';
   readonly parameters: Record<string, unknown> = toInputJsonSchema(JobCreateInputSchema);
@@ -597,6 +636,11 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
           a.kind === undefined || a.kind === 'task' || a.kind === 'implement';
         const tddMode = a.tdd_mode ?? (codingKind ? 'preferred' : undefined);
         const reproCommand = a.repro_command?.trim() || undefined;
+        const modelAlias = a.model_alias?.trim() || undefined;
+        if (modelAlias !== undefined) {
+          const rejected = rejectUnhealthyJobModelAlias(this.agent, modelAlias);
+          if (rejected !== undefined) return rejected;
+        }
 
         const isGoalDriver = a.kind === 'goal-driver';
         if (isGoalDriver) {
@@ -627,6 +671,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
             tddMode,
             blockedByJobIds: blockedByJobIds.length > 0 ? blockedByJobIds : undefined,
             parentJobId: a.parent_job_id,
+            modelAlias,
           });
           return ackCreatedJobs({
             store: this.store,
@@ -703,6 +748,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
               expertId: slice.expertId,
               expertScore: slice.expertScore,
               staffQuery: slice.staffQuery,
+              modelAlias,
             }),
           );
         } else {
@@ -724,6 +770,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
               blockedByJobIds: blockedByJobIds.length > 0 ? blockedByJobIds : undefined,
               deliveryMode: deliveryMode === 'standard' ? undefined : deliveryMode,
               parentJobId: a.parent_job_id,
+              modelAlias,
               ...(isGoalDriver
                 ? {
                     goalObjective: intent.prompt?.trim() || intent.title || a.title,

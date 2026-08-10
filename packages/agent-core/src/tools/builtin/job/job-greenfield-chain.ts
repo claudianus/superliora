@@ -20,6 +20,7 @@ export interface GreenfieldChainInput {
   readonly tddMode?: JobRecord['tddMode'];
   readonly blockedByJobIds?: readonly string[];
   readonly parentJobId?: string;
+  readonly modelAlias?: string;
 }
 
 const PHASES = [
@@ -79,6 +80,7 @@ export function createGreenfieldChainJobs(
       deliveryMode: 'greenfield',
       deliveryPhase: step.phase,
       parentJobId: parentId,
+      modelAlias: input.modelAlias,
     });
     created.push(job);
     parentId = job.id;

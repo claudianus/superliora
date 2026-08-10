@@ -431,6 +431,8 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
     forcePremiumQuality: uiFlags?.forcePremiumQuality,
     // Text-only coding models cannot audit screenshots; prefer a vision alias.
     preferVisionModel: uiFlags?.preferVisionModel,
+    // Conductor-picked worker model (fleet catalog); omit → role smart route.
+    modelAlias: job.modelAlias,
     // Goal-driver (spec 2026-08-04-goal-driver-jobs): the goal migrates onto
     // the worker, whose turn engine then runs the autonomous loop. The brief
     // doubles as the objective; JobCreate validated its length.

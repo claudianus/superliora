@@ -13,6 +13,7 @@ import {
   isConfigAliasHealthy,
   mergeRouteFallbackAliases,
   resetModelRouteHealthStoreForTests,
+  resolveSessionSmartRoute,
   resolveSmartRoute,
   sharedModelRouteHealthStore,
   type SmartRoute,
@@ -144,8 +145,43 @@ describe('smart-router', () => {
     ).toMatchObject({ role: 'exploration', intensity: 'value' });
 
     expect(classifySessionRole('implement multi-file patch')).toBe('coding');
+    expect(classifySessionRole('니 추천대로 개선 진행해')).toBe('completion');
     expect(defaultIntensityForRole('planning')).toBe('max');
     expect(escalateIntensity('value')).toBe('balanced');
+  });
+
+  it('conductor session auto skips prompt-role demotion (orchestrator picker)', () => {
+    const cfg = config({
+      models: {
+        'cheap-haiku': model('cheap-haiku', 0.1),
+        opus: model('opus', 10),
+      },
+    });
+    // Korean task-like text classifies as completion — but Conductor must stay coding.
+    expect(classifySessionRole('니 추천대로 개선 진행해')).toBe('completion');
+    const orch = resolveSessionSmartRoute({
+      config: cfg,
+      prompt: '니 추천대로 개선 진행해',
+      profileName: 'conductor',
+    });
+    expect(orch?.role).toBe('coding');
+    expect(orch?.intensity).toBe('balanced');
+    expect(orch?.reason).toMatch(/conductor-orch/);
+
+    // Explore-shaped prompts must not demote the Conductor orch lane either.
+    const explorePrompt = resolveSessionSmartRoute({
+      config: cfg,
+      prompt: 'find where auth is configured',
+      profileName: 'conductor',
+    });
+    expect(explorePrompt?.role).toBe('coding');
+
+    // Non-conductor sessions still use prompt classification.
+    const plain = resolveSessionSmartRoute({
+      config: cfg,
+      prompt: '니 추천대로 개선 진행해',
+    });
+    expect(plain?.role).toBe('completion');
   });
 
   it('outcome EMA can promote a head candidate over catalog pick', () => {

@@ -2,8 +2,11 @@ import { sharedCredentialHealthStore } from '@superliora/oauth';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { Agent } from '../../src/agent';
+import type { SmartRoute } from '../../src/agent/routing';
 import {
   completionFlowApi,
+  formatModelFailedNote,
+  parseModelFailedNote,
   runPromptTurnWithModelFallback,
   subagentFallbackAliases,
 } from '../../src/session/subagent/subagent-completion-flow';
@@ -72,6 +75,45 @@ describe('subagentFallbackAliases', () => {
     const { child } = fakeChild();
     expect(subagentFallbackAliases(child)).toEqual(['kimi/k2.5']);
   });
+
+  it('pinFallbacksFirst puts pin fallbackModels ahead of the role smart chain', () => {
+    const { child } = fakeChild();
+    const route: SmartRoute = {
+      role: 'coding',
+      intensity: 'balanced',
+      alias: 'role-primary',
+      chain: ['role-primary', 'role-secondary', 'opencode/free'],
+      thinkingLevel: 'high',
+      source: 'auto',
+      reason: 'test',
+    };
+    // Default: role chain wins ordering (opencode appears via route before kimi).
+    expect(subagentFallbackAliases(child, undefined, route)[0]).toBe('role-primary');
+    // Conductor pin: configured fallbacks of `primary` first.
+    expect(
+      subagentFallbackAliases(child, undefined, route, { pinFallbacksFirst: true }),
+    ).toEqual(['opencode/free', 'kimi/k2.5', 'role-primary', 'role-secondary']);
+  });
+});
+
+describe('formatModelFailedNote', () => {
+  it('round-trips alias / tried / next_hint for desk routing', () => {
+    const note = formatModelFailedNote({
+      alias: 'primary',
+      kind: 'model_unavailable',
+      tried: ['primary', 'opencode/free'],
+      nextHint: 'kimi/k2.5',
+    });
+    expect(note).toBe(
+      'model_failed: alias=primary kind=model_unavailable tried=[primary,opencode/free] next_hint=kimi/k2.5',
+    );
+    expect(parseModelFailedNote(`worker_failed: boom\n${note}`)).toEqual({
+      alias: 'primary',
+      kind: 'model_unavailable',
+      tried: ['primary', 'opencode/free'],
+      nextHint: 'kimi/k2.5',
+    });
+  });
 });
 
 describe('runPromptTurnWithModelFallback', () => {
@@ -105,6 +147,46 @@ describe('runPromptTurnWithModelFallback', () => {
     expect(completion.result).toBe('ok');
     expect(seenAliases).toEqual(['primary', 'opencode/free']);
     expect(updates).toEqual(['opencode/free']);
+  });
+
+  it('Conductor model_alias pin hops pin fallbackModels before role chain', async () => {
+    const { child, updates } = fakeChild();
+    const seenAliases: string[] = [];
+    completionFlowApi.runPromptTurn = (async (
+      _parent: Agent,
+      _childId: string,
+      turnChild: Agent,
+    ) => {
+      seenAliases.push(turnChild.config.modelAlias ?? '');
+      if (seenAliases.length === 1) throw retryableTurnError();
+      return { result: 'ok' } as never;
+    }) as typeof originalRunPromptTurn;
+
+    const completion = await runPromptTurnWithModelFallback(
+      parent,
+      'child_pin',
+      child,
+      'coder',
+      { ...runOptions, modelAlias: 'primary' },
+    );
+    expect(completion.result).toBe('ok');
+    // Pin-first: primary's fallbackModels[0] = opencode/free
+    expect(seenAliases).toEqual(['primary', 'opencode/free']);
+    expect(updates).toEqual(['opencode/free']);
+  });
+
+  it('appends model_failed note when every hop is exhausted', async () => {
+    const { child } = fakeChild();
+    completionFlowApi.runPromptTurn = (async () => {
+      throw retryableTurnError();
+    }) as typeof originalRunPromptTurn;
+
+    await expect(
+      runPromptTurnWithModelFallback(parent, 'child_exhausted', child, 'coder', {
+        ...runOptions,
+        modelAlias: 'primary',
+      }),
+    ).rejects.toThrow(/model_failed: alias=/);
   });
 
   it('never hops into a provider already marked dead (regression: explore model 403)', async () => {

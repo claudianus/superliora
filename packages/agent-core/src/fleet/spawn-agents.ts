@@ -27,6 +27,8 @@ export interface FanoutTask {
   readonly forcePremiumQuality?: boolean;
   /** Prefer a vision-capable model for UI-classified Conductor Jobs. */
   readonly preferVisionModel?: boolean;
+  /** Conductor-pinned worker model alias (JobCreate.model_alias). */
+  readonly modelAlias?: string;
   /** Resume an existing agent instead of spawning (manual/template modes). */
   readonly resumeAgentId?: string;
   readonly swarmIndex?: number;
@@ -76,6 +78,7 @@ export function runOptionsForTask(spec: FanoutSpec, task: FanoutTask): RunSubage
     plan: task.plan,
     forcePremiumQuality: task.forcePremiumQuality,
     preferVisionModel: task.preferVisionModel,
+    modelAlias: task.modelAlias,
   };
 }
 

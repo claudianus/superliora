@@ -79,6 +79,7 @@ export function createJob(
     readonly expertScore?: number;
     readonly staffQuery?: string;
     readonly reviewAxis?: JobRecord['reviewAxis'];
+    readonly modelAlias?: string;
   },
 ): JobRecord {
   const now = new Date().toISOString();
@@ -112,6 +113,7 @@ export function createJob(
     expertScore: input.expertScore,
     staffQuery: input.staffQuery,
     reviewAxis: input.reviewAxis,
+    modelAlias: input.modelAlias?.trim() || undefined,
   };
   return upsertJob(store, job);
 }
@@ -183,8 +185,12 @@ export function renderJobLine(job: JobRecord): string {
     job.ownershipPaths && job.ownershipPaths.length > 0
       ? ` paths=${job.ownershipPaths.join(',')}`
       : '';
+  const model =
+    job.modelAlias !== undefined && job.modelAlias.length > 0
+      ? ` model=${job.modelAlias}`
+      : '';
   const live = job.status === 'running' ? renderJobProgressSuffix(job) : '';
-  return `- ${job.id} [${job.status}] (${job.kind} p${job.priority}) ${job.title}${paths}${live}`;
+  return `- ${job.id} [${job.status}] (${job.kind} p${job.priority}) ${job.title}${paths}${model}${live}`;
 }
 
 /**

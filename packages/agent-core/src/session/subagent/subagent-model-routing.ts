@@ -8,6 +8,7 @@
 import type { Agent } from '../../agent';
 import type { ThinkingEffort } from '../../agent/config/thinking';
 import {
+  isConfigAliasHealthy,
   resolveSmartRoute,
   type SmartRoute,
   type TurnSignals,
@@ -17,7 +18,12 @@ import { ProviderManager } from '../provider/provider-manager';
 import { selectVisionModel } from '../vision-analyzer';
 import type { ModelRole } from '../../utils/model-presets';
 
-export type SubagentModelSelectionSource = 'explicit' | 'auto' | 'parent' | 'vision';
+export type SubagentModelSelectionSource =
+  | 'explicit'
+  | 'auto'
+  | 'parent'
+  | 'vision'
+  | 'conductor';
 
 export interface SubagentModelSelection {
   readonly alias: string | undefined;
@@ -32,6 +38,8 @@ export interface ResolveSubagentModelOptions {
   readonly preferVision?: boolean;
   readonly signals?: TurnSignals;
   readonly sessionSpendUsd?: number;
+  /** Conductor JobCreate.model_alias — wins when healthy. */
+  readonly forcedAlias?: string;
 }
 
 /** Use the live ProviderManager config when a session has been reloaded. */
@@ -122,6 +130,32 @@ function resolveSubagentModelSelectionCore(
       : pinnedAlias;
   const parentThinking = parentConfig.thinkingLevel;
   const role = roleForSubagentProfile(profileName, profileBaseName);
+  const config = currentAgentConfig(parent);
+
+  const forced = options?.forcedAlias?.trim();
+  if (forced !== undefined && forced.length > 0) {
+    if (config !== undefined && isConfigAliasHealthy(config, forced)) {
+      const route = role !== undefined
+        ? resolveSmartRoute({
+            role,
+            config,
+            intensity: 'balanced',
+          })
+        : undefined;
+      return {
+        alias: forced,
+        role,
+        thinkingLevel:
+          route !== undefined && route.source !== 'explicit'
+            ? route.thinkingLevel
+            : parentThinking,
+        source: 'conductor',
+        ...(route !== undefined ? { route } : {}),
+      };
+    }
+    // Unhealthy / unknown forced alias — fall through to role auto.
+  }
+
   if (role === undefined) {
     return {
       alias: parentAlias ?? pinnedAlias,
@@ -131,7 +165,6 @@ function resolveSubagentModelSelectionCore(
     };
   }
 
-  const config = currentAgentConfig(parent);
   if (config === undefined) {
     return {
       alias: parentAlias ?? pinnedAlias,
