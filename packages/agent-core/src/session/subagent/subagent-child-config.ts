@@ -13,6 +13,7 @@ import {
   prepareSystemPromptContext,
   type ResolvedAgentProfile,
 } from '../../profile';
+import { warmModelsDevData } from '../../utils/model-presets';
 import { checkContractFile } from '../contract-check';
 import { getDefaultSwarmFileLeaseRegistry } from '#/fleet';
 import type { Session } from '../index';
@@ -133,6 +134,8 @@ export async function configureSubagentChild(
   profileBaseName?: string,
 ): Promise<void> {
   const cwd = options.worktreeDir ?? parent.config.cwd;
+  // Warm models.dev so sync role ranking sees benches/cutoff on first spawn.
+  await warmModelsDevData().catch(() => {});
   const modelSelection = resolveSubagentModelSelection(parent, profile.name, profileBaseName, {
     preferVision: options.preferVisionModel === true,
     signals: {

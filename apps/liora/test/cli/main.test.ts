@@ -134,9 +134,7 @@ vi.mock('../../src/cli/headless-exit', () => ({
 }));
 
 vi.mock('../../src/tui/config', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../src/tui/config')>(
-    '../../src/tui/config',
-  );
+  const actual = await importOriginal<typeof import('../../src/tui/config')>();
   return {
     ...actual,
     loadTuiConfig: mocks.loadTuiConfig,

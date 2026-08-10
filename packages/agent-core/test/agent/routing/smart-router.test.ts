@@ -12,7 +12,9 @@ import {
   escalateIntensity,
   isConfigAliasHealthy,
   mergeRouteFallbackAliases,
+  resetModelRouteHealthStoreForTests,
   resolveSmartRoute,
+  sharedModelRouteHealthStore,
   type SmartRoute,
 } from '../../../src/agent/routing';
 import {
@@ -57,6 +59,11 @@ function config(partial: Partial<LioraConfig> & { models: LioraConfig['models'] 
 describe('smart-router', () => {
   beforeEach(() => {
     resetRouteOutcomeStoreForTests(join(mkdtempSync(join(tmpdir(), 'sr-')), 'outcomes.json'));
+    resetModelRouteHealthStoreForTests();
+  });
+
+  afterEach(() => {
+    resetModelRouteHealthStoreForTests();
   });
 
   it('honors explicit loopControl override and builds fallbackModels chain', () => {
@@ -310,6 +317,26 @@ describe('smart-router', () => {
       expect(isConfigAliasHealthy(cfg, 'qwen3.8-max')).toBe(false);
       expect(isConfigAliasHealthy(cfg, 'cheap-haiku')).toBe(true);
       expect(resolveSmartRoute({ role: 'coding', config: cfg })?.alias).toBe('cheap-haiku');
+    });
+  });
+
+  describe('alias-scoped model route health', () => {
+    it('skips a marked-dead alias but keeps sibling models on the same provider', () => {
+      sharedModelRouteHealthStore.markUnavailable('dead', {
+        kind: 'model_unavailable',
+        failureReason: 'model_not_found',
+      });
+
+      const cfg = config({
+        models: {
+          dead: model('retired-sku', 8),
+          live: model('opus', 10),
+        },
+      });
+
+      expect(isConfigAliasHealthy(cfg, 'dead')).toBe(false);
+      expect(isConfigAliasHealthy(cfg, 'live')).toBe(true);
+      expect(resolveSmartRoute({ role: 'coding', config: cfg })?.alias).toBe('live');
     });
   });
 });

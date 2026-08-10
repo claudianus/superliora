@@ -23,9 +23,20 @@ import type { ProviderRouteFailure } from './provider-route-types';
 const DEFAULT_RATE_LIMIT_COOLDOWN_MS = 60_000;
 const DEFAULT_AUTH_COOLDOWN_MS = 5 * 60_000;
 const DEFAULT_QUOTA_COOLDOWN_MS = 60 * 60_000;
+const DEFAULT_MODEL_UNAVAILABLE_COOLDOWN_MS = 60 * 60_000;
 const DEFAULT_SERVER_COOLDOWN_MS = 30_000;
 const DEFAULT_CONNECTION_COOLDOWN_MS = 30_000;
 const DEFAULT_EMPTY_COOLDOWN_MS = 5_000;
+
+const MODEL_UNAVAILABLE_MESSAGE_PATTERNS = [
+  /model[_ ]?not[_ ]?found/i,
+  /model.*does not exist/i,
+  /does not exist.*model/i,
+  /invalid[_ ]?model/i,
+  /unknown[_ ]?model/i,
+  /model\b.+\bunavailable\b/i,
+  /no such model/i,
+] as const;
 const MAX_RETRY_AFTER_COOLDOWN_MS = 24 * 60 * 60_000;
 const RATE_LIMIT_HEADER_BUCKETS = [
   {
@@ -198,6 +209,12 @@ export function classifyProviderRouteFailure(
   if (isTransientTryAgainError(error)) {
     return { kind: 'server', cooldownMs: cooldownMs(DEFAULT_SERVER_COOLDOWN_MS) };
   }
+  if (isModelUnavailableError(error)) {
+    return {
+      kind: 'model_unavailable',
+      cooldownMs: cooldownMs(DEFAULT_MODEL_UNAVAILABLE_COOLDOWN_MS),
+    };
+  }
   if (!(error instanceof APIStatusError)) return undefined;
 
   if (error.statusCode === 401 || error.statusCode === 403) {
@@ -205,6 +222,12 @@ export function classifyProviderRouteFailure(
   }
   if (error.statusCode === 402) {
     return { kind: 'quota', cooldownMs: cooldownMs(DEFAULT_QUOTA_COOLDOWN_MS) };
+  }
+  if (error.statusCode === 404) {
+    return {
+      kind: 'model_unavailable',
+      cooldownMs: cooldownMs(DEFAULT_MODEL_UNAVAILABLE_COOLDOWN_MS),
+    };
   }
   if (error.statusCode >= 500 && error.statusCode <= 504) {
     return { kind: 'server', cooldownMs: cooldownMs(DEFAULT_SERVER_COOLDOWN_MS) };
@@ -215,6 +238,19 @@ export function classifyProviderRouteFailure(
     return { kind: 'server', cooldownMs: cooldownMs(DEFAULT_SERVER_COOLDOWN_MS) };
   }
   return undefined;
+}
+
+function isModelUnavailableError(error: unknown): boolean {
+  if (error instanceof APIStatusError && error.statusCode === 404) return true;
+  const text = errorSignalText(error);
+  if (text.length === 0) return false;
+  // Only treat message matches as model_unavailable for 400-class or
+  // status-less errors — avoid reclassifying 401/429 bodies that mention "model".
+  if (error instanceof APIStatusError) {
+    const code = error.statusCode;
+    if (code !== 400 && code !== 404 && code !== 422) return false;
+  }
+  return MODEL_UNAVAILABLE_MESSAGE_PATTERNS.some((pattern) => pattern.test(text));
 }
 
 export function classifyProviderRouteHeaders(headers: unknown): ProviderRouteFailure | undefined {

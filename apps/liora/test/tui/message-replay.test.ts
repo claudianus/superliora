@@ -57,6 +57,7 @@ function makeStartupInput(): LioraTUIStartupInput {
     },
     tuiConfig: {
       theme: 'dark',
+      locale: 'auto',
       permissionMode: 'yolo',
       disablePasteBurst: false,
       editorCommand: null,

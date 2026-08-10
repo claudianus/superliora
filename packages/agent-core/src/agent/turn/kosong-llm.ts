@@ -45,6 +45,7 @@ import {
   type CompletionBudgetConfig,
 } from '../../utils/completion-budget';
 import type { GenerateOptionsWithRequestLogFields } from '../llm-request-logger';
+import { sharedModelRouteHealthStore } from '../routing/model-route-health';
 import {
   invalidateLiveProbeSuccess,
   invalidateLiveProbeSuccessForProvider,
@@ -185,11 +186,23 @@ export class KosongLLM implements LLM {
           this.circuitObserver?.onFailure({ route, candidate, failure, error });
           invalidateLiveProbeSuccess(candidate.modelAlias);
           invalidateLiveProbeSuccessForProvider(candidate.providerName);
-          if (failure.kind === 'auth') {
+          const failureReason =
+            error instanceof Error ? error.message : `provider ${failure.kind} failure`;
+          if (failure.kind === 'model_unavailable') {
+            sharedModelRouteHealthStore.markUnavailable(candidate.modelAlias, {
+              kind: 'model_unavailable',
+              failureReason,
+              cooldownMs: failure.cooldownMs,
+            });
+          } else if (failure.kind === 'auth') {
             sharedCredentialHealthStore.markAuthRejected(candidate.providerName, {
               credentialKey: candidate.credentialLabel,
-              failureReason:
-                error instanceof Error ? error.message : 'provider auth failure',
+              failureReason,
+              cooldownMs: failure.cooldownMs,
+            });
+            sharedModelRouteHealthStore.markUnavailable(candidate.modelAlias, {
+              kind: 'route_fail',
+              failureReason,
               cooldownMs: failure.cooldownMs,
             });
           } else if (
@@ -201,8 +214,7 @@ export class KosongLLM implements LLM {
           ) {
             sharedCredentialHealthStore.markRateLimited(candidate.providerName, {
               credentialKey: candidate.credentialLabel,
-              failureReason:
-                error instanceof Error ? error.message : `provider ${failure.kind} failure`,
+              failureReason,
               cooldownMs: failure.cooldownMs,
             });
           }
@@ -396,6 +408,14 @@ function routeUnavailableError(routeKey: string, unavailable: ProviderRouteUnava
           permanentQuota: true,
         },
       },
+    );
+  }
+
+  if (unavailable.dominantFailureKind === 'model_unavailable') {
+    return new LioraError(
+      ErrorCodes.PROVIDER_API_ERROR,
+      `All provider route candidates for "${routeKey}" are unavailable (model not found or retired). Try again in ${seconds}s or switch models.`,
+      { details },
     );
   }
 

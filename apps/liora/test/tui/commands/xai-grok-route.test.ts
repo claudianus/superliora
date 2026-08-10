@@ -34,9 +34,9 @@ describe('xai-grok route helpers', () => {
       },
       'api',
     );
-    expect(next.baseUrl).toBe(XAI_GROK_API_BASE_URL);
-    expect(next.customHeaders).toEqual({});
-    expect(next.oauth).toEqual({ storage: 'file', key: 'xai-grok' });
+    expect(next['baseUrl']).toBe(XAI_GROK_API_BASE_URL);
+    expect(next['customHeaders']).toEqual({});
+    expect(next['oauth']).toEqual({ storage: 'file', key: 'xai-grok' });
     expect(next['base_url']).toBeUndefined();
   });
 
@@ -50,8 +50,8 @@ describe('xai-grok route helpers', () => {
       },
       'build',
     );
-    expect(next.baseUrl).toBe(XAI_GROK_BUILD_BASE_URL);
-    expect(next.customHeaders).toMatchObject({
+    expect(next['baseUrl']).toBe(XAI_GROK_BUILD_BASE_URL);
+    expect(next['customHeaders']).toMatchObject({
       'X-XAI-Token-Auth': 'xai-grok-cli',
       'x-grok-client-surface': 'grok-build',
     });
