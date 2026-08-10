@@ -11,7 +11,6 @@
 import type { Kaos } from '@superliora/kaos';
 
 import type { Agent } from '../../agent';
-import { pathsLookLikeUi } from '../../premium-quality/ui-surface';
 import { runGit, type GitResult } from '../git-context';
 import { renderFrictionSection, type SubagentFriction } from './subagent-friction';
 
@@ -74,53 +73,64 @@ export function verificationIsGreen(
   );
 }
 
-/** UI change sets require visual=passed; non-UI accepts not_applicable. */
+/**
+ * Visual satisfaction for a declared surface.
+ * Prefer Job.surfaceKind via job-surface helpers at merge time; this helper is
+ * for soft checks that only see the verification blob.
+ */
 export function verificationVisualIsSatisfied(
   verification: SubagentVerificationStatus | undefined,
-  filesChanged: readonly string[] | undefined,
+  /** @deprecated Ignored — path regex no longer decides visual satisfaction. */
+  _filesChanged?: readonly string[] | undefined,
 ): boolean {
   if (verification === undefined) return false;
-  if (!pathsLookLikeUi(filesChanged)) {
-    return (
-      verification.visual === 'not_applicable' ||
-      verification.visual === 'passed' ||
-      verification.visual === 'not_run'
-    );
-  }
-  return verification.visual === 'passed';
+  return (
+    verification.visual === 'not_applicable' ||
+    verification.visual === 'passed' ||
+    verification.visual === 'not_run'
+  );
 }
 
-/** True when UI paths changed and visual/interaction/craft proof is missing or failed. */
+/**
+ * @deprecated Use verificationVisualBlocksMergeForSurface(job.surfaceKind).
+ * Path regex must not invent a web VerifySurface gate.
+ */
 export function verificationVisualBlocksMerge(
   verification: SubagentVerificationStatus | undefined,
-  filesChanged: readonly string[] | undefined,
+  /** @deprecated Ignored. */
+  _filesChanged?: readonly string[] | undefined,
 ): boolean {
-  if (!pathsLookLikeUi(filesChanged)) return false;
-  if (verification?.visual !== 'passed') return true;
-  // Legacy contracts without axes still land on visual alone; once axes exist they hard-gate.
-  if (verification.interaction !== undefined && verification.interaction !== 'passed') return true;
-  if (verification.craft !== undefined && verification.craft !== 'passed') return true;
+  // Without a surfaceKind contract, never invent a visual hard-block from paths.
+  void verification;
   return false;
 }
 
 /** Marks a `done` job whose checks never ran, on the summary the desk/ACK show. */
 export const UNVERIFIED_SUMMARY_PREFIX = 'unverified (checks did not run) — ';
 
+export interface UnverifiedOptions {
+  /** When true (web/tui/mixed), visual=not_run counts as unverified. */
+  readonly requireVisual?: boolean;
+}
+
 /**
  * Nothing failed, but at least one required gate never ran — a `done` without
- * evidence. When `filesChanged` looks like UI, `visual=not_run` counts too so
- * the desk warns before MergeJob hard-rejects.
+ * evidence. Visual not_run only counts when requireVisual is set (surfaceKind).
  */
 export function verificationIsUnverified(
   verification: SubagentVerificationStatus | undefined,
-  filesChanged?: readonly string[] | undefined,
+  options?: UnverifiedOptions | readonly string[],
 ): boolean {
   if (verification === undefined) return true;
+  let requireVisual = false;
+  if (options !== undefined && !Array.isArray(options)) {
+    requireVisual = (options as UnverifiedOptions).requireVisual === true;
+  }
   const checkVerdicts = [verification.tests, verification.typecheck, verification.lint];
   if (checkVerdicts.includes('failed') || verification.visual === 'failed') return false;
   if (checkVerdicts.includes('not_run')) return true;
   return (
-    pathsLookLikeUi(filesChanged) &&
+    requireVisual &&
     (verification.visual === undefined || verification.visual === 'not_run')
   );
 }
@@ -140,9 +150,9 @@ export function buildSubagentResultContract(options: {
   readonly deviations?: readonly string[];
 }): SubagentResultContract {
   const base = options.verification ?? VERIFICATION_NOT_RUN;
-  const visual =
-    base.visual ??
-    (pathsLookLikeUi(options.filesChanged) ? 'not_run' : 'not_applicable');
+  // Default visual to not_applicable — Job.surfaceKind + applySurfaceKindToContract
+  // decide when visual proof is required (never path regex).
+  const visual = base.visual ?? 'not_applicable';
   const verification: SubagentVerificationStatus = { ...base, visual };
   return {
     agent_id: options.agentId,

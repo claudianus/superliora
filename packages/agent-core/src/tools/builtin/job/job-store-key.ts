@@ -47,6 +47,15 @@ export type JobKind =
 export type JobDeliveryMode = 'standard' | 'greenfield';
 
 /**
+ * Conductor-declared user-visible surface for merge/verify proof selection.
+ * Not inferred from path regex — set at JobCreate (or JobSteer).
+ */
+export type JobSurfaceKind = 'none' | 'web' | 'tui' | 'mixed';
+
+/** Structured Maker≠Checker verify outcome (preferred over free-text parse). */
+export type JobVerifyVerdictField = 'passed' | 'failed';
+
+/**
  * TDD posture for coding Jobs. `required` demands non-empty `testSeams`.
  * Default for task/implement when unset at create time is `preferred`.
  */
@@ -143,6 +152,16 @@ export interface JobRecord {
    * Parallel Standards∥Spec children each carry one axis.
    */
   readonly reviewAxis?: 'standards' | 'spec';
+  /**
+   * Conductor-declared surface kind. Merge/verify proof gates key off this —
+   * path/keyword heuristics must not invent a web VerifySurface requirement.
+   */
+  readonly surfaceKind?: JobSurfaceKind;
+  /**
+   * Structured verify Job verdict. Prefer this over parsing resultSummary JSON.
+   * Set when kind=verify reaches a terminal state.
+   */
+  readonly verifyVerdict?: JobVerifyVerdictField;
 }
 
 export interface JobLedger {

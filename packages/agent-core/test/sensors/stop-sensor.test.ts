@@ -122,9 +122,8 @@ describe('evaluateStopSensor', () => {
     const mutationLedger = createMutationVerificationLedger();
     const verificationLedger = createVerificationSensorLedger();
     const now = 10_000_000;
-    recordFileMutation(mutationLedger, 'Write', now - 50, 'apps/site', [
-      'apps/site/src/app/page.tsx',
-    ]);
+    // Sticky is set by contract (surfaceKind=web), not path regex on Write.
+    mutationLedger.uiSurfaceProofPending = true;
     clearPendingMutations(mutationLedger, now);
     expect(mutationLedger.uiSurfaceProofPending).toBe(true);
     const body = evaluateStopSensor({
@@ -137,13 +136,30 @@ describe('evaluateStopSensor', () => {
     expect(body).toMatch(/VerifySurface|load\+|3-axis|interaction/i);
   });
 
+  it('does not invent UI sticky from component-path mutations', () => {
+    const mutationLedger = createMutationVerificationLedger();
+    const verificationLedger = createVerificationSensorLedger();
+    const now = 10_500_000;
+    recordFileMutation(mutationLedger, 'Write', now - 50, 'apps/liora', [
+      'apps/liora/src/tui/components/idle-stage.ts',
+    ]);
+    clearPendingMutations(mutationLedger, now);
+    expect(mutationLedger.uiSurfaceProofPending).not.toBe(true);
+    expect(
+      evaluateStopSensor({
+        mutationLedger,
+        verificationLedger,
+        nowMs: now,
+        recentAutoCheckSpawnOk: true,
+      }),
+    ).toBeNull();
+  });
+
   it('skips UI surface stop once VerifySurface axes are satisfied', () => {
     const mutationLedger = createMutationVerificationLedger();
     const verificationLedger = createVerificationSensorLedger();
     const now = 11_000_000;
-    recordFileMutation(mutationLedger, 'Edit', now - 50, undefined, [
-      'packages/gui-use/src/ui/panel.css',
-    ]);
+    mutationLedger.uiSurfaceProofPending = true;
     clearPendingMutations(mutationLedger, now);
     verificationLedger.visualVerdict = 'passed';
     verificationLedger.interactionVerdict = 'passed';

@@ -52,10 +52,11 @@ describe('swarm-evidence-gate.ts — withDefaultRequiredEvidence', () => {
     expect(out.requiredEvidence).toEqual(['test']);
   });
 
-  it('seeds VerifySurface for UI-shaped AC nodes', () => {
+  it('does not invent VerifySurface from UI-shaped AC ids (explicit evidence only)', () => {
     const n = node({ id: 'ac_ui_hero', kind: 'acceptance_criterion' });
     const out = withDefaultRequiredEvidence(n);
-    expect(out.requiredEvidence).toEqual(['VerifySurface', 'test']);
+    // Same default as non-UI AC — keyword/id regex must not invent web proof.
+    expect(out.requiredEvidence).toEqual(['test']);
   });
 
   it('returns the input unchanged when requiredEvidence already has any non-empty token', () => {

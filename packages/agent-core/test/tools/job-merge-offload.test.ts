@@ -57,7 +57,12 @@ function greenContract(filesChanged: readonly string[]): SubagentResultContract 
 }
 
 function finishedJobWithWorktree(store: ToolStore, title: string) {
-  const job = createJob(store, { title, kind: 'implement', expertId: 'maker-test' });
+  const job = createJob(store, {
+    title,
+    kind: 'implement',
+    expertId: 'maker-test',
+    surfaceKind: 'none',
+  });
   const done = patchJob(store, job.id, {
     status: 'done',
     worktreePath: `/tmp/v2-5/${job.id}`,
@@ -71,10 +76,12 @@ function finishedJobWithWorktree(store: ToolStore, title: string) {
     kind: 'verify',
     parentJobId: done.id,
     expertId: 'checker-test',
+    surfaceKind: 'none',
   });
   patchJob(store, verify.id, {
     status: 'done',
     resultSummary: '{"verdict":"pass","findings":[],"required_fixes":[]}',
+    verifyVerdict: 'passed',
   });
   return done;
 }
@@ -247,6 +254,7 @@ describe('V2-5 merge offloading (verdict/execution split)', () => {
       title: 'v2-5 ledger-only',
       kind: 'implement',
       expertId: 'maker-ledger-only',
+      surfaceKind: 'none',
     });
     const source = patchJob(store, created.id, {
       status: 'done',
@@ -259,10 +267,12 @@ describe('V2-5 merge offloading (verdict/execution split)', () => {
       kind: 'verify',
       parentJobId: source.id,
       expertId: 'checker-ledger-only',
+      surfaceKind: 'none',
     });
     patchJob(store, verify.id, {
       status: 'done',
       resultSummary: '{"verdict":"pass","findings":[],"required_fixes":[]}',
+      verifyVerdict: 'passed',
     });
 
     const agent = { kaos: undefined, config: { cwd: '/repo/main' } } as never;
@@ -296,6 +306,7 @@ describe('V2-5 merge offloading (verdict/execution split)', () => {
       title: 'auto land dangerous',
       kind: 'implement',
       expertId: 'maker-danger',
+      surfaceKind: 'none',
     });
     const source = patchJob(store, created.id, {
       status: 'done',
@@ -308,10 +319,12 @@ describe('V2-5 merge offloading (verdict/execution split)', () => {
       kind: 'verify',
       parentJobId: source.id,
       expertId: 'checker-danger',
+      surfaceKind: 'none',
     });
     patchJob(store, verify.id, {
       status: 'done',
       resultSummary: '{"verdict":"pass","findings":[],"required_fixes":[]}',
+      verifyVerdict: 'passed',
     });
 
     const manual = new MergeJobTool(store, {

@@ -27,7 +27,17 @@ const RULES: readonly TrustCopyRule[] = [
     fix: 'To fix: wait for (or staff) a separate review Job with a different expert.',
   },
   {
-    match: /visual=|VerifySurface|visual proof/i,
+    match: /surface_kind missing/i,
+    headline: 'This Job never declared a surface kind (none/web/tui/mixed).',
+    fix: 'To fix: JobSteer with surface_kind=none|web|tui|mixed, then MergeJob again.',
+  },
+  {
+    match: /TUI surface|smoke:visual/i,
+    headline: 'TUI changes need a real ANSI smoke check (visual proof missing).',
+    fix: 'To fix: re-run the worker and land `pnpm -C apps/liora run smoke:visual` — VerifySurface is N/A for TUI.',
+  },
+  {
+    match: /visual=|VerifySurface|visual proof|Web surface|Mixed web/i,
     headline: 'UI changes need a real surface check (visual proof missing).',
     fix: 'To fix: re-run the worker and call VerifySurface on the live UI — a screenshot alone is not enough.',
   },

@@ -7,6 +7,7 @@ import {
   formatGoalSoftAdvisoryOpsLine,
   goalSoftAdvisoryFromLedger,
   isCheckLikeBashCommand,
+  isTuiVisualSmokeCommand,
   observeVerificationToolResult,
   recordVerificationFailure,
   recordVerificationPass,
@@ -26,6 +27,19 @@ describe('verification-sensor-ledger', () => {
     expect(isCheckLikeBashCommand('bun test')).toBe(true);
     expect(isCheckLikeBashCommand('git status')).toBe(false);
     expect(isCheckLikeBashCommand('pnpm install')).toBe(false);
+  });
+
+  it('stamps visual=passed on green TUI smoke:visual Bash', () => {
+    expect(isTuiVisualSmokeCommand('pnpm -C apps/liora run smoke:visual')).toBe(true);
+    const ledger = createVerificationSensorLedger();
+    observeVerificationToolResult(
+      ledger,
+      'Bash',
+      { command: 'pnpm -C apps/liora run smoke:visual' },
+      { output: 'ok' },
+    );
+    expect(ledger.visualVerdict).toBe('passed');
+    expect(ledger.failures).toHaveLength(0);
   });
 
   it('clears failure ledger on green check-like Bash', () => {

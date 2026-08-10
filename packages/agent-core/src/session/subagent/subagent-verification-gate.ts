@@ -5,15 +5,17 @@
  *
  * Extracted from subagent-host so verification policy does not grow the host
  * class body.
+ *
+ * Visual slots honor the verification sensor (VerifySurface / TUI smoke) —
+ * path/keyword regex must not invent a web UI requirement.
  */
 
 import type { Kaos } from '@superliora/kaos';
 
 import type { Agent } from '../../agent';
-import { pathsLookLikeUi } from '../../premium-quality/ui-surface';
 import { RunProjectChecksTool } from '../../tools/builtin/ops/run-project-checks';
 import {
-  isStaticSiteChangeSet,
+  isRenderableStaticSiteChangeSet,
   runStaticSiteChecks,
 } from '../../tools/builtin/ops/static-site-checks';
 import {
@@ -68,22 +70,28 @@ async function withVisualVerdict(
 ): Promise<SubagentVerificationStatus> {
   const visual = await resolveVisualVerdict(child, filesChanged, summary, signal);
   const ledger = child.verificationSensorLedger;
+  // Axes only stick when VerifySurface recorded them; otherwise N/A (TUI smoke
+  // and non-visual jobs must not inherit not_run interaction/craft gates).
   const interaction =
-    !pathsLookLikeUi(filesChanged)
-      ? 'not_applicable'
-      : ledger.interactionVerdict === 'passed' || ledger.interactionVerdict === 'failed'
-        ? ledger.interactionVerdict
+    ledger.interactionVerdict === 'passed' || ledger.interactionVerdict === 'failed'
+      ? ledger.interactionVerdict
+      : visual === 'passed' && ledger.visualVerdict === 'passed' && ledger.interactionVerdict === undefined
+        ? 'not_applicable'
         : visual === 'not_applicable'
           ? 'not_applicable'
-          : 'not_run';
+          : ledger.interactionVerdict === 'not_run'
+            ? 'not_run'
+            : 'not_applicable';
   const craft =
-    !pathsLookLikeUi(filesChanged)
-      ? 'not_applicable'
-      : ledger.craftVerdict === 'passed' || ledger.craftVerdict === 'failed'
-        ? ledger.craftVerdict
+    ledger.craftVerdict === 'passed' || ledger.craftVerdict === 'failed'
+      ? ledger.craftVerdict
+      : visual === 'passed' && ledger.visualVerdict === 'passed' && ledger.craftVerdict === undefined
+        ? 'not_applicable'
         : visual === 'not_applicable'
           ? 'not_applicable'
-          : 'not_run';
+          : ledger.craftVerdict === 'not_run'
+            ? 'not_run'
+            : 'not_applicable';
   return { ...verification, visual, interaction, craft };
 }
 
@@ -93,10 +101,13 @@ async function resolveVisualVerdict(
   summary: string,
   signal: AbortSignal | undefined,
 ): Promise<VisualVerificationVerdict> {
-  if (!pathsLookLikeUi(filesChanged)) return 'not_applicable';
   const observed = child.verificationSensorLedger.visualVerdict;
   if (observed === 'passed' || observed === 'failed') return observed;
-  return maybeAutoVerifySurface(child, filesChanged, summary, signal);
+  // Auto VerifySurface only when a URL/HTML surface exists (tool decides).
+  const auto = await maybeAutoVerifySurface(child, filesChanged, summary, signal);
+  if (auto === 'passed' || auto === 'failed') return auto;
+  // No URL/HTML / skipped → N/A. Job.surfaceKind decides if that blocks merge.
+  return 'not_applicable';
 }
 
 /**
@@ -112,10 +123,9 @@ export async function runCompletionVerification(
   if (profileName === 'explore') return VERIFICATION_NOT_RUN;
   const packageDir = deriveVerificationPackageDir(filesChanged);
   if (packageDir === undefined) {
-    // Static-site contract: pure HTML/CSS/JS change sets have no package.json
-    // scripts to run. Verify what the deliverable can prove (existence + JS
-    // syntax) instead of recording "checks did not run" forever.
-    if (isStaticSiteChangeSet(filesChanged)) {
+    // Static-site contract: only renderable HTML/CSS/JS sets (not docs/json alone)
+    // may stamp checks green via existence + node --check.
+    if (isRenderableStaticSiteChangeSet(filesChanged)) {
       return runStaticCompletionVerification(child.kaos, child.config.cwd, filesChanged);
     }
     return VERIFICATION_NOT_RUN;

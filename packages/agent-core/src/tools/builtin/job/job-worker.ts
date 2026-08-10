@@ -9,7 +9,6 @@ import type { Agent } from '../../../agent/index';
 import { type FanoutSpec, type FanoutTask, spawnOneAgent } from '../../../fleet/spawn-agents';
 import {
   classifyObjectiveProfile,
-  jobLooksLikeUiSurface,
   uiSpawnQualityFlags,
 } from '../../../premium-quality';
 import { getJobWorkerSpawner, requestJobSchedulePump } from '../../../session/job/job-offload';
@@ -20,6 +19,8 @@ import {
   UNVERIFIED_SUMMARY_PREFIX,
   verificationIsUnverified,
 } from '../../../session/subagent/subagent-result-contract';
+import { applySurfaceKindToContract, surfaceRequiresVisualProof } from './job-surface';
+import { parseVerifyVerdict } from './job-verify-chain';
 import { userCancellationReason } from '../../../utils/abort';
 import type { ToolStore } from '../../store';
 import {
@@ -74,9 +75,30 @@ export interface LaunchJobWorkerResult {
 /** Cap for the parent job's result summary carried into a child worker prompt. */
 export const JOB_PRIOR_FINDINGS_MAX_CHARS = 2000;
 
+function visualDodLines(job: JobRecord): readonly string[] {
+  if (job.kind === 'verify' || job.kind === 'explore' || job.kind === 'research') return [];
+  const kind = job.surfaceKind;
+  if (kind === 'web' || kind === 'mixed') {
+    return [
+      `- Visual DoD (${kind} surface): write a short Art Direction Brief before first markup; Skill("premium-visual") before shipping a visible slice; call VerifySurface once on the real surface before done (≤2 min fail-fast). VerifySurface requires load+interaction+craft axes; BrowserScreenshot alone does not set visual=passed. If the runtime is not ready, report visual failed — do not BrowserAct-explore or reinstall loops. Record screenshot path in the summary. MergeJob hard-fails without visual=passed.`,
+      ...(kind === 'mixed'
+        ? [
+            '- Also land TUI visual smoke (`pnpm -C apps/liora run smoke:visual` or equivalent) before done — mixed surfaces need both web and TUI proof.',
+          ]
+        : []),
+    ];
+  }
+  if (kind === 'tui') {
+    return [
+      '- Visual DoD (tui surface): prove the real ANSI surface — run `pnpm -C apps/liora run smoke:visual` (or the brief verification_commands smoke) and cite the artifact under `.superliora/visual-smoke/`. VerifySurface is N/A for TUI. MergeJob hard-fails without visual=passed from smoke.',
+    ];
+  }
+  // surfaceKind none/undefined: no Visual DoD. PQ soft hints may still apply via spawn flags.
+  return [];
+}
+
 export function jobPrompt(job: JobRecord, store?: ToolStore): string {
   const parentFindings = priorFindingsForJob(job, store);
-  const uiJob = jobLooksLikeUiSurface(job);
   const expertBlock = renderJobExpertBlock(job);
   const parts = [
     `You are a Conductor worker for job ${job.id}.`,
@@ -138,7 +160,9 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
       'Worker contract:',
       ...(job.kind === 'verify'
         ? [
-            '- Verify DoD: do not implement product features. Inspect the parent diff/summary against success criteria and test seams; run verification_commands when set; for UI call VerifySurface when a URL/HTML path exists. Final summary MUST include dual-axis JSON: {"verdict":"pass"|"fail","standards":{"verdict":"pass"|"fail","findings":[]},"spec":{"verdict":"pass"|"fail","findings":[]},"findings":[],"required_fixes":[]}. Overall pass only when both axes pass.',
+            job.surfaceKind === 'tui'
+              ? '- Verify DoD: do not implement product features. Inspect the parent diff/summary against success criteria and test seams; run verification_commands when set; for TUI confirm visual smoke evidence (VerifySurface is N/A). Final summary MUST include dual-axis JSON: {"verdict":"pass"|"fail","standards":{"verdict":"pass"|"fail","findings":[]},"spec":{"verdict":"pass"|"fail","findings":[]},"findings":[],"required_fixes":[]}. Overall pass only when both axes pass.'
+              : '- Verify DoD: do not implement product features. Inspect the parent diff/summary against success criteria and test seams; run verification_commands when set; for web surfaces call VerifySurface when a URL/HTML path exists. Final summary MUST include dual-axis JSON: {"verdict":"pass"|"fail","standards":{"verdict":"pass"|"fail","findings":[]},"spec":{"verdict":"pass"|"fail","findings":[]},"findings":[],"required_fixes":[]}. Overall pass only when both axes pass.',
           ]
         : job.kind === 'research'
           ? [
@@ -155,11 +179,7 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
               ]),
       ...tddContractLines(job),
       ...(job.kind === 'implement' && job.title.startsWith('Debug:') ? debugContractLines(job) : []),
-      ...(uiJob && job.kind !== 'verify' && job.kind !== 'explore' && job.kind !== 'research'
-        ? [
-            '- Visual DoD (UI job): write a short Art Direction Brief before first markup; Skill("premium-visual") before shipping a visible slice; call VerifySurface once on the real surface before done (≤2 min fail-fast). VerifySurface requires load+interaction+craft axes (default click smoke + banned-ship craft audit); BrowserScreenshot alone does not set visual=passed. If the runtime is not ready, report visual failed — do not BrowserAct-explore or reinstall loops. Record screenshot path in the summary. MergeJob hard-fails without visual=passed.',
-          ]
-        : []),
+      ...visualDodLines(job),
       ...(job.worktreePath !== undefined &&
       job.kind !== 'verify' &&
       job.kind !== 'explore' &&
@@ -407,13 +427,19 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
       ]),
     );
   }
-  const uiFlags = uiSpawnQualityFlags({
-    title: job.title,
-    prompt: job.prompt,
-    goalObjective: job.goalObjective,
-    contextPaths: job.contextPaths,
-    ownershipPaths: job.ownershipPaths,
-  });
+  // PQ soft hint only — merge/verify gates key off surfaceKind, not this regex.
+  const uiFlags =
+    job.surfaceKind === 'web' || job.surfaceKind === 'mixed' || job.surfaceKind === 'tui'
+      ? ({ forcePremiumQuality: true as const, preferVisionModel: true as const } as const)
+      : job.surfaceKind === 'none'
+        ? undefined
+        : uiSpawnQualityFlags({
+            title: job.title,
+            prompt: job.prompt,
+            goalObjective: job.goalObjective,
+            contextPaths: job.contextPaths,
+            ownershipPaths: job.ownershipPaths,
+          });
   const task: FanoutTask = {
     prompt: jobPrompt(job, input.store),
     description: job.title.slice(0, 80),
@@ -427,7 +453,7 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
           ? [...job.ownershipPaths]
           : undefined,
     worktreeDir: job.worktreePath,
-    // UI Jobs force Premium Quality ON even when the Conductor toggle is OFF.
+    // Visual surface Jobs force Premium Quality ON even when the Conductor toggle is OFF.
     forcePremiumQuality: uiFlags?.forcePremiumQuality,
     // Text-only coding models cannot audit screenshots; prefer a vision alias.
     preferVisionModel: uiFlags?.preferVisionModel,
@@ -489,7 +515,13 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
         // Commit backstop: a dirty worktree here means the worker skipped the
         // contract — snapshot so land/merge and GC cannot lose the work.
         const commitNote = await snapshotWorkerWorktree(input.agent, current ?? job);
-        const contract = completion.contract;
+        const ledgerJob = current ?? job;
+        const contract =
+          completion.contract !== undefined
+            ? applySurfaceKindToContract(completion.contract, ledgerJob.surfaceKind, {
+                ledgerVisual: undefined,
+              })
+            : undefined;
         const rawSummary =
           typeof completion.result === 'string'
             ? completion.result
@@ -505,7 +537,9 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
         // reading "no failure" as "verified" when it decides to merge.
         const unverified =
           !verificationFailed &&
-          verificationIsUnverified(contract?.verification, contract?.files_changed);
+          verificationIsUnverified(contract?.verification, {
+            requireVisual: surfaceRequiresVisualProof(ledgerJob.surfaceKind),
+          });
         // Goal-driver terminal mapping (spec 2026-08-04-goal-driver-jobs §3.5):
         // a stopped goal (blocked/paused — budget circuit breaker, stagnation,
         // or a worker-reported blocker) escalates as a resumable `blocked` Job;
@@ -517,6 +551,15 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
           : goalStopped
             ? 'blocked'
             : 'done';
+        const verifyVerdictField =
+          ledgerJob.kind === 'verify'
+            ? (() => {
+                const parsed = parseVerifyVerdict(summary);
+                if (parsed === 'passed' || parsed === 'failed') return parsed;
+                if (finalStatus === 'failed') return 'failed' as const;
+                return undefined;
+              })()
+            : undefined;
         const goalReason = completion.goalTerminalReason
           ? ` (${completion.goalTerminalReason})`
           : '';
@@ -544,6 +587,7 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
           resultSummary,
           ...(contract !== undefined ? { resultContract: contract } : {}),
           ...(completion.goalId !== undefined ? { goalId: completion.goalId } : {}),
+          ...(verifyVerdictField !== undefined ? { verifyVerdict: verifyVerdictField } : {}),
           notes: [
             getJob(input.store, job.id)?.notes,
             commitNote,
@@ -718,6 +762,7 @@ export function steerJobWorker(input: {
   readonly jobId: string;
   readonly message: string;
   readonly status?: JobStatus;
+  readonly surfaceKind?: JobRecord['surfaceKind'];
 }): {
   readonly ok: boolean;
   readonly job?: JobRecord;
@@ -745,6 +790,7 @@ export function steerJobWorker(input: {
   const note = [
     existing.notes,
     `steer: ${input.message}`,
+    input.surfaceKind !== undefined ? `steer: surface_kind=${input.surfaceKind}` : undefined,
     steered ? 'steer: delivered to worker' : 'steer: ledger only (worker not active)',
   ]
     .filter(Boolean)
@@ -756,6 +802,7 @@ export function steerJobWorker(input: {
       notes: note,
       status: input.status ?? existing.status,
       prompt: existing.prompt ? `${existing.prompt}\n\n[steer] ${input.message}` : input.message,
+      ...(input.surfaceKind !== undefined ? { surfaceKind: input.surfaceKind } : {}),
     },
     { agent: input.agent, summary: input.message },
   );

@@ -35,6 +35,16 @@ const STATIC_SITE_EXTENSIONS = new Set([
   '.webp',
 ]);
 
+/** Extensions that imply a real browser/static deliverable (not docs-only). */
+const STATIC_RENDER_EXTENSIONS = new Set([
+  '.css',
+  '.cjs',
+  '.htm',
+  '.html',
+  '.js',
+  '.mjs',
+]);
+
 const STATIC_JS_EXTENSIONS = new Set(['.cjs', '.js', '.mjs']);
 
 const NODE_CHECK_TIMEOUT_MS = 30_000;
@@ -45,6 +55,18 @@ export const MAX_STATIC_JS_CHECKS = 50;
 export function isStaticSiteChangeSet(filesChanged: readonly string[]): boolean {
   if (filesChanged.length === 0) return false;
   return filesChanged.every((file) => STATIC_SITE_EXTENSIONS.has(extname(file).toLowerCase()));
+}
+
+/**
+ * True when the change set is static-site shaped AND includes at least one
+ * renderable asset (html/css/js). Docs/json/image-only sets must not invent
+ * tests/typecheck/lint = passed for MergeJob trust.
+ */
+export function isRenderableStaticSiteChangeSet(filesChanged: readonly string[]): boolean {
+  if (!isStaticSiteChangeSet(filesChanged)) return false;
+  return filesChanged.some((file) =>
+    STATIC_RENDER_EXTENSIONS.has(extname(file).toLowerCase()),
+  );
 }
 
 export interface StaticSiteCheckFailure {

@@ -8,9 +8,10 @@ import {
 } from '../../src/premium-quality/ui-surface';
 
 describe('premium-quality/ui-surface', () => {
-  it('classifies UI keywords and empty objectives as visual', () => {
+  it('classifies UI keywords and empty objectives as visual (PQ soft hint only)', () => {
     expect(classifyObjectiveProfile('design-a-hero').premiumDensity).toBe('visual');
     expect(classifyObjectiveProfile('Polish the landing page hero').visualSurface).toBe(true);
+    // Empty → visual for PQ injection; MergeJob still requires Job.surfaceKind.
     expect(classifyObjectiveProfile('').premiumDensity).toBe('visual');
   });
 

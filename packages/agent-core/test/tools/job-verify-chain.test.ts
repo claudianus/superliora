@@ -7,6 +7,7 @@ import {
   makerCheckerCollision,
   onJobTerminalForVerifyChain,
   parseVerifyVerdict,
+  resolveVerifyChildVerdict,
   shouldEnqueueVerifyAfterDone,
 } from '../../src/tools/builtin/job/job-verify-chain';
 import { createJob, listJobs, patchJob } from '../../src/tools/builtin/job/job-ledger';
@@ -96,6 +97,20 @@ describe('job-verify-chain', () => {
       evaluateVerifyChainForMerge({ job: implement, jobs: [implement, verifyRunning] }).ok,
     ).toBe(false);
 
+    const verifyTextOnly = job({
+      id: 'job_ver_text',
+      title: 'Verify',
+      kind: 'verify',
+      parentJobId: 'job_impl',
+      expertId: 'checker-1',
+      status: 'done',
+      // Free-text PASS alone is not enough for MergeJob — need verifyVerdict.
+      resultSummary: '{"verdict":"pass","findings":[],"required_fixes":[]}',
+    });
+    expect(
+      evaluateVerifyChainForMerge({ job: implement, jobs: [implement, verifyTextOnly] }).ok,
+    ).toBe(false);
+
     const verifyPass = job({
       id: 'job_ver2',
       title: 'Verify',
@@ -104,6 +119,7 @@ describe('job-verify-chain', () => {
       expertId: 'checker-1',
       status: 'done',
       resultSummary: '{"verdict":"pass","findings":[],"required_fixes":[]}',
+      verifyVerdict: 'passed',
     });
     expect(evaluateVerifyChainForMerge({ job: implement, jobs: [implement, verifyPass] })).toEqual({
       ok: true,
@@ -122,7 +138,7 @@ describe('job-verify-chain', () => {
     if (!collision.ok) expect(collision.reason).toMatch(/Maker≠Checker|expertId/i);
   });
 
-  it('enqueues a verify child on UI implement done', async () => {
+  it('enqueues a verify child on web surfaceKind implement done', async () => {
     const store = memoryStore();
     const parent = createJob(store, {
       title: 'Ship footer',
@@ -130,14 +146,21 @@ describe('job-verify-chain', () => {
       prompt: 'Implement the footer component',
       ownershipPaths: ['apps/site/src/components/Footer.tsx'],
       expertId: 'frontend-engineer',
+      surfaceKind: 'web',
     });
     patchJob(store, parent.id, { status: 'done', resultSummary: 'footer shipped' });
-    const done = { ...parent, status: 'done' as const, resultSummary: 'footer shipped' };
+    const done = {
+      ...parent,
+      status: 'done' as const,
+      resultSummary: 'footer shipped',
+      surfaceKind: 'web' as const,
+    };
     const verify = await enqueueVerifyJobForParent(store, done);
     expect(verify).toBeDefined();
     expect(verify?.parentJobId).toBe(parent.id);
     expect(verify?.kind).toBe('verify');
     expect(verify?.expertId).not.toBe('frontend-engineer');
+    expect(verify?.surfaceKind).toBe('web');
     // Soft reader: no exclusive write lease — paths stay on context only.
     expect(verify?.ownershipPaths).toBeUndefined();
     expect(verify?.contextPaths).toContain('apps/site/src/components/Footer.tsx');
@@ -146,7 +169,25 @@ describe('job-verify-chain', () => {
     expect(listJobs(store).filter((j) => j.parentJobId === parent.id)).toHaveLength(1);
   });
 
-  it('enqueues parallel Standards∥Spec verify children for non-UI implement', async () => {
+  it('enqueues TUI verify (not VerifySurface) when surfaceKind=tui', async () => {
+    const store = memoryStore();
+    const parent = createJob(store, {
+      title: 'Idle stage',
+      kind: 'implement',
+      prompt: 'Polish TUI idle stage',
+      ownershipPaths: ['apps/liora/src/tui/components/idle-stage.ts'],
+      expertId: 'frontend-engineer',
+      surfaceKind: 'tui',
+    });
+    const done = { ...parent, status: 'done' as const, surfaceKind: 'tui' as const };
+    const verify = await enqueueVerifyJobForParent(store, done);
+    expect(verify).toBeDefined();
+    expect(verify?.prompt).toMatch(/TUI visual smoke|smoke:visual/i);
+    expect(verify?.prompt).not.toMatch(/VerifySurface load\+interaction/);
+    expect(listJobs(store).filter((j) => j.parentJobId === parent.id)).toHaveLength(1);
+  });
+
+  it('enqueues parallel Standards∥Spec when surfaceKind is none/absent (not path regex)', async () => {
     const store = memoryStore();
     const parent = createJob(store, {
       title: 'Fix scheduler',
@@ -156,6 +197,7 @@ describe('job-verify-chain', () => {
       successCriteria: ['nextQueuedJobs respects blocked_by'],
       testSeams: ['nextQueuedJobs'],
       expertId: 'maker-x',
+      surfaceKind: 'none',
     });
     const done = { ...parent, status: 'done' as const, resultSummary: 'fixed' };
     await enqueueVerifyJobForParent(store, done);
@@ -163,6 +205,30 @@ describe('job-verify-chain', () => {
     expect(verifies).toHaveLength(2);
     expect(verifies.map((r) => r.reviewAxis).sort()).toEqual(['spec', 'standards']);
     expect(verifies[0]?.prompt).toMatch(/success criteria|Agreed test seams/i);
+  });
+
+  it('prefers structured verifyVerdict over free-text parse for merge gate', () => {
+    const implement = job({
+      id: 'job_impl',
+      title: 'Feature',
+      kind: 'implement',
+      expertId: 'maker-1',
+    });
+    const verifyStamped = job({
+      id: 'job_ver',
+      title: 'Verify',
+      kind: 'verify',
+      parentJobId: 'job_impl',
+      expertId: 'checker-1',
+      status: 'done',
+      // Free-text has no JSON — would be missing without structured field.
+      resultSummary: 'All good — PASS visually and by criteria.',
+      verifyVerdict: 'passed',
+    });
+    expect(resolveVerifyChildVerdict(verifyStamped)).toBe('passed');
+    expect(
+      evaluateVerifyChainForMerge({ job: implement, jobs: [implement, verifyStamped] }),
+    ).toEqual({ ok: true });
   });
 
   it('onJobTerminal enqueues debug after both axis verifies fail aggregate', async () => {

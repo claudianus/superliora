@@ -46,6 +46,15 @@ const CHECK_TOOL_NAMES = new Set(['RunProjectChecks', 'VerifySurface']);
 const BASH_CHECK_PATTERN =
   /(?:^|[\s;&|])(?:vitest|jest|mocha|playwright\s+test|pytest|cargo\s+test|go\s+test|make\s+test|bun\s+test|node\s+--test|\btsc\b|oxlint|eslint|turbo\s+run|(?:pnpm|npm|yarn)(?:\s+-C\s+\S+)?(?:\s+exec)?(?:\s+run)?\s+(?:test|typecheck|lint|check|build|smoke)\b|(?:pnpm|npm|yarn)\s+-C\s+\S+\s+exec\s+(?:vitest|tsc|eslint|oxlint)\b)/i;
 
+/** TUI ANSI visual smoke — stamps visual=passed without VerifySurface axes. */
+const TUI_VISUAL_SMOKE_PATTERN =
+  /(?:smoke:visual|visual-smoke|visual_smoke|\bsmoke:visual\b|run\s+smoke:visual\b)/i;
+
+export function isTuiVisualSmokeCommand(command: unknown): boolean {
+  if (typeof command !== 'string') return false;
+  return TUI_VISUAL_SMOKE_PATTERN.test(command);
+}
+
 export function createVerificationSensorLedger(): VerificationSensorLedger {
   return { failures: [], visualVerdict: 'not_run' };
 }
@@ -170,7 +179,24 @@ export function observeVerificationToolResult(
   }
 
   if (toolName === 'Bash') {
-    if (!isCheckLikeBashCommand(extractBashCommand(args))) return;
+    const command = extractBashCommand(args);
+    if (isTuiVisualSmokeCommand(command)) {
+      if (result.isError !== true) {
+        recordVisualVerdict(ledger, 'passed');
+        // TUI smoke has no web interaction/craft axes.
+        ledger.interactionVerdict = undefined;
+        ledger.craftVerdict = undefined;
+        recordVerificationPass(ledger);
+      } else {
+        recordVisualVerdict(ledger, 'failed');
+        recordVerificationFailure(ledger, {
+          toolName,
+          summary: summarizeBashFailure(args, toolOutputText(result.output)),
+        });
+      }
+      return;
+    }
+    if (!isCheckLikeBashCommand(command)) return;
     if (result.isError !== true) {
       // Green check-like Bash clears sticky failure evidence (same as RunProjectChecks).
       recordVerificationPass(ledger);

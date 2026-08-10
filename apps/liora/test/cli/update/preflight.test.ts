@@ -524,18 +524,21 @@ describe('runUpdatePreflight', () => {
     );
   });
 
-  it('homebrew: prints manual brew upgrade command, does not spawn', async () => {
+  it('homebrew: prints install.sh reinstall command, does not spawn', async () => {
     mocks.readUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
     mocks.refreshUpdateCache.mockResolvedValue(cacheWith('0.5.0'));
     mocks.detectInstallSource.mockResolvedValue('homebrew');
-    const { stdout, options } = captureOutput();
+    const { options } = captureOutput();
     const result = await runUpdatePreflight('0.4.0', options);
-    expect(result).toEqual(expect.objectContaining({
-      action: 'continue',
-      updateNotice: expect.objectContaining({
-        installCommand: expect.stringContaining('brew upgrade kimi-code'),
+    expect(result).toEqual(
+      expect.objectContaining({
+        action: 'continue',
+        updateNotice: expect.objectContaining({
+          // No Homebrew formula yet — homebrew source maps to the native installer.
+          installCommand: expect.stringMatching(/install\.sh.*--version 0\.5\.0/),
+        }),
       }),
-    }));
+    );
     expect(promptForInstallChoice).not.toHaveBeenCalled();
     expect(mocks.spawn).not.toHaveBeenCalled();
   });

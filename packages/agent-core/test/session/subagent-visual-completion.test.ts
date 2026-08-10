@@ -18,17 +18,17 @@ describe('resolveVerifySurfaceUrl', () => {
     ).toBe('https://example.test/landing');
   });
 
-  it('falls back to a changed HTML file as file://', () => {
-    const url = resolveVerifySurfaceUrl({
-      summary: 'static tweak',
-      filesChanged: ['public/index.html', 'public/app.css'],
-      cwd: '/work',
-    });
-    expect(url).toMatch(/^file:\/\//);
-    expect(url).toContain('public/index.html');
+  it('does not invent file:// from changed HTML paths', () => {
+    expect(
+      resolveVerifySurfaceUrl({
+        summary: 'static tweak',
+        filesChanged: ['public/index.html', 'public/app.css'],
+        cwd: '/work',
+      }),
+    ).toBeUndefined();
   });
 
-  it('returns undefined when no URL or HTML is available', () => {
+  it('returns undefined when no http(s) URL is available', () => {
     expect(
       resolveVerifySurfaceUrl({
         summary: 'tsx-only UI',

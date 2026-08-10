@@ -1,15 +1,16 @@
 /**
  * MergeJob trust rules (Conductor locked policy).
  * Meta may auto-approve only when small ∧ no conflict ∧ checks green ∧ non-dangerous paths.
- * Green tests alone never suffice. UI-path Jobs also require visual=passed (hard reject).
+ * Green tests alone never suffice. SurfaceKind contracts require matching visual proof.
  */
 
+import { verificationIsGreen } from '../../../session/subagent/subagent-result-contract';
 import {
-  verificationIsGreen,
-  verificationVisualBlocksMerge,
-} from '../../../session/subagent/subagent-result-contract';
+  verificationVisualBlocksMergeForSurface,
+  visualProofRejectReason,
+} from './job-surface';
 import { evaluateVerifyChainForMerge } from './job-verify-chain';
-import type { JobRecord } from './job-store-key';
+import type { JobRecord, JobSurfaceKind } from './job-store-key';
 
 export interface MergeTrustInput {
   readonly approve: boolean;
@@ -25,11 +26,16 @@ export interface MergeTrustInput {
   readonly forceUserConfirm?: boolean;
   readonly smallDiffMaxLines?: number;
   /**
-   * UI-path Jobs without VerifySurface pass — hard reject (not hold).
+   * SurfaceKind needs visual proof that is missing/failed — hard reject.
    * `force_user_confirm` cannot bypass this gate.
    */
   readonly visualProofMissing?: boolean;
   readonly visualVerdict?: string;
+  readonly surfaceKind?: JobSurfaceKind;
+  /**
+   * Coding Jobs must declare surfaceKind before land — hold (Conductor patches via JobSteer).
+   */
+  readonly surfaceKindMissing?: boolean;
   /**
    * Implement/task jobs without a passed independent verify child — hard reject.
    * `force_user_confirm` cannot bypass (Maker≠Checker / verify chain).
@@ -76,16 +82,23 @@ export function evaluateMergeTrust(input: MergeTrustInput): MergeTrustVerdict {
   if (!input.approve) {
     return { ok: false, mode: 'hold', reason: 'approve=false' };
   }
+  // Surface contract missing — Conductor must declare none|web|tui|mixed (hold, not reject).
+  if (input.surfaceKindMissing === true) {
+    return {
+      ok: false,
+      mode: 'hold',
+      reason:
+        'surface_kind missing — JobSteer(surface_kind=none|web|tui|mixed) before MergeJob; ' +
+        'path/keyword heuristics must not invent a visual gate',
+    };
+  }
   // Visual proof is a hard reject — force_user_confirm cannot bypass it.
   if (input.visualProofMissing === true) {
     const verdict = input.visualVerdict ?? 'not_run';
     return {
       ok: false,
       mode: 'reject',
-      reason:
-        `UI paths changed without VerifySurface pass (visual=${verdict}). ` +
-        'Re-run the worker and call VerifySurface on the real surface (load+interaction+craft axes); BrowserScreenshot alone does not satisfy visual proof. ' +
-        'force_user_confirm cannot bypass this gate. If browser-use is missing, run `liora browser-use doctor`.',
+      reason: visualProofRejectReason(input.surfaceKind, verdict),
     };
   }
   // Review chain / Maker≠Checker — hard reject; force_user_confirm cannot bypass.
@@ -183,10 +196,7 @@ export interface MergeTrustClaim {
  * Ground the verdict in what the worker actually produced, and let the
  * conductor's claim make it stricter only. `checks_green` can be withdrawn
  * but never granted — the ledger's verification contract is the sole witness.
- * `has_conflict` can be raised but never cleared, and claimed paths union with
- * the files the worker really touched. Diff size has no ledger witness, so the
- * claim stands there; an absent claim still reads as too large, and the file
- * count from the contract caps "small" independently.
+ * Visual proof keys off Job.surfaceKind — never path regex inventing UI.
  */
 export function mergeTrustInputFromLedger(input: {
   readonly job: JobRecord;
@@ -202,10 +212,12 @@ export function mergeTrustInputFromLedger(input: {
       ...(claim.paths ?? []),
     ]),
   ];
-  const filesChanged = contract?.files_changed ?? [];
-  // Visual proof keys off files actually changed — ownership/claim path unions
-  // must not invent a UI surface the diff never touched.
-  const visualBlocks = verificationVisualBlocksMerge(contract?.verification, filesChanged);
+  const codingKind = job.kind === 'task' || job.kind === 'implement';
+  const surfaceKindMissing = codingKind && job.surfaceKind === undefined;
+  const visualBlocks = verificationVisualBlocksMergeForSurface(
+    contract?.verification,
+    job.surfaceKind,
+  );
   const verifyGate =
     input.jobs === undefined
       ? { ok: true as const }
@@ -218,7 +230,9 @@ export function mergeTrustInputFromLedger(input: {
     ...(claim.diffLines === undefined ? {} : { diffLines: claim.diffLines }),
     hasSummary: Boolean(claim.summary?.trim() ?? '') || Boolean(job.resultSummary?.trim() ?? ''),
     forceUserConfirm: claim.forceUserConfirm === true,
-    visualProofMissing: visualBlocks,
+    surfaceKindMissing,
+    surfaceKind: job.surfaceKind,
+    visualProofMissing: !surfaceKindMissing && visualBlocks,
     visualVerdict: contract?.verification?.visual ?? 'not_run',
     reviewChainBlocked: verifyGate.ok === false,
     ...(verifyGate.ok === false ? { reviewChainReason: verifyGate.reason } : {}),

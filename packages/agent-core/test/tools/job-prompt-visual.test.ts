@@ -17,11 +17,12 @@ function job(partial: Partial<JobRecord>): JobRecord {
 }
 
 describe('jobPrompt visual DoD', () => {
-  it('adds visual DoD bullets for UI jobs', () => {
+  it('adds visual DoD bullets for web surfaceKind jobs', () => {
     const text = jobPrompt(
       job({
         title: 'Landing hero',
         prompt: 'Rebuild the marketing landing hero with premium craft',
+        surfaceKind: 'web',
       }),
     );
     expect(text).toContain('Visual DoD');
@@ -31,11 +32,35 @@ describe('jobPrompt visual DoD', () => {
     expect(text).toContain('do not BrowserAct-explore or reinstall loops');
   });
 
-  it('omits visual DoD for non-UI jobs', () => {
+  it('adds TUI smoke DoD for tui surfaceKind (not VerifySurface load+interaction)', () => {
+    const text = jobPrompt(
+      job({
+        title: 'Idle stage',
+        prompt: 'Polish TUI idle stage',
+        surfaceKind: 'tui',
+      }),
+    );
+    expect(text).toContain('Visual DoD');
+    expect(text).toMatch(/smoke:visual/);
+    expect(text).toMatch(/VerifySurface is N\/A for TUI/);
+  });
+
+  it('omits visual DoD without surfaceKind (path/title keywords alone are not enough)', () => {
+    const text = jobPrompt(
+      job({
+        title: 'Landing hero',
+        prompt: 'Rebuild the marketing landing hero with premium craft',
+      }),
+    );
+    expect(text).not.toContain('Visual DoD');
+  });
+
+  it('omits visual DoD for surfaceKind=none', () => {
     const text = jobPrompt(
       job({
         title: 'CLI fix',
         prompt: 'Fix argv parsing in the CLI',
+        surfaceKind: 'none',
       }),
     );
     expect(text).not.toContain('Visual DoD');

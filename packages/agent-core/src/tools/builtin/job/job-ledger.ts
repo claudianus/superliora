@@ -80,6 +80,8 @@ export function createJob(
     readonly staffQuery?: string;
     readonly reviewAxis?: JobRecord['reviewAxis'];
     readonly modelAlias?: string;
+    readonly surfaceKind?: JobRecord['surfaceKind'];
+    readonly verifyVerdict?: JobRecord['verifyVerdict'];
   },
 ): JobRecord {
   const now = new Date().toISOString();
@@ -114,6 +116,8 @@ export function createJob(
     staffQuery: input.staffQuery,
     reviewAxis: input.reviewAxis,
     modelAlias: input.modelAlias?.trim() || undefined,
+    surfaceKind: input.surfaceKind,
+    verifyVerdict: input.verifyVerdict,
   };
   return upsertJob(store, job);
 }
@@ -137,6 +141,8 @@ export function patchJob(
       | 'prompt'
       | 'progress'
       | 'goalId'
+      | 'surfaceKind'
+      | 'verifyVerdict'
     >
   >,
 ): JobRecord | undefined {

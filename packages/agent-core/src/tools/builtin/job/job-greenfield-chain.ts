@@ -21,6 +21,7 @@ export interface GreenfieldChainInput {
   readonly blockedByJobIds?: readonly string[];
   readonly parentJobId?: string;
   readonly modelAlias?: string;
+  readonly surfaceKind?: JobRecord['surfaceKind'];
 }
 
 const PHASES = [
@@ -81,6 +82,7 @@ export function createGreenfieldChainJobs(
       deliveryPhase: step.phase,
       parentJobId: parentId,
       modelAlias: input.modelAlias,
+      surfaceKind: input.surfaceKind,
     });
     created.push(job);
     parentId = job.id;

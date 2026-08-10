@@ -103,7 +103,7 @@ describe('verificationIsUnverified', () => {
     expect(verificationIsUnverified(undefined)).toBe(true);
   });
 
-  it('treats UI visual=not_run as unverified even when checks are green', () => {
+  it('treats visual=not_run as unverified only when requireVisual (surfaceKind)', () => {
     expect(
       verificationIsUnverified(
         {
@@ -112,7 +112,7 @@ describe('verificationIsUnverified', () => {
           lint: 'passed',
           visual: 'not_run',
         },
-        ['apps/site/src/app/page.tsx'],
+        { requireVisual: true },
       ),
     ).toBe(true);
     expect(
@@ -123,9 +123,10 @@ describe('verificationIsUnverified', () => {
           lint: 'passed',
           visual: 'passed',
         },
-        ['apps/site/src/app/page.tsx'],
+        { requireVisual: true },
       ),
     ).toBe(false);
+    // Path arrays no longer invent requireVisual.
     expect(
       verificationIsUnverified(
         {
@@ -134,7 +135,7 @@ describe('verificationIsUnverified', () => {
           lint: 'passed',
           visual: 'not_run',
         },
-        ['packages/agent-core/src/loop/tool-call.ts'],
+        ['apps/site/src/app/page.tsx'],
       ),
     ).toBe(false);
   });

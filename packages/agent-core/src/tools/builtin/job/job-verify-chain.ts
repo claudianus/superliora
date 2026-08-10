@@ -6,13 +6,32 @@
 
 import type { Agent } from '../../../agent/index';
 import { globalExpertSearchEngine } from '../../../expert-agents/search';
-import { jobLooksLikeUiSurface } from '../../../premium-quality/ui-surface';
 import { requestJobSchedulePump } from '../../../session/job/job-offload';
 import type { ToolStore } from '../../store';
 import { createJob, getJob, listJobs, patchJob, type JobRecord } from './job-ledger';
+import { surfaceRequiresVisualProof } from './job-surface';
 import { STAFF_MIN_EXPERT_SCORE } from './job-staff';
 
 export type JobVerifyVerdict = 'passed' | 'failed' | 'not_run' | 'not_applicable';
+
+/**
+ * Structured verifyVerdict only — MergeJob trusts this, not free-text scrape.
+ * Workers/onJobTerminal stamp verifyVerdict from parseVerifyVerdict at completion.
+ */
+export function resolveVerifyChildVerdict(job: JobRecord): JobVerifyVerdict | undefined {
+  if (job.verifyVerdict === 'passed' || job.verifyVerdict === 'failed') {
+    return job.verifyVerdict;
+  }
+  return undefined;
+}
+
+/** Stamp helper: structured field, else parse summary (completion path only). */
+export function resolveVerifyChildVerdictForStamp(job: JobRecord): JobVerifyVerdict | undefined {
+  if (job.verifyVerdict === 'passed' || job.verifyVerdict === 'failed') {
+    return job.verifyVerdict;
+  }
+  return parseVerifyVerdict(job.resultSummary);
+}
 
 /** Implement/task workers that should receive an automatic verify child. */
 export function shouldEnqueueVerifyAfterDone(job: JobRecord): boolean {
@@ -187,19 +206,35 @@ export async function enqueueVerifyJobForParent(
   if (hasVerifyChild(store, parent.id)) return undefined;
   if (!shouldEnqueueVerifyAfterDone({ ...parent, status: 'done' })) return undefined;
 
-  const ui = jobLooksLikeUiSurface(parent);
+  // Surface contract drives verify shape — never path/keyword regex.
+  const visualSurface = surfaceRequiresVisualProof(parent.surfaceKind);
   const { files, header } = sharedVerifyContext(parent);
   const parentExpert = parent.expertId?.trim();
   const created: JobRecord[] = [];
 
-  if (ui) {
-    const query = 'visual QA UI craft review accessibility interaction screenshot';
+  if (visualSurface) {
+    const isTui = parent.surfaceKind === 'tui';
+    const query = isTui
+      ? 'TUI visual smoke craft review ANSI terminal'
+      : 'visual QA UI craft review accessibility interaction screenshot';
     const pick = await pickVerifyExpert(query, parentExpert);
+    const proofLine = isTui
+      ? '- Spec: success criteria + TUI visual smoke (`pnpm -C apps/liora run smoke:visual` or recorded ANSI evidence). VerifySurface is N/A for ANSI/TUI.'
+      : '- Spec: success criteria + VerifySurface load+interaction+craft when a URL/HTML path exists.';
+    const criteria = isTui
+      ? [
+          'Emit dual-axis JSON (standards + spec) with overall verdict',
+          'TUI visual smoke considered',
+        ]
+      : [
+          'Emit dual-axis JSON (standards + spec) with overall verdict',
+          'VerifySurface axes considered',
+        ];
     const prompt = [
       header,
       'Verify on TWO axes without mixing them (single Job, dual-axis JSON):',
       '- Standards: craft / accessibility / banned-ship smells; repo docs override.',
-      '- Spec: success criteria + VerifySurface load+interaction+craft when a URL/HTML path exists.',
+      proofLine,
       'Final output MUST include dual-axis JSON: {"verdict":"pass"|"fail","standards":{"verdict":"pass"|"fail","findings":[]},"spec":{"verdict":"pass"|"fail","findings":[]},"findings":[],"required_fixes":[]}. Overall pass only when both axes pass.',
     ].join('\n\n');
     created.push(
@@ -213,11 +248,9 @@ export async function enqueueVerifyJobForParent(
         expertId: pick.id,
         expertScore: pick.score,
         staffQuery: query,
-        successCriteria: [
-          'Emit dual-axis JSON (standards + spec) with overall verdict',
-          'VerifySurface axes considered',
-        ],
+        successCriteria: criteria,
         verificationCommands: parent.verificationCommands,
+        surfaceKind: parent.surfaceKind,
       }),
     );
   } else {
@@ -262,6 +295,7 @@ export async function enqueueVerifyJobForParent(
         staffQuery: 'code review standards smells conventions',
         successCriteria: ['Emit Standards-axis JSON verdict'],
         verificationCommands: parent.verificationCommands,
+        surfaceKind: parent.surfaceKind ?? 'none',
       }),
       createJob(store, {
         title: `Verify spec: ${parent.title}`.slice(0, 120),
@@ -276,6 +310,7 @@ export async function enqueueVerifyJobForParent(
         staffQuery: 'code review correctness spec acceptance',
         successCriteria: ['Emit Spec-axis JSON verdict'],
         verificationCommands: parent.verificationCommands,
+        surfaceKind: parent.surfaceKind ?? 'none',
       }),
     );
   }
@@ -367,7 +402,7 @@ function aggregateVerifyVerdict(children: readonly JobRecord[]): JobVerifyVerdic
   let anyFailed = false;
   for (const child of children) {
     const v =
-      parseVerifyVerdict(child.resultSummary) ??
+      resolveVerifyChildVerdict(child) ??
       (child.status === 'failed' ? 'failed' : undefined) ??
       'failed';
     if (v !== 'passed') anyFailed = true;
@@ -392,9 +427,16 @@ export async function onJobTerminalForVerifyChain(
   ) {
     const parent = getJob(store, job.parentJobId);
     if (parent === undefined) return;
+    // Stamp structured verdict from summary parse (merge later reads the field only).
+    const stamped =
+      resolveVerifyChildVerdictForStamp(job) ??
+      (job.status === 'failed' ? ('failed' as const) : undefined);
+    if (stamped === 'passed' || stamped === 'failed') {
+      patchJob(store, job.id, { verifyVerdict: stamped });
+    }
     const children = findVerifyChildren(parent.id, listJobs(store));
     const axisNote = `verify_chain: ${job.id}${job.reviewAxis !== undefined ? ` axis=${job.reviewAxis}` : ''} verdict=${
-      parseVerifyVerdict(job.resultSummary) ?? (job.status === 'failed' ? 'failed' : 'missing')
+      stamped ?? 'missing'
     }`;
     patchJob(store, parent.id, {
       notes: [
@@ -417,7 +459,7 @@ export async function onJobTerminalForVerifyChain(
     });
     if (verdict === 'failed') {
       const failedChild =
-        children.find((c) => parseVerifyVerdict(c.resultSummary) !== 'passed') ?? children[0]!;
+        children.find((c) => resolveVerifyChildVerdict(c) !== 'passed') ?? children[0]!;
       await enqueueDebugJobForVerify(store, latestParent, failedChild, agent);
     }
     return;
@@ -482,11 +524,11 @@ export function evaluateVerifyChainForMerge(input: {
   }
   const verdict = aggregateVerifyVerdict(children);
   if (verdict !== 'passed') {
-    const failed = children.find((c) => parseVerifyVerdict(c.resultSummary) !== 'passed');
+    const failed = children.find((c) => resolveVerifyChildVerdict(c) !== 'passed');
     return {
       ok: false,
       reason: `Verify job ${failed?.id ?? children[0]!.id} verdict=${
-        parseVerifyVerdict(failed?.resultSummary) ?? 'missing'
+        resolveVerifyChildVerdict(failed ?? children[0]!) ?? 'missing'
       } — fix via debug/implement requeue before merge.`,
     };
   }
