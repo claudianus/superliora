@@ -49,6 +49,21 @@ export type SmartLoopRoleRoutingPlan = {
   readonly clearPaths: readonly LoopRoleRoutingClearPath[];
 };
 
+/** Live progress while Settings Smart auto walks role chains. */
+export type SmartLoopProbeProgress = {
+  readonly role: ModelRole;
+  readonly label: string;
+  /** 1-based role index among roles being probed. */
+  readonly index: number;
+  readonly total: number;
+  /** Candidate alias under probe, when known. */
+  readonly alias?: string;
+  /** 1-based index within the role chain (when probing an alias). */
+  readonly chainIndex?: number;
+  readonly chainTotal?: number;
+  readonly outcome?: 'pinned' | 'skipped';
+};
+
 const LOOP_ROLE_ENTRIES: readonly {
   readonly role: ModelRole;
   readonly configKey: LoopRoleModelConfigKey;
@@ -85,15 +100,30 @@ export function configWithoutRoleModelOverrides(config: LioraConfig): LioraConfi
 export async function planSmartLoopRoleRoutingLive(
   agent: Agent,
   config: LioraConfig,
-  options?: { readonly signal?: AbortSignal; readonly now?: number },
+  options?: {
+    readonly signal?: AbortSignal;
+    readonly now?: number;
+    readonly onProgress?: (progress: SmartLoopProbeProgress) => void;
+  },
 ): Promise<SmartLoopRoleRoutingPlan> {
   const rankingConfig = configWithoutRoleModelOverrides(config);
+  const onProgress = options?.onProgress;
 
   const pins: SmartLoopRolePinPlan[] = [];
   const skipped: SmartLoopRoleSkipPlan[] = [];
   const loopControl: Partial<Record<LoopRoleModelConfigKey, string>> = {};
+  const total = LOOP_ROLE_ENTRIES.length;
 
-  for (const entry of LOOP_ROLE_ENTRIES) {
+  for (let index = 0; index < LOOP_ROLE_ENTRIES.length; index += 1) {
+    const entry = LOOP_ROLE_ENTRIES[index]!;
+    const roleIndex = index + 1;
+    onProgress?.({
+      role: entry.role,
+      label: entry.label,
+      index: roleIndex,
+      total,
+    });
+
     const route = resolveSmartRoute({ role: entry.role, config: rankingConfig });
     if (route === undefined) {
       skipped.push({
@@ -102,15 +132,43 @@ export async function planSmartLoopRoleRoutingLive(
         label: entry.label,
         reason: 'no healthy candidate',
       });
+      onProgress?.({
+        role: entry.role,
+        label: entry.label,
+        index: roleIndex,
+        total,
+        outcome: 'skipped',
+      });
       continue;
     }
-    const probed = await ensureSmartRouteProbed(agent, route, options);
+    const probed = await ensureSmartRouteProbed(agent, route, {
+      signal: options?.signal,
+      now: options?.now,
+      onAliasProgress: (alias, chainIndex, chainTotal) => {
+        onProgress?.({
+          role: entry.role,
+          label: entry.label,
+          index: roleIndex,
+          total,
+          alias,
+          chainIndex,
+          chainTotal,
+        });
+      },
+    });
     if (probed === undefined) {
       skipped.push({
         role: entry.role,
         configKey: entry.configKey,
         label: entry.label,
         reason: `live probe failed: ${route.chain.join(' → ') || route.alias}`,
+      });
+      onProgress?.({
+        role: entry.role,
+        label: entry.label,
+        index: roleIndex,
+        total,
+        outcome: 'skipped',
       });
       continue;
     }
@@ -121,6 +179,14 @@ export async function planSmartLoopRoleRoutingLive(
       alias: probed.alias,
     });
     loopControl[entry.configKey] = probed.alias;
+    onProgress?.({
+      role: entry.role,
+      label: entry.label,
+      index: roleIndex,
+      total,
+      alias: probed.alias,
+      outcome: 'pinned',
+    });
   }
 
   return {

@@ -8,6 +8,7 @@ import type { Agent } from '../agent';
 import {
   configWithoutRoleModelOverrides,
   planSmartLoopRoleRoutingLive,
+  type SmartLoopProbeProgress,
 } from '../agent/routing';
 import {
   loadRuntimeConfigSafe,
@@ -93,13 +94,20 @@ export async function removeKimiProvider(
   return reloadRuntimeConfig(context);
 }
 
+export type PlanSmartLoopRoleRoutingOptions = {
+  readonly signal?: AbortSignal;
+  readonly onProgress?: (progress: SmartLoopProbeProgress) => void;
+};
+
 /**
  * Settings Smart auto routing: live-probe each role chain and return pins.
  * Does not mutate config — caller clears/writes via deleteConfigFields + setConfig.
+ * `onProgress` is in-process only (not serializable over RPC).
  */
 export async function planSmartLoopRoleRouting(
   context: PlanSmartLoopRoleRoutingContext,
   _input?: EmptyPayload,
+  options?: PlanSmartLoopRoleRoutingOptions,
 ): Promise<PlanSmartLoopRoleRoutingResult> {
   const rankingConfig = configWithoutRoleModelOverrides(context.config);
   const modelProvider = new ProviderManager({
@@ -118,7 +126,7 @@ export async function planSmartLoopRoleRouting(
       setSmartRouteAlias: () => {},
     },
   } as unknown as Agent;
-  return planSmartLoopRoleRoutingLive(agent, rankingConfig);
+  return planSmartLoopRoleRoutingLive(agent, rankingConfig, options);
 }
 
 export function readConfigForWrite(context: CoreConfigMethodsContext): LioraConfig {

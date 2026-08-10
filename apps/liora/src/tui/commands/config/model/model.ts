@@ -168,13 +168,20 @@ function mountLoopModelRoutingPicker(host: SlashCommandHost, config: LoopModelRo
 
 async function resetAllLoopModelRouting(host: SlashCommandHost): Promise<void> {
   // Smart auto: live-probe each role chain, clear stale overrides, pin survivors only.
-  host.showStatus(ttui('tui.model.smartAutoProbing'), 'warning');
+  const spinner = host.showProgressSpinner(ttui('tui.model.smartAutoProbing'));
 
   let plan: Awaited<ReturnType<typeof host.harness.planSmartLoopRoleRouting>>;
   try {
-    plan = await host.harness.planSmartLoopRoleRouting();
+    plan = await host.harness.planSmartLoopRoleRouting({
+      onProgress: (progress) => {
+        spinner.setLabel(formatSmartAutoProbeProgress(progress));
+      },
+    });
   } catch (error) {
-    host.showError(ttui('tui.model.smartAutoFailed', { message: formatErrorMessage(error) }));
+    spinner.stop({
+      ok: false,
+      label: ttui('tui.model.smartAutoFailed', { message: formatErrorMessage(error) }),
+    });
     return;
   }
 
@@ -191,26 +198,60 @@ async function resetAllLoopModelRouting(host: SlashCommandHost): Promise<void> {
     }
 
     if (plan.pins.length === 0) {
-      host.showStatus(ttui('tui.model.smartAutoNoHealthy'), 'warning');
+      spinner.stop({ ok: false, label: ttui('tui.model.smartAutoNoHealthy') });
     } else if (plan.skipped.length > 0) {
       const skippedLabels = plan.skipped.map((s) => s.label).join(', ');
-      host.showStatus(
-        ttui('tui.model.smartAutoPartial', {
+      spinner.stop({
+        ok: true,
+        label: ttui('tui.model.smartAutoPartial', {
           pinned: String(plan.pins.length),
           skipped: skippedLabels,
         }),
-        'warning',
-      );
+      });
     } else {
-      host.showStatus(
-        ttui('tui.model.smartAutoPinned', { count: String(plan.pins.length) }),
-        'success',
-      );
+      spinner.stop({
+        ok: true,
+        label: ttui('tui.model.smartAutoPinned', { count: String(plan.pins.length) }),
+      });
     }
     mountLoopModelRoutingPicker(host, config);
   } catch (error) {
-    host.showError(ttui('tui.model.smartAutoFailed', { message: formatErrorMessage(error) }));
+    spinner.stop({
+      ok: false,
+      label: ttui('tui.model.smartAutoFailed', { message: formatErrorMessage(error) }),
+    });
   }
+}
+
+function formatSmartAutoProbeProgress(progress: {
+  readonly label: string;
+  readonly index: number;
+  readonly total: number;
+  readonly alias?: string;
+  readonly chainIndex?: number;
+  readonly chainTotal?: number;
+}): string {
+  const current = String(progress.index);
+  const total = String(progress.total);
+  if (
+    progress.alias !== undefined &&
+    progress.chainIndex !== undefined &&
+    progress.chainTotal !== undefined
+  ) {
+    return ttui('tui.model.smartAutoProbingAlias', {
+      role: progress.label,
+      current,
+      total,
+      alias: progress.alias,
+      chain: String(progress.chainIndex),
+      chainTotal: String(progress.chainTotal),
+    });
+  }
+  return ttui('tui.model.smartAutoProbingRole', {
+    role: progress.label,
+    current,
+    total,
+  });
 }
 
 function showLoopRoleModelPicker(host: SlashCommandHost, role: LoopModelRoutingRole & { readonly model?: string }): void {

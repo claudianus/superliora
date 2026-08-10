@@ -296,6 +296,7 @@ export {
   type LoopRoleModelConfigKey,
   type LoopRoleRoutingClearPath,
   type RouteIntensity,
+  type SmartLoopProbeProgress,
   type SmartLoopRolePinPlan,
   type SmartLoopRoleRoutingPlan,
   type SmartLoopRoleSkipPlan,

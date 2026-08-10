@@ -228,7 +228,17 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
   planSmartLoopRoleRouting = (
     input?: EmptyPayload,
   ): Promise<PlanSmartLoopRoleRoutingResult> =>
-    configMethods.planSmartLoopRoleRouting(
+    this.planSmartLoopRoleRoutingWithOptions(input);
+
+  /**
+   * In-process Smart auto with live progress (callback is not RPC-safe).
+   * Prefer this from the local SDK harness; remote RPC uses {@link planSmartLoopRoleRouting}.
+   */
+  planSmartLoopRoleRoutingWithOptions(
+    input?: EmptyPayload,
+    options?: configMethods.PlanSmartLoopRoleRoutingOptions,
+  ): Promise<PlanSmartLoopRoleRoutingResult> {
+    return configMethods.planSmartLoopRoleRouting(
       {
         configPath: this.configPath,
         config: this.config,
@@ -238,7 +248,9 @@ export class LioraCore implements PromisableMethods<CoreAPI> {
         resolveOAuthTokenProvider: this.resolveOAuthTokenProvider,
       },
       input,
+      options,
     );
+  }
 
   prompt = delegateContextMethod(sessionAgentMethods.prompt);
   runShellCommand = delegateContextMethod(sessionAgentMethods.runShellCommand);

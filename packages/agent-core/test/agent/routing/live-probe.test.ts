@@ -241,4 +241,33 @@ describe('planSmartLoopRoleRoutingLive', () => {
       ),
     ).toBe(true);
   });
+
+  it('reports role and alias progress while probing', async () => {
+    setLiveProbeRunnerForTests(async () => {});
+    const config = makeConfig();
+    const agent = makeAgent(config);
+    const progress: Array<{
+      label: string;
+      index: number;
+      total: number;
+      alias?: string;
+      outcome?: string;
+    }> = [];
+    await planSmartLoopRoleRoutingLive(agent, config, {
+      onProgress: (p) => {
+        progress.push({
+          label: p.label,
+          index: p.index,
+          total: p.total,
+          ...(p.alias !== undefined ? { alias: p.alias } : {}),
+          ...(p.outcome !== undefined ? { outcome: p.outcome } : {}),
+        });
+      },
+    });
+    expect(progress.length).toBeGreaterThan(0);
+    expect(progress[0]?.index).toBe(1);
+    expect(progress.every((p) => p.total === 6)).toBe(true);
+    expect(progress.some((p) => p.alias !== undefined)).toBe(true);
+    expect(progress.some((p) => p.outcome === 'pinned')).toBe(true);
+  });
 });

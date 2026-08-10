@@ -5,6 +5,7 @@ import {
   withTelemetryContext,
   type ExperimentalFeatureState,
   type RuntimeDegradedEvent,
+  type SmartLoopProbeProgress,
 } from '@superliora/agent-core';
 
 import { Session } from '#/session/session';
@@ -300,8 +301,10 @@ export class LioraHarness {
   }
 
   /** Settings Smart auto — live-probe each role chain; caller applies pins. */
-  async planSmartLoopRoleRouting(): Promise<SmartLoopRoleRoutingPlan> {
-    return this.rpc.planSmartLoopRoleRouting();
+  async planSmartLoopRoleRouting(options?: {
+    readonly onProgress?: (progress: SmartLoopProbeProgress) => void;
+  }): Promise<SmartLoopRoleRoutingPlan> {
+    return this.rpc.planSmartLoopRoleRouting(options);
   }
 
   async removeProvider(providerId: string): Promise<LioraConfig> {

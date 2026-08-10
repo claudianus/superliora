@@ -273,6 +273,7 @@ export {
   type RoleModelAssignment,
   type RolePreset,
   type RouteIntensity,
+  type SmartLoopProbeProgress,
   type SmartLoopRoleRoutingPlan,
   type SmartRoute,
   type TurnSignals,
