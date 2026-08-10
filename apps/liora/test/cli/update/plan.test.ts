@@ -13,19 +13,49 @@ describe('resolveUpgradePlan', () => {
       latest: '0.5.0',
       manifest: null,
     });
+    const fetchReleaseManifest = vi.fn();
     const plan = await resolveUpgradePlan('0.4.0', {
       detectInstallSource: async () => 'npm-global',
       refreshUpdateCache,
+      fetchReleaseManifest,
       refreshGitCheckoutUpdateTarget: vi.fn(),
       readUpdateInstallState: async () => ({ active: null, lastFailure: null, lastSuccess: null }),
       platform: 'darwin',
     });
     expect(refreshUpdateCache).toHaveBeenCalledTimes(1);
+    expect(fetchReleaseManifest).not.toHaveBeenCalled();
     expect(plan.reason).toBe('update-available');
     expect(plan.target).toEqual({ version: '0.5.0' });
     expect(plan.canAutoInstall).toBe(true);
     expect(plan.fromMain).toBe(false);
     expect(plan.changelogUrl).toBe(SUPERLIORA_CHANGELOG_URL);
+  });
+
+  it('native plans from GitHub Release manifest, not CDN tip', async () => {
+    const refreshUpdateCache = vi.fn().mockResolvedValue({
+      source: 'cdn',
+      checkedAt: '2026-07-19T00:00:00.000Z',
+      latest: '9.9.9',
+      manifest: null,
+    });
+    const fetchReleaseManifest = vi.fn().mockResolvedValue({
+      version: '0.5.0',
+      manifestUrl: 'https://example.test/manifest.json',
+    });
+    const plan = await resolveUpgradePlan('0.4.0', {
+      detectInstallSource: async () => 'native',
+      refreshUpdateCache,
+      fetchReleaseManifest,
+      refreshGitCheckoutUpdateTarget: vi.fn(),
+      readUpdateInstallState: async () => ({ active: null, lastFailure: null, lastSuccess: null }),
+      platform: 'darwin',
+    });
+    expect(fetchReleaseManifest).toHaveBeenCalledTimes(1);
+    expect(refreshUpdateCache).not.toHaveBeenCalled();
+    expect(plan.reason).toBe('update-available');
+    expect(plan.target).toEqual({ version: '0.5.0' });
+    expect(plan.installCommand).toContain('--version 0.5.0');
+    expect(plan.installCommand).not.toContain('9.9.9');
   });
 
   it('--main skips CDN and plans a native source install when no checkout exists', async () => {

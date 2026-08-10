@@ -28,6 +28,7 @@ NO_RETRIEVAL=0
 PREFER_SOURCE=0
 FROM_MAIN=0
 FORCE_PREBUILT=0
+VERSION="${SUPERLIORA_VERSION:-}"
 
 STAGE_MARKER_PREFIX='__LIORA_UPGRADE_STAGE__='
 
@@ -46,6 +47,7 @@ Options:
   --command <name>      Command name. Default: liora
   --node-min <version>  Minimum Node.js version. Default: ${DEFAULT_NODE_MIN}
   --manifest <url>      Release manifest.json URL
+  --version <semver>    Pin prebuilt install to a release tag (e.g. 0.5.0)
   --force               Replace an existing checkout/wrapper when needed
   --no-build            Skip pnpm install/build after checkout
   --no-browser-use      Skip browser-use sidecar install
@@ -60,7 +62,7 @@ Options:
 Environment variables:
   SUPERLIORA_REPO_URL, SUPERLIORA_REF, SUPERLIORA_INSTALL_DIR,
   SUPERLIORA_BIN_DIR, SUPERLIORA_COMMAND, SUPERLIORA_NODE_MIN,
-  SUPERLIORA_MANIFEST_URL, SUPERLIORA_RAW_BASE,
+  SUPERLIORA_MANIFEST_URL, SUPERLIORA_VERSION, SUPERLIORA_RAW_BASE,
   SUPERLIORA_SKIP_BROWSER_USE, SUPERLIORA_SKIP_COMPUTER_USE,
   SUPERLIORA_SKIP_RETRIEVAL, SUPERLIORA_PREFER_SOURCE,
   SUPERLIORA_FROM_MAIN, SUPERLIORA_FORCE_PREBUILT
@@ -97,6 +99,8 @@ while [ "$#" -gt 0 ]; do
     --node-min=*) NODE_MIN="${1#--node-min=}"; shift ;;
     --manifest) MANIFEST_URL="$2"; shift 2 ;;
     --manifest=*) MANIFEST_URL="${1#--manifest=}"; shift ;;
+    --version) VERSION="$2"; shift 2 ;;
+    --version=*) VERSION="${1#--version=}"; shift ;;
     --force) FORCE=1; shift ;;
     --no-build) NO_BUILD=1; shift ;;
     --no-browser-use) NO_BROWSER_USE=1; shift ;;
@@ -220,6 +224,10 @@ else
   trap 'rm -rf "$BUNDLE_DIR"' EXIT
 fi
 
+if [ -n "$VERSION" ] && [ "$FROM_MAIN" -eq 1 ]; then
+  die "--version cannot be combined with --main"
+fi
+
 orch_args=(
   --repo "$REPO_URL"
   --ref "$REF"
@@ -229,6 +237,7 @@ orch_args=(
   --node-min "$NODE_MIN"
   --manifest "$MANIFEST_URL"
 )
+[ -n "$VERSION" ] && orch_args+=(--version "$VERSION")
 [ "$FORCE" -eq 1 ] && orch_args+=(--force)
 [ "$NO_BUILD" -eq 1 ] && orch_args+=(--no-build)
 [ "$NO_SHELL_RC" -eq 1 ] && orch_args+=(--no-shell-rc)

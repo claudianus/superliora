@@ -284,4 +284,84 @@ describe('upgrade slash command', () => {
     studio.handleInput(ESC);
     await pending;
   });
+
+  it('routes check-failed plans into failed studio mode', async () => {
+    const showStatus = vi.fn();
+    const host = createHost({ showStatus });
+    const pending = handleUpgradeCommand(host, {
+      resolveUpgradePlan: async () =>
+        plan({
+          reason: 'check-failed',
+          target: null,
+          canAutoInstall: false,
+          errorMessage: 'CDN timeout',
+        }),
+      getCurrentVersion: () => '0.4.0',
+    });
+    const studio = await waitForStudio(host);
+    await vi.waitFor(() => expect(studio.currentMode).toBe('failed'));
+    expect(showStatus).toHaveBeenCalledWith(
+      expect.stringContaining('CDN timeout'),
+      'error',
+    );
+    studio.handleInput(ESC);
+    await pending;
+  });
+
+  it('copies install command and refreshes gui-use after success', async () => {
+    const showStatus = vi.fn();
+    const host = createHost({ showStatus });
+    const copyTextToClipboard = vi.fn().mockResolvedValue(undefined);
+    const refreshGuiUseAfterUpgrade = vi.fn().mockResolvedValue({
+      browserOk: true,
+      computerOk: true,
+      warnings: [],
+    });
+    let onStage: ((stage: UpgradeInstallStage, detail?: string) => void) | undefined;
+
+    const pending = handleUpgradeCommand(host, {
+      resolveUpgradePlan: async () =>
+        plan({ canAutoInstall: false, source: 'homebrew' }),
+      getCurrentVersion: () => '0.4.0',
+      copyTextToClipboard,
+      refreshGuiUseAfterUpgrade,
+      startObservedUpgradeInstall: async (options) => {
+        onStage = options.onStage;
+        return { started: true };
+      },
+    });
+
+    const studio = await waitForStudio(host);
+    await vi.waitFor(() => expect(studio.currentMode).toBe('plan'));
+    // Manual source: first action is copy-command
+    studio.handleInput('\r');
+    await vi.waitFor(() => expect(copyTextToClipboard).toHaveBeenCalled());
+    expect(copyTextToClipboard).toHaveBeenCalledWith(
+      'npm install -g @superliora/liora@0.5.0',
+    );
+
+    // Re-open install path via tip-of-main then Install is heavier; instead
+    // exercise gui-use by switching to an auto-install plan through a second host.
+    studio.handleInput(ESC);
+    await pending;
+
+    const autoHost = createHost({ showStatus });
+    const autoPending = handleUpgradeCommand(autoHost, {
+      resolveUpgradePlan: async () => plan(),
+      getCurrentVersion: () => '0.4.0',
+      refreshGuiUseAfterUpgrade,
+      startObservedUpgradeInstall: async (options) => {
+        onStage = options.onStage;
+        return { started: true };
+      },
+    });
+    const autoStudio = await waitForStudio(autoHost);
+    await vi.waitFor(() => expect(autoStudio.currentMode).toBe('plan'));
+    autoStudio.handleInput('\r');
+    await vi.waitFor(() => expect(onStage).toBeTypeOf('function'));
+    onStage!('done');
+    await vi.waitFor(() => expect(refreshGuiUseAfterUpgrade).toHaveBeenCalled());
+    autoStudio.handleInput('\r');
+    await autoPending;
+  });
 });

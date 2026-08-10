@@ -230,6 +230,8 @@ export const STRINGS_RUNTIME_CORE_EN: Readonly<Record<string, string>> = {
   'cli.runtime.update.prompt.labelSource': 'Source ',
   'cli.runtime.update.prompt.labelCommand': 'Command',
   'cli.runtime.update.prompt.hints': '\u2191\u2193 choose \u00B7 Enter confirm \u00B7 Esc continue',
+  'cli.runtime.update.prompt.dirtyWarning':
+    'Warning: dirty checkout — install force-resets and discards local changes.',
   'cli.runtime.update.prompt.installHint': 'Install update now',
   'cli.runtime.update.prompt.skipHint': 'Continue with current version',
 
@@ -462,6 +464,8 @@ export const STRINGS_RUNTIME_CORE_KO: Readonly<Record<string, string>> = {
   'cli.runtime.update.prompt.labelSource': '소스 ',
   'cli.runtime.update.prompt.labelCommand': '명령',
   'cli.runtime.update.prompt.hints': '↑↓ 선택 · Enter 확인 · Esc 계속',
+  'cli.runtime.update.prompt.dirtyWarning':
+    '경고: dirty checkout — 설치 시 force-reset으로 로컬 변경이 사라집니다.',
   'cli.runtime.update.prompt.installHint': '지금 업데이트 설치',
   'cli.runtime.update.prompt.skipHint': '현재 버전으로 계속',
 

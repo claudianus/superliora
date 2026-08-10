@@ -19,6 +19,7 @@ import {
   DEFAULT_REPO,
   defaultBinDir,
   defaultInstallDir,
+  manifestUrlForVersion,
 } from './install/platform.mjs';
 import { installSidecars } from './install/sidecars.mjs';
 import { buildSource, fetchSource } from './install/source.mjs';
@@ -63,8 +64,14 @@ try {
     // Default: published GitHub Release prebuilt only — no silent main tip fallback.
     theatre.setMode('prebuilt');
     theatre.setStage('downloading', 'Fetching release manifest');
+    const expectedVersion = normalizeVersion(args.version);
+    const manifestUrl =
+      args.manifestUrl !== DEFAULT_MANIFEST_URL || expectedVersion === null
+        ? args.manifestUrl
+        : manifestUrlForVersion(expectedVersion);
     const pre = await tryInstallPrebuilt({
-      manifestUrl: args.manifestUrl,
+      manifestUrl,
+      expectedVersion: expectedVersion ?? undefined,
       binDir,
       commandName,
     });
@@ -113,11 +120,11 @@ try {
     onWarn: (msg) => theatre.note(msg),
   });
 
-  // Warm --version when possible
+  // Warm --version when possible (prebuilt path already verified when expected).
   const warm = process.platform === 'win32'
     ? join(binDir, `${commandName}.cmd`)
     : join(binDir, commandName);
-  if (existsSync(warm)) {
+  if (existsSync(warm) && mode === 'source') {
     spawnSync(warm, ['--version'], { encoding: 'utf8', stdio: 'ignore' });
   }
 
@@ -169,6 +176,12 @@ function resolveHome(value) {
   return resolve(value);
 }
 
+function normalizeVersion(value) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim().replace(/^v/i, '');
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 function parseArgs(argv) {
   const out = {
     repoUrl: process.env.SUPERLIORA_REPO_URL ?? DEFAULT_REPO,
@@ -178,6 +191,7 @@ function parseArgs(argv) {
     commandName: process.env.SUPERLIORA_COMMAND,
     nodeMin: process.env.SUPERLIORA_NODE_MIN ?? DEFAULT_NODE_MIN,
     manifestUrl: process.env.SUPERLIORA_MANIFEST_URL ?? DEFAULT_MANIFEST_URL,
+    version: process.env.SUPERLIORA_VERSION ?? null,
     force: false,
     noBuild: false,
     noShellRc: false,
@@ -217,6 +231,9 @@ function parseArgs(argv) {
         break;
       case '--manifest':
         out.manifestUrl = take();
+        break;
+      case '--version':
+        out.version = take();
         break;
       case '--force':
         out.force = true;
@@ -259,12 +276,16 @@ function parseArgs(argv) {
         else if (arg.startsWith('--command=')) out.commandName = arg.slice(10);
         else if (arg.startsWith('--node-min=')) out.nodeMin = arg.slice(11);
         else if (arg.startsWith('--manifest=')) out.manifestUrl = arg.slice(11);
+        else if (arg.startsWith('--version=')) out.version = arg.slice(10);
         else throw new Error(`unknown option: ${arg}`);
     }
   }
 
   if (out.commandName && !/^[A-Za-z0-9._-]+$/.test(out.commandName)) {
     throw new Error('--command must be a simple command name');
+  }
+  if (out.version && out.fromMain) {
+    throw new Error('--version cannot be combined with --main');
   }
   return out;
 }
@@ -283,6 +304,7 @@ Options:
   --command <name>      Command name (default: liora)
   --node-min <version>  Minimum Node.js version
   --manifest <url>      Release manifest.json URL
+  --version <semver>    Pin prebuilt install to a release tag (sets manifest URL)
   --force               Replace existing checkout/wrapper
   --no-build            Skip pnpm install/build (source mode)
   --no-browser-use      Skip browser-use sidecars

@@ -6,6 +6,7 @@ param(
   [string]$CommandName,
   [string]$NodeMin,
   [string]$ManifestUrl,
+  [string]$Version,
   [string]$RawBase,
   [switch]$Force,
   [switch]$NoBuild,
@@ -98,10 +99,14 @@ $BinDir = Get-ValueOrDefault $BinDir 'SUPERLIORA_BIN_DIR' $DefaultBinDir
 $CommandName = Get-ValueOrDefault $CommandName 'SUPERLIORA_COMMAND' $DefaultCommandName
 $NodeMin = Get-ValueOrDefault $NodeMin 'SUPERLIORA_NODE_MIN' $DefaultNodeMin
 $ManifestUrl = Get-ValueOrDefault $ManifestUrl 'SUPERLIORA_MANIFEST_URL' $DefaultManifestUrl
+$Version = Get-ValueOrDefault $Version 'SUPERLIORA_VERSION' ''
 $RawBase = Get-ValueOrDefault $RawBase 'SUPERLIORA_RAW_BASE' $DefaultRawBase
 
 if ($CommandName -notmatch '^[A-Za-z0-9._-]+$') {
   Fail '-CommandName must be a simple command name'
+}
+if (-not [string]::IsNullOrWhiteSpace($Version) -and ($Main -or $env:SUPERLIORA_FROM_MAIN -eq '1')) {
+  Fail '-Version cannot be combined with -Main'
 }
 
 Write-Host "${StagePrefix}bootstrapping"
@@ -148,6 +153,9 @@ $orchArgs = @(
   '--node-min', $NodeMin,
   '--manifest', $ManifestUrl
 )
+if (-not [string]::IsNullOrWhiteSpace($Version)) {
+  $orchArgs += @('--version', $Version)
+}
 if ($Force) { $orchArgs += '--force' }
 if ($NoBuild) { $orchArgs += '--no-build' }
 if ($NoPath) { $orchArgs += '--no-shell-rc' }

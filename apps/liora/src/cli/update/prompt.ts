@@ -25,6 +25,8 @@ export interface InstallPromptOptions {
   readonly target: UpdateTarget;
   readonly installCommand: string;
   readonly installSource: InstallSource;
+  /** When true, install will force-reset a dirty git checkout. */
+  readonly dirty?: boolean;
   readonly input?: NodeJS.ReadStream;
   readonly output?: NodeJS.WriteStream;
 }
@@ -82,9 +84,17 @@ function renderInstallPrompt(
     `${label(t('cli.runtime.update.prompt.labelSource'))}  ${sourceLabel}`,
     `${label(t('cli.runtime.update.prompt.labelCommand'))}  ${command}`,
     '',
+  ];
+  if (options.dirty === true) {
+    lines.push(
+      chalk.hex(darkColors.warning)(t('cli.runtime.update.prompt.dirtyWarning')),
+      '',
+    );
+  }
+  lines.push(
     chalk.hex(darkColors.textMuted)(t('cli.runtime.update.prompt.hints')),
     '',
-  ];
+  );
 
   const pointerPad = ' '.repeat(SELECT_POINTER.length);
   for (let i = 0; i < choices.length; i++) {

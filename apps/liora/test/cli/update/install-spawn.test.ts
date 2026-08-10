@@ -28,8 +28,13 @@ describe('canAutoInstall', () => {
     expect(canAutoInstall('pnpm-global', 'win32')).toBe(true);
   });
 
-  it('blocks homebrew auto-install', () => {
+  it('blocks homebrew auto-install and points at install.sh (no kimi-code formula)', () => {
     expect(canAutoInstall('homebrew', 'darwin')).toBe(false);
+    const command = installCommandFor('homebrew', '0.5.0', 'darwin');
+    expect(command).toContain('install.sh');
+    expect(command).toContain('--version 0.5.0');
+    expect(command).not.toContain('kimi-code');
+    expect(command).not.toContain('brew upgrade');
   });
 
   it('allows native auto-install on Windows via install.ps1', () => {
@@ -46,6 +51,14 @@ describe('canAutoInstall', () => {
     const { cmd, args } = spawnForSource('native', '0.5.0', 'win32');
     expect(cmd).toBe('powershell');
     expect(args.join(' ')).toContain('install.ps1');
+    expect(args.join(' ')).toContain("SUPERLIORA_VERSION='0.5.0'");
+  });
+
+  it('pins native Unix install to the advertised version', () => {
+    const command = installCommandFor('native', '0.5.0', 'darwin');
+    expect(command).toContain('--version 0.5.0');
+    const { args } = spawnForSource('native', '0.5.0', 'darwin');
+    expect(args.join(' ')).toContain('--version 0.5.0');
   });
 });
 

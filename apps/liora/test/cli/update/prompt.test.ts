@@ -71,4 +71,37 @@ describe('promptForInstallChoice', () => {
     expect(rendered).toContain('❯'); // SELECT_POINTER, not '?'
     expect(rendered).not.toContain('moonshotai.github.io/kimi-code');
   });
+
+  it('warns when the checkout is dirty before confirm', async () => {
+    const input = Object.assign(new EventEmitter(), {
+      isRaw: false,
+      setRawMode: () => {},
+      resume: () => {},
+      off: () => {},
+    }) as unknown as NodeJS.ReadStream;
+
+    const outputChunks: string[] = [];
+    const output = {
+      write: (chunk: string) => {
+        outputChunks.push(chunk);
+        return true;
+      },
+    } as NodeJS.WriteStream;
+
+    const promptPromise = promptForInstallChoice({
+      currentVersion: '0.4.0',
+      target: { version: '0.5.0' },
+      installCommand: 'bash -lc update',
+      installSource: 'github-checkout',
+      dirty: true,
+      input,
+      output,
+    });
+    input.emit('keypress', '', { name: 'escape' });
+    await promptPromise;
+
+    const rendered = outputChunks.join('');
+    expect(rendered.toLowerCase()).toContain('dirty');
+    expect(rendered.toLowerCase()).toMatch(/force-reset|discard/);
+  });
 });

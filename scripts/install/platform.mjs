@@ -9,8 +9,23 @@ export const DEFAULT_REPO = 'https://github.com/claudianus/superliora.git';
 export const DEFAULT_REF = 'main';
 export const DEFAULT_MANIFEST_URL =
   'https://github.com/claudianus/superliora/releases/latest/download/manifest.json';
+export const GITHUB_RELEASES_BASE =
+  'https://github.com/claudianus/superliora/releases';
 export const GITHUB_RAW_BASE =
   'https://raw.githubusercontent.com/claudianus/superliora/main';
+
+/** Normalize `0.5.0` / `v0.5.0` → tag `v0.5.0`. */
+export function releaseTagForVersion(version) {
+  const trimmed = String(version ?? '').trim();
+  if (!trimmed) throw new Error('release version is required');
+  return trimmed.startsWith('v') ? trimmed : `v${trimmed}`;
+}
+
+/** Manifest URL for a pinned release tag (not `/latest`). */
+export function manifestUrlForVersion(version) {
+  const tag = releaseTagForVersion(version);
+  return `${GITHUB_RELEASES_BASE}/download/${tag}/manifest.json`;
+}
 
 export const STAGE_MARKER_PREFIX = '__LIORA_UPGRADE_STAGE__=';
 
