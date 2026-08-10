@@ -30,6 +30,7 @@ export type {
   ContextCompositionSegment,
   ContextMessage,
   DeleteConfigFieldPath,
+  SmartLoopRoleRoutingPlan,
   ExperimentalFeatureState,
   ExperimentalFlagMap,
   ExperimentalFlagSource,

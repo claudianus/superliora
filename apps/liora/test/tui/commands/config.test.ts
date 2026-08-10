@@ -580,6 +580,65 @@ describe('harness panel and tools inventory', () => {
         })),
         setConfig: vi.fn(async () => undefined),
         deleteConfigFields: vi.fn(async () => ({ loopControl: {} })),
+        planSmartLoopRoleRouting: vi.fn(async () => ({
+          pins: [
+            {
+              role: 'compaction',
+              configKey: 'compactionModel',
+              label: 'Compaction',
+              alias: 'big-model',
+            },
+            {
+              role: 'completion',
+              configKey: 'completionModel',
+              label: 'Completion',
+              alias: 'big-model',
+            },
+            {
+              role: 'exploration',
+              configKey: 'explorationModel',
+              label: 'Exploration',
+              alias: 'big-model',
+            },
+            {
+              role: 'coding',
+              configKey: 'codingModel',
+              label: 'Coding',
+              alias: 'big-model',
+            },
+            {
+              role: 'planning',
+              configKey: 'planningModel',
+              label: 'Planning',
+              alias: 'big-model',
+            },
+            {
+              role: 'debugging',
+              configKey: 'debuggingModel',
+              label: 'Debugging',
+              alias: 'big-model',
+            },
+          ],
+          skipped: [],
+          patch: {
+            loopControl: {
+              compactionModel: 'big-model',
+              completionModel: 'big-model',
+              explorationModel: 'big-model',
+              codingModel: 'big-model',
+              planningModel: 'big-model',
+              debuggingModel: 'big-model',
+            },
+          },
+          clearPaths: [
+            'loopControl.compactionModel',
+            'loopControl.completionModel',
+            'loopControl.explorationModel',
+            'loopControl.codingModel',
+            'loopControl.planningModel',
+            'loopControl.debuggingModel',
+          ],
+        })),
       },
       mountEditorReplacement: vi.fn(),
       mountCenterModal: vi.fn(),
@@ -607,6 +666,7 @@ describe('harness panel and tools inventory', () => {
         getConfig: ReturnType<typeof vi.fn>;
         setConfig: ReturnType<typeof vi.fn>;
         deleteConfigFields: ReturnType<typeof vi.fn>;
+        planSmartLoopRoleRouting: ReturnType<typeof vi.fn>;
       };
       state: {
         centerModalStack: [],
@@ -1277,17 +1337,6 @@ describe('harness panel and tools inventory', () => {
 
   it('clears every role override from the smart auto routing action', async () => {
     const host = makeHarnessHost();
-    host.state.appState.availableModels = {
-      'big-model': {
-        provider: 'managed:kimi-api',
-        model: 'big-model',
-        maxContextSize: 1_000_000,
-        capabilities: ['thinking', 'tool_use'],
-      },
-    };
-    host.state.appState.availableProviders = {
-      'managed:kimi-api': { type: 'openai', apiKey: 'test-key' },
-    };
     host.harness.getConfig.mockResolvedValue({
       loopControl: {
         compactionModel: 'compact',
@@ -1297,11 +1346,8 @@ describe('harness panel and tools inventory', () => {
         planningModel: 'plan',
         debuggingModel: 'debug',
       },
-      providers: {
-        'managed:kimi-api': { type: 'openai', apiKey: 'test-key' },
-      },
     });
-    host.harness.setConfig.mockResolvedValue(undefined);
+    host.harness.setConfig.mockResolvedValue({ loopControl: {} });
     await showLoopModelRoutingPicker(host);
     const [routingPicker] = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0] as [
       { handleInput: (data: string) => void },
@@ -1309,6 +1355,9 @@ describe('harness panel and tools inventory', () => {
 
     routingPicker.handleInput('\r');
 
+    await vi.waitFor(() => {
+      expect(host.harness.planSmartLoopRoleRouting).toHaveBeenCalled();
+    });
     await vi.waitFor(() => {
       expect(host.harness.deleteConfigFields).toHaveBeenCalledWith([
         'loopControl.compactionModel',
@@ -1330,7 +1379,11 @@ describe('harness panel and tools inventory', () => {
       expect(alias).toBe('big-model');
     }
     expect(host.showStatus).toHaveBeenCalledWith(
-      expect.stringMatching(/Smart auto pinned|Smart auto/i),
+      expect.stringMatching(/live-probing|live probe/i),
+      'warning',
+    );
+    expect(host.showStatus).toHaveBeenCalledWith(
+      expect.stringMatching(/Smart auto pinned|live-probed/i),
       expect.stringMatching(/success|warning/),
     );
   });

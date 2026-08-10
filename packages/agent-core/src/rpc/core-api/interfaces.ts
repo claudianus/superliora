@@ -137,6 +137,7 @@ import type {
   ConfigDiagnostics,
   DeleteConfigFieldsPayload,
   GetKimiConfigPayload,
+  PlanSmartLoopRoleRoutingResult,
   RemoveKimiProviderPayload,
   SetKimiConfigPayload,
 } from './payloads-config';
@@ -279,6 +280,8 @@ export interface CoreAPI extends SessionAPIWithId {
   setKimiConfig: (payload: SetKimiConfigPayload) => LioraConfig;
   removeKimiProvider: (payload: RemoveKimiProviderPayload) => LioraConfig;
   deleteConfigFields: (payload: DeleteConfigFieldsPayload) => LioraConfig;
+  /** Settings Smart auto — live-probe role chains and return healthy pins. */
+  planSmartLoopRoleRouting: (payload: EmptyPayload) => PlanSmartLoopRoleRoutingResult;
   createSession: (payload: CreateSessionPayload) => SessionSummary;
   closeSession: (payload: CloseSessionPayload) => void;
   archiveSession: (payload: ArchiveSessionPayload) => void;
