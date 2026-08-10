@@ -14,9 +14,10 @@ const DEFAULT_MIN_BOX_WIDTH = 24;
 
 /**
  * Shared inset for stacked stage chrome bands (Todo Board, Worker Dock) so
- * their left/right edges paint on the same columns.
+ * their left/right edges paint on the same columns. Keep at 0 — GutterContainer
+ * already supplies the chrome gutter; an extra band indent wasted width.
  */
-export const CHROME_BAND_LEFT_MARGIN = 2;
+export const CHROME_BAND_LEFT_MARGIN = 0;
 export const CHROME_BAND_SIDE_PADDING = DEFAULT_SIDE_PADDING;
 
 export interface RenderRoundedPanelOptions {
