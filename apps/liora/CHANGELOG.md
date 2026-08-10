@@ -1,5 +1,12 @@
 # @superliora/liora
 
+## 0.5.1
+
+### Patch Changes
+
+- Fix upgrade/install version skew: pin native installs to the GitHub Release they advertise, sync CDN tip files with the CLI version, and harden SEA binary replace with backup rollback.
+- Polish the GitHub Pages museum landing: column-scoped hero veil, clearer Stage captions, tighter CTA hierarchy, and bilingual theme labels.
+
 ## 0.5.0
 
 ### Minor Changes
