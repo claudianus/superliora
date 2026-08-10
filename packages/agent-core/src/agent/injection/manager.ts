@@ -15,6 +15,7 @@ import { ResponseLanguageInjector } from './response-language';
 import { TodoListReminderInjector } from './todo-list';
 import { JobDeskInjector } from './job-desk';
 import { FleetModelCatalogInjector } from './fleet-model-catalog';
+import { MediaReadinessInjector } from './media-readiness';
 import { TASK_GRAPH_STORE_KEY } from '../../tools/builtin/state/task-graph-store-key';
 
 const ACTIVE_BACKGROUND_TASK_GUIDANCE =
@@ -86,6 +87,7 @@ export class InjectionManager {
       new TodoListReminderInjector(agent),
       this.jobDeskInjector,
       new FleetModelCatalogInjector(agent),
+      new MediaReadinessInjector(agent),
       new AskModeInjector(agent),
       new PlanModeInjector(agent),
       new PremiumQualityInjector(agent),

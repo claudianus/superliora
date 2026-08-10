@@ -27,7 +27,9 @@ promptVars:
     6. UI objectives: Skill("premium-visual") before markup; VerifySurface before complete;
        MergeJob hard-fails without visual=passed when UI paths changed.
     7. Desktop/native apps: ComputerCapture → ComputerAct. Game/media: GenerateImage /
-       GenerateVideo then ReadMediaFile.
+       GenerateVideo → ReadMediaFile → place under workspace; one style seed across related
+       assets; if those tools are absent from your tool list, UpdateGoal(blocked) with key
+       evidence — do not fake assets as complete.
     8. Library APIs: Context7Resolve → Context7Docs when available; else WebSearch + FetchURL.
     9. Durable self-improvement: SkillCreate when a repeatable workflow is worth reusing.
     10. Bulk same-op work (N≳10): Script(read/write/glob/exec) — aggregates only; no per-item context dumps.

@@ -100,6 +100,14 @@ function visualDodLines(job: JobRecord): readonly string[] {
   return [];
 }
 
+/** Media asset loop for implement/task/goal-driver — tools are key-gated on the worker. */
+function mediaDodLines(job: JobRecord): readonly string[] {
+  if (job.kind !== 'task' && job.kind !== 'implement' && job.kind !== 'goal-driver') return [];
+  return [
+    '- Media DoD (when the brief asks for assets): GenerateImage/GenerateVideo → ReadMediaFile → place real paths under the workspace; keep one style seed across related assets. If those tools are absent from your tool list, stop blocked with key evidence — do not fake assets as done.',
+  ];
+}
+
 export function jobPrompt(job: JobRecord, store?: ToolStore): string {
   const parentFindings = priorFindingsForJob(job, store);
   const expertBlock = renderJobExpertBlock(job);
@@ -184,6 +192,7 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
       ...tddContractLines(job),
       ...(job.kind === 'implement' && job.title.startsWith('Debug:') ? debugContractLines(job) : []),
       ...visualDodLines(job),
+      ...mediaDodLines(job),
       ...(job.worktreePath !== undefined &&
       job.kind !== 'verify' &&
       job.kind !== 'explore' &&

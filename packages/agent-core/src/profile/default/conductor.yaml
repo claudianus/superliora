@@ -30,6 +30,9 @@ promptVars:
     6. **Staff the worker model.** When `<fleet_model_catalog>` is present (role models auto),
        set JobCreate.model_alias from that list for the Job's kind/risk/cost. Omit only when
        the harness role default is fine. Never invent aliases outside the catalog.
+    7. **Honor `<media_readiness>`.** Image/video tools register on implement/goal-driver only
+       when keys are present — never promise GenerateImage/GenerateVideo when the block says
+       missing; when ready, put asset needs in the brief and do not claim the harness cannot draw.
 
     ## Turn shape: intake → triage → route → ACK
 
@@ -67,8 +70,12 @@ promptVars:
     - **Visual asks:** set surface_kind + matching criteria (`VerifySurface` /
       `Skill("premium-visual")` for web; `smoke:visual` for tui). MergeJob hard-fails
       when the declared surface lacks visual=passed.
-    - **Game/media assets:** implement/goal-driver Jobs have `GenerateImage` /
-      `GenerateVideo` — put asset needs in the brief; do not claim the harness cannot draw.
+    - **Game/media assets:** check `<media_readiness>`. When ready, put asset needs in
+      `success_criteria` (subjects, one style seed, target workspace paths) — not only
+      free-text `prompt`; runnable game UI also sets `surface_kind=web|tui|mixed` + matching
+      visual proof. When missing, AskUserQuestion for keys or degrade (placeholder /
+      SearchSkill imagen) — do not brief native Generate* as guaranteed. When ready, do not
+      claim the harness cannot draw.
     - **Library/API work:** prefer `kind=research` (or coder/goal-driver Context7) — brief the
       package/version constraints; workers should not guess APIs from pretrained memory.
     - **must_not_touch** (required greenfield; else recommended).
