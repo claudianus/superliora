@@ -1,7 +1,9 @@
 import { useI18n } from '../i18n';
+import { BentoGrid } from './BentoGrid';
 import { CopyButton } from './CopyButton';
 import { ProductFrame } from './ProductFrame';
 import { Reveal } from './Reveal';
+import { TiltFrame } from './TiltFrame';
 import { ClusterVisual, HowFlowVisual, TowerHubVisual } from './tui/ClusterVisual';
 
 export function Sections() {
@@ -14,7 +16,7 @@ export function Sections() {
     <main id="main">
       <section className="hero-band">
         <div className="hero-layout">
-          <div className="hero-copy">
+          <Reveal className="hero-copy">
             <p className="hero-kicker font-sans font-semibold tracking-[0.18em] text-primary uppercase">
               {t.hero.brand}
             </p>
@@ -25,7 +27,7 @@ export function Sections() {
             <div className="hero-cta mt-8 flex flex-wrap items-center gap-3">
               <a
                 href="#install"
-                className="btn btn-primary inline-flex min-h-11 items-center rounded-lg px-5 py-2.5 sm:px-6 sm:py-3"
+                className="btn btn-primary btn-pulse inline-flex min-h-11 items-center rounded-lg px-5 py-2.5 sm:px-6 sm:py-3"
               >
                 {t.hero.install}
               </a>
@@ -39,10 +41,12 @@ export function Sections() {
                 {t.hero.docs}
               </a>
             </div>
-          </div>
-          <div className="hero-visual">
-            <ProductFrame />
-          </div>
+          </Reveal>
+          <Reveal className="hero-visual" stagger={2}>
+            <TiltFrame>
+              <ProductFrame />
+            </TiltFrame>
+          </Reveal>
         </div>
       </section>
 
@@ -59,26 +63,23 @@ export function Sections() {
           <div className="cluster-stack mt-12 space-y-20 sm:mt-14 lg:space-y-28">
             {t.clusters.items.map((cluster, i) => (
               <article key={cluster.id} id={cluster.id} className="cluster-block">
-                <div className={`cluster-block__grid${i % 2 === 1 ? ' cluster-block__grid--flip' : ''}`}>
+                <div className={`cluster-block__top${i % 2 === 1 ? ' cluster-block__top--flip' : ''}`}>
                   <Reveal className="cluster-block__copy" stagger={((i % 3) + 1) as 1 | 2 | 3}>
                     <div className="font-mono text-xs text-primary/80">{String(i + 1).padStart(2, '0')}</div>
                     <h3 className="cluster-title mt-2 max-w-[20ch] font-sans font-semibold tracking-tight text-text">
                       {cluster.title}
                     </h3>
                     <p className="cluster-lead mt-3 max-w-[42ch] text-soft">{cluster.lead}</p>
-                    <div className="feature-rail mt-6" role="list">
-                      {cluster.features.map((feature) => (
-                        <div key={feature.id} className="feature-ribbon" role="listitem">
-                          <div className="font-sans text-sm font-semibold text-text">{feature.title}</div>
-                          <p className="mt-1 text-sm leading-relaxed text-soft">{feature.body}</p>
-                        </div>
-                      ))}
-                    </div>
                   </Reveal>
                   <Reveal className="cluster-block__visual" stagger={(((i + 1) % 3) + 1) as 1 | 2 | 3}>
-                    <ClusterVisual clusterId={cluster.id} />
+                    <TiltFrame>
+                      <ClusterVisual clusterId={cluster.id} />
+                    </TiltFrame>
                   </Reveal>
                 </div>
+                <Reveal className="cluster-block__bento mt-8" stagger={3}>
+                  <BentoGrid features={cluster.features} />
+                </Reveal>
               </article>
             ))}
           </div>
@@ -105,7 +106,9 @@ export function Sections() {
               </div>
             </Reveal>
             <Reveal className="how-grid__visual" stagger={2}>
-              <HowFlowVisual />
+              <TiltFrame>
+                <HowFlowVisual />
+              </TiltFrame>
             </Reveal>
           </div>
         </div>
@@ -115,7 +118,9 @@ export function Sections() {
         <div className="mx-auto max-w-7xl">
           <div className="tower-grid">
             <Reveal className="tower-grid__visual">
-              <TowerHubVisual />
+              <TiltFrame>
+                <TowerHubVisual />
+              </TiltFrame>
             </Reveal>
             <Reveal className="tower-grid__copy" stagger={2}>
               <p className="section-kicker text-sm font-semibold tracking-wide text-primary">{t.tower.kicker}</p>

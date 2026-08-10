@@ -18,6 +18,8 @@ Palette SSOT: bg `#0D1422`, primary `#00D5FF`. Type: Syne + JetBrains Mono + Pre
 - [ ] Features / How / Tower / Install are normal vertical sections (no right-rail museum)
 - [ ] Each of 4 clusters shows a curated TUI HTML mock (Status Route, Job Deck+Worker Dock, Command Hub, Diff Studio)
 - [ ] How and Tower sections include a visual panel beside copy
+- [ ] Feature lists use bento grid — no horizontal scroll rails
+- [ ] Motion: reveal / tilt / bento hover / demo pulses; `prefers-reduced-motion` disables them
 - [ ] Fluid type: hero/section titles scale toward 4K (`clamp`)
 - [ ] KO `/` and EN `/en/` copy parity (same sections / 4 clusters)
 - [ ] Banned copy smoke: `pnpm -C apps/site run check:copy` passes
@@ -34,5 +36,6 @@ Capture after preview (`BASE` = `/superliora/`):
 | Desktop | 1440×900 | `apps/site/.visual-qa/after/desktop-1440.png` |
 | Wide / 4K | ≥2560×1440 | `apps/site/.visual-qa/after/wide-2560.png` |
 | EN desktop | 1440×900 | `apps/site/.visual-qa/after/en-desktop-1440.png` |
+| Features bento | 1440×900 | `apps/site/.visual-qa/after/features-bento-1440.png` |
 
 VerifySurface: `apps/site/.visual-qa/after/verify-surface.png`

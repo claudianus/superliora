@@ -21,6 +21,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "motion": "^13.0.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
