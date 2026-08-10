@@ -1,9 +1,9 @@
 import chalk from 'chalk';
 import { visibleWidth } from '#/tui/renderer';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { FooterComponent } from '#/tui/components/chrome/footer/footer';
-import { darkColors } from '#/tui/theme';
+import { currentTheme, darkColors, neonNoirColors } from '#/tui/theme';
 import type { GoalSnapshot } from '@superliora/sdk';
 import type { AppState } from '#/tui/types';
 
@@ -11,6 +11,14 @@ const ANSI_SGR = /\[[0-9;]*m/g;
 function strip(text: string): string {
   return text.replaceAll(ANSI_SGR, '');
 }
+
+beforeEach(() => {
+  currentTheme.setPalette(darkColors);
+});
+
+afterEach(() => {
+  currentTheme.setPalette(neonNoirColors);
+});
 
 function baseState(overrides: Partial<AppState> = {}): AppState {
   return {
