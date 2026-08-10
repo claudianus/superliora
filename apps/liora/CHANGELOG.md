@@ -1,5 +1,13 @@
 # @superliora/liora
 
+## 0.5.0
+
+### Minor Changes
+
+- Conductor Jobs drop UltraSwarm-style `expertRole` and use Job kinds instead: `research` for web/docs investigation and `verify` for Maker≠Checker checks after implement. Merge waits on a passed verify child.
+- Conductor Jobs carry Matt-style quality contracts: `test_seams` / `tdd_mode`, debug `repro_command`, dual-axis Standards∥Spec verify children, Plan Desk frontier grilling, `blocked_by_job_ids` scheduling, and SkillCreate writing-for-agents gates. Merge conflicts enqueue a resolve Job.
+- Add opt-in Aside MCP sidecar wiring for private browser evidence. Run `liora browser-use aside enable`.
+
 ## 0.4.0
 
 ### Minor Changes
