@@ -233,6 +233,7 @@ command = "   "
     await saveTuiConfig(
       {
         theme: 'light',
+        locale: 'auto',
         permissionMode: 'yolo',
         disablePasteBurst: false,
         editorCommand: 'vim',
@@ -307,6 +308,7 @@ command = "   "
     await saveTuiConfig(
       {
         theme,
+        locale: 'auto',
         permissionMode: 'yolo',
         disablePasteBurst: false,
         editorCommand: null,

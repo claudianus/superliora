@@ -94,13 +94,14 @@ function makeStartupInput(
     },
     tuiConfig: {
       theme: 'dark',
+      locale: 'auto',
       permissionMode: 'yolo',
       disablePasteBurst: false,
       editorCommand: null,
       notifications: { enabled: true, condition: 'unfocused' },
       upgrade: { autoInstall: true },
       ...tuiConfig,
-    },
+    } as LioraTUIStartupInput['tuiConfig'],
     version: '0.0.0-test',
     workDir: '/tmp/proj-a',
   };

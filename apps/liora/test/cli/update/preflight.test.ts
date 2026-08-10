@@ -185,13 +185,14 @@ function installState(overrides: Partial<UpdateInstallState> = {}): UpdateInstal
 function tuiConfig(overrides: Partial<TuiConfig> = {}): TuiConfig {
   return {
     theme: 'auto',
+    locale: 'auto',
     permissionMode: 'yolo',
     disablePasteBurst: false,
     editorCommand: null,
     notifications: { enabled: true, condition: 'unfocused' },
     upgrade: { autoInstall: true },
     ...overrides,
-  };
+  } as TuiConfig;
 }
 
 function disableAutoInstall(): void {
