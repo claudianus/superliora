@@ -11,6 +11,7 @@ import {
   ensureSmartRouteProbed,
   escalateSmartRoute,
   isConfigAliasHealthy,
+  isCursorIncludedLaneModel,
   isLiveProbeFailureFresh,
   probeModelAlias,
   resolveSmartRoute,
@@ -49,11 +50,15 @@ export async function rejectUnhealthyJobModelAliasLive(
     };
   }
   if (!isConfigAliasHealthy(config, modelAlias)) {
+    const stillLive = listStillLiveJobModelAliases(config, modelAlias);
+    const next =
+      stillLive.length > 0
+        ? `Still live now: ${stillLive.join(', ')}. Pick one of these, or omit model_alias.`
+        : 'omit model_alias for harness role pick (do not invent aliases).';
     return {
       isError: true,
       output:
-        `model_alias ${JSON.stringify(modelAlias)} is unknown or unhealthy — ` +
-        'pick a healthy alias from <fleet_model_catalog>, or omit model_alias for harness role pick.',
+        `model_alias ${JSON.stringify(modelAlias)} is unknown or unhealthy — ${next}`,
     };
   }
   if (agent === undefined) {
@@ -69,13 +74,43 @@ export async function rejectUnhealthyJobModelAliasLive(
   if (probe.ok) return undefined;
 
   const kind = probe.failureKind ?? 'probe_fail';
+  // Catalog injected at turn start is stale after this probe — list what is
+  // still live *now* so Conductor does not re-summon just-failed siblings.
+  const stillLive = listStillLiveJobModelAliases(config, modelAlias);
+  const next =
+    stillLive.length > 0
+      ? `Still live now: ${stillLive.join(', ')}. Pick one of these, or omit model_alias.`
+      : 'No live catalog aliases remain — omit model_alias for harness role pick (do not invent aliases).';
   return {
     isError: true,
     output:
-      `model_alias ${JSON.stringify(modelAlias)} failed live probe (${kind}) — ` +
-      'pick a different <fleet_model_catalog> alias, or omit model_alias for harness role pick. ' +
+      `model_alias ${JSON.stringify(modelAlias)} failed live probe (${kind}) — ${next} ` +
       'Do not blind-retry the same model until quota/account recovers.',
   };
+}
+
+/** Fresh-healthy aliases after a probe failure (capped for tool-result size). */
+function listStillLiveJobModelAliases(
+  config: NonNullable<Agent['runtimeConfig']>,
+  failedAlias: string,
+  max = 6,
+): readonly string[] {
+  const live: string[] = [];
+  for (const alias of Object.keys(config.models ?? {})) {
+    const trimmed = alias.trim();
+    if (trimmed.length === 0 || trimmed === failedAlias) continue;
+    if (isLiveProbeFailureFresh(trimmed)) continue;
+    if (!isConfigAliasHealthy(config, trimmed)) continue;
+    live.push(trimmed);
+  }
+  // Cursor included lane (Auto / Grok 4.5 / Composer 2.5) first — separate from API quota.
+  live.sort((a, b) => {
+    const ai = isCursorIncludedLaneModel(a) ? 1 : 0;
+    const bi = isCursorIncludedLaneModel(b) ? 1 : 0;
+    if (ai !== bi) return bi - ai;
+    return a.localeCompare(b);
+  });
+  return live.slice(0, max);
 }
 
 export type JobWorkerModelPreflight =

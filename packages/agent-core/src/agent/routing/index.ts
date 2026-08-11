@@ -56,6 +56,12 @@ export {
   type LiveProbeRunner,
 } from './live-probe';
 export {
+  CURSOR_OAUTH_PROVIDER_ID,
+  cursorWireModelId,
+  isCursorIncludedLaneModel,
+  shouldMarkProviderCredential,
+} from './provider-failure-scope';
+export {
   assertLoopRolesMatchPresets,
   configWithoutRoleModelOverrides,
   loopRoleRoutingEntries,

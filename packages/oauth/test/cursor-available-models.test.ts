@@ -153,6 +153,8 @@ describe('cursorModelsToPresets / applyCursorOAuthModelAliases', () => {
   it('maps fallback models into profile presets', () => {
     const presets = cursorModelsToPresets(CURSOR_FALLBACK_MODELS);
     expect(presets.length).toBeGreaterThan(5);
+    expect(presets.some((p) => p.id === 'default')).toBe(true);
+    expect(presets.find((p) => p.id === 'default')?.displayName).toBe('Auto');
     expect(presets.some((p) => p.id === 'composer-2.5')).toBe(true);
     expect(presets.find((p) => p.id === 'gpt-5.4-medium')).toMatchObject({
       displayName: 'GPT-5.4 (medium)',
