@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "version": "0.7.1",
+  "version": "0.8.0",
+  "publishedAt": "2026-08-11T03:56:26.000Z",
   "rollout": [
     {
       "percent": 100,
       "delaySeconds": 0
     }
-  ],
-  "publishedAt": "2026-08-11T03:34:26.000Z"
+  ]
 }
