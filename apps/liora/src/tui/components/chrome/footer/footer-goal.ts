@@ -46,8 +46,17 @@ export function formatGoalBadge(
   const statusTick = shouldRenderAmbientEffects(appearance)
     ? renderPulseText(goal.status, `footer:goal:${goal.status}`, statusToken, appearance)
     : currentTheme.fg(statusToken, goal.status);
+  const deskChip =
+    goal.execution === 'goal-desk'
+      ? shouldRenderAmbientEffects(appearance)
+        ? renderPulseText('desk', 'footer:goal:desk', 'accent', appearance)
+        : currentTheme.fg('accent', 'desk')
+      : null;
   // Keep statusTick/dot pulsed; elapsed · turns stay muted chrome meta.
-  const label = statusTick + currentTheme.fg('textMuted', ` · ${elapsed} · ${turns}`);
+  const label =
+    (deskChip !== null ? deskChip + currentTheme.fg('textMuted', ' · ') : '') +
+    statusTick +
+    currentTheme.fg('textMuted', ` · ${elapsed} · ${turns}`);
   const dot = shouldRenderAmbientEffects(appearance)
     ? renderPulseText(GOAL_DOT, 'footer:goal:dot', statusToken, appearance)
     : currentTheme.fg(statusToken, GOAL_DOT);
@@ -81,6 +90,12 @@ export function formatGoalBadge(
   );
 }
 
+/** Identity key for re-anchoring the footer live clock (not progress ticks). */
+export function goalClockIdentityKey(goal: AppState['goal']): string | null {
+  if (goal === null || goal === undefined) return null;
+  return [goal.goalId, goal.status, goal.terminalReason ?? ''].join('\u0000');
+}
+
 export function goalSnapshotKey(goal: AppState['goal']): string | null {
   if (goal === null || goal === undefined) return null;
   return [
@@ -93,5 +108,6 @@ export function goalSnapshotKey(goal: AppState['goal']): string | null {
     String(goal.budget.tokenBudget),
     String(goal.budget.turnBudget),
     String(goal.budget.wallClockBudgetMs),
+    goal.execution ?? '',
   ].join('\u0000');
 }

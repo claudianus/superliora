@@ -51,6 +51,7 @@ type GoalCommandHost = Pick<
   | 'setAppState'
   | 'showError'
   | 'showStatus'
+  | 'showNotice'
   | 'track'
   | 'mountEditorReplacement'
   | 'restoreEditor'
@@ -487,13 +488,31 @@ async function startGoal(
   if (options.beforeSend !== undefined && !(await options.beforeSend())) {
     return false;
   }
-  host.state.transcriptContainer.addChild(new GoalSetMessageComponent());
-  requestTUILayoutRender(host.state);
 
   const offloaded = snapshot.execution === 'goal-desk';
+  // Goal Desk: no follow-up user bubble — stamp objective + desk lane on the
+  // confirmation card, and seed appState.goal so Goal Monitor / footer badge
+  // light up immediately (job.updated alone was too easy to miss).
+  host.state.transcriptContainer.addChild(
+    new GoalSetMessageComponent(
+      offloaded
+        ? {
+            objective: parsed.objective,
+            lane: 'goal-desk',
+            ...(snapshot.deskJobId !== undefined ? { deskJobId: snapshot.deskJobId } : {}),
+          }
+        : undefined,
+    ),
+  );
+  requestTUILayoutRender(host.state);
+
   if (offloaded) {
+    host.setAppState({ goal: snapshot });
     const desk = snapshot.deskJobId ? ` (${snapshot.deskJobId})` : '';
     host.showStatus(ttui('tui.goal.deskAccepted', { desk }));
+    host.showNotice(ttui('tui.goal.deskLiveTitle'), ttui('tui.goal.deskLiveDetail'), {
+      coalesceKey: `goal-desk-live:${snapshot.goalId}`,
+    });
     return true;
   }
 

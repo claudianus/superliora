@@ -84,6 +84,12 @@ describe('goalMonitor tokens/title', () => {
     expect(goalMonitorTitle(g, 'tiny')).toBe(' Goal ');
     expect(goalMonitorTitle(g, 'standard')).toBe(' Goal · active ');
   });
+
+  it('marks Goal Desk goals in the panel title', () => {
+    const g = goal({ status: 'active', execution: 'goal-desk', deskJobId: 'job_desk1' });
+    if (!isLiveGoal(g)) throw new Error('expected live goal');
+    expect(goalMonitorTitle(g, 'standard')).toBe(' Goal · desk · active ');
+  });
 });
 
 describe('renderGoalMonitorLines', () => {
@@ -135,6 +141,48 @@ describe('renderGoalMonitorLines', () => {
       .join('\n');
     expect(joined).toContain('Ship the live goal monitor panel');
     expect(joined).not.toMatch(/█/);
+  });
+
+  it('shows desk chip and spinning-up worker row for Goal Desk goals', () => {
+    const g = goal({ execution: 'goal-desk', deskJobId: 'job_desk1' });
+    if (!isLiveGoal(g)) throw new Error('expected live goal');
+    const joined = renderGoalMonitorLines({
+      goal: g,
+      width: 80,
+      wallClockMs: g.wallClockMs,
+      profile: 'standard',
+    })
+      .map(strip)
+      .join('\n');
+    expect(joined).toMatch(/desk/);
+    expect(joined).toMatch(/spinning up goal worker/);
+  });
+
+  it('surfaces live goal-driver tool activity on the monitor', () => {
+    const g = goal({ execution: 'goal-desk', deskJobId: 'job_desk1' });
+    if (!isLiveGoal(g)) throw new Error('expected live goal');
+    const joined = renderGoalMonitorLines({
+      goal: g,
+      width: 80,
+      wallClockMs: g.wallClockMs,
+      driverLive: {
+        jobId: 'job_driver1',
+        status: 'running',
+        title: 'Goal: Ship dashboard',
+        liveActivity: {
+          toolCallId: 'tc1',
+          name: 'Edit',
+          target: 'apps/liora/src/tui/foo.ts',
+          status: 'running',
+          atMs: Date.now(),
+        },
+      },
+    })
+      .map(strip)
+      .join('\n');
+    expect(joined).toMatch(/worker/);
+    expect(joined).toContain('Edit');
+    expect(joined).toContain('foo.ts');
   });
 });
 

@@ -18,7 +18,7 @@ import {
 
 import type { FooterTranscriptViewportSnapshot } from '#/tui/components/chrome/footer/footer-chrome';
 import { collectFooterStaleAppStatePatches } from '#/tui/components/chrome/footer/footer-badges';
-import { goalSnapshotKey } from '#/tui/components/chrome/footer/footer-goal';
+import { goalClockIdentityKey } from '#/tui/components/chrome/footer/footer-goal';
 import {
   renderFooterLine1,
   type FooterLine1TipState,
@@ -164,7 +164,8 @@ export class FooterComponent implements Component {
   dispose(): void {}
 
   private syncGoalClock(goal: AppState['goal']): void {
-    const key = goalSnapshotKey(goal);
+    // Re-anchor only on identity/status flips — progress ticks must not zero elapsed.
+    const key = goalClockIdentityKey(goal);
     if (key === this.goalSnapshotKey) return;
     this.goalSnapshotKey = key;
     this.goalObservedAtMs = Date.now();

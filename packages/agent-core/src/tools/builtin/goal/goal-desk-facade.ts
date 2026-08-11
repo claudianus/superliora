@@ -3,8 +3,9 @@
  * Goal Desk binding + Job ledger (no main-lane GoalMode).
  */
 
-import type { GoalSnapshot, GoalStatus, GoalToolResult } from '#/agent/goal/types';
+import type { GoalChange, GoalSnapshot, GoalStatus, GoalToolResult } from '#/agent/goal/types';
 import type { Agent } from '#/agent/index';
+import type { ToolStore } from '../../store';
 
 import { getJob } from '../job/job-ledger';
 import { resumeJobs } from '../job/job-worker';
@@ -47,21 +48,88 @@ function bindingStatusToGoalStatus(status: GoalSessionBindingStatus): GoalStatus
   }
 }
 
-export function snapshotFromGoalDeskBinding(binding: GoalSessionBinding): GoalSnapshot {
+function aggregateDriverUsage(
+  store: ToolStore | undefined,
+  binding: GoalSessionBinding,
+): { readonly turnsUsed: number; readonly tokensUsed: number } {
+  if (store === undefined) {
+    return { turnsUsed: 0, tokensUsed: 0 };
+  }
+  let turnsUsed = 0;
+  let tokensUsed = 0;
+  for (const id of binding.driverJobIds) {
+    const job = getJob(store, id);
+    if (job === undefined) continue;
+    const progress = job.progress;
+    if (progress?.stepsCompleted !== undefined) {
+      turnsUsed += progress.stepsCompleted;
+    }
+    tokensUsed += (progress?.tokensIn ?? 0) + (progress?.tokensOut ?? 0);
+  }
+  return { turnsUsed, tokensUsed };
+}
+
+export function snapshotFromGoalDeskBinding(
+  binding: GoalSessionBinding,
+  store?: ToolStore,
+): GoalSnapshot {
+  const usage = aggregateDriverUsage(store, binding);
   return {
     goalId: binding.goalId,
     objective: binding.objective,
     completionCriterion: binding.completionCriterion,
     ...(binding.gateCommand !== undefined ? { gateCommand: binding.gateCommand } : {}),
     status: bindingStatusToGoalStatus(binding.status),
-    turnsUsed: 0,
-    tokensUsed: 0,
+    turnsUsed: usage.turnsUsed,
+    tokensUsed: usage.tokensUsed,
+    // Wall clock stays 0 — TUI live-ticks from setGoal observation so progress
+    // emits do not reset / double-count the Goal Monitor elapsed label.
     wallClockMs: 0,
     budget: EMPTY_BUDGET,
     terminalReason: binding.terminalReason,
     execution: 'goal-desk',
     deskJobId: binding.deskJobId,
   };
+}
+
+function emitGoalDeskUpdated(
+  agent: Agent,
+  snapshot: GoalSnapshot | null,
+  change?: GoalChange,
+): void {
+  agent.emitEvent({
+    type: 'goal.updated',
+    snapshot,
+    ...(change !== undefined ? { change } : {}),
+  });
+}
+
+/** Rebuild + emit the session Goal view after driver progress / terminal sync. */
+export function emitGoalDeskSnapshot(agent: Agent, store: ToolStore = agent.tools.toolStore): void {
+  const binding = readGoalSessionBinding(store);
+  if (binding === undefined) return;
+  if (binding.status === 'cancelled') {
+    emitGoalDeskUpdated(agent, null);
+    return;
+  }
+  const snapshot = snapshotFromGoalDeskBinding(binding, store);
+  if (binding.status === 'done') {
+    emitGoalDeskUpdated(agent, snapshot, {
+      kind: 'completion',
+      status: 'complete',
+      reason: binding.terminalReason,
+      actor: 'runtime',
+      stats: {
+        turnsUsed: snapshot.turnsUsed,
+        tokensUsed: snapshot.tokensUsed,
+        wallClockMs: snapshot.wallClockMs,
+      },
+    });
+    // Clear so Goal Monitor / footer drop after the completion card lands.
+    emitGoalDeskUpdated(agent, null);
+    return;
+  }
+  emitGoalDeskUpdated(agent, snapshot);
 }
 
 export async function conductorCreateGoal(
@@ -79,7 +147,13 @@ export async function conductorCreateGoal(
     completionCriterion: input.completionCriterion,
     gateCommand: input.gateCommand,
   });
-  return snapshotFromGoalDeskBinding(result.binding);
+  const snapshot = snapshotFromGoalDeskBinding(result.binding, agent.tools.toolStore);
+  emitGoalDeskUpdated(agent, snapshot, {
+    kind: 'lifecycle',
+    status: 'active',
+    actor: 'user',
+  });
+  return snapshot;
 }
 
 export function conductorGetGoal(agent: Agent): GoalToolResult {
@@ -111,10 +185,10 @@ export function conductorGetGoal(agent: Agent): GoalToolResult {
   }
   if (next.status === 'done') {
     // complete is transient for classic goals; keep snapshot once for status.
-    return { goal: snapshotFromGoalDeskBinding(next) };
+    return { goal: snapshotFromGoalDeskBinding(next, store) };
   }
   if (next.status === 'cancelled') return { goal: null };
-  return { goal: snapshotFromGoalDeskBinding(next) };
+  return { goal: snapshotFromGoalDeskBinding(next, store) };
 }
 
 export function conductorPauseGoal(agent: Agent): GoalSnapshot {
@@ -131,7 +205,14 @@ export function conductorPauseGoal(agent: Agent): GoalSnapshot {
     updatedAt: new Date().toISOString(),
   };
   writeGoalSessionBinding(store, next);
-  return snapshotFromGoalDeskBinding(next);
+  const snapshot = snapshotFromGoalDeskBinding(next, store);
+  emitGoalDeskUpdated(agent, snapshot, {
+    kind: 'lifecycle',
+    status: 'paused',
+    reason: 'paused by user',
+    actor: 'user',
+  });
+  return snapshot;
 }
 
 export async function conductorResumeGoal(agent: Agent): Promise<GoalSnapshot> {
@@ -141,7 +222,7 @@ export async function conductorResumeGoal(agent: Agent): Promise<GoalSnapshot> {
     throw new Error('No active goal.');
   }
   if (binding.status !== 'paused' && binding.status !== 'blocked') {
-    return snapshotFromGoalDeskBinding(binding);
+    return snapshotFromGoalDeskBinding(binding, store);
   }
   // Resume interrupted drivers (and desk umbrella status).
   for (const id of [binding.deskJobId, ...binding.driverJobIds]) {
@@ -157,7 +238,14 @@ export async function conductorResumeGoal(agent: Agent): Promise<GoalSnapshot> {
     updatedAt: new Date().toISOString(),
   };
   writeGoalSessionBinding(store, next);
-  return snapshotFromGoalDeskBinding(next);
+  const snapshot = snapshotFromGoalDeskBinding(next, store);
+  emitGoalDeskUpdated(agent, snapshot, {
+    kind: 'lifecycle',
+    status: 'active',
+    reason: 'resumed',
+    actor: 'user',
+  });
+  return snapshot;
 }
 
 export function conductorCancelGoal(agent: Agent): GoalSnapshot {
@@ -174,5 +262,12 @@ export function conductorCancelGoal(agent: Agent): GoalSnapshot {
     updatedAt: new Date().toISOString(),
   };
   writeGoalSessionBinding(store, next);
-  return snapshotFromGoalDeskBinding(next);
+  const snapshot = snapshotFromGoalDeskBinding(next, store);
+  emitGoalDeskUpdated(agent, null, {
+    kind: 'lifecycle',
+    status: 'blocked',
+    reason: 'cancelled',
+    actor: 'user',
+  });
+  return snapshot;
 }

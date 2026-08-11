@@ -351,7 +351,11 @@ describe('handleGoalCommand', () => {
 
   it('skips sendNormalUserInput when createGoal offloads to Goal Desk', async () => {
     session.createGoal.mockResolvedValueOnce(
-      fakeSnapshot({ execution: 'goal-desk', deskJobId: 'job_desk1' }),
+      fakeSnapshot({
+        objective: 'Ship feature X',
+        execution: 'goal-desk',
+        deskJobId: 'job_desk1',
+      }),
     );
 
     await handleGoalCommand(host, 'Ship feature X');
@@ -359,8 +363,22 @@ describe('handleGoalCommand', () => {
 
     expect(session.createGoal).toHaveBeenCalled();
     expect(host.sendNormalUserInput).not.toHaveBeenCalled();
+    expect(host.setAppState).toHaveBeenCalledWith(
+      expect.objectContaining({
+        goal: expect.objectContaining({
+          execution: 'goal-desk',
+          deskJobId: 'job_desk1',
+          objective: 'Ship feature X',
+        }),
+      }),
+    );
     expect(host.showStatus).toHaveBeenCalledWith(
       expect.stringMatching(/Goal Desk accepted/),
+    );
+    expect(host.showNotice).toHaveBeenCalledWith(
+      expect.stringMatching(/Goal Desk live/),
+      expect.stringMatching(/Goal Monitor|Job Deck/),
+      expect.objectContaining({ coalesceKey: expect.stringMatching(/^goal-desk-live:/) }),
     );
   });
 

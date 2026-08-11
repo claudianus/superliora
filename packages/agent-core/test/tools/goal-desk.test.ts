@@ -38,6 +38,7 @@ function fakeConductorAgent(store: ToolStore) {
     config: { profileName: SOVEREIGN_CONDUCTOR_PROFILE_NAME },
     tools: { toolStore: store, getStore: () => store },
     subagentHost: undefined,
+    emitEvent: () => {},
   } as never;
 }
 

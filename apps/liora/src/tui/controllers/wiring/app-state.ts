@@ -5,6 +5,7 @@ import { INITIAL_LIVE_PANE } from '../../types';
 import type { TUIState } from '../../tui-state';
 import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
 import { invalidateTranscriptHitTestCache } from '../../features/transcript/transcript-hit-test';
+import { pickGoalDriverLive } from '../../utils/job/goal-driver-live';
 import { requestTUIContentRender, requestTUILayoutRender } from '../../utils/render/frame-render';
 import type { MotionBeatController } from '../../utils/render/motion-beats';
 import { hasPatchChanges } from '../../utils/object-patch';
@@ -133,11 +134,17 @@ export class AppStateController {
     host.state.header.setState(host.state.appState);
     if (goalChanged) {
       this.syncGoalMonitorPanel();
+      // Active Goal Desk / Ralph goals need the ambient clock for live elapsed.
+      host.appearanceController.refreshAmbientSchedule();
     }
     if (conductorJobsChanged) {
       // Job lanes live in Mission Control now — push the new ledger snapshot.
       host.missionControl.pushView();
       host.appearanceController.refreshAmbientSchedule();
+      // Goal Desk monitor reads driver liveActivity from conductorJobs.
+      if (host.state.appState.goal?.execution === 'goal-desk') {
+        this.syncGoalMonitorPanel();
+      }
     }
     host.updateActivityPane();
     if (busyChanged) {
@@ -151,7 +158,12 @@ export class AppStateController {
 
   syncGoalMonitorPanel(): void {
     const { host } = this;
-    host.state.todoPanel.setGoal(host.state.appState.goal);
+    const goal = host.state.appState.goal;
+    const driverLive =
+      goal?.execution === 'goal-desk'
+        ? pickGoalDriverLive(goal, host.state.appState.conductorJobs?.jobs)
+        : undefined;
+    host.state.todoPanel.setGoal(goal, driverLive);
     host.state.todoPanelContainer.clear();
     if (!host.state.todoPanel.isEmpty()) {
       host.state.todoPanelContainer.addChild(host.state.todoPanel);

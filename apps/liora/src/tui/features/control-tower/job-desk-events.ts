@@ -89,6 +89,7 @@ export class ControlTowerJobDesk {
     this.maybeShowInterruptedBanner();
     this.maybeShowStallNotice(event);
     this.maybeShowGateAck(event);
+    this.maybePulseGoalDriver(event);
     this.host.maybeDefaultConductorTimeline?.();
   }
 
@@ -219,6 +220,51 @@ export class ControlTowerJobDesk {
       `${event.job.title} · ${shortJobId(event.job.id)}`,
       { coalesceKey: `job-stall:${event.job.id}` },
     );
+  }
+
+  /**
+   * Goal Desk: status flashes when the goal-driver starts / finishes / blocks,
+   * and mirror worker token/step progress onto appState.goal so the Goal Monitor
+   * bars move even though the Conductor lane stays idle.
+   */
+  private maybePulseGoalDriver(event: JobUpdatedEvent): void {
+    if (event.job.kind !== 'goal-driver') return;
+    const goal = this.host.state.appState.goal;
+    if (goal === null || goal === undefined || goal.execution !== 'goal-desk') return;
+
+    const progress = event.job.progress;
+    if (progress !== undefined) {
+      const tokensUsed = Math.max(
+        goal.tokensUsed,
+        (progress.tokensIn ?? 0) + (progress.tokensOut ?? 0),
+      );
+      const turnsUsed = Math.max(goal.turnsUsed, progress.stepsCompleted ?? 0);
+      if (tokensUsed !== goal.tokensUsed || turnsUsed !== goal.turnsUsed) {
+        this.host.setAppState({
+          goal: { ...goal, tokensUsed, turnsUsed },
+        });
+      }
+    }
+
+    const previous = event.change?.previousStatus;
+    const statusChanged = previous !== undefined && previous !== event.job.status;
+    const spawnAck = event.change?.reason === 'spawn' && event.job.status === 'running';
+    if (!statusChanged && !spawnAck) return;
+
+    if (event.job.status === 'running' && (previous === 'queued' || previous === undefined || spawnAck)) {
+      this.host.showStatus(
+        ttui('tui.goal.deskWorkerRunning', { title: event.job.title.slice(0, 60) }),
+        'info',
+      );
+      return;
+    }
+    if (event.job.status === 'done') {
+      this.host.showStatus(ttui('tui.goal.deskWorkerDone'), 'success');
+      return;
+    }
+    if (event.job.status === 'failed' || event.job.status === 'blocked' || event.job.status === 'needs_user') {
+      this.host.showStatus(ttui('tui.goal.deskWorkerBlocked'), 'warning');
+    }
   }
 
   /** F06: surface gateChecklist / briefPreview on JobCreate ACK (queued→running). */
