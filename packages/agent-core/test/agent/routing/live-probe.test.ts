@@ -246,6 +246,7 @@ describe('planSmartLoopRoleRoutingLive', () => {
     expect(plan.pins.length).toBeGreaterThan(0);
     for (const pin of plan.pins) {
       expect(pin.alias).toBe('secondary');
+      expect(pin.reason.length).toBeGreaterThan(0);
     }
     // Stale override must not be re-pinned (overrides are stripped before rank/probe).
     expect(Object.values(plan.patch.loopControl)).not.toContain('stale-pin');

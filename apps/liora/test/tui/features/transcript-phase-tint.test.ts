@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { ansiTextToCells } from '#/tui/renderer';
 import { darkColors } from '#/tui/theme/colors';
 import {
   applyPhaseTintLine,
@@ -52,5 +53,19 @@ describe('transcript phase tint', () => {
     const line = applyPhaseTintLine('hi', 12, 'answer', darkColors);
     // Background SGR present for full-width pad.
     expect(line).toContain('\u001B[48;2');
+  });
+
+  it('keeps tint bg on trailing pad after a styled-line reset', () => {
+    chalk.level = 3;
+    // Tool body lines end with Text.closeLine's \x1b[0m before phase tint pads.
+    const styled = `${chalk.hex(darkColors.syntaxKeyword)('PASS')}\u001B[0m`;
+    const line = applyPhaseTintLine(styled, 20, 'tools', darkColors);
+    const tint = phaseTintHex('tools', darkColors).toLowerCase();
+    const cells = ansiTextToCells(line);
+    expect(cells.length).toBe(20);
+    for (const cell of cells) {
+      if (cell.continuation === true || cell.width === 0) continue;
+      expect(cell.style?.bg?.toLowerCase()).toBe(tint);
+    }
   });
 });

@@ -433,6 +433,80 @@ describe('model-presets — models.dev benchmarks', () => {
     assert.equal(assignments.planning?.modelAlias, 'deepseek/flash');
     assert.equal(assignments.planning?.reason, 'User override');
   });
+
+  it('prefers bench-backed grok-4.5 over heuristic grok-4.20 for coding roles', () => {
+    const models: ModelMetadata[] = [
+      {
+        id: 'grok-4.20-0309-reasoning',
+        alias: 'xai-grok/grok-4.20-0309-reasoning',
+        provider: 'xai-grok',
+        tier: 'high',
+        available: true,
+        supportsTools: true,
+        supportsReasoning: true,
+        contextWindow: 1_000_000,
+        // Inflated family heuristic — must still lose to real benches.
+        qualityScore: 100,
+        valueScore: 33,
+      },
+      {
+        id: 'grok-4.5',
+        alias: 'xai-grok/grok-4.5',
+        provider: 'xai-grok',
+        tier: 'high',
+        available: true,
+        supportsTools: true,
+        supportsReasoning: true,
+        contextWindow: 500_000,
+        qualityScore: 86,
+        valueScore: 43,
+        benchmarkScore: 82,
+        benchmarkCount: 2,
+        inputCostPerM: 2,
+      },
+      {
+        id: 'grok-build-0.1',
+        alias: 'xai-grok/grok-build-0.1',
+        provider: 'xai-grok',
+        tier: 'ultra-cheap',
+        available: true,
+        supportsTools: true,
+        contextWindow: 256_000,
+        qualityScore: 70,
+        valueScore: 90,
+        inputCostPerM: 1,
+      },
+    ];
+    const assignments = autoAssignRoleModels(models);
+    assert.equal(assignments.coding?.modelId, 'grok-4.5');
+    assert.equal(assignments.planning?.modelId, 'grok-4.5');
+    assert.equal(assignments.debugging?.modelId, 'grok-4.5');
+    assert.ok(assignments.coding?.reason.includes('benches'));
+    assert.equal(assignments.compaction?.modelId, 'grok-build-0.1');
+  });
+
+  it('caps heuristic quality below typical multi-bench flagships', () => {
+    const heuristic = scoreModelQuality('grok-4.20-0309-reasoning', {
+      supportsTools: true,
+      supportsReasoning: true,
+      supportsVision: true,
+      contextWindow: 1_000_000,
+    });
+    const withBench = scoreModelQuality('grok-4.5', {
+      supportsTools: true,
+      supportsReasoning: true,
+      benchmarkScore: 82,
+      benchmarkCount: 2,
+    });
+    assert.ok(heuristic <= 84);
+    assert.ok(withBench > heuristic);
+  });
+
+  it('classifies grok-4.5 as high and grok-build as ultra-cheap by name', () => {
+    assert.equal(classifyModelTier('grok-4.5'), 'high');
+    assert.equal(classifyModelTier('grok-4.20-0309-reasoning'), 'high');
+    assert.equal(classifyModelTier('grok-build-0.1'), 'ultra-cheap');
+  });
 });
 
 describe('model-presets — previewLoopRoleModelRouting health gate', () => {

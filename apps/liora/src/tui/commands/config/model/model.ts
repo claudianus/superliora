@@ -208,11 +208,19 @@ async function resetAllLoopModelRouting(host: SlashCommandHost): Promise<void> {
           skipped: skippedLabels,
         }),
       });
+      host.showNotice(
+        ttui('tui.model.smartAutoReasonsTitle'),
+        formatSmartAutoPinReasons(plan.pins, plan.skipped),
+      );
     } else {
       spinner.stop({
         ok: true,
         label: ttui('tui.model.smartAutoPinned', { count: String(plan.pins.length) }),
       });
+      host.showNotice(
+        ttui('tui.model.smartAutoReasonsTitle'),
+        formatSmartAutoPinReasons(plan.pins),
+      );
     }
     mountLoopModelRoutingPicker(host, config);
   } catch (error) {
@@ -221,6 +229,26 @@ async function resetAllLoopModelRouting(host: SlashCommandHost): Promise<void> {
       label: ttui('tui.model.smartAutoFailed', { message: formatErrorMessage(error) }),
     });
   }
+}
+
+function formatSmartAutoPinReasons(
+  pins: readonly {
+    readonly label: string;
+    readonly alias: string;
+    readonly reason?: string;
+  }[],
+  skipped: readonly { readonly label: string; readonly reason: string }[] = [],
+): string {
+  const lines = pins.map((pin) => {
+    const why = pin.reason?.trim();
+    return why !== undefined && why.length > 0
+      ? `${pin.label}: ${pin.alias}\n  ${why}`
+      : `${pin.label}: ${pin.alias}`;
+  });
+  for (const skip of skipped) {
+    lines.push(`${skip.label}: skipped — ${skip.reason}`);
+  }
+  return lines.join('\n');
 }
 
 function formatSmartAutoProbeProgress(progress: {
