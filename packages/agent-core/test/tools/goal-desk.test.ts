@@ -11,11 +11,13 @@ import {
 } from '../../src/tools/builtin/goal/goal-desk-facade';
 import {
   DEFAULT_GOAL_DESK_COMPLETION_CRITERION,
+  GOAL_SESSION_BINDING_STORE_KEY,
+  healActiveGoalDeskBinding,
   readGoalSessionBinding,
   resolveCompletionCriterion,
   syncGoalDeskParentFromDriver,
 } from '../../src/tools/builtin/goal/goal-session-binding';
-import { getJob, listJobs, patchJob } from '../../src/tools/builtin/job/job-ledger';
+import { getJob, listJobs, patchJob, writeJobLedger, readJobLedger } from '../../src/tools/builtin/job/job-ledger';
 import { profileForJobKind, summarizeJobStrip } from '../../src/tools/builtin/job/job-runtime';
 import { launchJobWorker } from '../../src/tools/builtin/job/job-worker';
 import type { ToolStore } from '../../src/tools/store';
@@ -191,5 +193,50 @@ describe('goal-desk driver sync + desk Next move', () => {
     );
     expect(text).toMatch(/Next move: Goal Job/);
     expect(text).toMatch(/JobInspect/);
+  });
+
+  it('heals active binding when every goal-driver already settled', async () => {
+    const store = memoryStore();
+    const agent = fakeConductorAgent(store);
+    const { desk, driver } = await delegateConductorGoalDesk(agent, {
+      objective: 'Land the feature',
+    });
+    patchJob(store, desk.id, { status: 'running' });
+    patchJob(store, driver.id, {
+      status: 'done',
+      resultSummary: 'verified: tests green',
+    });
+    // Simulate a missed syncGoalDeskParentFromDriver call.
+    expect(readGoalSessionBinding(store)?.status).toBe('active');
+
+    const healed = healActiveGoalDeskBinding(store, readGoalSessionBinding(store)!, agent);
+    expect(healed.status).toBe('done');
+    expect(getJob(store, desk.id)?.status).toBe('done');
+    expect(conductorGetGoal(agent).goal?.status).toBe('complete');
+  });
+
+  it('blocks binding when the goal-driver vanished after spawn grace', async () => {
+    const store = memoryStore();
+    const agent = fakeConductorAgent(store);
+    const { desk, driver, binding } = await delegateConductorGoalDesk(agent, {
+      objective: 'Ghost driver',
+    });
+    patchJob(store, desk.id, { status: 'running' });
+    // Drop the driver from the ledger (orphan binding).
+    const ledger = readJobLedger(store);
+    writeJobLedger(store, {
+      schemaVersion: 1,
+      jobs: ledger.jobs.filter((job) => job.id !== driver.id),
+    });
+    // Bypass writeGoalSessionBinding — it always stamps updatedAt=now.
+    store.set(GOAL_SESSION_BINDING_STORE_KEY, {
+      ...binding,
+      updatedAt: new Date(Date.now() - 30_000).toISOString(),
+    });
+
+    const healed = healActiveGoalDeskBinding(store, readGoalSessionBinding(store)!, agent);
+    expect(healed.status).toBe('blocked');
+    expect(healed.terminalReason).toMatch(/missing from ledger/);
+    expect(getJob(store, desk.id)?.status).toBe('blocked');
   });
 });

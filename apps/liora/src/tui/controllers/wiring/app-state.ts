@@ -5,7 +5,6 @@ import { INITIAL_LIVE_PANE } from '../../types';
 import type { TUIState } from '../../tui-state';
 import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
 import { invalidateTranscriptHitTestCache } from '../../features/transcript/transcript-hit-test';
-import { pickGoalDriverLive } from '../../utils/job/goal-driver-live';
 import { requestTUIContentRender, requestTUILayoutRender } from '../../utils/render/frame-render';
 import type { MotionBeatController } from '../../utils/render/motion-beats';
 import { hasPatchChanges } from '../../utils/object-patch';
@@ -159,11 +158,11 @@ export class AppStateController {
   syncGoalMonitorPanel(): void {
     const { host } = this;
     const goal = host.state.appState.goal;
-    const driverLive =
+    const deskJobs =
       goal?.execution === 'goal-desk'
-        ? pickGoalDriverLive(goal, host.state.appState.conductorJobs?.jobs)
+        ? (host.state.appState.conductorJobs?.jobs ?? [])
         : undefined;
-    host.state.todoPanel.setGoal(goal, driverLive);
+    host.state.todoPanel.setGoal(goal, deskJobs);
     host.state.todoPanelContainer.clear();
     if (!host.state.todoPanel.isEmpty()) {
       host.state.todoPanelContainer.addChild(host.state.todoPanel);

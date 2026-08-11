@@ -11,6 +11,7 @@ import { getJob } from '../job/job-ledger';
 import { resumeJobs } from '../job/job-worker';
 import {
   cancelBoundGoalJobs,
+  healActiveGoalDeskBinding,
   readGoalSessionBinding,
   writeGoalSessionBinding,
   type GoalSessionBinding,
@@ -106,8 +107,9 @@ function emitGoalDeskUpdated(
 
 /** Rebuild + emit the session Goal view after driver progress / terminal sync. */
 export function emitGoalDeskSnapshot(agent: Agent, store: ToolStore = agent.tools.toolStore): void {
-  const binding = readGoalSessionBinding(store);
-  if (binding === undefined) return;
+  const raw = readGoalSessionBinding(store);
+  if (raw === undefined) return;
+  const binding = healActiveGoalDeskBinding(store, raw, agent);
   if (binding.status === 'cancelled') {
     emitGoalDeskUpdated(agent, null);
     return;
@@ -157,16 +159,17 @@ export async function conductorCreateGoal(
 }
 
 export function conductorGetGoal(agent: Agent): GoalToolResult {
-  const binding = readGoalSessionBinding(agent.tools.toolStore);
-  if (binding === undefined) return { goal: null };
-  if (binding.status === 'cancelled' && binding.terminalReason === 'cancelled') {
+  const store = agent.tools.toolStore;
+  const raw = readGoalSessionBinding(store);
+  if (raw === undefined) return { goal: null };
+  if (raw.status === 'cancelled' && raw.terminalReason === 'cancelled') {
     // Cleared after cancel — treat as no goal for UI.
     return { goal: null };
   }
-  // Refresh status from live Jobs when still active.
-  const store = agent.tools.toolStore;
-  const desk = getJob(store, binding.deskJobId);
-  let next: GoalSessionBinding = binding;
+  // Heal zombies, then refresh status from the desk umbrella.
+  let next: GoalSessionBinding = healActiveGoalDeskBinding(store, raw, agent);
+  const desk = getJob(store, next.deskJobId);
+  const binding = next;
   if (desk?.status === 'needs_user') {
     next = { ...binding, status: 'blocked', terminalReason: desk.resultSummary };
     writeGoalSessionBinding(store, next);

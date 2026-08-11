@@ -38,10 +38,10 @@ import {
   renderRoundedPanel,
 } from '#/tui/utils/ui/panel-frame';
 import {
-  goalDriverLiveKey,
-  type GoalDriverLive,
+  goalDeskLiveKey,
+  resolveGoalDeskLive,
 } from '#/tui/utils/job/goal-driver-live';
-import { formatJobDuration } from '#/tui/utils/job/job-strip';
+import { formatJobDuration, type ConductorJobCard } from '#/tui/utils/job/job-strip';
 import {
   createStreamingTextRevealState,
   isRevealCaughtUp,
@@ -123,8 +123,7 @@ export class TodoPanelComponent implements Component {
   private goalObservedAtMs = Date.now();
   private goalSnapshotKey: string | null = null;
   private goalChangedAtMs: number | undefined;
-  private goalDriverLive: GoalDriverLive | undefined;
-  private goalDriverLiveKey = '';
+  private goalDeskJobs: readonly ConductorJobCard[] | undefined;
   private lastBoardRows = 0;
   private boardShrinkRequestedAtMs: number | undefined;
   private readonly motion = new TodoPanelMotionTracker();
@@ -135,7 +134,7 @@ export class TodoPanelComponent implements Component {
         readonly expanded: boolean;
         readonly todos: readonly TodoItem[];
         readonly goal: GoalSnapshot | null;
-        readonly driverLiveKey: string;
+        readonly deskLiveKey: string;
         readonly calls: number;
         readonly secondBucket: number;
         readonly scroll: number;
@@ -191,11 +190,12 @@ export class TodoPanelComponent implements Component {
   /**
    * Bind the live goal snapshot. When status is active/paused/blocked the
    * panel stays visible even with zero todos. Complete / null clears the
-   * monitor chrome. Optional `driverLive` feeds Goal Desk worker pulse rows.
+   * monitor chrome. Optional `deskJobs` feeds Goal Desk lane honesty
+   * (driver / fleet / awaiting Conductor).
    */
   setGoal(
     goal: GoalSnapshot | null | undefined,
-    driverLive?: GoalDriverLive | null,
+    deskJobs?: readonly ConductorJobCard[] | null,
   ): void {
     const next = goal ?? null;
     const nextKey = goalMonitorSnapshotKey(next);
@@ -213,8 +213,16 @@ export class TodoPanelComponent implements Component {
       }
     }
     this.goal = next;
-    this.goalDriverLive = driverLive ?? undefined;
-    this.goalDriverLiveKey = goalDriverLiveKey(this.goalDriverLive);
+    if (next?.execution === 'goal-desk') {
+      // Omit `deskJobs` to keep the last board snapshot (compaction / goal-only sync).
+      if (deskJobs !== undefined && deskJobs !== null) {
+        this.goalDeskJobs = deskJobs;
+      } else if (this.goalDeskJobs === undefined) {
+        this.goalDeskJobs = [];
+      }
+    } else {
+      this.goalDeskJobs = undefined;
+    }
   }
 
   getGoal(): GoalSnapshot | null {
@@ -242,8 +250,7 @@ export class TodoPanelComponent implements Component {
     this.goal = null;
     this.goalSnapshotKey = null;
     this.goalChangedAtMs = undefined;
-    this.goalDriverLive = undefined;
-    this.goalDriverLiveKey = '';
+    this.goalDeskJobs = undefined;
     this.lastBoardRows = 0;
     this.boardShrinkRequestedAtMs = undefined;
     this.motion.reset();
@@ -338,6 +345,15 @@ export class TodoPanelComponent implements Component {
     // memo valid within that second.
     const secondBucket = Math.floor(appearanceAnimationNow() / 1000);
     const budget = this.boardRowBudget() ?? -1;
+    const wallClockMsForDesk =
+      liveGoal !== null && liveGoal.execution === 'goal-desk'
+        ? this.goalWallClockMs(liveGoal)
+        : 0;
+    const deskLive =
+      liveGoal !== null && liveGoal.execution === 'goal-desk'
+        ? resolveGoalDeskLive(liveGoal, this.goalDeskJobs, wallClockMsForDesk)
+        : undefined;
+    const deskLiveKey = goalDeskLiveKey(deskLive);
     const memo = this.lastRender;
     if (
       !animating &&
@@ -346,7 +362,7 @@ export class TodoPanelComponent implements Component {
       memo.expanded === this.expanded &&
       memo.todos === this.todos &&
       memo.goal === this.goal &&
-      memo.driverLiveKey === this.goalDriverLiveKey &&
+      memo.deskLiveKey === deskLiveKey &&
       memo.calls === this.callsSinceUpdate &&
       memo.secondBucket === secondBucket &&
       memo.scroll === this.scrollOffset &&
@@ -373,7 +389,7 @@ export class TodoPanelComponent implements Component {
           wallClockMs,
           changedAtMs: this.goalChangedAtMs,
           profile,
-          ...(this.goalDriverLive !== undefined ? { driverLive: this.goalDriverLive } : {}),
+          ...(deskLive !== undefined ? { deskLive } : {}),
         }),
       );
       if (this.todos.length > 0) {
@@ -390,7 +406,9 @@ export class TodoPanelComponent implements Component {
       // Time-driven frames must not be memoized: a render after the cues
       // expire but inside the same second bucket would otherwise reuse the
       // still-flashing bytes instead of settling.
-      return animating ? tinyLines : this.memoizeRender(width, secondBucket, budget, tinyLines);
+      return animating
+        ? tinyLines
+        : this.memoizeRender(width, secondBucket, budget, deskLiveKey, tinyLines);
     }
 
     const counts = countTodos(this.todos);
@@ -424,7 +442,9 @@ export class TodoPanelComponent implements Component {
     });
     // See the tiny path: animating frames stay out of the memo so expired
     // cues settle to resting bytes on the very next render.
-    return animating ? panelLines : this.memoizeRender(width, secondBucket, budget, panelLines);
+    return animating
+      ? panelLines
+      : this.memoizeRender(width, secondBucket, budget, deskLiveKey, panelLines);
   }
 
   private focusAgeMs(): number | undefined {
@@ -622,13 +642,19 @@ export class TodoPanelComponent implements Component {
     return this.currentChangeSummary() === undefined ? EMPTY_HIGHLIGHTS : this.recentChanges;
   }
 
-  private memoizeRender(width: number, secondBucket: number, budget: number, lines: string[]): string[] {
+  private memoizeRender(
+    width: number,
+    secondBucket: number,
+    budget: number,
+    deskLiveKey: string,
+    lines: string[],
+  ): string[] {
     this.lastRender = {
       width,
       expanded: this.expanded,
       todos: this.todos,
       goal: this.goal,
-      driverLiveKey: this.goalDriverLiveKey,
+      deskLiveKey,
       calls: this.callsSinceUpdate,
       secondBucket,
       scroll: this.scrollOffset,

@@ -204,3 +204,75 @@ export function listActiveGoalDeskJobs(store: ToolStore): readonly JobRecord[] {
         j.status === 'interrupted'),
   );
 }
+
+const DRIVER_LIVE_STATUSES = new Set([
+  'queued',
+  'running',
+  'needs_user',
+  'blocked',
+  'interrupted',
+]);
+
+function isDriverSettled(status: JobRecord['status']): boolean {
+  return status === 'done' || status === 'failed' || status === 'cancelled';
+}
+
+/**
+ * Close Goal Desk zombies: binding stayed `active` after every goal-driver
+ * settled (or vanished) while the umbrella never mirrored. Safe to call from
+ * snapshot / GetGoal — no-op when a live driver still exists.
+ */
+export function healActiveGoalDeskBinding(
+  store: ToolStore,
+  binding: GoalSessionBinding,
+  agent?: Agent,
+): GoalSessionBinding {
+  if (binding.status !== 'active') return binding;
+
+  const drivers = binding.driverJobIds
+    .map((id) => getJob(store, id))
+    .filter((job): job is JobRecord => job !== undefined);
+
+  if (drivers.length === 0) {
+    // Spawn race: desk just created and driver card not in ledger yet.
+    const desk = getJob(store, binding.deskJobId);
+    if (desk !== undefined && (desk.status === 'queued' || desk.status === 'running')) {
+      const ageMs = Date.now() - Date.parse(binding.updatedAt);
+      if (!Number.isFinite(ageMs) || ageMs < 15_000) return binding;
+    }
+    const next: GoalSessionBinding = {
+      ...binding,
+      status: 'blocked',
+      terminalReason: 'goal worker missing from ledger',
+      updatedAt: new Date().toISOString(),
+    };
+    writeGoalSessionBinding(store, next);
+    if (desk !== undefined && (desk.status === 'queued' || desk.status === 'running')) {
+      patchJobAndNotify(
+        store,
+        desk.id,
+        {
+          status: 'blocked',
+          resultSummary: next.terminalReason,
+          notes: [desk.notes, 'goal-desk: heal — driver missing'].filter(Boolean).join('\n'),
+        },
+        { agent, summary: next.terminalReason },
+      );
+    }
+    return next;
+  }
+
+  if (drivers.some((job) => DRIVER_LIVE_STATUSES.has(job.status))) {
+    return binding;
+  }
+
+  // Prefer a settled driver (done/failed/cancelled); ignore odd leftovers.
+  const settled = drivers.filter((job) => isDriverSettled(job.status));
+  const primary =
+    settled.sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0] ??
+    drivers.sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0];
+  if (primary === undefined) return binding;
+
+  syncGoalDeskParentFromDriver(store, primary, agent);
+  return readGoalSessionBinding(store) ?? binding;
+}

@@ -32,7 +32,7 @@ import {
   renderSpectacularText,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
-import type { GoalDriverLive } from '#/tui/utils/job/goal-driver-live';
+import type { GoalDeskLive } from '#/tui/utils/job/goal-driver-live';
 import { formatTokenCount } from '#/utils/usage/usage-format';
 
 const MAX_OBJECTIVE_LINES = 2;
@@ -93,8 +93,8 @@ export function renderGoalMonitorLines(options: {
   readonly wallClockMs: number;
   readonly changedAtMs?: number;
   readonly profile?: 'tiny' | 'compact' | 'standard' | 'wide' | 'ultrawide';
-  /** Live goal-driver card (Conductor Goal Desk) — phase / tool pulse. */
-  readonly driverLive?: GoalDriverLive;
+  /** Goal Desk lane projection (driver / fleet / idle honesty). */
+  readonly deskLive?: GoalDeskLive;
 }): string[] {
   const { goal, width, wallClockMs } = options;
   const profile = options.profile ?? 'standard';
@@ -178,7 +178,8 @@ export function renderGoalMonitorLines(options: {
 
   if (goal.completionCriterion !== undefined && goal.completionCriterion.length > 0) {
     const criterionPrefix = `  ${currentTheme.fg(statusToken, '▌')} `;
-    const criterionBody = currentTheme.fg('textDim', `✓ ${goal.completionCriterion}`);
+    // Finish-line copy — never a ✓ (that reads as "already met").
+    const criterionBody = currentTheme.fg('textDim', `when · ${goal.completionCriterion}`);
     const criterionWrap = Math.max(1, contentWidth - visibleWidth(criterionPrefix));
     for (const line of wrapAndCap(criterionBody, criterionWrap, MAX_CRITERION_LINES)) {
       lines.push(truncateToWidth(`${criterionPrefix}${line}`, contentWidth, '…'));
@@ -187,7 +188,7 @@ export function renderGoalMonitorLines(options: {
 
   if (deskLane) {
     lines.push(
-      truncateToWidth(renderGoalDriverLiveLine(options.driverLive, contentWidth, ambient), contentWidth, '…'),
+      truncateToWidth(renderGoalDeskLiveLine(options.deskLive, contentWidth, ambient), contentWidth, '…'),
     );
   }
 
@@ -216,30 +217,88 @@ export function renderGoalMonitorLines(options: {
   return lines;
 }
 
-function renderGoalDriverLiveLine(
-  live: GoalDriverLive | undefined,
+function renderGoalDeskLiveLine(
+  live: GoalDeskLive | undefined,
   width: number,
   ambient: boolean,
 ): string {
   const prefix = `  ${currentTheme.fg('accent', '↳')} `;
-  if (live === undefined) {
+  const appearance = getActiveAppearancePreferences();
+  const mode = live?.mode ?? 'spinning_up';
+
+  if (mode === 'spinning_up') {
     const waiting = ambient
-      ? renderPulseText('spinning up goal worker…', 'goal:desk:wait', 'textDim', getActiveAppearancePreferences())
+      ? renderPulseText('spinning up goal worker…', 'goal:desk:wait', 'textDim', appearance)
       : currentTheme.fg('textDim', 'spinning up goal worker…');
     return truncateToWidth(`${prefix}${waiting}`, width, '…');
   }
 
+  if (mode === 'missing_worker') {
+    return truncateToWidth(
+      `${prefix}${currentTheme.fg('warning', 'no goal worker')} ${currentTheme.fg('textMuted', '·')} ${currentTheme.fg('textDim', 'Alt+J / /goal status')}`,
+      width,
+      '…',
+    );
+  }
+
+  if (mode === 'awaiting_conductor') {
+    const last =
+      live !== undefined && live.mode === 'awaiting_conductor' && live.lastKind !== undefined
+        ? `${live.lastKind}${live.lastStatus !== undefined ? ` ${live.lastStatus}` : ''}`
+        : 'workers finished';
+    return truncateToWidth(
+      `${prefix}${currentTheme.fg('warning', 'awaiting Conductor')} ${currentTheme.fg('textMuted', '·')} ${currentTheme.fg('textDim', last)}`,
+      width,
+      '…',
+    );
+  }
+
+  if (mode === 'fleet' && live?.mode === 'fleet') {
+    const statusBit =
+      live.status === 'running'
+        ? ambient
+          ? renderPulseText(live.kind, 'goal:desk:fleet', 'primary', appearance)
+          : currentTheme.fg('primary', live.kind)
+        : currentTheme.fg(
+            live.status === 'needs_user' || live.status === 'blocked' ? 'warning' : 'textMuted',
+            `${live.kind} ${live.status}`,
+          );
+    const activity = live.liveActivity;
+    const detail =
+      activity !== undefined && activity.status === 'running'
+        ? `${currentTheme.boldFg('text', activity.name)}${
+            activity.target !== undefined && activity.target.length > 0
+              ? ` ${currentTheme.fg('textDim', truncateToWidth(activity.target, 28, '…'))}`
+              : ''
+          }`
+        : currentTheme.fg('textDim', live.title);
+    return truncateToWidth(
+      `${prefix}${statusBit} ${currentTheme.fg('textMuted', '·')} ${detail}`,
+      width,
+      '…',
+    );
+  }
+
+  const driver = live?.mode === 'driver' ? live.driver : undefined;
+  if (driver === undefined) {
+    return truncateToWidth(
+      `${prefix}${currentTheme.fg('warning', 'no goal worker')} ${currentTheme.fg('textMuted', '·')} ${currentTheme.fg('textDim', 'Alt+J / /goal status')}`,
+      width,
+      '…',
+    );
+  }
+
   const statusBit =
-    live.status === 'running'
+    driver.status === 'running'
       ? ambient
-        ? renderPulseText('worker', 'goal:desk:worker', 'primary', getActiveAppearancePreferences())
+        ? renderPulseText('worker', 'goal:desk:worker', 'primary', appearance)
         : currentTheme.fg('primary', 'worker')
       : currentTheme.fg(
-          live.status === 'needs_user' || live.status === 'blocked' ? 'warning' : 'textMuted',
-          live.status,
+          driver.status === 'needs_user' || driver.status === 'blocked' ? 'warning' : 'textMuted',
+          driver.status,
         );
 
-  const activity = live.liveActivity;
+  const activity = driver.liveActivity;
   let detail: string;
   if (activity !== undefined && activity.status === 'running') {
     const target =
@@ -247,14 +306,14 @@ function renderGoalDriverLiveLine(
         ? ` ${currentTheme.fg('textDim', truncateToWidth(activity.target, 28, '…'))}`
         : '';
     detail = `${currentTheme.boldFg('text', activity.name)}${target}`;
-  } else if (live.phase !== undefined && live.phase.length > 0) {
-    detail = currentTheme.fg('textDim', live.phase);
+  } else if (driver.phase !== undefined && driver.phase.length > 0) {
+    detail = currentTheme.fg('textDim', driver.phase);
   } else {
-    const tool = live.recentTools?.at(-1);
+    const tool = driver.recentTools?.at(-1);
     detail =
       tool !== undefined
         ? currentTheme.fg('textDim', tool)
-        : currentTheme.fg('textDim', live.title);
+        : currentTheme.fg('textDim', driver.title);
   }
 
   return truncateToWidth(
