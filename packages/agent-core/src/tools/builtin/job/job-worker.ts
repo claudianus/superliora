@@ -772,7 +772,7 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
           notifyJobTerminal({
             store: input.store,
             job: updated,
-            status: finalStatus,
+            status: effectiveStatus,
             summary: updated.resultSummary,
             agent: input.agent,
           });

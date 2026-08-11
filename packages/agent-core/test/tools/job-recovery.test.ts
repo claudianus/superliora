@@ -118,6 +118,21 @@ describe('job fleet recovery', () => {
     }
   });
 
+  it('heals unstamped verifyVerdict from summary JSON on resume', async () => {
+    const store = memoryStore();
+    const verify = createJob(store, { title: 'Verify heal', kind: 'verify' });
+    patchJob(store, verify.id, {
+      status: 'failed',
+      notes: 'worker: verify finished without structured verifyVerdict',
+      resultSummary:
+        'structured verifyVerdict missing — {"verdict":"pass","standards":{"verdict":"pass","findings":[]},"spec":{"verdict":"pass","findings":[]}}',
+    });
+
+    await recoverJobsAfterResume({ store, autoResume: false });
+    expect(getJob(store, verify.id)?.verifyVerdict).toBe('passed');
+    expect(getJob(store, verify.id)?.status).toBe('done');
+  });
+
   it('pumps already-queued work when resume has nothing to auto-resume', async () => {
     const prev = process.env[SUPERLIORA_CONDUCTOR_AUTO_RESUME_FLEET_ENV];
     process.env[SUPERLIORA_CONDUCTOR_AUTO_RESUME_FLEET_ENV] = '1';
