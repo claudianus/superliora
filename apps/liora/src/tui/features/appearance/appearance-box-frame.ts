@@ -118,8 +118,13 @@ export function renderPremiumBoxFrame(
 
   // ── Top border (path index == x) with optional embedded title ──────────
   const titleStyled = options.title;
+  // Prefer measuring the styled title itself. Callers sometimes pass a shorter
+  // titlePlain (e.g. omitting shimmer glyphs) which under-counts and blows the
+  // right margin / side rails.
   const titlePlain =
-    options.titlePlain ?? (titleStyled === undefined ? '' : stripAnsiControls(titleStyled));
+    titleStyled !== undefined && titleStyled.length > 0
+      ? stripAnsiControls(titleStyled)
+      : (options.titlePlain ?? '');
   const titleW = visibleWidth(titlePlain);
   const titleFits = titleStyled !== undefined && titleW > 0 && titleW + 4 <= inner;
   let top: string;

@@ -62,7 +62,11 @@ export function renderUpgradeProgressBlock(options: {
   ];
 
   if (options.detail !== undefined && options.detail.trim().length > 0) {
-    lines.push(currentTheme.dim(truncate(options.detail.trim(), Math.max(12, width - 2))));
+    const detail = options.detail.trim();
+    // Defense in depth: never paint raw stage markers in the progress block.
+    if (!detail.startsWith('__LIORA_UPGRADE_STAGE__=')) {
+      lines.push(currentTheme.dim(truncate(detail, Math.max(12, width - 2))));
+    }
   }
 
   if (options.fillWidth === true) {

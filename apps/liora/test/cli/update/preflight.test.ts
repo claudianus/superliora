@@ -1523,6 +1523,54 @@ describe('upgrade install stages', () => {
     ]));
   });
 
+  it('does not leak stage markers as detail and forwards live build output', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-11T00:00:00Z'));
+    try {
+      const events: Array<{ stage: string; detail?: string }> = [];
+      const child = createPipedChild();
+      const spawn = vi.fn(() => child);
+
+      await startObservedUpgradeInstall(
+        {
+          currentVersion: '0.4.0',
+          targetVersion: 'origin/main@abcdef1',
+          source: 'github-checkout',
+          platform: 'darwin',
+          onStage: (stage, detail) => { events.push({ stage, detail }); },
+        },
+        {
+          spawn: spawn as unknown as typeof import('node:child_process').spawn,
+          tryAcquireUpdateInstallLock: async () => ({
+            filePath: '/tmp/liora-update-install.lock',
+            release: vi.fn().mockResolvedValue(undefined),
+          }),
+          readUpdateInstallState: async () => emptyUpdateInstallState(),
+          writeUpdateInstallState: vi.fn().mockResolvedValue(undefined),
+        },
+      );
+
+      child.stdout.emit('data', Buffer.from('__LIORA_UPGRADE_STAGE__=building\n'));
+      const building = events.find((event) => event.stage === 'building');
+      expect(building).toEqual({ stage: 'building', detail: undefined });
+
+      child.stdout.emit('data', Buffer.from('Packages: +12\n'));
+      expect(events.at(-1)).toEqual({ stage: 'building', detail: 'Packages: +12' });
+
+      // Throttle: immediate follow-up line should not spam another detail event.
+      child.stdout.emit('data', Buffer.from('Building packages…\n'));
+      expect(events.filter((event) => event.detail === 'Building packages…')).toHaveLength(0);
+
+      vi.setSystemTime(new Date('2026-08-11T00:00:00.300Z'));
+      child.stdout.emit('data', Buffer.from('Building packages…\n'));
+      expect(events.at(-1)).toEqual({ stage: 'building', detail: 'Building packages…' });
+
+      child.emit('exit', 0, null);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('synthesizes installing stage after first npm output', async () => {
     vi.useFakeTimers();
     try {

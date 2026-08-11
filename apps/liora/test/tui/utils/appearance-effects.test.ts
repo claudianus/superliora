@@ -507,6 +507,21 @@ describe('premium box frame', () => {
     expect(bottom).toContain('3/9');
   });
 
+  it('keeps uniform width when titlePlain under-counts styled title glyphs', () => {
+    process.env['TERM'] = 'dumb';
+    const width = 40;
+    const rows = renderPremiumBoxFrame(['body'], {
+      width,
+      title: '• SuperLiora 업그레이드',
+      // Deliberately shorter than the styled title (old Upgrade Studio bug).
+      titlePlain: 'SuperLiora 업그레이드',
+    });
+    for (const row of rows) {
+      expect(visibleWidth(row)).toBe(width);
+    }
+    expect(strip(rows[0]!)).toMatch(/^╭─.*╮$/);
+  });
+
   it('truncates an oversized footer embed instead of breaking the frame', () => {
     process.env['TERM'] = 'dumb';
     const rows = renderPremiumBoxFrame(['x'], {
