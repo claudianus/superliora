@@ -112,12 +112,18 @@ export interface Translation {
   };
   hero: {
     brand: string;
+    eyebrow: string;
     h1: string;
     lead: string;
+    command: string;
+    proof: { value: string; label: string }[];
     install: string;
     github: string;
     docs: string;
     frame: {
+      conductor: string;
+      conductorState: string;
+      inbox: string;
       jobLabel: string;
       jobName: string;
       jobStatus: string;
@@ -530,12 +536,22 @@ export const translations: Record<Lang, Translation> = {
     },
     hero: {
       brand: 'SuperLiora',
-      h1: '긴 코딩 작업, 터미널에서 끝까지.',
-      lead: '원하는 결과를 적으세요. 작업은 따로 돌아가고, 당신은 진행을 보며 필요할 때만 끼어듭니다.',
+      eyebrow: 'CONDUCTOR HARNESS · LOCAL FIRST',
+      h1: '코딩 에이전트를 지휘하는 터미널.',
+      lead: '대화는 컨트롤 플레인에 남겨두세요. 구현은 격리된 Job에서 병렬로 돌고, 당신은 진행을 보고 필요한 순간에만 개입합니다.',
+      command: '$ liora --plan',
+      proof: [
+        { value: 'Conductor', label: '대화와 실행 분리' },
+        { value: 'Isolated Jobs', label: 'git worktree 격리' },
+        { value: 'Model-agnostic', label: '라우팅·폴백·풀링' },
+      ],
       install: '설치하기',
       github: 'GitHub',
       docs: '가이드',
       frame: {
+        conductor: 'CONDUCTOR / CONTROL PLANE',
+        conductorState: '3 jobs · 1 needs you',
+        inbox: 'INBOX 01',
         jobLabel: 'Job',
         jobName: 'Auth redirect',
         jobStatus: 'running',
@@ -784,12 +800,22 @@ export const translations: Record<Lang, Translation> = {
     },
     hero: {
       brand: 'SuperLiora',
-      h1: 'Finish long coding work in the terminal.',
-      lead: 'Describe the outcome. Work runs in the background. You watch progress and step in only when asked.',
+      eyebrow: 'CONDUCTOR HARNESS · LOCAL FIRST',
+      h1: 'Command coding agents from your terminal.',
+      lead: 'Keep conversation on the control plane. Implementation runs in parallel, isolated Jobs while you watch progress and step in only when needed.',
+      command: '$ liora --plan',
+      proof: [
+        { value: 'Conductor', label: 'separate talk from execution' },
+        { value: 'Isolated Jobs', label: 'one git worktree each' },
+        { value: 'Model-agnostic', label: 'route, pool, and fail over' },
+      ],
       install: 'Install',
       github: 'GitHub',
       docs: 'Guide',
       frame: {
+        conductor: 'CONDUCTOR / CONTROL PLANE',
+        conductorState: '3 jobs · 1 needs you',
+        inbox: 'INBOX 01',
         jobLabel: 'Job',
         jobName: 'Auth redirect',
         jobStatus: 'running',

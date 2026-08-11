@@ -9,10 +9,19 @@ export function ProductFrame() {
   return (
     <TuiChrome title="SuperLiora" badge="live">
       <div className="product-frame__body">
+        <div className="product-frame__conductor">
+          <span className="product-frame__conductor-mark" aria-hidden="true">⌁</span>
+          <div className="product-frame__conductor-meta">
+            <span>{f.conductor}</span>
+            <strong>{f.conductorState}</strong>
+          </div>
+          <span className="product-frame__inbox">{f.inbox}</span>
+        </div>
         <div className="product-frame__job">
           <span className="product-frame__live" />
           <span className="product-frame__job-label">{f.jobLabel}</span>
           <span className="product-frame__job-name">{f.jobName}</span>
+          <span className="product-frame__branch">worktree/job_a1</span>
           <span className="product-frame__job-status">{f.jobStatus}</span>
         </div>
 
@@ -56,6 +65,11 @@ export function ProductFrame() {
             <span />
           </div>
           <span className="product-frame__worker-rate">{f.workerRate}</span>
+        </div>
+        <div className="product-frame__rail" aria-label="Job states">
+          <span><i className="product-frame__state product-frame__state--run" />01 running</span>
+          <span><i className="product-frame__state product-frame__state--ask" />01 needs you</span>
+          <span><i className="product-frame__state product-frame__state--done" />01 landed</span>
         </div>
       </div>
     </TuiChrome>

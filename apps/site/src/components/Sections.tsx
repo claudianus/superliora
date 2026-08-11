@@ -18,12 +18,17 @@ export function Sections() {
         <div className="hero-layout">
           <Reveal className="hero-copy">
             <p className="hero-kicker font-sans font-semibold tracking-[0.18em] text-primary uppercase">
-              {t.hero.brand}
+              {t.hero.eyebrow}
             </p>
             <h1 className="hero-title mt-4 max-w-[14ch] font-sans font-bold tracking-tight text-text text-balance">
               {t.hero.h1}
             </h1>
             <p className="hero-lead mt-5 max-w-[34ch] leading-relaxed text-soft">{t.hero.lead}</p>
+            <div className="hero-command mt-6" aria-label="Quick start command">
+              <span className="hero-command__pulse" aria-hidden="true" />
+              <code>{t.hero.command}</code>
+              <span className="hero-command__cursor" aria-hidden="true" />
+            </div>
             <div className="hero-cta mt-8 flex flex-wrap items-center gap-3">
               <a
                 href="#install"
@@ -48,6 +53,19 @@ export function Sections() {
             </TiltFrame>
           </Reveal>
         </div>
+        <Reveal className="hero-proof-wrap" stagger={3}>
+          <div className="hero-proof" aria-label="Product architecture">
+            {t.hero.proof.map((item, i) => (
+              <div key={item.value} className="hero-proof__item">
+                <span className="hero-proof__index">0{i + 1}</span>
+                <div>
+                  <strong>{item.value}</strong>
+                  <span>{item.label}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Reveal>
       </section>
 
       <section id="features" className="section-pad border-t border-line bg-bg">
