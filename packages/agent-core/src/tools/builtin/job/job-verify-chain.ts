@@ -15,22 +15,55 @@ import { STAFF_MIN_EXPERT_SCORE } from './job-staff';
 export type JobVerifyVerdict = 'passed' | 'failed' | 'not_run' | 'not_applicable';
 
 /**
- * Structured verifyVerdict only — MergeJob trusts this, not free-text scrape.
- * Workers/onJobTerminal stamp verifyVerdict from parseVerifyVerdict at completion.
+ * Merge/read path: prefer stamped verifyVerdict; else parse dual-axis JSON from
+ * the summary (same parser as completion stamp). Prose "PASS" still does not count.
+ * Resume ledgers often have JSON in the summary with a missing field — heal via parse.
  */
 export function resolveVerifyChildVerdict(job: JobRecord): JobVerifyVerdict | undefined {
   if (job.verifyVerdict === 'passed' || job.verifyVerdict === 'failed') {
     return job.verifyVerdict;
   }
-  return undefined;
+  return parseVerifyVerdict(job.resultSummary);
 }
 
 /** Stamp helper: structured field, else parse summary (completion path only). */
 export function resolveVerifyChildVerdictForStamp(job: JobRecord): JobVerifyVerdict | undefined {
-  if (job.verifyVerdict === 'passed' || job.verifyVerdict === 'failed') {
-    return job.verifyVerdict;
+  return resolveVerifyChildVerdict(job);
+}
+
+/**
+ * Persist parseable summary JSON onto verifyVerdict (and un-fail format-only fails).
+ * Safe to call on resume / before MergeJob so older session ledgers heal in place.
+ */
+export function healVerifyVerdictFromSummary(
+  store: ToolStore,
+  job: JobRecord,
+): JobRecord | undefined {
+  if (job.kind !== 'verify') return undefined;
+  if (job.verifyVerdict === 'passed' || job.verifyVerdict === 'failed') return undefined;
+  const parsed = parseVerifyVerdict(job.resultSummary);
+  if (parsed !== 'passed' && parsed !== 'failed') return undefined;
+  const formatOnlyFail =
+    job.status === 'failed' &&
+    (job.notes?.includes('without structured verifyVerdict') === true ||
+      job.resultSummary?.startsWith('structured verifyVerdict missing') === true);
+  return patchJob(store, job.id, {
+    verifyVerdict: parsed,
+    ...(formatOnlyFail && parsed === 'passed' ? { status: 'done' as const } : {}),
+    notes: [job.notes, `verify_chain: healed verifyVerdict=${parsed} from summary JSON`]
+      .filter(Boolean)
+      .join('\n'),
+  });
+}
+
+/** Heal every verify Job that has parseable JSON but no stamped field. */
+export function healAllVerifyVerdictsFromSummary(store: ToolStore): readonly JobRecord[] {
+  const healed: JobRecord[] = [];
+  for (const job of listJobs(store)) {
+    const next = healVerifyVerdictFromSummary(store, job);
+    if (next !== undefined) healed.push(next);
   }
-  return parseVerifyVerdict(job.resultSummary);
+  return healed;
 }
 
 /** Implement/task workers that should receive an automatic verify child. */

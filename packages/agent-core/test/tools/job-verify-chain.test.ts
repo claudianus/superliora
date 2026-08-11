@@ -4,13 +4,14 @@ import {
   enqueueDebugJobForVerify,
   enqueueVerifyJobForParent,
   evaluateVerifyChainForMerge,
+  healVerifyVerdictFromSummary,
   makerCheckerCollision,
   onJobTerminalForVerifyChain,
   parseVerifyVerdict,
   resolveVerifyChildVerdict,
   shouldEnqueueVerifyAfterDone,
 } from '../../src/tools/builtin/job/job-verify-chain';
-import { createJob, listJobs, patchJob } from '../../src/tools/builtin/job/job-ledger';
+import { createJob, getJob, listJobs, patchJob } from '../../src/tools/builtin/job/job-ledger';
 import type { JobRecord } from '../../src/tools/builtin/job/job-store-key';
 import type { ToolStore } from '../../src/tools/store';
 
@@ -97,25 +98,42 @@ describe('job-verify-chain', () => {
       evaluateVerifyChainForMerge({ job: implement, jobs: [implement, verifyRunning] }).ok,
     ).toBe(false);
 
-    const verifyTextOnly = job({
-      id: 'job_ver_text',
+    const verifyProseOnly = job({
+      id: 'job_ver_prose',
       title: 'Verify',
       kind: 'verify',
       parentJobId: 'job_impl',
       expertId: 'checker-1',
       status: 'done',
-      // Free-text PASS alone is not enough for MergeJob — need verifyVerdict.
+      // Prose PASS alone is not enough — need dual-axis / verdict JSON.
+      resultSummary: 'Delete-pass verify PASS. All criteria look good.',
+    });
+    const proseGate = evaluateVerifyChainForMerge({
+      job: implement,
+      jobs: [implement, verifyProseOnly],
+    });
+    expect(proseGate.ok).toBe(false);
+    if (!proseGate.ok) {
+      expect(proseGate.reason).toMatch(/verdict=missing.*dual-axis JSON/i);
+      expect(proseGate.reason).not.toMatch(/debug\/implement/i);
+    }
+
+    // Summary JSON without a stamped field still counts (resume heal / parse path).
+    const verifyJsonUnstamped = job({
+      id: 'job_ver_json',
+      title: 'Verify',
+      kind: 'verify',
+      parentJobId: 'job_impl',
+      expertId: 'checker-1',
+      status: 'done',
       resultSummary: '{"verdict":"pass","findings":[],"required_fixes":[]}',
     });
-    const textOnlyGate = evaluateVerifyChainForMerge({
-      job: implement,
-      jobs: [implement, verifyTextOnly],
-    });
-    expect(textOnlyGate.ok).toBe(false);
-    if (!textOnlyGate.ok) {
-      expect(textOnlyGate.reason).toMatch(/verdict=missing.*dual-axis JSON/i);
-      expect(textOnlyGate.reason).not.toMatch(/debug\/implement/i);
-    }
+    expect(
+      evaluateVerifyChainForMerge({
+        job: implement,
+        jobs: [implement, verifyJsonUnstamped],
+      }),
+    ).toEqual({ ok: true });
 
     const verifyPass = job({
       id: 'job_ver2',
@@ -213,7 +231,7 @@ describe('job-verify-chain', () => {
     expect(verifies[0]?.prompt).toMatch(/success criteria|Agreed test seams/i);
   });
 
-  it('prefers structured verifyVerdict over free-text parse for merge gate', () => {
+  it('prefers stamped verifyVerdict; heals parseable summary JSON for merge', () => {
     const implement = job({
       id: 'job_impl',
       title: 'Feature',
@@ -227,7 +245,7 @@ describe('job-verify-chain', () => {
       parentJobId: 'job_impl',
       expertId: 'checker-1',
       status: 'done',
-      // Free-text has no JSON — would be missing without structured field.
+      // Free-text has no JSON — stamped field is what counts.
       resultSummary: 'All good — PASS visually and by criteria.',
       verifyVerdict: 'passed',
     });
@@ -235,6 +253,23 @@ describe('job-verify-chain', () => {
     expect(
       evaluateVerifyChainForMerge({ job: implement, jobs: [implement, verifyStamped] }),
     ).toEqual({ ok: true });
+
+    const store = memoryStore();
+    const failedFormat = createJob(store, {
+      title: 'Verify heal',
+      kind: 'verify',
+      parentJobId: 'job_impl',
+    });
+    patchJob(store, failedFormat.id, {
+      status: 'failed',
+      notes: 'worker: verify finished without structured verifyVerdict',
+      resultSummary:
+        'structured verifyVerdict missing — {"verdict":"pass","findings":[],"required_fixes":[]}',
+    });
+    const healed = healVerifyVerdictFromSummary(store, getJob(store, failedFormat.id)!);
+    expect(healed?.verifyVerdict).toBe('passed');
+    expect(healed?.status).toBe('done');
+    expect(resolveVerifyChildVerdict(getJob(store, failedFormat.id)!)).toBe('passed');
   });
 
   it('onJobTerminal enqueues debug after both axis verifies fail aggregate', async () => {

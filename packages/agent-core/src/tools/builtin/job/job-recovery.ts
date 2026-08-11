@@ -17,6 +17,7 @@ import { pushJobInboxEvent } from './job-inbox';
 import { listJobs, type JobRecord } from './job-ledger';
 import type { JobKind, JobStatus } from './job-store-key';
 import { emitJobEvents, inboxToWireEvent } from './job-emit';
+import { healAllVerifyVerdictsFromSummary } from './job-verify-chain';
 import { reconcileStaleRunningJobs, resumeJobs } from './job-worker';
 import {
   bindJobLedgerCrashMirror,
@@ -117,6 +118,10 @@ export async function recoverJobsAfterResume(input: {
     agent,
     reason: 'process restarted',
   });
+
+  // Older sessions often have dual-axis JSON in the verify summary but never
+  // stamped verifyVerdict — heal before merge/schedule so resume is not stuck.
+  healAllVerifyVerdictsFromSummary(store);
 
   const autoResumeEnabled = input.autoResume ?? isAutoResumeFleetEnabled();
   const interrupted = listJobs(store).filter(
