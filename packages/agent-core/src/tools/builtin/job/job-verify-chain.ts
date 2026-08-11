@@ -398,22 +398,113 @@ function verifyChildrenReady(children: readonly JobRecord[]): boolean {
   return children.every((c) => c.status === 'done' || c.status === 'failed');
 }
 
+/** Retry / supersede: merge + aggregate only look at the newest Job per axis. */
+function latestVerifyChildrenByAxis(children: readonly JobRecord[]): JobRecord[] {
+  const byAxis = new Map<string, JobRecord>();
+  for (const child of children) {
+    const key = child.reviewAxis ?? 'combined';
+    const prev = byAxis.get(key);
+    if (
+      prev === undefined ||
+      child.updatedAt > prev.updatedAt ||
+      (child.updatedAt === prev.updatedAt && child.createdAt > prev.createdAt) ||
+      (child.updatedAt === prev.updatedAt &&
+        child.createdAt === prev.createdAt &&
+        child.id > prev.id)
+    ) {
+      byAxis.set(key, child);
+    }
+  }
+  return [...byAxis.values()];
+}
+
 function aggregateVerifyVerdict(children: readonly JobRecord[]): JobVerifyVerdict {
   let anyFailed = false;
   for (const child of children) {
-    const v =
-      resolveVerifyChildVerdict(child) ??
-      (child.status === 'failed' ? 'failed' : undefined) ??
-      'failed';
+    // Structured field only — free-text / status alone never count as pass.
+    const v = resolveVerifyChildVerdict(child) ?? 'failed';
     if (v !== 'passed') anyFailed = true;
   }
   return anyFailed ? 'failed' : 'passed';
+}
+
+const STRUCTURED_VERDICT_MISSING_NOTE =
+  'verify_chain: structured verifyVerdict missing — requeue verify with dual-axis JSON';
+const STRUCTURED_VERDICT_RETRY_NOTE = 'structured_verdict_retry';
+
+function axisKey(job: JobRecord): string {
+  return job.reviewAxis ?? 'combined';
+}
+
+function hasStructuredVerdictRetry(
+  parentId: string,
+  axis: string,
+  jobs: readonly JobRecord[],
+): boolean {
+  return jobs.some(
+    (j) =>
+      j.parentJobId === parentId &&
+      j.kind === 'verify' &&
+      axisKey(j) === axis &&
+      (j.notes?.includes(STRUCTURED_VERDICT_RETRY_NOTE) ?? false),
+  );
+}
+
+/** One automatic retry when a verify finished without parseable dual-axis JSON. */
+async function enqueueStructuredVerdictRetry(
+  store: ToolStore,
+  parent: JobRecord,
+  missing: JobRecord,
+  agent?: Agent,
+): Promise<JobRecord | undefined> {
+  const axis = axisKey(missing);
+  if (hasStructuredVerdictRetry(parent.id, axis, listJobs(store))) return undefined;
+  const titleBase =
+    missing.reviewAxis === 'standards'
+      ? `Re-verify standards: ${parent.title}`
+      : missing.reviewAxis === 'spec'
+        ? `Re-verify spec: ${parent.title}`
+        : `Re-verify: ${parent.title}`;
+  const retry = createJob(store, {
+    title: titleBase.slice(0, 120),
+    kind: 'verify',
+    priority: (missing.priority ?? parent.priority ?? 0) + 1,
+    prompt: [
+      missing.prompt,
+      'Previous attempt finished without structured dual-axis JSON. Emit ONLY the required verdict JSON this time.',
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
+    contextPaths: missing.contextPaths ?? parent.contextPaths,
+    parentJobId: parent.id,
+    expertId: missing.expertId,
+    expertScore: missing.expertScore,
+    reviewAxis: missing.reviewAxis,
+    staffQuery: missing.staffQuery,
+    successCriteria: missing.successCriteria ?? ['Emit dual-axis JSON verdict'],
+    verificationCommands: missing.verificationCommands ?? parent.verificationCommands,
+    surfaceKind: missing.surfaceKind ?? parent.surfaceKind,
+    notes: STRUCTURED_VERDICT_RETRY_NOTE,
+  });
+  patchJob(store, parent.id, {
+    notes: [
+      getJob(store, parent.id)?.notes,
+      `verify_chain: ${STRUCTURED_VERDICT_RETRY_NOTE} ${axis} → ${retry.id}`,
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  });
+  if (agent !== undefined) {
+    void requestJobSchedulePump({ store, agent });
+  }
+  return retry;
 }
 
 /**
  * Handle terminal completion for chain bookkeeping.
  * - implement done → enqueue verify
  * - verify done → parse verdict; on fail enqueue debug; stamp parent notes
+ * - verify done without JSON → fail + one structured-verdict retry (not Debug)
  */
 export async function onJobTerminalForVerifyChain(
   store: ToolStore,
@@ -427,20 +518,43 @@ export async function onJobTerminalForVerifyChain(
   ) {
     const parent = getJob(store, job.parentJobId);
     if (parent === undefined) return;
-    // Stamp structured verdict from summary parse (merge later reads the field only).
-    const stamped =
-      resolveVerifyChildVerdictForStamp(job) ??
-      (job.status === 'failed' ? ('failed' as const) : undefined);
+    // Stamp from parse/field only — never invent failed from status (free-text PASS trap).
+    const stamped = resolveVerifyChildVerdictForStamp(job);
     if (stamped === 'passed' || stamped === 'failed') {
       patchJob(store, job.id, { verifyVerdict: stamped });
+    } else if (job.status === 'done') {
+      patchJob(store, job.id, {
+        status: 'failed',
+        notes: [job.notes, STRUCTURED_VERDICT_MISSING_NOTE].filter(Boolean).join('\n'),
+      });
+    } else if (!(job.notes?.includes('structured verifyVerdict missing') ?? false)) {
+      patchJob(store, job.id, {
+        notes: [job.notes, STRUCTURED_VERDICT_MISSING_NOTE].filter(Boolean).join('\n'),
+      });
     }
-    const children = findVerifyChildren(parent.id, listJobs(store));
+
+    if (stamped === undefined) {
+      const retry = await enqueueStructuredVerdictRetry(store, parent, job, agent);
+      if (retry !== undefined) {
+        patchJob(store, parent.id, {
+          notes: [
+            getJob(store, parent.id)?.notes,
+            `verify_chain: ${job.id}${job.reviewAxis !== undefined ? ` axis=${job.reviewAxis}` : ''} verdict=missing`,
+          ]
+            .filter(Boolean)
+            .join('\n'),
+        });
+        return;
+      }
+    }
+
+    const children = latestVerifyChildrenByAxis(findVerifyChildren(parent.id, listJobs(store)));
     const axisNote = `verify_chain: ${job.id}${job.reviewAxis !== undefined ? ` axis=${job.reviewAxis}` : ''} verdict=${
       stamped ?? 'missing'
     }`;
     patchJob(store, parent.id, {
       notes: [
-        parent.notes,
+        getJob(store, parent.id)?.notes ?? parent.notes,
         axisNote,
         makerCheckerCollision(parent.expertId, job.expertId)
           ? 'verify_chain: MAKER_CHECKER_COLLISION same expertId on implement+verify'
@@ -457,10 +571,12 @@ export async function onJobTerminalForVerifyChain(
         .filter(Boolean)
         .join('\n'),
     });
+    // Debug only for stamped fail — missing JSON is a requeue/format problem, not a code bug.
     if (verdict === 'failed') {
-      const failedChild =
-        children.find((c) => resolveVerifyChildVerdict(c) !== 'passed') ?? children[0]!;
-      await enqueueDebugJobForVerify(store, latestParent, failedChild, agent);
+      const failedChild = children.find((c) => resolveVerifyChildVerdict(c) === 'failed');
+      if (failedChild !== undefined) {
+        await enqueueDebugJobForVerify(store, latestParent, failedChild, agent);
+      }
     }
     return;
   }
@@ -491,14 +607,16 @@ export function evaluateVerifyChainForMerge(input: {
     return { ok: true };
   }
 
-  const children = findVerifyChildren(input.job.id, input.jobs);
-  if (children.length === 0) {
+  const allChildren = findVerifyChildren(input.job.id, input.jobs);
+  if (allChildren.length === 0) {
     return {
       ok: false,
       reason:
         'No verify child Job yet — wait for the automatic verify chain (Maker≠Checker) before MergeJob.',
     };
   }
+  // Superseded retries: only the newest Job per axis gates merge.
+  const children = latestVerifyChildrenByAxis(allChildren);
   for (const verify of children) {
     if (makerCheckerCollision(input.job.expertId, verify.expertId)) {
       return {
@@ -524,12 +642,17 @@ export function evaluateVerifyChainForMerge(input: {
   }
   const verdict = aggregateVerifyVerdict(children);
   if (verdict !== 'passed') {
-    const failed = children.find((c) => resolveVerifyChildVerdict(c) !== 'passed');
+    const failed = children.find((c) => resolveVerifyChildVerdict(c) !== 'passed') ?? children[0]!;
+    const childVerdict = resolveVerifyChildVerdict(failed);
+    if (childVerdict === undefined) {
+      return {
+        ok: false,
+        reason: `Verify job ${failed.id} verdict=missing — requeue verify to emit dual-axis JSON before merge (do not MergeJob / Debug for format gaps).`,
+      };
+    }
     return {
       ok: false,
-      reason: `Verify job ${failed?.id ?? children[0]!.id} verdict=${
-        resolveVerifyChildVerdict(failed ?? children[0]!) ?? 'missing'
-      } — fix via debug/implement requeue before merge.`,
+      reason: `Verify job ${failed.id} verdict=${childVerdict} — fix via debug/implement requeue before merge.`,
     };
   }
   return { ok: true };
