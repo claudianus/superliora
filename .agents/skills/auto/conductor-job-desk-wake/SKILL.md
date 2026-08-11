@@ -18,7 +18,7 @@ Route terminal job notices without redoing worker work or running builds/tests o
 3. **Route:**
    - `needs_user` → AskUserQuestion with evidence; stop.
    - done-claim vs brief: trust ledger fields (verification, result, sha, review_chain). If staffed wrong / no code / checks not run but claim is incomplete → JobCreate reframe with parent_job_id and smaller scope. Do not re-verify by running tests yourself.
-   - failed / timeout → diagnose from JobInspect notes/worktree; reframe smaller JobCreate or escalate with evidence. Stop blind retries.
+   - failed / timeout → diagnose from JobInspect notes/worktree; reframe with JobCreate(continue_from_job_id=…) when the same deliverable continues (reuses worktree/resume), else smaller cold JobCreate or escalate with evidence. Stop blind retries.
    - Plan Desk completed → JobInspect Implement handoff → JobCreate from those fields (copy `test_seams` / `tdd_mode` when present; greenfield_chain when delivery_mode=greenfield); do not invent a fresh brief from memory.
    - Wayfinder fog: if the plan summary still has a non-empty `## Not yet specified` that blocks the finish line, do **not** JobCreate(implement) — EnterPlanMode / explore to clear decisions first.
 4. **ACK** board deltas (job_id — title — state). End turn.

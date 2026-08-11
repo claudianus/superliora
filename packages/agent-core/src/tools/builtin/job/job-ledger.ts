@@ -82,6 +82,13 @@ export function createJob(
     readonly modelAlias?: string;
     readonly surfaceKind?: JobRecord['surfaceKind'];
     readonly verifyVerdict?: JobRecord['verifyVerdict'];
+    /** Affinity reuse: bind an existing worktree before schedule assigns one. */
+    readonly worktreePath?: string;
+    readonly worktreeBranch?: string;
+    /** Affinity reuse: prefer host.resume on this agent id before cold spawn. */
+    readonly workerResumeAgentId?: string;
+    readonly workerCheckpointAt?: string;
+    readonly notes?: string;
   },
 ): JobRecord {
   const now = new Date().toISOString();
@@ -118,6 +125,11 @@ export function createJob(
     modelAlias: input.modelAlias?.trim() || undefined,
     surfaceKind: input.surfaceKind,
     verifyVerdict: input.verifyVerdict,
+    worktreePath: input.worktreePath?.trim() || undefined,
+    worktreeBranch: input.worktreeBranch?.trim() || undefined,
+    workerResumeAgentId: input.workerResumeAgentId?.trim() || undefined,
+    workerCheckpointAt: input.workerCheckpointAt?.trim() || undefined,
+    notes: input.notes !== undefined ? capJobNotes(input.notes) : undefined,
   };
   return upsertJob(store, job);
 }
@@ -146,6 +158,15 @@ export function patchJob(
       | 'modelAlias'
       | 'surfaceKind'
       | 'verifyVerdict'
+      | 'ownershipPaths'
+      | 'contextPaths'
+      | 'successCriteria'
+      | 'mustNotTouch'
+      | 'verificationCommands'
+      | 'testSeams'
+      | 'tddMode'
+      | 'reproCommand'
+      | 'kind'
     >
   >,
 ): JobRecord | undefined {
