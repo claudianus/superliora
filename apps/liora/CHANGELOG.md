@@ -1,5 +1,25 @@
 # @superliora/liora
 
+## 0.7.0
+
+### Minor Changes
+
+- Auto-resume safe Conductor jobs after a hard exit, keep a crash-durable job ledger mirror, and show Worker Dock recovery ghosts until workers relaunch. Opt out with `/job autoresume off`.
+- Settings → Model routing → Smart auto routing now live-probes each role chain and pins only models that respond. Open Settings → Model routing to run it.
+
+### Patch Changes
+
+- Conductor now sees media key readiness and briefs game/media assets with GenerateImage/GenerateVideo success criteria when keys are present.
+- Show live role and model progress while Smart auto routing probes chains.
+- Fix Smart Auto sessions rejecting the first prompt with model.not_configured before a concrete model is pinned.
+- Reject Conductor JobCreate/spawn when the worker model fails a live probe instead of queueing a doomed worker.
+- Show a short Model failover notice when a worker retries on a fallback model.
+- GenerateImage/GenerateVideo fall back to auto when a forced provider is not ready.
+- Stop the Worker Dock from stealing Enter so `/exit` and prompt submit still work while workers are visible.
+- Replace poetic idle aquarium mood lines with short status labels (idle, listening, ready, waiting).
+- Drop the extra Todo Board / Worker Dock side indent so chrome bands use the full stage width.
+- Fix Upgrade Studio broken frame layout and stalled-looking install progress during `/upgrade`.
+
 ## 0.6.0
 
 ### Minor Changes
