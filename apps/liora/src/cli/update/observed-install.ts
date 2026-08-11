@@ -107,7 +107,8 @@ export async function startObservedUpgradeInstall(
     await writeState(startedState);
 
     emitStage(onStage, 'checking');
-    emitStage(onStage, initialObservedStage(source));
+    const initialStage = initialObservedStage(source);
+    emitStage(onStage, initialStage);
 
     const { cmd, args } = spawnForSource(source, target.version, platform, {
       fromMain: options.fromMain,
@@ -116,6 +117,8 @@ export async function startObservedUpgradeInstall(
     let settled = false;
     let installingEmitted = source === 'github-checkout';
     let installingTimer: ReturnType<typeof setTimeout> | undefined;
+    let currentStage: UpgradeInstallStage = initialStage;
+    let lastDetailEmitMs = 0;
     const stderrLines: string[] = [];
     const stdoutLines: string[] = [];
 
@@ -179,7 +182,18 @@ export async function startObservedUpgradeInstall(
         clearTimeout(installingTimer);
         installingTimer = undefined;
       }
+      currentStage = 'installing';
       emitStage(onStage, 'installing');
+    };
+
+    const emitLiveDetail = (detail: string): void => {
+      if (settled || detail.length === 0) return;
+      const now = Date.now();
+      // pnpm/build spam is dense — throttle so the TUI stays responsive.
+      if (now - lastDetailEmitMs < 250) return;
+      lastDetailEmitMs = now;
+      const clipped = detail.length > 120 ? `${detail.slice(0, 117)}…` : detail;
+      emitStage(onStage, currentStage, clipped);
     };
 
     const handleOutputLine = (line: string, fromStderr: boolean): void => {
@@ -189,16 +203,24 @@ export async function startObservedUpgradeInstall(
         if (stage === 'installing') installingEmitted = true;
         // Prefer captured stderr/stdout summary for terminal failed; markers are noisy.
         if (stage === 'failed') {
+          currentStage = stage;
           emitStage(onStage, stage, failureDetail());
           return;
         }
         if (stage === 'done') {
+          currentStage = stage;
           emitStage(onStage, stage);
           return;
         }
-        emitStage(onStage, stage, line.trim());
+        // Never forward the marker line itself as detail — it leaked into the
+        // Upgrade Studio progress block and looked like a hang.
+        currentStage = stage;
+        lastDetailEmitMs = 0;
+        emitStage(onStage, stage);
         return;
       }
+      const trimmed = line.trim();
+      if (trimmed.length > 0) emitLiveDetail(trimmed);
       if (source !== 'github-checkout') {
         emitInstallingOnce();
       }

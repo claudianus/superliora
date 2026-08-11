@@ -28,7 +28,6 @@ import {
   renderPremiumBoxFrame,
   renderPremiumHeadline,
   renderPulseText,
-  renderShimmerPrefix,
   renderSpectacularText,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
@@ -153,12 +152,10 @@ export class UpgradeStudioComponent extends Container implements Focusable {
     const ambient = shouldRenderAmbientEffects(appearance);
     const now = appearanceAnimationNow();
 
-    const shimmer = ambient ? renderShimmerPrefix(appearance) : '';
-    const headline = renderPremiumHeadline(
-      `${shimmer}${upgradeStudioTitle()}`.trimStart(),
-      'upgrade-studio:title',
-      appearance,
-    );
+    // renderPremiumHeadline already adds the shimmer prefix — do not pre-bake it
+    // into the title string or titlePlain will under-measure and skew the frame.
+    const titlePlain = upgradeStudioTitle();
+    const headline = renderPremiumHeadline(titlePlain, 'upgrade-studio:title', appearance);
     const modeChip = modeChipLabel(this.mode);
     const footerLeft = currentTheme.fg('textMuted', modeChip);
     const footerRight = ambient
@@ -183,7 +180,8 @@ export class UpgradeStudioComponent extends Container implements Focusable {
     const frame = renderPremiumBoxFrame(body, {
       width: outer,
       title: headline,
-      titlePlain: upgradeStudioTitle(),
+      // Match the glyphs renderPremiumHeadline actually embeds (shimmer + title).
+      titlePlain: stripAnsiControls(headline),
       footerLeft,
       footerLeftPlain: modeChip,
       footerRight,

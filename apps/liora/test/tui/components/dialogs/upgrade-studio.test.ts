@@ -142,6 +142,29 @@ describe('UpgradeStudioComponent', () => {
     expect(out).toContain('Install in progress');
   });
 
+  it('installing rows stay uniform width even with stage detail noise', () => {
+    const studio = new UpgradeStudioComponent({
+      mode: 'installing',
+      plan: plan({
+        source: 'github-checkout',
+        target: { version: 'origin/main@1c1a165f3bda' },
+      }),
+      stage: 'building',
+      detail: '__LIORA_UPGRADE_STAGE__=building',
+      onSelect: vi.fn(),
+      onCancel: vi.fn(),
+    });
+    const width = 64;
+    const rows = studio.render(width);
+    const widths = rows.map((row) => visibleWidth(stripAnsiControls(row)));
+    for (const w of widths) {
+      expect(w).toBe(widths[0]);
+    }
+    const out = rows.map(strip).join('\n');
+    expect(out).not.toContain('__LIORA_UPGRADE_STAGE__');
+    expect(out).toContain('elapsed');
+  });
+
   it('success mode dismisses with Enter', () => {
     const onSelect = vi.fn();
     const studio = new UpgradeStudioComponent({
