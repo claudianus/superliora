@@ -8,6 +8,7 @@ import { SOVEREIGN_CONDUCTOR_PROFILE_NAME } from '#/profile/main-profile';
 import type { LioraConfig } from '../../config';
 import { warmModelsDevData, type ModelMetadata } from '../../utils/model-presets';
 import { isLiveProbeFailureFresh } from '../routing/live-probe';
+import { isCursorIncludedLaneModel } from '../routing/provider-failure-scope';
 import {
   buildLocalModelMetadata,
   isConfigAliasHealthy,
@@ -42,6 +43,10 @@ export function selectFleetCatalogRows(
         const bDef = b.alias === defaultAlias ? 1 : 0;
         if (aDef !== bDef) return bDef - aDef;
       }
+      // Cursor included lane (Auto / Grok 4.5 / Composer 2.5) beats API-quota models.
+      const aInc = isCursorIncludedLaneModel(a.alias ?? a.id) ? 1 : 0;
+      const bInc = isCursorIncludedLaneModel(b.alias ?? b.id) ? 1 : 0;
+      if (aInc !== bInc) return bInc - aInc;
       const aq = a.qualityScore ?? a.benchmarkScore ?? 0;
       const bq = b.qualityScore ?? b.benchmarkScore ?? 0;
       if (bq !== aq) return bq - aq;
@@ -62,6 +67,7 @@ export function renderFleetModelCatalog(
   const lines: string[] = [
     '<fleet_model_catalog>',
     'Live-healthy aliases only (credentials + recent probe). Prefer the session default (listed first when healthy). When role models are auto, set JobCreate.model_alias from this list (omit → harness picks by kind/profile). Never invent aliases; never retry an omitted/failed alias until it reappears; JobCreate live-probes the pick.',
+    'Cursor included lane (not API quota): cursor-oauth/default (Auto), cursor-grok-4.5-*, composer-2.5* — prefer these when other cursor-oauth aliases fail quota/empty.',
     'Hints: explore/research → value; implement/goal-driver → quality; verify → different family from maker when possible; UI/screenshots → vision=yes (multimodal session defaults count).',
     'alias | q | value | $/M_in | tools | vision | ctx | fit',
   ];

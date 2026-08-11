@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { APIStatusError } from '@superliora/kosong';
+import { APIEmptyResponseError, APIStatusError } from '@superliora/kosong';
 import { sharedCredentialHealthStore } from '@superliora/oauth';
 
 import type { Agent } from '../../../src/agent';
@@ -218,6 +218,63 @@ describe('live-probe', () => {
     expect(isConfigAliasHealthy(config, 'primary')).toBe(false);
     expect(isConfigAliasHealthy(config, 'secondary')).toBe(true);
     expect(sharedCredentialHealthStore.isAvailable('provider-a')).toBe(true);
+  });
+
+  it('empty live probe sticks on the alias without poisoning provider siblings', async () => {
+    setLiveProbeRunnerForTests(async (_agent, alias) => {
+      if (alias === 'primary') {
+        throw new APIEmptyResponseError('empty response');
+      }
+    });
+    const config = makeConfig();
+    config.models = {
+      primary: model('provider-a', 'primary-model', 5),
+      sibling: model('provider-a', 'sibling-model', 1),
+      other: model('provider-b', 'other-model', 1),
+    };
+    const agent = makeAgent(config);
+    const failed = await probeModelAlias(agent, 'primary');
+    expect(failed.ok).toBe(false);
+    expect(failed.failureKind).toBe('empty');
+    expect(isLiveProbeFailureFresh('primary')).toBe(true);
+    expect(sharedCredentialHealthStore.isAvailable('provider-a')).toBe(true);
+    expect(isConfigAliasHealthy(config, 'primary')).toBe(false);
+    expect(isConfigAliasHealthy(config, 'sibling')).toBe(true);
+    expect(isConfigAliasHealthy(config, 'other')).toBe(true);
+    let calls = 0;
+    setLiveProbeRunnerForTests(async () => {
+      calls += 1;
+    });
+    const cached = await probeModelAlias(agent, 'primary', { force: true });
+    expect(cached.ok).toBe(false);
+    expect(cached.fromCache).toBe(true);
+    expect(calls).toBe(0);
+  });
+
+  it('cursor-oauth quota keeps Auto and sibling aliases healthy', async () => {
+    setLiveProbeRunnerForTests(async (_agent, alias) => {
+      if (alias === 'cursor-oauth/claude-opus') {
+        throw new APIStatusError(429, 'quota exceeded', 'req-429');
+      }
+    });
+    const config = {
+      providers: {
+        'cursor-oauth': { type: 'cursor' as const, apiKey: 'cursor-key' },
+      },
+      models: {
+        'cursor-oauth/claude-opus': model('cursor-oauth', 'claude-opus', 5),
+        'cursor-oauth/cursor-grok-4.5-high': model('cursor-oauth', 'cursor-grok-4.5-high', 2),
+        'cursor-oauth/default': model('cursor-oauth', 'default', 0),
+      },
+    } as LioraConfig;
+    const agent = makeAgent(config);
+    const failed = await probeModelAlias(agent, 'cursor-oauth/claude-opus');
+    expect(failed.ok).toBe(false);
+    expect(failed.failureKind).toBe('quota');
+    expect(sharedCredentialHealthStore.isAvailable('cursor-oauth')).toBe(true);
+    expect(isConfigAliasHealthy(config, 'cursor-oauth/claude-opus')).toBe(false);
+    expect(isConfigAliasHealthy(config, 'cursor-oauth/cursor-grok-4.5-high')).toBe(true);
+    expect(isConfigAliasHealthy(config, 'cursor-oauth/default')).toBe(true);
   });
 });
 

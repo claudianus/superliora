@@ -46,6 +46,7 @@ import {
 } from '../../utils/completion-budget';
 import type { GenerateOptionsWithRequestLogFields } from '../llm-request-logger';
 import { sharedModelRouteHealthStore } from '../routing/model-route-health';
+import { shouldMarkProviderCredential } from '../routing/provider-failure-scope';
 import {
   invalidateLiveProbeSuccess,
   invalidateLiveProbeSuccessForProvider,
@@ -195,11 +196,13 @@ export class KosongLLM implements LLM {
               cooldownMs: failure.cooldownMs,
             });
           } else if (failure.kind === 'auth') {
-            sharedCredentialHealthStore.markAuthRejected(candidate.providerName, {
-              credentialKey: candidate.credentialLabel,
-              failureReason,
-              cooldownMs: failure.cooldownMs,
-            });
+            if (shouldMarkProviderCredential(candidate.providerName, failure.kind)) {
+              sharedCredentialHealthStore.markAuthRejected(candidate.providerName, {
+                credentialKey: candidate.credentialLabel,
+                failureReason,
+                cooldownMs: failure.cooldownMs,
+              });
+            }
             sharedModelRouteHealthStore.markUnavailable(candidate.modelAlias, {
               kind: 'route_fail',
               failureReason,
@@ -210,13 +213,23 @@ export class KosongLLM implements LLM {
             failure.kind === 'rate_limit' ||
             failure.kind === 'server' ||
             failure.kind === 'connection' ||
-            failure.kind === 'timeout'
+            failure.kind === 'timeout' ||
+            failure.kind === 'empty'
           ) {
-            sharedCredentialHealthStore.markRateLimited(candidate.providerName, {
-              credentialKey: candidate.credentialLabel,
-              failureReason,
-              cooldownMs: failure.cooldownMs,
-            });
+            // Cursor Auto vs API: keep quota/empty alias-scoped so siblings stay usable.
+            if (shouldMarkProviderCredential(candidate.providerName, failure.kind)) {
+              sharedCredentialHealthStore.markRateLimited(candidate.providerName, {
+                credentialKey: candidate.credentialLabel,
+                failureReason,
+                cooldownMs: failure.cooldownMs,
+              });
+            } else {
+              sharedModelRouteHealthStore.markUnavailable(candidate.modelAlias, {
+                kind: 'probe_fail',
+                failureReason,
+                cooldownMs: failure.cooldownMs,
+              });
+            }
           }
         }
         if (failure === undefined || attempt.sawStreamOutput) {

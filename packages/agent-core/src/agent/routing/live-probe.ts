@@ -25,6 +25,7 @@ import {
   DEFAULT_PROBE_FAIL_COOLDOWN_MS,
   sharedModelRouteHealthStore,
 } from './model-route-health';
+import { shouldMarkProviderCredential } from './provider-failure-scope';
 import { isConfigAliasHealthy, type SmartRoute } from './smart-router';
 
 export const LIVE_PROBE_SUCCESS_TTL_MS = 10 * 60_000;
@@ -228,12 +229,15 @@ async function runProbeModelAlias(
     const failure = classifyProviderRouteFailure(error, undefined);
     const failureReason = error instanceof Error ? error.message : 'live probe failed';
     if (failure !== undefined) {
-      applyFailureToHealth(alias, providerName, failure, failureReason, now);
+      // Live probe empty is usually account/proxy death, not a flaky one-token
+      // blip — floor to probe-fail TTL so Conductor cannot re-summon in ~5s.
+      const cooldownMs = liveProbeFailureCooldownMs(failure);
+      applyFailureToHealth(alias, providerName, failure, failureReason, now, cooldownMs);
       successCache.set(alias, {
         alias,
         provider: providerName,
         status: 'fail',
-        expiresAt: now + failure.cooldownMs,
+        expiresAt: now + cooldownMs,
         failureKind: failure.kind,
       });
       return { ok: false, alias, provider: providerName, failureKind: failure.kind };
@@ -282,18 +286,27 @@ async function defaultProbeRunner(
   await withAuth((auth) => generate(provider, system, [], history, undefined, { signal, auth }));
 }
 
+/** Floor short classifier cooldowns so mid-turn JobCreate retries stay sticky. */
+function liveProbeFailureCooldownMs(failure: ProviderRouteFailure): number {
+  if (failure.kind === 'empty') {
+    return Math.max(failure.cooldownMs, DEFAULT_PROBE_FAIL_COOLDOWN_MS);
+  }
+  return failure.cooldownMs;
+}
+
 function applyFailureToHealth(
   alias: string,
   providerName: string,
   failure: ProviderRouteFailure,
   failureReason: string,
   now: number,
+  cooldownMs: number = failure.cooldownMs,
 ): void {
   if (failure.kind === 'model_unavailable') {
     sharedModelRouteHealthStore.markUnavailable(alias, {
       kind: 'model_unavailable',
       failureReason,
-      cooldownMs: failure.cooldownMs,
+      cooldownMs,
       now,
     });
     return;
@@ -302,30 +315,23 @@ function applyFailureToHealth(
   sharedModelRouteHealthStore.markUnavailable(alias, {
     kind: failure.kind === 'auth' ? 'route_fail' : 'probe_fail',
     failureReason,
-    cooldownMs: failure.cooldownMs,
+    cooldownMs,
     now,
   });
 
   if (providerName.length === 0) return;
+  if (!shouldMarkProviderCredential(providerName, failure.kind)) return;
   if (failure.kind === 'auth') {
     sharedCredentialHealthStore.markAuthRejected(providerName, {
       failureReason,
-      cooldownMs: failure.cooldownMs,
+      cooldownMs,
     });
     return;
   }
-  if (
-    failure.kind === 'quota' ||
-    failure.kind === 'rate_limit' ||
-    failure.kind === 'server' ||
-    failure.kind === 'connection' ||
-    failure.kind === 'timeout'
-  ) {
-    sharedCredentialHealthStore.markRateLimited(providerName, {
-      failureReason,
-      cooldownMs: failure.cooldownMs,
-    });
-  }
+  sharedCredentialHealthStore.markRateLimited(providerName, {
+    failureReason,
+    cooldownMs,
+  });
 }
 
 function uniqueFrom(head: string, chain: readonly string[]): readonly string[] {

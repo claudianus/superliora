@@ -33,6 +33,8 @@ export interface CursorDiscoveredModel {
 
 /** Static fallback when live discovery fails (kept current with Cursor CLI catalogs). */
 export const CURSOR_FALLBACK_MODELS: readonly CursorDiscoveredModel[] = [
+  // Included-request pool (separate from API-usage models): Auto, Composer 2.5, Grok 4.5.
+  { id: 'default', displayName: 'Auto', maxContextSize: 200_000, capabilities: ['thinking', 'tool_use'] },
   { id: 'composer-2.5', displayName: 'Composer 2.5', maxContextSize: 200_000, capabilities: ['thinking', 'tool_use'] },
   { id: 'composer-2.5-fast', displayName: 'Composer 2.5 Fast', maxContextSize: 200_000, capabilities: ['thinking', 'tool_use'] },
   { id: 'claude-4.6-opus-high', displayName: 'Claude 4.6 Opus', maxContextSize: 200_000, capabilities: ['thinking', 'tool_use', 'image_in'] },
