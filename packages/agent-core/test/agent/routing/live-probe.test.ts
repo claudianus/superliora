@@ -134,6 +134,33 @@ describe('live-probe', () => {
     expect(calls).toBe(1);
   });
 
+  it('force=true bypasses success cache but still respects fresh failures', async () => {
+    let calls = 0;
+    setLiveProbeRunnerForTests(async () => {
+      calls += 1;
+    });
+    const agent = makeAgent(makeConfig());
+    await probeModelAlias(agent, 'primary');
+    await probeModelAlias(agent, 'primary', { force: true });
+    expect(calls).toBe(2);
+
+    // model_not_found is alias-scoped so static health fails via route store,
+    // not by poisoning the whole provider credential.
+    setLiveProbeRunnerForTests(async () => {
+      calls += 1;
+      throw new APIStatusError(404, 'model_not_found: primary-model', 'req-404');
+    });
+    invalidateLiveProbeSuccess('primary');
+    const failed = await probeModelAlias(agent, 'primary', { force: true });
+    expect(failed.ok).toBe(false);
+    expect(isLiveProbeFailureFresh('primary')).toBe(true);
+    const before = calls;
+    const cachedFail = await probeModelAlias(agent, 'primary', { force: true });
+    expect(cachedFail.ok).toBe(false);
+    expect(cachedFail.fromCache).toBe(true);
+    expect(calls).toBe(before);
+  });
+
   it('dedupes in-flight probes for the same alias', async () => {
     let calls = 0;
     setLiveProbeRunnerForTests(async () => {

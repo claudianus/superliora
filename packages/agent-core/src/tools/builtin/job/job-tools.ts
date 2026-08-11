@@ -10,8 +10,8 @@ import type {
   ConductorJobDraftRecorder,
 } from '../../../agent/conductor-guard';
 import { MAX_GOAL_OBJECTIVE_LENGTH } from '../../../agent/goal/types';
-import { isConfigAliasHealthy } from '../../../agent/routing';
 import type { BuiltinTool } from '../../../agent/tool';
+import { rejectUnhealthyJobModelAliasLive } from './job-model-live';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import {
@@ -212,7 +212,7 @@ const JobCreateInputSchema = z
       .min(1)
       .optional()
       .describe(
-        'Worker model alias from <fleet_model_catalog> when role models are auto. Pick by Job kind/risk/cost (explore→value, implement→quality, verify→different family when possible). Omit to let the harness pick by profile/role. Must be a healthy catalog alias — unknown names are rejected.',
+        'Worker model alias from <fleet_model_catalog> when role models are auto. Pick by Job kind/risk/cost (explore→value, implement→quality, verify→different family when possible). Omit to let the harness pick by profile/role. Must pass a live probe (quota/auth) — unknown, unhealthy, or probe-failing aliases are rejected.',
       ),
     surface_kind: z
       .enum(['none', 'web', 'tui', 'mixed'])
@@ -401,31 +401,6 @@ const PushJobInputSchema = z
 function ack(jobId: string, status: JobStatus, extra?: string): string {
   const line = `ACK ${jobId} state=${status}`;
   return extra ? `${line}\n${extra}` : line;
-}
-
-/** Reject JobCreate.model_alias when it is not a healthy configured alias. */
-function rejectUnhealthyJobModelAlias(
-  agent: Agent | undefined,
-  modelAlias: string,
-): { isError: true; output: string } | undefined {
-  const config = agent?.runtimeConfig ?? agent?.kimiConfig;
-  if (config === undefined) {
-    return {
-      isError: true,
-      output:
-        `model_alias ${JSON.stringify(modelAlias)} cannot be validated (no session config) — ` +
-        'omit model_alias or retry after models are loaded.',
-    };
-  }
-  if (!isConfigAliasHealthy(config, modelAlias)) {
-    return {
-      isError: true,
-      output:
-        `model_alias ${JSON.stringify(modelAlias)} is unknown or unhealthy — ` +
-        'pick a healthy alias from <fleet_model_catalog>, or omit model_alias for harness role pick.',
-    };
-  }
-  return undefined;
 }
 
 /**
@@ -632,7 +607,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
         const reproCommand = a.repro_command?.trim() || undefined;
         const modelAlias = a.model_alias?.trim() || undefined;
         if (modelAlias !== undefined) {
-          const rejected = rejectUnhealthyJobModelAlias(this.agent, modelAlias);
+          const rejected = await rejectUnhealthyJobModelAliasLive(this.agent, modelAlias);
           if (rejected !== undefined) return rejected;
         }
 

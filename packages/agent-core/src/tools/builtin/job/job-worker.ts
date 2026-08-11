@@ -55,6 +55,7 @@ import {
 } from './job-ownership';
 import { runPushRemoteJob } from './job-push';
 import { onJobTerminalForVerifyChain } from './job-verify-chain';
+import { preflightJobWorkerModel } from './job-model-live';
 import { profileForJobKind } from './job-runtime';
 import { commitJobWorktreeIfDirty } from './job-worktree-commit';
 
@@ -422,7 +423,7 @@ async function snapshotWorkerWorktree(
  * lifetime is fire-and-forget (`void handle.completion`) so the meta turn is not blocked.
  */
 export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<LaunchJobWorkerResult> {
-  const job = getJob(input.store, input.job.id) ?? input.job;
+  let job = getJob(input.store, input.job.id) ?? input.job;
   if (job.status !== 'running') {
     return { ok: false, error: `job not running: ${job.status}` };
   }
@@ -522,6 +523,41 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
             contextPaths: job.contextPaths,
             ownershipPaths: job.ownershipPaths,
           });
+
+  // Live probe before spawn — do not attach a worker to a quota/auth-dead alias.
+  const modelPreflight = await preflightJobWorkerModel(input.agent, job, {
+    signal: controller.signal,
+    preferVision: uiFlags?.preferVisionModel === true,
+  });
+  if (!modelPreflight.ok) {
+    clearJobWorkerHandle(job.id);
+    const detail = modelPreflight.error;
+    const updated = patchJob(input.store, job.id, {
+      status: 'failed',
+      resultSummary: detail.slice(0, 2000),
+      notes: [job.notes, modelPreflight.note, `spawn_failed: ${detail}`]
+        .filter(Boolean)
+        .join('\n'),
+    });
+    if (updated) {
+      notifyJobTerminal({
+        store: input.store,
+        job: updated,
+        status: 'failed',
+        summary: detail,
+        agent: input.agent,
+      });
+    }
+    return { ok: false, error: detail };
+  }
+  if (
+    modelPreflight.modelAlias !== undefined &&
+    modelPreflight.modelAlias !== job.modelAlias
+  ) {
+    patchJob(input.store, job.id, { modelAlias: modelPreflight.modelAlias });
+    job = { ...job, modelAlias: modelPreflight.modelAlias };
+  }
+
   const baseTaskFields = {
     prompt: jobPrompt(job, input.store),
     description: job.title.slice(0, 80),
@@ -539,8 +575,8 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
     forcePremiumQuality: uiFlags?.forcePremiumQuality,
     // Text-only coding models cannot audit screenshots; prefer a vision alias.
     preferVisionModel: uiFlags?.preferVisionModel,
-    // Conductor-picked worker model (fleet catalog); omit → role smart route.
-    modelAlias: job.modelAlias,
+    // Conductor-picked / live-probed worker model; omit → role smart route.
+    modelAlias: modelPreflight.modelAlias ?? job.modelAlias,
     // Goal-driver (spec 2026-08-04-goal-driver-jobs): the goal migrates onto
     // the worker, whose turn engine then runs the autonomous loop. The brief
     // doubles as the objective; JobCreate validated its length.

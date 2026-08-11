@@ -7,6 +7,7 @@
 import { SOVEREIGN_CONDUCTOR_PROFILE_NAME } from '#/profile/main-profile';
 import type { LioraConfig } from '../../config';
 import { warmModelsDevData, type ModelMetadata } from '../../utils/model-presets';
+import { isLiveProbeFailureFresh } from '../routing/live-probe';
 import {
   buildLocalModelMetadata,
   isConfigAliasHealthy,
@@ -26,6 +27,9 @@ export function selectFleetCatalogRows(
     const alias = model.alias?.trim();
     if (alias === undefined || alias.length === 0) return false;
     if (!isConfigAliasHealthy(config, alias)) return false;
+    // Hide aliases with a fresh live-probe failure even before cooldown lands
+    // in the route-health store (same process, same Conductor turn).
+    if (isLiveProbeFailureFresh(alias)) return false;
     if (model.supportsTools === false) return false;
     return true;
   });
@@ -50,7 +54,7 @@ export function renderFleetModelCatalog(
 
   const lines: string[] = [
     '<fleet_model_catalog>',
-    'Healthy aliases only. When role models are auto, set JobCreate.model_alias from this list (omit → harness picks by kind/profile). Never invent aliases.',
+    'Live-healthy aliases only (credentials + recent probe). When role models are auto, set JobCreate.model_alias from this list (omit → harness picks by kind/profile). Never invent aliases; JobCreate live-probes the pick.',
     'Hints: explore/research → value; implement/goal-driver → quality; verify → different family from maker when possible; UI → vision=yes.',
     'alias | q | value | $/M_in | tools | vision | ctx | fit',
   ];

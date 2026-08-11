@@ -103,16 +103,36 @@ export function invalidateLiveProbeSuccessForProvider(providerName: string | und
 export async function probeModelAlias(
   agent: Agent,
   alias: string,
-  options?: { readonly signal?: AbortSignal; readonly now?: number },
+  options?: {
+    readonly signal?: AbortSignal;
+    readonly now?: number;
+    /** Skip the success TTL cache (still short-circuits on a fresh failure). */
+    readonly force?: boolean;
+  },
 ): Promise<LiveProbeAliasResult> {
   const now = options?.now ?? Date.now();
   const config = agent.runtimeConfig ?? agent.kimiConfig;
-  if (config === undefined || !isConfigAliasHealthy(config, alias)) {
+  if (config === undefined || config.models?.[alias] === undefined) {
     return { ok: false, alias };
   }
 
-  const providerName = config.models?.[alias]?.provider ?? '';
-  if (isLiveProbeSuccessFresh(alias, now)) {
+  const providerName = config.models[alias]?.provider ?? '';
+  // Fresh failures are sticky — check before static health so a force retry
+  // still short-circuits after alias/provider cooldowns land.
+  if (isLiveProbeFailureFresh(alias, now)) {
+    const entry = successCache.get(alias);
+    return {
+      ok: false,
+      alias,
+      provider: providerName,
+      fromCache: true,
+      failureKind: entry?.failureKind,
+    };
+  }
+  if (!isConfigAliasHealthy(config, alias)) {
+    return { ok: false, alias, provider: providerName };
+  }
+  if (options?.force !== true && isLiveProbeSuccessFresh(alias, now)) {
     return { ok: true, alias, provider: providerName, fromCache: true };
   }
 
@@ -138,6 +158,7 @@ export async function ensureSmartRouteProbed(
   options?: {
     readonly signal?: AbortSignal;
     readonly now?: number;
+    readonly force?: boolean;
     readonly onAliasProgress?: (alias: string, chainIndex: number, chainTotal: number) => void;
   },
 ): Promise<SmartRoute | undefined> {
