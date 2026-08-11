@@ -151,7 +151,10 @@ export interface SubagentFailedEvent {
   readonly retryAttempt?: number;
   /** Maximum model-fallback hops configured for this spawn. */
   readonly retryLimit?: number;
-  /** Last model alias attempted before the final failure (only after >=1 fallback hop). */
+  /**
+   * With `retryAttempt`: alias the host will try next.
+   * Without `retryAttempt` (terminal): last alias attempted after >=1 fallback hop.
+   */
   readonly fellBackToModel?: string;
 }
 

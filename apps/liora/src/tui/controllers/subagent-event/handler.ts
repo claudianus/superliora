@@ -2,12 +2,15 @@ import type { BackgroundTaskInfo, Event } from '@superliora/sdk';
 
 import { MAIN_AGENT_ID } from '../../constant/liora-tui';
 import type { BackgroundAgentMetadata } from '../../types';
+import { ttui } from '../../utils/tui-i18n';
 import type { SessionEventHost } from '../session-event/handler';
 import {
   buildBackgroundAgentMetadata,
   buildBackgroundAgentTranscriptEntry,
   findAgentTaskId,
+  isSubagentModelFallbackRetry,
   shouldSurfaceSubagentModelNotice,
+  subagentModelFailoverNoticeDetail,
 } from './background';
 import {
   handleForegroundSubagentCompleted,
@@ -178,6 +181,9 @@ export class SubAgentEventHandler {
   private handleSubagentFailed(
     event: SubagentLifecycleEventOf<'subagent.failed'>,
   ): void {
+    // Whole-turn model hop: keep the worker alive and show one concise notice.
+    if (this.surfaceModelFallbackRetry(event)) return;
+
     const info = this.subagentInfo.get(event.subagentId);
     if (info !== undefined && !info.runInBackground) {
       handleForegroundSubagentFailed(this.host, event, info);
@@ -212,6 +218,55 @@ export class SubAgentEventHandler {
       this.appendBackgroundAgentEntry('failed', backgroundMeta, { error: event.error });
       return;
     }
+  }
+
+  /**
+   * Non-terminal model-fallback hop (`retryAttempt` set). Paint a short
+   * transcript notice instead of treating the worker as failed.
+   */
+  private surfaceModelFallbackRetry(
+    event: SubagentLifecycleEventOf<'subagent.failed'>,
+  ): boolean {
+    if (!isSubagentModelFallbackRetry(event)) return false;
+
+    const info = this.subagentInfo.get(event.subagentId);
+    const backgroundMeta = this.backgroundAgentMetadata.get(event.subagentId);
+    const toAlias = event.fellBackToModel?.trim();
+    const fromAlias = info?.modelAlias ?? backgroundMeta?.modelAlias;
+    const name = info?.name ?? backgroundMeta?.agentName;
+    const availableModels = this.host.state.appState.availableModels;
+
+    if (toAlias !== undefined && toAlias.length > 0) {
+      const detail = subagentModelFailoverNoticeDetail({
+        subagentName: name,
+        fromAlias,
+        toAlias,
+        availableModels,
+      });
+      this.host.showNotice(ttui('tui.notice.modelFailover.title'), detail, {
+        coalesceKey: `model-route:subagent:${event.subagentId}`,
+      });
+      this.host.setAppState({
+        lastModelRouteNotice: {
+          kind: 'failover',
+          fromAlias,
+          toAlias,
+          reason: name !== undefined ? `subagent:${name}` : 'subagent',
+          atMs: Date.now(),
+        },
+      });
+      if (info !== undefined) {
+        this.subagentInfo.set(event.subagentId, { ...info, modelAlias: toAlias });
+      }
+      if (backgroundMeta !== undefined) {
+        this.backgroundAgentMetadata.set(event.subagentId, {
+          ...backgroundMeta,
+          modelAlias: toAlias,
+        });
+      }
+    }
+
+    return true;
   }
 
   private appendBackgroundAgentEntry(

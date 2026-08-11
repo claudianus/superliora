@@ -104,3 +104,33 @@ export function subagentModelRouteNoticeText(
 ): string {
   return `${subagentName}: ${modelRouteDisplayName(sessionModel, availableModels)} → ${modelRouteDisplayName(modelAlias, availableModels)}`;
 }
+
+/** Non-terminal `subagent.failed` hop while the host retries on a fallback model. */
+export function isSubagentModelFallbackRetry(event: {
+  readonly retryAttempt?: number;
+}): boolean {
+  return event.retryAttempt !== undefined;
+}
+
+/** Concise transcript detail for a worker/subagent model failover hop. */
+export function subagentModelFailoverNoticeDetail(input: {
+  readonly subagentName: string | undefined;
+  readonly fromAlias: string | undefined;
+  readonly toAlias: string;
+  readonly availableModels: Readonly<Record<string, ModelAlias>>;
+}): string {
+  const name =
+    input.subagentName !== undefined && input.subagentName.length > 0
+      ? input.subagentName
+      : 'worker';
+  const toLabel = modelRouteDisplayName(input.toAlias, input.availableModels);
+  if (input.fromAlias === undefined || input.fromAlias.length === 0) {
+    return `${name}: ${toLabel}`;
+  }
+  return subagentModelRouteNoticeText(
+    name,
+    input.fromAlias,
+    input.toAlias,
+    input.availableModels,
+  );
+}
