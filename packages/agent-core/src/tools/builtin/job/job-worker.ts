@@ -429,13 +429,15 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
   }
 
   // Goal Desk v1: ledger umbrella only — child goal-driver owns the LLM loop.
-  // No subagentHost required (desk never spawns an LLM worker).
+  // No subagentHost required (desk never spawns an LLM worker). Pump so the
+  // driver (parent=desk) is not left queued forever under a running umbrella.
   if (job.kind === 'goal-desk') {
     patchJob(input.store, job.id, {
       notes: [job.notes, 'goal-desk: umbrella (no worker; drivers execute)']
         .filter(Boolean)
         .join('\n'),
     });
+    pumpSchedulerAfterWorker(input.agent, input.store);
     return { ok: true };
   }
 

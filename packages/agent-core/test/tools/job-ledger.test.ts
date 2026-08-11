@@ -237,6 +237,60 @@ describe('job runtime scheduler', () => {
     expect(nextQueuedJobs(store, 10)).toHaveLength(0);
   });
 
+  it('schedules goal-driver under a running goal-desk umbrella', async () => {
+    const store = memoryStore();
+    const desk = createJob(store, { title: 'Goal Desk', kind: 'goal-desk', priority: 10 });
+    patchJob(store, desk.id, { status: 'running' });
+    const driver = createJob(store, {
+      title: 'Goal: ship',
+      kind: 'goal-driver',
+      priority: 11,
+      parentJobId: desk.id,
+    });
+
+    const result = await scheduleQueuedJobs({
+      store,
+      maxConcurrent: 3,
+      requireWorktree: false,
+    });
+
+    expect(result.started.map((j) => j.id)).toContain(driver.id);
+    expect(getJob(store, driver.id)?.status).toBe('running');
+  });
+
+  it('schedules verify while merge-trust blocked parent is held', async () => {
+    const store = memoryStore();
+    const impl = createJob(store, { title: 'Delete-pass', kind: 'implement', priority: 5 });
+    patchJob(store, impl.id, {
+      status: 'blocked',
+      notes: 'merge: reject — verdict=missing',
+      worktreePath: '/tmp/worktrees/conductor-delete-pass',
+    });
+    const verify = createJob(store, {
+      title: 'Verify: Delete-pass',
+      kind: 'verify',
+      priority: 201,
+      parentJobId: impl.id,
+    });
+
+    const result = await scheduleQueuedJobs({
+      store,
+      maxConcurrent: 6,
+      requireWorktree: false,
+    });
+
+    expect(result.started.map((j) => j.id)).toContain(verify.id);
+    expect(getJob(store, verify.id)?.status).toBe('running');
+    // Non-verify children still wait on a blocked parent.
+    const fill = createJob(store, {
+      title: 'Fill',
+      kind: 'implement',
+      priority: 9,
+      parentJobId: impl.id,
+    });
+    expect(nextQueuedJobs(store, 10).map((j) => j.id)).not.toContain(fill.id);
+  });
+
   it('chains a child job onto the parent worktree instead of a private branch', async () => {
     const store = memoryStore();
     const parent = createJob(store, { title: 'parent', priority: 5 });

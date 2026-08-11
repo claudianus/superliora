@@ -118,4 +118,53 @@ describe('job fleet recovery', () => {
     }
   });
 
+  it('pumps already-queued work when resume has nothing to auto-resume', async () => {
+    const prev = process.env[SUPERLIORA_CONDUCTOR_AUTO_RESUME_FLEET_ENV];
+    process.env[SUPERLIORA_CONDUCTOR_AUTO_RESUME_FLEET_ENV] = '1';
+    try {
+      const store = memoryStore();
+      const blocked = createJob(store, { title: 'Delete-pass', kind: 'implement' });
+      patchJob(store, blocked.id, {
+        status: 'blocked',
+        notes: 'merge: reject — verdict=missing',
+        worktreePath: `/tmp/recovery/${blocked.id}`,
+      });
+      const verify = createJob(store, {
+        title: 'Verify: Delete-pass',
+        kind: 'verify',
+        priority: 201,
+        parentJobId: blocked.id,
+      });
+      // Already queued (not interrupted) — old recovery skipped the pump entirely.
+      patchJob(store, verify.id, {
+        status: 'queued',
+        worktreePath: `/tmp/recovery/${verify.id}`,
+      });
+
+      const host = {
+        spawn: async (options: { profileName?: string }) =>
+          ({
+            agentId: 'agent_verify_recovery',
+            profileName: options.profileName ?? 'coder',
+            resumed: false,
+            completion: new Promise<never>(() => {}),
+          }) as never,
+      };
+      const agent = {
+        subagentHost: host,
+        config: { cwd: '/tmp/recovery' },
+        kaos: undefined,
+      } as never;
+
+      const result = await recoverJobsAfterResume({ store, agent, autoResume: true });
+      expect(result.resumed).toHaveLength(0);
+      expect(result.held.some((j) => j.id === blocked.id)).toBe(true);
+      expect(getJob(store, verify.id)?.status).toBe('running');
+      expect(getJob(store, verify.id)?.workerAgentId).toBe('agent_verify_recovery');
+    } finally {
+      if (prev === undefined) delete process.env[SUPERLIORA_CONDUCTOR_AUTO_RESUME_FLEET_ENV];
+      else process.env[SUPERLIORA_CONDUCTOR_AUTO_RESUME_FLEET_ENV] = prev;
+    }
+  });
+
 });
