@@ -79,7 +79,8 @@ export interface RunProjectChecksResult {
 /** Script name candidates per check kind, first match in package.json wins. */
 const SCRIPT_CANDIDATES: Record<ProjectCheckKind, readonly string[]> = {
   test: ['test', 'test:unit', 'test:ci', 'vitest'],
-  typecheck: ['typecheck', 'type-check', 'check:types', 'tsc', 'types'],
+  // `build` often wraps `tsc --noEmit` (Vite/greenfield apps) when no dedicated typecheck script exists.
+  typecheck: ['typecheck', 'type-check', 'check:types', 'tsc', 'types', 'build'],
   build: ['build', 'build:prod', 'compile'],
   smoke: ['smoke', 'test:smoke', 'check:smoke'],
   lint: ['lint', 'eslint', 'check:lint'],

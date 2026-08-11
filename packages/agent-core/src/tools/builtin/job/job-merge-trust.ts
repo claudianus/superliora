@@ -4,7 +4,10 @@
  * Green tests alone never suffice. SurfaceKind contracts require matching visual proof.
  */
 
-import { verificationIsGreen } from '../../../session/subagent/subagent-result-contract';
+import {
+  verificationHasFailure,
+  verificationIsGreen,
+} from '../../../session/subagent/subagent-result-contract';
 import {
   verificationVisualBlocksMergeForSurface,
   visualProofRejectReason,
@@ -222,9 +225,24 @@ export function mergeTrustInputFromLedger(input: {
     input.jobs === undefined
       ? { ok: true as const }
       : evaluateVerifyChainForMerge({ job, jobs: input.jobs });
+  // Root/greenfield packages often leave tests/lint as not_run when the
+  // completion gate skipped; a passed Maker≠Checker verify is the witness.
+  const checksGreenFromLedger = verificationIsGreen(contract?.verification);
+  const checksGreenFromVerify =
+    codingKind &&
+    verifyGate.ok &&
+    !verificationHasFailure(contract?.verification) &&
+    (input.jobs?.every(
+      (child) =>
+        child.parentJobId !== job.id ||
+        child.kind !== 'verify' ||
+        !verificationHasFailure(child.resultContract?.verification),
+    ) ??
+      false);
   return {
     approve: claim.approve,
-    checksGreen: verificationIsGreen(contract?.verification) && claim.checksGreen !== false,
+    checksGreen:
+      claim.checksGreen !== false && (checksGreenFromLedger || checksGreenFromVerify),
     hasConflict: claim.hasConflict === true,
     paths,
     ...(claim.diffLines === undefined ? {} : { diffLines: claim.diffLines }),

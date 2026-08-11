@@ -149,4 +149,61 @@ describe('mergeTrustInputFromLedger', () => {
     expect(ungreen.ok).toBe(false);
     expect(ungreen.reason).toMatch(/Checks not green/);
   });
+
+  it('treats checks green when Maker≠Checker verify passed and nothing failed', () => {
+    const now = new Date().toISOString();
+    const unverified: SubagentVerificationStatus = {
+      tests: 'not_run',
+      typecheck: 'not_run',
+      lint: 'not_run',
+      visual: 'passed',
+    };
+    const implement: JobRecord = {
+      id: 'job_impl',
+      title: 'Delete-pass',
+      kind: 'implement',
+      status: 'done',
+      priority: 0,
+      createdAt: now,
+      updatedAt: now,
+      expertId: 'maker-1',
+      surfaceKind: 'web',
+      resultSummary: 'shipped',
+      resultContract: buildSubagentResultContract({
+        agentId: 'a1',
+        profile: 'coder',
+        summary: 'shipped',
+        filesChanged: ['src/main.ts'],
+        verification: unverified,
+      }),
+    };
+    const verify: JobRecord = {
+      id: 'job_ver',
+      title: 'Verify',
+      kind: 'verify',
+      status: 'done',
+      priority: 1,
+      createdAt: now,
+      updatedAt: now,
+      parentJobId: implement.id,
+      expertId: 'checker-1',
+      verifyVerdict: 'passed',
+      resultSummary: '{"verdict":"pass"}',
+      resultContract: buildSubagentResultContract({
+        agentId: 'a2',
+        profile: 'coder',
+        summary: 'ok',
+        filesChanged: ['src/main.ts'],
+        verification: unverified,
+      }),
+    };
+    const input = mergeTrustInputFromLedger({
+      job: implement,
+      claim: smallApproval,
+      jobs: [implement, verify],
+    });
+    expect(input.checksGreen).toBe(true);
+    expect(input.reviewChainBlocked).toBe(false);
+    expect(evaluateMergeTrust(input).ok).toBe(true);
+  });
 });

@@ -14,9 +14,10 @@ import type { Agent } from '../../agent';
 import { runGit, type GitResult } from '../git-context';
 import { renderFrictionSection, type SubagentFriction } from './subagent-friction';
 
-export type VerificationVerdict = 'passed' | 'failed' | 'not_run';
+/** Check slots: `not_applicable` = no script in package.json (skipped, not a fail). */
+export type VerificationVerdict = 'passed' | 'failed' | 'not_run' | 'not_applicable';
 /** Visual proof slot — `not_applicable` when the change set is non-UI. */
-export type VisualVerificationVerdict = VerificationVerdict | 'not_applicable';
+export type VisualVerificationVerdict = VerificationVerdict;
 
 export interface SubagentVerificationStatus {
   readonly tests: VerificationVerdict;
@@ -58,18 +59,29 @@ export const VERIFICATION_NOT_APPLICABLE_VISUAL: SubagentVerificationStatus = {
 const MAX_FILES_CHANGED = 100;
 
 /**
- * Every gate actually ran and passed. The completion gate skips often
- * (explore jobs, multi-package changes, paths outside the workspace layout,
- * gate timeouts), so "did not fail" is a much weaker fact than this.
+ * Checks are merge-ready: nothing failed / left pending, and at least one
+ * slot actually passed. Missing package scripts are `not_applicable` (not
+ * `not_run`) so greenfield Vite apps with only `build` can go green.
  */
 export function verificationIsGreen(
   verification: SubagentVerificationStatus | undefined,
 ): boolean {
   if (verification === undefined) return false;
+  const slots = [verification.tests, verification.typecheck, verification.lint];
+  if (slots.some((slot) => slot === 'failed' || slot === 'not_run')) return false;
+  return slots.some((slot) => slot === 'passed');
+}
+
+/** True when any check or visual slot hard-failed. */
+export function verificationHasFailure(
+  verification: SubagentVerificationStatus | undefined,
+): boolean {
+  if (verification === undefined) return false;
   return (
-    verification.tests === 'passed' &&
-    verification.typecheck === 'passed' &&
-    verification.lint === 'passed'
+    verification.tests === 'failed' ||
+    verification.typecheck === 'failed' ||
+    verification.lint === 'failed' ||
+    verification.visual === 'failed'
   );
 }
 
@@ -128,6 +140,7 @@ export function verificationIsUnverified(
   }
   const checkVerdicts = [verification.tests, verification.typecheck, verification.lint];
   if (checkVerdicts.includes('failed') || verification.visual === 'failed') return false;
+  // not_applicable = no script; does not leave the job "unverified".
   if (checkVerdicts.includes('not_run')) return true;
   return (
     requireVisual &&
@@ -281,24 +294,38 @@ function parseStatusPorcelain(result: GitResult): string[] {
 /**
  * Scope the completion gate to a single workspace package when every
  * changed file lives under the same `packages/<name>/` or `apps/<name>/`
- * prefix. Returns `undefined` when the change set is empty, spans multiple
- * packages, or touches files outside the package layout — the gate skips
- * rather than paying for a repo-wide run.
+ * prefix, or entirely at the repo root (greenfield / single-package apps).
+ * Returns `undefined` when the change set is empty, spans multiple packages,
+ * or mixes monorepo package paths with root files — the gate skips rather
+ * than paying for a repo-wide run.
  */
 export function deriveVerificationPackageDir(
   filesChanged: readonly string[],
 ): string | undefined {
   if (filesChanged.length === 0) return undefined;
   let scope: string | undefined;
+  let sawRootFile = false;
   for (const file of filesChanged) {
-    const match = /^(?:packages|apps)\/[^/]+\//.exec(file);
-    if (match === null) return undefined;
+    const normalized = file.replace(/^\.\//, '');
+    if (normalized.startsWith('node_modules/') || normalized.startsWith('../')) {
+      return undefined;
+    }
+    const match = /^(?:packages|apps)\/[^/]+\//.exec(normalized);
+    if (match === null) {
+      sawRootFile = true;
+      continue;
+    }
     const dir = match[0].slice(0, -1);
     if (scope === undefined) {
       scope = dir;
     } else if (scope !== dir) {
       return undefined;
     }
+  }
+  if (sawRootFile) {
+    // Root + monorepo package in one change set is ambiguous.
+    if (scope !== undefined) return undefined;
+    return '.';
   }
   return scope;
 }
@@ -315,6 +342,8 @@ export function verdictFromCheckOutcomes(
   kind: 'test' | 'typecheck' | 'lint',
 ): VerificationVerdict {
   const outcome = outcomes.find((entry) => entry.name === kind);
-  if (outcome === undefined || outcome.skipped === true) return 'not_run';
+  // Absent = gate never produced a row (still pending). Skipped = no script.
+  if (outcome === undefined) return 'not_run';
+  if (outcome.skipped === true) return 'not_applicable';
   return outcome.exitCode === 0 ? 'passed' : 'failed';
 }
