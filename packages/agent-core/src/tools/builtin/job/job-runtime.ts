@@ -137,6 +137,11 @@ export function nextQueuedJobs(
  * Chain rule: keep parent→child sequential. Greenfield / review children are
  * enqueued while the parent is still live; starting them early races file
  * leases and shared worktrees.
+ *
+ * Exceptions (deadlock escapes):
+ * - Goal Desk umbrella stays `running` for the whole goal — drivers must run under it.
+ * - Merge/trust holds park an implement as `blocked` after the work is done;
+ *   Maker≠Checker verify must still schedule or land stays stuck on verdict=missing.
  */
 function parentAllowsSchedule(
   byId: ReadonlyMap<string, JobRecord>,
@@ -145,6 +150,8 @@ function parentAllowsSchedule(
   if (job.parentJobId === undefined) return true;
   const parent = byId.get(job.parentJobId);
   if (parent === undefined) return true;
+  if (parent.kind === 'goal-desk') return true;
+  if (job.kind === 'verify' && parent.status === 'blocked') return true;
   return !isExecutionInFlight(parent.status);
 }
 

@@ -109,6 +109,18 @@ describe('delegateConductorGoalDesk', () => {
     expect(launched.workerAgentId).toBeUndefined();
   });
 
+  it('create pump promotes desk and driver (not stuck spinning up)', async () => {
+    const store = memoryStore();
+    const agent = fakeConductorAgent(store);
+    const { desk, driver } = await delegateConductorGoalDesk(agent, {
+      objective: 'Ship the run-and-gun vertical slice',
+      completionCriterion: 'playable build',
+    });
+    // Umbrella stays running; driver must still schedule under it (parent gate escape).
+    expect(getJob(store, desk.id)?.status).toBe('running');
+    expect(getJob(store, driver.id)?.status).toBe('running');
+  });
+
   it('rejects a second active goal without replace', async () => {
     const store = memoryStore();
     const agent = fakeConductorAgent(store);

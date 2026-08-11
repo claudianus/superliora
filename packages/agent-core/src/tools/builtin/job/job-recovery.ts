@@ -8,6 +8,10 @@
 
 import { parseBooleanEnv, resolveConfigValue } from '../../../config';
 import type { Agent } from '../../../agent/index';
+import {
+  getJobWorkerSpawner,
+  requestJobSchedulePump,
+} from '../../../session/job/job-offload';
 import type { ToolStore } from '../../store';
 import { pushJobInboxEvent } from './job-inbox';
 import { listJobs, type JobRecord } from './job-ledger';
@@ -161,6 +165,14 @@ export async function recoverJobsAfterResume(input: {
         summary: holdReason(job),
       });
     }
+  }
+
+  // Resume with only blocked + already-queued work (no interrupted) used to
+  // skip the pump entirely — Dock stayed on "Queued after resume…" forever.
+  // Pump whenever anything is queued so free pool slots actually promote.
+  if (agent !== undefined && listJobs(store).some((j) => j.status === 'queued')) {
+    await requestJobSchedulePump({ store, agent });
+    await getJobWorkerSpawner().settle();
   }
 
   return { reconciled, resumed, held, autoResumeEnabled };
