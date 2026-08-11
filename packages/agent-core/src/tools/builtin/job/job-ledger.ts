@@ -143,6 +143,7 @@ export function patchJob(
       | 'prompt'
       | 'progress'
       | 'goalId'
+      | 'modelAlias'
       | 'surfaceKind'
       | 'verifyVerdict'
     >
