@@ -9,6 +9,7 @@
 import type { Agent } from '../../../agent/index';
 import {
   ensureSmartRouteProbed,
+  escalateSmartRoute,
   isConfigAliasHealthy,
   isLiveProbeFailureFresh,
   probeModelAlias,
@@ -85,6 +86,10 @@ export type JobWorkerModelPreflight =
  * Live-verify the worker model before spawn.
  * - Pinned Job.modelAlias: probe that alias only (Conductor choice stays sticky).
  * - Unpinned: resolve role route + walk live probe chain; pin the winner.
+ *
+ * Balanced intensity often keeps only cheap aliases. When those are
+ * statically healthy but live-dead (quota/account), escalate intensity and
+ * finally try the Conductor/parent model before failing the Job.
  */
 export async function preflightJobWorkerModel(
   agent: Agent,
@@ -112,13 +117,13 @@ export async function preflightJobWorkerModel(
         note,
       };
     }
-  // Spawn always re-probes successes — a Job may sit queued past the 10m TTL
-  // window while quota/account dies; JobCreate already used the soft cache.
-  const probe = await probeModelAlias(agent, pinned, {
-    signal: options?.signal,
-    force: true,
-  });
-  if (probe.ok) return { ok: true, modelAlias: pinned };
+    // Spawn always re-probes successes — a Job may sit queued past the 10m TTL
+    // window while quota/account dies; JobCreate already used the soft cache.
+    const probe = await probeModelAlias(agent, pinned, {
+      signal: options?.signal,
+      force: true,
+    });
+    if (probe.ok) return { ok: true, modelAlias: pinned };
 
     const kind = probe.failureKind ?? 'probe_fail';
     const nextHint = suggestNextHint(agent, job, pinned, options?.preferVision === true);
@@ -135,46 +140,98 @@ export async function preflightJobWorkerModel(
     };
   }
 
+  const parentAlias = resolveParentWorkerAlias(agent);
+  const signals = {
+    prompt: job.prompt ?? job.title,
+    profileName,
+  } as const;
+
   const selection = resolveSubagentModelSelection(agent, profileName, undefined, {
     preferVision: options?.preferVision === true,
-    signals: {
-      prompt: job.prompt ?? job.title,
-      profileName,
-    },
+    signals,
   });
 
+  const config = currentAgentConfig(agent) ?? agent.runtimeConfig ?? agent.kimiConfig;
   let route: SmartRoute | undefined = selection.route;
-  if (route === undefined && role !== undefined) {
-    const config = currentAgentConfig(agent) ?? agent.runtimeConfig ?? agent.kimiConfig;
-    if (config !== undefined) {
-      route = resolveSmartRoute({
-        role,
-        config,
-        intensity: 'balanced',
-        signals: { prompt: job.prompt ?? job.title, profileName },
-      });
-    }
+  if (route === undefined && role !== undefined && config !== undefined) {
+    route = resolveSmartRoute({
+      role,
+      config,
+      intensity: 'balanced',
+      ...(parentAlias !== undefined ? { parentAlias } : {}),
+      signals,
+    });
   }
 
   if (route !== undefined) {
-    const probed = await ensureSmartRouteProbed(agent, route, {
-      signal: options?.signal,
-      force: true,
-    });
-    if (probed === undefined) {
-      const tried = route.chain.length > 0 ? route.chain : [route.alias];
-      const note = formatModelFailedNote({
-        alias: route.alias,
-        kind: 'probe_fail',
-        tried,
-      });
-      return {
-        ok: false,
-        error: `no live-healthy worker model in role chain for ${profileName}`,
-        note,
-      };
+    const tried: string[] = [];
+    let current: SmartRoute | undefined = appendProbeCandidates(route, parentAlias, config);
+
+    while (current !== undefined) {
+      const chain = current.chain.length > 0 ? current.chain : [current.alias];
+      const remaining = chain.filter((alias) => !tried.includes(alias));
+      for (const alias of remaining) tried.push(alias);
+
+      if (remaining.length > 0) {
+        const probeRoute: SmartRoute =
+          remaining.length === chain.length && remaining[0] === current.alias
+            ? current
+            : {
+                ...current,
+                alias: remaining[0]!,
+                chain: remaining,
+                reason: `${current.reason} · live escalate`,
+              };
+        const probed = await ensureSmartRouteProbed(agent, probeRoute, {
+          signal: options?.signal,
+          force: true,
+        });
+        if (probed !== undefined) return { ok: true, modelAlias: probed.alias };
+      }
+
+      if (role === undefined || config === undefined) break;
+      const escalated = escalateSmartRoute(
+        {
+          role,
+          config,
+          ...(parentAlias !== undefined ? { parentAlias } : {}),
+          intensity: current.intensity,
+        },
+        current,
+      );
+      if (escalated === undefined) break;
+      current = appendProbeCandidates(escalated, parentAlias, config);
     }
-    return { ok: true, modelAlias: probed.alias };
+
+    if (
+      parentAlias !== undefined &&
+      !tried.includes(parentAlias) &&
+      !isLiveProbeFailureFresh(parentAlias) &&
+      config !== undefined &&
+      isConfigAliasHealthy(config, parentAlias)
+    ) {
+      tried.push(parentAlias);
+      const probe = await probeModelAlias(agent, parentAlias, {
+        signal: options?.signal,
+        force: true,
+      });
+      if (probe.ok) return { ok: true, modelAlias: parentAlias };
+    }
+
+    const note = formatModelFailedNote({
+      alias: route.alias,
+      kind: 'probe_fail',
+      tried: tried.length > 0 ? tried : route.chain.length > 0 ? route.chain : [route.alias],
+      nextHint: suggestNextHint(agent, job, route.alias, options?.preferVision === true),
+    });
+    const triedLabel = (tried.length > 0 ? tried : [route.alias]).slice(0, 6).join(', ');
+    return {
+      ok: false,
+      error:
+        `no live worker model for ${profileName} (tried ${triedLabel}) — ` +
+        'pin a live model with /model (or JobCreate.model_alias), then /goal resume / JobResume.',
+      note,
+    };
   }
 
   const alias = selection.alias?.trim() || undefined;
@@ -199,13 +256,63 @@ export async function preflightJobWorkerModel(
   };
 }
 
+/** Conductor / parent session alias when healthy — last-resort worker staff. */
+function resolveParentWorkerAlias(agent: Agent): string | undefined {
+  const sessionConfig = agent.config;
+  if (sessionConfig === undefined) return undefined;
+  const pinned = sessionConfig.modelAlias?.trim();
+  const alias =
+    pinned !== undefined && pinned.toLowerCase() === 'auto'
+      ? sessionConfig.effectiveModelAlias?.trim()
+      : pinned;
+  if (alias === undefined || alias.length === 0 || alias.toLowerCase() === 'auto') {
+    return undefined;
+  }
+  const config = currentAgentConfig(agent) ?? agent.runtimeConfig ?? agent.kimiConfig;
+  if (config === undefined || !isConfigAliasHealthy(config, alias)) return undefined;
+  return alias;
+}
+
+function appendProbeCandidates(
+  route: SmartRoute,
+  parentAlias: string | undefined,
+  config: ReturnType<typeof currentAgentConfig>,
+): SmartRoute {
+  if (parentAlias === undefined || config === undefined) return route;
+  if (!isConfigAliasHealthy(config, parentAlias)) return route;
+  const chain = route.chain.length > 0 ? [...route.chain] : [route.alias];
+  if (chain.includes(parentAlias)) return route;
+  return { ...route, chain: [...chain, parentAlias] };
+}
+
 function suggestNextHint(
   agent: Agent,
   job: JobRecord,
   failedAlias: string,
   preferVision: boolean,
 ): string | undefined {
+  const parent = resolveParentWorkerAlias(agent);
+  if (parent !== undefined && parent !== failedAlias && !isLiveProbeFailureFresh(parent)) {
+    return parent;
+  }
   const profileName = profileForJobKind(job.kind);
+  const role = roleForSubagentProfile(profileName);
+  const config = currentAgentConfig(agent) ?? agent.runtimeConfig ?? agent.kimiConfig;
+  if (role !== undefined && config !== undefined) {
+    const maxRoute = resolveSmartRoute({
+      role,
+      config,
+      intensity: 'max',
+      ...(parent !== undefined ? { parentAlias: parent } : {}),
+      signals: { prompt: job.prompt ?? job.title, profileName },
+    });
+    for (const alias of maxRoute?.chain ?? []) {
+      const trimmed = alias.trim();
+      if (trimmed.length === 0 || trimmed === failedAlias) continue;
+      if (isLiveProbeFailureFresh(trimmed)) continue;
+      if (isConfigAliasHealthy(config, trimmed)) return trimmed;
+    }
+  }
   const selection = resolveSubagentModelSelection(agent, profileName, undefined, {
     preferVision,
     signals: { prompt: job.prompt ?? job.title, profileName },
@@ -215,7 +322,6 @@ function suggestNextHint(
     const trimmed = alias.trim();
     if (trimmed.length === 0 || trimmed === failedAlias) continue;
     if (isLiveProbeFailureFresh(trimmed)) continue;
-    const config = currentAgentConfig(agent) ?? agent.runtimeConfig ?? agent.kimiConfig;
     if (config !== undefined && isConfigAliasHealthy(config, trimmed)) return trimmed;
   }
   return undefined;

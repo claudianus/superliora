@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
+  formatGoalBlockedCopy,
   goalMonitorBorderToken,
   goalMonitorSnapshotKey,
   goalMonitorStatusToken,
@@ -126,6 +127,47 @@ describe('renderGoalMonitorLines', () => {
       .join('\n');
     expect(joined).toContain('waiting on user approval');
     expect(joined).toMatch(/blocked|⚠/);
+    expect(joined).toMatch(/\/goal resume/);
+  });
+
+  it('humanizes worker-model blockers with recovery next steps', () => {
+    expect(
+      formatGoalBlockedCopy(
+        'no live worker model for goal-driver (tried opencode/kimi-k2.5, opencode/glm-5) — pin a live model',
+      ),
+    ).toMatchObject({
+      headline: 'no live worker model (tried opencode/kimi-k2.5, opencode/glm-5)',
+      next: '/model → live coding model · /goal resume',
+    });
+
+    const g = goal({
+      status: 'blocked',
+      execution: 'goal-desk',
+      deskJobId: 'job_desk1',
+      terminalReason:
+        'no live worker model for goal-driver (tried opencode/kimi-k2.5) — pin a live model with /model',
+    });
+    if (!isLiveGoal(g)) throw new Error('expected live goal');
+    const joined = renderGoalMonitorLines({
+      goal: g,
+      width: 90,
+      wallClockMs: g.wallClockMs,
+      deskLive: {
+        mode: 'driver',
+        driver: {
+          jobId: 'job_driver1',
+          status: 'blocked',
+          title: 'Goal: Ship game',
+        },
+      },
+    })
+      .map(strip)
+      .join('\n');
+    expect(joined).toMatch(/no live worker model/);
+    expect(joined).toMatch(/\/model/);
+    expect(joined).toMatch(/\/goal resume/);
+    expect(joined).toMatch(/worker blocked/);
+    expect(joined).not.toContain('no live-healthy worker model in role chain');
   });
 
   it('omits progress strip on tiny profile', () => {

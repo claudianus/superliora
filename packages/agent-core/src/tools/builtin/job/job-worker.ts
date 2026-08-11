@@ -534,18 +534,22 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
   if (!modelPreflight.ok) {
     clearJobWorkerHandle(job.id);
     const detail = modelPreflight.error;
+    // Model/quota blockers are resumable — `blocked` (not `failed`) so
+    // /goal resume and JobResume re-queue after /model or provider recovery.
+    // Heal treats `blocked` as live, so mirror Goal Desk immediately.
     const updated = patchJob(input.store, job.id, {
-      status: 'failed',
+      status: 'blocked',
       resultSummary: detail.slice(0, 2000),
-      notes: [job.notes, modelPreflight.note, `spawn_failed: ${detail}`]
+      notes: [job.notes, modelPreflight.note, `spawn_blocked: ${detail}`]
         .filter(Boolean)
         .join('\n'),
     });
     if (updated) {
+      syncGoalDeskParentFromDriver(input.store, updated, input.agent);
       notifyJobTerminal({
         store: input.store,
         job: updated,
-        status: 'failed',
+        status: 'blocked',
         summary: detail,
         agent: input.agent,
       });

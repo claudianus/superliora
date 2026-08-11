@@ -32,8 +32,11 @@ import {
   renderSpectacularText,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
+import { formatGoalBlockedCopy } from '#/tui/utils/job/goal-blocked-copy';
 import type { GoalDeskLive } from '#/tui/utils/job/goal-driver-live';
 import { formatTokenCount } from '#/utils/usage/usage-format';
+
+export { formatGoalBlockedCopy } from '#/tui/utils/job/goal-blocked-copy';
 
 const MAX_OBJECTIVE_LINES = 2;
 const MAX_CRITERION_LINES = 1;
@@ -199,12 +202,23 @@ export function renderGoalMonitorLines(options: {
   // Progress + budget strip
   lines.push(renderGoalProgressStrip(goal, wallClockMs, contentWidth, ambient));
 
-  if (goal.status === 'blocked' && goal.terminalReason !== undefined) {
-    const reason = currentTheme.fg(
-      'warning',
-      `  ${BLOCKED_GLYPH} ${truncateToWidth(goal.terminalReason, Math.max(8, contentWidth - 4), '…')}`,
+  if (goal.status === 'blocked') {
+    const copy = formatGoalBlockedCopy(goal.terminalReason);
+    lines.push(
+      currentTheme.fg(
+        'warning',
+        `  ${BLOCKED_GLYPH} ${truncateToWidth(copy.headline, Math.max(8, contentWidth - 4), '…')}`,
+      ),
     );
-    lines.push(reason);
+    if (copy.next !== undefined) {
+      lines.push(
+        truncateToWidth(
+          `  ${currentTheme.fg('textMuted', 'next')} ${currentTheme.fg('textMuted', '·')} ${currentTheme.fg('textDim', copy.next)}`,
+          contentWidth,
+          '…',
+        ),
+      );
+    }
   } else if (goal.status === 'paused' && goal.terminalReason !== undefined) {
     lines.push(
       currentTheme.dimFg(
@@ -288,13 +302,21 @@ function renderGoalDeskLiveLine(
     );
   }
 
+  if (driver.status === 'blocked' || driver.status === 'failed') {
+    return truncateToWidth(
+      `${prefix}${currentTheme.fg('warning', 'worker blocked')} ${currentTheme.fg('textMuted', '·')} ${currentTheme.fg('textDim', '/model · /goal resume')}`,
+      width,
+      '…',
+    );
+  }
+
   const statusBit =
     driver.status === 'running'
       ? ambient
         ? renderPulseText('worker', 'goal:desk:worker', 'primary', appearance)
         : currentTheme.fg('primary', 'worker')
       : currentTheme.fg(
-          driver.status === 'needs_user' || driver.status === 'blocked' ? 'warning' : 'textMuted',
+          driver.status === 'needs_user' ? 'warning' : 'textMuted',
           driver.status,
         );
 

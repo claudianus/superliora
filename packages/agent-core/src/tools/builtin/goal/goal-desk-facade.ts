@@ -227,10 +227,16 @@ export async function conductorResumeGoal(agent: Agent): Promise<GoalSnapshot> {
   if (binding.status !== 'paused' && binding.status !== 'blocked') {
     return snapshotFromGoalDeskBinding(binding, store);
   }
-  // Resume interrupted drivers (and desk umbrella status).
+  // Resume interrupted / blocked / failed / needs_user drivers. Model spawn
+  // blocks land as `blocked` (older ledgers may still say `failed`).
   for (const id of [binding.deskJobId, ...binding.driverJobIds]) {
     const job = getJob(store, id);
-    if (job?.status === 'interrupted' || job?.status === 'blocked') {
+    if (
+      job?.status === 'interrupted' ||
+      job?.status === 'blocked' ||
+      job?.status === 'failed' ||
+      job?.status === 'needs_user'
+    ) {
       await resumeJobs({ store, agent, jobId: id });
     }
   }
