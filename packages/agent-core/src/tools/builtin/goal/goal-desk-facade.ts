@@ -12,6 +12,7 @@ import { resumeJobs } from '../job/job-worker';
 import {
   cancelBoundGoalJobs,
   healActiveGoalDeskBinding,
+  listDeskGoalDrivers,
   readGoalSessionBinding,
   writeGoalSessionBinding,
   type GoalSessionBinding,
@@ -166,23 +167,27 @@ export function conductorGetGoal(agent: Agent): GoalToolResult {
     // Cleared after cancel — treat as no goal for UI.
     return { goal: null };
   }
-  // Heal zombies, then refresh status from the desk umbrella.
+  // Heal zombies / stuck blocked bindings, then refresh from the desk umbrella.
+  // Skip re-blocking from a stale desk card when a driver is already productive.
   let next: GoalSessionBinding = healActiveGoalDeskBinding(store, raw, agent);
   const desk = getJob(store, next.deskJobId);
   const binding = next;
-  if (desk?.status === 'needs_user') {
+  const productiveDriver = listDeskGoalDrivers(store, binding).some(
+    (job) => job.status === 'queued' || job.status === 'running',
+  );
+  if (desk?.status === 'needs_user' && !productiveDriver) {
     next = { ...binding, status: 'blocked', terminalReason: desk.resultSummary };
     writeGoalSessionBinding(store, next);
-  } else if (desk?.status === 'blocked') {
+  } else if (desk?.status === 'blocked' && !productiveDriver) {
     next = { ...binding, status: 'blocked', terminalReason: desk.resultSummary };
     writeGoalSessionBinding(store, next);
   } else if (desk?.status === 'done') {
     next = { ...binding, status: 'done', terminalReason: desk.resultSummary };
     writeGoalSessionBinding(store, next);
-  } else if (desk?.status === 'failed') {
+  } else if (desk?.status === 'failed' && !productiveDriver) {
     next = { ...binding, status: 'blocked', terminalReason: desk.resultSummary };
     writeGoalSessionBinding(store, next);
-  } else if (desk?.status === 'interrupted') {
+  } else if (desk?.status === 'interrupted' && !productiveDriver) {
     next = { ...binding, status: 'paused' };
     writeGoalSessionBinding(store, next);
   }

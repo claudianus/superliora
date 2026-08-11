@@ -239,4 +239,85 @@ describe('goal-desk driver sync + desk Next move', () => {
     expect(healed.terminalReason).toMatch(/missing from ledger/);
     expect(getJob(store, desk.id)?.status).toBe('blocked');
   });
+
+  it('reactivates blocked binding when the bound driver is running again', async () => {
+    const store = memoryStore();
+    const agent = fakeConductorAgent(store);
+    const { desk, driver } = await delegateConductorGoalDesk(agent, {
+      objective: 'Ship the vertical slice',
+    });
+    patchJob(store, desk.id, {
+      status: 'blocked',
+      resultSummary: 'no live worker model for goal-driver',
+    });
+    patchJob(store, driver.id, {
+      status: 'blocked',
+      resultSummary: 'no live worker model for goal-driver',
+    });
+    syncGoalDeskParentFromDriver(store, getJob(store, driver.id)!);
+    expect(readGoalSessionBinding(store)?.status).toBe('blocked');
+
+    patchJob(store, driver.id, { status: 'running', resultSummary: undefined });
+    const healed = healActiveGoalDeskBinding(store, readGoalSessionBinding(store)!, agent);
+    expect(healed.status).toBe('active');
+    expect(healed.terminalReason).toBeUndefined();
+    expect(getJob(store, desk.id)?.status).toBe('running');
+    expect(conductorGetGoal(agent).goal?.status).toBe('active');
+  });
+
+  it('reactivates blocked binding for a same-objective orphan goal-driver', async () => {
+    const store = memoryStore();
+    const agent = fakeConductorAgent(store);
+    const objective = 'Polish the run-and-gun slice';
+    const { desk, driver } = await delegateConductorGoalDesk(agent, { objective });
+    patchJob(store, desk.id, {
+      status: 'blocked',
+      resultSummary: 'no live worker model for goal-driver',
+    });
+    patchJob(store, driver.id, {
+      status: 'failed',
+      resultSummary: 'CreateGoal conflict',
+    });
+    store.set(GOAL_SESSION_BINDING_STORE_KEY, {
+      ...readGoalSessionBinding(store)!,
+      status: 'blocked',
+      terminalReason: 'no live worker model for goal-driver',
+    });
+
+    // Conductor JobCreate fresh spawn (no parent_job_id) after CreateGoal conflict.
+    const { createJob } = await import('../../src/tools/builtin/job/job-ledger');
+    const orphan = createJob(store, {
+      title: `Goal: ${objective}`.slice(0, 120),
+      kind: 'goal-driver',
+      priority: 11,
+      prompt: objective,
+      goalObjective: objective,
+      goalCompletionCriterion: 'playable build',
+      successCriteria: ['playable build'],
+    });
+    patchJob(store, orphan.id, { status: 'running' });
+
+    const healed = healActiveGoalDeskBinding(store, readGoalSessionBinding(store)!, agent);
+    expect(healed.status).toBe('active');
+    expect(healed.driverJobIds).toContain(orphan.id);
+    expect(getJob(store, desk.id)?.status).toBe('running');
+    expect(conductorGetGoal(agent).goal?.status).toBe('active');
+  });
+
+  it('does not unpause a user-paused binding when a driver is still running', async () => {
+    const store = memoryStore();
+    const agent = fakeConductorAgent(store);
+    const { driver } = await delegateConductorGoalDesk(agent, {
+      objective: 'Keep polishing',
+    });
+    patchJob(store, driver.id, { status: 'running' });
+    store.set(GOAL_SESSION_BINDING_STORE_KEY, {
+      ...readGoalSessionBinding(store)!,
+      status: 'paused',
+      terminalReason: 'paused by user',
+    });
+
+    const healed = healActiveGoalDeskBinding(store, readGoalSessionBinding(store)!, agent);
+    expect(healed.status).toBe('paused');
+  });
 });

@@ -6,7 +6,8 @@
 import type { Agent } from '../../../agent/index';
 import type { ToolStore } from '../../store';
 import { abortJobWorker } from '../job/job-handles';
-import { getJob, listJobs, type JobRecord } from '../job/job-ledger';
+import { emitJobEvents, jobRecordToUpdatedEvent } from '../job/job-emit';
+import { getJob, listJobs, patchJob, type JobRecord } from '../job/job-ledger';
 import { patchJobAndNotify } from '../job/job-notify';
 
 export const GOAL_SESSION_BINDING_STORE_KEY = 'goal_session_binding' as const;
@@ -107,42 +108,168 @@ export function cancelBoundGoalJobs(
   }
 }
 
+/** queued/running — driver is pursuing the goal again (not held/stalled). */
+const PRODUCTIVE_DRIVER_STATUSES = new Set<JobRecord['status']>(['queued', 'running']);
+
+const DRIVER_LIVE_STATUSES = new Set([
+  'queued',
+  'running',
+  'needs_user',
+  'blocked',
+  'interrupted',
+]);
+
+function isDriverSettled(status: JobRecord['status']): boolean {
+  return status === 'done' || status === 'failed' || status === 'cancelled';
+}
+
+function driverMatchesBindingObjective(driver: JobRecord, binding: GoalSessionBinding): boolean {
+  const objective = binding.objective.trim();
+  if (objective.length === 0) return false;
+  return (
+    driver.goalObjective?.trim() === objective ||
+    driver.prompt?.trim() === objective
+  );
+}
+
+function isDriverBoundToGoalDesk(binding: GoalSessionBinding, driver: JobRecord): boolean {
+  if (driver.kind !== 'goal-driver') return false;
+  if (binding.driverJobIds.includes(driver.id)) return true;
+  if (driver.parentJobId === binding.deskJobId) return true;
+  return driverMatchesBindingObjective(driver, binding);
+}
+
+/**
+ * Drivers for this Goal Desk: bound ids, umbrella children, and same-objective
+ * orphans (Conductor JobCreate after CreateGoal conflict / fresh spawn).
+ */
+export function listDeskGoalDrivers(
+  store: ToolStore,
+  binding: GoalSessionBinding,
+): readonly JobRecord[] {
+  const byId = new Map<string, JobRecord>();
+  for (const id of binding.driverJobIds) {
+    const job = getJob(store, id);
+    if (job !== undefined) byId.set(job.id, job);
+  }
+  for (const job of listJobs(store)) {
+    if (job.kind !== 'goal-driver') continue;
+    if (byId.has(job.id)) continue;
+    if (job.parentJobId === binding.deskJobId || driverMatchesBindingObjective(job, binding)) {
+      byId.set(job.id, job);
+    }
+  }
+  return [...byId.values()];
+}
+
+function unstickGoalDeskUmbrella(
+  store: ToolStore,
+  binding: GoalSessionBinding,
+  productive: readonly JobRecord[],
+  agent?: Agent,
+): void {
+  const desk = getJob(store, binding.deskJobId);
+  if (desk === undefined) return;
+  if (
+    desk.status !== 'blocked' &&
+    desk.status !== 'failed' &&
+    desk.status !== 'needs_user'
+  ) {
+    return;
+  }
+  const status = productive.some((job) => job.status === 'running') ? 'running' : 'queued';
+  const next = patchJob(store, desk.id, {
+    status,
+    resultSummary: undefined,
+    notes: [desk.notes, 'goal-desk: heal — driver live again'].filter(Boolean).join('\n'),
+  });
+  if (next !== undefined && agent !== undefined) {
+    emitJobEvents(agent, [jobRecordToUpdatedEvent(next, { reason: 'goal-desk:driver-live' })]);
+  }
+}
+
+/**
+ * Clear a stuck `blocked` Goal Desk binding when a driver is queued/running again.
+ * Adopts orphan driver ids so progress aggregates onto the session Goal.
+ */
+function reactivateBlockedGoalDeskBinding(
+  store: ToolStore,
+  binding: GoalSessionBinding,
+  productive: readonly JobRecord[],
+  agent?: Agent,
+): GoalSessionBinding {
+  const adoptedIds = new Set(binding.driverJobIds);
+  for (const driver of productive) {
+    adoptedIds.add(driver.id);
+  }
+  const next: GoalSessionBinding = {
+    ...binding,
+    status: 'active',
+    terminalReason: undefined,
+    driverJobIds: [...adoptedIds],
+    updatedAt: new Date().toISOString(),
+  };
+  writeGoalSessionBinding(store, next);
+  unstickGoalDeskUmbrella(store, next, productive, agent);
+  return next;
+}
+
 /** When a goal-driver child finishes, mirror terminal state onto the desk umbrella. */
 export function syncGoalDeskParentFromDriver(
   store: ToolStore,
   driver: JobRecord,
   agent?: Agent,
 ): void {
+  if (driver.kind !== 'goal-driver') return;
+
+  const binding = readGoalSessionBinding(store);
+
+  // Resume / fresh spawn: driver is live again but binding stayed blocked
+  // (model probe, JobResume without /goal resume, orphan JobCreate).
+  if (
+    binding !== undefined &&
+    binding.status === 'blocked' &&
+    PRODUCTIVE_DRIVER_STATUSES.has(driver.status) &&
+    isDriverBoundToGoalDesk(binding, driver)
+  ) {
+    reactivateBlockedGoalDeskBinding(store, binding, [driver], agent);
+    if (agent !== undefined) {
+      void import('./goal-desk-facade').then(({ emitGoalDeskSnapshot }) => {
+        emitGoalDeskSnapshot(agent, store);
+      });
+    }
+  }
+
   if (driver.parentJobId === undefined) return;
   const parent = getJob(store, driver.parentJobId);
   if (parent === undefined || parent.kind !== 'goal-desk') return;
 
-  const binding = readGoalSessionBinding(store);
+  const latest = readGoalSessionBinding(store);
   const shouldEmitGoal =
-    binding !== undefined &&
-    binding.deskJobId === parent.id &&
+    latest !== undefined &&
+    latest.deskJobId === parent.id &&
     (driver.status === 'done' ||
       driver.status === 'failed' ||
       driver.status === 'blocked' ||
       driver.status === 'cancelled' ||
       driver.status === 'interrupted');
 
-  if (binding !== undefined && binding.deskJobId === parent.id) {
+  if (latest !== undefined && latest.deskJobId === parent.id) {
     if (driver.status === 'done') {
       writeGoalSessionBinding(store, {
-        ...binding,
+        ...latest,
         status: 'done',
         terminalReason: driver.resultSummary?.slice(0, 200),
       });
     } else if (driver.status === 'failed' || driver.status === 'blocked') {
       writeGoalSessionBinding(store, {
-        ...binding,
+        ...latest,
         status: 'blocked',
         terminalReason: driver.resultSummary?.slice(0, 200) ?? driver.status,
       });
     } else if (driver.status === 'cancelled' || driver.status === 'interrupted') {
       writeGoalSessionBinding(store, {
-        ...binding,
+        ...latest,
         status: driver.status === 'interrupted' ? 'paused' : 'cancelled',
         terminalReason: driver.resultSummary?.slice(0, 200),
       });
@@ -205,33 +332,26 @@ export function listActiveGoalDeskJobs(store: ToolStore): readonly JobRecord[] {
   );
 }
 
-const DRIVER_LIVE_STATUSES = new Set([
-  'queued',
-  'running',
-  'needs_user',
-  'blocked',
-  'interrupted',
-]);
-
-function isDriverSettled(status: JobRecord['status']): boolean {
-  return status === 'done' || status === 'failed' || status === 'cancelled';
-}
-
 /**
- * Close Goal Desk zombies: binding stayed `active` after every goal-driver
- * settled (or vanished) while the umbrella never mirrored. Safe to call from
- * snapshot / GetGoal — no-op when a live driver still exists.
+ * Heal Goal Desk binding drift:
+ * - `blocked` + productive driver → `active` (resume / fresh spawn without /goal resume)
+ * - `active` after every driver settled → mirror terminal (zombie close)
+ *
+ * Safe to call from snapshot / GetGoal / progress heartbeats.
  */
 export function healActiveGoalDeskBinding(
   store: ToolStore,
   binding: GoalSessionBinding,
   agent?: Agent,
 ): GoalSessionBinding {
-  if (binding.status !== 'active') return binding;
+  const drivers = listDeskGoalDrivers(store, binding);
+  const productive = drivers.filter((job) => PRODUCTIVE_DRIVER_STATUSES.has(job.status));
 
-  const drivers = binding.driverJobIds
-    .map((id) => getJob(store, id))
-    .filter((job): job is JobRecord => job !== undefined);
+  if (binding.status === 'blocked' && productive.length > 0) {
+    return reactivateBlockedGoalDeskBinding(store, binding, productive, agent);
+  }
+
+  if (binding.status !== 'active') return binding;
 
   if (drivers.length === 0) {
     // Spawn race: desk just created and driver card not in ledger yet.
@@ -263,7 +383,17 @@ export function healActiveGoalDeskBinding(
   }
 
   if (drivers.some((job) => DRIVER_LIVE_STATUSES.has(job.status))) {
-    return binding;
+    // Adopt orphans discovered under the desk so later progress aggregates.
+    const known = new Set(binding.driverJobIds);
+    const missing = drivers.filter((job) => !known.has(job.id)).map((job) => job.id);
+    if (missing.length === 0) return binding;
+    const next: GoalSessionBinding = {
+      ...binding,
+      driverJobIds: [...binding.driverJobIds, ...missing],
+      updatedAt: new Date().toISOString(),
+    };
+    writeGoalSessionBinding(store, next);
+    return next;
   }
 
   // Prefer a settled driver (done/failed/cancelled); ignore odd leftovers.

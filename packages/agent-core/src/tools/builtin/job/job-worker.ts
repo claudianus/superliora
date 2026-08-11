@@ -833,6 +833,15 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
         pumpSchedulerAfterWorker(input.agent, input.store);
       });
 
+    // Goal Desk: spawn success must clear a stuck blocked binding even when
+    // the operator resumed via JobResume (not /goal resume).
+    if (job.kind === 'goal-driver') {
+      const live = getJob(input.store, job.id);
+      if (live !== undefined) {
+        syncGoalDeskParentFromDriver(input.store, live, input.agent);
+      }
+    }
+
     return { ok: true, workerAgentId: handle.agentId };
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
@@ -1067,7 +1076,14 @@ export async function resumeJobs(input: {
         : {}),
       // Keep worktreePath when present so schedule can reuse isolation.
     });
-    if (next) resumed.push(next);
+    if (next) {
+      resumed.push(next);
+      // Clear Goal Monitor blocked state as soon as the driver is re-queued;
+      // do not wait for /goal resume or the first progress heartbeat.
+      if (next.kind === 'goal-driver') {
+        syncGoalDeskParentFromDriver(store, next, agent);
+      }
+    }
   }
 
   if (resumed.length === 0) {
