@@ -12,7 +12,7 @@
 import type { Agent } from '..';
 import type { LioraConfig } from '../../config';
 import type { ModelRole } from '../../utils/model-presets';
-import { ROLE_PRESETS } from '../../utils/model-presets';
+import { getModelsDevData, ROLE_PRESETS } from '../../utils/model-presets';
 import { ensureSmartRouteProbed } from './live-probe';
 import { resolveSmartRoute } from './smart-router';
 
@@ -31,6 +31,8 @@ export type SmartLoopRolePinPlan = {
   readonly configKey: LoopRoleModelConfigKey;
   readonly label: string;
   readonly alias: string;
+  /** Human-readable ranking / probe rationale for Settings / toast copy. */
+  readonly reason: string;
 };
 
 export type SmartLoopRoleSkipPlan = {
@@ -108,6 +110,8 @@ export async function planSmartLoopRoleRoutingLive(
 ): Promise<SmartLoopRoleRoutingPlan> {
   const rankingConfig = configWithoutRoleModelOverrides(config);
   const onProgress = options?.onProgress;
+  // Warm models.dev before ranking so benches/cost land in the sync scorer.
+  await getModelsDevData().catch(() => undefined);
 
   const pins: SmartLoopRolePinPlan[] = [];
   const skipped: SmartLoopRoleSkipPlan[] = [];
@@ -172,11 +176,16 @@ export async function planSmartLoopRoleRoutingLive(
       });
       continue;
     }
+    const reason =
+      probed.alias === route.alias
+        ? route.reason
+        : `${route.reason} · live probe → ${probed.alias} (ranked ${route.alias} failed)`;
     pins.push({
       role: entry.role,
       configKey: entry.configKey,
       label: entry.label,
       alias: probed.alias,
+      reason,
     });
     loopControl[entry.configKey] = probed.alias;
     onProgress?.({

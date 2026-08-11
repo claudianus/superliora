@@ -459,7 +459,18 @@ const TIER_PATTERNS: readonly { readonly tier: ModelTier; readonly patterns: rea
   [
     {
       tier: 'ultra-cheap',
-      patterns: [/haiku/i, /mini/i, /nano/i, /flash/i, /lite/i, /small/i, /tiny/i, /8B/i, /7B/i],
+      patterns: [
+        /haiku/i,
+        /mini/i,
+        /nano/i,
+        /flash/i,
+        /lite/i,
+        /small/i,
+        /tiny/i,
+        /8B/i,
+        /7B/i,
+        /grok[-_]?build/i,
+      ],
     },
     {
       tier: 'cheap',
@@ -497,6 +508,12 @@ const TIER_PATTERNS: readonly { readonly tier: ModelTier; readonly patterns: rea
         /deepseek[-_]?v4[-_]?pro/i,
         /kimi[-_]?k2\.[67]/i,
         /kimi[-_]?k3\b/i,
+        // xAI flagship coding SKUs (subscription catalogs often lack price tiers).
+        /grok[-_]?4\.5\b/i,
+        /grok[-_]?4\.20\b/i,
+        /grok[-_]?4-20\b/i,
+        /grok[-_]?4\.3\b/i,
+        /grok[-_]?4-3\b/i,
       ],
     },
     {
@@ -549,7 +566,13 @@ const FAMILY_QUALITY: readonly { readonly pattern: RegExp; readonly score: numbe
   { pattern: /gpt[-_]?4o?[-_]?mini|4\.1[-_]?mini|4\.1[-_]?nano/i, score: 58 },
   { pattern: /gemini[-_]?2\.5[-_]?pro|gemini[-_]?pro/i, score: 84 },
   { pattern: /gemini.*flash/i, score: 64 },
-  { pattern: /grok[-_]?3|grok[-_]?4|grok/i, score: 78 },
+  // xAI: version-aware (most specific first). Heuristic path is capped below.
+  { pattern: /grok[-_]?4\.5\b/i, score: 90 },
+  { pattern: /grok[-_]?4\.20\b|grok[-_]?4-20\b/i, score: 76 },
+  { pattern: /grok[-_]?4\.3\b|grok[-_]?4-3\b/i, score: 74 },
+  { pattern: /grok[-_]?4\.1\b|grok[-_]?4-1\b/i, score: 72 },
+  { pattern: /grok[-_]?build/i, score: 56 },
+  { pattern: /grok[-_]?3|grok[-_]?4|grok/i, score: 70 },
   { pattern: /mistral[-_]?large|codestral/i, score: 72 },
   { pattern: /qwen3\.8|qwen.*coder|qwen.*max/i, score: 82 },
   { pattern: /qwen3\.7/i, score: 76 },
@@ -561,6 +584,9 @@ const FAMILY_QUALITY: readonly { readonly pattern: RegExp; readonly score: numbe
   { pattern: /kimi[-_]?k2\.5\b/i, score: 52 },
   { pattern: /llama[-_]?4|llama[-_]?3\.3/i, score: 68 },
 ];
+
+/** Heuristic-only quality must stay below typical multi-bench flagships. */
+const HEURISTIC_QUALITY_CAP = 84;
 
 /** Soft demotions for clearly older SKUs — still eligible, just lose quality races. */
 const STALE_MODEL_DEMOTIONS: readonly { readonly pattern: RegExp; readonly penalty: number }[] = [
@@ -596,7 +622,21 @@ function catalogHasNewerPeer(modelId: string, catalogIds: readonly string[]): bo
   if (/\bclaude-3\b/i.test(modelId)) {
     return catalogIds.some((id) => /\bclaude[-_]?4\b|\bsonnet[-_]?4\b|\bopus[-_]?4\b/i.test(id));
   }
+  // Older / dated Grok SKUs lose to grok-4.5 when both are in the catalog.
+  if (
+    /\bgrok[-_]?(build|4\.20|4-20|4\.3|4-3|4\.1|4-1|4\.0|4-0)\b/i.test(modelId) ||
+    (/\bgrok[-_]?4\b/i.test(modelId) && !/\bgrok[-_]?4\.5\b/i.test(modelId))
+  ) {
+    return catalogIds.some((id) => /\bgrok[-_]?4\.5\b/i.test(id));
+  }
   return false;
+}
+
+function hasCodingBenchmarks(model: ModelMetadata): boolean {
+  return (
+    (model.benchmarkCount !== undefined && model.benchmarkCount > 0) ||
+    model.benchmarkScore !== undefined
+  );
 }
 
 type QualityInput = ModelsDevModelEntry | Pick<
@@ -679,7 +719,9 @@ export function scoreModelQuality(modelName: string, data?: QualityInput): numbe
   if (/\b(nano|tiny|lite|flash[-_]?lite|8b|7b|3b)\b/i.test(modelName)) score -= 8;
   score -= staleModelPenalty(modelName);
 
-  return Math.max(0, Math.min(100, Math.round(score)));
+  // Cap family heuristics so unbenchmarked SKUs cannot outrank real benches
+  // (e.g. grok-4.20 heuristic 100 beating grok-4.5 SWE/Terminal ~86).
+  return Math.max(0, Math.min(HEURISTIC_QUALITY_CAP, Math.round(score)));
 }
 
 function staleModelPenalty(modelName: string): number {
@@ -708,13 +750,17 @@ function priceTier(cost: number): ModelTier {
   return 'ultra-high';
 }
 
-function nameTier(modelName: string): ModelTier {
+function nameTierMatch(modelName: string): ModelTier | undefined {
   for (const { tier, patterns } of TIER_PATTERNS) {
     if (patterns.some((pattern) => pattern.test(modelName))) {
       return tier;
     }
   }
-  return 'balanced';
+  return undefined;
+}
+
+function nameTier(modelName: string): ModelTier {
+  return nameTierMatch(modelName) ?? 'balanced';
 }
 
 /**
@@ -738,14 +784,20 @@ function adjustTierByBenchmark(
 }
 
 /**
- * Classify a model into a tier using models.dev cost (primary), name patterns
- * (fallback), and optional benchmark-based promotion/demotion.
+ * Classify a model into a tier using models.dev cost, name patterns, and
+ * optional benchmark-based promotion/demotion.
  * Missing or non-positive cost (subscription / $0 catalogs) uses name tiers so
  * every Token Plan model does not collapse into ultra-cheap.
+ * An explicit name match may promote over price (underpriced flagships like
+ * grok-4.5 at ~$2/M → high). The default balanced name fallback never promotes.
  */
 export function classifyModelTier(modelName: string, pricingData?: ModelsDevModelEntry): ModelTier {
   const cost = pricingData?.inputCostPerM;
-  const base = cost !== undefined && cost > 0 ? priceTier(cost) : nameTier(modelName);
+  const named = nameTierMatch(modelName);
+  const byName = named ?? 'balanced';
+  const byPrice = cost !== undefined && cost > 0 ? priceTier(cost) : byName;
+  const base =
+    named !== undefined && TIER_RANK[named] > TIER_RANK[byPrice] ? named : byPrice;
   return adjustTierByBenchmark(base, pricingData?.benchmarkScore);
 }
 
@@ -981,6 +1033,10 @@ function rankScore(
     preset.preferValue === true
       ? value * 10 + quality * 0.05
       : quality * 10 + value * 0.1;
+  // Prefer real models.dev coding benches over family-heuristic peers.
+  if (hasCodingBenchmarks(model)) {
+    score += isQualityStrictRole(preset.role) ? 120 : 35;
+  }
   if (catalogIds.length > 0 && catalogHasNewerPeer(model.id, catalogIds)) {
     score -= isQualityStrictRole(preset.role) ? 80 : 25;
   }
@@ -1027,14 +1083,20 @@ function formatPickReason(
   const q = model.qualityScore ?? scoreModelQuality(model.id, model);
   const v = model.valueScore ?? scoreModelValue(q, model.inputCostPerM);
   const cost =
-    model.inputCostPerM !== undefined ? ` $${model.inputCostPerM.toFixed(2)}/M` : '';
+    model.inputCostPerM !== undefined && model.inputCostPerM > 0
+      ? ` · $${model.inputCostPerM.toFixed(2)}/M in`
+      : '';
+  const evidence = hasCodingBenchmarks(model)
+    ? ` · models.dev benches×${model.benchmarkCount ?? 1}`
+    : ' · family heuristic (no coding benches)';
+  const metric = preset.preferValue === true ? 'value' : 'quality';
   if (kind === 'preferred') {
-    return `Preferred ${preset.preferredTier} tier (q=${q} v=${v.toFixed(1)}${cost})`;
+    return `${preset.preferredTier} tier by ${metric} (q=${q} v=${v.toFixed(1)}${cost}${evidence})`;
   }
   if (kind === 'fallback') {
-    return `Fallback ${preset.fallbackTier} tier (preferred unavailable; q=${q} v=${v.toFixed(1)})`;
+    return `${preset.fallbackTier} tier by ${metric}; ${preset.preferredTier} empty (q=${q} v=${v.toFixed(1)}${cost}${evidence})`;
   }
-  return `Fallback: best available by ${preset.preferValue === true ? 'value' : 'quality'} (q=${q} v=${v.toFixed(1)})`;
+  return `Best available by ${metric} (q=${q} v=${v.toFixed(1)}${cost}${evidence})`;
 }
 
 /**
