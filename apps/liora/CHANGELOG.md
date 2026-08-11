@@ -1,5 +1,16 @@
 # @superliora/liora
 
+## 0.8.0
+
+### Minor Changes
+
+- Conductor JobCreate can keep same-context follow-ups on an existing worker: pass continue_from_job_id (or affinity=auto with ownership_paths) to steer/fold a live or queued Job, or reuse its worktree and resume checkpoint after it finishes. ACK lines may include affinity_hint when a cold create overlaps a live owner.
+
+### Patch Changes
+
+- Smart auto routing prefers bench-backed flagships (e.g. grok-4.5) over dated heuristic SKUs and shows per-role pick reasons after probing. Open Settings → Model routing → Smart auto routing.
+- Fix tool transcript rows leaving a black bar after the text when phase tint pads the line.
+
 ## 0.7.1
 
 ### Patch Changes
