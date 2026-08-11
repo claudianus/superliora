@@ -1,5 +1,18 @@
 # @superliora/liora
 
+## 0.8.1
+
+### Patch Changes
+
+- Fix `/goal` blocking when cheap coding-chain models fail live probe: escalate to max/parent (e.g. the Conductor model), mark spawn as resumable `blocked`, and show `/model` + `/goal resume` on the Goal Monitor.
+- Conductor `/goal` lights Goal Monitor and the footer desk badge immediately, with live worker activity on the monitor.
+- Stop Goal Desk from showing eternal "spinning up" after workers finish; the monitor reports awaiting Conductor / missing worker, and finish criteria no longer look already met.
+- Fix Conductor fleets stuck forever at queued after resume: Goal Desk drivers schedule under the umbrella, verify Jobs still run when merge trust blocks the parent, and session resume always pumps already-queued work.
+- Fix verify Jobs failing with `verdict=missing` after a real dual-axis pass by parsing the full worker result before the summary size cap.
+- Resume and MergeJob heal verify Jobs that already have dual-axis JSON in the summary but never stamped `verifyVerdict`.
+- Conductor verify Jobs that finish without dual-axis JSON fail, get one automatic structured re-verify, and skip Debug; MergeJob tells you to requeue verify for JSON instead of opening Debug.
+- Fix MergeJob held on `Checks not green` for greenfield apps: root packages run the completion gate, `build` counts as typecheck, missing scripts are `not_applicable`, and a passed verify child can witness green when the gate left slots `not_run`.
+
 ## 0.8.0
 
 ### Minor Changes
