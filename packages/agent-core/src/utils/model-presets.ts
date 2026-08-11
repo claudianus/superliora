@@ -330,11 +330,12 @@ export function modelsDevLookupKeys(modelId: string): readonly string[] {
     const afterSlash = raw.slice(slash + 1);
     if (afterSlash.length > 0) keys.push(afterSlash);
   }
-  for (const base of [...keys]) {
+  const seeds = keys.slice();
+  for (const base of seeds) {
     const unprefixed = base.startsWith('cursor-') ? base.slice('cursor-'.length) : base;
     if (unprefixed !== base) keys.push(unprefixed);
     // Cursor/OpenRouter effort·speed suffixes on top of the catalog id.
-    let stripped = unprefixed
+    const stripped = unprefixed
       .replace(/-fast-(none|low|medium|high|xhigh|max)$/i, '')
       .replace(/-(none|low|medium|high|xhigh|max)-fast$/i, '')
       .replace(/-(none|low|medium|high|xhigh|max)$/i, '')
