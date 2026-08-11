@@ -9,8 +9,17 @@
 
 import chalk from 'chalk';
 
-import { mixHexColor, truncateToWidth, visibleWidth } from '#/tui/renderer';
+import { ANSI_RESET_STYLE, mixHexColor, truncateToWidth, visibleWidth } from '#/tui/renderer';
 import { currentTheme, type ColorPalette } from '#/tui/theme';
+
+/** Drop trailing full resets so width-pad stays inside the tint bg wrap. */
+function stripTrailingResets(line: string): string {
+  let out = line;
+  while (out.endsWith(ANSI_RESET_STYLE)) {
+    out = out.slice(0, -ANSI_RESET_STYLE.length);
+  }
+  return out;
+}
 
 export type TranscriptPhaseKind = 'thinking' | 'tools' | 'answer' | 'user';
 
@@ -64,7 +73,10 @@ export function applyPhaseTintLine(
   const bg = phaseTintHex(kind, p);
   const safeWidth = Math.max(1, width);
   // Truncate first so phase chrome never overflows narrow terminals.
-  const clipped = truncateToWidth(line, safeWidth, '…');
+  // Text.closeLine leaves a trailing \x1b[0m; if we pad after that reset,
+  // chalk.bgHex dies before the spaces and the canvas shows through as a
+  // black bar from end-of-text to the right edge.
+  const clipped = stripTrailingResets(truncateToWidth(line, safeWidth, '…'));
   const visible = visibleWidth(clipped);
   const pad = Math.max(0, safeWidth - visible);
   const padded = pad > 0 ? clipped + ' '.repeat(pad) : clipped;
