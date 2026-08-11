@@ -53,6 +53,8 @@ describe('RunProjectChecksTool', () => {
 
     expect(pickScript('test', { test: 'vitest run' })).toBe('test');
     expect(pickScript('typecheck', { 'type-check': 'tsc -p .' })).toBe('type-check');
+    // Greenfield Vite apps often only declare `build` (tsc --noEmit && vite build).
+    expect(pickScript('typecheck', { build: 'tsc --noEmit && vite build' })).toBe('build');
     expect(pickScript('smoke', { build: 'tsc' })).toBeUndefined();
     expect(buildCommandArgs(undefined, 'test')).toEqual(['pnpm', 'run', 'test']);
     expect(buildCommandArgs('packages/agent-core', 'test')).toEqual([

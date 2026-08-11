@@ -130,6 +130,22 @@ export async function runCompletionVerification(
     }
     return VERIFICATION_NOT_RUN;
   }
+
+  const fromPackage = await runPackageCompletionVerification(child, packageDir, signal);
+  if (fromPackage !== undefined) return fromPackage;
+
+  // Root HTML/JS sites often have no package.json — keep the static contract.
+  if (packageDir === '.' && isRenderableStaticSiteChangeSet(filesChanged)) {
+    return runStaticCompletionVerification(child.kaos, child.config.cwd, filesChanged);
+  }
+  return VERIFICATION_NOT_RUN;
+}
+
+async function runPackageCompletionVerification(
+  child: Agent,
+  packageDir: string,
+  signal: AbortSignal | undefined,
+): Promise<SubagentVerificationStatus | undefined> {
   try {
     const tool = new RunProjectChecksTool(child.kaos, child.config.cwd);
     const execution = tool.resolveExecution({
@@ -137,7 +153,7 @@ export async function runCompletionVerification(
       packageDir,
       timeoutMs: COMPLETION_CHECK_TIMEOUT_MS,
     });
-    if (execution.isError === true) return VERIFICATION_NOT_RUN;
+    if (execution.isError === true) return undefined;
     const gateSignal =
       signal === undefined
         ? AbortSignal.timeout(COMPLETION_VERIFICATION_TOTAL_MS)
@@ -159,7 +175,7 @@ export async function runCompletionVerification(
       visual: 'not_run',
     };
   } catch {
-    return VERIFICATION_NOT_RUN;
+    return undefined;
   }
 }
 

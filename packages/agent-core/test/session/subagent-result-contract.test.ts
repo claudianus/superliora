@@ -6,6 +6,7 @@ import {
   deriveVerificationPackageDir,
   formatSubagentResultEnvelope,
   renderSubagentCompletionText,
+  verificationIsGreen,
   verdictFromCheckOutcomes,
   VERIFICATION_NOT_RUN,
 } from '../../src/session/subagent/subagent-result-contract';
@@ -113,7 +114,11 @@ describe('subagent-result-contract — deriveVerificationPackageDir', () => {
     expect(deriveVerificationPackageDir(['apps/liora/src/tui/c.ts'])).toBe('apps/liora');
   });
 
-  it('returns undefined for empty, multi-package, or out-of-layout change sets', () => {
+  it('returns "." for root-level greenfield / single-package apps', () => {
+    expect(deriveVerificationPackageDir(['src/main.ts', 'package.json', 'index.html'])).toBe('.');
+  });
+
+  it('returns undefined for empty, multi-package, or mixed root+package change sets', () => {
     expect(deriveVerificationPackageDir([])).toBeUndefined();
     expect(
       deriveVerificationPackageDir(['packages/agent-core/a.ts', 'packages/kaos/b.ts']),
@@ -132,10 +137,36 @@ describe('subagent-result-contract — verdictFromCheckOutcomes', () => {
   it('maps exit codes and skipped checks onto verdicts', () => {
     expect(verdictFromCheckOutcomes(outcomes, 'test')).toBe('passed');
     expect(verdictFromCheckOutcomes(outcomes, 'typecheck')).toBe('failed');
-    expect(verdictFromCheckOutcomes(outcomes, 'lint')).toBe('not_run');
+    expect(verdictFromCheckOutcomes(outcomes, 'lint')).toBe('not_applicable');
   });
 
   it('returns not_run when the check is absent', () => {
     expect(verdictFromCheckOutcomes([], 'test')).toBe('not_run');
+  });
+});
+
+describe('subagent-result-contract — verificationIsGreen', () => {
+  it('allows not_applicable slots when at least one check passed', () => {
+    expect(
+      verificationIsGreen({
+        tests: 'not_applicable',
+        typecheck: 'passed',
+        lint: 'not_applicable',
+      }),
+    ).toBe(true);
+    expect(
+      verificationIsGreen({
+        tests: 'not_run',
+        typecheck: 'passed',
+        lint: 'not_applicable',
+      }),
+    ).toBe(false);
+    expect(
+      verificationIsGreen({
+        tests: 'not_applicable',
+        typecheck: 'not_applicable',
+        lint: 'not_applicable',
+      }),
+    ).toBe(false);
   });
 });
