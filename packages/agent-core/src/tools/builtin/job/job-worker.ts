@@ -682,10 +682,11 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
           typeof completion.result === 'string'
             ? completion.result
             : String(completion.result ?? '');
-        // Prefer the contract summary: the free-form result may embed the JSON
-        // envelope, which eats the stored-summary budget without adding signal.
+        const contractSummary = contract?.summary.trim() ?? '';
+        // Prefer the contract summary for storage: the free-form result may
+        // embed the JSON envelope, which eats the stored-summary budget.
         const summary =
-          (contract?.summary.trim() || rawSummary.trim()).slice(0, 4000) || 'worker completed';
+          (contractSummary || rawSummary.trim()).slice(0, 4000) || 'worker completed';
         const verificationFailed = contract?.verification_failed === true;
         // The gate skips more often than it runs (explore jobs, multi-package
         // changes, paths outside the workspace layout, gate timeouts). Such a
@@ -707,11 +708,15 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
           : goalStopped
             ? 'blocked'
             : 'done';
-        // Structured field only — never invent failed from status (MergeJob ignores free-text PASS).
+        // Parse BEFORE the 4k storage slice — dual-axis JSON is usually at the
+        // end of a long report and gets cut mid-`findings` otherwise.
         const verifyVerdictField =
           ledgerJob.kind === 'verify'
             ? (() => {
-                const parsed = parseVerifyVerdict(summary);
+                const parsed =
+                  parseVerifyVerdict(rawSummary.trim()) ??
+                  parseVerifyVerdict(contractSummary) ??
+                  parseVerifyVerdict(summary);
                 if (parsed === 'passed' || parsed === 'failed') return parsed;
                 return undefined;
               })()
@@ -725,6 +730,12 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
         const goalReason = completion.goalTerminalReason
           ? ` (${completion.goalTerminalReason})`
           : '';
+        // Keep a compact, parseable verdict line ahead of the truncated prose
+        // so resume heal / JobInspect still see dual-axis JSON after the 4k cut.
+        const verifyStampLine =
+          verifyVerdictField === 'passed' || verifyVerdictField === 'failed'
+            ? `{"verdict":"${verifyVerdictField === 'passed' ? 'pass' : 'fail'}","standards":{"verdict":"${verifyVerdictField === 'passed' ? 'pass' : 'fail'}","findings":[]},"spec":{"verdict":"${verifyVerdictField === 'passed' ? 'pass' : 'fail'}","findings":[]}}\n\n`
+            : '';
         const baseSummary = verificationFailed
           ? `verification failed — ${summary}`
           : verifyMissingStructured
@@ -733,7 +744,7 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
               ? `goal ${completion.goalStatus}${goalReason} — ${summary}`
               : unverified
                 ? `${UNVERIFIED_SUMMARY_PREFIX}${summary}`
-                : summary;
+                : `${verifyStampLine}${summary}`;
         // Feed worker struggle stats into Conductor inbox so auto-refine sees them.
         const frictionBlock =
           completion.friction !== undefined

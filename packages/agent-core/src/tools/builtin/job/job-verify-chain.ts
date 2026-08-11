@@ -128,38 +128,93 @@ export function findDebugChild(
 
 type AxisVerdictBlob = { readonly verdict?: string };
 
+function verdictFromParsedBlob(parsed: {
+  readonly verdict?: string;
+  readonly standards?: AxisVerdictBlob;
+  readonly spec?: AxisVerdictBlob;
+}): JobVerifyVerdict | undefined {
+  const standards = normalizeVerdict(parsed.standards?.verdict);
+  const spec = normalizeVerdict(parsed.spec?.verdict);
+  if (standards !== undefined && spec !== undefined) {
+    if (standards === 'passed' && spec === 'passed') return 'passed';
+    return 'failed';
+  }
+  // Parallel axis Jobs emit only their axis blob.
+  if (standards !== undefined && spec === undefined) return standards;
+  if (spec !== undefined && standards === undefined) return spec;
+  return normalizeVerdict(parsed.verdict);
+}
+
+function tryParseJsonObject(blob: string): JobVerifyVerdict | undefined {
+  try {
+    return verdictFromParsedBlob(
+      JSON.parse(blob) as {
+        verdict?: string;
+        standards?: AxisVerdictBlob;
+        spec?: AxisVerdictBlob;
+      },
+    );
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * When the summary budget truncates mid-JSON, the dual-axis keys are often
+ * still visible at the top of the object. Accept that shape so MergeJob is
+ * not blocked by a 4k slice cutting through `findings`.
+ */
+function parseTruncatedDualAxisVerdict(text: string): JobVerifyVerdict | undefined {
+  if (!/"verdict"\s*:/i.test(text) || !/"standards"\s*:/i.test(text) || !/"spec"\s*:/i.test(text)) {
+    return undefined;
+  }
+  const top = text.match(/\{\s*"verdict"\s*:\s*"(pass|fail|passed|failed)"/i);
+  const standards = text.match(
+    /"standards"\s*:\s*\{\s*"verdict"\s*:\s*"(pass|fail|passed|failed)"/i,
+  );
+  const spec = text.match(/"spec"\s*:\s*\{\s*"verdict"\s*:\s*"(pass|fail|passed|failed)"/i);
+  if (standards?.[1] !== undefined && spec?.[1] !== undefined) {
+    const s = normalizeVerdict(standards[1]);
+    const p = normalizeVerdict(spec[1]);
+    if (s === 'passed' && p === 'passed') return 'passed';
+    if (s !== undefined && p !== undefined) return 'failed';
+  }
+  if (top?.[1] !== undefined) return normalizeVerdict(top[1]);
+  return undefined;
+}
+
 /**
  * Parse structured verify verdict from worker summary.
  * Prefer dual-axis JSON (standards + spec); overall pass only when both axes pass.
- * Falls back to a single top-level verdict or a `verdict: pass|fail` line.
+ * Falls back to a single top-level verdict, a `verdict: pass|fail` line, or a
+ * truncated dual-axis blob (summary budget often cuts mid-`findings`).
  */
 export function parseVerifyVerdict(summary: string | undefined): JobVerifyVerdict | undefined {
   if (summary === undefined || summary.trim().length === 0) return undefined;
   const text = summary.trim();
+
+  // Prefer fenced ```json blocks — workers usually put the contract there.
+  for (const match of text.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)) {
+    const body = match[1]?.trim();
+    if (body === undefined || body.length === 0) continue;
+    const fromFence = tryParseJsonObject(body) ?? parseTruncatedDualAxisVerdict(body);
+    if (fromFence !== undefined) return fromFence;
+  }
+
   try {
     const start = text.indexOf('{');
     const end = text.lastIndexOf('}');
     if (start >= 0 && end > start) {
-      const parsed = JSON.parse(text.slice(start, end + 1)) as {
-        verdict?: string;
-        standards?: AxisVerdictBlob;
-        spec?: AxisVerdictBlob;
-      };
-      const standards = normalizeVerdict(parsed.standards?.verdict);
-      const spec = normalizeVerdict(parsed.spec?.verdict);
-      if (standards !== undefined && spec !== undefined) {
-        if (standards === 'passed' && spec === 'passed') return 'passed';
-        return 'failed';
-      }
-      // Parallel axis Jobs emit only their axis blob.
-      if (standards !== undefined && spec === undefined) return standards;
-      if (spec !== undefined && standards === undefined) return spec;
-      const top = normalizeVerdict(parsed.verdict);
-      if (top !== undefined) return top;
+      const fromSlice = tryParseJsonObject(text.slice(start, end + 1));
+      if (fromSlice !== undefined) return fromSlice;
     }
   } catch {
     // fall through
   }
+
+  const truncated = parseTruncatedDualAxisVerdict(text);
+  if (truncated !== undefined) return truncated;
+
   const line = text.match(/\bverdict\s*[:=]\s*(pass|fail|passed|failed)\b/i);
   if (line?.[1] !== undefined) return normalizeVerdict(line[1]);
   return undefined;

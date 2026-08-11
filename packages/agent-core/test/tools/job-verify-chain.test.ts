@@ -51,6 +51,37 @@ describe('job-verify-chain', () => {
     expect(parseVerifyVerdict('{"standards":{"verdict":"pass","findings":[]}}')).toBe('passed');
   });
 
+  it('parses fenced and truncated dual-axis JSON (summary budget cuts mid-findings)', () => {
+    const fenced = [
+      '## Summary\noverall pass',
+      '```json',
+      '{"verdict":"pass","standards":{"verdict":"pass","findings":[]},"spec":{"verdict":"pass","findings":[]}}',
+      '```',
+    ].join('\n');
+    expect(parseVerifyVerdict(fenced)).toBe('passed');
+
+    // Real failure mode: 4k slice cuts the JSON object open.
+    const truncated = `
+## Summary
+${'x'.repeat(200)}
+\`\`\`json
+{
+  "verdict": "pass",
+  "standards": {
+    "verdict": "pass",
+    "findings": [{"id":"build","status":"pass"}]
+  },
+  "spec": {
+    "verdict": "pass",
+    "findings": [
+      {
+        "id": "title_deploy_to_playing",
+        "status": "pass",
+        "evidence": "VerifySurface click DEPLOY @e2 → Playing HU`;
+    expect(parseVerifyVerdict(truncated)).toBe('passed');
+    expect(parseVerifyVerdict('overall pass in prose only')).toBeUndefined();
+  });
+
   it('detects maker=checker collision', () => {
     expect(makerCheckerCollision('eng-a', 'eng-a')).toBe(true);
     expect(makerCheckerCollision('eng-a', 'eng-b')).toBe(false);
