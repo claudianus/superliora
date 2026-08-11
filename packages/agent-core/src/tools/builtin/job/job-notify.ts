@@ -54,6 +54,21 @@ export function notifyJobTerminal(input: NotifyJobTerminalInput): void {
   ]);
   if (input.agent !== undefined) {
     requestConductorWake({ agent: input.agent, store: input.store });
+    // Goal Desk: fleet terminals can leave binding `active` with no live
+    // driver when the umbrella sync was skipped — heal + emit so the Goal
+    // Monitor stops claiming "spinning up". Dynamic import avoids a
+    // goal-session-binding ↔ job-notify init cycle.
+    void import('../goal/goal-session-binding').then(
+      ({ readGoalSessionBinding, healActiveGoalDeskBinding }) => {
+        const binding = readGoalSessionBinding(input.store);
+        if (binding?.status !== 'active') return;
+        const healed = healActiveGoalDeskBinding(input.store, binding, input.agent);
+        if (healed.status === 'active') return;
+        void import('../goal/goal-desk-facade').then(({ emitGoalDeskSnapshot }) => {
+          emitGoalDeskSnapshot(input.agent!, input.store);
+        });
+      },
+    );
   }
 }
 

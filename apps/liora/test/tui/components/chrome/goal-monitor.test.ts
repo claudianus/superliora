@@ -107,7 +107,7 @@ describe('renderGoalMonitorLines', () => {
 
     expect(joined).toMatch(/active/);
     expect(joined).toContain('Ship the live goal monitor panel');
-    expect(joined).toContain('✓ Panel stays visible while goal is active');
+    expect(joined).toContain('when · Panel stays visible while goal is active');
     expect(joined).toMatch(/4m 12s/);
     expect(joined).toMatch(/7\/20 turns/);
     expect(joined).toMatch(/turns left|tok left|left/);
@@ -143,19 +143,43 @@ describe('renderGoalMonitorLines', () => {
     expect(joined).not.toMatch(/█/);
   });
 
-  it('shows desk chip and spinning-up worker row for Goal Desk goals', () => {
-    const g = goal({ execution: 'goal-desk', deskJobId: 'job_desk1' });
+  it('shows desk chip and spinning-up worker row for fresh Goal Desk goals', () => {
+    const g = goal({ execution: 'goal-desk', deskJobId: 'job_desk1', wallClockMs: 3_000 });
     if (!isLiveGoal(g)) throw new Error('expected live goal');
     const joined = renderGoalMonitorLines({
       goal: g,
       width: 80,
-      wallClockMs: g.wallClockMs,
+      wallClockMs: 3_000,
       profile: 'standard',
+      deskLive: { mode: 'spinning_up' },
     })
       .map(strip)
       .join('\n');
     expect(joined).toMatch(/desk/);
     expect(joined).toMatch(/spinning up goal worker/);
+  });
+
+  it('does not claim spinning-up after workers finished with no driver', () => {
+    const g = goal({ execution: 'goal-desk', deskJobId: 'job_desk1', wallClockMs: 600_000 });
+    if (!isLiveGoal(g)) throw new Error('expected live goal');
+    const joined = renderGoalMonitorLines({
+      goal: g,
+      width: 80,
+      wallClockMs: 600_000,
+      deskLive: {
+        mode: 'awaiting_conductor',
+        lastKind: 'verify',
+        lastStatus: 'done',
+        lastTitle: 'Verify: Iron Vanguard',
+      },
+    })
+      .map(strip)
+      .join('\n');
+    expect(joined).toMatch(/awaiting Conductor/);
+    expect(joined).toMatch(/verify/);
+    expect(joined).not.toMatch(/spinning up goal worker/);
+    expect(joined).toContain('when ·');
+    expect(joined).not.toMatch(/✓ Objective met|✓ Panel/);
   });
 
   it('surfaces live goal-driver tool activity on the monitor', () => {
@@ -165,16 +189,19 @@ describe('renderGoalMonitorLines', () => {
       goal: g,
       width: 80,
       wallClockMs: g.wallClockMs,
-      driverLive: {
-        jobId: 'job_driver1',
-        status: 'running',
-        title: 'Goal: Ship dashboard',
-        liveActivity: {
-          toolCallId: 'tc1',
-          name: 'Edit',
-          target: 'apps/liora/src/tui/foo.ts',
+      deskLive: {
+        mode: 'driver',
+        driver: {
+          jobId: 'job_driver1',
           status: 'running',
-          atMs: Date.now(),
+          title: 'Goal: Ship dashboard',
+          liveActivity: {
+            toolCallId: 'tc1',
+            name: 'Edit',
+            target: 'apps/liora/src/tui/foo.ts',
+            status: 'running',
+            atMs: Date.now(),
+          },
         },
       },
     })

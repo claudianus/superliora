@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  GOAL_DESK_SPAWN_GRACE_MS,
+  goalDeskLiveKey,
   goalDriverLiveKey,
   pickGoalDriverLive,
+  resolveGoalDeskLive,
 } from '#/tui/utils/job/goal-driver-live';
 import type { ConductorJobCard } from '#/tui/utils/job/job-strip';
 import type { GoalSnapshot } from '@superliora/sdk';
@@ -73,5 +76,67 @@ describe('pickGoalDriverLive', () => {
     expect(live?.phase).toBe('running tests');
     expect(live?.liveActivity?.name).toBe('Bash');
     expect(goalDriverLiveKey(live)).toContain('Bash');
+  });
+});
+
+describe('resolveGoalDeskLive', () => {
+  it('spins up only inside the spawn grace when the board is empty', () => {
+    expect(resolveGoalDeskLive(goal(), [], 1_000)).toEqual({ mode: 'spinning_up' });
+    expect(resolveGoalDeskLive(goal(), [], GOAL_DESK_SPAWN_GRACE_MS + 1)).toEqual({
+      mode: 'missing_worker',
+    });
+  });
+
+  it('surfaces fleet verify while the goal-driver card is missing', () => {
+    const live = resolveGoalDeskLive(
+      goal(),
+      [
+        card({
+          id: 'job_verify1',
+          kind: 'verify',
+          status: 'running',
+          title: 'Verify: Iron Vanguard',
+          updatedAtMs: 200,
+        }),
+      ],
+      60_000,
+    );
+    expect(live).toMatchObject({
+      mode: 'fleet',
+      kind: 'verify',
+      status: 'running',
+    });
+  });
+
+  it('awaits Conductor after the last worker finished', () => {
+    const live = resolveGoalDeskLive(
+      goal(),
+      [
+        card({
+          id: 'job_verify1',
+          kind: 'verify',
+          status: 'done',
+          title: 'Verify: Iron Vanguard',
+          updatedAtMs: 200,
+        }),
+      ],
+      60_000,
+    );
+    expect(live).toEqual({
+      mode: 'awaiting_conductor',
+      lastKind: 'verify',
+      lastTitle: 'Verify: Iron Vanguard',
+      lastStatus: 'done',
+    });
+    expect(goalDeskLiveKey(live)).toContain('awaiting_conductor');
+  });
+
+  it('keeps a settled goal-driver visible instead of spinning up', () => {
+    const live = resolveGoalDeskLive(
+      goal(),
+      [card({ status: 'done', updatedAtMs: 300 })],
+      60_000,
+    );
+    expect(live).toMatchObject({ mode: 'driver', driver: { status: 'done' } });
   });
 });
