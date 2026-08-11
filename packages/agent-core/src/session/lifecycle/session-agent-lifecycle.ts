@@ -192,14 +192,14 @@ export class SessionAgentLifecycle {
 
     try {
       const agent = this.instantiateAgent(id, meta.homedir, meta.type, {}, parentAgentId);
-      const result = await agent.resume();
+      // Publish before resume so fleet autopilot spawn → ensureAgentResumed(parent)
+      // does not await this resume Promise (deadlock → jobs stuck queued/blocked).
       this.opts.agents.set(id, agent);
+      const result = await agent.resume();
       return { agent, warning: parent?.warning ?? result.warning };
     } catch (error) {
-      const entry = this.opts.agents.get(id);
-      if (entry instanceof Promise) {
-        this.opts.agents.delete(id);
-      }
+      // Drop the failed agent we published, or the resume Promise placeholder.
+      this.opts.agents.delete(id);
       throw error;
     }
   }

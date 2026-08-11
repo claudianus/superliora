@@ -144,16 +144,17 @@ async function runSchedule(request: JobSchedulePumpRequest): Promise<void> {
 }
 
 /**
- * Fire-and-forget schedule pump request (V2-1). Returns synchronously; the
- * pump runs inline-and-detached, coalesced per store+agent pair. Failures
- * stay on this lane (logged), never on the caller/ACK path.
+ * Schedule pump request (V2-1). Coalesced per store+agent pair. The drain
+ * runs detached from the interactive ACK path; callers that need promotion
+ * (JobResume / fleet recovery) may await the returned promise. Failures stay
+ * on this lane (logged), never thrown to the caller.
  */
-export function requestJobSchedulePump(request: JobSchedulePumpRequest): void {
+export function requestJobSchedulePump(request: JobSchedulePumpRequest): Promise<void> {
   const dup = state.pumpRequests.some(
     (pending) => pending.store === request.store && pending.agent === request.agent,
   );
   if (!dup) state.pumpRequests.push(request);
-  void runPumpDrain();
+  return runPumpDrain();
 }
 
 async function runPumpDrain(): Promise<void> {
