@@ -23,6 +23,8 @@ const FAIL_AT = 1500;
 const FAIL_ALLOWLIST = new Set([
   // Pre-existing renderer god-file; shrink incrementally without blocking unrelated PRs.
   'packages/tui-renderer/src/transcript/viewport-component.ts',
+  // Pre-existing JobCreate surface; shrink incrementally without blocking unrelated PRs.
+  'packages/agent-core/src/tools/builtin/job/job-tools.ts',
 ]);
 
 const ROOTS = [

@@ -25,24 +25,37 @@ function memoryStore(): ToolStore {
   };
 }
 
-function makeAgent(overrides?: { readonly models?: Record<string, unknown> }) {
+function makeAgent(overrides?: {
+  readonly models?: Record<string, unknown>;
+  readonly modelAlias?: string;
+  readonly effectiveModelAlias?: string;
+}) {
+  const models = overrides?.models ?? {
+    'worker-a': {
+      provider: 'test-provider',
+      model: 'worker-a',
+      maxContextSize: 128_000,
+      capabilities: ['tool_use'],
+      cost: { input: 1 },
+    },
+  };
+  const runtimeConfig = {
+    providers: {
+      'test-provider': { type: 'kimi' as const, apiKey: 'test-key' },
+    },
+    models,
+  };
   return {
-    runtimeConfig: {
-      providers: {
-        'test-provider': { type: 'kimi' as const, apiKey: 'test-key' },
-      },
-      models: overrides?.models ?? {
-        'worker-a': {
-          provider: 'test-provider',
-          model: 'worker-a',
-          maxContextSize: 128_000,
-          capabilities: ['tool_use'],
-          cost: { input: 1 },
-        },
-      },
+    runtimeConfig,
+    kimiConfig: runtimeConfig,
+    config: {
+      modelAlias: overrides?.modelAlias ?? 'worker-a',
+      effectiveModelAlias: overrides?.effectiveModelAlias ?? overrides?.modelAlias ?? 'worker-a',
+      thinkingLevel: 'off' as const,
     },
     log: { warn: () => {}, debug: () => {}, info: () => {}, error: () => {} },
     modelProvider: {
+      currentConfig: () => runtimeConfig,
       resolveProviderConfig: (alias: string) => ({
         modelAlias: alias,
         providerName: 'test-provider',
@@ -177,5 +190,48 @@ describe('preflightJobWorkerModel', () => {
     if (result.ok) return;
     expect(result.note).toMatch(/model_failed: alias=worker-a/);
     expect(result.error).toMatch(/failed live probe/);
+  });
+
+  it('falls back to Conductor parent when role chain aliases all probe_fail', async () => {
+    setLiveProbeRunnerForTests(async (_agent, alias) => {
+      if (alias === 'parent-live') return;
+      throw new APIStatusError(429, 'quota exceeded', 'req-429');
+    });
+    const agent = makeAgent({
+      modelAlias: 'parent-live',
+      models: {
+        'cheap-dead': {
+          provider: 'test-provider',
+          model: 'cheap-dead',
+          maxContextSize: 128_000,
+          capabilities: ['tool_use', 'thinking'],
+          cost: { input: 0.05 },
+        },
+        'parent-live': {
+          provider: 'test-provider',
+          model: 'parent-live',
+          maxContextSize: 200_000,
+          capabilities: ['tool_use', 'thinking'],
+          cost: { input: 12 },
+        },
+      },
+    }) as never;
+
+    const result = await preflightJobWorkerModel(agent, {
+      id: 'job_goal',
+      title: 'Ship game',
+      kind: 'goal-driver',
+      status: 'running',
+      priority: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      prompt: 'infinite improvements',
+      goalObjective: 'infinite improvements',
+      goalCompletionCriterion: 'sellable quality',
+    } as never);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.modelAlias).toBe('parent-live');
   });
 });
