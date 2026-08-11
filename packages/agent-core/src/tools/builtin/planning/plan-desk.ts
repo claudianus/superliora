@@ -69,7 +69,7 @@ export async function delegateConductorPlanDesk(
     planStructured: structured,
   });
 
-  requestJobSchedulePump({ store, agent });
+  void requestJobSchedulePump({ store, agent });
   if (agent.subagentHost !== undefined) {
     await Promise.race([
       getJobWorkerSpawner().settle(),

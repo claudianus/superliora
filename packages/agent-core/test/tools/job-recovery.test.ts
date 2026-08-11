@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   classifyJobForAutoResume,
@@ -6,6 +6,7 @@ import {
   SUPERLIORA_CONDUCTOR_AUTO_RESUME_FLEET_ENV,
 } from '../../src/tools/builtin/job/job-recovery';
 import { listUnreadJobInbox } from '../../src/tools/builtin/job/job-inbox';
+import { __resetJobWorkerHandlesForTests } from '../../src/tools/builtin/job/job-handles';
 import {
   createJob,
   getJob,
@@ -22,6 +23,10 @@ function memoryStore(): ToolStore {
     },
   };
 }
+
+afterEach(() => {
+  __resetJobWorkerHandlesForTests();
+});
 
 describe('job fleet recovery', () => {
   it('classifies safe kinds for resume and holds merge/push/needs_user', () => {
@@ -74,4 +79,43 @@ describe('job fleet recovery', () => {
     expect(result.resumed).toHaveLength(0);
     expect(result.autoResumeEnabled).toBe(false);
   });
+
+  it('with agent, auto-resume promotes and spawns (not stuck queued)', async () => {
+    const prev = process.env[SUPERLIORA_CONDUCTOR_AUTO_RESUME_FLEET_ENV];
+    process.env[SUPERLIORA_CONDUCTOR_AUTO_RESUME_FLEET_ENV] = '1';
+    try {
+      const store = memoryStore();
+      const impl = createJob(store, { title: 'impl', kind: 'implement' });
+      // Existing worktree → schedule skips git I/O (sync promote path that
+      // used to race settle() ahead of the pump and leave jobs queued).
+      patchJob(store, impl.id, {
+        status: 'running',
+        worktreePath: `/tmp/recovery/${impl.id}`,
+      });
+
+      const host = {
+        spawn: async (options: { profileName?: string }) =>
+          ({
+            agentId: 'agent_recovery',
+            profileName: options.profileName ?? 'coder',
+            resumed: false,
+            completion: new Promise<never>(() => {}),
+          }) as never,
+      };
+      const agent = {
+        subagentHost: host,
+        config: { cwd: '/tmp/recovery' },
+        kaos: undefined,
+      } as never;
+
+      const result = await recoverJobsAfterResume({ store, agent, autoResume: true });
+      expect(result.resumed.some((j) => j.id === impl.id)).toBe(true);
+      expect(getJob(store, impl.id)?.status).toBe('running');
+      expect(getJob(store, impl.id)?.workerAgentId).toBe('agent_recovery');
+    } finally {
+      if (prev === undefined) delete process.env[SUPERLIORA_CONDUCTOR_AUTO_RESUME_FLEET_ENV];
+      else process.env[SUPERLIORA_CONDUCTOR_AUTO_RESUME_FLEET_ENV] = prev;
+    }
+  });
+
 });

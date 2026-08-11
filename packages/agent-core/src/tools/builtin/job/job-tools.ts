@@ -487,7 +487,7 @@ export async function ackCreatedJobs(input: {
   readonly batchLabel?: string;
 }): Promise<{ isError: false; output: string }> {
   // V2-1 ACK deadline (G1): scheduling + worker spawns run on the offload lane.
-  requestJobSchedulePump({ store: input.store, agent: input.agent });
+  void requestJobSchedulePump({ store: input.store, agent: input.agent });
   if (input.agent?.subagentHost !== undefined) {
     await Promise.race([
       getJobWorkerSpawner().settle(),
@@ -1247,7 +1247,7 @@ export class JobScheduleTool implements BuiltinTool<Record<string, never>> {
         const running = countJobsWithStatus(this.store, ['running']);
         // V2-1 ACK deadline (G1): worktree attach + worker spawn run on the
         // offload lane; this ACK reports the synchronous pool snapshot.
-        requestJobSchedulePump({ store: this.store, agent: this.agent });
+        void requestJobSchedulePump({ store: this.store, agent: this.agent });
         return {
           isError: false,
           output: `Schedule pump offloaded; queued ${queued}; running ${running}/${pool.maxConcurrentJobs}. Transitions land on ledger/inbox.`,

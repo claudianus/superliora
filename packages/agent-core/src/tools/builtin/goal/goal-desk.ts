@@ -117,7 +117,7 @@ export async function delegateConductorGoalDesk(
   };
   writeGoalSessionBinding(store, binding);
 
-  requestJobSchedulePump({ store, agent });
+  void requestJobSchedulePump({ store, agent });
   if (agent.subagentHost !== undefined) {
     await Promise.race([
       getJobWorkerSpawner().settle(),

@@ -320,7 +320,7 @@ export async function enqueueVerifyJobForParent(
     notes: [parent.notes, `verify_chain: enqueued ${ids}`].filter(Boolean).join('\n'),
   });
   if (agent !== undefined) {
-    requestJobSchedulePump({ store, agent });
+    void requestJobSchedulePump({ store, agent });
   }
   return created[0];
 }
@@ -388,7 +388,7 @@ export async function enqueueDebugJobForVerify(
       .join('\n'),
   });
   if (agent !== undefined) {
-    requestJobSchedulePump({ store, agent });
+    void requestJobSchedulePump({ store, agent });
   }
   return debug;
 }

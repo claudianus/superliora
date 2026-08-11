@@ -838,7 +838,7 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
         resultSummary: undefined,
         notes: [prior, deferred].filter(Boolean).join('\n'),
       });
-      requestJobSchedulePump({ store: input.store, agent: input.agent });
+      void requestJobSchedulePump({ store: input.store, agent: input.agent });
       return { ok: false, error: detail };
     }
 
@@ -969,7 +969,7 @@ export function steerJobWorker(input: {
  * the offload lane, never on the completion/cancel path.
  */
 export function pumpSchedulerAfterWorker(agent: Agent, store: ToolStore): void {
-  requestJobSchedulePump({ store, agent });
+  void requestJobSchedulePump({ store, agent });
 }
 
 /**
@@ -1055,11 +1055,11 @@ export async function resumeJobs(input: {
 
   let scheduleMessage = 'Queued for schedule.';
   if (agent) {
-    // V2-1 ACK deadline: re-queue is synchronous; the schedule pump runs on
-    // the offload lane. Resume keeps its pinned contract: re-launch spawn
-    // handshakes settle before the return (spawner budget caps the wait);
-    // worker lifetime never does.
-    requestJobSchedulePump({ store, agent });
+    // Await the schedule pump (queued→running + spawn enqueue) before the
+    // spawner settle. Otherwise settle can return while the pump has not yet
+    // promoted — fleet recovery then leaves jobs stuck at `queued` with Dock
+    // ghosts saying "Queued after resume…".
+    await requestJobSchedulePump({ store, agent });
     await getJobWorkerSpawner().settle();
     scheduleMessage = 'Scheduling offloaded — transitions land on ledger/inbox.';
   }
