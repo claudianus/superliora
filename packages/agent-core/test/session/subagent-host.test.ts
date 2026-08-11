@@ -2180,6 +2180,7 @@ describe('SessionSubagentHost', () => {
           subagentId: 'agent-0',
           retryAttempt: 1,
           retryLimit: 1,
+          fellBackToModel: 'fallback-model',
         }),
       });
     });
@@ -2228,10 +2229,18 @@ describe('SessionSubagentHost', () => {
       const failed = failedEvents(parent);
       expect(failed).toHaveLength(3);
       expect(failed[0]).toMatchObject({
-        args: expect.objectContaining({ retryAttempt: 1, retryLimit: 2 }),
+        args: expect.objectContaining({
+          retryAttempt: 1,
+          retryLimit: 2,
+          fellBackToModel: 'fallback-model',
+        }),
       });
       expect(failed[1]).toMatchObject({
-        args: expect.objectContaining({ retryAttempt: 2, retryLimit: 2 }),
+        args: expect.objectContaining({
+          retryAttempt: 2,
+          retryLimit: 2,
+          fellBackToModel: 'last-resort-model',
+        }),
       });
       expect(failed[2]).toMatchObject({
         args: expect.objectContaining({ fellBackToModel: 'last-resort-model' }),

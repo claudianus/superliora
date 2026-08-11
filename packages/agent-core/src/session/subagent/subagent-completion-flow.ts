@@ -271,9 +271,12 @@ export async function runPromptTurnWithModelFallback(
             : {}));
         throw appendModelFailedNote(failure, note);
       }
+      // Non-terminal hop: clients should treat retryAttempt as "retrying", not
+      // a finished failure. fellBackToModel is the alias about to run next.
       emitSubagentFailed(parent, childId, options, error, {
         retryAttempt: hop + 1,
         retryLimit: Math.max(maxFallbackHops, 1),
+        fellBackToModel: nextAlias,
       });
       child.config.update({ modelAlias: nextAlias });
       lastAttemptedAlias = nextAlias;

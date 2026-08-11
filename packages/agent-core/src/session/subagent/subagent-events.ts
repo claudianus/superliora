@@ -18,7 +18,12 @@ import type { RunSubagentOptions } from './subagent-host-types';
 
 const HOOK_TEXT_PREVIEW_LENGTH = 500;
 
-/** Optional model-fallback progress attached to `subagent.failed` events. */
+/**
+ * Optional model-fallback progress attached to `subagent.failed` events.
+ * When `retryAttempt` is set, `fellBackToModel` is the next alias to try
+ * (non-terminal). On a terminal failure after hops, `fellBackToModel` is the
+ * last alias that was attempted.
+ */
 export interface SubagentFailedDetails {
   readonly retryAttempt?: number;
   readonly retryLimit?: number;
