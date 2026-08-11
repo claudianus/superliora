@@ -141,6 +141,20 @@ describe('GoalSetMessageComponent', () => {
       }
     }
   });
+
+  it('stamps objective + Goal Desk lane copy on Conductor offload', () => {
+    const rendered = new GoalSetMessageComponent({
+      objective: 'Ship the metrics dashboard',
+      lane: 'goal-desk',
+      deskJobId: 'job_desk1',
+    }).render(80);
+    const text = strip(rendered);
+    expect(text).toMatch(/Goal set/);
+    expect(text).toContain('Ship the metrics dashboard');
+    expect(text).toMatch(/Goal Desk/);
+    expect(text).toContain('job_desk1');
+    expect(text).toMatch(/Job Deck/);
+  });
 });
 
 describe('UpcomingGoalAddedMessageComponent', () => {

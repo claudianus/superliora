@@ -37,6 +37,10 @@ import {
   chromeBandInteriorWidth,
   renderRoundedPanel,
 } from '#/tui/utils/ui/panel-frame';
+import {
+  goalDriverLiveKey,
+  type GoalDriverLive,
+} from '#/tui/utils/job/goal-driver-live';
 import { formatJobDuration } from '#/tui/utils/job/job-strip';
 import {
   createStreamingTextRevealState,
@@ -119,6 +123,8 @@ export class TodoPanelComponent implements Component {
   private goalObservedAtMs = Date.now();
   private goalSnapshotKey: string | null = null;
   private goalChangedAtMs: number | undefined;
+  private goalDriverLive: GoalDriverLive | undefined;
+  private goalDriverLiveKey = '';
   private lastBoardRows = 0;
   private boardShrinkRequestedAtMs: number | undefined;
   private readonly motion = new TodoPanelMotionTracker();
@@ -129,6 +135,7 @@ export class TodoPanelComponent implements Component {
         readonly expanded: boolean;
         readonly todos: readonly TodoItem[];
         readonly goal: GoalSnapshot | null;
+        readonly driverLiveKey: string;
         readonly calls: number;
         readonly secondBucket: number;
         readonly scroll: number;
@@ -184,21 +191,30 @@ export class TodoPanelComponent implements Component {
   /**
    * Bind the live goal snapshot. When status is active/paused/blocked the
    * panel stays visible even with zero todos. Complete / null clears the
-   * monitor chrome.
+   * monitor chrome. Optional `driverLive` feeds Goal Desk worker pulse rows.
    */
-  setGoal(goal: GoalSnapshot | null | undefined): void {
+  setGoal(
+    goal: GoalSnapshot | null | undefined,
+    driverLive?: GoalDriverLive | null,
+  ): void {
     const next = goal ?? null;
     const nextKey = goalMonitorSnapshotKey(next);
     if (nextKey !== this.goalSnapshotKey) {
-      const statusChanged =
+      const identityChanged =
         this.goal?.status !== next?.status || this.goal?.goalId !== next?.goalId;
       this.goalSnapshotKey = nextKey;
-      this.goalObservedAtMs = Date.now();
-      if (statusChanged && isLiveGoal(next)) {
-        this.goalChangedAtMs = appearanceAnimationNow();
+      // Only re-anchor the live clock when the goal identity/status flips —
+      // progress ticks (turns/tokens) must not zero the elapsed label.
+      if (identityChanged) {
+        this.goalObservedAtMs = Date.now();
+        if (isLiveGoal(next)) {
+          this.goalChangedAtMs = appearanceAnimationNow();
+        }
       }
     }
     this.goal = next;
+    this.goalDriverLive = driverLive ?? undefined;
+    this.goalDriverLiveKey = goalDriverLiveKey(this.goalDriverLive);
   }
 
   getGoal(): GoalSnapshot | null {
@@ -226,6 +242,8 @@ export class TodoPanelComponent implements Component {
     this.goal = null;
     this.goalSnapshotKey = null;
     this.goalChangedAtMs = undefined;
+    this.goalDriverLive = undefined;
+    this.goalDriverLiveKey = '';
     this.lastBoardRows = 0;
     this.boardShrinkRequestedAtMs = undefined;
     this.motion.reset();
@@ -314,7 +332,8 @@ export class TodoPanelComponent implements Component {
       this.currentChangeSummary() !== undefined ||
       boardNeedsMarquee(this.todos, contentWidthForMarquee) ||
       revealPending ||
-      (ambient && this.todos.some((todo) => todo.status === 'in_progress'));
+      (ambient && this.todos.some((todo) => todo.status === 'in_progress')) ||
+      (ambient && liveGoal !== null && liveGoal.status === 'active');
     // The goal wall-clock label advances once per second; bucketing keeps the
     // memo valid within that second.
     const secondBucket = Math.floor(appearanceAnimationNow() / 1000);
@@ -327,6 +346,7 @@ export class TodoPanelComponent implements Component {
       memo.expanded === this.expanded &&
       memo.todos === this.todos &&
       memo.goal === this.goal &&
+      memo.driverLiveKey === this.goalDriverLiveKey &&
       memo.calls === this.callsSinceUpdate &&
       memo.secondBucket === secondBucket &&
       memo.scroll === this.scrollOffset &&
@@ -353,6 +373,7 @@ export class TodoPanelComponent implements Component {
           wallClockMs,
           changedAtMs: this.goalChangedAtMs,
           profile,
+          ...(this.goalDriverLive !== undefined ? { driverLive: this.goalDriverLive } : {}),
         }),
       );
       if (this.todos.length > 0) {
@@ -607,6 +628,7 @@ export class TodoPanelComponent implements Component {
       expanded: this.expanded,
       todos: this.todos,
       goal: this.goal,
+      driverLiveKey: this.goalDriverLiveKey,
       calls: this.callsSinceUpdate,
       secondBucket,
       scroll: this.scrollOffset,

@@ -118,6 +118,15 @@ export function syncGoalDeskParentFromDriver(
   if (parent === undefined || parent.kind !== 'goal-desk') return;
 
   const binding = readGoalSessionBinding(store);
+  const shouldEmitGoal =
+    binding !== undefined &&
+    binding.deskJobId === parent.id &&
+    (driver.status === 'done' ||
+      driver.status === 'failed' ||
+      driver.status === 'blocked' ||
+      driver.status === 'cancelled' ||
+      driver.status === 'interrupted');
+
   if (binding !== undefined && binding.deskJobId === parent.id) {
     if (driver.status === 'done') {
       writeGoalSessionBinding(store, {
@@ -173,6 +182,14 @@ export function syncGoalDeskParentFromDriver(
       },
       { agent, summary: driver.resultSummary },
     );
+  }
+
+  // Surface Goal Monitor / completion card on the Conductor lane without a turn.
+  if (shouldEmitGoal && agent !== undefined) {
+    // Lazy import avoids a facade ↔ binding cycle at module init.
+    void import('./goal-desk-facade').then(({ emitGoalDeskSnapshot }) => {
+      emitGoalDeskSnapshot(agent, store);
+    });
   }
 }
 

@@ -17,6 +17,7 @@ import {
   projectRendererWrappedTextPreview,
   Text,
   visibleWidth,
+  wrapTextWithAnsi,
   type Component,
 } from '#/tui/renderer';
 import type { GoalSnapshot, GoalStatus } from '@superliora/sdk';
@@ -66,18 +67,61 @@ function renderLifecycleLine(label: string, width: number): string[] {
   ];
 }
 
+/** Optional Goal Desk offload details for Conductor `/goal` (no follow-up user bubble). */
+export interface GoalSetMessageOptions {
+  readonly objective?: string;
+  readonly lane?: 'goal-desk';
+  readonly deskJobId?: string;
+}
+
 /**
- * The "Goal set" confirmation shown after `/goal <objective>`. The objective is
- * rendered as the following user prompt, so this message only marks the state
- * change in the transcript.
+ * The "Goal set" confirmation shown after `/goal <objective>`. Classic Ralph
+ * path renders the objective as the following user prompt; Goal Desk offload
+ * passes {@link GoalSetMessageOptions} so the transcript still shows what is
+ * chasing and that the Conductor lane stays free.
  */
 export class GoalSetMessageComponent implements Component {
   private readonly entranceStartedAtMs = appearanceAnimationNow();
 
+  constructor(private readonly options?: GoalSetMessageOptions) {}
+
   invalidate(): void {}
 
   render(width: number): string[] {
-    const __polishedLines = renderLifecycleLine('Goal set', width);
+    const lines = [...renderLifecycleLine('Goal set', width)];
+    const objective = this.options?.objective?.trim();
+    if (objective !== undefined && objective.length > 0 && width > 0) {
+      const appearance = getActiveAppearancePreferences();
+      const bar = currentTheme.fg('primary', '▌');
+      const body =
+        shouldRenderAmbientEffects(appearance) && this.options?.lane === 'goal-desk'
+          ? renderSpectacularText(objective, 'goal:set:objective', appearance, {
+              intense: true,
+              pace: 'slow',
+            })
+          : currentTheme.boldFg('text', objective);
+      const indent = `  ${bar} `;
+      const wrapWidth = Math.max(1, width - visibleWidth(indent));
+      const wrapped = wrapTextWithAnsi(body, wrapWidth).slice(0, 3);
+      for (const [index, line] of wrapped.entries()) {
+        const prefix = index === 0 ? indent : `  ${currentTheme.fg('primary', '│')} `;
+        lines.push(prefix + line);
+      }
+    }
+    if (this.options?.lane === 'goal-desk') {
+      const desk =
+        this.options.deskJobId !== undefined && this.options.deskJobId.length > 0
+          ? ` · ${this.options.deskJobId}`
+          : '';
+      lines.push(
+        MESSAGE_INDENT +
+          currentTheme.fg(
+            'textDim',
+            `Goal Desk${desk} — worker chasing; lane free · Alt+J Job Deck`,
+          ),
+      );
+    }
+    const __polishedLines = lines;
     if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) return __polishedLines;
     return polishTranscriptLines(__polishedLines, {
       startedAtMs: this.entranceStartedAtMs,

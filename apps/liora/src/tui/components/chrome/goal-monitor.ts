@@ -32,6 +32,7 @@ import {
   renderSpectacularText,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
+import type { GoalDriverLive } from '#/tui/utils/job/goal-driver-live';
 import { formatTokenCount } from '#/utils/usage/usage-format';
 
 const MAX_OBJECTIVE_LINES = 2;
@@ -77,6 +78,7 @@ export function goalMonitorTitle(
   profile: 'tiny' | 'compact' | 'standard' | 'wide' | 'ultrawide' = 'standard',
 ): string {
   if (profile === 'tiny') return ' Goal ';
+  if (goal.execution === 'goal-desk') return ` Goal · desk · ${goal.status} `;
   return ` Goal · ${goal.status} `;
 }
 
@@ -91,6 +93,8 @@ export function renderGoalMonitorLines(options: {
   readonly wallClockMs: number;
   readonly changedAtMs?: number;
   readonly profile?: 'tiny' | 'compact' | 'standard' | 'wide' | 'ultrawide';
+  /** Live goal-driver card (Conductor Goal Desk) — phase / tool pulse. */
+  readonly driverLive?: GoalDriverLive;
 }): string[] {
   const { goal, width, wallClockMs } = options;
   const profile = options.profile ?? 'standard';
@@ -99,6 +103,7 @@ export function renderGoalMonitorLines(options: {
   const statusToken = goalMonitorStatusToken(goal.status);
   const contentWidth = Math.max(1, width);
   const lines: string[] = [];
+  const deskLane = goal.execution === 'goal-desk';
 
   // Status row: pulse glyph + status label + elapsed · turns
   const fallbackGlyph =
@@ -130,8 +135,13 @@ export function renderGoalMonitorLines(options: {
     goal.budget.turnBudget !== null
       ? `${goal.turnsUsed}/${goal.budget.turnBudget} turns`
       : `${goal.turnsUsed} ${goal.turnsUsed === 1 ? 'turn' : 'turns'}`;
+  const laneChip = deskLane
+    ? ambient
+      ? ` ${renderPulseText('desk', 'goal:lane:desk', 'accent', appearance)}`
+      : ` ${currentTheme.fg('accent', 'desk')}`
+    : '';
   const meta = currentTheme.fg('textDim', `${elapsed} · ${turns}`);
-  const statusRow = `  ${statusGlyph} ${statusLabel} ${currentTheme.fg('textMuted', '·')} ${meta}`;
+  const statusRow = `  ${statusGlyph} ${statusLabel}${laneChip} ${currentTheme.fg('textMuted', '·')} ${meta}`;
   lines.push(truncateToWidth(statusRow, contentWidth, '…'));
 
   // Objective (spectacular on active, settle-flash on lifecycle change)
@@ -175,6 +185,12 @@ export function renderGoalMonitorLines(options: {
     }
   }
 
+  if (deskLane) {
+    lines.push(
+      truncateToWidth(renderGoalDriverLiveLine(options.driverLive, contentWidth, ambient), contentWidth, '…'),
+    );
+  }
+
   if (profile === 'tiny') {
     return lines;
   }
@@ -198,6 +214,54 @@ export function renderGoalMonitorLines(options: {
   }
 
   return lines;
+}
+
+function renderGoalDriverLiveLine(
+  live: GoalDriverLive | undefined,
+  width: number,
+  ambient: boolean,
+): string {
+  const prefix = `  ${currentTheme.fg('accent', '↳')} `;
+  if (live === undefined) {
+    const waiting = ambient
+      ? renderPulseText('spinning up goal worker…', 'goal:desk:wait', 'textDim', getActiveAppearancePreferences())
+      : currentTheme.fg('textDim', 'spinning up goal worker…');
+    return truncateToWidth(`${prefix}${waiting}`, width, '…');
+  }
+
+  const statusBit =
+    live.status === 'running'
+      ? ambient
+        ? renderPulseText('worker', 'goal:desk:worker', 'primary', getActiveAppearancePreferences())
+        : currentTheme.fg('primary', 'worker')
+      : currentTheme.fg(
+          live.status === 'needs_user' || live.status === 'blocked' ? 'warning' : 'textMuted',
+          live.status,
+        );
+
+  const activity = live.liveActivity;
+  let detail: string;
+  if (activity !== undefined && activity.status === 'running') {
+    const target =
+      activity.target !== undefined && activity.target.length > 0
+        ? ` ${currentTheme.fg('textDim', truncateToWidth(activity.target, 28, '…'))}`
+        : '';
+    detail = `${currentTheme.boldFg('text', activity.name)}${target}`;
+  } else if (live.phase !== undefined && live.phase.length > 0) {
+    detail = currentTheme.fg('textDim', live.phase);
+  } else {
+    const tool = live.recentTools?.at(-1);
+    detail =
+      tool !== undefined
+        ? currentTheme.fg('textDim', tool)
+        : currentTheme.fg('textDim', live.title);
+  }
+
+  return truncateToWidth(
+    `${prefix}${statusBit} ${currentTheme.fg('textMuted', '·')} ${detail}`,
+    width,
+    '…',
+  );
 }
 
 function renderGoalProgressStrip(

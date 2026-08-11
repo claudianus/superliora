@@ -99,6 +99,14 @@ export function reportJobWorkerProgress(
   const next = patchJob(binding.store, job.id, { progress });
   if (next !== undefined) {
     emitJobEvents(binding.agent, [jobRecordToUpdatedEvent(next, { reason: 'progress' })]);
+    // Goal Desk: mirror driver heartbeats onto the session Goal snapshot so the
+    // Conductor Goal Monitor / XP pulse move without a main-lane turn.
+    if (next.kind === 'goal-driver' && binding.agent !== undefined) {
+      // Dynamic import: facade → job-worker → this bridge (avoid init cycle).
+      void import('../goal/goal-desk-facade').then(({ emitGoalDeskSnapshot }) => {
+        emitGoalDeskSnapshot(binding.agent!, binding.store);
+      });
+    }
   }
 }
 
