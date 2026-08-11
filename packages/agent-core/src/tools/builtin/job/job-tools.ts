@@ -64,7 +64,17 @@ import {
   greenfieldBriefMissing,
   mergeSplitIntents,
 } from './job-interactive-confirm';
-import { cancelJobWorker, resumeJobs } from './job-worker';
+import {
+  buildAffinitySteerMessage,
+  findAffinityHint,
+  formatAffinityHint,
+  mergeStringLists,
+  resolveJobAffinity,
+  reuseInheritanceFromAnchor,
+  type JobAffinityDisposition,
+  type JobAffinityMode,
+} from './job-affinity';
+import { cancelJobWorker, resumeJobs, steerJobWorker } from './job-worker';
 import { JobSteerTool } from './job-steer-tool';
 
 export { JobSteerTool } from './job-steer-tool';
@@ -165,6 +175,26 @@ const JobCreateInputSchema = z
       .string()
       .optional()
       .describe('Parent job id for subtasks of an existing Job (decomposition chains).'),
+    continue_from_job_id: z
+      .string()
+      .trim()
+      .min(1)
+      .optional()
+      .describe(
+        'Worker affinity: same-context follow-up on an existing Job. ' +
+          'running/needs_user → steer that worker (no new spawn); queued → fold brief into it; ' +
+          'done/failed/interrupted/blocked → new child reusing worktree + resume checkpoint. ' +
+          'Use when the finish line is the same deliverable (scope delta, fix-forward). ' +
+          'Not for verify/merge/push/desk/goal-* (Maker≠Checker / control plane).',
+      ),
+    affinity: z
+      .enum(['off', 'auto'])
+      .optional()
+      .describe(
+        'auto = pick the best affinity anchor from overlapping ownership_paths ' +
+          '(live → queued → recent terminal) when continue_from_job_id is omitted. ' +
+          'Requires ownership_paths. Default off (explicit continue_from or cold create).',
+      ),
     goal_completion_criterion: z
       .string()
       .trim()
@@ -479,23 +509,184 @@ export function renderJobInspect(job: JobRecord): string {
 /** The brief is already in the worker's prompt; inspect only needs its shape. */
 const JOB_INSPECT_BRIEF_MAX_CHARS = 800;
 
+async function applyJobAffinityInPlace(input: {
+  readonly store: ToolStore;
+  readonly agent?: Agent;
+  readonly pool: ReturnType<typeof resolveConductorPoolConfig>;
+  readonly disposition: Extract<JobAffinityDisposition, { action: 'steer' | 'fold' }>;
+  readonly title: string;
+  readonly kind?: JobKind;
+  readonly prompt?: string;
+  readonly ownershipPaths?: readonly string[];
+  readonly contextPaths?: readonly string[];
+  readonly successCriteria: readonly string[];
+  readonly mustNotTouch: readonly string[];
+  readonly verificationCommands: readonly string[];
+  readonly testSeams?: readonly string[];
+  readonly tddMode?: JobRecord['tddMode'];
+  readonly reproCommand?: string;
+  readonly surfaceKind?: JobRecord['surfaceKind'];
+}): Promise<{ isError: false; output: string } | { isError: true; output: string }> {
+  const anchor = input.disposition.anchor;
+  const message = buildAffinitySteerMessage({
+    title: input.title,
+    prompt: input.prompt,
+    successCriteria:
+      input.successCriteria.length > 0 ? input.successCriteria : undefined,
+    mustNotTouch: input.mustNotTouch.length > 0 ? input.mustNotTouch : undefined,
+    verificationCommands:
+      input.verificationCommands.length > 0 ? input.verificationCommands : undefined,
+    contextPaths: input.contextPaths,
+  });
+
+  if (input.disposition.action === 'steer') {
+    const steered = steerJobWorker({
+      store: input.store,
+      agent: input.agent,
+      jobId: anchor.id,
+      message,
+      surfaceKind: input.surfaceKind,
+    });
+    if (!steered.ok || steered.job === undefined) {
+      return {
+        isError: true,
+        output: steered.error ?? `affinity steer failed for ${anchor.id}`,
+      };
+    }
+    // Steer already delivered the delta text; only sync structured brief fields.
+    const { prompt: _ignoredPrompt, ...structured } = affinityBriefPatch(anchor, input);
+    const job =
+      Object.keys(structured).length > 0 || input.title.trim().length > 0
+        ? (patchJob(input.store, anchor.id, {
+            ...structured,
+            title: input.title.trim() || anchor.title,
+          }) ?? steered.job)
+        : steered.job;
+    return ackCreatedJobs({
+      store: input.store,
+      agent: input.agent,
+      created: [job],
+      pool: input.pool,
+      skipSchedulePump: true,
+      extraLines: [
+        `affinity: steer ${anchor.id} (no new worker; context kept)`,
+        `steered=${steered.steered}`,
+      ],
+    });
+  }
+
+  // fold into queued Job
+  const briefPatch = affinityBriefPatch(anchor, input);
+  const folded = patchJob(input.store, anchor.id, {
+    ...briefPatch,
+    title: input.title.trim() || anchor.title,
+    kind: input.kind ?? anchor.kind,
+    notes: [anchor.notes, `affinity: fold — ${message}`].filter(Boolean).join('\n'),
+  });
+  if (folded === undefined) {
+    return { isError: true, output: `affinity fold failed for ${anchor.id}` };
+  }
+  return ackCreatedJobs({
+    store: input.store,
+    agent: input.agent,
+    created: [folded],
+    pool: input.pool,
+    skipSchedulePump: true,
+    extraLines: [`affinity: fold ${anchor.id} (queued brief updated; no new Job)`],
+  });
+}
+
+function affinityBriefPatch(
+  anchor: JobRecord,
+  input: {
+    readonly prompt?: string;
+    readonly ownershipPaths?: readonly string[];
+    readonly contextPaths?: readonly string[];
+    readonly successCriteria: readonly string[];
+    readonly mustNotTouch: readonly string[];
+    readonly verificationCommands: readonly string[];
+    readonly testSeams?: readonly string[];
+    readonly tddMode?: JobRecord['tddMode'];
+    readonly reproCommand?: string;
+    readonly surfaceKind?: JobRecord['surfaceKind'];
+  },
+): {
+  prompt?: string;
+  ownershipPaths?: readonly string[];
+  contextPaths?: readonly string[];
+  successCriteria?: readonly string[];
+  mustNotTouch?: readonly string[];
+  verificationCommands?: readonly string[];
+  testSeams?: readonly string[];
+  tddMode?: JobRecord['tddMode'];
+  reproCommand?: string;
+  surfaceKind?: JobRecord['surfaceKind'];
+} {
+  const patch: {
+    prompt?: string;
+    ownershipPaths?: readonly string[];
+    contextPaths?: readonly string[];
+    successCriteria?: readonly string[];
+    mustNotTouch?: readonly string[];
+    verificationCommands?: readonly string[];
+    testSeams?: readonly string[];
+    tddMode?: JobRecord['tddMode'];
+    reproCommand?: string;
+    surfaceKind?: JobRecord['surfaceKind'];
+  } = {};
+  const promptDelta = input.prompt?.trim();
+  if (promptDelta !== undefined && promptDelta.length > 0) {
+    patch.prompt = anchor.prompt
+      ? `${anchor.prompt}\n\n[affinity] ${promptDelta}`
+      : promptDelta;
+  }
+  const ownershipPaths = mergeStringLists(anchor.ownershipPaths, input.ownershipPaths);
+  if (ownershipPaths !== undefined) patch.ownershipPaths = ownershipPaths;
+  const contextPaths = mergeStringLists(anchor.contextPaths, input.contextPaths);
+  if (contextPaths !== undefined) patch.contextPaths = contextPaths;
+  if (input.successCriteria.length > 0) {
+    patch.successCriteria = input.successCriteria;
+  }
+  const mustNotTouch = mergeStringLists(anchor.mustNotTouch, input.mustNotTouch);
+  if (mustNotTouch !== undefined) patch.mustNotTouch = mustNotTouch;
+  const verificationCommands = mergeStringLists(
+    anchor.verificationCommands,
+    input.verificationCommands,
+  );
+  if (verificationCommands !== undefined) {
+    patch.verificationCommands = verificationCommands;
+  }
+  const testSeams = mergeStringLists(anchor.testSeams, input.testSeams);
+  if (testSeams !== undefined) patch.testSeams = testSeams;
+  if (input.tddMode !== undefined) patch.tddMode = input.tddMode;
+  if (input.reproCommand !== undefined) patch.reproCommand = input.reproCommand;
+  if (input.surfaceKind !== undefined) patch.surfaceKind = input.surfaceKind;
+  return patch;
+}
+
 export async function ackCreatedJobs(input: {
   readonly store: ToolStore;
   readonly agent?: Agent;
   readonly created: readonly JobRecord[];
   readonly pool: ReturnType<typeof resolveConductorPoolConfig>;
   readonly batchLabel?: string;
+  /** Extra ACK lines (affinity disposition, hints). */
+  readonly extraLines?: readonly string[];
+  /** Skip schedule pump (steer/fold already live — no new queued work). */
+  readonly skipSchedulePump?: boolean;
 }): Promise<{ isError: false; output: string }> {
   // V2-1 ACK deadline (G1): scheduling + worker spawns run on the offload lane.
-  void requestJobSchedulePump({ store: input.store, agent: input.agent });
-  if (input.agent?.subagentHost !== undefined) {
-    await Promise.race([
-      getJobWorkerSpawner().settle(),
-      new Promise<void>((resolve) => {
-        const timer = setTimeout(resolve, JOB_CREATE_ACK_SPAWN_GRACE_MS);
-        (timer as { unref?: () => void }).unref?.();
-      }),
-    ]);
+  if (input.skipSchedulePump !== true) {
+    void requestJobSchedulePump({ store: input.store, agent: input.agent });
+    if (input.agent?.subagentHost !== undefined) {
+      await Promise.race([
+        getJobWorkerSpawner().settle(),
+        new Promise<void>((resolve) => {
+          const timer = setTimeout(resolve, JOB_CREATE_ACK_SPAWN_GRACE_MS);
+          (timer as { unref?: () => void }).unref?.();
+        }),
+      ]);
+    }
   }
 
   const backpressure =
@@ -541,9 +732,16 @@ export async function ackCreatedJobs(input: {
       );
     }
   }
-  lines.push(
-    'schedule: offloaded — background pump promotes queued jobs; transitions land on ledger/inbox.',
-  );
+  if (input.extraLines !== undefined) {
+    for (const line of input.extraLines) {
+      if (line.trim().length > 0) lines.push(line);
+    }
+  }
+  if (input.skipSchedulePump !== true) {
+    lines.push(
+      'schedule: offloaded — background pump promotes queued jobs; transitions land on ledger/inbox.',
+    );
+  }
   lines.push(`pool: maxConcurrent=${input.pool.maxConcurrentJobs}`);
   if (backpressure) {
     lines.push('Backpressure active — new jobs remain queued until a slot frees.');
@@ -557,6 +755,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
     'Delegate work: create a Conductor Job on the meta ledger and return an immediate ACK (job_id + state). ' +
     'The ONLY path for any file mutation, build, test, install, or verification loop on the Conductor lane — even a one-line fix. ' +
     'Bind a goal-shaped contract at spawn: success_criteria is required for every task/implement Job (finish line the worker must prove). Also pass must_not_touch / verification_commands / test_seams / tdd_mode / ownership_paths / context_paths when known. ' +
+    'Same-context follow-up: continue_from_job_id (or affinity=auto with ownership_paths) steers/folds a live or queued Job, or reuses worktree+resume on a terminal Job — prefer this over cold-spawning siblings that race the same paths. ' +
     'When role models are auto, set model_alias from <fleet_model_catalog> for this Job (omit → harness role pick). ' +
     'Greenfield: delivery_mode=greenfield (+ usually greenfield_chain). Long unattended loops: kind=goal-driver with goal_completion_criterion. ' +
     'Multi-intent: auto_split=true or several calls, then one summary ACK. Scheduling is offloaded — the ACK never waits for the worker.';
@@ -625,6 +824,41 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
           }
         }
 
+        const affinityDisposition = resolveJobAffinity(this.store, {
+          continueFromJobId: a.continue_from_job_id,
+          affinity: (a.affinity ?? 'off') as JobAffinityMode,
+          kind: a.kind as JobKind | undefined,
+          ownershipPaths: a.ownership_paths,
+          autoSplit: a.auto_split,
+          greenfieldChain: a.greenfield_chain,
+        });
+        if (affinityDisposition?.action === 'reject') {
+          return { isError: true, output: affinityDisposition.reason };
+        }
+        if (
+          affinityDisposition?.action === 'steer' ||
+          affinityDisposition?.action === 'fold'
+        ) {
+          return applyJobAffinityInPlace({
+            store: this.store,
+            agent: this.agent,
+            pool,
+            disposition: affinityDisposition,
+            title: a.title,
+            kind: a.kind as JobKind | undefined,
+            prompt: a.prompt,
+            ownershipPaths: a.ownership_paths,
+            contextPaths: a.context_paths,
+            successCriteria,
+            mustNotTouch,
+            verificationCommands,
+            testSeams: testSeams.length > 0 ? testSeams : undefined,
+            tddMode,
+            reproCommand,
+            surfaceKind: a.surface_kind,
+          });
+        }
+
         if (a.greenfield_chain === true) {
           const created = createGreenfieldChainJobs(this.store, {
             title: a.title,
@@ -653,15 +887,27 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
         }
 
         const kind = a.kind as JobKind | undefined;
+        const reuse =
+          affinityDisposition?.action === 'reuse'
+            ? reuseInheritanceFromAnchor(affinityDisposition.anchor)
+            : undefined;
+        const parentJobId = a.parent_job_id ?? reuse?.parentJobId;
+        const ownershipPaths =
+          a.ownership_paths ?? reuse?.ownershipPaths;
+        const contextPaths = mergeStringLists(reuse?.contextPaths, a.context_paths);
+        const effectiveModelAlias = modelAlias ?? reuse?.modelAlias;
+        const surfaceKind = a.surface_kind ?? reuse?.surfaceKind;
+        // Affinity reuse keeps one child on the anchor worktree — never fan out.
         const shouldStaff =
-          a.staff === true ||
-          (a.staff !== false &&
-            (kind === undefined ||
-              kind === 'task' ||
-              kind === 'implement' ||
-              kind === 'explore' ||
-              kind === 'research' ||
-              kind === 'verify'));
+          reuse === undefined &&
+          (a.staff === true ||
+            (a.staff !== false &&
+              (kind === undefined ||
+                kind === 'task' ||
+                kind === 'implement' ||
+                kind === 'explore' ||
+                kind === 'research' ||
+                kind === 'verify')));
 
         // Intent fan-out is opt-in via auto_split only. Default staffing binds an
         // expert to ONE Job — bullet success_criteria must not spawn Task (1)…(5).
@@ -684,6 +930,17 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
           }
         }
 
+        const reuseFields =
+          reuse !== undefined
+            ? {
+                worktreePath: reuse.worktreePath,
+                worktreeBranch: reuse.worktreeBranch,
+                workerResumeAgentId: reuse.workerResumeAgentId,
+                workerCheckpointAt: reuse.workerCheckpointAt,
+                notes: reuse.notes,
+              }
+            : {};
+
         let created: JobRecord[];
         if (shouldStaff && !isGoalDriver) {
           const staffedSlices = [];
@@ -693,7 +950,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
               title: intent.title || a.title,
               kind,
               successCriteria: successCriteria.length > 0 ? successCriteria : undefined,
-              ownershipPaths: a.ownership_paths,
+              ownershipPaths,
             });
             staffedSlices.push(...slices);
           }
@@ -703,8 +960,8 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
               kind: slice.kind,
               priority: (a.priority ?? 0) + (staffedSlices.length - index),
               prompt: slice.prompt,
-              ownershipPaths: slice.ownershipPaths ?? a.ownership_paths,
-              contextPaths: a.context_paths,
+              ownershipPaths: slice.ownershipPaths ?? ownershipPaths,
+              contextPaths,
               successCriteria: successCriteria.length > 0 ? successCriteria : undefined,
               mustNotTouch: mustNotTouch.length > 0 ? mustNotTouch : undefined,
               verificationCommands:
@@ -714,12 +971,13 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
               reproCommand,
               blockedByJobIds: blockedByJobIds.length > 0 ? blockedByJobIds : undefined,
               deliveryMode: deliveryMode === 'standard' ? undefined : deliveryMode,
-              parentJobId: a.parent_job_id,
+              parentJobId,
               expertId: slice.expertId,
               expertScore: slice.expertScore,
               staffQuery: slice.staffQuery,
-              modelAlias,
-              surfaceKind: a.surface_kind,
+              modelAlias: effectiveModelAlias,
+              surfaceKind,
+              ...reuseFields,
             }),
           );
         } else {
@@ -729,8 +987,8 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
               kind,
               priority: (a.priority ?? 0) + (intents.length - index),
               prompt: intent.prompt,
-              ownershipPaths: a.ownership_paths,
-              contextPaths: a.context_paths,
+              ownershipPaths,
+              contextPaths,
               successCriteria: successCriteria.length > 0 ? successCriteria : undefined,
               mustNotTouch: mustNotTouch.length > 0 ? mustNotTouch : undefined,
               verificationCommands:
@@ -740,9 +998,10 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
               reproCommand,
               blockedByJobIds: blockedByJobIds.length > 0 ? blockedByJobIds : undefined,
               deliveryMode: deliveryMode === 'standard' ? undefined : deliveryMode,
-              parentJobId: a.parent_job_id,
-              modelAlias,
-              surfaceKind: a.surface_kind,
+              parentJobId,
+              modelAlias: effectiveModelAlias,
+              surfaceKind,
+              ...reuseFields,
               ...(isGoalDriver
                 ? {
                     goalObjective: intent.prompt?.trim() || intent.title || a.title,
@@ -765,12 +1024,28 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
           );
         }
 
+        const extraLines: string[] = [];
+        if (reuse !== undefined) {
+          extraLines.push(
+            `affinity: reuse from ${reuse.parentJobId} (worktree+resume preserved; child queued)`,
+          );
+        } else {
+          const hint = findAffinityHint(this.store, {
+            ownershipPaths,
+            excludeJobIds: new Set(created.map((j) => j.id)),
+          });
+          if (hint !== undefined) {
+            extraLines.push(formatAffinityHint(hint));
+          }
+        }
+
         return ackCreatedJobs({
           store: this.store,
           agent: this.agent,
           created,
           pool,
           batchLabel: created.length > 1 && a.auto_split === true ? 'multi-intent split' : undefined,
+          extraLines: extraLines.length > 0 ? extraLines : undefined,
         });
       },
     };

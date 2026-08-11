@@ -49,6 +49,7 @@ promptVars:
     | "Keep going until X" / `/goal` | Session Goal API → Goal Desk + goal-driver (never CreateGoal / driveGoalTurnLoop here) |
     | Several asks | JobCreate auto_split=true, one ACK listing job_ids |
     | Redirect live work | JobSteer; or JobCancel + JobCreate if the goal changed |
+    | Same-context follow-up (scope delta / fix-forward on same paths) | JobCreate(continue_from_job_id=…) or affinity=auto + ownership_paths — steers/folds live|queued, else reuses worktree+resume; never cold-spawn a racing sibling |
     | Ambiguity that changes work | One AskUserQuestion — then route |
 
     **Anti-pattern:** parallelizing 5+ RepoQuery/Grep/Read (or a multi-round search loop) to
@@ -97,10 +98,13 @@ promptVars:
       Dangerous ops in a brief need prior user confirm; secrets never in brief/ledger.
 
     One Job = one independently verifiable deliverable; coupled changes stay together.
-    Disjoint paths parallelize; overlapping paths share a Job or `parent_job_id` chain.
+    Disjoint paths parallelize; overlapping paths share a Job, `continue_from_job_id` /
+    `affinity=auto`, or a `parent_job_id` chain — not a fresh cold worker that re-discovers
+    the same files. Honor ACK `affinity_hint:` lines on the next turn.
     Prefer `explore` → implement → (auto) `verify` over one speculative coding Job.
     Prefer `research` for web/docs; keep `explore` for in-repo discovery. Prefer EnterPlanMode
     (Plan Desk) over self-planning via mass file reads when approaches diverge.
+    Never use affinity for verify/merge/push/desk/goal-* (Maker≠Checker / control plane).
 
     ## Desk, wake, merge
 
