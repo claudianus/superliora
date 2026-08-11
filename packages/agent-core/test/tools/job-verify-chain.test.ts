@@ -107,9 +107,15 @@ describe('job-verify-chain', () => {
       // Free-text PASS alone is not enough for MergeJob — need verifyVerdict.
       resultSummary: '{"verdict":"pass","findings":[],"required_fixes":[]}',
     });
-    expect(
-      evaluateVerifyChainForMerge({ job: implement, jobs: [implement, verifyTextOnly] }).ok,
-    ).toBe(false);
+    const textOnlyGate = evaluateVerifyChainForMerge({
+      job: implement,
+      jobs: [implement, verifyTextOnly],
+    });
+    expect(textOnlyGate.ok).toBe(false);
+    if (!textOnlyGate.ok) {
+      expect(textOnlyGate.reason).toMatch(/verdict=missing.*dual-axis JSON/i);
+      expect(textOnlyGate.reason).not.toMatch(/debug\/implement/i);
+    }
 
     const verifyPass = job({
       id: 'job_ver2',
@@ -267,5 +273,108 @@ describe('job-verify-chain', () => {
     // Idempotent debug enqueue.
     const failedVerify = verifies.find((r) => r.reviewAxis === 'spec') ?? verifies[0]!;
     expect(await enqueueDebugJobForVerify(store, parent, failedVerify)).toBeUndefined();
+  });
+
+  it('onJobTerminal fails free-text verify, retries once, and skips Debug', async () => {
+    const store = memoryStore();
+    const parent = createJob(store, {
+      title: 'Delete-pass',
+      kind: 'implement',
+      expertId: 'maker-x',
+      ownershipPaths: ['src/App.js'],
+      surfaceKind: 'none',
+    });
+    patchJob(store, parent.id, { status: 'done' });
+    await onJobTerminalForVerifyChain(store, { ...parent, status: 'done' });
+    const firstWave = listJobs(store).filter((j) => j.kind === 'verify');
+    expect(firstWave).toHaveLength(2);
+
+    for (const verify of firstWave) {
+      patchJob(store, verify.id, {
+        status: 'done',
+        // Human-readable PASS with no dual-axis JSON — MergeJob must not trust this.
+        resultSummary: 'Delete-pass verify PASS. All criteria look good.',
+        expertId: `checker-${verify.reviewAxis ?? 'ui'}`,
+      });
+      await onJobTerminalForVerifyChain(store, listJobs(store).find((j) => j.id === verify.id)!);
+    }
+
+    const afterRetry = listJobs(store).filter((j) => j.kind === 'verify');
+    expect(afterRetry.length).toBe(4);
+    expect(afterRetry.filter((j) => j.notes?.includes('structured_verdict_retry'))).toHaveLength(2);
+    expect(
+      listJobs(store).find((j) => j.kind === 'implement' && j.title.startsWith('Debug:')),
+    ).toBeUndefined();
+
+    const failedOriginals = firstWave.map((v) => listJobs(store).find((j) => j.id === v.id)!);
+    for (const v of failedOriginals) {
+      expect(v.status).toBe('failed');
+      expect(v.verifyVerdict).toBeUndefined();
+    }
+
+    // Retry also missing → still no Debug; merge points at requeue-verify, not debug.
+    const retries = afterRetry.filter((j) => j.notes?.includes('structured_verdict_retry'));
+    for (const verify of retries) {
+      patchJob(store, verify.id, {
+        status: 'done',
+        resultSummary: 'still just PASS in prose',
+        expertId: verify.expertId,
+      });
+      await onJobTerminalForVerifyChain(store, listJobs(store).find((j) => j.id === verify.id)!);
+    }
+    expect(
+      listJobs(store).find((j) => j.kind === 'implement' && j.title.startsWith('Debug:')),
+    ).toBeUndefined();
+    // No third wave.
+    expect(listJobs(store).filter((j) => j.kind === 'verify')).toHaveLength(4);
+
+    const parentLatest = listJobs(store).find((j) => j.id === parent.id)!;
+    const gate = evaluateVerifyChainForMerge({
+      job: parentLatest,
+      jobs: listJobs(store),
+    });
+    expect(gate.ok).toBe(false);
+    if (!gate.ok) {
+      expect(gate.reason).toMatch(/verdict=missing.*dual-axis JSON/i);
+    }
+  });
+
+  it('merge prefers latest verify per axis after structured retry passes', async () => {
+    const implement = job({
+      id: 'job_impl',
+      title: 'Feature',
+      kind: 'implement',
+      expertId: 'maker-1',
+    });
+    const oldMissing = job({
+      id: 'job_ver_old',
+      title: 'Verify',
+      kind: 'verify',
+      parentJobId: 'job_impl',
+      expertId: 'checker-1',
+      status: 'failed',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:01.000Z',
+      resultSummary: 'PASS in prose',
+    });
+    const retryPass = job({
+      id: 'job_ver_new',
+      title: 'Re-verify',
+      kind: 'verify',
+      parentJobId: 'job_impl',
+      expertId: 'checker-1',
+      status: 'done',
+      createdAt: '2026-01-01T00:00:02.000Z',
+      updatedAt: '2026-01-01T00:00:03.000Z',
+      notes: 'structured_verdict_retry',
+      verifyVerdict: 'passed',
+      resultSummary: '{"verdict":"pass","findings":[],"required_fixes":[]}',
+    });
+    expect(
+      evaluateVerifyChainForMerge({
+        job: implement,
+        jobs: [implement, oldMissing, retryPass],
+      }),
+    ).toEqual({ ok: true });
   });
 });

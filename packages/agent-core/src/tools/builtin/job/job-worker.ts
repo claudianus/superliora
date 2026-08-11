@@ -705,25 +705,33 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
           : goalStopped
             ? 'blocked'
             : 'done';
+        // Structured field only — never invent failed from status (MergeJob ignores free-text PASS).
         const verifyVerdictField =
           ledgerJob.kind === 'verify'
             ? (() => {
                 const parsed = parseVerifyVerdict(summary);
                 if (parsed === 'passed' || parsed === 'failed') return parsed;
-                if (finalStatus === 'failed') return 'failed' as const;
                 return undefined;
               })()
             : undefined;
+        // Done without dual-axis JSON is a format failure — fail so Conductor does not MergeJob.
+        const verifyMissingStructured =
+          ledgerJob.kind === 'verify' &&
+          finalStatus === 'done' &&
+          verifyVerdictField === undefined;
+        const effectiveStatus: JobStatus = verifyMissingStructured ? 'failed' : finalStatus;
         const goalReason = completion.goalTerminalReason
           ? ` (${completion.goalTerminalReason})`
           : '';
         const baseSummary = verificationFailed
           ? `verification failed — ${summary}`
-          : goalStopped
-            ? `goal ${completion.goalStatus}${goalReason} — ${summary}`
-            : unverified
-              ? `${UNVERIFIED_SUMMARY_PREFIX}${summary}`
-              : summary;
+          : verifyMissingStructured
+            ? `structured verifyVerdict missing — ${summary}`
+            : goalStopped
+              ? `goal ${completion.goalStatus}${goalReason} — ${summary}`
+              : unverified
+                ? `${UNVERIFIED_SUMMARY_PREFIX}${summary}`
+                : summary;
         // Feed worker struggle stats into Conductor inbox so auto-refine sees them.
         const frictionBlock =
           completion.friction !== undefined
@@ -737,7 +745,7 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
           // A done with a failed verification gate misled the conductor:
           // surface explicit verification failures as failed so the playbook
           // routes them to inspection instead of merge/land.
-          status: finalStatus,
+          status: effectiveStatus,
           resultSummary,
           ...(contract !== undefined ? { resultContract: contract } : {}),
           ...(completion.goalId !== undefined ? { goalId: completion.goalId } : {}),
@@ -747,11 +755,13 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
             commitNote,
             verificationFailed
               ? 'worker: completed but verification failed'
-              : goalStopped
-                ? `worker: goal ${completion.goalStatus}${goalReason}`
-                : unverified
-                  ? 'worker: completed unverified (checks did not run)'
-                  : 'worker: completed',
+              : verifyMissingStructured
+                ? 'worker: verify finished without structured verifyVerdict'
+                : goalStopped
+                  ? `worker: goal ${completion.goalStatus}${goalReason}`
+                  : unverified
+                    ? 'worker: completed unverified (checks did not run)'
+                    : 'worker: completed',
           ]
             .filter(Boolean)
             .join('\n'),
