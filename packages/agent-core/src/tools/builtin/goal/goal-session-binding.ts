@@ -398,9 +398,10 @@ export function healActiveGoalDeskBinding(
 
   // Prefer a settled driver (done/failed/cancelled); ignore odd leftovers.
   const settled = drivers.filter((job) => isDriverSettled(job.status));
+  const byUpdatedDesc = (a: JobRecord, b: JobRecord): number =>
+    Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
   const primary =
-    settled.sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0] ??
-    drivers.sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0];
+    settled.toSorted(byUpdatedDesc)[0] ?? drivers.toSorted(byUpdatedDesc)[0];
   if (primary === undefined) return binding;
 
   syncGoalDeskParentFromDriver(store, primary, agent);
