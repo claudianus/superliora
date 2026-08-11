@@ -4,8 +4,14 @@ import { join } from 'node:path';
 
 import { UNKNOWN_CAPABILITY } from '@superliora/kosong';
 import type { ContentPart, ModelCapability } from '@superliora/kosong';
+import { sharedCredentialHealthStore } from '@superliora/oauth';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  resetLiveProbeCacheForTests,
+  resetModelRouteHealthStoreForTests,
+  sharedModelRouteHealthStore,
+} from '../../src/agent/routing';
 import type { LioraConfig } from '../../src/config';
 import type { ProviderManager, ResolvedRuntimeProvider } from '../../src/session/provider/provider-manager';
 import { SessionAPIImpl } from '../../src/session/rpc';
@@ -121,6 +127,17 @@ const imagePart: ContentPart = { type: 'image_url', imageUrl: { url: PNG_DATA_UR
 const textPart: ContentPart = { type: 'text', text: 'What does this show?' };
 
 describe('selectVisionModel', () => {
+  beforeEach(() => {
+    resetModelRouteHealthStoreForTests();
+    resetLiveProbeCacheForTests();
+    sharedCredentialHealthStore.clear();
+  });
+  afterEach(() => {
+    resetModelRouteHealthStoreForTests();
+    resetLiveProbeCacheForTests();
+    sharedCredentialHealthStore.clear();
+  });
+
   it('prefers a vision model on the current provider', () => {
     const providerManager = fakeProviderManager({
       'alpha-vision': { providerName: 'alpha', resolved: visionResolved('alpha-vision', 'alpha') },
@@ -134,6 +151,36 @@ describe('selectVisionModel', () => {
     });
 
     expect(selected?.modelAlias).toBe('beta-vision');
+  });
+
+  it('keeps the current alias when it already has image_in', () => {
+    const providerManager = fakeProviderManager({
+      'alpha-vision': { providerName: 'alpha', resolved: visionResolved('alpha-vision', 'alpha') },
+      'grok-current': {
+        providerName: 'xai-grok',
+        resolved: visionResolved('grok-current', 'xai-grok'),
+      },
+    });
+
+    const selected = selectVisionModel(providerManager, {
+      kind: 'image',
+      currentModelAlias: 'grok-current',
+    });
+
+    expect(selected?.modelAlias).toBe('grok-current');
+  });
+
+  it('skips aliases on route-health cooldown after a failed probe', () => {
+    sharedModelRouteHealthStore.markUnavailable('dead-vision', {
+      kind: 'probe_fail',
+      failureReason: 'empty',
+    });
+    const providerManager = fakeProviderManager({
+      'dead-vision': { providerName: 'alpha', resolved: visionResolved('dead-vision', 'alpha') },
+      'live-vision': { providerName: 'beta', resolved: visionResolved('live-vision', 'beta') },
+    });
+
+    expect(selectVisionModel(providerManager, { kind: 'image' })?.modelAlias).toBe('live-vision');
   });
 
   it('falls back to deterministic catalog order without a same-provider match', () => {

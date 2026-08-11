@@ -52,6 +52,7 @@ const SESSION_TO_AGENT_ALLOWLIST = new Set([
   'session/subagent/subagent-verification-gate.ts',
   'session/team-hooks.ts',
   'session/trace.ts',
+  'session/vision-analyzer/analyzer.ts',
   'session/vision-analyzer/types.ts',
 ]);
 

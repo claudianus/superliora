@@ -279,19 +279,70 @@ function indexModelEntry(
 
 function mergeModelEntries(a: ModelsDevModelEntry, b: ModelsDevModelEntry): ModelsDevModelEntry {
   // Prefer b for benchmarks when present; prefer a for cost when present.
+  // Capability flags: true from any provider row wins (a false row must not
+  // shadow another provider's image/tool/reasoning support for the same id).
   return {
     inputCostPerM: a.inputCostPerM ?? b.inputCostPerM,
     outputCostPerM: a.outputCostPerM ?? b.outputCostPerM,
     contextWindow: a.contextWindow ?? b.contextWindow,
-    supportsReasoning: a.supportsReasoning ?? b.supportsReasoning,
-    supportsTools: a.supportsTools ?? b.supportsTools,
-    supportsVision: a.supportsVision ?? b.supportsVision,
+    supportsReasoning: mergeCapabilityFlag(a.supportsReasoning, b.supportsReasoning),
+    supportsTools: mergeCapabilityFlag(a.supportsTools, b.supportsTools),
+    supportsVision: mergeCapabilityFlag(a.supportsVision, b.supportsVision),
     family: a.family ?? b.family,
     knowledgeCutoff: a.knowledgeCutoff ?? b.knowledgeCutoff,
     benchmarkScore: b.benchmarkScore ?? a.benchmarkScore,
     benchmarkCount: b.benchmarkCount ?? a.benchmarkCount,
     benchmarks: b.benchmarks ?? a.benchmarks,
   };
+}
+
+/** True wins; otherwise keep a defined false/undefined over the other. */
+function mergeCapabilityFlag(
+  a: boolean | undefined,
+  b: boolean | undefined,
+): boolean | undefined {
+  if (a === true || b === true) return true;
+  if (a === false || b === false) return false;
+  return undefined;
+}
+
+/**
+ * Look up a models.dev row for a wire/catalog model id.
+ * Tries exact id, provider/model bare name, and common Cursor effort suffixes.
+ */
+export function lookupModelsDevModel(modelId: string): ModelsDevModelEntry | undefined {
+  const peek = peekModelsDevData();
+  if (peek === undefined) return undefined;
+  for (const key of modelsDevLookupKeys(modelId)) {
+    const hit = peek.models.get(key);
+    if (hit !== undefined) return hit;
+  }
+  return undefined;
+}
+
+/** @internal exported for tests */
+export function modelsDevLookupKeys(modelId: string): readonly string[] {
+  const raw = modelId.trim().toLowerCase();
+  if (raw.length === 0) return [];
+  const keys: string[] = [raw];
+  const slash = raw.lastIndexOf('/');
+  if (slash >= 0) {
+    const afterSlash = raw.slice(slash + 1);
+    if (afterSlash.length > 0) keys.push(afterSlash);
+  }
+  const seeds = keys.slice();
+  for (const base of seeds) {
+    const unprefixed = base.startsWith('cursor-') ? base.slice('cursor-'.length) : base;
+    if (unprefixed !== base) keys.push(unprefixed);
+    // Cursor/OpenRouter effort·speed suffixes on top of the catalog id.
+    const stripped = unprefixed
+      .replace(/-fast-(none|low|medium|high|xhigh|max)$/i, '')
+      .replace(/-(none|low|medium|high|xhigh|max)-fast$/i, '')
+      .replace(/-(none|low|medium|high|xhigh|max)$/i, '')
+      .replace(/-fast$/i, '');
+    if (stripped !== unprefixed && stripped.length > 0) keys.push(stripped);
+  }
+  return [...new Set(keys)];
 }
 
 async function fetchJson(url: string): Promise<unknown> {

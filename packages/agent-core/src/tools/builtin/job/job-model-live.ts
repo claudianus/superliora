@@ -10,6 +10,7 @@ import type { Agent } from '../../../agent/index';
 import {
   ensureSmartRouteProbed,
   isConfigAliasHealthy,
+  isLiveProbeFailureFresh,
   probeModelAlias,
   resolveSmartRoute,
   type SmartRoute,
@@ -213,6 +214,7 @@ function suggestNextHint(
   for (const alias of chain) {
     const trimmed = alias.trim();
     if (trimmed.length === 0 || trimmed === failedAlias) continue;
+    if (isLiveProbeFailureFresh(trimmed)) continue;
     const config = currentAgentConfig(agent) ?? agent.runtimeConfig ?? agent.kimiConfig;
     if (config !== undefined && isConfigAliasHealthy(config, trimmed)) return trimmed;
   }

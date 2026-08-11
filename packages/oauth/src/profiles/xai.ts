@@ -192,13 +192,13 @@ export const XAI_PROFILE: ProviderProfile = {
       id: 'grok-4.5',
       displayName: 'Grok 4.5',
       maxContextSize: 500000,
-      capabilities: ['thinking', 'tool_use'],
+      capabilities: ['thinking', 'tool_use', 'image_in'],
     },
     {
       id: 'grok-4.3',
       displayName: 'Grok 4.3',
       maxContextSize: 1000000,
-      capabilities: ['thinking', 'tool_use'],
+      capabilities: ['thinking', 'tool_use', 'image_in'],
     },
     {
       id: 'grok-build-0.1',

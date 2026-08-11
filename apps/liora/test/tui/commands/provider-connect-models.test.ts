@@ -22,8 +22,8 @@ const { fetchCursorAvailableModels } = await import('@superliora/oauth');
 const { resolveOAuthProviderModels } = await import('#/tui/commands/provider-connect/oauth');
 
 const XAI_PRESETS = [
-  { id: 'grok-4.5', displayName: 'Grok 4.5', maxContextSize: 500000, capabilities: ['thinking', 'tool_use'] },
-  { id: 'grok-4.3', displayName: 'Grok 4.3', maxContextSize: 1000000, capabilities: ['thinking', 'tool_use'] },
+  { id: 'grok-4.5', displayName: 'Grok 4.5', maxContextSize: 500000, capabilities: ['thinking', 'tool_use', 'image_in'] },
+  { id: 'grok-4.3', displayName: 'Grok 4.3', maxContextSize: 1000000, capabilities: ['thinking', 'tool_use', 'image_in'] },
   { id: 'grok-build-0.1', displayName: 'Grok Build 0.1', maxContextSize: 256000, capabilities: ['thinking', 'tool_use'] },
 ];
 
@@ -40,7 +40,7 @@ describe('resolveOAuthProviderModels', () => {
             limit: { context: 500000, output: 32000 },
             tool_call: true,
             reasoning: true,
-            modalities: { input: ['text'], output: ['text'] },
+            modalities: { input: ['text', 'image'], output: ['text'] },
           },
         },
       },
