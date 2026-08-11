@@ -838,7 +838,7 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
         resultSummary: undefined,
         notes: [prior, deferred].filter(Boolean).join('\n'),
       });
-      requestJobSchedulePump({ store: input.store, agent: input.agent });
+      void requestJobSchedulePump({ store: input.store, agent: input.agent });
       return { ok: false, error: detail };
     }
 
@@ -969,7 +969,7 @@ export function steerJobWorker(input: {
  * the offload lane, never on the completion/cancel path.
  */
 export function pumpSchedulerAfterWorker(agent: Agent, store: ToolStore): void {
-  requestJobSchedulePump({ store, agent });
+  void requestJobSchedulePump({ store, agent });
 }
 
 /**
