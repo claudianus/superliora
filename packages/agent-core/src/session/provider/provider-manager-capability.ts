@@ -2,21 +2,36 @@ import type { ProviderConfig as KosongProviderConfig } from '@superliora/kosong'
 import { getModelCapability, type ModelCapability } from '@superliora/kosong';
 
 import type { ModelAlias, ProviderConfig } from '../../config';
+import { lookupModelsDevModel } from '../../utils/model-presets';
 
+/**
+ * Resolve effective model capabilities for routing / vision / fleet.
+ *
+ * Merge rule (positive evidence wins — never let a stale partial
+ * `capabilities: ['tool_use']` list deny multimodal that models.dev reports):
+ *   declared config ∪ wire static table ∪ warm models.dev row
+ */
 export function resolveModelCapabilities(
   alias: ModelAlias,
   provider: KosongProviderConfig,
 ): ModelCapability {
   const declared = new Set((alias.capabilities ?? []).map((c) => c.trim().toLowerCase()));
-  const detected = getModelCapability(provider.type, provider.model);
+  const wire = getModelCapability(provider.type, provider.model);
+  const catalog = lookupModelsDevModel(provider.model) ?? lookupModelsDevModel(alias.model);
 
   return {
-    image_in: declared.has('image_in') || detected.image_in,
-    video_in: declared.has('video_in') || detected.video_in,
-    audio_in: declared.has('audio_in') || detected.audio_in,
-    thinking: declared.has('thinking') || declared.has('always_thinking') || detected.thinking,
-    tool_use: declared.has('tool_use') || detected.tool_use,
-    max_context_tokens: alias.maxContextSize,
+    image_in:
+      declared.has('image_in') || wire.image_in || catalog?.supportsVision === true,
+    video_in: declared.has('video_in') || wire.video_in,
+    audio_in: declared.has('audio_in') || wire.audio_in,
+    thinking:
+      declared.has('thinking') ||
+      declared.has('always_thinking') ||
+      wire.thinking ||
+      catalog?.supportsReasoning === true,
+    tool_use:
+      declared.has('tool_use') || wire.tool_use || catalog?.supportsTools === true,
+    max_context_tokens: alias.maxContextSize ?? catalog?.contextWindow ?? 0,
   };
 }
 

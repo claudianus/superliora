@@ -23,6 +23,7 @@ export function selectFleetCatalogRows(
   config: LioraConfig,
   maxRows: number = FLEET_MODEL_CATALOG_MAX_ROWS,
 ): readonly ModelMetadata[] {
+  const defaultAlias = config.defaultModel?.trim() || undefined;
   const rows = buildLocalModelMetadata(config).filter((model) => {
     const alias = model.alias?.trim();
     if (alias === undefined || alias.length === 0) return false;
@@ -35,6 +36,12 @@ export function selectFleetCatalogRows(
   });
   return [...rows]
     .sort((a, b) => {
+      // Session default first when healthy — workers should stick to the user's pick.
+      if (defaultAlias !== undefined) {
+        const aDef = a.alias === defaultAlias ? 1 : 0;
+        const bDef = b.alias === defaultAlias ? 1 : 0;
+        if (aDef !== bDef) return bDef - aDef;
+      }
       const aq = a.qualityScore ?? a.benchmarkScore ?? 0;
       const bq = b.qualityScore ?? b.benchmarkScore ?? 0;
       if (bq !== aq) return bq - aq;
@@ -54,8 +61,8 @@ export function renderFleetModelCatalog(
 
   const lines: string[] = [
     '<fleet_model_catalog>',
-    'Live-healthy aliases only (credentials + recent probe). When role models are auto, set JobCreate.model_alias from this list (omit → harness picks by kind/profile). Never invent aliases; JobCreate live-probes the pick.',
-    'Hints: explore/research → value; implement/goal-driver → quality; verify → different family from maker when possible; UI → vision=yes.',
+    'Live-healthy aliases only (credentials + recent probe). Prefer the session default (listed first when healthy). When role models are auto, set JobCreate.model_alias from this list (omit → harness picks by kind/profile). Never invent aliases; never retry an omitted/failed alias until it reappears; JobCreate live-probes the pick.',
+    'Hints: explore/research → value; implement/goal-driver → quality; verify → different family from maker when possible; UI/screenshots → vision=yes (multimodal session defaults count).',
     'alias | q | value | $/M_in | tools | vision | ctx | fit',
   ];
 

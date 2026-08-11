@@ -7,13 +7,17 @@ import {
   autoAssignRoleModelsWithHealth,
   buildFallbackChain,
   classifyModelTier,
+  clearModelsDevCacheForTests,
   isAuthOrCreditFailure,
   isHardExcludedForRole,
+  lookupModelsDevModel,
+  modelsDevLookupKeys,
   previewLoopRoleModelRouting,
   ROLE_PRESETS,
   scoreFromBenchmarks,
   scoreModelQuality,
   scoreModelValue,
+  setModelsDevDataForTests,
   type ModelMetadata,
 } from '../../src/utils/model-presets';
 
@@ -581,5 +585,24 @@ describe('model-presets — hard exclude + quality floor', () => {
     const assignments = autoAssignRoleModels(models);
     assert.equal(assignments.coding, undefined);
     assert.equal(assignments.planning, undefined);
+  });
+});
+
+describe('model-presets — models.dev lookup', () => {
+  it('strips Cursor effort suffixes to the catalog id', () => {
+    assert.deepEqual(modelsDevLookupKeys('cursor-grok-4.5-high-fast'), [
+      'cursor-grok-4.5-high-fast',
+      'grok-4.5-high-fast',
+      'grok-4.5',
+    ]);
+  });
+
+  it('resolves vision from a warm models.dev row for a suffixed id', () => {
+    clearModelsDevCacheForTests();
+    setModelsDevDataForTests({
+      models: new Map([['grok-4.5', { supportsVision: true, supportsTools: true }]]),
+    });
+    assert.equal(lookupModelsDevModel('cursor-grok-4.5-high')?.supportsVision, true);
+    clearModelsDevCacheForTests();
   });
 });

@@ -78,6 +78,7 @@ export function getModelCapability(wire: ProviderType, modelName: string): Model
       return getGoogleGenAIModelCapability(modelName);
     case 'kimi':
     case 'cursor':
+      // Host catalogs (models.dev / Cursor AvailableModels) own these wires.
       return UNKNOWN_CAPABILITY;
     default: {
       const exhaustive: never = wire;

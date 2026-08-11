@@ -263,6 +263,7 @@ export {
   buildFallbackChain,
   isAuthOrCreditFailure,
   isHardExcludedForRole,
+  lookupModelsDevModel,
   peekModelsDevData,
   previewLoopRoleModelRouting,
   rolePresetFor,

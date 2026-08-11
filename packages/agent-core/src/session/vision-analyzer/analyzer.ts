@@ -11,6 +11,9 @@ import { createProvider, isUnknownCapability } from '@superliora/kosong';
 import type { ContentPart, Message } from '@superliora/kosong';
 import { sharedCredentialHealthStore } from '@superliora/oauth';
 
+import { isLiveProbeFailureFresh } from '../../agent/routing/live-probe';
+import { sharedModelRouteHealthStore } from '../../agent/routing/model-route-health';
+import type { LioraConfig } from '../../config';
 import { persistOriginalImage } from '../../tools/support/image-originals';
 import { providerHasAnyCredential } from '../provider/provider-manager';
 import type { ProviderManager, ResolvedRuntimeProvider } from '../provider/provider-manager';
@@ -57,12 +60,20 @@ export function selectVisionModel(
   const config = providerManager.currentConfig();
   const models = config.models ?? {};
 
+  const currentAlias = options.currentModelAlias?.trim() || undefined;
   let currentProviderName: string | undefined;
-  if (options.currentModelAlias !== undefined) {
+  if (currentAlias !== undefined) {
     try {
-      currentProviderName = providerManager.resolveProviderConfig(
-        options.currentModelAlias,
-      ).providerName;
+      const current = providerManager.resolveProviderConfig(currentAlias);
+      currentProviderName = current.providerName;
+      // Prefer the session/current alias when it already consumes the media kind
+      // and is not on a fresh live-probe / route-health cooldown.
+      if (
+        hasVisionCapability(current, options.kind) &&
+        isSelectableVisionAlias(config, currentAlias, current)
+      ) {
+        return current;
+      }
     } catch {
       currentProviderName = undefined;
     }
@@ -78,16 +89,7 @@ export function selectVisionModel(
       continue;
     }
     if (!hasVisionCapability(resolved, options.kind)) continue;
-    const providerConfig = config.providers[resolved.providerName];
-    if (providerConfig === undefined || !providerHasAnyCredential(providerConfig)) continue;
-    if (
-      !sharedCredentialHealthStore.isAvailable(
-        resolved.providerName,
-        resolved.credentialLabel,
-      )
-    ) {
-      continue;
-    }
+    if (!isSelectableVisionAlias(config, alias, resolved)) continue;
     first ??= resolved;
     if (
       sameProvider === undefined &&
@@ -98,6 +100,23 @@ export function selectVisionModel(
     }
   }
   return sameProvider ?? first;
+}
+
+function isSelectableVisionAlias(
+  config: LioraConfig,
+  alias: string,
+  resolved: ResolvedRuntimeProvider,
+): boolean {
+  if (isLiveProbeFailureFresh(alias)) return false;
+  if (!sharedModelRouteHealthStore.isAvailable(alias)) return false;
+  const providerConfig = config.providers[resolved.providerName];
+  if (providerConfig === undefined || !providerHasAnyCredential(providerConfig)) return false;
+  if (
+    !sharedCredentialHealthStore.isAvailable(resolved.providerName, resolved.credentialLabel)
+  ) {
+    return false;
+  }
+  return true;
 }
 
 function hasVisionCapability(

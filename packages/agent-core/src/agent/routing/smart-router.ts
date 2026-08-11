@@ -12,12 +12,14 @@ import {
   resolveKimiTokenStorageName,
   sharedCredentialHealthStore,
 } from '@superliora/oauth';
+import type { ProviderConfig as KosongProviderConfig, ProviderType } from '@superliora/kosong';
 
 import type { ThinkingEffort } from '../config/thinking';
 import { resolveThinkingEffort } from '../config/thinking';
 import type { LioraConfig, ModelAlias, ProviderConfig } from '../../config';
 import { SOVEREIGN_CONDUCTOR_PROFILE_NAME } from '../../profile/main-profile';
 import { hasConfiguredApiKeySource } from '../../session/provider/provider-manager-api-key';
+import { resolveModelCapabilities } from '../../session/provider/provider-manager-capability';
 import { providerOAuthRefs } from '../../session/provider/provider-manager-oauth';
 import {
   applyModelScores,
@@ -25,6 +27,7 @@ import {
   buildFallbackChain,
   classifyModelTier,
   getModelsDevData,
+  lookupModelsDevModel,
   peekModelsDevData,
   rolePresetFor,
   type ModelMetadata,
@@ -163,12 +166,13 @@ function localModelMetadata(
       model.adaptiveThinking === true ||
       (model.supportEfforts?.length ?? 0) > 0
     : undefined;
-  const localTools = declaredCapabilities ? capabilities.has('tool_use') : undefined;
-  const localVision = declaredCapabilities ? capabilities.has('image_in') : undefined;
 
-  const peek = peekModelsDevData();
+  // Same merge as ProviderManager: declared ∪ wire ∪ models.dev (positive wins).
+  const resolvedCaps = resolveLocalModelCapabilities(model, config);
   const devData =
-    peek?.models.get(model.model.toLowerCase()) ?? peek?.models.get(alias.toLowerCase());
+    lookupModelsDevModel(model.model) ??
+    lookupModelsDevModel(alias) ??
+    peekModelsDevData()?.models.get(model.model.toLowerCase());
 
   return applyModelScores(
     {
@@ -179,9 +183,9 @@ function localModelMetadata(
       contextWindow: model.maxContextSize ?? devData?.contextWindow,
       inputCostPerM: model.cost?.input ?? devData?.inputCostPerM,
       outputCostPerM: model.cost?.output ?? devData?.outputCostPerM,
-      supportsReasoning: localReasoning ?? devData?.supportsReasoning,
-      supportsTools: localTools ?? devData?.supportsTools,
-      supportsVision: localVision ?? devData?.supportsVision,
+      supportsReasoning: localReasoning ?? resolvedCaps?.thinking ?? devData?.supportsReasoning,
+      supportsTools: resolvedCaps?.tool_use ?? devData?.supportsTools,
+      supportsVision: resolvedCaps?.image_in ?? devData?.supportsVision === true,
       family: devData?.family,
       knowledgeCutoff: devData?.knowledgeCutoff,
       benchmarkScore: devData?.benchmarkScore,
@@ -189,6 +193,19 @@ function localModelMetadata(
     },
     devData,
   );
+}
+
+function resolveLocalModelCapabilities(
+  model: ModelAlias,
+  config: LioraConfig,
+): ReturnType<typeof resolveModelCapabilities> | undefined {
+  const provider = config.providers?.[model.provider];
+  const wireType = (provider as { type?: ProviderType } | undefined)?.type;
+  if (wireType === undefined) return undefined;
+  return resolveModelCapabilities(model, {
+    type: wireType,
+    model: model.model,
+  } as KosongProviderConfig);
 }
 
 export type ResolveSmartRouteInput = {

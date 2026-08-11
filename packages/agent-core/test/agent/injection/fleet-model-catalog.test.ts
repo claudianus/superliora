@@ -11,6 +11,10 @@ import {
   probeModelAlias,
 } from '../../../src/agent/routing';
 import type { LioraConfig } from '../../../src/config';
+import {
+  clearModelsDevCacheForTests,
+  setModelsDevDataForTests,
+} from '../../../src/utils/model-presets';
 import { APIStatusError } from '@superliora/kosong';
 import { sharedCredentialHealthStore } from '@superliora/oauth';
 
@@ -30,12 +34,14 @@ describe('fleet model catalog', () => {
   beforeEach(() => {
     resetModelRouteHealthStoreForTests();
     resetLiveProbeCacheForTests();
+    clearModelsDevCacheForTests();
     sharedCredentialHealthStore.clear();
     setLiveProbeRunnerForTests(async () => {});
   });
   afterEach(() => {
     resetModelRouteHealthStoreForTests();
     resetLiveProbeCacheForTests();
+    clearModelsDevCacheForTests();
     sharedCredentialHealthStore.clear();
     setLiveProbeRunnerForTests(undefined);
   });
@@ -65,6 +71,66 @@ describe('fleet model catalog', () => {
     expect(text).toContain('<fleet_model_catalog>');
     expect(text).toContain('JobCreate.model_alias');
     expect(text).toMatch(/cheap|strong/);
+  });
+
+  it('lists the session default alias first when healthy', () => {
+    const cfg = config({
+      defaultModel: 'cheap',
+      models: {
+        cheap: {
+          provider: 'test-provider',
+          model: 'cheap',
+          maxContextSize: 64_000,
+          capabilities: ['tool_use'],
+          cost: { input: 0.1 },
+        },
+        strong: {
+          provider: 'test-provider',
+          model: 'strong',
+          maxContextSize: 200_000,
+          capabilities: ['tool_use', 'thinking', 'image_in'],
+          cost: { input: 5 },
+        },
+      },
+    });
+    const rows = selectFleetCatalogRows(cfg);
+    expect(rows[0]?.alias).toBe('cheap');
+  });
+
+  it('marks vision=yes from models.dev when saved capabilities omit image_in', () => {
+    setModelsDevDataForTests({
+      models: new Map([
+        [
+          'grok-4.5',
+          {
+            supportsVision: true,
+            supportsTools: true,
+            supportsReasoning: true,
+            contextWindow: 500_000,
+          },
+        ],
+      ]),
+    });
+    const cfg = config({
+      providers: {
+        'xai-grok': { type: 'openai' as const, apiKey: 'test-key' },
+      },
+      models: {
+        'xai-grok/grok-4.5': {
+          provider: 'xai-grok',
+          model: 'grok-4.5',
+          maxContextSize: 500_000,
+          // Stale partial list — must not shadow models.dev multimodal.
+          capabilities: ['thinking', 'tool_use'],
+        },
+      },
+    });
+    const text = renderFleetModelCatalog(cfg);
+    expect(text).toContain('xai-grok/grok-4.5');
+    // alias | q | value | $/M_in | tools | vision | …
+    expect(text).toMatch(
+      /xai-grok\/grok-4\.5 \| [^|\n]+ \| [^|\n]+ \| [^|\n]+ \| yes \| yes \|/,
+    );
   });
 
   it('hides aliases with a fresh live-probe failure', async () => {
