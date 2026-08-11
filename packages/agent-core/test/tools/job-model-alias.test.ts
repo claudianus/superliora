@@ -1,6 +1,15 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { APIStatusError } from '@superliora/kosong';
+import { sharedCredentialHealthStore } from '@superliora/oauth';
 
+import {
+  resetLiveProbeCacheForTests,
+  resetModelRouteHealthStoreForTests,
+  setLiveProbeRunnerForTests,
+  sharedModelRouteHealthStore,
+} from '../../src/agent/routing';
 import { getJob, listJobs } from '../../src/tools/builtin/job/job-ledger';
+import { preflightJobWorkerModel } from '../../src/tools/builtin/job/job-model-live';
 import { JobCreateTool } from '../../src/tools/builtin/job/job-tools';
 import type { ToolStore } from '../../src/tools/store';
 
@@ -16,26 +25,52 @@ function memoryStore(): ToolStore {
   };
 }
 
-describe('JobCreate.model_alias', () => {
-  it('stores a healthy model_alias on the ledger and ACK', async () => {
-    const store = memoryStore();
-    const agent = {
-      runtimeConfig: {
-        providers: {
-          'test-provider': { type: 'kimi' as const, apiKey: 'test-key' },
-        },
-        models: {
-          'worker-a': {
-            provider: 'test-provider',
-            model: 'worker-a',
-            maxContextSize: 128_000,
-            capabilities: ['tool_use'],
-            cost: { input: 1 },
-          },
+function makeAgent(overrides?: { readonly models?: Record<string, unknown> }) {
+  return {
+    runtimeConfig: {
+      providers: {
+        'test-provider': { type: 'kimi' as const, apiKey: 'test-key' },
+      },
+      models: overrides?.models ?? {
+        'worker-a': {
+          provider: 'test-provider',
+          model: 'worker-a',
+          maxContextSize: 128_000,
+          capabilities: ['tool_use'],
+          cost: { input: 1 },
         },
       },
-    };
-    const tool = new JobCreateTool(store, agent as never);
+    },
+    log: { warn: () => {}, debug: () => {}, info: () => {}, error: () => {} },
+    modelProvider: {
+      resolveProviderConfig: (alias: string) => ({
+        modelAlias: alias,
+        providerName: 'test-provider',
+        provider: { type: 'kimi', model: alias },
+      }),
+      resolveAuth: () => undefined,
+    },
+  };
+}
+
+describe('JobCreate.model_alias', () => {
+  beforeEach(() => {
+    resetLiveProbeCacheForTests();
+    resetModelRouteHealthStoreForTests();
+    sharedCredentialHealthStore.clear();
+    setLiveProbeRunnerForTests(async () => {});
+  });
+
+  afterEach(() => {
+    resetLiveProbeCacheForTests();
+    resetModelRouteHealthStoreForTests();
+    sharedCredentialHealthStore.clear();
+    setLiveProbeRunnerForTests(undefined);
+  });
+
+  it('stores a healthy model_alias on the ledger and ACK after live probe', async () => {
+    const store = memoryStore();
+    const tool = new JobCreateTool(store, makeAgent() as never);
     const exec = tool.resolveExecution({
       title: 'Explore auth',
       kind: 'explore',
@@ -59,23 +94,7 @@ describe('JobCreate.model_alias', () => {
 
   it('rejects unknown model_alias', async () => {
     const store = memoryStore();
-    const agent = {
-      runtimeConfig: {
-        providers: {
-          'test-provider': { type: 'kimi' as const, apiKey: 'test-key' },
-        },
-        models: {
-          'worker-a': {
-            provider: 'test-provider',
-            model: 'worker-a',
-            maxContextSize: 128_000,
-            capabilities: ['tool_use'],
-            cost: { input: 1 },
-          },
-        },
-      },
-    };
-    const tool = new JobCreateTool(store, agent as never);
+    const tool = new JobCreateTool(store, makeAgent() as never);
     const exec = tool.resolveExecution({
       title: 'Explore auth',
       kind: 'explore',
@@ -94,5 +113,69 @@ describe('JobCreate.model_alias', () => {
     expect(result.isError).toBe(true);
     expect(String(result.output)).toMatch(/unknown or unhealthy|fleet_model_catalog/);
     expect(listJobs(store)).toHaveLength(0);
+  });
+
+  it('rejects model_alias that fails live probe (quota/auth)', async () => {
+    setLiveProbeRunnerForTests(async () => {
+      throw new APIStatusError(429, 'quota exceeded', 'req-429');
+    });
+    const store = memoryStore();
+    const tool = new JobCreateTool(store, makeAgent() as never);
+    const exec = tool.resolveExecution({
+      title: 'Explore auth',
+      kind: 'explore',
+      prompt: 'Find auth entrypoints',
+      success_criteria: ['paths listed'],
+      model_alias: 'worker-a',
+      staff: false,
+    });
+    expect(exec.isError).toBeFalsy();
+    if (exec.isError) return;
+    const result = await exec.execute({
+      turnId: 't',
+      toolCallId: 'c',
+      signal: new AbortController().signal,
+    });
+    expect(result.isError).toBe(true);
+    expect(String(result.output)).toMatch(/failed live probe|Do not blind-retry/);
+    expect(listJobs(store)).toHaveLength(0);
+    expect(sharedModelRouteHealthStore.isAvailable('worker-a')).toBe(false);
+  });
+});
+
+describe('preflightJobWorkerModel', () => {
+  beforeEach(() => {
+    resetLiveProbeCacheForTests();
+    resetModelRouteHealthStoreForTests();
+    sharedCredentialHealthStore.clear();
+    setLiveProbeRunnerForTests(async () => {});
+  });
+
+  afterEach(() => {
+    resetLiveProbeCacheForTests();
+    resetModelRouteHealthStoreForTests();
+    sharedCredentialHealthStore.clear();
+    setLiveProbeRunnerForTests(undefined);
+  });
+
+  it('blocks spawn when pinned alias fails live probe and leaves model_failed note', async () => {
+    setLiveProbeRunnerForTests(async () => {
+      throw new APIStatusError(401, 'unauthorized', 'req-401');
+    });
+    const agent = makeAgent() as never;
+    const result = await preflightJobWorkerModel(agent, {
+      id: 'job_x',
+      title: 'Fix UI',
+      kind: 'implement',
+      status: 'running',
+      priority: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      modelAlias: 'worker-a',
+    } as never);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.note).toMatch(/model_failed: alias=worker-a/);
+    expect(result.error).toMatch(/failed live probe/);
   });
 });

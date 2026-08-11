@@ -236,7 +236,7 @@ function selectionSupportsVision(
   selection: SubagentModelSelection,
 ): boolean {
   const providerManager = parent.modelProvider;
-  const alias = selection.alias ?? parent.config.modelAlias;
+  const alias = selection.alias ?? parent.config?.modelAlias;
   if (alias !== undefined && providerManager instanceof ProviderManager) {
     try {
       return providerManager.resolveProviderConfig(alias).modelCapabilities.image_in === true;
@@ -244,6 +244,6 @@ function selectionSupportsVision(
       /* fall through */
     }
   }
-  const capabilities = parent.config.modelCapabilities;
+  const capabilities = parent.config?.modelCapabilities;
   return capabilities?.image_in === true;
 }
