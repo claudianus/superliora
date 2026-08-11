@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.8.2
+
+### Patch Changes
+
+- Keep Cursor Auto, Grok 4.5, and Composer 2.5 usable when API-lane models hit quota; JobCreate points at those included-lane aliases first.
+
 ## 0.8.1
 
 ### Patch Changes
