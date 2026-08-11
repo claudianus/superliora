@@ -156,8 +156,10 @@ export async function updateResponseLanguagePreference(
   const next = await resolveResponseLanguagePreference(current, input, {
     env: process.env,
     detectWithLlm: async (text, currentPreference, hostLocale) => {
+      // Smart-auto (`auto`) has no concrete provider until turn-start routing
+      // pins one — config.provider throws model.not_configured in that window.
+      if (!mainAgent.config.hasProvider) return undefined;
       const provider = mainAgent.config.provider;
-      if (provider === undefined) return undefined;
       return detectResponseLanguageWithLlm(
         { generate: mainAgent.generate, provider },
         {

@@ -215,6 +215,42 @@ describe('response language preference', () => {
     expect(session.writeMetadata).toHaveBeenCalledTimes(1);
     expect(steer).toHaveBeenCalledWith({ input: textInput('reply in English from now on') });
   });
+
+  it('skips LLM language detection when smart-auto has no concrete provider yet', async () => {
+    const prompt = vi.fn(async () => {});
+    const generate = vi.fn(async () => ({
+      message: { content: [{ type: 'text', text: '{"language_code":"en"}' }] },
+    }));
+    const session = fakeSession({
+      prompt,
+      generate,
+      hasProvider: false,
+      providerThrows: true,
+    });
+    const api = new SessionAPIImpl(session as unknown as Session);
+    const previousLang = process.env['LANG'];
+    process.env['LANG'] = 'ko_KR.UTF-8';
+
+    try {
+      await expect(
+        api.prompt({
+          agentId: 'main',
+          input: textInput('ㅎㅇ'),
+        }),
+      ).resolves.toBeUndefined();
+    } finally {
+      if (previousLang === undefined) delete process.env['LANG'];
+      else process.env['LANG'] = previousLang;
+    }
+
+    expect(generate).not.toHaveBeenCalled();
+    expect((session.metadata.custom as Record<string, unknown>)['responseLanguage']).toMatchObject({
+      code: 'ko',
+      source: 'locale',
+      locked: true,
+    });
+    expect(prompt).toHaveBeenCalledWith({ input: textInput('ㅎㅇ') });
+  });
 });
 
 function textInput(text: string): readonly ContentPart[] {
@@ -222,7 +258,11 @@ function textInput(text: string): readonly ContentPart[] {
 }
 
 function fakeSession(input: {
-  readonly steer: (payload: { readonly input: readonly ContentPart[] }) => Promise<void>;
+  readonly steer?: (payload: { readonly input: readonly ContentPart[] }) => Promise<void>;
+  readonly prompt?: (payload: { readonly input: readonly ContentPart[] }) => Promise<void>;
+  readonly generate?: ReturnType<typeof vi.fn>;
+  readonly hasProvider?: boolean;
+  readonly providerThrows?: boolean;
   readonly llmDetection?: {
     readonly code: string;
     readonly label: string;
@@ -230,27 +270,37 @@ function fakeSession(input: {
     readonly confidence: number;
   };
 }) {
+  const hasProvider = input.hasProvider ?? true;
   const agent = {
     config: {
-      provider: {},
-    },
-    generate: vi.fn(async () => ({
-      message: {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              language_code: input.llmDetection?.code ?? 'en',
-              language_name: input.llmDetection?.label ?? 'English',
-              explicit_override: input.llmDetection?.explicit ?? true,
-              confidence: input.llmDetection?.confidence ?? 0.95,
-            }),
-          },
-        ],
+      hasProvider,
+      get provider() {
+        if (input.providerThrows || !hasProvider) {
+          throw new Error('Provider not set');
+        }
+        return {};
       },
-    })),
+    },
+    generate:
+      input.generate ??
+      vi.fn(async () => ({
+        message: {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                language_code: input.llmDetection?.code ?? 'en',
+                language_name: input.llmDetection?.label ?? 'English',
+                explicit_override: input.llmDetection?.explicit ?? true,
+                confidence: input.llmDetection?.confidence ?? 0.95,
+              }),
+            },
+          ],
+        },
+      })),
     rpcMethods: {
-      steer: input.steer,
+      steer: input.steer ?? (async () => {}),
+      prompt: input.prompt ?? (async () => {}),
     },
     // The steer path probes interrupted-work-resume context; stub the goal
     // controller so it short-circuits without a real agent.
@@ -271,5 +321,6 @@ function fakeSession(input: {
     writeMetadata: vi.fn(async () => {}),
     ensureAgentResumed: vi.fn(async () => agent),
     options: { providerManager: undefined },
+    rpc: { emitEvent: vi.fn(async () => {}) },
   };
 }
