@@ -1,5 +1,12 @@
 # @superliora/liora
 
+## 0.7.1
+
+### Patch Changes
+
+- Fix Conductor jobs stuck at "Queued after resume" after a session restart by publishing the main agent before fleet autopilot spawns and waiting for the schedule pump to promote workers.
+- Stop letting stale model capability lists hide models.dev vision/tool flags, and skip vision picks that just failed a live probe.
+
 ## 0.7.0
 
 ### Minor Changes
