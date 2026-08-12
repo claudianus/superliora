@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.9.0
+
+### Minor Changes
+
+- Trim the public CLI to essentials: drop `liora vis` from help, keep day-to-day job ops in the TUI (`/jobs`), and document the keep-list in `liora -h` / reference docs.
+
 ## 0.8.2
 
 ### Patch Changes
