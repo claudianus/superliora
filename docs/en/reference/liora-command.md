@@ -23,8 +23,15 @@ All flags are optional — run `liora` directly to enter an interactive session:
 | `--yolo` | `-y` | Auto-approve regular tool calls, skipping approval requests |
 | `--auto` | | Start with auto permission mode; tool approvals are handled automatically and the Agent will not ask the user questions |
 | `--plan` | | Start a new session in Plan mode — the AI will prioritize read-only tools for exploration and planning |
+| `--profile <name>` | | Main agent tool profile for this launch (`core`, `agent`, `superliora-full`, …) |
 | `--skills-dir <dir>` | | Load Skills from the specified directory, replacing the automatically discovered user and project directories. Can be repeated |
+| `--plugin-dir <dir>` | | Load Claude plugins from a directory for this session only (not persisted). Can be repeated |
+| `--channels <server>` | | Opt-in Claude channel MCP server for inbound message inject. Can be repeated |
 | `--add-dir <dir>` | | Add an extra workspace directory for this session. Relative paths resolve against the current working directory. Can be repeated |
+| `--worktree [name]` | | Create a git worktree for this session (optional name) so file edits stay off the main checkout |
+| `--show-thinking` | | In `-p` text mode, also write model thinking to stderr |
+| `--resume-goal` | | On startup, automatically resume the first goal in the queue |
+| `--autonomous-gate <command>` | | Shell command that must pass before a headless goal may complete; failure output returns to the agent and the loop continues |
 
 `-r` / `--resume` is a hidden alias for `--session`; `--yes` and `--auto-approve` are hidden aliases for `--yolo` and are not shown in help output.
 
@@ -120,7 +127,15 @@ In `stream-json` mode, regular replies produce an Assistant message; when the mo
 
 ## Subcommands
 
-`liora` provides the following subcommands: `login` (non-interactive login), `acp` (ACP IDE mode), `server` (run and manage the local REST/WebSocket/web service), `web` (alias for `liora server run --open`), `doctor` (validate configuration files), `export` (export a session), `migrate` (migrate legacy data), `upgrade` / `update` (check and install updates), and `provider` (manage providers).
+Public argv stays small on purpose. Day-to-day ops (Conductor jobs, settings, modes) live in the TUI Command Hub / slash commands. The shell exposes install, auth, scripting, IDE, daemon, and hygiene helpers only:
+
+`login`, `acp`, `server` (`run` / `ps` / `kill` / `rotate-token`), `doctor`, `export`, `upgrade` / `update`, `provider`, `browser-use`, `computer-use`, `worktree`.
+
+Name notes:
+
+- CLI `export` writes a **ZIP**; TUI `/export-md` writes **Markdown**.
+- `liora worktree gc` cleans **session** worktrees; TUI `/job gc` cleans **Conductor job** worktrees.
+- TUI `/web` is a fetch helper — there is **no** `liora web` argv command.
 
 ### `liora login`
 
@@ -128,9 +143,18 @@ Log in to SuperLiora OAuth via the RFC 8628 device-code flow, without entering t
 
 ```sh
 liora login
+liora login --add --label work
+liora login --oauth-key kimi-work --oauth-host https://example.test
 ```
 
-This subcommand has no flags. Press `Ctrl-C` at any time during polling to cancel; the exit code is `1` on cancellation or failure, and `0` on success.
+| Option | Description |
+| --- | --- |
+| `--add` | Add another account instead of replacing the current one |
+| `--label <label>` | Friendly label for the new or selected account |
+| `--oauth-key <key>` | Distinct OAuth storage key / account slot |
+| `--oauth-host <host>` | OAuth host override |
+
+Press `Ctrl-C` at any time during polling to cancel; the exit code is `1` on cancellation or failure, and `0` on success.
 
 ### `liora acp`
 
@@ -142,16 +166,16 @@ liora acp
 
 ### `liora server`
 
-Run, install, and manage the local Kimi server — a single process that exposes the REST + WebSocket API and serves the web UI from the same origin. The parent command is split into an on-demand entrypoint (`run`) and an OS-managed service lifecycle (`install`, `uninstall`, `start`, `stop`, `restart`, `status`). `liora server run` ensures a single background daemon is running and returns once it is healthy; pass `--foreground` to keep the server attached to the current terminal instead.
+Run and manage the local SuperLiora daemon — a single process that exposes the REST + WebSocket API. The product prefers an on-demand background daemon over OS service installers; only `run`, `ps`, `kill`, and `rotate-token` are registered.
 
 When the server is running, `GET /openapi.json` returns the REST OpenAPI document and `GET /asyncapi.json` returns the local WebSocket AsyncAPI document.
 
 ```sh
 liora server run                # start or reuse a background daemon
 liora server run --foreground   # run attached to the current terminal
-liora server install            # register with launchd / systemd / schtasks
-liora server start              # start the OS-managed service
-liora server status             # snapshot of installed/running state
+liora server ps                 # list active connections
+liora server kill               # stop the daemon
+liora server rotate-token       # reissue the local auth token
 ```
 
 #### `liora server run`
@@ -159,53 +183,12 @@ liora server status             # snapshot of installed/running state
 | Option | Description |
 | --- | --- |
 | `--port <port>` | Bind port; defaults to `58627` |
+| `--host <host>` | Bind host (loopback by default) |
 | `--log-level <level>` | Enable server logs at the selected level; omitted by default |
 | `--debug-endpoints` | Mount `/api/v1/debug/*` routes (off by default) |
 | `--foreground` | Run in the foreground instead of spawning a background daemon |
-| `--open` | Open the web UI in the default browser once the server is healthy |
 
-`liora server run` binds to local loopback only. By default it spawns a single background daemon (reused across runs) and exits once the daemon is healthy; the daemon shuts itself down after the last web client disconnects. Pass `--foreground` to run the server in the current process instead — it then stays attached to the terminal and shuts down cleanly on `SIGINT` / `SIGTERM`.
-
-#### `liora server install`
-
-Register the server as an OS-managed service so it starts at login and restarts after a crash. The backend picks itself based on the running platform:
-
-- **macOS**: writes a LaunchAgent plist to `~/Library/LaunchAgents/com.superliora.liora-server.plist` and bootstraps it via `launchctl bootstrap gui/<uid>`.
-- **Linux**: writes a `--user` systemd unit to `~/.config/systemd/user/liora-server.service` and runs `systemctl --user enable --now`.
-- **Windows**: registers a scheduled task named `LioraServer` via `schtasks /Create /XML`.
-
-| Option | Description |
-| --- | --- |
-| `--port <port>` | Bind port the supervised server uses; defaults to `58627` |
-| `--log-level <level>` | Log level recorded in the generated unit |
-| `--force` | Replace an existing install instead of failing |
-| `--json` | Output JSON instead of a human-readable line |
-
-The loopback host, chosen port, and log level are recorded to `~/.superliora/server/install.json` so `liora server status` can report them even when the service is stopped.
-
-#### Lifecycle subcommands
-
-| Command | Description |
-| --- | --- |
-| `liora server uninstall` | Stop and remove the OS service definition. Idempotent. |
-| `liora server start` | Start the OS-managed service. Errors if not installed. |
-| `liora server stop` | Stop the OS-managed service. |
-| `liora server restart` | Restart the OS-managed service. |
-| `liora server status` | Print installed / running / pid / port / log-path. `--json` for automation. |
-
-#### `liora web`
-
-Opens SuperLiora's graphical session in the browser as an alternative to the terminal TUI.
-
-Equivalent to `liora server run --open`: it starts a local SuperLiora server in the background (reusing one already running), opens the web UI in the default browser, and returns, leaving the server resident in the background. The only difference from `liora server run` is that `--open` is enabled by default (auto-launches the browser); all other behavior is identical.
-
-```sh
-liora web                 # start the server in the background and open the browser (reuses a running one)
-liora web --no-open       # don't open the browser; same as `liora server run`
-liora web --foreground    # run attached to the current terminal and open the browser
-```
-
-Stop the server with `liora server kill` and list active connections with `liora server ps`; `--port`, `--log-level`, and the other flags match `liora server run`.
+`liora server run` binds to local loopback only by default. By default it spawns a single background daemon (reused across runs) and exits once the daemon is healthy. Pass `--foreground` to run the server in the current process instead — it then stays attached to the terminal and shuts down cleanly on `SIGINT` / `SIGTERM`.
 
 ### `liora doctor`
 
@@ -280,30 +263,24 @@ In the TUI, `/upgrade` and `/update` open Upgrade Studio (published releases by 
 
 For global npm, pnpm, yarn, bun, GitHub source installs, and macOS / Linux native installations, the command can install automatically when you confirm. When the current installation method cannot be upgraded automatically (e.g., Windows native installation), the manual update command is printed instead.
 
-### `liora vis`
+### `liora worktree`
 
-Launch the session visualizer in your browser to inspect a session as it unfolds. The command starts an in-process server pointed at your local sessions, prints the URL, opens your browser, and keeps running until you press `Ctrl-C`.
+Manage **session** git worktrees registered for `--worktree` isolation (`list`, `rm`, `gc`, `hygiene`). This is not Conductor job GC — use TUI `/job gc` for job worktrees.
 
 ```sh
-liora vis [sessionId] [options]
+liora worktree list
+liora worktree rm <nameOrPath>
+liora worktree gc --dry-run
+liora worktree hygiene --dry-run
 ```
 
-| Parameter / Option | Description |
-| --- | --- |
-| `sessionId` | Open the visualizer directly to this session. When omitted, it opens the home view listing your sessions |
-| `--port <number>` | Port to bind. By default an available port is picked automatically |
-| `--host <host>` | Host to bind. Default: `127.0.0.1` |
-| `--no-open` | Do not open the browser automatically; just print the URL |
+### `liora browser-use` / `liora computer-use`
+
+Install and diagnose local GUI-use runtimes used by the agent (browser-use: CloakBrowser / Camoufox / Lightpanda; computer-use: cua-driver). Typical subcommands: `install`, `update`, `status`, `doctor` (plus `browser-use aside …` and `computer-use permissions`).
 
 ```sh
-# Start the visualizer and open the browser at the home view
-liora vis
-
-# Open directly to a specific session
-liora vis 01HZ...XYZ
-
-# Bind a fixed port and host without opening a browser (e.g. on a remote host)
-liora vis --host 0.0.0.0 --port 8123 --no-open
+liora browser-use status
+liora computer-use doctor
 ```
 
 ### `liora provider`

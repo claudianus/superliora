@@ -105,7 +105,7 @@ The export includes all files in the session directory, including diagnostic log
 
 You can also export from inside the TUI without leaving the interactive session:
 
-- **`/export-debug-zip`**: produces the same debug ZIP as `liora export`.
+- **`liora export`**: produces a debug ZIP from the shell (TUI Markdown export is `/export-md`).
 - **`/export-md`** (alias `/export`): exports the conversation as a human-readable Markdown file, suitable for sharing or archiving. Accepts an optional path argument; without one, it writes to `kimi-export-<short-id>-<timestamp>.md` in the current working directory.
 
 ::: tip

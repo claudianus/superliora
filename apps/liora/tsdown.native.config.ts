@@ -30,7 +30,7 @@ function shouldAlwaysBundle(id: string): boolean {
   if (builtins.has(id) || id.startsWith('node:')) return false;
   if (optionalNativeDependencies.has(id)) return false;
   // Everything else is force-bundled, which covers `@superliora/*` (incl.
-  // vis-server for `liora vis`) plus its transitive `hono` / `@hono/node-server`
+  // optional vis-server helpers) plus transitive `hono` / `@hono/node-server`
   // — so the SEA bundle is self-contained (check-bundle.mjs enforces this).
   return true;
 }
