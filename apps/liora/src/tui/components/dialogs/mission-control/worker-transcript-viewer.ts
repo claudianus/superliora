@@ -28,7 +28,8 @@ import type { MissionWorker } from '#/tui/controllers/mission-control/registry';
 import { ttui } from '#/tui/utils/tui-i18n';
 
 const TRANSCRIPT_ROWS = 16;
-const REFRESH_MS = 2_000;
+/** Slow fallback when dock telemetry is quiet but the worker is still live. */
+const REFRESH_FALLBACK_MS = 5_000;
 
 export interface WorkerTranscriptLoad {
   readonly lines: readonly string[];
@@ -52,6 +53,8 @@ interface LoadState {
   lastFetchMs: number;
   fetching: boolean;
   fetchGeneration: number;
+  /** Dock telemetry fingerprint that last triggered a fetch. */
+  lastWorkerSignal: string;
 }
 
 export class WorkerTranscriptViewerComponent extends Container implements Focusable {
@@ -80,6 +83,7 @@ export class WorkerTranscriptViewerComponent extends Container implements Focusa
       lastFetchMs: 0,
       fetching: false,
       fetchGeneration: 0,
+      lastWorkerSignal: workerSignal(opts.getWorker()),
     };
     void this.fetch();
   }
@@ -183,11 +187,15 @@ export class WorkerTranscriptViewerComponent extends Container implements Focusa
         ` ${ttui('tui.missionControl.transcriptHint')}`,
       ),
       this.renderMetaStrip(worker, width),
-      ` ${renderParticleRail(
-        Math.max(8, width - 4),
-        getActiveAppearancePreferences(),
-        `worker-tx:rail:${this.workerId}`,
-      )}`,
+      ...(status === 'running' || status === 'finishing'
+        ? [
+            ` ${renderParticleRail(
+              Math.max(8, width - 4),
+              getActiveAppearancePreferences(),
+              `worker-tx:rail:${this.workerId}`,
+            )}`,
+          ]
+        : []),
     ];
 
     if (this.state.loading) {
@@ -265,7 +273,15 @@ export class WorkerTranscriptViewerComponent extends Container implements Focusa
     if (worker === undefined) return;
     if (worker.status !== 'running' && worker.status !== 'finishing') return;
     if (this.state.fetching || this.state.error !== undefined) return;
-    if (Date.now() - this.state.lastFetchMs < REFRESH_MS) return;
+    // Event-driven: dock liveText / tool activity already advances; refetch
+    // transcript when those signals move rather than on a fixed 2s poll.
+    const signal = workerSignal(worker);
+    if (signal !== this.state.lastWorkerSignal) {
+      this.state.lastWorkerSignal = signal;
+      void this.fetch();
+      return;
+    }
+    if (Date.now() - this.state.lastFetchMs < REFRESH_FALLBACK_MS) return;
     void this.fetch();
   }
 
@@ -300,4 +316,18 @@ export class WorkerTranscriptViewerComponent extends Container implements Focusa
     this.invalidate();
     this.requestRenderHook?.();
   }
+}
+
+/** Dock telemetry fingerprint for event-driven transcript refresh. */
+function workerSignal(worker: MissionWorker | undefined): string {
+  if (worker === undefined) return '';
+  return [
+    worker.status,
+    String(worker.toolCount),
+    worker.lastTool ?? '',
+    worker.lastTarget ?? '',
+    String(worker.lastActivityAtMs),
+    worker.liveText ?? '',
+    String(worker.tokens),
+  ].join('|');
 }

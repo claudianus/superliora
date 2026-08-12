@@ -8,8 +8,10 @@ import {
   Key,
   matchesKey,
   truncateToWidth,
+  visibleWidth,
   type Focusable,
 } from '#/tui/renderer';
+import { SELECT_POINTER } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import { printableChar } from '#/tui/utils/printable-key';
 import {
@@ -183,7 +185,8 @@ export class IntentComposerComponent extends Container implements Focusable {
       const slot = SLOTS[i]!;
       const selected = i === this.selectedSlot;
       const items = this.fields[slot];
-      const pointer = selected ? theme.fg('primary', '›') : ' ';
+      const idle = ' '.repeat(visibleWidth(SELECT_POINTER));
+      const pointer = selected ? theme.boldFg('primary', SELECT_POINTER) : idle;
       const label = theme.fg(selected ? 'textStrong' : 'textMuted', SLOT_LABEL[slot]);
       if (this.editing && selected) {
         lines.push(
@@ -202,7 +205,9 @@ export class IntentComposerComponent extends Container implements Focusable {
         lines.push(truncateToWidth(` ${pointer} ${label}: ${preview}`, Math.max(1, width), '…'));
       }
     }
-    lines.push(theme.fg('textDim', ' ↑↓ slot · Enter edit · E collapse · Esc back'));
+    lines.push(
+      theme.fg('textMuted', ' ↑↓ navigate · Enter edit · E collapse · Esc cancel'),
+    );
     return lines;
   }
 

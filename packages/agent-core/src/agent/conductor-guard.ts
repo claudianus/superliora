@@ -176,33 +176,41 @@ export const CONDUCTOR_TURN_STOP_PHRASE =
 
 /**
  * Soft cap for exploration-class tools on the Conductor interactive lane per
- * turn (RepoQuery/Grep/Glob/Read + search-shaped Bash). First N calls are
- * allowed for brief triage; further calls get a soft steer to explore Job /
- * EnterPlanMode. Tuned so 1–3 targeted lookups still work.
+ * turn (RepoQuery/Grep/Glob/Read/WebSearch/FetchURL + search-shaped Bash).
+ * First N calls are allowed for brief triage; further calls get a soft steer
+ * to explore/research Job / EnterPlanMode. Tuned so 1–3 targeted lookups still work.
  */
 export const CONDUCTOR_INTERACTIVE_EXPLORE_SOFT = 3;
 
 /**
  * Hard cap for exploration-class tools on the Conductor interactive lane per
  * turn. After this many attempts (allowed + rejected), further discovery tools
- * are hard-rejected with a JobCreate(kind=explore) draft. Job desk / plan /
- * ask tools are never counted here.
+ * are hard-rejected with a JobCreate(kind=explore|research) draft. Job desk /
+ * plan / ask tools are never counted here.
  */
 export const CONDUCTOR_INTERACTIVE_EXPLORE_HARD = 6;
 
 /** Soft explore-cap routing phrase — stop deep interactive search. */
 export const CONDUCTOR_EXPLORE_SOFT_REJECTION_PHRASE =
-  'Interactive exploration budget soft-limit reached on the Conductor lane. Stop multi-step RepoQuery/Grep/Read here — spawn JobCreate(kind=explore) with success_criteria + context_paths, or EnterPlanMode for multi-approach work.';
+  'Interactive exploration budget soft-limit reached on the Conductor lane. Stop multi-step RepoQuery/Grep/Read/WebSearch/FetchURL here — spawn JobCreate(kind=explore) for codebase discovery or JobCreate(kind=research) for web/docs, or EnterPlanMode for multi-approach work.';
 
 /** Hard explore-cap routing phrase — discovery must leave this lane. */
 export const CONDUCTOR_EXPLORE_HARD_REJECTION_PHRASE =
-  'Interactive exploration budget hard-limit reached on the Conductor lane. Further discovery tools are blocked this turn. Call JobCreate(kind=explore) or EnterPlanMode; do not continue searching on the interactive lane.';
+  'Interactive exploration budget hard-limit reached on the Conductor lane. Further discovery tools are blocked this turn. Call JobCreate(kind=explore|research) or EnterPlanMode; do not continue searching on the interactive lane.';
 
 /**
  * Exploration-class tools counted toward the interactive cap. Job desk, plan
- * lifecycle, ask, and non-search Bash are intentionally excluded.
+ * lifecycle, ask, and non-search Bash are intentionally excluded. WebSearch /
+ * FetchURL share the same budget so web marathons cannot bypass the cap.
  */
-export const CONDUCTOR_EXPLORATION_TOOLS = ['RepoQuery', 'Grep', 'Glob', 'Read'] as const;
+export const CONDUCTOR_EXPLORATION_TOOLS = [
+  'RepoQuery',
+  'Grep',
+  'Glob',
+  'Read',
+  'WebSearch',
+  'FetchURL',
+] as const;
 
 /**
  * Ledger ACK attached when the second violation escalates to a direct ledger

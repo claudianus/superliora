@@ -204,9 +204,9 @@ describe('MissionControlPanelComponent', () => {
     expect(text).toContain('builder');
     expect(text).not.toContain('TAPE');
     expect(text).not.toContain('BOARD');
-    // Job attention cards no longer steal dock rows.
-    expect(text).not.toContain('Land failed');
-    expect(text).not.toContain('Running card');
+    // Densemode keeps a thin live job attention strip (no BOARD section header).
+    expect(text).toContain('Land failed');
+    expect(text).toContain('Running card');
   });
 
   it('keeps lastTool on the worker LIVE cell without a TAPE section', () => {

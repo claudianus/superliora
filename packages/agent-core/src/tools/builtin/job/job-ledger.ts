@@ -23,10 +23,15 @@ export function readJobLedger(store: ToolStore): JobLedger {
   return store.get(JOB_LEDGER_STORE_KEY) ?? emptyJobLedger();
 }
 
+/**
+ * Persist the ledger. Unchanged JobRecord references are shared so a single
+ * progress heartbeat does not clone every field of every job.
+ */
 export function writeJobLedger(store: ToolStore, ledger: JobLedger): void {
   store.set(JOB_LEDGER_STORE_KEY, {
     schemaVersion: 1,
-    jobs: ledger.jobs.map((j) => ({ ...j })),
+    // Shallow array copy only — each JobRecord is treated as immutable.
+    jobs: ledger.jobs.slice(),
   });
 }
 

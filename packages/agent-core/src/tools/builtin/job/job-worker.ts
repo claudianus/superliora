@@ -14,7 +14,7 @@ import {
   classifyObjectiveProfile,
   uiSpawnQualityFlags,
 } from '../../../premium-quality';
-import { getJobWorkerSpawner, requestJobSchedulePump } from '../../../session/job/job-offload';
+import { requestJobSchedulePump } from '../../../session/job/job-offload';
 import { DEFAULT_SUBAGENT_TIMEOUT_MS } from '../../../session/subagent/subagent-host';
 import type { SubagentCompletion } from '../../../session/subagent/subagent-host-types';
 import { renderFrictionSection } from '../../../session/subagent/subagent-friction';
@@ -1098,12 +1098,11 @@ export async function resumeJobs(input: {
 
   let scheduleMessage = 'Queued for schedule.';
   if (agent) {
-    // Await the schedule pump (queued→running + spawn enqueue) before the
-    // spawner settle. Otherwise settle can return while the pump has not yet
-    // promoted — fleet recovery then leaves jobs stuck at `queued` with Dock
-    // ghosts saying "Queued after resume…".
+    // Await the schedule pump only (queued→running + spawn enqueue). Do not
+    // await spawner.settle() — merge/push handshakes share that pool and can
+    // hold the Conductor JobResume tool past the hard budget. Worker attach
+    // lands on ledger/inbox asynchronously (same contract as JobCreate).
     await requestJobSchedulePump({ store, agent });
-    await getJobWorkerSpawner().settle();
     scheduleMessage = 'Scheduling offloaded — transitions land on ledger/inbox.';
   }
 

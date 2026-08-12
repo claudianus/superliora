@@ -430,6 +430,33 @@ describe('MissionControlRegistry', () => {
     expect(registry.snapshot(now()).workers).toHaveLength(0);
   });
 
+  it('does not bump version on identical progress heartbeats (clocks still update)', () => {
+    const { registry, advance, now } = createHarness();
+    registry.apply(spawned('sa-1'));
+    const progress = {
+      type: 'subagent.progress' as const,
+      subagentId: 'sa-1',
+      toolCount: 2,
+      elapsedMs: 1_000,
+      tokens: 100,
+      lastTool: 'Read',
+    };
+    expect(registry.apply(progress as Event)).toBe(true);
+    const version = registry.snapshot(now()).version;
+    advance(5_000);
+    // Same tools/tokens/status — telemetry only; no densemode rebuild.
+    expect(
+      registry.apply({
+        ...progress,
+        elapsedMs: 6_000,
+      } as Event),
+    ).toBe(false);
+    expect(registry.snapshot(now()).version).toBe(version);
+    const worker = registry.snapshot(now()).workers[0]!;
+    expect(worker.progressAtMs).toBeDefined();
+    expect(worker.progressElapsedMs).toBe(6_000);
+  });
+
   it('tracks child thinking/answer deltas as a live stream tail', () => {
     const { registry, advance, now } = createHarness();
     registry.apply(spawned('sa-1', { subagentName: 'plan' }));

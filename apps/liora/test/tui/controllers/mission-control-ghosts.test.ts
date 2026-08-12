@@ -43,4 +43,20 @@ describe('MissionControlRegistry job ghosts', () => {
     expect(after.workers.some((w) => w.id === 'job-ghost:job_abc')).toBe(false);
     expect(after.workers.some((w) => w.id === 'worker-1')).toBe(true);
   });
+
+  it('does not version-bump when ghost fields are unchanged', () => {
+    const registry = new MissionControlRegistry(() => 2_000);
+    expect(
+      registry.hydrateJobGhosts([
+        { id: 'job_q', title: 'queued work', status: 'queued' },
+      ]),
+    ).toBe(true);
+    const versionAfterSeed = registry.snapshot(2_000).version;
+    expect(
+      registry.hydrateJobGhosts([
+        { id: 'job_q', title: 'queued work', status: 'queued' },
+      ]),
+    ).toBe(false);
+    expect(registry.snapshot(2_000).version).toBe(versionAfterSeed);
+  });
 });

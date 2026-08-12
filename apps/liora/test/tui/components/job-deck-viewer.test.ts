@@ -83,8 +83,7 @@ describe('JobDeckViewerComponent', () => {
     });
 
     const joined = viewer.render(100).map(stripAnsi).join('\n');
-    expect(joined).toContain('Conductor Job Deck');
-    expect(joined).toContain('Mission Monitor');
+    expect(joined).toContain('Jobs — Conductor Deck');
     expect(joined).toContain('workers');
     expect(joined).toContain('need you');
     expect(joined).toContain('pool 1/4');
@@ -141,7 +140,7 @@ describe('JobDeckViewerComponent', () => {
     });
     const joined = viewer.render(100).map(stripAnsi).join('\n');
     expect(joined).toContain('No jobs yet');
-    expect(joined).toContain('Type a task in the chat to create your first Job');
+    expect(joined).toContain('Type a task in chat');
     expect(joined).toContain('Alt+J');
   });
 

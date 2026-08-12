@@ -75,6 +75,52 @@ export interface DeskDigest {
   readonly summary: string;
 }
 
+/** Severity rank for digest escalation / group order (lower = more urgent). */
+export function inboxEventSeverityRank(kind: JobInboxEvent['kind']): number {
+  switch (kind) {
+    case 'job.needs_user':
+      return 0;
+    case 'job.failed':
+      return 1;
+    case 'job.blocked':
+      return 2;
+    case 'job.interrupted':
+    case 'recovery.reattach_failed':
+      return 3;
+    case 'recovery.held':
+      return 4;
+    case 'job.cancelled':
+      return 5;
+    case 'recovery.auto_resumed':
+      return 6;
+    case 'job.completed':
+      return 7;
+    default:
+      return 8;
+  }
+}
+
+/**
+ * Pick the highest-severity event in a batch so a mixed burst does not
+ * collapse into a green "completed" escalation card.
+ */
+export function pickWorstInboxEvent(
+  events: readonly JobInboxEvent[],
+): JobInboxEvent | undefined {
+  if (events.length === 0) return undefined;
+  let worst = events[0]!;
+  let worstRank = inboxEventSeverityRank(worst.kind);
+  for (let i = 1; i < events.length; i += 1) {
+    const event = events[i]!;
+    const rank = inboxEventSeverityRank(event.kind);
+    if (rank < worstRank) {
+      worst = event;
+      worstRank = rank;
+    }
+  }
+  return worst;
+}
+
 /** Deterministic dedupe + grouping so the budget holds without an LLM call. */
 export function digestInboxEvents(events: readonly JobInboxEvent[]): DeskDigest {
   const byKey = new Map<string, { kind: JobInboxEvent['kind']; status: JobInboxEvent['status']; jobIds: string[]; sampleTitle: string }>();
@@ -100,7 +146,11 @@ export function digestInboxEvents(events: readonly JobInboxEvent[]): DeskDigest 
       jobIds: entry.jobIds,
       sampleTitle: entry.sampleTitle,
     }))
-    .sort((a, b) => b.count - a.count);
+    .sort(
+      (a, b) =>
+        inboxEventSeverityRank(a.kind) - inboxEventSeverityRank(b.kind) ||
+        b.count - a.count,
+    );
   const parts = groups.map((g) => `${g.count}× ${g.kind}`);
   const jobTotal = new Set(events.map((e) => e.jobId)).size;
   const summary =
@@ -192,10 +242,13 @@ export function runDeskDigestCycle(
     store,
     batch.map((e) => e.id),
   );
+  // Preserve worst-case severity so Next-move routing still sees needs_user /
+  // failed / blocked after a burst fold (contract §4.2 + desk inject).
+  const worst = pickWorstInboxEvent(batch);
   const escalation = pushJobInboxEvent(store, {
-    kind: 'job.completed',
-    jobId: batch[0]?.jobId ?? 'desk',
-    status: 'done',
+    kind: worst?.kind ?? 'job.completed',
+    jobId: worst?.jobId ?? batch[0]?.jobId ?? 'desk',
+    status: worst?.status ?? 'done',
     title: `Inbox digest (${batch.length} notices)`,
     summary: digest.summary,
     digest: true,

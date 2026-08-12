@@ -96,8 +96,25 @@ export class AppStateController {
       patch.streamingPhase === 'idle';
     const goalChanged = 'goal' in patch;
     const conductorJobsChanged = 'conductorJobs' in patch;
-    const modeBeats = collectFooterModeBeats(host.state.appState, patch);
+    // Pure job-board telemetry (progress / liveActivity) should not rebuild
+    // header, activity pane, autocomplete, or mode beats on every heartbeat.
+    const onlyConductorJobs =
+      conductorJobsChanged &&
+      Object.keys(mergedPatch).every((key) => key === 'conductorJobs');
+    const modeBeats = onlyConductorJobs
+      ? []
+      : collectFooterModeBeats(host.state.appState, patch);
     Object.assign(host.state.appState, mergedPatch);
+    if (onlyConductorJobs) {
+      host.missionControl.pushView();
+      host.state.footer.setState(host.state.appState);
+      host.appearanceController.refreshAmbientSchedule();
+      if (host.state.appState.goal?.execution === 'goal-desk') {
+        this.syncGoalMonitorPanel();
+      }
+      requestTUIContentRender(host.state);
+      return;
+    }
     if ('planMode' in patch) host.updateEditorBorderHighlight();
     if ('appearance' in patch) {
       host.appearanceController.apply();

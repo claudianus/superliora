@@ -63,7 +63,7 @@ export function shouldRegisterLegacyCompat(
 function wireConductorGuardLedgerRecording(host: BuiltinToolsHost): void {
   const guard = host.agent.conductorGuard;
   if (guard === undefined) return;
-  guard.setJobDraftRecorder(b.createConductorJobDraftRecorder(host.toolStore));
+  guard.setJobDraftRecorder(b.createConductorJobDraftRecorder(host.toolStore, host.agent));
 }
 
 export function buildBuiltinTools(host: BuiltinToolsHost): Map<string, BuiltinTool> {

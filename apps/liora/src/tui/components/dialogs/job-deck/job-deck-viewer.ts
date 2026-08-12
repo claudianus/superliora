@@ -83,10 +83,14 @@ export interface JobDeckViewerOptions {
 
 const DECK_LIST_ROWS = 12;
 const DECK_TRANSCRIPT_ROWS = 16;
-/** Transcript re-poll cadence while the drill-down stays open. */
-const DECK_TRANSCRIPT_REFRESH_MS = 2000;
-/** Rows recently moved lanes get a settle flash. */
-const DECK_SETTLE_MS = 4000;
+/**
+ * Slow fallback poll when the board has no progress delta (worker still
+ * running but no liveActivity / phase change). Prefer event-driven refetch
+ * via {@link progressSignalForCard}.
+ */
+const DECK_TRANSCRIPT_FALLBACK_MS = 5_000;
+/** Rows recently moved lanes get a settle flash (aligned with dock ops ~1.4s). */
+const DECK_SETTLE_MS = 1_400;
 
 /** Actionable attention first, terminal states last — mirrors the board. */
 const DECK_STATUS_RANK: Record<ConductorJobCard['status'], number> = {
@@ -111,6 +115,8 @@ interface TranscriptState {
   lastFetchMs: number;
   fetching: boolean;
   fetchGeneration: number;
+  /** Last progress signal that triggered a fetch (live board event key). */
+  lastProgressSignal: string;
 }
 
 export class JobDeckViewerComponent extends Container implements Focusable {
@@ -300,16 +306,24 @@ export class JobDeckViewerComponent extends Container implements Focusable {
     });
     const suffix =
       view.query.length === 0 ? theme.fg('textMuted', '  (type to search)') : '';
-    const title = renderPremiumHeadline('Conductor Job Deck — Mission Monitor', 'job-deck:title');
+    const title = renderPremiumHeadline('Jobs — Conductor Deck', 'job-deck:title');
     const lines: string[] = [
       border,
       ` ${title}${suffix}`,
       theme.fg(
         'textMuted',
-        ' ↑↓ · Enter transcript · S steer · A answer · R resume/retry · M merge · P push · C copy id · X cancel · Esc',
+        ' ↑↓ navigate · Enter select · S steer · A answer · R resume · Esc cancel',
+      ),
+      theme.fg(
+        'textDim',
+        ' M merge · P push · C copy id · X cancel job · R retry failed',
       ),
       this.renderMissionStrip(width),
-      ` ${renderParticleRail(Math.max(8, width - 4), getActiveAppearancePreferences(), 'job-deck:rail')}`,
+      ...(this.snapshot.running > 0
+        ? [
+            ` ${renderParticleRail(Math.max(8, width - 4), getActiveAppearancePreferences(), 'job-deck:rail')}`,
+          ]
+        : []),
       '',
     ];
     if (view.query.length > 0) {
@@ -318,10 +332,10 @@ export class JobDeckViewerComponent extends Container implements Focusable {
     if (view.items.length === 0) {
       if (this.snapshot.jobs.length === 0) {
         lines.push(theme.fg('text', ' No jobs yet — Conductor is ready.'));
-        lines.push(theme.fg('textDim', ' 1. Type a task in the chat to create your first Job'));
-        lines.push(theme.fg('textDim', ' 2. Workers appear here and in the Worker Dock (/agents)'));
-        lines.push(theme.fg('textDim', ' 3. Alt+J reopens this deck anytime'));
-        lines.push(theme.fg('textMuted', ' Esc closes · describe an outcome to get started'));
+        lines.push(theme.fg('textDim', ' 1. Type a task in chat → creates a Job'));
+        lines.push(theme.fg('textDim', ' 2. Jobs board (this deck) · Workers in the Dock (/agents)'));
+        lines.push(theme.fg('textDim', ' 3. Alt+J reopens Jobs anytime'));
+        lines.push(theme.fg('textMuted', ' Esc cancel · describe an outcome to get started'));
       } else {
         lines.push(theme.fg('textMuted', ' No jobs match this search.'));
       }
@@ -480,6 +494,7 @@ export class JobDeckViewerComponent extends Container implements Focusable {
       lastFetchMs: 0,
       fetching: false,
       fetchGeneration: 0,
+      lastProgressSignal: progressSignalForCard(card),
     };
     this.statusText = undefined;
     this.repaint();
@@ -561,8 +576,20 @@ export class JobDeckViewerComponent extends Container implements Focusable {
   private maybeRefreshTranscript(): void {
     const state = this.transcript;
     if (state === undefined || state.fetching || state.error !== undefined) return;
+    // Pull latest board card (liveActivity / phase) without waiting on poll.
+    const fresh = resolveConductorJobCard(this.getSnapshot().jobs, state.card.id);
+    if (fresh !== undefined) {
+      state.card = fresh;
+      const signal = progressSignalForCard(fresh);
+      if (signal !== state.lastProgressSignal) {
+        state.lastProgressSignal = signal;
+        void this.fetchTranscript(state);
+        return;
+      }
+    }
     if (state.card.status !== 'running') return;
-    if (Date.now() - state.lastFetchMs < DECK_TRANSCRIPT_REFRESH_MS) return;
+    // Slow fallback when the worker is silent on the board but still running.
+    if (Date.now() - state.lastFetchMs < DECK_TRANSCRIPT_FALLBACK_MS) return;
     void this.fetchTranscript(state);
   }
 
@@ -623,14 +650,18 @@ export class JobDeckViewerComponent extends Container implements Focusable {
       ` ${title}`,
       theme.fg(
         'textMuted',
-        ' ↑↓ scroll · PgUp/PgDn page · Home/End · G/F top/tail · S steer · R refresh · Esc back',
+        ' ↑↓ navigate · PgUp/PgDn page · S steer · R refresh · Esc cancel',
       ),
       this.renderUsageStrip(state, width),
-      ` ${renderParticleRail(
-        Math.max(8, width - 4),
-        getActiveAppearancePreferences(),
-        `job-deck:tx:${state.card.id}`,
-      )}`,
+      ...(state.card.status === 'running'
+        ? [
+            ` ${renderParticleRail(
+              Math.max(8, width - 4),
+              getActiveAppearancePreferences(),
+              `job-deck:tx:${state.card.id}`,
+            )}`,
+          ]
+        : []),
     ];
 
     if (state.loading) {
@@ -785,6 +816,21 @@ export class JobDeckViewerComponent extends Container implements Focusable {
     this.invalidate();
     this.requestRenderHook?.();
   }
+}
+
+/**
+ * Compact live-board signal for event-driven transcript refresh.
+ * Changes when phase, recent tools, or the latest tool activity moves.
+ */
+export function progressSignalForCard(card: ConductorJobCard): string {
+  const phase = card.progress?.phase ?? '';
+  const tools = card.progress?.recentTools?.join(',') ?? '';
+  const activity = card.liveActivity;
+  const act =
+    activity === undefined
+      ? ''
+      : `${activity.toolCallId}|${activity.name}|${activity.status}|${activity.atMs}`;
+  return `${card.status}|${phase}|${tools}|${act}|${String(card.liveTokens ?? 0)}`;
 }
 
 /** `12482` → `12.5k` for dense token strips. */

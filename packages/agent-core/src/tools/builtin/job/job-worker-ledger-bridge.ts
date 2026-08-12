@@ -96,6 +96,10 @@ export function reportJobWorkerProgress(
   if (binding === undefined) return;
   const job = getJob(binding.store, binding.jobId);
   if (job === undefined || job.status !== 'running') return;
+  // Skip ledger write + job.updated when only the heartbeat timestamp moved —
+  // subagent.progress already drives the live dock strip.
+  if (isHeartbeatOnlyProgress(job.progress, progress)) return;
+  // Progress-only patch: structural-share other jobs (writeJobLedger uses slice).
   const next = patchJob(binding.store, job.id, { progress });
   if (next !== undefined) {
     emitJobEvents(binding.agent, [jobRecordToUpdatedEvent(next, { reason: 'progress' })]);
@@ -108,6 +112,24 @@ export function reportJobWorkerProgress(
       });
     }
   }
+}
+
+/** True when progress only advances heartbeat / unchanged telemetry. */
+function isHeartbeatOnlyProgress(
+  previous: JobProgressSnapshot | undefined,
+  next: JobProgressSnapshot,
+): boolean {
+  if (previous === undefined) return false;
+  if ((previous.phase ?? '') !== (next.phase ?? '')) return false;
+  if ((previous.stepsCompleted ?? -1) !== (next.stepsCompleted ?? -1)) return false;
+  if ((previous.stepsTotal ?? -1) !== (next.stepsTotal ?? -1)) return false;
+  const prevTools = previous.recentTools?.join('\0') ?? '';
+  const nextTools = next.recentTools?.join('\0') ?? '';
+  if (prevTools !== nextTools) return false;
+  if ((previous.tokensIn ?? -1) !== (next.tokensIn ?? -1)) return false;
+  if ((previous.tokensOut ?? -1) !== (next.tokensOut ?? -1)) return false;
+  if ((previous.cacheRead ?? -1) !== (next.cacheRead ?? -1)) return false;
+  return true;
 }
 
 /**

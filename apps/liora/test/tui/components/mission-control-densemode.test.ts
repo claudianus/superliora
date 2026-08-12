@@ -125,7 +125,7 @@ describe('mission-control densemode helpers', () => {
     expect(text).not.toContain('BOARD');
   });
 
-  it('paints workers-only densemode without TAPE/BOARD even when jobs and ops exist', () => {
+  it('keeps a live BOARD attention strip under densemode without TAPE section', () => {
     const result = buildDenseContent({
       workers: [worker('solo', 0, { lastTool: 'Read', lastTarget: 'a.ts', toolCount: 3 })],
       ops: [
@@ -162,10 +162,12 @@ describe('mission-control densemode helpers', () => {
     const text = result.lines.join('\n');
     expect(text).toContain('FLEET');
     expect(text).toContain('solo');
+    // Thin attention rows (no BOARD section header); status glyph not SELECT_POINTER.
+    expect(text).toContain('Deploy pages');
+    expect(text).toContain('Old attempt');
     expect(text).not.toContain('BOARD');
     expect(text).not.toContain('TAPE');
-    expect(text).not.toContain('Deploy pages');
-    expect(text).not.toContain('Old attempt');
+    expect(text).not.toContain('❯');
   });
 
   it('gives freed tape/board budget to worker slots up to the cap', () => {

@@ -318,6 +318,31 @@ describe('ConductorDirectWorkGuard', () => {
       expect(status.allowed).toBe(true);
     });
 
+    it('counts WebSearch and FetchURL toward the same explore budget', () => {
+      const guard = new ConductorDirectWorkGuard();
+      for (let index = 0; index < CONDUCTOR_INTERACTIVE_EXPLORE_SOFT; index += 1) {
+        const toolName = index % 2 === 0 ? 'WebSearch' : 'FetchURL';
+        expect(
+          guard.evaluateToolCall({
+            toolName,
+            args: index % 2 === 0 ? { query: 'docs' } : { url: 'https://example.com' },
+            turnId: 'turn-web',
+          }).allowed,
+          `${toolName} #${String(index + 1)}`,
+        ).toBe(true);
+      }
+      const soft = guard.evaluateToolCall({
+        toolName: 'WebSearch',
+        args: { query: 'more' },
+        turnId: 'turn-web',
+      });
+      expect(soft.allowed).toBe(false);
+      if (!soft.allowed) {
+        expect(soft.code).toBe(CONDUCTOR_GUARD_CODES.exploreSoft);
+        expect(soft.output).toContain('WebSearch');
+      }
+    });
+
     it('tracks explore calls per turn and clears them on resetTurnState', () => {
       const guard = new ConductorDirectWorkGuard();
       guard.evaluateToolCall({ toolName: 'Read', args: { path: '/a' }, turnId: 't1' });

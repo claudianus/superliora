@@ -70,9 +70,23 @@ export function getJobWorkerSpawner(): WorkerSpawner {
 }
 
 /**
+ * Kinds that run deterministic (or ledger-only) work — not an LLM spawn
+ * handshake. Parking them on the WorkerSpawner monopolizes spawn slots and
+ * can falsely trip the 30s spawn budget on real merge/push duration.
+ */
+export function isNonLlmJobLaunch(job: Pick<JobRecord, 'kind'>): boolean {
+  return job.kind === 'merge' || job.kind === 'push' || job.kind === 'goal-desk';
+}
+
+/** In-flight non-LLM launches (merge/push/goal-desk) for resume/schedule dedupe. */
+const nonLlmLaunchKeys = new Set<string>();
+
+/**
  * V2-2 spawn wiring: queue one job-worker spawn behind the serialized
  * spawner. Emits `spawn:*` transition events; budget-exceeded handshakes are
  * recorded as blocked (ledger + inbox). Returns synchronously.
+ *
+ * merge / push / goal-desk bypass the spawner pool so LLM handshakes stay free.
  */
 export function enqueueJobWorkerSpawn(input: {
   readonly store: ToolStore;
@@ -80,6 +94,28 @@ export function enqueueJobWorkerSpawn(input: {
   readonly job: JobRecord;
 }): { readonly queued: boolean; readonly duplicate: boolean } {
   const { store, agent, job } = input;
+  if (isNonLlmJobLaunch(job)) {
+    if (nonLlmLaunchKeys.has(job.id)) {
+      return { queued: false, duplicate: true };
+    }
+    nonLlmLaunchKeys.add(job.id);
+    // Fire-and-forget off the spawner: land/push own their duration; goal-desk
+    // is a no-op umbrella. Failures stay on ledger/inbox (launchJobWorker).
+    void launchJobWorker({ store, agent, job })
+      .then((result) => {
+        if (!result.ok) {
+          agent.log?.warn?.('conductor non-LLM job launch failed', {
+            jobId: job.id,
+            kind: job.kind,
+            error: result.error,
+          });
+        }
+      })
+      .finally(() => {
+        nonLlmLaunchKeys.delete(job.id);
+      });
+    return { queued: true, duplicate: false };
+  }
   return getJobWorkerSpawner().enqueue({
     key: job.id,
     run: ({ signal }) =>

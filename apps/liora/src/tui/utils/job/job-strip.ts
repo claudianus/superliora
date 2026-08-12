@@ -487,8 +487,16 @@ export function patchConductorJobProgressByWorker(
     readonly tokens?: number;
     readonly atMs: number;
   },
+  /** Optional precomputed card index (JobBoardStore worker map). */
+  knownIndex?: number,
 ): readonly ConductorJobCard[] | undefined {
-  const index = cards.findIndex((card) => card.workerAgentId === workerAgentId);
+  const index =
+    knownIndex !== undefined &&
+    knownIndex >= 0 &&
+    knownIndex < cards.length &&
+    cards[knownIndex]?.workerAgentId === workerAgentId
+      ? knownIndex
+      : cards.findIndex((card) => card.workerAgentId === workerAgentId);
   if (index < 0) return undefined;
   const previous = cards[index]!;
   const trail = previous.progress?.recentTools ?? [];
@@ -518,8 +526,16 @@ export function patchConductorJobActivityByWorker(
   cards: readonly ConductorJobCard[],
   workerAgentId: string,
   activity: ConductorJobActivity,
+  /** Optional precomputed card index (JobBoardStore worker map). */
+  knownIndex?: number,
 ): readonly ConductorJobCard[] | undefined {
-  const index = cards.findIndex((card) => card.workerAgentId === workerAgentId);
+  const index =
+    knownIndex !== undefined &&
+    knownIndex >= 0 &&
+    knownIndex < cards.length &&
+    cards[knownIndex]?.workerAgentId === workerAgentId
+      ? knownIndex
+      : cards.findIndex((card) => card.workerAgentId === workerAgentId);
   if (index < 0) return undefined;
   const previous = cards[index]!;
   const previousActivity = previous.liveActivity;

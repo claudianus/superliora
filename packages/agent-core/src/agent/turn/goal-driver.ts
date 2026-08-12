@@ -8,6 +8,10 @@
 import type { Agent } from '..';
 import type { PromptOrigin } from '../context';
 import {
+  TODO_STORE_KEY,
+  type TodoItem,
+} from '../../tools/builtin/state/todo-list-store-key';
+import {
   GOAL_BLOCKED_REMINDER_NAME,
   GOAL_COMPLETION_REMINDER_NAME,
 } from './reminder-names';
@@ -36,12 +40,34 @@ export const GOAL_CONTINUATION_PROMPT = [
 ].join(' ');
 
 /**
+ * Compact TodoList fingerprint for the no-progress detector.
+ * Status/title only — order-stable join so mark-done / rewrites change the sig.
+ */
+export function fingerprintGoalTodos(todos: readonly TodoItem[]): string {
+  if (todos.length === 0) return '0';
+  return todos
+    .map((item) => `${item.status[0] ?? '?'}:${item.title.trim()}`)
+    .join('|')
+    .slice(0, 240);
+}
+
+/**
  * Builds a compact progress signature for the no-progress detector.
- * Changes when material goal progress is made.
+ * Changes only when material goal progress is made — never on turn counters
+ * (`turnsUsed` / wall-clock), which always advance and used to zero the streak.
  */
 export function buildGoalProgressSignature(agent: Agent): string {
   const goal = agent.goal.getGoal().goal;
-  return `goal:${goal?.goalId ?? 'none'}:${goal?.status ?? 'none'}:${goal?.turnsUsed ?? 0}`;
+  if (goal === null) return 'goal:none';
+  let todoFp = '0';
+  try {
+    const todos = agent.tools.getStore().get(TODO_STORE_KEY) ?? [];
+    todoFp = fingerprintGoalTodos(todos);
+  } catch {
+    // Tool store may be unavailable in unit fixtures — treat as empty board.
+  }
+  const criterion = goal.completionCriterion?.trim() ?? '';
+  return `goal:${goal.goalId}:${goal.status}:todo:${todoFp}:crit:${criterion.slice(0, 64)}`;
 }
 
 /** Returns true if the origin is a goal completion/blocked reminder injection. */

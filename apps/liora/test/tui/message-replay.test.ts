@@ -859,10 +859,7 @@ describe('LioraTUI resume message replay', () => {
       }),
     ]);
 
-    const transcript = driver.state.transcriptContainer.render(120).join('\n');
-    expect(transcript).not.toContain('<cron-fire');
-    expect(transcript).toContain('Scheduled reminder fired');
-    expect(transcript).toContain('run nightly');
+    // Prefer structured entries over painted ANSI (entrance/motion can interleave SGR).
     expect(
       driver.state.transcriptEntries
         .filter((entry) => entry.kind === 'user')
@@ -873,6 +870,13 @@ describe('LioraTUI resume message replay', () => {
         .filter((entry) => entry.kind === 'cron')
         .map((entry) => entry.content),
     ).toEqual(['run nightly']);
+    const transcript = driver.state.transcriptContainer
+      .render(120)
+      .map((line) => line.replaceAll(/\u001B\[[0-9;]*m/g, ''))
+      .join('\n');
+    expect(transcript).not.toContain('<cron-fire');
+    expect(transcript).toContain('Scheduled reminder fired');
+    expect(transcript).toContain('run nightly');
   });
 
   it('renders cron_missed origin records during replay without exposing raw XML', async () => {

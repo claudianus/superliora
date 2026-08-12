@@ -8,7 +8,12 @@ import type {
   ConductorJobsSnapshot,
 } from '#/tui/utils/job/job-strip';
 
-export type ConductorTimelineStage = 'intake' | 'running' | 'needs_user' | 'land';
+export type ConductorTimelineStage =
+  | 'intake'
+  | 'running'
+  | 'needs_user'
+  | 'land'
+  | 'failed';
 
 export interface ConductorTimelineEntry {
   readonly stage: ConductorTimelineStage;
@@ -18,13 +23,19 @@ export interface ConductorTimelineEntry {
   readonly kind: ConductorJobCard['kind'];
   readonly detail?: string;
   readonly atMs: number;
+  /** When status last changed — stage-row settle flash. */
+  readonly statusChangedAtMs?: number;
 }
+
+/** Max timeline rows before windowing (plus stage headers outside this count). */
+export const TIMELINE_ENTRY_WINDOW = 24;
 
 const STAGE_ORDER: readonly ConductorTimelineStage[] = [
   'intake',
   'running',
   'needs_user',
   'land',
+  'failed',
 ];
 
 export function stageForJob(card: ConductorJobCard): ConductorTimelineStage | undefined {
@@ -39,6 +50,9 @@ export function stageForJob(card: ConductorJobCard): ConductorTimelineStage | un
       return 'needs_user';
     case 'done':
       return 'land';
+    case 'failed':
+    case 'cancelled':
+      return 'failed';
     default:
       return undefined;
   }
@@ -46,6 +60,12 @@ export function stageForJob(card: ConductorJobCard): ConductorTimelineStage | un
 
 export function buildConductorTimeline(
   snap: ConductorJobsSnapshot,
+  options?: {
+    /** Window start into the sorted entry list (for ↑↓ scrolling). */
+    readonly scrollOffset?: number;
+    /** Max entries in the window (default {@link TIMELINE_ENTRY_WINDOW}). */
+    readonly windowSize?: number;
+  },
 ): readonly ConductorTimelineEntry[] {
   const fromJobs: ConductorTimelineEntry[] = [];
   for (const job of snap.jobs) {
@@ -59,10 +79,13 @@ export function buildConductorTimeline(
       kind: job.kind,
       detail: job.progress?.phase ?? job.resultSummary?.slice(0, 80),
       atMs: job.updatedAtMs,
+      ...(job.statusChangedAtMs === undefined
+        ? {}
+        : { statusChangedAtMs: job.statusChangedAtMs }),
     });
   }
 
-  // Inbox notices that point at jobs not already staged (failed/cancelled stay out).
+  // Inbox notices that point at jobs not already staged.
   const seen = new Set(fromJobs.map((e) => e.jobId));
   const fromInbox: ConductorTimelineEntry[] = [];
   for (const entry of snap.inbox) {
@@ -86,7 +109,28 @@ export function buildConductorTimeline(
     if (stageDiff !== 0) return stageDiff;
     return b.atMs - a.atMs;
   });
-  return all;
+  const windowSize = options?.windowSize ?? TIMELINE_ENTRY_WINDOW;
+  if (all.length <= windowSize) return all;
+  const maxOffset = Math.max(0, all.length - windowSize);
+  const offset = Math.min(maxOffset, Math.max(0, options?.scrollOffset ?? 0));
+  return all.slice(offset, offset + windowSize);
+}
+
+/** Full timeline length (for scroll bounds) — no windowing allocation. */
+export function countConductorTimelineEntries(snap: ConductorJobsSnapshot): number {
+  let count = 0;
+  const seen = new Set<string>();
+  for (const job of snap.jobs) {
+    if (stageForJob(job) === undefined) continue;
+    count += 1;
+    seen.add(job.id);
+  }
+  for (const entry of snap.inbox) {
+    if (seen.has(entry.jobId)) continue;
+    if (stageForInbox(entry) === undefined) continue;
+    count += 1;
+  }
+  return count;
 }
 
 export function timelineStageLabel(stage: ConductorTimelineStage): string {
@@ -99,6 +143,8 @@ export function timelineStageLabel(stage: ConductorTimelineStage): string {
       return 'Needs you';
     case 'land':
       return 'Land';
+    case 'failed':
+      return 'Failed';
   }
 }
 
@@ -111,6 +157,9 @@ function stageForInbox(entry: ConductorJobInboxEntry): ConductorTimelineStage | 
       return 'land';
     case 'job.interrupted':
       return 'running';
+    case 'job.failed':
+    case 'job.cancelled':
+      return 'failed';
     default:
       return undefined;
   }
