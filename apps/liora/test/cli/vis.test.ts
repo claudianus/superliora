@@ -1,8 +1,8 @@
 /**
- * `liora vis`
+ * Session visualizer helpers (`cli/sub/vis.ts`).
  *
- * Verifies the CLI layer for the session visualizer: home + auto-port
- * resolution, browser open vs `--no-open`, and the session deep-link path.
+ * `liora vis` is no longer a public argv subcommand; this suite still covers
+ * `handleVis` for the shared module (home + auto-port, `--no-open`, deep-link).
  * Uses injected deps so no real port is bound and the real vis server is
  * never started.
  */

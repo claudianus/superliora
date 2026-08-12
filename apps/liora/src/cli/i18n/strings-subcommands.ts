@@ -243,7 +243,8 @@ export const SUBCOMMAND_STRINGS_EN: Readonly<Record<string, string>> = {
     'Mark the imported model as default_model after import.',
   'cli.sub.provider.cmd.catalogAdd.option.url':
     'Override catalog URL. Defaults to {url}.',
-  'cli.sub.worktree.description': 'Manage SuperLiora git worktrees for session isolation',
+  'cli.sub.worktree.description':
+    'Manage session git worktrees (list/rm/gc/hygiene). Not the same as TUI /job gc.',
   'cli.sub.worktree.cmd.list.desc': 'List registered session worktrees',
   'cli.sub.worktree.cmd.rm.desc': 'Remove a session worktree by name or path',
   'cli.sub.worktree.cmd.gc.desc': 'Garbage-collect stale session worktrees',
@@ -511,7 +512,8 @@ export const SUBCOMMAND_STRINGS_KO: Readonly<Record<string, string>> = {
     '가져온 후 imported 모델을 default_model로 표시합니다.',
   'cli.sub.provider.cmd.catalogAdd.option.url':
     '카탈로그 URL 재정의. 기본값 {url}.',
-  'cli.sub.worktree.description': '세션 격리용 SuperLiora git worktree 관리',
+  'cli.sub.worktree.description':
+    '세션 git worktree 관리(list/rm/gc/hygiene). TUI /job gc와는 다릅니다.',
   'cli.sub.worktree.cmd.list.desc': '등록된 세션 worktree 목록',
   'cli.sub.worktree.cmd.rm.desc': '이름 또는 경로로 세션 worktree 삭제',
   'cli.sub.worktree.cmd.gc.desc': '오래된 세션 worktree 정리',

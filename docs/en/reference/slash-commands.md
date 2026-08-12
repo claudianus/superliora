@@ -2,7 +2,7 @@
 
 Prefer the **Command Hub** dashboard for everyday use: press `Ctrl-K` or `?` on an empty prompt (or run `/help`). Type to fuzzy-search every action, setting, and slash command — matched letters highlight in the list. On the idle list Space flips the selected mode in place; once you type, Space and digits extend the search. Enter applies and returns to chat. Nested pickers stack with Esc back (Esc clears a filter first). Retry is under Hub → Chat (or `/retry`).
 
-**Hub is primary** for operator workflows (Job ops, goal queue, dashboard, rewind, logout, …). Use slash when you need typed arguments or a keyboard shortcut. **Memory** lives under Settings → Memory (Integrations); **Job ops** under Hub → Workspace → Job ops. With swarm on, **War Room…** is under Hub → Fleet (`Ctrl-K`). **Context OS** is under Settings → Bench/Diagnostics; Files explorer `b` opens blame. Power-user slash still works — Help → All slash commands is a searchable list, not the everyday path.
+**Hub is primary** for operator workflows (Job ops, goal queue, dashboard, rewind, logout, …). Use slash when you need typed arguments or a keyboard shortcut. **Memory** lives under Settings → Memory (Integrations); **Job ops** under Hub → Workspace → Job ops (`/jobs`, `/job`). **Context OS** is under Settings → Bench/Diagnostics; Files explorer `b` opens blame. Power-user slash still works — Help → All slash commands is a searchable list, not the everyday path.
 
 Slash commands are built-in control commands provided by SuperLiora CLI in the interactive TUI, covering account configuration, session management, mode switching, information queries, and more. Type `/` in the input box to trigger command completion — the candidate list filters in real time as you continue typing; command aliases are also matched.
 
@@ -43,8 +43,7 @@ Some commands are only available in the idle state. Executing these commands whi
 | `/reload` | — | Reload the current session and apply the latest `config.toml` settings (providers, models, etc.) and `tui.toml` UI preferences, without restarting the CLI | No |
 | `/reload-tui` | — | Reload only the `tui.toml` UI preferences (theme, editor, notifications, etc.) without rebuilding the session | Yes |
 | `/init` | — | Analyze the current codebase and generate `AGENTS.md` | No |
-| `/export-md [<path>]` | `/export` | Export the current session as a Markdown file | No |
-| `/export-debug-zip` | — | Export the current session as a debug ZIP archive (same behavior as [`liora export`](./liora-command.md#kimi-export)) | No |
+| `/export-md [<path>]` | `/export` | Export the current session as a Markdown file (ZIP debug archives use the argv [`liora export`](./liora-command.md#liora-export) command) | No |
 | `/add-dir [<path>]` | — | Add an extra workspace directory to the current session. Run without a path (or with `list`) to list configured directories. When adding, choose whether to remember the directory for the project in `.superliora/local.toml` | No |
 
 ## Liora Memory
@@ -69,11 +68,6 @@ Some commands are only available in the idle state. Executing these commands whi
 | `/auto [on\|off]` | — | Toggle auto permission mode. When enabled, tool approvals are handled automatically and the Agent will not ask the user questions | Yes |
 | `/plan [on\|off]` | — | Toggle Plan mode. Without arguments, flips the current state; explicitly passing `on`/`off` forces the setting. Simply toggling does not create an empty plan file | Yes |
 | `/plan clear` | — | Clear the current plan | No |
-| `/swarm on\|off` | — | Turn swarm mode on or off without sending a prompt. | Yes |
-| `/swarm talk [expert]` | — | Open a War Room expert picker (or jump straight to that expert) to read their transcript and message them. Working experts get a steer; idle ones get a prompt. | Always when a war room is active |
-| `/swarm msg <expert> <text>` | — | Send a direct message to a War Room expert without opening the picker. | Always when a war room is active |
-| `/swarm pause\|restaff\|raw` | — | Control the active Fleet war room dock (pause for steering, request restaff, toggle raw feed). | Always when a war room is active |
-| `/swarm <task>` | — | Turn swarm mode on, then send `<task>` as a normal prompt. If the turn completes normally, swarm mode turns off automatically. In `manual` permission mode, SuperLiora asks whether to switch to `auto` or `yolo` before starting. | No |
 | `/goal [...]` | — | Start or manage an autonomous goal | See below |
 
 ::: warning

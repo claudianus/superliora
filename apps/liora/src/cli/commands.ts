@@ -11,7 +11,6 @@ import { registerExportCommand } from './sub/export';
 import { registerLoginCommand } from './sub/login';
 import { registerProviderCommand } from './sub/provider';
 import { registerServerCommand } from './sub/server';
-import { registerVisCommand } from './sub/vis';
 import { registerWorktreeCommand } from './sub/worktree';
 
 export type MainCommandHandler = (opts: CLIOptions) => void;
@@ -131,7 +130,6 @@ export function createProgram(
   registerServerCommand(program);
   registerLoginCommand(program);
   registerDoctorCommand(program);
-  registerVisCommand(program);
   registerWorktreeCommand(program);
   // First-class peers: `liora update` and `liora upgrade` share one handler
   // (Upgrade Studio / install theatre). Keep both names discoverable in help.

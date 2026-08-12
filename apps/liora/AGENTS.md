@@ -42,8 +42,14 @@ Entry: `src/main.ts` → `src/cli/commands.ts` → `src/cli/run-shell.ts` → SD
 
 User-facing features that operators need during an interactive session must be reachable from the TUI (slash command and/or Settings), not only from CLI subcommands.
 
-- **Default:** new operator workflows land in `src/tui/commands/` + dialogs under `src/tui/components/dialogs/`, reusing pure helpers shared with CLI when both exist.
-- **CLI-only exceptions** (document when adding more): non-interactive scripting (`liora provider …` batch/doctor/route dumps), install/update plumbing, headless export/CI helpers, and one-shot auth that cannot complete inside a mounted editor.
+- **Default:** new operator workflows land in `src/tui/commands/` + dialogs under `src/tui/components/dialogs/`, reusing pure helpers shared with CLI when both exist. **Do not add new public argv subcommands for day-to-day ops** (Conductor jobs, settings, swarm/fleet UX) — those stay TUI slash / Command Hub.
+- **Public argv keep-list** (add to this list when introducing a new CLI-only exception; snapshot-locked in `test/cli/public-commands.test.ts`):
+  - main: `liora` (+ `-p`, session/permission/profile/worktree flags)
+  - auth / install: `login`, `upgrade` / `update`
+  - scripting / CI: `provider …`, `doctor`, `export`
+  - IDE / daemon / runtimes: `acp`, `server` (`run`/`ps`/`kill`/`rotate-token` only), `browser-use`, `computer-use`
+  - hygiene: `worktree` (`list`/`rm`/`gc`/`hygiene`)
+  - internal hidden: `__plugin_run_node`
 - Shared config mutations (e.g. OAuth pool rewrite/promote/label/remove) live in pure modules (`@superliora/oauth` or `src/utils/`) — CLI and TUI both call them; do not fork private rewrite logic in either surface.
 
 ## Command Surface (One-search)

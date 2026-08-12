@@ -54,8 +54,9 @@ export const STRINGS_EN: Readonly<Record<string, string>> = {
   'cli.sub.browserUse.description': 'Manage the local browser-use runtimes (CloakBrowser primary, Camoufox secondary, Lightpanda tertiary where supported).',
   'cli.sub.computerUse.description': 'Manage the local cua-driver computer-use runtime.',
   'cli.sub.acp.description':
-    'Run kimi-code as an Agent Client Protocol (ACP) server over stdio.',
-  'cli.sub.server.description': 'Run the local SuperLiora server (REST + WebSocket API).',
+    'Run SuperLiora as an Agent Client Protocol (ACP) server over stdio.',
+  'cli.sub.server.description':
+    'Run the local SuperLiora daemon (REST + WebSocket). Daily job ops stay in the TUI (/jobs).',
   'cli.sub.login.description': 'Authenticate with SuperLiora CLI via the device-code flow.',
   'cli.sub.doctor.description': 'Validate SuperLiora configuration files.',
   'cli.sub.vis.description': 'Launch the session visualizer in your browser.',
@@ -106,7 +107,8 @@ export const STRINGS_KO: Readonly<Record<string, string>> = {
   'cli.sub.browserUse.description': '로컬 browser-use 런타임(CloakBrowser 1순위, Camoufox 2순위, Lightpanda 지원 시 3순위)을 관리합니다.',
   'cli.sub.computerUse.description': '로컬 cua-driver computer-use 런타임을 관리합니다.',
   'cli.sub.acp.description': 'SuperLiora를 stdio 기반 Agent Client Protocol(ACP) 서버로 실행합니다.',
-  'cli.sub.server.description': '로컬 SuperLiora 서버(REST + WebSocket API)를 실행합니다.',
+  'cli.sub.server.description':
+    '로컬 SuperLiora 데몬(REST + WebSocket)을 실행합니다. 일상 Job 조작은 TUI(/jobs)에서 합니다.',
   'cli.sub.login.description': '디바이스 코드 흐름으로 SuperLiora CLI 인증을 합니다.',
   'cli.sub.doctor.description': 'SuperLiora 설정 파일을 검사합니다.',
   'cli.sub.vis.description': '세션 시각화 도구를 브라우저에서 엽니다.',
