@@ -88,11 +88,27 @@ export function countJobsWithStatus(
   return listJobs(store).filter((j) => set.has(j.status)).length;
 }
 
+/**
+ * Whether a running Job occupies a Conductor pool slot.
+ * `goal-desk` is a ledger-only umbrella (no LLM worker) — counting it as
+ * capacity would burn a slot for the whole goal while drivers wait.
+ */
+export function jobOccupiesPoolSlot(job: Pick<JobRecord, 'kind'>): boolean {
+  return job.kind !== 'goal-desk';
+}
+
+/** Running jobs that consume maxConcurrent capacity. */
+export function countRunningPoolJobs(store: ToolStore): number {
+  return listJobs(store).filter(
+    (j) => j.status === 'running' && jobOccupiesPoolSlot(j),
+  ).length;
+}
+
 export function canStartMoreJobs(
   store: ToolStore,
   maxConcurrent: number = resolveConductorPoolConfig().maxConcurrentJobs,
 ): boolean {
-  return countJobsWithStatus(store, ['running']) < maxConcurrent;
+  return countRunningPoolJobs(store) < maxConcurrent;
 }
 
 /**
@@ -376,7 +392,9 @@ function needsWorktree(kind: JobKind): boolean {
 export async function scheduleQueuedJobs(input: ScheduleJobsInput): Promise<ScheduleJobsResult> {
   const max =
     input.maxConcurrent ?? resolveConductorPoolConfig().maxConcurrentJobs;
-  const running = countJobsWithStatus(input.store, ['running']);
+  // goal-desk umbrellas stay `running` without an LLM worker — exclude them
+  // so a single /goal does not burn a concurrency slot for its whole life.
+  const running = countRunningPoolJobs(input.store);
   const slots = Math.max(0, max - running);
   if (slots === 0) {
     const queued = countJobsWithStatus(input.store, ['queued']);
@@ -387,8 +405,8 @@ export async function scheduleQueuedJobs(input: ScheduleJobsInput): Promise<Sche
       backpressure: queued > 0,
       message:
         queued > 0
-          ? `Backpressure: ${running}/${max} jobs running; ${queued} queued.`
-          : `Pool idle capacity full (${running}/${max} running).`,
+          ? `Backpressure: ${running}/${max} pool slots in use; ${queued} queued.`
+          : `Pool idle capacity full (${running}/${max} slots in use).`,
     };
   }
 
@@ -478,7 +496,7 @@ export async function scheduleQueuedJobs(input: ScheduleJobsInput): Promise<Sche
   }
 
   const stillQueued = countJobsWithStatus(input.store, ['queued']);
-  const nowRunning = countJobsWithStatus(input.store, ['running']);
+  const nowRunning = countRunningPoolJobs(input.store);
   return {
     started,
     deferred: stillQueued,

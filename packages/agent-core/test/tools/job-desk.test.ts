@@ -117,11 +117,31 @@ describe('desk digest cycle (V4-2 폭주 digest)', () => {
     const events = listUnreadJobInbox(store);
     const digest = digestInboxEvents(events);
     expect(digest.groups).toHaveLength(2);
-    expect(digest.groups[0]).toMatchObject({ kind: 'job.completed', count: 7 });
-    expect(digest.groups[1]).toMatchObject({ kind: 'job.failed', count: 3 });
+    // Severity-first ordering: failed outranks completed even when fewer.
+    expect(digest.groups[0]).toMatchObject({ kind: 'job.failed', count: 3 });
+    expect(digest.groups[1]).toMatchObject({ kind: 'job.completed', count: 7 });
     expect(digest.summary).toContain('10 notices');
     expect(digest.summary).toContain('7× job.completed');
     expect(digest.summary).toContain('3× job.failed');
+  });
+
+  it('escalation card preserves worst severity from a mixed burst', () => {
+    const store = memoryStore();
+    for (let i = 0; i < 4; i += 1) pushCompletion(store, i, 'done');
+    pushJobInboxEvent(store, {
+      kind: 'job.needs_user',
+      jobId: 'job_ask1',
+      status: 'needs_user',
+      title: 'Need decision',
+      summary: 'which approach?',
+    });
+    pushCompletion(store, 9, 'failed');
+
+    const result = runDeskDigestCycle(store);
+    expect(result.offloaded).toBe(true);
+    expect(result.escalation?.kind).toBe('job.needs_user');
+    expect(result.escalation?.status).toBe('needs_user');
+    expect(result.escalation?.digest).toBe(true);
   });
 
   it('is a no-op without a burst', () => {

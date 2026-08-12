@@ -65,6 +65,8 @@ export class MissionControlController {
     const wasEmpty = panel.isEmpty();
     const workDir = state.appState.workDir || process.cwd();
     const jobs = state.appState.conductorJobs ?? emptyConductorJobsSnapshot();
+    // Ghost hydrate is idempotent and field-equality gated; still needed so
+    // resume queues appear, but no longer version-bumps on every heartbeat.
     this.registry.hydrateJobGhosts(jobs.jobs);
     panel.setView({
       snapshot: this.registry.snapshot(),
@@ -94,9 +96,10 @@ export class MissionControlController {
    * Ambient-clock hook (wiring `forceAmbientSchedule`): any worker on the
    * roster — active or completed-but-lingering — needs 1s chrome ticks so
    * elapsed clocks advance and the linger expiry collapses the panel.
+   * O(workers) membership only — never builds a full projected snapshot.
    */
   hasLiveWorkers(): boolean {
-    return this.registry.snapshot().workers.length > 0;
+    return this.registry.hasVisibleWorkers();
   }
 
   /** `/agents` cycle: auto → pinned → hidden → auto. */

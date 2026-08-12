@@ -1091,7 +1091,11 @@ describe('conductor non-blocking job path (regression)', () => {
     const result = await resumeJobs({ store, agent, jobId: job.id });
     expect(result.ok).toBe(true);
     expect(result.resumed).toHaveLength(1);
+    // Pump promotes to running; worker attach is async on the spawner lane
+    // (JobResume no longer awaits settle — Conductor hard-budget safety).
     expect(getJob(store, job.id)?.status).toBe('running');
+    const { getJobWorkerSpawner } = await import('../../src/session/job/job-offload');
+    await getJobWorkerSpawner().settle();
     expect(getJob(store, job.id)?.workerAgentId).toBe('agent_resume');
   });
 });
@@ -1117,10 +1121,40 @@ describe('conductor guard draft recorder (V1-3)', () => {
     const job = getJob(store, ack?.jobId ?? '');
     expect(job).toBeDefined();
     expect(job?.status).toBe('queued');
+    expect(job?.kind).toBe('implement');
     expect(job?.title).toBe('Edit: src/auth.ts');
     expect(job?.prompt).toContain('blocked on the Conductor lane');
     expect(job?.successCriteria?.length).toBeGreaterThan(0);
     expect(listJobs(store)).toHaveLength(1);
+  });
+
+  it('records explore-cap drafts as kind=explore and web tools as research', () => {
+    const store = memoryStore();
+    const explore = createConductorJobDraftRecorder(store)({
+      draft: {
+        title: 'Explore: auth module',
+        prompt: 'Map auth flows',
+        ownership: 'worker',
+      },
+      code: CONDUCTOR_GUARD_CODES.exploreSoft,
+      toolName: 'Grep',
+      turnId: 't-ex',
+      violationCount: 1,
+    });
+    expect(getJob(store, explore?.jobId ?? '')?.kind).toBe('explore');
+
+    const research = createConductorJobDraftRecorder(store)({
+      draft: {
+        title: 'Explore: WebSearch docs',
+        prompt: 'Research API',
+        ownership: 'worker',
+      },
+      code: CONDUCTOR_GUARD_CODES.exploreHard,
+      toolName: 'WebSearch',
+      turnId: 't-web',
+      violationCount: 1,
+    });
+    expect(getJob(store, research?.jobId ?? '')?.kind).toBe('research');
   });
 
   it('escalates the second guard violation straight into the ledger', () => {
@@ -1143,6 +1177,7 @@ describe('conductor guard draft recorder (V1-3)', () => {
     const jobs = listJobs(store);
     expect(jobs).toHaveLength(1);
     expect(jobs[0]?.status).toBe('queued');
+    expect(jobs[0]?.kind).toBe('implement');
     expect(jobs[0]?.title).toContain('Write');
     expect(jobs[0]?.title).toContain('src/auth.ts');
     if (!second.allowed) {

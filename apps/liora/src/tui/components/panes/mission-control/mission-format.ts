@@ -3,6 +3,32 @@
 /** Live thinking/answer strip stays "hot" this long after the last delta. */
 export const MISSION_LIVE_HOT_MS = 2_500;
 
+/**
+ * Paint-time elapsed so clocks keep moving without a registry version bump
+ * on every progress heartbeat. Terminal workers keep the frozen snapshot value.
+ */
+export function liveWorkerElapsedMs(
+  worker: {
+    readonly elapsedMs: number;
+    readonly spawnedAtMs: number;
+    readonly terminalAtMs?: number;
+    readonly progressAtMs?: number;
+    readonly progressElapsedMs?: number;
+  },
+  nowMs: number,
+): number {
+  if (worker.terminalAtMs !== undefined) {
+    return worker.elapsedMs;
+  }
+  if (
+    worker.progressElapsedMs !== undefined &&
+    worker.progressAtMs !== undefined
+  ) {
+    return worker.progressElapsedMs + Math.max(0, nowMs - worker.progressAtMs);
+  }
+  return Math.max(0, nowMs - worker.spawnedAtMs);
+}
+
 /** @deprecated Prefer {@link formatMissionAgeMs} for MOVES / TAPE rows. */
 export function formatMissionClockMs(atMs: number): string {
   const date = new Date(atMs);

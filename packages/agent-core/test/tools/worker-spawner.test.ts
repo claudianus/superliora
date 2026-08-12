@@ -23,6 +23,16 @@ describe('WorkerSpawner (V2-2 spawn isolation)', () => {
     expect(JOB_WORKER_SPAWN_BUDGET_MS).toBe(30_000);
   });
 
+  it('classifies merge/push/goal-desk as non-LLM launches (off spawner pool)', async () => {
+    const { isNonLlmJobLaunch } = await import('../../src/session/job/job-offload');
+    expect(isNonLlmJobLaunch({ kind: 'merge' })).toBe(true);
+    expect(isNonLlmJobLaunch({ kind: 'push' })).toBe(true);
+    expect(isNonLlmJobLaunch({ kind: 'goal-desk' })).toBe(true);
+    expect(isNonLlmJobLaunch({ kind: 'implement' })).toBe(false);
+    expect(isNonLlmJobLaunch({ kind: 'task' })).toBe(false);
+    expect(isNonLlmJobLaunch({ kind: 'explore' })).toBe(false);
+  });
+
   it('never caps handshakes below the job concurrency', () => {
     // A lower spawn cap promotes jobs to `running` faster than workers attach.
     expect(JOB_WORKER_SPAWN_MAX_CONCURRENT).toBeGreaterThanOrEqual(

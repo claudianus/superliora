@@ -106,6 +106,7 @@ import {
   formatMissionClockMs,
   formatMissionTokenRate,
   formatMissionTokens,
+  liveWorkerElapsedMs,
   MISSION_LIVE_HOT_MS,
 } from './mission-format';
 
@@ -114,6 +115,7 @@ export {
   formatMissionClockMs,
   formatMissionTokenRate,
   formatMissionTokens,
+  liveWorkerElapsedMs,
   MISSION_LIVE_HOT_MS,
 } from './mission-format';
 
@@ -763,7 +765,10 @@ export class MissionControlPanelComponent implements Component {
         const tokens = active.reduce((sum, worker) => sum + worker.tokens, 0);
         if (tokens > 0) parts.push(`${formatMissionTokens(tokens)} tok`);
       }
-      const elapsed = active.reduce((max, worker) => Math.max(max, worker.elapsedMs), 0);
+      const elapsed = active.reduce(
+        (max, worker) => Math.max(max, liveWorkerElapsedMs(worker, now)),
+        0,
+      );
       if (elapsed > 0) parts.push(formatJobDuration(elapsed));
       return ` ${missionBandProductName()} ·${parts.join(' · ')} `;
     }
@@ -787,7 +792,10 @@ export class MissionControlPanelComponent implements Component {
         const tokens = active.reduce((sum, worker) => sum + worker.tokens, 0);
         if (tokens > 0) parts.push(`${formatMissionTokens(tokens)} tok`);
       }
-      const elapsed = active.reduce((max, worker) => Math.max(max, worker.elapsedMs), 0);
+      const elapsed = active.reduce(
+        (max, worker) => Math.max(max, liveWorkerElapsedMs(worker, now)),
+        0,
+      );
       if (elapsed > 0) parts.push(formatJobDuration(elapsed));
     }
     return ` ${missionBandProductName()} ·${parts.join(' · ')} `;
@@ -1115,7 +1123,7 @@ export class MissionControlPanelComponent implements Component {
     } else if (
       animated &&
       worker.status === 'running' &&
-      worker.elapsedMs < 900
+      liveWorkerElapsedMs(worker, now) < 900
     ) {
       // Fresh spawn pop — spectacular for the first beat of a new worker.
       name = renderPulseText(namePlain, `mc-spawn:${worker.id}`, 'primary');
@@ -1126,7 +1134,10 @@ export class MissionControlPanelComponent implements Component {
       worker.modelAlias === undefined
         ? ''
         : currentTheme.fg('textMuted', ` ${worker.modelAlias}`);
-    const elapsed = currentTheme.fg('textDim', ` ${formatJobDuration(worker.elapsedMs)}`);
+    const elapsed = currentTheme.fg(
+      'textDim',
+      ` ${formatJobDuration(liveWorkerElapsedMs(worker, now))}`,
+    );
     return `${glyph} ${name}${model}${elapsed}`;
   }
 
@@ -1164,7 +1175,10 @@ export class MissionControlPanelComponent implements Component {
       const clipped = truncateToWidth(action, Math.max(8, restBudget - 3), '…');
       return `${head}${currentTheme.fg('textDim', ` — ${clipped}`)}`;
     }
-    const elapsed = currentTheme.fg('textDim', ` ${formatJobDuration(worker.elapsedMs)}`);
+    const elapsed = currentTheme.fg(
+      'textDim',
+      ` ${formatJobDuration(liveWorkerElapsedMs(worker, appearanceAnimationNow()))}`,
+    );
     return `${head}${elapsed}`;
   }
 

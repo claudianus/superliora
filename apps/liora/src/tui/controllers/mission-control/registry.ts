@@ -81,8 +81,14 @@ export interface MissionWorker {
   readonly tokenRatePerSec?: number;
   /** Recent tok/s samples for densemode sparklines (oldest → newest). */
   readonly rateSamples?: readonly number[];
-  /** Wall-clock elapsed, derived at snapshot time. */
+  /** Wall-clock elapsed, derived at snapshot time (may lag; prefer live re-derive). */
   readonly elapsedMs: number;
+  /**
+   * Progress-clock anchors so paint can re-derive live elapsed without a
+   * version bump on every heartbeat (see {@link liveWorkerElapsedMs}).
+   */
+  readonly progressAtMs?: number;
+  readonly progressElapsedMs?: number;
   readonly budgetMs?: number;
   readonly budgetRemainingMs?: number;
   readonly todoDone?: number;
@@ -229,11 +235,21 @@ export class MissionControlRegistry {
       const phase = job.progress?.phase?.trim();
       const existing = this.workers.get(ghostId);
       if (existing !== undefined) {
-        existing.status = status;
-        existing.name = job.title.slice(0, 80);
-        existing.description = phase && phase.length > 0 ? phase : description;
-        existing.lastActivityAtMs = nowMs;
-        changed = true;
+        const nextName = job.title.slice(0, 80);
+        const nextDescription = phase && phase.length > 0 ? phase : description;
+        // Only bump the roster when fields actually change — pure progress
+        // heartbeats used to force densemode rebuilds every pushView.
+        if (
+          existing.status !== status ||
+          existing.name !== nextName ||
+          existing.description !== nextDescription
+        ) {
+          existing.status = status;
+          existing.name = nextName;
+          existing.description = nextDescription;
+          existing.lastActivityAtMs = nowMs;
+          changed = true;
+        }
         continue;
       }
       this.workers.set(ghostId, {
@@ -328,6 +344,10 @@ export class MissionControlRegistry {
           ? {}
           : { rateSamples: [...worker.rateSamples] }),
         elapsedMs: this.deriveElapsedMs(worker, nowMs),
+        ...(worker.progressAtMs === undefined ? {} : { progressAtMs: worker.progressAtMs }),
+        ...(worker.progressElapsedMs === undefined
+          ? {}
+          : { progressElapsedMs: worker.progressElapsedMs }),
         ...(worker.budgetMs === undefined ? {} : { budgetMs: worker.budgetMs }),
         ...(worker.budgetRemainingMs === undefined
           ? {}
@@ -367,6 +387,17 @@ export class MissionControlRegistry {
       totalTokens,
       ops: [...this.ops],
     };
+  }
+
+  /**
+   * Cheap ambient-schedule probe: any non-expired worker on the roster.
+   * Avoids allocating the full {@link snapshot} projection every tick.
+   */
+  hasVisibleWorkers(nowMs: number = this.now()): boolean {
+    for (const worker of this.workers.values()) {
+      if (!isMissionWorkerPastLinger(worker, nowMs)) return true;
+    }
+    return false;
   }
 
   private deriveElapsedMs(worker: MutableWorker, nowMs: number): number {
@@ -430,6 +461,14 @@ export class MissionControlRegistry {
     const worker = this.ensureWorker(event.subagentId, {
       name: event.subagentName ?? event.subagentId,
     });
+    const prevName = worker.name;
+    const prevTool = worker.lastTool;
+    const prevTarget = worker.lastTarget;
+    const prevToolCount = worker.toolCount;
+    const prevTokens = worker.tokens;
+    const prevStatus = worker.status;
+    const prevRate = worker.tokenRatePerSec;
+
     if (event.subagentName !== undefined) worker.name = event.subagentName;
     worker.lastTool = event.lastTool ?? worker.lastTool;
     worker.lastTarget = event.lastTarget ?? worker.lastTarget;
@@ -444,7 +483,19 @@ export class MissionControlRegistry {
     worker.budgetRemainingMs = event.budgetRemainingMs ?? worker.budgetRemainingMs;
     worker.stalledSilentMs = undefined;
     worker.status = event.finishing === true ? 'finishing' : 'running';
-    return this.bump();
+
+    // Always mutate clocks/rate samples; only bump the roster version when
+    // layout-visible fields change. Elapsed still advances at paint via
+    // progressAtMs anchors (liveWorkerElapsedMs).
+    const material =
+      worker.name !== prevName ||
+      worker.lastTool !== prevTool ||
+      worker.lastTarget !== prevTarget ||
+      worker.toolCount !== prevToolCount ||
+      worker.status !== prevStatus ||
+      worker.tokens !== prevTokens ||
+      (worker.tokenRatePerSec ?? 0) !== (prevRate ?? 0);
+    return material ? this.bump() : false;
   }
 
   /** EMA of tokens/sec from heartbeat deltas (≥{@link MISSION_RATE_MIN_SAMPLE_MS}). */

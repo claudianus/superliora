@@ -17,8 +17,22 @@ import {
   resolveCompletionCriterion,
   syncGoalDeskParentFromDriver,
 } from '../../src/tools/builtin/goal/goal-session-binding';
-import { getJob, listJobs, patchJob, writeJobLedger, readJobLedger } from '../../src/tools/builtin/job/job-ledger';
-import { profileForJobKind, summarizeJobStrip } from '../../src/tools/builtin/job/job-runtime';
+import {
+  createJob,
+  getJob,
+  listJobs,
+  patchJob,
+  writeJobLedger,
+  readJobLedger,
+} from '../../src/tools/builtin/job/job-ledger';
+import {
+  canStartMoreJobs,
+  countRunningPoolJobs,
+  jobOccupiesPoolSlot,
+  profileForJobKind,
+  scheduleQueuedJobs,
+  summarizeJobStrip,
+} from '../../src/tools/builtin/job/job-runtime';
 import { launchJobWorker } from '../../src/tools/builtin/job/job-worker';
 import type { ToolStore } from '../../src/tools/store';
 
@@ -54,6 +68,36 @@ describe('goal-desk kind routing', () => {
       DEFAULT_GOAL_DESK_COMPLETION_CRITERION,
     );
     expect(resolveCompletionCriterion('Keep going until pnpm test passes')).toMatch(/pnpm test/);
+  });
+
+  it('does not occupy a Conductor pool slot while running', () => {
+    expect(jobOccupiesPoolSlot({ kind: 'goal-desk' })).toBe(false);
+    expect(jobOccupiesPoolSlot({ kind: 'goal-driver' })).toBe(true);
+    expect(jobOccupiesPoolSlot({ kind: 'implement' })).toBe(true);
+  });
+
+  it('leaves pool capacity free so a running umbrella does not starve drivers', async () => {
+    const store = memoryStore();
+    // Fill the pool with one non-occupying goal-desk + capacity-1 implement slots.
+    const desk = createJob(store, { title: 'Goal desk', kind: 'goal-desk', priority: 12 });
+    patchJob(store, desk.id, { status: 'running' });
+    for (let i = 0; i < 5; i += 1) {
+      const job = createJob(store, { title: `impl ${i}`, kind: 'implement', priority: 5 });
+      patchJob(store, job.id, { status: 'running' });
+    }
+    // 5 implement + 1 goal-desk running; pool max 6 → still 1 free slot for a driver.
+    expect(countRunningPoolJobs(store)).toBe(5);
+    expect(canStartMoreJobs(store, 6)).toBe(true);
+
+    createJob(store, { title: 'goal driver', kind: 'goal-driver', priority: 11 });
+    const result = await scheduleQueuedJobs({
+      store,
+      maxConcurrent: 6,
+      requireWorktree: false,
+    });
+    expect(result.started).toHaveLength(1);
+    expect(result.started[0]?.kind).toBe('goal-driver');
+    expect(canStartMoreJobs(store, 6)).toBe(false);
   });
 });
 

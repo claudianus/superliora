@@ -1674,21 +1674,56 @@ export function createConductorJobTools(store: ToolStore, agent?: Agent): Builti
  * Ledger sink for the conductor guard's second-violation escalation
  * (checklist V1-3): record the blocked work as a `queued` Job so the regular
  * Job scheduler picks it up — no model round-trip through JobCreate needed.
+ * When `agent` is provided, fire the schedule pump so the draft is not left
+ * stuck at `queued` until an unrelated JobCreate/completion.
  */
-export function createConductorJobDraftRecorder(store: ToolStore): ConductorJobDraftRecorder {
-  return ({ draft }) => {
+export function createConductorJobDraftRecorder(
+  store: ToolStore,
+  agent?: Agent,
+): ConductorJobDraftRecorder {
+  return ({ draft, code, toolName }) => {
     // Guard escalation bypasses JobCreate schema; still bind a minimal finish line
     // so the worker prompt is goal-shaped rather than open-ended effort.
     const ownershipLooksLikePath =
       draft.ownership.includes('/') || draft.ownership.includes('.');
+    const exploreDraft =
+      code === 'CONDUCTOR_INTERACTIVE_EXPLORE_SOFT' ||
+      code === 'CONDUCTOR_INTERACTIVE_EXPLORE_HARD';
+    const webResearch =
+      exploreDraft &&
+      (toolName === 'WebSearch' ||
+        toolName === 'FetchURL' ||
+        draft.title.toLowerCase().includes('websearch') ||
+        draft.title.toLowerCase().includes('fetchurl'));
+    // Write/edit blocks and path-shaped ownership → implement; pure explore → explore/research.
+    const kind: JobKind = webResearch
+      ? 'research'
+      : exploreDraft
+        ? 'explore'
+        : ownershipLooksLikePath ||
+            toolName === 'Write' ||
+            toolName === 'Edit' ||
+            toolName === 'ApplyPatch' ||
+            code === 'CONDUCTOR_DIRECT_WORK_BLOCKED' ||
+            code === 'CONDUCTOR_BASH_WRITE_BLOCKED'
+          ? 'implement'
+          : 'task';
     const job = createJob(store, {
       title: draft.title,
       prompt: draft.prompt,
+      kind,
       successCriteria: [
-        'Blocked Conductor work completed in the worktree and verified (tests or observable check).',
+        kind === 'explore' || kind === 'research'
+          ? kind === 'research'
+            ? 'Web/docs investigation complete; findings summarized for the Conductor without product writes.'
+            : 'Codebase discovery complete; findings summarized for the Conductor without product writes.'
+          : 'Blocked Conductor work completed in the worktree and verified (tests or observable check).',
       ],
       ownershipPaths: ownershipLooksLikePath ? [draft.ownership] : undefined,
     });
+    if (agent !== undefined) {
+      void requestJobSchedulePump({ store, agent });
+    }
     return { jobId: job.id };
   };
 }

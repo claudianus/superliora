@@ -5,9 +5,9 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
   // ── Mission Control / Worker Dock ────────────────────────────────────────
   'tui.missionControl.workerDock': 'Worker Dock',
   'tui.missionControl.missionControl': 'Mission Control',
-  'tui.missionControl.dockHint': 'Enter open · Esc back · click select',
+  'tui.missionControl.dockHint': 'Enter open · Esc cancel · click select',
   'tui.missionControl.transcriptHint':
-    '↑↓ scroll · PgUp/PgDn · Home/End · G/F top/tail · R refresh · Esc back',
+    '↑↓ navigate · PgUp/PgDn page · R refresh · Esc cancel',
   'tui.missionControl.transcriptLoading': 'Loading worker transcript…',
   'tui.missionControl.transcriptEmpty': 'No transcript messages yet for this worker.',
   'tui.missionControl.transcriptLoadFailed': 'Could not load the worker transcript.',
@@ -677,10 +677,10 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
   'tui.dialog.goalQueue.empty': '  No upcoming goals.',
 
   'tui.dialog.conductorHowto.title': ' How Conductor works',
-  'tui.dialog.conductorHowto.hint.seen': ' Esc / Enter close',
-  'tui.dialog.conductorHowto.hint.new': ' [s] skip forever · Esc / Enter close',
-  'tui.dialog.conductorHowto.closeSeen': '  Esc / Enter close',
-  'tui.dialog.conductorHowto.closeNew': "  [s] Don't show again · Esc / Enter close",
+  'tui.dialog.conductorHowto.hint.seen': ' Esc / Enter cancel',
+  'tui.dialog.conductorHowto.hint.new': ' S skip forever · Esc / Enter cancel',
+  'tui.dialog.conductorHowto.closeSeen': '  Esc / Enter cancel',
+  'tui.dialog.conductorHowto.closeNew': "  S don't show again · Esc / Enter cancel",
   'tui.dialog.conductorHowto.line1': '1. Type a task in chat — Conductor creates a Job.',
   'tui.dialog.conductorHowto.line2': '2. Workers run in the background (Worker Dock /agents).',
   'tui.dialog.conductorHowto.line3': '3. Alt+J opens the Job Deck to watch progress live.',
@@ -712,7 +712,7 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
   'tui.dialog.search.heading': 'Search',
 
   'tui.dialog.inbox.title': ' Inbox',
-  'tui.dialog.inbox.hint': '↑↓/jk · Enter act · M merge · P push · Esc close',
+  'tui.dialog.inbox.hint': '↑↓ navigate · Enter select · M merge · P push · Esc cancel',
   'tui.dialog.inbox.empty': '  Inbox is empty.',
   'tui.dialog.inbox.badge.approval': '[approval]',
   'tui.dialog.inbox.badge.question': '[question]',
@@ -725,9 +725,9 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
 export const STRINGS_TUI_REMAINDER_KO: Readonly<Record<string, string>> = {
   'tui.missionControl.workerDock': 'Worker Dock',
   'tui.missionControl.missionControl': 'Mission Control',
-  'tui.missionControl.dockHint': 'Enter 열기 · Esc 뒤로 · 클릭 선택',
+  'tui.missionControl.dockHint': 'Enter 열기 · Esc 취소 · 클릭 선택',
   'tui.missionControl.transcriptHint':
-    '↑↓ 스크롤 · PgUp/PgDn · Home/End · G/F 맨위/끝 · R 새로고침 · Esc 뒤로',
+    '↑↓ 이동 · PgUp/PgDn 페이지 · R 새로고침 · Esc 취소',
   'tui.missionControl.transcriptLoading': '워커 트랜스크립트 불러오는 중…',
   'tui.missionControl.transcriptEmpty': '이 워커의 트랜스크립트 메시지가 아직 없습니다.',
   'tui.missionControl.transcriptLoadFailed': '워커 트랜스크립트를 불러오지 못했습니다.',
@@ -1391,10 +1391,10 @@ export const STRINGS_TUI_REMAINDER_KO: Readonly<Record<string, string>> = {
   'tui.dialog.goalQueue.empty': '  대기 중인 목표가 없습니다.',
 
   'tui.dialog.conductorHowto.title': ' Conductor 사용법',
-  'tui.dialog.conductorHowto.hint.seen': ' Esc / Enter 닫기',
-  'tui.dialog.conductorHowto.hint.new': ' [s] 다시 보지 않기 · Esc / Enter 닫기',
-  'tui.dialog.conductorHowto.closeSeen': '  Esc / Enter 닫기',
-  'tui.dialog.conductorHowto.closeNew': '  [s] 다시 보지 않기 · Esc / Enter 닫기',
+  'tui.dialog.conductorHowto.hint.seen': ' Esc / Enter 취소',
+  'tui.dialog.conductorHowto.hint.new': ' S 다시 보지 않기 · Esc / Enter 취소',
+  'tui.dialog.conductorHowto.closeSeen': '  Esc / Enter 취소',
+  'tui.dialog.conductorHowto.closeNew': '  S 다시 보지 않기 · Esc / Enter 취소',
   'tui.dialog.conductorHowto.line1': '1. 채팅에 작업을 입력하면 Conductor가 Job을 만듭니다.',
   'tui.dialog.conductorHowto.line2': '2. 워커가 백그라운드에서 실행됩니다 (Worker Dock /agents).',
   'tui.dialog.conductorHowto.line3': '3. Alt+J로 Job Deck을 열어 진행을 실시간으로 봅니다.',
@@ -1426,7 +1426,7 @@ export const STRINGS_TUI_REMAINDER_KO: Readonly<Record<string, string>> = {
   'tui.dialog.search.heading': '검색',
 
   'tui.dialog.inbox.title': ' 받은편지함',
-  'tui.dialog.inbox.hint': '↑↓/jk · Enter 실행 · M merge · P push · Esc 닫기',
+  'tui.dialog.inbox.hint': '↑↓ 이동 · Enter 선택 · M merge · P push · Esc 취소',
   'tui.dialog.inbox.empty': '  받은편지함이 비어 있습니다.',
   'tui.dialog.inbox.badge.approval': '[승인]',
   'tui.dialog.inbox.badge.question': '[질문]',

@@ -12,6 +12,7 @@ import {
   parseIsoMs,
   parseJobLedgerCards,
   parseJobStripFromToolOutput,
+  patchConductorJobProgressByWorker,
   patchConductorJobUsage,
   resolveConductorJobCard,
   upsertConductorJobCard,
@@ -206,6 +207,45 @@ describe('job-strip', () => {
     expect(next?.[0]?.usage).toEqual({ input: 10, output: 20, cacheRead: 30 });
     expect(next?.[1]?.usage).toBeUndefined();
     expect(patchConductorJobUsage(cards, 'missing', { input: 1, output: 0, cacheRead: 0 })).toBeUndefined();
+  });
+
+  it('patchConductorJobProgressByWorker accepts a known index for O(1) join', () => {
+    const cards: ConductorJobCard[] = [
+      {
+        id: 'job_a',
+        title: 'a',
+        status: 'running',
+        kind: 'task',
+        priority: 1,
+        updatedAtMs: 0,
+        workerAgentId: 'agent_a',
+      },
+      {
+        id: 'job_b',
+        title: 'b',
+        status: 'running',
+        kind: 'task',
+        priority: 1,
+        updatedAtMs: 0,
+        workerAgentId: 'agent_b',
+      },
+    ];
+    const next = patchConductorJobProgressByWorker(
+      cards,
+      'agent_b',
+      { lastTool: 'Bash', toolCount: 3, tokens: 50, atMs: 1_000 },
+      1,
+    );
+    expect(next?.[1]?.progress?.recentTools).toEqual(['Bash']);
+    expect(next?.[1]?.liveTokens).toBe(50);
+    // Wrong known index falls back to scan.
+    const fallback = patchConductorJobProgressByWorker(
+      cards,
+      'agent_a',
+      { lastTool: 'Read', toolCount: 1, atMs: 2_000 },
+      99,
+    );
+    expect(fallback?.[0]?.progress?.recentTools).toEqual(['Read']);
   });
 
   it('upsert preserves createdAtMs and stamps statusChangedAtMs on lane moves', () => {

@@ -314,11 +314,11 @@ export class ControlTowerJobDesk {
   }
 
   handleSubagentToolResult(event: SubagentToolResultEvent): void {
-    const previous = this.store.snapshot().jobs.find(
-      (card) =>
-        card.workerAgentId === event.subagentId &&
-        card.liveActivity?.toolCallId === event.toolCallId,
-    )?.liveActivity;
+    const previousCard = this.store.cardByWorkerAgentId(event.subagentId);
+    const previous =
+      previousCard?.liveActivity?.toolCallId === event.toolCallId
+        ? previousCard.liveActivity
+        : undefined;
     const activity: ConductorJobActivity = {
       toolCallId: event.toolCallId,
       name: event.name ?? previous?.name ?? 'tool',

@@ -27,9 +27,18 @@ export type JobBoardStoreListener = (snapshot: ConductorJobsSnapshot) => void;
 export class JobBoardStore {
   private current: ConductorJobsSnapshot = emptyConductorJobsSnapshot();
   private readonly listeners = new Set<JobBoardStoreListener>();
+  /** workerAgentId → card index into `current.jobs` (rebuilt on publish). */
+  private readonly workerToIndex = new Map<string, number>();
 
   snapshot(): ConductorJobsSnapshot {
     return this.current;
+  }
+
+  /** O(1) card lookup for a live worker id (job desk tool-result join). */
+  cardByWorkerAgentId(workerAgentId: string): ConductorJobCard | undefined {
+    const index = this.workerToIndex.get(workerAgentId);
+    if (index === undefined) return undefined;
+    return this.current.jobs[index];
   }
 
   subscribe(listener: JobBoardStoreListener): () => void {
@@ -139,13 +148,18 @@ export class JobBoardStore {
     readonly atMs?: number;
   }): boolean {
     const prev = this.current;
-    const jobs = patchConductorJobProgressByWorker(prev.jobs, beat.subagentId, {
-      lastTool: beat.lastTool,
-      lastTarget: beat.lastTarget,
-      toolCount: beat.toolCount,
-      tokens: beat.tokens,
-      atMs: beat.atMs ?? Date.now(),
-    });
+    const jobs = patchConductorJobProgressByWorker(
+      prev.jobs,
+      beat.subagentId,
+      {
+        lastTool: beat.lastTool,
+        lastTarget: beat.lastTarget,
+        toolCount: beat.toolCount,
+        tokens: beat.tokens,
+        atMs: beat.atMs ?? Date.now(),
+      },
+      this.workerToIndex.get(beat.subagentId),
+    );
     if (jobs === undefined) return false;
     this.publish(this.deriveFromCards(jobs, prev.unreadInbox, prev.inbox, prev.maxConcurrent));
     return true;
@@ -160,7 +174,12 @@ export class JobBoardStore {
     activity: ConductorJobActivity,
   ): boolean {
     const prev = this.current;
-    const jobs = patchConductorJobActivityByWorker(prev.jobs, workerAgentId, activity);
+    const jobs = patchConductorJobActivityByWorker(
+      prev.jobs,
+      workerAgentId,
+      activity,
+      this.workerToIndex.get(workerAgentId),
+    );
     if (jobs === undefined) return false;
     this.publish(this.deriveFromCards(jobs, prev.unreadInbox, prev.inbox, prev.maxConcurrent));
     return true;
@@ -241,6 +260,17 @@ export class JobBoardStore {
 
   private publish(next: ConductorJobsSnapshot): void {
     this.current = next;
+    this.rebuildWorkerIndex(next.jobs);
     for (const listener of this.listeners) listener(next);
+  }
+
+  private rebuildWorkerIndex(jobs: readonly ConductorJobCard[]): void {
+    this.workerToIndex.clear();
+    for (let i = 0; i < jobs.length; i += 1) {
+      const workerId = jobs[i]?.workerAgentId;
+      if (workerId !== undefined && workerId.length > 0) {
+        this.workerToIndex.set(workerId, i);
+      }
+    }
   }
 }

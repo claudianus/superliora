@@ -2,20 +2,23 @@
  * Bloomberg-style densemode layout for Mission Control (any visible worker).
  * Pure string builders + light theme paint — panel owns reveal/lerp state.
  * Paint budget matches the solo panel: pulse/shimmer only on narrow signals
- * (glyph, mark, KPI chips), never on LIVE body copy. Workers-only layout —
- * TAPE/BOARD live on Control Tower / job strip, not inside Worker Dock.
+ * (glyph, mark, KPI chips), never on LIVE body copy. Workers-first layout —
+ * a thin live BOARD attention strip (1–2 cards) stays visible so Conductor
+ * jobs remain on the dock while the roster is dense.
  */
 
 import { truncateToWidth } from '#/tui/renderer';
 
-import { SELECT_POINTER } from '#/tui/constant/symbols';
 import { currentTheme } from '#/tui/theme';
 import type { ColorToken } from '#/tui/theme';
 import type { AppearancePreferences } from '#/tui/config';
 import { renderPulseText } from '#/tui/features/appearance/appearance-effects';
 import { renderPulseCountChip } from '#/tui/components/chrome/chrome-band-motion';
 import type { MissionOpsEntry, MissionWorker } from '#/tui/controllers/mission-control/registry';
-import { shortJobId } from '#/tui/components/job-board/job-board-helpers';
+import {
+  JOB_STATUS_META,
+  shortJobId,
+} from '#/tui/components/job-board/job-board-helpers';
 import {
   formatJobDuration,
   type ConductorJobCard,
@@ -28,6 +31,7 @@ import {
 import {
   formatMissionTokenRate,
   formatMissionTokens,
+  liveWorkerElapsedMs,
   MISSION_LIVE_HOT_MS,
 } from './mission-format';
 
@@ -237,12 +241,13 @@ export function formatAttentionJobRow(
   const titlePlain = card.title.trim();
   const idPlain = card.id.trim();
   if (titlePlain.length === 0 && idPlain.length === 0) return undefined;
+  const meta = JOB_STATUS_META[card.status] ?? JOB_STATUS_META.running;
   const token: ColorToken =
     card.status === 'needs_user' || card.status === 'blocked' || card.status === 'interrupted'
       ? 'warning'
       : card.status === 'failed'
-        ? 'textDim'
-        : 'text';
+        ? 'error'
+        : meta.token;
   const label = titlePlain.length > 0 ? titlePlain : shortJobId(idPlain);
   const title = truncateToWidth(label, Math.max(6, width - 24), '…');
   const phase =
@@ -273,8 +278,10 @@ export function formatAttentionJobRow(
           if (age > 60_000) return '';
           return currentTheme.fg('textMuted', ` ${formatJobDuration(age)} ago`);
         })();
+  // Status glyph only — SELECT_POINTER is reserved for true cursor selection
+  // (PREMIUM §2). Always-on ❯ made every attention row look multi-selected.
   return truncateToWidth(
-    `${currentTheme.fg(token, `${SELECT_POINTER} ${shortJobId(card.id)}`)} ${currentTheme.fg(
+    `${currentTheme.fg(token, `${meta.glyph} ${shortJobId(card.id)}`)} ${currentTheme.fg(
       token,
       title,
     )}${phase}${tools}${worker}${steps}${freshness}`,
@@ -300,7 +307,7 @@ export interface BuildDenseContentOptions {
   readonly workerGlyph: (worker: MissionWorker) => string;
   /** Window start into the sorted worker roster (clamped). */
   readonly scrollOffset?: number;
-  /** Conductor job ledger for subtle KPI chips only (no BOARD strip). */
+  /** Conductor job ledger for KPI chips + a thin live BOARD attention strip. */
   readonly jobs?: ConductorJobsSnapshot;
   /** Keyboard / click selection (worker id). */
   readonly selectedWorkerId?: string;
@@ -349,15 +356,14 @@ export function buildDenseContent(options: BuildDenseContentOptions): DenseConte
     return { lines, workerSlots: 0, scrollOffset: 0, workerRowMap, headerRow };
   }
 
-  // Recovery: keep one BOARD attention row in densemode so interrupted/held
-  // jobs stay visible while ghost/live workers occupy the roster.
-  const recoveryAttention =
-    jobs !== undefined &&
-    (jobs.interrupted > 0 || jobs.needsUser > 0 || jobs.blocked > 0)
-      ? selectAttentionJobs(jobs, 1)[0]
-      : undefined;
-  if (recoveryAttention !== undefined && lines.length < budget) {
-    const row = formatAttentionJobRow(recoveryAttention, width, now);
+  // Live BOARD strip: keep top attention cards (needs_user / running / failed)
+  // visible under densemode so the kanban story does not vanish while workers
+  // occupy the roster. Cap at 2 rows to protect worker paint budget.
+  const attentionJobs =
+    jobs !== undefined && jobs.total > 0 ? selectAttentionJobs(jobs, 2) : [];
+  for (const card of attentionJobs) {
+    if (lines.length >= budget) break;
+    const row = formatAttentionJobRow(card, width, now);
     if (row !== undefined) lines.push(row);
   }
   if (lines.length >= budget) {
@@ -449,7 +455,7 @@ function buildKpiLine(
   const finishing = workers.filter((w) => w.status === 'finishing').length;
   const sumRate = active.reduce((sum, w) => sum + (w.tokenRatePerSec ?? 0), 0);
   const sumTok = active.reduce((sum, w) => sum + w.tokens, 0);
-  const wall = active.reduce((max, w) => Math.max(max, w.elapsedMs), 0);
+  const wall = active.reduce((max, w) => Math.max(max, liveWorkerElapsedMs(w, now)), 0);
   const budgetParts = active
     .map((w) => {
       if (w.budgetMs === undefined || w.budgetMs <= 0) return undefined;
@@ -573,7 +579,10 @@ function buildWorkerRow(args: {
   }
 
   if (narrow) {
-    const elapsed = currentTheme.fg('textDim', compactElapsed(worker.elapsedMs).padStart(4));
+    const elapsed = currentTheme.fg(
+      'textDim',
+      compactElapsed(liveWorkerElapsedMs(worker, now)).padStart(4),
+    );
     const rateLabel = formatMissionTokenRate(rate);
     const ratePaint =
       rateLabel.length > 0
@@ -585,7 +594,10 @@ function buildWorkerRow(args: {
   }
 
   const model = currentTheme.fg('textMuted', shortModelAlias(worker.modelAlias).padEnd(8));
-  const elapsed = currentTheme.fg('textDim', compactElapsed(worker.elapsedMs).padStart(4));
+  const elapsed = currentTheme.fg(
+    'textDim',
+    compactElapsed(liveWorkerElapsedMs(worker, now)).padStart(4),
+  );
   const tools = currentTheme.fg('textMuted', String(worker.toolCount).padStart(5));
   const tok = currentTheme.fg('textMuted', formatMissionTokens(worker.tokens).padStart(6));
   const rateLabel = formatMissionTokenRate(rate);
