@@ -117,3 +117,11 @@ Two independent lines:
 ## Nested guides
 
 Directory-specific rules override this file when both apply: `apps/liora/AGENTS.md`, `packages/server/AGENTS.md`, `packages/server-e2e/AGENTS.md`, `packages/agent-core/AGENTS.md`, `packages/agent-core/src/services/AGENTS.md`, `docs/AGENTS.md`.
+
+## Cursor Cloud specific instructions
+
+Setup (the startup update script already ran `corepack pnpm install`): dependencies are present. Build/lint/test/run commands are the standard ones documented above (`## Local test gate`, `## Source-install gate`) and in `package.json`.
+
+- **Node/pnpm PATH gotcha:** the VM ships an `/exec-daemon/node` (v22) that sits ahead of nvm in `PATH` and would trip `engine-strict` (repo needs Node `>=24.15.0`). A `~/.bashrc` snippet prepends nvm's default (24.15.0) so a **login** shell (`bash -l`) gets the right node; non-login shells may still see v22. `pnpm` is a corepack shim on that node — if bare `pnpm` is missing, run `corepack enable`. `scripts/test-local.mjs` calls bare `pnpm`, so the test gate needs the corepack shim on `PATH`.
+- **Product = the `liora` CLI/TUI** (`apps/liora`). It runs the agent engine in-process via `@superliora/sdk`; `packages/server` is a separate optional daemon and is **not** needed for the normal TUI. Dev run: `pnpm dev:cli` (root) or built bundle `node apps/liora/dist/main.mjs`. Non-interactive smoke: `pnpm -C apps/liora run smoke`; config self-check: `node apps/liora/dist/main.mjs doctor`.
+- **A real agent turn needs an LLM provider credential** (`liora login` or a provider API key via `liora provider …`). None is present by default, so end-to-end conversations can't complete offline — configure a provider/key first. Do not spend paid LLM calls without explicit intent.
