@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.9.3
+
+### Patch Changes
+
+- Fix Windows install so `irm | iex` works on PowerShell 5.1, and the same command runs from cmd.exe.
+
 ## 0.9.2
 
 ### Patch Changes
