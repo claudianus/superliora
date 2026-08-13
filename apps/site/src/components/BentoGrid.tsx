@@ -25,10 +25,10 @@ export function BentoGrid({ features }: { features: FeatureItem[] }) {
             key={feature.id}
             role="listitem"
             className={`bento__cell bento__cell--${size}`}
-            initial={reduce ? false : { opacity: 0, y: 18, scale: 0.98 }}
-            whileInView={reduce ? undefined : { opacity: 1, y: 0, scale: 1 }}
-            viewport={{ once: true, margin: '-8% 0px' }}
-            transition={{ duration: 0.45, delay: reduce ? 0 : i * 0.045, ease: [0.22, 1, 0.36, 1] }}
+            initial={reduce ? false : { opacity: 1, y: 12 }}
+            whileInView={reduce ? undefined : { opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.01, margin: '0px 0px -6% 0px' }}
+            transition={{ duration: 0.4, delay: reduce ? 0 : i * 0.04, ease: [0.22, 1, 0.36, 1] }}
             whileHover={
               reduce
                 ? undefined

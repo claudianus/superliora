@@ -85,16 +85,8 @@ html[data-theme="light"] .mesh-bg {
 }
 
 .reveal {
-  opacity: 0;
-  transform: translateY(20px);
-  transition:
-    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.reveal.visible {
   opacity: 1;
-  transform: translateY(0);
+  transform: none;
 }
 
 .reveal.stagger-1 {
@@ -113,11 +105,6 @@ html[data-theme="light"] .mesh-bg {
 
 html {
   scroll-behavior: smooth;
-  overflow-x: clip;
-}
-
-body {
-  overflow-x: clip;
 }
 
 html[lang="ko"] body {
@@ -381,9 +368,11 @@ html[data-theme='light'] .nav-drawer {
   position: relative;
   isolation: isolate;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
   min-height: 100dvh;
   padding-top: 5.5rem;
-  padding-bottom: clamp(2rem, 3vw, 3.5rem);
+  padding-bottom: 1.1rem;
 }
 
 .hero-band::before {
@@ -416,9 +405,12 @@ html[data-theme='light'] .nav-drawer {
 
 .hero-layout {
   display: grid;
-  gap: clamp(2rem, 3vw, 3.5rem);
+  flex: 1 1 auto;
+  gap: clamp(1.25rem, 2.4vw, 3rem);
   align-items: center;
   max-width: 90rem;
+  width: 100%;
+  min-height: 0;
   margin-inline: auto;
   padding-inline: 1rem;
 }
@@ -431,10 +423,9 @@ html[data-theme='light'] .nav-drawer {
 
 @media (min-width: 1024px) {
   .hero-layout {
-    grid-template-columns: minmax(0, 0.88fr) minmax(35rem, 1.12fr);
-    gap: clamp(2.5rem, 4vw, 4.5rem);
+    grid-template-columns: minmax(0, 0.88fr) minmax(32rem, 1.12fr);
+    gap: clamp(2rem, 3.5vw, 4rem);
     padding-inline: clamp(1.75rem, 1.25rem + 1.2vw, 3rem);
-    min-height: calc(100dvh - 14rem);
   }
 }
 
