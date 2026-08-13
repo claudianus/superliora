@@ -34,6 +34,12 @@ curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.
 irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex
 ```
 
+- **Windows (cmd.exe)**:
+
+```bat
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex"
+```
+
 > SuperLiora uses Git Bash as its Windows shell. The install and `liora upgrade` flows download [Portable Git](https://gitforwindows.org/) into `~/.superliora/runtime/git` when Git Bash is missing (user-local, no admin). If Git Bash is already installed in a custom location, set `LIORA_SHELL_PATH` (legacy: `KIMI_SHELL_PATH`) to the absolute path of `bash.exe`. Pass `--no-git` to skip the bootstrap.
 
 The script does **not** require a pre-installed Node.js. When Node is missing or older than 24.15.0, it downloads an official Node build into `~/.superliora/runtime/node` (user-local, no admin). By default it installs the latest **published** GitHub Release prebuilt SEA (`manifest.json` + `liora-<platform>.zip`), verifies the checksum, and puts `liora` on your `PATH`. It does **not** fall back to an unreleased git tip unless you opt in. Browser-use, computer-use, and local retrieval sidecars are installed best-effort afterward.
@@ -53,7 +59,7 @@ Tip of `origin/main` (ignore published releases):
 curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.sh | bash -s -- --main
 ```
 
-Useful flags (same on `install.ps1`): `--main`, `--prefer-source`, `--force-prebuilt`, `--no-browser-use`, `--no-computer-use`, `--no-retrieval`, `--no-git`, `--no-shell-rc`.
+Useful flags (same on `install.ps1` and `install.cmd`): `--main`, `--prefer-source`, `--force-prebuilt`, `--no-browser-use`, `--no-computer-use`, `--no-retrieval`, `--no-git`, `--no-shell-rc`.
 
 Default source checkout (when using `--main` / `--prefer-source`): `~/.superliora/source`. Default bin dir: `~/.local/bin` (Unix) or `%LOCALAPPDATA%\SuperLiora\bin` (Windows).
 

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   getLandingManifest,
   installCommandsFromReadme,
+  INSTALL_CMD,
   INSTALL_PS,
   INSTALL_SH,
   LANDING_SECTION_IDS,
@@ -49,8 +50,8 @@ describe('shipped landing copy', () => {
   it('keeps install one-liners identical to README.md and README.ko.md', () => {
     const en = readFileSync(resolve(repoRoot, 'README.md'), 'utf8');
     const ko = readFileSync(resolve(repoRoot, 'README.ko.md'), 'utf8');
-    expect(installCommandsFromReadme(en)).toEqual({ sh: INSTALL_SH, ps: INSTALL_PS });
-    expect(installCommandsFromReadme(ko)).toEqual({ sh: INSTALL_SH, ps: INSTALL_PS });
+    expect(installCommandsFromReadme(en)).toEqual({ sh: INSTALL_SH, ps: INSTALL_PS, cmd: INSTALL_CMD });
+    expect(installCommandsFromReadme(ko)).toEqual({ sh: INSTALL_SH, ps: INSTALL_PS, cmd: INSTALL_CMD });
     expect(en).toContain('24.15.0');
     expect(ko).toContain('24.15.0');
   });
@@ -61,7 +62,7 @@ describe('shipped landing copy', () => {
       const manifest = getLandingManifest(lang);
       expect(manifest.nav.map((item) => item.id)).toEqual([...LANDING_SECTION_IDS]);
       expect(manifest.nav.map((item) => item.href)).toEqual(LANDING_SECTION_IDS.map((id) => `#${id}`));
-      expect(manifest.install.commands).toEqual([INSTALL_SH, INSTALL_PS]);
+      expect(manifest.install.commands).toEqual([INSTALL_SH, INSTALL_PS, INSTALL_CMD]);
       expect(manifest.install.requirements).toBe(NODE_REQUIREMENT);
       expect(manifest.hero.h1.trim().length).toBeGreaterThan(8);
       expect(manifest.hero.lead.trim().length).toBeGreaterThan(20);
