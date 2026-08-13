@@ -9,7 +9,8 @@
  * On Windows the probe expects Git Bash (the canonical POSIX shell that
  * ships with Git for Windows). If it cannot be located the function
  * throws `KaosShellNotFoundError`; the SDK layer can wrap that into a
- * user-facing install hint. Set `KIMI_SHELL_PATH` to override.
+ * user-facing install hint. Set `LIORA_SHELL_PATH` (legacy: `KIMI_SHELL_PATH`)
+ * to override.
  */
 
 import { execFile as nodeExecFile } from 'node:child_process';
@@ -91,11 +92,13 @@ export async function detectEnvironment(deps: EnvironmentDeps): Promise<Environm
 async function locateWindowsGitBash(deps: EnvironmentDeps): Promise<string> {
   const checked: string[] = [];
 
-  const override = deps.env['KIMI_SHELL_PATH']?.trim();
-  if (override !== undefined && override.length > 0) {
-    checked.push(override);
-    if (await deps.isFile(override)) {
-      return override;
+  for (const name of ['LIORA_SHELL_PATH', 'KIMI_SHELL_PATH'] as const) {
+    const override = deps.env[name]?.trim();
+    if (override !== undefined && override.length > 0) {
+      checked.push(override);
+      if (await deps.isFile(override)) {
+        return override;
+      }
     }
   }
 
@@ -148,7 +151,7 @@ async function locateWindowsGitBash(deps: EnvironmentDeps): Promise<string> {
   }
 
   throw new KaosShellNotFoundError(
-    `Git Bash was not found on this Windows host. Install Git for Windows from https://gitforwindows.org/ or set KIMI_SHELL_PATH to a bash.exe. Checked: ${checked.join(', ')}.`,
+    `Git Bash was not found on this Windows host. Install Git for Windows from https://gitforwindows.org/ or set LIORA_SHELL_PATH (legacy: KIMI_SHELL_PATH) to a bash.exe. Checked: ${checked.join(', ')}.`,
   );
 }
 

@@ -9,6 +9,7 @@ import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { ensureGit } from './install/ensure-git.mjs';
 import { ensureNode } from './install/ensure-node.mjs';
 import { ensureBinOnPath } from './install/path.mjs';
 import { tryInstallPrebuilt } from './install/prebuilt.mjs';
@@ -17,10 +18,12 @@ import {
   DEFAULT_NODE_MIN,
   DEFAULT_REF,
   DEFAULT_REPO,
+  commandFileName,
   defaultBinDir,
   defaultInstallDir,
   manifestUrlForVersion,
 } from './install/platform.mjs';
+import { spawnInstall } from './install/spawn.mjs';
 import { installSidecars } from './install/sidecars.mjs';
 import { buildSource, fetchSource } from './install/source.mjs';
 import { createTheatre } from './install/theatre.mjs';
@@ -50,6 +53,16 @@ try {
       ? `Installed Node ${nodeInfo.version} → ~/.superliora/runtime/node`
       : `Using Node ${nodeInfo.version}`,
   );
+
+  theatre.setStage('bootstrapping', 'Ensuring Git');
+  const gitInfo = await ensureGit({ skip: args.noGit, noShellRc: args.noShellRc });
+  if (gitInfo.message) {
+    theatre.note(gitInfo.message);
+  } else if (gitInfo.bootstrapped) {
+    theatre.setDetail(`Installed Git → ${gitInfo.root ?? '~/.superliora/runtime/git'}`);
+  } else if (!gitInfo.skipped) {
+    theatre.setDetail(gitInfo.bashPath ? `Using Git Bash ${gitInfo.bashPath}` : 'Using Git on PATH');
+  }
 
   const binDir = resolveHome(args.binDir ?? defaultBinDir());
   const installDir = resolveHome(args.installDir ?? defaultInstallDir());
@@ -121,11 +134,9 @@ try {
   });
 
   // Warm --version when possible (prebuilt path already verified when expected).
-  const warm = process.platform === 'win32'
-    ? join(binDir, `${commandName}.cmd`)
-    : join(binDir, commandName);
+  const warm = join(binDir, commandFileName(commandName));
   if (existsSync(warm) && mode === 'source') {
-    spawnSync(warm, ['--version'], { encoding: 'utf8', stdio: 'ignore' });
+    spawnInstall(warm, ['--version'], { encoding: 'utf8', stdio: 'ignore' });
   }
 
   theatre.finish(true, `${commandName} is ready`);
@@ -198,6 +209,7 @@ function parseArgs(argv) {
     noBrowserUse: process.env.SUPERLIORA_SKIP_BROWSER_USE === '1',
     noComputerUse: process.env.SUPERLIORA_SKIP_COMPUTER_USE === '1',
     noRetrieval: process.env.SUPERLIORA_SKIP_RETRIEVAL === '1',
+    noGit: process.env.SUPERLIORA_SKIP_GIT === '1',
     preferSource: process.env.SUPERLIORA_PREFER_SOURCE === '1',
     fromMain: process.env.SUPERLIORA_FROM_MAIN === '1',
     forcePrebuilt: process.env.SUPERLIORA_FORCE_PREBUILT === '1',
@@ -253,6 +265,9 @@ function parseArgs(argv) {
         break;
       case '--no-retrieval':
         out.noRetrieval = true;
+        break;
+      case '--no-git':
+        out.noGit = true;
         break;
       case '--prefer-source':
         out.preferSource = true;
@@ -310,6 +325,7 @@ Options:
   --no-browser-use      Skip browser-use sidecars
   --no-computer-use     Skip cua-driver
   --no-retrieval        Skip Granite embedder bootstrap
+  --no-git              Skip Git / Git Bash bootstrap
   --no-shell-rc         Do not edit shell PATH / User PATH
   --main                Ignore releases; build tip of origin/main from source
   --prefer-source       Skip prebuilt; build from source (--ref, default main)

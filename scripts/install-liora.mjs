@@ -2,12 +2,18 @@
 import { existsSync } from 'node:fs';
 import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, resolve } from 'node:path';
+import { resolve } from 'node:path';
 
 import { ensureBinOnPath } from './install/path.mjs';
-
-const WRAPPER_MARKER = 'Managed by superliora scripts/install-liora.mjs';
-const DEFAULT_NODE_VERSION = '24';
+import {
+  DEFAULT_NODE_VERSION,
+  WRAPPER_MARKER,
+  renderPosixSeaShim,
+  renderPosixWrapper,
+  renderWindowsCmdWrapper,
+  renderWindowsPs1Wrapper,
+  renderWindowsSeaShim,
+} from './install/wrappers.mjs';
 
 const args = parseArgs(process.argv.slice(2));
 const homeDir = process.env['HOME'] ?? process.env['USERPROFILE'] ?? homedir();
@@ -61,11 +67,7 @@ async function installSeaShim(outDir, name, binaryPath, isWin) {
     if (existsSync(cmdPath) && !(await isManagedWrapper(cmdPath)) && !args.force) {
       fail(`${cmdPath} already exists and is not managed by this installer. Re-run with --force.`);
     }
-    await writeFile(
-      cmdPath,
-      `@echo off\r\nrem ${WRAPPER_MARKER} (SEA)\r\n"${binaryPath}" %*\r\n`,
-      'utf8',
-    );
+    await writeFile(cmdPath, renderWindowsSeaShim(binaryPath), 'utf8');
     return;
   }
   const shim = resolve(outDir, name);
@@ -74,12 +76,7 @@ async function installSeaShim(outDir, name, binaryPath, isWin) {
   }
   // If binary already lives in binDir, nothing to do; otherwise symlink/copy path exec.
   if (resolve(binaryPath) === shim) return;
-  const wrapper = `#!/usr/bin/env bash
-# ${WRAPPER_MARKER} (SEA)
-set -euo pipefail
-exec ${quotePosix(binaryPath)} "$@"
-`;
-  await writeFile(shim, wrapper, { mode: 0o755 });
+  await writeFile(shim, renderPosixSeaShim(binaryPath), { mode: 0o755 });
   await chmod(shim, 0o755);
 }
 
@@ -92,14 +89,16 @@ async function installWindowsWrappers(appDir, outDir, name) {
       fail(`${path} already exists and is not managed by this installer. Re-run with --force.`);
     }
   }
-  const cmd = `@echo off\r\nrem ${WRAPPER_MARKER}\r\nsetlocal\r\nnode "${mainFile}" %*\r\n`;
+  const cmd = renderWindowsCmdWrapper(appDir, {
+    mainFile,
+    nodeFallback: process.execPath,
+  });
   await writeFile(cmdPath, cmd, 'utf8');
-  const escapedMain = mainFile.replaceAll("'", "''");
-  const ps = `# ${WRAPPER_MARKER}
-& node '${escapedMain}' @args
-exit $LASTEXITCODE
-`;
-  await writeFile(psPath, ps, 'utf8');
+  await writeFile(
+    psPath,
+    renderWindowsPs1Wrapper(appDir, { mainFile, nodeFallback: process.execPath }),
+    'utf8',
+  );
 }
 
 async function isManagedWrapper(filePath) {
@@ -109,32 +108,6 @@ async function isManagedWrapper(filePath) {
   } catch {
     return false;
   }
-}
-
-function renderPosixWrapper(appDir, nodeVersion) {
-  return `#!/usr/bin/env bash
-# ${WRAPPER_MARKER}
-set -euo pipefail
-
-app_root=${quotePosix(appDir)}
-main_file="$app_root/dist/main.mjs"
-
-if [ -s "$HOME/.nvm/nvm.sh" ]; then
-  # Keep local launches on the repository's supported Node major when nvm is available.
-  # If nvm cannot switch, fall back to whatever node is already on PATH.
-  . "$HOME/.nvm/nvm.sh"
-  nvm use ${quotePosix(nodeVersion)} >/dev/null 2>&1 || true
-fi
-
-# Auto-update is controlled by tui.toml [upgrade].auto_install (default on).
-# Opt out for a single process with SUPERLIORA_NO_AUTO_UPDATE=1 in the environment.
-
-if [ -f "$main_file" ]; then
-  exec node "$main_file" "$@"
-fi
-
-exec corepack pnpm -C "$app_root" run dev:cli-only -- "$@"
-`;
 }
 
 function defaultBinDir() {
@@ -149,10 +122,6 @@ function resolveHome(value) {
   if (value === '~') return homeDir;
   if (value.startsWith('~/')) return resolve(homeDir, value.slice(2));
   return resolve(value);
-}
-
-function quotePosix(value) {
-  return `'${value.replaceAll(`'`, `'\\''`)}'`;
 }
 
 function parseArgs(argv) {

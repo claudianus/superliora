@@ -136,7 +136,8 @@ Switches that control the behavior of subsystems such as telemetry, background t
 | `SUPERLIORA_BACKGROUND_KEEP_ALIVE_ON_EXIT` | Whether to keep background tasks when the session closes; takes higher priority than `config.toml`. The default is to stop them on exit | Truthy: `1`/`true`/`yes`/`on`; falsy: `0`/`false`/`no`/`off` |
 | `SUPERLIORA_PLUGIN_MARKETPLACE_URL` | Override the plugin marketplace JSON loaded by `/plugins`; useful for dev loopback servers, staging CDN files, or alternate marketplace directories | `https://raw.githubusercontent.com/claudianus/superliora/main/plugins/marketplace.json`; also accepts `http://`, `file://` URLs, and local paths |
 | `SUPERLIORA_AGENT_SWARM_MAX_CONCURRENCY` | Cap how many AgentSwarm subagents run concurrently during the initial ramp; leave unset for no cap | Positive integer; invalid values fail fast |
-| `SUPERLIORA_EXPERIMENTAL_FLAG` | Enable all registered experimental features for this process; | `KIMI_SHELL_PATH` | Override the Git Bash path on Windows (used when auto-detection fails) | Absolute path |
+| `SUPERLIORA_EXPERIMENTAL_FLAG` | Enable all registered experimental features for this process | Truthy: `1`/`true`/`yes`/`on` |
+| `LIORA_SHELL_PATH` | Override the Git Bash path on Windows when auto-detection fails. Legacy alias: `KIMI_SHELL_PATH` | Absolute path to `bash.exe` |
 | `KIMI_MODEL_MAX_COMPLETION_TOKENS` | Hard cap on `max_completion_tokens` per LLM step; applies to the `kimi` provider only | Positive integer; `0` or negative disables clamping |
 | `KIMI_MODEL_TEMPERATURE` | Sampling temperature for every request; applies to the `kimi` provider only (global — independent of `KIMI_MODEL_NAME`) | Number, e.g. `0.3` |
 | `KIMI_MODEL_TOP_P` | Nucleus-sampling `top_p` for every request; applies to the `kimi` provider only (global) | Number, e.g. `0.95` |

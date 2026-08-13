@@ -3,6 +3,7 @@
  */
 
 import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 export const DEFAULT_NODE_MIN = '24.15.0';
 export const DEFAULT_REPO = 'https://github.com/claudianus/superliora.git';
@@ -52,19 +53,33 @@ export function defaultHome() {
 }
 
 export function defaultInstallDir() {
-  return `${defaultHome()}/.superliora/source`;
+  return join(defaultHome(), '.superliora', 'source');
 }
 
-export function defaultBinDir() {
-  if (process.platform === 'win32') {
-    const base = process.env.LOCALAPPDATA ?? `${defaultHome()}/AppData/Local`;
-    return `${base}/SuperLiora/bin`;
+export function defaultBinDir(platform = process.platform) {
+  if (platform === 'win32') {
+    const base = process.env.LOCALAPPDATA ?? join(defaultHome(), 'AppData', 'Local');
+    return join(base, 'SuperLiora', 'bin');
   }
-  return `${defaultHome()}/.local/bin`;
+  return join(defaultHome(), '.local', 'bin');
 }
 
 export function defaultRuntimeNodeDir() {
-  return `${defaultHome()}/.superliora/runtime/node`;
+  return join(defaultHome(), '.superliora', 'runtime', 'node');
+}
+
+export function defaultRuntimeGitDir() {
+  return join(defaultHome(), '.superliora', 'runtime', 'git');
+}
+
+/** Invocable command filename in the bin dir (`liora` / `liora.cmd`). */
+export function commandFileName(commandName, platform = process.platform) {
+  return platform === 'win32' ? `${commandName}.cmd` : commandName;
+}
+
+/** Prebuilt SEA filename (`liora` / `liora.exe`). */
+export function seaBinaryName(commandName, platform = process.platform) {
+  return platform === 'win32' ? `${commandName}.exe` : commandName;
 }
 
 export function nodeDistSlug(version, platform = process.platform, arch = process.arch) {

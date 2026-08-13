@@ -10,10 +10,14 @@ import { join } from 'node:path';
 import { downloadToFile, fetchJson } from './download.mjs';
 import {
   DEFAULT_MANIFEST_URL,
+  commandFileName,
   defaultHome,
   manifestUrlForVersion,
   releaseTarget,
+  seaBinaryName,
 } from './platform.mjs';
+import { spawnInstall, spawnOutputText } from './spawn.mjs';
+import { renderWindowsSeaCmd } from './wrappers.mjs';
 
 /**
  * @returns {Promise<{ version: string, binaryPath: string, target: string, binDir: string }>}
@@ -56,14 +60,14 @@ export async function installPrebuilt(options) {
   await mkdir(extractDir, { recursive: true });
   extractArchive(zipPath, extractDir);
 
-  const execName = process.platform === 'win32' ? 'liora.exe' : 'liora';
+  const execName = seaBinaryName('liora');
   const extractedBinary = join(extractDir, execName);
   if (!existsSync(extractedBinary)) {
     throw new Error(`Prebuilt zip missing ${execName}`);
   }
 
   await mkdir(binDir, { recursive: true });
-  const destName = process.platform === 'win32' ? `${commandName}.exe` : commandName;
+  const destName = seaBinaryName(commandName);
   const destPath = join(binDir, destName);
 
   await installBinaryAtomically(extractedBinary, destPath);
@@ -76,16 +80,12 @@ export async function installPrebuilt(options) {
 
   // Windows also write .cmd shim pointing at exe for PATH friends.
   if (process.platform === 'win32') {
-    const cmdPath = join(binDir, `${commandName}.cmd`);
-    await writeFile(
-      cmdPath,
-      `@echo off\r\nrem Managed by superliora install-superliora.mjs (SEA)\r\n"%~dp0${destName}" %*\r\n`,
-      'utf8',
-    );
+    const cmdPath = join(binDir, commandFileName(commandName, 'win32'));
+    await writeFile(cmdPath, renderWindowsSeaCmd(destName), 'utf8');
   }
 
   const verifyPath =
-    process.platform === 'win32' ? join(binDir, `${commandName}.cmd`) : destPath;
+    process.platform === 'win32' ? join(binDir, commandFileName(commandName, 'win32')) : destPath;
   if (!skipVerify) {
     const verifyAgainst = expectedVersion ?? (installedVersion.length > 0 ? installedVersion : null);
     try {
@@ -148,21 +148,19 @@ export async function restoreBinaryBackup(destPath) {
 
 async function verifyInstalledVersion(binaryPath, expectedVersion) {
   if (!expectedVersion) return;
-  const result = spawnSync(binaryPath, ['--version'], {
+  const result = spawnInstall(binaryPath, ['--version'], {
     encoding: 'utf8',
     timeout: 15_000,
   });
   if (result.error) {
     throw new Error(`Post-install version check failed to run: ${result.error.message}`);
   }
+  const output = spawnOutputText(result);
   if (result.status !== 0) {
     throw new Error(
-      `Post-install version check exited ${String(result.status)}: ${
-        result.stderr || result.stdout || ''
-      }`.trim(),
+      `Post-install version check exited ${String(result.status)}: ${output}`.trim(),
     );
   }
-  const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
   const want = expectedVersion.replace(/^v/, '');
   if (!output.includes(want)) {
     throw new Error(

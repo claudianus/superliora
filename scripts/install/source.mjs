@@ -8,6 +8,7 @@ import { mkdir, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import { downloadToFile } from './download.mjs';
+import { spawnInstall } from './spawn.mjs';
 import {
   DEFAULT_REF,
   DEFAULT_REPO,
@@ -41,7 +42,7 @@ export async function fetchSource(options) {
 }
 
 export function buildSource(installDir) {
-  spawnSync('corepack', ['enable', 'pnpm'], {
+  spawnInstall('corepack', ['enable', 'pnpm'], {
     cwd: installDir,
     env: { ...process.env, COREPACK_ENABLE_DOWNLOAD_PROMPT: '0' },
     encoding: 'utf8',
@@ -54,18 +55,18 @@ export function buildSource(installDir) {
 
 function resolvePnpm() {
   const env = { ...process.env, COREPACK_ENABLE_DOWNLOAD_PROMPT: '0' };
-  const probe = spawnSync('corepack', ['pnpm', '--version'], { encoding: 'utf8', env });
+  const probe = spawnInstall('corepack', ['pnpm', '--version'], { encoding: 'utf8', env });
   if (probe.status === 0) {
     return { cmd: 'corepack', prefix: ['pnpm'] };
   }
-  const direct = spawnSync('pnpm', ['--version'], { encoding: 'utf8', env });
+  const direct = spawnInstall('pnpm', ['--version'], { encoding: 'utf8', env });
   if (direct.status === 0) return { cmd: 'pnpm', prefix: [] };
   throw new Error('pnpm is required; enable Corepack or install pnpm');
 }
 
 function runOrThrow(cmd, args, cwd) {
   const env = { ...process.env, COREPACK_ENABLE_DOWNLOAD_PROMPT: '0' };
-  const result = spawnSync(cmd, args, { cwd, env, encoding: 'utf8', stdio: 'inherit' });
+  const result = spawnInstall(cmd, args, { cwd, env, encoding: 'utf8', stdio: 'inherit' });
   if (result.status !== 0) {
     throw new Error(`${cmd} ${args.join(' ')} failed with code ${result.status}`);
   }

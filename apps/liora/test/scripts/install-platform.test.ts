@@ -1,13 +1,22 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  commandFileName,
   githubArchiveUrl,
   manifestUrlForVersion,
   nodeDistUrl,
   releaseTagForVersion,
   releaseTarget,
+  seaBinaryName,
   versionGte,
 } from '../../../../scripts/install/platform.mjs';
+import { commandNeedsWindowsShell, quoteCmdArgument } from '../../../../scripts/install/spawn.mjs';
+import { mergeUserPath } from '../../../../scripts/install/path.mjs';
+import {
+  WRAPPER_MARKER,
+  renderPosixWrapper,
+  renderWindowsCmdWrapper,
+} from '../../../../scripts/install/wrappers.mjs';
 import {
   installBinaryAtomically,
   restoreBinaryBackup,
@@ -48,6 +57,65 @@ describe('scripts/install/platform', () => {
     expect(manifestUrlForVersion('0.5.0')).toBe(
       'https://github.com/claudianus/superliora/releases/download/v0.5.0/manifest.json',
     );
+  });
+
+  it('names the invocable command per platform', () => {
+    expect(commandFileName('liora', 'linux')).toBe('liora');
+    expect(commandFileName('liora', 'darwin')).toBe('liora');
+    expect(commandFileName('liora', 'win32')).toBe('liora.cmd');
+    expect(seaBinaryName('liora', 'linux')).toBe('liora');
+    expect(seaBinaryName('liora', 'win32')).toBe('liora.exe');
+  });
+});
+
+describe('scripts/install/spawn', () => {
+  it('routes Windows shims through cmd.exe and leaves POSIX / .exe alone', () => {
+    expect(commandNeedsWindowsShell('corepack', 'win32')).toBe(true);
+    expect(commandNeedsWindowsShell('pnpm', 'win32')).toBe(true);
+    expect(commandNeedsWindowsShell('liora.cmd', 'win32')).toBe(true);
+    expect(commandNeedsWindowsShell('C:\\bin\\liora.exe', 'win32')).toBe(false);
+    expect(commandNeedsWindowsShell('corepack', 'linux')).toBe(false);
+    expect(commandNeedsWindowsShell('liora.cmd', 'darwin')).toBe(false);
+  });
+
+  it('quotes cmd.exe arguments that contain spaces', () => {
+    expect(quoteCmdArgument('simple')).toBe('simple');
+    expect(quoteCmdArgument('C:\\Program Files\\liora.cmd')).toBe('"C:\\Program Files\\liora.cmd"');
+  });
+});
+
+describe('scripts/install/path mergeUserPath', () => {
+  it('prepends a missing bin dir and is idempotent', () => {
+    const first = mergeUserPath('C:\\Windows', 'C:\\Apps\\SuperLiora\\bin');
+    expect(first.changed).toBe(true);
+    expect(first.next.startsWith('C:\\Apps\\SuperLiora\\bin;')).toBe(true);
+    const again = mergeUserPath(first.next, 'C:\\Apps\\SuperLiora\\bin');
+    expect(again.changed).toBe(false);
+    expect(again.next).toBe(first.next);
+  });
+
+  it('treats slash and backslash forms as the same User PATH entry', () => {
+    const merged = mergeUserPath('C:\\Apps\\SuperLiora\\bin;C:\\Windows', 'C:/Apps/SuperLiora/bin');
+    expect(merged.changed).toBe(false);
+  });
+});
+
+describe('scripts/install/wrappers', () => {
+  it('encodes POSIX source fallback and Windows dist fallback', () => {
+    const posix = renderPosixWrapper('/repo/apps/liora', '24');
+    expect(posix).toContain(WRAPPER_MARKER);
+    expect(posix).toContain('dist/main.mjs');
+    expect(posix).toContain('pnpm -C "$app_root" run dev:cli-only');
+    expect(posix).not.toMatch(/SUPERLIORA_NO_AUTO_UPDATE=.*:-1/);
+
+    const cmd = renderWindowsCmdWrapper('C:\\repo\\apps\\liora', {
+      mainFile: 'C:\\repo\\apps\\liora\\dist\\main.mjs',
+      nodeFallback: 'C:\\nodejs\\node.exe',
+    });
+    expect(cmd).toContain(WRAPPER_MARKER);
+    expect(cmd).toContain('dist\\main.mjs');
+    expect(cmd).toContain('dev:cli-only');
+    expect(cmd).toContain('LIORA_NODE=C:\\nodejs\\node.exe');
   });
 });
 
