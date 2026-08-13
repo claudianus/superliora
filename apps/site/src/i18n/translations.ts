@@ -540,9 +540,9 @@ export const translations: Record<Lang, Translation> = {
     lang: 'ko',
     dir: 'ltr',
     meta: {
-      title: 'SuperLiora — 터미널에서 끝까지 맡기는 AI 코딩',
+      title: 'SuperLiora — 코딩 에이전트를 지휘하는 터미널',
       description:
-        'SuperLiora는 터미널 AI 코딩 에이전트입니다. 원하는 결과를 적으면 백그라운드에서 작업이 돌아가고, 진행을 보면서 필요할 때만 답하면 됩니다.',
+        '결과를 적으면 Conductor가 격리 Job을 띄웁니다. Job Deck으로 보고, Inbox에서 답하고, 통과분만 로컬에 Land하세요.',
       ogLocale: 'ko_KR',
     },
     skip: '본문으로 건너뛰기',
@@ -559,7 +559,7 @@ export const translations: Record<Lang, Translation> = {
       brand: 'SuperLiora',
       eyebrow: 'CONDUCTOR · LOCAL FIRST',
       h1: '코딩 에이전트를 지휘하는 터미널.',
-      lead: '끝난 모습을 적으면 Conductor가 git worktree Job을 띄웁니다. 채팅은 지휘석으로 남고, 필요할 때만 Inbox에서 답하세요.',
+      lead: '결과를 적으면 격리 Job이 돌아갑니다. 필요할 때만 Inbox에서 답하세요.',
       command: '$ liora',
       proof: [
         { value: 'Conductor', label: '대화와 실행 분리' },
@@ -602,14 +602,14 @@ export const translations: Record<Lang, Translation> = {
     },
     clusters: {
       kicker: '주요 기능',
-      title: '맡기고도 놓치지 않게.',
-      body: '모델이 흔들려도, 워커가 많아도, 권한이 달라도 — 같은 터미널 안에서 이어집니다.',
+      title: '끊겨도 지휘는 남습니다.',
+      body: '모델 폴백, 작업별 worktree, 권한. 한 터미널에서 이어집니다.',
       items: clustersKo,
     },
     usage: {
       kicker: '사용법',
-      title: '다섯 가지만 기억하면 됩니다.',
-      body: '설치 후 프로젝트 폴더에서 세션을 열고, 계정과 모델을 붙인 다음 결과를 적으세요.',
+      title: '시작은 이 다섯 줄입니다.',
+      body: '프로젝트에서 열고, 계정과 모델을 붙인 뒤 결과를 적습니다.',
       items: [
         {
           id: 'liora',
@@ -646,7 +646,7 @@ export const translations: Record<Lang, Translation> = {
     workflow: {
       kicker: '워크플로우',
       title: '적고, 맡기고, 답하고, Land.',
-      body: '파이프라인을 외울 필요 없습니다. 결과 → 백그라운드 Job → Inbox → 로컬 Land.',
+      body: 'Job Deck은 Alt+J, Inbox는 Alt+I. 통과분만 로컬에 Land합니다.',
       steps: [
         {
           id: 'write',
@@ -704,8 +704,8 @@ export const translations: Record<Lang, Translation> = {
     },
     install: {
       kicker: '설치법',
-      title: '한 줄로 설치하고 liora를 여세요.',
-      body: '설치가 끝나면 프로젝트 폴더에서 liora를 켠 뒤 /login과 /model로 모델을 연결하세요.',
+      title: '한 줄이면 설치됩니다.',
+      body: '그다음 프로젝트에서 liora를 켜고 /login과 /model로 연결하세요.',
       requirements: NODE_REQUIREMENT,
       commands: [
         { label: 'macOS / Linux', cmd: INSTALL_SH },
@@ -856,9 +856,9 @@ export const translations: Record<Lang, Translation> = {
     lang: 'en',
     dir: 'ltr',
     meta: {
-      title: 'SuperLiora — Finish long coding work in the terminal',
+      title: 'SuperLiora — Command coding agents from your terminal',
       description:
-        'SuperLiora is a terminal AI coding agent. Describe the outcome, let work run in the background, watch progress, and step in only when asked.',
+        'Write the outcome. Conductor starts isolated Jobs. Watch the Job Deck, answer in Inbox, Land locally what passed.',
       ogLocale: 'en_US',
     },
     skip: 'Skip to content',
@@ -875,7 +875,7 @@ export const translations: Record<Lang, Translation> = {
       brand: 'SuperLiora',
       eyebrow: 'CONDUCTOR · LOCAL FIRST',
       h1: 'Command coding agents from your terminal.',
-      lead: 'Describe the finished state. Conductor starts isolated git worktree Jobs. Chat stays the control plane — answer in Inbox only when asked.',
+      lead: 'Write the outcome. Isolated Jobs run. Answer in Inbox only when asked.',
       command: '$ liora',
       proof: [
         { value: 'Conductor', label: 'separate talk from execution' },
@@ -918,14 +918,14 @@ export const translations: Record<Lang, Translation> = {
     },
     clusters: {
       kicker: 'Features',
-      title: 'Hand it off without losing the thread.',
-      body: 'Models blip, workers multiply, permissions change — the same terminal keeps the story.',
+      title: 'Work keeps going.',
+      body: 'Model fallback, per-job worktrees, permissions. One terminal.',
       items: clustersEn,
     },
     usage: {
       kicker: 'Usage',
-      title: 'Five commands. That is the whole start.',
-      body: 'After install, open a session in the project folder, connect an account and a model, then write the outcome.',
+      title: 'Five lines to start.',
+      body: 'Open a session in the project, connect an account and a model, then write the outcome.',
       items: [
         {
           id: 'liora',
@@ -961,8 +961,8 @@ export const translations: Record<Lang, Translation> = {
     },
     workflow: {
       kicker: 'Workflow',
-      title: 'Write, delegate, answer, Land.',
-      body: 'No pipeline to memorize. Outcome → background Job → Inbox → Land locally.',
+      title: 'Write, run, answer, Land.',
+      body: 'Job Deck is Alt+J. Inbox is Alt+I. Land locally what passed.',
       steps: [
         {
           id: 'write',
@@ -1020,8 +1020,8 @@ export const translations: Record<Lang, Translation> = {
     },
     install: {
       kicker: 'Install',
-      title: 'One line, then open liora.',
-      body: 'After install, run liora in a project folder and connect a model with /login and /model.',
+      title: 'One line to install.',
+      body: 'Then run liora in a project and connect a model with /login and /model.',
       requirements: NODE_REQUIREMENT,
       commands: [
         { label: 'macOS / Linux', cmd: INSTALL_SH },
