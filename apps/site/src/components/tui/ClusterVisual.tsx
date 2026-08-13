@@ -208,6 +208,22 @@ export function ClusterVisual({ clusterId }: { clusterId: string }) {
   }
 }
 
+export function UsageVisual() {
+  const { t } = useI18n();
+  return (
+    <TuiChrome title="liora" badge="usage">
+      <ol className="panel-usage">
+        {t.usage.items.map((item) => (
+          <li key={item.id} className="panel-usage__row">
+            <code className="panel-usage__cmd">{item.cmd}</code>
+            <span className="panel-usage__title">{item.title}</span>
+          </li>
+        ))}
+      </ol>
+    </TuiChrome>
+  );
+}
+
 export function HowFlowVisual() {
   const { t } = useI18n();
   const v = t.visuals.howFlow;

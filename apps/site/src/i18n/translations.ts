@@ -1,3 +1,12 @@
+import {
+  INSTALL_PS,
+  INSTALL_SH,
+  NODE_REQUIREMENT,
+  USAGE_COMMANDS,
+  type UsageCommandId,
+  type WorkflowStepId,
+} from '../content';
+
 export type Lang = 'ko' | 'en';
 
 export type DocSlug =
@@ -13,6 +22,14 @@ export interface InstallCommand {
 }
 
 export interface WorkflowStep {
+  id: WorkflowStepId;
+  title: string;
+  body: string;
+}
+
+export interface UsageItem {
+  id: UsageCommandId;
+  cmd: string;
   title: string;
   body: string;
 }
@@ -104,7 +121,8 @@ export interface Translation {
   skip: string;
   nav: {
     features: string;
-    how: string;
+    usage: string;
+    workflow: string;
     install: string;
     docs: string;
     menuOpen: string;
@@ -146,7 +164,13 @@ export interface Translation {
     body: string;
     items: ClusterItem[];
   };
-  how: {
+  usage: {
+    kicker: string;
+    title: string;
+    body: string;
+    items: UsageItem[];
+  };
+  workflow: {
     kicker: string;
     title: string;
     body: string;
@@ -200,11 +224,6 @@ export interface Translation {
 export const defaultLang: Lang = 'ko';
 export const PRODUCT_VERSION = '0.9.2';
 
-const INSTALL_SH =
-  'curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.sh | bash';
-const INSTALL_PS =
-  'irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex';
-
 const visualsKo: SiteVisuals = {
   statusRoute: {
     chrome: 'Status · Route',
@@ -227,7 +246,7 @@ const visualsKo: SiteVisuals = {
   jobDeck: {
     chrome: 'Job Deck',
     badge: 'Alt+J',
-    subtitle: 'Mission monitor',
+    subtitle: 'Job monitor',
     inbox: 'Inbox 1',
     jobs: [
       { id: 'job_a1', title: 'Auth redirect', status: 'running', phase: 'tests 2/3', age: '12s', tone: 'run' },
@@ -290,9 +309,9 @@ const visualsKo: SiteVisuals = {
     badge: 'one lap',
     steps: [
       { title: '결과 적기', body: '끝난 모습을 한 줄로' },
-      { title: '백그라운드', body: '채팅은 비워 두고 진행' },
-      { title: '짧게 답하기', body: 'Inbox에서 끼어들기' },
-      { title: '합치기', body: '통과분만 Land' },
+      { title: '백그라운드 Job', body: 'git worktree에서 진행' },
+      { title: 'Inbox', body: 'Alt+I에서 한 줄로 답' },
+      { title: 'Land', body: '통과분만 로컬 합치기' },
     ],
   },
 };
@@ -319,7 +338,7 @@ const visualsEn: SiteVisuals = {
   jobDeck: {
     chrome: 'Job Deck',
     badge: 'Alt+J',
-    subtitle: 'Mission monitor',
+    subtitle: 'Job monitor',
     inbox: 'Inbox 1',
     jobs: [
       { id: 'job_a1', title: 'Auth redirect', status: 'running', phase: 'tests 2/3', age: '12s', tone: 'run' },
@@ -382,9 +401,9 @@ const visualsEn: SiteVisuals = {
     badge: 'one lap',
     steps: [
       { title: 'Describe', body: 'Write the finished state' },
-      { title: 'Background', body: 'Chat stays clear' },
-      { title: 'Answer', body: 'Step in via Inbox' },
-      { title: 'Land', body: 'Merge what passed' },
+      { title: 'Background Job', body: 'Isolated git worktree' },
+      { title: 'Inbox', body: 'Answer in Alt+I' },
+      { title: 'Land', body: 'Merge locally' },
     ],
   },
 };
@@ -527,25 +546,26 @@ export const translations: Record<Lang, Translation> = {
     },
     skip: '본문으로 건너뛰기',
     nav: {
-      features: '특장점',
-      how: '흐름',
-      install: '설치',
+      features: '주요 기능',
+      usage: '사용법',
+      workflow: '워크플로우',
+      install: '설치법',
       docs: '가이드',
       menuOpen: '메뉴 열기',
       menuClose: '메뉴 닫기',
     },
     hero: {
       brand: 'SuperLiora',
-      eyebrow: 'CONDUCTOR HARNESS · LOCAL FIRST',
+      eyebrow: 'CONDUCTOR · LOCAL FIRST',
       h1: '코딩 에이전트를 지휘하는 터미널.',
-      lead: '대화는 컨트롤 플레인에 남겨두세요. 구현은 격리된 Job에서 병렬로 돌고, 당신은 진행을 보고 필요한 순간에만 개입합니다.',
-      command: '$ liora --plan',
+      lead: '끝난 모습을 적으면 Conductor가 git worktree Job을 띄웁니다. 채팅은 지휘석으로 남고, 필요할 때만 Inbox에서 답하세요.',
+      command: '$ liora',
       proof: [
         { value: 'Conductor', label: '대화와 실행 분리' },
         { value: 'Isolated Jobs', label: 'git worktree 격리' },
         { value: 'Model-agnostic', label: '라우팅·폴백·풀링' },
       ],
-      install: '설치하기',
+      install: '설치법',
       github: 'GitHub',
       docs: '가이드',
       frame: {
@@ -569,31 +589,72 @@ export const translations: Record<Lang, Translation> = {
       },
     },
     clusters: {
-      kicker: '왜 SuperLiora인가',
+      kicker: '주요 기능',
       title: '맡기고도 놓치지 않게.',
       body: '모델이 흔들려도, 워커가 많아도, 권한이 달라도 — 같은 터미널 안에서 이어집니다.',
       items: clustersKo,
     },
-    how: {
-      kicker: '한 바퀴',
-      title: '적고, 보고, 답하고, 합치기.',
-      body: '복잡한 파이프라인을 외울 필요 없습니다. 아래 네 가지만 기억하세요.',
+    usage: {
+      kicker: '사용법',
+      title: '다섯 가지만 기억하면 됩니다.',
+      body: '설치 후 프로젝트 폴더에서 세션을 열고, 계정과 모델을 붙인 다음 결과를 적으세요.',
+      items: [
+        {
+          id: 'liora',
+          cmd: USAGE_COMMANDS[0].cmd,
+          title: '세션 열기',
+          body: '프로젝트 폴더에서 Conductor 세션을 엽니다.',
+        },
+        {
+          id: 'continue',
+          cmd: USAGE_COMMANDS[1].cmd,
+          title: '이어서 하기',
+          body: '이 폴더의 최근 세션을 다시 엽니다.',
+        },
+        {
+          id: 'plan',
+          cmd: USAGE_COMMANDS[2].cmd,
+          title: '계획으로 시작',
+          body: 'Plan Desk로 큰 작업을 조향한 뒤 실행합니다.',
+        },
+        {
+          id: 'login',
+          cmd: USAGE_COMMANDS[3].cmd,
+          title: '계정 연결',
+          body: '프로바이더 계정을 붙이면 바로 쓸 수 있습니다.',
+        },
+        {
+          id: 'model',
+          cmd: USAGE_COMMANDS[4].cmd,
+          title: '모델 고르기',
+          body: '이 세션에서 쓸 모델을 고르거나 Smart Auto에 맡깁니다.',
+        },
+      ],
+    },
+    workflow: {
+      kicker: '워크플로우',
+      title: '적고, 맡기고, 답하고, Land.',
+      body: '파이프라인을 외울 필요 없습니다. 결과 → 백그라운드 Job → Inbox → 로컬 Land.',
       steps: [
         {
+          id: 'write',
           title: '결과를 적기',
-          body: '“로그인 후 /app으로 가게 해줘”처럼 끝난 모습을 적습니다.',
+          body: '“로그인 후 /app으로 가게 해줘”처럼 끝난 모습을 적습니다. Conductor가 Job을 만듭니다.',
         },
         {
-          title: '백그라운드에서 진행',
-          body: '작업이 접수되면 바로 돌아가기 시작합니다. 채팅은 비어 있습니다.',
+          id: 'job',
+          title: '백그라운드 Job',
+          body: '구현은 격리된 git worktree에서 돌아갑니다. 채팅은 비어 있습니다.',
         },
         {
-          title: '막히면 짧게 답하기',
-          body: '질문이 뜨면 Inbox에서 한 줄로 답하고, 이어서 돌립니다.',
+          id: 'inbox',
+          title: 'Inbox에서 답하기',
+          body: '질문이 뜨면 Alt+I에서 한 줄로 답합니다. 진행과 diff는 Alt+J Job Deck.',
         },
         {
-          title: '준비되면 합치기',
-          body: '테스트와 충돌을 확인한 뒤 로컬 main에 합칩니다.',
+          id: 'land',
+          title: '로컬에 Land',
+          body: '통과한 것만 로컬에 합칩니다. push는 원할 때 합니다.',
         },
       ],
     },
@@ -604,13 +665,13 @@ export const translations: Record<Lang, Translation> = {
       items: [
         {
           keys: 'Alt+J',
-          title: '진행 보기',
-          body: '지금 돌아가는 작업과 코드 변경을 엽니다.',
+          title: 'Job Deck',
+          body: '지금 돌아가는 Job과 diff를 엽니다.',
         },
         {
           keys: 'Alt+I',
-          title: '질문함',
-          body: '에이전트가 물은 내용에 답합니다.',
+          title: 'Inbox',
+          body: '에이전트가 물은 내용에 한 줄로 답합니다.',
         },
         {
           keys: 'Alt+B',
@@ -630,10 +691,10 @@ export const translations: Record<Lang, Translation> = {
       ],
     },
     install: {
-      kicker: '시작',
-      title: '설치하고 바로 열어보세요.',
-      body: 'Node.js 24 이상이 있으면 됩니다. 켠 뒤 /login과 /model로 모델만 연결하세요.',
-      requirements: 'Node.js ≥ 24.15.0',
+      kicker: '설치법',
+      title: '한 줄로 설치하고 liora를 여세요.',
+      body: '설치가 끝나면 프로젝트 폴더에서 liora를 켠 뒤 /login과 /model로 모델을 연결하세요.',
+      requirements: NODE_REQUIREMENT,
       commands: [
         { label: 'macOS / Linux', cmd: INSTALL_SH },
         { label: 'Windows PowerShell', cmd: INSTALL_PS },
@@ -672,19 +733,18 @@ export const translations: Record<Lang, Translation> = {
         lead: '설치부터 첫 작업까지.',
         sections: [
           {
-            heading: '설치',
-            body: '터미널에서 한 줄로 설치합니다.',
-            code: INSTALL_SH,
+            heading: '설치법',
+            body: `${NODE_REQUIREMENT}. 운영체제에 맞는 한 줄을 실행합니다.`,
+            code: `${INSTALL_SH}\n${INSTALL_PS}`,
           },
           {
-            heading: '첫 실행',
-            body: '프로젝트 폴더에서 liora를 켠 뒤, /login과 /model로 모델을 연결하세요. 그리고 원하는 결과를 적으면 됩니다.',
-            code: 'liora\n/login\n/model',
+            heading: '사용법',
+            body: '프로젝트 폴더에서 세션을 열고 /login과 /model로 모델을 연결한 뒤, 원하는 결과를 적습니다.',
+            code: 'liora\nliora --continue\nliora --plan\n/login\n/model',
           },
           {
-            heading: '이어서 하기',
-            body: '같은 폴더의 최근 세션은 이렇게 다시 엽니다.',
-            code: 'liora --continue',
+            heading: '워크플로우',
+            body: 'Conductor가 git worktree Job을 만듭니다. Alt+J Job Deck으로 보고, Alt+I Inbox에서 답하고, 통과분만 로컬에 Land합니다.',
           },
         ],
       },
@@ -792,7 +852,8 @@ export const translations: Record<Lang, Translation> = {
     skip: 'Skip to content',
     nav: {
       features: 'Features',
-      how: 'Flow',
+      usage: 'Usage',
+      workflow: 'Workflow',
       install: 'Install',
       docs: 'Guide',
       menuOpen: 'Open menu',
@@ -800,10 +861,10 @@ export const translations: Record<Lang, Translation> = {
     },
     hero: {
       brand: 'SuperLiora',
-      eyebrow: 'CONDUCTOR HARNESS · LOCAL FIRST',
+      eyebrow: 'CONDUCTOR · LOCAL FIRST',
       h1: 'Command coding agents from your terminal.',
-      lead: 'Keep conversation on the control plane. Implementation runs in parallel, isolated Jobs while you watch progress and step in only when needed.',
-      command: '$ liora --plan',
+      lead: 'Describe the finished state. Conductor starts isolated git worktree Jobs. Chat stays the control plane — answer in Inbox only when asked.',
+      command: '$ liora',
       proof: [
         { value: 'Conductor', label: 'separate talk from execution' },
         { value: 'Isolated Jobs', label: 'one git worktree each' },
@@ -833,31 +894,72 @@ export const translations: Record<Lang, Translation> = {
       },
     },
     clusters: {
-      kicker: 'Why SuperLiora',
+      kicker: 'Features',
       title: 'Hand it off without losing the thread.',
       body: 'Models blip, workers multiply, permissions change — the same terminal keeps the story.',
       items: clustersEn,
     },
-    how: {
-      kicker: 'The loop',
-      title: 'Write, watch, answer, land.',
-      body: 'No pipeline to memorize. Keep these four moves.',
+    usage: {
+      kicker: 'Usage',
+      title: 'Five commands. That is the whole start.',
+      body: 'After install, open a session in the project folder, connect an account and a model, then write the outcome.',
+      items: [
+        {
+          id: 'liora',
+          cmd: USAGE_COMMANDS[0].cmd,
+          title: 'Open a session',
+          body: 'Start a Conductor session in this project folder.',
+        },
+        {
+          id: 'continue',
+          cmd: USAGE_COMMANDS[1].cmd,
+          title: 'Resume',
+          body: 'Reopen the latest session in this folder.',
+        },
+        {
+          id: 'plan',
+          cmd: USAGE_COMMANDS[2].cmd,
+          title: 'Start in Plan Desk',
+          body: 'Steer a large piece of work before it runs.',
+        },
+        {
+          id: 'login',
+          cmd: USAGE_COMMANDS[3].cmd,
+          title: 'Connect an account',
+          body: 'Attach a provider account and you are ready.',
+        },
+        {
+          id: 'model',
+          cmd: USAGE_COMMANDS[4].cmd,
+          title: 'Pick a model',
+          body: 'Choose this session’s model, or leave it on Smart Auto.',
+        },
+      ],
+    },
+    workflow: {
+      kicker: 'Workflow',
+      title: 'Write, delegate, answer, Land.',
+      body: 'No pipeline to memorize. Outcome → background Job → Inbox → Land locally.',
       steps: [
         {
-          title: 'Say the outcome',
-          body: '“After OAuth, land on /app.” Describe done, not the steps.',
+          id: 'write',
+          title: 'Write the outcome',
+          body: '“After login, go to /app.” Conductor creates a Job.',
         },
         {
-          title: 'Work runs underneath',
-          body: 'Jobs start immediately. Your chat stays free.',
+          id: 'job',
+          title: 'Background Job',
+          body: 'Implementation runs in an isolated git worktree. Chat stays free.',
         },
         {
-          title: 'Answer when stuck',
-          body: 'When something needs you, reply in Inbox and it continues.',
+          id: 'inbox',
+          title: 'Answer in Inbox',
+          body: 'When it asks, reply in Alt+I. Watch diffs on the Job Deck (Alt+J).',
         },
         {
-          title: 'Land when ready',
-          body: 'Review checks, then merge into local main.',
+          id: 'land',
+          title: 'Land locally',
+          body: 'Merge what passed. Push when you want.',
         },
       ],
     },
@@ -868,8 +970,8 @@ export const translations: Record<Lang, Translation> = {
       items: [
         {
           keys: 'Alt+J',
-          title: 'See progress',
-          body: 'Open live jobs and code changes.',
+          title: 'Job Deck',
+          body: 'Open live Jobs and diffs.',
         },
         {
           keys: 'Alt+I',
@@ -894,10 +996,10 @@ export const translations: Record<Lang, Translation> = {
       ],
     },
     install: {
-      kicker: 'Start',
-      title: 'Install, then open liora.',
-      body: 'Needs Node.js 24+. After install, connect a model with /login and /model.',
-      requirements: 'Node.js ≥ 24.15.0',
+      kicker: 'Install',
+      title: 'One line, then open liora.',
+      body: 'After install, run liora in a project folder and connect a model with /login and /model.',
+      requirements: NODE_REQUIREMENT,
       commands: [
         { label: 'macOS / Linux', cmd: INSTALL_SH },
         { label: 'Windows PowerShell', cmd: INSTALL_PS },
@@ -937,18 +1039,17 @@ export const translations: Record<Lang, Translation> = {
         sections: [
           {
             heading: 'Install',
-            body: 'One line in the terminal.',
-            code: INSTALL_SH,
+            body: `${NODE_REQUIREMENT}. Run the one-liner for your OS.`,
+            code: `${INSTALL_SH}\n${INSTALL_PS}`,
           },
           {
-            heading: 'First run',
-            body: 'From a project folder, run liora, then /login and /model. Describe the outcome you want.',
-            code: 'liora\n/login\n/model',
+            heading: 'Usage',
+            body: 'Open a session in a project folder, connect a model with /login and /model, then write the outcome.',
+            code: 'liora\nliora --continue\nliora --plan\n/login\n/model',
           },
           {
-            heading: 'Resume',
-            body: 'Reopen the latest session in this folder.',
-            code: 'liora --continue',
+            heading: 'Workflow',
+            body: 'Conductor creates a git worktree Job. Watch it on the Job Deck (Alt+J), answer in Inbox (Alt+I), and Land locally what passed.',
           },
         ],
       },

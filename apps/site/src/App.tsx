@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { getLandingManifest } from './landing';
 import { I18nProvider, useI18n } from './i18n';
 import { useTheme } from './hooks/useTheme';
 import { Sections } from './components/Sections';
@@ -7,6 +8,28 @@ type Lang = 'ko' | 'en';
 
 function getInitialLang(): Lang {
   return document.documentElement.lang === 'en' ? 'en' : 'ko';
+}
+
+function ScrollProgress() {
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    const onScroll = () => {
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      setProgress(max <= 0 ? 0 : Math.min(1, window.scrollY / max));
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+    };
+  }, []);
+
+  return (
+    <div className="scroll-progress" aria-hidden="true">
+      <span style={{ transform: `scaleX(${progress})` }} />
+    </div>
+  );
 }
 
 function SkipLink() {
@@ -48,6 +71,7 @@ function BrandMark() {
 
 function Navbar() {
   const { lang, t } = useI18n();
+  const manifest = getLandingManifest(lang);
   const base = import.meta.env.BASE_URL ?? '/';
   const koHref = `${base}`;
   const enHref = `${base}en/`;
@@ -55,6 +79,7 @@ function Navbar() {
     lang === 'en' ? `${base}en/docs/getting-started.html` : `${base}docs/getting-started.html`;
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState<string>('');
 
   useEffect(() => {
     const onScroll = () => {
@@ -81,11 +106,30 @@ function Navbar() {
     };
   }, [menuOpen]);
 
+  useEffect(() => {
+    const ids = getLandingManifest(lang).nav.map((item) => item.id);
+    const nodes = ids
+      .map((id) => document.getElementById(id))
+      .filter((el): el is HTMLElement => el !== null);
+    if (nodes.length === 0) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible?.target.id) setActiveSection(visible.target.id);
+      },
+      { rootMargin: '-28% 0px -55% 0px', threshold: [0.15, 0.35, 0.6] },
+    );
+    for (const node of nodes) observer.observe(node);
+    return () => {
+      observer.disconnect();
+    };
+  }, [lang]);
+
   const links = [
-    { href: '#features', label: t.nav.features },
-    { href: '#how', label: t.nav.how },
-    { href: '#install', label: t.nav.install },
-    { href: docsHref, label: t.nav.docs },
+    ...manifest.nav.map((item) => ({ href: item.href, label: item.label, id: item.id })),
+    { href: docsHref, label: t.nav.docs, id: 'docs' },
   ];
 
   const closeMenu = () => {
@@ -101,12 +145,15 @@ function Navbar() {
           <BrandMark />
           <span className="truncate">SuperLiora</span>
         </a>
-        <nav aria-label="Main" className="hidden items-center gap-1 text-sm font-medium lg:flex">
+        <nav aria-label="Main" className="hidden items-center gap-0.5 text-sm font-medium lg:flex">
           {links.map((link) => (
             <a
               key={link.href}
               href={link.href}
-              className="rounded-md px-3 py-1.5 text-text/80 transition hover:bg-bg-2 hover:text-text"
+              aria-current={link.id === activeSection ? 'location' : undefined}
+              className={`rounded-md px-2.5 py-1.5 transition hover:bg-bg-2 hover:text-text ${
+                link.id === activeSection ? 'bg-bg-2 text-primary' : 'text-text/80'
+              }`}
             >
               {link.label}
             </a>
@@ -225,6 +272,7 @@ export function App() {
     <I18nProvider initialLang={initialLang}>
       <div className="grain mesh-bg min-h-[100dvh] text-text">
         <SkipLink />
+        <ScrollProgress />
         <Navbar />
         <Sections />
         <Footer />

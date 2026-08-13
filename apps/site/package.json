@@ -18,6 +18,7 @@
     "typecheck": "tsc -b",
     "preview": "vite preview",
     "check:copy": "node ./scripts/check-banned-copy.mjs",
+    "test": "vitest run",
     "clean": "rm -rf dist"
   },
   "dependencies": {
