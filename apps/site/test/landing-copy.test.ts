@@ -137,4 +137,19 @@ describe('shipped landing copy', () => {
     expect(app).toContain('getLandingManifest');
     expect(app).toContain('href: item.href');
   });
+
+  it('never mounts landing blocks at opacity 0, and keeps the first viewport eager', () => {
+    const reveal = readFileSync(resolve(siteSrc, 'components/Reveal.tsx'), 'utf8');
+    const bento = readFileSync(resolve(siteSrc, 'components/BentoGrid.tsx'), 'utf8');
+    const sections = readFileSync(resolve(siteSrc, 'components/Sections.tsx'), 'utf8');
+    const css = readFileSync(resolve(siteSrc, 'index.css'), 'utf8');
+    expect(reveal).not.toMatch(/opacity:\s*0/);
+    expect(bento).not.toMatch(/opacity:\s*0/);
+    expect(reveal).toMatch(/eager/);
+    expect(sections).toMatch(/className="hero-copy" eager/);
+    expect(sections).toMatch(/className="hero-visual" eager/);
+    expect(sections).toMatch(/className="hero-proof-wrap" eager/);
+    expect(css).not.toMatch(/html\s*\{[^}]*overflow-x:\s*clip/s);
+    expect(css).not.toMatch(/body\s*\{[^}]*overflow-x:\s*clip/s);
+  });
 });

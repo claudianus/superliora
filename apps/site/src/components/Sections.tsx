@@ -19,7 +19,7 @@ export function Sections() {
       <section className="hero-band" data-landing="hero">
         <div className="hero-aurora" aria-hidden="true" />
         <div className="hero-layout">
-          <Reveal className="hero-copy">
+          <Reveal className="hero-copy" eager>
             <p className="hero-kicker font-sans font-semibold tracking-[0.18em] text-primary uppercase">
               {t.hero.eyebrow}
             </p>
@@ -51,13 +51,13 @@ export function Sections() {
               </a>
             </div>
           </Reveal>
-          <Reveal className="hero-visual" stagger={2}>
+          <Reveal className="hero-visual" eager>
             <TiltFrame>
               <ProductFrame />
             </TiltFrame>
           </Reveal>
         </div>
-        <Reveal className="hero-proof-wrap" stagger={3}>
+        <Reveal className="hero-proof-wrap" eager>
           <div className="hero-proof" aria-label="Product architecture">
             {t.hero.proof.map((item, i) => (
               <div key={item.value} className="hero-proof__item">
