@@ -1,6 +1,7 @@
 import { getLandingManifest } from '../landing';
 import { useI18n } from '../i18n';
 import { BentoGrid } from './BentoGrid';
+import { CommandTicker } from './CommandTicker';
 import { CopyButton } from './CopyButton';
 import { ProductFrame } from './ProductFrame';
 import { Reveal } from './Reveal';
@@ -15,18 +16,23 @@ export function Sections() {
     lang === 'en' ? `${base}en/docs/getting-started.html` : `${base}docs/getting-started.html`;
 
   return (
-    <main id="main">
+    <main id="main" data-stage="cinematic">
       <section className="hero-band" data-landing="hero">
-        <div className="hero-aurora" aria-hidden="true" />
+        <div className="hero-watermark" aria-hidden="true">
+          CONDUCTOR
+        </div>
         <div className="hero-layout">
           <Reveal className="hero-copy" eager>
-            <p className="hero-kicker font-sans font-semibold tracking-[0.18em] text-primary uppercase">
+            <p className="hero-kicker font-sans font-semibold tracking-[0.22em] text-primary uppercase">
               {t.hero.eyebrow}
             </p>
-            <h1 className="hero-title mt-4 max-w-[16ch] font-sans font-bold tracking-tight text-text text-balance">
-              {t.hero.h1}
+            <h1 className="hero-title mt-4 font-sans font-bold tracking-tight text-text text-balance">
+              <span className="hero-title__ghost" aria-hidden="true">
+                {t.hero.h1}
+              </span>
+              <span className="hero-title__fill">{t.hero.h1}</span>
             </h1>
-            <p className="hero-lead mt-5 max-w-[38ch] leading-relaxed text-soft">{t.hero.lead}</p>
+            <p className="hero-lead mt-5 max-w-[40ch] leading-relaxed text-soft">{t.hero.lead}</p>
             <div className="hero-command mt-6" aria-label="Quick start command">
               <span className="hero-command__pulse" aria-hidden="true" />
               <code>{t.hero.command}</code>
@@ -77,9 +83,10 @@ export function Sections() {
             </a>
           ))}
         </nav>
+        <CommandTicker />
       </section>
 
-      <section id="features" className="section-pad border-t border-line bg-bg" data-landing="features">
+      <section id="features" className="section-pad section-cinema border-t border-line" data-landing="features">
         <div className="mx-auto max-w-7xl">
           <Reveal className="max-w-2xl">
             <p className="section-kicker text-sm font-semibold tracking-wide text-primary">{t.clusters.kicker}</p>
@@ -115,7 +122,7 @@ export function Sections() {
         </div>
       </section>
 
-      <section id="usage" className="section-pad border-t border-line bg-bg" data-landing="usage">
+      <section id="usage" className="section-pad section-cinema border-t border-line" data-landing="usage">
         <div className="mx-auto max-w-7xl">
           <div className="usage-grid">
             <Reveal className="usage-grid__copy">
@@ -146,37 +153,33 @@ export function Sections() {
         </div>
       </section>
 
-      <section id="workflow" className="section-pad border-t border-line bg-bg" data-landing="workflow">
+      <section id="workflow" className="section-pad section-cinema border-t border-line" data-landing="workflow">
         <div className="mx-auto max-w-7xl">
-          <div className="how-grid">
-            <Reveal className="how-grid__copy">
-              <p className="section-kicker text-sm font-semibold tracking-wide text-primary">{t.workflow.kicker}</p>
-              <h2 className="section-title mt-3 font-sans font-bold tracking-tight text-balance">
-                {t.workflow.title}
-              </h2>
-              <p className="section-body mt-4 text-soft">{t.workflow.body}</p>
-              <ol className="workflow-rail mt-10">
-                {manifest.workflow.map((step, i) => (
-                  <li key={step.id} className="workflow-rail__step" data-workflow={step.id}>
-                    <div className="workflow-rail__num">{String(i + 1).padStart(2, '0')}</div>
-                    <div>
-                      <h3 className="font-sans text-lg font-semibold text-text">{step.title}</h3>
-                      <p className="mt-2 text-sm leading-relaxed text-soft">{step.body}</p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </Reveal>
-            <Reveal className="how-grid__visual" stagger={2}>
-              <TiltFrame>
-                <HowFlowVisual />
-              </TiltFrame>
-            </Reveal>
-          </div>
+          <Reveal>
+            <p className="section-kicker text-sm font-semibold tracking-wide text-primary">{t.workflow.kicker}</p>
+            <h2 className="section-title mt-3 font-sans font-bold tracking-tight text-balance">
+              {t.workflow.title}
+            </h2>
+            <p className="section-body mt-4 text-soft">{t.workflow.body}</p>
+          </Reveal>
+          <ol className="workflow-cinema mt-12">
+            {manifest.workflow.map((step, i) => (
+              <li key={step.id} className="workflow-cinema__step" data-workflow={step.id} style={{ ['--i' as string]: String(i) }}>
+                <div className="workflow-cinema__n">{String(i + 1).padStart(2, '0')}</div>
+                <h3 className="workflow-cinema__title">{step.title}</h3>
+                <p className="workflow-cinema__body">{step.body}</p>
+              </li>
+            ))}
+          </ol>
+          <Reveal className="mt-10">
+            <TiltFrame>
+              <HowFlowVisual />
+            </TiltFrame>
+          </Reveal>
         </div>
       </section>
 
-      <section id="tower" className="section-pad border-t border-line bg-bg">
+      <section id="tower" className="section-pad section-cinema border-t border-line">
         <div className="mx-auto max-w-7xl">
           <div className="tower-grid">
             <Reveal className="tower-grid__visual">
@@ -206,39 +209,42 @@ export function Sections() {
         </div>
       </section>
 
-      <section id="install" className="section-pad border-t border-line bg-bg" data-landing="install">
-        <div className="install-panel mx-auto max-w-7xl">
-          <Reveal className="install-panel__copy">
-            <p className="section-kicker text-sm font-semibold tracking-wide text-primary">{t.install.kicker}</p>
-            <h2 className="section-title mt-3 font-sans font-bold tracking-tight text-balance">
-              {t.install.title}
-            </h2>
-            <p className="section-body mt-4 text-soft">{t.install.body}</p>
-            <p className="install-req mt-4 font-mono text-sm text-primary">{t.install.requirements}</p>
-          </Reveal>
-          <div className="install-panel__commands">
-            {t.install.commands.map((cmd) => (
-              <Reveal key={cmd.label}>
-                <div className="install-slab">
-                  <div className="install-slab__label">{cmd.label}</div>
-                  <div className="install-slab__code">
-                    <code>{cmd.cmd}</code>
-                    <CopyButton
-                      text={cmd.cmd}
-                      copyLabel={t.copy.label}
-                      copiedLabel={t.copy.doneLabel}
-                      idleText={t.copy.idle}
-                      doneText={t.copy.done}
-                    />
-                  </div>
-                </div>
-              </Reveal>
-            ))}
-            <Reveal>
-              <a href={docsHref} className="btn btn-secondary inline-flex rounded-lg px-5 py-2.5 text-sm font-semibold">
-                {t.install.next}
-              </a>
+      <section id="install" className="section-pad section-cinema border-t border-line" data-landing="install">
+        <div className="install-crt mx-auto max-w-7xl">
+          <div className="install-crt__scan" aria-hidden="true" />
+          <div className="install-panel">
+            <Reveal className="install-panel__copy">
+              <p className="section-kicker text-sm font-semibold tracking-wide text-primary">{t.install.kicker}</p>
+              <h2 className="section-title mt-3 font-sans font-bold tracking-tight text-balance">
+                {t.install.title}
+              </h2>
+              <p className="section-body mt-4 text-soft">{t.install.body}</p>
+              <p className="install-req mt-4 font-mono text-sm text-primary">{t.install.requirements}</p>
             </Reveal>
+            <div className="install-panel__commands">
+              {t.install.commands.map((cmd) => (
+                <Reveal key={cmd.label}>
+                  <div className="install-slab">
+                    <div className="install-slab__label">{cmd.label}</div>
+                    <div className="install-slab__code">
+                      <code>{cmd.cmd}</code>
+                      <CopyButton
+                        text={cmd.cmd}
+                        copyLabel={t.copy.label}
+                        copiedLabel={t.copy.doneLabel}
+                        idleText={t.copy.idle}
+                        doneText={t.copy.done}
+                      />
+                    </div>
+                  </div>
+                </Reveal>
+              ))}
+              <Reveal>
+                <a href={docsHref} className="btn btn-secondary inline-flex rounded-lg px-5 py-2.5 text-sm font-semibold">
+                  {t.install.next}
+                </a>
+              </Reveal>
+            </div>
           </div>
         </div>
       </section>

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { getLandingManifest } from './landing';
 import { I18nProvider, useI18n } from './i18n';
 import { useTheme } from './hooks/useTheme';
+import { NoirField } from './components/NoirField';
+import { PointerField } from './components/PointerField';
 import { Sections } from './components/Sections';
 
 type Lang = 'ko' | 'en';
@@ -270,7 +272,9 @@ export function App() {
   const initialLang = getInitialLang();
   return (
     <I18nProvider initialLang={initialLang}>
-      <div className="grain mesh-bg min-h-[100dvh] text-text">
+      <div className="grain mesh-bg stage-root min-h-[100dvh] text-text">
+        <NoirField />
+        <PointerField />
         <SkipLink />
         <ScrollProgress />
         <Navbar />
