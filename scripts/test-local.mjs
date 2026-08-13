@@ -44,6 +44,8 @@ const DELETE_ENV = [
 /** Credentials and host agent state a runner never has. */
 const DELETE_ENV_PREFIX = ['KIMI_', 'SUPERLIORA_', 'MOONSHOT_', 'ANTHROPIC_', 'OPENAI_', 'XAI_', 'GEMINI_', 'CURSOR_'];
 const DELETE_ENV_MATCH = /API_KEY|_TOKEN|SECRET/;
+const nullDevice = process.platform === 'win32' ? 'NUL' : '/dev/null';
+const pnpmBin = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 const SET_ENV = {
   CI: 'true',
   GITHUB_ACTIONS: 'true',
@@ -51,8 +53,8 @@ const SET_ENV = {
   LANG: 'C.UTF-8',
   LC_ALL: 'C.UTF-8',
   // Ubuntu git defaults; keeps `git init` HEAD and identity assumptions honest.
-  GIT_CONFIG_GLOBAL: '/dev/null',
-  GIT_CONFIG_SYSTEM: '/dev/null',
+  GIT_CONFIG_GLOBAL: nullDevice,
+  GIT_CONFIG_SYSTEM: nullDevice,
   GIT_CONFIG_COUNT: '1',
   GIT_CONFIG_KEY_0: 'init.defaultBranch',
   GIT_CONFIG_VALUE_0: 'master',
@@ -107,9 +109,10 @@ const hasTests = (dir) => existsSync(join(repoRoot, dir, 'test')) || existsSync(
  * `undefined` when pnpm cannot answer, which falls back to the full suite.
  */
 function changedWorkspaceClosure(base) {
-  const res = spawnSync('pnpm', ['--filter', `...[${base}]`, 'list', '--depth', '-1', '--json'], {
+  const res = spawnSync(pnpmBin, ['--filter', `...[${base}]`, 'list', '--depth', '-1', '--json'], {
     cwd: repoRoot,
     encoding: 'utf8',
+    shell: process.platform === 'win32',
   });
   if (res.status !== 0) return undefined;
   try {
@@ -212,10 +215,11 @@ if (!argv.includes('--all') && !hasExplicitFilter) {
 if (scopeOnly || nothingToRun) process.exit(0);
 
 const started = Date.now();
-const res = spawnSync('pnpm', ['exec', 'vitest', 'run', ...filters, ...forwarded], {
+const res = spawnSync(pnpmBin, ['exec', 'vitest', 'run', ...filters, ...forwarded], {
   cwd: repoRoot,
   env: parityEnv(),
   stdio: 'inherit',
+  shell: process.platform === 'win32',
 });
 const seconds = ((Date.now() - started) / 1000).toFixed(1);
 

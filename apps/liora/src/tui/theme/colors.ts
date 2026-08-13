@@ -11,7 +11,7 @@
  * WCAG AA.
  */
 
-import { mixHexColor } from '#/tui/renderer';
+import { mixHexColor } from '@harness-kit/tui-renderer';
 
 // Each token below documents where it is actually consumed, so theme authors
 // know what changing it affects. "Widely" means the token is read across most

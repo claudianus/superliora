@@ -6,7 +6,7 @@
  *   - macOS / Linux / Windows / unknown → `osKind`
  *   - POSIX path probing prefers /bin/bash, falls back to /usr/bin/bash,
  *     /usr/local/bin/bash, then /bin/sh (with shellName 'sh').
- *   - Windows resolves Git Bash via `KIMI_SHELL_PATH`, `git.exe` on PATH
+ *   - Windows resolves Git Bash via `LIORA_SHELL_PATH` / `KIMI_SHELL_PATH`, `git.exe` on PATH
  *     (including `git --exec-path` for shims), or well-known install
  *     locations; throws `KaosShellNotFoundError`
  *     if none are present.
@@ -150,6 +150,46 @@ describe('detectEnvironment', () => {
     );
     expect(env.shellName satisfies ShellName).toBe('bash');
     expect(env.shellPath).toBe('D:\\custom\\bash.exe');
+  });
+
+  it('uses LIORA_SHELL_PATH override when set and the file exists', async () => {
+    const env = await detectEnvironment(
+      stubDeps({
+        platform: 'win32',
+        env: { LIORA_SHELL_PATH: 'E:\\custom\\bash.exe' },
+        existingPaths: ['E:\\custom\\bash.exe', 'C:\\Program Files\\Git\\bin\\bash.exe'],
+      }),
+    );
+    expect(env.shellName satisfies ShellName).toBe('bash');
+    expect(env.shellPath).toBe('E:\\custom\\bash.exe');
+  });
+
+  it('prefers LIORA_SHELL_PATH over KIMI_SHELL_PATH when both exist', async () => {
+    const env = await detectEnvironment(
+      stubDeps({
+        platform: 'win32',
+        env: {
+          LIORA_SHELL_PATH: 'E:\\docs\\bash.exe',
+          KIMI_SHELL_PATH: 'D:\\legacy\\bash.exe',
+        },
+        existingPaths: ['E:\\docs\\bash.exe', 'D:\\legacy\\bash.exe'],
+      }),
+    );
+    expect(env.shellPath).toBe('E:\\docs\\bash.exe');
+  });
+
+  it('falls back to KIMI_SHELL_PATH when LIORA_SHELL_PATH is set but missing', async () => {
+    const env = await detectEnvironment(
+      stubDeps({
+        platform: 'win32',
+        env: {
+          LIORA_SHELL_PATH: 'E:\\missing\\bash.exe',
+          KIMI_SHELL_PATH: 'D:\\legacy\\bash.exe',
+        },
+        existingPaths: ['D:\\legacy\\bash.exe'],
+      }),
+    );
+    expect(env.shellPath).toBe('D:\\legacy\\bash.exe');
   });
 
   it('infers Git Bash from git.exe on PATH when override is absent', async () => {
@@ -363,6 +403,23 @@ describe('detectEnvironment', () => {
     expect(error).toBeInstanceOf(KaosShellNotFoundError);
   });
 
+  it('includes an attempted LIORA_SHELL_PATH in the thrown error message', async () => {
+    const error = await detectEnvironment(
+      stubDeps({
+        platform: 'win32',
+        env: { LIORA_SHELL_PATH: 'E:\\docs\\bash.exe' },
+        existingPaths: [],
+      }),
+    ).then(
+      () => {
+        throw new Error('expected throw');
+      },
+      (error: unknown) => error as KaosShellNotFoundError,
+    );
+    expect(error.message).toContain('E:\\docs\\bash.exe');
+    expect(error.message).toContain('LIORA_SHELL_PATH');
+  });
+
   it('includes attempted paths in the thrown error message', async () => {
     const error = await detectEnvironment(
       stubDeps({
@@ -379,6 +436,8 @@ describe('detectEnvironment', () => {
     expect(error.message).toContain('D:\\custom\\bash.exe');
     expect(error.message).toContain('C:\\Program Files\\Git\\bin\\bash.exe');
     expect(error.message).toContain('C:\\Program Files\\Git\\usr\\bin\\bash.exe');
+    expect(error.message).toContain('LIORA_SHELL_PATH');
+    expect(error.message).toContain('KIMI_SHELL_PATH');
   });
 
   // ── arch / version passthrough ─────────────────────────────────────

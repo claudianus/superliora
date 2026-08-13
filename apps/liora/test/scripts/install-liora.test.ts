@@ -89,10 +89,36 @@ describe('scripts/install-liora.mjs', () => {
     expect(sh).toContain('--main');
     expect(ps1).toContain('PreferSource');
     expect(ps1).toContain('$Main');
+    expect(ps1).toContain('NoShellRc');
+    expect(ps1).toContain('$PSScriptRoot');
+    expect(ps1).not.toContain('$MyInvocation.MyCommand.Path');
+    expect(sh).toContain('spawn.mjs');
+    expect(sh).toContain('wrappers.mjs');
+    expect(sh).toContain('ensure-git.mjs');
+    expect(sh).toContain('--no-git');
+    expect(ps1).toContain('spawn.mjs');
+    expect(ps1).toContain('wrappers.mjs');
+    expect(ps1).toContain('ensure-git.mjs');
+    expect(ps1).toContain('NoGit');
   });
 
-  it.skipIf(process.platform === 'win32')('has valid bash syntax for the POSIX source installer', async () => {
-    const result = await execFileAsync('bash', ['-n', posixSourceInstallScript], { cwd: repoRoot });
-    expect(result.stderr).toBe('');
+  it('keeps install.ps1 ASCII so Windows PowerShell 5.1 parses it on any code page', async () => {
+    const buf = await readFile(windowsSourceInstallScript);
+    const nonAscii = [...buf].findIndex((byte) => byte > 127);
+    expect(nonAscii).toBe(-1);
+  });
+
+  it('has valid bash syntax for the POSIX source installer when bash is available', async () => {
+    try {
+      const result = await execFileAsync('bash', ['-n', posixSourceInstallScript], { cwd: repoRoot });
+      expect(result.stderr).toBe('');
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      if (err.code === 'ENOENT') {
+        expect(process.platform).toBe('win32');
+        return;
+      }
+      throw error;
+    }
   });
 });

@@ -1,10 +1,12 @@
 import { updateBrowserUseRuntimes, updateCuaDriver } from '@superliora/gui-use';
 
 import { getHostPackageRoot } from '#/cli/version';
+import { ensureRuntimePrereqs } from './runtime-prereqs';
 
 export interface GuiUseRefreshResult {
   readonly browserOk: boolean;
   readonly computerOk: boolean;
+  readonly gitOk: boolean;
   readonly warnings: readonly string[];
 }
 
@@ -18,6 +20,16 @@ export async function refreshGuiUseAfterUpgrade(
   const warnings: string[] = [];
   let browserOk = false;
   let computerOk = false;
+  let gitOk = true;
+
+  try {
+    const git = await ensureRuntimePrereqs(packageRoot);
+    gitOk = git.gitOk;
+    if (git.warning) warnings.push(git.warning);
+  } catch (error) {
+    gitOk = false;
+    warnings.push(`Git bootstrap failed: ${formatError(error)}`);
+  }
 
   try {
     const result = await updateBrowserUseRuntimes({ packageRoot, quiet: true });
@@ -47,7 +59,7 @@ export async function refreshGuiUseAfterUpgrade(
     warnings.push(`CUA refresh failed: ${formatError(error)}`);
   }
 
-  return { browserOk, computerOk, warnings };
+  return { browserOk, computerOk, gitOk, warnings };
 }
 
 function firstNonEmpty(...values: readonly string[]): string {

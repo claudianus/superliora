@@ -9,6 +9,7 @@ import { join } from 'node:path';
 
 import { downloadToFile } from './download.mjs';
 import { defaultHome } from './platform.mjs';
+import { spawnInstall } from './spawn.mjs';
 
 /**
  * @param {{
@@ -53,7 +54,7 @@ async function installBrowserSidecars(installDir, commandName, warn) {
   await installLightpanda(warn);
   if (installDir && existsSync(join(installDir, 'package.json'))) {
     const env = { ...process.env, COREPACK_ENABLE_DOWNLOAD_PROMPT: '0' };
-    const cloak = spawnSync(
+    const cloak = spawnInstall(
       'corepack',
       ['pnpm', '--filter', '@superliora/gui-use', 'exec', 'cloakbrowser', 'install'],
       { cwd: installDir, env, encoding: 'utf8', stdio: 'inherit' },
@@ -61,7 +62,7 @@ async function installBrowserSidecars(installDir, commandName, warn) {
     if (cloak.status !== 0) {
       warn(`CloakBrowser pre-install failed; retry with '${commandName} browser-use install'`);
     }
-    const cam = spawnSync(
+    const cam = spawnInstall(
       'corepack',
       ['pnpm', '--filter', '@superliora/gui-use', 'exec', 'camoufox', 'fetch'],
       { cwd: installDir, env, encoding: 'utf8', stdio: 'inherit' },
@@ -144,7 +145,7 @@ function bootstrapRetrieval(installDir, warn) {
     COREPACK_ENABLE_DOWNLOAD_PROMPT: '0',
     SUPERLIORA_RETRIEVAL_EMBEDDER: 'transformers',
   };
-  const r = spawnSync(
+  const r = spawnInstall(
     'corepack',
     ['pnpm', '-C', 'packages/agent-core', 'run', 'retrieval:bootstrap'],
     { cwd: installDir, env, encoding: 'utf8', stdio: 'inherit' },
