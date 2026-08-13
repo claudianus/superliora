@@ -152,4 +152,19 @@ describe('shipped landing copy', () => {
     expect(css).not.toMatch(/html\s*\{[^}]*overflow-x:\s*clip/s);
     expect(css).not.toMatch(/body\s*\{[^}]*overflow-x:\s*clip/s);
   });
+
+  it('ships a WebGL2 field and a live command ticker on the landing', () => {
+    const field = readFileSync(resolve(siteSrc, 'components/NoirField.tsx'), 'utf8');
+    const ticker = readFileSync(resolve(siteSrc, 'components/CommandTicker.tsx'), 'utf8');
+    const app = readFileSync(resolve(siteSrc, 'App.tsx'), 'utf8');
+    const sections = readFileSync(resolve(siteSrc, 'components/Sections.tsx'), 'utf8');
+    expect(field).toContain('webgl2');
+    expect(field).toContain('u_mouse');
+    expect(ticker).toContain('getLandingManifest');
+    expect(app).toContain('NoirField');
+    expect(app).toContain('PointerField');
+    expect(sections).toContain('CommandTicker');
+    expect(sections).toContain('data-stage="cinematic"');
+    expect(sections).toContain('workflow-cinema');
+  });
 });
