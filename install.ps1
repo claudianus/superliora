@@ -1,7 +1,19 @@
 # SuperLiora bootstrap -- ensure Node, then run scripts/install-superliora.mjs
 # ASCII-only so Windows PowerShell 5.1 parses this on any system code page.
 # Works as:  irm .../install.ps1 | iex
-#        or: .\install.ps1 -BinDir ... -NoPath
+#        or: powershell -NoProfile -ExecutionPolicy Bypass -Command "irm ... | iex"
+#        or: .\install.ps1 --bin-dir ... --no-path
+#        or: install.cmd (cmd.exe)
+#
+# Do not put param() at file scope. Windows PowerShell 5.1 treats `param` as a
+# command when the file is Invoke-Expression'd (`irm | iex`).
+
+try {
+  [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+} catch {
+}
+
+& {
 param(
   [string]$RepoUrl,
   [string]$Ref,
@@ -74,6 +86,9 @@ function Show-Usage {
   Write-Host 'Installs SuperLiora from the latest published GitHub Release (prebuilt SEA)'
   Write-Host 'and creates the liora command. Pass -Main to build tip of origin/main instead.'
   Write-Host ''
+  Write-Host 'From cmd.exe use install.cmd, or:'
+  Write-Host '  powershell -NoProfile -ExecutionPolicy Bypass -Command "irm <url> | iex"'
+  Write-Host ''
   Write-Host 'Options (PowerShell or GNU-style):'
   Write-Host '  -RepoUrl / --repo <url>'
   Write-Host '  -Ref / --ref <ref>'
@@ -115,27 +130,27 @@ function Apply-GnuFlags {
       $i += 1
     }
     switch ($flag) {
-      '--repo' { $script:RepoUrl = $value }
-      '--ref' { $script:Ref = $value }
-      '--install-dir' { $script:InstallDir = $value }
-      '--bin-dir' { $script:BinDir = $value }
-      '--command' { $script:CommandName = $value }
-      '--node-min' { $script:NodeMin = $value }
-      '--manifest' { $script:ManifestUrl = $value }
-      '--version' { $script:Version = $value }
-      '--force' { $script:Force = $true }
-      '--no-build' { $script:NoBuild = $true }
-      '--no-browser-use' { $script:NoBrowserUse = $true }
-      '--no-computer-use' { $script:NoComputerUse = $true }
-      '--no-retrieval' { $script:NoRetrieval = $true }
-      '--no-git' { $script:NoGit = $true }
-      '--no-shell-rc' { $script:NoPath = $true }
-      '--no-path' { $script:NoPath = $true }
-      '--prefer-source' { $script:PreferSource = $true }
-      '--main' { $script:Main = $true }
-      '--force-prebuilt' { $script:ForcePrebuilt = $true }
-      '--help' { $script:Help = $true }
-      '-h' { $script:Help = $true }
+      '--repo' { Set-Variable -Name RepoUrl -Value $value -Scope 1 }
+      '--ref' { Set-Variable -Name Ref -Value $value -Scope 1 }
+      '--install-dir' { Set-Variable -Name InstallDir -Value $value -Scope 1 }
+      '--bin-dir' { Set-Variable -Name BinDir -Value $value -Scope 1 }
+      '--command' { Set-Variable -Name CommandName -Value $value -Scope 1 }
+      '--node-min' { Set-Variable -Name NodeMin -Value $value -Scope 1 }
+      '--manifest' { Set-Variable -Name ManifestUrl -Value $value -Scope 1 }
+      '--version' { Set-Variable -Name Version -Value $value -Scope 1 }
+      '--force' { Set-Variable -Name Force -Value $true -Scope 1 }
+      '--no-build' { Set-Variable -Name NoBuild -Value $true -Scope 1 }
+      '--no-browser-use' { Set-Variable -Name NoBrowserUse -Value $true -Scope 1 }
+      '--no-computer-use' { Set-Variable -Name NoComputerUse -Value $true -Scope 1 }
+      '--no-retrieval' { Set-Variable -Name NoRetrieval -Value $true -Scope 1 }
+      '--no-git' { Set-Variable -Name NoGit -Value $true -Scope 1 }
+      '--no-shell-rc' { Set-Variable -Name NoPath -Value $true -Scope 1 }
+      '--no-path' { Set-Variable -Name NoPath -Value $true -Scope 1 }
+      '--prefer-source' { Set-Variable -Name PreferSource -Value $true -Scope 1 }
+      '--main' { Set-Variable -Name Main -Value $true -Scope 1 }
+      '--force-prebuilt' { Set-Variable -Name ForcePrebuilt -Value $true -Scope 1 }
+      '--help' { Set-Variable -Name Help -Value $true -Scope 1 }
+      '-h' { Set-Variable -Name Help -Value $true -Scope 1 }
       default { Fail ('unknown option: ' + $flag) }
     }
   }
@@ -197,9 +212,10 @@ function Install-LocalNode {
 
 Apply-GnuFlags $Remaining
 
-if ($Help) {
+$helpEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_INSTALL_HELP', 'Process')
+if ($Help -or $helpEnv -eq '1') {
   Show-Usage
-  exit 0
+  return
 }
 
 $RepoUrl = Get-ValueOrDefault $RepoUrl 'SUPERLIORA_REPO_URL' $DefaultRepoUrl
@@ -297,9 +313,12 @@ if ($ForcePrebuilt -or $forcePrebuiltEnv -eq '1') { $orchArgs += '--force-prebui
 try {
   & $nodeBin @orchArgs
   $code = $LASTEXITCODE
-  if ($null -ne $code -and $code -ne 0) { exit $code }
+  if ($null -ne $code -and $code -ne 0) {
+    Fail ('installer exited with code ' + $code)
+  }
 } finally {
   if ($bundleDir -and (Test-Path -LiteralPath $bundleDir)) {
     Remove-Item -LiteralPath $bundleDir -Recurse -Force -ErrorAction SilentlyContinue
   }
 }
+} @args

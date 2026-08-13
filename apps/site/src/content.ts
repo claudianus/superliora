@@ -6,6 +6,9 @@ export const INSTALL_SH =
 export const INSTALL_PS =
   'irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex';
 
+export const INSTALL_CMD =
+  'powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex"';
+
 export const NODE_REQUIREMENT = 'Node.js ≥ 24.15.0';
 
 export const LANDING_SECTION_IDS = ['features', 'usage', 'workflow', 'install'] as const;

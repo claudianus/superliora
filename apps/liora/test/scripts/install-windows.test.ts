@@ -19,6 +19,7 @@ const execFileAsync = promisify(execFile);
 const repoRoot = resolve(import.meta.dirname, '../../../..');
 const installScript = resolve(repoRoot, 'scripts/install-liora.mjs');
 const windowsSourceInstallScript = resolve(repoRoot, 'install.ps1');
+const windowsCmdInstallScript = resolve(repoRoot, 'install.cmd');
 const packageJsonPath = resolve(repoRoot, 'apps/liora/package.json');
 const tempDirs: string[] = [];
 
@@ -132,12 +133,43 @@ describe('Windows install wrappers and spawn', () => {
     }
   });
 
-  it.skipIf(process.platform !== 'win32')('runs install.ps1 -Help without installing', async () => {
+  it.skipIf(process.platform !== 'win32')('runs install.ps1 --help without installing', async () => {
     const { stdout } = await execFileAsync(
       'powershell',
-      ['-NoProfile', '-File', windowsSourceInstallScript, '-Help'],
+      ['-NoProfile', '-File', windowsSourceInstallScript, '--help'],
       { cwd: repoRoot },
     );
+    expect(stdout).toContain('install.ps1');
+    expect(stdout).toContain('--no-shell-rc');
+    expect(stdout).toContain('cmd.exe');
+  });
+
+  it.skipIf(process.platform !== 'win32')(
+    'runs install.ps1 through an irm|iex pipeline without treating param as a command',
+    async () => {
+      const escaped = windowsSourceInstallScript.replaceAll("'", "''");
+      const command = [
+        "$ErrorActionPreference = 'Stop'",
+        "$env:SUPERLIORA_INSTALL_HELP = '1'",
+        `Get-Content -LiteralPath '${escaped}' -Raw | Invoke-Expression`,
+      ].join('; ');
+      const { stdout } = await execFileAsync('powershell', ['-NoProfile', '-Command', command], {
+        env: { ...process.env, SUPERLIORA_INSTALL_HELP: '1' },
+      });
+      expect(stdout).toContain('install.ps1');
+      expect(stdout).toContain('--no-shell-rc');
+      expect(stdout).not.toMatch(/param :/);
+      expect(stdout).not.toContain('bootstrapping');
+    },
+  );
+
+  it.skipIf(process.platform !== 'win32')('runs install.cmd --help from cmd.exe', async () => {
+    const { stdout } = await execFileAsync('cmd.exe', [
+      '/d',
+      '/c',
+      windowsCmdInstallScript,
+      '--help',
+    ]);
     expect(stdout).toContain('install.ps1');
     expect(stdout).toContain('--no-shell-rc');
   });

@@ -39,6 +39,12 @@ curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.
 irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex
 ```
 
+**Windows cmd**
+
+```bat
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex"
+```
+
 Open a new terminal session and verify:
 
 ```sh

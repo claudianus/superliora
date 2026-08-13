@@ -15,6 +15,9 @@ curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.
 # Windows PowerShell
 irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex
 
+# Windows cmd
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex"
+
 liora --version
 ```
 

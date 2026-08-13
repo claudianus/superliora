@@ -1,4 +1,5 @@
 import {
+  INSTALL_CMD,
   INSTALL_PS,
   INSTALL_SH,
   NODE_REQUIREMENT,
@@ -710,6 +711,7 @@ export const translations: Record<Lang, Translation> = {
       commands: [
         { label: 'macOS / Linux', cmd: INSTALL_SH },
         { label: 'Windows PowerShell', cmd: INSTALL_PS },
+        { label: 'Windows cmd', cmd: INSTALL_CMD },
       ],
       next: '짧은 가이드 보기',
     },
@@ -747,7 +749,7 @@ export const translations: Record<Lang, Translation> = {
           {
             heading: '설치법',
             body: `${NODE_REQUIREMENT}. 운영체제에 맞는 한 줄을 실행합니다.`,
-            code: `${INSTALL_SH}\n${INSTALL_PS}`,
+            code: `${INSTALL_SH}\n${INSTALL_PS}\n${INSTALL_CMD}`,
           },
           {
             heading: '사용법',
@@ -1026,6 +1028,7 @@ export const translations: Record<Lang, Translation> = {
       commands: [
         { label: 'macOS / Linux', cmd: INSTALL_SH },
         { label: 'Windows PowerShell', cmd: INSTALL_PS },
+        { label: 'Windows cmd', cmd: INSTALL_CMD },
       ],
       next: 'Open the short guide',
     },
@@ -1063,7 +1066,7 @@ export const translations: Record<Lang, Translation> = {
           {
             heading: 'Install',
             body: `${NODE_REQUIREMENT}. Run the one-liner for your OS.`,
-            code: `${INSTALL_SH}\n${INSTALL_PS}`,
+            code: `${INSTALL_SH}\n${INSTALL_PS}\n${INSTALL_CMD}`,
           },
           {
             heading: 'Usage',

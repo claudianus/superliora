@@ -11,6 +11,7 @@ const repoRoot = resolve(import.meta.dirname, '../../../..');
 const installScript = resolve(repoRoot, 'scripts/install-liora.mjs');
 const posixSourceInstallScript = resolve(repoRoot, 'install.sh');
 const windowsSourceInstallScript = resolve(repoRoot, 'install.ps1');
+const windowsCmdInstallScript = resolve(repoRoot, 'install.cmd');
 const tempHomes: string[] = [];
 
 async function makeHome(): Promise<string> {
@@ -92,6 +93,12 @@ describe('scripts/install-liora.mjs', () => {
     expect(ps1).toContain('NoShellRc');
     expect(ps1).toContain('$PSScriptRoot');
     expect(ps1).not.toContain('$MyInvocation.MyCommand.Path');
+    expect(ps1).toMatch(/&\s*\{/);
+    expect(ps1).toContain('} @args');
+    const cmd = await readFile(windowsCmdInstallScript, 'utf-8');
+    expect(cmd).toContain('install.ps1');
+    expect(cmd).toContain('cmd.exe');
+    expect(cmd).toMatch(/powershell/i);
     expect(sh).toContain('spawn.mjs');
     expect(sh).toContain('wrappers.mjs');
     expect(sh).toContain('ensure-git.mjs');
@@ -102,10 +109,12 @@ describe('scripts/install-liora.mjs', () => {
     expect(ps1).toContain('NoGit');
   });
 
-  it('keeps install.ps1 ASCII so Windows PowerShell 5.1 parses it on any code page', async () => {
-    const buf = await readFile(windowsSourceInstallScript);
-    const nonAscii = [...buf].findIndex((byte) => byte > 127);
-    expect(nonAscii).toBe(-1);
+  it('keeps install.ps1 and install.cmd ASCII so Windows PowerShell 5.1 parses them on any code page', async () => {
+    for (const path of [windowsSourceInstallScript, windowsCmdInstallScript]) {
+      const buf = await readFile(path);
+      const nonAscii = [...buf].findIndex((byte) => byte > 127);
+      expect(nonAscii, path).toBe(-1);
+    }
   });
 
   it('has valid bash syntax for the POSIX source installer when bash is available', async () => {

@@ -81,16 +81,20 @@ export function getLandingManifest(lang: Lang): LandingManifest {
   };
 }
 
-export function installCommandsFromReadme(markdown: string): { sh: string; ps: string } {
+export function installCommandsFromReadme(markdown: string): { sh: string; ps: string; cmd: string } {
   const sh = markdown.match(/curl -fsSL \S+install\.sh \| bash/)?.[0];
+  const cmd = markdown.match(
+    /powershell -NoProfile -ExecutionPolicy Bypass -Command "irm \S+install\.ps1 \| iex"/,
+  )?.[0];
   const ps = markdown.match(/irm \S+install\.ps1 \| iex/)?.[0];
-  if (!sh || !ps) {
+  if (!sh || !ps || !cmd) {
     throw new Error('README is missing the SuperLiora install one-liners');
   }
-  return { sh, ps };
+  return { sh, ps, cmd };
 }
 
 export {
+  INSTALL_CMD,
   INSTALL_PS,
   INSTALL_SH,
   LANDING_SECTION_IDS,

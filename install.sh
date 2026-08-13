@@ -128,7 +128,7 @@ BIN_DIR="$(expand_path "$BIN_DIR")"
 case "$(uname -s)" in
   Darwin|Linux) ;;
   MINGW*|MSYS*|CYGWIN*)
-    die "Use install.ps1 on Windows: irm https://raw.githubusercontent.com/claudianus/superliora/main/install.ps1 | iex"
+    die "On Windows use install.ps1 (irm ... | iex) or install.cmd from cmd.exe"
     ;;
 esac
 
