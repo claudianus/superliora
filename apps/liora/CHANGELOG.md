@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.9.2
+
+### Patch Changes
+
+- Fix Windows install and first launch: PowerShell 5.1 can parse the installer, `.cmd` shims start, `LIORA_SHELL_PATH` is honored, and Portable Git is downloaded when Git Bash is missing.
+
 ## 0.9.1
 
 ### Patch Changes
