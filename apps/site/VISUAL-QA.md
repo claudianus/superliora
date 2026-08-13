@@ -13,9 +13,9 @@ Palette SSOT: bg `#0D1422`, primary `#00D5FF`. Type: Syne + JetBrains Mono + Pre
 - [ ] ProductFrame is curated HTML (Job / Board / Worker) — not conductor chore text
 - [ ] Desktop ≥1024: hero is split (copy | frame); no overlap
 - [ ] Mobile: copy+CTA stack above ProductFrame; frame does not bury the headline
-- [ ] Mobile hamburger opens drawer with Features / Flow / Install / Docs (Escape closes)
+- [ ] Mobile hamburger opens drawer with Features / Usage / Workflow / Install / Docs (Escape closes)
 - [ ] Desktop ≥1024: main nav links visible; burger hidden
-- [ ] Features / How / Tower / Install are normal vertical sections (no right-rail museum)
+- [ ] Features / Usage / Workflow / Tower / Install are normal vertical sections (no right-rail museum)
 - [ ] Each of 4 clusters shows a curated TUI HTML mock (Status Route, Job Deck+Worker Dock, Command Hub, Diff Studio)
 - [ ] How and Tower sections include a visual panel beside copy
 - [ ] Feature lists use bento grid — no horizontal scroll rails
