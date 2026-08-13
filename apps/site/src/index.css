@@ -546,16 +546,38 @@ html[lang='en'] .hero-title {
 
 /* —— Shared TUI chrome —— */
 .tui-chrome {
-  border: 1px solid rgba(51, 65, 85, 0.9);
-  border-radius: 1rem;
+  position: relative;
+  border: 1px solid color-mix(in oklab, #00d5ff 28%, #334155);
+  border-radius: 1.05rem;
   background:
-    radial-gradient(ellipse 80% 50% at 20% 0%, rgba(0, 213, 255, 0.1), transparent 55%),
-    var(--color-bg-1);
+    radial-gradient(ellipse 80% 50% at 20% 0%, rgba(0, 213, 255, 0.14), transparent 55%),
+    #060a12;
   box-shadow:
-    0 28px 80px -28px rgba(0, 0, 0, 0.65),
-    0 0 80px -32px rgba(0, 213, 255, 0.35),
-    var(--shadow-inset);
+    0 34px 90px -28px rgba(0, 0, 0, 0.72),
+    0 0 90px -28px rgba(0, 213, 255, 0.48),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
   overflow: hidden;
+  transform: perspective(1600px) rotateX(5deg) rotateY(-7deg);
+  transform-style: preserve-3d;
+}
+
+.tui-chrome__glow {
+  pointer-events: none;
+  position: absolute;
+  inset: -18%;
+  z-index: 0;
+  background: radial-gradient(circle at 50% 20%, rgba(0, 213, 255, 0.16), transparent 55%);
+  filter: blur(18px);
+}
+
+.hero-visual .tui-chrome {
+  animation: terminal-levitate 7.5s ease-in-out infinite;
+}
+
+@keyframes terminal-levitate {
+  0%,
+  100% { transform: perspective(1600px) rotateX(5deg) rotateY(-7deg) translate3d(0, 0, 0); }
+  50% { transform: perspective(1600px) rotateX(6.5deg) rotateY(-4deg) translate3d(0, -10px, 0); }
 }
 
 .tui-chrome__bar {
@@ -608,8 +630,131 @@ html[lang='en'] .hero-title {
   padding: 0.15rem 0.55rem;
 }
 
-.tui-chrome__body {
+.tui-chrome__screen {
+  position: relative;
+  isolation: isolate;
   min-width: 0;
+  box-shadow:
+    inset 1px 0 0 rgba(255, 92, 122, 0.08),
+    inset -1px 0 0 rgba(0, 213, 255, 0.14);
+}
+
+.tui-chrome__body {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  text-shadow: 0 0 10px rgba(0, 213, 255, 0.16);
+}
+
+.crt-scanlines,
+.crt-sweep,
+.crt-vignette,
+.crt-reflect {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+.crt-scanlines {
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0 2px,
+    rgba(0, 213, 255, 0.05) 2px 3px
+  );
+  mix-blend-mode: screen;
+  animation: crt-flicker 3.8s steps(2, end) infinite;
+}
+
+.crt-sweep {
+  height: 32%;
+  inset: auto 0 0 0;
+  top: -32%;
+  background: linear-gradient(to bottom, transparent, rgba(0, 213, 255, 0.09), transparent);
+  animation: crt-sweep 4.8s linear infinite;
+}
+
+.crt-vignette {
+  box-shadow: inset 0 0 70px 18px rgba(0, 0, 0, 0.42);
+}
+
+.crt-reflect {
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.07), transparent 36%);
+  mix-blend-mode: screen;
+}
+
+@keyframes crt-flicker {
+  0%,
+  92%,
+  100% { opacity: 1; }
+  93% { opacity: 0.72; }
+  94% { opacity: 1; }
+}
+
+@keyframes crt-sweep {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(380%); }
+}
+
+.term-stream {
+  margin-top: 0.15rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid rgba(0, 213, 255, 0.22);
+  border-radius: 0.7rem;
+  background: rgba(0, 10, 18, 0.55);
+}
+
+.term-stream__head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.45rem;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+}
+
+.term-stream__live {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: var(--color-emerald);
+  box-shadow: 0 0 10px rgba(54, 211, 153, 0.8);
+  animation: pulse-soft 1.6s ease-in-out infinite;
+}
+
+.term-stream__log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.22rem;
+}
+
+.term-stream__line {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: color-mix(in oklab, #7dd3fc 80%, white);
+  text-shadow: 0 0 8px rgba(0, 213, 255, 0.35);
+}
+
+.term-stream__prompt {
+  margin-right: 0.4rem;
+  color: var(--color-primary);
+}
+
+.term-stream__caret {
+  display: inline-block;
+  width: 0.42rem;
+  height: 0.85em;
+  margin-left: 0.12rem;
+  vertical-align: -0.1em;
+  background: #00d5ff;
+  box-shadow: 0 0 10px #00d5ff;
+  animation: pulse-soft 1s steps(1, end) infinite;
 }
 
 .tui-spark {
@@ -2394,11 +2539,19 @@ html[data-theme='light'] .hero-watermark {
     animation: none;
   }
 
+  .hero-visual .tui-chrome {
+    animation: none;
+    transform: none;
+  }
+
   .product-frame__live,
   .product-frame__spark span,
   .tui-spark span,
   .panel-dock__pulse--live,
-  .panel-hub__caret {
+  .panel-hub__caret,
+  .term-stream__caret,
+  .crt-sweep,
+  .crt-scanlines {
     animation: none !important;
   }
 

@@ -1,4 +1,5 @@
 import { useI18n } from '../i18n';
+import { TermStream } from './TermStream';
 import { TuiChrome } from './tui/TuiChrome';
 
 /** Hero showcase — curated board + worker strip. */
@@ -71,6 +72,7 @@ export function ProductFrame() {
           <span><i className="product-frame__state product-frame__state--ask" />01 needs you</span>
           <span><i className="product-frame__state product-frame__state--done" />01 landed</span>
         </div>
+        <TermStream lines={f.stream} />
       </div>
     </TuiChrome>
   );

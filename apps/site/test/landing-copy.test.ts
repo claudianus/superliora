@@ -170,5 +170,8 @@ describe('shipped landing copy', () => {
     expect(sections).toContain('CommandTicker');
     expect(sections).toContain('data-stage="cinematic"');
     expect(sections).toContain('workflow-cinema');
+    expect(readFileSync(resolve(siteSrc, 'components/tui/TuiChrome.tsx'), 'utf8')).toContain('crt-scanlines');
+    expect(readFileSync(resolve(siteSrc, 'components/ProductFrame.tsx'), 'utf8')).toContain('TermStream');
+    expect(readFileSync(resolve(siteSrc, 'components/TermStream.tsx'), 'utf8')).toContain('data-term-stream="on"');
   });
 });
