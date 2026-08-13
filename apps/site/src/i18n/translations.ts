@@ -156,6 +156,7 @@ export interface Translation {
       workerName: string;
       workerModel: string;
       workerRate: string;
+      stream: string[];
     };
   };
   clusters: {
@@ -586,6 +587,17 @@ export const translations: Record<Lang, Translation> = {
         workerName: 'coder',
         workerModel: 'smart-auto',
         workerRate: '820 /s',
+        stream: [
+          'liora · session open',
+          '/login · account ready',
+          '/model · smart-auto',
+          'job_a1 · worktree isolated',
+          'coder · Edit src/auth/redirect.ts',
+          'tests · 2/3 passing',
+          'inbox · Alt+I waiting',
+          'deck · Alt+J live',
+          'land · local merge ready',
+        ],
       },
     },
     clusters: {
@@ -891,6 +903,17 @@ export const translations: Record<Lang, Translation> = {
         workerName: 'coder',
         workerModel: 'smart-auto',
         workerRate: '820 /s',
+        stream: [
+          'liora · session open',
+          '/login · account ready',
+          '/model · smart-auto',
+          'job_a1 · worktree isolated',
+          'coder · Edit src/auth/redirect.ts',
+          'tests · 2/3 passing',
+          'inbox · Alt+I waiting',
+          'deck · Alt+J live',
+          'land · local merge ready',
+        ],
       },
     },
     clusters: {
