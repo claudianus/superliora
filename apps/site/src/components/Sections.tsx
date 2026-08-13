@@ -1,5 +1,6 @@
 import { getLandingManifest } from '../landing';
 import { useI18n } from '../i18n';
+import { landingDocsHref } from '../lib/locale';
 import { CopyButton } from './CopyButton';
 import { ProductFrame } from './ProductFrame';
 import { Reveal } from './Reveal';
@@ -8,8 +9,7 @@ export function Sections() {
   const { t, lang } = useI18n();
   const manifest = getLandingManifest(lang);
   const base = import.meta.env.BASE_URL ?? '/';
-  const docsHref =
-    lang === 'en' ? `${base}en/docs/getting-started.html` : `${base}docs/getting-started.html`;
+  const docsHref = landingDocsHref(lang, base);
 
   return (
     <main id="main" data-stage="editorial">
@@ -32,7 +32,7 @@ export function Sections() {
               <a
                 href="#install"
                 data-cta="install"
-                className="btn btn-primary inline-flex min-h-11 items-center rounded-lg px-5 py-2.5 sm:px-6 sm:py-3"
+                className="btn btn-primary btn-pulse inline-flex min-h-11 items-center rounded-lg px-5 py-2.5 sm:px-6 sm:py-3"
               >
                 {t.hero.install}
               </a>
@@ -66,7 +66,7 @@ export function Sections() {
         </Reveal>
       </section>
 
-      <section id="features" className="section-pad border-t border-line" data-landing="features">
+      <section id="features" className="section-pad section-band section-band--features border-t border-line" data-landing="features">
         <div className="mx-auto max-w-7xl">
           <Reveal className="max-w-2xl">
             <p className="section-kicker text-sm font-semibold tracking-wide text-primary">{t.clusters.kicker}</p>
@@ -95,7 +95,7 @@ export function Sections() {
         </div>
       </section>
 
-      <section id="usage" className="section-pad border-t border-line" data-landing="usage">
+      <section id="usage" className="section-pad section-band section-band--usage border-t border-line" data-landing="usage">
         <div className="mx-auto max-w-7xl">
           <Reveal className="max-w-2xl">
             <p className="section-kicker text-sm font-semibold tracking-wide text-primary">{t.usage.kicker}</p>
@@ -119,7 +119,7 @@ export function Sections() {
         </div>
       </section>
 
-      <section id="workflow" className="section-pad border-t border-line" data-landing="workflow">
+      <section id="workflow" className="section-pad section-band section-band--workflow border-t border-line" data-landing="workflow">
         <div className="mx-auto max-w-7xl">
           <Reveal className="max-w-2xl">
             <p className="section-kicker text-sm font-semibold tracking-wide text-primary">{t.workflow.kicker}</p>
@@ -151,7 +151,7 @@ export function Sections() {
         </div>
       </section>
 
-      <section id="install" className="section-pad border-t border-line" data-landing="install">
+      <section id="install" className="section-pad section-band section-band--install border-t border-line" data-landing="install">
         <div className="install-panel mx-auto max-w-7xl">
           <Reveal className="install-panel__copy">
             <p className="section-kicker text-sm font-semibold tracking-wide text-primary">{t.install.kicker}</p>

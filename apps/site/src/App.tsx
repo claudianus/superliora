@@ -2,10 +2,13 @@ import { useEffect, useState } from 'react';
 import { getLandingManifest } from './landing';
 import { I18nProvider, useI18n } from './i18n';
 import { useTheme } from './hooks/useTheme';
+import { usePrefersReducedMotion } from './hooks/usePrefersReducedMotion';
 import { LivingField } from './components/LivingField';
 import { NoirField } from './components/NoirField';
 import { PointerField } from './components/PointerField';
 import { Sections } from './components/Sections';
+import { landingDocsHref, landingHomeHref } from './lib/locale';
+import { clampScrollProgress, motionEnabled } from './lib/motion';
 
 type Lang = 'ko' | 'en';
 
@@ -18,8 +21,13 @@ function ScrollProgress() {
 
   useEffect(() => {
     const onScroll = () => {
-      const max = document.documentElement.scrollHeight - window.innerHeight;
-      setProgress(max <= 0 ? 0 : Math.min(1, window.scrollY / max));
+      setProgress(
+        clampScrollProgress(
+          window.scrollY,
+          document.documentElement.scrollHeight,
+          window.innerHeight,
+        ),
+      );
     };
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -76,10 +84,9 @@ function Navbar() {
   const { lang, t } = useI18n();
   const manifest = getLandingManifest(lang);
   const base = import.meta.env.BASE_URL ?? '/';
-  const koHref = `${base}`;
-  const enHref = `${base}en/`;
-  const docsHref =
-    lang === 'en' ? `${base}en/docs/getting-started.html` : `${base}docs/getting-started.html`;
+  const koHref = landingHomeHref('ko', base);
+  const enHref = landingHomeHref('en', base);
+  const docsHref = landingDocsHref(lang, base);
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<string>('');
@@ -225,8 +232,10 @@ function Navbar() {
 function Footer() {
   const { t, lang } = useI18n();
   const base = import.meta.env.BASE_URL ?? '/';
+  const homeAlt = landingHomeHref(lang === 'ko' ? 'en' : 'ko', base);
+  const docsHref = landingDocsHref(lang, base);
   return (
-    <footer className="border-t border-line px-4 py-12 sm:px-6 lg:px-8">
+    <footer className="site-footer border-t border-line px-4 py-12 sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-8">
         <div className="flex flex-col items-start justify-between gap-6 sm:flex-row sm:items-center">
           <div className="flex items-center gap-3">
@@ -240,13 +249,10 @@ function Footer() {
             <a href="https://github.com/claudianus/superliora" className="transition hover:text-primary">
               {t.footer.github}
             </a>
-            <a href={lang === 'ko' ? `${base}en/` : base} className="transition hover:text-primary">
+            <a href={homeAlt} className="transition hover:text-primary">
               {lang === 'ko' ? t.footer.english : t.footer.korean}
             </a>
-            <a
-              href={lang === 'en' ? `${base}en/docs/getting-started.html` : `${base}docs/getting-started.html`}
-              className="transition hover:text-primary"
-            >
+            <a href={docsHref} className="transition hover:text-primary">
               {t.footer.docs}
             </a>
             <a href="https://github.com/claudianus/superliora/issues" className="transition hover:text-primary">
@@ -269,10 +275,23 @@ function Footer() {
   );
 }
 
+function MotionRoot({ children }: { children: React.ReactNode }) {
+  const reduced = usePrefersReducedMotion();
+  const allow = motionEnabled(reduced);
+  useEffect(() => {
+    document.documentElement.dataset.motion = allow ? 'on' : 'off';
+    return () => {
+      delete document.documentElement.dataset.motion;
+    };
+  }, [allow]);
+  return <>{children}</>;
+}
+
 export function App() {
   const initialLang = getInitialLang();
   return (
     <I18nProvider initialLang={initialLang}>
+      <MotionRoot>
       <div className="grain mesh-bg stage-root min-h-[100dvh] text-text">
         <NoirField />
         <PointerField />
@@ -283,6 +302,7 @@ export function App() {
         <Sections />
         <Footer />
       </div>
+      </MotionRoot>
     </I18nProvider>
   );
 }
