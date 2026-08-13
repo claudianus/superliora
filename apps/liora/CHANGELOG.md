@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.9.4
+
+### Patch Changes
+
+- Fix Windows Grok / OAuth login opening a page without `client_id` when `cmd start` split the authorize URL on `&`.
+
 ## 0.9.3
 
 ### Patch Changes
