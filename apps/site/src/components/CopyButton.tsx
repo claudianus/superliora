@@ -35,8 +35,9 @@ export function CopyButton({
     <button
       type="button"
       onClick={handleClick}
+      data-copied={copied ? 'true' : 'false'}
       aria-label={copied ? copiedLabel : copyLabel}
-      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md px-2 py-1 text-xs font-medium text-soft transition hover:bg-bg-3 hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      className="copy-reward absolute right-3 top-1/2 -translate-y-1/2 rounded-md px-2 py-1 text-xs font-medium text-soft transition hover:bg-bg-3 hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
     >
       {copied ? doneText : idleText}
     </button>

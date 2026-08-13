@@ -1,6 +1,7 @@
 import { motion } from 'motion/react';
 import type { FeatureItem } from '../i18n/translations';
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
+import { motionEnabled } from '../lib/motion';
 
 function cellSize(index: number, total: number): 'hero' | 'lg' | 'md' | 'sm' {
   if (total <= 3) return index === 0 ? 'hero' : 'lg';
@@ -14,7 +15,7 @@ function cellSize(index: number, total: number): 'hero' | 'lg' | 'md' | 'sm' {
 }
 
 export function BentoGrid({ features }: { features: FeatureItem[] }) {
-  const reduce = usePrefersReducedMotion();
+  const reduce = !motionEnabled(usePrefersReducedMotion());
 
   return (
     <div className="bento" data-count={String(features.length)} role="list">

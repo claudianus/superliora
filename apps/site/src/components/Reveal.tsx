@@ -1,5 +1,6 @@
 import { motion } from 'motion/react';
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
+import { motionEnabled } from '../lib/motion';
 
 interface RevealProps {
   children: React.ReactNode;
@@ -12,7 +13,7 @@ interface RevealProps {
 export function Reveal({ children, className = '', stagger, eager = false }: RevealProps) {
   const reduce = usePrefersReducedMotion();
   const delay = stagger ? (stagger - 1) * 0.07 : 0;
-  const skipMotion = reduce || eager;
+  const skipMotion = !motionEnabled(reduce) || eager;
 
   return (
     <motion.div
