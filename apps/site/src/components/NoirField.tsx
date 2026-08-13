@@ -38,9 +38,9 @@ void main(){
   vec3 violet = vec3(0.655, 0.545, 0.980);
   vec3 deep = vec3(0.02, 0.04, 0.09);
   vec3 col = mix(deep, bg, 0.65);
-  col += cyan * pow(n, 2.4) * 0.42 * ring;
-  col += violet * pow(w, 3.1) * 0.22;
-  col += cyan * exp(-12.0 * length(p - m * 0.5)) * 0.18;
+  col += cyan * pow(n, 2.1) * 0.55 * ring;
+  col += violet * pow(w, 2.6) * 0.32;
+  col += cyan * exp(-5.5 * length(p - m * 0.55)) * 0.72;
   float vig = smoothstep(1.25, 0.25, length(p));
   o = vec4(col * vig, 1.0);
 }
@@ -63,17 +63,19 @@ export function NoirField() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    if (reduce) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const gl = canvas.getContext('webgl2', {
-      alpha: false,
+      alpha: true,
       antialias: false,
       depth: false,
       stencil: false,
       powerPreference: 'low-power',
     });
-    if (!gl) return;
+    if (!gl) {
+      canvas.hidden = true;
+      return;
+    }
 
     const vs = compile(gl, gl.VERTEX_SHADER, VERT);
     const fs = compile(gl, gl.FRAGMENT_SHADER, FRAG);
@@ -113,7 +115,7 @@ export function NoirField() {
       resize();
       gl.uniform2f(uRes, canvas.width, canvas.height);
       gl.uniform2f(uMouse, mouse.x, mouse.y);
-      gl.uniform1f(uTime, (now - started) / 1000);
+      gl.uniform1f(uTime, reduce ? 0 : (now - started) / 1000);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       raf = window.requestAnimationFrame(frame);
     };
@@ -126,6 +128,5 @@ export function NoirField() {
     };
   }, [reduce]);
 
-  if (reduce) return null;
   return <canvas ref={canvasRef} className="noir-field" aria-hidden="true" />;
 }

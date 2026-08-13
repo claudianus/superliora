@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { getLandingManifest } from './landing';
 import { I18nProvider, useI18n } from './i18n';
 import { useTheme } from './hooks/useTheme';
+import { LivingField } from './components/LivingField';
 import { NoirField } from './components/NoirField';
 import { PointerField } from './components/PointerField';
 import { Sections } from './components/Sections';
@@ -275,6 +276,7 @@ export function App() {
       <div className="grain mesh-bg stage-root min-h-[100dvh] text-text">
         <NoirField />
         <PointerField />
+        <LivingField />
         <SkipLink />
         <ScrollProgress />
         <Navbar />

@@ -163,6 +163,10 @@ describe('shipped landing copy', () => {
     expect(ticker).toContain('getLandingManifest');
     expect(app).toContain('NoirField');
     expect(app).toContain('PointerField');
+    expect(app).toContain('LivingField');
+    expect(readFileSync(resolve(siteSrc, 'components/LivingField.tsx'), 'utf8')).toContain('data-living="on"');
+    expect(readFileSync(resolve(siteSrc, 'components/PointerField.tsx'), 'utf8')).toContain('data-atmosphere="on"');
+    expect(readFileSync(resolve(siteSrc, 'components/PointerField.tsx'), 'utf8')).not.toMatch(/if \(reduce\) return null/);
     expect(sections).toContain('CommandTicker');
     expect(sections).toContain('data-stage="cinematic"');
     expect(sections).toContain('workflow-cinema');
