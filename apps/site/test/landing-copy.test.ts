@@ -167,9 +167,12 @@ describe('shipped landing copy', () => {
     expect(readFileSync(resolve(siteSrc, 'components/LivingField.tsx'), 'utf8')).toContain('data-living="on"');
     expect(readFileSync(resolve(siteSrc, 'components/PointerField.tsx'), 'utf8')).toContain('data-atmosphere="on"');
     expect(readFileSync(resolve(siteSrc, 'components/PointerField.tsx'), 'utf8')).not.toMatch(/if \(reduce\) return null/);
-    expect(sections).toContain('CommandTicker');
-    expect(sections).toContain('data-stage="cinematic"');
+    expect(sections).toContain('data-stage="editorial"');
     expect(sections).toContain('workflow-cinema');
+    expect(sections).toContain('pillar-grid');
+    expect(sections).toContain('usage-table');
+    expect(sections).not.toContain('CommandTicker');
+    expect(sections).not.toContain('topic-rail');
     expect(readFileSync(resolve(siteSrc, 'components/tui/TuiChrome.tsx'), 'utf8')).toContain('crt-scanlines');
     expect(readFileSync(resolve(siteSrc, 'components/ProductFrame.tsx'), 'utf8')).toContain('TermStream');
     expect(readFileSync(resolve(siteSrc, 'components/TermStream.tsx'), 'utf8')).toContain('data-term-stream="on"');

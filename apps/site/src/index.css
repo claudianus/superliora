@@ -355,10 +355,10 @@ html[data-theme='light'] .nav-drawer {
 
 .hero-title {
   position: relative;
-  max-width: 13ch;
-  font-size: clamp(2.6rem, 1.2rem + 4.4vw, 6.1rem);
-  line-height: 0.94;
-  letter-spacing: -0.055em;
+  max-width: 14ch;
+  font-size: clamp(2.15rem, 1.15rem + 2.6vw, 4.15rem);
+  line-height: 1.08;
+  letter-spacing: -0.04em;
 }
 
 html[lang='en'] .hero-title {
@@ -553,12 +553,10 @@ html[lang='en'] .hero-title {
     radial-gradient(ellipse 80% 50% at 20% 0%, rgba(0, 213, 255, 0.14), transparent 55%),
     #060a12;
   box-shadow:
-    0 34px 90px -28px rgba(0, 0, 0, 0.72),
-    0 0 90px -28px rgba(0, 213, 255, 0.48),
+    0 24px 60px -28px rgba(0, 0, 0, 0.62),
+    0 0 60px -28px rgba(0, 213, 255, 0.32),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
   overflow: hidden;
-  transform: perspective(1600px) rotateX(5deg) rotateY(-7deg);
-  transform-style: preserve-3d;
 }
 
 .tui-chrome__glow {
@@ -571,13 +569,7 @@ html[lang='en'] .hero-title {
 }
 
 .hero-visual .tui-chrome {
-  animation: terminal-levitate 7.5s ease-in-out infinite;
-}
-
-@keyframes terminal-levitate {
-  0%,
-  100% { transform: perspective(1600px) rotateX(5deg) rotateY(-7deg) translate3d(0, 0, 0); }
-  50% { transform: perspective(1600px) rotateX(6.5deg) rotateY(-4deg) translate3d(0, -10px, 0); }
+  transform: none;
 }
 
 .tui-chrome__bar {
@@ -2264,11 +2256,12 @@ kbd {
 .living-field {
   position: fixed;
   inset: 0;
-  z-index: 3;
+  z-index: 0;
   width: 100%;
   height: 100%;
   pointer-events: none;
   mix-blend-mode: screen;
+  opacity: 0.55;
 }
 
 .cursor-ring {
@@ -2297,13 +2290,12 @@ kbd {
 .pointer-glow {
   position: fixed;
   inset: 0;
-  z-index: 4;
+  z-index: 0;
   pointer-events: none;
   background: radial-gradient(
     22rem 22rem at var(--mx, 62vw) var(--my, 28vh),
-    color-mix(in oklab, #00d5ff 46%, transparent),
-    color-mix(in oklab, #7dd3fc 16%, transparent) 38%,
-    transparent 64%
+    color-mix(in oklab, #00d5ff 22%, transparent),
+    transparent 62%
   );
   mix-blend-mode: screen;
 }
@@ -2425,6 +2417,120 @@ html[data-theme='light'] .hero-watermark {
 @keyframes cinema-rise {
   from { transform: translate3d(0, 1.15rem, 0); }
   to { transform: none; }
+}
+
+.pillar-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 900px) {
+  .pillar-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.pillar {
+  min-width: 0;
+  padding: 1.25rem 1.2rem 1.3rem;
+  border: 1px solid var(--color-line);
+  border-radius: 1rem;
+  background: color-mix(in oklab, var(--color-bg-2) 88%, transparent);
+}
+
+.pillar__index {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  color: var(--color-primary);
+}
+
+.pillar__title {
+  margin-top: 0.45rem;
+  font-size: clamp(1.15rem, 1rem + 0.4vw, 1.4rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+}
+
+.pillar__lead {
+  margin-top: 0.4rem;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--color-soft);
+}
+
+.pillar__list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.pillar__list li {
+  display: grid;
+  gap: 0.15rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid color-mix(in oklab, var(--color-line) 80%, transparent);
+}
+
+.pillar__list strong {
+  font-size: 0.88rem;
+  color: var(--color-text);
+}
+
+.pillar__list span {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--color-soft);
+}
+
+.usage-table {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  border-top: 1px solid var(--color-line);
+}
+
+.usage-table__row {
+  display: grid;
+  gap: 0.35rem 1rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--color-line);
+}
+
+@media (min-width: 720px) {
+  .usage-table__row {
+    grid-template-columns: 2.2rem minmax(10rem, 16rem) 1fr;
+    align-items: baseline;
+  }
+}
+
+.usage-table__index {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--color-primary);
+}
+
+.usage-table__cmd {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  color: var(--color-primary);
+}
+
+.usage-table__copy h3 {
+  font-size: 1rem;
+  font-weight: 650;
+  color: var(--color-text);
+}
+
+.usage-table__copy p {
+  margin-top: 0.2rem;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--color-soft);
 }
 
 .workflow-cinema {
