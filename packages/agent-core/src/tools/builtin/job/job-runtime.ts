@@ -9,9 +9,11 @@ import type { Kaos } from '@superliora/kaos';
 import type { Agent } from '../../../agent/index';
 import type { Logger } from '../../../logging/types';
 import {
+  attachSessionWorktree,
   createSessionWorktree,
   gcSessionWorktrees,
   removeSessionWorktree,
+  sessionWorktreeDirExists,
   type CreateSessionWorktreeResult,
 } from '../../../session/worktree';
 import type { ToolStore } from '../../store';
@@ -215,12 +217,19 @@ export type WorktreeFactory = (
   input: { readonly repoPath: string; readonly name: string },
 ) => Promise<CreateSessionWorktreeResult>;
 
+export type AttachWorktreeFactory = (
+  kaos: Kaos,
+  input: { readonly repoPath: string; readonly path: string; readonly branch: string },
+) => Promise<CreateSessionWorktreeResult>;
+
 export interface AssignJobWorktreeInput {
   readonly store: ToolStore;
   readonly jobId: string;
   readonly kaos: Kaos;
   readonly repoPath: string;
   readonly createWorktree?: WorktreeFactory;
+  readonly attachWorktree?: AttachWorktreeFactory;
+  readonly worktreeDirExists?: (path: string) => Promise<boolean>;
   readonly log?: Logger;
   /** Env for the auto-git-init opt-out (default process.env). */
   readonly env?: Readonly<Record<string, string | undefined>>;
@@ -249,7 +258,7 @@ export async function assignJobWorktree(
     return { error: `Job not found: ${input.jobId}` };
   }
   if (existing.worktreePath) {
-    return { job: existing };
+    return ensureAssignedWorktreePresent(input, existing);
   }
 
   // Chain rule: a child job continues its parent's deliverable (e.g. a
@@ -275,7 +284,8 @@ export async function assignJobWorktree(
           .filter(Boolean)
           .join('\n'),
       });
-      return { job };
+      if (job === undefined) return { error: `Job not found: ${existing.id}` };
+      return ensureAssignedWorktreePresent(input, job);
     }
   }
 
@@ -360,6 +370,94 @@ export function worktreeNameForJob(jobId: string): string {
   // git worktree slug: keep short/safe
   const compact = jobId.replace(/^job_/, 'j').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40);
   return `conductor-${compact || 'job'}`;
+}
+
+/**
+ * A ledger path is not enough: hygiene / land GC / a crash can delete the
+ * directory while the Job still points at it. Remount the branch, or block
+ * with an actionable note — never let spawn `chdir` into ENOENT (that used
+ * to crash session resume).
+ */
+async function ensureAssignedWorktreePresent(
+  input: AssignJobWorktreeInput,
+  job: JobRecord,
+): Promise<{ readonly job?: JobRecord; readonly error?: string }> {
+  const path = job.worktreePath;
+  if (path === undefined) return { job };
+
+  const exists = input.worktreeDirExists ?? sessionWorktreeDirExists;
+  if (await exists(path)) return { job };
+
+  const branch = job.worktreeBranch?.trim();
+  if (branch) {
+    try {
+      const attach = input.attachWorktree ?? defaultAttachWorktree;
+      await attach(input.kaos, {
+        repoPath: input.repoPath,
+        path,
+        branch,
+      });
+      const remounted = patchJob(input.store, job.id, {
+        notes: [
+          job.notes,
+          `worktree: remounted ${path} (${branch}) after missing directory`,
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      });
+      input.log?.info('Conductor remounted missing job worktree', {
+        jobId: job.id,
+        path,
+        branch,
+      });
+      return { job: remounted ?? job };
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      input.log?.warn('Conductor job worktree remount failed', {
+        jobId: job.id,
+        path,
+        branch,
+        error: detail,
+      });
+      return blockMissingWorktree(input, job, detail);
+    }
+  }
+
+  return blockMissingWorktree(
+    input,
+    job,
+    `worktree directory is gone and no worktreeBranch is recorded: ${path}`,
+  );
+}
+
+function defaultAttachWorktree(
+  kaos: Kaos,
+  input: { readonly repoPath: string; readonly path: string; readonly branch: string },
+): Promise<CreateSessionWorktreeResult> {
+  return attachSessionWorktree(kaos, input);
+}
+
+function blockMissingWorktree(
+  input: AssignJobWorktreeInput,
+  job: JobRecord,
+  detail: string,
+): { readonly job?: JobRecord; readonly error?: string } {
+  const jobUpdated = patchJobAndNotify(
+    input.store,
+    job.id,
+    {
+      status: 'blocked',
+      notes: [
+        job.notes,
+        `worktree_missing: ${detail}`,
+        'hint: remount the branch (git worktree add <path> <branch>) or JobCreate a fresh Job, then JobResume.',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    },
+    { agent: input.agent, summary: `worktree_missing: ${detail}` },
+  );
+  return { job: jobUpdated, error: detail };
 }
 
 export interface ScheduleJobsInput {

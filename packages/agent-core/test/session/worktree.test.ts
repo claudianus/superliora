@@ -7,6 +7,7 @@ import { LocalKaos } from '@superliora/kaos';
 import { resetGitBootstrapCache, AUTO_GIT_INIT_ENV } from '#/session/git-bootstrap';
 import { runGit } from '#/autopilot/git';
 import {
+  attachSessionWorktree,
   buildWorktreeMetadata,
   createSessionWorktree,
   gcSessionWorktrees,
@@ -139,6 +140,37 @@ describe('session worktree lifecycle', () => {
     const gc = await gcSessionWorktrees(kaos, { homeDir, maxAgeDays: 30, dryRun: true });
     expect(gc.removed.length).toBe(0);
     expect(gc.kept).toBe(1);
+  }, 60_000);
+
+  it('reattaches an existing branch after the worktree directory is deleted', async () => {
+    const homeDir = await makeTempDir('liora-wt-home-reattach-');
+    const repo = await makeTempDir('liora-wt-repo-reattach-');
+    const kaos = await LocalKaos.create();
+    await initGitRepo(kaos, repo);
+
+    const created = await createSessionWorktree(kaos, {
+      repoPath: repo,
+      name: 'reattach-me',
+      homeDir,
+    });
+    await writeFile(join(created.workDir, 'keep.txt'), 'kept\n', 'utf-8');
+    const add = await runGit(kaos, created.workDir, ['add', 'keep.txt']);
+    expect(add.ok).toBe(true);
+    const commit = await runGit(kaos, created.workDir, ['commit', '-m', 'keep']);
+    expect(commit.ok).toBe(true);
+
+    await runGit(kaos, repo, ['worktree', 'remove', '--force', created.workDir]);
+    await rm(created.workDir, { recursive: true, force: true });
+
+    const remounted = await attachSessionWorktree(kaos, {
+      repoPath: repo,
+      path: created.workDir,
+      branch: created.meta.branch,
+      name: created.meta.name,
+      homeDir,
+    });
+    expect(remounted.workDir).toBe(created.workDir);
+    await expect(access(join(remounted.workDir, 'keep.txt'))).resolves.toBeUndefined();
   }, 60_000);
 
   it('auto-bootstraps a non-git directory and creates the worktree', async () => {
