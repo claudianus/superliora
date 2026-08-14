@@ -32,6 +32,7 @@ function makeHost() {
     sessionEventUnsubscribe: undefined,
     streamingUI: {
       setTurnId: vi.fn(),
+      setStep: vi.fn(),
       flushNow: vi.fn(),
       resetToolUi: vi.fn(),
       finalizeTurn: vi.fn(),
@@ -224,5 +225,59 @@ describe('SessionEventHandler provider filtered turn end (Loop37a)', () => {
       expect.stringMatching(/provider safety policy|goal paused/i),
       'error',
     );
+  });
+});
+
+describe('SessionEventHandler live-text finalize at turn boundaries', () => {
+  it('finalizes live text on step begin, interrupt, and turn end', () => {
+    const host = makeHost();
+    const handler = new SessionEventHandler(host);
+
+    handler.handleEvent(
+      {
+        type: 'turn.step.started',
+        agentId: 'main',
+        sessionId: 's1',
+        turnId: 1,
+        step: 2,
+      } satisfies Event,
+      vi.fn(),
+    );
+    expect(host.streamingUI.flushNow).toHaveBeenCalled();
+    expect(host.streamingUI.finalizeLiveTextBuffers).toHaveBeenCalledWith('waiting');
+
+    host.streamingUI.flushNow.mockClear();
+    host.streamingUI.finalizeLiveTextBuffers.mockClear();
+
+    handler.handleEvent(
+      {
+        type: 'turn.step.interrupted',
+        agentId: 'main',
+        sessionId: 's1',
+        turnId: 1,
+        step: 2,
+        reason: 'aborted',
+        cancelledByUser: true,
+      } satisfies Event,
+      vi.fn(),
+    );
+    expect(host.streamingUI.flushNow).toHaveBeenCalled();
+    expect(host.streamingUI.finalizeLiveTextBuffers).toHaveBeenCalledWith('idle');
+
+    host.streamingUI.flushNow.mockClear();
+    host.streamingUI.finalizeTurn.mockClear();
+
+    handler.handleEvent(
+      {
+        type: 'turn.ended',
+        agentId: 'main',
+        sessionId: 's1',
+        turnId: 1,
+        reason: 'completed',
+      } satisfies Event,
+      vi.fn(),
+    );
+    expect(host.streamingUI.flushNow).toHaveBeenCalled();
+    expect(host.streamingUI.finalizeTurn).toHaveBeenCalledTimes(1);
   });
 });

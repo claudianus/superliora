@@ -32,6 +32,12 @@ export interface StreamingRevealRuntime {
   revealArmed: boolean;
   /** Last reveal advance on `appearanceAnimationNow()` (min-interval guard). */
   lastRevealTickMs: number;
+  /**
+   * Server draft is complete; keep ticking until the last line catches up,
+   * then settle the live block instead of snapping mid-animation.
+   */
+  assistantDrainPending: boolean;
+  thinkingDrainPending: boolean;
   channels: StreamingRevealChannels;
 }
 
@@ -43,7 +49,10 @@ export interface StreamingRevealContext {
     component: AssistantMessageComponent;
     entry: { content: string };
   } | null;
+  setStreamingBlock?(block: null): void;
   getActiveThinkingComponent(): ThinkingComponent | undefined;
+  settleAssistantReveal?(): void;
+  settleThinkingReveal?(): void;
 }
 
 /** Context currently armed for ambient-driven catch-up ticks. */
@@ -59,6 +68,8 @@ export function resetRevealChannels(
   nowMs: number = 0,
 ): void {
   clearRevealTimer(ctx);
+  ctx.runtime.assistantDrainPending = false;
+  ctx.runtime.thinkingDrainPending = false;
   ctx.runtime.channels.assistantReveal = resetRevealState(nowMs);
   ctx.runtime.channels.thinkingReveal = resetRevealState(nowMs);
 }
@@ -138,9 +149,17 @@ export function onRevealTick(
       nowMs,
     );
     channels.assistantReveal = tickReveal(channels.assistantReveal, nowMs);
-    block.component.updateContent(visibleText(channels.assistantReveal), { transient: true });
+    const shown = visibleText(channels.assistantReveal);
+    const draining = ctx.runtime.assistantDrainPending;
+    const caughtUp = isRevealCaughtUp(channels.assistantReveal);
+    block.component.updateContent(shown, { transient: !(draining && caughtUp) });
     ctx.state.transcriptContainer.invalidateChildGeometry(block.component);
     painted = true;
+    if (draining && caughtUp) {
+      ctx.settleAssistantReveal?.();
+    }
+  } else if (block !== null && ctx.runtime.assistantDrainPending) {
+    ctx.settleAssistantReveal?.();
   }
 
   const thinking = ctx.getActiveThinkingComponent();
@@ -149,6 +168,11 @@ export function onRevealTick(
     thinking.setText(visibleText(channels.thinkingReveal));
     ctx.state.transcriptContainer.invalidateChildGeometry(thinking);
     painted = true;
+    if (ctx.runtime.thinkingDrainPending && isRevealCaughtUp(channels.thinkingReveal)) {
+      ctx.settleThinkingReveal?.();
+    }
+  } else if (thinking !== undefined && ctx.runtime.thinkingDrainPending) {
+    ctx.settleThinkingReveal?.();
   }
 
   // Inside a native frame the current paint already rebuilds the transcript;
@@ -181,14 +205,17 @@ export function snapAllActiveReveals(ctx: StreamingRevealContext): void {
       setRevealTarget(channels.assistantReveal, block.entry.content, nowMs),
       nowMs,
     );
-    block.component.updateContent(block.entry.content, { transient: true });
+    const draining = ctx.runtime.assistantDrainPending;
+    block.component.updateContent(block.entry.content, { transient: !draining });
     ctx.state.transcriptContainer.invalidateChildGeometry(block.component);
+    if (draining) ctx.settleAssistantReveal?.();
   }
   const thinking = ctx.getActiveThinkingComponent();
   if (thinking !== undefined) {
     channels.thinkingReveal = snapRevealToTarget(channels.thinkingReveal, nowMs);
     thinking.setText(channels.thinkingReveal.target);
     ctx.state.transcriptContainer.invalidateChildGeometry(thinking);
+    if (ctx.runtime.thinkingDrainPending) ctx.settleThinkingReveal?.();
   }
   requestTUIContentRender(ctx.state);
   clearRevealTimer(ctx);

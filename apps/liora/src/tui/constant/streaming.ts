@@ -50,6 +50,12 @@ export const STREAM_REVEAL_TICK_MS = 16;
 /** When still lagging, always advance at least this many code points per tick. */
 export const STREAM_REVEAL_MIN_CHARS_PER_TICK = 2;
 
+/**
+ * Remaining code points at or below this snap on stream end.
+ * Tiny leftovers would read as a freeze; larger tails keep draining.
+ */
+export const STREAM_REVEAL_FINALIZE_SNAP_CODE_POINTS = 8;
+
 /** Live caret glyph painted at the growing edge while catch-up is active. */
 export const STREAM_REVEAL_CARET = '▌';
 

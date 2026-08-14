@@ -11,8 +11,10 @@ import {
   countCodePoints,
   createStreamingTextRevealState,
   isRevealCaughtUp,
+  remainingRevealCodePoints,
   resetRevealState,
   setRevealTarget,
+  shouldSnapRevealOnFinalize,
   snapRevealToTarget,
   tickReveal,
   visibleText,
@@ -205,6 +207,39 @@ describe('tickReveal', () => {
     expect(isRevealCaughtUp(state)).toBe(true);
     state = tickReveal(state, 200);
     expect(visibleText(state)).toBe('abcdef');
+  });
+});
+
+describe('shouldSnapRevealOnFinalize', () => {
+  it('snaps when motion is off even with a large remaining tail', () => {
+    let state = createStreamingTextRevealState(0);
+    state = setRevealTarget(state, 'The last line still has a long unfinished tail.', 0);
+    state = { ...state, visibleEnd: 4 };
+    expect(remainingRevealCodePoints(state)).toBeGreaterThan(8);
+    expect(shouldSnapRevealOnFinalize(state, { motionAllowed: false })).toBe(true);
+  });
+
+  it('drains a mid-line tail instead of dumping the rest at once', () => {
+    let state = createStreamingTextRevealState(0);
+    state = setRevealTarget(state, 'The last line still has a long unfinished tail.', 0);
+    state = { ...state, visibleEnd: 12 };
+    expect(remainingRevealCodePoints(state)).toBeGreaterThan(8);
+    expect(shouldSnapRevealOnFinalize(state, { motionAllowed: true })).toBe(false);
+  });
+
+  it('snaps a tiny leftover so the last few glyphs do not linger', () => {
+    let state = createStreamingTextRevealState(0);
+    state = setRevealTarget(state, 'abcdefghij', 0);
+    state = { ...state, visibleEnd: 8 };
+    expect(remainingRevealCodePoints(state)).toBeLessThanOrEqual(8);
+    expect(shouldSnapRevealOnFinalize(state, { motionAllowed: true })).toBe(true);
+  });
+
+  it('snaps when already caught up', () => {
+    let state = createStreamingTextRevealState(0);
+    state = setRevealTarget(state, 'done', 0);
+    state = snapRevealToTarget(state, 16);
+    expect(shouldSnapRevealOnFinalize(state, { motionAllowed: true })).toBe(true);
   });
 });
 

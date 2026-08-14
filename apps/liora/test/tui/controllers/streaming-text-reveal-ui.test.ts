@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import { StreamingUIController, type StreamingUIHost } from '#/tui/controllers/streaming-ui/index';
+import { tickArmedStreamReveal } from '#/tui/controllers/streaming-ui/reveal';
 import { createTUIState } from '#/tui/liora-tui';
 import type { AppState, TranscriptEntry } from '#/tui/types';
 import {
+  advanceAppearanceAnimationClock,
   setActiveAppearancePreferences,
 } from '#/tui/features/appearance/appearance-effects';
 import { createMotionBeatController } from '#/tui/utils/render/motion-beats';
@@ -71,6 +73,8 @@ describe('StreamingUIController smooth reveal', () => {
       animationFps: 60,
     });
     vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+    advanceAppearanceAnimationClock(1_000_000);
   });
 
   afterEach(() => {
@@ -99,16 +103,31 @@ describe('StreamingUIController smooth reveal', () => {
     expect(firstPaint.length).toBeGreaterThan(0);
     expect(firstPaint.length).toBeLessThan(long.length);
 
-    // Advance enough ticks to catch up.
-    for (let i = 0; i < 40; i++) {
-      vi.advanceTimersByTime(24);
+    // Advance a few frames so catch-up is in flight, not finished.
+    for (let i = 0; i < 3; i++) {
+      vi.advanceTimersByTime(16);
+      advanceAppearanceAnimationClock(Date.now());
+      tickArmedStreamReveal();
     }
     const mid = (block as unknown as { lastText: string }).lastText;
     expect(mid.length).toBeGreaterThanOrEqual(firstPaint.length);
+    expect(mid.length).toBeLessThan(long.length);
 
     ui.onStreamingTextEnd();
-    const finalText = (block as unknown as { lastText: string }).lastText;
-    expect(finalText).toBe(long.trim());
+    const afterEnd = (block as unknown as { lastText: string; lastTransient: boolean });
+    // Mid-reveal finalize must keep draining instead of dumping the full body.
+    expect(afterEnd.lastText.length).toBeLessThan(long.trim().length);
+    expect(long.trim().startsWith(afterEnd.lastText)).toBe(true);
+    expect(afterEnd.lastTransient).toBe(true);
+    expect(ui.getStreamingBlockComponent()).toBe(block);
+
+    for (let i = 0; i < 80; i++) {
+      vi.advanceTimersByTime(16);
+      advanceAppearanceAnimationClock(Date.now());
+      tickArmedStreamReveal();
+    }
+    expect((block as unknown as { lastText: string }).lastText).toBe(long.trim());
+    expect((block as unknown as { lastTransient: boolean }).lastTransient).toBe(false);
     expect(ui.getStreamingBlockComponent()).toBeUndefined();
   });
 
@@ -139,12 +158,69 @@ describe('StreamingUIController smooth reveal', () => {
     expect(ui.hasActiveThinkingComponent()).toBe(true);
 
     // Component text is private; re-render path uses setText — drive ticks then end.
-    for (let i = 0; i < 50; i++) {
-      vi.advanceTimersByTime(24);
+    for (let i = 0; i < 4; i++) {
+      vi.advanceTimersByTime(16);
+      advanceAppearanceAnimationClock(Date.now());
+      tickArmedStreamReveal();
     }
 
     ui.onThinkingEnd();
+    expect(ui.hasActiveThinkingComponent()).toBe(true);
+
+    for (let i = 0; i < 80; i++) {
+      vi.advanceTimersByTime(16);
+      advanceAppearanceAnimationClock(Date.now());
+      tickArmedStreamReveal();
+    }
     expect(ui.hasActiveThinkingComponent()).toBe(false);
+  });
+
+  it('finalizeLiveTextBuffers keeps last-line motion until drain catches up', () => {
+    const { host } = createHost();
+    const ui = new StreamingUIController(host);
+    const long = 'Keep the last streaming line revealing instead of snapping mid-animation. '.repeat(6).trim();
+
+    ui.onStreamingTextStart();
+    ui.onStreamingTextUpdate(long);
+    const block = ui.getStreamingBlockComponent();
+    expect(block).toBeDefined();
+    const firstPaint = (block as unknown as { lastText: string }).lastText;
+    expect(firstPaint.length).toBeLessThan(long.length);
+
+    ui.finalizeLiveTextBuffers('idle');
+    const after = block as unknown as { lastText: string; lastTransient: boolean };
+    expect(after.lastText.length).toBeLessThan(long.length);
+    expect(long.startsWith(after.lastText)).toBe(true);
+    expect(after.lastTransient).toBe(true);
+    expect(ui.getStreamingBlockComponent()).toBe(block);
+
+    for (let i = 0; i < 80; i++) {
+      vi.advanceTimersByTime(16);
+      advanceAppearanceAnimationClock(Date.now());
+      tickArmedStreamReveal();
+    }
+    expect((block as unknown as { lastText: string }).lastText).toBe(long);
+    expect((block as unknown as { lastTransient: boolean }).lastTransient).toBe(false);
+    expect(ui.getStreamingBlockComponent()).toBeUndefined();
+  });
+
+  it('snaps immediately on end when motion is disabled', () => {
+    setActiveAppearancePreferences({
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'off',
+      particles: 'off',
+      animationFps: 0,
+    });
+    const { host } = createHost();
+    const ui = new StreamingUIController(host);
+    const text = 'Instant full dump when animation is off.';
+
+    ui.onStreamingTextStart();
+    ui.onStreamingTextUpdate(text);
+    ui.onStreamingTextEnd();
+
+    const block = ui.getStreamingBlockComponent();
+    expect(block).toBeUndefined();
   });
 
   it('disarms reveal catch-up on resetLiveText', () => {

@@ -12,6 +12,7 @@
 import {
   STREAM_REVEAL_BACKLOG_GAIN,
   STREAM_REVEAL_BASE_CPS,
+  STREAM_REVEAL_FINALIZE_SNAP_CODE_POINTS,
   STREAM_REVEAL_MAX_CPS,
   STREAM_REVEAL_MAX_LAG_MS,
   STREAM_REVEAL_MIN_CHARS_PER_TICK,
@@ -80,6 +81,31 @@ export function visibleText(state: StreamingTextRevealState): string {
 
 export function isRevealCaughtUp(state: StreamingTextRevealState): boolean {
   return state.visibleEnd >= state.target.length;
+}
+
+/** Unrevealed Unicode code points still waiting to catch up. */
+export function remainingRevealCodePoints(state: StreamingTextRevealState): number {
+  if (state.visibleEnd >= state.target.length) return 0;
+  return countCodePoints(state.target.slice(state.visibleEnd));
+}
+
+/**
+ * Whether a stream-end / interrupt should snap instead of draining.
+ * Motion-off, empty leftover, and a tiny tail snap; a mid-line tail keeps ticking.
+ */
+export function shouldSnapRevealOnFinalize(
+  state: StreamingTextRevealState,
+  options: {
+    readonly motionAllowed: boolean;
+    readonly snapRemainingCodePoints?: number;
+  },
+): boolean {
+  if (!options.motionAllowed) return true;
+  const remaining = remainingRevealCodePoints(state);
+  if (remaining === 0) return true;
+  const threshold =
+    options.snapRemainingCodePoints ?? STREAM_REVEAL_FINALIZE_SNAP_CODE_POINTS;
+  return remaining <= threshold;
 }
 
 /**

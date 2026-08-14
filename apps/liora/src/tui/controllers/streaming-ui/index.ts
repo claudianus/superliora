@@ -112,6 +112,8 @@ export class StreamingUIController {
   private readonly revealRuntime = {
     revealArmed: false,
     lastRevealTickMs: 0,
+    assistantDrainPending: false,
+    thinkingDrainPending: false,
     channels: {
       assistantReveal: createStreamingTextRevealState(),
       thinkingReveal: createStreamingTextRevealState(),

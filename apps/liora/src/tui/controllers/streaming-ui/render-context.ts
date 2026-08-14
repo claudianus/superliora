@@ -15,7 +15,12 @@ import {
   type StreamingRevealContext,
   type StreamingRevealRuntime,
 } from './reveal';
-import type { StreamingTextBlock, TextRenderContext } from './text-render';
+import {
+  settleAssistantReveal,
+  settleThinkingReveal,
+  type StreamingTextBlock,
+  type TextRenderContext,
+} from './text-render';
 import type { ToolRenderContext } from './tool-render';
 import type { PendingToolGroup } from './tool-groups';
 import type { StreamingFlushState } from './flush';
@@ -198,11 +203,21 @@ export function buildToolRenderContext(state: StreamingRenderContextState): Tool
 }
 
 export function buildRevealContext(state: StreamingRenderContextState): StreamingRevealContext {
+  const textCtx = (): TextRenderContext => buildTextRenderContext(state);
   return {
     state: state.host.state,
     isReplaying: state.host.state.appState.isReplaying,
     runtime: state.revealRuntime,
     getStreamingBlock: () => state.streamingBlock,
+    setStreamingBlock: (block) => {
+      state.setStreamingBlock(block);
+    },
     getActiveThinkingComponent: () => state.activeThinkingComponent,
+    settleAssistantReveal: () => {
+      settleAssistantReveal(textCtx());
+    },
+    settleThinkingReveal: () => {
+      settleThinkingReveal(textCtx());
+    },
   };
 }

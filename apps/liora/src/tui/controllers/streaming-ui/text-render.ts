@@ -6,6 +6,7 @@ import {
 import {
   resetRevealState,
   setRevealTarget,
+  shouldSnapRevealOnFinalize,
   snapRevealToTarget,
   tickReveal,
   visibleText,
@@ -46,14 +47,53 @@ export interface TextRenderContext {
   revealContext(): StreamingRevealContext;
 }
 
+export function settleAssistantReveal(ctx: TextRenderContext): void {
+  const block = ctx.getStreamingBlock();
+  if (block !== null) {
+    block.component.updateContent(block.entry.content, { transient: false });
+    ctx.host.state.transcriptContainer.invalidateChildGeometry(block.component);
+  }
+  ctx.setStreamingBlock(null);
+  ctx.revealRuntime.assistantDrainPending = false;
+  ctx.revealRuntime.channels.assistantReveal = resetRevealState();
+  rescheduleRevealTimerHelper(ctx.revealContext());
+}
+
+export function settleThinkingReveal(ctx: TextRenderContext): void {
+  if (ctx.getActiveThinkingComponent() === undefined) {
+    ctx.revealRuntime.thinkingDrainPending = false;
+    ctx.revealRuntime.channels.thinkingReveal = resetRevealState();
+    rescheduleRevealTimerHelper(ctx.revealContext());
+    return;
+  }
+  const thinkingEnd = ctx.getActiveThinkingComponent()!;
+  const target = ctx.revealRuntime.channels.thinkingReveal.target;
+  if (target.length > 0) {
+    thinkingEnd.setText(target);
+  }
+  thinkingEnd.finalize();
+  ctx.host.state.transcriptContainer.invalidateChildGeometry(thinkingEnd);
+  ctx.setActiveThinkingComponent(undefined);
+  ctx.revealRuntime.thinkingDrainPending = false;
+  ctx.revealRuntime.channels.thinkingReveal = resetRevealState();
+  rescheduleRevealTimerHelper(ctx.revealContext());
+  requestTUILayoutRender(ctx.host.state);
+  ctx.host.mergeCurrentTurnSteps();
+}
+
 export function onStreamingTextStart(ctx: TextRenderContext): void {
   const { state } = ctx.host;
+  // A new answer must not inherit a draining previous block.
+  if (ctx.getStreamingBlock() !== null) {
+    settleAssistantReveal(ctx);
+  }
   // The answer phase begins: the minimal-density tool chain summary (if
   // any) switches to its settled past-tense form.
   ctx.settleActiveChainSummary();
   ctx.clearPendingToolGroups();
   // Advance phase tracker; answer component paints its own header.
   noteStreamPhase(state, ctx.getPhaseBoundary(), 'answer');
+  ctx.revealRuntime.assistantDrainPending = false;
   ctx.revealRuntime.channels.assistantReveal = resetRevealState(appearanceAnimationNow());
   rescheduleRevealTimerHelper(ctx.revealContext());
   const entry = {
@@ -115,23 +155,57 @@ export function onStreamingTextUpdate(ctx: TextRenderContext, fullText: string):
 
 export function onStreamingTextEnd(ctx: TextRenderContext): void {
   const block = ctx.getStreamingBlock();
-  if (block !== null) {
-    // Snap any lagging reveal so finalize never leaves a partial body.
-    const nowMs = appearanceAnimationNow();
+  if (block === null) {
+    ctx.revealRuntime.assistantDrainPending = false;
+    ctx.revealRuntime.channels.assistantReveal = resetRevealState();
+    rescheduleRevealTimerHelper(ctx.revealContext());
+    return;
+  }
+
+  const nowMs = appearanceAnimationNow();
+  ctx.revealRuntime.channels.assistantReveal = setRevealTarget(
+    ctx.revealRuntime.channels.assistantReveal,
+    block.entry.content,
+    nowMs,
+  );
+  const snap = shouldSnapRevealOnFinalize(ctx.revealRuntime.channels.assistantReveal, {
+    motionAllowed: ctx.shouldSmoothStreamReveal(),
+  });
+  if (snap) {
     ctx.revealRuntime.channels.assistantReveal = snapRevealToTarget(
-      setRevealTarget(ctx.revealRuntime.channels.assistantReveal, block.entry.content, nowMs),
+      ctx.revealRuntime.channels.assistantReveal,
       nowMs,
     );
-    block.component.updateContent(block.entry.content, { transient: false });
-    ctx.host.state.transcriptContainer.invalidateChildGeometry(block.component);
+    settleAssistantReveal(ctx);
+    return;
   }
-  ctx.setStreamingBlock(null);
-  ctx.revealRuntime.channels.assistantReveal = resetRevealState();
+
+  ctx.revealRuntime.assistantDrainPending = true;
+  ctx.revealRuntime.channels.assistantReveal = tickReveal(
+    ctx.revealRuntime.channels.assistantReveal,
+    nowMs,
+  );
+  const shown = visibleText(ctx.revealRuntime.channels.assistantReveal);
+  const caughtUp =
+    ctx.revealRuntime.channels.assistantReveal.visibleEnd >=
+    ctx.revealRuntime.channels.assistantReveal.target.length;
+  block.component.updateContent(shown, { transient: !caughtUp });
+  ctx.host.state.transcriptContainer.invalidateChildGeometry(block.component);
+  if (caughtUp) {
+    settleAssistantReveal(ctx);
+    return;
+  }
   rescheduleRevealTimerHelper(ctx.revealContext());
 }
 
 export function onThinkingUpdate(ctx: TextRenderContext, fullText: string): void {
   if (fullText.length === 0 && ctx.getActiveThinkingComponent() === undefined) return;
+  if (
+    ctx.getActiveThinkingComponent() === undefined &&
+    ctx.revealRuntime.thinkingDrainPending
+  ) {
+    settleThinkingReveal(ctx);
+  }
   const { state } = ctx.host;
   const nowMs = appearanceAnimationNow();
 
@@ -198,20 +272,32 @@ export function onThinkingUpdate(ctx: TextRenderContext, fullText: string): void
 export function onThinkingEnd(ctx: TextRenderContext): void {
   if (ctx.getActiveThinkingComponent() === undefined) return;
   const nowMs = appearanceAnimationNow();
-  // Snap full thinking body before finalize so collapsed previews are complete.
-  ctx.revealRuntime.channels.thinkingReveal = snapRevealToTarget(
+  const snap = shouldSnapRevealOnFinalize(ctx.revealRuntime.channels.thinkingReveal, {
+    motionAllowed: ctx.shouldSmoothStreamReveal(),
+  });
+  if (snap) {
+    ctx.revealRuntime.channels.thinkingReveal = snapRevealToTarget(
+      ctx.revealRuntime.channels.thinkingReveal,
+      nowMs,
+    );
+    settleThinkingReveal(ctx);
+    return;
+  }
+
+  ctx.revealRuntime.thinkingDrainPending = true;
+  ctx.revealRuntime.channels.thinkingReveal = tickReveal(
     ctx.revealRuntime.channels.thinkingReveal,
     nowMs,
   );
-  const thinkingEnd = ctx.getActiveThinkingComponent()!;
-  if (ctx.revealRuntime.channels.thinkingReveal.target.length > 0) {
-    thinkingEnd.setText(ctx.revealRuntime.channels.thinkingReveal.target);
+  const thinking = ctx.getActiveThinkingComponent()!;
+  thinking.setText(visibleText(ctx.revealRuntime.channels.thinkingReveal));
+  ctx.host.state.transcriptContainer.invalidateChildGeometry(thinking);
+  if (
+    ctx.revealRuntime.channels.thinkingReveal.visibleEnd >=
+    ctx.revealRuntime.channels.thinkingReveal.target.length
+  ) {
+    settleThinkingReveal(ctx);
+    return;
   }
-  thinkingEnd.finalize();
-  ctx.host.state.transcriptContainer.invalidateChildGeometry(thinkingEnd);
-  ctx.setActiveThinkingComponent(undefined);
-  ctx.revealRuntime.channels.thinkingReveal = resetRevealState();
   rescheduleRevealTimerHelper(ctx.revealContext());
-  requestTUILayoutRender(ctx.host.state);
-  ctx.host.mergeCurrentTurnSteps();
 }
