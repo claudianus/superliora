@@ -8,7 +8,7 @@
  * and leave a ledger note. Progress never wakes the conductor turn.
  */
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '../../src/agent';
 import { renderJobDeskInjection } from '../../src/agent/injection/job-desk';
@@ -18,10 +18,13 @@ import {
   patchJob,
   renderJobLine,
 } from '../../src/tools/builtin/job/job-ledger';
+import { listUnreadJobInbox } from '../../src/tools/builtin/job/job-inbox';
 import { summarizeJobStrip } from '../../src/tools/builtin/job/job-runtime';
 import {
   __resetJobWorkerLedgerBridgeForTests,
+  armJobWorkerProgressStall,
   bindJobWorkerLedger,
+  raiseJobNeedsUserForWorker,
   reportJobWorkerProgress,
   reportJobWorkerStalled,
 } from '../../src/tools/builtin/job/job-worker-ledger-bridge';
@@ -117,6 +120,66 @@ describe('reportJobWorkerProgress', () => {
     expect(updated?.progress?.phase).toContain('5m');
     expect(updated?.notes).toContain('stall: no tool activity for 5m');
     expect(events.some((e) => e.change?.reason === 'stalled')).toBe(true);
+  });
+});
+
+describe('armJobWorkerProgressStall', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    __resetJobWorkerLedgerBridgeForTests();
+  });
+
+  it('blocks the job and writes inbox when no progress lands within the stall window', () => {
+    vi.useFakeTimers();
+    const store = memoryStore();
+    const job = runningJob(store, 'no first tool');
+    const { agent } = fakeAgent();
+    bindJobWorkerLedger('agent_stall', store, job.id, agent);
+
+    armJobWorkerProgressStall('agent_stall', { stallMs: 120 });
+    expect(getJob(store, job.id)?.status).toBe('running');
+
+    vi.advanceTimersByTime(119);
+    expect(getJob(store, job.id)?.status).toBe('running');
+
+    vi.advanceTimersByTime(2);
+    const blocked = getJob(store, job.id);
+    expect(blocked?.status).toBe('blocked');
+    expect(blocked?.notes).toContain('spawn.progress_stall');
+    const inbox = listUnreadJobInbox(store);
+    expect(inbox.some((e) => e.kind === 'job.blocked' && e.summary?.includes('spawn.progress_stall'))).toBe(
+      true,
+    );
+  });
+
+  it('clears the stall watchdog on first meaningful progress', () => {
+    vi.useFakeTimers();
+    const store = memoryStore();
+    const job = runningJob(store, 'early progress');
+    const { agent } = fakeAgent();
+    bindJobWorkerLedger('agent_ok', store, job.id, agent);
+
+    armJobWorkerProgressStall('agent_ok', { stallMs: 120 });
+    reportJobWorkerProgress('agent_ok', { phase: 'Read: plan.md' });
+    vi.advanceTimersByTime(500);
+    expect(getJob(store, job.id)?.status).toBe('running');
+    expect(getJob(store, job.id)?.notes ?? '').not.toContain('spawn.progress_stall');
+  });
+
+  it('clears the stall watchdog when needs_user is raised (interview)', () => {
+    vi.useFakeTimers();
+    const store = memoryStore();
+    const job = runningJob(store, 'interview stall');
+    const { agent } = fakeAgent();
+    bindJobWorkerLedger('agent_ask', store, job.id, agent);
+
+    armJobWorkerProgressStall('agent_ask', { stallMs: 120 });
+    raiseJobNeedsUserForWorker('agent_ask', { question: 'Ship now or later?' });
+    vi.advanceTimersByTime(500);
+    // Shared-RPC path keeps status running; must not flip to blocked via stall.
+    expect(getJob(store, job.id)?.status).toBe('running');
+    expect(getJob(store, job.id)?.notes ?? '').toContain('interview:');
+    expect(getJob(store, job.id)?.notes ?? '').not.toContain('spawn.progress_stall');
   });
 });
 

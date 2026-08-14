@@ -807,6 +807,7 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
         }
       })
       .catch(async (error: unknown) => {
+        disposeProgressStall();
         const current = getJob(input.store, job.id);
         if (current?.status === 'cancelled' || current?.status === 'interrupted') {
           return;

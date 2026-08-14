@@ -2969,3 +2969,39 @@ describe('resolveSubagentDeadlineMs', () => {
     expect(resolveSubagentDeadlineMs(1234)).toBe(1234);
   });
 });
+
+describe('resolvePlanDeskDeadlineMs', () => {
+  afterEach(() => {
+    delete process.env[SUBAGENT_DEADLINE_ENV];
+    delete process.env[PLAN_DESK_DEADLINE_ENV];
+  });
+
+  it('defaults to 45 minutes — longer than implement 30m', () => {
+    delete process.env[SUBAGENT_DEADLINE_ENV];
+    delete process.env[PLAN_DESK_DEADLINE_ENV];
+    expect(DEFAULT_PLAN_DESK_DEADLINE_MS).toBe(45 * 60 * 1000);
+    expect(resolvePlanDeskDeadlineMs()).toBe(DEFAULT_PLAN_DESK_DEADLINE_MS);
+    expect(DEFAULT_PLAN_DESK_DEADLINE_MS).toBeGreaterThan(DEFAULT_SUBAGENT_DEADLINE_MS);
+  });
+
+  it('prefers SUPERLIORA_PLAN_DESK_DEADLINE_MS over the global subagent override', () => {
+    process.env[SUBAGENT_DEADLINE_ENV] = '999';
+    process.env[PLAN_DESK_DEADLINE_ENV] = '12345';
+    expect(resolvePlanDeskDeadlineMs()).toBe(12_345);
+  });
+
+  it('falls back to SUPERLIORA_SUBAGENT_DEADLINE_MS when plan-desk env is unset', () => {
+    process.env[SUBAGENT_DEADLINE_ENV] = '777';
+    delete process.env[PLAN_DESK_DEADLINE_ENV];
+    expect(resolvePlanDeskDeadlineMs()).toBe(777);
+  });
+
+  it('keeps implement/verify on the 30m path via resolveJobWorkerTimeoutMs', () => {
+    delete process.env[SUBAGENT_DEADLINE_ENV];
+    delete process.env[PLAN_DESK_DEADLINE_ENV];
+    expect(resolveJobWorkerTimeoutMs('implement')).toBe(DEFAULT_SUBAGENT_TIMEOUT_MS);
+    expect(resolveJobWorkerTimeoutMs('verify')).toBe(DEFAULT_SUBAGENT_TIMEOUT_MS);
+    expect(resolveJobWorkerTimeoutMs('mission')).toBe(DEFAULT_PLAN_DESK_DEADLINE_MS);
+    expect(resolveJobWorkerTimeoutMs('task')).toBe(DEFAULT_SUBAGENT_TIMEOUT_MS);
+  });
+});

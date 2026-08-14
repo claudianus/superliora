@@ -35,6 +35,10 @@ import {
   shouldBlockScopeEscapeQuestion,
 } from '../../support/scope-escape-question';
 import { raiseJobNeedsUserForWorker } from '../job/job-worker-ledger-bridge';
+import {
+  pauseActiveChildDeadline,
+  resumeActiveChildDeadline,
+} from '../../../session/subagent/subagent-run-lifecycle';
 import DESCRIPTION from './ask-user.md?raw';
 
 // ── Input schema ─────────────────────────────────────────────────────
@@ -161,6 +165,7 @@ export class AskUserQuestionTool implements BuiltinTool<AskUserQuestionInput> {
       turnId,
     }: Pick<ExecutableToolContext, 'toolCallId' | 'signal' | 'turnId'>,
   ): Promise<ExecutableToolResult> {
+    const workerDeadlineChildId = workerAgentIdForDeadline(this.agent);
     try {
       if (this.shouldRejectScopeEscape(args)) {
         this.agent.telemetry.track('question_scope_escape_blocked', {
@@ -196,42 +201,52 @@ export class AskUserQuestionTool implements BuiltinTool<AskUserQuestionInput> {
 
       // Plan Desk / Job workers: surface needs_user on the parent Job ledger
       // so Conductor JobInbox sees the interview card while the shared RPC
-      // question UI still collects the answer.
+      // question UI still collects the answer. Freezes the wall-clock deadline
+      // for the interview wait so 30m/45m does not burn on the question UI.
       maybeRaiseJobNeedsUser(this.agent, args.questions);
-
-      const result = await this.agent.rpc!.requestQuestion!(
-        {
-          turnId: numericTurnId(turnId),
-          toolCallId,
-          questions: args.questions.map((q) => ({
-            question: q.question,
-            header: q.header,
-            options: q.options.map((o) => ({
-              label: o.label,
-              description: o.description,
-            })),
-            multiSelect: q.multi_select,
-          })),
-        },
-        { signal },
-      );
-
-      const normalized = normalizeQuestionResult(result);
-      if (normalized === null || Object.keys(normalized.answers).length === 0) {
-        this.agent.telemetry.track('question_dismissed');
-        return dismissedQuestionResult();
+      if (workerDeadlineChildId !== undefined) {
+        pauseActiveChildDeadline(workerDeadlineChildId);
       }
-      await this.recordUltraInterviewAnswers(args.questions, normalized.answers, 'user');
 
-      const properties: Record<string, TelemetryPropertyValue> = {
-        answered: Object.keys(normalized.answers).length,
-      };
-      if (normalized.method !== undefined) properties['method'] = normalized.method;
-      this.agent.telemetry.track('question_answered', properties);
-      return {
-        isError: false,
-        output: JSON.stringify({ answers: normalized.answers }),
-      };
+      try {
+        const result = await this.agent.rpc!.requestQuestion!(
+          {
+            turnId: numericTurnId(turnId),
+            toolCallId,
+            questions: args.questions.map((q) => ({
+              question: q.question,
+              header: q.header,
+              options: q.options.map((o) => ({
+                label: o.label,
+                description: o.description,
+              })),
+              multiSelect: q.multi_select,
+            })),
+          },
+          { signal },
+        );
+
+        const normalized = normalizeQuestionResult(result);
+        if (normalized === null || Object.keys(normalized.answers).length === 0) {
+          this.agent.telemetry.track('question_dismissed');
+          return dismissedQuestionResult();
+        }
+        await this.recordUltraInterviewAnswers(args.questions, normalized.answers, 'user');
+
+        const properties: Record<string, TelemetryPropertyValue> = {
+          answered: Object.keys(normalized.answers).length,
+        };
+        if (normalized.method !== undefined) properties['method'] = normalized.method;
+        this.agent.telemetry.track('question_answered', properties);
+        return {
+          isError: false,
+          output: JSON.stringify({ answers: normalized.answers }),
+        };
+      } finally {
+        if (workerDeadlineChildId !== undefined) {
+          resumeActiveChildDeadline(workerDeadlineChildId);
+        }
+      }
     } catch (error) {
       if (isAbortError(error) || signal.aborted) throw error;
 
@@ -573,6 +588,11 @@ export function buildAutoInterviewDecisionForTest(
   mode: string | undefined,
 ): AutoInterviewDecision | undefined {
   return tryAutoAnswerQuestions(args, mode);
+}
+
+function workerAgentIdForDeadline(agent: Agent): string | undefined {
+  if (agent.type !== 'sub' || agent.homedir === undefined) return undefined;
+  return basename(agent.homedir);
 }
 
 function maybeRaiseJobNeedsUser(

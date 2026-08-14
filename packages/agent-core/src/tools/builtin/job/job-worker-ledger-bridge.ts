@@ -238,5 +238,7 @@ export function reportJobWorkerStalled(workerAgentId: string, silentMs: number):
 }
 
 export function __resetJobWorkerLedgerBridgeForTests(): void {
+  for (const timer of progressStallTimers.values()) clearTimeout(timer);
+  progressStallTimers.clear();
   byWorkerAgentId.clear();
 }
