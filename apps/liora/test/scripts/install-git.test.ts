@@ -61,28 +61,36 @@ describe('scripts/install/ensure-git', () => {
   it('downloads PortableGit when no bash exists', async () => {
     const runtimeDir = await makeDir();
     let downloaded: { url: string; dest: string } | undefined;
-    const result = await ensureGit({
-      platform: 'win32',
-      arch: 'x64',
-      noShellRc: true,
-      runtimeDir,
-      env: {},
-      isFile: () => false,
-      downloadToFile: async (url: string, dest: string) => {
-        downloaded = { url, dest };
-      },
-      extractSfx: async (_sfx: string, dest: string) => {
-        await mkdir(join(dest, 'bin'), { recursive: true });
-        await mkdir(join(dest, 'cmd'), { recursive: true });
-        await writeFile(join(dest, 'bin', 'bash.exe'), 'bash');
-        await writeFile(join(dest, 'cmd', 'git.exe'), 'git');
-      },
-    });
-    expect(downloaded?.url).toContain('PortableGit-');
-    expect(downloaded?.url).toContain('64-bit.7z.exe');
-    expect(result.bootstrapped).toBe(true);
-    expect(result.bashPath).toBe(join(runtimeDir, 'bin', 'bash.exe'));
-    expect(result.gitPath).toBe(join(runtimeDir, 'cmd', 'git.exe'));
+    const prevShell = process.env['LIORA_SHELL_PATH'];
+    delete process.env['LIORA_SHELL_PATH'];
+    try {
+      const result = await ensureGit({
+        platform: 'win32',
+        arch: 'x64',
+        noShellRc: true,
+        runtimeDir,
+        env: {},
+        isFile: () => false,
+        downloadToFile: async (url: string, dest: string) => {
+          downloaded = { url, dest };
+        },
+        extractSfx: async (_sfx: string, dest: string) => {
+          await mkdir(join(dest, 'bin'), { recursive: true });
+          await mkdir(join(dest, 'cmd'), { recursive: true });
+          await writeFile(join(dest, 'bin', 'bash.exe'), 'bash');
+          await writeFile(join(dest, 'cmd', 'git.exe'), 'git');
+        },
+      });
+      expect(downloaded?.url).toContain('PortableGit-');
+      expect(downloaded?.url).toContain('64-bit.7z.exe');
+      expect(result.bootstrapped).toBe(true);
+      expect(result.bashPath).toBe(join(runtimeDir, 'bin', 'bash.exe'));
+      expect(result.gitPath).toBe(join(runtimeDir, 'cmd', 'git.exe'));
+      expect(process.env['LIORA_SHELL_PATH']).toBe(join(runtimeDir, 'bin', 'bash.exe'));
+    } finally {
+      if (prevShell === undefined) delete process.env['LIORA_SHELL_PATH'];
+      else process.env['LIORA_SHELL_PATH'] = prevShell;
+    }
   });
 
   it('upgrade prereq hook finds shipped ensure-git from the CLI package root', async () => {
