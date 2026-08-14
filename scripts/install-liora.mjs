@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { existsSync } from 'node:fs';
-import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 
@@ -11,7 +11,6 @@ import {
   renderPosixSeaShim,
   renderPosixWrapper,
   renderWindowsCmdWrapper,
-  renderWindowsPs1Wrapper,
   renderWindowsSeaShim,
 } from './install/wrappers.mjs';
 
@@ -84,21 +83,23 @@ async function installWindowsWrappers(appDir, outDir, name) {
   const mainFile = resolve(appDir, 'dist/main.mjs');
   const cmdPath = resolve(outDir, `${name}.cmd`);
   const psPath = resolve(outDir, `${name}.ps1`);
-  for (const path of [cmdPath, psPath]) {
-    if (existsSync(path) && !(await isManagedWrapper(path)) && !args.force) {
-      fail(`${path} already exists and is not managed by this installer. Re-run with --force.`);
+  if (existsSync(cmdPath) && !(await isManagedWrapper(cmdPath)) && !args.force) {
+    fail(`${cmdPath} already exists and is not managed by this installer. Re-run with --force.`);
+  }
+  // PowerShell resolves `name.ps1` before `name.cmd`. A leftover .ps1 is then
+  // blocked by the default ExecutionPolicy, so `name` looks like an install
+  // failure. Only the .cmd shim is on PATH.
+  if (existsSync(psPath)) {
+    if (!(await isManagedWrapper(psPath)) && !args.force) {
+      fail(`${psPath} would shadow ${name}.cmd. Re-run with --force to replace it.`);
     }
+    await unlink(psPath);
   }
   const cmd = renderWindowsCmdWrapper(appDir, {
     mainFile,
     nodeFallback: process.execPath,
   });
   await writeFile(cmdPath, cmd, 'utf8');
-  await writeFile(
-    psPath,
-    renderWindowsPs1Wrapper(appDir, { mainFile, nodeFallback: process.execPath }),
-    'utf8',
-  );
 }
 
 async function isManagedWrapper(filePath) {

@@ -89,12 +89,17 @@ describe('scripts/install-liora.mjs', () => {
     expect(sh).toContain('--prefer-source');
     expect(sh).toContain('--main');
     expect(ps1).toContain('PreferSource');
-    expect(ps1).toContain('$Main');
+    expect(ps1).toContain('--main');
     expect(ps1).toContain('NoShellRc');
     expect(ps1).toContain('$PSScriptRoot');
     expect(ps1).not.toContain('$MyInvocation.MyCommand.Path');
+    expect(ps1).not.toMatch(/^param\s*\(/m);
     expect(ps1).toMatch(/&\s*\{/);
     expect(ps1).toContain('} @args');
+    expect(ps1).toContain('Invoke-WebRequest -UseBasicParsing');
+    expect(ps1).toContain('SUPERLIORA_NO_SHELL_RC');
+    expect(ps1).toContain('SUPERLIORA_INSTALL_DUMP');
+    expect(ps1).toContain('Add-SessionPath');
     const cmd = await readFile(windowsCmdInstallScript, 'utf-8');
     expect(cmd).toContain('install.ps1');
     expect(cmd).toContain('cmd.exe');
@@ -107,6 +112,10 @@ describe('scripts/install-liora.mjs', () => {
     expect(ps1).toContain('wrappers.mjs');
     expect(ps1).toContain('ensure-git.mjs');
     expect(ps1).toContain('NoGit');
+    const orch = await readFile(resolve(repoRoot, 'scripts/install-superliora.mjs'), 'utf-8');
+    expect(orch).toContain("SUPERLIORA_NO_SHELL_RC === '1'");
+    expect(orch).toContain('Git bootstrap failed');
+    expect(sh).toContain('SUPERLIORA_NO_SHELL_RC');
   });
 
   it('keeps install.ps1 and install.cmd ASCII so Windows PowerShell 5.1 parses them on any code page', async () => {

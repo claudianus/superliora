@@ -52,10 +52,9 @@ describe('scripts/install/ensure-git', () => {
     expect(found?.source).toBe('LIORA_SHELL_PATH');
   });
 
-  it.skipIf(process.platform !== 'win32')('reuses an existing Git Bash install', async () => {
+  it.skipIf(process.platform !== 'win32')('finds or bootstraps Git Bash on Windows', async () => {
     const result = await ensureGit({ noShellRc: true });
     expect(result.skipped).not.toBe(true);
-    expect(result.bootstrapped).toBe(false);
     expect(result.bashPath?.toLowerCase()).toContain('bash.exe');
   });
 

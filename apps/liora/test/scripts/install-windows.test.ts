@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -34,8 +35,13 @@ describe('Windows install wrappers and spawn', () => {
     await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
   });
 
-  it('writes liora.cmd and liora.ps1 from the shipped installer', async () => {
+  it('writes liora.cmd and removes a leftover liora.ps1 that would shadow it', async () => {
     const binDir = await makeDir('liora-win-bin-');
+    await writeFile(
+      join(binDir, 'liora.ps1'),
+      `# ${WRAPPER_MARKER}\nWrite-Output 'stale'\n`,
+      'utf8',
+    );
     await execFileAsync(process.execPath, [
       installScript,
       '--bin-dir',
@@ -45,15 +51,17 @@ describe('Windows install wrappers and spawn', () => {
     ], { cwd: repoRoot });
 
     const cmd = await readFile(join(binDir, 'liora.cmd'), 'utf-8');
-    const ps1 = await readFile(join(binDir, 'liora.ps1'), 'utf-8');
     expect(cmd).toContain(WRAPPER_MARKER);
     expect(cmd).toMatch(/dist[/\\]main\.mjs/);
     expect(cmd).toContain('dev:cli-only');
-    expect(ps1).toContain(WRAPPER_MARKER);
-    expect(ps1).toMatch(/dist[/\\]main\.mjs/);
+    await expect(readFile(join(binDir, 'liora.ps1'), 'utf-8')).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
   });
 
-  it.skipIf(process.platform !== 'win32')('spawns the produced liora.cmd --version', async () => {
+  it.skipIf(
+    process.platform !== 'win32' || !existsSync(join(repoRoot, 'apps/liora/dist/main.mjs')),
+  )('spawns the produced liora.cmd --version', async () => {
     const binDir = await makeDir('liora-win-spawn-');
     await execFileAsync(process.execPath, [
       installScript,
@@ -136,12 +144,14 @@ describe('Windows install wrappers and spawn', () => {
   it.skipIf(process.platform !== 'win32')('runs install.ps1 --help without installing', async () => {
     const { stdout } = await execFileAsync(
       'powershell',
-      ['-NoProfile', '-File', windowsSourceInstallScript, '--help'],
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', windowsSourceInstallScript, '--help'],
       { cwd: repoRoot },
     );
     expect(stdout).toContain('install.ps1');
     expect(stdout).toContain('--no-shell-rc');
     expect(stdout).toContain('cmd.exe');
+    expect(stdout).toContain('session PATH');
+    expect(stdout).toContain('SUPERLIORA_*');
   });
 
   it.skipIf(process.platform !== 'win32')(
@@ -219,4 +229,125 @@ describe('Windows install wrappers and spawn', () => {
     const { stdout } = await execFileAsync('powershell', ['-NoProfile', '-Command', command]);
     expect(stdout).toContain('PARSE_OK');
   });
+
+  it('downloads over HTTP with UseBasicParsing on every Invoke-WebRequest', async () => {
+    const ps1 = await readFile(windowsSourceInstallScript, 'utf-8');
+    const lines = [...ps1.matchAll(/Invoke-WebRequest[^\n]*/g)].map((match) => match[0]);
+    expect(lines.length).toBeGreaterThan(0);
+    for (const line of lines) {
+      expect(line).toContain('-UseBasicParsing');
+    }
+    expect(ps1).toContain('$ProgressPreference = \'SilentlyContinue\'');
+    expect(ps1).toContain('.superliora\\runtime\\node');
+  });
+
+  it.skipIf(process.platform !== 'win32')(
+    'parses GNU and PowerShell flags in dump mode without treating them as named parameters',
+    async () => {
+      const binDir = 'C:\\Apps\\SuperLiora\\bin';
+      const { stdout } = await execFileAsync(
+        'powershell',
+        [
+          '-NoProfile',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-File',
+          windowsSourceInstallScript,
+          '--prefer-source',
+          '--no-browser-use',
+          '--no-git',
+          '--bin-dir',
+          binDir,
+          '--no-shell-rc',
+        ],
+        { env: { ...process.env, SUPERLIORA_INSTALL_DUMP: '1' } },
+      );
+      expect(stdout).toContain(`DUMP binDir=${binDir}`);
+      expect(stdout).toContain('DUMP preferSource=1');
+      expect(stdout).toContain('DUMP noBrowserUse=1');
+      expect(stdout).toContain('DUMP noGit=1');
+      expect(stdout).toContain('DUMP noPath=1');
+      expect(stdout).toContain('DUMP noShellRc=1');
+      expect(stdout).toContain('DUMP ok');
+      expect(stdout).not.toContain('bootstrapping');
+      expect(stdout).not.toMatch(/param :/);
+      expect(stdout).not.toMatch(/A parameter cannot be found/i);
+    },
+  );
+
+  it.skipIf(process.platform !== 'win32')('parses --bin-dir=value and -PreferSource in dump mode', async () => {
+    const binDir = 'C:\\Apps\\Equals\\bin';
+    const { stdout: equalsOut } = await execFileAsync(
+      'powershell',
+      [
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        windowsSourceInstallScript,
+        `--bin-dir=${binDir}`,
+        '--main',
+      ],
+      { env: { ...process.env, SUPERLIORA_INSTALL_DUMP: '1' } },
+    );
+    expect(equalsOut).toContain(`DUMP binDir=${binDir}`);
+    expect(equalsOut).toContain('DUMP main=1');
+
+    const psBin = 'C:\\Apps\\Pascal\\bin';
+    const { stdout: pascalOut } = await execFileAsync(
+      'powershell',
+      [
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        windowsSourceInstallScript,
+        '-PreferSource',
+        '-BinDir',
+        psBin,
+        '-NoShellRc',
+      ],
+      { env: { ...process.env, SUPERLIORA_INSTALL_DUMP: '1' } },
+    );
+    expect(pascalOut).toContain(`DUMP binDir=${psBin}`);
+    expect(pascalOut).toContain('DUMP preferSource=1');
+    expect(pascalOut).toContain('DUMP noShellRc=1');
+  });
+
+  it.skipIf(process.platform !== 'win32')(
+    'puts liora on the current session PATH after irm|iex dump (no new window required)',
+    async () => {
+      const binDir = await makeDir('liora-ps-path-');
+      const commandName = 'liorasmoke';
+      await writeFile(
+        join(binDir, `${commandName}.cmd`),
+        '@echo off\r\necho SMOKE_OK\r\n',
+        'utf8',
+      );
+      const escapedScript = windowsSourceInstallScript.replaceAll("'", "''");
+      const escapedBin = binDir.replaceAll("'", "''");
+      const command = [
+        "$ErrorActionPreference = 'Stop'",
+        "$env:SUPERLIORA_INSTALL_DUMP = '1'",
+        "$env:SUPERLIORA_NO_SHELL_RC = '1'",
+        `$env:SUPERLIORA_BIN_DIR = '${escapedBin}'`,
+        `$env:SUPERLIORA_COMMAND = '${commandName}'`,
+        `Get-Content -LiteralPath '${escapedScript}' -Raw | Invoke-Expression`,
+        `if (-not (Get-Command ${commandName} -ErrorAction SilentlyContinue)) { throw '${commandName} missing from session PATH' }`,
+        commandName,
+      ].join('; ');
+      const { stdout } = await execFileAsync('powershell', ['-NoProfile', '-Command', command], {
+        env: {
+          ...process.env,
+          SUPERLIORA_INSTALL_DUMP: '1',
+          SUPERLIORA_NO_SHELL_RC: '1',
+          SUPERLIORA_BIN_DIR: binDir,
+          SUPERLIORA_COMMAND: commandName,
+        },
+      });
+      expect(stdout).toContain('DUMP ok');
+      expect(stdout).toContain('SMOKE_OK');
+      expect(stdout).not.toMatch(/param :/);
+    },
+  );
 });

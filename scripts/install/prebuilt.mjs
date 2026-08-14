@@ -82,6 +82,9 @@ export async function installPrebuilt(options) {
   if (process.platform === 'win32') {
     const cmdPath = join(binDir, commandFileName(commandName, 'win32'));
     await writeFile(cmdPath, renderWindowsSeaCmd(destName), 'utf8');
+    // A leftover source-install .ps1 wins over .cmd/.exe in PowerShell and
+    // then dies on the default ExecutionPolicy.
+    await unlink(join(binDir, `${commandName}.ps1`)).catch(() => {});
   }
 
   const verifyPath =
