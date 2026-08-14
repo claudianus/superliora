@@ -1,5 +1,15 @@
 # @superliora/liora
 
+## 0.9.5
+
+### Patch Changes
+
+- Stop the TUI from full-clearing on terminal resize, editor panel replace, and transcript shrink; keep the last streaming line revealing instead of snapping.
+- Fix Windows install so `liora` works in the same PowerShell window after `irm | iex`, and find PortableGit under `~/.superliora/runtime/git`.
+- Stop session resume from crashing when a Conductor job worktree is missing; remount the branch or hold the job instead.
+- Fix Conductor affinity reuse under blocked parents so continue_from children schedule instead of staying queued.
+- Prefer newer same-family models at equal price in smart role routing; stop stale prompt ghost text from covering typed input.
+
 ## 0.9.4
 
 ### Patch Changes
