@@ -10,6 +10,7 @@ import {
   readUpdateInstallState,
   writeUpdateInstallState,
 } from '#/cli/update/install-state';
+import { spawnOptionsForSource } from '#/cli/update/install-spawn';
 import {
   installCommandFor,
   parseUpgradeStageLine,
@@ -245,6 +246,17 @@ function mockSpawnExit(code: number, signal: NodeJS.Signals | null = null): void
   });
 }
 
+function npmBackgroundSpawnOptions(): ReturnType<typeof spawnOptionsForSource> {
+  return spawnOptionsForSource('npm-global', process.platform, {
+    detached: true,
+    stdio: 'ignore',
+  });
+}
+
+function cmdShimForegroundSpawnOptions(): ReturnType<typeof spawnOptionsForSource> {
+  return spawnOptionsForSource('npm-global', process.platform, { stdio: 'inherit' });
+}
+
 async function flushBackgroundInstall(): Promise<void> {
   await new Promise<void>((resolve) => {
     setImmediate(resolve);
@@ -359,7 +371,7 @@ describe('runUpdatePreflight', () => {
     expect(mocks.spawn).toHaveBeenCalledWith(
       expect.stringMatching(/^npm(\.cmd)?$/),
       ['install', '-g', '@superliora/liora@0.5.0'],
-      { detached: true, stdio: 'ignore' },
+      npmBackgroundSpawnOptions(),
     );
   });
 
@@ -420,7 +432,7 @@ describe('runUpdatePreflight', () => {
     expect(mocks.spawn).toHaveBeenCalledWith(
       expect.stringMatching(/^npm(\.cmd)?$/),
       ['install', '-g', '@superliora/liora@0.5.0'],
-      { stdio: 'inherit' },
+      cmdShimForegroundSpawnOptions(),
     );
     expect(stdout.join('')).toContain('Updated @superliora/liora to 0.5.0');
   });
@@ -446,7 +458,7 @@ describe('runUpdatePreflight', () => {
     expect(mocks.spawn).toHaveBeenCalledWith(
       expect.stringMatching(/^npm(\.cmd)?$/),
       ['install', '-g', '@superliora/liora@0.7.0'],
-      { stdio: 'inherit' },
+      cmdShimForegroundSpawnOptions(),
     );
     expect(stdout.join('')).toContain('Updated @superliora/liora to 0.7.0');
   });
@@ -488,7 +500,7 @@ describe('runUpdatePreflight', () => {
     expect(mocks.spawn).toHaveBeenCalledWith(
       expect.stringMatching(/^pnpm(\.cmd)?$/),
       ['add', '-g', '@superliora/liora@0.5.0'],
-      { stdio: 'inherit' },
+      spawnOptionsForSource('pnpm-global', process.platform, { stdio: 'inherit' }),
     );
   });
 
@@ -504,7 +516,7 @@ describe('runUpdatePreflight', () => {
     expect(mocks.spawn).toHaveBeenCalledWith(
       expect.stringMatching(/^yarn(\.cmd)?$/),
       ['global', 'add', '@superliora/liora@0.5.0'],
-      { stdio: 'inherit' },
+      spawnOptionsForSource('yarn-global', process.platform, { stdio: 'inherit' }),
     );
   });
 
@@ -583,10 +595,11 @@ describe('runUpdatePreflight', () => {
       const { options } = captureOutput();
       await runUpdatePreflight('0.4.0', options);
       const call = mocks.spawn.mock.calls[0];
-      expect(call?.[0]).toBe('powershell');
+      expect(call?.[0]).toBe('powershell.exe');
       const args = call?.[1] as string[];
       expect(args.join(' ')).toContain('install.ps1');
       expect(args.join(' ')).toContain('irm');
+      expect(call?.[2]).toEqual({ stdio: 'inherit' });
     } finally {
       Object.defineProperty(process, 'platform', { value: originalPlatform });
     }
@@ -786,7 +799,7 @@ describe('runUpdatePreflight', () => {
     expect(mocks.spawn).toHaveBeenCalledWith(
       expect.stringMatching(/^npm(\.cmd)?$/),
       ['install', '-g', '@superliora/liora@0.5.0'],
-      { detached: true, stdio: 'ignore' },
+      npmBackgroundSpawnOptions(),
     );
     expect(writeUpdateInstallState).toHaveBeenCalledWith(expect.objectContaining({
       active: expect.objectContaining({
@@ -858,7 +871,7 @@ describe('runUpdatePreflight', () => {
     expect(mocks.spawn).toHaveBeenCalledWith(
       expect.stringMatching(/^npm(\.cmd)?$/),
       ['install', '-g', '@superliora/liora@0.5.0'],
-      { detached: true, stdio: 'ignore' },
+      npmBackgroundSpawnOptions(),
     );
   });
 
@@ -1143,7 +1156,7 @@ describe('runUpdatePreflight', () => {
       expect(mocks.spawn).toHaveBeenCalledWith(
         expect.stringMatching(/^npm(\.cmd)?$/),
         ['install', '-g', '@superliora/liora@0.5.0'],
-        { detached: true, stdio: 'ignore' },
+        npmBackgroundSpawnOptions(),
       );
       expect(track).toHaveBeenCalledWith('update_background_install_started', expect.objectContaining({
         target_version: '0.5.0',
@@ -1269,7 +1282,7 @@ describe('runUpdatePreflight', () => {
       expect(mocks.spawn).toHaveBeenCalledWith(
         expect.stringMatching(/^npm(\.cmd)?$/),
         ['install', '-g', '@superliora/liora@0.5.0'],
-        { detached: true, stdio: 'ignore' },
+        npmBackgroundSpawnOptions(),
       );
       expect(track).toHaveBeenCalledWith('update_background_install_started', expect.objectContaining({
         target_version: '0.5.0',
@@ -1325,8 +1338,7 @@ describe('spawnForSource native', () => {
   // so a curl that never connects (exit 7, empty stdin → bash exits 0) is
   // masked and the update is wrongly reported as successful. `set -o pipefail`
   // makes the pipeline surface curl's failure. Shadowing `curl` with a shell
-  // function keeps this offline and deterministic; skipped on Windows (no bash,
-  // and native auto-install is unsupported there anyway).
+  // function keeps this offline and deterministic; skipped on Windows (no bash).
   it.skipIf(process.platform === 'win32')(
     'surfaces a failed curl download as a non-zero exit',
     () => {
@@ -1639,5 +1651,72 @@ describe('upgrade install stages', () => {
     expect(failed).toBeDefined();
     expect(failed?.detail).toContain('permission denied');
     expect(failed?.detail).toContain('EACCES');
+  });
+
+  it('spawns native Windows upgrades without cmd.exe so | iex stays in PowerShell', async () => {
+    const child = createPipedChild();
+    const spawn = vi.fn(() => {
+      queueMicrotask(() => { child.emit('exit', 0, null); });
+      return child;
+    });
+
+    const result = await startObservedUpgradeInstall(
+      {
+        currentVersion: '0.4.0',
+        targetVersion: '0.5.0',
+        source: 'native',
+        platform: 'win32',
+      },
+      {
+        spawn: spawn as unknown as typeof import('node:child_process').spawn,
+        tryAcquireUpdateInstallLock: async () => ({
+          filePath: '/tmp/liora-update-install.lock',
+          release: vi.fn().mockResolvedValue(undefined),
+        }),
+        readUpdateInstallState: async () => emptyUpdateInstallState(),
+        writeUpdateInstallState: vi.fn().mockResolvedValue(undefined),
+      },
+    );
+
+    expect(result.started).toBe(true);
+    expect(spawn).toHaveBeenCalledWith(
+      'powershell.exe',
+      expect.arrayContaining(['-Command']),
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    const args = spawn.mock.calls[0]?.[1] as string[];
+    expect(args.join(' ')).toContain('| iex');
+  });
+
+  it('still uses a Windows shell for npm.cmd observed installs', async () => {
+    const child = createPipedChild();
+    const spawn = vi.fn(() => {
+      queueMicrotask(() => { child.emit('exit', 0, null); });
+      return child;
+    });
+
+    await startObservedUpgradeInstall(
+      {
+        currentVersion: '0.4.0',
+        targetVersion: '0.5.0',
+        source: 'npm-global',
+        platform: 'win32',
+      },
+      {
+        spawn: spawn as unknown as typeof import('node:child_process').spawn,
+        tryAcquireUpdateInstallLock: async () => ({
+          filePath: '/tmp/liora-update-install.lock',
+          release: vi.fn().mockResolvedValue(undefined),
+        }),
+        readUpdateInstallState: async () => emptyUpdateInstallState(),
+        writeUpdateInstallState: vi.fn().mockResolvedValue(undefined),
+      },
+    );
+
+    expect(spawn).toHaveBeenCalledWith(
+      'npm.cmd',
+      ['install', '-g', '@superliora/liora@0.5.0'],
+      { stdio: ['ignore', 'pipe', 'pipe'], shell: true },
+    );
   });
 });

@@ -1,3 +1,5 @@
+import type { SpawnOptions } from 'node:child_process';
+
 import {
   NATIVE_INSTALL_COMMAND_UNIX,
   NATIVE_INSTALL_COMMAND_WIN,
@@ -131,8 +133,10 @@ export function spawnForSource(
     case 'native':
       if (platform === 'win32') {
         // Surface irm failures instead of treating an empty pipeline as success.
+        // Call powershell.exe directly. `shell: true` on Windows wraps this in
+        // cmd.exe, which steals `| iex` and fails with "'iex' is not recognized".
         return {
-          cmd: 'powershell',
+          cmd: 'powershell.exe',
           args: [
             '-NoProfile',
             '-ExecutionPolicy',
@@ -156,5 +160,28 @@ export function spawnForSource(
         return spawnForSource('native', version, platform, { fromMain: true });
       }
       throw new Error('unsupported install source cannot be auto-installed');
+  }
+}
+
+/**
+ * Windows `.cmd` shims (npm/pnpm/yarn) need `shell: true` on Node 20+;
+ * spawning a batch file without a shell throws EINVAL.
+ *
+ * Native install is `powershell.exe -Command "… | iex"`. Wrapping that in
+ * cmd.exe makes `|` a cmd pipe, so `iex` is "not recognized".
+ */
+export function spawnOptionsForSource(
+  source: InstallSource,
+  platform: NodeJS.Platform,
+  extra: SpawnOptions,
+): SpawnOptions {
+  if (platform !== 'win32') return extra;
+  switch (source) {
+    case 'npm-global':
+    case 'pnpm-global':
+    case 'yarn-global':
+      return { ...extra, shell: true };
+    default:
+      return extra;
   }
 }
