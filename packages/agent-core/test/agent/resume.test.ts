@@ -21,6 +21,31 @@ const MOCK_PROVIDER = {
 } as const;
 
 describe('Agent resume', () => {
+  it('replays a deleted-worktree cwd without crashing resume', async () => {
+    const gone = join(tmpdir(), 'liora-missing-cwd-does-not-exist');
+    const chdir = vi.fn(async () => {
+      throw Object.assign(new Error(`ENOENT: ${gone}`), { code: 'ENOENT' });
+    });
+    const persistence = new RecordingAgentPersistence([
+      {
+        type: 'config.update',
+        cwd: gone,
+      },
+    ]);
+    const ctx = testAgent({
+      persistence,
+      kaos: createFakeKaos({
+        getcwd: () => '/workspace',
+        chdir,
+      }),
+    });
+
+    await expect(ctx.agent.resume()).resolves.toMatchObject({});
+    expect(chdir).not.toHaveBeenCalled();
+    expect(ctx.agent.config.cwd).toBe(gone);
+    expect(ctx.agent.kaos.getcwd()).toBe(gone);
+  });
+
   it('does not append metadata when resuming records that include legacy app version', async () => {
     const persistence = new RecordingAgentPersistence([
       {

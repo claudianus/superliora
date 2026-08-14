@@ -13,5 +13,7 @@ async function runCommand(kaos: Kaos, args: readonly string[], timeoutMs: number
 }
 function collect(s: NodeJS.ReadableStream): Promise<string> { return new Promise((r) => { let d = ''; s.setEncoding('utf8'); s.on('data', (c) => { d += c; }); s.on('end', () =>{  r(d); }); s.on('error', () =>{  r(d); }); }); }
 export async function createWorktree(kaos: Kaos, root: string, target: string, branch: string, base: string): Promise<GitCommandResult> { return runGit(kaos, root, ['worktree', 'add', '-b', branch, target, base]); }
+/** Reattach an existing branch to a worktree path (`git worktree add <path> <branch>`). */
+export async function attachWorktree(kaos: Kaos, root: string, target: string, branch: string): Promise<GitCommandResult> { return runGit(kaos, root, ['worktree', 'add', target, branch]); }
 export async function removeWorktree(kaos: Kaos, root: string, target: string): Promise<void> { await runGit(kaos, root, ['worktree', 'remove', '--force', target]); await runGit(kaos, root, ['worktree', 'prune']); }
 export async function commitAll(kaos: Kaos, cwd: string, msg: string): Promise<GitCommandResult> { const a = await runGit(kaos, cwd, ['add', '-A']); return a.ok ? runGit(kaos, cwd, ['commit', '-m', msg]) : a; }

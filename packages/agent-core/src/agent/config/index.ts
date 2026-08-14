@@ -59,8 +59,7 @@ export class ConfigState {
       config: changed,
     });
     if (changed.cwd) {
-      this._cwd = changed.cwd;
-      void this.agent.kaos.chdir(changed.cwd);
+      this.applyCwd(changed.cwd);
     }
     if (changed.modelAlias) {
       this._modelAlias = changed.modelAlias;
@@ -110,6 +109,45 @@ export class ConfigState {
         debugging: loopControl?.debuggingModel,
       },
     };
+  }
+
+  /**
+   * Pin `config.cwd` and the agent Kaos instance to `cwd`.
+   *
+   * Restore must stay in-memory (no `stat`/`chdir`): a deleted Conductor
+   * worktree would otherwise reject the fire-and-forget `chdir` and crash
+   * session resume. Live updates still `chdir` so relative I/O stays honest,
+   * but a missing directory falls back to the last valid cwd instead of
+   * becoming an unhandled rejection.
+   */
+  private applyCwd(cwd: string): void {
+    this._cwd = cwd;
+    if (this.agent.records.restoring !== null) {
+      this.agent.setKaos(this.agent.kaos.withCwd(cwd));
+      return;
+    }
+    void this.syncLiveCwd(cwd);
+  }
+
+  private async syncLiveCwd(cwd: string): Promise<void> {
+    const previous = this.agent.kaos.getcwd();
+    try {
+      await this.agent.kaos.chdir(cwd);
+    } catch (error) {
+      this._cwd = previous;
+      const detail = error instanceof Error ? error.message : String(error);
+      this.agent.log.warn('config cwd missing; stayed in last valid directory', {
+        cwd,
+        fallback: previous,
+        error: detail,
+      });
+      this.agent.emitEvent({
+        type: 'warning',
+        message: `Working directory is gone (${cwd}); staying in ${previous}.`,
+        code: 'cwd-missing',
+        details: { cwd, fallback: previous },
+      });
+    }
   }
 
   get cwd(): string {

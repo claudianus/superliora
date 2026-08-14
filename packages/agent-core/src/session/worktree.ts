@@ -3,7 +3,7 @@ import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'pathe';
 import { LocalKaos, type Kaos } from '@superliora/kaos';
 
-import { createWorktree, removeWorktree, runGit } from '#/autopilot/git';
+import { attachWorktree, createWorktree, removeWorktree, runGit } from '#/autopilot/git';
 import { resolveLioraHome } from '#/config/path';
 import { ErrorCodes, LioraError } from '#/errors/index';
 import { slugifyWorkDirName } from '#/utils/workdir-slug';
@@ -306,6 +306,86 @@ export async function createSessionWorktree(
   };
 
   return { workDir: target, meta, record };
+}
+
+export interface AttachSessionWorktreeInput {
+  /** Absolute path of the source checkout (any path inside the git repo). */
+  readonly repoPath: string;
+  /** Directory to remount (usually the previous worktree path). */
+  readonly path: string;
+  /** Existing local branch to check out into `path`. */
+  readonly branch: string;
+  /** Registry name; defaults to the last path segment. */
+  readonly name?: string | undefined;
+  readonly homeDir?: string | undefined;
+}
+
+/**
+ * Reattach an existing `liora/*` (or other) branch at `path`.
+ *
+ * Used when a Conductor job still points at a worktree directory that was
+ * deleted (hygiene / GC / crash) but the branch tip is intact. Prunes stale
+ * git worktree metadata first so `git worktree add <path> <branch>` can run.
+ */
+export async function attachSessionWorktree(
+  kaos: Kaos,
+  input: AttachSessionWorktreeInput,
+): Promise<CreateSessionWorktreeResult> {
+  const repoRoot = await resolveGitRepoRoot(kaos, input.repoPath);
+  const target = resolve(input.path);
+  const name = generateWorktreeName(input.name ?? basename(target));
+  const parent = dirname(target);
+  await mkdir(parent, { recursive: true, mode: 0o700 });
+  await runGit(kaos, repoRoot, ['worktree', 'prune']);
+
+  const attached = await attachWorktree(kaos, repoRoot, target, input.branch);
+  if (!attached.ok) {
+    throw new LioraError(
+      ErrorCodes.WORKTREE_CREATE_FAILED,
+      `Failed to remount git worktree at "${target}": ${attached.stderr || attached.stdout || 'unknown error'}`,
+      {
+        details: {
+          name,
+          path: target,
+          repoRoot,
+          branch: input.branch,
+          stderr: attached.stderr,
+          exitCode: attached.exitCode,
+        },
+      },
+    );
+  }
+
+  const now = new Date().toISOString();
+  const record: WorktreeRecord = {
+    name,
+    path: target,
+    repoRoot,
+    branch: input.branch,
+    baseRef: input.branch,
+    createdAt: now,
+    lastAccessedAt: now,
+  };
+  await upsertRegistryEntry(input.homeDir, record);
+
+  const meta: SessionWorktreeMeta = {
+    path: target,
+    branch: input.branch,
+    repoRoot,
+    name,
+    baseRef: input.branch,
+    createdAt: now,
+  };
+  return { workDir: target, meta, record };
+}
+
+export async function sessionWorktreeDirExists(path: string): Promise<boolean> {
+  try {
+    const s = await stat(path);
+    return s.isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 export async function listSessionWorktrees(

@@ -986,9 +986,10 @@ function createResumeNoSideEffectKaos(
     throw new Error(`Resume replay unexpectedly called kaos.${method}`);
   };
 
-  // Replay may carry `config.update({cwd})` events that route through
-  // `kaos.chdir(...)`; let those mutate an internal cwd field so replay
-  // succeeds. Actual fs I/O methods remain forbidden. `pathClass` mirrors
+  // Replay may carry `config.update({cwd})` events. Restore remounts via
+  // `withCwd` (no filesystem `chdir`/`stat`) so a deleted worktree cannot
+  // crash resume. Keep `chdir` as an in-memory fallback for older paths.
+  // Actual fs I/O methods remain forbidden. `pathClass` mirrors
   // the live agent's kaos so platform-conditional tool descriptions (e.g.
   // Glob's Windows note) match the original in `expectResumeMatches`.
   let cwd = initialCwd;

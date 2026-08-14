@@ -1,5 +1,8 @@
+import { tmpdir } from 'node:os';
+import { join } from 'pathe';
+
 import type { ModelCapability, ProviderConfig, ToolCall } from '@superliora/kosong';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { ResolvedAgentProfile } from '../../src/profile';
 import { createCommandKaos, testAgent } from './harness/agent';
@@ -105,6 +108,21 @@ describe('Agent config', () => {
     ctx.agent.useProfile(profile);
 
     expect(ctx.agent.config.systemPrompt).toBe('Prompt with additional dirs: none');
+  });
+
+  it('live config.update with a missing cwd stays in the last valid directory', async () => {
+    const gone = join(tmpdir(), 'liora-live-missing-cwd-does-not-exist');
+    const ctx = testAgent();
+    const previous = ctx.agent.config.cwd;
+
+    ctx.agent.config.update({ cwd: gone });
+
+    await vi.waitFor(() => {
+      expect(ctx.agent.config.cwd).toBe(previous);
+    });
+    expect(ctx.allEvents.some((entry) => entry.type === '[rpc]' && entry.event === 'warning')).toBe(
+      true,
+    );
   });
 
   it('config.update with cwd initializes builtin tools', async () => {
