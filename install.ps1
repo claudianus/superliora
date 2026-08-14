@@ -19,6 +19,7 @@ try {
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
 $ProgressPreference = 'SilentlyContinue'
+$installState = @{ Failed = $false }
 
 $DefaultRepoUrl = 'https://github.com/claudianus/superliora.git'
 $DefaultRef = 'main'
@@ -81,6 +82,7 @@ function Get-ValueOrDefault {
 
 function Fail {
   param([string]$Message)
+  $installState.Failed = $true
   Write-Host ($StagePrefix + 'failed')
   throw $Message
 }
@@ -246,14 +248,47 @@ function Find-Node {
   return $null
 }
 
+# Do not read RuntimeInformation.OSArchitecture with :: or dot access.
+# Set-StrictMode 2.0 throws PropertyNotFoundStrict when that property is
+# missing: older .NET, or a shadowed netstandard RuntimeInformation type
+# that never had OSArchitecture. Env vars work on every Windows host.
+function Convert-WindowsArchToken {
+  param([string]$Raw)
+  if ([string]::IsNullOrWhiteSpace($Raw)) { return $null }
+  switch -Regex ($Raw.Trim()) {
+    '^(Arm64|ARM64|aarch64)$' { return 'arm64' }
+    '^(X64|AMD64|amd64|x86_64|x64)$' { return 'x64' }
+    default { return $null }
+  }
+}
+
+function Get-RuntimeOsArchToken {
+  try {
+    $riType = [System.Runtime.InteropServices.RuntimeInformation]
+    $prop = $riType.GetProperty('OSArchitecture')
+    if ($null -eq $prop) { return $null }
+    $value = $prop.GetValue($null, $null)
+    if ($null -eq $value) { return $null }
+    return [string]$value
+  } catch {
+    return $null
+  }
+}
+
+function Get-WindowsNodeArch {
+  $wow = [Environment]::GetEnvironmentVariable('PROCESSOR_ARCHITEW6432', 'Process')
+  $proc = [Environment]::GetEnvironmentVariable('PROCESSOR_ARCHITECTURE', 'Process')
+  foreach ($item in @((Get-RuntimeOsArchToken), $wow, $proc)) {
+    $mapped = Convert-WindowsArchToken $item
+    if ($mapped) { return $mapped }
+  }
+  if ([Environment]::Is64BitOperatingSystem) { return 'x64' }
+  Fail ('unsupported arch for Node bootstrap (PROCESSOR_ARCHITECTURE=' + $proc + ' PROCESSOR_ARCHITEW6432=' + $wow + ')')
+}
+
 function Install-LocalNode {
   param([string]$Version, [string]$HomeDir)
-  $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
-  $nodeArch = switch ($arch) {
-    'Arm64' { 'arm64' }
-    'X64' { 'x64' }
-    default { Fail ('unsupported arch for Node bootstrap: ' + $arch) }
-  }
+  $nodeArch = Get-WindowsNodeArch
   $slug = 'node-v' + $Version + '-win-' + $nodeArch
   $url = 'https://nodejs.org/dist/v' + $Version + '/' + $slug + '.zip'
   $runtime = Join-Path $HomeDir '.superliora\runtime\node'
@@ -298,10 +333,13 @@ function Write-Dump {
   Write-Host ('DUMP main=' + (Convert-Flag01 $Options.Main))
   Write-Host ('DUMP noBrowserUse=' + (Convert-Flag01 $Options.NoBrowserUse))
   Write-Host ('DUMP noGit=' + (Convert-Flag01 $Options.NoGit))
+  Write-Host ('DUMP nodeArch=' + (Get-WindowsNodeArch))
   Write-Host 'DUMP ok'
 }
 
 Apply-Flags $opt $args
+
+try {
 
 $helpEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_INSTALL_HELP', 'Process')
 if ($opt.Help -or $helpEnv -eq '1') {
@@ -434,5 +472,15 @@ try {
   if ($bundleDir -and (Test-Path -LiteralPath $bundleDir)) {
     Remove-Item -LiteralPath $bundleDir -Recurse -Force -ErrorAction SilentlyContinue
   }
+}
+
+} catch {
+  if (-not $installState.Failed) {
+    Write-Host ($StagePrefix + 'failed')
+  }
+  $errMsg = $_.Exception.Message
+  if ([string]::IsNullOrWhiteSpace($errMsg)) { $errMsg = [string]$_ }
+  Write-Host ('error: ' + $errMsg)
+  throw
 }
 } @args
