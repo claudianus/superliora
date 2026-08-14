@@ -158,6 +158,10 @@ export function nextQueuedJobs(
  * - Goal Desk umbrella stays `running` for the whole goal — drivers must run under it.
  * - Merge/trust holds park an implement as `blocked` after the work is done;
  *   Maker≠Checker verify must still schedule or land stays stuck on verdict=missing.
+ * - Affinity `continue_from` reuse children (notes + parent link) of a blocked
+ *   parent must schedule — otherwise JobCreate reuses the worktree into a
+ *   permanent queued orphan while JobResume rejects queued.
+ *   Random sibling implement/task children stay gated (Maker≠Checker / no race).
  */
 function parentAllowsSchedule(
   byId: ReadonlyMap<string, JobRecord>,
@@ -167,8 +171,28 @@ function parentAllowsSchedule(
   const parent = byId.get(job.parentJobId);
   if (parent === undefined) return true;
   if (parent.kind === 'goal-desk') return true;
-  if (job.kind === 'verify' && parent.status === 'blocked') return true;
+  if (parent.status === 'blocked') {
+    if (job.kind === 'verify') return true;
+    if (isAffinityReuseChildOf(job, parent)) return true;
+    return false;
+  }
   return !isExecutionInFlight(parent.status);
+}
+
+/** Affinity reuse notes written by reuseInheritanceFromAnchor / JobCreate. */
+const AFFINITY_REUSE_NOTE_RE = /^affinity:\s*reuse\s+from\s+(\S+)/m;
+
+/**
+ * True when `job` is the continue_from / affinity reuse child of `parent`
+ * (parentJobId link + notes anchor id). Does not open the gate for every child.
+ */
+function isAffinityReuseChildOf(job: JobRecord, parent: JobRecord): boolean {
+  if (job.parentJobId !== parent.id) return false;
+  const notes = job.notes ?? '';
+  const match = AFFINITY_REUSE_NOTE_RE.exec(notes);
+  if (match === null) return false;
+  const anchorId = match[1]?.replace(/[),.;]+$/, '') ?? '';
+  return anchorId === parent.id;
 }
 
 /** Tracer-bullet DAG: every listed blocker must be `done` before this Job starts. */

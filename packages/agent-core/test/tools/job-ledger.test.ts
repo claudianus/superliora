@@ -281,7 +281,7 @@ describe('job runtime scheduler', () => {
 
     expect(result.started.map((j) => j.id)).toContain(verify.id);
     expect(getJob(store, verify.id)?.status).toBe('running');
-    // Non-verify children still wait on a blocked parent.
+    // Non-verify, non-affinity children still wait on a blocked parent.
     const fill = createJob(store, {
       title: 'Fill',
       kind: 'implement',
@@ -289,6 +289,57 @@ describe('job runtime scheduler', () => {
       parentJobId: impl.id,
     });
     expect(nextQueuedJobs(store, 10).map((j) => j.id)).not.toContain(fill.id);
+  });
+
+  it('schedules affinity continue_from child under blocked parent (no random sibling race)', async () => {
+    // Regression: continue_from on a blocked parent creates a reuse child
+    // (parentJobId + affinity notes) that used to stay queued forever because
+    // parentAllowsSchedule only escaped blocked parents for kind=verify.
+    const store = memoryStore();
+    const blocked = createJob(store, {
+      title: 'Implement harness fix',
+      kind: 'implement',
+      priority: 5,
+      ownershipPaths: ['packages/agent-core/src/tools/builtin/job'],
+      worktreePath: '/tmp/worktrees/conductor-blocked-parent',
+    });
+    patchJob(store, blocked.id, {
+      status: 'blocked',
+      notes: 'merge: reject — needs fix-forward',
+      worktreePath: '/tmp/worktrees/conductor-blocked-parent',
+      workerResumeAgentId: 'agent_resume_blocked',
+    });
+
+    const continueChild = createJob(store, {
+      title: 'Fix-forward from blocked',
+      kind: 'implement',
+      priority: 10,
+      parentJobId: blocked.id,
+      ownershipPaths: ['packages/agent-core/src/tools/builtin/job'],
+      worktreePath: '/tmp/worktrees/conductor-blocked-parent',
+      workerResumeAgentId: 'agent_resume_blocked',
+      notes: `affinity: reuse from ${blocked.id} (worktree=/tmp/worktrees/conductor-blocked-parent; resume=agent_resume_blocked)`,
+    });
+    const randomSibling = createJob(store, {
+      title: 'Unrelated sibling implement',
+      kind: 'implement',
+      priority: 9,
+      parentJobId: blocked.id,
+      ownershipPaths: ['packages/agent-core/src/other'],
+    });
+
+    const readyIds = nextQueuedJobs(store, 10).map((j) => j.id);
+    expect(readyIds).toContain(continueChild.id);
+    expect(readyIds).not.toContain(randomSibling.id);
+
+    const result = await scheduleQueuedJobs({
+      store,
+      maxConcurrent: 6,
+      requireWorktree: false,
+    });
+    expect(result.started.map((j) => j.id)).toContain(continueChild.id);
+    expect(getJob(store, continueChild.id)?.status).toBe('running');
+    expect(getJob(store, randomSibling.id)?.status).toBe('queued');
   });
 
   it('chains a child job onto the parent worktree instead of a private branch', async () => {
