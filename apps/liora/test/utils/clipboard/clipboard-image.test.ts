@@ -158,4 +158,83 @@ describe('readClipboardMedia', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('reads Windows image bytes when native hasImage false-negatives', async () => {
+    const imageBytes = png(8, 8);
+    const clip = fakeClipboard({
+      availableFormats: vi.fn(() => ['CF_DIB', 'CF_UNICODETEXT']),
+      hasImage: vi.fn(() => false),
+      getImageBinary: vi.fn(async () => Array.from(imageBytes)),
+      hasText: vi.fn(() => true),
+      getText: vi.fn(async () => 'C:\\Users\\example\\screenshot.png'),
+    });
+
+    const media = await readClipboardMedia({
+      platform: 'win32',
+      clipboard: clip,
+      runCommand: () => ({ ok: false, stdout: Buffer.alloc(0) }),
+    });
+
+    expect(media).toEqual({
+      kind: 'image',
+      bytes: imageBytes,
+      mimeType: 'image/png',
+    });
+    // Text path must not steal the paste when image bytes are available.
+    expect(clip.getText).not.toHaveBeenCalled();
+  });
+
+  it('falls back to PowerShell PNG when native hasImage and getImageBinary both miss', async () => {
+    const imageBytes = png(4, 4);
+    const clip = fakeClipboard({
+      hasImage: vi.fn(() => false),
+      getImageBinary: vi.fn(async () => []),
+    });
+    const runCommandWithWrite = vi.fn(
+      (command: string, _args: string[], options?: { env?: NodeJS.ProcessEnv }) => {
+        if (command === 'powershell.exe') {
+          const path = options?.env?.['KIMI_WSL_CLIPBOARD_IMAGE_PATH'];
+          if (path !== undefined && path.length > 0) {
+            writeFileSync(path, imageBytes);
+            return { ok: true, stdout: Buffer.from('ok') };
+          }
+        }
+        return { ok: false, stdout: Buffer.alloc(0) };
+      },
+    );
+
+    const media = await readClipboardMedia({
+      platform: 'win32',
+      clipboard: clip,
+      runCommand: runCommandWithWrite,
+    });
+
+    expect(media).toEqual({
+      kind: 'image',
+      bytes: imageBytes,
+      mimeType: 'image/png',
+    });
+    expect(runCommandWithWrite).toHaveBeenCalled();
+  });
+
+  it('reads via exported PowerShell helper used by WSL/win32 fallback', async () => {
+    const imageBytes = png(2, 2);
+    const { readClipboardImageViaPowerShell } = await import('#/utils/clipboard/clipboard-image');
+    const image = readClipboardImageViaPowerShell({
+      platform: 'win32',
+      runCommand: (command, _args, options) => {
+        if (command === 'powershell.exe') {
+          const path = options?.env?.['KIMI_WSL_CLIPBOARD_IMAGE_PATH'];
+          if (path) writeFileSync(path, imageBytes);
+          return { ok: true, stdout: Buffer.from('ok') };
+        }
+        return { ok: false, stdout: Buffer.alloc(0) };
+      },
+    });
+    expect(image).toEqual({
+      kind: 'image',
+      bytes: imageBytes,
+      mimeType: 'image/png',
+    });
+  });
 });

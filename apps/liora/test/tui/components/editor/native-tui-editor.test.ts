@@ -3,11 +3,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NativeTUIEditor } from '#/tui/components/editor/native-tui-editor';
 import type { AutocompleteItem, AutocompleteProvider } from '#/tui/renderer';
 import type { TUIEditor } from '#/tui/components/editor/editor-contract';
+import { clipboardHasImage } from '#/utils/clipboard/clipboard-has-image';
 import { readClipboardText } from '#/utils/clipboard/clipboard-text';
 
 vi.mock('#/utils/clipboard/clipboard-text', () => ({
   readClipboardText: vi.fn(async () => null),
   copyTextToClipboard: vi.fn(async () => {}),
+}));
+
+vi.mock('#/utils/clipboard/clipboard-has-image', () => ({
+  clipboardHasImage: vi.fn(async () => false),
 }));
 
 function makeEditor(): NativeTUIEditor {
@@ -567,11 +572,39 @@ describe('NativeTUIEditor image paste binding', () => {
 
   it('falls back to a clipboard text paste when no image is available', async () => {
     vi.mocked(readClipboardText).mockResolvedValueOnce('from clipboard');
+    vi.mocked(clipboardHasImage).mockResolvedValueOnce(false);
     const editor = makeEditor();
     editor.onPasteImage = async () => false;
 
     expect(editor.tryHandleAppShortcut(pasteRaw)).toBe(true);
     await vi.waitFor(() =>{  expect(editor.getText()).toBe('from clipboard'); });
+  });
+
+  it('does not let text paste win when the shared has-media probe still sees an image', async () => {
+    vi.mocked(readClipboardText).mockResolvedValueOnce('C:\\Users\\example\\shot.png');
+    vi.mocked(clipboardHasImage).mockResolvedValueOnce(true);
+    const editor = makeEditor();
+    editor.setText('draft');
+    // Attach path failed (false-negative race), but probe still reports media.
+    editor.onPasteImage = async () => false;
+
+    expect(editor.tryHandleAppShortcut(pasteRaw)).toBe(true);
+    await vi.waitFor(() => {
+      expect(clipboardHasImage).toHaveBeenCalled();
+    });
+    // Must not insert path text over a still-present clipboard image.
+    expect(editor.getText()).toBe('draft');
+  });
+
+  it('keeps Hangul inserts at the buffer end with an inline ghost present', () => {
+    const editor = makeEditor();
+    editor.setText('안');
+    editor.setCursorPosition({ line: 0, col: '안'.length });
+    editor.setGhostText('녕하세요', 'inline');
+    editor.handleInput('녕');
+
+    expect(editor.getText()).toBe('안녕');
+    expect(editor.getCursor()).toEqual({ line: 0, col: '안녕'.length });
   });
 
   it('gives onPasteText first claim on bracketed paste (terminal file drops)', () => {

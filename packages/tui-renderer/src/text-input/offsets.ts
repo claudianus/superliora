@@ -44,7 +44,18 @@ export function computeCursorForOffset(
   for (let line = 0; line < lines.length; line++) {
     const text = lines[line] ?? '';
     if (remaining <= text.length) {
-      return { line, column: snapColumnToBoundary(text, remaining) };
+      // Prefer the forward boundary when the offset lands mid-cluster so a
+      // just-inserted Hangul/emoji caret is not walked backward onto the
+      // previous cluster (which looks like the new glyph "disappeared").
+      if (remaining === 0 || remaining === text.length) {
+        return { line, column: remaining };
+      }
+      const snapped = snapColumnToBoundary(text, remaining);
+      if (snapped === remaining) return { line, column: remaining };
+      // snapColumnToBoundary walks to the previous end when mid-cluster; use
+      // the next cluster end instead so insert/caret stays after the glyph.
+      const next = nextClusterBoundary(text, remaining);
+      return { line, column: next };
     }
     remaining -= text.length + 1;
   }

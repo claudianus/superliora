@@ -1,6 +1,7 @@
 import { Key, matchesKey } from '#/tui/renderer';
 
 import { printableChar } from '#/tui/utils/printable-key';
+import { clipboardHasImage } from '#/utils/clipboard/clipboard-has-image';
 import { readClipboardText } from '#/utils/clipboard/clipboard-text';
 
 import type { TUIEditorInputMode } from './editor-contract';
@@ -161,6 +162,16 @@ export async function handleNativeTUIEditorPasteMediaKey(
     } catch {
       // Fall through to a text paste below.
     }
+  }
+
+  // Shared has-media probe with the footer hint. If the clipboard still holds
+  // an image after the attach path returned false (native false-negative race,
+  // transient PowerShell miss), do not fall through to text paste — that would
+  // insert a path-like string or empty noise and "win" over the image.
+  try {
+    if (await clipboardHasImage()) return;
+  } catch {
+    // Probe failed; allow text paste.
   }
 
   let text: string | null = null;

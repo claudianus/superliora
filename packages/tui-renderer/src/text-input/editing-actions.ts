@@ -81,7 +81,9 @@ export function insertTextInputContent(host: TextInputEditingHost, text: string)
   host.atomicRanges = result.atomicRanges;
   host.clearSelection();
   setCursorFromTextOffsetState(host, result.nextOffset, 'forward');
-  clampCursorState(host);
+  // Forward bias: never snap the caret backward into the just-inserted cluster
+  // (Hangul / combining marks / multi-code-unit emoji).
+  clampCursorState(host, 'forward');
   host.clearPreferredDisplayColumn();
   host.pushUndoSnapshot(before);
 }

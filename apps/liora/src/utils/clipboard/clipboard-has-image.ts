@@ -1,5 +1,6 @@
-import { isFileLikeNativeFormat, safeAvailableFormats } from './clipboard-common';
+import { isFileLikeNativeFormat, isWSL, safeAvailableFormats } from './clipboard-common';
 import { clipboard, type ClipboardModule } from './clipboard-native';
+import { probeClipboardImageViaPowerShell } from './clipboard-image';
 
 async function hasImageViaNative(clip: ClipboardModule | null): Promise<boolean> {
   if (clip === null) return false;
@@ -11,7 +12,17 @@ async function hasImageViaNative(clip: ClipboardModule | null): Promise<boolean>
   if (formats.some(isFileLikeNativeFormat)) return false;
 
   try {
-    return clip.hasImage();
+    if (clip.hasImage()) return true;
+  } catch {
+    // Fall through — Windows hosts sometimes throw or false-negative while
+    // image bytes are still readable via getImageBinary / PowerShell.
+  }
+
+  // Prefer a cheap binary probe over trusting hasImage alone. Empty/throwing
+  // getImageBinary keeps the probe false without treating text as media.
+  try {
+    const data = await clip.getImageBinary();
+    return data.length > 0;
   } catch {
     return false;
   }
@@ -21,6 +32,8 @@ export async function clipboardHasImage(options?: {
   env?: NodeJS.ProcessEnv;
   platform?: NodeJS.Platform;
   clipboard?: ClipboardModule | null;
+  /** Injected for unit tests; production uses PowerShell ContainsImage. */
+  powerShellProbe?: () => boolean;
 }): Promise<boolean> {
   const env = options?.env ?? process.env;
   const platform = options?.platform ?? process.platform;
@@ -28,17 +41,30 @@ export async function clipboardHasImage(options?: {
 
   if (env['TERMUX_VERSION'] !== undefined) return false;
 
-  // The focus-driven clipboard-image hint does not probe on Linux. The probe
-  // would spawn wl-paste / xclip, which on Wayland perturbs seat focus and
-  // re-triggers the terminal's focus event, creating a focus feedback loop
-  // (window repeatedly gains/loses focus, IME candidate window cannot stay
-  // focused — see issue #1090). macOS and Windows are fine: both use the
-  // in-process native module, which neither spawns a subprocess nor perturbs
-  // focus.
+  // The focus-driven clipboard-image hint does not probe on plain Linux.
+  // Spawning wl-paste / xclip on Wayland perturbs seat focus and re-triggers
+  // the terminal's focus event, creating a focus feedback loop (issue #1090).
+  // WSL is the exception: the Windows clipboard is the source of truth and is
+  // reached through PowerShell, which does not touch the Linux seat.
   //
   // Image *paste* is unaffected on all platforms: it reads the clipboard
   // through readClipboardMedia() on the explicit paste path, not here.
-  if (platform !== 'darwin' && platform !== 'win32') return false;
+  const wsl = platform === 'linux' && isWSL(env);
+  if (platform !== 'darwin' && platform !== 'win32' && !wsl) return false;
 
-  return hasImageViaNative(clip);
+  if (platform === 'darwin') {
+    return hasImageViaNative(clip);
+  }
+
+  // win32 / WSL: native first, then PowerShell when native is false-negative.
+  if (await hasImageViaNative(clip)) return true;
+
+  const probe =
+    options?.powerShellProbe ??
+    (() => probeClipboardImageViaPowerShell({ env }));
+  try {
+    return probe();
+  } catch {
+    return false;
+  }
 }

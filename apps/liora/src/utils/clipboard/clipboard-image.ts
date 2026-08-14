@@ -315,15 +315,56 @@ function readClipboardImageViaXclip(): ClipboardImage | null {
  * we round-trip via a temp PNG because binary stdout is unreliable
  * across the WSL interop boundary.
  */
-function readClipboardImageViaPowerShell(): ClipboardImage | null {
+function resolvePowerShellClipboardImagePath(
+  tmpFile: string,
+  run: RunCommand,
+  platform: NodeJS.Platform,
+): string | null {
+  // Native Windows already uses a Windows path; WSL must convert via wslpath.
+  if (platform === 'win32') return tmpFile;
+  const winPathResult = run('wslpath', ['-w', tmpFile], {
+    timeoutMs: DEFAULT_LIST_TIMEOUT_MS,
+  });
+  if (!winPathResult.ok) return null;
+  const winPath = winPathResult.stdout.toString('utf-8').trim();
+  return winPath.length > 0 ? winPath : null;
+}
+
+/**
+ * Lightweight PowerShell probe for "does the Windows clipboard hold an image?".
+ * Shared by the focus-driven footer hint and the paste path so both agree when
+ * the native binding false-negatives `hasImage()`.
+ */
+export function probeClipboardImageViaPowerShell(options?: {
+  env?: NodeJS.ProcessEnv;
+  runCommand?: RunCommand;
+}): boolean {
+  const run = options?.runCommand ?? runCommand;
+  const env = options?.env ?? process.env;
+  const psScript = [
+    'Add-Type -AssemblyName System.Windows.Forms',
+    'if ([System.Windows.Forms.Clipboard]::ContainsImage()) { Write-Output "yes" } else { Write-Output "no" }',
+  ].join('; ');
+  const result = run('powershell.exe', ['-NoProfile', '-Command', psScript], {
+    timeoutMs: DEFAULT_POWERSHELL_TIMEOUT_MS,
+    env: { ...env },
+  });
+  if (!result.ok) return false;
+  return result.stdout.toString('utf-8').trim().toLowerCase() === 'yes';
+}
+
+export function readClipboardImageViaPowerShell(options?: {
+  env?: NodeJS.ProcessEnv;
+  platform?: NodeJS.Platform;
+  runCommand?: RunCommand;
+}): ClipboardImage | null {
+  const run = options?.runCommand ?? runCommand;
+  const env = options?.env ?? process.env;
+  const platform = options?.platform ?? process.platform;
   const tmpFile = join(tmpdir(), `kimi-wsl-clip-${randomUUID()}.png`);
   try {
-    const winPathResult = runCommand('wslpath', ['-w', tmpFile], {
-      timeoutMs: DEFAULT_LIST_TIMEOUT_MS,
-    });
-    if (!winPathResult.ok) return null;
-    const winPath = winPathResult.stdout.toString('utf-8').trim();
-    if (winPath.length === 0) return null;
+    const winPath = resolvePowerShellClipboardImagePath(tmpFile, run, platform);
+    if (winPath === null) return null;
 
     const psScript = [
       'Add-Type -AssemblyName System.Windows.Forms',
@@ -333,9 +374,9 @@ function readClipboardImageViaPowerShell(): ClipboardImage | null {
       "if ($img) { $img.Save($path, [System.Drawing.Imaging.ImageFormat]::Png); Write-Output 'ok' } else { Write-Output 'empty' }",
     ].join('; ');
 
-    const result = runCommand('powershell.exe', ['-NoProfile', '-Command', psScript], {
+    const result = run('powershell.exe', ['-NoProfile', '-Command', psScript], {
       timeoutMs: DEFAULT_POWERSHELL_TIMEOUT_MS,
-      env: { ...process.env, KIMI_WSL_CLIPBOARD_IMAGE_PATH: winPath },
+      env: { ...env, KIMI_WSL_CLIPBOARD_IMAGE_PATH: winPath },
     });
     if (!result.ok) return null;
     if (result.stdout.toString('utf-8').trim() !== 'ok') return null;
@@ -383,6 +424,7 @@ async function readClipboardFileMediaViaNativeText(
 
 async function readClipboardImageViaNative(
   clip: ClipboardModule | null = clipboard,
+  options?: { allowHasImageFalseNegative?: boolean },
 ): Promise<ClipboardImage | null> {
   if (clip === null) return null;
 
@@ -390,9 +432,13 @@ async function readClipboardImageViaNative(
   try {
     hasImage = clip.hasImage();
   } catch {
-    return null;
+    hasImage = false;
   }
-  if (!hasImage) return null;
+  // Windows/ConPTY can race text+image formats and report hasImage=false while
+  // image bytes remain readable — getImageBinary is then the source of truth.
+  // macOS keeps the strict hasImage gate so Finder file icons are not treated
+  // as pasteable images when hasImage is already false for other reasons.
+  if (!hasImage && !options?.allowHasImageFalseNegative) return null;
 
   try {
     const data = await clip.getImageBinary();
@@ -429,19 +475,21 @@ export async function readClipboardMedia(options?: {
       image = readClipboardImageViaWlPaste() ?? readClipboardImageViaXclip();
     }
     if (image === null && wsl) {
-      image = readClipboardImageViaPowerShell();
+      image = readClipboardImageViaPowerShell({ env, platform, runCommand: run });
     }
     if (image === null && !wayland) {
       const nativeFileMedia = await readClipboardFileMediaViaNativeText(clip);
       if (nativeFileMedia.media !== null) return nativeFileMedia.media;
       if (nativeFileMedia.lookedFileLike) return null;
-      image = await readClipboardImageViaNative(clip);
+      image = await readClipboardImageViaNative(clip, {
+        allowHasImageFalseNegative: wsl,
+      });
     }
-  } else {
-    if (platform === 'darwin') {
-      const fileMedia = readMediaFromPaths(readClipboardFilePathsViaMacOs(run));
-      if (fileMedia !== null) return fileMedia;
-    }
+  } else if (platform === 'darwin') {
+    // macOS: file URLs / Finder file lists win over image previews so a copied
+    // video/file is not replaced by its thumbnail PNG.
+    const fileMedia = readMediaFromPaths(readClipboardFilePathsViaMacOs(run));
+    if (fileMedia !== null) return fileMedia;
 
     const nativeFileMedia = await readClipboardFileMediaViaNativeText(clip);
     if (nativeFileMedia.media !== null) return nativeFileMedia.media;
@@ -449,11 +497,26 @@ export async function readClipboardMedia(options?: {
     // Finder exposes file icons/thumbnails as image data. If the clipboard
     // looks file-like but we could not read a real file path, do not consume
     // that icon as an image attachment.
-    if (platform === 'darwin' && nativeFileMedia.lookedFileLike) {
+    if (nativeFileMedia.lookedFileLike) {
       return null;
     }
 
     image = await readClipboardImageViaNative(clip);
+  } else {
+    // win32 (and other non-linux): prefer image bytes before text paths.
+    // Native hasImage can false-negative while getImageBinary / PowerShell
+    // still return PNG; reading text first would steal a path-like entry.
+    image = await readClipboardImageViaNative(clip, {
+      allowHasImageFalseNegative: true,
+    });
+    if (image === null && platform === 'win32') {
+      image = readClipboardImageViaPowerShell({ env, platform, runCommand: run });
+    }
+
+    if (image === null) {
+      const nativeFileMedia = await readClipboardFileMediaViaNativeText(clip);
+      if (nativeFileMedia.media !== null) return nativeFileMedia.media;
+    }
   }
 
   if (image === null) return null;

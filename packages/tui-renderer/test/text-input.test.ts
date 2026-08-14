@@ -41,6 +41,42 @@ describe('RendererTextInput', () => {
     expect(input.getCursor()).toEqual({ line: 0, column: 1 });
   });
 
+  it('keeps committed Hangul syllables when inserting at the buffer end', () => {
+    const input = new RendererTextInput();
+
+    input.handleInput(key('character', { text: '안' }));
+    input.handleInput(key('character', { text: '녕' }));
+    input.handleInput({ type: 'paste', raw: '하세요', text: '하세요' });
+
+    expect(input.getText()).toBe('안녕하세요');
+    expect(input.getCursor()).toEqual({ line: 0, column: '안녕하세요'.length });
+  });
+
+  it('inserts Hangul next to an image placeholder without dropping either side', () => {
+    const placeholder = '[image #1]';
+    const input = new RendererTextInput({
+      text: placeholder,
+      atomicRanges: [{ start: 0, end: placeholder.length, id: 'image-1' }],
+    });
+    input.setCursor({ line: 0, column: placeholder.length });
+    input.handleInput(key('character', { text: ' ' }));
+    input.handleInput(key('character', { text: '한' }));
+    input.handleInput(key('character', { text: '글' }));
+
+    expect(input.getText()).toBe(`${placeholder} 한글`);
+    expect(input.getAtomicRanges()).toEqual([{ start: 0, end: placeholder.length, id: 'image-1' }]);
+    expect(input.getCursor().column).toBe(`${placeholder} 한글`.length);
+  });
+
+  it('preserves multi-char paste bursts as a single committed run', () => {
+    const input = new RendererTextInput({ text: 'pre' });
+    input.setCursor({ line: 0, column: 3 });
+    input.handleInput({ type: 'paste', raw: '한🙂글', text: '한🙂글' });
+
+    expect(input.getText()).toBe('pre한🙂글');
+    expect(input.getCursor()).toEqual({ line: 0, column: 'pre한🙂글'.length });
+  });
+
   it('renders styled cell lines and real cursor state without fake inverse text', () => {
     const input = new RendererTextInput({
       text: 'hello',

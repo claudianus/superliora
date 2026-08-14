@@ -402,7 +402,10 @@ export class NativeTUIEditor implements TUIEditor {
     const lines = this.input.getLines();
     const cursor = this.input.getCursor();
     if (cursor.line !== lines.length - 1) return false;
-    return cursor.column >= (lines[cursor.line] ?? '').length;
+    const line = lines[cursor.line] ?? '';
+    // Treat mid-cluster positions as "not at end" so a ghost cannot paint over
+    // the trailing half of a Hangul/emoji cluster that still lives in the buffer.
+    return cursor.column >= line.length;
   }
 
   private setTextInternal(text: string, notify: boolean): void {

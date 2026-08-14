@@ -71,7 +71,53 @@ describe('clipboardHasImage', () => {
 
   it('returns false on Windows when native clipboard reports no image', async () => {
     const clip = fakeClipboard({ hasImage: vi.fn(() => false) });
-    const result = await clipboardHasImage({ platform: 'win32', clipboard: clip });
+    const result = await clipboardHasImage({
+      platform: 'win32',
+      clipboard: clip,
+      powerShellProbe: () => false,
+    });
     expect(result).toBe(false);
+  });
+
+  it('returns true on Windows when native hasImage is false but getImageBinary has bytes', async () => {
+    const clip = fakeClipboard({
+      hasImage: vi.fn(() => false),
+      getImageBinary: vi.fn(async () => [0x89, 0x50, 0x4e, 0x47]),
+    });
+    const result = await clipboardHasImage({
+      platform: 'win32',
+      clipboard: clip,
+      powerShellProbe: () => false,
+    });
+    expect(result).toBe(true);
+    expect(clip.getImageBinary).toHaveBeenCalled();
+  });
+
+  it('falls back to PowerShell probe when native hasImage and getImageBinary miss', async () => {
+    const clip = fakeClipboard({
+      hasImage: vi.fn(() => false),
+      getImageBinary: vi.fn(async () => []),
+    });
+    const powerShellProbe = vi.fn(() => true);
+    const result = await clipboardHasImage({
+      platform: 'win32',
+      clipboard: clip,
+      powerShellProbe,
+    });
+    expect(result).toBe(true);
+    expect(powerShellProbe).toHaveBeenCalledTimes(1);
+  });
+
+  it('probes PowerShell on WSL even though platform is linux', async () => {
+    const clip = fakeClipboard({ hasImage: vi.fn(() => false) });
+    const powerShellProbe = vi.fn(() => true);
+    const result = await clipboardHasImage({
+      platform: 'linux',
+      env: { WSL_DISTRO_NAME: 'Ubuntu' },
+      clipboard: clip,
+      powerShellProbe,
+    });
+    expect(result).toBe(true);
+    expect(powerShellProbe).toHaveBeenCalledTimes(1);
   });
 });

@@ -15,6 +15,7 @@ import {
   findPreviousEditableOffset,
 } from './offsets';
 import {
+  nextClusterBoundary,
   nextWordBoundary,
   previousWordBoundary,
   snapColumnToBoundary,
@@ -102,7 +103,17 @@ export function clampCursorState(
 ): void {
   const line = Math.max(0, Math.min(state.lines.length - 1, Math.floor(state.cursor.line)));
   const text = state.lines[line] ?? '';
-  const column = snapColumnToBoundary(text, state.cursor.column);
+  // When bias is forward (post-insert), prefer the next cluster end so a caret
+  // that landed mid-cluster after Hangul/emoji insert is not walked backward.
+  let column = snapColumnToBoundary(text, state.cursor.column);
+  if (
+    bias === 'forward' &&
+    column !== state.cursor.column &&
+    state.cursor.column > 0 &&
+    state.cursor.column < text.length
+  ) {
+    column = nextClusterBoundary(text, state.cursor.column);
+  }
   state.cursor = { line, column };
   setCursorFromTextOffsetState(state, textOffsetForCursorState(state), bias);
 }
