@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.9.6
+
+### Patch Changes
+
+- Fix `liora upgrade` on Windows failing with `'iex' is not recognized`.
+
 ## 0.9.5
 
 ### Patch Changes
