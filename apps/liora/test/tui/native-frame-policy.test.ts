@@ -238,6 +238,37 @@ describe('resolveTUIStateNativeFramePolicy pure-scroll', () => {
     expect(policy.clear).toBe(false);
   });
 
+  it('does not full-clear when content shrank without resize', () => {
+    // Transcript shrink used to force beginFrame clear → black-band rewrite.
+    const policy = resolveTUIStateNativeFramePolicy({
+      causes: ['request'],
+      viewportScrolled: false,
+      structuralShift: true,
+      contentGrew: false,
+      geometryShift: false,
+      contentShrunk: true,
+      nextTranscriptStart: 0,
+      ambientAnimationAllowed: false,
+    });
+    expect(policy.force).toBe(true);
+    expect(policy.clear).toBe(false);
+  });
+
+  it('does not full-clear on editor geometry shift without resize', () => {
+    const policy = resolveTUIStateNativeFramePolicy({
+      causes: ['request'],
+      viewportScrolled: false,
+      structuralShift: true,
+      contentGrew: false,
+      geometryShift: true,
+      contentShrunk: false,
+      nextTranscriptStart: 0,
+      ambientAnimationAllowed: false,
+    });
+    expect(policy.force).toBe(true);
+    expect(policy.clear).toBe(false);
+  });
+
   it('still forces non-pure scroll when content also requests', () => {
     expect(
       shouldForceTUIStateNativeLayoutFrame(['transcript-scroll', 'request'], false, {
@@ -299,7 +330,7 @@ describe('shouldUseAmbientDamageOnlyPaint scroll paths', () => {
     ).toBe(true);
   });
 
-  it('clears when content shrank (uncovered rows)', () => {
+  it('stays damage-only when content shrank (no stage clear-fill)', () => {
     expect(
       shouldUseAmbientDamageOnlyPaint({
         ...base,
@@ -308,10 +339,10 @@ describe('shouldUseAmbientDamageOnlyPaint scroll paths', () => {
         viewportScrolled: false,
         causes: ['request'],
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 
-  it('clears on geometry shift', () => {
+  it('stays damage-only on editor geometry shift (replacement / unmount)', () => {
     expect(
       shouldUseAmbientDamageOnlyPaint({
         ...base,
@@ -320,7 +351,7 @@ describe('shouldUseAmbientDamageOnlyPaint scroll paths', () => {
         viewportScrolled: false,
         causes: ['request'],
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it('clears on resize', () => {
