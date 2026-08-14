@@ -7,6 +7,8 @@
 #
 # Do not put param() at file scope. Windows PowerShell 5.1 treats `param` as a
 # command when the file is Invoke-Expression'd (`irm | iex`).
+# Do not use param() on the installer scriptblock either: GNU flags such as
+# --bin-dir would then be bound as unknown named parameters.
 
 try {
   [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
@@ -14,39 +16,18 @@ try {
 }
 
 & {
-param(
-  [string]$RepoUrl,
-  [string]$Ref,
-  [string]$InstallDir,
-  [string]$BinDir,
-  [string]$CommandName,
-  [string]$NodeMin,
-  [string]$ManifestUrl,
-  [string]$Version,
-  [string]$RawBase,
-  [switch]$Force,
-  [switch]$NoBuild,
-  [switch]$NoBrowserUse,
-  [switch]$NoComputerUse,
-  [switch]$NoRetrieval,
-  [switch]$NoGit,
-  [switch]$NoPath,
-  [switch]$NoShellRc,
-  [switch]$PreferSource,
-  [switch]$Main,
-  [switch]$ForcePrebuilt,
-  [switch]$Help,
-  [Parameter(ValueFromRemainingArguments = $true)]
-  [string[]]$Remaining
-)
-
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
+$ProgressPreference = 'SilentlyContinue'
 
 $DefaultRepoUrl = 'https://github.com/claudianus/superliora.git'
 $DefaultRef = 'main'
-$DefaultInstallDir = Join-Path $HOME '.superliora\source'
-$DefaultBinDir = Join-Path $env:LOCALAPPDATA 'SuperLiora\bin'
+$homeDir = $HOME
+if ([string]::IsNullOrWhiteSpace($homeDir)) { $homeDir = $env:USERPROFILE }
+$localApp = $env:LOCALAPPDATA
+if ([string]::IsNullOrWhiteSpace($localApp)) { $localApp = Join-Path $homeDir 'AppData\Local' }
+$DefaultInstallDir = Join-Path $homeDir '.superliora\source'
+$DefaultBinDir = Join-Path $localApp 'SuperLiora\bin'
 $DefaultCommandName = 'liora'
 $DefaultNodeMin = '24.15.0'
 $DefaultManifestUrl = 'https://github.com/claudianus/superliora/releases/latest/download/manifest.json'
@@ -65,6 +46,30 @@ $InstallModules = @(
   'spawn.mjs',
   'wrappers.mjs'
 )
+
+$opt = @{
+  RepoUrl = ''
+  Ref = ''
+  InstallDir = ''
+  BinDir = ''
+  CommandName = ''
+  NodeMin = ''
+  ManifestUrl = ''
+  Version = ''
+  RawBase = ''
+  Force = $false
+  NoBuild = $false
+  NoBrowserUse = $false
+  NoComputerUse = $false
+  NoRetrieval = $false
+  NoGit = $false
+  NoPath = $false
+  NoShellRc = $false
+  PreferSource = $false
+  Main = $false
+  ForcePrebuilt = $false
+  Help = $false
+}
 
 function Get-ValueOrDefault {
   param([string]$Value, [string]$EnvName, [string]$Default)
@@ -88,6 +93,8 @@ function Show-Usage {
   Write-Host ''
   Write-Host 'From cmd.exe use install.cmd, or:'
   Write-Host '  powershell -NoProfile -ExecutionPolicy Bypass -Command "irm <url> | iex"'
+  Write-Host 'After irm | iex, this PowerShell window can run liora (session PATH is updated).'
+  Write-Host 'Flags after | iex are ignored; set SUPERLIORA_* or use install.cmd / .\install.ps1.'
   Write-Host ''
   Write-Host 'Options (PowerShell or GNU-style):'
   Write-Host '  -RepoUrl / --repo <url>'
@@ -111,49 +118,83 @@ function Show-Usage {
   Write-Host '  -Help / --help'
 }
 
-function Apply-GnuFlags {
-  param([string[]]$Flags)
+function Get-FlagKey {
+  param([string]$Flag)
+  return $Flag.TrimStart('-').ToLowerInvariant().Replace('-', '')
+}
+
+function Apply-Flags {
+  param([object]$Options, [string[]]$Flags)
   if ($null -eq $Flags -or $Flags.Count -eq 0) { return }
   $i = 0
   while ($i -lt $Flags.Count) {
-    $flag = $Flags[$i]
-    $needsValue = @(
-      '--repo', '--ref', '--install-dir', '--bin-dir', '--command',
-      '--node-min', '--manifest', '--version'
-    ) -contains $flag
+    $flag = [string]$Flags[$i]
     $value = $null
-    if ($needsValue) {
+    if ($flag.StartsWith('-') -and $flag.Contains('=')) {
+      $eq = $flag.IndexOf('=')
+      $value = $flag.Substring($eq + 1)
+      $flag = $flag.Substring(0, $eq)
+    }
+    $key = Get-FlagKey $flag
+    $needsValue = @(
+      'repo', 'repourl', 'ref', 'installdir', 'bindir', 'command', 'commandname',
+      'nodemin', 'manifest', 'manifesturl', 'version', 'rawbase'
+    ) -contains $key
+    if ($needsValue -and $null -eq $value) {
       if (($i + 1) -ge $Flags.Count) { Fail ($flag + ' requires a value') }
-      $value = $Flags[$i + 1]
+      $value = [string]$Flags[$i + 1]
       $i += 2
     } else {
       $i += 1
     }
-    switch ($flag) {
-      '--repo' { Set-Variable -Name RepoUrl -Value $value -Scope 1 }
-      '--ref' { Set-Variable -Name Ref -Value $value -Scope 1 }
-      '--install-dir' { Set-Variable -Name InstallDir -Value $value -Scope 1 }
-      '--bin-dir' { Set-Variable -Name BinDir -Value $value -Scope 1 }
-      '--command' { Set-Variable -Name CommandName -Value $value -Scope 1 }
-      '--node-min' { Set-Variable -Name NodeMin -Value $value -Scope 1 }
-      '--manifest' { Set-Variable -Name ManifestUrl -Value $value -Scope 1 }
-      '--version' { Set-Variable -Name Version -Value $value -Scope 1 }
-      '--force' { Set-Variable -Name Force -Value $true -Scope 1 }
-      '--no-build' { Set-Variable -Name NoBuild -Value $true -Scope 1 }
-      '--no-browser-use' { Set-Variable -Name NoBrowserUse -Value $true -Scope 1 }
-      '--no-computer-use' { Set-Variable -Name NoComputerUse -Value $true -Scope 1 }
-      '--no-retrieval' { Set-Variable -Name NoRetrieval -Value $true -Scope 1 }
-      '--no-git' { Set-Variable -Name NoGit -Value $true -Scope 1 }
-      '--no-shell-rc' { Set-Variable -Name NoPath -Value $true -Scope 1 }
-      '--no-path' { Set-Variable -Name NoPath -Value $true -Scope 1 }
-      '--prefer-source' { Set-Variable -Name PreferSource -Value $true -Scope 1 }
-      '--main' { Set-Variable -Name Main -Value $true -Scope 1 }
-      '--force-prebuilt' { Set-Variable -Name ForcePrebuilt -Value $true -Scope 1 }
-      '--help' { Set-Variable -Name Help -Value $true -Scope 1 }
-      '-h' { Set-Variable -Name Help -Value $true -Scope 1 }
+    switch ($key) {
+      { $_ -eq 'repo' -or $_ -eq 'repourl' } { $Options.RepoUrl = $value }
+      'ref' { $Options.Ref = $value }
+      'installdir' { $Options.InstallDir = $value }
+      'bindir' { $Options.BinDir = $value }
+      { $_ -eq 'command' -or $_ -eq 'commandname' } { $Options.CommandName = $value }
+      'nodemin' { $Options.NodeMin = $value }
+      { $_ -eq 'manifest' -or $_ -eq 'manifesturl' } { $Options.ManifestUrl = $value }
+      'version' { $Options.Version = $value }
+      'rawbase' { $Options.RawBase = $value }
+      'force' { $Options.Force = $true }
+      'nobuild' { $Options.NoBuild = $true }
+      'nobrowseruse' { $Options.NoBrowserUse = $true }
+      'nocomputeruse' { $Options.NoComputerUse = $true }
+      'noretrieval' { $Options.NoRetrieval = $true }
+      'nogit' { $Options.NoGit = $true }
+      { $_ -eq 'noshellrc' -or $_ -eq 'nopath' } { $Options.NoPath = $true; $Options.NoShellRc = $true }
+      'prefersource' { $Options.PreferSource = $true }
+      'main' { $Options.Main = $true }
+      'forceprebuilt' { $Options.ForcePrebuilt = $true }
+      { $_ -eq 'help' -or $_ -eq 'h' } { $Options.Help = $true }
       default { Fail ('unknown option: ' + $flag) }
     }
   }
+}
+
+function Get-RemoteFile {
+  param([string]$Uri, [string]$OutFile)
+  Invoke-WebRequest -UseBasicParsing -Uri $Uri -OutFile $OutFile
+}
+
+function Add-SessionPath {
+  param([string]$Dir)
+  if ([string]::IsNullOrWhiteSpace($Dir)) { return }
+  $full = [IO.Path]::GetFullPath($Dir).TrimEnd('\')
+  $parts = @()
+  if (-not [string]::IsNullOrWhiteSpace($env:Path)) {
+    $parts = @($env:Path -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+  }
+  foreach ($part in $parts) {
+    try {
+      $norm = [IO.Path]::GetFullPath($part).TrimEnd('\')
+    } catch {
+      $norm = $part.TrimEnd('\')
+    }
+    if ([string]::Equals($norm, $full, [StringComparison]::OrdinalIgnoreCase)) { return }
+  }
+  $env:Path = $full + ';' + $env:Path
 }
 
 function Test-NodeVersionOk {
@@ -167,7 +208,7 @@ function Test-NodeVersionOk {
 }
 
 function Find-Node {
-  param([string]$Minimum)
+  param([string]$Minimum, [string]$HomeDir)
   $cmd = Get-Command node -ErrorAction SilentlyContinue
   if ($null -ne $cmd) {
     $source = $null
@@ -180,11 +221,21 @@ function Find-Node {
       return $source
     }
   }
+  $runtimeRoot = Join-Path $HomeDir '.superliora\runtime\node'
+  if (Test-Path -LiteralPath $runtimeRoot) {
+    $dirs = @(Get-ChildItem -LiteralPath $runtimeRoot -Directory -ErrorAction SilentlyContinue)
+    foreach ($dir in $dirs) {
+      $exe = Join-Path $dir.FullName 'node.exe'
+      if ((Test-Path -LiteralPath $exe) -and (Test-NodeVersionOk $exe $Minimum)) {
+        return $exe
+      }
+    }
+  }
   return $null
 }
 
 function Install-LocalNode {
-  param([string]$Version)
+  param([string]$Version, [string]$HomeDir)
   $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
   $nodeArch = switch ($arch) {
     'Arm64' { 'arm64' }
@@ -193,54 +244,107 @@ function Install-LocalNode {
   }
   $slug = 'node-v' + $Version + '-win-' + $nodeArch
   $url = 'https://nodejs.org/dist/v' + $Version + '/' + $slug + '.zip'
-  $runtime = Join-Path $HOME '.superliora\runtime\node'
+  $runtime = Join-Path $HomeDir '.superliora\runtime\node'
   $archive = Join-Path $runtime ($slug + '.zip')
   $dest = Join-Path $runtime $slug
   New-Item -ItemType Directory -Force -Path $runtime | Out-Null
   $nodeExe = Join-Path $dest 'node.exe'
   if (-not (Test-Path -LiteralPath $nodeExe)) {
     Write-Host ('Downloading Node.js ' + $Version + ' ...')
-    Invoke-WebRequest -Uri $url -OutFile $archive
+    Get-RemoteFile -Uri $url -OutFile $archive
     if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Recurse -Force }
     Expand-Archive -LiteralPath $archive -DestinationPath $runtime -Force
     Remove-Item -LiteralPath $archive -Force -ErrorAction SilentlyContinue
   }
   if (-not (Test-Path -LiteralPath $nodeExe)) { Fail ('Node bootstrap failed: missing ' + $nodeExe) }
-  $env:Path = $dest + ';' + $env:Path
+  Add-SessionPath $dest
   return $nodeExe
 }
 
-Apply-GnuFlags $Remaining
+function Convert-Flag01 {
+  param([bool]$Value)
+  if ($Value) { return '1' }
+  return '0'
+}
+
+function Expand-HomePath {
+  param([string]$Value, [string]$HomeDir)
+  if ([string]::IsNullOrWhiteSpace($Value)) { return $Value }
+  if ($Value -eq '~') { return $HomeDir }
+  if ($Value.StartsWith('~\') -or $Value.StartsWith('~/')) {
+    return (Join-Path $HomeDir $Value.Substring(2))
+  }
+  return $Value
+}
+
+function Write-Dump {
+  param([object]$Options)
+  Write-Host ('DUMP binDir=' + $Options.BinDir)
+  Write-Host ('DUMP preferSource=' + (Convert-Flag01 $Options.PreferSource))
+  Write-Host ('DUMP noPath=' + (Convert-Flag01 $Options.NoPath))
+  Write-Host ('DUMP noShellRc=' + (Convert-Flag01 $Options.NoShellRc))
+  Write-Host ('DUMP main=' + (Convert-Flag01 $Options.Main))
+  Write-Host ('DUMP noBrowserUse=' + (Convert-Flag01 $Options.NoBrowserUse))
+  Write-Host ('DUMP noGit=' + (Convert-Flag01 $Options.NoGit))
+  Write-Host 'DUMP ok'
+}
+
+Apply-Flags $opt $args
 
 $helpEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_INSTALL_HELP', 'Process')
-if ($Help -or $helpEnv -eq '1') {
+if ($opt.Help -or $helpEnv -eq '1') {
   Show-Usage
   return
 }
 
-$RepoUrl = Get-ValueOrDefault $RepoUrl 'SUPERLIORA_REPO_URL' $DefaultRepoUrl
-$Ref = Get-ValueOrDefault $Ref 'SUPERLIORA_REF' $DefaultRef
-$InstallDir = Get-ValueOrDefault $InstallDir 'SUPERLIORA_INSTALL_DIR' $DefaultInstallDir
-$BinDir = Get-ValueOrDefault $BinDir 'SUPERLIORA_BIN_DIR' $DefaultBinDir
-$CommandName = Get-ValueOrDefault $CommandName 'SUPERLIORA_COMMAND' $DefaultCommandName
-$NodeMin = Get-ValueOrDefault $NodeMin 'SUPERLIORA_NODE_MIN' $DefaultNodeMin
-$ManifestUrl = Get-ValueOrDefault $ManifestUrl 'SUPERLIORA_MANIFEST_URL' $DefaultManifestUrl
-$Version = Get-ValueOrDefault $Version 'SUPERLIORA_VERSION' ''
-$RawBase = Get-ValueOrDefault $RawBase 'SUPERLIORA_RAW_BASE' $DefaultRawBase
+$opt.RepoUrl = Get-ValueOrDefault $opt.RepoUrl 'SUPERLIORA_REPO_URL' $DefaultRepoUrl
+$opt.Ref = Get-ValueOrDefault $opt.Ref 'SUPERLIORA_REF' $DefaultRef
+$opt.InstallDir = Get-ValueOrDefault $opt.InstallDir 'SUPERLIORA_INSTALL_DIR' $DefaultInstallDir
+$opt.BinDir = Get-ValueOrDefault $opt.BinDir 'SUPERLIORA_BIN_DIR' $DefaultBinDir
+$opt.CommandName = Get-ValueOrDefault $opt.CommandName 'SUPERLIORA_COMMAND' $DefaultCommandName
+$opt.NodeMin = Get-ValueOrDefault $opt.NodeMin 'SUPERLIORA_NODE_MIN' $DefaultNodeMin
+$opt.ManifestUrl = Get-ValueOrDefault $opt.ManifestUrl 'SUPERLIORA_MANIFEST_URL' $DefaultManifestUrl
+$opt.Version = Get-ValueOrDefault $opt.Version 'SUPERLIORA_VERSION' ''
+$opt.RawBase = Get-ValueOrDefault $opt.RawBase 'SUPERLIORA_RAW_BASE' $DefaultRawBase
+$opt.InstallDir = Expand-HomePath $opt.InstallDir $homeDir
+$opt.BinDir = Expand-HomePath $opt.BinDir $homeDir
 
-if ($CommandName -notmatch '^[A-Za-z0-9._-]+$') {
+$skipBrowser = [Environment]::GetEnvironmentVariable('SUPERLIORA_SKIP_BROWSER_USE', 'Process')
+$skipComputer = [Environment]::GetEnvironmentVariable('SUPERLIORA_SKIP_COMPUTER_USE', 'Process')
+$skipRetrieval = [Environment]::GetEnvironmentVariable('SUPERLIORA_SKIP_RETRIEVAL', 'Process')
+$preferSourceEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_PREFER_SOURCE', 'Process')
+$forcePrebuiltEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_FORCE_PREBUILT', 'Process')
+$skipGit = [Environment]::GetEnvironmentVariable('SUPERLIORA_SKIP_GIT', 'Process')
+$noShellEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_NO_SHELL_RC', 'Process')
+$fromMainEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_FROM_MAIN', 'Process')
+if ($skipBrowser -eq '1') { $opt.NoBrowserUse = $true }
+if ($skipComputer -eq '1') { $opt.NoComputerUse = $true }
+if ($skipRetrieval -eq '1') { $opt.NoRetrieval = $true }
+if ($preferSourceEnv -eq '1') { $opt.PreferSource = $true }
+if ($forcePrebuiltEnv -eq '1') { $opt.ForcePrebuilt = $true }
+if ($skipGit -eq '1') { $opt.NoGit = $true }
+if ($noShellEnv -eq '1') { $opt.NoPath = $true; $opt.NoShellRc = $true }
+if ($fromMainEnv -eq '1') { $opt.Main = $true }
+
+if ($opt.CommandName -notmatch '^[A-Za-z0-9._-]+$') {
   Fail '-CommandName must be a simple command name'
 }
-$fromMainEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_FROM_MAIN', 'Process')
-if (-not [string]::IsNullOrWhiteSpace($Version) -and ($Main -or $fromMainEnv -eq '1')) {
+if (-not [string]::IsNullOrWhiteSpace($opt.Version) -and $opt.Main) {
   Fail '-Version cannot be combined with -Main'
+}
+
+$dumpEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_INSTALL_DUMP', 'Process')
+if ($dumpEnv -eq '1') {
+  Add-SessionPath $opt.BinDir
+  Write-Dump $opt
+  return
 }
 
 Write-Host ($StagePrefix + 'bootstrapping')
 
-$nodeBin = Find-Node $NodeMin
+$nodeBin = Find-Node $opt.NodeMin $homeDir
 if (-not $nodeBin) {
-  $nodeBin = Install-LocalNode $NodeMin
+  $nodeBin = Install-LocalNode $opt.NodeMin $homeDir
 }
 
 # Prefer local checkout when this file lives in a clone. Use PSScriptRoot /
@@ -267,7 +371,7 @@ if (-not $orch) {
   foreach ($name in $InstallModules) {
     $relFiles += ('scripts/install/' + $name)
   }
-  $base = $RawBase.TrimEnd('/')
+  $base = $opt.RawBase.TrimEnd('/')
   foreach ($rel in $relFiles) {
     $dest = Join-Path $bundleDir ($rel -replace '/', '\')
     $destDir = Split-Path -Parent $dest
@@ -275,40 +379,34 @@ if (-not $orch) {
       New-Item -ItemType Directory -Force -Path $destDir | Out-Null
     }
     $uri = $base + '/' + $rel
-    Invoke-WebRequest -Uri $uri -OutFile $dest
+    Get-RemoteFile -Uri $uri -OutFile $dest
   }
   $orch = Join-Path $bundleDir 'scripts\install-superliora.mjs'
 }
 
 $orchArgs = @(
   $orch,
-  '--repo', $RepoUrl,
-  '--ref', $Ref,
-  '--install-dir', $InstallDir,
-  '--bin-dir', $BinDir,
-  '--command', $CommandName,
-  '--node-min', $NodeMin,
-  '--manifest', $ManifestUrl
+  '--repo', $opt.RepoUrl,
+  '--ref', $opt.Ref,
+  '--install-dir', $opt.InstallDir,
+  '--bin-dir', $opt.BinDir,
+  '--command', $opt.CommandName,
+  '--node-min', $opt.NodeMin,
+  '--manifest', $opt.ManifestUrl
 )
-if (-not [string]::IsNullOrWhiteSpace($Version)) {
-  $orchArgs += @('--version', $Version)
+if (-not [string]::IsNullOrWhiteSpace($opt.Version)) {
+  $orchArgs += @('--version', $opt.Version)
 }
-if ($Force) { $orchArgs += '--force' }
-if ($NoBuild) { $orchArgs += '--no-build' }
-if ($NoPath -or $NoShellRc) { $orchArgs += '--no-shell-rc' }
-$skipBrowser = [Environment]::GetEnvironmentVariable('SUPERLIORA_SKIP_BROWSER_USE', 'Process')
-$skipComputer = [Environment]::GetEnvironmentVariable('SUPERLIORA_SKIP_COMPUTER_USE', 'Process')
-$skipRetrieval = [Environment]::GetEnvironmentVariable('SUPERLIORA_SKIP_RETRIEVAL', 'Process')
-$preferSourceEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_PREFER_SOURCE', 'Process')
-$forcePrebuiltEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_FORCE_PREBUILT', 'Process')
-if ($NoBrowserUse -or $skipBrowser -eq '1') { $orchArgs += '--no-browser-use' }
-if ($NoComputerUse -or $skipComputer -eq '1') { $orchArgs += '--no-computer-use' }
-if ($NoRetrieval -or $skipRetrieval -eq '1') { $orchArgs += '--no-retrieval' }
-$skipGit = [Environment]::GetEnvironmentVariable('SUPERLIORA_SKIP_GIT', 'Process')
-if ($NoGit -or $skipGit -eq '1') { $orchArgs += '--no-git' }
-if ($PreferSource -or $preferSourceEnv -eq '1') { $orchArgs += '--prefer-source' }
-if ($Main -or $fromMainEnv -eq '1') { $orchArgs += '--main' }
-if ($ForcePrebuilt -or $forcePrebuiltEnv -eq '1') { $orchArgs += '--force-prebuilt' }
+if ($opt.Force) { $orchArgs += '--force' }
+if ($opt.NoBuild) { $orchArgs += '--no-build' }
+if ($opt.NoPath -or $opt.NoShellRc) { $orchArgs += '--no-shell-rc' }
+if ($opt.NoBrowserUse) { $orchArgs += '--no-browser-use' }
+if ($opt.NoComputerUse) { $orchArgs += '--no-computer-use' }
+if ($opt.NoRetrieval) { $orchArgs += '--no-retrieval' }
+if ($opt.NoGit) { $orchArgs += '--no-git' }
+if ($opt.PreferSource) { $orchArgs += '--prefer-source' }
+if ($opt.Main) { $orchArgs += '--main' }
+if ($opt.ForcePrebuilt) { $orchArgs += '--force-prebuilt' }
 
 try {
   & $nodeBin @orchArgs
@@ -316,6 +414,8 @@ try {
   if ($null -ne $code -and $code -ne 0) {
     Fail ('installer exited with code ' + $code)
   }
+  Add-SessionPath $opt.BinDir
+  Write-Host ('This session: ' + $opt.CommandName + ' --version')
 } finally {
   if ($bundleDir -and (Test-Path -LiteralPath $bundleDir)) {
     Remove-Item -LiteralPath $bundleDir -Recurse -Force -ErrorAction SilentlyContinue

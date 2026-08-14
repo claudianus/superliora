@@ -55,13 +55,18 @@ try {
   );
 
   theatre.setStage('bootstrapping', 'Ensuring Git');
-  const gitInfo = await ensureGit({ skip: args.noGit, noShellRc: args.noShellRc });
-  if (gitInfo.message) {
-    theatre.note(gitInfo.message);
-  } else if (gitInfo.bootstrapped) {
-    theatre.setDetail(`Installed Git → ${gitInfo.root ?? '~/.superliora/runtime/git'}`);
-  } else if (!gitInfo.skipped) {
-    theatre.setDetail(gitInfo.bashPath ? `Using Git Bash ${gitInfo.bashPath}` : 'Using Git on PATH');
+  try {
+    const gitInfo = await ensureGit({ skip: args.noGit, noShellRc: args.noShellRc });
+    if (gitInfo.message) {
+      theatre.note(gitInfo.message);
+    } else if (gitInfo.bootstrapped) {
+      theatre.setDetail(`Installed Git -> ${gitInfo.root ?? '~/.superliora/runtime/git'}`);
+    } else if (!gitInfo.skipped) {
+      theatre.setDetail(gitInfo.bashPath ? `Using Git Bash ${gitInfo.bashPath}` : 'Using Git on PATH');
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    theatre.note(`Git bootstrap failed (${message}); continuing. Install Git later if the agent needs a shell.`);
   }
 
   const binDir = resolveHome(args.binDir ?? defaultBinDir());
@@ -205,7 +210,7 @@ function parseArgs(argv) {
     version: process.env.SUPERLIORA_VERSION ?? null,
     force: false,
     noBuild: false,
-    noShellRc: false,
+    noShellRc: process.env.SUPERLIORA_NO_SHELL_RC === '1',
     noBrowserUse: process.env.SUPERLIORA_SKIP_BROWSER_USE === '1',
     noComputerUse: process.env.SUPERLIORA_SKIP_COMPUTER_USE === '1',
     noRetrieval: process.env.SUPERLIORA_SKIP_RETRIEVAL === '1',
@@ -326,7 +331,7 @@ Options:
   --no-computer-use     Skip cua-driver
   --no-retrieval        Skip Granite embedder bootstrap
   --no-git              Skip Git / Git Bash bootstrap
-  --no-shell-rc         Do not edit shell PATH / User PATH
+  --no-shell-rc         Do not edit shell PATH / User PATH (or SUPERLIORA_NO_SHELL_RC=1)
   --main                Ignore releases; build tip of origin/main from source
   --prefer-source       Skip prebuilt; build from source (--ref, default main)
   --force-prebuilt      Fail if prebuilt unavailable (same as default without --main)
