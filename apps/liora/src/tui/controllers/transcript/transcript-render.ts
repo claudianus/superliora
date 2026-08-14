@@ -202,12 +202,12 @@ export class TranscriptRenderController {
     }
     // Session hydrate: frames are suppressed and merge uses a high water-mark
     // so we only collapse when a turn is far over the keep window (not every entry).
-    if (host.state.appState.isReplaying) {
-      mergeCurrentTurnSteps(host);
-      return;
-    }
+    // Still apply the turn window during replay — long resumes must not stay unbounded.
     const trimmed = trimTranscriptWindow(host);
     const merged = mergeCurrentTurnSteps(host);
+    if (host.state.appState.isReplaying) {
+      return;
+    }
     if (component || trimmed || merged) {
       requestTUIContentRender(host.state);
     }

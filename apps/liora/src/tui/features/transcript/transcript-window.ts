@@ -31,6 +31,20 @@ export const TRANSCRIPT_WINDOW_ENABLED = true;
 /** Keep the most recent N turns. `0` disables trimming. */
 export const TRANSCRIPT_MAX_TURNS = readEnvInt('SUPERLIORA_TUI_MAX_TURNS', 50);
 
+/**
+ * Turn cap while a session is hydrating / replaying.
+ * Live `TRANSCRIPT_MAX_TURNS=0` disables trimming; replay must never be unbounded
+ * (resume of a long history would otherwise rebuild the entire tree every paint).
+ * Defaults to the live cap when positive, else 50.
+ */
+export const TRANSCRIPT_REPLAY_MAX_TURNS = Math.max(
+  1,
+  readEnvInt(
+    'SUPERLIORA_TUI_REPLAY_MAX_TURNS',
+    TRANSCRIPT_MAX_TURNS > 0 ? TRANSCRIPT_MAX_TURNS : 50,
+  ),
+);
+
 /** Only the most recent E turns are allowed to expand (Ctrl+O). `0` disables expanding. */
 export const TRANSCRIPT_EXPAND_TURNS = readEnvInt('SUPERLIORA_TUI_EXPAND_TURNS', 3);
 
@@ -39,6 +53,24 @@ export const TRANSCRIPT_HYSTERESIS = readEnvInt('SUPERLIORA_TUI_HYSTERESIS', 10)
 
 /** Keep this many recent steps untouched inside a turn; older steps are merged into a summary. `0` disables merging. */
 export const TRANSCRIPT_KEEP_RECENT_STEPS = readEnvInt('SUPERLIORA_TUI_KEEP_RECENT_STEPS', 30);
+
+/**
+ * Resolve the turn window used by transcript maintenance.
+ * Replay/resume always returns a positive finite cap — never 0 / unbounded —
+ * even when the live window is disabled.
+ */
+export function resolveTranscriptMaxTurns(
+  isReplaying: boolean,
+  options: {
+    readonly maxTurns?: number;
+    readonly replayMaxTurns?: number;
+  } = {},
+): number {
+  const liveMax = options.maxTurns ?? TRANSCRIPT_MAX_TURNS;
+  if (!isReplaying) return liveMax;
+  const replayMax = options.replayMaxTurns ?? TRANSCRIPT_REPLAY_MAX_TURNS;
+  return Math.max(1, replayMax);
+}
 
 export interface TranscriptTurn {
   readonly turnId: string | undefined;

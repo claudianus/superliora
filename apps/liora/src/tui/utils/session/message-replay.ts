@@ -147,6 +147,14 @@ export function createReplayRenderContext(): ReplayRenderContext {
   };
 }
 
+/**
+ * Bound a full agent replay log to the most recent `maxTurns` user turns.
+ * Call this *before* projecting records into transcript components so hydrate
+ * never walks or mounts the unbounded history on the UI thread.
+ *
+ * `maxTurns <= 0` returns an empty slice (callers should pass
+ * {@link REPLAY_TURN_LIMIT}, which is always positive).
+ */
 export function limitReplayRecordsByTurn(
   records: readonly AgentReplayRecord[],
   maxTurns: number,
@@ -156,7 +164,19 @@ export function limitReplayRecordsByTurn(
     isReplayUserTurnRecord(record) ? [index] : [],
   );
   if (turnStarts.length <= maxTurns) return records;
-  return records.slice(turnStarts[turnStarts.length - maxTurns]);
+  return records.slice(turnStarts[turnStarts.length - maxTurns]!);
+}
+
+/**
+ * Count user-turn anchors in a replay log (for tests / progress UI).
+ * Does not allocate the limited slice.
+ */
+export function countReplayUserTurns(records: readonly AgentReplayRecord[]): number {
+  let count = 0;
+  for (const record of records) {
+    if (isReplayUserTurnRecord(record)) count += 1;
+  }
+  return count;
 }
 
 export function replayEntry(

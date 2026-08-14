@@ -19,7 +19,12 @@ import type { StreamingUIController } from '#/tui/controllers/streaming-ui/index
 import { AgentGroupComponent } from '#/tui/components/messages/agent-group';
 import { ReadGroupComponent } from '#/tui/components/messages/read-group';
 import { ToolCallComponent } from '#/tui/components/messages/tool-call/index';
-import { REPLAY_MAX_TOOL_MOUNTS_PER_TURN } from '#/tui/utils/session/message-replay';
+import {
+  REPLAY_MAX_TOOL_MOUNTS_PER_TURN,
+  REPLAY_TURN_LIMIT,
+  countReplayUserTurns,
+  limitReplayRecordsByTurn,
+} from '#/tui/utils/session/message-replay';
 
 vi.mock('#/utils/open-url', () => ({ openUrl: vi.fn() }));
 
@@ -297,6 +302,53 @@ function backgroundTask(
     endedAt: status === 'running' ? null : 2,
   };
 }
+
+describe('limitReplayRecordsByTurn', () => {
+  it('returns all records when user turns fit within the cap', () => {
+    const records = [
+      message('user', [{ type: 'text', text: 'a' }]),
+      message('assistant', [{ type: 'text', text: 'A' }]),
+      message('user', [{ type: 'text', text: 'b' }]),
+      message('assistant', [{ type: 'text', text: 'B' }]),
+    ];
+    expect(limitReplayRecordsByTurn(records, 10)).toEqual(records);
+    expect(countReplayUserTurns(records)).toBe(2);
+  });
+
+  it('keeps only the most recent N user turns when N >> cap', () => {
+    const turnCount = REPLAY_TURN_LIMIT + 40;
+    const records: AgentReplayRecord[] = [];
+    for (let i = 0; i < turnCount; i++) {
+      records.push(message('user', [{ type: 'text', text: `prompt ${i}` }]));
+      records.push(message('assistant', [{ type: 'text', text: `reply ${i}` }]));
+    }
+    expect(countReplayUserTurns(records)).toBe(turnCount);
+
+    const limited = limitReplayRecordsByTurn(records, REPLAY_TURN_LIMIT);
+    expect(countReplayUserTurns(limited)).toBe(REPLAY_TURN_LIMIT);
+    // Projection of a large fixture must not require keeping every message in the
+    // render list — only the trailing window is projected.
+    expect(limited.length).toBeLessThan(records.length);
+    expect(limited.length).toBe(REPLAY_TURN_LIMIT * 2);
+
+    const firstUser = limited.find(
+      (record) => record.type === 'message' && record.message.role === 'user',
+    );
+    expect(firstUser?.type === 'message' ? firstUser.message.content : undefined).toEqual([
+      { type: 'text', text: `prompt ${turnCount - REPLAY_TURN_LIMIT}` },
+    ]);
+    const lastAssistant = limited.at(-1);
+    expect(
+      lastAssistant?.type === 'message' ? lastAssistant.message.content : undefined,
+    ).toEqual([{ type: 'text', text: `reply ${turnCount - 1}` }]);
+  });
+
+  it('returns empty when maxTurns is non-positive (never unbounded)', () => {
+    const records = [message('user', [{ type: 'text', text: 'x' }])];
+    expect(limitReplayRecordsByTurn(records, 0)).toEqual([]);
+    expect(limitReplayRecordsByTurn(records, -3)).toEqual([]);
+  });
+});
 
 describe('LioraTUI resume message replay', () => {
   it('does not render legacy goal completion context reminders as transcript messages', async () => {
@@ -1157,6 +1209,31 @@ describe('LioraTUI resume message replay', () => {
           entry.content.includes(String(toolCount - REPLAY_MAX_TOOL_MOUNTS_PER_TURN)),
       ),
     ).toBe(true);
+    expect(driver.state.appState.isReplaying).toBe(false);
+  });
+
+  it('does not keep all messages in the render list for a large multi-turn fixture', async () => {
+    const turnCount = REPLAY_TURN_LIMIT + 25;
+    const records: AgentReplayRecord[] = [];
+    for (let i = 0; i < turnCount; i++) {
+      records.push(message('user', [{ type: 'text', text: `long-session prompt ${i}` }]));
+      records.push(
+        message('assistant', [{ type: 'text', text: `long-session reply ${i}` }]),
+      );
+    }
+
+    const driver = await replayIntoDriver(records);
+    const rendered = stripAnsi(driver.state.transcriptContainer.render(140).join('\n'));
+
+    // Only the trailing turn window is projected into the transcript.
+    expect(rendered).toContain(`long-session prompt ${turnCount - 1}`);
+    expect(rendered).toContain(`long-session reply ${turnCount - 1}`);
+    expect(rendered).not.toContain('long-session prompt 0');
+    expect(rendered).not.toContain('long-session reply 0');
+
+    const userEntries = driver.state.transcriptEntries.filter((entry) => entry.kind === 'user');
+    expect(userEntries.length).toBeLessThanOrEqual(REPLAY_TURN_LIMIT);
+    expect(userEntries.length).toBeGreaterThan(0);
     expect(driver.state.appState.isReplaying).toBe(false);
   });
 

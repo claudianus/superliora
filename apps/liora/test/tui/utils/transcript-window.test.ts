@@ -11,7 +11,12 @@ import {
   syncTranscriptViewport,
   transcriptViewportStart,
 } from '#/tui/features/transcript/transcript-viewport';
-import { groupTurns, readEnvInt, turnsToTrim } from '#/tui/features/transcript/transcript-window';
+import {
+  groupTurns,
+  readEnvInt,
+  resolveTranscriptMaxTurns,
+  turnsToTrim,
+} from '#/tui/features/transcript/transcript-window';
 
 let seq = 0;
 function makeEntry(
@@ -90,6 +95,44 @@ describe('turnsToTrim', () => {
     const turns = groupTurns(entries); // 1 turn
     const removed = turnsToTrim(turns, 2, 0);
     expect(removed.size).toBe(0);
+  });
+
+  it('trims when replayActive with N >> cap (no hysteresis overshoot)', () => {
+    // Resume/hydrate path must never keep unbounded history just because isReplaying.
+    const cap = 10;
+    const turnCount = 80;
+    const entries = Array.from({ length: turnCount }, (_, i) => msg(`t${i}`));
+    const turns = groupTurns(entries);
+    // Replay uses hysteresis=0 so overshoot is not retained until the next live paint.
+    const removed = turnsToTrim(turns, cap, 0);
+    expect(turns.length).toBe(turnCount);
+    expect(removed.size).toBe(turnCount - cap);
+    // Oldest turns go first; the most recent `cap` turns stay.
+    for (let i = 0; i < turnCount - cap; i++) {
+      expect(removed.has(entries[i]!)).toBe(true);
+    }
+    for (let i = turnCount - cap; i < turnCount; i++) {
+      expect(removed.has(entries[i]!)).toBe(false);
+    }
+  });
+});
+
+describe('resolveTranscriptMaxTurns', () => {
+  it('returns live max when not replaying', () => {
+    expect(resolveTranscriptMaxTurns(false, { maxTurns: 50, replayMaxTurns: 10 })).toBe(50);
+  });
+
+  it('returns a positive finite cap while replaying', () => {
+    expect(resolveTranscriptMaxTurns(true, { maxTurns: 50, replayMaxTurns: 12 })).toBe(12);
+  });
+
+  it('never returns 0 / unbounded during replay even if live max is 0', () => {
+    expect(resolveTranscriptMaxTurns(true, { maxTurns: 0, replayMaxTurns: 0 })).toBe(1);
+    expect(resolveTranscriptMaxTurns(true, { maxTurns: 0, replayMaxTurns: 7 })).toBe(7);
+  });
+
+  it('allows live max 0 (trim disabled) when not replaying', () => {
+    expect(resolveTranscriptMaxTurns(false, { maxTurns: 0, replayMaxTurns: 10 })).toBe(0);
   });
 });
 

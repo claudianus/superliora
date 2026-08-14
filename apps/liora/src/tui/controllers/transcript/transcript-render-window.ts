@@ -9,9 +9,9 @@ import { WelcomeComponent } from '../../components/chrome/welcome';
 import {
   TRANSCRIPT_HYSTERESIS,
   TRANSCRIPT_KEEP_RECENT_STEPS,
-  TRANSCRIPT_MAX_TURNS,
   TRANSCRIPT_WINDOW_ENABLED,
   groupTurns,
+  resolveTranscriptMaxTurns,
   turnsToTrim,
 } from '../../features/transcript/transcript-window';
 import { getTranscriptComponentEntry } from '../../features/transcript/transcript-component-metadata';
@@ -29,8 +29,10 @@ export function isTurnBoundaryComponent(child: Component): boolean {
 }
 
 export function trimTranscriptWindow(host: TranscriptRenderHost): boolean {
-  if (!TRANSCRIPT_WINDOW_ENABLED || TRANSCRIPT_MAX_TURNS <= 0) return false;
-  if (host.state.appState.isReplaying) return false;
+  if (!TRANSCRIPT_WINDOW_ENABLED) return false;
+  // Replay/resume must stay capped — never skip solely because isReplaying is true.
+  const maxTurns = resolveTranscriptMaxTurns(host.state.appState.isReplaying);
+  if (maxTurns <= 0) return false;
 
   const children = host.state.transcriptContainer.children;
   const boundaries: number[] = [];
@@ -39,7 +41,10 @@ export function trimTranscriptWindow(host: TranscriptRenderHost): boolean {
   }
 
   const turns = groupTurns(host.state.transcriptEntries);
-  const toRemove = turnsToTrim(turns, TRANSCRIPT_MAX_TURNS, TRANSCRIPT_HYSTERESIS);
+  // No hysteresis during hydrate: long resumes would otherwise keep the full
+  // overshoot band mounted until the next live append after isReplaying clears.
+  const hysteresis = host.state.appState.isReplaying ? 0 : TRANSCRIPT_HYSTERESIS;
+  const toRemove = turnsToTrim(turns, maxTurns, hysteresis);
   if (toRemove.size === 0) return false;
 
   let boundariesToRemove = 0;
@@ -213,13 +218,10 @@ export function mergeAllTurnSteps(host: TranscriptRenderHost): void {
 }
 
 export function runTranscriptWindowMaintenance(host: TranscriptRenderHost): void {
-  if (host.state.appState.isReplaying) {
-    mergeCurrentTurnSteps(host);
-    return;
-  }
   const trimmed = trimTranscriptWindow(host);
   const merged = mergeCurrentTurnSteps(host);
-  if (trimmed || merged) {
+  // Frames are suppressed while hydrating; avoid thrashing the paint path.
+  if (!host.state.appState.isReplaying && (trimmed || merged)) {
     requestTUIContentRender(host.state);
   }
 }
