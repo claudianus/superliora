@@ -121,7 +121,6 @@ export function resolveRendererFrameOutputPolicy(
       ...context.outputOptions,
       synchronized,
       eraseLine: context.outputOptions?.eraseLine ?? policy.eraseLine,
-      eraseLineMode: context.outputOptions?.eraseLineMode,
     },
   };
 }

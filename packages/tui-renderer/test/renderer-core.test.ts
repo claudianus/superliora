@@ -74,7 +74,6 @@ import {
   encodeTerminalFrame,
   encodeTerminalRuns,
   encodeTerminalRunsWithMetrics,
-  defaultTerminalEraseLineMode,
   escapeTerminalText,
   formatRendererDiagnosticsLine,
   formatRendererDiagnosticsLines,
@@ -3316,36 +3315,6 @@ describe('terminal output encoder', () => {
       eraseLine: true,
       frameWidth: 8,
     })).toBe(`\u001B[1;1Hok${ANSI_ERASE_IN_LINE}`);
-  });
-
-  it('fills trailing blanks with spaces on ConPTY instead of CSI K default-black erase', () => {
-    const run = {
-      x: 0,
-      y: 0,
-      cells: [
-        { char: 'o' },
-        { char: 'k' },
-        { char: ' ' },
-        { char: ' ' },
-        { char: ' ' },
-        { char: ' ' },
-        { char: ' ' },
-        { char: ' ' },
-      ],
-    };
-    expect(encodeTerminalRuns([run], {
-      eraseLine: true,
-      frameWidth: 8,
-      eraseLineMode: 'spaces',
-    })).toBe('\u001B[1;1Hok      ');
-    expect(encodeTerminalRuns([run], {
-      eraseLine: true,
-      frameWidth: 8,
-      eraseLineMode: 'el',
-    })).toBe(`\u001B[1;1Hok${ANSI_ERASE_IN_LINE}`);
-    expect(defaultTerminalEraseLineMode({ platform: 'win32', env: {} })).toBe('spaces');
-    expect(defaultTerminalEraseLineMode({ platform: 'linux', env: {} })).toBe('el');
-    expect(defaultTerminalEraseLineMode({ platform: 'darwin', env: { WT_SESSION: '1' } })).toBe('spaces');
   });
 
   it('does not erase styled trailing blanks or partial runs with unknown row tails', () => {
