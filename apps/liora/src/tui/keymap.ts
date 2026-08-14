@@ -4,7 +4,13 @@
  * Descriptions resolve via `ttui(descriptionKey)` at render time.
  */
 
+import { primaryModLabel } from '#/tui/renderer';
 import { ttui } from '#/tui/utils/tui-i18n';
+
+/** Footer/help chord for the OS primary modifier (Cmd on darwin, Ctrl elsewhere). */
+export function primaryChord(key: string, platform: NodeJS.Platform = process.platform): string {
+  return `${primaryModLabel(platform)}-${key}`;
+}
 
 export type KeymapSurface = 'always' | 'idle' | 'streaming' | 'cheatsheet';
 
@@ -41,7 +47,7 @@ export function resolveKeymapBinding(binding: KeymapBinding): ResolvedKeymapBind
 export const KEYMAP_ALWAYS: readonly KeymapBinding[] = [
   {
     id: 'hub',
-    key: 'Ctrl-K',
+    key: primaryChord('K'),
     descriptionKey: 'tui.help.shortcut.hub',
     surface: 'always',
     category: 'menu',
@@ -62,7 +68,7 @@ export const KEYMAP_ALWAYS: readonly KeymapBinding[] = [
   },
   {
     id: 'interrupt',
-    key: 'Ctrl-C',
+    key: primaryChord('C'),
     descriptionKey: 'tui.help.shortcut.ctrlC',
     surface: 'always',
     category: 'agent',
@@ -84,7 +90,7 @@ export const KEYMAP_ALWAYS: readonly KeymapBinding[] = [
   },
   {
     id: 'expand-tool-output',
-    key: 'Ctrl-O',
+    key: primaryChord('O'),
     descriptionKey: 'tui.help.shortcut.ctrlO',
     surface: 'always',
     category: 'navigate',
@@ -92,7 +98,7 @@ export const KEYMAP_ALWAYS: readonly KeymapBinding[] = [
   },
   {
     id: 'expand-todo',
-    key: 'Ctrl-T',
+    key: primaryChord('T'),
     descriptionKey: 'tui.help.shortcut.ctrlT',
     surface: 'always',
     category: 'navigate',
@@ -111,28 +117,28 @@ export const KEYMAP_IDLE: readonly KeymapBinding[] = [
   },
   {
     id: 'history',
-    key: 'Ctrl-R',
+    key: primaryChord('R'),
     descriptionKey: 'tui.help.shortcut.history',
     surface: 'idle',
     category: 'edit',
   },
   {
     id: 'transcript-search',
-    key: 'Ctrl-F',
+    key: primaryChord('F'),
     descriptionKey: 'tui.help.shortcut.transcriptSearch',
     surface: 'idle',
     category: 'navigate',
   },
   {
     id: 'stash',
-    key: 'Ctrl-X',
+    key: primaryChord('X'),
     descriptionKey: 'tui.help.shortcut.ctrlX',
     surface: 'idle',
     category: 'edit',
   },
   {
     id: 'external-editor',
-    key: 'Ctrl-G',
+    key: primaryChord('G'),
     descriptionKey: 'tui.help.shortcut.ctrlG',
     surface: 'idle',
     category: 'edit',
@@ -166,7 +172,7 @@ export const KEYMAP_IDLE: readonly KeymapBinding[] = [
 export const KEYMAP_STREAMING: readonly KeymapBinding[] = [
   {
     id: 'steer',
-    key: 'Ctrl-S',
+    key: primaryChord('S'),
     descriptionKey: 'tui.help.shortcut.ctrlS',
     surface: 'streaming',
     category: 'agent',
@@ -174,7 +180,7 @@ export const KEYMAP_STREAMING: readonly KeymapBinding[] = [
   },
   {
     id: 'background',
-    key: 'Ctrl-B',
+    key: primaryChord('B'),
     descriptionKey: 'tui.help.shortcut.ctrlB',
     surface: 'streaming',
     category: 'agent',

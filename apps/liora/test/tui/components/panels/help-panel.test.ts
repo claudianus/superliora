@@ -31,7 +31,7 @@ describe('HelpPanelComponent', () => {
     const out = strip(panel.render(120).join('\n'));
     expect(out).toMatch(/help/);
     expect(out).toMatch(/Keyboard shortcuts/);
-    expect(out).toMatch(/Ctrl-K/);
+    expect(out).toMatch(process.platform === 'darwin' ? /Cmd-K/ : /Ctrl-K/);
     expect(out).toMatch(/Open the Command Hub menu/);
     expect(out).toMatch(/Shift-Tab/);
     expect(out).toMatch(/Switch Build \/ Ask mode/);

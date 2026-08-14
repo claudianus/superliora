@@ -41,6 +41,8 @@ export interface NativeInputKeyEvent {
   readonly ctrl: boolean;
   readonly alt: boolean;
   readonly shift: boolean;
+  /** Super/Cmd (Kitty CSI-u bit 3). Omitted on older literals; treat as false. */
+  readonly super?: boolean;
 }
 
 export interface NativeInputPasteEvent {

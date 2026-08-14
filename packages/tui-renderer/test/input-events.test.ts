@@ -9,8 +9,10 @@ import {
   isKeyRelease,
   Key,
   matchesKey,
+  matchesPrimaryMod,
   NativeInputDecoder,
   parseKey,
+  primaryModLabel,
 } from '../src';
 
 describe('NativeInputDecoder', () => {
@@ -216,6 +218,59 @@ describe('NativeInputDecoder', () => {
       },
       { type: 'key', key: 'character', raw: '\u001B[0;;229u', text: 'å', ctrl: false, alt: false, shift: false },
     ]);
+  });
+
+  it('decodes Kitty Super/Cmd (CSI-u bit 3) without treating CapsLock as Super', () => {
+    // modifier = 1 + 8 = 9 → Super only. CapsLock (16) must stay ignored.
+    expect(decodeNativeInput('\u001B[99;9u\u001B[118;9u\u001B[107;17u')).toEqual([
+      {
+        type: 'key',
+        key: 'character',
+        raw: '\u001B[99;9u',
+        text: 'c',
+        ctrl: false,
+        alt: false,
+        shift: false,
+        super: true,
+      },
+      {
+        type: 'key',
+        key: 'character',
+        raw: '\u001B[118;9u',
+        text: 'v',
+        ctrl: false,
+        alt: false,
+        shift: false,
+        super: true,
+      },
+      {
+        type: 'key',
+        key: 'character',
+        raw: '\u001B[107;17u',
+        text: 'k',
+        ctrl: false,
+        alt: false,
+        shift: false,
+        super: false,
+      },
+    ]);
+    expect(matchesKey('\u001B[99;9u', Key.super('c'))).toBe(true);
+    expect(matchesKey('\u001B[99;9u', Key.ctrl('c'))).toBe(false);
+    expect(matchesKey('\u001B[107;17u', Key.super('k'))).toBe(false);
+  });
+
+  it('matches OS primary modifier as Cmd on darwin and Ctrl elsewhere', () => {
+    const cmdC = '\u001B[99;9u';
+    const ctrlC = '\u0003';
+    expect(primaryModLabel('darwin')).toBe('Cmd');
+    expect(primaryModLabel('linux')).toBe('Ctrl');
+    expect(primaryModLabel('win32')).toBe('Ctrl');
+    expect(matchesPrimaryMod(cmdC, 'c', 'darwin')).toBe(true);
+    expect(matchesPrimaryMod(cmdC, 'c', 'linux')).toBe(false);
+    expect(matchesPrimaryMod(cmdC, 'c', 'win32')).toBe(false);
+    expect(matchesPrimaryMod(ctrlC, 'c', 'darwin')).toBe(true);
+    expect(matchesPrimaryMod(ctrlC, 'c', 'linux')).toBe(true);
+    expect(matchesPrimaryMod(ctrlC, 'c', 'win32')).toBe(true);
   });
 
   it('buffers an incomplete CSI sequence until the next chunk', () => {

@@ -1,4 +1,4 @@
-import { Key, matchesKey } from '#/tui/renderer';
+import { Key, matchesKey, matchesPrimaryMod } from '#/tui/renderer';
 
 import { printableChar } from '#/tui/utils/printable-key';
 import { clipboardHasImage } from '#/utils/clipboard/clipboard-has-image';
@@ -47,59 +47,60 @@ export function handleNativeTUIEditorAppShortcut(
   host: NativeTUIEditorShortcutHost,
   data: string,
 ): boolean {
-  // Ctrl+V (Alt+V on Windows, where terminals reserve Ctrl+V for their own
-  // paste): paste an image from the OS clipboard. Falls through to a text
-  // paste when the clipboard holds no image so the key never dead-ends.
-  // Restores the binding the legacy editor had before the native rewrite.
-  const pasteMediaKey = process.platform === 'win32' ? Key.alt('v') : Key.ctrl('v');
-  if (matchesKey(data, pasteMediaKey)) {
+  // Image paste: Cmd/Ctrl+V on all OS. Windows also keeps Alt+V because
+  // many terminals steal Ctrl+V for their own paste. Do not expand Alt+V
+  // into a general Windows scheme.
+  if (
+    matchesPrimaryMod(data, 'v') ||
+    (process.platform === 'win32' && matchesKey(data, Key.alt('v')))
+  ) {
     void handleNativeTUIEditorPasteMediaKey(host, data);
     return true;
   }
-  if (matchesKey(data, Key.ctrl('d'))) {
+  if (matchesPrimaryMod(data, 'd')) {
     if (host.getText().length === 0) {
       host.onCtrlD?.();
       return true;
     }
     return false;
   }
-  if (matchesKey(data, Key.ctrl('c'))) {
+  if (matchesPrimaryMod(data, 'c')) {
     host.onCtrlC?.();
     return true;
   }
-  if (matchesKey(data, Key.ctrl('g'))) {
+  if (matchesPrimaryMod(data, 'g')) {
     host.onOpenExternalEditor?.();
     return true;
   }
-  if (matchesKey(data, Key.ctrl('s'))) {
+  if (matchesPrimaryMod(data, 's')) {
     host.onCtrlS?.();
     return true;
   }
-  // Ctrl-B: always consume so idle presses can toast instead of emacs backward-char.
-  if (matchesKey(data, Key.ctrl('b'))) {
+  // Cmd/Ctrl-B: always consume so idle presses can toast instead of emacs backward-char.
+  if (matchesPrimaryMod(data, 'b')) {
     host.onCtrlB?.();
     return true;
   }
-  // Ctrl-O: cycle transcript density (minimal → compact → standard → full).
-  if (matchesKey(data, Key.ctrl('o'))) {
+  // Cmd/Ctrl-O: cycle transcript density (minimal → compact → standard → full).
+  if (matchesPrimaryMod(data, 'o')) {
     host.onToggleToolExpand?.();
     return true;
   }
-  // Ctrl-T: expand/collapse the todo panel; pass through when it has no overflow.
-  if (matchesKey(data, Key.ctrl('t')) && host.onToggleTodoExpand?.() === true) {
+  // Cmd/Ctrl-T: expand/collapse the todo panel; pass through when it has no overflow.
+  if (matchesPrimaryMod(data, 't') && host.onToggleTodoExpand?.() === true) {
     return true;
   }
   if (matchesKey(data, 'shift+tab')) {
     host.onShiftTab?.();
     return true;
   }
-  // Ctrl-R: always consume; host toasts when the prompt is non-empty.
-  if (matchesKey(data, Key.ctrl('r'))) {
+  // Cmd/Ctrl-R: always consume; host toasts when the prompt is non-empty.
+  if (matchesPrimaryMod(data, 'r')) {
     host.onHistorySearch?.();
     return true;
   }
-  // Ctrl-K / Ctrl-Space: Command Hub (One-search).
-  if (matchesKey(data, Key.ctrl('k')) || matchesKey(data, Key.ctrl(Key.space))) {
+  // Cmd/Ctrl-K / Cmd/Ctrl-Space: Command Hub (One-search).
+  if (matchesPrimaryMod(data, 'k') || matchesPrimaryMod(data, Key.space)) {
     host.onCommandHub?.();
     return true;
   }
@@ -123,13 +124,13 @@ export function handleNativeTUIEditorAppShortcut(
     host.onCommandHub?.();
     return true;
   }
-  // Ctrl-F: transcript search.
-  if (matchesKey(data, Key.ctrl('f'))) {
+  // Cmd/Ctrl-F: transcript search.
+  if (matchesPrimaryMod(data, 'f')) {
     host.onTranscriptSearch?.();
     return true;
   }
-  // Ctrl-X: stash the current draft, or pop the latest stash when empty.
-  if (matchesKey(data, Key.ctrl('x'))) {
+  // Cmd/Ctrl-X: stash the current draft, or pop the latest stash when empty.
+  if (matchesPrimaryMod(data, 'x')) {
     host.onStashToggle?.();
     return true;
   }

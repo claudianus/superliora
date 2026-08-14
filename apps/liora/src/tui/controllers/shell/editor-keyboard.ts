@@ -16,6 +16,7 @@ import {
    LLM_NOT_SET_MESSAGE,
    NO_ACTIVE_SESSION_MESSAGE,
 } from '../../constant/liora-tui';
+import { primaryChord } from '../../keymap';
 import { formatErrorMessage } from '../../utils/event-payload';
 import {
   flushPromptInputState,
@@ -269,7 +270,7 @@ export class EditorKeyboardController {
       if (!editorIsBash && text.length > 0) parts.push(text);
 
       if (parts.length === 0) {
-        host.state.toast.show('Type a steer message first, then Ctrl-S', 2200);
+        host.state.toast.show(`Type a steer message first, then ${primaryChord('S')}`, 2200);
         return;
       }
       if (!editorIsBash) editor.setText('');
@@ -345,8 +346,6 @@ export class EditorKeyboardController {
     };
 
     editor.onUpArrowEmpty = () => {
-      if (host.btwPanelController.scroll('up')) return true;
-      if (host.state.appState.streamingPhase === 'idle' && !host.state.appState.isCompacting) return false;
       const recalled = host.messageDispatch.recallLastQueued();
       if (recalled !== undefined) {
         editor.setText(recalled.displayText ?? recalled.text);
@@ -362,7 +361,10 @@ export class EditorKeyboardController {
         requestTUILayoutRender(host.state);
         return true;
       }
-      return false;
+      if (host.state.appState.streamingPhase === 'idle' && !host.state.appState.isCompacting) {
+        return false;
+      }
+      return host.btwPanelController.scroll('up');
     };
 
     editor.onDownArrowEmpty = () => host.btwPanelController.scroll('down');

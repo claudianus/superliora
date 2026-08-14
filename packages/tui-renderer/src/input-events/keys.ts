@@ -85,6 +85,12 @@ export const Key = {
   shift: <K extends BaseKey>(key: K): `shift+${K}` => `shift+${key}`,
   alt: <K extends BaseKey>(key: K): `alt+${K}` => `alt+${key}`,
   super: <K extends BaseKey>(key: K): `super+${K}` => `super+${key}`,
+  /**
+   * App-primary modifier: Super/Cmd on darwin, Ctrl elsewhere.
+   * Bind with {@link matchesPrimaryMod} so macOS Cmd matches equivalently
+   * to Ctrl without inventing a second matcher that bypasses decodeKittyPrintable.
+   */
+  primary: <K extends BaseKey>(key: K): `primary+${K}` => `primary+${key}`,
   ctrlShift: <K extends BaseKey>(key: K): `ctrl+shift+${K}` => `ctrl+shift+${key}`,
   shiftCtrl: <K extends BaseKey>(key: K): `shift+ctrl+${K}` => `shift+ctrl+${key}`,
   ctrlAlt: <K extends BaseKey>(key: K): `ctrl+alt+${K}` => `ctrl+alt+${key}`,
@@ -141,6 +147,31 @@ export function matchesKey(data: string, keyId: KeyId): boolean {
   return legacyFallbackMatches(data, expected);
 }
 
+export type PrimaryModPlatform = 'darwin' | 'linux' | 'win32' | string;
+
+/**
+ * OS primary-modifier label for help/footer. Darwin uses Cmd; Linux/Windows
+ * keep Ctrl. Documented so help never advertises a dead chord.
+ */
+export function primaryModLabel(platform: PrimaryModPlatform = process.platform): 'Cmd' | 'Ctrl' {
+  return platform === 'darwin' ? 'Cmd' : 'Ctrl';
+}
+
+/**
+ * Match an app chord against the OS primary modifier (Cmd on darwin, Ctrl
+ * elsewhere). On darwin, Ctrl still matches so terminals that only emit
+ * Ctrl keep working; Super/Cmd is the extra path that was previously dropped.
+ */
+export function matchesPrimaryMod(
+  data: string,
+  key: BaseKey,
+  platform: PrimaryModPlatform = process.platform,
+): boolean {
+  if (matchesKey(data, Key.ctrl(key))) return true;
+  if (platform === 'darwin' && matchesKey(data, Key.super(key))) return true;
+  return false;
+}
+
 export function decodeKittyPrintable(data: string): string | undefined {
   const event = decodeSingleKey(data);
   if (
@@ -148,7 +179,8 @@ export function decodeKittyPrintable(data: string): string | undefined {
     event.key !== 'character' ||
     event.text === undefined ||
     event.ctrl ||
-    event.alt
+    event.alt ||
+    Boolean(event.super)
   ) {
     return undefined;
   }
@@ -264,8 +296,12 @@ function parseKeyId(keyId: string): ParsedKeyId | undefined {
 }
 
 function eventMatches(event: NativeInputKeyEvent, expected: ParsedKeyId): boolean {
-  if (expected.super) return false;
-  if (event.ctrl !== expected.ctrl || event.alt !== expected.alt || event.shift !== expected.shift) {
+  if (
+    event.ctrl !== expected.ctrl ||
+    event.alt !== expected.alt ||
+    event.shift !== expected.shift ||
+    Boolean(event.super) !== expected.super
+  ) {
     return false;
   }
   return eventKeyName(event) === normalizeExpectedKey(expected.key);
@@ -302,6 +338,7 @@ function keyIdForEvent(event: NativeInputKeyEvent): string {
     event.shift ? 'shift' : undefined,
     event.ctrl ? 'ctrl' : undefined,
     event.alt ? 'alt' : undefined,
+    event.super ? 'super' : undefined,
   ].filter((modifier): modifier is string => modifier !== undefined);
   return modifiers.length === 0 ? namedKey : `${modifiers.join('+')}+${namedKey}`;
 }

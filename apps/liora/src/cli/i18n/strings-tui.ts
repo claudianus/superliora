@@ -136,6 +136,8 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.footer.premium': 'Visual Quality ON — motion/density, anti-slop, screenshot proof',
   'tui.footer.exitConfirmCtrlC': 'Press Ctrl+C again to exit',
   'tui.footer.exitConfirmCtrlD': 'Press Ctrl+D again to exit',
+  'tui.footer.exitConfirmPrimaryC': 'Press {chord} again to exit',
+  'tui.footer.exitConfirmPrimaryD': 'Press {chord} again to exit',
   'tui.footer.detachHint': 'Detached. Output continues in background (/tasks).',
 
   // ── Permission mode notices ──────────────────────────────────────────────

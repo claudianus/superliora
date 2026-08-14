@@ -35,7 +35,9 @@ describe('keymap registry', () => {
       'background',
     ]);
     expect(keymapBindingsForSlash('/mission')).toEqual([]);
-    expect(formatKeymapBindingSample(keymapBindingsForSlash('/plan')[0]!)).toContain('Ctrl-C');
+    expect(formatKeymapBindingSample(keymapBindingsForSlash('/plan')[0]!)).toContain(
+      process.platform === 'darwin' ? 'Cmd-C' : 'Ctrl-C',
+    );
   });
 });
 
@@ -53,7 +55,9 @@ describe('keybindings-glance', () => {
     expect(lines).toContain('Plan / Agents / Transcript samples');
     expect(lines).toContain('/help');
     expect(lines).toContain(String(KEYMAP_ALL.length));
-    expect(lines).toContain('Ctrl-C — Stop the current turn');
+    expect(lines).toContain(
+      `${process.platform === 'darwin' ? 'Cmd-C' : 'Ctrl-C'} — Stop the current turn`,
+    );
     expect(lines).toContain('Ctrl-O — Cycle transcript density');
     expect(lines).toContain('Ctrl-B — Background the current work');
     expect(lines).toContain('No keybinding editor here');

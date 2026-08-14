@@ -39,3 +39,17 @@ export function shouldMissionDockConsumeEnter(input: {
   if (input.editorText.trim().length > 0) return false;
   return input.selectedWorkerId !== undefined;
 }
+
+/**
+ * Whether bare ↑/↓ should navigate the Worker Dock instead of the editor.
+ *
+ * Product rule: the editor owns ↑ when it is focused (empty prompt, first-line
+ * caret, or a queued/history recall). The dock only consumes ↑/↓ after an
+ * explicit row selection — same gate as Enter. A visible-but-unfocused dock
+ * must not steal prompt-history recall.
+ */
+export function shouldMissionDockConsumeArrow(input: {
+  readonly selectedWorkerId: string | undefined;
+}): boolean {
+  return input.selectedWorkerId !== undefined;
+}

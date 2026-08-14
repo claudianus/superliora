@@ -13,7 +13,7 @@ export function matchCsiU(
   if (keyCodes === undefined) {
     return {
       raw,
-      event: { type: 'key', key: 'escape', raw, ctrl: false, alt: false, shift: false },
+      event: { type: 'key', key: 'escape', raw, ctrl: false, alt: false, shift: false, super: false },
     };
   }
   const modifiers = decodeCsiUModifiers(match[2]);
@@ -63,11 +63,11 @@ function resolveCsiUText(
     readonly unicodeKeyCode: number;
     readonly baseLayoutKeyCode: number | undefined;
   },
-  modifiers: { readonly ctrl: boolean; readonly alt: boolean },
+  modifiers: { readonly ctrl: boolean; readonly alt: boolean; readonly super: boolean },
   associatedText: string | undefined,
 ): string {
   if (
-    (modifiers.ctrl || modifiers.alt) &&
+    (modifiers.ctrl || modifiers.alt || modifiers.super) &&
     keyCodes.baseLayoutKeyCode !== undefined
   ) {
     // IME layouts report the layout glyph as unicode-key-code; applications
@@ -81,14 +81,18 @@ function decodeCsiUModifiers(value: string | undefined): {
   readonly ctrl: boolean;
   readonly alt: boolean;
   readonly shift: boolean;
+  readonly super: boolean;
 } {
   const modifier = parseCsiNumber(value);
-  if (modifier === undefined) return { ctrl: false, alt: false, shift: false };
+  if (modifier === undefined) return { ctrl: false, alt: false, shift: false, super: false };
   const bits = Math.max(0, modifier - 1);
   return {
     shift: (bits & 1) !== 0,
     alt: (bits & 2) !== 0,
     ctrl: (bits & 4) !== 0,
+    // Kitty CSI-u: Super/Cmd is bit 3 (value 8). CapsLock (16) / NumLock (32)
+    // stay ignored so lock keys do not look like a chord.
+    super: (bits & 8) !== 0,
   };
 }
 

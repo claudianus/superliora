@@ -46,6 +46,7 @@ type KnownInputEvent =
       readonly ctrl?: boolean;
       readonly alt?: boolean;
       readonly shift?: boolean;
+      readonly super?: boolean;
     }
   | Omit<NativeInputFocusEvent, 'raw'>;
 
@@ -102,6 +103,7 @@ export function sequenceEvent(raw: string, event: KnownInputEvent): NativeInputE
     ctrl: false,
     alt: false,
     shift: false,
+    super: false,
     ...event,
     raw,
   };

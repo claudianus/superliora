@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   missionBandActive,
+  shouldMissionDockConsumeArrow,
   shouldMissionDockConsumeEnter,
 } from '#/tui/features/mission-control/dock';
 import { buildTUIStateNativeFrameRegions } from '#/tui/features/native-layout/native-layout-frame';

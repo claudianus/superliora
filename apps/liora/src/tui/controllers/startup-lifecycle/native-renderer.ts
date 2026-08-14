@@ -34,6 +34,7 @@ import { ttui } from '../../utils/tui-i18n';
 import type { SlashCommandHost } from '../../commands/hub/dispatch';
 import {
   missionBandActive,
+  shouldMissionDockConsumeArrow,
   shouldMissionDockConsumeEnter,
 } from '../../features/mission-control/dock';
 import { requestTUIContentRender as requestContentRender } from '../../utils/render/frame-render';
@@ -379,26 +380,14 @@ function handleMissionDockSelectionKey(
   ) {
     return false;
   }
+  // Bare ↑/↓ stay with the editor unless the dock already has an explicit
+  // selection (same gate as Enter). An unfocused/visible dock must not steal
+  // prompt-history or queued-prompt recall.
   if (
     (mapKey === 'up' || mapKey === 'down') &&
-    panel.selectedWorker === undefined &&
-    panel.currentView.snapshot.workers.length === 0
+    !shouldMissionDockConsumeArrow({ selectedWorkerId: panel.selectedWorker })
   ) {
     return false;
-  }
-  // Without an existing selection, only consume ↑/↓ when Alt is not held
-  // and the operator has already focused the dock via mouse hover/click —
-  // otherwise bare arrows stay with the editor. Once selected, arrows stay
-  // on the dock until Esc.
-  if (
-    (mapKey === 'up' || mapKey === 'down') &&
-    panel.selectedWorker === undefined
-  ) {
-    // First arrow focuses the dock roster without stealing when empty.
-    const result = panel.handleSelectionKey(mapKey);
-    if (!result.handled) return false;
-    requestContentRender(host.state);
-    return true;
   }
 
   const result = panel.handleSelectionKey(mapKey);

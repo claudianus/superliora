@@ -14,11 +14,11 @@ export function NO_ACTIVE_SESSION_MESSAGE(): string {
 }
 
 export function CTRL_D_HINT(): string {
-  return ttui('tui.footer.exitConfirmCtrlD');
+  return ttui('tui.footer.exitConfirmPrimaryD', { chord: primaryChord('D') });
 }
 
 export function CTRL_C_HINT(): string {
-  return ttui('tui.footer.exitConfirmCtrlC');
+  return ttui('tui.footer.exitConfirmPrimaryC', { chord: primaryChord('C') });
 }
 
 export function OAUTH_LOGIN_REQUIRED_STARTUP_NOTICE(): string {

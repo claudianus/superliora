@@ -74,6 +74,7 @@ export function keyEvent(
     readonly ctrl?: boolean;
     readonly alt?: boolean;
     readonly shift?: boolean;
+    readonly super?: boolean;
   },
 ): NativeInputKeyEvent {
   const event: NativeInputKeyEvent = {
@@ -84,6 +85,7 @@ export function keyEvent(
     ctrl: options.ctrl ?? false,
     alt: options.alt ?? false,
     shift: options.shift ?? false,
+    super: options.super ?? false,
   };
   if (options.eventType === undefined) return event;
   return { ...event, eventType: options.eventType };
