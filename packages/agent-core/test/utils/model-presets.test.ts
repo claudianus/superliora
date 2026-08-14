@@ -509,6 +509,137 @@ describe('model-presets — models.dev benchmarks', () => {
   });
 });
 
+describe('model-presets — same-family generation ranking', () => {
+  function grokFlagship(id: string, qualityScore: number, extra: Partial<ModelMetadata> = {}): ModelMetadata {
+    return {
+      id,
+      alias: `xai-grok/${id}`,
+      provider: 'xai-grok',
+      family: 'grok',
+      tier: 'high',
+      available: true,
+      supportsTools: true,
+      supportsReasoning: true,
+      contextWindow: 256_000,
+      inputCostPerM: 2,
+      qualityScore,
+      valueScore: qualityScore / 2,
+      benchmarkScore: qualityScore,
+      benchmarkCount: 2,
+      ...extra,
+    };
+  }
+
+  it('picks the newer equal-price grok generation over 4.5 when live benches are close', () => {
+    const models: ModelMetadata[] = [
+      grokFlagship('grok-4.5', 86),
+      grokFlagship('grok-4.6', 84),
+    ];
+    const assignments = autoAssignRoleModels(models);
+    assert.equal(assignments.coding?.modelId, 'grok-4.6');
+    assert.equal(assignments.planning?.modelId, 'grok-4.6');
+    assert.equal(assignments.debugging?.modelId, 'grok-4.6');
+  });
+
+  it('picks a later same-family generation when the catalog advances past 4.6', () => {
+    const models: ModelMetadata[] = [
+      grokFlagship('grok-4.6', 86),
+      grokFlagship('grok-4.7', 84),
+    ];
+    const assignments = autoAssignRoleModels(models);
+    assert.equal(assignments.coding?.modelId, 'grok-4.7');
+    assert.equal(assignments.planning?.modelId, 'grok-4.7');
+  });
+
+  it('still prefers grok-4.5 over grok-4 / grok-4.3 when no newer sibling is listed', () => {
+    const models: ModelMetadata[] = [
+      grokFlagship('grok-4', 80, { contextWindow: 128_000 }),
+      grokFlagship('grok-4.3', 82),
+      grokFlagship('grok-4.5', 86),
+    ];
+    const assignments = autoAssignRoleModels(models);
+    assert.equal(assignments.coding?.modelId, 'grok-4.5');
+    assert.equal(assignments.planning?.modelId, 'grok-4.5');
+    assert.equal(assignments.debugging?.modelId, 'grok-4.5');
+  });
+
+  it('still prefers a clearly cheaper value model for value roles', () => {
+    const models: ModelMetadata[] = [
+      grokFlagship('grok-4.6', 84, { valueScore: 42 }),
+      {
+        id: 'grok-build-0.1',
+        alias: 'xai-grok/grok-build-0.1',
+        provider: 'xai-grok',
+        family: 'grok',
+        tier: 'ultra-cheap',
+        available: true,
+        supportsTools: true,
+        contextWindow: 256_000,
+        inputCostPerM: 0.2,
+        qualityScore: 70,
+        valueScore: 350,
+      },
+    ];
+    const assignments = autoAssignRoleModels(models);
+    assert.equal(assignments.compaction?.modelId, 'grok-build-0.1');
+    assert.equal(assignments.exploration?.modelId, 'grok-build-0.1');
+    assert.equal(assignments.coding?.modelId, 'grok-4.6');
+  });
+
+  it('breaks remaining same-family ties with larger context, then the session default', () => {
+    const sameGen: ModelMetadata[] = [
+      grokFlagship('grok-4.6-compact', 84, { contextWindow: 128_000 }),
+      grokFlagship('grok-4.6-wide', 84, { contextWindow: 1_000_000 }),
+    ];
+    const byContext = autoAssignRoleModels(sameGen);
+    assert.equal(byContext.coding?.modelId, 'grok-4.6-wide');
+
+    const sameContext: ModelMetadata[] = [
+      grokFlagship('grok-4.6-a', 84, { contextWindow: 256_000 }),
+      grokFlagship('grok-4.6-b', 84, { contextWindow: 256_000 }),
+    ];
+    const byDefault = autoAssignRoleModels(sameContext, undefined, { sessionDefault: 'grok-4.6-b' });
+    assert.equal(byDefault.coding?.modelId, 'grok-4.6-b');
+    assert.notEqual(byDefault.coding?.reason, 'User override');
+
+    const newerStillWins: ModelMetadata[] = [
+      grokFlagship('grok-4.6', 86),
+      grokFlagship('grok-4.7', 84),
+    ];
+    const assignments = autoAssignRoleModels(newerStillWins, undefined, {
+      sessionDefault: 'grok-4.6',
+    });
+    assert.equal(assignments.coding?.modelId, 'grok-4.7');
+  });
+
+  it('previewLoopRoleModelRouting prefers the newer equal-price grok generation', () => {
+    const previews = previewLoopRoleModelRouting([
+      {
+        alias: 'xai-grok/grok-4.5',
+        model: 'grok-4.5',
+        provider: 'xai-grok',
+        available: true,
+        maxContextSize: 256_000,
+        capabilities: ['thinking', 'tool_use'],
+        inputCostPerM: 2,
+      },
+      {
+        alias: 'xai-grok/grok-4.6',
+        model: 'grok-4.6',
+        provider: 'xai-grok',
+        available: true,
+        maxContextSize: 256_000,
+        capabilities: ['thinking', 'tool_use'],
+        inputCostPerM: 2,
+      },
+    ]);
+    const coding = previews.find((row) => row.role === 'coding');
+    const planning = previews.find((row) => row.role === 'planning');
+    assert.equal(coding?.resolvedAlias, 'xai-grok/grok-4.6');
+    assert.equal(planning?.resolvedAlias, 'xai-grok/grok-4.6');
+  });
+});
+
 describe('model-presets — previewLoopRoleModelRouting health gate', () => {
   it('excludes available===false aliases from auto picks when healthy alternatives exist', () => {
     const previews = previewLoopRoleModelRouting([

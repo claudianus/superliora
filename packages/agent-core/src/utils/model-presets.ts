@@ -508,12 +508,8 @@ const TIER_PATTERNS: readonly { readonly tier: ModelTier; readonly patterns: rea
         /deepseek[-_]?v4[-_]?pro/i,
         /kimi[-_]?k2\.[67]/i,
         /kimi[-_]?k3\b/i,
-        // xAI flagship coding SKUs (subscription catalogs often lack price tiers).
-        /grok[-_]?4\.5\b/i,
-        /grok[-_]?4\.20\b/i,
-        /grok[-_]?4-20\b/i,
-        /grok[-_]?4\.3\b/i,
-        /grok[-_]?4-3\b/i,
+        // xAI grok-4+ flagships (subscription catalogs often lack price tiers).
+        /grok[-_]?4(?:[._-]\d+)?\b/i,
       ],
     },
     {
@@ -566,13 +562,11 @@ const FAMILY_QUALITY: readonly { readonly pattern: RegExp; readonly score: numbe
   { pattern: /gpt[-_]?4o?[-_]?mini|4\.1[-_]?mini|4\.1[-_]?nano/i, score: 58 },
   { pattern: /gemini[-_]?2\.5[-_]?pro|gemini[-_]?pro/i, score: 84 },
   { pattern: /gemini.*flash/i, score: 64 },
-  // xAI: version-aware (most specific first). Heuristic path is capped below.
-  { pattern: /grok[-_]?4\.5\b/i, score: 90 },
+  // xAI dated / non-flagship SKUs stay below the generation-aware grok-4+ path.
   { pattern: /grok[-_]?4\.20\b|grok[-_]?4-20\b/i, score: 76 },
-  { pattern: /grok[-_]?4\.3\b|grok[-_]?4-3\b/i, score: 74 },
-  { pattern: /grok[-_]?4\.1\b|grok[-_]?4-1\b/i, score: 72 },
   { pattern: /grok[-_]?build/i, score: 56 },
-  { pattern: /grok[-_]?3|grok[-_]?4|grok/i, score: 70 },
+  { pattern: /grok[-_]?3\b/i, score: 70 },
+  { pattern: /grok[-_]?4\b|grok/i, score: 70 },
   { pattern: /mistral[-_]?large|codestral/i, score: 72 },
   { pattern: /qwen3\.8|qwen.*coder|qwen.*max/i, score: 82 },
   { pattern: /qwen3\.7/i, score: 76 },
@@ -612,24 +606,133 @@ export function isHardExcludedForRole(role: ModelRole, modelId: string): boolean
   return HARD_EXCLUDE_QUALITY_ROLES.some((pattern) => pattern.test(modelId));
 }
 
-function catalogHasNewerPeer(modelId: string, catalogIds: readonly string[]): boolean {
-  if (/\bkimi[-_]?k2\.5\b/i.test(modelId) || /\bkimi[-_]?k2(?![.\d]|[-_]?k)/i.test(modelId)) {
-    return catalogIds.some((id) => /\bkimi[-_]?k2\.[6-9]\b|\bkimi[-_]?k3\b/i.test(id));
+/** Close enough that same-family generation / context / default should decide. */
+const EQUAL_PRICE_EPSILON = 0.05;
+
+type ModelGeneration = {
+  readonly family: string;
+  readonly major: number;
+  readonly minor: number;
+};
+
+const DATED_SKU_MARKERS = /\b(build|preview|exp|experimental|beta|alpha|nightly|dev)\b/i;
+
+/**
+ * Extract a comparable family + major.minor from ids like grok-4.6, kimi-k2.6,
+ * gpt-4.1, claude-sonnet-4. A YYYYMM / large "4.20" date suffix is not a generation.
+ */
+function parseModelGeneration(modelId: string, familyHint?: string): ModelGeneration | undefined {
+  const haystack = `${familyHint ?? ''} ${modelId}`.toLowerCase();
+  if (DATED_SKU_MARKERS.test(haystack) || /\b\d{4}[-_]?\d{2}[-_]?\d{0,2}\b/.test(haystack)) {
+    return undefined;
   }
-  if (/\bgpt-4o(?![-_]?mini)\b/i.test(modelId)) {
-    return catalogIds.some((id) => /\bgpt-4\.1\b|\bgpt-5\b/i.test(id));
+
+  const family =
+    familyHint?.trim().toLowerCase() ||
+    haystack.match(/\b(grok|claude|gpt|gemini|kimi|qwen|glm|deepseek|llama|mistral|sonnet|opus|haiku)\b/)?.[1];
+  if (family === undefined) return undefined;
+
+  const escapedFamily = family.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Optional letter prefix covers kimi-k2.6 / deepseek-v4 without treating 4o as 4.0-only.
+  const versionMatch =
+    haystack.match(new RegExp(`\\b${escapedFamily}[-_]?[a-z]*(\\d+)(?:[._-](\\d+))?\\b`)) ??
+    haystack.match(/[-_][a-z]*(\d+)(?:[._-](\d+))?\b/);
+  if (versionMatch == null) return undefined;
+
+  const major = Number(versionMatch[1]);
+  const minorRaw = versionMatch[2] !== undefined ? Number(versionMatch[2]) : 0;
+  if (!Number.isFinite(major) || !Number.isFinite(minorRaw)) return undefined;
+  // Treat 4.20 / 4.30 style date stamps as not a generation (newer than 4.5 would invert).
+  if (minorRaw >= 20) return undefined;
+  return { family, major, minor: minorRaw };
+}
+
+function compareModelGeneration(a: ModelGeneration, b: ModelGeneration): number {
+  if (a.family !== b.family) return 0;
+  if (a.major !== b.major) return a.major - b.major;
+  return a.minor - b.minor;
+}
+
+function generationOf(model: Pick<ModelMetadata, 'id' | 'family'>): ModelGeneration | undefined {
+  return parseModelGeneration(model.id, model.family);
+}
+
+function catalogId(entry: Pick<ModelMetadata, 'id' | 'family'> | string): string {
+  return typeof entry === 'string' ? entry : entry.id;
+}
+
+function catalogHasNewerPeer(
+  model: Pick<ModelMetadata, 'id' | 'family'> | string,
+  catalog: readonly (Pick<ModelMetadata, 'id' | 'family'> | string)[],
+): boolean {
+  const self = typeof model === 'string' ? { id: model } : model;
+  // Alias / lineage exceptions that generation parsing cannot see (4o, sonnet-4, k2).
+  if (/\bkimi[-_]?k2\.5\b/i.test(self.id) || /\bkimi[-_]?k2(?![.\d]|[-_]?k)/i.test(self.id)) {
+    return catalog.some((entry) => /\bkimi[-_]?k2\.[6-9]\b|\bkimi[-_]?k3\b/i.test(catalogId(entry)));
   }
-  if (/\bclaude-3\b/i.test(modelId)) {
-    return catalogIds.some((id) => /\bclaude[-_]?4\b|\bsonnet[-_]?4\b|\bopus[-_]?4\b/i.test(id));
+  if (/\bgpt-4o(?![-_]?mini)\b/i.test(self.id)) {
+    return catalog.some((entry) => /\bgpt-4\.1\b|\bgpt-5\b/i.test(catalogId(entry)));
   }
-  // Older / dated Grok SKUs lose to grok-4.5 when both are in the catalog.
-  if (
-    /\bgrok[-_]?(build|4\.20|4-20|4\.3|4-3|4\.1|4-1|4\.0|4-0)\b/i.test(modelId) ||
-    (/\bgrok[-_]?4\b/i.test(modelId) && !/\bgrok[-_]?4\.5\b/i.test(modelId))
-  ) {
-    return catalogIds.some((id) => /\bgrok[-_]?4\.5\b/i.test(id));
+  if (/\bclaude-3\b/i.test(self.id)) {
+    return catalog.some((entry) =>
+      /\bclaude[-_]?4\b|\bsonnet[-_]?4\b|\bopus[-_]?4\b/i.test(catalogId(entry)),
+    );
   }
-  return false;
+  const selfGen = generationOf(self);
+  if (selfGen !== undefined) {
+    return catalog.some((entry) => {
+      const peer = typeof entry === 'string' ? { id: entry } : entry;
+      if (peer.id === self.id) return false;
+      const peerGen = generationOf(peer);
+      return peerGen !== undefined && compareModelGeneration(peerGen, selfGen) > 0;
+    });
+  }
+  // Dated / unversioned SKUs (grok-4.20, grok-build) lose to a parseable same-family gen.
+  const selfFamily =
+    self.family?.trim().toLowerCase() ||
+    self.id.toLowerCase().match(/\b(grok|claude|gpt|gemini|kimi|qwen|glm|deepseek|llama|mistral)\b/)?.[1];
+  if (selfFamily === undefined) return false;
+  return catalog.some((entry) => {
+    const peer = typeof entry === 'string' ? { id: entry } : entry;
+    if (peer.id === self.id) return false;
+    const peerGen = generationOf(peer);
+    return peerGen !== undefined && peerGen.family === selfFamily;
+  });
+}
+
+function isSessionDefault(model: ModelMetadata, sessionDefault?: string): boolean {
+  if (sessionDefault === undefined || sessionDefault.length === 0) return false;
+  return model.id === sessionDefault || model.alias === sessionDefault;
+}
+
+function sameEffectivePrice(a: ModelMetadata, b: ModelMetadata): boolean {
+  const costA = a.inputCostPerM;
+  const costB = b.inputCostPerM;
+  if (costA === undefined || costB === undefined) return costA === costB;
+  return Math.abs(costA - costB) <= EQUAL_PRICE_EPSILON;
+}
+
+/**
+ * Same-family, same-price order: newer generation > larger context > session default.
+ * Returns 0 when the pair is not an equal-price same-family race.
+ */
+function compareSameFamilyTieBreak(
+  a: ModelMetadata,
+  b: ModelMetadata,
+  sessionDefault?: string,
+): number {
+  if (!sameEffectivePrice(a, b)) return 0;
+  const genA = generationOf(a);
+  const genB = generationOf(b);
+  if (genA === undefined || genB === undefined || genA.family !== genB.family) return 0;
+  const byGen = compareModelGeneration(genA, genB);
+  if (byGen !== 0) return byGen;
+  const ctxA = a.contextWindow ?? 0;
+  const ctxB = b.contextWindow ?? 0;
+  if (ctxA !== ctxB) return ctxA - ctxB;
+  const defA = isSessionDefault(a, sessionDefault) ? 1 : 0;
+  const defB = isSessionDefault(b, sessionDefault) ? 1 : 0;
+  return defA - defB;
 }
 
 function hasCodingBenchmarks(model: ModelMetadata): boolean {
@@ -1025,7 +1128,7 @@ function meetsQualityFloor(preset: RolePreset, model: ModelMetadata, anyScored: 
 function rankScore(
   preset: RolePreset,
   model: ModelMetadata,
-  catalogIds: readonly string[] = [],
+  catalog: readonly (string | Pick<ModelMetadata, 'id' | 'family'>)[] = [],
 ): number {
   const quality = model.qualityScore ?? scoreModelQuality(model.id, model);
   const value = model.valueScore ?? scoreModelValue(quality, model.inputCostPerM);
@@ -1037,7 +1140,7 @@ function rankScore(
   if (hasCodingBenchmarks(model)) {
     score += isQualityStrictRole(preset.role) ? 120 : 35;
   }
-  if (catalogIds.length > 0 && catalogHasNewerPeer(model.id, catalogIds)) {
+  if (catalog.length > 0 && catalogHasNewerPeer(model, catalog)) {
     score -= isQualityStrictRole(preset.role) ? 80 : 25;
   }
   if (isQualityStrictRole(preset.role)) {
@@ -1050,10 +1153,24 @@ function rankScore(
   return score;
 }
 
+function compareRoleCandidates(
+  preset: RolePreset,
+  a: ModelMetadata,
+  b: ModelMetadata,
+  catalog: readonly (string | Pick<ModelMetadata, 'id' | 'family'>)[],
+  sessionDefault?: string,
+): number {
+  // Equal-price same-family: generation > context > session default > score.
+  const familyTie = compareSameFamilyTieBreak(a, b, sessionDefault);
+  if (familyTie !== 0) return familyTie;
+  return rankScore(preset, a, catalog) - rankScore(preset, b, catalog);
+}
+
 function pickBestForRole(
   preset: RolePreset,
   candidates: readonly ModelMetadata[],
-  catalogIds: readonly string[] = [],
+  catalog: readonly (string | Pick<ModelMetadata, 'id' | 'family'>)[] = [],
+  sessionDefault?: string,
 ): ModelMetadata | undefined {
   if (candidates.length === 0) return undefined;
   const eligible = candidates.filter((m) => !isHardExcludedForRole(preset.role, m.id));
@@ -1070,7 +1187,7 @@ function pickBestForRole(
       : pool;
   if (finalPool.length === 0) return undefined;
   const sorted = [...finalPool].sort(
-    (a, b) => rankScore(preset, b, catalogIds) - rankScore(preset, a, catalogIds),
+    (a, b) => compareRoleCandidates(preset, b, a, catalog, sessionDefault),
   );
   return sorted[0];
 }
@@ -1105,9 +1222,15 @@ function formatPickReason(
  * (compaction/exploration/completion). Enforces min quality + tool/context
  * floors when capability data is present.
  */
+export type RoleAssignHints = {
+  /** Session / user default alias — last same-family equal-price tie-break only. */
+  readonly sessionDefault?: string;
+};
+
 export function autoAssignRoleModels(
   availableModels: readonly ModelMetadata[],
   userOverrides?: Partial<Record<ModelRole, string>>,
+  hints?: RoleAssignHints,
 ): Record<ModelRole, RoleModelAssignment | undefined> {
   const scored = availableModels.map((m) =>
     m.qualityScore !== undefined && m.valueScore !== undefined ? m : withScores(m),
@@ -1123,7 +1246,8 @@ export function autoAssignRoleModels(
   }
 
   const allAvailable = scored.filter((m) => m.available);
-  const catalogIds = allAvailable.map((m) => m.id);
+  const catalog = allAvailable.map((m) => ({ id: m.id, family: m.family }));
+  const sessionDefault = hints?.sessionDefault;
   const result: Partial<Record<ModelRole, RoleModelAssignment>> = {};
 
   for (const preset of ROLE_PRESETS) {
@@ -1148,7 +1272,8 @@ export function autoAssignRoleModels(
     const preferred = pickBestForRole(
       preset,
       byTier.get(preset.preferredTier) ?? [],
-      catalogIds,
+      catalog,
+      sessionDefault,
     );
     if (preferred) {
       result[preset.role] = {
@@ -1166,7 +1291,8 @@ export function autoAssignRoleModels(
     const fallback = pickBestForRole(
       preset,
       byTier.get(preset.fallbackTier) ?? [],
-      catalogIds,
+      catalog,
+      sessionDefault,
     );
     if (fallback) {
       result[preset.role] = {
@@ -1181,7 +1307,7 @@ export function autoAssignRoleModels(
       continue;
     }
 
-    const any = pickBestForRole(preset, allAvailable, catalogIds);
+    const any = pickBestForRole(preset, allAvailable, catalog, sessionDefault);
     if (any) {
       result[preset.role] = {
         role: preset.role,
@@ -1229,7 +1355,7 @@ export function buildFallbackChain(
   const scored = availableModels
     .filter((m) => m.available && !isHardExcludedForRole(role, m.id))
     .map((m) => (m.qualityScore !== undefined ? m : withScores(m)));
-  const catalogIds = scored.map((m) => m.id);
+  const catalog = scored.map((m) => ({ id: m.id, family: m.family }));
   const anyScored = scored.some((m) => m.qualityScore !== undefined);
   const floorOk = (m: ModelMetadata): boolean =>
     !isQualityStrictRole(role) || meetsQualityFloor(preset, m, anyScored);
@@ -1239,13 +1365,13 @@ export function buildFallbackChain(
       (m) =>
         floorOk(m) && (m.tier || classifyModelTier(m.id)) === preset.preferredTier,
     )
-    .sort((a, b) => rankScore(preset, b, catalogIds) - rankScore(preset, a, catalogIds));
+    .sort((a, b) => compareRoleCandidates(preset, b, a, catalog));
   const fallback = scored
     .filter(
       (m) =>
         floorOk(m) && (m.tier || classifyModelTier(m.id)) === preset.fallbackTier,
     )
-    .sort((a, b) => rankScore(preset, b, catalogIds) - rankScore(preset, a, catalogIds));
+    .sort((a, b) => compareRoleCandidates(preset, b, a, catalog));
   const others = scored
     .filter(
       (m) =>
@@ -1253,7 +1379,7 @@ export function buildFallbackChain(
         (m.tier || classifyModelTier(m.id)) !== preset.preferredTier &&
         (m.tier || classifyModelTier(m.id)) !== preset.fallbackTier,
     )
-    .sort((a, b) => rankScore(preset, b, catalogIds) - rankScore(preset, a, catalogIds));
+    .sort((a, b) => compareRoleCandidates(preset, b, a, catalog));
 
   return [...preferred, ...fallback, ...others];
 }

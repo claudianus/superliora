@@ -271,6 +271,7 @@ export {
   type LocalRoleCatalogModel,
   type LoopRoleModelPreview,
   type ModelRole,
+  type RoleAssignHints,
   type RoleModelAssignment,
   type RolePreset,
 } from './utils/model-presets';
