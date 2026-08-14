@@ -345,6 +345,31 @@ describe('detectEnvironment', () => {
     expect(env.shellPath).toBe('D:\\Program Files\\Git\\usr\\bin\\bash.exe');
   });
 
+  it('finds SuperLiora PortableGit under USERPROFILE without PATH or Program Files', async () => {
+    const bash = 'C:\\Users\\me\\.superliora\\runtime\\git\\bin\\bash.exe';
+    const env = await detectEnvironment(
+      stubDeps({
+        platform: 'win32',
+        env: { USERPROFILE: 'C:\\Users\\me' },
+        existingPaths: [bash],
+      }),
+    );
+    expect(env.shellName).toBe('bash');
+    expect(env.shellPath).toBe(bash);
+  });
+
+  it('finds SuperLiora PortableGit under HOME when USERPROFILE is absent', async () => {
+    const bash = 'C:\\Users\\me\\.superliora\\runtime\\git\\usr\\bin\\bash.exe';
+    const env = await detectEnvironment(
+      stubDeps({
+        platform: 'win32',
+        env: { HOME: 'C:\\Users\\me' },
+        existingPaths: [bash],
+      }),
+    );
+    expect(env.shellPath).toBe(bash);
+  });
+
   it('falls back to the well-known Program Files install location', async () => {
     const env = await detectEnvironment(
       stubDeps({
@@ -438,6 +463,22 @@ describe('detectEnvironment', () => {
     expect(error.message).toContain('C:\\Program Files\\Git\\usr\\bin\\bash.exe');
     expect(error.message).toContain('LIORA_SHELL_PATH');
     expect(error.message).toContain('KIMI_SHELL_PATH');
+  });
+
+  it('includes the SuperLiora runtime Git path in the thrown error', async () => {
+    const error = await detectEnvironment(
+      stubDeps({
+        platform: 'win32',
+        env: { USERPROFILE: 'C:\\Users\\me' },
+        existingPaths: [],
+      }),
+    ).then(
+      () => {
+        throw new Error('expected throw');
+      },
+      (error: unknown) => error as KaosShellNotFoundError,
+    );
+    expect(error.message).toContain('C:\\Users\\me\\.superliora\\runtime\\git\\bin\\bash.exe');
   });
 
   // ── arch / version passthrough ─────────────────────────────────────

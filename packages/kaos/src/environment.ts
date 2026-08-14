@@ -132,7 +132,11 @@ async function locateWindowsGitBash(deps: EnvironmentDeps): Promise<string> {
     }
   }
 
+  // SuperLiora install.ps1 bootstraps PortableGit here. Check it before
+  // Program Files so a same-session `liora` after irm|iex works even when
+  // User PATH has not been reloaded.
   const candidates: string[] = [
+    ...superlioraRuntimeGitBashCandidates(deps.env),
     'C:\\Program Files\\Git\\bin\\bash.exe',
     'C:\\Program Files\\Git\\usr\\bin\\bash.exe',
     'C:\\Program Files (x86)\\Git\\bin\\bash.exe',
@@ -201,6 +205,33 @@ function gitBashCandidatesFromGitExecPath(execPath: string): readonly string[] {
   }
 
   return gitBashCandidatesFromGitRoot(nodePath.win32.join(normalized, '..', '..'));
+}
+
+/** Same layout as `scripts/install/ensure-git.mjs` wellKnownGitBashCandidates. */
+export function superlioraRuntimeGitBashCandidates(
+  env: Record<string, string | undefined>,
+): readonly string[] {
+  const homes: string[] = [];
+  for (const key of ['HOME', 'USERPROFILE'] as const) {
+    const home = env[key]?.trim();
+    if (home !== undefined && home.length > 0) homes.push(home);
+  }
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const home of homes) {
+    const root = nodePath.win32.join(home, '.superliora', 'runtime', 'git');
+    for (const rel of [
+      ['bin', 'bash.exe'],
+      ['usr', 'bin', 'bash.exe'],
+    ] as const) {
+      const candidate = nodePath.win32.normalize(nodePath.win32.join(root, ...rel));
+      const key = candidate.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(candidate);
+    }
+  }
+  return out;
 }
 
 function gitBashCandidatesFromGitRoot(root: string): readonly string[] {

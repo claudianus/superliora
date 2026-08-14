@@ -100,6 +100,8 @@ describe('scripts/install-liora.mjs', () => {
     expect(ps1).toContain('SUPERLIORA_NO_SHELL_RC');
     expect(ps1).toContain('SUPERLIORA_INSTALL_DUMP');
     expect(ps1).toContain('Add-SessionPath');
+    expect(ps1).toContain('Add-SessionGitRuntime');
+    expect(ps1).toContain('LIORA_SHELL_PATH');
     const cmd = await readFile(windowsCmdInstallScript, 'utf-8');
     expect(cmd).toContain('install.ps1');
     expect(cmd).toContain('cmd.exe');

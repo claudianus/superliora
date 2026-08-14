@@ -197,6 +197,18 @@ function Add-SessionPath {
   $env:Path = $full + ';' + $env:Path
 }
 
+function Add-SessionGitRuntime {
+  param([string]$HomeDir)
+  $gitRoot = Join-Path $HomeDir '.superliora\runtime\git'
+  $bash = Join-Path $gitRoot 'bin\bash.exe'
+  if (-not (Test-Path -LiteralPath $bash)) { return }
+  if ([string]::IsNullOrWhiteSpace($env:LIORA_SHELL_PATH)) {
+    $env:LIORA_SHELL_PATH = $bash
+  }
+  Add-SessionPath (Join-Path $gitRoot 'cmd')
+  Add-SessionPath (Join-Path $gitRoot 'bin')
+}
+
 function Test-NodeVersionOk {
   param([string]$NodePath, [string]$Minimum)
   try {
@@ -336,6 +348,7 @@ if (-not [string]::IsNullOrWhiteSpace($opt.Version) -and $opt.Main) {
 $dumpEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_INSTALL_DUMP', 'Process')
 if ($dumpEnv -eq '1') {
   Add-SessionPath $opt.BinDir
+  Add-SessionGitRuntime $homeDir
   Write-Dump $opt
   return
 }
@@ -415,6 +428,7 @@ try {
     Fail ('installer exited with code ' + $code)
   }
   Add-SessionPath $opt.BinDir
+  Add-SessionGitRuntime $homeDir
   Write-Host ('This session: ' + $opt.CommandName + ' --version')
 } finally {
   if ($bundleDir -and (Test-Path -LiteralPath $bundleDir)) {

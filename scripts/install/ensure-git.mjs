@@ -9,7 +9,7 @@ import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { downloadToFile } from './download.mjs';
-import { applyUserPathWin } from './path.mjs';
+import { applyUserPathWin, writeUserEnvWin } from './path.mjs';
 import { defaultHome, defaultRuntimeGitDir } from './platform.mjs';
 import { spawnInstall } from './spawn.mjs';
 
@@ -198,12 +198,21 @@ function prependGitRuntimePath(root, platform, options = {}) {
   if (platform === 'win32') {
     const cmd = join(root, 'cmd');
     const bin = join(root, 'bin');
+    const bash = join(bin, 'bash.exe');
     process.env.PATH = `${cmd};${bin};${process.env.PATH ?? ''}`;
+    // Shipped liora.exe (kaos) looks at LIORA_SHELL_PATH before Program Files.
+    // Persist it so a just-installed SEA finds PortableGit without a new release.
+    if (existsSync(bash) && !process.env.LIORA_SHELL_PATH?.trim()) {
+      process.env.LIORA_SHELL_PATH = bash;
+    }
     if (!options.noShellRc) {
       try {
         applyUserPathWin(cmd);
+        if (existsSync(bash)) {
+          writeUserEnvWin(bash, { envName: 'LIORA_SHELL_PATH' });
+        }
       } catch {
-        // Session PATH is enough for this install process.
+        // Session PATH / process env is enough for this install process.
       }
     }
     return;
