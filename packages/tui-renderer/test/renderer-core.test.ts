@@ -113,6 +113,7 @@ import {
   detectNativeTerminalColorMode,
   detectNativeTerminalImageProtocol,
   encodeIterm2InlineImage,
+  encodeTerminalClearBelowRow,
   encodeKittyDeleteImages,
   encodeKittyGraphicsCommand,
   encodeKittyInlineImage,
@@ -3903,6 +3904,29 @@ describe('NativeFrameRenderer', () => {
     expect(result.diff.force).toBe(true);
     expect(result.diff.totalCells).toBe(2);
     expect(result.output).toBe('\u001B[1;1Hz');
+  });
+
+  it('paints the last footer row with theme background and never CSI 0J', () => {
+    const writes: string[] = [];
+    const fill = { char: ' ', style: { bg: '#112233' } };
+    const renderer = new NativeFrameRenderer({
+      width: 8,
+      height: 3,
+      output: { write: (chunk) => writes.push(chunk) },
+    });
+    renderer.beginFrame({ fill });
+    renderer.writeText(0, 0, 'body', { bg: '#112233' });
+    renderer.writeText(0, 2, renderRendererFooterRow({ width: 8, left: 'status' }), { bg: '#112233' });
+    const result = renderer.present();
+
+    expect(result.diff.totalCells).toBe(24);
+    expect(result.output).toContain('\u001B[48;2;17;34;51m');
+    expect(result.output).toContain('status');
+    expect(result.output).not.toContain('\u001B[0J');
+    expect(result.output).not.toContain('\u001B[J');
+    expect(result.output).not.toContain('\u001B[K');
+    expect(encodeTerminalClearBelowRow(2, 0, 0, fill)).toContain('\u001B[48;2;17;34;51m');
+    expect(encodeTerminalClearBelowRow(2)).toBe('');
   });
 
   it('honors terminal output options when presenting', () => {

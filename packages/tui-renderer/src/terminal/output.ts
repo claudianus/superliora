@@ -1,5 +1,6 @@
 import {
   coalesceCellPatches,
+  type RendererCell,
   type RendererCellStyle,
   type RendererFrameDiff,
   type RendererRenderRun,
@@ -37,7 +38,6 @@ export {
   cursorStateToAnsi,
   cursorTo,
   cursorUp,
-  encodeTerminalClearBelowRow,
 } from './output-internals';
 
 export const ANSI_BEGIN_SYNCHRONIZED_UPDATE = '\u001B[?2026h';
@@ -49,6 +49,28 @@ export const ANSI_END_HYPERLINK = '\u001B]8;;\u001B\\';
 export const ANSI_ERASE_IN_LINE = '\u001B[K';
 export const ANSI_ERASE_FROM_CURSOR_TO_SCREEN_END = '\u001B[0J';
 export const ANSI_RESET_SCROLL_REGION = '\u001B[r';
+
+export function encodeTerminalClearBelowRow(
+  row: number,
+  originX = 0,
+  originY = 0,
+  fill?: Pick<RendererCell, 'style'> | RendererCellStyle,
+): string {
+  const style = fill && 'style' in fill ? fill.style : fill;
+  const bg = style?.bg;
+  if (!bg) {
+    // Bare CSI 0J / CSI J paints the terminal default background (usually
+    // black) and shows through as a horizontal stripe. Leave leftover cells
+    // for the next theme-bg frame paint instead.
+    return '';
+  }
+  return (
+    cursorTo(originX, originY + row) +
+    styleToAnsi({ bg }) +
+    ANSI_ERASE_FROM_CURSOR_TO_SCREEN_END +
+    ANSI_RESET_STYLE
+  );
+}
 
 /**
  * Encode a terminal scroll-region operation. Sets a scroll region from

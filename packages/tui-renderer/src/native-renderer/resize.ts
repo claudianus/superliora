@@ -7,6 +7,7 @@ export interface NativeRendererResizeContext {
   readonly screenMode: NativeTerminalScreenMode | undefined;
   readonly originX: number | undefined;
   readonly originY: number | undefined;
+  readonly fill?: { readonly style?: { readonly bg?: string } };
   readonly frameRenderer: NativeFrameRenderer;
   readonly compositionCache: RendererCompositionCache | undefined;
 }
@@ -25,9 +26,15 @@ export function clearStaleNativeRendererFrameRows(
   height: number,
   previousHeight: number,
 ): void {
-  if (context.screenMode === 'alternate' || height >= previousHeight) return;
+  if (height === previousHeight) return;
+  const fromRow = Math.min(height, previousHeight);
   context.frameRenderer.queueTerminalPrefix(
-    encodeTerminalClearBelowRow(height, context.originX ?? 0, context.originY ?? 0),
+    encodeTerminalClearBelowRow(
+      fromRow,
+      context.originX ?? 0,
+      context.originY ?? 0,
+      context.fill,
+    ),
   );
 }
 

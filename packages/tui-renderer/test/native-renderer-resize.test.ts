@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { ANSI_CLEAR_SCREEN } from '../src';
-import { handleNativeRendererTerminalResize } from '../src/native-renderer/resize';
+import { ANSI_CLEAR_SCREEN, encodeTerminalClearBelowRow } from '../src';
+import {
+  clearStaleNativeRendererFrameRows,
+  handleNativeRendererTerminalResize,
+} from '../src/native-renderer/resize';
 import type { NativeFrameRenderer } from '../src/native/frame';
 
 function createResizeHarness(size: { width: number; height: number } = { width: 80, height: 24 }) {
@@ -69,5 +72,77 @@ describe('handleNativeRendererTerminalResize', () => {
     );
 
     expect(prefixes.join('')).not.toContain(ANSI_CLEAR_SCREEN);
+  });
+
+  it('theme-bg-fills newly exposed rows after a height increase without CSI 0J', () => {
+    const { prefixes, frameRenderer } = createResizeHarness({ width: 80, height: 20 });
+    const fill = { style: { bg: '#112233' } };
+
+    clearStaleNativeRendererFrameRows(
+      {
+        screenMode: 'alternate',
+        originX: 0,
+        originY: 0,
+        fill,
+        frameRenderer,
+        compositionCache: undefined,
+      },
+      24,
+      20,
+    );
+
+    expect(prefixes).toEqual([encodeTerminalClearBelowRow(20, 0, 0, fill)]);
+    expect(prefixes.join('')).toContain('\u001B[48;2;17;34;51m');
+    expect(prefixes.join('')).not.toMatch(/\u001B\[0J(?!)/);
+    expect(prefixes.join('')).not.toContain('\u001B[J');
+    expect(prefixes.join('')).not.toContain(ANSI_CLEAR_SCREEN);
+    expect(prefixes.join('')).not.toContain('\u001B[K');
+  });
+
+  it('theme-bg-fills leftover rows after a height decrease without default-black erase', () => {
+    const { prefixes, frameRenderer } = createResizeHarness({ width: 80, height: 24 });
+    const fill = { style: { bg: '#112233' } };
+
+    handleNativeRendererTerminalResize(
+      {
+        screenMode: 'main',
+        originX: 0,
+        originY: 0,
+        fill,
+        frameRenderer,
+        compositionCache: undefined,
+      },
+      { columns: 80, rows: 20 },
+      {
+        now: () => 0,
+        recordResize: () => {},
+        requestRender: () => {},
+      },
+    );
+
+    expect(prefixes).toEqual([encodeTerminalClearBelowRow(20, 0, 0, fill)]);
+    expect(prefixes.join('')).toContain('\u001B[48;2;17;34;51m');
+    expect(prefixes.join('')).not.toContain('\u001B[J');
+    expect(prefixes.join('')).not.toContain(ANSI_CLEAR_SCREEN);
+    expect(prefixes.join('')).not.toContain('\u001B[K');
+  });
+
+  it('does not emit CSI 0J when no theme fill is available', () => {
+    const { prefixes, frameRenderer } = createResizeHarness({ width: 80, height: 24 });
+
+    clearStaleNativeRendererFrameRows(
+      {
+        screenMode: 'main',
+        originX: 0,
+        originY: 0,
+        frameRenderer,
+        compositionCache: undefined,
+      },
+      20,
+      24,
+    );
+
+    expect(prefixes).toEqual([]);
+    expect(encodeTerminalClearBelowRow(20)).toBe('');
   });
 });

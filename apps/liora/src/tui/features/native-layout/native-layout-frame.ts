@@ -137,6 +137,7 @@ export function createTUIStateNativeRenderer(
         transcriptSelection: state.transcriptSelection,
       });
     }),
+    fill: options.fill ?? currentTheme.canvasBackgroundCell(),
     outputPolicy: options.outputPolicy ?? premiumDefaults.outputPolicy,
     regionVfxFrames: options.regionVfxFrames ?? premiumDefaults.regionVfxFrames,
     measureFrameHeight: options.growWithContent === true

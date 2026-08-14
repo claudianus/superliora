@@ -134,7 +134,8 @@ describe('NativeTerminalRenderer', () => {
 
     const shrinkWrites = output.writes.slice(writesBeforeShrink, writesBeforeShrink + 1);
     expect(shrinkWrites).toHaveLength(1);
-    expect(shrinkWrites[0]).toContain(encodeTerminalClearBelowRow(20));
+    expect(shrinkWrites[0]).not.toContain('\u001B[0J');
+    expect(shrinkWrites[0]).not.toContain('\u001B[J');
     expect(shrinkWrites[0]).toContain('tail');
     expect(renderer.frameRenderer.height).toBe(20);
     expect(renderer.lastFrame?.size).toEqual({ columns: 80, rows: 20 });
