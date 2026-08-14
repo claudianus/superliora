@@ -103,8 +103,19 @@ function mouse(
   x: number,
   y: number,
   button: NativeInputMouseEvent['button'] = 'left',
+  modifiers: { readonly alt?: boolean; readonly shift?: boolean; readonly ctrl?: boolean } = {},
 ): NativeInputMouseEvent {
-  return { type: 'mouse', raw: '', button, action, x, y, ctrl: false, alt: false, shift: false };
+  return {
+    type: 'mouse',
+    raw: '',
+    button,
+    action,
+    x,
+    y,
+    ctrl: modifiers.ctrl === true,
+    alt: modifiers.alt === true,
+    shift: modifiers.shift === true,
+  };
 }
 
 function pointInOutput(
@@ -134,16 +145,31 @@ describe('tool output mouse routing', () => {
     currentState = createState();
   });
 
-  it('keeps tool A/B scroll and height independent and captures outside drag/release', () => {
+  it('keeps tool A/B Alt+wheel scroll and height independent and captures outside drag/release', () => {
     const toolA = tool('call-a');
     const toolB = tool('call-b');
     mountTools(toolA, toolB);
     const pointA = pointInOutput(toolA, 'body');
     const pointB = pointInOutput(toolB, 'body');
 
-    expect(handleToolOutputMouse(currentState, mouse('wheel', pointA.x, pointA.y, 'wheel-down'))).toBe(true);
-    expect(handleToolOutputMouse(currentState, mouse('wheel', pointA.x, pointA.y, 'wheel-down'))).toBe(true);
-    expect(handleToolOutputMouse(currentState, mouse('wheel', pointB.x, pointB.y, 'wheel-down'))).toBe(true);
+    expect(
+      handleToolOutputMouse(
+        currentState,
+        mouse('wheel', pointA.x, pointA.y, 'wheel-down', { alt: true }),
+      ),
+    ).toBe(true);
+    expect(
+      handleToolOutputMouse(
+        currentState,
+        mouse('wheel', pointA.x, pointA.y, 'wheel-down', { alt: true }),
+      ),
+    ).toBe(true);
+    expect(
+      handleToolOutputMouse(
+        currentState,
+        mouse('wheel', pointB.x, pointB.y, 'wheel-down', { alt: true }),
+      ),
+    ).toBe(true);
     expect(currentState.toolOutputViewports.get('call-a')?.offset).toBe(2);
     expect(currentState.toolOutputViewports.get('call-b')?.offset).toBe(1);
 
@@ -156,15 +182,46 @@ describe('tool output mouse routing', () => {
     expect(handleToolOutputMouse(currentState, mouse('drag', -20, -10))).toBe(false);
   });
 
-  it('falls back to global transcript scroll only when the pointer is outside tool output', () => {
-    const component = tool('call-fallback');
+  it('unmodified wheel over tool-output scrolls transcript only and leaves tool-output offset unchanged', () => {
+    const component = tool('call-outer');
+    mountTools(component);
+    const inside = pointInOutput(component, 'body');
+    const scrollTranscriptViewport = vi.fn(() => true);
+    const router = createTUIStateNativeInputRouter(currentState, { scrollTranscriptViewport });
+    const offsetBefore = currentState.toolOutputViewports.get('call-outer')?.offset ?? 0;
+
+    expect(handleToolOutputMouse(currentState, mouse('wheel', inside.x, inside.y, 'wheel-down'))).toBe(
+      false,
+    );
+    expect(router.dispatch(mouse('wheel', inside.x, inside.y, 'wheel-down')).handled).toBe(true);
+    expect(scrollTranscriptViewport).toHaveBeenCalledOnce();
+    expect(scrollTranscriptViewport).toHaveBeenCalledWith('line-down');
+    expect(currentState.toolOutputViewports.get('call-outer')?.offset ?? 0).toBe(offsetBefore);
+    router.dispose();
+  });
+
+  it('Alt+wheel over tool-output scrolls nested tool-output only and does not scroll transcript', () => {
+    const component = tool('call-inner');
     mountTools(component);
     const inside = pointInOutput(component, 'body');
     const scrollTranscriptViewport = vi.fn(() => true);
     const router = createTUIStateNativeInputRouter(currentState, { scrollTranscriptViewport });
 
-    expect(router.dispatch(mouse('wheel', inside.x, inside.y, 'wheel-down')).handled).toBe(true);
+    const result = router.dispatch(
+      mouse('wheel', inside.x, inside.y, 'wheel-down', { alt: true }),
+    );
+    expect(result.handled).toBe(true);
+    expect(result.targetId).toBe('tool-output');
+    expect(currentState.toolOutputViewports.get('call-inner')?.offset).toBe(1);
     expect(scrollTranscriptViewport).not.toHaveBeenCalled();
+    router.dispose();
+  });
+
+  it('falls back to global transcript scroll when the pointer is outside tool output', () => {
+    const component = tool('call-fallback');
+    mountTools(component);
+    const scrollTranscriptViewport = vi.fn(() => true);
+    const router = createTUIStateNativeInputRouter(currentState, { scrollTranscriptViewport });
 
     const context = resolveTranscriptLayoutContext(currentState);
     if (context === undefined) throw new Error('missing transcript layout context');
@@ -191,7 +248,7 @@ describe('tool output mouse routing', () => {
     expect(currentState.toolOutputViewports.get('call-replay')?.offset).toBe(5);
   });
 
-  it('consumes a 100-event wheel burst without legacy/editor or global-scroll leakage', () => {
+  it('consumes a 100-event Alt+wheel burst without legacy/editor or global-scroll leakage', () => {
     const component = tool('call-burst', 160);
     mountTools(component);
     const inside = pointInOutput(component, 'body');
@@ -205,7 +262,9 @@ describe('tool output mouse routing', () => {
 
     for (let index = 0; index < 100; index += 1) {
       const button = index % 2 === 0 ? 'wheel-down' : 'wheel-up';
-      const result = router.dispatch(mouse('wheel', inside.x, inside.y, button));
+      const result = router.dispatch(
+        mouse('wheel', inside.x, inside.y, button, { alt: true }),
+      );
       expect(result.handled).toBe(true);
       expect(result.targetId).toBe('tool-output');
     }

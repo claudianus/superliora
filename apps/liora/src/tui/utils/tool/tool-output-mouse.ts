@@ -75,10 +75,21 @@ export function handleToolOutputMouse(
       if (hoverChanged) requestTUIContentRender(state);
       return false;
     }
+    // Default (unmodified) wheel always scrolls the outer transcript, even when
+    // the pointer is over a nested tool-output hit. Consuming unmodified wheel
+    // here used to steal the event from the transcript handler and made scroll
+    // feel like focus was bouncing between inner/outer viewports.
+    // Alt+wheel is the only path that scrolls nested tool output under the
+    // pointer; Alt is present on NativeInputMouseEvent (not Shift fallback).
+    if (!event.alt) {
+      if (hoverChanged) requestTUIContentRender(state);
+      return false;
+    }
     hit.component.scrollToolOutput(wheelDelta);
     requestTUIContentRender(state);
-    // A wheel over a tool viewport is always consumed, including top/bottom
-    // no-ops, so it can never reach selection, editor, or interrupt handlers.
+    // Alt+wheel over a tool viewport is always consumed, including top/bottom
+    // no-ops, so it never also scrolls the transcript (or reaches selection,
+    // editor, or interrupt handlers).
     return true;
   }
 
