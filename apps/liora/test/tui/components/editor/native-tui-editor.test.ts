@@ -435,7 +435,7 @@ describe('NativeTUIEditor ghost text', () => {
     expect(editor.getGhostText()).toBeUndefined();
   });
 
-  it('invalidates layout cache when ghost changes', () => {
+  it('does not grow layout row count when ghost is set (suffix overlay only)', () => {
     const editor = makeEditor();
     editor.setText('hi');
     const rowsWithoutGhost = editor.getNativeLayoutRowCount(24);
@@ -443,8 +443,9 @@ describe('NativeTUIEditor ghost text', () => {
     editor.setGhostText(' this is a longer ghost text that might wrap', 'inline');
     const rowsWithGhost = editor.getNativeLayoutRowCount(24);
 
-    // Ghost text may increase row count if it causes wrapping
-    expect(rowsWithGhost).toBeGreaterThanOrEqual(rowsWithoutGhost);
+    // Ghost is a same-line suffix overlay — it must never add rows that clip
+    // the committed input out of the allocated editor frame.
+    expect(rowsWithGhost).toBe(rowsWithoutGhost);
   });
 
   it('clears ghost text via applyNativeTextInputSync when text changes', () => {
@@ -459,14 +460,57 @@ describe('NativeTUIEditor ghost text', () => {
     expect(editor.getGhostText()).toBeUndefined();
   });
 
-  it('keeps ghost text when applyNativeTextInputSync only moves the cursor', () => {
+  it('clears ghost text when applyNativeTextInputSync only moves the cursor', () => {
     const editor = makeEditor();
     editor.setText('hello');
     editor.setGhostText(' world', 'inline');
 
     editor.applyNativeTextInputSync('hello', { line: 0, col: 3 });
 
+    expect(editor.getGhostText()).toBeUndefined();
+  });
+
+  it('clears ghost text when arrow keys only move the cursor', () => {
+    const editor = makeEditor();
+    editor.setText('hello');
+    editor.setCursorPosition({ line: 0, col: 5 });
+    editor.setGhostText(' world', 'inline');
     expect(editor.getGhostText()).toBe(' world');
+
+    editor.handleInput('\u001B[D'); // left arrow
+
+    expect(editor.getCursor()).toEqual({ line: 0, col: 4 });
+    expect(editor.getText()).toBe('hello');
+    expect(editor.getGhostText()).toBeUndefined();
+  });
+
+  it('refuses inline ghost when caret is not at end of buffer (suffix-only)', () => {
+    const editor = makeEditor();
+    editor.setText('hello world');
+    editor.setCursorPosition({ line: 0, col: 5 });
+
+    editor.setGhostText('XXX', 'inline');
+
+    // Mid-buffer ghost would overwrite committed " world" on the display.
+    expect(editor.getGhostText()).toBeUndefined();
+    expect(editor.getText()).toBe('hello world');
+    const rendered = editor.render(30).map((line) => line.replaceAll(/\u001B\[[0-9;]*m/g, ''));
+    expect(rendered.join('\n')).toContain('hello world');
+    expect(rendered.join('\n')).not.toContain('helloXXX');
+  });
+
+  it('renders inline ghost only as a suffix after committed text', () => {
+    const editor = makeEditor();
+    editor.setText('hello');
+    editor.setCursorPosition({ line: 0, col: 5 });
+    editor.setGhostText(' world', 'inline');
+
+    expect(editor.getText()).toBe('hello');
+    expect(editor.getGhostText()).toBe(' world');
+    const rendered = editor.render(40).map((line) => line.replaceAll(/\u001B\[[0-9;]*m/g, ''));
+    expect(rendered.join('\n')).toContain('hello world');
+    // Committed buffer must stay intact even while ghost is visible.
+    expect(editor.getText()).toBe('hello');
   });
 
   it('opens autocomplete with Tab when a slash trigger is present and no ghost', async () => {

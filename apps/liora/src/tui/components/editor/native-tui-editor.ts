@@ -162,18 +162,27 @@ export class NativeTUIEditor implements TUIEditor {
 
   setCursorPosition(cursor: RendererEditorCursor): void {
     this.input.setCursor({ line: cursor.line, column: cursor.col });
+    // Caret move invalidates any suffix ghost (would otherwise paint mid-buffer).
     this.clearGhost();
   }
 
   applyNativeTextInputSync(text: string, cursor: RendererEditorCursor): void {
     const before = this.getText();
+    const beforeCursor = this.getCursor();
     if (text !== before) {
       this.input.setText(text);
       this.historyIndex = undefined;
-      // Native key path bypasses handleInput's clearGhost — keep ghost in sync.
-      this.clearGhost();
     }
     this.input.setCursor({ line: cursor.line, column: cursor.col });
+    // Any native sync that changes text OR caret must drop ghost so a stale
+    // suffix cannot overwrite committed display cells after the new caret.
+    if (
+      text !== before ||
+      beforeCursor.line !== cursor.line ||
+      beforeCursor.col !== cursor.col
+    ) {
+      this.clearGhost();
+    }
     if (text !== before) this.onChange?.(text);
   }
 
@@ -201,6 +210,25 @@ export class NativeTUIEditor implements TUIEditor {
   }
 
   setGhostText(text: string | undefined, kind: TUIEditorGhostKind): void {
+    // Inline ghost is a suffix-only overlay after the caret. Refuse mid-buffer
+    // paints so dimmed completion cells cannot replace already-committed text
+    // that still lives after the cursor on the same visual line.
+    if (
+      text !== undefined &&
+      kind === 'inline' &&
+      !this.isInlineGhostCaretAtBufferEnd()
+    ) {
+      if (this.ghostText === undefined && this.ghostKind === kind) {
+        // Nothing to clear; still record kind for callers that query it.
+        this.ghostKind = kind;
+        return;
+      }
+      this.ghostText = undefined;
+      this.ghostKind = kind;
+      this.layoutRowCountCache = undefined;
+      this.options.requestRender?.();
+      return;
+    }
     this.ghostText = text;
     this.ghostKind = kind;
     this.layoutRowCountCache = undefined;
@@ -346,15 +374,35 @@ export class NativeTUIEditor implements TUIEditor {
 
   private applyInputMutation(mutate: () => boolean): boolean {
     const before = this.getText();
+    const beforeCursor = this.getCursor();
     const handled = mutate();
     if (!handled) return false;
     const after = this.getText();
-    if (after !== before) {
-      this.historyIndex = undefined;
+    const afterCursor = this.getCursor();
+    const textChanged = after !== before;
+    const cursorChanged =
+      afterCursor.line !== beforeCursor.line || afterCursor.col !== beforeCursor.col;
+    // Keystroke or caret move: drop ghost immediately so a late LLM paint cannot
+    // race back over the display. onChange stays text-only.
+    if (textChanged || cursorChanged) {
       this.clearGhost();
+    }
+    if (textChanged) {
+      this.historyIndex = undefined;
       this.onChange?.(after);
     }
     return true;
+  }
+
+  /**
+   * True when the caret is at the end of the last line — the only safe place for
+   * an inline suffix ghost that must not cover committed characters.
+   */
+  private isInlineGhostCaretAtBufferEnd(): boolean {
+    const lines = this.input.getLines();
+    const cursor = this.input.getCursor();
+    if (cursor.line !== lines.length - 1) return false;
+    return cursor.column >= (lines[cursor.line] ?? '').length;
   }
 
   private setTextInternal(text: string, notify: boolean): void {

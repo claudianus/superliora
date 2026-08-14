@@ -159,23 +159,35 @@ export class PromptIntelligenceController {
     if (text.trim().length < INLINE_REQUEST_MIN_CHARS) return;
     if (this.isAutocompleteTrigger(text)) return;
     if (!this.looksLikeProseDraft(text)) return;
-    if (!this.shouldSpendInlineBudget(text)) return;
 
-    // Cache key: text before the cursor (the prefix the completion extends).
-    // This gives cache hits when the user backspaces to a previous prefix.
+    // Snapshot prefix + caret before any async work so cache hits and late
+    // results re-validate against the same generation of editor state.
     const cursor = editor.getCursor();
-    const lines = text.split('\n');
-    const prefix = (
-      lines.slice(0, cursor.line).join('\n') +
-      (cursor.line > 0 ? '\n' : '') +
-      (lines[cursor.line] ?? '').slice(0, cursor.col)
-    ).trimEnd();
+    const prefix = this.prefixBeforeCursor(text, cursor);
+    // Inline ghost is suffix-only: refuse mid-buffer caret positions so a
+    // stale completion cannot paint over committed characters after the cursor.
+    if (!this.isSuffixCaret(text, cursor)) return;
+
     const cacheKey = prefix;
     const cached = this.lruGet(cacheKey);
     if (cached !== undefined) {
-      if (cached.length >= INLINE_SHOW_MIN_CHARS) editor.setGhostText(cached, 'inline');
+      // Free path: cache hits skip the spend budget so backspacing to a known
+      // prefix can repaint without another RPC, but still re-validate live state.
+      const generation = this.requestGeneration;
+      const ghost = this.formatInlineGhost(cached, prefix);
+      if (ghost !== undefined) {
+        this.tryPaintInlineGhost(ghost, {
+          generation,
+          text,
+          prefix,
+          cursor,
+        });
+      }
       return;
     }
+
+    // Budget applies only to new network requests, not cache hits.
+    if (!this.shouldSpendInlineBudget(text)) return;
 
     this.abortInFlight();
     const ac = new AbortController();
@@ -198,8 +210,6 @@ export class PromptIntelligenceController {
         signal: ac.signal,
       });
       if (ac.signal.aborted || generation !== this.requestGeneration) return;
-      // Guard: editor state may have changed while the request was in flight.
-      if (editor.getText() !== text) return;
       if (editor.isShowingAutocomplete()) return;
 
       const completion = result.completion.trimEnd();
@@ -207,16 +217,17 @@ export class PromptIntelligenceController {
       if (completion.length < INLINE_SHOW_MIN_CHARS) {
         this.lastEmptyInlineAt = Date.now();
       }
-      if (completion.length >= INLINE_SHOW_MIN_CHARS) {
-        // Prefer a leading space when the model returns a bare word continuation
-        // so Tab acceptance does not glue tokens together.
-        const ghost =
-          completion.startsWith(' ') || completion.startsWith('\n') || prefix.endsWith(' ')
-            ? completion
-            : prefix.length > 0 && !/\s$/.test(prefix)
-              ? ` ${completion}`
-              : completion;
-        editor.setGhostText(ghost, 'inline');
+      const ghost = this.formatInlineGhost(completion, prefix);
+      if (ghost !== undefined) {
+        const painted = this.tryPaintInlineGhost(ghost, {
+          generation,
+          text,
+          prefix,
+          cursor,
+        });
+        // Drop a leftover pending placeholder when the result is no longer valid
+        // for the live caret/buffer (e.g. cursor moved without a new keystroke).
+        if (!painted) this.clearPendingGhost();
       } else if (editor.getGhostText?.() === INLINE_PENDING_GHOST) {
         editor.setGhostText(undefined, 'inline');
       }
@@ -235,6 +246,98 @@ export class PromptIntelligenceController {
       if (this.abortController === ac) this.abortController = undefined;
       if (generation === this.requestGeneration) this.setPhase('idle');
     }
+  }
+
+  /**
+   * Text before the caret — the prefix an inline completion is allowed to extend.
+   */
+  private prefixBeforeCursor(
+    text: string,
+    cursor: { line: number; col: number },
+  ): string {
+    const lines = text.split('\n');
+    return (
+      lines.slice(0, cursor.line).join('\n') +
+      (cursor.line > 0 ? '\n' : '') +
+      (lines[cursor.line] ?? '').slice(0, cursor.col)
+    ).trimEnd();
+  }
+
+  /**
+   * True when the caret sits at the end of the buffer so a ghost suffix cannot
+   * overwrite committed characters that follow the cursor on the display.
+   */
+  private isSuffixCaret(text: string, cursor: { line: number; col: number }): boolean {
+    const lines = text.split('\n');
+    if (cursor.line !== lines.length - 1) return false;
+    return cursor.col >= (lines[cursor.line] ?? '').length;
+  }
+
+  /**
+   * Normalize a raw model/cache completion into the suffix we paint as ghost.
+   * Returns `undefined` when the completion is too short to show.
+   */
+  private formatInlineGhost(completion: string, prefix: string): string | undefined {
+    if (completion.length < INLINE_SHOW_MIN_CHARS) return undefined;
+    // Prefer a leading space when the model returns a bare word continuation
+    // so Tab acceptance does not glue tokens together.
+    if (
+      completion.startsWith(' ') ||
+      completion.startsWith('\n') ||
+      prefix.endsWith(' ')
+    ) {
+      return completion;
+    }
+    if (prefix.length > 0 && !/\s$/.test(prefix)) {
+      return ` ${completion}`;
+    }
+    return completion;
+  }
+
+  private clearPendingGhost(): void {
+    const editor = this.host.state.editor;
+    if (editor.getGhostText?.() === INLINE_PENDING_GHOST) {
+      editor.setGhostText(undefined, 'inline');
+    }
+  }
+
+  /**
+   * Paint inline ghost only when generation, full buffer, caret, and prefix
+   * still match the snapshot taken when the completion was requested. Shared by
+   * the cache-hit and async-result paths so neither can race a newer keystroke.
+   */
+  private tryPaintInlineGhost(
+    ghost: string,
+    snapshot: {
+      generation: number;
+      text: string;
+      prefix: string;
+      cursor: { line: number; col: number };
+    },
+  ): boolean {
+    if (ghost.length < INLINE_SHOW_MIN_CHARS) return false;
+    if (snapshot.generation !== this.requestGeneration) return false;
+
+    const editor = this.host.state.editor;
+    if (editor.isShowingAutocomplete()) return false;
+
+    const liveText = editor.getText();
+    if (liveText !== snapshot.text) return false;
+
+    const liveCursor = editor.getCursor();
+    if (
+      liveCursor.line !== snapshot.cursor.line ||
+      liveCursor.col !== snapshot.cursor.col
+    ) {
+      return false;
+    }
+    if (!this.isSuffixCaret(liveText, liveCursor)) return false;
+
+    const livePrefix = this.prefixBeforeCursor(liveText, liveCursor);
+    if (livePrefix !== snapshot.prefix) return false;
+
+    editor.setGhostText(ghost, 'inline');
+    return true;
   }
 
   // ---------------------------------------------------------------------------

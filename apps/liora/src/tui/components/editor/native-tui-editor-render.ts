@@ -158,12 +158,13 @@ export function measureNativeTUIEditorLayoutRowCount(
   // Closed autocomplete: avoid building styled overlay cells just to count 0.
   const overlayCount = overlayOpen ? host.getOverlayLineCount(safeWidth) : 0;
   const cached = host.getLayoutRowCountCache();
+  // Ghost is a same-line suffix overlay and must not participate in height
+  // caching or measurement (see render call below). Ignore host ghost text here.
   if (
     cached !== undefined &&
     cached.width === safeWidth &&
     cached.text === text &&
-    cached.overlayCount === overlayCount &&
-    cached.ghost === (host.getGhostText() ?? '')
+    cached.overlayCount === overlayCount
   ) {
     return cached.rows;
   }
@@ -174,6 +175,9 @@ export function measureNativeTUIEditorLayoutRowCount(
   );
   host.setLastContentWidth(contentWidth);
   host.getTextInput().setLayoutWidth(contentWidth);
+  // Layout height is driven only by committed buffer + autocomplete overlays.
+  // Never pass ghostText here: a long suffix must not grow contentRows and clip
+  // the real input out of the allocated editor frame (display-only overlay).
   const content = host.getTextInput().render({
     width: contentWidth,
     focused: host.focused,
@@ -183,7 +187,9 @@ export function measureNativeTUIEditorLayoutRowCount(
     width: safeWidth,
     text,
     overlayCount,
-    ghost: host.getGhostText() ?? '',
+    // Ghost is intentionally excluded from the row formula; keep the cache key
+    // stable across ghost paint/clear so we do not thrash measure on every LLM hit.
+    ghost: '',
     rows,
   });
   return rows;
