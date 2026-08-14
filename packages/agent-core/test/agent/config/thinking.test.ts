@@ -37,6 +37,14 @@ describe('agent/config/thinking — pure thinking-effort resolvers', () => {
       expect(effort).toBe('low');
     });
 
+    it('keeps xhigh when the model support list includes it', () => {
+      const effort = resolveThinkingLevel('xhigh', {
+        defaultThinking: true,
+        model: MODEL_WITH_DEFAULT,
+      });
+      expect(effort).toBe('xhigh');
+    });
+
     it('clamps the resolved request to the model support when provided', () => {
       const effort = resolveThinkingLevel('xhigh', {
         defaultThinking: true,

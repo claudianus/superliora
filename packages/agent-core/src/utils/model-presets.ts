@@ -27,8 +27,19 @@ export type ModelRole =
 
 export type ModelTier = 'ultra-cheap' | 'cheap' | 'balanced' | 'high' | 'ultra-high';
 
-/** Thinking/reasoning level per role. */
-export type ThinkingLevel = 'minimal' | 'low' | 'medium' | 'high' | 'max';
+/**
+ * Role-preset thinking. `xhigh` is the existing kosong ThinkingEffort rung
+ * (not a new enum) — quality/main roles promote to it when the catalog SKU
+ * embeds that effort or the model declares it in `supportEfforts`.
+ */
+export type ThinkingLevel = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+
+/** Graded effort rungs shared with `resolveThinkingEffort` / kosong. */
+const GRADED_EFFORT_ORDER = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+type GradedEffort = (typeof GRADED_EFFORT_ORDER)[number];
+
+const EMBEDDED_EFFORT_SUFFIX =
+  /(?:^|[-_])(none|low|medium|high|xhigh|max)(?:[-_]fast)?$/i;
 
 /** Full model metadata from models.dev + local availability check. */
 export interface ModelMetadata {
@@ -67,6 +78,11 @@ export interface ModelMetadata {
   readonly benchmarkScore?: number;
   /** Number of coding-relevant benchmarks that contributed to benchmarkScore. */
   readonly benchmarkCount?: number;
+  /**
+   * Declared reasoning efforts (`models.dev` reasoning_options / alias
+   * `supportEfforts`). Used to promote quality-role thinking to `xhigh`.
+   */
+  readonly supportEfforts?: readonly string[];
 }
 
 export interface RolePreset {
@@ -727,12 +743,81 @@ function compareSameFamilyTieBreak(
   if (genA === undefined || genB === undefined || genA.family !== genB.family) return 0;
   const byGen = compareModelGeneration(genA, genB);
   if (byGen !== 0) return byGen;
+  const effortA = effortRankOf(a);
+  const effortB = effortRankOf(b);
+  if (effortA !== effortB) return effortA - effortB;
   const ctxA = a.contextWindow ?? 0;
   const ctxB = b.contextWindow ?? 0;
   if (ctxA !== ctxB) return ctxA - ctxB;
   const defA = isSessionDefault(a, sessionDefault) ? 1 : 0;
   const defB = isSessionDefault(b, sessionDefault) ? 1 : 0;
   return defA - defB;
+}
+
+function parseEmbeddedEffort(modelId: string): GradedEffort | undefined {
+  const match = EMBEDDED_EFFORT_SUFFIX.exec(modelId.trim());
+  if (match == null) return undefined;
+  const token = match[1]!.toLowerCase();
+  return GRADED_EFFORT_ORDER.includes(token as GradedEffort)
+    ? (token as GradedEffort)
+    : undefined;
+}
+
+function highestDeclaredEffort(model: ModelMetadata): GradedEffort | undefined {
+  const declared = model.supportEfforts
+    ?.map((effort) => effort.trim().toLowerCase())
+    .filter((effort): effort is GradedEffort =>
+      GRADED_EFFORT_ORDER.includes(effort as GradedEffort),
+    );
+  if (declared === undefined || declared.length === 0) return undefined;
+  return declared.reduce((best, current) =>
+    GRADED_EFFORT_ORDER.indexOf(current) > GRADED_EFFORT_ORDER.indexOf(best) ? current : best,
+  );
+}
+
+/** Higher = stronger same-family effort SKU (`-high` < `-xhigh` < `-max`). */
+function effortRankOf(model: ModelMetadata): number {
+  const embedded = parseEmbeddedEffort(model.id);
+  if (embedded !== undefined) return GRADED_EFFORT_ORDER.indexOf(embedded);
+  const declared = highestDeclaredEffort(model);
+  if (declared !== undefined) return GRADED_EFFORT_ORDER.indexOf(declared);
+  return -1;
+}
+
+function isStaleBuildSku(modelId: string): boolean {
+  return /grok[-_]?build/i.test(modelId);
+}
+
+function isRecentThinkingOffCapable(model: ModelMetadata): boolean {
+  if (isStaleBuildSku(model.id)) return false;
+  if (model.supportsTools === false) return false;
+  const gen = generationOf(model);
+  if (gen === undefined) return false;
+  // grok-4.3+ (and later same-family generations) can run thinking-off utility work.
+  return gen.major > 4 || (gen.major === 4 && gen.minor >= 3);
+}
+
+function catalogHasRecentThinkingOffPeer(
+  catalog: readonly (string | Pick<ModelMetadata, 'id' | 'family' | 'supportsTools'>)[],
+): boolean {
+  return catalog.some((entry) => {
+    if (typeof entry === 'string') {
+      return isRecentThinkingOffCapable({
+        id: entry,
+        provider: '',
+        tier: 'balanced',
+        available: true,
+      });
+    }
+    return isRecentThinkingOffCapable({
+      id: entry.id,
+      family: entry.family,
+      supportsTools: entry.supportsTools,
+      provider: '',
+      tier: 'balanced',
+      available: true,
+    });
+  });
 }
 
 function hasCodingBenchmarks(model: ModelMetadata): boolean {
@@ -1128,7 +1213,7 @@ function meetsQualityFloor(preset: RolePreset, model: ModelMetadata, anyScored: 
 function rankScore(
   preset: RolePreset,
   model: ModelMetadata,
-  catalog: readonly (string | Pick<ModelMetadata, 'id' | 'family'>)[] = [],
+  catalog: readonly (string | Pick<ModelMetadata, 'id' | 'family' | 'supportsTools'>)[] = [],
 ): number {
   const quality = model.qualityScore ?? scoreModelQuality(model.id, model);
   const value = model.valueScore ?? scoreModelValue(quality, model.inputCostPerM);
@@ -1149,6 +1234,15 @@ function rankScore(
       const year = Number(knowledge.slice(0, 4));
       if (Number.isFinite(year) && year < 2025) score -= 40;
     }
+    score += Math.max(0, effortRankOf(model)) * 4;
+  } else if (preset.preferValue === true) {
+    // Value roles: a recent thinking-off-capable sibling outranks stale
+    // grok-build SKUs even when those SKUs win raw value*10.
+    if (isStaleBuildSku(model.id) && catalogHasRecentThinkingOffPeer(catalog)) {
+      score -= 4_000;
+    } else if (isRecentThinkingOffCapable(model)) {
+      score += 80;
+    }
   }
   return score;
 }
@@ -1157,19 +1251,34 @@ function compareRoleCandidates(
   preset: RolePreset,
   a: ModelMetadata,
   b: ModelMetadata,
-  catalog: readonly (string | Pick<ModelMetadata, 'id' | 'family'>)[],
+  catalog: readonly (string | Pick<ModelMetadata, 'id' | 'family' | 'supportsTools'>)[],
   sessionDefault?: string,
 ): number {
+  if (isQualityStrictRole(preset.role)) {
+    const effortTie = compareSameFamilyEffort(a, b);
+    if (effortTie !== 0) return effortTie;
+  }
   // Equal-price same-family: generation > context > session default > score.
   const familyTie = compareSameFamilyTieBreak(a, b, sessionDefault);
   if (familyTie !== 0) return familyTie;
   return rankScore(preset, a, catalog) - rankScore(preset, b, catalog);
 }
 
+function sameFamilyPair(a: ModelMetadata, b: ModelMetadata): boolean {
+  const genA = generationOf(a);
+  const genB = generationOf(b);
+  return genA !== undefined && genB !== undefined && genA.family === genB.family;
+}
+
+function compareSameFamilyEffort(a: ModelMetadata, b: ModelMetadata): number {
+  if (!sameFamilyPair(a, b)) return 0;
+  return effortRankOf(a) - effortRankOf(b);
+}
+
 function pickBestForRole(
   preset: RolePreset,
   candidates: readonly ModelMetadata[],
-  catalog: readonly (string | Pick<ModelMetadata, 'id' | 'family'>)[] = [],
+  catalog: readonly (string | Pick<ModelMetadata, 'id' | 'family' | 'supportsTools'>)[] = [],
   sessionDefault?: string,
 ): ModelMetadata | undefined {
   if (candidates.length === 0) return undefined;
@@ -1246,7 +1355,11 @@ export function autoAssignRoleModels(
   }
 
   const allAvailable = scored.filter((m) => m.available);
-  const catalog = allAvailable.map((m) => ({ id: m.id, family: m.family }));
+  const catalog = allAvailable.map((m) => ({
+    id: m.id,
+    family: m.family,
+    supportsTools: m.supportsTools,
+  }));
   const sessionDefault = hints?.sessionDefault;
   const result: Partial<Record<ModelRole, RoleModelAssignment>> = {};
 
@@ -1275,7 +1388,12 @@ export function autoAssignRoleModels(
       catalog,
       sessionDefault,
     );
-    if (preferred) {
+    const skipStalePreferred =
+      preset.preferValue === true &&
+      preferred !== undefined &&
+      isStaleBuildSku(preferred.id) &&
+      catalogHasRecentThinkingOffPeer(catalog);
+    if (preferred && !skipStalePreferred) {
       result[preset.role] = {
         role: preset.role,
         modelId: preferred.id,
@@ -1326,7 +1444,9 @@ export function autoAssignRoleModels(
 
 /**
  * Resolve the thinking level for a role+model combination.
- * If the model doesn't support reasoning, downgrade to 'minimal'.
+ * Quality/main roles promote `high`/`max` to `xhigh` when the same-family SKU
+ * embeds that effort or declares it in `supportEfforts`. Models without
+ * reasoning stay at `low`.
  */
 function resolveThinkingLevel(preset: RolePreset, model: ModelMetadata): ThinkingLevel {
   if (preset.thinkingLevel === 'minimal' || preset.thinkingLevel === 'low') {
@@ -1336,7 +1456,18 @@ function resolveThinkingLevel(preset: RolePreset, model: ModelMetadata): Thinkin
   if (model.supportsReasoning === false) {
     return 'low';
   }
+  if (isQualityStrictRole(preset.role) || preset.thinkingLevel === 'high' || preset.thinkingLevel === 'max') {
+    const available = highestAvailableEffort(model);
+    if (available === 'xhigh' || available === 'max') {
+      if (preset.thinkingLevel === 'max' && available === 'max') return 'max';
+      if (available === 'xhigh' || available === 'max') return 'xhigh';
+    }
+  }
   return preset.thinkingLevel;
+}
+
+function highestAvailableEffort(model: ModelMetadata): GradedEffort | undefined {
+  return parseEmbeddedEffort(model.id) ?? highestDeclaredEffort(model);
 }
 
 // ── Fallback chain ──────────────────────────────────────────────────
@@ -1355,7 +1486,11 @@ export function buildFallbackChain(
   const scored = availableModels
     .filter((m) => m.available && !isHardExcludedForRole(role, m.id))
     .map((m) => (m.qualityScore !== undefined ? m : withScores(m)));
-  const catalog = scored.map((m) => ({ id: m.id, family: m.family }));
+  const catalog = scored.map((m) => ({
+    id: m.id,
+    family: m.family,
+    supportsTools: m.supportsTools,
+  }));
   const anyScored = scored.some((m) => m.qualityScore !== undefined);
   const floorOk = (m: ModelMetadata): boolean =>
     !isQualityStrictRole(role) || meetsQualityFloor(preset, m, anyScored);

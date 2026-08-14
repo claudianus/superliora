@@ -82,6 +82,16 @@ const AUTO_THINKING_BY_ROLE: Partial<Record<ModelRole, ThinkingEffort>> = {
   compaction: 'off',
 };
 
+const QUALITY_ROLES = new Set<ModelRole>(['coding', 'planning', 'debugging']);
+
+const GRADED_EFFORT_ORDER: readonly ThinkingEffort[] = [
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+];
+
 const DEFAULT_INTENSITY: Record<ModelRole, RouteIntensity> = {
   compaction: 'value',
   exploration: 'value',
@@ -190,6 +200,7 @@ function localModelMetadata(
       knowledgeCutoff: devData?.knowledgeCutoff,
       benchmarkScore: devData?.benchmarkScore,
       benchmarkCount: devData?.benchmarkCount,
+      supportEfforts: model.supportEfforts,
     },
     devData,
   );
@@ -462,7 +473,50 @@ function thinkingForRole(role: ModelRole, model: ModelAlias | undefined): Thinki
     return 'off';
   }
 
-  return resolveThinkingEffort(requested, undefined, model);
+  const preferred = QUALITY_ROLES.has(role)
+    ? preferXhighWhenAvailable(requested, model)
+    : requested;
+  return resolveThinkingEffort(preferred, undefined, model);
+}
+
+/** Promote quality/main roles to xhigh when the catalog model can run it. */
+function preferXhighWhenAvailable(
+  requested: ThinkingEffort,
+  model: ModelAlias | undefined,
+): ThinkingEffort {
+  if (requested === 'off' || requested === 'low' || requested === 'medium') return requested;
+  const available = highestUsableEffort(model);
+  if (available === 'xhigh') return 'xhigh';
+  if (available === 'max' && (requested === 'high' || requested === 'max' || requested === 'xhigh')) {
+    return requested === 'max' ? 'max' : 'xhigh';
+  }
+  return requested;
+}
+
+function highestUsableEffort(model: ModelAlias | undefined): ThinkingEffort | undefined {
+  if (model === undefined) return undefined;
+  const embedded = parseEmbeddedEffort(model.model) ?? parseEmbeddedEffort(model.defaultEffort);
+  const declared = (model.supportEfforts ?? [])
+    .map((effort) => effort.trim().toLowerCase())
+    .filter((effort): effort is ThinkingEffort =>
+      GRADED_EFFORT_ORDER.includes(effort as ThinkingEffort),
+    );
+  const candidates: ThinkingEffort[] = [
+    ...(embedded !== undefined ? [embedded] : []),
+    ...declared,
+  ];
+  if (candidates.length === 0) return undefined;
+  return candidates.reduce((best, current) =>
+    GRADED_EFFORT_ORDER.indexOf(current) > GRADED_EFFORT_ORDER.indexOf(best) ? current : best,
+  );
+}
+
+function parseEmbeddedEffort(value: string | undefined): ThinkingEffort | undefined {
+  if (value === undefined) return undefined;
+  const match = /(?:^|[-_])(low|medium|high|xhigh|max)(?:[-_]fast)?$/i.exec(value.trim());
+  if (match == null) return undefined;
+  const token = match[1]!.toLowerCase() as ThinkingEffort;
+  return GRADED_EFFORT_ORDER.includes(token) ? token : undefined;
 }
 
 /** Prefer catalog pick unless another head candidate has a clearly better EMA. */

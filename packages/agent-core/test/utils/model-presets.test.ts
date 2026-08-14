@@ -227,6 +227,50 @@ describe('model-presets — thinking level in assignments', () => {
     const assignments = autoAssignRoleModels(models);
     assert.equal(assignments.planning!.thinkingLevel, 'max');
   });
+
+  it('promotes quality main roles to xhigh when the same-family catalog supports it', () => {
+    const models: ModelMetadata[] = [
+      {
+        id: 'grok-4.6-high',
+        alias: 'xai-grok/grok-4.6-high',
+        provider: 'xai-grok',
+        family: 'grok',
+        tier: 'high',
+        available: true,
+        supportsTools: true,
+        supportsReasoning: true,
+        contextWindow: 256_000,
+        inputCostPerM: 2,
+        qualityScore: 86,
+        valueScore: 43,
+        benchmarkScore: 86,
+        benchmarkCount: 2,
+      },
+      {
+        id: 'grok-4.6-xhigh',
+        alias: 'xai-grok/grok-4.6-xhigh',
+        provider: 'xai-grok',
+        family: 'grok',
+        tier: 'high',
+        available: true,
+        supportsTools: true,
+        supportsReasoning: true,
+        contextWindow: 256_000,
+        inputCostPerM: 2,
+        qualityScore: 86,
+        valueScore: 43,
+        benchmarkScore: 86,
+        benchmarkCount: 2,
+      },
+    ];
+    const assignments = autoAssignRoleModels(models);
+    assert.equal(assignments.coding?.modelId, 'grok-4.6-xhigh');
+    assert.equal(assignments.planning?.modelId, 'grok-4.6-xhigh');
+    assert.equal(assignments.debugging?.modelId, 'grok-4.6-xhigh');
+    assert.equal(assignments.coding?.thinkingLevel, 'xhigh');
+    assert.equal(assignments.planning?.thinkingLevel, 'xhigh');
+    assert.equal(assignments.debugging?.thinkingLevel, 'xhigh');
+  });
 });
 
 describe('model-presets — classifyModelTier with pricing data', () => {
@@ -482,7 +526,9 @@ describe('model-presets — models.dev benchmarks', () => {
     assert.equal(assignments.planning?.modelId, 'grok-4.5');
     assert.equal(assignments.debugging?.modelId, 'grok-4.5');
     assert.ok(assignments.coding?.reason.includes('benches'));
-    assert.equal(assignments.compaction?.modelId, 'grok-build-0.1');
+    // grok-build stays ultra-cheap by name, but value roles must not pick it
+    // over a newer thinking-off-capable sibling when both are listed.
+    assert.notEqual(assignments.compaction?.modelId, 'grok-build-0.1');
   });
 
   it('caps heuristic quality below typical multi-bench flagships', () => {
@@ -567,8 +613,8 @@ describe('model-presets — same-family generation ranking', () => {
     const models: ModelMetadata[] = [
       grokFlagship('grok-4.6', 84, { valueScore: 42 }),
       {
-        id: 'grok-build-0.1',
-        alias: 'xai-grok/grok-build-0.1',
+        id: 'grok-flash',
+        alias: 'xai-grok/grok-flash',
         provider: 'xai-grok',
         family: 'grok',
         tier: 'ultra-cheap',
@@ -581,8 +627,8 @@ describe('model-presets — same-family generation ranking', () => {
       },
     ];
     const assignments = autoAssignRoleModels(models);
-    assert.equal(assignments.compaction?.modelId, 'grok-build-0.1');
-    assert.equal(assignments.exploration?.modelId, 'grok-build-0.1');
+    assert.equal(assignments.compaction?.modelId, 'grok-flash');
+    assert.equal(assignments.exploration?.modelId, 'grok-flash');
     assert.equal(assignments.coding?.modelId, 'grok-4.6');
   });
 
@@ -637,6 +683,36 @@ describe('model-presets — same-family generation ranking', () => {
     const planning = previews.find((row) => row.role === 'planning');
     assert.equal(coding?.resolvedAlias, 'xai-grok/grok-4.6');
     assert.equal(planning?.resolvedAlias, 'xai-grok/grok-4.6');
+  });
+
+  it('value roles prefer recent thinking-off grok 4.3 over obsolete grok-build', () => {
+    const models: ModelMetadata[] = [
+      grokFlagship('grok-4.3', 78, {
+        supportsReasoning: false,
+        qualityScore: 72,
+        valueScore: 36,
+        benchmarkScore: 72,
+      }),
+      {
+        id: 'grok-build-0.1',
+        alias: 'xai-grok/grok-build-0.1',
+        provider: 'xai-grok',
+        family: 'grok',
+        tier: 'ultra-cheap',
+        available: true,
+        supportsTools: true,
+        supportsReasoning: false,
+        contextWindow: 256_000,
+        inputCostPerM: 0.2,
+        qualityScore: 70,
+        valueScore: 350,
+      },
+    ];
+    const assignments = autoAssignRoleModels(models);
+    assert.equal(assignments.compaction?.modelId, 'grok-4.3');
+    assert.equal(assignments.exploration?.modelId, 'grok-4.3');
+    assert.equal(assignments.completion?.modelId, 'grok-4.3');
+    assert.equal(assignments.coding?.modelId, 'grok-4.3');
   });
 });
 

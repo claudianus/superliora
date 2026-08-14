@@ -98,6 +98,49 @@ describe('smart-router', () => {
     expect(resolveSmartRoute({ role: 'coding', config: cfg })?.alias).toBe('opus');
   });
 
+  it('prefers grok 4.6 xhigh SKU over same-family high for quality roles', () => {
+    const cfg = config({
+      models: {
+        'grok-4.6-high': {
+          ...model('grok-4.6-high', 2, 256_000),
+          supportEfforts: ['low', 'medium', 'high', 'xhigh'],
+          defaultEffort: 'high',
+        },
+        'grok-4.6-xhigh': {
+          ...model('grok-4.6-xhigh', 2, 256_000),
+          supportEfforts: ['low', 'medium', 'high', 'xhigh'],
+          defaultEffort: 'xhigh',
+        },
+      },
+    });
+
+    const coding = resolveSmartRoute({ role: 'coding', config: cfg });
+    const planning = resolveSmartRoute({ role: 'planning', config: cfg });
+    expect(coding?.alias).toBe('grok-4.6-xhigh');
+    expect(coding?.thinkingLevel).toBe('xhigh');
+    expect(planning?.alias).toBe('grok-4.6-xhigh');
+    expect(planning?.thinkingLevel).toBe('xhigh');
+  });
+
+  it('compaction prefers recent thinking-off grok 4.3 over grok-build', () => {
+    const cfg = config({
+      models: {
+        'grok-4.3': {
+          ...model('grok-4.3', 2, 256_000),
+          capabilities: ['tool_use'],
+        },
+        'grok-build-0.1': {
+          ...model('grok-build-0.1', 0.2, 256_000),
+          capabilities: ['tool_use'],
+        },
+      },
+    });
+
+    const route = resolveSmartRoute({ role: 'compaction', config: cfg });
+    expect(route?.alias).toBe('grok-4.3');
+    expect(route?.thinkingLevel).toBe('off');
+  });
+
   it('advanceSmartRoute walks the chain', () => {
     const route: SmartRoute = {
       role: 'coding',
