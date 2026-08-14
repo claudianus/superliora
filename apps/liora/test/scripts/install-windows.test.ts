@@ -241,6 +241,51 @@ describe('Windows install wrappers and spawn', () => {
     expect(ps1).toContain('.superliora\\runtime\\node');
   });
 
+  it('does not read OSArchitecture as a PowerShell property under StrictMode', async () => {
+    const ps1 = await readFile(windowsSourceInstallScript, 'utf-8');
+    expect(ps1).not.toMatch(/::OSArchitecture/);
+    expect(ps1).not.toMatch(/\$\w+\.OSArchitecture\b/);
+    expect(ps1).toContain("GetProperty('OSArchitecture')");
+    expect(ps1).toContain('PROCESSOR_ARCHITECTURE');
+    expect(ps1).toContain('PROCESSOR_ARCHITEW6432');
+    expect(ps1).toContain('function Get-WindowsNodeArch');
+  });
+
+  it.skipIf(process.platform !== 'win32')(
+    'maps Windows arch tokens and survives StrictMode when OSArchitecture is absent',
+    async () => {
+      const ps1 = await readFile(windowsSourceInstallScript, 'utf-8');
+      const start = ps1.indexOf('function Convert-WindowsArchToken');
+      const end = ps1.indexOf('function Install-LocalNode');
+      expect(start).toBeGreaterThan(0);
+      expect(end).toBeGreaterThan(start);
+      const functions = ps1.slice(start, end);
+      const command = [
+        "$ErrorActionPreference = 'Stop'",
+        'Set-StrictMode -Version 2.0',
+        'function Fail { param([string]$Message) throw $Message }',
+        functions,
+        "if ((Convert-WindowsArchToken 'AMD64') -ne 'x64') { throw 'AMD64' }",
+        "if ((Convert-WindowsArchToken 'X64') -ne 'x64') { throw 'X64' }",
+        "if ((Convert-WindowsArchToken 'Arm64') -ne 'arm64') { throw 'Arm64' }",
+        "if ((Convert-WindowsArchToken 'ARM64') -ne 'arm64') { throw 'ARM64' }",
+        "if ($null -ne (Convert-WindowsArchToken 'x86')) { throw 'x86' }",
+        "if ($null -ne (Convert-WindowsArchToken '')) { throw 'empty' }",
+        '$missing = New-Object psobject',
+        'try { $null = $missing.OSArchitecture; throw "StrictMode did not fire" } catch {',
+        "  if ($_.FullyQualifiedErrorId -notmatch 'PropertyNotFoundStrict') { throw }",
+        '}',
+        '$runtimeToken = Get-RuntimeOsArchToken',
+        "if ($null -ne $runtimeToken -and $runtimeToken -notmatch '^(X64|Arm64|X86|Arm)$') { throw ('runtime token ' + $runtimeToken) }",
+        '$arch = Get-WindowsNodeArch',
+        "if ($arch -ne 'x64' -and $arch -ne 'arm64') { throw ('node arch ' + $arch) }",
+        "Write-Output ('ARCH_FN_OK ' + $arch)",
+      ].join('; ');
+      const { stdout } = await execFileAsync('powershell', ['-NoProfile', '-Command', command]);
+      expect(stdout).toMatch(/ARCH_FN_OK (x64|arm64)/);
+    },
+  );
+
   it.skipIf(process.platform !== 'win32')(
     'parses GNU and PowerShell flags in dump mode without treating them as named parameters',
     async () => {
@@ -268,6 +313,7 @@ describe('Windows install wrappers and spawn', () => {
       expect(stdout).toContain('DUMP noGit=1');
       expect(stdout).toContain('DUMP noPath=1');
       expect(stdout).toContain('DUMP noShellRc=1');
+      expect(stdout).toMatch(/DUMP nodeArch=(x64|arm64)/);
       expect(stdout).toContain('DUMP ok');
       expect(stdout).not.toContain('bootstrapping');
       expect(stdout).not.toMatch(/param :/);
@@ -292,6 +338,7 @@ describe('Windows install wrappers and spawn', () => {
     );
     expect(equalsOut).toContain(`DUMP binDir=${binDir}`);
     expect(equalsOut).toContain('DUMP main=1');
+    expect(equalsOut).toMatch(/DUMP nodeArch=(x64|arm64)/);
 
     const psBin = 'C:\\Apps\\Pascal\\bin';
     const { stdout: pascalOut } = await execFileAsync(
