@@ -6,6 +6,7 @@ import {
   canAutoInstall,
   installCommandFor,
   spawnForSource,
+  spawnOptionsForSource,
 } from '#/cli/update/install-spawn';
 
 describe('installCommandFor', () => {
@@ -47,11 +48,12 @@ describe('canAutoInstall', () => {
     expect(canAutoInstall('github-checkout', 'linux')).toBe(true);
   });
 
-  it('spawns powershell for native installs on Windows', () => {
+  it('spawns powershell.exe for native installs on Windows', () => {
     const { cmd, args } = spawnForSource('native', '0.5.0', 'win32');
-    expect(cmd).toBe('powershell');
+    expect(cmd).toBe('powershell.exe');
     expect(args.join(' ')).toContain('install.ps1');
     expect(args.join(' ')).toContain("SUPERLIORA_VERSION='0.5.0'");
+    expect(args.join(' ')).toContain('| iex');
   });
 
   it('pins native Unix install to the advertised version', () => {
@@ -72,6 +74,27 @@ describe('spawnForSource native', () => {
       const result = spawnSync(cmd, [args[0] ?? '-c', script], { encoding: 'utf8' });
       expect(result.error).toBeUndefined();
       expect(result.status).toBeGreaterThan(0);
+    },
+  );
+
+  it.skipIf(process.platform !== 'win32')(
+    'runs a PowerShell pipeline without cmd.exe stealing | iex',
+    () => {
+      const { cmd, args } = spawnForSource('native', '0.5.0', 'win32');
+      const command = args[args.length - 1] ?? '';
+      expect(command).toContain('| iex');
+      const probeArgs = [...args.slice(0, -1), '1 | Write-Output'];
+
+      const direct = spawnSync(cmd, probeArgs, { encoding: 'utf8' });
+      expect(direct.error).toBeUndefined();
+      expect(direct.status).toBe(0);
+      expect((direct.stdout ?? '').trim()).toBe('1');
+
+      const viaCmd = spawnSync(cmd, probeArgs, { encoding: 'utf8', shell: true });
+      expect(viaCmd.status).not.toBe(0);
+      // cmd.exe stole the pipe and tried to run Write-Output itself.
+      // Message text is localized (English "not recognized", Korean, …).
+      expect(`${viaCmd.stderr ?? ''}${viaCmd.stdout ?? ''}`).toContain('Write-Output');
     },
   );
 });
@@ -123,6 +146,38 @@ describe('fromMain native install', () => {
     });
     expect(args[1]).toContain("upstream='origin/main'");
     expect(args[1]).toContain('/tmp/superliora');
+  });
+});
+
+describe('spawnOptionsForSource', () => {
+  it('uses a Windows shell only for .cmd package-manager shims', () => {
+    expect(spawnOptionsForSource('npm-global', 'win32', { stdio: 'inherit' })).toEqual({
+      stdio: 'inherit',
+      shell: true,
+    });
+    expect(spawnOptionsForSource('pnpm-global', 'win32', { stdio: 'inherit' })).toEqual({
+      stdio: 'inherit',
+      shell: true,
+    });
+    expect(spawnOptionsForSource('yarn-global', 'win32', { stdio: 'inherit' })).toEqual({
+      stdio: 'inherit',
+      shell: true,
+    });
+  });
+
+  it('does not wrap native or bun upgrades in cmd.exe', () => {
+    expect(spawnOptionsForSource('native', 'win32', { stdio: 'inherit' })).toEqual({
+      stdio: 'inherit',
+    });
+    expect(spawnOptionsForSource('bun-global', 'win32', { stdio: 'inherit' })).toEqual({
+      stdio: 'inherit',
+    });
+    expect(spawnOptionsForSource('github-checkout', 'win32', { stdio: 'inherit' })).toEqual({
+      stdio: 'inherit',
+    });
+    expect(spawnOptionsForSource('npm-global', 'darwin', { stdio: 'inherit' })).toEqual({
+      stdio: 'inherit',
+    });
   });
 });
 

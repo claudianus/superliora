@@ -23,7 +23,7 @@ import {
   renderInstallSuccessMessage,
 } from './install-messages';
 import { rolloutTelemetryFor, trackUpdateEvent, type RolloutTelemetry, type UpdateLogger } from './install-runtime';
-import { canAutoInstall, installCommandFor, spawnForSource } from './install-spawn';
+import { canAutoInstall, installCommandFor, spawnForSource, spawnOptionsForSource } from './install-spawn';
 import { emptyUpdateInstallState, readUpdateInstallState } from './install-state';
 import {
   startObservedUpgradeInstall,
@@ -138,10 +138,9 @@ export async function installUpdate(
 ): Promise<void> {
   const { cmd, args } = spawnForSource(source, version, platform, options);
   await new Promise<void>((resolve, reject) => {
-    const child = spawn(cmd, [...args], {
+    const child = spawn(cmd, [...args], spawnOptionsForSource(source, platform, {
       stdio: 'inherit',
-      shell: platform === 'win32' ? true : undefined,
-    });
+    }));
     child.once('error', reject);
     child.once('exit', (code, signal) => {
       if (code === 0) {

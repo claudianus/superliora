@@ -6,7 +6,7 @@ import {
   hasFreshActiveInstall,
   nowIso,
 } from './install-runtime';
-import { spawnForSource } from './install-spawn';
+import { spawnForSource, spawnOptionsForSource } from './install-spawn';
 import {
   parseUpgradeStageLine,
   type UpgradeInstallStage,
@@ -226,10 +226,9 @@ export async function startObservedUpgradeInstall(
       }
     };
 
-    const child = spawnFn(cmd, [...args], {
+    const child = spawnFn(cmd, [...args], spawnOptionsForSource(source, platform, {
       stdio: ['ignore', 'pipe', 'pipe'],
-      shell: platform === 'win32' ? true : undefined,
-    }) as ChildProcess;
+    })) as ChildProcess;
 
     if (source !== 'github-checkout') {
       installingTimer = setTimeout(() => {

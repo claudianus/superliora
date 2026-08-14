@@ -21,7 +21,7 @@ import {
   type UpdateLogger,
   type UpdateTrackFn,
 } from './install-runtime';
-import { canAutoInstall, spawnForSource } from './install-spawn';
+import { canAutoInstall, spawnForSource, spawnOptionsForSource } from './install-spawn';
 import { readUpdateInstallState, writeUpdateInstallState } from './install-state';
 import type {
   InstallSource,
@@ -318,11 +318,10 @@ async function startBackgroundInstall(
       });
     };
 
-    const child = spawn(cmd, [...args], {
+    const child = spawn(cmd, [...args], spawnOptionsForSource(source, platform, {
       detached: true,
       stdio: 'ignore',
-      shell: platform === 'win32' ? true : undefined,
-    });
+    }));
     child.once('error', () => { finish(false); });
     child.once('exit', (code) => { finish(code === 0); });
     child.unref();
