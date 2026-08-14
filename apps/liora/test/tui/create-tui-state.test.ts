@@ -965,7 +965,11 @@ describe('createTUIState', () => {
     expect(renderer.frameRenderer.height).toBe(5);
     const resizeWrites = output.writes.slice(writesBeforeResize);
     expect(resizeWrites).toHaveLength(1);
-    expect(resizeWrites[0]).toContain(encodeTerminalClearBelowRow(5));
+    expect(resizeWrites[0]).toContain(
+      encodeTerminalClearBelowRow(5, 0, 0, currentTheme.canvasBackgroundCell(), 12, 1),
+    );
+    expect(resizeWrites[0]).not.toContain('\u001B[0J');
+    expect(resizeWrites[0]).not.toContain('\u001B[J');
     expect(resizeWrites[0]).toContain('t5');
 
     const writesBeforeShrink = output.writes.length;
@@ -980,7 +984,11 @@ describe('createTUIState', () => {
     expect(renderer.frameRenderer.height).toBe(3);
     const shrinkWrites = output.writes.slice(writesBeforeShrink);
     expect(shrinkWrites).toHaveLength(1);
-    expect(shrinkWrites[0]).toContain(encodeTerminalClearBelowRow(3));
+    expect(shrinkWrites[0]).toContain(
+      encodeTerminalClearBelowRow(3, 0, 0, currentTheme.canvasBackgroundCell(), 12, 1),
+    );
+    expect(shrinkWrites[0]).not.toContain('\u001B[0J');
+    expect(shrinkWrites[0]).not.toContain('\u001B[J');
     expect(shrinkWrites[0]).toContain('t1');
     renderer.stop();
   });

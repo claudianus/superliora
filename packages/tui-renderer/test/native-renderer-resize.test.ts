@@ -32,6 +32,8 @@ function createResizeHarness(size: { width: number; height: number } = { width: 
   return { prefixes, frameRenderer };
 }
 
+const THEME_BG_SGR = '\u001B[0;48;2;17;34;51m';
+
 describe('handleNativeRendererTerminalResize', () => {
   it('does not queue CSI 2J on alternate-screen grow or shrink', () => {
     const { prefixes, frameRenderer } = createResizeHarness();
@@ -91,9 +93,9 @@ describe('handleNativeRendererTerminalResize', () => {
       20,
     );
 
-    expect(prefixes).toEqual([encodeTerminalClearBelowRow(20, 0, 0, fill)]);
-    expect(prefixes.join('')).toContain('\u001B[48;2;17;34;51m');
-    expect(prefixes.join('')).not.toMatch(/\u001B\[0J(?!)/);
+    expect(prefixes).toEqual([encodeTerminalClearBelowRow(20, 0, 0, fill, 80, 4)]);
+    expect(prefixes.join('')).toContain(THEME_BG_SGR);
+    expect(prefixes.join('')).not.toContain('\u001B[0J');
     expect(prefixes.join('')).not.toContain('\u001B[J');
     expect(prefixes.join('')).not.toContain(ANSI_CLEAR_SCREEN);
     expect(prefixes.join('')).not.toContain('\u001B[K');
@@ -120,8 +122,9 @@ describe('handleNativeRendererTerminalResize', () => {
       },
     );
 
-    expect(prefixes).toEqual([encodeTerminalClearBelowRow(20, 0, 0, fill)]);
-    expect(prefixes.join('')).toContain('\u001B[48;2;17;34;51m');
+    expect(prefixes).toEqual([encodeTerminalClearBelowRow(20, 0, 0, fill, 80, 4)]);
+    expect(prefixes.join('')).toContain(THEME_BG_SGR);
+    expect(prefixes.join('')).not.toContain('\u001B[0J');
     expect(prefixes.join('')).not.toContain('\u001B[J');
     expect(prefixes.join('')).not.toContain(ANSI_CLEAR_SCREEN);
     expect(prefixes.join('')).not.toContain('\u001B[K');

@@ -15,6 +15,7 @@ import {
   cursorMoveTo,
   cursorPositionForManagedCursor,
   cursorStateToAnsiFromPosition,
+  cursorTo,
   hasTerminalOutput,
   isSafePrintableCluster,
   normalizeHyperlink,
@@ -55,21 +56,27 @@ export function encodeTerminalClearBelowRow(
   originX = 0,
   originY = 0,
   fill?: Pick<RendererCell, 'style'> | RendererCellStyle,
+  width = 1,
+  extraRows = 1,
 ): string {
   const style = fill && 'style' in fill ? fill.style : fill;
   const bg = style?.bg;
   if (!bg) {
-    // Bare CSI 0J / CSI J paints the terminal default background (usually
-    // black) and shows through as a horizontal stripe. Leave leftover cells
-    // for the next theme-bg frame paint instead.
+    // Bare CSI 0J / CSI J / CSI K paints the terminal default background
+    // (usually black) and shows through as a horizontal stripe. Leave leftover
+    // cells for the next theme-bg frame paint instead.
     return '';
   }
-  return (
-    cursorTo(originX, originY + row) +
-    styleToAnsi({ bg }) +
-    ANSI_ERASE_FROM_CURSOR_TO_SCREEN_END +
-    ANSI_RESET_STYLE
-  );
+  // ConPTY CSI 0J still uses the default background even after an SGR bg
+  // prefix. Paint themed spaces so leftover / newly exposed rows stay on theme.
+  const columns = Math.max(1, Math.floor(width));
+  const rows = Math.max(1, Math.floor(extraRows));
+  const themedRow = styleToAnsi({ bg }) + ' '.repeat(columns) + ANSI_RESET_STYLE;
+  let output = '';
+  for (let index = 0; index < rows; index += 1) {
+    output += cursorTo(originX, originY + row + index) + themedRow;
+  }
+  return output;
 }
 
 /**

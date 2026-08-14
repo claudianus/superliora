@@ -3920,12 +3920,12 @@ describe('NativeFrameRenderer', () => {
     const result = renderer.present();
 
     expect(result.diff.totalCells).toBe(24);
-    expect(result.output).toContain('\u001B[48;2;17;34;51m');
+    expect(result.output).toContain('\u001B[0;48;2;17;34;51m');
     expect(result.output).toContain('status');
     expect(result.output).not.toContain('\u001B[0J');
     expect(result.output).not.toContain('\u001B[J');
     expect(result.output).not.toContain('\u001B[K');
-    expect(encodeTerminalClearBelowRow(2, 0, 0, fill)).toContain('\u001B[48;2;17;34;51m');
+    expect(encodeTerminalClearBelowRow(2, 0, 0, fill, 8, 1)).toContain('\u001B[0;48;2;17;34;51m');
     expect(encodeTerminalClearBelowRow(2)).toBe('');
   });
 

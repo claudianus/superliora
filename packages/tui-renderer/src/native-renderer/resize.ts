@@ -28,14 +28,16 @@ export function clearStaleNativeRendererFrameRows(
 ): void {
   if (height === previousHeight) return;
   const fromRow = Math.min(height, previousHeight);
-  context.frameRenderer.queueTerminalPrefix(
-    encodeTerminalClearBelowRow(
-      fromRow,
-      context.originX ?? 0,
-      context.originY ?? 0,
-      context.fill,
-    ),
+  const extraRows = Math.max(1, Math.abs(height - previousHeight));
+  const prefix = encodeTerminalClearBelowRow(
+    fromRow,
+    context.originX ?? 0,
+    context.originY ?? 0,
+    context.fill,
+    context.frameRenderer.width,
+    extraRows,
   );
+  if (prefix) context.frameRenderer.queueTerminalPrefix(prefix);
 }
 
 export function handleNativeRendererTerminalResize(
