@@ -212,13 +212,23 @@ describe('app shortcut pre-handler (native path)', () => {
 describe('OS primary-modifier app shortcuts', () => {
   const kittySuper = (code: number) => `\u001B[${code};9u`;
 
+  function bindAppChords(state: ReturnType<typeof createState>) {
+    const copySelectedTranscript = vi.fn();
+    const showCommandHub = vi.fn();
+    const pasteMedia = vi.fn();
+    state.editor.onCtrlC = copySelectedTranscript;
+    state.editor.onCommandHub = showCommandHub;
+    state.editor.onPasteMedia = pasteMedia;
+    return { state, copySelectedTranscript, showCommandHub, pasteMedia };
+  }
+
   it.each(['darwin', 'linux', 'win32'] as const)(
     'accepts Ctrl chords on %s',
     (platform) => {
       const original = process.platform;
       Object.defineProperty(process, 'platform', { value: platform });
       try {
-        const { state, showCommandHub, copySelectedTranscript } = createHost();
+        const { state, showCommandHub, copySelectedTranscript } = bindAppChords(createState());
         expect(state.editor.tryHandleAppShortcut?.('\u0003')).toBe(true);
         expect(copySelectedTranscript).toHaveBeenCalledTimes(1);
         expect(state.editor.tryHandleAppShortcut?.('\u000B')).toBe(true);
@@ -234,7 +244,7 @@ describe('OS primary-modifier app shortcuts', () => {
     const original = process.platform;
     try {
       Object.defineProperty(process, 'platform', { value: 'darwin' });
-      const darwin = createHost();
+      const darwin = bindAppChords(createState());
       expect(darwin.state.editor.tryHandleAppShortcut?.(kittySuper(99))).toBe(true);
       expect(darwin.copySelectedTranscript).toHaveBeenCalledTimes(1);
       expect(darwin.state.editor.tryHandleAppShortcut?.(kittySuper(107))).toBe(true);
@@ -242,12 +252,12 @@ describe('OS primary-modifier app shortcuts', () => {
       expect(darwin.state.editor.tryHandleAppShortcut?.(kittySuper(118))).toBe(true);
 
       Object.defineProperty(process, 'platform', { value: 'linux' });
-      const linux = createHost();
+      const linux = bindAppChords(createState());
       expect(linux.state.editor.tryHandleAppShortcut?.(kittySuper(99))).toBe(false);
       expect(linux.copySelectedTranscript).not.toHaveBeenCalled();
 
       Object.defineProperty(process, 'platform', { value: 'win32' });
-      const win = createHost();
+      const win = bindAppChords(createState());
       expect(win.state.editor.tryHandleAppShortcut?.(kittySuper(118))).toBe(false);
       // Windows image-paste Alt+V stays; Super+V is not a Windows scheme.
       expect(win.state.editor.tryHandleAppShortcut?.('\u001Bv')).toBe(true);

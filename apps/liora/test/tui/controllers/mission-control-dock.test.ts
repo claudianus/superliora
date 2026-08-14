@@ -108,6 +108,16 @@ describe('shouldMissionDockConsumeEnter', () => {
   });
 });
 
+describe('shouldMissionDockConsumeArrow', () => {
+  it('leaves ↑/↓ with the editor until a dock row is selected', () => {
+    expect(shouldMissionDockConsumeArrow({ selectedWorkerId: undefined })).toBe(false);
+  });
+
+  it('lets an explicitly focused dock consume ↑/↓', () => {
+    expect(shouldMissionDockConsumeArrow({ selectedWorkerId: 'w-1' })).toBe(true);
+  });
+});
+
 describe('mission control bottom band', () => {
   it('activates with content in auto mode on any width', () => {
     const state = createState(200, 80);
