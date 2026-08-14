@@ -167,7 +167,53 @@ export function buildNativeNotificationCommand(
     };
   }
 
+  if (platform === 'win32') {
+    // WinRT toast via PowerShell — zero npm deps. Title/body ride inside
+    // single-quoted PowerShell strings (single quotes doubled) and are set
+    // through the XML DOM API so shell/XML injection cannot break the command.
+    const toastTitle = title.length > 0 ? title : 'SuperLiora';
+    const toastBody = body.length > 0 ? body : title;
+    return {
+      command: 'powershell.exe',
+      args: [
+        '-NoProfile',
+        '-NonInteractive',
+        '-WindowStyle',
+        'Hidden',
+        '-Command',
+        buildWindowsToastPowerShell(toastTitle, toastBody),
+      ],
+    };
+  }
+
   return undefined;
+}
+
+/**
+ * Escape a value for embedding inside a PowerShell single-quoted string.
+ * In PS single quotes the only special sequence is `''` for a literal `'`.
+ */
+export function escapePowerShellSingleQuoted(value: string): string {
+  return value.replaceAll("'", "''");
+}
+
+/**
+ * Build a compact PowerShell one-liner that shows a Windows toast via
+ * Windows.UI.Notifications (no BurntToast / node-notifier dependency).
+ */
+function buildWindowsToastPowerShell(title: string, body: string): string {
+  const t = escapePowerShellSingleQuoted(title);
+  const b = escapePowerShellSingleQuoted(body);
+  return [
+    "$ErrorActionPreference='Stop'",
+    '[Windows.UI.Notifications.ToastNotificationManager,Windows.UI.Notifications,ContentType=WindowsRuntime]|Out-Null',
+    '$template=[Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)',
+    "$text=$template.GetElementsByTagName('text')",
+    `$null=$text.Item(0).AppendChild($template.CreateTextNode('${t}'))`,
+    `$null=$text.Item(1).AppendChild($template.CreateTextNode('${b}'))`,
+    '$toast=[Windows.UI.Notifications.ToastNotification]::new($template)',
+    "[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('SuperLiora').Show($toast)",
+  ].join(';');
 }
 
 /**

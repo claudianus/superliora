@@ -12,6 +12,7 @@ import {
   buildTerminalNotificationSequences,
   emitNativeNotification,
   emitTerminalNotification,
+  escapePowerShellSingleQuoted,
   formatNotification,
   isInsideTmux,
   notifyTerminalOnce,
@@ -253,7 +254,51 @@ describe('terminal notification helpers', () => {
 
   it('skips native notification commands for empty messages and unsupported platforms', () => {
     expect(buildNativeNotificationCommand({ title: '', body: '' }, 'darwin')).toBeUndefined();
-    expect(buildNativeNotificationCommand({ title: 'Done' }, 'win32')).toBeUndefined();
+    expect(buildNativeNotificationCommand({ title: 'Done' }, 'freebsd')).toBeUndefined();
+  });
+
+  it('builds a Windows PowerShell toast command via WinRT', () => {
+    const command = buildNativeNotificationCommand(
+      { title: 'Approval', body: 'Run tests?' },
+      'win32',
+    );
+
+    expect(command?.command).toBe('powershell.exe');
+    expect(command?.args.slice(0, 5)).toEqual([
+      '-NoProfile',
+      '-NonInteractive',
+      '-WindowStyle',
+      'Hidden',
+      '-Command',
+    ]);
+    const script = command?.args[5] ?? '';
+    expect(script).toContain('Windows.UI.Notifications.ToastNotificationManager');
+    expect(script).toContain("CreateToastNotifier('SuperLiora')");
+    expect(script).toContain("CreateTextNode('Approval')");
+    expect(script).toContain("CreateTextNode('Run tests?')");
+  });
+
+  it('escapes single quotes in Windows toast title and body for PowerShell', () => {
+    expect(escapePowerShellSingleQuoted("it's done")).toBe("it''s done");
+    expect(escapePowerShellSingleQuoted("a''b")).toBe("a''''b");
+
+    const command = buildNativeNotificationCommand(
+      { title: "O'Reilly", body: "it's ready" },
+      'win32',
+    );
+    const script = command?.args[5] ?? '';
+    expect(script).toContain("CreateTextNode('O''Reilly')");
+    expect(script).toContain("CreateTextNode('it''s ready')");
+    // Raw unescaped apostrophes must not appear inside the PS single-quoted args.
+    expect(script).not.toContain("CreateTextNode('O'Reilly')");
+    expect(script).not.toContain("CreateTextNode('it's ready')");
+  });
+
+  it('defaults Windows toast title when only body is provided', () => {
+    const command = buildNativeNotificationCommand({ title: '', body: 'Only body' }, 'win32');
+    const script = command?.args[5] ?? '';
+    expect(script).toContain("CreateTextNode('SuperLiora')");
+    expect(script).toContain("CreateTextNode('Only body')");
   });
 
   it('spawns native notifications without keeping the process alive', () => {
@@ -277,6 +322,43 @@ describe('terminal notification helpers', () => {
       },
       stdio: 'ignore',
     });
+    expect(child.on).toHaveBeenCalledWith('error', expect.any(Function));
+    expect(child.unref).toHaveBeenCalledTimes(1);
+  });
+
+  it('spawns the Windows PowerShell toast command via the injected spawner', () => {
+    const child = {
+      on: vi.fn(() => child),
+      unref: vi.fn(),
+    };
+    const spawn = vi.fn(() => child);
+
+    expect(
+      emitNativeNotification(
+        { title: 'Done', body: 'Ready' },
+        { platform: 'win32', env: { PATH: 'C:\\Windows\\System32' }, spawn },
+      ),
+    ).toBe(true);
+
+    expect(spawn).toHaveBeenCalledTimes(1);
+    expect(spawn).toHaveBeenCalledWith(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-WindowStyle',
+        'Hidden',
+        '-Command',
+        expect.stringContaining('ToastNotificationManager'),
+      ],
+      {
+        detached: true,
+        env: {
+          PATH: 'C:\\Windows\\System32',
+        },
+        stdio: 'ignore',
+      },
+    );
     expect(child.on).toHaveBeenCalledWith('error', expect.any(Function));
     expect(child.unref).toHaveBeenCalledTimes(1);
   });
