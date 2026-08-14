@@ -216,11 +216,11 @@ export interface TUIStateNativeFramePolicyInput {
   readonly causes: readonly NativeRenderCause[];
   readonly viewportScrolled: boolean;
   readonly structuralShift: boolean;
-  /** Editor geometry row change — must clear layout holes. */
+  /** Editor-slot row change (prompt, replacement, unmount). Not a full-clear. */
   readonly geometryShift?: boolean;
   /** Transcript append-only growth — prefer damage-only (no full clear flash). */
   readonly contentGrew?: boolean;
-  /** Transcript shrink — must clear uncovered cells. */
+  /** Transcript shrink. Region overwrite covers holes; not a full-clear. */
   readonly contentShrunk?: boolean;
   readonly priorTranscriptStart?: number;
   readonly nextTranscriptStart: number;
@@ -247,10 +247,14 @@ export function resolveTUIStateNativeFramePolicy(
   );
   // Append-only transcript growth: still "force" present for correctness, but
   // never full-clear the buffer — that is the streaming background flicker.
+  // Shrink / editor-slot geometry stay in this same no-full-clear family:
+  // region overwrite covers leftover cells without a beginFrame wipe.
   const appendOnlyGrowth =
     input.contentGrew === true &&
     input.geometryShift !== true &&
     input.contentShrunk !== true;
+  const shrinkOrGeometryShift =
+    input.contentShrunk === true || input.geometryShift === true;
   const force = shouldForceTUIStateNativeLayoutFrame(input.causes, input.structuralShift, {
     ambientAnimation: ambientAnimationFrame,
     viewportScrolled: input.viewportScrolled,
@@ -275,6 +279,7 @@ export function resolveTUIStateNativeFramePolicy(
     force &&
     !pureScroll &&
     !appendOnlyGrowth &&
+    !shrinkOrGeometryShift &&
     !viewportOnlyScroll &&
     (!ambientAnimationFrame || resizeFrame);
   const refreshTerminalPalette =
@@ -325,14 +330,12 @@ export function shouldUseAmbientDamageOnlyPaint(input: {
     return false;
   }
 
-  // Editor/chrome geometry change needs clear-fills for layout holes.
-  if (geometryShift) {
-    return false;
-  }
-
-  // Transcript shrank (compaction, collapse, remove) — wipe uncovered cells.
-  if (contentShrunk) {
-    return false;
+  // Editor-slot geometry (replacement / unmount / restore) and transcript
+  // shrink used to flip region.clear and beginFrame-clear the stage. Stack
+  // paint overwrites the changed rows; keep damage-only so letterbox/stage
+  // do not flash a black band. Resize still clears above.
+  if (geometryShift || contentShrunk) {
+    return true;
   }
 
   // Pure scroll (optionally coalesced with ambient animation) must not
