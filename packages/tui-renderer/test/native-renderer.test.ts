@@ -161,12 +161,12 @@ describe('NativeTerminalRenderer', () => {
 
     const shrinkWrites = output.writes.slice(writesBeforeShrink);
     expect(shrinkWrites).not.toContain(encodeTerminalClearBelowRow(20));
-    // Grow/shrink on alt screen must wipe the surface so soft-buffer resets
-    // do not leave the previous frame ghosted at the top-left.
-    expect(shrinkWrites).toContain(ANSI_CLEAR_SCREEN);
+    // Mid-session CSI 2J flashes the whole alternate screen black. The start
+    // clear stays; later resizes paint the new buffer without a full wipe.
+    expect(shrinkWrites.join('')).not.toContain(ANSI_CLEAR_SCREEN);
   });
 
-  it('clears the alternate screen when growing to a larger size', () => {
+  it('does not queue CSI 2J when growing the alternate screen after start', () => {
     const scheduler = new FakeRenderLoopScheduler();
     const output = new FakeOutput();
     const renderer = new NativeTerminalRenderer({
@@ -193,7 +193,7 @@ describe('NativeTerminalRenderer', () => {
     expect(growWrites).toHaveLength(1);
     const [resizeFrame] = growWrites;
     expect(resizeFrame).toMatch(/^\u001B\[\?2026h/);
-    expect(resizeFrame).toContain(ANSI_CLEAR_SCREEN);
+    expect(resizeFrame).not.toContain(ANSI_CLEAR_SCREEN);
     expect(resizeFrame).toContain('120x40');
     expect(resizeFrame).toMatch(/\u001B\[\?2026l$/);
     expect(renderer.lastFrame?.frame.causes).toEqual(['resize']);

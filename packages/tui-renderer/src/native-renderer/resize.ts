@@ -1,4 +1,4 @@
-import { ANSI_CLEAR_SCREEN, type NativeTerminalScreenMode, type NativeTerminalSize } from '../terminal/session';
+import type { NativeTerminalScreenMode, NativeTerminalSize } from '../terminal/session';
 import { encodeTerminalClearBelowRow } from '../terminal/output';
 import type { NativeFrameRenderer } from '../native/frame';
 import type { RendererCompositionCache } from '../render/compositor';
@@ -43,23 +43,17 @@ export function handleNativeRendererTerminalResize(
 ): void {
   const previousRows = context.frameRenderer.height;
   const previousCols = context.frameRenderer.width;
-  if (size.columns !== previousCols || size.rows !== previousRows) {
+  const sizeChanged = size.columns !== previousCols || size.rows !== previousRows;
+  if (sizeChanged) {
     // The frame buffer is recreated on resize; rows composed into the old
     // buffer must not be reused (skipped) when composing the new one.
     context.compositionCache?.reset();
   }
   context.frameRenderer.resize(size.columns, size.rows);
   clearStaleNativeRendererFrameRows(context, size.rows, previousRows);
-  // Alternate-screen grow leaves the previous frame's pixels at top-left.
-  // Soft buffers reset empty, so equal-cell skips never overwrite that ghost.
-  // Queue the clear inside the next present transaction so terminals with
-  // synchronized output never reveal the empty surface between writes.
-  if (
-    context.screenMode === 'alternate' &&
-    (size.columns !== previousCols || size.rows !== previousRows)
-  ) {
-    context.frameRenderer.queueTerminalPrefix(ANSI_CLEAR_SCREEN);
-  }
+  // Mid-session CSI 2J on the alternate screen flashes the whole surface
+  // black. Start still clears once via clearOnStart; later resizes recreate
+  // the soft buffer and paint the new frame without a full wipe.
   callbacks.recordResize(size);
   callbacks.onResize?.(size);
   callbacks.requestRender();

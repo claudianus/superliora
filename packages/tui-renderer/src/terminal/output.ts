@@ -72,6 +72,7 @@ export function encodeScrollRegion(top: number, bottom: number, delta: number): 
 export type RendererColorMode = 'truecolor' | 'ansi256' | 'ansi16' | 'none';
 export type RendererCursorShape = 'block' | 'underline' | 'bar';
 export type RendererCursorMotionMode = 'absolute' | 'relative' | 'auto';
+export type RendererEraseLineMode = 'el' | 'spaces';
 
 export interface RendererCursorState {
   readonly x: number;
@@ -90,6 +91,7 @@ export interface RendererTerminalOutputOptions {
   readonly originY?: number;
   readonly cursor?: RendererCursorState;
   readonly eraseLine?: boolean;
+  readonly eraseLineMode?: RendererEraseLineMode;
   readonly frameWidth?: number;
   readonly frameHeight?: number;
   readonly colorMode?: RendererColorMode;
@@ -227,15 +229,21 @@ export function encodeTerminalRunsWithMetrics(
     cursorX = targetX + rendererRunCellWidth(cells);
     cursorY = targetY;
     if (eraseStartIndex !== undefined) {
-      if (activeLink !== undefined) {
-        activeLink = undefined;
-        out.push(ANSI_END_HYPERLINK);
+      if (resolveEraseLineMode(options) === 'spaces') {
+        const trailingBlankWidth = rendererRunCellWidth(run.cells.slice(eraseStartIndex));
+        if (trailingBlankWidth > 0) out.push(' '.repeat(trailingBlankWidth));
+        cursorX = targetX + rendererRunCellWidth(run.cells);
+      } else {
+        if (activeLink !== undefined) {
+          activeLink = undefined;
+          out.push(ANSI_END_HYPERLINK);
+        }
+        if (activeStyle !== undefined) {
+          activeStyle = undefined;
+          out.push(ANSI_RESET_STYLE);
+        }
+        out.push(ANSI_ERASE_IN_LINE);
       }
-      if (activeStyle !== undefined) {
-        activeStyle = undefined;
-        out.push(ANSI_RESET_STYLE);
-      }
-      out.push(ANSI_ERASE_IN_LINE);
     }
   }
 
@@ -303,6 +311,32 @@ export function escapeTerminalText(text: string): string {
   return splitDisplayClusters(plain)
     .map((cluster) => (isSafePrintableCluster(cluster.text) ? cluster.text : ' '))
     .join('');
+}
+
+/**
+ * ConPTY / Windows Terminal paint CSI K with the default black background.
+ * Write spaces instead so trailing cells keep the current SGR background.
+ */
+export function defaultTerminalEraseLineMode(
+  input: {
+    readonly platform?: string;
+    readonly env?: NodeJS.ProcessEnv | Record<string, string | undefined>;
+  } = {},
+): RendererEraseLineMode {
+  const platform = input.platform ?? process.platform;
+  const env = input.env ?? process.env;
+  if (platform === 'win32') return 'spaces';
+  const windowsTerminalSession = env['WT_SESSION'];
+  const conEmuAnsi = env['ConEmuANSI'];
+  if (windowsTerminalSession !== undefined && windowsTerminalSession.length > 0) return 'spaces';
+  if (conEmuAnsi !== undefined && conEmuAnsi.length > 0) return 'spaces';
+  return 'el';
+}
+
+export function resolveEraseLineMode(
+  options: Pick<RendererTerminalOutputOptions, 'eraseLineMode'> = {},
+): RendererEraseLineMode {
+  return options.eraseLineMode ?? 'el';
 }
 
 /** Drop CSI / OSC / other short ESC sequences; leave printable payload only. */

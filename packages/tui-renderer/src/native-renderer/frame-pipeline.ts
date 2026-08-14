@@ -1,6 +1,7 @@
 import type { NativeFrameRenderer, NativeFrameRendererOptions } from '../native/frame';
 import type { NativeRenderFrame } from '../frame/render-loop';
 import type { NativeTerminalSession, NativeTerminalSize } from '../terminal/session';
+import { defaultTerminalEraseLineMode } from '../terminal/output';
 import type { RendererCell } from '../cell-buffer/index';
 import type { RendererQualityController, RendererQualitySnapshot } from '../frame/quality';
 import type { RendererLineCellCache } from '../render/line-cache';
@@ -48,7 +49,7 @@ export function createNativeFrameRendererOptions(
   currentSynchronized: boolean | undefined,
   options: Pick<
     NativeTerminalRendererOptions,
-    'resetStyle' | 'originX' | 'originY' | 'eraseLine' | 'colorMode' | 'imageProtocol' | 'outputPolicy'
+    'resetStyle' | 'originX' | 'originY' | 'eraseLine' | 'eraseLineMode' | 'colorMode' | 'imageProtocol' | 'outputPolicy'
   >,
   now: () => number,
 ): NativeFrameRendererOptions {
@@ -61,6 +62,7 @@ export function createNativeFrameRendererOptions(
     originX: options.originX,
     originY: options.originY,
     eraseLine: options.eraseLine,
+    eraseLineMode: options.eraseLineMode ?? defaultTerminalEraseLineMode(),
     colorMode: options.colorMode,
     inlineImageProtocol: options.imageProtocol,
     outputPolicy: options.outputPolicy,

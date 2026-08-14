@@ -371,6 +371,7 @@ export function mergeNativeTerminalFeatureOptions<T extends NativeTerminalFeatur
     originX: options.originX ?? resolved.originX,
     originY: options.originY ?? resolved.originY,
     eraseLine: options.eraseLine ?? resolved.eraseLine,
+    eraseLineMode: options.eraseLineMode ?? resolved.eraseLineMode,
     frameWidth: options.frameWidth ?? resolved.frameWidth,
     colorMode: options.colorMode ?? resolved.colorMode,
     imageProtocol: options.imageProtocol ?? resolved.imageProtocol,
