@@ -16,7 +16,7 @@ import {
    LLM_NOT_SET_MESSAGE,
    NO_ACTIVE_SESSION_MESSAGE,
 } from '../../constant/liora-tui';
-import { primaryChord } from '../../keymap';
+import { primaryChord, shortcutHint } from '../../utils/os-shortcuts';
 import { formatErrorMessage } from '../../utils/event-payload';
 import {
   flushPromptInputState,
@@ -379,7 +379,7 @@ export class EditorKeyboardController {
 
     editor.onHistorySearch = () => {
       if (editor.getText().length > 0) {
-        host.state.toast.show('Clear the prompt first (Ctrl-R searches history)', 2200);
+        host.state.toast.show(shortcutHint('tui.history.searchToast'), 2200);
         return;
       }
       if (host.state.appState.streamingPhase !== 'idle') {

@@ -4,13 +4,10 @@
  * Descriptions resolve via `ttui(descriptionKey)` at render time.
  */
 
-import { primaryModLabel } from '#/tui/renderer';
 import { ttui } from '#/tui/utils/tui-i18n';
+import { primaryChord } from '#/tui/utils/os-shortcuts';
 
-/** Footer/help chord for the OS primary modifier (Cmd on darwin, Ctrl elsewhere). */
-export function primaryChord(key: string, platform: NodeJS.Platform = process.platform): string {
-  return `${primaryModLabel(platform)}-${key}`;
-}
+export { formatPrimaryChord, primaryChord } from '#/tui/utils/os-shortcuts';
 
 export type KeymapSurface = 'always' | 'idle' | 'streaming' | 'cheatsheet';
 
