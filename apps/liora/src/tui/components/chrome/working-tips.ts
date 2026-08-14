@@ -1,5 +1,5 @@
 import { WORKING_TIPS, type ToolbarTip } from '#/tui/constant/tips';
-import { ttui } from '#/tui/utils/tui-i18n';
+import { shortcutHint } from '#/tui/utils/os-shortcuts';
 
 import { buildWeightedTips } from './footer/footer-tips';
 
@@ -33,5 +33,5 @@ export function pickRandomWorkingTip(excludeKey?: string): ToolbarTip | undefine
 
 /** Localized tip text for a toolbar tip entry. */
 export function tipText(tip: ToolbarTip): string {
-  return ttui(tip.key);
+  return shortcutHint(tip.key);
 }

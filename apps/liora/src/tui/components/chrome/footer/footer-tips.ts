@@ -1,5 +1,5 @@
 import { ALL_TIPS, type ToolbarTip } from '#/tui/constant/tips';
-import { ttui } from '#/tui/utils/tui-i18n';
+import { shortcutHint } from '#/tui/utils/os-shortcuts';
 
 // Toolbar tips — rotates every 10s. Most tips are short and pair up (two
 // joined by " | ") when space allows; tips flagged `solo` are long or
@@ -55,10 +55,10 @@ export function tipsForIndex(index: number): { primary: string; pair: string | n
   if (n === 0) return { primary: '', pair: null };
   const offset = ((index % n) + n) % n;
   const current = ROTATION[offset]!;
-  const currentText = ttui(current.key);
+  const currentText = shortcutHint(current.key);
   if (n === 1 || current.solo) return { primary: currentText, pair: null };
   const next = ROTATION[(offset + 1) % n]!;
-  const nextText = ttui(next.key);
+  const nextText = shortcutHint(next.key);
   if (next.solo || next.key === current.key) return { primary: currentText, pair: null };
   return { primary: currentText, pair: currentText + TIP_SEPARATOR + nextText };
 }

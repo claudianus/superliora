@@ -47,6 +47,7 @@ import {
   type IdleTankSim,
   type IdleTankSnapshot,
 } from '#/tui/features/idle-scene/idle-tank-sim';
+import { shortcutHint } from '#/tui/utils/os-shortcuts';
 import { ttui } from '#/tui/utils/tui-i18n';
 
 const ANSI_RESET = '\u001B[0m';
@@ -215,7 +216,7 @@ export function renderIdleStageLines(
   const moodKey = resolveIdleMoodKey(now);
   const mood = ttui(moodKey);
   const tipKey = resolveIdleTipKey(now);
-  const tip = tipKey === undefined ? '' : ttui(tipKey);
+  const tip = tipKey === undefined ? '' : shortcutHint(tipKey);
   const workDir = options?.workDir?.trim() ?? '';
   const fishHex = premium ? palette.glow : palette.primary;
 

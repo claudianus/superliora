@@ -381,7 +381,7 @@ export class EditorKeyboardController {
         return;
       }
       if (host.state.appState.streamingPhase !== 'idle') {
-        host.state.toast.show('Wait for the turn to finish, or Ctrl-C to stop', 2200);
+        host.state.toast.show(shortcutHint('tui.history.waitToast'), 2200);
         return;
       }
       host.showHistorySearch();

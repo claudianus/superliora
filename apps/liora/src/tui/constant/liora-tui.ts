@@ -1,4 +1,5 @@
 import { DEFAULT_OAUTH_PROVIDER_NAME } from '#/constant/app';
+import { shortcutHint } from '#/tui/utils/os-shortcuts';
 import { ttui } from '#/tui/utils/tui-i18n';
 
 export { DEFAULT_OAUTH_PROVIDER_NAME, OAUTH_LOGIN_REQUIRED_CODE, PRODUCT_NAME } from '#/constant/app';
