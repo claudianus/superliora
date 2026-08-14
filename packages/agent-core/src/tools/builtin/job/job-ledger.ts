@@ -93,6 +93,7 @@ export function createJob(
     /** Affinity reuse: prefer host.resume on this agent id before cold spawn. */
     readonly workerResumeAgentId?: string;
     readonly workerCheckpointAt?: string;
+    readonly workerDeadlineStartedAt?: string;
     readonly notes?: string;
   },
 ): JobRecord {
@@ -134,6 +135,7 @@ export function createJob(
     worktreeBranch: input.worktreeBranch?.trim() || undefined,
     workerResumeAgentId: input.workerResumeAgentId?.trim() || undefined,
     workerCheckpointAt: input.workerCheckpointAt?.trim() || undefined,
+    workerDeadlineStartedAt: input.workerDeadlineStartedAt?.trim() || undefined,
     notes: input.notes !== undefined ? capJobNotes(input.notes) : undefined,
   };
   return upsertJob(store, job);
@@ -153,6 +155,7 @@ export function patchJob(
       | 'workerAgentId'
       | 'workerResumeAgentId'
       | 'workerCheckpointAt'
+      | 'workerDeadlineStartedAt'
       | 'resultSummary'
       | 'resultContract'
       | 'landReceipt'

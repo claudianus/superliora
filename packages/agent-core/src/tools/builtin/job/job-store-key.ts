@@ -122,6 +122,12 @@ export interface JobRecord {
   readonly workerResumeAgentId?: string;
   /** ISO timestamp when `workerResumeAgentId` was last bound to a live worker. */
   readonly workerCheckpointAt?: string;
+  /**
+   * First wall-clock bind for this Job's deadline budget. Resume reattaches
+   * inherit remaining budget via
+   * {@link resolveJobWorkerRemainingTimeoutMs}; never reset on reattach.
+   */
+  readonly workerDeadlineStartedAt?: string;
   /** Goal-driver binding (spec 2026-08-04-goal-driver-jobs): the goal the driver worker pursues. */
   readonly goalId?: string;
   readonly goalObjective?: string;

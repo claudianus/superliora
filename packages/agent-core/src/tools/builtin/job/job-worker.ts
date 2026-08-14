@@ -15,7 +15,7 @@ import {
   uiSpawnQualityFlags,
 } from '../../../premium-quality';
 import { requestJobSchedulePump } from '../../../session/job/job-offload';
-import { resolveJobWorkerTimeoutMs } from '../../../session/subagent/subagent-host';
+import { resolveJobWorkerRemainingTimeoutMs } from '../../../session/subagent/subagent-host';
 import type { SubagentCompletion } from '../../../session/subagent/subagent-host-types';
 import { renderFrictionSection } from '../../../session/subagent/subagent-friction';
 import {
@@ -615,7 +615,11 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
   };
   const parentToolCallId = `job:${job.id}:${randomUUID().slice(0, 8)}`;
   // Mission (Plan Desk) uses the longer plan-desk budget; implement/verify stay 30m.
-  const workerTimeoutMs = resolveJobWorkerTimeoutMs(job.kind);
+  // Resume inherits spent wall-clock from workerDeadlineStartedAt (never full reset).
+  const workerTimeoutMs = resolveJobWorkerRemainingTimeoutMs(
+    job.kind,
+    job.workerDeadlineStartedAt,
+  );
   const spec: FanoutSpec = {
     mode: 'manual',
     parentToolCallId,
@@ -655,10 +659,13 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
     // Post-spawn progress stall (120s): independent of the 30s handshake budget.
     const disposeProgressStall = armJobWorkerProgressStall(handle.agentId);
     const nowIso = new Date().toISOString();
+    // First bind pins the wall-clock deadline start; reattach never resets it.
+    const deadlineStartedAt = job.workerDeadlineStartedAt ?? nowIso;
     patchJob(input.store, job.id, {
       workerAgentId: handle.agentId,
       workerResumeAgentId: handle.agentId,
       workerCheckpointAt: nowIso,
+      workerDeadlineStartedAt: deadlineStartedAt,
       notes: [
         job.notes,
         reattached

@@ -73,6 +73,27 @@ export function resolveJobWorkerTimeoutMs(kind: string | undefined): number {
   return DEFAULT_SUBAGENT_TIMEOUT_MS;
 }
 
+/**
+ * Resume budget inherit: subtract wall-clock already spent since the job's
+ * first worker bind (`workerDeadlineStartedAt`). Fresh jobs (no start stamp)
+ * get the full kind budget. Never returns negative — a fully spent budget
+ * yields 0 so the hard deadline aborts immediately rather than resetting 30/45m.
+ */
+export function resolveJobWorkerRemainingTimeoutMs(
+  kind: string | undefined,
+  deadlineStartedAt: string | undefined,
+  nowMs: number = Date.now(),
+): number {
+  const budget = resolveJobWorkerTimeoutMs(kind);
+  if (deadlineStartedAt === undefined || deadlineStartedAt.trim().length === 0) {
+    return budget;
+  }
+  const started = Date.parse(deadlineStartedAt);
+  if (!Number.isFinite(started)) return budget;
+  const spent = Math.max(0, nowMs - started);
+  return Math.max(0, budget - spent);
+}
+
 function parseDeadlineEnv(raw: string | undefined): number | undefined {
   if (raw === undefined || raw.trim().length === 0) return undefined;
   const parsed = Number(raw);

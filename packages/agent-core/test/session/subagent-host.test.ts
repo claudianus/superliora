@@ -30,7 +30,10 @@ import {
 import { Session } from '../../src/session';
 import { collectGitContext } from '../../src/session/git-context';
 import {
+  DEFAULT_PLAN_DESK_DEADLINE_MS,
   DEFAULT_SUBAGENT_DEADLINE_MS,
+  DEFAULT_SUBAGENT_TIMEOUT_MS,
+  PLAN_DESK_DEADLINE_ENV,
   SUBAGENT_DEADLINE_ENV,
   SessionSubagentHost,
   SubagentDeadlineError,
@@ -38,6 +41,9 @@ import {
   describeSubagentToolDetail,
   isSubagentDeadlineError,
   isSubagentMaxTokensError,
+  resolveJobWorkerRemainingTimeoutMs,
+  resolveJobWorkerTimeoutMs,
+  resolvePlanDeskDeadlineMs,
   resolveSubagentDeadlineMs,
   type QueuedSubagentTask,
   type RunSubagentOptions,
@@ -3003,5 +3009,38 @@ describe('resolvePlanDeskDeadlineMs', () => {
     expect(resolveJobWorkerTimeoutMs('verify')).toBe(DEFAULT_SUBAGENT_TIMEOUT_MS);
     expect(resolveJobWorkerTimeoutMs('mission')).toBe(DEFAULT_PLAN_DESK_DEADLINE_MS);
     expect(resolveJobWorkerTimeoutMs('task')).toBe(DEFAULT_SUBAGENT_TIMEOUT_MS);
+  });
+
+  it('inherits spent wall-clock on resume via resolveJobWorkerRemainingTimeoutMs', () => {
+    delete process.env[SUBAGENT_DEADLINE_ENV];
+    delete process.env[PLAN_DESK_DEADLINE_ENV];
+    const started = new Date('2026-08-15T00:00:00.000Z').getTime();
+    const now = started + 10 * 60 * 1000;
+    expect(
+      resolveJobWorkerRemainingTimeoutMs(
+        'implement',
+        new Date(started).toISOString(),
+        now,
+      ),
+    ).toBe(DEFAULT_SUBAGENT_TIMEOUT_MS - 10 * 60 * 1000);
+    expect(
+      resolveJobWorkerRemainingTimeoutMs(
+        'mission',
+        new Date(started).toISOString(),
+        now,
+      ),
+    ).toBe(DEFAULT_PLAN_DESK_DEADLINE_MS - 10 * 60 * 1000);
+    // No start stamp → full budget (cold spawn).
+    expect(resolveJobWorkerRemainingTimeoutMs('implement', undefined, now)).toBe(
+      DEFAULT_SUBAGENT_TIMEOUT_MS,
+    );
+    // Fully spent → 0 (do not reset the clock).
+    expect(
+      resolveJobWorkerRemainingTimeoutMs(
+        'implement',
+        new Date(started).toISOString(),
+        started + DEFAULT_SUBAGENT_TIMEOUT_MS + 60_000,
+      ),
+    ).toBe(0);
   });
 });
