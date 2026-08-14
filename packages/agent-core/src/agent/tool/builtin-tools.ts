@@ -1,4 +1,5 @@
 import type { ChatProvider, ContentPart } from '@superliora/kosong';
+import { runtimePathPrefixDirs } from '@superliora/kaos';
 
 import type { Agent } from '..';
 import { ProviderManager } from '../../session/provider/provider-manager';
@@ -19,6 +20,15 @@ import {
 import type { BuiltinTool } from './types';
 
 export { HIDE_LEGACY_TOOL_NAMES_ENV, isHideLegacyToolNamesEnabled };
+
+/** SuperLiora runtime git/bin + node dirs for BashTool PATH (win32). */
+function runtimePathPrefixDirsForBash(): readonly string[] {
+  try {
+    return runtimePathPrefixDirs();
+  } catch {
+    return [];
+  }
+}
 
 export interface BuiltinToolsHost {
   readonly agent: Agent;
@@ -173,7 +183,9 @@ function createFileAndContextTools(
       new b.BashTool(kaos, cwd, background, {
         allowBackground,
         store: host.toolStore,
-        pathPrefix: host.agent.pluginBinDirs,
+        // Plugin bins + SuperLiora runtime git/bin + node so Windows workers
+        // resolve bash.exe/git.exe/node.exe without Program Files Git.
+        pathPrefix: [...runtimePathPrefixDirsForBash(), ...(host.agent.pluginBinDirs ?? [])],
         isWorker: host.agent.type !== 'main',
       }),
     shouldCreateBuiltin(host, 'Script') && new b.ScriptTool(host.agent, kaos),

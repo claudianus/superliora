@@ -358,6 +358,26 @@ describe('detectEnvironment', () => {
     expect(env.shellPath).toBe(bash);
   });
 
+  it('prefers SuperLiora runtime bash over PATH-inferred Program Files Git', async () => {
+    const runtimeBash = 'C:\\Users\\me\\.superliora\\runtime\\git\\bin\\bash.exe';
+    const programGit = 'C:\\Program Files\\Git\\cmd\\git.exe';
+    const programBash = 'C:\\Program Files\\Git\\bin\\bash.exe';
+    const env = await detectEnvironment(
+      stubDeps({
+        platform: 'win32',
+        env: {
+          USERPROFILE: 'C:\\Users\\me',
+          PATH: 'C:\\Program Files\\Git\\cmd',
+        },
+        existingPaths: [runtimeBash, programGit, programBash],
+        execFileText: async (file: string) => {
+          throw new Error(`unexpected execFileText call for ${file}`);
+        },
+      }),
+    );
+    expect(env.shellPath).toBe(runtimeBash);
+  });
+
   it('finds SuperLiora PortableGit under HOME when USERPROFILE is absent', async () => {
     const bash = 'C:\\Users\\me\\.superliora\\runtime\\git\\usr\\bin\\bash.exe';
     const env = await detectEnvironment(

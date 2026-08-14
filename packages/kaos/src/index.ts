@@ -14,6 +14,15 @@ export {
   KaosFileExistsError,
   KaosShellNotFoundError,
 } from './errors';
+export {
+  resolveRuntimeBins,
+  resolveRuntimeBinsFromNode,
+  resolveRuntimeExecutable,
+  runtimePathPrepend,
+  runtimePathPrefixDirs,
+  type RuntimeBinPaths,
+  type ResolveRuntimeBinsDeps,
+} from './runtime-bins';
 export { KaosFileNotFoundError, KaosSSHError } from './ssh';
 export { LocalKaos } from './local';
 export {

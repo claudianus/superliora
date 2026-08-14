@@ -16,8 +16,21 @@ function makeCtx(): ExecutableToolContext {
   };
 }
 
-function makeKaos(files: Record<string, string> = {}): Kaos {
+const RUNTIME_BASH = 'C:\\Users\\me\\.superliora\\runtime\\git\\bin\\bash.exe';
+const RUNTIME_GIT = 'C:\\Users\\me\\.superliora\\runtime\\git\\cmd\\git.exe';
+
+function makeKaos(
+  files: Record<string, string> = {},
+  options: { shellPath?: string; osKind?: string } = {},
+): Kaos {
   return {
+    osEnv: {
+      osKind: options.osKind ?? 'Windows',
+      osArch: 'x64',
+      osVersion: '10',
+      shellName: 'bash',
+      shellPath: options.shellPath ?? RUNTIME_BASH,
+    },
     readText: vi.fn(async (path: string) => {
       const hit = files[path];
       if (hit === undefined) throw new Error(`ENOENT: ${path}`);
@@ -134,6 +147,52 @@ describe('ScriptTool', () => {
     const result = await runScript(tool, `const r = await exec('ls'); return r.stdout.trim();`);
 
     expect(result.output).toContain('hello from exec');
+  });
+
+  it('exec uses osEnv.shellPath absolute path + -lc, not bare bash', async () => {
+    const kaos = makeKaos();
+    const tool = new ScriptTool(makeAgent(), kaos);
+
+    await runScript(tool, `return (await exec('echo hi')).code;`);
+
+    expect(kaos.exec).toHaveBeenCalled();
+    const call = vi.mocked(kaos.exec).mock.calls[0]!;
+    expect(call[0]).toBe(RUNTIME_BASH);
+    expect(call[1]).toBe('-lc');
+    expect(call[0]).not.toBe('bash');
+    expect(String(call[0])).not.toContain('Program Files');
+  });
+
+  it('execFile spawns git argv without wrapping in bash -lc', async () => {
+    const kaos = makeKaos();
+    const tool = new ScriptTool(makeAgent(), kaos);
+
+    await runScript(
+      tool,
+      `return (await execFile('git', ['rev-parse', 'HEAD'])).code;`,
+    );
+
+    expect(kaos.exec).toHaveBeenCalled();
+    const call = vi.mocked(kaos.exec).mock.calls[0]!;
+    // Derived from shellPath layout: …/git/bin/bash.exe → …/git/cmd/git.exe
+    expect(call[0]).toBe(RUNTIME_GIT);
+    expect(call[1]).toBe('rev-parse');
+    expect(call[2]).toBe('HEAD');
+    // Must not be bash -lc wrapping.
+    expect(call[0]).not.toBe(RUNTIME_BASH);
+    expect(call[1]).not.toBe('-lc');
+  });
+
+  it('execFile("node") does not wrap node.exe in bash -lc', async () => {
+    const kaos = makeKaos();
+    const tool = new ScriptTool(makeAgent(), kaos);
+
+    await runScript(tool, `return (await execFile('node.exe', ['-e', '0'])).code;`);
+
+    const call = vi.mocked(kaos.exec).mock.calls[0]!;
+    expect(call[0]).toBe('node.exe');
+    expect(call[1]).toBe('-e');
+    expect(call[1]).not.toBe('-lc');
   });
 
   it('grep parses rg path:line:text hits', async () => {

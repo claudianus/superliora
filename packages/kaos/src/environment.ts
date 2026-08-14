@@ -102,6 +102,17 @@ async function locateWindowsGitBash(deps: EnvironmentDeps): Promise<string> {
     }
   }
 
+  // SuperLiora install.ps1 bootstraps PortableGit under ~/.superliora/runtime/git.
+  // Prefer it before PATH-inferred Program Files so a dead system Git on PATH
+  // cannot win over a working PortableGit install.
+  const runtimeBash = superlioraRuntimeGitBashCandidates(deps.env);
+  for (const candidate of runtimeBash) {
+    checked.push(candidate);
+    if (await deps.isFile(candidate)) {
+      return candidate;
+    }
+  }
+
   const gitExecutables = await findExecutablesOnPath(
     'git.exe',
     deps.env['PATH'],
@@ -132,11 +143,7 @@ async function locateWindowsGitBash(deps: EnvironmentDeps): Promise<string> {
     }
   }
 
-  // SuperLiora install.ps1 bootstraps PortableGit here. Check it before
-  // Program Files so a same-session `liora` after irm|iex works even when
-  // User PATH has not been reloaded.
   const candidates: string[] = [
-    ...superlioraRuntimeGitBashCandidates(deps.env),
     'C:\\Program Files\\Git\\bin\\bash.exe',
     'C:\\Program Files\\Git\\usr\\bin\\bash.exe',
     'C:\\Program Files (x86)\\Git\\bin\\bash.exe',

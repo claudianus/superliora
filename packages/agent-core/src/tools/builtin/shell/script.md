@@ -5,7 +5,8 @@ Run one JavaScript snippet that calls tools as functions and processes results i
 - `write(path, text)` → write a file (omitted on read-only profiles such as explore)
 - `glob(pattern)` → array of matching paths (capped at 1000)
 - `grep(pattern, glob?)` → `[{ path, line, text }, …]` via ripgrep (capped at 200 hits)
-- `exec(command)` → `{ stdout, stderr, code }` (runs via `bash -lc`)
+- `exec(command)` → `{ stdout, stderr, code }` (resolved shell absolute path + `-lc`; never bare `bash` when `osEnv.shellPath` is set)
+- `execFile(file, args?)` → `{ stdout, stderr, code }` (argv spawn — use for `git`/`node`/`git.exe`/`node.exe` so they are not wrapped in `bash -lc`)
 - `agent(prompt, profile?)` → run a subagent and get its result text (main agent only; `Promise.all` over items for parallel fan-out)
 - `sleep(ms)`
 - `store` — persistent plain object shared across Script calls in this session (ToolStore-backed JSON); keep cross-call state here (top-level `const` does NOT carry over)

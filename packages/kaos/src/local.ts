@@ -24,6 +24,7 @@ import { KaosFileExistsError } from './errors';
 import { BufferedReadable, decodeTextWithErrors, globPatternToRegex } from './internal';
 import type { Kaos } from './kaos';
 import type { KaosProcess } from './process';
+import { resolveRuntimeExecutable, runtimePathPrepend } from './runtime-bins';
 import type { StatResult } from './types';
 
 const isWindows: boolean = process.platform === 'win32';
@@ -797,8 +798,9 @@ export class LocalKaos implements Kaos {
       throw new Error('LocalKaos.exec(): at least one argument (the command to run) is required.');
     }
     const restArgs = args.slice(1);
+    const file = isWindows ? resolveRuntimeExecutable(command) : command;
     const child = spawn(
-      command,
+      file,
       restArgs,
       buildLocalSpawnOptions(isWindows, this._cwd, this._buildExecEnv()),
     );
@@ -814,8 +816,9 @@ export class LocalKaos implements Kaos {
       );
     }
     const restArgs = args.slice(1);
+    const file = isWindows ? resolveRuntimeExecutable(command) : command;
     const child = spawn(
-      command,
+      file,
       restArgs,
       buildLocalSpawnOptions(isWindows, this._cwd, this._buildExecEnv(env)),
     );
@@ -824,21 +827,32 @@ export class LocalKaos implements Kaos {
   }
 
   private _buildExecEnv(invocationEnv?: Record<string, string>): Record<string, string> | undefined {
-    if (this._envLayers.length === 0) return invocationEnv;
-    // Prefer the caller-provided env (BashTool already secret-filters ambient).
-    // Only fall back to a filtered ambient copy when invocationEnv is omitted —
-    // never re-spread raw process.env after the tool-layer filter.
-    const merged: Record<string, string> =
-      invocationEnv !== undefined
-        ? { ...invocationEnv }
-        : filterAmbientProcessEnv(process.env as Record<string, string | undefined>);
-    for (const layer of this._envLayers) {
-      for (const [key, value] of Object.entries(layer)) {
-        if (isSecretEnvKeyName(key)) continue;
-        merged[key] = value;
+    let merged: Record<string, string> | undefined;
+    if (this._envLayers.length === 0) {
+      merged = invocationEnv !== undefined ? { ...invocationEnv } : undefined;
+    } else {
+      // Prefer the caller-provided env (BashTool already secret-filters ambient).
+      // Only fall back to a filtered ambient copy when invocationEnv is omitted —
+      // never re-spread raw process.env after the tool-layer filter.
+      merged =
+        invocationEnv !== undefined
+          ? { ...invocationEnv }
+          : filterAmbientProcessEnv(process.env as Record<string, string | undefined>);
+      for (const layer of this._envLayers) {
+        for (const [key, value] of Object.entries(layer)) {
+          if (isSecretEnvKeyName(key)) continue;
+          merged[key] = value;
+        }
       }
     }
-    return merged;
+
+    if (!isWindows) return merged;
+
+    // Materialize env on win32 so SuperLiora runtime git/bin + node dirs sit
+    // ahead of PATH (Program Files Git may be missing after a portable install).
+    const base: Record<string, string | undefined> =
+      merged ?? (process.env as Record<string, string | undefined>);
+    return runtimePathPrepend(base, { platform: 'win32' });
   }
 }
 

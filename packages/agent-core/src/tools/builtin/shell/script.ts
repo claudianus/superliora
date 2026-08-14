@@ -30,7 +30,7 @@ export const ScriptToolInputSchema = z
       .string()
       .min(1)
       .describe(
-        'JavaScript to run (async). Available: read(path), write(path, text), glob(pattern), grep(pattern, glob?), exec(command), agent(prompt, profile?), sleep(ms), store (persistent object), console.log. `return` the final summary. write is omitted when the profile has no Write tool (e.g. explore).',
+        'JavaScript to run (async). Available: read(path), write(path, text), glob(pattern), grep(pattern, glob?), exec(command), execFile(file, args?), agent(prompt, profile?), sleep(ms), store (persistent object), console.log. `return` the final summary. write is omitted when the profile has no Write tool (e.g. explore). exec uses the resolved shell absolute path + -lc; execFile spawns argv without bash -lc (prefer for git.exe/node.exe).',
       ),
     timeout_ms: z
       .number()
@@ -223,14 +223,19 @@ export class ScriptTool implements BuiltinTool<ScriptToolInput> {
         return scriptGrep(kaos, cwd, pattern, fileGlob);
       },
       exec: async (command: string): Promise<{ stdout: string; stderr: string; code: number }> => {
-        const proc = await kaos.exec('bash', '-lc', command);
-        const [stdout, stderr, code] = await Promise.all([
-          collectStream(proc.stdout, EXEC_OUTPUT_MAX_CHARS),
-          collectStream(proc.stderr, EXEC_OUTPUT_MAX_CHARS),
-          proc.wait(),
-        ]);
-        await proc.dispose();
-        return { stdout, stderr, code };
+        // Prefer kaos.osEnv.shellPath (runtime bash on Windows) — never bare
+        // `bash` which may resolve to a missing Program Files install.
+        const shell = resolveScriptShell(kaos);
+        return runKaosExec(kaos, shell, ['-lc', command]);
+      },
+      execFile: async (
+        file: string,
+        args: readonly string[] = [],
+      ): Promise<{ stdout: string; stderr: string; code: number }> => {
+        // Argv form: spawn file + args without bash -lc. On Windows, map
+        // git/node/bash short names to SuperLiora runtime absolute paths.
+        const resolved = resolveScriptExecutable(kaos, file);
+        return runKaosExec(kaos, resolved, args);
       },
     };
     if (canWrite) {
@@ -265,6 +270,68 @@ async function collectStream(stream: NodeJS.ReadableStream, cap: number): Promis
   return text.length <= cap ? text : `${text.slice(0, cap)}\n…[truncated]`;
 }
 
+async function runKaosExec(
+  kaos: Kaos,
+  file: string,
+  args: readonly string[],
+): Promise<{ stdout: string; stderr: string; code: number }> {
+  const proc = await kaos.exec(file, ...args);
+  const [stdout, stderr, code] = await Promise.all([
+    collectStream(proc.stdout, EXEC_OUTPUT_MAX_CHARS),
+    collectStream(proc.stderr, EXEC_OUTPUT_MAX_CHARS),
+    proc.wait(),
+  ]);
+  await proc.dispose();
+  return { stdout, stderr, code };
+}
+
+/** Absolute bash when kaos.osEnv has shellPath; otherwise bare `bash`. */
+export function resolveScriptShell(kaos: Kaos): string {
+  const shellPath = kaos.osEnv?.shellPath?.trim();
+  if (shellPath !== undefined && shellPath.length > 0) return shellPath;
+  return 'bash';
+}
+
+/**
+ * Map short runtime names to absolute paths on Windows.
+ * Uses kaos.osEnv.shellPath for bash when available; git/node via path heuristic
+ * next to shell (…/git/bin/bash.exe → …/git/cmd/git.exe) or leave for LocalKaos.
+ */
+export function resolveScriptExecutable(kaos: Kaos, file: string): string {
+  const base = file.replaceAll('/', '\\').split('\\').pop() ?? file;
+  const lower = base.toLowerCase();
+  if (lower === 'bash' || lower === 'bash.exe') {
+    return resolveScriptShell(kaos);
+  }
+  // Prefer absolute paths already supplied by the caller.
+  if (file.includes('/') || file.includes('\\') || /^[A-Za-z]:/.test(file)) {
+    return file;
+  }
+  // On Windows, derive git.exe from shellPath layout when possible so Script
+  // never needs bare `git` on a PATH that only has a dead Program Files entry.
+  if ((lower === 'git' || lower === 'git.exe') && kaos.osEnv?.osKind === 'Windows') {
+    const shell = resolveScriptShell(kaos);
+    const fromShell = gitExeFromWindowsBash(shell);
+    if (fromShell !== undefined) return fromShell;
+  }
+  // node: leave to LocalKaos.resolveRuntimeExecutable via bare name on PATH
+  // that create() prepends — still pass short name so kaos can rewrite.
+  return file;
+}
+
+function gitExeFromWindowsBash(bashPath: string): string | undefined {
+  const normalized = bashPath.replaceAll('/', '\\');
+  const lower = normalized.toLowerCase();
+  let root: string | undefined;
+  if (lower.endsWith('\\usr\\bin\\bash.exe')) {
+    root = normalized.slice(0, -'\\usr\\bin\\bash.exe'.length);
+  } else if (lower.endsWith('\\bin\\bash.exe')) {
+    root = normalized.slice(0, -'\\bin\\bash.exe'.length);
+  }
+  if (root === undefined || root.length === 0) return undefined;
+  return `${root}\\cmd\\git.exe`;
+}
+
 /** Bounded content search for Script PTC — prefers `rg`, falls back to empty on miss. */
 async function scriptGrep(
   kaos: Kaos,
@@ -279,7 +346,8 @@ async function scriptGrep(
       : '';
   // --no-heading -n -I: path:line:text; ignore binary; cap via head in shell.
   const command = `rg -n -I --no-heading --color=never${globFlag} -- '${escaped}' . | head -n ${String(GREP_MAX_HITS)}`;
-  const proc = await kaos.exec('bash', '-lc', command);
+  const shell = resolveScriptShell(kaos);
+  const proc = await kaos.exec(shell, '-lc', command);
   const [stdout, , code] = await Promise.all([
     collectStream(proc.stdout, EXEC_OUTPUT_MAX_CHARS),
     collectStream(proc.stderr, 2_000),
