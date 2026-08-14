@@ -1,5 +1,8 @@
-Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
-Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
+(node:100544) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA(node:100544) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA
 
 
 
@@ -32,9 +35,12 @@ Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
+/agents pinned
+(node:100544) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.    
+(Use `node --trace-warnings ...` to show where the warning was created)
+Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA/agents pinned
 
 
-Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
@@ -56,11 +62,13 @@ Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
+(node:100544) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA/agents pinned
 
 
 
 
-Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
@@ -89,13 +97,15 @@ Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
+(node:100544) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.    
+(Use `node --trace-warnings ...` to show where the warning was created)
+Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA/agents pinned
 
 
 
 
 
 
-Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
@@ -113,6 +123,9 @@ Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
+(node:100544) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA/agents pinned
 
 
 
@@ -121,7 +134,6 @@ Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
-Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
@@ -146,6 +158,9 @@ Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
+(node:100544) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.    
+(Use `node --trace-warnings ...` to show where the warning was created)
+Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA/agents pinned
 
 
 
@@ -156,7 +171,6 @@ Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
-Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
@@ -170,6 +184,9 @@ Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
+(node:100544) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA/agents pinned
 
 
 
@@ -182,7 +199,6 @@ Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
-Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
@@ -203,6 +219,9 @@ Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
+(node:100544) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.    
+(Use `node --trace-warnings ...` to show where the warning was created)
+Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA/agents pinned
 
 
 
@@ -217,7 +236,6 @@ Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
-Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
@@ -227,6 +245,9 @@ Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
+(node:100544) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA/agents pinned
 
 
 
@@ -243,7 +264,6 @@ Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
-Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
@@ -260,6 +280,9 @@ Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
+(node:100544) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.    
+(Use `node --trace-warnings ...` to show where the warning was created)
+Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA/agents pinned
 
 
 
@@ -278,12 +301,14 @@ Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
-Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
 
 
+(node:100544) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA/agents pinned
 
 
 
@@ -304,7 +329,6 @@ Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
-Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
@@ -317,6 +341,9 @@ Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
+(node:100544) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.    
+(Use `node --trace-warnings ...` to show where the warning was created)
+Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA/agents pinned
 
 
 
@@ -339,35 +366,10 @@ Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
 
 
-Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Gi=31,s=1,v=1,a=q,t=d,f=24;AAAAhello visual smoke^U/status
-
-
+(node:100544) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA/agents pinned
 
 
 
