@@ -21,6 +21,15 @@ import { CONDUCTOR_DEFAULT_MAX_CONCURRENT_JOBS } from '../../tools/builtin/job/j
 export const JOB_WORKER_SPAWN_BUDGET_MS = 30_000;
 
 /**
+ * Post-spawn progress stall (independent of handshake budget): after the
+ * worker agent attaches, if no meaningful progress (first tool / needs_user)
+ * lands within this window the job is marked blocked + inbox so Conductor can
+ * retry/cancel. Must stay off the spawner queue — lengthening the handshake
+ * budget would serialize the fleet.
+ */
+export const JOB_WORKER_PROGRESS_STALL_MS = 120_000;
+
+/**
  * Parallel spawn handshakes. Keys are deduped per job and each handshake owns
  * its own worktree/agent, so distinct jobs spawn safely in parallel. Tracks
  * the job concurrency default: a spawn cap below it promotes jobs to `running`

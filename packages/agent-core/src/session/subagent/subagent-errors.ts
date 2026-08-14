@@ -27,18 +27,57 @@ export const DEFAULT_SUBAGENT_DEADLINE_MS = DEFAULT_SUBAGENT_TIMEOUT_MS;
 export const SUBAGENT_DEADLINE_ENV = 'SUPERLIORA_SUBAGENT_DEADLINE_MS';
 
 /**
+ * Plan Desk / mission jobs get a longer default wall-clock than implement so
+ * Ultra interviews are not burned by the 30m coding budget. Override with
+ * `SUPERLIORA_PLAN_DESK_DEADLINE_MS`, falling back to
+ * {@link SUBAGENT_DEADLINE_ENV} when the plan-specific var is unset.
+ * Implement/verify keep {@link DEFAULT_SUBAGENT_DEADLINE_MS} (30m).
+ */
+export const DEFAULT_PLAN_DESK_DEADLINE_MS = 45 * 60 * 1000;
+export const PLAN_DESK_DEADLINE_ENV = 'SUPERLIORA_PLAN_DESK_DEADLINE_MS';
+
+/**
  * Resolve the effective wall-clock deadline: the environment override wins
  * (operator-level kill switch); otherwise the per-run `timeoutMs` budget;
  * otherwise {@link DEFAULT_SUBAGENT_DEADLINE_MS}. Unparsable or negative
  * environment values fall back instead of disabling the deadline by accident.
  */
 export function resolveSubagentDeadlineMs(explicitTimeoutMs?: number): number {
-  const raw = process.env[SUBAGENT_DEADLINE_ENV];
-  if (raw !== undefined && raw.trim().length > 0) {
-    const parsed = Number(raw);
-    if (Number.isFinite(parsed) && parsed >= 0) return parsed;
-  }
+  const fromEnv = parseDeadlineEnv(process.env[SUBAGENT_DEADLINE_ENV]);
+  if (fromEnv !== undefined) return fromEnv;
   return explicitTimeoutMs ?? DEFAULT_SUBAGENT_DEADLINE_MS;
+}
+
+/**
+ * Wall-clock for Plan Desk / mission workers. Prefers
+ * {@link PLAN_DESK_DEADLINE_ENV}, then {@link SUBAGENT_DEADLINE_ENV}, then
+ * {@link DEFAULT_PLAN_DESK_DEADLINE_MS} (45 minutes). Does not change the
+ * implement/verify default — callers must use this only for mission/plan.
+ */
+export function resolvePlanDeskDeadlineMs(): number {
+  const planEnv = parseDeadlineEnv(process.env[PLAN_DESK_DEADLINE_ENV]);
+  if (planEnv !== undefined) return planEnv;
+  const subEnv = parseDeadlineEnv(process.env[SUBAGENT_DEADLINE_ENV]);
+  if (subEnv !== undefined) return subEnv;
+  return DEFAULT_PLAN_DESK_DEADLINE_MS;
+}
+
+/**
+ * Job-worker soft+hard timeout: mission → plan-desk budget; every other kind
+ * keeps the implement default (30m). Env kill switches are applied later by
+ * {@link resolveSubagentDeadlineMs} for the hard abort path when the FanoutSpec
+ * budget is re-resolved.
+ */
+export function resolveJobWorkerTimeoutMs(kind: string | undefined): number {
+  if (kind === 'mission') return resolvePlanDeskDeadlineMs();
+  return DEFAULT_SUBAGENT_TIMEOUT_MS;
+}
+
+function parseDeadlineEnv(raw: string | undefined): number | undefined {
+  if (raw === undefined || raw.trim().length === 0) return undefined;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) return undefined;
+  return parsed;
 }
 
 /**

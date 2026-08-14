@@ -15,7 +15,7 @@ import {
   uiSpawnQualityFlags,
 } from '../../../premium-quality';
 import { requestJobSchedulePump } from '../../../session/job/job-offload';
-import { DEFAULT_SUBAGENT_TIMEOUT_MS } from '../../../session/subagent/subagent-host';
+import { resolveJobWorkerTimeoutMs } from '../../../session/subagent/subagent-host';
 import type { SubagentCompletion } from '../../../session/subagent/subagent-host-types';
 import { renderFrictionSection } from '../../../session/subagent/subagent-friction';
 import {
@@ -34,6 +34,7 @@ import {
   abortJobWorker as abortRegisteredJobWorker,
 } from './job-handles';
 import {
+  armJobWorkerProgressStall,
   bindJobWorkerLedger,
   unbindJobWorkerLedger,
 } from './job-worker-ledger-bridge';
@@ -613,12 +614,14 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
     ...(resumeAgentId !== undefined ? { resumeAgentId } : {}),
   };
   const parentToolCallId = `job:${job.id}:${randomUUID().slice(0, 8)}`;
+  // Mission (Plan Desk) uses the longer plan-desk budget; implement/verify stay 30m.
+  const workerTimeoutMs = resolveJobWorkerTimeoutMs(job.kind);
   const spec: FanoutSpec = {
     mode: 'manual',
     parentToolCallId,
     runInBackground: true,
     signal: controller.signal,
-    timeoutMs: DEFAULT_SUBAGENT_TIMEOUT_MS,
+    timeoutMs: workerTimeoutMs,
     tasks: [task],
   };
 
@@ -649,6 +652,8 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
     }
     setJobWorkerAgentId(job.id, handle.agentId);
     bindJobWorkerLedger(handle.agentId, input.store, job.id, input.agent);
+    // Post-spawn progress stall (120s): independent of the 30s handshake budget.
+    const disposeProgressStall = armJobWorkerProgressStall(handle.agentId);
     const nowIso = new Date().toISOString();
     patchJob(input.store, job.id, {
       workerAgentId: handle.agentId,
@@ -667,6 +672,7 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
     // Fire-and-forget: interactive lane must not await worker completion.
     void handle.completion
       .then(async (completion) => {
+        disposeProgressStall();
         const current = getJob(input.store, job.id);
         // If cancelled/interrupted while running, keep that terminal state.
         if (current?.status === 'cancelled' || current?.status === 'interrupted') {

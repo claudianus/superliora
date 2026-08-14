@@ -53,9 +53,11 @@ import type {
 } from './subagent-host-types';
 
 export {
+  DEFAULT_PLAN_DESK_DEADLINE_MS,
   DEFAULT_SUBAGENT_DEADLINE_MS,
   DEFAULT_SUBAGENT_TIMEOUT_DESCRIPTION,
   DEFAULT_SUBAGENT_TIMEOUT_MS,
+  PLAN_DESK_DEADLINE_ENV,
   SUBAGENT_DEADLINE_ENV,
   SubagentDeadlineError,
   SubagentMaxTokensError,
@@ -63,6 +65,8 @@ export {
   isPermanentSubagentProviderFailure,
   isSubagentDeadlineError,
   isSubagentMaxTokensError,
+  resolveJobWorkerTimeoutMs,
+  resolvePlanDeskDeadlineMs,
   resolveSubagentDeadlineMs,
 } from './subagent-errors';
 export {
@@ -70,7 +74,11 @@ export {
   describeSubagentToolDetail,
   type SubagentProgressStats,
 } from './subagent-progress-preview';
-export { __testing__ } from './subagent-run-lifecycle';
+export {
+  __testing__,
+  pauseActiveChildDeadline,
+  resumeActiveChildDeadline,
+} from './subagent-run-lifecycle';
 export type {
   QueuedSubagentRunResult,
   QueuedSubagentTask,

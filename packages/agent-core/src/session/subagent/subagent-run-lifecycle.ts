@@ -41,6 +41,9 @@ import {
 export type ActiveChildEntry = {
   readonly controller: AbortController;
   runInBackground: boolean;
+  /** Pause/resume the wall-clock deadline (interview / needs_user stalls). */
+  pauseDeadline?: () => void;
+  resumeDeadline?: () => void;
 };
 
 /** Minimal options shape required by {@link runWithActiveChild}. */
@@ -49,6 +52,31 @@ export type RunWithActiveChildOptions = {
   readonly runInBackground: boolean;
   readonly timeoutMs?: number;
 };
+
+/**
+ * Module-level deadline handles so Job / AskUserQuestion paths can pause a
+ * live child's wall-clock without holding the parent host instance.
+ */
+const deadlineControlsByChildId = new Map<
+  string,
+  { readonly pause: () => void; readonly resume: () => void }
+>();
+
+/** Pause the hard wall-clock deadline for an active child (needs_user interview). */
+export function pauseActiveChildDeadline(childId: string): boolean {
+  const control = deadlineControlsByChildId.get(childId);
+  if (control === undefined) return false;
+  control.pause();
+  return true;
+}
+
+/** Resume a previously paused deadline with the remaining budget. */
+export function resumeActiveChildDeadline(childId: string): boolean {
+  const control = deadlineControlsByChildId.get(childId);
+  if (control === undefined) return false;
+  control.resume();
+  return true;
+}
 
 export function isModelAliasHealthy(
   alias: string | undefined,
@@ -129,25 +157,70 @@ export function runWithActiveChild<TResult, TOptions extends RunWithActiveChildO
 ): Promise<TResult> {
   const controller = new AbortController();
   const unlinkAbortSignal = linkAbortSignal(options.signal, controller);
-  activeChildren.set(childId, {
-    controller,
-    runInBackground: options.runInBackground,
-  });
 
   // Hard wall-clock deadline: the soft `timeoutMs` budget only steers
   // finishing mode, so a wedged child (stuck network, unresponsive
   // gateway) must still be killed. The timer aborts the child controller;
   // the human-readable deadline error then replaces the downstream abort
   // noise in the failure path.
+  //
+  // Interview / needs_user: pause clears the timer and freezes remaining
+  // budget so AskUserQuestion wait does not burn the 30m/45m window.
   const deadlineMs = resolveSubagentDeadlineMs(options.timeoutMs);
   let deadlineError: SubagentDeadlineError | undefined;
   let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
-  if (deadlineMs > 0) {
+  let deadlineRemainingMs = deadlineMs;
+  let deadlineStartedAt = Date.now();
+  let deadlinePaused = false;
+
+  const clearDeadlineTimer = (): void => {
+    if (deadlineTimer !== undefined) {
+      clearTimeout(deadlineTimer);
+      deadlineTimer = undefined;
+    }
+  };
+
+  const armDeadlineTimer = (ms: number): void => {
+    clearDeadlineTimer();
+    if (ms <= 0 || deadlinePaused) return;
+    deadlineStartedAt = Date.now();
+    deadlineRemainingMs = ms;
     deadlineTimer = setTimeout(() => {
       deadlineError = new SubagentDeadlineError(deadlineMs);
       controller.abort(deadlineError);
-    }, deadlineMs);
+    }, ms);
     deadlineTimer.unref?.();
+  };
+
+  const pauseDeadline = (): void => {
+    if (deadlineMs <= 0 || deadlinePaused) return;
+    if (deadlineTimer !== undefined) {
+      const elapsed = Date.now() - deadlineStartedAt;
+      deadlineRemainingMs = Math.max(0, deadlineRemainingMs - elapsed);
+      clearDeadlineTimer();
+    }
+    deadlinePaused = true;
+  };
+
+  const resumeDeadline = (): void => {
+    if (deadlineMs <= 0 || !deadlinePaused) return;
+    deadlinePaused = false;
+    if (deadlineRemainingMs > 0 && !controller.signal.aborted) {
+      armDeadlineTimer(deadlineRemainingMs);
+    }
+  };
+
+  const entry: ActiveChildEntry = {
+    controller,
+    runInBackground: options.runInBackground,
+    pauseDeadline,
+    resumeDeadline,
+  };
+  activeChildren.set(childId, entry);
+  deadlineControlsByChildId.set(childId, { pause: pauseDeadline, resume: resumeDeadline });
+
+  if (deadlineMs > 0) {
+    armDeadlineTimer(deadlineMs);
   }
 
   return run({ ...options, signal: controller.signal })
@@ -156,7 +229,8 @@ export function runWithActiveChild<TResult, TOptions extends RunWithActiveChildO
       throw error;
     })
     .finally(() => {
-      if (deadlineTimer !== undefined) clearTimeout(deadlineTimer);
+      clearDeadlineTimer();
+      deadlineControlsByChildId.delete(childId);
       unlinkAbortSignal();
       activeChildren.delete(childId);
     });
