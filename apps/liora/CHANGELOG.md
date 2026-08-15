@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.10.1
+
+### Patch Changes
+
+- Keep compiler stacks and stray stdout/stderr out of the TUI prompt. Diagnostic dumps stay in the session log instead of overwriting the draft.
+
 ## 0.10.0
 
 ### Minor Changes
