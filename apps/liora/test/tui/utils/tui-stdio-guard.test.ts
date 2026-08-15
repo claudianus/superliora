@@ -4,6 +4,8 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { NativeTUIEditor } from '#/tui/components/editor/native-tui-editor';
+import { createTerminalRenderer } from '#/tui/renderer/lifecycle';
 import {
   ensureMountedTuiStdioGuard,
   installTuiStdioGuard,
@@ -69,5 +71,41 @@ describe('tui-stdio-guard', () => {
     expect(second).toBe(first);
     process.stderr.write('late-hook\n');
     expect(diverted.some((chunk) => chunk.includes('late-hook'))).toBe(true);
+  });
+
+  it('keeps process.stdout.write guarded after createTerminalRenderer and leaves the editor draft', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tui-stdio-'));
+    dirs.push(dir);
+    const logPath = join(dir, 'tui-stdio.log');
+    const ttyChunks: string[] = [];
+    const originalStdout = process.stdout.write;
+    process.stdout.write = ((chunk: unknown) => {
+      ttyChunks.push(String(chunk));
+      return true;
+    }) as typeof process.stdout.write;
+
+    let renderer: ReturnType<typeof createTerminalRenderer> | undefined;
+    try {
+      const guard = ensureMountedTuiStdioGuard({ logPath });
+      renderer = createTerminalRenderer();
+      const editor = new NativeTUIEditor();
+      editor.setText('keep-editor-value');
+
+      process.stdout.write(
+        'Error: compileUnsafe boom\n    at Module._load (node:internal/modules/cjs/loader:1:1)\n',
+      );
+      process.stderr.write(
+        'Error: compileUnsafe boom\n    at Module._load (node:internal/modules/cjs/loader:1:1)\n',
+      );
+
+      expect(process.stdout.write).not.toBe(guard.ttyWrite);
+      expect(ttyChunks.join('')).not.toContain('compileUnsafe');
+      expect(readFileSync(logPath, 'utf8')).toContain('[stdout] Error: compileUnsafe');
+      expect(editor.getText()).toBe('keep-editor-value');
+    } finally {
+      renderer?.stop();
+      restoreMountedTuiStdioGuard();
+      process.stdout.write = originalStdout;
+    }
   });
 });

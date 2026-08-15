@@ -4,6 +4,7 @@ import * as slashCommands from '../../commands/hub/dispatch';
 import { DEFAULT_APPEARANCE_PREFERENCES, DEFAULT_PERFORMANCE_MODE } from '../../config';
 import { registerReverseRPCHandlers } from '../../reverse-rpc/index';
 import type { ApprovalPanelData, QuestionPanelData } from '../../reverse-rpc/types';
+import { bindTUIEditorPromptLeak } from '../../components/editor/editor-factory';
 import { createTUIState } from '../../tui-state';
 import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
 import { resolveEffectiveAppearance } from '../../features/appearance/performance-mode';
@@ -169,6 +170,8 @@ export function wireLioraTUIControllers(
   tui.controlTowerDesk = new ControlTowerJobDesk(tui, tui.jobBoardStore);
   tui.sessionEventHandler = new SessionEventHandler(tui);
   tui.transcriptRender = new TranscriptRenderController(tui);
+  tui.state.showStatus = (message, color) => tui.showStatus(message, color);
+  bindTUIEditorPromptLeak(tui.state.editor, (message) => tui.showStatus(message));
   tui.panes = new PanesController(tui);
   tui.dialogs = new DialogsController(tui);
   tui.workspaceBrowser = new WorkspaceBrowserController(tui);

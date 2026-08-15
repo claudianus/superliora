@@ -24,7 +24,7 @@ import { createTUIEditor } from './components/editor/editor-factory';
 import { TranscriptViewportComponent } from './components/messages/transcript-viewport';
 import { CHROME_GUTTER } from './constant/rendering';
 import type { TasksBrowserState } from './controllers/panes/tasks-browser';
-import { currentTheme, type Theme } from './theme';
+import { currentTheme, type ColorToken, type Theme } from './theme';
 import { resolveStageLayout } from './controllers/layout/stage-layout';
 import { NativeEditorTextInputController } from './features/native-layout/native-editor-text-input';
 import { createTerminalState, type TerminalState } from './utils/terminal/terminal-state';
@@ -164,6 +164,8 @@ export interface TUIState {
   userStageSize?: { width: number; height: number };
   /** Hook installed by the coordinator for durable session UI gestures. */
   persistSessionUiState?: () => void;
+  /** Late-bound after TranscriptRenderController exists. */
+  showStatus?: (message: string, color?: ColorToken) => void;
   /**
    * Stage bundle rect (userStageSize applied, workspace-dock aware) from the
    * most recent render. The corner/edge resize hit-test reads this so the grab

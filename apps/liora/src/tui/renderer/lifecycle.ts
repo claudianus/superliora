@@ -10,7 +10,10 @@ import type {
 import { LioraNativeRootUI } from './native-root-ui';
 import type { FrameInvalidationIntent } from '#/tui/features/native-layout/native-frame-policy';
 import { frameInvalidationIntentToCause } from '#/tui/features/native-layout/native-frame-policy';
-import { ensureMountedTuiStdioGuard } from '#/tui/utils/stdio/tui-stdio-guard';
+import {
+  ensureMountedTuiStdioGuard,
+  type TuiStdioGuard,
+} from '#/tui/utils/stdio/tui-stdio-guard';
 
 export type { FrameInvalidationIntent } from '#/tui/features/native-layout/native-frame-policy';
 
@@ -29,13 +32,29 @@ export interface TerminalRenderer {
   drainInput(): Promise<void>;
 }
 
+function createRendererTerminalOutput(ttyWrite: TuiStdioGuard['ttyWrite']): NativeTerminalOutput {
+  const stdout = process.stdout;
+  return {
+    write(chunk: string) {
+      return ttyWrite(chunk);
+    },
+    get columns() {
+      return stdout.columns;
+    },
+    get rows() {
+      return stdout.rows;
+    },
+    on: stdout.on.bind(stdout),
+    off: stdout.off.bind(stdout),
+    removeListener: stdout.removeListener.bind(stdout),
+  };
+}
+
 export function createTerminalRenderer(): TerminalRenderer {
   const stdio = ensureMountedTuiStdioGuard();
   const ui = new LioraNativeRootUI({
     input: process.stdin as NativeTerminalInput,
-    output: Object.assign(process.stdout, {
-      write: stdio.ttyWrite,
-    }) as NativeTerminalOutput,
+    output: createRendererTerminalOutput(stdio.ttyWrite),
     // Full-screen alternate-screen takeover: isolates the TUI from the
     // terminal's pre-session scrollback (so scrolling up never escapes into
     // earlier shell output) and enables the advanced input features the

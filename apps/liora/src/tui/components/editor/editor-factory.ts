@@ -12,10 +12,17 @@ export function createTUIEditor(
     requestRender: () => {
       ui.requestRender();
     },
-    onPromptLeak: options.onPromptLeak ?? (() => {
-      // Tests and headless hosts still reject leaked diagnostics without a
-      // transcript sink. Production wiring supplies showStatus.
-    }),
+    onPromptLeak: options.onPromptLeak,
     leakBlockedMessage: ttui('tui.prompt.leak_blocked'),
   });
+}
+
+/** Attach showStatus after the transcript host exists. */
+export function bindTUIEditorPromptLeak(
+  editor: TUIEditor,
+  onPromptLeak: (message: string) => void,
+): void {
+  if (editor instanceof NativeTUIEditor) {
+    editor.setOnPromptLeak(onPromptLeak);
+  }
 }

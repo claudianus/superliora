@@ -129,7 +129,7 @@ export class NativeTUIEditor implements TUIEditor {
   private ghostText: string | undefined;
   private ghostKind: TUIEditorGhostKind = 'inline';
 
-  constructor(private readonly options: NativeTUIEditorOptions = {}) {
+  constructor(private options: NativeTUIEditorOptions = {}) {
     this.autocomplete = new RendererEditorAutocompleteController({
       requestRender: options.requestRender,
       maxVisible: options.autocompleteMaxVisible,
@@ -169,7 +169,12 @@ export class NativeTUIEditor implements TUIEditor {
     this.clearGhost();
   }
 
+  setOnPromptLeak(onPromptLeak: (message: string) => void): void {
+    this.options = { ...this.options, onPromptLeak };
+  }
+
   applyNativeTextInputSync(text: string, cursor: RendererEditorCursor): void {
+    if (this.rejectPromptLeak(text)) return;
     const before = this.getText();
     const beforeCursor = this.getCursor();
     if (text !== before) {
@@ -190,17 +195,13 @@ export class NativeTUIEditor implements TUIEditor {
   }
 
   setText(text: string): void {
-    if (looksLikePromptLeak(text)) {
-      this.options.onPromptLeak?.(
-        this.options.leakBlockedMessage ?? 'Diagnostic output was kept out of the prompt',
-      );
-      return;
-    }
+    if (this.rejectPromptLeak(text)) return;
     this.setTextInternal(text, true);
     this.closeAutocomplete(false);
   }
 
   insertTextAtCursor(text: string): void {
+    if (this.rejectPromptLeak(text)) return;
     this.applyInputMutation(() =>
       this.input.handleInput({ type: 'paste', raw: text, text }),
     );
@@ -362,10 +363,19 @@ export class NativeTUIEditor implements TUIEditor {
     navigateNativeTUIEditorHistory(this.asInternalHost(), direction);
   }
 
+  private rejectPromptLeak(text: string): boolean {
+    if (!looksLikePromptLeak(text)) return false;
+    this.options.onPromptLeak?.(
+      this.options.leakBlockedMessage ?? 'Diagnostic output was kept out of the prompt',
+    );
+    return true;
+  }
+
   private applyPromptAwareMutation(
     mutate: () => boolean,
     insertedText?: string,
   ): boolean {
+    if (insertedText !== undefined && this.rejectPromptLeak(insertedText)) return false;
     const wasEmptyPrompt = this.inputMode === 'prompt' && this.getText().length === 0;
     const changed = this.applyInputMutation(mutate);
     if (!changed) return false;
@@ -418,6 +428,7 @@ export class NativeTUIEditor implements TUIEditor {
   }
 
   private setTextInternal(text: string, notify: boolean): void {
+    if (this.rejectPromptLeak(text)) return;
     const before = this.getText();
     this.input.setText(text);
     if (text !== before) this.clearGhost();
@@ -476,6 +487,7 @@ export class NativeTUIEditor implements TUIEditor {
   }
 
   private applyAutocompleteText(text: string, cursor: RendererEditorCursor): void {
+    if (this.rejectPromptLeak(text)) return;
     this.input.setText(text);
     this.setCursorPosition(cursor);
   }
@@ -505,6 +517,7 @@ export class NativeTUIEditor implements TUIEditor {
   }
 
   private applyTextPaste(raw: string, text: string): void {
+    if (this.rejectPromptLeak(text)) return;
     this.applyPromptAwareMutation(
       () => this.input.handleInput({ type: 'paste', raw, text }),
       text,

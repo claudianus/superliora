@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { bindTUIEditorPromptLeak, createTUIEditor } from '#/tui/components/editor/editor-factory';
 import { NativeTUIEditor } from '#/tui/components/editor/native-tui-editor';
 import type { AutocompleteItem, AutocompleteProvider } from '#/tui/renderer';
 import type { TUIEditor } from '#/tui/components/editor/editor-contract';
@@ -683,5 +684,29 @@ describe('NativeTUIEditor image paste binding', () => {
 
     editor.setText('please restore this draft');
     expect(editor.getText()).toBe('please restore this draft');
+  });
+
+  it('rejects compileUnsafe via applyNativeTextInputSync, paste, and late-bound showStatus', () => {
+    const leak = [
+      'Error: compileUnsafe boom',
+      '    at Module._load (node:internal/modules/cjs/loader:1:1)',
+    ].join('\n');
+    const esc = String.fromCodePoint(0x1b);
+    const statuses: string[] = [];
+    const editor = createTUIEditor({ requestRender: () => {} } as never);
+    editor.setText('keep this draft');
+
+    editor.applyNativeTextInputSync?.(leak, { line: 0, col: leak.length });
+    expect(editor.getText()).toBe('keep this draft');
+    expect(statuses).toHaveLength(0);
+
+    bindTUIEditorPromptLeak(editor, (message) => statuses.push(message));
+    editor.applyNativeTextInputSync?.(leak, { line: 0, col: leak.length });
+    expect(editor.getText()).toBe('keep this draft');
+    expect(statuses).toHaveLength(1);
+
+    editor.handleInput(`${esc}[200~${leak}${esc}[201~`);
+    expect(editor.getText()).toBe('keep this draft');
+    expect(statuses).toHaveLength(2);
   });
 });
