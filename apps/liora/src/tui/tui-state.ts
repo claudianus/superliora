@@ -308,7 +308,7 @@ export function createTUIState(options: LioraTUIOptions): TUIState {
     terminalState: createTerminalState(),
     activitySpinner: null,
     toolOutputExpanded: false,
-    transcriptDetail: 'standard',
+    transcriptDetail: 'compact',
     toolOutputViewports: new Map(),
     sessions: [],
     loadingSessions: false,

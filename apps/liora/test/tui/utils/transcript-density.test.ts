@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   createToolChainStats,
+  DEFAULT_TRANSCRIPT_DETAIL,
   formatChainLiveSummary,
   formatChainSettledSummary,
   formatDiffChip,
@@ -25,6 +26,22 @@ describe('resolveTranscriptDetail', () => {
     expect(
       resolveTranscriptDetail({ configured: 'minimal', temporaryFull: true, localOverride: 'compact' }),
     ).toBe('compact');
+  });
+});
+
+describe('default transcript expansion density', () => {
+  it('exports compact as the product default for unset / new sessions', () => {
+    expect(DEFAULT_TRANSCRIPT_DETAIL).toBe('compact');
+    // Restore the product default after other suites may have mutated the mirror.
+    setActiveTranscriptDetail(DEFAULT_TRANSCRIPT_DETAIL);
+    expect(getActiveTranscriptDetail()).toBe('compact');
+  });
+
+  it('cycles unknown levels from compact (product default), not standard', () => {
+    // Cast: nextTranscriptDetailLevel only accepts valid levels at the type level,
+    // but the runtime fallback must still start from the product default.
+    // From compact: next is standard.
+    expect(nextTranscriptDetailLevel('not-a-level' as never)).toBe('standard');
   });
 });
 
@@ -63,14 +80,14 @@ describe('nextTranscriptDetailLevel (Ctrl+O cycle)', () => {
   });
 
   it('covers every configured level exactly once per full cycle', () => {
-    let level: (typeof TRANSCRIPT_DETAIL_LEVELS)[number] = 'standard';
+    let level: (typeof TRANSCRIPT_DETAIL_LEVELS)[number] = 'compact';
     const seen = new Set<string>();
     for (let i = 0; i < TRANSCRIPT_DETAIL_LEVELS.length; i++) {
       level = nextTranscriptDetailLevel(level);
       seen.add(level);
     }
     expect(seen.size).toBe(TRANSCRIPT_DETAIL_LEVELS.length);
-    expect(level).toBe('standard');
+    expect(level).toBe('compact');
   });
 
   it('labels each level for the density-cycle toast', () => {

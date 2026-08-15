@@ -145,7 +145,7 @@ export function wireLioraTUIControllers(
       tui.missionControl.hasLiveWorkers(),
   });
   tui.state.transcriptDetail =
-    tui.state.appState.appearance?.transcriptDetail ?? 'standard';
+    tui.state.appState.appearance?.transcriptDetail ?? 'compact';
   // Keep render-time density readers (thinking / answer phase) in sync.
   setActiveTranscriptDetail(tui.state.transcriptDetail);
   setActiveNeatMode(tui.state.appState.appearance?.neat ?? true);
