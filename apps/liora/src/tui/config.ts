@@ -40,8 +40,9 @@ export const TerminalBackgroundSchema = z.enum(['off', 'session']);
  * How much detail the transcript shows for tool activity:
  * - `minimal`: collapse each tool chain into one live summary line until the
  *   assistant replies; on turn end it becomes a `Worked for …` line.
- * - `compact`: one line per tool (name · target · ±stats), input/output hidden.
- * - `standard`: per-tool preview (up to 5 lines) with highlighting — default.
+ * - `compact`: one line per tool (name · target · ±stats), input/output hidden
+ *   — default for new sessions / unset config.
+ * - `standard`: per-tool preview (up to 5 lines) with highlighting.
  * - `full`: no truncation, equivalent to the Ctrl+O expanded state.
  */
 export const TranscriptDetailSchema = z.enum(['minimal', 'compact', 'standard', 'full']);
@@ -336,7 +337,7 @@ export const DEFAULT_APPEARANCE_PREFERENCES: AppearancePreferences = {
   terminalBackground: 'off',
   terminalPalette: false,
   showTimestamps: true,
-  transcriptDetail: 'standard',
+  transcriptDetail: 'compact',
   missionControl: 'auto',
   neat: true,
   syntaxTheme: 'auto',

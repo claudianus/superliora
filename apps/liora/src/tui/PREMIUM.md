@@ -422,11 +422,11 @@ switching (Ctrl+O toast confirms the level).
 
 Levels:
 
-- `standard` (default): **chain phase bar** + preview tool cards + soft phase
-  tints (you / thinking / tools / answer work-units).
-- `compact`: **chain phase bar** + every tool card as a **header line**
+- `compact` (default): **chain phase bar** + every tool card as a **header line**
   (status mark, tool name, key argument, result chip) with phase tints.
   Click a card to expand locally.
+- `standard`: **chain phase bar** + preview tool cards + soft phase
+  tints (you / thinking / tools / answer work-units).
 - `minimal`: **chain-only** tools — individual tool rows stay hidden until
   local expand (failures punch through). Aggregate chain summary per turn
   (`▌ tools · 7 tools · +42/−10` live; `Worked for …` settled).

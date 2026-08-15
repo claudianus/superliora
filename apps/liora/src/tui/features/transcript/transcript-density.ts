@@ -9,8 +9,14 @@ import type { TranscriptDetailLevel } from '#/tui/types';
  * testable projection.
  */
 
+/**
+ * Product default for new sessions / unset `tui.toml` appearance.transcript_detail.
+ * Persisted user overrides always win over this.
+ */
+export const DEFAULT_TRANSCRIPT_DETAIL: TranscriptDetailLevel = 'compact';
+
 /** Session-active density for render-time reads (thinking / answer phase). */
-let activeTranscriptDetail: TranscriptDetailLevel = 'standard';
+let activeTranscriptDetail: TranscriptDetailLevel = DEFAULT_TRANSCRIPT_DETAIL;
 
 export function getActiveTranscriptDetail(): TranscriptDetailLevel {
   return activeTranscriptDetail;
@@ -91,7 +97,8 @@ export function nextTranscriptDetailLevel(
   current: TranscriptDetailLevel,
 ): TranscriptDetailLevel {
   const index = TRANSCRIPT_DETAIL_LEVELS.indexOf(current);
-  const from = index >= 0 ? index : TRANSCRIPT_DETAIL_LEVELS.indexOf('standard');
+  const from =
+    index >= 0 ? index : TRANSCRIPT_DETAIL_LEVELS.indexOf(DEFAULT_TRANSCRIPT_DETAIL);
   return TRANSCRIPT_DETAIL_LEVELS[(from + 1) % TRANSCRIPT_DETAIL_LEVELS.length]!;
 }
 
