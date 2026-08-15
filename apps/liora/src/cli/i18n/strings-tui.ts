@@ -57,6 +57,8 @@ export const STRINGS_TUI_EN: Readonly<Record<string, string>> = {
   'tui.stash.stashed': 'Draft stashed ({count} in stash)',
   'tui.stash.restored': 'Draft restored ({count} remaining)',
   'tui.stash.empty': 'No stashed drafts',
+  'tui.prompt.leak_blocked': 'Diagnostic output was kept out of the prompt',
+  'tui.stdio.diverted': 'Background output moved to the session log',
 
   // ── Session error navigator (/errors) ────────────────────────────────────
   'tui.errors.title': 'Session errors',
@@ -458,6 +460,8 @@ export const STRINGS_TUI_KO: Readonly<Record<string, string>> = {
   'tui.stash.stashed': '초안 보관 (보관함 {count}개)',
   'tui.stash.restored': '초안 복원 (남은 보관 {count}개)',
   'tui.stash.empty': '보관된 초안이 없습니다',
+  'tui.prompt.leak_blocked': '진단 출력을 입력칸에 넣지 않았습니다',
+  'tui.stdio.diverted': '배경 출력을 세션 로그로 보냈습니다',
 
   // ── Session error navigator (/errors) ────────────────────────────────────
   'tui.errors.title': '세션 오류',

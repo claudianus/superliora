@@ -16,6 +16,7 @@ import {
   type RendererRegionLine,
 } from '#/tui/renderer';
 
+import { looksLikePromptLeak } from '../../utils/editor/prompt-leak-guard';
 import type { TUIEditor, TUIEditorGhostKind, TUIEditorInputMode } from './editor-contract';
 import {
   applyNativeTUIEditorAutocompleteCompletion,
@@ -187,6 +188,7 @@ export class NativeTUIEditor implements TUIEditor {
   }
 
   setText(text: string): void {
+    if (looksLikePromptLeak(text)) return;
     this.setTextInternal(text, true);
     this.closeAutocomplete(false);
   }

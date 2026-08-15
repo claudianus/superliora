@@ -2,6 +2,7 @@ import type { Component, Focusable } from '#/tui/renderer';
 
 import { CommandHubComponent } from '../../components/dialogs/command-hub/index';
 import type { CenterModalMountOptions } from '../../utils/ui/center-modal';
+import { looksLikePromptLeak } from '../../utils/editor/prompt-leak-guard';
 import { flushPromptInputState } from '../../utils/prompt-input-state';
 import {
   flushSuppressedTUIFrame,
@@ -232,6 +233,11 @@ export function restoreInputText(
   text: string,
 ): void {
   restoreEditor(host);
+  if (looksLikePromptLeak(text)) {
+    host.showStatus(ttui('tui.prompt.leak_blocked'));
+    requestTUIContentRender(host.state);
+    return;
+  }
   host.state.editor.setText(text);
   host.updateEditorBorderHighlight(text);
   requestTUIContentRender(host.state);
