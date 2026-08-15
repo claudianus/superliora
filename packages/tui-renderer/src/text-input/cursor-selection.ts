@@ -103,8 +103,10 @@ export function clampCursorState(
 ): void {
   const line = Math.max(0, Math.min(state.lines.length - 1, Math.floor(state.cursor.line)));
   const text = state.lines[line] ?? '';
-  // When bias is forward (post-insert), prefer the next cluster end so a caret
-  // that landed mid-cluster after Hangul/emoji insert is not walked backward.
+  // snapColumnToBoundary walks backward when mid-cluster. For forward bias
+  // (setCursor / post-insert), prefer the next cluster end so Hangul/emoji
+  // carets are not left inside a surrogate/jamo run. Only rewrite when the
+  // requested column was actually mid-cluster (snap walked off it).
   let column = snapColumnToBoundary(text, state.cursor.column);
   if (
     bias === 'forward' &&

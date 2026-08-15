@@ -149,7 +149,8 @@ export class RendererTextInput {
       line: this.lines.length - 1,
       column: this.lines.at(-1)?.length ?? 0,
     };
-    clampCursorState(this.cursorSelectionHost);
+    // Forward snap: caret must land on a grapheme boundary (never mid Hangul/emoji).
+    clampCursorState(this.cursorSelectionHost, 'forward');
     this.clearSelection();
     this.draggingSelectionAnchor = undefined;
     this.clearHistory();
@@ -165,7 +166,9 @@ export class RendererTextInput {
 
   setCursor(cursor: RendererTextInputCursor): void {
     this.cursor = cursor;
-    clampCursorState(this.cursorSelectionHost);
+    // External caret placement (setCursorPosition / native sync) can land mid
+    // cluster; always snap forward so a later insert cannot eat Hangul/emoji.
+    clampCursorState(this.cursorSelectionHost, 'forward');
     this.clearSelection();
     this.draggingSelectionAnchor = undefined;
     this.clearPreferredDisplayColumn();

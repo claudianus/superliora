@@ -580,20 +580,39 @@ describe('NativeTUIEditor image paste binding', () => {
     await vi.waitFor(() =>{  expect(editor.getText()).toBe('from clipboard'); });
   });
 
-  it('does not let text paste win when the shared has-media probe still sees an image', async () => {
-    vi.mocked(readClipboardText).mockResolvedValueOnce('C:\\Users\\example\\shot.png');
-    vi.mocked(clipboardHasImage).mockResolvedValueOnce(true);
+  it('retries image attach when the first attempt fails but the media probe still sees an image', async () => {
+    vi.mocked(clipboardHasImage).mockResolvedValue(true);
     const editor = makeEditor();
     editor.setText('draft');
-    // Attach path failed (false-negative race), but probe still reports media.
-    editor.onPasteImage = async () => false;
+    const onPasteImage = vi
+      .fn()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+    editor.onPasteImage = onPasteImage;
 
     expect(editor.tryHandleAppShortcut(pasteRaw)).toBe(true);
     await vi.waitFor(() => {
-      expect(clipboardHasImage).toHaveBeenCalled();
+      expect(onPasteImage).toHaveBeenCalledTimes(2);
     });
-    // Must not insert path text over a still-present clipboard image.
+    // Retry succeeded — no silent no-op, no path-text fallback.
     expect(editor.getText()).toBe('draft');
+  });
+
+  it('falls back to clipboard text when image attach keeps failing after retry', async () => {
+    vi.mocked(readClipboardText).mockResolvedValueOnce('from clipboard after miss');
+    vi.mocked(clipboardHasImage).mockResolvedValue(true);
+    const editor = makeEditor();
+    // Empty buffer so paste inserts only the clipboard text (not append to draft).
+    const onPasteImage = vi.fn(async () => false);
+    editor.onPasteImage = onPasteImage;
+
+    expect(editor.tryHandleAppShortcut(pasteRaw)).toBe(true);
+    await vi.waitFor(() => {
+      expect(editor.getText()).toBe('from clipboard after miss');
+    });
+    // First attempt + one retry; never swallow paste entirely.
+    expect(onPasteImage.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(clipboardHasImage).toHaveBeenCalled();
   });
 
   it('keeps Hangul inserts at the buffer end with an inline ghost present', () => {
@@ -605,6 +624,22 @@ describe('NativeTUIEditor image paste binding', () => {
 
     expect(editor.getText()).toBe('안녕');
     expect(editor.getCursor()).toEqual({ line: 0, col: '안녕'.length });
+  });
+
+  it('snaps setCursorPosition out of a mid-cluster column before insert (Hangul NFD)', () => {
+    const editor = makeEditor();
+    // NFD "한" is multiple code units; a mid-cluster caret must not eat the syllable.
+    const hangul = '한'.normalize('NFD');
+    editor.setText(hangul);
+    expect(hangul.length).toBeGreaterThan(1);
+    editor.setCursorPosition({ line: 0, col: 1 });
+    // Forward grapheme snap: caret must not stay mid-cluster.
+    expect(editor.getCursor().col === 0 || editor.getCursor().col === hangul.length).toBe(true);
+    editor.insertTextAtCursor('x');
+    expect(editor.getText()).toContain('한'.normalize('NFD')[0]!);
+    // Full jamo run survives; insert lands on a boundary.
+    expect(editor.getText().includes('x')).toBe(true);
+    expect(editor.getText().replace('x', '')).toBe(hangul);
   });
 
   it('gives onPasteText first claim on bracketed paste (terminal file drops)', () => {

@@ -217,6 +217,46 @@ describe('readClipboardMedia', () => {
     expect(runCommandWithWrite).toHaveBeenCalled();
   });
 
+  it('attaches win32 media when native false-negatives but PowerShell still has PNG bytes (CF_DIB)', async () => {
+    // Probe/read mismatch: hasImage+getImageBinary both empty (CF_DIB not converted
+    // by the native binding) while PowerShell GetImage still yields PNG bytes.
+    const imageBytes = png(6, 6);
+    const clip = fakeClipboard({
+      availableFormats: vi.fn(() => ['CF_DIB', 'CF_UNICODETEXT']),
+      hasImage: vi.fn(() => false),
+      getImageBinary: vi.fn(async () => []),
+      hasText: vi.fn(() => true),
+      getText: vi.fn(async () => 'C:\\Users\\example\\clipboard-path.png'),
+    });
+    const runCommandWithWrite = vi.fn(
+      (command: string, _args: string[], options?: { env?: NodeJS.ProcessEnv }) => {
+        if (command === 'powershell.exe') {
+          const path = options?.env?.['KIMI_WSL_CLIPBOARD_IMAGE_PATH'];
+          if (path !== undefined && path.length > 0) {
+            writeFileSync(path, imageBytes);
+            return { ok: true, stdout: Buffer.from('ok') };
+          }
+        }
+        return { ok: false, stdout: Buffer.alloc(0) };
+      },
+    );
+
+    const media = await readClipboardMedia({
+      platform: 'win32',
+      clipboard: clip,
+      runCommand: runCommandWithWrite,
+    });
+
+    expect(media).toEqual({
+      kind: 'image',
+      bytes: imageBytes,
+      mimeType: 'image/png',
+    });
+    // Image path must win over path-like CF_UNICODETEXT.
+    expect(clip.getText).not.toHaveBeenCalled();
+    expect(runCommandWithWrite).toHaveBeenCalled();
+  });
+
   it('reads via exported PowerShell helper used by WSL/win32 fallback', async () => {
     const imageBytes = png(2, 2);
     const { readClipboardImageViaPowerShell } = await import('#/utils/clipboard/clipboard-image');

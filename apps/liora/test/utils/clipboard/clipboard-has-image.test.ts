@@ -108,6 +108,26 @@ describe('clipboardHasImage', () => {
     expect(powerShellProbe).toHaveBeenCalledTimes(1);
   });
 
+  it('agrees with PowerShell when native CF_DIB path false-negatives (probe/read parity)', async () => {
+    // Same injected native false-negative shape as the read path: empty binary,
+    // no hasImage, PowerShell still reports an image — paste retry depends on this.
+    const clip = fakeClipboard({
+      availableFormats: vi.fn(() => ['CF_DIB', 'CF_UNICODETEXT']),
+      hasImage: vi.fn(() => false),
+      getImageBinary: vi.fn(async () => []),
+    });
+    const powerShellProbe = vi.fn(() => true);
+    const result = await clipboardHasImage({
+      platform: 'win32',
+      clipboard: clip,
+      powerShellProbe,
+    });
+    expect(result).toBe(true);
+    expect(clip.hasImage).toHaveBeenCalled();
+    expect(clip.getImageBinary).toHaveBeenCalled();
+    expect(powerShellProbe).toHaveBeenCalledTimes(1);
+  });
+
   it('probes PowerShell on WSL even though platform is linux', async () => {
     const clip = fakeClipboard({ hasImage: vi.fn(() => false) });
     const powerShellProbe = vi.fn(() => true);

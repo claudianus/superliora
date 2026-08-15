@@ -161,16 +161,25 @@ export async function handleNativeTUIEditorPasteMediaKey(
     try {
       if ((await handler())) return;
     } catch {
-      // Fall through to a text paste below.
+      // Fall through — retry / text paste below.
     }
   }
 
-  // Shared has-media probe with the footer hint. If the clipboard still holds
-  // an image after the attach path returned false (native false-negative race,
-  // transient PowerShell miss), do not fall through to text paste — that would
-  // insert a path-like string or empty noise and "win" over the image.
+  // Shared has-media probe with the footer hint. When the first attach attempt
+  // fails but the clipboard still holds an image (native false-negative race,
+  // transient PowerShell miss), retry once instead of silently swallowing the
+  // paste. A permanent attach miss then falls through to text paste so Ctrl/Alt+V
+  // never no-ops for the user.
   try {
-    if (await clipboardHasImage()) return;
+    if (await clipboardHasImage()) {
+      if (handler !== undefined) {
+        try {
+          if ((await handler())) return;
+        } catch {
+          // Fall through to text paste.
+        }
+      }
+    }
   } catch {
     // Probe failed; allow text paste.
   }

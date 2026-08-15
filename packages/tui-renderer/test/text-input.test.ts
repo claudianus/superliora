@@ -52,6 +52,30 @@ describe('RendererTextInput', () => {
     expect(input.getCursor()).toEqual({ line: 0, column: '안녕하세요'.length });
   });
 
+  it('snaps setCursor mid-cluster forward so insert does not eat Hangul/emoji', () => {
+    const emoji = 'a🙂b';
+    const input = new RendererTextInput({ text: emoji });
+    // column 2 is inside the 🙂 surrogate pair (start=1, end=3).
+    input.setCursor({ line: 0, column: 2 });
+    expect(input.getCursor().column).toBe(3);
+    input.handleInput(key('character', { text: 'X' }));
+    expect(input.getText()).toBe('a🙂Xb');
+    // After insert, caret is past 'X' (code unit index 4).
+    expect(input.getCursor().column).toBe(4);
+  });
+
+  it('snaps setCursor mid NFD Hangul cluster forward before insert', () => {
+    const hangul = '한'.normalize('NFD');
+    const input = new RendererTextInput({ text: hangul });
+    expect(hangul.length).toBeGreaterThan(1);
+    input.setCursor({ line: 0, column: 1 });
+    const col = input.getCursor().column;
+    expect(col === 0 || col === hangul.length).toBe(true);
+    input.handleInput(key('character', { text: 'x' }));
+    expect(input.getText().replace('x', '')).toBe(hangul);
+    expect(input.getText().includes('x')).toBe(true);
+  });
+
   it('inserts Hangul next to an image placeholder without dropping either side', () => {
     const placeholder = '[image #1]';
     const input = new RendererTextInput({
@@ -467,7 +491,9 @@ describe('RendererTextInput', () => {
 
     input.setCursor({ line: 0, column: 4 });
 
-    expect(input.getCursor()).toEqual({ line: 0, column: 1 });
+    // setCursor uses forward bias so mid-atomic lands on the range end (same
+    // policy as mid-grapheme forward snap for Hangul/emoji).
+    expect(input.getCursor()).toEqual({ line: 0, column: 8 });
   });
 });
 
