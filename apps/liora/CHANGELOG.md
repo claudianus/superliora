@@ -1,5 +1,26 @@
 # @superliora/liora
 
+## 0.10.0
+
+### Minor Changes
+
+- Add opt-in Performance mode (`off` | `auto` | `on`, default `off`) that overlays the Appearance Off pack and tighter transcript caps on low-spec machines without rewriting saved `[appearance]` prefs. Settings → Appearance and `/performance` control it.
+
+### Patch Changes
+
+- Retry image paste when the first attach fails, and snap external carets forward so Hangul/emoji inserts are not eaten.
+- Fix prompt-box image paste races on Windows/WSL and stop Hangul/cluster inserts from dropping characters.
+- Default transcript density to compact for new sessions and unset config; label compact as the default in the Settings `/transcript` picker. Change with `/transcript` or Ctrl+O.
+- Default mouse wheel always scrolls the transcript; use Alt+wheel over a tool output to scroll that nested view only.
+- Keep long session resume/replay from freezing the TUI by capping the transcript window during hydrate.
+- Recognize macOS Cmd as the TUI primary modifier (same chords as Ctrl on Linux/Windows), and show Cmd instead of hardcoded Ctrl in shortcut hints.
+- Fill leftover and newly exposed TUI rows with the theme background on resize instead of flashing default-black erase bars.
+- Show Windows native OS toast notifications via PowerShell WinRT.
+- Fix AUTO role routing so quality roles prefer XHIGH when available, and cheap/compaction roles pick a recent thinking-off model.
+- On Windows, put SuperLiora runtime git/bin and node ahead of PATH and run Script shell/git/node via absolute paths instead of bare `bash -lc`.
+- Plan Desk / mission jobs use a 45m wall-clock; post-spawn stalls mark blocked; spent remaining no longer disables the deadline.
+- In auto permission mode, land-to-main no longer opens a confirm dialog for size/danger holds.
+
 ## 0.9.6
 
 ### Patch Changes

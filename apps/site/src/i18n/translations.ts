@@ -224,7 +224,7 @@ export interface Translation {
 }
 
 export const defaultLang: Lang = 'ko';
-export const PRODUCT_VERSION = '0.9.6';
+export const PRODUCT_VERSION = '0.10.0';
 
 const visualsKo: SiteVisuals = {
   statusRoute: {
