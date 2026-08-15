@@ -40,8 +40,8 @@ export { APPEARANCE_BACKGROUND_TIP, APPEARANCE_CHANGE_TIP, APPEARANCE_MOTION_TIP
 
 const TRANSCRIPT_LEVEL_HINTS: Record<TranscriptDetailLevel, string> = {
   minimal: 'Chain-only tools · full answers · thinking groups',
-  compact: 'Tool headers only · phase tints; click to expand',
-  standard: 'Default detail (preview cards · phase tints)',
+  compact: 'Default — tool headers only · phase tints; click to expand',
+  standard: 'Preview cards · phase tints',
   full: 'Every tool card expanded',
 };
 

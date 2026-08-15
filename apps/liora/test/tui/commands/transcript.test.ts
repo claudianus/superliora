@@ -122,6 +122,14 @@ describe('transcriptArgumentCompletions', () => {
     ]);
   });
 
+  it('marks compact as the default in completion hints, not standard', () => {
+    const byValue = Object.fromEntries(
+      transcriptArgumentCompletions('').map((item) => [item.value, item.description ?? '']),
+    );
+    expect(byValue.compact).toMatch(/default/i);
+    expect(byValue.standard).not.toMatch(/default/i);
+  });
+
   it('filters by prefix', () => {
     expect(transcriptArgumentCompletions('m').map((item) => item.value)).toEqual(['minimal']);
   });

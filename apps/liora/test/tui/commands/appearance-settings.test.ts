@@ -142,4 +142,22 @@ describe('showTranscriptDetailPicker', () => {
       'full',
     ]);
   });
+
+  it('labels compact as the product default, not standard', () => {
+    const host = makeHost();
+    showTranscriptDetailPicker(host);
+    const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as {
+      opts: {
+        currentValue?: string;
+        options: readonly { value: string; description?: string }[];
+      };
+    };
+    expect(picker.opts.currentValue).toBe('compact');
+    const byValue = Object.fromEntries(
+      picker.opts.options.map((option) => [option.value, option.description ?? '']),
+    );
+    expect(byValue.compact).toMatch(/default/i);
+    expect(byValue.standard).not.toMatch(/default/i);
+    expect(byValue.standard).toMatch(/preview cards/i);
+  });
 });
