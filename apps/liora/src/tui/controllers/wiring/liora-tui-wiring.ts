@@ -1,11 +1,12 @@
 import type { LioraHarness } from '@superliora/sdk';
 
 import * as slashCommands from '../../commands/hub/dispatch';
-import { DEFAULT_APPEARANCE_PREFERENCES } from '../../config';
+import { DEFAULT_APPEARANCE_PREFERENCES, DEFAULT_PERFORMANCE_MODE } from '../../config';
 import { registerReverseRPCHandlers } from '../../reverse-rpc/index';
 import type { ApprovalPanelData, QuestionPanelData } from '../../reverse-rpc/types';
 import { createTUIState } from '../../tui-state';
 import { appearanceAnimationNow } from '../../features/appearance/appearance-effects';
+import { resolveEffectiveAppearance } from '../../features/appearance/performance-mode';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { persistTuiSessionState } from '../../utils/tui-session-state';
 import { createInitialAppState } from '../../utils/initial-app-state';
@@ -115,7 +116,12 @@ export function wireLioraTUIControllers(
   tui.missionControl.syncPreferences();
   tui.appearanceController = new AppearanceController({
     terminal: tui.state.terminal,
-    getAppearance: () => tui.state.appState.appearance ?? DEFAULT_APPEARANCE_PREFERENCES,
+    // Stored prefs stay intact; performance overlay may force Off-pack motion.
+    getAppearance: () => {
+      const stored = tui.state.appState.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
+      const mode = tui.state.appState.performanceMode ?? DEFAULT_PERFORMANCE_MODE;
+      return resolveEffectiveAppearance(mode, stored);
+    },
     requestRender: () => {
       tui.state.renderer.requestRender('animation');
     },
@@ -144,11 +150,15 @@ export function wireLioraTUIControllers(
       // linger expiry need 1s chrome ticks even while the main turn idles.
       tui.missionControl.hasLiveWorkers(),
   });
-  tui.state.transcriptDetail =
-    tui.state.appState.appearance?.transcriptDetail ?? 'compact';
-  // Keep render-time density readers (thinking / answer phase) in sync.
-  setActiveTranscriptDetail(tui.state.transcriptDetail);
-  setActiveNeatMode(tui.state.appState.appearance?.neat ?? true);
+  {
+    const stored = tui.state.appState.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
+    const mode = tui.state.appState.performanceMode ?? DEFAULT_PERFORMANCE_MODE;
+    const effective = resolveEffectiveAppearance(mode, stored);
+    tui.state.transcriptDetail = effective.transcriptDetail;
+    // Keep render-time density readers (thinking / answer phase) in sync.
+    setActiveTranscriptDetail(tui.state.transcriptDetail);
+    setActiveNeatMode(effective.neat);
+  }
   // Legacy expand flag used when mounting thinking/tool cards — seed from density
   // so transcript_detail=full at boot expands without requiring Ctrl+O once.
   tui.state.toolOutputExpanded = tui.state.transcriptDetail === 'full';

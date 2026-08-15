@@ -27,7 +27,7 @@ export const APPEARANCE_THEME_TIP =
 
 /** ChoicePicker tip — motion profile, density, particles, and animation clock. */
 export const APPEARANCE_MOTION_TIP =
-  'Motion: profile auto|off|subtle|premium · particles auto|off|ambient|events|premium · animation-fps 1–60 · density auto|compact|comfortable|spacious · timestamps on|off · /appearance <key> <value> · tui.toml [appearance].';
+  'Motion: profile auto|off|subtle|premium · particles auto|off|ambient|events|premium · animation-fps 1–60 · density auto|compact|comfortable|spacious · timestamps on|off · /appearance <key> <value> · tui.toml [appearance]. Performance overlay: /performance off|auto|on (does not rewrite [appearance]).';
 
 /** ChoicePicker tip — canvas, terminal background, palette injection, transcript detail. */
 export const APPEARANCE_BACKGROUND_TIP =

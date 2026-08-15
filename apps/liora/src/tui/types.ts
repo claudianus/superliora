@@ -131,6 +131,12 @@ export interface AppState {
   theme: ThemeName;
   /** Persisted UI language preference (`tui.toml` `locale`). */
   locale?: import('./config').LocalePreference;
+  /**
+   * Performance overlay mode (`tui.toml` `performance_mode`).
+   * Orthogonal to stored `[appearance]` — when active, effective look is the
+   * Off pack without rewriting saved prefs.
+   */
+  performanceMode?: import('./config').PerformanceMode;
   disablePasteBurst?: boolean;
   version: string;
   editorCommand: string | null;

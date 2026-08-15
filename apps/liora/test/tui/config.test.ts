@@ -86,6 +86,7 @@ terminal_palette = true
     expect(config).toEqual({
       theme: 'light',
       locale: 'auto',
+      performanceMode: 'off',
       permissionMode: 'yolo',
       disablePasteBurst: false,
       editorCommand: 'code --wait',
@@ -194,6 +195,7 @@ command = "   "
     expect(config).toEqual({
       theme: DEFAULT_TUI_THEME,
       locale: 'auto',
+      performanceMode: 'off',
       permissionMode: 'yolo',
       disablePasteBurst: false,
       editorCommand: null,
@@ -251,6 +253,7 @@ command = "   "
       {
         theme: 'light',
         locale: 'auto',
+        performanceMode: 'off',
         permissionMode: 'yolo',
         disablePasteBurst: false,
         editorCommand: 'vim',
@@ -268,6 +271,7 @@ command = "   "
     expect(await loadTuiConfig(filePath)).toEqual({
       theme: 'light',
       locale: 'auto',
+      performanceMode: 'off',
       permissionMode: 'yolo',
       disablePasteBurst: false,
       editorCommand: 'vim',
@@ -304,6 +308,23 @@ command = "   "
     expect(parseTuiConfig('').theme).toBe('superliora-neon-noir');
   });
 
+  it('defaults performanceMode to off for empty and new configs', () => {
+    expect(DEFAULT_TUI_CONFIG.performanceMode).toBe('off');
+    expect(parseTuiConfig('').performanceMode).toBe('off');
+    expect(parseTuiConfig('theme = "dark"\n').performanceMode).toBe('off');
+  });
+
+  it('parses performance_mode from tui.toml without touching [appearance]', () => {
+    const config = parseTuiConfig(`
+performance_mode = "auto"
+
+[appearance]
+profile = "premium"
+`);
+    expect(config.performanceMode).toBe('auto');
+    expect(config.appearance?.profile).toBe('premium');
+  });
+
   it('preserves an explicit dark choice through save/load (not forced off dark)', async () => {
     await saveTuiConfig({ ...DEFAULT_TUI_CONFIG, theme: 'dark' }, filePath);
     expect((await loadTuiConfig(filePath)).theme).toBe('dark');
@@ -326,6 +347,7 @@ command = "   "
       {
         theme,
         locale: 'auto',
+        performanceMode: 'off',
         permissionMode: 'yolo',
         disablePasteBurst: false,
         editorCommand: null,

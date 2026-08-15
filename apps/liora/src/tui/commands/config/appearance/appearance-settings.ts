@@ -30,6 +30,7 @@ import {
 import { SETTINGS_PRESETS_ROW, showSettingPresetsPicker } from '#/tui/utils/settings/show-setting-presets';
 import { formatErrorMessage } from '#/tui/utils/event-payload';
 import { handleAppearanceCommand } from './appearance';
+import { showPerformanceSettings, currentPerformanceMode } from './performance';
 import { currentAppearance, tuiConfigFromHost } from './tui-persist';
 import { showThemeSettings } from './theme-settings';
 
@@ -52,6 +53,7 @@ const FPS_OPTIONS = ['15', '30', '45', '60'] as const;
 
 export function showAppearanceSettings(host: SlashCommandHost): void {
   const appearance = currentAppearance(host);
+  const performanceMode = currentPerformanceMode(host);
   mountPickerDialog(
     host,
     new ChoicePickerComponent({
@@ -65,6 +67,11 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
           label: 'Appearance status',
           description:
             'Live theme palette · saved motion prefs · canvas / terminal / transcript.',
+        },
+        {
+          value: 'performance',
+          label: `${ttui('tui.settings.pane.appearance.performance')} · ${performanceMode}`,
+          description: ttui('tui.settings.pane.appearance.performanceDesc'),
         },
         {
           value: 'theme',
@@ -136,6 +143,9 @@ export function showAppearanceSettings(host: SlashCommandHost): void {
             return;
           case 'status':
             showAppearanceSettingsPanel(host);
+            return;
+          case 'performance':
+            showPerformanceSettings(host);
             return;
           case 'theme':
             showThemeSettings(host);

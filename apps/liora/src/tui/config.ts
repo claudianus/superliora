@@ -231,9 +231,19 @@ const ConductorConfigFileSchema = z
 export const LocalePreferenceSchema = z.enum(['auto', 'en', 'ko']);
 export type LocalePreference = z.infer<typeof LocalePreferenceSchema>;
 
+/**
+ * Low-spec performance overlay (orthogonal to `[appearance]` packs):
+ * - `off` — never overlay (default; empty/new tui.toml stays off)
+ * - `auto` — overlay only on low-spec hardware (≤8 logical CPUs AND ≤8 GiB RAM)
+ * - `on` — always overlay Off-pack motion + tighter transcript caps
+ */
+export const PerformanceModeSchema = z.enum(['off', 'auto', 'on']);
+export type PerformanceMode = z.infer<typeof PerformanceModeSchema>;
+
 export const TuiConfigFileSchema = z.object({
   theme: TuiThemeSchema.optional(),
   locale: LocalePreferenceSchema.optional(),
+  performance_mode: PerformanceModeSchema.optional(),
   permission_mode: PermissionModeFileSchema,
   disable_paste_burst: z.boolean().optional(),
   editor: EditorConfigFileSchema,
@@ -270,6 +280,7 @@ export const ConductorPreferencesSchema = z.object({
 export const TuiConfigSchema = z.object({
   theme: TuiThemeSchema,
   locale: LocalePreferenceSchema,
+  performanceMode: PerformanceModeSchema,
   permissionMode: z.enum(['yolo', 'manual', 'auto']),
   disablePasteBurst: z.boolean(),
   editorCommand: z.string().nullable(),
@@ -377,9 +388,13 @@ export const DEFAULT_FOOTER_PREFERENCES: FooterPreferences = {
 
 export const DEFAULT_LOCALE_PREFERENCE: LocalePreference = 'auto';
 
+/** Default performance mode — never auto-enable on new installs. */
+export const DEFAULT_PERFORMANCE_MODE: PerformanceMode = 'off';
+
 export const DEFAULT_TUI_CONFIG: TuiConfig = TuiConfigSchema.parse({
   theme: DEFAULT_TUI_THEME,
   locale: DEFAULT_LOCALE_PREFERENCE,
+  performanceMode: DEFAULT_PERFORMANCE_MODE,
   permissionMode: 'yolo',
   disablePasteBurst: false,
   editorCommand: null,
@@ -470,6 +485,7 @@ function coerceTuiConfigFile(raw: Record<string, unknown>): TuiConfigFileShape {
   return {
     theme: softParse(TuiThemeSchema.optional(), raw['theme']),
     locale: softParse(LocalePreferenceSchema.optional(), raw['locale']),
+    performance_mode: softParse(PerformanceModeSchema.optional(), raw['performance_mode']),
     permission_mode: softParse(PermissionModeFileSchema, raw['permission_mode']),
     disable_paste_burst: softParse(z.boolean().optional(), raw['disable_paste_burst']),
     editor: softParse(EditorConfigFileSchema, raw['editor']),
@@ -520,6 +536,7 @@ export function normalizeTuiConfig(config: TuiConfigFileShape): TuiConfig {
   return TuiConfigSchema.parse({
     theme: config.theme ?? DEFAULT_TUI_CONFIG.theme,
     locale: config.locale ?? DEFAULT_TUI_CONFIG.locale,
+    performanceMode: config.performance_mode ?? DEFAULT_TUI_CONFIG.performanceMode,
     permissionMode: config.permission_mode ?? DEFAULT_TUI_CONFIG.permissionMode,
     disablePasteBurst: config.disable_paste_burst ?? DEFAULT_TUI_CONFIG.disablePasteBurst,
     editorCommand: command === undefined || command.length === 0 ? null : command,
@@ -631,6 +648,7 @@ export function renderTuiConfig(config: TuiConfig): string {
 
 theme = "${escapeTomlBasicString(config.theme)}" # "auto" | "dark" | "light" | custom theme name
 locale = "${config.locale}" # "auto" | "en" | "ko" — auto follows SUPERLIORA_LOCALE / LANG
+performance_mode = "${config.performanceMode}" # "off" | "auto" | "on" — low-spec overlay; default off
 permission_mode = "${config.permissionMode}" # "yolo" | "manual" | "auto"
 disable_paste_burst = ${String(config.disablePasteBurst)} # true disables non-bracketed paste-burst fallback
 

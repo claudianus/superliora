@@ -67,6 +67,7 @@ describe('showAppearanceSettings', () => {
     expect(options.map((o) => o.value)).toEqual([
       'presets',
       'status',
+      'performance',
       'theme',
       'profile',
       'density',
