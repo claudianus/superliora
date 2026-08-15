@@ -119,9 +119,7 @@ export function wireLioraTUIControllers(
     // Stored prefs stay intact; performance overlay may force Off-pack motion.
     getAppearance: () => {
       const stored = tui.state.appState.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
-      const mode = tui.state.appState.performanceMode ?? 'off';
-      const { resolveEffectiveAppearance } =
-        require('../../features/appearance/performance-mode') as typeof import('../../features/appearance/performance-mode');
+      const mode = tui.state.appState.performanceMode ?? DEFAULT_PERFORMANCE_MODE;
       return resolveEffectiveAppearance(mode, stored);
     },
     requestRender: () => {
