@@ -36,6 +36,7 @@ import {
 } from './signals';
 import type { StartupLifecycleHost } from './types';
 import { mountIntentComposer } from '../../features/control-tower/conductor-ux';
+import { restoreMountedTuiStdioGuard } from '../../utils/stdio/tui-stdio-guard';
 
 export type { StartupLifecycleHost } from './types';
 
@@ -121,6 +122,7 @@ export class StartupLifecycleController {
     // /exit feels frozen.
     await host.state.renderer.drainInput();
     host.state.ui.stop();
+    restoreMountedTuiStdioGuard();
 
     const forceExitTimer = scheduleHeadlessForceExit(
       process,

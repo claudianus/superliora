@@ -10,6 +10,7 @@ import type {
 import { LioraNativeRootUI } from './native-root-ui';
 import type { FrameInvalidationIntent } from '#/tui/features/native-layout/native-frame-policy';
 import { frameInvalidationIntentToCause } from '#/tui/features/native-layout/native-frame-policy';
+import { ensureMountedTuiStdioGuard } from '#/tui/utils/stdio/tui-stdio-guard';
 
 export type { FrameInvalidationIntent } from '#/tui/features/native-layout/native-frame-policy';
 
@@ -29,9 +30,12 @@ export interface TerminalRenderer {
 }
 
 export function createTerminalRenderer(): TerminalRenderer {
+  const stdio = ensureMountedTuiStdioGuard();
   const ui = new LioraNativeRootUI({
     input: process.stdin as NativeTerminalInput,
-    output: process.stdout as NativeTerminalOutput,
+    output: Object.assign(process.stdout, {
+      write: stdio.ttyWrite,
+    }) as NativeTerminalOutput,
     // Full-screen alternate-screen takeover: isolates the TUI from the
     // terminal's pre-session scrollback (so scrolling up never escapes into
     // earlier shell output) and enables the advanced input features the

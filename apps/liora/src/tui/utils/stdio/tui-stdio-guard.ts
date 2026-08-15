@@ -10,12 +10,44 @@ export type TuiStdioWrite = typeof process.stdout.write;
 export interface TuiStdioGuard {
   readonly logPath: string;
   readonly captured: { stdout: number; stderr: number };
+  /** Bound original stdout.write — pass this to the TUI renderer. */
+  readonly ttyWrite: TuiStdioWrite;
+  setOnDivert(hook: ((stream: 'stdout' | 'stderr', chunk: string) => void) | undefined): void;
   restore(): void;
 }
 
 export interface InstallTuiStdioGuardOptions {
   readonly logPath?: string;
   readonly onDivert?: (stream: 'stdout' | 'stderr', chunk: string) => void;
+}
+
+let mountedGuard: TuiStdioGuard | undefined;
+
+/**
+ * Install once while the TUI owns the screen. Subsequent calls return the
+ * same guard so renderer + shutdown share one restore. A later `onDivert`
+ * (status line) attaches without re-wrapping writes.
+ */
+export function ensureMountedTuiStdioGuard(
+  options: InstallTuiStdioGuardOptions = {},
+): TuiStdioGuard {
+  if (mountedGuard !== undefined) {
+    if (options.onDivert !== undefined) mountedGuard.setOnDivert(options.onDivert);
+    return mountedGuard;
+  }
+  const installed = installTuiStdioGuard(options);
+  mountedGuard = {
+    ...installed,
+    restore() {
+      installed.restore();
+      if (mountedGuard === this) mountedGuard = undefined;
+    },
+  };
+  return mountedGuard;
+}
+
+export function restoreMountedTuiStdioGuard(): void {
+  mountedGuard?.restore();
 }
 
 function chunkToString(chunk: unknown, encoding?: BufferEncoding): string {
@@ -41,6 +73,7 @@ export function installTuiStdioGuard(options: InstallTuiStdioGuardOptions = {}):
   const captured = { stdout: 0, stderr: 0 };
   const originalStdout = process.stdout.write.bind(process.stdout) as TuiStdioWrite;
   const originalStderr = process.stderr.write.bind(process.stderr) as TuiStdioWrite;
+  let onDivert = options.onDivert;
 
   const divert =
     (stream: 'stdout' | 'stderr'): TuiStdioWrite =>
@@ -54,7 +87,7 @@ export function installTuiStdioGuard(options: InstallTuiStdioGuardOptions = {}):
       } catch {
         // Logging must never throw back into the TUI input path.
       }
-      options.onDivert?.(stream, text);
+      onDivert?.(stream, text);
       done?.(null);
       return true;
     }) as TuiStdioWrite;
@@ -65,6 +98,10 @@ export function installTuiStdioGuard(options: InstallTuiStdioGuardOptions = {}):
   return {
     logPath,
     captured,
+    ttyWrite: originalStdout,
+    setOnDivert(hook) {
+      onDivert = hook;
+    },
     restore() {
       process.stdout.write = originalStdout;
       process.stderr.write = originalStderr;

@@ -31,6 +31,7 @@ import { openWorkerTranscript } from '../../commands/worker-transcript';
 import { ClipboardImageHintController } from '../clipboard/clipboard-image-hint';
 import type { StartupLifecycleHost } from './types';
 import { ttui } from '../../utils/tui-i18n';
+import { ensureMountedTuiStdioGuard } from '../../utils/stdio/tui-stdio-guard';
 import type { SlashCommandHost } from '../../commands/hub/dispatch';
 import {
   missionBandActive,
@@ -173,6 +174,17 @@ export function startStartupEventLoop(
   host: StartupLifecycleHost,
   callbacks: StartupNativeRendererCallbacks,
 ): void {
+  let divertNoticePending = false;
+  ensureMountedTuiStdioGuard({
+    onDivert: () => {
+      if (divertNoticePending) return;
+      divertNoticePending = true;
+      queueMicrotask(() => {
+        divertNoticePending = false;
+        host.showStatus(ttui('tui.stdio.diverted'), 'textMuted');
+      });
+    },
+  });
   host.state.renderer.start();
   setKittyGraphicsChannel((sequence) => {
     host.state.terminal.write(sequence);

@@ -661,4 +661,27 @@ describe('NativeTUIEditor image paste binding', () => {
 
     expect(editor.getText()).toBe('hello world');
   });
+
+  it('rejects compileUnsafe / dist-native / stack blobs and keeps a draft', () => {
+    const statuses: string[] = [];
+    const editor = new NativeTUIEditor({
+      onPromptLeak: (message) => statuses.push(message),
+      leakBlockedMessage: 'Diagnostic output was kept out of the prompt',
+    });
+    editor.setText('keep this draft');
+
+    editor.setText('Error: compileUnsafe boom\n    at Module._load (node:internal/modules/cjs/loader:1:1)');
+    expect(editor.getText()).toBe('keep this draft');
+
+    editor.setText('see dist-native/intermediates/main.cjs for the dump');
+    expect(editor.getText()).toBe('keep this draft');
+
+    editor.setText('Error: boom\n    at foo (app.ts:1:1)\n    at bar (app.ts:2:2)');
+    expect(editor.getText()).toBe('keep this draft');
+    expect(statuses).toHaveLength(3);
+    expect(statuses[0]).toContain('Diagnostic output');
+
+    editor.setText('please restore this draft');
+    expect(editor.getText()).toBe('please restore this draft');
+  });
 });

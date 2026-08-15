@@ -62,6 +62,8 @@ export interface NativeTUIEditorOptions {
   readonly requestRender?: () => void;
   readonly autocompleteMaxVisible?: number;
   readonly autocompleteDebounceMs?: number;
+  readonly onPromptLeak?: (message: string) => void;
+  readonly leakBlockedMessage?: string;
 }
 
 export class NativeTUIEditor implements TUIEditor {
@@ -188,7 +190,12 @@ export class NativeTUIEditor implements TUIEditor {
   }
 
   setText(text: string): void {
-    if (looksLikePromptLeak(text)) return;
+    if (looksLikePromptLeak(text)) {
+      this.options.onPromptLeak?.(
+        this.options.leakBlockedMessage ?? 'Diagnostic output was kept out of the prompt',
+      );
+      return;
+    }
     this.setTextInternal(text, true);
     this.closeAutocomplete(false);
   }
