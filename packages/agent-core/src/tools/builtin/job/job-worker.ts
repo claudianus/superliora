@@ -15,7 +15,7 @@ import {
   uiSpawnQualityFlags,
 } from '../../../premium-quality';
 import { requestJobSchedulePump } from '../../../session/job/job-offload';
-import { resolveJobWorkerRemainingTimeoutMs } from '../../../session/subagent/subagent-host';
+import { resolveJobWorkerLaunchTimeoutMs } from '../../../session/subagent/subagent-host';
 import type { SubagentCompletion } from '../../../session/subagent/subagent-host-types';
 import { renderFrictionSection } from '../../../session/subagent/subagent-friction';
 import {
@@ -616,7 +616,8 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
   const parentToolCallId = `job:${job.id}:${randomUUID().slice(0, 8)}`;
   // Mission (Plan Desk) uses the longer plan-desk budget; implement/verify stay 30m.
   // Resume inherits spent wall-clock from workerDeadlineStartedAt (never full reset).
-  const workerTimeoutMs = resolveJobWorkerRemainingTimeoutMs(
+  // Exhausted remaining is 1ms — never timeoutMs:0 (that is the env kill-switch).
+  const workerTimeoutMs = resolveJobWorkerLaunchTimeoutMs(
     job.kind,
     job.workerDeadlineStartedAt,
   );

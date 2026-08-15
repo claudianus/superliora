@@ -65,6 +65,8 @@ export {
   isPermanentSubagentProviderFailure,
   isSubagentDeadlineError,
   isSubagentMaxTokensError,
+  EXHAUSTED_JOB_WORKER_TIMEOUT_MS,
+  resolveJobWorkerLaunchTimeoutMs,
   resolveJobWorkerRemainingTimeoutMs,
   resolveJobWorkerTimeoutMs,
   resolvePlanDeskDeadlineMs,

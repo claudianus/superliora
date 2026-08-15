@@ -76,9 +76,14 @@ export function resolveJobWorkerTimeoutMs(kind: string | undefined): number {
 /**
  * Resume budget inherit: subtract wall-clock already spent since the job's
  * first worker bind (`workerDeadlineStartedAt`). Fresh jobs (no start stamp)
- * get the full kind budget. Never returns negative — a fully spent budget
- * yields 0 so the hard deadline aborts immediately rather than resetting 30/45m.
+ * get the full kind budget. Never returns negative.
+ *
+ * Exhausted remaining is {@link EXHAUSTED_JOB_WORKER_TIMEOUT_MS} (1ms), not 0:
+ * `timeoutMs: 0` is the {@link SUBAGENT_DEADLINE_ENV} kill-switch (unlimited)
+ * and must never be used to mean "budget already spent".
  */
+export const EXHAUSTED_JOB_WORKER_TIMEOUT_MS = 1;
+
 export function resolveJobWorkerRemainingTimeoutMs(
   kind: string | undefined,
   deadlineStartedAt: string | undefined,
@@ -91,7 +96,22 @@ export function resolveJobWorkerRemainingTimeoutMs(
   const started = Date.parse(deadlineStartedAt);
   if (!Number.isFinite(started)) return budget;
   const spent = Math.max(0, nowMs - started);
-  return Math.max(0, budget - spent);
+  const remaining = budget - spent;
+  if (remaining <= 0) return EXHAUSTED_JOB_WORKER_TIMEOUT_MS;
+  return remaining;
+}
+
+/**
+ * Fanout / `runWithActiveChild` timeout for a job worker. Maps exhausted
+ * remaining onto {@link EXHAUSTED_JOB_WORKER_TIMEOUT_MS} so a spent resume
+ * never disables the hard deadline.
+ */
+export function resolveJobWorkerLaunchTimeoutMs(
+  kind: string | undefined,
+  deadlineStartedAt: string | undefined,
+  nowMs: number = Date.now(),
+): number {
+  return resolveJobWorkerRemainingTimeoutMs(kind, deadlineStartedAt, nowMs);
 }
 
 function parseDeadlineEnv(raw: string | undefined): number | undefined {

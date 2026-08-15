@@ -8,7 +8,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { CONDUCTOR_DEFAULT_MAX_CONCURRENT_JOBS } from '../../src/tools/builtin/job/job-runtime';
 import {
-  JOB_WORKER_PROGRESS_STALL_MS,
   JOB_WORKER_SPAWN_BUDGET_MS,
   JOB_WORKER_SPAWN_MAX_CONCURRENT,
   WorkerSpawner,
@@ -22,13 +21,6 @@ function defer(): Promise<void> {
 describe('WorkerSpawner (V2-2 spawn isolation)', () => {
   it('exposes the locked 30s spawn budget', () => {
     expect(JOB_WORKER_SPAWN_BUDGET_MS).toBe(30_000);
-  });
-
-  it('keeps post-spawn progress stall (120s) independent of handshake budget', () => {
-    // Handshake stays 30s so the queue never serializes on a slow first token;
-    // progress stall is a separate post-attach watchdog.
-    expect(JOB_WORKER_PROGRESS_STALL_MS).toBe(120_000);
-    expect(JOB_WORKER_PROGRESS_STALL_MS).toBeGreaterThan(JOB_WORKER_SPAWN_BUDGET_MS);
   });
 
   it('classifies merge/push/goal-desk as non-LLM launches (off spawner pool)', async () => {

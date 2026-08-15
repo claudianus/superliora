@@ -33,6 +33,7 @@ import {
   DEFAULT_PLAN_DESK_DEADLINE_MS,
   DEFAULT_SUBAGENT_DEADLINE_MS,
   DEFAULT_SUBAGENT_TIMEOUT_MS,
+  EXHAUSTED_JOB_WORKER_TIMEOUT_MS,
   PLAN_DESK_DEADLINE_ENV,
   SUBAGENT_DEADLINE_ENV,
   SessionSubagentHost,
@@ -41,6 +42,7 @@ import {
   describeSubagentToolDetail,
   isSubagentDeadlineError,
   isSubagentMaxTokensError,
+  resolveJobWorkerLaunchTimeoutMs,
   resolveJobWorkerRemainingTimeoutMs,
   resolveJobWorkerTimeoutMs,
   resolvePlanDeskDeadlineMs,
@@ -3034,13 +3036,80 @@ describe('resolvePlanDeskDeadlineMs', () => {
     expect(resolveJobWorkerRemainingTimeoutMs('implement', undefined, now)).toBe(
       DEFAULT_SUBAGENT_TIMEOUT_MS,
     );
-    // Fully spent → 0 (do not reset the clock).
+    // Fully spent → exhausted 1ms, never 0 (0 is the env kill-switch).
     expect(
       resolveJobWorkerRemainingTimeoutMs(
         'implement',
         new Date(started).toISOString(),
         started + DEFAULT_SUBAGENT_TIMEOUT_MS + 60_000,
       ),
-    ).toBe(0);
+    ).toBe(EXHAUSTED_JOB_WORKER_TIMEOUT_MS);
+    expect(EXHAUSTED_JOB_WORKER_TIMEOUT_MS).toBeGreaterThan(0);
+    expect(
+      resolveJobWorkerLaunchTimeoutMs(
+        'implement',
+        new Date(started).toISOString(),
+        started + DEFAULT_SUBAGENT_TIMEOUT_MS + 60_000,
+      ),
+    ).toBe(EXHAUSTED_JOB_WORKER_TIMEOUT_MS);
+    expect(
+      resolveSubagentDeadlineMs(
+        resolveJobWorkerLaunchTimeoutMs(
+          'implement',
+          new Date(started).toISOString(),
+          started + DEFAULT_SUBAGENT_TIMEOUT_MS + 60_000,
+        ),
+      ),
+    ).toBe(EXHAUSTED_JOB_WORKER_TIMEOUT_MS);
+  });
+});
+
+describe('runWithActiveChild exhausted remaining', () => {
+  afterEach(() => {
+    delete process.env[SUBAGENT_DEADLINE_ENV];
+  });
+
+  it('does not treat launch timeoutMs from spent remaining as the env kill-switch', () => {
+    delete process.env[SUBAGENT_DEADLINE_ENV];
+    const started = new Date('2026-08-15T00:00:00.000Z').getTime();
+    const launchTimeoutMs = resolveJobWorkerLaunchTimeoutMs(
+      'implement',
+      new Date(started).toISOString(),
+      started + DEFAULT_SUBAGENT_TIMEOUT_MS + 1,
+    );
+    expect(launchTimeoutMs).toBe(EXHAUSTED_JOB_WORKER_TIMEOUT_MS);
+    expect(launchTimeoutMs).not.toBe(0);
+    // Env kill-switch is still 0 and still disables the deadline.
+    expect(resolveSubagentDeadlineMs(0)).toBe(0);
+    // Spent remaining must arm a positive timer.
+    expect(resolveSubagentDeadlineMs(launchTimeoutMs)).toBeGreaterThan(0);
+  });
+
+  it('aborts a wedged child immediately when remaining budget is exhausted (not unlimited)', async () => {
+    const parent = testAgent();
+    parent.configure();
+    parent.newEvents();
+
+    const child = testAgent();
+    child.mockNextResponse({ type: 'text', text: 'I will run Bash.' }, bashCall());
+    const session = fakeSession(parent.agent, child.agent);
+    const host = new SessionSubagentHost(session, 'main');
+
+    delete process.env[SUBAGENT_DEADLINE_ENV];
+    const handle = await host.spawn({
+      profileName: 'explore',
+      parentToolCallId: 'call_exhausted',
+      prompt: 'Keep working',
+      description: 'Spent budget',
+      runInBackground: false,
+      timeoutMs: EXHAUSTED_JOB_WORKER_TIMEOUT_MS,
+      signal,
+    });
+
+    await expect(handle.completion).rejects.toBeInstanceOf(SubagentDeadlineError);
+    await expect(handle.completion).rejects.toMatchObject({
+      code: 'subagent_deadline',
+      deadlineMs: EXHAUSTED_JOB_WORKER_TIMEOUT_MS,
+    });
   });
 });

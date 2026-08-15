@@ -180,14 +180,19 @@ export function runWithActiveChild<TResult, TOptions extends RunWithActiveChildO
     }
   };
 
+  const fireDeadline = (): void => {
+    if (deadlineError !== undefined) return;
+    deadlineError = new SubagentDeadlineError(deadlineMs);
+    controller.abort(deadlineError);
+  };
+
   const armDeadlineTimer = (ms: number): void => {
     clearDeadlineTimer();
     if (ms <= 0 || deadlinePaused) return;
     deadlineStartedAt = Date.now();
     deadlineRemainingMs = ms;
     deadlineTimer = setTimeout(() => {
-      deadlineError = new SubagentDeadlineError(deadlineMs);
-      controller.abort(deadlineError);
+      fireDeadline();
     }, ms);
     deadlineTimer.unref?.();
   };
@@ -223,7 +228,21 @@ export function runWithActiveChild<TResult, TOptions extends RunWithActiveChildO
     armDeadlineTimer(deadlineMs);
   }
 
-  return run({ ...options, signal: controller.signal })
+  // Abort must settle `handle.completion`: if `run` ignores AbortSignal
+  // (wedged approval, hung generate), the deadline still rejects the
+  // wrapper so callers do not hang until the test/process timeout.
+  const deadlineAbort = new Promise<never>((_resolve, reject) => {
+    const onAbort = (): void => {
+      if (deadlineError !== undefined) reject(deadlineError);
+    };
+    if (controller.signal.aborted) {
+      onAbort();
+      return;
+    }
+    controller.signal.addEventListener('abort', onAbort, { once: true });
+  });
+
+  return Promise.race([run({ ...options, signal: controller.signal }), deadlineAbort])
     .catch((error: unknown) => {
       if (deadlineError !== undefined) throw deadlineError;
       throw error;
