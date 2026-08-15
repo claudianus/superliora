@@ -25,6 +25,7 @@ import {
   appearanceArgumentCompletions,
   personaArgumentCompletions,
   localeArgumentCompletions,
+  performanceArgumentCompletions,
 } from './completion-specs';
 import { pluginsArgumentCompletions } from '../plugins/plugins';
 import { transcriptArgumentCompletions } from '../session/transcript';
@@ -459,6 +460,15 @@ export function getBuiltinSlashCommandsSession(): readonly LioraSlashCommand[] {
     priority: 60,
     argumentHint: '[profile|density|timestamps|particles|…]',
     completeArgs: appearanceArgumentCompletions,
+    availability: 'always',
+  },
+  {
+    name: 'performance',
+    aliases: ['perf'],
+    description: slashDesc('performance'),
+    priority: 60,
+    argumentHint: '[off|auto|on]',
+    completeArgs: performanceArgumentCompletions,
     availability: 'always',
   },
   {

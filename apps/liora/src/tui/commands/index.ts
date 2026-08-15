@@ -13,6 +13,7 @@ export { handleBtwCommand } from './btw';
 export { handleAskCommand, setAskMode } from './config/plan/ask';
 export { handleCompactCommand, handlePlanCommand } from './config/plan/plan';
 export { handleAppearanceCommand } from './config/appearance/appearance';
+export { handlePerformanceCommand } from './config/appearance/performance';
 export { handleContextCommand, showContextWorkingSetPicker } from './config/context/context';
 export { handleEditorCommand, handleThemeCommand } from './config/appearance/editor-theme';
 export { handleModelCommand, showModelPicker } from './config/model/model';

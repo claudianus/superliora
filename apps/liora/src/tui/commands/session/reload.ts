@@ -7,6 +7,7 @@ import {
   loadTuiConfig,
   type TuiConfig,
 } from '../../config';
+import { resolveEffectiveAppearance } from '../../features/appearance/performance-mode';
 import type { SlashCommandHost } from '../hub/dispatch';
 import { setExperimentalFeatures } from '../experimental-flags';
 import { resolveCliLocale, setCliLocale } from '#/cli/i18n';
@@ -69,10 +70,13 @@ export async function applyReloadedTuiConfig(
     appearance,
     footer: config.footer ?? DEFAULT_FOOTER_PREFERENCES,
     locale: config.locale,
+    performanceMode: config.performanceMode,
   });
   setCliLocale(resolveCliLocale({ preference: config.locale, env: process.env }));
-  host.setTranscriptDetail(appearance.transcriptDetail);
-  host.setNeatMode(appearance.neat);
+  // Live density follows performance overlay when active; stored prefs stay.
+  const effective = resolveEffectiveAppearance(config.performanceMode, appearance);
+  host.setTranscriptDetail(effective.transcriptDetail);
+  host.setNeatMode(effective.neat);
   if ('setDisablePasteBurst' in host.state.editor) {
     (host.state.editor as { setDisablePasteBurst(disabled: boolean): void }).setDisablePasteBurst(
       config.disablePasteBurst,

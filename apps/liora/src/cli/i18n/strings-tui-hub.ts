@@ -71,6 +71,7 @@ export const STRINGS_TUI_HUB_EN: Readonly<Record<string, string>> = {
   'tui.slash.plan': "Plan mode — model writes a plan file, you approve (interview → write)",
   'tui.slash.ask': "Ask mode — investigate and answer without editing or delegating (Shift-Tab)",
   'tui.slash.locale': "Set UI language (auto, English, Korean)",
+  'tui.slash.performance': "Performance mode overlay for low-spec machines (off, auto, on)",
 };
 
 export const STRINGS_TUI_HUB_KO: Readonly<Record<string, string>> = {
@@ -143,4 +144,5 @@ export const STRINGS_TUI_HUB_KO: Readonly<Record<string, string>> = {
   'tui.slash.plan': "Plan 모드 — 모델이 계획 파일 작성, 승인 (인터뷰 → 작성)",
   'tui.slash.ask': "Ask 모드 — 편집·위임 없이 조사 및 답변 (Shift-Tab)",
   'tui.slash.locale': "UI 언어 설정 (자동, 영어, 한국어)",
+  'tui.slash.performance': "저사양 성능 모드 오버레이 (off, auto, on)",
 };

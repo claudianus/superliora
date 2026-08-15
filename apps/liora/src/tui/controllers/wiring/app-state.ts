@@ -116,7 +116,7 @@ export class AppStateController {
       return;
     }
     if ('planMode' in patch) host.updateEditorBorderHighlight();
-    if ('appearance' in patch) {
+    if ('appearance' in patch || 'performanceMode' in patch) {
       host.appearanceController.apply();
       // `mission_control` rides the appearance prefs; keep the panel's
       // pinned placeholder in sync no matter which command set it.

@@ -62,6 +62,7 @@ export function createInitialAppState(input: InitialAppStateInput): AppState {
     activityTip: null,
     theme: input.tuiConfig.theme,
     locale: input.tuiConfig.locale,
+    performanceMode: input.tuiConfig.performanceMode,
     disablePasteBurst: input.tuiConfig.disablePasteBurst,
     version: input.version,
     editorCommand: input.tuiConfig.editorCommand,

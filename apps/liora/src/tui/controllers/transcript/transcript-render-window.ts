@@ -8,16 +8,27 @@ import { UserMessageComponent } from '../../components/messages/user-message';
 import { WelcomeComponent } from '../../components/chrome/welcome';
 import {
   TRANSCRIPT_HYSTERESIS,
-  TRANSCRIPT_KEEP_RECENT_STEPS,
   TRANSCRIPT_WINDOW_ENABLED,
   groupTurns,
   resolveTranscriptMaxTurns,
   turnsToTrim,
 } from '../../features/transcript/transcript-window';
+import { resolvePerformanceOverlay } from '../../features/appearance/performance-mode';
+import { DEFAULT_APPEARANCE_PREFERENCES, DEFAULT_PERFORMANCE_MODE } from '../../config';
 import { getTranscriptComponentEntry } from '../../features/transcript/transcript-component-metadata';
 import { hasDispose } from '../../utils/component-capabilities';
 import { requestTUIContentRender } from '../../utils/render/frame-render';
 import type { TranscriptRenderHost } from './transcript-render';
+
+function performanceTranscriptCaps(host: TranscriptRenderHost): {
+  readonly maxTurns: number;
+  readonly keepRecentSteps: number;
+} {
+  const stored = host.state.appState.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;
+  const mode = host.state.appState.performanceMode ?? DEFAULT_PERFORMANCE_MODE;
+  const overlay = resolvePerformanceOverlay(mode, stored);
+  return { maxTurns: overlay.maxTurns, keepRecentSteps: overlay.keepRecentSteps };
+}
 
 export function isTurnBoundaryComponent(child: Component): boolean {
   if (!(child instanceof UserMessageComponent) && !(child instanceof PluginCommandComponent)) {
@@ -31,7 +42,10 @@ export function isTurnBoundaryComponent(child: Component): boolean {
 export function trimTranscriptWindow(host: TranscriptRenderHost): boolean {
   if (!TRANSCRIPT_WINDOW_ENABLED) return false;
   // Replay/resume must stay capped — never skip solely because isReplaying is true.
-  const maxTurns = resolveTranscriptMaxTurns(host.state.appState.isReplaying);
+  const caps = performanceTranscriptCaps(host);
+  const maxTurns = resolveTranscriptMaxTurns(host.state.appState.isReplaying, {
+    maxTurns: caps.maxTurns,
+  });
   if (maxTurns <= 0) return false;
 
   const children = host.state.transcriptContainer.children;
@@ -84,7 +98,8 @@ export function trimTranscriptWindow(host: TranscriptRenderHost): boolean {
 }
 
 export function mergeCurrentTurnSteps(host: TranscriptRenderHost): boolean {
-  if (TRANSCRIPT_KEEP_RECENT_STEPS <= 0) return false;
+  const keepRecentSteps = performanceTranscriptCaps(host).keepRecentSteps;
+  if (keepRecentSteps <= 0) return false;
   const children = host.state.transcriptContainer.children;
 
   let turnStart = -1;
@@ -109,10 +124,10 @@ export function mergeCurrentTurnSteps(host: TranscriptRenderHost): boolean {
   }
 
   const mergeThreshold = host.state.appState.isReplaying
-    ? TRANSCRIPT_KEEP_RECENT_STEPS + Math.max(TRANSCRIPT_KEEP_RECENT_STEPS, 20)
-    : TRANSCRIPT_KEEP_RECENT_STEPS;
+    ? keepRecentSteps + Math.max(keepRecentSteps, 20)
+    : keepRecentSteps;
   if (stepIndices.length <= mergeThreshold) return false;
-  const mergeCount = stepIndices.length - TRANSCRIPT_KEEP_RECENT_STEPS;
+  const mergeCount = stepIndices.length - keepRecentSteps;
   const toMergeIndices = stepIndices.slice(0, mergeCount);
 
   let thinkingCount = 0;
@@ -153,7 +168,8 @@ export function mergeCurrentTurnSteps(host: TranscriptRenderHost): boolean {
 }
 
 export function mergeAllTurnSteps(host: TranscriptRenderHost): void {
-  if (TRANSCRIPT_KEEP_RECENT_STEPS <= 0) return;
+  const keepRecentSteps = performanceTranscriptCaps(host).keepRecentSteps;
+  if (keepRecentSteps <= 0) return;
   const children = host.state.transcriptContainer.children;
 
   const boundaries: number[] = [];
@@ -180,8 +196,8 @@ export function mergeAllTurnSteps(host: TranscriptRenderHost): void {
       else stepIndices.push(i);
     }
 
-    if (stepIndices.length > TRANSCRIPT_KEEP_RECENT_STEPS) {
-      const mergeCount = stepIndices.length - TRANSCRIPT_KEEP_RECENT_STEPS;
+    if (stepIndices.length > keepRecentSteps) {
+      const mergeCount = stepIndices.length - keepRecentSteps;
       const toMergeIndices = stepIndices.slice(0, mergeCount);
       let thinkingCount = 0;
       let toolCount = 0;

@@ -33,6 +33,7 @@ import { handleLoginCommand, handleLogoutCommand } from '../auth/login';
 import { handleBtwCommand } from '../btw';
 import { handleAutoCommand, handlePermissionCommand, handleYoloCommand, showPermissionPicker } from '../config/permission/permission';
 import { handleAppearanceCommand } from '../config/appearance/appearance';
+import { handlePerformanceCommand } from '../config/appearance/performance';
 import { handleLocaleCommand } from '../config/locale/locale';
 import { handleAskCommand } from '../config/plan/ask';
 import { handleCompactCommand, handlePlanCommand } from '../config/plan/plan';
@@ -416,6 +417,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'appearance':
       await handleAppearanceCommand(host, args);
+      return;
+    case 'performance':
+      await handlePerformanceCommand(host, args);
       return;
     case 'locale':
       await handleLocaleCommand(host, args);

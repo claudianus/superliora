@@ -193,6 +193,27 @@ Quality auto-degrades based on frame health (`NativeFrameStatsHealth`) and
 renderer quality level. SSH / `NO_COLOR` / `CI` / `TERM=dumb` force `off` or
 static fallbacks.
 
+### 7.2.1 Performance mode overlay (`off` | `auto` | `on`)
+
+Orthogonal to Appearance packs and Visual Quality. Default **`off`** so new
+installs never surprise-downgrade motion. Stored `[appearance]` prefs are
+never rewritten.
+
+- **`off`** — overlay inactive; effective look === stored appearance.
+- **`auto`** — overlay active only on low-spec hardware (logical CPUs ≤ 8
+  **and** total RAM ≤ 8 GiB). Just over either boundary stays inactive.
+- **`on`** — always active, even on high-spec machines.
+
+When active, effective motion matches the Appearance **Off** pack
+(`profile off`, `particles off`, `animationFps 15`, `transcriptDetail compact`)
+and transcript RAM caps tighten to **maxTurns 24** / **keepRecentSteps 12**.
+Module defaults `TRANSCRIPT_MAX_TURNS` (50) and `TRANSCRIPT_KEEP_RECENT_STEPS`
+(30) stay unchanged. Turning the overlay off restores stored prefs live.
+
+Entry points: Settings → Appearance → Performance mode, `/performance
+[off|auto|on]`, `tui.toml` `performance_mode`. Implementation:
+`features/appearance/performance-mode.ts`.
+
 ### 7.3 Premium motion quality bar
 
 "Premium" means **more than a 2-frame blink**: multi-frame pulses, staged

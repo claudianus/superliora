@@ -415,6 +415,19 @@ export function localeArgumentCompletions(argumentPrefix: string): AutocompleteI
   return completeI18n(LOCALE_ARG_COMPLETIONS, argumentPrefix);
 }
 
+const PERFORMANCE_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
+  arg('off', 'tui.performance.option.offDesc'),
+  arg('auto', 'tui.performance.option.autoDesc'),
+  arg('on', 'tui.performance.option.onDesc'),
+];
+
+/** Leading-arg completions for `/performance` (`off` / `auto` / `on`). */
+export function performanceArgumentCompletions(
+  argumentPrefix: string,
+): AutocompleteItem[] | null {
+  return completeI18n(PERFORMANCE_ARG_COMPLETIONS, argumentPrefix);
+}
+
 /**
  * Completions for `/appearance`.
  * First token: preference keys. Second token: fixed values for that key
