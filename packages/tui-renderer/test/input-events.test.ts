@@ -18,27 +18,27 @@ import {
 describe('NativeInputDecoder', () => {
   it('decodes printable text, controls, and legacy navigation sequences', () => {
     expect(decodeNativeInput('a\u0003\u001B[A\u001B[B\u001B[5~\u001B[6~\r')).toEqual([
-      { type: 'key', key: 'character', raw: 'a', text: 'a', ctrl: false, alt: false, shift: false },
-      { type: 'key', key: 'character', raw: '\u0003', text: 'c', ctrl: true, alt: false, shift: false },
-      { type: 'key', key: 'up', raw: '\u001B[A', ctrl: false, alt: false, shift: false },
-      { type: 'key', key: 'down', raw: '\u001B[B', ctrl: false, alt: false, shift: false },
-      { type: 'key', key: 'pageup', raw: '\u001B[5~', ctrl: false, alt: false, shift: false },
-      { type: 'key', key: 'pagedown', raw: '\u001B[6~', ctrl: false, alt: false, shift: false },
-      { type: 'key', key: 'enter', raw: '\r', ctrl: false, alt: false, shift: false },
+      { type: 'key', key: 'character', raw: 'a', text: 'a', ctrl: false, alt: false, shift: false, super: false },
+      { type: 'key', key: 'character', raw: '\u0003', text: 'c', ctrl: true, alt: false, shift: false, super: false },
+      { type: 'key', key: 'up', raw: '\u001B[A', ctrl: false, alt: false, shift: false, super: false },
+      { type: 'key', key: 'down', raw: '\u001B[B', ctrl: false, alt: false, shift: false, super: false },
+      { type: 'key', key: 'pageup', raw: '\u001B[5~', ctrl: false, alt: false, shift: false, super: false },
+      { type: 'key', key: 'pagedown', raw: '\u001B[6~', ctrl: false, alt: false, shift: false, super: false },
+      { type: 'key', key: 'enter', raw: '\r', ctrl: false, alt: false, shift: false, super: false },
     ]);
   });
 
   it('decodes home/end/delete/insert, focus, shift-tab, escape, and alt text', () => {
     expect(decodeNativeInput('\u001B[H\u001B[F\u001B[3~\u001B[2~\u001B[I\u001B[O\u001B[Z\u001Ba\u001B')).toEqual([
-      { type: 'key', key: 'home', raw: '\u001B[H', ctrl: false, alt: false, shift: false },
-      { type: 'key', key: 'end', raw: '\u001B[F', ctrl: false, alt: false, shift: false },
-      { type: 'key', key: 'delete', raw: '\u001B[3~', ctrl: false, alt: false, shift: false },
-      { type: 'key', key: 'insert', raw: '\u001B[2~', ctrl: false, alt: false, shift: false },
+      { type: 'key', key: 'home', raw: '\u001B[H', ctrl: false, alt: false, shift: false, super: false },
+      { type: 'key', key: 'end', raw: '\u001B[F', ctrl: false, alt: false, shift: false, super: false },
+      { type: 'key', key: 'delete', raw: '\u001B[3~', ctrl: false, alt: false, shift: false, super: false },
+      { type: 'key', key: 'insert', raw: '\u001B[2~', ctrl: false, alt: false, shift: false, super: false },
       { type: 'focus', focused: true, raw: '\u001B[I' },
       { type: 'focus', focused: false, raw: '\u001B[O' },
-      { type: 'key', key: 'tab', raw: '\u001B[Z', ctrl: false, alt: false, shift: true },
-      { type: 'key', key: 'character', raw: '\u001Ba', text: 'a', ctrl: false, alt: true, shift: false },
-      { type: 'key', key: 'escape', raw: '\u001B', ctrl: false, alt: false, shift: false },
+      { type: 'key', key: 'tab', raw: '\u001B[Z', ctrl: false, alt: false, shift: true, super: false },
+      { type: 'key', key: 'character', raw: '\u001Ba', text: 'a', ctrl: false, alt: true, shift: false, super: false },
+      { type: 'key', key: 'escape', raw: '\u001B', ctrl: false, alt: false, shift: false, super: false },
     ]);
   });
 
@@ -139,9 +139,9 @@ describe('NativeInputDecoder', () => {
 
   it('decodes CSI-u printable and modified keys', () => {
     expect(decodeNativeInput('\u001B[113u\u001B[13;5u\u001B[65;2u')).toEqual([
-      { type: 'key', key: 'character', raw: '\u001B[113u', text: 'q', ctrl: false, alt: false, shift: false },
-      { type: 'key', key: 'enter', raw: '\u001B[13;5u', ctrl: true, alt: false, shift: false },
-      { type: 'key', key: 'character', raw: '\u001B[65;2u', text: 'A', ctrl: false, alt: false, shift: true },
+      { type: 'key', key: 'character', raw: '\u001B[113u', text: 'q', ctrl: false, alt: false, shift: false, super: false },
+      { type: 'key', key: 'enter', raw: '\u001B[13;5u', ctrl: true, alt: false, shift: false, super: false },
+      { type: 'key', key: 'character', raw: '\u001B[65;2u', text: 'A', ctrl: false, alt: false, shift: true, super: false },
     ]);
   });
 
@@ -180,7 +180,7 @@ describe('NativeInputDecoder', () => {
         text: 'c',
         ctrl: true,
         alt: false,
-        shift: false,
+        shift: false, super: false,
       },
     ]);
     expect(matchesKey(ctrlCHangul, Key.ctrl('c'))).toBe(true);
@@ -201,11 +201,11 @@ describe('NativeInputDecoder', () => {
 
   it('decodes Kitty modified functional keys and event/text CSI-u fields', () => {
     expect(decodeNativeInput('\u001B[1;5A\u001B[1;6H\u001B[1;5F\u001B[3;3~\u001B[15~\u001B[97;6:2;65u\u001B[0;;229u')).toEqual([
-      { type: 'key', key: 'up', raw: '\u001B[1;5A', ctrl: true, alt: false, shift: false },
-      { type: 'key', key: 'home', raw: '\u001B[1;6H', ctrl: true, alt: false, shift: true },
-      { type: 'key', key: 'end', raw: '\u001B[1;5F', ctrl: true, alt: false, shift: false },
-      { type: 'key', key: 'delete', raw: '\u001B[3;3~', ctrl: false, alt: true, shift: false },
-      { type: 'key', key: 'f5', raw: '\u001B[15~', ctrl: false, alt: false, shift: false },
+      { type: 'key', key: 'up', raw: '\u001B[1;5A', ctrl: true, alt: false, shift: false, super: false },
+      { type: 'key', key: 'home', raw: '\u001B[1;6H', ctrl: true, alt: false, shift: true, super: false },
+      { type: 'key', key: 'end', raw: '\u001B[1;5F', ctrl: true, alt: false, shift: false, super: false },
+      { type: 'key', key: 'delete', raw: '\u001B[3;3~', ctrl: false, alt: true, shift: false, super: false },
+      { type: 'key', key: 'f5', raw: '\u001B[15~', ctrl: false, alt: false, shift: false, super: false },
       {
         type: 'key',
         key: 'character',
@@ -214,9 +214,9 @@ describe('NativeInputDecoder', () => {
         eventType: 'repeat',
         ctrl: true,
         alt: false,
-        shift: true,
+        shift: true, super: false,
       },
-      { type: 'key', key: 'character', raw: '\u001B[0;;229u', text: 'å', ctrl: false, alt: false, shift: false },
+      { type: 'key', key: 'character', raw: '\u001B[0;;229u', text: 'å', ctrl: false, alt: false, shift: false, super: false },
     ]);
   });
 
@@ -278,7 +278,7 @@ describe('NativeInputDecoder', () => {
 
     expect(decoder.decode('\u001B[1;')).toEqual([]);
     expect(decoder.decode('5A')).toEqual([
-      { type: 'key', key: 'up', raw: '\u001B[1;5A', ctrl: true, alt: false, shift: false },
+      { type: 'key', key: 'up', raw: '\u001B[1;5A', ctrl: true, alt: false, shift: false, super: false },
     ]);
   });
 
@@ -289,7 +289,7 @@ describe('NativeInputDecoder', () => {
     expect(decoder.decode(han.subarray(0, 1))).toEqual([]);
     expect(decoder.decode(han.subarray(1, 2))).toEqual([]);
     expect(decoder.decode(han.subarray(2))).toEqual([
-      { type: 'key', key: 'character', raw: '한', text: '한', ctrl: false, alt: false, shift: false },
+      { type: 'key', key: 'character', raw: '한', text: '한', ctrl: false, alt: false, shift: false, super: false },
     ]);
   });
 
@@ -299,11 +299,11 @@ describe('NativeInputDecoder', () => {
 
     expect(decoder.decode(bytes.subarray(0, 2))).toEqual([]);
     expect(decoder.decode(bytes.subarray(2, 3))).toEqual([
-      { type: 'key', key: 'character', raw: '안', text: '안', ctrl: false, alt: false, shift: false },
+      { type: 'key', key: 'character', raw: '안', text: '안', ctrl: false, alt: false, shift: false, super: false },
     ]);
     expect(decoder.decode(bytes.subarray(3, 5))).toEqual([]);
     expect(decoder.decode(bytes.subarray(5, 6))).toEqual([
-      { type: 'key', key: 'character', raw: '녕', text: '녕', ctrl: false, alt: false, shift: false },
+      { type: 'key', key: 'character', raw: '녕', text: '녕', ctrl: false, alt: false, shift: false, super: false },
     ]);
   });
 
@@ -371,7 +371,7 @@ describe('NativeInputDecoder', () => {
     expect(timerCb).toBeTypeOf('function');
     timerCb?.();
     expect(resolved).toEqual([
-      { type: 'key', key: 'escape', raw: '\u001B', ctrl: false, alt: false, shift: false },
+      { type: 'key', key: 'escape', raw: '\u001B', ctrl: false, alt: false, shift: false, super: false },
     ]);
   });
 
@@ -399,7 +399,7 @@ describe('NativeInputDecoder', () => {
     const decoder = new NativeInputDecoder({ escapeResolveMs: -1 });
     expect(decoder.decode('\u001BO')).toEqual([]);
     expect(decoder.decode('P')).toEqual([
-      { type: 'key', key: 'f1', raw: '\u001BOP', ctrl: false, alt: false, shift: false },
+      { type: 'key', key: 'f1', raw: '\u001BOP', ctrl: false, alt: false, shift: false, super: false },
     ]);
   });
 
@@ -407,11 +407,11 @@ describe('NativeInputDecoder', () => {
     const decoder = new NativeInputDecoder();
 
     expect(decoder.decode('a\u001B[200~hello')).toEqual([
-      { type: 'key', key: 'character', raw: 'a', text: 'a', ctrl: false, alt: false, shift: false },
+      { type: 'key', key: 'character', raw: 'a', text: 'a', ctrl: false, alt: false, shift: false, super: false },
     ]);
     expect(decoder.decode('\nworld\u001B[201~b')).toEqual([
       { type: 'paste', raw: '\u001B[200~hello\nworld\u001B[201~', text: 'hello\nworld' },
-      { type: 'key', key: 'character', raw: 'b', text: 'b', ctrl: false, alt: false, shift: false },
+      { type: 'key', key: 'character', raw: 'b', text: 'b', ctrl: false, alt: false, shift: false, super: false },
     ]);
   });
 
@@ -442,7 +442,7 @@ describe('NativeInputDecoder', () => {
         text: 'c',
         ctrl: true,
         alt: false,
-        shift: false,
+        shift: false, super: false,
       }),
     ).toBe('\u0003');
     expect(
@@ -453,7 +453,7 @@ describe('NativeInputDecoder', () => {
         text: 'a',
         ctrl: false,
         alt: true,
-        shift: false,
+        shift: false, super: false,
       }),
     ).toBe('\u001Ba');
     expect(
@@ -465,7 +465,7 @@ describe('NativeInputDecoder', () => {
         eventType: 'release',
         ctrl: true,
         alt: false,
-        shift: true,
+        shift: true, super: false,
       }),
     ).toBeUndefined();
     expect(
