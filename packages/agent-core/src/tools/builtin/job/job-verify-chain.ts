@@ -486,14 +486,41 @@ function verifyChildrenReady(children: readonly JobRecord[]): boolean {
   return children.every((c) => c.status === 'done' || c.status === 'failed');
 }
 
+/**
+ * Timeout / route_fail / env (frames=0, bash|pnpm ENOENT) missing-JSON is VOID
+ * ceremony — not a dual-axis format gap worth structured_verdict_retry hops.
+ */
+function isVoidEnvOrTimeoutMissing(job: JobRecord): boolean {
+  const blob = [job.notes, job.resultSummary].filter(Boolean).join('\n').toLowerCase();
+  if (blob.length === 0) return false;
+  return (
+    /\btimeout\b|\btimed out\b|route_fail/.test(blob) ||
+    /frames\s*=\s*0/.test(blob) ||
+    /\bbash\b[\s\S]{0,40}\benoent\b|\benoent\b[\s\S]{0,40}\bbash\b/.test(blob) ||
+    /\bpnpm\b[\s\S]{0,40}\benoent\b|\benoent\b[\s\S]{0,40}\bpnpm\b/.test(blob)
+  );
+}
+
 /** Retry / supersede: merge + aggregate only look at the newest Job per axis. */
 function latestVerifyChildrenByAxis(children: readonly JobRecord[]): JobRecord[] {
   const byAxis = new Map<string, JobRecord>();
   for (const child of children) {
     const key = child.reviewAxis ?? 'combined';
     const prev = byAxis.get(key);
+    if (prev === undefined) {
+      byAxis.set(key, child);
+      continue;
+    }
+    // Missing-JSON / unparsed is VOID: never supersede a resolved sibling on the
+    // same axis (timeout after pass must not poison merge).
+    const childResolved = resolveVerifyChildVerdict(child) !== undefined;
+    const prevResolved = resolveVerifyChildVerdict(prev) !== undefined;
+    if (prevResolved && !childResolved) continue;
+    if (!prevResolved && childResolved) {
+      byAxis.set(key, child);
+      continue;
+    }
     if (
-      prev === undefined ||
       child.updatedAt > prev.updatedAt ||
       (child.updatedAt === prev.updatedAt && child.createdAt > prev.createdAt) ||
       (child.updatedAt === prev.updatedAt &&
@@ -622,17 +649,21 @@ export async function onJobTerminalForVerifyChain(
     }
 
     if (stamped === undefined) {
-      const retry = await enqueueStructuredVerdictRetry(store, parent, job, agent);
-      if (retry !== undefined) {
-        patchJob(store, parent.id, {
-          notes: [
-            getJob(store, parent.id)?.notes,
-            `verify_chain: ${job.id}${job.reviewAxis !== undefined ? ` axis=${job.reviewAxis}` : ''} verdict=missing`,
-          ]
-            .filter(Boolean)
-            .join('\n'),
-        });
-        return;
+      // Timeout / route_fail / env missing is VOID — do not spawn structured_verdict_retry hops.
+      // Free-text format gaps still get one dual-axis JSON retry (not Debug).
+      if (!isVoidEnvOrTimeoutMissing(job)) {
+        const retry = await enqueueStructuredVerdictRetry(store, parent, job, agent);
+        if (retry !== undefined) {
+          patchJob(store, parent.id, {
+            notes: [
+              getJob(store, parent.id)?.notes,
+              `verify_chain: ${job.id}${job.reviewAxis !== undefined ? ` axis=${job.reviewAxis}` : ''} verdict=missing`,
+            ]
+              .filter(Boolean)
+              .join('\n'),
+          });
+          return;
+        }
       }
     }
 
@@ -659,7 +690,8 @@ export async function onJobTerminalForVerifyChain(
         .filter(Boolean)
         .join('\n'),
     });
-    // Debug only for stamped fail — missing JSON is a requeue/format problem, not a code bug.
+    // Debug only for stamped fail — missing JSON (incl. void timeout) is not a code bug;
+    // never enqueueDebugJobForVerify on missing-JSON / unparsed verdict.
     if (verdict === 'failed') {
       const failedChild = children.find((c) => resolveVerifyChildVerdict(c) === 'failed');
       if (failedChild !== undefined) {
@@ -728,6 +760,8 @@ export function evaluateVerifyChainForMerge(input: {
       reason: 'Verify chain incomplete — both Standards and Spec axis Jobs are required.',
     };
   }
+  // latestVerifyChildrenByAxis already drops void missing when a resolved sibling
+  // exists on that axis — timeout after pass is not poison.
   const verdict = aggregateVerifyVerdict(children);
   if (verdict !== 'passed') {
     const failed = children.find((c) => resolveVerifyChildVerdict(c) !== 'passed') ?? children[0]!;

@@ -443,4 +443,114 @@ ${'x'.repeat(200)}
       }),
     ).toEqual({ ok: true });
   });
+
+  it('merge ignores older/newer missing-JSON void when same-axis sibling already passed', () => {
+    // Real poison case: standards timeout (no dual-axis JSON) finished after a
+    // passed standards sibling — missing is VOID, not a merge hard-fail.
+    const implement = job({
+      id: 'job_impl_void',
+      title: 'Feature',
+      kind: 'implement',
+      expertId: 'maker-1',
+    });
+    const standardsPass = job({
+      id: 'job_std_pass',
+      title: 'Verify standards',
+      kind: 'verify',
+      parentJobId: 'job_impl_void',
+      expertId: 'checker-std',
+      reviewAxis: 'standards',
+      status: 'done',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:01.000Z',
+      verifyVerdict: 'passed',
+      resultSummary: '{"standards":{"verdict":"pass","findings":[]},"verdict":"pass"}',
+    });
+    const standardsTimeoutMissing = job({
+      id: 'job_std_timeout',
+      title: 'Verify standards',
+      kind: 'verify',
+      parentJobId: 'job_impl_void',
+      expertId: 'checker-std-2',
+      reviewAxis: 'standards',
+      status: 'failed',
+      createdAt: '2026-01-01T00:00:02.000Z',
+      updatedAt: '2026-01-01T00:30:00.000Z',
+      notes: 'worker timed out after 30m; route_fail',
+      resultSummary: 'Agent timed out after 30 minutes. No dual-axis JSON.',
+    });
+    const specPass = job({
+      id: 'job_spec_pass',
+      title: 'Verify spec',
+      kind: 'verify',
+      parentJobId: 'job_impl_void',
+      expertId: 'checker-spec',
+      reviewAxis: 'spec',
+      status: 'done',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:02.000Z',
+      verifyVerdict: 'passed',
+      resultSummary: '{"spec":{"verdict":"pass","findings":[]},"verdict":"pass"}',
+    });
+    expect(
+      evaluateVerifyChainForMerge({
+        job: implement,
+        jobs: [implement, standardsPass, standardsTimeoutMissing, specPass],
+      }),
+    ).toEqual({ ok: true });
+
+    // Older missing + later same-axis pass still ok (existing supersede path).
+    const olderMissing = job({
+      id: 'job_std_old_missing',
+      title: 'Verify standards',
+      kind: 'verify',
+      parentJobId: 'job_impl_void',
+      expertId: 'checker-std',
+      reviewAxis: 'standards',
+      status: 'failed',
+      createdAt: '2025-12-31T00:00:00.000Z',
+      updatedAt: '2025-12-31T00:00:01.000Z',
+      resultSummary: 'PASS in prose only',
+    });
+    expect(
+      evaluateVerifyChainForMerge({
+        job: implement,
+        jobs: [implement, olderMissing, standardsPass, specPass],
+      }),
+    ).toEqual({ ok: true });
+  });
+
+  it('skips structured-verdict retry for timeout/route_fail/env missing, not free-text', async () => {
+    const store = memoryStore();
+    const parent = createJob(store, {
+      title: 'Timeout void',
+      kind: 'implement',
+      expertId: 'maker-x',
+      ownershipPaths: ['src/App.js'],
+      surfaceKind: 'none',
+    });
+    patchJob(store, parent.id, { status: 'done' });
+    await onJobTerminalForVerifyChain(store, { ...parent, status: 'done' });
+    const firstWave = listJobs(store).filter((j) => j.kind === 'verify');
+    expect(firstWave).toHaveLength(2);
+
+    for (const verify of firstWave) {
+      patchJob(store, verify.id, {
+        status: 'failed',
+        resultSummary: 'Agent timed out after 30 minutes. frames=0 bash ENOENT pnpm ENOENT',
+        notes: 'route_fail: worker timeout',
+        expertId: `checker-${verify.reviewAxis ?? 'ui'}`,
+      });
+      await onJobTerminalForVerifyChain(store, listJobs(store).find((j) => j.id === verify.id)!);
+    }
+
+    // Timeout/env missing is VOID ceremony — do not spawn structured_verdict_retry or Debug.
+    expect(listJobs(store).filter((j) => j.kind === 'verify')).toHaveLength(2);
+    expect(
+      listJobs(store).find((j) => j.notes?.includes('structured_verdict_retry')),
+    ).toBeUndefined();
+    expect(
+      listJobs(store).find((j) => j.kind === 'implement' && j.title.startsWith('Debug:')),
+    ).toBeUndefined();
+  });
 });
