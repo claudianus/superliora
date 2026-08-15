@@ -8,6 +8,7 @@ import type { Agent } from '../../../agent/index';
 import { globalExpertSearchEngine } from '../../../expert-agents/search';
 import { requestJobSchedulePump } from '../../../session/job/job-offload';
 import type { ToolStore } from '../../store';
+import { dispatchMergeLand } from './job-land';
 import { createJob, getJob, listJobs, patchJob, type JobRecord } from './job-ledger';
 import { surfaceRequiresVisualProof } from './job-surface';
 import { STAFF_MIN_EXPERT_SCORE } from './job-staff';
@@ -697,6 +698,23 @@ export async function onJobTerminalForVerifyChain(
       if (failedChild !== undefined) {
         await enqueueDebugJobForVerify(store, latestParent, failedChild, agent);
       }
+      return;
+    }
+    // surface_kind=none + latest-per-axis pass → auto MergeJob land (no human click).
+    // tui/web/mixed still require visual=passed via human MergeJob; do not auto-dispatch.
+    if (verdict === 'passed') {
+      const parentNow = getJob(store, parent.id) ?? latestParent;
+      const jobsNow = listJobs(store);
+      if (shouldAutoEnqueueMergeAfterVerify(parentNow, jobsNow)) {
+        dispatchMergeLand({
+          store,
+          sourceJob: parentNow,
+          trustMode: 'auto',
+          trustReason:
+            'verify_chain: latest-per-axis passed; surface_kind=none auto land (no human MergeJob click)',
+          agent,
+        });
+      }
     }
     return;
   }
@@ -705,6 +723,34 @@ export async function onJobTerminalForVerifyChain(
     if (hasVerifyChild(store, job.id)) return;
     await enqueueVerifyJobForParent(store, job, agent);
   }
+}
+
+/**
+ * Auto land after verify only when:
+ * - parent is a done coding job with surface_kind=none
+ * - latest-per-axis verify gate is ok (Maker≠Checker + dual-axis pass)
+ * - no merge child already exists
+ *
+ * NEVER auto-merge tui/web/mixed — visual proof stays a human MergeJob path.
+ * Does not touch job-merge-trust visual gate.
+ */
+export function shouldAutoEnqueueMergeAfterVerify(
+  parent: JobRecord,
+  jobs: readonly JobRecord[],
+): boolean {
+  if (parent.kind !== 'task' && parent.kind !== 'implement') return false;
+  if (parent.status !== 'done') return false;
+  if (parent.surfaceKind !== 'none') return false;
+  if (jobs.some((j) => j.parentJobId === parent.id && j.kind === 'merge')) return false;
+  return evaluateVerifyChainForMerge({ job: parent, jobs }).ok;
+}
+
+/** True when a done coding job has a green verify chain and no merge child yet. */
+export function isMergeReadyJob(parent: JobRecord, jobs: readonly JobRecord[]): boolean {
+  if (parent.kind !== 'task' && parent.kind !== 'implement') return false;
+  if (parent.status !== 'done') return false;
+  if (jobs.some((j) => j.parentJobId === parent.id && j.kind === 'merge')) return false;
+  return evaluateVerifyChainForMerge({ job: parent, jobs }).ok;
 }
 
 /** Merge gate: UI/implement land needs a passed verify child (and no maker=checker). */
