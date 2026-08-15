@@ -9,10 +9,12 @@ import {
   onJobTerminalForVerifyChain,
   parseVerifyVerdict,
   resolveVerifyChildVerdict,
+  shouldAutoEnqueueMergeAfterVerify,
   shouldEnqueueVerifyAfterDone,
 } from '../../src/tools/builtin/job/job-verify-chain';
 import { createJob, getJob, listJobs, patchJob } from '../../src/tools/builtin/job/job-ledger';
 import type { JobRecord } from '../../src/tools/builtin/job/job-store-key';
+import { steerJobWorker } from '../../src/tools/builtin/job/job-worker';
 import type { ToolStore } from '../../src/tools/store';
 
 function memoryStore(): ToolStore {
@@ -552,5 +554,115 @@ ${'x'.repeat(200)}
     expect(
       listJobs(store).find((j) => j.kind === 'implement' && j.title.startsWith('Debug:')),
     ).toBeUndefined();
+  });
+
+  it('auto-enqueues merge land after latest-per-axis verify pass when surface_kind=none', async () => {
+    const store = memoryStore();
+    // Manual ledger: skip enqueueVerifyJobForParent (expert search) — exercise terminal only.
+    const parent = createJob(store, {
+      title: 'Scheduler fix',
+      kind: 'implement',
+      expertId: 'maker-x',
+      ownershipPaths: ['packages/agent-core/src/tools/builtin/job/job-runtime.ts'],
+      surfaceKind: 'none',
+    });
+    patchJob(store, parent.id, { status: 'done', resultSummary: 'fixed ordering' });
+    const standards = createJob(store, {
+      title: 'Verify standards',
+      kind: 'verify',
+      parentJobId: parent.id,
+      expertId: 'checker-std',
+      reviewAxis: 'standards',
+      surfaceKind: 'none',
+    });
+    const spec = createJob(store, {
+      title: 'Verify spec',
+      kind: 'verify',
+      parentJobId: parent.id,
+      expertId: 'checker-spec',
+      reviewAxis: 'spec',
+      surfaceKind: 'none',
+    });
+    for (const verify of [standards, spec]) {
+      patchJob(store, verify.id, {
+        status: 'done',
+        verifyVerdict: 'passed',
+        resultSummary: '{"verdict":"pass","findings":[],"required_fixes":[]}',
+      });
+      await onJobTerminalForVerifyChain(store, getJob(store, verify.id)!);
+    }
+
+    const mergeJobs = listJobs(store).filter((j) => j.kind === 'merge' && j.parentJobId === parent.id);
+    expect(mergeJobs).toHaveLength(1);
+    expect(mergeJobs[0]?.notes).toMatch(/merge-land: dispatched|dispatched/i);
+
+    // Gate helper agrees after merge child exists; second terminal is idempotent.
+    const parentLatest = getJob(store, parent.id)!;
+    expect(shouldAutoEnqueueMergeAfterVerify(parentLatest, listJobs(store))).toBe(false);
+    await onJobTerminalForVerifyChain(store, getJob(store, standards.id)!);
+    expect(
+      listJobs(store).filter((j) => j.kind === 'merge' && j.parentJobId === parent.id),
+    ).toHaveLength(1);
+  });
+
+  it('does not auto-merge tui/web/mixed after verify pass (visual gate stays human MergeJob)', async () => {
+    for (const surfaceKind of ['tui', 'web', 'mixed'] as const) {
+      const store = memoryStore();
+      const parent = createJob(store, {
+        title: `UI ${surfaceKind}`,
+        kind: 'implement',
+        expertId: 'maker-ui',
+        ownershipPaths: ['apps/liora/src/tui/x.ts'],
+        surfaceKind,
+      });
+      patchJob(store, parent.id, { status: 'done', resultSummary: 'ui done' });
+      // Combined UI verify child (matches visual-surface enqueue shape).
+      const verify = createJob(store, {
+        title: `Verify: UI ${surfaceKind}`,
+        kind: 'verify',
+        parentJobId: parent.id,
+        expertId: `checker-${surfaceKind}`,
+        surfaceKind,
+      });
+      patchJob(store, verify.id, {
+        status: 'done',
+        verifyVerdict: 'passed',
+        resultSummary: '{"verdict":"pass","findings":[],"required_fixes":[]}',
+      });
+      await onJobTerminalForVerifyChain(store, getJob(store, verify.id)!);
+      expect(
+        listJobs(store).filter((j) => j.kind === 'merge' && j.parentJobId === parent.id),
+      ).toHaveLength(0);
+      expect(shouldAutoEnqueueMergeAfterVerify(getJob(store, parent.id)!, listJobs(store))).toBe(
+        false,
+      );
+    }
+  });
+
+  it('JobSteer surface_kind on blocked job persists and counts as steered=true', () => {
+    const store = memoryStore();
+    const blocked = createJob(store, {
+      title: 'Missing surface',
+      kind: 'implement',
+      expertId: 'maker-x',
+    });
+    patchJob(store, blocked.id, {
+      status: 'blocked',
+      notes: 'merge: hold — surface_kind missing',
+    });
+
+    const result = steerJobWorker({
+      store,
+      jobId: blocked.id,
+      message: 'Declare surface for merge gate',
+      surfaceKind: 'none',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.steered).toBe(true);
+    expect(result.job?.surfaceKind).toBe('none');
+    expect(result.job?.status).toBe('blocked');
+    expect(getJob(store, blocked.id)?.surfaceKind).toBe('none');
+    expect(getJob(store, blocked.id)?.notes).toMatch(/surface_kind=none/);
   });
 });

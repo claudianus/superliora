@@ -24,6 +24,7 @@ import {
   formatJobStripLine,
   summarizeJobStrip,
 } from '#/tools/builtin/job/job-runtime';
+import { isMergeReadyJob } from '#/tools/builtin/job/job-verify-chain';
 import {
   missionHasBlockingFog,
   parseImplementHandoff,
@@ -76,9 +77,17 @@ export class JobDeskInjector extends DynamicInjector {
     const unread = listUnreadJobInbox(store);
     const live = liveWorkerLines(store);
     if (unread.length === 0) {
-      // Still show strip when in-flight jobs exist (no inbox spam).
+      // Still show strip when in-flight jobs exist (no inbox spam), or when the
+      // ledger still has merge-ready / remaining implement work (avoid idle 멍때림).
       const strip = summarizeJobStrip(store);
-      if (strip.running === 0 && strip.queued === 0 && strip.interrupted === 0 && strip.needsUser === 0) {
+      const actionable = ledgerHasActionableWork(store, strip);
+      if (
+        strip.running === 0 &&
+        strip.queued === 0 &&
+        strip.interrupted === 0 &&
+        strip.needsUser === 0 &&
+        !actionable
+      ) {
         return undefined;
       }
       // Throttle strip-only: once per injectedAt cycle is enough via DynamicInjector.
@@ -251,6 +260,8 @@ function nextMoveGuidance(
   if (events.some((e) => e.kind === 'job.completed')) {
     return 'verify done-claims against the brief; report the outcome; MergeJob if landing is wanted; PushJob / Push Preview for remote publish (never ask the user to paste git push).';
   }
+  const mergeReadyMove = mergeReadyNextMove(store);
+  if (mergeReadyMove !== undefined) return mergeReadyMove;
   if (strip.queued > 0) {
     return 'queued work is waiting on a pool slot — report the order honestly (running, then queued) and raise priority instead of creating a duplicate.';
   }
@@ -258,6 +269,37 @@ function nextMoveGuidance(
     return 'workers are live: steer only on real new information, never poll, and keep the lane free for the user.';
   }
   return undefined;
+}
+
+/** Done coding jobs with a green verify chain and no merge child yet. */
+function mergeReadyNextMove(store: ToolStore | undefined): string | undefined {
+  if (store === undefined) return undefined;
+  const jobs = listJobs(store);
+  const ready = jobs.find((j) => isMergeReadyJob(j, jobs));
+  if (ready === undefined) return undefined;
+  if (ready.surfaceKind === 'none') {
+    return (
+      `Job ${ready.id} is merge-ready (verify passed, surface_kind=none) — land via MergeJob ` +
+      `(auto land may already be dispatched); do not sit idle with remaining work.`
+    );
+  }
+  return (
+    `Job ${ready.id} is merge-ready (verify passed) — MergeJob when visual/trust gates allow; ` +
+    'do not sit idle with remaining work.'
+  );
+}
+
+/**
+ * Wake the Conductor when the board still needs a move even with an empty inbox:
+ * merge-ready parents, blocked/failed coding jobs, or remaining implement/task queue.
+ */
+function ledgerHasActionableWork(
+  store: ToolStore,
+  strip: ReturnType<typeof summarizeJobStrip>,
+): boolean {
+  if (strip.queued > 0 || strip.blocked > 0 || strip.failed > 0) return true;
+  const jobs = listJobs(store);
+  return jobs.some((j) => isMergeReadyJob(j, jobs));
 }
 
 /** Model-route failure: steer Conductor to a different model_alias, not a blind retry. */

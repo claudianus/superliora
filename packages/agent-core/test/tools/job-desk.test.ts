@@ -409,4 +409,51 @@ describe('job desk next-move guidance', () => {
     const text = renderJobDeskInjection([event('job.completed', 'done')], idleStrip);
     expect(text).toContain('Next move: verify done-claims against the brief');
   });
+
+  it('wakes Conductor for merge-ready ledger work even when inbox unread is empty', async () => {
+    const store = memoryStore();
+    // Implement done + independent verify passed, no merge child, no unread inbox.
+    const parent = createJob(store, {
+      title: 'merge-ready work',
+      kind: 'implement',
+      expertId: 'maker-desk',
+      surfaceKind: 'none',
+    });
+    patchJob(store, parent.id, {
+      status: 'done',
+      resultSummary: 'implementation complete',
+    });
+    const verify = createJob(store, {
+      title: 'Verify: merge-ready work',
+      kind: 'verify',
+      parentJobId: parent.id,
+      expertId: 'checker-desk',
+      surfaceKind: 'none',
+    });
+    patchJob(store, verify.id, {
+      status: 'done',
+      verifyVerdict: 'passed',
+      resultSummary: '{"verdict":"pass","findings":[],"required_fixes":[]}',
+    });
+    expect(listUnreadJobInbox(store)).toHaveLength(0);
+
+    const injector = new JobDeskInjector(fakeMainAgent(store));
+    const text = await injector.collectForBatch();
+    expect(text).toBeDefined();
+    expect(text).toContain('<conductor_job_desk>');
+    expect(text).toMatch(/Next move:.*MergeJob|merge-ready|land/i);
+  });
+
+  it('wakes Conductor for remaining queued implement work with empty inbox', async () => {
+    const store = memoryStore();
+    const job = createJob(store, { title: 'still queued', kind: 'implement' });
+    patchJob(store, job.id, { status: 'queued', priority: 1 });
+    expect(listUnreadJobInbox(store)).toHaveLength(0);
+
+    const injector = new JobDeskInjector(fakeMainAgent(store));
+    const text = await injector.collectForBatch();
+    expect(text).toBeDefined();
+    expect(text).toContain('Next move:');
+    expect(text).toMatch(/queued|priority/i);
+  });
 });

@@ -991,12 +991,21 @@ export function steerJobWorker(input: {
       steered = false;
     }
   }
+  // Ledger patches (esp. surface_kind on blocked/done jobs with no worker) count as
+  // steered so JobSteer is not a no-op when the worker is inactive.
+  if (!steered && input.surfaceKind !== undefined) {
+    steered = true;
+  }
 
   const note = [
     existing.notes,
     `steer: ${input.message}`,
     input.surfaceKind !== undefined ? `steer: surface_kind=${input.surfaceKind}` : undefined,
-    steered ? 'steer: delivered to worker' : 'steer: ledger only (worker not active)',
+    steered
+      ? workerId && host
+        ? 'steer: delivered to worker'
+        : 'steer: ledger patched (worker not active)'
+      : 'steer: ledger only (worker not active)',
   ]
     .filter(Boolean)
     .join('\n');
