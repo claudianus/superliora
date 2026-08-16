@@ -8,7 +8,6 @@ import {
 
 import { printableChar } from '#/tui/utils/printable-key';
 
-import type { TUIEditorGhostKind, TUIEditorInputMode } from './editor-contract';
 import {
   handleNativeTUIEditorEmptyPromptNavigation,
   type NativeTUIEditorShortcutHost,
@@ -18,16 +17,15 @@ export interface NativeTUIEditorDispatchHost extends NativeTUIEditorShortcutHost
   getAutocompleteController(): RendererEditorAutocompleteController;
   getTextInput(): RendererTextInput;
   getPasteBurst(): PasteBurst;
-  getGhostKind(): TUIEditorGhostKind;
   getDisablePasteBurst(): boolean;
   getGhostText(): string | undefined;
   getText(): string;
   getLines(): string[];
   getCursor(): import('#/tui/renderer').RendererEditorCursor;
+  isBrowsingHistory(): boolean;
   onPasteText?: (text: string) => boolean;
   onTextPaste?: () => void;
   onInsertNewline?: () => void;
-  onCycleGhost?: (direction: -1 | 1) => void;
   onUpArrowEmpty?: () => boolean;
   onDownArrowEmpty?: () => boolean;
   onEscape?: () => void;
@@ -94,21 +92,16 @@ export function dispatchNativeTUIEditorDecodedEvents(
       host.submit();
       continue;
     }
-    if (event.key === 'up' && host.getText().length === 0) {
-      if (host.getGhostKind() === 'suggestion' && host.getGhostText() !== undefined) {
-        host.onCycleGhost?.(-1);
-        continue;
-      }
-      if (host.onUpArrowEmpty?.() === true) continue;
+    if (event.key === 'up' && shouldNavigateNativeTUIEditorHistory(host)) {
+      // Empty-prompt ↑ is bash-style history (or queue/BTW via onUpArrowEmpty).
+      // After the first restore, keep browsing while historyIndex is set.
+      // Next-task ghost stays a suffix overlay; Tab accepts, arrows do not cycle.
+      if (host.getText().length === 0 && host.onUpArrowEmpty?.() === true) continue;
       host.navigateHistory(-1);
       continue;
     }
-    if (event.key === 'down' && host.getText().length === 0) {
-      if (host.getGhostKind() === 'suggestion' && host.getGhostText() !== undefined) {
-        host.onCycleGhost?.(1);
-        continue;
-      }
-      if (host.onDownArrowEmpty?.() === true) continue;
+    if (event.key === 'down' && shouldNavigateNativeTUIEditorHistory(host)) {
+      if (host.getText().length === 0 && host.onDownArrowEmpty?.() === true) continue;
       host.navigateHistory(1);
       continue;
     }
@@ -174,4 +167,11 @@ export function dispatchNativeTUIEditorDecodedEvents(
     if (event.key === 'enter') host.onInsertNewline?.();
     void host.requestAutocomplete({ force: host.inputMode === 'bash' });
   }
+}
+
+/** Empty prompt, or still walking a recalled history entry. */
+export function shouldNavigateNativeTUIEditorHistory(
+  host: Pick<NativeTUIEditorDispatchHost, 'getText' | 'isBrowsingHistory'>,
+): boolean {
+  return host.getText().length === 0 || host.isBrowsingHistory();
 }

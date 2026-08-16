@@ -311,6 +311,9 @@ function handleTUIStateNativeEditorInput(
     // escape) must reach the menu before the cursor-key handler, which would
     // otherwise swallow up/down as vertical cursor movement and starve the menu.
     if (state.editor.handleAutocompleteNavigation?.(event) === true) return true;
+    // History browse must beat the cursor-key handler: after the first
+    // restore the buffer is non-empty and would otherwise become one-shot.
+    if (state.editor.handleHistoryNavigation?.(event) === true) return true;
     if (handleNativeEditorKeyInput(
       state.nativeEditorTextInput,
       state.editor,

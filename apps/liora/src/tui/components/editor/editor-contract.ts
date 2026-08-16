@@ -83,10 +83,11 @@ export interface TUIEditor
   tryHandleAppShortcut?(data: string): boolean;
   /**
    * Ghost text (prompt intelligence) callbacks. `onAcceptGhost` fires when Tab
-   * confirms the visible ghost text; `onCycleGhost` fires when ↑/↓ rotates the
-   * suggestion candidates while the editor is empty.
+   * confirms the visible ghost text. Empty-prompt ↑/↓ recall submitted history
+   * (bash-style) and do not rotate next-task suggestions.
    */
   onAcceptGhost?: () => void;
+  /** Optional non-arrow cycle hook; ↑/↓ never invoke this. */
   onCycleGhost?: (direction: -1 | 1) => void;
 
   getLines(): string[];
@@ -101,7 +102,7 @@ export interface TUIEditor
   /**
    * Set or clear the dimmed ghost text rendered after the cursor. Pass
    * `undefined` to clear. `kind` distinguishes inline completion from an
-   * empty-editor next-task suggestion (which ↑/↓ can cycle).
+   * empty-editor next-task suggestion (Tab accepts; ↑/↓ recall history).
    */
   setGhostText(text: string | undefined, kind: TUIEditorGhostKind): void;
   /** Currently visible ghost text, or `undefined` when none. */
@@ -123,4 +124,11 @@ export interface TUIEditor
    * otherwise swallow up/down as vertical cursor movement.
    */
   handleAutocompleteNavigation?(event: NativeInputKeyEvent): boolean;
+  /**
+   * Handle a structured native key event for prompt-history browse (↑/↓
+   * while empty or while a recalled entry is still selected). Returns true
+   * when history consumed the event so the cursor-key fallback cannot treat
+   * the restored buffer as a one-shot cursor move.
+   */
+  handleHistoryNavigation?(event: NativeInputKeyEvent): boolean;
 }
