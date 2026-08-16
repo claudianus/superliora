@@ -20,6 +20,7 @@ import { emitJobEvents, jobRecordToUpdatedEvent } from './job-emit';
 import { pushJobInboxEvent } from './job-inbox';
 import { getJob, listJobs, patchJob, type JobRecord } from './job-ledger';
 import { patchJobAndNotify } from './job-notify';
+import { evaluateWorkerVerificationGuard } from './job-worker-guards';
 
 interface WorkerLedgerBinding {
   readonly store: ToolStore;
@@ -187,6 +188,51 @@ export function reportJobWorkerProgress(
   // Skip ledger write + job.updated when only the heartbeat timestamp moved —
   // subagent.progress already drives the live dock strip.
   if (isHeartbeatOnlyProgress(job.progress, progress)) return;
+
+  // verification_commands budget / Read-Grep loop → pre-abort (no 30m sleep).
+  const toolCount =
+    progress.stepsCompleted ??
+    progress.recentTools?.length ??
+    job.progress?.stepsCompleted ??
+    0;
+  const guard = evaluateWorkerVerificationGuard({
+    verificationCommands: job.verificationCommands,
+    toolCount,
+    recentTools: progress.recentTools ?? job.progress?.recentTools,
+  });
+  if (guard.abort) {
+    clearJobWorkerProgressStall(workerAgentId);
+    const handoff = buildWorkerResumeHandoff({
+      job: { ...job, progress },
+      workerAgentId,
+      reason: 'pre_abort',
+      errorMessage: guard.reason,
+    });
+    const failed = patchJobAndNotify(
+      binding.store,
+      job.id,
+      {
+        status: 'failed',
+        progress,
+        resultSummary: handoff,
+        notes: [job.notes, guard.reason, 'verification_guard: pre-abort']
+          .filter(Boolean)
+          .join('\n'),
+      },
+      binding.agent !== undefined ? { agent: binding.agent } : undefined,
+    );
+    if (failed !== undefined) {
+      emitJobEvents(binding.agent, [jobRecordToUpdatedEvent(failed, { reason: 'failed' })]);
+    }
+    // Best-effort: pause the child so it does not keep burning tools.
+    try {
+      pauseActiveChildDeadline(workerAgentId);
+    } catch {
+      // ignore — ledger already failed
+    }
+    return;
+  }
+
   // Progress-only patch: structural-share other jobs (writeJobLedger uses slice).
   const next = patchJob(binding.store, job.id, { progress });
   if (next !== undefined) {

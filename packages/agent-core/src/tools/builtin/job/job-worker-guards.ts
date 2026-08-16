@@ -220,3 +220,96 @@ export function isPathOutsideWorktree(worktreeRoot: string, targetPath: string):
   }
   return false;
 }
+
+/** Tool-count budget before verification_commands must have run (pre-abort). */
+export const WORKER_VERIFICATION_TOOL_BUDGET = 10;
+
+/** Consecutive Read/Grep-only tools that count as an explore-only loop. */
+export const WORKER_READ_GREP_LOOP_MIN = 6;
+
+export interface WorkerVerificationGuardResult {
+  readonly abort: boolean;
+  readonly reason?: string;
+}
+
+function normalizeRecentToolName(entry: string): string {
+  const raw = entry.trim();
+  if (raw.length === 0) return '';
+  // "Bash: cmd" / "Read: path" → tool name only.
+  const colon = raw.indexOf(':');
+  if (colon > 0) return raw.slice(0, colon).trim().toLowerCase();
+  return raw.toLowerCase();
+}
+
+function recentToolsRanVerificationCommand(
+  recentTools: readonly string[] | undefined,
+  verificationCommands: readonly string[],
+): boolean {
+  if (recentTools === undefined || recentTools.length === 0) return false;
+  const needles = verificationCommands
+    .map((c) => c.trim())
+    .filter((c) => c.length > 0)
+    .map((c) => c.toLowerCase());
+  if (needles.length === 0) return false;
+  for (const entry of recentTools) {
+    const hay = entry.toLowerCase();
+    for (const needle of needles) {
+      // Match full command or a distinctive file path fragment from it.
+      if (hay.includes(needle)) return true;
+      const fileHit = needle.match(
+        /(?:apps|packages)\/[^\s"'|;&]+\.(?:ts|tsx|js|mjs|cjs|jsx)\b/i,
+      );
+      if (fileHit?.[0] !== undefined && hay.includes(fileHit[0].toLowerCase())) return true;
+    }
+  }
+  return false;
+}
+
+function isReadGrepOnlyLoop(recentTools: readonly string[] | undefined): boolean {
+  if (recentTools === undefined || recentTools.length < WORKER_READ_GREP_LOOP_MIN) {
+    return false;
+  }
+  const window = recentTools.slice(-WORKER_READ_GREP_LOOP_MIN);
+  return window.every((entry) => {
+    const name = normalizeRecentToolName(entry);
+    return name === 'read' || name === 'grep' || name === 'glob' || name === 'repoquery';
+  });
+}
+
+/**
+ * Pre-abort when a job lists verification_commands but the worker never runs
+ * them within N tools, or only Read/Grep-loops. Pure — caller flips status.
+ */
+export function evaluateWorkerVerificationGuard(input: {
+  readonly verificationCommands: readonly string[] | undefined;
+  readonly toolCount: number;
+  readonly recentTools?: readonly string[];
+  readonly toolBudget?: number;
+}): WorkerVerificationGuardResult {
+  const commands = input.verificationCommands?.filter((c) => c.trim().length > 0) ?? [];
+  if (commands.length === 0) return { abort: false };
+
+  if (recentToolsRanVerificationCommand(input.recentTools, commands)) {
+    return { abort: false };
+  }
+
+  if (isReadGrepOnlyLoop(input.recentTools)) {
+    return {
+      abort: true,
+      reason:
+        'verification_guard: explore-only Read/Grep loop while verification_commands are listed — pre-abort and run the brief checks (or hand off).',
+    };
+  }
+
+  const budget = input.toolBudget ?? WORKER_VERIFICATION_TOOL_BUDGET;
+  if (input.toolCount >= budget) {
+    return {
+      abort: true,
+      reason:
+        `verification_guard: verification_commands not run within ${budget} tools — pre-abort. ` +
+        `Run: ${commands[0]!.slice(0, 200)}`,
+    };
+  }
+
+  return { abort: false };
+}

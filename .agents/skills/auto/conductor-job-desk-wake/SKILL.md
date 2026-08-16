@@ -13,13 +13,13 @@ risk: low
 Route terminal job notices without redoing worker work or running builds/tests on the Conductor lane.
 
 ## Steps
-1. **JobInbox** (mark_read as needed) + **JobList** for live board.
-2. **JobInspect** each unread completed/failed/blocked notice that needs a decision (not every historical done).
+1. **Digest 1** — if the inbox is noisy, fold with desk digest (manual) so the turn sees one escalation card; JobList for the live board. Do not open an Inbox marathon.
+2. **JobInspect 1** — inspect only the highest-severity notice that needs a decision (not every unread / historical done).
 3. **Route:**
    - `needs_user` → AskUserQuestion with evidence; stop.
    - done-claim vs brief: trust ledger fields (verification, result, sha, review_chain). If staffed wrong / no code / checks not run but claim is incomplete → JobCreate reframe with parent_job_id and smaller scope. Do not re-verify by running tests yourself.
-   - failed / timeout → diagnose from JobInspect notes/worktree; reframe with JobCreate(continue_from_job_id=…) when the same deliverable continues (reuses worktree/resume), else smaller cold JobCreate or escalate with evidence. Stop blind retries.
-   - Plan Desk completed → JobInspect Implement handoff → JobCreate from those fields (copy `test_seams` / `tdd_mode` when present; greenfield_chain when delivery_mode=greenfield); do not invent a fresh brief from memory.
+   - failed / timeout → diagnose from that one JobInspect; reframe with JobCreate(continue_from_job_id=…) when the same deliverable continues (reuses worktree/resume), else smaller cold JobCreate or escalate with evidence. Stop blind retries.
+   - Plan Desk completed → JobInspect 1 Implement handoff → JobCreate from those fields (copy `test_seams` / `tdd_mode` when present; greenfield_chain when delivery_mode=greenfield); do not invent a fresh brief from memory.
    - Wayfinder fog: if the plan summary still has a non-empty `## Not yet specified` that blocks the finish line, do **not** JobCreate(implement) — EnterPlanMode / explore to clear decisions first.
 4. **ACK** board deltas (job_id — title — state). End turn.
 

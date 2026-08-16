@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { Agent } from '../../src/agent';
 import {
   CONDUCTOR_WAKE_ORIGIN,
+  CONDUCTOR_WAKE_PROMPT,
   requestConductorWake,
 } from '../../src/session/job/conductor-wake';
 import { __resetJobWorkerHandlesForTests } from '../../src/tools/builtin/job/job-handles';
@@ -102,6 +103,11 @@ describe('requestConductorWake', () => {
     expect(prompts).toHaveLength(1);
     expect(prompts[0]?.origin).toEqual(CONDUCTOR_WAKE_ORIGIN);
     expect(prompts[0]?.input[0]?.text).toContain('routing pass');
+    // Cap: digest 1 + highest-severity JobInspect 1 — no Inbox+Inspect marathon.
+    expect(CONDUCTOR_WAKE_PROMPT).toMatch(/digest\s*1|one digest|1 digest/i);
+    expect(CONDUCTOR_WAKE_PROMPT).toMatch(/JobInspect\s*1|1 JobInspect|highest[- ]severity/i);
+    expect(CONDUCTOR_WAKE_PROMPT).not.toMatch(/JobInspect each unread/i);
+    expect(prompts[0]?.input[0]?.text).toBe(CONDUCTOR_WAKE_PROMPT);
   });
 
   it('does not fire on an empty inbox, a busy lane, or a sub lane', () => {
