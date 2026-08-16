@@ -30,6 +30,7 @@ import {
 import { Session } from '../../src/session';
 import { collectGitContext } from '../../src/session/git-context';
 import {
+  DEFAULT_EXPLORE_DEADLINE_MS,
   DEFAULT_PLAN_DESK_DEADLINE_MS,
   DEFAULT_SUBAGENT_DEADLINE_MS,
   DEFAULT_SUBAGENT_TIMEOUT_MS,
@@ -3011,6 +3012,15 @@ describe('resolvePlanDeskDeadlineMs', () => {
     expect(resolveJobWorkerTimeoutMs('verify')).toBe(DEFAULT_SUBAGENT_TIMEOUT_MS);
     expect(resolveJobWorkerTimeoutMs('mission')).toBe(DEFAULT_PLAN_DESK_DEADLINE_MS);
     expect(resolveJobWorkerTimeoutMs('task')).toBe(DEFAULT_SUBAGENT_TIMEOUT_MS);
+  });
+
+  it('defaults explore/research to the shorter 20m explore budget', () => {
+    delete process.env[SUBAGENT_DEADLINE_ENV];
+    delete process.env[PLAN_DESK_DEADLINE_ENV];
+    expect(resolveJobWorkerTimeoutMs('explore')).toBe(DEFAULT_EXPLORE_DEADLINE_MS);
+    expect(resolveJobWorkerTimeoutMs('research')).toBe(DEFAULT_EXPLORE_DEADLINE_MS);
+    expect(DEFAULT_EXPLORE_DEADLINE_MS).toBe(20 * 60 * 1000);
+    expect(DEFAULT_EXPLORE_DEADLINE_MS).toBeLessThan(DEFAULT_SUBAGENT_TIMEOUT_MS);
   });
 
   it('inherits spent wall-clock on resume via resolveJobWorkerRemainingTimeoutMs', () => {

@@ -13,6 +13,7 @@
 import type { Agent } from '../../agent';
 import type { AgentEvent } from '@superliora/protocol';
 import {
+  persistJobWorkerPreAbortHandoff,
   reportJobWorkerProgress,
   reportJobWorkerStalled,
 } from '../../tools/builtin/job/job-worker-ledger-bridge';
@@ -36,11 +37,21 @@ const SUBAGENT_STALL_MS = 300_000;
 const CHECKPOINT_TOOL_DELTA = 10;
 /** Finishing mode starts when this much budget remains (T4-5). */
 const SUBAGENT_FINISHING_WINDOW_MS = 5 * 60 * 1000;
+/** Explore handoff reminder: force a 1-page resume handoff before wall-clock death. */
+const SUBAGENT_EXPLORE_HANDOFF_WINDOW_MS = 10 * 60 * 1000;
 const SUBAGENT_FINISHING_REMINDER = [
   'Time budget is nearly exhausted — enter finishing mode now:',
   '- do not start new implementation work',
   '- run the verification still owed for completed work',
   '- then write the final structured summary of what is done and what remains',
+].join('\n');
+const SUBAGENT_EXPLORE_HANDOFF_REMINDER = [
+  'Explore wall-clock is nearly exhausted — emit a 1-page implementable handoff NOW:',
+  '- last files / symbols inspected (paths only)',
+  '- last command or tool that produced signal',
+  '- concrete next steps for an implement worker (no repo-wide rescan)',
+  '- open questions / blockers only if evidence supports them',
+  'Do not start another broad scan. continue_from must resume from this page.',
 ].join('\n');
 
 /**
@@ -61,14 +72,23 @@ export function startProgressReporter(
   let lastChangeAt = startedAt;
   let stalledReported = false;
   let finishingNotified = false;
+  let exploreHandoffNotified = false;
   let lastCheckpointToolCount = 0;
   let checkpointInFlight = false;
+  const isExploreProfile =
+    profileName === 'explore' || profileName === 'research' || profileName.startsWith('explore');
   const timer = setInterval(() => {
     const stats = collectSubagentProgressStats(child);
     const now = Date.now();
     const elapsedMs = now - startedAt;
     const budgetRemainingMs = Math.max(0, budgetMs - elapsedMs);
     const finishing = budgetRemainingMs <= SUBAGENT_FINISHING_WINDOW_MS;
+    // Explore: mandatory 1-page handoff at T-10m of remaining budget (or earlier
+    // when the whole budget is ≤20m and half is gone).
+    const exploreHandoff =
+      isExploreProfile &&
+      (budgetRemainingMs <= SUBAGENT_EXPLORE_HANDOFF_WINDOW_MS ||
+        (budgetMs <= 20 * 60 * 1000 && budgetRemainingMs <= budgetMs / 2));
     parent.emitEvent({
       type: 'subagent.progress',
       subagentId: childId,
@@ -86,15 +106,30 @@ export function startProgressReporter(
     // JobList/JobInspect and the desk injection see live worker state.
     // No-op for subagents that are not job workers.
     reportJobWorkerProgress(childId, {
-      phase: progressPhaseLabel(stats, finishing),
+      phase: progressPhaseLabel(stats, finishing || exploreHandoff),
       lastHeartbeatAt: new Date(now).toISOString(),
+      recentTools:
+        stats.lastTool !== undefined
+          ? [stats.lastTarget !== undefined ? `${stats.lastTool}:${stats.lastTarget}` : stats.lastTool]
+          : undefined,
     });
+    if (exploreHandoff && !exploreHandoffNotified) {
+      exploreHandoffNotified = true;
+      child.context.appendSystemReminder(SUBAGENT_EXPLORE_HANDOFF_REMINDER, {
+        kind: 'system_trigger',
+        name: 'subagent-explore-handoff',
+      });
+      // Persist resume handoff onto the Job so continue_from has evidence even
+      // if the worker dies empty at the hard deadline.
+      persistJobWorkerPreAbortHandoff(childId, { reason: 'pre_abort' });
+    }
     if (finishing && !finishingNotified) {
       finishingNotified = true;
       child.context.appendSystemReminder(SUBAGENT_FINISHING_REMINDER, {
         kind: 'system_trigger',
         name: 'subagent-finishing',
       });
+      persistJobWorkerPreAbortHandoff(childId, { reason: 'finishing' });
     }
     if (stats.toolCount !== lastToolCount) {
       lastToolCount = stats.toolCount;

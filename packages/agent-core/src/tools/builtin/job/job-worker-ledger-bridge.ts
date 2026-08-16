@@ -2,6 +2,10 @@
  * Bridge so job workers (subagents) can mark their parent Job `needs_user`
  * when AskUserQuestion runs — Plan Desk interview cards land on JobInbox
  * while the question UI still uses the shared session RPC.
+ *
+ * Also owns pre-abort resume handoff: when finishing mode or a wall-clock
+ * deadline hits, last progress + open files land on the Job result so
+ * continue_from does not restart a repo-wide scan from zero.
  */
 
 import type { JobProgressSnapshot } from '@superliora/protocol';
@@ -9,6 +13,7 @@ import type { JobProgressSnapshot } from '@superliora/protocol';
 import type { Agent } from '../../../agent/index';
 import { requestConductorWake } from '../../../session/job/conductor-wake';
 import { JOB_WORKER_PROGRESS_STALL_MS } from '../../../session/job/worker-spawner';
+import { readSubagentCheckpoint } from '../../../session/subagent/subagent-checkpoint';
 import { pauseActiveChildDeadline } from '../../../session/subagent/subagent-run-lifecycle';
 import type { ToolStore } from '../../store';
 import { emitJobEvents, jobRecordToUpdatedEvent } from './job-emit';
@@ -235,6 +240,134 @@ export function reportJobWorkerStalled(workerAgentId: string, silentMs: number):
   if (next !== undefined) {
     emitJobEvents(binding.agent, [jobRecordToUpdatedEvent(next, { reason: 'stalled' })]);
   }
+}
+
+/**
+ * Build a one-page resume handoff so continue_from / cold reattach does not
+ * restart a repo-wide scan. Pure — no I/O except optional checkpoint read.
+ */
+export function buildWorkerResumeHandoff(input: {
+  readonly job: JobRecord;
+  readonly workerAgentId?: string;
+  readonly reason: 'pre_abort' | 'deadline' | 'finishing';
+  readonly errorMessage?: string;
+  /** Inject checkpoint for tests; default reads disk for workerAgentId. */
+  readonly checkpoint?: {
+    readonly lastTool?: string;
+    readonly lastTarget?: string;
+    readonly dirtyFiles?: readonly string[];
+    readonly toolCount?: number;
+    readonly elapsedMs?: number;
+  };
+}): string {
+  const { job, reason, errorMessage } = input;
+  const progress = job.progress;
+  const checkpoint =
+    input.checkpoint ??
+    (input.workerAgentId !== undefined ? readSubagentCheckpoint(input.workerAgentId) : undefined);
+
+  const lines: string[] = [
+    '## Resume handoff (wall-clock / pre-abort)',
+    `reason: ${reason}`,
+    `job: ${job.id} (${job.kind}) — ${job.title}`,
+  ];
+  if (errorMessage !== undefined && errorMessage.trim().length > 0) {
+    lines.push(`error: ${errorMessage.trim().slice(0, 400)}`);
+  }
+  if (progress?.phase) lines.push(`last_phase: ${progress.phase}`);
+  if (progress?.recentTools && progress.recentTools.length > 0) {
+    lines.push(`recent_tools: ${progress.recentTools.slice(0, 8).join(', ')}`);
+  }
+  if (progress?.lastHeartbeatAt) lines.push(`last_heartbeat: ${progress.lastHeartbeatAt}`);
+  if (progress?.stepsCompleted !== undefined) {
+    lines.push(
+      `steps: ${String(progress.stepsCompleted)}${
+        progress.stepsTotal !== undefined ? `/${String(progress.stepsTotal)}` : ''
+      }`,
+    );
+  }
+  const lastCommand =
+    checkpoint?.lastTool !== undefined
+      ? checkpoint.lastTarget !== undefined
+        ? `${checkpoint.lastTool}: ${checkpoint.lastTarget}`
+        : checkpoint.lastTool
+      : progress?.phase;
+  if (lastCommand !== undefined && lastCommand.trim().length > 0) {
+    lines.push(`last_command: ${lastCommand.trim().slice(0, 200)}`);
+  }
+  if (checkpoint?.toolCount !== undefined) {
+    lines.push(`tools_completed: ${String(checkpoint.toolCount)}`);
+  }
+  if (checkpoint?.elapsedMs !== undefined) {
+    lines.push(`elapsed_before_stop: ${String(Math.round(checkpoint.elapsedMs / 1000))}s`);
+  }
+  const dirty = checkpoint?.dirtyFiles ?? [];
+  if (dirty.length > 0) {
+    lines.push(`open_files:\n- ${dirty.slice(0, 20).join('\n- ')}`);
+  } else {
+    lines.push('open_files: (none recorded)');
+  }
+  if (job.workerResumeAgentId !== undefined) {
+    lines.push(
+      `resume_agent: ${job.workerResumeAgentId}${
+        job.workerCheckpointAt ? ` @ ${job.workerCheckpointAt}` : ''
+      }`,
+    );
+  }
+  if (job.worktreePath) lines.push(`worktree: ${job.worktreePath}`);
+  lines.push(
+    'continue_from: Do not restart a repo-wide scan. Verify open_files + last_command, then finish the brief from there.',
+  );
+  return lines.join('\n').slice(0, 3500);
+}
+
+/**
+ * Persist a resume handoff onto a still-running job (finishing / pre-abort)
+ * without flipping status. Idempotent note stamp.
+ */
+export function persistJobWorkerPreAbortHandoff(
+  workerAgentId: string,
+  options: { readonly reason?: 'pre_abort' | 'finishing' } = {},
+): JobRecord | undefined {
+  const binding = byWorkerAgentId.get(workerAgentId);
+  if (binding === undefined) return undefined;
+  const job = getJob(binding.store, binding.jobId);
+  if (job === undefined || job.status !== 'running') return undefined;
+  const reason = options.reason ?? 'pre_abort';
+  const handoff = buildWorkerResumeHandoff({
+    job,
+    workerAgentId,
+    reason,
+  });
+  // Avoid rewriting every 5s once finishing is active.
+  if (job.resultSummary?.includes('## Resume handoff') === true) {
+    return job;
+  }
+  const next = patchJob(binding.store, job.id, {
+    resultSummary: handoff,
+    notes: [job.notes, `resume_handoff: ${reason} checkpoint written`].filter(Boolean).join('\n'),
+  });
+  if (next !== undefined) {
+    emitJobEvents(binding.agent, [jobRecordToUpdatedEvent(next, { reason: 'progress' })]);
+  }
+  return next;
+}
+
+/**
+ * Terminal deadline path: always write a resume handoff into the failed result
+ * so continue_from has something to read (empty 30m failure is the bug).
+ */
+export function buildDeadlineFailureSummary(
+  job: JobRecord,
+  errorMessage: string,
+  workerAgentId?: string,
+): string {
+  return buildWorkerResumeHandoff({
+    job,
+    workerAgentId,
+    reason: 'deadline',
+    errorMessage,
+  });
 }
 
 export function __resetJobWorkerLedgerBridgeForTests(): void {
