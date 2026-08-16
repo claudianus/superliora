@@ -64,6 +64,28 @@ describe('job notes cap', () => {
     patchJob(store, job.id, { notes: 'worker: completed' });
     expect(getJob(store, job.id)?.notes).toBe('worker: completed');
   });
+
+  it('pins implement_handoff, success criteria, SHA, and failure stderr across overflow', () => {
+    const store = memoryStore();
+    const job = createJob(store, { title: 'overflow pin' });
+    const pinned = [
+      'implement_handoff: success_criteria=["tests pass"] ownership_paths=["src/fix.ts"]',
+      'success_criteria: tests=green typecheck=green',
+      'sha=abcdef0123456789deadbeefcafebabe01234567',
+      'stderr: fatal: Authentication failed for https://github.com/acme/repo.git',
+    ];
+    patchJob(store, job.id, {
+      notes: [...pinned, ...Array.from({ length: 40 }, (_, i) => `worker: heartbeat ${i}`)].join('\n'),
+    });
+
+    const notes = getJob(store, job.id)?.notes ?? '';
+    expect(notes).toContain('implement_handoff');
+    expect(notes).toContain('success_criteria');
+    expect(notes).toContain('sha=abcdef0123456789deadbeefcafebabe01234567');
+    expect(notes).toMatch(/stderr:.*Authentication failed/);
+    expect(notes).toContain('worker: heartbeat 39');
+    expect(notes).toMatch(/earlier note\(s\) trimmed/);
+  });
 });
 
 describe('renderJobInspect', () => {

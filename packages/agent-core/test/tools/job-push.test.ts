@@ -172,6 +172,64 @@ describe('pushJobToRemote', () => {
     expect(ghCalls.some((c) => c.includes('/repos/claudianus/metalslug1/pages'))).toBe(true);
     expect(result.message).toMatch(/pages: enabled/i);
   });
+
+  it('records git stderr on push failure and masks credentials', async () => {
+    const store = memoryStore();
+    const job = createJob(store, { title: 'publish pages', kind: 'implement' });
+    patchJob(store, job.id, {
+      status: 'done',
+      worktreePath: '/tmp/wt',
+      worktreeBranch: 'gh-pages',
+    });
+
+    // Assemble at runtime so GH013 push protection does not treat fixtures as live secrets.
+    const fakePat = 'ghp' + '_' + 'abcdefghijklmnopqrstuvwxyz0123456789';
+    const fakeSlack = 'xoxb' + '-' + '123456789012-abcdefghijklmnop';
+    const fakeJwtPrefix = 'eyJhbGciOiJIUzI1NiJ9';
+
+    const runGit = vi.fn(async (_cwd: string, args: readonly string[]) => {
+      if (args[0] === 'rev-parse') {
+        return { code: 0, stdout: 'abcdef0123456789\n', stderr: '' };
+      }
+      if (args[0] === 'push') {
+        return {
+          code: 1,
+          stdout: '',
+          stderr: [
+            `remote: Invalid username or token: ${fakePat}`,
+            "fatal: Authentication failed for 'https://user:supersecret@github.com/acme/repo.git'",
+            `Authorization: Bearer ${fakeJwtPrefix}.payload`,
+            fakeSlack,
+          ].join('\n'),
+        };
+      }
+      return { code: 0, stdout: '', stderr: '' };
+    });
+
+    const result = await pushJobToRemote({
+      store,
+      job: getJob(store, job.id)!,
+      remote: 'origin',
+      localRef: 'gh-pages',
+      remoteRef: 'gh-pages',
+      runGit,
+      enablePages: false,
+    });
+
+    expect(result.ok).toBe(false);
+    const notes = getJob(store, job.id)?.notes ?? '';
+    const error = result.error ?? '';
+    expect(notes).toMatch(/Authentication failed|Invalid username or token/);
+    expect(notes).not.toMatch(/^push failed$/im);
+    expect(error).not.toMatch(/^push failed$/i);
+    expect(notes).not.toContain(fakePat);
+    expect(notes).not.toContain('supersecret');
+    expect(notes).not.toContain(fakeJwtPrefix);
+    expect(notes).not.toContain(fakeSlack);
+    expect(error).not.toContain(fakePat);
+    expect(error).not.toContain('supersecret');
+    expect(error).not.toContain(fakeSlack);
+  });
 });
 
 describe('PushJobTool + dispatch', () => {

@@ -66,6 +66,31 @@ describe('ConductorDirectWorkGuard', () => {
       },
     );
 
+    it('allows 1–3 brief Read/JobInspect lookups and still rejects product writes', () => {
+      const guard = new ConductorDirectWorkGuard();
+      for (let index = 0; index < CONDUCTOR_INTERACTIVE_EXPLORE_SOFT; index += 1) {
+        expect(
+          guard.evaluateToolCall({
+            toolName: 'Read',
+            args: { path: `/repo/brief-${String(index)}.ts` },
+            turnId: 'turn-brief',
+          }).allowed,
+          `Read #${String(index + 1)}`,
+        ).toBe(true);
+      }
+      expect(
+        guard.evaluateToolCall({ toolName: 'JobInspect', args: { job_id: 'job_1' }, turnId: 'turn-brief' })
+          .allowed,
+      ).toBe(true);
+      expect(
+        guard.evaluateToolCall({
+          toolName: 'Write',
+          args: { file_path: '/repo/src/auth.ts' },
+          turnId: 'turn-brief',
+        }).allowed,
+      ).toBe(false);
+    });
+
     it('allows the read-only and delegation surface', () => {
       const guard = new ConductorDirectWorkGuard();
       // Within soft triage budget: a couple of exploration tools still pass.
@@ -73,7 +98,7 @@ describe('ConductorDirectWorkGuard', () => {
         expect(guard.evaluateToolCall({ toolName, turnId: 'turn-1' }).allowed, toolName).toBe(true);
       }
       // Job desk is never capped by the explore budget.
-      for (const toolName of ['JobCreate', 'JobInbox', 'MergeJob', 'PushJob']) {
+      for (const toolName of ['JobCreate', 'JobInbox', 'JobInspect', 'MergeJob', 'PushJob']) {
         expect(guard.evaluateToolCall({ toolName, turnId: 'turn-1' }).allowed, toolName).toBe(true);
       }
       // Bash passes only with a read-only command (V1-5 classification).

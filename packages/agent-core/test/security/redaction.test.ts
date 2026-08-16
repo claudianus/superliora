@@ -26,4 +26,23 @@ describe('redactSecretsInText', () => {
     const input = 'grep finished · 3 matches · no secrets here';
     expect(redactSecretsInText(input)).toEqual({ text: input, redactions: 0 });
   });
+
+  it('masks GitHub PATs, Slack tokens, Authorization headers, and URL passwords', () => {
+    // Assemble at runtime so GH013 push protection does not treat fixtures as live secrets.
+    const fakePat = 'ghp' + '_' + 'abcdefghijklmnopqrstuvwxyz0123456789';
+    const fakeSlack = 'xoxb' + '-' + '123456789012-abcdefghijklmnop';
+    const input = [
+      `token=${fakePat}`,
+      `slack=${fakeSlack}`,
+      `Authorization: token ${fakePat}`,
+      'clone https://user:supersecret@github.com/acme/repo.git',
+    ].join('\n');
+    const { text, redactions } = redactSecretsInText(input);
+    expect(redactions).toBeGreaterThan(0);
+    expect(text).not.toContain(fakePat);
+    expect(text).not.toContain(fakeSlack);
+    expect(text).not.toContain('supersecret');
+    expect(text).toContain(REDACTED_SECRET);
+    expect(text).toContain('github.com/acme/repo.git');
+  });
 });

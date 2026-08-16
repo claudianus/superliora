@@ -14,11 +14,11 @@ promptVars:
     ## Prime directives (non-negotiable)
 
     1. **Delegation-only.** Every file mutation, build, test, install, or verification loop
-       is a Job — even one line. You may read (Read/Grep/Glob/RepoQuery, WebSearch/FetchURL,
-       read-only Bash) only for **≤3 quick facts** to write a good brief, then manage
-       ledger/plan/goal lifecycle, ask, and answer. Runtime rejects direct writes and
-       deep interactive search. Call JobCreate (or EnterPlanMode / AskUserQuestion) in the
-       **same turn**, then ACK with job_id + state — never end on a text-only promise.
+       is a Job — even one line. You may use Read (and Grep/Glob/RepoQuery, WebSearch/FetchURL,
+       read-only Bash) only for **1–3 quick facts** to write a good brief. JobInspect is a
+       desk tool and is never counted against that triage budget. Runtime rejects product
+       Write/Edit/ApplyPatch on this lane. Call JobCreate (or EnterPlanMode / AskUserQuestion)
+       in the **same turn**, then ACK with job_id + state — never end on a text-only promise.
     2. **Never wait on workers.** JobCreate ACKs instantly; results arrive later via inbox.
        Never poll. If a reply needs an unfinished result, say what is in flight and stop.
     3. **Interactive lane stays free.** One reasoning unit per turn. Multi-step tool loops,

@@ -216,28 +216,101 @@ export function patchJob(
 /** Newest notes kept when a job's append-only trail is trimmed. */
 export const JOB_NOTES_MAX_LINES = 12;
 export const JOB_NOTES_MAX_CHARS = 2_000;
+export const JOB_INBOX_SUMMARY_MAX_CHARS = 2_000;
+
+/**
+ * Diagnostic lines JobInspect / Inbox must keep across overflow: handoff,
+ * success criteria, SHAs, and failure stderr. Heartbeats may drop first.
+ */
+export function isPinnedJobDiagnosticLine(line: string): boolean {
+  const text = line.trim();
+  if (text.length === 0) return false;
+  if (/implement[_\s-]?handoff/i.test(text)) return true;
+  if (/success[_\s-]?criteria/i.test(text)) return true;
+  if (/\bsha\s*[=:]\s*[0-9a-f]{7,40}\b/i.test(text)) return true;
+  if (/\bstderr\b/i.test(text)) return true;
+  if (/^push:\s*failed/i.test(text)) return true;
+  return false;
+}
+
+/**
+ * Keep pinned diagnostic lines, then fill the remaining budget with the
+ * newest unpinned lines. Used by ledger notes and inbox summaries.
+ */
+export function capPinnedDiagnosticText(
+  text: string,
+  options: { readonly maxLines?: number; readonly maxChars: number },
+): { readonly text: string; readonly dropped: number } {
+  const maxChars = options.maxChars;
+  const maxLines = options.maxLines;
+  const lines = text.split('\n');
+  const pinned = lines.filter(isPinnedJobDiagnosticLine);
+  const rest = lines.filter((line) => !isPinnedJobDiagnosticLine(line));
+
+  const restBudget =
+    maxLines === undefined ? rest.length : Math.max(0, maxLines - pinned.length);
+  const keptRest = restBudget < rest.length ? rest.slice(-restBudget) : rest;
+  let dropped = Math.max(0, lines.length - pinned.length - keptRest.length);
+
+  let keptPinned = pinned;
+  let keptUnpinned = keptRest;
+  let next = [...keptPinned, ...keptUnpinned].join('\n');
+
+  const rebuild = (): void => {
+    next = [...keptPinned, ...keptUnpinned].join('\n');
+  };
+  const dropOldestUnpinned = (): boolean => {
+    if (keptUnpinned.length === 0) return false;
+    keptUnpinned = keptUnpinned.slice(1);
+    dropped += 1;
+    rebuild();
+    return true;
+  };
+  const dropOldestPinned = (): boolean => {
+    if (keptPinned.length === 0) return false;
+    keptPinned = keptPinned.slice(1);
+    dropped += 1;
+    rebuild();
+    return true;
+  };
+
+  while (next.length > maxChars && keptUnpinned.length > 1) {
+    dropOldestUnpinned();
+  }
+  if (next.length > maxChars && keptUnpinned.length === 1 && keptPinned.length > 0) {
+    dropOldestUnpinned();
+  }
+  if (next.length > maxChars && keptUnpinned.length === 1) {
+    keptUnpinned = [keptUnpinned[0]!.slice(-maxChars)];
+    rebuild();
+  }
+  while (next.length > maxChars && keptPinned.length > 1) {
+    dropOldestPinned();
+  }
+  if (next.length > maxChars && keptPinned.length === 1) {
+    keptPinned = [keptPinned[0]!.slice(0, maxChars)];
+    rebuild();
+  }
+  if (next.length > maxChars) next = next.slice(-maxChars);
+  return { text: next, dropped };
+}
 
 /**
  * More than a dozen call sites append to `notes` with no reader ever pruning
  * it, and JobInspect used to dump the whole record. Capping at the single
- * ledger write point beats trimming at each caller: the oldest lines are the
- * ones nobody diagnoses from, and the newest are what JobInspect is opened for.
+ * ledger write point beats trimming at each caller: heartbeats drop first,
+ * while implement_handoff / success criteria / SHA / failure stderr stay pinned.
  */
 export function capJobNotes(notes: string): string {
-  let lines = notes.split('\n');
-  let dropped = 0;
-  if (lines.length > JOB_NOTES_MAX_LINES) {
-    dropped = lines.length - JOB_NOTES_MAX_LINES;
-    lines = lines.slice(-JOB_NOTES_MAX_LINES);
-  }
-  let text = lines.join('\n');
-  while (text.length > JOB_NOTES_MAX_CHARS && lines.length > 1) {
-    lines = lines.slice(1);
-    dropped += 1;
-    text = lines.join('\n');
-  }
-  if (text.length > JOB_NOTES_MAX_CHARS) text = text.slice(-JOB_NOTES_MAX_CHARS);
-  return dropped > 0 ? `[${dropped} earlier note(s) trimmed]\n${text}` : text;
+  const { text, dropped } = capPinnedDiagnosticText(notes, {
+    maxLines: JOB_NOTES_MAX_LINES,
+    maxChars: JOB_NOTES_MAX_CHARS,
+  });
+  if (dropped <= 0 && text === notes) return notes;
+  if (dropped <= 0) return text;
+  const prefix = `[${dropped} earlier note(s) trimmed]\n`;
+  if (prefix.length + text.length <= JOB_NOTES_MAX_CHARS) return `${prefix}${text}`;
+  return `${prefix}${text}`.slice(0, JOB_NOTES_MAX_CHARS);
 }
 
 export function renderJobLine(job: JobRecord): string {

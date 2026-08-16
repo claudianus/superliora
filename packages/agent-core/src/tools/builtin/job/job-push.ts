@@ -11,6 +11,7 @@
 import type { Kaos } from '@superliora/kaos';
 
 import { runGh as kaosRunGh, runGit as kaosRunGit } from '#/autopilot/git';
+import { redactSecretsInText } from '#/security/redaction';
 
 import type { Agent } from '../../../agent/index';
 import type { ToolStore } from '../../store';
@@ -109,6 +110,15 @@ export function validatePushRefToken(value: string, label: string): string | und
     return `${label} is not a safe git ref/remote token`;
   }
   return undefined;
+}
+
+/** Keep git stderr on push failure notes, but never persist credentials. */
+export function formatPushFailureDetail(raw: string, maxChars = 500): string {
+  const redacted = redactSecretsInText(raw).text.replace(/\s+$/u, '');
+  const trimmed = redacted.trim();
+  if (trimmed.length === 0) return 'git produced no stderr';
+  if (/^push failed$/i.test(trimmed)) return 'git push failed (no stderr)';
+  return trimmed.length > maxChars ? trimmed.slice(0, maxChars) : trimmed;
 }
 
 /**
@@ -344,7 +354,7 @@ export async function pushJobToRemote(input: PushJobToRemoteInput): Promise<Push
   const shaRes = await runGit(cwd, ['rev-parse', localRef]);
   const sha = shaRes.code === 0 ? shaRes.stdout.trim() : '';
   if (sha.length === 0) {
-    const detail = (shaRes.stderr || shaRes.stdout || 'rev-parse failed').slice(0, 500);
+    const detail = formatPushFailureDetail(shaRes.stderr || shaRes.stdout || 'rev-parse failed');
     const err = `could not resolve local ref ${localRef}: ${detail}`;
     const next = patchJobAndNotify(
       store,
@@ -367,7 +377,7 @@ export async function pushJobToRemote(input: PushJobToRemoteInput): Promise<Push
   const refspec = `${localRef}:${remoteRef}`;
   const push = await runGit(cwd, ['push', remote, refspec]);
   if (push.code !== 0) {
-    const detail = (push.stderr || push.stdout || 'push failed').slice(0, 500);
+    const detail = formatPushFailureDetail(push.stderr || push.stdout || 'push failed');
     const err = `git push failed: ${detail}`;
     const next = patchJobAndNotify(
       store,
@@ -619,7 +629,7 @@ export async function runPushRemoteJob(input: RunPushRemoteJobInput): Promise<Pu
       agent: input.agent,
     });
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
+    const detail = formatPushFailureDetail(error instanceof Error ? error.message : String(error));
     const failed = patchJobAndNotify(
       store,
       pushJob.id,

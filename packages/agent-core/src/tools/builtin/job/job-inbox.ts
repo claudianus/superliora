@@ -4,6 +4,7 @@
  */
 
 import type { ToolStore } from '../../store';
+import { capPinnedDiagnosticText, JOB_INBOX_SUMMARY_MAX_CHARS } from './job-ledger';
 import type { JobStatus } from './job-store-key';
 
 export const JOB_INBOX_STORE_KEY = 'job_inbox' as const;
@@ -77,7 +78,10 @@ export function pushJobInboxEvent(
     jobId: input.jobId,
     status: input.status,
     title: input.title,
-    summary: input.summary?.slice(0, 2000),
+    summary:
+      input.summary === undefined
+        ? undefined
+        : capPinnedDiagnosticText(input.summary, { maxChars: JOB_INBOX_SUMMARY_MAX_CHARS }).text,
     createdAt: new Date().toISOString(),
     read: false,
     digest: input.digest,
