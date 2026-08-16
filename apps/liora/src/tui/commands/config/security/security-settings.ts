@@ -154,11 +154,6 @@ async function loadSecurityGlance(host: SlashCommandHost): Promise<SecurityGlanc
   }
 }
 
-function currentSandboxMarker(profile: SecuritySandboxProfile | undefined, value: SecuritySandboxProfile): string {
-  const effective = profile ?? 'off';
-  return effective === value ? '● ' : '  ';
-}
-
 export function showSecuritySettings(host: SlashCommandHost): void {
   void (async () => {
     let current: SecuritySandboxProfile | undefined;
@@ -172,8 +167,10 @@ export function showSecuritySettings(host: SlashCommandHost): void {
       host,
       new ChoicePickerComponent({
         title: ttui('tui.settings.pane.security.title'),
-        hint: '↑↓ · Enter · Esc · path sandbox (not OS)',
+        hint: '↑↓ navigate · Enter select · Esc cancel',
+        notice: SECURITY_NOT_OS_SANDBOX,
         searchable: true,
+        currentValue: current ?? 'off',
         options: [
           {
             value: 'status',
@@ -183,24 +180,9 @@ export function showSecuritySettings(host: SlashCommandHost): void {
           },
           ...SANDBOX_OPTIONS.map((opt) => ({
             value: opt.value,
-            label: `${currentSandboxMarker(current, opt.value)}${opt.label}`,
+            label: opt.label,
             description: opt.description,
           })),
-          {
-            value: 'tip-sandbox',
-            label: 'About path sandbox',
-            description: SECURITY_SANDBOX_TIP,
-          },
-          {
-            value: 'tip-redaction',
-            label: 'Secrets & redaction',
-            description: SECURITY_REDACTION_TIP,
-          },
-          {
-            value: 'tip-mcp',
-            label: 'MCP tool allowlist',
-            description: SECURITY_MCP_ALLOWLIST_TIP,
-          },
         ],
         onSelect: (value) => {
           dismissPickerDialog(host);
@@ -210,18 +192,6 @@ export function showSecuritySettings(host: SlashCommandHost): void {
           }
           if (value === 'off' || value === 'workspace' || value === 'read-only') {
             void applySandboxProfile(host, value);
-            return;
-          }
-          if (value === 'tip-sandbox') {
-            host.showStatus(SECURITY_SANDBOX_TIP, 'info');
-            return;
-          }
-          if (value === 'tip-redaction') {
-            host.showStatus(SECURITY_REDACTION_TIP, 'info');
-            return;
-          }
-          if (value === 'tip-mcp') {
-            host.showStatus(SECURITY_MCP_ALLOWLIST_TIP, 'info');
             return;
           }
         },

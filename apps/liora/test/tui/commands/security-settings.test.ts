@@ -85,21 +85,30 @@ describe('security settings tips', () => {
 });
 
 describe('showSecuritySettings', () => {
-  it('mounts ChoicePicker with status, three sandbox profiles, and tip rows', async () => {
-    const host = makeSecurityHost();
+  it('mounts ChoicePicker with status and three sandbox profiles — PREMIUM currentValue, no tip-only rows', async () => {
+    const host = makeSecurityHost({ sandboxProfile: 'workspace' });
     showSecuritySettings(host);
     const picker = await waitForPicker(host);
-    const options = (picker as unknown as { opts: { options: readonly { value: string }[] } }).opts
-      .options;
-    expect(options.map((o) => o.value)).toEqual([
-      'status',
-      'off',
-      'workspace',
-      'read-only',
-      'tip-sandbox',
-      'tip-redaction',
-      'tip-mcp',
-    ]);
+    const opts = (
+      picker as unknown as {
+        opts: {
+          currentValue?: string;
+          options: readonly { value: string; label: string }[];
+        };
+      }
+    ).opts;
+    expect(opts.options.map((o) => o.value)).toEqual(['status', 'off', 'workspace', 'read-only']);
+    expect(opts.options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
+    expect(opts.currentValue).toBe('workspace');
+    expect(opts.options.every((o) => !o.label.includes('●'))).toBe(true);
+  });
+
+  it('defaults currentValue to off when session metadata has no sandbox profile', async () => {
+    const host = makeSecurityHost({ hasSession: false });
+    showSecuritySettings(host);
+    const picker = await waitForPicker(host);
+    const opts = (picker as unknown as { opts: { currentValue?: string } }).opts;
+    expect(opts.currentValue).toBe('off');
   });
 
   it('persists sandbox profile via setConfig and live session setSandboxProfile', async () => {
