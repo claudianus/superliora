@@ -3,6 +3,7 @@ import {
   APITimeoutError,
   ChatProviderError,
   classifyBaseApiError,
+  isAbortTimeoutError,
   normalizeAPIStatusError,
 } from '#/errors';
 import { extractText } from '#/message';
@@ -124,6 +125,9 @@ export function convertOpenAIError(error: unknown): ChatProviderError {
   // transport-layer heuristic so genuine connection failures become
   // retryable instead of fatal generic errors.
   if (error instanceof Error) {
+    if (isAbortTimeoutError(error)) {
+      return new APITimeoutError(error.message);
+    }
     return classifyBaseApiError(error.message);
   }
   return new ChatProviderError(`Error: ${String(error)}`);

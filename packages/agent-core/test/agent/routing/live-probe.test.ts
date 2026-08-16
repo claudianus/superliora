@@ -251,6 +251,57 @@ describe('live-probe', () => {
     expect(calls).toBe(0);
   });
 
+  it('classifies AbortSignal timeout as timeout with a short alias-scoped cooldown', async () => {
+    const now = 5_000_000;
+    setLiveProbeRunnerForTests(async () => {
+      throw new DOMException('The operation was aborted.', 'AbortError');
+    });
+    const config = makeConfig();
+    config.models = {
+      primary: model('xai-grok', 'grok-4.6', 5),
+      sibling: model('xai-grok', 'grok-4.20-0309-reasoning', 1),
+    };
+    config.providers = {
+      'xai-grok': { type: 'openai' as const, apiKey: 'key-xai' },
+    };
+    const agent = makeAgent(config);
+    const failed = await probeModelAlias(agent, 'primary', { now });
+    expect(failed.ok).toBe(false);
+    expect(failed.failureKind).toBe('timeout');
+    expect(isLiveProbeFailureFresh('primary', now)).toBe(true);
+    // Short timeout cooldown (30s), not the unmarked 10-minute probe_fail floor.
+    expect(isLiveProbeFailureFresh('primary', now + 31_000)).toBe(false);
+    expect(sharedCredentialHealthStore.isAvailable('xai-grok')).toBe(true);
+    expect(isConfigAliasHealthy(config, 'sibling')).toBe(true);
+    expect(sharedModelRouteHealthStore.isAvailable('sibling', now)).toBe(true);
+  });
+
+  it('does not hide a healthy sibling for 10 minutes on unclassified 400', async () => {
+    const now = 6_000_000;
+    setLiveProbeRunnerForTests(async (_agent, alias) => {
+      if (alias === 'dated') {
+        throw new APIStatusError(400, 'does not support parameter reasoningEffort', 'req-400');
+      }
+    });
+    const config = makeConfig();
+    config.models = {
+      dated: model('xai-grok', 'grok-4.20-0309-reasoning', 5),
+      sibling: model('xai-grok', 'grok-4.6', 1),
+    };
+    config.providers = {
+      'xai-grok': { type: 'openai' as const, apiKey: 'key-xai' },
+    };
+    const agent = makeAgent(config);
+    const failed = await probeModelAlias(agent, 'dated', { now });
+    expect(failed.ok).toBe(false);
+    expect(failed.failureKind).toBeUndefined();
+    expect(sharedCredentialHealthStore.isAvailable('xai-grok')).toBe(true);
+    expect(isConfigAliasHealthy(config, 'sibling')).toBe(true);
+    expect(isLiveProbeFailureFresh('dated', now)).toBe(true);
+    // Sibling is healthy — do not inflate unclassified to the 10-minute probe_fail TTL.
+    expect(isLiveProbeFailureFresh('dated', now + 31_000)).toBe(false);
+  });
+
   it('cursor-oauth quota keeps Auto and sibling aliases healthy', async () => {
     setLiveProbeRunnerForTests(async (_agent, alias) => {
       if (alias === 'cursor-oauth/claude-opus') {
