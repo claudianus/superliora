@@ -15,7 +15,10 @@ import {
   uiSpawnQualityFlags,
 } from '../../../premium-quality';
 import { requestJobSchedulePump } from '../../../session/job/job-offload';
-import { resolveJobWorkerLaunchTimeoutMs } from '../../../session/subagent/subagent-host';
+import {
+  isSubagentDeadlineError,
+  resolveJobWorkerLaunchTimeoutMs,
+} from '../../../session/subagent/subagent-host';
 import type { SubagentCompletion } from '../../../session/subagent/subagent-host-types';
 import { renderFrictionSection } from '../../../session/subagent/subagent-friction';
 import {
@@ -36,6 +39,7 @@ import {
 import {
   armJobWorkerProgressStall,
   bindJobWorkerLedger,
+  buildDeadlineFailureSummary,
   unbindJobWorkerLedger,
 } from './job-worker-ledger-bridge';
 import { syncGoalDeskParentFromDriver } from '../goal/goal-session-binding';
@@ -824,10 +828,27 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
         // so the failure path does not silently discard recoverable changes.
         const commitNote = await snapshotWorkerWorktree(input.agent, current ?? job);
         const detail = error instanceof Error ? error.message : String(error);
+        // Wall-clock abort: always persist a resume handoff (last phase/files/
+        // command) so continue_from does not restart a repo-wide scan empty.
+        const isDeadline = isSubagentDeadlineError(error);
+        const ledgerJob = current ?? job;
+        const resultSummary = isDeadline
+          ? buildDeadlineFailureSummary(
+              ledgerJob,
+              detail,
+              ledgerJob.workerAgentId ?? handle.agentId,
+            )
+          : detail.slice(0, 2000);
         const updated = patchJob(input.store, job.id, {
           status: 'failed',
-          resultSummary: detail.slice(0, 2000),
-          notes: [getJob(input.store, job.id)?.notes, commitNote, `worker_failed: ${detail}`]
+          resultSummary,
+          notes: [
+            getJob(input.store, job.id)?.notes,
+            commitNote,
+            isDeadline
+              ? `worker_deadline: ${detail}`
+              : `worker_failed: ${detail}`,
+          ]
             .filter(Boolean)
             .join('\n'),
         });

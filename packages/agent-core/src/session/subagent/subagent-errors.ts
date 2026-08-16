@@ -63,13 +63,25 @@ export function resolvePlanDeskDeadlineMs(): number {
 }
 
 /**
- * Job-worker soft+hard timeout: mission → plan-desk budget; every other kind
- * keeps the implement default (30m). Env kill switches are applied later by
- * {@link resolveSubagentDeadlineMs} for the hard abort path when the FanoutSpec
- * budget is re-resolved.
+ * Explore / research default wall-clock (shorter than implement 30m).
+ * Empty 30m aborts on repo-wide explore were burning three Jobs per session;
+ * 20m forces a 1-page handoff window (finishing mode starts at T-5m of budget).
+ * Override is still available via {@link SUBAGENT_DEADLINE_ENV}.
+ */
+export const DEFAULT_EXPLORE_DEADLINE_MS = 20 * 60 * 1000;
+
+/**
+ * Job-worker soft+hard timeout:
+ * - mission → plan-desk budget (45m)
+ * - explore / research → {@link DEFAULT_EXPLORE_DEADLINE_MS} (20m)
+ * - implement / verify / task / others → implement default (30m)
+ *
+ * Env kill switches are applied later by {@link resolveSubagentDeadlineMs} for
+ * the hard abort path when the FanoutSpec budget is re-resolved.
  */
 export function resolveJobWorkerTimeoutMs(kind: string | undefined): number {
   if (kind === 'mission') return resolvePlanDeskDeadlineMs();
+  if (kind === 'explore' || kind === 'research') return DEFAULT_EXPLORE_DEADLINE_MS;
   return DEFAULT_SUBAGENT_TIMEOUT_MS;
 }
 

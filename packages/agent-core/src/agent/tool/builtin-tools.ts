@@ -187,6 +187,16 @@ function createFileAndContextTools(
         // resolve bash.exe/git.exe/node.exe without Program Files Git.
         pathPrefix: [...runtimePathPrefixDirsForBash(), ...(host.agent.pluginBinDirs ?? [])],
         isWorker: host.agent.type !== 'main',
+        // Suite-waste guard needs the worker agent id → bound Job brief.
+        workerAgentId:
+          host.agent.type !== 'main' && host.agent.homedir !== undefined
+            ? () => {
+                const home = host.agent.homedir;
+                if (home === undefined || home.length === 0) return undefined;
+                const parts = home.replace(/\\/g, '/').split('/').filter(Boolean);
+                return parts[parts.length - 1];
+              }
+            : undefined,
       }),
     shouldCreateBuiltin(host, 'Script') && new b.ScriptTool(host.agent, kaos),
     shouldCreateBuiltin(host, 'RunProjectChecks') &&

@@ -50,6 +50,8 @@ import {
   detectShellSensitivePath,
   formatShellSensitivePathError,
 } from '../../policies/shell-sensitive-path';
+import { getJob } from '../job/job-ledger';
+import { findJobWorkerLedger } from '../job/job-worker-ledger-bridge';
 import { guardWorkerShellCommand } from '../job/job-worker-guards';
 import bashDescriptionTemplate from './bash.md?raw';
 import {
@@ -125,6 +127,12 @@ export class BashTool implements BuiltinTool<BashInput> {
   /** Conductor execution lane (worker/subagent): git push remote mutation hard-deny. */
   private readonly isWorker: boolean;
 
+  /**
+   * Live worker agent id (session agent id / basename of homedir). Used to resolve
+   * the bound Job's brief.verification_commands for the suite-waste guard.
+   */
+  private readonly workerAgentId: (() => string | undefined) | undefined;
+
   constructor(
     private readonly kaos: Kaos,
     private readonly cwd: string,
@@ -138,6 +146,8 @@ export class BashTool implements BuiltinTool<BashInput> {
       pathPrefix?: readonly string[] | undefined;
       /** True when this BashTool belongs to a Conductor worker lane (not `main`). */
       isWorker?: boolean | undefined;
+      /** Resolve the worker agent id so suite_guard can read the bound Job brief. */
+      workerAgentId?: (() => string | undefined) | undefined;
     },
   ) {
     this.isWindowsBash = this.kaos.osEnv.osKind === 'Windows';
@@ -146,6 +156,7 @@ export class BashTool implements BuiltinTool<BashInput> {
     this.shellEnvPolicy = options?.shellEnvPolicy ?? {};
     this.pathPrefix = options?.pathPrefix ?? [];
     this.isWorker = options?.isWorker ?? false;
+    this.workerAgentId = options?.workerAgentId;
     const rendered = renderBashDescription(this.kaos.osEnv.shellName);
     this.description = this.allowBackground ? rendered : withoutBackgroundDescription(rendered);
   }
@@ -206,12 +217,17 @@ export class BashTool implements BuiltinTool<BashInput> {
     onUpdate?: ((update: ToolUpdate) => void) | undefined,
     onForegroundTaskStart?: ((taskId: string) => void) | undefined,
   ): Promise<ExecutableToolResult> {
+    // Full request validation (suite_guard + background policy) before spawn.
     const validationError = this.validateRunRequest(args, signal);
     if (validationError !== undefined) return validationError;
 
     const startsInBackground = args.run_in_background === true;
     const foregroundTimeoutMs = normalizeTimeoutMs(args.timeout, false);
-    const command = this.isWindowsBash ? rewriteWindowsNullRedirect(args.command) : args.command;
+    // Re-apply guards only for the (possibly rewritten) command body.
+    const guarded = this.applyWorkerShellGuards(args.command, signal);
+    if (guarded.error !== undefined) return guarded.error;
+    const rawCommand = guarded.command;
+    const command = this.isWindowsBash ? rewriteWindowsNullRedirect(rawCommand) : rawCommand;
     const effectiveCwd = args.cwd ?? this.cwd;
     const description = startsInBackground ? args.description!.trim() : foregroundDescription(args);
     const timeoutMs = startsInBackground
@@ -313,36 +329,85 @@ export class BashTool implements BuiltinTool<BashInput> {
     }
   }
 
+  /**
+   * Resolve brief.verification_commands for the Job bound to this worker agent.
+   * No-op for main / unbound subagents.
+   */
+  private resolveWorkerVerificationCommands(): readonly string[] | undefined {
+    if (this.isWorker !== true) return undefined;
+    const agentId = this.workerAgentId?.()?.trim();
+    if (agentId === undefined || agentId.length === 0) return undefined;
+    const binding = findJobWorkerLedger(agentId);
+    if (binding === undefined) return undefined;
+    const job = getJob(binding.store, binding.jobId);
+    return job?.verificationCommands;
+  }
+
+  /**
+   * Worker shell policy + suite-waste guard. Returns the (possibly rewritten)
+   * command to execute, or an error tool result.
+   */
+  private applyWorkerShellGuards(
+    command: string,
+    signal: AbortSignal,
+  ): { readonly command: string; readonly error?: ExecutableToolResult } {
+    if (signal.aborted) {
+      return {
+        command,
+        error: { isError: true, output: 'Aborted before command started' },
+      };
+    }
+    if (command.length === 0) {
+      return { command, error: { isError: true, output: 'Command cannot be empty.' } };
+    }
+    const isWorker = this.isWorker === true;
+    const workerGuard = guardWorkerShellCommand(command, {
+      isWorker,
+      verificationCommands: this.resolveWorkerVerificationCommands(),
+    });
+    if (!workerGuard.allowed) {
+      return {
+        command,
+        error: {
+          isError: true,
+          output: workerGuard.reason ?? 'Worker shell command denied by Conductor policy.',
+        },
+      };
+    }
+    const effective =
+      workerGuard.rewrittenCommand !== undefined && workerGuard.rewrittenCommand.length > 0
+        ? workerGuard.rewrittenCommand
+        : command;
+    // Sensitive paths hard-deny before dedicated-tool redirects (no force hatch).
+    const sensitivePath = detectShellSensitivePath(effective);
+    if (sensitivePath !== undefined) {
+      return {
+        command: effective,
+        error: {
+          isError: true,
+          output: formatShellSensitivePathError(sensitivePath),
+        },
+      };
+    }
+    const dedicatedBypass = detectShellDedicatedBypass(effective);
+    if (dedicatedBypass !== undefined) {
+      return {
+        command: effective,
+        error: {
+          isError: true,
+          output: formatShellDedicatedBypassError(dedicatedBypass),
+        },
+      };
+    }
+    return { command: effective };
+  }
+
   private validateRunRequest(
     args: BashInput,
     signal: AbortSignal,
   ): ExecutableToolResult | undefined {
-    if (signal.aborted) return { isError: true, output: 'Aborted before command started' };
-    if (args.command.length === 0) return { isError: true, output: 'Command cannot be empty.' };
-    // Conductor workers: hard-deny git push / remote send-pack (land-to-main is MergeJob).
-    const isWorker = this.isWorker === true;
-    const workerGuard = guardWorkerShellCommand(args.command, { isWorker });
-    if (!workerGuard.allowed) {
-      return {
-        isError: true,
-        output: workerGuard.reason ?? 'Worker shell command denied by Conductor policy.',
-      };
-    }
-    // Sensitive paths hard-deny before dedicated-tool redirects (no force hatch).
-    const sensitivePath = detectShellSensitivePath(args.command);
-    if (sensitivePath !== undefined) {
-      return {
-        isError: true,
-        output: formatShellSensitivePathError(sensitivePath),
-      };
-    }
-    const dedicatedBypass = detectShellDedicatedBypass(args.command);
-    if (dedicatedBypass !== undefined) {
-      return {
-        isError: true,
-        output: formatShellDedicatedBypassError(dedicatedBypass),
-      };
-    }
+    const guarded = this.applyWorkerShellGuards(args.command, signal);
+    if (guarded.error !== undefined) return guarded.error;
     if (args.run_in_background !== true) return undefined;
     if (!this.allowBackground) {
       return {
