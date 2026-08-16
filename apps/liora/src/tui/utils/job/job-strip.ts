@@ -346,6 +346,21 @@ function normalizeJobKind(raw: string): JobEventKind {
   return JOB_KINDS.find((kind) => kind === lower) ?? 'task';
 }
 
+/**
+ * Interview / needs_user count only. Blocked or failed land leftovers must
+ * not inflate the dock "needs-you" chip.
+ */
+export function interviewNeedsUserCount(
+  snap: Pick<ConductorJobsSnapshot, 'needsUser' | 'jobs'>,
+): number {
+  if (snap.jobs.length === 0) return snap.needsUser;
+  let count = 0;
+  for (const card of snap.jobs) {
+    if (card.status === 'needs_user') count += 1;
+  }
+  return count;
+}
+
 export function mergeConductorJobsSnapshot(
   prev: ConductorJobsSnapshot | null | undefined,
   patch: Partial<ConductorJobsSnapshot>,

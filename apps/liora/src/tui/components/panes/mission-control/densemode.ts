@@ -21,6 +21,7 @@ import {
 } from '#/tui/components/job-board/job-board-helpers';
 import {
   formatJobDuration,
+  interviewNeedsUserCount,
   type ConductorJobCard,
   type ConductorJobsSnapshot,
 } from '#/tui/utils/job/job-strip';
@@ -186,10 +187,9 @@ export function formatMissionJobCounts(jobs: ConductorJobsSnapshot): string {
       jobs.interrupted -
       jobs.failed,
   );
+  const needsYou = interviewNeedsUserCount(jobs);
   const parts = [
-    jobs.needsUser + jobs.blocked > 0
-      ? currentTheme.fg('warning', `needs-you ${String(jobs.needsUser + jobs.blocked)}`)
-      : undefined,
+    needsYou > 0 ? currentTheme.fg('warning', `needs-you ${String(needsYou)}`) : undefined,
     jobs.running > 0 ? currentTheme.fg('primary', `running ${String(jobs.running)}`) : undefined,
     jobs.queued > 0 ? currentTheme.fg('info', `queued ${String(jobs.queued)}`) : undefined,
     jobs.interrupted > 0
@@ -402,6 +402,7 @@ export function buildDenseContent(options: BuildDenseContentOptions): DenseConte
       truncateToWidth(
         `${chrome}${buildWorkerRow({
           worker,
+          jobs,
           width: Math.max(1, width - chromeCols),
           narrow,
           now,
@@ -469,7 +470,7 @@ function buildKpiLine(
       : budgetParts.reduce((a, b) => a + b, 0) / budgetParts.length;
 
   const parts = [
-    renderPulseCountChip(`FLEET ${String(active.length)}`, 'mc:kpi:fleet', 'primary', appearance),
+    renderPulseCountChip(`WORKERS ${String(active.length)}`, 'mc:kpi:fleet', 'primary', appearance),
   ];
   const rateLabel = formatMissionTokenRate(sumRate);
   if (rateLabel.length > 0) {
@@ -482,10 +483,9 @@ function buildKpiLine(
   if (failedWorkers > 0) parts.push(currentTheme.fg('textDim', `err${String(failedWorkers)}`));
   if (finishing > 0) parts.push(currentTheme.fg('info', `fin${String(finishing)}`));
   if (jobs !== undefined) {
-    if (jobs.needsUser + jobs.blocked > 0) {
-      parts.push(
-        currentTheme.fg('warning', `needs-you ${String(jobs.needsUser + jobs.blocked)}`),
-      );
+    const needsYou = interviewNeedsUserCount(jobs);
+    if (needsYou > 0) {
+      parts.push(currentTheme.fg('warning', `needs-you ${String(needsYou)}`));
     }
     if (jobs.failed > 0) {
       parts.push(currentTheme.fg('textDim', `job-fail ${String(jobs.failed)}`));
@@ -513,16 +513,38 @@ function renderBudgetBar(ratio: number, width: number): string {
 
 function buildHeaderLine(narrow: boolean): string {
   if (narrow) {
-    return currentTheme.fg('textMuted', 'WKR    ST ELAP /s   LIVE');
+    return currentTheme.fg('textMuted', 'WKR                 ST ELAP /s   LIVE');
   }
   return currentTheme.fg(
     'textMuted',
-    'WKR      ST MODEL    ELAP TOOLS   TOK    /s  SPARK TODO LIVE',
+    'WKR                  ST MODEL    ELAP TOOLS   TOK    /s  SPARK TODO LIVE',
   );
+}
+
+/** Role plus job title so the dock row is not just explore/plan/coder. */
+export function workerRosterLabel(
+  worker: MissionWorker,
+  jobs: ConductorJobsSnapshot | undefined,
+): string {
+  const role = worker.name.trim().length > 0 ? worker.name.trim() : worker.id;
+  const jobTitle = jobs?.jobs.find((card) => card.workerAgentId === worker.id)?.title.trim();
+  const description = worker.description?.trim();
+  const focus = worker.focusTodo?.trim();
+  const title =
+    jobTitle !== undefined && jobTitle.length > 0
+      ? jobTitle
+      : description !== undefined && description.length > 0 && description !== role
+        ? description
+        : focus !== undefined && focus.length > 0 && focus !== role
+          ? focus
+          : undefined;
+  if (title !== undefined && title !== role) return `${role} · ${title}`;
+  return role;
 }
 
 function buildWorkerRow(args: {
   readonly worker: MissionWorker;
+  readonly jobs: ConductorJobsSnapshot | undefined;
   readonly width: number;
   readonly narrow: boolean;
   readonly now: number;
@@ -536,7 +558,10 @@ function buildWorkerRow(args: {
 }): string {
   const { worker, width, narrow, now, workDir, animated, appearance, revealed, rate, glyph } =
     args;
-  const name = truncateToWidth(worker.name, 8, '…').padEnd(8);
+  const nameWidth = narrow ? 18 : 20;
+  const name = truncateToWidth(workerRosterLabel(worker, args.jobs), nameWidth, '…').padEnd(
+    nameWidth,
+  );
   // Keep main's calm failed/completed dim tokens; dual-pointer adds selected primary/bold.
   const nameToken: ColorToken =
     worker.status === 'failed' || worker.status === 'completed'
@@ -566,7 +591,7 @@ function buildWorkerRow(args: {
     live.kind === 'thinking' ? '◌' : live.kind === 'answer' ? '◆' : live.kind === 'action' ? '→' : '·';
   const liveBody = truncateToWidth(
     `${liveMark} ${live.text}`,
-    Math.max(12, width - (narrow ? 28 : 52)),
+    Math.max(12, width - (narrow ? 38 : 64)),
     '…',
   );
   let livePaint: string;
