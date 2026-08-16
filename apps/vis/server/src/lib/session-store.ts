@@ -1,4 +1,4 @@
-import { createReadStream } from 'node:fs';
+import { createReadStream , existsSync } from 'node:fs';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { join, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -88,7 +88,7 @@ async function discoverAgentsFromDisk(sessionDir: string): Promise<AgentInfo[]> 
     if (!entry.isDirectory()) continue;
     const id = entry.name;
     if (!isSafeAgentId(id)) continue;
-    const wirePath = join(agentsDir, id, 'wire.jsonl');
+    const wirePath = join(agentsDir, id, 'wire.jsonl' /* gz fallback via reader */);
     const exists = await pathExists(wirePath);
     let readable = exists;
     let info: { count: number; protocolVersion: string | null } = { count: 0, protocolVersion: null };
@@ -122,7 +122,7 @@ async function tryReadSummary(sessionDir: string, sessionId: string, workDir: st
   }
   if (state.custom?.['imported_from_kimi_cli'] === true) return null;
 
-  const mainWirePath = join(sessionDir, 'agents', 'main', 'wire.jsonl');
+  const mainWirePath = join(sessionDir, 'agents', 'main', 'wire.jsonl' /* gz fallback via reader */);
   const mainExists = await pathExists(mainWirePath);
   let mainCount = 0;
   let protocolVersion: string | null = null;
@@ -199,7 +199,7 @@ async function inventoryAgents(sessionDir: string, state: StateJson): Promise<Ag
   const result: AgentInfo[] = [];
   for (const [id, meta] of Object.entries(state.agents ?? {})) {
     if (!isSafeAgentId(id)) continue;
-    const wirePath = join(sessionDir, 'agents', id, 'wire.jsonl');
+    const wirePath = join(sessionDir, 'agents', id, 'wire.jsonl' /* gz fallback via reader */);
     const exists = await pathExists(wirePath);
     let readable = exists;
     let info: { count: number; protocolVersion: string | null } = { count: 0, protocolVersion: null };

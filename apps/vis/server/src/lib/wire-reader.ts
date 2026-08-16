@@ -1,5 +1,7 @@
-import { createReadStream } from 'node:fs';
+import { createReadStream, existsSync } from 'node:fs';
 import { createInterface } from 'node:readline';
+import type { Readable } from 'node:stream';
+import { createGunzip } from 'node:zlib';
 
 import {
   migrateWireRecord,
@@ -8,6 +10,23 @@ import {
 } from '@superliora/agent-core/agent/records/migration/index';
 
 import type { AgentRecord, WireEntry } from './agent-record-types';
+
+function resolveWireFile(path: string): string | undefined {
+  if (existsSync(path)) return path;
+  if (path.endsWith('.gz')) {
+    const plain = path.slice(0, -3);
+    if (existsSync(plain)) return plain;
+    return undefined;
+  }
+  const gz = `${path}.gz`;
+  if (existsSync(gz)) return gz;
+  return undefined;
+}
+
+function openWireStream(path: string): Readable {
+  const raw = createReadStream(path);
+  return path.endsWith('.gz') ? raw.pipe(createGunzip()) : raw;
+}
 
 export interface WireReadResult {
   metadata: { protocolVersion: string; createdAt: number };
@@ -41,7 +60,15 @@ function bestEffortMigrations(): readonly WireMigration[] {
  *      empty chain, so records are passed through unchanged, with no migration
  *      and no warning. */
 export async function readAgentWire(path: string): Promise<WireReadResult> {
-  const stream = createReadStream(path, { encoding: 'utf8' });
+  const resolved = resolveWireFile(path);
+  if (!resolved) {
+    return {
+      metadata: { protocolVersion: '1.0', createdAt: 0 },
+      records: [],
+      warnings: [`wire file missing: ${path}`],
+    };
+  }
+  const stream = openWireStream(resolved);
   const rl = createInterface({ input: stream, crlfDelay: Infinity });
   let lineNo = 0;
   let metadata: WireReadResult['metadata'] | null = null;

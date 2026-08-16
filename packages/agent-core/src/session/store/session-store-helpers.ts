@@ -52,6 +52,7 @@ export async function appendForkedMarkers(state: Record<string, unknown>): Promi
     const homedir = agentMeta['homedir'];
     if (typeof homedir !== 'string') continue;
     paths.add(join(homedir, 'wire.jsonl'));
+    paths.add(join(homedir, 'wire.jsonl.gz'));
   }
 
   await Promise.all([...paths].map(async (path) => {
@@ -83,7 +84,9 @@ export async function latestAgentWireMtime(sessionDir: string): Promise<number |
   let latest = 0;
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-    const wireInfo = await statIfExists(join(agentsDir, entry.name, 'wire.jsonl'));
+    const wireInfo =
+      (await statIfExists(join(agentsDir, entry.name, 'wire.jsonl'))) ??
+      (await statIfExists(join(agentsDir, entry.name, 'wire.jsonl.gz')));
     latest = Math.max(latest, wireInfo?.mtimeMs ?? 0);
   }
   return latest > 0 ? latest : undefined;

@@ -58,6 +58,10 @@ export const STRINGS_EN: Readonly<Record<string, string>> = {
   'cli.sub.server.description':
     'Run the local SuperLiora daemon (REST + WebSocket). Daily job ops stay in the TUI (/jobs).',
   'cli.sub.login.description': 'Authenticate with SuperLiora CLI via the device-code flow.',
+  'cli.sub.gc.description': 'Reclaim idle cache, worktree temp, and compress closed session wires.',
+  'cli.sub.gc.option.dryRun': 'Report candidates without deleting or compressing.',
+  'cli.sub.gc.option.idleDays': 'Treat sessions newer than this many days as active (default 7).',
+  'cli.sub.doctor.option.storage': 'Print home/sessions/cache/logs byte usage.',
   'cli.sub.doctor.description': 'Validate SuperLiora configuration files.',
   'cli.sub.vis.description': 'Launch the session visualizer in your browser.',
   ...SUBCOMMAND_STRINGS_EN,
@@ -110,6 +114,10 @@ export const STRINGS_KO: Readonly<Record<string, string>> = {
   'cli.sub.server.description':
     '로컬 SuperLiora 데몬(REST + WebSocket)을 실행합니다. 일상 Job 조작은 TUI(/jobs)에서 합니다.',
   'cli.sub.login.description': '디바이스 코드 흐름으로 SuperLiora CLI 인증을 합니다.',
+  'cli.sub.gc.description': '유휴 캐시·워크트리 임시 파일을 정리하고 종료된 세션 wire를 압축합니다.',
+  'cli.sub.gc.option.dryRun': '삭제·압축 없이 후보만 보고합니다.',
+  'cli.sub.gc.option.idleDays': '이 일수보다 최근 세션은 활성으로 취급합니다(기본 7).',
+  'cli.sub.doctor.option.storage': '홈/세션/캐시/로그 바이트 사용량을 출력합니다.',
   'cli.sub.doctor.description': 'SuperLiora 설정 파일을 검사합니다.',
   'cli.sub.vis.description': '세션 시각화 도구를 브라우저에서 엽니다.',
   ...SUBCOMMAND_STRINGS_KO,

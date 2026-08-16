@@ -40,7 +40,7 @@ export class SessionMetadataPersistence {
    * (complete) value rather than truncated mid-write.
    */
   write(metadata: SessionMeta): Promise<void> {
-    const text = JSON.stringify(metadata, null, 2);
+    const text = JSON.stringify(metadata);
     const { kaos, sessionHomedir } = this.opts;
     const tmp = this.tempPath;
     const dest = this.metadataPath;

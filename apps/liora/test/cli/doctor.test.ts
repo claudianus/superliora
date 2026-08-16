@@ -1,4 +1,4 @@
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -266,5 +266,51 @@ max_context_size = "large"
     const err = stderr.join('');
     expect(err).toContain('Validation issues:');
     expect(err).toContain('models.kimi.max_context_size:');
+  });
+});
+
+describe('doctor --storage', () => {
+  it('prints home sessions cache logs bytes', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'doctor-storage-'));
+    await mkdir(join(home, 'sessions'), { recursive: true });
+    await mkdir(join(home, 'cache'), { recursive: true });
+    await mkdir(join(home, 'logs'), { recursive: true });
+    await writeFile(join(home, 'sessions', 'a'), '12345', 'utf-8');
+    const prevHome = process.env.SUPERLIORA_HOME;
+    process.env.SUPERLIORA_HOME = home;
+    try {
+      const lines: string[] = [];
+      const program = new Command();
+      registerDoctorCommand(program, {
+        cwd: () => home,
+        defaultConfigPath: () => join(home, 'config.toml'),
+        defaultTuiConfigPath: () => join(home, 'tui.toml'),
+        stdout: {
+          write: (c: string) => {
+            lines.push(c);
+            return true;
+          },
+        },
+        stderr: {
+          write: (c: string) => {
+            lines.push(c);
+            return true;
+          },
+        },
+        exit: ((code: number) => {
+          throw new Error(`exit ${code}`);
+        }) as never,
+        fileExists: () => false,
+      });
+      await program.parseAsync(['doctor', '--storage'], { from: 'user' });
+      const out = lines.join('');
+      expect(out).toMatch(/sessions:/i);
+      expect(out).toMatch(/cache:/i);
+      expect(out).toMatch(/logs:/i);
+    } finally {
+      if (prevHome === undefined) delete process.env.SUPERLIORA_HOME;
+      else process.env.SUPERLIORA_HOME = prevHome;
+      await rm(home, { recursive: true, force: true });
+    }
   });
 });

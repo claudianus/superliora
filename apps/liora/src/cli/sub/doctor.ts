@@ -6,9 +6,12 @@ import {
   createLioraConfigRpc,
   type LioraConfigRpc,
   type LioraConfigValidationIssue,
+  formatBytes,
+  measureStorageBytes,
 } from '@superliora/sdk';
 import type { Command } from 'commander';
 import { t } from '#/cli/i18n';
+import { getDataDir } from '#/utils/paths';
 import { z } from 'zod';
 
 import { assertTuiConfigFile, getTuiConfigPath } from '#/tui/config';
@@ -83,7 +86,22 @@ export function registerDoctorCommand(parent: Command, deps?: Partial<DoctorDeps
   const doctor = parent
     .command('doctor')
     .description(t('cli.sub.doctor.description'))
-    .action(async () => {
+    .option('--storage', t('cli.sub.doctor.option.storage'), false)
+    .action(async (opts: { storage?: boolean }) => {
+      if (opts.storage) {
+        const resolved = resolveDeps(deps ?? {});
+        const homeDir = getDataDir();
+        const report = await measureStorageBytes(homeDir);
+        const lines = [
+          `home: ${report.homeDir}`,
+          `  total:    ${formatBytes(report.homeBytes)}`,
+          `  sessions: ${formatBytes(report.sessionsBytes)}`,
+          `  cache:    ${formatBytes(report.cacheBytes)}`,
+          `  logs:     ${formatBytes(report.logsBytes)}`,
+        ];
+        resolved.stdout.write(`${lines.join('\n')}\n`);
+        return;
+      }
       await runDoctorCommand(deps, {});
     });
 

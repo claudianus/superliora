@@ -6,8 +6,17 @@ import {
   mkdirSync,
   openSync,
 } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { mkdir, open, rename, unlink } from 'node:fs/promises';
 import { dirname } from 'pathe';
+import { createGunzip } from 'node:zlib';
+import type { Readable } from 'node:stream';
+
+import {
+  compressWireJsonl,
+  isGzipWirePath,
+  resolveWirePath,
+} from '#/session/store/wire-gzip';
 
 import { syncDir, syncDirSync } from '../../utils/fs';
 import type { BlobStore } from './blobref';
@@ -48,6 +57,12 @@ export interface FileSystemAgentRecordPersistenceOptions {
    * bricked.
    */
   readonly maxConsecutiveDrainFailures?: number | undefined;
+  /**
+   * When true, gzip wire.jsonl on close and remove the plain file.
+   * Default false so unit tests and short-lived writers keep a plain wire;
+   * production Agent enables this. Resume / vis open either form.
+   */
+  readonly compressOnClose?: boolean | undefined;
 }
 
 /**
@@ -119,11 +134,30 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
    * append offset. Reset to the live record count after a rewrite (clear).
    */
   private committedRecordCount = 0;
+  private closed = false;
 
   constructor(
     private readonly filePath: string,
     private readonly options: FileSystemAgentRecordPersistenceOptions = {},
   ) {}
+
+  private get appendPath(): string {
+    return this.filePath.endsWith('.gz') ? this.filePath.slice(0, -3) : this.filePath;
+  }
+
+  private async resolveReadablePath(): Promise<string | undefined> {
+    if (existsSync(this.filePath)) return this.filePath;
+    if (existsSync(this.appendPath)) return this.appendPath;
+    const gz = `${this.appendPath}.gz`;
+    if (existsSync(gz)) return gz;
+    return resolveWirePath(dirname(this.appendPath));
+  }
+
+  private openReadStream(path: string): Readable {
+    const raw = createReadStream(path);
+    if (isGzipWirePath(path)) return raw.pipe(createGunzip());
+    return raw;
+  }
 
   async *read(): AsyncIterable<AgentRecord> {
     await this.flush();
@@ -133,7 +167,9 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
     let buffer = Buffer.alloc(0);
     let lineNumber = 0;
     let yielded = 0;
-    const stream = createReadStream(this.filePath);
+    const resolved = await this.resolveReadablePath();
+    if (!resolved) return;
+    const stream = this.openReadStream(resolved);
     try {
       for await (const chunk of stream) {
         const piece = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
@@ -269,6 +305,14 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
 
   async close(): Promise<void> {
     await this.flush();
+    if (this.closed) return;
+    this.closed = true;
+    if (this.options.compressOnClose !== true) return;
+    try {
+      await compressWireJsonl(dirname(this.appendPath));
+    } catch {
+      // best-effort gzip
+    }
   }
 
   flushSync(): void {

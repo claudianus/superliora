@@ -151,7 +151,7 @@ export class SessionStore {
       title: normalized,
       isCustomTitle: true,
     };
-    await writeFile(statePath, `${JSON.stringify(next, null, 2)}\n`, 'utf-8');
+    await writeFile(statePath, `${JSON.stringify(next)}\n`, 'utf-8');
   }
 
   async archive(id: string): Promise<SessionSummary> {
@@ -174,7 +174,7 @@ export class SessionStore {
       archived: true,
       updatedAt: now,
     };
-    await writeFile(statePath, `${JSON.stringify(next, null, 2)}\n`, 'utf-8');
+    await writeFile(statePath, `${JSON.stringify(next)}\n`, 'utf-8');
     return this.summaryFromDir(id, entry.sessionDir, entry.workDir);
   }
 
@@ -416,7 +416,7 @@ export class SessionStore {
       agents: rewriteAgentHomedirs(parsed['agents'], sourceDir, targetDir),
       custom: forkCustomMetadata(parsed['custom'], input.metadata),
     };
-    await writeFile(statePath, `${JSON.stringify(next, null, 2)}\n`, 'utf-8');
+    await writeFile(statePath, `${JSON.stringify(next)}\n`, 'utf-8');
     return next;
   }
 

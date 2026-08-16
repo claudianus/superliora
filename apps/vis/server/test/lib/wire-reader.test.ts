@@ -111,4 +111,37 @@ describe('wire-reader', () => {
     expect(result.warnings.length).toBe(1);
     expect(result.warnings[0]).toMatch(/line 11/);
   });
+
+  it('reads gzip-compressed wire.jsonl.gz transparently', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'vis-wire-gz-'));
+    cleanup = async () => {
+      await rm(dir, { recursive: true, force: true });
+    };
+    const plain = join(dir, 'wire.jsonl');
+    const gz = join(dir, 'wire.jsonl.gz');
+    const lines = [
+      JSON.stringify({ type: 'metadata', protocol_version: '1.1', created_at: 1 }),
+      JSON.stringify({
+        type: 'context.append_message',
+        message: { role: 'user', content: [{ type: 'text', text: 'gzipped' }] },
+      }),
+    ];
+    await writeFile(plain, `${lines.join('\n')}\n`, 'utf8');
+    const { createReadStream, createWriteStream } = await import('node:fs');
+    const { createGzip } = await import('node:zlib');
+    const { pipeline } = await import('node:stream/promises');
+    await pipeline(createReadStream(plain), createGzip(), createWriteStream(gz));
+    await rm(plain, { force: true });
+
+    const byGz = await readAgentWire(gz);
+    expect(byGz.records).toHaveLength(1);
+    expect(byGz.metadata.protocolVersion).toBe('1.1');
+
+    const byPlainName = await readAgentWire(plain);
+    expect(byPlainName.records).toHaveLength(1);
+    expect(
+      (byPlainName.records[0]!.data as { message: { content: Array<{ text: string }> } }).message
+        .content[0]!.text,
+    ).toBe('gzipped');
+  });
 });
