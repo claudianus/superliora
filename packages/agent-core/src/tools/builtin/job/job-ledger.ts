@@ -1,5 +1,6 @@
 import type { GoalBudgetLimits } from '../../../agent/goal/types';
 import type { ToolStore } from '../../store';
+import { classifyJobTaskTrack, type JobTaskTrack } from './job-task-track';
 import {
   createJobId,
   emptyJobLedger,
@@ -86,6 +87,7 @@ export function createJob(
     readonly reviewAxis?: JobRecord['reviewAxis'];
     readonly modelAlias?: string;
     readonly surfaceKind?: JobRecord['surfaceKind'];
+    readonly taskTrack?: JobTaskTrack;
     readonly verifyVerdict?: JobRecord['verifyVerdict'];
     /** Affinity reuse: bind an existing worktree before schedule assigns one. */
     readonly worktreePath?: string;
@@ -98,11 +100,30 @@ export function createJob(
   },
 ): JobRecord {
   const now = new Date().toISOString();
+  const kind = input.kind ?? 'task';
+  const taskTrack =
+    input.taskTrack ??
+    classifyJobTaskTrack({
+      title: input.title,
+      prompt: input.prompt,
+      ownershipPaths: input.ownershipPaths,
+      contextPaths: input.contextPaths,
+      kind,
+      deliveryMode: input.deliveryMode,
+      greenfieldChain: input.deliveryMode === 'greenfield' || input.deliveryPhase !== undefined,
+    });
+  const codingKind = kind === 'task' || kind === 'implement';
+  const tddMode =
+    input.tddMode ??
+    (codingKind ? (taskTrack === 'general' ? 'off' : 'preferred') : undefined);
+  const surfaceKind =
+    input.surfaceKind ?? (codingKind && taskTrack === 'general' ? 'none' : undefined);
   const job: JobRecord = {
     id: createJobId(),
     title: input.title.trim(),
     status: 'queued',
-    kind: input.kind ?? 'task',
+    kind,
+    taskTrack,
     priority: input.priority ?? 0,
     createdAt: now,
     updatedAt: now,
@@ -113,7 +134,7 @@ export function createJob(
     mustNotTouch: input.mustNotTouch,
     verificationCommands: input.verificationCommands,
     testSeams: input.testSeams,
-    tddMode: input.tddMode,
+    tddMode,
     reproCommand: input.reproCommand?.trim() || undefined,
     blockedByJobIds: input.blockedByJobIds,
     deliveryMode: input.deliveryMode,
@@ -129,7 +150,7 @@ export function createJob(
     staffQuery: input.staffQuery,
     reviewAxis: input.reviewAxis,
     modelAlias: input.modelAlias?.trim() || undefined,
-    surfaceKind: input.surfaceKind,
+    surfaceKind,
     verifyVerdict: input.verifyVerdict,
     worktreePath: input.worktreePath?.trim() || undefined,
     worktreeBranch: input.worktreeBranch?.trim() || undefined,
@@ -175,6 +196,7 @@ export function patchJob(
       | 'tddMode'
       | 'reproCommand'
       | 'kind'
+      | 'taskTrack'
     >
   >,
 ): JobRecord | undefined {

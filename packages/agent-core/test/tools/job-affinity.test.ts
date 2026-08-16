@@ -133,6 +133,63 @@ describe('resolveJobAffinity', () => {
       })?.action,
     ).toBe('reject');
   });
+
+  it('reuses a terminal mission into implement (plan→code continuity)', () => {
+    const store = memoryStore();
+    const mission = createJob(store, {
+      title: 'Plan coding/general',
+      kind: 'mission',
+      ownershipPaths: ['packages/agent-core'],
+      worktreePath: '/tmp/wt-plan',
+      worktreeBranch: 'liora/plan-x',
+      workerResumeAgentId: 'agent_plan',
+      workerCheckpointAt: '2026-08-17T00:00:00.000Z',
+    });
+    patchJob(store, mission.id, {
+      status: 'done',
+      worktreePath: '/tmp/wt-plan',
+      resultSummary: 'Plan approved; implement next.',
+    });
+    const d = resolveJobAffinity(store, {
+      continueFromJobId: mission.id,
+      kind: 'implement',
+    });
+    expect(d?.action).toBe('reuse');
+    if (d?.action !== 'reuse') return;
+    const inherit = reuseInheritanceFromAnchor(d.anchor);
+    expect(inherit.worktreePath).toBe('/tmp/wt-plan');
+    expect(inherit.workerResumeAgentId).toBe('agent_plan');
+    expect(inherit.parentJobId).toBe(mission.id);
+  });
+
+  it('rejects live mission and mission→explore continue_from', () => {
+    const store = memoryStore();
+    const mission = createJob(store, {
+      title: 'Plan still open',
+      kind: 'mission',
+      ownershipPaths: ['packages/agent-core'],
+    });
+    patchJob(store, mission.id, { status: 'running' });
+    expect(
+      resolveJobAffinity(store, {
+        continueFromJobId: mission.id,
+        kind: 'implement',
+      })?.action,
+    ).toBe('reject');
+    patchJob(store, mission.id, { status: 'done' });
+    expect(
+      resolveJobAffinity(store, {
+        continueFromJobId: mission.id,
+        kind: 'explore',
+      })?.action,
+    ).toBe('reject');
+    expect(
+      resolveJobAffinity(store, {
+        continueFromJobId: mission.id,
+        kind: 'verify',
+      })?.action,
+    ).toBe('reject');
+  });
 });
 
 describe('affinity=auto selection', () => {

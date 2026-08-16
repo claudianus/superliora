@@ -79,6 +79,11 @@ export interface JobRecord {
   readonly title: string;
   readonly status: JobStatus;
   readonly kind: JobKind;
+  /**
+   * Per-Job coding vs general track. Missing = coding.
+   * General skips worktree / verify / commit-gate briefs. Session-level pin is forbidden.
+   */
+  readonly taskTrack?: 'coding' | 'general';
   readonly priority: number;
   readonly createdAt: string;
   readonly updatedAt: string;

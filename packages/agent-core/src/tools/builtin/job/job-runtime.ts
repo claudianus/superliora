@@ -27,6 +27,7 @@ import {
   type JobRecord,
   type JobStatus,
 } from './job-ledger';
+import { isGeneralTaskTrack } from './job-task-track';
 import { patchJobAndNotify } from './job-notify';
 import {
   findOwnershipHolder,
@@ -498,10 +499,11 @@ export interface ScheduleJobsResult {
  * the profile, not the kind, so `desk` digests come along for free and a new
  * read-only kind cannot forget to opt in.
  */
-function needsWorktree(kind: JobKind): boolean {
+export function needsWorktree(job: Pick<JobRecord, 'kind' | 'taskTrack'>): boolean {
   // merge/push: bookkeeping only — land/push use the source job's worktree.
-  if (kind === 'merge' || kind === 'push') return false;
-  const profile = profileForJobKind(kind);
+  if (job.kind === 'merge' || job.kind === 'push') return false;
+  if (isGeneralTaskTrack(job)) return false;
+  const profile = profileForJobKind(job.kind);
   // explore/research (+ desk via explore profile) + goal-desk: read-only /
   // orchestration — no worktree. verify keeps a worktree (usually parent chain).
   return profile !== 'explore' && profile !== 'goal-desk';
@@ -544,7 +546,7 @@ export async function scheduleQueuedJobs(input: ScheduleJobsInput): Promise<Sche
     candidates.map(
       async (candidate): Promise<{ started?: JobRecord; blocked?: JobRecord }> => {
         let job = candidate;
-        if (requireWt && needsWorktree(candidate.kind)) {
+        if (requireWt && needsWorktree(candidate)) {
           if (input.kaos === undefined || input.repoPath === undefined) {
             const b = patchJobAndNotify(
               input.store,

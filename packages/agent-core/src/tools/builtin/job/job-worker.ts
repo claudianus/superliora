@@ -174,42 +174,53 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
       ? `You are running in an isolated worktree: ${job.worktreePath}. Do not push to remotes — finish with a publishable summary (branch/sha/remote_ref) so Conductor can call PushJob / open Push Preview.`
       : undefined,
     renderRecoveryBriefAppendix(job),
-    [
-      'Worker contract:',
-      ...(job.kind === 'verify'
-        ? [
-            job.surfaceKind === 'tui'
-              ? '- Verify DoD: do not implement product features. Inspect the parent diff/summary against success criteria and test seams; run verification_commands when set; for TUI confirm visual smoke evidence (VerifySurface is N/A). Final summary MUST include dual-axis JSON: {"verdict":"pass"|"fail","standards":{"verdict":"pass"|"fail","findings":[]},"spec":{"verdict":"pass"|"fail","findings":[]},"findings":[],"required_fixes":[]}. Overall pass only when both axes pass.'
-              : '- Verify DoD: do not implement product features. Inspect the parent diff/summary against success criteria and test seams; run verification_commands when set; for web surfaces call VerifySurface when a URL/HTML path exists. Final summary MUST include dual-axis JSON: {"verdict":"pass"|"fail","standards":{"verdict":"pass"|"fail","findings":[]},"spec":{"verdict":"pass"|"fail","findings":[]},"findings":[],"required_fixes":[]}. Overall pass only when both axes pass.',
-          ]
-        : job.kind === 'research'
-          ? [
-              '- Research DoD: prefer DeepResearch / WebSearch / FetchURL / Context7 over multi-file code marathons. Cite sources. Do not edit the product tree.',
-            ]
-          : job.kind === 'explore'
+    job.taskTrack === 'general' && (job.kind === 'task' || job.kind === 'implement')
+      ? [
+          'Worker contract (general track):',
+          '- Execute the install / OS / app request. Do not create a worktree, run git commit, open a release PR, or run pnpm run gate.',
+          '- Keep secrets blocked: never Read/Write/Edit .env, SSH keys, or credential files (PATH_SENSITIVE still applies).',
+          '- Destructive OS changes and package installs still need user approval evidence before claiming pass.',
+          '- Final summary MUST include JSON: {"generalVerdict":"passed"|"failed","proof":"<command exit or observation>"}.',
+          '- If blocked (env, missing info, contradiction), stop with a concrete blocker and what you tried — do not invent.',
+        ].join('\n')
+      : [
+          'Worker contract:',
+          ...(job.kind === 'verify'
             ? [
-                '- Explore DoD: read-only codebase discovery. Prefer RepoQuery/Grep/Read; report findings structured. Do not edit the product tree.',
+                job.surfaceKind === 'tui'
+                  ? '- Verify DoD: do not implement product features. Inspect the parent diff/summary against success criteria and test seams; run verification_commands when set; for TUI confirm visual smoke evidence (VerifySurface is N/A). Final summary MUST include dual-axis JSON: {"verdict":"pass"|"fail","standards":{"verdict":"pass"|"fail","findings":[]},"spec":{"verdict":"pass"|"fail","findings":[]},"findings":[],"required_fixes":[]}. Overall pass only when both axes pass.'
+                  : '- Verify DoD: do not implement product features. Inspect the parent diff/summary against success criteria and test seams; run verification_commands when set; for web surfaces call VerifySurface when a URL/HTML path exists. Final summary MUST include dual-axis JSON: {"verdict":"pass"|"fail","standards":{"verdict":"pass"|"fail","findings":[]},"spec":{"verdict":"pass"|"fail","findings":[]},"findings":[],"required_fixes":[]}. Overall pass only when both axes pass.',
               ]
-            : [
-                '- Trace the brief against the codebase before editing (callers / fail path / success criteria).',
-                '- Prefer the smallest diff that meets success criteria; stay inside ownership/context paths when set.',
-                '- After each meaningful change, run focused checks when available; cite that evidence in the result summary.',
-              ]),
-      ...tddContractLines(job),
-      ...(job.kind === 'implement' && job.title.startsWith('Debug:') ? debugContractLines(job) : []),
-      ...visualDodLines(job),
-      ...mediaDodLines(job),
-      ...(job.worktreePath !== undefined &&
-      job.kind !== 'verify' &&
-      job.kind !== 'explore' &&
-      job.kind !== 'research'
-        ? [
-            '- Commit your work in the job worktree before finishing (`git add -A && git commit`; local commits only, never push). This brief explicitly authorizes those commits — no confirmation loop needed. Land-to-main / PushJob use the branch tip, so uncommitted changes are invisible and lost at worktree GC.',
-          ]
-        : []),
-      '- If blocked (env, missing info, contradiction), stop with a concrete blocker and what you tried — do not invent.',
-      '- Final summary: what changed, how verified, what remains. If remote publish is needed, include branch name and suggested remote_ref (e.g. gh-pages) for PushJob.',
-    ].join('\n'),
+            : job.kind === 'research'
+              ? [
+                  '- Research DoD: prefer DeepResearch / WebSearch / FetchURL / Context7 over multi-file code marathons. Cite sources. Do not edit the product tree.',
+                ]
+              : job.kind === 'explore'
+                ? [
+                    '- Explore DoD: read-only codebase discovery. Prefer RepoQuery/Grep/Read; report findings structured. Do not edit the product tree.',
+                  ]
+                : [
+                    '- Trace the brief against the codebase before editing (callers / fail path / success criteria).',
+                    '- Prefer the smallest diff that meets success criteria; stay inside ownership/context paths when set.',
+                    '- After each meaningful change, run focused checks when available; cite that evidence in the result summary.',
+                  ]),
+          ...tddContractLines(job),
+          ...(job.kind === 'implement' && job.title.startsWith('Debug:')
+            ? debugContractLines(job)
+            : []),
+          ...visualDodLines(job),
+          ...mediaDodLines(job),
+          ...(job.worktreePath !== undefined &&
+          job.kind !== 'verify' &&
+          job.kind !== 'explore' &&
+          job.kind !== 'research'
+            ? [
+                '- Commit your work in the job worktree before finishing (`git add -A && git commit`; local commits only, never push). This brief explicitly authorizes those commits — no confirmation loop needed. Land-to-main / PushJob use the branch tip, so uncommitted changes are invisible and lost at worktree GC.',
+              ]
+            : []),
+          '- If blocked (env, missing info, contradiction), stop with a concrete blocker and what you tried — do not invent.',
+          '- Final summary: what changed, how verified, what remains. If remote publish is needed, include branch name and suggested remote_ref (e.g. gh-pages) for PushJob.',
+        ].join('\n'),
   ];
   return parts.filter(Boolean).join('\n\n');
 }

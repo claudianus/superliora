@@ -17,6 +17,7 @@ import { dispatchMergeLand } from './job-land';
 import { createJob, getJob, listJobs, patchJob, type JobRecord } from './job-ledger';
 import { surfaceRequiresVisualProof } from './job-surface';
 import { STAFF_MIN_EXPERT_SCORE } from './job-staff';
+import { isGeneralTaskTrack } from './job-task-track';
 
 export type JobVerifyVerdict = 'passed' | 'failed' | 'not_run' | 'not_applicable';
 
@@ -114,6 +115,7 @@ export function jobRequiresVerifyChain(
     | 'staffQuery'
     | 'worktreePath'
     | 'ownershipPaths'
+    | 'taskTrack'
   >,
 ): boolean {
   if (
@@ -128,6 +130,7 @@ export function jobRequiresVerifyChain(
   ) {
     return false;
   }
+  if (isGeneralTaskTrack(job)) return false;
   // Debug fixer children must not re-trigger another verify fan-out.
   if (job.kind === 'implement' && job.title.startsWith('Debug:') && job.parentJobId !== undefined) {
     return false;
@@ -979,6 +982,7 @@ export function shouldAutoEnqueueMergeAfterVerify(
 ): boolean {
   if (parent.kind !== 'task' && parent.kind !== 'implement') return false;
   if (parent.status !== 'done') return false;
+  if (isGeneralTaskTrack(parent)) return false;
   if (parent.surfaceKind !== 'none') return false;
   if (jobs.some((j) => j.parentJobId === parent.id && j.kind === 'merge')) return false;
   return evaluateVerifyChainForMerge({ job: parent, jobs }).ok;
@@ -1009,7 +1013,7 @@ export function evaluateVerifyChainForMerge(input: {
     return { ok: true };
   }
   // Only gate coding deliveries that require a verify chain.
-  // surfaceKind=none / desktop / out-of-repo / non-coding → no verify kids expected.
+  // surfaceKind=none / desktop / out-of-repo / non-coding / general track → no verify kids expected.
   if (!jobRequiresVerifyChain(input.job)) {
     return { ok: true };
   }

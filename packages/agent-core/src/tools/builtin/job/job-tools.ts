@@ -55,6 +55,7 @@ import { evaluateMergeTrust, mergeTrustInputFromLedger } from './job-merge-trust
 import { patchJobAndNotify } from './job-notify';
 import { dispatchPushRemote, evaluatePushTrust } from './job-push';
 import { splitUserMessageIntoJobIntents } from './job-split';
+import { classifyJobTaskTrack } from './job-task-track';
 import { staffJobsFromObjective } from './job-staff';
 import { createGreenfieldChainJobs } from './job-greenfield-chain';
 import {
@@ -152,6 +153,12 @@ const JobCreateInputSchema = z
     tdd_mode: JobTddModeSchema.optional().describe(
       'TDD posture for task/implement: required (seams mandatory, red before green), preferred (default), or off. Explore/mission/desk skip.',
     ),
+    task_track: z
+      .enum(['coding', 'general'])
+      .optional()
+      .describe(
+        'Hidden override. Omit so JobCreate classifies the request. Do not ask the user to pick a track.',
+      ),
     repro_command: z
       .string()
       .trim()
@@ -978,6 +985,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
               modelAlias: effectiveModelAlias,
               surfaceKind,
               ...reuseFields,
+              ...(a.task_track !== undefined ? { taskTrack: a.task_track } : {}),
             }),
           );
         } else {
@@ -1002,6 +1010,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
               modelAlias: effectiveModelAlias,
               surfaceKind,
               ...reuseFields,
+              ...(a.task_track !== undefined ? { taskTrack: a.task_track } : {}),
               ...(isGoalDriver
                 ? {
                     goalObjective: intent.prompt?.trim() || intent.title || a.title,
@@ -1717,7 +1726,14 @@ export function createConductorJobDraftRecorder(
           ? kind === 'research'
             ? 'Web/docs investigation complete; findings summarized for the Conductor without product writes.'
             : 'Codebase discovery complete; findings summarized for the Conductor without product writes.'
-          : 'Blocked Conductor work completed in the worktree and verified (tests or observable check).',
+          : classifyJobTaskTrack({
+                title: draft.title,
+                prompt: draft.prompt,
+                ownershipPaths: ownershipLooksLikePath ? [draft.ownership] : undefined,
+                kind,
+              }) === 'general'
+            ? 'Observable confirmation (command exit code or visible app state). End with {"generalVerdict":"passed"|"failed","proof":"..."}. No worktree, verify child, release PR, or pnpm run gate.'
+            : 'Blocked Conductor work completed in the worktree and verified (tests or observable check).',
       ],
       ownershipPaths: ownershipLooksLikePath ? [draft.ownership] : undefined,
     });

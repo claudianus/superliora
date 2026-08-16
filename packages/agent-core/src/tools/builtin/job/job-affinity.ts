@@ -12,8 +12,21 @@ import type { ToolStore } from '../../store';
 import { getJob, listJobs, type JobKind, type JobRecord, type JobStatus } from './job-ledger';
 import { ownershipPathsOverlap } from './job-ownership';
 
-/** Kinds that may share a worker / worktree via affinity. */
+/** Kinds that may share a worker / worktree via affinity as the *new* Job. */
 const AFFINITY_KINDS = new Set<JobKind>(['task', 'implement', 'explore', 'research']);
+
+/**
+ * Anchor kinds eligible for continue_from reuse.
+ * Terminal `mission` (approved Plan Desk) may seed an implement child on the
+ * same worktree/resume so context is not cold-restarted.
+ */
+const AFFINITY_ANCHOR_KINDS = new Set<JobKind>([
+  'task',
+  'implement',
+  'explore',
+  'research',
+  'mission',
+]);
 
 const LIVE_STATUSES = new Set<JobStatus>(['running', 'needs_user']);
 const FOLD_STATUSES = new Set<JobStatus>(['queued']);
@@ -45,6 +58,11 @@ export interface JobAffinityRequest {
 export function isAffinityEligibleKind(kind: JobKind | undefined): boolean {
   if (kind === undefined) return true;
   return AFFINITY_KINDS.has(kind);
+}
+
+export function isAffinityEligibleAnchorKind(kind: JobKind | undefined): boolean {
+  if (kind === undefined) return false;
+  return AFFINITY_ANCHOR_KINDS.has(kind);
 }
 
 export function resolveJobAffinity(
@@ -101,11 +119,36 @@ export function resolveJobAffinity(
   }
   if (anchor === undefined) return undefined;
 
-  if (!isAffinityEligibleKind(anchor.kind)) {
+  if (!isAffinityEligibleAnchorKind(anchor.kind)) {
     return {
       action: 'reject',
       reason: `continue_from job ${anchor.id} kind=${anchor.kind} is not affinity-eligible.`,
     };
+  }
+
+  // Plan Desk mission: only terminal reuse into coding implement/task.
+  // Do not steer/fold a live plan worker into product writes, and do not
+  // continue_from mission into explore/research.
+  if (anchor.kind === 'mission') {
+    if (wantKind !== 'implement' && wantKind !== 'task') {
+      return {
+        action: 'reject',
+        reason: `continue_from mission ${anchor.id} only allows kind=implement|task (got ${wantKind}).`,
+      };
+    }
+    if (!REUSE_STATUSES.has(anchor.status)) {
+      return {
+        action: 'reject',
+        reason: `continue_from mission ${anchor.id} requires a terminal status (got ${anchor.status}); wait for plan approval/ExitPlanMode.`,
+      };
+    }
+    if (anchor.landReceipt !== undefined) {
+      return {
+        action: 'reject',
+        reason: `continue_from job ${anchor.id} already landed — start a fresh Job instead of reusing its worktree.`,
+      };
+    }
+    return { action: 'reuse', anchor };
   }
 
   if (LIVE_STATUSES.has(anchor.status)) {
@@ -145,6 +188,8 @@ export function findAffinityAnchor(
 
   const candidates = listJobs(store).filter(
     (j) =>
+      // Auto affinity still excludes mission — only explicit continue_from_job_id
+      // may pick up a terminal Plan Desk worktree.
       isAffinityEligibleKind(j.kind) &&
       ownershipPathsOverlap(paths, j.ownershipPaths) !== undefined &&
       j.landReceipt === undefined,
