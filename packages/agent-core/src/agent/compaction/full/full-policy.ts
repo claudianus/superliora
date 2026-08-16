@@ -2,7 +2,20 @@
  * Pure auto-compaction policy helpers (pre-rot / recompact growth / overflow).
  */
 
+import { SOVEREIGN_CONDUCTOR_PROFILE_NAME } from '../../../profile/main-profile';
 import { applyWorkingSetCap, recompactGrowthBaseTokens } from '../strategy';
+
+/**
+ * Explicit Conductor control-plane lane. Unset / non-conductor main
+ * profiles keep the normal LLM summarizer so worker and default main
+ * agents still compact.
+ */
+export function isInteractiveConductorLane(input: {
+  readonly agentType: string;
+  readonly profileName: string | undefined;
+}): boolean {
+  return input.agentType === 'main' && input.profileName === SOVEREIGN_CONDUCTOR_PROFILE_NAME;
+}
 
 export function shouldSkipRecompactUntilGrowth(input: {
   readonly lastCompactedTokenCount: number | null;
@@ -32,8 +45,29 @@ export function shouldSkipRecompactUntilGrowth(input: {
 
 export function shouldDeferAutoCompaction(input: {
   readonly hasActiveForegroundChildren: boolean;
+  /** When true, skip starting auto-compaction on the interactive Conductor turn. */
+  readonly isInteractiveConductorLane?: boolean;
 }): boolean {
-  return input.hasActiveForegroundChildren;
+  return input.hasActiveForegroundChildren || input.isInteractiveConductorLane === true;
+}
+
+/**
+ * Whether `beforeStep` / `prepareForTurn` may `await` an in-flight compaction.
+ * Conductor stays free unless the model window is hard-blocked.
+ */
+export function shouldWaitForInFlightCompaction(input: {
+  readonly isInteractiveConductorLane: boolean;
+  readonly mustBlock: boolean;
+}): boolean {
+  if (input.mustBlock) return true;
+  return !input.isInteractiveConductorLane;
+}
+
+/** Skip the synchronous summarizer LLM and use the fail-open stub instead. */
+export function shouldSkipLlmSummarizer(input: {
+  readonly isInteractiveConductorLane: boolean;
+}): boolean {
+  return input.isInteractiveConductorLane;
 }
 
 export function shouldDeferAsyncCompaction(input: {

@@ -145,4 +145,47 @@ describe('buildEmergencyBackstopSummary', () => {
     const summary = buildEmergencyBackstopSummary(messages, plan);
     expect(summary).toContain('Continue the active task');
   });
+
+  it('fail-opens with a bounded stub instead of dumping the extractive transcript', () => {
+    const hugeToolBody = 'x'.repeat(80_000);
+    const messages: Message[] = [
+      {
+        role: 'user',
+        content: [{ type: 'text', text: 'Implement explore job_msv8wa0o3shoxh and keep JobCreate usable' }],
+        toolCalls: [],
+      } as unknown as Message,
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Delegating via JobCreate.' }],
+        toolCalls: [
+          {
+            id: 'call_job_create',
+            name: 'JobCreate',
+            arguments: '{"title":"explore compaction"}',
+          },
+        ],
+      } as unknown as Message,
+      {
+        role: 'tool',
+        content: [{ type: 'text', text: hugeToolBody }],
+        toolCalls: [],
+        toolCallId: 'call_job_create',
+      } as unknown as Message,
+    ];
+    const plan = {
+      compactedTokens: 269_000,
+      rawRefs: [
+        { kind: 'tool_exchange', messageStart: 1, messageEnd: 2, tokens: 200_000, archiveId: 'abc123def' },
+        { kind: 'user', messageStart: 0, messageEnd: 0, tokens: 40 },
+      ],
+    } as never;
+    const summary = buildEmergencyBackstopSummary(messages, plan);
+    expect(summary).toContain('Implement explore job_msv8wa0o3shoxh');
+    expect(summary).toContain('job_msv8wa0o3shoxh');
+    expect(summary).toContain('archive');
+    expect(summary).not.toContain('## Emergency extractive transcript');
+    expect(summary).not.toContain(hugeToolBody);
+    expect(summary.length).toBeLessThan(8_000);
+    expect(summary.split('\n').filter((line) => line.startsWith('- tool_exchange')).length).toBeLessThanOrEqual(8);
+  });
 });

@@ -46,10 +46,12 @@ import {
   handoffThresholdTokens,
   relaxObservedMaxContextTokens,
   resolveEffectiveMaxContextTokens,
+  isInteractiveConductorLane,
   shouldDeferAsyncCompaction,
   shouldDeferAutoCompaction as shouldDeferAutoCompactionPolicy,
   shouldRecoverFromOverflowStatus,
   shouldSkipRecompactUntilGrowth as shouldSkipRecompactUntilGrowthPolicy,
+  shouldWaitForInFlightCompaction,
 } from './full-policy';
 import type { CompactionPipelineContext } from '../pipeline/types';
 import { createDefaultFullCompactionStrategy } from './full-strategy-factory';
@@ -435,7 +437,15 @@ export class FullCompaction implements CompactionPipelineContext {
 
   async beforeStep(signal: AbortSignal): Promise<void> {
     this.checkAutoCompaction();
-    if (this.compacting !== null || this.strategy.shouldBlock(this.tokenCountWithPending)) {
+    const mustBlock = this.strategy.shouldBlock(this.tokenCountWithPending);
+    if (this.compacting !== null && shouldWaitForInFlightCompaction({
+      isInteractiveConductorLane: this.isInteractiveConductorLane(),
+      mustBlock,
+    })) {
+      await this.block(signal);
+      return;
+    }
+    if (mustBlock) {
       await this.block(signal);
     }
   }
@@ -447,13 +457,21 @@ export class FullCompaction implements CompactionPipelineContext {
    */
   async prepareForTurn(signal: AbortSignal): Promise<void> {
     if (this.compacting !== null) {
-      await this.block(signal);
+      if (shouldWaitForInFlightCompaction({
+        isInteractiveConductorLane: this.isInteractiveConductorLane(),
+        mustBlock: this.strategy.shouldBlock(this.tokenCountWithPending),
+      })) {
+        await this.block(signal);
+      }
       return;
     }
     const projected = this.estimateCurrentRequestTokens() + this.speculativeStepBufferTokens();
     if (this.shouldSpeculativelyCompact(projected)) {
       this.checkAutoCompaction();
-      if (this.compacting !== null) {
+      if (this.compacting !== null && shouldWaitForInFlightCompaction({
+        isInteractiveConductorLane: this.isInteractiveConductorLane(),
+        mustBlock: this.strategy.shouldBlock(this.tokenCountWithPending),
+      })) {
         await this.block(signal);
         return;
       }
@@ -513,11 +531,13 @@ export class FullCompaction implements CompactionPipelineContext {
 
   private checkAutoCompaction(throwOnLimit: boolean = true): boolean {
     if (this.compacting) return true;
-    if (this.shouldDeferAutoCompaction()) {
-      return false;
-    }
     const used = this.tokenCountWithPending;
     const mustBlock = this.strategy.shouldBlock(used);
+    // Soft auto-compaction waits so Conductor JobCreate is not stalled on a
+    // summarizer. Hard overflow still starts (LLM-skip / fail-open stub).
+    if (!mustBlock && this.shouldDeferAutoCompaction()) {
+      return false;
+    }
     // Hard-block residual must always re-arm — recompact growth hysteresis only
     // applies to the soft path. Otherwise a 2M → 1.95M "complete" sets the
     // baseline and permanently skips auto compact while still over the window.
@@ -545,10 +565,18 @@ export class FullCompaction implements CompactionPipelineContext {
     });
   }
 
+  private isInteractiveConductorLane(): boolean {
+    return isInteractiveConductorLane({
+      agentType: this.agent.type,
+      profileName: this.agent.config.profileName,
+    });
+  }
+
   private shouldDeferAutoCompaction(): boolean {
     return shouldDeferAutoCompactionPolicy({
       hasActiveForegroundChildren:
         this.agent.subagentHost?.hasActiveForegroundChildren?.() === true,
+      isInteractiveConductorLane: this.isInteractiveConductorLane(),
     });
   }
 

@@ -6,9 +6,12 @@ import {
   MIN_OBSERVED_MAX_CONTEXT_TOKENS,
   relaxObservedMaxContextTokens,
   resolveEffectiveMaxContextTokens,
+  isInteractiveConductorLane,
   shouldDeferAsyncCompaction,
   shouldDeferAutoCompaction,
   shouldRecoverFromOverflowStatus,
+  shouldSkipLlmSummarizer,
+  shouldWaitForInFlightCompaction,
   shouldSkipRecompactUntilGrowth,
   shouldUseParallelSummarize,
 } from '../../../src/agent/compaction/full-policy';
@@ -94,6 +97,99 @@ describe('full-policy.ts — pure policy helpers', () => {
 
     it('does not defer when no foreground children are active', () => {
       expect(shouldDeferAutoCompaction({ hasActiveForegroundChildren: false })).toBe(false);
+    });
+
+    it('defers the Conductor / main interactive lane so JobCreate is not stalled on a summarizer', () => {
+      expect(
+        shouldDeferAutoCompaction({
+          hasActiveForegroundChildren: false,
+          isInteractiveConductorLane: true,
+        }),
+      ).toBe(true);
+    });
+
+    it('still reports deferral on Conductor so callers can skip the soft path', () => {
+      expect(
+        shouldDeferAutoCompaction({
+          hasActiveForegroundChildren: true,
+          isInteractiveConductorLane: true,
+        }),
+      ).toBe(true);
+    });
+
+    it('does not treat an unset / non-conductor main profile as the interactive lane', () => {
+      expect(
+        isInteractiveConductorLane({
+          agentType: 'main',
+          profileName: undefined,
+        }),
+      ).toBe(false);
+      expect(
+        isInteractiveConductorLane({
+          agentType: 'main',
+          profileName: 'kimi',
+        }),
+      ).toBe(false);
+      expect(
+        isInteractiveConductorLane({
+          agentType: 'main',
+          profileName: 'conductor',
+        }),
+      ).toBe(true);
+      expect(
+        isInteractiveConductorLane({
+          agentType: 'sub',
+          profileName: 'conductor',
+        }),
+      ).toBe(false);
+    });
+
+    it('still runs auto-compaction for non-conductor workers with no foreground children', () => {
+      expect(
+        shouldDeferAutoCompaction({
+          hasActiveForegroundChildren: false,
+          isInteractiveConductorLane: false,
+        }),
+      ).toBe(false);
+    });
+  });
+
+  describe('shouldWaitForInFlightCompaction', () => {
+    it('waits on a worker lane even when the window is only softly over', () => {
+      expect(
+        shouldWaitForInFlightCompaction({
+          isInteractiveConductorLane: false,
+          mustBlock: false,
+        }),
+      ).toBe(true);
+    });
+
+    it('does not wait on the Conductor interactive turn unless the hard block fired', () => {
+      expect(
+        shouldWaitForInFlightCompaction({
+          isInteractiveConductorLane: true,
+          mustBlock: false,
+        }),
+      ).toBe(false);
+    });
+
+    it('still waits on Conductor when the model window is hard-blocked', () => {
+      expect(
+        shouldWaitForInFlightCompaction({
+          isInteractiveConductorLane: true,
+          mustBlock: true,
+        }),
+      ).toBe(true);
+    });
+  });
+
+  describe('shouldSkipLlmSummarizer', () => {
+    it('skips the synchronous summarizer LLM on the Conductor interactive lane', () => {
+      expect(shouldSkipLlmSummarizer({ isInteractiveConductorLane: true })).toBe(true);
+    });
+
+    it('keeps the LLM summarizer for worker / non-conductor agents', () => {
+      expect(shouldSkipLlmSummarizer({ isInteractiveConductorLane: false })).toBe(false);
     });
   });
 

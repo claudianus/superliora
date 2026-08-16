@@ -8,15 +8,15 @@ import {
 
 import { ErrorCodes, isKimiError } from '#/errors/index';
 import { isAbortError } from '../../../loop/errors';
-import { estimateTokens } from '../../../utils/tokens';
 import type { CompactionPlan } from '../plan/planner';
-import { renderMessagesToText } from '../plan/render-messages';
 import { extractEvidenceIdsFromText } from '../plan/quality';
 import { latestUserText } from '../plan/quality-helpers';
 
-const EMERGENCY_NARRATIVE_MAX_TOKENS = 8_000;
 const EMERGENCY_MESSAGE_SNIPPET_CHARS = 600;
-const EMERGENCY_TOOL_SNIPPET_CHARS = 400;
+/** Hard cap for the fail-open stub injected into the next turn. */
+const FAIL_OPEN_STUB_MAX_CHARS = 4_000;
+const FAIL_OPEN_RAW_REF_LIMIT = 8;
+const JOB_ID_PATTERN = /job_[a-z0-9]{6,}/gi;
 
 /**
  * When the LLM summarizer cannot run (unsupported params, 4xx model errors,
@@ -84,13 +84,20 @@ export function buildEmergencyBackstopSummary(
   instruction?: string,
 ): string {
   const latestUser = findLatestUserText(messages);
-  const toolHighlights = collectToolHighlights(messages);
-  const filePaths = collectFilePaths(messages);
-  const failureLines = collectFailureLines(messages);
-  const narrative = truncateToTokenBudget(
-    renderMessagesToText(messages),
-    EMERGENCY_NARRATIVE_MAX_TOKENS,
-  );
+  const jobIds = collectJobIds(messages, latestUser);
+  const archiveIds = collectArchivePointers(messages, plan);
+  const nextAction = latestUser ?? 'the pending user request.';
+
+  const rawRefLines =
+    plan.rawRefs.length > 0
+      ? plan.rawRefs.slice(0, FAIL_OPEN_RAW_REF_LIMIT).map((ref) => {
+          const archive =
+            ref.archiveId !== undefined && ref.archiveId.length > 0
+              ? ` archive=${ref.archiveId}`
+              : '';
+          return `- ${ref.kind} messages[${String(ref.messageStart)}..${String(ref.messageEnd)}] (~${String(ref.tokens)} tokens)${archive}`;
+        })
+      : ['- (not captured during compaction.)'];
 
   const lines = [
     'current_goal:',
@@ -100,35 +107,54 @@ export function buildEmergencyBackstopSummary(
     instruction !== undefined && instruction.trim().length > 0
       ? `- User compaction instruction: ${instruction.trim()}`
       : undefined,
+    'job_ids:',
+    ...(jobIds.length > 0 ? jobIds.map((id) => `- ${id}`) : ['- (none captured)']),
     'decisions:',
     ...collectAssistantDecisions(messages).map((item) => `- ${item}`),
     'files_touched:',
-    ...(filePaths.length > 0 ? filePaths.map((file) => `- ${file}`) : ['- (not captured during compaction.)']),
+    ...(collectFilePaths(messages).length > 0
+      ? collectFilePaths(messages).map((file) => `- ${file}`)
+      : ['- (not captured during compaction.)']),
     'failed_attempts:',
-    ...(failureLines.length > 0 ? failureLines.map((line) => `- ${line}`) : ['- (not captured during compaction.)']),
+    ...(collectFailureLines(messages).length > 0
+      ? collectFailureLines(messages).map((line) => `- ${line}`)
+      : ['- (not captured during compaction.)']),
     'open_questions:',
     '- Re-verify any step marked unverified below before relying on it.',
     'next_actions:',
-    `- Resume from the retained recent messages and verify: ${latestUser ?? 'the pending user request.'}`,
+    `- Resume from the retained recent messages and verify: ${nextAction}`,
+    'archive:',
+    ...(archiveIds.length > 0
+      ? archiveIds.map((id) => `- [liora-archived id=${id}]`)
+      : ['- (none captured)']),
     'raw_refs:',
-    ...(plan.rawRefs.length > 0
-      ? plan.rawRefs.map(
-          (ref) =>
-            `- ${ref.kind} messages[${String(ref.messageStart)}..${String(ref.messageEnd)}] (~${String(ref.tokens)} tokens)`,
-        )
-      : ['- (not captured during compaction.)']),
+    ...rawRefLines,
     ...collectEvidenceLines(messages),
-    '',
-    '## Emergency extractive transcript',
-    'The LLM compaction summarizer failed after retries. This deterministic snapshot preserves continuity.',
-    '',
-    ...(toolHighlights.length > 0
-      ? ['### Tool exchange highlights', ...toolHighlights, '']
-      : []),
-    narrative,
   ].filter((line): line is string => line !== undefined);
 
-  return lines.join('\n');
+  const stub = lines.join('\n');
+  if (stub.length <= FAIL_OPEN_STUB_MAX_CHARS) return stub;
+  return `${stub.slice(0, FAIL_OPEN_STUB_MAX_CHARS)}\n…[fail-open stub truncated]`;
+}
+
+function collectJobIds(messages: readonly Message[], latestUser: string | undefined): string[] {
+  const haystack = [latestUser ?? '', ...messages.map((message) => extractText(message, ' '))].join(
+    '\n',
+  );
+  return uniqueList(haystack.match(JOB_ID_PATTERN) ?? []).slice(0, 12);
+}
+
+function collectArchivePointers(
+  messages: readonly Message[],
+  plan: CompactionPlan,
+): string[] {
+  const fromPlan = plan.rawRefs
+    .map((ref) => ref.archiveId)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0);
+  const fromMessages = extractEvidenceIdsFromText(
+    messages.map((message) => extractText(message, ' ')).join('\n'),
+  ).filter((id) => /^[a-f0-9]+$/i.test(id) && id.length >= 8);
+  return uniqueList([...fromPlan, ...fromMessages]).slice(0, 8);
 }
 
 function findLatestUserText(messages: readonly Message[]): string | undefined {
@@ -146,25 +172,6 @@ function collectAssistantDecisions(messages: readonly Message[]): string[] {
     decisions.push(truncateChars(text, EMERGENCY_MESSAGE_SNIPPET_CHARS));
   }
   return uniqueList(decisions).slice(0, 6);
-}
-
-function collectToolHighlights(messages: readonly Message[]): string[] {
-  const highlights: string[] = [];
-  for (const message of messages) {
-    if (message.role === 'assistant' && message.toolCalls.length > 0) {
-      for (const toolCall of message.toolCalls) {
-        highlights.push(
-          `- called ${toolCall.name}(${truncateChars(toolCall.arguments ?? '', EMERGENCY_TOOL_SNIPPET_CHARS)})`,
-        );
-      }
-      continue;
-    }
-    if (message.role !== 'tool') continue;
-    const text = extractText(message, ' ').replaceAll(/\s+/g, ' ').trim();
-    if (text.length === 0) continue;
-    highlights.push(`- tool result: ${truncateChars(text, EMERGENCY_TOOL_SNIPPET_CHARS)}`);
-  }
-  return highlights.slice(0, 12);
 }
 
 function collectFilePaths(messages: readonly Message[]): string[] {
@@ -199,23 +206,6 @@ function truncateChars(text: string, maxChars: number): string {
   if (text.length <= maxChars) return text;
   return `${text.slice(0, maxChars)}…`;
 }
-
-function truncateToTokenBudget(text: string, maxTokens: number): string {
-  if (maxTokens <= 0 || text.length === 0) return '';
-  let low = 0;
-  let high = text.length;
-  while (low < high) {
-    const mid = Math.ceil((low + high) / 2);
-    if (estimateTokens(text.slice(0, mid)) <= maxTokens) {
-      low = mid;
-    } else {
-      high = mid - 1;
-    }
-  }
-  const truncated = text.slice(0, low);
-  return truncated.length < text.length ? `${truncated}\n…[transcript truncated]` : truncated;
-}
-
 
 function collectEvidenceLines(messages: readonly Message[]): string[] {
   const sourceText = messages.map((message) => extractText(message, ' ')).join('\n');

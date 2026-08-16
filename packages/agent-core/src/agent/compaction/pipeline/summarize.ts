@@ -44,7 +44,11 @@ import {
   mergeTokenUsage,
   mergeTokenUsageOrNull,
 } from '../full/full-helpers';
-import { shouldUseParallelSummarize } from '../full/full-policy';
+import {
+  isInteractiveConductorLane,
+  shouldSkipLlmSummarizer,
+  shouldUseParallelSummarize,
+} from '../full/full-policy';
 import { splitMessagesIntoTokenBlocks, type CompactionPlan } from '../plan/planner';
 import { runCompactionGenerate } from './generate-guard';
 import {
@@ -537,6 +541,32 @@ export async function summarizeCompactedPrefix(
   let compactedCount = input.compactedCount;
   let messagesToCompact = input.messagesToCompact;
   let usedEmergencyBackstop = false;
+
+  if (
+    shouldSkipLlmSummarizer({
+      isInteractiveConductorLane: isInteractiveConductorLane({
+        agentType: ctx.agent.type,
+        profileName: ctx.agent.config.profileName,
+      }),
+    })
+  ) {
+    ctx.agent.telemetry.track('compaction_classical_fallback', {
+      reason: 'conductor_skip_llm',
+    });
+    return {
+      summary: buildEmergencyBackstopSummary(
+        messagesToCompact,
+        input.plan,
+        input.instruction,
+      ),
+      usage: null,
+      parallelBlockCount: 0,
+      mergeInputTokens: undefined,
+      compactedCount,
+      messagesToCompact,
+      usedEmergencyBackstop: true,
+    };
+  }
 
   const compactedTokens = estimateTokensForMessages(messagesToCompact);
   const parallelThreshold = ctx.strategy.parallelBlockThreshold ?? DEFAULT_PARALLEL_BLOCK_THRESHOLD;

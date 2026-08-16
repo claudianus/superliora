@@ -112,6 +112,14 @@ export function renderStructuredV2Summary(
     formatStringList(rawRefItems),
     '',
     '## Compacted Narrative',
-    summary.trim(),
+    stripEmergencyExtractiveDump(summary.trim()),
   ].join('\n');
+}
+
+/** Fail-open backstop must never re-inject a full extractive transcript. */
+function stripEmergencyExtractiveDump(summary: string): string {
+  const marker = '## Emergency extractive transcript';
+  const idx = summary.indexOf(marker);
+  if (idx < 0) return summary;
+  return summary.slice(0, idx).trimEnd();
 }
