@@ -78,6 +78,49 @@ describe('RendererCompositionCache topology signature', () => {
   });
 });
 
+describe('RendererCompositionCache topology ignores paint-mode / VFX churn', () => {
+  it('reuses topology when only clear/background/vfx change (ambient tick hole)', () => {
+    // clear + letterbox chase VFX used to be part of the topology signature.
+    // Every ambient tick then forced beginFrame(clear) → black bands / vanished
+    // prompt glyphs on ConPTY while the soft buffer still held text.
+    const cache = new RendererCompositionCache();
+    const base: RendererRegionLayer = {
+      id: 'editor',
+      rect: { x: 0, y: 10, width: 40, height: 3 },
+      lines: ['> hello', '  world', ''],
+      clear: false,
+      background: { char: ' ', style: { bg: '#0b0f14' } },
+    };
+    const first = new RendererCellBuffer(80, 24);
+    cache.beginFrame({ bufferWidth: 80, bufferHeight: 24, layers: [base] });
+    composeRendererRegions(first, [base], { cache, reuseCachedRows: true });
+
+    const ambient: RendererRegionLayer = {
+      ...base,
+      clear: true,
+      background: { char: ' ', style: { bg: '#111111' } },
+      vfx: {
+        effect: {
+          kind: 'pulse',
+          nowMs: 1_234,
+          color: '#ff00aa',
+        },
+      },
+    };
+    const reusable = cache.beginFrame({
+      bufferWidth: 80,
+      bufferHeight: 24,
+      layers: [ambient],
+    });
+    expect(reusable).toBe(true);
+
+    // Row keys still include clear/vfx so changed paint modes recompose.
+    composeRendererRegions(first, [ambient], { cache, reuseCachedRows: true });
+    expect(cache.snapshot().rowsComposed).toBe(3);
+    expect(cache.snapshot().rowsReused).toBe(0);
+  });
+});
+
 describe('composeRendererRegions missing-line background fill', () => {
   it('fills region background for undefined lines when clear:false', () => {
     // Short content inside a taller rect used to leave EMPTY_CELL (no bg) —

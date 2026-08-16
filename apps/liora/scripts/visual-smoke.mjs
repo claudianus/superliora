@@ -30,6 +30,30 @@ const WHEEL_DOWN = '\x1b[<65;60;15M';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Child PTY env must not inherit the parent harness mute flags.
+ * `NO_COLOR` / `FORCE_COLOR=0` / `TERM=dumb` silence chrome paint on Windows
+ * ConPTY hosts; kitty/iTerm graphics probes dump `Gi=31,...` into the capture
+ * unless `SUPERLIORA_IMAGE_PROTOCOL=none` short-circuits the boot probe.
+ */
+function buildChildEnv(home) {
+  const env = { ...process.env };
+  delete env.NO_COLOR;
+  // Drop parent force-color so our pin below wins even when parent had `0`.
+  delete env.FORCE_COLOR;
+  if ((env.TERM ?? '').toLowerCase() === 'dumb') {
+    delete env.TERM;
+  }
+  env.SUPERLIORA_HOME = home;
+  env.TERM = 'xterm-256color';
+  env.COLORTERM = 'truecolor';
+  env.FORCE_COLOR = '1';
+  env.SUPERLIORA_IMAGE_PROTOCOL = 'none';
+  if (!env.LANG) env.LANG = 'C.UTF-8';
+  if (!env.LC_ALL) env.LC_ALL = 'C.UTF-8';
+  return env;
+}
+
 function stripAnsi(text) {
   return text
     .replace(/\x1b\[[0-9;?]*[A-Za-z]/g, '')
@@ -97,12 +121,7 @@ async function main() {
     cols: COLS,
     rows: ROWS,
     cwd: repoRoot,
-    env: {
-      ...process.env,
-      SUPERLIORA_HOME: home,
-      TERM: 'xterm-256color',
-      FORCE_COLOR: '1',
-    },
+    env: buildChildEnv(home),
   });
   pty.onData((chunk) => {
     frames += chunk;

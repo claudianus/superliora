@@ -3,6 +3,7 @@ import {
   measureRendererEditorSurfaceNaturalRows,
   projectRendererCursorMarkerLines,
   projectRendererEditorSurfaceCursor,
+  regionLinePresentKey,
   RENDERER_EDITOR_FRAME_TEXT_INPUT_GEOMETRY,
   RENDERER_EDITOR_SHELL_MODE_LABEL,
   rendererEditorContentHeight,
@@ -19,6 +20,26 @@ import { feedbackBorderGlowHex } from '#/tui/utils/render/feedback-vfx';
 import { appearanceAnimationNow } from '#/tui/features/appearance/appearance-effects';
 
 import type { TUIState } from '../../tui-state';
+
+/**
+ * Last presented editor region lines (content-hash skip).
+ * Same idea as TranscriptVisibleLinePresenter: ambient ticks rebuild the
+ * surface with fresh array identities even when glyphs are unchanged. Reusing
+ * prior line refs keeps composition/present from flashing a blank prompt row
+ * on ConPTY when letterbox/stage clear races the rewrite.
+ */
+let lastEditorPresent:
+  | {
+      readonly rectKey: string;
+      readonly keys: readonly string[];
+      readonly lines: readonly RendererRegionLine[];
+    }
+  | undefined;
+
+/** Test helper — drop the editor present-hash cache. */
+export function resetNativeEditorPresentCacheForTests(): void {
+  lastEditorPresent = undefined;
+}
 
 /**
  * Minimum transcript rows the native layout must preserve when squeezing
@@ -190,10 +211,14 @@ export function projectNativeEditorRegion(
   // Pad to the layout rect height so compositor never sees lines.length <
   // rect.height on the editor region (clear:false + short content → black gap).
   const targetRows = Math.max(0, Math.floor(rect.height));
-  const lines =
+  const painted =
     surface.lines.length >= targetRows
       ? surface.lines
       : padEditorRegionLines(surface.lines, targetRows, Math.floor(rect.width), editorStyles.surfaceStyle);
+  // Hash-equal present skip (transcript already does this). Fresh array
+  // identities every ambient tick used to recompose the whole editor rect and
+  // flash blank/black rows under ConPTY when clear raced the rewrite.
+  const lines = presentStableEditorLines(painted, rect);
   const cursor = projectRendererEditorSurfaceCursor({
     surface: { ...surface, lines },
     rect,
@@ -208,6 +233,34 @@ export function projectNativeEditorRegion(
   };
   if (cursor !== undefined) projected.cursor = cursor;
   return projected;
+}
+
+/**
+ * Keep prior editor line object identities when content hashes match.
+ * Geometry (rect) changes always take the incoming lines.
+ */
+export function presentStableEditorLines(
+  lines: readonly RendererRegionLine[],
+  rect: RendererRect,
+): readonly RendererRegionLine[] {
+  const rectKey = [
+    Math.floor(rect.x),
+    Math.floor(rect.y),
+    Math.floor(rect.width),
+    Math.floor(rect.height),
+  ].join(',');
+  const keys = lines.map(regionLinePresentKey);
+  const prev = lastEditorPresent;
+  if (
+    prev !== undefined &&
+    prev.rectKey === rectKey &&
+    prev.keys.length === keys.length &&
+    prev.keys.every((key, i) => key === keys[i])
+  ) {
+    return prev.lines;
+  }
+  lastEditorPresent = { rectKey, keys, lines };
+  return lines;
 }
 
 function padEditorRegionLines(
