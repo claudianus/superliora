@@ -38,7 +38,7 @@ export class MissionControlController {
 
   /**
    * After resume, seed ghost workers from the job ledger so the Dock shows
-   * Resuming… rows before live subagent events arrive.
+   * job titles before live subagent events arrive.
    */
   hydrateGhostsFromJobs(
     jobs: ReturnType<typeof emptyConductorJobsSnapshot> | {

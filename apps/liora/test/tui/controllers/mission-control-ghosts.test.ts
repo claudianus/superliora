@@ -19,6 +19,9 @@ describe('MissionControlRegistry job ghosts', () => {
     expect(snap.workers).toHaveLength(1);
     expect(snap.workers[0]?.id).toBe('job-ghost:job_abc');
     expect(snap.workers[0]?.status).toBe('suspended');
+    expect(snap.workers[0]?.name).toBe('implement foo');
+    expect(snap.workers[0]?.description).toBe('implement foo');
+    expect(snap.workers[0]?.description).not.toMatch(/Resuming/i);
 
     // Live worker for the same job replaces the ghost.
     registry.apply({

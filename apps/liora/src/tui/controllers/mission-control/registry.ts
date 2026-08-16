@@ -226,17 +226,16 @@ export class MissionControlRegistry {
       wanted.add(ghostId);
       const status: MissionWorkerStatus =
         job.status === 'running' ? 'finishing' : 'suspended';
-      const description =
-        job.status === 'running'
-          ? 'Resuming…'
-          : job.status === 'queued'
-            ? 'Queued after resume…'
-            : 'Interrupted — resuming…';
+      const title = job.title.trim();
       const phase = job.progress?.phase?.trim();
+      // Paint the job title, not a "Resuming…" placeholder — the dock LIVE
+      // cell used to look like every worker was stuck resuming.
+      const description =
+        phase && phase.length > 0 ? phase : title.length > 0 ? title : job.id;
       const existing = this.workers.get(ghostId);
       if (existing !== undefined) {
-        const nextName = job.title.slice(0, 80);
-        const nextDescription = phase && phase.length > 0 ? phase : description;
+        const nextName = title.length > 0 ? title.slice(0, 80) : job.id;
+        const nextDescription = description;
         // Only bump the roster when fields actually change — pure progress
         // heartbeats used to force densemode rebuilds every pushView.
         if (
@@ -254,10 +253,10 @@ export class MissionControlRegistry {
       }
       this.workers.set(ghostId, {
         id: ghostId,
-        name: job.title.slice(0, 80),
+        name: title.length > 0 ? title.slice(0, 80) : job.id,
         kind: 'subagent',
         status,
-        description: phase && phase.length > 0 ? phase : description,
+        description,
         runInBackground: true,
         toolCount: 0,
         tokens: 0,

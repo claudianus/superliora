@@ -70,7 +70,7 @@ export function labelGoalXp(labels: FooterLabels): string {
 }
 
 export function labelFleetDone(labels: FooterLabels): string {
-  return isPlainLabels(labels) ? 'Workers' : 'wrk';
+  return isPlainLabels(labels) ? 'Worker done' : 'done';
 }
 
 export function labelPermissionOk(labels: FooterLabels): string {

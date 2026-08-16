@@ -185,7 +185,7 @@ export interface AppState {
   goalEvidenceCount?: number;
   /** W6 verification sensor soft advisory for Ops Goal pane (recent test/check failures). */
   goalSoftAdvisory?: string | null;
-  /** Brief worker-completion pulse (Dopamine Ops) — ~2s footer `wrk` badge. */
+  /** Brief worker-completion pulse (Dopamine Ops) — ~2s footer `done` badge. */
   fleetFlourish?: { readonly atMs: number } | null;
   /** Brief permission approval pulse (Dopamine Ops) — ~2s footer `perm✓` badge. */
   permissionApproveFlourish?: { readonly atMs: number } | null;

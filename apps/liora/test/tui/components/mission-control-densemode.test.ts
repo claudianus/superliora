@@ -213,9 +213,44 @@ describe('mission-control densemode helpers', () => {
     });
     const text = result.lines.join('\n');
     expect(text).toContain('WORKERS');
-    expect(text).toContain('needs-you 1');
-    expect(text).not.toContain('needs-you 18');
+    expect(text).toContain('your reply 1');
+    expect(text).not.toContain('needs-you');
+    expect(text).not.toContain('your reply 18');
     expect(text).toContain('coder · Pick a model');
+  });
+
+  it('does not paint a Resuming placeholder as the worker identity', () => {
+    expect(
+      workerRosterLabel(
+        worker('job-ghost:job_1', 0, {
+          name: 'Pin TUI flicker on Windows',
+          description: 'Resuming…',
+        }),
+        undefined,
+      ),
+    ).toBe('Pin TUI flicker on Windows');
+
+    const result = buildDenseContent({
+      workers: [
+        worker('job-ghost:job_1', 0, {
+          name: 'Pin TUI flicker on Windows',
+          description: 'Pin TUI flicker on Windows',
+          status: 'suspended',
+        }),
+      ],
+      width: 120,
+      budget: 10,
+      now: 1_000,
+      workDir: undefined,
+      animated: false,
+      appearance: OFF_APPEARANCE,
+      revealedLive: new Map(),
+      displayRate: new Map(),
+      workerGlyph: () => '◆',
+    });
+    const text = result.lines.join('\n');
+    expect(text).toContain('Pin TUI flicker');
+    expect(text).not.toMatch(/Resuming/i);
   });
 
   it('gives freed tape/board budget to worker slots up to the cap', () => {

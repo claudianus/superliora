@@ -2,4 +2,4 @@
 "@superliora/liora": patch
 ---
 
-Show Worker Dock as Workers, count only interview needs-you, and paint each row as role · job title.
+Show Worker Dock as Workers, count only interview replies, paint each row as role · job title, and keep resume ghosts on the job title instead of Resuming.

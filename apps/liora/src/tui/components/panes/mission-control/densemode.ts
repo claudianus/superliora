@@ -189,7 +189,7 @@ export function formatMissionJobCounts(jobs: ConductorJobsSnapshot): string {
   );
   const needsYou = interviewNeedsUserCount(jobs);
   const parts = [
-    needsYou > 0 ? currentTheme.fg('warning', `needs-you ${String(needsYou)}`) : undefined,
+    needsYou > 0 ? currentTheme.fg('warning', `your reply ${String(needsYou)}`) : undefined,
     jobs.running > 0 ? currentTheme.fg('primary', `running ${String(jobs.running)}`) : undefined,
     jobs.queued > 0 ? currentTheme.fg('info', `queued ${String(jobs.queued)}`) : undefined,
     jobs.interrupted > 0
@@ -485,7 +485,7 @@ function buildKpiLine(
   if (jobs !== undefined) {
     const needsYou = interviewNeedsUserCount(jobs);
     if (needsYou > 0) {
-      parts.push(currentTheme.fg('warning', `needs-you ${String(needsYou)}`));
+      parts.push(currentTheme.fg('warning', `your reply ${String(needsYou)}`));
     }
     if (jobs.failed > 0) {
       parts.push(currentTheme.fg('textDim', `job-fail ${String(jobs.failed)}`));
@@ -521,6 +521,16 @@ function buildHeaderLine(narrow: boolean): string {
   );
 }
 
+const RESUME_PLACEHOLDERS = new Set([
+  'Resuming…',
+  'Queued after resume…',
+  'Interrupted — resuming…',
+]);
+
+function isResumePlaceholder(text: string | undefined): boolean {
+  return text !== undefined && RESUME_PLACEHOLDERS.has(text);
+}
+
 /** Role plus job title so the dock row is not just explore/plan/coder. */
 export function workerRosterLabel(
   worker: MissionWorker,
@@ -533,7 +543,10 @@ export function workerRosterLabel(
   const title =
     jobTitle !== undefined && jobTitle.length > 0
       ? jobTitle
-      : description !== undefined && description.length > 0 && description !== role
+      : description !== undefined &&
+          description.length > 0 &&
+          description !== role &&
+          !isResumePlaceholder(description)
         ? description
         : focus !== undefined && focus.length > 0 && focus !== role
           ? focus

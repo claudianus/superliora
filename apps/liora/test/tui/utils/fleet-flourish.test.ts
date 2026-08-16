@@ -31,10 +31,14 @@ describe('shouldFleetFlourishPulse', () => {
 describe('formatFleetFlourishFooterBadge', () => {
   const atMs = 2_000_000;
 
-  it('shows wrk within TTL', () => {
+  it('shows done within TTL', () => {
     expect(
       formatFleetFlourishFooterBadge({ atMs }, atMs + FLEET_FLOURISH_BADGE_TTL_MS - 1, 'compact'),
-    ).toEqual({ text: 'wrk', severity: 'info' });
+    ).toEqual({ text: 'done', severity: 'info' });
+    expect(formatFleetFlourishFooterBadge({ atMs }, atMs + 1, 'plain')).toEqual({
+      text: 'Worker done',
+      severity: 'info',
+    });
   });
 
   it('hides at and after TTL', () => {
