@@ -81,6 +81,8 @@ export abstract class ReverseRpcController<TPayload, TResponse> {
     const all = [...(this.current === null ? [] : [this.current]), ...this.queue];
     this.current = null;
     this.queue = [];
+    // Always hide — even when nothing was pending — so a stale editor
+    // replacement (dead dialog after aborted waiter) cannot keep input focus.
     this.uiHooks?.hidePanel();
     for (const entry of all) {
       entry.abortCleanup?.();
@@ -91,6 +93,19 @@ export abstract class ReverseRpcController<TPayload, TResponse> {
 
   hasPending(): boolean {
     return this.current !== null || this.queue.length > 0;
+  }
+
+  /**
+   * Force-hide the UI panel and cancel the current waiter without advancing
+   * the queue first (used when Escape must free the editor even if the
+   * respond path was skipped). Prefer `respond` / `cancelAll` for normal flow.
+   */
+  forceRelease(reason: string): void {
+    if (this.current === null && this.queue.length === 0) {
+      this.uiHooks?.hidePanel();
+      return;
+    }
+    this.cancelAll(reason);
   }
 
   private cancelEntry(entry: Pending<TPayload, TResponse>, reason: string): void {

@@ -1059,6 +1059,10 @@ export function pumpSchedulerAfterWorker(agent: Agent, store: ToolStore): void {
  * When `answer` is provided, the job is treated as a needs_user interview
  * card: the answer is injected into notes and the job re-queued so the
  * worker resumes with the user's input (mid-tool-loop input queue path).
+ *
+ * Live shared-RPC interviews keep ledger status `running` while the question
+ * UI is open. Late answers still deliver: abort the stalled waiter, append
+ * the answer, and re-queue (same as a paused needs_user card).
  */
 export async function resumeJobs(input: {
   readonly store: ToolStore;
@@ -1076,7 +1080,7 @@ export async function resumeJobs(input: {
   const { store, agent, jobId, answer } = input;
   const candidates = listJobs(store).filter((j) => {
     if (jobId !== undefined) return j.id === jobId;
-    if (answer !== undefined) return j.status === 'needs_user';
+    if (answer !== undefined) return j.status === 'needs_user' || isLiveInterviewJob(j);
     return j.status === 'interrupted';
   });
 
@@ -1086,19 +1090,22 @@ export async function resumeJobs(input: {
 
   const resumed: JobRecord[] = [];
   for (const job of candidates) {
+    const liveInterviewAnswer =
+      answer !== undefined && job.status === 'running' && isLiveInterviewJob(job);
     if (
       job.status !== 'interrupted' &&
       job.status !== 'blocked' &&
       job.status !== 'failed' &&
       job.status !== 'cancelled' &&
-      job.status !== 'needs_user'
+      job.status !== 'needs_user' &&
+      !liveInterviewAnswer
     ) {
       if (jobId !== undefined) {
         return {
           ok: false,
           resumed: [],
           message: '',
-          error: `Job ${job.id} is ${job.status}; resume targets interrupted/blocked/failed/cancelled/needs_user.`,
+          error: `Job ${job.id} is ${job.status}; resume targets interrupted/blocked/failed/cancelled/needs_user (or running interview with answer).`,
         };
       }
       continue;
@@ -1107,7 +1114,13 @@ export async function resumeJobs(input: {
     if (job.status === 'cancelled' && jobId === undefined) continue;
     if (job.status === 'failed' && jobId === undefined) continue;
 
-    const isAnswerCard = answer !== undefined && job.status === 'needs_user';
+    const isAnswerCard =
+      answer !== undefined && (job.status === 'needs_user' || liveInterviewAnswer);
+    if (liveInterviewAnswer) {
+      // Release the hung requestQuestion waiter / worker so re-queue is clean.
+      abortRegisteredJobWorker(job.id, new Error('user-answer: late interview answer'));
+      clearJobWorkerHandle(job.id);
+    }
     const notes = isAnswerCard
       ? [job.notes, `user-answer: ${answer}`].filter(Boolean).join('\n')
       : [job.notes, 'resume: re-queued'].filter(Boolean).join('\n');
@@ -1156,6 +1169,19 @@ export async function resumeJobs(input: {
     resumed,
     message: `Resumed ${resumed.length} job(s). ${scheduleMessage}`,
   };
+}
+
+/**
+ * Shared-RPC AskUserQuestion keeps the job `running` and stamps interview notes
+ * / resultSummary. Used so JobResume(answer) can deliver a late answer without
+ * rejecting `running`.
+ */
+function isLiveInterviewJob(job: JobRecord): boolean {
+  if (job.status !== 'running') return false;
+  const summary = job.resultSummary ?? '';
+  if (summary.startsWith('needs_user:')) return true;
+  const notes = job.notes ?? '';
+  return notes.includes('interview:');
 }
 
 /**
