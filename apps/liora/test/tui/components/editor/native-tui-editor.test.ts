@@ -58,6 +58,21 @@ describe('NativeTUIEditor', () => {
     ]);
   });
 
+  it('keeps typed prompt characters on the painted surface after incremental keystrokes', () => {
+    // Display-only hole: buffer still had text while a short viewport/content
+    // height dropped the input row from the painted frame.
+    const editor = makeEditor();
+    editor.handleInput('h');
+    editor.handleInput('e');
+    editor.handleInput('l');
+    editor.handleInput('l');
+    editor.handleInput('o');
+    expect(editor.getText()).toBe('hello');
+    const painted = editor.render(16).join('\n');
+    expect(painted).toContain('hello');
+    expect(painted).toMatch(/> hello/);
+  });
+
   it('edits text and fires change callbacks through native input decoding', () => {
     const editor = makeEditor();
     const changes: string[] = [];

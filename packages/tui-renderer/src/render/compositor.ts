@@ -191,6 +191,21 @@ export function composeRendererRegions(
       if (trackRows) options.cache?.markComposedRow(rowId, rowKeyHash);
       rowsComposed++;
       if (line === undefined) {
+        // Root-cause hole: rect.height > lines.length with clear:false left
+        // EMPTY_CELL (no bg) after a topology/beginFrame wipe — intermittent
+        // black horizontal bands between stack regions / inside tall editor.
+        // When a region background is set, paint it for missing rows. clear:true
+        // already fillRect'd the whole clipped rect above; skip a second pass.
+        if (
+          region.clear !== true &&
+          !rowClearing &&
+          region.background !== undefined
+        ) {
+          buffer.fillRect(
+            { x: clipped.x, y, width: clipped.width, height: 1 },
+            region.background,
+          );
+        }
         if (trackRows) underlayRowHashes.set(y, combineRowHashes(underlayHash, rowKeyHash));
         continue;
       }

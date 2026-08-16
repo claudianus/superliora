@@ -77,3 +77,49 @@ describe('RendererCompositionCache topology signature', () => {
     expect(cache.snapshot().rowsComposed).toBe(2);
   });
 });
+
+describe('composeRendererRegions missing-line background fill', () => {
+  it('fills region background for undefined lines when clear:false', () => {
+    // Short content inside a taller rect used to leave EMPTY_CELL (no bg) —
+    // black horizontal band between stack regions / inside tall editor.
+    const bg = { char: ' ', style: { bg: '#0b0f14' } };
+    const buffer = new RendererCellBuffer(10, 6, { char: 'X', style: { bg: '#ff0000' } });
+    const region: RendererRegionLayer = {
+      id: 'editor',
+      rect: { x: 0, y: 1, width: 10, height: 4 },
+      lines: ['hello'],
+      clear: false,
+      background: bg,
+    };
+    composeRendererRegions(buffer, [region]);
+
+    // Painted content row
+    expect(buffer.getCell(0, 1).char).toBe('h');
+    // Missing rows inside rect must take region.background, not prior buffer/X
+    for (const y of [2, 3, 4]) {
+      for (let x = 0; x < 10; x++) {
+        expect(buffer.getCell(x, y).char).toBe(' ');
+        expect(buffer.getCell(x, y).style?.bg).toBe('#0b0f14');
+      }
+    }
+    // Outside the region stays the prior fill
+    expect(buffer.getCell(0, 0).char).toBe('X');
+    expect(buffer.getCell(0, 5).char).toBe('X');
+  });
+
+  it('does not double-fill missing rows when clear:true already wiped the rect', () => {
+    const bg = { char: ' ', style: { bg: '#101010' } };
+    const buffer = new RendererCellBuffer(8, 4, { char: 'Z' });
+    const region: RendererRegionLayer = {
+      id: 'stack',
+      rect: { x: 0, y: 0, width: 8, height: 3 },
+      lines: ['ab'],
+      clear: true,
+      background: bg,
+    };
+    composeRendererRegions(buffer, [region]);
+    expect(buffer.getCell(0, 0).char).toBe('a');
+    expect(buffer.getCell(0, 1).style?.bg).toBe('#101010');
+    expect(buffer.getCell(0, 2).style?.bg).toBe('#101010');
+  });
+});

@@ -9,6 +9,7 @@ import {
   rendererEditorContentWidth,
   renderRendererEditorSurface,
   resolveRendererEditorSurfaceStyles,
+  type RendererCellStyle,
   type RendererCursorState,
   type RendererRect,
   type RendererRegionLine,
@@ -133,10 +134,15 @@ export function projectNativeEditorRegion(
           contentBottomInset: 0,
         }
       : RENDERER_EDITOR_FRAME_TEXT_INPUT_GEOMETRY;
-  const contentHeight = rendererEditorContentHeight(
-    editorFrameRect,
-    frameGeometry,
-  ) ?? 1;
+  // Prefer the surface layout's contentRows so input viewport height matches
+  // the painted frame (inset recompute via rendererEditorContentHeight can
+  // disagree when overlay geometry omits a border, dropping the input row).
+  const contentHeight = Math.max(
+    1,
+    surfaceLayout.contentRows > 0
+      ? surfaceLayout.contentRows
+      : (rendererEditorContentHeight(editorFrameRect, frameGeometry) ?? 1),
+  );
   const contentWidth = rendererEditorContentWidth(
     editorFrameRect,
     frameGeometry,
@@ -181,8 +187,15 @@ export function projectNativeEditorRegion(
     scrollbarThumbStyle: editorStyles.scrollbarThumbStyle,
     slashTokenStyle: isBash ? undefined : editorStyles.slashTokenStyle,
   });
+  // Pad to the layout rect height so compositor never sees lines.length <
+  // rect.height on the editor region (clear:false + short content → black gap).
+  const targetRows = Math.max(0, Math.floor(rect.height));
+  const lines =
+    surface.lines.length >= targetRows
+      ? surface.lines
+      : padEditorRegionLines(surface.lines, targetRows, Math.floor(rect.width), editorStyles.surfaceStyle);
   const cursor = projectRendererEditorSurfaceCursor({
-    surface,
+    surface: { ...surface, lines },
     rect,
     viewport: { x: 0, y: 0, width: terminalColumns, height: terminalRows },
   });
@@ -191,10 +204,26 @@ export function projectNativeEditorRegion(
     readonly lines: readonly RendererRegionLine[];
     cursor?: RendererCursorState;
   } = {
-    lines: surface.lines,
+    lines,
   };
   if (cursor !== undefined) projected.cursor = cursor;
   return projected;
+}
+
+function padEditorRegionLines(
+  lines: readonly RendererRegionLine[],
+  targetRows: number,
+  width: number,
+  surfaceStyle: RendererCellStyle | undefined,
+): readonly RendererRegionLine[] {
+  if (lines.length >= targetRows) return lines;
+  const blank: RendererRegionLine = Array.from({ length: Math.max(0, width) }, () => ({
+    char: ' ',
+    style: surfaceStyle,
+  }));
+  const out = lines.slice();
+  while (out.length < targetRows) out.push(blank);
+  return out;
 }
 
 export function nativeEditorFallbackRegionLines(

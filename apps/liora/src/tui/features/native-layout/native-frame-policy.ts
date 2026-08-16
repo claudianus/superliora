@@ -51,9 +51,23 @@ export function isPureTranscriptScrollFrame(
 }
 
 /**
+ * Ambient animation ticks frequently coalesce with keystrokes. Treat them as
+ * pure-input-compatible so chrome reuse and damage-only paint stay on (same
+ * idea as SCROLL_COMPATIBLE_CAUSES for wheel frames).
+ */
+const INPUT_COMPATIBLE_CAUSES = new Set<NativeRenderCause>([
+  'input',
+  'animation',
+]);
+
+/**
  * Pure keystroke frames only rewrite the editor surface. Layout has not
  * scrolled and chrome geometry is stable, so header/footer/queue can be
  * reused and Ultrawork perimeter paint can be skipped.
+ *
+ * Ambient animation may ride along without forcing a structural clear —
+ * otherwise every input+animation coalesce flipped region.clear and tore
+ * prompt/letterbox cells (display-only char loss with buffer still intact).
  */
 export function isPureInputFrame(
   causes: readonly NativeRenderCause[],
@@ -62,7 +76,8 @@ export function isPureInputFrame(
 ): boolean {
   return (
     causes.length > 0 &&
-    causes.every((cause) => cause === 'input') &&
+    causes.every((cause) => INPUT_COMPATIBLE_CAUSES.has(cause)) &&
+    causes.includes('input') &&
     !structuralShift &&
     !viewportScrolled
   );
@@ -328,6 +343,15 @@ export function shouldUseAmbientDamageOnlyPaint(input: {
 
   if (input.causes.includes('resize')) {
     return false;
+  }
+
+  // Pure keystroke (optionally coalesced with ambient animation): only the
+  // editor surface changes. clear:true here blanks stack rects before rewrite
+  // and is the remaining prompt-char / black-band hole on typing frames.
+  if (
+    isPureInputFrame(input.causes, input.structuralShift, input.viewportScrolled)
+  ) {
+    return true;
   }
 
   // Editor-slot geometry (replacement / unmount / restore) and transcript

@@ -52,6 +52,18 @@ describe('RendererTextInput', () => {
     expect(input.getCursor()).toEqual({ line: 0, column: '안녕하세요'.length });
   });
 
+  it('keeps the caret row in the painted viewport when height matches contentRows', () => {
+    // Undersized height used to slice the caret row out of visibleLines so
+    // the editor chrome painted a blank input line while the buffer still
+    // held the typed text.
+    const input = new RendererTextInput({ text: 'typed-prompt' });
+    input.setCursor({ line: 0, column: 'typed-prompt'.length });
+    const painted = input.render({ width: 20, height: 1, focused: true });
+    expect(painted.lines).toHaveLength(1);
+    expect(lineText(painted.lines[0])).toContain('typed-prompt');
+    expect(input.getText()).toBe('typed-prompt');
+  });
+
   it('snaps setCursor mid-cluster forward so insert does not eat Hangul/emoji', () => {
     const emoji = 'a🙂b';
     const input = new RendererTextInput({ text: emoji });

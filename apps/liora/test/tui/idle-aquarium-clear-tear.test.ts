@@ -188,6 +188,29 @@ describe('idle aquarium clear tear', () => {
     expect(cell.style?.bg?.toLowerCase()).not.toBe('#0b0f14');
   });
 
+  it('fills region background for short stack content with clear:false (black-band hole)', () => {
+    // Inter-region / tall-editor gap: lines shorter than rect + clear:false
+    // must not leave EMPTY_CELL without canvas bg.
+    const canvas = { char: ' ', style: { bg: '#0B0F14' } };
+    const buf = new RendererCellBuffer(12, 6, { char: '·' });
+    composeRendererRegions(buf, [
+      {
+        id: 'editor',
+        rect: { x: 0, y: 1, width: 12, height: 4 },
+        lines: [
+          Array.from({ length: 12 }, () => ({ char: 'a', style: { bg: '#1a1a2e' } })),
+        ],
+        clear: false,
+        background: canvas,
+      },
+    ]);
+    expect(buf.getCell(0, 1).char).toBe('a');
+    for (const y of [2, 3, 4]) {
+      expect(buf.getCell(3, y).char).toBe(' ');
+      expect(buf.getCell(3, y).style?.bg?.toLowerCase()).toBe('#0b0f14');
+    }
+  });
+
   it('documents that full-rect clear with unstyled interior cells wipes water (compose hazard)', () => {
     const buf = new RendererCellBuffer(10, 5, { char: '·', style: { bg: '#111111' } });
     const water = Array.from({ length: 10 }, () => ({ char: '~', style: { bg: '#00aaff' } }));

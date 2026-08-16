@@ -61,6 +61,17 @@ describe('isPureInputFrame', () => {
     expect(isPureInputFrame(['input'], false, false)).toBe(true);
   });
 
+  it('accepts input coalesced with ambient animation when geometry is stable', () => {
+    // Animation ticks ride with keystrokes; must stay pure-input so chrome
+    // reuse and damage-only paint do not flip to clear:true.
+    expect(isPureInputFrame(['input', 'animation'], false, false)).toBe(true);
+    expect(isPureInputFrame(['animation', 'input'], false, false)).toBe(true);
+  });
+
+  it('rejects animation-only frames (not pure input)', () => {
+    expect(isPureInputFrame(['animation'], false, false)).toBe(false);
+  });
+
   it('rejects when the viewport also scrolled', () => {
     expect(isPureInputFrame(['input'], false, true)).toBe(false);
   });
@@ -350,6 +361,28 @@ describe('shouldUseAmbientDamageOnlyPaint scroll paths', () => {
         geometryShift: true,
         viewportScrolled: false,
         causes: ['request'],
+      }),
+    ).toBe(true);
+  });
+
+  it('stays damage-only for pure keystroke frames', () => {
+    expect(
+      shouldUseAmbientDamageOnlyPaint({
+        ...base,
+        viewportScrolled: false,
+        causes: ['input'],
+      }),
+    ).toBe(true);
+  });
+
+  it('stays damage-only for input+animation coalesce (prompt char hole)', () => {
+    // Without this, ambientDamageOnly was false → stack clear:true while
+    // typing under ambient motion, blanking editor cells for a frame.
+    expect(
+      shouldUseAmbientDamageOnlyPaint({
+        ...base,
+        viewportScrolled: false,
+        causes: ['input', 'animation'],
       }),
     ).toBe(true);
   });
