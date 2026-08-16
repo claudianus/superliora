@@ -58,6 +58,35 @@ describe('NativeTUIEditor', () => {
     ]);
   });
 
+  it('requests a frame when setCursorPosition moves the caret only', () => {
+    // Cursor-only model updates must schedule present; without requestRender the
+    // next ambient paint keeps a stale editor row (Windows conpty black lines /
+    // vanished prompt glyphs).
+    const requestRender = vi.fn();
+    const editor = new NativeTUIEditor({ requestRender });
+    editor.setText('hello');
+    requestRender.mockClear();
+
+    editor.setCursorPosition({ line: 0, col: 3 });
+
+    expect(editor.getCursor()).toEqual({ line: 0, col: 3 });
+    expect(requestRender).toHaveBeenCalledTimes(1);
+  });
+
+  it('requests a frame when applyNativeTextInputSync moves the caret with unchanged text', () => {
+    const requestRender = vi.fn();
+    const editor = new NativeTUIEditor({ requestRender });
+    editor.setText('hello');
+    editor.setCursorPosition({ line: 0, col: 0 });
+    requestRender.mockClear();
+
+    editor.applyNativeTextInputSync('hello', { line: 0, col: 4 });
+
+    expect(editor.getText()).toBe('hello');
+    expect(editor.getCursor()).toEqual({ line: 0, col: 4 });
+    expect(requestRender).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps typed prompt characters on the painted surface after incremental keystrokes', () => {
     // Display-only hole: buffer still had text while a short viewport/content
     // height dropped the input row from the painted frame.

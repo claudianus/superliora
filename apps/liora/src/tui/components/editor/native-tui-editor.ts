@@ -167,6 +167,9 @@ export class NativeTUIEditor implements TUIEditor {
     this.input.setCursor({ line: cursor.line, column: cursor.col });
     // Caret move invalidates any suffix ghost (would otherwise paint mid-buffer).
     this.clearGhost();
+    // Cursor-only updates must still schedule present; otherwise ambient paints
+    // keep a stale editor row (Windows conpty black lines / vanished glyphs).
+    this.requestRender();
   }
 
   setOnPromptLeak(onPromptLeak: (message: string) => void): void {
@@ -191,7 +194,13 @@ export class NativeTUIEditor implements TUIEditor {
     ) {
       this.clearGhost();
     }
-    if (text !== before) this.onChange?.(text);
+    if (text !== before) {
+      // Text path: onChange callers schedule render (and more) as today.
+      this.onChange?.(text);
+    } else if (beforeCursor.line !== cursor.line || beforeCursor.col !== cursor.col) {
+      // Cursor-only path never fires onChange; still need a frame request.
+      this.requestRender();
+    }
   }
 
   setText(text: string): void {
