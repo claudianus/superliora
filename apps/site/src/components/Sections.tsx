@@ -13,7 +13,8 @@ export function Sections() {
 
   return (
     <main id="main" data-stage="editorial">
-      <section className="hero-band" data-landing="hero">
+      <section className="hero-band hero-band--cinematic" data-landing="hero">
+        <div className="hero-atmosphere" aria-hidden="true" />
         <div className="hero-layout">
           <Reveal className="hero-copy" eager>
             <p className="hero-kicker font-sans font-semibold tracking-[0.18em] text-primary uppercase">
@@ -47,9 +48,6 @@ export function Sections() {
               </a>
             </div>
           </Reveal>
-          <Reveal className="hero-visual" eager>
-            <ProductFrame />
-          </Reveal>
         </div>
         <Reveal className="hero-proof-wrap" eager>
           <div className="hero-proof" aria-label="Product architecture">
@@ -64,6 +62,14 @@ export function Sections() {
             ))}
           </div>
         </Reveal>
+      </section>
+
+      <section className="product-band section-pad border-t border-line" data-landing="product" aria-label="Product">
+        <div className="product-band__inner">
+          <Reveal className="product-band__frame" eager>
+            <ProductFrame />
+          </Reveal>
+        </div>
       </section>
 
       <section id="features" className="section-pad section-band section-band--features border-t border-line" data-landing="features">

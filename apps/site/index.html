@@ -2,7 +2,28 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <script>
+      (function () {
+        var KEY = 'superliora-theme';
+        var theme = 'dark';
+        try {
+          var stored = localStorage.getItem(KEY);
+          if (stored === 'light' || stored === 'dark') theme = stored;
+        } catch (e) {}
+        var root = document.documentElement;
+        root.dataset.theme = theme;
+        root.style.colorScheme = theme;
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (!meta) {
+          meta = document.createElement('meta');
+          meta.setAttribute('name', 'theme-color');
+          document.head.appendChild(meta);
+        }
+        meta.setAttribute('content', theme === 'light' ? '#f0f4f8' : '#0D1422');
+      })();
+    </script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SuperLiora — 코딩 에이전트를 지휘하는 터미널</title>
     <meta name="description" content="끝난 모습을 적으면 Conductor가 git worktree Job을 띄웁니다. 설치법·사용법·주요 기능·워크플로우를 한 페이지에서." />
     <link rel="canonical" href="https://claudianus.github.io/superliora/" />

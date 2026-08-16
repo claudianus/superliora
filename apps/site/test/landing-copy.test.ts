@@ -148,8 +148,10 @@ describe('shipped landing copy', () => {
     expect(bento).not.toMatch(/opacity:\s*0/);
     expect(reveal).toMatch(/eager/);
     expect(sections).toMatch(/className="hero-copy" eager/);
-    expect(sections).toMatch(/className="hero-visual" eager/);
+    expect(sections).toMatch(/className="product-band__frame" eager|product-band__frame/);
     expect(sections).toMatch(/className="hero-proof-wrap" eager/);
+    expect(sections).toMatch(/hero-band--cinematic/);
+    expect(sections).toContain('product-band');
     expect(css).not.toMatch(/html\s*\{[^}]*overflow-x:\s*clip/s);
     expect(css).not.toMatch(/body\s*\{[^}]*overflow-x:\s*clip/s);
   });
