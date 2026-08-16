@@ -12,6 +12,8 @@ Write the objective after `/goal`:
 
 SuperLiora saves the objective, sends it as the next user message, and starts goal mode. After each turn, it checks whether the goal is complete, blocked, paused, or still active.
 
+On Conductor, a completion-shaped chat request such as "keep going until the suite is green" can open the same Goal Desk path as `/goal`. One-shot implement or explore work still goes through a Job, not a Goal.
+
 Goals work best when the objective names the finish line and the evidence that proves it:
 
 ```sh

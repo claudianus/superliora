@@ -2,6 +2,9 @@
  * GetGoalTool — returns the current goal snapshot (objective, status, budgets,
  * and usage counters) so the model can decide whether to continue, report
  * completion via UpdateGoal, report a blocker, or respect a pause.
+ *
+ * On Conductor this reads the session Goal Desk binding, not the empty main
+ * GoalMode — otherwise `/goal` (or CreateGoal → facade) looks like `{ goal: null }`.
  */
 
 import type { Agent } from '#/agent/index';
@@ -11,6 +14,8 @@ import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ToolExecution } from '../../../loop/types';
 import { toInputJsonSchema } from '../../support/input-schema';
+import { shouldDelegateGoalToDesk } from './goal-desk';
+import { conductorGetGoal } from './goal-desk-facade';
 import DESCRIPTION from './get-goal.md?raw';
 import { goalResultForModel } from './serialize';
 
@@ -31,7 +36,9 @@ export class GetGoalTool implements BuiltinTool<GetGoalToolInput> {
       description: 'Reading the current goal',
       approvalRule: this.name,
       execute: async () => {
-        const result = store.getGoal();
+        const result = shouldDelegateGoalToDesk(this.agent)
+          ? conductorGetGoal(this.agent)
+          : store.getGoal();
         return { output: JSON.stringify(goalResultForModel(result), null, 2) };
       },
     };

@@ -42,7 +42,7 @@ export interface GoalDeskDelegateResult {
 }
 
 export function shouldDelegateGoalToDesk(agent: Agent): boolean {
-  return agent.type === 'main' && agent.config.profileName === SOVEREIGN_CONDUCTOR_PROFILE_NAME;
+  return agent.type === 'main' && agent.config?.profileName === SOVEREIGN_CONDUCTOR_PROFILE_NAME;
 }
 
 /**

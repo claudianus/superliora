@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
+import { GoalMode } from '../../src/agent/goal';
 import { renderJobDeskInjection } from '../../src/agent/injection/job-desk';
 import { SOVEREIGN_CONDUCTOR_PROFILE_NAME } from '../../src/profile/main-profile';
+import { CreateGoalTool, GetGoalTool } from '../../src/tools/builtin';
+import { executeTool } from './fixtures/execute-tool';
 import { delegateConductorGoalDesk, shouldDelegateGoalToDesk } from '../../src/tools/builtin/goal/goal-desk';
 import {
   conductorCancelGoal,
@@ -49,13 +52,19 @@ function memoryStore(): ToolStore {
 }
 
 function fakeConductorAgent(store: ToolStore) {
-  return {
+  const agent = {
     type: 'main' as const,
     config: { profileName: SOVEREIGN_CONDUCTOR_PROFILE_NAME },
     tools: { toolStore: store, getStore: () => store },
     subagentHost: undefined,
     emitEvent: () => {},
+    permission: { mode: 'auto' },
+    records: { logRecord: () => {} },
+    telemetry: { track: () => {} },
+    context: { appendSystemReminder: () => {} },
   } as never;
+  (agent as { goal: GoalMode }).goal = new GoalMode(agent);
+  return agent;
 }
 
 describe('goal-desk kind routing', () => {
@@ -363,5 +372,62 @@ describe('goal-desk driver sync + desk Next move', () => {
 
     const healed = healActiveGoalDeskBinding(store, readGoalSessionBinding(store)!, agent);
     expect(healed.status).toBe('paused');
+  });
+});
+
+describe('Conductor CreateGoal / GetGoal Session Goal API', () => {
+  const signal = new AbortController().signal;
+
+  function ctx<Input>(args: Input) {
+    return { turnId: '0', toolCallId: 'call_1', args, signal };
+  }
+
+  it('CreateGoal on Conductor opens Goal Desk + driver and binds the session', async () => {
+    const store = memoryStore();
+    const agent = fakeConductorAgent(store);
+    const tool = new CreateGoalTool(agent);
+    const result = await executeTool(
+      tool,
+      ctx({
+        objective: 'Keep going until the suite is green',
+        completionCriterion: 'pnpm test:local exits 0',
+      }),
+    );
+    expect(result.isError).toBeFalsy();
+    const parsed = JSON.parse(result.output as string) as {
+      goal: { execution?: string; deskJobId?: string; status?: string };
+    };
+    expect(parsed.goal.execution).toBe('goal-desk');
+    expect(parsed.goal.status).toBe('active');
+    expect(parsed.goal.deskJobId).toBeTruthy();
+    expect(agent.goal.getGoal().goal).toBeNull();
+    const binding = readGoalSessionBinding(store);
+    expect(binding?.deskJobId).toBe(parsed.goal.deskJobId);
+    const jobs = listJobs(store);
+    expect(jobs.map((j) => j.kind).sort()).toEqual(['goal-desk', 'goal-driver']);
+  });
+
+  it('GetGoal on Conductor reads the session binding, not empty GoalMode', async () => {
+    const store = memoryStore();
+    const agent = fakeConductorAgent(store);
+    const empty = await executeTool(new GetGoalTool(agent), ctx({}));
+    expect(JSON.parse(empty.output as string)).toEqual({ goal: null });
+
+    await delegateConductorGoalDesk(agent, { objective: 'Ship the dashboard' });
+    const filled = await executeTool(new GetGoalTool(agent), ctx({}));
+    const parsed = JSON.parse(filled.output as string) as {
+      goal: { objective?: string; execution?: string };
+    };
+    expect(parsed.goal.objective).toBe('Ship the dashboard');
+    expect(parsed.goal.execution).toBe('goal-desk');
+    expect(agent.goal.getGoal().goal).toBeNull();
+  });
+
+  it('JobCreate kind=goal-desk alone does not create a session binding', () => {
+    const store = memoryStore();
+    const agent = fakeConductorAgent(store);
+    createJob(store, { title: 'orphan desk', kind: 'goal-desk', priority: 12 });
+    expect(readGoalSessionBinding(store)).toBeUndefined();
+    expect(conductorGetGoal(agent).goal).toBeNull();
   });
 });

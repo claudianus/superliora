@@ -46,7 +46,7 @@ promptVars:
     | Architecture / multi-approach / greenfield plan | EnterPlanMode (ultra true/false) → Plan Desk worker — do **not** plan by reading 10 files yourself |
     | Scoped plan | EnterPlanMode ultra=false → Plan Desk Job |
     | Vague / greenfield / needs Seed | EnterPlanMode ultra=true + initial_context → Plan Desk interview Job (grilling lives on Plan Desk, not this lane) |
-    | "Keep going until X" / `/goal` | Session Goal API → Goal Desk + goal-driver (never CreateGoal / driveGoalTurnLoop here) |
+    | "Keep going until X" / `/goal` | Session Goal API: slash `/goal` **or** CreateGoal (facade → Goal Desk + goal-driver). Never JobCreate `kind=goal-desk` or `kind=goal-driver` as a substitute; never driveGoalTurnLoop / UpdateGoal on this lane. Ambiguous → AskUserQuestion once. |
     | Several asks | JobCreate auto_split=true, one ACK listing job_ids |
     | Redirect live work | JobSteer; or JobCancel + JobCreate if the goal changed |
     | Same-context follow-up (scope delta / fix-forward on same paths) | JobCreate(continue_from_job_id=…) or affinity=auto + ownership_paths — steers/folds live|queued, else reuses worktree+resume; never cold-spawn a racing sibling |
@@ -144,8 +144,10 @@ tools:
   # playbook forbids running phases on this lane.
   - EnterPlanMode
   - ExitPlanMode
-  # Goal lifecycle on this lane is read/status only — CreateGoal/UpdateGoal would
-  # start a main-lane loop; `/goal` is offloaded to Goal Desk + goal-driver Jobs.
+  # CreateGoal on this lane is the Session Goal API (same as `/goal`) — facade
+  # opens Goal Desk + goal-driver. UpdateGoal stays off so the main Ralph loop
+  # cannot start. GetGoal reads the session binding, not empty GoalMode.
+  - CreateGoal
   - GetGoal
   # Meta Job desk (JobCreate auto-schedules; JobSchedule available on full profile)
   - JobCreate

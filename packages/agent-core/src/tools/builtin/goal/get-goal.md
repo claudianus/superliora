@@ -1,1 +1,1 @@
-Read the current goal: objective, completion criterion, status, and budgets. Use before deciding whether to continue, report completion/blocker, or respect a pause. Returns `{ "goal": null }` when no current goal.
+Read the current goal: objective, completion criterion, status, and budgets. Use before deciding whether to continue, report completion/blocker, or respect a pause. Returns `{ "goal": null }` when no current goal. On Conductor this is the session Goal Desk binding (same view as `/goal status`), not the empty main-lane GoalMode.

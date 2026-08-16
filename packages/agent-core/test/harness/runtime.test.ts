@@ -204,7 +204,7 @@ async_compaction = false
 
     expect(session?.experimentalFlags.enabled('async_compaction')).toBe(false);
     expect(mainAgent?.experimentalFlags.enabled('async_compaction')).toBe(false);
-    // Conductor keeps GetGoal for status; CreateGoal is offloaded to Goal Desk.
+    // Conductor keeps GetGoal + CreateGoal (Session Goal API → Goal Desk).
     expect(mainAgent?.tools.data().some((tool) => tool.name === 'GetGoal')).toBe(true);
 
     await core.setKimiConfig({

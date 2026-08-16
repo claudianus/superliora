@@ -57,10 +57,11 @@ const CONDUCTOR_TOOL_SNAPSHOT = [
   'WebSearch',
   'FetchURL',
   'TodoList',
-  // Plan/goal lifecycle spine — CreateGoal/UpdateGoal stay off so `/goal`
-  // offloads to Goal Desk Jobs instead of a main-lane loop.
+  // Plan/goal lifecycle spine — CreateGoal is Session Goal API (Goal Desk
+  // facade). UpdateGoal stays off so the main Ralph loop cannot start.
   'EnterPlanMode',
   'ExitPlanMode',
+  'CreateGoal',
   'GetGoal',
   // Job ledger desk — the only delegation means
   'JobCreate',
@@ -110,9 +111,10 @@ describe('conductor delegation-only tool surface', () => {
         'JobResume',
         'JobInbox',
         'MergeJob',
-        // Plan/goal lifecycle management (§2.1 item 5) — status only on this lane
+        // Plan/goal lifecycle management (§2.1 item 5) — CreateGoal = Session Goal API
         'EnterPlanMode',
         'ExitPlanMode',
+        'CreateGoal',
         'GetGoal',
         // Clarification + skills (§2.1 items 4, 6)
         'AskUserQuestion',
@@ -154,5 +156,7 @@ describe('conductor delegation-only tool surface', () => {
     // Core delegation contract remains.
     expect(prompt).toContain('Never wait on workers');
     expect(prompt).toContain('Prefer `explore` → implement → (auto) `verify`');
+    expect(prompt).toContain('CreateGoal (facade → Goal Desk + goal-driver)');
+    expect(prompt).toContain('Never JobCreate `kind=goal-desk`');
   });
 });

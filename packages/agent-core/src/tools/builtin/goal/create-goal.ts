@@ -1,7 +1,7 @@
 /**
  * CreateGoalTool — lets the main agent start an explicit goal on the user's
- * behalf. The goal becomes durable, structured state owned by the agent's
- * GoalMode, not text parsed from a slash command.
+ * behalf. Non-Conductor profiles write GoalMode (Ralph loop). Conductor
+ * offloads to Goal Desk + goal-driver via the same Session Goal API as `/goal`.
  */
 
 import type { Agent } from '#/agent/index';
@@ -13,6 +13,8 @@ import type { ToolExecution } from '../../../loop/types';
 import type { ToolInputDisplay } from '../../display';
 import { toInputJsonSchema } from '../../support/input-schema';
 import DESCRIPTION from './create-goal.md?raw';
+import { shouldDelegateGoalToDesk } from './goal-desk';
+import { conductorCreateGoal } from './goal-desk-facade';
 import { goalForModel } from './serialize';
 
 export const CreateGoalToolInputSchema = z
@@ -53,15 +55,22 @@ export class CreateGoalTool implements BuiltinTool<CreateGoalToolInput> {
       display: this.resolveGoalStartDisplay(args),
       approvalRule: this.name,
       execute: async () => {
-        const snapshot = await goal.createGoal(
-          {
-            objective: args.objective,
-            completionCriterion: args.completionCriterion,
-            gateCommand: args.gateCommand,
-            replace: args.replace,
-          },
-          'model',
-        );
+        const snapshot = shouldDelegateGoalToDesk(this.agent)
+          ? await conductorCreateGoal(this.agent, {
+              objective: args.objective,
+              completionCriterion: args.completionCriterion,
+              gateCommand: args.gateCommand,
+              replace: args.replace,
+            })
+          : await goal.createGoal(
+              {
+                objective: args.objective,
+                completionCriterion: args.completionCriterion,
+                gateCommand: args.gateCommand,
+                replace: args.replace,
+              },
+              'model',
+            );
         return { output: JSON.stringify({ goal: goalForModel(snapshot) }, null, 2) };
       },
     };
