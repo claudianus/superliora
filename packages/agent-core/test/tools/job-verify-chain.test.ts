@@ -290,7 +290,7 @@ ${'x'.repeat(200)}
     expect(listJobs(store).filter((j) => j.parentJobId === parent.id)).toHaveLength(1);
   });
 
-  it('enqueues parallel Standards∥Spec when surfaceKind is none/absent (not path regex)', async () => {
+  it('skips verify children when surfaceKind=none (no Standards∥Spec fan-out)', async () => {
     const store = memoryStore();
     const parent = createJob(store, {
       title: 'Fix scheduler',
@@ -303,11 +303,83 @@ ${'x'.repeat(200)}
       surfaceKind: 'none',
     });
     const done = { ...parent, status: 'done' as const, resultSummary: 'fixed' };
+    expect(shouldEnqueueVerifyAfterDone(done)).toBe(false);
+    await enqueueVerifyJobForParent(store, done);
+    const verifies = listJobs(store).filter((j) => j.parentJobId === parent.id);
+    expect(verifies).toHaveLength(0);
+  });
+
+  it('enqueues parallel Standards∥Spec when surfaceKind is absent (coding, not path regex)', async () => {
+    const store = memoryStore();
+    const parent = createJob(store, {
+      title: 'Fix scheduler',
+      kind: 'implement',
+      prompt: 'Fix job scheduler ordering',
+      ownershipPaths: ['packages/agent-core/src/tools/builtin/job/job-runtime.ts'],
+      successCriteria: ['nextQueuedJobs respects blocked_by'],
+      testSeams: ['nextQueuedJobs'],
+      expertId: 'maker-x',
+      // surfaceKind omitted — still a coding implement; dual-axis review applies
+    });
+    const done = { ...parent, status: 'done' as const, resultSummary: 'fixed' };
+    expect(shouldEnqueueVerifyAfterDone(done)).toBe(true);
     await enqueueVerifyJobForParent(store, done);
     const verifies = listJobs(store).filter((j) => j.parentJobId === parent.id);
     expect(verifies).toHaveLength(2);
     expect(verifies.map((r) => r.reviewAxis).sort()).toEqual(['spec', 'standards']);
     expect(verifies[0]?.prompt).toMatch(/success criteria|Agreed test seams/i);
+  });
+
+  it('shouldEnqueueVerifyAfterDone: mission/none/desktop false; coding implement true', () => {
+    const stamp = { createdAt: 0, updatedAt: 0, status: 'done' as const };
+    expect(
+      shouldEnqueueVerifyAfterDone({
+        id: 'job_mission',
+        title: 'Plan desk',
+        kind: 'mission',
+        ...stamp,
+      }),
+    ).toBe(false);
+    expect(
+      shouldEnqueueVerifyAfterDone({
+        id: 'job_none',
+        title: 'CLI fix',
+        kind: 'implement',
+        surfaceKind: 'none',
+        worktreePath: '/tmp/wt',
+        ...stamp,
+      }),
+    ).toBe(false);
+    expect(
+      shouldEnqueueVerifyAfterDone({
+        id: 'job_desktop',
+        title: 'Roll dice on desktop',
+        kind: 'task',
+        prompt: 'Use ComputerCapture and ComputerAct to click the app.',
+        surfaceKind: 'desktop',
+        ...stamp,
+      }),
+    ).toBe(false);
+    expect(
+      shouldEnqueueVerifyAfterDone({
+        id: 'job_out',
+        title: 'General OS task',
+        kind: 'task',
+        // no worktreePath, no ownershipPaths → out-of-repo general work
+        ...stamp,
+      }),
+    ).toBe(false);
+    expect(
+      shouldEnqueueVerifyAfterDone({
+        id: 'job_code',
+        title: 'Ship feature',
+        kind: 'implement',
+        surfaceKind: 'web',
+        worktreePath: '/tmp/wt-code',
+        ownershipPaths: ['packages/agent-core'],
+        ...stamp,
+      }),
+    ).toBe(true);
   });
 
   it('prefers stamped verifyVerdict; heals parseable summary JSON for merge', () => {
@@ -396,7 +468,8 @@ ${'x'.repeat(200)}
       kind: 'implement',
       expertId: 'maker-x',
       ownershipPaths: ['src/App.js'],
-      surfaceKind: 'none',
+      worktreePath: '/tmp/wt-free-text',
+      // surfaceKind absent → Standards∥Spec dual-axis; none skips verify entirely
     });
     patchJob(store, parent.id, { status: 'done' });
     await onJobTerminalForVerifyChain(store, { ...parent, status: 'done' });
@@ -734,7 +807,8 @@ ${'x'.repeat(200)}
       kind: 'implement',
       expertId: 'maker-x',
       ownershipPaths: ['src/App.js'],
-      surfaceKind: 'none',
+      worktreePath: '/tmp/wt-timeout',
+      // surfaceKind absent → Standards∥Spec dual-axis; none skips verify fan-out
     });
     patchJob(store, parent.id, { status: 'done' });
     await onJobTerminalForVerifyChain(store, { ...parent, status: 'done' });
@@ -893,13 +967,14 @@ ${'x'.repeat(200)}
 
   it('enqueueVerifyJobForParent pins live modelAlias and skips when none differ from maker', async () => {
     const store = memoryStore();
+    // surfaceKind absent (coding dual-axis) — none would skip verify fan-out entirely
     const done = createJob(store, {
-      title: 'Ship none-surface',
+      title: 'Ship coding dual-axis',
       kind: 'implement',
       expertId: 'maker-x',
       modelAlias: 'maker-a',
       ownershipPaths: ['packages/agent-core/src/x.ts'],
-      surfaceKind: 'none',
+      worktreePath: '/tmp/wt-pin',
     });
     patchJob(store, done.id, { status: 'done', resultSummary: 'done' });
 
