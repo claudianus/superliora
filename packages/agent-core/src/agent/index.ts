@@ -380,6 +380,18 @@ export class Agent {
     }
   }
 
+  /**
+   * Update the path-sandbox profile and rebuild builtin file tools so the
+   * new policy applies from the next tool call. Lexical guard only — not OS isolation.
+   */
+  setSandboxProfile(profile: SandboxProfile): void {
+    // sandboxProfile is declared readonly on the public surface; mutate via cast.
+    (this as { sandboxProfile: SandboxProfile | undefined }).sandboxProfile = profile;
+    if (this.config.hasProvider) {
+      this.tools.initializeBuiltinTools();
+    }
+  }
+
   get generate(): typeof generate {
     return createGenerateProxy(this);
   }

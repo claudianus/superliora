@@ -207,6 +207,19 @@ export async function createSessionWithOverrides(
     drainAgentTasksOnStop: options.drainAgentTasksOnStop,
   });
   try {
+    const seededCustom: Record<string, unknown> =
+      options.metadata === undefined ? {} : { ...options.metadata };
+    // Seed path-sandbox profile into session metadata when caller did not set it.
+    // Priority: CLI/env already in options.metadata → local.toml → user config → off.
+    if (seededCustom['sandboxProfile'] === undefined) {
+      const { resolveSandboxProfileFromSources } = await import('#/config/sandbox-profile');
+      const resolved = resolveSandboxProfileFromSources({
+        env: process.env,
+        localToml: localWorkspaceDirs.sandboxProfile,
+        userConfig: config.sandboxProfile,
+      });
+      seededCustom['sandboxProfile'] = resolved.profile;
+    }
     session.metadata = {
       ...session.metadata,
       createdAt: new Date(summary.createdAt).toISOString(),
@@ -218,7 +231,7 @@ export async function createSessionWithOverrides(
             isCustomTitle: true,
           }
         : {}),
-      custom: options.metadata === undefined ? {} : { ...options.metadata },
+      custom: seededCustom,
     };
     if (responseLanguagePreferenceFromUnknown(session.metadata.custom['responseLanguage']) === undefined) {
       const seeded = responseLanguagePreferenceFromHostLocale();

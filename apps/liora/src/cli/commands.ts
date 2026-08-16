@@ -106,6 +106,13 @@ export function createProgram(
         .argParser((value: string, previous: string[] | undefined) => [...(previous ?? []), value])
         .default([]),
     )
+    .addOption(
+      new Option('--sandbox <profile>', t('cli.option.sandbox')).choices([
+        'off',
+        'workspace',
+        'read-only',
+      ]),
+    )
     .addOption(new Option('--yes').hideHelp().default(false))
     .addOption(new Option('--auto-approve').hideHelp().default(false))
     .option('--plan', t('cli.option.plan'), false)
@@ -184,6 +191,7 @@ export function createProgram(
       pluginDirs: (raw['pluginDir'] as string[] | undefined) ?? [],
       channelServers: (raw['channels'] as string[] | undefined) ?? [],
       addDirs: raw['addDir'] as string[],
+      sandbox: raw['sandbox'] as string | undefined,
       resumeGoal: raw['resumeGoal'] as boolean,
       autonomousGate: raw['autonomousGate'] as string | undefined,
       worktree: raw['worktree'] as boolean | string | undefined,

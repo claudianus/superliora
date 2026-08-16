@@ -8,6 +8,7 @@ import {
   formatSandboxProfileLine,
   formatWorkspaceSandboxLines,
   SECURITY_MCP_ALLOWLIST_TIP,
+  SECURITY_NOT_OS_SANDBOX,
   SECURITY_REDACTION_TIP,
   SECURITY_SANDBOX_TIP,
   securityNavigationLines,
@@ -36,13 +37,14 @@ describe('security-glance', () => {
     expect(line).toContain('2 pending');
   });
 
-  it('lists workspace root, sandbox profile, extra dirs, and root hints', () => {
+  it('lists workspace root, sandbox profile, extra dirs, and honest OS disclaimer', () => {
     const lines = formatWorkspaceSandboxLines('/tmp/project', ['/tmp/extra'], 'read-only');
-    expect(lines[0]).toContain('/tmp/project');
-    expect(lines.some((l) => l.includes('Extra roots'))).toBe(true);
+    expect(lines.some((l) => l.includes('Workspace root: /tmp/project'))).toBe(true);
     expect(lines.some((l) => l.includes('Sandbox profile: read-only'))).toBe(true);
     expect(lines.some((l) => l.includes('/add-dir'))).toBe(true);
+    expect(lines.some((l) => l.includes('Not an OS sandbox'))).toBe(true);
     expect(formatSandboxProfileLine('workspace')).toContain('stay inside workspace roots');
+    expect(formatSandboxProfileLine(undefined)).toContain('off');
   });
 
   it('summarizes network egress from process env', () => {
@@ -72,8 +74,12 @@ describe('security-glance', () => {
     expect(lines.some((l) => l.includes('Scopes merge'))).toBe(true);
   });
 
-  it('exports compact sandbox, redaction, and MCP allowlist tips', () => {
-    expect(SECURITY_SANDBOX_TIP).toContain('custom.sandboxProfile');
+  it('exports compact sandbox, redaction, and MCP allowlist tips without OS-sandbox claims', () => {
+    expect(SECURITY_SANDBOX_TIP).toContain('not OS isolation');
+    expect(SECURITY_SANDBOX_TIP).toContain('sandboxProfile');
+    expect(SECURITY_SANDBOX_TIP).toContain('read-only');
+    expect(SECURITY_SANDBOX_TIP).toMatch(/Bash/);
+    expect(SECURITY_NOT_OS_SANDBOX).toContain('Not an OS sandbox');
     expect(SECURITY_REDACTION_TIP).toContain('redactSecretsInText');
     expect(SECURITY_MCP_ALLOWLIST_TIP).toContain('enabledTools');
   });
@@ -102,6 +108,7 @@ describe('security-glance', () => {
     expect(text).toContain('live session confirms');
     expect(text).toContain('Never-Halt queue');
     expect(text).toContain('Sandbox profile: workspace');
+    expect(text).toContain('Not an OS sandbox');
     expect(text).toContain('Network egress');
     expect(text).toContain('Verification sensors');
     expect(text).toContain('RunProjectChecks');

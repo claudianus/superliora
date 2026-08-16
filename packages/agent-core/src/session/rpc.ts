@@ -100,11 +100,24 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
   }
 
   async updateSessionMetadata(payload: UpdateSessionMetadataPayload): Promise<void> {
+    const nextCustom =
+      payload.metadata.custom === undefined
+        ? this.session.metadata.custom
+        : { ...this.session.metadata.custom, ...payload.metadata.custom };
     this.session.metadata = {
       ...this.session.metadata,
       ...payload.metadata,
+      custom: nextCustom,
       agents: this.session.metadata.agents,
     };
+    // Live path-sandbox apply: rebuild file tools when sandboxProfile changes.
+    const profile = nextCustom['sandboxProfile'];
+    if (profile === 'off' || profile === 'workspace' || profile === 'read-only') {
+      const main = this.session.getReadyAgent('main');
+      if (main !== undefined && typeof main.setSandboxProfile === 'function') {
+        main.setSandboxProfile(profile);
+      }
+    }
     await this.session.writeMetadata();
   }
 

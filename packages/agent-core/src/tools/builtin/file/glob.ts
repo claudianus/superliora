@@ -33,7 +33,11 @@ import { isAbortError } from '../../../loop/errors';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { noopTelemetryClient, type TelemetryClient } from '../../../telemetry';
-import { isWithinDirectory, resolvePathAccessPath } from '../../policies/path-access';
+import {
+  isWithinDirectory,
+  policyForSandboxProfile,
+  resolvePathAccessPath,
+} from '../../policies/path-access';
 import type { PathClass } from '../../policies/path-access';
 import { isSensitiveFile } from '../../policies/sensitive';
 import { toInputJsonSchema } from '../../support/input-schema';
@@ -126,7 +130,11 @@ export class GlobTool implements BuiltinTool<GlobInput> {
         kaos: this.kaos,
         workspace: this.workspace,
         operation: 'search',
-        policy: { guardMode: 'absolute-outside-allowed', checkSensitive: false },
+        // Sensitive paths are filtered post-match; path sandbox still applies.
+        policy:
+          this.workspace.sandboxProfile !== undefined
+            ? policyForSandboxProfile(this.workspace.sandboxProfile, /* checkSensitive */ false)
+            : { guardMode: 'absolute-outside-allowed', checkSensitive: false },
       });
     }
     const searchRoots = [path ?? this.workspace.workspaceDir];

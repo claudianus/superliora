@@ -3,6 +3,7 @@ export * from './path';
 export * from './prompt-cache-key';
 export * from './resolve';
 export * from './schema';
+export * from './sandbox-profile';
 export * from './toml';
 export * from './env-model';
 export * from './model';

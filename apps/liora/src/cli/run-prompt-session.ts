@@ -93,13 +93,20 @@ export async function resolvePromptSession(
   }
 
   const model = requireConfiguredModel(opts.model, defaultModel);
+  const sandboxMeta =
+    opts.sandbox === 'off' || opts.sandbox === 'workspace' || opts.sandbox === 'read-only'
+      ? { sandboxProfile: opts.sandbox }
+      : undefined;
   const session = await harness.createSession({
     workDir,
     model,
     permission: 'auto',
     additionalDirs: opts.addDirs?.length ? opts.addDirs : undefined,
     drainAgentTasksOnStop: true,
-    metadata: sessionMetadata,
+    metadata: {
+      ...(sessionMetadata ?? {}),
+      ...(sandboxMeta ?? {}),
+    },
   });
   installHeadlessHandlers(session);
   return {

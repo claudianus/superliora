@@ -37,6 +37,8 @@ export const STRINGS_EN: Readonly<Record<string, string>> = {
     'Load a Claude plugin from this directory for the current session only (not persisted). Can be repeated.',
   'cli.option.addDir':
     'Add an additional workspace directory for this session. Can be repeated.',
+  'cli.option.sandbox':
+    'Path sandbox for file tools: off | workspace | read-only (not OS isolation; default off).',
   'cli.option.plan': 'Start with Mission plan steering.',
   'cli.option.resumeGoal': 'Automatically resume the first goal in the queue on startup.',
   'cli.option.autonomousGate':
@@ -94,6 +96,8 @@ export const STRINGS_KO: Readonly<Record<string, string>> = {
   'cli.option.pluginDir':
     '이 세션에만 Claude 플러그인을 디렉터리에서 로드합니다(저장되지 않음). 여러 번 지정할 수 있습니다.',
   'cli.option.addDir': '이 세션에 추가 작업 디렉터리를 등록합니다. 여러 번 지정할 수 있습니다.',
+  'cli.option.sandbox':
+    '파일 도구 경로 샌드박스: off | workspace | read-only (OS 격리 아님, 기본 off).',
   'cli.option.plan': 'Mission 플랜 조향으로 시작합니다.',
   'cli.option.resumeGoal': '시작 시 큐의 첫 번째 goal을 자동으로 재개합니다.',
   'cli.option.autonomousGate':

@@ -24,7 +24,7 @@ import { isAbortError } from '../../../loop/errors';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { noopTelemetryClient, type TelemetryClient } from '../../../telemetry';
-import { resolvePathAccessPath } from '../../policies/path-access';
+import { policyForSandboxProfile, resolvePathAccessPath } from '../../policies/path-access';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { ensureRgPath, rgUnavailableMessage } from '../../support/rg-locator';
 import { literalRulePattern, matchesGlobRuleSubject } from '../../support/rule-match';
@@ -83,7 +83,12 @@ export class GrepTool implements BuiltinTool<GrepInput> {
         kaos: this.kaos,
         workspace: this.workspace,
         operation: 'search',
-        policy: { guardMode: 'absolute-outside-allowed', checkSensitive: false },
+        // Sensitive globs are filtered by ripgrep exclude lists; path sandbox
+        // still applies when workspace.sandboxProfile is set.
+        policy:
+          this.workspace.sandboxProfile !== undefined
+            ? policyForSandboxProfile(this.workspace.sandboxProfile, /* checkSensitive */ false)
+            : { guardMode: 'absolute-outside-allowed', checkSensitive: false },
       });
     }
     const searchPaths = [path ?? this.workspace.workspaceDir];

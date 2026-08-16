@@ -5,7 +5,7 @@ import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { renderPrompt } from '../../../utils/render-prompt';
-import { resolvePathAccessPath } from '../../policies/path-access';
+import { policyForSandboxProfile, resolvePathAccessPath } from '../../policies/path-access';
 import { MEDIA_SNIFF_BYTES, detectFileType } from '../../support/file-type';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { literalRulePattern, matchesPathRuleSubject } from '../../support/rule-match';
@@ -248,6 +248,10 @@ export class ReadTool implements BuiltinTool<ReadInput> {
       kaos: this.kaos,
       workspace: this.workspace,
       operation: 'read',
+      policy:
+        this.workspace.sandboxProfile !== undefined
+          ? policyForSandboxProfile(this.workspace.sandboxProfile)
+          : undefined,
     });
     return {
       accesses: ToolAccesses.readFile(path),

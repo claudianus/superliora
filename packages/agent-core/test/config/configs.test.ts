@@ -1187,4 +1187,17 @@ ${VALID_TOML}`);
     expect(result.fileWarnings).toHaveLength(1);
     expect(result.fileWarnings[0]).toContain('default_thinking');
   });
+
+
+  it('accepts optional sandboxProfile and rejects invalid values', () => {
+    expect(LioraConfigSchema.parse({}).sandboxProfile).toBeUndefined();
+    expect(LioraConfigSchema.parse({ sandboxProfile: 'off' }).sandboxProfile).toBe('off');
+    expect(LioraConfigSchema.parse({ sandboxProfile: 'workspace' }).sandboxProfile).toBe(
+      'workspace',
+    );
+    expect(LioraConfigSchema.parse({ sandboxProfile: 'read-only' }).sandboxProfile).toBe(
+      'read-only',
+    );
+    expect(() => LioraConfigSchema.parse({ sandboxProfile: 'bubblewrap' })).toThrow();
+  });
 });

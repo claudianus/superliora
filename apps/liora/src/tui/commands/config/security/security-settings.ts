@@ -1,5 +1,6 @@
 /**
- * Settings → Security — read-only sandbox / redaction / MCP glance (SSOT §9.2).
+ * Settings → Security — path sandbox picker + redaction / MCP glance (SSOT §9.2).
+ * Path sandbox is a lexical file-tool guard — not OS isolation.
  */
 
 import { ChoicePickerComponent } from '../../../components/dialogs/picker/choice-picker';
@@ -9,6 +10,7 @@ import { loadNetworkGlance } from '../../../utils/network/network-glance';
 import {
   buildSecuritySettingsLines,
   SECURITY_MCP_ALLOWLIST_TIP,
+  SECURITY_NOT_OS_SANDBOX,
   SECURITY_REDACTION_TIP,
   SECURITY_SANDBOX_TIP,
   type McpAllowlistSummary,
@@ -22,7 +24,34 @@ import { dismissPickerDialog, mountPickerDialog } from '../../../utils/ui/mount-
 import type { SlashCommandHost } from '../../hub/dispatch';
 import { ttui } from '../../../utils/tui-i18n';
 
-export { SECURITY_MCP_ALLOWLIST_TIP, SECURITY_REDACTION_TIP, SECURITY_SANDBOX_TIP };
+export {
+  SECURITY_MCP_ALLOWLIST_TIP,
+  SECURITY_NOT_OS_SANDBOX,
+  SECURITY_REDACTION_TIP,
+  SECURITY_SANDBOX_TIP,
+};
+
+const SANDBOX_OPTIONS: ReadonlyArray<{
+  readonly value: SecuritySandboxProfile;
+  readonly label: string;
+  readonly description: string;
+}> = [
+  {
+    value: 'off',
+    label: '끔 (off)',
+    description: '기본값 · 워크스페이스 밖 절대경로 허용 · 민감 경로는 계속 차단',
+  },
+  {
+    value: 'workspace',
+    label: '워크스페이스 (workspace)',
+    description: '파일 도구가 워크스페이스(+ /add-dir) 안으로만 경로를 받음',
+  },
+  {
+    value: 'read-only',
+    label: '읽기 전용 (read-only)',
+    description: '쓰기/편집 전부 차단 · 읽기는 워크스페이스 규칙',
+  },
+];
 
 async function loadMcpAllowlistSummary(cwd: string): Promise<McpAllowlistSummary | undefined> {
   try {
@@ -66,8 +95,9 @@ function resolveSandboxProfile(session: {
     if (raw === 'off' || raw === 'workspace' || raw === 'read-only') {
       return raw;
     }
+    // Product default is off when metadata has no key.
     if (resume !== undefined) {
-      return 'workspace';
+      return 'off';
     }
   } catch {
     /* optional */
@@ -124,35 +154,116 @@ async function loadSecurityGlance(host: SlashCommandHost): Promise<SecurityGlanc
   }
 }
 
+function currentSandboxMarker(profile: SecuritySandboxProfile | undefined, value: SecuritySandboxProfile): string {
+  const effective = profile ?? 'off';
+  return effective === value ? '● ' : '  ';
+}
+
 export function showSecuritySettings(host: SlashCommandHost): void {
-  mountPickerDialog(
-    host,
-    new ChoicePickerComponent({
-      title: ttui('tui.settings.pane.security.title'),
-      hint: '↑↓ · Enter · Esc',
-      searchable: true,
-      options: [
-        {
-          value: 'status',
-          label: 'Security status',
-          description:
-            'Permission mode · path sandbox · network egress · redaction · MCP allowlist inventory.',
+  void (async () => {
+    let current: SecuritySandboxProfile | undefined;
+    try {
+      current = resolveSandboxProfile(host.requireSession());
+    } catch {
+      current = undefined;
+    }
+
+    mountPickerDialog(
+      host,
+      new ChoicePickerComponent({
+        title: ttui('tui.settings.pane.security.title'),
+        hint: '↑↓ · Enter · Esc · path sandbox (not OS)',
+        searchable: true,
+        options: [
+          {
+            value: 'status',
+            label: 'Security status',
+            description:
+              'Permission mode · path sandbox · network egress · redaction · MCP allowlist inventory.',
+          },
+          ...SANDBOX_OPTIONS.map((opt) => ({
+            value: opt.value,
+            label: `${currentSandboxMarker(current, opt.value)}${opt.label}`,
+            description: opt.description,
+          })),
+          {
+            value: 'tip-sandbox',
+            label: 'About path sandbox',
+            description: SECURITY_SANDBOX_TIP,
+          },
+          {
+            value: 'tip-redaction',
+            label: 'Secrets & redaction',
+            description: SECURITY_REDACTION_TIP,
+          },
+          {
+            value: 'tip-mcp',
+            label: 'MCP tool allowlist',
+            description: SECURITY_MCP_ALLOWLIST_TIP,
+          },
+        ],
+        onSelect: (value) => {
+          dismissPickerDialog(host);
+          if (value === 'status') {
+            void showSecuritySettingsPanel(host);
+            return;
+          }
+          if (value === 'off' || value === 'workspace' || value === 'read-only') {
+            void applySandboxProfile(host, value);
+            return;
+          }
+          if (value === 'tip-sandbox') {
+            host.showStatus(SECURITY_SANDBOX_TIP, 'info');
+            return;
+          }
+          if (value === 'tip-redaction') {
+            host.showStatus(SECURITY_REDACTION_TIP, 'info');
+            return;
+          }
+          if (value === 'tip-mcp') {
+            host.showStatus(SECURITY_MCP_ALLOWLIST_TIP, 'info');
+            return;
+          }
         },
+        onCancel: () => {
+          dismissPickerDialog(host);
+        },
+      }),
+      { label: ttui('tui.settings.pane.security.title') },
+    );
+  })();
+}
 
-      ],
-      onSelect: (value) => {
-        dismissPickerDialog(host);
-        if (value === 'status') {
-          void showSecuritySettingsPanel(host);
-          return;
-        }
+async function applySandboxProfile(
+  host: SlashCommandHost,
+  profile: SecuritySandboxProfile,
+): Promise<void> {
+  try {
+    await host.harness.setConfig({ sandboxProfile: profile });
+  } catch (error) {
+    host.showStatus(
+      `Failed to save sandboxProfile: ${error instanceof Error ? error.message : String(error)}`,
+      'error',
+    );
+    return;
+  }
 
-      },
-      onCancel: () => {
-        dismissPickerDialog(host);
-      },
-    }),
-    { label: ttui('tui.settings.pane.security.title') },
+  try {
+    const session = host.requireSession();
+    if (typeof (session as { setSandboxProfile?: (p: SecuritySandboxProfile) => Promise<void> }).setSandboxProfile === 'function') {
+      await (session as { setSandboxProfile: (p: SecuritySandboxProfile) => Promise<void> }).setSandboxProfile(
+        profile,
+      );
+    }
+  } catch {
+    // Config saved; live session optional when no session is open.
+  }
+
+  const label =
+    profile === 'off' ? '끔 (off)' : profile === 'workspace' ? '워크스페이스' : '읽기 전용';
+  host.showStatus(
+    `Path sandbox → ${label}. Not OS isolation. Applies to file tools from the next turn.`,
+    profile === 'off' ? 'warning' : 'success',
   );
 }
 

@@ -8,6 +8,7 @@ import { testKaos } from '../fixtures/test-kaos';
 import { ErrorCodes, LioraError } from '../../src/errors';
 import {
   appendWorkspaceAdditionalDir,
+  writeWorkspaceSandboxProfile,
   loadWorkspaceLocalConfig,
   normalizeAdditionalDirs,
   readWorkspaceAdditionalDirs,
@@ -200,5 +201,37 @@ describe('workspace local config', () => {
     expect(
       normalizeAdditionalDirs(['shared', './shared', 'nested//dir', 'nested/dir/../final']),
     ).toEqual(['shared', 'nested/dir', 'nested/final']);
+  });
+
+
+  it('loads and writes workspace.sandbox_profile in local.toml', async () => {
+    const root = await makeProject();
+    await mkdir(join(root, '.superliora'), { recursive: true });
+    const configPath = join(root, '.superliora', 'local.toml');
+    await writeFile(
+      configPath,
+      '[workspace]\nadditional_dir = []\nsandbox_profile = "workspace"\n',
+      'utf-8',
+    );
+
+    const loaded = await loadWorkspaceLocalConfig(testKaos, root);
+    expect(loaded.sandboxProfile).toBe('workspace');
+
+    const written = await writeWorkspaceSandboxProfile(testKaos, root, 'read-only');
+    expect(written.sandboxProfile).toBe('read-only');
+    const text = await readFile(configPath, 'utf-8');
+    expect(text).toMatch(/sandbox_profile\s*=\s*"read-only"/);
+  });
+
+  it('rejects invalid workspace.sandbox_profile values', async () => {
+    const root = await makeProject();
+    await mkdir(join(root, '.superliora'), { recursive: true });
+    const configPath = join(root, '.superliora', 'local.toml');
+    await writeFile(configPath, '[workspace]\nsandbox_profile = "bubblewrap"\n', 'utf-8');
+
+    await expectConfigInvalid(
+      loadWorkspaceLocalConfig(testKaos, root),
+      'workspace.sandbox_profile must be one of: off, workspace, read-only',
+    );
   });
 });

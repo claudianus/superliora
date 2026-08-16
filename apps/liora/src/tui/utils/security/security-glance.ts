@@ -1,6 +1,6 @@
 /**
- * Security settings glance — read-only inventory for SSOT §9.2.
- * No fake toggles; surfaces live permission/workspace/MCP facts + navigation hints.
+ * Security settings glance — inventory + path-sandbox copy for SSOT §9.2.
+ * Path sandbox is a lexical file-tool guard, not OS isolation.
  */
 
 import type { PermissionMode } from '@superliora/sdk';
@@ -42,14 +42,17 @@ export interface SecurityGlanceInput {
 
 const SANDBOX_PROFILE_TIPS: Readonly<Record<SecuritySandboxProfile, string>> = {
   workspace:
-    'Read/Write/Edit/Glob/Grep stay inside workspace roots; absolute paths outside are denied.',
+    'Read/Write/Edit/Glob/Grep/RepoQuery stay inside workspace roots (+ /add-dir); absolute paths outside are denied.',
   'read-only': 'All writes blocked; reads follow workspace root rules.',
-  off: 'Legacy profile — absolute paths outside roots are allowed (sensitive paths still blocked).',
+  off: 'Default — absolute paths outside roots are allowed for file tools (sensitive paths still blocked).',
 };
 
-/** Compact path-sandbox tip — Settings → Security picker + status panel. */
+/**
+ * Honest path-sandbox tip — Settings → Security picker + status panel.
+ * Not an OS sandbox: Bash, network, computer-use stay outside this switch.
+ */
 export const SECURITY_SANDBOX_TIP =
-  'Sandbox profiles off | workspace | read-only — workspace denies paths outside roots; read-only blocks writes; off allows legacy absolute paths (sensitive paths still blocked). Set via session metadata custom.sandboxProfile · /add-dir for extra roots.';
+  'Path sandbox (not OS isolation): off | workspace | read-only. workspace denies file-tool paths outside roots; read-only blocks writes; off allows absolute outside paths. Sensitive paths stay blocked. Bash/network/computer-use are not covered. Settings → Security · config.toml sandboxProfile · local.toml workspace.sandbox_profile · --sandbox · SUPERLIORA_SANDBOX · /add-dir for extra roots.';
 
 /** Compact secrets/redaction tip — agent-core SSOT. */
 export const SECURITY_REDACTION_TIP =
@@ -58,6 +61,10 @@ export const SECURITY_REDACTION_TIP =
 /** Compact MCP tool-allowlist tip — mcp.json scopes. */
 export const SECURITY_MCP_ALLOWLIST_TIP =
   'MCP tool allowlist: enabledTools / disabledTools per server in mcp.json — empty enabledTools = all tools; disabledTools wins on conflict · project + user scopes merge · Settings → MCP to install, toggle, reload.';
+
+/** One-line OS-isolation disclaimer for picker footer / glance. */
+export const SECURITY_NOT_OS_SANDBOX =
+  'Not an OS sandbox — lexical path guard for file tools only. Bash, network egress, and desktop control are out of scope.';
 
 export function formatPermissionModeLine(
   mode: PermissionMode,
@@ -87,7 +94,7 @@ export function formatPermissionModeLine(
 
 export function formatSandboxProfileLine(profile: SecuritySandboxProfile | undefined): string {
   if (profile === undefined) {
-    return 'Sandbox profile: workspace (engine default when session starts — metadata.custom.sandboxProfile)';
+    return 'Sandbox profile: off (default when unset — opt in via Settings → Security)';
   }
   return `Sandbox profile: ${profile} — ${SANDBOX_PROFILE_TIPS[profile]}`;
 }
@@ -102,8 +109,11 @@ export function formatWorkspaceSandboxLines(
     lines.push(`Extra roots (+${String(additionalDirs.length)}): ${additionalDirs.join(', ')}`);
   }
   lines.push(formatSandboxProfileLine(sandboxProfile));
-  lines.push('Set via session metadata custom.sandboxProfile (off | workspace | read-only).');
-  lines.push('Extra roots: /add-dir · absolute paths outside roots denied in workspace profile.');
+  lines.push(SECURITY_NOT_OS_SANDBOX);
+  lines.push(
+    'Change: Settings → Security · config.toml sandboxProfile · local.toml workspace.sandbox_profile · --sandbox · SUPERLIORA_SANDBOX.',
+  );
+  lines.push('Extra roots: /add-dir · default is off (vibe-coding friendly).');
   return lines;
 }
 
@@ -200,7 +210,7 @@ export function securityNavigationLines(): readonly string[] {
 export function buildSecuritySettingsLines(input: SecurityGlanceInput): readonly string[] {
   return [
     '── Security glance (§9.2) ───────────────────',
-    'Read-only inventory — no toggles here; use linked settings below.',
+    'Path sandbox is configurable below; other rows are live inventory.',
     '',
     '── Permission mode ─────────────────────────',
     formatPermissionModeLine(

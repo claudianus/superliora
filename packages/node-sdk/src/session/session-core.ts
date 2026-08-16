@@ -252,6 +252,32 @@ export abstract class SessionCore {
     await this.rpc.setPermission({ sessionId: this.id, mode });
   }
 
+  /**
+   * Persist path-sandbox profile on session metadata and rebuild file-tool policy.
+   * Lexical guard only — not OS isolation. Sensitive-path checks stay on.
+   */
+  async setSandboxProfile(profile: 'off' | 'workspace' | 'read-only'): Promise<void> {
+    this.ensureOpen();
+    if (profile !== 'off' && profile !== 'workspace' && profile !== 'read-only') {
+      throw new LioraError(
+        ErrorCodes.CONFIG_INVALID,
+        'Sandbox profile must be off, workspace, or read-only',
+      );
+    }
+    await this.rpc.updateSessionMetadata({
+      sessionId: this.id,
+      metadata: { custom: { sandboxProfile: profile } },
+    });
+    const resume = this.getResumeState();
+    if (resume?.sessionMetadata !== undefined) {
+      const custom = {
+        ...(resume.sessionMetadata.custom ?? {}),
+        sandboxProfile: profile,
+      };
+      (resume.sessionMetadata as { custom?: Record<string, unknown> }).custom = custom;
+    }
+  }
+
   async setPlanMode(enabled: boolean, ultra = false, initialContext?: string): Promise<void> {
     this.ensureOpen();
     if (typeof enabled !== 'boolean') {

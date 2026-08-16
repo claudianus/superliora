@@ -226,7 +226,8 @@ export class SessionAgentLifecycle {
     if (raw === 'off' || raw === 'workspace' || raw === 'read-only') {
       return raw;
     }
-    // Default workspace sandbox for safer file tools / AC4 tests.
-    return 'workspace';
+    // Product default is off: path sandbox is opt-in via Settings / config /
+    // --sandbox / SUPERLIORA_SANDBOX / local.toml. Sensitive-path checks stay on.
+    return 'off';
   }
 }

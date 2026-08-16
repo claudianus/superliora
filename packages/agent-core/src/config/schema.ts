@@ -135,6 +135,14 @@ export type ThinkingConfig = z.infer<typeof ThinkingConfigSchema>;
 
 export const PermissionModeSchema = z.enum(['yolo', 'manual', 'auto']);
 
+/**
+ * Path-sandbox profile for file tools (Read/Write/Edit/Grep/Glob/RepoQuery).
+ * Lexical workspace guard only — not OS isolation.
+ */
+export const SandboxProfileSchema = z.enum(['off', 'workspace', 'read-only']);
+
+export type SandboxProfileConfig = z.infer<typeof SandboxProfileSchema>;
+
 export const PermissionRuleDecisionSchema = z.enum(['allow', 'deny', 'ask']);
 export const PermissionRuleScopeSchema = z.enum([
   'turn-override',
@@ -478,6 +486,12 @@ export const LioraConfigSchema = z.object({
   defaultThinking: z.boolean().optional(),
   defaultPermissionMode: PermissionModeSchema.optional(),
   defaultPlanMode: z.boolean().optional(),
+  /**
+   * Path sandbox for file tools: off | workspace | read-only.
+   * Default when omitted is off (see resolveSandboxProfileFromSources).
+   * Not an OS sandbox — Bash/network/computer-use are out of scope.
+   */
+  sandboxProfile: SandboxProfileSchema.optional(),
   permission: PermissionConfigSchema.optional(),
   hooks: z.array(HookDefSchema).optional(),
   services: ServicesConfigSchema.optional(),
@@ -551,6 +565,7 @@ export const LioraConfigPatchSchema = z
     defaultThinking: z.boolean().optional(),
     defaultPermissionMode: PermissionModeSchema.optional(),
     defaultPlanMode: z.boolean().optional(),
+    sandboxProfile: SandboxProfileSchema.optional(),
     permission: PermissionConfigPatchSchema.optional(),
     hooks: z.array(HookDefSchema).optional(),
     services: ServicesConfigPatchSchema.optional(),

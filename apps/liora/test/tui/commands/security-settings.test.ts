@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   SECURITY_MCP_ALLOWLIST_TIP,
+  SECURITY_NOT_OS_SANDBOX,
   SECURITY_REDACTION_TIP,
   SECURITY_SANDBOX_TIP,
   showSecuritySettings,
@@ -14,8 +15,11 @@ function makeSecurityHost(options: {
   hasSession?: boolean;
   permissionMode?: string;
   workDir?: string;
+  sandboxProfile?: 'off' | 'workspace' | 'read-only';
 } = {}) {
   const transcriptContainer = { addChild: vi.fn() };
+  const setConfig = vi.fn(async () => undefined);
+  const setSandboxProfile = vi.fn(async () => undefined);
   const requireSession = vi.fn(() => {
     if (options.hasSession === false) {
       throw new Error('no session');
@@ -24,8 +28,11 @@ function makeSecurityHost(options: {
       getStatus: vi.fn(async () => ({ permission: options.permissionMode ?? 'auto' })),
       listMcpServers: vi.fn(async () => [{ status: 'connected' }]),
       getResumeState: vi.fn(() => ({
-        sessionMetadata: { custom: { sandboxProfile: 'workspace' } },
+        sessionMetadata: {
+          custom: { sandboxProfile: options.sandboxProfile ?? 'workspace' },
+        },
       })),
+      setSandboxProfile,
     };
   });
   return {
@@ -40,25 +47,36 @@ function makeSecurityHost(options: {
       renderer: { invalidateFrame: vi.fn() },
     },
     requireSession,
+    harness: { setConfig },
     mountCenterModal: vi.fn(),
     closeCenterModal: vi.fn(),
     restoreEditor: vi.fn(),
     showStatus: vi.fn(),
-  } as unknown as SlashCommandHost;
+    _setConfig: setConfig,
+    _setSandboxProfile: setSandboxProfile,
+  } as unknown as SlashCommandHost & {
+    _setConfig: typeof setConfig;
+    _setSandboxProfile: typeof setSandboxProfile;
+  };
 }
 
-function selectSecurityAction(host: SlashCommandHost, value: string): void {
-  const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
-    | ChoicePickerComponent
-    | undefined;
-  expect(picker).toBeDefined();
+async function waitForPicker(host: SlashCommandHost): Promise<ChoicePickerComponent> {
+  await vi.waitFor(() => {
+    expect(host.mountCenterModal).toHaveBeenCalled();
+  });
+  return (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as ChoicePickerComponent;
+}
+
+function selectSecurityAction(picker: ChoicePickerComponent, value: string): void {
   (picker as unknown as { opts: { onSelect: (action: string) => void } }).opts.onSelect(value);
 }
 
 describe('security settings tips', () => {
-  it('exports sandbox, redaction, and MCP allowlist tips (glance copy, not menu rows)', () => {
+  it('exports sandbox, redaction, and MCP allowlist tips (glance copy)', () => {
     expect(SECURITY_SANDBOX_TIP).toContain('sandboxProfile');
     expect(SECURITY_SANDBOX_TIP).toContain('read-only');
+    expect(SECURITY_SANDBOX_TIP).toContain('not OS isolation');
+    expect(SECURITY_NOT_OS_SANDBOX).toContain('Not an OS sandbox');
     expect(SECURITY_REDACTION_TIP).toContain('redactSecretsInText');
     expect(SECURITY_REDACTION_TIP).toContain('redteam-soft');
     expect(SECURITY_MCP_ALLOWLIST_TIP).toContain('enabledTools');
@@ -67,25 +85,44 @@ describe('security settings tips', () => {
 });
 
 describe('showSecuritySettings', () => {
-  it('mounts ChoicePicker with status and read-only tip actions — tip-free', () => {
+  it('mounts ChoicePicker with status, three sandbox profiles, and tip rows', async () => {
     const host = makeSecurityHost();
     showSecuritySettings(host);
-    const picker = (host.mountCenterModal as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
-      | ChoicePickerComponent
-      | undefined;
-    expect(picker).toBeDefined();
+    const picker = await waitForPicker(host);
     const options = (picker as unknown as { opts: { options: readonly { value: string }[] } }).opts
       .options;
     expect(options.map((o) => o.value)).toEqual([
       'status',
+      'off',
+      'workspace',
+      'read-only',
+      'tip-sandbox',
+      'tip-redaction',
+      'tip-mcp',
     ]);
-    expect(options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
   });
 
-  it('mounts read-only security panel for status action', async () => {
+  it('persists sandbox profile via setConfig and live session setSandboxProfile', async () => {
+    const host = makeSecurityHost({ sandboxProfile: 'off' });
+    showSecuritySettings(host);
+    const picker = await waitForPicker(host);
+    selectSecurityAction(picker, 'workspace');
+    await vi.waitFor(() => {
+      expect(host._setConfig).toHaveBeenCalledWith({ sandboxProfile: 'workspace' });
+    });
+    await vi.waitFor(() => {
+      expect(host._setSandboxProfile).toHaveBeenCalledWith('workspace');
+    });
+    expect(host.showStatus).toHaveBeenCalled();
+    const statusMsg = String((host.showStatus as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] ?? '');
+    expect(statusMsg).toMatch(/Path sandbox|OS isolation/i);
+  });
+
+  it('mounts security panel for status action with workspace profile', async () => {
     const host = makeSecurityHost();
     showSecuritySettings(host);
-    selectSecurityAction(host, 'status');
+    const picker = await waitForPicker(host);
+    selectSecurityAction(picker, 'status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });
@@ -94,6 +131,7 @@ describe('showSecuritySettings', () => {
     const lines = panel.snapshotBodyLines(1).join('\n');
     expect(lines).toContain('§9.2');
     expect(lines).toContain('Sandbox profile: workspace');
+    expect(lines).toContain('Not an OS sandbox');
     expect(lines).toContain('redactSecretsInText');
     expect(lines).toContain('enabledTools');
     expect(lines).toContain('/tmp/superliora-security');
@@ -102,7 +140,8 @@ describe('showSecuritySettings', () => {
   it('renders security panel without session when unavailable', async () => {
     const host = makeSecurityHost({ hasSession: false });
     showSecuritySettings(host);
-    selectSecurityAction(host, 'status');
+    const picker = await waitForPicker(host);
+    selectSecurityAction(picker, 'status');
     await vi.waitFor(() => {
       expect(host.state.transcriptContainer.addChild).toHaveBeenCalled();
     });

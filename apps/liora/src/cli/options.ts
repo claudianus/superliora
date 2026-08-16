@@ -18,6 +18,11 @@ export interface CLIOptions {
   /** Opt-in Claude channel server names (`--channels`). */
   channelServers: string[];
   addDirs?: string[];
+  /**
+   * Path-sandbox profile for file tools (`off` | `workspace` | `read-only`).
+   * Lexical guard only — not OS isolation.
+   */
+  sandbox?: string;
   /** Automatically resume the first goal in the queue on startup. */
   resumeGoal?: boolean;
   /**

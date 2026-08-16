@@ -329,13 +329,20 @@ The `[workspace]` table groups project-level workspace settings:
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `additional_dir` | `array<string>` | No | Additional workspace directories, stored as absolute paths. Written automatically when you confirm "remember this directory" in `/add-dir`; read back on startup so the directories are available in every session of this project |
+| `sandbox_profile` | `string` | No | Path sandbox for file tools: `off` (default), `workspace`, or `read-only`. Lexical guard only — not OS isolation. Bash, network, and computer-use are out of scope. Also settable as user `config.toml` `sandboxProfile`, CLI `--sandbox`, or env `SUPERLIORA_SANDBOX`. |
 
 ```toml
 [workspace]
 additional_dir = ["/absolute/path/to/shared"]
+# Path sandbox (not OS isolation). Default is off when omitted.
+# sandbox_profile = "workspace"
 ```
 
 Because directories are stored as absolute paths, which are specific to your machine, we recommend adding `.superliora/local.toml` to your project's `.gitignore` so it is not committed.
+
+### User `config.toml` path sandbox
+
+Optional top-level `sandboxProfile = "off" | "workspace" | "read-only"` in `~/.superliora/config.toml` sets the default path sandbox for file tools. This is **not** an OS sandbox: it only bounds Read/Write/Edit/Grep/Glob/RepoQuery to workspace roots (plus `/add-dir`). Sensitive-file blocking stays on even when the profile is `off`. Priority: CLI `--sandbox` / `SUPERLIORA_SANDBOX` → `local.toml` `workspace.sandbox_profile` → user `sandboxProfile` → session metadata → `off`.
 
 ## Next steps
 

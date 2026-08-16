@@ -18,7 +18,7 @@ import {
   REPO_INDEX_ENGINE_ENV,
 } from '../../../repo-index/status';
 import { noopTelemetryClient, type TelemetryClient } from '../../../telemetry';
-import { resolvePathAccessPath } from '../../policies/path-access';
+import { policyForSandboxProfile, resolvePathAccessPath } from '../../policies/path-access';
 import { toInputJsonSchema } from '../../support/input-schema';
 import type { WorkspaceConfig } from '../../support/workspace';
 import { collectContextFiles } from '../context/context-discovery';
@@ -445,14 +445,22 @@ function resolveScopePath(
   path: string,
   operation: 'search' | 'read' = 'search',
 ): string {
+  const profilePolicy =
+    workspace.sandboxProfile !== undefined
+      ? policyForSandboxProfile(
+          workspace.sandboxProfile,
+          /* checkSensitive */ operation !== 'search',
+        )
+      : undefined;
   return resolvePathAccessPath(path, {
     kaos,
     workspace,
     operation,
     policy:
-      operation === 'search'
+      profilePolicy ??
+      (operation === 'search'
         ? { guardMode: 'absolute-outside-allowed', checkSensitive: false }
-        : undefined,
+        : undefined),
   });
 }
 

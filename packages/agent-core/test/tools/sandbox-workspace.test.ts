@@ -7,6 +7,10 @@ import {
   resolvePathAccess,
   sandboxProfileToGuardMode,
 } from '../../src/tools/policies/path-access';
+import {
+  DEFAULT_SANDBOX_PROFILE,
+  resolveSandboxProfileFromSources,
+} from '../../src/config/sandbox-profile';
 import type { WorkspaceConfig } from '../../src/tools/support/workspace';
 
 const WORKSPACE: WorkspaceConfig = {
@@ -59,11 +63,18 @@ describe('sandbox profile mapping (unit-sandbox-workspace)', () => {
     ).toEqual({ path: '/extra/note.md', outsideWorkspace: false });
   });
 
-  it('workspace mode denies absolute read outside roots', () => {
+  it('workspace mode denies absolute read outside roots (Read/Grep/Glob path)', () => {
     const policy = policyForSandboxProfile('workspace');
     expect(() =>
       resolvePathAccess('/etc/hosts', '/workspace', WORKSPACE, {
         operation: 'read',
+        policy,
+      }),
+    ).toThrow(/outside the workspace/);
+
+    expect(() =>
+      resolvePathAccess('/etc/hosts', '/workspace', WORKSPACE, {
+        operation: 'search',
         policy,
       }),
     ).toThrow(/outside the workspace/);
@@ -113,5 +124,52 @@ describe('sandbox profile mapping (unit-sandbox-workspace)', () => {
         policy: off,
       }),
     ).toEqual({ path: '/tmp/x', outsideWorkspace: true });
+  });
+
+  it('off still blocks sensitive paths via checkSensitive', () => {
+    const off = policyForSandboxProfile('off', true);
+    expect(() =>
+      resolvePathAccess('/workspace/.env', '/workspace', WORKSPACE, {
+        operation: 'read',
+        policy: off,
+      }),
+    ).toThrow(PathSecurityError);
+    try {
+      resolvePathAccess('/workspace/.env', '/workspace', WORKSPACE, {
+        operation: 'read',
+        policy: off,
+      });
+    } catch (error) {
+      expect(error).toBeInstanceOf(PathSecurityError);
+      expect((error as PathSecurityError).code).toBe('PATH_SENSITIVE');
+    }
+  });
+
+  it('resolveSandboxProfileFromSources defaults to off and honors priority', () => {
+    expect(resolveSandboxProfileFromSources({}).profile).toBe(DEFAULT_SANDBOX_PROFILE);
+    expect(resolveSandboxProfileFromSources({}).source).toBe('default');
+
+    expect(
+      resolveSandboxProfileFromSources({
+        userConfig: 'off',
+        localToml: 'workspace',
+      }).profile,
+    ).toBe('workspace');
+
+    expect(
+      resolveSandboxProfileFromSources({
+        cli: 'read-only',
+        env: { SUPERLIORA_SANDBOX: 'workspace' },
+        localToml: 'off',
+        userConfig: 'workspace',
+      }).profile,
+    ).toBe('read-only');
+
+    const badEnv = resolveSandboxProfileFromSources({
+      env: { SUPERLIORA_SANDBOX: 'nope' },
+      userConfig: 'workspace',
+    });
+    expect(badEnv.profile).toBe('workspace');
+    expect(badEnv.warning).toMatch(/SUPERLIORA_SANDBOX/);
   });
 });

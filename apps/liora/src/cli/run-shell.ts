@@ -130,7 +130,12 @@ export async function runShell(
     startupNotice: configWarning,
     updateNotice,
     updateLifecycle,
-    sessionMetadata: resolvedWork.metadata as import('@superliora/sdk').JsonObject | undefined,
+    sessionMetadata: {
+      ...((resolvedWork.metadata as import('@superliora/sdk').JsonObject | undefined) ?? {}),
+      ...(opts.sandbox === 'off' || opts.sandbox === 'workspace' || opts.sandbox === 'read-only'
+        ? { sandboxProfile: opts.sandbox }
+        : {}),
+    } as import('@superliora/sdk').JsonObject,
   });
   surfaceOAuthDegraded = (event) => {
     tui.setAppState({
