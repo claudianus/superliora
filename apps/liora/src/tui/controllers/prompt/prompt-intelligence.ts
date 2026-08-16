@@ -51,8 +51,9 @@ export interface PromptIntelligenceHost {
  *    predicts the next words and renders them as dimmed ghost text after the
  *    cursor. Tab accepts.
  * 2. **Next-task suggestion** — when the editor is empty and the session is
- *    idle, a debounced LLM call recommends follow-up tasks. ↑/↓ cycles
- *    candidates; Tab fills the editor (does not submit).
+ *    idle, a debounced LLM call recommends follow-up tasks. Tab fills
+ *    the editor (does not submit). Empty-prompt ↑/↓ recall submitted
+ *    history; they do not cycle suggestion candidates.
  *
  * Both features are gated by the `prompt_intelligence` experimental flag and
  * are mutually exclusive with the slash/mention autocomplete menu.

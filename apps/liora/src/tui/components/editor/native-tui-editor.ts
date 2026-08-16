@@ -283,6 +283,19 @@ export class NativeTUIEditor implements TUIEditor {
     return true;
   }
 
+  handleHistoryNavigation(event: NativeInputKeyEvent): boolean {
+    if (event.eventType === 'release') return false;
+    if (event.key !== 'up' && event.key !== 'down') return false;
+    if (event.ctrl || event.alt || event.super) return false;
+    if (!this.shouldNavigateHistory()) return false;
+    if (this.getText().length === 0) {
+      if (event.key === 'up' && this.onUpArrowEmpty?.() === true) return true;
+      if (event.key === 'down' && this.onDownArrowEmpty?.() === true) return true;
+    }
+    this.navigateHistory(event.key === 'up' ? -1 : 1);
+    return true;
+  }
+
   invalidate(): void {}
 
   handleInput(data: string): void {
@@ -500,8 +513,12 @@ export class NativeTUIEditor implements TUIEditor {
     return this.pasteBurst;
   }
 
-  private getGhostKind(): TUIEditorGhostKind {
-    return this.ghostKind;
+  private isBrowsingHistory(): boolean {
+    return this.historyIndex !== undefined;
+  }
+
+  private shouldNavigateHistory(): boolean {
+    return this.getText().length === 0 || this.isBrowsingHistory();
   }
 
   private restoreHistoryText(text: string): void {

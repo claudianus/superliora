@@ -384,17 +384,25 @@ describe('NativeTUIEditor ghost text', () => {
     expect(editor.getText()).toBe('/help ');
   });
 
-  it('cycles suggestions with ↑/↓ when editor is empty and ghostKind is suggestion', () => {
+  it('recalls prompt history with ↑/↓ when empty even if a suggestion ghost is showing', () => {
     const editor = makeEditor();
     const cycleGhost = vi.fn();
     editor.onCycleGhost = cycleGhost;
-    editor.setGhostText('suggestion one', 'suggestion');
+    editor.addToHistory('older prompt');
+    editor.addToHistory('newer prompt');
+    editor.setGhostText('next-task suggestion', 'suggestion');
 
-    editor.handleInput('\u001B[A'); // up
-    expect(cycleGhost).toHaveBeenCalledWith(-1);
+    editor.handleInput('\u001B[A'); // up — bash-style history, not ghost cycle
+    expect(cycleGhost).not.toHaveBeenCalled();
+    expect(editor.getText()).toBe('newer prompt');
 
-    editor.handleInput('\u001B[B'); // down
-    expect(cycleGhost).toHaveBeenCalledWith(1);
+    editor.handleInput('\u001B[A');
+    expect(cycleGhost).not.toHaveBeenCalled();
+    expect(editor.getText()).toBe('older prompt');
+
+    editor.handleInput('\u001B[B'); // down — keep browsing, not cursor-only
+    expect(editor.getText()).toBe('newer prompt');
+    expect(cycleGhost).not.toHaveBeenCalled();
   });
 
   it('does not cycle suggestions when ghostKind is inline', () => {
@@ -406,6 +414,67 @@ describe('NativeTUIEditor ghost text', () => {
     // ↑ with empty text + inline ghost should NOT cycle
     editor.handleInput('\u001B[A');
     expect(cycleGhost).not.toHaveBeenCalled();
+  });
+
+  it('keeps browsing history after the first restore (not a one-shot)', () => {
+    const editor = makeEditor();
+    editor.addToHistory('first');
+    editor.addToHistory('second');
+    editor.addToHistory('third');
+
+    editor.handleInput('\u001B[A');
+    expect(editor.getText()).toBe('third');
+    editor.handleInput('\u001B[A');
+    expect(editor.getText()).toBe('second');
+    editor.handleInput('\u001B[A');
+    expect(editor.getText()).toBe('first');
+    editor.handleInput('\u001B[B');
+    expect(editor.getText()).toBe('second');
+    editor.handleInput('\u001B[B');
+    expect(editor.getText()).toBe('third');
+    editor.handleInput('\u001B[B');
+    expect(editor.getText()).toBe('');
+  });
+
+  it('lets native ↑/↓ keep browsing history after the first restore', () => {
+    const editor = makeEditor();
+    editor.addToHistory('alpha');
+    editor.addToHistory('beta');
+    editor.handleInput('\u001B[A');
+    expect(editor.getText()).toBe('beta');
+
+    const handledUp = editor.handleHistoryNavigation?.({
+      type: 'key',
+      key: 'up',
+      raw: '\u001B[A',
+      ctrl: false,
+      alt: false,
+      shift: false,
+    });
+    expect(handledUp).toBe(true);
+    expect(editor.getText()).toBe('alpha');
+
+    const handledDown = editor.handleHistoryNavigation?.({
+      type: 'key',
+      key: 'down',
+      raw: '\u001B[B',
+      ctrl: false,
+      alt: false,
+      shift: false,
+    });
+    expect(handledDown).toBe(true);
+    expect(editor.getText()).toBe('beta');
+  });
+
+  it('still opens Ctrl-R history search when a suggestion ghost is visible', () => {
+    const editor = makeEditor();
+    const search = vi.fn();
+    editor.onHistorySearch = search;
+    editor.setGhostText('next-task suggestion', 'suggestion');
+
+    expect(editor.tryHandleAppShortcut('\u0012')).toBe(true);
+    expect(search).toHaveBeenCalledOnce();
+    expect(editor.getText()).toBe('');
   });
 
   it('closes ghost text with Esc', () => {
