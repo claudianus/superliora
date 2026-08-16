@@ -2,6 +2,8 @@ import { createReadStream } from 'node:fs';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { join, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
+import type { Readable } from 'node:stream';
+import { createGunzip } from 'node:zlib';
 
 import type { SessionSummary, SessionDetail, AgentInfo, SessionHealth } from './agent-record-types';
 import { compareAgentIds } from './agent-tree';
@@ -88,11 +90,10 @@ async function discoverAgentsFromDisk(sessionDir: string): Promise<AgentInfo[]> 
     if (!entry.isDirectory()) continue;
     const id = entry.name;
     if (!isSafeAgentId(id)) continue;
-    const wirePath = join(agentsDir, id, 'wire.jsonl');
-    const exists = await pathExists(wirePath);
-    let readable = exists;
+    const wirePath = await resolveAgentWirePath(join(agentsDir, id));
+    let readable = wirePath !== undefined;
     let info: { count: number; protocolVersion: string | null } = { count: 0, protocolVersion: null };
-    if (exists) {
+    if (wirePath !== undefined) {
       try {
         info = await scanWire(wirePath);
       } catch {
@@ -122,8 +123,8 @@ async function tryReadSummary(sessionDir: string, sessionId: string, workDir: st
   }
   if (state.custom?.['imported_from_kimi_cli'] === true) return null;
 
-  const mainWirePath = join(sessionDir, 'agents', 'main', 'wire.jsonl');
-  const mainExists = await pathExists(mainWirePath);
+  const mainWirePath = await resolveAgentWirePath(join(sessionDir, 'agents', 'main'));
+  const mainExists = mainWirePath !== undefined;
   let mainCount = 0;
   let protocolVersion: string | null = null;
   let health: SessionHealth = 'ok';
@@ -199,11 +200,10 @@ async function inventoryAgents(sessionDir: string, state: StateJson): Promise<Ag
   const result: AgentInfo[] = [];
   for (const [id, meta] of Object.entries(state.agents ?? {})) {
     if (!isSafeAgentId(id)) continue;
-    const wirePath = join(sessionDir, 'agents', id, 'wire.jsonl');
-    const exists = await pathExists(wirePath);
-    let readable = exists;
+    const wirePath = await resolveAgentWirePath(join(sessionDir, 'agents', id));
+    let readable = wirePath !== undefined;
     let info: { count: number; protocolVersion: string | null } = { count: 0, protocolVersion: null };
-    if (exists) {
+    if (wirePath !== undefined) {
       try {
         info = await scanWire(wirePath);
       } catch {
@@ -264,8 +264,22 @@ async function findSessionDir(home: string, sessionId: string): Promise<string |
   return null;
 }
 
+/** Prefer plain wire.jsonl; fall back to wire.jsonl.gz for closed sessions. */
+async function resolveAgentWirePath(agentDir: string): Promise<string | undefined> {
+  const plain = join(agentDir, 'wire.jsonl');
+  if (await pathExists(plain)) return plain;
+  const gz = join(agentDir, 'wire.jsonl.gz');
+  if (await pathExists(gz)) return gz;
+  return undefined;
+}
+
+function openWireReadStream(path: string): Readable {
+  const raw = createReadStream(path);
+  return path.endsWith('.gz') ? raw.pipe(createGunzip()) : raw;
+}
+
 async function scanWire(path: string): Promise<{ count: number; protocolVersion: string }> {
-  const stream = createReadStream(path, { encoding: 'utf8' });
+  const stream = openWireReadStream(path);
   const rl = createInterface({ input: stream, crlfDelay: Infinity });
   let count = 0;
   let protocolVersion: string | null = null;

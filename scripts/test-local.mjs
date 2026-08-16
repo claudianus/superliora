@@ -92,6 +92,9 @@ function changedFiles(base) {
 
 /** Workspace dir that owns a path, or undefined for root-level files. */
 function ownerWorkspace(file) {
+  // Nested workspace packages (vis server/web) sit under apps/vis/.
+  if (file.startsWith('apps/vis/server/')) return 'apps/vis/server';
+  if (file.startsWith('apps/vis/web/')) return 'apps/vis/web';
   const match = /^(apps|packages)\/([^/]+)\//.exec(file);
   return match === null ? undefined : `${match[1]}/${match[2]}`;
 }

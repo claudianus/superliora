@@ -27,7 +27,13 @@ export const SUBCOMMAND_STRINGS_EN: Readonly<Record<string, string>> = {
   'cli.sub.vis.option.noOpen': 'Do not open the browser automatically.',
   'cli.sub.vis.arg.sessionId': 'Open directly to this session.',
 
+  // gc
+  'cli.sub.gc.description': 'Reclaim idle cache, worktree temp, and compress closed session wires.',
+  'cli.sub.gc.option.dryRun': 'Report candidates without deleting or compressing.',
+  'cli.sub.gc.option.idleDays': 'Treat sessions newer than this many days as active (default 7).',
+
   // doctor
+  'cli.sub.doctor.option.storage': 'Print home/sessions/cache/logs byte usage.',
   'cli.sub.doctor.cmd.config.desc': 'Validate config.toml.',
   'cli.sub.doctor.cmd.tui.desc': 'Validate tui.toml.',
   'cli.sub.doctor.arg.configPath':
@@ -291,7 +297,13 @@ export const SUBCOMMAND_STRINGS_KO: Readonly<Record<string, string>> = {
   'cli.sub.vis.option.noOpen': '브라우저를 자동으로 열지 않습니다.',
   'cli.sub.vis.arg.sessionId': '이 세션으로 바로 엽니다.',
 
+  // gc
+  'cli.sub.gc.description': '유휴 캐시·워크트리 임시 파일을 정리하고 종료된 세션 wire를 압축합니다.',
+  'cli.sub.gc.option.dryRun': '삭제·압축 없이 후보만 보고합니다.',
+  'cli.sub.gc.option.idleDays': '이 일수보다 최근 세션은 활성으로 취급합니다(기본 7).',
+
   // doctor
+  'cli.sub.doctor.option.storage': '홈/세션/캐시/로그 바이트 사용량을 출력합니다.',
   'cli.sub.doctor.cmd.config.desc': 'config.toml을 검사합니다.',
   'cli.sub.doctor.cmd.tui.desc': 'tui.toml을 검사합니다.',
   'cli.sub.doctor.arg.configPath':

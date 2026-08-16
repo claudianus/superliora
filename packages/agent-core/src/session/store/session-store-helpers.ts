@@ -46,6 +46,8 @@ export async function appendForkedMarkers(state: Record<string, unknown>): Promi
   const agents = state['agents'];
   if (!isRecord(agents)) return;
 
+  // One write path per agent: always plain wire.jsonl. Persistence materializes
+  // plain from .gz when needed — never append raw JSONL onto a gzip file.
   const paths = new Set<string>();
   for (const agentMeta of Object.values(agents)) {
     if (!isRecord(agentMeta)) continue;
@@ -54,11 +56,13 @@ export async function appendForkedMarkers(state: Record<string, unknown>): Promi
     paths.add(join(homedir, 'wire.jsonl'));
   }
 
-  await Promise.all([...paths].map(async (path) => {
-    const persistence = new FileSystemAgentRecordPersistence(path);
-    persistence.append(record);
-    await persistence.flush();
-  }));
+  await Promise.all(
+    [...paths].map(async (path) => {
+      const persistence = new FileSystemAgentRecordPersistence(path);
+      persistence.append(record);
+      await persistence.flush();
+    }),
+  );
 }
 
 export function customMetadataWithoutGoal(value: unknown): Record<string, unknown> {
@@ -83,7 +87,9 @@ export async function latestAgentWireMtime(sessionDir: string): Promise<number |
   let latest = 0;
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-    const wireInfo = await statIfExists(join(agentsDir, entry.name, 'wire.jsonl'));
+    const wireInfo =
+      (await statIfExists(join(agentsDir, entry.name, 'wire.jsonl'))) ??
+      (await statIfExists(join(agentsDir, entry.name, 'wire.jsonl.gz')));
     latest = Math.max(latest, wireInfo?.mtimeMs ?? 0);
   }
   return latest > 0 ? latest : undefined;

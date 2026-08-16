@@ -310,6 +310,7 @@ export class Agent {
                 this.emitRecordsWriteError(error);
               },
               blobStore: this.blobStore,
+              compressOnClose: true,
             })
           : undefined),
     );

@@ -234,6 +234,60 @@ describe('session-store', () => {
     expect(sub.parentAgentId).toBe('main');
   });
 
+  it('treats gzip-only closed main wire as present and scannable', async () => {
+    const dir = await (await import('node:fs/promises')).mkdtemp(
+      (await import('node:path')).join((await import('node:os')).tmpdir(), 'vis-gz-only-'),
+    );
+    cleanup = async () => {
+      await (await import('node:fs/promises')).rm(dir, { recursive: true, force: true });
+    };
+    const { mkdir, writeFile, rm } = await import('node:fs/promises');
+    const { join } = await import('node:path');
+    const { createReadStream, createWriteStream } = await import('node:fs');
+    const { createGzip } = await import('node:zlib');
+    const { pipeline } = await import('node:stream/promises');
+
+    const sessionDir = join(dir, 'sessions', 'wd_test', 'session_gz_only');
+    const mainDir = join(sessionDir, 'agents', 'main');
+    await mkdir(mainDir, { recursive: true });
+    await writeFile(
+      join(sessionDir, 'state.json'),
+      JSON.stringify({
+        createdAt: '2026-05-20T05:59:51.085Z',
+        updatedAt: '2026-05-21T03:12:08.000Z',
+        title: 'gzip only',
+        agents: {
+          main: { homedir: mainDir, type: 'main', parentAgentId: null },
+        },
+      }),
+    );
+    const plain = join(mainDir, 'wire.jsonl');
+    const gz = join(mainDir, 'wire.jsonl.gz');
+    const lines = [
+      JSON.stringify({ type: 'metadata', protocol_version: '1.1', created_at: 1 }),
+      JSON.stringify({
+        type: 'context.append_message',
+        message: { role: 'user', content: [{ type: 'text', text: 'gz' }] },
+      }),
+    ];
+    await writeFile(plain, `${lines.join('\n')}\n`, 'utf8');
+    await pipeline(createReadStream(plain), createGzip(), createWriteStream(gz));
+    await rm(plain, { force: true });
+
+    const sessions = await listSessions(dir);
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]!.mainAgentExists).toBe(true);
+    expect(sessions[0]!.mainWireRecordCount).toBe(2);
+    expect(sessions[0]!.wireProtocolVersion).toBe('1.1');
+    expect(sessions[0]!.health).toBe('ok');
+
+    const detail = await readSessionDetail(dir, 'session_gz_only');
+    expect(detail).not.toBeNull();
+    const main = detail!.agents.find((a) => a.agentId === 'main')!;
+    expect(main.wireExists).toBe(true);
+    expect(main.wireRecordCount).toBe(2);
+  });
+
   it('surfaces swarmItem from state.json onto AgentInfo (null when absent)', async () => {
     const { home, sessionDir, cleanup: c } = await buildSessionFixture('sample-main');
     cleanup = c;

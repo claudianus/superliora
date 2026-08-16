@@ -122,6 +122,26 @@ export {
   worktreeRegistryPath,
   worktreesRoot,
 } from './session/worktree';
+export {
+  collectStorageGarbage,
+  measureStorageBytes,
+  formatBytes,
+  isPathLocked,
+  type StorageGcOptions,
+  type StorageGcReport,
+  type StorageGcItem,
+  type StorageBytesReport,
+} from './session/storage-gc';
+export {
+  compressWireJsonl,
+  ensurePlainWireForAppend,
+  ensurePlainWireForAppendSync,
+  openWireReadStream,
+  resolveWirePath,
+  isGzipWirePath,
+  WIRE_JSONL,
+  WIRE_JSONL_GZ,
+} from './session/store/wire-gzip';
 export type {
   CreateSessionWorktreeInput,
   CreateSessionWorktreeResult,
