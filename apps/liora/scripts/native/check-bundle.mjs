@@ -36,6 +36,8 @@ const optionalRuntimeRequires = new Set([
   'fsevents',
   'mmdb-lib',
   'playwright',
+  'playwright-core',
+  'cloakbrowser',
   'socks-proxy-agent',
   'utf-8-validate',
 ]);

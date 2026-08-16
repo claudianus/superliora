@@ -24,6 +24,9 @@ const optionalNativeDependencies = new Set([
   '@img/sharp-libvips-dev/include',
   '@img/sharp-libvips-dev/cplusplus',
   '@img/sharp-wasm32/versions',
+  // Loaded from disk next to the SEA binary — never inline (init_dist launch shim).
+  'cloakbrowser',
+  'playwright-core',
 ]);
 
 function shouldAlwaysBundle(id: string): boolean {
