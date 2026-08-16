@@ -9,6 +9,8 @@ export { encodeWorkDirKey, normalizeWorkDir } from '#/session/store/workdir-key'
 
 export {
   compressWireJsonl,
+  ensurePlainWireForAppend,
+  ensurePlainWireForAppendSync,
   openWireReadStream,
   resolveWirePath,
   wireJsonlPath,

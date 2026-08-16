@@ -14,6 +14,8 @@ import type { Readable } from 'node:stream';
 
 import {
   compressWireJsonl,
+  ensurePlainWireForAppend,
+  ensurePlainWireForAppendSync,
   isGzipWirePath,
   resolveWirePath,
 } from '#/session/store/wire-gzip';
@@ -230,8 +232,9 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
   async beginStreamingRewrite(): Promise<StreamingWireRewrite> {
     this.throwIfError();
     await this.flush();
-    const tmpPath = `${this.filePath}.migrating`;
-    await mkdir(dirname(this.filePath), { recursive: true });
+    const target = this.appendPath;
+    const tmpPath = `${target}.migrating`;
+    await mkdir(dirname(target), { recursive: true });
     await unlink(tmpPath).catch(() => {});
     const fh = await open(tmpPath, 'w');
     let count = 0;
@@ -259,8 +262,10 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
       commit: async () => {
         await fh.sync();
         await closeOnce();
-        await rename(tmpPath, this.filePath);
-        await syncDir(dirname(this.filePath));
+        // Replace plain wire; drop any leftover gzip so history is not dual-sourced.
+        await rename(tmpPath, target);
+        await unlink(`${target}.gz`).catch(() => {});
+        await syncDir(dirname(target));
         this.directorySynced = true;
         this.committedRecordCount = count;
         this.pendingRecords.length = 0;
@@ -333,10 +338,14 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
     const batch = this.pendingRecords.splice(0);
     this.shouldClear = false;
     try {
-      const directory = dirname(this.filePath);
+      const target = this.appendPath;
+      const directory = dirname(target);
       mkdirSync(directory, { recursive: true });
+      if (!clearAtStart) {
+        ensurePlainWireForAppendSync(directory);
+      }
       const flags = clearAtStart ? 'w' : 'a';
-      const fd = openSync(this.filePath, flags);
+      const fd = openSync(target, flags);
       try {
         writeJsonlLinesSync(fd, batch);
         fsyncSync(fd);
@@ -464,10 +473,14 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
           ? await Promise.all(batch.map((record) => this.options.blobStore!.offload(record)))
           : batch;
 
-      const directory = dirname(this.filePath);
+      const target = this.appendPath;
+      const directory = dirname(target);
       await mkdir(directory, { recursive: true });
+      // Full rewrite replaces history; drop leftover gzip so readers don't
+      // prefer a stale short plain over older gzip (or vice versa).
+      await unlink(`${target}.gz`).catch(() => {});
 
-      const fh = await open(this.filePath, 'w');
+      const fh = await open(target, 'w');
       try {
         await writeJsonlLines(fh, writable);
         await fh.sync();
@@ -501,10 +514,14 @@ export class FileSystemAgentRecordPersistence implements AgentRecordPersistence 
           ? await Promise.all(batch.map((record) => this.options.blobStore!.offload(record)))
           : batch;
 
-      const directory = dirname(this.filePath);
+      const target = this.appendPath;
+      const directory = dirname(target);
       await mkdir(directory, { recursive: true });
+      // If only wire.jsonl.gz exists, materialize plain first so append keeps
+      // prior history instead of creating a short orphan plain that shadows gz.
+      await ensurePlainWireForAppend(directory);
 
-      const fh = await open(this.filePath, 'a');
+      const fh = await open(target, 'a');
       try {
         await writeJsonlLines(fh, writable);
         await fh.sync();

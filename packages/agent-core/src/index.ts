@@ -134,6 +134,8 @@ export {
 } from './session/storage-gc';
 export {
   compressWireJsonl,
+  ensurePlainWireForAppend,
+  ensurePlainWireForAppendSync,
   openWireReadStream,
   resolveWirePath,
   isGzipWirePath,

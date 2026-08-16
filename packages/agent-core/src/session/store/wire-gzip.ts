@@ -5,9 +5,16 @@
  * `wire.jsonl.gz` and delete the plain file. Resume / vis open either form
  * without a wire-format break (same JSONL lines once decompressed).
  */
-import { createReadStream, createWriteStream, existsSync } from 'node:fs';
+import {
+  createReadStream,
+  createWriteStream,
+  existsSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { open, rename, rm, stat } from 'node:fs/promises';
-import { createGunzip, createGzip } from 'node:zlib';
+import { createGunzip, createGzip, gunzipSync } from 'node:zlib';
 import { dirname, join } from 'pathe';
 import { pipeline } from 'node:stream/promises';
 import type { Readable } from 'node:stream';
@@ -43,6 +50,41 @@ export function openWireReadStream(path: string): Readable {
     return raw.pipe(createGunzip());
   }
   return raw;
+}
+
+/**
+ * Materialize a plain `wire.jsonl` for append/rewrite when only gzip exists.
+ * Prefer existing plain; if only `.gz` is present, gunzip it and remove the
+ * gzip companion so subsequent appends do not orphan prior history.
+ * Returns the plain path (which may not exist yet — open('a') will create it).
+ */
+export async function ensurePlainWireForAppend(agentHomedir: string): Promise<string> {
+  const plain = wireJsonlPath(agentHomedir);
+  if (existsSync(plain)) return plain;
+  const gz = wireJsonlGzPath(agentHomedir);
+  if (!existsSync(gz)) return plain;
+
+  const tmp = `${plain}.ungz.tmp`;
+  try {
+    await pipeline(createReadStream(gz), createGunzip(), createWriteStream(tmp));
+    await rename(tmp, plain);
+    await rm(gz, { force: true });
+  } catch (error) {
+    await rm(tmp, { force: true }).catch(() => undefined);
+    throw error;
+  }
+  return plain;
+}
+
+/** Sync variant for crash-path flushSync. */
+export function ensurePlainWireForAppendSync(agentHomedir: string): string {
+  const plain = wireJsonlPath(agentHomedir);
+  if (existsSync(plain)) return plain;
+  const gz = wireJsonlGzPath(agentHomedir);
+  if (!existsSync(gz)) return plain;
+  writeFileSync(plain, gunzipSync(readFileSync(gz)));
+  rmSync(gz, { force: true });
+  return plain;
 }
 
 /**

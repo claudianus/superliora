@@ -46,20 +46,23 @@ export async function appendForkedMarkers(state: Record<string, unknown>): Promi
   const agents = state['agents'];
   if (!isRecord(agents)) return;
 
+  // One write path per agent: always plain wire.jsonl. Persistence materializes
+  // plain from .gz when needed — never append raw JSONL onto a gzip file.
   const paths = new Set<string>();
   for (const agentMeta of Object.values(agents)) {
     if (!isRecord(agentMeta)) continue;
     const homedir = agentMeta['homedir'];
     if (typeof homedir !== 'string') continue;
     paths.add(join(homedir, 'wire.jsonl'));
-    paths.add(join(homedir, 'wire.jsonl.gz'));
   }
 
-  await Promise.all([...paths].map(async (path) => {
-    const persistence = new FileSystemAgentRecordPersistence(path);
-    persistence.append(record);
-    await persistence.flush();
-  }));
+  await Promise.all(
+    [...paths].map(async (path) => {
+      const persistence = new FileSystemAgentRecordPersistence(path);
+      persistence.append(record);
+      await persistence.flush();
+    }),
+  );
 }
 
 export function customMetadataWithoutGoal(value: unknown): Record<string, unknown> {

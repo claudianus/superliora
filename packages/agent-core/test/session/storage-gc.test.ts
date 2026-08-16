@@ -70,6 +70,90 @@ describe('wire gzip', () => {
     await persistence.close();
     expect(await resolveWirePath(agentDir)).toMatch(/wire\.jsonl\.gz$/);
   });
+
+  it('gzip → resume → append → read keeps prior events and new events', async () => {
+    const home = await tempDir('wire-resume-');
+    const agentDir = join(home, 'agent');
+    await mkdir(agentDir, { recursive: true });
+    const wirePath = join(agentDir, WIRE_JSONL);
+
+    const first = new FileSystemAgentRecordPersistence(wirePath, { compressOnClose: true });
+    first.append({
+      type: 'turn.prompt',
+      input: [{ type: 'text', text: 'old-event' }],
+      origin: { kind: 'user' },
+    } as never);
+    await first.close();
+    expect(await resolveWirePath(agentDir)).toMatch(/wire\.jsonl\.gz$/);
+
+    const resumed = new FileSystemAgentRecordPersistence(wirePath, { compressOnClose: true });
+    const prior: Array<{ type?: string; input?: Array<{ text?: string }> }> = [];
+    for await (const r of resumed.read()) prior.push(r as never);
+    expect(prior).toHaveLength(1);
+    expect(prior[0]!.input?.[0]?.text).toBe('old-event');
+
+    resumed.append({
+      type: 'turn.prompt',
+      input: [{ type: 'text', text: 'new-event' }],
+      origin: { kind: 'user' },
+    } as never);
+    await resumed.flush();
+
+    const all: Array<{ type?: string; input?: Array<{ text?: string }> }> = [];
+    for await (const r of resumed.read()) all.push(r as never);
+    expect(all.map((r) => r.input?.[0]?.text)).toEqual(['old-event', 'new-event']);
+    await resumed.close();
+  });
+
+  it('appendForkedMarkers never writes raw JSONL into wire.jsonl.gz', async () => {
+    const home = await tempDir('fork-gz-');
+    const agentDir = join(home, 'agent-main');
+    await mkdir(agentDir, { recursive: true });
+    const wirePath = join(agentDir, WIRE_JSONL);
+    const writer = new FileSystemAgentRecordPersistence(wirePath, { compressOnClose: true });
+    writer.append({
+      type: 'turn.prompt',
+      input: [{ type: 'text', text: 'pre-fork' }],
+      origin: { kind: 'user' },
+    } as never);
+    await writer.close();
+
+    const { appendForkedMarkers } = await import('#/session/store/session-store-helpers');
+    const { createGunzip } = await import('node:zlib');
+    const { createReadStream, existsSync } = await import('node:fs');
+    const { pipeline } = await import('node:stream/promises');
+    const { createWriteStream } = await import('node:fs');
+    const { readFile } = await import('node:fs/promises');
+
+    await appendForkedMarkers({
+      agents: {
+        main: { homedir: agentDir },
+      },
+    });
+
+    // Must not leave a corrupt gzip (raw JSONL appended onto binary).
+    // After fork marker, plain is preferred; if only gz remains it must gunzip cleanly.
+    const plain = join(agentDir, WIRE_JSONL);
+    const gz = join(agentDir, WIRE_JSONL_GZ);
+    if (existsSync(plain)) {
+      const text = await readFile(plain, 'utf-8');
+      expect(text).toContain('"type":"forked"');
+      expect(text).toContain('pre-fork');
+    } else {
+      expect(existsSync(gz)).toBe(true);
+      const out = join(agentDir, 'wire.out');
+      await pipeline(createReadStream(gz), createGunzip(), createWriteStream(out));
+      const text = await readFile(out, 'utf-8');
+      expect(text).toContain('"type":"forked"');
+      expect(text).toContain('pre-fork');
+    }
+
+    const reader = new FileSystemAgentRecordPersistence(wirePath);
+    const records: Array<{ type?: string }> = [];
+    for await (const r of reader.read()) records.push(r as never);
+    expect(records.some((r) => r.type === 'forked')).toBe(true);
+    expect(records.some((r) => r.type === 'turn.prompt')).toBe(true);
+  });
 });
 
 describe('state.json compact JSON', () => {
