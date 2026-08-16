@@ -28,6 +28,13 @@ describe('shouldMarkProviderCredential', () => {
     expect(shouldMarkProviderCredential('openai', 'quota')).toBe(true);
     expect(shouldMarkProviderCredential('xai-grok', 'rate_limit')).toBe(true);
   });
+
+  it('keeps alias-scoped abort/timeout off the provider credential', () => {
+    expect(shouldMarkProviderCredential('xai-grok', 'timeout')).toBe(false);
+    expect(shouldMarkProviderCredential('openai', 'timeout')).toBe(false);
+    expect(shouldMarkProviderCredential('xai-grok', 'quota')).toBe(true);
+    expect(shouldMarkProviderCredential('xai-grok', 'auth')).toBe(true);
+  });
 });
 
 describe('isCursorIncludedLaneModel', () => {

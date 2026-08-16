@@ -101,6 +101,7 @@ export {
   isToolExchangeAdjacencyError,
   isTransientNoBodyStatusError,
   isTransientProviderError,
+  isAbortTimeoutError,
   isTransientTryAgainError,
   parseStatedContextLimitTokens,
 } from './errors';

@@ -242,17 +242,26 @@ async function runProbeModelAlias(
       });
       return { ok: false, alias, provider: providerName, failureKind: failure.kind };
     }
+    // Unclassified (e.g. unsupported-parameter 400) is alias-local. Do not
+    // inflate to the 10-minute probe_fail TTL when a sibling on the same
+    // credential is still healthy — that hid grok-4.6 after a dated SKU 400.
+    const unclassifiedCooldownMs = unclassifiedProbeCooldownMs(
+      agent,
+      alias,
+      providerName,
+      now,
+    );
     sharedModelRouteHealthStore.markUnavailable(alias, {
       kind: 'probe_fail',
       failureReason,
-      cooldownMs: DEFAULT_PROBE_FAIL_COOLDOWN_MS,
+      cooldownMs: unclassifiedCooldownMs,
       now,
     });
     successCache.set(alias, {
       alias,
       provider: providerName,
       status: 'fail',
-      expiresAt: now + DEFAULT_PROBE_FAIL_COOLDOWN_MS,
+      expiresAt: now + unclassifiedCooldownMs,
     });
     return { ok: false, alias, provider: providerName };
   }
@@ -292,6 +301,39 @@ function liveProbeFailureCooldownMs(failure: ProviderRouteFailure): number {
     return Math.max(failure.cooldownMs, DEFAULT_PROBE_FAIL_COOLDOWN_MS);
   }
   return failure.cooldownMs;
+}
+
+const UNCLASSIFIED_PROBE_COOLDOWN_MS = 30_000;
+
+function unclassifiedProbeCooldownMs(
+  agent: Agent,
+  failedAlias: string,
+  providerName: string,
+  now: number,
+): number {
+  if (providerName.length === 0) return DEFAULT_PROBE_FAIL_COOLDOWN_MS;
+  if (hasHealthySiblingOnProvider(agent, failedAlias, providerName, now)) {
+    return UNCLASSIFIED_PROBE_COOLDOWN_MS;
+  }
+  return DEFAULT_PROBE_FAIL_COOLDOWN_MS;
+}
+
+function hasHealthySiblingOnProvider(
+  agent: Agent,
+  failedAlias: string,
+  providerName: string,
+  now: number,
+): boolean {
+  const config = agent.runtimeConfig ?? agent.kimiConfig;
+  const models = config?.models;
+  if (models === undefined) return false;
+  for (const [alias, model] of Object.entries(models)) {
+    if (alias === failedAlias) continue;
+    if (model?.provider !== providerName) continue;
+    if (isLiveProbeFailureFresh(alias, now)) continue;
+    if (sharedModelRouteHealthStore.isAvailable(alias, now)) return true;
+  }
+  return false;
 }
 
 function applyFailureToHealth(

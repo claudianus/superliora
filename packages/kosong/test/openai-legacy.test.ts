@@ -1026,11 +1026,39 @@ describe('OpenAILegacyChatProvider', () => {
       expect(body['reasoningEffort']).toBeUndefined();
     });
 
-    it('modelRejectsReasoningEffortParam matches grok-build ids', async () => {
+    it('never sends reasoning_effort for grok-4.20-0309-reasoning even with withThinking', async () => {
+      const provider = createProvider({ model: 'grok-4.20-0309-reasoning' }).withThinking('high');
+      const body = await captureRequestBody(provider, 'System prompt', [], []);
+      expect(body['reasoning_effort']).toBeUndefined();
+      expect(body['reasoningEffort']).toBeUndefined();
+    });
+
+    it('strips kwargs reasoningEffort for dated grok-4.20 SKUs', async () => {
+      const provider = createProvider({ model: 'grok-4.20-0309-reasoning' }).withGenerationKwargs({
+        reasoningEffort: 'high',
+        reasoning_effort: 'medium',
+      });
+      const body = await captureRequestBody(provider, 'System prompt', [], []);
+      expect(body['reasoning_effort']).toBeUndefined();
+      expect(body['reasoningEffort']).toBeUndefined();
+    });
+
+    it('still sends reasoning_effort for grok-4.6 with withThinking', async () => {
+      const provider = createProvider({ model: 'grok-4.6' }).withThinking('high');
+      const body = await captureRequestBody(provider, 'System prompt', [], []);
+      expect(body['reasoning_effort']).toBe('high');
+    });
+
+    it('modelRejectsReasoningEffortParam matches grok-build and grok-4.20-reasoning ids', async () => {
       const { modelRejectsReasoningEffortParam } = await import('#/providers/openai-legacy/index');
       expect(modelRejectsReasoningEffortParam('grok-build-0.1')).toBe(true);
       expect(modelRejectsReasoningEffortParam('GROK-BUILD-1')).toBe(true);
+      expect(modelRejectsReasoningEffortParam('grok-4.20-0309-reasoning')).toBe(true);
+      expect(modelRejectsReasoningEffortParam('grok-4.20')).toBe(true);
+      expect(modelRejectsReasoningEffortParam('xai-grok/grok-4.20-0309-reasoning')).toBe(true);
       expect(modelRejectsReasoningEffortParam('gpt-4.1')).toBe(false);
+      expect(modelRejectsReasoningEffortParam('grok-4.6')).toBe(false);
+      expect(modelRejectsReasoningEffortParam('grok-4.5')).toBe(false);
     });
   });
 

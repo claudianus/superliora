@@ -232,6 +232,53 @@ describe('fleet model catalog', () => {
     expect(rows.map((r) => r.alias)).toContain('other');
   });
 
+  it('keeps a healthy sibling after an unclassified reasoningEffort 400', async () => {
+    setLiveProbeRunnerForTests(async (_agent, alias) => {
+      if (alias === 'xai-grok/grok-4.20-0309-reasoning') {
+        throw new APIStatusError(400, 'does not support parameter reasoningEffort', 'req-400');
+      }
+    });
+    const cfg = config({
+      providers: {
+        'xai-grok': { type: 'openai' as const, apiKey: 'xai-key' },
+      },
+      models: {
+        'xai-grok/grok-4.20-0309-reasoning': {
+          provider: 'xai-grok',
+          model: 'grok-4.20-0309-reasoning',
+          maxContextSize: 128_000,
+          capabilities: ['tool_use', 'thinking'],
+          cost: { input: 5 },
+        },
+        'xai-grok/grok-4.6': {
+          provider: 'xai-grok',
+          model: 'grok-4.6',
+          maxContextSize: 256_000,
+          capabilities: ['tool_use', 'thinking'],
+          cost: { input: 2 },
+        },
+      },
+    });
+    const agent = {
+      runtimeConfig: cfg,
+      kimiConfig: cfg,
+      log: { warn: () => {}, debug: () => {}, info: () => {}, error: () => {} },
+      modelProvider: {
+        resolveProviderConfig: (alias: string) => ({
+          modelAlias: alias,
+          providerName: 'xai-grok',
+          provider: { type: 'openai', model: alias },
+        }),
+        resolveAuth: () => undefined,
+      },
+    };
+    await probeModelAlias(agent as never, 'xai-grok/grok-4.20-0309-reasoning');
+    const aliases = selectFleetCatalogRows(cfg).map((r) => r.alias);
+    expect(aliases).not.toContain('xai-grok/grok-4.20-0309-reasoning');
+    expect(aliases).toContain('xai-grok/grok-4.6');
+    expect(sharedCredentialHealthStore.isAvailable('xai-grok')).toBe(true);
+  });
+
   it('keeps cursor included-lane models after an API-lane quota probe fails', async () => {
     setLiveProbeRunnerForTests(async (_agent, alias) => {
       if (alias === 'cursor-oauth/claude-opus') {

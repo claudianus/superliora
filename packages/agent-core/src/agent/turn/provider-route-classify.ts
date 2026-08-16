@@ -10,6 +10,7 @@ import {
   APIEmptyResponseError,
   APIStatusError,
   APITimeoutError,
+  isAbortTimeoutError,
   isProviderCapacityError,
   isProviderRateLimitError,
   isTransientNoBodyStatusError,
@@ -193,7 +194,7 @@ export function classifyProviderRouteFailure(
       cooldownMs: cooldownMs(DEFAULT_CONNECTION_COOLDOWN_MS),
     };
   }
-  if (error instanceof APITimeoutError) {
+  if (error instanceof APITimeoutError || isAbortTimeoutError(error)) {
     return { kind: 'timeout', cooldownMs: cooldownMs(DEFAULT_CONNECTION_COOLDOWN_MS) };
   }
   if (error instanceof APIEmptyResponseError) {

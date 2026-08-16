@@ -58,6 +58,16 @@ describe('convertOpenAIError: base APIError mapping', () => {
     },
     { message: 'Request timed out.', expectedType: APITimeoutError, id: 'request_timed_out' },
     { message: 'timed out', expectedType: APITimeoutError, id: 'timed_out' },
+    {
+      message: 'The operation was aborted.',
+      expectedType: APITimeoutError,
+      id: 'operation_was_aborted',
+    },
+    {
+      message: 'This operation was aborted',
+      expectedType: APITimeoutError,
+      id: 'this_operation_was_aborted',
+    },
     // Timeout must take priority over network when both patterns match.
     {
       message: 'connection timed out',
@@ -155,6 +165,21 @@ describe('convertOpenAIError: subclass errors fall through', () => {
     const result = convertOpenAIError(err);
     // Should fall through to generic handling, not become APIConnectionError
     expect(result.constructor).toBe(ChatProviderError);
+  });
+
+  it('raw AbortError / TimeoutError classify as APITimeoutError', () => {
+    const aborted = new DOMException('The operation was aborted.', 'AbortError');
+    const timeoutNamed = Object.assign(new Error('signal timed out'), { name: 'TimeoutError' });
+    expect(convertOpenAIError(aborted)).toBeInstanceOf(APITimeoutError);
+    expect(convertOpenAIError(timeoutNamed)).toBeInstanceOf(APITimeoutError);
+  });
+
+  it('does not treat a user-cancel abort as a transport timeout', () => {
+    const cancelled = Object.assign(new Error('Aborted by the user'), {
+      name: 'AbortError',
+      userCancelled: true,
+    });
+    expect(convertOpenAIError(cancelled).constructor).toBe(ChatProviderError);
   });
 });
 describe('OpenAI streaming error propagation', () => {

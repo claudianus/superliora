@@ -54,6 +54,10 @@ export function shouldMarkProviderCredential(
   // Empty is flaky / model-local on live probe — never poison the provider.
   if (failureKind === 'empty') return false;
 
+  // AbortSignal.timeout / one-alias abort is not credential death. Marking
+  // xai-grok here hid every sibling SKU (grok-4.6) for the probe_fail TTL.
+  if (failureKind === 'timeout') return false;
+
   // Included (Auto/Grok/Composer) vs API spend share one provider id.
   if (id === CURSOR_OAUTH_PROVIDER_ID) return false;
 
@@ -61,7 +65,6 @@ export function shouldMarkProviderCredential(
     failureKind === 'quota' ||
     failureKind === 'rate_limit' ||
     failureKind === 'server' ||
-    failureKind === 'connection' ||
-    failureKind === 'timeout'
+    failureKind === 'connection'
   );
 }

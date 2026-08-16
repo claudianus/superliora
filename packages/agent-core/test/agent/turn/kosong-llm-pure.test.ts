@@ -89,4 +89,36 @@ describe('agent/turn/kosong-llm — classifyProviderRouteFailure', () => {
       classifyProviderRouteFailure(new APIStatusError(400, 'Invalid request body'), 1000),
     ).toBeUndefined();
   });
+
+  it('classifies AbortSignal timeout / "The operation was aborted" as timeout', () => {
+    const aborted = new DOMException('The operation was aborted.', 'AbortError');
+    const timeoutNamed = Object.assign(new Error('This operation was aborted'), {
+      name: 'TimeoutError',
+    });
+    const abortNamed = Object.assign(new Error('The operation was aborted.'), {
+      name: 'AbortError',
+    });
+
+    expect(classifyProviderRouteFailure(aborted, 1000)?.kind).toBe('timeout');
+    expect(classifyProviderRouteFailure(timeoutNamed, 1000)?.kind).toBe('timeout');
+    expect(classifyProviderRouteFailure(abortNamed, 1000)?.kind).toBe('timeout');
+    expect(classifyProviderRouteFailure(aborted, undefined)?.cooldownMs).toBe(30_000);
+  });
+
+  it('does not treat a user cancellation abort as a route timeout', () => {
+    const cancelled = Object.assign(new Error('Aborted by the user'), {
+      name: 'AbortError',
+      userCancelled: true,
+    });
+    expect(classifyProviderRouteFailure(cancelled, 1000)).toBeUndefined();
+  });
+
+  it('keeps unsupported-parameter 400 unclassified (not quota/auth/model_unavailable)', () => {
+    expect(
+      classifyProviderRouteFailure(
+        new APIStatusError(400, 'does not support parameter reasoningEffort'),
+        1000,
+      ),
+    ).toBeUndefined();
+  });
 });
