@@ -142,4 +142,24 @@ describe('ReverseRpcController', () => {
     expect(controller.hasPending()).toBe(false);
     expect(hidePanel).toHaveBeenCalledTimes(1);
   });
+
+  it('forceRelease hides a stale panel even when no waiter is pending', () => {
+    const controller = new TestController();
+    const hidePanel = vi.fn();
+    controller.setUIHooks({ showPanel: vi.fn(), hidePanel });
+
+    // No show() — simulates a dead editor replacement with no active waiter.
+    controller.forceRelease('stale dialog');
+    expect(hidePanel).toHaveBeenCalledOnce();
+    expect(controller.hasPending()).toBe(false);
+  });
+
+  it('cancelAll still hides the panel when the queue is already empty', () => {
+    const controller = new TestController();
+    const hidePanel = vi.fn();
+    controller.setUIHooks({ showPanel: vi.fn(), hidePanel });
+
+    controller.cancelAll('session switch');
+    expect(hidePanel).toHaveBeenCalledOnce();
+  });
 });

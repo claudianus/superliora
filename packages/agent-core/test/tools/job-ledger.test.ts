@@ -810,6 +810,36 @@ describe('worker context handoff', () => {
     expect(jobPrompt(updated!, store)).toContain('[user-answer] Use sqlite.');
   });
 
+  it('accepts late JobResume answers while a live interview job is still running', async () => {
+    const store = memoryStore();
+    const job = createJob(store, { title: 'live interview', prompt: 'Ask the user.' });
+    // Shared-RPC path: status stays running with interview notes (not needs_user).
+    patchJob(store, job.id, {
+      status: 'running',
+      resultSummary: 'needs_user: Ship now or later?',
+      notes: 'interview: Ship now or later?',
+    });
+
+    const result = await resumeJobs({ store, jobId: job.id, answer: 'Ship later.' });
+    expect(result.ok).toBe(true);
+    expect(result.resumed).toHaveLength(1);
+    const updated = getJob(store, job.id);
+    expect(updated?.status).toBe('queued');
+    expect(updated?.prompt).toContain('[user-answer] Ship later.');
+    expect(updated?.notes).toContain('user-answer: Ship later.');
+  });
+
+  it('rejects bare resume on a running job that is not mid-interview', async () => {
+    const store = memoryStore();
+    const job = createJob(store, { title: 'busy worker' });
+    patchJob(store, job.id, { status: 'running' });
+
+    const result = await resumeJobs({ store, jobId: job.id });
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/is running/);
+    expect(getJob(store, job.id)?.status).toBe('running');
+  });
+
   it('delivers context_paths and parent findings through JobCreate into the spawned prompt', async () => {
     const store = memoryStore();
     const parent = createJob(store, { title: 'explore first', kind: 'explore' });

@@ -6,6 +6,7 @@ import {
   formatJobDuration,
   JOB_BOARD_MAX_CARDS,
   JOB_BOARD_MAX_INBOX,
+  interviewNeedsUserCount,
   jobElapsedMs,
   longestActiveJobElapsedMs,
   mergeConductorJobsSnapshot,
@@ -44,6 +45,34 @@ describe('job-strip', () => {
       queued: 1,
       interrupted: 1,
     });
+  });
+
+  it('counts needs-you from needs_user cards only', () => {
+    const jobs = [
+      {
+        id: 'job_ask',
+        title: 'Need a pick',
+        status: 'needs_user' as const,
+        kind: 'task' as const,
+        priority: 1,
+        updatedAtMs: 1,
+      },
+      {
+        id: 'job_land',
+        title: 'Stale land',
+        status: 'blocked' as const,
+        kind: 'merge' as const,
+        priority: 1,
+        updatedAtMs: 1,
+      },
+    ];
+    expect(
+      interviewNeedsUserCount({
+        needsUser: 17,
+        jobs,
+      }),
+    ).toBe(1);
+    expect(interviewNeedsUserCount({ needsUser: 2, jobs: [] })).toBe(2);
   });
 
   it('merges patches and labels', () => {

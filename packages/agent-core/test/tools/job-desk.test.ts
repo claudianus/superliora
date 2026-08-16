@@ -162,6 +162,36 @@ describe('desk digest cycle (V4-2 폭주 digest)', () => {
     expect(listUnreadJobInbox(store)).toHaveLength(1);
   });
 
+  it('manual wake path folds mixed backlog to digest 1 + highest severity', () => {
+    // Wake must not leave an Inbox+Inspect marathon: manual digest collapses
+    // the unread set to a single escalation card with the worst severity.
+    const store = memoryStore();
+    for (let i = 0; i < 4; i += 1) pushCompletion(store, i, 'done');
+    pushJobInboxEvent(store, {
+      kind: 'job.failed',
+      jobId: 'job_fail_wake',
+      status: 'failed',
+      title: 'verify probe_fail',
+      summary: 'model_failed probe_fail',
+    });
+    pushJobInboxEvent(store, {
+      kind: 'job.blocked',
+      jobId: 'job_block_wake',
+      status: 'blocked',
+      title: 'blocked merge',
+      summary: 'surface_kind missing',
+    });
+    const result = runDeskDigestCycle(store, { manual: true });
+    expect(result.offloaded).toBe(true);
+    expect(result.batched).toBeGreaterThanOrEqual(5);
+    const unread = listUnreadJobInbox(store);
+    expect(unread).toHaveLength(1);
+    expect(unread[0]?.digest).toBe(true);
+    // Highest severity among failed/blocked/completed is failed (rank 1 < blocked 2).
+    expect(unread[0]?.kind).toBe('job.failed');
+    expect(unread[0]?.jobId).toBe('job_fail_wake');
+  });
+
   it('repeat cycle after digestion does not re-escalate', () => {
     const store = memoryStore();
     for (let i = 0; i < 6; i += 1) pushCompletion(store, i);

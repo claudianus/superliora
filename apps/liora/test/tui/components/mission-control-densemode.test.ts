@@ -11,6 +11,7 @@ import {
   selectAttentionJobs,
   shortModelAlias,
   shouldUseDensemode,
+  workerRosterLabel,
 } from '#/tui/components/panes/mission-control/densemode';
 import type { MissionWorker } from '#/tui/controllers/mission-control/registry';
 import type { AppearancePreferences } from '#/tui/config';
@@ -120,7 +121,7 @@ describe('mission-control densemode helpers', () => {
       },
     });
     const text = result.lines.join('\n');
-    expect(text).toContain('FLEET');
+    expect(text).toContain('WORKERS');
     expect(text).toContain('Paused deploy');
     expect(text).not.toContain('BOARD');
   });
@@ -160,7 +161,7 @@ describe('mission-control densemode helpers', () => {
       },
     });
     const text = result.lines.join('\n');
-    expect(text).toContain('FLEET');
+    expect(text).toContain('WORKERS');
     expect(text).toContain('solo');
     // Thin attention rows (no BOARD section header); status glyph not SELECT_POINTER.
     expect(text).toContain('Deploy pages');
@@ -168,6 +169,53 @@ describe('mission-control densemode helpers', () => {
     expect(text).not.toContain('BOARD');
     expect(text).not.toContain('TAPE');
     expect(text).not.toContain('❯');
+  });
+
+  it('paints role · job title and counts needs-you without blocked lands', () => {
+    expect(
+      workerRosterLabel(worker('explore', 0, { name: 'explore', description: 'Pin TUI flicker' }), {
+        ...emptyConductorJobsSnapshot(),
+        jobs: [
+          jobCard({
+            workerAgentId: 'explore',
+            title: 'Pin TUI flicker on Windows',
+          }),
+        ],
+      }),
+    ).toBe('explore · Pin TUI flicker on Windows');
+
+    const result = buildDenseContent({
+      workers: [worker('coder', 0, { name: 'coder', description: 'Harden landJobToMain' })],
+      width: 120,
+      budget: 10,
+      now: 1_000,
+      workDir: undefined,
+      animated: false,
+      appearance: OFF_APPEARANCE,
+      revealedLive: new Map(),
+      displayRate: new Map(),
+      workerGlyph: () => '◆',
+      jobs: {
+        ...emptyConductorJobsSnapshot(),
+        total: 18,
+        needsUser: 1,
+        blocked: 17,
+        jobs: [
+          jobCard({
+            id: 'job_ask00000001',
+            status: 'needs_user',
+            title: 'Pick a model',
+            workerAgentId: 'coder',
+          }),
+          jobCard({ id: 'job_blk00000002', status: 'blocked', title: 'Stale land' }),
+        ],
+      },
+    });
+    const text = result.lines.join('\n');
+    expect(text).toContain('WORKERS');
+    expect(text).toContain('needs-you 1');
+    expect(text).not.toContain('needs-you 18');
+    expect(text).toContain('coder · Pick a model');
   });
 
   it('gives freed tape/board budget to worker slots up to the cap', () => {

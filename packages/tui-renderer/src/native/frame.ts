@@ -155,11 +155,16 @@ export class NativeFrameRenderer {
     } = {},
   ): NativeFramePresentResult {
     const startedAt = this.now();
-    const force = options.force === true || this.forceNextPresent;
+    // forceNextPresent marks construct/resize resync: the soft previous buffer
+    // is empty (or stale) while the terminal was cleared (clearOnStart CSI 2J /
+    // alt-screen enter). Soft-force alone scans equal EMPTY cells and emits no
+    // chrome glyphs — first paint stays blank on ConPTY. Hard-rewrite once.
+    const resync = this.forceNextPresent || options.rewriteUnchanged === true;
+    const force = options.force === true || this.forceNextPresent || resync;
     const diffStartedAt = this.now();
     const baseDiff = this.buffers.present({
       force,
-      rewriteUnchanged: options.rewriteUnchanged === true,
+      rewriteUnchanged: resync,
       runOptimization: this.options.runOptimization ?? true,
     });
     const diff: RendererFrameDiff = options.scrollDelta !== undefined && options.scrollDelta !== 0
@@ -190,7 +195,7 @@ export class NativeFrameRenderer {
     const encodeStartedAt = this.now();
     const encodedCursor = this.withDedupedCursorShape(
       cursor,
-      options.force === true || options.rewriteUnchanged === true,
+      options.force === true || resync,
     );
     const encoded = encodeTerminalFrameWithMetrics(diff, {
       ...outputPolicy.options,

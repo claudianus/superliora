@@ -4,11 +4,14 @@ import {
   enqueueDebugJobForVerify,
   enqueueVerifyJobForParent,
   evaluateVerifyChainForMerge,
+  findActiveVerifyChildren,
   hasVerifyChild,
   healVerifyVerdictFromSummary,
+  isInertVerifyChild,
   makerCheckerCollision,
   onJobTerminalForVerifyChain,
   parseVerifyVerdict,
+  pickLiveVerifyModelAlias,
   resolveVerifyChildVerdict,
   shouldAutoEnqueueMergeAfterVerify,
   shouldEnqueueVerifyAfterDone,
@@ -386,7 +389,7 @@ ${'x'.repeat(200)}
     expect(await enqueueDebugJobForVerify(store, parent, failedVerify)).toBeUndefined();
   });
 
-  it('onJobTerminal fails free-text verify, retries once, and skips Debug', async () => {
+  it('onJobTerminal fails free-text verify without spawning re-verify (retry=0)', async () => {
     const store = memoryStore();
     const parent = createJob(store, {
       title: 'Delete-pass',
@@ -410,9 +413,11 @@ ${'x'.repeat(200)}
       await onJobTerminalForVerifyChain(store, listJobs(store).find((j) => j.id === verify.id)!);
     }
 
-    const afterRetry = listJobs(store).filter((j) => j.kind === 'verify');
-    expect(afterRetry.length).toBe(4);
-    expect(afterRetry.filter((j) => j.notes?.includes('structured_verdict_retry'))).toHaveLength(2);
+    // missing must NOT spawn a re-verify Job (retry=0).
+    expect(listJobs(store).filter((j) => j.kind === 'verify')).toHaveLength(2);
+    expect(
+      listJobs(store).find((j) => j.notes?.includes('structured_verdict_retry')),
+    ).toBeUndefined();
     expect(
       listJobs(store).find((j) => j.kind === 'implement' && j.title.startsWith('Debug:')),
     ).toBeUndefined();
@@ -422,22 +427,6 @@ ${'x'.repeat(200)}
       expect(v.status).toBe('failed');
       expect(v.verifyVerdict).toBeUndefined();
     }
-
-    // Retry also missing → still no Debug; merge points at requeue-verify, not debug.
-    const retries = afterRetry.filter((j) => j.notes?.includes('structured_verdict_retry'));
-    for (const verify of retries) {
-      patchJob(store, verify.id, {
-        status: 'done',
-        resultSummary: 'still just PASS in prose',
-        expertId: verify.expertId,
-      });
-      await onJobTerminalForVerifyChain(store, listJobs(store).find((j) => j.id === verify.id)!);
-    }
-    expect(
-      listJobs(store).find((j) => j.kind === 'implement' && j.title.startsWith('Debug:')),
-    ).toBeUndefined();
-    // No third wave.
-    expect(listJobs(store).filter((j) => j.kind === 'verify')).toHaveLength(4);
 
     const parentLatest = listJobs(store).find((j) => j.id === parent.id)!;
     const gate = evaluateVerifyChainForMerge({
@@ -489,7 +478,7 @@ ${'x'.repeat(200)}
     ).toEqual({ ok: true });
   });
 
-  it('ignores cancelled verify children for merge readiness and requeue', () => {
+  it('ignores cancelled/blocked/probe_fail verify siblings for merge readiness and requeue', () => {
     // Real failure: MergeJob held on cancelled verify job_msv89mia3rtl0v while a later
     // independent done+verdict child should have been enough.
     const implement = job({
@@ -508,6 +497,7 @@ ${'x'.repeat(200)}
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:01.000Z',
     });
+    expect(isInertVerifyChild(cancelledOnly)).toBe(true);
     const cancelledGate = evaluateVerifyChainForMerge({
       job: implement,
       jobs: [implement, cancelledOnly],
@@ -589,6 +579,76 @@ ${'x'.repeat(200)}
     if (!waitGate.ok) {
       expect(waitGate.reason).toMatch(/still running/i);
     }
+
+    // Later dual-axis pass must ignore older blocked + probe_fail siblings
+    // (never Resume cancelled/probe_fail grok-4.6 to unblock merge).
+    const blockedSibling = job({
+      id: 'job_ver_blocked',
+      title: 'Verify blocked',
+      kind: 'verify',
+      parentJobId: 'job_impl_cancel',
+      expertId: 'checker-block',
+      status: 'blocked',
+      modelAlias: 'grok-4.6',
+      notes: 'model_failed: probe_fail',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:01.000Z',
+    });
+    const probeFailSibling = job({
+      id: 'job_ver_probe',
+      title: 'Verify probe_fail',
+      kind: 'verify',
+      parentJobId: 'job_impl_cancel',
+      expertId: 'checker-probe',
+      status: 'failed',
+      modelAlias: 'grok-4.6',
+      notes: 'model_failed: alias=grok-4.6 kind=probe_fail',
+      resultSummary: 'worker model grok-4.6 failed live probe (probe_fail)',
+      createdAt: '2026-01-01T00:00:00.500Z',
+      updatedAt: '2026-01-01T00:00:01.500Z',
+    });
+    expect(isInertVerifyChild(blockedSibling)).toBe(true);
+    expect(isInertVerifyChild(probeFailSibling)).toBe(true);
+    const standardsPass = job({
+      id: 'job_std_pass_late',
+      title: 'Verify standards',
+      kind: 'verify',
+      parentJobId: 'job_impl_cancel',
+      expertId: 'checker-std-live',
+      reviewAxis: 'standards',
+      status: 'done',
+      createdAt: '2026-01-01T00:00:04.000Z',
+      updatedAt: '2026-01-01T00:00:05.000Z',
+      verifyVerdict: 'passed',
+      resultSummary: '{"standards":{"verdict":"pass","findings":[]},"verdict":"pass"}',
+    });
+    const specPass = job({
+      id: 'job_spec_pass_late',
+      title: 'Verify spec',
+      kind: 'verify',
+      parentJobId: 'job_impl_cancel',
+      expertId: 'checker-spec-live',
+      reviewAxis: 'spec',
+      status: 'done',
+      createdAt: '2026-01-01T00:00:04.000Z',
+      updatedAt: '2026-01-01T00:00:05.000Z',
+      verifyVerdict: 'passed',
+      resultSummary: '{"spec":{"verdict":"pass","findings":[]},"verdict":"pass"}',
+    });
+    const active = findActiveVerifyChildren('job_impl_cancel', [
+      implement,
+      blockedSibling,
+      probeFailSibling,
+      standardsPass,
+      specPass,
+    ]);
+    expect(active.map((j) => j.id).sort()).toEqual(['job_spec_pass_late', 'job_std_pass_late']);
+    expect(
+      evaluateVerifyChainForMerge({
+        job: implement,
+        jobs: [implement, blockedSibling, probeFailSibling, standardsPass, specPass],
+      }),
+    ).toEqual({ ok: true });
   });
 
   it('merge ignores older/newer missing-JSON void when same-axis sibling already passed', () => {
@@ -809,5 +869,57 @@ ${'x'.repeat(200)}
     expect(result.job?.status).toBe('blocked');
     expect(getJob(store, blocked.id)?.surfaceKind).toBe('none');
     expect(getJob(store, blocked.id)?.notes).toMatch(/surface_kind=none/);
+  });
+
+  it('pickLiveVerifyModelAlias skips maker, probe_fail, and off-catalog aliases', () => {
+    const pick = pickLiveVerifyModelAlias({
+      makerModelAlias: 'maker-a',
+      catalogAliases: ['maker-a', 'checker-b', 'grok-4.6', 'dead-alias'],
+      isLive: (alias) => alias === 'checker-b' || alias === 'maker-a',
+      isProbeFailFresh: (alias) => alias === 'dead-alias' || alias === 'grok-4.6',
+    });
+    expect(pick).toBe('checker-b');
+    expect(pick).not.toBe('grok-4.6');
+
+    expect(
+      pickLiveVerifyModelAlias({
+        makerModelAlias: 'only-live',
+        catalogAliases: ['only-live', 'off-catalog'],
+        isLive: (alias) => alias === 'only-live',
+        isProbeFailFresh: () => false,
+      }),
+    ).toBeUndefined();
+  });
+
+  it('enqueueVerifyJobForParent pins live modelAlias and skips when none differ from maker', async () => {
+    const store = memoryStore();
+    const done = createJob(store, {
+      title: 'Ship none-surface',
+      kind: 'implement',
+      expertId: 'maker-x',
+      modelAlias: 'maker-a',
+      ownershipPaths: ['packages/agent-core/src/x.ts'],
+      surfaceKind: 'none',
+    });
+    patchJob(store, done.id, { status: 'done', resultSummary: 'done' });
+
+    // No live candidate different from maker → do not create verify Jobs.
+    const none = await enqueueVerifyJobForParent(store, getJob(store, done.id)!, undefined, {
+      pickModelAlias: () => undefined,
+    });
+    expect(none).toBeUndefined();
+    expect(listJobs(store).filter((j) => j.kind === 'verify')).toHaveLength(0);
+
+    const created = await enqueueVerifyJobForParent(store, getJob(store, done.id)!, undefined, {
+      pickModelAlias: () => 'checker-live',
+    });
+    expect(created).toBeDefined();
+    const verifies = listJobs(store).filter((j) => j.kind === 'verify');
+    expect(verifies.length).toBeGreaterThanOrEqual(1);
+    for (const verify of verifies) {
+      expect(verify.modelAlias).toBe('checker-live');
+      expect(verify.modelAlias).not.toBe('grok-4.6');
+      expect(verify.modelAlias).not.toBe('maker-a');
+    }
   });
 });

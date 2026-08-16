@@ -5,8 +5,13 @@
  */
 
 import type { Agent } from '../../../agent/index';
+import {
+  isConfigAliasHealthy,
+  isLiveProbeFailureFresh,
+} from '../../../agent/routing';
 import { globalExpertSearchEngine } from '../../../expert-agents/search';
 import { requestJobSchedulePump } from '../../../session/job/job-offload';
+import { currentAgentConfig } from '../../../session/subagent/subagent-model-routing';
 import type { ToolStore } from '../../store';
 import { dispatchMergeLand } from './job-land';
 import { createJob, getJob, listJobs, patchJob, type JobRecord } from './job-ledger';
@@ -97,11 +102,17 @@ export function findVerifyChildren(
 }
 
 /**
- * Cancelled verify is inert: it must not hold MergeJob, block requeue, or count
- * as an active chain member. A later done+verdict child is enough.
+ * Inert verify children must not hold MergeJob, block requeue, or count as an
+ * active chain member. A later done+verdict sibling is enough — never Resume a
+ * cancelled / blocked / probe_fail (e.g. grok-4.6) verify to unblock merge.
  */
-function isInertVerifyChild(job: JobRecord): boolean {
-  return job.status === 'cancelled';
+export function isInertVerifyChild(job: JobRecord): boolean {
+  if (job.status === 'cancelled' || job.status === 'blocked') return true;
+  const blob = [job.notes, job.resultSummary].filter(Boolean).join('\n').toLowerCase();
+  if (blob.length === 0) return false;
+  // Live-probe fail ceremony is VOID — not a dual-axis product fail (do not Resume).
+  if (/\bprobe_fail\b/.test(blob)) return true;
+  return false;
 }
 
 /** Verify children that still participate in merge / requeue gating. */
@@ -393,14 +404,83 @@ function sharedVerifyContext(parent: JobRecord): {
   return { files, header };
 }
 
+/**
+ * Pick a live catalog model for Maker≠Checker verify that differs from the maker.
+ * Never hardcodes grok-4.6; never returns probe_fail / off-catalog aliases.
+ * Returns undefined when no live candidate exists (caller must skip enqueue).
+ */
+export function pickLiveVerifyModelAlias(input: {
+  readonly makerModelAlias?: string;
+  readonly catalogAliases: readonly string[];
+  readonly isLive?: (alias: string) => boolean;
+  readonly isProbeFailFresh?: (alias: string) => boolean;
+}): string | undefined {
+  const maker = input.makerModelAlias?.trim() || undefined;
+  const isLive = input.isLive ?? (() => true);
+  const isProbeFailFresh = input.isProbeFailFresh ?? (() => false);
+  const catalog = new Set(
+    input.catalogAliases.map((a) => a.trim()).filter((a) => a.length > 0),
+  );
+  for (const raw of input.catalogAliases) {
+    const alias = raw.trim();
+    if (alias.length === 0) continue;
+    if (maker !== undefined && alias === maker) continue;
+    // Never hardcode a doomed SKU as the verify default.
+    if (alias === 'grok-4.6') continue;
+    if (!catalog.has(alias)) continue;
+    if (isProbeFailFresh(alias)) continue;
+    if (!isLive(alias)) continue;
+    return alias;
+  }
+  return undefined;
+}
+
+function resolveVerifyModelAliasForParent(
+  parent: JobRecord,
+  agent: Agent | undefined,
+  override?: () => string | undefined,
+): string | undefined {
+  if (override !== undefined) return override();
+  const maker = parent.modelAlias?.trim() || undefined;
+  const config = agent !== undefined ? currentAgentConfig(agent) ?? agent.runtimeConfig ?? agent.kimiConfig : undefined;
+  const catalogAliases =
+    config?.models !== undefined ? Object.keys(config.models) : maker !== undefined ? [maker] : [];
+  return pickLiveVerifyModelAlias({
+    makerModelAlias: maker,
+    catalogAliases,
+    isLive: (alias) =>
+      config === undefined ? true : isConfigAliasHealthy(config, alias) && !isLiveProbeFailureFresh(alias),
+    isProbeFailFresh: (alias) => isLiveProbeFailureFresh(alias),
+  });
+}
+
 /** Staff + create verify child(ren) for a completed implement job. */
 export async function enqueueVerifyJobForParent(
   store: ToolStore,
   parent: JobRecord,
   agent?: Agent,
+  options?: {
+    /** Test seam: override live model pick (return undefined → skip enqueue). */
+    readonly pickModelAlias?: () => string | undefined;
+  },
 ): Promise<JobRecord | undefined> {
   if (hasVerifyChild(store, parent.id)) return undefined;
   if (!shouldEnqueueVerifyAfterDone({ ...parent, status: 'done' })) return undefined;
+
+  // staff=false verify path: only a live catalog model different from the maker.
+  // If none, do not create a verify Job (never hardcode grok-4.6 / probe_fail).
+  const modelAlias = resolveVerifyModelAliasForParent(parent, agent, options?.pickModelAlias);
+  if (modelAlias === undefined && (options?.pickModelAlias !== undefined || agent !== undefined)) {
+    patchJob(store, parent.id, {
+      notes: [
+        parent.notes,
+        'verify_chain: skipped enqueue — no live verify model different from maker',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+    });
+    return undefined;
+  }
 
   // Surface contract drives verify shape — never path/keyword regex.
   const visualSurface = surfaceRequiresVisualProof(parent.surfaceKind);
@@ -447,6 +527,7 @@ export async function enqueueVerifyJobForParent(
         successCriteria: criteria,
         verificationCommands: parent.verificationCommands,
         surfaceKind: parent.surfaceKind,
+        modelAlias,
       }),
     );
   } else {
@@ -492,6 +573,7 @@ export async function enqueueVerifyJobForParent(
         successCriteria: ['Emit Standards-axis JSON verdict'],
         verificationCommands: parent.verificationCommands,
         surfaceKind: parent.surfaceKind ?? 'none',
+        modelAlias,
       }),
       createJob(store, {
         title: `Verify spec: ${parent.title}`.slice(0, 120),
@@ -507,6 +589,7 @@ export async function enqueueVerifyJobForParent(
         successCriteria: ['Emit Spec-axis JSON verdict'],
         verificationCommands: parent.verificationCommands,
         surfaceKind: parent.surfaceKind ?? 'none',
+        modelAlias,
       }),
     );
   }
@@ -728,7 +811,7 @@ async function enqueueStructuredVerdictRetry(
  * Handle terminal completion for chain bookkeeping.
  * - implement done → enqueue verify
  * - verify done → parse verdict; on fail enqueue debug; stamp parent notes
- * - verify done without JSON → fail + one structured-verdict retry (not Debug)
+ * - verify done without JSON → fail in place (retry=0; no re-verify spawn)
  */
 export async function onJobTerminalForVerifyChain(
   store: ToolStore,
@@ -757,26 +840,13 @@ export async function onJobTerminalForVerifyChain(
       });
     }
 
-    if (stamped === undefined) {
-      // Timeout / route_fail / env missing is VOID — do not spawn structured_verdict_retry hops.
-      // Free-text format gaps still get one dual-axis JSON retry (not Debug).
-      if (!isVoidEnvOrTimeoutMissing(job)) {
-        const retry = await enqueueStructuredVerdictRetry(store, parent, job, agent);
-        if (retry !== undefined) {
-          patchJob(store, parent.id, {
-            notes: [
-              getJob(store, parent.id)?.notes,
-              `verify_chain: ${job.id}${job.reviewAxis !== undefined ? ` axis=${job.reviewAxis}` : ''} verdict=missing`,
-            ]
-              .filter(Boolean)
-              .join('\n'),
-          });
-          return;
-        }
-      }
-    }
+    // retry=0: missing dual-axis JSON fails in place — never spawn re-verify Jobs.
+    // Parser accepts Korean prefix + flat dual-axis + verifyVerdict wrapper;
+    // free-text PASS alone stays missing. Timeout/env missing is VOID (no Debug).
 
-    const children = latestVerifyChildrenByAxis(findVerifyChildren(parent.id, listJobs(store)));
+    const children = latestVerifyChildrenByAxis(
+      findActiveVerifyChildren(parent.id, listJobs(store)),
+    );
     const axisNote = `verify_chain: ${job.id}${job.reviewAxis !== undefined ? ` axis=${job.reviewAxis}` : ''} verdict=${
       stamped ?? 'missing'
     }`;

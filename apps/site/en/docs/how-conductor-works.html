@@ -2,7 +2,28 @@
 <html lang="en" data-doc="how-conductor-works">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <script>
+      (function () {
+        var KEY = 'superliora-theme';
+        var theme = 'dark';
+        try {
+          var stored = localStorage.getItem(KEY);
+          if (stored === 'light' || stored === 'dark') theme = stored;
+        } catch (e) {}
+        var root = document.documentElement;
+        root.dataset.theme = theme;
+        root.style.colorScheme = theme;
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (!meta) {
+          meta = document.createElement('meta');
+          meta.setAttribute('name', 'theme-color');
+          document.head.appendChild(meta);
+        }
+        meta.setAttribute('content', theme === 'light' ? '#f0f4f8' : '#0D1422');
+      })();
+    </script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>how-conductor-works · SuperLiora</title>
     <meta name="description" content="SuperLiora Conductor docs" />
     <link rel="canonical" href="https://claudianus.github.io/superliora/en/docs/how-conductor-works.html" />

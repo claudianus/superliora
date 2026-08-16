@@ -303,6 +303,14 @@ function createTopologySignature(frame: RendererCompositionCacheFrame): string {
   const layers = frame.layers
     .map((region, index) => {
       const rect = normalizeRect(region.rect);
+      // Topology is structural geometry only. Do NOT fold clear / background /
+      // VFX into the signature:
+      // - clear + ambientDamageOnly flip every input+animation coalesce
+      // - letterbox/chase VFX carry nowMs and change every ambient tick
+      // Including them forced beginFrame(clear) on every tick (layout-frame
+      // treats topology miss as full wipe) → black bands / vanished prompt
+      // glyphs on ConPTY even though the soft buffer still held the text.
+      // Per-row keys still hash clear/background/vfx so those cells recompose.
       return [
         index,
         region.id ?? '',
@@ -312,9 +320,6 @@ function createTopologySignature(frame: RendererCompositionCacheFrame): string {
         rect?.y ?? '',
         rect?.width ?? '',
         rect?.height ?? '',
-        region.clear === true ? 1 : 0,
-        cellKey(region.background),
-        vfxKey(region.vfx),
       ].join(':');
     })
     .join('|');
@@ -498,88 +503,6 @@ function applyRendererRegionVfx(
     ...applyRendererCellVfx(cells.slice(start, end), vfx.effect),
     ...cells.slice(end),
   ];
-}
-
-function cellKey(cell: RendererCell | undefined): string {
-  if (cell === undefined) return '';
-  return [
-    cell.char,
-    cell.width ?? '',
-    cell.continuation === true ? 1 : 0,
-    styleKey(cell.style),
-  ].join('\u0002');
-}
-
-function styleKey(style: RendererCellStyle | undefined): string {
-  if (style === undefined) return '';
-  return [
-    style.fg ?? '',
-    style.bg ?? '',
-    style.bold === true ? 1 : 0,
-    style.dim === true ? 1 : 0,
-    style.italic === true ? 1 : 0,
-    style.underline === true ? 1 : 0,
-    style.inverse === true ? 1 : 0,
-  ].join('\u0003');
-}
-
-function vfxKey(vfx: RendererRegionVfx | undefined): string {
-  if (vfx === undefined) return '';
-  return [
-    rectKey(vfx.rect),
-    cellVfxOptionsKey(vfx.effect),
-  ].join('\u0004');
-}
-
-function rectKey(rect: RendererRect | undefined): string {
-  if (rect === undefined) return '';
-  return [
-    Math.floor(rect.x),
-    Math.floor(rect.y),
-    Math.floor(rect.width),
-    Math.floor(rect.height),
-  ].join(',');
-}
-
-function cellVfxOptionsKey(options: RendererCellVfxOptions): string {
-  const timing = [
-    options.progress ?? '',
-    options.nowMs ?? '',
-    options.intervalMs ?? '',
-    options.seed ?? '',
-    options.offset ?? '',
-  ].join(',');
-  switch (options.kind) {
-    case 'none':
-      return `none:${timing}`;
-    case 'pulse':
-      return [
-        'pulse',
-        timing,
-        options.color ?? '',
-        options.target ?? '',
-        styleKey(options.style),
-        options.minIntensity ?? '',
-        options.maxIntensity ?? '',
-      ].join('\u0005');
-    case 'shimmer':
-      return [
-        'shimmer',
-        timing,
-        options.color ?? '',
-        options.target ?? '',
-        styleKey(options.style),
-        options.width ?? '',
-        options.direction ?? '',
-      ].join('\u0005');
-    case 'reveal':
-      return [
-        'reveal',
-        timing,
-        styleKey(options.hiddenStyle),
-        options.maskChar ?? '',
-      ].join('\u0005');
-  }
 }
 
 function diffLineCacheStats(

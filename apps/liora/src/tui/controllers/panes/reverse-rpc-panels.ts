@@ -42,6 +42,8 @@ export interface ReverseRpcPanelsHost {
  */
 export class ReverseRpcPanelsController {
   private activeApprovalPanel: ApprovalPanelComponent | undefined;
+  /** True while a question dialog owns the editor replacement (or is deferred). */
+  private questionPanelActive = false;
   private approvalPreview:
     | {
         component: ApprovalPreviewViewer;
@@ -59,8 +61,16 @@ export class ReverseRpcPanelsController {
   }
 
   cancelPendingReverseRpc(reason: string): void {
+    // Drop deferred mounts before cancel so restoreEditor cannot re-open a
+    // cancelled question/approval that no longer has a waiter (input trap).
+    this.host.deferredApproval = undefined;
+    this.host.deferredQuestion = undefined;
     this.host.approvalController.cancelAll(reason);
     this.host.questionController.cancelAll(reason);
+    // cancelAll hides via UI hooks when wired; still force teardown so a stale
+    // editor replacement cannot keep the native input sink after abort/restart.
+    this.hideApprovalPanel();
+    this.hideQuestionDialog();
   }
 
   showApprovalPanel(payload: ApprovalPanelData): void {
@@ -136,8 +146,10 @@ export class ReverseRpcPanelsController {
       this.host.state.centerModalStack.length > 0
     ) {
       this.host.deferredQuestion = payload;
+      this.questionPanelActive = true;
       return;
     }
+    this.questionPanelActive = true;
     this.host.patchLivePane({ pendingQuestion: { data: payload } });
     notifyUserAttentionOnce(this.host.state, `question:${payload.id}`, {
       title: 'SuperLiora needs your answer',
@@ -146,6 +158,8 @@ export class ReverseRpcPanelsController {
     const dialog = new QuestionDialogComponent(
       { data: payload },
       (response) => {
+        // respond() always hidePanel → hideQuestionDialog; keep this path
+        // even when the panel is stale so Escape / Cancel still free input.
         this.host.questionController.respond(response);
       },
       6,
@@ -156,7 +170,17 @@ export class ReverseRpcPanelsController {
     this.host.mountEditorReplacement(dialog);
   }
 
+  /**
+   * Tear down the question editor replacement. Idempotent: safe after abort,
+   * session switch, or double-hide. Always clears deferred so restoreEditor
+   * cannot remount a dead dialog that swallows keys with no waiter.
+   *
+   * Always restores the editor even when bookkeeping already looks empty — a
+   * dead mountEditorReplacement can still own the native input sink.
+   */
   hideQuestionDialog(): void {
+    this.questionPanelActive = false;
+    this.host.deferredQuestion = undefined;
     this.host.patchLivePane({ pendingQuestion: null });
     this.host.restoreEditor();
   }

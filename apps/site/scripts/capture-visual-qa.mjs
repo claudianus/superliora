@@ -17,6 +17,8 @@ const out = process.env.OUT_DIR ?? join(here, '../.visual-qa/after');
 const base = process.env.BASE_URL ?? 'http://127.0.0.1:4176/superliora/';
 mkdirSync(out, { recursive: true });
 
+const heroWait = '.hero-band--cinematic, .hero-layout, .product-band, .product-frame__body, .tui-chrome';
+
 const shots = [
   { name: 'mobile-390.png', w: 390, h: 844 },
   { name: 'tablet-768.png', w: 768, h: 1024 },
@@ -32,7 +34,7 @@ for (const s of shots) {
   if (res && res.status() >= 400) {
     throw new Error(`${s.name}: HTTP ${String(res.status())} for ${base}`);
   }
-  await page.waitForSelector('.hero-layout, .product-frame__body, .tui-chrome', { timeout: 10000 });
+  await page.waitForSelector(heroWait, { timeout: 10000 });
   await page.waitForTimeout(1000);
   await page.screenshot({ path: join(out, s.name), fullPage: false });
   await page.close();
@@ -53,6 +55,33 @@ for (const s of shots) {
 {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
   await page.goto(base, { waitUntil: 'networkidle' });
+  await page.waitForSelector(heroWait, { timeout: 10000 });
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: join(out, 'dark-first-paint-1440.png'), fullPage: false });
+  await page.close();
+  console.log('wrote dark-first-paint-1440.png');
+}
+
+{
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem('superliora-theme', 'light');
+    } catch {
+      // ignore
+    }
+  });
+  await page.goto(base, { waitUntil: 'networkidle' });
+  await page.waitForSelector(heroWait, { timeout: 10000 });
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: join(out, 'light-home-1440.png'), fullPage: false });
+  await page.close();
+  console.log('wrote light-home-1440.png');
+}
+
+{
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+  await page.goto(base, { waitUntil: 'networkidle' });
   await page.waitForTimeout(600);
   await page.evaluate(() => window.scrollBy(0, 420));
   await page.waitForTimeout(500);
@@ -64,7 +93,7 @@ for (const s of shots) {
 {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
   await page.goto(`${base}en/`, { waitUntil: 'networkidle' });
-  await page.waitForSelector('.hero-layout, .product-frame__body, .tui-chrome', { timeout: 10000 });
+  await page.waitForSelector(heroWait, { timeout: 10000 });
   await page.waitForTimeout(800);
   await page.screenshot({ path: join(out, 'en-desktop-1440.png'), fullPage: false });
   await page.close();
@@ -73,8 +102,18 @@ for (const s of shots) {
 
 {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+  await page.goto(`${base}docs/getting-started.html`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('main, article, .mesh-bg', { timeout: 10000 });
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: join(out, 'docs-getting-started-1440.png'), fullPage: false });
+  await page.close();
+  console.log('wrote docs-getting-started-1440.png');
+}
+
+{
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
   await page.goto(base, { waitUntil: 'networkidle' });
-  await page.waitForSelector('.bento', { timeout: 10000 });
+  await page.waitForSelector('#features, .pillar-grid, .bento', { timeout: 10000 });
   await page.locator('#features').scrollIntoViewIfNeeded();
   await page.waitForTimeout(700);
   await page.screenshot({ path: join(out, 'features-bento-1440.png'), fullPage: false });

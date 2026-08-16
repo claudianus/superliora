@@ -10,15 +10,23 @@ function read(rel: string): string {
 }
 
 describe('landing visual contract', () => {
-  it('keeps first-viewport copy above the product frame on a stacked layout', () => {
+  it('ships a cinematic full-bleed first viewport without ProductFrame card-hero', () => {
     const css = read('index.css');
     const sections = read('components/Sections.tsx');
+    expect(sections).toMatch(/hero-band--cinematic|hero-band hero-band--cinematic/);
     expect(sections).toMatch(/className="hero-copy" eager/);
-    expect(sections).toMatch(/className="hero-visual" eager/);
-    expect(css).toMatch(/\.hero-copy\s*\{[^}]*order:\s*1/s);
-    expect(css).toMatch(/\.hero-visual\s*\{[^}]*order:\s*2/s);
-    expect(css).toContain('@media (min-width: 1024px)');
-    expect(css).toContain('grid-template-columns: minmax(0, 0.88fr) minmax(32rem, 1.12fr)');
+    expect(sections).toMatch(/product-band/);
+    expect(sections).toMatch(/ProductFrame/);
+    // ProductFrame lives outside the cinematic hero band.
+    const heroStart = sections.indexOf('hero-band');
+    const heroEnd = sections.indexOf('</section>', heroStart);
+    const heroChunk = sections.slice(heroStart, heroEnd);
+    expect(heroChunk).not.toContain('ProductFrame');
+    expect(heroChunk).toContain('hero-copy');
+    expect(css).toMatch(/\.hero-band--cinematic/);
+    expect(css).toMatch(/\.product-band/);
+    // Old split-hero grid that forced ProductFrame beside copy is retired.
+    expect(css).not.toContain('grid-template-columns: minmax(0, 0.88fr) minmax(32rem, 1.12fr)');
   });
 
   it('separates Features / Usage / Workflow / Install as distinct bands', () => {
@@ -42,5 +50,11 @@ describe('landing visual contract', () => {
     expect(css).toContain("html[data-motion='off']");
     expect(css).toContain('copy-burst');
     expect(css).toMatch(/animation:\s*none/);
+  });
+
+  it('honors forced-colors fallbacks for atmosphere layers', () => {
+    const css = read('index.css');
+    expect(css).toContain('@media (forced-colors: active)');
+    expect(css).toMatch(/forced-colors:\s*active[\s\S]*\.noir-field/);
   });
 });

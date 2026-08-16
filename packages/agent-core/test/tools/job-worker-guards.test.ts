@@ -22,11 +22,16 @@ import {
   persistJobWorkerPreAbortHandoff,
 } from '../../src/tools/builtin/job/job-worker-ledger-bridge';
 import {
+  evaluateWorkerVerificationGuard,
   guardWorkerShellCommand,
   isWholePackageTestCommand,
   pickFocusedVerificationRewrite,
   verificationCommandsPinSpecificFiles,
+  WORKER_VERIFICATION_TOOL_BUDGET,
 } from '../../src/tools/builtin/job/job-worker-guards';
+import {
+  reportJobWorkerProgress,
+} from '../../src/tools/builtin/job/job-worker-ledger-bridge';
 import type { ToolStore } from '../../src/tools/store';
 import type { Agent } from '../../src/agent';
 
@@ -260,5 +265,95 @@ describe('buildWorkerResumeHandoff / pre-abort checkpoint', () => {
     expect(summary).toContain('Resume handoff');
     // Pure builder — must not mutate ledger status.
     expect(getJob(store, job.id)?.status).toBe(job.status);
+  });
+});
+
+describe('evaluateWorkerVerificationGuard', () => {
+  it('defaults N=10 and aborts when verification_commands never run', () => {
+    expect(WORKER_VERIFICATION_TOOL_BUDGET).toBe(10);
+    const commands = [
+      'node scripts/test-local.mjs packages/agent-core/test/tools/job-worker-guards.test.ts',
+    ];
+    // Under budget: keep going.
+    expect(
+      evaluateWorkerVerificationGuard({
+        verificationCommands: commands,
+        toolCount: 9,
+        recentTools: ['Read', 'Grep', 'Read', 'Grep', 'Read'],
+      }).abort,
+    ).toBe(false);
+
+    // Budget exhausted without running the verification command → pre-abort.
+    const missed = evaluateWorkerVerificationGuard({
+      verificationCommands: commands,
+      toolCount: 10,
+      recentTools: ['Read', 'Grep', 'Read', 'Grep', 'Bash: ls'],
+    });
+    expect(missed.abort).toBe(true);
+    expect(missed.reason).toMatch(/verification_commands/i);
+
+    // Command evidence in recent tools clears the miss path.
+    expect(
+      evaluateWorkerVerificationGuard({
+        verificationCommands: commands,
+        toolCount: 12,
+        recentTools: [
+          'Bash: node scripts/test-local.mjs packages/agent-core/test/tools/job-worker-guards.test.ts',
+        ],
+      }).abort,
+    ).toBe(false);
+  });
+
+  it('aborts consecutive Read/Grep-only loops when verification_commands exist', () => {
+    const commands = [
+      'node scripts/test-local.mjs packages/agent-core/test/tools/job-verify-chain.test.ts',
+    ];
+    const readGrepOnly = evaluateWorkerVerificationGuard({
+      verificationCommands: commands,
+      toolCount: 6,
+      recentTools: ['Read', 'Grep', 'Read', 'Grep', 'Read', 'Grep'],
+    });
+    expect(readGrepOnly.abort).toBe(true);
+    expect(readGrepOnly.reason).toMatch(/Read\/Grep|read\/grep|explore-only/i);
+
+    // No verification_commands → guard is inert.
+    expect(
+      evaluateWorkerVerificationGuard({
+        verificationCommands: undefined,
+        toolCount: 20,
+        recentTools: ['Read', 'Grep', 'Read', 'Grep'],
+      }).abort,
+    ).toBe(false);
+  });
+
+  it('reportJobWorkerProgress pre-aborts via verification guard', () => {
+    const store = memoryStore();
+    const job = createJob(store, {
+      title: 'must verify',
+      kind: 'implement',
+      verificationCommands: [
+        'node scripts/test-local.mjs packages/agent-core/test/tools/job-worker-guards.test.ts',
+      ],
+    });
+    const running = patchJob(store, job.id, { status: 'running' });
+    if (!running) throw new Error('promote failed');
+    const agent = { emitAgentEvent() {} } as unknown as Agent;
+    bindJobWorkerLedger('agent_guard', store, job.id, agent);
+
+    // Simulate N=10 explore-only tools with no verification command.
+    for (let i = 0; i < 10; i += 1) {
+      reportJobWorkerProgress('agent_guard', {
+        phase: i % 2 === 0 ? 'Read: foo.ts' : 'Grep: bar',
+        recentTools: Array.from({ length: i + 1 }, (_, j) => (j % 2 === 0 ? 'Read' : 'Grep')),
+        stepsCompleted: i + 1,
+        lastHeartbeatAt: new Date().toISOString(),
+      });
+    }
+
+    const next = getJob(store, job.id);
+    expect(next?.status).toBe('failed');
+    expect(next?.resultSummary ?? next?.notes ?? '').toMatch(
+      /verification|pre-abort|Read\/Grep|explore-only/i,
+    );
   });
 });

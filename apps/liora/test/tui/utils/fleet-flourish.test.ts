@@ -31,10 +31,10 @@ describe('shouldFleetFlourishPulse', () => {
 describe('formatFleetFlourishFooterBadge', () => {
   const atMs = 2_000_000;
 
-  it('shows fleet✓ within TTL', () => {
+  it('shows wrk within TTL', () => {
     expect(
       formatFleetFlourishFooterBadge({ atMs }, atMs + FLEET_FLOURISH_BADGE_TTL_MS - 1, 'compact'),
-    ).toEqual({ text: 'fleet✓', severity: 'info' });
+    ).toEqual({ text: 'wrk', severity: 'info' });
   });
 
   it('hides at and after TTL', () => {

@@ -33,14 +33,14 @@ void main(){
   float n = fbm(p * 2.15 + m + vec2(t * 0.35, -t * 0.22));
   float w = fbm(p * 3.4 - m * 1.2 + vec2(-t * 0.5, t * 0.4));
   float ring = smoothstep(0.85, 0.12, length(p - m * 0.35));
+  // #0D1422 Neon Noir base + deep navy — no white bleed
   vec3 bg = vec3(0.051, 0.078, 0.133);
   vec3 cyan = vec3(0.0, 0.835, 1.0);
-  vec3 violet = vec3(0.655, 0.545, 0.980);
-  vec3 deep = vec3(0.02, 0.04, 0.09);
-  vec3 col = mix(deep, bg, 0.65);
-  col += cyan * pow(n, 2.1) * 0.55 * ring;
-  col += violet * pow(w, 2.6) * 0.32;
-  col += cyan * exp(-5.5 * length(p - m * 0.55)) * 0.72;
+  vec3 deep = vec3(0.024, 0.039, 0.071);
+  vec3 col = mix(deep, bg, 0.72);
+  col += cyan * pow(n, 2.1) * 0.42 * ring;
+  col += cyan * pow(w, 2.8) * 0.12;
+  col += cyan * exp(-5.5 * length(p - m * 0.55)) * 0.55;
   float vig = smoothstep(1.25, 0.25, length(p));
   o = vec4(col * vig, 1.0);
 }
@@ -58,6 +58,16 @@ function compile(gl: WebGL2RenderingContext, type: number, src: string) {
   return sh;
 }
 
+function isDarkTheme(): boolean {
+  if (typeof document === 'undefined') return true;
+  return document.documentElement.dataset.theme !== 'light';
+}
+
+function isForcedColors(): boolean {
+  if (typeof window === 'undefined' || !window.matchMedia) return false;
+  return window.matchMedia('(forced-colors: active)').matches;
+}
+
 export function NoirField() {
   const reduce = usePrefersReducedMotion();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -65,66 +75,132 @@ export function NoirField() {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const gl = canvas.getContext('webgl2', {
-      alpha: true,
-      antialias: false,
-      depth: false,
-      stencil: false,
-      powerPreference: 'low-power',
-    });
-    if (!gl) {
-      canvas.hidden = true;
-      return;
-    }
-
-    const vs = compile(gl, gl.VERTEX_SHADER, VERT);
-    const fs = compile(gl, gl.FRAGMENT_SHADER, FRAG);
-    if (!vs || !fs) return;
-    const prog = gl.createProgram();
-    if (!prog) return;
-    gl.attachShader(prog, vs);
-    gl.attachShader(prog, fs);
-    gl.linkProgram(prog);
-    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return;
-    gl.useProgram(prog);
-
-    const uRes = gl.getUniformLocation(prog, 'u_res');
-    const uMouse = gl.getUniformLocation(prog, 'u_mouse');
-    const uTime = gl.getUniformLocation(prog, 'u_time');
-    const mouse = { x: 0.5, y: 0.35 };
-    const onMove = (e: PointerEvent) => {
-      mouse.x = e.clientX / window.innerWidth;
-      mouse.y = 1 - e.clientY / window.innerHeight;
-    };
-    window.addEventListener('pointermove', onMove, { passive: true });
 
     let raf = 0;
-    const started = performance.now();
-    const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-      const w = Math.max(1, Math.floor(window.innerWidth * dpr));
-      const h = Math.max(1, Math.floor(window.innerHeight * dpr));
-      if (canvas.width !== w || canvas.height !== h) {
-        canvas.width = w;
-        canvas.height = h;
-        gl.viewport(0, 0, w, h);
+    let gl: WebGL2RenderingContext | null = null;
+    let disposed = false;
+    let onMove: ((e: PointerEvent) => void) | null = null;
+    let observer: MutationObserver | null = null;
+    let forcedMql: MediaQueryList | null = null;
+
+    const stop = () => {
+      if (raf) {
+        window.cancelAnimationFrame(raf);
+        raf = 0;
       }
+      if (onMove) {
+        window.removeEventListener('pointermove', onMove);
+        onMove = null;
+      }
+      if (gl) {
+        gl.getExtension('WEBGL_lose_context')?.loseContext();
+        gl = null;
+      }
+      canvas.hidden = true;
     };
 
-    const frame = (now: number) => {
-      resize();
-      gl.uniform2f(uRes, canvas.width, canvas.height);
-      gl.uniform2f(uMouse, mouse.x, mouse.y);
-      gl.uniform1f(uTime, reduce ? 0 : (now - started) / 1000);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    const start = () => {
+      if (disposed) return;
+      if (!isDarkTheme() || isForcedColors()) {
+        stop();
+        return;
+      }
+      if (gl) return;
+
+      canvas.hidden = false;
+      const ctx = canvas.getContext('webgl2', {
+        alpha: false,
+        antialias: false,
+        depth: false,
+        stencil: false,
+        powerPreference: 'low-power',
+      });
+      if (!ctx) {
+        canvas.hidden = true;
+        return;
+      }
+      gl = ctx;
+
+      const vs = compile(gl, gl.VERTEX_SHADER, VERT);
+      const fs = compile(gl, gl.FRAGMENT_SHADER, FRAG);
+      if (!vs || !fs) {
+        stop();
+        return;
+      }
+      const prog = gl.createProgram();
+      if (!prog) {
+        stop();
+        return;
+      }
+      gl.attachShader(prog, vs);
+      gl.attachShader(prog, fs);
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+        stop();
+        return;
+      }
+      gl.useProgram(prog);
+
+      const uRes = gl.getUniformLocation(prog, 'u_res');
+      const uMouse = gl.getUniformLocation(prog, 'u_mouse');
+      const uTime = gl.getUniformLocation(prog, 'u_time');
+      const mouse = { x: 0.5, y: 0.35 };
+      onMove = (e: PointerEvent) => {
+        mouse.x = e.clientX / window.innerWidth;
+        mouse.y = 1 - e.clientY / window.innerHeight;
+      };
+      window.addEventListener('pointermove', onMove, { passive: true });
+
+      const started = performance.now();
+      const resize = () => {
+        if (!gl) return;
+        const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+        const w = Math.max(1, Math.floor(window.innerWidth * dpr));
+        const h = Math.max(1, Math.floor(window.innerHeight * dpr));
+        if (canvas.width !== w || canvas.height !== h) {
+          canvas.width = w;
+          canvas.height = h;
+          gl.viewport(0, 0, w, h);
+        }
+      };
+
+      const frame = (now: number) => {
+        if (!gl || disposed) return;
+        if (!isDarkTheme() || isForcedColors()) {
+          stop();
+          return;
+        }
+        resize();
+        gl.uniform2f(uRes, canvas.width, canvas.height);
+        gl.uniform2f(uMouse, mouse.x, mouse.y);
+        gl.uniform1f(uTime, reduce ? 0 : (now - started) / 1000);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+        raf = window.requestAnimationFrame(frame);
+      };
       raf = window.requestAnimationFrame(frame);
     };
-    raf = window.requestAnimationFrame(frame);
+
+    const sync = () => {
+      if (!isDarkTheme() || isForcedColors()) stop();
+      else start();
+    };
+
+    sync();
+    observer = new MutationObserver(sync);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    });
+    if (window.matchMedia) {
+      forcedMql = window.matchMedia('(forced-colors: active)');
+      forcedMql.addEventListener('change', sync);
+    }
 
     return () => {
-      window.cancelAnimationFrame(raf);
-      window.removeEventListener('pointermove', onMove);
-      gl.getExtension('WEBGL_lose_context')?.loseContext();
+      disposed = true;
+      observer?.disconnect();
+      forcedMql?.removeEventListener('change', sync);
+      stop();
     };
   }, [reduce]);
 

@@ -131,7 +131,7 @@ describe('MissionControlPanelComponent', () => {
     const text = lines.join('\n');
     expect(text).toContain('Worker Dock');
     expect(text).toMatch(/1 worker/);
-    expect(text).toContain('FLEET');
+    expect(text).toContain('WORKERS');
     expect(text).toMatch(/WKR/);
     expect(text).toContain('explore');
     expect(text).toContain('gpt-5');
@@ -429,7 +429,7 @@ describe('MissionControlPanelComponent', () => {
       jobs: emptyConductorJobsSnapshot(),
     });
     const text = plain(panel.render(100)).join('\n');
-    expect(text).toContain('FLEET');
+    expect(text).toContain('WORKERS');
     // LIVE column is truncated under densemode width + fixed chrome gutter.
     expect(text).toMatch(/Considering Phaser platformer physi/);
     expect(text).toContain('\u25cc');
@@ -554,7 +554,7 @@ describe('MissionControlPanelComponent', () => {
     const text = plain(panel.render(100)).join('\n');
     expect(text).toContain('Worker Dock');
     expect(text).toMatch(/1 worker/);
-    expect(text).toContain('FLEET');
+    expect(text).toContain('WORKERS');
     expect(text).toMatch(/WKR/);
     expect(text).toContain('solo thought stream');
     expect(text).not.toContain('TAPE');
