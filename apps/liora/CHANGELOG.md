@@ -1,5 +1,16 @@
 # @superliora/liora
 
+## 0.10.2
+
+### Patch Changes
+
+- Show Worker Dock as Workers, count only interview replies, paint each row as role · job title, and keep resume ghosts on the job title instead of Resuming.
+- Keep question dialogs from freezing TUI input when an interview sits unanswered.
+- Stop ambient letterbox and prompt black-band wipes on Windows ConPTY.
+- Recall prompt history with Up/Down on an empty draft instead of ghost autocomplete.
+- Keep Conductor off auto-compaction dumps and cut merge-verify-wake loops.
+- Let Conductor open a session Goal via CreateGoal.
+
 ## 0.10.1
 
 ### Patch Changes
