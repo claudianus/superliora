@@ -1,5 +1,21 @@
 # @superliora/liora
 
+## 0.11.0
+
+### Minor Changes
+
+- Add Settings path sandbox modes (`off` | `workspace` | `read-only`) and mark the current Security sandbox choice in the picker.
+- Auto-classify Conductor Jobs onto coding vs general tracks from the request text.
+- Compress session wire history with gzip, and add `liora gc` plus `doctor --storage` for local storage hygiene.
+- Set up Windows Terminal during install so new Windows installs land in a usable terminal profile.
+
+### Patch Changes
+
+- Pin Inspect diagnostics and mask push stderr noise in agent-core handoffs.
+- Preserve gzip wire history on resume append and fork; teach vis to read gzip-only session wires.
+- Skip verify fan-out for mission/none/desktop jobs so non-code tracks stay lean.
+- Resolve vis fixture paths on Windows and include vis-server in local tests.
+
 ## 0.10.2
 
 ### Patch Changes
