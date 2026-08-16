@@ -17,8 +17,18 @@ export type CloakBrowserLaunch = (options: never) => Promise<Browser | undefined
  * (install layout places it next to the CLI) via a non-literal dynamic import
  * so the bundler cannot rewrite it.
  */
-export async function resolveCloakBrowserLaunch(): Promise<CloakBrowserLaunch> {
-  const diskUrls = resolveCloakbrowserImportUrls();
+export async function resolveCloakBrowserLaunch(
+  options: {
+    readonly execPath?: string | undefined;
+    readonly cwd?: string | undefined;
+    readonly packageRoot?: string | undefined;
+    /** Test seam: skip disk discovery and use these module URLs only. */
+    readonly importUrls?: readonly string[] | undefined;
+    /** Test seam: replace the fallback `import('cloakbrowser')`. */
+    readonly importSpecifier?: (() => Promise<unknown>) | undefined;
+  } = {},
+): Promise<CloakBrowserLaunch> {
+  const diskUrls = options.importUrls ?? resolveCloakbrowserImportUrls(options);
   for (const url of diskUrls) {
     try {
       const mod: unknown = await import(url);
@@ -31,7 +41,7 @@ export async function resolveCloakBrowserLaunch(): Promise<CloakBrowserLaunch> {
 
   // Dev / non-SEA: normal package resolution (may be rewritten when always-bundled).
   try {
-    const mod: unknown = await import('cloakbrowser');
+    const mod: unknown = await (options.importSpecifier ?? (() => import('cloakbrowser')))();
     const launch = pickLaunch(mod);
     if (launch !== undefined) return launch;
     throw new Error(

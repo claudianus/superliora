@@ -99,16 +99,17 @@ describe('resolveCloakBrowserLaunch', () => {
     });
     expect(urls.length).toBeGreaterThan(0);
     const mod = await import(urls[0]!);
-    expect(typeof pickLaunch(mod)).toBe('function');
-    await expect(pickLaunch(mod)!({} as never)).resolves.toEqual({ ok: true });
+    const launch = pickLaunch(mod);
+    expect(launch).toBeDefined();
+    await expect(launch!({} as never)).resolves.toEqual({ ok: true });
   });
 
   it('throws a diagnostic error when no launch binding exists', async () => {
-    // Force only the bare specifier path by using empty candidates via a
-    // nonexistent layout and a stub specifier that cannot resolve in isolation.
-    // When cloakbrowser is installed in the monorepo this may still resolve —
-    // assert the public contract: returned value is a function.
-    const launch = await resolveCloakBrowserLaunch();
-    expect(typeof launch).toBe('function');
+    await expect(
+      resolveCloakBrowserLaunch({
+        importUrls: [],
+        importSpecifier: async () => ({}),
+      }),
+    ).rejects.toThrow(/cloakbrowser\.launch is unavailable/);
   });
 });
