@@ -126,7 +126,10 @@ export class CloakBrowserRuntime implements BrowserUseRuntime {
   private async connectBrowser(signal?: AbortSignal): Promise<Browser> {
     // Prefer disk-resolved cloakbrowser.launch so SEA/native alwaysBundle
     // shims (`init_dist`/`dist_exports`) cannot leave `.launch` undefined.
-    const launch = this.options.launch ?? (await resolveCloakBrowserLaunch());
+    const launch = this.options.launch ?? (await resolveCloakBrowserLaunch({
+      packageRoot: this.options.installRoot,
+      installRoot: this.options.installRoot,
+    }));
     try {
       return await this.launchWith(launch);
     } catch (firstError) {
@@ -144,7 +147,10 @@ export class CloakBrowserRuntime implements BrowserUseRuntime {
 
       throwIfAborted(signal);
       // Re-resolve after install: binary/package layout may have changed.
-      const launchAfterInstall = this.options.launch ?? (await resolveCloakBrowserLaunch());
+      const launchAfterInstall = this.options.launch ?? (await resolveCloakBrowserLaunch({
+        packageRoot: this.options.installRoot,
+        installRoot: this.options.installRoot,
+      }));
       try {
         return await this.launchWith(launchAfterInstall);
       } catch (secondError) {

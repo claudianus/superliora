@@ -69,7 +69,7 @@ describe('resolveCloakbrowserImportUrls', () => {
 });
 
 describe('resolveCloakBrowserLaunch', () => {
-  it('loads launch from a disk package URL candidate (SEA-safe path)', async () => {
+  it('loads launch from a fake SEA install layout via installRoot', async () => {
     const root = await mkdtemp(join(process.cwd(), '.tmp-cloak-launch-'));
     tempDirs.push(root);
     const binDir = join(root, 'bin');
@@ -91,24 +91,19 @@ describe('resolveCloakBrowserLaunch', () => {
       'utf8',
     );
 
-    // Point process.execPath resolution via options by calling the lower-level
-    // URL resolver, then import the same way resolveCloakBrowserLaunch does.
-    const urls = resolveCloakbrowserImportUrls({
+    const launch = await resolveCloakBrowserLaunch({
       execPath: join(binDir, 'liora.exe'),
       cwd: join(root, 'unrelated-cwd'),
+      installRoot: root,
     });
-    expect(urls.length).toBeGreaterThan(0);
-    const mod = await import(urls[0]!);
-    const launch = pickLaunch(mod);
-    expect(launch).toBeDefined();
-    await expect(launch!({} as never)).resolves.toEqual({ ok: true });
+    await expect(launch({} as never)).resolves.toEqual({ ok: true });
   });
 
   it('throws a diagnostic error when no launch binding exists', async () => {
     await expect(
       resolveCloakBrowserLaunch({
         importUrls: [],
-        importSpecifier: async () => ({}),
+        importModule: async () => ({}),
       }),
     ).rejects.toThrow(/cloakbrowser\.launch is unavailable/);
   });

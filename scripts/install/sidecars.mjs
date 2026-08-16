@@ -52,8 +52,22 @@ export async function installSidecars(options = {}) {
 
 async function installBrowserSidecars(installDir, commandName, warn) {
   await installLightpanda(warn);
+  const env = { ...process.env, COREPACK_ENABLE_DOWNLOAD_PROMPT: '0' };
+
+  // SEA/native: cloakbrowser + playwright-core must live next to the binary
+  // (`<installDir>/node_modules/...`) so launch is not the inlined init_dist shim.
+  if (installDir) {
+    const modules = spawnInstall(
+      'corepack',
+      ['pnpm', 'add', '--ignore-workspace', 'cloakbrowser@0.5.5', 'playwright-core@1.61.1'],
+      { cwd: installDir, env, encoding: 'utf8', stdio: 'inherit' },
+    );
+    if (modules.status !== 0) {
+      warn(`cloakbrowser/playwright-core sidecar install failed; retry with '${commandName} browser-use install'`);
+    }
+  }
+
   if (installDir && existsSync(join(installDir, 'package.json'))) {
-    const env = { ...process.env, COREPACK_ENABLE_DOWNLOAD_PROMPT: '0' };
     const cloak = spawnInstall(
       'corepack',
       ['pnpm', '--filter', '@superliora/gui-use', 'exec', 'cloakbrowser', 'install'],
@@ -71,8 +85,8 @@ async function installBrowserSidecars(installDir, commandName, warn) {
       // camoufox CLI may be `python -m` in some setups — soft fail
       warn(`Camoufox pre-install failed; retry with '${commandName} browser-use install'`);
     }
-  } else {
-    warn('browser npm caches skipped (no source tree); run `liora browser-use install` after first launch');
+  } else if (!installDir) {
+    warn('browser npm caches skipped (no install dir); run `liora browser-use install` after first launch');
   }
 }
 

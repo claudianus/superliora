@@ -22,40 +22,39 @@ export async function resolveCloakBrowserLaunch(
     readonly execPath?: string | undefined;
     readonly cwd?: string | undefined;
     readonly packageRoot?: string | undefined;
+    readonly installRoot?: string | undefined;
     /** Test seam: skip disk discovery and use these module URLs only. */
     readonly importUrls?: readonly string[] | undefined;
-    /** Test seam: replace the fallback `import('cloakbrowser')`. */
-    readonly importSpecifier?: (() => Promise<unknown>) | undefined;
+    /** Test seam: replace a disk-file import (never a package specifier). */
+    readonly importModule?: ((url: string) => Promise<unknown>) | undefined;
   } = {},
 ): Promise<CloakBrowserLaunch> {
-  const diskUrls = options.importUrls ?? resolveCloakbrowserImportUrls(options);
+  const diskUrls = options.importUrls ?? resolveCloakbrowserImportUrls({
+    execPath: options.execPath,
+    cwd: options.cwd,
+    packageRoot: options.packageRoot ?? options.installRoot,
+  });
+  const load = options.importModule ?? ((url: string) => import(url));
+  const errors: string[] = [];
+
   for (const url of diskUrls) {
     try {
-      const mod: unknown = await import(url);
+      const mod: unknown = await load(url);
       const launch = pickLaunch(mod);
       if (launch !== undefined) return launch;
-    } catch {
-      // Try the next candidate.
+      errors.push(`${url}: launch missing (keys: ${moduleKeys(mod).join(', ') || '(none)'})`);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      errors.push(`${url}: ${detail}`);
     }
   }
 
-  // Dev / non-SEA: normal package resolution (may be rewritten when always-bundled).
-  try {
-    const mod: unknown = await (options.importSpecifier ?? (() => import('cloakbrowser')))();
-    const launch = pickLaunch(mod);
-    if (launch !== undefined) return launch;
-    throw new Error(
-      `cloakbrowser module loaded but launch is missing (keys: ${moduleKeys(mod).join(', ') || '(none)'})`,
-    );
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    throw new Error(
-      `cloakbrowser.launch is unavailable (${detail}). ` +
-        'Install cloakbrowser next to the CLI (node_modules/cloakbrowser) or run `liora browser-use doctor`. ' +
-        'SEA bundles must not rely solely on the inlined init_dist export shim.',
-      { cause: error },
-    );
-  }
+  const detail = errors.length > 0 ? errors.join('; ') : 'no cloakbrowser package found on disk';
+  throw new Error(
+    `cloakbrowser.launch is unavailable (${detail}). ` +
+      'Install cloakbrowser next to the CLI (node_modules/cloakbrowser) or run `liora browser-use doctor`. ' +
+      'SEA bundles must not fall back to a literal import("cloakbrowser") shim.',
+  );
 }
 
 /** Test / diagnostics: list candidate file URLs without importing. */
