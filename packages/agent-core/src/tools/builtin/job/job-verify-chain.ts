@@ -96,9 +96,26 @@ export function findVerifyChildren(
   return jobs.filter((job) => job.parentJobId === parentJobId && job.kind === 'verify');
 }
 
+/**
+ * Cancelled verify is inert: it must not hold MergeJob, block requeue, or count
+ * as an active chain member. A later done+verdict child is enough.
+ */
+function isInertVerifyChild(job: JobRecord): boolean {
+  return job.status === 'cancelled';
+}
+
+/** Verify children that still participate in merge / requeue gating. */
+export function findActiveVerifyChildren(
+  parentJobId: string,
+  jobs: readonly JobRecord[],
+): readonly JobRecord[] {
+  return findVerifyChildren(parentJobId, jobs).filter((job) => !isInertVerifyChild(job));
+}
+
 /** True when the required verify set for this parent is already enqueued. */
 export function hasVerifyChild(store: ToolStore, parentJobId: string): boolean {
-  const children = findVerifyChildren(parentJobId, listJobs(store));
+  // Cancelled-only history must not permanently block requeue.
+  const children = findActiveVerifyChildren(parentJobId, listJobs(store));
   if (children.length === 0) return false;
   // Parallel dual-axis: both standards + spec present.
   const axes = new Set(children.map((c) => c.reviewAxis).filter(Boolean));
@@ -483,6 +500,7 @@ export async function enqueueDebugJobForVerify(
 }
 
 function verifyChildrenReady(children: readonly JobRecord[]): boolean {
+  // Callers pass active (non-cancelled) children only.
   if (children.length === 0) return false;
   return children.every((c) => c.status === 'done' || c.status === 'failed');
 }
@@ -773,7 +791,9 @@ export function evaluateVerifyChainForMerge(input: {
     return { ok: true };
   }
 
-  const allChildren = findVerifyChildren(input.job.id, input.jobs);
+  // Cancelled verify is inert — do not wait on it; later done+verdict is enough.
+  // Never auto-approve when only cancelled (or no) verify children exist.
+  const allChildren = findActiveVerifyChildren(input.job.id, input.jobs);
   if (allChildren.length === 0) {
     return {
       ok: false,

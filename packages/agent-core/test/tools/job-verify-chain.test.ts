@@ -4,6 +4,7 @@ import {
   enqueueDebugJobForVerify,
   enqueueVerifyJobForParent,
   evaluateVerifyChainForMerge,
+  hasVerifyChild,
   healVerifyVerdictFromSummary,
   makerCheckerCollision,
   onJobTerminalForVerifyChain,
@@ -444,6 +445,108 @@ ${'x'.repeat(200)}
         jobs: [implement, oldMissing, retryPass],
       }),
     ).toEqual({ ok: true });
+  });
+
+  it('ignores cancelled verify children for merge readiness and requeue', () => {
+    // Real failure: MergeJob held on cancelled verify job_msv89mia3rtl0v while a later
+    // independent done+verdict child should have been enough.
+    const implement = job({
+      id: 'job_impl_cancel',
+      title: 'Feature',
+      kind: 'implement',
+      expertId: 'maker-1',
+    });
+    const cancelledOnly = job({
+      id: 'job_ver_cancelled',
+      title: 'Verify',
+      kind: 'verify',
+      parentJobId: 'job_impl_cancel',
+      expertId: 'checker-1',
+      status: 'cancelled',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:01.000Z',
+    });
+    const cancelledGate = evaluateVerifyChainForMerge({
+      job: implement,
+      jobs: [implement, cancelledOnly],
+    });
+    expect(cancelledGate.ok).toBe(false);
+    if (!cancelledGate.ok) {
+      // Must look like "no verify yet" — not "still cancelled / wait".
+      expect(cancelledGate.reason).toMatch(/No verify child/i);
+      expect(cancelledGate.reason).not.toMatch(/still cancelled|still pending/i);
+    }
+
+    const store = memoryStore();
+    // Seed ledger so hasVerifyChild sees only the cancelled child.
+    store.set('job_ledger', {
+      schemaVersion: 1,
+      jobs: [implement, cancelledOnly],
+    } as never);
+    expect(hasVerifyChild(store, implement.id)).toBe(false);
+
+    const laterPass = job({
+      id: 'job_ver_later',
+      title: 'Verify',
+      kind: 'verify',
+      parentJobId: 'job_impl_cancel',
+      expertId: 'checker-2',
+      status: 'done',
+      createdAt: '2026-01-01T00:00:02.000Z',
+      updatedAt: '2026-01-01T00:00:03.000Z',
+      verifyVerdict: 'passed',
+      resultSummary: '{"verdict":"pass","findings":[],"required_fixes":[]}',
+    });
+    expect(
+      evaluateVerifyChainForMerge({
+        job: implement,
+        jobs: [implement, cancelledOnly, laterPass],
+      }),
+    ).toEqual({ ok: true });
+
+    // Cancelled must not auto-approve alone even when dual-axis shells exist.
+    const cancelledStandards = job({
+      id: 'job_std_cancelled',
+      title: 'Verify standards',
+      kind: 'verify',
+      parentJobId: 'job_impl_cancel',
+      expertId: 'checker-std',
+      reviewAxis: 'standards',
+      status: 'cancelled',
+    });
+    const cancelledSpec = job({
+      id: 'job_spec_cancelled',
+      title: 'Verify spec',
+      kind: 'verify',
+      parentJobId: 'job_impl_cancel',
+      expertId: 'checker-spec',
+      reviewAxis: 'spec',
+      status: 'cancelled',
+    });
+    expect(
+      evaluateVerifyChainForMerge({
+        job: implement,
+        jobs: [implement, cancelledStandards, cancelledSpec],
+      }).ok,
+    ).toBe(false);
+
+    // Still-running non-cancelled sibling keeps the wait path.
+    const running = job({
+      id: 'job_ver_running',
+      title: 'Verify',
+      kind: 'verify',
+      parentJobId: 'job_impl_cancel',
+      expertId: 'checker-3',
+      status: 'running',
+    });
+    const waitGate = evaluateVerifyChainForMerge({
+      job: implement,
+      jobs: [implement, cancelledOnly, running],
+    });
+    expect(waitGate.ok).toBe(false);
+    if (!waitGate.ok) {
+      expect(waitGate.reason).toMatch(/still running/i);
+    }
   });
 
   it('merge ignores older/newer missing-JSON void when same-axis sibling already passed', () => {
