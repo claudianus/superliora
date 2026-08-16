@@ -140,7 +140,7 @@ export interface CapabilityOverrides {
  */
 export function detectTerminalIdentity(env: NodeJS.ProcessEnv): TerminalIdentity {
   const term = env['TERM'] ?? '';
-  const termProgram = env['TERM_PROGRAM'] ?? '';
+  const termProgram = env['TERM_PROGRAM'] ?? (env['WT_SESSION'] ? 'windowsterminal' : '');
   const termProgramVersion = env['TERM_PROGRAM_VERSION'] ?? '';
 
   let multiplexer: TerminalIdentity['multiplexer'] = null;
@@ -170,6 +170,7 @@ function identifyTerminal(identity: TerminalIdentity): string | null {
   if (term.includes('foot')) return 'foot';
   if (term.includes('rio') || program.includes('rio')) return 'rio';
   if (program.includes('vscode')) return 'vscode';
+  if (program.includes('windowsterminal')) return 'windowsterminal';
   return null;
 }
 

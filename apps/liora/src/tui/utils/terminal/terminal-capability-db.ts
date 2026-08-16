@@ -123,6 +123,19 @@ export const TERMINAL_DB: Record<string, TerminalDbEntry> = {
       cursorShape: true, windowTitle: true, alternateScreen: true,
     },
   },
+  windowsterminal: {
+    tier: 'enhanced',
+    colorDepth: 'truecolor',
+    imageProtocol: 'none',
+    keyboardProtocol: 'legacy',
+    features: {
+      trueColor: true,
+      synchronizedOutput: true, mouseTracking: true, focusEvents: true,
+      bracketedPaste: true, osc52Clipboard: true,
+      unicodeWide: true, hyperlinks: true,
+      cursorShape: true, windowTitle: true, alternateScreen: true,
+    },
+  },
 };
 
 export const DEFAULT_FEATURES: TerminalFeatureFlags = {

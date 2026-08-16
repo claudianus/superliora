@@ -130,7 +130,8 @@ export function detectNativeTerminalCapabilities(
     hasEnv(environment, 'KITTY_WINDOW_ID') ||
     hasEnv(environment, 'WEZTERM_PANE') ||
     hasEnv(environment, 'GHOSTTY_RESOURCES_DIR') ||
-    hasEnv(environment, 'ALACRITTY_WINDOW_ID');
+    hasEnv(environment, 'ALACRITTY_WINDOW_ID') ||
+    hasEnv(environment, 'WT_SESSION');
   const inMultiplexer = hasEnv(environment, 'TMUX') || term.startsWith('screen');
   const xtermLike =
     term.includes('xterm') ||
@@ -223,7 +224,8 @@ export function detectNativeTerminalColorMode(
     hasEnv(environment, 'KITTY_WINDOW_ID') ||
     hasEnv(environment, 'WEZTERM_PANE') ||
     hasEnv(environment, 'GHOSTTY_RESOURCES_DIR') ||
-    hasEnv(environment, 'ALACRITTY_WINDOW_ID');
+    hasEnv(environment, 'ALACRITTY_WINDOW_ID') ||
+    hasEnv(environment, 'WT_SESSION');
   if (knownTrueColorTerminal) return 'truecolor';
   if (term.includes('256color') || term.includes('-256')) return 'ansi256';
   return colorForced ? 'ansi16' : 'ansi16';

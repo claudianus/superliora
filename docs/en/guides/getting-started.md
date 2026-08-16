@@ -17,7 +17,7 @@ The CLI is written in TypeScript, distributed via npm, and runs on Node.js.
 Two installation options are available: the official install script (recommended, no pre-installed Node.js required) and a global npm install.
 
 ::: tip Before you install
-SuperLiora CLI is a fully interactive TUI application. For the best visual experience, run it in a terminal with true-color and ligature support, such as [Kitty](https://sw.kovidgoyal.net/kitty/) or [Ghostty](https://ghostty.org/).
+SuperLiora CLI is a fully interactive TUI application. On macOS / Linux use a true-color terminal such as [Kitty](https://sw.kovidgoyal.net/kitty/) or [Ghostty](https://ghostty.org/). On Windows, use [Windows Terminal](https://aka.ms/terminal) — the classic `cmd.exe` / Windows PowerShell console host cannot render the TUI well.
 :::
 
 ### Install script (recommended)
@@ -41,6 +41,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubus
 ```
 
 > SuperLiora uses Git Bash as its Windows shell. The install and `liora upgrade` flows download [Portable Git](https://gitforwindows.org/) into `~/.superliora/runtime/git` when Git Bash is missing (user-local, no admin). If Git Bash is already installed in a custom location, set `LIORA_SHELL_PATH` (legacy: `KIMI_SHELL_PATH`) to the absolute path of `bash.exe`. Pass `--no-git` to skip the bootstrap.
+>
+> On Windows the same installer also tries to leave you in Windows Terminal: it detects an existing `wt.exe`, otherwise installs `Microsoft.WindowsTerminal` via `winget` (then a GitHub MSIX if winget is missing). It writes a SuperLiora fragment (Cascadia Mono + SuperLiora Dark) and a Start Menu shortcut. Failures never block the CLI install. Pass `--no-terminal` or set `SUPERLIORA_NO_TERMINAL=1` to skip. The classic console host is a poor TUI host — open SuperLiora from Windows Terminal or the Start Menu shortcut.
 
 The script does **not** require a pre-installed Node.js. When Node is missing or older than 24.15.0, it downloads an official Node build into `~/.superliora/runtime/node` (user-local, no admin). By default it installs the latest **published** GitHub Release prebuilt SEA (`manifest.json` + `liora-<platform>.zip`), verifies the checksum, and puts `liora` on your `PATH`. It does **not** fall back to an unreleased git tip unless you opt in. Browser-use, computer-use, and local retrieval sidecars are installed best-effort afterward.
 
@@ -59,7 +61,7 @@ Tip of `origin/main` (ignore published releases):
 curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.sh | bash -s -- --main
 ```
 
-Useful flags (same on `install.ps1` and `install.cmd`): `--main`, `--prefer-source`, `--force-prebuilt`, `--no-browser-use`, `--no-computer-use`, `--no-retrieval`, `--no-git`, `--no-shell-rc`.
+Useful flags (same on `install.ps1` and `install.cmd`): `--main`, `--prefer-source`, `--force-prebuilt`, `--no-browser-use`, `--no-computer-use`, `--no-retrieval`, `--no-git`, `--no-terminal`, `--no-shell-rc`.
 
 Default source checkout (when using `--main` / `--prefer-source`): `~/.superliora/source`. Default bin dir: `~/.local/bin` (Unix) or `%LOCALAPPDATA%\SuperLiora\bin` (Windows).
 

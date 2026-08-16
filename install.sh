@@ -26,6 +26,7 @@ NO_BROWSER_USE=0
 NO_COMPUTER_USE=0
 NO_RETRIEVAL=0
 NO_GIT=0
+NO_TERMINAL=0
 PREFER_SOURCE=0
 FROM_MAIN=0
 FORCE_PREBUILT=0
@@ -55,6 +56,7 @@ Options:
   --no-computer-use     Skip cua-driver computer-use install
   --no-retrieval        Skip local Granite-97M embedder + passage indexes
   --no-git              Skip Git / Git Bash bootstrap
+  --no-terminal         Skip Windows Terminal install / profile (Windows)
   --no-shell-rc         Do not edit shell startup files
   --main                Ignore releases; build tip of origin/main from source
   --prefer-source       Skip prebuilt; build from source (--ref)
@@ -66,7 +68,8 @@ Environment variables:
   SUPERLIORA_BIN_DIR, SUPERLIORA_COMMAND, SUPERLIORA_NODE_MIN,
   SUPERLIORA_MANIFEST_URL, SUPERLIORA_VERSION, SUPERLIORA_RAW_BASE,
   SUPERLIORA_SKIP_BROWSER_USE, SUPERLIORA_SKIP_COMPUTER_USE,
-  SUPERLIORA_SKIP_RETRIEVAL, SUPERLIORA_SKIP_GIT, SUPERLIORA_PREFER_SOURCE,
+  SUPERLIORA_SKIP_RETRIEVAL, SUPERLIORA_SKIP_GIT, SUPERLIORA_NO_TERMINAL,
+  SUPERLIORA_SKIP_TERMINAL, SUPERLIORA_PREFER_SOURCE,
   SUPERLIORA_FROM_MAIN, SUPERLIORA_FORCE_PREBUILT, SUPERLIORA_NO_SHELL_RC
 EOF
 }
@@ -109,6 +112,7 @@ while [ "$#" -gt 0 ]; do
     --no-computer-use) NO_COMPUTER_USE=1; shift ;;
     --no-retrieval) NO_RETRIEVAL=1; shift ;;
     --no-git) NO_GIT=1; shift ;;
+    --no-terminal) NO_TERMINAL=1; shift ;;
     --no-shell-rc) NO_SHELL_RC=1; shift ;;
     --prefer-source) PREFER_SOURCE=1; shift ;;
     --main) FROM_MAIN=1; shift ;;
@@ -123,6 +127,9 @@ if [ "${SUPERLIORA_FROM_MAIN:-0}" = "1" ]; then
 fi
 if [ "${SUPERLIORA_NO_SHELL_RC:-0}" = "1" ]; then
   NO_SHELL_RC=1
+fi
+if [ "${SUPERLIORA_NO_TERMINAL:-0}" = "1" ] || [ "${SUPERLIORA_SKIP_TERMINAL:-0}" = "1" ]; then
+  NO_TERMINAL=1
 fi
 
 INSTALL_DIR="$(expand_path "$INSTALL_DIR")"
@@ -222,7 +229,7 @@ else
   }
   fetch_raw "scripts/install-superliora.mjs" "$BUNDLE_DIR/scripts/install-superliora.mjs"
   fetch_raw "scripts/install-liora.mjs" "$BUNDLE_DIR/scripts/install-liora.mjs"
-  for f in platform.mjs ensure-node.mjs ensure-git.mjs theatre.mjs download.mjs prebuilt.mjs source.mjs sidecars.mjs path.mjs spawn.mjs wrappers.mjs; do
+  for f in platform.mjs ensure-node.mjs ensure-git.mjs theatre.mjs download.mjs prebuilt.mjs source.mjs sidecars.mjs path.mjs spawn.mjs wrappers.mjs ensure-terminal.mjs; do
     fetch_raw "scripts/install/$f" "$BUNDLE_DIR/scripts/install/$f"
   done
   ORCH="$BUNDLE_DIR/scripts/install-superliora.mjs"
@@ -251,6 +258,7 @@ orch_args=(
 [ "$NO_COMPUTER_USE" -eq 1 ] && orch_args+=(--no-computer-use)
 [ "$NO_RETRIEVAL" -eq 1 ] && orch_args+=(--no-retrieval)
 [ "$NO_GIT" -eq 1 ] && orch_args+=(--no-git)
+[ "$NO_TERMINAL" -eq 1 ] && orch_args+=(--no-terminal)
 [ "$PREFER_SOURCE" -eq 1 ] && orch_args+=(--prefer-source)
 [ "$FROM_MAIN" -eq 1 ] && orch_args+=(--main)
 [ "$FORCE_PREBUILT" -eq 1 ] && orch_args+=(--force-prebuilt)

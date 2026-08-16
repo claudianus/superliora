@@ -4643,6 +4643,9 @@ describe('NativeTerminalSession', () => {
       COLORTERM: 'truecolor',
       FORCE_COLOR: '2',
     })).toBe('ansi256');
+    expect(detectNativeTerminalColorMode({ TERM: 'xterm-256color', WT_SESSION: '1' })).toBe(
+      'truecolor',
+    );
   });
 
   it('detects terminal inline image protocol capability conservatively', () => {

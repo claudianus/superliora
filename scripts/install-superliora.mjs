@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 import { ensureGit } from './install/ensure-git.mjs';
 import { ensureNode } from './install/ensure-node.mjs';
+import { ensureTerminal } from './install/ensure-terminal.mjs';
 import { ensureBinOnPath } from './install/path.mjs';
 import { tryInstallPrebuilt } from './install/prebuilt.mjs';
 import {
@@ -138,6 +139,30 @@ try {
     onWarn: (msg) => theatre.note(msg),
   });
 
+  theatre.setStage('sidecars', 'Ensuring Windows Terminal');
+  try {
+    const termInfo = await ensureTerminal({
+      skip: args.noTerminal,
+      noShellRc: args.noShellRc,
+      binDir,
+      commandName,
+    });
+    if (termInfo.message && termInfo.ok === false) {
+      theatre.note(termInfo.message);
+    } else if (termInfo.skipped) {
+      // Unix / --no-terminal: stay quiet.
+    } else if (termInfo.installed) {
+      theatre.setDetail('Installed Windows Terminal');
+    } else if (termInfo.alreadyPresent) {
+      theatre.setDetail(termInfo.wtPath ? `Using Windows Terminal ${termInfo.wtPath}` : 'Using Windows Terminal');
+    } else {
+      theatre.setDetail('Windows Terminal ready');
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    theatre.note(`Windows Terminal setup failed (${message}); continuing. ${'Install from https://aka.ms/terminal or pass --no-terminal.'}`);
+  }
+
   // Warm --version when possible (prebuilt path already verified when expected).
   const warm = join(binDir, commandFileName(commandName));
   if (existsSync(warm) && mode === 'source') {
@@ -215,6 +240,8 @@ function parseArgs(argv) {
     noComputerUse: process.env.SUPERLIORA_SKIP_COMPUTER_USE === '1',
     noRetrieval: process.env.SUPERLIORA_SKIP_RETRIEVAL === '1',
     noGit: process.env.SUPERLIORA_SKIP_GIT === '1',
+    noTerminal:
+      process.env.SUPERLIORA_NO_TERMINAL === '1' || process.env.SUPERLIORA_SKIP_TERMINAL === '1',
     preferSource: process.env.SUPERLIORA_PREFER_SOURCE === '1',
     fromMain: process.env.SUPERLIORA_FROM_MAIN === '1',
     forcePrebuilt: process.env.SUPERLIORA_FORCE_PREBUILT === '1',
@@ -274,6 +301,9 @@ function parseArgs(argv) {
       case '--no-git':
         out.noGit = true;
         break;
+      case '--no-terminal':
+        out.noTerminal = true;
+        break;
       case '--prefer-source':
         out.preferSource = true;
         break;
@@ -331,6 +361,7 @@ Options:
   --no-computer-use     Skip cua-driver
   --no-retrieval        Skip Granite embedder bootstrap
   --no-git              Skip Git / Git Bash bootstrap
+  --no-terminal         Skip Windows Terminal install / profile (Windows)
   --no-shell-rc         Do not edit shell PATH / User PATH (or SUPERLIORA_NO_SHELL_RC=1)
   --main                Ignore releases; build tip of origin/main from source
   --prefer-source       Skip prebuilt; build from source (--ref, default main)

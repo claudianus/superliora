@@ -45,7 +45,8 @@ $InstallModules = @(
   'sidecars.mjs',
   'path.mjs',
   'spawn.mjs',
-  'wrappers.mjs'
+  'wrappers.mjs',
+  'ensure-terminal.mjs'
 )
 
 $opt = @{
@@ -64,6 +65,7 @@ $opt = @{
   NoComputerUse = $false
   NoRetrieval = $false
   NoGit = $false
+  NoTerminal = $false
   NoPath = $false
   NoShellRc = $false
   PreferSource = $false
@@ -113,6 +115,7 @@ function Show-Usage {
   Write-Host '  -NoComputerUse / --no-computer-use'
   Write-Host '  -NoRetrieval / --no-retrieval'
   Write-Host '  -NoGit / --no-git'
+  Write-Host '  -NoTerminal / --no-terminal'
   Write-Host '  -NoPath / -NoShellRc / --no-shell-rc'
   Write-Host '  -PreferSource / --prefer-source'
   Write-Host '  -Main / --main'
@@ -165,6 +168,7 @@ function Apply-Flags {
       'nocomputeruse' { $Options.NoComputerUse = $true }
       'noretrieval' { $Options.NoRetrieval = $true }
       'nogit' { $Options.NoGit = $true }
+      'noterminal' { $Options.NoTerminal = $true }
       { $_ -eq 'noshellrc' -or $_ -eq 'nopath' } { $Options.NoPath = $true; $Options.NoShellRc = $true }
       'prefersource' { $Options.PreferSource = $true }
       'main' { $Options.Main = $true }
@@ -333,6 +337,7 @@ function Write-Dump {
   Write-Host ('DUMP main=' + (Convert-Flag01 $Options.Main))
   Write-Host ('DUMP noBrowserUse=' + (Convert-Flag01 $Options.NoBrowserUse))
   Write-Host ('DUMP noGit=' + (Convert-Flag01 $Options.NoGit))
+  Write-Host ('DUMP noTerminal=' + (Convert-Flag01 $Options.NoTerminal))
   Write-Host ('DUMP nodeArch=' + (Get-WindowsNodeArch))
   Write-Host 'DUMP ok'
 }
@@ -365,6 +370,8 @@ $skipRetrieval = [Environment]::GetEnvironmentVariable('SUPERLIORA_SKIP_RETRIEVA
 $preferSourceEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_PREFER_SOURCE', 'Process')
 $forcePrebuiltEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_FORCE_PREBUILT', 'Process')
 $skipGit = [Environment]::GetEnvironmentVariable('SUPERLIORA_SKIP_GIT', 'Process')
+$skipTerminal = [Environment]::GetEnvironmentVariable('SUPERLIORA_SKIP_TERMINAL', 'Process')
+$noTerminalEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_NO_TERMINAL', 'Process')
 $noShellEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_NO_SHELL_RC', 'Process')
 $fromMainEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_FROM_MAIN', 'Process')
 if ($skipBrowser -eq '1') { $opt.NoBrowserUse = $true }
@@ -373,6 +380,7 @@ if ($skipRetrieval -eq '1') { $opt.NoRetrieval = $true }
 if ($preferSourceEnv -eq '1') { $opt.PreferSource = $true }
 if ($forcePrebuiltEnv -eq '1') { $opt.ForcePrebuilt = $true }
 if ($skipGit -eq '1') { $opt.NoGit = $true }
+if ($skipTerminal -eq '1' -or $noTerminalEnv -eq '1') { $opt.NoTerminal = $true }
 if ($noShellEnv -eq '1') { $opt.NoPath = $true; $opt.NoShellRc = $true }
 if ($fromMainEnv -eq '1') { $opt.Main = $true }
 
@@ -455,6 +463,7 @@ if ($opt.NoBrowserUse) { $orchArgs += '--no-browser-use' }
 if ($opt.NoComputerUse) { $orchArgs += '--no-computer-use' }
 if ($opt.NoRetrieval) { $orchArgs += '--no-retrieval' }
 if ($opt.NoGit) { $orchArgs += '--no-git' }
+if ($opt.NoTerminal) { $orchArgs += '--no-terminal' }
 if ($opt.PreferSource) { $orchArgs += '--prefer-source' }
 if ($opt.Main) { $orchArgs += '--main' }
 if ($opt.ForcePrebuilt) { $orchArgs += '--force-prebuilt' }

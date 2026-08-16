@@ -149,6 +149,7 @@ describe('Windows install wrappers and spawn', () => {
     );
     expect(stdout).toContain('install.ps1');
     expect(stdout).toContain('--no-shell-rc');
+    expect(stdout).toContain('--no-terminal');
     expect(stdout).toContain('cmd.exe');
     expect(stdout).toContain('session PATH');
     expect(stdout).toContain('SUPERLIORA_*');

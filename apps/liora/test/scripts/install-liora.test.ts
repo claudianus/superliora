@@ -109,11 +109,15 @@ describe('scripts/install-liora.mjs', () => {
     expect(sh).toContain('spawn.mjs');
     expect(sh).toContain('wrappers.mjs');
     expect(sh).toContain('ensure-git.mjs');
+    expect(sh).toContain('ensure-terminal.mjs');
     expect(sh).toContain('--no-git');
+    expect(sh).toContain('--no-terminal');
     expect(ps1).toContain('spawn.mjs');
     expect(ps1).toContain('wrappers.mjs');
     expect(ps1).toContain('ensure-git.mjs');
+    expect(ps1).toContain('ensure-terminal.mjs');
     expect(ps1).toContain('NoGit');
+    expect(ps1).toContain('NoTerminal');
     const orch = await readFile(resolve(repoRoot, 'scripts/install-superliora.mjs'), 'utf-8');
     expect(orch).toContain("SUPERLIORA_NO_SHELL_RC === '1'");
     expect(orch).toContain('Git bootstrap failed');
