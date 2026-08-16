@@ -144,15 +144,37 @@ export function findDebugChild(
   );
 }
 
-type AxisVerdictBlob = { readonly verdict?: string };
+type AxisVerdictBlob = { readonly verdict?: string } | string;
 
-function verdictFromParsedBlob(parsed: {
+/** Accept nested `{verdict:"pass"}` or flat string `"passed"` axis values. */
+function axisVerdict(value: AxisVerdictBlob | undefined): JobVerifyVerdict | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === 'string') return normalizeVerdict(value);
+  return normalizeVerdict(value.verdict);
+}
+
+type ParsedVerifyBlob = {
   readonly verdict?: string;
   readonly standards?: AxisVerdictBlob;
   readonly spec?: AxisVerdictBlob;
-}): JobVerifyVerdict | undefined {
-  const standards = normalizeVerdict(parsed.standards?.verdict);
-  const spec = normalizeVerdict(parsed.spec?.verdict);
+  readonly visual?: AxisVerdictBlob;
+  readonly verifyVerdict?: ParsedVerifyBlob | string;
+  readonly job?: string;
+  readonly notes?: string;
+};
+
+function verdictFromParsedBlob(parsed: ParsedVerifyBlob): JobVerifyVerdict | undefined {
+  // Compact wrapper: {"verifyVerdict":{...}} or {"verifyVerdict":"passed"}
+  if (parsed.verifyVerdict !== undefined) {
+    if (typeof parsed.verifyVerdict === 'string') {
+      return normalizeVerdict(parsed.verifyVerdict);
+    }
+    const nested = verdictFromParsedBlob(parsed.verifyVerdict);
+    if (nested !== undefined) return nested;
+  }
+
+  const standards = axisVerdict(parsed.standards);
+  const spec = axisVerdict(parsed.spec);
   if (standards !== undefined && spec !== undefined) {
     if (standards === 'passed' && spec === 'passed') return 'passed';
     return 'failed';
@@ -165,15 +187,56 @@ function verdictFromParsedBlob(parsed: {
 
 function tryParseJsonObject(blob: string): JobVerifyVerdict | undefined {
   try {
-    return verdictFromParsedBlob(
-      JSON.parse(blob) as {
-        verdict?: string;
-        standards?: AxisVerdictBlob;
-        spec?: AxisVerdictBlob;
-      },
-    );
+    return verdictFromParsedBlob(JSON.parse(blob) as ParsedVerifyBlob);
   } catch {
     return undefined;
+  }
+}
+
+/**
+ * Walk text and yield balanced `{...}` slices so multi-object receipts
+ * (Korean markdown + flat dual-axis + verifyVerdict wrapper) each parse.
+ */
+function* iterBalancedJsonObjects(text: string): Generator<string> {
+  let i = 0;
+  while (i < text.length) {
+    const start = text.indexOf('{', i);
+    if (start < 0) return;
+    let depth = 0;
+    let inString = false;
+    let escape = false;
+    for (let j = start; j < text.length; j++) {
+      const ch = text[j]!;
+      if (inString) {
+        if (escape) {
+          escape = false;
+        } else if (ch === '\\') {
+          escape = true;
+        } else if (ch === '"') {
+          inString = false;
+        }
+        continue;
+      }
+      if (ch === '"') {
+        inString = true;
+        continue;
+      }
+      if (ch === '{') depth += 1;
+      else if (ch === '}') {
+        depth -= 1;
+        if (depth === 0) {
+          yield text.slice(start, j + 1);
+          i = j + 1;
+          break;
+        }
+      }
+      if (j === text.length - 1) {
+        // Unbalanced / truncated — still yield open slice for regex fallback.
+        yield text.slice(start);
+        return;
+      }
+    }
+    if (depth !== 0) return;
   }
 }
 
@@ -181,29 +244,56 @@ function tryParseJsonObject(blob: string): JobVerifyVerdict | undefined {
  * When the summary budget truncates mid-JSON, the dual-axis keys are often
  * still visible at the top of the object. Accept that shape so MergeJob is
  * not blocked by a 4k slice cutting through `findings`.
+ * Also accepts flat string axes: `"spec":"passed","standards":"passed"`.
  */
 function parseTruncatedDualAxisVerdict(text: string): JobVerifyVerdict | undefined {
-  if (!/"verdict"\s*:/i.test(text) || !/"standards"\s*:/i.test(text) || !/"spec"\s*:/i.test(text)) {
-    return undefined;
-  }
-  const top = text.match(/\{\s*"verdict"\s*:\s*"(pass|fail|passed|failed)"/i);
-  const standards = text.match(
+  const nestedStandards = text.match(
     /"standards"\s*:\s*\{\s*"verdict"\s*:\s*"(pass|fail|passed|failed)"/i,
   );
-  const spec = text.match(/"spec"\s*:\s*\{\s*"verdict"\s*:\s*"(pass|fail|passed|failed)"/i);
-  if (standards?.[1] !== undefined && spec?.[1] !== undefined) {
-    const s = normalizeVerdict(standards[1]);
-    const p = normalizeVerdict(spec[1]);
+  const nestedSpec = text.match(/"spec"\s*:\s*\{\s*"verdict"\s*:\s*"(pass|fail|passed|failed)"/i);
+  const flatStandards = text.match(/"standards"\s*:\s*"(pass|fail|passed|failed|not_applicable)"/i);
+  const flatSpec = text.match(/"spec"\s*:\s*"(pass|fail|passed|failed|not_applicable)"/i);
+
+  const s = normalizeVerdict(nestedStandards?.[1] ?? flatStandards?.[1]);
+  const p = normalizeVerdict(nestedSpec?.[1] ?? flatSpec?.[1]);
+  if (s !== undefined && p !== undefined) {
     if (s === 'passed' && p === 'passed') return 'passed';
-    if (s !== undefined && p !== undefined) return 'failed';
+    return 'failed';
   }
-  if (top?.[1] !== undefined) return normalizeVerdict(top[1]);
+
+  // Nested dual-axis with top-level verdict (legacy truncated shape).
+  if (/"verdict"\s*:/i.test(text) && nestedStandards && nestedSpec) {
+    const top = text.match(/\{\s*"verdict"\s*:\s*"(pass|fail|passed|failed)"/i);
+    if (top?.[1] !== undefined) return normalizeVerdict(top[1]);
+  }
+
+  // Wrapper with nested string axes: "verifyVerdict":{"spec":"passed",...}
+  const wrapped = text.match(
+    /"verifyVerdict"\s*:\s*\{[^}]*"spec"\s*:\s*"(pass|fail|passed|failed)"[^}]*"standards"\s*:\s*"(pass|fail|passed|failed)"/i,
+  );
+  if (wrapped?.[1] !== undefined && wrapped[2] !== undefined) {
+    const ws = normalizeVerdict(wrapped[2]);
+    const wp = normalizeVerdict(wrapped[1]);
+    if (ws === 'passed' && wp === 'passed') return 'passed';
+    if (ws !== undefined && wp !== undefined) return 'failed';
+  }
+  const wrappedAlt = text.match(
+    /"verifyVerdict"\s*:\s*\{[^}]*"standards"\s*:\s*"(pass|fail|passed|failed)"[^}]*"spec"\s*:\s*"(pass|fail|passed|failed)"/i,
+  );
+  if (wrappedAlt?.[1] !== undefined && wrappedAlt[2] !== undefined) {
+    const ws = normalizeVerdict(wrappedAlt[1]);
+    const wp = normalizeVerdict(wrappedAlt[2]);
+    if (ws === 'passed' && wp === 'passed') return 'passed';
+    if (ws !== undefined && wp !== undefined) return 'failed';
+  }
+
   return undefined;
 }
 
 /**
  * Parse structured verify verdict from worker summary.
  * Prefer dual-axis JSON (standards + spec); overall pass only when both axes pass.
+ * Accepts nested `{verdict}`, flat string axes, and `{"verifyVerdict":{...}}`.
  * Falls back to a single top-level verdict, a `verdict: pass|fail` line, or a
  * truncated dual-axis blob (summary budget often cuts mid-`findings`).
  */
@@ -217,17 +307,17 @@ export function parseVerifyVerdict(summary: string | undefined): JobVerifyVerdic
     if (body === undefined || body.length === 0) continue;
     const fromFence = tryParseJsonObject(body) ?? parseTruncatedDualAxisVerdict(body);
     if (fromFence !== undefined) return fromFence;
+    for (const obj of iterBalancedJsonObjects(body)) {
+      const fromObj = tryParseJsonObject(obj) ?? parseTruncatedDualAxisVerdict(obj);
+      if (fromObj !== undefined) return fromObj;
+    }
   }
 
-  try {
-    const start = text.indexOf('{');
-    const end = text.lastIndexOf('}');
-    if (start >= 0 && end > start) {
-      const fromSlice = tryParseJsonObject(text.slice(start, end + 1));
-      if (fromSlice !== undefined) return fromSlice;
-    }
-  } catch {
-    // fall through
+  // Scan each balanced object — first-to-last brace fails when two JSON
+  // objects sit after Korean markdown receipts.
+  for (const obj of iterBalancedJsonObjects(text)) {
+    const fromObj = tryParseJsonObject(obj);
+    if (fromObj !== undefined) return fromObj;
   }
 
   const truncated = parseTruncatedDualAxisVerdict(text);

@@ -85,6 +85,48 @@ ${'x'.repeat(200)}
     expect(parseVerifyVerdict('overall pass in prose only')).toBeUndefined();
   });
 
+  it('parses flat dual-axis and verifyVerdict wrapper after Korean markdown', () => {
+    // Workers often emit a Korean receipt then one or both compact JSON shapes.
+    const flat = [
+      '## 검증 결과',
+      '- 스펙: 통과',
+      '- 표준: 통과',
+      '- 시각: 해당 없음',
+      '',
+      '{"job":"job_x","spec":"passed","standards":"passed","visual":"not_applicable"}',
+    ].join('\n');
+    expect(parseVerifyVerdict(flat)).toBe('passed');
+
+    const wrapped = [
+      '## 검증 요약',
+      '독립 검증 완료.',
+      '',
+      '{"verifyVerdict":{"spec":"passed","standards":"passed","visual":"not_applicable","notes":"checks green"}}',
+    ].join('\n');
+    expect(parseVerifyVerdict(wrapped)).toBe('passed');
+
+    // Both shapes after prose: first-to-last brace slice is invalid JSON;
+    // parser must accept either object independently.
+    const dual = [
+      '## 검증 결과',
+      '마크다운 영수증',
+      '{"job":"job_x","spec":"passed","standards":"passed","visual":"not_applicable"}',
+      '{"verifyVerdict":{"spec":"passed","standards":"passed","visual":"not_applicable","notes":"ok"}}',
+    ].join('\n');
+    expect(parseVerifyVerdict(dual)).toBe('passed');
+
+    expect(
+      parseVerifyVerdict(
+        '{"job":"job_y","spec":"failed","standards":"passed","visual":"not_applicable"}',
+      ),
+    ).toBe('failed');
+    expect(
+      parseVerifyVerdict(
+        '{"verifyVerdict":{"spec":"passed","standards":"failed","visual":"passed","notes":"lint"}}',
+      ),
+    ).toBe('failed');
+  });
+
   it('detects maker=checker collision', () => {
     expect(makerCheckerCollision('eng-a', 'eng-a')).toBe(true);
     expect(makerCheckerCollision('eng-a', 'eng-b')).toBe(false);
