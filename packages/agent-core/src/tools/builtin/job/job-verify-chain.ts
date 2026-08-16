@@ -724,6 +724,8 @@ export async function onJobTerminalForVerifyChain(
       const parentNow = getJob(store, parent.id) ?? latestParent;
       const jobsNow = listJobs(store);
       if (shouldAutoEnqueueMergeAfterVerify(parentNow, jobsNow)) {
+        // Pass session cwd + kaos so land does not die with "repoPath required"
+        // when the offload lane has no interactive MergeJob args (job_msvca2y6sosz8k).
         dispatchMergeLand({
           store,
           sourceJob: parentNow,
@@ -731,6 +733,8 @@ export async function onJobTerminalForVerifyChain(
           trustReason:
             'verify_chain: latest-per-axis passed; surface_kind=none auto land (no human MergeJob click)',
           agent,
+          repoPath: agent?.config?.cwd,
+          kaos: agent?.kaos,
         });
       }
     }

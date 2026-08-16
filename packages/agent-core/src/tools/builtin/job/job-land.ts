@@ -3,6 +3,9 @@
  * Does not push remotes (main/user gated). Success may GC the job worktree.
  */
 
+import { existsSync } from 'node:fs';
+import { dirname, isAbsolute, resolve as resolvePath } from 'node:path';
+
 import type { Kaos } from '@superliora/kaos';
 
 import { runGit as kaosRunGit } from '#/autopilot/git';
@@ -30,6 +33,8 @@ export interface LandJobToMainInput {
     cwd: string,
     args: readonly string[],
   ) => Promise<{ readonly code: number; readonly stdout: string; readonly stderr: string }>;
+  /** Injectable delay for index.lock retries (tests inject a no-op). */
+  readonly sleep?: (ms: number) => Promise<void>;
 }
 
 export interface LandJobToMainResult {
@@ -47,6 +52,14 @@ export interface LandJobToMainResult {
  */
 export const LAND_LEDGER_ONLY_MESSAGE =
   'Nothing merged (no worktree on job); approval recorded on ledger only.';
+
+/** Initial attempt + retries when git reports `.git/index.lock` contention. */
+export const LAND_INDEX_LOCK_MAX_ATTEMPTS = 4;
+
+/** Backoff between index.lock retries (ms). Bounded — never wait forever. */
+export const LAND_INDEX_LOCK_BACKOFF_MS = [50, 100, 200] as const;
+
+const REPO_PATH_REQUIRED = 'repoPath required to land worktree';
 
 async function defaultRunGit(
   kaos: Kaos | undefined,
@@ -72,6 +85,123 @@ export interface ResolveJobWorktreeMergeRefResult {
 
 function gitDetail(res: { readonly stdout: string; readonly stderr: string }): string {
   return (res.stderr || res.stdout || '').trim().slice(0, 500);
+}
+
+/** True when git failed because another process holds `.git/index.lock`. */
+export function isGitIndexLockError(detail: string): boolean {
+  if (!/index\.lock/i.test(detail)) return false;
+  return (
+    /File exists/i.test(detail) ||
+    /Unable to create/i.test(detail) ||
+    /could not lock/i.test(detail) ||
+    /Another git process/i.test(detail)
+  );
+}
+
+/**
+ * Hint appended after bounded index.lock retries fail. Operators must not
+ * delete the lock while another land/merge is live.
+ */
+export function indexLockStaleHint(repoPath: string): string {
+  return (
+    `stale lock?: if no other git process is running, remove ` +
+    `${repoPath.replace(/[/\\]+$/, '')}/.git/index.lock and retry the land`
+  );
+}
+
+async function defaultSleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Run `git` with a short bounded backoff when `.git/index.lock` contention is
+ * the only failure mode (parallel lands). Never spins forever.
+ */
+export async function runGitWithIndexLockRetry(
+  cwd: string,
+  args: readonly string[],
+  runGit: NonNullable<LandJobToMainInput['runGit']>,
+  sleep: (ms: number) => Promise<void> = defaultSleep,
+): Promise<{ code: number; stdout: string; stderr: string; attempts: number }> {
+  let last = await runGit(cwd, args);
+  let attempts = 1;
+  while (last.code !== 0 && attempts < LAND_INDEX_LOCK_MAX_ATTEMPTS) {
+    const detail = gitDetail(last);
+    if (!isGitIndexLockError(detail)) break;
+    const backoff = LAND_INDEX_LOCK_BACKOFF_MS[attempts - 1] ?? 200;
+    await sleep(backoff);
+    last = await runGit(cwd, args);
+    attempts += 1;
+  }
+  return { ...last, attempts };
+}
+
+/** First `worktree <path>` entry from `git worktree list --porcelain` is main. */
+export function parseMainWorktreePathFromPorcelain(porcelain: string): string | undefined {
+  for (const line of porcelain.split(/\r?\n/)) {
+    if (!line.startsWith('worktree ')) continue;
+    const path = line.slice('worktree '.length).trim();
+    if (path.length > 0) return path;
+  }
+  return undefined;
+}
+
+/**
+ * Map `git rev-parse --git-common-dir` output to the main checkout root.
+ * Linked worktrees report the shared `.git` directory, not their own path.
+ */
+export function repoRootFromGitCommonDir(
+  commonDirRaw: string,
+  worktreePath: string,
+): string | undefined {
+  const trimmed = commonDirRaw.trim();
+  if (!trimmed) return undefined;
+  const abs = isAbsolute(trimmed) ? trimmed : resolvePath(worktreePath, trimmed);
+  const normalized = abs.replace(/[/\\]+$/, '');
+  if (/(^|[/\\])\.git$/i.test(normalized)) {
+    return dirname(normalized);
+  }
+  return undefined;
+}
+
+export interface ResolveLandRepoPathInput {
+  readonly repoPath?: string;
+  readonly worktreePath?: string;
+  readonly agent?: Agent;
+  readonly runGit: NonNullable<LandJobToMainInput['runGit']>;
+}
+
+/**
+ * Prefer explicit repoPath → agent session cwd → live worktree common-dir /
+ * worktree list. Auto-land after verify often omits repoPath (job_msvca2y6sosz8k).
+ */
+export async function resolveLandRepoPath(
+  input: ResolveLandRepoPathInput,
+): Promise<{ readonly repoPath?: string; readonly error?: string }> {
+  const explicit = input.repoPath?.trim();
+  if (explicit) return { repoPath: explicit };
+
+  const fromAgent = input.agent?.config?.cwd?.trim();
+  if (fromAgent) return { repoPath: fromAgent };
+
+  const worktreePath = input.worktreePath?.trim();
+  if (!worktreePath || !existsSync(worktreePath)) {
+    return { error: REPO_PATH_REQUIRED };
+  }
+
+  const common = await input.runGit(worktreePath, ['rev-parse', '--git-common-dir']);
+  if (common.code === 0) {
+    const root = repoRootFromGitCommonDir(common.stdout, worktreePath);
+    if (root) return { repoPath: root };
+  }
+
+  const list = await input.runGit(worktreePath, ['worktree', 'list', '--porcelain']);
+  if (list.code === 0) {
+    const main = parseMainWorktreePathFromPorcelain(list.stdout);
+    if (main) return { repoPath: main };
+  }
+
+  return { error: REPO_PATH_REQUIRED };
 }
 
 /**
@@ -122,7 +252,6 @@ export async function resolveJobWorktreeBranch(
  */
 export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobToMainResult> {
   const { store, job } = input;
-  const repoPath = input.repoPath;
   const worktreePath = job.worktreePath;
 
   if (!worktreePath) {
@@ -146,6 +275,18 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
     };
   }
 
+  const runGit =
+    input.runGit ??
+    ((cwd: string, args: readonly string[]) => defaultRunGit(input.kaos, cwd, args));
+  const sleep = input.sleep ?? defaultSleep;
+
+  const resolvedRepo = await resolveLandRepoPath({
+    repoPath: input.repoPath,
+    worktreePath,
+    agent: input.agent,
+    runGit,
+  });
+  const repoPath = resolvedRepo.repoPath;
   if (!repoPath) {
     return {
       ok: false,
@@ -153,85 +294,109 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
       merged: false,
       gcRemoved: false,
       message: '',
-      error: 'repoPath required to land worktree',
+      error: resolvedRepo.error ?? REPO_PATH_REQUIRED,
     };
   }
 
-  const runGit =
-    input.runGit ??
-    ((cwd: string, args: readonly string[]) => defaultRunGit(input.kaos, cwd, args));
+  // Sibling land may GC this worktree before we run (job_msvbu1dy11yrvn). When the
+  // directory is gone, land from ledger worktreeBranch on the main checkout —
+  // never chdir into a dead path for snapshot/status.
+  const worktreeExists = existsSync(worktreePath);
 
-  const resolved = await resolveJobWorktreeMergeRef(worktreePath, runGit, job.worktreeBranch);
-  if (resolved.ref === undefined) {
-    const detail = resolved.error ?? 'Could not resolve branch in job worktree';
-    const next = patchJobAndNotify(
-      store,
-      job.id,
-      {
-        status: 'blocked',
-        notes: [job.notes, `land: ${detail}`].filter(Boolean).join('\n'),
-      },
-      { agent: input.agent, summary: detail },
-    );
-    return {
-      ok: false,
-      job: next ?? job,
-      merged: false,
-      gcRemoved: false,
-      message: '',
-      error: detail,
-    };
+  let branch: string;
+  if (job.worktreeBranch?.trim() && !worktreeExists) {
+    // Prefer ledger branch without probing the missing directory.
+    branch = job.worktreeBranch.trim();
+  } else {
+    const resolved = await resolveJobWorktreeMergeRef(worktreePath, runGit, job.worktreeBranch);
+    if (resolved.ref === undefined) {
+      const detail = !worktreeExists
+        ? `worktree directory missing and could not resolve merge ref: ${resolved.error ?? 'unknown'}`
+        : (resolved.error ?? 'Could not resolve branch in job worktree');
+      const next = patchJobAndNotify(
+        store,
+        job.id,
+        {
+          status: 'blocked',
+          notes: [job.notes, `land: ${detail}`].filter(Boolean).join('\n'),
+        },
+        { agent: input.agent, summary: detail },
+      );
+      return {
+        ok: false,
+        job: next ?? job,
+        merged: false,
+        gcRemoved: false,
+        message: '',
+        error: detail,
+      };
+    }
+    branch = resolved.ref;
   }
-  const branch = resolved.ref;
 
   // Commit backstop: the merge below only sees the branch, so a dirty tree
   // (worker never committed) would be silently excluded from the merge and
   // destroyed by worktree GC. Snapshot first; if the snapshot itself fails,
-  // hold the land instead of discarding work.
-  const snapshot = await commitJobWorktreeIfDirty({
-    worktreePath,
-    jobId: job.id,
-    jobTitle: job.title,
-    run: async (cwd, args) => {
-      const r = await runGit(cwd, args);
-      return { ok: r.code === 0, stdout: r.stdout, stderr: r.stderr };
-    },
-  });
-  if (snapshot.error !== undefined) {
-    const err = `worktree has uncommitted changes and snapshot failed: ${snapshot.error}`;
-    const next = patchJobAndNotify(
-      store,
-      job.id,
-      {
-        status: 'blocked',
-        notes: [job.notes, `land: worktree dirty and snapshot failed — ${snapshot.error}`]
-          .filter(Boolean)
-          .join('\n'),
+  // hold the land instead of discarding work. Skip when the dir is already GC'd.
+  let snapshotNote: string | undefined;
+  if (worktreeExists) {
+    const snapshot = await commitJobWorktreeIfDirty({
+      worktreePath,
+      jobId: job.id,
+      jobTitle: job.title,
+      run: async (cwd, args) => {
+        const r = await runGit(cwd, args);
+        return { ok: r.code === 0, stdout: r.stdout, stderr: r.stderr };
       },
-      { agent: input.agent, summary: err },
-    );
-    return {
-      ok: false,
-      job: next ?? job,
-      merged: false,
-      gcRemoved: false,
-      message: '',
-      error: err,
-    };
+    });
+    if (snapshot.error !== undefined) {
+      const err = `worktree has uncommitted changes and snapshot failed: ${snapshot.error}`;
+      const next = patchJobAndNotify(
+        store,
+        job.id,
+        {
+          status: 'blocked',
+          notes: [job.notes, `land: worktree dirty and snapshot failed — ${snapshot.error}`]
+            .filter(Boolean)
+            .join('\n'),
+        },
+        { agent: input.agent, summary: err },
+      );
+      return {
+        ok: false,
+        job: next ?? job,
+        merged: false,
+        gcRemoved: false,
+        message: '',
+        error: err,
+      };
+    }
+    snapshotNote = snapshot.committed
+      ? 'land: snapshotted uncommitted worker changes onto the branch before merge'
+      : undefined;
+  } else {
+    snapshotNote = "land: worktree dir already GC'd — merging ledger branch from main checkout";
   }
-  const snapshotNote = snapshot.committed
-    ? 'land: snapshotted uncommitted worker changes onto the branch before merge'
-    : undefined;
 
   // Ensure main workspace is clean enough for merge (non-fatal warn path via stderr).
-  const merge = await runGit(repoPath, ['merge', '--no-edit', branch]);
+  // Parallel lands can contend on .git/index.lock (job_msvbrs5og77dfy) — bounded retry.
+  const merge = await runGitWithIndexLockRetry(
+    repoPath,
+    ['merge', '--no-edit', branch],
+    runGit,
+    sleep,
+  );
   if (merge.code !== 0) {
     const detail = (merge.stderr || merge.stdout || 'merge failed').slice(0, 500);
-    const err = `git merge failed: ${detail}`;
+    const lockContention = isGitIndexLockError(detail);
+    const err = lockContention
+      ? `git merge failed after ${String(merge.attempts)} attempts (index.lock): ${detail}. ${indexLockStaleHint(repoPath)}`
+      : `git merge failed: ${detail}`;
     const conflict =
-      /\bCONFLICT\b/i.test(detail) ||
-      /\bmerge conflict\b/i.test(detail) ||
-      /\bAutomatic merge failed\b/i.test(detail);
+      !lockContention &&
+      (/\bCONFLICT\b/i.test(detail) ||
+        /\bmerge conflict\b/i.test(detail) ||
+        /\bAutomatic merge failed\b/i.test(detail));
     let resolveNote: string | undefined;
     if (conflict) {
       const resolveJob = createJob(store, {
@@ -262,7 +427,14 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
       job.id,
       {
         status: 'blocked',
-        notes: [job.notes, snapshotNote, `land: merge failed — ${detail}`, resolveNote]
+        notes: [
+          job.notes,
+          snapshotNote,
+          lockContention
+            ? `land: merge failed (index.lock after ${String(merge.attempts)} attempts) — ${detail}`
+            : `land: merge failed — ${detail}`,
+          resolveNote,
+        ]
           .filter(Boolean)
           .join('\n'),
       },
@@ -349,7 +521,7 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
             : 'land: worktree retained',
       ]
         .filter(Boolean)
-        .join('\n'),
+        .join("\n"),
     },
     { agent: input.agent, summary: message },
   );
@@ -437,6 +609,8 @@ export interface DispatchMergeLandResult {
  */
 export function dispatchMergeLand(input: DispatchMergeLandInput): DispatchMergeLandResult {
   const { store, sourceJob, trustMode, trustReason } = input;
+  // Auto verify_chain land often omits repoPath; inherit session cwd when present.
+  const repoPath = input.repoPath?.trim() || input.agent?.config?.cwd?.trim() || undefined;
 
   const verdictNote = `merge: approved mode=${trustMode} — ${trustReason}`;
   const source = patchJob(store, sourceJob.id, {
@@ -452,7 +626,7 @@ export function dispatchMergeLand(input: DispatchMergeLandInput): DispatchMergeL
       `Land approved work of ${sourceJob.id} into the main workspace.`,
       `trust: mode=${trustMode} — ${trustReason}`,
       sourceJob.worktreePath ? `worktree: ${sourceJob.worktreePath}` : 'ledger-only (no worktree)',
-      input.repoPath ? `repo: ${input.repoPath}` : undefined,
+      repoPath ? `repo: ${repoPath}` : undefined,
       'Executor: landJobToMain on the offload lane (no remote push).',
     ]
       .filter(Boolean)
@@ -469,8 +643,8 @@ export function dispatchMergeLand(input: DispatchMergeLandInput): DispatchMergeL
     await runMergeLandJob({
       store,
       mergeJob: running ?? mergeJob,
-      kaos: input.kaos,
-      repoPath: input.repoPath,
+      kaos: input.kaos ?? input.agent?.kaos,
+      repoPath,
       runGit: input.runGit,
       agent: input.agent,
       // Source already carries the verdict note from the patch above.
@@ -532,13 +706,15 @@ export async function runMergeLandJob(input: RunMergeLandJobInput): Promise<Land
     };
   }
 
+  const repoPath = input.repoPath?.trim() || input.agent?.config?.cwd?.trim() || undefined;
+
   let land: LandJobToMainResult;
   try {
     land = await landJobToMain({
       store,
       job: source,
-      kaos: input.kaos,
-      repoPath: input.repoPath,
+      kaos: input.kaos ?? input.agent?.kaos,
+      repoPath,
       gcOnSuccess: true,
       runGit: input.runGit,
       agent: input.agent,

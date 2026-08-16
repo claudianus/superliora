@@ -147,3 +147,204 @@ describe('landJobToMain post-merge receipt', () => {
     expect(getJob(store, job.id)?.landReceipt).toBeUndefined();
   });
 });
+
+describe('landJobToMain repoPath inference + GC\'d worktree + index.lock', () => {
+  it('infers repoPath from agent session cwd when omitted (auto-land path)', async () => {
+    const store = memoryStore();
+    const job = jobWithWorktree(store, 'missing repoPath');
+    patchJob(store, job.id, { worktreeBranch: 'job/feature-x' });
+    const { runGit, calls } = gitStub({ headSha: 'aabbccddeeff0011' });
+    const agent = { config: { cwd: '/repo/main-from-agent' } } as never;
+
+    const result = await landJobToMain({
+      store,
+      job: getJob(store, job.id)!,
+      runGit,
+      agent,
+      gcOnSuccess: false,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.merged).toBe(true);
+    expect(result.error).toBeUndefined();
+    expect(result.message).toContain('/repo/main-from-agent');
+    expect(calls.some((c) => c.cwd === '/repo/main-from-agent' && c.args[0] === 'merge')).toBe(
+      true,
+    );
+  });
+
+  it('infers repoPath from git common-dir when agent cwd is also missing', async () => {
+    const store = memoryStore();
+    // Use a real existing directory so existsSync(worktreePath) is true for inference.
+    const worktreePath = process.cwd();
+    const job = createJob(store, { title: 'common-dir infer', kind: 'implement' });
+    patchJob(store, job.id, {
+      status: 'done',
+      worktreePath,
+      worktreeBranch: 'job/from-common-dir',
+      resultSummary: 'done',
+    });
+    const calls: { cwd: string; args: readonly string[] }[] = [];
+    const runGit = async (cwd: string, args: readonly string[]): Promise<GitResult> => {
+      calls.push({ cwd, args });
+      if (args[0] === 'rev-parse' && args[1] === '--git-common-dir') {
+        return { code: 0, stdout: '/repo/main/.git\n', stderr: '' };
+      }
+      if (args[0] === 'merge') return { code: 0, stdout: 'ok', stderr: '' };
+      if (args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        return { code: 0, stdout: '1122334455667788\n', stderr: '' };
+      }
+      if (args[0] === 'merge-base') return { code: 0, stdout: '', stderr: '' };
+      if (args[0] === 'status') return { code: 0, stdout: '', stderr: '' };
+      return { code: 0, stdout: '', stderr: '' };
+    };
+
+    const result = await landJobToMain({
+      store,
+      job: getJob(store, job.id)!,
+      runGit,
+      gcOnSuccess: false,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.merged).toBe(true);
+    expect(calls.some((c) => c.cwd === '/repo/main' && c.args[0] === 'merge')).toBe(true);
+    expect(result.message).toContain('/repo/main');
+  });
+
+  it('lands from ledger worktreeBranch when the worktree directory is already GC\'d', async () => {
+    const store = memoryStore();
+    const job = createJob(store, { title: 'gc\'d worktree land', kind: 'implement' });
+    const missingPath = `/tmp/wt/does-not-exist-${job.id}`;
+    patchJob(store, job.id, {
+      status: 'done',
+      worktreePath: missingPath,
+      worktreeBranch: 'liora/conductor-already-gc',
+      resultSummary: 'done',
+    });
+    const calls: { cwd: string; args: readonly string[] }[] = [];
+    const runGit = async (cwd: string, args: readonly string[]): Promise<GitResult> => {
+      calls.push({ cwd, args });
+      // Any git run against the missing worktree would be the bug under test.
+      if (cwd === missingPath) {
+        return {
+          code: 128,
+          stdout: '',
+          stderr: `fatal: cannot change to '${missingPath}': No such file or directory`,
+        };
+      }
+      if (args[0] === 'merge') return { code: 0, stdout: 'Fast-forward', stderr: '' };
+      if (args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        return { code: 0, stdout: 'feedface00112233\n', stderr: '' };
+      }
+      if (args[0] === 'merge-base') return { code: 0, stdout: '', stderr: '' };
+      return { code: 0, stdout: '', stderr: '' };
+    };
+
+    const result = await landJobToMain({
+      store,
+      job: getJob(store, job.id)!,
+      repoPath: '/repo/main',
+      runGit,
+      gcOnSuccess: false,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.merged).toBe(true);
+    expect(calls.some((c) => c.cwd === missingPath)).toBe(false);
+    expect(
+      calls.some(
+        (c) => c.cwd === '/repo/main' && c.args[0] === 'merge' && c.args.includes('liora/conductor-already-gc'),
+      ),
+    ).toBe(true);
+    expect(getJob(store, job.id)?.landReceipt?.branch).toBe('liora/conductor-already-gc');
+    expect(getJob(store, job.id)?.notes).toMatch(/GC'd|already GC/);
+  });
+
+  it('retries merge on index.lock then fails with a stale-lock hint', async () => {
+    const store = memoryStore();
+    const job = createJob(store, { title: 'index lock land', kind: 'implement' });
+    patchJob(store, job.id, {
+      status: 'done',
+      worktreePath: `/tmp/wt/${job.id}`,
+      worktreeBranch: 'liora/lock-contended',
+    });
+    let mergeAttempts = 0;
+    const sleeps: number[] = [];
+    const runGit = async (_cwd: string, args: readonly string[]): Promise<GitResult> => {
+      if (args[0] === 'merge') {
+        mergeAttempts += 1;
+        return {
+          code: 128,
+          stdout: '',
+          stderr:
+            "fatal: Unable to create '/repo/main/.git/index.lock': File exists.",
+        };
+      }
+      if (args[0] === 'status') return { code: 0, stdout: '', stderr: '' };
+      return { code: 0, stdout: '', stderr: '' };
+    };
+
+    const result = await landJobToMain({
+      store,
+      job: getJob(store, job.id)!,
+      repoPath: '/repo/main',
+      runGit,
+      sleep: async (ms) => {
+        sleeps.push(ms);
+      },
+      gcOnSuccess: false,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(mergeAttempts).toBe(4);
+    expect(sleeps).toEqual([50, 100, 200]);
+    expect(result.error).toMatch(/index\.lock/i);
+    expect(result.error).toMatch(/stale lock/i);
+    expect(result.error).toContain('.git/index.lock');
+    expect(getJob(store, job.id)?.status).toBe('blocked');
+  });
+
+  it('succeeds after a transient index.lock on merge', async () => {
+    const store = memoryStore();
+    const job = createJob(store, { title: 'index lock recover', kind: 'implement' });
+    patchJob(store, job.id, {
+      status: 'done',
+      worktreePath: `/tmp/wt/${job.id}`,
+      worktreeBranch: 'liora/lock-recover',
+    });
+    let mergeAttempts = 0;
+    const runGit = async (_cwd: string, args: readonly string[]): Promise<GitResult> => {
+      if (args[0] === 'merge') {
+        mergeAttempts += 1;
+        if (mergeAttempts < 2) {
+          return {
+            code: 128,
+            stdout: '',
+            stderr: "fatal: Unable to create '/repo/main/.git/index.lock': File exists.",
+          };
+        }
+        return { code: 0, stdout: 'Merge made by ort', stderr: '' };
+      }
+      if (args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        return { code: 0, stdout: '99aabbccddeeff00\n', stderr: '' };
+      }
+      if (args[0] === 'merge-base') return { code: 0, stdout: '', stderr: '' };
+      if (args[0] === 'status') return { code: 0, stdout: '', stderr: '' };
+      return { code: 0, stdout: '', stderr: '' };
+    };
+
+    const result = await landJobToMain({
+      store,
+      job: getJob(store, job.id)!,
+      repoPath: '/repo/main',
+      runGit,
+      sleep: async () => {},
+      gcOnSuccess: false,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(mergeAttempts).toBe(2);
+    expect(getJob(store, job.id)?.landReceipt?.branch).toBe('liora/lock-recover');
+  });
+});
