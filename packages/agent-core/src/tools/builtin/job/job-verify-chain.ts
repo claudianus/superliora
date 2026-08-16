@@ -72,9 +72,50 @@ export function healAllVerifyVerdictsFromSummary(store: ToolStore): readonly Job
   return healed;
 }
 
-/** Implement/task workers that should receive an automatic verify child. */
-export function shouldEnqueueVerifyAfterDone(job: JobRecord): boolean {
-  if (job.status !== 'done') return false;
+/**
+ * Desktop / out-of-repo work must not fan out Maker≠Checker verify children
+ * (pool starvation: general desktop tasks were spawning 4+ verify kids).
+ * Signals: desktop/computer-use wording, or a task with no worktree and no
+ * ownership paths (repo-outside general work).
+ */
+export function isDesktopOrOutOfRepoJob(
+  job: Pick<
+    JobRecord,
+    'kind' | 'title' | 'prompt' | 'staffQuery' | 'worktreePath' | 'ownershipPaths'
+  >,
+): boolean {
+  const text = `${job.title}\n${job.prompt ?? ''}\n${job.staffQuery ?? ''}`;
+  if (/\b(desktop|computer-use|Computer(?:Capture|Act|Status))\b/i.test(text)) {
+    return true;
+  }
+  if (
+    job.kind === 'task' &&
+    (job.worktreePath === undefined || job.worktreePath.trim().length === 0) &&
+    (job.ownershipPaths === undefined || job.ownershipPaths.length === 0)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Whether a coding Job is expected to run the automatic verify chain.
+ * Mission / explore / research / surface none / desktop / out-of-repo → false.
+ * Coding implement (and in-repo task with a real surface) → true.
+ */
+export function jobRequiresVerifyChain(
+  job: Pick<
+    JobRecord,
+    | 'kind'
+    | 'title'
+    | 'parentJobId'
+    | 'surfaceKind'
+    | 'prompt'
+    | 'staffQuery'
+    | 'worktreePath'
+    | 'ownershipPaths'
+  >,
+): boolean {
   if (
     job.kind === 'merge' ||
     job.kind === 'push' ||
@@ -91,7 +132,23 @@ export function shouldEnqueueVerifyAfterDone(job: JobRecord): boolean {
   if (job.kind === 'implement' && job.title.startsWith('Debug:') && job.parentJobId !== undefined) {
     return false;
   }
-  return job.kind === 'task' || job.kind === 'implement';
+  if (job.kind !== 'task' && job.kind !== 'implement') {
+    return false;
+  }
+  // No UI surface → no visual verify fan-out (and no Standards∥Spec kids either).
+  if (job.surfaceKind === 'none') {
+    return false;
+  }
+  if (isDesktopOrOutOfRepoJob(job)) {
+    return false;
+  }
+  return true;
+}
+
+/** Implement/task workers that should receive an automatic verify child. */
+export function shouldEnqueueVerifyAfterDone(job: JobRecord): boolean {
+  if (job.status !== 'done') return false;
+  return jobRequiresVerifyChain(job);
 }
 
 export function findVerifyChildren(
@@ -946,12 +1003,14 @@ export function evaluateVerifyChainForMerge(input: {
     input.job.kind === 'desk' ||
     input.job.kind === 'explore' ||
     input.job.kind === 'research' ||
+    input.job.kind === 'mission' ||
     input.job.kind === 'verify'
   ) {
     return { ok: true };
   }
-  // Only gate coding deliveries.
-  if (input.job.kind !== 'task' && input.job.kind !== 'implement') {
+  // Only gate coding deliveries that require a verify chain.
+  // surfaceKind=none / desktop / out-of-repo / non-coding → no verify kids expected.
+  if (!jobRequiresVerifyChain(input.job)) {
     return { ok: true };
   }
 

@@ -215,18 +215,21 @@ export function mergeTrustInputFromLedger(input: {
       ...(claim.paths ?? []),
     ]),
   ];
+  // Mission / plan / non-coding deliveries never require visual proof or a verify chain.
+  // Only task/implement coding land can hold on surfaceKind / Maker≠Checker.
   const codingKind = job.kind === 'task' || job.kind === 'implement';
   const surfaceKindMissing = codingKind && job.surfaceKind === undefined;
-  const visualBlocks = verificationVisualBlocksMergeForSurface(
-    contract?.verification,
-    job.surfaceKind,
-  );
+  const visualBlocks =
+    codingKind &&
+    verificationVisualBlocksMergeForSurface(contract?.verification, job.surfaceKind);
   const verifyGate =
-    input.jobs === undefined
+    !codingKind || input.jobs === undefined
       ? { ok: true as const }
       : evaluateVerifyChainForMerge({ job, jobs: input.jobs });
   // Root/greenfield packages often leave tests/lint as not_run when the
   // completion gate skipped; a passed Maker≠Checker verify is the witness.
+  // Mission / non-coding plan deliveries never run the product test suite —
+  // trust the conductor claim when no verification failure is stamped.
   const checksGreenFromLedger = verificationIsGreen(contract?.verification);
   const checksGreenFromVerify =
     codingKind &&
@@ -239,10 +242,21 @@ export function mergeTrustInputFromLedger(input: {
         !verificationHasFailure(child.resultContract?.verification),
     ) ??
       false);
+  // Mission visual is often not_run/failed after ExitPlanMode (no UI surface).
+  // Only tests/typecheck/lint failures can withdraw the conductor claim.
+  const missionVerification = contract?.verification;
+  const missionProductChecksFailed =
+    missionVerification !== undefined &&
+    (missionVerification.tests === 'failed' ||
+      missionVerification.typecheck === 'failed' ||
+      missionVerification.lint === 'failed');
+  const checksGreenFromMission =
+    !codingKind && claim.checksGreen !== false && !missionProductChecksFailed;
   return {
     approve: claim.approve,
     checksGreen:
-      claim.checksGreen !== false && (checksGreenFromLedger || checksGreenFromVerify),
+      claim.checksGreen !== false &&
+      (checksGreenFromLedger || checksGreenFromVerify || checksGreenFromMission),
     hasConflict: claim.hasConflict === true,
     paths,
     ...(claim.diffLines === undefined ? {} : { diffLines: claim.diffLines }),
@@ -250,9 +264,12 @@ export function mergeTrustInputFromLedger(input: {
     forceUserConfirm: claim.forceUserConfirm === true,
     surfaceKindMissing,
     surfaceKind: job.surfaceKind,
-    visualProofMissing: !surfaceKindMissing && visualBlocks,
+    // Mission never visual-blocks; coding only when surfaceKind requires proof.
+    visualProofMissing: codingKind && !surfaceKindMissing && Boolean(visualBlocks),
     visualVerdict: contract?.verification?.visual ?? 'not_run',
-    reviewChainBlocked: verifyGate.ok === false,
-    ...(verifyGate.ok === false ? { reviewChainReason: verifyGate.reason } : {}),
+    reviewChainBlocked: codingKind && verifyGate.ok === false,
+    ...(codingKind && verifyGate.ok === false
+      ? { reviewChainReason: verifyGate.reason }
+      : {}),
   };
 }
