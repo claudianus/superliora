@@ -390,7 +390,7 @@ function normalizeQuestionResult(
 }
 
 const AUTO_ANSWER_ASSUMPTION =
-  'Assumption: proceed with the stated goal; refine if blocked.';
+  'Assumption: proceed toward a higher quality bar (tests, visual proof, complete scope); refine if blocked.';
 
 /**
  * Destructive / irreversible question signals: auto mode must never silently
@@ -447,7 +447,7 @@ export interface AutoInterviewDecisionRecord {
   readonly chosen: string;
   readonly reason: string;
   readonly confidence: number;
-  readonly source: 'recommended' | 'baseline' | 'upgrade' | 'open_assumption';
+  readonly source: 'recommended' | 'baseline' | 'upgrade' | 'quality' | 'open_assumption';
   readonly options: readonly string[];
 }
 
@@ -456,8 +456,10 @@ export interface AutoInterviewDecisionRecord {
  * contextual option itself. This is deliberate auto-fill, not "skip the question".
  * YOLO mode still asks the human; manual mode also waits for a real user answer.
  *
- * Mission quality: prefer Recommended / Baseline labels, record reason + confidence
- * into the answer text so interview findings seed a verifiable goal without click-spam.
+ * Mission quality: after the destructive gate, pick the highest-quality non-destructive
+ * option (visual proof / complete scope / tests) rather than blindly accepting
+ * "(Recommended)" or the first baseline shortcut. Record reason + confidence so
+ * interview findings seed a verifiable goal without click-spam.
  */
 function tryAutoAnswerQuestions(
   args: NormalizedAskUserQuestionInput,
@@ -475,15 +477,17 @@ function tryAutoAnswerQuestions(
     if (question.options.length === 0) {
       const chosen = AUTO_ANSWER_ASSUMPTION;
       answers[key] = formatAutoDecisionAnswer(chosen, {
-        reason: 'Open question under auto mode — proceed with stated goal; refine if blocked',
-        confidence: 0.55,
+        reason:
+          'Open question under auto mode — proceed toward higher quality (tests, visual proof, complete scope); refine if blocked',
+        confidence: 0.6,
         source: 'open_assumption',
       });
       decisions.push({
         question: key,
         chosen,
-        reason: 'Open question under auto mode — proceed with stated goal; refine if blocked',
-        confidence: 0.55,
+        reason:
+          'Open question under auto mode — proceed toward higher quality (tests, visual proof, complete scope); refine if blocked',
+        confidence: 0.6,
         source: 'open_assumption',
         options: [],
       });
@@ -526,60 +530,165 @@ function pickAutoInterviewOption(
   readonly confidence: number;
   readonly source: AutoInterviewDecisionRecord['source'];
 } {
-  const recommended = options.find((option) =>
-    /\(Recommended\)/i.test(option.label),
-  );
-  if (recommended !== undefined) {
-    return {
-      label: recommended.label,
-      reason:
-        recommended.description.trim().length > 0
-          ? `Recommended option: ${recommended.description.trim()}`
-          : 'Explicit (Recommended) option authored for interview',
-      confidence: 0.88,
-      source: 'recommended',
-    };
+  // Score every option for quality signals. "(Recommended)" is only a weak tie
+  // boost — auto mode upgrades toward proof/complete scope, not the author hint.
+  let bestIndex = 0;
+  let bestScore = Number.NEGATIVE_INFINITY;
+  let bestBoost = 0;
+  let bestPenalty = 0;
+  for (let index = 0; index < options.length; index++) {
+    const option = options[index]!;
+    const scored = scoreAutoInterviewOption(option);
+    const wins =
+      scored.score > bestScore ||
+      (scored.score === bestScore &&
+        (isRecommendedLabel(option.label) ||
+          (!isRecommendedLabel(options[bestIndex]!.label) && index < bestIndex)));
+    if (wins) {
+      bestIndex = index;
+      bestScore = scored.score;
+      bestBoost = scored.boost;
+      bestPenalty = scored.penalty;
+    }
   }
 
-  const baseline = options.find((option) =>
-    /\bbaseline\b/i.test(option.label),
-  );
-  if (baseline !== undefined) {
-    return {
-      label: baseline.label,
-      reason:
-        baseline.description.trim().length > 0
-          ? `Baseline option: ${baseline.description.trim()}`
-          : 'Baseline option preserves minimal reversible scope under auto interview',
-      confidence: 0.78,
-      source: 'baseline',
-    };
-  }
-
-  const upgrade = options.find((option) => /\bupgrade\b/i.test(option.label));
-  // Prefer baseline-first ordering: first option is treated as agent-authored baseline.
-  const first = options[0]!;
-  if (upgrade !== undefined && options.indexOf(upgrade) === 0) {
-    return {
-      label: upgrade.label,
-      reason:
-        upgrade.description.trim().length > 0
-          ? `Upgrade-first list: ${upgrade.description.trim()}`
-          : 'First option is Upgrade; accepting for higher payoff under auto mode',
-      confidence: 0.72,
-      source: 'upgrade',
-    };
-  }
-
+  const chosen = options[bestIndex]!;
+  const source = classifyAutoInterviewSource(chosen, bestBoost, bestPenalty);
+  const reason = buildAutoInterviewPickReason(chosen, source, bestBoost, bestPenalty);
+  const confidence = confidenceForAutoInterviewSource(source, bestBoost, bestPenalty);
   return {
-    label: first.label,
-    reason:
-      first.description.trim().length > 0
-        ? `First option as baseline: ${first.description.trim()}`
-        : 'First option treated as baseline under auto interview',
-    confidence: 0.7,
-    source: 'baseline',
+    label: chosen.label,
+    reason,
+    confidence,
+    source,
   };
+}
+
+/** Positive quality signals — prefer proof, complete scope, and polish. */
+const QUALITY_BOOST_PATTERNS: ReadonlyArray<{ readonly pattern: RegExp; readonly weight: number }> =
+  [
+    { pattern: /\bverifysurface\b/i, weight: 14 },
+    { pattern: /\bvisual\s+rubric\b/i, weight: 14 },
+    { pattern: /\bcinematic\b/i, weight: 12 },
+    { pattern: /\bvisual\s+proof\b/i, weight: 12 },
+    { pattern: /\bcomplete\s+scope\b/i, weight: 12 },
+    { pattern: /\bfull\s+scope\b/i, weight: 11 },
+    { pattern: /\bhigher\s+quality\b|\bquality\s+bar\b|\bquality\s+upgrade\b/i, weight: 11 },
+    { pattern: /\bproduction[- ]?ready\b/i, weight: 9 },
+    { pattern: /\bpremium\b/i, weight: 8 },
+    { pattern: /\bend[- ]to[- ]end\b|\be2e\b/i, weight: 8 },
+    { pattern: /\bwith\s+tests?\b|\bfull\s+tests?\b|\btest\s+coverage\b|\badd\s+tests?\b/i, weight: 8 },
+    { pattern: /\bthorough\b/i, weight: 7 },
+    { pattern: /\bscreenshot\b/i, weight: 7 },
+    { pattern: /\bupgrade\b/i, weight: 7 },
+    { pattern: /\bpolish(?:ed)?\b/i, weight: 6 },
+    { pattern: /\ba11y\b|\baccessibility\b/i, weight: 6 },
+    { pattern: /\bevidence\b|\bproof\b/i, weight: 5 },
+    { pattern: /\bfull\s+version\b|\bcomplete\s+version\b/i, weight: 5 },
+  ];
+
+/** Shortcut / defer signals — auto mode should not pick these when better exists. */
+const QUALITY_PENALTY_PATTERNS: ReadonlyArray<{ readonly pattern: RegExp; readonly weight: number }> =
+  [
+    { pattern: /\bskip\b/i, weight: 12 },
+    { pattern: /\bbug[- ]?only\b/i, weight: 12 },
+    { pattern: /\bminimal\b/i, weight: 10 },
+    { pattern: /\blater\b|\bdefer(?:red)?\b|\bpostpone\b/i, weight: 9 },
+    { pattern: /\bstub\b|\bplaceholder\b/i, weight: 9 },
+    { pattern: /\bshortcut\b|\bcheapest\b|\bsmallest\b/i, weight: 9 },
+    { pattern: /\bno\s+tests?\b|\bwithout\s+tests?\b|\bskip\s+tests?\b/i, weight: 9 },
+    { pattern: /\bbaseline\b/i, weight: 7 },
+    { pattern: /\bpartial\b|\bquick[- ]?fix\b/i, weight: 7 },
+    { pattern: /\bmvp\b|\bbare\b|\btemp(?:orary)?\b/i, weight: 6 },
+    { pattern: /\bdraft\b|\brough\b/i, weight: 5 },
+  ];
+
+const RECOMMENDED_LABEL_RE = /\(Recommended\)/i;
+
+function isRecommendedLabel(label: string): boolean {
+  return RECOMMENDED_LABEL_RE.test(label);
+}
+
+function scoreAutoInterviewOption(option: {
+  readonly label: string;
+  readonly description: string;
+}): { readonly score: number; readonly boost: number; readonly penalty: number } {
+  const text = `${option.label}\n${option.description}`;
+  let boost = 0;
+  for (const { pattern, weight } of QUALITY_BOOST_PATTERNS) {
+    if (pattern.test(text)) boost += weight;
+  }
+  let penalty = 0;
+  for (const { pattern, weight } of QUALITY_PENALTY_PATTERNS) {
+    if (pattern.test(text)) penalty += weight;
+  }
+  // Weak authoring hint only — never enough to beat a real quality upgrade.
+  const recommendedBoost = isRecommendedLabel(option.label) ? 2 : 0;
+  return {
+    score: boost - penalty + recommendedBoost,
+    boost,
+    penalty,
+  };
+}
+
+function classifyAutoInterviewSource(
+  option: { readonly label: string; readonly description: string },
+  boost: number,
+  penalty: number,
+): AutoInterviewDecisionRecord['source'] {
+  if (boost > 0 && boost >= penalty) {
+    if (/\bupgrade\b/i.test(`${option.label}\n${option.description}`)) return 'upgrade';
+    return 'quality';
+  }
+  if (isRecommendedLabel(option.label)) return 'recommended';
+  if (/\bbaseline\b/i.test(option.label)) return 'baseline';
+  if (/\bupgrade\b/i.test(option.label)) return 'upgrade';
+  return 'baseline';
+}
+
+function buildAutoInterviewPickReason(
+  option: { readonly label: string; readonly description: string },
+  source: AutoInterviewDecisionRecord['source'],
+  boost: number,
+  penalty: number,
+): string {
+  const description = option.description.trim();
+  if (source === 'quality') {
+    return description.length > 0
+      ? `Quality upgrade over shortcuts: ${description}`
+      : 'Quality-aware auto pick (visual proof / complete scope / tests over skip-minimal)';
+  }
+  if (source === 'upgrade') {
+    return description.length > 0
+      ? `Upgrade option: ${description}`
+      : 'Upgrade option preferred for higher payoff under auto mode';
+  }
+  if (source === 'recommended') {
+    return description.length > 0
+      ? `Recommended option: ${description}`
+      : 'Explicit (Recommended) option authored for interview';
+  }
+  if (penalty > boost && penalty > 0) {
+    // Only shortcut-like options remained — still document the pick.
+    return description.length > 0
+      ? `Best available option under auto mode: ${description}`
+      : 'Best available option under auto mode (no higher-quality alternative)';
+  }
+  return description.length > 0
+    ? `First option as baseline: ${description}`
+    : 'First option treated as baseline under auto interview';
+}
+
+function confidenceForAutoInterviewSource(
+  source: AutoInterviewDecisionRecord['source'],
+  boost: number,
+  penalty: number,
+): number {
+  if (source === 'quality') return Math.min(0.92, 0.8 + Math.min(boost, 20) * 0.005);
+  if (source === 'upgrade') return 0.84;
+  if (source === 'recommended') return 0.88;
+  if (penalty > boost) return 0.62;
+  return 0.7;
 }
 
 /** Exported for unit tests — pure auto interview picker. */

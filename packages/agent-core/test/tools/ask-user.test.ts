@@ -288,7 +288,7 @@ describe('AskUserQuestionTool', () => {
     const output = typeof result.output === 'string' ? JSON.parse(result.output) : result.output;
     expect(output.method).toBe('auto');
     expect(output.answers['What features define full version?']).toContain(
-      'Assumption: proceed with the stated goal; refine if blocked.',
+      'Assumption: proceed toward a higher quality bar (tests, visual proof, complete scope); refine if blocked.',
     );
     expect(telemetryTrack).toHaveBeenCalledWith('question_answered', {
       answered: 1,
@@ -335,6 +335,87 @@ describe('AskUserQuestionTool', () => {
       'auto',
     );
     expect(decision).toBeUndefined();
+  });
+
+  it('prefers a quality upgrade over a Recommended shortcut under auto mode', () => {
+    const decision = buildAutoInterviewDecisionForTest(
+      {
+        questions: [
+          {
+            question: 'How complete should the UI deliverable be?',
+            header: 'Scope',
+            options: [
+              {
+                label: 'Minimal (Recommended)',
+                description: 'Bug-only fix, skip visual polish',
+              },
+              {
+                label: 'Complete with VerifySurface',
+                description: 'Full scope, visual rubric, cinematic polish, and tests',
+              },
+            ],
+            multi_select: false,
+          },
+        ],
+      },
+      'auto',
+    );
+    expect(decision?.answers['How complete should the UI deliverable be?']).toContain(
+      'Complete with VerifySurface',
+    );
+    expect(decision?.decisions?.[0]).toMatchObject({
+      chosen: 'Complete with VerifySurface',
+      source: 'quality',
+    });
+    expect(decision?.answers['How complete should the UI deliverable be?']).not.toContain(
+      'Minimal (Recommended)',
+    );
+  });
+
+  it('prefers complete/visual proof over skip/later/minimal options under auto mode', () => {
+    const decision = buildAutoInterviewDecisionForTest(
+      {
+        questions: [
+          {
+            question: 'Verification depth?',
+            header: 'QA',
+            options: [
+              { label: 'Skip for now', description: 'Ship without checks' },
+              { label: 'Later', description: 'Defer visual proof' },
+              {
+                label: 'Cinematic + visual rubric',
+                description: 'VerifySurface, screenshots, complete scope',
+              },
+            ],
+            multi_select: false,
+          },
+        ],
+      },
+      'auto',
+    );
+    expect(decision?.answers['Verification depth?']).toContain('Cinematic + visual rubric');
+    expect(decision?.decisions?.[0]?.source).toBe('quality');
+  });
+
+  it('still picks Recommended when no higher-quality alternative exists', () => {
+    const decision = buildAutoInterviewDecisionForTest(
+      {
+        questions: [
+          {
+            question: 'Which database?',
+            header: 'Storage',
+            options: [
+              { label: 'Postgres (Recommended)', description: 'Relational storage' },
+              { label: 'SQLite', description: 'Embedded storage' },
+            ],
+            multi_select: false,
+          },
+        ],
+      },
+      'auto',
+    );
+    expect(decision?.answers['Which database?']).toContain('Postgres (Recommended)');
+    expect(decision?.decisions?.[0]?.source).toBe('recommended');
   });
 
   it('records auto origin for ultra interview answers under auto mode', async () => {
