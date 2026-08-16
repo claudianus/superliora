@@ -26,6 +26,10 @@ import {
   statusFromSetupResult,
   throwIfAborted,
 } from './browser-support';
+import {
+  resolveCloakBrowserLaunch,
+  type CloakBrowserLaunch,
+} from './cloak-browser-launch';
 import { PlaywrightPageHarness } from './playwright-page-harness';
 
 export interface CloakBrowserRuntimeOptions {
@@ -45,7 +49,7 @@ export interface CloakBrowserRuntimeOptions {
   readonly info?: (() => Promise<SetupCommandResult>) | undefined;
   readonly update?: (() => Promise<SetupCommandResult>) | undefined;
   /** Test seam: skip the real `cloakbrowser` import. */
-  readonly launch?: ((options: never) => Promise<Browser | undefined>) | undefined;
+  readonly launch?: CloakBrowserLaunch | undefined;
 }
 
 /** Process-wide quiet binary refresh; cloakbrowser's own TTY updater stays off. */
@@ -120,7 +124,9 @@ export class CloakBrowserRuntime implements BrowserUseRuntime {
   }
 
   private async connectBrowser(signal?: AbortSignal): Promise<Browser> {
-    const launch = this.options.launch ?? (await import('cloakbrowser')).launch;
+    // Prefer disk-resolved cloakbrowser.launch so SEA/native alwaysBundle
+    // shims (`init_dist`/`dist_exports`) cannot leave `.launch` undefined.
+    const launch = this.options.launch ?? (await resolveCloakBrowserLaunch());
     try {
       return await this.launchWith(launch);
     } catch (firstError) {
@@ -137,8 +143,10 @@ export class CloakBrowserRuntime implements BrowserUseRuntime {
       }
 
       throwIfAborted(signal);
+      // Re-resolve after install: binary/package layout may have changed.
+      const launchAfterInstall = this.options.launch ?? (await resolveCloakBrowserLaunch());
       try {
-        return await this.launchWith(launch);
+        return await this.launchWith(launchAfterInstall);
       } catch (secondError) {
         throw new Error(
           `CloakBrowser launch failed after auto-install: ${describeError(secondError)}. ` +
@@ -150,7 +158,7 @@ export class CloakBrowserRuntime implements BrowserUseRuntime {
   }
 
   private async launchWith(
-    launch: (options: never) => Promise<Browser | undefined>,
+    launch: CloakBrowserLaunch,
   ): Promise<Browser> {
     return withCloakEnv(this.options, async () =>
       withMutedConsole(async () => {

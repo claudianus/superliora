@@ -1,6 +1,7 @@
 export * from './types';
 export * from './browser/camoufox-browser';
 export * from './browser/cloak-browser';
+export * from './browser/cloak-browser-launch';
 export * from './browser/lightpanda-browser';
 export * from './browser/create-browser-use-runtime';
 export * from './browser/tiered-browser-use';
