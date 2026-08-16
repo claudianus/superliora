@@ -165,4 +165,39 @@ describe('collectStorageGarbage', () => {
     expect(report.homeBytes).toBeGreaterThanOrEqual(report.sessionsBytes);
     expect(formatBytes(1024)).toContain('KB');
   });
+
+  it('skips locked idle wires via isPathLocked seam', async () => {
+    const home = await tempDir('gc-locked-');
+    const sessionDir = join(home, 'sessions', 'wd_test', 'session_locked');
+    const agentDir = join(sessionDir, 'agents', 'agent-1');
+    await mkdir(agentDir, { recursive: true });
+    const wire = join(agentDir, WIRE_JSONL);
+    await writeFile(wire, '{"type":"message","id":"locked"}\n', 'utf-8');
+    await writeFile(join(sessionDir, 'state.json'), '{}', 'utf-8');
+    const now = Date.now();
+    const old = (now - 10 * 24 * 60 * 60 * 1000) / 1000;
+    await utimes(wire, old, old);
+    await utimes(join(sessionDir, 'state.json'), old, old);
+
+    const lockedPaths: string[] = [];
+    const report = await collectStorageGarbage({
+      homeDir: home,
+      dryRun: false,
+      idleMs: 7 * 24 * 60 * 60 * 1000,
+      now,
+      pruneCache: false,
+      pruneWorktreeTmp: false,
+      isPathLocked: async (path) => {
+        lockedPaths.push(path);
+        return true;
+      },
+    });
+
+    expect(lockedPaths.some((p) => p.endsWith(WIRE_JSONL))).toBe(true);
+    expect(report.items.some((i) => i.kind === 'skipped-locked' && i.action === 'skip')).toBe(
+      true,
+    );
+    await expect(stat(wire)).resolves.toBeTruthy();
+    await expect(stat(join(agentDir, WIRE_JSONL_GZ))).rejects.toThrow();
+  });
 });

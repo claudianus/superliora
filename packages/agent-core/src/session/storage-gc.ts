@@ -5,7 +5,7 @@
  * session wires — never active session dirs or locked jsonl files.
  */
 import { open, readdir, rm, stat } from 'node:fs/promises';
-import { join } from 'pathe';
+import { dirname, join } from 'pathe';
 
 import { worktreesRoot } from '#/session/worktree';
 import { compressWireJsonl, WIRE_JSONL, WIRE_JSONL_GZ } from '#/session/store/wire-gzip';
@@ -27,6 +27,8 @@ export interface StorageGcOptions {
   readonly pruneWorktreeTmp?: boolean;
   /** Now override for tests. */
   readonly now?: number;
+  /** Lock probe override for tests (seam: isPathLocked). */
+  readonly isPathLocked?: (path: string) => Promise<boolean>;
 }
 
 export interface StorageGcItem {
@@ -72,7 +74,7 @@ async function dirBytes(path: string): Promise<number> {
   return total;
 }
 
-async function isPathLocked(path: string): Promise<boolean> {
+export async function isPathLocked(path: string): Promise<boolean> {
   try {
     const fh = await open(path, 'r+');
     await fh.close();
@@ -196,39 +198,20 @@ export async function collectStorageGarbage(options: StorageGcOptions): Promise<
     }
   }
 
+  const checkLocked = options.isPathLocked ?? isPathLocked;
+
   if (options.compressIdleWires !== false) {
     for await (const agentDir of walkAgentDirs(sessionsRoot)) {
-      const sessionDir = join(agentDir, '..', '..');
-      // Normalize: agentDir = .../session_x/agents/agent_y
-      const sessRoot = join(agentDir, '..', '..');
-      let resolvedSession = sessRoot;
-      try {
-        // walk up two levels from agentDir
-        resolvedSession = join(agentDir, '..', '..');
-      } catch {
-        // ignore
-      }
-      // Use path segments: agents parent is session
-      const parts = agentDir.replace(/\\/g, '/').split('/');
-      const agentsIdx = parts.lastIndexOf('agents');
-      const sessionPath =
-        agentsIdx > 0 ? parts.slice(0, agentsIdx).join('/') : resolvedSession;
-
-      let isActive = false;
-      for (const active of activeSessions) {
-        if (sessionPath === active.replace(/\\/g, '/') || agentDir.startsWith(active)) {
-          isActive = true;
-          break;
-        }
-      }
-      if (isActive) continue;
+      // agentDir = .../session_x/agents/agent_y → session root is two levels up
+      const sessionPath = dirname(dirname(agentDir));
+      if (activeSessions.has(sessionPath)) continue;
 
       const plain = join(agentDir, WIRE_JSONL);
       const plainM = await mtimeMs(plain);
       if (plainM === undefined) continue;
       if (now - plainM < idleMs) continue;
 
-      if (await isPathLocked(plain)) {
+      if (await checkLocked(plain)) {
         items.push({ path: plain, kind: 'skipped-locked', action: 'skip' });
         skipped += 1;
         continue;

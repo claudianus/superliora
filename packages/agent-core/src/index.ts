@@ -126,6 +126,7 @@ export {
   collectStorageGarbage,
   measureStorageBytes,
   formatBytes,
+  isPathLocked,
   type StorageGcOptions,
   type StorageGcReport,
   type StorageGcItem,
