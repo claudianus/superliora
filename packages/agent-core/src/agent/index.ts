@@ -42,6 +42,7 @@ import {
 import type { PromisableMethods } from '../utils/types';
 import { bindJobLedgerCrashMirror } from '../tools/builtin/job/job-crash-mirror';
 import { recoverJobsAfterResume } from '../tools/builtin/job/job-recovery';
+import { ConductorIdlePulse } from '../session/job/conductor-idle-pulse';
 import { BackgroundManager, BackgroundTaskPersistence } from './background';
 import { CacheFreezeGuard } from './cache';
 import { ToolParallelStatus } from '../loop/tool-parallel-status';
@@ -237,6 +238,8 @@ export class Agent {
   readonly tools: ToolManager;
   readonly background: BackgroundManager;
   readonly cron: CronManager | null;
+  /** Idle chat progress pulse when workers run (main only; null when disabled/sub). */
+  readonly idlePulse: ConductorIdlePulse | null;
   readonly goal: GoalMode;
   readonly dream: AutoDreamService | null;
   /** Continual-harness refine pipeline; main agents only (subagents don't self-modify the harness). */
@@ -354,6 +357,7 @@ export class Agent {
       this.homedir === undefined ? undefined : new BackgroundTaskPersistence(this.homedir),
     );
     this.cron = this.type === 'sub' ? null : new CronManager(this);
+    this.idlePulse = this.type === 'main' ? new ConductorIdlePulse(this) : null;
     this.goal = new GoalMode(this);
     this.dream =
       options.dreamStore !== undefined ? new AutoDreamService(this, options.dreamStore) : null;
