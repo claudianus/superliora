@@ -1,4 +1,4 @@
-import type { ToolCallBlockData, ToolResultBlockData } from '#/tui/types';
+import type { ToolCallBlockData, ToolResultBlockData, TranscriptDetailLevel } from '#/tui/types';
 import type { SubagentPhase, SubagentTextKind } from './subagent';
 import { applyToolHeaderEntrance } from '#/tui/features/transcript/transcript-entrance';
 
@@ -19,6 +19,7 @@ export interface ToolCallInternalsHost {
   resultSettledAtMs: number | undefined;
   finishedAtMs: number | undefined;
   workspaceDir: string | undefined;
+  detail: TranscriptDetailLevel;
   expanded: boolean;
   isOneLineCollapsed: boolean;
   progressLines: string[];
@@ -115,6 +116,7 @@ export function buildToolCallHeaderText(host: ToolCallInternalsHost): string {
     subagentContextTokens: host.subagent.contextTokens,
     subagentUsage: host.subagent.usage,
     subagentSpinnerFrame: host.subagent.spinnerFrame,
+    detail: host.detail,
   });
   if (host.result === undefined) {
     const startedAtMs = toolHeaderEntranceStartedAt(host.toolCall.id);

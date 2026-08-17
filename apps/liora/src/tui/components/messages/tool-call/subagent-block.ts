@@ -326,7 +326,7 @@ export function buildSingleSubagentBlockComponents(state: SingleSubagentBlockSta
   if (state.derivedSubagentPhase !== 'done' && state.subagentThinkingText.trim().length > 0) {
     const detail = getActiveTranscriptDetail();
     // Match main-agent thinking density: minimal hides body; full shows all;
-    // compact/standard keep a short tail window.
+    // compact keeps a 2-line tail; standard uses THINKING_PREVIEW_LINES.
     if (detail !== 'minimal') {
       const thinkingText = state.subagentThinkingText.trimEnd();
       items.push(

@@ -108,7 +108,7 @@ export function formatTranscriptDetailCycleLabel(level: TranscriptDetailLevel): 
     case 'minimal':
       return 'Transcript · minimal (chain-only · click bar to expand tools)';
     case 'compact':
-      return 'Transcript · compact (chain bar · tool headers · phase tints)';
+      return 'Transcript · compact (activity titles · dim metrics · no chrome)';
     case 'standard':
       return 'Transcript · standard (chain bar · preview cards · phase tints)';
     case 'full':

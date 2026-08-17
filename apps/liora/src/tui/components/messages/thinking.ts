@@ -47,6 +47,7 @@ import {
   applyWorkBlockTintLine,
   phaseGutter,
 } from '#/tui/features/transcript/transcript-phase-tint';
+import { formatCompactThinkingLabel } from '#/tui/features/transcript/compact-activity';
 import { getActiveTranscriptDetail } from '#/tui/features/transcript/transcript-density';
 
 export type ThinkingRenderMode = 'live' | 'finalized';
@@ -167,11 +168,16 @@ export class ThinkingComponent implements Component {
         const contentWidth = Math.max(1, width - MESSAGE_INDENT.length);
         const contentLines = this.text.length > 0 ? this.textComponent.render(contentWidth) : [''];
         const appearance = getActiveAppearancePreferences();
+        const detail = getActiveTranscriptDetail();
+
+        if (detail === 'compact') {
+          return this.renderCompactThinking(contentLines, appearance, scrollPaint);
+        }
 
         if (this.mode === 'live') {
-          const detail = getActiveTranscriptDetail();
           // full: same as finalized — show the whole body while streaming.
-          // minimal: status line only. compact+: short tail glance.
+          // minimal: status line only. standard: short tail glance.
+          // compact returns earlier via renderCompactThinking().
           const maxPreview =
             detail === 'full'
               ? contentLines.length
@@ -179,9 +185,7 @@ export class ThinkingComponent implements Component {
                 ? 0
                 : this.expanded
                   ? Math.max(THINKING_PREVIEW_LINES, 4)
-                  : detail === 'compact'
-                    ? Math.min(2, THINKING_PREVIEW_LINES)
-                    : THINKING_PREVIEW_LINES;
+                  : THINKING_PREVIEW_LINES;
           const visibleLines =
             maxPreview === 0
               ? []
@@ -291,6 +295,50 @@ export class ThinkingComponent implements Component {
         });
       },
     });
+  }
+
+  private renderCompactThinking(
+    contentLines: string[],
+    appearance: ReturnType<typeof getActiveAppearancePreferences>,
+    scrollPaint: boolean,
+  ): string[] {
+    const label = formatCompactThinkingLabel({
+      live: this.mode === 'live',
+      elapsedMs: this.elapsedMs(),
+      stalled: this.renderStallSuffix().length > 0,
+    });
+    if (!this.expanded) {
+      return polishTranscriptLines(['', label], {
+        startedAtMs: this.entranceStartedAtMs,
+        kind: 'thinking',
+        streaming: this.mode === 'live',
+        appearance,
+      });
+    }
+    const visible =
+      this.mode === 'live'
+        ? projectRendererLineWindow({
+            lines: contentLines,
+            maxLines: Math.max(THINKING_PREVIEW_LINES, 4),
+            tail: true,
+          }).lines
+        : contentLines;
+    const caretOn =
+      this.mode === 'live' && !scrollPaint && streamingCaretActive() && visible.length > 0;
+    const body = caretOn
+      ? appendStreamingCaret(visible.map((line) => MESSAGE_INDENT + line))
+      : visible.map((line) => MESSAGE_INDENT + line);
+    return polishTranscriptLines(['', label, ...body], {
+      startedAtMs: this.entranceStartedAtMs,
+      kind: 'thinking',
+      streaming: this.mode === 'live',
+      appearance,
+    });
+  }
+
+  private elapsedMs(): number | undefined {
+    if (this.startedAt === undefined) return undefined;
+    return Math.max(0, (this.finishedAt ?? Date.now()) - this.startedAt);
   }
 
   private renderElapsedSuffix(): string {

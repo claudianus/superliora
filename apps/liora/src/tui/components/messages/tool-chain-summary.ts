@@ -1,7 +1,8 @@
 /**
- * Per-turn tool chain summary for `minimal` (and optional compact chrome).
- * Live: `▌ tools · Edit · 7 tools · +42/−10`
- * Settled: `▌ tools · Worked for 10m 4s · 7 tools · 2 failed`
+ * Per-turn tool chain summary.
+ * Compact: dim metrics (`Edit, 7 tools, 2 files +42 −10`) — no ▌ chrome.
+ * Minimal/standard live: `▌ tools · Edit · 7 tools · +42/−10`
+ * Minimal/standard settled: `▌ tools · Worked for 10m 4s · 7 tools · 2 failed`
  *
  * Individual tool cards stay mounted under the summary; at `minimal` density
  * they render empty until expanded (failure punch-through still shows).
@@ -17,6 +18,11 @@ import {
   isTranscriptEntranceActive,
   polishTranscriptLines,
 } from '#/tui/features/transcript/transcript-entrance';
+import {
+  formatCompactChainMetrics,
+  isCompactQuietChrome,
+  styleCompactMetrics,
+} from '#/tui/features/transcript/compact-activity';
 import {
   createToolChainStats,
   formatChainLiveSummary,
@@ -50,13 +56,30 @@ export class ToolChainSummaryComponent extends Container {
   }
 
   override render(width: number): string[] {
+    const detailLevel = getActiveTranscriptDetail();
+    if (isCompactQuietChrome(detailLevel)) {
+      const metrics = formatCompactChainMetrics(this.stats, {
+        live: !this.settled,
+        currentLabel: this.currentLabel,
+      });
+      const lines = [styleCompactMetrics([metrics]), ''];
+      if (!isTranscriptEntranceActive(this.entranceStartedAtMs)) {
+        return lines;
+      }
+      return polishTranscriptLines(lines, {
+        startedAtMs: this.entranceStartedAtMs,
+        kind: 'tool',
+        streaming: !this.settled,
+        appearance: getActiveAppearancePreferences(),
+      });
+    }
     const body = this.settled
       ? formatChainSettledSummary(this.stats)
       : formatChainLiveSummary(this.stats, this.currentLabel);
     // Strip leading ⚙ from pure formatter — phase header supplies chrome.
     let detail = body.replace(/^⚙\s*/, '');
     // minimal: tools are hidden — nudge click-to-expand on the chain bar.
-    if (isChainOnlyToolLevel(getActiveTranscriptDetail()) && this.stats.toolCount > 0) {
+    if (isChainOnlyToolLevel(detailLevel) && this.stats.toolCount > 0) {
       detail = `${detail} · click expand`;
     }
     // No leading blank — chain bar continues the thinking→tools work block.

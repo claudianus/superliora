@@ -33,4 +33,17 @@ describe('ToolChainSummaryComponent', () => {
     const plain = stripAnsi(chain.render(60).join('\n'));
     expect(plain).not.toMatch(/click expand/i);
   });
+
+  it('compact paints dim metrics without a phase gutter', () => {
+    chalk.level = 3;
+    setActiveTranscriptDetail('compact');
+    const chain = new ToolChainSummaryComponent(0);
+    chain.record({ file: 'a.ts', linesAdded: 2, linesRemoved: 1 });
+    const plain = stripAnsi(chain.render(60).join('\n'));
+    expect(plain).toContain('1 tool');
+    expect(plain).toContain('1 file');
+    expect(plain).toMatch(/\+2/);
+    expect(plain).not.toMatch(/▌/);
+    expect(plain).not.toMatch(/click expand/i);
+  });
 });
