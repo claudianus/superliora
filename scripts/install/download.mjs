@@ -5,8 +5,10 @@ import { dirname } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 
+const FETCH_HEADERS = { 'User-Agent': 'superliora-installer' };
+
 export async function downloadToFile(url, dest, options = {}) {
-  const res = await fetch(url, { redirect: 'follow' });
+  const res = await fetch(url, { redirect: 'follow', headers: FETCH_HEADERS });
   if (!res.ok || !res.body) {
     throw new Error(`Download failed ${url}: HTTP ${res.status}`);
   }
@@ -24,7 +26,7 @@ export async function downloadToFile(url, dest, options = {}) {
 }
 
 export async function fetchJson(url) {
-  const res = await fetch(url, { redirect: 'follow' });
+  const res = await fetch(url, { redirect: 'follow', headers: FETCH_HEADERS });
   if (!res.ok) {
     throw new Error(`Fetch JSON failed ${url}: HTTP ${res.status}`);
   }

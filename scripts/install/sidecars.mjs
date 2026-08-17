@@ -8,8 +8,8 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { downloadToFile } from './download.mjs';
+import { ensurePnpm, runPnpm } from './ensure-pnpm.mjs';
 import { defaultHome } from './platform.mjs';
-import { spawnInstall } from './spawn.mjs';
 
 /**
  * @param {{
@@ -27,6 +27,18 @@ export async function installSidecars(options = {}) {
   const installDir = options.installDir;
   const warn = options.onWarn ?? (() => {});
   const detail = options.onDetail ?? (() => {});
+
+  const needsPnpm =
+    (!options.noBrowserUse && process.env.SUPERLIORA_SKIP_BROWSER_USE !== '1') ||
+    (!options.noRetrieval && process.env.SUPERLIORA_SKIP_RETRIEVAL !== '1');
+  if (needsPnpm) {
+    try {
+      await ensurePnpm({ cwd: installDir, noShellRc: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      warn(`pnpm bootstrap failed (${message}); sidecar npm steps may skip`);
+    }
+  }
 
   if (!options.noBrowserUse && process.env.SUPERLIORA_SKIP_BROWSER_USE !== '1') {
     detail('Installing browser-use runtimes');
@@ -57,9 +69,8 @@ async function installBrowserSidecars(installDir, commandName, warn) {
   // SEA/native: cloakbrowser + playwright-core must live next to the binary
   // (`<installDir>/node_modules/...`) so launch is not the inlined init_dist shim.
   if (installDir) {
-    const modules = spawnInstall(
-      'corepack',
-      ['pnpm', 'add', '--ignore-workspace', 'cloakbrowser@0.5.5', 'playwright-core@1.61.1'],
+    const modules = runPnpm(
+      ['add', '--ignore-workspace', 'cloakbrowser@0.5.5', 'playwright-core@1.61.1'],
       { cwd: installDir, env, encoding: 'utf8', stdio: 'inherit' },
     );
     if (modules.status !== 0) {
@@ -68,17 +79,15 @@ async function installBrowserSidecars(installDir, commandName, warn) {
   }
 
   if (installDir && existsSync(join(installDir, 'package.json'))) {
-    const cloak = spawnInstall(
-      'corepack',
-      ['pnpm', '--filter', '@superliora/gui-use', 'exec', 'cloakbrowser', 'install'],
+    const cloak = runPnpm(
+      ['--filter', '@superliora/gui-use', 'exec', 'cloakbrowser', 'install'],
       { cwd: installDir, env, encoding: 'utf8', stdio: 'inherit' },
     );
     if (cloak.status !== 0) {
       warn(`CloakBrowser pre-install failed; retry with '${commandName} browser-use install'`);
     }
-    const cam = spawnInstall(
-      'corepack',
-      ['pnpm', '--filter', '@superliora/gui-use', 'exec', 'camoufox', 'fetch'],
+    const cam = runPnpm(
+      ['--filter', '@superliora/gui-use', 'exec', 'camoufox', 'fetch'],
       { cwd: installDir, env, encoding: 'utf8', stdio: 'inherit' },
     );
     if (cam.status !== 0) {
@@ -159,9 +168,8 @@ function bootstrapRetrieval(installDir, warn) {
     COREPACK_ENABLE_DOWNLOAD_PROMPT: '0',
     SUPERLIORA_RETRIEVAL_EMBEDDER: 'transformers',
   };
-  const r = spawnInstall(
-    'corepack',
-    ['pnpm', '-C', 'packages/agent-core', 'run', 'retrieval:bootstrap'],
+  const r = runPnpm(
+    ['-C', 'packages/agent-core', 'run', 'retrieval:bootstrap'],
     { cwd: installDir, env, encoding: 'utf8', stdio: 'inherit' },
   );
   if (r.status !== 0) {

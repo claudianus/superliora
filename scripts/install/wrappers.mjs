@@ -39,7 +39,18 @@ if [ -f "$main_file" ]; then
   exec node "$main_file" "$@"
 fi
 
-exec corepack pnpm -C "$app_root" run dev:cli-only -- "$@"
+if command -v corepack >/dev/null 2>&1; then
+  exec corepack pnpm -C "$app_root" run dev:cli-only -- "$@"
+fi
+if command -v pnpm >/dev/null 2>&1; then
+  exec pnpm -C "$app_root" run dev:cli-only -- "$@"
+fi
+if [ -x "$HOME/.superliora/runtime/pnpm/pnpm" ]; then
+  exec "$HOME/.superliora/runtime/pnpm/pnpm" -C "$app_root" run dev:cli-only -- "$@"
+fi
+echo "error: SuperLiora CLI bundle is missing: $main_file" >&2
+echo "Build the CLI or re-run the installer with Node.js 24.15 or newer." >&2
+exit 1
 `;
 }
 
@@ -69,6 +80,15 @@ export function renderWindowsCmdWrapper(appDir, options = {}) {
     'where corepack >nul 2>&1',
     'if not errorlevel 1 (',
     '  corepack pnpm -C "%LIORA_APP%" run dev:cli-only -- %*',
+    '  exit /b %ERRORLEVEL%',
+    ')',
+    'if exist "%USERPROFILE%\\.superliora\\runtime\\pnpm\\pnpm.exe" (',
+    '  "%USERPROFILE%\\.superliora\\runtime\\pnpm\\pnpm.exe" -C "%LIORA_APP%" run dev:cli-only -- %*',
+    '  exit /b %ERRORLEVEL%',
+    ')',
+    'where pnpm >nul 2>&1',
+    'if not errorlevel 1 (',
+    '  pnpm -C "%LIORA_APP%" run dev:cli-only -- %*',
     '  exit /b %ERRORLEVEL%',
     ')',
     'echo error: SuperLiora CLI bundle is missing: %LIORA_MAIN% 1>&2',
@@ -101,6 +121,16 @@ if (Test-Path -LiteralPath $main) {
 $corepack = Get-Command corepack -ErrorAction SilentlyContinue
 if ($null -ne $corepack) {
   & corepack pnpm -C $app run dev:cli-only -- @args
+  exit $LASTEXITCODE
+}
+$runtimePnpm = Join-Path $env:USERPROFILE '.superliora\\runtime\\pnpm\\pnpm.exe'
+if (Test-Path -LiteralPath $runtimePnpm) {
+  & $runtimePnpm -C $app run dev:cli-only -- @args
+  exit $LASTEXITCODE
+}
+$pnpm = Get-Command pnpm -ErrorAction SilentlyContinue
+if ($null -ne $pnpm) {
+  & pnpm -C $app run dev:cli-only -- @args
   exit $LASTEXITCODE
 }
 Write-Error ("SuperLiora CLI bundle is missing: " + $main)
