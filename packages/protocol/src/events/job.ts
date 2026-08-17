@@ -142,6 +142,8 @@ export interface JobSnapshot {
   readonly kind: JobEventKind;
   readonly priority: number;
   readonly worktreePath?: string;
+  /** Product git toplevel frozen at job create (schemaVersion 4). */
+  readonly repoRoot?: string;
   readonly workerAgentId?: string;
   readonly resultSummary?: string;
   /** Worker progress (schemaVersion 2; absent on v1 snapshots). */
@@ -310,6 +312,7 @@ export const jobSnapshotSchema = z.object({
   kind: jobEventKindSchema,
   priority: z.number(),
   worktreePath: z.string().optional(),
+  repoRoot: z.string().optional(),
   workerAgentId: z.string().optional(),
   resultSummary: z.string().optional(),
   progress: jobProgressSnapshotSchema.optional(),

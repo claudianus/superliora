@@ -141,6 +141,11 @@ export interface JobRecord {
   /** Greenfield chain step; drives jobPrompt phase contract. */
   readonly deliveryPhase?: JobDeliveryPhase;
   readonly worktreePath?: string;
+  /**
+   * Canonical product git toplevel this Job belongs to. Frozen at create /
+   * worktree assign. Merge/push must use this, never the live session cwd.
+   */
+  readonly repoRoot?: string;
   /** Branch created for the job worktree (`liora/…`); land prefers this over HEAD. */
   readonly worktreeBranch?: string;
   readonly workerAgentId?: string;

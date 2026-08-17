@@ -944,7 +944,7 @@ export async function onJobTerminalForVerifyChain(
           trustReason:
             'verify_chain: latest-per-axis passed; surface_kind=none auto land (no human MergeJob click)',
           agent,
-          repoPath: agent?.config?.cwd,
+          repoPath: parentNow.repoRoot ?? agent?.config?.cwd,
           kaos: agent?.kaos,
         });
       }

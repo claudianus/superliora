@@ -423,10 +423,9 @@ export async function pushJobToRemote(input: PushJobToRemoteInput): Promise<Push
     return { ok: false, job, pushed: false, message: '', error: remoteErr };
   }
 
-  // Ownership product git root wins over session isolation / job worktree.
-  // Pushing from metalslug isolation (no origin) failed job_mswkqsvg4bx2h4 —
-  // superliora-owned Jobs must push from C:/Users/Administrator/superliora.
+  // Job product root wins over session isolation / job worktree.
   const ownershipCwd = resolveMergePushCwd({
+    persistedRepoRoot: job.repoRoot,
     ownershipPaths: job.ownershipPaths,
     worktreePath: job.worktreePath,
     sessionRepoPath: input.repoPath,
@@ -685,7 +684,7 @@ export function dispatchPushRemote(input: DispatchPushRemoteInput): DispatchPush
       sourceJob.worktreePath ? `worktree: ${sourceJob.worktreePath}` : 'main checkout',
       input.localRef ? `localRef: ${input.localRef}` : undefined,
       remoteRef ? `remoteRef: ${remoteRef}` : undefined,
-      input.repoPath ? `repo: ${input.repoPath}` : undefined,
+      (sourceJob.repoRoot ?? input.repoPath) ? `repo: ${sourceJob.repoRoot ?? input.repoPath}` : undefined,
       'Executor: pushJobToRemote on the offload lane (no force-push).',
       remoteRef === 'gh-pages'
         ? 'After push: best-effort GitHub Pages enable (source=gh-pages/).'
@@ -705,7 +704,7 @@ export function dispatchPushRemote(input: DispatchPushRemoteInput): DispatchPush
       store,
       pushJob: running ?? pushJob,
       kaos: input.kaos,
-      repoPath: input.repoPath,
+      repoPath: sourceJob.repoRoot ?? input.repoPath,
       runGit: input.runGit,
       runGh: input.runGh,
       agent: input.agent,
@@ -785,7 +784,7 @@ export async function runPushRemoteJob(input: RunPushRemoteJobInput): Promise<Pu
       localRef: input.localRef,
       remoteRef,
       kaos: input.kaos,
-      repoPath: input.repoPath,
+      repoPath: source.repoRoot ?? input.repoPath,
       runGit: input.runGit,
       runGh: input.runGh,
       enablePages: input.enablePages,

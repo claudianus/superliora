@@ -1,29 +1,27 @@
 /**
- * Resolve merge/push git roots from job ownership — never land/push a
- * superliora-owned Job into metalslug isolation (or the reverse).
+ * Resolve merge/push git roots from the job's own product identity.
  *
- * Session worktrees are often bootstrapped from the interactive cwd
- * (e.g. metalslug with no origin). Ownership is the sole witness for
- * which product repo may receive merge/push.
+ * Session cwd is not a product id. Isolation worktrees are often created
+ * from whichever checkout the TUI happened to be in; later MergeJob/PushJob
+ * must not follow a later session cwd (or a hardcoded two-repo allowlist)
+ * into a foreign history.
+ *
+ * Witness order: persisted `repoRoot` → worktree main checkout → absolute
+ * ownership git roots → relative ownership under the session → session.
  */
 
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, normalize, resolve as resolvePath } from 'node:path';
 
+/** Folder-name fallback when paths are not on disk (unit tests / diagnostics). */
 export type OwnedRepoHint = 'superliora' | 'metalslug';
-
-const DEFAULT_SUPERLIORA_ROOTS = [
-  'C:/Users/Administrator/superliora',
-  'C:\\Users\\Administrator\\superliora',
-] as const;
-
-const DEFAULT_METALSLUG_ROOTS = [
-  'C:/Users/Administrator/code/metalslug',
-  'C:\\Users\\Administrator\\code\\metalslug',
-] as const;
 
 export function normalizeRepoPathKey(path: string): string {
   return normalize(path.trim()).replace(/[/\\]+$/, '').toLowerCase();
+}
+
+export function sameRepoPath(a: string, b: string): boolean {
+  return normalizeRepoPathKey(a) === normalizeRepoPathKey(b);
 }
 
 /** True when a path segment equals the repo folder name. */
@@ -36,21 +34,14 @@ export function pathMentionsRepo(path: string, repoName: string): boolean {
 
 export function inferPathRepoHint(path: string | undefined): OwnedRepoHint | undefined {
   if (path === undefined || path.trim().length === 0) return undefined;
-  // Isolation worktrees: .../.superliora/worktrees/metalslug-*/...
-  // These are metalslug product isolation hosts even though the path also
-  // contains `.superliora` (home config), not the superliora git product.
+  // Isolation worktrees: .../.superliora/worktrees/<product>-<hash>/...
   if (/worktrees[/\\]metalslug/i.test(path) || /[/\\]metalslug-[0-9a-f]+[/\\]/i.test(path)) {
     return 'metalslug';
   }
-  // Product checkouts under code/metalslug or */metalslug (not .superliora home).
   if (pathMentionsRepo(path, 'metalslug') && !/[.]superliora[/\\]/i.test(path)) {
     return 'metalslug';
   }
-  // superliora product checkout / ownership (exclude pure .superliora home dirs
-  // that are not the git product root — those rarely appear as land targets).
   if (pathMentionsRepo(path, 'superliora')) {
-    // `.superliora/worktrees/...` without metalslug marker is still isolation,
-    // but we cannot invent a product — leave undefined unless superliora repo.
     if (/[.]superliora[/\\]worktrees/i.test(path) && !/superliora[/\\]packages/i.test(path)) {
       return undefined;
     }
@@ -59,10 +50,6 @@ export function inferPathRepoHint(path: string | undefined): OwnedRepoHint | und
   return undefined;
 }
 
-/**
- * Ownership claim set → product repo. Mixed superliora+metalslug claims are
- * undefined (caller must not invent a target).
- */
 export function inferOwnershipRepoHint(
   ownershipPaths: readonly string[] | undefined,
 ): OwnedRepoHint | undefined {
@@ -83,37 +70,60 @@ export function inferOwnershipRepoHint(
 export interface CrossOwnershipHoldResult {
   readonly hold: boolean;
   readonly reason?: string;
-  readonly ownership?: OwnedRepoHint;
-  readonly target?: OwnedRepoHint;
+  readonly ownership?: string;
+  readonly target?: string;
 }
 
 /**
- * Hold MergeJob/PushJob when ownership names one product repo and the
- * land/push target (session cwd, worktree, or resolved root) is the other.
+ * Hold MergeJob/PushJob when the job's product root and the land/push
+ * target are different git checkouts. Compares canonical roots when they
+ * exist on disk; falls back to folder-name hints for off-disk unit paths.
  */
 export function evaluateCrossOwnershipHold(input: {
   readonly ownershipPaths?: readonly string[] | undefined;
+  readonly persistedRepoRoot?: string | undefined;
   readonly targetRepoPath?: string | undefined;
   readonly worktreePath?: string | undefined;
 }): CrossOwnershipHoldResult {
-  const ownership = inferOwnershipRepoHint(input.ownershipPaths);
-  if (ownership === undefined) return { hold: false };
+  const ownershipRoot =
+    mainCheckoutFromPath(input.persistedRepoRoot) ??
+    firstOwnershipGitRoot(input.ownershipPaths);
+  const targetRoot =
+    mainCheckoutFromPath(input.targetRepoPath) ?? mainCheckoutFromPath(input.worktreePath);
 
-  const target =
-    inferPathRepoHint(input.targetRepoPath) ?? inferPathRepoHint(input.worktreePath);
-  if (target === undefined) return { hold: false, ownership };
-
-  if (ownership !== target) {
+  if (ownershipRoot !== undefined && targetRoot !== undefined) {
+    if (sameRepoPath(ownershipRoot, targetRoot)) {
+      return { hold: false, ownership: ownershipRoot, target: targetRoot };
+    }
     return {
       hold: true,
-      ownership,
-      target,
+      ownership: ownershipRoot,
+      target: targetRoot,
       reason:
-        `cross_ownership_hold: ownership=${ownership} target=${target} — ` +
+        `cross_repo_hold: job=${ownershipRoot} target=${targetRoot} — ` +
+        'refuse MergeJob/PushJob into a foreign git checkout',
+    };
+  }
+
+  const ownershipHint =
+    inferPathRepoHint(input.persistedRepoRoot) ?? inferOwnershipRepoHint(input.ownershipPaths);
+  const targetHint =
+    inferPathRepoHint(input.targetRepoPath) ?? inferPathRepoHint(input.worktreePath);
+  if (ownershipHint !== undefined && targetHint !== undefined && ownershipHint !== targetHint) {
+    return {
+      hold: true,
+      ownership: ownershipHint,
+      target: targetHint,
+      reason:
+        `cross_ownership_hold: ownership=${ownershipHint} target=${targetHint} — ` +
         'refuse MergeJob/PushJob into a foreign repo (wrong land erases product worktrees)',
     };
   }
-  return { hold: false, ownership, target };
+  return {
+    hold: false,
+    ownership: ownershipRoot ?? ownershipHint,
+    target: targetRoot ?? targetHint,
+  };
 }
 
 /** Walk parents for a `.git` entry (file or directory). */
@@ -132,42 +142,89 @@ export function findGitRootFromPath(start: string): string | undefined {
   return undefined;
 }
 
-function firstExisting(roots: readonly string[]): string | undefined {
-  for (const root of roots) {
-    if (existsSync(root)) return root.replace(/[/\\]+$/, '');
+/**
+ * Map `git rev-parse --git-common-dir` (or a `gitdir:` pointer) to the main
+ * checkout root. Linked worktrees report the shared `.git` directory.
+ */
+export function repoRootFromGitCommonDir(
+  commonDirRaw: string,
+  worktreePath: string,
+): string | undefined {
+  const trimmed = commonDirRaw.trim();
+  if (!trimmed) return undefined;
+  const abs = isAbsolute(trimmed) ? trimmed : resolvePath(worktreePath, trimmed);
+  const normalized = abs.replace(/[/\\]+$/, '');
+  if (/(^|[/\\])\.git$/i.test(normalized)) {
+    return dirname(normalized);
+  }
+  const worktrees = /[/\\]\.git[/\\]worktrees[/\\][^/\\]+$/i.exec(normalized);
+  if (worktrees !== null) {
+    return dirname(dirname(dirname(normalized)));
   }
   return undefined;
 }
 
-function extractNamedRoot(path: string, name: string): string | undefined {
-  const normalized = normalize(path);
-  const re = new RegExp(`^(.*?[/\\\\]${name})(?:[/\\\\]|$)`, 'i');
-  const match = re.exec(normalized);
-  const root = match?.[1];
-  if (root !== undefined && existsSync(root)) {
-    return root.replace(/[/\\]+$/, '');
+function readGitdirPointer(gitEntry: string): string | undefined {
+  try {
+    const text = readFileSync(gitEntry, 'utf8');
+    const match = /^gitdir:\s*(.+)\s*$/m.exec(text);
+    const pointer = match?.[1]?.trim();
+    return pointer !== undefined && pointer.length > 0 ? pointer : undefined;
+  } catch {
+    return undefined;
   }
-  return undefined;
 }
 
 /**
- * Relative ownership under a preferred root: path exists, or monorepo
- * packages/apps claim while the root itself is a git checkout.
+ * Main product checkout for a path inside a repo or linked worktree.
+ * Isolation worktrees resolve to the source checkout, not the worktree dir.
  */
-function resolveRelativeOwnershipRoot(
-  ownershipPaths: readonly string[],
-  roots: readonly string[],
+export function mainCheckoutFromPath(start: string | undefined): string | undefined {
+  if (start === undefined || start.trim().length === 0) return undefined;
+  const gitRoot = findGitRootFromPath(start);
+  if (gitRoot === undefined) return undefined;
+  const gitEntry = resolvePath(gitRoot, '.git');
+  try {
+    const st = statSync(gitEntry);
+    if (st.isDirectory()) return gitRoot;
+    if (st.isFile()) {
+      const pointer = readGitdirPointer(gitEntry);
+      if (pointer === undefined) return gitRoot;
+      return repoRootFromGitCommonDir(pointer, gitRoot) ?? gitRoot;
+    }
+  } catch {
+    return gitRoot;
+  }
+  return gitRoot;
+}
+
+function firstOwnershipGitRoot(
+  ownershipPaths: readonly string[] | undefined,
 ): string | undefined {
-  for (const root of roots) {
-    if (!existsSync(root)) continue;
-    const normalizedRoot = root.replace(/[/\\]+$/, '');
-    for (const raw of ownershipPaths) {
-      const rel = raw.trim();
-      if (rel.length === 0 || isAbsolute(rel)) continue;
-      const candidate = resolvePath(normalizedRoot, rel);
-      if (existsSync(candidate)) return normalizedRoot;
-      // monorepo package claim — prefer product root that has that package dir
-      if (/^(packages|apps)[/\\]/i.test(rel) && existsSync(resolvePath(normalizedRoot, rel.split(/[/\\]/)[0]!))) {
+  if (ownershipPaths === undefined) return undefined;
+  for (const raw of ownershipPaths) {
+    const path = raw.trim();
+    if (path.length === 0 || !isAbsolute(path)) continue;
+    const root = mainCheckoutFromPath(path);
+    if (root !== undefined) return root;
+  }
+  return undefined;
+}
+
+function resolveRelativeOwnershipUnderSession(
+  ownershipPaths: readonly string[],
+  sessionRoot: string,
+): string | undefined {
+  if (!existsSync(sessionRoot)) return undefined;
+  const normalizedRoot = sessionRoot.replace(/[/\\]+$/, '');
+  for (const raw of ownershipPaths) {
+    const rel = raw.trim();
+    if (rel.length === 0 || isAbsolute(rel)) continue;
+    const candidate = resolvePath(normalizedRoot, rel);
+    if (existsSync(candidate)) return normalizedRoot;
+    if (/^(packages|apps)[/\\]/i.test(rel)) {
+      const top = rel.split(/[/\\]/)[0];
+      if (top !== undefined && existsSync(resolvePath(normalizedRoot, top))) {
         return normalizedRoot;
       }
     }
@@ -175,93 +232,76 @@ function resolveRelativeOwnershipRoot(
   return undefined;
 }
 
+export type JobRepoRootSource = 'persisted' | 'worktree' | 'ownership' | 'session';
+
 /**
- * Resolve the git root for merge/push from ownership_paths.
- * Absolute ownership paths and known product roots beat session isolation cwd.
+ * Resolve the product git root for a new or existing Job.
+ * Never scans a hardcoded machine path list for a second product.
+ */
+export function resolveRepoRootForNewJob(input: {
+  readonly persistedRepoRoot?: string | undefined;
+  readonly ownershipPaths?: readonly string[] | undefined;
+  readonly worktreePath?: string | undefined;
+  readonly sessionRepoPath?: string | undefined;
+}): string | undefined {
+  return resolveGitRootFromOwnership(input);
+}
+
+/**
+ * Resolve the git root for merge/push from job identity.
+ * Absolute ownership and persisted roots beat session isolation cwd.
  */
 export function resolveGitRootFromOwnership(input: {
+  readonly persistedRepoRoot?: string | undefined;
   readonly ownershipPaths?: readonly string[] | undefined;
+  readonly worktreePath?: string | undefined;
   readonly sessionRepoPath?: string | undefined;
+  /** @deprecated unused — kept so older tests can pass the field */
   readonly preferredSuperlioraRoots?: readonly string[];
+  /** @deprecated unused — kept so older tests can pass the field */
   readonly preferredMetalslugRoots?: readonly string[];
 }): string | undefined {
-  const superRoots = input.preferredSuperlioraRoots ?? DEFAULT_SUPERLIORA_ROOTS;
-  const metalRoots = input.preferredMetalslugRoots ?? DEFAULT_METALSLUG_ROOTS;
-  const ownershipPaths = input.ownershipPaths ?? [];
-
-  // 1) Absolute ownership paths → git root / named product root
-  for (const raw of ownershipPaths) {
-    const path = raw.trim();
-    if (path.length === 0 || !isAbsolute(path)) continue;
-    const gitRoot = findGitRootFromPath(path);
-    if (gitRoot !== undefined) return gitRoot;
-    const named =
-      extractNamedRoot(path, 'superliora') ?? extractNamedRoot(path, 'metalslug');
-    if (named !== undefined) return named;
+  const persisted = input.persistedRepoRoot?.trim();
+  if (persisted) {
+    const fromPersisted = mainCheckoutFromPath(persisted) ?? (existsSync(persisted) ? persisted : undefined);
+    if (fromPersisted !== undefined) return fromPersisted;
+    // Off-disk unit paths still count as an explicit identity.
+    if (isAbsolute(persisted)) return persisted.replace(/[/\\]+$/, '');
   }
 
-  // 2) Ownership hint → preferred product checkout
-  const hint = inferOwnershipRepoHint(ownershipPaths);
-  if (hint === 'superliora') {
-    const preferred = firstExisting(superRoots);
-    if (preferred !== undefined) return preferred;
-    const session = input.sessionRepoPath?.trim();
-    if (session && inferPathRepoHint(session) === 'superliora') {
-      return findGitRootFromPath(session) ?? session;
-    }
-  }
-  if (hint === 'metalslug') {
-    const preferred = firstExisting(metalRoots);
-    if (preferred !== undefined) return preferred;
-    const session = input.sessionRepoPath?.trim();
-    if (session && inferPathRepoHint(session) === 'metalslug') {
-      return findGitRootFromPath(session) ?? session;
-    }
-  }
+  const fromOwnership = firstOwnershipGitRoot(input.ownershipPaths);
+  if (fromOwnership !== undefined) return fromOwnership;
 
-  // 3) Relative ownership under preferred product roots (isolation-safe).
-  // Prefer superliora when packages/apps claims exist there — session metalslug
-  // must not steal harness jobs that own agent-core / liora monorepo paths.
-  const underSuper = resolveRelativeOwnershipRoot(ownershipPaths, superRoots);
-  const underMetal = resolveRelativeOwnershipRoot(ownershipPaths, metalRoots);
-  if (underSuper !== undefined && underMetal === undefined) return underSuper;
-  if (underMetal !== undefined && underSuper === undefined) return underMetal;
-  if (underSuper !== undefined && underMetal !== undefined) {
-    // Ambiguous — prefer session if it matches one root, else superliora when
-    // ownership is monorepo packages/apps (harness default product).
-    const sessionHint = inferPathRepoHint(input.sessionRepoPath);
-    if (sessionHint === 'metalslug') return underMetal;
-    return underSuper;
-  }
+  const fromWorktree = mainCheckoutFromPath(input.worktreePath);
+  if (fromWorktree !== undefined) return fromWorktree;
 
-  // 4) Session fallback only when ownership does not name a foreign product.
   const session = input.sessionRepoPath?.trim();
-  if (session) {
-    return findGitRootFromPath(session) ?? session;
+  const sessionRoot = session ? (mainCheckoutFromPath(session) ?? findGitRootFromPath(session) ?? session) : undefined;
+  if (sessionRoot !== undefined && input.ownershipPaths !== undefined && input.ownershipPaths.length > 0) {
+    const underSession = resolveRelativeOwnershipUnderSession(input.ownershipPaths, sessionRoot);
+    if (underSession !== undefined) return underSession;
   }
+
+  if (sessionRoot !== undefined) return sessionRoot.replace(/[/\\]+$/, '');
   return undefined;
 }
 
 /**
- * Merge/land/push working directory: ownership git root wins over job worktree
- * isolation and session cwd. Prevents `git push` in metalslug with no origin.
+ * Merge/land/push working directory: job product root wins over job worktree
+ * isolation and the live session cwd.
  *
- * Land hold: when ownership names product A but the job worktree lives under
- * product B, refuse — different git histories cannot land (wrong merge GC).
- * Push: still redirect cwd to ownership root so origin is correct even if the
- * worker ran in isolation (localRef may be explicit).
+ * Land hold: when the worktree's main checkout is a different product than
+ * the job root, refuse — different git histories cannot land.
+ * Push: redirect cwd to the job root so origin is the product remote even
+ * if the worker ran in isolation (localRef may be explicit).
  */
 export function resolveMergePushCwd(input: {
+  readonly persistedRepoRoot?: string | undefined;
   readonly ownershipPaths?: readonly string[] | undefined;
   readonly worktreePath?: string | undefined;
   readonly sessionRepoPath?: string | undefined;
   readonly preferredSuperlioraRoots?: readonly string[];
   readonly preferredMetalslugRoots?: readonly string[];
-  /**
-   * `land` holds when worktree product ≠ ownership product.
-   * `push` redirects to ownership root and only holds when the resolved push
-   * root itself is foreign to ownership (should not happen after resolve).
-   */
   readonly mode?: 'land' | 'push';
 }): {
   readonly cwd?: string;
@@ -269,37 +309,53 @@ export function resolveMergePushCwd(input: {
   readonly hold?: CrossOwnershipHoldResult;
 } {
   const mode = input.mode ?? 'push';
-  const ownershipRoot = resolveGitRootFromOwnership({
+  const jobRoot = resolveGitRootFromOwnership({
+    persistedRepoRoot: input.persistedRepoRoot,
     ownershipPaths: input.ownershipPaths,
     sessionRepoPath: input.sessionRepoPath,
-    preferredSuperlioraRoots: input.preferredSuperlioraRoots,
-    preferredMetalslugRoots: input.preferredMetalslugRoots,
   });
+  const worktreeMain = mainCheckoutFromPath(input.worktreePath);
 
+  if (jobRoot !== undefined && worktreeMain !== undefined && !sameRepoPath(jobRoot, worktreeMain)) {
+    // Isolation may have been created from a later TUI cwd. Land must not
+    // merge foreign histories. Push still runs at the job product root
+    // (shared remotes live there), not the isolation dir.
+    if (mode === 'land') {
+      const hold = evaluateCrossOwnershipHold({
+        persistedRepoRoot: jobRoot,
+        ownershipPaths: input.ownershipPaths,
+        targetRepoPath: worktreeMain,
+      });
+      if (hold.hold) {
+        return { cwd: jobRoot, fromOwnership: true, hold };
+      }
+    }
+  }
+
+  const ownershipRoot = jobRoot ?? worktreeMain;
   const candidate =
     ownershipRoot ??
     input.worktreePath?.trim() ??
     input.sessionRepoPath?.trim() ??
     undefined;
 
-  // Land: refuse when isolation worktree is a different product than ownership
-  // (metalslug-linked wt cannot merge into superliora main — and vice versa).
   if (mode === 'land' && input.worktreePath) {
     const worktreeHold = evaluateCrossOwnershipHold({
+      persistedRepoRoot: input.persistedRepoRoot ?? ownershipRoot,
       ownershipPaths: input.ownershipPaths,
-      targetRepoPath: input.worktreePath,
+      targetRepoPath: worktreeMain ?? input.worktreePath,
     });
     if (worktreeHold.hold) {
       return {
         cwd: candidate,
-        fromOwnership: ownershipRoot !== undefined,
+        fromOwnership: jobRoot !== undefined,
         hold: worktreeHold,
       };
     }
   }
 
-  // Session/repoPath foreign to ownership without a successful ownership redirect.
   const sessionHold = evaluateCrossOwnershipHold({
+    persistedRepoRoot: input.persistedRepoRoot ?? ownershipRoot,
     ownershipPaths: input.ownershipPaths,
     targetRepoPath: ownershipRoot ?? input.sessionRepoPath,
     worktreePath: ownershipRoot !== undefined ? undefined : input.worktreePath,
@@ -307,14 +363,14 @@ export function resolveMergePushCwd(input: {
   if (sessionHold.hold) {
     return {
       cwd: candidate,
-      fromOwnership: ownershipRoot !== undefined,
+      fromOwnership: jobRoot !== undefined,
       hold: sessionHold,
     };
   }
 
   return {
     cwd: candidate,
-    fromOwnership: ownershipRoot !== undefined,
+    fromOwnership: jobRoot !== undefined || worktreeMain !== undefined,
     hold: { hold: false },
   };
 }

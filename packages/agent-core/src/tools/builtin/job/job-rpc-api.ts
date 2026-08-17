@@ -287,6 +287,7 @@ export async function jobCreate(
       deliveryMode: input.deliveryMode === 'standard' ? undefined : input.deliveryMode,
       parentJobId: input.parentJobId,
       surfaceKind: input.surfaceKind,
+      sessionRepoPath: agent?.config.cwd,
     }),
   );
 
@@ -325,6 +326,7 @@ export async function jobCreateBatch(
         deliveryMode: input.deliveryMode === 'standard' ? undefined : input.deliveryMode,
         parentJobId: input.parentJobId,
         surfaceKind: input.surfaceKind,
+        sessionRepoPath: agent?.config.cwd,
       }),
     );
   }
@@ -420,7 +422,7 @@ export async function jobMerge(
     trustReason: trust.reason,
     summary: input.summary,
     kaos: agent?.kaos,
-    repoPath: agent?.config.cwd,
+    repoPath: existing.repoRoot ?? agent?.config.cwd,
     agent,
   });
   const latest = getJob(store, input.jobId) ?? existing;
@@ -503,7 +505,7 @@ export async function jobPush(
     remoteRef: input.remoteRef,
     summary: input.summary,
     kaos: agent?.kaos,
-    repoPath: agent?.config.cwd,
+    repoPath: existing.repoRoot ?? agent?.config.cwd,
     agent,
   });
   const latest = getJob(store, input.jobId) ?? existing;

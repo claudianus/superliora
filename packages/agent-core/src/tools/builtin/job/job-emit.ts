@@ -167,6 +167,7 @@ export function jobRecordToSnapshot(job: JobRecord): JobSnapshot {
     kind: job.kind,
     priority: job.priority,
     worktreePath: job.worktreePath,
+    repoRoot: job.repoRoot,
     workerAgentId: job.workerAgentId,
     resultSummary: job.resultSummary,
     progress: job.progress,

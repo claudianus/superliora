@@ -28,6 +28,7 @@ import {
 import { createJob, getJob, patchJob } from '../../src/tools/builtin/job/job-ledger';
 import { landJobToMain } from '../../src/tools/builtin/job/job-land';
 import { pushJobToRemote } from '../../src/tools/builtin/job/job-push';
+import { assignJobWorktree } from '../../src/tools/builtin/job/job-runtime';
 import type { ToolStore } from '../../src/tools/store';
 
 function memoryStore(): ToolStore {
@@ -45,8 +46,12 @@ const METAL = 'C:/Users/Administrator/code/metalslug';
 const ISOLATION_WT =
   'C:/Users/Administrator/.superliora/worktrees/metalslug-6394865b/conductor-jmswlvown18jrcs';
 
-describe('guard1: resolveGitRoot / push cwd from ownership', () => {
-  it('infers superliora vs metalslug from paths', () => {
+function slash(path: string | undefined): string {
+  return (path ?? '').toLowerCase().replace(/\\/g, '/');
+}
+
+describe('guard1: persist repo identity; never follow live session cwd', () => {
+  it('infers superliora vs metalslug from paths (off-disk name hints)', () => {
     expect(inferPathRepoHint(`${SUPER}/packages/agent-core`)).toBe('superliora');
     expect(inferPathRepoHint(`${METAL}/src`)).toBe('metalslug');
     expect(inferPathRepoHint(ISOLATION_WT)).toBe('metalslug');
@@ -54,38 +59,75 @@ describe('guard1: resolveGitRoot / push cwd from ownership', () => {
     expect(inferOwnershipRepoHint([`${METAL}/game`])).toBe('metalslug');
   });
 
-  it('resolveGitRoot prefers superliora ownership over metalslug session isolation', () => {
+  it('persisted repoRoot wins over a later metalslug session cwd', () => {
+    const root = resolveGitRootFromOwnership({
+      persistedRepoRoot: SUPER,
+      ownershipPaths: ['packages/agent-core'],
+      sessionRepoPath: METAL,
+    });
+    expect(slash(root)).toContain('superliora');
+    expect(slash(root)).not.toContain('metalslug');
+  });
+
+  it('absolute ownership beats session cwd without scanning a second product list', () => {
     const root = resolveGitRootFromOwnership({
       ownershipPaths: [`${SUPER}/packages/agent-core`],
       sessionRepoPath: METAL,
-      preferredSuperlioraRoots: [SUPER],
-      preferredMetalslugRoots: [METAL],
     });
-    // Absolute ownership under superliora → extractNamedRoot or findGitRoot
-    expect(root?.toLowerCase().replace(/\\/g, '/')).toContain('superliora');
-    expect(root?.toLowerCase().replace(/\\/g, '/')).not.toContain('metalslug');
+    expect(slash(root)).toContain('superliora');
+    expect(slash(root)).not.toContain('metalslug');
   });
 
-  it('resolveMergePushCwd uses ownership product root, not isolation worktree', () => {
+  it('relative ownership stays under the session and does not steal another checkout', () => {
+    const root = resolveGitRootFromOwnership({
+      ownershipPaths: ['packages/agent-core'],
+      sessionRepoPath: METAL,
+    });
+    expect(slash(root)).toContain('metalslug');
+    expect(slash(root)).not.toContain('superliora');
+  });
+
+  it('createJob stamps repoRoot from sessionRepoPath; children inherit it', () => {
+    const store = memoryStore();
+    const parent = createJob(store, {
+      title: 'parent',
+      kind: 'implement',
+      sessionRepoPath: SUPER,
+    });
+    expect(slash(parent.repoRoot)).toContain('superliora');
+
+    const child = createJob(store, {
+      title: 'child',
+      kind: 'implement',
+      parentJobId: parent.id,
+      sessionRepoPath: METAL,
+    });
+    expect(slash(child.repoRoot)).toBe(slash(parent.repoRoot));
+    expect(slash(child.repoRoot)).not.toContain('metalslug');
+  });
+
+  it('push cwd is the job product root, not isolation or a later session', () => {
     const resolved = resolveMergePushCwd({
+      persistedRepoRoot: SUPER,
       ownershipPaths: [`${SUPER}/packages/agent-core`],
       worktreePath: ISOLATION_WT,
       sessionRepoPath: METAL,
-      preferredSuperlioraRoots: [SUPER],
-      preferredMetalslugRoots: [METAL],
+      mode: 'push',
     });
     expect(resolved.fromOwnership).toBe(true);
     expect(resolved.hold?.hold).not.toBe(true);
-    expect(resolved.cwd?.toLowerCase().replace(/\\/g, '/')).toContain('superliora');
+    expect(slash(resolved.cwd)).toContain('superliora');
     expect(resolved.cwd).not.toBe(ISOLATION_WT);
+    expect(resolved.cwd).not.toBe(METAL);
   });
 
-  it('pushJobToRemote runs git push at ownership root, not metalslug isolation', async () => {
+  it('pushJobToRemote runs git push at persisted repoRoot, not metalslug isolation', async () => {
     const store = memoryStore();
     const job = createJob(store, {
       title: 'push harness fix',
       kind: 'implement',
       ownershipPaths: [`${SUPER}/packages/agent-core`],
+      repoRoot: SUPER,
     });
     patchJob(store, job.id, {
       status: 'done',
@@ -111,7 +153,6 @@ describe('guard1: resolveGitRoot / push cwd from ownership', () => {
       remote: 'origin',
       localRef: 'liora/conductor-jmswlvown18jrcs',
       remoteRef: 'liora/conductor-jmswlvown18jrcs',
-      // Session isolation = metalslug (no origin) — must not be push cwd
       repoPath: METAL,
       runGit,
       enablePages: false,
@@ -119,18 +160,84 @@ describe('guard1: resolveGitRoot / push cwd from ownership', () => {
 
     expect(result.ok).toBe(true);
     expect(pushCwds.length).toBe(1);
-    expect(pushCwds[0]!.toLowerCase().replace(/\\/g, '/')).toContain('superliora');
+    expect(slash(pushCwds[0])).toContain('superliora');
     expect(pushCwds[0]).not.toBe(METAL);
     expect(pushCwds[0]).not.toBe(ISOLATION_WT);
   });
+
+  it('assignJobWorktree creates isolation from persisted repoRoot, not session cwd', async () => {
+    const store = memoryStore();
+    const job = createJob(store, { title: 'wt identity', repoRoot: SUPER });
+    const seen: string[] = [];
+    const assigned = await assignJobWorktree({
+      store,
+      jobId: job.id,
+      kaos: {} as never,
+      repoPath: METAL,
+      ensureGitRepo: false,
+      createWorktree: async (_kaos, input) => {
+        seen.push(input.repoPath);
+        return {
+          workDir: `/tmp/worktrees/${input.name}`,
+          meta: {
+            path: `/tmp/worktrees/${input.name}`,
+            branch: `liora/${input.name}`,
+            repoRoot: input.repoPath,
+            name: input.name,
+            baseRef: 'HEAD',
+            createdAt: new Date().toISOString(),
+          },
+          record: {
+            name: input.name,
+            path: `/tmp/worktrees/${input.name}`,
+            repoRoot: input.repoPath,
+            branch: `liora/${input.name}`,
+            baseRef: 'HEAD',
+            createdAt: new Date().toISOString(),
+            lastAccessedAt: new Date().toISOString(),
+          },
+        };
+      },
+    });
+
+    expect(assigned.error).toBeUndefined();
+    expect(seen.length).toBe(1);
+    expect(slash(seen[0])).toContain('superliora');
+    expect(slash(seen[0])).not.toContain('metalslug');
+    expect(slash(getJob(store, job.id)?.repoRoot)).toContain('superliora');
+  });
 });
 
-describe('guard2: cross-ownership Merge/Push hold', () => {
+describe('guard2: cross-repo land hold', () => {
   it('holds when superliora ownership targets metalslug', () => {
     const hold = evaluateCrossOwnershipHold({
+      persistedRepoRoot: SUPER,
       ownershipPaths: [`${SUPER}/packages/agent-core`],
       targetRepoPath: METAL,
       worktreePath: ISOLATION_WT,
+    });
+    expect(hold.hold).toBe(true);
+    expect(hold.reason).toMatch(/cross_(repo|ownership)_hold/);
+    expect(slash(hold.ownership)).toContain('superliora');
+    expect(slash(hold.target)).toContain('metalslug');
+  });
+
+  it('holds when metalslug ownership targets superliora', () => {
+    const hold = evaluateCrossOwnershipHold({
+      persistedRepoRoot: METAL,
+      ownershipPaths: [`${METAL}/src`],
+      targetRepoPath: SUPER,
+    });
+    expect(hold.hold).toBe(true);
+    expect(hold.reason).toMatch(/cross_(repo|ownership)_hold/);
+    expect(slash(hold.ownership)).toContain('metalslug');
+    expect(slash(hold.target)).toContain('superliora');
+  });
+
+  it('holds off-disk name hints when neither checkout is present', () => {
+    const hold = evaluateCrossOwnershipHold({
+      ownershipPaths: ['C:/does-not-exist/superliora/packages/x'],
+      targetRepoPath: 'C:/does-not-exist/code/metalslug',
     });
     expect(hold.hold).toBe(true);
     expect(hold.reason).toMatch(/cross_ownership_hold/);
@@ -138,24 +245,13 @@ describe('guard2: cross-ownership Merge/Push hold', () => {
     expect(hold.target).toBe('metalslug');
   });
 
-  it('holds when metalslug ownership targets superliora', () => {
-    const hold = evaluateCrossOwnershipHold({
-      ownershipPaths: [`${METAL}/src`],
-      targetRepoPath: SUPER,
-    });
-    expect(hold.hold).toBe(true);
-    expect(hold.ownership).toBe('metalslug');
-    expect(hold.target).toBe('superliora');
-  });
-
-  it('landJobToMain blocks superliora ownership when worktree is metalslug isolation', async () => {
+  it('landJobToMain blocks a superliora job when the worktree is metalslug isolation', async () => {
     const store = memoryStore();
-    // Session evidence: harness branch landed into metalslug (f53f897) because
-    // worktree isolation was metalslug-linked. Ownership superliora must hold.
     const job = createJob(store, {
       title: 'wrong land',
       kind: 'implement',
       ownershipPaths: [`${SUPER}/packages/agent-core`],
+      repoRoot: SUPER,
     });
     patchJob(store, job.id, {
       status: 'done',
@@ -180,53 +276,20 @@ describe('guard2: cross-ownership Merge/Push hold', () => {
 
     expect(result.ok).toBe(false);
     expect(result.merged).toBe(false);
-    expect(result.error).toMatch(/cross_ownership_hold/);
+    expect(result.error).toMatch(/cross_(repo|ownership)_hold/);
     expect(getJob(store, job.id)?.status).toBe('blocked');
-    // Must never call git merge into metalslug
     expect(runGit).not.toHaveBeenCalled();
   });
 
-  it('pushJobToRemote holds when ownership and resolved push root disagree', async () => {
-    // metalslug ownership with session=superliora and preferred metalslug
-    // missing → resolve falls back to session superliora → hold.
-    const store = memoryStore();
-    const job = createJob(store, {
-      title: 'push foreign',
-      kind: 'implement',
-      ownershipPaths: ['C:/Users/Administrator/code/metalslug/src'],
-    });
-    patchJob(store, job.id, {
-      status: 'done',
-      worktreePath: 'C:/Users/Administrator/superliora/.worktrees/x',
-      worktreeBranch: 'main',
-    });
-
-    // Force resolve: preferred metalslug does not exist → falls to session SUPER.
-    const hold = evaluateCrossOwnershipHold({
-      ownershipPaths: job.ownershipPaths,
-      targetRepoPath: SUPER,
-      worktreePath: `${SUPER}/.worktrees/x`,
-    });
-    expect(hold.hold).toBe(true);
-
-    // push path: when preferredMetalslugRoots is empty/nonexistent and session
-    // is superliora, sessionHold must fire before git push.
-    // Direct unit: resolveMergePushCwd with metalslug ownership + superliora session.
+  it('land holds when worktree main checkout disagrees with persisted repoRoot', () => {
     const resolved = resolveMergePushCwd({
-      ownershipPaths: ['C:/Users/Administrator/code/metalslug/src'],
-      worktreePath: `${SUPER}/.worktrees/x`,
-      sessionRepoPath: SUPER,
-      preferredSuperlioraRoots: [SUPER],
-      preferredMetalslugRoots: ['C:/does-not-exist/metalslug'],
-      mode: 'push',
+      persistedRepoRoot: SUPER,
+      worktreePath: ISOLATION_WT,
+      sessionRepoPath: METAL,
+      mode: 'land',
     });
-    // If metalslug product does not exist, ownership resolve may still extract
-    // named root from absolute path when it exists on disk. When METAL exists
-    // on this host, push redirects there (ok). Cross-hold is proven via
-    // evaluateCrossOwnershipHold + land path above.
-    expect(hold.reason).toMatch(/cross_ownership_hold/);
-    void resolved;
-    void store;
+    expect(resolved.hold?.hold).toBe(true);
+    expect(resolved.hold?.reason).toMatch(/cross_(repo|ownership)_hold/);
   });
 });
 
