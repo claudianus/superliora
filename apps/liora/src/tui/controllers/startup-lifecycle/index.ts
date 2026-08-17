@@ -64,10 +64,14 @@ export class StartupLifecycleController {
     this.registerSignalHandlers();
     try {
       const shouldReplayHistory = await this.initMainTui();
+      // Mount Welcome + Idle before the first present. Starting the event loop
+      // on an empty transcript painted a blank pane (then splash /login raced
+      // it) — the startup flicker/black hole on Windows ConPTY.
+      host.transcriptRender.renderWelcome();
       this.startEventLoop();
       try {
-        host.transcriptRender.renderWelcome();
         await host.transcriptRender.playStartupSplash();
+        void maybeStartOnboarding(host).catch(() => {});
         void this.loadBanner();
         this.startBackgroundFdAutocomplete();
         await this.finishStartup(shouldReplayHistory);
@@ -211,7 +215,6 @@ export class StartupLifecycleController {
     });
     this.ensureNativeInputRouter();
     this.attachNativeRendererCallback();
-    void maybeStartOnboarding(host).catch(() => {});
     return shouldReplayHistory;
   }
 

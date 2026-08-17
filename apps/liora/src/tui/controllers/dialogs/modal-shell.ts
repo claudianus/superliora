@@ -33,7 +33,13 @@ export function mountEditorReplacement(
   // session-picker set their own specific dialog id after this call.
   // Keep session-loading sticky so restore paths cannot silently drop the lock.
   host.state.activeDialog ??= 'command';
-  requestTUIContentRender(host.state);
+  // /login and other replacements grow the editor and shrink the
+  // transcript. Stale Idle geometry + followOutput then hides Welcome.
+  if (host.state.transcriptContainer.hasIdleStageMounted) {
+    host.state.transcriptContainer.invalidateIdleGeometry();
+    host.state.transcriptContainer.pinEmptyChromeToTop();
+  }
+  requestTUILayoutRender(host.state);
 }
 
 /**

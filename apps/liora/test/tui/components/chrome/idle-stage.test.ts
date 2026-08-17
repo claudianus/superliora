@@ -124,6 +124,12 @@ describe('idle-stage helpers', () => {
     expect(resolveIdleStageRows(80, 15)).toBe(15);
   });
 
+  it('does not inflate above an explicit remainder budget', () => {
+    expect(resolveIdleStageRows(80, 0)).toBe(0);
+    expect(resolveIdleStageRows(80, 5)).toBe(5);
+    expect(resolveIdleStageRows(80, 9)).toBe(9);
+  });
+
   it('pads render output to exactly preferredRows', () => {
     withAmbientEnv(() => {
       const target = 22;
@@ -616,6 +622,58 @@ describe('IdleStageComponent', () => {
         preferredRows: 18,
       }).render(80);
       expect(lines.length).toBe(18);
+    });
+  });
+
+  it('idleTargetRows never overflows the transcript budget', () => {
+    withAmbientEnv(() => {
+      const welcomeRows = new WelcomeComponent(appState).render(80).length;
+      const budget = welcomeRows + 10;
+      const viewport = createTranscriptViewportState();
+      const container = new TranscriptViewportComponent(0, 0, viewport, () => budget);
+      container.addChild(new WelcomeComponent(appState));
+      const idleRows = container.idleTargetRows(80);
+      expect(idleRows).toBe(10);
+      expect(welcomeRows + idleRows).toBe(budget);
+    });
+  });
+
+  it('remeasures Idle when the transcript budget shrinks after a picker', () => {
+    withAmbientEnv(() => {
+      const welcomeRows = new WelcomeComponent(appState).render(80).length;
+      let budget = welcomeRows + 12;
+      const viewport = createTranscriptViewportState();
+      const container = new TranscriptViewportComponent(0, 0, viewport, () => budget);
+      container.addChild(new WelcomeComponent(appState));
+      container.addChild(
+        new IdleStageComponent({
+          state: appState,
+          getPreferredRows: (width) => container.idleTargetRows(width),
+        }),
+      );
+      expect(container.contentRowCount(80)).toBe(welcomeRows + 12);
+      budget = Math.max(1, welcomeRows - 8);
+      expect(container.idleTargetRows(80)).toBe(0);
+      expect(container.contentRowCount(80)).toBe(welcomeRows);
+      expect(viewport.start()).toBe(0);
+    });
+  });
+
+  it('pins Welcome to the top when chrome-only content would overflow', () => {
+    withAmbientEnv(() => {
+      const viewport = createTranscriptViewportState();
+      const container = new TranscriptViewportComponent(0, 0, viewport, () => 8);
+      container.addChild(new WelcomeComponent(appState));
+      container.addChild(
+        new IdleStageComponent({
+          state: appState,
+          getPreferredRows: (width) => container.idleTargetRows(width),
+        }),
+      );
+      container.pinEmptyChromeToTop();
+      container.renderWithVisibleRegionLines(80, 8);
+      expect(viewport.start()).toBe(0);
+      expect(viewport.followOutput).toBe(false);
     });
   });
 

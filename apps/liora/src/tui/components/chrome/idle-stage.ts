@@ -104,12 +104,17 @@ export function resolveIdleStageRows(width: number, preferredRows = IDLE_STAGE_D
   const safeWidth = Math.max(0, Math.trunc(width));
   const preferred = Math.max(0, Math.trunc(preferredRows));
   if (safeWidth < 24) return 0;
+  // Explicit zero budget (Welcome already filled the pane) — do not inflate.
+  // Omitted preferred uses the default (12), so 0 only arrives when passed.
+  if (preferred === 0) return 0;
   // Narrow stages cannot host multi-layer story art — cap for readability.
   if (safeWidth < 40) return Math.min(preferred > 0 ? preferred : 7, 7);
   // Medium+: fill the requested transcript budget (no absolute row ceiling).
   const target = preferred > 0 ? preferred : IDLE_STAGE_DEFAULT_ROWS;
   const minRows = safeWidth < 60 ? 8 : IDLE_STAGE_MIN_ROWS;
-  return Math.max(minRows, target);
+  const floored = Math.max(minRows, target);
+  // Never grow past an explicit remainder — that overflowed Welcome+Idle.
+  return preferred > 0 ? Math.min(floored, preferred) : floored;
 }
 
 export function resolveIdleMoodKey(nowMs: number): (typeof IDLE_MOOD_KEYS)[number] {

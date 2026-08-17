@@ -188,6 +188,59 @@ describe('idle aquarium clear tear', () => {
     expect(cell.style?.bg?.toLowerCase()).not.toBe('#0b0f14');
   });
 
+  it('keeps Welcome+Idle inside the transcript budget so follow-tail cannot hide them', () => {
+    const cols = 120;
+    const rows = 40;
+    const state = createTUIState({
+      initialAppState: appState(),
+      startup: { continueLast: false, yolo: false, auto: false, plan: false },
+    });
+    Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => rows });
+    Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => cols });
+    state.editorContainer.addChild(state.editor);
+    state.transcriptContainer.addChild(new WelcomeComponent(state.appState));
+    state.transcriptContainer.addChild(
+      new IdleStageComponent({
+        state: state.appState,
+        getPreferredRows: (width) => state.transcriptContainer.idleTargetRows(width),
+      }),
+    );
+
+    const regions = buildTUIStateNativeFrameRegions(state, cols, rows);
+    const transcript = regions.find((r) => r.id === 'transcript');
+    expect(transcript).toBeDefined();
+    const budget = transcript!.rect.height;
+    // idleTargetRows measures siblings at the transcript inner width (gutter).
+    const inner = Math.max(1, transcript!.rect.width - 2);
+    const welcomeRows = new WelcomeComponent(state.appState).render(inner).length;
+    const idleRows = state.transcriptContainer.idleTargetRows(transcript!.rect.width);
+    expect(welcomeRows + idleRows).toBeLessThanOrEqual(budget);
+    expect(idleRows).toBe(Math.max(0, budget - welcomeRows));
+  });
+
+  it('empty transcript lines + canvas fill is a blank pane, not Welcome', () => {
+    // Splash takeover stores transcriptLines=[]. Reusing that window after
+    // topology clear leaves the pane as theme background with no glyphs —
+    // the launch screenshot (header/footer live, center empty).
+    const canvas = { char: ' ', style: { bg: '#0B0F14' } };
+    const buf = new RendererCellBuffer(20, 8, { char: '·' });
+    composeRendererRegions(buf, [
+      {
+        id: 'transcript',
+        rect: { x: 0, y: 0, width: 20, height: 8 },
+        lines: [],
+        clear: false,
+        background: canvas,
+      },
+    ]);
+    for (let y = 0; y < 8; y++) {
+      for (let x = 0; x < 20; x++) {
+        expect(buf.getCell(x, y).char).toBe(' ');
+        expect(buf.getCell(x, y).style?.bg?.toLowerCase()).toBe('#0b0f14');
+      }
+    }
+  });
+
   it('fills region background for short stack content with clear:false (black-band hole)', () => {
     // Inter-region / tall-editor gap: lines shorter than rect + clear:false
     // must not leave EMPTY_CELL without canvas bg.

@@ -24,6 +24,8 @@ import {
   resolveTUIStateNativeFramePolicy,
   shouldForceNativeCursor,
   shouldReuseTUIChromeCache,
+  shouldReuseTranscriptLineCache,
+  shouldStoreTranscriptLineCache,
   shouldUseAmbientDamageOnlyPaint,
   tuiChromeEpoch,
   type TUIStateNativeFramePolicy,
@@ -118,9 +120,13 @@ export function createTUIStateNativeRenderCallback(
     const splashJustDisposed = state.splashJustDisposed === true;
     if (splashJustDisposed) {
       state.splashJustDisposed = false;
+      // Splash frames must not leave an empty transcript identity for /login.
+      transcriptLineCache = undefined;
+      transcriptLineCacheWidth = undefined;
+      transcriptLineCacheSelectionKey = undefined;
     }
     const effectivePolicy: TUIStateNativeFramePolicy = splashJustDisposed
-      ? { ...policy, clear: false }
+      ? { ...policy, clear: false, force: true }
       : policy;
     if (
       policy.clearTranscriptSelection &&
@@ -194,7 +200,10 @@ export function createTUIStateNativeRenderCallback(
     // Topology changes still beginFrame-clear via the composition cache miss;
     // short-row holes are sealed with canvas background after compose.
     const idleAquariumMounted = state.transcriptContainer.hasIdleStageMounted;
-    const ambientDamageOnly = splashJustDisposed || shouldUseAmbientDamageOnlyPaint({
+    // First live frame after splash must region-clear the stack. Forcing
+    // damage-only here left canvas-only holes when Welcome/Idle had not
+    // painted yet (topology wipe + short lines + incremental present).
+    const ambientDamageOnly = !splashJustDisposed && shouldUseAmbientDamageOnlyPaint({
       structuralShift: layoutShift.structuralShift,
       geometryShift: layoutShift.geometryShift,
       contentGrew: layoutShift.contentGrew,
@@ -214,11 +223,14 @@ export function createTUIStateNativeRenderCallback(
     // on viewport.start. Child render caches in the transcript component keep
     // scroll paint cheap without freezing the window.
     const selectionKey = transcriptSelectionCacheKey(state);
-    const canReuseTranscript =
-      pureInputFrame &&
-      transcriptLineCache !== undefined &&
-      transcriptLineCacheWidth === size.columns &&
-      transcriptLineCacheSelectionKey === selectionKey;
+    const canReuseTranscript = shouldReuseTranscriptLineCache({
+      pureInputFrame,
+      hasCache: transcriptLineCache !== undefined,
+      cacheLineCount: transcriptLineCache?.length ?? 0,
+      widthMatches: transcriptLineCacheWidth === size.columns,
+      selectionMatches: transcriptLineCacheSelectionKey === selectionKey,
+      splashJustDisposed,
+    });
     const nativeFrame = buildTUIStateNativeFrame(state, size.columns, height, {
       diagnosticsOverlay: options.diagnosticsOverlay,
       diagnostics: runtime.diagnostics,
@@ -238,7 +250,8 @@ export function createTUIStateNativeRenderCallback(
     });
     // Refresh the cache only when chrome was freshly built this frame. Reused
     // frames keep the existing cache (its lines already match nativeFrame.chrome).
-    if (reuseChrome === undefined) {
+    const fullscreenTakeover = isNativeFullscreenTakeover(state);
+    if (reuseChrome === undefined && !fullscreenTakeover) {
       chromeCache = {
         width: size.columns,
         stageWidth: nativeFrame.stageWidth,
@@ -252,8 +265,15 @@ export function createTUIStateNativeRenderCallback(
         footer: nativeFrame.chrome.footer,
       };
     }
-    // Cache transcript lines for pure-input frame reuse.
-    if (!canReuseTranscript) {
+    // Cache transcript lines for pure-input frame reuse. Never store the
+    // splash takeover's empty window — that is the blank-pane launch bug.
+    if (
+      !canReuseTranscript &&
+      shouldStoreTranscriptLineCache({
+        fullscreenTakeover,
+        lineCount: nativeFrame.transcriptLines.length,
+      })
+    ) {
       transcriptLineCache = nativeFrame.transcriptLines;
       transcriptLineCacheWidth = size.columns;
       transcriptLineCacheSelectionKey = selectionKey;

@@ -122,6 +122,38 @@ export function shouldReuseTUIChromeCache(options: {
   );
 }
 
+/**
+ * Whether the previous frame's transcript lines may be reused.
+ *
+ * Fullscreen splash presents no transcript and used to store `[]`. The next
+ * `/login` keystroke is a pure-input frame, so that empty cache painted the
+ * pane as canvas background — header/footer/picker stayed live, Welcome/Idle
+ * never appeared.
+ */
+export function shouldReuseTranscriptLineCache(options: {
+  readonly pureInputFrame: boolean;
+  readonly hasCache: boolean;
+  readonly cacheLineCount: number;
+  readonly widthMatches: boolean;
+  readonly selectionMatches: boolean;
+  readonly splashJustDisposed: boolean;
+}): boolean {
+  if (options.splashJustDisposed) return false;
+  if (!options.pureInputFrame) return false;
+  if (!options.hasCache || !options.widthMatches || !options.selectionMatches) {
+    return false;
+  }
+  return options.cacheLineCount > 0;
+}
+
+/** Splash/fullscreen frames have no transcript — do not overwrite a warm cache. */
+export function shouldStoreTranscriptLineCache(options: {
+  readonly fullscreenTakeover: boolean;
+  readonly lineCount: number;
+}): boolean {
+  return !options.fullscreenTakeover && options.lineCount > 0;
+}
+
 /** Activity + live-goal signature used to invalidate chrome cache. */
 export function tuiChromeEpoch(options: {
   readonly streamingPhase: string;

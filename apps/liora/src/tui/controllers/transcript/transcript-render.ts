@@ -300,6 +300,9 @@ export class TranscriptRenderController {
         }),
       );
     }
+    // followOutput defaults to the tail. If Welcome+Idle is even one row
+    // over budget, the visible window is dark Idle water (blank launch).
+    host.state.transcriptContainer.pinEmptyChromeToTop();
   }
 
   /**
@@ -383,6 +386,11 @@ export class TranscriptRenderController {
         host.state.ui.addChild(child);
       }
       host.state.ui.setFocus(host.state.editor);
+      // Drop splash-era geometry / present identities so the first live
+      // Welcome+Idle paint cannot reuse empty stubs or morph-window keys.
+      host.state.transcriptContainer.invalidateGeometryAndPaint();
+      host.state.transcriptContainer.invalidateIncrementalPresent();
+      host.state.transcriptContainer.pinEmptyChromeToTop();
       requestTUILayoutRender(host.state);
       return;
     }
