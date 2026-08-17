@@ -1,5 +1,13 @@
 # @superliora/liora
 
+## 0.11.1
+
+### Patch Changes
+
+- Split greenfield_chain JobCreate contracts so skeleton gates on scaffold/type/lint/unit/build only, fill keeps product AC and web visual checks, and delete-pass cleans placeholders without rebuilding. Queued chain children show a parent-phase wait label.
+- When Jobs are running and the main chat lane stays idle for N minutes (default 4; `SUPERLIORA_CONDUCTOR_IDLE_PULSE_MINUTES`), fire a short JobList-only status report with spam guards.
+- Do not treat missing job kind as merge-green; keep merge trust honest when kind is absent.
+
 ## 0.11.0
 
 ### Minor Changes
