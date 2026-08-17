@@ -443,8 +443,12 @@ switching (Ctrl+O toast confirms the level).
 
 Levels:
 
-- `compact` (default): **chain phase bar** + every tool card as a **header line**
-  (status mark, tool name, key argument, result chip) with phase tints.
+- `compact` (default): **quiet activity log** — each tool is a **title**
+  (`Reading foo.ts`) plus an optional **dim metrics** line (`42 lines`,
+  `+12 −3`). No Used/Using verbs, no ▌ gutter, no work-block tint.
+  File/symbol names sit in a surface pill; diffs are green/red.
+  Thinking collapses to `Thought briefly` / `Thinking…`.
+  A dim chain metrics line stays clickable for expand-all.
   Click a card to expand locally.
 - `standard`: **chain phase bar** + preview tool cards + soft phase
   tints (you / thinking / tools / answer work-units).
@@ -462,14 +466,17 @@ Work-unit phase tints: **thinking + tools** share one tint as a continuous
 work-block band. Thinking stays flush against the first tool; **standard/full**
 tool cards carry a **trailing tinted blank** inside each Used-unit so consecutive
 cards separate without an untinted sibling spacer (which would break the band).
-**compact/minimal** one-line rows stay dense (no bulk inter-card blank).
+**minimal** one-line rows stay dense (no bulk inter-card blank).
+**compact** drops the tint band and adds one breath line after each
+collapsed card so activity blocks scan like a quiet log.
 **answer** keeps a distinct tint and exactly one untinted blank line above and
 below so natural-language replies pop. See
 `features/transcript/transcript-phase-tint.ts` and
 `components/messages/tool-call/body-rebuild.ts`.
 
 Phase headers: user / thinking / answer components paint their own tags;
-tools use the **chain phase bar** at minimal/compact/standard. At **full**
+tools use the **chain phase bar** at minimal/standard. Compact keeps a dim
+metrics line instead of the ▌ tools bar. At **full**
 density the chain bar is omitted, so stream mounts insert a one-shot
 `TurnPhaseBoundary` before the first tool card (`streaming-ui/phase-boundary.ts`).
 
@@ -498,10 +505,12 @@ Implementation map:
 
 - `src/tui/features/transcript/transcript-density.ts` — pure projections (levels,
   chain stats, summary formatters).
+- `src/tui/features/transcript/compact-activity.ts` — compact title/metrics
+  language (verbs, pills, diffs, thinking copy).
 - `src/tui/components/messages/tool-call.ts` — `setDetail()`,
   `toggleDetailOverride()`, `isOneLineCollapsed`, failure punch-through.
 - `src/tui/components/messages/tool-chain-summary.ts` — per-turn
-  aggregate line for `minimal`.
+  aggregate line (quiet metrics at compact; phase bar at minimal/standard).
 - `src/tui/features/transcript/transcript-density-mouse.ts` — click routing.
 - `src/tui/commands/transcript.ts` + `commands/config.ts` — slash
   command and appearance key.

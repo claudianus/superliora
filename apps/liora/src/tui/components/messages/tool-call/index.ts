@@ -16,6 +16,10 @@ import { createMarkdownTheme } from '#/tui/theme/pi-tui-theme';
 import type { ToolCallBlockData, ToolResultBlockData, TranscriptDetailLevel } from '#/tui/types';
 import type { ToolOutputViewportState } from '#/tui/utils/tool/tool-output-viewport';
 import {
+  compactHeaderRowCount,
+  isCompactQuietChrome,
+} from '#/tui/features/transcript/compact-activity';
+import {
   isChainOnlyToolLevel,
   isOneLineToolLevel,
 } from '#/tui/features/transcript/transcript-density';
@@ -45,7 +49,6 @@ import { ToolCallCallPreview, type ToolCallCallPreviewHost } from './call-previe
 import { ToolCallDetachHint } from './detach-hint';
 import { toolHeaderEntranceStartedAt } from './entrance';
 import { str } from './format';
-import { composeToolCallHeader, type ToolCallHeaderState } from './header';
 import { ToolCallOutputViewportMount } from './output-viewport';
 import {
   buildToolCallReadSnapshot,
@@ -157,7 +160,7 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
     });
 
     // No leading spacer — tools sit tight under thinking in the work block.
-    this.headerText = new Text(buildToolCallHeaderText(this.internalsHost()), 0, 0);
+    this.headerText = new Text(this.refreshHeaderText(), 0, 0);
     this.addChild(this.headerText);
     rebuildToolCallComponentBody(this.internalsHost());
     this.detachHint.start(this.toolCall.name, this.ui !== undefined);
@@ -165,6 +168,7 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
 
   private readonly renderCache = new RendererChildrenRenderCache();
   private lastHeaderAnimationEpoch = -1;
+  private headerRows = 1;
 
   private subagentEventHost(): ToolCallSubagentEventHost {
     return {
@@ -174,7 +178,7 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
       refreshSubagentPresentation: (requestRender) =>{  refreshToolCallSubagentPresentation(this.internalsHost(), requestRender); },
       rebuildContent: () =>{  rebuildToolCallComponentContent(this.internalsHost()); },
       notifySnapshotChange: () => this.internalsHost().onSnapshotChange?.(),
-      refreshHeader: () =>{  this.headerText.setText(buildToolCallHeaderText(this.internalsHost())); },
+      refreshHeader: () =>{  this.paintHeader(); },
       invalidate: () =>{  this.invalidate(); },
       requestRender: () => this.ui?.requestRender(),
     };
@@ -201,7 +205,7 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
           rebuildToolCallComponentSubagentBlock(this.internalsHost());
         },
         refreshHeader: () => {
-          this.headerText.setText(buildToolCallHeaderText(this.internalsHost()));
+          this.paintHeader();
         },
         notifySnapshotChange: () => this.internalsHost().onSnapshotChange?.(),
         requestRender: () => this.ui?.requestRender(),
@@ -228,21 +232,25 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
       children: this.children,
       isCacheEnabled: isRenderCacheEnabled,
     });
-    const tinted = lines.map((line) => {
-      // Blank rows keep the work-block fill so the band stays continuous.
-      if (line.trim().length === 0) {
-        return applyWorkBlockTintLine('', width, 'tools');
-      }
-      const withGutter =
-        phaseGutter('tools') + (line.startsWith(' ') ? line.slice(1) : line);
-      return applyWorkBlockTintLine(withGutter, width, 'tools');
-    });
+    const painted = isCompactQuietChrome(this.detail)
+      ? this.isOneLineCollapsed && lines.length > 0
+        ? [...lines, '']
+        : lines
+      : lines.map((line) => {
+          // Blank rows keep the work-block fill so the band stays continuous.
+          if (line.trim().length === 0) {
+            return applyWorkBlockTintLine('', width, 'tools');
+          }
+          const withGutter =
+            phaseGutter('tools') + (line.startsWith(' ') ? line.slice(1) : line);
+          return applyWorkBlockTintLine(withGutter, width, 'tools');
+        });
     if (!isTranscriptEntranceActive(this.entranceStartedAtMs) && this.result !== undefined) {
-      return tinted;
+      return painted;
     }
     // Skip entrance polish wash on pure-scroll paint (CPU only, no interaction).
-    if (areLiveToolTicksSuppressed()) return tinted;
-    return polishTranscriptLines(tinted, {
+    if (areLiveToolTicksSuppressed()) return painted;
+    return polishTranscriptLines(painted, {
       startedAtMs: this.entranceStartedAtMs,
       kind: 'tool',
       streaming: this.result === undefined,
@@ -275,12 +283,12 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
     const epoch = renderCacheEpoch();
     if (epoch < 0 || epoch === this.lastHeaderAnimationEpoch) return;
     this.lastHeaderAnimationEpoch = epoch;
-    this.headerText.setText(buildToolCallHeaderText(this.internalsHost()));
+    this.paintHeader();
   }
 
   override invalidate(): void {
     this.renderCache.clear();
-    this.headerText.setText(buildToolCallHeaderText(this.internalsHost()));
+    this.paintHeader();
     rebuildToolCallComponentBody(this.internalsHost());
     super.invalidate();
   }
@@ -307,11 +315,17 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
     this.detailOverrideExpanded = false;
     if (detail === 'full') this.expanded = true;
     else if (wasFull) this.expanded = false;
+    this.paintHeader();
     rebuildToolCallComponentBody(this.internalsHost());
   }
 
   getDetail(): TranscriptDetailLevel {
     return this.detail;
+  }
+
+  /** Header rows for click-to-collapse (compact titles may be two lines). */
+  get headerRowCount(): number {
+    return this.headerRows;
   }
 
   toggleDetailOverride(): boolean {
@@ -373,14 +387,14 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
     this.liveOutput = '';
     this.detachHint.clearOnResult();
     this.subagent.finalizeElapsedIfNeeded(this.toolCall.name);
-    this.headerText.setText(buildToolCallHeaderText(this.internalsHost()));
+    this.paintHeader();
     rebuildToolCallComponentBody(this.internalsHost());
     this.internalsHost().onSnapshotChange?.();
   }
 
   updateToolCall(toolCall: ToolCallBlockData): void {
     this.toolCall = toolCall;
-    this.headerText.setText(buildToolCallHeaderText(this.internalsHost()));
+    this.paintHeader();
     rebuildToolCallComponentBody(this.internalsHost());
     this.internalsHost().onSnapshotChange?.();
     this.ui?.requestRender();
@@ -593,6 +607,7 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
       resultSettledAtMs: component.resultSettledAtMs,
       finishedAtMs: component.finishedAtMs,
       workspaceDir: component.workspaceDir,
+      detail: component.detail,
       expanded: component.expanded,
       isOneLineCollapsed: component.isOneLineCollapsed,
       progressLines: component.progressLines,
@@ -618,6 +633,16 @@ export class ToolCallComponent extends Container implements ToolCallCallPreviewH
       get liveOutputShell() { return component.liveOutputShell; },
       set liveOutputShell(value) { component.liveOutputShell = value; },
     }))(this);
+  }
+
+  private paintHeader(): void {
+    this.headerText.setText(this.refreshHeaderText());
+  }
+
+  private refreshHeaderText(): string {
+    const text = buildToolCallHeaderText(this.internalsHost());
+    this.headerRows = compactHeaderRowCount(text);
+    return text;
   }
 
   private isSingleSubagentView(): boolean {

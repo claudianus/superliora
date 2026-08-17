@@ -1,5 +1,5 @@
 import { visibleWidth, type RendererRootUI } from '#/tui/renderer';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ThinkingComponent } from '#/tui/components/messages/thinking';
 import { STATUS_BULLET } from '#/tui/constant/symbols';
@@ -13,6 +13,10 @@ function strip(text: string): string {
 const longThinking = ['line1', 'line2', 'line3', 'line4', 'line5', 'line6', 'line7'].join('\n');
 
 describe('ThinkingComponent', () => {
+  beforeEach(() => {
+    setActiveTranscriptDetail('standard');
+  });
+
   afterEach(() => {
     setActiveTranscriptDetail('standard');
   });
@@ -184,6 +188,26 @@ describe('ThinkingComponent', () => {
       const out = strip(component.render(80).join('\n'));
       expect(out).toContain('thinking...');
       expect(out).not.toContain('line7');
+    } finally {
+      setActiveTranscriptDetail('standard');
+    }
+  });
+
+  it('collapses compact thinking to a quiet status line', () => {
+    setActiveTranscriptDetail('compact');
+    try {
+      const live = new ThinkingComponent(longThinking, true, 'live');
+      const liveOut = strip(live.render(80).join('\n'));
+      expect(liveOut).toContain('Thinking…');
+      expect(liveOut).not.toContain('thinking...');
+      expect(liveOut).not.toContain('line7');
+      expect(liveOut).not.toContain('ctrl+o to expand');
+
+      live.finalize();
+      const done = strip(live.render(80).join('\n'));
+      expect(done).toContain('Thought briefly');
+      expect(done).not.toContain('thinking complete');
+      expect(done).not.toContain('line7');
     } finally {
       setActiveTranscriptDetail('standard');
     }

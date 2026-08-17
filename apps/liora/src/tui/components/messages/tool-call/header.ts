@@ -26,6 +26,11 @@ import {
   type MotionToolPhase,
 } from '#/tui/features/appearance/appearance-effects';
 import { decodeMcpToolName } from '#/tui/utils/mcp/mcp-tool-name';
+import {
+  composeCompactActivityHeader,
+  usesCompactNarrativeHeader,
+} from '#/tui/features/transcript/compact-activity';
+import type { TranscriptDetailLevel } from '#/tui/types';
 
 import { buildGoalToolHeader } from '../tool-renderers/goal';
 import { isGenericToolResult } from '../tool-renderers/registry';
@@ -62,6 +67,7 @@ export interface ToolCallHeaderState {
   readonly subagentContextTokens: number | undefined;
   readonly subagentUsage: TokenUsage | undefined;
   readonly subagentSpinnerFrame: number;
+  readonly detail: TranscriptDetailLevel;
 }
 
 export function renderToolActivityLabel(
@@ -197,6 +203,41 @@ function truncateSubagentDescription(raw: string, maxLength = 60): string {
   return raw.length > maxLength ? `${raw.slice(0, maxLength - 1)}…` : raw;
 }
 
+function collectCompactMetricParts(
+  toolCall: ToolCallBlockData,
+  result: ToolResultBlockData | undefined,
+  finishedAtMs: number | undefined,
+): string[] {
+  const parts: string[] = [];
+  if (result !== undefined) {
+    const provider = pickChip(toolCall.name);
+    if (provider !== undefined) {
+      const text = provider(toolCall, result);
+      if (text.length > 0) parts.push(text);
+    }
+  }
+  const duration = formatToolCallDurationChip(toolCall, result, finishedAtMs);
+  if (duration !== undefined) parts.push(duration);
+  return parts;
+}
+
+function buildCompactNarrativeHeader(
+  state: ToolCallHeaderState,
+  isFinished: boolean,
+  isError: boolean,
+): string {
+  const decoded = decodeMcpToolName(state.toolCall.name);
+  const toolName = decoded === null ? state.toolCall.name : decoded.toolName;
+  const entity = extractKeyArgument(state.toolCall.name, state.toolCall.args, state.workspaceDir);
+  return composeCompactActivityHeader({
+    toolName,
+    entity,
+    live: !isFinished,
+    error: isError,
+    metrics: collectCompactMetricParts(state.toolCall, state.result, state.finishedAtMs),
+  });
+}
+
 /**
  * Composes the full header string for a tool call card, mirroring the
  * per-tool branching (plan mode, ask-user, goal tools, single subagent,
@@ -281,6 +322,10 @@ export function composeToolCallHeader(state: ToolCallHeaderState): string {
 
   if (state.isSingleSubagentView) {
     return buildSingleSubagentHeader(state);
+  }
+
+  if (state.detail === 'compact' && usesCompactNarrativeHeader(toolCall.name, false)) {
+    return buildCompactNarrativeHeader(state, isFinished, isError);
   }
 
   const verb = phase === 'succeeded' || phase === 'failed'

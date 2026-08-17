@@ -49,9 +49,11 @@ export function handleTranscriptDensityMouse(
   if (!(range.child instanceof ToolCallComponent)) return false;
   if (!isOneLineToolLevel(range.child.getDetail())) return false;
 
-  // Collapsed: the whole one-liner is the toggle target. Locally expanded
-  // (clicked open): only the header row (localRow 0 — no leading spacer) closes it.
-  if (!range.child.isOneLineCollapsed && range.localRow !== 0) return false;
+  // Collapsed: the whole card (title + optional metrics + breath) toggles.
+  // Locally expanded: only the header rows close it so body text stays selectable.
+  if (!range.child.isOneLineCollapsed && range.localRow >= range.child.headerRowCount) {
+    return false;
+  }
 
   range.child.toggleDetailOverride();
   requestTUIContentRender(state);

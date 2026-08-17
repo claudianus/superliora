@@ -16,6 +16,8 @@ import {
   SETTLE_FLASH_MS,
 } from '#/tui/features/appearance/appearance-effects';
 
+import { setActiveTranscriptDetail } from '#/tui/features/transcript/transcript-density';
+
 import { captureProcessWrite } from '../../../helpers/process';
 
 const ESC = String.fromCodePoint(0x1b);
@@ -37,9 +39,11 @@ function stubTui(rows: number): RendererRootUI {
 describe('ToolCallComponent', () => {
   beforeEach(() => {
     currentTheme.setPalette(darkColors);
+    setActiveTranscriptDetail('standard');
   });
 
   afterEach(() => {
+    setActiveTranscriptDetail('standard');
     vi.useRealTimers();
     currentTheme.setPalette(neonNoirColors);
   });
@@ -104,6 +108,56 @@ describe('ToolCallComponent', () => {
     const out = strip(component.render(100).join('\n'));
     expect(out).toContain('Using Bash');
     expect(out).toContain('4s');
+  });
+
+  it('renders compact density as a quiet activity title without Used/Using', () => {
+    setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
+    const component = new ToolCallComponent(
+      {
+        id: 'call_read_compact',
+        name: 'Read',
+        args: { path: 'foo.ts' },
+      },
+      {
+        tool_call_id: 'call_read_compact',
+        output: 'line1\nline2',
+        is_error: false,
+      },
+    );
+    component.setDetail('compact');
+
+    const out = strip(component.render(100).join('\n'));
+    expect(out).toContain('Read');
+    expect(out).toContain('foo.ts');
+    expect(out).toContain('2 lines');
+    expect(out).not.toContain('Used Read');
+    expect(out).not.toContain('Using Read');
+  });
+
+  it('colors compact edit diffs on the metrics line', () => {
+    setActiveAppearancePreferences({ ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off' });
+    const component = new ToolCallComponent(
+      {
+        id: 'call_edit_compact',
+        name: 'Edit',
+        args: {
+          path: 'windows-job.ts',
+          old_string: 'a\nb\n',
+          new_string: 'a\nb\nc\n',
+        },
+      },
+      {
+        tool_call_id: 'call_edit_compact',
+        output: 'ok',
+        is_error: false,
+      },
+    );
+    component.setDetail('compact');
+
+    const out = strip(component.render(100).join('\n'));
+    expect(out).toContain('Edited');
+    expect(out).toContain('windows-job.ts');
+    expect(out).toMatch(/\+\d+/);
   });
 
   it('shows motion phase chips on generic tool headers', () => {
@@ -933,7 +987,7 @@ describe('ToolCallComponent', () => {
 
     const out = strip(component.render(100).join('\n'));
     const expectedReadPath =
-      process.platform === 'win32' ? 'apps\\kimi-code\\src\\main.ts' : 'apps/liora/src/main.ts';
+      process.platform === 'win32' ? 'apps\\liora\\src\\main.ts' : 'apps/liora/src/main.ts';
     expect(out).toContain(`Used Read (${expectedReadPath})`);
     expect(out).not.toContain('/tmp/proj-a/apps');
     expect(component.getReadSnapshot().filePath).toBe(expectedReadPath);
@@ -2426,7 +2480,8 @@ describe('ToolCallComponent motion cues', () => {
 
       component.setDetail('compact');
       const compact = strip(component.render(100).join('\n'));
-      expect(compact).toContain('Used Bash');
+      expect(compact).toContain('Ran');
+      expect(compact).not.toContain('Used Bash');
       expect(compact).not.toContain('density-output-token');
       expect(component.isOneLineCollapsed).toBe(true);
     });
@@ -2573,15 +2628,17 @@ describe('ToolCallComponent motion cues', () => {
       expect(lines.some((line) => line.includes('Used'))).toBe(true);
     });
 
-    it('compact one-line cards stay dense without bulk trailing blank', () => {
+    it('compact one-line cards use a quiet title plus one breath line', () => {
       const component = finishedTool('unit_compact');
       component.setDetail('compact');
       const lines = plainLines(component);
       expect(component.isOneLineCollapsed).toBe(true);
-      // Header-only (plus optional error punch-through) — no body spacer row.
-      expect(lines.length).toBe(1);
-      expect(lines[0]).toContain('Used');
+      expect(lines[0]).toContain('Ran');
+      expect(lines[0]).not.toContain('Used');
       expect(lines[0]?.trim()).not.toBe('');
+      // One trailing breath line — not a tinted Used-unit spacer.
+      expect(lines.at(-1)?.trim()).toBe('');
+      expect(lines.length).toBe(2);
     });
 
     it('header remains localRow 0 (no leading blank) for density mouse', () => {

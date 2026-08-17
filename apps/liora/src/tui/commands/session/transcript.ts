@@ -17,7 +17,7 @@ import {
 
 const LEVEL_HINTS: Record<(typeof TRANSCRIPT_DETAIL_LEVELS)[number], string> = {
   minimal: 'One-line tools + per-turn chain summary',
-  compact: 'Default — one-line tool headers; click a card to expand',
+  compact: 'Default — activity title + dim metrics; click a card to expand',
   standard: 'Preview cards (up to 5 lines) with highlighting',
   full: 'Every tool card expanded',
 };
@@ -48,7 +48,7 @@ export async function handleTranscriptCommand(
       `Detail: ${host.state.transcriptDetail}\n` +
         `Usage: /transcript [<${TRANSCRIPT_DETAIL_LEVELS.join('|')}>]\n` +
         'No args opens the density picker · minimal: one-line tools + chain summary\n' +
-        'compact: default one-line tools · standard: preview cards · full: everything expanded',
+        'compact: activity titles + dim metrics · standard: preview cards · full: everything expanded',
     );
     return;
   }

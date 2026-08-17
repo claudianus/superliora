@@ -94,6 +94,9 @@ describe('nextTranscriptDetailLevel (Ctrl+O cycle)', () => {
     for (const level of TRANSCRIPT_DETAIL_LEVELS) {
       expect(formatTranscriptDetailCycleLabel(level)).toMatch(/Transcript ·/);
     }
+    expect(formatTranscriptDetailCycleLabel('compact')).toBe(
+      'Transcript · compact (activity titles · dim metrics · no chrome)',
+    );
   });
 });
 
