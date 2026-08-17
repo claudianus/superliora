@@ -456,7 +456,7 @@ function planDeskHandoffNextMove(
         `Plan Desk ${job.id} finished with an Implement handoff — JobInspect for the draft, ` +
         `present it, then JobCreate from those fields` +
         (handoff.deliveryMode === 'greenfield'
-          ? ' (delivery_mode=greenfield, greenfield_chain=true).'
+          ? ' (delivery_mode=greenfield, greenfield_chain=true; runtime splits skeleton/fill/delete-pass contracts).'
           : '.') +
         seamHint
       );

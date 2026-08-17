@@ -300,7 +300,7 @@ export class Session {
   async close(): Promise<void> {
     try {
       await Promise.allSettled(
-        Array.from(this.readyAgents(), async (agent) => agent.cron?.stop()),
+        Array.from(this.readyAgents(), async (agent) => { await agent.cron?.stop(); agent.idlePulse?.stop(); }),
       );
       this.closeLifecycle.interruptJobsOnClose();
       await this.closeLifecycle.cancelActiveTurnsOnClose();
@@ -321,7 +321,7 @@ export class Session {
   async closeForReload(): Promise<void> {
     try {
       await Promise.allSettled(
-        Array.from(this.readyAgents(), async (agent) => agent.cron?.stop()),
+        Array.from(this.readyAgents(), async (agent) => { await agent.cron?.stop(); agent.idlePulse?.stop(); }),
       );
       await this.flushMetadata();
       await this.pluginLspRuntime?.dispose();

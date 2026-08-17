@@ -1,6 +1,9 @@
 /**
  * Greenfield delivery chain — skeleton → fill → delete-pass as parent-linked Jobs.
  * Keeps JobKind stable; phases live on JobRecord.deliveryPhase.
+ *
+ * Parent product AC / visual commands stay on fill only. Skeleton is a
+ * mechanical scaffold gate so host-browser EINVAL cannot stall the chain.
  */
 
 import type { ToolStore } from '../../store';
@@ -24,25 +27,88 @@ export interface GreenfieldChainInput {
   readonly surfaceKind?: JobRecord['surfaceKind'];
 }
 
+const VISUAL_GATE_RE =
+  /verifysurface|browserstatus|playwright|60\s*fps|전투\s*60|full\s*loop|title\s*[→-].*ending|완주|4\s*장|무기\s*8|보스\s*5/i;
+
+const MECHANICAL_CMD_RE = /tsc|typecheck|vitest|eslint|oxlint|lint|build|pnpm test|npm test/i;
+
+export const SKELETON_SUCCESS_CRITERIA = [
+  'Scaffold folders, entrypoints, types, empty scenes, and data schemas land.',
+  'Typecheck, lint, unit tests, and build pass on the empty scaffold.',
+] as const;
+
+export const DELETE_PASS_SUCCESS_CRITERIA = [
+  'Remove placeholders, dead code, and banned ship-state strings.',
+  'Do not rebuild the product from scratch; keep fill behavior intact.',
+] as const;
+
+export const SKELETON_DEFAULT_VERIFICATION = [
+  'npx tsc --noEmit',
+  'npx vitest run --reporter=dot',
+] as const;
+
 const PHASES = [
   {
     phase: 'skeleton' as const,
     titlePrefix: 'Skeleton:',
     promptExtra:
-      'Skeleton only: folders, entrypoints, types, empty surfaces. No product logic or decorative UI.',
+      'Skeleton only. Folders, entrypoints, types, empty scenes, schemas, mechanical tests. ' +
+      'Do not use VerifySurface as a done-gate on empty scenes. Chrome/Playwright reinstall loops are forbidden.',
   },
   {
     phase: 'fill' as const,
     titlePrefix: 'Fill:',
-    promptExtra: 'Fill the skeleton to meet success criteria. Smallest diff; no decorative layers.',
+    promptExtra:
+      'Fill the skeleton to meet product success criteria. Smallest diff; no decorative layers. ' +
+      'Visual / VerifySurface belongs here when surface_kind=web.',
   },
   {
     phase: 'delete_pass' as const,
     titlePrefix: 'Delete-pass:',
     promptExtra:
-      'Delete unused wrappers and decorative layers without breaking success criteria; re-run verification.',
+      'Delete unused wrappers, placeholders, and decorative layers. Do not rebuild the product from scratch; re-run verification.',
   },
-];
+] as const;
+
+export function isVisualOrProductGateLine(line: string): boolean {
+  return VISUAL_GATE_RE.test(line);
+}
+
+export function mechanicalVerificationCommands(
+  commands: readonly string[] | undefined,
+): readonly string[] {
+  const kept = (commands ?? []).filter((cmd) => MECHANICAL_CMD_RE.test(cmd) && !VISUAL_GATE_RE.test(cmd));
+  return kept.length > 0 ? kept : [...SKELETON_DEFAULT_VERIFICATION];
+}
+
+function contractForPhase(
+  phase: (typeof PHASES)[number]['phase'],
+  input: GreenfieldChainInput,
+): {
+  readonly successCriteria: readonly string[] | undefined;
+  readonly verificationCommands: readonly string[] | undefined;
+  readonly surfaceKind: JobRecord['surfaceKind'] | undefined;
+} {
+  if (phase === 'skeleton') {
+    return {
+      successCriteria: [...SKELETON_SUCCESS_CRITERIA],
+      verificationCommands: mechanicalVerificationCommands(input.verificationCommands),
+      surfaceKind: undefined,
+    };
+  }
+  if (phase === 'fill') {
+    return {
+      successCriteria: input.successCriteria,
+      verificationCommands: input.verificationCommands,
+      surfaceKind: input.surfaceKind,
+    };
+  }
+  return {
+    successCriteria: [...DELETE_PASS_SUCCESS_CRITERIA],
+    verificationCommands: mechanicalVerificationCommands(input.verificationCommands),
+    surfaceKind: undefined,
+  };
+}
 
 /**
  * Enqueue three chained implement/task Jobs. Priority descends so skeleton
@@ -63,6 +129,7 @@ export function createGreenfieldChainJobs(
 
   for (let i = 0; i < PHASES.length; i++) {
     const step = PHASES[i]!;
+    const contract = contractForPhase(step.phase, input);
     const promptParts = [step.promptExtra, basePrompt].filter(Boolean);
     const job = createJob(store, {
       title: `${step.titlePrefix} ${input.title}`.slice(0, 120),
@@ -71,9 +138,9 @@ export function createGreenfieldChainJobs(
       prompt: promptParts.join('\n\n'),
       ownershipPaths: input.ownershipPaths,
       contextPaths: input.contextPaths,
-      successCriteria: input.successCriteria,
+      successCriteria: contract.successCriteria,
       mustNotTouch: input.mustNotTouch,
-      verificationCommands: input.verificationCommands,
+      verificationCommands: contract.verificationCommands,
       testSeams: input.testSeams,
       tddMode: input.tddMode,
       // Only the first phase waits on external blockers; later phases chain via parent.
@@ -82,7 +149,7 @@ export function createGreenfieldChainJobs(
       deliveryPhase: step.phase,
       parentJobId: parentId,
       modelAlias: input.modelAlias,
-      surfaceKind: input.surfaceKind,
+      surfaceKind: contract.surfaceKind,
     });
     created.push(job);
     parentId = job.id;

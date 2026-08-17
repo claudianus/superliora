@@ -250,8 +250,13 @@ export function mergeTrustInputFromLedger(input: {
     (missionVerification.tests === 'failed' ||
       missionVerification.typecheck === 'failed' ||
       missionVerification.lint === 'failed');
+  // Only explicit non-coding kinds may use the mission green path. A missing
+  // kind (partial ledger fixtures) must not launder claim.checksGreen=true.
   const checksGreenFromMission =
-    !codingKind && claim.checksGreen !== false && !missionProductChecksFailed;
+    job.kind !== undefined &&
+    !codingKind &&
+    claim.checksGreen !== false &&
+    !missionProductChecksFailed;
   return {
     approve: claim.approve,
     checksGreen:

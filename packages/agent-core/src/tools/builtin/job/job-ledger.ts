@@ -323,7 +323,15 @@ export function renderJobLine(job: JobRecord): string {
       ? ` model=${job.modelAlias}`
       : '';
   const live = job.status === 'running' ? renderJobProgressSuffix(job) : '';
-  return `- ${job.id} [${job.status}] (${job.kind} p${job.priority}) ${job.title}${paths}${model}${live}`;
+  const wait = renderJobWaitLabel(job);
+  return `- ${job.id} [${job.status}] (${job.kind} p${job.priority}) ${job.title}${paths}${model}${live}${wait}`;
+}
+
+/** Queued child of a greenfield parent: "대기(부모 단계)" so idle slots are not mistaken for free workers. */
+export function renderJobWaitLabel(job: Pick<JobRecord, 'status' | 'parentJobId' | 'deliveryPhase'>): string {
+  if (job.status !== 'queued' || job.parentJobId === undefined) return '';
+  const phase = job.deliveryPhase === undefined ? 'parent' : job.deliveryPhase.replace('_', '-');
+  return ` wait=대기(부모 단계:${phase})`;
 }
 
 /**

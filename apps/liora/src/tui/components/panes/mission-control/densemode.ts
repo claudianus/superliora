@@ -242,12 +242,14 @@ export function formatAttentionJobRow(
   const idPlain = card.id.trim();
   if (titlePlain.length === 0 && idPlain.length === 0) return undefined;
   const meta = JOB_STATUS_META[card.status] ?? JOB_STATUS_META.running;
+  const waitingParent = card.status === 'queued' && card.deliveryPhase !== undefined;
   const token: ColorToken =
     card.status === 'needs_user' || card.status === 'blocked' || card.status === 'interrupted'
       ? 'warning'
       : card.status === 'failed'
         ? 'error'
         : meta.token;
+  const statusLabel = waitingParent ? '대기(부모 단계)' : meta.label;
   const label = titlePlain.length > 0 ? titlePlain : shortJobId(idPlain);
   const title = truncateToWidth(label, Math.max(6, width - 24), '…');
   const phase =
@@ -283,7 +285,7 @@ export function formatAttentionJobRow(
   return truncateToWidth(
     `${currentTheme.fg(token, `${meta.glyph} ${shortJobId(card.id)}`)} ${currentTheme.fg(
       token,
-      title,
+      waitingParent ? `${statusLabel} ${title}` : title,
     )}${phase}${tools}${worker}${steps}${freshness}`,
     width,
     '…',

@@ -115,7 +115,9 @@ export function renderImplementHandoffDraft(handoff: ImplementHandoff): string {
     `delivery_mode: ${handoff.deliveryMode}`,
   ];
   if (handoff.deliveryMode === 'greenfield') {
-    lines.push('greenfield_chain: true  # preferred after ultra plan approval');
+    lines.push(
+      'greenfield_chain: true  # preferred after ultra plan approval; runtime splits skeleton/fill/delete-pass contracts',
+    );
   }
   if (handoff.tddMode !== undefined) {
     lines.push(`tdd_mode: ${handoff.tddMode}`);
