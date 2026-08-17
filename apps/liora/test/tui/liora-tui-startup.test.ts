@@ -66,7 +66,8 @@ interface MainTuiDriver extends StartupDriver {
 }
 
 /** Runs the Welcome + banner startup pieces that `start()` owns; they no
- *  longer run inside initMainTui since the splash-first startup order. */
+ *  longer run inside initMainTui. Welcome mounts before the event loop so
+ *  the first present is not an empty transcript. */
 async function runStartupChrome(driver: MainTuiDriver): Promise<void> {
   const tui = driver as unknown as { renderWelcome(): void; loadBanner(): Promise<void> };
   tui.renderWelcome();

@@ -10,6 +10,8 @@ import {
   resolveTUIStateNativeFramePolicy,
   shouldForceTUIStateNativeLayoutFrame,
   shouldReuseTUIChromeCache,
+  shouldReuseTranscriptLineCache,
+  shouldStoreTranscriptLineCache,
   shouldUseAmbientDamageOnlyPaint,
   tuiChromeEpoch,
 } from '#/tui/features/native-layout/native-frame-policy';
@@ -82,6 +84,47 @@ describe('isPureInputFrame', () => {
 
   it('rejects mixed causes', () => {
     expect(isPureInputFrame(['input', 'manual'], false, false)).toBe(false);
+  });
+});
+
+describe('shouldReuseTranscriptLineCache', () => {
+  const base = {
+    pureInputFrame: true,
+    hasCache: true,
+    cacheLineCount: 12,
+    widthMatches: true,
+    selectionMatches: true,
+    splashJustDisposed: false,
+  };
+
+  it('reuses a warm window on a pure input frame', () => {
+    expect(shouldReuseTranscriptLineCache(base)).toBe(true);
+  });
+
+  it('rejects the empty splash cache so /login cannot paint a blank pane', () => {
+    expect(shouldReuseTranscriptLineCache({ ...base, cacheLineCount: 0 })).toBe(false);
+  });
+
+  it('rejects the first live frame after splash disposal', () => {
+    expect(shouldReuseTranscriptLineCache({ ...base, splashJustDisposed: true })).toBe(false);
+  });
+
+  it('rejects non-input frames so Welcome/Idle can rematerialize', () => {
+    expect(shouldReuseTranscriptLineCache({ ...base, pureInputFrame: false })).toBe(false);
+  });
+});
+
+describe('shouldStoreTranscriptLineCache', () => {
+  it('stores a live Welcome/Idle window', () => {
+    expect(
+      shouldStoreTranscriptLineCache({ fullscreenTakeover: false, lineCount: 18 }),
+    ).toBe(true);
+  });
+
+  it('does not overwrite a warm cache with the splash takeover', () => {
+    expect(
+      shouldStoreTranscriptLineCache({ fullscreenTakeover: true, lineCount: 0 }),
+    ).toBe(false);
   });
 });
 

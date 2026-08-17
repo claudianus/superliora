@@ -48,6 +48,8 @@ export {
   shouldForceTUIStateNativeLayoutFrame,
   shouldRefreshNativeTerminalPalette,
   shouldReuseTUIChromeCache,
+  shouldReuseTranscriptLineCache,
+  shouldStoreTranscriptLineCache,
   shouldUseAmbientDamageOnlyPaint,
   tuiChromeEpoch,
   type FrameInvalidationIntent,

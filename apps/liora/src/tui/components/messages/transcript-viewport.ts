@@ -23,6 +23,10 @@ const TRANSCRIPT_SCROLLBAR_THUMB = '█';
 
 export class TranscriptViewportComponent extends RendererTranscriptViewportComponent {
   private readonly resolveVisibleRows: (width: number) => number;
+  private readonly viewportState: TranscriptViewportState;
+  private readonly horizontalPad: number;
+  /** Last Idle remainder so a budget shrink remasures instead of reusing stale rows. */
+  private lastIdleTargetRows = Number.NaN;
   /** Prior transcript children while `/aquarium` Welcome-sized overlay is shown. */
   private aquariumOverlaySnapshot: Component[] | undefined;
   /**
@@ -61,6 +65,8 @@ export class TranscriptViewportComponent extends RendererTranscriptViewportCompo
       getCacheEpoch: renderCacheEpoch,
     });
     this.resolveVisibleRows = getVisibleRows;
+    this.viewportState = viewport;
+    this.horizontalPad = leftPad + rightPad;
   }
 
   /** Transcript region row budget for the current terminal chrome. */
@@ -68,24 +74,95 @@ export class TranscriptViewportComponent extends RendererTranscriptViewportCompo
     return this.resolveVisibleRows(width);
   }
 
+  private innerContentWidth(width: number): number {
+    return Math.max(1, Math.trunc(width) - this.horizontalPad);
+  }
+
+  private isEmptyChromeOnly(): boolean {
+    return this.children.length > 0 && this.children.every((child) => isEmptyTranscriptChrome(child));
+  }
+
   /**
-   * Rows the idle night sky should paint: full transcript budget minus
-   * non-idle chrome siblings (Welcome / Banner). Prevents Welcome+Idle from
-   * overflowing the viewport and leaving a scrollbar on an empty session.
+   * Rows the idle night sky should paint: remaining transcript budget after
+   * Welcome / Banner. Measure siblings at the same inner width paint uses.
+   * Never exceed the budget — a min-10 floor overflowed the viewport,
+   * followOutput scrolled Welcome off, and the visible window was dark water.
    */
   idleTargetRows(width: number): number {
     const budget = Math.max(0, Math.trunc(this.resolveVisibleRows(width)));
     if (budget === 0) return 0;
+    const inner = this.innerContentWidth(width);
     // Probe-only: do not run live tool ticks while sizing the idle scene.
     return withTranscriptMeasureMode(() => {
       let other = 0;
       for (const child of this.children) {
         if (child instanceof IdleStageComponent) continue;
-        other += child.render(width).length;
+        other += child.render(inner).length;
       }
-      // Keep a usable multi-layer scene even when Welcome is tall.
-      return Math.max(10, budget - other);
+      return Math.max(0, budget - other);
     });
+  }
+
+  /**
+   * Drop cached Idle row counts. Call when chrome below the transcript
+   * grows (editor replacement /login) so a stale tall Idle cannot keep
+   * followOutput parked on dark water.
+   */
+  invalidateIdleGeometry(): void {
+    this.lastIdleTargetRows = Number.NaN;
+    for (const child of this.children) {
+      if (child instanceof IdleStageComponent) {
+        this.invalidateChildGeometry(child);
+      }
+    }
+  }
+
+  /** Keep Welcome in view while the transcript is still empty chrome. */
+  pinEmptyChromeToTop(): void {
+    if (!this.isEmptyChromeOnly()) return;
+    // jumpToLine(0) before the first sync treats empty/∞ sizes as
+    // offset<=0 and calls toBottom() — use top so followOutput stays off.
+    this.viewportState.scroll('top');
+  }
+
+  /** Remeasure Idle when the live remainder changed (picker / resize). */
+  resyncIdleGeometry(width: number): void {
+    if (!this.idleStageMounted) return;
+    const next = this.idleTargetRows(width);
+    if (next === this.lastIdleTargetRows) return;
+    const shrunk = Number.isFinite(this.lastIdleTargetRows) && next < this.lastIdleTargetRows;
+    this.lastIdleTargetRows = next;
+    for (const child of this.children) {
+      if (child instanceof IdleStageComponent) {
+        this.invalidateChildGeometry(child);
+      }
+    }
+    if (shrunk) this.pinEmptyChromeToTop();
+  }
+
+  override contentRowCount(width: number): number {
+    this.resyncIdleGeometry(width);
+    return super.contentRowCount(width);
+  }
+
+  override renderWithVisibleRows(width: number, visibleRows: number): string[] {
+    this.resyncIdleGeometry(width);
+    return super.renderWithVisibleRows(width, visibleRows);
+  }
+
+  override renderWithVisibleRegionLines(width: number, visibleRows: number) {
+    this.resyncIdleGeometry(width);
+    return super.renderWithVisibleRegionLines(width, visibleRows);
+  }
+
+  override invalidateGeometryAndPaint(): void {
+    this.lastIdleTargetRows = Number.NaN;
+    super.invalidateGeometryAndPaint();
+  }
+
+  override invalidate(): void {
+    this.lastIdleTargetRows = Number.NaN;
+    super.invalidate();
   }
 
   get isAquariumOverlayActive(): boolean {
@@ -184,6 +261,9 @@ export class TranscriptViewportComponent extends RendererTranscriptViewportCompo
       } else {
         this.dismissIdleStage();
       }
+      // Empty-chrome pin used jumpToLine(0) (followOutput off). Restore
+      // tail-follow so the first real message is not stuck at the hero.
+      this.viewportState.scroll('bottom');
     }
     if (component instanceof IdleStageComponent) {
       this.idleStageMounted = true;
