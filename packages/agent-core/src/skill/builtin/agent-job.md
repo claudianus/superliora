@@ -21,6 +21,7 @@ Hard rule: use **Agent** and **Job\*** tools. Ignore catalog CrewAI/AutoGen/
 2. Use Agent for focused one-shot subagents with clear success criteria.
 3. Steer via JobSteer / JobInbox; verify done-claims against evidence.
 4. Do not invent a parallel orchestration runtime in the workspace.
+5. `greenfield_chain=true` splits contracts: skeleton = scaffold/type/lint/unit/build (no VerifySurface / 60fps / full-loop AC); fill = product AC + visual when `surface_kind=web`; delete-pass = placeholders/dead code, not a rebuild. Fill stays queued until skeleton is mechanically done.
 
 ## Do not
 

@@ -225,6 +225,8 @@ describe('greenfield_chain JobCreate', () => {
     expect(jobs[1]!.parentJobId).toBe(jobs[0]!.id);
     expect(jobs[2]!.parentJobId).toBe(jobs[1]!.id);
     expect(jobPrompt(jobs[0]!, store)).toContain('Greenfield phase: skeleton.');
+    expect(jobPrompt(jobs[0]!, store)).toContain('Do not use VerifySurface as a done-gate on empty scenes');
+    expect(jobPrompt(jobs[0]!, store)).not.toContain('VerifySurface 4');
     expect(jobPrompt(jobs[2]!, store)).toContain('Greenfield phase: delete-pass.');
     patchJob(store, jobs[0]!.id, {
       status: 'done',
@@ -232,6 +234,75 @@ describe('greenfield_chain JobCreate', () => {
     });
     expect(jobPrompt(jobs[1]!, store)).toContain('Prior findings from parent job');
     expect(jobPrompt(jobs[1]!, store)).toContain('Skeleton laid out under apps/demo.');
+  });
+
+  it('splits phase contracts instead of copying product AC onto skeleton', async () => {
+    const store = memoryStore();
+    const tool = new JobCreateTool(store);
+    const exec = tool.resolveExecution({
+      title: 'RUSTWING',
+      kind: 'implement',
+      delivery_mode: 'greenfield',
+      greenfield_chain: true,
+      surface_kind: 'web',
+      success_criteria: [
+        'Title → ending full loop',
+        'VerifySurface 4 chapters',
+        'Combat holds 60fps',
+        'Weapons 8 / bosses 5',
+      ],
+      must_not_touch: ['packages/agent-core'],
+      verification_commands: [
+        'npx tsc --noEmit',
+        'npx vitest run --reporter=dot',
+        'VerifySurface title/stage/boss/ending',
+      ],
+      prompt: 'Ship the full game.',
+    });
+    expect(exec.isError).toBeFalsy();
+    if (exec.isError) return;
+    const result = await exec.execute({
+      turnId: 't',
+      toolCallId: 'c',
+      signal: new AbortController().signal,
+    });
+    expect(result.isError).toBe(false);
+    const jobs = store.get('job_ledger')?.jobs ?? [];
+    expect(jobs).toHaveLength(3);
+    const [skeleton, fill, del] = jobs;
+
+    expect(skeleton!.successCriteria?.join('\n')).not.toMatch(/VerifySurface 4|60fps|Title → ending/i);
+    expect(skeleton!.successCriteria?.some((line) => /scaffold|typecheck|empty scenes|schema/i.test(line))).toBe(
+      true,
+    );
+    expect(skeleton!.verificationCommands?.join('\n')).not.toMatch(/VerifySurface/i);
+    expect(skeleton!.verificationCommands?.some((cmd) => /tsc|vitest/i.test(cmd))).toBe(true);
+    expect(skeleton!.surfaceKind).toBeUndefined();
+
+    const skeletonPrompt = jobPrompt(skeleton!, store);
+    expect(skeletonPrompt).toContain('Skeleton only');
+    expect(skeletonPrompt).toContain('Chrome/Playwright reinstall loops are forbidden');
+    expect(skeletonPrompt).not.toContain('Need VerifySurface pass');
+
+    expect(fill!.successCriteria).toEqual([
+      'Title → ending full loop',
+      'VerifySurface 4 chapters',
+      'Combat holds 60fps',
+      'Weapons 8 / bosses 5',
+    ]);
+    expect(fill!.verificationCommands).toEqual([
+      'npx tsc --noEmit',
+      'npx vitest run --reporter=dot',
+      'VerifySurface title/stage/boss/ending',
+    ]);
+    expect(fill!.surfaceKind).toBe('web');
+    expect(jobPrompt(fill!, store)).toMatch(/VerifySurface|surface_kind=web/i);
+    expect(jobPrompt(fill!, store)).toContain('Visual / VerifySurface belongs here when surface_kind=web');
+
+    expect(del!.successCriteria?.join('\n')).toMatch(/placeholder|dead/i);
+    expect(del!.successCriteria?.join('\n')).not.toMatch(/Title → ending|Weapons 8/i);
+    expect(jobPrompt(del!, store)).toContain('Do not rebuild the product from scratch');
+    expect(del!.surfaceKind).toBeUndefined();
   });
 });
 

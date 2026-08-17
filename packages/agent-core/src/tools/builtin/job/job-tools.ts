@@ -176,7 +176,7 @@ const JobCreateInputSchema = z
       .boolean()
       .optional()
       .describe(
-        'When true (and delivery_mode=greenfield), create three chained implement Jobs: skeleton → fill → delete-pass. Rejects instead of falling back if the structured brief is incomplete.',
+        'When true (and delivery_mode=greenfield), create three chained implement Jobs with split contracts: skeleton (scaffold/type/lint/unit/build only — no VerifySurface/60fps), fill (product AC + visual when surface_kind=web), delete-pass (placeholders/dead code). Serial via parent links; rejects instead of falling back if the structured brief is incomplete.',
       ),
     parent_job_id: z
       .string()
@@ -469,6 +469,9 @@ export function renderJobInspect(job: JobRecord): string {
   push('tdd_mode', job.tddMode);
   push('repro_command', job.reproCommand);
   push('blocked_by', job.blockedByJobIds?.join(', '));
+  if (job.status === 'queued' && job.parentJobId !== undefined) {
+    push('wait', '대기(부모 단계)');
+  }
   push('delivery_mode', job.deliveryMode);
   push('delivery_phase', job.deliveryPhase);
   if (job.progress !== undefined) {

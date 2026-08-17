@@ -31,24 +31,25 @@ export function renderDeliveryPhaseContract(phase: JobDeliveryPhase | undefined)
   if (phase === 'skeleton') {
     return [
       'Greenfield phase: skeleton.',
-      '- Create folders, entrypoints, types, and empty surfaces only.',
+      '- Skeleton only. Create folders, entrypoints, types, empty scenes, and schemas.',
       '- Do not implement product logic, decorative UI, or speculative abstractions.',
-      '- Stop when the skeleton is buildable / importable; leave fill work to the next Job.',
+      '- Do not use VerifySurface as a done-gate on empty scenes. Chrome/Playwright reinstall loops are forbidden.',
+      '- Gate is scaffold + typecheck/lint/unit tests/build only. Leave product AC and visual to fill.',
     ].join('\n');
   }
   if (phase === 'fill') {
     return [
       'Greenfield phase: fill.',
-      '- Meet success criteria only; prefer the smallest diff.',
+      '- Meet product success criteria only; prefer the smallest diff.',
       '- Stay inside ownership paths; respect must-not-touch.',
-      '- Do not add decorative layers or unused wrappers.',
+      '- Visual / VerifySurface belongs here when surface_kind=web. Do not add decorative layers.',
     ].join('\n');
   }
   if (phase === 'delete_pass') {
     return [
       'Greenfield phase: delete-pass.',
-      '- Delete unused wrappers, speculative abstractions, and decorative layers.',
-      '- Do not break success criteria; re-run verification commands.',
+      '- Delete unused wrappers, placeholders, speculative abstractions, and decorative layers.',
+      '- Do not rebuild the product from scratch. Do not break fill success criteria; re-run verification.',
       '- Prefer fewer files/lines when behavior still holds.',
     ].join('\n');
   }
