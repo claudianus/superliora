@@ -6,8 +6,9 @@
  * pick a named preset here; the values map to `loopControl.maxWorkingSetTokens`
  * and `asyncWorkingSetTokens` (and optional soft ratio overrides).
  *
- * Grok / xAI sessions also clamp under the 200k long-context price band
- * (whole-request 2× rates at ≥200k prompt tokens).
+ * Models with a whole-request long-context surcharge also clamp under that
+ * band (Seed / Qwen Coder: 128k; Grok / Gemini Pro: 200k; Qwen Plus/Flash:
+ * 256k; GPT-5.4/5.6 and Fugu Ultra: 272k; MiniMax M3: 512k).
  */
 
 import { applyXaiPricingSafeWorkingSet } from '@superliora/oauth';

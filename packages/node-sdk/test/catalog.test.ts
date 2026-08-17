@@ -81,6 +81,85 @@ describe('catalogModelToAlias', () => {
     });
   });
 
+  it('caps Gemini Pro and GPT-5.4 catalog windows at their price bands', () => {
+    expect(
+      catalogModelToAlias('google', {
+        ...model,
+        id: 'gemini-3.1-pro',
+        name: 'Gemini 3.1 Pro',
+        capability: { ...model.capability, max_context_tokens: 1_000_000 },
+      }),
+    ).toMatchObject({
+      provider: 'google',
+      model: 'gemini-3.1-pro',
+      maxContextSize: 200_000,
+    });
+    expect(
+      catalogModelToAlias('openai', {
+        ...model,
+        id: 'gpt-5.4',
+        name: 'GPT-5.4',
+        capability: { ...model.capability, max_context_tokens: 1_050_000 },
+      }),
+    ).toMatchObject({
+      provider: 'openai',
+      model: 'gpt-5.4',
+      maxContextSize: 272_000,
+    });
+    expect(
+      catalogModelToAlias('alibaba', {
+        ...model,
+        id: 'qwen3.7-plus',
+        name: 'Qwen 3.7 Plus',
+        capability: { ...model.capability, max_context_tokens: 1_000_000 },
+      }),
+    ).toMatchObject({
+      provider: 'alibaba',
+      model: 'qwen3.7-plus',
+      maxContextSize: 256_000,
+    });
+    expect(
+      catalogModelToAlias('minimax', {
+        ...model,
+        id: 'MiniMax-M3',
+        name: 'MiniMax M3',
+        capability: { ...model.capability, max_context_tokens: 1_000_000 },
+      }),
+    ).toMatchObject({
+      provider: 'minimax',
+      model: 'MiniMax-M3',
+      maxContextSize: 512_000,
+    });
+    expect(
+      catalogModelToAlias('sakana', {
+        ...model,
+        id: 'fugu-ultra-v1.1',
+        name: 'Fugu Ultra',
+        capability: { ...model.capability, max_context_tokens: 1_000_000 },
+      }),
+    ).toMatchObject({
+      provider: 'sakana',
+      model: 'fugu-ultra-v1.1',
+      maxContextSize: 272_000,
+    });
+    expect(
+      catalogModelToAlias('openrouter', {
+        ...model,
+        id: 'acme-1m',
+        name: 'Acme 1M',
+        capability: { ...model.capability, max_context_tokens: 1_000_000 },
+        cost: {
+          input: 1,
+          output: 2,
+          tiers: [{ input: 2, output: 4, tier: { type: 'context', size: 200_000 } }],
+        },
+      }),
+    ).toMatchObject({
+      model: 'acme-1m',
+      maxContextSize: 200_000,
+    });
+  });
+
   it('carries catalog effort values through to the model alias', () => {
     expect(
       catalogModelToAlias('openai', {

@@ -46,15 +46,29 @@ import {
   xaiGrokRouteConfig,
 } from './xai';
 import {
+  applyPricingSafeContextTokens,
+  applyPricingSafeWorkingSet,
   applyXaiPricingSafeContextTokens,
   applyXaiPricingSafeWorkingSet,
   isGrokModelId,
   isXaiGrokProviderId,
+  longContextPricingThresholdTokens,
+  MINIMAX_M3_LONG_CONTEXT_PRICING_THRESHOLD_TOKENS,
+  MINIMAX_M3_PRICING_SAFE_ASYNC_WORKING_SET_TOKENS,
+  MINIMAX_M3_PRICING_SAFE_WORKING_SET_TOKENS,
+  OPENAI_LONG_CONTEXT_PRICING_THRESHOLD_TOKENS,
+  OPENAI_PRICING_SAFE_ASYNC_WORKING_SET_TOKENS,
+  OPENAI_PRICING_SAFE_WORKING_SET_TOKENS,
+  QWEN_PLUS_LONG_CONTEXT_PRICING_THRESHOLD_TOKENS,
+  QWEN_PLUS_PRICING_SAFE_ASYNC_WORKING_SET_TOKENS,
+  QWEN_PLUS_PRICING_SAFE_WORKING_SET_TOKENS,
+  SEED_LONG_CONTEXT_PRICING_THRESHOLD_TOKENS,
+  thresholdFromCatalogCost,
   XAI_LONG_CONTEXT_PRICING_THRESHOLD_TOKENS,
   XAI_PRICING_SAFE_ASYNC_WORKING_SET_TOKENS,
   XAI_PRICING_SAFE_WORKING_SET_TOKENS,
   xaiLongContextPricingThresholdTokens,
-} from './xai-pricing-window';
+} from './long-context-pricing';
 
 export type { OAuthFlowKind, OAuthProviderId, OAuthProviderWire, ProviderFlowConfig, ProviderModelPreset, ProviderProfile } from './provider-profile';
 
@@ -132,10 +146,24 @@ export {
   xaiGrokBuildRequestHeaders,
   xaiGrokProviderRouteFields,
   xaiGrokRouteConfig,
+  applyPricingSafeContextTokens,
+  applyPricingSafeWorkingSet,
   applyXaiPricingSafeContextTokens,
   applyXaiPricingSafeWorkingSet,
   isGrokModelId,
   isXaiGrokProviderId,
+  longContextPricingThresholdTokens,
+  MINIMAX_M3_LONG_CONTEXT_PRICING_THRESHOLD_TOKENS,
+  MINIMAX_M3_PRICING_SAFE_ASYNC_WORKING_SET_TOKENS,
+  MINIMAX_M3_PRICING_SAFE_WORKING_SET_TOKENS,
+  OPENAI_LONG_CONTEXT_PRICING_THRESHOLD_TOKENS,
+  OPENAI_PRICING_SAFE_ASYNC_WORKING_SET_TOKENS,
+  OPENAI_PRICING_SAFE_WORKING_SET_TOKENS,
+  QWEN_PLUS_LONG_CONTEXT_PRICING_THRESHOLD_TOKENS,
+  QWEN_PLUS_PRICING_SAFE_ASYNC_WORKING_SET_TOKENS,
+  QWEN_PLUS_PRICING_SAFE_WORKING_SET_TOKENS,
+  SEED_LONG_CONTEXT_PRICING_THRESHOLD_TOKENS,
+  thresholdFromCatalogCost,
   XAI_LONG_CONTEXT_PRICING_THRESHOLD_TOKENS,
   XAI_PRICING_SAFE_ASYNC_WORKING_SET_TOKENS,
   XAI_PRICING_SAFE_WORKING_SET_TOKENS,
@@ -143,4 +171,11 @@ export {
 };
 export type { CursorDiscoveredModel, FetchCursorAvailableModelsOptions } from './cursor-available-models';
 export type { XaiGrokRoute, XaiGrokRouteConfig } from './xai';
-export type { XaiGrokModelIdentity, XaiPricingSafeWorkingSet } from './xai-pricing-window';
+export type {
+  PricingCatalogCost,
+  PricingCatalogCostTier,
+  PricingModelIdentity,
+  PricingSafeWorkingSet,
+  XaiGrokModelIdentity,
+  XaiPricingSafeWorkingSet,
+} from './long-context-pricing';

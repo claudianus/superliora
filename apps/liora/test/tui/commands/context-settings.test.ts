@@ -109,6 +109,9 @@ describe('W9 compaction/context settings tips', () => {
 
   it('exports working-set, instruction, and learning tips (glance copy, not menu rows)', () => {
     expect(CONTEXT_WORKING_SET_TIP).toContain('soft cap');
+    expect(CONTEXT_WORKING_SET_TIP).toContain('272k');
+    expect(CONTEXT_WORKING_SET_TIP).toContain('256k');
+    expect(CONTEXT_WORKING_SET_TIP).toContain('512k');
     expect(CONTEXT_INSTRUCTION_SOFT_TIP).toContain('AGENTS.md');
     expect(CONTEXT_LEARNING_SOFT_TIP).toContain('Liora Memory');
   });

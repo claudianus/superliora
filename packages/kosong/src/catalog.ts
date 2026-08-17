@@ -6,6 +6,26 @@ import type { ProviderType } from './providers';
  * consume a snapshot of this shape to populate provider + model configuration
  * without hand-writing context windows or capabilities.
  */
+export interface CatalogCostTier {
+  readonly input?: number;
+  readonly output?: number;
+  readonly cache_read?: number;
+  readonly cache_write?: number;
+  readonly tier?: {
+    readonly type?: string;
+    readonly size?: number;
+  };
+}
+
+/** models.dev `cost` plus optional context-length tiers. */
+export interface CatalogCost {
+  readonly input?: number;
+  readonly output?: number;
+  readonly cache_read?: number;
+  readonly cache_write?: number;
+  readonly tiers?: readonly CatalogCostTier[];
+}
+
 export interface CatalogModelEntry {
   readonly id?: string;
   readonly name?: string;
@@ -20,12 +40,7 @@ export interface CatalogModelEntry {
     readonly output?: readonly string[];
   };
   /** Per-million-token pricing in USD (models.dev `cost` field). */
-  readonly cost?: {
-    readonly input?: number;
-    readonly output?: number;
-    readonly cache_read?: number;
-    readonly cache_write?: number;
-  };
+  readonly cost?: CatalogCost;
 }
 
 export type CatalogReasoningOption =
@@ -74,12 +89,7 @@ export interface CatalogModel {
   readonly alwaysThinking?: boolean;
   readonly capability: ModelCapability;
   /** Per-million-token pricing in USD (models.dev `cost` field). */
-  readonly cost?: {
-    readonly input?: number;
-    readonly output?: number;
-    readonly cache_read?: number;
-    readonly cache_write?: number;
-  };
+  readonly cost?: CatalogCost;
 }
 
 const KNOWN_WIRE_TYPES = [

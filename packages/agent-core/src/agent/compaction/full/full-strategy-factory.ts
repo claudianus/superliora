@@ -1,4 +1,4 @@
-import { applyXaiPricingSafeWorkingSet } from '@superliora/oauth';
+import { applyPricingSafeWorkingSet } from '@superliora/oauth';
 
 import type { Agent } from '../..';
 import {
@@ -12,7 +12,7 @@ import {
   type CompactionStrategy,
 } from '../strategy';
 
-function grokWorkingSetForAgent(
+function pricingSafeWorkingSetForAgent(
   agent: Agent,
   maxWorkingSetTokens: number,
   asyncWorkingSetTokens: number,
@@ -22,8 +22,8 @@ function grokWorkingSetForAgent(
     typeof modelAlias === 'string' && modelAlias.includes('/')
       ? modelAlias.slice(0, modelAlias.indexOf('/'))
       : undefined;
-  return applyXaiPricingSafeWorkingSet({
-    model: agent.config.provider?.model ?? modelAlias,
+  return applyPricingSafeWorkingSet({
+    model: agent.config.provider?.modelName ?? modelAlias,
     provider: providerFromAlias,
     maxWorkingSetTokens,
     asyncWorkingSetTokens,
@@ -56,7 +56,7 @@ export function createDefaultFullCompactionStrategy(
         return userAsyncTriggerRatio ?? defaultAsyncTriggerRatioForWindow(maxContextTokens());
       },
       get maxWorkingSetTokens() {
-        return grokWorkingSetForAgent(
+        return pricingSafeWorkingSetForAgent(
           agent,
           loopControl?.maxWorkingSetTokens ??
             DEFAULT_COMPACTION_CONFIG.maxWorkingSetTokens,
@@ -65,7 +65,7 @@ export function createDefaultFullCompactionStrategy(
         ).maxWorkingSetTokens;
       },
       get asyncWorkingSetTokens() {
-        return grokWorkingSetForAgent(
+        return pricingSafeWorkingSetForAgent(
           agent,
           loopControl?.maxWorkingSetTokens ??
             DEFAULT_COMPACTION_CONFIG.maxWorkingSetTokens,

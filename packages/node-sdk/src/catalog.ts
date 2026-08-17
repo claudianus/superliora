@@ -60,6 +60,7 @@ export function catalogModelToAlias(providerId: string, model: CatalogModel): Mo
     maxContextSize: applyXaiPricingSafeContextTokens(model.capability.max_context_tokens, {
       provider: providerId,
       model: model.id,
+      cost: model.cost,
     }),
     maxOutputSize: model.maxOutputSize,
     capabilities:
