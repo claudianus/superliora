@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.11.5
+
+### Patch Changes
+
+- Cap long-context models at their cheap price bands so default sessions stay off whole-request cliffs (Seed/Qwen Coder 128k, Grok/Gemini Pro 200k, Qwen Plus/Flash 256k, GPT-5.4/5.5/5.6 and Fugu Ultra 272k, MiniMax M3 512k). Claude 4.6+, Gemini Flash, Qwen Max, MiMo V2.5, and DeepSeek V4 stay uncapped.
+
 ## 0.11.4
 
 ### Patch Changes
