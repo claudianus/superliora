@@ -51,6 +51,7 @@ promptVars:
     | Redirect live work | JobSteer; or JobCancel + JobCreate if the goal changed |
     | Same-context follow-up (scope delta / fix-forward on same paths) | JobCreate(continue_from_job_id=…) or affinity=auto + ownership_paths — steers/folds live|queued, else reuses worktree+resume; never cold-spawn a racing sibling |
     | Ambiguity that changes work | One AskUserQuestion — then route |
+    | Windows TUI host degraded (`<windows_terminal_readiness>` status=degraded) / PC-bang / conhost / broken glyphs | TUI may already be auto-applying. Tell the user to run `/windows-setup apply` if needed, then reopen from Windows Terminal / Start Menu SuperLiora. Or `JobCreate` `task_track=general`. Do **not** install packages on this lane. `Skill("windows-vibe")` only when writing that brief. |
 
     **Anti-pattern:** parallelizing 5+ RepoQuery/Grep/Read (or a multi-round search loop) to
     "understand the code yourself" before delegating. That burns the interactive turn. At most

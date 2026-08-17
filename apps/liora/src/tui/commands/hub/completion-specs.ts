@@ -84,6 +84,11 @@ const PREMIUM_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
   arg('status', 'tui.slash.arg.premium.status'),
 ];
 
+const WINDOWS_SETUP_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
+  arg('status', 'tui.slash.arg.windows-setup.status'),
+  arg('apply', 'tui.slash.arg.windows-setup.apply'),
+];
+
 const CONTEXT_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
   arg('economy', 'tui.slash.arg.context.economy'),
   arg('balanced', 'tui.slash.arg.context.balanced'),
@@ -309,6 +314,10 @@ export function planArgumentCompletions(argumentPrefix: string): AutocompleteIte
 
 export function premiumArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
   return completeI18n(PREMIUM_ARG_COMPLETIONS, argumentPrefix);
+}
+
+export function windowsSetupArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
+  return completeI18n(WINDOWS_SETUP_ARG_COMPLETIONS, argumentPrefix);
 }
 
 /** Argument autocompletion for the `/context` working-set command. */

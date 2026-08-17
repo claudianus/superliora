@@ -47,7 +47,11 @@ $InstallModules = @(
   'path.mjs',
   'spawn.mjs',
   'wrappers.mjs',
-  'ensure-terminal.mjs'
+  'ensure-terminal.mjs',
+  'ensure-winget.mjs',
+  'ensure-nerd-font.mjs',
+  'ensure-oh-my-posh.mjs',
+  'ensure-shell-vibe.mjs'
 )
 
 $opt = @{

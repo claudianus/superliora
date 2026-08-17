@@ -389,6 +389,8 @@ describe('default agent profiles', () => {
     expect(prompt).toContain('Job brief quality bar');
     expect(prompt).toContain('Game/media assets');
     expect(prompt).toContain('media_readiness');
+    expect(prompt).toContain('windows_terminal_readiness');
+    expect(prompt).toContain('/windows-setup apply');
     // Worker coding loop is gated off — Conductor must not eat Execution Loop / Coding.
     expect(prompt).not.toContain('# Coding');
     expect(prompt).not.toContain('# Execution Loop');

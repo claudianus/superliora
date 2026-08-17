@@ -11,7 +11,13 @@ import {
 import { formatSessionResumeWarningNotice } from '../../utils/session/session-resume-warning-notice';
 import { formatSessionWarningNotice } from '../../utils/session/session-warning-notice';
 import { formatTmuxKeyboardNotice } from '../../utils/session/tmux-keyboard-notice';
+import { formatWindowsSetupHintNotice } from '../../utils/session/windows-setup-notice';
 import { detectTmuxKeyboardWarning } from '../../utils/terminal/tmux-keyboard';
+import { isCiLike, shouldAutoApplyWindowsSetup, windowsTuiHostDegraded } from '../../utils/terminal/windows-host';
+import {
+  formatWindowsSetupApply,
+  runWindowsSetupApply,
+} from '../../utils/terminal/windows-setup-runtime';
 import { ttui } from '../../utils/tui-i18n';
 import type { StartupLifecycleHost } from './types';
 
@@ -26,6 +32,7 @@ export async function finishStartupSession(
   surfaceUpdateLifecycle(host);
   maybeAnnounceCwdBelowGitRoot(host);
   void showTmuxKeyboardWarningIfNeeded(host);
+  showWindowsSetupHintIfNeeded(host);
   if (host.state.startupState === 'picker') {
     void host.sessionBrowser.bootstrapFromPicker();
     return;
@@ -124,6 +131,40 @@ async function resumeGoalFromQueue(host: StartupLifecycleHost): Promise<void> {
     });
   } catch (error) {
     host.showStatus(ttui('tui.finish.resumeGoalFailed', { string: String(error) }), 'error');
+  }
+}
+
+function showWindowsSetupHintIfNeeded(host: StartupLifecycleHost): void {
+  try {
+    if (!windowsTuiHostDegraded() || isCiLike()) return;
+    const notice = formatWindowsSetupHintNotice();
+    host.showNotice(notice.title, notice.detail, {
+      coalesceKey: notice.coalesceKey,
+    });
+    host.showStatus(notice.status, 'warning');
+    if (shouldAutoApplyWindowsSetup()) {
+      void autoApplyWindowsSetup(host);
+    }
+  } catch {
+    // Best-effort: startup must not block on host detection.
+  }
+}
+
+async function autoApplyWindowsSetup(host: StartupLifecycleHost): Promise<void> {
+  try {
+    host.showStatus(ttui('tui.windowsSetup.applying'), 'info');
+    const result = await runWindowsSetupApply();
+    if (result === undefined || host.aborted) return;
+    const detail = formatWindowsSetupApply(result);
+    host.showNotice(ttui('tui.notice.windowsSetup.title'), detail, {
+      coalesceKey: 'windows-setup',
+    });
+    host.showStatus(
+      result.ok === false ? ttui('tui.windowsSetup.applyFailed') : ttui('tui.windowsSetup.applyOk'),
+      result.ok === false ? 'warning' : 'success',
+    );
+  } catch {
+    // Best-effort: never block the TUI on host package installs.
   }
 }
 

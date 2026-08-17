@@ -102,6 +102,7 @@ async function ensureRuntimePrereqsAt(
       const result = await mod.ensureTerminal({
         noShellRc: true,
         // Upgrade must not install packages; only refresh fragment/shortcut when wt.exe exists.
+        skipPackages: true,
         runWinget: () => ({ status: 1, message: 'skipped during upgrade' }),
         fetchLatestRelease: async () => undefined,
       });

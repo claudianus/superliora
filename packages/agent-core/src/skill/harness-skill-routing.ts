@@ -84,6 +84,14 @@ export const HARNESS_ROUTING_DOMAINS: readonly HarnessRoutingDomain[] = [
     demote: /\b(test[-_]?runner|npm\s*test\s*playbook|jest[-_]?expert|vitest[-_]?expert)\b/i,
     demoteNote: 'demoted: prefer RunProjectChecks / Skill("project-checks")',
   },
+  {
+    id: 'windows-host',
+    query:
+      /\b(windows\s*terminal|conhost|pc[-_ ]?bang|nerd\s*font|caskaydia|windows-setup|vibe[-_ ]?setup|터미널\s*깨|피시방)\b/i,
+    preferBuiltin: 'windows-vibe',
+    demote: /\b(oh-my-posh-setup|windows-dotfiles|terminal-ricer|wt-setup)\b/i,
+    demoteNote: 'demoted: prefer /windows-setup apply / Skill("windows-vibe")',
+  },
 ];
 
 export function isBlockedSkillRisk(risk: string | undefined): boolean {

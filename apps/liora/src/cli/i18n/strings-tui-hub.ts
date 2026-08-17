@@ -72,6 +72,7 @@ export const STRINGS_TUI_HUB_EN: Readonly<Record<string, string>> = {
   'tui.slash.ask': "Ask mode — investigate and answer without editing or delegating (Shift-Tab)",
   'tui.slash.locale': "Set UI language (auto, English, Korean)",
   'tui.slash.performance': "Performance mode overlay for low-spec machines (off, auto, on)",
+  'tui.slash.windows-setup': "Windows TUI host — apply Terminal, Nerd Font, Oh My Posh, shell defaults",
 };
 
 export const STRINGS_TUI_HUB_KO: Readonly<Record<string, string>> = {
@@ -145,4 +146,5 @@ export const STRINGS_TUI_HUB_KO: Readonly<Record<string, string>> = {
   'tui.slash.ask': "Ask 모드 — 편집·위임 없이 조사 및 답변 (Shift-Tab)",
   'tui.slash.locale': "UI 언어 설정 (자동, 영어, 한국어)",
   'tui.slash.performance': "저사양 성능 모드 오버레이 (off, auto, on)",
+  'tui.slash.windows-setup': "Windows TUI 호스트 — Terminal, Nerd Font, Oh My Posh, 셸 기본값 적용",
 };
