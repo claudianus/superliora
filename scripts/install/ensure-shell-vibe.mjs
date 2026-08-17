@@ -83,6 +83,36 @@ export function findToolExe(name, options = {}) {
   return null;
 }
 
+/** Inbox PSReadLine 2.0.0 has no positional Get-PSReadLineKeyHandler; OMP OnRemove throws on re-init. */
+export function renderOhMyPoshInitBlock() {
+  return `
+    $ompLoaded = Get-Module oh-my-posh-core
+    if ($ompLoaded) {
+        $ompLoaded.OnRemove = {}
+        Remove-Module oh-my-posh-core -Force -ErrorAction SilentlyContinue
+    }
+    $ompShell = if ($PSVersionTable.PSVersion.Major -ge 7) { 'pwsh' } else { 'powershell' }
+    $ompInit = & $ompCmd init $ompShell --config $ompConfig | Out-String
+    if ($ompInit) {
+        Invoke-Expression $ompInit
+    }
+    $ompCore = Get-Module oh-my-posh-core
+    $ompGetKey = Get-Command Get-PSReadLineKeyHandler -ErrorAction SilentlyContinue
+    $ompKeyPositional = $false
+    if ($ompGetKey) {
+        foreach ($set in $ompGetKey.ParameterSets) {
+            foreach ($param in $set.Parameters) {
+                if ($param.Position -ge 0 -and ($param.ParameterType -eq [string] -or $param.ParameterType -eq [string[]])) {
+                    $ompKeyPositional = $true
+                }
+            }
+        }
+    }
+    if ($ompCore -and $ompGetKey -and -not $ompKeyPositional) {
+        $ompCore.OnRemove = {}
+    }`.replace(/^\r?\n/, '');
+}
+
 export function renderVibeProfileBlock() {
   return `${VIBE_PROFILE_MARKER_START}
 $ErrorActionPreference = 'Continue'
@@ -155,7 +185,7 @@ if (-not $ompCmd) {
     }
 }
 if ($ompCmd -and (Test-Path -LiteralPath $ompConfig)) {
-    & $ompCmd init pwsh --config $ompConfig | Invoke-Expression
+${renderOhMyPoshInitBlock()}
 }
 
 if (Get-Command zoxide -ErrorAction SilentlyContinue) {
