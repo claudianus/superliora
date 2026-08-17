@@ -62,8 +62,13 @@ export function resetKittyPlaceholderTransmissions(): void {
   transmittedImageIds.clear();
 }
 
+export interface ImageThumbnailHost {
+  readonly requestRender?: () => void;
+}
+
 export class ImageThumbnail implements Component {
   private readonly attachment: ImageAttachment;
+  private readonly requestRender: (() => void) | undefined;
   private lastRenderWidth = 80;
   private lastBuiltWidth: number | undefined;
   private lastBuiltTruecolor: boolean | undefined;
@@ -72,8 +77,9 @@ export class ImageThumbnail implements Component {
   private decodeFailed = false;
   private asyncDecodeStarted = false;
 
-  constructor(attachment: ImageAttachment) {
+  constructor(attachment: ImageAttachment, host?: ImageThumbnailHost) {
     this.attachment = attachment;
+    this.requestRender = host?.requestRender;
     this.rebuild(this.lastRenderWidth, this.detectTruecolor());
   }
 
@@ -238,7 +244,10 @@ export class ImageThumbnail implements Component {
         pixels: rgba.pixels,
       };
       this.lastBuiltLines = undefined;
-      // Next host render pass will rebuild with real pixels.
+      // JPEG/WebP/GIF stay a filename chip until this decode lands. Ask the
+      // host for a frame now so the next paint can promote to half-block
+      // without waiting for an unrelated keystroke or resize.
+      this.requestRender?.();
     });
   }
 

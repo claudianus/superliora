@@ -28,6 +28,7 @@ import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { ttui } from '../../utils/tui-i18n';
 import type { ImageAttachmentStore } from '../../utils/image/image-attachment-store';
 import { parseDroppedFilePaths } from '../../utils/media/media-drop';
+import { formatBytes } from '../../components/messages/tool-renderers/chip-format';
 import { copyTranscriptSelectionToClipboard } from '../../features/transcript/transcript-selection';
 import type { ColorToken } from '../../theme';
 import type { PendingExit, QueuedMessage } from '../../types';
@@ -494,7 +495,10 @@ export class EditorKeyboardController {
       }
       return false;
     }
-    if (items.length === 0) return false;
+    if (items.length === 0) {
+      this.host.showError(ttui('tui.clipboard.imageEmpty'));
+      return false;
+    }
 
     const segments: string[] = [];
     let imageCount = 0;
@@ -539,6 +543,15 @@ export class EditorKeyboardController {
       prepared.width,
       prepared.height,
     );
+    if (prepared.changed) {
+      this.host.showStatus(
+        ttui('tui.clipboard.imageResized', {
+          from: formatBytes(prepared.originalByteLength),
+          to: formatBytes(prepared.bytes.length),
+        }),
+        'textMuted',
+      );
+    }
     return attachment.placeholder;
   }
 
@@ -553,10 +566,20 @@ export class EditorKeyboardController {
    * Drop attach is async (downscale huge images) but the editor paste hook
    * is sync — claim the paste only when at least one path is media so plain
    * file paths still fall through to text paste.
+   *
+   * Right-click / bracketed paste of a bitmap (Win+Shift+S, browser copy)
+   * arrives as empty or non-path text. Probe the OS clipboard first so those
+   * pastes attach the same way as Ctrl/Cmd+V.
    */
   private handleDroppedMediaPaste(text: string): boolean {
     const paths = parseDroppedFilePaths(text);
-    if (paths === null || paths.length === 0) return false;
+    if (paths === null || paths.length === 0) {
+      if (text.trim().length > 0) return false;
+      // Empty bracketed paste (right-click of a bitmap). Claim it so the
+      // editor does not insert a blank, then attach OS clipboard bytes.
+      void this.attachClipboardBitmapIfPresent();
+      return true;
+    }
 
     let hasMedia = false;
     for (const path of paths) {
@@ -577,6 +600,47 @@ export class EditorKeyboardController {
 
     void this.attachDroppedMediaPaths(paths);
     return true;
+  }
+
+  /**
+   * Attach a bitmap sitting on the OS clipboard when the paste payload itself
+   * is empty (right-click / bracketed paste of Win+Shift+S or a browser image).
+   * Stay silent when the clipboard has no image so an empty right-click paste
+   * does not toast `imageEmpty`.
+   */
+  private async attachClipboardBitmapIfPresent(): Promise<void> {
+    let items: ClipboardMedia[];
+    try {
+      items = await readClipboardMediaAll();
+    } catch (error) {
+      if (error instanceof ClipboardMediaError) {
+        this.host.showError(error.message);
+      }
+      return;
+    }
+    if (items.length === 0) return;
+
+    const segments: string[] = [];
+    let imageCount = 0;
+    let videoCount = 0;
+    for (const media of items) {
+      const segment = await this.attachClipboardMedia(media);
+      if (segment === null) continue;
+      segments.push(segment);
+      if (media.kind === 'video') videoCount += 1;
+      else imageCount += 1;
+    }
+    if (segments.length === 0) {
+      this.host.showError(ttui('tui.clipboard.imageAttachFailed'));
+      return;
+    }
+
+    this.host.state.editor.insertTextAtCursor?.(`${segments.join(' ')} `);
+    requestTUILayoutRender(this.host.state);
+    this.host.track('shortcut_paste', {
+      kind: imageCount > 0 && videoCount > 0 ? 'mixed' : imageCount > 0 ? 'image' : 'video',
+      count: segments.length,
+    });
   }
 
   private async attachDroppedMediaPaths(paths: readonly string[]): Promise<void> {
