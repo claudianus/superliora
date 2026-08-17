@@ -671,6 +671,8 @@ describe('NativeTUIEditor image paste binding', () => {
   // Windows terminals reserve Ctrl+V for their own paste, so the binding is
   // Alt+V there and Ctrl+V everywhere else (mirrors handleAppShortcut).
   const pasteRaw = process.platform === 'win32' ? `${ESC}v` : String.fromCodePoint(0x16);
+  // Shift+Insert: classic terminal paste (CSI u / legacy).
+  const shiftInsertRaw = `${ESC}[2;2~`;
 
   it('invokes onPasteImage and consumes the paste key', async () => {
     const editor = makeEditor();
@@ -681,6 +683,19 @@ describe('NativeTUIEditor image paste binding', () => {
     expect(editor.tryHandleAppShortcut(pasteRaw)).toBe(true);
     await vi.waitFor(() =>{  expect(onPasteImage).toHaveBeenCalledTimes(1); });
     // Consumed by the image handler: no text mutation.
+    expect(editor.getText()).toBe('draft');
+  });
+
+  it('invokes onPasteImage for Shift+Insert', async () => {
+    const editor = makeEditor();
+    editor.setText('draft');
+    const onPasteImage = vi.fn(async () => true);
+    editor.onPasteImage = onPasteImage;
+
+    expect(editor.tryHandleAppShortcut(shiftInsertRaw)).toBe(true);
+    await vi.waitFor(() => {
+      expect(onPasteImage).toHaveBeenCalledTimes(1);
+    });
     expect(editor.getText()).toBe('draft');
   });
 

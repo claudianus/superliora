@@ -200,7 +200,29 @@ describe('ImageThumbnail', () => {
     expect(component.render(80)).toBe(component.render(80));
   });
 
-  it('falls back to the placeholder marker for image/jpeg', () => {
+  it('requests a host render after async JPEG decode so the chip promotes to half-block', async () => {
+    stubColorEnv('truecolor');
+    const requestRender = vi.fn();
+    // PNG bytes with a JPEG mime take the async decode path (sync decode is PNG-only).
+    const component = new ImageThumbnail(
+      imageAttachment(makeSolidPng(8, 8, 0, 128, 255), 'image/jpeg', 8, 8),
+      { requestRender },
+    );
+
+    const first = component.render(80);
+    expect(first).toHaveLength(1);
+    expect(first[0]).toContain('[image #1 (8×8)]');
+
+    await vi.waitFor(() => {
+      expect(requestRender).toHaveBeenCalled();
+    });
+    const promoted = component.render(80);
+    expect(promoted.some((line) => line.includes('▀'))).toBe(true);
+  });
+
+  it('falls back to the placeholder marker for undecodable image/jpeg on first paint', () => {
+    // Sync path only decodes PNG; corrupt/minimal JPEG stays a chip until async
+    // jimp decode succeeds (or fails permanently).
     const component = new ImageThumbnail(
       imageAttachment(new Uint8Array([0xff, 0xd8, 0xff]), 'image/jpeg', 8, 8),
     );

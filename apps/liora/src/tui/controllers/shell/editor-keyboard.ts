@@ -2,10 +2,11 @@ import type { Session } from '@superliora/sdk';
 
 import {
   ClipboardMediaError,
-  readClipboardMedia,
+  readClipboardMediaAll,
   readMediaPath,
+  type ClipboardMedia,
 } from '#/utils/clipboard/clipboard-image';
-import { parseImageMeta } from '#/utils/image/image-mime';
+import { preparePastedImage } from '#/utils/image/prepare-pasted-image';
 import { editInExternalEditor, resolveEditorCommand } from '#/utils/process/external-editor';
 
 import {
@@ -27,6 +28,7 @@ import { requestTUILayoutRender } from '../../utils/render/frame-render';
 import { ttui } from '../../utils/tui-i18n';
 import type { ImageAttachmentStore } from '../../utils/image/image-attachment-store';
 import { parseDroppedFilePaths } from '../../utils/media/media-drop';
+import { formatBytes } from '../../components/messages/tool-renderers/chip-format';
 import { copyTranscriptSelectionToClipboard } from '../../features/transcript/transcript-selection';
 import type { ColorToken } from '../../theme';
 import type { PendingExit, QueuedMessage } from '../../types';
@@ -483,9 +485,9 @@ export class EditorKeyboardController {
   }
 
   private async handleClipboardImagePaste(): Promise<boolean> {
-    let media;
+    let items: ClipboardMedia[];
     try {
-      media = await readClipboardMedia();
+      items = await readClipboardMediaAll();
     } catch (error) {
       if (error instanceof ClipboardMediaError) {
         this.host.showError(error.message);
@@ -493,23 +495,64 @@ export class EditorKeyboardController {
       }
       return false;
     }
-    if (media === null) return false;
+    if (items.length === 0) {
+      this.host.showError(ttui('tui.clipboard.imageEmpty'));
+      return false;
+    }
 
-    if (media.kind === 'video') {
-      const attachment = this.imageStore.addVideo(media.mimeType, media.sourcePath, media.filename);
-      this.host.state.editor.insertTextAtCursor?.(`${attachment.placeholder} `);
-      requestTUILayoutRender(this.host.state);
-      this.host.track('shortcut_paste', { kind: 'video' });
+    const segments: string[] = [];
+    let imageCount = 0;
+    let videoCount = 0;
+    for (const media of items) {
+      const segment = await this.attachClipboardMedia(media);
+      if (segment === null) continue;
+      segments.push(segment);
+      if (media.kind === 'video') videoCount += 1;
+      else imageCount += 1;
+    }
+    if (segments.length === 0) {
+      this.host.showError(ttui('tui.clipboard.imageAttachFailed'));
+      // Consume the paste key so we do not fall through to path-like text when
+      // the clipboard held image bytes we could not decode.
       return true;
     }
 
-    const meta = parseImageMeta(media.bytes);
-    if (meta === null) return false;
-    const attachment = this.imageStore.addImage(media.bytes, meta.mime, meta.width, meta.height);
-    this.host.state.editor.insertTextAtCursor?.(`${attachment.placeholder} `);
+    this.host.state.editor.insertTextAtCursor?.(`${segments.join(' ')} `);
     requestTUILayoutRender(this.host.state);
-    this.host.track('shortcut_paste', { kind: 'image' });
+    this.host.track('shortcut_paste', {
+      kind: imageCount > 0 && videoCount > 0 ? 'mixed' : imageCount > 0 ? 'image' : 'video',
+      count: segments.length,
+    });
     return true;
+  }
+
+  /**
+   * Attach a single clipboard media item into the image store and return its
+   * placeholder text, or `null` when the payload is not attachable.
+   */
+  private async attachClipboardMedia(media: ClipboardMedia): Promise<string | null> {
+    if (media.kind === 'video') {
+      const attachment = this.imageStore.addVideo(media.mimeType, media.sourcePath, media.filename);
+      return attachment.placeholder;
+    }
+    const prepared = await preparePastedImage(media.bytes);
+    if (prepared === null) return null;
+    const attachment = this.imageStore.addImage(
+      prepared.bytes,
+      prepared.mime,
+      prepared.width,
+      prepared.height,
+    );
+    if (prepared.changed) {
+      this.host.showStatus(
+        ttui('tui.clipboard.imageResized', {
+          from: formatBytes(prepared.originalByteLength),
+          to: formatBytes(prepared.bytes.length),
+        }),
+        'textMuted',
+      );
+    }
+    return attachment.placeholder;
   }
 
   /**
@@ -519,15 +562,92 @@ export class EditorKeyboardController {
    * never reach the attachment path. Non-media files in a mixed drop keep
    * their path in the prompt; if nothing attachable was dropped the paste
    * falls through to normal text insertion.
+   *
+   * Drop attach is async (downscale huge images) but the editor paste hook
+   * is sync — claim the paste only when at least one path is media so plain
+   * file paths still fall through to text paste.
+   *
+   * Right-click / bracketed paste of a bitmap (Win+Shift+S, browser copy)
+   * arrives as empty or non-path text. Probe the OS clipboard first so those
+   * pastes attach the same way as Ctrl/Cmd+V.
    */
   private handleDroppedMediaPaste(text: string): boolean {
     const paths = parseDroppedFilePaths(text);
-    if (paths === null || paths.length === 0) return false;
+    if (paths === null || paths.length === 0) {
+      if (text.trim().length > 0) return false;
+      // Empty bracketed paste (right-click of a bitmap). Claim it so the
+      // editor does not insert a blank, then attach OS clipboard bytes.
+      void this.attachClipboardBitmapIfPresent();
+      return true;
+    }
 
+    let hasMedia = false;
+    for (const path of paths) {
+      try {
+        if (readMediaPath(path) !== null) {
+          hasMedia = true;
+          break;
+        }
+      } catch (error) {
+        if (error instanceof ClipboardMediaError) {
+          this.host.showError(error.message);
+          // Oversized video still counts as a media drop (error already shown).
+          return true;
+        }
+      }
+    }
+    if (!hasMedia) return false;
+
+    void this.attachDroppedMediaPaths(paths);
+    return true;
+  }
+
+  /**
+   * Attach a bitmap sitting on the OS clipboard when the paste payload itself
+   * is empty (right-click / bracketed paste of Win+Shift+S or a browser image).
+   * Stay silent when the clipboard has no image so an empty right-click paste
+   * does not toast `imageEmpty`.
+   */
+  private async attachClipboardBitmapIfPresent(): Promise<void> {
+    let items: ClipboardMedia[];
+    try {
+      items = await readClipboardMediaAll();
+    } catch (error) {
+      if (error instanceof ClipboardMediaError) {
+        this.host.showError(error.message);
+      }
+      return;
+    }
+    if (items.length === 0) return;
+
+    const segments: string[] = [];
+    let imageCount = 0;
+    let videoCount = 0;
+    for (const media of items) {
+      const segment = await this.attachClipboardMedia(media);
+      if (segment === null) continue;
+      segments.push(segment);
+      if (media.kind === 'video') videoCount += 1;
+      else imageCount += 1;
+    }
+    if (segments.length === 0) {
+      this.host.showError(ttui('tui.clipboard.imageAttachFailed'));
+      return;
+    }
+
+    this.host.state.editor.insertTextAtCursor?.(`${segments.join(' ')} `);
+    requestTUILayoutRender(this.host.state);
+    this.host.track('shortcut_paste', {
+      kind: imageCount > 0 && videoCount > 0 ? 'mixed' : imageCount > 0 ? 'image' : 'video',
+      count: segments.length,
+    });
+  }
+
+  private async attachDroppedMediaPaths(paths: readonly string[]): Promise<void> {
     const segments: string[] = [];
     let attached = 0;
     for (const path of paths) {
-      let media;
+      let media: ClipboardMedia | null;
       try {
         media = readMediaPath(path);
       } catch (error) {
@@ -540,31 +660,19 @@ export class EditorKeyboardController {
         segments.push(path);
         continue;
       }
-      if (media.kind === 'video') {
-        const attachment = this.imageStore.addVideo(
-          media.mimeType,
-          media.sourcePath,
-          media.filename,
-        );
-        segments.push(attachment.placeholder);
-        attached += 1;
-        continue;
-      }
-      const meta = parseImageMeta(media.bytes);
-      if (meta === null) {
+      const segment = await this.attachClipboardMedia(media);
+      if (segment === null) {
         segments.push(path);
         continue;
       }
-      const attachment = this.imageStore.addImage(media.bytes, meta.mime, meta.width, meta.height);
-      segments.push(attachment.placeholder);
+      segments.push(segment);
       attached += 1;
     }
 
-    if (attached === 0) return false;
+    if (attached === 0) return;
     this.host.state.editor.insertTextAtCursor?.(`${segments.join(' ')} `);
     requestTUILayoutRender(this.host.state);
     this.host.track('shortcut_paste', { kind: 'drop', count: attached });
-    return true;
   }
 
   private async openExternalEditor(): Promise<void> {

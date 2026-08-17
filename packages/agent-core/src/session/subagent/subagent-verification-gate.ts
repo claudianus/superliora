@@ -25,6 +25,7 @@ import {
   verdictFromCheckOutcomes,
   VERIFICATION_NOT_RUN,
   type GitWorkSnapshot,
+  type HostBrowserStatus,
   type ProjectCheckOutcomeLike,
   type SubagentResultContract,
   type SubagentVerificationStatus,
@@ -92,7 +93,19 @@ async function withVisualVerdict(
           : ledger.craftVerdict === 'not_run'
             ? 'not_run'
             : 'not_applicable';
-  return { ...verification, visual, interaction, craft };
+  const hostBrowser: HostBrowserStatus | undefined =
+    ledger.hostBrowser === 'einval' ||
+    ledger.hostBrowser === 'missing' ||
+    ledger.hostBrowser === 'ok'
+      ? ledger.hostBrowser
+      : undefined;
+  return {
+    ...verification,
+    visual,
+    interaction,
+    craft,
+    ...(hostBrowser !== undefined ? { host_browser: hostBrowser } : {}),
+  };
 }
 
 async function resolveVisualVerdict(

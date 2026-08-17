@@ -14,6 +14,9 @@ export interface VerificationFailureRecord {
 
 export type VisualSensorVerdict = 'passed' | 'failed' | 'not_run';
 
+/** Host browser class — EINVAL is host skip, not product visual quality. */
+export type HostBrowserSensorStatus = 'einval' | 'missing' | 'ok';
+
 export interface VerificationSensorLedger {
   failures: VerificationFailureRecord[];
   lastPassAtMs?: number | undefined;
@@ -23,6 +26,11 @@ export interface VerificationSensorLedger {
   interactionVerdict?: VisualSensorVerdict;
   /** VerifySurface craft / banned-ship axis. */
   craftVerdict?: VisualSensorVerdict;
+  /**
+   * Host browser spawn class. `einval` when VerifySurface/Browser spawn fails
+   * with EINVAL on this host — record separately; do not treat as product fail.
+   */
+  hostBrowser?: HostBrowserSensorStatus;
 }
 
 export const VERIFICATION_SENSOR_MAX_FAILURES = 8;
@@ -222,17 +230,46 @@ export function observeVerificationToolResult(
   }
 }
 
+/** Detect Windows spawn EINVAL / host browser class from tool output text. */
+export function classifyHostBrowserFromText(text: string): HostBrowserSensorStatus | undefined {
+  const blob = text.trim();
+  if (blob.length === 0) return undefined;
+  // Node spawn EINVAL on this Windows host (Cloak/Playwright/Camoufox).
+  if (/\bEINVAL\b/i.test(blob) || /spawn\s+.*\beinval\b/i.test(blob)) {
+    return 'einval';
+  }
+  if (
+    /Browser-use runtime is not available/i.test(blob) ||
+    /browser runtime missing or not ready/i.test(blob)
+  ) {
+    return 'missing';
+  }
+  return undefined;
+}
+
+export const HOST_BROWSER_EINVAL_LEDGER_NOTE = 'host_browser=einval';
+
 function observeVerifySurfaceResult(
   ledger: VerificationSensorLedger,
   result: ExecutableToolResult,
 ): void {
   const output = toolOutputText(result.output);
+  const hostClass = classifyHostBrowserFromText(output);
+  if (hostClass !== undefined) {
+    ledger.hostBrowser = hostClass;
+  }
   if (result.isError === true) {
+    // visual stays failed — never auto-pass. host_browser=einval is recorded
+    // separately so implement closeout can stay mechanical-green.
     recordVisualVerdict(ledger, 'failed');
     recordAxisVerdicts(ledger, output);
+    const summary =
+      hostClass === 'einval'
+        ? `${HOST_BROWSER_EINVAL_LEDGER_NOTE} — ${output.trim().slice(0, 200) || 'VerifySurface spawn EINVAL'}`
+        : output.trim().slice(0, 240) || 'VerifySurface failed';
     recordVerificationFailure(ledger, {
       toolName: 'VerifySurface',
-      summary: output.trim().slice(0, 240) || 'VerifySurface failed',
+      summary,
     });
     return;
   }
@@ -240,18 +277,23 @@ function observeVerifySurfaceResult(
   recordAxisVerdicts(ledger, output);
   if (pass === true) {
     recordVisualVerdict(ledger, 'passed');
+    ledger.hostBrowser = 'ok';
     // Green visual proof clears sticky VerifySurface failures without wiping
     // unrelated RunProjectChecks evidence.
     ledger.failures = ledger.failures.filter((entry) => entry.toolName !== 'VerifySurface');
     return;
   }
   recordVisualVerdict(ledger, 'failed');
+  const failSummary =
+    pass === false
+      ? summarizeVerifySurfaceFailure(output)
+      : output.trim().slice(0, 240) || 'VerifySurface did not report pass=true';
   recordVerificationFailure(ledger, {
     toolName: 'VerifySurface',
     summary:
-      pass === false
-        ? summarizeVerifySurfaceFailure(output)
-        : output.trim().slice(0, 240) || 'VerifySurface did not report pass=true',
+      hostClass === 'einval'
+        ? `${HOST_BROWSER_EINVAL_LEDGER_NOTE} — ${failSummary}`
+        : failSummary,
   });
 }
 

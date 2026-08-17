@@ -3,7 +3,10 @@
  * Merge/verify gates key off this field — not path/keyword regex.
  */
 
-import type { SubagentResultContract } from '../../../session/subagent/subagent-result-contract';
+import {
+  computeVerificationFailed,
+  type SubagentResultContract,
+} from '../../../session/subagent/subagent-result-contract';
 import type { JobSurfaceKind } from './job-store-key';
 
 export type { JobSurfaceKind };
@@ -101,10 +104,7 @@ export function applySurfaceKindToContract(
     return {
       ...contract,
       verification,
-      verification_failed:
-        verification.tests === 'failed' ||
-        verification.typecheck === 'failed' ||
-        verification.lint === 'failed',
+      verification_failed: computeVerificationFailed(verification),
     };
   }
   if (surfaceKind === 'tui') {
@@ -126,13 +126,12 @@ export function applySurfaceKindToContract(
     return {
       ...contract,
       verification,
-      verification_failed:
-        verification.tests === 'failed' ||
-        verification.typecheck === 'failed' ||
-        verification.lint === 'failed' ||
-        verification.visual === 'failed',
+      verification_failed: computeVerificationFailed(verification),
     };
   }
-  // web / mixed — keep VerifySurface axes from the completion gate.
-  return contract;
+  // web / mixed — keep VerifySurface axes; recompute failed with host_browser=einval rule.
+  return {
+    ...contract,
+    verification_failed: computeVerificationFailed(contract.verification),
+  };
 }

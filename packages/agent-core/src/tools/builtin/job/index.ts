@@ -3,6 +3,7 @@ export * from './job-ledger';
 export * from './job-tools';
 export * from './job-runtime';
 export * from './job-ownership';
+export * from './job-git-root';
 export * from './job-affinity';
 export * from './job-project-mode';
 export * from './job-worker';

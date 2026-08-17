@@ -10,6 +10,25 @@ import {
   type EditorKeyboardHost,
 } from '#/tui/controllers/shell/editor-keyboard';
 import { ImageAttachmentStore } from '#/tui/utils/image/image-attachment-store';
+import { ttui } from '#/tui/utils/tui-i18n';
+import { readClipboardMediaAll } from '#/utils/clipboard/clipboard-image';
+import { preparePastedImage } from '#/utils/image/prepare-pasted-image';
+
+vi.mock('#/utils/clipboard/clipboard-image', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#/utils/clipboard/clipboard-image')>();
+  return {
+    ...actual,
+    readClipboardMediaAll: vi.fn(actual.readClipboardMediaAll),
+  };
+});
+
+vi.mock('#/utils/image/prepare-pasted-image', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#/utils/image/prepare-pasted-image')>();
+  return {
+    ...actual,
+    preparePastedImage: vi.fn(actual.preparePastedImage),
+  };
+});
 
 interface Harness {
   readonly host: EditorKeyboardHost;
@@ -83,6 +102,7 @@ function createHarness(
     showCommandHub,
     showHistorySearch,
     showError: vi.fn(),
+    showStatus: vi.fn(),
     updateQueueDisplay: vi.fn(),
     steerMessage: vi.fn(),
     detachCurrentForegroundTask: vi.fn(),
@@ -326,30 +346,33 @@ describe('EditorKeyboardController dropped media paste', () => {
     };
   }
 
-  it('attaches a dropped image and inserts its placeholder', () => {
+  it('attaches a dropped image and inserts its placeholder', async () => {
     const { store, paste, insertTextAtCursor } = createDropHarness();
 
     expect(paste(`${pngPath}\n`)).toBe(true);
-
-    expect(store.size()).toBe(1);
-    expect(insertTextAtCursor).toHaveBeenCalledWith('[image #1 (1×1)] ');
+    await vi.waitFor(() => {
+      expect(store.size()).toBe(1);
+      expect(insertTextAtCursor).toHaveBeenCalledWith('[image #1 (1×1)] ');
+    });
   });
 
-  it('attaches a dropped video file', () => {
+  it('attaches a dropped video file', async () => {
     const { store, paste, insertTextAtCursor } = createDropHarness();
 
     expect(paste(videoPath)).toBe(true);
-
-    expect(store.size()).toBe(1);
-    expect(insertTextAtCursor).toHaveBeenCalledWith('[video #1 clip.mp4] ');
+    await vi.waitFor(() => {
+      expect(store.size()).toBe(1);
+      expect(insertTextAtCursor).toHaveBeenCalledWith('[video #1 clip.mp4] ');
+    });
   });
 
-  it('keeps non-media paths next to media placeholders in a mixed drop', () => {
+  it('keeps non-media paths next to media placeholders in a mixed drop', async () => {
     const { paste, insertTextAtCursor } = createDropHarness();
 
     expect(paste(`${pngPath}\n${textPath}`)).toBe(true);
-
-    expect(insertTextAtCursor).toHaveBeenCalledWith(`[image #1 (1×1)] ${textPath} `);
+    await vi.waitFor(() => {
+      expect(insertTextAtCursor).toHaveBeenCalledWith(`[image #1 (1×1)] ${textPath} `);
+    });
   });
 
   it('declines non-media drops so the paste stays plain text', () => {
@@ -366,6 +389,98 @@ describe('EditorKeyboardController dropped media paste', () => {
 
     expect(paste('please review the screenshot')).toBe(false);
     expect(insertTextAtCursor).not.toHaveBeenCalled();
+  });
+});
+
+describe('EditorKeyboardController clipboard image paste feedback', () => {
+  const PNG_BYTES = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+    'base64',
+  );
+
+  afterEach(() => {
+    vi.mocked(readClipboardMediaAll).mockReset();
+    vi.mocked(preparePastedImage).mockReset();
+    vi.mocked(readClipboardMediaAll).mockImplementation(
+      async () => [] as Awaited<ReturnType<typeof readClipboardMediaAll>>,
+    );
+  });
+
+  function createPasteHarness(): {
+    store: ImageAttachmentStore;
+    harness: Harness;
+    pasteImage: () => Promise<boolean>;
+    pasteText: (text: string) => boolean;
+  } {
+    const store = new ImageAttachmentStore();
+    const harness = createHarness({ imageStore: store });
+    const state = harness.host.state as unknown as Record<string, unknown>;
+    state['transcriptContainer'] = { isBatchMounting: false };
+    state['renderer'] = { invalidateFrame: vi.fn() };
+    const onPasteImage = harness.editor['onPasteImage'];
+    const onPasteText = harness.editor['onPasteText'];
+    if (typeof onPasteImage !== 'function') throw new Error('onPasteImage not installed');
+    if (typeof onPasteText !== 'function') throw new Error('onPasteText not installed');
+    return {
+      store,
+      harness,
+      pasteImage: onPasteImage as () => Promise<boolean>,
+      pasteText: onPasteText as (text: string) => boolean,
+    };
+  }
+
+  it('shows tui.clipboard.imageEmpty when the clipboard has no image', async () => {
+    vi.mocked(readClipboardMediaAll).mockResolvedValueOnce([]);
+    const { harness, pasteImage } = createPasteHarness();
+
+    await expect(pasteImage()).resolves.toBe(false);
+
+    expect(harness.host.showError).toHaveBeenCalledWith(ttui('tui.clipboard.imageEmpty'));
+  });
+
+  it('shows tui.clipboard.imageResized when preparePastedImage changes the payload', async () => {
+    vi.mocked(readClipboardMediaAll).mockResolvedValueOnce([
+      { kind: 'image', bytes: PNG_BYTES, mimeType: 'image/png' },
+    ]);
+    vi.mocked(preparePastedImage).mockResolvedValueOnce({
+      bytes: PNG_BYTES,
+      mime: 'image/png',
+      width: 800,
+      height: 600,
+      changed: true,
+      originalByteLength: 4_000_000,
+    });
+    const { harness, store, pasteImage } = createPasteHarness();
+
+    await expect(pasteImage()).resolves.toBe(true);
+
+    expect(store.size()).toBe(1);
+    expect(harness.host.showStatus).toHaveBeenCalledWith(
+      ttui('tui.clipboard.imageResized', { from: '3.8 MB', to: '70 B' }),
+      'textMuted',
+    );
+  });
+
+  it('attaches a bitmap from the OS clipboard before treating right-click paste as path text', async () => {
+    vi.mocked(readClipboardMediaAll).mockResolvedValueOnce([
+      { kind: 'image', bytes: PNG_BYTES, mimeType: 'image/png' },
+    ]);
+    vi.mocked(preparePastedImage).mockResolvedValueOnce({
+      bytes: PNG_BYTES,
+      mime: 'image/png',
+      width: 1,
+      height: 1,
+      changed: false,
+      originalByteLength: PNG_BYTES.length,
+    });
+    const { store, harness, pasteText } = createPasteHarness();
+
+    expect(pasteText('')).toBe(true);
+    await vi.waitFor(() => {
+      expect(store.size()).toBe(1);
+      expect(harness.editor['insertTextAtCursor']).toHaveBeenCalledWith('[image #1 (1×1)] ');
+    });
+    expect(readClipboardMediaAll).toHaveBeenCalled();
   });
 });
 

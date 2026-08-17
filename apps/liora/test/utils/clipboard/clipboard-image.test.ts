@@ -5,7 +5,11 @@ import { pathToFileURL } from 'node:url';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { ClipboardMediaError, readClipboardMedia } from '#/utils/clipboard/clipboard-image';
+import {
+  ClipboardMediaError,
+  readClipboardMedia,
+  readClipboardMediaAll,
+} from '#/utils/clipboard/clipboard-image';
 import type { ClipboardModule } from '#/utils/clipboard/clipboard-native';
 
 function png(width: number, height: number): Uint8Array {
@@ -276,5 +280,67 @@ describe('readClipboardMedia', () => {
       bytes: imageBytes,
       mimeType: 'image/png',
     });
+  });
+
+  it('returns every image file from a multi-path win32 file-list clipboard', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kimi-code-clip-multi-'));
+    try {
+      const aPath = join(dir, 'a.png');
+      const bPath = join(dir, 'b.png');
+      const aBytes = png(3, 3);
+      const bBytes = png(5, 5);
+      writeFileSync(aPath, aBytes);
+      writeFileSync(bPath, bBytes);
+      const clip = fakeClipboard({
+        availableFormats: vi.fn(() => ['public.file-url', 'CF_UNICODETEXT']),
+        hasImage: vi.fn(() => false),
+        getImageBinary: vi.fn(async () => []),
+        hasText: vi.fn(() => true),
+        getText: vi.fn(async () => `${aPath}\n${bPath}`),
+      });
+
+      const media = await readClipboardMediaAll({
+        platform: 'win32',
+        clipboard: clip,
+        runCommand: () => ({ ok: false, stdout: Buffer.alloc(0) }),
+      });
+
+      expect(media).toHaveLength(2);
+      expect(media[0]).toMatchObject({ kind: 'image', mimeType: 'image/png' });
+      expect(media[1]).toMatchObject({ kind: 'image', mimeType: 'image/png' });
+      expect(media[0]?.kind).toBe('image');
+      expect(media[1]?.kind).toBe('image');
+      if (media[0]?.kind === 'image' && media[1]?.kind === 'image') {
+        expect(Array.from(media[0].bytes)).toEqual(Array.from(aBytes));
+        expect(Array.from(media[1].bytes)).toEqual(Array.from(bBytes));
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('prefers a single bitmap over path-like text when both exist on win32', async () => {
+    const imageBytes = png(9, 9);
+    const clip = fakeClipboard({
+      availableFormats: vi.fn(() => ['CF_DIBV5', 'CF_UNICODETEXT', 'text/html']),
+      hasImage: vi.fn(() => true),
+      getImageBinary: vi.fn(async () => Array.from(imageBytes)),
+      hasText: vi.fn(() => true),
+      getText: vi.fn(async () => 'https://example.com/image.png'),
+    });
+
+    const media = await readClipboardMediaAll({
+      platform: 'win32',
+      clipboard: clip,
+      runCommand: () => ({ ok: false, stdout: Buffer.alloc(0) }),
+    });
+
+    expect(media).toHaveLength(1);
+    expect(media[0]).toEqual({
+      kind: 'image',
+      bytes: imageBytes,
+      mimeType: 'image/png',
+    });
+    expect(clip.getText).not.toHaveBeenCalled();
   });
 });

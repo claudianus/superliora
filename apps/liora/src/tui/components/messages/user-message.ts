@@ -44,12 +44,27 @@ export class UserMessageComponent implements Component {
   private readonly renderCache = new RendererWidthRenderCache();
   private lastTimestampMarker = '';
 
-  constructor(text: string, images?: ImageAttachment[], bullet?: string, timestamp?: number) {
+  constructor(
+    text: string,
+    images?: ImageAttachment[],
+    bullet?: string,
+    timestamp?: number,
+    requestRender?: () => void,
+  ) {
     this.text = text;
     this.bullet = bullet;
     this.timestamp = timestamp;
     this.spacerComponent = new Spacer(1);
-    this.imageThumbnails = images?.map((img) => new ImageThumbnail(img)) ?? [];
+    this.imageThumbnails =
+      images?.map(
+        (img) =>
+          new ImageThumbnail(img, {
+            requestRender: () => {
+              this.markRenderDirty();
+              requestRender?.();
+            },
+          }),
+      ) ?? [];
   }
 
   private markRenderDirty(): void {
