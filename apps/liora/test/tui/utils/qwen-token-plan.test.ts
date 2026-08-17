@@ -293,6 +293,27 @@ describe('Qwen Token Plan utilities', () => {
       expect(typed.providers[QWEN_TOKEN_PLAN_PROVIDER_ID]?.baseUrl).toBe(QWEN_TOKEN_PLAN_CN_BASE_URL);
     });
 
+    it('caps a live Flash window at the 256k Plus band', () => {
+      const config = { providers: {}, models: {} } as never;
+      applyQwenTokenPlanProvider(config, 'sk-sp-test', {
+        models: [
+          {
+            id: 'qwen3.6-flash',
+            displayName: 'Qwen 3.6 Flash',
+            maxContextSize: 1_000_000,
+            capabilities: ['thinking', 'tool_use'],
+            harnessTools: [],
+          },
+        ],
+      });
+      const typed = config as {
+        models: Record<string, { maxContextSize?: number }>;
+      };
+      expect(typed.models[`${QWEN_TOKEN_PLAN_PROVIDER_ID}/qwen3.6-flash`]?.maxContextSize).toBe(
+        256_000,
+      );
+    });
+
     it('reports preset source when no live models are passed', () => {
       const config = { providers: {}, models: {} } as never;
       const result = applyQwenTokenPlanProvider(config, 'sk-sp-test');

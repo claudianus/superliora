@@ -46,6 +46,8 @@ export {
 } from './catalog';
 export type {
   Catalog,
+  CatalogCost,
+  CatalogCostTier,
   CatalogModel,
   CatalogModelEntry,
   CatalogProviderEntry,

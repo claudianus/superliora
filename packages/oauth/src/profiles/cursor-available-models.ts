@@ -47,7 +47,7 @@ export const CURSOR_FALLBACK_MODELS: readonly CursorDiscoveredModel[] = [
   { id: 'gpt-5.2', displayName: 'GPT-5.2', maxContextSize: 400_000, capabilities: ['thinking', 'tool_use'] },
   { id: 'gpt-5.2-codex', displayName: 'GPT-5.2 Codex', maxContextSize: 400_000, capabilities: ['thinking', 'tool_use'] },
   { id: 'gpt-5.3-codex', displayName: 'GPT-5.3 Codex', maxContextSize: 272_000, capabilities: ['thinking', 'tool_use'] },
-  { id: 'gemini-3.1-pro', displayName: 'Gemini 3.1 Pro', maxContextSize: 1_000_000, capabilities: ['thinking', 'tool_use', 'image_in'] },
+  { id: 'gemini-3.1-pro', displayName: 'Gemini 3.1 Pro', maxContextSize: 200_000, capabilities: ['thinking', 'tool_use', 'image_in'] },
   { id: 'gemini-3.5-flash', displayName: 'Gemini 3.5 Flash', maxContextSize: 1_000_000, capabilities: ['thinking', 'tool_use', 'image_in'] },
   { id: 'cursor-grok-4.5-high-fast', displayName: 'Grok 4.5 Fast', maxContextSize: 200_000, capabilities: ['thinking', 'tool_use', 'image_in'] },
   { id: 'cursor-grok-4.5-high', displayName: 'Grok 4.5', maxContextSize: 200_000, capabilities: ['thinking', 'tool_use', 'image_in'] },

@@ -162,6 +162,11 @@ describe('cursorModelsToPresets / applyCursorOAuthModelAliases', () => {
       defaultEffort: 'medium',
     });
     expect(presets.find((p) => p.id === 'cursor-grok-4.5-high')?.maxContextSize).toBe(200_000);
+    expect(presets.find((p) => p.id === 'gemini-3.1-pro')?.maxContextSize).toBe(200_000);
+    expect(presets.find((p) => p.id === 'gemini-3.5-flash')?.maxContextSize).toBe(1_000_000);
+    expect(presets.find((p) => p.id === 'gpt-5.4-medium')?.maxContextSize).toBe(272_000);
+    expect(presets.find((p) => p.id === 'gpt-5.2')?.maxContextSize).toBe(400_000);
+    expect(presets.find((p) => p.id === 'claude-sonnet-5-medium')?.maxContextSize).toBe(300_000);
     expect(
       cursorModelsToPresets([
         {
@@ -172,6 +177,26 @@ describe('cursorModelsToPresets / applyCursorOAuthModelAliases', () => {
         },
       ])[0]?.maxContextSize,
     ).toBe(200_000);
+    expect(
+      cursorModelsToPresets([
+        {
+          id: 'gemini-3.1-pro',
+          displayName: 'Gemini 3.1 Pro',
+          maxContextSize: 1_000_000,
+          capabilities: ['thinking', 'tool_use', 'image_in'],
+        },
+      ])[0]?.maxContextSize,
+    ).toBe(200_000);
+    expect(
+      cursorModelsToPresets([
+        {
+          id: 'gpt-5.4-medium',
+          displayName: 'GPT-5.4',
+          maxContextSize: 1_050_000,
+          capabilities: ['thinking', 'tool_use'],
+        },
+      ])[0]?.maxContextSize,
+    ).toBe(272_000);
   });
 
   it('replaces cursor-oauth aliases without touching other providers', () => {

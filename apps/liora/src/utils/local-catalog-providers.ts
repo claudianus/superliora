@@ -60,7 +60,7 @@ const CLINEPASS_MODELS: Readonly<Record<string, LocalCatalogModel>> = {
     131_072,
     true,
   ),
-  'cline-pass/minimax-m3': model('cline-pass/minimax-m3', 'MiniMax M3', 1_048_576, 131_072, true),
+  'cline-pass/minimax-m3': model('cline-pass/minimax-m3', 'MiniMax M3', 512_000, 131_072, true),
   'cline-pass/qwen3.7-max': model(
     'cline-pass/qwen3.7-max',
     'Qwen3.7 Max',
@@ -71,7 +71,7 @@ const CLINEPASS_MODELS: Readonly<Record<string, LocalCatalogModel>> = {
   'cline-pass/qwen3.7-plus': model(
     'cline-pass/qwen3.7-plus',
     'Qwen3.7 Plus',
-    1_048_576,
+    256_000,
     131_072,
     true,
   ),

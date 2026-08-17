@@ -17,6 +17,7 @@
  * offline fallback.
  */
 
+import { applyPricingSafeContextTokens } from '@superliora/oauth';
 import type { Catalog, LioraConfig } from '@superliora/sdk';
 
 // ── Constants ──────────────────────────────────────────────────────────
@@ -163,7 +164,7 @@ export const QWEN_TOKEN_PLAN_TEXT_MODELS: readonly QwenTokenPlanModelDef[] = [
   {
     id: 'qwen3.7-plus',
     displayName: 'Qwen 3.7 Plus',
-    maxContextSize: 1_000_000,
+    maxContextSize: 256_000,
     maxOutputSize: 64_000,
     capabilities: ['thinking', 'tool_use', 'image_in'],
     harnessTools: ALL_HARNESS_TOOLS,
@@ -171,7 +172,7 @@ export const QWEN_TOKEN_PLAN_TEXT_MODELS: readonly QwenTokenPlanModelDef[] = [
   {
     id: 'qwen3.6-flash',
     displayName: 'Qwen 3.6 Flash',
-    maxContextSize: 1_000_000,
+    maxContextSize: 256_000,
     maxOutputSize: 65_536,
     capabilities: ['thinking', 'tool_use', 'image_in'],
     harnessTools: [],
@@ -331,7 +332,11 @@ export function tokenPlanTextModelsFromCatalog(
     defs.push({
       id,
       displayName: typeof model.name === 'string' && model.name.length > 0 ? model.name : id,
-      maxContextSize: context,
+      maxContextSize: applyPricingSafeContextTokens(context, {
+        provider: catalogId,
+        model: id,
+        cost: model.cost,
+      }),
       ...(typeof output === 'number' && output > 0 ? { maxOutputSize: output } : {}),
       capabilities,
       harnessTools: qwenHarnessToolsForModelId(id),
@@ -410,7 +415,10 @@ export function applyQwenTokenPlanProvider(
     models[`${QWEN_TOKEN_PLAN_PROVIDER_ID}/${modelDef.id}`] = {
       provider: QWEN_TOKEN_PLAN_PROVIDER_ID,
       model: modelDef.id,
-      maxContextSize: modelDef.maxContextSize,
+      maxContextSize: applyPricingSafeContextTokens(modelDef.maxContextSize, {
+        provider: QWEN_TOKEN_PLAN_PROVIDER_ID,
+        model: modelDef.id,
+      }),
       maxOutputSize: modelDef.maxOutputSize,
       capabilities: [...modelDef.capabilities],
       displayName: modelDef.displayName,

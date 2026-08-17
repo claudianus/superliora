@@ -14,6 +14,10 @@ import {
   workingSetPressure,
 } from '#/tui/utils/agent/context-working-set';
 import {
+  MINIMAX_M3_PRICING_SAFE_ASYNC_WORKING_SET_TOKENS,
+  MINIMAX_M3_PRICING_SAFE_WORKING_SET_TOKENS,
+  QWEN_PLUS_PRICING_SAFE_ASYNC_WORKING_SET_TOKENS,
+  QWEN_PLUS_PRICING_SAFE_WORKING_SET_TOKENS,
   XAI_PRICING_SAFE_ASYNC_WORKING_SET_TOKENS,
   XAI_PRICING_SAFE_WORKING_SET_TOKENS,
 } from '@superliora/oauth';
@@ -77,6 +81,53 @@ describe('context working-set presets', () => {
     });
     expect(preview.softTokens).toBe(800_000);
     expect(preview.asyncTokens).toBe(700_000);
+  });
+
+  it('clamps Gemini Pro snapshots under the 200k price band', () => {
+    const snap = contextWorkingSetSnapshotFromLoopControl({
+      model: 'gemini-3.1-pro',
+    });
+    expect(snap.maxWorkingSetTokens).toBe(XAI_PRICING_SAFE_WORKING_SET_TOKENS);
+    expect(snap.asyncWorkingSetTokens).toBe(XAI_PRICING_SAFE_ASYNC_WORKING_SET_TOKENS);
+    expect(snap.presetId).toBe('economy');
+  });
+
+  it('clamps GPT-5.4 deep snapshots under the 272k price band', () => {
+    const snap = contextWorkingSetSnapshotFromLoopControl({
+      model: 'gpt-5.4',
+      maxWorkingSetTokens: 393_216,
+      asyncWorkingSetTokens: 320_000,
+    });
+    expect(snap.maxWorkingSetTokens).toBe(262_144);
+    expect(snap.asyncWorkingSetTokens).toBe(220_000);
+    expect(snap.presetId).toBe('balanced');
+  });
+
+  it('clamps Qwen Flash snapshots under the 256k price band', () => {
+    const snap = contextWorkingSetSnapshotFromLoopControl({
+      model: 'qwen3.6-flash',
+    });
+    expect(snap.maxWorkingSetTokens).toBe(QWEN_PLUS_PRICING_SAFE_WORKING_SET_TOKENS);
+    expect(snap.asyncWorkingSetTokens).toBe(QWEN_PLUS_PRICING_SAFE_ASYNC_WORKING_SET_TOKENS);
+  });
+
+  it('clamps MiniMax M3 full_window under the 512k price band', () => {
+    const snap = contextWorkingSetSnapshotFromLoopControl({
+      model: 'minimax-m3',
+      maxWorkingSetTokens: 0,
+      asyncWorkingSetTokens: 0,
+    });
+    expect(snap.maxWorkingSetTokens).toBe(MINIMAX_M3_PRICING_SAFE_WORKING_SET_TOKENS);
+    expect(snap.asyncWorkingSetTokens).toBe(MINIMAX_M3_PRICING_SAFE_ASYNC_WORKING_SET_TOKENS);
+  });
+
+  it('clamps Qwen Plus snapshots under the 256k price band', () => {
+    const snap = contextWorkingSetSnapshotFromLoopControl({
+      model: 'qwen3.7-plus',
+    });
+    expect(snap.maxWorkingSetTokens).toBe(QWEN_PLUS_PRICING_SAFE_WORKING_SET_TOKENS);
+    expect(snap.asyncWorkingSetTokens).toBe(QWEN_PLUS_PRICING_SAFE_ASYNC_WORKING_SET_TOKENS);
+    expect(snap.presetId).toBeUndefined();
   });
 
   it('clamps Grok snapshots under the 200k price band', () => {

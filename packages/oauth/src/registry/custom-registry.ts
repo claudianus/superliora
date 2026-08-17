@@ -45,6 +45,15 @@ export interface CustomRegistryModelEntry {
     input?: readonly string[];
     output?: readonly string[];
   };
+  readonly cost?: {
+    readonly input?: number;
+    readonly output?: number;
+    readonly tiers?: readonly {
+      readonly input?: number;
+      readonly output?: number;
+      readonly tier?: { readonly type?: string; readonly size?: number };
+    }[];
+  };
 }
 
 export interface CustomRegistryProviderEntry {
@@ -296,6 +305,7 @@ function resolveMaxContextSize(
   return applyXaiPricingSafeContextTokens(advertised, {
     provider: providerId,
     model: model.id,
+    cost: model.cost,
   });
 }
 
