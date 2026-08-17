@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.11.3
+
+### Patch Changes
+
+- Stop TUI black-line flicker by giving every screen cell an explicit canvas background and never erasing a line to the terminal default color.
+
 ## 0.11.2
 
 ### Minor Changes
