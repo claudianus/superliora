@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.12.2
+
+### Patch Changes
+
+- Stop Oh My Posh from erroring on Windows PowerShell 5.1 with the inbox PSReadLine. Run `/host-setup` to refresh the profile.
+
 ## 0.12.1
 
 ### Patch Changes
