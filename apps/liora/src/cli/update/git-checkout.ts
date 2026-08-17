@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
-import { getHostPackageRoot } from '#/cli/version';
+import { tryGetHostPackageRoot } from '#/cli/version';
 
 import type { UpdateTarget } from './types';
 
@@ -40,8 +40,10 @@ function execGit(repoRoot: string, args: readonly string[]): Promise<string> {
   });
 }
 
-export function findGitCheckoutRoot(startPath: string = getHostPackageRoot()): string | null {
-  let dir = resolve(startPath);
+export function findGitCheckoutRoot(startPath?: string): string | null {
+  const resolved = startPath ?? tryGetHostPackageRoot();
+  if (resolved === undefined) return null;
+  let dir = resolve(resolved);
   for (let i = 0; i < 12; i++) {
     if (existsSync(resolve(dir, '.git'))) return dir;
     const parent = dirname(dir);
@@ -56,7 +58,7 @@ export function isSuperLioraGithubRemote(remoteUrl: string): boolean {
 }
 
 export async function detectSuperLioraGithubCheckout(
-  startPath: string = getHostPackageRoot(),
+  startPath?: string,
 ): Promise<string | null> {
   const repoRoot = findGitCheckoutRoot(startPath);
   if (repoRoot === null) return null;

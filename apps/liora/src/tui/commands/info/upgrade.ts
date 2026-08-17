@@ -169,6 +169,11 @@ export async function handleUpgradeCommand(
               for (const warning of result.warnings) {
                 host.showStatus(warning, 'warning');
               }
+            }).catch((error: unknown) => {
+              host.showStatus(
+                error instanceof Error ? error.message : String(error),
+                'warning',
+              );
             });
             return;
           }

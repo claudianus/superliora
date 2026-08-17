@@ -8,6 +8,9 @@ import {
   getHostPackageJsonPath,
   getHostPackageRoot,
   getVersion,
+  isNativeSeaHost,
+  tryGetHostPackageJsonPath,
+  tryGetHostPackageRoot,
 } from '#/cli/version';
 
 describe('cli version helpers', () => {
@@ -17,6 +20,9 @@ describe('cli version helpers', () => {
 
     expect(pkgPath.endsWith(join('apps', 'liora', 'package.json'))).toBe(true);
     expect(getHostPackageRoot()).toBe(dirname(pkgPath));
+    expect(tryGetHostPackageJsonPath()).toBe(pkgPath);
+    expect(tryGetHostPackageRoot()).toBe(dirname(pkgPath));
+    expect(isNativeSeaHost()).toBe(false);
     expect(getVersion()).toBe(pkg.version);
   });
 
