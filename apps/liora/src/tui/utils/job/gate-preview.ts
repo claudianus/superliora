@@ -59,12 +59,17 @@ export function formatBriefPreviewLines(
   return lines.slice(0, maxLines);
 }
 
-/** Combined ACK detail for a JobCreate / job.updated with gate or brief. */
+/** Combined ACK detail for a JobCreate / job.updated with effect, gate, or brief. */
 export function formatGateAckDetail(input: {
+  readonly effectPreview?: { readonly summary: string };
   readonly gateChecklist?: JobGateChecklist;
   readonly briefPreview?: JobBriefPreview;
 }): string | undefined {
   const parts: string[] = [];
+  const effect = input.effectPreview?.summary.trim();
+  if (effect !== undefined && effect.length > 0) {
+    parts.push(effect);
+  }
   if (input.gateChecklist !== undefined) {
     parts.push(formatGateChecklistLine(input.gateChecklist));
   }

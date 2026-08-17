@@ -1,6 +1,11 @@
 import type { GoalBudgetLimits } from '../../../agent/goal/types';
 import type { ToolStore } from '../../store';
-import { classifyJobTaskTrack, type JobTaskTrack } from './job-task-track';
+import {
+  resolveJobTaskTrack,
+  taskTrackCreateDefaults,
+  type JobTaskTrack,
+} from './job-task-track';
+import type { JobTaskTrackSource } from './job-store-key';
 import {
   createJobId,
   emptyJobLedger,
@@ -70,6 +75,8 @@ export function createJob(
     readonly testSeams?: readonly string[];
     readonly tddMode?: JobRecord['tddMode'];
     readonly reproCommand?: string;
+    readonly debugFixer?: boolean;
+    readonly explorePrototype?: boolean;
     readonly blockedByJobIds?: readonly string[];
     readonly deliveryMode?: JobDeliveryMode;
     readonly deliveryPhase?: JobDeliveryPhase;
@@ -88,6 +95,7 @@ export function createJob(
     readonly modelAlias?: string;
     readonly surfaceKind?: JobRecord['surfaceKind'];
     readonly taskTrack?: JobTaskTrack;
+    readonly taskTrackSource?: JobTaskTrackSource;
     readonly verifyVerdict?: JobRecord['verifyVerdict'];
     /** Affinity reuse: bind an existing worktree before schedule assigns one. */
     readonly worktreePath?: string;
@@ -101,29 +109,35 @@ export function createJob(
 ): JobRecord {
   const now = new Date().toISOString();
   const kind = input.kind ?? 'task';
-  const taskTrack =
-    input.taskTrack ??
-    classifyJobTaskTrack({
-      title: input.title,
-      prompt: input.prompt,
-      ownershipPaths: input.ownershipPaths,
-      contextPaths: input.contextPaths,
-      kind,
-      deliveryMode: input.deliveryMode,
-      greenfieldChain: input.deliveryMode === 'greenfield' || input.deliveryPhase !== undefined,
-    });
+  const resolved = resolveJobTaskTrack({
+    kind,
+    deliveryMode: input.deliveryMode,
+    greenfieldChain: input.deliveryMode === 'greenfield' || input.deliveryPhase !== undefined,
+    explicit: input.taskTrack,
+    ownershipPaths: input.ownershipPaths,
+  });
+  const pending = input.taskTrackSource === 'pending' || (input.taskTrack === undefined && resolved.source === 'pending');
+  const taskTrack = pending ? undefined : (input.taskTrack ?? (resolved.source === 'pending' ? undefined : resolved.track));
+  const taskTrackSource: JobTaskTrackSource =
+    input.taskTrackSource ??
+    (pending ? 'pending' : input.taskTrack !== undefined ? 'declared' : resolved.source === 'pending' ? 'pending' : resolved.source);
   const codingKind = kind === 'task' || kind === 'implement';
-  const tddMode =
-    input.tddMode ??
-    (codingKind ? (taskTrack === 'general' ? 'off' : 'preferred') : undefined);
-  const surfaceKind =
-    input.surfaceKind ?? (codingKind && taskTrack === 'general' ? 'none' : undefined);
+  const defaults = taskTrackCreateDefaults({
+    codingKind,
+    track: taskTrack,
+    pending,
+    tddMode: input.tddMode,
+    surfaceKind: input.surfaceKind,
+  });
+  const tddMode = defaults.tddMode;
+  const surfaceKind = defaults.surfaceKind;
   const job: JobRecord = {
     id: createJobId(),
     title: input.title.trim(),
     status: 'queued',
     kind,
     taskTrack,
+    taskTrackSource,
     priority: input.priority ?? 0,
     createdAt: now,
     updatedAt: now,
@@ -136,6 +150,8 @@ export function createJob(
     testSeams: input.testSeams,
     tddMode,
     reproCommand: input.reproCommand?.trim() || undefined,
+    debugFixer: input.debugFixer === true ? true : undefined,
+    explorePrototype: input.explorePrototype === true ? true : undefined,
     blockedByJobIds: input.blockedByJobIds,
     deliveryMode: input.deliveryMode,
     deliveryPhase: input.deliveryPhase,
@@ -197,6 +213,8 @@ export function patchJob(
       | 'reproCommand'
       | 'kind'
       | 'taskTrack'
+      | 'taskTrackSource'
+      | 'premiumDensity'
     >
   >,
 ): JobRecord | undefined {
@@ -230,6 +248,9 @@ export function isPinnedJobDiagnosticLine(line: string): boolean {
   if (/\bsha\s*[=:]\s*[0-9a-f]{7,40}\b/i.test(text)) return true;
   if (/\bstderr\b/i.test(text)) return true;
   if (/^push:\s*failed/i.test(text)) return true;
+  if (/^task_track:/i.test(text)) return true;
+  if (/^premium_density:/i.test(text)) return true;
+  if (/^effect:/i.test(text)) return true;
   return false;
 }
 

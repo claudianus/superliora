@@ -18,6 +18,19 @@ export interface LlmClassifierDeps {
   readonly provider: ChatProvider;
 }
 
+/** Present when the agent has a live chat provider. Fail closed if absent. */
+export function classifierDepsFromAgent(
+  agent:
+    | {
+        readonly generate: Agent['generate'];
+        readonly config: { readonly hasProvider?: boolean; readonly provider: ChatProvider };
+      }
+    | undefined,
+): LlmClassifierDeps | undefined {
+  if (agent === undefined || agent.config?.hasProvider !== true) return undefined;
+  return { generate: agent.generate, provider: agent.config.provider };
+}
+
 /**
  * Clip user text to a maximum length for classifier prompts.
  */

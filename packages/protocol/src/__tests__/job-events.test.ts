@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   JOB_EVENT_SCHEMA_VERSION,
+  JOB_EVENT_SCHEMA_VERSION_V3,
   jobInboxEventSchema,
   jobUpdatedEventSchema,
 } from '../events/job';
@@ -151,7 +152,7 @@ describe('job.* protocol events', () => {
   it('v3: parses briefPreview, gateChecklist, landReceipt, actionHints', () => {
     const updated = {
       type: 'job.updated' as const,
-      schemaVersion: JOB_EVENT_SCHEMA_VERSION,
+      schemaVersion: JOB_EVENT_SCHEMA_VERSION_V3,
       job: {
         id: 'job_v3',
         title: 'Land auth',
@@ -186,7 +187,7 @@ describe('job.* protocol events', () => {
 
     const inbox = {
       type: 'job.inbox' as const,
-      schemaVersion: JOB_EVENT_SCHEMA_VERSION,
+      schemaVersion: JOB_EVENT_SCHEMA_VERSION_V3,
       eventId: 'jinbox_v3',
       kind: 'job.needs_user' as const,
       jobId: 'job_v3',
@@ -195,6 +196,52 @@ describe('job.* protocol events', () => {
       actionHints: ['jobResume', 'jobSteer'],
     };
     expect(jobInboxEventSchema.parse(inbox).actionHints).toEqual(['jobResume', 'jobSteer']);
+  });
+
+  it('v4: parses effectPreview on job.updated', () => {
+    const updated = {
+      type: 'job.updated' as const,
+      schemaVersion: JOB_EVENT_SCHEMA_VERSION,
+      job: {
+        id: 'job_v4',
+        title: 'Host effect',
+        status: 'queued' as const,
+        kind: 'task' as const,
+        priority: 0,
+        effectPreview: {
+          isolation: 'checkout' as const,
+          chip: 'checkout',
+          summary: 'general · this checkout · Conductor judged',
+          taskTrack: 'general' as const,
+          taskTrackSource: 'inferred' as const,
+        },
+      },
+      change: { reason: 'effect' },
+    };
+    const parsed = jobUpdatedEventSchema.parse(updated);
+    expect(parsed.schemaVersion).toBe(4);
+    expect(parsed.job.effectPreview?.chip).toBe('checkout');
+    expect(parsed.job.effectPreview?.summary).toContain('Conductor judged');
+    expect(agentEventSchema.parse(updated).type).toBe('job.updated');
+  });
+
+  it('dual-read: v3 journal events still parse under schemaVersion 4 readers', () => {
+    const v3Updated = {
+      type: 'job.updated' as const,
+      schemaVersion: JOB_EVENT_SCHEMA_VERSION_V3,
+      job: {
+        id: 'job_v3_legacy',
+        title: 'Legacy v3',
+        status: 'running' as const,
+        kind: 'implement' as const,
+        priority: 1,
+        briefPreview: { successCriteria: ['ok'] },
+      },
+    };
+    const parsed = jobUpdatedEventSchema.parse(v3Updated);
+    expect(parsed.schemaVersion).toBe(3);
+    expect(parsed.job.briefPreview?.successCriteria).toEqual(['ok']);
+    expect(parsed.job.effectPreview).toBeUndefined();
   });
 
   it('dual-read: v2 journal events still parse under schemaVersion 3 readers', () => {

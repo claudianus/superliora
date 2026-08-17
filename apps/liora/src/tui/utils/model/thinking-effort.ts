@@ -244,21 +244,74 @@ export function formatThinkingLevelSuffix(
   return ` ${display.label}`;
 }
 
-/** Welcome / status style: `Kimi K2 · max→high`. */
+/**
+ * Short human chip for chrome (header / status). Avoids raw model-id fragments
+ * like `non-reasoning`. Korean when locale starts with `ko`.
+ */
+export function formatThinkingLevelChip(
+  level: string | undefined,
+  options: {
+    readonly thinking?: boolean;
+    readonly model?: ModelAlias;
+    readonly locale?: string;
+  } = {},
+): string | undefined {
+  if (modelUsesEmbeddedThinkingEffort(options.model)) {
+    // Cursor embeds reasoning in the model id; still show a human chip when on.
+    if (options.thinking === false) {
+      return (options.locale ?? '').toLowerCase().startsWith('ko') ? '비추론' : 'non-reasoning';
+    }
+    return (options.locale ?? '').toLowerCase().startsWith('ko') ? '추론' : 'reasoning';
+  }
+  const display = resolveThinkingDisplay(level, options);
+  const ko = (options.locale ?? '').toLowerCase().startsWith('ko');
+  if (display.label === 'off') {
+    if (options.thinking === true) return ko ? '추론' : 'reasoning';
+    // Quiet footer historically hid off; header always wants a chip when model is set.
+    return ko ? '비추론' : 'non-reasoning';
+  }
+  if (display.effective === 'on') return ko ? '추론' : 'reasoning';
+  if (ko) {
+    switch (display.effective) {
+      case 'low':
+        return '추론·낮음';
+      case 'medium':
+        return '추론·중간';
+      case 'high':
+        return '추론·높음';
+      case 'xhigh':
+        return '추론·최고';
+      case 'max':
+        return '추론·최대';
+      default:
+        return `추론·${display.label}`;
+    }
+  }
+  return display.label;
+}
+
+/** Welcome / status / header style: `Kimi K2 · 추론·높음`. */
 export function formatModelWithThinking(
   modelName: string,
   level: string | undefined,
   options: {
     readonly thinking?: boolean;
     readonly model?: ModelAlias;
+    readonly locale?: string;
+    /** When true, always append a chip (including non-reasoning). Header uses this. */
+    readonly alwaysShowLevel?: boolean;
   } = {},
 ): string {
-  if (modelUsesEmbeddedThinkingEffort(options.model)) return modelName;
-  const display = resolveThinkingDisplay(level, options);
-  if (display.label === 'off') {
-    return options.thinking === true ? `${modelName} · on` : modelName;
+  if (modelUsesEmbeddedThinkingEffort(options.model) && options.alwaysShowLevel !== true) {
+    return modelName;
   }
-  return `${modelName} · ${display.label}`;
+  const chip = formatThinkingLevelChip(level, options);
+  if (chip === undefined) return modelName;
+  if (options.alwaysShowLevel !== true) {
+    const display = resolveThinkingDisplay(level, options);
+    if (display.label === 'off' && options.thinking !== true) return modelName;
+  }
+  return `${modelName} · ${chip}`;
 }
 
 /**

@@ -22,6 +22,7 @@ export interface PushPreviewPanelOptions {
   readonly remote?: string;
   readonly localRef?: string;
   readonly remoteRef?: string;
+  readonly remoteRefProvenance?: string;
   readonly onApprove: (summary: string) => void;
   readonly onReject: (summary: string) => void;
   readonly onCancel: () => void;
@@ -104,6 +105,9 @@ export class PushPreviewPanelComponent extends Container implements Focusable {
         '…',
       ),
     );
+    if (this.opts.remoteRefProvenance !== undefined && this.opts.remoteRefProvenance.length > 0) {
+      body.push(theme.fg('textDim', `  ${this.opts.remoteRefProvenance}`));
+    }
     if (remoteRef === 'gh-pages') {
       body.push(
         theme.fg(

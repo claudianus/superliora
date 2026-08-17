@@ -115,11 +115,8 @@ export function withDefaultRequiredEvidence<T extends EvidenceGateNode>(node: T)
  * Kept for callers/tests migrating off path/id heuristics; always prefer
  * explicit requiredEvidence on the plan node.
  */
-export function looksLikeUiEvidenceNode(node: EvidenceGateNode): boolean {
-  const blob = [node.id, node.kind, node.stage ?? '', ...(node.requiredEvidence ?? [])].join(' ');
-  return /(?:^|[_\W])ui(?:[_\W]|$)|ux|visual|frontend|css|html|screenshot|canvas|game|VerifySurface/i.test(
-    blob,
-  );
+export function looksLikeUiEvidenceNode(_node: EvidenceGateNode): boolean {
+  return false;
 }
 
 /**

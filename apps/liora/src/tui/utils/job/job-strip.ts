@@ -5,6 +5,7 @@
 
 import type {
   JobBriefPreview,
+  JobEffectPreview,
   JobEventKind,
   JobEventStatus,
   JobGateChecklist,
@@ -12,6 +13,7 @@ import type {
   JobLandReceiptSnapshot,
   JobProgressSnapshot,
   JobSnapshot,
+  JobVerifyVerdictSnapshot,
 } from '@superliora/protocol';
 
 /** Per-job card for the Job board, sourced from `job.updated` events or JobList output. */
@@ -52,6 +54,14 @@ export interface ConductorJobCard {
   readonly gateChecklist?: JobGateChecklist;
   /** Post-merge land receipt (schemaVersion 3). */
   readonly landReceipt?: JobLandReceiptSnapshot;
+  /** Isolation / track / surface provenance (schemaVersion 4). */
+  readonly effectPreview?: JobEffectPreview;
+  /** Immediate parent in a verify/debug chain (schemaVersion 4). */
+  readonly parentJobId?: string;
+  /** Structured verify verdict when kind=verify is terminal (schemaVersion 4). */
+  readonly verifyVerdict?: JobVerifyVerdictSnapshot;
+  /** Debug-fixer implement child (schemaVersion 4). */
+  readonly debugFixer?: boolean;
 }
 
 /** Dense token strip for Job Desk cards / Job Deck usage rows. */
@@ -141,6 +151,10 @@ export function upsertConductorJobCard(
   const gateChecklist = job.gateChecklist ?? existing?.gateChecklist;
   const landReceipt = job.landReceipt ?? existing?.landReceipt;
   const deliveryPhase = job.deliveryPhase ?? existing?.deliveryPhase;
+  const effectPreview = job.effectPreview ?? existing?.effectPreview;
+  const parentJobId = job.parentJobId ?? existing?.parentJobId;
+  const verifyVerdict = job.verifyVerdict ?? existing?.verifyVerdict;
+  const debugFixer = job.debugFixer ?? existing?.debugFixer;
   const card: ConductorJobCard = {
     id: job.id,
     title: job.title,
@@ -164,6 +178,10 @@ export function upsertConductorJobCard(
     ...(briefPreview === undefined ? {} : { briefPreview }),
     ...(gateChecklist === undefined ? {} : { gateChecklist }),
     ...(landReceipt === undefined ? {} : { landReceipt }),
+    ...(effectPreview === undefined ? {} : { effectPreview }),
+    ...(parentJobId === undefined ? {} : { parentJobId }),
+    ...(verifyVerdict === undefined ? {} : { verifyVerdict }),
+    ...(debugFixer === undefined ? {} : { debugFixer }),
   };
   const next = cards.filter((entry) => entry.id !== job.id);
   next.push(card);

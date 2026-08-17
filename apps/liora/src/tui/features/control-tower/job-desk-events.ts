@@ -267,20 +267,30 @@ export class ControlTowerJobDesk {
     }
   }
 
-  /** F06: surface gateChecklist / briefPreview on JobCreate ACK (queued→running). */
+  /** Surface effect / gate / brief on JobCreate ACK and later effect settle. */
   private maybeShowGateAck(event: JobUpdatedEvent): void {
-    if (!isExperimentalFlagEnabled('conductor_ux_v2')) return;
+    const reason = event.change?.reason;
+    if (reason === 'progress' || reason === 'stalled' || reason?.startsWith('goal-desk') === true) {
+      return;
+    }
+    const effect = event.job.effectPreview;
     const gate = event.job.gateChecklist;
     const brief = event.job.briefPreview;
-    if (gate === undefined && brief === undefined) return;
+    const hasEffect = effect !== undefined || reason === 'effect';
+    const hasGateBrief = gate !== undefined || brief !== undefined;
+    if (!hasEffect && (!isExperimentalFlagEnabled('conductor_ux_v2') || !hasGateBrief)) {
+      return;
+    }
     const previous = event.change?.previousStatus;
     const isAck =
+      reason === 'effect' ||
       event.job.status === 'queued' ||
       event.job.status === 'running' ||
       previous === 'queued' ||
       previous === undefined;
     if (!isAck) return;
     const detail = formatGateAckDetail({
+      ...(effect === undefined ? {} : { effectPreview: effect }),
       ...(gate === undefined ? {} : { gateChecklist: gate }),
       ...(brief === undefined ? {} : { briefPreview: brief }),
     });

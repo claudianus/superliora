@@ -83,7 +83,7 @@ describe('JobDeckViewerComponent', () => {
     });
 
     const joined = viewer.render(100).map(stripAnsi).join('\n');
-    expect(joined).toContain('Jobs — Conductor Deck');
+    expect(joined).toContain('Session outcomes');
     expect(joined).toContain('workers');
     expect(joined).toContain('need you');
     expect(joined).toContain('pool 1/4');

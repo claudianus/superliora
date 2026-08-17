@@ -82,7 +82,7 @@ export const PREMIUM_QUALITY_EXIT_GUIDANCE =
   'Premium Quality mode is OFF. Continue with normal quality expectations unless the user re-requests premium polish.';
 
 export type PremiumInjectionDensity = 'visual' | 'code';
-/** Prefer a cached/LLM objective profile; fall back to UI heuristics. */
+/** Prefer a cached/LLM objective profile; else declared/empty defaults. */
 export function detectPremiumVisualSurface(
   objective: string,
   profile?: { readonly visualSurface?: boolean; readonly premiumDensity?: PremiumInjectionDensity },
@@ -94,7 +94,7 @@ export function detectPremiumVisualSurface(
 
 /**
  * Resolve injection density for an active Premium session.
- * Prefer a cached profile; otherwise classify the objective with UI heuristics.
+ * Prefer a cached/LLM profile; never scan objective wording.
  */
 export function resolvePremiumInjectionDensity(
   objective: string | undefined | null,

@@ -52,6 +52,10 @@ export interface WebSearchProvider {
   status?(): ResearchSearchStatus;
   /** Labels of the channels that served the most recent query (routing log). */
   lastChannels?(): readonly string[];
+  /** Ready-to-render intent/source line, e.g. `package/npm · sources github, npm`. */
+  lastRoute?(): string | undefined;
+  /** Rewritten query when the provider changed the search string. */
+  lastSearchedQuery?(): string | undefined;
 }
 
 // ── Input schema ─────────────────────────────────────────────────────
@@ -122,10 +126,14 @@ export class WebSearchTool implements BuiltinTool<WebSearchInput> {
       const healthAfter = this.providerHealth() ?? healthBefore;
 
       if (results.length === 0) {
-        return this.softOk(buildEmptySearchMessage(healthAfter), healthAfter);
+        return this.softOk(
+          this.withRoutePrefix(buildEmptySearchMessage(healthAfter)),
+          healthAfter,
+        );
       }
 
       const builder = new ToolResultBuilder({ maxLineLength: null });
+      this.writeRouteHeader(builder);
 
       let first = true;
       for (const result of results) {
@@ -170,6 +178,24 @@ export class WebSearchTool implements BuiltinTool<WebSearchInput> {
   private providerChannelsTried(): readonly string[] {
     const status = this.provider.status?.();
     return status === undefined ? [] : inferSearchChannelsFromStatus(status);
+  }
+
+  private writeRouteHeader(builder: ToolResultBuilder): void {
+    const header = this.routeHeader();
+    if (header.length > 0) builder.write(header);
+  }
+
+  private withRoutePrefix(body: string): string {
+    return `${this.routeHeader()}${body}`;
+  }
+
+  private routeHeader(): string {
+    const parts: string[] = [];
+    const route = this.provider.lastRoute?.()?.trim();
+    if (route !== undefined && route.length > 0) parts.push(`Route: ${route}`);
+    const searched = this.provider.lastSearchedQuery?.()?.trim();
+    if (searched !== undefined && searched.length > 0) parts.push(`Searched: ${searched}`);
+    return parts.length === 0 ? '' : `${parts.join('\n')}\n`;
   }
 }
 

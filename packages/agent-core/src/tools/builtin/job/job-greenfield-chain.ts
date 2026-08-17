@@ -27,8 +27,8 @@ export interface GreenfieldChainInput {
   readonly surfaceKind?: JobRecord['surfaceKind'];
 }
 
-const VISUAL_GATE_RE =
-  /verifysurface|browserstatus|playwright|60\s*fps|전투\s*60|full\s*loop|title\s*[→-].*ending|완주|4\s*장|무기\s*8|보스\s*5/i;
+/** Tool-name exclusions for skeleton mechanical commands — not product AC wording. */
+const VISUAL_TOOL_RE = /verifysurface|browserstatus|browserscreenshot|playwright/i;
 
 const MECHANICAL_CMD_RE = /tsc|typecheck|vitest|eslint|oxlint|lint|build|pnpm test|npm test/i;
 
@@ -71,13 +71,13 @@ const PHASES = [
 ] as const;
 
 export function isVisualOrProductGateLine(line: string): boolean {
-  return VISUAL_GATE_RE.test(line);
+  return VISUAL_TOOL_RE.test(line);
 }
 
 export function mechanicalVerificationCommands(
   commands: readonly string[] | undefined,
 ): readonly string[] {
-  const kept = (commands ?? []).filter((cmd) => MECHANICAL_CMD_RE.test(cmd) && !VISUAL_GATE_RE.test(cmd));
+  const kept = (commands ?? []).filter((cmd) => MECHANICAL_CMD_RE.test(cmd) && !VISUAL_TOOL_RE.test(cmd));
   return kept.length > 0 ? kept : [...SKELETON_DEFAULT_VERIFICATION];
 }
 

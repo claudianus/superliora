@@ -15,6 +15,7 @@ import { currentAgentConfig } from '../../../session/subagent/subagent-model-rou
 import type { ToolStore } from '../../store';
 import { dispatchMergeLand } from './job-land';
 import { createJob, getJob, listJobs, patchJob, type JobRecord } from './job-ledger';
+import { isDebugFixerJob } from './job-store-key';
 import { surfaceRequiresVisualProof } from './job-surface';
 import { STAFF_MIN_EXPERT_SCORE } from './job-staff';
 import { isGeneralTaskTrack } from './job-task-track';
@@ -74,21 +75,14 @@ export function healAllVerifyVerdictsFromSummary(store: ToolStore): readonly Job
 }
 
 /**
- * Desktop / out-of-repo work must not fan out Maker≠Checker verify children
- * (pool starvation: general desktop tasks were spawning 4+ verify kids).
- * Signals: desktop/computer-use wording, or a task with no worktree and no
- * ownership paths (repo-outside general work).
+ * Out-of-repo / host work must not fan out Maker≠Checker verify children.
+ * Structural facts only: general track, or a task with no worktree and no
+ * ownership paths. Never title/prompt wording.
  */
 export function isDesktopOrOutOfRepoJob(
-  job: Pick<
-    JobRecord,
-    'kind' | 'title' | 'prompt' | 'staffQuery' | 'worktreePath' | 'ownershipPaths'
-  >,
+  job: Pick<JobRecord, 'kind' | 'worktreePath' | 'ownershipPaths' | 'taskTrack'>,
 ): boolean {
-  const text = `${job.title}\n${job.prompt ?? ''}\n${job.staffQuery ?? ''}`;
-  if (/\b(desktop|computer-use|Computer(?:Capture|Act|Status))\b/i.test(text)) {
-    return true;
-  }
+  if (isGeneralTaskTrack(job)) return true;
   if (
     job.kind === 'task' &&
     (job.worktreePath === undefined || job.worktreePath.trim().length === 0) &&
@@ -111,11 +105,10 @@ export function jobRequiresVerifyChain(
     | 'title'
     | 'parentJobId'
     | 'surfaceKind'
-    | 'prompt'
-    | 'staffQuery'
     | 'worktreePath'
     | 'ownershipPaths'
     | 'taskTrack'
+    | 'debugFixer'
   >,
 ): boolean {
   if (
@@ -132,7 +125,7 @@ export function jobRequiresVerifyChain(
   }
   if (isGeneralTaskTrack(job)) return false;
   // Debug fixer children must not re-trigger another verify fan-out.
-  if (job.kind === 'implement' && job.title.startsWith('Debug:') && job.parentJobId !== undefined) {
+  if (isDebugFixerJob(job) && job.parentJobId !== undefined) {
     return false;
   }
   if (job.kind !== 'task' && job.kind !== 'implement') {
@@ -208,10 +201,7 @@ export function findDebugChild(
   jobs: readonly JobRecord[],
 ): JobRecord | undefined {
   return jobs.find(
-    (job) =>
-      job.parentJobId === parentJobId &&
-      job.kind === 'implement' &&
-      job.title.startsWith('Debug:'),
+    (job) => job.parentJobId === parentJobId && isDebugFixerJob(job),
   );
 }
 
@@ -690,6 +680,7 @@ export async function enqueueDebugJobForVerify(
   const debug = createJob(store, {
     title: `Debug: ${parent.title}`.slice(0, 120),
     kind: 'implement',
+    debugFixer: true,
     priority: (parent.priority ?? 0) + 2,
     prompt: [
       'You are a debug fixer. Establish a tight red-capable repro before hypothesising; then apply the smallest fix. Do not expand scope.',

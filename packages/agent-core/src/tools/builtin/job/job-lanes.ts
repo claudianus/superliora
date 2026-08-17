@@ -20,8 +20,9 @@ export interface LaneClassification {
 }
 
 /**
- * Heuristic for prompts/tools: when should work become an execution Job?
- * Not a hard gate — Conductor may still choose JobCreate explicitly.
+ * Structural lane hint only (declared kind, multi-intent list, short `?`).
+ * Never classifies from verb/keyword wording. Conductor still JobCreates
+ * explicitly when the finish line needs a worker.
  */
 export function classifyConductorLane(input: {
   readonly text: string;
@@ -52,19 +53,9 @@ export function classifyConductorLane(input: {
   if (text.length === 0) {
     return { lane: 'interactive', reason: 'empty', shouldCreateJob: false };
   }
-  // Short Q&A / status — stay interactive.
-  if (text.length < 40 && /\?$|^(what|why|how|who|where|when|status|help)\b/i.test(text)) {
+  // Short question — stay interactive. No verb/keyword cookbook.
+  if (text.length < 40 && text.endsWith('?')) {
     return { lane: 'interactive', reason: 'short Q&A', shouldCreateJob: false };
-  }
-  if (
-    /\b(implement|refactor|fix|add tests?|write|build|migrate|ship|port)\b/i.test(text) ||
-    /\b(구현|수정|추가|리팩터|테스트|마이그레이션)\b/.test(text)
-  ) {
-    return {
-      lane: 'execution',
-      reason: 'implementation-shaped request',
-      shouldCreateJob: true,
-    };
   }
   return {
     lane: 'interactive',

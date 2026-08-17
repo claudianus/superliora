@@ -8,6 +8,10 @@
  * throw into job paths — they come back as a result error for ledger notes.
  */
 
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { __resetJobWorkerHandlesForTests } from '../../src/tools/builtin/job/job-handles';
@@ -109,8 +113,9 @@ describe('commitJobWorktreeIfDirty', () => {
     const commit = calls.find((c) => c.args.includes('commit'))!;
     const message = commit.args[commit.args.indexOf('-m') + 1]!;
     expect(message).toContain(JOB_WORKTREE_SNAPSHOT_MESSAGE_PREFIX);
-    expect(message).toContain('job_dirty');
+    expect(message).toContain('Job-Id: job_dirty');
     expect(message).toContain('fix the thing');
+    expect(message).toMatch(/^chore\(job\):/u);
     // No identity configured → inline -c overrides, never config mutation.
     expect(commit.args).toContain('-c');
     expect(commit.args).toContain('user.name=SuperLiora');
@@ -150,11 +155,21 @@ describe('commitJobWorktreeIfDirty', () => {
 });
 
 describe('landJobToMain commit backstop', () => {
+  const landDirs: string[] = [];
+
+  afterEach(() => {
+    for (const dir of landDirs.splice(0)) {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   function doneJobWithWorktree(store: ToolStore) {
+    const worktreePath = mkdtempSync(join(tmpdir(), 'job-land-'));
+    landDirs.push(worktreePath);
     const job = createJob(store, { title: 'land me', kind: 'implement' });
     const done = patchJob(store, job.id, {
       status: 'done',
-      worktreePath: `/tmp/land/${job.id}`,
+      worktreePath,
       resultSummary: 'worker finished',
     });
     if (!done) throw new Error('failed to prepare job');

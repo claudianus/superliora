@@ -51,6 +51,16 @@ export class PreferXaiGrokWebSearchProvider implements WebSearchProvider {
     if (this.lastServed === 'xai') return ['xai-grok'];
     return this.researchFallback.lastChannels?.() ?? [];
   }
+
+  lastRoute(): string | undefined {
+    if (this.lastServed === 'xai') return this.xai.lastRoute?.();
+    return this.researchFallback.lastRoute?.() ?? this.xai.lastRoute?.();
+  }
+
+  lastSearchedQuery(): string | undefined {
+    if (this.lastServed === 'xai') return this.xai.lastSearchedQuery?.();
+    return this.researchFallback.lastSearchedQuery?.() ?? this.xai.lastSearchedQuery?.();
+  }
 }
 
 export interface XaiGrokCredentialProbe {

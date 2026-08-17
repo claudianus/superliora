@@ -31,6 +31,20 @@ describe('summary glances', () => {
     ).toBe('no results');
   });
 
+  it('webSearchGlance prefers the Route line over titles', () => {
+    const output = [
+      'Route: package/npm · sources github, npm',
+      'Title: zod',
+      'URL: https://www.npmjs.com/package/zod',
+      'Snippet: schema',
+      '',
+      'Channels: Local',
+    ].join('\n');
+    expect(webSearchGlance(call('WebSearch'), toolResult(output))).toBe(
+      'package/npm · sources github, npm',
+    );
+  });
+
   it('webSearchGlance prefixes serving channels when the footer is present', () => {
     const output = [
       'Title: Alpha',

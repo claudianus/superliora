@@ -20,13 +20,15 @@ import {
 } from './local-web-search-ddg-parse';
 import { DirectSourceAdapter } from './local-web-search-direct-sources';
 import {
-  classifySearchIntent,
+  formatSearchRouteLine,
+  inferSearchIntent,
   hasAnyDirectSource,
   selectDirectSourcesForIntent,
   shapeQueryForIntent,
   type LocalSearchDirectSources,
   type SearchIntent,
 } from './local-web-search-intent';
+import type { LlmClassifierDeps } from '../../utils/llm-classifier-utils';
 import { rankAndDedupeResults } from './local-web-search-ranking';
 import {
   asRecord,
@@ -75,6 +77,8 @@ export interface LocalWebSearchProviderOptions {
   bing?: boolean;
   /** Per-host pacing/cooldown harness. Defaults to the process-wide registry. */
   resilience?: NetResilienceRegistry;
+  /** Optional effect judge — omit to leave sources as configured (no keyword route). */
+  classifier?: LlmClassifierDeps;
 }
 
 /** DDG HTML endpoints rate-limit aggressively; pace and cool down per host. */
@@ -181,6 +185,10 @@ export class LocalWebSearchProvider implements WebSearchProvider {
   private readonly cacheTtlMs: number;
   private readonly bingEnabled: boolean;
   private readonly resilience: NetResilienceRegistry;
+  private readonly classifier: LlmClassifierDeps | undefined;
+  private lastRouteLine: string | undefined;
+  private lastRawQuery: string | undefined;
+  private lastShapedQuery: string | undefined;
 
   constructor(options: LocalWebSearchProviderOptions = {}) {
     this.searchUrl = options.searchUrl ?? DEFAULT_SEARCH_URL;
@@ -206,6 +214,16 @@ export class LocalWebSearchProvider implements WebSearchProvider {
     // Per-instance by default so cooldown state never leaks across tests or
     // independent engines; the runtime factory passes the shared registry.
     this.resilience = options.resilience ?? new NetResilienceRegistry();
+    this.classifier = options.classifier;
+  }
+
+  lastRoute(): string | undefined {
+    return this.lastRouteLine;
+  }
+
+  lastSearchedQuery(): string | undefined {
+    if (this.lastShapedQuery === undefined || this.lastRawQuery === undefined) return undefined;
+    return this.lastShapedQuery === this.lastRawQuery ? undefined : this.lastShapedQuery;
   }
 
   async search(
@@ -217,8 +235,12 @@ export class LocalWebSearchProvider implements WebSearchProvider {
 
     const limit = clampInt(options?.limit ?? 5, 1, 20);
     const includeContent = options?.includeContent === true;
-    const intent = classifySearchIntent(trimmed);
+    const intent = await inferSearchIntent(trimmed, this.classifier);
     const shapedQuery = shapeQueryForIntent(trimmed, intent);
+    const routedSources = selectDirectSourcesForIntent(this.directSources, intent);
+    this.lastRouteLine = formatSearchRouteLine(intent, routedSources);
+    this.lastRawQuery = trimmed;
+    this.lastShapedQuery = shapedQuery;
     const cacheKey = this.cacheKey(shapedQuery, limit, includeContent, intent);
     const now = Date.now();
 

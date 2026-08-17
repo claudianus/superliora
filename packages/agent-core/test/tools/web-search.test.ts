@@ -820,6 +820,19 @@ describe('LocalWebSearchProvider', () => {
       fetchImpl,
       searchUrl: 'https://duckduckgo.com/html/',
       directSources: { github: true, npm: true, arxiv: false, pypi: false, crates: false },
+      classifier: {
+        generate: async () => ({
+          message: {
+            content: [
+              {
+                type: 'text',
+                text: '{"artifact":"package","ecosystem":"npm","confidence":0.9,"rationale":"install a library"}',
+              },
+            ],
+          },
+        }),
+        provider: {} as never,
+      },
     });
 
     const results = await provider.search('zod typescript npm schema', { limit: 5 });
@@ -828,6 +841,7 @@ describe('LocalWebSearchProvider', () => {
     expect(urls).toContain('https://github.com/colinhacks/zod');
     // Primary source ranking should beat generic blog for package intent.
     expect(urls[0]).not.toBe('https://example.com/blog');
+    expect(provider.lastRoute()).toBe('package/npm · sources github, npm');
   });
 
   it('skips expensive direct APIs for general non-tech free queries', async () => {

@@ -23,6 +23,24 @@ repo `AGENTS.md` / local conventions over catalog git automation.
 4. Commit via HEREDOC message; do not `--no-verify` / force-push main.
 5. Changesets: follow repo `.agents/skills/gen-changesets` when opening a PR.
 
+## Author (fixed)
+
+1. Prefer repo/user `git config` (`user.name` / `user.email`).
+2. If unset: SuperLiora bot only — `SuperLiora <superliora@localhost>`.
+3. Never invent per-worker authors. Job worktree snapshots inject bot identity only when config is missing (`tools/support/git-commit-policy.ts` + `job-worktree-commit`).
+
+## Message (conventional commits — validated in code)
+
+`type(scope): subject` — imperative subject ≤72 chars.
+
+- Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+- Body optional; put `Job-Id: …` in the body, not as the only subject
+- Rejected: empty, `update`, `wip`, `fix stuff`, job-id-only subjects
+
+Code helpers (prefer these over re-prompting the model):
+
+- `validateCommitMessage` / `autoFixCommitMessage` / `buildJobSnapshotCommitMessage` / `resolveCommitAuthor`
+
 ## Do not
 
 - Load catalog `smart-git` / auto-commit / unsolicited push skills.

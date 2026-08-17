@@ -12,7 +12,7 @@
  * placeholders are substituted from `params`.
  */
 
-import { t } from '#/cli/i18n';
+import { getCliLocale, t } from '#/cli/i18n';
 
 /**
  * Looks up a localized TUI string. Falls back to English, then to the raw key.
@@ -20,4 +20,9 @@ import { t } from '#/cli/i18n';
  */
 export function ttui(key: string, params?: Record<string, string | number>): string {
   return t(key, params);
+}
+
+/** Active TUI/CLI locale (`en` | `ko`). */
+export function getTuiLocale(): string {
+  return getCliLocale();
 }

@@ -249,7 +249,7 @@ export class Agent {
   readonly intelligence: PromptIntelligenceService;
   readonly autopilot: AutopilotMode;
   readonly premiumQuality: PremiumQualityMode;
-  /** Goal/Job objective → premium density profile (heuristic or classifier). */
+  /** Goal/Job objective → premium density profile (declared, cached, or LLM). */
   readonly objectiveProfile: ObjectiveProfileCache;
   readonly replayBuilder: ReplayBuilder;
   readonly providerRouteState: InMemoryProviderRouteState;

@@ -22,6 +22,8 @@ import {
   renderSpectacularText,
   shouldRenderAmbientEffects,
 } from '#/tui/features/appearance/appearance-effects';
+import { formatModelWithThinking } from '#/tui/utils/model/thinking-effort';
+import { getTuiLocale } from '#/tui/utils/tui-i18n';
 
 const BRAND_MARK = `${HEADER_DIAMOND} SuperLiora`;
 const CLOCK_GAP = '  ';
@@ -70,7 +72,17 @@ export class HeaderComponent implements Component {
         })
       : currentTheme.boldFg('primary', BRAND_MARK);
     const activeModel = this.state.availableModels[this.state.model];
-    const modelLabel = activeModel?.displayName ?? activeModel?.model ?? this.state.model ?? '';
+    const baseModelLabel = activeModel?.displayName ?? activeModel?.model ?? this.state.model ?? '';
+    const thinkingRaw = this.state.thinkingLevel ?? (this.state.thinking ? 'on' : 'off');
+    const modelLabel =
+      baseModelLabel.length > 0
+        ? formatModelWithThinking(baseModelLabel, thinkingRaw, {
+            thinking: this.state.thinking,
+            model: activeModel,
+            locale: getTuiLocale(),
+            alwaysShowLevel: true,
+          })
+        : '';
     const clockLabel = formatLocalClock(this.nowMs());
     this.lastClockLabel = clockLabel;
 

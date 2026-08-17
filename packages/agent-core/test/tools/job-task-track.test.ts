@@ -1,5 +1,6 @@
 /**
- * Per-Job taskTrack: conservative classifier + general gate skips.
+ * Per-Job taskTrack: structural/declared contract + general gate skips.
+ * Prompt wording must not select the track.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -11,8 +12,17 @@ import {
   classifyJobTaskTrack,
   classifyJobTrack,
   parseGeneralVerdict,
+  resolveJobTaskTrack,
 } from '../../src/tools/builtin/job/job-task-track';
-import { JobCreateTool, createConductorJobDraftRecorder } from '../../src/tools/builtin/job/job-tools';
+import {
+  inferJobTaskTrack,
+  resolveJobTaskTrackWithInfer,
+} from '../../src/tools/builtin/job/job-task-track-infer';
+import {
+  JobCreateTool,
+  createConductorJobDraftRecorder,
+  renderJobInspect,
+} from '../../src/tools/builtin/job/job-tools';
 import { jobPrompt } from '../../src/tools/builtin/job/job-worker';
 import {
   evaluateVerifyChainForMerge,
@@ -20,7 +30,6 @@ import {
   shouldEnqueueVerifyAfterDone,
 } from '../../src/tools/builtin/job/job-verify-chain';
 import { mergeTrustInputFromLedger } from '../../src/tools/builtin/job/job-merge-trust';
-import { splitUserMessageIntoJobIntents } from '../../src/tools/builtin/job/job-split';
 import type { ToolStore } from '../../src/tools/store';
 
 function memoryStore(): ToolStore {
@@ -45,8 +54,9 @@ function countingWorktreeFactory(created: string[]) {
 async function createViaTool(
   store: ToolStore,
   args: Record<string, unknown>,
+  agent?: ConstructorParameters<typeof JobCreateTool>[1],
 ): Promise<{ isError: boolean; output?: string }> {
-  const tool = new JobCreateTool(store);
+  const tool = new JobCreateTool(store, agent);
   const exec = tool.resolveExecution(args);
   if (exec.isError) return { isError: true, output: String(exec.output) };
   const result = await exec.execute({
@@ -57,30 +67,51 @@ async function createViaTool(
   return { isError: Boolean(result.isError), output: String(result.output ?? '') };
 }
 
-describe('classifyJobTaskTrack / classifyJobTrack', () => {
-  it.each([
-    ['A', '클로드코드 설치해줘', 'general'],
-    ['B', '운영체제 설정 수정해줘', 'general'],
-    ['C', '롤 켜줘', 'general'],
-    ['D', 'packages/agent-core auth 토큰 갱신 레이스 고쳐줘', 'coding'],
-    ['F', '이 레포에 prettier 설치하고 lint 고쳐줘', 'coding'],
-    ['G-empty', '', 'coding'],
-    ['G-vague', '이거 해줘', 'coding'],
-  ] as const)('%s → %s', (_id, text, expected) => {
-    expect(classifyJobTaskTrack({ title: text, prompt: text })).toBe(expected);
-    expect(classifyJobTrack({ title: text, prompt: text })).toBe(expected);
+function fakeJudgeAgent(payload: string) {
+  return {
+    generate: async () => ({
+      message: { content: [{ type: 'text' as const, text: payload }] },
+    }),
+    config: { hasProvider: true, provider: {} },
+  } as ConstructorParameters<typeof JobCreateTool>[1];
+}
+
+const HOST_EFFECT_JSON =
+  '{"mutates_workspace":false,"needs_git_isolation":false,"proof_kind":"host_observable","confidence":0.91,"rationale":"host app should be running"}';
+const REPO_EFFECT_JSON =
+  '{"mutates_workspace":true,"needs_git_isolation":true,"proof_kind":"repo_change","confidence":0.93,"rationale":"fix a race in the workspace"}';
+
+describe('resolveJobTaskTrack / classifyJobTaskTrack', () => {
+  it('does not classify from prompt wording', () => {
+    for (const text of [
+      '클로드코드 설치해줘',
+      '운영체제 설정 수정해줘',
+      '롤 켜줘',
+      'packages/agent-core auth 토큰 갱신 레이스 고쳐줘',
+      '이 레포에 prettier 설치하고 lint 고쳐줘',
+      '이거 해줘',
+    ]) {
+      expect(resolveJobTaskTrack({ title: text, prompt: text })).toEqual({ source: 'pending' });
+      expect(classifyJobTaskTrack({ title: text, prompt: text })).toBe('coding');
+      expect(classifyJobTrack({ title: text, prompt: text })).toBe('coding');
+    }
   });
 
-  it('keeps in-repo package-manager install on coding', () => {
+  it('honors declared and inherited contracts', () => {
     expect(
-      classifyJobTaskTrack({
-        title: 'deps',
-        prompt: 'npm install prettier in this repo',
+      resolveJobTaskTrack({
+        title: 'anything',
+        prompt: 'anything',
+        explicit: 'general',
       }),
-    ).toBe('coding');
-  });
-
-  it('honors hidden explicit override', () => {
+    ).toEqual({ source: 'declared', track: 'general' });
+    expect(
+      resolveJobTaskTrack({
+        title: 'anything',
+        prompt: 'anything',
+        inherited: 'general',
+      }),
+    ).toEqual({ source: 'inherited', track: 'general' });
     expect(
       classifyJobTaskTrack({
         title: '롤 켜줘',
@@ -88,47 +119,234 @@ describe('classifyJobTaskTrack / classifyJobTrack', () => {
         explicit: 'coding',
       }),
     ).toBe('coding');
-    expect(
-      classifyJobTaskTrack({
-        title: 'fix auth',
-        prompt: 'packages/oauth bug',
-        explicit: 'general',
-      }),
-    ).toBe('general');
-    expect(
-      classifyJobTaskTrack({
-        title: '롤 켜줘',
-        prompt: '롤 켜줘',
-        explicit: 'nope',
-      }),
-    ).toBe('general');
   });
 
-  it('inherits affinity track when no explicit override', () => {
+  it('forces coding from harness events, not wording', () => {
     expect(
-      classifyJobTaskTrack({
-        title: 'same app again',
-        prompt: 'same app again',
-        inherited: 'general',
+      resolveJobTaskTrack({
+        title: '클로드코드 설치해줘',
+        prompt: '클로드코드 설치해줘',
+        toolName: 'Edit',
       }),
-    ).toBe('general');
+    ).toEqual({ source: 'structural', track: 'coding' });
+    expect(
+      resolveJobTaskTrack({
+        title: 'patch auth',
+        prompt: 'auth race',
+        ownershipPaths: ['packages/agent-core'],
+      }),
+    ).toEqual({ source: 'structural', track: 'coding' });
   });
 
-  it('forces coding for greenfield and non-task kinds', () => {
+  it('forces coding for greenfield, implement, and non-task kinds', () => {
     expect(
-      classifyJobTaskTrack({
+      resolveJobTaskTrack({
         title: '클로드코드 설치해줘',
         prompt: '클로드코드 설치해줘',
         deliveryMode: 'greenfield',
       }),
-    ).toBe('coding');
+    ).toEqual({ source: 'structural', track: 'coding' });
     expect(
-      classifyJobTaskTrack({
+      resolveJobTaskTrack({
+        title: '클로드코드 설치해줘',
+        prompt: '클로드코드 설치해줘',
+        kind: 'implement',
+      }),
+    ).toEqual({ source: 'structural', track: 'coding' });
+    expect(
+      resolveJobTaskTrack({
         title: '클로드코드 설치해줘',
         prompt: '클로드코드 설치해줘',
         kind: 'verify',
       }),
-    ).toBe('coding');
+    ).toEqual({ source: 'structural', track: 'coding' });
+  });
+});
+
+describe('LLM effect judgment before schedule', () => {
+  it('JobCreate ACKs without waiting for effect judgment', async () => {
+    const store = memoryStore();
+    let release!: (text: string) => void;
+    const hung = new Promise<string>((resolve) => {
+      release = resolve;
+    });
+    const result = await createViaTool(
+      store,
+      {
+        title: '롤 켜줘',
+        prompt: '롤 켜줘',
+        success_criteria: ['앱이 포그라운드'],
+        staff: false,
+      },
+      {
+        generate: async () => ({
+          message: { content: [{ type: 'text' as const, text: await hung }] },
+        }),
+        config: { hasProvider: true, provider: {} },
+      } as ConstructorParameters<typeof JobCreateTool>[1],
+    );
+    expect(result.isError).toBe(false);
+    const job = listJobs(store)[0]!;
+    expect(job.taskTrackSource).toBe('pending');
+    expect(job.taskTrack).toBeUndefined();
+    release(HOST_EFFECT_JSON);
+    for (let i = 0; i < 40; i++) {
+      if (getJob(store, job.id)?.taskTrackSource !== 'pending') break;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    expect(getJob(store, job.id)?.taskTrack).toBe('general');
+    expect(getJob(store, job.id)?.taskTrackSource).toBe('inferred');
+  });
+
+  it('stamps general from a host-effect judgment, not from keywords', async () => {
+    const store = memoryStore();
+    const job = createJob(store, {
+      title: '클로드코드 설치해줘',
+      prompt: '클로드코드 설치해줘',
+      kind: 'task',
+      successCriteria: ['claude --version exits 0'],
+    });
+    expect(job.taskTrackSource).toBe('pending');
+    await scheduleQueuedJobs({
+      store,
+      agent: fakeJudgeAgent(HOST_EFFECT_JSON) as never,
+      requireWorktree: false,
+      ensureGitRepo: false,
+    });
+    expect(getJob(store, job.id)?.taskTrack).toBe('general');
+    expect(getJob(store, job.id)?.taskTrackSource).toBe('inferred');
+  });
+
+  it('keeps coding from a repo-effect judgment even when the title looks like an install', async () => {
+    const store = memoryStore();
+    const job = createJob(store, {
+      title: '이 레포에 prettier 설치하고 lint 고쳐줘',
+      prompt: '이 레포에 prettier 설치하고 lint 고쳐줘',
+      kind: 'task',
+      successCriteria: ['lint passes'],
+    });
+    await scheduleQueuedJobs({
+      store,
+      agent: fakeJudgeAgent(REPO_EFFECT_JSON) as never,
+      requireWorktree: false,
+      ensureGitRepo: false,
+    });
+    expect(getJob(store, job.id)?.taskTrack).toBe('coding');
+    expect(getJob(store, job.id)?.taskTrackSource).toBe('inferred');
+  });
+
+  it('fails closed to coding without a classifier', async () => {
+    const store = memoryStore();
+    const queued = createJob(store, {
+      title: '롤 켜줘',
+      prompt: '롤 켜줘',
+      kind: 'task',
+      successCriteria: ['앱이 포그라운드'],
+    });
+    expect(queued.taskTrackSource).toBe('pending');
+    expect(queued.taskTrack).toBeUndefined();
+
+    await scheduleQueuedJobs({
+      store,
+      requireWorktree: false,
+      ensureGitRepo: false,
+    });
+    expect(getJob(store, queued.id)?.taskTrackSource).toBe('default');
+    expect(getJob(store, queued.id)?.taskTrack).toBe('coding');
+  });
+
+  it('honors declared task_track on JobCreate', async () => {
+    const store = memoryStore();
+    const result = await createViaTool(store, {
+      title: '롤 켜줘',
+      prompt: '롤 켜줘',
+      success_criteria: ['앱이 포그라운드'],
+      task_track: 'coding',
+      staff: false,
+    });
+    expect(result.isError).toBe(false);
+    expect(listJobs(store)[0]?.taskTrack).toBe('coding');
+    expect(listJobs(store)[0]?.taskTrackSource).toBe('declared');
+    expect(result.output).toContain('effect:');
+    expect(result.output).toMatch(/you set|from the contract|coding/);
+    const inspect = renderJobInspect(listJobs(store)[0]!);
+    expect(inspect).toContain('effect:');
+    expect(inspect).toContain('task_track: coding');
+    expect(inspect).toContain('task_track_source: declared');
+    expect(inspect).toContain('isolation:');
+  });
+
+  it('judges each brief on its own done-contract', async () => {
+    const host = await resolveJobTaskTrackWithInfer(
+      {
+        title: '롤 켜줘',
+        prompt: '롤 켜줘',
+        successCriteria: ['앱이 포그라운드'],
+      },
+      {
+        generate: async () => ({
+          message: { content: [{ type: 'text', text: HOST_EFFECT_JSON }] },
+        }),
+        provider: {} as never,
+      },
+    );
+    const repo = await resolveJobTaskTrackWithInfer(
+      {
+        title: 'packages/oauth 버그 고쳐줘',
+        prompt: 'packages/oauth 버그 고쳐줘',
+        successCriteria: ['focused oauth test passes'],
+      },
+      {
+        generate: async () => ({
+          message: { content: [{ type: 'text', text: REPO_EFFECT_JSON }] },
+        }),
+        provider: {} as never,
+      },
+    );
+    expect(host).toEqual({ source: 'inferred', track: 'general' });
+    expect(repo).toEqual({ source: 'inferred', track: 'coding' });
+  });
+});
+
+describe('inferJobTaskTrack', () => {
+  it('returns undefined when generate throws', async () => {
+    await expect(
+      inferJobTaskTrack(
+        {
+          generate: async () => {
+            throw new Error('offline');
+          },
+          provider: {} as never,
+        },
+        { title: 'x', prompt: 'x' },
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it('sends the done-contract to the model, not a keyword cookbook', async () => {
+    let user = '';
+    await inferJobTaskTrack(
+      {
+        generate: async (_provider, system, _history, messages) => {
+          expect(String(system)).not.toMatch(/설치해줘|켜줘|install|launch/i);
+          const part = messages[0]?.content[0];
+          user = part?.type === 'text' ? part.text : '';
+          return { message: { content: [{ type: 'text', text: HOST_EFFECT_JSON }] } };
+        },
+        provider: {} as never,
+      },
+      {
+        title: '클로드코드 설치해줘',
+        prompt: '클로드코드 설치해줘',
+        successCriteria: ['claude --version exits 0'],
+        verificationCommands: ['claude --version'],
+        surfaceKind: 'none',
+      },
+    );
+    expect(user).toMatch(/success_criteria/);
+    expect(user).toMatch(/claude --version exits 0/);
+    expect(user).toMatch(/verification_commands/);
+    expect(user).toMatch(/done-contract/);
   });
 });
 
@@ -146,81 +364,6 @@ describe('parseGeneralVerdict', () => {
   });
 });
 
-describe('JobCreate taskTrack routing', () => {
-  it('stamps general on install / OS / app-launch jobs (A–C)', async () => {
-    const store = memoryStore();
-    for (const title of ['클로드코드 설치해줘', '운영체제 설정 수정해줘', '롤 켜줘'] as const) {
-      const result = await createViaTool(store, {
-        title,
-        prompt: title,
-        success_criteria: [`${title} 확인`],
-        staff: false,
-      });
-      expect(result.isError, title).toBe(false);
-    }
-    const tracks = listJobs(store).map((job) => job.taskTrack);
-    expect(tracks).toEqual(['general', 'general', 'general']);
-  });
-
-  it('keeps coding gates for a repo bugfix (D)', async () => {
-    const store = memoryStore();
-    const result = await createViaTool(store, {
-      title: 'packages/agent-core auth 토큰 갱신 레이스 고쳐줘',
-      prompt: 'packages/agent-core auth 토큰 갱신 레이스 고쳐줘',
-      success_criteria: ['focused auth refresh test passes'],
-      staff: false,
-    });
-    expect(result.isError).toBe(false);
-    const job = listJobs(store)[0]!;
-    expect(job.taskTrack).toBe('coding');
-    expect(job.tddMode).toBe('preferred');
-  });
-
-  it('does not pin a session track across sequential jobs (C then D)', async () => {
-    const store = memoryStore();
-    await createViaTool(store, {
-      title: '롤 켜줘',
-      prompt: '롤 켜줘',
-      success_criteria: ['롤 클라이언트가 포그라운드'],
-      staff: false,
-    });
-    await createViaTool(store, {
-      title: 'packages/agent-core auth 토큰 갱신 레이스 고쳐줘',
-      prompt: 'packages/agent-core auth 토큰 갱신 레이스 고쳐줘',
-      success_criteria: ['focused auth refresh test passes'],
-      staff: false,
-    });
-    expect(listJobs(store).map((job) => job.taskTrack)).toEqual(['general', 'coding']);
-  });
-
-  it('classifies each intent on its own prompt (E)', () => {
-    // Splitter may keep a single compound line; classification is still per-text.
-    const intents = [
-      ...splitUserMessageIntoJobIntents('롤 켜줘 그리고 packages/oauth 버그 고쳐줘'),
-      { title: '롤 켜줘', prompt: '롤 켜줘' },
-      { title: 'packages/oauth 버그 고쳐줘', prompt: 'packages/oauth 버그 고쳐줘' },
-    ];
-    const tracks = intents.map((intent) =>
-      classifyJobTaskTrack({ title: intent.title, prompt: intent.prompt }),
-    );
-    expect(tracks).toContain('general');
-    expect(tracks).toContain('coding');
-  });
-
-  it('honors hidden task_track on JobCreate', async () => {
-    const store = memoryStore();
-    const result = await createViaTool(store, {
-      title: '롤 켜줘',
-      prompt: '롤 켜줘',
-      success_criteria: ['앱이 포그라운드'],
-      task_track: 'coding',
-      staff: false,
-    });
-    expect(result.isError).toBe(false);
-    expect(listJobs(store)[0]?.taskTrack).toBe('coding');
-  });
-});
-
 describe('general taskTrack runtime gates', () => {
   it('skips worktree, verify enqueue, merge chain, and coding brief taxes', async () => {
     const store = memoryStore();
@@ -229,6 +372,7 @@ describe('general taskTrack runtime gates', () => {
       prompt: '클로드코드 설치해줘',
       kind: 'task',
       successCriteria: ['claude --version exits 0'],
+      taskTrack: 'general',
     });
     expect(job.taskTrack).toBe('general');
     expect(job.tddMode).toBe('off');
@@ -262,19 +406,18 @@ describe('general taskTrack runtime gates', () => {
     const prompt = jobPrompt(done);
     expect(prompt).toMatch(/generalVerdict/);
     expect(prompt).toMatch(/Worker contract \(general track\)/);
-    // Coding-track commit obligation must not appear as a required step.
     expect(prompt).not.toMatch(/git add -A && git commit/);
-    // Negative "do not … pnpm run gate" is allowed; positive gate brief is not.
     expect(prompt).not.toMatch(/Before opening a PR: run .*changeset/i);
   });
 
-  it('keeps coding worktree + verify for a repo bugfix', async () => {
+  it('keeps coding worktree + verify for a declared repo bugfix', async () => {
     const store = memoryStore();
     const job = createJob(store, {
       title: 'packages/agent-core auth 토큰 갱신 레이스 고쳐줘',
       prompt: 'packages/agent-core auth 토큰 갱신 레이스 고쳐줘',
       kind: 'implement',
       successCriteria: ['focused auth refresh test passes'],
+      taskTrack: 'coding',
     });
     expect(job.taskTrack).toBe('coding');
 
@@ -302,7 +445,7 @@ describe('general taskTrack runtime gates', () => {
     expect(isSensitiveFile('/repo/.env')).toBe(true);
   });
 
-  it('classifies guard drafts the same way', () => {
+  it('classifies guard drafts from the harness event, not the title', () => {
     const store = memoryStore();
     const record = createConductorJobDraftRecorder(store);
     const install = record({
@@ -319,7 +462,9 @@ describe('general taskTrack runtime gates', () => {
       code: 'CONDUCTOR_DIRECT_WORK_BLOCKED',
       toolName: 'Edit',
     });
-    expect(getJob(store, install.jobId)?.taskTrack).toBe('general');
+    expect(getJob(store, install.jobId)?.taskTrack).toBe('coding');
+    expect(getJob(store, install.jobId)?.taskTrackSource).toBe('structural');
     expect(getJob(store, write.jobId)?.taskTrack).toBe('coding');
+    expect(getJob(store, write.jobId)?.taskTrackSource).toBe('structural');
   });
 });

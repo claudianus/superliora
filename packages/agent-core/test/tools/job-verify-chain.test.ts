@@ -151,7 +151,13 @@ ${'x'.repeat(200)}
     );
     expect(
       shouldEnqueueVerifyAfterDone(
-        job({ id: 'job_5', title: 'Debug: t', kind: 'implement', parentJobId: 'job_1' }),
+        job({
+          id: 'job_5',
+          title: 'Debug: t',
+          kind: 'implement',
+          parentJobId: 'job_1',
+          debugFixer: true,
+        }),
       ),
     ).toBe(false);
   });

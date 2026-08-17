@@ -9,11 +9,13 @@ import { randomUUID } from 'node:crypto';
 import type { Agent } from '../../../agent/index';
 import { type FanoutSpec, type FanoutTask, spawnOneAgent } from '../../../fleet/spawn-agents';
 import { pushJobInboxEvent } from './job-inbox';
-import { emitJobEvents, inboxToWireEvent } from './job-emit';
+import { emitJobEvents, inboxToWireEvent, jobRecordToUpdatedEvent } from './job-emit';
 import {
-  classifyObjectiveProfile,
+  resolveObjectiveProfileWithInfer,
   uiSpawnQualityFlags,
 } from '../../../premium-quality';
+import { classifierDepsFromAgent } from '../../../utils/llm-classifier-utils';
+import { isDebugFixerJob, isExplorePrototypeJob } from './job-store-key';
 import { requestJobSchedulePump } from '../../../session/job/job-offload';
 import {
   isSubagentDeadlineError,
@@ -151,7 +153,7 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
             'Write only to the plan file, then ExitPlanMode. Do not implement product code.',
           ].join('\n')
       : undefined,
-    job.kind === 'explore' && /\bprototype\b/i.test(`${job.title}\n${job.prompt ?? ''}`)
+    isExplorePrototypeJob(job)
       ? [
           'Prototype explore: build throwaway code that answers ONE design question.',
           'Mark it clearly as prototype; keep it trivial to run; no persistence by default; skip polish/tests.',
@@ -177,7 +179,7 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
     job.taskTrack === 'general' && (job.kind === 'task' || job.kind === 'implement')
       ? [
           'Worker contract (general track):',
-          '- Execute the install / OS / app request. Do not create a worktree, run git commit, open a release PR, or run pnpm run gate.',
+          '- Execute the host/operator request. Do not create a worktree, run git commit, open a release PR, or run pnpm run gate.',
           '- Keep secrets blocked: never Read/Write/Edit .env, SSH keys, or credential files (PATH_SENSITIVE still applies).',
           '- Destructive OS changes and package installs still need user approval evidence before claiming pass.',
           '- Final summary MUST include JSON: {"generalVerdict":"passed"|"failed","proof":"<command exit or observation>"}.',
@@ -205,9 +207,7 @@ export function jobPrompt(job: JobRecord, store?: ToolStore): string {
                     '- After each meaningful change, run focused checks when available; cite that evidence in the result summary.',
                   ]),
           ...tddContractLines(job),
-          ...(job.kind === 'implement' && job.title.startsWith('Debug:')
-            ? debugContractLines(job)
-            : []),
+          ...(isDebugFixerJob(job) ? debugContractLines(job) : []),
           ...visualDodLines(job),
           ...mediaDodLines(job),
           ...(job.worktreePath !== undefined &&
@@ -296,7 +296,7 @@ function snapshotWorktreeForRecovery(worktreePath: string | undefined): string |
 
 function tddContractLines(job: JobRecord): readonly string[] {
   if (job.kind === 'verify' || job.kind === 'research' || job.kind === 'explore') return [];
-  if (job.kind === 'implement' && job.title.startsWith('Debug:')) return [];
+  if (isDebugFixerJob(job)) return [];
   if (job.kind !== 'task' && job.kind !== 'implement') return [];
   const mode = job.tddMode ?? 'preferred';
   if (mode === 'off') return [];
@@ -473,7 +473,7 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
   }
 
   // Remote push: deterministic git push on the source worktree — never an LLM.
-  // remoteRef may be omitted in the prompt; runPushRemoteJob infers gh-pages
+  // remoteRef may be omitted; runPushRemoteJob effect-judges a Pages target
   // (etc.) from push/source job titles and briefs.
   if (job.kind === 'push') {
     const remoteMatch = /\bremote:\s*(\S+)/i.exec(job.prompt ?? '');
@@ -519,28 +519,35 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
 
   const profileName = profileForJobKind(job.kind);
   const objectiveBlob = [job.title, job.prompt, job.goalObjective].filter(Boolean).join('\n');
+  const objectiveProfile = await resolveObjectiveProfileWithInfer(
+    {
+      objective: objectiveBlob,
+      title: job.title,
+      prompt: job.prompt,
+      successCriteria: job.successCriteria,
+      verificationCommands: job.verificationCommands,
+      surfaceKind: job.surfaceKind,
+      ownershipPaths: job.ownershipPaths,
+      contextPaths: job.contextPaths,
+    },
+    classifierDepsFromAgent(input.agent),
+    { signal: controller.signal },
+  );
   if (objectiveBlob.trim().length > 0 && input.agent.objectiveProfile !== undefined) {
-    input.agent.objectiveProfile.set(
-      objectiveBlob,
-      classifyObjectiveProfile(objectiveBlob, [
-        ...(job.contextPaths ?? []),
-        ...(job.ownershipPaths ?? []),
-      ]),
-    );
+    input.agent.objectiveProfile.set(objectiveBlob, objectiveProfile);
   }
-  // PQ soft hint only — merge/verify gates key off surfaceKind, not this regex.
-  const uiFlags =
-    job.surfaceKind === 'web' || job.surfaceKind === 'mixed' || job.surfaceKind === 'tui'
-      ? ({ forcePremiumQuality: true as const, preferVisionModel: true as const } as const)
-      : job.surfaceKind === 'none'
-        ? undefined
-        : uiSpawnQualityFlags({
-            title: job.title,
-            prompt: job.prompt,
-            goalObjective: job.goalObjective,
-            contextPaths: job.contextPaths,
-            ownershipPaths: job.ownershipPaths,
-          });
+  job =
+    patchJob(input.store, job.id, {
+      premiumDensity: objectiveProfile.premiumDensity,
+      notes: [job.notes, `premium_density: ${objectiveProfile.premiumDensity}`]
+        .filter(Boolean)
+        .join('\n'),
+    }) ?? job;
+  emitJobEvents(input.agent, [jobRecordToUpdatedEvent(job, { reason: 'effect' })]);
+  const uiFlags = uiSpawnQualityFlags({
+    surfaceKind: job.surfaceKind,
+    profile: objectiveProfile,
+  });
 
   // Live probe before spawn — do not attach a worker to a quota/auth-dead alias.
   const modelPreflight = await preflightJobWorkerModel(input.agent, job, {

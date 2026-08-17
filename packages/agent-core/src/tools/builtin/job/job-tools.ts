@@ -32,6 +32,7 @@ import {
   renderImplementHandoffDraft,
 } from '../planning/implement-handoff';
 import { findPlaceholderBriefLine, isPlaceholderBriefLine, nonEmptyStringList } from './job-brief';
+import { effectPreviewFromJob } from './job-emit';
 import {
   createJob,
   getJob,
@@ -55,7 +56,7 @@ import { evaluateMergeTrust, mergeTrustInputFromLedger } from './job-merge-trust
 import { patchJobAndNotify } from './job-notify';
 import { dispatchPushRemote, evaluatePushTrust } from './job-push';
 import { splitUserMessageIntoJobIntents } from './job-split';
-import { classifyJobTaskTrack } from './job-task-track';
+import { jobTaskTrackCreateFields, resolveJobTaskTrack } from './job-task-track';
 import { staffJobsFromObjective } from './job-staff';
 import { createGreenfieldChainJobs } from './job-greenfield-chain';
 import {
@@ -157,7 +158,11 @@ const JobCreateInputSchema = z
       .enum(['coding', 'general'])
       .optional()
       .describe(
-        'Hidden override. Omit so JobCreate classifies the request. Do not ask the user to pick a track.',
+        'Isolation/verification contract from the intended finish-line effect — same rule as surface_kind. ' +
+          'coding = workspace/product change (worktree + verify + land gates). ' +
+          'general = host/operator work whose proof is an observable fact outside a product land (no worktree/verify/changeset). ' +
+          'Mixed or unsure → coding. Declare when you can judge the effect. Omit to let a cheap effect-judgment fill it. ' +
+          'Never ask the user to pick a track. The harness does not classify from prompt wording.',
       ),
     repro_command: z
       .string()
@@ -165,6 +170,18 @@ const JobCreateInputSchema = z
       .optional()
       .describe(
         'One agent-runnable command that goes red on this bug (debug Jobs). When omitted the worker must still establish a tight repro before hypothesising.',
+      ),
+    debug_fixer: z
+      .boolean()
+      .optional()
+      .describe(
+        'Declare a debug-fixer contract (repro first, no verify fan-out). The harness keys off this field, not a Debug: title prefix.',
+      ),
+    prototype: z
+      .boolean()
+      .optional()
+      .describe(
+        'Declare a throwaway explore that answers one design question. The harness keys off this field, not a prototype title word.',
       ),
     blocked_by_job_ids: stringListField.describe(
       'Job ids that must finish successfully before this Job may schedule (tracer-bullet DAG). Distinct from parent_job_id (decomposition / review chain).',
@@ -228,7 +245,7 @@ const JobCreateInputSchema = z
         'kind=goal-driver only: hard circuit breakers for the autonomous loop (tokens / continuation turns / wall-clock ms). Exceeding any limit blocks the goal and the Job — set limits for open-ended objectives.',
       ),
     /**
-     * When true, split `prompt` (or title) into multiple Jobs via multi-intent heuristic
+     * When true, split a numbered/bullet list prompt into multiple Jobs
      * and return one summary ACK. Falls back to a single Job if split fails.
      */
     auto_split: z
@@ -424,7 +441,7 @@ const PushJobInputSchema = z
       .min(1)
       .optional()
       .describe(
-        'Remote ref name. When omitted, inferred from job title/brief (gh-pages / GitHub Pages → gh-pages); else same as local ref. Never auto-infers main.',
+        'Remote ref name. When omitted, a cheap publish-effect judgment may set a Pages branch; else same as local ref. Never auto-infers main. Never classified from title wording.',
       ),
     force_user_confirm: z
       .boolean()
@@ -456,6 +473,13 @@ export function renderJobInspect(job: JobRecord): string {
   const push = (label: string, value: string | undefined): void => {
     if (value !== undefined && value.length > 0) lines.push(`${label}: ${value}`);
   };
+  const effect = effectPreviewFromJob(job);
+  push('effect', effect.summary);
+  push('task_track', job.taskTrack);
+  push('task_track_source', job.taskTrackSource);
+  push('surface_kind', job.surfaceKind);
+  push('isolation', effect.isolation);
+  push('premium_density', job.premiumDensity);
   push('worktree', job.worktreePath);
   push('worker', job.workerAgentId);
   push('model', job.modelAlias);
@@ -468,6 +492,8 @@ export function renderJobInspect(job: JobRecord): string {
   push('test_seams', job.testSeams?.join(' | '));
   push('tdd_mode', job.tddMode);
   push('repro_command', job.reproCommand);
+  if (job.debugFixer === true) push('debug_fixer', 'true');
+  if (job.explorePrototype === true) push('prototype', 'true');
   push('blocked_by', job.blockedByJobIds?.join(', '));
   if (job.status === 'queued' && job.parentJobId !== undefined) {
     push('wait', '대기(부모 단계)');
@@ -711,6 +737,7 @@ export async function ackCreatedJobs(input: {
   for (const job of input.created) {
     const latest = getJob(input.store, job.id) ?? job;
     lines.push(ack(latest.id, latest.status, renderJobLine(latest)));
+    lines.push(`effect: ${effectPreviewFromJob(latest).summary}`);
     if (latest.worktreePath) {
       lines.push(`worktree: ${latest.worktreePath}`);
     }
@@ -814,6 +841,8 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
           a.kind === undefined || a.kind === 'task' || a.kind === 'implement';
         const tddMode = a.tdd_mode ?? (codingKind ? 'preferred' : undefined);
         const reproCommand = a.repro_command?.trim() || undefined;
+        const debugFixer = a.debug_fixer === true ? true : undefined;
+        const explorePrototype = a.prototype === true ? true : undefined;
         const modelAlias = a.model_alias?.trim() || undefined;
         if (modelAlias !== undefined) {
           const rejected = await rejectUnhealthyJobModelAliasLive(this.agent, modelAlias);
@@ -940,6 +969,15 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
           }
         }
 
+        const trackResolution = resolveJobTaskTrack({
+          ownershipPaths,
+          contextPaths,
+          kind: kind ?? 'task',
+          deliveryMode,
+          explicit: a.task_track,
+          inherited: reuse?.taskTrack,
+        });
+
         const reuseFields =
           reuse !== undefined
             ? {
@@ -953,8 +991,8 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
 
         let created: JobRecord[];
         if (shouldStaff && !isGoalDriver) {
-          const staffedSlices = [];
-          for (const intent of intents) {
+          const staffed: JobRecord[] = [];
+          for (const [intentIndex, intent] of intents.entries()) {
             const slices = await staffJobsFromObjective({
               objective: intent.prompt,
               title: intent.title || a.title,
@@ -962,35 +1000,39 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
               successCriteria: successCriteria.length > 0 ? successCriteria : undefined,
               ownershipPaths,
             });
-            staffedSlices.push(...slices);
+            for (const slice of slices) {
+              staffed.push(
+                createJob(this.store, {
+                  title: slice.title || a.title,
+                  kind: slice.kind,
+                  priority: (a.priority ?? 0) + (intents.length - intentIndex),
+                  prompt: slice.prompt,
+                  ownershipPaths: slice.ownershipPaths ?? ownershipPaths,
+                  contextPaths,
+                  successCriteria: successCriteria.length > 0 ? successCriteria : undefined,
+                  mustNotTouch: mustNotTouch.length > 0 ? mustNotTouch : undefined,
+                  verificationCommands:
+                    verificationCommands.length > 0 ? verificationCommands : undefined,
+                  testSeams: testSeams.length > 0 ? testSeams : undefined,
+                  tddMode,
+                  reproCommand,
+                  debugFixer,
+                  explorePrototype,
+                  blockedByJobIds: blockedByJobIds.length > 0 ? blockedByJobIds : undefined,
+                  deliveryMode: deliveryMode === 'standard' ? undefined : deliveryMode,
+                  parentJobId,
+                  expertId: slice.expertId,
+                  expertScore: slice.expertScore,
+                  staffQuery: slice.staffQuery,
+                  modelAlias: effectiveModelAlias,
+                  surfaceKind,
+                  ...reuseFields,
+                  ...jobTaskTrackCreateFields(trackResolution),
+                }),
+              );
+            }
           }
-          created = staffedSlices.map((slice, index) =>
-            createJob(this.store, {
-              title: slice.title || a.title,
-              kind: slice.kind,
-              priority: (a.priority ?? 0) + (staffedSlices.length - index),
-              prompt: slice.prompt,
-              ownershipPaths: slice.ownershipPaths ?? ownershipPaths,
-              contextPaths,
-              successCriteria: successCriteria.length > 0 ? successCriteria : undefined,
-              mustNotTouch: mustNotTouch.length > 0 ? mustNotTouch : undefined,
-              verificationCommands:
-                verificationCommands.length > 0 ? verificationCommands : undefined,
-              testSeams: testSeams.length > 0 ? testSeams : undefined,
-              tddMode,
-              reproCommand,
-              blockedByJobIds: blockedByJobIds.length > 0 ? blockedByJobIds : undefined,
-              deliveryMode: deliveryMode === 'standard' ? undefined : deliveryMode,
-              parentJobId,
-              expertId: slice.expertId,
-              expertScore: slice.expertScore,
-              staffQuery: slice.staffQuery,
-              modelAlias: effectiveModelAlias,
-              surfaceKind,
-              ...reuseFields,
-              ...(a.task_track !== undefined ? { taskTrack: a.task_track } : {}),
-            }),
-          );
+          created = staffed;
         } else {
           created = intents.map((intent, index) =>
             createJob(this.store, {
@@ -1007,13 +1049,15 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
               testSeams: testSeams.length > 0 ? testSeams : undefined,
               tddMode,
               reproCommand,
+              debugFixer,
+              explorePrototype,
               blockedByJobIds: blockedByJobIds.length > 0 ? blockedByJobIds : undefined,
               deliveryMode: deliveryMode === 'standard' ? undefined : deliveryMode,
               parentJobId,
               modelAlias: effectiveModelAlias,
               surfaceKind,
               ...reuseFields,
-              ...(a.task_track !== undefined ? { taskTrack: a.task_track } : {}),
+              ...jobTaskTrackCreateFields(trackResolution),
               ...(isGoalDriver
                 ? {
                     goalObjective: intent.prompt?.trim() || intent.title || a.title,
@@ -1403,7 +1447,7 @@ export interface PushJobToolOptions {
 export class PushJobTool implements BuiltinTool<z.infer<typeof PushJobInputSchema>> {
   readonly name = 'PushJob' as const;
   readonly description =
-    'Publish or hold a Job ref to a git remote under an explicit user gate. Workers and Conductor Bash cannot push; this tool records the verdict and offloads `git push` to a kind=push worker (no force-push). When remote_ref is omitted, infers gh-pages from Pages deploy briefs and enables GitHub Pages after a successful gh-pages push (best-effort via gh). Requires force_user_confirm=true (Push Preview). Auto/yolo never waives.';
+    'Publish or hold a Job ref to a git remote under an explicit user gate. Workers and Conductor Bash cannot push; this tool records the verdict and offloads `git push` to a kind=push worker (no force-push). When remote_ref is omitted, a publish-effect judgment may choose a Pages branch (never from title keywords) and enables GitHub Pages after a successful gh-pages push (best-effort via gh). Requires force_user_confirm=true (Push Preview). Auto/yolo never waives.';
   readonly parameters: Record<string, unknown> = toInputJsonSchema(PushJobInputSchema);
 
   constructor(
@@ -1702,11 +1746,7 @@ export function createConductorJobDraftRecorder(
       code === 'CONDUCTOR_INTERACTIVE_EXPLORE_SOFT' ||
       code === 'CONDUCTOR_INTERACTIVE_EXPLORE_HARD';
     const webResearch =
-      exploreDraft &&
-      (toolName === 'WebSearch' ||
-        toolName === 'FetchURL' ||
-        draft.title.toLowerCase().includes('websearch') ||
-        draft.title.toLowerCase().includes('fetchurl'));
+      exploreDraft && (toolName === 'WebSearch' || toolName === 'FetchURL');
     // Write/edit blocks and path-shaped ownership → implement; pure explore → explore/research.
     const kind: JobKind = webResearch
       ? 'research'
@@ -1720,6 +1760,15 @@ export function createConductorJobDraftRecorder(
             code === 'CONDUCTOR_BASH_WRITE_BLOCKED'
           ? 'implement'
           : 'task';
+    const trackResolution = resolveJobTaskTrack({
+      title: draft.title,
+      prompt: draft.prompt,
+      ownershipPaths: ownershipLooksLikePath ? [draft.ownership] : undefined,
+      kind,
+      toolName,
+      blockedCode: code,
+    });
+    const trackFields = jobTaskTrackCreateFields(trackResolution);
     const job = createJob(store, {
       title: draft.title,
       prompt: draft.prompt,
@@ -1729,16 +1778,16 @@ export function createConductorJobDraftRecorder(
           ? kind === 'research'
             ? 'Web/docs investigation complete; findings summarized for the Conductor without product writes.'
             : 'Codebase discovery complete; findings summarized for the Conductor without product writes.'
-          : classifyJobTaskTrack({
-                title: draft.title,
-                prompt: draft.prompt,
-                ownershipPaths: ownershipLooksLikePath ? [draft.ownership] : undefined,
-                kind,
-              }) === 'general'
+          : trackResolution.source !== 'pending' &&
+              trackResolution.source !== 'default' &&
+              trackResolution.track === 'general'
             ? 'Observable confirmation (command exit code or visible app state). End with {"generalVerdict":"passed"|"failed","proof":"..."}. No worktree, verify child, release PR, or pnpm run gate.'
-            : 'Blocked Conductor work completed in the worktree and verified (tests or observable check).',
+            : trackResolution.source === 'pending'
+              ? 'Observable confirmation of the requested finish line (command exit, visible state, or test).'
+              : 'Blocked Conductor work completed in the worktree and verified (tests or observable check).',
       ],
       ownershipPaths: ownershipLooksLikePath ? [draft.ownership] : undefined,
+      ...trackFields,
     });
     if (agent !== undefined) {
       void requestJobSchedulePump({ store, agent });

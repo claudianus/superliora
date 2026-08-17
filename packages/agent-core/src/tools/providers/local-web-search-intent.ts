@@ -1,3 +1,22 @@
+/**
+ * Search-source routing.
+ *
+ * Sync path never classifies from query keywords. Optional LLM effect
+ * judgment may pick an artifact/ecosystem; fail closed leaves configured
+ * sources as-is and does not rewrite the query.
+ */
+
+import { createUserMessage } from '@superliora/kosong';
+
+import {
+  clampConfidence,
+  clipClassifierText,
+  createClassifierTimeoutSignal,
+  extractTextFromGenerateResponse,
+  parseJsonResponse,
+  type LlmClassifierDeps,
+} from '../../utils/llm-classifier-utils';
+
 export interface LocalSearchDirectSources {
   readonly github?: boolean;
   readonly arxiv?: boolean;
@@ -11,50 +30,102 @@ export interface SearchIntent {
   readonly packageEcosystem?: 'npm' | 'pypi' | 'crates' | undefined;
 }
 
-export function classifySearchIntent(query: string): SearchIntent {
-  const q = query.toLowerCase();
-  if (/\b(arxiv|paper|doi|preprint|journal|citation)\b/.test(q)) {
-    return { kind: 'paper' };
-  }
-  if (/\b(npm|node\.?js|typescript|javascript|react|vue|next\.?js|pnpm|yarn)\b/.test(q)) {
-    return { kind: 'package', packageEcosystem: 'npm' };
-  }
-  if (/\b(pypi|pip|python|django|flask|fastapi)\b/.test(q)) {
-    return { kind: 'package', packageEcosystem: 'pypi' };
-  }
-  if (/\b(crates?\.io|rustc?|cargo)\b/.test(q)) {
-    return { kind: 'package', packageEcosystem: 'crates' };
-  }
-  if (
-    /\b(github|gitlab|repo|library|sdk|api|framework|cli|package|crate|module|docs?|readme|release|changelog|cve|security|oss|open[- ]?source)\b/.test(
-      q,
-    )
-  ) {
-    return { kind: 'tech' };
-  }
-  if (/\b(news|today|breaking|headline|announced|released yesterday)\b/.test(q)) {
-    return { kind: 'news' };
-  }
-  if (/[A-Za-z]+[A-Z][A-Za-z]+|[a-z]+_[a-z]+|\.[a-z]{1,4}\b|::|\(\)/.test(query)) {
-    return { kind: 'tech' };
-  }
+const SEARCH_INTENT_CONFIDENCE_FLOOR = 0.55;
+
+const SEARCH_INTENT_SYSTEM = [
+  'You judge what kind of artifact a web search is looking for. Return ONLY compact JSON:',
+  '{"artifact":"package","ecosystem":"npm","confidence":0.9,"rationale":"one sentence about the sought artifact"}',
+  '',
+  'Decide from the information need — not by matching words in the query.',
+  '',
+  'artifact:',
+  '- package: a library/crate to install from a package index',
+  '- paper: a scholarly paper or preprint',
+  '- news: a current-events headline',
+  '- tech: code, API, or project documentation',
+  '- general: none of the above',
+  '',
+  'ecosystem: npm | pypi | crates | omit unless artifact=package.',
+  '',
+  'Rules:',
+  '- Do not classify by matching words or phrases in any language.',
+  '- Ambiguous or low confidence → artifact=general and omit ecosystem.',
+  '- rationale names the sought artifact, never quoted trigger words.',
+].join('\n');
+
+export function classifySearchIntent(_query: string): SearchIntent {
   return { kind: 'general' };
 }
 
-export function shapeQueryForIntent(query: string, intent: SearchIntent): string {
-  if (intent.kind === 'paper' && !/\barxiv\b/i.test(query)) {
-    return `${query} arxiv OR paper`;
+export function searchIntentFromJudgment(input: {
+  readonly artifact: SearchIntent['kind'];
+  readonly ecosystem?: SearchIntent['packageEcosystem'];
+  readonly confidence: number;
+}): SearchIntent {
+  if (input.confidence < SEARCH_INTENT_CONFIDENCE_FLOOR) return { kind: 'general' };
+  if (input.artifact === 'package') {
+    return { kind: 'package', packageEcosystem: input.ecosystem };
   }
-  if (intent.kind === 'package') {
-    if (intent.packageEcosystem === 'npm' && !/\bnpm\b/i.test(query)) return `${query} npm`;
-    if (intent.packageEcosystem === 'pypi' && !/\bpypi|pip\b/i.test(query)) return `${query} pypi`;
-    if (intent.packageEcosystem === 'crates' && !/\bcrate|cargo\b/i.test(query)) {
-      return `${query} crates.io`;
-    }
+  return { kind: input.artifact };
+}
+
+export function parseSearchIntentJudgment(text: string): SearchIntent | undefined {
+  const record = parseJsonResponse(text);
+  if (record === undefined) return undefined;
+  const artifact = record['artifact'];
+  if (
+    artifact !== 'tech' &&
+    artifact !== 'package' &&
+    artifact !== 'paper' &&
+    artifact !== 'news' &&
+    artifact !== 'general'
+  ) {
+    return undefined;
   }
-  if (intent.kind === 'tech' && !/\b(docs?|github|api|sdk)\b/i.test(query)) {
-    return `${query} docs OR github`;
+  const confidence = clampConfidence(record['confidence']);
+  if (confidence === undefined) return undefined;
+  const ecosystemRaw = record['ecosystem'];
+  const ecosystem =
+    ecosystemRaw === 'npm' || ecosystemRaw === 'pypi' || ecosystemRaw === 'crates'
+      ? ecosystemRaw
+      : undefined;
+  return searchIntentFromJudgment({ artifact, ecosystem, confidence });
+}
+
+export async function inferSearchIntent(
+  query: string,
+  deps: LlmClassifierDeps | undefined,
+  options?: { readonly signal?: AbortSignal },
+): Promise<SearchIntent> {
+  if (deps === undefined) return { kind: 'general' };
+  const trimmed = query.trim();
+  if (trimmed.length === 0) return { kind: 'general' };
+  try {
+    const response = await deps.generate(
+      deps.provider,
+      SEARCH_INTENT_SYSTEM,
+      [],
+      [
+        createUserMessage(
+          [
+            'Judge the sought artifact. The query is context, not a keyword checklist.',
+            '',
+            `query: ${clipClassifierText(trimmed)}`,
+          ].join('\n'),
+        ),
+      ],
+      undefined,
+      { signal: createClassifierTimeoutSignal(8_000, options?.signal) },
+    );
+    return parseSearchIntentJudgment(extractTextFromGenerateResponse(response)) ?? {
+      kind: 'general',
+    };
+  } catch {
+    return { kind: 'general' };
   }
+}
+
+export function shapeQueryForIntent(query: string, _intent: SearchIntent): string {
   return query;
 }
 
@@ -101,15 +172,26 @@ export function selectDirectSourcesForIntent(
     };
   }
   if (intent.kind === 'news' || intent.kind === 'general') {
-    return {
-      github: false,
-      npm: false,
-      pypi: false,
-      crates: false,
-      arxiv: false,
-    };
+    return configured;
   }
   return configured;
+}
+
+export function formatSearchRouteLine(
+  intent: SearchIntent,
+  sources: LocalSearchDirectSources,
+): string {
+  const kind =
+    intent.kind === 'package' && intent.packageEcosystem !== undefined
+      ? `package/${intent.packageEcosystem}`
+      : intent.kind;
+  const enabled: string[] = [];
+  if (sources.github !== false) enabled.push('github');
+  if (sources.npm !== false) enabled.push('npm');
+  if (sources.pypi !== false) enabled.push('pypi');
+  if (sources.crates !== false) enabled.push('crates');
+  if (sources.arxiv !== false) enabled.push('arxiv');
+  return enabled.length === 0 ? kind : `${kind} · sources ${enabled.join(', ')}`;
 }
 
 export function hasAnyDirectSource(sources: LocalSearchDirectSources): boolean {

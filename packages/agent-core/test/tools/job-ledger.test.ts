@@ -381,6 +381,7 @@ describe('job runtime scheduler', () => {
       kaos: {} as never,
       repoPath: '/tmp/repo',
       createWorktree: createWorktree as never,
+      worktreeDirExists: async () => true,
     });
 
     expect(result.started).toHaveLength(1);
@@ -448,8 +449,9 @@ describe('job lanes + mission bind', () => {
     expect(classifyConductorLane({ text: 'What is Conductor?' }).lane).toBe('interactive');
     expect(
       classifyConductorLane({ text: 'Implement job strip footer and write tests' }).shouldCreateJob,
-    ).toBe(true);
+    ).toBe(false);
     expect(classifyConductorLane({ text: 'x', kind: 'mission' }).lane).toBe('execution');
+    expect(classifyConductorLane({ text: 'x', hasMultiIntent: true }).shouldCreateJob).toBe(true);
     expect(isExecutionInFlight('running')).toBe(true);
     expect(isExecutionInFlight('done')).toBe(false);
   });

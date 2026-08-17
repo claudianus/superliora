@@ -1,68 +1,81 @@
 /**
- * Soft UI / visual-surface heuristics for Premium density and PQ spawn hints.
- * MergeJob / verify-chain proof gates MUST NOT use these — they key off
- * Job.surfaceKind (Conductor contract). Path regex here is advisory only.
+ * Premium density / vision-spawn profile.
+ *
+ * Harness keys off a declared surface contract or a cached/LLM effect
+ * judgment — never title/prompt keywords or path-extension cookbooks.
+ * MergeJob / verify-chain proof gates stay on Job.surfaceKind.
  */
 
 import type { PremiumInjectionDensity } from './guidance';
+
+export type ObjectiveSurfaceKind = 'none' | 'web' | 'tui' | 'mixed';
 
 export interface ObjectiveProfile {
   readonly premiumDensity: PremiumInjectionDensity;
   readonly visualSurface: boolean;
 }
 
-const UI_OBJECTIVE_PATTERN =
-  /\b(ui|ux|css|scss|html|landing|dashboard|frontend|front-end|hero|visual|design|stylesheet|tailwind|component|webpage|web\s*page|website|web\s*app|marketing\s*page|game\s*ui|canvas|screenshot|pixel|typography|layout|bento|awwwards|figma)\b/i;
+export const VISUAL_OBJECTIVE_PROFILE: ObjectiveProfile = {
+  premiumDensity: 'visual',
+  visualSurface: true,
+};
 
-/** Path fragments that imply a user-visible surface change. */
-const UI_PATH_PATTERN =
-  /(?:^|\/)(?:components?|pages?|views?|layouts?|styles?|public|assets|static|app|src\/app|apps\/[^/]+\/(?:src\/)?(?:app|pages|components|styles)|game|games|canvas)\b|\.(?:css|scss|sass|less|html|vue|svelte|astro)$|(?:^|\/)(?:page|layout|template|globals?|game)\.(?:tsx?|jsx?|css|scss)$/i;
+export const CODE_OBJECTIVE_PROFILE: ObjectiveProfile = {
+  premiumDensity: 'code',
+  visualSurface: false,
+};
 
-export function pathsLookLikeUi(paths: readonly string[] | undefined | null): boolean {
-  if (paths === undefined || paths === null || paths.length === 0) return false;
-  return paths.some((path) => UI_PATH_PATTERN.test(path.replace(/\\/g, '/')));
+export interface ClassifyObjectiveProfileOptions {
+  readonly surfaceKind?: ObjectiveSurfaceKind;
+  readonly profile?: ObjectiveProfile;
 }
 
-/** Heuristic objective → PQ profile (soft spawn hint only; not a merge gate). */
+/**
+ * Sync resolution only. Declared surface_kind wins.
+ * Empty objective → visual (Premium ON, no brief yet).
+ * Non-empty without a contract → code (fail closed; do not scan wording).
+ */
 export function classifyObjectiveProfile(
-  objective: string | undefined | null,
-  paths?: readonly string[] | undefined | null,
+  objective?: string | null,
+  options?: ClassifyObjectiveProfileOptions,
 ): ObjectiveProfile {
+  if (options?.profile !== undefined) return options.profile;
+  if (
+    options?.surfaceKind === 'web' ||
+    options?.surfaceKind === 'tui' ||
+    options?.surfaceKind === 'mixed'
+  ) {
+    return VISUAL_OBJECTIVE_PROFILE;
+  }
+  if (options?.surfaceKind === 'none') return CODE_OBJECTIVE_PROFILE;
   const text = objective?.trim() ?? '';
-  if (pathsLookLikeUi(paths) || (text.length > 0 && UI_OBJECTIVE_PATTERN.test(text))) {
-    return { premiumDensity: 'visual', visualSurface: true };
-  }
-  // Empty objective: visual PQ density when Premium is ON with no brief yet.
-  // MergeJob ignores this — it keys off Job.surfaceKind only.
-  if (text.length === 0) {
-    return { premiumDensity: 'visual', visualSurface: true };
-  }
-  return { premiumDensity: 'code', visualSurface: false };
+  if (text.length === 0) return VISUAL_OBJECTIVE_PROFILE;
+  return CODE_OBJECTIVE_PROFILE;
 }
 
-/** True when a Conductor Job brief/paths look like UI work (PQ force-ON). */
+/** True when spawn should force Premium + vision. Never invented from wording. */
 export function jobLooksLikeUiSurface(input: {
-  readonly title?: string | undefined;
-  readonly prompt?: string | undefined;
-  readonly goalObjective?: string | undefined;
-  readonly contextPaths?: readonly string[] | undefined;
-  readonly ownershipPaths?: readonly string[] | undefined;
+  readonly surfaceKind?: ObjectiveSurfaceKind;
+  readonly profile?: ObjectiveProfile;
 }): boolean {
-  const blob = [input.title, input.prompt, input.goalObjective].filter(Boolean).join('\n');
-  return classifyObjectiveProfile(blob, [
-    ...(input.contextPaths ?? []),
-    ...(input.ownershipPaths ?? []),
-  ]).visualSurface;
+  return uiSpawnQualityFlags(input) !== undefined;
 }
 
-/** Fan-out flags for UI-shaped prompts (Jobs and Agent/Fleet share this). */
+/** Fan-out flags for a declared or already-judged visual surface. */
 export function uiSpawnQualityFlags(input: {
-  readonly title?: string | undefined;
-  readonly prompt?: string | undefined;
-  readonly goalObjective?: string | undefined;
-  readonly contextPaths?: readonly string[] | undefined;
-  readonly ownershipPaths?: readonly string[] | undefined;
+  readonly surfaceKind?: ObjectiveSurfaceKind;
+  readonly profile?: ObjectiveProfile;
 }): { readonly forcePremiumQuality: true; readonly preferVisionModel: true } | undefined {
-  if (!jobLooksLikeUiSurface(input)) return undefined;
-  return { forcePremiumQuality: true, preferVisionModel: true };
+  if (input.surfaceKind === 'none') return undefined;
+  if (
+    input.surfaceKind === 'web' ||
+    input.surfaceKind === 'tui' ||
+    input.surfaceKind === 'mixed'
+  ) {
+    return { forcePremiumQuality: true, preferVisionModel: true };
+  }
+  if (input.profile?.visualSurface === true || input.profile?.premiumDensity === 'visual') {
+    return { forcePremiumQuality: true, preferVisionModel: true };
+  }
+  return undefined;
 }
