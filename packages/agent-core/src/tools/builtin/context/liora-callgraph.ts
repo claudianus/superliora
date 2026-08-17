@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
-import { resolvePathAccessPath } from '../../policies/path-access';
+import { refineSandboxPathForExecute, resolvePathAccessPath } from '../../policies/path-access';
 import { toInputJsonSchema } from '../../support/input-schema';
 import type { WorkspaceConfig } from '../../support/workspace';
 import { buildCallgraph, renderCallgraph } from './context-callgraph';
@@ -60,7 +60,22 @@ export class LioraCallgraphTool implements BuiltinTool<LioraCallgraphInput> {
       description: `Tracing ${parsed.data.symbol}`,
       readOnly: true,
       approvalRule: this.name,
-      execute: () => this.execution(parsed.data, explicitPaths),
+      execute: async () => {
+        if (explicitPaths === undefined) {
+          return this.execution(parsed.data, undefined);
+        }
+        const refined: string[] = [];
+        for (const lexical of explicitPaths) {
+          const next = await refineSandboxPathForExecute(lexical, {
+            kaos: this.kaos,
+            workspace: this.workspace,
+            rawPath: parsed.data.path,
+          });
+          if (!next.ok) return { isError: true, output: next.output };
+          refined.push(next.path);
+        }
+        return this.execution(parsed.data, refined);
+      },
     };
   }
 

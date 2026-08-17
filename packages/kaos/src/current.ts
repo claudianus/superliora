@@ -83,6 +83,10 @@ export function stat(path: string, options?: { followSymlinks?: boolean }): Prom
   return getCurrentKaos().stat(path, options);
 }
 
+export function realpath(path: string): Promise<string> {
+  return getCurrentKaos().realpath(path);
+}
+
 export function mkdir(
   path: string,
   options?: { parents?: boolean; existOk?: boolean },

@@ -5,6 +5,7 @@ import {
   formatMcpAllowlistLines,
   formatNetworkEgressLines,
   formatPermissionModeLine,
+  formatSandboxEnforcementLine,
   formatSandboxProfileLine,
   formatWorkspaceSandboxLines,
   SECURITY_MCP_ALLOWLIST_TIP,
@@ -44,7 +45,13 @@ describe('security-glance', () => {
     expect(lines.some((l) => l.includes('/add-dir'))).toBe(true);
     expect(lines.some((l) => l.includes('Not an OS sandbox'))).toBe(true);
     expect(formatSandboxProfileLine('workspace')).toContain('stay inside workspace roots');
+    expect(formatSandboxProfileLine('workspace')).toMatch(/Bash path tokens/);
     expect(formatSandboxProfileLine(undefined)).toContain('off');
+    expect(formatSandboxEnforcementLine('process')).toMatch(/Job Object/);
+    expect(formatSandboxEnforcementLine('process', 'Docker Desktop not found')).toContain(
+      'Docker Desktop not found',
+    );
+    expect(lines.some((l) => l.includes('Sandbox enforcement: lexical'))).toBe(true);
   });
 
   it('summarizes network egress from process env', () => {
@@ -80,6 +87,8 @@ describe('security-glance', () => {
     expect(SECURITY_SANDBOX_TIP).toContain('read-only');
     expect(SECURITY_SANDBOX_TIP).toMatch(/Bash/);
     expect(SECURITY_NOT_OS_SANDBOX).toContain('Not an OS sandbox');
+    expect(SECURITY_NOT_OS_SANDBOX).toMatch(/Bash path tokens/);
+    expect(SECURITY_NOT_OS_SANDBOX).toMatch(/Script/);
     expect(SECURITY_REDACTION_TIP).toContain('redactSecretsInText');
     expect(SECURITY_MCP_ALLOWLIST_TIP).toContain('enabledTools');
   });
@@ -97,6 +106,8 @@ describe('security-glance', () => {
       permissionFromSession: 'auto',
       permissionInterventions: { pendingInterventions: 1, oldestInterventionAgeMs: 12_000 },
       sandboxProfile: 'workspace',
+      sandboxEnforcement: 'process',
+      processSandboxWarning: 'Docker Desktop not found — using a Windows Job Object.',
       workDir: '/workspace/demo',
       additionalDirs: [],
       network: loadNetworkGlance({}),
@@ -108,6 +119,8 @@ describe('security-glance', () => {
     expect(text).toContain('live session confirms');
     expect(text).toContain('Never-Halt queue');
     expect(text).toContain('Sandbox profile: workspace');
+    expect(text).toContain('Sandbox enforcement: process');
+    expect(text).toContain('Job Object');
     expect(text).toContain('Not an OS sandbox');
     expect(text).toContain('Network egress');
     expect(text).toContain('Verification sensors');

@@ -9,6 +9,7 @@ import { ErrorCodes, LioraError } from '../../src/errors';
 import {
   appendWorkspaceAdditionalDir,
   writeWorkspaceSandboxProfile,
+  writeWorkspaceSandboxEnforcement,
   loadWorkspaceLocalConfig,
   normalizeAdditionalDirs,
   readWorkspaceAdditionalDirs,
@@ -221,6 +222,37 @@ describe('workspace local config', () => {
     expect(written.sandboxProfile).toBe('read-only');
     const text = await readFile(configPath, 'utf-8');
     expect(text).toMatch(/sandbox_profile\s*=\s*"read-only"/);
+  });
+
+  it('loads and writes workspace.sandbox_enforcement in local.toml', async () => {
+    const root = await makeProject();
+    await mkdir(join(root, '.superliora'), { recursive: true });
+    const configPath = join(root, '.superliora', 'local.toml');
+    await writeFile(
+      configPath,
+      '[workspace]\nadditional_dir = []\nsandbox_enforcement = "lexical"\n',
+      'utf-8',
+    );
+
+    const loaded = await loadWorkspaceLocalConfig(testKaos, root);
+    expect(loaded.sandboxEnforcement).toBe('lexical');
+
+    const written = await writeWorkspaceSandboxEnforcement(testKaos, root, 'process');
+    expect(written.sandboxEnforcement).toBe('process');
+    const text = await readFile(configPath, 'utf-8');
+    expect(text).toMatch(/sandbox_enforcement\s*=\s*"process"/);
+  });
+
+  it('rejects invalid workspace.sandbox_enforcement values', async () => {
+    const root = await makeProject();
+    await mkdir(join(root, '.superliora'), { recursive: true });
+    const configPath = join(root, '.superliora', 'local.toml');
+    await writeFile(configPath, '[workspace]\nsandbox_enforcement = "bubblewrap"\n', 'utf-8');
+
+    await expectConfigInvalid(
+      loadWorkspaceLocalConfig(testKaos, root),
+      'workspace.sandbox_enforcement must be one of: lexical, process',
+    );
   });
 
   it('rejects invalid workspace.sandbox_profile values', async () => {

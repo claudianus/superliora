@@ -31,7 +31,14 @@ import type { FileSnapshotStore } from '../session/file-snapshot';
 import type { ModelProvider } from '../session/provider/provider-manager';
 import type { SessionSubagentHost } from '../session/subagent/subagent-host';
 import { noopTelemetryClient, type TelemetryClient } from '../telemetry';
+import type { SandboxEnforcement } from '../config/sandbox-enforcement';
+import { isNoProcessSandbox } from '../config/sandbox-enforcement';
 import type { SandboxProfile } from '../tools/policies/path-access';
+import {
+  applyProcessSandboxToKaos,
+  resolveProcessSandboxRuntime,
+  type ProcessSandboxStatus,
+} from '../tools/policies/process-sandbox-apply';
 import type { PromisableMethods } from '../utils/types';
 import { bindJobLedgerCrashMirror } from '../tools/builtin/job/job-crash-mirror';
 import { recoverJobsAfterResume } from '../tools/builtin/job/job-recovery';
@@ -151,6 +158,8 @@ export interface AgentOptions {
   readonly fileSnapshots?: FileSnapshotStore | undefined;
   /** Path sandbox profile for file tools (`off` | `workspace` | `read-only`). */
   readonly sandboxProfile?: SandboxProfile | undefined;
+  /** Process vs lexical enforcement (optional; default lexical). */
+  readonly sandboxEnforcement?: SandboxEnforcement | undefined;
 }
 
 export class Agent {
@@ -247,6 +256,10 @@ export class Agent {
   readonly fileSnapshots: FileSnapshotStore | undefined;
   /** Sandbox profile applied when constructing file-tool workspaces. */
   readonly sandboxProfile: SandboxProfile | undefined;
+  /** Desired process/lexical enforcement. */
+  readonly sandboxEnforcement: SandboxEnforcement | undefined;
+  /** Last resolved process-sandbox status (desired vs effective). */
+  processSandboxStatus: ProcessSandboxStatus | undefined;
   /** W6 PostToolUse verification sensor — recent test/command failure evidence. */
   readonly verificationSensorLedger: VerificationSensorLedger;
   /** Phase B PostToolUse sensor — file mutations pending mechanical verification. */
@@ -293,6 +306,8 @@ export class Agent {
     this.additionalDirs = normalizeAdditionalDirs(options.additionalDirs ?? []);
     this.fileSnapshots = options.fileSnapshots;
     this.sandboxProfile = options.sandboxProfile;
+    this.sandboxEnforcement = options.sandboxEnforcement;
+    this.processSandboxStatus = undefined;
     this.verificationSensorLedger = createVerificationSensorLedger();
     this.mutationVerificationLedger = createMutationVerificationLedger();
     this.autoCheckSpawnState = createAutoCheckSpawnState();
@@ -321,6 +336,7 @@ export class Agent {
     this.contextOS = new ContextOSManager(this);
     this.context = new ContextMemory(this);
     this.config = new ConfigState(this);
+    void this.refreshProcessSandbox();
     this.turn = new TurnFlow(this);
     this.injection = new InjectionManager(this);
     this.permission = new PermissionManager(this, options.permission);
@@ -363,6 +379,7 @@ export class Agent {
 
   setKaos(kaos: Kaos) {
     this._kaos = kaos;
+    void this.refreshProcessSandbox();
   }
 
   getAdditionalDirs(): readonly string[] {
@@ -389,6 +406,48 @@ export class Agent {
     (this as { sandboxProfile: SandboxProfile | undefined }).sandboxProfile = profile;
     if (this.config.hasProvider) {
       this.tools.initializeBuiltinTools();
+    }
+    void this.refreshProcessSandbox();
+  }
+
+  setSandboxEnforcement(enforcement: SandboxEnforcement): void {
+    (this as { sandboxEnforcement: SandboxEnforcement | undefined }).sandboxEnforcement = enforcement;
+    if (enforcement === 'process' && (this.sandboxProfile === undefined || this.sandboxProfile === 'off')) {
+      this.setSandboxProfile('workspace');
+      return;
+    }
+    if (this.config.hasProvider) {
+      this.tools.initializeBuiltinTools();
+    }
+    void this.refreshProcessSandbox();
+  }
+
+  private async refreshProcessSandbox(): Promise<void> {
+    const desired = this.sandboxEnforcement ?? 'lexical';
+    const profile = this.sandboxProfile ?? 'off';
+    try {
+      const resolved = await resolveProcessSandboxRuntime({
+        desired,
+        profile,
+        noProcess: isNoProcessSandbox(),
+        workspaceDir: this.config.cwd,
+        additionalDirs: this.additionalDirs,
+      });
+      this.processSandboxStatus = resolved.status;
+      if (resolved.coercedProfile !== undefined && this.sandboxProfile !== resolved.coercedProfile) {
+        (this as { sandboxProfile: SandboxProfile | undefined }).sandboxProfile = resolved.coercedProfile;
+        if (this.config.hasProvider) {
+          this.tools.initializeBuiltinTools();
+        }
+      }
+      applyProcessSandboxToKaos(this._kaos, resolved.config);
+    } catch {
+      this.processSandboxStatus = {
+        desired,
+        effective: 'lexical',
+        warning: 'Process sandbox unavailable. Staying on lexical path guards.',
+      };
+      applyProcessSandboxToKaos(this._kaos, undefined);
     }
   }
 

@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_WORKSPACE_ACCESS_POLICY,
   PathSecurityError,
+  assertSandboxResolvedPath,
   policyForSandboxProfile,
   resolvePathAccess,
+  resolvePathAccessPath,
   sandboxProfileToGuardMode,
 } from '../../src/tools/policies/path-access';
 import {
@@ -171,5 +173,59 @@ describe('sandbox profile mapping (unit-sandbox-workspace)', () => {
     });
     expect(badEnv.profile).toBe('workspace');
     expect(badEnv.warning).toMatch(/SUPERLIORA_SANDBOX/);
+  });
+
+  it('resolvePathAccessPath uses workspace.sandboxProfile when policy is omitted', () => {
+    const kaos = {
+      pathClass: () => 'posix' as const,
+      gethome: () => '/home/user',
+    };
+    const workspace: WorkspaceConfig = {
+      workspaceDir: '/workspace',
+      additionalDirs: ['/extra'],
+      sandboxProfile: 'workspace',
+    };
+    expect(
+      resolvePathAccessPath('/workspace/src/a.ts', {
+        kaos,
+        workspace,
+        operation: 'read',
+      }),
+    ).toBe('/workspace/src/a.ts');
+    expect(() =>
+      resolvePathAccessPath('/etc/hosts', {
+        kaos,
+        workspace,
+        operation: 'read',
+      }),
+    ).toThrow(PathSecurityError);
+  });
+
+  it('assertSandboxResolvedPath denies a realpath target outside workspace', async () => {
+    const kaos = {
+      pathClass: () => 'posix' as const,
+      realpath: async () => '/etc/passwd',
+    };
+    const workspace: WorkspaceConfig = {
+      workspaceDir: '/workspace',
+      additionalDirs: [],
+      sandboxProfile: 'workspace',
+    };
+    await expect(
+      assertSandboxResolvedPath('/workspace/link', { kaos, workspace, rawPath: 'link' }),
+    ).rejects.toMatchObject({ code: 'PATH_SYMLINK_OUTSIDE' });
+  });
+
+  it('assertSandboxResolvedPath skips follow when profile is off', async () => {
+    const kaos = {
+      pathClass: () => 'posix' as const,
+      realpath: async () => '/etc/passwd',
+    };
+    await expect(
+      assertSandboxResolvedPath('/workspace/link', {
+        kaos,
+        workspace: { workspaceDir: '/workspace', additionalDirs: [], sandboxProfile: 'off' },
+      }),
+    ).resolves.toBe('/workspace/link');
   });
 });

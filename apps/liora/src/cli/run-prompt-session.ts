@@ -4,6 +4,7 @@ import { resolve } from 'pathe';
 
 import { tln } from '#/cli/i18n';
 import type { CLIOptions } from './options';
+import { sandboxSessionMetadata } from './options';
 import type { PromptOutput } from './run-prompt-io';
 
 export interface ResolvedPromptSession {
@@ -93,10 +94,6 @@ export async function resolvePromptSession(
   }
 
   const model = requireConfiguredModel(opts.model, defaultModel);
-  const sandboxMeta =
-    opts.sandbox === 'off' || opts.sandbox === 'workspace' || opts.sandbox === 'read-only'
-      ? { sandboxProfile: opts.sandbox }
-      : undefined;
   const session = await harness.createSession({
     workDir,
     model,
@@ -105,7 +102,7 @@ export async function resolvePromptSession(
     drainAgentTasksOnStop: true,
     metadata: {
       ...(sessionMetadata ?? {}),
-      ...(sandboxMeta ?? {}),
+      ...sandboxSessionMetadata(opts),
     },
   });
   installHeadlessHandlers(session);

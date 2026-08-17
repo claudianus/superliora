@@ -16,6 +16,7 @@ import {
   type McpAllowlistSummary,
   type PermissionInterventionGlance,
   type SecurityGlanceInput,
+  type SecuritySandboxEnforcement,
   type SecuritySandboxProfile,
 } from '../../../utils/security/security-glance';
 import { readMcpJsonFile, resolveMcpJsonPaths, type McpServerFileConfig } from '#/utils/mcp/mcp-config-file';
@@ -50,6 +51,23 @@ const SANDBOX_OPTIONS: ReadonlyArray<{
     value: 'read-only',
     label: '읽기 전용 (read-only)',
     description: '쓰기/편집 전부 차단 · 읽기는 워크스페이스 규칙',
+  },
+];
+
+const ENFORCEMENT_OPTIONS: ReadonlyArray<{
+  readonly value: 'enforcement-lexical' | 'enforcement-process';
+  readonly label: string;
+  readonly description: string;
+}> = [
+  {
+    value: 'enforcement-lexical',
+    label: '강도: lexical',
+    description: '기본값 · 파일 도구 + Bash 경로 토큰 + Script (OS 격리 아님)',
+  },
+  {
+    value: 'enforcement-process',
+    label: '강도: process',
+    description: 'Docker가 있으면 FS 감옥 · 없으면 Job Object 트리(FS 감옥 아님) · off면 workspace로 올림',
   },
 ];
 
@@ -105,6 +123,30 @@ function resolveSandboxProfile(session: {
   return undefined;
 }
 
+function resolveSandboxEnforcement(session: {
+  getResumeState?: () =>
+    | {
+        readonly sessionMetadata?: {
+          readonly custom?: Readonly<Record<string, unknown>>;
+        };
+      }
+    | undefined;
+}): SecuritySandboxEnforcement | undefined {
+  try {
+    const resume = session.getResumeState?.();
+    const raw = resume?.sessionMetadata?.custom?.['sandboxEnforcement'];
+    if (raw === 'lexical' || raw === 'process') {
+      return raw;
+    }
+    if (resume !== undefined) {
+      return 'lexical';
+    }
+  } catch {
+    /* optional */
+  }
+  return undefined;
+}
+
 function permissionInterventionsFromStatus(status: {
   readonly pendingInterventions?: number;
   readonly staleInterventions?: number;
@@ -147,6 +189,7 @@ async function loadSecurityGlance(host: SlashCommandHost): Promise<SecurityGlanc
       permissionFromSession: status.permission,
       permissionInterventions: permissionInterventionsFromStatus(status),
       sandboxProfile: resolveSandboxProfile(session),
+      sandboxEnforcement: resolveSandboxEnforcement(session),
       mcpLive,
     };
   } catch {
@@ -183,6 +226,11 @@ export function showSecuritySettings(host: SlashCommandHost): void {
             label: opt.label,
             description: opt.description,
           })),
+          ...ENFORCEMENT_OPTIONS.map((opt) => ({
+            value: opt.value,
+            label: opt.label,
+            description: opt.description,
+          })),
         ],
         onSelect: (value) => {
           dismissPickerDialog(host);
@@ -192,6 +240,13 @@ export function showSecuritySettings(host: SlashCommandHost): void {
           }
           if (value === 'off' || value === 'workspace' || value === 'read-only') {
             void applySandboxProfile(host, value);
+            return;
+          }
+          if (value === 'enforcement-lexical' || value === 'enforcement-process') {
+            void applySandboxEnforcement(
+              host,
+              value === 'enforcement-process' ? 'process' : 'lexical',
+            );
             return;
           }
         },
@@ -232,8 +287,57 @@ async function applySandboxProfile(
   const label =
     profile === 'off' ? '끔 (off)' : profile === 'workspace' ? '워크스페이스' : '읽기 전용';
   host.showStatus(
-    `Path sandbox → ${label}. Not OS isolation. Applies to file tools from the next turn.`,
+    `Path sandbox → ${label}. Not OS isolation. Applies to file tools, Bash path tokens, and Script from the next turn.`,
     profile === 'off' ? 'warning' : 'success',
+  );
+}
+
+async function applySandboxEnforcement(
+  host: SlashCommandHost,
+  enforcement: SecuritySandboxEnforcement,
+): Promise<void> {
+  let profile: SecuritySandboxProfile | undefined;
+  try {
+    profile = resolveSandboxProfile(host.requireSession());
+  } catch {
+    profile = undefined;
+  }
+
+  const coerceWorkspace = enforcement === 'process' && (profile === undefined || profile === 'off');
+  const configPatch = coerceWorkspace
+    ? { sandboxProfile: 'workspace' as const, sandboxEnforcement: enforcement }
+    : { sandboxEnforcement: enforcement };
+
+  try {
+    await host.harness.setConfig(configPatch);
+  } catch (error) {
+    host.showStatus(
+      `Failed to save sandboxEnforcement: ${error instanceof Error ? error.message : String(error)}`,
+      'error',
+    );
+    return;
+  }
+
+  try {
+    const session = host.requireSession() as {
+      setSandboxProfile?: (p: SecuritySandboxProfile) => Promise<void>;
+      setSandboxEnforcement?: (e: SecuritySandboxEnforcement) => Promise<void>;
+    };
+    if (coerceWorkspace && typeof session.setSandboxProfile === 'function') {
+      await session.setSandboxProfile('workspace');
+    }
+    if (typeof session.setSandboxEnforcement === 'function') {
+      await session.setSandboxEnforcement(enforcement);
+    }
+  } catch {
+    // Config saved; live session optional when no session is open.
+  }
+
+  host.showStatus(
+    coerceWorkspace
+      ? 'Sandbox enforcement → process. Profile raised to workspace (process + off is meaningless). Job Object is not an FS jail.'
+      : `Sandbox enforcement → ${enforcement}. Docker is the FS jail when present; Job Object is process-tree only.`,
+    enforcement === 'process' ? 'warning' : 'success',
   );
 }
 

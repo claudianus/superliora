@@ -12,7 +12,8 @@ export type PathSecurityCode =
   | 'PATH_OUTSIDE_WORKSPACE'
   | 'PATH_SENSITIVE'
   | 'PATH_INVALID'
-  | 'PATH_READ_ONLY';
+  | 'PATH_READ_ONLY'
+  | 'PATH_SYMLINK_OUTSIDE';
 
 export type PathSecurityNotice = {
   readonly title: string;
@@ -27,6 +28,7 @@ const PATH_CODES: readonly PathSecurityCode[] = [
   'PATH_SENSITIVE',
   'PATH_INVALID',
   'PATH_READ_ONLY',
+  'PATH_SYMLINK_OUTSIDE',
 ];
 
 function outputText(output: unknown): string | undefined {
@@ -60,7 +62,8 @@ export function isPathSecurityOutput(output: unknown): boolean {
     text.includes('is outside the workspace') ||
     text.includes('Sandbox is read-only') ||
     text.includes('Path cannot be empty') ||
-    text.includes('outside the working directory')
+    text.includes('outside the working directory') ||
+    text.includes('resolves outside the workspace via a symlink')
   );
 }
 
@@ -100,6 +103,14 @@ export function formatPathSecurityNotice(
         title: ttui('tui.notice.invalidPath.title'),
         detail: ttui('tui.notice.invalidPath.detail', { tool }),
         status: ttui('tui.notice.invalidPath.status', { tool }),
+        coalesceKey: 'path-security',
+        code,
+      };
+    case 'PATH_SYMLINK_OUTSIDE':
+      return {
+        title: ttui('tui.notice.symlinkOutside.title'),
+        detail: ttui('tui.notice.symlinkOutside.detail', { tool }),
+        status: ttui('tui.notice.symlinkOutside.status', { tool }),
         coalesceKey: 'path-security',
         code,
       };

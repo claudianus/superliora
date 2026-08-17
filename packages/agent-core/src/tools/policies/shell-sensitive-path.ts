@@ -50,7 +50,7 @@ export function formatShellSensitivePathError(hit: ShellSensitivePathHit): strin
  * Pull path-like tokens and redirect targets from a shell command.
  * Quote-aware enough for common agent invocations; not a full shell parser.
  */
-function extractPathCandidates(command: string): string[] {
+export function extractPathCandidates(command: string): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
 

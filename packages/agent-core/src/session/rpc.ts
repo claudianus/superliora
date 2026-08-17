@@ -111,11 +111,17 @@ export class SessionAPIImpl implements PromisableMethods<SessionAPI> {
       agents: this.session.metadata.agents,
     };
     // Live path-sandbox apply: rebuild file tools when sandboxProfile changes.
+    const main = this.session.getReadyAgent('main');
     const profile = nextCustom['sandboxProfile'];
     if (profile === 'off' || profile === 'workspace' || profile === 'read-only') {
-      const main = this.session.getReadyAgent('main');
       if (main !== undefined && typeof main.setSandboxProfile === 'function') {
         main.setSandboxProfile(profile);
+      }
+    }
+    const enforcement = nextCustom['sandboxEnforcement'];
+    if (enforcement === 'lexical' || enforcement === 'process') {
+      if (main !== undefined && typeof main.setSandboxEnforcement === 'function') {
+        main.setSandboxEnforcement(enforcement);
       }
     }
     await this.session.writeMetadata();

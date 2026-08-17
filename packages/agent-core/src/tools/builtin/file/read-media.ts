@@ -36,7 +36,7 @@ import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { renderPrompt } from '../../../utils/render-prompt';
-import { resolvePathAccessPath } from '../../policies/path-access';
+import { refineSandboxPathForExecute, resolvePathAccessPath } from '../../policies/path-access';
 import { MEDIA_SNIFF_BYTES, detectFileType, sniffImageDimensions } from '../../support/file-type';
 import {
   IMAGE_BYTE_BUDGET,
@@ -272,7 +272,15 @@ export class ReadMediaFileTool implements BuiltinTool<ReadMediaFileInput> {
           pathClass: this.kaos.pathClass(),
           homeDir: this.kaos.gethome(),
         }),
-      execute: () => this.execution(args, path),
+      execute: async () => {
+        const refined = await refineSandboxPathForExecute(path, {
+          kaos: this.kaos,
+          workspace: this.workspace,
+          rawPath: args.path,
+        });
+        if (!refined.ok) return { isError: true, output: refined.output };
+        return this.execution(args, refined.path);
+      },
     };
   }
 

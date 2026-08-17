@@ -220,6 +220,15 @@ export async function createSessionWithOverrides(
       });
       seededCustom['sandboxProfile'] = resolved.profile;
     }
+    if (seededCustom['sandboxEnforcement'] === undefined) {
+      const { resolveSandboxEnforcementFromSources } = await import('#/config/sandbox-enforcement');
+      const resolved = resolveSandboxEnforcementFromSources({
+        env: process.env,
+        localToml: localWorkspaceDirs.sandboxEnforcement,
+        userConfig: config.sandboxEnforcement,
+      });
+      seededCustom['sandboxEnforcement'] = resolved.enforcement;
+    }
     session.metadata = {
       ...session.metadata,
       createdAt: new Date(summary.createdAt).toISOString(),

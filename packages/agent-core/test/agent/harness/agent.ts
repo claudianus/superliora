@@ -1006,6 +1006,7 @@ function createResumeNoSideEffectKaos(
       cwd = next;
     },
     stat: () => fail('stat'),
+    realpath: async (p: string) => p,
     iterdir: () => fail('iterdir'),
     glob: () => fail('glob'),
     readBytes: () => fail('readBytes'),

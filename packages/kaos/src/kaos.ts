@@ -46,6 +46,11 @@ export interface Kaos {
   withEnv(env: Record<string, string>): Kaos;
   /** Return stat metadata for `path`. */
   stat(path: string, options?: { followSymlinks?: boolean }): Promise<StatResult>;
+  /**
+   * Resolve `path` following symlinks / junctions. Missing leaf segments
+   * are appended after the longest existing prefix (new-file writes).
+   */
+  realpath(path: string): Promise<string>;
   /** Yield entry names in the directory at `path`. */
   iterdir(path: string): AsyncGenerator<string>;
   /** Yield paths matching `pattern` under `path`. */

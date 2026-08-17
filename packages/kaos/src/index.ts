@@ -26,6 +26,21 @@ export {
 export { KaosFileNotFoundError, KaosSSHError } from './ssh';
 export { LocalKaos } from './local';
 export {
+  DEFAULT_SANDBOX_IMAGE,
+  SUPERLIORA_NO_PROCESS_SANDBOX_ENV,
+  SUPERLIORA_SANDBOX_IMAGE_ENV,
+  buildDockerSandboxArgs,
+  isProcessSandboxDisabled,
+  isProcessSandboxHost,
+  mapHostCwdToContainer,
+  probeDockerAvailable,
+  resolveProcessSandboxBackend,
+  wrapLocalExecForProcessSandbox,
+  type ProcessSandboxBackend,
+  type ProcessSandboxConfig,
+  type ResolveProcessSandboxBackendResult,
+} from './process-sandbox';
+export {
   chdir,
   exec,
   execWithEnv,
@@ -37,6 +52,7 @@ export {
   mkdir,
   normpath,
   pathClass,
+  realpath,
   readBytes,
   readLines,
   readText,

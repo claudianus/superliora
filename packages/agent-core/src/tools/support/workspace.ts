@@ -21,8 +21,8 @@ export interface WorkspaceConfig {
   readonly additionalDirs: readonly string[];
   /**
    * Optional path-policy sandbox profile (`off` | `workspace` | `read-only`).
-   * When set, file tools should map this to WorkspaceAccessPolicy via
-   * `policyForSandboxProfile`. Omitted = legacy absolute-outside-allowed.
+   * `resolvePathAccessPath` uses this as the default policy when callers
+   * omit `policy`. Omitted = legacy absolute-outside-allowed.
    */
   readonly sandboxProfile?: SandboxProfile | undefined;
 }

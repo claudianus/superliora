@@ -50,6 +50,7 @@ export function createFakeKaos(
       cwd = next;
     },
     stat: () => notImplemented('stat'),
+    realpath: async (p: string) => p,
     iterdir: () => notImplemented('iterdir'),
     glob: () => notImplemented('glob'),
     readBytes: () => notImplemented('readBytes'),

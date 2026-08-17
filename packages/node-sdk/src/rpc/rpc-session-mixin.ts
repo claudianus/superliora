@@ -107,8 +107,9 @@ export abstract class SDKRpcClientSessionMixin extends SDKRpcClientPluginsMixin 
   }
 
   /**
-   * Patch session metadata (e.g. custom.sandboxProfile). Merges `custom` keys.
-   * When sandboxProfile is set, the live agent rebuilds file-tool path policy.
+   * Patch session metadata (e.g. custom.sandboxProfile / sandboxEnforcement).
+   * Merges `custom` keys. When those keys are set, the live agent rebuilds
+   * file-tool path policy and optional process-sandbox wrap.
    */
   async updateSessionMetadata(input: {
     readonly sessionId: string;

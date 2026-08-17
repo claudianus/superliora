@@ -15,10 +15,7 @@ import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import type { FileSnapshotStore } from '../../../session/file-snapshot';
 import { checkSwarmFileLease } from '#/fleet';
-import {
-  policyForSandboxProfile,
-  resolvePathAccessPath,
-} from '../../policies/path-access';
+import { refineSandboxPathForExecute, resolvePathAccessPath } from '../../policies/path-access';
 import {
   FABRICATED_DEFER_BLOCKED_MESSAGE,
   hasFabricatedDeferral,
@@ -93,10 +90,6 @@ export class WriteTool implements BuiltinTool<WriteInput> {
       kaos: this.kaos,
       workspace: this.workspace,
       operation: 'write',
-      policy:
-        this.workspace.sandboxProfile !== undefined
-          ? policyForSandboxProfile(this.workspace.sandboxProfile)
-          : undefined,
     });
     return {
       accesses: ToolAccesses.writeFile(path),
@@ -109,7 +102,15 @@ export class WriteTool implements BuiltinTool<WriteInput> {
           pathClass: this.kaos.pathClass(),
           homeDir: this.kaos.gethome(),
         }),
-      execute: () => this.execution(args, path),
+      execute: async () => {
+        const refined = await refineSandboxPathForExecute(path, {
+          kaos: this.kaos,
+          workspace: this.workspace,
+          rawPath: args.path,
+        });
+        if (!refined.ok) return { isError: true, output: refined.output };
+        return this.execution(args, refined.path);
+      },
     };
   }
 

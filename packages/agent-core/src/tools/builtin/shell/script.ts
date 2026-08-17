@@ -8,8 +8,8 @@
  * The vm context persists per agent: the `store` object carries state
  * across calls within the session.
  *
- * node:vm is NOT a security boundary and doesn't need to be: the agent
- * already holds Bash. The value is persistence and structured I/O.
+ * node:vm is NOT a security boundary. Path/exec guards below apply the
+ * same sandboxProfile ceiling as file tools and Bash path tokens.
  */
 
 import vm from 'node:vm';
@@ -21,7 +21,23 @@ import type { Agent } from '../../../agent/index';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolContext, ToolExecution } from '../../../loop/types';
+import {
+  PathSecurityError,
+  formatPathSecurityErrorOutput,
+  resolvePathAccessPath,
+  refineSandboxPathForExecute,
+} from '../../policies/path-access';
+import {
+  detectSandboxCwd,
+  detectShellSandboxPath,
+  formatShellSandboxPathError,
+} from '../../policies/shell-sandbox-path';
+import {
+  detectShellSensitivePath,
+  formatShellSensitivePathError,
+} from '../../policies/shell-sensitive-path';
 import { toInputJsonSchema } from '../../support/input-schema';
+import type { WorkspaceConfig } from '../../support/workspace';
 import DESCRIPTION from './script.md?raw';
 
 export const ScriptToolInputSchema = z
@@ -180,12 +196,60 @@ export class ScriptTool implements BuiltinTool<ScriptToolInput> {
     return `${text.slice(0, OUTPUT_MAX_CHARS)}\n…[output truncated at ${String(OUTPUT_MAX_CHARS)} chars]`;
   }
 
+  private workspaceConfig(): WorkspaceConfig {
+    return {
+      workspaceDir: this.agent.config.cwd,
+      additionalDirs: this.agent.getAdditionalDirs(),
+      sandboxProfile: this.agent.sandboxProfile,
+    };
+  }
+
+  private async resolveScriptPath(path: string, operation: 'read' | 'write'): Promise<string> {
+    const workspace = this.workspaceConfig();
+    try {
+      const lexical = resolvePathAccessPath(path, {
+        kaos: this.kaos,
+        workspace,
+        operation,
+      });
+      const refined = await refineSandboxPathForExecute(lexical, {
+        kaos: this.kaos,
+        workspace,
+        rawPath: path,
+      });
+      if (!refined.ok) throw new Error(refined.output);
+      return refined.path;
+    } catch (error) {
+      if (error instanceof PathSecurityError) {
+        throw new Error(formatPathSecurityErrorOutput(error));
+      }
+      throw error;
+    }
+  }
+
+  private guardScriptCommand(command: string, cwd: string): void {
+    const workspace = this.workspaceConfig();
+    const cwdHit = detectSandboxCwd(cwd, workspace, this.kaos);
+    if (cwdHit !== undefined) {
+      throw new Error(formatShellSandboxPathError(cwdHit));
+    }
+    const sensitive = detectShellSensitivePath(command);
+    if (sensitive !== undefined) {
+      throw new Error(formatShellSensitivePathError(sensitive));
+    }
+    const sandbox = detectShellSandboxPath(command, {
+      cwd,
+      workspace,
+      kaos: this.kaos,
+    });
+    if (sandbox !== undefined) {
+      throw new Error(formatShellSandboxPathError(sandbox));
+    }
+  }
+
   private buildSandbox(ctx: ExecutableToolContext): Record<string, unknown> {
     const kaos = this.kaos;
     const cwd = this.agent.config.cwd;
-    const resolvePath = (path: string): string => {
-      return path.startsWith('/') ? path : `${cwd}/${path}`;
-    };
     const pushLog = (...values: unknown[]): void => {
       this.logBuffer.push(
         values
@@ -207,7 +271,8 @@ export class ScriptTool implements BuiltinTool<ScriptToolInput> {
           setTimeout(resolve, ms);
         });
       },
-      read: async (path: string): Promise<string> => kaos.readText(resolvePath(path)),
+      read: async (path: string): Promise<string> =>
+        kaos.readText(await this.resolveScriptPath(path, 'read')),
       glob: async (pattern: string): Promise<string[]> => {
         const out: string[] = [];
         for await (const match of kaos.glob(cwd, pattern)) {
@@ -223,6 +288,7 @@ export class ScriptTool implements BuiltinTool<ScriptToolInput> {
         return scriptGrep(kaos, cwd, pattern, fileGlob);
       },
       exec: async (command: string): Promise<{ stdout: string; stderr: string; code: number }> => {
+        this.guardScriptCommand(command, cwd);
         // Prefer kaos.osEnv.shellPath (runtime bash on Windows) — never bare
         // `bash` which may resolve to a missing Program Files install.
         const shell = resolveScriptShell(kaos);
@@ -232,6 +298,7 @@ export class ScriptTool implements BuiltinTool<ScriptToolInput> {
         file: string,
         args: readonly string[] = [],
       ): Promise<{ stdout: string; stderr: string; code: number }> => {
+        this.guardScriptCommand([file, ...args].join(' '), cwd);
         // Argv form: spawn file + args without bash -lc. On Windows, map
         // git/node/bash short names to SuperLiora runtime absolute paths.
         const resolved = resolveScriptExecutable(kaos, file);
@@ -240,7 +307,7 @@ export class ScriptTool implements BuiltinTool<ScriptToolInput> {
     };
     if (canWrite) {
       sandbox['write'] = async (path: string, content: string): Promise<void> => {
-        await kaos.writeText(resolvePath(path), content);
+        await kaos.writeText(await this.resolveScriptPath(path, 'write'), content);
       };
     }
     const host = this.agent.type === 'main' ? this.agent.subagentHost : undefined;

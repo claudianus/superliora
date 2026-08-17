@@ -1,7 +1,12 @@
 /**
- * Path safety guards used by Read/Write/Edit/Grep/Glob.
+ * Path safety guards used by file tools, Script, and Bash path tokens.
  *
- * Canonicalization is **lexical** only (no `realpath` / symlink following).
+ * Canonicalization in `resolvePathAccess` is **lexical** (no symlink follow).
+ * `assertSandboxResolvedPath` optionally refines once via Kaos `realpath`
+ * (longest existing prefix) so workspace/read-only profiles cannot escape
+ * through a symlink or Windows junction. Call that at execute time, not
+ * on every I/O chunk.
+ *
  * Mirrors `KaosPath.canonical()` and keeps the guard backend-aware:
  * callers should pass the active Kaos path class so SSH paths stay POSIX
  * even when the host Node process is running on Windows.
@@ -24,7 +29,8 @@ export type PathSecurityCode =
   | 'PATH_OUTSIDE_WORKSPACE'
   | 'PATH_SENSITIVE'
   | 'PATH_INVALID'
-  | 'PATH_READ_ONLY';
+  | 'PATH_READ_ONLY'
+  | 'PATH_SYMLINK_OUTSIDE';
 export type PathAccessOperation = 'read' | 'write' | 'search';
 /**
  * Path guard modes (sandbox profile, orthogonal to permission ask/auto/yolo):
@@ -75,6 +81,19 @@ export function policyForSandboxProfile(
     guardMode: sandboxProfileToGuardMode(profile),
     checkSensitive,
   };
+}
+
+/** Policy from `workspace.sandboxProfile`, or the legacy default when unset. */
+export function policyFromWorkspace(
+  workspace: WorkspaceConfig,
+  checkSensitive = true,
+): WorkspaceAccessPolicy {
+  if (workspace.sandboxProfile === undefined) {
+    return checkSensitive
+      ? DEFAULT_WORKSPACE_ACCESS_POLICY
+      : { guardMode: DEFAULT_WORKSPACE_ACCESS_POLICY.guardMode, checkSensitive: false };
+  }
+  return policyForSandboxProfile(workspace.sandboxProfile, checkSensitive);
 }
 
 export interface PathAccess {
@@ -232,7 +251,7 @@ export interface ResolvePathAccessOptions {
 }
 
 export interface ResolvePathAccessPathOptions {
-  readonly kaos: Pick<Kaos, 'pathClass' | 'gethome'>;
+  readonly kaos: Pick<Kaos, 'pathClass' | 'gethome'> & Partial<Pick<Kaos, 'realpath'>>;
   readonly workspace: WorkspaceConfig;
   readonly operation: PathAccessOperation;
   readonly policy?: WorkspaceAccessPolicy;
@@ -327,7 +346,8 @@ export function resolvePathAccessPath(
   path: string,
   options: ResolvePathAccessPathOptions,
 ): string {
-  const { kaos, workspace, operation, policy, expandHome = true } = options;
+  const { kaos, workspace, operation, expandHome = true } = options;
+  const policy = options.policy ?? policyFromWorkspace(workspace);
   return resolvePathAccess(path, workspace.workspaceDir, workspace, {
     operation,
     policy,
@@ -336,14 +356,71 @@ export function resolvePathAccessPath(
   }).path;
 }
 
+export interface AssertSandboxResolvedPathOptions {
+  readonly kaos: Pick<Kaos, 'pathClass'> & Partial<Pick<Kaos, 'realpath'>>;
+  readonly workspace: WorkspaceConfig;
+  readonly rawPath?: string;
+}
+
+/**
+ * Follow symlinks/junctions once via Kaos `realpath`. Workspace and
+ * read-only profiles deny a target that leaves allowed roots
+ * (`PATH_SYMLINK_OUTSIDE`). `off` / missing realpath / resolve failure
+ * keep the lexical path (SSH and some Windows junctions fail closed to
+ * lexical rather than blocking the CLI).
+ */
+export async function assertSandboxResolvedPath(
+  lexicalPath: string,
+  options: AssertSandboxResolvedPathOptions,
+): Promise<string> {
+  const profile = options.workspace.sandboxProfile;
+  if (profile === undefined || profile === 'off') return lexicalPath;
+  const realpath = options.kaos.realpath;
+  if (realpath === undefined) return lexicalPath;
+
+  let resolved: string;
+  try {
+    resolved = await realpath(lexicalPath);
+  } catch {
+    return lexicalPath;
+  }
+
+  const pathClass = options.kaos.pathClass();
+  const canonical = canonicalizePath(resolved, options.workspace.workspaceDir, pathClass);
+  if (isWithinWorkspace(canonical, options.workspace, pathClass)) {
+    return canonical;
+  }
+
+  const raw = options.rawPath ?? lexicalPath;
+  throw new PathSecurityError(
+    'PATH_SYMLINK_OUTSIDE',
+    raw,
+    canonical,
+    `"${raw}" resolves outside the workspace via a symlink or junction.`,
+  );
+}
+
+export async function refineSandboxPathForExecute(
+  lexicalPath: string,
+  options: AssertSandboxResolvedPathOptions,
+): Promise<{ ok: true; path: string } | { ok: false; output: string }> {
+  try {
+    return { ok: true, path: await assertSandboxResolvedPath(lexicalPath, options) };
+  } catch (error) {
+    if (error instanceof PathSecurityError) {
+      return { ok: false, output: formatPathSecurityErrorOutput(error) };
+    }
+    throw error;
+  }
+}
+
 /**
  * Throw `PathSecurityError` if `path` escapes the workspace through a relative
  * path, matches a known sensitive file, or is empty. Returns the canonical
  * absolute path when the check passes.
  *
- * Note: this is purely lexical. It does NOT protect against symlink
- * targets that point outside the workspace — that would require kaos-layer
- * realpath support, which is not currently available.
+ * Lexical only. Use {@link assertSandboxResolvedPath} at execute time to
+ * block symlink / junction escapes under workspace/read-only profiles.
  */
 export function assertPathAllowed(
   path: string,

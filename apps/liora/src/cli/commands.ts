@@ -113,6 +113,13 @@ export function createProgram(
         'read-only',
       ]),
     )
+    .addOption(
+      new Option('--sandbox-enforcement <mode>', t('cli.option.sandboxEnforcement')).choices([
+        'lexical',
+        'process',
+      ]),
+    )
+    .addOption(new Option('--no-process-sandbox', t('cli.option.noProcessSandbox')))
     .addOption(new Option('--yes').hideHelp().default(false))
     .addOption(new Option('--auto-approve').hideHelp().default(false))
     .option('--plan', t('cli.option.plan'), false)
@@ -192,6 +199,8 @@ export function createProgram(
       channelServers: (raw['channels'] as string[] | undefined) ?? [],
       addDirs: raw['addDir'] as string[],
       sandbox: raw['sandbox'] as string | undefined,
+      sandboxEnforcement: raw['sandboxEnforcement'] as string | undefined,
+      noProcessSandbox: raw['noProcessSandbox'] === true || raw['processSandbox'] === false,
       resumeGoal: raw['resumeGoal'] as boolean,
       autonomousGate: raw['autonomousGate'] as string | undefined,
       worktree: raw['worktree'] as boolean | string | undefined,

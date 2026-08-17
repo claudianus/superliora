@@ -278,6 +278,32 @@ export abstract class SessionCore {
     }
   }
 
+  /**
+   * Persist process vs lexical enforcement and rebuild the live agent wrap.
+   * `process` without Docker degrades to lexical (Windows Job Object is not an FS jail).
+   */
+  async setSandboxEnforcement(enforcement: 'lexical' | 'process'): Promise<void> {
+    this.ensureOpen();
+    if (enforcement !== 'lexical' && enforcement !== 'process') {
+      throw new LioraError(
+        ErrorCodes.CONFIG_INVALID,
+        'Sandbox enforcement must be lexical or process',
+      );
+    }
+    await this.rpc.updateSessionMetadata({
+      sessionId: this.id,
+      metadata: { custom: { sandboxEnforcement: enforcement } },
+    });
+    const resume = this.getResumeState();
+    if (resume?.sessionMetadata !== undefined) {
+      const custom = {
+        ...(resume.sessionMetadata.custom ?? {}),
+        sandboxEnforcement: enforcement,
+      };
+      (resume.sessionMetadata as { custom?: Record<string, unknown> }).custom = custom;
+    }
+  }
+
   async setPlanMode(enabled: boolean, ultra = false, initialContext?: string): Promise<void> {
     this.ensureOpen();
     if (typeof enabled !== 'boolean') {

@@ -15,6 +15,7 @@ import {
 import type { NetworkGlanceInput } from '../network/network-glance';
 
 export type SecuritySandboxProfile = 'off' | 'workspace' | 'read-only';
+export type SecuritySandboxEnforcement = 'lexical' | 'process';
 
 export interface McpAllowlistSummary {
   readonly configured: number;
@@ -33,6 +34,8 @@ export interface SecurityGlanceInput {
   readonly permissionFromSession?: PermissionMode | undefined;
   readonly permissionInterventions?: PermissionInterventionGlance | undefined;
   readonly sandboxProfile?: SecuritySandboxProfile | undefined;
+  readonly sandboxEnforcement?: SecuritySandboxEnforcement | undefined;
+  readonly processSandboxWarning?: string | undefined;
   readonly workDir: string;
   readonly additionalDirs: readonly string[];
   readonly network?: NetworkGlanceInput | undefined;
@@ -42,17 +45,23 @@ export interface SecurityGlanceInput {
 
 const SANDBOX_PROFILE_TIPS: Readonly<Record<SecuritySandboxProfile, string>> = {
   workspace:
-    'Read/Write/Edit/Glob/Grep/RepoQuery stay inside workspace roots (+ /add-dir); absolute paths outside are denied.',
-  'read-only': 'All writes blocked; reads follow workspace root rules.',
-  off: 'Default — absolute paths outside roots are allowed for file tools (sensitive paths still blocked).',
+    'File tools, Bash path tokens, and Script stay inside workspace roots (+ /add-dir); absolute paths outside are denied.',
+  'read-only': 'Writes blocked for file tools, Script, and Bash redirects; reads follow workspace root rules.',
+  off: 'Default — absolute paths outside roots are allowed (sensitive paths still blocked).',
+};
+
+const SANDBOX_ENFORCEMENT_TIPS: Readonly<Record<SecuritySandboxEnforcement, string>> = {
+  lexical: 'Path tokens and file tools only (default).',
+  process:
+    'Docker filesystem jail when present; otherwise Windows Job Object tree (not an FS jail). Missing backend degrades to lexical.',
 };
 
 /**
  * Honest path-sandbox tip — Settings → Security picker + status panel.
- * Not an OS sandbox: Bash, network, computer-use stay outside this switch.
+ * Lexical path guard (file tools + Bash tokens + Script); not OS isolation.
  */
 export const SECURITY_SANDBOX_TIP =
-  'Path sandbox (not OS isolation): off | workspace | read-only. workspace denies file-tool paths outside roots; read-only blocks writes; off allows absolute outside paths. Sensitive paths stay blocked. Bash/network/computer-use are not covered. Settings → Security · config.toml sandboxProfile · local.toml workspace.sandbox_profile · --sandbox · SUPERLIORA_SANDBOX · /add-dir for extra roots.';
+  'Path sandbox (not OS isolation): off | workspace | read-only. workspace denies file-tool, Bash path-token, and Script paths outside roots; read-only blocks writes; off allows absolute outside paths. Sensitive paths stay blocked. Network/computer-use stay out of scope. Optional process enforcement: Docker when present; Job Object is not an FS jail. Settings → Security · config.toml sandboxProfile / sandboxEnforcement · local.toml workspace.sandbox_profile / sandbox_enforcement · --sandbox · --sandbox-enforcement · SUPERLIORA_SANDBOX · SUPERLIORA_SANDBOX_ENFORCEMENT · --no-process-sandbox · /add-dir for extra roots.';
 
 /** Compact secrets/redaction tip — agent-core SSOT. */
 export const SECURITY_REDACTION_TIP =
@@ -64,7 +73,7 @@ export const SECURITY_MCP_ALLOWLIST_TIP =
 
 /** One-line OS-isolation disclaimer for picker footer / glance. */
 export const SECURITY_NOT_OS_SANDBOX =
-  'Not an OS sandbox — lexical path guard for file tools only. Bash, network egress, and desktop control are out of scope.';
+  'Not an OS sandbox — lexical path guard for file tools, Bash path tokens, and Script. Network egress and desktop control stay out of scope.';
 
 export function formatPermissionModeLine(
   mode: PermissionMode,
@@ -99,21 +108,36 @@ export function formatSandboxProfileLine(profile: SecuritySandboxProfile | undef
   return `Sandbox profile: ${profile} — ${SANDBOX_PROFILE_TIPS[profile]}`;
 }
 
+export function formatSandboxEnforcementLine(
+  enforcement: SecuritySandboxEnforcement | undefined,
+  warning?: string | undefined,
+): string {
+  const mode = enforcement ?? 'lexical';
+  const line = `Sandbox enforcement: ${mode} — ${SANDBOX_ENFORCEMENT_TIPS[mode]}`;
+  if (warning !== undefined && warning.length > 0) {
+    return `${line}\n${warning}`;
+  }
+  return line;
+}
+
 export function formatWorkspaceSandboxLines(
   workDir: string,
   additionalDirs: readonly string[],
   sandboxProfile?: SecuritySandboxProfile | undefined,
+  sandboxEnforcement?: SecuritySandboxEnforcement | undefined,
+  processSandboxWarning?: string | undefined,
 ): readonly string[] {
   const lines = [`Workspace root: ${workDir}`];
   if (additionalDirs.length > 0) {
     lines.push(`Extra roots (+${String(additionalDirs.length)}): ${additionalDirs.join(', ')}`);
   }
   lines.push(formatSandboxProfileLine(sandboxProfile));
+  lines.push(formatSandboxEnforcementLine(sandboxEnforcement, processSandboxWarning));
   lines.push(SECURITY_NOT_OS_SANDBOX);
   lines.push(
-    'Change: Settings → Security · config.toml sandboxProfile · local.toml workspace.sandbox_profile · --sandbox · SUPERLIORA_SANDBOX.',
+    'Change: Settings → Security · config.toml sandboxProfile / sandboxEnforcement · local.toml workspace.sandbox_profile / sandbox_enforcement · --sandbox · --sandbox-enforcement · SUPERLIORA_SANDBOX · SUPERLIORA_SANDBOX_ENFORCEMENT.',
   );
-  lines.push('Extra roots: /add-dir · default is off (vibe-coding friendly).');
+  lines.push('Extra roots: /add-dir · default is off (vibe-coding friendly). Skip process wrap: --no-process-sandbox.');
   return lines;
 }
 
@@ -220,7 +244,13 @@ export function buildSecuritySettingsLines(input: SecurityGlanceInput): readonly
     ),
     '',
     '── Path sandbox ────────────────────────────',
-    ...formatWorkspaceSandboxLines(input.workDir, input.additionalDirs, input.sandboxProfile),
+    ...formatWorkspaceSandboxLines(
+      input.workDir,
+      input.additionalDirs,
+      input.sandboxProfile,
+      input.sandboxEnforcement,
+      input.processSandboxWarning,
+    ),
     '',
     '── Network egress ──────────────────────────',
     ...formatNetworkEgressLines(input.network),

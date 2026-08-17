@@ -24,7 +24,11 @@ import { isAbortError } from '../../../loop/errors';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { noopTelemetryClient, type TelemetryClient } from '../../../telemetry';
-import { policyForSandboxProfile, resolvePathAccessPath } from '../../policies/path-access';
+import {
+  policyFromWorkspace,
+  refineSandboxPathForExecute,
+  resolvePathAccessPath,
+} from '../../policies/path-access';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { ensureRgPath, rgUnavailableMessage } from '../../support/rg-locator';
 import { literalRulePattern, matchesGlobRuleSubject } from '../../support/rule-match';
@@ -85,10 +89,7 @@ export class GrepTool implements BuiltinTool<GrepInput> {
         operation: 'search',
         // Sensitive globs are filtered by ripgrep exclude lists; path sandbox
         // still applies when workspace.sandboxProfile is set.
-        policy:
-          this.workspace.sandboxProfile !== undefined
-            ? policyForSandboxProfile(this.workspace.sandboxProfile, /* checkSensitive */ false)
-            : { guardMode: 'absolute-outside-allowed', checkSensitive: false },
+        policy: policyFromWorkspace(this.workspace, false),
       });
     }
     const searchPaths = [path ?? this.workspace.workspaceDir];
@@ -100,7 +101,18 @@ export class GrepTool implements BuiltinTool<GrepInput> {
       display: { kind: 'file_io', operation: 'grep', path: searchPaths[0]! },
       approvalRule: literalRulePattern(this.name, args.pattern),
       matchesRule: (ruleArgs) => matchesGlobRuleSubject(ruleArgs, args.pattern),
-      execute: ({ signal }) => this.execution(args, signal, searchPaths),
+      execute: async ({ signal }) => {
+        if (path !== undefined) {
+          const refined = await refineSandboxPathForExecute(path, {
+            kaos: this.kaos,
+            workspace: this.workspace,
+            rawPath: args.path,
+          });
+          if (!refined.ok) return { isError: true, output: refined.output };
+          return this.execution(args, signal, [refined.path]);
+        }
+        return this.execution(args, signal, searchPaths);
+      },
     };
   }
 

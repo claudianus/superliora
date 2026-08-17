@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { isAbsolute, join, normalize, resolve } from 'pathe';
+import { basename, dirname, isAbsolute, join, normalize, resolve } from 'pathe';
 import type { Readable, Writable } from 'node:stream';
 
 import * as ssh2 from 'ssh2';
@@ -630,6 +630,26 @@ export class SSHKaos implements Kaos {
       // SFTP v3 has no ctime, fallback to mtime
       stCtime: st.mtime,
     };
+  }
+
+  async realpath(path: string): Promise<string> {
+    const target = this._resolvePath(path);
+    let current = target;
+    const tailSegments: string[] = [];
+    for (let i = 0; i < 4096; i++) {
+      try {
+        const real = await sftpRealpath(this._sftp, current);
+        tailSegments.reverse();
+        return this.normpath(tailSegments.length === 0 ? real : join(real, ...tailSegments));
+      } catch (error) {
+        if (!(error instanceof KaosFileNotFoundError)) throw error;
+        const parent = dirname(current);
+        if (parent === current) return this.normpath(target);
+        tailSegments.push(basename(current));
+        current = parent;
+      }
+    }
+    return this.normpath(target);
   }
 
   async *iterdir(path: string): AsyncGenerator<string> {
