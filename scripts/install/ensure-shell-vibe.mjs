@@ -1,25 +1,47 @@
 /**
- * Windows vibe shell: Oh My Posh, zoxide, fzf, Terminal-Icons, PowerShell profile.
+ * Host vibe shell: Oh My Posh, zoxide, fzf, and a managed profile block.
+ * Windows also gets Terminal-Icons + CurrentUser RemoteSigned.
  * User-local, best-effort, never throws. Does not force PowerShell 7 (CET).
  */
 
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
 
 import { downloadToFile } from './download.mjs';
 import { ensureOhMyPosh, findOhMyPosh, ohMyPoshRuntimeDir } from './ensure-oh-my-posh.mjs';
 import { findWinget } from './ensure-winget.mjs';
+import { hostJoin } from './host-path.mjs';
 import { applyUserPathWin } from './path.mjs';
-import { defaultHome } from './platform.mjs';
+import { archId, defaultHome } from './platform.mjs';
 
 export const ZOXIDE_WINGET_ID = 'ajeetdsouza.zoxide';
 export const FZF_WINGET_ID = 'junegunn.fzf';
+export const ZOXIDE_VERSION = '0.9.8';
+export const FZF_VERSION = '0.67.0';
 export const ZOXIDE_ZIP_URL =
-  'https://github.com/ajeetdsouza/zoxide/releases/download/v0.9.8/zoxide-0.9.8-x86_64-pc-windows-msvc.zip';
+  `https://github.com/ajeetdsouza/zoxide/releases/download/v${ZOXIDE_VERSION}/zoxide-${ZOXIDE_VERSION}-x86_64-pc-windows-msvc.zip`;
 export const FZF_ZIP_URL =
-  'https://github.com/junegunn/fzf/releases/download/v0.67.0/fzf-0.67.0-windows_amd64.zip';
+  `https://github.com/junegunn/fzf/releases/download/v${FZF_VERSION}/fzf-${FZF_VERSION}-windows_amd64.zip`;
+
+export function zoxideArchiveUrl(platform = process.platform, arch = process.arch) {
+  if (platform === 'win32') return ZOXIDE_ZIP_URL;
+  const cpu = archId(arch);
+  if (platform === 'darwin') {
+    return `https://github.com/ajeetdsouza/zoxide/releases/download/v${ZOXIDE_VERSION}/zoxide-${ZOXIDE_VERSION}-${cpu === 'arm64' ? 'aarch64' : 'x86_64'}-apple-darwin.tar.gz`;
+  }
+  return `https://github.com/ajeetdsouza/zoxide/releases/download/v${ZOXIDE_VERSION}/zoxide-${ZOXIDE_VERSION}-${cpu === 'arm64' ? 'aarch64' : 'x86_64'}-unknown-linux-musl.tar.gz`;
+}
+
+export function fzfArchiveUrl(platform = process.platform, arch = process.arch) {
+  if (platform === 'win32') return FZF_ZIP_URL;
+  const cpu = archId(arch);
+  if (platform === 'darwin') {
+    return `https://github.com/junegunn/fzf/releases/download/v${FZF_VERSION}/fzf-${FZF_VERSION}-darwin_${cpu === 'arm64' ? 'arm64' : 'amd64'}.tar.gz`;
+  }
+  return `https://github.com/junegunn/fzf/releases/download/v${FZF_VERSION}/fzf-${FZF_VERSION}-linux_${cpu === 'arm64' ? 'arm64' : 'amd64'}.tar.gz`;
+}
 
 export const VIBE_PROFILE_MARKER_START = '# >>> superliora-vibe >>>';
 export const VIBE_PROFILE_MARKER_END = '# <<< superliora-vibe <<<';
@@ -29,9 +51,9 @@ export function skipShellVibeRequested(env = process.env, options = {}) {
   return env.SUPERLIORA_NO_SHELL_VIBE === '1';
 }
 
-export function vibeRuntimeDir(name, env = process.env) {
+export function vibeRuntimeDir(name, env = process.env, platform = process.platform) {
   const home = env.HOME ?? env.USERPROFILE ?? defaultHome();
-  return winJoin(home, '.superliora', 'runtime', name);
+  return hostJoin(platform, home, '.superliora', 'runtime', name);
 }
 
 export function defaultPowerShellProfilePaths(env = process.env) {
@@ -42,13 +64,21 @@ export function defaultPowerShellProfilePaths(env = process.env) {
   ];
 }
 
+export function defaultUnixProfilePaths(env = process.env) {
+  const home = env.HOME ?? env.USERPROFILE ?? defaultHome();
+  return [hostJoin('linux', home, '.zshrc'), hostJoin('linux', home, '.bashrc')];
+}
+
 export function findToolExe(name, options = {}) {
   const env = options.env ?? process.env;
+  const platform = options.platform ?? process.platform;
   const isFile = options.isFile ?? ((p) => existsSync(p));
   const which = options.which ?? defaultWhich;
   const fromPath = which(name, env) ?? which(`${name}.exe`, env);
   if (fromPath && isFile(fromPath)) return { path: fromPath, source: 'path' };
-  const candidate = winJoin(vibeRuntimeDir(name, env), `${name}.exe`);
+  const exeName = platform === 'win32' ? `${name}.exe` : name;
+  const dir = vibeRuntimeDir(name, env, platform);
+  const candidate = hostJoin(platform, dir, exeName);
   if (isFile(candidate)) return { path: candidate, source: 'runtime' };
   return null;
 }
@@ -155,6 +185,58 @@ if (Get-Command fzf -ErrorAction SilentlyContinue) {
 ${VIBE_PROFILE_MARKER_END}`;
 }
 
+export function renderUnixVibeProfileBlock(shell = 'zsh') {
+  const initShell = shell === 'bash' ? 'bash' : 'zsh';
+  return `${VIBE_PROFILE_MARKER_START}
+export VIRTUAL_ENV_DISABLE_PROMPT=1
+export FZF_DEFAULT_OPTS='--color=fg:#E6EDF3,bg:#0D1422,hl:#00D5FF,fg+:#FFFFFF,bg+:#162033,hl+:#22D3EE,info:#9AA7B2,prompt:#00D5FF,pointer:#A78BFA,marker:#36D399,spinner:#22D3EE,header:#6F7A86'
+
+for __sl_dir in \\
+  "$HOME/.superliora/runtime/oh-my-posh" \\
+  "$HOME/.superliora/runtime/zoxide" \\
+  "$HOME/.superliora/runtime/fzf"
+do
+  case ":$PATH:" in
+    *":$__sl_dir:"*) ;;
+    *) [ -d "$__sl_dir" ] && PATH="$__sl_dir:$PATH" ;;
+  esac
+done
+unset __sl_dir
+export PATH
+
+__sl_omp_config="$HOME/.superliora/oh-my-posh/superliora-neon-noir.omp.json"
+__sl_omp=""
+if command -v oh-my-posh >/dev/null 2>&1; then
+  __sl_omp="$(command -v oh-my-posh)"
+elif [ -x "$HOME/.superliora/runtime/oh-my-posh/oh-my-posh" ]; then
+  __sl_omp="$HOME/.superliora/runtime/oh-my-posh/oh-my-posh"
+fi
+if [ -n "$__sl_omp" ] && [ -f "$__sl_omp_config" ]; then
+  eval "$("$__sl_omp" init ${initShell} --config "$__sl_omp_config")"
+fi
+unset __sl_omp __sl_omp_config
+
+if command -v zoxide >/dev/null 2>&1; then
+  eval "$(zoxide init ${initShell})"
+fi
+
+alias gs='git status'
+alias gd='git diff'
+alias gds='git diff --staged'
+alias gl='git log --oneline --graph -20'
+alias gf='git fetch --all --prune'
+alias ll='ls -la'
+alias ..='cd ..'
+alias ...='cd ../..'
+${VIBE_PROFILE_MARKER_END}`;
+}
+
+export function profileShellForPath(dest) {
+  const lower = String(dest ?? '').replaceAll('\\', '/').toLowerCase();
+  if (lower.endsWith('/.bashrc') || lower.endsWith('/bashrc')) return 'bash';
+  return 'zsh';
+}
+
 export function upsertMarkedBlock(current, block) {
   const nextBlock = block.trimEnd();
   const markerPattern = new RegExp(
@@ -184,7 +266,10 @@ export function upsertMarkedBlock(current, block) {
 export async function ensureShellVibe(options = {}) {
   const env = options.env ?? process.env;
   const platform = options.platform ?? process.platform;
-  if (skipShellVibeRequested(env, options) || platform !== 'win32') {
+  if (skipShellVibeRequested(env, options)) {
+    return { skipped: true, ok: true };
+  }
+  if (platform !== 'win32' && platform !== 'darwin' && platform !== 'linux') {
     return { skipped: true, ok: true };
   }
 
@@ -202,37 +287,43 @@ export async function ensureShellVibe(options = {}) {
   let terminalIconsInstalled = false;
   if (!skipPackages) {
     if (env.SUPERLIORA_NO_ZOXIDE !== '1') {
-      const zoxide = await ensureZipTool({
+      const zoxide = await ensureArchiveTool({
         ...options,
         name: 'zoxide',
         wingetId: ZOXIDE_WINGET_ID,
-        zipUrl: ZOXIDE_ZIP_URL,
-        exeName: 'zoxide.exe',
+        archiveUrl: zoxideArchiveUrl(platform, options.arch ?? process.arch),
+        exeName: platform === 'win32' ? 'zoxide.exe' : 'zoxide',
       });
       zoxideInstalled = zoxide.installed === true;
     }
     if (env.SUPERLIORA_NO_FZF !== '1') {
-      const fzf = await ensureZipTool({
+      const fzf = await ensureArchiveTool({
         ...options,
         name: 'fzf',
         wingetId: FZF_WINGET_ID,
-        zipUrl: FZF_ZIP_URL,
-        exeName: 'fzf.exe',
+        archiveUrl: fzfArchiveUrl(platform, options.arch ?? process.arch),
+        exeName: platform === 'win32' ? 'fzf.exe' : 'fzf',
       });
       fzfInstalled = fzf.installed === true;
     }
-    const icons = options.installTerminalIcons ?? defaultInstallTerminalIcons;
-    try {
-      terminalIconsInstalled = icons() === true;
-    } catch {
-      terminalIconsInstalled = false;
+    if (platform === 'win32') {
+      const icons = options.installTerminalIcons ?? defaultInstallTerminalIcons;
+      try {
+        terminalIconsInstalled = icons() === true;
+      } catch {
+        terminalIconsInstalled = false;
+      }
     }
   }
 
   const addPath = options.addUserPath ?? defaultAddUserPath;
-  for (const dir of [ohMyPoshRuntimeDir(env), vibeRuntimeDir('zoxide', env), vibeRuntimeDir('fzf', env)]) {
+  for (const dir of [
+    ohMyPoshRuntimeDir(env, platform),
+    vibeRuntimeDir('zoxide', env, platform),
+    vibeRuntimeDir('fzf', env, platform),
+  ]) {
     try {
-      addPath(dir);
+      addPath(dir, platform);
     } catch {
       // User PATH is optional; the profile prepends the same dirs.
     }
@@ -240,12 +331,17 @@ export async function ensureShellVibe(options = {}) {
 
   const writeText = options.writeFile ?? defaultWriteUtf8;
   const readText = options.readText ?? defaultReadText;
-  const profiles = options.profilePaths ?? defaultPowerShellProfilePaths(env);
-  const block = renderVibeProfileBlock();
+  const profiles = options.noShellRc === true
+    ? []
+    : (options.profilePaths
+      ?? (platform === 'win32' ? defaultPowerShellProfilePaths(env) : defaultUnixProfilePaths(env)));
   let profilePatched = false;
   for (const dest of profiles) {
     try {
       const current = await readText(dest);
+      const block = platform === 'win32'
+        ? renderVibeProfileBlock()
+        : renderUnixVibeProfileBlock(profileShellForPath(dest));
       const next = upsertMarkedBlock(current ?? '', block);
       if (next !== current) {
         await writeText(dest, next);
@@ -257,7 +353,7 @@ export async function ensureShellVibe(options = {}) {
   }
 
   let executionPolicySet = false;
-  if (options.noExecutionPolicy !== true) {
+  if (platform === 'win32' && options.noExecutionPolicy !== true) {
     const setPolicy = options.setExecutionPolicy ?? defaultSetExecutionPolicy;
     try {
       executionPolicySet = setPolicy() === true;
@@ -281,27 +377,38 @@ export async function ensureShellVibe(options = {}) {
   };
 }
 
-async function ensureZipTool(options) {
+async function ensureArchiveTool(options) {
+  const platform = options.platform ?? process.platform;
   const found = findToolExe(options.name, options);
   if (found) return { installed: false, alreadyPresent: true, path: found.path };
-  const runWinget = options.runWinget ?? ((id) => defaultRunWingetId(id));
-  const winget = runWinget(options.wingetId);
-  if (winget.status === 0) {
-    return { installed: true, via: 'winget' };
+  if (platform === 'win32') {
+    const runWinget = options.runWinget ?? ((id) => defaultRunWingetId(id));
+    const winget = runWinget(options.wingetId);
+    if (winget.status === 0) {
+      return { installed: true, via: 'winget' };
+    }
   }
   try {
-    const destDir = vibeRuntimeDir(options.name, options.env ?? process.env);
-    const zip = join(destDir, `${options.name}.zip`);
+    const destDir = vibeRuntimeDir(options.name, options.env ?? process.env, platform);
+    const archiveName = platform === 'win32' ? `${options.name}.zip` : `${options.name}.tar.gz`;
+    const archive = hostJoin(platform, destDir, archiveName);
     const download = options.downloadToFile ?? downloadToFile;
     await mkdir(destDir, { recursive: true });
-    await download(options.zipUrl, zip);
-    const expand = options.expandZip ?? defaultExpandZip;
-    expand(zip, destDir);
-    const exe = winJoin(destDir, options.exeName);
+    await download(options.archiveUrl, archive);
+    const expand = options.expandZip ?? defaultExpandArchive;
+    await expand(archive, destDir, platform);
+    const exe = hostJoin(platform, destDir, options.exeName);
     const isFile = options.isFile ?? ((p) => existsSync(p));
+    if (platform !== 'win32' && isFile(exe)) {
+      try {
+        await chmod(exe, 0o755);
+      } catch {
+        // chmod is best-effort
+      }
+    }
     return isFile(exe)
-      ? { installed: true, via: 'zip', path: exe }
-      : { installed: false, message: `${options.name} zip had no ${options.exeName}` };
+      ? { installed: true, via: platform === 'win32' ? 'zip' : 'tar', path: exe }
+      : { installed: false, message: `${options.name} archive had no ${options.exeName}` };
   } catch (error) {
     return { installed: false, message: error instanceof Error ? error.message : String(error) };
   }
@@ -331,16 +438,24 @@ function defaultRunWingetId(id) {
   };
 }
 
-function defaultExpandZip(zipPath, dest) {
-  spawnSync(
-    'powershell',
-    [
-      '-NoProfile',
-      '-Command',
-      `Expand-Archive -Path '${escapePs(zipPath)}' -DestinationPath '${escapePs(dest)}' -Force`,
-    ],
-    { encoding: 'utf8', windowsHide: true },
-  );
+async function defaultExpandArchive(archivePath, dest, platform = process.platform) {
+  await mkdir(dest, { recursive: true });
+  if (platform === 'win32') {
+    spawnSync(
+      'powershell',
+      [
+        '-NoProfile',
+        '-Command',
+        `Expand-Archive -Path '${escapePs(archivePath)}' -DestinationPath '${escapePs(dest)}' -Force`,
+      ],
+      { encoding: 'utf8', windowsHide: true },
+    );
+    return;
+  }
+  spawnSync('tar', ['-xzf', archivePath, '-C', dest], {
+    encoding: 'utf8',
+    windowsHide: true,
+  });
 }
 
 function defaultInstallTerminalIcons() {
@@ -377,8 +492,8 @@ function defaultSetExecutionPolicy() {
   return ps.status === 0 && /CHANGED/i.test(ps.stdout ?? '');
 }
 
-function defaultAddUserPath(dir) {
-  if (process.platform !== 'win32') return;
+function defaultAddUserPath(dir, platform = process.platform) {
+  if (platform !== 'win32') return;
   applyUserPathWin(dir, { envName: 'Path' });
 }
 

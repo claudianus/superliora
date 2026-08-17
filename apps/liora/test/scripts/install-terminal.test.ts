@@ -342,6 +342,7 @@ describe('scripts/install/ensure-terminal', () => {
       runWinget: () => {
         throw new Error('should not install terminal');
       },
+      ensureShellVibe: async () => ({ ok: true, skipped: true }),
     });
     expect(result.ok).toBe(true);
     expect(result.skipped).toBe(true);

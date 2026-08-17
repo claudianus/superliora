@@ -5,37 +5,55 @@
 
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { chmod, mkdir, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
 
 import { downloadToFile } from './download.mjs';
 import { findWinget } from './ensure-winget.mjs';
-import { defaultHome } from './platform.mjs';
+import { hostJoin } from './host-path.mjs';
+import { archId, defaultHome } from './platform.mjs';
 
 export const OMP_WINGET_ID = 'JanDeDobbeleer.OhMyPosh';
 export const OMP_EXE_URL =
   'https://github.com/JanDeDobbeleer/oh-my-posh/releases/latest/download/posh-windows-amd64.exe';
 export const OMP_THEME_NAME = 'superliora-neon-noir.omp.json';
 
+export function ohMyPoshDownloadUrl(platform = process.platform, arch = process.arch) {
+  if (platform === 'win32') return OMP_EXE_URL;
+  const cpu = archId(arch);
+  if (platform === 'darwin') {
+    return `https://github.com/JanDeDobbeleer/oh-my-posh/releases/latest/download/posh-darwin-${cpu === 'arm64' ? 'arm64' : 'amd64'}`;
+  }
+  return `https://github.com/JanDeDobbeleer/oh-my-posh/releases/latest/download/posh-linux-${cpu === 'arm64' ? 'arm64' : 'amd64'}`;
+}
+
 export function skipOhMyPoshRequested(env = process.env, options = {}) {
   if (options.skip === true) return true;
   return env.SUPERLIORA_NO_POSH === '1';
 }
 
-export function ohMyPoshThemePath(env = process.env) {
+export function ohMyPoshThemePath(env = process.env, platform = process.platform) {
   const home = env.HOME ?? env.USERPROFILE ?? defaultHome();
-  return winJoin(home, '.superliora', 'oh-my-posh', OMP_THEME_NAME);
+  return hostJoin(platform, home, '.superliora', 'oh-my-posh', OMP_THEME_NAME);
 }
 
-export function ohMyPoshRuntimeDir(env = process.env) {
+export function ohMyPoshRuntimeDir(env = process.env, platform = process.platform) {
   const home = env.HOME ?? env.USERPROFILE ?? defaultHome();
-  return winJoin(home, '.superliora', 'runtime', 'oh-my-posh');
+  return hostJoin(platform, home, '.superliora', 'runtime', 'oh-my-posh');
 }
 
-export function wellKnownOhMyPoshCandidates(env = process.env) {
+export function wellKnownOhMyPoshCandidates(env = process.env, platform = process.platform) {
+  const home = env.HOME ?? env.USERPROFILE ?? defaultHome();
+  if (platform !== 'win32') {
+    return [
+      hostJoin(platform, ohMyPoshRuntimeDir(env, platform), 'oh-my-posh'),
+      hostJoin(platform, home, '.local', 'bin', 'oh-my-posh'),
+      '/opt/homebrew/bin/oh-my-posh',
+      '/usr/local/bin/oh-my-posh',
+    ];
+  }
   const localAppData = (env.LOCALAPPDATA ?? '').trim();
-  const home = env.HOME ?? env.USERPROFILE ?? defaultHome();
-  const list = [winJoin(ohMyPoshRuntimeDir(env), 'oh-my-posh.exe')];
+  const list = [winJoin(ohMyPoshRuntimeDir(env, platform), 'oh-my-posh.exe')];
   if (localAppData) {
     list.push(winJoin(localAppData, 'Programs', 'oh-my-posh', 'bin', 'oh-my-posh.exe'));
     list.push(winJoin(localAppData, 'Microsoft', 'WindowsApps', 'oh-my-posh.exe'));
@@ -48,7 +66,6 @@ export function wellKnownOhMyPoshCandidates(env = process.env) {
 
 export function findOhMyPosh(options = {}) {
   const platform = options.platform ?? process.platform;
-  if (platform !== 'win32') return null;
   const env = options.env ?? process.env;
   const isFile = options.isFile ?? ((p) => existsSync(p));
   const which = options.which ?? defaultWhich;
@@ -56,7 +73,7 @@ export function findOhMyPosh(options = {}) {
   if (fromPath && isFile(fromPath)) {
     return { ompPath: fromPath, source: 'path', alreadyPresent: true };
   }
-  for (const candidate of wellKnownOhMyPoshCandidates(env)) {
+  for (const candidate of wellKnownOhMyPoshCandidates(env, platform)) {
     if (isFile(candidate)) {
       return { ompPath: candidate, source: 'well-known', alreadyPresent: true };
     }
@@ -156,7 +173,8 @@ export function renderNeonNoirOmpTheme() {
 
 export async function writeOhMyPoshTheme(options = {}) {
   const env = options.env ?? process.env;
-  const dest = options.themePath ?? ohMyPoshThemePath(env);
+  const platform = options.platform ?? process.platform;
+  const dest = options.themePath ?? ohMyPoshThemePath(env, platform);
   const writeJson = options.writeFile ?? defaultWriteUtf8;
   await writeJson(dest, `${JSON.stringify(renderNeonNoirOmpTheme(), null, 2)}\n`);
   return dest;
@@ -178,7 +196,7 @@ export async function writeOhMyPoshTheme(options = {}) {
 export async function ensureOhMyPosh(options = {}) {
   const env = options.env ?? process.env;
   const platform = options.platform ?? process.platform;
-  if (platform !== 'win32') {
+  if (platform !== 'win32' && platform !== 'darwin' && platform !== 'linux') {
     return { skipped: true, ok: true };
   }
   if (skipOhMyPoshRequested(env, options)) {
@@ -210,30 +228,32 @@ export async function ensureOhMyPosh(options = {}) {
     return { skipped: true, ok: true, themeWritten: true, themePath };
   }
 
-  const runWinget = options.runWinget ?? defaultRunWingetOmp;
-  const winget = runWinget();
-  if (winget.status === 0) {
-    const after = findOhMyPosh(options);
-    return {
-      skipped: false,
-      installed: true,
-      themeWritten: true,
-      ok: true,
-      via: 'winget',
-      themePath,
-      ompPath: after?.ompPath,
-    };
+  if (platform === 'win32') {
+    const runWinget = options.runWinget ?? defaultRunWingetOmp;
+    const winget = runWinget();
+    if (winget.status === 0) {
+      const after = findOhMyPosh(options);
+      return {
+        skipped: false,
+        installed: true,
+        themeWritten: true,
+        ok: true,
+        via: 'winget',
+        themePath,
+        ompPath: after?.ompPath,
+      };
+    }
   }
 
   try {
-    const viaExe = await installOhMyPoshExe(options);
+    const viaExe = await installOhMyPoshBinary(options);
     const after = findOhMyPosh(options);
     return {
       skipped: false,
       installed: viaExe.ok === true,
       themeWritten: true,
       ok: viaExe.ok === true || Boolean(after),
-      via: 'exe',
+      via: viaExe.via ?? 'download',
       themePath,
       ompPath: after?.ompPath,
       message: viaExe.ok ? undefined : viaExe.message,
@@ -244,15 +264,25 @@ export async function ensureOhMyPosh(options = {}) {
   }
 }
 
-async function installOhMyPoshExe(options = {}) {
+async function installOhMyPoshBinary(options = {}) {
   const env = options.env ?? process.env;
-  const destDir = options.runtimeDir ?? ohMyPoshRuntimeDir(env);
-  const dest = winJoin(destDir, 'oh-my-posh.exe');
+  const platform = options.platform ?? process.platform;
+  const destDir = options.runtimeDir ?? ohMyPoshRuntimeDir(env, platform);
+  const destName = platform === 'win32' ? 'oh-my-posh.exe' : 'oh-my-posh';
+  const dest = hostJoin(platform, destDir, destName);
   const download = options.downloadToFile ?? downloadToFile;
-  await download(OMP_EXE_URL, dest);
+  await mkdir(destDir, { recursive: true });
+  await download(ohMyPoshDownloadUrl(platform, options.arch ?? process.arch), dest);
+  if (platform !== 'win32') {
+    try {
+      await chmod(dest, 0o755);
+    } catch {
+      // chmod is best-effort on exotic filesystems
+    }
+  }
   return existsSync(dest) || (options.isFile?.(dest) === true)
-    ? { ok: true }
-    : { ok: false, message: 'Oh My Posh download did not produce oh-my-posh.exe' };
+    ? { ok: true, via: 'download' }
+    : { ok: false, message: `Oh My Posh download did not produce ${destName}` };
 }
 
 function defaultRunWingetOmp() {
@@ -305,3 +335,4 @@ function winJoin(...parts) {
     })
     .join('\\');
 }
+

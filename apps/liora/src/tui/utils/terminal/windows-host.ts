@@ -1,6 +1,6 @@
 /**
- * Env-only Windows TUI host check. Used at startup so the TUI can hint
- * `/windows-setup` without importing installer scripts.
+ * Env-only TUI host checks. Used at startup so the TUI can decide whether
+ * to prompt /host-setup without importing installer scripts.
  */
 
 export function windowsTuiHostDegraded(
@@ -10,7 +10,7 @@ export function windowsTuiHostDegraded(
   return platform === 'win32' && !(env.WT_SESSION ?? '').trim();
 }
 
-/** CI / pipeline hosts must not download Windows Terminal during TUI tests. */
+/** CI / pipeline hosts must not download packages during TUI tests. */
 export function isCiLike(env: NodeJS.ProcessEnv = process.env): boolean {
   const ci = (env.CI ?? '').trim().toLowerCase();
   if (ci === 'true' || ci === '1' || ci === 'yes') return true;
@@ -20,18 +20,22 @@ export function isCiLike(env: NodeJS.ProcessEnv = process.env): boolean {
 }
 
 /**
- * Best-effort auto-apply on conhost / PC-bang. Installer skip flags and
- * `SUPERLIORA_AUTO_TERMINAL=0` turn this off. CI is always off.
+ * Show the host-setup confirm sheet when the planner later reports gaps.
+ * Installer skip flags and `SUPERLIORA_AUTO_TERMINAL=0` turn this off. CI is always off.
  */
-export function shouldAutoApplyWindowsSetup(
+export function shouldPromptHostSetup(
   env: NodeJS.ProcessEnv = process.env,
-  platform: NodeJS.Platform = process.platform,
 ): boolean {
-  if (!windowsTuiHostDegraded(env, platform)) return false;
   if (isCiLike(env)) return false;
-  if (env.SUPERLIORA_NO_TERMINAL === '1' || env.SUPERLIORA_SKIP_TERMINAL === '1') {
-    return false;
-  }
+  if (env.SUPERLIORA_NO_HOST_SETUP === '1') return false;
   if (env.SUPERLIORA_AUTO_TERMINAL === '0') return false;
   return true;
+}
+
+/** @deprecated Silent auto-apply is gone; use {@link shouldPromptHostSetup}. */
+export function shouldAutoApplyWindowsSetup(
+  _env: NodeJS.ProcessEnv = process.env,
+  _platform: NodeJS.Platform = process.platform,
+): boolean {
+  return false;
 }

@@ -46,7 +46,8 @@ async function ensureRuntimePrereqsAt(
   packageRoot: string,
 ): Promise<RuntimePrereqResult> {
   const gitScript = resolveInstallScript(packageRoot, 'ensure-git.mjs');
-  const terminalScript = resolveInstallScript(packageRoot, 'ensure-terminal.mjs');
+  const terminalScript = resolveInstallScript(packageRoot, 'host-setup.mjs')
+    ?? resolveInstallScript(packageRoot, 'ensure-terminal.mjs');
   const pnpmScript = resolveInstallScript(packageRoot, 'ensure-pnpm.mjs');
   if (gitScript === undefined && terminalScript === undefined && pnpmScript === undefined) {
     return {
@@ -93,27 +94,36 @@ async function ensureRuntimePrereqsAt(
   if (terminalScript !== undefined) {
     try {
       const mod = (await import(pathToFileURL(terminalScript).href)) as {
-        ensureTerminal: (opts?: { noShellRc?: boolean }) => Promise<{
+        ensureHostSetup?: (opts?: {
+          noShellRc?: boolean;
+          skipPackages?: boolean;
+        }) => Promise<{
+          ok?: boolean;
+          skipped?: boolean;
+          message?: string;
+        }>;
+        ensureTerminal?: (opts?: { noShellRc?: boolean; skipPackages?: boolean }) => Promise<{
           ok?: boolean;
           skipped?: boolean;
           message?: string;
         }>;
       };
-      const result = await mod.ensureTerminal({
-        noShellRc: true,
-        // Upgrade must not install packages; only refresh fragment/shortcut when wt.exe exists.
+      const apply = mod.ensureHostSetup ?? mod.ensureTerminal;
+      const result = await apply?.({
+        // Refresh managed theme / profile block. Do not download packages.
+        noShellRc: false,
         skipPackages: true,
         runWinget: () => ({ status: 1, message: 'skipped during upgrade' }),
         fetchLatestRelease: async () => undefined,
       });
-      if (result.ok === false) {
+      if (result?.ok === false) {
         terminalOk = false;
         if (result.message) warnings.push(result.message);
       }
     } catch (error) {
       terminalOk = false;
       const message = error instanceof Error ? error.message : String(error);
-      warnings.push(`Windows Terminal setup failed: ${message}`);
+      warnings.push(`Host setup refresh failed: ${message}`);
     }
   }
 

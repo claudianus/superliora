@@ -25,6 +25,7 @@ describe('windows terminal readiness injection', () => {
     expect(snap.status).toBe('degraded');
     const text = renderWindowsTerminalReadiness(snap);
     expect(text).toContain('host=conhost status=degraded');
+    expect(text).toContain('/host-setup');
     expect(text).toContain('/windows-setup apply');
     expect(text).toContain('task_track=general');
     expect(text).toContain('windows-vibe');
