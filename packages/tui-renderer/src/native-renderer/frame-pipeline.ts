@@ -48,7 +48,7 @@ export function createNativeFrameRendererOptions(
   currentSynchronized: boolean | undefined,
   options: Pick<
     NativeTerminalRendererOptions,
-    'resetStyle' | 'originX' | 'originY' | 'eraseLine' | 'colorMode' | 'imageProtocol' | 'outputPolicy'
+    'resetStyle' | 'originX' | 'originY' | 'eraseLine' | 'colorMode' | 'imageProtocol' | 'outputPolicy' | 'fill'
   >,
   now: () => number,
 ): NativeFrameRendererOptions {
@@ -61,6 +61,7 @@ export function createNativeFrameRendererOptions(
     originX: options.originX,
     originY: options.originY,
     eraseLine: options.eraseLine,
+    canvasBackground: options.fill?.style?.bg,
     colorMode: options.colorMode,
     inlineImageProtocol: options.imageProtocol,
     outputPolicy: options.outputPolicy,

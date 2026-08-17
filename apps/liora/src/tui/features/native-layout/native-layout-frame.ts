@@ -94,6 +94,8 @@ export function renderTUIStateNativeFrame(
       synchronized: true,
       hideCursor: true,
       showCursor: true,
+      eraseLine: false,
+      canvasBackground: (options.fill ?? currentTheme.canvasBackgroundCell())?.style?.bg,
     });
 
   renderer.resize(width, height);
@@ -138,6 +140,7 @@ export function createTUIStateNativeRenderer(
       });
     }),
     fill: options.fill ?? currentTheme.canvasBackgroundCell(),
+    eraseLine: options.eraseLine ?? false,
     outputPolicy: options.outputPolicy ?? premiumDefaults.outputPolicy,
     regionVfxFrames: options.regionVfxFrames ?? premiumDefaults.regionVfxFrames,
     measureFrameHeight: options.growWithContent === true

@@ -675,6 +675,56 @@ describe('createTUIState', () => {
     expect(rowText(frame.renderer.frame, 7)).toContain('SPLASH-7');
   });
 
+  it('seals every native-frame cell with an explicit background', () => {
+    const state = createTUIState({
+      initialAppState: fakeInitialAppState(),
+      startup: {
+        continueLast: false,
+        yolo: false,
+        auto: false,
+        plan: false,
+      },
+    });
+    Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => 6 });
+    Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => 14 });
+    state.editor.setText('hello');
+    state.editorContainer.addChild(state.editor);
+
+    const frame = renderTUIStateNativeFrame(state);
+    for (let y = 0; y < frame.height; y++) {
+      for (let x = 0; x < frame.width; x++) {
+        expect(frame.renderer.frame.getCell(x, y).style?.bg).toBeDefined();
+      }
+    }
+  });
+
+  it('pads a short fullscreen takeover with canvas-backed cells', () => {
+    const state = createTUIState({
+      initialAppState: fakeInitialAppState(),
+      startup: {
+        continueLast: false,
+        yolo: false,
+        auto: false,
+        plan: false,
+      },
+    });
+    state.ui.clear();
+    state.ui.addChild({
+      render(): string[] {
+        return ['HI'];
+      },
+      invalidate(): void {},
+    } satisfies Component);
+
+    const frame = renderTUIStateNativeFrame(state, { width: 10, height: 4 });
+    expect(rowText(frame.renderer.frame, 0)).toContain('HI');
+    for (let y = 1; y < 4; y++) {
+      for (let x = 0; x < 10; x++) {
+        expect(frame.renderer.frame.getCell(x, y).style?.bg).toBe(state.theme.palette.background);
+      }
+    }
+  });
+
   it('renders a bottom-center toast overlay region while a toast is visible', () => {
     const state = createTUIState({
       initialAppState: fakeInitialAppState(),
@@ -890,7 +940,7 @@ describe('createTUIState', () => {
     expect(renderer.lastFrame?.present?.outputPolicy).toMatchObject({
       mode: 'full',
       reason: 'disabled',
-      eraseLine: true,
+      eraseLine: false,
     });
     expect(renderer.stats.frames).toBe(1);
     expect(renderer.stats.health).toBe('healthy');

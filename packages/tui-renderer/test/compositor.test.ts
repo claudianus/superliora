@@ -136,8 +136,11 @@ describe('composeRendererRegions missing-line background fill', () => {
     };
     composeRendererRegions(buffer, [region]);
 
-    // Painted content row
+    // Painted content row. Trailing columns still hold the prior X fill —
+    // background without clear must not wipe existing glyphs.
     expect(buffer.getCell(0, 1).char).toBe('h');
+    expect(buffer.getCell(5, 1).char).toBe('X');
+    expect(buffer.getCell(5, 1).style?.bg).toBe('#ff0000');
     // Missing rows inside rect must take region.background, not prior buffer/X
     for (const y of [2, 3, 4]) {
       for (let x = 0; x < 10; x++) {
@@ -148,6 +151,24 @@ describe('composeRendererRegions missing-line background fill', () => {
     // Outside the region stays the prior fill
     expect(buffer.getCell(0, 0).char).toBe('X');
     expect(buffer.getCell(0, 5).char).toBe('X');
+  });
+
+  it('fills unstyled trailing blanks on a short content row', () => {
+    const bg = { char: ' ', style: { bg: '#0b0f14' } };
+    const buffer = new RendererCellBuffer(8, 1);
+    composeRendererRegions(buffer, [
+      {
+        rect: { x: 0, y: 0, width: 8, height: 1 },
+        lines: ['hi'],
+        clear: false,
+        background: bg,
+      },
+    ]);
+    expect(buffer.getCell(0, 0).char).toBe('h');
+    expect(buffer.getCell(1, 0).char).toBe('i');
+    for (let x = 2; x < 8; x++) {
+      expect(buffer.getCell(x, 0)).toEqual({ char: ' ', style: { bg: '#0b0f14' } });
+    }
   });
 
   it('does not double-fill missing rows when clear:true already wiped the rect', () => {
@@ -162,6 +183,7 @@ describe('composeRendererRegions missing-line background fill', () => {
     };
     composeRendererRegions(buffer, [region]);
     expect(buffer.getCell(0, 0).char).toBe('a');
+    expect(buffer.getCell(2, 0).style?.bg).toBe('#101010');
     expect(buffer.getCell(0, 1).style?.bg).toBe('#101010');
     expect(buffer.getCell(0, 2).style?.bg).toBe('#101010');
   });

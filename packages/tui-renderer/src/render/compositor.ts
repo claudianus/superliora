@@ -232,7 +232,16 @@ export function composeRendererRegions(
           const sourceX = x - rect.x;
           const cell = cells[sourceX];
           if (cell === undefined) {
-            cellsClipped++;
+            // Short rows used to leave EMPTY trailing cells (no bg). CSI K
+            // then flashes them black. Only fill unstyled blanks — never wipe
+            // prior glyphs (`X` over `hello` must stay `Xello`).
+            const existing = buffer.getCell(x, y);
+            if (region.background !== undefined && compositorHoleNeedsBackground(existing)) {
+              buffer.setCell(x, y, inheritRegionBackground(existing, region));
+              cellsWritten++;
+            } else {
+              cellsClipped++;
+            }
             continue;
           }
           buffer.setCell(x, y, inheritRegionBackground(cell, region));
@@ -255,6 +264,12 @@ export function composeRendererRegions(
     lineCacheFrame: diffLineCacheStats(lineCacheBefore, lineCache),
     compositionCache: options.cache?.snapshot(),
   };
+}
+
+function compositorHoleNeedsBackground(cell: RendererCell): boolean {
+  if (cell.continuation === true) return false;
+  if (cell.char !== ' ') return false;
+  return cell.style?.bg === undefined;
 }
 
 function inheritRegionBackground(

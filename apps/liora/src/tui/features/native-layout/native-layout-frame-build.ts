@@ -112,9 +112,14 @@ function buildNativeFullscreenTakeoverFrame(
     }
   }
   // Clip or pad to the terminal height so the takeover owns the full surface.
+  // Pad with canvas cells, not raw spaces — unstyled pads encode as the
+  // terminal default background and flash as black bands on ConPTY.
   const clipped = lines.slice(0, height);
+  const padLine: RendererRegionLine = canvasBackground === undefined
+    ? ' '.repeat(Math.max(0, width))
+    : Array.from({ length: Math.max(0, width) }, () => canvasBackground);
   while (clipped.length < height) {
-    clipped.push(' '.repeat(Math.max(0, width)));
+    clipped.push(padLine);
   }
   const rect = { x: 0, y: 0, width, height };
   const projected = projectRendererCursorMarkerLines({

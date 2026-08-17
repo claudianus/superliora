@@ -316,13 +316,11 @@ export function resolveTUIStateNativeFramePolicy(
 /**
  * Whether stack regions should skip clear-fills (damage-only paint).
  *
- * Idle Jewel Tank + Welcome must stay damage-only even on request-only ticks
- * (thinking footer), otherwise clear:true rewrites the whole transcript every
- * status update and tears into black horizontal bands inside the stage.
- *
- * Pure transcript scroll must also stay damage-only: blanking stack regions
- * (transcript/editor/chrome) on every wheel tick is the main background
- * flicker path (clear→topology miss→full beginFrame clear).
+ * Every cause except resize stays damage-only. Request/manual ticks
+ * (footer, thinking, tool) used to return false, set region.clear, and
+ * fillRect the whole stack before rewrite — the remaining ConPTY black
+ * band. Topology changes still beginFrame-clear via the composition cache
+ * miss; holes are sealed with canvas background after compose.
  */
 export function shouldUseAmbientDamageOnlyPaint(input: {
   readonly structuralShift: boolean;
@@ -335,72 +333,5 @@ export function shouldUseAmbientDamageOnlyPaint(input: {
   readonly idleAquariumMounted: boolean;
   readonly fullscreenTakeover?: boolean;
 }): boolean {
-  // Snapshot optional booleans once so control-flow narrowing does not turn
-  // later `=== true` checks into always-false after compound expressions.
-  const contentGrew = input.contentGrew === true;
-  const geometryShift = input.geometryShift === true;
-  const contentShrunk = input.contentShrunk === true;
-
-  if (input.causes.includes('resize')) {
-    return false;
-  }
-
-  // Pure keystroke (optionally coalesced with ambient animation): only the
-  // editor surface changes. clear:true here blanks stack rects before rewrite
-  // and is the remaining prompt-char / black-band hole on typing frames.
-  if (
-    isPureInputFrame(input.causes, input.structuralShift, input.viewportScrolled)
-  ) {
-    return true;
-  }
-
-  // Editor-slot geometry (replacement / unmount / restore) and transcript
-  // shrink used to flip region.clear and beginFrame-clear the stage. Stack
-  // paint overwrites the changed rows; keep damage-only so letterbox/stage
-  // do not flash a black band. Resize still clears above.
-  if (geometryShift || contentShrunk) {
-    return true;
-  }
-
-  // Pure scroll (optionally coalesced with ambient animation) must not
-  // clear-fill stack regions — that blanks letterbox/stage for a frame.
-  if (
-    isPureTranscriptScrollFrame(
-      input.causes,
-      input.viewportScrolled,
-      // Treat content-only growth as non-structural for pure-scroll detection;
-      // pure scroll already requires !structuralShift from the caller.
-      input.structuralShift && !contentGrew,
-    )
-  ) {
-    return true;
-  }
-
-  // Append-only transcript growth: keep damage-only so streaming does not
-  // flip region.clear and thrash composition topology (full-buffer clear flash).
-  if (contentGrew) {
-    return true;
-  }
-
-  // Other structural shifts (unknown content churn without grew/shrunk flags)
-  // keep the conservative clear path.
-  if (input.structuralShift) {
-    return false;
-  }
-
-  // Viewport moved with stable geometry: the transcript region is a fixed
-  // height window always filled by virtual-scroll paint. Damage-only overwrites
-  // every cell that changed; clear-fill would blank letterbox/stage for a frame
-  // when scroll coalesces with non-compatible causes (e.g. request).
-  if (input.viewportScrolled) {
-    return true;
-  }
-
-  // Jewel Tank + Welcome must stay damage-only whenever the idle stage is
-  // mounted — even if ambientAnimationAllowed is false (selection holdoff,
-  // quality gate). Otherwise clear:true rewrites the transcript and tears
-  // into black bands while letterbox particles keep animating.
-  if (input.idleAquariumMounted) return true;
-  if (!input.causes.includes('animation')) return false;
-  return input.ambientAnimationAllowed || input.fullscreenTakeover === true;
+  return !input.causes.includes('resize');
 }

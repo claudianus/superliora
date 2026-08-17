@@ -3353,6 +3353,53 @@ describe('terminal output encoder', () => {
     })).toBe('\u001B[1;1Hx    ');
   });
 
+  it('never emits CSI K after SGR reset or when a canvas background is set', () => {
+    const styledThenBlanks = encodeTerminalRuns([
+      {
+        x: 0,
+        y: 0,
+        cells: [
+          { char: 'o', style: { fg: '#ffffff', bg: '#111111' } },
+          { char: 'k', style: { fg: '#ffffff', bg: '#111111' } },
+          { char: ' ' },
+          { char: ' ' },
+          { char: ' ' },
+          { char: ' ' },
+          { char: ' ' },
+          { char: ' ' },
+        ],
+      },
+    ], {
+      eraseLine: true,
+      frameWidth: 8,
+    });
+    expect(styledThenBlanks).not.toContain(ANSI_ERASE_IN_LINE);
+    expect(styledThenBlanks).not.toContain(`${ANSI_RESET_STYLE}${ANSI_ERASE_IN_LINE}`);
+
+    const themedCanvas = encodeTerminalRuns([
+      {
+        x: 0,
+        y: 0,
+        cells: [
+          { char: 'o' },
+          { char: 'k' },
+          { char: ' ' },
+          { char: ' ' },
+          { char: ' ' },
+          { char: ' ' },
+          { char: ' ' },
+          { char: ' ' },
+        ],
+      },
+    ], {
+      eraseLine: true,
+      frameWidth: 8,
+      canvasBackground: '#0b0f14',
+    });
+    expect(themedCanvas).not.toContain(ANSI_ERASE_IN_LINE);
+    expect(themedCanvas).toBe('\u001B[1;1Hok      ');
+  });
+
   it('supports origin offsets for nested renderer regions', () => {
     const output = encodeTerminalRuns(
       [{ x: 2, y: 3, cells: [{ char: 'x' }] }],
@@ -4155,6 +4202,33 @@ describe('renderNativeLayoutFrame', () => {
     expect(second.diff.changedCells).toBe(0);
     expect(second.output).toBe(`\u001B[1;2H${ANSI_SHOW_CURSOR}`);
     expect(writes.at(-1)).toBe(second.output);
+  });
+
+  it('seals every cell with canvas fill and never emits CSI K', () => {
+    const writes: string[] = [];
+    const fill = { char: ' ', style: { bg: '#0b0f14' } };
+    const renderer = new NativeFrameRenderer({
+      width: 8,
+      height: 3,
+      output: { write: (chunk) => writes.push(chunk) },
+      eraseLine: true,
+    });
+    const result = renderNativeLayoutFrame(renderer, [
+      {
+        rect: { x: 0, y: 0, width: 8, height: 3 },
+        content: ['hi'],
+        clear: false,
+        background: fill,
+      },
+    ], { fill });
+
+    for (let y = 0; y < 3; y++) {
+      for (let x = 0; x < 8; x++) {
+        expect(renderer.frame.getCell(x, y).style?.bg).toBe('#0b0f14');
+      }
+    }
+    expect(result.output).not.toContain(ANSI_ERASE_IN_LINE);
+    expect(result.output).not.toContain(`${ANSI_RESET_STYLE}${ANSI_ERASE_IN_LINE}`);
   });
 });
 

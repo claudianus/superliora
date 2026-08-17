@@ -6,7 +6,7 @@ import {
   type RendererRect,
   type RendererCompositionOptions,
 } from '../render/compositor';
-import type { RendererCell } from '../cell-buffer/index';
+import { sealRendererBufferBackground, type RendererCell } from '../cell-buffer/index';
 import {
   NativeFrameRenderer,
   type NativeFramePresentResult,
@@ -74,13 +74,16 @@ export function renderNativeLayoutFrame(
   if (options.cursor !== undefined) {
     renderer.setCursor(options.cursor);
   }
+  sealRendererBufferBackground(renderer.frame, options.fill);
   if (options.beforePresent !== undefined) {
     options.beforePresent(renderer);
   }
+  sealRendererBufferBackground(renderer.frame, options.fill);
   const present = renderer.present({
     force: options.force,
     forceCursor: options.forceCursor,
     rewriteUnchanged: options.rewriteUnchanged,
+    canvasBackground: options.fill?.style?.bg,
   });
   return { ...present, composition, regions: layers };
 }

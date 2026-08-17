@@ -119,6 +119,11 @@ export interface RendererTerminalOutputOptions {
   readonly originY?: number;
   readonly cursor?: RendererCursorState;
   readonly eraseLine?: boolean;
+  /**
+   * Theme canvas background. When set, CSI K is never used — erase-in-line
+   * after SGR reset fills with the terminal default (often black) on ConPTY.
+   */
+  readonly canvasBackground?: string;
   readonly frameWidth?: number;
   readonly frameHeight?: number;
   readonly colorMode?: RendererColorMode;

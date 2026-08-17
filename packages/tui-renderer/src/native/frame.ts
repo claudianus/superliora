@@ -152,19 +152,23 @@ export class NativeFrameRenderer {
        * command and only the exposed rows need re-encoding.
        */
       readonly scrollDelta?: number;
+      readonly canvasBackground?: string;
     } = {},
   ): NativeFramePresentResult {
     const startedAt = this.now();
-    // forceNextPresent marks construct/resize resync: the soft previous buffer
-    // is empty (or stale) while the terminal was cleared (clearOnStart CSI 2J /
-    // alt-screen enter). Soft-force alone scans equal EMPTY cells and emits no
-    // chrome glyphs — first paint stays blank on ConPTY. Hard-rewrite once.
-    const resync = this.forceNextPresent || options.rewriteUnchanged === true;
-    const force = options.force === true || this.forceNextPresent || resync;
+    // forceNextPresent is a full scan after construct/resize so dirty-row
+    // tracking cannot miss chrome. Equal EMPTY cells stay skipped — rewriting
+    // unstyled blanks paints the terminal default (often black) on ConPTY.
+    // Canvas-sealed cells have an explicit bg, differ from EMPTY, and emit.
+    // A wiped terminal whose soft buffer already matches still needs an
+    // explicit rewriteUnchanged from the caller.
+    const rewriteUnchanged = options.rewriteUnchanged === true;
+    const force = options.force === true || this.forceNextPresent;
+    const resync = this.forceNextPresent || rewriteUnchanged;
     const diffStartedAt = this.now();
     const baseDiff = this.buffers.present({
       force,
-      rewriteUnchanged: resync,
+      rewriteUnchanged,
       runOptimization: this.options.runOptimization ?? true,
     });
     const diff: RendererFrameDiff = options.scrollDelta !== undefined && options.scrollDelta !== 0
@@ -189,6 +193,7 @@ export class NativeFrameRenderer {
         frameHeight: this.height,
         cursorMotion: this.options.cursorMotion ?? 'auto',
         previousCursor: this.previousCursor,
+        canvasBackground: options.canvasBackground ?? this.options.canvasBackground,
       },
       policy: this.options.outputPolicy,
     });
