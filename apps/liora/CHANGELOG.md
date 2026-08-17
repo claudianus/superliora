@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.12.1
+
+### Patch Changes
+
+- Stop the blank flickering transcript on first launch so Welcome and the idle scene paint instead of an empty pane.
+
 ## 0.12.0
 
 ### Minor Changes
