@@ -389,6 +389,7 @@ export class RendererCellBuffer {
 }
 
 export * from './types';
+export * from './seal';
 export { cellsEqual } from './normalize';
 export { mergeDirtyRowIntervals } from './dirty-rows';
 export { coalesceCellPatches, coalesceCellPatchesWithFrameGaps } from './patch-runs';

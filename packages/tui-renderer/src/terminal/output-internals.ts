@@ -256,6 +256,12 @@ export function resolveEraseLineStartIndex(
   options: RendererTerminalOutputOptions,
 ): number | undefined {
   if (options.eraseLine !== true) return undefined;
+  // Themed frames must write explicit background cells. CSI K uses the
+  // current SGR background; after reset that is the terminal default.
+  if (options.canvasBackground !== undefined) return undefined;
+  if (run.cells.some((cell) => cell.style !== undefined || cell.link !== undefined)) {
+    return undefined;
+  }
 
   const frameWidth = normalizeFrameWidth(options.frameWidth);
   if (frameWidth === undefined || run.x < 0 || run.x >= frameWidth) return undefined;

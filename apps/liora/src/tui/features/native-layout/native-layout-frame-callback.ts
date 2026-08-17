@@ -189,11 +189,10 @@ export function createTUIStateNativeRenderCallback(
     })
       ? chromeCache
       : undefined;
-    // Animation / idle-aquarium ticks must not full-clear. Request-only frames
-    // while Jewel Tank is mounted (e.g. thinking footer) used to clear:true the
-    // whole transcript — ~70% frame rewrite that tears into black horizontal bands
-    // inside the stage even with sync wrapping.
-    // Structural / viewport / resize frames keep clears so layout holes wipe.
+    // Every cause except resize stays damage-only. Request/manual ticks used
+    // to clear:true the whole stack and tear into black bands on ConPTY.
+    // Topology changes still beginFrame-clear via the composition cache miss;
+    // short-row holes are sealed with canvas background after compose.
     const idleAquariumMounted = state.transcriptContainer.hasIdleStageMounted;
     const ambientDamageOnly = splashJustDisposed || shouldUseAmbientDamageOnlyPaint({
       structuralShift: layoutShift.structuralShift,

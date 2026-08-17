@@ -396,6 +396,27 @@ describe('shouldUseAmbientDamageOnlyPaint scroll paths', () => {
       }),
     ).toBe(false);
   });
+
+  it('stays damage-only for request-only ticks (footer / thinking / tool)', () => {
+    expect(
+      shouldUseAmbientDamageOnlyPaint({
+        ...base,
+        viewportScrolled: false,
+        causes: ['request'],
+      }),
+    ).toBe(true);
+  });
+
+  it('stays damage-only for unknown structural request churn', () => {
+    expect(
+      shouldUseAmbientDamageOnlyPaint({
+        ...base,
+        structuralShift: true,
+        viewportScrolled: false,
+        causes: ['request', 'manual'],
+      }),
+    ).toBe(true);
+  });
 });
 
 describe('tuiChromeEpoch', () => {
