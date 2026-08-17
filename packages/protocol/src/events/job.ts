@@ -10,18 +10,24 @@
  *
  * v3 (Conductor UX v2): optional deliveryPhase, briefPreview, gateChecklist,
  * landReceipt on snapshots; optional actionHints on inbox events.
+ *
+ * v4: optional effectPreview — isolation / track / surface provenance so the
+ * TUI can show why a job is isolated or running on this checkout.
  */
 
 import { z } from 'zod';
 
-export const JOB_EVENT_SCHEMA_VERSION = 3 as const;
+export const JOB_EVENT_SCHEMA_VERSION = 4 as const;
 /** v1 payloads stay parseable for journal dual-read (contract §10). */
 export const JOB_EVENT_SCHEMA_VERSION_V1 = 1 as const;
 /** v2 payloads stay parseable for journal dual-read. */
 export const JOB_EVENT_SCHEMA_VERSION_V2 = 2 as const;
+/** v3 payloads stay parseable for journal dual-read. */
+export const JOB_EVENT_SCHEMA_VERSION_V3 = 3 as const;
 export type JobEventSchemaVersion =
   | typeof JOB_EVENT_SCHEMA_VERSION_V1
   | typeof JOB_EVENT_SCHEMA_VERSION_V2
+  | typeof JOB_EVENT_SCHEMA_VERSION_V3
   | typeof JOB_EVENT_SCHEMA_VERSION;
 
 export type JobEventStatus =
@@ -96,6 +102,39 @@ export interface JobLandReceiptSnapshot {
   readonly gcRemoved?: boolean;
 }
 
+export type JobTaskTrackSnapshot = 'coding' | 'general';
+export type JobTaskTrackSourceSnapshot =
+  | 'declared'
+  | 'inherited'
+  | 'structural'
+  | 'inferred'
+  | 'pending'
+  | 'default';
+export type JobSurfaceKindSnapshot = 'none' | 'web' | 'tui' | 'mixed';
+export type JobIsolationSnapshot = 'worktree' | 'checkout' | 'none';
+export type JobPremiumDensitySnapshot = 'visual' | 'code';
+
+/**
+ * Operator-visible effect contract (schemaVersion 4).
+ * Fields are facts; `chip` / `summary` are ready-to-render lines.
+ */
+export interface JobEffectPreview {
+  readonly taskTrack?: JobTaskTrackSnapshot;
+  readonly taskTrackSource?: JobTaskTrackSourceSnapshot;
+  readonly surfaceKind?: JobSurfaceKindSnapshot;
+  readonly isolation: JobIsolationSnapshot;
+  readonly premiumDensity?: JobPremiumDensitySnapshot;
+  readonly debugFixer?: boolean;
+  readonly explorePrototype?: boolean;
+  /** Job Deck chip, e.g. `checkout` or `worktree · web`. */
+  readonly chip: string;
+  /** ACK / inspect line, e.g. `general · this checkout · Conductor judged`. */
+  readonly summary: string;
+}
+
+/** Structured Maker≠Checker verify outcome on the wire (schemaVersion 4). */
+export type JobVerifyVerdictSnapshot = 'passed' | 'failed';
+
 export interface JobSnapshot {
   readonly id: string;
   readonly title: string;
@@ -119,6 +158,17 @@ export interface JobSnapshot {
   readonly gateChecklist?: JobGateChecklist;
   /** Post-merge land receipt summary (schemaVersion 3). */
   readonly landReceipt?: JobLandReceiptSnapshot;
+  /** Isolation / track / surface provenance (schemaVersion 4). */
+  readonly effectPreview?: JobEffectPreview;
+  /**
+   * Immediate parent job in a verify/debug chain (schemaVersion 4).
+   * Lets the TUI collapse auto verify/debug children under one outcome.
+   */
+  readonly parentJobId?: string;
+  /** Structured verify verdict when kind=verify is terminal (schemaVersion 4). */
+  readonly verifyVerdict?: JobVerifyVerdictSnapshot;
+  /** Debug-fixer implement child (schemaVersion 4). */
+  readonly debugFixer?: boolean;
 }
 
 export interface JobUpdatedEvent {
@@ -218,12 +268,40 @@ export const jobLandReceiptSnapshotSchema = z.object({
   gcRemoved: z.boolean().optional(),
 }) satisfies z.ZodType<JobLandReceiptSnapshot>;
 
-/** Dual-read: accept v1, v2, and v3 payloads on the same schemas. */
+export const jobTaskTrackSnapshotSchema = z.enum(['coding', 'general']);
+export const jobTaskTrackSourceSnapshotSchema = z.enum([
+  'declared',
+  'inherited',
+  'structural',
+  'inferred',
+  'pending',
+  'default',
+]);
+export const jobSurfaceKindSnapshotSchema = z.enum(['none', 'web', 'tui', 'mixed']);
+export const jobIsolationSnapshotSchema = z.enum(['worktree', 'checkout', 'none']);
+export const jobPremiumDensitySnapshotSchema = z.enum(['visual', 'code']);
+
+export const jobEffectPreviewSchema = z.object({
+  taskTrack: jobTaskTrackSnapshotSchema.optional(),
+  taskTrackSource: jobTaskTrackSourceSnapshotSchema.optional(),
+  surfaceKind: jobSurfaceKindSnapshotSchema.optional(),
+  isolation: jobIsolationSnapshotSchema,
+  premiumDensity: jobPremiumDensitySnapshotSchema.optional(),
+  debugFixer: z.boolean().optional(),
+  explorePrototype: z.boolean().optional(),
+  chip: z.string(),
+  summary: z.string(),
+}) satisfies z.ZodType<JobEffectPreview>;
+
+/** Dual-read: accept v1–v4 payloads on the same schemas. */
 export const jobEventSchemaVersionSchema = z.union([
   z.literal(JOB_EVENT_SCHEMA_VERSION_V1),
   z.literal(JOB_EVENT_SCHEMA_VERSION_V2),
+  z.literal(JOB_EVENT_SCHEMA_VERSION_V3),
   z.literal(JOB_EVENT_SCHEMA_VERSION),
 ]) satisfies z.ZodType<JobEventSchemaVersion>;
+
+export const jobVerifyVerdictSnapshotSchema = z.enum(['passed', 'failed']);
 
 export const jobSnapshotSchema = z.object({
   id: z.string(),
@@ -241,6 +319,10 @@ export const jobSnapshotSchema = z.object({
   briefPreview: jobBriefPreviewSchema.optional(),
   gateChecklist: jobGateChecklistSchema.optional(),
   landReceipt: jobLandReceiptSnapshotSchema.optional(),
+  effectPreview: jobEffectPreviewSchema.optional(),
+  parentJobId: z.string().optional(),
+  verifyVerdict: jobVerifyVerdictSnapshotSchema.optional(),
+  debugFixer: z.boolean().optional(),
 }) satisfies z.ZodType<JobSnapshot>;
 
 export const jobUpdatedEventSchema = z.object({

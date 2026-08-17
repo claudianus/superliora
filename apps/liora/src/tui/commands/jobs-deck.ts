@@ -39,11 +39,9 @@ export function openJobDeckViewer(host: SlashCommandHost, jobId?: string): void 
     return;
   }
   const snapshot = host.state.appState.conductorJobs ?? emptyConductorJobsSnapshot();
-  if (snapshot.jobs.length === 0 && !isConductorUxV2Enabled()) {
-    host.showStatus(
-      'No Conductor jobs yet — the Job Deck opens once jobs exist.',
-      'textMuted',
-    );
+  // Empty sessions: never force the board into the composer.
+  if (snapshot.jobs.length === 0) {
+    host.showStatus(ttui('tui.session.noJobsYet'), 'textMuted');
     return;
   }
 

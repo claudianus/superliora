@@ -48,6 +48,13 @@ import {
   resolveConductorJobCard,
 } from '#/tui/utils/job/job-strip';
 import { formatGateChecklistLine } from '#/tui/utils/job/gate-preview';
+import {
+  buildSessionOutcomeBoard,
+  flattenSessionOutcomes,
+  sessionOutcomeBucketLabel,
+  type SessionOutcomeRow,
+} from '#/tui/utils/job/session-outcome-board';
+import { ttui } from '#/tui/utils/tui-i18n';
 import { shortJobIdForCopy } from '#/tui/utils/job/job-id-copy';
 import {
   formatNeedsUserQuestionPreview,
@@ -305,20 +312,21 @@ export class JobDeckViewerComponent extends Container implements Focusable {
       style: (text) => theme.fg('primary', text),
     });
     const suffix =
-      view.query.length === 0 ? theme.fg('textMuted', '  (type to search)') : '';
-    const title = renderPremiumHeadline('Jobs — Conductor Deck', 'job-deck:title');
+      view.query.length === 0 ? theme.fg('textMuted', `  ${ttui('tui.jobs.deckSearchHint')}`) : '';
+    const title = renderPremiumHeadline(ttui('tui.jobs.outcomeBoardTitle'), 'job-deck:title');
     const lines: string[] = [
       border,
       ` ${title}${suffix}`,
       theme.fg(
         'textMuted',
-        ' ↑↓ navigate · Enter select · S steer · A answer · R resume · Esc cancel',
+        ` ${ttui('tui.jobs.deckNavHint')}`,
       ),
       theme.fg(
         'textDim',
-        ' M merge · P push · C copy id · X cancel job · R retry failed',
+        ` ${ttui('tui.jobs.deckActionHint')}`,
       ),
       this.renderMissionStrip(width),
+      this.renderOutcomeStrip(width),
       ...(this.snapshot.running > 0
         ? [
             ` ${renderParticleRail(Math.max(8, width - 4), getActiveAppearancePreferences(), 'job-deck:rail')}`,
@@ -326,21 +334,29 @@ export class JobDeckViewerComponent extends Container implements Focusable {
         : []),
       '',
     ];
+    if (view.query.length === 0 && this.snapshot.jobs.length >= 2) {
+      lines.push(...this.renderOutcomeSections(width));
+    }
     if (view.query.length > 0) {
       lines.push(theme.fg('text', ` Search: ${view.query}`));
     }
     if (view.items.length === 0) {
       if (this.snapshot.jobs.length === 0) {
-        lines.push(theme.fg('text', ' No jobs yet — Conductor is ready.'));
-        lines.push(theme.fg('textDim', ' 1. Type a task in chat → creates a Job'));
-        lines.push(theme.fg('textDim', ' 2. Jobs board (this deck) · Workers in the Dock (/agents)'));
-        lines.push(theme.fg('textDim', ' 3. Alt+J reopens Jobs anytime'));
-        lines.push(theme.fg('textMuted', ' Esc cancel · describe an outcome to get started'));
+        lines.push(theme.fg('text', ` ${ttui('tui.jobs.deckEmptyReady')}`));
+        lines.push(theme.fg('textDim', ` ${ttui('tui.jobs.deckEmptyStep1')}`));
+        lines.push(theme.fg('textDim', ` ${ttui('tui.jobs.deckEmptyStep2')}`));
+        lines.push(theme.fg('textDim', ` ${ttui('tui.jobs.deckEmptyStep3')}`));
+        lines.push(theme.fg('textMuted', ` ${ttui('tui.jobs.deckEmptyFooter')}`));
       } else {
-        lines.push(theme.fg('textMuted', ' No jobs match this search.'));
+        lines.push(theme.fg('textMuted', ` ${ttui('tui.jobs.deckNoMatch')}`));
       }
     }
     const now = Date.now();
+    // When showing outcome sections (2+ jobs, no search), keep the raw job list
+    // compact under a muted "jobs" subheader so outcomes stay primary.
+    if (view.query.length === 0 && this.snapshot.jobs.length >= 2 && view.items.length > 0) {
+      lines.push(theme.fg('textDim', ` ${ttui('tui.jobs.outcomeJobsSubheader')}`));
+    }
     const pageItems = view.items.slice(view.page.start, view.page.end);
     for (const [index, card] of pageItems.entries()) {
       const selected = view.page.start + index === view.selectedIndex;
@@ -385,19 +401,76 @@ export class JobDeckViewerComponent extends Container implements Focusable {
     const parts = [
       theme.fg('primary', `${String(s.running)}▸`),
       theme.fg('info', `${String(s.queued)}…`),
-      theme.fg('textDim', `${String(s.total)} total`),
+      theme.fg('textDim', `${String(s.total)} ${ttui('tui.jobs.outcomeJobsUnit')}`),
     ];
-    if (workers > 0) parts.push(theme.fg('text', `${String(workers)} workers`));
+    if (workers > 0) {
+      parts.push(theme.fg('text', `${String(workers)} ${ttui('tui.jobs.outcomeWorkersUnit')}`));
+    }
     if (wall !== undefined) parts.push(theme.fg('textMuted', `⏱ ${formatJobDuration(wall)}`));
     if (attention > 0) {
       parts.push(
-        theme.boldFg(s.blocked > 0 ? 'error' : 'warning', `${String(attention)} need you`),
+        theme.boldFg(s.blocked > 0 ? 'error' : 'warning', `${String(attention)} ${ttui('tui.jobs.outcomeNeedYou')}`),
       );
     }
     if (s.maxConcurrent !== undefined && s.maxConcurrent > 0) {
       parts.push(theme.fg('textMuted', `pool ${String(s.running)}/${String(s.maxConcurrent)}`));
     }
     return truncateToWidth(` ${parts.join(theme.fg('textMuted', ' · '))}`, width);
+  }
+
+  /** Outcome bucket counts: 막힘 · 남음 · 끝남 (jobs≥2 only). */
+  private renderOutcomeStrip(width: number): string {
+    if (this.snapshot.jobs.length < 2) return '';
+    const theme = currentTheme;
+    const board = buildSessionOutcomeBoard(this.snapshot.jobs);
+    const parts = [
+      theme.boldFg('error', `${sessionOutcomeBucketLabel('blocked')} ${String(board.blocked.length)}`),
+      theme.fg('warning', `${sessionOutcomeBucketLabel('remaining')} ${String(board.remaining.length)}`),
+      theme.fg('success', `${sessionOutcomeBucketLabel('done')} ${String(board.done.length)}`),
+      theme.fg('textDim', `${ttui('tui.jobs.outcomeUnit')} ${String(board.totalOutcomes)}`),
+    ];
+    return truncateToWidth(` ${parts.join(theme.fg('textMuted', ' · '))}`, width);
+  }
+
+  /** Full outcome sections above the raw job list. */
+  private renderOutcomeSections(width: number): string[] {
+    const theme = currentTheme;
+    const board = buildSessionOutcomeBoard(this.snapshot.jobs);
+    const rows = flattenSessionOutcomes(board);
+    if (rows.length === 0) return [];
+    const lines: string[] = [];
+    let lastBucket: SessionOutcomeRow['bucket'] | undefined;
+    for (const row of rows) {
+      if (row.bucket !== lastBucket) {
+        lastBucket = row.bucket;
+        const token =
+          row.bucket === 'blocked' ? 'error' : row.bucket === 'remaining' ? 'warning' : 'textMuted';
+        lines.push(
+          theme.boldFg(
+            token,
+            ` ▸ ${sessionOutcomeBucketLabel(row.bucket)} (${String(board[row.bucket].length)})`,
+          ),
+        );
+      }
+      lines.push(this.renderOutcomeRow(row, width));
+    }
+    lines.push('');
+    return lines;
+  }
+
+  private renderOutcomeRow(row: SessionOutcomeRow, width: number): string {
+    const theme = currentTheme;
+    const status = theme.fg(row.token, `[${row.statusLabel}]`);
+    const child =
+      row.collapsedChildCount > 0
+        ? theme.fg('textDim', ` · ${ttui('tui.jobs.outcomeChildCount', { n: row.collapsedChildCount })}`)
+        : '';
+    const reason =
+      row.reason !== undefined && row.reason.length > 0
+        ? theme.fg('textMuted', ` — ${row.reason}`)
+        : '';
+    const title = theme.fg('text', row.title);
+    return truncateToWidth(`   ${status} ${title}${child}${reason}`, width);
   }
 
   private renderJobRow(
@@ -422,6 +495,9 @@ export class JobDeckViewerComponent extends Container implements Focusable {
 
     const elapsed = jobElapsedMs(card, now);
     const rightParts: string[] = [card.kind, `p${String(card.priority)}`];
+    if (card.effectPreview?.chip !== undefined && card.effectPreview.chip.length > 0) {
+      rightParts.push(card.effectPreview.chip);
+    }
     if (elapsed !== undefined) rightParts.push(formatJobDuration(elapsed));
     if (card.progress?.phase !== undefined && card.progress.phase.length > 0) {
       rightParts.push(card.progress.phase);
@@ -708,6 +784,9 @@ export class JobDeckViewerComponent extends Container implements Focusable {
         ),
       );
     }
+    if (state.card.effectPreview?.chip !== undefined && state.card.effectPreview.chip.length > 0) {
+      parts.push(theme.fg('info', state.card.effectPreview.chip));
+    }
     if (state.card.gateChecklist !== undefined) {
       parts.push(theme.fg('info', formatGateChecklistLine(state.card.gateChecklist)));
     }
@@ -800,7 +879,8 @@ export class JobDeckViewerComponent extends Container implements Focusable {
     );
     return new SearchableList({
       items: cards,
-      toSearchText: (card) => `${card.id} ${card.title} ${card.status} ${card.kind}`,
+      toSearchText: (card) =>
+        `${card.id} ${card.title} ${card.status} ${card.kind} ${card.effectPreview?.chip ?? ''} ${card.effectPreview?.summary ?? ''}`,
       pageSize: DECK_LIST_ROWS,
       searchable: true,
       initialIndex,
@@ -830,7 +910,7 @@ export function progressSignalForCard(card: ConductorJobCard): string {
     activity === undefined
       ? ''
       : `${activity.toolCallId}|${activity.name}|${activity.status}|${activity.atMs}`;
-  return `${card.status}|${phase}|${tools}|${act}|${String(card.liveTokens ?? 0)}`;
+  return `${card.status}|${phase}|${tools}|${act}|${String(card.liveTokens ?? 0)}|${card.effectPreview?.chip ?? ''}`;
 }
 
 /** `12482` → `12.5k` for dense token strips. */

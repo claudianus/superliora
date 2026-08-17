@@ -206,13 +206,23 @@ export async function showStatusReport(host: SlashCommandHost): Promise<void> {
     fieldMotion,
     activeToolNames,
   };
+  // When the session has 2+ Conductor jobs, open the outcome board (Job Deck)
+  // instead of only the usage/status panel — same key/slash, no third board.
+  const jobs = host.state.appState.conductorJobs?.jobs ?? [];
+  if (jobs.length >= 2) {
+    host.jobBoardController.openDeck();
+    return;
+  }
+
   playStatusOpenBeat(host, 'Status', 'status');
   const panel = new UsagePanelComponent({
     buildLines: () => buildStatusReportLines(reportArgs),
     borderToken: 'primary',
     title: ' Status ',
     enterBeatSeed: 'status',
-    requestRender: () =>{  requestTUILayoutRender(host.state); },
+    requestRender: () => {
+      requestTUILayoutRender(host.state);
+    },
   });
   host.state.transcriptContainer.addChild(panel);
   requestTUILayoutRender(host.state);

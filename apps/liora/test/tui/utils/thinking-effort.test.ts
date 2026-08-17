@@ -6,6 +6,7 @@ import {
   defaultEffortForModel,
   effortsForModel,
   formatModelWithThinking,
+  formatThinkingLevelChip,
   formatThinkingLevelSuffix,
   modelUsesEmbeddedThinkingEffort,
   providerThinkingFamily,
@@ -127,5 +128,23 @@ describe('thinking-effort utils', () => {
     expect(resolveThinkingLevelForApply(false, 'max', m)).toBe('off');
     expect(resolveThinkingLevelForApply(true, 'max', m)).toBe('max');
     expect(resolveThinkingLevelForApply(true, undefined, m)).toBe('high');
+  });
+
+  it('formats Korean header chips for reasoning levels', () => {
+    expect(formatThinkingLevelChip('high', { locale: 'ko' })).toBe('추론·높음');
+    expect(formatThinkingLevelChip('off', { locale: 'ko', thinking: false })).toBe('비추론');
+    expect(
+      formatModelWithThinking('grok-4.5', 'high', {
+        locale: 'ko',
+        alwaysShowLevel: true,
+      }),
+    ).toBe('grok-4.5 · 추론·높음');
+    expect(
+      formatModelWithThinking('grok-4.5', 'off', {
+        locale: 'en',
+        thinking: false,
+        alwaysShowLevel: true,
+      }),
+    ).toBe('grok-4.5 · non-reasoning');
   });
 });

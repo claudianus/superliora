@@ -86,6 +86,37 @@ Debt rule: a test that only asserts an export exists, a constant equals its own 
   - **Never write `major` without explicit user approval.** Default `minor`, else `patch` if impact is unclear.
 - **Release reminder (MANDATORY after land):** `commit` → `push` → PR `merge` to `main` does **not** publish a user-facing build. There is **no** auto-release on merge (no `changesets/action` version/publish job). `liora upgrade` tracks the GitHub Release / published `@superliora/liora` version, not arbitrary `main` commits. After merging product work that carries a `@superliora/liora` changeset (or otherwise should ship to CLI users), **remind the operator that a release cut is still required** before `liora upgrade` / install scripts pick it up. Do **not** cut or publish a release unless the user explicitly asks.
 
+## Git commit policy (author + message)
+
+Harness and agent commits use one policy, enforced in code by
+`packages/agent-core/src/tools/support/git-commit-policy.ts` (job worktree
+snapshots go through the same helper).
+
+### Author
+
+1. Prefer repository / user `git config` (`user.name` + `user.email`).
+2. If either is missing, use only the documented SuperLiora bot identity:
+   - name: `SuperLiora`
+   - email: `superliora@localhost`
+3. Do not invent per-worker names or emails, and do not rotate identity across jobs.
+4. Keep `Co-authored-by:` trailers when a human co-author policy applies; never replace the primary author with a worker label.
+
+### Message (conventional commits)
+
+Format: `type(scope): subject`
+
+- **type**: `feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert`
+- **scope**: optional (`tui`, `agent-core`, `job`, …)
+- **subject**: imperative mood, ≤72 characters, no trailing period
+- **body** (optional): blank line after subject; explain why / what changed
+- **Job id**: may appear in the body (`Job-Id: job_…`), never as the sole subject
+
+**Reject / rewrite** empty subjects and vague ones: `update`, `wip`, `fix stuff`,
+`misc`, bare `fix`/`test`, or a subject that is only a job id.
+
+Helpers: `validateCommitMessage`, `autoFixCommitMessage`,
+`buildJobSnapshotCommitMessage`, `resolveCommitAuthor`.
+
 ## Source-install gate
 
 Touches to `packages/agent-core`, `packages/node-sdk`, `packages/acp-adapter`, or the `apps/liora` bundle graph need more than `tsx` / dev-only checks:

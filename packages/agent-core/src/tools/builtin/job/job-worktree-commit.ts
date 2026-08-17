@@ -15,6 +15,12 @@
 import type { Kaos } from '@superliora/kaos';
 
 import { runGit } from '#/autopilot/git';
+import {
+  buildJobSnapshotCommitMessage,
+  commitIdentityArgs,
+  resolveCommitAuthor,
+  validateCommitMessage,
+} from '../../support/git-commit-policy';
 
 /**
  * Minimal runner shape so tests and job-land's injectable runner adapt with
@@ -25,7 +31,8 @@ export type WorktreeGitRunner = (
   args: readonly string[],
 ) => Promise<{ readonly ok: boolean; readonly stdout: string; readonly stderr: string }>;
 
-export const JOB_WORKTREE_SNAPSHOT_MESSAGE_PREFIX = 'chore(superliora): worker snapshot';
+/** @deprecated Prefer {@link buildJobSnapshotCommitMessage}; kept for test greps. */
+export const JOB_WORKTREE_SNAPSHOT_MESSAGE_PREFIX = 'chore(job):';
 
 export interface CommitJobWorktreeInput {
   readonly worktreePath: string;
@@ -61,9 +68,13 @@ export async function commitJobWorktreeIfDirty(
   const add = await run(input.worktreePath, ['add', '-A']);
   if (!add.ok) return { committed: false, error: `git add failed: ${detail(add)}` };
 
-  const identity = await identityArgs(run, input.worktreePath);
-  const title = input.jobTitle?.trim();
-  const message = `${JOB_WORKTREE_SNAPSHOT_MESSAGE_PREFIX} for ${input.jobId}${title !== undefined && title.length > 0 ? ` — ${title.slice(0, 60)}` : ''}`;
+  const identity = await resolveWorktreeIdentityArgs(run, input.worktreePath);
+  const rawMessage = buildJobSnapshotCommitMessage({
+    jobId: input.jobId,
+    jobTitle: input.jobTitle,
+  });
+  const validated = validateCommitMessage(rawMessage, { autoFix: true });
+  const message = validated.message ?? rawMessage;
   const commit = await run(input.worktreePath, [
     ...identity,
     'commit',
@@ -80,17 +91,22 @@ export async function commitJobWorktreeIfDirty(
  * the snapshot commit never fails with "please tell me who you are" and never
  * overrides the user's git config (same policy as the baseline bootstrap).
  */
-async function identityArgs(run: WorktreeGitRunner, cwd: string): Promise<string[]> {
-  const args: string[] = [];
+async function resolveWorktreeIdentityArgs(
+  run: WorktreeGitRunner,
+  cwd: string,
+): Promise<readonly string[]> {
   const name = await run(cwd, ['config', 'user.name']);
-  if (!name.ok || name.stdout.trim().length === 0) {
-    args.push('-c', 'user.name=SuperLiora');
-  }
   const email = await run(cwd, ['config', 'user.email']);
-  if (!email.ok || email.stdout.trim().length === 0) {
-    args.push('-c', 'user.email=superliora@localhost');
-  }
-  return args;
+  const author = resolveCommitAuthor({
+    name: name.ok ? name.stdout : undefined,
+    email: email.ok ? email.stdout : undefined,
+  });
+  // Only inject -c when falling back to the bot (or partial config).
+  if (!author.isBotFallback) return [];
+  const configuredName = name.ok && name.stdout.trim().length > 0;
+  const configuredEmail = email.ok && email.stdout.trim().length > 0;
+  if (configuredName && configuredEmail) return [];
+  return commitIdentityArgs(author);
 }
 
 function detail(r: { readonly stdout: string; readonly stderr: string }): string {
