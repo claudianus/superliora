@@ -1,5 +1,12 @@
 # @superliora/liora
 
+## 0.11.4
+
+### Patch Changes
+
+- Cap Grok sessions at 200k context so prompts stay off xAI long-context (2×) rates. Auto-compaction and the working-set ceiling follow that window.
+- Stop treating a finished native `liora upgrade` as a failed npm install when the binary has no nearby package.json.
+
 ## 0.11.3
 
 ### Patch Changes
