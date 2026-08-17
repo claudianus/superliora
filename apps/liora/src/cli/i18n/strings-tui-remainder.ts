@@ -260,6 +260,10 @@ export const STRINGS_TUI_REMAINDER_EN: Readonly<Record<string, string>> = {
   'tui.session.startupFlagsFailed': 'Failed to apply startup flags: {message}',
   'tui.session.clipboardCopied': '{message}\n  Command copied to clipboard',
   'tui.session.clipboardCopyFailed': '{message}\n  Failed to copy command to clipboard',
+  'tui.clipboard.imageAttachFailed':
+    'Clipboard image could not be attached. Copy a PNG/JPEG/WebP/GIF or screenshot and paste again.',
+  'tui.clipboard.imageEmpty': 'Clipboard has no image to paste.',
+  'tui.clipboard.imageResized': 'Large image was resized before attach ({from} → {to}).',
   'tui.shell.commandFailed': 'Shell command failed: {message}',
   'tui.shell.cancelFailed': 'Failed to cancel shell command: {message}',
   'tui.logout.from': 'Logged out from {label}.',
@@ -993,6 +997,10 @@ export const STRINGS_TUI_REMAINDER_KO: Readonly<Record<string, string>> = {
   'tui.session.startupFlagsFailed': '시작 플래그 적용 실패: {message}',
   'tui.session.clipboardCopied': '{message}\n  명령을 클립보드에 복사했습니다',
   'tui.session.clipboardCopyFailed': '{message}\n  클립보드 복사 실패',
+  'tui.clipboard.imageAttachFailed':
+    '클립보드 이미지를 첨부하지 못했습니다. PNG/JPEG/WebP/GIF 또는 스크린샷을 다시 복사한 뒤 붙여넣으세요.',
+  'tui.clipboard.imageEmpty': '클립보드에 붙여넣을 이미지가 없습니다.',
+  'tui.clipboard.imageResized': '큰 이미지를 첨부 전에 리사이즈했습니다 ({from} → {to}).',
   'tui.shell.commandFailed': '셸 명령 실패: {message}',
   'tui.shell.cancelFailed': '셸 명령 취소 실패: {message}',
   'tui.logout.from': '{label}에서 로그아웃했습니다.',

@@ -48,10 +48,12 @@ export function handleNativeTUIEditorAppShortcut(
   data: string,
 ): boolean {
   // Image paste: Cmd/Ctrl+V on all OS. Windows also keeps Alt+V because
-  // many terminals steal Ctrl+V for their own paste. Do not expand Alt+V
-  // into a general Windows scheme.
+  // many terminals steal Ctrl+V for their own paste. Shift+Insert is the
+  // classic terminal paste binding (Windows Terminal, ConEmu, xterm).
+  // Do not expand Alt+V into a general Windows scheme.
   if (
     matchesPrimaryMod(data, 'v') ||
+    matchesKey(data, 'shift+insert') ||
     (process.platform === 'win32' && matchesKey(data, Key.alt('v')))
   ) {
     void handleNativeTUIEditorPasteMediaKey(host, data);

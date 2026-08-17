@@ -326,30 +326,33 @@ describe('EditorKeyboardController dropped media paste', () => {
     };
   }
 
-  it('attaches a dropped image and inserts its placeholder', () => {
+  it('attaches a dropped image and inserts its placeholder', async () => {
     const { store, paste, insertTextAtCursor } = createDropHarness();
 
     expect(paste(`${pngPath}\n`)).toBe(true);
-
-    expect(store.size()).toBe(1);
-    expect(insertTextAtCursor).toHaveBeenCalledWith('[image #1 (1×1)] ');
+    await vi.waitFor(() => {
+      expect(store.size()).toBe(1);
+      expect(insertTextAtCursor).toHaveBeenCalledWith('[image #1 (1×1)] ');
+    });
   });
 
-  it('attaches a dropped video file', () => {
+  it('attaches a dropped video file', async () => {
     const { store, paste, insertTextAtCursor } = createDropHarness();
 
     expect(paste(videoPath)).toBe(true);
-
-    expect(store.size()).toBe(1);
-    expect(insertTextAtCursor).toHaveBeenCalledWith('[video #1 clip.mp4] ');
+    await vi.waitFor(() => {
+      expect(store.size()).toBe(1);
+      expect(insertTextAtCursor).toHaveBeenCalledWith('[video #1 clip.mp4] ');
+    });
   });
 
-  it('keeps non-media paths next to media placeholders in a mixed drop', () => {
+  it('keeps non-media paths next to media placeholders in a mixed drop', async () => {
     const { paste, insertTextAtCursor } = createDropHarness();
 
     expect(paste(`${pngPath}\n${textPath}`)).toBe(true);
-
-    expect(insertTextAtCursor).toHaveBeenCalledWith(`[image #1 (1×1)] ${textPath} `);
+    await vi.waitFor(() => {
+      expect(insertTextAtCursor).toHaveBeenCalledWith(`[image #1 (1×1)] ${textPath} `);
+    });
   });
 
   it('declines non-media drops so the paste stays plain text', () => {

@@ -200,7 +200,9 @@ describe('ImageThumbnail', () => {
     expect(component.render(80)).toBe(component.render(80));
   });
 
-  it('falls back to the placeholder marker for image/jpeg', () => {
+  it('falls back to the placeholder marker for undecodable image/jpeg on first paint', () => {
+    // Sync path only decodes PNG; corrupt/minimal JPEG stays a chip until async
+    // jimp decode succeeds (or fails permanently).
     const component = new ImageThumbnail(
       imageAttachment(new Uint8Array([0xff, 0xd8, 0xff]), 'image/jpeg', 8, 8),
     );

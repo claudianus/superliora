@@ -235,8 +235,29 @@ function readMediaFromPaths(paths: readonly string[]): ClipboardMedia | null {
   return null;
 }
 
+/**
+ * Read every attachable image/video path from a multi-file clipboard list
+ * (Explorer multi-select copy, terminal multi-file drop). Order is preserved.
+ */
+function readAllMediaFromPaths(paths: readonly string[]): ClipboardMedia[] {
+  const out: ClipboardMedia[] = [];
+  for (const path of paths) {
+    try {
+      const media = readMediaPath(path);
+      if (media !== null) out.push(media);
+    } catch (error) {
+      if (error instanceof ClipboardMediaError) throw error;
+    }
+  }
+  return out;
+}
+
 function readMediaFromText(text: string): ClipboardMedia | null {
   return readMediaFromPaths(parseClipboardPaths(text));
+}
+
+function readAllMediaFromText(text: string): ClipboardMedia[] {
+  return readAllMediaFromPaths(parseClipboardPaths(text));
 }
 
 function runCommand(command: string, args: string[], options?: RunCommandOptions): { stdout: Buffer; ok: boolean } {
@@ -455,6 +476,24 @@ export async function readClipboardMedia(options?: {
   clipboard?: ClipboardModule | null;
   runCommand?: RunCommand;
 }): Promise<ClipboardMedia | null> {
+  const all = await readClipboardMediaAll(options);
+  return all[0] ?? null;
+}
+
+/**
+ * Read every attachable media item currently on the clipboard.
+ *
+ * Multi-file Explorer / Finder copies return every image/video path.
+ * Bitmap-only clipboards (Win+Shift+S, browser copy) return a single image.
+ * Image bytes still win over path-like text when both exist (HTML clipboard
+ * often carries a URL + CF_DIB/PNG).
+ */
+export async function readClipboardMediaAll(options?: {
+  env?: NodeJS.ProcessEnv;
+  platform?: NodeJS.Platform;
+  clipboard?: ClipboardModule | null;
+  runCommand?: RunCommand;
+}): Promise<ClipboardMedia[]> {
   const env = options?.env ?? process.env;
   const platform = options?.platform ?? process.platform;
   const clip = options?.clipboard ?? clipboard;
@@ -462,7 +501,7 @@ export async function readClipboardMedia(options?: {
 
   // Termux on Android has no desktop clipboard; skip early rather than
   // churn through every fallback.
-  if (env['TERMUX_VERSION'] !== undefined) return null;
+  if (env['TERMUX_VERSION'] !== undefined) return [];
 
   let image: ClipboardImage | null = null;
   if (platform === 'linux') {
@@ -470,17 +509,17 @@ export async function readClipboardMedia(options?: {
     const wsl = isWSL(env);
 
     if (wayland || wsl) {
-      const fileMedia = readClipboardFileMediaViaWlPaste() ?? readClipboardFileMediaViaXclip();
-      if (fileMedia !== null) return fileMedia;
+      const fileList = readAllClipboardFileMediaViaLinux();
+      if (fileList.length > 0) return fileList;
       image = readClipboardImageViaWlPaste() ?? readClipboardImageViaXclip();
     }
     if (image === null && wsl) {
       image = readClipboardImageViaPowerShell({ env, platform, runCommand: run });
     }
     if (image === null && !wayland) {
-      const nativeFileMedia = await readClipboardFileMediaViaNativeText(clip);
-      if (nativeFileMedia.media !== null) return nativeFileMedia.media;
-      if (nativeFileMedia.lookedFileLike) return null;
+      const nativeFileMedia = await readAllClipboardFileMediaViaNativeText(clip);
+      if (nativeFileMedia.media.length > 0) return nativeFileMedia.media;
+      if (nativeFileMedia.lookedFileLike) return [];
       image = await readClipboardImageViaNative(clip, {
         allowHasImageFalseNegative: wsl,
       });
@@ -488,17 +527,17 @@ export async function readClipboardMedia(options?: {
   } else if (platform === 'darwin') {
     // macOS: file URLs / Finder file lists win over image previews so a copied
     // video/file is not replaced by its thumbnail PNG.
-    const fileMedia = readMediaFromPaths(readClipboardFilePathsViaMacOs(run));
-    if (fileMedia !== null) return fileMedia;
+    const fileList = readAllMediaFromPaths(readClipboardFilePathsViaMacOs(run));
+    if (fileList.length > 0) return fileList;
 
-    const nativeFileMedia = await readClipboardFileMediaViaNativeText(clip);
-    if (nativeFileMedia.media !== null) return nativeFileMedia.media;
+    const nativeFileMedia = await readAllClipboardFileMediaViaNativeText(clip);
+    if (nativeFileMedia.media.length > 0) return nativeFileMedia.media;
 
     // Finder exposes file icons/thumbnails as image data. If the clipboard
     // looks file-like but we could not read a real file path, do not consume
     // that icon as an image attachment.
     if (nativeFileMedia.lookedFileLike) {
-      return null;
+      return [];
     }
 
     image = await readClipboardImageViaNative(clip);
@@ -506,6 +545,8 @@ export async function readClipboardMedia(options?: {
     // win32 (and other non-linux): prefer image bytes before text paths.
     // Native hasImage can false-negative while getImageBinary / PowerShell
     // still return PNG; reading text first would steal a path-like entry.
+    // CF_DIB / CF_DIBV5 / PNG (browsers) / Win+Shift+S all surface here as
+    // PNG bytes via the native binding or the PowerShell GetImage fallback.
     image = await readClipboardImageViaNative(clip, {
       allowHasImageFalseNegative: true,
     });
@@ -514,12 +555,70 @@ export async function readClipboardMedia(options?: {
     }
 
     if (image === null) {
-      const nativeFileMedia = await readClipboardFileMediaViaNativeText(clip);
-      if (nativeFileMedia.media !== null) return nativeFileMedia.media;
+      const nativeFileMedia = await readAllClipboardFileMediaViaNativeText(clip);
+      if (nativeFileMedia.media.length > 0) return nativeFileMedia.media;
     }
   }
 
-  if (image === null) return null;
-  if (!isSupportedImageMimeType(image.mimeType)) return null;
-  return image;
+  if (image === null) return [];
+  if (!isSupportedImageMimeType(image.mimeType)) return [];
+  // Sniff real MIME from magic bytes when the native path always claims PNG.
+  const sniffed = parseImageMeta(image.bytes);
+  if (sniffed !== null) {
+    return [{ kind: 'image', bytes: image.bytes, mimeType: sniffed.mime }];
+  }
+  return [image];
+}
+
+function readAllClipboardFileMediaViaLinux(): ClipboardMedia[] {
+  const wl = readClipboardFileMediaListViaWlPaste();
+  if (wl.length > 0) return wl;
+  return readClipboardFileMediaListViaXclip();
+}
+
+function readClipboardFileMediaListViaWlPaste(): ClipboardMedia[] {
+  const list = runCommand('wl-paste', ['--list-types'], {
+    timeoutMs: DEFAULT_LIST_TIMEOUT_MS,
+  });
+  if (!list.ok) return [];
+
+  const types = parseTargetList(list.stdout);
+  const uriType = types.find((t) => baseMimeType(t) === 'text/uri-list');
+  if (uriType === undefined) return [];
+
+  const uris = runCommand('wl-paste', ['--type', uriType, '--no-newline']);
+  return uris.ok ? readAllMediaFromText(uris.stdout.toString('utf-8')) : [];
+}
+
+function readClipboardFileMediaListViaXclip(): ClipboardMedia[] {
+  const targets = runCommand('xclip', ['-selection', 'clipboard', '-t', 'TARGETS', '-o'], {
+    timeoutMs: DEFAULT_LIST_TIMEOUT_MS,
+  });
+  if (!targets.ok) return [];
+
+  const candidates = parseTargetList(targets.stdout);
+  const uriType = candidates.find((t) => baseMimeType(t) === 'text/uri-list');
+  if (uriType === undefined) return [];
+
+  const uris = runCommand('xclip', ['-selection', 'clipboard', '-t', uriType, '-o']);
+  return uris.ok ? readAllMediaFromText(uris.stdout.toString('utf-8')) : [];
+}
+
+async function readAllClipboardFileMediaViaNativeText(
+  clip: ClipboardModule | null,
+): Promise<{ media: ClipboardMedia[]; lookedFileLike: boolean }> {
+  if (clip === null) return { media: [], lookedFileLike: false };
+
+  const formats = safeAvailableFormats(clip);
+  const lookedFileLike = formats.some(isFileLikeNativeFormat);
+  if (!lookedFileLike || clip.getText === undefined) {
+    return { media: [], lookedFileLike };
+  }
+
+  try {
+    return { media: readAllMediaFromText(await clip.getText()), lookedFileLike };
+  } catch (error) {
+    if (error instanceof ClipboardMediaError) throw error;
+    return { media: [], lookedFileLike };
+  }
 }

@@ -23,6 +23,7 @@ import {
   detectNativeTerminalColorMode,
   encodeKittyPlaceholderLines,
   encodeKittyPlaceholderTransmit,
+  encodeRendererInlineImage,
   type Component,
 } from '#/tui/renderer';
 import { resolveResponsiveLayout } from '#/tui/controllers/layout/responsive-layout';
@@ -30,6 +31,7 @@ import { currentTheme } from '#/tui/theme';
 import type { ImageAttachment } from '#/tui/utils/image/image-attachment-store';
 import { resolveImageProtocol } from '#/tui/utils/image/image-protocol-detect';
 import { renderHalfBlockPreview } from '#/utils/image/half-block-preview';
+import { decodeImageRgba } from '#/utils/image/prepare-pasted-image';
 import { decodePng, type DecodedPng } from '#/utils/image/png-decode';
 import { computePreviewCellSize } from '#/utils/image/preview-size';
 
@@ -68,6 +70,7 @@ export class ImageThumbnail implements Component {
   private lastBuiltLines: string[] | undefined;
   private decoded: DecodedPng | undefined;
   private decodeFailed = false;
+  private asyncDecodeStarted = false;
 
   constructor(attachment: ImageAttachment) {
     this.attachment = attachment;
@@ -97,6 +100,7 @@ export class ImageThumbnail implements Component {
     this.lastBuiltLines = undefined;
     this.decoded = undefined;
     this.decodeFailed = false;
+    this.asyncDecodeStarted = false;
     this.rebuild(this.lastRenderWidth, this.detectTruecolor());
   }
 
@@ -112,16 +116,26 @@ export class ImageThumbnail implements Component {
 
   private buildLines(width: number, truecolor: boolean): string[] {
     if (width <= 0) return [''];
-    if (this.attachment.mime !== 'image/png') return this.fallbackLines(width);
 
-    const decoded = this.decode();
-    if (decoded === undefined) return this.fallbackLines(width);
+    const decoded = this.decodeSync();
+    if (decoded === undefined) {
+      // Kick async decode for JPEG/WebP/GIF so the next render can paint a
+      // real half-block raster instead of a filename chip.
+      this.ensureAsyncDecode();
+      return this.fallbackLines(width);
+    }
 
     const tier = resolveResponsiveLayout({ width });
     const maxWidth = Math.max(1, Math.min(width, IMAGE_PREVIEW_WIDTH_BY_TIER[tier]));
     if (truecolor) {
-      const kittyLines = this.kittyPlaceholderLines(decoded, maxWidth);
-      if (kittyLines !== undefined) return kittyLines;
+      const protocol = resolveImageProtocol();
+      if (protocol === 'kitty') {
+        const kittyLines = this.kittyPlaceholderLines(decoded, maxWidth);
+        if (kittyLines !== undefined) return kittyLines;
+      } else if (protocol === 'iterm2') {
+        const itermLines = this.iterm2InlineLines(decoded, maxWidth);
+        if (itermLines !== undefined) return itermLines;
+      }
     }
     return renderHalfBlockPreview(decoded, {
       maxWidth,
@@ -137,7 +151,6 @@ export class ImageThumbnail implements Component {
    * installed, so the caller falls back to half-block rendering.
    */
   private kittyPlaceholderLines(decoded: DecodedPng, maxWidth: number): string[] | undefined {
-    if (resolveImageProtocol() !== 'kitty') return undefined;
     const { columns, rows } = computePreviewCellSize(
       decoded.width,
       decoded.height,
@@ -145,7 +158,10 @@ export class ImageThumbnail implements Component {
       MAX_IMAGE_ROWS,
     );
     if (!transmittedImageIds.has(this.attachment.id)) {
-      const base64 = Buffer.from(this.attachment.bytes).toString('base64');
+      // Kitty placeholder transmit expects PNG; re-encode only when needed.
+      const pngBytes = this.attachment.mime === 'image/png' ? this.attachment.bytes : undefined;
+      if (pngBytes === undefined) return undefined;
+      const base64 = Buffer.from(pngBytes).toString('base64');
       const sent = emitKittyGraphics(
         encodeKittyPlaceholderTransmit({ id: this.attachment.id, base64, columns, rows }),
       );
@@ -155,9 +171,50 @@ export class ImageThumbnail implements Component {
     return encodeKittyPlaceholderLines({ id: this.attachment.id, columns, rows });
   }
 
-  private decode(): DecodedPng | undefined {
+  /**
+   * iTerm2 / WezTerm / Windows Terminal inline-image OSC 1337 sequence.
+   * Emitted once through the raw graphics channel; subsequent renders keep
+   * a compact caption so the cell compositor does not re-diff base64.
+   */
+  private iterm2InlineLines(decoded: DecodedPng, maxWidth: number): string[] | undefined {
+    const { columns, rows } = computePreviewCellSize(
+      decoded.width,
+      decoded.height,
+      maxWidth,
+      MAX_IMAGE_ROWS,
+    );
+    if (!transmittedImageIds.has(this.attachment.id)) {
+      const format =
+        this.attachment.mime === 'image/jpeg'
+          ? 'jpeg'
+          : this.attachment.mime === 'image/gif'
+            ? 'gif'
+            : this.attachment.mime === 'image/webp'
+              ? 'webp'
+              : 'png';
+      const encoded = encodeRendererInlineImage('iterm2', {
+        data: this.attachment.bytes,
+        format,
+        widthCells: columns,
+        heightCells: rows,
+        preserveAspectRatio: true,
+      });
+      const sent = emitKittyGraphics(encoded.output);
+      if (!sent) return undefined;
+      transmittedImageIds.add(this.attachment.id);
+    }
+    // Reserve vertical space with blank rows so the inline image is not
+    // immediately overwritten by the next transcript cell.
+    const lines: string[] = [];
+    for (let i = 0; i < rows; i += 1) lines.push(' '.repeat(columns));
+    return lines;
+  }
+
+  private decodeSync(): DecodedPng | undefined {
     if (this.decoded !== undefined) return this.decoded;
     if (this.decodeFailed) return undefined;
+    // Sync path: dependency-free PNG only (fast path for screenshots).
+    if (this.attachment.mime !== 'image/png') return undefined;
     try {
       this.decoded = decodePng(this.attachment.bytes);
       return this.decoded;
@@ -165,6 +222,24 @@ export class ImageThumbnail implements Component {
       this.decodeFailed = true;
       return undefined;
     }
+  }
+
+  private ensureAsyncDecode(): void {
+    if (this.asyncDecodeStarted || this.decoded !== undefined || this.decodeFailed) return;
+    this.asyncDecodeStarted = true;
+    void decodeImageRgba(this.attachment.bytes, this.attachment.mime).then((rgba) => {
+      if (rgba === null) {
+        this.decodeFailed = true;
+        return;
+      }
+      this.decoded = {
+        width: rgba.width,
+        height: rgba.height,
+        pixels: rgba.pixels,
+      };
+      this.lastBuiltLines = undefined;
+      // Next host render pass will rebuild with real pixels.
+    });
   }
 
   private fallbackLines(width: number): string[] {
