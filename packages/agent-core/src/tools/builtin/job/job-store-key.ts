@@ -46,6 +46,18 @@ export type JobKind =
 /** How the worker should deliver — greenfield forces a tighter brief + optional chain. */
 export type JobDeliveryMode = 'standard' | 'greenfield';
 
+/** Isolation / verification contract. Harness keys off this, never prompt wording. */
+export type JobTaskTrack = 'coding' | 'general';
+
+/** Provenance for `taskTrack`. `pending` waits for LLM effect judgment. */
+export type JobTaskTrackSource =
+  | 'declared'
+  | 'inherited'
+  | 'structural'
+  | 'inferred'
+  | 'pending'
+  | 'default';
+
 /**
  * Conductor-declared user-visible surface for merge/verify proof selection.
  * Not inferred from path regex — set at JobCreate (or JobSteer).
@@ -80,10 +92,13 @@ export interface JobRecord {
   readonly status: JobStatus;
   readonly kind: JobKind;
   /**
-   * Per-Job coding vs general track. Missing = coding.
+   * Per-Job coding vs general track. Missing = coding unless `taskTrackSource=pending`.
    * General skips worktree / verify / commit-gate briefs. Session-level pin is forbidden.
+   * Never inferred from prompt wording — declared, inherited, structural, or LLM effect judgment.
    */
-  readonly taskTrack?: 'coding' | 'general';
+  readonly taskTrack?: JobTaskTrack;
+  /** How `taskTrack` was decided. `pending` must be settled before worktree/spawn. */
+  readonly taskTrackSource?: JobTaskTrackSource;
   readonly priority: number;
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -106,6 +121,16 @@ export interface JobRecord {
    * When absent, the worker must still establish Phase-1 repro before hypothesising.
    */
   readonly reproCommand?: string;
+  /**
+   * Verify-chain fixer / declared debug contract. Harness keys off this field,
+   * never a `Debug:` title prefix.
+   */
+  readonly debugFixer?: boolean;
+  /**
+   * Throwaway explore that answers one design question. Harness keys off this
+   * field, never a `prototype` title/prompt word.
+   */
+  readonly explorePrototype?: boolean;
   /**
    * Job ids that must reach a terminal success state before this Job may schedule.
    * Orthogonal to `parentJobId` (decomposition / review chain link).
@@ -177,10 +202,29 @@ export interface JobRecord {
    */
   readonly surfaceKind?: JobSurfaceKind;
   /**
+   * Premium density after spawn effect judgment. Absent until the worker
+   * resolves visual vs code. Harness keys off this field, never prompt wording.
+   */
+  readonly premiumDensity?: 'visual' | 'code';
+  /**
    * Structured verify Job verdict. Prefer this over parsing resultSummary JSON.
    * Set when kind=verify reaches a terminal state.
    */
   readonly verifyVerdict?: JobVerifyVerdictField;
+}
+
+/** Debug-fixer contract — declared field only, not a title prefix. */
+export function isDebugFixerJob(
+  job: Pick<JobRecord, 'kind' | 'debugFixer'>,
+): boolean {
+  return job.kind === 'implement' && job.debugFixer === true;
+}
+
+/** Prototype-explore contract — declared field only, not a title word. */
+export function isExplorePrototypeJob(
+  job: Pick<JobRecord, 'kind' | 'explorePrototype'>,
+): boolean {
+  return job.kind === 'explore' && job.explorePrototype === true;
 }
 
 export interface JobLedger {

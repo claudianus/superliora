@@ -6,40 +6,67 @@ import { describe, expect, it } from 'vitest';
 
 import {
   classifySearchIntent,
+  formatSearchRouteLine,
   hasAnyDirectSource,
+  parseSearchIntentJudgment,
+  searchIntentFromJudgment,
   selectDirectSourcesForIntent,
   shapeQueryForIntent,
 } from '../../src/tools/providers/local-web-search-intent';
 import { rankAndDedupeResults } from '../../src/tools/providers/local-web-search-ranking';
 
 describe('local web search intent', () => {
-  it('classifies npm package queries', () => {
-    expect(classifySearchIntent('zod typescript npm schema')).toEqual({
-      kind: 'package',
-      packageEcosystem: 'npm',
-    });
+  it('does not classify from query keywords', () => {
+    expect(classifySearchIntent('zod typescript npm schema')).toEqual({ kind: 'general' });
+    expect(classifySearchIntent('what is the capital of france')).toEqual({ kind: 'general' });
   });
 
-  it('classifies general queries without direct-source fan-out', () => {
-    expect(classifySearchIntent('what is the capital of france')).toEqual({ kind: 'general' });
+  it('keeps configured sources when intent is general (no keyword disable)', () => {
     expect(
       selectDirectSourcesForIntent(
         { github: true, npm: true, arxiv: true, pypi: true, crates: true },
         { kind: 'general' },
       ),
+    ).toEqual({ github: true, npm: true, arxiv: true, pypi: true, crates: true });
+  });
+
+  it('does not rewrite the query from an intent cookbook', () => {
+    expect(shapeQueryForIntent('kimi code latest', { kind: 'tech' })).toBe('kimi code latest');
+  });
+
+  it('maps a confident package judgment onto npm sources', () => {
+    expect(
+      searchIntentFromJudgment({ artifact: 'package', ecosystem: 'npm', confidence: 0.9 }),
+    ).toEqual({ kind: 'package', packageEcosystem: 'npm' });
+    expect(
+      parseSearchIntentJudgment(
+        '{"artifact":"package","ecosystem":"npm","confidence":0.88,"rationale":"install a library"}',
+      ),
+    ).toEqual({ kind: 'package', packageEcosystem: 'npm' });
+    expect(
+      selectDirectSourcesForIntent(
+        { github: true, npm: true, arxiv: true, pypi: true, crates: true },
+        { kind: 'package', packageEcosystem: 'npm' },
+      ),
     ).toEqual({
-      github: false,
-      npm: false,
+      github: true,
+      npm: true,
       pypi: false,
       crates: false,
       arxiv: false,
     });
   });
 
-  it('shapes tech queries toward docs and github', () => {
-    expect(shapeQueryForIntent('kimi code latest', { kind: 'tech' })).toBe(
-      'kimi code latest docs OR github',
-    );
+  it('formats a ready-to-render route line from intent and sources', () => {
+    expect(
+      formatSearchRouteLine(
+        { kind: 'package', packageEcosystem: 'npm' },
+        { github: true, npm: true, pypi: false, crates: false, arxiv: false },
+      ),
+    ).toBe('package/npm · sources github, npm');
+    expect(
+      formatSearchRouteLine({ kind: 'general' }, { github: true, npm: true, pypi: true, crates: true, arxiv: true }),
+    ).toBe('general · sources github, npm, pypi, crates, arxiv');
   });
 
   it('detects when any direct source remains enabled', () => {

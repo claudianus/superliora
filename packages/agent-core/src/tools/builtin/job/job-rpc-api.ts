@@ -27,7 +27,7 @@ import {
 import { dispatchMergeLand } from './job-land';
 import { evaluateMergeTrust, mergeTrustInputFromLedger } from './job-merge-trust';
 import { patchJobAndNotify } from './job-notify';
-import { dispatchPushRemote, evaluatePushTrust } from './job-push';
+import { dispatchPushRemote, evaluatePushTrust, resolvePushRemoteRef } from './job-push';
 import {
   CONDUCTOR_PROJECT_MODE_MAX_CONCURRENT,
   resolveConductorProjectMode,
@@ -508,7 +508,7 @@ export async function jobPush(
   });
   const latest = getJob(store, input.jobId) ?? existing;
   const remoteHint =
-    dispatch.pushJob?.title.includes('gh-pages') === true
+    resolvePushRemoteRef({ explicit: input.remoteRef, job: existing }) === 'gh-pages'
       ? ' Target remoteRef=gh-pages (Pages); Pages enable runs after push when possible.'
       : '';
   return {

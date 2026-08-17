@@ -1,11 +1,13 @@
 import {
   classifyObjectiveProfile,
+  inferObjectiveProfile,
   PREMIUM_QUALITY_EXIT_GUIDANCE,
   resolvePremiumInjectionDensity,
   selectPremiumFullGuidance,
   selectPremiumSparseGuidance,
   type PremiumInjectionDensity,
 } from '../../premium-quality';
+import { classifierDepsFromAgent } from '../../utils/llm-classifier-utils';
 import { isRealUserPromptOrigin } from '../context/types';
 import { DynamicInjector } from './injector';
 import type { Agent } from '..';
@@ -73,9 +75,17 @@ export class PremiumQualityInjector extends DynamicInjector {
 export function resolveActivePremiumDensity(agent: Agent): PremiumInjectionDensity {
   const objective = agent.goal?.getGoal?.()?.goal?.objective;
   let profile = agent.objectiveProfile?.get?.(objective);
-  if (profile === undefined && objective !== undefined && objective.trim().length > 0) {
+  if (profile === undefined) {
     profile = classifyObjectiveProfile(objective);
-    agent.objectiveProfile?.set?.(objective, profile);
+    if (objective !== undefined && objective.trim().length > 0) {
+      agent.objectiveProfile?.set?.(objective, profile);
+      const deps = classifierDepsFromAgent(agent);
+      if (deps !== undefined) {
+        void inferObjectiveProfile(deps, { objective }).then((judgment) => {
+          if (judgment !== undefined) agent.objectiveProfile?.set?.(objective, judgment.profile);
+        });
+      }
+    }
   }
   return resolvePremiumInjectionDensity(objective, profile);
 }

@@ -6,3 +6,4 @@ export * from './references';
 export * from './quality-hype';
 export * from './ui-surface';
 export * from './objective-profile-cache';
+export * from './objective-profile-infer';

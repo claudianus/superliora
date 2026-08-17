@@ -421,7 +421,11 @@ export const fetchGlance: GlanceFn = (toolCall, result) => {
 };
 
 export const webSearchGlance: GlanceFn = (_toolCall, result) => {
-  if (result.output.includes('No search results found.')) return 'no results';
+  const route = /^Route:\s+(.+)$/m.exec(result.output)?.[1]?.trim();
+  if (result.output.includes('No search results found.')) {
+    return route !== undefined && route.length > 0 ? `no results · ${route}` : 'no results';
+  }
+  if (route !== undefined && route.length > 0) return route;
   const channels = /^Channels:\s+(.+)$/m.exec(result.output)?.[1]?.trim();
   const titles: string[] = [];
   for (const line of result.output.split('\n')) {

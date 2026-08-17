@@ -27,7 +27,12 @@ import {
   type JobRecord,
   type JobStatus,
 } from './job-ledger';
-import { isGeneralTaskTrack } from './job-task-track';
+import { isGeneralTaskTrack, isPendingTaskTrack, taskTrackCreateDefaults } from './job-task-track';
+import {
+  classifierDepsFromAgent,
+  resolveJobTaskTrackWithInfer,
+} from './job-task-track-infer';
+import { emitJobEvents, jobRecordToUpdatedEvent } from './job-emit';
 import { patchJobAndNotify } from './job-notify';
 import {
   findOwnershipHolder,
@@ -475,6 +480,8 @@ export interface ScheduleJobsInput {
   readonly requireWorktree?: boolean;
   /** Forwarded to assignJobWorktree (default true; fake-factory tests opt out). */
   readonly ensureGitRepo?: boolean;
+  /** Forwarded to assignJobWorktree (chain/reuse tests stub the directory check). */
+  readonly worktreeDirExists?: (path: string) => Promise<boolean>;
   /** Env for the auto-git-init opt-out (default process.env). */
   readonly env?: Readonly<Record<string, string | undefined>>;
   /** Optional: spawn real worker after job becomes running. */
@@ -498,7 +505,63 @@ export interface ScheduleJobsResult {
  * sees uncommitted work, which is usually what the question is about. Keyed on
  * the profile, not the kind, so `desk` digests come along for free and a new
  * read-only kind cannot forget to opt in.
+ *
+ * Pending taskTrack is settled here (before worktree), never on JobCreate ACK.
+ * The model judges the done-contract; the harness does not scan prompt wording.
  */
+function applySettledTaskTrack(
+  store: ToolStore,
+  job: JobRecord,
+  resolution: { readonly source: Exclude<JobRecord['taskTrackSource'], 'pending' | undefined>; readonly track: NonNullable<JobRecord['taskTrack']> },
+  agent?: Agent,
+): JobRecord {
+  const codingKind = job.kind === 'task' || job.kind === 'implement';
+  const defaults = taskTrackCreateDefaults({
+    codingKind,
+    track: resolution.track,
+    pending: false,
+    tddMode: job.tddMode,
+    surfaceKind: job.surfaceKind,
+  });
+  const next =
+    patchJob(store, job.id, {
+      taskTrack: resolution.track,
+      taskTrackSource: resolution.source,
+      tddMode: defaults.tddMode,
+      surfaceKind: defaults.surfaceKind,
+      notes: [job.notes, `task_track: ${resolution.source} ${resolution.track}`]
+        .filter(Boolean)
+        .join('\n'),
+    }) ?? { ...job, taskTrack: resolution.track, taskTrackSource: resolution.source };
+  emitJobEvents(agent, [jobRecordToUpdatedEvent(next, { reason: 'effect' })]);
+  return next;
+}
+
+async function settlePendingJobTaskTrack(input: {
+  readonly store: ToolStore;
+  readonly job: JobRecord;
+  readonly agent?: Agent;
+}): Promise<JobRecord> {
+  const resolved = await resolveJobTaskTrackWithInfer(
+    {
+      title: input.job.title,
+      prompt: input.job.prompt,
+      successCriteria: input.job.successCriteria,
+      verificationCommands: input.job.verificationCommands,
+      surfaceKind: input.job.surfaceKind,
+      ownershipPaths: input.job.ownershipPaths,
+      contextPaths: input.job.contextPaths,
+      kind: input.job.kind,
+      deliveryMode: input.job.deliveryMode,
+      greenfieldChain: input.job.deliveryPhase !== undefined,
+    },
+    classifierDepsFromAgent(input.agent),
+  );
+  const track = resolved.source === 'pending' ? 'coding' : resolved.track;
+  const source = resolved.source === 'pending' ? 'default' : resolved.source;
+  return applySettledTaskTrack(input.store, input.job, { source, track }, input.agent);
+}
+
 export function needsWorktree(job: Pick<JobRecord, 'kind' | 'taskTrack'>): boolean {
   // merge/push: bookkeeping only — land/push use the source job's worktree.
   if (job.kind === 'merge' || job.kind === 'push') return false;
@@ -545,8 +608,27 @@ export async function scheduleQueuedJobs(input: ScheduleJobsInput): Promise<Sche
   const outcomes = await Promise.all(
     candidates.map(
       async (candidate): Promise<{ started?: JobRecord; blocked?: JobRecord }> => {
-        let job = candidate;
-        if (requireWt && needsWorktree(candidate)) {
+        const pendingDeps = isPendingTaskTrack(candidate)
+          ? classifierDepsFromAgent(input.agent)
+          : undefined;
+        let job = !isPendingTaskTrack(candidate)
+          ? candidate
+          : pendingDeps === undefined
+            ? applySettledTaskTrack(
+                input.store,
+                candidate,
+                {
+                  source: 'default',
+                  track: 'coding',
+                },
+                input.agent,
+              )
+            : await settlePendingJobTaskTrack({
+                store: input.store,
+                job: candidate,
+                agent: input.agent,
+              });
+        if (requireWt && needsWorktree(job)) {
           if (input.kaos === undefined || input.repoPath === undefined) {
             const b = patchJobAndNotify(
               input.store,
@@ -570,6 +652,7 @@ export async function scheduleQueuedJobs(input: ScheduleJobsInput): Promise<Sche
             kaos: input.kaos,
             repoPath: input.repoPath,
             createWorktree: input.createWorktree,
+            worktreeDirExists: input.worktreeDirExists,
             log: input.log,
             ensureGitRepo: input.ensureGitRepo,
             env: input.env,

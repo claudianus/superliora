@@ -1,6 +1,7 @@
 /**
- * Infer Push Preview remote ref from a job card (mirrors agent-core job-push
- * inference for UI display — backend remains the source of truth).
+ * Infer Push Preview remote ref from a job card.
+ * Structured `remote_ref:` / `remoteRef:` field only — never title keywords.
+ * Backend remains the source of truth and may still effect-judge at push time.
  */
 
 import type { ConductorJobCard } from './job-strip';
@@ -13,10 +14,10 @@ export function inferPublishRemoteRef(text: string): string | undefined {
   const structured =
     /\bremote[_ ]?ref\s*[:=]\s*([A-Za-z0-9][A-Za-z0-9._/@-]*)/i.exec(blob) ??
     /\bremoteRef\s*[:=]\s*([A-Za-z0-9][A-Za-z0-9._/@-]*)/i.exec(blob);
-  if (structured?.[1] !== undefined) return structured[1];
-
-  if (/\bgh-pages\b/i.test(blob) || /\bgithub\s*pages\b/i.test(blob)) {
-    return 'gh-pages';
+  if (structured?.[1] !== undefined) {
+    const token = structured[1];
+    if (/^(main|master)$/i.test(token)) return undefined;
+    return token;
   }
   return undefined;
 }
@@ -29,4 +30,13 @@ export function inferPublishRemoteRefFromJobCard(card: ConductorJobCard): string
   return inferPublishRemoteRef(
     [card.title, card.resultSummary, ...briefBits].filter(Boolean).join('\n'),
   );
+}
+
+/** Why Push Preview shows this remote ref — never keyword-inferred. */
+export function describePublishRemoteRef(input: {
+  readonly fromBrief: boolean;
+}): string {
+  return input.fromBrief
+    ? 'from brief remote_ref'
+    : 'same as local — set remote_ref to publish elsewhere';
 }

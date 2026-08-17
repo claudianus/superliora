@@ -3,9 +3,9 @@
  * Deterministic offload lane — never runs on worker Bash / Conductor Bash.
  * Force-push is always denied; interactive approve + force_user_confirm required.
  *
- * Publish targeting: when remoteRef is omitted, infer from job brief/title
- * (e.g. `gh-pages` for Pages deploys) so conductor worktree branches push
- * as `liora/…:gh-pages` instead of a same-name remote branch.
+ * Publish targeting: explicit remote_ref, a structured remote_ref: field,
+ * or an LLM publish-effect judgment. Never inferred from title keywords.
+ * Never auto-infers main/master.
  */
 
 import type { Kaos } from '@superliora/kaos';
@@ -13,7 +13,18 @@ import type { Kaos } from '@superliora/kaos';
 import { runGh as kaosRunGh, runGit as kaosRunGit } from '#/autopilot/git';
 import { redactSecretsInText } from '#/security/redaction';
 
+import { createUserMessage } from '@superliora/kosong';
+
 import type { Agent } from '../../../agent/index';
+import {
+  clampConfidence,
+  clipClassifierText,
+  createClassifierTimeoutSignal,
+  extractTextFromGenerateResponse,
+  parseJsonResponse,
+  classifierDepsFromAgent,
+  type LlmClassifierDeps,
+} from '../../../utils/llm-classifier-utils';
 import type { ToolStore } from '../../store';
 import type { JobRecord, JobStatus } from './job-ledger';
 import { createJob, getJob, patchJob } from './job-ledger';
@@ -123,8 +134,9 @@ export function formatPushFailureDetail(raw: string, maxChars = 500): string {
 }
 
 /**
- * Infer a publish remote ref from job brief / title / summary text.
+ * Structured `remote_ref:` / `remoteRef:` field only.
  * Never auto-infers main/master — those need an explicit remote_ref.
+ * Never classifies from title keywords.
  */
 export function inferPublishRemoteRef(text: string): string | undefined {
   const blob = text.trim();
@@ -135,14 +147,111 @@ export function inferPublishRemoteRef(text: string): string | undefined {
     /\bremoteRef\s*[:=]\s*([A-Za-z0-9][A-Za-z0-9._/@-]*)/i.exec(blob);
   if (structured?.[1] !== undefined) {
     const token = structured[1];
+    if (isForbiddenAutoRemoteRef(token)) return undefined;
     if (validatePushRefToken(token, 'remoteRef') === undefined) return token;
   }
-
-  // Pages deploy target (EN + common brief phrasing).
-  if (/\bgh-pages\b/i.test(blob) || /\bgithub\s*pages\b/i.test(blob)) {
-    return 'gh-pages';
-  }
   return undefined;
+}
+
+const PUSH_REMOTE_CONFIDENCE_FLOOR = 0.55;
+
+const PUBLISH_TARGET_SYSTEM = [
+  'You judge the intended git publish target of a finished job. Return ONLY compact JSON:',
+  '{"pages_publish":true,"remote_ref":"gh-pages","confidence":0.9,"rationale":"one sentence about the publish effect"}',
+  '',
+  'Decide the remote branch the work should land on — not what words appear in the title.',
+  '',
+  'Definitions:',
+  '- pages_publish: the finish line is publishing a static site to a GitHub Pages (or equivalent host) branch.',
+  '- remote_ref: the remote branch name when pages_publish is true. Never main or master.',
+  '',
+  'Rules:',
+  '- Reason from the done-contract and publish effect first. Title and brief are context only.',
+  '- Do not classify by matching words or phrases in any language.',
+  '- Ordinary product-branch publish (same as the local ref) → pages_publish=false and omit remote_ref.',
+  '- Ambiguous or low confidence → pages_publish=false and omit remote_ref.',
+  '- rationale names the publish effect, never quoted trigger words.',
+].join('\n');
+
+export interface PublishTargetJudgment {
+  readonly pagesPublish: boolean;
+  readonly remoteRef?: string;
+  readonly confidence: number;
+  readonly rationale: string;
+}
+
+export function parsePublishTargetJudgment(text: string): PublishTargetJudgment | undefined {
+  const record = parseJsonResponse(text);
+  if (record === undefined) return undefined;
+  const pagesPublish = record['pages_publish'];
+  if (typeof pagesPublish !== 'boolean') return undefined;
+  const confidence = clampConfidence(record['confidence']);
+  if (confidence === undefined) return undefined;
+  const rationaleRaw = record['rationale'];
+  const rationale =
+    typeof rationaleRaw === 'string' && rationaleRaw.trim().length > 0
+      ? rationaleRaw.trim()
+      : 'publish judgment';
+  const remoteRaw = record['remote_ref'];
+  const remoteRef =
+    typeof remoteRaw === 'string' && remoteRaw.trim().length > 0 ? remoteRaw.trim() : undefined;
+  return { pagesPublish, remoteRef, confidence, rationale };
+}
+
+export function remoteRefFromPublishJudgment(
+  judgment: PublishTargetJudgment,
+): string | undefined {
+  if (judgment.confidence < PUSH_REMOTE_CONFIDENCE_FLOOR) return undefined;
+  if (!judgment.pagesPublish) return undefined;
+  const token = judgment.remoteRef;
+  if (token === undefined || isForbiddenAutoRemoteRef(token)) return undefined;
+  if (validatePushRefToken(token, 'remoteRef') !== undefined) return undefined;
+  return token;
+}
+
+function isForbiddenAutoRemoteRef(token: string): boolean {
+  return /^(main|master)$/i.test(token.trim());
+}
+
+async function inferPublishRemoteRefFromEffect(
+  deps: LlmClassifierDeps,
+  job: JobRecord,
+  options?: { readonly signal?: AbortSignal },
+): Promise<string | undefined> {
+  const user = [
+    'Judge the intended remote publish target. Title/brief are context, not a keyword checklist.',
+    '',
+    `title: ${clipClassifierText(job.title)}`,
+    job.prompt !== undefined ? `brief: ${clipClassifierText(job.prompt)}` : undefined,
+    job.resultSummary !== undefined
+      ? `result_summary: ${clipClassifierText(job.resultSummary)}`
+      : undefined,
+    (job.successCriteria ?? []).length > 0
+      ? `success_criteria:\n${job.successCriteria!.map((line) => `- ${clipClassifierText(line, 400)}`).join('\n')}`
+      : undefined,
+    (job.verificationCommands ?? []).length > 0
+      ? `verification_commands:\n${job.verificationCommands!.map((line) => `- ${clipClassifierText(line, 400)}`).join('\n')}`
+      : undefined,
+    job.notes !== undefined ? `notes: ${clipClassifierText(job.notes)}` : undefined,
+  ]
+    .filter(Boolean)
+    .join('\n');
+  if (user.trim().length === 0) return undefined;
+  try {
+    const response = await deps.generate(
+      deps.provider,
+      PUBLISH_TARGET_SYSTEM,
+      [],
+      [createUserMessage(user)],
+      undefined,
+      { signal: createClassifierTimeoutSignal(10_000, options?.signal) },
+    );
+    const parsed = parsePublishTargetJudgment(extractTextFromGenerateResponse(response));
+    if (parsed === undefined) return undefined;
+    return remoteRefFromPublishJudgment(parsed);
+  } catch {
+    return undefined;
+  }
 }
 
 /** Join job fields that commonly carry publish intent. */
@@ -153,7 +262,8 @@ export function collectJobPublishHints(job: JobRecord): string {
 }
 
 /**
- * Resolve remoteRef: explicit arg wins, else infer from job publish hints.
+ * Resolve remoteRef: explicit arg wins, else a structured remote_ref: field.
+ * Keyword matching is forbidden — use {@link resolvePushRemoteRefWithInfer}.
  */
 export function resolvePushRemoteRef(input: {
   readonly explicit?: string;
@@ -162,6 +272,19 @@ export function resolvePushRemoteRef(input: {
   const explicit = input.explicit?.trim();
   if (explicit !== undefined && explicit.length > 0) return explicit;
   return inferPublishRemoteRef(collectJobPublishHints(input.job));
+}
+
+/** Explicit / structured field, then LLM publish-effect judgment. Never infers main. */
+export async function resolvePushRemoteRefWithInfer(input: {
+  readonly explicit?: string;
+  readonly job: JobRecord;
+  readonly deps?: LlmClassifierDeps;
+  readonly signal?: AbortSignal;
+}): Promise<string | undefined> {
+  const structured = resolvePushRemoteRef(input);
+  if (structured !== undefined) return structured;
+  if (input.deps === undefined) return undefined;
+  return inferPublishRemoteRefFromEffect(input.deps, input.job, { signal: input.signal });
 }
 
 /** `owner/repo` from a github.com remote URL (https or ssh). */
@@ -380,7 +503,11 @@ export async function pushJobToRemote(input: PushJobToRemoteInput): Promise<Push
     }
   }
 
-  const inferredRemote = resolvePushRemoteRef({ explicit: input.remoteRef, job });
+  const inferredRemote = await resolvePushRemoteRefWithInfer({
+    explicit: input.remoteRef,
+    job,
+    deps: classifierDepsFromAgent(input.agent),
+  });
   const remoteRef = (inferredRemote ?? localRef).trim();
   const remoteRefErr = validatePushRefToken(remoteRef, 'remoteRef');
   if (remoteRefErr !== undefined) {
@@ -643,8 +770,8 @@ export async function runPushRemoteJob(input: RunPushRemoteJobInput): Promise<Pu
     };
   }
 
-  // Prefer explicit / prompt-parsed ref; else infer from push job + source hints
-  // (CreateJob kind=push titles like "… gh-pages … Pages …" land here).
+  // Prefer explicit / structured remote_ref. Title wording is not a signal;
+  // pushJobToRemote may still effect-judge when remoteRef is omitted.
   const remoteRef =
     resolvePushRemoteRef({ explicit: input.remoteRef, job: pushJob }) ??
     resolvePushRemoteRef({ job: source });

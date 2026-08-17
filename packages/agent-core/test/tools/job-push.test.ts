@@ -6,7 +6,9 @@ import {
   evaluatePushTrust,
   inferPublishRemoteRef,
   parseGithubOwnerRepo,
+  parsePublishTargetJudgment,
   pushJobToRemote,
+  remoteRefFromPublishJudgment,
   validatePushRefToken,
 } from '../../src/tools/builtin/job/job-push';
 import { PushJobTool } from '../../src/tools/builtin/job/job-tools';
@@ -55,11 +57,13 @@ describe('job-push trust + refs', () => {
     );
   });
 
-  it('infers gh-pages from Pages deploy briefs but never main', () => {
+  it('reads a structured remote_ref field and never infers from wording or main', () => {
     expect(
       inferPublishRemoteRef('Push: origin/main + gh-pages 배포 및 Pages 활성화'),
-    ).toBe('gh-pages');
+    ).toBeUndefined();
     expect(inferPublishRemoteRef('remoteRef: docs-site')).toBe('docs-site');
+    expect(inferPublishRemoteRef('remote_ref: gh-pages')).toBe('gh-pages');
+    expect(inferPublishRemoteRef('remote_ref: main')).toBeUndefined();
     expect(inferPublishRemoteRef('ship to origin/main only')).toBeUndefined();
     expect(parseGithubOwnerRepo('https://github.com/claudianus/metalslug1.git')).toEqual({
       owner: 'claudianus',
@@ -69,6 +73,22 @@ describe('job-push trust + refs', () => {
       owner: 'acme',
       repo: 'widgets',
     });
+  });
+
+  it('maps a confident pages-publish judgment and refuses main', () => {
+    const pages = parsePublishTargetJudgment(
+      '{"pages_publish":true,"remote_ref":"gh-pages","confidence":0.9,"rationale":"static site host branch"}',
+    );
+    expect(pages).toBeDefined();
+    expect(remoteRefFromPublishJudgment(pages!)).toBe('gh-pages');
+    const main = parsePublishTargetJudgment(
+      '{"pages_publish":true,"remote_ref":"main","confidence":0.9,"rationale":"default branch"}',
+    );
+    expect(remoteRefFromPublishJudgment(main!)).toBeUndefined();
+    const skip = parsePublishTargetJudgment(
+      '{"pages_publish":false,"confidence":0.8,"rationale":"same as local ref"}',
+    );
+    expect(remoteRefFromPublishJudgment(skip!)).toBeUndefined();
   });
 });
 
@@ -116,11 +136,57 @@ describe('pushJobToRemote', () => {
     expect(getJob(store, job.id)?.resultSummary).toMatch(/Pushed/);
   });
 
-  it('infers remoteRef=gh-pages from title and enables Pages after push', async () => {
+  it('does not invent gh-pages from title wording when remoteRef is omitted', async () => {
     const store = memoryStore();
     const job = createJob(store, {
       title: 'Push: origin/main + gh-pages 배포 및 Pages 활성화',
       kind: 'implement',
+    });
+    patchJob(store, job.id, {
+      status: 'done',
+      worktreePath: '/tmp/wt',
+      worktreeBranch: 'liora/conductor-jmsl8pcld1vb3s8',
+    });
+
+    const gitCalls: string[][] = [];
+    const runGit = vi.fn(async (_cwd: string, args: readonly string[]) => {
+      gitCalls.push([...args]);
+      if (args[0] === 'rev-parse') {
+        return { code: 0, stdout: '6557a3dabcdef0123456789\n', stderr: '' };
+      }
+      if (args[0] === 'push') {
+        return { code: 0, stdout: 'ok\n', stderr: '' };
+      }
+      return { code: 0, stdout: '', stderr: '' };
+    });
+
+    const result = await pushJobToRemote({
+      store,
+      job: getJob(store, job.id)!,
+      remote: 'origin',
+      localRef: 'liora/conductor-jmsl8pcld1vb3s8',
+      runGit,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.receipt?.remoteRef).toBe('liora/conductor-jmsl8pcld1vb3s8');
+    expect(result.receipt?.pagesEnabled).toBeFalsy();
+    expect(
+      gitCalls.some(
+        (c) =>
+          c[0] === 'push' &&
+          c[1] === 'origin' &&
+          c[2] === 'liora/conductor-jmsl8pcld1vb3s8:liora/conductor-jmsl8pcld1vb3s8',
+      ),
+    ).toBe(true);
+  });
+
+  it('uses a publish-effect judgment when the classifier returns a Pages branch', async () => {
+    const store = memoryStore();
+    const job = createJob(store, {
+      title: 'Ship the static site',
+      kind: 'implement',
+      successCriteria: ['static site is live on the host branch'],
     });
     patchJob(store, job.id, {
       status: 'done',
@@ -147,15 +213,28 @@ describe('pushJobToRemote', () => {
       ghCalls.push([...args]);
       return { code: 0, stdout: '{"status":"built"}\n', stderr: '' };
     });
+    const agent = {
+      generate: async () => ({
+        message: {
+          content: [
+            {
+              type: 'text',
+              text: '{"pages_publish":true,"remote_ref":"gh-pages","confidence":0.9,"rationale":"static host branch"}',
+            },
+          ],
+        },
+      }),
+      config: { hasProvider: true, provider: {} },
+    };
 
     const result = await pushJobToRemote({
       store,
       job: getJob(store, job.id)!,
       remote: 'origin',
       localRef: 'liora/conductor-jmsl8pcld1vb3s8',
-      // remoteRef omitted — must infer gh-pages from title
       runGit,
       runGh,
+      agent: agent as never,
     });
 
     expect(result.ok).toBe(true);

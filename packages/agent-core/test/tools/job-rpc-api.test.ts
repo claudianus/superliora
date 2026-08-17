@@ -103,6 +103,23 @@ describe('job-rpc-api', () => {
       merged: true,
     });
   });
+
+  it('jobRecordToSnapshot includes v4 effectPreview', () => {
+    const store = memoryStore();
+    writeJobLedger(store, emptyJobLedger());
+    const job = createJob(store, {
+      title: 'Host effect',
+      kind: 'task',
+      taskTrack: 'general',
+      taskTrackSource: 'inferred',
+    });
+    const snap = jobRecordToSnapshot(getJob(store, job.id)!);
+    expect(snap.effectPreview?.isolation).toBe('checkout');
+    expect(snap.effectPreview?.chip).toContain('checkout');
+    expect(snap.effectPreview?.summary).toContain('Conductor judged');
+    expect(snap.effectPreview?.taskTrack).toBe('general');
+    expect(snap.effectPreview?.taskTrackSource).toBe('inferred');
+  });
 });
 
 describe('conductor project mode pool', () => {

@@ -85,6 +85,7 @@ describe('worker TDD / debug contracts', () => {
     const job = createJob(store, {
       title: 'Debug: flaky',
       kind: 'implement',
+      debugFixer: true,
       successCriteria: ['repro goes green'],
       reproCommand: 'node scripts/test-local.mjs packages/foo -t flake',
     });
@@ -98,6 +99,7 @@ describe('worker TDD / debug contracts', () => {
     const job = createJob(store, {
       title: 'Prototype checkout state machine',
       kind: 'explore',
+      explorePrototype: true,
       prompt: 'Throwaway prototype for the reducer shape',
     });
     expect(jobPrompt(job)).toMatch(/Prototype explore/);

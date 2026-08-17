@@ -17,9 +17,9 @@ describe('agent/injection/premium-quality — resolveActivePremiumDensity', () =
     expect(resolveActivePremiumDensity(buildAgent())).toBe('visual');
   });
 
-  it('resolves visual density for UI objectives like design-a-hero', () => {
+  it('fails closed to code when the objective has no cached or declared surface', () => {
     const agent = buildAgent({ getGoal: () => ({ goal: { objective: 'design-a-hero' } }) });
-    expect(resolveActivePremiumDensity(agent)).toBe('visual');
+    expect(resolveActivePremiumDensity(agent)).toBe('code');
   });
 
   it('resolves code density for non-visual objectives', () => {

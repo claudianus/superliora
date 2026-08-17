@@ -1,6 +1,8 @@
 /**
  * Multi-intent → multiple Jobs (Conductor locked policy).
- * Heuristic only — LLM may still call JobCreate N times; this helps tools/prompts.
+ * Structural list parse only — numbered or bullet items.
+ * Verb/conjunction keyword splits are forbidden; otherwise one Job
+ * (Conductor should call JobCreate N times).
  */
 
 export interface SplitJobIntent {
@@ -10,7 +12,7 @@ export interface SplitJobIntent {
 
 /**
  * Split a user message into task-like intents.
- * Returns a single intent when split is unsafe/ambiguous (fallback single Job).
+ * Returns a single intent when the message is not a list (fallback single Job).
  */
 export function splitUserMessageIntoJobIntents(message: string): readonly SplitJobIntent[] {
   const text = message.trim();
@@ -38,26 +40,6 @@ export function splitUserMessageIntoJobIntents(message: string): readonly SplitJ
       .filter((s) => s.length > 0);
     if (items.length >= 2) {
       return items.map((item) => ({
-        title: titleFromLine(item),
-        prompt: item,
-      }));
-    }
-  }
-
-  // Semicolon / "and also" / Korean "그리고" / "또"
-  const clauses = text
-    .split(/\s*(?:;|\band also\b|\bthen\b|그리고|또한|또)\s+/iu)
-    .map((s) => s.trim())
-    .filter((s) => s.length >= 8);
-  if (clauses.length >= 2 && clauses.length <= 8) {
-    // Require each clause to look task-like (verb-ish or path-ish)
-    const taskish = clauses.filter((c) =>
-      /\b(fix|add|implement|create|update|remove|refactor|test|write|build|check|investigate|조사|추가|수정|구현|작성|확인)\b/iu.test(
-        c,
-      ),
-    );
-    if (taskish.length >= 2) {
-      return taskish.map((item) => ({
         title: titleFromLine(item),
         prompt: item,
       }));

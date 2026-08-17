@@ -200,6 +200,22 @@ export class ResearchSearchEngine implements WebSearchProvider {
     return [...this.servedThisQuery];
   }
 
+  lastRoute(): string | undefined {
+    for (const slot of this.slots) {
+      const line = slot.provider.lastRoute?.();
+      if (line !== undefined && line.length > 0) return line;
+    }
+    return undefined;
+  }
+
+  lastSearchedQuery(): string | undefined {
+    for (const slot of this.slots) {
+      const rewritten = slot.provider.lastSearchedQuery?.();
+      if (rewritten !== undefined && rewritten.length > 0) return rewritten;
+    }
+    return undefined;
+  }
+
   status(): ResearchSearchStatus {
     const now = this.now();
     return {

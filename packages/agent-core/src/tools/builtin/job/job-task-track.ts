@@ -2,54 +2,59 @@
  * Per-Job coding vs general track.
  *
  * Gates (worktree / verify / changeset / gate brief) key off `JobRecord.taskTrack`.
- * Classification is a conservative allowlist: ambiguous text stays coding.
- * No session-level toggle and no LLM round-trip.
+ * The harness never classifies from prompt wording. Track comes from a declared
+ * contract, structural facts (kind / greenfield / tool event), affinity
+ * inheritance, or an LLM effect judgment ({@link inferJobTaskTrack}).
+ * Ambiguous / failed judgment stays coding.
  */
 
 import { isPlaceholderBriefLine } from './job-brief';
-import type { JobDeliveryMode, JobKind, JobRecord } from './job-store-key';
+import type {
+  JobDeliveryMode,
+  JobKind,
+  JobRecord,
+  JobSurfaceKind,
+  JobTaskTrack,
+  JobTaskTrackSource,
+  JobTddMode,
+} from './job-store-key';
 
-export type JobTaskTrack = 'coding' | 'general';
+export type { JobTaskTrack, JobTaskTrackSource };
 
 export type GeneralVerdictField = 'passed' | 'failed';
 
 export interface ClassifyJobTaskTrackInput {
   readonly title?: string;
   readonly prompt?: string;
+  /** Done-contract the effect judge reads first. Not a keyword source. */
+  readonly successCriteria?: readonly string[];
+  readonly verificationCommands?: readonly string[];
+  readonly surfaceKind?: JobSurfaceKind;
   readonly ownershipPaths?: readonly string[];
   readonly contextPaths?: readonly string[];
   readonly kind?: JobKind;
   readonly deliveryMode?: JobDeliveryMode;
   readonly greenfieldChain?: boolean;
-  /** Hidden JobCreate override. Invalid values are ignored. */
+  /** JobCreate / JobSteer contract. Invalid values are ignored. */
   readonly explicit?: string;
   /** Affinity / continue_from inheritance. Explicit still wins. */
   readonly inherited?: JobTaskTrack;
+  /**
+   * Harness event — not prompt text. Product-file tools force coding.
+   * Used by the conductor draft recorder.
+   */
+  readonly toolName?: string;
+  readonly blockedCode?: string;
 }
+
+export type JobTaskTrackResolution =
+  | { readonly source: Exclude<JobTaskTrackSource, 'pending'>; readonly track: JobTaskTrack }
+  | { readonly source: 'pending' };
 
 export interface GeneralVerdict {
   readonly generalVerdict: GeneralVerdictField;
   readonly proof: string;
 }
-
-const REPO_PATH =
-  /(?:^|[\s"'`(])(?:packages|apps|src|lib|test|tests|docs)\/|(?:^|[\s"'`(])[\w.-]+\.(?:ts|tsx|js|jsx|mjs|cjs|mts|cts|py|go|rs|java|kt|swift|cs|rb|php|vue|svelte|css|scss)\b/i;
-
-const CODING_SIGNAL =
-  /\b(fix|refactor|implement|tests?\b|pull request|\bpr\b|changeset|lint|typeerrors?|type error|compile|coverage|버그|리팩터|리팩토링|테스트|커밋|타입에러|타입 에러|레포|저장소|repo|repository|workspace|monorepo)\b/i;
-
-const PKG_MANAGER_INSTALL =
-  /\b(?:npm|pnpm|yarn|bun)\s+(?:i|install|add|remove|rm)\b/i;
-
-const GENERAL_INSTALL = /설치해(?:\s*줘)?|설치\s+해(?:\s*줘)?|\buninstall\b|\binstall\b/i;
-
-const GENERAL_OS =
-  /운영체제|os\s*설정|윈도우\s*설정|macos\s*설정|시스템\s*설정|환경\s*변수|방화벽|레지스트리|권한\s*설정|path\s*설정/i;
-
-const GENERAL_APP = /켜줘|켜\s*줘|실행해(?:\s*줘)?|실행\s+해(?:\s*줘)?|열어줘|열어\s*줘/i;
-
-const OUTSIDE_WORKSPACE =
-  /(?:^|[\s"'`])(?:~\/|~\\|[A-Za-z]:\\+|\/Users\/|\/home\/|%APPDATA%|%LOCALAPPDATA%|%USERPROFILE%)/;
 
 export function normalizeJobTaskTrack(value: string | undefined): JobTaskTrack | undefined {
   if (value === 'coding' || value === 'general') return value;
@@ -64,52 +69,114 @@ export function isGeneralTaskTrack(
   return job.taskTrack === 'general';
 }
 
+export function isPendingTaskTrack(
+  job: Pick<JobRecord, 'taskTrackSource'>,
+): boolean {
+  return job.taskTrackSource === 'pending';
+}
+
+/** Where the worker runs. Mirrors `needsWorktree` without importing runtime. */
+export function jobIsolationKind(
+  job: Pick<JobRecord, 'kind' | 'taskTrack'>,
+): 'worktree' | 'checkout' | 'none' {
+  if (
+    job.kind === 'merge' ||
+    job.kind === 'push' ||
+    job.kind === 'desk' ||
+    job.kind === 'goal-desk'
+  ) {
+    return 'none';
+  }
+  if (isGeneralTaskTrack(job)) return 'checkout';
+  if (job.kind === 'explore' || job.kind === 'research') return 'checkout';
+  return 'worktree';
+}
+
 /**
- * Alias for the public test seam name used in the brief.
- * Same as {@link classifyJobTaskTrack}.
+ * Structural / declared resolution only. Does not read title or prompt.
+ * Unresolved task/implement Jobs stay `pending` for LLM effect judgment.
  */
+export function resolveJobTaskTrack(input: ClassifyJobTaskTrackInput): JobTaskTrackResolution {
+  const kind = input.kind ?? 'task';
+  if (kind !== 'task' && kind !== 'implement') {
+    return { source: 'structural', track: 'coding' };
+  }
+  if (input.deliveryMode === 'greenfield' || input.greenfieldChain === true) {
+    return { source: 'structural', track: 'coding' };
+  }
+
+  const explicit = normalizeJobTaskTrack(input.explicit);
+  if (explicit !== undefined) return { source: 'declared', track: explicit };
+  if (input.inherited !== undefined) return { source: 'inherited', track: input.inherited };
+
+  if (forcesCodingFromHarnessEvent(input)) {
+    return { source: 'structural', track: 'coding' };
+  }
+
+  // implement is a product-change kind. Only task may stay pending for effect judgment.
+  if (kind === 'implement') {
+    return { source: 'structural', track: 'coding' };
+  }
+
+  return { source: 'pending' };
+}
+
+function forcesCodingFromHarnessEvent(input: ClassifyJobTaskTrackInput): boolean {
+  const tool = input.toolName;
+  if (tool === 'Write' || tool === 'Edit' || tool === 'ApplyPatch') return true;
+  if (input.blockedCode === 'CONDUCTOR_DIRECT_WORK_BLOCKED') return true;
+  const paths = input.ownershipPaths ?? [];
+  return paths.some((path) => path.includes('/') || path.includes('.'));
+}
+
+/**
+ * Sync seam: structural / declared / inherited, else coding.
+ * Never scans prompt text. Pending Jobs must go through {@link inferJobTaskTrack}.
+ */
+export function jobTaskTrackCreateFields(resolution: JobTaskTrackResolution): {
+  readonly taskTrack?: JobTaskTrack;
+  readonly taskTrackSource: JobTaskTrackSource;
+} {
+  if (resolution.source === 'pending') return { taskTrackSource: 'pending' };
+  return { taskTrack: resolution.track, taskTrackSource: resolution.source };
+}
+
+export function classifyJobTaskTrack(input: ClassifyJobTaskTrackInput): JobTaskTrack {
+  const resolved = resolveJobTaskTrack(input);
+  return resolved.source === 'pending' ? 'coding' : resolved.track;
+}
+
+/** Same as {@link classifyJobTaskTrack}. */
 export function classifyJobTrack(input: ClassifyJobTaskTrackInput): JobTaskTrack {
   return classifyJobTaskTrack(input);
 }
 
-export function classifyJobTaskTrack(input: ClassifyJobTaskTrackInput): JobTaskTrack {
-  const kind = input.kind ?? 'task';
-  if (kind !== 'task' && kind !== 'implement') return 'coding';
-  if (input.deliveryMode === 'greenfield' || input.greenfieldChain === true) {
-    return 'coding';
+export function taskTrackCreateDefaults(input: {
+  readonly codingKind: boolean;
+  readonly track: JobTaskTrack | undefined;
+  readonly pending: boolean;
+  readonly tddMode?: JobTddMode;
+  readonly surfaceKind?: JobSurfaceKind;
+}): { readonly tddMode?: JobTddMode; readonly surfaceKind?: JobSurfaceKind } {
+  if (!input.codingKind) {
+    return { tddMode: input.tddMode, surfaceKind: input.surfaceKind };
   }
-
-  const explicit = normalizeJobTaskTrack(input.explicit);
-  if (explicit !== undefined) return explicit;
-  if (input.inherited !== undefined) return input.inherited;
-
-  const title = input.title?.trim() ?? '';
-  const prompt = input.prompt?.trim() ?? '';
-  if (title.length === 0 && prompt.length === 0) return 'coding';
-
-  const text = [title, prompt, ...(input.ownershipPaths ?? []), ...(input.contextPaths ?? [])]
-    .filter((part) => part.trim().length > 0)
-    .join('\n');
-
-  if (hasCodingCollision(text)) return 'coding';
-  if (hasGeneralSignal(text)) return 'general';
-  return 'coding';
-}
-
-function hasCodingCollision(text: string): boolean {
-  if (REPO_PATH.test(text)) return true;
-  if (CODING_SIGNAL.test(text)) return true;
-  if (PKG_MANAGER_INSTALL.test(text)) return true;
-  return false;
-}
-
-function hasGeneralSignal(text: string): boolean {
-  return (
-    GENERAL_INSTALL.test(text) ||
-    GENERAL_OS.test(text) ||
-    GENERAL_APP.test(text) ||
-    OUTSIDE_WORKSPACE.test(text)
-  );
+  if (input.pending) {
+    return {
+      tddMode: input.tddMode ?? 'preferred',
+      surfaceKind: input.surfaceKind,
+    };
+  }
+  if (input.track === 'general') {
+    return {
+      tddMode: input.tddMode ?? 'off',
+      surfaceKind: input.surfaceKind ?? 'none',
+    };
+  }
+  return {
+    tddMode: input.tddMode ?? 'preferred',
+    surfaceKind: input.surfaceKind,
+  };
 }
 
 /**

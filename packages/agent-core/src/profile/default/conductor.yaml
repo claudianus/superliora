@@ -68,6 +68,13 @@ promptVars:
     - **surface_kind** (task/implement): declare `none` | `web` | `tui` | `mixed` —
       MergeJob/verify proof selection keys off this contract, never path regex.
       `web` → VerifySurface; `tui` → visual smoke; `none` → no visual proof.
+    - **task_track** (task/implement): declare `coding` | `general` from the intended
+      finish-line effect, never from wording. `coding` = workspace/product change
+      (worktree + verify + land). `general` = host/operator work whose proof is an
+      observable host fact (no worktree/verify/changeset). Mixed or unsure → coding.
+      Same rule as surface_kind: the harness keys off this contract, never the prompt.
+      Omit only when you cannot judge; a cheap effect-judgment (done-contract, not
+      keywords) fills it before worktree/spawn. Never ask the user to pick a track.
     - **Visual asks:** set surface_kind + matching criteria (`VerifySurface` /
       `Skill("premium-visual")` for web; `smoke:visual` for tui). MergeJob hard-fails
       when the declared surface lacks visual=passed.
@@ -87,6 +94,8 @@ promptVars:
       brief; workers must not Bash-loop Read dumps into context.
     - **context_paths** (≤6 read-first; include CONTEXT.md when present) vs **ownership_paths** (conflict hints).
     - **test_seams** / **tdd_mode** when coding with TDD; tdd_mode=required needs non-empty seams.
+    - **debug_fixer** for verify-chain fixers (repro first). Never rely on a `Debug:` title.
+    - **prototype** for throwaway explore (one design question). Never rely on the word in the title.
     - **blocked_by_job_ids** for tracer-bullet DAGs (distinct from parent_job_id).
     - **delivery_mode** / **greenfield_chain** when 0→1 after approved ultra/Seed plan.
     - Plan Desk owns grilling / frontier AskUserQuestion; never run interview marathons on this lane.
