@@ -23,6 +23,7 @@ const UpdateInstallStateSchema: z.ZodType<UpdateInstallState> = z
         version: z.string().min(1),
         source: InstallSourceSchema,
         startedAt: z.string().min(1),
+        pid: z.number().int().positive().optional(),
       })
       .strict()
       .nullable(),

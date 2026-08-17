@@ -46,12 +46,32 @@ export function failureAttemptsFor(state: UpdateInstallState, target: UpdateTarg
   return state.lastFailure?.version === target.version ? state.lastFailure.attempts : 0;
 }
 
+export function isProcessAlive(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as { code?: string }).code === 'EPERM';
+  }
+}
+
+export function hasLiveActiveInstall(state: UpdateInstallState): boolean {
+  const active = state.active;
+  if (active === null) return false;
+  return hasFreshActiveInstall(state, { version: active.version });
+}
+
 export function hasFreshActiveInstall(state: UpdateInstallState, target: UpdateTarget): boolean {
   const active = state.active;
   if (active === null || active.version !== target.version) return false;
   const startedAt = Date.parse(active.startedAt);
   if (!Number.isFinite(startedAt)) return false;
-  return Date.now() - startedAt < AUTO_INSTALL_ACTIVE_TTL_MS;
+  if (Date.now() - startedAt >= AUTO_INSTALL_ACTIVE_TTL_MS) return false;
+  // Failed/crashed installs often leave `active` set. Without a live pid the
+  // record is a stale lock, not a running installer.
+  if (typeof active.pid !== 'number') return false;
+  return isProcessAlive(active.pid);
 }
 
 export function trackUpdateEvent(

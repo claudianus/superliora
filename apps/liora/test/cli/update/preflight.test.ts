@@ -1437,6 +1437,7 @@ describe('upgrade install stages', () => {
             version: '0.5.0',
             source: 'npm-global',
             startedAt: new Date().toISOString(),
+            pid: process.pid,
           },
         }),
         spawn: vi.fn(),
@@ -1525,6 +1526,7 @@ describe('upgrade install stages', () => {
     child.stdout.emit('data', Buffer.from('__LIORA_UPGRADE_STAGE__=installing\n'));
     child.stdout.emit('data', Buffer.from('__LIORA_UPGRADE_STAGE__=done\n'));
     child.emit('exit', 0, null);
+    await flushBackgroundInstall();
 
     expect(stages).toEqual(expect.arrayContaining([
       'checking',
@@ -1613,6 +1615,8 @@ describe('upgrade install stages', () => {
       child.stdout.emit('data', Buffer.from('npm notice\n'));
       expect(stages).toContain('installing');
       child.emit('exit', 1, null);
+      await Promise.resolve();
+      await Promise.resolve();
       expect(stages.at(-1)).toBe('failed');
     } finally {
       vi.useRealTimers();
@@ -1646,6 +1650,7 @@ describe('upgrade install stages', () => {
     child.stderr.emit('data', Buffer.from('npm ERR! code EACCES\n'));
     child.stderr.emit('data', Buffer.from('npm ERR! permission denied\n'));
     child.emit('exit', 1, null);
+    await flushBackgroundInstall();
 
     const failed = events.find((event) => event.stage === 'failed');
     expect(failed).toBeDefined();

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   failureAttemptsFor,
   hasFreshActiveInstall,
+  hasLiveActiveInstall,
   logUpdateInfo,
   logUpdateWarn,
   rolloutTelemetryFor,
@@ -22,18 +23,44 @@ describe('install-runtime helpers', () => {
     expect(failureAttemptsFor(state, { version: '0.4.0' })).toBe(0);
   });
 
-  it('treats active installs within the TTL as fresh', () => {
+  it('treats active installs within the TTL as fresh when the pid is alive', () => {
     const state = {
       ...emptyUpdateInstallState(),
       active: {
         version: '0.5.0',
         source: 'npm-global' as const,
         startedAt: new Date().toISOString(),
+        pid: process.pid,
       },
     };
 
     expect(hasFreshActiveInstall(state, { version: '0.5.0' })).toBe(true);
     expect(hasFreshActiveInstall(state, { version: '0.4.0' })).toBe(false);
+    expect(hasLiveActiveInstall(state)).toBe(true);
+  });
+
+  it('ignores leftover active records without a live pid', () => {
+    const noPid = {
+      ...emptyUpdateInstallState(),
+      active: {
+        version: 'origin/main',
+        source: 'native' as const,
+        startedAt: new Date().toISOString(),
+      },
+    };
+    const deadPid = {
+      ...emptyUpdateInstallState(),
+      active: {
+        version: '0.5.0',
+        source: 'npm-global' as const,
+        startedAt: new Date().toISOString(),
+        pid: 2_147_483_646,
+      },
+    };
+
+    expect(hasFreshActiveInstall(noPid, { version: 'origin/main' })).toBe(false);
+    expect(hasLiveActiveInstall(noPid)).toBe(false);
+    expect(hasFreshActiveInstall(deadPid, { version: '0.5.0' })).toBe(false);
   });
 
   it('ignores stale active installs', () => {
@@ -43,6 +70,7 @@ describe('install-runtime helpers', () => {
         version: '0.5.0',
         source: 'npm-global' as const,
         startedAt: new Date(Date.now() - 7 * 60 * 60 * 1000).toISOString(),
+        pid: process.pid,
       },
     };
 

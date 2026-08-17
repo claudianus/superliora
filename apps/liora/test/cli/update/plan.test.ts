@@ -141,7 +141,7 @@ describe('resolveUpgradePlan', () => {
     expect(plan.target?.version).toBe('origin/main@abcdef123456');
   });
 
-  it('returns already-installing when install-state is active', async () => {
+  it('returns already-installing when a live installer pid is still running', async () => {
     const plan = await resolveUpgradePlan('0.4.0', {
       detectInstallSource: async () => 'npm-global',
       refreshUpdateCache: async () => ({
@@ -152,13 +152,51 @@ describe('resolveUpgradePlan', () => {
       }),
       refreshGitCheckoutUpdateTarget: vi.fn(),
       readUpdateInstallState: async () => ({
-        active: { version: '0.5.0', source: 'npm-global', startedAt: new Date().toISOString() },
+        active: {
+          version: '0.5.0',
+          source: 'npm-global',
+          startedAt: new Date().toISOString(),
+          pid: process.pid,
+        },
         lastFailure: null,
         lastSuccess: null,
       }),
       platform: 'darwin',
     });
     expect(plan.reason).toBe('already-installing');
+  });
+
+  it('clears leftover active install-state and plans --main when no installer is running', async () => {
+    const writeUpdateInstallState = vi.fn().mockResolvedValue(undefined);
+    const plan = await resolveUpgradePlan(
+      '0.11.3',
+      {
+        detectInstallSource: async () => 'native',
+        refreshUpdateCache: vi.fn(),
+        refreshGitCheckoutUpdateTarget: vi.fn(),
+        detectGithubCheckout: async () => null,
+        readUpdateInstallState: async () => ({
+          active: {
+            version: 'origin/main',
+            source: 'native',
+            startedAt: new Date().toISOString(),
+          },
+          lastFailure: null,
+          lastSuccess: null,
+        }),
+        writeUpdateInstallState,
+        platform: 'win32',
+      },
+      { fromMain: true },
+    );
+    expect(plan.reason).toBe('update-available');
+    expect(plan.fromMain).toBe(true);
+    expect(plan.target).toEqual({ version: MAIN_TIP_UPSTREAM, upstream: MAIN_TIP_UPSTREAM });
+    expect(writeUpdateInstallState).toHaveBeenCalledWith({
+      active: null,
+      lastFailure: null,
+      lastSuccess: null,
+    });
   });
 
   it('github-checkout: rebuilds when HEAD matches upstream but lastFailure is for that HEAD', async () => {

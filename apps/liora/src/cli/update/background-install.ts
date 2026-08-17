@@ -243,7 +243,7 @@ async function startBackgroundInstall(
       return { status: 'failure-threshold' };
     }
 
-    const startedState: UpdateInstallState = {
+    let startedState: UpdateInstallState = {
       ...freshState,
       active: {
         version: target.version,
@@ -322,6 +322,13 @@ async function startBackgroundInstall(
       detached: true,
       stdio: 'ignore',
     }));
+    if (typeof child.pid === 'number' && child.pid > 0 && startedState.active !== null) {
+      startedState = {
+        ...startedState,
+        active: { ...startedState.active, pid: child.pid },
+      };
+      void writeUpdateInstallState(startedState).catch(() => {});
+    }
     child.once('error', () => { finish(false); });
     child.once('exit', (code) => { finish(code === 0); });
     child.unref();

@@ -9,7 +9,8 @@ import {
   gitCheckoutVersionLabel,
   refreshGitCheckoutUpdateTarget,
 } from './git-checkout';
-import { emptyUpdateInstallState, readUpdateInstallState } from './install-state';
+import { hasLiveActiveInstall } from './install-runtime';
+import { emptyUpdateInstallState, readUpdateInstallState, writeUpdateInstallState } from './install-state';
 import { canAutoInstall, installCommandFor } from './preflight';
 import { refreshUpdateCache } from './refresh';
 import {
@@ -68,6 +69,7 @@ export interface ResolveUpgradePlanDeps {
   /** Native / SEA authority — GitHub Release manifest (not CDN tip). */
   readonly fetchReleaseManifest: () => Promise<FetchReleaseManifestResult>;
   readonly readUpdateInstallState: () => Promise<UpdateInstallState>;
+  readonly writeUpdateInstallState: (state: UpdateInstallState) => Promise<void>;
   readonly detectGithubCheckout: (startPath?: string) => Promise<string | null>;
   readonly defaultSourceInstallDir: () => string;
   readonly platform: NodeJS.Platform;
@@ -98,6 +100,8 @@ function resolveDeps(overrides: Partial<ResolveUpgradePlanDeps>): ResolveUpgrade
     fetchReleaseManifest:
       overrides.fetchReleaseManifest ?? (() => fetchLatestReleaseManifest()),
     readUpdateInstallState: overrides.readUpdateInstallState ?? (() => readUpdateInstallState()),
+    writeUpdateInstallState:
+      overrides.writeUpdateInstallState ?? ((state) => writeUpdateInstallState(state)),
     detectGithubCheckout:
       overrides.detectGithubCheckout ?? ((startPath) => detectSuperLioraGithubCheckout(startPath)),
     defaultSourceInstallDir:
@@ -248,8 +252,8 @@ export async function resolveUpgradePlan(
   const deps = resolveDeps(overrides);
   const fromMain = options.fromMain === true;
   const source = await deps.detectInstallSource().catch(() => 'unsupported' as const);
-  const installState = await deps.readUpdateInstallState().catch(() => emptyUpdateInstallState());
-  if (installState.active !== null) {
+  let installState = await deps.readUpdateInstallState().catch(() => emptyUpdateInstallState());
+  if (hasLiveActiveInstall(installState) && installState.active !== null) {
     return basePlan({
       source,
       currentVersion,
@@ -260,6 +264,11 @@ export async function resolveUpgradePlan(
       platform: deps.platform,
       fromMain,
     });
+  }
+  if (installState.active !== null) {
+    const cleared: UpdateInstallState = { ...installState, active: null };
+    await deps.writeUpdateInstallState(cleared).catch(() => {});
+    installState = cleared;
   }
 
   if (fromMain) {
