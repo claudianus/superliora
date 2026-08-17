@@ -270,7 +270,7 @@ export function resolveFragmentFontFace(options = {}) {
 }
 
 /**
- * Env + path probe for TUI / Conductor / `/windows-setup`.
+ * Env + path probe for TUI / Conductor / `/host-setup`.
  * Does not install anything.
  */
 export function probeWindowsTerminalEnv(options = {}) {
@@ -363,7 +363,15 @@ export async function ensureTerminal(options = {}) {
   }
 
   if (!found && skipPackages) {
-    // Upgrade must not fail the CLI when wt.exe is absent.
+    let vibe = {};
+    if (!options.noShellRc) {
+      const bootstrapVibe = options.ensureShellVibe ?? ensureShellVibe;
+      try {
+        vibe = await bootstrapVibe({ ...options, skipPackages: true });
+      } catch {
+        vibe = {};
+      }
+    }
     return {
       skipped: true,
       installed: false,
@@ -373,6 +381,10 @@ export async function ensureTerminal(options = {}) {
       promotedDefault: false,
       wingetBootstrapped,
       nerdFontInstalled,
+      ohMyPoshInstalled: vibe.ohMyPoshInstalled === true,
+      zoxideInstalled: vibe.zoxideInstalled === true,
+      fzfInstalled: vibe.fzfInstalled === true,
+      profilePatched: vibe.profilePatched === true,
       message: message ?? TERMINAL_INSTALL_HINT,
     };
   }

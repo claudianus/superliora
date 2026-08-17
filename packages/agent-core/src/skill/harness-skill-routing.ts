@@ -87,10 +87,10 @@ export const HARNESS_ROUTING_DOMAINS: readonly HarnessRoutingDomain[] = [
   {
     id: 'windows-host',
     query:
-      /\b(windows\s*terminal|conhost|pc[-_ ]?bang|nerd\s*font|caskaydia|windows-setup|vibe[-_ ]?setup|터미널\s*깨|피시방)\b/i,
+      /\b(windows\s*terminal|conhost|pc[-_ ]?bang|nerd\s*font|caskaydia|oh[- ]?my[- ]?posh|windows-setup|macos-setup|linux-setup|host-setup|vibe[-_ ]?setup|터미널\s*깨|피시방)\b/i,
     preferBuiltin: 'windows-vibe',
     demote: /\b(oh-my-posh-setup|windows-dotfiles|terminal-ricer|wt-setup)\b/i,
-    demoteNote: 'demoted: prefer /windows-setup apply / Skill("windows-vibe")',
+    demoteNote: 'demoted: prefer /host-setup / /windows-setup apply / Skill("windows-vibe")',
   },
 ];
 

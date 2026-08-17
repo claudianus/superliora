@@ -6,7 +6,9 @@ import {
   VIBE_PROFILE_MARKER_START,
   ZOXIDE_WINGET_ID,
   defaultPowerShellProfilePaths,
+  defaultUnixProfilePaths,
   ensureShellVibe,
+  renderUnixVibeProfileBlock,
   renderVibeProfileBlock,
   skipShellVibeRequested,
   upsertMarkedBlock,
@@ -65,10 +67,41 @@ describe('scripts/install/ensure-shell-vibe', () => {
     expect(profile).toContain('superliora-neon-noir.omp.json');
   });
 
-  it('honors skip flags and non-Windows', async () => {
+  it('honors skip flags', async () => {
     expect(skipShellVibeRequested({ SUPERLIORA_NO_SHELL_VIBE: '1' })).toBe(true);
     expect((await ensureShellVibe({ skip: true, platform: 'win32' })).skipped).toBe(true);
-    expect((await ensureShellVibe({ platform: 'linux' })).skipped).toBe(true);
+    expect((await ensureShellVibe({ skip: true, platform: 'linux' })).skipped).toBe(true);
+    expect((await ensureShellVibe({ platform: 'aix' })).skipped).toBe(true);
+  });
+
+  it('writes a managed bash/zsh block on Linux', async () => {
+    const files = new Map<string, string>();
+    const paths = defaultUnixProfilePaths({ HOME: '/tmp/sl-home' });
+    expect(paths).toEqual(['/tmp/sl-home/.zshrc', '/tmp/sl-home/.bashrc']);
+    const result = await ensureShellVibe({
+      platform: 'linux',
+      env: { HOME: '/tmp/sl-home' },
+      profilePaths: paths,
+      readText: async (dest: string) => files.get(dest) ?? '',
+      writeFile: async (dest: string, text: string) => {
+        files.set(dest, text);
+      },
+      ensureOhMyPosh: async () => ({
+        ok: true,
+        themeWritten: true,
+        ompPath: '/tmp/sl-home/.superliora/runtime/oh-my-posh/oh-my-posh',
+      }),
+      isFile: () => false,
+      which: () => undefined,
+      downloadToFile: async () => '',
+      expandZip: () => {},
+      addUserPath: () => {},
+    });
+    expect(result.ok).toBe(true);
+    expect(result.profilePatched).toBe(true);
+    expect(files.get('/tmp/sl-home/.bashrc')).toContain('init bash --config');
+    expect(files.get('/tmp/sl-home/.zshrc')).toContain('init zsh --config');
+    expect(renderUnixVibeProfileBlock('bash')).toContain(VIBE_PROFILE_MARKER_START);
   });
 
   it('pins zoxide and fzf winget ids', () => {

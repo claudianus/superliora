@@ -1,81 +1,86 @@
 ---
 name: windows-vibe
 description: >
-  Windows TUI host setup for SuperLiora — Windows Terminal, CaskaydiaCove Nerd
-  Font, Oh My Posh, zoxide, fzf, SuperLiora profile, default-terminal promotion.
-  Use on PC-bang / school / conhost machines, broken glyphs, "터미널 깨짐",
-  missing winget, or when the user asks for vibe / Windows Terminal setup.
-  Prefer /windows-setup apply over improvising installs.
+  Cross-platform SuperLiora host setup — Nerd Font, Oh My Posh, zoxide, fzf,
+  and a managed shell profile. On Windows also Windows Terminal, winget, and
+  default-terminal promotion. Use for PC-bang / school / conhost machines,
+  broken glyphs, "터미널 깨짐", missing winget, or vibe / terminal setup.
+  Prefer /host-setup over improvising installs.
 whenToUse: >
-  Windows Terminal, conhost, PC bang, 피시방, nerd font, vibe coding setup,
-  broken TUI boxes, winget missing, /windows-setup
+  Windows Terminal, conhost, PC bang, 피시방, nerd font, Oh My Posh, zoxide,
+  vibe coding setup, broken TUI boxes, winget missing, /host-setup,
+  /windows-setup, macos-setup, linux-setup
 ---
 
-# SuperLiora windows-vibe (builtin)
+# SuperLiora host setup (builtin)
 
-Windows users often land in the classic console host (`conhost` / `cmd.exe` /
-Windows PowerShell 5.1). That host cannot render the SuperLiora TUI. PC-bang
-and school images also lack `winget`, Nerd Fonts, and App Installer.
+The product command is **`/host-setup`**. Aliases: `/windows-setup`,
+`/macos-setup`, `/linux-setup`, `/vibe-setup`, `/terminal-setup`.
+`/windows-setup apply` is the same apply path.
+
+It prints a list of installs, file writes, and setting changes, then asks
+**진행할까요?** before applying. Do not invent a one-off install script.
+
+On Windows, classic **conhost** (PC-bang / school images) cannot render the
+TUI well — prefer Windows Terminal after apply.
 
 ## Happy path
 
-1. Check `<windows_terminal_readiness>` if present. `status=ok` → do not nag.
-2. Tell the user to run **`/windows-setup apply`** in this TUI. That is the
-   product command. It bootstraps winget when missing, installs Windows
-   Terminal, installs CaskaydiaCove NF, Oh My Posh, zoxide, and fzf, writes the
-   SuperLiora fragment + PowerShell profile, and promotes WT as the default
-   terminal. Failures never block the CLI.
+1. On Windows, check `<windows_terminal_readiness>` if present. `status=ok`
+   does not mean font/prompt are done — still offer `/host-setup status`.
+2. Tell the user to run **`/host-setup`** in this TUI. That opens the confirm
+   sheet. `/host-setup apply -y` skips the sheet. `/host-setup status` lists
+   items only.
 3. If you are a **Conductor**: do **not** install packages on this lane.
-   Point at `/windows-setup apply`, or `JobCreate` with `task_track=general`
-   whose success criterion is `WT_SESSION` set + SuperLiora profile present.
-4. If you are a **general-track Job**: run the installer helpers from the
-   repo / install tree — `scripts/install/ensure-terminal.mjs` — do not
-   invent a one-off winget script. Skip with `SUPERLIORA_NO_TERMINAL=1`.
+   Point at `/host-setup`, or `JobCreate` with `task_track=general`.
+4. If you are a **general-track Job**: run `scripts/install/host-setup.mjs`
+   (`ensureHostSetup`). Skip with `SUPERLIORA_NO_HOST_SETUP=1`.
 
-## What "apply" does (and does not)
+## What apply does (and does not)
 
-Does:
+Does (all platforms, user-local):
 
-- Bootstrap winget (GitHub DesktopAppInstaller + VCLibs) when Store/winget is missing
-- Install `Microsoft.WindowsTerminal` (winget, then MSIX)
-- Install CaskaydiaCove Nerd Font (winget-font, then user-local zip)
-- Install Oh My Posh and write the SuperLiora Neon Noir prompt theme
-- Install zoxide and fzf (user-local)
+- Install CaskaydiaCove Nerd Font when missing
+- Install Oh My Posh (GitHub binary → `~/.superliora/runtime/oh-my-posh`;
+  Homebrew used only if already on PATH; winget on Windows)
+- Write the SuperLiora Neon Noir Oh My Posh theme
+- Install zoxide and fzf when missing
+- Upsert a marked SuperLiora block in shell profiles
+  (Windows: PowerShell 5.1 + 7; macOS/Linux: `~/.zshrc` + `~/.bashrc`)
+- Refresh `fc-cache` on Linux after a font install
+
+Does (Windows only):
+
+- Bootstrap winget when Store/App Installer is missing
+- Install Windows Terminal (winget, then MSIX)
 - Install Terminal-Icons when PSGallery is reachable
-- Patch CurrentUser PowerShell 5.1 + 7 profiles with a managed SuperLiora block
 - Set CurrentUser execution policy to RemoteSigned when it is Restricted
-- Write `%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\SuperLiora\superliora.json` (SuperLiora + SuperLiora Shell)
+- Write the Windows Terminal SuperLiora fragment + Start Menu shortcut
 - Merge WT defaults (Neon Noir, Nerd Font, acrylic, Win+` quake) when settings parse
-- Start Menu shortcut targeting the SuperLiora profile
-- Promote Windows Terminal as the default console when the current value is empty or Console Host
+- Promote Windows Terminal as the default console when empty or Console Host
 
 Does not:
 
 - Block CLI install on failure
 - Disable process mitigations / CET
-- Force PowerShell 7 (7.6 needs a patched Windows CET stack)
-- Overwrite a user-chosen default terminal that is already not Console Host
+- Force PowerShell 7, Homebrew, Fish, or a GUI terminal on Unix
+- Overwrite a user-chosen Windows default terminal that is already not Console Host
+- Require a Y/N prompt on `curl | bash` / `irm | iex` (those print the same
+  list, then apply)
 
-## PC-bang notes
+## Startup
 
-- `wt.exe` / `pwsh.exe` App Execution Aliases can be 0-byte reparse points that
-  fail from some hosts. Prefer well-known `WindowsApps` paths and the Start
-  Menu shortcut.
-- User-local installs only (no admin required for the happy path).
-- After apply, the user must **open SuperLiora from Windows Terminal** (Start
-  Menu "SuperLiora" or `wt -p SuperLiora`). Staying in conhost will still look broken.
-
-## Auto on TUI startup
-
-When SuperLiora starts in conhost (and not CI), it best-effort runs the same
-apply path, then asks the user to reopen from Windows Terminal. That is
-intentional for PC-bang / school images. Disable auto-apply with
-`SUPERLIORA_AUTO_TERMINAL=0` (the startup hint still appears).
+When something is still `needed`, the TUI shows the same confirm sheet. It
+does **not** silently install. Disable the startup sheet with
+`SUPERLIORA_AUTO_TERMINAL=0` or `SUPERLIORA_NO_HOST_SETUP=1`.
+`/host-setup` still works.
 
 ## Skip / env
 
+- `--no-host-setup` / `SUPERLIORA_NO_HOST_SETUP=1` — skip the whole sidecar
 - `--no-terminal` / `SUPERLIORA_NO_TERMINAL=1` / `SUPERLIORA_SKIP_TERMINAL=1`
-- `SUPERLIORA_AUTO_TERMINAL=0`
+  — skip Windows Terminal only
+- `SUPERLIORA_AUTO_TERMINAL=0` — no startup confirm sheet
 - `SUPERLIORA_NO_WINGET=1`
 - `SUPERLIORA_NO_NERD_FONT=1`
 - `SUPERLIORA_NO_SHELL_VIBE=1`

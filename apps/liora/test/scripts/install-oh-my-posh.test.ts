@@ -5,6 +5,7 @@ import {
   OMP_WINGET_ID,
   ensureOhMyPosh,
   findOhMyPosh,
+  ohMyPoshDownloadUrl,
   renderNeonNoirOmpTheme,
   skipOhMyPoshRequested,
   wellKnownOhMyPoshCandidates,
@@ -57,10 +58,27 @@ describe('scripts/install/ensure-oh-my-posh', () => {
     expect(skipped.skipped).toBe(true);
   });
 
-  it('is a no-op on non-Windows', async () => {
-    const result = await ensureOhMyPosh({ platform: 'darwin' });
-    expect(result.skipped).toBe(true);
-    expect(result.ok).toBe(true);
+  it('skips unsupported platforms and skipPackages downloads', async () => {
+    const unsupported = await ensureOhMyPosh({ platform: 'aix' });
+    expect(unsupported.skipped).toBe(true);
+    expect(unsupported.ok).toBe(true);
+
+    const files = new Map<string, string>();
+    const darwin = await ensureOhMyPosh({
+      platform: 'darwin',
+      skipPackages: true,
+      env: { HOME: '/Users/dev' },
+      isFile: () => false,
+      which: () => undefined,
+      writeFile: async (dest: string, text: string) => {
+        files.set(dest, text);
+      },
+    });
+    expect(darwin.ok).toBe(true);
+    expect(darwin.themeWritten).toBe(true);
+    expect(files.size).toBe(1);
+    expect(ohMyPoshDownloadUrl('darwin', 'arm64')).toContain('posh-darwin-arm64');
+    expect(ohMyPoshDownloadUrl('linux', 'x64')).toContain('posh-linux-amd64');
   });
 
   it('pins the winget id and ships a Neon Noir prompt', () => {

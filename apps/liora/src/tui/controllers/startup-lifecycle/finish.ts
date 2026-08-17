@@ -11,13 +11,12 @@ import {
 import { formatSessionResumeWarningNotice } from '../../utils/session/session-resume-warning-notice';
 import { formatSessionWarningNotice } from '../../utils/session/session-warning-notice';
 import { formatTmuxKeyboardNotice } from '../../utils/session/tmux-keyboard-notice';
-import { formatWindowsSetupHintNotice } from '../../utils/session/windows-setup-notice';
+import { applyHostSetup } from '../../utils/host-setup/apply-host-setup';
+import { confirmHostSetup } from '../../utils/host-setup/confirm-host-setup';
+import { formatHostSetupHintNotice } from '../../utils/session/windows-setup-notice';
 import { detectTmuxKeyboardWarning } from '../../utils/terminal/tmux-keyboard';
-import { isCiLike, shouldAutoApplyWindowsSetup, windowsTuiHostDegraded } from '../../utils/terminal/windows-host';
-import {
-  formatWindowsSetupApply,
-  runWindowsSetupApply,
-} from '../../utils/terminal/windows-setup-runtime';
+import { loadHostSetupModule } from '../../utils/terminal/host-setup-runtime';
+import { isCiLike, shouldPromptHostSetup, windowsTuiHostDegraded } from '../../utils/terminal/windows-host';
 import { ttui } from '../../utils/tui-i18n';
 import type { StartupLifecycleHost } from './types';
 
@@ -32,7 +31,7 @@ export async function finishStartupSession(
   surfaceUpdateLifecycle(host);
   maybeAnnounceCwdBelowGitRoot(host);
   void showTmuxKeyboardWarningIfNeeded(host);
-  showWindowsSetupHintIfNeeded(host);
+  void promptHostSetupIfNeeded(host);
   if (host.state.startupState === 'picker') {
     void host.sessionBrowser.bootstrapFromPicker();
     return;
@@ -134,34 +133,47 @@ async function resumeGoalFromQueue(host: StartupLifecycleHost): Promise<void> {
   }
 }
 
-function showWindowsSetupHintIfNeeded(host: StartupLifecycleHost): void {
+async function promptHostSetupIfNeeded(host: StartupLifecycleHost): Promise<void> {
   try {
-    if (!windowsTuiHostDegraded() || isCiLike()) return;
-    const notice = formatWindowsSetupHintNotice();
+    if (isCiLike()) return;
+    if (!shouldPromptHostSetup()) {
+      if (windowsTuiHostDegraded()) {
+        const notice = formatHostSetupHintNotice();
+        host.showNotice(notice.title, notice.detail, {
+          coalesceKey: notice.coalesceKey,
+        });
+        host.showStatus(notice.status, 'warning');
+      }
+      return;
+    }
+    const mod = await loadHostSetupModule();
+    if (mod === undefined || host.aborted) return;
+    const plan = mod.planHostSetup();
+    if (!plan.applicable || !plan.needsApply) return;
+    const notice = formatHostSetupHintNotice();
     host.showNotice(notice.title, notice.detail, {
       coalesceKey: notice.coalesceKey,
     });
     host.showStatus(notice.status, 'warning');
-    if (shouldAutoApplyWindowsSetup()) {
-      void autoApplyWindowsSetup(host);
-    }
-  } catch {
-    // Best-effort: startup must not block on host detection.
-  }
-}
-
-async function autoApplyWindowsSetup(host: StartupLifecycleHost): Promise<void> {
-  try {
-    host.showStatus(ttui('tui.windowsSetup.applying'), 'info');
-    const result = await runWindowsSetupApply();
-    if (result === undefined || host.aborted) return;
-    const detail = formatWindowsSetupApply(result);
-    host.showNotice(ttui('tui.notice.windowsSetup.title'), detail, {
-      coalesceKey: 'windows-setup',
-    });
-    host.showStatus(
-      result.ok === false ? ttui('tui.windowsSetup.applyFailed') : ttui('tui.windowsSetup.applyOk'),
-      result.ok === false ? 'warning' : 'success',
+    const proceed = await confirmHostSetup(
+      {
+        mountCenterModal: (panel, options) => host.dialogs.mountCenterModal(panel, options),
+        closeCenterModal: () => host.dialogs.closeCenterModal(),
+        mountEditorReplacement: (panel) => host.dialogs.mountEditorReplacement(panel),
+        restoreEditor: () => host.dialogs.restoreEditor(),
+        state: host.state,
+      },
+      plan,
+    );
+    if (!proceed || host.aborted) return;
+    await applyHostSetup(
+      {
+        showStatus: (msg, color) => host.showStatus(msg, color),
+        showNotice: (title, detail, options) => host.showNotice(title, detail, options),
+        showError: (msg) => host.showStatus(msg, 'error'),
+        aborted: host.aborted,
+      },
+      mod,
     );
   } catch {
     // Best-effort: never block the TUI on host package installs.

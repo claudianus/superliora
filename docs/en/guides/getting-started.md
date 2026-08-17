@@ -42,7 +42,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubus
 
 > SuperLiora uses Git Bash as its Windows shell. The install and `liora upgrade` flows download [Portable Git](https://gitforwindows.org/) into `~/.superliora/runtime/git` when Git Bash is missing (user-local, no admin). If Git Bash is already installed in a custom location, set `LIORA_SHELL_PATH` (legacy: `KIMI_SHELL_PATH`) to the absolute path of `bash.exe`. Pass `--no-git` to skip the bootstrap.
 >
-> On Windows the same installer also tries to leave you in a usable TUI host: it bootstraps `winget` when the Store/App Installer is missing (PC-bang / school images), detects or installs Windows Terminal, installs CaskaydiaCove Nerd Font, Oh My Posh (Neon Noir prompt), zoxide, and fzf, writes a SuperLiora fragment plus PowerShell profile, and adds a Start Menu shortcut. Failures never block the CLI install. Pass `--no-terminal` or set `SUPERLIORA_NO_TERMINAL=1` to skip. If you are still in the classic console host, SuperLiora auto-applies the same setup on TUI startup (disable with `SUPERLIORA_AUTO_TERMINAL=0`) and exposes `/windows-setup apply`. Then reopen from Windows Terminal or the Start Menu shortcut.
+> The installer prints a host-setup plan, then applies it: Nerd Font, Oh My Posh (Neon Noir), zoxide, fzf, and a managed shell profile. On Windows it also bootstraps `winget` when missing, installs Windows Terminal, writes a SuperLiora fragment, and adds a Start Menu shortcut. Failures never block the CLI. Pass `--no-host-setup` / `SUPERLIORA_NO_HOST_SETUP=1` to skip the whole sidecar, or `--no-terminal` / `SUPERLIORA_NO_TERMINAL=1` to skip Windows Terminal only. In the TUI, `/host-setup` (aliases `/windows-setup`, `/macos-setup`, `/linux-setup`) shows the same list and asks before applying. Startup prompts when pieces are missing; it does not apply silently. On Windows, reopen from Windows Terminal or the Start Menu shortcut if you started in the classic console.
 
 The script does **not** require a pre-installed Node.js. When Node is missing or older than 24.15.0, it downloads an official Node build into `~/.superliora/runtime/node` (user-local, no admin). By default it installs the latest **published** GitHub Release prebuilt SEA (`manifest.json` + `liora-<platform>.zip`), verifies the checksum, and puts `liora` on your `PATH`. It does **not** fall back to an unreleased git tip unless you opt in. Browser-use, computer-use, and local retrieval sidecars are installed best-effort afterward.
 
@@ -61,7 +61,7 @@ Tip of `origin/main` (ignore published releases):
 curl -fsSL https://raw.githubusercontent.com/claudianus/superliora/main/install.sh | bash -s -- --main
 ```
 
-Useful flags (same on `install.ps1` and `install.cmd`): `--main`, `--prefer-source`, `--force-prebuilt`, `--no-browser-use`, `--no-computer-use`, `--no-retrieval`, `--no-git`, `--no-terminal`, `--no-shell-rc`.
+Useful flags (same on `install.ps1` and `install.cmd`): `--main`, `--prefer-source`, `--force-prebuilt`, `--no-browser-use`, `--no-computer-use`, `--no-retrieval`, `--no-git`, `--no-terminal`, `--no-host-setup`, `--no-shell-rc`.
 
 Default source checkout (when using `--main` / `--prefer-source`): `~/.superliora/source`. Default bin dir: `~/.local/bin` (Unix) or `%LOCALAPPDATA%\SuperLiora\bin` (Windows).
 

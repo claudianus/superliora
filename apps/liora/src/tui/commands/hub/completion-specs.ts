@@ -84,9 +84,9 @@ const PREMIUM_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
   arg('status', 'tui.slash.arg.premium.status'),
 ];
 
-const WINDOWS_SETUP_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
-  arg('status', 'tui.slash.arg.windows-setup.status'),
-  arg('apply', 'tui.slash.arg.windows-setup.apply'),
+const HOST_SETUP_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
+  arg('status', 'tui.slash.arg.host-setup.status'),
+  arg('apply', 'tui.slash.arg.host-setup.apply'),
 ];
 
 const CONTEXT_ARG_COMPLETIONS: readonly ArgCompletionKeySpec[] = [
@@ -316,9 +316,12 @@ export function premiumArgumentCompletions(argumentPrefix: string): Autocomplete
   return completeI18n(PREMIUM_ARG_COMPLETIONS, argumentPrefix);
 }
 
-export function windowsSetupArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
-  return completeI18n(WINDOWS_SETUP_ARG_COMPLETIONS, argumentPrefix);
+export function hostSetupArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {
+  return completeI18n(HOST_SETUP_ARG_COMPLETIONS, argumentPrefix);
 }
+
+/** @deprecated Prefer {@link hostSetupArgumentCompletions}. */
+export const windowsSetupArgumentCompletions = hostSetupArgumentCompletions;
 
 /** Argument autocompletion for the `/context` working-set command. */
 export function contextArgumentCompletions(argumentPrefix: string): AutocompleteItem[] | null {

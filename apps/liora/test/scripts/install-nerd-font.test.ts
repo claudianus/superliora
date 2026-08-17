@@ -7,6 +7,7 @@ import {
   ensureNerdFont,
   findNerdFont,
   skipNerdFontRequested,
+  userFontsDir,
   wellKnownNerdFontFiles,
 } from '../../../../scripts/install/ensure-nerd-font.mjs';
 
@@ -46,10 +47,21 @@ describe('scripts/install/ensure-nerd-font', () => {
     expect(downloads).toBe(0);
   });
 
-  it('is a no-op on non-Windows', async () => {
-    const result = await ensureNerdFont({ platform: 'darwin' });
-    expect(result.skipped).toBe(true);
-    expect(result.ok).toBe(true);
+  it('skips unsupported platforms and skipPackages downloads', async () => {
+    const unsupported = await ensureNerdFont({ platform: 'aix' });
+    expect(unsupported.skipped).toBe(true);
+    expect(unsupported.ok).toBe(true);
+
+    const darwin = await ensureNerdFont({
+      platform: 'darwin',
+      skipPackages: true,
+      env: { HOME: '/Users/dev' },
+      isFile: () => false,
+    });
+    expect(darwin.skipped).toBe(true);
+    expect(darwin.ok).toBe(true);
+    expect(userFontsDir({ HOME: '/Users/dev' }, 'darwin')).toBe('/Users/dev/Library/Fonts');
+    expect(userFontsDir({ HOME: '/home/dev' }, 'linux')).toBe('/home/dev/.local/share/fonts');
   });
 
   it('pins the CaskaydiaCove winget id and zip', () => {

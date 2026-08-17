@@ -1,7 +1,7 @@
 /**
  * Conductor Windows TUI-host readiness — env-only, no installer imports.
  * PC-bang / school images often start SuperLiora in conhost; the TUI looks broken
- * and users do not know to run /windows-setup.
+ * and users do not know to run /host-setup.
  */
 
 import { SOVEREIGN_CONDUCTOR_PROFILE_NAME } from '#/profile/main-profile';
@@ -45,7 +45,7 @@ export function renderWindowsTerminalReadiness(
     '<windows_terminal_readiness>',
     `host=${snapshot.host} status=${snapshot.status}`,
     'Classic console cannot render the SuperLiora TUI well (PC-bang / school images often land here).',
-    'Tell the user to run /windows-setup apply, or JobCreate task_track=general to apply the Windows vibe host (Windows Terminal + Nerd Font + Oh My Posh + SuperLiora profile).',
+    'Tell the user to run /host-setup (alias /windows-setup apply), or JobCreate task_track=general to apply the host setup (Windows Terminal + Nerd Font + Oh My Posh + SuperLiora profile).',
     'Do not install packages on the Conductor lane. Load Skill("windows-vibe") only when writing that brief.',
     '</windows_terminal_readiness>',
   ].join('\n');

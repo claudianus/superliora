@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { ensureGit } from './install/ensure-git.mjs';
 import { ensureNode } from './install/ensure-node.mjs';
 import { ensurePnpm } from './install/ensure-pnpm.mjs';
-import { ensureTerminal } from './install/ensure-terminal.mjs';
+import { ensureHostSetup, formatHostSetupPlan, planHostSetup } from './install/host-setup.mjs';
 import { ensureBinOnPath } from './install/path.mjs';
 import { tryInstallPrebuilt } from './install/prebuilt.mjs';
 import {
@@ -154,24 +154,35 @@ try {
     onWarn: (msg) => theatre.note(msg),
   });
 
-  theatre.setStage('sidecars', 'Ensuring Windows Terminal');
+  theatre.setStage('sidecars', 'Ensuring host setup');
   try {
-    const termInfo = await ensureTerminal({
-      skip: args.noTerminal,
+    const plan = planHostSetup({
+      skip: args.noHostSetup,
+      skipTerminal: args.noTerminal,
+      noShellRc: args.noShellRc,
+    });
+    if (plan.applicable && !args.noHostSetup) {
+      theatre.setDetail(formatHostSetupPlan(plan).split('\n')[0] ?? 'Host setup');
+      for (const line of formatHostSetupPlan(plan).split('\n').slice(1)) {
+        if (line.trim()) theatre.note(line);
+      }
+    }
+    const termInfo = await ensureHostSetup({
+      skip: args.noHostSetup,
+      skipTerminal: args.noTerminal,
       noShellRc: args.noShellRc,
       binDir,
       commandName,
+      plan,
     });
     if (termInfo.message && termInfo.ok === false) {
       theatre.note(termInfo.message);
     } else if (termInfo.skipped) {
-      // Unix / --no-terminal: stay quiet.
+      // --no-host-setup or unsupported platform: stay quiet.
     } else if (termInfo.installed) {
       theatre.setDetail('Installed Windows Terminal + SuperLiora profile');
-    } else if (termInfo.alreadyPresent) {
-      theatre.setDetail(termInfo.wtPath ? `Using Windows Terminal ${termInfo.wtPath}` : 'Using Windows Terminal');
     } else {
-      theatre.setDetail('Windows Terminal ready');
+      theatre.setDetail('Host setup ready');
     }
     if (termInfo.nerdFontInstalled) {
       theatre.setDetail('Installed CaskaydiaCove Nerd Font');
@@ -186,14 +197,14 @@ try {
       theatre.setDetail('Installed fzf');
     }
     if (termInfo.profilePatched) {
-      theatre.setDetail('Wrote SuperLiora PowerShell profile');
+      theatre.setDetail('Wrote SuperLiora shell profile');
     }
     if (termInfo.wingetBootstrapped) {
       theatre.setDetail('Bootstrapped winget');
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    theatre.note(`Windows Terminal setup failed (${message}); continuing. ${'Install from https://aka.ms/terminal or pass --no-terminal.'}`);
+    theatre.note(`Host setup failed (${message}); continuing. Re-run /host-setup or pass --no-host-setup.`);
   }
 
   // Warm --version when possible (prebuilt path already verified when expected).
@@ -275,6 +286,7 @@ function parseArgs(argv) {
     noGit: process.env.SUPERLIORA_SKIP_GIT === '1',
     noTerminal:
       process.env.SUPERLIORA_NO_TERMINAL === '1' || process.env.SUPERLIORA_SKIP_TERMINAL === '1',
+    noHostSetup: process.env.SUPERLIORA_NO_HOST_SETUP === '1',
     preferSource: process.env.SUPERLIORA_PREFER_SOURCE === '1',
     fromMain: process.env.SUPERLIORA_FROM_MAIN === '1',
     forcePrebuilt: process.env.SUPERLIORA_FORCE_PREBUILT === '1',
@@ -337,6 +349,9 @@ function parseArgs(argv) {
       case '--no-terminal':
         out.noTerminal = true;
         break;
+      case '--no-host-setup':
+        out.noHostSetup = true;
+        break;
       case '--prefer-source':
         out.preferSource = true;
         break;
@@ -394,7 +409,8 @@ Options:
   --no-computer-use     Skip cua-driver
   --no-retrieval        Skip Granite embedder bootstrap
   --no-git              Skip Git / Git Bash bootstrap
-  --no-terminal         Skip Windows Terminal install / profile (Windows)
+  --no-terminal         Skip Windows Terminal only (font / prompt / shell still run)
+  --no-host-setup       Skip host setup (or SUPERLIORA_NO_HOST_SETUP=1)
   --no-shell-rc         Do not edit shell PATH / User PATH (or SUPERLIORA_NO_SHELL_RC=1)
   --main                Ignore releases; build tip of origin/main from source
   --prefer-source       Skip prebuilt; build from source (--ref, default main)
