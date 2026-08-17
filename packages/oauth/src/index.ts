@@ -304,6 +304,14 @@ export {
   xaiGrokBuildRequestHeaders,
   xaiGrokProviderRouteFields,
   xaiGrokRouteConfig,
+  applyXaiPricingSafeContextTokens,
+  applyXaiPricingSafeWorkingSet,
+  isGrokModelId,
+  isXaiGrokProviderId,
+  XAI_LONG_CONTEXT_PRICING_THRESHOLD_TOKENS,
+  XAI_PRICING_SAFE_ASYNC_WORKING_SET_TOKENS,
+  XAI_PRICING_SAFE_WORKING_SET_TOKENS,
+  xaiLongContextPricingThresholdTokens,
 } from './profiles';
 export type {
   CursorDiscoveredModel,
@@ -314,8 +322,10 @@ export type {
   ProviderFlowConfig,
   ProviderModelPreset,
   ProviderProfile,
+  XaiGrokModelIdentity,
   XaiGrokRoute,
   XaiGrokRouteConfig,
+  XaiPricingSafeWorkingSet,
 } from './profiles';
 
 export { OAuthProviderManager } from './flow/oauth-provider-manager';

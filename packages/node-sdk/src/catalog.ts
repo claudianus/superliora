@@ -9,6 +9,7 @@ import {
   type ModelCapability,
   type ProviderType,
 } from '@superliora/kosong';
+import { applyXaiPricingSafeContextTokens } from '@superliora/oauth';
 
 export { catalogBaseUrl, catalogProviderModels, inferWireType };
 export type { Catalog, CatalogModel, CatalogProviderEntry };
@@ -56,7 +57,10 @@ export function catalogModelToAlias(providerId: string, model: CatalogModel): Mo
   return {
     provider: providerId,
     model: model.id,
-    maxContextSize: model.capability.max_context_tokens,
+    maxContextSize: applyXaiPricingSafeContextTokens(model.capability.max_context_tokens, {
+      provider: providerId,
+      model: model.id,
+    }),
     maxOutputSize: model.maxOutputSize,
     capabilities:
       model.alwaysThinking && capabilities !== undefined

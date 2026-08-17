@@ -132,7 +132,10 @@ async function loadThresholdGlance(host: SlashCommandHost): Promise<CompactionTh
       maxWorkingSetTokens: loop?.maxWorkingSetTokens,
       asyncWorkingSetTokens: loop?.asyncWorkingSetTokens,
     });
-    const snap = contextWorkingSetSnapshotFromLoopControl(loop ?? {});
+    const snap = contextWorkingSetSnapshotFromLoopControl({
+      ...loop,
+      model: host.state.appState.model,
+    });
     const presetLabel = presetId ?? 'custom';
     next.workingSetLine = `Working-set cap: ${presetLabel} · soft ${formatTokenCount(snap.maxWorkingSetTokens)} · async ${formatTokenCount(snap.asyncWorkingSetTokens)}`;
     if (loop?.compactionMaxRecentMessages !== undefined) {

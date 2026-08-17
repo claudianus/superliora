@@ -9,7 +9,7 @@ import { dirname, join, relative } from 'node:path';
 import type { MemoryStats } from '@superliora/sdk';
 
 export const CONTEXT_WORKING_SET_TIP =
-  'Working set — soft cap before auto-compact on 1M-class models. Presets: economy · balanced · deep · full_window. Change via /context or Settings → Harness → Context working set.';
+  'Working set — soft cap before auto-compact on 1M-class models. Presets: economy · balanced · deep · full_window. Change via /context or Settings → Harness → Context working set. Grok stays under 200k so prompts do not enter xAI long-context (2×) pricing.';
 
 export const CONTEXT_INSTRUCTION_SOFT_TIP =
   'Instruction — AGENTS.md, rules, skills: human SSOT; do not auto-write.';

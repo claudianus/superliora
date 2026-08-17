@@ -53,7 +53,7 @@ describe('resolveOAuthProviderModels', () => {
     const alias = result![0];
     expect(alias?.model).toBe('grok-4.5');
     expect(alias?.provider).toBe('xai-grok');
-    expect(alias?.maxContextSize).toBe(500000);
+    expect(alias?.maxContextSize).toBe(200000);
     expect(alias?.capabilities).toContain('thinking');
   });
 

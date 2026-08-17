@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  applyCustomRegistryProvider,
   capabilitiesFromCustomEntry,
   CUSTOM_REGISTRY_DEFAULT_CAPABILITIES,
   CUSTOM_REGISTRY_DEFAULT_MAX_CONTEXT,
   CustomRegistryApiError,
   type CustomRegistryModelEntry,
 } from '../src/registry/custom-registry';
+import type { ManagedKimiConfigShape } from '../src/kimi';
 
 describe('oauth/custom-registry — pure helpers', () => {
   it('exposes the documented default constants', () => {
@@ -64,5 +66,27 @@ describe('oauth/custom-registry — pure helpers', () => {
       const thinkingCount = result.filter((c) => c === 'thinking').length;
       expect(thinkingCount).toBe(1);
     });
+  });
+
+  it('caps Grok registry windows at the xAI 200k price band', () => {
+    const config: ManagedKimiConfigShape = { providers: {}, models: {} };
+    applyCustomRegistryProvider(
+      config,
+      {
+        id: 'xai',
+        name: 'xAI',
+        type: 'openai',
+        api: 'https://api.x.ai/v1',
+        models: {
+          'grok-4.6': {
+            id: 'grok-4.6',
+            name: 'Grok 4.6',
+            limit: { context: 500_000, output: 32_000 },
+          },
+        },
+      },
+      { kind: 'apiJson', url: 'https://example.test/api.json', apiKey: 'sk-test' },
+    );
+    expect(config.models?.['xai/grok-4.6']).toMatchObject({ maxContextSize: 200_000 });
   });
 });

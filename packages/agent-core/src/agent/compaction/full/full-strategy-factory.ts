@@ -1,3 +1,5 @@
+import { applyXaiPricingSafeWorkingSet } from '@superliora/oauth';
+
 import type { Agent } from '../..';
 import {
   DEFAULT_COMPACTION_CONFIG,
@@ -9,6 +11,24 @@ import {
   resolveCompactionBlockRatio,
   type CompactionStrategy,
 } from '../strategy';
+
+function grokWorkingSetForAgent(
+  agent: Agent,
+  maxWorkingSetTokens: number,
+  asyncWorkingSetTokens: number,
+): { maxWorkingSetTokens: number; asyncWorkingSetTokens: number } {
+  const modelAlias = agent.config.modelAlias;
+  const providerFromAlias =
+    typeof modelAlias === 'string' && modelAlias.includes('/')
+      ? modelAlias.slice(0, modelAlias.indexOf('/'))
+      : undefined;
+  return applyXaiPricingSafeWorkingSet({
+    model: agent.config.provider?.model ?? modelAlias,
+    provider: providerFromAlias,
+    maxWorkingSetTokens,
+    asyncWorkingSetTokens,
+  });
+}
 
 export function createDefaultFullCompactionStrategy(
   agent: Agent,
@@ -36,16 +56,22 @@ export function createDefaultFullCompactionStrategy(
         return userAsyncTriggerRatio ?? defaultAsyncTriggerRatioForWindow(maxContextTokens());
       },
       get maxWorkingSetTokens() {
-        return (
+        return grokWorkingSetForAgent(
+          agent,
           loopControl?.maxWorkingSetTokens ??
-          DEFAULT_COMPACTION_CONFIG.maxWorkingSetTokens
-        );
+            DEFAULT_COMPACTION_CONFIG.maxWorkingSetTokens,
+          loopControl?.asyncWorkingSetTokens ??
+            DEFAULT_COMPACTION_CONFIG.asyncWorkingSetTokens,
+        ).maxWorkingSetTokens;
       },
       get asyncWorkingSetTokens() {
-        return (
+        return grokWorkingSetForAgent(
+          agent,
+          loopControl?.maxWorkingSetTokens ??
+            DEFAULT_COMPACTION_CONFIG.maxWorkingSetTokens,
           loopControl?.asyncWorkingSetTokens ??
-          DEFAULT_COMPACTION_CONFIG.asyncWorkingSetTokens
-        );
+            DEFAULT_COMPACTION_CONFIG.asyncWorkingSetTokens,
+        ).asyncWorkingSetTokens;
       },
       blockRatio: compactionBlockRatio,
       reservedContextSize:

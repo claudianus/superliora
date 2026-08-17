@@ -66,6 +66,21 @@ describe('catalogModelToAlias', () => {
     });
   });
 
+  it('caps Grok catalog windows at the xAI 200k price band', () => {
+    expect(
+      catalogModelToAlias('xai', {
+        ...model,
+        id: 'grok-4.6',
+        name: 'Grok 4.6',
+        capability: { ...model.capability, max_context_tokens: 500000 },
+      }),
+    ).toMatchObject({
+      provider: 'xai',
+      model: 'grok-4.6',
+      maxContextSize: 200000,
+    });
+  });
+
   it('carries catalog effort values through to the model alias', () => {
     expect(
       catalogModelToAlias('openai', {

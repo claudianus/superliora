@@ -45,6 +45,16 @@ import {
   xaiGrokProviderRouteFields,
   xaiGrokRouteConfig,
 } from './xai';
+import {
+  applyXaiPricingSafeContextTokens,
+  applyXaiPricingSafeWorkingSet,
+  isGrokModelId,
+  isXaiGrokProviderId,
+  XAI_LONG_CONTEXT_PRICING_THRESHOLD_TOKENS,
+  XAI_PRICING_SAFE_ASYNC_WORKING_SET_TOKENS,
+  XAI_PRICING_SAFE_WORKING_SET_TOKENS,
+  xaiLongContextPricingThresholdTokens,
+} from './xai-pricing-window';
 
 export type { OAuthFlowKind, OAuthProviderId, OAuthProviderWire, ProviderFlowConfig, ProviderModelPreset, ProviderProfile } from './provider-profile';
 
@@ -122,6 +132,15 @@ export {
   xaiGrokBuildRequestHeaders,
   xaiGrokProviderRouteFields,
   xaiGrokRouteConfig,
+  applyXaiPricingSafeContextTokens,
+  applyXaiPricingSafeWorkingSet,
+  isGrokModelId,
+  isXaiGrokProviderId,
+  XAI_LONG_CONTEXT_PRICING_THRESHOLD_TOKENS,
+  XAI_PRICING_SAFE_ASYNC_WORKING_SET_TOKENS,
+  XAI_PRICING_SAFE_WORKING_SET_TOKENS,
+  xaiLongContextPricingThresholdTokens,
 };
 export type { CursorDiscoveredModel, FetchCursorAvailableModelsOptions } from './cursor-available-models';
 export type { XaiGrokRoute, XaiGrokRouteConfig } from './xai';
+export type { XaiGrokModelIdentity, XaiPricingSafeWorkingSet } from './xai-pricing-window';

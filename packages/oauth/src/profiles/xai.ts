@@ -187,23 +187,32 @@ export const XAI_PROFILE: ProviderProfile = {
   customHeaders: xaiGrokBuildAuthHeaders(),
   signupUrl: 'https://x.ai',
   docUrl: 'https://docs.x.ai/build/overview',
+  // API windows are larger (4.6/4.5 = 500k, 4.3 = 1M, Build = 256k), but
+  // xAI doubles the whole request once the prompt reaches 200k tokens.
+  // Seed the harness ceiling at that price band so auto-compaction fires first.
   models: [
+    {
+      id: 'grok-4.6',
+      displayName: 'Grok 4.6',
+      maxContextSize: 200000,
+      capabilities: ['thinking', 'tool_use', 'image_in'],
+    },
     {
       id: 'grok-4.5',
       displayName: 'Grok 4.5',
-      maxContextSize: 500000,
+      maxContextSize: 200000,
       capabilities: ['thinking', 'tool_use', 'image_in'],
     },
     {
       id: 'grok-4.3',
       displayName: 'Grok 4.3',
-      maxContextSize: 1000000,
+      maxContextSize: 200000,
       capabilities: ['thinking', 'tool_use', 'image_in'],
     },
     {
       id: 'grok-build-0.1',
       displayName: 'Grok Build 0.1',
-      maxContextSize: 256000,
+      maxContextSize: 200000,
       capabilities: ['thinking', 'tool_use'],
     },
   ],
