@@ -1,3 +1,8 @@
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -8,11 +13,28 @@ import {
   defaultPowerShellProfilePaths,
   defaultUnixProfilePaths,
   ensureShellVibe,
+  renderOhMyPoshInitBlock,
   renderUnixVibeProfileBlock,
   renderVibeProfileBlock,
   skipShellVibeRequested,
   upsertMarkedBlock,
 } from '../../../../scripts/install/ensure-shell-vibe.mjs';
+
+function assertOhMyPoshWinPsGuard(block: string) {
+  expect(block).not.toMatch(/\$ompCmd init pwsh --config \$ompConfig\s*\|\s*Invoke-Expression/);
+  expect(block).toContain('$ompCmd init $ompShell');
+  expect(block).toContain("if ($PSVersionTable.PSVersion.Major -ge 7) { 'pwsh' } else { 'powershell' }");
+  expect(block).toContain('if ($ompInit)');
+  expect(block).toContain('Invoke-Expression $ompInit');
+  const clearBefore = block.indexOf('$ompLoaded.OnRemove = {}');
+  const initAt = block.indexOf('$ompCmd init $ompShell');
+  const clearAfter = block.indexOf('$ompCore.OnRemove = {}');
+  expect(clearBefore).toBeGreaterThan(-1);
+  expect(initAt).toBeGreaterThan(clearBefore);
+  expect(clearAfter).toBeGreaterThan(initAt);
+  expect(block).toContain('-not $ompKeyPositional');
+  expect(block).toContain('$param.Position -ge 0');
+}
 
 describe('scripts/install/ensure-shell-vibe', () => {
   it('writes a managed PowerShell block for both hosts', () => {
@@ -26,8 +48,8 @@ describe('scripts/install/ensure-shell-vibe', () => {
     const second = upsertMarkedBlock(first, renderVibeProfileBlock());
     expect(first).toContain('Write-Host hi');
     expect(first).toContain(VIBE_PROFILE_MARKER_START);
-    expect(first).toContain('$ompCmd init pwsh');
     expect(first).toContain('zoxide init powershell');
+    assertOhMyPoshWinPsGuard(first);
     expect(first.split(VIBE_PROFILE_MARKER_START).length).toBe(2);
     expect(second.split(VIBE_PROFILE_MARKER_END).length).toBe(2);
   });
@@ -65,6 +87,7 @@ describe('scripts/install/ensure-shell-vibe', () => {
     const profile = [...files.values()][0] ?? '';
     expect(profile).toContain('#00D5FF');
     expect(profile).toContain('superliora-neon-noir.omp.json');
+    assertOhMyPoshWinPsGuard(profile);
   });
 
   it('honors skip flags', async () => {
@@ -107,5 +130,90 @@ describe('scripts/install/ensure-shell-vibe', () => {
   it('pins zoxide and fzf winget ids', () => {
     expect(ZOXIDE_WINGET_ID).toBe('ajeetdsouza.zoxide');
     expect(FZF_WINGET_ID).toBe('junegunn.fzf');
+  });
+});
+
+describe('Oh My Posh inbox PSReadLine guard', () => {
+  it('keeps the WinPS 5.1 re-init contract in the managed block', () => {
+    assertOhMyPoshWinPsGuard(renderVibeProfileBlock());
+    assertOhMyPoshWinPsGuard(renderOhMyPoshInitBlock());
+  });
+
+  it('clears OnRemove before inbox Get-PSReadLineKeyHandler can throw', () => {
+    const root = process.env.SystemRoot ?? 'C:\\Windows';
+    const exe = join(root, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+    if (process.platform !== 'win32' || !existsSync(exe)) return;
+
+    const dir = mkdtempSync(join(tmpdir(), 'sl-omp-guard-'));
+    const script = join(dir, 'guard.ps1');
+    writeFileSync(
+      script,
+      [
+        "$ErrorActionPreference = 'Continue'",
+        '$Error.Clear()',
+        'function Import-BrokenOmp {',
+        '    $loaded = Get-Module oh-my-posh-core',
+        '    if ($loaded) { $loaded.OnRemove = {}; Remove-Module oh-my-posh-core -Force }',
+        '    New-Module -Name oh-my-posh-core -ScriptBlock {',
+        '        $ExecutionContext.SessionState.Module.OnRemove = {',
+        "            $null = Get-PSReadLineKeyHandler Spacebar",
+        "            $null = Get-PSReadLineKeyHandler Enter",
+        "            $null = Get-PSReadLineKeyHandler Ctrl+c",
+        '        }',
+        '    } | Import-Module',
+        '}',
+        '$ompGetKey = Get-Command Get-PSReadLineKeyHandler -ErrorAction SilentlyContinue',
+        'if (-not $ompGetKey) { Write-Output SKIP_NO_PSREADLINE; exit 0 }',
+        '$ompKeyPositional = $false',
+        'foreach ($set in $ompGetKey.ParameterSets) {',
+        '    foreach ($param in $set.Parameters) {',
+        '        if ($param.Position -ge 0 -and ($param.ParameterType -eq [string] -or $param.ParameterType -eq [string[]])) {',
+        '            $ompKeyPositional = $true',
+        '        }',
+        '    }',
+        '}',
+        'if ($ompKeyPositional) { Write-Output SKIP_POSITIONAL; exit 0 }',
+        'Import-BrokenOmp',
+        'Remove-Module oh-my-posh-core -Force',
+        "$control = @($Error | Where-Object { $_.FullyQualifiedErrorId -like '*PositionalParameterNotFound*' }).Count",
+        'if ($control -lt 1) { Write-Output "CONTROL_FAILED:$control"; exit 1 }',
+        '$Error.Clear()',
+        'Import-BrokenOmp',
+        "$ompConfig = Join-Path $env:TEMP 'sl-omp-guard-config.json'",
+        "Set-Content -LiteralPath $ompConfig -Value '{}'",
+        '$ompCmd = {',
+        "    @'",
+        'New-Module -Name oh-my-posh-core -ScriptBlock {',
+        '    $ExecutionContext.SessionState.Module.OnRemove = {',
+        '        $null = Get-PSReadLineKeyHandler Spacebar',
+        '        $null = Get-PSReadLineKeyHandler Enter',
+        '        $null = Get-PSReadLineKeyHandler Ctrl+c',
+        '    }',
+        '} | Import-Module',
+        "'@",
+        '}',
+        renderOhMyPoshInitBlock(),
+        "$bad = @($Error | Where-Object { $_.FullyQualifiedErrorId -like '*PositionalParameterNotFound*' }).Count",
+        'if ($bad -ne 0) { Write-Output "INIT_FAILED:$bad"; exit 1 }',
+        'Remove-Module oh-my-posh-core -Force -ErrorAction SilentlyContinue',
+        "$bad2 = @($Error | Where-Object { $_.FullyQualifiedErrorId -like '*PositionalParameterNotFound*' }).Count",
+        'if ($bad2 -ne 0) { Write-Output "REMOVE_FAILED:$bad2"; exit 1 }',
+        'Write-Output OK',
+      ].join('\n'),
+      'utf8',
+    );
+
+    try {
+      const result = spawnSync(exe, ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', script], {
+        encoding: 'utf8',
+        timeout: 20_000,
+      });
+      const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
+      if (output.includes('SKIP_NO_PSREADLINE') || output.includes('SKIP_POSITIONAL')) return;
+      expect(result.status, output).toBe(0);
+      expect(output, output).toMatch(/\bOK\b/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
