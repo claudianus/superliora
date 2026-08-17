@@ -22,6 +22,8 @@ import {
   evaluateCrossOwnershipHold,
   inferOwnershipRepoHint,
   inferPathRepoHint,
+  isAbsoluteRepoPath,
+  mainCheckoutFromPath,
   resolveGitRootFromOwnership,
   resolveMergePushCwd,
 } from '../../src/tools/builtin/job/job-git-root';
@@ -85,6 +87,20 @@ describe('guard1: persist repo identity; never follow live session cwd', () => {
     });
     expect(slash(root)).toContain('metalslug');
     expect(slash(root)).not.toContain('superliora');
+  });
+
+  it('does not resolve a Windows drive path against process.cwd() on POSIX', () => {
+    expect(isAbsoluteRepoPath(SUPER)).toBe(true);
+    expect(isAbsoluteRepoPath(ISOLATION_WT)).toBe(true);
+    if (process.platform === 'win32') return;
+    expect(mainCheckoutFromPath(SUPER)).toBeUndefined();
+    expect(mainCheckoutFromPath(ISOLATION_WT)).toBeUndefined();
+    const root = resolveGitRootFromOwnership({
+      persistedRepoRoot: SUPER,
+      sessionRepoPath: process.cwd(),
+    });
+    expect(slash(root)).toBe(slash(SUPER));
+    expect(slash(root)).not.toBe(slash(process.cwd()));
   });
 
   it('createJob stamps repoRoot from sessionRepoPath; children inherit it', () => {

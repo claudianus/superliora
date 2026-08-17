@@ -16,6 +16,17 @@ import { dirname, isAbsolute, normalize, resolve as resolvePath } from 'node:pat
 /** Folder-name fallback when paths are not on disk (unit tests / diagnostics). */
 export type OwnedRepoHint = 'superliora' | 'metalslug';
 
+const WINDOWS_ABS_RE = /^[a-zA-Z]:[\\/]/;
+
+/** POSIX `path.isAbsolute` is false for `C:/...`, which would resolve against cwd. */
+export function isAbsoluteRepoPath(path: string): boolean {
+  return isAbsolute(path) || WINDOWS_ABS_RE.test(path);
+}
+
+function isForeignWindowsPath(path: string): boolean {
+  return process.platform !== 'win32' && WINDOWS_ABS_RE.test(path);
+}
+
 export function normalizeRepoPathKey(path: string): string {
   return normalize(path.trim()).replace(/[/\\]+$/, '').toLowerCase();
 }
@@ -130,7 +141,9 @@ export function evaluateCrossOwnershipHold(input: {
 export function findGitRootFromPath(start: string): string | undefined {
   const trimmed = start.trim();
   if (trimmed.length === 0) return undefined;
-  let cur = isAbsolute(trimmed) ? trimmed : resolvePath(trimmed);
+  // A Windows drive path on Linux/macOS is an off-disk identity, not cwd-relative.
+  if (isForeignWindowsPath(trimmed)) return undefined;
+  let cur = isAbsoluteRepoPath(trimmed) ? trimmed.replace(/[/\\]+$/, '') : resolvePath(trimmed);
   for (let i = 0; i < 16; i++) {
     if (existsSync(resolvePath(cur, '.git'))) {
       return cur.replace(/[/\\]+$/, '');
@@ -204,7 +217,7 @@ function firstOwnershipGitRoot(
   if (ownershipPaths === undefined) return undefined;
   for (const raw of ownershipPaths) {
     const path = raw.trim();
-    if (path.length === 0 || !isAbsolute(path)) continue;
+    if (path.length === 0 || !isAbsoluteRepoPath(path)) continue;
     const root = mainCheckoutFromPath(path);
     if (root !== undefined) return root;
   }
@@ -219,7 +232,7 @@ function resolveRelativeOwnershipUnderSession(
   const normalizedRoot = sessionRoot.replace(/[/\\]+$/, '');
   for (const raw of ownershipPaths) {
     const rel = raw.trim();
-    if (rel.length === 0 || isAbsolute(rel)) continue;
+    if (rel.length === 0 || isAbsoluteRepoPath(rel)) continue;
     const candidate = resolvePath(normalizedRoot, rel);
     if (existsSync(candidate)) return normalizedRoot;
     if (/^(packages|apps)[/\\]/i.test(rel)) {
@@ -266,7 +279,7 @@ export function resolveGitRootFromOwnership(input: {
     const fromPersisted = mainCheckoutFromPath(persisted) ?? (existsSync(persisted) ? persisted : undefined);
     if (fromPersisted !== undefined) return fromPersisted;
     // Off-disk unit paths still count as an explicit identity.
-    if (isAbsolute(persisted)) return persisted.replace(/[/\\]+$/, '');
+    if (isAbsoluteRepoPath(persisted)) return persisted.replace(/[/\\]+$/, '');
   }
 
   const fromOwnership = firstOwnershipGitRoot(input.ownershipPaths);
