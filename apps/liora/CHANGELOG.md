@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.11.7
+
+### Patch Changes
+
+- Failed upgrades no longer block the next `liora upgrade` with a stale in-progress lock.
+
 ## 0.11.6
 
 ### Patch Changes
