@@ -167,11 +167,29 @@ try {
     } else if (termInfo.skipped) {
       // Unix / --no-terminal: stay quiet.
     } else if (termInfo.installed) {
-      theatre.setDetail('Installed Windows Terminal');
+      theatre.setDetail('Installed Windows Terminal + SuperLiora profile');
     } else if (termInfo.alreadyPresent) {
       theatre.setDetail(termInfo.wtPath ? `Using Windows Terminal ${termInfo.wtPath}` : 'Using Windows Terminal');
     } else {
       theatre.setDetail('Windows Terminal ready');
+    }
+    if (termInfo.nerdFontInstalled) {
+      theatre.setDetail('Installed CaskaydiaCove Nerd Font');
+    }
+    if (termInfo.ohMyPoshInstalled) {
+      theatre.setDetail('Installed Oh My Posh (Neon Noir prompt)');
+    }
+    if (termInfo.zoxideInstalled) {
+      theatre.setDetail('Installed zoxide');
+    }
+    if (termInfo.fzfInstalled) {
+      theatre.setDetail('Installed fzf');
+    }
+    if (termInfo.profilePatched) {
+      theatre.setDetail('Wrote SuperLiora PowerShell profile');
+    }
+    if (termInfo.wingetBootstrapped) {
+      theatre.setDetail('Bootstrapped winget');
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

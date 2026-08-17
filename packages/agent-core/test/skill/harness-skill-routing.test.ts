@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { BROWSER_USE_SKILL } from '../../src/skill/builtin/browser-use';
 import { COMPUTER_USE_SKILL } from '../../src/skill/builtin/computer-use';
 import { GIT_SAFE_SKILL } from '../../src/skill/builtin/git-safe';
+import { WINDOWS_VIBE_SKILL } from '../../src/skill/builtin/windows-vibe';
 import { RESEARCH_USE_SKILL } from '../../src/skill/builtin/research-use';
 import {
   harnessCollisionHint,
@@ -91,6 +92,23 @@ describe('harness skill routing', () => {
     );
     expect(ranked[0]?.name).toBe('git-safe');
     expect(ranked.some((row) => row.name === 'smart-git-automation')).toBe(false);
+  });
+
+  it('pins windows-vibe for PC-bang / Windows Terminal queries', () => {
+    const ranked = rerankSkillHitsForHarnessRouting(
+      'windows terminal conhost pc-bang nerd font',
+      [
+        hit({
+          name: 'oh-my-posh-setup',
+          source: 'extra',
+          description: 'oh-my-posh-setup terminal ricer',
+          score: 8,
+        }),
+      ],
+      builtins(WINDOWS_VIBE_SKILL),
+    );
+    expect(ranked[0]?.name).toBe('windows-vibe');
+    expect(ranked.some((row) => row.name === 'oh-my-posh-setup')).toBe(false);
   });
 
   it('still demotes Playwright for browser queries and keeps e2e carve-out', () => {

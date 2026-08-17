@@ -241,6 +241,7 @@ export class SessionSkillRegistry implements AgentSkillRegistry {
       'git-safe',
       'agent-job',
       'project-checks',
+      'windows-vibe',
     ] as const) {
       const skill = this.getSkill(name);
       if (skill !== undefined) builtins.set(name, skill);

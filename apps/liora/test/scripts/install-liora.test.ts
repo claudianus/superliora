@@ -111,6 +111,10 @@ describe('scripts/install-liora.mjs', () => {
     expect(sh).toContain('ensure-git.mjs');
     expect(sh).toContain('ensure-pnpm.mjs');
     expect(sh).toContain('ensure-terminal.mjs');
+    expect(sh).toContain('ensure-winget.mjs');
+    expect(sh).toContain('ensure-nerd-font.mjs');
+    expect(sh).toContain('ensure-oh-my-posh.mjs');
+    expect(sh).toContain('ensure-shell-vibe.mjs');
     expect(sh).toContain('--no-git');
     expect(sh).toContain('--no-terminal');
     expect(ps1).toContain('spawn.mjs');
@@ -118,6 +122,10 @@ describe('scripts/install-liora.mjs', () => {
     expect(ps1).toContain('ensure-git.mjs');
     expect(ps1).toContain('ensure-pnpm.mjs');
     expect(ps1).toContain('ensure-terminal.mjs');
+    expect(ps1).toContain('ensure-winget.mjs');
+    expect(ps1).toContain('ensure-nerd-font.mjs');
+    expect(ps1).toContain('ensure-oh-my-posh.mjs');
+    expect(ps1).toContain('ensure-shell-vibe.mjs');
     expect(ps1).toContain('Add-SessionPnpmRuntime');
     expect(ps1).toContain('NoGit');
     expect(ps1).toContain('NoTerminal');

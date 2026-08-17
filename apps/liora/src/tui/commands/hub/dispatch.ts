@@ -54,6 +54,7 @@ import { handleJobCommand, handleJobsCommand } from '../jobs';
 import { showDiff } from '../session/diff';
 import { showLog } from '../log';
 import { showContextOsReport, showMcpServers, showQuota, showStatusReport, showUsage } from '../info/info';
+import { handleWindowsSetupCommand } from '../info/windows-setup';
 import { handleAddDirCommand } from '../session/add-dir';
 import { handleAquariumCommand } from '../aquarium';
 import { handleFeedCommand } from '../feed';
@@ -455,6 +456,9 @@ async function handleBuiltInSlashCommand(
       return;
     case 'status':
       void showStatusReport(host);
+      return;
+    case 'windows-setup':
+      await handleWindowsSetupCommand(host, args);
       return;
     case 'diff':
       showDiff(host, args);

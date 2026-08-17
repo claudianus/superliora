@@ -754,6 +754,7 @@ describe('built-in slash command registry', () => {
         'usage',
         'version',
         'web',
+        'windows-setup',
         'yolo',
       ]),
     );

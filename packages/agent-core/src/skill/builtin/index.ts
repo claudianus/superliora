@@ -20,6 +20,7 @@ import { PREMIUM_VISUAL_SKILL } from './premium-visual';
 import { PROJECT_CHECKS_SKILL } from './project-checks';
 import { RESEARCH_USE_SKILL } from './research-use';
 import { WRITE_GOAL_SKILL } from './write-goal';
+import { WINDOWS_VIBE_SKILL } from './windows-vibe';
 import { registerCatalogSkills as loadCatalogSkills } from '../catalog-loader';
 
 export function registerBuiltinSkills(registry: SessionSkillRegistry): void {
@@ -39,6 +40,7 @@ export function registerBuiltinSkills(registry: SessionSkillRegistry): void {
   registry.registerBuiltinSkill(GIT_SAFE_SKILL);
   registry.registerBuiltinSkill(AGENT_JOB_SKILL);
   registry.registerBuiltinSkill(PROJECT_CHECKS_SKILL);
+  registry.registerBuiltinSkill(WINDOWS_VIBE_SKILL);
   registry.registerBuiltinSkill(SUB_SKILL_PARENT);
   registry.registerBuiltinSkill(SUB_SKILL_REVIEW);
   registry.registerBuiltinSkill(SUB_SKILL_CONSOLIDATE);
@@ -67,5 +69,6 @@ export {
   SUB_SKILL_PARENT,
   SUB_SKILL_REVIEW,
   UPDATE_CONFIG_SKILL,
+  WINDOWS_VIBE_SKILL,
   WRITE_GOAL_SKILL,
 };

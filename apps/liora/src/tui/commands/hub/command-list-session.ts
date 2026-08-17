@@ -26,6 +26,7 @@ import {
   personaArgumentCompletions,
   localeArgumentCompletions,
   performanceArgumentCompletions,
+  windowsSetupArgumentCompletions,
 } from './completion-specs';
 import { pluginsArgumentCompletions } from '../plugins/plugins';
 import { transcriptArgumentCompletions } from '../session/transcript';
@@ -300,6 +301,15 @@ export function getBuiltinSlashCommandsSession(): readonly LioraSlashCommand[] {
     aliases: [],
     description: slashDesc('status'),
     priority: 100,
+    availability: 'always',
+  },
+  {
+    name: 'windows-setup',
+    aliases: ['vibe-setup', 'terminal-setup'],
+    description: slashDesc('windows-setup'),
+    priority: 85,
+    argumentHint: '[status|apply]',
+    completeArgs: windowsSetupArgumentCompletions,
     availability: 'always',
   },
   {
