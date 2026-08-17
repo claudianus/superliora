@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { getHostPackageRoot } from '#/cli/version';
+import { tryGetHostPackageRoot } from '#/cli/version';
 
 export interface RuntimePrereqResult {
   readonly gitOk: boolean;
@@ -25,7 +25,17 @@ function resolveInstallScript(packageRoot: string, fileName: string): string | u
 }
 
 export async function ensureRuntimePrereqs(
-  packageRoot: string = getHostPackageRoot(),
+  packageRoot?: string,
+): Promise<RuntimePrereqResult> {
+  const resolvedRoot = packageRoot ?? tryGetHostPackageRoot();
+  if (resolvedRoot === undefined) {
+    return { gitOk: true, gitBootstrapped: false, terminalOk: true };
+  }
+  return ensureRuntimePrereqsAt(resolvedRoot);
+}
+
+async function ensureRuntimePrereqsAt(
+  packageRoot: string,
 ): Promise<RuntimePrereqResult> {
   const gitScript = resolveInstallScript(packageRoot, 'ensure-git.mjs');
   const terminalScript = resolveInstallScript(packageRoot, 'ensure-terminal.mjs');

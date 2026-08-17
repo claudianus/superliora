@@ -1,40 +1,15 @@
 import { execFile } from 'node:child_process';
 import { realpathSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
 
-import { getHostPackageRoot } from '#/cli/version';
+import { getHostPackageRoot, isNativeSeaHost } from '#/cli/version';
 
 import { detectSuperLioraGithubCheckout } from './git-checkout';
 import { NPM_PACKAGE_NAME, type InstallSource } from './types';
 
-const nodeRequire = createRequire(import.meta.url);
-
-interface NodeSeaModule {
-  isSea(): boolean;
-}
-
-let cachedSea: NodeSeaModule | null | undefined;
-
-function loadSeaModule(): NodeSeaModule | null {
-  if (cachedSea !== undefined) return cachedSea;
-  try {
-    cachedSea = nodeRequire('node:sea') as NodeSeaModule;
-  } catch {
-    cachedSea = null;
-  }
-  return cachedSea;
-}
-
 /** Runtime SEA detection — true when running as a packaged native binary. */
 export function detectNativeInstall(): boolean {
-  const sea = loadSeaModule();
-  if (sea === null) return false;
-  try {
-    return sea.isSea();
-  } catch {
-    return false;
-  }
+  return isNativeSeaHost();
 }
 
 // Path heuristic markers (compared in lowercase; both forward and backward slashes accepted).

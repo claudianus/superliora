@@ -1,6 +1,6 @@
 import { updateBrowserUseRuntimes, updateCuaDriver } from '@superliora/gui-use';
 
-import { getHostPackageRoot } from '#/cli/version';
+import { tryGetHostPackageRoot } from '#/cli/version';
 import { ensureRuntimePrereqs } from './runtime-prereqs';
 
 export interface GuiUseRefreshResult {
@@ -10,13 +10,40 @@ export interface GuiUseRefreshResult {
   readonly warnings: readonly string[];
 }
 
+const SKIPPED_REFRESH: GuiUseRefreshResult = {
+  browserOk: false,
+  computerOk: false,
+  gitOk: true,
+  warnings: [],
+};
+
 /**
  * Soft-refresh browser-use / CUA sidecars after a successful upgrade.
  * Failures never throw — callers surface warnings as they prefer.
+ * Native SEA installs have no source `package.json`; skip (installer already
+ * handled sidecars) instead of throwing from a default package-root lookup.
  */
 export async function refreshGuiUseAfterUpgrade(
-  packageRoot: string = getHostPackageRoot(),
+  packageRoot?: string,
 ): Promise<GuiUseRefreshResult> {
+  let resolvedRoot: string | undefined;
+  try {
+    resolvedRoot = packageRoot ?? tryGetHostPackageRoot();
+  } catch (error) {
+    return {
+      browserOk: false,
+      computerOk: false,
+      gitOk: true,
+      warnings: [`sidecar refresh skipped: ${formatError(error)}`],
+    };
+  }
+  if (resolvedRoot === undefined) {
+    return SKIPPED_REFRESH;
+  }
+  return refreshGuiUseAtPackageRoot(resolvedRoot);
+}
+
+async function refreshGuiUseAtPackageRoot(packageRoot: string): Promise<GuiUseRefreshResult> {
   const warnings: string[] = [];
   let browserOk = false;
   let computerOk = false;

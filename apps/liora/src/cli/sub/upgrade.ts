@@ -232,7 +232,17 @@ export async function handleUpgrade(
         installOptions,
       );
     }
-    await deps.updateGuiUseAfterUpgrade();
+    try {
+      await deps.updateGuiUseAfterUpgrade();
+    } catch (error) {
+      logUpgradeWarn(deps.logger, 'post-upgrade sidecar refresh failed', {
+        currentVersion,
+        targetVersion: plan.target.version,
+        source: plan.source,
+        error,
+      });
+      deps.stderr.write(`${formatErrorMessage(error)}\n`);
+    }
     trackUpgradeEvent(deps.track, 'upgrade_command_succeeded', {
       current_version: currentVersion,
       target_version: plan.target.version,

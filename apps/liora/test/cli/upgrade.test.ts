@@ -271,6 +271,38 @@ describe('handleUpgrade', () => {
     expect(stdout.join('')).toContain('bash -lc');
   });
 
+  it('keeps a successful native install when post-upgrade sidecar refresh throws', async () => {
+    const { stdout, stderr, writable } = captureOutput();
+    const deps = createDeps({
+      plan: basePlan({
+        reason: 'update-available',
+        source: 'native',
+        target: { version: '0.11.3' },
+        canAutoInstall: true,
+        installCommand: "irm https://example.test/install.ps1 | iex",
+      }),
+    });
+    deps.updateGuiUseAfterUpgrade = vi.fn().mockRejectedValue(
+      new Error('Could not locate package.json near C:\\Users\\Administrator\\AppData\\Local\\SuperLiora\\bin'),
+    );
+
+    await expect(handleUpgrade('0.11.2', { ...deps, ...writable })).resolves.toBe(0);
+
+    expect(deps.installUpdate).toHaveBeenCalledWith('native', '0.11.3', 'darwin', {
+      fromMain: false,
+      checkoutRoot: undefined,
+    });
+    expect(deps.track).toHaveBeenCalledWith('upgrade_command_succeeded', expect.objectContaining({
+      target_version: '0.11.3',
+      source: 'native',
+    }));
+    expect(stdout.join('')).toContain('Updated @superliora/liora to 0.11.3');
+    expect(stderr.join('')).toContain(
+      'Could not locate package.json near C:\\Users\\Administrator\\AppData\\Local\\SuperLiora\\bin',
+    );
+    expect(stderr.join('')).not.toContain('warning: failed to install');
+  });
+
   it('returns a failing exit code when the foreground install fails', async () => {
     const { stderr, writable } = captureOutput();
     const deps = createDeps({
