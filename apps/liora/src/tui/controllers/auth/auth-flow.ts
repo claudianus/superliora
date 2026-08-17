@@ -1,3 +1,4 @@
+import { applyXaiPricingSafeContextTokens } from '@superliora/oauth';
 import type { CreateSessionOptions, LioraHarness, Session } from '@superliora/sdk';
 import type { SkillListSession } from '../../commands';
 
@@ -148,10 +149,14 @@ export class AuthFlowController {
       availableProviders,
       nonVisionFallbackPolicy: config.media?.nonVisionFallback ?? 'analyze',
       model: defaultModel,
-      maxContextTokens: selected.maxContextSize,
+      maxContextTokens: applyXaiPricingSafeContextTokens(selected.maxContextSize, {
+        provider: selected.provider,
+        model: defaultModel,
+      }),
       workingSet: contextWorkingSetSnapshotFromLoopControl({
         maxWorkingSetTokens: config.loopControl?.maxWorkingSetTokens,
         asyncWorkingSetTokens: config.loopControl?.asyncWorkingSetTokens,
+        model: defaultModel,
       }),
     };
     if (config.defaultThinking !== undefined) {

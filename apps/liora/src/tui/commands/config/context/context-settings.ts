@@ -101,7 +101,10 @@ async function showContextSettingsPanel(host: SlashCommandHost): Promise<void> {
       maxWorkingSetTokens: loop?.maxWorkingSetTokens,
       asyncWorkingSetTokens: loop?.asyncWorkingSetTokens,
     });
-    const snap = contextWorkingSetSnapshotFromLoopControl(loop ?? {});
+    const snap = contextWorkingSetSnapshotFromLoopControl({
+      ...loop,
+      model: host.state.appState.model,
+    });
     presetLine = `Working-set preset: ${presetId ?? 'custom'}`;
     capLine = `Caps: soft ${formatTokenCount(snap.maxWorkingSetTokens)} · async ${formatTokenCount(snap.asyncWorkingSetTokens)}`;
   } catch {

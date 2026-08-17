@@ -161,6 +161,17 @@ describe('cursorModelsToPresets / applyCursorOAuthModelAliases', () => {
       supportEfforts: [],
       defaultEffort: 'medium',
     });
+    expect(presets.find((p) => p.id === 'cursor-grok-4.5-high')?.maxContextSize).toBe(200_000);
+    expect(
+      cursorModelsToPresets([
+        {
+          id: 'cursor-grok-4.5-high',
+          displayName: 'Grok 4.5',
+          maxContextSize: 500_000,
+          capabilities: ['thinking', 'tool_use', 'image_in'],
+        },
+      ])[0]?.maxContextSize,
+    ).toBe(200_000);
   });
 
   it('replaces cursor-oauth aliases without touching other providers', () => {

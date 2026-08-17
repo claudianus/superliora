@@ -34,6 +34,33 @@ describe('resolveModelCapabilities', () => {
     expect(caps.image_in).toBe(true);
     expect(caps.tool_use).toBe(true);
     expect(caps.thinking).toBe(true);
+    expect(caps.max_context_tokens).toBe(200_000);
+  });
+
+  it('caps Grok advertised windows at the xAI 200k price band', () => {
+    const caps = resolveModelCapabilities(
+      {
+        provider: 'xai-grok',
+        model: 'grok-4.6',
+        maxContextSize: 500_000,
+        capabilities: ['thinking', 'tool_use', 'image_in'],
+      },
+      { type: 'openai', model: 'grok-4.6', apiKey: 'sk-test' },
+    );
+    expect(caps.max_context_tokens).toBe(200_000);
+  });
+
+  it('does not raise a smaller Grok window to 200k', () => {
+    const caps = resolveModelCapabilities(
+      {
+        provider: 'cursor-oauth',
+        model: 'grok-code-fast-1',
+        maxContextSize: 128_000,
+        capabilities: ['tool_use'],
+      },
+      { type: 'openai', model: 'grok-code-fast-1', apiKey: 'sk-test' },
+    );
+    expect(caps.max_context_tokens).toBe(128_000);
   });
 
   it('does not invent vision when models.dev and declarations omit it', () => {

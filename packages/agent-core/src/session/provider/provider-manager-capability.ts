@@ -1,5 +1,6 @@
 import type { ProviderConfig as KosongProviderConfig } from '@superliora/kosong';
 import { getModelCapability, type ModelCapability } from '@superliora/kosong';
+import { applyXaiPricingSafeContextTokens } from '@superliora/oauth';
 
 import type { ModelAlias, ProviderConfig } from '../../config';
 import { lookupModelsDevModel } from '../../utils/model-presets';
@@ -31,7 +32,10 @@ export function resolveModelCapabilities(
       catalog?.supportsReasoning === true,
     tool_use:
       declared.has('tool_use') || wire.tool_use || catalog?.supportsTools === true,
-    max_context_tokens: alias.maxContextSize ?? catalog?.contextWindow ?? 0,
+    max_context_tokens: applyXaiPricingSafeContextTokens(
+      alias.maxContextSize ?? catalog?.contextWindow ?? 0,
+      { provider: alias.provider, model: alias.model ?? provider.model },
+    ),
   };
 }
 

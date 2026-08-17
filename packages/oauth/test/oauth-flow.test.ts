@@ -167,10 +167,12 @@ describe('provider profile registry', () => {
     // The latest flagship model must be present as a fallback even before the
     // models.dev catalog is fetched.
     expect(XAI_PROFILE.models!.map((m) => m.id)).toEqual([
+      'grok-4.6',
       'grok-4.5',
       'grok-4.3',
       'grok-build-0.1',
     ]);
+    expect(XAI_PROFILE.models!.every((m) => m.maxContextSize === 200_000)).toBe(true);
   });
 
   it('keeps the Anthropic profile out of the always-on list and in the experimental list', () => {

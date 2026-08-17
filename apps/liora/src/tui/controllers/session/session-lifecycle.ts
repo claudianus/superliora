@@ -226,6 +226,7 @@ export class SessionLifecycleController {
             workingSet: contextWorkingSetSnapshotFromLoopControl({
               maxWorkingSetTokens: config.loopControl?.maxWorkingSetTokens,
               asyncWorkingSetTokens: config.loopControl?.asyncWorkingSetTokens,
+              model: status.model ?? config.defaultModel,
             }),
           }
         : {}),

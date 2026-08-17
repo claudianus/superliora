@@ -5,6 +5,7 @@ import {
   BALANCED_MAX_WORKING_SET_TOKENS,
   CONTEXT_WORKING_SET_PRESETS,
   contextWorkingSetPresetById,
+  contextWorkingSetSnapshotFromLoopControl,
   formatTokenCount,
   formatWorkingSetFooterBadgeText,
   loopControlPatchForPreset,
@@ -12,6 +13,10 @@ import {
   previewContextWorkingSet,
   workingSetPressure,
 } from '#/tui/utils/agent/context-working-set';
+import {
+  XAI_PRICING_SAFE_ASYNC_WORKING_SET_TOKENS,
+  XAI_PRICING_SAFE_WORKING_SET_TOKENS,
+} from '@superliora/oauth';
 
 describe('context working-set presets', () => {
   it('lists four named presets with balanced first', () => {
@@ -72,6 +77,15 @@ describe('context working-set presets', () => {
     });
     expect(preview.softTokens).toBe(800_000);
     expect(preview.asyncTokens).toBe(700_000);
+  });
+
+  it('clamps Grok snapshots under the 200k price band', () => {
+    const snap = contextWorkingSetSnapshotFromLoopControl({
+      model: 'grok-4.6',
+    });
+    expect(snap.maxWorkingSetTokens).toBe(XAI_PRICING_SAFE_WORKING_SET_TOKENS);
+    expect(snap.asyncWorkingSetTokens).toBe(XAI_PRICING_SAFE_ASYNC_WORKING_SET_TOKENS);
+    expect(snap.presetId).toBe('economy');
   });
 
   it('builds a loopControl patch from a preset', () => {

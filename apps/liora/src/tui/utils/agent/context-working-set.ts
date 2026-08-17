@@ -5,7 +5,12 @@
  * do not fill the full advertised context before auto-compaction. Operators
  * pick a named preset here; the values map to `loopControl.maxWorkingSetTokens`
  * and `asyncWorkingSetTokens` (and optional soft ratio overrides).
+ *
+ * Grok / xAI sessions also clamp under the 200k long-context price band
+ * (whole-request 2× rates at ≥200k prompt tokens).
  */
+
+import { applyXaiPricingSafeWorkingSet } from '@superliora/oauth';
 
 export type ContextWorkingSetPresetId =
   | 'balanced'
@@ -212,11 +217,16 @@ export interface ContextWorkingSetSnapshot {
 export function contextWorkingSetSnapshotFromLoopControl(input: {
   readonly maxWorkingSetTokens?: number | undefined;
   readonly asyncWorkingSetTokens?: number | undefined;
+  readonly model?: string | undefined;
+  readonly provider?: string | undefined;
 }): ContextWorkingSetSnapshot {
-  const maxWorkingSetTokens =
-    input.maxWorkingSetTokens ?? BALANCED_MAX_WORKING_SET_TOKENS;
-  const asyncWorkingSetTokens =
-    input.asyncWorkingSetTokens ?? BALANCED_ASYNC_WORKING_SET_TOKENS;
+  const applied = applyXaiPricingSafeWorkingSet({
+    model: input.model,
+    provider: input.provider,
+    maxWorkingSetTokens: input.maxWorkingSetTokens ?? BALANCED_MAX_WORKING_SET_TOKENS,
+    asyncWorkingSetTokens: input.asyncWorkingSetTokens ?? BALANCED_ASYNC_WORKING_SET_TOKENS,
+  });
+  const { maxWorkingSetTokens, asyncWorkingSetTokens } = applied;
   const presetId = matchContextWorkingSetPreset({
     maxWorkingSetTokens,
     asyncWorkingSetTokens,

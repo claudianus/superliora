@@ -11,6 +11,7 @@ import { randomUUID } from 'node:crypto';
 import { isRecord } from '../utils';
 import type { ProviderModelPreset } from './provider-profile';
 import { CURSOR_CLIENT_TYPE, resolveCursorClientVersion } from './cursor-client';
+import { applyXaiPricingSafeContextTokens } from './xai-pricing-window';
 
 const AVAILABLE_MODELS_PATH = '/aiserver.v1.AiService/AvailableModels';
 /** Same RPC opencodex uses for account-usable Run wire ids. */
@@ -48,12 +49,16 @@ export const CURSOR_FALLBACK_MODELS: readonly CursorDiscoveredModel[] = [
   { id: 'gpt-5.3-codex', displayName: 'GPT-5.3 Codex', maxContextSize: 272_000, capabilities: ['thinking', 'tool_use'] },
   { id: 'gemini-3.1-pro', displayName: 'Gemini 3.1 Pro', maxContextSize: 1_000_000, capabilities: ['thinking', 'tool_use', 'image_in'] },
   { id: 'gemini-3.5-flash', displayName: 'Gemini 3.5 Flash', maxContextSize: 1_000_000, capabilities: ['thinking', 'tool_use', 'image_in'] },
-  { id: 'cursor-grok-4.5-high-fast', displayName: 'Grok 4.5 Fast', maxContextSize: 500_000, capabilities: ['thinking', 'tool_use', 'image_in'] },
-  { id: 'cursor-grok-4.5-high', displayName: 'Grok 4.5', maxContextSize: 500_000, capabilities: ['thinking', 'tool_use', 'image_in'] },
+  { id: 'cursor-grok-4.5-high-fast', displayName: 'Grok 4.5 Fast', maxContextSize: 200_000, capabilities: ['thinking', 'tool_use', 'image_in'] },
+  { id: 'cursor-grok-4.5-high', displayName: 'Grok 4.5', maxContextSize: 200_000, capabilities: ['thinking', 'tool_use', 'image_in'] },
   { id: 'grok-code-fast-1', displayName: 'Grok Code Fast 1', maxContextSize: 128_000, capabilities: ['tool_use'] },
   { id: 'kimi-k2.7-code', displayName: 'Kimi K2.7 Code', maxContextSize: 262_000, capabilities: ['thinking', 'tool_use'] },
   { id: 'glm-5.2-high', displayName: 'GLM 5.2 High', maxContextSize: 200_000, capabilities: ['thinking', 'tool_use'] },
 ];
+
+function cursorPricingSafeContext(modelId: string, advertised: number): number {
+  return applyXaiPricingSafeContextTokens(advertised, { model: modelId });
+}
 
 export function cursorModelsToPresets(
   models: readonly CursorDiscoveredModel[],
@@ -61,7 +66,7 @@ export function cursorModelsToPresets(
   return models.map((model) => ({
     id: model.id,
     displayName: cursorDisplayName(model.id, model.displayName),
-    maxContextSize: model.maxContextSize,
+    maxContextSize: cursorPricingSafeContext(model.id, model.maxContextSize),
     capabilities: model.capabilities,
     ...cursorThinkingMetadata(model.id),
   }));
@@ -84,7 +89,7 @@ export function applyCursorOAuthModelAliases(
     nextModels[`${CURSOR_OAUTH_PROVIDER_ID}/${model.id}`] = {
       provider: CURSOR_OAUTH_PROVIDER_ID,
       model: model.id,
-      maxContextSize: model.maxContextSize,
+      maxContextSize: cursorPricingSafeContext(model.id, model.maxContextSize),
       capabilities: [...model.capabilities],
       displayName: cursorDisplayName(model.id, model.displayName),
       ...cursorThinkingMetadata(model.id),
@@ -186,7 +191,10 @@ export function cursorUsableModelToDiscoveredModel(modelId: string): CursorDisco
   return {
     id: modelId,
     displayName: cursorDisplayName(modelId, displayName),
-    maxContextSize: fallback?.maxContextSize ?? DEFAULT_CONTEXT,
+    maxContextSize: cursorPricingSafeContext(
+      modelId,
+      fallback?.maxContextSize ?? DEFAULT_CONTEXT,
+    ),
     capabilities: fallback?.capabilities ?? ['thinking', 'tool_use'],
   };
 }
@@ -281,7 +289,7 @@ export function normalizeAvailableModels(rawModels: readonly unknown[]): CursorD
       byId.set(publicId, {
         id: publicId,
         displayName,
-        maxContextSize: context,
+        maxContextSize: cursorPricingSafeContext(publicId, context),
         capabilities,
         ...(wireServerId !== publicId ? { serverModelId: wireServerId } : {}),
       });

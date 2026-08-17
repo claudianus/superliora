@@ -1,6 +1,7 @@
 import { readApiErrorMessage } from '../api-error';
 import { isRecord } from '../utils';
 import type { ManagedKimiConfigShape } from '../kimi';
+import { applyXaiPricingSafeContextTokens } from '../profiles/xai-pricing-window';
 
 export type { ManagedKimiConfigShape };
 
@@ -280,16 +281,22 @@ function hasRichCapabilityHints(model: CustomRegistryModelEntry): boolean {
   );
 }
 
-function resolveMaxContextSize(model: CustomRegistryModelEntry): number {
+function resolveMaxContextSize(
+  model: CustomRegistryModelEntry,
+  providerId: string,
+): number {
   const context = model.limit?.context;
   const output = model.limit?.output;
-  if (typeof context === 'number' && Number.isInteger(context) && context > 0) {
-    return context;
-  }
-  if (typeof output === 'number' && Number.isInteger(output) && output > 0) {
-    return output;
-  }
-  return CUSTOM_REGISTRY_DEFAULT_MAX_CONTEXT;
+  const advertised =
+    typeof context === 'number' && Number.isInteger(context) && context > 0
+      ? context
+      : typeof output === 'number' && Number.isInteger(output) && output > 0
+        ? output
+        : CUSTOM_REGISTRY_DEFAULT_MAX_CONTEXT;
+  return applyXaiPricingSafeContextTokens(advertised, {
+    provider: providerId,
+    model: model.id,
+  });
 }
 
 function resolveCapabilities(model: CustomRegistryModelEntry): string[] {
@@ -333,7 +340,7 @@ export function applyCustomRegistryProvider(
 
   for (const [modelKey, model] of Object.entries(entry.models)) {
     const aliasKey = `${providerKey}/${modelKey}`;
-    const maxContextSize = resolveMaxContextSize(model);
+    const maxContextSize = resolveMaxContextSize(model, providerKey);
     const capabilities = resolveCapabilities(model);
     const displayName =
       typeof model.name === 'string' && model.name.length > 0 ? model.name : model.id;

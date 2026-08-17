@@ -69,4 +69,15 @@ describe('applyCustomEndpointProvider', () => {
     expect(config.providers['ocx']?.type).toBe('openai');
     expect(config.providers['ocx']?.baseUrl).toBe('http://127.0.0.1:10100/v1');
   });
+
+  it('caps a Grok custom-endpoint window at the xAI 200k price band', () => {
+    const config = emptyConfig();
+    applyCustomEndpointProvider(config, {
+      providerId: 'xai-grok',
+      baseUrl: 'https://api.x.ai/v1',
+      modelId: 'grok-4.6',
+      maxContextSize: 500_000,
+    });
+    expect(config.models?.['xai-grok/grok-4.6']?.maxContextSize).toBe(200_000);
+  });
 });

@@ -5,6 +5,8 @@
  * and preset application logic.
  */
 
+import { applyXaiPricingSafeContextTokens } from '@superliora/oauth';
+
 import { ContextWorkingSetSelectorComponent } from '../../../components/dialogs/picker/context-working-set-selector';
 import { formatErrorMessage } from '../../../utils/event-payload';
 import { ttui } from '../../../utils/tui-i18n';
@@ -134,6 +136,7 @@ async function applyContextWorkingSetPreset(
       workingSet: contextWorkingSetSnapshotFromLoopControl({
         maxWorkingSetTokens: patch.maxWorkingSetTokens,
         asyncWorkingSetTokens: patch.asyncWorkingSetTokens,
+        model: host.state.appState.model,
       }),
     });
 
@@ -155,7 +158,10 @@ function resolveActiveMaxContextTokens(host: SlashCommandHost): number | undefin
   const model = host.state.appState.availableModels[alias];
   const size = model?.maxContextSize;
   if (typeof size !== 'number' || !Number.isFinite(size) || size <= 0) return undefined;
-  return size;
+  return applyXaiPricingSafeContextTokens(size, {
+    provider: model?.provider,
+    model: alias,
+  });
 }
 
 function normalizeContextPresetArg(raw: string): ContextWorkingSetPresetId | undefined {
