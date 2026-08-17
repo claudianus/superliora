@@ -47,6 +47,7 @@ export function configToTomlData(config: LioraConfig): Record<string, unknown> {
     'defaultPermissionMode',
     'defaultPlanMode',
     'sandboxProfile',
+    'sandboxEnforcement',
     'mergeAllAvailableSkills',
     'extraSkillDirs',
     'skillSearchLimit',

@@ -25,6 +25,9 @@ import { BufferedReadable, decodeTextWithErrors, globPatternToRegex } from './in
 import type { Kaos } from './kaos';
 import type { KaosProcess } from './process';
 import { resolveRuntimeExecutable, runtimePathPrepend } from './runtime-bins';
+import { realpathLongestExistingPrefix } from './realpath';
+import type { ProcessSandboxConfig } from './process-sandbox';
+import { wrapLocalExecForProcessSandbox } from './process-sandbox';
 import type { StatResult } from './types';
 
 const isWindows: boolean = process.platform === 'win32';
@@ -195,11 +198,13 @@ export class LocalKaos implements Kaos {
   readonly osEnv: Environment;
   private _cwd: string;
   private readonly _envLayers: readonly Record<string, string>[];
+  private _processSandbox: ProcessSandboxConfig | undefined;
 
   private constructor(
     osEnv: Environment,
     cwd?: string,
     envLayers: readonly Record<string, string>[] = [],
+    processSandbox?: ProcessSandboxConfig,
   ) {
     // After construction we never touch `process.cwd()` / `process.chdir()`
     // — all path resolution goes through `this._cwd`. The default seeds
@@ -208,6 +213,7 @@ export class LocalKaos implements Kaos {
     this._cwd = normalize(cwd ?? process.cwd());
     this.osEnv = osEnv;
     this._envLayers = envLayers;
+    this._processSandbox = processSandbox;
   }
 
   /**
@@ -225,11 +231,15 @@ export class LocalKaos implements Kaos {
   }
 
   withCwd(cwd: string): LocalKaos {
-    return new LocalKaos(this.osEnv, cwd, this._envLayers);
+    return new LocalKaos(this.osEnv, cwd, this._envLayers, this._processSandbox);
   }
 
   withEnv(env: Record<string, string>): LocalKaos {
-    return new LocalKaos(this.osEnv, this._cwd, [...this._envLayers, env]);
+    return new LocalKaos(this.osEnv, this._cwd, [...this._envLayers, env], this._processSandbox);
+  }
+
+  setProcessSandbox(config: ProcessSandboxConfig | undefined): void {
+    this._processSandbox = config;
   }
 
   private _resolvePath(path: string): string {
@@ -269,6 +279,10 @@ export class LocalKaos implements Kaos {
       throw new Error(`Not a directory: ${resolved}`);
     }
     this._cwd = resolved;
+  }
+
+  async realpath(path: string): Promise<string> {
+    return realpathLongestExistingPrefix(this._resolvePath(path));
   }
 
   async stat(path: string, options?: { followSymlinks?: boolean }): Promise<StatResult> {
@@ -792,20 +806,38 @@ export class LocalKaos implements Kaos {
     }
   }
 
+  private async _spawnWrapped(
+    command: string,
+    restArgs: readonly string[],
+    extraEnv?: Record<string, string>,
+  ): Promise<KaosProcess> {
+    const file = isWindows ? resolveRuntimeExecutable(command) : command;
+    const wrapped = wrapLocalExecForProcessSandbox({
+      file,
+      args: restArgs,
+      cwd: this._cwd,
+      config: this._processSandbox,
+    });
+    const spawnOpts = buildLocalSpawnOptions(isWindows, this._cwd, this._buildExecEnv(extraEnv));
+    try {
+      const child = spawn(wrapped.file, wrapped.args, spawnOpts);
+      await waitForSpawn(child);
+      if (child.pid !== undefined) wrapped.afterSpawn?.(child.pid);
+      return new LocalProcess(child);
+    } catch (error) {
+      if (this._processSandbox?.backend !== 'docker') throw error;
+      const fallback = spawn(file, [...restArgs], spawnOpts);
+      await waitForSpawn(fallback);
+      return new LocalProcess(fallback);
+    }
+  }
+
   async exec(...args: string[]): Promise<KaosProcess> {
     const command = args[0];
     if (command === undefined) {
       throw new Error('LocalKaos.exec(): at least one argument (the command to run) is required.');
     }
-    const restArgs = args.slice(1);
-    const file = isWindows ? resolveRuntimeExecutable(command) : command;
-    const child = spawn(
-      file,
-      restArgs,
-      buildLocalSpawnOptions(isWindows, this._cwd, this._buildExecEnv()),
-    );
-    await waitForSpawn(child);
-    return new LocalProcess(child);
+    return this._spawnWrapped(command, args.slice(1));
   }
 
   async execWithEnv(args: string[], env?: Record<string, string>): Promise<KaosProcess> {
@@ -815,15 +847,7 @@ export class LocalKaos implements Kaos {
         'LocalKaos.execWithEnv(): at least one argument (the command to run) is required.',
       );
     }
-    const restArgs = args.slice(1);
-    const file = isWindows ? resolveRuntimeExecutable(command) : command;
-    const child = spawn(
-      file,
-      restArgs,
-      buildLocalSpawnOptions(isWindows, this._cwd, this._buildExecEnv(env)),
-    );
-    await waitForSpawn(child);
-    return new LocalProcess(child);
+    return this._spawnWrapped(command, args.slice(1), env);
   }
 
   private _buildExecEnv(invocationEnv?: Record<string, string>): Record<string, string> | undefined {

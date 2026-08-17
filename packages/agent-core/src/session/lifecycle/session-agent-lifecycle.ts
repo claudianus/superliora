@@ -17,6 +17,7 @@ import { McpConnectionManager } from '../../mcp';
 import { prepareSystemPromptContext, type ResolvedAgentProfile } from '../../profile';
 import type { SessionSkillRegistry } from '../../skill';
 import type { TelemetryClient } from '../../telemetry';
+import type { SandboxEnforcement } from '../../config/sandbox-enforcement';
 import type { SandboxProfile } from '../../tools/policies/path-access';
 import { FileSnapshotStore } from '../file-snapshot';
 import type { ExperimentalFlagResolver } from '../../flags';
@@ -123,6 +124,7 @@ export class SessionAgentLifecycle {
       dreamStore: type === 'main' ? this.opts.options.dreamStore : undefined,
       fileSnapshots: config.fileSnapshots ?? this.opts.fileSnapshots,
       sandboxProfile: config.sandboxProfile ?? this.resolveSandboxProfile(),
+      sandboxEnforcement: config.sandboxEnforcement ?? this.resolveSandboxEnforcement(),
     });
   }
 
@@ -229,5 +231,13 @@ export class SessionAgentLifecycle {
     // Product default is off: path sandbox is opt-in via Settings / config /
     // --sandbox / SUPERLIORA_SANDBOX / local.toml. Sensitive-path checks stay on.
     return 'off';
+  }
+
+  private resolveSandboxEnforcement(): SandboxEnforcement {
+    const raw = this.opts.getMetadata().custom['sandboxEnforcement'];
+    if (raw === 'lexical' || raw === 'process') {
+      return raw;
+    }
+    return 'lexical';
   }
 }

@@ -30,6 +30,7 @@ import { toTerminalHyperlink } from '#/utils/terminal-hyperlink';
 import { createMarketplaceSourceResolver } from '#/utils/plugin-marketplace-resolver';
 
 import type { CLIOptions } from './options';
+import { applyNoProcessSandboxFlag, sandboxSessionMetadata } from './options';
 import { resolveSessionWorkDir } from './resolve-worktree';
 import { createCliTelemetryBootstrap, initializeCliTelemetry } from './telemetry';
 import type { UpdateLifecycleNotice, UpdateNoticeInfo } from './update/types';
@@ -45,6 +46,7 @@ export async function runShell(
   updateNotice?: UpdateNoticeInfo,
   updateLifecycle?: UpdateLifecycleNotice,
 ): Promise<void> {
+  applyNoProcessSandboxFlag(opts);
   const startedAt = Date.now();
   const configStartedAt = startedAt;
   let tuiConfig: TuiConfig;
@@ -132,9 +134,7 @@ export async function runShell(
     updateLifecycle,
     sessionMetadata: {
       ...((resolvedWork.metadata as import('@superliora/sdk').JsonObject | undefined) ?? {}),
-      ...(opts.sandbox === 'off' || opts.sandbox === 'workspace' || opts.sandbox === 'read-only'
-        ? { sandboxProfile: opts.sandbox }
-        : {}),
+      ...sandboxSessionMetadata(opts),
     } as import('@superliora/sdk').JsonObject,
   });
   surfaceOAuthDegraded = (event) => {

@@ -17,7 +17,7 @@ import { z } from 'zod';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
-import { resolvePathAccessPath } from '../../policies/path-access';
+import { refineSandboxPathForExecute, resolvePathAccessPath } from '../../policies/path-access';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { literalRulePattern, matchesPathRuleSubject } from '../../support/rule-match';
 import type { WorkspaceConfig } from '../../support/workspace';
@@ -176,7 +176,15 @@ export class GenerateVideoTool implements BuiltinTool<GenerateVideoInput> {
           pathClass: this.kaos.pathClass(),
           homeDir: this.kaos.gethome(),
         }),
-      execute: () => this.execution(args, path, outputPath),
+      execute: async () => {
+        const refined = await refineSandboxPathForExecute(path, {
+          kaos: this.kaos,
+          workspace: this.workspace,
+          rawPath: outputPath,
+        });
+        if (!refined.ok) return { isError: true, output: refined.output };
+        return this.execution(args, refined.path, outputPath);
+      },
     };
   }
 
@@ -318,16 +326,31 @@ async function generateWithXaiVideo(
   };
 }
 
+async function resolveSandboxReadPath(
+  imagePath: string,
+  kaos: Kaos,
+  workspace: WorkspaceConfig,
+): Promise<string> {
+  const lexical = resolvePathAccessPath(imagePath, {
+    kaos,
+    workspace,
+    operation: 'read',
+  });
+  const refined = await refineSandboxPathForExecute(lexical, {
+    kaos,
+    workspace,
+    rawPath: imagePath,
+  });
+  if (!refined.ok) throw new Error(refined.output);
+  return refined.path;
+}
+
 async function readWorkspaceImageAsDataUrl(
   imagePath: string,
   kaos: Kaos,
   workspace: WorkspaceConfig,
 ): Promise<string> {
-  const resolved = resolvePathAccessPath(imagePath, {
-    kaos,
-    workspace,
-    operation: 'read',
-  });
+  const resolved = await resolveSandboxReadPath(imagePath, kaos, workspace);
   const bytes = await kaos.readBytes(resolved);
   const lower = imagePath.toLowerCase();
   const mime =
@@ -378,11 +401,7 @@ async function generateWithQwenVideo(
     // r2v accepts 1–9 reference images as media entries.
     input['media'] = await Promise.all(
       args.reference_image_paths!.map(async (rawPath) => {
-        const refPath = resolvePathAccessPath(rawPath.trim(), {
-          kaos,
-          workspace,
-          operation: 'read',
-        });
+        const refPath = await resolveSandboxReadPath(rawPath.trim(), kaos, workspace);
         const bytes = await kaos.readBytes(refPath);
         const mime = sniffImageMime(bytes);
         const b64 = Buffer.from(bytes).toString('base64');
@@ -390,11 +409,7 @@ async function generateWithQwenVideo(
       }),
     );
   } else if (mode === 'i2v') {
-    const imagePath = resolvePathAccessPath(args.image_path!.trim(), {
-      kaos,
-      workspace,
-      operation: 'read',
-    });
+    const imagePath = await resolveSandboxReadPath(args.image_path!.trim(), kaos, workspace);
     const bytes = await kaos.readBytes(imagePath);
     // Qwen i2v expects the first frame as a media entry (URL or data URI).
     const mime = sniffImageMime(bytes);
@@ -508,11 +523,7 @@ async function generateWithGeminiOmni(
 
   const parts: Array<Record<string, unknown>> = [{ text: args.prompt }];
   if (args.image_path !== undefined && args.image_path.trim().length > 0) {
-    const imagePath = resolvePathAccessPath(args.image_path.trim(), {
-      kaos,
-      workspace,
-      operation: 'read',
-    });
+    const imagePath = await resolveSandboxReadPath(args.image_path.trim(), kaos, workspace);
     const bytes = await kaos.readBytes(imagePath);
     parts.push({
       inlineData: {

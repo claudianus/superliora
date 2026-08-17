@@ -18,7 +18,7 @@ import { z } from 'zod';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
-import { resolvePathAccessPath } from '../../policies/path-access';
+import { refineSandboxPathForExecute, resolvePathAccessPath } from '../../policies/path-access';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { literalRulePattern, matchesPathRuleSubject } from '../../support/rule-match';
 import type { WorkspaceConfig } from '../../support/workspace';
@@ -184,7 +184,15 @@ export class GenerateImageTool implements BuiltinTool<GenerateImageInput> {
           pathClass: this.kaos.pathClass(),
           homeDir: this.kaos.gethome(),
         }),
-      execute: () => this.execution(args, path, outputPath),
+      execute: async () => {
+        const refined = await refineSandboxPathForExecute(path, {
+          kaos: this.kaos,
+          workspace: this.workspace,
+          rawPath: outputPath,
+        });
+        if (!refined.ok) return { isError: true, output: refined.output };
+        return this.execution(args, refined.path, outputPath);
+      },
     };
   }
 

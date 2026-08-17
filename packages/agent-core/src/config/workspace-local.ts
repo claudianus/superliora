@@ -17,6 +17,7 @@ const WorkspaceLocalTomlSchema = z.object({
        * Lexical file-tool guard only — not OS isolation.
        */
       sandbox_profile: z.enum(['off', 'workspace', 'read-only']),
+      sandbox_enforcement: z.enum(['lexical', 'process']),
     })
     .partial()
     .optional(),
@@ -30,6 +31,8 @@ export interface WorkspaceAdditionalDirsLoadResult {
   readonly additionalDirs: readonly string[];
   /** Path-sandbox profile from local.toml (undefined when unset). */
   readonly sandboxProfile?: 'off' | 'workspace' | 'read-only' | undefined;
+  /** Process enforcement from local.toml (undefined when unset). */
+  readonly sandboxEnforcement?: 'lexical' | 'process' | undefined;
   readonly warning?: string;
 }
 
@@ -49,13 +52,13 @@ export async function loadWorkspaceLocalConfig(
   const file = await readWorkspaceLocalToml(kaos, configPath);
 
   const additionalDirs = file?.parsed.workspace?.additional_dir;
-  const sandboxProfile = file?.parsed.workspace?.sandbox_profile;
+  const extras = localSandboxFields(file?.parsed.workspace);
   if (additionalDirs === undefined) {
     return {
       projectRoot,
       configPath,
       additionalDirs: [],
-      ...(sandboxProfile !== undefined ? { sandboxProfile } : {}),
+      ...extras,
     };
   }
 
@@ -63,7 +66,7 @@ export async function loadWorkspaceLocalConfig(
     projectRoot,
     configPath,
     additionalDirs: await resolveAdditionalDirs(kaos, projectRoot, additionalDirs),
-    ...(sandboxProfile !== undefined ? { sandboxProfile } : {}),
+    ...extras,
   };
 }
 
@@ -95,14 +98,14 @@ export async function appendWorkspaceAdditionalDir(
   const fileAdditionalDirs = file.parsed.workspace?.additional_dir ?? [];
   const fileExistingDirs = resolveExistingAdditionalDirs(kaos, projectRoot, fileAdditionalDirs);
 
-  const sandboxProfile = file.parsed.workspace?.sandbox_profile;
+  const extras = localSandboxFields(file.parsed.workspace);
 
   if (hasSameAdditionalDir(kaos, fileExistingDirs, additionalDir)) {
     return {
       projectRoot,
       configPath,
       additionalDirs: fileExistingDirs,
-      ...(sandboxProfile !== undefined ? { sandboxProfile } : {}),
+      ...extras,
     };
   }
 
@@ -117,7 +120,7 @@ export async function appendWorkspaceAdditionalDir(
     projectRoot,
     configPath,
     additionalDirs: [...fileExistingDirs, additionalDir],
-    ...(sandboxProfile !== undefined ? { sandboxProfile } : {}),
+    ...extras,
   };
 }
 
@@ -143,7 +146,62 @@ export async function writeWorkspaceSandboxProfile(
   await kaos.mkdir(dirname(configPath), { parents: true, existOk: true });
   await kaos.writeAtomic(configPath, `${stringifyToml(file.raw)}\n`);
 
-  return { projectRoot, configPath, additionalDirs, sandboxProfile: profile };
+  return {
+    projectRoot,
+    configPath,
+    additionalDirs,
+    sandboxProfile: profile,
+    ...localSandboxFields({
+      sandbox_profile: profile,
+      sandbox_enforcement: file.parsed.workspace?.sandbox_enforcement,
+    }),
+  };
+}
+
+/**
+ * Persist `workspace.sandbox_enforcement` into `.superliora/local.toml`.
+ * Does not touch `additional_dir`.
+ */
+export async function writeWorkspaceSandboxEnforcement(
+  kaos: Kaos,
+  workDir: string,
+  enforcement: 'lexical' | 'process',
+): Promise<WorkspaceAdditionalDirsLoadResult> {
+  const projectRoot = await findProjectRoot(kaos, workDir);
+  const configPath = getWorkspaceLocalConfigPath(projectRoot);
+  const file = (await readWorkspaceLocalToml(kaos, configPath)) ?? { raw: {}, parsed: {} };
+  const fileAdditionalDirs = file.parsed.workspace?.additional_dir ?? [];
+  const additionalDirs = resolveExistingAdditionalDirs(kaos, projectRoot, fileAdditionalDirs);
+
+  const workspace = cloneRecord(file.raw['workspace']);
+  workspace['sandbox_enforcement'] = enforcement;
+  file.raw['workspace'] = workspace;
+
+  await kaos.mkdir(dirname(configPath), { parents: true, existOk: true });
+  await kaos.writeAtomic(configPath, `${stringifyToml(file.raw)}\n`);
+
+  return {
+    projectRoot,
+    configPath,
+    additionalDirs,
+    sandboxEnforcement: enforcement,
+    ...localSandboxFields({
+      sandbox_profile: file.parsed.workspace?.sandbox_profile,
+      sandbox_enforcement: enforcement,
+    }),
+  };
+}
+
+function localSandboxFields(workspace?: {
+  readonly sandbox_profile?: 'off' | 'workspace' | 'read-only';
+  readonly sandbox_enforcement?: 'lexical' | 'process';
+}): Pick<WorkspaceAdditionalDirsLoadResult, 'sandboxProfile' | 'sandboxEnforcement'> {
+  return {
+    ...(workspace?.sandbox_profile !== undefined ? { sandboxProfile: workspace.sandbox_profile } : {}),
+    ...(workspace?.sandbox_enforcement !== undefined
+      ? { sandboxEnforcement: workspace.sandbox_enforcement }
+      : {}),
+  };
 }
 
 export function normalizeAdditionalDirs(additionalDirs: readonly string[]): string[] {
@@ -236,6 +294,9 @@ function describeWorkspaceLocalValidationError(error: z.ZodError): string {
   }
   if (issue?.path[0] === 'workspace' && issue.path[1] === 'sandbox_profile') {
     return 'workspace.sandbox_profile must be one of: off, workspace, read-only';
+  }
+  if (issue?.path[0] === 'workspace' && issue.path[1] === 'sandbox_enforcement') {
+    return 'workspace.sandbox_enforcement must be one of: lexical, process';
   }
   if (issue?.path[0] === 'workspace') return 'workspace must be a table';
   return `Invalid workspace local config: ${error.message}`;

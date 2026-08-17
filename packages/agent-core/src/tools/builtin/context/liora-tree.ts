@@ -5,7 +5,7 @@ import { z } from 'zod';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
-import { resolvePathAccessPath } from '../../policies/path-access';
+import { refineSandboxPathForExecute, resolvePathAccessPath } from '../../policies/path-access';
 import { toInputJsonSchema } from '../../support/input-schema';
 import type { WorkspaceConfig } from '../../support/workspace';
 
@@ -64,7 +64,15 @@ export class LioraTreeTool implements BuiltinTool<LioraTreeInput> {
       description: 'Building compact directory tree',
       readOnly: true,
       approvalRule: this.name,
-      execute: () => this.execution(parsed.data, basePath),
+      execute: async () => {
+        const refined = await refineSandboxPathForExecute(basePath, {
+          kaos: this.kaos,
+          workspace: this.workspace,
+          rawPath: parsed.data.path ?? '.',
+        });
+        if (!refined.ok) return { isError: true, output: refined.output };
+        return this.execution(parsed.data, refined.path);
+      },
     };
   }
 

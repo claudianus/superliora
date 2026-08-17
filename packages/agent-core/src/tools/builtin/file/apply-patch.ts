@@ -11,10 +11,7 @@ import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import type { FileSnapshotStore } from '../../../session/file-snapshot';
 import { checkSwarmFileLease } from '#/fleet';
-import {
-  policyForSandboxProfile,
-  resolvePathAccessPath,
-} from '../../policies/path-access';
+import { refineSandboxPathForExecute, resolvePathAccessPath } from '../../policies/path-access';
 import { toInputJsonSchema } from '../../support/input-schema';
 import { literalRulePattern, matchesPathRuleSubject } from '../../support/rule-match';
 import type { WorkspaceConfig } from '../../support/workspace';
@@ -63,10 +60,6 @@ export class ApplyPatchTool implements BuiltinTool<ApplyPatchInput> {
               kaos: this.kaos,
               workspace: this.workspace,
               operation: 'write',
-              policy:
-                this.workspace.sandboxProfile !== undefined
-                  ? policyForSandboxProfile(this.workspace.sandboxProfile)
-                  : undefined,
             }),
           )
         : [];
@@ -113,15 +106,20 @@ export class ApplyPatchTool implements BuiltinTool<ApplyPatchInput> {
     }> = [];
 
     for (const file of parsed.files) {
-      const safePath = resolvePathAccessPath(file.path, {
+      const lexicalPath = resolvePathAccessPath(file.path, {
         kaos: this.kaos,
         workspace: this.workspace,
         operation: 'write',
-        policy:
-          this.workspace.sandboxProfile !== undefined
-            ? policyForSandboxProfile(this.workspace.sandboxProfile)
-            : undefined,
       });
+      const refined = await refineSandboxPathForExecute(lexicalPath, {
+        kaos: this.kaos,
+        workspace: this.workspace,
+        rawPath: file.path,
+      });
+      if (!refined.ok) {
+        return { isError: true, output: refined.output };
+      }
+      const safePath = refined.path;
       const leaseError = checkSwarmFileLease(safePath, lease?.ownerId, lease?.runId);
       if (leaseError !== undefined) {
         return { isError: true, output: leaseError };

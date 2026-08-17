@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { BuiltinTool } from '../../../agent/tool';
 import { ToolAccesses } from '../../../loop/tool-access';
 import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
-import { resolvePathAccessPath } from '../../policies/path-access';
+import { refineSandboxPathForExecute, resolvePathAccessPath } from '../../policies/path-access';
 import { toInputJsonSchema } from '../../support/input-schema';
 import type { ToolStore } from '../../store';
 import { appendTextToolMeta } from '../../support/text-result-meta';
@@ -64,7 +64,15 @@ export class LioraReadTool implements BuiltinTool<LioraReadInput> {
       description: `LioraRead ${normalized.path}`,
       readOnly: true,
       approvalRule: this.name,
-      execute: () => this.execution(normalized, path),
+      execute: async () => {
+        const refined = await refineSandboxPathForExecute(path, {
+          kaos: this.kaos,
+          workspace: this.workspace,
+          rawPath: normalized.path,
+        });
+        if (!refined.ok) return { isError: true, output: refined.output };
+        return this.execution(normalized, refined.path);
+      },
     };
   }
 

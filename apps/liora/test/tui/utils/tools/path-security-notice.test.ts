@@ -52,4 +52,11 @@ describe('formatPathSecurityNotice', () => {
     expect(notice.title).toBe('Outside workspace');
     expect(notice.status).toMatch(/PATH_OUTSIDE_WORKSPACE/);
   });
+
+  it('formats symlink escape recovery', () => {
+    const notice = formatPathSecurityNotice('Read', 'blocked code=PATH_SYMLINK_OUTSIDE');
+    expect(notice.title).toBe('Symlink leaves workspace');
+    expect(notice.code).toBe('PATH_SYMLINK_OUTSIDE');
+    expect(notice.status).toMatch(/PATH_SYMLINK_OUTSIDE/);
+  });
 });

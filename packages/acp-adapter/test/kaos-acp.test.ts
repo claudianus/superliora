@@ -72,6 +72,7 @@ interface MockInnerKaos extends Kaos {
     withCwdCalls: string[];
     withEnvCalls: Array<Record<string, string>>;
     statCalls: Array<{ path: string; options?: { followSymlinks?: boolean } }>;
+    realpathCalls: string[];
     iterdirCalls: string[];
     globCalls: Array<{ path: string; pattern: string; options?: { caseSensitive?: boolean } }>;
     mkdirCalls: Array<{ path: string; options?: { parents?: boolean; existOk?: boolean } }>;
@@ -96,6 +97,7 @@ function makeMockInner(opts?: { pathClass?: 'posix' | 'win32' }): MockInnerKaos 
     withCwdCalls: [] as string[],
     withEnvCalls: [] as Array<Record<string, string>>,
     statCalls: [] as Array<{ path: string; options?: { followSymlinks?: boolean } }>,
+    realpathCalls: [] as string[],
     iterdirCalls: [] as string[],
     globCalls: [] as Array<{ path: string; pattern: string; options?: { caseSensitive?: boolean } }>,
     mkdirCalls: [] as Array<{ path: string; options?: { parents?: boolean; existOk?: boolean } }>,
@@ -158,6 +160,10 @@ function makeMockInner(opts?: { pathClass?: 'posix' | 'win32' }): MockInnerKaos 
         stMtime: 0,
         stCtime: 0,
       } as StatResult;
+    },
+    realpath: async (path: string) => {
+      spy.realpathCalls.push(path);
+      return path;
     },
     iterdir: async function* (path: string) {
       spy.iterdirCalls.push(path);
@@ -514,10 +520,12 @@ describe('AcpKaos', () => {
       await kaos.chdir('/x');
       await kaos.stat('/y', { followSymlinks: false });
       await kaos.mkdir('/z', { parents: true });
+      await expect(kaos.realpath('/y')).resolves.toBe('/y');
 
       expect(inner.__spy.chdirCalls).toEqual(['/x']);
       expect(inner.__spy.statCalls).toEqual([{ path: '/y', options: { followSymlinks: false } }]);
       expect(inner.__spy.mkdirCalls).toEqual([{ path: '/z', options: { parents: true } }]);
+      expect(inner.__spy.realpathCalls).toEqual(['/y']);
     });
 
     it('delegates iterdir and glob to inner', async () => {

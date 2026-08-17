@@ -97,6 +97,15 @@ export class AcpKaos implements Kaos {
     return this.inner.stat(path, options);
   }
 
+  realpath(path: string): Promise<string> {
+    return this.inner.realpath(path);
+  }
+
+  setProcessSandbox(config: unknown): void {
+    const inner = this.inner as { setProcessSandbox?: (value: unknown) => void };
+    inner.setProcessSandbox?.(config);
+  }
+
   iterdir(path: string): AsyncGenerator<string> {
     return this.inner.iterdir(path);
   }

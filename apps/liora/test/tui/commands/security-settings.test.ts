@@ -20,6 +20,7 @@ function makeSecurityHost(options: {
   const transcriptContainer = { addChild: vi.fn() };
   const setConfig = vi.fn(async () => undefined);
   const setSandboxProfile = vi.fn(async () => undefined);
+  const setSandboxEnforcement = vi.fn(async () => undefined);
   const requireSession = vi.fn(() => {
     if (options.hasSession === false) {
       throw new Error('no session');
@@ -33,6 +34,7 @@ function makeSecurityHost(options: {
         },
       })),
       setSandboxProfile,
+      setSandboxEnforcement,
     };
   });
   return {
@@ -54,9 +56,11 @@ function makeSecurityHost(options: {
     showStatus: vi.fn(),
     _setConfig: setConfig,
     _setSandboxProfile: setSandboxProfile,
+    _setSandboxEnforcement: setSandboxEnforcement,
   } as unknown as SlashCommandHost & {
     _setConfig: typeof setConfig;
     _setSandboxProfile: typeof setSandboxProfile;
+    _setSandboxEnforcement: typeof setSandboxEnforcement;
   };
 }
 
@@ -97,7 +101,14 @@ describe('showSecuritySettings', () => {
         };
       }
     ).opts;
-    expect(opts.options.map((o) => o.value)).toEqual(['status', 'off', 'workspace', 'read-only']);
+    expect(opts.options.map((o) => o.value)).toEqual([
+      'status',
+      'off',
+      'workspace',
+      'read-only',
+      'enforcement-lexical',
+      'enforcement-process',
+    ]);
     expect(opts.options.every((o) => !o.value.startsWith('tip-'))).toBe(true);
     expect(opts.currentValue).toBe('workspace');
     expect(opts.options.every((o) => !o.label.includes('●'))).toBe(true);
@@ -125,6 +136,23 @@ describe('showSecuritySettings', () => {
     expect(host.showStatus).toHaveBeenCalled();
     const statusMsg = String((host.showStatus as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0] ?? '');
     expect(statusMsg).toMatch(/Path sandbox|OS isolation/i);
+  });
+
+  it('persists process enforcement and raises off profile to workspace', async () => {
+    const host = makeSecurityHost({ sandboxProfile: 'off' });
+    showSecuritySettings(host);
+    const picker = await waitForPicker(host);
+    selectSecurityAction(picker, 'enforcement-process');
+    await vi.waitFor(() => {
+      expect(host._setConfig).toHaveBeenCalledWith({
+        sandboxProfile: 'workspace',
+        sandboxEnforcement: 'process',
+      });
+    });
+    await vi.waitFor(() => {
+      expect(host._setSandboxProfile).toHaveBeenCalledWith('workspace');
+      expect(host._setSandboxEnforcement).toHaveBeenCalledWith('process');
+    });
   });
 
   it('mounts security panel for status action with workspace profile', async () => {

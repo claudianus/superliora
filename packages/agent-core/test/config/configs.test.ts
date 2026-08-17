@@ -1200,4 +1200,15 @@ ${VALID_TOML}`);
     );
     expect(() => LioraConfigSchema.parse({ sandboxProfile: 'bubblewrap' })).toThrow();
   });
+
+  it('accepts optional sandboxEnforcement and rejects invalid values', () => {
+    expect(LioraConfigSchema.parse({}).sandboxEnforcement).toBeUndefined();
+    expect(LioraConfigSchema.parse({ sandboxEnforcement: 'lexical' }).sandboxEnforcement).toBe(
+      'lexical',
+    );
+    expect(LioraConfigSchema.parse({ sandboxEnforcement: 'process' }).sandboxEnforcement).toBe(
+      'process',
+    );
+    expect(() => LioraConfigSchema.parse({ sandboxEnforcement: 'bubblewrap' })).toThrow();
+  });
 });

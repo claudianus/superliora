@@ -143,6 +143,10 @@ export const SandboxProfileSchema = z.enum(['off', 'workspace', 'read-only']);
 
 export type SandboxProfileConfig = z.infer<typeof SandboxProfileSchema>;
 
+export const SandboxEnforcementSchema = z.enum(['lexical', 'process']);
+
+export type SandboxEnforcementConfig = z.infer<typeof SandboxEnforcementSchema>;
+
 export const PermissionRuleDecisionSchema = z.enum(['allow', 'deny', 'ask']);
 export const PermissionRuleScopeSchema = z.enum([
   'turn-override',
@@ -492,6 +496,11 @@ export const LioraConfigSchema = z.object({
    * Not an OS sandbox — Bash/network/computer-use are out of scope.
    */
   sandboxProfile: SandboxProfileSchema.optional(),
+  /**
+   * How hard to enforce the path sandbox: lexical (default) or process
+   * (Docker when present; otherwise Windows Job Object tree — not an FS jail).
+   */
+  sandboxEnforcement: SandboxEnforcementSchema.optional(),
   permission: PermissionConfigSchema.optional(),
   hooks: z.array(HookDefSchema).optional(),
   services: ServicesConfigSchema.optional(),
@@ -566,6 +575,7 @@ export const LioraConfigPatchSchema = z
     defaultPermissionMode: PermissionModeSchema.optional(),
     defaultPlanMode: z.boolean().optional(),
     sandboxProfile: SandboxProfileSchema.optional(),
+    sandboxEnforcement: SandboxEnforcementSchema.optional(),
     permission: PermissionConfigPatchSchema.optional(),
     hooks: z.array(HookDefSchema).optional(),
     services: ServicesConfigPatchSchema.optional(),

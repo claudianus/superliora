@@ -17,6 +17,7 @@ import { createMarketplaceSourceResolver } from '#/utils/plugin-marketplace-reso
 import { parseHeadlessGoalCreate } from './goal-prompt';
 import { createCliTelemetryBootstrap, initializeCliTelemetry } from './telemetry';
 import type { CLIOptions } from './options';
+import { applyNoProcessSandboxFlag } from './options';
 import { resolveSessionWorkDir } from './resolve-worktree';
 import {
   installPromptTerminationCleanup,
@@ -38,6 +39,7 @@ export async function runPrompt(
   version: string,
   io: PromptRunIO = {},
 ): Promise<void> {
+  applyNoProcessSandboxFlag(opts);
   const startedAt = Date.now();
   const stdout = io.stdout ?? process.stdout;
   const stderr = io.stderr ?? process.stderr;

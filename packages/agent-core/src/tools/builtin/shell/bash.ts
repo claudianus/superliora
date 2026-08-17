@@ -47,9 +47,15 @@ import {
   formatShellDedicatedBypassError,
 } from '../../policies/shell-dedicated-bypass';
 import {
+  detectSandboxCwd,
+  detectShellSandboxPath,
+  formatShellSandboxPathError,
+} from '../../policies/shell-sandbox-path';
+import {
   detectShellSensitivePath,
   formatShellSensitivePathError,
 } from '../../policies/shell-sensitive-path';
+import type { WorkspaceConfig } from '../../support/workspace';
 import { getJob } from '../job/job-ledger';
 import { findJobWorkerLedger } from '../job/job-worker-ledger-bridge';
 import { guardWorkerShellCommand } from '../job/job-worker-guards';
@@ -133,6 +139,8 @@ export class BashTool implements BuiltinTool<BashInput> {
    */
   private readonly workerAgentId: (() => string | undefined) | undefined;
 
+  private readonly workspace: WorkspaceConfig | undefined;
+
   constructor(
     private readonly kaos: Kaos,
     private readonly cwd: string,
@@ -148,6 +156,8 @@ export class BashTool implements BuiltinTool<BashInput> {
       isWorker?: boolean | undefined;
       /** Resolve the worker agent id so suite_guard can read the bound Job brief. */
       workerAgentId?: (() => string | undefined) | undefined;
+      /** Path-sandbox ceiling for cwd and command path tokens. */
+      workspace?: WorkspaceConfig | undefined;
     },
   ) {
     this.isWindowsBash = this.kaos.osEnv.osKind === 'Windows';
@@ -157,6 +167,7 @@ export class BashTool implements BuiltinTool<BashInput> {
     this.pathPrefix = options?.pathPrefix ?? [];
     this.isWorker = options?.isWorker ?? false;
     this.workerAgentId = options?.workerAgentId;
+    this.workspace = options?.workspace;
     const rendered = renderBashDescription(this.kaos.osEnv.shellName);
     this.description = this.allowBackground ? rendered : withoutBackgroundDescription(rendered);
   }
@@ -229,6 +240,20 @@ export class BashTool implements BuiltinTool<BashInput> {
     const rawCommand = guarded.command;
     const command = this.isWindowsBash ? rewriteWindowsNullRedirect(rawCommand) : rawCommand;
     const effectiveCwd = args.cwd ?? this.cwd;
+    if (this.workspace !== undefined) {
+      const cwdHit = detectSandboxCwd(effectiveCwd, this.workspace, this.kaos);
+      if (cwdHit !== undefined) {
+        return { isError: true, output: formatShellSandboxPathError(cwdHit) };
+      }
+      const pathHit = detectShellSandboxPath(command, {
+        cwd: effectiveCwd,
+        workspace: this.workspace,
+        kaos: this.kaos,
+      });
+      if (pathHit !== undefined) {
+        return { isError: true, output: formatShellSandboxPathError(pathHit) };
+      }
+    }
     const description = startsInBackground ? args.description!.trim() : foregroundDescription(args);
     const timeoutMs = startsInBackground
       ? args.disable_timeout
@@ -398,6 +423,22 @@ export class BashTool implements BuiltinTool<BashInput> {
           output: formatShellDedicatedBypassError(dedicatedBypass),
         },
       };
+    }
+    if (this.workspace !== undefined) {
+      const sandboxPath = detectShellSandboxPath(effective, {
+        cwd: this.cwd,
+        workspace: this.workspace,
+        kaos: this.kaos,
+      });
+      if (sandboxPath !== undefined) {
+        return {
+          command: effective,
+          error: {
+            isError: true,
+            output: formatShellSandboxPathError(sandboxPath),
+          },
+        };
+      }
     }
     return { command: effective };
   }

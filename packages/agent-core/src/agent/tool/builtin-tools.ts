@@ -197,6 +197,7 @@ function createFileAndContextTools(
                 return parts[parts.length - 1];
               }
             : undefined,
+        workspace,
       }),
     shouldCreateBuiltin(host, 'Script') && new b.ScriptTool(host.agent, kaos),
     shouldCreateBuiltin(host, 'RunProjectChecks') &&

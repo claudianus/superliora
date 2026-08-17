@@ -35,7 +35,8 @@ import type { ExecutableToolResult, ToolExecution } from '../../../loop/types';
 import { noopTelemetryClient, type TelemetryClient } from '../../../telemetry';
 import {
   isWithinDirectory,
-  policyForSandboxProfile,
+  policyFromWorkspace,
+  refineSandboxPathForExecute,
   resolvePathAccessPath,
 } from '../../policies/path-access';
 import type { PathClass } from '../../policies/path-access';
@@ -131,10 +132,7 @@ export class GlobTool implements BuiltinTool<GlobInput> {
         workspace: this.workspace,
         operation: 'search',
         // Sensitive paths are filtered post-match; path sandbox still applies.
-        policy:
-          this.workspace.sandboxProfile !== undefined
-            ? policyForSandboxProfile(this.workspace.sandboxProfile, /* checkSensitive */ false)
-            : { guardMode: 'absolute-outside-allowed', checkSensitive: false },
+        policy: policyFromWorkspace(this.workspace, false),
       });
     }
     const searchRoots = [path ?? this.workspace.workspaceDir];
@@ -159,7 +157,18 @@ export class GlobTool implements BuiltinTool<GlobInput> {
       },
       approvalRule: literalRulePattern(this.name, args.pattern),
       matchesRule: (ruleArgs) => matchesGlobRuleSubject(ruleArgs, args.pattern),
-      execute: ({ signal }) => this.execution(args, signal, searchRoots),
+      execute: async ({ signal }) => {
+        if (path !== undefined) {
+          const refined = await refineSandboxPathForExecute(path, {
+            kaos: this.kaos,
+            workspace: this.workspace,
+            rawPath: args.path,
+          });
+          if (!refined.ok) return { isError: true, output: refined.output };
+          return this.execution(args, signal, [refined.path]);
+        }
+        return this.execution(args, signal, searchRoots);
+      },
     };
   }
 
