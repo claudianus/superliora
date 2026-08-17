@@ -141,11 +141,12 @@ function tryParseGeneralVerdictObject(raw: string | undefined): GeneralVerdict |
     const value: unknown = JSON.parse(trimmed);
     if (value === null || typeof value !== 'object') return undefined;
     const record = value as Record<string, unknown>;
-    const verdictRaw = record.generalVerdict ?? record.verdict;
+    const verdictRaw = record['generalVerdict'] ?? record['verdict'];
     if (typeof verdictRaw !== 'string') return undefined;
     const generalVerdict = normalizeVerdict(verdictRaw);
     if (generalVerdict === undefined) return undefined;
-    const proof = typeof record.proof === 'string' ? record.proof.trim() : '';
+    const proofRaw = record['proof'];
+    const proof = typeof proofRaw === 'string' ? proofRaw.trim() : '';
     if (proof.length === 0 || isPlaceholderBriefLine(proof)) return undefined;
     return { generalVerdict, proof };
   } catch {

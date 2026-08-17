@@ -4,6 +4,7 @@
  * Reclaims stale cache extracts, worktree temp debris, and optional idle
  * session wires — never active session dirs or locked jsonl files.
  */
+import type { Dirent } from 'node:fs';
 import { open, readdir, rm, stat } from 'node:fs/promises';
 import { dirname, join } from 'pathe';
 
@@ -234,7 +235,7 @@ export async function collectStorageGarbage(options: StorageGcOptions): Promise<
 
   if (options.pruneCache !== false) {
     const cacheRoot = join(homeDir, 'cache');
-    let cacheEntries;
+    let cacheEntries: Dirent[] = [];
     try {
       cacheEntries = await readdir(cacheRoot, { withFileTypes: true });
     } catch {
@@ -259,7 +260,7 @@ export async function collectStorageGarbage(options: StorageGcOptions): Promise<
   if (options.pruneWorktreeTmp !== false) {
     const wtRoot = worktreesRoot(homeDir);
     // Look for *.tmp debris under each worktree registry area and top-level tmp dirs.
-    let wtEntries;
+    let wtEntries: Dirent[] = [];
     try {
       wtEntries = await readdir(wtRoot, { withFileTypes: true });
     } catch {
