@@ -146,6 +146,7 @@ describe('update install state', () => {
         version: '0.5.0',
         source: 'npm-global',
         startedAt: '2026-04-23T08:00:00.000Z',
+        pid: 12345,
       },
       lastFailure: {
         version: '0.4.0',

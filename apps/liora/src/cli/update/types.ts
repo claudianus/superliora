@@ -45,6 +45,8 @@ export interface UpdateInstallActive {
   readonly version: string;
   readonly source: InstallSource;
   readonly startedAt: string;
+  /** Owner process. Missing or dead pid means leftover state, not a live install. */
+  readonly pid?: number;
 }
 
 export interface UpdateInstallFailure {

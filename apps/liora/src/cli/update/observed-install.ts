@@ -102,6 +102,7 @@ export async function startObservedUpgradeInstall(
         version: target.version,
         source,
         startedAt: nowIso(),
+        pid: process.pid,
       },
     };
     await writeState(startedState);
@@ -144,11 +145,6 @@ export async function startObservedUpgradeInstall(
         clearTimeout(installingTimer);
         installingTimer = undefined;
       }
-      if (succeeded) {
-        emitStage(onStage, 'done');
-      } else {
-        emitStage(onStage, 'failed', failureDetail());
-      }
 
       const attempts = failureAttemptsFor(startedState, target) + 1;
       const nextState: UpdateInstallState = succeeded
@@ -172,7 +168,17 @@ export async function startObservedUpgradeInstall(
             attempts,
           },
         };
-      void writeState(nextState).catch(() => {});
+      // Persist before emitting terminal stages so a failing CLI does not exit
+      // while `active` is still set (that leftover blocks the next upgrade).
+      void writeState(nextState)
+        .catch(() => {})
+        .finally(() => {
+          if (succeeded) {
+            emitStage(onStage, 'done');
+          } else {
+            emitStage(onStage, 'failed', failureDetail());
+          }
+        });
     };
 
     const emitInstallingOnce = (): void => {
@@ -204,12 +210,12 @@ export async function startObservedUpgradeInstall(
         // Prefer captured stderr/stdout summary for terminal failed; markers are noisy.
         if (stage === 'failed') {
           currentStage = stage;
-          emitStage(onStage, stage, failureDetail());
+          finish(false);
           return;
         }
         if (stage === 'done') {
           currentStage = stage;
-          emitStage(onStage, stage);
+          finish(true);
           return;
         }
         // Never forward the marker line itself as detail — it leaked into the
