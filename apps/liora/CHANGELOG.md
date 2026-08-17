@@ -1,5 +1,11 @@
 # @superliora/liora
 
+## 0.12.0
+
+### Minor Changes
+
+- Add host setup for Windows, macOS, and Linux (Windows Terminal on Windows, CaskaydiaCove Nerd Font, Oh My Posh, zoxide, fzf) and show a confirm list before applying. Run `/host-setup`.
+
 ## 0.11.7
 
 ### Patch Changes
