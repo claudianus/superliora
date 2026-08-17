@@ -28,7 +28,7 @@ export interface GreenfieldChainInput {
 }
 
 const VISUAL_GATE_RE =
-  /verifysurface|browserstatus|playwright|60\s*fps|전투\s*60|full\s*loop|title\s*[→\-].*ending|완주|4\s*장|무기\s*8|보스\s*5/i;
+  /verifysurface|browserstatus|playwright|60\s*fps|전투\s*60|full\s*loop|title\s*[→-].*ending|완주|4\s*장|무기\s*8|보스\s*5/i;
 
 const MECHANICAL_CMD_RE = /tsc|typecheck|vitest|eslint|oxlint|lint|build|pnpm test|npm test/i;
 
