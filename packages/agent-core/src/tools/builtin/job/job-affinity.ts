@@ -294,6 +294,7 @@ export function reuseInheritanceFromAnchor(anchor: JobRecord): {
   readonly parentJobId: string;
   readonly worktreePath?: string;
   readonly worktreeBranch?: string;
+  readonly repoRoot?: string;
   readonly workerResumeAgentId?: string;
   readonly workerCheckpointAt?: string;
   readonly ownershipPaths?: readonly string[];
@@ -307,6 +308,7 @@ export function reuseInheritanceFromAnchor(anchor: JobRecord): {
     parentJobId: anchor.id,
     worktreePath: anchor.worktreePath,
     worktreeBranch: anchor.worktreeBranch,
+    repoRoot: anchor.repoRoot,
     workerResumeAgentId: anchor.workerResumeAgentId,
     workerCheckpointAt: anchor.workerCheckpointAt,
     ownershipPaths: anchor.ownershipPaths,

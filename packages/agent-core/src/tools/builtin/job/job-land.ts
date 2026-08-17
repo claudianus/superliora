@@ -4,7 +4,6 @@
  */
 
 import { existsSync } from 'node:fs';
-import { dirname, isAbsolute, resolve as resolvePath } from 'node:path';
 
 import type { Kaos } from '@superliora/kaos';
 
@@ -17,8 +16,15 @@ import type { JobRecord, JobStatus } from './job-ledger';
 import { createJob, getJob, patchJob } from './job-ledger';
 import { patchJobAndNotify } from './job-notify';
 import { gcConductorJobWorktrees } from './job-runtime';
-import { resolveMergePushCwd } from './job-git-root';
+import {
+  repoRootFromGitCommonDir,
+  resolveGitRootFromOwnership,
+  resolveMergePushCwd,
+  sameRepoPath,
+} from './job-git-root';
 import { commitJobWorktreeIfDirty } from './job-worktree-commit';
+
+export { repoRootFromGitCommonDir };
 
 export interface LandJobToMainInput {
   readonly store: ToolStore;
@@ -147,61 +153,52 @@ export function parseMainWorktreePathFromPorcelain(porcelain: string): string | 
   return undefined;
 }
 
-/**
- * Map `git rev-parse --git-common-dir` output to the main checkout root.
- * Linked worktrees report the shared `.git` directory, not their own path.
- */
-export function repoRootFromGitCommonDir(
-  commonDirRaw: string,
-  worktreePath: string,
-): string | undefined {
-  const trimmed = commonDirRaw.trim();
-  if (!trimmed) return undefined;
-  const abs = isAbsolute(trimmed) ? trimmed : resolvePath(worktreePath, trimmed);
-  const normalized = abs.replace(/[/\\]+$/, '');
-  if (/(^|[/\\])\.git$/i.test(normalized)) {
-    return dirname(normalized);
-  }
-  return undefined;
-}
-
 export interface ResolveLandRepoPathInput {
   readonly repoPath?: string;
   readonly worktreePath?: string;
+  readonly jobRepoRoot?: string;
   readonly agent?: Agent;
   readonly runGit: NonNullable<LandJobToMainInput['runGit']>;
 }
 
 /**
- * Prefer explicit repoPath → agent session cwd → live worktree common-dir /
- * worktree list. Auto-land after verify often omits repoPath (job_msvca2y6sosz8k).
+ * Job `repoRoot` wins. Session cwd must not steal a job that already has a
+ * product identity. Worktree common-dir is the fallback when identity is unset.
  */
 export async function resolveLandRepoPath(
   input: ResolveLandRepoPathInput,
 ): Promise<{ readonly repoPath?: string; readonly error?: string }> {
-  const explicit = input.repoPath?.trim();
-  if (explicit) return { repoPath: explicit };
+  const jobRoot = input.jobRepoRoot?.trim();
+  if (jobRoot) return { repoPath: jobRoot };
 
+  const explicit = input.repoPath?.trim();
   const fromAgent = input.agent?.config?.cwd?.trim();
-  if (fromAgent) return { repoPath: fromAgent };
+  const session = explicit || fromAgent;
 
   const worktreePath = input.worktreePath?.trim();
-  if (!worktreePath || !existsSync(worktreePath)) {
-    return { error: REPO_PATH_REQUIRED };
+  let fromWorktree: string | undefined;
+  if (worktreePath && existsSync(worktreePath)) {
+    const common = await input.runGit(worktreePath, ['rev-parse', '--git-common-dir']);
+    if (common.code === 0) {
+      fromWorktree = repoRootFromGitCommonDir(common.stdout, worktreePath);
+    }
+    if (!fromWorktree) {
+      const list = await input.runGit(worktreePath, ['worktree', 'list', '--porcelain']);
+      if (list.code === 0) {
+        fromWorktree = parseMainWorktreePathFromPorcelain(list.stdout);
+      }
+    }
   }
 
-  const common = await input.runGit(worktreePath, ['rev-parse', '--git-common-dir']);
-  if (common.code === 0) {
-    const root = repoRootFromGitCommonDir(common.stdout, worktreePath);
-    if (root) return { repoPath: root };
+  if (fromWorktree && session && !sameRepoPath(fromWorktree, session)) {
+    return {
+      error:
+        `cross_repo_hold: session=${session} worktree=${fromWorktree} — ` +
+        'refuse land into a foreign git checkout',
+    };
   }
-
-  const list = await input.runGit(worktreePath, ['worktree', 'list', '--porcelain']);
-  if (list.code === 0) {
-    const main = parseMainWorktreePathFromPorcelain(list.stdout);
-    if (main) return { repoPath: main };
-  }
-
+  if (session) return { repoPath: session };
+  if (fromWorktree) return { repoPath: fromWorktree };
   return { error: REPO_PATH_REQUIRED };
 }
 
@@ -281,10 +278,10 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
     ((cwd: string, args: readonly string[]) => defaultRunGit(input.kaos, cwd, args));
   const sleep = input.sleep ?? defaultSleep;
 
-  // Ownership git root wins over session isolation (metalslug bootstrap).
-  // Cross-product land is held — never merge harness branches into metalslug
-  // or GC product worktrees on the wrong repo (f53f897 wrong land).
+  // Job product root wins over the live session cwd. Cross-product land is
+  // held — never merge a job into a foreign checkout.
   const ownershipCwd = resolveMergePushCwd({
+    persistedRepoRoot: job.repoRoot,
     ownershipPaths: job.ownershipPaths,
     worktreePath,
     sessionRepoPath: input.repoPath ?? input.agent?.config?.cwd,
@@ -311,11 +308,16 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
     };
   }
 
+  // Identity only — persisted root or absolute ownership. Do not promote a
+  // live worktree walk to jobRepoRoot; that skips common-dir inference for
+  // legacy jobs that have no frozen root yet.
+  const identityRoot = resolveGitRootFromOwnership({
+    persistedRepoRoot: job.repoRoot,
+    ownershipPaths: job.ownershipPaths,
+  });
   const resolvedRepo = await resolveLandRepoPath({
-    // Prefer ownership product root over session isolation cwd.
-    repoPath: ownershipCwd.fromOwnership
-      ? ownershipCwd.cwd
-      : (input.repoPath ?? ownershipCwd.cwd),
+    repoPath: input.repoPath,
+    jobRepoRoot: identityRoot,
     worktreePath,
     agent: input.agent,
     runGit,
@@ -334,6 +336,7 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
 
   // Second hold: resolved main checkout still foreign to ownership claim.
   const resolvedHold = resolveMergePushCwd({
+    persistedRepoRoot: job.repoRoot,
     ownershipPaths: job.ownershipPaths,
     worktreePath,
     sessionRepoPath: repoPath,
@@ -671,8 +674,12 @@ export interface DispatchMergeLandResult {
  */
 export function dispatchMergeLand(input: DispatchMergeLandInput): DispatchMergeLandResult {
   const { store, sourceJob, trustMode, trustReason } = input;
-  // Auto verify_chain land often omits repoPath; inherit session cwd when present.
-  const repoPath = input.repoPath?.trim() || input.agent?.config?.cwd?.trim() || undefined;
+  // Job product root first; session cwd is last-resort for legacy jobs.
+  const repoPath =
+    sourceJob.repoRoot?.trim() ||
+    input.repoPath?.trim() ||
+    input.agent?.config?.cwd?.trim() ||
+    undefined;
 
   const verdictNote = `merge: approved mode=${trustMode} — ${trustReason}`;
   const source = patchJob(store, sourceJob.id, {
@@ -768,7 +775,11 @@ export async function runMergeLandJob(input: RunMergeLandJobInput): Promise<Land
     };
   }
 
-  const repoPath = input.repoPath?.trim() || input.agent?.config?.cwd?.trim() || undefined;
+  const repoPath =
+    source.repoRoot?.trim() ||
+    input.repoPath?.trim() ||
+    input.agent?.config?.cwd?.trim() ||
+    undefined;
 
   let land: LandJobToMainResult;
   try {

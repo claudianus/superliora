@@ -1,5 +1,6 @@
 import type { GoalBudgetLimits } from '../../../agent/goal/types';
 import type { ToolStore } from '../../store';
+import { resolveRepoRootForNewJob } from './job-git-root';
 import {
   resolveJobTaskTrack,
   taskTrackCreateDefaults,
@@ -100,6 +101,10 @@ export function createJob(
     /** Affinity reuse: bind an existing worktree before schedule assigns one. */
     readonly worktreePath?: string;
     readonly worktreeBranch?: string;
+    /** Product git toplevel. When omitted, resolved from parent / ownership / session. */
+    readonly repoRoot?: string;
+    /** Live session cwd — used only to resolve `repoRoot`, never stored as identity. */
+    readonly sessionRepoPath?: string;
     /** Affinity reuse: prefer host.resume on this agent id before cold spawn. */
     readonly workerResumeAgentId?: string;
     readonly workerCheckpointAt?: string;
@@ -131,6 +136,13 @@ export function createJob(
   });
   const tddMode = defaults.tddMode;
   const surfaceKind = defaults.surfaceKind;
+  const parent = input.parentJobId !== undefined ? getJob(store, input.parentJobId) : undefined;
+  const repoRoot = resolveRepoRootForNewJob({
+    persistedRepoRoot: input.repoRoot ?? parent?.repoRoot,
+    ownershipPaths: input.ownershipPaths,
+    worktreePath: input.worktreePath ?? parent?.worktreePath,
+    sessionRepoPath: input.sessionRepoPath,
+  });
   const job: JobRecord = {
     id: createJobId(),
     title: input.title.trim(),
@@ -170,6 +182,7 @@ export function createJob(
     verifyVerdict: input.verifyVerdict,
     worktreePath: input.worktreePath?.trim() || undefined,
     worktreeBranch: input.worktreeBranch?.trim() || undefined,
+    repoRoot: repoRoot?.trim() || undefined,
     workerResumeAgentId: input.workerResumeAgentId?.trim() || undefined,
     workerCheckpointAt: input.workerCheckpointAt?.trim() || undefined,
     workerDeadlineStartedAt: input.workerDeadlineStartedAt?.trim() || undefined,
@@ -189,6 +202,7 @@ export function patchJob(
       | 'priority'
       | 'worktreePath'
       | 'worktreeBranch'
+      | 'repoRoot'
       | 'workerAgentId'
       | 'workerResumeAgentId'
       | 'workerCheckpointAt'

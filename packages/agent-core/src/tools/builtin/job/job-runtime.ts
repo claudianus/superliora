@@ -17,6 +17,7 @@ import {
   type CreateSessionWorktreeResult,
 } from '../../../session/worktree';
 import type { ToolStore } from '../../store';
+import { resolveRepoRootForNewJob } from './job-git-root';
 import { ensureGitRepoForWorktrees } from './job-git-bootstrap';
 import { isExecutionInFlight } from './job-lanes';
 import {
@@ -267,6 +268,13 @@ export async function assignJobWorktree(
     return ensureAssignedWorktreePresent(input, existing);
   }
 
+  const inferredRoot = resolveRepoRootForNewJob({
+    persistedRepoRoot: existing.repoRoot,
+    ownershipPaths: existing.ownershipPaths,
+    worktreePath: existing.worktreePath,
+    sessionRepoPath: input.repoPath,
+  });
+
   // Chain rule: a child job continues its parent's deliverable (e.g. a
   // defect-fix chained after review), so it must commit onto the parent's
   // landing branch. On a private branch the child's commits are never seen by
@@ -283,6 +291,7 @@ export async function assignJobWorktree(
       const job = patchJob(input.store, existing.id, {
         worktreePath: parent.worktreePath,
         worktreeBranch: parent.worktreeBranch,
+        repoRoot: parent.repoRoot ?? existing.repoRoot ?? inferredRoot,
         notes: [
           existing.notes,
           `worktree: chained onto parent ${parent.id} branch (${parent.worktreePath})`,
@@ -295,10 +304,11 @@ export async function assignJobWorktree(
     }
   }
 
+  const repoPath = inferredRoot ?? input.repoPath;
   const repo =
     input.ensureGitRepo === false
-      ? ({ ok: true, root: input.repoPath, bootstrapped: false, baselineCommit: false } as const)
-      : await ensureGitRepoForWorktrees(input.kaos, input.repoPath, input.env);
+      ? ({ ok: true, root: repoPath, bootstrapped: false, baselineCommit: false } as const)
+      : await ensureGitRepoForWorktrees(input.kaos, repoPath, input.env);
   if (!repo.ok) {
     input.log?.warn('Conductor job worktree git bootstrap failed', {
       jobId: existing.id,
@@ -339,6 +349,7 @@ export async function assignJobWorktree(
     const branch = created.meta?.branch;
     const job = patchJob(input.store, existing.id, {
       worktreePath: created.workDir,
+      repoRoot: existing.repoRoot ?? inferredRoot ?? created.meta.repoRoot,
       ...(branch !== undefined ? { worktreeBranch: branch } : {}),
       notes: [
         existing.notes,
@@ -399,7 +410,7 @@ async function ensureAssignedWorktreePresent(
     try {
       const attach = input.attachWorktree ?? defaultAttachWorktree;
       await attach(input.kaos, {
-        repoPath: input.repoPath,
+        repoPath: job.repoRoot ?? input.repoPath,
         path,
         branch,
       });
@@ -629,7 +640,8 @@ export async function scheduleQueuedJobs(input: ScheduleJobsInput): Promise<Sche
                 agent: input.agent,
               });
         if (requireWt && needsWorktree(job)) {
-          if (input.kaos === undefined || input.repoPath === undefined) {
+          const assignRepo = job.repoRoot ?? input.repoPath;
+          if (input.kaos === undefined || assignRepo === undefined) {
             const b = patchJobAndNotify(
               input.store,
               candidate.id,
@@ -650,7 +662,7 @@ export async function scheduleQueuedJobs(input: ScheduleJobsInput): Promise<Sche
             store: input.store,
             jobId: candidate.id,
             kaos: input.kaos,
-            repoPath: input.repoPath,
+            repoPath: assignRepo,
             createWorktree: input.createWorktree,
             worktreeDirExists: input.worktreeDirExists,
             log: input.log,

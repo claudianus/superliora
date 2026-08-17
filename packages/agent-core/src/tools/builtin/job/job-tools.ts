@@ -480,6 +480,7 @@ export function renderJobInspect(job: JobRecord): string {
   push('surface_kind', job.surfaceKind);
   push('isolation', effect.isolation);
   push('premium_density', job.premiumDensity);
+  push('repo', job.repoRoot);
   push('worktree', job.worktreePath);
   push('worker', job.workerAgentId);
   push('model', job.modelAlias);
@@ -915,6 +916,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
             parentJobId: a.parent_job_id,
             modelAlias,
             surfaceKind: a.surface_kind,
+            sessionRepoPath: this.agent?.config.cwd,
           });
           return ackCreatedJobs({
             store: this.store,
@@ -983,11 +985,13 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
             ? {
                 worktreePath: reuse.worktreePath,
                 worktreeBranch: reuse.worktreeBranch,
+                repoRoot: reuse.repoRoot,
                 workerResumeAgentId: reuse.workerResumeAgentId,
                 workerCheckpointAt: reuse.workerCheckpointAt,
                 notes: reuse.notes,
               }
             : {};
+        const sessionRepoPath = this.agent?.config.cwd;
 
         let created: JobRecord[];
         if (shouldStaff && !isGoalDriver) {
@@ -1026,6 +1030,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
                   staffQuery: slice.staffQuery,
                   modelAlias: effectiveModelAlias,
                   surfaceKind,
+                  sessionRepoPath,
                   ...reuseFields,
                   ...jobTaskTrackCreateFields(trackResolution),
                 }),
@@ -1056,6 +1061,7 @@ export class JobCreateTool implements BuiltinTool<z.infer<typeof JobCreateInputS
               parentJobId,
               modelAlias: effectiveModelAlias,
               surfaceKind,
+              sessionRepoPath,
               ...reuseFields,
               ...jobTaskTrackCreateFields(trackResolution),
               ...(isGoalDriver
@@ -1416,7 +1422,7 @@ export class MergeJobTool implements BuiltinTool<z.infer<typeof MergeJobInputSch
           trustReason: trust.reason,
           summary: a.summary,
           kaos: this.agent?.kaos,
-          repoPath: this.agent?.config.cwd,
+          repoPath: existing.repoRoot ?? this.agent?.config.cwd,
           agent: this.agent,
           runGit: this.options?.runGit,
         });
@@ -1531,7 +1537,7 @@ export class PushJobTool implements BuiltinTool<z.infer<typeof PushJobInputSchem
           remoteRef: a.remote_ref,
           summary: a.summary,
           kaos: this.agent?.kaos,
-          repoPath: this.agent?.config.cwd,
+          repoPath: existing.repoRoot ?? this.agent?.config.cwd,
           agent: this.agent,
           runGit: this.options?.runGit,
         });
@@ -1787,6 +1793,7 @@ export function createConductorJobDraftRecorder(
               : 'Blocked Conductor work completed in the worktree and verified (tests or observable check).',
       ],
       ownershipPaths: ownershipLooksLikePath ? [draft.ownership] : undefined,
+      sessionRepoPath: agent?.config.cwd,
       ...trackFields,
     });
     if (agent !== undefined) {

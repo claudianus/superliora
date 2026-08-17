@@ -25,6 +25,8 @@ export interface GreenfieldChainInput {
   readonly parentJobId?: string;
   readonly modelAlias?: string;
   readonly surfaceKind?: JobRecord['surfaceKind'];
+  readonly repoRoot?: string;
+  readonly sessionRepoPath?: string;
 }
 
 /** Tool-name exclusions for skeleton mechanical commands — not product AC wording. */
@@ -150,6 +152,8 @@ export function createGreenfieldChainJobs(
       parentJobId: parentId,
       modelAlias: input.modelAlias,
       surfaceKind: contract.surfaceKind,
+      repoRoot: input.repoRoot,
+      sessionRepoPath: input.sessionRepoPath,
     });
     created.push(job);
     parentId = job.id;
