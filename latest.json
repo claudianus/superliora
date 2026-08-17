@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "version": "0.11.2",
-  "publishedAt": "2026-08-17T05:18:49.734Z",
+  "version": "0.11.3",
+  "publishedAt": "2026-08-17T08:37:00.066Z",
   "rollout": [
     {
       "percent": 100,
