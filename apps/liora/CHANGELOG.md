@@ -1,5 +1,18 @@
 # @superliora/liora
 
+## 0.11.2
+
+### Minor Changes
+
+- Judge Conductor Job isolation, Premium density, and publish targets from the finish-line effect, not prompt keywords. Set task_track, surface_kind, debug_fixer, and remote_ref on the Job when you already know the contract.
+
+### Patch Changes
+
+- Show the thinking level next to the model name in the TUI header.
+- Group Conductor jobs on the Job Deck by session outcome, with blocked and remaining first. Open Job Deck with Alt+J.
+- Show why Conductor isolated a job, stayed on this checkout, or routed a search — on Job Deck, the create ACK, inspect, Push Preview, and WebSearch glances. Open Job Deck (Alt+J) or run /job inspect.
+- Conductor merge and push stay on the job's own git checkout. Opening SuperLiora in another repo no longer sends those jobs to the live session cwd.
+
 ## 0.11.1
 
 ### Patch Changes
