@@ -19,6 +19,9 @@ export type VerificationVerdict = 'passed' | 'failed' | 'not_run' | 'not_applica
 /** Visual proof slot — `not_applicable` when the change set is non-UI. */
 export type VisualVerificationVerdict = VerificationVerdict;
 
+/** Host browser runtime class — not a product visual fail. */
+export type HostBrowserStatus = 'einval' | 'missing' | 'ok';
+
 export interface SubagentVerificationStatus {
   readonly tests: VerificationVerdict;
   readonly typecheck: VerificationVerdict;
@@ -29,6 +32,11 @@ export interface SubagentVerificationStatus {
   readonly interaction?: VisualVerificationVerdict;
   /** VerifySurface craft / banned-ship axis (UI change sets). */
   readonly craft?: VisualVerificationVerdict;
+  /**
+   * Host browser spawn class. `einval` = Windows spawn EINVAL (host skip) —
+   * visual may stay failed, but mechanical-green implement must not hard-fail.
+   */
+  readonly host_browser?: HostBrowserStatus;
 }
 
 export interface SubagentResultContract {
@@ -72,18 +80,60 @@ export function verificationIsGreen(
   return slots.some((slot) => slot === 'passed');
 }
 
-/** True when any check or visual slot hard-failed. */
-export function verificationHasFailure(
+/** True when lint/typecheck/tests hard-failed (ignores visual / host browser). */
+export function verificationHasProductFailure(
   verification: SubagentVerificationStatus | undefined,
 ): boolean {
   if (verification === undefined) return false;
   return (
     verification.tests === 'failed' ||
     verification.typecheck === 'failed' ||
-    verification.lint === 'failed' ||
-    verification.visual === 'failed'
+    verification.lint === 'failed'
   );
 }
+
+/**
+ * Host-browser EINVAL: visual may stay failed for MergeJob, but it is not a
+ * product incomplete signal for mechanical-green implement closeout.
+ */
+export function isHostBrowserEinvalVisual(
+  verification: SubagentVerificationStatus | undefined,
+): boolean {
+  return (
+    verification?.host_browser === 'einval' && verification.visual === 'failed'
+  );
+}
+
+/** True when any check or visual slot hard-failed (host EINVAL visual excluded). */
+export function verificationHasFailure(
+  verification: SubagentVerificationStatus | undefined,
+): boolean {
+  if (verification === undefined) return false;
+  if (verificationHasProductFailure(verification)) return true;
+  if (verification.visual === 'failed' && !isHostBrowserEinvalVisual(verification)) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * verification_failed for implement closeout: product checks fail always;
+ * visual fail hard-fails unless host_browser=einval with mechanical green.
+ * Never auto-passes visual — only stops EINVAL from blocking the chain.
+ */
+export function computeVerificationFailed(
+  verification: SubagentVerificationStatus | undefined,
+): boolean {
+  if (verification === undefined) return false;
+  if (verificationHasProductFailure(verification)) return true;
+  if (verification.visual !== 'failed') return false;
+  if (verification.host_browser === 'einval' && verificationIsGreen(verification)) {
+    return false;
+  }
+  return true;
+}
+
+export const HOST_BROWSER_EINVAL_NOTE = 'host_browser=einval';
 
 /**
  * Visual satisfaction for a declared surface.
@@ -174,11 +224,7 @@ export function buildSubagentResultContract(options: {
     summary: options.summary,
     files_changed: [...options.filesChanged],
     verification,
-    verification_failed:
-      verification.tests === 'failed' ||
-      verification.typecheck === 'failed' ||
-      verification.lint === 'failed' ||
-      verification.visual === 'failed',
+    verification_failed: computeVerificationFailed(verification),
     deviations: [...(options.deviations ?? [])],
   };
 }

@@ -17,6 +17,7 @@ import type { Agent } from '../../../agent/index';
 import type { ToolStore } from '../../store';
 import type { JobRecord, JobStatus } from './job-ledger';
 import { createJob, getJob, patchJob } from './job-ledger';
+import { resolveMergePushCwd } from './job-git-root';
 import { resolveJobWorktreeMergeRef } from './job-land';
 import { patchJobAndNotify } from './job-notify';
 
@@ -299,7 +300,39 @@ export async function pushJobToRemote(input: PushJobToRemoteInput): Promise<Push
     return { ok: false, job, pushed: false, message: '', error: remoteErr };
   }
 
-  const cwd = job.worktreePath ?? input.repoPath;
+  // Ownership product git root wins over session isolation / job worktree.
+  // Pushing from metalslug isolation (no origin) failed job_mswkqsvg4bx2h4 —
+  // superliora-owned Jobs must push from C:/Users/Administrator/superliora.
+  const ownershipCwd = resolveMergePushCwd({
+    ownershipPaths: job.ownershipPaths,
+    worktreePath: job.worktreePath,
+    sessionRepoPath: input.repoPath,
+    mode: 'push',
+  });
+  if (ownershipCwd.hold?.hold === true) {
+    const detail = ownershipCwd.hold.reason ?? 'cross_ownership_hold';
+    const next = patchJobAndNotify(
+      store,
+      job.id,
+      {
+        status: 'blocked',
+        notes: [job.notes, `push: ${detail}`].filter(Boolean).join('\n'),
+      },
+      { agent: input.agent, summary: detail },
+    );
+    return {
+      ok: false,
+      job: next ?? job,
+      pushed: false,
+      message: '',
+      error: detail,
+    };
+  }
+
+  const cwd =
+    ownershipCwd.cwd ??
+    job.worktreePath ??
+    input.repoPath;
   if (cwd === undefined || cwd.length === 0) {
     return {
       ok: false,
@@ -314,9 +347,12 @@ export async function pushJobToRemote(input: PushJobToRemoteInput): Promise<Push
     input.runGit ??
     ((dir: string, args: readonly string[]) => defaultRunGit(input.kaos, dir, args));
 
+  // Resolve local ref from the job worktree when present; git push runs at ownership root.
+  const refProbeCwd = job.worktreePath ?? cwd;
+
   let localRef = input.localRef?.trim();
   if (localRef === undefined || localRef.length === 0) {
-    const resolved = await resolveJobWorktreeMergeRef(cwd, runGit, job.worktreeBranch);
+    const resolved = await resolveJobWorktreeMergeRef(refProbeCwd, runGit, job.worktreeBranch);
     if (resolved.ref === undefined) {
       const detail = resolved.error ?? 'Could not resolve ref to push';
       const next = patchJobAndNotify(

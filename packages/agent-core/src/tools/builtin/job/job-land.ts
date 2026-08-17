@@ -17,6 +17,7 @@ import type { JobRecord, JobStatus } from './job-ledger';
 import { createJob, getJob, patchJob } from './job-ledger';
 import { patchJobAndNotify } from './job-notify';
 import { gcConductorJobWorktrees } from './job-runtime';
+import { resolveMergePushCwd } from './job-git-root';
 import { commitJobWorktreeIfDirty } from './job-worktree-commit';
 
 export interface LandJobToMainInput {
@@ -280,8 +281,41 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
     ((cwd: string, args: readonly string[]) => defaultRunGit(input.kaos, cwd, args));
   const sleep = input.sleep ?? defaultSleep;
 
+  // Ownership git root wins over session isolation (metalslug bootstrap).
+  // Cross-product land is held — never merge harness branches into metalslug
+  // or GC product worktrees on the wrong repo (f53f897 wrong land).
+  const ownershipCwd = resolveMergePushCwd({
+    ownershipPaths: job.ownershipPaths,
+    worktreePath,
+    sessionRepoPath: input.repoPath ?? input.agent?.config?.cwd,
+    mode: 'land',
+  });
+  if (ownershipCwd.hold?.hold === true) {
+    const detail = ownershipCwd.hold.reason ?? 'cross_ownership_hold';
+    const next = patchJobAndNotify(
+      store,
+      job.id,
+      {
+        status: 'blocked',
+        notes: [job.notes, `land: ${detail}`].filter(Boolean).join('\n'),
+      },
+      { agent: input.agent, summary: detail },
+    );
+    return {
+      ok: false,
+      job: next ?? job,
+      merged: false,
+      gcRemoved: false,
+      message: '',
+      error: detail,
+    };
+  }
+
   const resolvedRepo = await resolveLandRepoPath({
-    repoPath: input.repoPath,
+    // Prefer ownership product root over session isolation cwd.
+    repoPath: ownershipCwd.fromOwnership
+      ? ownershipCwd.cwd
+      : (input.repoPath ?? ownershipCwd.cwd),
     worktreePath,
     agent: input.agent,
     runGit,
@@ -295,6 +329,34 @@ export async function landJobToMain(input: LandJobToMainInput): Promise<LandJobT
       gcRemoved: false,
       message: '',
       error: resolvedRepo.error ?? REPO_PATH_REQUIRED,
+    };
+  }
+
+  // Second hold: resolved main checkout still foreign to ownership claim.
+  const resolvedHold = resolveMergePushCwd({
+    ownershipPaths: job.ownershipPaths,
+    worktreePath,
+    sessionRepoPath: repoPath,
+    mode: 'land',
+  });
+  if (resolvedHold.hold?.hold === true) {
+    const detail = resolvedHold.hold.reason ?? 'cross_ownership_hold';
+    const next = patchJobAndNotify(
+      store,
+      job.id,
+      {
+        status: 'blocked',
+        notes: [job.notes, `land: ${detail}`].filter(Boolean).join('\n'),
+      },
+      { agent: input.agent, summary: detail },
+    );
+    return {
+      ok: false,
+      job: next ?? job,
+      merged: false,
+      gcRemoved: false,
+      message: '',
+      error: detail,
     };
   }
 

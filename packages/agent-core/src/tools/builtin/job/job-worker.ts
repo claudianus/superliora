@@ -721,6 +721,8 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
         const summary =
           (contractSummary || rawSummary.trim()).slice(0, 4000) || 'worker completed';
         const verificationFailed = contract?.verification_failed === true;
+        const hostBrowserEinval =
+          contract?.verification?.host_browser === 'einval';
         // The gate skips more often than it runs (explore jobs, multi-package
         // changes, paths outside the workspace layout, gate timeouts). Such a
         // job is still `done`, but saying so plainly keeps the conductor from
@@ -734,6 +736,8 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
         // a stopped goal (blocked/paused — budget circuit breaker, stagnation,
         // or a worker-reported blocker) escalates as a resumable `blocked` Job;
         // the verification gate still outranks it (invariant 4).
+        // host_browser=einval: visual may stay failed, but mechanical-green
+        // implement is not product-incomplete (fill/chain must not hard-stop).
         const goalStopped =
           completion.goalStatus === 'blocked' || completion.goalStatus === 'paused';
         const finalStatus: JobStatus = verificationFailed
@@ -799,15 +803,18 @@ export async function launchJobWorker(input: LaunchJobWorkerInput): Promise<Laun
           notes: [
             getJob(input.store, job.id)?.notes,
             commitNote,
+            hostBrowserEinval ? 'host_browser=einval' : undefined,
             verificationFailed
               ? 'worker: completed but verification failed'
               : verifyMissingStructured
                 ? 'worker: verify finished without structured verifyVerdict'
                 : goalStopped
                   ? `worker: goal ${completion.goalStatus}${goalReason}`
-                  : unverified
-                    ? 'worker: completed unverified (checks did not run)'
-                    : 'worker: completed',
+                  : hostBrowserEinval
+                    ? 'worker: completed mechanical-green (host_browser=einval; visual not auto-passed)'
+                    : unverified
+                      ? 'worker: completed unverified (checks did not run)'
+                      : 'worker: completed',
           ]
             .filter(Boolean)
             .join('\n'),
