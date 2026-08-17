@@ -74,6 +74,10 @@ describe('gitCheckoutUpdateScript', () => {
     expect(script).toContain('reset --hard FETCH_HEAD');
     expect(script).not.toContain('checkout --force FETCH_HEAD\n');
     expect(script).toContain("__LIORA_UPGRADE_STAGE__=building");
+    expect(script).toContain('scripts/install/ensure-pnpm.mjs');
+    expect(script).toContain('runtime/pnpm/pnpm');
+    expect(script).toContain('runtime/pnpm/pnpm.exe');
+    expect(script).toContain('pnpm_invoke');
     expect(script).toContain('install --frozen-lockfile');
     expect(script).toContain('run build:packages');
     expect(script).toContain('apps/liora run build');

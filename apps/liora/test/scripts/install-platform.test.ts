@@ -2,9 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import {
   commandFileName,
+  DEFAULT_PNPM_VERSION,
   githubArchiveUrl,
   manifestUrlForVersion,
   nodeDistUrl,
+  pnpmRuntimeBin,
+  pnpmStandaloneFilename,
+  pnpmStandaloneUrl,
   releaseTagForVersion,
   releaseTarget,
   seaBinaryName,
@@ -37,6 +41,14 @@ describe('scripts/install/platform', () => {
     expect(nodeDistUrl('24.15.0', 'win32', 'arm64')).toContain(
       'node-v24.15.0-win-arm64.zip',
     );
+    expect(pnpmStandaloneFilename('win32', 'x64')).toBe('pnpm-win-x64.exe');
+    expect(pnpmStandaloneFilename('linux', 'arm64')).toBe('pnpm-linux-arm64');
+    expect(pnpmStandaloneFilename('darwin', 'arm64')).toBe('pnpm-macos-arm64');
+    expect(pnpmStandaloneUrl(DEFAULT_PNPM_VERSION, 'win32', 'x64')).toBe(
+      `https://github.com/pnpm/pnpm/releases/download/v${DEFAULT_PNPM_VERSION}/pnpm-win-x64.exe`,
+    );
+    expect(pnpmRuntimeBin('rt-pnpm', 'win32')).toBe(join('rt-pnpm', 'pnpm.exe'));
+    expect(pnpmRuntimeBin('rt-pnpm', 'linux')).toBe(join('rt-pnpm', 'pnpm'));
   });
 
   it('compares semver floors', () => {
@@ -106,6 +118,7 @@ describe('scripts/install/wrappers', () => {
     expect(posix).toContain(WRAPPER_MARKER);
     expect(posix).toContain('dist/main.mjs');
     expect(posix).toContain('pnpm -C "$app_root" run dev:cli-only');
+    expect(posix).toContain('$HOME/.superliora/runtime/pnpm/pnpm');
     expect(posix).not.toMatch(/SUPERLIORA_NO_AUTO_UPDATE=.*:-1/);
 
     const cmd = renderWindowsCmdWrapper('C:\\repo\\apps\\liora', {
@@ -116,6 +129,7 @@ describe('scripts/install/wrappers', () => {
     expect(cmd).toContain('dist\\main.mjs');
     expect(cmd).toContain('dev:cli-only');
     expect(cmd).toContain('LIORA_NODE=C:\\nodejs\\node.exe');
+    expect(cmd).toContain('.superliora\\runtime\\pnpm\\pnpm.exe');
   });
 });
 

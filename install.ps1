@@ -38,6 +38,7 @@ $InstallModules = @(
   'platform.mjs',
   'ensure-node.mjs',
   'ensure-git.mjs',
+  'ensure-pnpm.mjs',
   'theatre.mjs',
   'download.mjs',
   'prebuilt.mjs',
@@ -213,6 +214,14 @@ function Add-SessionGitRuntime {
   }
   Add-SessionPath (Join-Path $gitRoot 'cmd')
   Add-SessionPath (Join-Path $gitRoot 'bin')
+}
+
+function Add-SessionPnpmRuntime {
+  param([string]$HomeDir)
+  $pnpmDir = Join-Path $HomeDir '.superliora\runtime\pnpm'
+  $exe = Join-Path $pnpmDir 'pnpm.exe'
+  if (-not (Test-Path -LiteralPath $exe)) { return }
+  Add-SessionPath $pnpmDir
 }
 
 function Test-NodeVersionOk {
@@ -395,6 +404,7 @@ $dumpEnv = [Environment]::GetEnvironmentVariable('SUPERLIORA_INSTALL_DUMP', 'Pro
 if ($dumpEnv -eq '1') {
   Add-SessionPath $opt.BinDir
   Add-SessionGitRuntime $homeDir
+  Add-SessionPnpmRuntime $homeDir
   Write-Dump $opt
   return
 }
@@ -476,6 +486,7 @@ try {
   }
   Add-SessionPath $opt.BinDir
   Add-SessionGitRuntime $homeDir
+  Add-SessionPnpmRuntime $homeDir
   Write-Host ('This session: ' + $opt.CommandName + ' --version')
 } finally {
   if ($bundleDir -and (Test-Path -LiteralPath $bundleDir)) {

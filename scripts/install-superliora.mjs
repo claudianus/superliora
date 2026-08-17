@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 import { ensureGit } from './install/ensure-git.mjs';
 import { ensureNode } from './install/ensure-node.mjs';
+import { ensurePnpm } from './install/ensure-pnpm.mjs';
 import { ensureTerminal } from './install/ensure-terminal.mjs';
 import { ensureBinOnPath } from './install/path.mjs';
 import { tryInstallPrebuilt } from './install/prebuilt.mjs';
@@ -118,9 +119,23 @@ try {
     sourceTree = fetched.installDir;
     theatre.setDetail(`Source via ${fetched.method} → ${fetched.installDir}`);
 
+    theatre.setStage('bootstrapping', 'Ensuring pnpm');
+    const pnpmInfo = await ensurePnpm({
+      cwd: fetched.installDir,
+      noShellRc: args.noShellRc,
+    });
+    if (pnpmInfo.missing || !pnpmInfo.cmd) {
+      throw new Error('pnpm is required and could not be installed automatically');
+    }
+    theatre.setDetail(
+      pnpmInfo.bootstrapped
+        ? `Installed pnpm ${pnpmInfo.version ?? ''} → ~/.superliora/runtime/pnpm`
+        : `Using pnpm ${pnpmInfo.version ?? pnpmInfo.source ?? ''}`,
+    );
+
     if (!args.noBuild) {
       theatre.setStage('building', 'Installing dependencies and building CLI');
-      buildSource(fetched.installDir);
+      await buildSource(fetched.installDir, pnpmInfo);
     }
 
     theatre.setStage('installing', `Installing ${commandName} wrapper`);

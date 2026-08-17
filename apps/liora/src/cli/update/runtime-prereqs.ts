@@ -8,6 +8,8 @@ export interface RuntimePrereqResult {
   readonly gitOk: boolean;
   readonly gitBootstrapped: boolean;
   readonly terminalOk: boolean;
+  readonly pnpmOk: boolean;
+  readonly pnpmBootstrapped: boolean;
   readonly warning?: string;
 }
 
@@ -29,7 +31,13 @@ export async function ensureRuntimePrereqs(
 ): Promise<RuntimePrereqResult> {
   const resolvedRoot = packageRoot ?? tryGetHostPackageRoot();
   if (resolvedRoot === undefined) {
-    return { gitOk: true, gitBootstrapped: false, terminalOk: true };
+    return {
+      gitOk: true,
+      gitBootstrapped: false,
+      terminalOk: true,
+      pnpmOk: true,
+      pnpmBootstrapped: false,
+    };
   }
   return ensureRuntimePrereqsAt(resolvedRoot);
 }
@@ -39,14 +47,23 @@ async function ensureRuntimePrereqsAt(
 ): Promise<RuntimePrereqResult> {
   const gitScript = resolveInstallScript(packageRoot, 'ensure-git.mjs');
   const terminalScript = resolveInstallScript(packageRoot, 'ensure-terminal.mjs');
-  if (gitScript === undefined && terminalScript === undefined) {
-    return { gitOk: true, gitBootstrapped: false, terminalOk: true };
+  const pnpmScript = resolveInstallScript(packageRoot, 'ensure-pnpm.mjs');
+  if (gitScript === undefined && terminalScript === undefined && pnpmScript === undefined) {
+    return {
+      gitOk: true,
+      gitBootstrapped: false,
+      terminalOk: true,
+      pnpmOk: true,
+      pnpmBootstrapped: false,
+    };
   }
 
   const warnings: string[] = [];
   let gitOk = true;
   let gitBootstrapped = false;
   let terminalOk = true;
+  let pnpmOk = true;
+  let pnpmBootstrapped = false;
 
   if (gitScript !== undefined) {
     try {
@@ -99,10 +116,35 @@ async function ensureRuntimePrereqsAt(
     }
   }
 
+  if (pnpmScript !== undefined) {
+    try {
+      const mod = (await import(pathToFileURL(pnpmScript).href)) as {
+        ensurePnpm: (opts?: { noShellRc?: boolean }) => Promise<{
+          cmd?: string;
+          bootstrapped?: boolean;
+          missing?: boolean;
+        }>;
+      };
+      const result = await mod.ensurePnpm({ noShellRc: true });
+      if (result.missing || !result.cmd) {
+        pnpmOk = false;
+        warnings.push('pnpm bootstrap failed');
+      } else {
+        pnpmBootstrapped = result.bootstrapped === true;
+      }
+    } catch (error) {
+      pnpmOk = false;
+      const message = error instanceof Error ? error.message : String(error);
+      warnings.push(`pnpm bootstrap failed: ${message}`);
+    }
+  }
+
   return {
     gitOk,
     gitBootstrapped,
     terminalOk,
+    pnpmOk,
+    pnpmBootstrapped,
     warning: warnings.length > 0 ? warnings.join(' ') : undefined,
   };
 }

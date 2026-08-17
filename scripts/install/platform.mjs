@@ -6,6 +6,8 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 export const DEFAULT_NODE_MIN = '24.15.0';
+/** Matches root package.json `packageManager`. */
+export const DEFAULT_PNPM_VERSION = '10.33.0';
 export const DEFAULT_REPO = 'https://github.com/claudianus/superliora.git';
 export const DEFAULT_REF = 'main';
 export const DEFAULT_MANIFEST_URL =
@@ -70,6 +72,31 @@ export function defaultRuntimeNodeDir() {
 
 export function defaultRuntimeGitDir() {
   return join(defaultHome(), '.superliora', 'runtime', 'git');
+}
+
+export function defaultRuntimePnpmDir() {
+  return join(defaultHome(), '.superliora', 'runtime', 'pnpm');
+}
+
+/** Standalone GitHub-release asset name (`pnpm-win-x64.exe`, `pnpm-linux-arm64`, …). */
+export function pnpmStandaloneFilename(platform = process.platform, arch = process.arch) {
+  const p = platformId(platform);
+  const a = archId(arch);
+  if (p === 'win32') return `pnpm-win-${a}.exe`;
+  if (p === 'darwin') return `pnpm-macos-${a}`;
+  return `pnpm-linux-${a}`;
+}
+
+export function pnpmStandaloneUrl(
+  version = DEFAULT_PNPM_VERSION,
+  platform = process.platform,
+  arch = process.arch,
+) {
+  return `https://github.com/pnpm/pnpm/releases/download/v${version}/${pnpmStandaloneFilename(platform, arch)}`;
+}
+
+export function pnpmRuntimeBin(runtimeDir = defaultRuntimePnpmDir(), platform = process.platform) {
+  return join(runtimeDir, platform === 'win32' ? 'pnpm.exe' : 'pnpm');
 }
 
 /** Invocable command filename in the bin dir (`liora` / `liora.cmd`). */

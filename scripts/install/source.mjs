@@ -8,6 +8,7 @@ import { mkdir, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import { downloadToFile } from './download.mjs';
+import { ensurePnpm } from './ensure-pnpm.mjs';
 import { spawnInstall } from './spawn.mjs';
 import {
   DEFAULT_REF,
@@ -41,27 +42,14 @@ export async function fetchSource(options) {
   return { installDir, method: 'archive' };
 }
 
-export function buildSource(installDir) {
-  spawnInstall('corepack', ['enable', 'pnpm'], {
-    cwd: installDir,
-    env: { ...process.env, COREPACK_ENABLE_DOWNLOAD_PROMPT: '0' },
-    encoding: 'utf8',
-  });
-  const pnpm = resolvePnpm();
-  runOrThrow(pnpm.cmd, [...pnpm.prefix, 'install', '--frozen-lockfile'], installDir);
-  runOrThrow(pnpm.cmd, [...pnpm.prefix, 'run', 'build:packages'], installDir);
-  runOrThrow(pnpm.cmd, [...pnpm.prefix, '-C', 'apps/liora', 'run', 'build'], installDir);
-}
-
-function resolvePnpm() {
-  const env = { ...process.env, COREPACK_ENABLE_DOWNLOAD_PROMPT: '0' };
-  const probe = spawnInstall('corepack', ['pnpm', '--version'], { encoding: 'utf8', env });
-  if (probe.status === 0) {
-    return { cmd: 'corepack', prefix: ['pnpm'] };
+export async function buildSource(installDir, resolved) {
+  const pnpm = resolved ?? (await ensurePnpm({ cwd: installDir }));
+  if (!pnpm?.cmd) {
+    throw new Error('pnpm bootstrap failed; SuperLiora could not install pnpm automatically');
   }
-  const direct = spawnInstall('pnpm', ['--version'], { encoding: 'utf8', env });
-  if (direct.status === 0) return { cmd: 'pnpm', prefix: [] };
-  throw new Error('pnpm is required; enable Corepack or install pnpm');
+  runOrThrow(pnpm.cmd, [...pnpm.prefix ?? [], 'install', '--frozen-lockfile'], installDir);
+  runOrThrow(pnpm.cmd, [...pnpm.prefix ?? [], 'run', 'build:packages'], installDir);
+  runOrThrow(pnpm.cmd, [...pnpm.prefix ?? [], '-C', 'apps/liora', 'run', 'build'], installDir);
 }
 
 function runOrThrow(cmd, args, cwd) {

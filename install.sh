@@ -229,7 +229,7 @@ else
   }
   fetch_raw "scripts/install-superliora.mjs" "$BUNDLE_DIR/scripts/install-superliora.mjs"
   fetch_raw "scripts/install-liora.mjs" "$BUNDLE_DIR/scripts/install-liora.mjs"
-  for f in platform.mjs ensure-node.mjs ensure-git.mjs theatre.mjs download.mjs prebuilt.mjs source.mjs sidecars.mjs path.mjs spawn.mjs wrappers.mjs ensure-terminal.mjs; do
+  for f in platform.mjs ensure-node.mjs ensure-git.mjs ensure-pnpm.mjs theatre.mjs download.mjs prebuilt.mjs source.mjs sidecars.mjs path.mjs spawn.mjs wrappers.mjs ensure-terminal.mjs; do
     fetch_raw "scripts/install/$f" "$BUNDLE_DIR/scripts/install/$f"
   done
   ORCH="$BUNDLE_DIR/scripts/install-superliora.mjs"
