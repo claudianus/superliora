@@ -126,7 +126,7 @@ describe('AppearanceController', () => {
     expect(terminalMutationAllowed(appearance)).toBe(false);
   });
 
-  it('reapplies OSC palette without scheduling another palette invalidation', () => {
+  it('skips identical OSC palette payloads and re-emits only on force', () => {
     const writes: string[] = [];
     const terminal = {
       write: (chunk: string) => {
@@ -149,14 +149,63 @@ describe('AppearanceController', () => {
       getAppearance: () => appearance,
       onAppearanceApplied,
     });
+    // Constructor already applied the palette once.
+    expect(writes.join('')).toContain('\u001B]11;');
     writes.length = 0;
     onAppearanceApplied.mockClear();
 
+    // Authoritative frames fire on every splash/ambient manual tick; an
+    // identical payload must not re-blast OSC 11 (ConPTY repaints the whole
+    // screen per OSC 11 — the startup flicker).
     controller.reapplyTerminalPalette();
+
+    expect(onAppearanceApplied).not.toHaveBeenCalled();
+    expect(writes.join('')).toBe('');
+
+    // Terminal-resync moments (splash disposal, resize) must bypass the
+    // dedupe cache: the terminal may have dropped OSC state with the screen.
+    controller.reapplyTerminalPalette({ force: true });
 
     expect(onAppearanceApplied).not.toHaveBeenCalled();
     expect(writes.join('')).toContain('\u001B]11;');
     expect(writes.join('')).toContain('\u001B]4;0;');
+
+    controller.dispose();
+  });
+
+  it('re-emits the palette when the payload changes without force', () => {
+    const writes: string[] = [];
+    const terminal = {
+      write: (chunk: string) => {
+        writes.push(chunk);
+      },
+    } as RendererTerminalHost;
+    const appearance = {
+      ...DEFAULT_APPEARANCE_PREFERENCES,
+      profile: 'off' as const,
+      canvasBackground: false,
+      terminalBackground: 'session' as const,
+      terminalPalette: true,
+    };
+
+    const controller = new AppearanceController({
+      terminal,
+      requestRender: vi.fn(),
+      setAmbientSchedule: vi.fn(),
+      getAppearance: () => appearance,
+    });
+    writes.length = 0;
+
+    // Palette swap changes the OSC payload; dedupe must not eat real changes.
+    currentTheme.setPalette(neonNoirColors);
+    controller.reapplyTerminalPalette();
+
+    expect(writes.join('')).toContain('\u001B]11;');
+
+    // And the swapped payload is now the cached one.
+    writes.length = 0;
+    controller.reapplyTerminalPalette();
+    expect(writes.join('')).toBe('');
 
     controller.dispose();
   });

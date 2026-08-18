@@ -25,6 +25,7 @@ import {
   shouldForceNativeCursor,
   shouldReuseTUIChromeCache,
   shouldReuseTranscriptLineCache,
+  shouldRewriteUnchangedTUIFrame,
   shouldStoreTranscriptLineCache,
   shouldUseAmbientDamageOnlyPaint,
   tuiChromeEpoch,
@@ -128,6 +129,13 @@ export function createTUIStateNativeRenderCallback(
     const effectivePolicy: TUIStateNativeFramePolicy = splashJustDisposed
       ? { ...policy, clear: false, force: true }
       : policy;
+    // ConPTY may have wiped the real screen (OSC repaint races, resize) while
+    // the soft buffer still holds the old content; a diff-only present would
+    // then skip "already painted" cells forever. Re-emit everything once.
+    const rewriteUnchanged = shouldRewriteUnchangedTUIFrame({
+      splashJustDisposed,
+      causes: frame.causes,
+    });
     if (
       policy.clearTranscriptSelection &&
       (state.transcriptSelection.hasSelection || state.transcriptSelection.isDragging)
@@ -135,7 +143,9 @@ export function createTUIStateNativeRenderCallback(
       state.transcriptSelection.clear();
     }
     layoutTracking = layoutShift.next;
-    if (policy.refreshTerminalPalette) options.onAuthoritativeFrame?.();
+    if (policy.refreshTerminalPalette) {
+      options.onAuthoritativeFrame?.({ resync: rewriteUnchanged });
+    }
     // Pure keystroke frames only rewrite the editor. Reuse chrome lines so we
     // do not re-render header/footer/queue on every character.
     const pureInputFrame = isPureInputFrame(
@@ -289,6 +299,7 @@ export function createTUIStateNativeRenderCallback(
       fill: options.fill ?? currentTheme.canvasBackgroundCell(),
       force: effectivePolicy.force,
       clear: effectivePolicy.clear,
+      rewriteUnchanged,
       cursor: nativeFrame.cursor,
       forceCursor,
       // Draw workspace panels/ticker/status bar BEFORE present() so the writes

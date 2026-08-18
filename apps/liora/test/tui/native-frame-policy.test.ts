@@ -11,6 +11,7 @@ import {
   shouldForceTUIStateNativeLayoutFrame,
   shouldReuseTUIChromeCache,
   shouldReuseTranscriptLineCache,
+  shouldRewriteUnchangedTUIFrame,
   shouldStoreTranscriptLineCache,
   shouldUseAmbientDamageOnlyPaint,
   tuiChromeEpoch,
@@ -329,6 +330,37 @@ describe('resolveTUIStateNativeFramePolicy pure-scroll', () => {
         viewportScrolled: true,
       }),
     ).toBe(true);
+  });
+});
+
+describe('shouldRewriteUnchangedTUIFrame', () => {
+  it('re-emits sealed cells after splash disposal', () => {
+    // ConPTY may have wiped the real screen during the splash while the soft
+    // buffer still matches; a diff-only present leaves the picker on black.
+    expect(
+      shouldRewriteUnchangedTUIFrame({ splashJustDisposed: true, causes: ['manual'] }),
+    ).toBe(true);
+  });
+
+  it('re-emits sealed cells on resize frames', () => {
+    expect(
+      shouldRewriteUnchangedTUIFrame({ splashJustDisposed: false, causes: ['resize'] }),
+    ).toBe(true);
+  });
+
+  it('never resyncs on ambient animation or routine manual ticks', () => {
+    // Re-emitting equal cells per animation tick is whole-screen flicker.
+    const routine: NativeRenderCause[][] = [
+      ['animation'],
+      ['manual'],
+      ['request'],
+      ['start'],
+      ['transcript-scroll'],
+      [],
+    ];
+    for (const causes of routine) {
+      expect(shouldRewriteUnchangedTUIFrame({ splashJustDisposed: false, causes })).toBe(false);
+    }
   });
 });
 

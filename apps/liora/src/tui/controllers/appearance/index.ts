@@ -49,6 +49,7 @@ export class AppearanceController {
   private readonly forceAmbientSchedule: (() => boolean) | undefined;
   private readonly onAppearanceApplied: (() => void) | undefined;
   private terminalMutated = false;
+  private lastPalettePayload: string | undefined;
 
   constructor(options: AppearanceControllerOptions) {
     this.terminal = options.terminal;
@@ -70,7 +71,9 @@ export class AppearanceController {
     clearHighlightCache();
     clearTranscriptFormatCache();
     this.syncAmbientSchedule();
-    this.reapplyTerminalPalette(appearance);
+    // Theme/appearance switch: the payload changed (or the terminal state is
+    // stale either way) — bypass the dedupe cache.
+    this.reapplyTerminalPalette({ appearance, force: true });
     this.onAppearanceApplied?.();
   }
 
@@ -78,9 +81,19 @@ export class AppearanceController {
    * Re-emit OSC palette / background colors after an authoritative native redraw.
    * Does not touch appearance preferences, animation scheduling, or palette
    * invalidation callbacks — callers already sit inside a forced frame.
+   *
+   * Identical payloads are skipped unless `force` is set: authoritative frames
+   * fire on every splash/ambient `manual` tick, and re-blasting OSC 11 each
+   * tick makes ConPTY repaint the whole screen — the startup flicker. `force`
+   * is for terminal-resync moments where the terminal may have dropped OSC
+   * state (splash disposal, resize).
    */
-  reapplyTerminalPalette(appearance: AppearancePreferences = this.getAppearance()): void {
-    this.applyTerminalColors(appearance, currentTheme.palette);
+  reapplyTerminalPalette(
+    options: { readonly appearance?: AppearancePreferences; readonly force?: boolean } = {},
+  ): void {
+    this.applyTerminalColors(options.appearance ?? this.getAppearance(), currentTheme.palette, {
+      force: options.force === true,
+    });
   }
 
   dispose(): void {
@@ -138,6 +151,7 @@ export class AppearanceController {
   private applyTerminalColors(
     appearance: AppearancePreferences,
     colors: ColorPalette,
+    options: { readonly force?: boolean } = {},
   ): void {
     const allowed = terminalMutationAllowed(appearance);
     if (!allowed) {
@@ -163,11 +177,19 @@ export class AppearanceController {
       this.resetTerminalColors();
       return;
     }
-    this.terminal.write(chunks.join(''));
+    const payload = chunks.join('');
+    // OSC 11 makes ConPTY repaint the entire screen; re-sending an identical
+    // palette every authoritative frame is pure flicker.
+    if (options.force !== true && this.terminalMutated && payload === this.lastPalettePayload) {
+      return;
+    }
+    this.terminal.write(payload);
     this.terminalMutated = true;
+    this.lastPalettePayload = payload;
   }
 
   private resetTerminalColors(): void {
+    this.lastPalettePayload = undefined;
     if (!this.terminalMutated) return;
     this.terminal.write(`${ESC}]110${ST}${ESC}]111${ST}${ESC}]112${ST}${ESC}]104${ST}`);
     this.terminalMutated = false;

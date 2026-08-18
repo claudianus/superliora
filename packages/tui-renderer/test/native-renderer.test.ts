@@ -534,6 +534,51 @@ describe('NativeTerminalRenderer', () => {
     expect(events).toEqual(['render:0:start', 'render:1:animation']);
   });
 
+  it('re-emits equal layout cells only when rewriteUnchanged is set', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const output = new FakeOutput();
+    let rewriteUnchanged = false;
+    const renderer = new NativeTerminalRenderer({
+      output,
+      scheduler,
+      targetFps: 20,
+      renderOnStart: true,
+      autoBeginFrame: false,
+      render: ({ runtime }) =>
+        runtime.renderLayoutFrame(
+          [
+            {
+              id: 'body',
+              rect: { x: 0, y: 0, width: 10, height: 1 },
+              content: ['hello'],
+            },
+          ],
+          { rewriteUnchanged },
+        ),
+    });
+
+    renderer.start();
+    scheduler.advance(0);
+
+    expect(renderer.lastFrame?.present?.diff.changedCells ?? 0).toBeGreaterThan(0);
+
+    // Identical content, diff-only present: nothing to re-emit.
+    renderer.requestRender('manual');
+    scheduler.advance(50);
+
+    expect(renderer.lastFrame?.frame.causes).toEqual(['manual']);
+    expect(renderer.lastFrame?.present?.diff.changedCells).toBe(0);
+
+    // Terminal resync (e.g. ConPTY wiped the screen behind our back): equal
+    // cells must be re-emitted even though the soft buffer already matches.
+    rewriteUnchanged = true;
+    renderer.requestRender('manual');
+    scheduler.advance(50);
+
+    expect(renderer.lastFrame?.frame.causes).toEqual(['manual']);
+    expect(renderer.lastFrame?.present?.diff.changedCells ?? 0).toBeGreaterThan(0);
+  });
+
   it('opts into SGR mouse tracking and restores terminal state on stop', () => {
     const output = new FakeOutput();
     const renderer = new NativeTerminalRenderer({

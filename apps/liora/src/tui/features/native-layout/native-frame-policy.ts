@@ -259,6 +259,23 @@ export function shouldRefreshNativeTerminalPalette(
   );
 }
 
+/**
+ * Terminal resync frames re-emit every sealed cell even when the soft buffer
+ * matches (`present({ rewriteUnchanged: true })`).
+ *
+ * ConPTY can wipe the alternate screen behind our back (OSC-triggered
+ * repaints, resize races). A diff-only present then skips "already painted"
+ * cells forever — the picker-on-black launch screen. Splash disposal and
+ * resize are the moments the real surface is most likely out of sync, and
+ * both are rare enough that one full re-emit is free.
+ */
+export function shouldRewriteUnchangedTUIFrame(options: {
+  readonly splashJustDisposed: boolean;
+  readonly causes: readonly NativeRenderCause[];
+}): boolean {
+  return options.splashJustDisposed || options.causes.includes('resize');
+}
+
 export interface TUIStateNativeFramePolicyInput {
   readonly causes: readonly NativeRenderCause[];
   readonly viewportScrolled: boolean;

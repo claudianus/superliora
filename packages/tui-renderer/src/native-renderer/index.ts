@@ -396,6 +396,7 @@ export class NativeTerminalRenderer {
       fill: options.fill ?? this.options.fill,
       force: options.force,
       forceCursor: options.forceCursor,
+      rewriteUnchanged: options.rewriteUnchanged,
       cursor: options.cursor,
       beforePresent: options.beforePresent,
       composition: {

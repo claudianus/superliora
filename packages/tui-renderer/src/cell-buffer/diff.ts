@@ -25,7 +25,10 @@ export function diffCellBuffers(
   const plan = planRendererDamage({
     width: next.width,
     height: next.height,
-    force,
+    // rewriteUnchanged is a terminal resync: equal-cell writes record no
+    // damage, so an identical soft buffer yields an empty plan and nothing
+    // would be re-emitted — exactly the frame that must repaint everything.
+    force: force || rewriteUnchanged,
     damage: options.damage,
     dirtyRows: options.dirtyRows,
   });

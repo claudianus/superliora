@@ -59,7 +59,10 @@ export function encodeTerminalClearBelowRow(
   width = 1,
   extraRows = 1,
 ): string {
-  const style = fill && 'style' in fill ? fill.style : fill;
+  // TS cannot narrow away Pick<RendererCell, 'style'> in the false branch of
+  // `in` (style is optional there), so type the branch explicitly.
+  const style: RendererCellStyle | undefined =
+    fill && 'style' in fill ? fill.style : (fill as RendererCellStyle | undefined);
   const bg = style?.bg;
   if (!bg) {
     // Bare CSI 0J / CSI J / CSI K paints the terminal default background

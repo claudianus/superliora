@@ -54,8 +54,10 @@ export function attachStartupNativeRendererCallback(host: StartupLifecycleHost):
   nativeRootUI.setRenderCallback(
     createTUIStateNativeRenderCallback(host.state, {
       diagnosticsOverlay,
-      onAuthoritativeFrame: () => {
-        host.appearanceController.reapplyTerminalPalette();
+      onAuthoritativeFrame: (info) => {
+        // Resync frames re-emit palette even when the payload is unchanged —
+        // the terminal may have dropped OSC state along with the screen.
+        host.appearanceController.reapplyTerminalPalette({ force: info?.resync === true });
       },
     }),
   );

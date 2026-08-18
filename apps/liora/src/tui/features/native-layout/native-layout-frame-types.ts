@@ -43,8 +43,12 @@ export interface TUIStateNativeRenderCallbackOptions {
    * Invoked when the native renderer performs an authoritative full redraw
    * (layout shift, resize, scroll, etc.). Use this to refresh terminal-side
    * theme state such as OSC palette colors after incremental frames are cleared.
+   *
+   * `resync` is true on terminal-resync frames (splash disposal, resize) where
+   * terminal-global state may have been lost — palette re-emission must bypass
+   * payload dedupe exactly then.
    */
-  readonly onAuthoritativeFrame?: () => void;
+  readonly onAuthoritativeFrame?: (info?: { readonly resync?: boolean }) => void;
   /**
    * When true, the rendered UI height is capped to the actual content
    * height (transcript + chrome) instead of always occupying the full

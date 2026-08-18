@@ -178,6 +178,14 @@ export interface NativeTerminalRendererLayoutFrameOptions {
   readonly fill?: RendererCell;
   readonly force?: boolean;
   readonly forceCursor?: boolean;
+  /**
+   * Terminal resync: re-emit every sealed cell even when it matches the soft
+   * buffer. The diff pipeline otherwise skips equal cells, so a terminal that
+   * was wiped behind our back (ConPTY repaint races, resize) stays blank
+   * forever. Reserved for rare structural moments; ambient animation must
+   * never set this.
+   */
+  readonly rewriteUnchanged?: boolean;
   readonly cursor?: RendererCursorState;
   readonly scheduleRegionVfx?: boolean;
   readonly beforePresent?: (renderer: NativeFrameRenderer) => void;
