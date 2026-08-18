@@ -8,6 +8,7 @@ import {
   type NativeFrameStatsHealth,
   type RendererEffectLevel,
   type RendererQualityLevel,
+  type RendererTransportStability,
 } from '#/tui/renderer';
 
 export type AmbientEffectMode = RendererEffectLevel;
@@ -29,6 +30,9 @@ let activeAppearance: AppearancePreferences = DEFAULT_APPEARANCE_PREFERENCES;
 let animationClockMs = Date.now();
 let appearanceRenderQuality: RendererQualityLevel = 'full';
 let appearanceRenderHealth: NativeFrameStatsHealth = 'healthy';
+// Set from the render callback each frame. Defaults optimistic so POSIX and
+// pre-probe frames resolve normally; classic ConPTY flips it to 'unstable'.
+let appearanceTransportStability: RendererTransportStability = 'synchronized';
 
 export function setActiveAppearancePreferences(appearance: AppearancePreferences): void {
   activeAppearance = appearance;
@@ -62,6 +66,14 @@ export function getAppearanceRenderHealth(): NativeFrameStatsHealth {
   return appearanceRenderHealth;
 }
 
+export function setAppearanceTransportStability(stability: RendererTransportStability): void {
+  appearanceTransportStability = stability;
+}
+
+export function getAppearanceTransportStability(): RendererTransportStability {
+  return appearanceTransportStability;
+}
+
 export function resolveAmbientEffectMode(appearance: AppearancePreferences): AmbientEffectMode {
   if (appearance.profile === 'off' || appearance.particles === 'off') return 'off';
   if (appearance.profile === 'premium' || appearance.particles === 'premium') return 'premium';
@@ -85,6 +97,13 @@ export function resolveQualityAdjustedAmbientEffectMode(
   health: NativeFrameStatsHealth = appearanceRenderHealth,
 ): AmbientEffectMode {
   const requested = resolveAmbientEffectMode(appearance);
+  // Unstable transports (classic ConPTY) turn every write into a visible
+  // repaint, so animated ambient effects read as constant flicker no matter
+  // the quality budget. Clamp them off; this overrides even a premium pin.
+  // Functional indicators are unaffected — spinner rotation and the stream
+  // reveal ride the raw mode/clock — and the starfield backdrop survives as a
+  // static frame via appearanceDecorativeFrozenByTransport.
+  if (requested !== 'off' && appearanceTransportStability === 'unstable') return 'off';
   if (pinsPremiumAppearanceEffects(appearance)) return 'premium';
   return resolveRendererEffectLevel({
     requested,
@@ -94,6 +113,31 @@ export function resolveQualityAdjustedAmbientEffectMode(
     quality: quality === 'minimal' ? 'balanced' : quality,
     health: health === 'degraded' ? 'watch' : health,
   });
+}
+
+/**
+ * True when the user asked for ambient effects but the transport cannot animate
+ * them without flicker. Large-area backdrops (the letterbox starfield) use this
+ * to paint one static frame instead of disappearing entirely.
+ */
+export function appearanceDecorativeFrozenByTransport(
+  appearance: AppearancePreferences,
+): boolean {
+  return (
+    appearanceTransportStability === 'unstable' &&
+    resolveAmbientEffectMode(appearance) !== 'off'
+  );
+}
+
+/**
+ * True when the transport cannot repaint cheaply, so the incremental
+ * "type-on" stream reveal should snap to the full draft instead of animating
+ * code point by code point. On unstable transports every reveal tick is its
+ * own console repaint; snapping collapses the whole catch-up into the next
+ * governed frame, which is the single largest streaming-flicker win.
+ */
+export function streamingRevealSnapByTransport(): boolean {
+  return appearanceTransportStability === 'unstable';
 }
 
 export function appearanceAnimationFrameIntervalMs(

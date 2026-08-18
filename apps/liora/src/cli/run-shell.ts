@@ -39,6 +39,7 @@ import type { RuntimeDegradedEvent } from '@superliora/protocol';
 import { startHarnessOAuthProactiveRefresh, buildOAuthRefreshDegradedEventFromOutcome } from '#/utils/oauth/proactive-refresh-host';
 
 import { createLioraHostIdentity } from './version';
+import { startupTrace } from '#/utils/startup-trace';
 
 export async function runShell(
   opts: CLIOptions,
@@ -46,6 +47,7 @@ export async function runShell(
   updateNotice?: UpdateNoticeInfo,
   updateLifecycle?: UpdateLifecycleNotice,
 ): Promise<void> {
+  startupTrace('runShell:enter');
   applyNoProcessSandboxFlag(opts);
   const startedAt = Date.now();
   const configStartedAt = startedAt;
@@ -65,7 +67,9 @@ export async function runShell(
   // once the TUI owns stdin the probe reply would be eaten by the input loop.
   // Theme palette waits until plugin themes are catalogued so a persisted
   // plugin theme id does not silently fall back to dark.
+  startupTrace('runShell:before-image-probe');
   await initImageProtocolProbe();
+  startupTrace('runShell:after-image-probe');
 
   const resolvedWork = await resolveSessionWorkDir({ worktree: opts.worktree });
   const workDir = resolvedWork.workDir;
@@ -107,12 +111,16 @@ export async function runShell(
     globalLogPath: resolveGlobalLogPath(harness.homeDir),
   });
 
+  startupTrace('runShell:harness-created');
   await harness.ensureConfigFile();
+  startupTrace('runShell:config-file');
   await refreshPluginThemeCatalog(() => harness.listPluginThemes());
+  startupTrace('runShell:plugin-themes');
   // Initialise the global Theme singleton before pi-tui grabs stdin.
   const palette = await getColorPalette(tuiConfig.theme);
   currentTheme.setPalette(palette);
   const config = await harness.getConfig();
+  startupTrace('runShell:config-loaded');
   for (const warning of (await harness.getConfigDiagnostics()).warnings) {
     configWarning = combineStartupNotice(configWarning, warning);
   }
@@ -133,7 +141,7 @@ export async function runShell(
     updateNotice,
     updateLifecycle,
     sessionMetadata: {
-      ...((resolvedWork.metadata as import('@superliora/sdk').JsonObject | undefined) ?? {}),
+      ...(resolvedWork.metadata as import('@superliora/sdk').JsonObject | undefined),
       ...sandboxSessionMetadata(opts),
     } as import('@superliora/sdk').JsonObject,
   });
@@ -198,9 +206,12 @@ export async function runShell(
   } catch {
     /* ignore */
   }
+  startupTrace('runShell:tui-constructed');
   try {
     const initStartedAt = Date.now();
+    startupTrace('runShell:before-tui-start');
     await tui.start();
+    startupTrace('runShell:after-tui-start');
     const initMs = Date.now() - initStartedAt;
     const startupSessionId = tui.getCurrentSessionId();
     const mcpMs = await tui.getStartupMcpMs();

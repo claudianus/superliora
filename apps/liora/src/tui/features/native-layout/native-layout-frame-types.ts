@@ -50,6 +50,15 @@ export interface TUIStateNativeRenderCallbackOptions {
    */
   readonly onAuthoritativeFrame?: (info?: { readonly resync?: boolean }) => void;
   /**
+   * Reports background agent work (running Conductor jobs, live/lingering
+   * Mission Control workers). The frame callback only has `TUIState`, but the
+   * Mission Control roster lives on its controller, so the host supplies this.
+   * It keeps the shared animation clock advancing on calm/unstable transports
+   * while background work runs, so worker elapsed labels and linger expiry
+   * don't freeze.
+   */
+  readonly hasBackgroundWork?: () => boolean;
+  /**
    * When true, the rendered UI height is capped to the actual content
    * height (transcript + chrome) instead of always occupying the full
    * terminal viewport. The UI grows as the transcript grows and never

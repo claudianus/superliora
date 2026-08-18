@@ -17,6 +17,13 @@ import { AppStateController } from './app-state';
 import { AuthFlowController } from '../auth/auth-flow';
 import { AutocompleteController } from '../shell/autocomplete';
 import { AppearanceController, shouldRenderAmbientAnimationFrame } from '../appearance/index';
+import {
+  hasRunningConductorWorkers,
+  isAmbientCalmIdle,
+} from '../../features/appearance/ambient-calm';
+import { isStreamRevealArmed } from '../streaming-ui/reveal';
+import { isLiveGoalChromeActive } from '../../features/native-layout/native-frame-policy';
+import { isNativeFullscreenTakeover } from '../../features/native-layout/native-layout-frame-build';
 import { BtwPanelController } from '../panes/btw-panel';
 import { ClipboardImageHintController } from '../clipboard/clipboard-image-hint';
 import { JobBoardStore } from '../../features/control-tower/job-board-store';
@@ -150,6 +157,20 @@ export function wireLioraTUIControllers(
       // Mission Control roster: live elapsed clocks + the completed-worker
       // linger expiry need 1s chrome ticks even while the main turn idles.
       tui.missionControl.hasLiveWorkers(),
+    getTransportStability: () => tui.state.renderer.nativeRuntime?.transportStability,
+    isAmbientIdle: () =>
+      isAmbientCalmIdle({
+        streamingPhase: tui.state.appState.streamingPhase,
+        compacting: tui.state.appState.isCompacting,
+        liveGoal: isLiveGoalChromeActive(tui.state.appState.goal),
+        fullscreenTakeover: isNativeFullscreenTakeover(tui.state),
+        streamRevealArmed: isStreamRevealArmed(),
+        // Mirror forceAmbientSchedule's background-work terms so live Conductor
+        // jobs and Mission Control workers keep the shared clock advancing.
+        backgroundWork:
+          hasRunningConductorWorkers(tui.state.appState.conductorJobs) ||
+          tui.missionControl.hasLiveWorkers(),
+      }),
   });
   {
     const stored = tui.state.appState.appearance ?? DEFAULT_APPEARANCE_PREFERENCES;

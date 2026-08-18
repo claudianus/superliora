@@ -5,3 +5,4 @@ export * from './host';
 export * from './output';
 export * from './probe';
 export * from './session';
+export * from './transport-stability';

@@ -8,6 +8,7 @@ import type { AppState, TranscriptEntry } from '#/tui/types';
 import {
   advanceAppearanceAnimationClock,
   setActiveAppearancePreferences,
+  setAppearanceTransportStability,
 } from '#/tui/features/appearance/appearance-effects';
 import { createMotionBeatController } from '#/tui/utils/render/motion-beats';
 
@@ -81,6 +82,7 @@ describe('StreamingUIController smooth reveal', () => {
     vi.useRealTimers();
     process.env = { ...originalEnv };
     setActiveAppearancePreferences(DEFAULT_APPEARANCE_PREFERENCES);
+    setAppearanceTransportStability('synchronized');
   });
 
   it('reveals assistant text gradually then snaps on end', () => {
@@ -141,6 +143,21 @@ describe('StreamingUIController smooth reveal', () => {
     const { host } = createHost();
     const ui = new StreamingUIController(host);
     const text = 'Instant full dump when animation is off.';
+
+    ui.onStreamingTextStart();
+    ui.onStreamingTextUpdate(text);
+
+    const block = ui.getStreamingBlockComponent();
+    expect((block as unknown as { lastText: string }).lastText).toBe(text);
+  });
+
+  it('snaps immediately on an unstable transport even with motion enabled', () => {
+    // Classic ConPTY repaints on every write, so the per-tick type-on reads as
+    // flicker. The reveal snaps to the full draft despite premium motion.
+    setAppearanceTransportStability('unstable');
+    const { host } = createHost();
+    const ui = new StreamingUIController(host);
+    const text = 'Full draft paints at once on an unstable transport.';
 
     ui.onStreamingTextStart();
     ui.onStreamingTextUpdate(text);

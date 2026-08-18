@@ -18,6 +18,8 @@ import {
   type TUIStateNativeInputRouter,
 } from '../../features/native-layout/native-input-router';
 import { createTUIStateNativeRenderCallback } from '../../features/native-layout/native-layout-frame';
+import { hasRunningConductorWorkers } from '../../features/appearance/ambient-calm';
+import { setAppearanceTransportStability } from '../../features/appearance/appearance-effects';
 import { handleFooterJobsStripMouse } from '../../features/control-tower/footer-jobs-mouse';
 import { focusIntentComposer } from '../../features/control-tower/conductor-ux';
 import { handleWorkerDockMouse } from '../../features/mission-control/worker-dock-mouse';
@@ -51,9 +53,18 @@ export function attachStartupNativeRendererCallback(host: StartupLifecycleHost):
     nativeRootUI.setInputRouter(host.nativeInputRouter.router);
   }
   const diagnosticsOverlay = () => host.nativeRendererDiagnosticsHudEnabled;
+  // Streaming flush/reveal read this signal before the first frame runs; seed
+  // it from the renderer's initial classification so early output is paced for
+  // the real transport. The render callback re-syncs it every frame.
+  setAppearanceTransportStability(nativeRootUI.renderer.transportStability);
   nativeRootUI.setRenderCallback(
     createTUIStateNativeRenderCallback(host.state, {
       diagnosticsOverlay,
+      // Live Conductor jobs and Mission Control workers read the shared
+      // animation clock; keep it advancing on calm transports while they run.
+      hasBackgroundWork: () =>
+        hasRunningConductorWorkers(host.state.appState.conductorJobs) ||
+        host.missionControl?.hasLiveWorkers() === true,
       onAuthoritativeFrame: (info) => {
         // Resync frames re-emit palette even when the payload is unchanged —
         // the terminal may have dropped OSC state along with the screen.

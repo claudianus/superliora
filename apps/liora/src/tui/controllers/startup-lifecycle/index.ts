@@ -37,6 +37,7 @@ import {
 import type { StartupLifecycleHost } from './types';
 import { mountIntentComposer } from '../../features/control-tower/conductor-ux';
 import { restoreMountedTuiStdioGuard } from '../../utils/stdio/tui-stdio-guard';
+import { startupTrace } from '#/utils/startup-trace';
 
 export type { StartupLifecycleHost } from './types';
 
@@ -61,16 +62,20 @@ export class StartupLifecycleController {
 
   async start(): Promise<void> {
     const { host } = this;
+    startupTrace('lifecycle:start');
     this.registerSignalHandlers();
     try {
       const shouldReplayHistory = await this.initMainTui();
+      startupTrace('lifecycle:after-initMainTui');
       // Mount Welcome + Idle before the first present. Starting the event loop
       // on an empty transcript painted a blank pane (then splash /login raced
       // it) — the startup flicker/black hole on Windows ConPTY.
       host.transcriptRender.renderWelcome();
       this.startEventLoop();
+      startupTrace('lifecycle:after-startEventLoop');
       try {
         await host.transcriptRender.playStartupSplash();
+        startupTrace('lifecycle:after-splash');
         void maybeStartOnboarding(host).catch(() => {});
         void this.loadBanner();
         this.startBackgroundFdAutocomplete();
@@ -192,9 +197,13 @@ export class StartupLifecycleController {
   }
 
   async init(): Promise<boolean> {
+    startupTrace('lifecycle:init:enter');
     await prepareStartupExperimentalFeatures(this.host);
+    startupTrace('lifecycle:init:after-experimental');
     void this.refreshProviderModelsInBackground();
-    return initStartupSession(this.host);
+    const result = await initStartupSession(this.host);
+    startupTrace('lifecycle:init:after-session');
+    return result;
   }
 
   async initMainTui(): Promise<boolean> {

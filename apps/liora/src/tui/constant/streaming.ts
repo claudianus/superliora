@@ -20,6 +20,12 @@ export const STREAMING_UI_FLUSH_MAX_MS = 24;
 // stretches from STREAMING_UI_FLUSH_MS toward STREAMING_UI_FLUSH_MAX_MS.
 export const STREAMING_UI_FLUSH_BURST_DELTAS = 8;
 
+// Unstable transports (classic ConPTY) repaint on every write, so the flush
+// window widens to roughly the governed frame budget: fewer, larger updates
+// instead of a 16ms drip that the render loop would only coalesce anyway.
+export const STREAMING_UI_FLUSH_UNSTABLE_MS = 80;
+export const STREAMING_UI_FLUSH_MAX_UNSTABLE_MS = 120;
+
 // ---------------------------------------------------------------------------
 // Smooth stream reveal (client-side catch-up interpolation)
 // Premium profile: soft kinetic type-on with ease-in/out speed, ~60fps ticks,

@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   frameInvalidationIncludes,
@@ -11,7 +11,28 @@ import {
 import { createNativeTerminalRenderer, type TerminalRenderer } from '#/tui/renderer/lifecycle';
 import { LioraNativeRootUI } from '#/tui/renderer/native-root-ui';
 
+const TRANSPORT_STABILITY_ENV = 'TUI_RENDERER_TRANSPORT_STABILITY';
+
 describe('LioraNativeRootUI frame invalidation', () => {
+  let previousTransportStability: string | undefined;
+
+  beforeEach(() => {
+    previousTransportStability = process.env[TRANSPORT_STABILITY_ENV];
+    // These tests drive frames through a fake scheduler and assert exact
+    // coalescing/cadence. On win32 the renderer would otherwise apply the
+    // unstable-transport frame floor and delay the driven frames, so pin the
+    // transport to synchronized for a platform-independent schedule.
+    process.env[TRANSPORT_STABILITY_ENV] = 'synchronized';
+  });
+
+  afterEach(() => {
+    if (previousTransportStability === undefined) {
+      delete process.env[TRANSPORT_STABILITY_ENV];
+    } else {
+      process.env[TRANSPORT_STABILITY_ENV] = previousTransportStability;
+    }
+  });
+
   it('coalesces same-turn lifecycle content and render requests into one frame', () => {
     const { onFrame, render, renderer, scheduler, ui } = createHarness();
 

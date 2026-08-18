@@ -38,6 +38,7 @@ export * from './terminal/graphics';
 export * from './terminal/host';
 export * from './terminal/probe';
 export * from './terminal/session';
+export * from './terminal/transport-stability';
 export * from './text/component';
 export * from './text/effects';
 export * from './text/metrics';

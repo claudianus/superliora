@@ -36,7 +36,8 @@ import { handleUpgrade } from './cli/sub/upgrade';
 import { createCliTelemetryBootstrap, initializeCliTelemetry } from './cli/telemetry';
 import { runUpdatePreflight } from './cli/update/preflight';
 import { createLioraHostIdentity, getVersion } from './cli/version';
-import { CLI_SHUTDOWN_TIMEOUT_MS, CLI_UI_MODE, PROCESS_NAME } from './constant/app';
+import { CLI_SHUTDOWN_TIMEOUT_MS, CLI_UI_MODE, PROCESS_NAME, PRODUCT_NAME } from './constant/app';
+import { HEADER_DIAMOND } from './tui/constant/symbols';
 import { cleanupStaleNativeCacheForCurrent } from './native/native-assets';
 import { installNativeModuleHook } from './native/module-hook';
 import { runNativeAssetSmokeIfRequested } from './native/smoke';
@@ -70,6 +71,10 @@ export async function handleMainCommand(
       process.exit(1);
     }
     throw error;
+  }
+
+  if (validated.uiMode !== 'print') {
+    writeStartupBrandLine(version);
   }
 
   const preflightResult = await runUpdatePreflight(
@@ -237,6 +242,17 @@ function applyCliProfileOverride(profile: string | undefined): void {
   const trimmed = profile?.trim();
   if (trimmed === undefined || trimmed.length === 0) return;
   process.env['SUPERLIORA_PROFILE'] = trimmed;
+}
+
+/**
+ * Paint a dim brand line before the update preflight so the terminal is never
+ * blank while network/git work runs ahead of the first TUI frame. The TUI is
+ * an inline app, so the line simply becomes scrollback above it.
+ */
+function writeStartupBrandLine(version: string): void {
+  if (!process.stdout.isTTY) return;
+  if (process.env['SUPERLIORA_NO_STARTUP_BANNER'] !== undefined) return;
+  process.stdout.write(`\u001B[2m${HEADER_DIAMOND} ${PRODUCT_NAME} v${version}\u001B[0m\n`);
 }
 
 async function logStartupFailure(operation: string, error: unknown): Promise<void> {

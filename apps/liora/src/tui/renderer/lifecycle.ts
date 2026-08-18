@@ -1,3 +1,6 @@
+import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+
 import type {
   NativeRenderCause,
   NativeTerminalInput,
@@ -32,10 +35,37 @@ export interface TerminalRenderer {
   drainInput(): Promise<void>;
 }
 
+/**
+ * Env-gated diagnostic tap on the renderer's stdout path. When
+ * SUPERLIORA_TUI_OUTPUT_TAP is set to a file path, every chunk the TUI hands
+ * to the real TTY is appended as `[<ms-since-start>] <JSON chunk>` so probes
+ * can diff "what the app emitted" against "what ConPTY forwarded".
+ */
+function createOutputTap(): ((chunk: string) => void) | undefined {
+  const tapPath = process.env['SUPERLIORA_TUI_OUTPUT_TAP'];
+  if (tapPath === undefined || tapPath.length === 0) return undefined;
+  const startedAt = Date.now();
+  let ready = false;
+  return (chunk) => {
+    try {
+      if (!ready) {
+        mkdirSync(dirname(tapPath), { recursive: true });
+        writeFileSync(tapPath, '');
+        ready = true;
+      }
+      appendFileSync(tapPath, `[${Date.now() - startedAt}] ${JSON.stringify(chunk)}\n`, 'utf8');
+    } catch {
+      // Diagnostics must never break rendering.
+    }
+  };
+}
+
 function createRendererTerminalOutput(ttyWrite: TuiStdioGuard['ttyWrite']): NativeTerminalOutput {
   const stdout = process.stdout;
+  const tap = createOutputTap();
   return {
     write(chunk: string) {
+      tap?.(chunk);
       return ttyWrite(chunk);
     },
     get columns() {

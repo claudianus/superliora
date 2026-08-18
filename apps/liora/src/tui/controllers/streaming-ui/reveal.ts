@@ -3,6 +3,7 @@ import { shouldAnimate } from '../appearance/index';
 import {
   appearanceAnimationNow,
   getActiveAppearancePreferences,
+  streamingRevealSnapByTransport,
 } from '../../features/appearance/appearance-effects';
 import {
   isRevealCaughtUp,
@@ -58,8 +59,16 @@ export interface StreamingRevealContext {
 /** Context currently armed for ambient-driven catch-up ticks. */
 let armedRevealCtx: StreamingRevealContext | undefined;
 
+/** True while a reveal channel still lags and needs shared-clock ticks. */
+export function isStreamRevealArmed(): boolean {
+  return armedRevealCtx !== undefined;
+}
+
 export function shouldSmoothStreamReveal(isReplaying: boolean): boolean {
   if (isReplaying) return false;
+  // Unstable transports repaint on every write, so the per-tick type-on reads
+  // as flicker. Snap to the full draft and let the governed frame show it.
+  if (streamingRevealSnapByTransport()) return false;
   return shouldAnimate(getActiveAppearancePreferences());
 }
 

@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   ANSI_BEGIN_SYNCHRONIZED_UPDATE,
@@ -4265,6 +4265,25 @@ describe('ansiTextToCells wide text', () => {
 });
 
 describe('NativeTerminalSession', () => {
+  const TRANSPORT_STABILITY_ENV = 'TUI_RENDERER_TRANSPORT_STABILITY';
+  let previousTransportStability: string | undefined;
+  beforeEach(() => {
+    previousTransportStability = process.env[TRANSPORT_STABILITY_ENV];
+    // The session tests drive frames through a fake scheduler and assert exact
+    // frame cadence (e.g. the synchronized-output probe frame). On win32 the
+    // renderer would otherwise apply the unstable-transport frame floor and
+    // delay those frames, so pin the transport to synchronized for a
+    // platform-independent schedule.
+    process.env[TRANSPORT_STABILITY_ENV] = 'synchronized';
+  });
+  afterEach(() => {
+    if (previousTransportStability === undefined) {
+      delete process.env[TRANSPORT_STABILITY_ENV];
+    } else {
+      process.env[TRANSPORT_STABILITY_ENV] = previousTransportStability;
+    }
+  });
+
   it('defines reusable root UI and terminal host contracts for app adapters', () => {
     const writes: string[] = [];
     const terminal = {

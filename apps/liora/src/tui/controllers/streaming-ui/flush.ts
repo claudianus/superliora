@@ -1,9 +1,12 @@
 import {
   STREAMING_UI_FLUSH_BURST_DELTAS,
   STREAMING_UI_FLUSH_MAX_MS,
+  STREAMING_UI_FLUSH_MAX_UNSTABLE_MS,
   STREAMING_UI_FLUSH_MS,
+  STREAMING_UI_FLUSH_UNSTABLE_MS,
 } from '../../constant/streaming';
 import { nextStreamingFlushDelay } from '../../utils/streaming/streaming-flush-schedule';
+import { getAppearanceTransportStability } from '../../features/appearance/appearance-effects';
 
 export interface StreamingFlushState {
   flushTimer: ReturnType<typeof setTimeout> | undefined;
@@ -83,18 +86,26 @@ export function runPendingFlush(
   for (const id of toolCallIds) handlers.onToolCallFlush(id);
 }
 
+function resolveStreamingFlushWindowMs(): { baseMs: number; maxMs: number } {
+  if (getAppearanceTransportStability() === 'unstable') {
+    return { baseMs: STREAMING_UI_FLUSH_UNSTABLE_MS, maxMs: STREAMING_UI_FLUSH_MAX_UNSTABLE_MS };
+  }
+  return { baseMs: STREAMING_UI_FLUSH_MS, maxMs: STREAMING_UI_FLUSH_MAX_MS };
+}
+
 export function scheduleFlush(
   state: StreamingFlushState,
   runFlush: () => void,
 ): void {
   if (!hasPendingFlush(state)) return;
   const now = Date.now();
+  const { baseMs, maxMs } = resolveStreamingFlushWindowMs();
   const delay = nextStreamingFlushDelay({
     now,
     lastFlushAt: state.lastFlushAt,
     pendingDeltaCount: state.dirtyMarksSinceFlush,
-    baseMs: STREAMING_UI_FLUSH_MS,
-    maxMs: STREAMING_UI_FLUSH_MAX_MS,
+    baseMs,
+    maxMs,
     burstThreshold: STREAMING_UI_FLUSH_BURST_DELTAS,
   });
   const fireAt = now + delay;

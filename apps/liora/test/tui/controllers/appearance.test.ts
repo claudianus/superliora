@@ -317,6 +317,53 @@ describe('AppearanceController', () => {
     controller.dispose();
   });
 
+  it('caps the ambient cadence to the calm quantum on unstable transports while idle', () => {
+    const setAmbientSchedule = vi.fn();
+    let idle = true;
+    const controller = new AppearanceController({
+      terminal: { write: vi.fn() } as unknown as RendererTerminalHost,
+      requestRender: vi.fn(),
+      setAmbientSchedule,
+      getAppearance: () => ({
+        ...DEFAULT_APPEARANCE_PREFERENCES,
+        profile: 'premium',
+        particles: 'premium',
+        animationFps: 60,
+      }),
+      shouldRenderAnimation: () => true,
+      getTransportStability: () => 'unstable',
+      isAmbientIdle: () => idle,
+    });
+    const options = setAmbientSchedule.mock.calls.at(-1)?.[0];
+    // Idle + unstable: ticking at 16ms only rebuilds byte-identical frames.
+    expect(
+      options?.resolveIntervalMs({
+        quality: 'full',
+        health: 'healthy',
+        backpressure: false,
+      }),
+    ).toBe(250);
+    // Activity restores the full-rate cadence.
+    idle = false;
+    expect(
+      options?.resolveIntervalMs({
+        quality: 'full',
+        health: 'healthy',
+        backpressure: false,
+      }),
+    ).toBe(16);
+    // A schedule-context stability report wins over the controller getter.
+    expect(
+      options?.resolveIntervalMs({
+        quality: 'full',
+        health: 'healthy',
+        backpressure: false,
+        transportStability: 'synchronized',
+      }),
+    ).toBe(16);
+    controller.dispose();
+  });
+
   it('gates ambient wakes via shouldTick without pausing the interval', () => {
     const setAmbientSchedule = vi.fn();
     let canRender = false;

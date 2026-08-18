@@ -18,6 +18,11 @@ import {
 import {
   mergeNativeTerminalFeatureOptions,
 } from '../terminal/features';
+import {
+  resolveRendererTransportStability,
+  resolveUnstableTransportFrameIntervalMs,
+  type RendererTransportStability,
+} from '../terminal/transport-stability';
 import { NativeFrameStats, type NativeFrameStatsSnapshot } from '../frame/stats';
 import { RendererLineCellCache } from '../render/line-cache';
 import { RendererCompositionCache } from '../render/compositor';
@@ -163,7 +168,13 @@ export class NativeTerminalRenderer {
         },
         getCurrentSynchronized: () => this.currentSynchronized,
         setSynchronizedOutput: (synchronized) =>{  this.setSynchronizedOutput(synchronized); },
-        onSynchronizedOutputProbe: this.options.onSynchronizedOutputProbe,
+        onSynchronizedOutputProbe: (result) => {
+          // The probe answer is the ground truth for transport stability; once
+          // it lands, re-resolve the frame-rate floor (Windows Terminal upgrades
+          // to synchronized, classic ConPTY stays unstable).
+          this.syncStabilityFrameInterval();
+          this.options.onSynchronizedOutputProbe?.(result);
+        },
       },
     );
     this.session = new NativeTerminalSession({
@@ -233,8 +244,25 @@ export class NativeTerminalRenderer {
         quality: this.quality.level,
         health: this.frameStats.snapshot().health,
         backpressure: this.backpressure.isActive,
+        transportStability: this.transportStability,
       }),
     });
+    // Apply the transport frame-rate floor immediately. Before the sync probe
+    // answers, Windows is already presumed unstable, so ConPTY gets the floor
+    // from the first frame instead of strobing through the probe window.
+    this.syncStabilityFrameInterval();
+  }
+
+  /**
+   * Rate-limit non-interactive frames on unstable transports. Synchronized
+   * transports clear the floor and keep full-rate drift-free pacing.
+   */
+  private syncStabilityFrameInterval(): void {
+    const floor =
+      this.transportStability === 'unstable'
+        ? resolveUnstableTransportFrameIntervalMs()
+        : undefined;
+    this.loop.setStabilityFrameIntervalMs(floor);
   }
 
   get isStarted(): boolean {
@@ -255,6 +283,13 @@ export class NativeTerminalRenderer {
 
   get synchronizedOutputProbeResult(): NativeTerminalSynchronizedOutputProbeResult | undefined {
     return this.syncProbe.result;
+  }
+
+  get transportStability(): RendererTransportStability {
+    return resolveRendererTransportStability({
+      synchronizedOutputSupport: this.syncProbe.result?.support,
+      synchronizedOutputProbeTimedOut: this.syncProbe.result?.timedOut,
+    });
   }
 
   private dispatchDecodedInputEvents(events: readonly NativeInputEvent[]): void {
@@ -288,6 +323,7 @@ export class NativeTerminalRenderer {
     return diagnoseNativeRendererStats(this.stats, this.quality, {
       synchronizedOutputProbeResult: this.syncProbe.result,
       synchronizedOutputEnabled: this.synchronizedOutputEnabled,
+      transportStability: this.transportStability,
     });
   }
 

@@ -2,12 +2,14 @@ import type { FrameInvalidationRequest } from '../frame/invalidation';
 import type { NativeFrameStatsHealth } from '../frame/stats';
 import type { RendererQualityLevel } from '../frame/quality';
 import type { NativeRenderLoopScheduler } from '../frame/render-loop';
+import type { RendererTransportStability } from '../terminal/transport-stability';
 import { RendererTicker } from './ticker';
 
 export interface RendererAmbientScheduleContext {
   readonly quality: RendererQualityLevel;
   readonly health: NativeFrameStatsHealth;
   readonly backpressure: boolean;
+  readonly transportStability?: RendererTransportStability;
 }
 
 export interface RendererAmbientScheduleOptions {

@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
   ANSI_BEGIN_SYNCHRONIZED_UPDATE,
@@ -28,6 +28,7 @@ import {
   NativeInputRouter,
   NativeRootUI,
   NativeTerminalRenderer,
+  UNSTABLE_TRANSPORT_FRAME_INTERVAL_MS,
   createRendererRegionVfx,
   encodeTerminalClearBelowRow,
   renderNativeLayoutFrame,
@@ -35,7 +36,73 @@ import {
   type NativeRenderTimer,
 } from '../src';
 
+const TRANSPORT_STABILITY_ENV = 'TUI_RENDERER_TRANSPORT_STABILITY';
+
 describe('NativeTerminalRenderer', () => {
+  let previousTransportStability: string | undefined;
+
+  beforeEach(() => {
+    previousTransportStability = process.env[TRANSPORT_STABILITY_ENV];
+    // Pin the transport to synchronized so frame-sequencing tests run on the
+    // drift-free full-rate schedule regardless of host platform. On win32 the
+    // renderer would otherwise apply the unstable-transport frame floor and
+    // delay the non-interactive frames these tests drive.
+    process.env[TRANSPORT_STABILITY_ENV] = 'synchronized';
+  });
+
+  afterEach(() => {
+    if (previousTransportStability === undefined) {
+      delete process.env[TRANSPORT_STABILITY_ENV];
+    } else {
+      process.env[TRANSPORT_STABILITY_ENV] = previousTransportStability;
+    }
+  });
+
+  it('clears the render-loop frame floor on a synchronized transport', () => {
+    const scheduler = new FakeRenderLoopScheduler();
+    const output = new FakeOutput();
+    const renderer = new NativeTerminalRenderer({
+      output,
+      scheduler,
+      render: () => {},
+    });
+
+    expect(renderer.transportStability).toBe('synchronized');
+    expect(renderer.loop.stabilityIntervalMs).toBeUndefined();
+  });
+
+  it('applies the unstable-transport frame floor to the render loop', () => {
+    process.env[TRANSPORT_STABILITY_ENV] = 'unstable';
+    const scheduler = new FakeRenderLoopScheduler();
+    const output = new FakeOutput();
+    const renderer = new NativeTerminalRenderer({
+      output,
+      scheduler,
+      render: () => {},
+    });
+
+    expect(renderer.transportStability).toBe('unstable');
+    expect(renderer.loop.stabilityIntervalMs).toBe(UNSTABLE_TRANSPORT_FRAME_INTERVAL_MS);
+  });
+
+  it('honors the unstable frame-interval override from the environment', () => {
+    process.env[TRANSPORT_STABILITY_ENV] = 'unstable';
+    process.env['TUI_RENDERER_UNSTABLE_FRAME_INTERVAL_MS'] = '40';
+    try {
+      const scheduler = new FakeRenderLoopScheduler();
+      const output = new FakeOutput();
+      const renderer = new NativeTerminalRenderer({
+        output,
+        scheduler,
+        render: () => {},
+      });
+
+      expect(renderer.loop.stabilityIntervalMs).toBe(40);
+    } finally {
+      delete process.env['TUI_RENDERER_UNSTABLE_FRAME_INTERVAL_MS'];
+    }
+  });
+
   it('starts a terminal session and renders through the native frame backend', () => {
     const scheduler = new FakeRenderLoopScheduler();
     const input = new FakeInput();

@@ -6,8 +6,10 @@ import {
   STREAMING_UI_FLUSH_BURST_DELTAS,
   STREAMING_UI_FLUSH_MAX_MS,
   STREAMING_UI_FLUSH_MS,
+  STREAMING_UI_FLUSH_UNSTABLE_MS,
 } from '#/tui/constant/streaming';
 import { StreamingUIController, type StreamingUIHost } from '#/tui/controllers/streaming-ui/index';
+import { setAppearanceTransportStability } from '#/tui/features/appearance/appearance-effects';
 import { createTUIState } from '#/tui/liora-tui';
 import type { AppState, TranscriptEntry } from '#/tui/types';
 import { createMotionBeatController } from '#/tui/utils/render/motion-beats';
@@ -147,6 +149,7 @@ describe('StreamingUIController adaptive flush throttle', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    setAppearanceTransportStability('synchronized');
   });
 
   it('paints the first delta of a stream immediately (leading edge)', () => {
@@ -177,6 +180,29 @@ describe('StreamingUIController adaptive flush throttle', () => {
     expect(ui.hasPending()).toBe(true);
 
     vi.advanceTimersByTime(4);
+    expect(ui.hasPending()).toBe(false);
+  });
+
+  it('widens the coalescing window on an unstable transport', () => {
+    // Unstable transports repaint on every write, so deltas coalesce into the
+    // wider governed-frame window instead of the 16ms stable drip.
+    setAppearanceTransportStability('unstable');
+    const { host } = createHost();
+    const ui = new StreamingUIController(host);
+
+    ui.appendAssistantDelta('a');
+    ui.scheduleFlush();
+    vi.advanceTimersByTime(1); // leading flush anchors lastFlushAt
+    expect(ui.hasPending()).toBe(false);
+
+    ui.appendAssistantDelta('b');
+    ui.scheduleFlush();
+    // Past the stable base window the flush must still be coalescing.
+    vi.advanceTimersByTime(STREAMING_UI_FLUSH_MS + 5);
+    expect(ui.hasPending()).toBe(true);
+
+    // ...and it flushes once the unstable base window elapses.
+    vi.advanceTimersByTime(STREAMING_UI_FLUSH_UNSTABLE_MS);
     expect(ui.hasPending()).toBe(false);
   });
 

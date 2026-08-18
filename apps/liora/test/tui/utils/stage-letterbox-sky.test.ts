@@ -3,6 +3,7 @@ import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import {
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
+  setAppearanceTransportStability,
 } from '#/tui/features/appearance/appearance-effects';
 import {
   applySkyToLetterboxRegions,
@@ -52,6 +53,7 @@ describe('stage letterbox night sky', () => {
   afterEach(() => {
     resetMeteorEasterEggForTests();
     resetLetterboxSkyRegionCacheForTests();
+    setAppearanceTransportStability('synchronized');
     vi.useRealTimers();
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key];
@@ -88,6 +90,50 @@ describe('stage letterbox night sky', () => {
   });
 
   it('returns no sky when ambient is off', () => {
+    const bands = ultrawideBands();
+    const cells = paintStageLetterboxSky({
+      bands,
+      cols: 200,
+      rows: 80,
+      nowMs: 12_000,
+      appearance: { ...DEFAULT_APPEARANCE_PREFERENCES, profile: 'off', particles: 'off' },
+    });
+    expect(cells).toEqual([]);
+  });
+
+  it('keeps a fully static starfield when the transport is unstable', () => {
+    // Classic ConPTY clamps the quality-adjusted mode to 'off', but the sky must
+    // survive as a static backdrop instead of disappearing — and hold one fixed
+    // brightness across time so it never repaints.
+    setAppearanceTransportStability('unstable');
+    const bands = ultrawideBands();
+    const a = paintStageLetterboxSky({
+      bands,
+      cols: 200,
+      rows: 80,
+      nowMs: 12_000,
+      appearance: premiumAmbient,
+    });
+    const b = paintStageLetterboxSky({
+      bands,
+      cols: 200,
+      rows: 80,
+      nowMs: 12_000 + 700,
+      appearance: premiumAmbient,
+    });
+    expect(a.length).toBeGreaterThan(8);
+    expect(a).toEqual(b);
+    // No shooting-star heads or burst glyphs — only static star dust.
+    expect(
+      a.every((c) => c.char !== '◆' && c.char !== '◈' && c.char !== '⬤' && c.char !== '✹'),
+    ).toBe(true);
+    for (const c of a) {
+      expect(pointInLetterboxBands(bands, c.x, c.y)).toBe(true);
+    }
+  });
+
+  it('still returns no sky on an unstable transport when the user turned ambient off', () => {
+    setAppearanceTransportStability('unstable');
     const bands = ultrawideBands();
     const cells = paintStageLetterboxSky({
       bands,

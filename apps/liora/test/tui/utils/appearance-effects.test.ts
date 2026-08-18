@@ -6,6 +6,7 @@ import { DEFAULT_APPEARANCE_PREFERENCES } from '#/tui/config';
 import {
   advanceAppearanceAnimationClock,
   appearanceAnimationFrameIntervalMs,
+  appearanceDecorativeFrozenByTransport,
   BRAND_MOTION_TOKENS,
   SPECTACULAR_TOKENS,
   isStatusFlashActive,
@@ -24,9 +25,11 @@ import {
   renderStatusFlashLine,
   renderToneSettleFlash,
   renderTypewriterLine,
+  resolveQualityAdjustedAmbientEffectMode,
   setActiveAppearancePreferences,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
+  setAppearanceTransportStability,
   SETTLE_FLASH_MS,
   STATUS_FLASH_MS,
   statusFlashDurationMs,
@@ -38,6 +41,42 @@ import { darkColors } from '#/tui/theme/colors';
 function strip(text: string): string {
   return text.replaceAll(/\u001B\[[0-9;]*m/g, '');
 }
+
+describe('transport stability clamp', () => {
+  const premium = {
+    ...DEFAULT_APPEARANCE_PREFERENCES,
+    profile: 'premium' as const,
+    particles: 'premium' as const,
+  };
+
+  afterEach(() => {
+    setAppearanceTransportStability('synchronized');
+    setAppearanceRenderHealth('healthy');
+    setAppearanceRenderQuality('full');
+  });
+
+  it('clamps even a premium pin to off on an unstable transport', () => {
+    setAppearanceTransportStability('unstable');
+    expect(resolveQualityAdjustedAmbientEffectMode(premium, 'full', 'healthy')).toBe('off');
+  });
+
+  it('resolves premium normally on a synchronized transport', () => {
+    setAppearanceTransportStability('synchronized');
+    expect(resolveQualityAdjustedAmbientEffectMode(premium, 'full', 'healthy')).toBe('premium');
+  });
+
+  it('marks decorative effects frozen only when the user asked for them', () => {
+    setAppearanceTransportStability('unstable');
+    expect(appearanceDecorativeFrozenByTransport(premium)).toBe(true);
+    const off = { ...premium, profile: 'off' as const, particles: 'off' as const };
+    expect(appearanceDecorativeFrozenByTransport(off)).toBe(false);
+  });
+
+  it('never freezes decorative effects on a synchronized transport', () => {
+    setAppearanceTransportStability('synchronized');
+    expect(appearanceDecorativeFrozenByTransport(premium)).toBe(false);
+  });
+});
 
 describe('premium ambient cadence', () => {
   it('honors animationFps up to ~60fps (16ms), not densify 1ms', () => {

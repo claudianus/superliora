@@ -8,10 +8,12 @@ import {
   ambientAnimationActive,
   getActiveAppearancePreferences,
   setAppearanceRenderQuality,
+  setAppearanceTransportStability,
 } from '#/tui/features/appearance/appearance-effects';
 
 import { shouldAnimate, shouldRenderAmbientAnimationFrame } from '../../controllers/appearance/index';
-import { tickArmedStreamReveal } from '../../controllers/streaming-ui/reveal';
+import { isStreamRevealArmed, tickArmedStreamReveal } from '../../controllers/streaming-ui/reveal';
+import { shapeAmbientFrameClockMs } from '../appearance/ambient-calm';
 import { resolveStageLayout } from '../../controllers/layout/stage-layout';
 import type { TUIState } from '../../tui-state';
 import { recordScrollHangSample } from '../../utils/render/scroll-hang-probe';
@@ -80,7 +82,29 @@ export function createTUIStateNativeRenderCallback(
       // was pushed for; drop drag/hover state so the cursor cannot get stuck.
       resetStageResizePointerShape(state.terminal);
     }
-    advanceAppearanceAnimationClock(frame.timestamp);
+    // Publish the transport classification so appearance effect resolution can
+    // clamp decorative modes on unstable transports (classic ConPTY).
+    setAppearanceTransportStability(runtime.transportStability);
+    // Background Conductor/Mission Control work reads the shared clock, so it
+    // must keep advancing even when the main turn is idle on a calm transport.
+    const backgroundWork = options.hasBackgroundWork?.() === true;
+    // On unstable transports (classic ConPTY) an idle full-rate clock turns
+    // every ambient tick into a visible repaint; snap the clock onto the calm
+    // quantum grid so idle frames stay byte-identical and write nothing.
+    const calmSignals = {
+      streamingPhase: state.appState.streamingPhase,
+      compacting: state.appState.isCompacting,
+      liveGoal: isLiveGoalChromeActive(state.appState.goal),
+      fullscreenTakeover: isNativeFullscreenTakeover(state),
+      streamRevealArmed: isStreamRevealArmed(),
+      backgroundWork,
+    };
+    const shapedClockMs = shapeAmbientFrameClockMs(
+      frame.timestamp,
+      runtime.transportStability,
+      calmSignals,
+    );
+    advanceAppearanceAnimationClock(shapedClockMs);
     // Advance smooth stream reveal on the shared clock before layout so type-on
     // catch-up paints in this frame (no private setTimeout chain).
     tickArmedStreamReveal();
@@ -166,17 +190,22 @@ export function createTUIStateNativeRenderCallback(
     // included.
     state.cachedStageBand = stageProbe.stage;
     // Chrome is static only when nothing time-varying paints there: no live
-    // agent work, no live goal badge, and no ambient motion (header particle
-    // divider / spectacular brand). When ambient is on, animation frames must
-    // rebuild chrome — reusing the cache freezes the particle rail while the
-    // idle aquarium keeps moving. chromeEpoch still invalidates on activity /
-    // live-goal transitions so stale chrome is never reused across modes.
+    // agent work, no live goal badge, no background Conductor/Mission Control
+    // work, and no ambient motion (header particle divider / spectacular
+    // brand). When ambient is on, animation frames must rebuild chrome —
+    // reusing the cache freezes the particle rail while the idle aquarium
+    // keeps moving. Background work counts as live even when the main turn is
+    // idle: the mission dock reads the shared clock for worker elapsed labels
+    // and linger expiry, so reusing cached chrome would freeze them. chromeEpoch
+    // still invalidates on activity / live-goal transitions so stale chrome is
+    // never reused across modes.
     const liveGoal = isLiveGoalChromeActive(state.appState.goal);
     const appearance = state.appState.appearance ?? getActiveAppearancePreferences();
     const chromeStatic =
       state.appState.streamingPhase === 'idle' &&
       !state.appState.thinking &&
       !liveGoal &&
+      !backgroundWork &&
       !ambientAnimationActive(appearance);
     const chromeEpoch = tuiChromeEpoch({
       streamingPhase: state.appState.streamingPhase,
