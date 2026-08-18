@@ -1,4 +1,5 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -8,9 +9,11 @@ import {
   pruneTuiSessionToolOutputViewports,
   readTuiSessionState,
   restoreTuiSessionState,
+  TUI_SESSION_STATE_FILE,
   type TuiSessionStateHost,
   writeTuiSessionState,
 } from '#/tui/utils/tui-session-state';
+import { LEGACY_TUI_SESSION_STATE_FILE } from '#/tui/utils/session/session-ui-paths';
 import { createToolOutputViewportState } from '#/tui/utils/tool/tool-output-viewport';
 
 const tempDirs: string[] = [];
@@ -83,5 +86,29 @@ describe('tui session state', () => {
 
     const snapshot = await readTuiSessionState(restored.session!);
     expect(snapshot.toolOutputViewports).toBeUndefined();
+  });
+
+  it('reads leftover tui-session.json and migrates it on write', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'liora-tui-session-'));
+    tempDirs.push(dir);
+    await writeFile(
+      join(dir, LEGACY_TUI_SESSION_STATE_FILE),
+      JSON.stringify({
+        version: 1,
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        transcriptDetail: 'full',
+        sessionsScope: 'all',
+      }),
+      'utf8',
+    );
+
+    const restored = makeHost(dir);
+    await restoreTuiSessionState(restored);
+    expect(restored.state.transcriptDetail).toBe('full');
+    expect(restored.state.sessionsScope).toBe('all');
+
+    await writeTuiSessionState(restored);
+    expect(existsSync(join(dir, LEGACY_TUI_SESSION_STATE_FILE))).toBe(false);
+    expect(existsSync(join(dir, TUI_SESSION_STATE_FILE))).toBe(true);
   });
 });

@@ -9,11 +9,15 @@ All sessions are saved under `$SUPERLIORA_HOME/sessions/` (default: `~/.superlio
 ```text
 ~/.superliora/
 ├── config.toml
-├── session_index.jsonl
 └── sessions/
+    ├── index.jsonl
     └── <workDirKey>/
         └── <sessionId>/
             ├── state.json
+            ├── ui/
+            │   ├── draft.json
+            │   ├── goals.json
+            │   └── prefs.json
             └── agents/
                 ├── main/
                 │   └── wire.jsonl
@@ -21,7 +25,8 @@ All sessions are saved under `$SUPERLIORA_HOME/sessions/` (default: `~/.superlio
                     └── wire.jsonl
 ```
 
-- `state.json`: session metadata such as title and creation time.
+- `state.json`: session metadata such as title, working directory, and agent folders stored relative to the session (`agents/main`).
+- `sessions/index.jsonl`: last-wins locator for session folders. Older leftover `session_index.jsonl` is still read until the index is rewritten.
 - `agents/*/wire.jsonl`: the agent event stream, used for session recovery and replay.
 
 ::: warning

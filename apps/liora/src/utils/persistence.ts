@@ -48,6 +48,26 @@ export async function readJsonFile<T>(
   return schema.parse(parsed);
 }
 
+/** Prefer `filePath`; fall back to `legacyPath` only when the new file is missing. */
+export async function readJsonFilePrefer<T>(
+  filePath: string,
+  legacyPath: string,
+  schema: z.ZodType<T>,
+  fallback: T,
+): Promise<T> {
+  try {
+    const raw = await readFile(filePath, 'utf-8');
+    return schema.parse(JSON.parse(raw) as unknown);
+  } catch (error) {
+    if (!isNotFound(error)) throw error;
+  }
+  return readJsonFile(legacyPath, schema, fallback);
+}
+
+export async function unlinkIfExists(filePath: string): Promise<void> {
+  await unlink(filePath).catch(() => undefined);
+}
+
 export async function writeJsonFile<T>(
   filePath: string,
   schema: z.ZodType<T>,

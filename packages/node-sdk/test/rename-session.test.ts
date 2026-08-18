@@ -74,6 +74,7 @@ describe('SessionStore.rename', () => {
       model: 'kimi-for-coding',
       isCustomTitle: true,
       nested: { enabled: true },
+      version: 1,
     });
 
     const renamed = await store.get('ses_store_rename');

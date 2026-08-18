@@ -82,17 +82,34 @@ export interface CreateAgentOptions {
   readonly persistMetadata?: boolean;
 }
 
+/** On-disk `state.json` schema. Missing `version` is treated as 1. */
+export const SESSION_STATE_VERSION = 1 as const;
+
+/** Known `state.json` custom keys; unknown keys are kept for forward compat. */
+export interface SessionCustomMetadata {
+  sandboxProfile?: 'off' | 'workspace' | 'read-only';
+  sandboxEnforcement?: 'lexical' | 'process';
+  responseLanguage?: unknown;
+  worktree?: unknown;
+  imported_from_kimi_cli?: boolean;
+  /** Legacy cwd before `SessionMeta.workDir`. */
+  cwd?: string;
+  [key: string]: unknown;
+}
+
 export interface SessionMeta {
+  version?: number;
   createdAt: string;
   updatedAt: string;
   title: string;
   isCustomTitle: boolean;
   lastPrompt?: string;
   forkedFrom?: string;
+  archived?: boolean;
   /** Absolute working directory the session was created in. Persisted so the
    *  session directory is self-describing and the global session index does not
    *  have to be trusted for the (one-way-hashed) workDir. */
   workDir?: string;
   agents: Record<string, AgentMeta>;
-  custom: Record<string, any>;
+  custom: SessionCustomMetadata;
 }

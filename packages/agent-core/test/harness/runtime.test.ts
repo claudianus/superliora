@@ -98,7 +98,9 @@ describe('LioraCore runtime config', () => {
     tmp = await mkdtemp(join(tmpdir(), 'kimi-core-runtime-'));
     const homeDir = join(tmp, 'home');
     await mkdir(homeDir, { recursive: true });
-    await getRootLogger().configure(resolveLoggingConfig({ homeDir }));
+    await getRootLogger().configure(
+      resolveLoggingConfig({ homeDir, env: { SUPERLIORA_LOG_LEVEL: 'info' } }),
+    );
 
     vi.stubEnv(MASTER_ENV, '0');
     for (const def of FLAG_DEFINITIONS) {

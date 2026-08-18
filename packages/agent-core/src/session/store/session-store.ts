@@ -1,22 +1,22 @@
-import { cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readdir, rm, stat } from 'node:fs/promises';
 import { dirname, join, resolve } from 'pathe';
 
 import { ErrorCodes, LioraError } from '#/errors/index';
 import type { SessionIndexEntry } from '#/session/store/session-index';
-import { appendSessionIndexEntry, readSessionIndex } from '#/session/store/session-index';
+import {
+  readSessionIndex,
+  upsertSessionIndexEntry,
+  writeSessionIndexSnapshot,
+} from '#/session/store/session-index';
 import { encodeWorkDirKey, normalizeWorkDir } from '#/session/store/workdir-key';
 import type { JsonObject, ListSessionsPayload, SessionSummary } from '#/rpc/core-api';
 import {
-  FORKED_SESSION_DROPPED_FILES,
-  SessionSummaryStateSchema,
   appendForkedMarkers,
   assertSafeSessionId,
   compareSessionSummary,
-  customMetadataWithoutGoal,
   dropForkedSessionFiles,
   forkCustomMetadata,
   isDirectory,
-  isRecord,
   isSafeSessionId,
   latestAgentWireMtime,
   metadataFromState,
@@ -24,13 +24,12 @@ import {
   normalizeOptionalSessionId,
   normalizeRequiredWorkDir,
   readOptionalState,
-  remapSessionPath,
   rewriteAgentHomedirs,
   statIfExists,
   timestampOrFallback,
   titleFromState,
-  type SessionSummaryState,
 } from '#/session/store/session-store-helpers';
+import { readRequiredSessionState, writeSessionStateFile } from '#/session/store/session-state-io';
 
 export interface CreateSessionRecordInput {
   readonly id: string;
@@ -77,7 +76,7 @@ export class SessionStore {
     }
 
     await mkdir(dir, { recursive: true, mode: 0o700 });
-    await appendSessionIndexEntry(this.homeDir, {
+    await upsertSessionIndexEntry(this.homeDir, this.sessionsDir, {
       sessionId: input.id,
       sessionDir: dir,
       workDir,
@@ -109,9 +108,9 @@ export class SessionStore {
       });
       await dropForkedSessionFiles(targetDir);
       const forkedState = await this.writeForkedState(input, source.sessionDir, workDir, targetDir);
-      await appendForkedMarkers(forkedState);
+      await appendForkedMarkers(forkedState, targetDir);
       const summary = await this.summaryFromDir(input.targetId, targetDir, workDir);
-      await appendSessionIndexEntry(this.homeDir, {
+      await upsertSessionIndexEntry(this.homeDir, this.sessionsDir, {
         sessionId: input.targetId,
         sessionDir: targetDir,
         workDir,
@@ -134,47 +133,23 @@ export class SessionStore {
       throw new LioraError(ErrorCodes.SESSION_TITLE_EMPTY, 'Session title cannot be empty');
     }
     const entry = await this.findExistingSessionEntry(id);
-    const statePath = join(entry.sessionDir, 'state.json');
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(await readFile(statePath, 'utf-8')) as unknown;
-    } catch (error) {
-      throw new LioraError(ErrorCodes.SESSION_STATE_NOT_FOUND, `Session "${id}" state.json was not found`, {
-        cause: error,
-      });
-    }
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-      throw new LioraError(ErrorCodes.SESSION_STATE_INVALID, `Session "${id}" state.json is invalid`);
-    }
-    const next: Record<string, unknown> = {
-      ...(parsed as Record<string, unknown>),
+    const parsed = await readRequiredSessionState(entry.sessionDir, id);
+    await writeSessionStateFile(join(entry.sessionDir, 'state.json'), {
+      ...parsed,
       title: normalized,
       isCustomTitle: true,
-    };
-    await writeFile(statePath, `${JSON.stringify(next)}\n`, 'utf-8');
+    });
   }
 
   async archive(id: string): Promise<SessionSummary> {
     const entry = await this.findExistingSessionEntry(id);
-    const statePath = join(entry.sessionDir, 'state.json');
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(await readFile(statePath, 'utf-8')) as unknown;
-    } catch (error) {
-      throw new LioraError(ErrorCodes.SESSION_STATE_NOT_FOUND, `Session "${id}" state.json was not found`, {
-        cause: error,
-      });
-    }
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-      throw new LioraError(ErrorCodes.SESSION_STATE_INVALID, `Session "${id}" state.json is invalid`);
-    }
+    const parsed = await readRequiredSessionState(entry.sessionDir, id);
     const now = new Date().toISOString();
-    const next: Record<string, unknown> = {
-      ...(parsed as Record<string, unknown>),
+    await writeSessionStateFile(join(entry.sessionDir, 'state.json'), {
+      ...parsed,
       archived: true,
       updatedAt: now,
-    };
-    await writeFile(statePath, `${JSON.stringify(next)}\n`, 'utf-8');
+    });
     return this.summaryFromDir(id, entry.sessionDir, entry.workDir);
   }
 
@@ -208,9 +183,8 @@ export class SessionStore {
    * record no workDir, or whose recorded workDir does not match the bucket they
    * live in, are left untouched rather than writing a misleading entry.
    *
-   * The index is append-only and `readSessionIndex` lets later lines override
-   * earlier ones for the same id, so appending a corrected line both adds
-   * missing entries and repairs stale ones. Best-effort: never throws.
+   * The on-disk index is last-wins. `reindex` rewrites a compact snapshot so
+   * missing entries are added and stale ones are repaired. Best-effort: never throws.
    */
   async reindex(): Promise<{ scanned: number; added: number; repaired: number }> {
     const index = await readSessionIndex(this.homeDir, this.sessionsDir);
@@ -262,12 +236,12 @@ export class SessionStore {
           continue;
         }
 
-        await appendSessionIndexEntry(this.homeDir, { sessionId: id, sessionDir, workDir });
         index.set(id, { sessionId: id, sessionDir, workDir });
         if (existing === undefined) added++;
         else repaired++;
       }
     }
+    await writeSessionIndexSnapshot(this.homeDir, index.values());
     return { scanned, added, repaired };
   }
 
@@ -383,26 +357,7 @@ export class SessionStore {
     sourceWorkDir: string,
     targetDir: string,
   ): Promise<Record<string, unknown>> {
-    const statePath = join(targetDir, 'state.json');
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(await readFile(statePath, 'utf-8')) as unknown;
-    } catch (error) {
-      throw new LioraError(
-        ErrorCodes.SESSION_STATE_NOT_FOUND,
-        `Session "${input.sourceId}" state.json was not found`,
-        {
-          cause: error,
-        },
-      );
-    }
-    if (!isRecord(parsed)) {
-      throw new LioraError(
-        ErrorCodes.SESSION_STATE_INVALID,
-        `Session "${input.sourceId}" state.json is invalid`,
-      );
-    }
-
+    const parsed = await readRequiredSessionState(targetDir, input.sourceId);
     const title = normalizeForkTitle(input.title, parsed['title']);
     const now = new Date().toISOString();
     const next: Record<string, unknown> = {
@@ -416,7 +371,7 @@ export class SessionStore {
       agents: rewriteAgentHomedirs(parsed['agents'], sourceDir, targetDir),
       custom: forkCustomMetadata(parsed['custom'], input.metadata),
     };
-    await writeFile(statePath, `${JSON.stringify(next)}\n`, 'utf-8');
+    await writeSessionStateFile(join(targetDir, 'state.json'), next);
     return next;
   }
 

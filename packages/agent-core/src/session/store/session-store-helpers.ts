@@ -1,4 +1,4 @@
-import { join, relative, isAbsolute } from 'pathe';
+import { join, relative, isAbsolute, resolve } from 'pathe';
 import { readFile, readdir, rm, stat } from 'node:fs/promises';
 
 import { z } from 'zod';
@@ -9,6 +9,7 @@ import { normalizeWorkDir } from '#/session/store/workdir-key';
 import { FileSystemAgentRecordPersistence, type AgentRecordOf } from '../../agent/records';
 
 export const SessionSummaryStateSchema = z.object({
+  version: z.number().int().optional(),
   archived: z.boolean().optional(),
   customTitle: z.string().optional(),
   isCustomTitle: z.boolean().optional(),
@@ -18,7 +19,10 @@ export const SessionSummaryStateSchema = z.object({
   custom: z.record(z.string(), z.unknown()).optional(),
 });
 
-export const FORKED_SESSION_DROPPED_FILES = ['upcoming-goals.json'] as const;
+export const FORKED_SESSION_DROPPED_FILES = [
+  'upcoming-goals.json',
+  join('ui', 'goals.json'),
+] as const;
 
 export type SessionSummaryState = z.infer<typeof SessionSummaryStateSchema>;
 
@@ -40,7 +44,10 @@ export async function dropForkedSessionFiles(sessionDir: string): Promise<void> 
   );
 }
 
-export async function appendForkedMarkers(state: Record<string, unknown>): Promise<void> {
+export async function appendForkedMarkers(
+  state: Record<string, unknown>,
+  sessionDir: string,
+): Promise<void> {
   const record: AgentRecordOf<'forked'> = { type: 'forked', time: Date.now() };
 
   const agents = state['agents'];
@@ -53,7 +60,7 @@ export async function appendForkedMarkers(state: Record<string, unknown>): Promi
     if (!isRecord(agentMeta)) continue;
     const homedir = agentMeta['homedir'];
     if (typeof homedir !== 'string') continue;
-    paths.add(join(homedir, 'wire.jsonl'));
+    paths.add(join(resolveAgentHomedir(sessionDir, homedir), 'wire.jsonl'));
   }
 
   await Promise.all(
@@ -136,6 +143,37 @@ export function normalizeForkTitle(title: string | undefined, fallback: unknown)
   return typeof fallback === 'string' && fallback.trim().length > 0 ? fallback : 'New Session';
 }
 
+export function persistAgentHomedir(sessionDir: string, homedir: string): string {
+  const resolved = isAbsolute(homedir) ? homedir : join(sessionDir, homedir);
+  const rel = relative(resolve(sessionDir), resolve(resolved));
+  if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return resolved;
+  return rel.replaceAll('\\', '/');
+}
+
+export function resolveAgentHomedir(sessionDir: string, persisted: string): string {
+  if (persisted.trim() === '') return sessionDir;
+  return isAbsolute(persisted) ? persisted : join(sessionDir, persisted);
+}
+
+export function persistAgentHomedirsUnknown(
+  value: unknown,
+  sessionDir: string,
+): Record<string, unknown> {
+  if (!isRecord(value)) return {};
+  const agents: Record<string, unknown> = {};
+  for (const [agentId, agentMeta] of Object.entries(value)) {
+    if (!isRecord(agentMeta) || typeof agentMeta['homedir'] !== 'string') {
+      agents[agentId] = agentMeta;
+      continue;
+    }
+    agents[agentId] = {
+      ...agentMeta,
+      homedir: persistAgentHomedir(sessionDir, agentMeta['homedir']),
+    };
+  }
+  return agents;
+}
+
 export function rewriteAgentHomedirs(value: unknown, sourceDir: string, targetDir: string): unknown {
   if (!isRecord(value)) return {};
 
@@ -146,10 +184,11 @@ export function rewriteAgentHomedirs(value: unknown, sourceDir: string, targetDi
       continue;
     }
     const homedir = agentMeta['homedir'];
+    const resolved = typeof homedir === 'string' ? resolveAgentHomedir(sourceDir, homedir) : homedir;
     agents[agentId] = {
       ...agentMeta,
       homedir:
-        typeof homedir === 'string' ? remapSessionPath(homedir, sourceDir, targetDir) : homedir,
+        typeof resolved === 'string' ? remapSessionPath(resolved, sourceDir, targetDir) : resolved,
     };
   }
   return agents;

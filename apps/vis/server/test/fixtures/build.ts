@@ -25,9 +25,8 @@ export async function buildSessionFixture(name: string): Promise<{
   }
   await writeFile(statePath, JSON.stringify(state, null, 2));
 
-  // Write session_index.jsonl.
   await writeFile(
-    join(home, 'session_index.jsonl'),
+    join(home, 'sessions', 'index.jsonl'),
     JSON.stringify({
       sessionId: 'session_fixture',
       sessionDir,

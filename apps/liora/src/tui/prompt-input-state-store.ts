@@ -1,10 +1,10 @@
 /**
  * Durable prompt-input state for crash/resume recovery.
  *
- * Goal queue already lives on disk (`upcoming-goals.json`). The in-memory
+ * Goal queue already lives on disk (`ui/goals.json`). The in-memory
  * prompt queue, Ctrl-X stash, and editor draft did not — a hard kill mid-turn
  * dropped everything the user still expected to send. This store mirrors that
- * goal-queue pattern under `<sessionDir>/prompt-input-state.json`.
+ * goal-queue pattern under `<sessionDir>/ui/draft.json`.
  *
  * Media attachment ids and structured PromptParts are intentionally omitted:
  * they point at process-local image store state that cannot be resurrected
@@ -13,12 +13,18 @@
 
 import { z } from 'zod';
 
-import { readJsonFile, writeJsonFile } from '#/utils/persistence';
+import { readJsonFilePrefer, unlinkIfExists, writeJsonFile } from '#/utils/persistence';
 
 import type { QueuedMessage } from './types';
 import type { PromptStashEntry } from './utils/prompt-stash';
+import {
+  LEGACY_PROMPT_INPUT_STATE_FILE,
+  PROMPT_INPUT_STATE_FILE,
+  sessionUiFilePath,
+} from './utils/session/session-ui-paths';
 
-export const PROMPT_INPUT_STATE_FILE = 'prompt-input-state.json';
+export { PROMPT_INPUT_STATE_FILE };
+
 const PROMPT_INPUT_STATE_VERSION = 1 as const;
 const DRAFT_PERSIST_DEBOUNCE_MS = 250;
 const MAX_TEXT_LENGTH = 200_000;
@@ -73,9 +79,20 @@ const draftTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const writeLocks = new Map<string, Promise<void>>();
 
 export function promptInputStatePath(session: PromptInputSession): string | undefined {
+  return sessionUiSidecarPath(session, PROMPT_INPUT_STATE_FILE);
+}
+
+function promptInputLegacyPath(session: PromptInputSession): string | undefined {
+  return sessionUiSidecarPath(session, LEGACY_PROMPT_INPUT_STATE_FILE);
+}
+
+function sessionUiSidecarPath(
+  session: PromptInputSession,
+  relative: string,
+): string | undefined {
   const sessionDir = session.summary?.sessionDir?.trim();
   if (sessionDir === undefined || sessionDir.length === 0) return undefined;
-  return `${sessionDir.replace(/\/+$/, '')}/${PROMPT_INPUT_STATE_FILE}`;
+  return sessionUiFilePath(sessionDir, relative);
 }
 
 export async function readPromptInputState(
@@ -84,7 +101,13 @@ export async function readPromptInputState(
   const filePath = promptInputStatePath(session);
   if (filePath === undefined) return emptySnapshot();
   try {
-    return await readJsonFile(filePath, fileSchema, emptySnapshot());
+    const legacyPath = promptInputLegacyPath(session);
+    return await readJsonFilePrefer(
+      filePath,
+      legacyPath ?? filePath,
+      fileSchema,
+      emptySnapshot(),
+    );
   } catch {
     // Corrupt / unexpected schema: treat as empty so resume still works.
     return emptySnapshot();
@@ -111,6 +134,8 @@ export async function writePromptInputState(
 
   await withWriteLock(filePath, async () => {
     await writeJsonFile(filePath, fileSchema, snapshot);
+    const legacyPath = promptInputLegacyPath(session);
+    if (legacyPath !== undefined) await unlinkIfExists(legacyPath);
   });
 }
 

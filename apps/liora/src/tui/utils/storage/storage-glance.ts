@@ -103,7 +103,7 @@ export function buildStorageSettingsLines(input: StorageGlanceInput): readonly s
     '· Cleared tool output receipts: agents/main/tool-results/',
     '· Resume via session picker · export via `liora export`',
     '· No automatic purge in Settings yet — manual cleanup by deleting dirs',
-    '· Goal queue artifacts: <sessionDir>/goal-queue.json when Mission active',
+    '· Goal queue artifacts: <sessionDir>/ui/goals.json when Mission active',
     '',
     '── Log level ────────────────────────────────',
     '· Interactive TUI: stderr + ~/.superliora/logs (when enabled)',

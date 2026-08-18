@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 import type { Event } from '#/index';
+import { sessionIndexLegacyPath, sessionIndexPath } from '../../agent-core/src/session/store';
 
 export interface AgentWirePayload {
   readonly type: string;
@@ -100,28 +101,30 @@ async function readIndexedSessionDir(
   homeDir: string,
   sessionId: string,
 ): Promise<string | undefined> {
-  let raw: string;
-  try {
-    raw = await readFile(join(homeDir, 'session_index.jsonl'), 'utf-8');
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code === 'ENOENT') return undefined;
-    throw error;
-  }
-
   let sessionDir: string | undefined;
-  for (const line of raw.split(/\r?\n/)) {
-    if (line.trim().length === 0) continue;
-    let parsed: unknown;
+  for (const indexPath of [sessionIndexLegacyPath(homeDir), sessionIndexPath(homeDir)]) {
+    let raw: string;
     try {
-      parsed = JSON.parse(line) as unknown;
-    } catch {
-      continue;
+      raw = await readFile(indexPath, 'utf-8');
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === 'ENOENT') continue;
+      throw error;
     }
-    if (!isRecord(parsed)) continue;
-    if (parsed['sessionId'] !== sessionId) continue;
-    if (typeof parsed['sessionDir'] !== 'string') continue;
-    sessionDir = parsed['sessionDir'];
+
+    for (const line of raw.split(/\r?\n/)) {
+      if (line.trim().length === 0) continue;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(line) as unknown;
+      } catch {
+        continue;
+      }
+      if (!isRecord(parsed)) continue;
+      if (parsed['sessionId'] !== sessionId) continue;
+      if (typeof parsed['sessionDir'] !== 'string') continue;
+      sessionDir = parsed['sessionDir'];
+    }
   }
   return sessionDir;
 }

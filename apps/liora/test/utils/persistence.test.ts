@@ -5,7 +5,14 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { appendJsonlLine, readJsonFile, readJsonlFile, writeJsonFile } from '#/utils/persistence';
+import {
+  appendJsonlLine,
+  readJsonFile,
+  readJsonFilePrefer,
+  readJsonlFile,
+  unlinkIfExists,
+  writeJsonFile,
+} from '#/utils/persistence';
 
 interface TestJson {
   name: string;
@@ -51,6 +58,32 @@ describe('persistence helpers', () => {
     await expect(
       readJsonFile(file, TestJsonSchema, { name: 'fallback', count: 0 }),
     ).resolves.toEqual({ name: 'ok', count: 2 });
+  });
+
+  it('readJsonFilePrefer uses the new file when present and otherwise the leftover', async () => {
+    const current = join(dir, 'ui', 'draft.json');
+    const leftover = join(dir, 'prompt-input-state.json');
+    const fallback = { name: 'fallback', count: 0 };
+
+    await expect(readJsonFilePrefer(current, leftover, TestJsonSchema, fallback)).resolves.toEqual(
+      fallback,
+    );
+
+    writeFileSync(leftover, JSON.stringify({ name: 'legacy', count: 3 }), 'utf-8');
+    await expect(readJsonFilePrefer(current, leftover, TestJsonSchema, fallback)).resolves.toEqual({
+      name: 'legacy',
+      count: 3,
+    });
+
+    await writeJsonFile(current, TestJsonSchema, { name: 'current', count: 4 });
+    await expect(readJsonFilePrefer(current, leftover, TestJsonSchema, fallback)).resolves.toEqual({
+      name: 'current',
+      count: 4,
+    });
+  });
+
+  it('unlinkIfExists ignores a missing file', async () => {
+    await expect(unlinkIfExists(join(dir, 'missing.json'))).resolves.toBeUndefined();
   });
 
   it('readJsonFile rejects schema-invalid JSON', async () => {

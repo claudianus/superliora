@@ -18,6 +18,7 @@ import {
 } from './response-language';
 import { detectResponseLanguageWithLlm } from './response-language-llm';
 import type { Session, SessionMeta } from '.';
+import { truncateLastPrompt } from './session-meta-format';
 
 export function toConversationLoopStateData(state: ConversationLoopState): ConversationLoopStateData {
   return {
@@ -66,13 +67,14 @@ export async function updatePromptMetadata(
 ): Promise<void> {
   if (lastPrompt === undefined) return;
 
+  const storedPrompt = truncateLastPrompt(lastPrompt);
   const title = needUpdateEasyTitle(session.metadata)
-    ? titleFromPromptMetadataText(lastPrompt)
+    ? titleFromPromptMetadataText(storedPrompt)
     : undefined;
   const now = new Date().toISOString();
   const nextMetadata = {
     ...session.metadata,
-    lastPrompt,
+    lastPrompt: storedPrompt,
     updatedAt: now,
   };
   if (title !== undefined) {
@@ -89,7 +91,7 @@ export async function updatePromptMetadata(
     patch: {
       title,
       isCustomTitle: title === undefined ? undefined : false,
-      lastPrompt,
+      lastPrompt: storedPrompt,
     },
   });
 }
