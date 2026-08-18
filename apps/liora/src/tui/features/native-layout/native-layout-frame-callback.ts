@@ -85,6 +85,9 @@ export function createTUIStateNativeRenderCallback(
     // Publish the transport classification so appearance effect resolution can
     // clamp decorative modes on unstable transports (classic ConPTY).
     setAppearanceTransportStability(runtime.transportStability);
+    // Background Conductor/Mission Control work reads the shared clock, so it
+    // must keep advancing even when the main turn is idle on a calm transport.
+    const backgroundWork = options.hasBackgroundWork?.() === true;
     // On unstable transports (classic ConPTY) an idle full-rate clock turns
     // every ambient tick into a visible repaint; snap the clock onto the calm
     // quantum grid so idle frames stay byte-identical and write nothing.
@@ -94,9 +97,7 @@ export function createTUIStateNativeRenderCallback(
       liveGoal: isLiveGoalChromeActive(state.appState.goal),
       fullscreenTakeover: isNativeFullscreenTakeover(state),
       streamRevealArmed: isStreamRevealArmed(),
-      // Background Conductor/Mission Control work reads the shared clock, so it
-      // must keep advancing even when the main turn is idle on a calm transport.
-      backgroundWork: options.hasBackgroundWork?.() === true,
+      backgroundWork,
     };
     const shapedClockMs = shapeAmbientFrameClockMs(
       frame.timestamp,
@@ -189,17 +190,22 @@ export function createTUIStateNativeRenderCallback(
     // included.
     state.cachedStageBand = stageProbe.stage;
     // Chrome is static only when nothing time-varying paints there: no live
-    // agent work, no live goal badge, and no ambient motion (header particle
-    // divider / spectacular brand). When ambient is on, animation frames must
-    // rebuild chrome — reusing the cache freezes the particle rail while the
-    // idle aquarium keeps moving. chromeEpoch still invalidates on activity /
-    // live-goal transitions so stale chrome is never reused across modes.
+    // agent work, no live goal badge, no background Conductor/Mission Control
+    // work, and no ambient motion (header particle divider / spectacular
+    // brand). When ambient is on, animation frames must rebuild chrome —
+    // reusing the cache freezes the particle rail while the idle aquarium
+    // keeps moving. Background work counts as live even when the main turn is
+    // idle: the mission dock reads the shared clock for worker elapsed labels
+    // and linger expiry, so reusing cached chrome would freeze them. chromeEpoch
+    // still invalidates on activity / live-goal transitions so stale chrome is
+    // never reused across modes.
     const liveGoal = isLiveGoalChromeActive(state.appState.goal);
     const appearance = state.appState.appearance ?? getActiveAppearancePreferences();
     const chromeStatic =
       state.appState.streamingPhase === 'idle' &&
       !state.appState.thinking &&
       !liveGoal &&
+      !backgroundWork &&
       !ambientAnimationActive(appearance);
     const chromeEpoch = tuiChromeEpoch({
       streamingPhase: state.appState.streamingPhase,

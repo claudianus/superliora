@@ -11,7 +11,10 @@ import {
   type RendererRect,
 } from '#/tui/renderer';
 import { currentTheme } from '#/tui/theme';
-import { setAppearanceRenderHealth } from '#/tui/features/appearance/appearance-effects';
+import {
+  setAppearanceRenderHealth,
+  setAppearanceTransportStability,
+} from '#/tui/features/appearance/appearance-effects';
 
 import type { TUIState } from '../../tui-state';
 import {
@@ -154,6 +157,10 @@ export function createTUIStateNativeRenderer(
       options.onFrame?.(result, stats);
     },
   });
+  // Streaming flush/reveal read this signal before the first frame runs; seed
+  // it from the renderer's initial classification so early output is paced for
+  // the real transport. The render callback re-syncs it every frame.
+  setAppearanceTransportStability(nativeRenderer.transportStability);
   state.toast.onChanged = () => {
     nativeRenderer.requestRender('manual');
   };

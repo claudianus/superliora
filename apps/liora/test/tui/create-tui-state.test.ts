@@ -57,8 +57,10 @@ import {
   appearanceAnimationNow,
   getAppearanceRenderHealth,
   getAppearanceRenderQuality,
+  getAppearanceTransportStability,
   setAppearanceRenderHealth,
   setAppearanceRenderQuality,
+  setAppearanceTransportStability,
 } from '#/tui/features/appearance/appearance-effects';
 
 const ANSI_SGR = /\u001B\[[0-9;]*m/g;
@@ -2289,6 +2291,104 @@ describe('createTUIState', () => {
     expect(policy.clear).toBe(false);
 
     renderer.stop();
+  });
+
+  it('rebuilds mission chrome on animation ticks while background work runs on unstable transports', () => {
+    // Regression: on unstable transports (classic ConPTY) ambient motion is
+    // clamped off, which made `chromeStatic` true and let animation frames reuse
+    // cached chrome. The mission dock reads the shared clock for worker elapsed
+    // labels and linger expiry, so a reused cache froze them even though the
+    // clock kept advancing. Background work must force a chrome rebuild.
+    // Drive the real createTUIStateNativeRenderCallback path so the chromeStatic
+    // gate (not a mocked policy) decides reuse.
+    process.env['TUI_RENDERER_TRANSPORT_STABILITY'] = 'unstable';
+    const width = 24;
+    const height = 10;
+    const state = createTUIState({
+      initialAppState: fakeInitialAppState(),
+      startup: {
+        continueLast: false,
+        yolo: false,
+        auto: false,
+        plan: false,
+      },
+    });
+    Object.defineProperty(state.terminal, 'rows', { configurable: true, get: () => height });
+    Object.defineProperty(state.terminal, 'columns', { configurable: true, get: () => width });
+    state.transcriptContainer.addChild(fixedLines(['row']));
+    state.editorContainer.addChild(fixedLines(['ed']));
+    state.footerContainer.addChild(fixedLines(['ft']));
+
+    let backgroundWork = false;
+    const missionRender = vi.spyOn(state.missionControlContainer, 'render');
+    try {
+      const output = new FakeNativeOutput(width, height);
+      const scheduler = new FakeRenderLoopScheduler();
+      const renderer = createTUIStateNativeRenderer(state, {
+        output,
+        scheduler,
+        renderOnStart: true,
+        hasBackgroundWork: () => backgroundWork,
+      });
+
+      renderer.start();
+      scheduler.advance(0);
+      // Start frame builds and caches chrome.
+      const afterStart = missionRender.mock.calls.length;
+      expect(afterStart).toBeGreaterThan(0);
+
+      // Idle animation tick with no background work: chrome is static, so the
+      // cached band is reused and the mission container is not re-rendered.
+      // Unstable transport paces non-interactive frames to an 80ms floor.
+      renderer.requestRender('animation');
+      scheduler.advance(120);
+      const afterIdleTick = missionRender.mock.calls.length;
+      expect(afterIdleTick).toBe(afterStart);
+
+      // Background Conductor/Mission Control work: chrome must rebuild so the
+      // worker elapsed labels repaint instead of freezing on the cached band.
+      backgroundWork = true;
+      renderer.requestRender('animation');
+      scheduler.advance(120);
+      expect(missionRender.mock.calls.length).toBeGreaterThan(afterIdleTick);
+
+      renderer.stop();
+    } finally {
+      setAppearanceTransportStability('synchronized');
+    }
+  });
+
+  it('seeds appearance transport stability from the renderer before the first frame', () => {
+    // Regression: the appearance transport signal defaulted to 'synchronized' and
+    // only synced after the first frame, so on unstable transports (classic
+    // ConPTY) streaming flush/reveal ran at the optimistic 16ms cadence during
+    // the startup window. Construction must seed it from the renderer's initial
+    // classification before any frame runs.
+    process.env['TUI_RENDERER_TRANSPORT_STABILITY'] = 'unstable';
+    setAppearanceTransportStability('synchronized');
+    try {
+      const state = createTUIState({
+        initialAppState: fakeInitialAppState(),
+        startup: {
+          continueLast: false,
+          yolo: false,
+          auto: false,
+          plan: false,
+        },
+      });
+      const output = new FakeNativeOutput(24, 10);
+      const scheduler = new FakeRenderLoopScheduler();
+      createTUIStateNativeRenderer(state, {
+        output,
+        scheduler,
+        renderOnStart: false,
+      });
+      // No renderer.start() and no scheduler.advance(): no frame has run, yet the
+      // signal must already reflect the unstable classification.
+      expect(getAppearanceTransportStability()).toBe('unstable');
+    } finally {
+      setAppearanceTransportStability('synchronized');
+    }
   });
 
   it('projects multi-page transcript scroll to visible window offsets only', () => {
