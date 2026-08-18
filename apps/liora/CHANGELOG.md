@@ -1,5 +1,13 @@
 # @superliora/liora
 
+## 0.12.4
+
+### Patch Changes
+
+- Stop heavy TUI flickering on Windows while the agent is streaming or working: pace frame updates on terminals that cannot repaint atomically, batch streaming text instead of redrawing on every chunk, and snap the type-on reveal into place instead of animating it.
+- Fix TUI startup flicker and the provider picker opening on a black screen on Windows: palette colors are no longer re-sent on every splash frame, and the screen repaints fully after the splash ends or the terminal resizes.
+- `liora upgrade` now auto-installs updates for GitHub checkout installs on Windows. The updater locates Git for Windows' bash.exe (never the System32 WSL launcher), runs the checkout update script through it, and passes the running Node directory on PATH so the script can rebuild. When Git Bash is not installed, the manual update command is still shown.
+
 ## 0.12.3
 
 ### Patch Changes
