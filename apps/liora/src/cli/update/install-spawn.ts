@@ -1,4 +1,5 @@
 import type { SpawnOptions } from 'node:child_process';
+import { dirname } from 'node:path';
 
 import {
   NATIVE_INSTALL_COMMAND_UNIX,
@@ -10,12 +11,15 @@ import {
 
 import { gitCheckoutUpdateCommand, gitCheckoutUpdateScript } from './git-checkout';
 import { NPM_PACKAGE_NAME, type InstallSource } from './types';
+import { findWindowsGitBash } from './windows-git-bash';
 
 export interface InstallSpawnOptions {
   /** Skip releases; install tip of `main` from source. */
   readonly fromMain?: boolean;
   /** Explicit git checkout root (defaults to host package's SuperLiora repo). */
   readonly checkoutRoot?: string;
+  /** Test seam: locate Git for Windows' bash.exe. */
+  readonly findWindowsBash?: () => string | null;
 }
 
 function withCmdSuffix(base: string, platform: NodeJS.Platform): string {
@@ -75,7 +79,11 @@ export function installCommandFor(
   }
 }
 
-export function canAutoInstall(source: InstallSource, platform: NodeJS.Platform): boolean {
+export function canAutoInstall(
+  source: InstallSource,
+  platform: NodeJS.Platform,
+  options: Pick<InstallSpawnOptions, 'findWindowsBash'> = {},
+): boolean {
   switch (source) {
     case 'npm-global':
     case 'pnpm-global':
@@ -86,8 +94,12 @@ export function canAutoInstall(source: InstallSource, platform: NodeJS.Platform)
       // No brew formula; manual reinstall via install script.
       return false;
     case 'github-checkout':
-      // In-place git checkout update script is POSIX bash today.
-      return platform !== 'win32';
+      // The in-place update script is bash. On Windows it runs under Git for
+      // Windows' bash.exe (the script already handles USERPROFILE/pnpm.exe),
+      // so auto-install is gated on locating it — PATH `bash` is the System32
+      // WSL launcher and must never run this script.
+      if (platform !== 'win32') return true;
+      return (options.findWindowsBash ?? findWindowsGitBash)() !== null;
     case 'native':
       // install.sh / install.ps1 both bootstrap Node and run the orchestrator.
       return true;
@@ -119,17 +131,24 @@ export function spawnForSource(
       return { cmd: bunCommand(platform), args: ['add', '-g', `${NPM_PACKAGE_NAME}@${version}`] };
     case 'homebrew':
       throw new Error('homebrew installs cannot be auto-installed; reinstall via install.sh');
-    case 'github-checkout':
-      return {
-        cmd: 'bash',
-        args: [
-          '-lc',
-          gitCheckoutUpdateScript(
-            options.checkoutRoot,
-            fromMain ? { preferredUpstream: 'origin/main' } : {},
-          ),
-        ],
-      };
+    case 'github-checkout': {
+      const script = gitCheckoutUpdateScript(
+        options.checkoutRoot,
+        fromMain ? { preferredUpstream: 'origin/main' } : {},
+      );
+      if (platform === 'win32') {
+        const gitBash = (options.findWindowsBash ?? findWindowsGitBash)();
+        if (gitBash === null) {
+          // PATH `bash` on Windows is the System32 WSL launcher — running the
+          // script there would operate on a Linux distro's filesystem.
+          throw new Error(
+            'Git for Windows bash.exe not found; install Git for Windows or run the manual update command',
+          );
+        }
+        return { cmd: gitBash, args: ['-lc', script] };
+      }
+      return { cmd: 'bash', args: ['-lc', script] };
+    }
     case 'native':
       if (platform === 'win32') {
         // Surface irm failures instead of treating an empty pipeline as success.
@@ -181,6 +200,18 @@ export function spawnOptionsForSource(
     case 'pnpm-global':
     case 'yarn-global':
       return { ...extra, shell: true };
+    case 'github-checkout': {
+      // Source installs launch liora through a .cmd wrapper with an embedded
+      // node fallback — node is typically *not* on the user's PATH. The update
+      // script runs `node scripts/…` inside Git Bash, so hand the child the
+      // running node's directory.
+      const baseEnv = extra.env ?? process.env;
+      const pathKey = Object.keys(baseEnv).find((key) => key.toUpperCase() === 'PATH') ?? 'PATH';
+      const currentPath = baseEnv[pathKey] ?? '';
+      const nodeDir = dirname(process.execPath);
+      const mergedPath = currentPath.length > 0 ? `${nodeDir};${currentPath}` : nodeDir;
+      return { ...extra, env: { ...baseEnv, [pathKey]: mergedPath } };
+    }
     default:
       return extra;
   }

@@ -1,6 +1,7 @@
 import type * as ChildProcess from 'node:child_process';
 import { spawnSync } from 'node:child_process';
 import { EventEmitter } from 'node:events';
+import { dirname } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -46,7 +47,12 @@ const mocks = vi.hoisted(() => ({
   refreshUpdateCache: vi.fn(),
   resolveUpdateDeviceId: vi.fn(),
   appendRolloutDecisionLog: vi.fn(),
+  findWindowsGitBash: vi.fn(),
   spawn: vi.fn(),
+}));
+
+vi.mock('../../../src/cli/update/windows-git-bash', () => ({
+  findWindowsGitBash: mocks.findWindowsGitBash,
 }));
 
 vi.mock('../../../src/cli/update/cache', () => ({
@@ -291,6 +297,9 @@ describe('runUpdatePreflight', () => {
     mocks.detectInstallSource.mockResolvedValue('npm-global');
     mocks.detectSuperLioraGithubCheckout.mockResolvedValue(null);
     mocks.refreshGitCheckoutUpdateTarget.mockResolvedValue(null);
+    // Deterministic regardless of the host: pretend Git Bash is absent unless a
+    // test opts in. Otherwise win32 checkout tests flip based on the dev machine.
+    mocks.findWindowsGitBash.mockReturnValue(null);
     mocks.tryAcquireUpdateInstallLock.mockResolvedValue({
       filePath: '/tmp/kimi-update-install.lock',
       release: vi.fn().mockResolvedValue(undefined),
@@ -720,7 +729,7 @@ describe('runUpdatePreflight', () => {
     expect(stdout.join('')).toContain('Updated SuperLiora from GitHub');
   });
 
-  it('github-checkout: prints the manual update command on win32', async () => {
+  it('github-checkout: prints the manual update command on win32 without Git Bash', async () => {
     mocks.detectSuperLioraGithubCheckout.mockResolvedValue('/repo/superliora');
     mocks.detectInstallSource.mockResolvedValue('github-checkout');
     mocks.refreshGitCheckoutUpdateTarget.mockResolvedValue({
@@ -741,6 +750,40 @@ describe('runUpdatePreflight', () => {
         }),
       }));
       expect(mocks.spawn).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform });
+    }
+  });
+
+  it('github-checkout: installs through Git Bash on win32 when it is found', async () => {
+    const gitBash = 'C:\\Program Files\\Git\\bin\\bash.exe';
+    mocks.findWindowsGitBash.mockReturnValue(gitBash);
+    disableAutoInstall();
+    mocks.detectSuperLioraGithubCheckout.mockResolvedValue('/repo/superliora');
+    mocks.detectInstallSource.mockResolvedValue('github-checkout');
+    mocks.refreshGitCheckoutUpdateTarget.mockResolvedValue({
+      status: 'update',
+      dirty: false,
+      target: { version: 'origin/main@abcdef123456', repoRoot: '/repo/superliora', upstream: 'origin/main' },
+    });
+    mocks.promptForInstallChoice.mockResolvedValue('install');
+    mockSpawnExit(0);
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, 'platform', { value: 'win32' });
+    try {
+      const { stdout, options } = captureOutput();
+
+      await expect(runUpdatePreflight('0.4.0', options)).resolves.toBe('exit');
+
+      expect(mocks.spawn).toHaveBeenCalledWith(
+        gitBash,
+        ['-lc', expect.stringContaining('git -C')],
+        expect.objectContaining({ stdio: 'inherit' }),
+      );
+      const spawnEnv = (mocks.spawn.mock.calls[0]?.[2] as { env?: Record<string, string> }).env;
+      const pathKey = Object.keys(spawnEnv ?? {}).find((key) => key.toUpperCase() === 'PATH') ?? 'PATH';
+      expect(spawnEnv?.[pathKey]).toContain(dirname(process.execPath));
+      expect(stdout.join('')).toContain('Updated SuperLiora from GitHub');
     } finally {
       Object.defineProperty(process, 'platform', { value: originalPlatform });
     }

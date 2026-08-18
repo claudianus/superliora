@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { dirname } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
@@ -40,7 +41,16 @@ describe('canAutoInstall', () => {
 
   it('allows native auto-install on Windows via install.ps1', () => {
     expect(canAutoInstall('native', 'win32')).toBe(true);
-    expect(canAutoInstall('github-checkout', 'win32')).toBe(false);
+  });
+
+  it('gates github-checkout on Windows on Git Bash availability', () => {
+    // System32's WSL `bash` must never count — only Git for Windows' bash.exe.
+    expect(canAutoInstall('github-checkout', 'win32', { findWindowsBash: () => null })).toBe(false);
+    expect(
+      canAutoInstall('github-checkout', 'win32', {
+        findWindowsBash: () => 'C:\\Program Files\\Git\\bin\\bash.exe',
+      }),
+    ).toBe(true);
   });
 
   it('allows native and github-checkout on Unix', () => {
@@ -124,6 +134,25 @@ describe('github-checkout update commands', () => {
     expect(args[1]).toContain('retrieval:bootstrap');
     expect(args[1]).toContain('scripts/install-liora.mjs');
   });
+
+  it('spawns Git for Windows bash.exe on win32, never PATH bash', () => {
+    const gitBash = 'C:\\Program Files\\Git\\bin\\bash.exe';
+    const { cmd, args } = spawnForSource('github-checkout', 'origin/main@abcdef123456', 'win32', {
+      findWindowsBash: () => gitBash,
+    });
+
+    expect(cmd).toBe(gitBash);
+    expect(args[0]).toBe('-lc');
+    expect(args[1]).toContain('fetch --depth 1 origin');
+  });
+
+  it('refuses to spawn on win32 when Git Bash is missing', () => {
+    expect(() =>
+      spawnForSource('github-checkout', 'origin/main@abcdef123456', 'win32', {
+        findWindowsBash: () => null,
+      }),
+    ).toThrow('Git for Windows');
+  });
 });
 
 describe('fromMain native install', () => {
@@ -172,10 +201,28 @@ describe('spawnOptionsForSource', () => {
     expect(spawnOptionsForSource('bun-global', 'win32', { stdio: 'inherit' })).toEqual({
       stdio: 'inherit',
     });
-    expect(spawnOptionsForSource('github-checkout', 'win32', { stdio: 'inherit' })).toEqual({
+    expect(spawnOptionsForSource('npm-global', 'darwin', { stdio: 'inherit' })).toEqual({
       stdio: 'inherit',
     });
-    expect(spawnOptionsForSource('npm-global', 'darwin', { stdio: 'inherit' })).toEqual({
+  });
+
+  it('hands the github-checkout Git Bash child the running node on PATH', () => {
+    // Source installs launch via a .cmd wrapper with an embedded node fallback;
+    // node is usually absent from the user PATH the bash child inherits.
+    const options = spawnOptionsForSource('github-checkout', 'win32', {
+      stdio: 'inherit',
+      env: { Path: 'C:\\Windows\\System32' },
+    });
+
+    expect(options.shell).toBeUndefined();
+    const pathValue = options.env?.['Path'] ?? '';
+    const nodeDir = dirname(process.execPath);
+    expect(pathValue.startsWith(`${nodeDir};`)).toBe(true);
+    expect(pathValue).toContain('C:\\Windows\\System32');
+  });
+
+  it('keeps github-checkout spawn options untouched off Windows', () => {
+    expect(spawnOptionsForSource('github-checkout', 'linux', { stdio: 'inherit' })).toEqual({
       stdio: 'inherit',
     });
   });
