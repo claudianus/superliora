@@ -1,5 +1,13 @@
 # @superliora/liora
 
+## 0.12.5
+
+### Patch Changes
+
+- Stop the footer from saying a session is replaying during file scans, shorten Windows cwd paths, restore typed prompts when send is rejected, and tell the operator why Command Hub stays closed over `/files`.
+- Keep hidden diagnostic dumps off by default. `--debug` writes a thinner set under ~/.superliora/logs: info-level session logs, no per-frame hang files, no duplicate start breadcrumbs.
+- Keep session files in a tighter layout. New sessions write the index under sessions/, TUI draft/goals/prefs live in ui/, metadata writes are crash-safe, agent folders stay relative, and the session index stays compact. Existing sessions still open.
+
 ## 0.12.4
 
 ### Patch Changes
