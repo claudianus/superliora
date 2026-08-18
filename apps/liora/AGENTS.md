@@ -44,7 +44,7 @@ User-facing features that operators need during an interactive session must be r
 
 - **Default:** new operator workflows land in `src/tui/commands/` + dialogs under `src/tui/components/dialogs/`, reusing pure helpers shared with CLI when both exist. **Do not add new public argv subcommands for day-to-day ops** (Conductor jobs, settings, swarm/fleet UX) — those stay TUI slash / Command Hub.
 - **Public argv keep-list** (add to this list when introducing a new CLI-only exception; snapshot-locked in `test/cli/public-commands.test.ts`):
-  - main: `liora` (+ `-p`, session/permission/profile/worktree flags)
+  - main: `liora` (+ `-p`, session/permission/profile/worktree/`--debug` flags)
   - auth / install: `login`, `upgrade` / `update`
   - scripting / CI: `provider …`, `doctor`, `export`
   - IDE / daemon / runtimes: `acp`, `server` (`run`/`ps`/`kill`/`rotate-token` only), `browser-use`, `computer-use`
@@ -81,3 +81,4 @@ The **Command Hub** (`Ctrl-K` / `Ctrl-Space` / `?` / `/help`) is the single sear
 - Prefer flat code over one-line wrappers; pure helpers stay off the `LioraTUI` class.
 - Behavior changes to transcript, render, keys, or the bundled CLI need a focused test or `pnpm -C apps/liora run build && pnpm -C apps/liora run smoke` — not inspection alone.
 - Run TUI tests through `node scripts/test-local.mjs apps/liora/test/<path>` (root `AGENTS.md` → "Local test gate"). Motion is forced off under `NO_COLOR`/`TERM=dumb`/`CI`, so a bare local `vitest` exercises a different render path than CI: a test that asserts cached line identity or plain substrings must pin `profile: 'off'` itself instead of inheriting your shell.
+- Daily diagnostic logs: `liora --debug` (root `AGENTS.md` → "Local interactive debug"). Source checkout: `pnpm -C apps/liora run dev -- --debug`. Logs go to `~/.superliora/logs/`. Default (no flag) stays light.

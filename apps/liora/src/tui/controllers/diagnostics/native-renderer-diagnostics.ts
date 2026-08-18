@@ -3,6 +3,7 @@ import { join, relative, resolve, sep } from 'node:path';
 
 import type { LioraHarness } from '@superliora/sdk';
 
+import { getLogDir } from '#/utils/paths';
 import type { ColorToken } from '../../theme';
 import type { TUIState } from '../../tui-state';
 import { requestTUILayoutRender } from '../../utils/render/frame-render';
@@ -22,6 +23,29 @@ function truthyEnv(value: string | undefined): boolean {
 
 export function nativeRendererDiagnosticsOverlayEnabled(): boolean {
   return truthyEnv(process.env['SUPERLIORA_NATIVE_RENDERER_DIAGNOSTICS']);
+}
+
+export function resolveNativeRendererTraceExportPath(input: {
+  readonly workDir: string;
+  readonly path?: string;
+  readonly logDir?: string;
+  readonly now?: number;
+}): { readonly ok: true; readonly outputPath: string } | { readonly ok: false } {
+  if (input.path === undefined || input.path.length === 0) {
+    return {
+      ok: true,
+      outputPath: join(
+        input.logDir ?? getLogDir(),
+        `renderer-trace-${String(input.now ?? Date.now())}.json`,
+      ),
+    };
+  }
+  const outputPath = resolve(input.workDir, input.path);
+  const rel = relative(input.workDir, outputPath);
+  if (rel === '' || rel.startsWith('..') || rel.includes(`..${sep}`)) {
+    return { ok: false };
+  }
+  return { ok: true, outputPath };
 }
 
 /** Host surface required by native-renderer diagnostics / trace controls. */
@@ -134,20 +158,19 @@ export class NativeRendererDiagnosticsController {
     const { host } = this;
     const renderer = this.nativeRendererTraceRuntime();
     if (renderer === undefined) return undefined;
-    const workDir = host.state.appState.workDir;
-    const outputPath = path === undefined
-      ? join(workDir, `renderer-trace-${String(Date.now())}.json`)
-      : resolve(workDir, path);
-    const rel = relative(workDir, outputPath);
-    if (rel === '' || rel.startsWith('..') || rel.includes(`..${sep}`)) {
+    const resolved = resolveNativeRendererTraceExportPath({
+      workDir: host.state.appState.workDir,
+      path,
+    });
+    if (!resolved.ok) {
       host.showStatus(ttui('tui.native.tracePathOutside'), 'error');
       return undefined;
     }
     writeFileSync(
-      outputPath,
+      resolved.outputPath,
       `${JSON.stringify(renderer.exportTrace({ processName: 'SuperLiora TUI' }), null, 2)}\n`,
     );
-    return outputPath;
+    return resolved.outputPath;
   }
 
   private nativeRendererTraceRuntime() {

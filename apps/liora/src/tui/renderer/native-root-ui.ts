@@ -21,6 +21,7 @@ import {
 } from '@harness-kit/tui-renderer';
 // Import state module directly — avoid the appearance-effects barrel (particles
 // import `#/tui/renderer` and would cycle through this facade).
+import { isDebugSession } from '#/utils/debug-session';
 import { setAppearanceRenderHealth } from '../features/appearance/appearance-state';
 import { noteFocusFeedback } from '../utils/render/feedback-vfx';
 export interface LioraNativeRootUIOptions
@@ -91,6 +92,8 @@ export class LioraNativeRootUI<TComponent extends Component = Component>
       // ambient freezes; health feeds appearance soft-degrade via onFrame.
       adaptiveQuality: options.adaptiveQuality ?? true,
       outputPolicy: options.outputPolicy ?? premiumDefaults.outputPolicy,
+      // Per-frame cause copies + a 1000-event ring are analysis-only.
+      trace: options.trace ?? isDebugSession(),
       onInput: (data) => {
         this.handleRawInput(data.toString('utf8'));
       },

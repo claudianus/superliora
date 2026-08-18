@@ -24,7 +24,7 @@ export class LlmRequestLogger {
 
   /**
    * Log request start and return a requestId used for lifecycle follow-ups
-   * (`llm open`, `llm first_token`, `llm response`, `llm request failed`).
+   * (`llm first_token`, `llm response`, `llm request failed`).
    */
   logRequest(input: {
     readonly provider: ChatProvider;
@@ -82,10 +82,6 @@ export class LlmRequestLogger {
     this.lastToolsRef = tools;
     this.lastToolsSigJson = json;
     return json;
-  }
-
-  logOpen(requestId: string, fields?: LLMRequestLogFields): void {
-    this.log.info('llm open', { requestId, ...fields, phase: 'stream_open' });
   }
 
   logFirstToken(requestId: string, fields: LLMRequestLogFields & { readonly ttftMs: number }): void {

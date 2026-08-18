@@ -16,7 +16,10 @@ import { isStreamRevealArmed, tickArmedStreamReveal } from '../../controllers/st
 import { shapeAmbientFrameClockMs } from '../appearance/ambient-calm';
 import { resolveStageLayout } from '../../controllers/layout/stage-layout';
 import type { TUIState } from '../../tui-state';
-import { recordScrollHangSample } from '../../utils/render/scroll-hang-probe';
+import {
+  recordScrollHangSample,
+  scrollHangSamplingEnabled,
+} from '../../utils/render/scroll-hang-probe';
 import { isTranscriptScrollSettleArmed } from '../../utils/render/scroll-settle-refresh';
 import { deferredTranscriptFormatQueueSize } from '../../utils/transcript/deferred-format-queue';
 import {
@@ -340,13 +343,13 @@ export function createTUIStateNativeRenderCallback(
       },
     });
     // Host-path scroll hang probe: sample after paint so child paint / storm
-    // flags reflect this frame. Always sample scroll causes; also sample when
-    // settle is armed so progressive content frames are visible in the ring.
+    // flags reflect this frame. Off for installed users — debug-local / TRACE
+    // turns it back on.
     const scrollRelated =
       pureScrollFrame ||
       frame.causes.includes('transcript-scroll') ||
       isTranscriptScrollSettleArmed();
-    if (scrollRelated) {
+    if (scrollRelated && scrollHangSamplingEnabled()) {
       const container = state.transcriptContainer;
       recordScrollHangSample({
         causes: frame.causes,
@@ -358,7 +361,6 @@ export function createTUIStateNativeRenderCallback(
         deferredQueueSize: deferredTranscriptFormatQueueSize(),
         settleArmed: isTranscriptScrollSettleArmed(),
         streamingPhase: String(state.appState.streamingPhase ?? 'idle'),
-        workDir: state.appState.workDir,
       });
     }
     return result;

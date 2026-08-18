@@ -87,3 +87,4 @@ Apply / switch flow:
 - Run lint / format / test on the files you changed.
 - For any dialog/selector/input/toggle list, walk the self-check list at the end of [PREMIUM.md](../../../apps/liora/src/tui/PREMIUM.md).
 - Keep `printableChar()` for printable-key comparisons (CI guard) and `chalk.hex(colors.<token>)` for color (CI guard).
+- Visual/layout/motion bugs: reproduce with `liora --debug` (or source `pnpm -C apps/liora run dev -- --debug`) and read `~/.superliora/logs/` before guessing. Do not use `test-local` to judge motion — that runner kills it. Unreleased checkout changes are not in installed `liora.exe`.

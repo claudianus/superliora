@@ -167,7 +167,7 @@ export function buildPremiumSettingsLines(glance: PremiumVisualGlance): readonly
     '── Renderer diagnostics ─────────────────────',
     '  SUPERLIORA_NATIVE_RENDERER_DIAGNOSTICS=1   overlay HUD (+ scroll counters)',
     '  SUPERLIORA_TUI_SCROLL_TRACE=1              dump scroll-hang-*.json on wheel hangs',
-    '  Repro: enable both, scroll transcript up/down until freeze → check workDir dump',
+    '  Repro: enable both, scroll transcript up/down until freeze → check ~/.superliora/logs',
     '',
     '── Motion rules (PREMIUM.md §7) ─────────────',
     '· Single animation clock — no raw setInterval in components',

@@ -5,6 +5,8 @@
  * outer update preflight, then delegates to the requested UI runner.
  */
 
+import { dirname } from 'node:path';
+
 import {
   createLioraHarness,
   flushDiagnosticLogs,
@@ -28,6 +30,7 @@ import { loadTuiConfig, TuiConfigParseError } from './tui/config';
 import { finalizeHeadlessRun } from './cli/headless-exit';
 import type { CLIOptions } from './cli/options';
 import { OptionConflictError, validateOptions } from './cli/options';
+import { applyDebugCliFlag, resolveDebugLogPath } from './utils/debug-session';
 import { runPrompt } from './cli/run-prompt';
 import { runShell } from './cli/run-shell';
 import { formatStartupError } from './cli/startup-error';
@@ -71,6 +74,14 @@ export async function handleMainCommand(
       process.exit(1);
     }
     throw error;
+  }
+
+  if (validated.options.debug === true) {
+    applyDebugCliFlag();
+    const debugLog = resolveDebugLogPath();
+    if (debugLog !== undefined) {
+      process.stderr.write(tln('cli.runtime.debug.logsDir', { dir: dirname(debugLog) }));
+    }
   }
 
   if (validated.uiMode !== 'print') {

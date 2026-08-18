@@ -26,6 +26,7 @@ export const STRINGS_RUNTIME_CORE_EN: Readonly<Record<string, string>> = {
   // main / startup
   'cli.runtime.main.errorPrefix': 'error: {message}',
   'cli.runtime.main.seeLog': 'See log: {path}',
+  'cli.runtime.debug.logsDir': 'debug: writing logs to {dir}',
   'cli.runtime.startup.failedOperation': 'error: failed to {operation}: {message}',
   'cli.runtime.startup.errorTitle': 'error: {title}',
   'cli.runtime.startup.messageLabel': 'message:',
@@ -264,6 +265,7 @@ export const STRINGS_RUNTIME_CORE_KO: Readonly<Record<string, string>> = {
 
   'cli.runtime.main.errorPrefix': '오류: {message}',
   'cli.runtime.main.seeLog': '로그: {path}',
+  'cli.runtime.debug.logsDir': 'debug: 로그를 {dir}에 기록합니다',
   'cli.runtime.startup.failedOperation': '오류: {operation} 실패: {message}',
   'cli.runtime.startup.errorTitle': '오류: {title}',
   'cli.runtime.startup.messageLabel': '메시지:',

@@ -6,10 +6,12 @@
  * This ring buffer + dump surface is the evidence path for those hangs.
  */
 
-import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
 import { wasRecentTranscriptScroll } from '#/tui/utils/render/transcript-paint-mode';
+import { isDebugSession } from '#/utils/debug-session';
+import { getLogDir } from '#/utils/paths';
 
 /** Callback wall time that counts as a hang-class frame. */
 export const SCROLL_HANG_CALLBACK_MS = 80;
@@ -57,7 +59,6 @@ export interface NoteScrollHangSampleInput {
   /** Override hold probe (tests). Default: real wasRecentTranscriptScroll. */
   readonly scrollHold?: boolean;
   readonly t?: number;
-  readonly workDir?: string;
 }
 
 let ring: ScrollHangSample[] = [];
@@ -65,6 +66,7 @@ let lastSample: ScrollHangSample | undefined;
 let lastDump: ScrollHangDump | undefined;
 let sink: ((dump: ScrollHangDump) => void) | undefined;
 let forceTrace: boolean | undefined;
+let forceSample: boolean | undefined;
 
 function paintClockNowMs(): number {
   return typeof performance !== 'undefined' && typeof performance.now === 'function'
@@ -78,10 +80,21 @@ function truthyEnv(value: string | undefined): boolean {
   return normalized === '1' || normalized === 'true' || normalized === 'on' || normalized === 'yes';
 }
 
-/** Live: SUPERLIORA_TUI_SCROLL_TRACE=1 dumps hang frames to stderr + workDir JSON. */
+/** Live: SUPERLIORA_TUI_SCROLL_TRACE=1 dumps hang frames to stderr + logs JSON. */
 export function scrollHangTraceEnabled(): boolean {
   if (forceTrace !== undefined) return forceTrace;
   return truthyEnv(process.env['SUPERLIORA_TUI_SCROLL_TRACE']);
+}
+
+/** Host-frame sampling. Off for installed users unless TRACE or SUPERLIORA_DEBUG. */
+export function scrollHangSamplingEnabled(): boolean {
+  if (forceSample !== undefined) return forceSample;
+  return scrollHangTraceEnabled() || isDebugSession();
+}
+
+function resolveHangDumpPath(): string | undefined {
+  if (!scrollHangTraceEnabled()) return undefined;
+  return join(getLogDir(), `scroll-hang-${String(Date.now())}.json`);
 }
 
 /** Whether deferred-format / chrome hold should be active right now. */
@@ -114,7 +127,7 @@ export function recordScrollHangSample(input: NoteScrollHangSampleInput): Scroll
 
   const overBudget = sample.renderCbMs >= SCROLL_HANG_CALLBACK_MS;
   if (overBudget || (scrollHangTraceEnabled() && sample.causes.includes('transcript-scroll'))) {
-    emitDump(sample, overBudget ? 'callback-budget' : 'trace', input.workDir);
+    emitDump(sample, overBudget ? 'callback-budget' : 'trace');
   }
   return sample;
 }
@@ -122,16 +135,17 @@ export function recordScrollHangSample(input: NoteScrollHangSampleInput): Scroll
 function emitDump(
   trigger: ScrollHangSample,
   reason: ScrollHangDump['reason'],
-  workDir: string | undefined,
 ): void {
   let writtenPath: string | undefined;
-  if (scrollHangTraceEnabled() && workDir !== undefined && workDir.length > 0) {
-    writtenPath = join(workDir, `scroll-hang-${String(Date.now())}.json`);
+  const dumpPath = resolveHangDumpPath();
+  if (dumpPath !== undefined) {
     try {
+      mkdirSync(dirname(dumpPath), { recursive: true });
       writeFileSync(
-        writtenPath,
+        dumpPath,
         `${JSON.stringify({ reason, trigger, recent: ring }, null, 2)}\n`,
       );
+      writtenPath = dumpPath;
     } catch {
       writtenPath = undefined;
     }
@@ -196,10 +210,15 @@ export function setScrollHangTraceEnabledForTest(enabled: boolean | undefined): 
   forceTrace = enabled;
 }
 
+export function setScrollHangSamplingEnabledForTest(enabled: boolean | undefined): void {
+  forceSample = enabled;
+}
+
 export function resetScrollHangProbeForTest(): void {
   ring = [];
   lastSample = undefined;
   lastDump = undefined;
   sink = undefined;
   forceTrace = undefined;
+  forceSample = undefined;
 }

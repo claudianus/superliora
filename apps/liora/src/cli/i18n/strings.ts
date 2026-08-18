@@ -44,6 +44,8 @@ export const STRINGS_EN: Readonly<Record<string, string>> = {
   'cli.option.noProcessSandbox':
     'Skip process-sandbox wrap (Docker / Job Object). Lexical path guards still apply.',
   'cli.option.plan': 'Start with Mission plan steering.',
+  'cli.option.debug':
+    'Write extra diagnostic logs under ~/.superliora/logs so a later bug report has evidence. Off by default.',
   'cli.option.resumeGoal': 'Automatically resume the first goal in the queue on startup.',
   'cli.option.autonomousGate':
     'Shell command that must pass before a headless goal may complete (e.g. "npm run check"). A failed gate returns its output to the agent and the loop continues.',
@@ -107,6 +109,8 @@ export const STRINGS_KO: Readonly<Record<string, string>> = {
   'cli.option.noProcessSandbox':
     '프로세스 샌드박스 래퍼(Docker / Job Object)를 건너뜁니다. 렉시컬 경로 가드는 그대로입니다.',
   'cli.option.plan': 'Mission 플랜 조향으로 시작합니다.',
+  'cli.option.debug':
+    '~/.superliora/logs에 진단 로그를 남깁니다. 평소에 켜 두면 나중에 버그를 재현·분석할 증거가 남습니다. 기본 꺼짐.',
   'cli.option.resumeGoal': '시작 시 큐의 첫 번째 goal을 자동으로 재개합니다.',
   'cli.option.autonomousGate':
     '헤드리스 goal이 완료되기 전에 통과해야 하는 셸 명령입니다(예: "npm run check"). 실패 시 출력이 에이전트에게 반환되고 루프가 계속됩니다.',

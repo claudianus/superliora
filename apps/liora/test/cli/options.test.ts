@@ -43,6 +43,7 @@ describe('CLI options parsing', () => {
       expect(opts.prompt).toBeUndefined();
       expect(opts.skillsDirs).toEqual([]);
       expect(opts.addDirs).toEqual([]);
+      expect(opts.debug).toBe(false);
     });
   });
 
@@ -135,6 +136,22 @@ describe('CLI options parsing', () => {
       ]);
 
       expect(pluginRunnerCalls).toEqual([{ entry: '/plugin/tool.mjs', args: ['query', '--flag'] }]);
+    });
+  });
+
+  describe('--debug', () => {
+    it('sets debug to true', () => {
+      expect(parse(['--debug']).debug).toBe(true);
+    });
+
+    it('is listed in help', () => {
+      let output = '';
+      const program = createProgram('1.2.3', () => {}, () => {});
+      program.exitOverride();
+      program.configureOutput({ writeOut: (s) => { output += s; } });
+      expect(() => program.parse(['node', 'kimi', '--help'])).toThrow();
+      expect(output).toContain('--debug');
+      expect(output).toContain('~/.superliora/logs');
     });
   });
 
@@ -436,7 +453,6 @@ describe('CLI options parsing', () => {
     it('any removed flag is unknown to Commander', () => {
       for (const arg of [
         '--verbose',
-        '--debug',
         '--work-dir=/',
         '--config=x',
         '--thinking',

@@ -24,6 +24,7 @@ import {
   resetScrollHangProbeForTest,
   scrollHangRingForTest,
   setScrollHangProbeSinkForTest,
+  setScrollHangSamplingEnabledForTest,
   setScrollHangTraceEnabledForTest,
 } from '#/tui/utils/render/scroll-hang-probe';
 import {
@@ -165,6 +166,7 @@ describe('scroll hang host storm', () => {
     setDeferredFormatHoldPredicateForTest(undefined);
     setDeferredFormatSchedulerForTest(undefined);
     setScrollHangTraceEnabledForTest(undefined);
+    setScrollHangSamplingEnabledForTest(true);
     setScrollHangProbeSinkForTest(undefined);
   });
 

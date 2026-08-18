@@ -17,6 +17,8 @@ import {
   selectPassiveUpdateTarget,
 } from '#/cli/update/rollout';
 import type { RolloutBatch, UpdateManifest } from '#/cli/update/types';
+import { SUPERLIORA_DEBUG_ENV, SUPERLIORA_HOME_ENV } from '#/constant/app';
+import { getUpdateRolloutLogFile } from '#/utils/paths';
 
 const STANDARD_ROLLOUT: readonly RolloutBatch[] = [
   { percent: 30, delaySeconds: 0 },
@@ -284,6 +286,44 @@ describe('appendRolloutDecisionLog', () => {
     await expect(
       appendRolloutDecisionLog({ reason: 'held' }, '/dev/null/nope/rollout.log'),
     ).resolves.toBeUndefined();
+  });
+
+  it('skips the default rollout log unless debug is on', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'kimi-rollout-default-'));
+    const previousHome = process.env[SUPERLIORA_HOME_ENV];
+    const previousDebug = process.env[SUPERLIORA_DEBUG_ENV];
+    process.env[SUPERLIORA_HOME_ENV] = home;
+    delete process.env[SUPERLIORA_DEBUG_ENV];
+    try {
+      await appendRolloutDecisionLog({ reason: 'held' });
+      expect(existsSync(getUpdateRolloutLogFile())).toBe(false);
+    } finally {
+      if (previousHome === undefined) delete process.env[SUPERLIORA_HOME_ENV];
+      else process.env[SUPERLIORA_HOME_ENV] = previousHome;
+      if (previousDebug === undefined) delete process.env[SUPERLIORA_DEBUG_ENV];
+      else process.env[SUPERLIORA_DEBUG_ENV] = previousDebug;
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  it('writes the default rollout log when debug is on', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'kimi-rollout-debug-'));
+    const previousHome = process.env[SUPERLIORA_HOME_ENV];
+    const previousDebug = process.env[SUPERLIORA_DEBUG_ENV];
+    process.env[SUPERLIORA_HOME_ENV] = home;
+    process.env[SUPERLIORA_DEBUG_ENV] = '1';
+    try {
+      await appendRolloutDecisionLog({ reason: 'eligible' });
+      const file = getUpdateRolloutLogFile();
+      expect(existsSync(file)).toBe(true);
+      expect(JSON.parse(readFileSync(file, 'utf-8').trim())).toMatchObject({ reason: 'eligible' });
+    } finally {
+      if (previousHome === undefined) delete process.env[SUPERLIORA_HOME_ENV];
+      else process.env[SUPERLIORA_HOME_ENV] = previousHome;
+      if (previousDebug === undefined) delete process.env[SUPERLIORA_DEBUG_ENV];
+      else process.env[SUPERLIORA_DEBUG_ENV] = previousDebug;
+      rmSync(home, { recursive: true, force: true });
+    }
   });
 });
 

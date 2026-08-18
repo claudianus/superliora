@@ -5,6 +5,7 @@ import { dirname } from 'node:path';
 import { readKimiDeviceId } from '@superliora/oauth';
 import { resolveLioraHome } from '@superliora/sdk';
 
+import { isDebugSession } from '#/utils/debug-session';
 import { getUpdateRolloutLogFile } from '#/utils/paths';
 
 import { selectUpdateTarget } from './select';
@@ -163,23 +164,26 @@ const ROLLOUT_LOG_MAX_BYTES = 256 * 1024;
 
 /**
  * Append one JSON line describing a passive update decision to
- * `<dataDir>/updates/rollout.log`. Best-effort diagnostics: any I/O failure
- * is swallowed — logging must never affect update prompting. The file is
- * reset once it grows past a small cap so it cannot grow unbounded.
+ * `<dataDir>/updates/rollout.log`. Off unless `liora --debug` or the caller
+ * passes an explicit path (tests). Best-effort: I/O failure is swallowed —
+ * logging must never affect update prompting. The file is reset once it
+ * grows past a small cap so it cannot grow unbounded.
  */
 export async function appendRolloutDecisionLog(
   entry: Record<string, unknown>,
-  filePath: string = getUpdateRolloutLogFile(),
+  filePath?: string,
 ): Promise<void> {
+  if (filePath === undefined && !isDebugSession()) return;
+  const path = filePath ?? getUpdateRolloutLogFile();
   try {
-    await mkdir(dirname(filePath), { recursive: true });
+    await mkdir(dirname(path), { recursive: true });
     const line = `${JSON.stringify(entry)}\n`;
-    const size = await stat(filePath).then((s) => s.size, () => 0);
+    const size = await stat(path).then((s) => s.size, () => 0);
     if (size > ROLLOUT_LOG_MAX_BYTES) {
-      await writeFile(filePath, line, 'utf-8');
+      await writeFile(path, line, 'utf-8');
       return;
     }
-    await appendFile(filePath, line, 'utf-8');
+    await appendFile(path, line, 'utf-8');
   } catch {
     // Diagnostic logging must never affect the update flow.
   }

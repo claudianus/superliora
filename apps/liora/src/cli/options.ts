@@ -38,6 +38,11 @@ export interface CLIOptions {
   /** Main agent tool profile override (sets SUPERLIORA_PROFILE for this process). */
   profile?: string;
   /**
+   * SuperLiora developer analysis: renderer trace, debug logs, step timing.
+   * Off by default so installed users stay light.
+   */
+  debug?: boolean;
+  /**
    * Create a git worktree for this session (opt-in).
    * - `true`: auto-generated name
    * - `string`: explicit worktree name/slug

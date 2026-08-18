@@ -1,17 +1,27 @@
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
+
+import { isDebugSession } from '#/utils/debug-session';
+import { getLogDir } from '#/utils/paths';
 
 /**
- * Env-gated startup tracer for diagnosing where TUI boot stalls. Set
- * `SUPERLIORA_TUI_STARTUP_TRACE` to a file path; each `startupTrace(step)`
- * appends `[<ms>] <step>`. Diagnostics only — never throws, no-op when unset.
+ * Startup tracer for diagnosing where TUI boot stalls. Writes when
+ * `SUPERLIORA_TUI_STARTUP_TRACE` is a file path, or automatically under
+ * `SUPERLIORA_DEBUG` to `<home>/logs/startup-trace.log`. Never throws.
  */
 let ready = false;
 let startedAt = 0;
 
+function resolveStartupTracePath(): string | undefined {
+  const explicit = process.env['SUPERLIORA_TUI_STARTUP_TRACE'];
+  if (explicit !== undefined && explicit.length > 0) return explicit;
+  if (!isDebugSession()) return undefined;
+  return join(getLogDir(), 'startup-trace.log');
+}
+
 export function startupTrace(step: string): void {
-  const tracePath = process.env['SUPERLIORA_TUI_STARTUP_TRACE'];
-  if (tracePath === undefined || tracePath.length === 0) return;
+  const tracePath = resolveStartupTracePath();
+  if (tracePath === undefined) return;
   try {
     if (!ready) {
       mkdirSync(dirname(tracePath), { recursive: true });
