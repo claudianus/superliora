@@ -21,21 +21,60 @@ export type FooterTranscriptViewportSnapshot = Pick<
   'followOutput' | 'offsetFromBottom'
 >;
 
+function posixPath(value: string): string {
+  let normalized = value.replace(/\\/g, '/');
+  const msys = /^\/([a-zA-Z])(\/|$)/.exec(normalized);
+  const drive = msys?.[1];
+  if (drive !== undefined) {
+    normalized = `${drive.toUpperCase()}:${normalized.slice(2)}`;
+  }
+  if (/^[a-z]:/.test(normalized)) {
+    normalized = `${normalized[0]!.toUpperCase()}${normalized.slice(1)}`;
+  }
+  return normalized;
+}
+
+function homePrefixes(): readonly string[] {
+  const prefixes: string[] = [];
+  for (const raw of [process.env['HOME'], process.env['USERPROFILE']]) {
+    if (!raw) continue;
+    const normalized = posixPath(raw);
+    if (normalized.length > 0 && !prefixes.includes(normalized)) prefixes.push(normalized);
+  }
+  return prefixes;
+}
+
+function pathEquals(left: string, right: string): boolean {
+  if (process.platform === 'win32') return left.toLowerCase() === right.toLowerCase();
+  return left === right;
+}
+
+function pathHasPrefix(path: string, prefix: string): boolean {
+  if (prefix.length === 0) return false;
+  if (process.platform === 'win32') {
+    return path.toLowerCase().startsWith(`${prefix.toLowerCase()}/`);
+  }
+  return path.startsWith(`${prefix}/`);
+}
+
 export function shortenCwd(path: string): string {
   if (!path) return path;
-  const home = process.env['HOME'] ?? '';
-  let work = path;
-  if (home && path === home) {
-    return '~';
-  }
-  if (home && path.startsWith(home + '/')) {
-    work = '~' + path.slice(home.length);
+  const posix = posixPath(path);
+  let work = posix;
+  for (const home of homePrefixes()) {
+    if (pathEquals(posix, home) || pathEquals(path, home)) {
+      work = '~';
+      break;
+    }
+    if (pathHasPrefix(posix, home)) {
+      work = `~${posix.slice(home.length)}`;
+      break;
+    }
   }
 
   const segments = work.split('/').filter((s) => s.length > 0);
   if (segments.length <= MAX_CWD_SEGMENTS) return work;
-  const tail = segments.slice(-MAX_CWD_SEGMENTS).join('/');
-  return `…/${tail}`;
+  return `…/${segments.slice(-MAX_CWD_SEGMENTS).join('/')}`;
 }
 
 export function formatTranscriptViewportBadge(

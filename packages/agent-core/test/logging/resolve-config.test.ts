@@ -3,6 +3,25 @@ import { describe, expect, it } from 'vitest';
 import { resolveLoggingConfig } from '#/logging/resolve-config';
 
 describe('resolveLoggingConfig', () => {
+  it('defaults to warn so user sessions skip info-level disk chatter', () => {
+    expect(resolveLoggingConfig({ homeDir: '/tmp/home', env: {} }).level).toBe('warn');
+  });
+
+  it('raises the default to info when SUPERLIORA_DEBUG is on', () => {
+    expect(
+      resolveLoggingConfig({ homeDir: '/tmp/home', env: { SUPERLIORA_DEBUG: '1' } }).level,
+    ).toBe('info');
+  });
+
+  it('lets SUPERLIORA_LOG_LEVEL win over SUPERLIORA_DEBUG', () => {
+    expect(
+      resolveLoggingConfig({
+        homeDir: '/tmp/home',
+        env: { SUPERLIORA_DEBUG: '1', SUPERLIORA_LOG_LEVEL: 'error' },
+      }).level,
+    ).toBe('error');
+  });
+
   it('prefers SUPERLIORA_LOG_* over legacy KIMI_LOG_*', () => {
     const config = resolveLoggingConfig({
       homeDir: '/tmp/home',

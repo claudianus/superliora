@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Local test gate with CI-parity env. Run this before you push — GitHub CI is a
-// backstop, not the feedback loop.
+// backstop, not the feedback loop. Interactive TUI/harness (motion + analysis):
+// scripts/debug-local.mjs — this runner kills motion on purpose.
 //
 // Usage:
 //   node scripts/test-local.mjs                 # affected workspaces (vs origin/main + worktree)

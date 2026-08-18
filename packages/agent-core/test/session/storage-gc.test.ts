@@ -125,11 +125,14 @@ describe('wire gzip', () => {
     const { createWriteStream } = await import('node:fs');
     const { readFile } = await import('node:fs/promises');
 
-    await appendForkedMarkers({
-      agents: {
-        main: { homedir: agentDir },
+    await appendForkedMarkers(
+      {
+        agents: {
+          main: { homedir: agentDir },
+        },
       },
-    });
+      home,
+    );
 
     // Must not leave a corrupt gzip (raw JSONL appended onto binary).
     // After fork marker, plain is preferred; if only gz remains it must gunzip cleanly.

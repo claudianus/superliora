@@ -15,6 +15,7 @@ import { buildGoalMarker } from '../../components/messages/goal/goal-markers';
 import type { AppState, LivePaneState, QueuedMessage, TranscriptEntry } from '../../types';
 import type { TUIState } from '../../tui-state';
 import type { ColorToken } from '#/tui/theme';
+import { isDebugSession } from '#/utils/debug-session';
 import { formatStepDebugTiming } from '#/utils/usage/debug-timing';
 import { formatTokenCount } from '#/utils/usage/usage-format';
 import {
@@ -371,7 +372,7 @@ export class SessionEventTurn {
   }
 
   private maybeShowDebugTiming(event: TurnStepCompletedEvent): void {
-    if (process.env['SUPERLIORA_DEBUG'] !== '1') return;
+    if (!isDebugSession()) return;
     const text = formatStepDebugTiming(event);
     if (text === undefined) return;
     this.host.appendTranscriptEntry({

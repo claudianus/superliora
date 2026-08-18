@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -5,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ErrorCodes, LioraError } from '@superliora/sdk';
 
 import {
+  GOAL_QUEUE_FILE,
   appendGoalQueueItem,
   moveGoalQueueItem,
   readGoalQueue,
@@ -12,8 +14,9 @@ import {
   restoreGoalQueueItem,
   updateGoalQueueItem,
 } from '#/tui/goal-queue-store';
+import { LEGACY_GOAL_QUEUE_FILE } from '#/tui/utils/session/session-ui-paths';
 
-const QUEUE_FILE = 'upcoming-goals.json';
+const QUEUE_FILE = GOAL_QUEUE_FILE;
 
 let dir: string;
 
@@ -137,8 +140,28 @@ describe('goal queue store', () => {
     });
   });
 
+  it('reads leftover upcoming-goals.json and migrates it on write', async () => {
+    const createdAt = '2026-01-01T00:00:00.000Z';
+    await writeFile(
+      join(dir, LEGACY_GOAL_QUEUE_FILE),
+      JSON.stringify({
+        version: 1,
+        goals: [{ id: 'g1', objective: 'legacy goal', createdAt, updatedAt: createdAt }],
+      }),
+      'utf-8',
+    );
+
+    await expect(readGoalQueue(session())).resolves.toEqual({
+      goals: [{ id: 'g1', objective: 'legacy goal', createdAt, updatedAt: createdAt }],
+    });
+
+    await appendGoalQueueItem(session(), { objective: 'new goal' });
+    expect(existsSync(join(dir, LEGACY_GOAL_QUEUE_FILE))).toBe(false);
+    expect(existsSync(join(dir, QUEUE_FILE))).toBe(true);
+  });
+
   it('normalizes malformed queue files to an empty queue', async () => {
-    await mkdir(dir, { recursive: true });
+    await mkdir(join(dir, 'ui'), { recursive: true });
     await writeFile(join(dir, QUEUE_FILE), JSON.stringify({ version: 1, goals: [{ bad: true }] }), 'utf-8');
 
     await expect(readGoalQueue(session())).resolves.toEqual({ goals: [] });
@@ -147,7 +170,7 @@ describe('goal queue store', () => {
 
   it('does not clear the queue file when JSON cannot be parsed', async () => {
     const partial = '{"version":1,"goals":[';
-    await mkdir(dir, { recursive: true });
+    await mkdir(join(dir, 'ui'), { recursive: true });
     await writeFile(join(dir, QUEUE_FILE), partial, 'utf-8');
 
     await expect(readGoalQueue(session())).rejects.toThrow('Invalid JSON in goal queue');

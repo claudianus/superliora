@@ -85,11 +85,10 @@ describe('SessionStore.list', () => {
     await mkdir(sourceSubagentDir, { recursive: true });
     await writeFile(join(sourceAgentDir, 'wire.jsonl'), '{"type":"context.clear"}\n', 'utf-8');
     await writeFile(join(sourceSubagentDir, 'wire.jsonl'), '{"type":"context.clear"}\n', 'utf-8');
-    await writeFile(
-      join(source.sessionDir, 'upcoming-goals.json'),
-      `${JSON.stringify({ version: 1, goals: [{ id: 'queued-1', objective: 'source queued goal' }] })}\n`,
-      'utf-8',
-    );
+    const queuedGoals = `${JSON.stringify({ version: 1, goals: [{ id: 'queued-1', objective: 'source queued goal' }] })}\n`;
+    await mkdir(join(source.sessionDir, 'ui'), { recursive: true });
+    await writeFile(join(source.sessionDir, 'upcoming-goals.json'), queuedGoals, 'utf-8');
+    await writeFile(join(source.sessionDir, 'ui', 'goals.json'), queuedGoals, 'utf-8');
     await writeSessionState(source.sessionDir, {
       createdAt: '2030-01-01T00:00:00.000Z',
       updatedAt: '2030-01-01T00:00:00.000Z',
@@ -146,13 +145,13 @@ describe('SessionStore.list', () => {
     expect(forkState.title).toBe('Fork title');
     expect(forkState.isCustomTitle).toBe(true);
     expect(forkState.forkedFrom).toBe(source.id);
-    expect(forkState.agents?.main?.homedir).toBe(
-      normalizeWorkDir(join(fork.sessionDir, 'agents', 'main')),
-    );
+    expect(forkState.agents?.main?.homedir).toBe('agents/main');
     expect(forkState.custom).toMatchObject({ source: true, child: true });
     expect(forkState.custom).not.toHaveProperty('goal');
     expect(existsSync(join(fork.sessionDir, 'upcoming-goals.json'))).toBe(false);
+    expect(existsSync(join(fork.sessionDir, 'ui', 'goals.json'))).toBe(false);
     expect(existsSync(join(source.sessionDir, 'upcoming-goals.json'))).toBe(true);
+    expect(existsSync(join(source.sessionDir, 'ui', 'goals.json'))).toBe(true);
     const forkWire = await readFile(join(fork.sessionDir, 'agents', 'main', 'wire.jsonl'), 'utf-8');
     expect(forkWire
       .trim()

@@ -35,12 +35,12 @@ $SUPERLIORA_HOME  (default: ~/.superliora)
 ├── plugins/
 │   ├── installed.json      # Installed plugin records and enabled state
 │   └── managed/            # Plugin copies installed from zip/local paths
-├── session_index.jsonl     # Session index
 ├── credentials/            # OAuth credentials (dir 0700, files 0600)
 │   ├── <name>.json
 │   └── mcp/
 │       └── <key>-<suffix>.json
 ├── sessions/               # Session data (see below)
+│   ├── index.jsonl         # Session index
 │   └── <workDirKey>/<sessionId>/
 ├── memory/
 │   ├── liora-memory.sqlite # Canonical durable Liora Memory store
@@ -77,12 +77,14 @@ Each top-level file under the data root serves a specific purpose; most are mana
 
 ## Session data
 
-Each session's data is stored under `sessions/<workDirKey>/<sessionId>/`, and a top-level `session_index.jsonl` index is maintained (one record per line, each containing `sessionId`, `sessionDir`, and `workDir`). `workDirKey` is a bucket name derived from the working directory path, in the format `wd_<slug>_<first-12-chars-of-sha256>`.
+Each session's data is stored under `sessions/<workDirKey>/<sessionId>/`, and `sessions/index.jsonl` lists those sessions (one last-wins record per id: `sessionId`, `sessionDir`, `workDir`). A leftover home-root `session_index.jsonl` is still read until the index is compacted. `workDirKey` is a bucket name derived from the working directory path, in the format `wd_<slug>_<first-12-chars-of-sha256>`.
 
 Inside each session directory:
 
-- **`state.json`**: session metadata including title, `lastPrompt`, creation/update timestamps, and `forkedFrom`.
-- **`upcoming-goals.json`**: the TUI-only queue created by `/goal next <objective>`. It is not part of the agent conversation until a queued goal is promoted after the current goal completes.
+- **`state.json`**: session metadata including `version`, title, `lastPrompt` (capped), creation/update timestamps, and `forkedFrom`. Agent `homedir` values are stored relative to the session directory (`agents/main`). Writes use a temp file plus `state.json.bak`.
+- **`ui/goals.json`**: the TUI-only queue created by `/goal next <objective>`. It is not part of the agent conversation until a queued goal is promoted after the current goal completes. Older sessions may still have `upcoming-goals.json` at the session root.
+- **`ui/draft.json`**: crash/resume draft, prompt queue, and Ctrl-X stash for the editor.
+- **`ui/prefs.json`**: session-scoped TUI preferences such as transcript detail.
 - **`agents/main/wire.jsonl`**: the main Agent's complete communication record, used for session resumption and replay.
 - **`agents/main/plans/`**: plan files written in Plan mode, named by plan id (`<id>.md`).
 - **`agents/agent-0/` etc.**: sub-Agent instance directories, each containing their own `wire.jsonl`.
@@ -115,7 +117,7 @@ Deleting the data root directory (`~/.superliora/` or the path set by `SUPERLIOR
 | --- | --- |
 | Reset configuration | Delete `~/.superliora/config.toml` |
 | Reset terminal UI preferences | Delete `~/.superliora/tui.toml` |
-| Clear all sessions | Delete `~/.superliora/sessions/` and `session_index.jsonl` |
+| Clear all sessions | Delete `~/.superliora/sessions/` (and leftover `session_index.jsonl` if present) |
 | Reset durable Liora Memory | Delete `~/.superliora/memory/` |
 | Clear diagnostic logs | Delete `~/.superliora/logs/` |
 | Clear input history | Delete `~/.superliora/user-history/` |

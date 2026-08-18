@@ -1,7 +1,8 @@
 import { resolveGlobalLogPath } from './logger';
 import type { LogLevel, LoggingConfig } from './types';
 
-export const DEFAULT_LOG_LEVEL: LogLevel = 'info';
+/** User sessions: warn/error only. `SUPERLIORA_DEBUG` raises this to info. */
+export const DEFAULT_LOG_LEVEL: LogLevel = 'warn';
 export const DEFAULT_GLOBAL_MAX_BYTES = 6 * 1024 * 1024; // 6 MB
 export const DEFAULT_GLOBAL_FILES = 5; // 6 MB x 5 = 30 MB
 export const DEFAULT_SESSION_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -20,6 +21,9 @@ export interface ResolveLoggingInput {
  * override the defaults set env vars:
  *
  *   SUPERLIORA_LOG_LEVEL=debug   (alias: KIMI_LOG_LEVEL)
+ *   SUPERLIORA_DEBUG=1           raises the default level to info when
+ *                                SUPERLIORA_LOG_LEVEL is unset
+ *                                (LLM request/response stay; git/debug chatter does not)
  *   SUPERLIORA_LOG_GLOBAL_MAX_BYTES / SUPERLIORA_LOG_GLOBAL_FILES
  *   SUPERLIORA_LOG_SESSION_MAX_BYTES / SUPERLIORA_LOG_SESSION_FILES
  *   SUPERLIORA_LOG_MIRROR_WARN=0  to disable warn/error global mirror
@@ -29,7 +33,8 @@ export interface ResolveLoggingInput {
 export function resolveLoggingConfig(input: ResolveLoggingInput): LoggingConfig {
   const env = input.env ?? process.env;
   return {
-    level: parseLevel(envValue(env, 'SUPERLIORA_LOG_LEVEL', 'KIMI_LOG_LEVEL')) ?? DEFAULT_LOG_LEVEL,
+    level: parseLevel(envValue(env, 'SUPERLIORA_LOG_LEVEL', 'KIMI_LOG_LEVEL')) ??
+      defaultLevel(env),
     globalLogPath: resolveGlobalLogPath(input.homeDir),
     globalMaxBytes:
       parsePositiveInt(envValue(env, 'SUPERLIORA_LOG_GLOBAL_MAX_BYTES', 'KIMI_LOG_GLOBAL_MAX_BYTES')) ??
@@ -49,6 +54,17 @@ export function resolveLoggingConfig(input: ResolveLoggingInput): LoggingConfig 
       true,
     ),
   };
+}
+
+function defaultLevel(env: NodeJS.ProcessEnv): LogLevel {
+  const debug = env['SUPERLIORA_DEBUG'];
+  if (debug !== undefined) {
+    const normalized = debug.trim().toLowerCase();
+    if (normalized === '1' || normalized === 'true' || normalized === 'on' || normalized === 'yes') {
+      return 'info';
+    }
+  }
+  return DEFAULT_LOG_LEVEL;
 }
 
 function envValue(

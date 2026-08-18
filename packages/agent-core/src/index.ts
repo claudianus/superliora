@@ -14,7 +14,8 @@ export type {
   ConversationLoopTickResult,
 } from './agent/conversation-loop';
 
-export type { SessionMeta } from './session';
+export { SESSION_STATE_VERSION } from './session';
+export type { SessionCustomMetadata, SessionMeta } from './session';
 export {
   FileSnapshotStore,
   type FileSnapshotEntry,

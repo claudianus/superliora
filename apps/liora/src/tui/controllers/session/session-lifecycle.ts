@@ -1,4 +1,5 @@
 import type { CreateSessionOptions, LioraHarness, Session } from '@superliora/sdk';
+import { writeDebugLog } from '#/utils/debug-session';
 import { gcSessionWorktreesAuto, maybeWarmCodemapAtSessionStart } from '@superliora/sdk';
 import { resolve } from 'pathe';
 
@@ -187,6 +188,11 @@ export class SessionLifecycleController {
     host.harness.setTelemetryContext({ sessionId: session.id });
     this.registerSessionHandlers(session);
     this.syncAdditionalDirs(session);
+    writeDebugLog({
+      location: 'session-lifecycle.ts:setSession',
+      message: 'session attached',
+      data: { sessionId: session.id, workDir: session.workDir },
+    });
     maybeWarmCodemapAtSessionStart(session.workDir);
     // Opportunistic age-GC for ~/.superliora/worktrees (missing + >14d idle).
     void gcSessionWorktreesAuto({ maxAgeDays: 14 }).catch(() => undefined);
@@ -389,8 +395,8 @@ export class SessionLifecycleController {
       options.additionalDirs = [...host.state.appState.additionalDirs];
     }
     // Prefer startup sessionMetadata (CLI --sandbox / worktree seed) when present.
-    const startupMeta = (host as { options?: { sessionMetadata?: Record<string, unknown> } }).options
-      ?.sessionMetadata;
+    const startupMeta = (host as { options?: { sessionMetadata?: CreateSessionOptions['metadata'] } })
+      .options?.sessionMetadata;
     if (startupMeta !== undefined) {
       options.metadata = {
         ...(options.metadata ?? {}),

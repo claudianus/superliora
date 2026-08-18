@@ -59,7 +59,8 @@ describe('session-store', () => {
     cleanup = c;
     const { rm } = await import('node:fs/promises');
     const { join } = await import('node:path');
-    await rm(join(home, 'session_index.jsonl'));
+    await rm(join(home, 'sessions', 'index.jsonl'));
+    await rm(join(home, 'session_index.jsonl'), { force: true });
     const sessions = await listSessions(home);
     expect(sessions).toHaveLength(1);
     expect(sessions[0]!.workDir).toBe('');
@@ -156,7 +157,7 @@ describe('session-store', () => {
     const elsewhere = '/tmp/vis-poison-test-' + Date.now();
     await mkdir(elsewhere, { recursive: true });
     await writeFile(
-      join(home, 'session_index.jsonl'),
+      join(home, 'sessions', 'index.jsonl'),
       JSON.stringify({
         sessionId: 'session_fixture',
         sessionDir: elsewhere,
@@ -216,6 +217,27 @@ describe('session-store', () => {
     const main = d!.agents.find((a) => a.agentId === 'main')!;
     expect(main.wireExists).toBe(true);
     expect(main.wireRecordCount).toBe(10);
+  });
+
+  it('resolves relative agent homedirs from state.json', async () => {
+    const { home, sessionDir, cleanup: c } = await buildSessionFixture('sample-main');
+    cleanup = c;
+    const { readFile, writeFile } = await import('node:fs/promises');
+    const { join } = await import('node:path');
+    const statePath = join(sessionDir, 'state.json');
+    const state = JSON.parse(await readFile(statePath, 'utf8')) as {
+      agents: Record<string, { homedir: string }>;
+    };
+    for (const id of Object.keys(state.agents)) {
+      state.agents[id]!.homedir = `agents/${id}`;
+    }
+    await writeFile(statePath, JSON.stringify(state));
+    const d = await readSessionDetail(home, 'session_fixture');
+    expect(d).not.toBeNull();
+    expect(d!.agents.find((a) => a.agentId === 'main')!.homedir).toBe(join(sessionDir, 'agents', 'main'));
+    expect(d!.agents.find((a) => a.agentId === 'agent-0')!.homedir).toBe(
+      join(sessionDir, 'agents', 'agent-0'),
+    );
   });
 
   it('reads session detail with full agent inventory', async () => {

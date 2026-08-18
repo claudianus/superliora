@@ -1,6 +1,6 @@
 import { createReadStream } from 'node:fs';
 import { readdir, readFile, stat } from 'node:fs/promises';
-import { join, resolve, sep } from 'node:path';
+import { isAbsolute, join, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
 import type { Readable } from 'node:stream';
 import { createGunzip } from 'node:zlib';
@@ -175,23 +175,31 @@ interface SessionIndexEntry {
   workDir: string;
 }
 
+function sessionIndexPaths(home: string): readonly string[] {
+  return [join(home, 'session_index.jsonl'), join(home, 'sessions', 'index.jsonl')];
+}
+
 async function readSessionIndex(home: string): Promise<Map<string, SessionIndexEntry>> {
   const out = new Map<string, SessionIndexEntry>();
-  let raw: string;
-  try {
-    raw = await readFile(join(home, 'session_index.jsonl'), 'utf8');
-  } catch { return out; }
-  for (const line of raw.split(/\r?\n/)) {
-    if (!line.trim()) continue;
+  for (const path of sessionIndexPaths(home)) {
+    let raw: string;
     try {
-      const entry = JSON.parse(line) as { sessionId?: string; sessionDir?: string; workDir?: string };
-      if (typeof entry.sessionId === 'string' && typeof entry.sessionDir === 'string') {
-        out.set(entry.sessionId, {
-          sessionDir: entry.sessionDir,
-          workDir: typeof entry.workDir === 'string' ? entry.workDir : '',
-        });
-      }
-    } catch { /* skip malformed */ }
+      raw = await readFile(path, 'utf8');
+    } catch {
+      continue;
+    }
+    for (const line of raw.split(/\r?\n/)) {
+      if (!line.trim()) continue;
+      try {
+        const entry = JSON.parse(line) as { sessionId?: string; sessionDir?: string; workDir?: string };
+        if (typeof entry.sessionId === 'string' && typeof entry.sessionDir === 'string') {
+          out.set(entry.sessionId, {
+            sessionDir: entry.sessionDir,
+            workDir: typeof entry.workDir === 'string' ? entry.workDir : '',
+          });
+        }
+      } catch { /* skip malformed */ }
+    }
   }
   return out;
 }
@@ -218,7 +226,7 @@ async function inventoryAgents(sessionDir: string, state: StateJson): Promise<Ag
       agentId: id,
       type: meta.type,
       parentAgentId: meta.parentAgentId,
-      homedir: meta.homedir,
+      homedir: resolveSessionHomedir(sessionDir, meta.homedir),
       wireExists: readable,
       wireRecordCount: info.count,
       wireProtocolVersion: info.protocolVersion,
@@ -242,18 +250,17 @@ async function findSessionDir(home: string, sessionId: string): Promise<string |
   // `<home>/sessions/` AND whose basename matches the requested id.
   // This blocks stale/poisoned index lines from redirecting reads to
   // unrelated directories.
-  try {
-    const indexLines = (await readFile(join(home, 'session_index.jsonl'), 'utf8')).split(/\r?\n/);
-    for (const line of indexLines) {
-      if (!line.trim()) continue;
-      const entry = JSON.parse(line) as { sessionId?: string; sessionDir?: string };
-      if (entry.sessionId !== sessionId || typeof entry.sessionDir !== 'string') continue;
-      const candidate = resolve(entry.sessionDir);
-      if (!candidate.startsWith(sessionsRootPrefix)) continue;
-      if (candidate.split(sep).pop() !== sessionId) continue;
-      if (await pathExists(candidate)) return candidate;
+  const indexed = (await readSessionIndex(home)).get(sessionId);
+  if (indexed !== undefined) {
+    const candidate = resolve(indexed.sessionDir);
+    if (
+      candidate.startsWith(sessionsRootPrefix) &&
+      candidate.split(sep).pop() === sessionId &&
+      (await pathExists(candidate))
+    ) {
+      return candidate;
     }
-  } catch { /* no index */ }
+  }
   // Fall back to scanning buckets
   const buckets = await readdir(sessionsRoot, { withFileTypes: true }).catch(() => []);
   for (const bucket of buckets) {
@@ -312,6 +319,11 @@ function parseTs(input: string | undefined): number {
   if (!input) return 0;
   const n = Date.parse(input);
   return Number.isFinite(n) ? n : 0;
+}
+
+function resolveSessionHomedir(sessionDir: string, homedir: string): string {
+  if (homedir.trim() === '') return sessionDir;
+  return isAbsolute(homedir) ? homedir : join(sessionDir, homedir);
 }
 
 async function pathExists(p: string): Promise<boolean> {

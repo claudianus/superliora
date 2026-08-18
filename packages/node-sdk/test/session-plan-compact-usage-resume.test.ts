@@ -287,9 +287,7 @@ describe('Session plan, compact, usage, and resume APIs', () => {
       };
       expect(forkState.title).toBe('Forked runtime');
       expect(forkState.forkedFrom).toBe(source.id);
-      expect(forkState.agents?.main?.homedir).toBe(
-        toPosix(join(forkSummary!.sessionDir, 'agents', 'main')),
-      );
+      expect(forkState.agents?.main?.homedir).toBe('agents/main');
       expect(forkState.custom).toMatchObject({ source: true, child: true });
       expect(forkState.custom).not.toHaveProperty('goal');
     } finally {

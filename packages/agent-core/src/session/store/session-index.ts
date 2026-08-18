@@ -1,4 +1,4 @@
-import { appendFile, mkdir, readFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'pathe';
 
 export interface SessionIndexEntry {
@@ -16,6 +16,11 @@ export interface SessionIndexEntry {
 const appendQueues = new Map<string, Promise<void>>();
 
 export function sessionIndexPath(homeDir: string): string {
+  return join(homeDir, 'sessions', 'index.jsonl');
+}
+
+/** Home-root leftover from before the index moved under `sessions/`. */
+export function sessionIndexLegacyPath(homeDir: string): string {
   return join(homeDir, 'session_index.jsonl');
 }
 
@@ -38,14 +43,91 @@ export async function readSessionIndex(
   homeDir: string,
   sessionsDir: string,
 ): Promise<Map<string, SessionIndexEntry>> {
-  let raw: string;
-  try {
-    raw = await readFile(sessionIndexPath(homeDir), 'utf-8');
-  } catch {
-    return new Map();
-  }
-
   const result = new Map<string, SessionIndexEntry>();
+  // Legacy first so a newer `sessions/index.jsonl` line wins for the same id.
+  ingestIndexText(result, await readIndexText(sessionIndexLegacyPath(homeDir)), sessionsDir);
+  ingestIndexText(result, await readIndexText(sessionIndexPath(homeDir)), sessionsDir);
+  return result;
+}
+
+function isNotFound(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && (error as { code?: string }).code === 'ENOENT';
+}
+
+/** Rewrite `sessions/index.jsonl` to last-wins lines and drop the leftover home-root index. */
+export async function writeSessionIndexSnapshot(
+  homeDir: string,
+  entries: Iterable<SessionIndexEntry>,
+): Promise<void> {
+  const indexPath = sessionIndexPath(homeDir);
+  const tmpPath = `${indexPath}.tmp`;
+  const lines = [...entries]
+    .map((entry) =>
+      JSON.stringify({
+        sessionId: entry.sessionId,
+        sessionDir: entry.sessionDir,
+        workDir: entry.workDir,
+      }),
+    )
+    .join('\n');
+  const body = lines.length === 0 ? '' : `${lines}\n`;
+  const previous = appendQueues.get(homeDir) ?? Promise.resolve();
+  const next = previous.then(async () => {
+    await mkdir(dirname(indexPath), { recursive: true, mode: 0o700 });
+    await writeFile(tmpPath, body, 'utf-8');
+    try {
+      await unlink(indexPath);
+    } catch (error) {
+      if (!isNotFound(error)) {
+        await unlink(tmpPath).catch(() => undefined);
+        throw error;
+      }
+    }
+    try {
+      await rename(tmpPath, indexPath);
+    } catch (error) {
+      await unlink(tmpPath).catch(() => undefined);
+      throw error;
+    }
+    await unlink(sessionIndexLegacyPath(homeDir)).catch(() => undefined);
+  });
+  appendQueues.set(homeDir, next.then(() => undefined, () => undefined));
+  return next;
+}
+
+export async function compactSessionIndex(homeDir: string, sessionsDir: string): Promise<number> {
+  const index = await readSessionIndex(homeDir, sessionsDir);
+  await writeSessionIndexSnapshot(homeDir, index.values());
+  return index.size;
+}
+
+export async function upsertSessionIndexEntry(
+  homeDir: string,
+  sessionsDir: string,
+  entry: SessionIndexEntry,
+): Promise<void> {
+  const index = await readSessionIndex(homeDir, sessionsDir);
+  index.set(entry.sessionId, {
+    sessionId: entry.sessionId,
+    sessionDir: resolve(entry.sessionDir),
+    workDir: entry.workDir,
+  });
+  await writeSessionIndexSnapshot(homeDir, index.values());
+}
+
+async function readIndexText(path: string): Promise<string> {
+  try {
+    return await readFile(path, 'utf-8');
+  } catch {
+    return '';
+  }
+}
+
+function ingestIndexText(
+  result: Map<string, SessionIndexEntry>,
+  raw: string,
+  sessionsDir: string,
+): void {
   for (const line of raw.split(/\r?\n/)) {
     const trimmed = line.trim();
     if (trimmed === '') continue;
@@ -64,7 +146,6 @@ export async function readSessionIndex(
       workDir: entry.workDir,
     });
   }
-  return result;
 }
 
 function parseIndexLine(line: string): SessionIndexEntry | undefined {

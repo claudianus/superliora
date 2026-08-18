@@ -39,6 +39,7 @@ import type { RuntimeDegradedEvent } from '@superliora/protocol';
 import { startHarnessOAuthProactiveRefresh, buildOAuthRefreshDegradedEventFromOutcome } from '#/utils/oauth/proactive-refresh-host';
 
 import { createLioraHostIdentity } from './version';
+import { writeDebugLog } from '#/utils/debug-session';
 import { startupTrace } from '#/utils/startup-trace';
 
 export async function runShell(
@@ -222,6 +223,11 @@ export async function runShell(
       mcp_ms: mcpMs,
     });
   } catch (error) {
+    writeDebugLog({
+      location: 'run-shell.ts:tui-start',
+      message: 'tui start failed',
+      data: { error: error instanceof Error ? error.message : String(error) },
+    });
     oauthProactiveRefresh?.stop();
     setCrashPhase('shutdown');
     trackLifecycle('exit', { duration_s: (Date.now() - startedAt) / 1000 });

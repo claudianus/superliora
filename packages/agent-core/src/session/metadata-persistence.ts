@@ -10,6 +10,7 @@ import { KaosFileNotFoundError, type Kaos } from '@superliora/kaos';
 
 import type { Logger } from '#/logging/types';
 import type { SessionMeta } from './lifecycle/session-types';
+import { prepareSessionMetaForWrite, resolveSessionMetaHomedirs } from './session-meta-format';
 
 export interface MetadataPersistenceOptions {
   readonly sessionHomedir: string;
@@ -40,8 +41,8 @@ export class SessionMetadataPersistence {
    * (complete) value rather than truncated mid-write.
    */
   write(metadata: SessionMeta): Promise<void> {
-    const text = JSON.stringify(metadata);
     const { kaos, sessionHomedir } = this.opts;
+    const text = JSON.stringify(prepareSessionMetaForWrite(metadata, sessionHomedir));
     const tmp = this.tempPath;
     const dest = this.metadataPath;
     const backup = this.backupPath;
@@ -74,7 +75,8 @@ export class SessionMetadataPersistence {
     const { kaos, log } = this.opts;
     const dest = this.metadataPath;
     const backup = this.backupPath;
-    const parse = (text: string): SessionMeta => JSON.parse(text) as SessionMeta;
+    const parse = (text: string): SessionMeta =>
+      resolveSessionMetaHomedirs(JSON.parse(text) as SessionMeta, this.opts.sessionHomedir);
 
     try {
       const text = await kaos.readText(dest);

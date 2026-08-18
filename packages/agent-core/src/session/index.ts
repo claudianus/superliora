@@ -45,20 +45,23 @@ import { SessionResources } from './lifecycle/session-resources';
 import { triggerSessionEnd, triggerSessionStart, triggerSetup } from './lifecycle/session-lifecycle-hooks';
 import { notifyAdditionalDirAdded } from './lifecycle/session-workspace-dirs';
 import { collectSessionWarnings } from './lifecycle/session-warnings';
-import type {
-  AgentEntry,
-  CreateAgentOptions,
-  SessionMeta,
-  SessionOptions,
+import {
+  SESSION_STATE_VERSION,
+  type AgentEntry,
+  type CreateAgentOptions,
+  type SessionMeta,
+  type SessionOptions,
 } from './lifecycle/session-types';
 
 export type {
   AgentMeta,
   CreateAgentOptions,
+  SessionCustomMetadata,
   SessionMeta,
   SessionOptions,
   SessionSkillConfig,
 } from './lifecycle/session-types';
+export { SESSION_STATE_VERSION } from './lifecycle/session-types';
 
 export class Session {
   readonly rpc: SessionOptions['rpc'];
@@ -90,6 +93,7 @@ export class Session {
   private readonly agentLifecycle: SessionAgentLifecycle;
   private readonly resources: SessionResources;
   metadata: SessionMeta = {
+    version: SESSION_STATE_VERSION,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     title: 'New Session',

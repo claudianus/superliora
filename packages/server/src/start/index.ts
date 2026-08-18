@@ -104,7 +104,7 @@ export async function startServer(opts: ServerStartOptions): Promise<RunningServ
     }),
   };
 
-  // Sessions can exist on disk but be missing from session_index.jsonl (e.g. after
+  // Sessions can exist on disk but be missing from sessions/index.jsonl (e.g. after
   // a crash between mkdir and index append). Rebuild the index at boot so they
   // show up in the web UI even though their directory still exists. Repairing here keeps
   // the request path scan-free. Best-effort: never blocks startup on failure.

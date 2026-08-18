@@ -10,6 +10,7 @@ import type { ResumeSessionInput, ResumedSessionSummary } from '#/session/types'
 import { SDKRpcClientBase, type SetSessionPlanModeRpcInput } from '#/rpc/rpc';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { sessionIndexPath } from '../../agent-core/src/session/store';
 import { waitForAgentWireEvent } from './session-runtime-helpers';
 import { recordingTelemetry, type TelemetryRecord } from './telemetry';
 import { TEST_IDENTITY } from './test-identity';
@@ -446,7 +447,7 @@ describe('LioraHarness.createSession transport link', () => {
       expect(summary?.sessionDir).not.toBe(join(homeDir, 'sessions', session.id));
       expect(summary?.sessionDir).toContain(toPosix(join(homeDir, 'sessions')));
       expect(existsSync(join(summary!.sessionDir, 'state.json'))).toBe(true);
-      expect(await readFile(join(homeDir, 'session_index.jsonl'), 'utf-8')).toContain(session.id);
+      expect(await readFile(sessionIndexPath(homeDir), 'utf-8')).toContain(session.id);
 
       const summariesById = await harness.listSessions({ sessionId: session.id });
       expect(summariesById).toHaveLength(1);
@@ -568,7 +569,7 @@ effort = "medium"
         code: 'config.invalid',
       });
       expect(await harness.listSessions({ workDir })).toEqual([]);
-      expect(existsSync(join(homeDir, 'session_index.jsonl'))).toBe(false);
+      expect(existsSync(sessionIndexPath(homeDir))).toBe(false);
     } finally {
       await harness.close();
     }

@@ -25,6 +25,9 @@ export const NPM_PACKAGE_NAME = '@superliora/liora';
 
 // App-owned data paths. SDK/core runtime config is intentionally not routed here.
 export const SUPERLIORA_HOME_ENV = 'SUPERLIORA_HOME';
+export const SUPERLIORA_DEBUG_ENV = 'SUPERLIORA_DEBUG';
+export const SUPERLIORA_DEBUG_LOG_ENV = 'SUPERLIORA_DEBUG_LOG';
+export const SUPERLIORA_DEBUG_LOG_FILE_NAME = 'debug-local.ndjson';
 export const SUPERLIORA_DATA_DIR_NAME = '.superliora';
 export const SUPERLIORA_LOG_DIR_NAME = 'logs';
 export const SUPERLIORA_CACHE_DIR_NAME = 'cache';

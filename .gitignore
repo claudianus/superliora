@@ -63,6 +63,10 @@ apps/site/axe-*.json
 **/.super-kimi/ulw-loop/
 .superliora/compose-cache/
 
+# Isolated home used by `node scripts/debug-local.mjs` (not ~/.superliora).
+.superliora-debug/
+debug-local.ndjson
+
 # Local tool/IDE artifacts
 .cursor/
 .devin/

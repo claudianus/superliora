@@ -1,4 +1,5 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -12,6 +13,7 @@ import {
   stashEntriesFromSnapshot,
   writePromptInputState,
 } from '#/tui/prompt-input-state-store';
+import { LEGACY_PROMPT_INPUT_STATE_FILE } from '#/tui/utils/session/session-ui-paths';
 import { PromptStash } from '#/tui/utils/prompt-stash';
 import {
   capturePromptInputState,
@@ -80,8 +82,7 @@ describe('prompt-input-state-store', () => {
 
   it('treats corrupt files as empty instead of throwing', async () => {
     const dir = await tempDir();
-    const { writeFile, mkdir } = await import('node:fs/promises');
-    await mkdir(dir, { recursive: true });
+    await mkdir(join(dir, 'ui'), { recursive: true });
     await writeFile(join(dir, PROMPT_INPUT_STATE_FILE), '{not-json', 'utf8');
     await expect(readPromptInputState(session(dir))).resolves.toMatchObject({
       messages: [],
@@ -99,6 +100,34 @@ describe('prompt-input-state-store', () => {
     });
     const snapshot = await readPromptInputState(session(dir));
     expect(snapshot.draft).toBeNull();
+  });
+
+  it('reads a leftover prompt-input-state.json and migrates it on write', async () => {
+    const dir = await tempDir();
+    await writeFile(
+      join(dir, LEGACY_PROMPT_INPUT_STATE_FILE),
+      JSON.stringify({
+        version: 1,
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        messages: [{ text: 'legacy queued', mode: 'prompt' }],
+        stash: [],
+        draft: null,
+      }),
+      'utf8',
+    );
+
+    const snapshot = await readPromptInputState(session(dir));
+    expect(queuedMessagesFromSnapshot(snapshot)).toEqual([
+      { text: 'legacy queued', mode: 'prompt' },
+    ]);
+
+    await writePromptInputState(session(dir), {
+      messages: [{ text: 'legacy queued', mode: 'prompt' }],
+      stash: [],
+      draft: null,
+    });
+    expect(existsSync(join(dir, LEGACY_PROMPT_INPUT_STATE_FILE))).toBe(false);
+    expect(existsSync(join(dir, PROMPT_INPUT_STATE_FILE))).toBe(true);
   });
 });
 

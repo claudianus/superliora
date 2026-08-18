@@ -8,7 +8,7 @@
 
 import { z } from 'zod';
 
-import { readJsonFile, writeJsonFile } from '#/utils/persistence';
+import { readJsonFilePrefer, unlinkIfExists, writeJsonFile } from '#/utils/persistence';
 
 import {
   TOOL_OUTPUT_VIEWPORT_MAX_HEIGHT,
@@ -17,8 +17,13 @@ import {
   type ToolOutputViewportState,
 } from './tool/tool-output-viewport';
 import type { TranscriptDetailLevel, TranscriptEntry } from '../types';
+import {
+  LEGACY_TUI_SESSION_STATE_FILE,
+  TUI_SESSION_STATE_FILE,
+  sessionUiFilePath,
+} from './session/session-ui-paths';
 
-export const TUI_SESSION_STATE_FILE = 'tui-session.json';
+export { TUI_SESSION_STATE_FILE };
 export const TUI_SESSION_STATE_VERSION = 1 as const;
 
 const MAX_VIEWPORT_ENTRIES = 200;
@@ -65,9 +70,20 @@ export interface TuiSessionStateHost {
 const writeLocks = new Map<string, Promise<void>>();
 
 export function tuiSessionStatePath(session: TuiSessionStateSession): string | undefined {
+  return tuiSessionSidecarPath(session, TUI_SESSION_STATE_FILE);
+}
+
+function tuiSessionLegacyPath(session: TuiSessionStateSession): string | undefined {
+  return tuiSessionSidecarPath(session, LEGACY_TUI_SESSION_STATE_FILE);
+}
+
+function tuiSessionSidecarPath(
+  session: TuiSessionStateSession,
+  relative: string,
+): string | undefined {
   const sessionDir = session.summary?.sessionDir?.trim();
   if (sessionDir === undefined || sessionDir.length === 0) return undefined;
-  return `${sessionDir.replace(/\/+$/, '')}/${TUI_SESSION_STATE_FILE}`;
+  return sessionUiFilePath(sessionDir, relative);
 }
 
 export async function readTuiSessionState(
@@ -76,7 +92,13 @@ export async function readTuiSessionState(
   const filePath = tuiSessionStatePath(session);
   if (filePath === undefined) return emptySnapshot();
   try {
-    return await readJsonFile(filePath, fileSchema, emptySnapshot());
+    const legacyPath = tuiSessionLegacyPath(session);
+    return await readJsonFilePrefer(
+      filePath,
+      legacyPath ?? filePath,
+      fileSchema,
+      emptySnapshot(),
+    );
   } catch {
     return emptySnapshot();
   }
@@ -124,7 +146,11 @@ export async function writeTuiSessionState(host: TuiSessionStateHost): Promise<v
   if (filePath === undefined) return;
 
   const snapshot = captureTuiSessionState(host);
-  await withWriteLock(filePath, () => writeJsonFile(filePath, fileSchema, snapshot));
+  await withWriteLock(filePath, async () => {
+    await writeJsonFile(filePath, fileSchema, snapshot);
+    const legacyPath = tuiSessionLegacyPath(session);
+    if (legacyPath !== undefined) await unlinkIfExists(legacyPath);
+  });
 }
 
 /** Immediate best-effort write for UI gestures and picker changes. */

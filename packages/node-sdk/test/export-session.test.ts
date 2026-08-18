@@ -231,6 +231,43 @@ describe('exportSessionDirectory', () => {
     expect(existsSync(result.zipPath)).toBe(true);
   });
 
+  it('scans agents/main turn.prompt for export activity timestamps', async () => {
+    const tmp = await makeTempDir();
+    const sid = 'ses_export_main_wire';
+    const workDir = join(tmp, 'work');
+    const sessionDir = join(tmp, 'sessions', sid);
+    await mkdir(join(sessionDir, 'agents', 'main'), { recursive: true });
+    await writeFile(join(sessionDir, 'state.json'), JSON.stringify({ session_id: sid }), 'utf-8');
+    await writeFile(
+      join(sessionDir, 'agents', 'main', 'wire.jsonl'),
+      [
+        JSON.stringify({
+          type: 'metadata',
+          protocol_version: '1.4',
+          created_at: Date.parse('2026-08-19T00:00:00Z'),
+          time: Date.parse('2026-08-19T00:00:00Z'),
+        }),
+        JSON.stringify({
+          type: 'turn.prompt',
+          time: Date.parse('2026-08-19T00:00:02Z'),
+          input: [{ type: 'text', text: 'export current journal' }],
+          origin: { kind: 'user' },
+        }),
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+
+    const result = await exportSessionDirectory({
+      request: { sessionId: sid, outputPath: join(tmp, 'main-wire.zip'), version: '1.0.0-test' },
+      summary: makeSummary({ id: sid, sessionDir, workDir }),
+    });
+
+    expect(result.manifest.sessionFirstActivity).toBe('2026-08-19T00:00:00.000Z');
+    expect(result.manifest.sessionLastActivity).toBe('2026-08-19T00:00:02.000Z');
+    expect(result.entries).toContain('agents/main/wire.jsonl');
+  });
+
   it('exports sessions without wire.jsonl and omits activity fields', async () => {
     const tmp = await makeTempDir();
     const sid = 'ses_no_wire';

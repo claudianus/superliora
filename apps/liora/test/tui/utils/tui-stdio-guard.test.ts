@@ -1,15 +1,17 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { SUPERLIORA_DEBUG_ENV, SUPERLIORA_HOME_ENV } from '#/constant/app';
 import { NativeTUIEditor } from '#/tui/components/editor/native-tui-editor';
 import { createTerminalRenderer } from '#/tui/renderer/lifecycle';
 import {
   ensureMountedTuiStdioGuard,
   installTuiStdioGuard,
   restoreMountedTuiStdioGuard,
+  setTuiStdioLogMaxBytesForTest,
 } from '#/tui/utils/stdio/tui-stdio-guard';
 
 describe('tui-stdio-guard', () => {
@@ -17,6 +19,7 @@ describe('tui-stdio-guard', () => {
 
   afterEach(() => {
     restoreMountedTuiStdioGuard();
+    setTuiStdioLogMaxBytesForTest(undefined);
     for (const dir of dirs.splice(0)) {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -107,5 +110,54 @@ describe('tui-stdio-guard', () => {
       restoreMountedTuiStdioGuard();
       process.stdout.write = originalStdout;
     }
+  });
+
+  it('does not persist diverted writes unless debug or an explicit logPath is set', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tui-stdio-'));
+    dirs.push(dir);
+    const previousHome = process.env[SUPERLIORA_HOME_ENV];
+    const previousDebug = process.env[SUPERLIORA_DEBUG_ENV];
+    process.env[SUPERLIORA_HOME_ENV] = dir;
+    delete process.env[SUPERLIORA_DEBUG_ENV];
+    try {
+      const guard = installTuiStdioGuard();
+      process.stderr.write('no-persist\n');
+      expect(existsSync(join(dir, 'logs', 'tui-stdio.log'))).toBe(false);
+      expect(guard.captured.stderr).toBeGreaterThan(0);
+      guard.restore();
+    } finally {
+      if (previousHome === undefined) delete process.env[SUPERLIORA_HOME_ENV];
+      else process.env[SUPERLIORA_HOME_ENV] = previousHome;
+      if (previousDebug === undefined) delete process.env[SUPERLIORA_DEBUG_ENV];
+      else process.env[SUPERLIORA_DEBUG_ENV] = previousDebug;
+    }
+  });
+
+  it('leaves renderer frame trace off unless SUPERLIORA_DEBUG is set', () => {
+    const previousDebug = process.env[SUPERLIORA_DEBUG_ENV];
+    delete process.env[SUPERLIORA_DEBUG_ENV];
+    let renderer: ReturnType<typeof createTerminalRenderer> | undefined;
+    try {
+      renderer = createTerminalRenderer();
+      expect(renderer.nativeRuntime.traceSnapshot.enabled).toBe(false);
+    } finally {
+      renderer?.stop();
+      if (previousDebug === undefined) delete process.env[SUPERLIORA_DEBUG_ENV];
+      else process.env[SUPERLIORA_DEBUG_ENV] = previousDebug;
+    }
+  });
+
+  it('resets the persist file once it grows past the cap', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tui-stdio-'));
+    dirs.push(dir);
+    const logPath = join(dir, 'tui-stdio.log');
+    setTuiStdioLogMaxBytesForTest(40);
+    const guard = installTuiStdioGuard({ logPath });
+    process.stderr.write('keep-this-first-line\n');
+    process.stderr.write('reset-after-cap\n');
+    const logged = readFileSync(logPath, 'utf8');
+    expect(logged).not.toContain('keep-this-first-line');
+    expect(logged).toContain('[stderr] reset-after-cap');
+    guard.restore();
   });
 });

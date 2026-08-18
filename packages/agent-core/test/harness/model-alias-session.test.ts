@@ -284,7 +284,9 @@ reason = "no rm"
   });
 
   it('logs app_version when resuming a session', async () => {
-    await getRootLogger().configure(resolveLoggingConfig({ homeDir }));
+    await getRootLogger().configure(
+      resolveLoggingConfig({ homeDir, env: { SUPERLIORA_LOG_LEVEL: 'info' } }),
+    );
     const rpc = await createTestRpc();
     const created = await rpc.createSession({ workDir, model: 'kimi-code/kimi-for-coding' });
     await rpc.closeSession({ sessionId: created.id });

@@ -1,14 +1,34 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { readFile } from 'node:fs/promises';
 import {
   ErrorCodes,
   LioraError,
 } from '@superliora/sdk';
+import { z } from 'zod';
 
-const GOAL_QUEUE_FILE = 'upcoming-goals.json';
+import {
+  GOAL_QUEUE_FILE,
+  LEGACY_GOAL_QUEUE_FILE,
+  sessionUiFilePath,
+} from '#/tui/utils/session/session-ui-paths';
+import { unlinkIfExists, writeJsonFile } from '#/utils/persistence';
+
+export { GOAL_QUEUE_FILE };
+
 const GOAL_QUEUE_VERSION = 1;
 const MAX_GOAL_OBJECTIVE_LENGTH = 4000;
+
+const goalQueueFileSchema = z.object({
+  version: z.literal(GOAL_QUEUE_VERSION),
+  goals: z.array(
+    z.object({
+      id: z.string().min(1),
+      objective: z.string().min(1),
+      createdAt: z.string().min(1),
+      updatedAt: z.string().min(1),
+    }),
+  ),
+});
 
 export interface UpcomingGoal {
   readonly id: string;
@@ -135,18 +155,21 @@ function goalQueuePath(session: GoalQueueSession): string {
   if (sessionDir === undefined || sessionDir.trim().length === 0) {
     throw new Error(`Session ${session.id} does not expose a session directory`);
   }
-  return join(sessionDir, GOAL_QUEUE_FILE);
+  return sessionUiFilePath(sessionDir, GOAL_QUEUE_FILE);
+}
+
+function goalQueueLegacyPath(session: GoalQueueSession): string {
+  const sessionDir = session.summary?.sessionDir;
+  if (sessionDir === undefined || sessionDir.trim().length === 0) {
+    throw new Error(`Session ${session.id} does not expose a session directory`);
+  }
+  return sessionUiFilePath(sessionDir, LEGACY_GOAL_QUEUE_FILE);
 }
 
 async function readQueueFile(session: GoalQueueSession): Promise<GoalQueueFile> {
-  const filePath = goalQueuePath(session);
-  let raw: string;
-  try {
-    raw = await readFile(filePath, 'utf-8');
-  } catch (error) {
-    if (isErrno(error, 'ENOENT')) return emptyQueueFile();
-    throw error;
-  }
+  const loaded = await readQueueRaw(session);
+  if (loaded === undefined) return emptyQueueFile();
+  const raw = loaded.raw;
 
   let parsed: unknown;
   try {
@@ -167,10 +190,26 @@ async function readQueueFile(session: GoalQueueSession): Promise<GoalQueueFile> 
   return parsed;
 }
 
+async function readQueueRaw(
+  session: GoalQueueSession,
+): Promise<{ raw: string } | undefined> {
+  try {
+    return { raw: await readFile(goalQueuePath(session), 'utf-8') };
+  } catch (error) {
+    if (!isErrno(error, 'ENOENT')) throw error;
+  }
+  try {
+    return { raw: await readFile(goalQueueLegacyPath(session), 'utf-8') };
+  } catch (error) {
+    if (isErrno(error, 'ENOENT')) return undefined;
+    throw error;
+  }
+}
+
 async function writeQueueFile(session: GoalQueueSession, file: GoalQueueFile): Promise<void> {
   const filePath = goalQueuePath(session);
-  await mkdir(dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(file, null, 2)}\n`, 'utf-8');
+  await writeJsonFile(filePath, goalQueueFileSchema, file);
+  await unlinkIfExists(goalQueueLegacyPath(session));
 }
 
 async function withQueueMutationLock<T>(

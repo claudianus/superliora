@@ -129,6 +129,7 @@ export function createProgram(
         'Main agent tool profile (core, agent, superliora-full; default: core)',
       ),
     )
+    .option('--debug', t('cli.option.debug'), false)
     .option('--resume-goal', t('cli.option.resumeGoal'), false)
     .option('--autonomous-gate <command>', t('cli.option.autonomousGate'))
     .addOption(
@@ -205,6 +206,7 @@ export function createProgram(
       autonomousGate: raw['autonomousGate'] as string | undefined,
       worktree: raw['worktree'] as boolean | string | undefined,
       profile: raw['profile'] as string | undefined,
+      debug: raw['debug'] === true,
     };
 
     onMain(opts);

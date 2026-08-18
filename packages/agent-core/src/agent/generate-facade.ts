@@ -151,7 +151,7 @@ export function generateWithSharedFailover(agent: Agent, params: {
 
 /**
  * One generate call with lifecycle logs:
- * `llm request` → `llm open` → `llm first_token` → (`llm response` elsewhere) / `llm request failed`.
+ * `llm request` → `llm first_token` → (`llm response` elsewhere) / `llm request failed`.
  */
 async function runLoggedGenerate(
   agent: Agent,
@@ -198,7 +198,6 @@ async function runLoggedGenerate(
     },
     onRequestSent: () => {
       opened = true;
-      agent.llmRequestLogger.logOpen(requestId, fields);
       prevSent?.();
     },
     onStreamEnd: (stats) => {
