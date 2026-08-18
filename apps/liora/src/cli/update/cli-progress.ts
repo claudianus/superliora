@@ -42,7 +42,7 @@ function spinnerGlyph(nowMs: number): string {
 }
 
 function gradientText(text: string, from: string, to: string): string {
-  const chars = [...text];
+  const chars = Array.from(text);
   const denominator = Math.max(1, chars.length - 1);
   return chars
     .map((char, index) =>
@@ -175,7 +175,9 @@ export class CliUpgradeProgressWriter {
 
   private ensureTicker(): void {
     if (this.ticker !== undefined) return;
-    this.ticker = setInterval(() => this.paint(), TICK_INTERVAL_MS);
+    this.ticker = setInterval(() => {
+      this.paint();
+    }, TICK_INTERVAL_MS);
     if (typeof this.ticker.unref === 'function') this.ticker.unref();
   }
 

@@ -54,7 +54,7 @@ const SOURCE_PIPELINE = [
   'done',
 ];
 
-const ESC = '\u001b';
+const ESC = '\u001B';
 const CSI = `${ESC}[`;
 const HIDE_CURSOR = `${CSI}?25l`;
 const SHOW_CURSOR = `${CSI}?25h`;
@@ -115,7 +115,7 @@ function ansiSequenceEnd(text, start) {
   if (next === '[') {
     let i = start + 2;
     while (i < text.length) {
-      const code = text.charCodeAt(i);
+      const code = text.codePointAt(i) ?? 0;
       if (code >= 0x40 && code <= 0x7e) return i + 1;
       i += 1;
     }
@@ -267,7 +267,9 @@ export function createTheatre(options = {}) {
 
   function startPulse() {
     if (!useColor() || interval) return;
-    interval = setInterval(() => paint(), 120);
+    interval = setInterval(() => {
+      paint();
+    }, 120);
     if (typeof interval.unref === 'function') interval.unref();
   }
 
