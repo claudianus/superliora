@@ -7,8 +7,10 @@
  * rejection silently destroyed whatever the operator typed while the session
  * loading overlay was mounting. The rejection path is gone: while loading,
  * submitted text is handed back to the editor (draft persist picks it up),
- * and Enter re-submits once loading finishes. Pure replay viewing keeps the
- * busy error — there is no live session to submit to.
+ * and Enter re-submits once loading finishes. Pure replay viewing still
+ * shows the busy error — there is no live session to submit to — but the
+ * draft is restored the same way. Empty-model and media-block rejects
+ * also give the text back.
  *
  * V3-2 — queueing path characterization. Pins the current enqueue / drain /
  * steer behavior as a safety net before any queueing rework: busy prompts
@@ -86,7 +88,19 @@ describe('V3-3 — submitted input survives the session loading overlay', () => 
 
     expect(host.showError).toHaveBeenCalledWith(ttui('tui.sessionLoading.busy'));
     expect(host.dispatchSlashInput).not.toHaveBeenCalled();
-    expect(host.editorText()).toBe('');
+    expect(host.editorText()).toBe('should not land');
+  });
+
+  it('restores the draft when send is rejected because no model is set', () => {
+    const host = fakeDispatchHost({ model: '' });
+    const dispatch = controllerFor(host);
+
+    dispatch.sendNormalUserInput('ship the release notes');
+
+    expect(host.session.prompt).not.toHaveBeenCalled();
+    expect(host.editorText()).toBe('ship the release notes');
+    expect(host.updateEditorBorderHighlight).toHaveBeenCalledWith('ship the release notes');
+    expect(host.showError).toHaveBeenCalledTimes(1);
   });
 
   it('does not hold blank submissions', () => {

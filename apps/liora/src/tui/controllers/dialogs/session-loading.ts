@@ -21,7 +21,8 @@ export function beginSessionLoading(
   sessionId?: string,
   title?: string,
 ): void {
-  host.setAppState({ isReplaying: true });
+  // Busy overlays (file scan, search, create) must not borrow `isReplaying`.
+  // History replay is owned by SessionReplayRenderer so the footer stays honest.
   if (host.sessionLoadingOverlay !== undefined) {
     reportSessionLoading(host, {
       phase: 'opening',
@@ -77,7 +78,6 @@ export function reportSessionLoading(
 export function endSessionLoading(host: DialogsHost, shell: SessionLoadingShell): void {
   stopSessionLoadingPulse(host);
   host.sessionLoadingOverlay = undefined;
-  host.setAppState({ isReplaying: false });
   if (host.state.activeDialog === 'session-loading') {
     host.state.activeDialog = null;
     shell.restoreEditor();

@@ -74,6 +74,7 @@ export function showCommandHub(
     host.state.activeDialog !== 'center-modal' &&
     host.state.activeDialog !== 'help'
   ) {
+    host.showStatus(ttui('tui.hub.dialogOpen'), 'info');
     return;
   }
   closeAllCenterModals(host);

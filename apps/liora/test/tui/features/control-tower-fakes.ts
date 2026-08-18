@@ -25,6 +25,7 @@ export interface FakeDispatchOptions {
   readonly inputMode?: 'prompt' | 'bash';
   readonly streamingPhase?: FakeStreamingPhase;
   readonly deferUserMessages?: boolean;
+  readonly model?: string;
 }
 
 export function fakeDispatchHost(options: FakeDispatchOptions = {}) {
@@ -41,7 +42,7 @@ export function fakeDispatchHost(options: FakeDispatchOptions = {}) {
     isReplaying: options.replaying ?? false,
     streamingPhase: options.streamingPhase ?? 'idle',
     isCompacting: false,
-    model: 'test-model',
+    model: options.model ?? 'test-model',
   };
   const state = {
     queuedMessages: [] as QueuedMessage[],

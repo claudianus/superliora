@@ -28,10 +28,10 @@ export class SessionReplayRenderer {
   async hydrateFromReplay(session: Session): Promise<boolean> {
     // Host may already own the loading modal (resume RPC). If not, open one here.
     const ownsLoading = !this.host.isSessionLoadingOverlayActive();
+    this.host.setAppState({ isReplaying: true });
     if (ownsLoading) {
       this.host.beginSessionLoading(session.id);
     } else {
-      this.host.setAppState({ isReplaying: true });
       this.host.reportSessionLoading({
         phase: 'building',
         sessionId: session.id,
@@ -85,6 +85,7 @@ export class SessionReplayRenderer {
       this.host.state.transcriptContainer.endBatchMount();
       // One layout pass after the batch (mid-hydrate frames were suppressed).
       flushSuppressedTUIFrame(this.host.state, 'layout');
+      this.host.setAppState({ isReplaying: false });
       if (ownsLoading) {
         this.host.endSessionLoading();
       }

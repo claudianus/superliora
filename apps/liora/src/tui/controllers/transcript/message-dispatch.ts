@@ -57,6 +57,7 @@ export interface MessageDispatchHost extends PromptInputRuntimeHost {
   failSessionRequest(message: string): void;
   appendTranscriptEntry(entry: TranscriptEntry): void;
   track(event: string, properties?: Parameters<LioraHarness['track']>[1]): void;
+  updateEditorBorderHighlight?(text?: string): void;
   /** V3-1 latency window start; the job desk closes it on the first job event. */
   readonly controlTowerDesk: { markInputSubmitted(): void };
 }
@@ -93,6 +94,11 @@ export class MessageDispatchController {
 
   setLastTurnFailed(failed: boolean): void {
     this.lastTurnFailed = failed;
+  }
+
+  private restoreRejectedDraft(text: string): void {
+    this.host.state.editor.setText(text);
+    this.host.updateEditorBorderHighlight?.(text);
   }
 
   async retryLastTurn(): Promise<void> {
@@ -133,7 +139,9 @@ export class MessageDispatchController {
       return;
     }
     if (host.state.appState.isReplaying) {
-      // Replay viewing has no live session to submit to.
+      // Replay viewing has no live session to submit to. Keep the busy error,
+      // but hand the draft back — the editor already cleared on submit.
+      this.restoreRejectedDraft(text);
       host.showError(ttui('tui.sessionLoading.busy'));
       return;
     }
@@ -161,13 +169,18 @@ export class MessageDispatchController {
     const { host } = this;
     if (host.btwPanelController.sendUserInput(text)) return;
     if (host.state.appState.model.trim().length === 0) {
+      this.restoreRejectedDraft(text);
       host.showError(LLM_NOT_SET_MESSAGE());
       return;
     }
     const extraction = extractMediaAttachments(text, host.imageStore);
-    if (!this.validateMediaCapabilities(extraction)) return;
+    if (!this.validateMediaCapabilities(extraction)) {
+      this.restoreRejectedDraft(text);
+      return;
+    }
     const session = host.session;
     if (session === undefined) {
+      this.restoreRejectedDraft(text);
       host.showError(LLM_NOT_SET_MESSAGE());
       return;
     }
