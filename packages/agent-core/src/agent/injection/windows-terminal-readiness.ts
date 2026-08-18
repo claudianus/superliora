@@ -28,7 +28,7 @@ export function windowsTerminalReadinessFromEnv(
       inWindowsTerminal: false,
     };
   }
-  const inWindowsTerminal = Boolean((env.WT_SESSION ?? '').trim());
+  const inWindowsTerminal = Boolean((env['WT_SESSION'] ?? '').trim());
   return {
     applicable: true,
     host: inWindowsTerminal ? 'windowsterminal' : 'conhost',
