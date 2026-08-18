@@ -160,6 +160,9 @@ describe('install stage markers', () => {
 });
 
 describe('install theatre', () => {
+  const stripAnsi = (text: string): string =>
+    text.replaceAll(/\u001B(?:\[[0-9;]*[A-Za-z]|\][^\u0007\u001B]*(?:\u0007|\u001B\\))/g, '');
+
   it('renders checklist lines without throwing', () => {
     const lines = renderLines({
       title: 'Installing SuperLiora',
@@ -175,8 +178,9 @@ describe('install theatre', () => {
         'sidecars',
         'done',
       ],
-    });
+    }).map(stripAnsi);
     expect(lines.some((l) => l.includes('Installing SuperLiora'))).toBe(true);
     expect(lines.some((l) => l.includes('Downloading') || l.includes('downloading'))).toBe(true);
+    expect(lines.some((l) => l.includes('[') && /[█░]/.test(l))).toBe(true);
   });
 });

@@ -35,6 +35,27 @@ VERSION="${SUPERLIORA_VERSION:-}"
 
 STAGE_MARKER_PREFIX='__LIORA_UPGRADE_STAGE__='
 
+# Raw stage markers feed piped observers (Upgrade Studio, CI logs); on an
+# interactive terminal they are noise, so route them through emit_stage.
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+  FANCY_OUTPUT=1
+else
+  FANCY_OUTPUT=0
+fi
+
+emit_stage() {
+  if [ "$FANCY_OUTPUT" = "1" ]; then return 0; fi
+  printf '%s%s\n' "$STAGE_MARKER_PREFIX" "$1"
+}
+
+say_info() {
+  if [ "$FANCY_OUTPUT" = "1" ]; then
+    printf '  \033[36m*\033[0m %s\n' "$1"
+  else
+    printf '%s\n' "$1"
+  fi
+}
+
 usage() {
   cat <<EOF
 Usage: install.sh [options]
@@ -77,8 +98,12 @@ EOF
 }
 
 die() {
-  printf '%sfailed\n' "$STAGE_MARKER_PREFIX" >&2
-  printf 'error: %s\n' "$*" >&2
+  if [ "$FANCY_OUTPUT" = "1" ]; then
+    printf '  \033[31mx error:\033[0m %s\n' "$*" >&2
+  else
+    printf '%sfailed\n' "$STAGE_MARKER_PREFIX" >&2
+    printf 'error: %s\n' "$*" >&2
+  fi
   exit 1
 }
 
@@ -152,7 +177,11 @@ case "$COMMAND_NAME" in
   *[!A-Za-z0-9._-]*|'') die "--command must be a simple command name" ;;
 esac
 
-printf '%sbootstrapping\n' "$STAGE_MARKER_PREFIX"
+emit_stage bootstrapping
+if [ "$FANCY_OUTPUT" = "1" ]; then
+  printf '\n  \033[36m*\033[0m \033[1mSuperLiora installer\033[0m\n'
+  printf '    \033[2mPreparing Node.js runtime ...\033[0m\n'
+fi
 
 version_gte() {
   # $1 actual, $2 required
@@ -198,7 +227,7 @@ bootstrap_node() {
   archive="${runtime}/${slug}.tar.gz"
   mkdir -p "$runtime"
   if [ ! -x "${runtime}/${slug}/bin/node" ]; then
-    printf 'Downloading Node.js %s …\n' "$NODE_MIN"
+    say_info "Downloading Node.js ${NODE_MIN} ..."
     curl -fsSL "$url" -o "$archive" || die "failed to download Node from $url"
     tar -xzf "$archive" -C "$runtime"
     rm -f "$archive"

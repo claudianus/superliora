@@ -34,6 +34,33 @@ $DefaultNodeMin = '24.15.0'
 $DefaultManifestUrl = 'https://github.com/claudianus/superliora/releases/latest/download/manifest.json'
 $DefaultRawBase = 'https://raw.githubusercontent.com/claudianus/superliora/main'
 $StagePrefix = '__LIORA_UPGRADE_STAGE__='
+
+# Raw stage markers are for piped observers (Upgrade Studio, CI logs). On an
+# interactive console they are visual noise, so gate them on redirection.
+$FancyOutput = $false
+try {
+  if (-not [Console]::IsOutputRedirected) {
+    $noColorEnv = [Environment]::GetEnvironmentVariable('NO_COLOR', 'Process')
+    if ([string]::IsNullOrWhiteSpace($noColorEnv) -or $noColorEnv -eq '0') { $FancyOutput = $true }
+  }
+} catch {
+}
+
+function Write-StageMarker {
+  param([string]$Stage)
+  if (-not $FancyOutput) { Write-Host ($StagePrefix + $Stage) }
+}
+
+function Write-FancyInfo {
+  param([string]$Message)
+  if ($FancyOutput) {
+    Write-Host '  * ' -ForegroundColor Cyan -NoNewline
+    Write-Host $Message
+  } else {
+    Write-Host $Message
+  }
+}
+
 $InstallModules = @(
   'platform.mjs',
   'ensure-node.mjs',
@@ -93,7 +120,7 @@ function Get-ValueOrDefault {
 function Fail {
   param([string]$Message)
   $installState.Failed = $true
-  Write-Host ($StagePrefix + 'failed')
+  Write-StageMarker 'failed'
   throw $Message
 }
 
@@ -319,7 +346,7 @@ function Install-LocalNode {
   New-Item -ItemType Directory -Force -Path $runtime | Out-Null
   $nodeExe = Join-Path $dest 'node.exe'
   if (-not (Test-Path -LiteralPath $nodeExe)) {
-    Write-Host ('Downloading Node.js ' + $Version + ' ...')
+    Write-FancyInfo ('Downloading Node.js ' + $Version + ' ...')
     Get-RemoteFile -Uri $url -OutFile $archive
     if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Recurse -Force }
     Expand-Archive -LiteralPath $archive -DestinationPath $runtime -Force
@@ -421,7 +448,13 @@ if ($dumpEnv -eq '1') {
   return
 }
 
-Write-Host ($StagePrefix + 'bootstrapping')
+Write-StageMarker 'bootstrapping'
+if ($FancyOutput) {
+  Write-Host ''
+  Write-Host '  * ' -ForegroundColor Cyan -NoNewline
+  Write-Host 'SuperLiora installer' -ForegroundColor White
+  Write-Host '    Preparing Node.js runtime ...' -ForegroundColor DarkGray
+}
 
 $nodeBin = Find-Node $opt.NodeMin $homeDir
 if (-not $nodeBin) {
@@ -500,7 +533,11 @@ try {
   Add-SessionPath $opt.BinDir
   Add-SessionGitRuntime $homeDir
   Add-SessionPnpmRuntime $homeDir
-  Write-Host ('This session: ' + $opt.CommandName + ' --version')
+  if ($FancyOutput) {
+    Write-Host ('  Try it now: ' + $opt.CommandName + ' --version') -ForegroundColor DarkGray
+  } else {
+    Write-Host ('This session: ' + $opt.CommandName + ' --version')
+  }
 } finally {
   if ($bundleDir -and (Test-Path -LiteralPath $bundleDir)) {
     Remove-Item -LiteralPath $bundleDir -Recurse -Force -ErrorAction SilentlyContinue
@@ -509,11 +546,15 @@ try {
 
 } catch {
   if (-not $installState.Failed) {
-    Write-Host ($StagePrefix + 'failed')
+    Write-StageMarker 'failed'
   }
   $errMsg = $_.Exception.Message
   if ([string]::IsNullOrWhiteSpace($errMsg)) { $errMsg = [string]$_ }
-  Write-Host ('error: ' + $errMsg)
+  if ($FancyOutput) {
+    Write-Host ('  x error: ' + $errMsg) -ForegroundColor Red
+  } else {
+    Write-Host ('error: ' + $errMsg)
+  }
   throw
 }
 } @args

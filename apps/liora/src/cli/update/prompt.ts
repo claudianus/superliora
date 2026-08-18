@@ -1,4 +1,4 @@
-import { clearLine, cursorTo, emitKeypressEvents, moveCursor } from 'node:readline';
+import { emitKeypressEvents } from 'node:readline';
 
 import chalk from 'chalk';
 
@@ -7,9 +7,11 @@ import { t } from '#/cli/i18n';
 import { HIDE_CURSOR, SHOW_CURSOR } from '#/constant/terminal';
 import { SELECT_POINTER } from '#/tui/constant/symbols';
 import { darkColors } from '#/tui/theme/colors';
+import { truncateToWidth, visibleWidth } from '#/tui/renderer';
 
 import { SUPERLIORA_CHANGELOG_URL } from './changelog';
 import { type InstallSource, type UpdateTarget } from './types';
+import { TtyFramePainter, frameColumns, type TtyFrameOutput } from './tty-frame';
 
 export const CHANGELOG_URL = SUPERLIORA_CHANGELOG_URL;
 
@@ -34,6 +36,9 @@ export interface InstallPromptOptions {
 const INSTALL_HINT = () => t('cli.runtime.update.prompt.installHint');
 const SKIP_HINT = () => t('cli.runtime.update.prompt.skipHint');
 
+const MAX_CARD_WIDTH = 78;
+const COMPACT_COLUMNS = 48;
+
 export function createInstallPromptChoices(target: UpdateTarget): readonly InstallPromptChoice[] {
   return [
     { value: 'install', label: `${INSTALL_HINT()} (${target.version})` },
@@ -57,79 +62,136 @@ export function moveInstallPromptSelection(
   return Math.min(choiceCount - 1, currentIndex + 1);
 }
 
+function hyperlink(url: string, label: string): string {
+  return `\u001B]8;;${url}\u001B\\${label}\u001B]8;;\u001B\\`;
+}
+
+interface PromptRows {
+  readonly title: string;
+  readonly hints: string;
+  readonly body: readonly string[];
+}
+
+function buildPromptRows(
+  options: InstallPromptOptions,
+  choices: readonly InstallPromptChoice[],
+  selectedIndex: number,
+  contentWidth: number,
+): PromptRows {
+  const label = chalk.hex(darkColors.textDim);
+  const currentVersion = chalk.hex(darkColors.warning).bold(options.currentVersion);
+  const targetVersion = chalk.hex(darkColors.success).bold(options.target.version);
+  const arrow = chalk.hex(darkColors.textMuted)('→');
+
+  const changelogPlain = truncateToWidth(
+    t('cli.runtime.update.prompt.changelog', { url: CHANGELOG_URL }),
+    contentWidth,
+    '…',
+  );
+  const changelog = hyperlink(
+    CHANGELOG_URL,
+    chalk.hex(darkColors.primary).underline(changelogPlain),
+  );
+
+  const sourceLabel = t('cli.runtime.update.prompt.labelSource').trim();
+  const commandLabel = t('cli.runtime.update.prompt.labelCommand').trim();
+  const labelWidth = Math.max(visibleWidth(sourceLabel), visibleWidth(commandLabel));
+  const padLabel = (text: string): string =>
+    label(text + ' '.repeat(Math.max(0, labelWidth - visibleWidth(text))));
+
+  const body: string[] = [
+    chalk.hex(darkColors.textMuted)(
+      t('cli.runtime.update.prompt.subtitle', { product: PRODUCT_NAME }),
+    ),
+    changelog,
+    '',
+    `${currentVersion}  ${arrow}  ${targetVersion}`,
+    `${padLabel(sourceLabel)}  ${chalk.hex(darkColors.primary).bold(options.installSource)}`,
+    `${padLabel(commandLabel)}  ${chalk.hex(darkColors.textDim)(options.installCommand)}`,
+    '',
+  ];
+  if (options.dirty === true) {
+    body.push(
+      chalk.hex(darkColors.warning)(`⚠ ${t('cli.runtime.update.prompt.dirtyWarning')}`),
+      '',
+    );
+  }
+
+  const pointerPad = ' '.repeat(visibleWidth(SELECT_POINTER));
+  for (let i = 0; i < choices.length; i++) {
+    const choice = choices[i];
+    if (choice === undefined) continue;
+    if (i === selectedIndex) {
+      body.push(chalk.hex(darkColors.primary).bold(`${SELECT_POINTER} ${choice.label}`));
+      continue;
+    }
+    body.push(chalk.hex(darkColors.textDim)(`${pointerPad} ${choice.label}`));
+  }
+
+  return {
+    title: t('cli.runtime.update.prompt.title', { product: PRODUCT_NAME }),
+    hints: t('cli.runtime.update.prompt.hints'),
+    body,
+  };
+}
+
+function buildBorderRow(
+  corner: [string, string],
+  embedded: string | undefined,
+  width: number,
+  border: (text: string) => string,
+): string {
+  const innerWidth = width - 2;
+  if (embedded === undefined || visibleWidth(embedded) + 4 > innerWidth) {
+    return border(`${corner[0]}${'─'.repeat(Math.max(0, innerWidth))}${corner[1]}`);
+  }
+  const fill = Math.max(0, innerWidth - visibleWidth(embedded) - 3);
+  return `${border(`${corner[0]}─`)} ${embedded} ${border('─'.repeat(fill) + corner[1])}`;
+}
+
 function renderInstallPrompt(
   options: InstallPromptOptions,
   choices: readonly InstallPromptChoice[],
   selectedIndex: number,
+  columns: number,
 ): readonly string[] {
-  const label = chalk.hex(darkColors.textDim).bold;
-  const currentVersion = chalk.hex(darkColors.warning).bold(options.currentVersion);
-  const targetVersion = chalk.hex(darkColors.success).bold(options.target.version);
-  const sourceLabel = chalk.hex(darkColors.primary).bold(options.installSource);
-  const command = chalk.hex(darkColors.primary)(options.installCommand);
-  const changelogText = chalk.hex(darkColors.primary).underline(
-    t('cli.runtime.update.prompt.changelog', { url: CHANGELOG_URL }),
-  );
-  const lines = [
-    chalk.hex(darkColors.primary).bold(
-      t('cli.runtime.update.prompt.title', { product: PRODUCT_NAME }),
-    ),
-    chalk.hex(darkColors.textMuted)(
-      t('cli.runtime.update.prompt.subtitle', { product: PRODUCT_NAME }),
-    ),
-    `]8;;${CHANGELOG_URL}\\${changelogText}]8;;\\`,
-    '',
-    `${label(t('cli.runtime.update.prompt.labelCurrent'))}  ${currentVersion}`,
-    `${label(t('cli.runtime.update.prompt.labelTarget'))}  ${targetVersion}`,
-    `${label(t('cli.runtime.update.prompt.labelSource'))}  ${sourceLabel}`,
-    `${label(t('cli.runtime.update.prompt.labelCommand'))}  ${command}`,
-    '',
-  ];
-  if (options.dirty === true) {
-    lines.push(
-      chalk.hex(darkColors.warning)(t('cli.runtime.update.prompt.dirtyWarning')),
-      '',
-    );
-  }
-  lines.push(
-    chalk.hex(darkColors.textMuted)(t('cli.runtime.update.prompt.hints')),
-    '',
-  );
+  const compact = columns < COMPACT_COLUMNS;
+  const cardWidth = Math.min(Math.max(columns - 2, 24), MAX_CARD_WIDTH);
+  const contentWidth = compact ? Math.max(20, columns - 1) : cardWidth - 4;
+  const rows = buildPromptRows(options, choices, selectedIndex, contentWidth);
 
-  const pointerPad = ' '.repeat(SELECT_POINTER.length);
-  for (let i = 0; i < choices.length; i++) {
-    const choice = choices[i];
-    if (choice === undefined) continue;
-    const isSelected = i === selectedIndex;
-    if (isSelected) {
-      lines.push(chalk.hex(darkColors.primary).bold(` ${SELECT_POINTER} ${choice.label}`));
+  if (compact) {
+    return [
+      chalk.hex(darkColors.primary).bold(rows.title),
+      ...rows.body,
+      '',
+      chalk.hex(darkColors.textMuted)(rows.hints),
+    ];
+  }
+
+  const border = chalk.hex(darkColors.border);
+  const emptyRow = border(`│${' '.repeat(cardWidth - 2)}│`);
+  const lines: string[] = [
+    buildBorderRow(
+      ['╭', '╮'],
+      `${chalk.hex(darkColors.accent)('◆')} ${chalk.hex(darkColors.primary).bold(rows.title)}`,
+      cardWidth,
+      border,
+    ),
+    emptyRow,
+  ];
+  for (const row of rows.body) {
+    if (row === '') {
+      lines.push(emptyRow);
       continue;
     }
-    lines.push(chalk.hex(darkColors.textDim)(` ${pointerPad} ${choice.label}`));
+    lines.push(`${border('│')} ${truncateToWidth(row, contentWidth, '…', true)} ${border('│')}`);
   }
-
+  lines.push(emptyRow);
+  lines.push(
+    buildBorderRow(['╰', '╯'], chalk.hex(darkColors.textMuted)(rows.hints), cardWidth, border),
+  );
   return lines;
-}
-
-function writePromptFrame(
-  output: NodeJS.WriteStream,
-  lines: readonly string[],
-  previousLineCount: number,
-): number {
-  if (previousLineCount > 0) {
-    moveCursor(output, 0, -(previousLineCount - 1));
-  }
-
-  for (let i = 0; i < lines.length; i++) {
-    clearLine(output, 0);
-    cursorTo(output, 0);
-    output.write(lines[i] ?? '');
-    if (i < lines.length - 1) {
-      output.write('\n');
-    }
-  }
-
-  return lines.length;
 }
 
 export async function promptForInstallChoice(
@@ -141,30 +203,32 @@ export async function promptForInstallChoice(
   let selectedIndex = getDefaultInstallPromptSelection(choices);
 
   return new Promise<InstallPromptChoiceValue>((resolve) => {
-    let lineCount = 0;
+    const painter = new TtyFramePainter(output as TtyFrameOutput);
     const hadRawMode = 'isRaw' in input ? input.isRaw : false;
     const canSetRawMode = typeof input.setRawMode === 'function';
+    const canObserveResize =
+      typeof (output as Partial<NodeJS.WriteStream>).on === 'function' &&
+      typeof (output as Partial<NodeJS.WriteStream>).off === 'function';
+
+    const render = (): void => {
+      painter.paint(
+        renderInstallPrompt(options, choices, selectedIndex, frameColumns(output)),
+      );
+    };
 
     const cleanup = (): void => {
       input.off('keypress', onKeypress);
+      if (canObserveResize) output.off('resize', render);
       if (canSetRawMode) {
         input.setRawMode(hadRawMode);
       }
+      painter.finish();
       output.write(SHOW_CURSOR);
-      output.write('\n');
     };
 
     const finish = (choice: InstallPromptChoiceValue): void => {
       cleanup();
       resolve(choice);
-    };
-
-    const render = (): void => {
-      lineCount = writePromptFrame(
-        output,
-        renderInstallPrompt(options, choices, selectedIndex),
-        lineCount,
-      );
     };
 
     const onKeypress = (_input: string, key: { name?: string; ctrl?: boolean }): void => {
@@ -194,6 +258,7 @@ export async function promptForInstallChoice(
     }
     input.resume();
     input.on('keypress', onKeypress);
+    if (canObserveResize) output.on('resize', render);
     output.write(HIDE_CURSOR);
     render();
   });
